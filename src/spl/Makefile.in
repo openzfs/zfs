@@ -1,0 +1,50 @@
+# Makefile.in for spl kernel module
+
+MODULES := spl
+
+DISTFILES = Makefile.in \
+            linux-kmem.c linux-rwlock.c linux-taskq.c linux-thread.c
+
+# Removed '-std=gnu99' does to compile issues with i386 SPIN_LOCK_UNLOCKED
+# EXTRA_CFLAGS += -I$(src)
+# EXTRA_CFLAGS += -Wall -Wno-unknown-pragmas -Wno-missing-braces \
+#         -Wno-sign-compare -Wno-parentheses -Wno-uninitialized \
+#         -Wno-implicit-function-declaration -Wno-unused -Wno-trigraphs \
+#         -Wno-char-subscripts -Wno-switch
+
+# Solaris porting layer module
+obj-m := spl.o
+
+spl-objs += linux-kmem.o
+spl-objs += linux-thread.o
+spl-objs += linux-taskq.o
+spl-objs += linux-rwlock.o
+
+splmodule := spl.ko
+splmoduledir := @kmoduledir@/kernel/lib/
+
+all: all-spec
+
+install: all
+	mkdir -p $(DESTDIR)$(splmoduledir)
+	$(INSTALL) -m 644 $(splmodule) $(DESTDIR)$(splmoduledir)/$(splmodule)
+	-/sbin/depmod -a
+
+uninstall:
+	rm -f $(DESTDIR)$(splmoduledir)/$(splmodule)
+	-/sbin/depmod -a
+
+clean:
+	-rm -f $(splmodule) *.o .*.cmd *.mod.c *.ko *.s */*.o
+
+distclean: clean
+	rm -f Makefile
+	rm -rf .tmp_versions
+
+maintainer-clean: distclean
+
+distdir: $(DISTFILES)
+	cp -p $(DISTFILES) $(distdir)
+
+all-spec:
+	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules

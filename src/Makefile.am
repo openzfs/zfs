@@ -1,0 +1,1 @@
+SUBDIRS = cmd spl splat

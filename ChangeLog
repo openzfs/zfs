@@ -1,0 +1,5 @@
+2008-02-26 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	: Initial commit of the solaris porting layer (spl).  Included
+	in addition to the source is an initial autoconf / configure
+	style build system.

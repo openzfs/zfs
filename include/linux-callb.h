@@ -1,0 +1,45 @@
+#ifndef _SYS_LINUX_CALLB_H
+#define _SYS_LINUX_CALLB_H
+
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
+#include <sys/linux-mutex.h>
+
+#define DEBUG_CALLB
+
+#ifndef DEBUG_CALLB
+#define CALLB_CPR_ASSERT(cp)		BUG_ON(!(MUTEX_HELD((cp)->cc_lockp)));
+#else
+#define CALLB_CPR_ASSERT(cp)
+#endif
+
+
+typedef struct callb_cpr {
+        kmutex_t        *cc_lockp;
+} callb_cpr_t;
+
+#define CALLB_CPR_INIT(cp, lockp, func, name)   {               \
+        (cp)->cc_lockp = lockp;                                 \
+}
+
+#define CALLB_CPR_SAFE_BEGIN(cp) {                              \
+	CALLB_CPR_ASSERT(cp);					\
+}
+
+#define CALLB_CPR_SAFE_END(cp, lockp) {                         \
+	CALLB_CPR_ASSERT(cp);					\
+}
+
+#define CALLB_CPR_EXIT(cp) {                                    \
+        ASSERT(MUTEX_HELD((cp)->cc_lockp));                     \
+        mutex_exit((cp)->cc_lockp);                             \
+}
+
+#ifdef  __cplusplus
+}
+#endif
+
+#endif  /* _SYS_LINUX_CALLB_H */
+
