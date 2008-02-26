@@ -1,7 +1,8 @@
-#ifndef _KZT_H
-#define _KZT_H
+#ifndef _SPLAT_H
+#define _SPLAT_H
 
-#include <sys/splat-ctl.h>
+#include "list.h"
+#include "splat-ctl.h"
 
 #define DEV_NAME			"/dev/kztctl"
 #define COLOR_BLACK			"\033[0;30m"
@@ -23,13 +24,11 @@
 #define COLOR_RESET			"\033[0m"
 
 typedef struct subsystem {
-	uu_list_node_t sub_node;	/* Linkage for global subsystem list */
 	kzt_user_t sub_desc;		/* Subsystem description */
-	uu_list_t *sub_tests;		/* Assocated subsystem tests list */
+	List sub_tests;			/* Assocated subsystem tests list */
 } subsystem_t;
 
 typedef struct test {
-	uu_list_node_t test_node;	/* Linkage for globals test list */
 	kzt_user_t test_desc;		/* Test description */
 	subsystem_t *test_sub;		/* Parent subsystem */
 } test_t;
@@ -40,8 +39,8 @@ typedef struct cmd_args {
 	int args_do_all;		/* Run all tests flag */
 	int args_do_color;		/* Colorize output */
 	int args_exit_on_error;		/* Exit on first error flag */
-	uu_list_t *args_tests;		/* Requested subsystems/tests */
+	List args_tests;		/* Requested subsystems/tests */
 } cmd_args_t;
 
-#endif /* _KZT_H */
+#endif /* _SPLAT_H */
 

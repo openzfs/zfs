@@ -1,1 +1,1 @@
-SUBDIRS = cmd spl splat
+SUBDIRS = lib cmd spl splat

@@ -1,4 +1,4 @@
-/* Kernel ZFS Test (KZT) user space command interface */
+/* Solaris Porting Layer Aggressive Test (SPLAT) userspace interface */
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -8,7 +8,6 @@
 #include <getopt.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <libuutil.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -29,17 +28,17 @@ static const struct option longOpts[] = {
 	{ 0,                 0,                 0, 0   }
 };
 
-static uu_list_t *subsystems;			/* Subsystem/tests */
-static uu_list_pool_t *subsystem_pool;		/* Subsystem pool */
-static uu_list_pool_t *test_pool;		/* Test pool */
+static List subsystems;				/* Subsystem/tests */
 static int kztctl_fd;				/* Control file descriptor */
 static char kzt_version[KZT_VERSION_SIZE];	/* Kernel version string */
 static char *kzt_buffer = NULL;			/* Scratch space area */
 static int kzt_buffer_size = 0;			/* Scratch space size */
 
 
-static void test_list(uu_list_t *, int);
+static void test_list(List, int);
 static int dev_clear(void);
+static void subsystem_fini(subsystem_t *);
+static void test_fini(test_t *);
 
 
 static int usage(void) {
@@ -69,9 +68,8 @@ static subsystem_t *subsystem_init(kzt_user_t *desc)
 		return NULL;
 
 	memcpy(&sub->sub_desc, desc, sizeof(*desc));
-	uu_list_node_init(sub, &sub->sub_node, subsystem_pool);
 
-	sub->sub_tests = uu_list_create(test_pool, NULL, 0);
+	sub->sub_tests = list_create((ListDelF)test_fini);
 	if (sub->sub_tests == NULL) {
 		free(sub);
 		return NULL;
@@ -83,8 +81,6 @@ static subsystem_t *subsystem_init(kzt_user_t *desc)
 static void subsystem_fini(subsystem_t *sub)
 {
 	assert(sub != NULL);
-
-	uu_list_node_fini(sub, &sub->sub_node, subsystem_pool);
 	free(sub);
 }
 
@@ -149,13 +145,15 @@ static int subsystem_setup(void)
 			return -ENOMEM;
 		}
 
-		uu_list_insert(subsystems, sub, 0);
+		list_append(subsystems, sub);
 	}
 
 	free(cfg);
 	return 0;
 }
 
+/* XXX - Commented out until we sort the lists */
+#if 0
 static int subsystem_compare(const void *l_arg, const void *r_arg, void *private)
 {
 	const subsystem_t *l = l_arg;
@@ -169,9 +167,11 @@ static int subsystem_compare(const void *l_arg, const void *r_arg, void *private
 
 	return 0;
 }
+#endif
 
-static void subsystem_list(uu_list_t *list, int indent)
+static void subsystem_list(List l, int indent)
 {
+	ListIterator i;
 	subsystem_t *sub;
 
 	fprintf(stdout,
@@ -179,8 +179,9 @@ static void subsystem_list(uu_list_t *list, int indent)
 	        "Available KZT Tests "
 	        "-------------------------------\n");
 
-	for (sub = uu_list_first(list); sub != NULL;
-	     sub = uu_list_next(list, sub)) {
+	i = list_iterator_create(l);
+
+	while ((sub = list_next(i))) {
 		fprintf(stdout, "%*s0x%0*x %-*s ---- %s ----\n",
 		        indent, "",
 		        4, sub->sub_desc.id,
@@ -188,6 +189,8 @@ static void subsystem_list(uu_list_t *list, int indent)
 		        sub->sub_desc.desc);
 		test_list(sub->sub_tests, indent + 7);
 	}
+
+	list_iterator_destroy(i);
 }
 
 static test_t *test_init(subsystem_t *sub, kzt_user_t *desc)
@@ -200,7 +203,6 @@ static test_t *test_init(subsystem_t *sub, kzt_user_t *desc)
 
 	test->test_sub = sub;
 	memcpy(&test->test_desc, desc, sizeof(*desc));
-	uu_list_node_init(test, &test->test_node, test_pool);
 
 	return test;
 }
@@ -208,8 +210,6 @@ static test_t *test_init(subsystem_t *sub, kzt_user_t *desc)
 static void test_fini(test_t *test)
 {
 	assert(test != NULL);
-
-	uu_list_node_fini(test, &test->test_node, test_pool);
 	free(test);
 }
 
@@ -274,13 +274,15 @@ static int test_setup(subsystem_t *sub)
 			return -ENOMEM;
 		}
 
-		uu_list_insert(sub->sub_tests, test, 0);
+		list_append(sub->sub_tests, test);
 	}
 
 	free(cfg);
 	return 0;
 }
 
+/* XXX - Commented out until we sort the lists */
+#if 0
 static int test_compare(const void *l_arg, const void *r_arg, void *private)
 {
 	const test_t *l = l_arg;
@@ -294,27 +296,33 @@ static int test_compare(const void *l_arg, const void *r_arg, void *private)
 
 	return 0;
 }
+#endif
 
 static test_t *test_copy(test_t *test)
 {
 	return test_init(test->test_sub, &test->test_desc);
 }
 
-static void test_list(uu_list_t *list, int indent)
+static void test_list(List l, int indent)
 {
+	ListIterator i;
 	test_t *test;
 
-	for (test = uu_list_first(list); test != NULL;
-	     test = uu_list_next(list, test))
+	i = list_iterator_create(l);
+
+	while ((test = list_next(i)))
 		fprintf(stdout, "%*s0x%0*x %-*s %-*s\n",
 		        indent, "",
 		        04, test->test_desc.id,
 		        KZT_NAME_SIZE, test->test_desc.name,
 		        KZT_DESC_SIZE, test->test_desc.desc);
+
+	list_iterator_destroy(i);
 }
 
 static test_t *test_find(char *sub_str, char *test_str)
 {
+	ListIterator si, ti;
 	subsystem_t *sub;
 	test_t *test;
 	int sub_num, test_num;
@@ -326,21 +334,30 @@ static test_t *test_find(char *sub_str, char *test_str)
 	sub_num = strtol(sub_str, NULL, 0);
 	test_num = strtol(test_str, NULL, 0);
 
-	for (sub = uu_list_first(subsystems); sub != NULL;
-	     sub = uu_list_next(subsystems, sub)) {
+        si = list_iterator_create(subsystems);
+
+        while ((sub = list_next(si))) {
 
 		if (strncmp(sub->sub_desc.name, sub_str, KZT_NAME_SIZE) &&
 		    sub->sub_desc.id != sub_num)
 			continue;
 
-		for (test = uu_list_first(sub->sub_tests); test != NULL;
-		     test = uu_list_next(sub->sub_tests, test)) {
+		ti = list_iterator_create(sub->sub_tests);
+
+		while ((test = list_next(ti))) {
 
 			if (!strncmp(test->test_desc.name, test_str,
-		            KZT_NAME_SIZE) || test->test_desc.id == test_num)
+		            KZT_NAME_SIZE) || test->test_desc.id == test_num) {
+				list_iterator_destroy(ti);
+			        list_iterator_destroy(si);
 				return test;
+			}
 		}
+
+	        list_iterator_destroy(ti);
         }
+
+        list_iterator_destroy(si);
 
 	return NULL;
 }
@@ -353,26 +370,34 @@ static int test_add(cmd_args_t *args, test_t *test)
 	if (tmp == NULL)
 		return -ENOMEM;
 
-	uu_list_insert(args->args_tests, tmp, 0);
+	list_append(args->args_tests, tmp);
 	return 0;
 }
 
 static int test_add_all(cmd_args_t *args)
 {
+	ListIterator si, ti;
 	subsystem_t *sub;
 	test_t *test;
 	int rc;
 
-	for (sub = uu_list_first(subsystems); sub != NULL;
-	     sub = uu_list_next(subsystems, sub)) {
+        si = list_iterator_create(subsystems);
 
-		for (test = uu_list_first(sub->sub_tests); test != NULL;
-		     test = uu_list_next(sub->sub_tests, test)) {
+        while ((sub = list_next(si))) {
+		ti = list_iterator_create(sub->sub_tests);
 
-			if (rc = test_add(args, test))
+		while ((test = list_next(ti))) {
+			if ((rc = test_add(args, test))) {
+			        list_iterator_destroy(ti);
+			        list_iterator_destroy(si);
 				return rc;
+			}
 		}
+
+	        list_iterator_destroy(ti);
         }
+
+        list_iterator_destroy(si);
 
 	return 0;
 }
@@ -428,6 +453,7 @@ static int test_run(cmd_args_t *args, test_t *test)
 
 static int tests_run(cmd_args_t *args)
 {
+        ListIterator i;
 	test_t *test;
 	int rc;
 
@@ -436,19 +462,23 @@ static int tests_run(cmd_args_t *args)
 	        "Running KZT Tests "
 	        "-------------------------------\n");
 
-	for (test = uu_list_first(args->args_tests); test != NULL;
-	     test = uu_list_next(args->args_tests, test)) {
+	i = list_iterator_create(args->args_tests);
 
+	while ((test = list_next(i))) {
 		rc = test_run(args, test);
-		if (rc && args->args_exit_on_error)
+		if (rc && args->args_exit_on_error) {
+			list_iterator_destroy(i);
 			return rc;
+		}
 	}
 
+	list_iterator_destroy(i);
 	return 0;
 }
 
 static int args_parse_test(cmd_args_t *args, char *str)
 {
+        ListIterator si, ti;
 	subsystem_t *s;
 	test_t *t;
 	char *sub_str, *test_str;
@@ -476,21 +506,26 @@ static int args_parse_test(cmd_args_t *args, char *str)
 	if (!strncasecmp(test_str, "all", strlen(test_str)) || (test_num == -1))
 		test_all = 1;
 
+	si = list_iterator_create(subsystems);
+
 	if (sub_all) {
 		if (test_all) {
 			/* Add all tests from all subsystems */
-			for (s = uu_list_first(subsystems); s != NULL;
-			     s = uu_list_next(subsystems, s))
-				for (t = uu_list_first(s->sub_tests);t != NULL;
-				     t = uu_list_next(s->sub_tests, t))
-					if (rc = test_add(args, t))
+			while ((s = list_next(si))) {
+				ti = list_iterator_create(s->sub_tests);
+				while ((t = list_next(ti))) {
+					if ((rc = test_add(args, t))) {
+						list_iterator_destroy(ti);
 						goto error_run;
+					}
+				}
+				list_iterator_destroy(ti);
+			}
 		} else {
 			/* Add a specific test from all subsystems */
-			for (s = uu_list_first(subsystems); s != NULL;
-			     s = uu_list_next(subsystems, s)) {
-				if (t = test_find(s->sub_desc.name,test_str)) {
-					if (rc = test_add(args, t))
+			while ((s = list_next(si))) {
+				if ((t = test_find(s->sub_desc.name,test_str))) {
+					if ((rc = test_add(args, t)))
 						goto error_run;
 
 					flag = 1;
@@ -504,21 +539,24 @@ static int args_parse_test(cmd_args_t *args, char *str)
 	} else {
 		if (test_all) {
 			/* Add all tests from a specific subsystem */
-			for (s = uu_list_first(subsystems); s != NULL;
-			     s = uu_list_next(subsystems, s)) {
+			while ((s = list_next(si))) {
 				if (strncasecmp(sub_str, s->sub_desc.name,
 				    strlen(sub_str)))
 					continue;
 
-				for (t = uu_list_first(s->sub_tests);t != NULL;
-				     t = uu_list_next(s->sub_tests, t))
-					if (rc = test_add(args, t))
+				ti = list_iterator_create(s->sub_tests);
+				while ((t = list_next(ti))) {
+					if ((rc = test_add(args, t))) {
+						list_iterator_destroy(ti);
 						goto error_run;
+					}
+				}
+				list_iterator_destroy(ti);
 			}
 		} else {
 			/* Add a specific test from a specific subsystem */
-			if (t = test_find(sub_str, test_str)) {
-				if (rc = test_add(args, t))
+			if ((t = test_find(sub_str, test_str))) {
+				if ((rc = test_add(args, t)))
 					goto error_run;
 			} else {
 				fprintf(stderr, "Test '%s:%s' could not be "
@@ -528,25 +566,25 @@ static int args_parse_test(cmd_args_t *args, char *str)
 		}
 	}
 
+	list_iterator_destroy(si);
+
 	return 0;
 
 error_run:
+	list_iterator_destroy(si);
+
 	fprintf(stderr, "Test '%s:%s' not added to run list: %d\n",
 	        sub_str, test_str, rc);
+
 	return rc;
 }
 
 static void args_fini(cmd_args_t *args)
 {
-	struct cmd_test *ptr1, *ptr2;
-
 	assert(args != NULL);
 
-
-
-	if (args->args_tests != NULL) {
-		uu_list_destroy(args->args_tests);
-	}
+	if (args->args_tests != NULL)
+		list_destroy(args->args_tests);
 
 	free(args);
 }
@@ -573,7 +611,7 @@ args_init(int argc, char **argv)
 	args->args_do_all  = 0;
 	args->args_do_color = 1;
 	args->args_exit_on_error = 0;
-	args->args_tests = uu_list_create(test_pool, NULL, 0);
+	args->args_tests = list_create((ListDelF)test_fini);
 	if (args->args_tests == NULL) {
 		args_fini(args);
 		return NULL;
@@ -674,6 +712,7 @@ dev_fini(void)
 static int
 dev_init(void)
 {
+	ListIterator i;
 	subsystem_t *sub;
 	int rc;
 
@@ -690,7 +729,7 @@ dev_init(void)
 	if ((rc = read(kztctl_fd, kzt_version, KZT_VERSION_SIZE - 1)) == -1)
 		goto error;
 
-	if (rc = dev_clear())
+	if ((rc = dev_clear()))
 		goto error;
 
 	if ((rc = dev_size(0)) < 0)
@@ -710,11 +749,16 @@ dev_init(void)
 		goto error;
 
 	/* Determine available tests for all subsystems */
-	for (sub = uu_list_first(subsystems); sub != NULL;
-	     sub = uu_list_next(subsystems, sub))
-		if ((rc = test_setup(sub)) != 0)
-			goto error;
+	i = list_iterator_create(subsystems);
 
+	while ((sub = list_next(i))) {
+		if ((rc = test_setup(sub)) != 0) {
+			list_iterator_destroy(i);
+			goto error;
+		}
+	}
+
+	list_iterator_destroy(i);
 	return 0;
 
 error:
@@ -731,42 +775,20 @@ error:
 int
 init(void)
 {
-	int rc;
-
-	/* Configure the subsystem pool */
-	subsystem_pool = uu_list_pool_create("sub_pool", sizeof(subsystem_t),
-			                     offsetof(subsystem_t, sub_node),
-			                     subsystem_compare, 0);
-	if (subsystem_pool == NULL)
-		return -ENOMEM;
-
-	/* Configure the test pool */
-	test_pool = uu_list_pool_create("test_pool", sizeof(test_t),
-			                offsetof(test_t, test_node),
-			                test_compare, 0);
-	if (test_pool == NULL) {
-		uu_list_pool_destroy(subsystem_pool);
-		return -ENOMEM;
-	}
+	int rc = 0;
 
 	/* Allocate the subsystem list */
-	subsystems = uu_list_create(subsystem_pool, NULL, 0);
-	if (subsystems == NULL) {
-		uu_list_pool_destroy(test_pool);
-		uu_list_pool_destroy(subsystem_pool);
-		return -ENOMEM;
-	}
+	subsystems = list_create((ListDelF)subsystem_fini);
+	if (subsystems == NULL)
+		rc = ENOMEM;
 
-	return 0;
+	return rc;
 }
 
 void
 fini(void)
 {
-	/* XXX - Cleanup destroy lists release memory */
-
-	/* XXX - Remove contents of list first */
-	uu_list_destroy(subsystems);
+	list_destroy(subsystems);
 }
 
 
@@ -777,11 +799,11 @@ main(int argc, char **argv)
 	int rc = 0;
 
 	/* General init */
-	if (rc = init())
+	if ((rc = init()))
 		return rc;
 
 	/* Device specific init */
-	if (rc = dev_init())
+	if ((rc = dev_init()))
 		goto out;
 
 	/* Argument init and parsing */
@@ -802,12 +824,12 @@ main(int argc, char **argv)
 
 	/* Add all available test to the list of tests to run */
 	if (args->args_do_all) {
-		if (rc = test_add_all(args))
+		if ((rc = test_add_all(args)))
 			goto out;
 	}
 
 	/* Run all the requested tests */
-	if (rc = tests_run(args))
+	if ((rc = tests_run(args)))
 		goto out;
 
 out:

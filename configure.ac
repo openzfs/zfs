@@ -6,6 +6,7 @@ AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_INSTALL
 AC_PROG_CC
+AC_PROG_LIBTOOL
 
 ver=`uname -r`
 KERNELCFLAGS=
@@ -88,21 +89,6 @@ else
 	AC_MSG_RESULT([no])
 fi
 
-AC_MSG_CHECKING([if inode has i_private field])
-if egrep -qw "i_private" $kernelsrc/include/linux/fs.h; then
-	AC_DEFINE(HAVE_I_PRIVATE, 1, [inode has i_private field])
-	AC_MSG_RESULT([yes])
-else
-	AC_MSG_RESULT([no])
-fi
-
-AC_MSG_CHECKING([if inode has i_mutex field ])
-if egrep -qw "i_mutex" $kernelsrc/include/linux/fs.h; then
-	AC_DEFINE(HAVE_I_MUTEX, 1, [inode has i_mutex field])
-	AC_MSG_RESULT([yes])
-else
-	AC_MSG_RESULT([no])
-fi
 
 AC_MSG_CHECKING([if kernel has mutex.h ])
 if test -f $kernelsrc/include/linux/mutex.h; then
@@ -122,6 +108,7 @@ AC_SUBST(KERNELCFLAGS)
 
 AC_CONFIG_FILES([ Makefile
                   src/Makefile
+                  src/lib/Makefile
                   src/cmd/Makefile
                   src/spl/Makefile
                   src/splat/Makefile

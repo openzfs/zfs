@@ -5,8 +5,9 @@ MODULES := spl
 DISTFILES = Makefile.in \
             linux-kmem.c linux-rwlock.c linux-taskq.c linux-thread.c
 
+EXTRA_CFLAGS += -I$(src)
+
 # Removed '-std=gnu99' does to compile issues with i386 SPIN_LOCK_UNLOCKED
-# EXTRA_CFLAGS += -I$(src)
 # EXTRA_CFLAGS += -Wall -Wno-unknown-pragmas -Wno-missing-braces \
 #         -Wno-sign-compare -Wno-parentheses -Wno-uninitialized \
 #         -Wno-implicit-function-declaration -Wno-unused -Wno-trigraphs \

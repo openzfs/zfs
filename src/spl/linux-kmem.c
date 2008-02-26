@@ -1,4 +1,4 @@
-#include <sys/linux-kmem.h>
+#include "linux-kmem.h"
 
 /*
  * Memory allocation interfaces
