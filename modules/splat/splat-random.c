@@ -1,12 +1,12 @@
-#include <splat-ctl.h>
+#include "splat-internal.h"
 
-#define KZT_SUBSYSTEM_KRNG		0x0300
-#define KZT_KRNG_NAME			"krng"
-#define KZT_KRNG_DESC			"Kernel Random Number Generator Tests"
+#define SPLAT_SUBSYSTEM_KRNG		0x0300
+#define SPLAT_KRNG_NAME			"krng"
+#define SPLAT_KRNG_DESC			"Kernel Random Number Generator Tests"
 
-#define KZT_KRNG_TEST1_ID		0x0301
-#define KZT_KRNG_TEST1_NAME		"freq"
-#define KZT_KRNG_TEST1_DESC		"Frequency Test"
+#define SPLAT_KRNG_TEST1_ID		0x0301
+#define SPLAT_KRNG_TEST1_NAME		"freq"
+#define SPLAT_KRNG_TEST1_DESC		"Frequency Test"
 
 #define KRNG_NUM_BITS			1048576
 #define KRNG_NUM_BYTES			(KRNG_NUM_BITS >> 3)
@@ -22,7 +22,7 @@
    but is probably not necessary for our purposes */
 
 static int
-kzt_krng_test1(struct file *file, void *arg)
+splat_krng_test1(struct file *file, void *arg)
 {
 	uint8_t *buf;
 	int i, j, diff, num = 0, rc = 0;
@@ -54,8 +54,8 @@ kzt_krng_test1(struct file *file, void *arg)
 	if (diff < 0)
 		diff *= -1;
 
-	kzt_print(file, "Test 1 Number of ones: %d\n", num);
-	kzt_print(file, "Test 1 Difference from expected: %d Allowed: %d\n",
+	splat_print(file, "Test 1 Number of ones: %d\n", num);
+	splat_print(file, "Test 1 Difference from expected: %d Allowed: %d\n",
                   diff, KRNG_ERROR_RANGE);
 
 	if (diff > KRNG_ERROR_RANGE)
@@ -64,40 +64,40 @@ out:
 	return rc;
 }
 
-kzt_subsystem_t *
-kzt_krng_init(void)
+splat_subsystem_t *
+splat_krng_init(void)
 {
-        kzt_subsystem_t *sub;
+        splat_subsystem_t *sub;
 
         sub = kmalloc(sizeof(*sub), GFP_KERNEL);
         if (sub == NULL)
                 return NULL;
 
         memset(sub, 0, sizeof(*sub));
-        strncpy(sub->desc.name, KZT_KRNG_NAME, KZT_NAME_SIZE);
-	strncpy(sub->desc.desc, KZT_KRNG_DESC, KZT_DESC_SIZE);
+        strncpy(sub->desc.name, SPLAT_KRNG_NAME, SPLAT_NAME_SIZE);
+	strncpy(sub->desc.desc, SPLAT_KRNG_DESC, SPLAT_DESC_SIZE);
         INIT_LIST_HEAD(&sub->subsystem_list);
 	INIT_LIST_HEAD(&sub->test_list);
         spin_lock_init(&sub->test_lock);
-        sub->desc.id = KZT_SUBSYSTEM_KRNG;
+        sub->desc.id = SPLAT_SUBSYSTEM_KRNG;
 
-        KZT_TEST_INIT(sub, KZT_KRNG_TEST1_NAME, KZT_KRNG_TEST1_DESC,
-	              KZT_KRNG_TEST1_ID, kzt_krng_test1);
+        SPLAT_TEST_INIT(sub, SPLAT_KRNG_TEST1_NAME, SPLAT_KRNG_TEST1_DESC,
+	              SPLAT_KRNG_TEST1_ID, splat_krng_test1);
 
         return sub;
 }
 
 void
-kzt_krng_fini(kzt_subsystem_t *sub)
+splat_krng_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
 
-        KZT_TEST_FINI(sub, KZT_KRNG_TEST1_ID);
+        SPLAT_TEST_FINI(sub, SPLAT_KRNG_TEST1_ID);
 
         kfree(sub);
 }
 
 int
-kzt_krng_id(void) {
-        return KZT_SUBSYSTEM_KRNG;
+splat_krng_id(void) {
+        return SPLAT_SUBSYSTEM_KRNG;
 }

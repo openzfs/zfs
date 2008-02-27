@@ -1,14 +1,14 @@
-#include <splat-ctl.h>
+#include "splat-internal.h"
 
-#define KZT_SUBSYSTEM_THREAD		0x0600
-#define KZT_THREAD_NAME			"thread"
-#define KZT_THREAD_DESC			"Kernel Thread Tests"
+#define SPLAT_SUBSYSTEM_THREAD		0x0600
+#define SPLAT_THREAD_NAME		"thread"
+#define SPLAT_THREAD_DESC		"Kernel Thread Tests"
 
-#define KZT_THREAD_TEST1_ID		0x0601
-#define KZT_THREAD_TEST1_NAME		"create"
-#define KZT_THREAD_TEST1_DESC		"Validate thread creation and destruction"
+#define SPLAT_THREAD_TEST1_ID		0x0601
+#define SPLAT_THREAD_TEST1_NAME		"create"
+#define SPLAT_THREAD_TEST1_DESC		"Validate thread creation and destruction"
 
-#define KZT_THREAD_TEST_MAGIC            0x4488CC00UL
+#define SPLAT_THREAD_TEST_MAGIC		0x4488CC00UL
 
 typedef struct thread_priv {
         unsigned long tp_magic;
@@ -20,12 +20,12 @@ typedef struct thread_priv {
 
 
 static void
-kzt_thread_work(void *priv)
+splat_thread_work(void *priv)
 {
 	thread_priv_t *tp = (thread_priv_t *)priv;
 
 	spin_lock(&tp->tp_lock);
-	ASSERT(tp->tp_magic == KZT_THREAD_TEST_MAGIC);
+	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
 	tp->tp_rc = 1;
 
 	spin_unlock(&tp->tp_lock);
@@ -35,14 +35,14 @@ kzt_thread_work(void *priv)
 }
 
 static int
-kzt_thread_test1(struct file *file, void *arg)
+splat_thread_test1(struct file *file, void *arg)
 {
 	thread_priv_t tp;
         DEFINE_WAIT(wait);
 	kthread_t *thr;
 	int rc = 0;
 
-	tp.tp_magic = KZT_THREAD_TEST_MAGIC;
+	tp.tp_magic = SPLAT_THREAD_TEST_MAGIC;
 	tp.tp_file = file;
         spin_lock_init(&tp.tp_lock);
 	init_waitqueue_head(&tp.tp_waitq);
@@ -50,7 +50,7 @@ kzt_thread_test1(struct file *file, void *arg)
 
 	spin_lock(&tp.tp_lock);
 
-	thr = (kthread_t *)thread_create(NULL, 0, kzt_thread_work, &tp, 0,
+	thr = (kthread_t *)thread_create(NULL, 0, splat_thread_work, &tp, 0,
 			                 (proc_t *) &p0, TS_RUN, minclsyspri);
 	/* Must never fail under Solaris, but we check anyway so we can
 	 * report an error when this impossible thing happens */
@@ -69,7 +69,7 @@ kzt_thread_test1(struct file *file, void *arg)
                 spin_lock(&tp.tp_lock);
         }
 
-        kzt_vprint(file, KZT_THREAD_TEST1_NAME, "%s",
+        splat_vprint(file, SPLAT_THREAD_TEST1_NAME, "%s",
 	           "Thread successfully started and exited cleanly\n");
 out:
 	spin_unlock(&tp.tp_lock);
@@ -77,39 +77,39 @@ out:
 	return rc;
 }
 
-kzt_subsystem_t *
-kzt_thread_init(void)
+splat_subsystem_t *
+splat_thread_init(void)
 {
-        kzt_subsystem_t *sub;
+        splat_subsystem_t *sub;
 
         sub = kmalloc(sizeof(*sub), GFP_KERNEL);
         if (sub == NULL)
                 return NULL;
 
         memset(sub, 0, sizeof(*sub));
-        strncpy(sub->desc.name, KZT_THREAD_NAME, KZT_NAME_SIZE);
-        strncpy(sub->desc.desc, KZT_THREAD_DESC, KZT_DESC_SIZE);
+        strncpy(sub->desc.name, SPLAT_THREAD_NAME, SPLAT_NAME_SIZE);
+        strncpy(sub->desc.desc, SPLAT_THREAD_DESC, SPLAT_DESC_SIZE);
         INIT_LIST_HEAD(&sub->subsystem_list);
         INIT_LIST_HEAD(&sub->test_list);
         spin_lock_init(&sub->test_lock);
-        sub->desc.id = KZT_SUBSYSTEM_THREAD;
+        sub->desc.id = SPLAT_SUBSYSTEM_THREAD;
 
-        KZT_TEST_INIT(sub, KZT_THREAD_TEST1_NAME, KZT_THREAD_TEST1_DESC,
-                      KZT_THREAD_TEST1_ID, kzt_thread_test1);
+        SPLAT_TEST_INIT(sub, SPLAT_THREAD_TEST1_NAME, SPLAT_THREAD_TEST1_DESC,
+                      SPLAT_THREAD_TEST1_ID, splat_thread_test1);
 
         return sub;
 }
 
 void
-kzt_thread_fini(kzt_subsystem_t *sub)
+splat_thread_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
-        KZT_TEST_FINI(sub, KZT_THREAD_TEST1_ID);
+        SPLAT_TEST_FINI(sub, SPLAT_THREAD_TEST1_ID);
 
         kfree(sub);
 }
 
 int
-kzt_thread_id(void) {
-        return KZT_SUBSYSTEM_THREAD;
+splat_thread_id(void) {
+        return SPLAT_SUBSYSTEM_THREAD;
 }

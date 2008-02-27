@@ -28,11 +28,13 @@ static const struct option longOpts[] = {
 	{ 0,                 0,                 0, 0   }
 };
 
+#define VERSION_SIZE	64
+
 static List subsystems;				/* Subsystem/tests */
-static int kztctl_fd;				/* Control file descriptor */
-static char kzt_version[KZT_VERSION_SIZE];	/* Kernel version string */
-static char *kzt_buffer = NULL;			/* Scratch space area */
-static int kzt_buffer_size = 0;			/* Scratch space size */
+static int splatctl_fd;				/* Control file descriptor */
+static char splat_version[VERSION_SIZE];	/* Kernel version string */
+static char *splat_buffer = NULL;		/* Scratch space area */
+static int splat_buffer_size = 0;		/* Scratch space size */
 
 
 static void test_list(List, int);
@@ -42,7 +44,7 @@ static void test_fini(test_t *);
 
 
 static int usage(void) {
-	fprintf(stderr, "usage: kzt [hvla] [-t <subsystem:<tests>>]\n");
+	fprintf(stderr, "usage: splat [hvla] [-t <subsystem:<tests>>]\n");
 	fprintf(stderr,
 	"  --help      -h               This help\n"
 	"  --verbose   -v               Increase verbosity\n"
@@ -53,13 +55,13 @@ static int usage(void) {
 	"  --nocolor   -c               Do not colorize output\n");
 	fprintf(stderr, "\n"
 	"Examples:\n"
-	"  kzt -t kmem:all     # Runs all kmem tests\n"
-	"  kzt -t taskq:0x201  # Run taskq test 0x201\n");
+	"  splat -t kmem:all     # Runs all kmem tests\n"
+	"  splat -t taskq:0x201  # Run taskq test 0x201\n");
 
 	return 0;
 }
 
-static subsystem_t *subsystem_init(kzt_user_t *desc)
+static subsystem_t *subsystem_init(splat_user_t *desc)
 {
 	subsystem_t *sub;
 
@@ -86,25 +88,25 @@ static void subsystem_fini(subsystem_t *sub)
 
 static int subsystem_setup(void)
 {
-	kzt_cfg_t *cfg;
+	splat_cfg_t *cfg;
 	int i, rc, size, cfg_size;
 	subsystem_t *sub;
-	kzt_user_t *desc;
+	splat_user_t *desc;
 
 	/* Aquire the number of registered subsystems */
 	cfg_size = sizeof(*cfg);
-	cfg = (kzt_cfg_t *)malloc(cfg_size);
+	cfg = (splat_cfg_t *)malloc(cfg_size);
 	if (cfg == NULL)
 		return -ENOMEM;
 
 	memset(cfg, 0, cfg_size);
-	cfg->cfg_magic = KZT_CFG_MAGIC;
-        cfg->cfg_cmd   = KZT_CFG_SUBSYSTEM_COUNT;
+	cfg->cfg_magic = SPLAT_CFG_MAGIC;
+        cfg->cfg_cmd   = SPLAT_CFG_SUBSYSTEM_COUNT;
 
-	rc = ioctl(kztctl_fd, KZT_CFG, cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg->cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg->cfg_cmd, errno);
 		free(cfg);
 		return rc;
 	}
@@ -114,20 +116,20 @@ static int subsystem_setup(void)
 
 	/* Based on the newly aquired number of subsystems allocate enough
 	 * memory to get the descriptive information for them all. */
-	cfg_size = sizeof(*cfg) + size * sizeof(kzt_user_t);
-	cfg = (kzt_cfg_t *)malloc(cfg_size);
+	cfg_size = sizeof(*cfg) + size * sizeof(splat_user_t);
+	cfg = (splat_cfg_t *)malloc(cfg_size);
 	if (cfg == NULL)
 		return -ENOMEM;
 
 	memset(cfg, 0, cfg_size);
-	cfg->cfg_magic = KZT_CFG_MAGIC;
-	cfg->cfg_cmd   = KZT_CFG_SUBSYSTEM_LIST;
-	cfg->cfg_data.kzt_subsystems.size = size;
+	cfg->cfg_magic = SPLAT_CFG_MAGIC;
+	cfg->cfg_cmd   = SPLAT_CFG_SUBSYSTEM_LIST;
+	cfg->cfg_data.splat_subsystems.size = size;
 
-	rc = ioctl(kztctl_fd, KZT_CFG, cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg->cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg->cfg_cmd, errno);
 		free(cfg);
 		return rc;
 	}
@@ -135,7 +137,7 @@ static int subsystem_setup(void)
 	/* Add the new subsystems in to the global list */
 	size = cfg->cfg_rc1;
 	for (i = 0; i < size; i++) {
-		desc = &(cfg->cfg_data.kzt_subsystems.descs[i]);
+		desc = &(cfg->cfg_data.splat_subsystems.descs[i]);
 
 		sub = subsystem_init(desc);
 		if (sub == NULL) {
@@ -175,9 +177,9 @@ static void subsystem_list(List l, int indent)
 	subsystem_t *sub;
 
 	fprintf(stdout,
-	        "------------------------------- "
-	        "Available KZT Tests "
-	        "-------------------------------\n");
+	        "------------------------------ "
+	        "Available SPLAT Tests "
+	        "------------------------------\n");
 
 	i = list_iterator_create(l);
 
@@ -185,7 +187,7 @@ static void subsystem_list(List l, int indent)
 		fprintf(stdout, "%*s0x%0*x %-*s ---- %s ----\n",
 		        indent, "",
 		        4, sub->sub_desc.id,
-		        KZT_NAME_SIZE + 7, sub->sub_desc.name,
+		        SPLAT_NAME_SIZE + 7, sub->sub_desc.name,
 		        sub->sub_desc.desc);
 		test_list(sub->sub_tests, indent + 7);
 	}
@@ -193,7 +195,7 @@ static void subsystem_list(List l, int indent)
 	list_iterator_destroy(i);
 }
 
-static test_t *test_init(subsystem_t *sub, kzt_user_t *desc)
+static test_t *test_init(subsystem_t *sub, splat_user_t *desc)
 {
 	test_t *test;
 
@@ -215,25 +217,25 @@ static void test_fini(test_t *test)
 
 static int test_setup(subsystem_t *sub)
 {
-	kzt_cfg_t *cfg;
+	splat_cfg_t *cfg;
 	int i, rc, size;
 	test_t *test;
-	kzt_user_t *desc;
+	splat_user_t *desc;
 
 	/* Aquire the number of registered tests for the give subsystem */
-	cfg = (kzt_cfg_t *)malloc(sizeof(*cfg));
+	cfg = (splat_cfg_t *)malloc(sizeof(*cfg));
 	if (cfg == NULL)
 		return -ENOMEM;
 
 	memset(cfg, 0, sizeof(*cfg));
-	cfg->cfg_magic = KZT_CFG_MAGIC;
-        cfg->cfg_cmd   = KZT_CFG_TEST_COUNT;
+	cfg->cfg_magic = SPLAT_CFG_MAGIC;
+        cfg->cfg_cmd   = SPLAT_CFG_TEST_COUNT;
 	cfg->cfg_arg1  = sub->sub_desc.id; /* Subsystem of interest */
 
-	rc = ioctl(kztctl_fd, KZT_CFG, cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg->cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg->cfg_cmd, errno);
 		free(cfg);
 		return rc;
 	}
@@ -243,20 +245,20 @@ static int test_setup(subsystem_t *sub)
 
 	/* Based on the newly aquired number of tests allocate enough
 	 * memory to get the descriptive information for them all. */
-	cfg = (kzt_cfg_t *)malloc(sizeof(*cfg) + size * sizeof(kzt_user_t));
+	cfg = (splat_cfg_t *)malloc(sizeof(*cfg) + size * sizeof(splat_user_t));
 	if (cfg == NULL)
 		return -ENOMEM;
 
-	memset(cfg, 0, sizeof(*cfg) + size * sizeof(kzt_user_t));
-	cfg->cfg_magic = KZT_CFG_MAGIC;
-	cfg->cfg_cmd   = KZT_CFG_TEST_LIST;
+	memset(cfg, 0, sizeof(*cfg) + size * sizeof(splat_user_t));
+	cfg->cfg_magic = SPLAT_CFG_MAGIC;
+	cfg->cfg_cmd   = SPLAT_CFG_TEST_LIST;
 	cfg->cfg_arg1  = sub->sub_desc.id; /* Subsystem of interest */
-	cfg->cfg_data.kzt_tests.size = size;
+	cfg->cfg_data.splat_tests.size = size;
 
-	rc = ioctl(kztctl_fd, KZT_CFG, cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg->cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg->cfg_cmd, errno);
 		free(cfg);
 		return rc;
 	}
@@ -264,7 +266,7 @@ static int test_setup(subsystem_t *sub)
 	/* Add the new tests in to the relevant subsystems */
 	size = cfg->cfg_rc1;
 	for (i = 0; i < size; i++) {
-		desc = &(cfg->cfg_data.kzt_tests.descs[i]);
+		desc = &(cfg->cfg_data.splat_tests.descs[i]);
 
 		test = test_init(sub, desc);
 		if (test == NULL) {
@@ -314,8 +316,8 @@ static void test_list(List l, int indent)
 		fprintf(stdout, "%*s0x%0*x %-*s %-*s\n",
 		        indent, "",
 		        04, test->test_desc.id,
-		        KZT_NAME_SIZE, test->test_desc.name,
-		        KZT_DESC_SIZE, test->test_desc.desc);
+		        SPLAT_NAME_SIZE, test->test_desc.name,
+		        SPLAT_DESC_SIZE, test->test_desc.desc);
 
 	list_iterator_destroy(i);
 }
@@ -338,7 +340,7 @@ static test_t *test_find(char *sub_str, char *test_str)
 
         while ((sub = list_next(si))) {
 
-		if (strncmp(sub->sub_desc.name, sub_str, KZT_NAME_SIZE) &&
+		if (strncmp(sub->sub_desc.name, sub_str, SPLAT_NAME_SIZE) &&
 		    sub->sub_desc.id != sub_num)
 			continue;
 
@@ -347,7 +349,7 @@ static test_t *test_find(char *sub_str, char *test_str)
 		while ((test = list_next(ti))) {
 
 			if (!strncmp(test->test_desc.name, test_str,
-		            KZT_NAME_SIZE) || test->test_desc.id == test_num) {
+		            SPLAT_NAME_SIZE) || test->test_desc.id == test_num) {
 				list_iterator_destroy(ti);
 			        list_iterator_destroy(si);
 				return test;
@@ -405,27 +407,27 @@ static int test_add_all(cmd_args_t *args)
 static int test_run(cmd_args_t *args, test_t *test)
 {
 	subsystem_t *sub = test->test_sub;
-	kzt_cmd_t *cmd;
+	splat_cmd_t *cmd;
 	int rc, cmd_size;
 
 	dev_clear();
 
 	cmd_size = sizeof(*cmd);
-	cmd = (kzt_cmd_t *)malloc(cmd_size);
+	cmd = (splat_cmd_t *)malloc(cmd_size);
 	if (cmd == NULL)
 		return -ENOMEM;
 
 	memset(cmd, 0, cmd_size);
-	cmd->cmd_magic = KZT_CMD_MAGIC;
+	cmd->cmd_magic = SPLAT_CMD_MAGIC;
         cmd->cmd_subsystem = sub->sub_desc.id;
 	cmd->cmd_test = test->test_desc.id;
 	cmd->cmd_data_size = 0; /* Unused feature */
 
 	fprintf(stdout, "%*s:%-*s ",
-	        KZT_NAME_SIZE, sub->sub_desc.name,
-	        KZT_NAME_SIZE, test->test_desc.name);
+	        SPLAT_NAME_SIZE, sub->sub_desc.name,
+	        SPLAT_NAME_SIZE, test->test_desc.name);
 	fflush(stdout);
-	rc = ioctl(kztctl_fd, KZT_CMD, cmd);
+	rc = ioctl(splatctl_fd, SPLAT_CMD, cmd);
 	if (args->args_do_color) {
 		fprintf(stdout, "%s  %s\n", rc ?
 		        COLOR_RED "Fail" COLOR_RESET :
@@ -440,10 +442,10 @@ static int test_run(cmd_args_t *args, test_t *test)
 	free(cmd);
 
 	if (args->args_verbose) {
-		if ((rc = read(kztctl_fd, kzt_buffer, kzt_buffer_size - 1)) < 0) {
+		if ((rc = read(splatctl_fd, splat_buffer, splat_buffer_size - 1)) < 0) {
 			fprintf(stdout, "Error reading results: %d\n", rc);
 		} else {
-			fprintf(stdout, "\n%s\n", kzt_buffer);
+			fprintf(stdout, "\n%s\n", splat_buffer);
 			fflush(stdout);
 		}
 	}
@@ -458,9 +460,9 @@ static int tests_run(cmd_args_t *args)
 	int rc;
 
 	fprintf(stdout,
-	        "------------------------------- "
-	        "Running KZT Tests "
-	        "-------------------------------\n");
+	        "------------------------------ "
+	        "Running SPLAT Tests "
+	        "------------------------------\n");
 
 	i = list_iterator_create(args->args_tests);
 
@@ -656,20 +658,20 @@ args_init(int argc, char **argv)
 static int
 dev_clear(void)
 {
-	kzt_cfg_t cfg;
+	splat_cfg_t cfg;
 	int rc;
 
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.cfg_magic = KZT_CFG_MAGIC;
-        cfg.cfg_cmd   = KZT_CFG_BUFFER_CLEAR;
+	cfg.cfg_magic = SPLAT_CFG_MAGIC;
+        cfg.cfg_cmd   = SPLAT_CFG_BUFFER_CLEAR;
 	cfg.cfg_arg1  = 0;
 
-	rc = ioctl(kztctl_fd, KZT_CFG, &cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, &cfg);
 	if (rc)
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg.cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg.cfg_cmd, errno);
 
-	lseek(kztctl_fd, 0, SEEK_SET);
+	lseek(splatctl_fd, 0, SEEK_SET);
 
 	return rc;
 }
@@ -677,18 +679,18 @@ dev_clear(void)
 static int
 dev_size(int size)
 {
-	kzt_cfg_t cfg;
+	splat_cfg_t cfg;
 	int rc;
 
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.cfg_magic = KZT_CFG_MAGIC;
-        cfg.cfg_cmd   = KZT_CFG_BUFFER_SIZE;
+	cfg.cfg_magic = SPLAT_CFG_MAGIC;
+        cfg.cfg_cmd   = SPLAT_CFG_BUFFER_SIZE;
 	cfg.cfg_arg1  = size;
 
-	rc = ioctl(kztctl_fd, KZT_CFG, &cfg);
+	rc = ioctl(splatctl_fd, SPLAT_CFG, &cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KZT_CFG, cfg.cfg_cmd, errno);
+		        (unsigned long) SPLAT_CFG, cfg.cfg_cmd, errno);
 		return rc;
 	}
 
@@ -698,13 +700,13 @@ dev_size(int size)
 static void
 dev_fini(void)
 {
-	if (kzt_buffer)
-		free(kzt_buffer);
+	if (splat_buffer)
+		free(splat_buffer);
 
-	if (kztctl_fd != -1) {
-		if (close(kztctl_fd) == -1) {
+	if (splatctl_fd != -1) {
+		if (close(splatctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                KZT_DEV, errno);
+		                SPLAT_DEV, errno);
 		}
 	}
 }
@@ -716,17 +718,17 @@ dev_init(void)
 	subsystem_t *sub;
 	int rc;
 
-	kztctl_fd = open(KZT_DEV, O_RDONLY);
-	if (kztctl_fd == -1) {
+	splatctl_fd = open(SPLAT_DEV, O_RDONLY);
+	if (splatctl_fd == -1) {
 		fprintf(stderr, "Unable to open %s: %d\n"
-		        "Is the kzt module loaded?\n", KZT_DEV, errno);
+		        "Is the splat module loaded?\n", SPLAT_DEV, errno);
 		rc = errno;
 		goto error;
 	}
 
 	/* Determine kernel module version string */
-	memset(kzt_version, 0, KZT_VERSION_SIZE);
-	if ((rc = read(kztctl_fd, kzt_version, KZT_VERSION_SIZE - 1)) == -1)
+	memset(splat_version, 0, VERSION_SIZE);
+	if ((rc = read(splatctl_fd, splat_version, VERSION_SIZE - 1)) == -1)
 		goto error;
 
 	if ((rc = dev_clear()))
@@ -735,14 +737,14 @@ dev_init(void)
 	if ((rc = dev_size(0)) < 0)
 		goto error;
 
-	kzt_buffer_size = rc;
-	kzt_buffer = (char *)malloc(kzt_buffer_size);
-	if (kzt_buffer == NULL) {
+	splat_buffer_size = rc;
+	splat_buffer = (char *)malloc(splat_buffer_size);
+	if (splat_buffer == NULL) {
 		rc = -ENOMEM;
 		goto error;
 	}
 
-	memset(kzt_buffer, 0, kzt_buffer_size);
+	memset(splat_buffer, 0, splat_buffer_size);
 
 	/* Determine available subsystems */
 	if ((rc = subsystem_setup()) != 0)
@@ -762,10 +764,10 @@ dev_init(void)
 	return 0;
 
 error:
-	if (kztctl_fd != -1) {
-		if (close(kztctl_fd) == -1) {
+	if (splatctl_fd != -1) {
+		if (close(splatctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                KZT_DEV, errno);
+		                SPLAT_DEV, errno);
 		}
 	}
 
@@ -814,7 +816,7 @@ main(int argc, char **argv)
 
 	/* Generic kernel version string */
 	if (args->args_verbose)
-		fprintf(stdout, "%s", kzt_version);
+		fprintf(stdout, "%s", splat_version);
 
 	/* Print the available test list and exit */
 	if (args->args_do_list) {

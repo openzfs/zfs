@@ -4,7 +4,7 @@
 #include "list.h"
 #include "splat-ctl.h"
 
-#define DEV_NAME			"/dev/kztctl"
+#define DEV_NAME			"/dev/splatctl"
 #define COLOR_BLACK			"\033[0;30m"
 #define COLOR_DK_GRAY			"\033[1;30m"
 #define COLOR_BLUE			"\033[0;34m"
@@ -24,12 +24,12 @@
 #define COLOR_RESET			"\033[0m"
 
 typedef struct subsystem {
-	kzt_user_t sub_desc;		/* Subsystem description */
+	splat_user_t sub_desc;		/* Subsystem description */
 	List sub_tests;			/* Assocated subsystem tests list */
 } subsystem_t;
 
 typedef struct test {
-	kzt_user_t test_desc;		/* Test description */
+	splat_user_t test_desc;		/* Test description */
 	subsystem_t *test_sub;		/* Parent subsystem */
 } test_t;
 

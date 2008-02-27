@@ -4,7 +4,9 @@ MODULES := splat
 DISTFILES = Makefile.in \
             splat-kmem.c splat-random.c splat-taskq.c \
             splat-time.c splat-condvar.c  splat-mutex.c \
-            splat-rwlock.c  splat-thread.c splat-ctl.c
+            splat-rwlock.c  splat-thread.c \
+            splat-ctl.c splat-internal.h
+
 CPPFLAGS += @KERNELCPPFLAGS@
 
 # Solaris porting layer aggressive tests
