@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_RANDOM_H
-#define	_SYS_LINUX_RANDOM_H
+#ifndef _LINUX_RANDOM_H
+#define	_LINUX_RANDOM_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -34,4 +34,4 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 #endif
 
-#endif	/* _SYS_LINUX_RANDOM_H */
+#endif	/* _LINUX_RANDOM_H */

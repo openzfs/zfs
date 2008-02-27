@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_CONDVAR_H
-#define _SYS_LINUX_CONDVAR_H
+#ifndef _LINUX_CONDVAR_H
+#define _LINUX_CONDVAR_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -198,4 +198,4 @@ cv_broadcast(kcondvar_t *cvp)
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up_all(&cvp->cv_event);
 }
-#endif /* _SYS_LINUX_CONDVAR_H */
+#endif /* _LINUX_CONDVAR_H */

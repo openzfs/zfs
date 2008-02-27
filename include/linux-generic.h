@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_GENERIC_H
-#define _SYS_LINUX_GENERIC_H
+#ifndef _LINUX_GENERIC_H
+#define _LINUX_GENERIC_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -69,4 +69,4 @@ static int p0 = 0;
 }
 #endif
 
-#endif  /* _SYS_LINUX_GENERIC_H */
+#endif  /* _LINUX_GENERIC_H */

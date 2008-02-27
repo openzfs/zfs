@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_MUTEX_H
-#define	_SYS_LINUX_MUTEX_H
+#ifndef _LINUX_MUTEX_H
+#define	_LINUX_MUTEX_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -115,4 +115,4 @@ mutex_owner(kmutex_t *mp)
 }
 #endif
 
-#endif	/* _SYS_LINUX_MUTEX_H */
+#endif	/* _LINUX_MUTEX_H */

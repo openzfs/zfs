@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_TASKQ_H
-#define _SYS_LINUX_TASKQ_H
+#ifndef _LINUX_TASKQ_H
+#define _LINUX_TASKQ_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -23,7 +23,7 @@ extern "C" {
 #include <linux/gfp.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
-#include <sys/linux-types.h>
+#include <linux-types.h>
 
 #undef DEBUG_TASKQ_UNIMPLEMENTED
 
@@ -83,4 +83,4 @@ extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 }
 #endif
 
-#endif  /* _SYS_LINUX_TASKQ_H */
+#endif  /* _LINUX_TASKQ_H */

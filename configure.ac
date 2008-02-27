@@ -9,8 +9,6 @@ AC_PROG_CC
 AC_PROG_LIBTOOL
 
 ver=`uname -r`
-KERNELCFLAGS=
-
 kernelsrc=
 kernelbuild=
 AC_ARG_WITH(kernel,
@@ -97,6 +95,10 @@ if test -f $kernelsrc/include/linux/mutex.h; then
 else
 	AC_MSG_RESULT([no])
 fi
+
+# Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
+KERNELMAKE_PARAMS=
+KERNELCPPFLAGS="-I`/bin/pwd`/include"
 
 if test "$kernelbuild" != "$kernelsrc"; then
 	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"

@@ -1,4 +1,4 @@
-#ifndef _SYS_SPL_H
-#define _SYS_SPL_H
+#ifndef _SPL_H
+#define _SPL_H
 
-#endif /* _SYS_SPL_H */
+#endif /* _SPL_H */

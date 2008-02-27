@@ -1,4 +1,4 @@
-#include <sys/linux-thread.h>
+#include <linux-thread.h>
 
 /*
  * Thread interfaces

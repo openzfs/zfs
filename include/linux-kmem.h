@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_KMEM_H
-#define	_SYS_LINUX_KMEM_H
+#ifndef _LINUX_KMEM_H
+#define	_LINUX_KMEM_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -170,4 +170,4 @@ __kmem_cache_destroy(kmem_cache_t *cache);
 }
 #endif
 
-#endif	/* _SYS_LINUX_KMEM_H */
+#endif	/* _LINUX_KMEM_H */

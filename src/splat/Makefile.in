@@ -1,18 +1,11 @@
 # Makefile.in for splat kernel module
 
 MODULES := splat
-
 DISTFILES = Makefile.in \
             splat-kmem.c splat-random.c splat-taskq.c \
             splat-time.c splat-condvar.c  splat-mutex.c \
             splat-rwlock.c  splat-thread.c splat-ctl.c
-
-# Removed '-std=gnu99' does to compile issues with i386 SPIN_LOCK_UNLOCKED
-# EXTRA_CFLAGS += -I$(src)
-# EXTRA_CFLAGS += -Wall -Wno-unknown-pragmas -Wno-missing-braces \
-#         -Wno-sign-compare -Wno-parentheses -Wno-uninitialized \
-#         -Wno-implicit-function-declaration -Wno-unused -Wno-trigraphs \
-#         -Wno-char-subscripts -Wno-switch
+CPPFLAGS += @KERNELCPPFLAGS@
 
 # Solaris porting layer aggressive tests
 obj-m := splat.o

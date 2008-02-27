@@ -1,5 +1,5 @@
-#ifndef _SYS_TIME_H
-#define _SYS_TIME_H
+#ifndef _TIME_H
+#define _TIME_H
 
 #pragma ident   "%Z%%M% %I%     %E% SMI"        /* SVr4.0 1.16  */
 
@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include <linux/time.h>
-#include <sys/linux-types.h>
+#include <linux-types.h>
 
 extern unsigned long long monotonic_clock(void);
 typedef struct timespec timestruc_t;    /* definition per SVr4 */
@@ -61,4 +61,4 @@ gethrestime_sec(void)
 }
 #endif
 
-#endif  /* _SYS_TIME_H */
+#endif  /* _TIME_H */

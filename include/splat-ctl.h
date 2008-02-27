@@ -1,5 +1,5 @@
-#ifndef _SYS_KZT_H
-#define _SYS_KZT_H
+#ifndef _SPLAT_CTL_H
+#define _SPLAY_CTL_H
 
 #ifdef _KERNEL
 #include <asm/ioctls.h>
@@ -208,4 +208,4 @@ kzt_subsystem_t * kzt_time_init(void);
 
 #endif /* _KERNEL */
 
-#endif /* _SYS_KZT_H */
+#endif /* _SPLAY_CTL_H */

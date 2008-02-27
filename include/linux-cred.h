@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_CRED_H
-#define _SYS_LINUX_CRED_H
+#ifndef _LINUX_CRED_H
+#define _LINUX_CRED_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -36,5 +36,5 @@ typedef struct cred {
 }
 #endif
 
-#endif  /* _SYS_LINUX_CRED_H */
+#endif  /* _LINUX_CRED_H */
 

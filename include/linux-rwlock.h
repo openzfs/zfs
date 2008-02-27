@@ -1,10 +1,10 @@
-#ifndef _SYS_LINUX_RWLOCK_H
-#define	_SYS_LINUX_RWLOCK_H
+#ifndef _LINUX_RWLOCK_H
+#define	_LINUX_RWLOCK_H
 
 #include <linux/slab.h>
 #include <linux/rwsem.h>
 #include <asm/current.h>
-#include <sys/linux-types.h>
+#include <linux-types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -220,4 +220,4 @@ rw_owner(krwlock_t *rwlp)
 }
 #endif
 
-#endif	/* _SYS_LINUX_RWLOCK_H */
+#endif	/* _LINUX_RWLOCK_H */

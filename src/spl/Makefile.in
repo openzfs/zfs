@@ -1,17 +1,9 @@
 # Makefile.in for spl kernel module
 
 MODULES := spl
-
 DISTFILES = Makefile.in \
             linux-kmem.c linux-rwlock.c linux-taskq.c linux-thread.c
-
-EXTRA_CFLAGS += -I$(src)
-
-# Removed '-std=gnu99' does to compile issues with i386 SPIN_LOCK_UNLOCKED
-# EXTRA_CFLAGS += -Wall -Wno-unknown-pragmas -Wno-missing-braces \
-#         -Wno-sign-compare -Wno-parentheses -Wno-uninitialized \
-#         -Wno-implicit-function-declaration -Wno-unused -Wno-trigraphs \
-#         -Wno-char-subscripts -Wno-switch
+CPPFLAGS += @KERNELCPPFLAGS@
 
 # Solaris porting layer module
 obj-m := spl.o

@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_TIMER_H
-#define _SYS_LINUX_TIMER_H
+#ifndef _LINUX_TIMER_H
+#define _LINUX_TIMER_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -17,5 +17,5 @@ extern "C" {
 }
 #endif
 
-#endif  /* _SYS_LINUX_TIMER_H */
+#endif  /* _LINUX_TIMER_H */
 

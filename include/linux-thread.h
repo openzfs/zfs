@@ -1,5 +1,5 @@
-#ifndef _SYS_LINUX_THREAD_H
-#define _SYS_LINUX_THREAD_H
+#ifndef _LINUX_THREAD_H
+#define _LINUX_THREAD_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -7,8 +7,8 @@ extern "C" {
 
 #include <linux/mm.h>
 #include <linux/spinlock.h>
-#include <sys/linux-types.h>
-#include <sys/linux-generic.h>
+#include <linux-types.h>
+#include <linux-generic.h>
 
 /*
  * Thread interfaces
@@ -44,5 +44,5 @@ kthread_t * __thread_create(caddr_t stk, size_t  stksize,
 }
 #endif
 
-#endif  /* _SYS_LINUX_THREAD_H */
+#endif  /* _LINUX_THREAD_H */
 
