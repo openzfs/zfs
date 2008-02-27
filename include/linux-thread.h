@@ -1,10 +1,11 @@
-#ifndef _LINUX_THREAD_H
-#define _LINUX_THREAD_H
+#ifndef _SOLARIS_THREAD_H
+#define _SOLARIS_THREAD_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
 #include <linux-types.h>
@@ -35,14 +36,15 @@ typedef struct proc_s {
 	int foo;
 } proc_t;
 
-kthread_t * __thread_create(caddr_t stk, size_t  stksize,
+extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
                             void (*proc)(void *), void *args,
                             size_t len, proc_t *pp, int state,
                             pri_t pri);
+extern void __thread_exit(void);
 
 #ifdef  __cplusplus
 }
 #endif
 
-#endif  /* _LINUX_THREAD_H */
+#endif  /* _SOLARIS_THREAD_H */
 

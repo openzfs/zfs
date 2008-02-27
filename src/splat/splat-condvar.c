@@ -1,5 +1,4 @@
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
+#include <splat-ctl.h>
 
 #define KZT_SUBSYSTEM_CONDVAR		0x0500
 #define KZT_CONDVAR_NAME		"condvar"

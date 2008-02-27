@@ -1,10 +1,11 @@
-#ifndef _LINUX_CONDVAR_H
-#define _LINUX_CONDVAR_H
+#ifndef _SOLARIS_CONDVAR_H
+#define _SOLARIS_CONDVAR_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/wait.h>
 
 /* The kcondvar_t struct is protected by mutex taken externally before
@@ -198,4 +199,4 @@ cv_broadcast(kcondvar_t *cvp)
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up_all(&cvp->cv_event);
 }
-#endif /* _LINUX_CONDVAR_H */
+#endif /* _SOLARIS_CONDVAR_H */

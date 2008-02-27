@@ -1,9 +1,11 @@
-#ifndef _LINUX_MUTEX_H
-#define	_LINUX_MUTEX_H
+#ifndef _SOLARIS_MUTEX_H
+#define	_SOLARIS_MUTEX_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#include <linux/module.h>
 
 /* See the "Big Theory Statement" in solaris mutex.c.
  *
@@ -19,7 +21,7 @@ extern "C" {
 
 #define KM_MAGIC		0x42424242
 #define KM_POISON		0x84
-	
+
 typedef struct {
 	int km_magic;
 	char *km_name;
@@ -115,4 +117,4 @@ mutex_owner(kmutex_t *mp)
 }
 #endif
 
-#endif	/* _LINUX_MUTEX_H */
+#endif	/* _SOLARIS_MUTEX_H */

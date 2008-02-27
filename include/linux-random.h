@@ -1,10 +1,11 @@
-#ifndef _LINUX_RANDOM_H
-#define	_LINUX_RANDOM_H
+#ifndef _SOLARIS_RANDOM_H
+#define	_SOLARIS_RANDOM_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/random.h>
 
 /* FIXME:
@@ -34,4 +35,4 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 #endif
 
-#endif	/* _LINUX_RANDOM_H */
+#endif	/* _SOLARIS_RANDOM_H */

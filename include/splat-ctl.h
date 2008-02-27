@@ -1,11 +1,40 @@
 #ifndef _SPLAT_CTL_H
-#define _SPLAY_CTL_H
+#define _SPLAT_CTL_H
 
-#ifdef _KERNEL
+#ifdef __KERNEL__
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/string.h>
+#include <linux/errno.h>
+#include <linux/slab.h>
+#include <linux/sched.h>
+#include <linux/elf.h>
+#include <linux/limits.h>
+#include <linux/version.h>
+#include <linux/vmalloc.h>
+#include <linux/module.h>
+#include <linux/device.h>
+#include <linux/list.h>
 #include <asm/ioctls.h>
 #include <asm/uaccess.h>
-#include <linux/list.h>
-#endif /* _KERNEL */
+#include <stdarg.h>
+
+#include <linux-generic.h>
+#include <linux-types.h>
+#include <linux-kmem.h>
+#include <linux-mutex.h>
+#include <linux-condvar.h>
+#include <linux-random.h>
+#include <linux-thread.h>
+#include <linux-taskq.h>
+#include <linux-rwlock.h>
+#include <linux-timer.h>
+#include <linux-time.h>
+#include <linux-cred.h>
+#include <linux-kstat.h>
+#include <linux-callb.h>
+
+#endif /* __KERNEL__ */
 
 #define KZT_VERSION			"v1.0"
 #define KZT_VERSION_SIZE		64
@@ -70,7 +99,7 @@ typedef struct kzt_cmd {
 #define KZT_TEST_UNKNOWN		0xFFF
 
 
-#ifdef _KERNEL
+#ifdef __KERNEL__
 #define KZT_SUBSYSTEM_INIT(type)                                        \
 ({      kzt_subsystem_t *_sub_;                                         \
                                                                         \
@@ -79,7 +108,7 @@ typedef struct kzt_cmd {
                 printk(KERN_ERR "Error initializing: " #type "\n");     \
         } else {                                                        \
                 spin_lock(&kzt_module_lock);                            \
-                list_add_tail(&(_sub_->subsystem_list), 		\
+                list_add_tail(&(_sub_->subsystem_list),		\
 		              &kzt_module_list);			\
                 spin_unlock(&kzt_module_lock);                          \
         }                                                               \
@@ -92,10 +121,10 @@ typedef struct kzt_cmd {
 	_id_ = kzt_##type##_id();                                       \
         spin_lock(&kzt_module_lock);                                    \
         list_for_each_entry_safe(_sub_, _tmp_,  &kzt_module_list,	\
-		                 subsystem_list) { 			\
+		                 subsystem_list) {			\
                 if (_sub_->desc.id == _id_) {                           \
                         list_del_init(&(_sub_->subsystem_list));        \
-        		spin_unlock(&kzt_module_lock);                  \
+                        spin_unlock(&kzt_module_lock);                  \
                         kzt_##type##_fini(_sub_);                       \
 			spin_lock(&kzt_module_lock);			\
                         _flag_ = 1;                                     \
@@ -128,7 +157,7 @@ typedef struct kzt_cmd {
 
 #define KZT_TEST_FINI(sub, tid)						\
 ({      kzt_test_t *_test_, *_tmp_;                                     \
-        int _flag_ = 0;                                          	\
+        int _flag_ = 0;							\
                                                                         \
         spin_lock(&((sub)->test_lock));					\
         list_for_each_entry_safe(_test_, _tmp_,				\
@@ -141,7 +170,7 @@ typedef struct kzt_cmd {
         spin_unlock(&((sub)->test_lock));				\
                                                                         \
 	if (!_flag_)                                                    \
-                printk(KERN_ERR "Error finalizing: " #tid "\n");       	\
+                printk(KERN_ERR "Error finalizing: " #tid "\n");	\
 })
 
 typedef int (*kzt_test_func_t)(struct file *, void *);
@@ -181,7 +210,7 @@ typedef struct kzt_info {
 	spin_lock(&_info_->info_lock);					\
 									\
 	/* Don't allow the kernel to start a write in the red zone */	\
-	if ((int)(_info_->info_head - _info_->info_buffer) > 		\
+	if ((int)(_info_->info_head - _info_->info_buffer) >		\
 	    (KZT_INFO_BUFFER_SIZE -KZT_INFO_BUFFER_REDZONE)) {		\
 		_rc_ = -EOVERFLOW;					\
 	} else {							\
@@ -206,6 +235,24 @@ kzt_subsystem_t * kzt_taskq_init(void);
 kzt_subsystem_t * kzt_thread_init(void);
 kzt_subsystem_t * kzt_time_init(void);
 
-#endif /* _KERNEL */
+void kzt_condvar_fini(kzt_subsystem_t *);
+void kzt_kmem_fini(kzt_subsystem_t *);
+void kzt_mutex_fini(kzt_subsystem_t *);
+void kzt_krng_fini(kzt_subsystem_t *);
+void kzt_rwlock_fini(kzt_subsystem_t *);
+void kzt_taskq_fini(kzt_subsystem_t *);
+void kzt_thread_fini(kzt_subsystem_t *);
+void kzt_time_fini(kzt_subsystem_t *);
 
-#endif /* _SPLAY_CTL_H */
+int kzt_condvar_id(void);
+int kzt_kmem_id(void);
+int kzt_mutex_id(void);
+int kzt_krng_id(void);
+int kzt_rwlock_id(void);
+int kzt_taskq_id(void);
+int kzt_thread_id(void);
+int kzt_time_id(void);
+
+#endif /* __KERNEL__ */
+
+#endif /* _SPLAT_CTL_H */

@@ -1,6 +1,7 @@
-#ifndef _LINUX_RWLOCK_H
-#define	_LINUX_RWLOCK_H
+#ifndef _SOLARIS_RWLOCK_H
+#define	_SOLARIS_RWLOCK_H
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/rwsem.h>
 #include <asm/current.h>
@@ -32,7 +33,7 @@ typedef struct {
 	int rw_magic;
 	char *rw_name;
 	struct rw_semaphore rw_sem;
-	struct task_struct *rw_owner; 	/* holder of the write lock */
+	struct task_struct *rw_owner;	/* holder of the write lock */
 } krwlock_t;
 
 static __inline__ void
@@ -196,11 +197,11 @@ rw_tryupgrade(krwlock_t *rwlp)
 	 * read lock and reacquire it for writing since
 	 * we know there are no waiters */
 	up_read(&rwlp->rw_sem);
-	
+
 	/* returns 1 if success, 0 if contention */
 	result = down_write_trylock(&rwlp->rw_sem);
-	
-	/* Check if upgrade failed.  Should not ever happen 
+
+	/* Check if upgrade failed.  Should not ever happen
 	 * if we got to this point */
 	BUG_ON(!result);
 	BUG_ON(rwlp->rw_owner != NULL);
@@ -220,4 +221,4 @@ rw_owner(krwlock_t *rwlp)
 }
 #endif
 
-#endif	/* _LINUX_RWLOCK_H */
+#endif	/* _SOLARIS_RWLOCK_H */

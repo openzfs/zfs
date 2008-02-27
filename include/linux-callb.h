@@ -1,10 +1,11 @@
-#ifndef _LINUX_CALLB_H
-#define _LINUX_CALLB_H
+#ifndef _SOLARIS_CALLB_H
+#define _SOLARIS_CALLB_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux-mutex.h>
 
 #define DEBUG_CALLB
@@ -41,5 +42,5 @@ typedef struct callb_cpr {
 }
 #endif
 
-#endif  /* _LINUX_CALLB_H */
+#endif  /* _SOLARIS_CALLB_H */
 

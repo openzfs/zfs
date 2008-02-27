@@ -1,10 +1,11 @@
-#ifndef _LINUX_TIMER_H
-#define _LINUX_TIMER_H
+#ifndef _SOLARIS_TIMER_H
+#define _SOLARIS_TIMER_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
 
@@ -17,5 +18,5 @@ extern "C" {
 }
 #endif
 
-#endif  /* _LINUX_TIMER_H */
+#endif  /* _SOLARIS_TIMER_H */
 

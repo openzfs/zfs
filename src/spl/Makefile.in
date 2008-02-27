@@ -2,7 +2,8 @@
 
 MODULES := spl
 DISTFILES = Makefile.in \
-            linux-kmem.c linux-rwlock.c linux-taskq.c linux-thread.c
+            linux-kmem.c linux-rwlock.c linux-taskq.c \
+            linux-thread.c linux-generic.c
 CPPFLAGS += @KERNELCPPFLAGS@
 
 # Solaris porting layer module

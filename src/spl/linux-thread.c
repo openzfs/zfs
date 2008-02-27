@@ -15,7 +15,7 @@ typedef struct thread_priv_s {
         wait_queue_head_t tp_waitq;	/* Syncronization wait queue */
 } thread_priv_t;
 
-int
+static int
 thread_generic_wrapper(void *arg)
 {
 	thread_priv_t *tp = (thread_priv_t *)arg;
@@ -38,8 +38,8 @@ thread_generic_wrapper(void *arg)
         spin_unlock(&tp->tp_lock);
 	wake_up(&tp->tp_waitq);
 
-	/* DO NOT USE 'ARG' AFTER THIS POINT, EVER, EVER, EVER! 
-	 * Local variables are used here because after the calling thread 
+	/* DO NOT USE 'ARG' AFTER THIS POINT, EVER, EVER, EVER!
+	 * Local variables are used here because after the calling thread
 	 * has been woken up it will exit and this memory will no longer
 	 * be safe to access since it was declared on the callers stack. */
 	if (func)
@@ -53,6 +53,7 @@ __thread_exit(void)
 {
 	return;
 }
+EXPORT_SYMBOL(__thread_exit);
 
 /* thread_create() may block forever if it cannot create a thread or
  * allocate memory.  This is preferable to returning a NULL which Solaris
@@ -63,7 +64,6 @@ __thread_create(caddr_t stk, size_t  stksize, void (*proc)(void *),
 {
 	thread_priv_t tp;
 	DEFINE_WAIT(wait);
-	kthread_t *task;
 	long pid;
 
 	/* Option pp is simply ignored */
@@ -106,8 +106,9 @@ __thread_create(caddr_t stk, size_t  stksize, void (*proc)(void *),
 
 	/* Verify the pid retunred matches the pid in the task struct */
 	BUG_ON(pid != (tp.tp_task)->pid);
-	
+
 	spin_unlock(&tp.tp_lock);
 
 	return (kthread_t *)tp.tp_task;
 }
+EXPORT_SYMBOL(__thread_create);

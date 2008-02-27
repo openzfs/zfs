@@ -1,4 +1,4 @@
-#include <sys/linux-rwlock.h>
+#include <linux-rwlock.h>
 
 int
 rw_lock_held(krwlock_t *rwlp)
@@ -12,7 +12,7 @@ rw_lock_held(krwlock_t *rwlp)
 #endif
 		return 1;
 	}
-	
+
 	return 0;
 }
 

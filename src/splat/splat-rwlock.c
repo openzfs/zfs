@@ -1,5 +1,4 @@
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
+#include <splat-ctl.h>
 
 #define KZT_SUBSYSTEM_RWLOCK		0x0700
 #define KZT_RWLOCK_NAME			"rwlock"

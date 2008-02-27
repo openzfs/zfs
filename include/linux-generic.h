@@ -1,9 +1,11 @@
-#ifndef _LINUX_GENERIC_H
-#define _LINUX_GENERIC_H
+#ifndef _SOLARIS_GENERIC_H
+#define _SOLARIS_GENERIC_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
+
+#include <linux/module.h>
 
 /* Missing defines.
  */
@@ -14,7 +16,7 @@ extern "C" {
 #define MAXNAMELEN                      256
 #define MAXPATHLEN                      PATH_MAX
 #define __va_list                       va_list
-#define _KERNEL                         1
+#define _KERNEL                         __KERNEL__
 #define max_ncpus                       64
 
 /* 0..MAX_PRIO-1:		Process priority
@@ -63,10 +65,10 @@ extern "C" {
 
 /* Missing globals
  */
-static int p0 = 0;
+extern int p0;
 
 #ifdef  __cplusplus
 }
 #endif
 
-#endif  /* _LINUX_GENERIC_H */
+#endif  /* _SOLARIS_GENERIC_H */

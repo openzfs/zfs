@@ -1,7 +1,5 @@
-#ifndef _TIME_H
-#define _TIME_H
-
-#pragma ident   "%Z%%M% %I%     %E% SMI"        /* SVr4.0 1.16  */
+#ifndef _SOLARIS_TIME_H
+#define _SOLARIS_TIME_H
 
 /*
  * Structure returned by gettimeofday(2) system call,
@@ -12,6 +10,7 @@
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/time.h>
 #include <linux-types.h>
 
@@ -61,4 +60,4 @@ gethrestime_sec(void)
 }
 #endif
 
-#endif  /* _TIME_H */
+#endif  /* _SOLARIS_TIME_H */

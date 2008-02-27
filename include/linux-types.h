@@ -1,5 +1,5 @@
-#ifndef _LINUX_TYPES_H
-#define	_LINUX_TYPES_H
+#ifndef _SOLARIS_TYPES_H
+#define	_SOLARIS_TYPES_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ typedef short				pri_t;
 }
 #endif
 
-#endif	/* _LINUX_TYPES_H */
+#endif	/* _SOLARIS_TYPES_H */

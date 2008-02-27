@@ -19,13 +19,7 @@
  * Author: Brian Behlendorf
  */
 
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
-
-#include <linux/version.h>
-#include <linux/vmalloc.h>
-#include <linux/module.h>
-#include <linux/device.h>
+#include <splat-ctl.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 #include <linux/devfs_fs_kernel.h>
@@ -233,7 +227,7 @@ kzt_test_count(kzt_cfg_t *kcfg, unsigned long arg)
 {
 	kzt_subsystem_t *sub;
 	kzt_test_t *test;
-	int rc, i = 0;
+	int i = 0;
 
 	/* Subsystem ID passed as arg1 */
 	sub = kzt_subsystem_find(kcfg->cfg_arg1);
@@ -259,7 +253,7 @@ kzt_test_list(kzt_cfg_t *kcfg, unsigned long arg)
 	kzt_subsystem_t *sub;
 	kzt_test_t *test;
 	kzt_cfg_t *tmp;
-	int size, rc, i = 0;
+	int size, i = 0;
 
 	/* Subsystem ID passed as arg1 */
 	sub = kzt_subsystem_find(kcfg->cfg_arg1);
@@ -309,7 +303,6 @@ static int
 kzt_validate(struct file *file, kzt_subsystem_t *sub, int cmd, void *arg)
 {
         kzt_test_t *test;
-        int rc = 0;
 
         spin_lock(&(sub->test_lock));
         list_for_each_entry(test, &(sub->test_list), test_list) {
@@ -432,7 +425,8 @@ static int
 kzt_ioctl(struct inode *inode, struct file *file,
 	  unsigned int cmd, unsigned long arg)
 {
-	int minor, rc = 0;
+        unsigned int minor = iminor(file->f_dentry->d_inode);
+	int rc = 0;
 
 	/* Ignore tty ioctls */
 	if ((cmd & 0xffffff00) == ((int)'T') << 8)
@@ -588,7 +582,7 @@ static int __init
 kzt_init(void)
 {
 	dev_t dev;
-	int i, rc;
+	int rc;
 
 	spin_lock_init(&kzt_module_lock);
 	INIT_LIST_HEAD(&kzt_module_list);
@@ -603,7 +597,7 @@ kzt_init(void)
 	KZT_SUBSYSTEM_INIT(time);
 
 	dev = MKDEV(KZT_MAJOR, 0);
-        if (rc = register_chrdev_region(dev, KZT_MINORS, "kztctl"))
+        if ((rc = register_chrdev_region(dev, KZT_MINORS, "kztctl")))
 		goto error;
 
 	/* Support for registering a character driver */
@@ -648,7 +642,6 @@ static void
 kzt_fini(void)
 {
 	dev_t dev = MKDEV(KZT_MAJOR, 0);
-        int i;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
         class_simple_device_remove(dev);

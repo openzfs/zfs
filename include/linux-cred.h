@@ -1,10 +1,11 @@
-#ifndef _LINUX_CRED_H
-#define _LINUX_CRED_H
+#ifndef _SOLARIS_CRED_H
+#define _SOLARIS_CRED_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux/types.h>
 
 /* XXX - Portions commented out because we really just want to have the type
@@ -36,5 +37,5 @@ typedef struct cred {
 }
 #endif
 
-#endif  /* _LINUX_CRED_H */
+#endif  /* _SOLARIS_CRED_H */
 

@@ -1,4 +1,4 @@
-#include <sys/linux-taskq.h>
+#include <linux-taskq.h>
 
 /*
  * Task queue interface
@@ -58,6 +58,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *priv, uint_t flags)
 
         return (taskqid_t)wq;
 }
+EXPORT_SYMBOL(__taskq_dispatch);
 
 /* XXX - Most args ignored until we decide if it's worth the effort
  *       to emulate the solaris notion of dynamic thread pools.  For
@@ -72,7 +73,8 @@ taskq_t *
 __taskq_create(const char *name, int nthreads, pri_t pri,
                int minalloc, int maxalloc, uint_t flags)
 {
-	/* NOTE: Linux workqueue names are limited to 10 chars */		
+	/* NOTE: Linux workqueue names are limited to 10 chars */
 
         return create_singlethread_workqueue(name);
 }
+EXPORT_SYMBOL(__taskq_create);

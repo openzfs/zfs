@@ -1,5 +1,4 @@
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
+#include <splat-ctl.h>
 
 #define KZT_SUBSYSTEM_TIME		0x0800
 #define KZT_TIME_NAME			"time"

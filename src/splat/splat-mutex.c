@@ -1,5 +1,4 @@
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
+#include <splat-ctl.h>
 
 #define KZT_SUBSYSTEM_MUTEX		0x0400
 #define KZT_MUTEX_NAME			"mutex"

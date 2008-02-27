@@ -1,5 +1,4 @@
-#include <sys/zfs_context.h>
-#include <sys/splat-ctl.h>
+#include <splat-ctl.h>
 
 #define KZT_SUBSYSTEM_KMEM		0x0100
 #define KZT_KMEM_NAME			"kmem"
@@ -229,7 +228,7 @@ kzt_kmem_test3(struct file *file, void *arg)
 out_free:
 	if (kcd)
 		kmem_cache_free(cache, kcd);
-out_destroy:
+
 	kmem_cache_destroy(cache);
 	return rc;
 }
@@ -279,7 +278,7 @@ kzt_kmem_test4(struct file *file, void *arg)
 	kcp.kcp_cache = cache;
 
 	for (i = 0; i < KZT_KMEM_OBJ_COUNT; i++) {
- 		/* All allocations need not succeed */
+		/* All allocations need not succeed */
 		kcp.kcp_kcd[i] = kmem_cache_alloc(cache, 0);
 		if (!kcp.kcp_kcd[i]) {
 			kzt_vprint(file, KZT_KMEM_TEST4_NAME,

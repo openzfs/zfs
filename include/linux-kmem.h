@@ -1,5 +1,5 @@
-#ifndef _LINUX_KMEM_H
-#define	_LINUX_KMEM_H
+#ifndef _SOLARIS_KMEM_H
+#define	_SOLARIS_KMEM_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -8,6 +8,7 @@ extern "C" {
 #undef DEBUG_KMEM
 #undef DEBUG_KMEM_UNIMPLEMENTED
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
@@ -147,15 +148,18 @@ typedef int (*kmem_constructor_t)(void *, void *, int);
 typedef void (*kmem_destructor_t)(void *, void *);
 typedef void (*kmem_reclaim_t)(void *);
 
-kmem_cache_t *
+extern kmem_cache_t *
 __kmem_cache_create(char *name, size_t size, size_t align,
-        int (*constructor)(void *, void *, int),
-        void (*destructor)(void *, void *),
-        void (*reclaim)(void *),
+        kmem_constructor_t constructor,
+        kmem_destructor_t destructor,
+        kmem_reclaim_t reclaim,
         void *priv, void *vmp, int flags);
 
 void
-__kmem_cache_destroy(kmem_cache_t *cache);
+extern __kmem_cache_destroy(kmem_cache_t *cache);
+
+void
+extern __kmem_reap(void);
 
 #define kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags) \
         __kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
@@ -163,11 +167,10 @@ __kmem_cache_destroy(kmem_cache_t *cache);
 #define kmem_cache_alloc(cache, flags)  kmem_cache_alloc(cache, flags)
 #define kmem_cache_free(cache, ptr)     kmem_cache_free(cache, ptr)
 #define kmem_cache_reap_now(cache)      kmem_cache_shrink(cache)
-#define kmem_reap()			__kmem_reap()
-
+#define kmem_reap()                     __kmem_reap()
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _LINUX_KMEM_H */
+#endif	/* _SOLARIS_KMEM_H */

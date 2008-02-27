@@ -1,5 +1,5 @@
-#ifndef _LINUX_TASKQ_H
-#define _LINUX_TASKQ_H
+#ifndef _SOLARIS_TASKQ_H
+#define _SOLARIS_TASKQ_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -19,6 +19,7 @@ extern "C" {
  * forces us to implement dynamic workqueues.  Which is all very doable
  * with a little effort.
  */
+#include <linux/module.h>
 #include <linux/workqueue.h>
 #include <linux/gfp.h>
 #include <linux/slab.h>
@@ -83,4 +84,4 @@ extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 }
 #endif
 
-#endif  /* _LINUX_TASKQ_H */
+#endif  /* _SOLARIS_TASKQ_H */

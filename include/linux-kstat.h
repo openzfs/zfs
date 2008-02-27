@@ -1,10 +1,11 @@
-#ifndef _LINUX_KSTAT_H
-#define _LINUX_KSTAT_H
+#ifndef _SOLARIS_KSTAT_H
+#define _SOLARIS_KSTAT_H
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
+#include <linux/module.h>
 #include <linux-types.h>
 
 /* XXX - The minimum functionality here is stubbed out but nothing works. */
@@ -132,5 +133,5 @@ kstat_delete(kstat_t *ksp)
 }
 #endif
 
-#endif  /* _LINUX_KSTAT_H */
+#endif  /* _SOLARIS_KSTAT_H */
 

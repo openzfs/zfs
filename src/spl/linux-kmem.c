@@ -172,9 +172,9 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 
 kmem_cache_t *
 __kmem_cache_create(char *name, size_t size, size_t align,
-        int (*constructor)(void *, void *, int),
-        void (*destructor)(void *, void *),
-        void (*reclaim)(void *),
+        kmem_constructor_t constructor,
+	kmem_destructor_t destructor,
+	kmem_reclaim_t reclaim,
         void *priv, void *vmp, int flags)
 {
         kmem_cache_t *cache;
@@ -216,6 +216,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 
         return cache;
 }
+EXPORT_SYMBOL(__kmem_cache_create);
 
 /* Return codes discarded because Solaris implementation has void return */
 void
@@ -239,11 +240,12 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 
 	spin_unlock(&kmem_cache_cb_lock);
 }
+EXPORT_SYMBOL(__kmem_cache_destroy);
 
-void 
+void
 __kmem_reap(void) {
-	/* Since there's no easy hook in to linux to force all the registered 
+	/* Since there's no easy hook in to linux to force all the registered
 	 * shrinkers to run we just run the ones registered for this shim */
 	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
 }
-
+EXPORT_SYMBOL(__kmem_reap);
