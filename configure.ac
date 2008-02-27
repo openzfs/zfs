@@ -109,11 +109,11 @@ AC_SUBST(KERNELCPPFLAGS)
 AC_SUBST(KERNELCFLAGS)
 
 AC_CONFIG_FILES([ Makefile
-                  src/Makefile
-                  src/lib/Makefile
-                  src/cmd/Makefile
-                  src/spl/Makefile
-                  src/splat/Makefile
+                  lib/Makefile
+                  cmd/Makefile
+                  modules/Makefile
+                  modules/spl/Makefile
+                  modules/splat/Makefile
                   include/Makefile
                   scripts/Makefile
                   scripts/spl.spec

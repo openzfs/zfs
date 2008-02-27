@@ -23,9 +23,7 @@ splat-objs += splat-time.o
 splatmodule := splat.ko
 splatmoduledir := @kmoduledir@/kernel/lib/
 
-all: all-spec
-
-install: all
+install:
 	mkdir -p $(DESTDIR)$(splatmoduledir)
 	$(INSTALL) -m 644 $(splatmodule) $(DESTDIR)$(splatmoduledir)/$(splatmodule)
 	-/sbin/depmod -a
@@ -45,6 +43,3 @@ maintainer-clean: distclean
 
 distdir: $(DISTFILES)
 	cp -p $(DISTFILES) $(distdir)
-
-all-spec:
-	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules

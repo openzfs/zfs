@@ -1,0 +1,12 @@
+subdir-m += spl
+subdir-m += splat
+
+all:
+	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules
+
+install uninstall clean distclean maintainer-clean distdir:
+	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+
+
+
+

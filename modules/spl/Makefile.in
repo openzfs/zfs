@@ -13,13 +13,12 @@ spl-objs += linux-kmem.o
 spl-objs += linux-thread.o
 spl-objs += linux-taskq.o
 spl-objs += linux-rwlock.o
+spl-objs += linux-generic.o
 
 splmodule := spl.ko
 splmoduledir := @kmoduledir@/kernel/lib/
 
-all: all-spec
-
-install: all
+install:
 	mkdir -p $(DESTDIR)$(splmoduledir)
 	$(INSTALL) -m 644 $(splmodule) $(DESTDIR)$(splmoduledir)/$(splmodule)
 	-/sbin/depmod -a
@@ -39,6 +38,3 @@ maintainer-clean: distclean
 
 distdir: $(DISTFILES)
 	cp -p $(DISTFILES) $(distdir)
-
-all-spec:
-	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules
