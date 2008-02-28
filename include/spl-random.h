@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_RANDOM_H
-#define	_SOLARIS_RANDOM_H
+#ifndef _SPL_RANDOM_H
+#define	_SPL_RANDOM_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 #endif
 
-#endif	/* _SOLARIS_RANDOM_H */
+#endif	/* _SPL_RANDOM_H */

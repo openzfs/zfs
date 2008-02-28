@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_KSTAT_H
-#define _SOLARIS_KSTAT_H
+#ifndef _SPL_KSTAT_H
+#define _SPL_KSTAT_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -111,7 +111,7 @@ typedef struct kstat_named_s {
 
 
 static __inline__ kstat_t *
-kstat_create(const char *ks_module, int ks_instance, const char *ks_name, 
+kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
              const char *ks_class, uchar_t ks_type, uint_t ks_ndata,
              uchar_t ks_flags)
 {
@@ -134,5 +134,5 @@ kstat_delete(kstat_t *ksp)
 }
 #endif
 
-#endif  /* _SOLARIS_KSTAT_H */
+#endif  /* _SPL_KSTAT_H */
 

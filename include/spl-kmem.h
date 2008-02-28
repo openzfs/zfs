@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_KMEM_H
-#define	_SOLARIS_KMEM_H
+#ifndef _SPL_KMEM_H
+#define	_SPL_KMEM_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -173,4 +173,4 @@ extern __kmem_reap(void);
 }
 #endif
 
-#endif	/* _SOLARIS_KMEM_H */
+#endif	/* _SPL_KMEM_H */

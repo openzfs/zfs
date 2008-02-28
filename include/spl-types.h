@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_TYPES_H
-#define	_SOLARIS_TYPES_H
+#ifndef _SPL_TYPES_H
+#define	_SPL_TYPES_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ typedef short				pri_t;
 }
 #endif
 
-#endif	/* _SOLARIS_TYPES_H */
+#endif	/* _SPL_TYPES_H */

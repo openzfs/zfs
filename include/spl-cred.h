@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_CRED_H
-#define _SOLARIS_CRED_H
+#ifndef _SPL_CRED_H
+#define _SPL_CRED_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -37,5 +37,5 @@ typedef struct cred {
 }
 #endif
 
-#endif  /* _SOLARIS_CRED_H */
+#endif  /* _SPL_CRED_H */
 

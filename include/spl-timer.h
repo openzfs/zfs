@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_TIMER_H
-#define _SOLARIS_TIMER_H
+#ifndef _SPL_TIMER_H
+#define _SPL_TIMER_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -18,5 +18,5 @@ extern "C" {
 }
 #endif
 
-#endif  /* _SOLARIS_TIMER_H */
+#endif  /* _SPL_TIMER_H */
 

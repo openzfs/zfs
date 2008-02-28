@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_MUTEX_H
-#define	_SOLARIS_MUTEX_H
+#ifndef _SPL_MUTEX_H
+#define	_SPL_MUTEX_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -118,4 +118,4 @@ mutex_owner(kmutex_t *mp)
 }
 #endif
 
-#endif	/* _SOLARIS_MUTEX_H */
+#endif	/* _SPL_MUTEX_H */

@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_CONDVAR_H
-#define _SOLARIS_CONDVAR_H
+#ifndef _SPL_CONDVAR_H
+#define _SPL_CONDVAR_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -199,4 +199,4 @@ cv_broadcast(kcondvar_t *cvp)
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up_all(&cvp->cv_event);
 }
-#endif /* _SOLARIS_CONDVAR_H */
+#endif /* _SPL_CONDVAR_H */

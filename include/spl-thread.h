@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_THREAD_H
-#define _SOLARIS_THREAD_H
+#ifndef _SPL_THREAD_H
+#define _SPL_THREAD_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -46,5 +46,5 @@ extern void __thread_exit(void);
 }
 #endif
 
-#endif  /* _SOLARIS_THREAD_H */
+#endif  /* _SPL_THREAD_H */
 

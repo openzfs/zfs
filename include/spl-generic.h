@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_GENERIC_H
-#define _SOLARIS_GENERIC_H
+#ifndef _SPL_GENERIC_H
+#define _SPL_GENERIC_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -71,4 +71,4 @@ extern int p0;
 }
 #endif
 
-#endif  /* _SOLARIS_GENERIC_H */
+#endif  /* _SPL_GENERIC_H */

@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_RWLOCK_H
-#define	_SOLARIS_RWLOCK_H
+#ifndef _SPL_RWLOCK_H
+#define	_SPL_RWLOCK_H
 
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -221,4 +221,4 @@ rw_owner(krwlock_t *rwlp)
 }
 #endif
 
-#endif	/* _SOLARIS_RWLOCK_H */
+#endif	/* _SPL_RWLOCK_H */

@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_CALLB_H
-#define _SOLARIS_CALLB_H
+#ifndef _SPL_CALLB_H
+#define _SPL_CALLB_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -42,5 +42,5 @@ typedef struct callb_cpr {
 }
 #endif
 
-#endif  /* _SOLARIS_CALLB_H */
+#endif  /* _SPL_CALLB_H */
 

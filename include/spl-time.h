@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_TIME_H
-#define _SOLARIS_TIME_H
+#ifndef _SPL_TIME_H
+#define _SPL_TIME_H
 
 /*
  * Structure returned by gettimeofday(2) system call,
@@ -60,4 +60,4 @@ gethrestime_sec(void)
 }
 #endif
 
-#endif  /* _SOLARIS_TIME_H */
+#endif  /* _SPL_TIME_H */

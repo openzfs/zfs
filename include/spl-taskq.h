@@ -1,5 +1,5 @@
-#ifndef _SOLARIS_TASKQ_H
-#define _SOLARIS_TASKQ_H
+#ifndef _SPL_TASKQ_H
+#define _SPL_TASKQ_H
 
 #ifdef  __cplusplus
 extern "C" {
@@ -84,4 +84,4 @@ extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 }
 #endif
 
-#endif  /* _SOLARIS_TASKQ_H */
+#endif  /* _SPL_TASKQ_H */
