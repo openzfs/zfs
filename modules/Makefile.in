@@ -7,6 +7,4 @@ all:
 install uninstall clean distclean maintainer-clean distdir:
 	$(MAKE) -C @kernelsrc@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
-
-
-
+check:
