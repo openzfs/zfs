@@ -8,8 +8,8 @@ extern "C" {
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
-#include <linux-types.h>
-#include <linux-generic.h>
+#include "spl-types.h"
+#include "spl-generic.h"
 
 /*
  * Thread interfaces

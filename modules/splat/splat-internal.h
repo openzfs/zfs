@@ -18,22 +18,8 @@
 #include <asm/uaccess.h>
 #include <stdarg.h>
 
-#include <linux-generic.h>
-#include <linux-types.h>
-#include <linux-kmem.h>
-#include <linux-mutex.h>
-#include <linux-condvar.h>
-#include <linux-random.h>
-#include <linux-thread.h>
-#include <linux-taskq.h>
-#include <linux-rwlock.h>
-#include <linux-timer.h>
-#include <linux-time.h>
-#include <linux-cred.h>
-#include <linux-kstat.h>
-#include <linux-callb.h>
-
-#include <splat-ctl.h>
+#include "spl.h"
+#include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \
 ({      splat_subsystem_t *_sub_;                                         \

@@ -5,7 +5,7 @@
 #include <linux/slab.h>
 #include <linux/rwsem.h>
 #include <asm/current.h>
-#include <linux-types.h>
+#include "spl-types.h"
 
 #ifdef	__cplusplus
 extern "C" {

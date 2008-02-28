@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
-#include <linux-mutex.h>
+#include "spl-mutex.h"
 
 #define DEBUG_CALLB
 

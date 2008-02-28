@@ -6,7 +6,8 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
-#include <linux-types.h>
+#include "spl-types.h"
+#include "spl-time.h"
 
 /* XXX - The minimum functionality here is stubbed out but nothing works. */
 

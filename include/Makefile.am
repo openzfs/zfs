@@ -1,7 +1,7 @@
 EXTRA_DIST  = spl.h 
+EXTRA_DIST += spl-condvar.h spl-kmem.h spl-random.h spl-thread.h
+EXTRA_DIST += spl-types.h spl-cred.h spl-kstat.h spl-rwlock.h
+EXTRA_DIST += spl-time.h spl-callb.h spl-generic.h spl-mutex.h  
+EXTRA_DIST += spl-taskq.h spl-timer.h
 EXTRA_DIST += splat-ctl.h
-EXTRA_DIST += linux-condvar.h linux-kmem.h linux-random.h linux-thread.h
-EXTRA_DIST += linux-types.h linux-cred.h linux-kstat.h linux-rwlock.h
-EXTRA_DIST += linux-time.h linux-callb.h linux-generic.h linux-mutex.h  
-EXTRA_DIST += linux-taskq.h linux-timer.h
 EXTRA_DIST += list.h

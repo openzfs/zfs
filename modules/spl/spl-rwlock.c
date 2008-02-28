@@ -1,4 +1,4 @@
-#include <linux-rwlock.h>
+#include <spl-rwlock.h>
 
 int
 rw_lock_held(krwlock_t *rwlp)

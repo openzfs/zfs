@@ -2,18 +2,18 @@
 
 MODULES := spl
 DISTFILES = Makefile.in \
-            linux-kmem.c linux-rwlock.c linux-taskq.c \
-            linux-thread.c linux-generic.c
+            spl-kmem.c spl-rwlock.c spl-taskq.c \
+            spl-thread.c spl-generic.c
 CPPFLAGS += @KERNELCPPFLAGS@
 
 # Solaris porting layer module
 obj-m := spl.o
 
-spl-objs += linux-kmem.o
-spl-objs += linux-thread.o
-spl-objs += linux-taskq.o
-spl-objs += linux-rwlock.o
-spl-objs += linux-generic.o
+spl-objs += spl-kmem.o
+spl-objs += spl-thread.o
+spl-objs += spl-taskq.o
+spl-objs += spl-rwlock.o
+spl-objs += spl-generic.o
 
 splmodule := spl.ko
 splmoduledir := @kmoduledir@/kernel/lib/

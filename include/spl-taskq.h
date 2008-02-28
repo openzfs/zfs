@@ -24,7 +24,7 @@ extern "C" {
 #include <linux/gfp.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
-#include <linux-types.h>
+#include "spl-types.h"
 
 #undef DEBUG_TASKQ_UNIMPLEMENTED
 

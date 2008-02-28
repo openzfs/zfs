@@ -12,7 +12,7 @@ extern "C" {
 
 #include <linux/module.h>
 #include <linux/time.h>
-#include <linux-types.h>
+#include "spl-types.h"
 
 extern unsigned long long monotonic_clock(void);
 typedef struct timespec timestruc_t;    /* definition per SVr4 */
