@@ -15,8 +15,6 @@ extern "C" {
 #include <sys/types.h>
 
 extern unsigned long long monotonic_clock(void);
-typedef struct timespec timestruc_t;    /* definition per SVr4 */
-typedef longlong_t      hrtime_t;
 
 #define TIME32_MAX      INT32_MAX
 #define TIME32_MIN      INT32_MIN

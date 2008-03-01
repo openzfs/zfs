@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#include <linux/types.h>
+#include <sys/generic.h>
+
 typedef enum { B_FALSE=0, B_TRUE=1 }	boolean_t;
 typedef unsigned long			uintptr_t;
 typedef unsigned long			intptr_t;
@@ -19,6 +22,8 @@ typedef long long			offset_t;
 typedef struct task_struct		kthread_t;
 typedef struct vmem { }			vmem_t;
 typedef short				pri_t;
+typedef struct timespec			timestruc_t; /* definition per SVr4 */
+typedef longlong_t			hrtime_t;
 
 #ifdef	__cplusplus
 }
