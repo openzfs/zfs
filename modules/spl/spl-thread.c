@@ -1,4 +1,4 @@
-#include <spl-thread.h>
+#include <sys/thread.h>
 
 /*
  * Thread interfaces

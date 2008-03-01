@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
-#include "spl-types.h"
+#include <sys/types.h>
 
 /* See the "Big Theory Statement" in solaris mutex.c.
  *

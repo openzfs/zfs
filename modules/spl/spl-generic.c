@@ -1,4 +1,4 @@
-#include "spl-generic.h"
+#include <sys/generic.h>
 #include "config.h"
 
 /*

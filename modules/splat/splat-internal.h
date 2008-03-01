@@ -18,7 +18,7 @@
 #include <asm/uaccess.h>
 #include <stdarg.h>
 
-#include "spl.h"
+#include <sys/spl.h>
 #include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \

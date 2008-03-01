@@ -776,7 +776,7 @@ list_alloc_aux (int size, void *pfreelist)
     void **plast;
 
     assert(sizeof(char) == 1);
-    assert(size >= sizeof(void *));
+    assert(size >= (int)sizeof(void *));
     assert(pfreelist != NULL);
     assert(LIST_ALLOC > 0);
     list_mutex_lock(&list_free_lock);

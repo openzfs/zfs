@@ -1,4 +1,4 @@
-#include "spl-kmem.h"
+#include <sys/kmem.h>
 
 /*
  * Memory allocation interfaces

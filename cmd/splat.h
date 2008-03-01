@@ -2,7 +2,7 @@
 #define _SPLAT_H
 
 #include "list.h"
-#include "splat-ctl.h"
+#include "../include/splat-ctl.h"
 
 #define DEV_NAME			"/dev/splatctl"
 #define COLOR_BLACK			"\033[0;30m"

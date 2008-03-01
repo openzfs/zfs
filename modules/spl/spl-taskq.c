@@ -1,4 +1,4 @@
-#include <spl-taskq.h>
+#include <sys/taskq.h>
 
 /*
  * Task queue interface

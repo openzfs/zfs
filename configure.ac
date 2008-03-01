@@ -2,7 +2,7 @@ AC_INIT
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE(spl, 0.0.1)
-AC_CONFIG_HEADERS([include/config.h])
+AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_INSTALL
 AC_PROG_CC
@@ -115,6 +115,7 @@ AC_CONFIG_FILES([ Makefile
                   modules/spl/Makefile
                   modules/splat/Makefile
                   include/Makefile
+                  include/sys/Makefile
                   scripts/Makefile
                   scripts/spl.spec
                ])
