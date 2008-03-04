@@ -18,7 +18,21 @@
 #include <asm/uaccess.h>
 #include <stdarg.h>
 
-#include <sys/spl.h>
+#include <sys/callb.h>
+#include <sys/condvar.h>
+#include <sys/cred.h>
+#include <sys/sysmacros.h>
+#include <sys/kmem.h>
+#include <sys/kstat.h>
+#include <sys/mutex.h>
+#include <sys/random.h>
+#include <sys/rwlock.h>
+#include <sys/taskq.h>
+#include <sys/thread.h>
+#include <sys/time.h>
+#include <sys/timer.h>
+#include <sys/types.h>
+
 #include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \
