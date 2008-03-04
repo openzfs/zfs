@@ -87,7 +87,7 @@ kmem_alloc_tryhard(size_t size, size_t *alloc_size, int kmflags)
  * Slab allocation interfaces
  */
 #undef  KMC_NOTOUCH                     /* No linux analog */
-#define KMC_NODEBUG                     0x00000000 /* Default beahvior */
+#define KMC_NODEBUG                     0x00000000 /* Default behavior */
 #define KMC_NOMAGAZINE                  /* No linux analog */
 #define KMC_NOHASH                      /* No linux analog */
 #define KMC_QCACHE                      /* No linux analog */
