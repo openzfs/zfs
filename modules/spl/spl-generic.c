@@ -1,4 +1,4 @@
-#include <sys/generic.h>
+#include <sys/sysmacros.h>
 #include "config.h"
 
 /*

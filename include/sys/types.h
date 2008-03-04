@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/types.h>
-#include <sys/generic.h>
+#include <sys/sysmacros.h>
 
 typedef enum { B_FALSE=0, B_TRUE=1 }	boolean_t;
 typedef unsigned long			uintptr_t;

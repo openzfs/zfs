@@ -4,7 +4,7 @@
 #include <sys/callb.h>
 #include <sys/condvar.h>
 #include <sys/cred.h>
-#include <sys/generic.h>
+#include <sys/sysmacros.h>
 #include <sys/kmem.h>
 #include <sys/kstat.h>
 #include <sys/mutex.h>

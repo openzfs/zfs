@@ -9,7 +9,7 @@ extern "C" {
 #include <linux/mm.h>
 #include <linux/spinlock.h>
 #include <sys/types.h>
-#include <sys/generic.h>
+#include <sys/sysmacros.h>
 
 /*
  * Thread interfaces
