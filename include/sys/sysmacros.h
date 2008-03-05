@@ -64,7 +64,44 @@ extern "C" {
 #define bzero(ptr,size)                 memset(ptr,0,size)
 #define bcopy(src,dest,size)            memcpy(dest,src,size)
 #define ASSERT(x)                       BUG_ON(!(x))
-#define ASSERT3U(left,OP,right)         BUG_ON(!((left) OP (right)))
+#define VERIFY(x)
+
+#define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
+	const TYPE __left = (TYPE)(LEFT);        \
+	const TYPE __right = (TYPE)(RIGHT);      \
+	if (!(__left OP __right))                \
+		BUG();                           \
+} while (0)
+
+#define VERIFY3S(x, y, z)       VERIFY3_IMPL(x, y, z, int64_t)
+#define VERIFY3U(x, y, z)       VERIFY3_IMPL(x, y, z, uint64_t)
+#define VERIFY3P(x, y, z)       VERIFY3_IMPL(x, y, z, uintptr_t)
+
+#define ASSERT3S(x, y, z)       VERIFY3S(x, y, z)
+#define ASSERT3U(x, y, z)       VERIFY3U(x, y, z)
+#define ASSERT3P(x, y, z)       VERIFY3P(x, y, z)
+
+/* Dtrace probes do not exist in the linux kernel */
+
+#ifdef DTRACE_PROBE1
+#undef  DTRACE_PROBE1
+#endif  /* DTRACE_PROBE1 */
+#define DTRACE_PROBE1(a, b, c)  ((void)0)
+
+#ifdef DTRACE_PROBE2
+#undef  DTRACE_PROBE2
+#endif  /* DTRACE_PROBE2 */
+#define DTRACE_PROBE2(a, b, c, d, e)    ((void)0)
+
+#ifdef DTRACE_PROBE3
+#undef  DTRACE_PROBE3
+#endif  /* DTRACE_PROBE3 */
+#define DTRACE_PROBE3(a, b, c, d, e, f, g)      ((void)0)
+
+#ifdef DTRACE_PROBE4
+#undef  DTRACE_PROBE4
+#endif  /* DTRACE_PROBE4 */
+#define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)        ((void)0)
 
 /* Missing globals
  */

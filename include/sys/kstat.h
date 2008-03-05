@@ -130,6 +130,35 @@ kstat_delete(kstat_t *ksp)
 	return;
 }
 
+/* FIXME - NONE OF THIS IS ATOMIC, IT SHOULD BE.  For the moment this is
+ * OK since it is only used for the noncritical kstat counters */
+static __inline__ uint64_t
+atomic_add_64(volatile uint64_t *target, uint64_t delta)
+{
+	uint64_t rc = *target;
+	*target += delta;
+	return rc;
+}
+
+static __inline__ uint64_t
+atomic_add_64_nv(volatile uint64_t *target, uint64_t delta)
+{
+	*target += delta;
+	return *target;
+}
+
+static __inline__ uint64_t
+atomic_cas_64(volatile uint64_t  *target,  uint64_t cmp,
+               uint64_t newval)
+{
+	uint64_t rc = *target;
+
+	if (*target == cmp)
+		*target = newval;
+
+	return rc;
+}
+
 #ifdef  __cplusplus
 }
 #endif

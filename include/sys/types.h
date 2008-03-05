@@ -24,9 +24,9 @@ typedef struct vmem { }			vmem_t;
 typedef short				pri_t;
 typedef struct timespec			timestruc_t; /* definition per SVr4 */
 typedef longlong_t			hrtime_t;
-
-#ifdef	__cplusplus
-}
-#endif
+typedef unsigned short			ushort_t;
+typedef u_longlong_t			len_t;
+typedef longlong_t			diskaddr_t;
+typedef ushort_t			o_mode_t;
 
 #endif	/* _SPL_TYPES_H */
