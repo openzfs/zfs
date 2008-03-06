@@ -131,7 +131,21 @@ kstat_delete(kstat_t *ksp)
 }
 
 /* FIXME - NONE OF THIS IS ATOMIC, IT SHOULD BE.  For the moment this is
- * OK since it is only used for the noncritical kstat counters */
+ * OK since it is only used for the noncritical kstat counters, and we
+ * are only doing testing on x86_86 platform where the entire counter
+ * will be updated with one instruction. */
+static __inline__ void
+atomic_inc_64(volatile uint64_t *target)
+{
+	(*target)++;
+}
+
+static __inline__ void
+atomic_dec_64(volatile uint64_t *target)
+{
+	(*target)--;
+}
+
 static __inline__ uint64_t
 atomic_add_64(volatile uint64_t *target, uint64_t delta)
 {

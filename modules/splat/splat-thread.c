@@ -51,7 +51,7 @@ splat_thread_test1(struct file *file, void *arg)
 	spin_lock(&tp.tp_lock);
 
 	thr = (kthread_t *)thread_create(NULL, 0, splat_thread_work, &tp, 0,
-			                 (proc_t *) &p0, TS_RUN, minclsyspri);
+			                 &p0, TS_RUN, minclsyspri);
 	/* Must never fail under Solaris, but we check anyway so we can
 	 * report an error when this impossible thing happens */
 	if (thr == NULL) {

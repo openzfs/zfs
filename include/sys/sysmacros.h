@@ -64,7 +64,7 @@ extern "C" {
 #define bzero(ptr,size)                 memset(ptr,0,size)
 #define bcopy(src,dest,size)            memcpy(dest,src,size)
 #define ASSERT(x)                       BUG_ON(!(x))
-#define VERIFY(x)
+#define VERIFY(x)			ASSERT(x)
 
 #define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
 	const TYPE __left = (TYPE)(LEFT);        \
@@ -103,9 +103,11 @@ extern "C" {
 #endif  /* DTRACE_PROBE4 */
 #define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)        ((void)0)
 
-/* Missing globals
- */
+/* Missing globals */
 extern int p0;
+
+/* Missing misc functions */
+extern int highbit(unsigned long i);
 
 #define makedevice(maj,min) makedev(maj,min)
 
