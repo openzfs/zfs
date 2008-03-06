@@ -21,10 +21,10 @@ typedef enum {
 	RW_READER
 } krw_t;
 
-#define RW_READ_HELD(x)         (rw_read_held((x)))
-#define RW_WRITE_HELD(x)        (rw_write_held((x)))
-#define RW_LOCK_HELD(x)         (rw_lock_held((x)))
-#define RW_ISWRITER(x)          (rw_iswriter(x))
+#define RW_READ_HELD(x)         (__rw_read_held((x)))
+#define RW_WRITE_HELD(x)        (__rw_write_held((x)))
+#define RW_LOCK_HELD(x)         (__rw_lock_held((x)))
+#define RW_ISWRITER(x)          (__rw_iswriter(x))
 
 #define RW_MAGIC  0x3423645a
 #define RW_POISON 0xa6
@@ -35,6 +35,10 @@ typedef struct {
 	struct rw_semaphore rw_sem;
 	struct task_struct *rw_owner;	/* holder of the write lock */
 } krwlock_t;
+
+extern int __rw_read_held(krwlock_t *rwlp);
+extern int __rw_write_held(krwlock_t *rwlp);
+extern int __rw_lock_held(krwlock_t *rwlp);
 
 static __inline__ void
 rw_init(krwlock_t *rwlp, char *name, krw_type_t type, void *arg)

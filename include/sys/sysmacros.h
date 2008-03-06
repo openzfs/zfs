@@ -13,6 +13,8 @@ extern "C" {
 
 /* Missing defines.
  */
+#define FALSE				0
+#define TRUE				1
 #define INT32_MAX                       INT_MAX
 #define UINT64_MAX                      (~0ULL)
 #define NBBY                            8
