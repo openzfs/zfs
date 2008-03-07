@@ -58,7 +58,7 @@ extern unsigned int kmem_alloc_max;
 
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
-        BUG_ON(!ptr);                                                         \
+        BUG_ON(!ptr || size < 0);                                             \
         atomic_sub((size), &kmem_alloc_used);                                 \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         kfree(ptr);                                                           \
@@ -70,7 +70,11 @@ extern unsigned int kmem_alloc_max;
 
 #define kmem_alloc(size, flags)         kmalloc(size, flags)
 #define kmem_zalloc(size, flags)        kzalloc(size, flags)
-#define kmem_free(ptr, size)            kfree(ptr)
+#define kmem_free(ptr, size)                                                  \
+({                                                                            \
+	BUG_ON(!ptr || size < 0);                                             \
+	kfree(ptr);                                                           \
+})
 
 #endif /* DEBUG_KMEM */
 

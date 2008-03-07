@@ -17,7 +17,14 @@ extern "C" {
 #define TRUE				1
 
 #define INT32_MAX                       INT_MAX
-#define UINT64_MAX                      (~0ULL)
+#define INT32_MIN                       INT_MIN
+#define UINT32_MAX			UINT_MAX
+#define UINT32_MIN			UINT_MIN
+#define INT64_MAX			LLONG_MAX
+#define INT64_MIN			LLONG_MIN
+#define UINT64_MAX                      ULLONG_MAX
+#define UINT64_MIN			ULLONG_MIN
+
 #define NBBY                            8
 #define ENOTSUP                         ENOTSUPP
 
@@ -98,22 +105,22 @@ extern "C" {
 #ifdef DTRACE_PROBE1
 #undef  DTRACE_PROBE1
 #endif  /* DTRACE_PROBE1 */
-#define DTRACE_PROBE1(a, b, c)  ((void)0)
+#define DTRACE_PROBE1(a, b, c)				((void)0)
 
 #ifdef DTRACE_PROBE2
 #undef  DTRACE_PROBE2
 #endif  /* DTRACE_PROBE2 */
-#define DTRACE_PROBE2(a, b, c, d, e)    ((void)0)
+#define DTRACE_PROBE2(a, b, c, d, e)			((void)0)
 
 #ifdef DTRACE_PROBE3
 #undef  DTRACE_PROBE3
 #endif  /* DTRACE_PROBE3 */
-#define DTRACE_PROBE3(a, b, c, d, e, f, g)      ((void)0)
+#define DTRACE_PROBE3(a, b, c, d, e, f, g)		((void)0)
 
 #ifdef DTRACE_PROBE4
 #undef  DTRACE_PROBE4
 #endif  /* DTRACE_PROBE4 */
-#define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)        ((void)0)
+#define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
 
 /* Missing globals */
 extern int p0;
@@ -122,6 +129,8 @@ extern int p0;
 extern int highbit(unsigned long i);
 
 #define makedevice(maj,min) makedev(maj,min)
+#define zone_dataset_visible(x, y)			(1)
+#define INGLOBALZONE(z)					(1)
 
 /* XXX - Borrowed from zfs project libsolcompat/include/sys/sysmacros.h */
 /* common macros */

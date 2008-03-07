@@ -33,9 +33,35 @@ typedef struct cred {
         /* auditinfo_addr_t     cr_auinfo;      audit info */
 } cred_t;
 
+#define kcred				NULL
+#define CRED()				NULL
+
+static __inline__ uid_t
+crgetuid(cred_t *cr)
+{
+	return 0;
+}
+
+static __inline__ gid_t
+crgetgid(cred_t *cr)
+{
+	return 0;
+}
+
+static __inline__ int
+crgetngroups(cred_t *cr)
+{
+	return 0;
+}
+
+static __inline__ gid_t *
+crgetgroups(cred_t *cr)
+{
+	return NULL;
+}
+
 #ifdef  __cplusplus
 }
 #endif
 
 #endif  /* _SPL_CRED_H */
-
