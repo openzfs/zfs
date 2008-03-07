@@ -131,6 +131,7 @@ extern int highbit(unsigned long i);
 #define makedevice(maj,min) makedev(maj,min)
 #define zone_dataset_visible(x, y)			(1)
 #define INGLOBALZONE(z)					(1)
+#define utsname						system_utsname
 
 /* XXX - Borrowed from zfs project libsolcompat/include/sys/sysmacros.h */
 /* common macros */
