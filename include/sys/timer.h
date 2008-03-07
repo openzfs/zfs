@@ -12,7 +12,7 @@ extern "C" {
 #define lbolt				((clock_t)jiffies)
 #define lbolt64				((int64_t)get_jiffies_64())
 
-#define delay(ticks)			schedule_timeout((long timeout)(ticks))
+#define delay(ticks)			schedule_timeout((long)(ticks))
 
 #ifdef  __cplusplus
 }

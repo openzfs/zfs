@@ -15,14 +15,23 @@ extern "C" {
  */
 #define FALSE				0
 #define TRUE				1
+
 #define INT32_MAX                       INT_MAX
 #define UINT64_MAX                      (~0ULL)
 #define NBBY                            8
 #define ENOTSUP                         ENOTSUPP
+
 #define MAXNAMELEN                      256
 #define MAXPATHLEN                      PATH_MAX
+#define MAXOFFSET_T			0x7fffffffffffffffl
+
+#define MAXBSIZE			8192
+#define DEV_BSIZE			512
+#define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
+
 #define __va_list                       va_list
 #define max_ncpus                       64
+#define _NOTE(x)
 
 /* 0..MAX_PRIO-1:		Process priority
  * 0..MAX_RT_PRIO-1:		RT priority tasks
@@ -65,6 +74,7 @@ extern "C" {
  */
 #define bzero(ptr,size)                 memset(ptr,0,size)
 #define bcopy(src,dest,size)            memcpy(dest,src,size)
+#define bcmp(src,dest,size)		memcmp((src), (dest), (size_t)(size))
 #define ASSERT(x)                       BUG_ON(!(x))
 #define VERIFY(x)			ASSERT(x)
 
