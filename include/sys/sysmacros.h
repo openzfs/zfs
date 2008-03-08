@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
+#include <sys/varargs.h>
 
 #ifndef _KERNEL
 #define _KERNEL                         __KERNEL__
@@ -28,6 +29,7 @@ extern "C" {
 #define NBBY                            8
 #define ENOTSUP                         ENOTSUPP
 
+#define MAXMSGLEN			256
 #define MAXNAMELEN                      256
 #define MAXPATHLEN                      PATH_MAX
 #define MAXOFFSET_T			0x7fffffffffffffffl
@@ -36,7 +38,6 @@ extern "C" {
 #define DEV_BSIZE			512
 #define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
 
-#define __va_list                       va_list
 #define max_ncpus                       64
 #define _NOTE(x)
 
