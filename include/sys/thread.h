@@ -27,12 +27,13 @@ extern "C" {
 #endif
 
 #define thread_create(stk, stksize, func, arg, len, pp, state, pri)      \
-	__thread_create(stk, stksize, func, arg, len, pp, state, pri)
+	__thread_create(stk, stksize, (void (*)(void *))func,            \
+		        arg, len, pp, state, pri)
 #define thread_exit()			__thread_exit()
 #define curthread			get_current()
 
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
-                            void (*proc)(void *), void *args,
+                            void (*func)(void *), void *args,
                             size_t len, int *pp, int state,
                             pri_t pri);
 extern void __thread_exit(void);

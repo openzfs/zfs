@@ -39,6 +39,7 @@ extern "C" {
 #define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
 
 #define max_ncpus                       64
+#define CPU_SEQID			smp_processor_id() /* I think... */
 #define _NOTE(x)
 
 /* 0..MAX_PRIO-1:		Process priority
