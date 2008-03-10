@@ -13,4 +13,6 @@ extern void cmn_err(int, const char *, ...);
 extern void vcmn_err(int, const char *, __va_list);
 extern void vpanic(const char *, __va_list);
 
+#define fm_panic	panic
+
 #endif /* SPL_CMN_ERR_H */

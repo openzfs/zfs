@@ -10,6 +10,7 @@ extern "C" {
  * get by for now since I'm only working on real 64bit systems but
  * this will need to be addressed properly.
  */
+
 static __inline__ void
 atomic_inc_64(volatile uint64_t *target)
 {
@@ -20,6 +21,14 @@ static __inline__ void
 atomic_dec_64(volatile uint64_t *target)
 {
 	(*target)--;
+}
+
+static __inline__ uint32_t
+atomic_add_32(volatile uint32_t *target, int32_t delta)
+{
+	uint32_t rc = *target;
+	*target += delta;
+	return rc;
 }
 
 static __inline__ uint64_t

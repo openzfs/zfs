@@ -75,7 +75,7 @@ extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 #define taskq_create(name, thr, pri, min, max, flags) \
 	__taskq_create(name, thr, pri, min, max, flags)
 #define taskq_dispatch(tq, func, priv, flags)         \
-	__taskq_dispatch(tq, func, priv, flags)
+	__taskq_dispatch(tq, (task_func_t)func, priv, flags)
 #define taskq_destroy(tq)                             destroy_workqueue(tq)
 #define taskq_wait(tq)                                flush_workqueue(tq)
 #define taskq_member(tq, kthr)                        1 /* XXX -Just be true */

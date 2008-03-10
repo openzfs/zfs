@@ -59,7 +59,7 @@ EXPORT_SYMBOL(__thread_exit);
  * allocate memory.  This is preferable to returning a NULL which Solaris
  * style callers likely never check for... since it can't fail. */
 kthread_t *
-__thread_create(caddr_t stk, size_t  stksize, void (*proc)(void *),
+__thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		void *args, size_t len, int *pp, int state, pri_t pri)
 {
 	thread_priv_t tp;
@@ -77,7 +77,7 @@ __thread_create(caddr_t stk, size_t  stksize, void (*proc)(void *),
 	 * we're passing a stack address to a new thread but correct locking was
 	 * added to ensure the callee can use the data safely until wake_up(). */
 	tp.tp_magic = TP_MAGIC;
-	tp.tp_func  = proc;
+	tp.tp_func  = func;
 	tp.tp_args  = args;
 	tp.tp_len   = len;
 	tp.tp_state = state;
