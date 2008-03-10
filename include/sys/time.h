@@ -15,14 +15,17 @@ extern "C" {
 #include <sys/types.h>
 
 extern unsigned long long monotonic_clock(void);
+extern void __gethrestime(timestruc_t *);
 
-#define TIME32_MAX      INT32_MAX
-#define TIME32_MIN      INT32_MIN
+#define gethrestime(ts)			__gethrestime(ts)
 
-#define SEC             1
-#define MILLISEC        1000
-#define MICROSEC        1000000
-#define NANOSEC         1000000000
+#define TIME32_MAX			INT32_MAX
+#define TIME32_MIN			INT32_MIN
+
+#define SEC				1
+#define MILLISEC			1000
+#define MICROSEC			1000000
+#define NANOSEC				1000000000
 
 #define hz					\
 ({						\
@@ -30,7 +33,14 @@ extern unsigned long long monotonic_clock(void);
         HZ;					\
 })
 
-#define gethrestime(ts) getnstimeofday((ts))
+static __inline__ time_t
+gethrestime_sec(void)
+{
+        timestruc_t now;
+
+        __gethrestime(&now);
+        return now.tv_sec;
+}
 
 static __inline__ hrtime_t
 gethrtime(void) {
@@ -42,15 +52,6 @@ gethrtime(void) {
          * long long this will not "go negative" for ~292 years.
          */
         return monotonic_clock();
-}
-
-static __inline__ time_t
-gethrestime_sec(void)
-{
-        timestruc_t now;
-
-        gethrestime(&now);
-        return (now.tv_sec);
 }
 
 
