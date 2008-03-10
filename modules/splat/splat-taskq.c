@@ -62,7 +62,7 @@ splat_taskq_test1(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 		           "Taskq '%s' function '%s' dispatch failed\n",
 		           tq_arg.name, sym2str(splat_taskq_test1_func));
-		taskq_destory(tq);
+		taskq_destroy(tq);
 		return -EINVAL;
 	}
 
@@ -71,7 +71,7 @@ splat_taskq_test1(struct file *file, void *arg)
 	taskq_wait(tq);
 	splat_vprint(file, SPLAT_TASKQ_TEST1_NAME, "Taskq '%s' destroying\n",
 	           tq_arg.name);
-	taskq_destory(tq);
+	taskq_destroy(tq);
 
 	return (tq_arg.flag) ? 0 : -EINVAL;
 }
@@ -174,7 +174,7 @@ splat_taskq_test2(struct file *file, void *arg) {
 			splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
 			           "Taskq '%s/%d; destroying\n",
 			          tq_args[i].name, tq_args[i].id);
-			taskq_destory(tq[i]);
+			taskq_destroy(tq[i]);
 
 			if (!rc && tq_args[i].flag != ((i * 2) + 1)) {
 				splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
