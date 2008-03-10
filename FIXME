@@ -14,3 +14,5 @@ sys/acl_impl.h		_ All borrowed from libsolcompat
 * Fix failure in rw lock test 6
 
 * Non-atomic 64bit support for kstat.h
+
+* Write vnode interface

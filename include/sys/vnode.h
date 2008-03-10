@@ -1,14 +1,32 @@
 #ifndef _SPL_VNODE_H
 #define _SPL_VNODE_H
 
+#include <linux/syscalls.h>
+
 #define XVA_MAPSIZE     3
 #define XVA_MAGIC       0x78766174
+
+typedef enum vtype {
+        VNON    = 0,
+        VREG    = 1,
+        VDIR    = 2,
+        VBLK    = 3,
+        VCHR    = 4,
+        VLNK    = 5,
+        VFIFO   = 6,
+        VDOOR   = 7,
+        VPROC   = 8,
+        VSOCK   = 9,
+        VPORT   = 10,
+        VBAD    = 11
+} vtype_t;
 
 typedef struct vnode {
         uint64_t        v_size;
         int             v_fd;
         mode_t          v_mode;
         char            *v_path;
+	vtype_t		v_type;
 } vnode_t;
 
 
@@ -76,7 +94,7 @@ typedef struct vsecattr {
 #define VOP_PUTPAGE(vp, of, sz, fl, cr, ct)     0
 #define VOP_GETATTR(vp, vap, fl, cr, ct)  ((vap)->va_size = (vp)->v_size, 0)
 
-#define VOP_FSYNC(vp, f, cr, ct)        fsync((vp)->v_fd)
+#define VOP_FSYNC(vp, f, cr, ct)        sys_fsync((vp)->v_fd)
 
 #define VN_RELE(vp)     vn_close(vp)
 

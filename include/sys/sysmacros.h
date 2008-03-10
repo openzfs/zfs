@@ -42,6 +42,8 @@ extern "C" {
 #define CPU_SEQID			smp_processor_id() /* I think... */
 #define _NOTE(x)
 
+#define RLIM64_INFINITY			RLIM_INFINITY
+
 /* 0..MAX_PRIO-1:		Process priority
  * 0..MAX_RT_PRIO-1:		RT priority tasks
  * MAX_RT_PRIO..MAX_PRIO-1:	SCHED_NORMAL tasks
