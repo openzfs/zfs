@@ -71,13 +71,15 @@ extern void     taskq_resume(taskq_t *);
 
 extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
+extern void __taskq_destroy(taskq_t *);
+extern void __taskq_wait(taskq_t *);
 
 #define taskq_create(name, thr, pri, min, max, flags) \
 	__taskq_create(name, thr, pri, min, max, flags)
 #define taskq_dispatch(tq, func, priv, flags)         \
 	__taskq_dispatch(tq, (task_func_t)func, priv, flags)
-#define taskq_destroy(tq)                             destroy_workqueue(tq)
-#define taskq_wait(tq)                                flush_workqueue(tq)
+#define taskq_destroy(tq)                             __taskq_destroy(tq)
+#define taskq_wait(tq)                                __taskq_wait(tq)
 #define taskq_member(tq, kthr)                        1 /* XXX -Just be true */
 
 #ifdef  __cplusplus

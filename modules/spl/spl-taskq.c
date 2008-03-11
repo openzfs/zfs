@@ -78,3 +78,17 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
         return create_singlethread_workqueue(name);
 }
 EXPORT_SYMBOL(__taskq_create);
+
+void
+__taskq_destroy(taskq_t *tq)
+{
+	destroy_workqueue(tq);
+}
+EXPORT_SYMBOL(__taskq_destroy);
+
+void
+__taskq_wait(taskq_t *tq)
+{
+	flush_workqueue(tq);
+}
+EXPORT_SYMBOL(__taskq_wait);
