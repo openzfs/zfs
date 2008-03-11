@@ -591,6 +591,7 @@ splat_init(void)
 	SPLAT_SUBSYSTEM_INIT(thread);
 	SPLAT_SUBSYSTEM_INIT(rwlock);
 	SPLAT_SUBSYSTEM_INIT(time);
+	SPLAT_SUBSYSTEM_INIT(kobj);
 
 	dev = MKDEV(SPLAT_MAJOR, 0);
         if ((rc = register_chrdev_region(dev, SPLAT_MINORS, "splatctl")))
@@ -652,6 +653,7 @@ splat_fini(void)
         cdev_del(&splat_cdev);
         unregister_chrdev_region(dev, SPLAT_MINORS);
 
+	SPLAT_SUBSYSTEM_FINI(kobj);
 	SPLAT_SUBSYSTEM_FINI(time);
 	SPLAT_SUBSYSTEM_FINI(rwlock);
 	SPLAT_SUBSYSTEM_FINI(thread);

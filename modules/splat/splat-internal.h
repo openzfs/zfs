@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <sys/timer.h>
 #include <sys/types.h>
+#include <sys/kobj.h>
 
 #include "splat-ctl.h"
 
@@ -169,6 +170,7 @@ splat_subsystem_t * splat_rwlock_init(void);
 splat_subsystem_t * splat_taskq_init(void);
 splat_subsystem_t * splat_thread_init(void);
 splat_subsystem_t * splat_time_init(void);
+splat_subsystem_t * splat_kobj_init(void);
 
 void splat_condvar_fini(splat_subsystem_t *);
 void splat_kmem_fini(splat_subsystem_t *);
@@ -178,6 +180,7 @@ void splat_rwlock_fini(splat_subsystem_t *);
 void splat_taskq_fini(splat_subsystem_t *);
 void splat_thread_fini(splat_subsystem_t *);
 void splat_time_fini(splat_subsystem_t *);
+void splat_kobj_fini(splat_subsystem_t *);
 
 int splat_condvar_id(void);
 int splat_kmem_id(void);
@@ -187,5 +190,6 @@ int splat_rwlock_id(void);
 int splat_taskq_id(void);
 int splat_thread_id(void);
 int splat_time_id(void);
+int splat_kobj_id(void);
 
 #endif /* _SPLAT_INTERNAL_H */

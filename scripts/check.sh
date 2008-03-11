@@ -4,6 +4,7 @@ prog=check.sh
 spl_module=../modules/spl/spl.ko
 splat_module=../modules/splat/splat.ko
 splat_cmd=../cmd/splat
+verbose=
 
 die() {
 	echo "${prog}: $1" >&2
@@ -13,6 +14,10 @@ die() {
 warn() {
 	echo "${prog}: $1" >&2
 }
+
+if [ -n "$V" ]; then
+	verbose="-v"
+fi
 
 if [ $(id -u) != 0 ]; then
 	die "Must run as root"
@@ -32,8 +37,8 @@ echo "Loading ${spl_module}"
 echo "Loading ${splat_module}"
 /sbin/insmod ${splat_module} || die "Unable to load ${splat_module}"
 
-sleep 5
-$splat_cmd -a
+sleep 3
+$splat_cmd -a $verbose
 
 echo "Unloading ${splat_module}"
 /sbin/rmmod ${splat_module} || die "Failed to unload ${splat_module}"

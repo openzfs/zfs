@@ -36,6 +36,65 @@ typedef struct {
 	struct task_struct *rw_owner;	/* holder of the write lock */
 } krwlock_t;
 
+#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+struct rwsem_waiter {
+	struct list_head list;
+	struct task_struct *task;
+	unsigned int flags;
+#define RWSEM_WAITING_FOR_READ	0x00000001
+#define RWSEM_WAITING_FOR_WRITE	0x00000002
+};
+
+/*
+ * wake a single writer
+ */
+static inline struct rw_semaphore *
+__rwsem_wake_one_writer_locked(struct rw_semaphore *sem)
+{
+	struct rwsem_waiter *waiter;
+	struct task_struct *tsk;
+
+	sem->activity = -1;
+
+	waiter = list_entry(sem->wait_list.next, struct rwsem_waiter, list);
+	list_del(&waiter->list);
+
+	tsk = waiter->task;
+	smp_mb();
+	waiter->task = NULL;
+	wake_up_process(tsk);
+	put_task_struct(tsk);
+	return sem;
+}
+
+/*
+ * release a read lock on the semaphore
+ */
+static void fastcall
+__up_read_locked(struct rw_semaphore *sem)
+{
+	if (--sem->activity == 0 && !list_empty(&sem->wait_list))
+		sem = __rwsem_wake_one_writer_locked(sem);
+}
+
+/*
+ * trylock for writing -- returns 1 if successful, 0 if contention
+ */
+static int fastcall
+__down_write_trylock_locked(struct rw_semaphore *sem)
+{
+	int ret = 0;
+
+	if (sem->activity == 0 && list_empty(&sem->wait_list)) {
+		/* granted */
+		sem->activity = -1;
+		ret = 1;
+	}
+
+	return ret;
+}
+#endif
+
 extern int __rw_read_held(krwlock_t *rwlp);
 extern int __rw_write_held(krwlock_t *rwlp);
 extern int __rw_lock_held(krwlock_t *rwlp);
@@ -168,7 +227,7 @@ rw_downgrade(krwlock_t *rwlp)
 static __inline__ int
 rw_tryupgrade(krwlock_t *rwlp)
 {
-	int result;
+	int result = 0;
 	BUG_ON(rwlp->rw_magic != RW_MAGIC);
 
 	spin_lock(&rwlp->rw_sem.wait_lock);
@@ -197,6 +256,15 @@ rw_tryupgrade(krwlock_t *rwlp)
 		return 0;
 	}
 
+#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+	/* Here it should be safe to drop the
+	 * read lock and reacquire it for writing since
+	 * we know there are no waiters */
+	__up_read_locked(&rwlp->rw_sem);
+
+	/* returns 1 if success, 0 if contention */
+	result = __down_write_trylock_locked(&rwlp->rw_sem);
+#else
 	/* Here it should be safe to drop the
 	 * read lock and reacquire it for writing since
 	 * we know there are no waiters */
@@ -204,6 +272,7 @@ rw_tryupgrade(krwlock_t *rwlp)
 
 	/* returns 1 if success, 0 if contention */
 	result = down_write_trylock(&rwlp->rw_sem);
+#endif
 
 	/* Check if upgrade failed.  Should not ever happen
 	 * if we got to this point */

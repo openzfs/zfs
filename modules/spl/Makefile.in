@@ -16,6 +16,7 @@ spl-objs += spl-rwlock.o
 spl-objs += spl-vnode.o
 spl-objs += spl-err.o
 spl-objs += spl-time.o
+spl-objs += spl-kobj.o
 spl-objs += spl-generic.o
 
 splmodule := spl.ko
