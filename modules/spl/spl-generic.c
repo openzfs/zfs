@@ -8,6 +8,9 @@
 int p0 = 0;
 EXPORT_SYMBOL(p0);
 
+char hw_serial[11];
+EXPORT_SYMBOL(hw_serial);
+
 int
 highbit(unsigned long i)
 {
@@ -39,8 +42,17 @@ highbit(unsigned long i)
 }
 EXPORT_SYMBOL(highbit);
 
+int
+ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
+{
+        char *end;
+        return (*result = simple_strtoul(str, &end, base));
+}
+EXPORT_SYMBOL(ddi_strtoul);
+
 static int __init spl_init(void)
 {
+	strcpy(hw_serial, "007f0100"); /* loopback */
         printk(KERN_INFO "spl: Loaded Solaris Porting Layer v%s\n", VERSION);
 	return 0;
 }

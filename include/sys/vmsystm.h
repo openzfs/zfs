@@ -7,6 +7,9 @@
 #define ptob(pages)			(pages * PAGE_SIZE)
 #define membar_producer()		smp_wmb()
 
+#define copyin(from, to, size)		copy_from_user(to, from, size)
+#define copyout(from, to, size)		copy_to_user(to, from, size)
+
 #if 0
 /* The approximate total number of free pages */
 #define freemem				0

@@ -113,9 +113,12 @@ extern "C" {
 
 /* Missing globals */
 extern int p0;
+extern char hw_serial[11];
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);
+extern int ddi_strtoul(const char *hw_serial, char **nptr,
+		       int base, unsigned long *result);
 
 #define makedevice(maj,min) makedev(maj,min)
 #define zone_dataset_visible(x, y)			(1)

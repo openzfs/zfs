@@ -147,7 +147,7 @@ splat_vnode_test3(struct file *file, void *arg)
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
         VN_RELE(vp);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW, 0, 0);
+	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return rc;
 } /* splat_vnode_test3() */
@@ -226,8 +226,8 @@ out2:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
         VN_RELE(vp);
 out:
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW1, 0, 0);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW2, 0, 0);
+	vn_remove(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE, RMFILE);
+	vn_remove(SPLAT_VNODE_TEST_FILE_RW2, UIO_SYSSPACE, RMFILE);
 
         return rc;
 } /* splat_vnode_test4() */
@@ -312,7 +312,7 @@ splat_vnode_test6(struct file *file, void *arg)
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
         VN_RELE(vp);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW, 0, 0);
+	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return rc;
 } /* splat_vnode_test4() */

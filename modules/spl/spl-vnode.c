@@ -159,7 +159,7 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 EXPORT_SYMBOL(vn_rdwr);
 
 int
-vn_close(vnode_t *vp, int flags, int x1, int x2, int x3, int x4)
+vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 {
 	int rc;
 
@@ -180,12 +180,15 @@ static struct dentry *lookup_hash(struct nameidata *nd)
 
 /* Modified do_unlinkat() from linux/fs/namei.c, only uses exported symbols */
 int
-vn_remove(const char *path, int x1, int x2)
+vn_remove(const char *path, int seg, int flags)
 {
         struct dentry *dentry;
         struct nameidata nd;
         struct inode *inode = NULL;
         int rc = 0;
+
+	BUG_ON(seg != UIO_SYSSPACE);
+	BUG_ON(flags != RMFILE);
 
         rc = path_lookup(path, LOOKUP_PARENT, &nd);
         if (rc)
@@ -348,7 +351,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, int x3, void *x4)
 }
 EXPORT_SYMBOL(vn_getattr);
 
-int vn_fsync(vnode_t *vp, int flags, int x3, int x4)
+int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 {
 	BUG_ON(!vp);
 	BUG_ON(!vp->v_fp);

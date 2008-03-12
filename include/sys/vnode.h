@@ -49,7 +49,8 @@
 #define AT_SEQ		0x08000
 #define AT_XVATTR	0x10000
 
-#define CRCREAT		0
+#define CRCREAT		0x01
+#define RMFILE		0x02
 
 typedef enum vtype {
 	VNON		= 0,
@@ -132,11 +133,11 @@ extern int vn_openat(const char *path, int seg, int flags, int mode,
 extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 		   offset_t off, int seg, int x1, rlim64_t x2,
 		   void *x3, ssize_t *residp);
-extern int vn_close(vnode_t *vp, int flags, int x1, int x2, int x3, int x4);
-extern int vn_remove(const char *path, int x1, int x2);
+extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
+extern int vn_remove(const char *path, int seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, int x3, void *x4);
-extern int vn_fsync(vnode_t *vp, int flags, int x3, int x4);
+extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
 
 #define VOP_CLOSE				vn_close
 #define VN_RELE(vp)
