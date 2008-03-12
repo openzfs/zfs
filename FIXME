@@ -11,8 +11,4 @@ sys/u8_textprep_data	- AlL borrowed from libsolcompat
 sys/acl.h		_ All borrowed from libsolcompat
 sys/acl_impl.h		_ All borrowed from libsolcompat
 
-* Fix failure in rw lock test 6
-
-* Non-atomic 64bit support for kstat.h
-
-* Write vnode interface
+* Implement solaris style atomic interfaces

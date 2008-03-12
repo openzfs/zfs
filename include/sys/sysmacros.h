@@ -56,21 +56,6 @@ extern "C" {
 #define NICE_TO_PRIO(nice)		(MAX_RT_PRIO + (nice) + 20)
 #define PRIO_TO_NICE(prio)		((prio) - MAX_RT_PRIO - 20)
 
-#define kred                            NULL
-
-#define FREAD                           1
-#define FWRITE                          2
-#define FCREAT  O_CREAT
-#define FTRUNC  O_TRUNC
-#define FOFFMAX O_LARGEFILE
-#define FSYNC   O_SYNC
-#define FDSYNC  O_DSYNC
-#define FRSYNC  O_RSYNC
-#define FEXCL   O_EXCL
-
-#define FNODSYNC  0x10000 /* fsync pseudo flag */
-#define FNOFOLLOW 0x20000 /* don't follow symlinks */
-
 /* Missing macros
  */
 #define PAGESIZE                        PAGE_SIZE
@@ -136,7 +121,6 @@ extern int highbit(unsigned long i);
 #define zone_dataset_visible(x, y)			(1)
 #define INGLOBALZONE(z)					(1)
 
-/* XXX - Borrowed from zfs project libsolcompat/include/sys/sysmacros.h */
 /* common macros */
 #ifndef MIN
 #define MIN(a, b)       ((a) < (b) ? (a) : (b))

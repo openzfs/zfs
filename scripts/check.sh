@@ -19,6 +19,12 @@ if [ -n "$V" ]; then
 	verbose="-v"
 fi
 
+if [ -n "$TESTS" ]; then
+	tests="$TESTS"
+else
+	tests="-a"
+fi
+
 if [ $(id -u) != 0 ]; then
 	die "Must run as root"
 fi
@@ -37,8 +43,8 @@ echo "Loading ${spl_module}"
 echo "Loading ${splat_module}"
 /sbin/insmod ${splat_module} || die "Unable to load ${splat_module}"
 
-sleep 3
-$splat_cmd -a $verbose
+while [ ! -c /dev/splatctl ]; do sleep 0.1; done
+$splat_cmd $tests $verbose
 
 echo "Unloading ${splat_module}"
 /sbin/rmmod ${splat_module} || die "Failed to unload ${splat_module}"

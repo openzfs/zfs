@@ -21,6 +21,7 @@ splat-objs += splat-condvar.o
 splat-objs += splat-thread.o
 splat-objs += splat-rwlock.o
 splat-objs += splat-time.o
+splat-objs += splat-vnode.o
 splat-objs += splat-kobj.o
 
 splatmodule := splat.ko
