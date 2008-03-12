@@ -7,6 +7,7 @@ extern "C" {
 
 #include <linux/module.h>
 #include <sys/varargs.h>
+#include <sys/zone.h>
 
 #ifndef _KERNEL
 #define _KERNEL                         __KERNEL__
@@ -121,8 +122,6 @@ extern int ddi_strtoul(const char *hw_serial, char **nptr,
 		       int base, unsigned long *result);
 
 #define makedevice(maj,min) makedev(maj,min)
-#define zone_dataset_visible(x, y)			(1)
-#define INGLOBALZONE(z)					(1)
 
 /* common macros */
 #ifndef MIN

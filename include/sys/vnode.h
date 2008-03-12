@@ -16,6 +16,8 @@
 #define XVA_MAPSIZE     3
 #define XVA_MAGIC       0x78766174
 
+#define O_DSYNC		040000000
+
 #define FREAD		1
 #define FWRITE		2
 #define FCREAT		O_CREAT
@@ -52,6 +54,9 @@
 #define CRCREAT		0x01
 #define RMFILE		0x02
 
+#define B_INVAL		0x01
+#define B_TRUNC		0x02
+
 typedef enum vtype {
 	VNON		= 0,
 	VREG		= 1,
@@ -74,6 +79,7 @@ typedef struct vnode {
 
 typedef struct vattr {
 	enum vtype     va_type;      /* vnode type */
+	u_int          va_mask;	     /* attribute bit-mask */
 	u_short        va_mode;      /* acc mode */
 	short          va_uid;       /* owner uid */
 	short          va_gid;       /* owner gid */
@@ -89,7 +95,6 @@ typedef struct vattr {
 	long           va_blocks;    /* space used */
 } vattr_t;
 
-#if 0
 typedef struct xoptattr {
         timestruc_t     xoa_createtime; /* Create time of file */
         uint8_t         xoa_archive;
@@ -124,7 +129,6 @@ typedef struct vsecattr {
         void            *vsa_dfaclentp; /* pointer to default ACL entries */
         size_t          vsa_aclentsz;   /* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
-#endif
 
 extern int vn_open(const char *path, int seg, int flags, int mode,
 		   vnode_t **vpp, int x1, void *x2);
@@ -136,14 +140,26 @@ extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
 extern int vn_remove(const char *path, int seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
-extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, int x3, void *x4);
+extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
 
+static __inline__ int
+vn_rele(vnode_t *vp)
+{
+	return 0;
+} /* vn_rele() */
+
+static __inline__ int
+vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
+           int flags, void *x1, void *x2) {
+	return 0;
+} /* vn_putpage() */
+
 #define VOP_CLOSE				vn_close
-#define VN_RELE(vp)
+#define VN_RELE					vn_rele
 #define VOP_GETATTR				vn_getattr
 #define VOP_FSYNC				vn_fsync
-#define VOP_PUTPAGE(vp, of, sz, fl, cr, ct)
+#define VOP_PUTPAGE				vn_putpage
 #define vn_is_readonly(vp)			0
 
 extern void *rootdir;

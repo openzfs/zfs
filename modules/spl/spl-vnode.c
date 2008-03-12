@@ -313,7 +313,7 @@ exit:
 EXPORT_SYMBOL(vn_rename);
 
 int
-vn_getattr(vnode_t *vp, vattr_t *vap, int flags, int x3, void *x4)
+vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 {
 	struct file *fp;
         struct kstat stat;
@@ -353,9 +353,14 @@ EXPORT_SYMBOL(vn_getattr);
 
 int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 {
+	int datasync = 0;
+
 	BUG_ON(!vp);
 	BUG_ON(!vp->v_fp);
 
-	return file_fsync(vp->v_fp, vp->v_fp->f_dentry, 0);
+	if (flags & FDSYNC)
+		datasync = 1;
+
+	return file_fsync(vp->v_fp, vp->v_fp->f_dentry, datasync);
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
