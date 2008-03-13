@@ -130,15 +130,15 @@ typedef struct vsecattr {
         size_t          vsa_aclentsz;   /* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
-extern int vn_open(const char *path, int seg, int flags, int mode,
+extern int vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		   vnode_t **vpp, int x1, void *x2);
-extern int vn_openat(const char *path, int seg, int flags, int mode,
+extern int vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 		     vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd);
 extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
-		   offset_t off, int seg, int x1, rlim64_t x2,
+		   offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
 		   void *x3, ssize_t *residp);
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
-extern int vn_remove(const char *path, int seg, int flags);
+extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);

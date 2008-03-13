@@ -28,5 +28,7 @@ typedef unsigned short			ushort_t;
 typedef u_longlong_t			len_t;
 typedef longlong_t			diskaddr_t;
 typedef ushort_t			o_mode_t;
+typedef uint_t				major_t;
+typedef uint_t				minor_t;
 
 #endif	/* _SPL_TYPES_H */
