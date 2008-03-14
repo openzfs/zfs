@@ -5,16 +5,23 @@
  */
 #ifdef DEBUG_KMEM
 /* Shim layer memory accounting */
-atomic_t kmem_alloc_used;
-unsigned int kmem_alloc_max;
-atomic_t vmem_alloc_used;
-unsigned int vmem_alloc_max;
+atomic64_t kmem_alloc_used;
+unsigned long kmem_alloc_max = 0;
+atomic64_t vmem_alloc_used;
+unsigned long vmem_alloc_max = 0;
+int kmem_warning_flag = 1;
 
 EXPORT_SYMBOL(kmem_alloc_used);
 EXPORT_SYMBOL(kmem_alloc_max);
 EXPORT_SYMBOL(vmem_alloc_used);
 EXPORT_SYMBOL(vmem_alloc_max);
+EXPORT_SYMBOL(kmem_warning_flag);
+
+int kmem_set_warning(int flag) { return (kmem_warning_flag = !!flag); }
+#else
+int kmem_set_warning(int flag) { return 0; }
 #endif
+EXPORT_SYMBOL(kmem_set_warning);
 
 /*
  * Slab allocation interfaces
@@ -187,11 +194,17 @@ __kmem_cache_create(char *name, size_t size, size_t align,
         kmem_cache_t *cache;
         kmem_cache_cb_t *kcc;
 	int shrinker_flag = 0;
+	char *cache_name;
 
         /* FIXME: - Option currently unsupported by shim layer */
         BUG_ON(vmp);
 
-        cache = kmem_cache_create(name, size, align, flags,
+	cache_name = kzalloc(strlen(name) + 1, GFP_KERNEL);
+	if (cache_name == NULL)
+		return NULL;
+
+	strcpy(cache_name, name);
+        cache = kmem_cache_create(cache_name, size, align, flags,
                                   kmem_cache_generic_constructor,
                                   kmem_cache_generic_destructor);
 	if (cache == NULL)
@@ -230,6 +243,7 @@ void
 __kmem_cache_destroy(kmem_cache_t *cache)
 {
         kmem_cache_cb_t *kcc;
+	char *name;
 
 	spin_lock(&kmem_cache_cb_lock);
         kcc = kmem_cache_find_cache_cb(cache);
@@ -237,8 +251,10 @@ __kmem_cache_destroy(kmem_cache_t *cache)
         if (kcc == NULL)
                 return;
 
+	name = (char *)kmem_cache_name(cache);
         kmem_cache_destroy(cache);
         kmem_cache_remove_cache_cb(kcc);
+	kfree(name);
 
 	/* Unregister generic shrinker on removal of all caches */
 	spin_lock(&kmem_cache_cb_lock);

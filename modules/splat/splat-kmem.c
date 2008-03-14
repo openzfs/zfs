@@ -35,6 +35,10 @@ splat_kmem_test1(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, count, rc = 0;
 
+	/* We are intentionally going to push kmem_alloc to its max
+	 * allocation size, so suppress the console warnings for now */
+	kmem_set_warning(0);
+
 	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
 
@@ -57,6 +61,8 @@ splat_kmem_test1(struct file *file, void *arg)
 		size *= 2;
 	}
 
+	kmem_set_warning(1);
+
 	return rc;
 }
 
@@ -66,6 +72,10 @@ splat_kmem_test2(struct file *file, void *arg)
 	void *ptr[SPLAT_KMEM_ALLOC_COUNT];
 	int size = PAGE_SIZE;
 	int i, j, count, rc = 0;
+
+	/* We are intentionally going to push kmem_alloc to its max
+	 * allocation size, so suppress the console warnings for now */
+	kmem_set_warning(0);
 
 	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
@@ -100,6 +110,8 @@ splat_kmem_test2(struct file *file, void *arg)
 
 		size *= 2;
 	}
+
+	kmem_set_warning(1);
 
 	return rc;
 }

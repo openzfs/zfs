@@ -24,30 +24,32 @@ extern "C" {
 #define KM_FLAGS                        __GFP_BITS_MASK
 
 #ifdef DEBUG_KMEM
-extern atomic_t kmem_alloc_used;
-extern unsigned int kmem_alloc_max;
-extern atomic_t vmem_alloc_used;
-extern unsigned int vmem_alloc_max;
+extern atomic64_t kmem_alloc_used;
+extern unsigned long kmem_alloc_max;
+extern atomic64_t vmem_alloc_used;
+extern unsigned long vmem_alloc_max;
+extern int kmem_warning_flag;
 
 #define __kmem_alloc(size, flags, allocator)                                  \
 ({      void *_ptr_;                                                          \
                                                                               \
 	/* Marked unlikely because we should never be doing this */           \
-        if (unlikely((size) > (PAGE_SIZE * 2)))                               \
+        if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)          \
                 printk("Warning: kmem_alloc(%d, 0x%x) large alloc at %s:%d "  \
-                       "(%d/%d)\n", (int)(size), (int)(flags),                \
+                       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
-		       atomic_read(&kmem_alloc_used), kmem_alloc_max);        \
+		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
                                                                               \
         _ptr_ = (void *)allocator((size), (flags));                           \
         if (_ptr_ == NULL) {                                                  \
                 printk("Warning: kmem_alloc(%d, 0x%x) failed at %s:%d "       \
-		       "(%d/%d)\n", (int)(size), (int)(flags),                \
+		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
-		       atomic_read(&kmem_alloc_used), kmem_alloc_max);        \
-                atomic_add((size), &kmem_alloc_used);                         \
-                if (unlikely(atomic_read(&kmem_alloc_used) > kmem_alloc_max)) \
-                        kmem_alloc_max = atomic_read(&kmem_alloc_used);       \
+		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
+        } else {                                                              \
+                atomic64_add((size), &kmem_alloc_used);                       \
+                if (unlikely(atomic64_read(&kmem_alloc_used)>kmem_alloc_max)) \
+                        kmem_alloc_max = atomic64_read(&kmem_alloc_used);     \
         }                                                                     \
                                                                               \
         _ptr_;                                                                \
@@ -59,7 +61,7 @@ extern unsigned int vmem_alloc_max;
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
         BUG_ON(!(ptr) || (size) < 0);                                         \
-        atomic_sub((size), &kmem_alloc_used);                                 \
+        atomic64_sub((size), &kmem_alloc_used);                               \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         kfree(ptr);                                                           \
 })
@@ -72,12 +74,13 @@ extern unsigned int vmem_alloc_max;
         _ptr_ = (void *)vmalloc((size));                                      \
         if (_ptr_ == NULL) {                                                  \
                 printk("Warning: vmem_alloc(%d, 0x%x) failed at %s:%d "       \
-		       "(%d/%d)\n", (int)(size), (int)(flags),                \
+		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
-		       atomic_read(&vmem_alloc_used), vmem_alloc_max);        \
-                atomic_add((size), &vmem_alloc_used);                         \
-                if (unlikely(atomic_read(&vmem_alloc_used) > vmem_alloc_max)) \
-                        vmem_alloc_max = atomic_read(&vmem_alloc_used);       \
+		       atomic64_read(&vmem_alloc_used), vmem_alloc_max);      \
+        } else {                                                              \
+                atomic64_add((size), &vmem_alloc_used);                       \
+                if (unlikely(atomic64_read(&vmem_alloc_used)>vmem_alloc_max)) \
+                        vmem_alloc_max = atomic64_read(&vmem_alloc_used);     \
         }                                                                     \
                                                                               \
         _ptr_;                                                                \
@@ -88,7 +91,7 @@ extern unsigned int vmem_alloc_max;
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
         BUG_ON(!(ptr) || (size) < 0);                                         \
-        atomic_sub((size), &vmem_alloc_used);                                 \
+        atomic64_sub((size), &vmem_alloc_used);                               \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         vfree(ptr);                                                           \
 })
@@ -185,6 +188,8 @@ kmem_debugging(void)
 typedef int (*kmem_constructor_t)(void *, void *, int);
 typedef void (*kmem_destructor_t)(void *, void *);
 typedef void (*kmem_reclaim_t)(void *);
+
+extern int kmem_set_warning(int flag);
 
 extern kmem_cache_t *
 __kmem_cache_create(char *name, size_t size, size_t align,
