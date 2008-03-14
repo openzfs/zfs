@@ -5,6 +5,8 @@
 void *rootdir = NULL;
 EXPORT_SYMBOL(rootdir);
 
+kmem_cache_t *vn_cache;
+
 static vtype_t
 vn_get_sol_type(umode_t mode)
 {
@@ -35,8 +37,31 @@ vn_get_sol_type(umode_t mode)
 	return VNON;
 } /* vn_get_sol_type() */
 
+vnode_t *
+vn_alloc(int flag)
+{
+	vnode_t *vp;
+
+	vp = kmem_cache_alloc(vn_cache, flag);
+
+	if (vp != NULL) {
+		vp->v_fp = NULL;
+		vp->v_type = 0;
+	}
+
+	return (vp);
+} /* vn_alloc() */
+EXPORT_SYMBOL(vn_alloc);
+
+void
+vn_free(vnode_t *vp)
+{
+	kmem_cache_free(vn_cache, vp);
+} /* vn_free() */
+EXPORT_SYMBOL(vn_free);
+
 int
-vn_open(const char *path, int seg, int flags, int mode,
+vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	vnode_t **vpp, int x1, void *x2)
 {
         struct file *fp;
@@ -76,7 +101,7 @@ vn_open(const char *path, int seg, int flags, int mode,
 		return rc;
 	}
 
-	vp = kmalloc(sizeof(vnode_t), GFP_ATOMIC);
+	vp = vn_alloc(KM_SLEEP);
 	if (!vp) {
 		filp_close(fp, 0);
 		return -ENOMEM;
@@ -91,7 +116,7 @@ vn_open(const char *path, int seg, int flags, int mode,
 EXPORT_SYMBOL(vn_open);
 
 int
-vn_openat(const char *path, int seg, int flags, int mode,
+vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 	  vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd)
 {
 	char *realpath;
@@ -114,7 +139,7 @@ EXPORT_SYMBOL(vn_openat);
 
 int
 vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
-	int seg, int x1, rlim64_t x2, void *x3, ssize_t *residp)
+	uio_seg_t seg, int x1, rlim64_t x2, void *x3, ssize_t *residp)
 {
 	loff_t offset;
 	mm_segment_t saved_fs;
@@ -167,7 +192,7 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 	BUG_ON(!vp->v_fp);
 
         rc = filp_close(vp->v_fp, 0);
-        kfree(vp);
+        vn_free(vp);
 
 	return rc;
 } /* vn_close() */
@@ -180,7 +205,7 @@ static struct dentry *lookup_hash(struct nameidata *nd)
 
 /* Modified do_unlinkat() from linux/fs/namei.c, only uses exported symbols */
 int
-vn_remove(const char *path, int seg, int flags)
+vn_remove(const char *path, uio_seg_t seg, int flags)
 {
         struct dentry *dentry;
         struct nameidata nd;
@@ -364,3 +389,36 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	return file_fsync(vp->v_fp, vp->v_fp->f_dentry, datasync);
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
+
+static int
+vn_cache_constructor(void *buf, void *cdrarg, int kmflags)
+{
+	struct vnode *vp = buf;
+
+	mutex_init(&vp->v_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	return (0);
+} /* vn_cache_constructor() */
+
+static void
+vn_cache_destructor(void *buf, void *cdrarg)
+{
+	struct vnode *vp = buf;
+
+	mutex_destroy(&vp->v_lock);
+} /* vn_cache_destructor() */
+
+int
+vn_init(void)
+{
+	vn_cache = kmem_cache_create("vn_cache", sizeof(struct vnode), 64,
+	                             vn_cache_constructor, vn_cache_destructor,
+				     NULL, NULL, NULL, 0);
+	return 0;
+} /* vn_init() */
+
+void
+vn_fini(void)
+{
+	kmem_cache_destroy(vn_cache);
+} /* vn_fini() */

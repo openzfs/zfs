@@ -1,4 +1,6 @@
 #include <sys/sysmacros.h>
+#include <sys/vmsystm.h>
+#include <sys/vnode.h>
 #include "config.h"
 
 /*
@@ -10,6 +12,9 @@ EXPORT_SYMBOL(p0);
 
 char hw_serial[11];
 EXPORT_SYMBOL(hw_serial);
+
+vmem_t *zio_alloc_arena = NULL;
+EXPORT_SYMBOL(zio_alloc_arena);
 
 int
 highbit(unsigned long i)
@@ -52,13 +57,21 @@ EXPORT_SYMBOL(ddi_strtoul);
 
 static int __init spl_init(void)
 {
+	int rc;
+
+	rc = vn_init();
+	if (rc)
+		return rc;
+
 	strcpy(hw_serial, "007f0100"); /* loopback */
         printk(KERN_INFO "spl: Loaded Solaris Porting Layer v%s\n", VERSION);
+
 	return 0;
 }
 
 static void spl_fini(void)
 {
+	vn_fini();
 	return;
 }
 

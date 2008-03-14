@@ -9,6 +9,8 @@
 #include <linux/dcache.h>
 #include <linux/namei.h>
 #include <linux/fs.h>
+#include <sys/kmem.h>
+#include <sys/mutex.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/uio.h>
@@ -72,11 +74,6 @@ typedef enum vtype {
 	VBAD		= 11
 } vtype_t;
 
-typedef struct vnode {
-	struct file	*v_fp;
-	vtype_t		v_type;
-} vnode_t;
-
 typedef struct vattr {
 	enum vtype     va_type;      /* vnode type */
 	u_int          va_mask;	     /* attribute bit-mask */
@@ -130,6 +127,20 @@ typedef struct vsecattr {
         size_t          vsa_aclentsz;   /* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
+typedef struct vnode {
+	struct file	*v_fp;
+	kmutex_t	v_lock;		/* protects vnode fields */
+	uint_t		v_flag;		/* vnode flags (see below) */
+	uint_t		v_count;	/* reference count */
+	void		*v_data;	/* private data for fs */
+	struct vfs	*v_vfsp;	/* ptr to containing VFS */
+	struct stdata	*v_stream;	/* associated stream */
+	enum vtype	v_type;		/* vnode type */
+	dev_t		v_rdev;		/* device (VCHR, VBLK) */
+} vnode_t;
+
+extern vnode_t *vn_alloc(int flag);
+void vn_free(vnode_t *vp);
 extern int vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		   vnode_t **vpp, int x1, void *x2);
 extern int vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
@@ -142,6 +153,9 @@ extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
+
+int vn_init(void);
+void vn_fini(void);
 
 static __inline__ int
 vn_rele(vnode_t *vp)

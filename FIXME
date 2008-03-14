@@ -6,8 +6,6 @@ sys/dkio.h		- All borrowed from libsolcompat
 sys/dklabel.h		- All borrowed from libsolcompat
 sys/types32.h		- All borrowed from libsolcompat
 sys/isa_defs.h		- AlL borrowed from libsolcompat
-sys/u8_textprep.h	- AlL borrowed from libsolcompat
-sys/u8_textprep_data	- AlL borrowed from libsolcompat
 sys/acl.h		_ All borrowed from libsolcompat
 sys/acl_impl.h		_ All borrowed from libsolcompat
 

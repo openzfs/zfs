@@ -2,6 +2,9 @@
 #define _SPL_VMSYSTM_H
 
 #include <linux/mm.h>
+#include <sys/types.h>
+
+extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 
 #define physmem				num_physpages
 #define ptob(pages)			(pages * PAGE_SIZE)
