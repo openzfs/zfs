@@ -5,11 +5,12 @@
 extern "C" {
 #endif
 
-#undef DEBUG_KMEM
+#define DEBUG_KMEM
 #undef DEBUG_KMEM_UNIMPLEMENTED
 
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
 /*
@@ -23,12 +24,11 @@ extern "C" {
 #define KM_FLAGS                        __GFP_BITS_MASK
 
 #ifdef DEBUG_KMEM
-/* Shim layer memory accounting */
 extern atomic_t kmem_alloc_used;
 extern unsigned int kmem_alloc_max;
-#endif
+extern atomic_t vmem_alloc_used;
+extern unsigned int vmem_alloc_max;
 
-#ifdef DEBUG_KMEM
 #define __kmem_alloc(size, flags, allocator)                                  \
 ({      void *_ptr_;                                                          \
                                                                               \
@@ -58,13 +58,40 @@ extern unsigned int kmem_alloc_max;
 
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
-        BUG_ON(!ptr || size < 0);                                             \
+        BUG_ON(!(ptr) || (size) < 0);                                         \
         atomic_sub((size), &kmem_alloc_used);                                 \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         kfree(ptr);                                                           \
-        (ptr) = (void *)0xdeadbeef;                                           \
 })
 
+#define __vmem_alloc(size, flags)                                             \
+({      void *_ptr_;                                                          \
+                                                                              \
+	BUG_ON(flags != KM_SLEEP);                                            \
+                                                                              \
+        _ptr_ = (void *)vmalloc((size));                                      \
+        if (_ptr_ == NULL) {                                                  \
+                printk("Warning: vmem_alloc(%d, 0x%x) failed at %s:%d "       \
+		       "(%d/%d)\n", (int)(size), (int)(flags),                \
+		       __FILE__, __LINE__,                                    \
+		       atomic_read(&vmem_alloc_used), vmem_alloc_max);        \
+                atomic_add((size), &vmem_alloc_used);                         \
+                if (unlikely(atomic_read(&vmem_alloc_used) > vmem_alloc_max)) \
+                        vmem_alloc_max = atomic_read(&vmem_alloc_used);       \
+        }                                                                     \
+                                                                              \
+        _ptr_;                                                                \
+})
+
+#define vmem_alloc(size, flags)         __vmem_alloc(size, flags)
+
+#define vmem_free(ptr, size)                                                  \
+({                                                                            \
+        BUG_ON(!(ptr) || (size) < 0);                                         \
+        atomic_sub((size), &vmem_alloc_used);                                 \
+        memset(ptr, 0x5a, (size)); /* Poison */                               \
+        vfree(ptr);                                                           \
+})
 
 #else
 
@@ -72,8 +99,15 @@ extern unsigned int kmem_alloc_max;
 #define kmem_zalloc(size, flags)        kzalloc(size, flags)
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
-	BUG_ON(!ptr || size < 0);                                             \
+	BUG_ON(!(ptr) || (size) < 0);                                         \
 	kfree(ptr);                                                           \
+})
+
+#define vmem_alloc(size, flags)         vmalloc(size)
+#define vmem_free(ptr, size)                                                  \
+({                                                                            \
+	BUG_ON(!(ptr) || (size) < 0);                                         \
+	vfree(ptr);                                                           \
 })
 
 #endif /* DEBUG_KMEM */

@@ -7,6 +7,13 @@
 /* Shim layer memory accounting */
 atomic_t kmem_alloc_used;
 unsigned int kmem_alloc_max;
+atomic_t vmem_alloc_used;
+unsigned int vmem_alloc_max;
+
+EXPORT_SYMBOL(kmem_alloc_used);
+EXPORT_SYMBOL(kmem_alloc_max);
+EXPORT_SYMBOL(vmem_alloc_used);
+EXPORT_SYMBOL(vmem_alloc_max);
 #endif
 
 /*

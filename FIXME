@@ -10,3 +10,5 @@ sys/acl.h		_ All borrowed from libsolcompat
 sys/acl_impl.h		_ All borrowed from libsolcompat
 
 * Implement solaris style atomic interfaces
+
+* Fully implement vnode support for ZPL layer to intergrate with VFS.

@@ -23,6 +23,7 @@ typedef struct task_struct		kthread_t;
 typedef struct vmem { }			vmem_t;
 typedef short				pri_t;
 typedef struct timespec			timestruc_t; /* definition per SVr4 */
+typedef struct timespec			timespec_t;
 typedef longlong_t			hrtime_t;
 typedef unsigned short			ushort_t;
 typedef u_longlong_t			len_t;

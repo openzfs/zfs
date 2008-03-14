@@ -20,7 +20,13 @@
 #define SPLAT_KMEM_TEST4_NAME		"slab_reap"
 #define SPLAT_KMEM_TEST4_DESC		"Slab reaping test"
 
+#define SPLAT_KMEM_TEST5_ID		0x0105
+#define SPLAT_KMEM_TEST5_NAME		"vmem_alloc"
+#define SPLAT_KMEM_TEST5_DESC		"Memory allocation test (vmem_alloc)"
+
 #define SPLAT_KMEM_ALLOC_COUNT		10
+#define SPLAT_VMEM_ALLOC_COUNT		10
+
 /* XXX - This test may fail under tight memory conditions */
 static int
 splat_kmem_test1(struct file *file, void *arg)
@@ -29,7 +35,7 @@ splat_kmem_test1(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, count, rc = 0;
 
-	while ((!rc) && (size < (PAGE_SIZE * 16))) {
+	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
@@ -61,7 +67,7 @@ splat_kmem_test2(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, j, count, rc = 0;
 
-	while ((!rc) && (size < (PAGE_SIZE * 16))) {
+	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
@@ -317,6 +323,38 @@ splat_kmem_test4(struct file *file, void *arg)
 	return rc;
 }
 
+static int
+splat_kmem_test5(struct file *file, void *arg)
+{
+	void *ptr[SPLAT_VMEM_ALLOC_COUNT];
+	int size = PAGE_SIZE;
+	int i, count, rc = 0;
+
+	while ((!rc) && (size <= (PAGE_SIZE * 1024))) {
+		count = 0;
+
+		for (i = 0; i < SPLAT_VMEM_ALLOC_COUNT; i++) {
+			ptr[i] = vmem_alloc(size, KM_SLEEP);
+			if (ptr[i])
+				count++;
+		}
+
+		for (i = 0; i < SPLAT_VMEM_ALLOC_COUNT; i++)
+			if (ptr[i])
+				vmem_free(ptr[i], size);
+
+		splat_vprint(file, SPLAT_KMEM_TEST5_NAME,
+	                   "%d byte allocations, %d/%d successful\n",
+		           size, count, SPLAT_VMEM_ALLOC_COUNT);
+		if (count != SPLAT_VMEM_ALLOC_COUNT)
+			rc = -ENOMEM;
+
+		size *= 2;
+	}
+
+	return rc;
+}
+
 splat_subsystem_t *
 splat_kmem_init(void)
 {
@@ -342,6 +380,8 @@ splat_kmem_init(void)
 	              SPLAT_KMEM_TEST3_ID, splat_kmem_test3);
         SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST4_NAME, SPLAT_KMEM_TEST4_DESC,
 	              SPLAT_KMEM_TEST4_ID, splat_kmem_test4);
+        SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST5_NAME, SPLAT_KMEM_TEST5_DESC,
+	              SPLAT_KMEM_TEST5_ID, splat_kmem_test5);
 
         return sub;
 }
@@ -350,6 +390,7 @@ void
 splat_kmem_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+        SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST5_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST4_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST3_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST2_ID);
