@@ -3,6 +3,7 @@
 
 #include <linux/mm.h>
 #include <sys/types.h>
+#include <asm/uaccess.h>
 
 extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 
@@ -10,8 +11,45 @@ extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 #define ptob(pages)			(pages * PAGE_SIZE)
 #define membar_producer()		smp_wmb()
 
-#define copyin(from, to, size)		copy_from_user(to, from, size)
-#define copyout(from, to, size)		copy_to_user(to, from, size)
+#define xcopyin(from, to, size)		copy_from_user(to, from, size)
+#define xcopyout(from, to, size)	copy_to_user(to, from, size)
+
+static __inline__ int
+copyin(const void *from, void *to, size_t len)
+{
+	/* On error copyin routine returns -1 */
+	if (xcopyin(from, to, len))
+		return -1;
+
+	return 0;
+}
+
+static __inline__ int
+copyout(const void *from, void *to, size_t len)
+{
+	/* On error copyout routine returns -1 */
+	if (xcopyout(from, to, len))
+		return -1;
+
+	return 0;
+}
+
+static __inline__ int
+copyinstr(const void *from, void *to, size_t len, size_t *done)
+{
+	if (len == 0)
+		return -ENAMETOOLONG;
+
+	if (len < 0)
+		return -EFAULT;
+
+	/* XXX: Should return ENAMETOOLONG if 'strlen(from) > len' */
+
+	memset(to, 0, len);
+	*done = copyin(from, to, len - 1);
+
+	return 0;
+}
 
 #if 0
 /* The approximate total number of free pages */

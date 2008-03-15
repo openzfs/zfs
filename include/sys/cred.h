@@ -7,6 +7,7 @@ extern "C" {
 
 #include <linux/module.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 
 /* XXX - Portions commented out because we really just want to have the type
  * defined and the contents aren't nearly so important at the moment. */

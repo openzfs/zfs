@@ -1,7 +1,7 @@
 #ifndef _SPL_ZFS_H
 #define _SPL_ZFS_H
 
-typedef struct vfs_s {
+typedef struct vfs {
 	int foo;
 } vfs_t;
 
