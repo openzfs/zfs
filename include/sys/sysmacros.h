@@ -8,6 +8,7 @@ extern "C" {
 #include <linux/module.h>
 #include <sys/varargs.h>
 #include <sys/zone.h>
+#include <sys/signal.h>
 
 #ifndef _KERNEL
 #define _KERNEL                         __KERNEL__
