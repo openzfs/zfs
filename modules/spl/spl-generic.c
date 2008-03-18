@@ -1,7 +1,6 @@
 #include <sys/sysmacros.h>
 #include <sys/vmsystm.h>
 #include <sys/vnode.h>
-#include <sys/file.h>
 #include <sys/kmem.h>
 #include "config.h"
 
@@ -61,13 +60,10 @@ static int __init spl_init(void)
 {
 	int rc;
 
-	if ((rc = vn_init()))
-		return rc;
-
-	if ((rc = file_init()))
-		return rc;
-
 	if ((rc = kmem_init()))
+		return rc;
+
+	if ((rc = vn_init()))
 		return rc;
 
 	strcpy(hw_serial, "007f0100"); /* loopback */
@@ -78,9 +74,8 @@ static int __init spl_init(void)
 
 static void spl_fini(void)
 {
-	kmem_fini();
-	file_fini();
 	vn_fini();
+	kmem_fini();
 
 	return;
 }

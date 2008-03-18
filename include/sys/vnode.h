@@ -12,6 +12,7 @@ extern "C" {
 #include <linux/buffer_head.h>
 #include <linux/dcache.h>
 #include <linux/namei.h>
+#include <linux/file.h>
 #include <linux/fs.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
@@ -133,7 +134,7 @@ typedef struct vsecattr {
 } vsecattr_t;
 
 typedef struct vnode {
-	struct file	*v_fp;
+	struct file	*v_file;
 	kmutex_t	v_lock;		/* protects vnode fields */
 	uint_t		v_flag;		/* vnode flags (see below) */
 	uint_t		v_count;	/* reference count */
@@ -143,6 +144,16 @@ typedef struct vnode {
 	enum vtype	v_type;		/* vnode type */
 	dev_t		v_rdev;		/* device (VCHR, VBLK) */
 } vnode_t;
+
+typedef struct vn_file {
+	int			f_fd;	   /* linux fd for lookup */
+	struct file		*f_file;   /* linux file struct */
+	atomic_t		f_ref;	   /* ref count */
+	kmutex_t		f_lock;    /* struct lock */
+	loff_t			f_offset;  /* offset */
+	vnode_t			*f_vnode;  /* vnode */
+        struct list_head	f_list;	   /* list of referenced file_t's */
+} file_t;
 
 extern vnode_t *vn_alloc(int flag);
 void vn_free(vnode_t *vp);
@@ -158,6 +169,8 @@ extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
+extern file_t *vn_getf(int fd);
+extern void vn_releasef(int fd);
 
 int vn_init(void);
 void vn_fini(void);
@@ -180,6 +193,8 @@ vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
 #define VOP_FSYNC				vn_fsync
 #define VOP_PUTPAGE				vn_putpage
 #define vn_is_readonly(vp)			0
+#define getf					vn_getf
+#define releasef				vn_releasef
 
 extern void *rootdir;
 

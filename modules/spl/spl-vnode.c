@@ -5,7 +5,11 @@
 void *rootdir = NULL;
 EXPORT_SYMBOL(rootdir);
 
-kmem_cache_t *vn_cache;
+static kmem_cache_t *vn_cache;
+static kmem_cache_t *vn_file_cache;
+
+static spinlock_t vn_file_lock = SPIN_LOCK_UNLOCKED;
+static LIST_HEAD(vn_file_list);
 
 static vtype_t
 vn_get_sol_type(umode_t mode)
@@ -44,7 +48,7 @@ vn_alloc(int flag)
 
 	vp = kmem_cache_alloc(vn_cache, flag);
 	if (vp != NULL) {
-		vp->v_fp = NULL;
+		vp->v_file = NULL;
 		vp->v_type = 0;
 	}
 
@@ -106,9 +110,11 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		return -ENOMEM;
 	}
 
+	mutex_enter(&vp->v_lock);
 	vp->v_type = vn_get_sol_type(stat.mode);
-	vp->v_fp = fp;
+	vp->v_file = fp;
 	*vpp = vp;
+	mutex_exit(&vp->v_lock);
 
 	return 0;
 } /* vn_open() */
@@ -147,13 +153,13 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 
 	BUG_ON(!(uio == UIO_WRITE || uio == UIO_READ));
 	BUG_ON(!vp);
-	BUG_ON(!vp->v_fp);
+	BUG_ON(!vp->v_file);
 	BUG_ON(seg != UIO_SYSSPACE);
 	BUG_ON(x1 != 0);
 	BUG_ON(x2 != RLIM64_INFINITY);
 
 	offset = off;
-	fp = vp->v_fp;
+	fp = vp->v_file;
 
 	/* Writable user data segment must be briefly increased for this
 	 * process so we can use the user space read call paths to write
@@ -188,9 +194,9 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 	int rc;
 
 	BUG_ON(!vp);
-	BUG_ON(!vp->v_fp);
+	BUG_ON(!vp->v_file);
 
-        rc = filp_close(vp->v_fp, 0);
+        rc = filp_close(vp->v_file, 0);
         vn_free(vp);
 
 	return rc;
@@ -344,10 +350,10 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	int rc;
 
 	BUG_ON(!vp);
-	BUG_ON(!vp->v_fp);
+	BUG_ON(!vp->v_file);
 	BUG_ON(!vap);
 
-	fp = vp->v_fp;
+	fp = vp->v_file;
 
         rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc)
@@ -380,14 +386,142 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	int datasync = 0;
 
 	BUG_ON(!vp);
-	BUG_ON(!vp->v_fp);
+	BUG_ON(!vp->v_file);
 
 	if (flags & FDSYNC)
 		datasync = 1;
 
-	return file_fsync(vp->v_fp, vp->v_fp->f_dentry, datasync);
+	return file_fsync(vp->v_file, vp->v_file->f_dentry, datasync);
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
+
+/* Function must be called while holding the vn_file_lock */
+static file_t *
+file_find(int fd)
+{
+        file_t *fp;
+
+	BUG_ON(!spin_is_locked(&vn_file_lock));
+
+        list_for_each_entry(fp, &vn_file_list,  f_list) {
+		if (fd == fp->f_fd) {
+			BUG_ON(atomic_read(&fp->f_ref) == 0);
+                        return fp;
+		}
+	}
+
+        return NULL;
+} /* file_find() */
+
+file_t *
+vn_getf(int fd)
+{
+        struct kstat stat;
+	struct file *lfp;
+	file_t *fp;
+	vnode_t *vp;
+
+	/* Already open just take an extra reference */
+	spin_lock(&vn_file_lock);
+
+	fp = file_find(fd);
+	if (fp) {
+		atomic_inc(&fp->f_ref);
+		spin_unlock(&vn_file_lock);
+		printk("found file\n");
+		return fp;
+	}
+
+	spin_unlock(&vn_file_lock);
+
+	/* File was not yet opened create the object and setup */
+	fp = kmem_cache_alloc(vn_file_cache, 0);
+	if (fp == NULL)
+		goto out;
+
+	mutex_enter(&fp->f_lock);
+
+	fp->f_fd = fd;
+	fp->f_offset = 0;
+	atomic_inc(&fp->f_ref);
+
+	lfp = fget(fd);
+	if (lfp == NULL)
+		goto out_mutex;
+
+	vp = vn_alloc(KM_SLEEP);
+	if (vp == NULL)
+		goto out_fget;
+
+        if (vfs_getattr(lfp->f_vfsmnt, lfp->f_dentry, &stat))
+		goto out_vnode;
+
+	mutex_enter(&vp->v_lock);
+	vp->v_type = vn_get_sol_type(stat.mode);
+	vp->v_file = lfp;
+	mutex_exit(&vp->v_lock);
+
+	fp->f_vnode = vp;
+	fp->f_file = lfp;
+
+	/* Put it on the tracking list */
+	spin_lock(&vn_file_lock);
+	list_add(&fp->f_list, &vn_file_list);
+	spin_unlock(&vn_file_lock);
+
+	mutex_exit(&fp->f_lock);
+	return fp;
+
+out_vnode:
+	printk("out_vnode\n");
+	vn_free(vp);
+out_fget:
+	printk("out_fget\n");
+	fput(lfp);
+out_mutex:
+	printk("out_mutex\n");
+	mutex_exit(&fp->f_lock);
+	kmem_cache_free(vn_file_cache, fp);
+out:
+	printk("out\n");
+        return NULL;
+} /* getf() */
+EXPORT_SYMBOL(getf);
+
+static void releasef_locked(file_t *fp)
+{
+	BUG_ON(fp->f_file == NULL);
+	BUG_ON(fp->f_vnode == NULL);
+
+	/* Unlinked from list, no refs, safe to free outside mutex */
+	fput(fp->f_file);
+	vn_free(fp->f_vnode);
+
+	kmem_cache_free(vn_file_cache, fp);
+}
+
+void
+vn_releasef(int fd)
+{
+	file_t *fp;
+
+	spin_lock(&vn_file_lock);
+	fp = file_find(fd);
+	if (fp) {
+		atomic_dec(&fp->f_ref);
+		if (atomic_read(&fp->f_ref) > 0) {
+			spin_unlock(&vn_file_lock);
+			return;
+		}
+
+	        list_del(&fp->f_list);
+		releasef_locked(fp);
+	}
+	spin_unlock(&vn_file_lock);
+
+	return;
+} /* releasef() */
+EXPORT_SYMBOL(releasef);
 
 static int
 vn_cache_constructor(void *buf, void *cdrarg, int kmflags)
@@ -407,6 +541,25 @@ vn_cache_destructor(void *buf, void *cdrarg)
 	mutex_destroy(&vp->v_lock);
 } /* vn_cache_destructor() */
 
+static int
+vn_file_cache_constructor(void *buf, void *cdrarg, int kmflags)
+{
+	file_t *fp = buf;
+
+	atomic_set(&fp->f_ref, 0);
+        mutex_init(&fp->f_lock, NULL, MUTEX_DEFAULT, NULL);
+
+        return (0);
+} /* file_cache_constructor() */
+
+static void
+vn_file_cache_destructor(void *buf, void *cdrarg)
+{
+	file_t *fp = buf;
+
+	mutex_destroy(&fp->f_lock);
+} /* vn_file_cache_destructor() */
+
 int
 vn_init(void)
 {
@@ -414,11 +567,42 @@ vn_init(void)
 	                             vn_cache_constructor,
 				     vn_cache_destructor,
 				     NULL, NULL, NULL, 0);
+
+	vn_file_cache = kmem_cache_create("spl_vn_file_cache",
+					  sizeof(file_t), 64,
+				          vn_file_cache_constructor,
+				          vn_file_cache_destructor,
+				          NULL, NULL, NULL, 0);
 	return 0;
 } /* vn_init() */
 
 void
 vn_fini(void)
 {
-	kmem_cache_destroy(vn_cache);
+        file_t *fp, *next_fp;
+	int rc, leaked = 0;
+
+	spin_lock(&vn_file_lock);
+
+        list_for_each_entry_safe(fp, next_fp, &vn_file_list,  f_list) {
+	        list_del(&fp->f_list);
+		releasef_locked(fp);
+		leaked++;
+	}
+
+	rc = kmem_cache_destroy(vn_file_cache);
+	if (rc)
+		printk("Warning leaked vn_file_cache objects\n");
+
+	vn_file_cache = NULL;
+	spin_unlock(&vn_file_lock);
+
+	if (leaked > 0)
+		printk("Warning: %d files leaked\n", leaked);
+
+	rc = kmem_cache_destroy(vn_cache);
+	if (rc)
+		printk("Warning leaked vn_cache objects\n");
+
+	return;
 } /* vn_fini() */

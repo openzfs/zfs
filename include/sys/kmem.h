@@ -198,7 +198,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
         kmem_reclaim_t reclaim,
         void *priv, void *vmp, int flags);
 
-void
+int
 extern __kmem_cache_destroy(kmem_cache_t *cache);
 
 void

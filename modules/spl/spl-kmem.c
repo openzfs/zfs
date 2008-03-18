@@ -238,21 +238,23 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 }
 EXPORT_SYMBOL(__kmem_cache_create);
 
-/* Return codes discarded because Solaris implementation has void return */
-void
+/* Return code provided despite Solaris's void return.  There should be no
+ * harm here since the Solaris versions will ignore it anyway. */
+int
 __kmem_cache_destroy(kmem_cache_t *cache)
 {
         kmem_cache_cb_t *kcc;
 	char *name;
+	int rc;
 
 	spin_lock(&kmem_cache_cb_lock);
         kcc = kmem_cache_find_cache_cb(cache);
 	spin_unlock(&kmem_cache_cb_lock);
         if (kcc == NULL)
-                return;
+                return -EINVAL;
 
 	name = (char *)kmem_cache_name(cache);
-        kmem_cache_destroy(cache);
+        rc = kmem_cache_destroy(cache);
         kmem_cache_remove_cache_cb(kcc);
 	kfree(name);
 
@@ -262,6 +264,7 @@ __kmem_cache_destroy(kmem_cache_t *cache)
                 remove_shrinker(kmem_cache_shrinker);
 
 	spin_unlock(&kmem_cache_cb_lock);
+	return rc;
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);
 

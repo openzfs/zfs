@@ -55,7 +55,7 @@ splat_kobj_test2(struct file *file, void *arg)
 		goto out;
 	}
 
-	buf = kmalloc(size, GFP_KERNEL);
+	buf = kmalloc(size + 1, GFP_KERNEL);
 	if (!buf) {
 		rc = -ENOMEM;
 		splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Failed to alloc "
@@ -63,6 +63,7 @@ splat_kobj_test2(struct file *file, void *arg)
 		goto out;
 	}
 
+	memset(buf, 0, size + 1);
 	rc = kobj_read_file(f, buf, size, 0);
 	if (rc < 0) {
 		splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Failed read of "
@@ -74,7 +75,7 @@ splat_kobj_test2(struct file *file, void *arg)
 	 * isn't a perfect test since we didn't create the file however it is
 	 * pretty unlikely there are garbage characters in your /etc/fstab */
 	if (size != (uint64_t)strlen(buf)) {
-		rc = EFBIG;
+		rc = -EFBIG;
 		splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Stat'ed size "
 			     "(%lld) does not match number of bytes read "
 			     "(%lld)\n", size, (uint64_t)strlen(buf));
