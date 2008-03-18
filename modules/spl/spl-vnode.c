@@ -43,7 +43,6 @@ vn_alloc(int flag)
 	vnode_t *vp;
 
 	vp = kmem_cache_alloc(vn_cache, flag);
-
 	if (vp != NULL) {
 		vp->v_fp = NULL;
 		vp->v_type = 0;
@@ -411,8 +410,9 @@ vn_cache_destructor(void *buf, void *cdrarg)
 int
 vn_init(void)
 {
-	vn_cache = kmem_cache_create("vn_cache", sizeof(struct vnode), 64,
-	                             vn_cache_constructor, vn_cache_destructor,
+	vn_cache = kmem_cache_create("spl_vn_cache", sizeof(struct vnode), 64,
+	                             vn_cache_constructor,
+				     vn_cache_destructor,
 				     NULL, NULL, NULL, 0);
 	return 0;
 } /* vn_init() */

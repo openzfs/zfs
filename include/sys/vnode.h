@@ -1,6 +1,10 @@
 #ifndef _SPL_VNODE_H
 #define _SPL_VNODE_H
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 #include <linux/module.h>
 #include <linux/syscalls.h>
 #include <linux/fcntl.h>
@@ -30,6 +34,7 @@
 #define FRSYNC		O_RSYNC
 #define FEXCL		O_EXCL
 #define FDIRECT		O_DIRECT
+#define FAPPEND		O_APPEND
 
 #define FNODSYNC	0x10000 /* fsync pseudo flag */
 #define FNOFOLLOW	0x20000 /* don't follow symlinks */
@@ -177,5 +182,9 @@ vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
 #define vn_is_readonly(vp)			0
 
 extern void *rootdir;
+
+#ifdef  __cplusplus
+}
+#endif
 
 #endif /* SPL_VNODE_H */

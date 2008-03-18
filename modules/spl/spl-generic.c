@@ -1,6 +1,7 @@
 #include <sys/sysmacros.h>
 #include <sys/vmsystm.h>
 #include <sys/vnode.h>
+#include <sys/file.h>
 #include <sys/kmem.h>
 #include "config.h"
 
@@ -60,34 +61,26 @@ static int __init spl_init(void)
 {
 	int rc;
 
-	rc = vn_init();
-	if (rc)
+	if ((rc = vn_init()))
+		return rc;
+
+	if ((rc = file_init()))
+		return rc;
+
+	if ((rc = kmem_init()))
 		return rc;
 
 	strcpy(hw_serial, "007f0100"); /* loopback */
         printk(KERN_INFO "spl: Loaded Solaris Porting Layer v%s\n", VERSION);
-
-#ifdef DEBUG_KMEM
-	atomic64_set(&kmem_alloc_used, 0);
-	atomic64_set(&vmem_alloc_used, 0);
-#endif
 
 	return 0;
 }
 
 static void spl_fini(void)
 {
+	kmem_fini();
+	file_fini();
 	vn_fini();
-
-#ifdef DEBUG_KMEM
-	if (atomic64_read(&kmem_alloc_used) != 0)
-		printk("Warning: kmem leaked %ld/%ld bytes\n",
-                       atomic_read(&kmem_alloc_used), kmem_alloc_max);
-
-	if (atomic64_read(&vmem_alloc_used) != 0)
-		printk("Warning: vmem leaked %ld/%ld bytes\n",
-                       atomic_read(&vmem_alloc_used), vmem_alloc_max);
-#endif
 
 	return;
 }

@@ -204,6 +204,9 @@ extern __kmem_cache_destroy(kmem_cache_t *cache);
 void
 extern __kmem_reap(void);
 
+int kmem_init(void);
+void kmem_fini(void);
+
 #define kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags) \
         __kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
 #define kmem_cache_destroy(cache)       __kmem_cache_destroy(cache)

@@ -272,3 +272,27 @@ __kmem_reap(void) {
 	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
 }
 EXPORT_SYMBOL(__kmem_reap);
+
+int
+kmem_init(void)
+{
+#ifdef DEBUG_KMEM
+	atomic64_set(&kmem_alloc_used, 0);
+	atomic64_set(&vmem_alloc_used, 0);
+#endif
+	return 0;
+}
+
+void
+kmem_fini(void)
+{
+#ifdef DEBUG_KMEM
+        if (atomic64_read(&kmem_alloc_used) != 0)
+                printk("Warning: kmem leaked %ld/%ld bytes\n",
+                       atomic_read(&kmem_alloc_used), kmem_alloc_max);
+
+        if (atomic64_read(&vmem_alloc_used) != 0)
+                printk("Warning: vmem leaked %ld/%ld bytes\n",
+                       atomic_read(&vmem_alloc_used), vmem_alloc_max);
+#endif
+}

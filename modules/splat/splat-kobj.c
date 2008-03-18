@@ -2,15 +2,15 @@
 
 #define SPLAT_SUBSYSTEM_KOBJ		0x0a00
 #define SPLAT_KOBJ_NAME			"kobj"
-#define SPLAT_KOBJ_DESC			"Kernel File Tests"
+#define SPLAT_KOBJ_DESC			"Kernel Kobj Tests"
 
 #define SPLAT_KOBJ_TEST1_ID		0x0a01
 #define SPLAT_KOBJ_TEST1_NAME		"open"
-#define SPLAT_KOBJ_TEST1_DESC		"File Open/Close Test"
+#define SPLAT_KOBJ_TEST1_DESC		"Kobj Open/Close Test"
 
 #define SPLAT_KOBJ_TEST2_ID		0x0a02
 #define SPLAT_KOBJ_TEST2_NAME		"size/read"
-#define SPLAT_KOBJ_TEST2_DESC		"File Size/Read Test"
+#define SPLAT_KOBJ_TEST2_DESC		"Kobj Size/Read Test"
 
 #define SPLAT_KOBJ_TEST_FILE		"/etc/fstab"
 
