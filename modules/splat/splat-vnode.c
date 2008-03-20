@@ -30,8 +30,8 @@
 #define SPLAT_VNODE_TEST6_DESC		"Vn_sync Test"
 
 #define SPLAT_VNODE_TEST7_ID		0x0907
-#define SPLAT_VNODE_TEST7_NAME		"getf"
-#define SPLAT_VNODE_TEST7_DESC		"getf/releasef Test"
+#define SPLAT_VNODE_TEST7_NAME		"vn_getf"
+#define SPLAT_VNODE_TEST7_DESC		"vn_getf/vn_releasef Test"
 
 #define SPLAT_VNODE_TEST_FILE		"/etc/fstab"
 #define SPLAT_VNODE_TEST_FILE_AT	"etc/fstab"

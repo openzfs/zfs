@@ -19,6 +19,7 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/uio.h>
+#include <sys/sunldi.h>
 
 #define XVA_MAPSIZE     3
 #define XVA_MAGIC       0x78766174

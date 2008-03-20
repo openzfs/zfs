@@ -548,6 +548,7 @@ vn_file_cache_constructor(void *buf, void *cdrarg, int kmflags)
 
 	atomic_set(&fp->f_ref, 0);
         mutex_init(&fp->f_lock, NULL, MUTEX_DEFAULT, NULL);
+	INIT_LIST_HEAD(&fp->f_list);
 
         return (0);
 } /* file_cache_constructor() */
