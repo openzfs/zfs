@@ -26,9 +26,8 @@
 #ifndef _SYS_TYPES32_H
 #define	_SYS_TYPES32_H
 
-
-
 #include <sys/int_types.h>
+#include <sys/types.h>
 
 #ifdef	__cplusplus
 extern "C" {

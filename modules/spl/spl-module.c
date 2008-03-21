@@ -52,7 +52,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	int rc;
 
 	BUG_ON(spec_type != S_IFCHR);
-	BUG_ON(minor_num < di->di_minors);
+	BUG_ON(minor_num >= di->di_minors);
 	BUG_ON(strcmp(node_type, DDI_PSEUDO));
 	BUG_ON(flag != 0);
 
@@ -131,8 +131,14 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		return DDI_FAILURE;
 	}
 
-        class_device_create(di->di_class, NULL, di->di_dev,
-	                    NULL, "%s%d", name, di->di_minor);
+	/* Do not append a 0 to devices with minor nums of 0 */
+	if (di->di_minor == 0) {
+	        class_device_create(di->di_class, NULL, di->di_dev,
+		                    NULL, "%s", name);
+	} else {
+	        class_device_create(di->di_class, NULL, di->di_dev,
+		                    NULL, "%s%d", name, di->di_minor);
+	}
 
 	di->di_cdev = cdev;
 
@@ -147,14 +153,23 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 EXPORT_SYMBOL(__ddi_create_minor_node);
 
 static void
-___ddi_remove_minor_node(dev_info_t *di, char *name)
+__ddi_remove_minor_node_locked(dev_info_t *di, char *name)
 {
-	class_device_destroy(di->di_class, di->di_dev);
-	class_destroy(di->di_class);
-	cdev_del(di->di_cdev);
+	if (di->di_class) {
+		class_device_destroy(di->di_class, di->di_dev);
+		class_destroy(di->di_class);
+
+		di->di_class = NULL;
+		di->di_dev = 0;
+	}
+
+	if (di->di_cdev) {
+		cdev_del(di->di_cdev);
+		di->di_cdev = NULL;
+	}
 
 	spin_lock(&dev_info_lock);
-        list_del(&di->di_list);
+        list_del_init(&di->di_list);
 	spin_unlock(&dev_info_lock);
 }
 
@@ -162,7 +177,7 @@ void
 __ddi_remove_minor_node(dev_info_t *di, char *name)
 {
 	mutex_enter(&di->di_lock);
-	___ddi_remove_minor_node(di, name);
+	__ddi_remove_minor_node_locked(di, name);
 	mutex_exit(&di->di_lock);
 }
 EXPORT_SYMBOL(ddi_remove_minor_node);
@@ -218,7 +233,7 @@ static void
 dev_info_free(struct dev_info *di)
 {
 	mutex_enter(&di->di_lock);
-	__ddi_remove_minor_node(di, NULL);
+	__ddi_remove_minor_node_locked(di, NULL);
 	mutex_exit(&di->di_lock);
 	mutex_destroy(&di->di_lock);
 	kfree(di);
