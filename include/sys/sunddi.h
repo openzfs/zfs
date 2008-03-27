@@ -161,7 +161,7 @@ static __inline__ void ddi_prop_remove_all(dev_info_t *dip) { }
 static __inline__ major_t
 ddi_driver_major(dev_info_t *di)
 {
-	return getminor(di->di_dev);
+	return getmajor(di->di_dev);
 }
 
 static __inline__ int

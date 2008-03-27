@@ -76,20 +76,23 @@ extern "C" {
 #define ASSERT(x)                       BUG_ON(!(x))
 #define VERIFY(x)			ASSERT(x)
 
-#define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
-	const TYPE __left = (TYPE)(LEFT);        \
-	const TYPE __right = (TYPE)(RIGHT);      \
-	if (!(__left OP __right))                \
-		BUG();                           \
+#define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST) do {         \
+	const TYPE __left = (TYPE)(LEFT);                           \
+	const TYPE __right = (TYPE)(RIGHT);                         \
+	if (!(__left OP __right)) {                                 \
+		printk("Failed VERIFY3(" FMT " " #OP " " FMT ")\n", \
+		        CAST __left,  CAST __right);                \
+		BUG();                                              \
+	}                                                           \
 } while (0)
 
-#define VERIFY3S(x, y, z)       VERIFY3_IMPL(x, y, z, int64_t)
-#define VERIFY3U(x, y, z)       VERIFY3_IMPL(x, y, z, uint64_t)
-#define VERIFY3P(x, y, z)       VERIFY3_IMPL(x, y, z, uintptr_t)
+#define VERIFY3S(x, y, z)   VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
+#define VERIFY3U(x, y, z)   VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
+#define VERIFY3P(x, y, z)   VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
 
-#define ASSERT3S(x, y, z)       VERIFY3S(x, y, z)
-#define ASSERT3U(x, y, z)       VERIFY3U(x, y, z)
-#define ASSERT3P(x, y, z)       VERIFY3P(x, y, z)
+#define ASSERT3S(x, y, z)   VERIFY3S(x, y, z)
+#define ASSERT3U(x, y, z)   VERIFY3U(x, y, z)
+#define ASSERT3P(x, y, z)   VERIFY3P(x, y, z)
 
 /* Dtrace probes do not exist in the linux kernel */
 
