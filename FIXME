@@ -1,3 +1,1 @@
-* Implement solaris style atomic interfaces
-
 * Fully implement vnode support for ZPL layer to intergrate with VFS.
