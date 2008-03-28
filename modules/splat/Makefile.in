@@ -23,6 +23,7 @@ splat-objs += splat-rwlock.o
 splat-objs += splat-time.o
 splat-objs += splat-vnode.o
 splat-objs += splat-kobj.o
+splat-objs += splat-atomic.o
 
 splatmodule := splat.ko
 splatmoduledir := @kmoduledir@/kernel/lib/

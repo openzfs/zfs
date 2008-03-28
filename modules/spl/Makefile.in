@@ -19,6 +19,7 @@ spl-objs += spl-time.o
 spl-objs += spl-kobj.o
 spl-objs += spl-module.o
 spl-objs += spl-generic.o
+spl-objs += spl-atomic.o
 
 splmodule := spl.ko
 splmoduledir := @kmoduledir@/kernel/lib/
