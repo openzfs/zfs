@@ -35,14 +35,14 @@ extern int kmem_warning_flag;
                                                                               \
 	/* Marked unlikely because we should never be doing this */           \
         if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)          \
-                printk("spl: Warning kmem_alloc(%d, 0x%x) large alloc at %s:%d "  \
+                printk("spl: Warning kmem_alloc(%d, 0x%x) large alloc at %s:%d "\
                        "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
                                                                               \
         _ptr_ = (void *)allocator((size), (flags));                           \
         if (_ptr_ == NULL) {                                                  \
-                printk("spl: Warning kmem_alloc(%d, 0x%x) failed at %s:%d "       \
+                printk("spl: Warning kmem_alloc(%d, 0x%x) failed at %s:%d "   \
 		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
@@ -55,8 +55,8 @@ extern int kmem_warning_flag;
         _ptr_;                                                                \
 })
 
-#define kmem_alloc(size, flags)         __kmem_alloc(size, flags, kmalloc)
-#define kmem_zalloc(size, flags)        __kmem_alloc(size, flags, kzalloc)
+#define kmem_alloc(size, flags)         __kmem_alloc((size), (flags), kmalloc)
+#define kmem_zalloc(size, flags)        __kmem_alloc((size), (flags), kzalloc)
 
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
@@ -69,11 +69,12 @@ extern int kmem_warning_flag;
 #define __vmem_alloc(size, flags)                                             \
 ({      void *_ptr_;                                                          \
                                                                               \
-	BUG_ON(flags != KM_SLEEP);                                            \
+	BUG_ON(!(flags & KM_SLEEP));                                          \
                                                                               \
-        _ptr_ = (void *)vmalloc((size));                                      \
+        _ptr_ = (void *)__vmalloc((size), ((flags) |                          \
+                                  __GFP_HIGHMEM), PAGE_KERNEL);               \
         if (_ptr_ == NULL) {                                                  \
-                printk("spl: Warning vmem_alloc(%d, 0x%x) failed at %s:%d "       \
+                printk("spl: Warning vmem_alloc(%d, 0x%x) failed at %s:%d "   \
 		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&vmem_alloc_used), vmem_alloc_max);      \
@@ -86,7 +87,9 @@ extern int kmem_warning_flag;
         _ptr_;                                                                \
 })
 
-#define vmem_alloc(size, flags)         __vmem_alloc(size, flags)
+#define vmem_alloc(size, flags)         __vmem_alloc((size), (flags))
+#define vmem_zalloc(size, flags)        __vmem_alloc((size), ((flags) |       \
+                                                     __GFP_ZERO))
 
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
@@ -98,15 +101,19 @@ extern int kmem_warning_flag;
 
 #else
 
-#define kmem_alloc(size, flags)         kmalloc(size, flags)
-#define kmem_zalloc(size, flags)        kzalloc(size, flags)
+#define kmem_alloc(size, flags)         kmalloc((size), (flags))
+#define kmem_zalloc(size, flags)        kzalloc((size), (flags))
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
 	BUG_ON(!(ptr) || (size) < 0);                                         \
 	kfree(ptr);                                                           \
 })
 
-#define vmem_alloc(size, flags)         vmalloc(size)
+#define vmem_alloc(size, flags)         __vmalloc((size), ((flags) |          \
+						  __GFP_HIGHMEM), PAGE_KERNEL)
+#define vmem_zalloc(size, flags)        __vmalloc((size), ((flags) |          \
+						  __GFP_HIGHMEM | __GFP_ZERO) \
+						  PAGE_KERNEL)
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
 	BUG_ON(!(ptr) || (size) < 0);                                         \
