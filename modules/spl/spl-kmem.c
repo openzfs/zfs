@@ -291,11 +291,11 @@ kmem_fini(void)
 {
 #ifdef DEBUG_KMEM
         if (atomic64_read(&kmem_alloc_used) != 0)
-                printk("Warning: kmem leaked %ld/%ld bytes\n",
+                printk("spl: Warning kmem leaked %ld/%ld bytes\n",
                        atomic_read(&kmem_alloc_used), kmem_alloc_max);
 
         if (atomic64_read(&vmem_alloc_used) != 0)
-                printk("Warning: vmem leaked %ld/%ld bytes\n",
+                printk("spl: Warning vmem leaked %ld/%ld bytes\n",
                        atomic_read(&vmem_alloc_used), vmem_alloc_max);
 #endif
 }

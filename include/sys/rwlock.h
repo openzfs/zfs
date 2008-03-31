@@ -236,7 +236,7 @@ rw_tryupgrade(krwlock_t *rwlp)
 	 * lock.  If there is, then we know we should
 	 * not try to upgrade the lock */
 	if (!list_empty(&rwlp->rw_sem.wait_list)) {
-		printk(KERN_WARNING "There are threads waiting\n");
+		printk("spl: Warning There are threads waiting\n");
 		spin_unlock(&rwlp->rw_sem.wait_lock);
 		return 0;
 	}

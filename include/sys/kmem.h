@@ -35,14 +35,14 @@ extern int kmem_warning_flag;
                                                                               \
 	/* Marked unlikely because we should never be doing this */           \
         if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)          \
-                printk("Warning: kmem_alloc(%d, 0x%x) large alloc at %s:%d "  \
+                printk("spl: Warning kmem_alloc(%d, 0x%x) large alloc at %s:%d "  \
                        "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
                                                                               \
         _ptr_ = (void *)allocator((size), (flags));                           \
         if (_ptr_ == NULL) {                                                  \
-                printk("Warning: kmem_alloc(%d, 0x%x) failed at %s:%d "       \
+                printk("spl: Warning kmem_alloc(%d, 0x%x) failed at %s:%d "       \
 		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
@@ -73,7 +73,7 @@ extern int kmem_warning_flag;
                                                                               \
         _ptr_ = (void *)vmalloc((size));                                      \
         if (_ptr_ == NULL) {                                                  \
-                printk("Warning: vmem_alloc(%d, 0x%x) failed at %s:%d "       \
+                printk("spl: Warning vmem_alloc(%d, 0x%x) failed at %s:%d "       \
 		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&vmem_alloc_used), vmem_alloc_max);      \

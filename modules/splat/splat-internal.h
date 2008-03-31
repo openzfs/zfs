@@ -38,47 +38,47 @@
 #include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \
-({      splat_subsystem_t *_sub_;                                         \
+({      splat_subsystem_t *_sub_;                                       \
                                                                         \
-        _sub_ = (splat_subsystem_t *)splat_##type##_init();                 \
+        _sub_ = (splat_subsystem_t *)splat_##type##_init();             \
         if (_sub_ == NULL) {                                            \
-                printk(KERN_ERR "Error initializing: " #type "\n");     \
+                printk(KERN_ERR "splat: Error initializing: " #type "\n"); \
         } else {                                                        \
-                spin_lock(&splat_module_lock);                            \
-                list_add_tail(&(_sub_->subsystem_list),		\
+                spin_lock(&splat_module_lock);                          \
+                list_add_tail(&(_sub_->subsystem_list),			\
 		              &splat_module_list);			\
-                spin_unlock(&splat_module_lock);                          \
+                spin_unlock(&splat_module_lock);                        \
         }                                                               \
 })
 
 #define SPLAT_SUBSYSTEM_FINI(type)                                      \
-({      splat_subsystem_t *_sub_, *_tmp_;                                 \
+({      splat_subsystem_t *_sub_, *_tmp_;                               \
         int _id_, _flag_ = 0;                                           \
                                                                         \
-	_id_ = splat_##type##_id();                                       \
-        spin_lock(&splat_module_lock);                                    \
+	_id_ = splat_##type##_id();                                     \
+        spin_lock(&splat_module_lock);                                  \
         list_for_each_entry_safe(_sub_, _tmp_,  &splat_module_list,	\
 		                 subsystem_list) {			\
                 if (_sub_->desc.id == _id_) {                           \
                         list_del_init(&(_sub_->subsystem_list));        \
-                        spin_unlock(&splat_module_lock);                  \
-                        splat_##type##_fini(_sub_);                       \
+                        spin_unlock(&splat_module_lock);                \
+                        splat_##type##_fini(_sub_);                     \
 			spin_lock(&splat_module_lock);			\
                         _flag_ = 1;                                     \
                 }                                                       \
         }                                                               \
-        spin_unlock(&splat_module_lock);                                  \
+        spin_unlock(&splat_module_lock);                                \
                                                                         \
 	if (!_flag_)                                                    \
-                printk(KERN_ERR "Error finalizing: " #type "\n");       \
+                printk(KERN_ERR "splat: Error finalizing: " #type "\n"); \
 })
 
 #define SPLAT_TEST_INIT(sub, n, d, tid, func)				\
-({      splat_test_t *_test_;                                             \
+({      splat_test_t *_test_;                                           \
                                                                         \
-	_test_ = (splat_test_t *)kmalloc(sizeof(*_test_), GFP_KERNEL);    \
+	_test_ = (splat_test_t *)kmalloc(sizeof(*_test_), GFP_KERNEL);  \
         if (_test_ == NULL) {						\
-		printk(KERN_ERR "Error initializing: " n "/" #tid" \n");\
+		printk(KERN_ERR "splat: Error initializing: " n "/" #tid" \n");\
 	} else {							\
 		memset(_test_, 0, sizeof(*_test_));			\
 		strncpy(_test_->desc.name, n, SPLAT_NAME_SIZE);		\
@@ -93,7 +93,7 @@
 })
 
 #define SPLAT_TEST_FINI(sub, tid)					\
-({      splat_test_t *_test_, *_tmp_;                                     \
+({      splat_test_t *_test_, *_tmp_;                                   \
         int _flag_ = 0;							\
                                                                         \
         spin_lock(&((sub)->test_lock));					\
@@ -107,7 +107,7 @@
         spin_unlock(&((sub)->test_lock));				\
                                                                         \
 	if (!_flag_)                                                    \
-                printk(KERN_ERR "Error finalizing: " #tid "\n");	\
+                printk(KERN_ERR "splat: Error finalizing: " #tid "\n");	\
 })
 
 typedef int (*splat_test_func_t)(struct file *, void *);

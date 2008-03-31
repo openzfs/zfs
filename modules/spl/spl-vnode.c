@@ -428,7 +428,6 @@ vn_getf(int fd)
 	if (fp) {
 		atomic_inc(&fp->f_ref);
 		spin_unlock(&vn_file_lock);
-		printk("found file\n");
 		return fp;
 	}
 
@@ -473,17 +472,13 @@ vn_getf(int fd)
 	return fp;
 
 out_vnode:
-	printk("out_vnode\n");
 	vn_free(vp);
 out_fget:
-	printk("out_fget\n");
 	fput(lfp);
 out_mutex:
-	printk("out_mutex\n");
 	mutex_exit(&fp->f_lock);
 	kmem_cache_free(vn_file_cache, fp);
 out:
-	printk("out\n");
         return NULL;
 } /* getf() */
 EXPORT_SYMBOL(getf);
@@ -593,17 +588,17 @@ vn_fini(void)
 
 	rc = kmem_cache_destroy(vn_file_cache);
 	if (rc)
-		printk("Warning leaked vn_file_cache objects\n");
+		printk("spl: Warning leaked vn_file_cache objects\n");
 
 	vn_file_cache = NULL;
 	spin_unlock(&vn_file_lock);
 
 	if (leaked > 0)
-		printk("Warning: %d files leaked\n", leaked);
+		printk("spl: Warning %d files leaked\n", leaked);
 
 	rc = kmem_cache_destroy(vn_cache);
 	if (rc)
-		printk("Warning leaked vn_cache objects\n");
+		printk("spl: Warning leaked vn_cache objects\n");
 
 	return;
 } /* vn_fini() */

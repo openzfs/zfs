@@ -90,7 +90,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	/* Solaris says this must never fail so we try forever */
 	while ((pid = kernel_thread(thread_generic_wrapper, (void *)&tp, 0)) < 0)
-		printk(KERN_ERR "Unable to create thread; pid = %ld\n", pid);
+		printk(KERN_ERR "spl: Error unable to create thread; pid = %ld\n", pid);
 
 	/* All signals are ignored due to sleeping TASK_UNINTERRUPTIBLE */
 	for (;;) {

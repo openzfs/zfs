@@ -80,7 +80,7 @@ extern "C" {
 	const TYPE __left = (TYPE)(LEFT);                           \
 	const TYPE __right = (TYPE)(RIGHT);                         \
 	if (!(__left OP __right)) {                                 \
-		printk("Failed VERIFY3(" FMT " " #OP " " FMT ")\n", \
+		printk("spl: Error VERIFY3(" FMT " " #OP " " FMT ")\n", \
 		        CAST __left,  CAST __right);                \
 		BUG();                                              \
 	}                                                           \

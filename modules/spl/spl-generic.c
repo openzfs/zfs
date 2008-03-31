@@ -2,11 +2,24 @@
 #include <sys/vmsystm.h>
 #include <sys/vnode.h>
 #include <sys/kmem.h>
+#include <sys/debug.h>
+#include <linux/proc_fs.h>
 #include "config.h"
 
 /*
  * Generic support
  */
+static char spl_debug_buffer[MAXMSGLEN];
+static spinlock_t spl_debug_lock = SPIN_LOCK_UNLOCKED;
+
+unsigned long spl_debug_mask = 0;
+unsigned long spl_debug_subsys = 0xff;
+EXPORT_SYMBOL(spl_debug_mask);
+EXPORT_SYMBOL(spl_debug_subsys);
+
+static struct proc_dir_entry *spl_proc_root = NULL;
+static struct proc_dir_entry *spl_proc_debug_mask = NULL;
+static struct proc_dir_entry *spl_proc_debug_subsys = NULL;
 
 int p0 = 0;
 EXPORT_SYMBOL(p0);
@@ -16,6 +29,7 @@ EXPORT_SYMBOL(hw_serial);
 
 vmem_t *zio_alloc_arena = NULL;
 EXPORT_SYMBOL(zio_alloc_arena);
+
 
 int
 highbit(unsigned long i)
@@ -56,26 +70,220 @@ ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
 }
 EXPORT_SYMBOL(ddi_strtoul);
 
-static int __init spl_init(void)
+/* XXX: Not the most efficient debug function ever.  This should be re-done
+ * as an internal per-cpu in-memory debug log accessable via /proc/.  Not as
+ * a shared global buffer everything gets serialize though.  That said I'll
+ * worry about performance considerations once I've dealt with correctness.
+ */
+void
+__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+{
+        char *sfp, *start, *ptr;
+        struct timeval tv;
+        va_list ap;
+
+	start = ptr = spl_debug_buffer;
+        sfp = strrchr(file, '/');
+        do_gettimeofday(&tv);
+
+	spin_lock(&spl_debug_lock);
+        ptr += snprintf(ptr, MAXMSGLEN - 1,
+                        "spl: %lu.%06lu:%d:%u:%s:%d:%s(): ",
+                        tv.tv_sec, tv.tv_usec, current->pid,
+                        smp_processor_id(),
+                        sfp == NULL ? file : sfp + 1,
+                        line, func);
+
+        va_start(ap, fmt);
+        ptr += vsnprintf(ptr, MAXMSGLEN - (ptr - start) - 1, fmt, ap);
+        va_end(ap);
+
+        printk("%s", start);
+	spin_unlock(&spl_debug_lock);
+}
+EXPORT_SYMBOL(__dprintf);
+
+static int
+spl_proc_rd_generic_ul(char *page, char **start, off_t off,
+		       int count, int *eof, unsigned long val)
 {
 	int rc;
 
-	if ((rc = kmem_init()))
-		return rc;
+        *start = page;
+        *eof = 1;
 
-	if ((rc = vn_init()))
-		return rc;
+	if (off || count > PAGE_SIZE)
+		return 0;
 
-	strcpy(hw_serial, "007f0100"); /* loopback */
-        printk(KERN_INFO "spl: Loaded Solaris Porting Layer v%s\n", VERSION);
+	spin_lock(&spl_debug_lock);
+	rc = snprintf(page, PAGE_SIZE, "0x%lx\n", val);
+	spin_unlock(&spl_debug_lock);
+
+	return rc;
+}
+
+static int
+spl_proc_rd_debug_mask(char *page, char **start, off_t off,
+                       int count, int *eof, void *data)
+{
+	return spl_proc_rd_generic_ul(page, start, off, count,
+				      eof, spl_debug_mask);
+}
+
+static int
+spl_proc_rd_debug_subsys(char *page, char **start, off_t off,
+                         int count, int *eof, void *data)
+{
+	return spl_proc_rd_generic_ul(page, start, off, count,
+				      eof, spl_debug_subsys);
+}
+
+static int
+spl_proc_wr_generic_ul(const char *ubuf, unsigned long count,
+                       unsigned long *val, int base)
+{
+	char *end, kbuf[32];
+
+	if (count >= sizeof(kbuf))
+		return -EOVERFLOW;
+
+	if (copy_from_user(kbuf, ubuf, count))
+		return -EFAULT;
+
+	kbuf[count] = '\0';
+	*val = (int)simple_strtoul(kbuf, &end, base);
+	if (kbuf == end)
+		return -EINVAL;
 
 	return 0;
+}
+
+static int
+spl_proc_wr_debug_mask(struct file *file, const char *ubuf,
+                       unsigned long count, void *data, int mode)
+{
+	unsigned long val;
+	int rc;
+
+	rc = spl_proc_wr_generic_ul(ubuf, count, &val, 16);
+	if (rc)
+		return rc;
+
+	spin_lock(&spl_debug_lock);
+	spl_debug_mask = val;
+	spin_unlock(&spl_debug_lock);
+
+	return count;
+}
+
+static int
+spl_proc_wr_debug_subsys(struct file *file, const char *ubuf,
+                         unsigned long count, void *data, int mode)
+{
+	unsigned long val;
+	int rc;
+
+	rc = spl_proc_wr_generic_ul(ubuf, count, &val, 16);
+	if (rc)
+		return rc;
+
+	spin_lock(&spl_debug_lock);
+	spl_debug_subsys = val;
+	spin_unlock(&spl_debug_lock);
+
+	return count;
+}
+
+static struct proc_dir_entry *
+spl_register_proc_entry(const char *name, mode_t mode,
+                        struct proc_dir_entry *parent, void *data,
+                        void *read_proc, void *write_proc)
+{
+        struct proc_dir_entry *entry;
+
+        entry = create_proc_entry(name, mode, parent);
+        if (!entry)
+                return ERR_PTR(-EINVAL);
+
+        entry->data = data;
+        entry->read_proc = read_proc;
+        entry->write_proc = write_proc;
+
+        return entry;
+} /* register_proc_entry() */
+
+void spl_set_debug_mask(unsigned long mask) {
+	spin_lock(&spl_debug_lock);
+	spl_debug_mask = mask;
+	spin_unlock(&spl_debug_lock);
+}
+EXPORT_SYMBOL(spl_set_debug_mask);
+
+void spl_set_debug_subsys(unsigned long mask) {
+	spin_lock(&spl_debug_lock);
+	spl_debug_subsys = mask;
+	spin_unlock(&spl_debug_lock);
+}
+EXPORT_SYMBOL(spl_set_debug_subsys);
+
+static int __init spl_init(void)
+{
+	int rc = 0;
+
+        spl_proc_root = proc_mkdir("spl", NULL);
+        if (!spl_proc_root) {
+                printk("spl: Error unable to create /proc/spl/ directory\n");
+		return -EINVAL;
+        }
+
+	spl_proc_debug_mask = spl_register_proc_entry("debug_mask", 0644,
+	                                          spl_proc_root, NULL,
+	                                          spl_proc_rd_debug_mask,
+	                                          spl_proc_wr_debug_mask);
+	if (IS_ERR(spl_proc_debug_mask)) {
+		rc = PTR_ERR(spl_proc_debug_mask);
+		goto out;
+	}
+
+	spl_proc_debug_subsys = spl_register_proc_entry("debug_subsys", 0644,
+	                                            spl_proc_root, NULL,
+	                                            spl_proc_rd_debug_subsys,
+	                                            spl_proc_wr_debug_subsys);
+	if (IS_ERR(spl_proc_debug_subsys)) {
+		rc = PTR_ERR(spl_proc_debug_subsys);
+		goto out2;
+	}
+
+	if ((rc = kmem_init()))
+		goto out2;
+
+	if ((rc = vn_init()))
+		goto out2;
+
+	strcpy(hw_serial, "007f0100"); /* loopback */
+        printk("spl: Loaded Solaris Porting Layer v%s\n", VERSION);
+
+	return 0;
+out2:
+	if (spl_proc_debug_mask)
+		remove_proc_entry("debug_mask", spl_proc_root);
+
+	if (spl_proc_debug_subsys)
+		remove_proc_entry("debug_subsys", spl_proc_root);
+out:
+        remove_proc_entry("spl", NULL);
+
+	return rc;
 }
 
 static void spl_fini(void)
 {
 	vn_fini();
 	kmem_fini();
+
+	remove_proc_entry("debug_subsys", spl_proc_root);
+	remove_proc_entry("debug_mask", spl_proc_root);
+        remove_proc_entry("spl", NULL);
 
 	return;
 }
