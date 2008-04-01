@@ -34,7 +34,7 @@ extern int kmem_warning_flag;
 ({      void *_ptr_;                                                          \
                                                                               \
 	/* Marked unlikely because we should never be doing this */           \
-        if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)          \
+        if (unlikely((size) > (PAGE_SIZE * 4)) && kmem_warning_flag)          \
                 printk("spl: Warning kmem_alloc(%d, 0x%x) large alloc at %s:%d "\
                        "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
