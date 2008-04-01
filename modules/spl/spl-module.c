@@ -56,7 +56,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	BUG_ON(strcmp(node_type, DDI_PSEUDO));
 	BUG_ON(flag != 0);
 
-	fops = kmalloc(sizeof(struct file_operations), GFP_KERNEL);
+	fops = kzalloc(sizeof(struct file_operations), GFP_KERNEL);
 	if (fops == NULL)
 		return DDI_FAILURE;
 
