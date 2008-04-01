@@ -37,6 +37,8 @@ copyout(const void *from, void *to, size_t len)
 static __inline__ int
 copyinstr(const void *from, void *to, size_t len, size_t *done)
 {
+	size_t rc;
+
 	if (len == 0)
 		return -ENAMETOOLONG;
 
@@ -46,7 +48,9 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 	/* XXX: Should return ENAMETOOLONG if 'strlen(from) > len' */
 
 	memset(to, 0, len);
-	*done = copyin(from, to, len - 1);
+	rc = copyin(from, to, len - 1);
+	if (done != NULL)
+		*done = rc;
 
 	return 0;
 }
