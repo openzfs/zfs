@@ -80,13 +80,19 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 {
         char *sfp, *start, *ptr;
         struct timeval tv;
+	unsigned long flags;
         va_list ap;
 
 	start = ptr = spl_debug_buffer;
         sfp = strrchr(file, '/');
         do_gettimeofday(&tv);
 
-	spin_lock(&spl_debug_lock);
+	/* XXX: This is particularly bad for performance, but we need to
+	 * disable irqs here or two __dprintf()'s may deadlock on each
+	 * other if one if called from an irq handler.  This is yet another
+	 * reason why we really, really, need an internal debug log.
+	 */
+	spin_lock_irqsave(&spl_debug_lock, flags);
         ptr += snprintf(ptr, MAXMSGLEN - 1,
                         "spl: %lu.%06lu:%d:%u:%s:%d:%s(): ",
                         tv.tv_sec, tv.tv_usec, current->pid,
@@ -99,7 +105,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
         va_end(ap);
 
         printk("%s", start);
-	spin_unlock(&spl_debug_lock);
+	spin_unlock_irqrestore(&spl_debug_lock, flags);
 }
 EXPORT_SYMBOL(__dprintf);
 

@@ -37,12 +37,11 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *priv, uint_t flags)
         taskq_work_wrapper_t *tww;
         int rc;
 
-
-        BUG_ON(in_interrupt());
         BUG_ON(tq == NULL);
         BUG_ON(func == NULL);
 
-        tww = (taskq_work_wrapper_t *)kmalloc(sizeof(*tww), GFP_KERNEL);
+	/* Use GFP_ATOMIC since this may be called in interrupt context */
+        tww = (taskq_work_wrapper_t *)kmalloc(sizeof(*tww), GFP_ATOMIC);
         if (!tww)
                 return (taskqid_t)0;
 

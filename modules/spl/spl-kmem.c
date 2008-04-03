@@ -117,7 +117,9 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
         kcc = kmem_cache_find_cache_cb(cache);
         BUG_ON(!kcc);
 
-	kcc->kcc_constructor(ptr, kcc->kcc_private, (int)flags);
+	if (kcc->kcc_constructor)
+		kcc->kcc_constructor(ptr, kcc->kcc_private, (int)flags);
+
 	spin_unlock(&kmem_cache_cb_lock);
 	/* Linux constructor has no return code, silently eat it */
 }
@@ -134,7 +136,9 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
         BUG_ON(!kcc);
 
 	/* Solaris destructor takes no flags, silently eat them */
-	kcc->kcc_destructor(ptr, kcc->kcc_private);
+	if (kcc->kcc_destructor)
+		kcc->kcc_destructor(ptr, kcc->kcc_private);
+
 	spin_unlock(&kmem_cache_cb_lock);
 }
 
