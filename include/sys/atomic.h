@@ -16,7 +16,6 @@ extern "C" {
  */
 extern spinlock_t atomic64_lock;
 extern spinlock_t atomic32_lock;
-extern spinlock_t atomic_lock;
 
 static __inline__ uint32_t
 atomic_add_32(volatile uint32_t *target, int32_t delta)
@@ -94,7 +93,7 @@ atomic_sub_64_nv(volatile uint64_t *target, uint64_t delta)
 }
 
 static __inline__ uint64_t
-atomic_cas_64(volatile uint64_t  *target,  uint64_t cmp,
+atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
                uint64_t newval)
 {
 	uint64_t rc;
@@ -108,19 +107,18 @@ atomic_cas_64(volatile uint64_t  *target,  uint64_t cmp,
 	return rc;
 }
 
+#if defined(__x86_64__)
+/* XXX: Implement atomic_cas_ptr() in terms of uint64'ts.  This
+ * is of course only safe and correct for 64 bit arches...  but
+ * for now I'm OK with that.
+ */
 static __inline__ void *
-atomic_cas_ptr(volatile void  *target,  void *cmp, void *newval)
+atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
-	void *rc;
-
-	spin_lock(&atomic_lock);
-	rc = (void *)target;
-	if (target == cmp)
-		target = newval;
-	spin_unlock(&atomic_lock);
-
-	return rc;
+	return (void *)atomic_cas_64((volatile uint64_t *)target,
+	                             (uint64_t)cmp, (uint64_t)newval);
 }
+#endif
 
 #ifdef  __cplusplus
 }
