@@ -21,11 +21,6 @@ thread_generic_wrapper(void *arg)
 	thread_priv_t *tp = (thread_priv_t *)arg;
 	void (*func)(void *);
 	void *args;
-	char name[16];
-
-	/* Use the truncated function name as thread name */
-	snprintf(name, sizeof(name), "%s", "kthread");
-	daemonize(name);
 
         spin_lock(&tp->tp_lock);
 	BUG_ON(tp->tp_magic != TP_MAGIC);
@@ -51,6 +46,7 @@ thread_generic_wrapper(void *arg)
 void
 __thread_exit(void)
 {
+	do_exit(0);
 	return;
 }
 EXPORT_SYMBOL(__thread_exit);
@@ -60,11 +56,12 @@ EXPORT_SYMBOL(__thread_exit);
  * style callers likely never check for... since it can't fail. */
 kthread_t *
 __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
-		void *args, size_t len, int *pp, int state, pri_t pri)
+		const char *name, void *args, size_t len, int *pp,
+		int state, pri_t pri)
 {
 	thread_priv_t tp;
 	DEFINE_WAIT(wait);
-	long pid;
+	struct task_struct *tsk;
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
@@ -88,9 +85,13 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	spin_lock(&tp.tp_lock);
 
-	/* Solaris says this must never fail so we try forever */
-	while ((pid = kernel_thread(thread_generic_wrapper, (void *)&tp, 0)) < 0)
-		printk(KERN_ERR "spl: Error unable to create thread; pid = %ld\n", pid);
+	tsk = kthread_create(thread_generic_wrapper, (void *)&tp, "%s", name);
+	if (IS_ERR(tsk)) {
+		printk("spl: Failed to create thread: %ld\n", PTR_ERR(tsk));
+		return NULL;
+	}
+
+	wake_up_process(tsk);
 
 	/* All signals are ignored due to sleeping TASK_UNINTERRUPTIBLE */
 	for (;;) {
@@ -103,9 +104,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		spin_lock(&tp.tp_lock);
 	}
 
-	/* Verify the pid retunred matches the pid in the task struct */
-	BUG_ON(pid != (tp.tp_task)->pid);
-
+	BUG_ON(tsk != tp.tp_task); /* Extra paranoia */
 	spin_unlock(&tp.tp_lock);
 
 	return (kthread_t *)tp.tp_task;
