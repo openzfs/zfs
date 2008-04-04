@@ -287,7 +287,7 @@ splat_vnode_test6(struct file *file, void *arg)
 	int rc;
 
 	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE,
-			  FWRITE | FREAD | FCREAT | FEXCL, 0644, &vp, 0, 0))) {
+			  FWRITE | FCREAT | FEXCL, 0644, &vp, 0, 0))) {
 		splat_vprint(file, SPLAT_VNODE_TEST6_NAME,
 			     "Failed to vn_open test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);

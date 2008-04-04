@@ -95,8 +95,8 @@ splat_atomic_work(void *priv)
 		     (long unsigned)ap->ap_atomic,
 		     (long unsigned)ap->ap_atomic_exited);
 
-	thread_exit();
 	wake_up(&ap->ap_waitq);
+	thread_exit();
 }
 
 static int

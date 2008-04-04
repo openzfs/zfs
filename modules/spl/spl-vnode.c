@@ -52,7 +52,7 @@ vn_alloc(int flag)
 		vp->v_type = 0;
 	}
 
-	return (vp);
+	return vp;
 } /* vn_alloc() */
 EXPORT_SYMBOL(vn_alloc);
 
@@ -69,9 +69,10 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 {
         struct file *fp;
         struct kstat stat;
-        int rc, saved_umask, flags_rw;
+        int rc, saved_umask;
 	vnode_t *vp;
 
+	BUG_ON(!(flags & (FWRITE | FREAD)));
 	BUG_ON(seg != UIO_SYSSPACE);
 	BUG_ON(!vpp);
 	*vpp = NULL;
@@ -79,13 +80,12 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	if (!(flags & FCREAT) && (flags & FWRITE))
 		flags |= FEXCL;
 
-	flags_rw = flags & (FWRITE | FREAD);
-	flags &= ~(FWRITE | FREAD);
-	switch (flags_rw) {
-		case FWRITE:		flags |= O_WRONLY;
-		case FREAD:		flags |= O_RDONLY;
-		case (FWRITE | FREAD):	flags |= O_RDWR;
-	}
+	/* Note for filp_open() the two low bits must be remapped to mean:
+	 * 01 - read-only  -> 00 read-only
+	 * 10 - write-only -> 01 write-only
+	 * 11 - read-write -> 10 read-write
+	 */
+	flags--;
 
 	if (flags & FCREAT)
 		saved_umask = xchg(&current->fs->umask, 0);
@@ -96,18 +96,18 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		(void)xchg(&current->fs->umask, saved_umask);
 
         if (IS_ERR(fp))
-		return PTR_ERR(fp);
+		return -PTR_ERR(fp);
 
         rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc) {
 		filp_close(fp, 0);
-		return rc;
+		return -rc;
 	}
 
 	vp = vn_alloc(KM_SLEEP);
 	if (!vp) {
 		filp_close(fp, 0);
-		return -ENOMEM;
+		return ENOMEM;
 	}
 
 	mutex_enter(&vp->v_lock);
@@ -131,7 +131,7 @@ vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 
 	realpath = kmalloc(strlen(path) + 2, GFP_KERNEL);
 	if (!realpath)
-		return -ENOMEM;
+		return ENOMEM;
 
 	sprintf(realpath, "/%s", path);
 	rc = vn_open(realpath, seg, flags, mode, vpp, x1, x2);
@@ -175,13 +175,13 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 	set_fs(saved_fs);
 
 	if (rc < 0)
-		return rc;
+		return -rc;
 
 	if (residp) {
 		*residp = len - rc;
 	} else {
 		if (rc != len)
-			return -EIO;
+			return EIO;
 	}
 
 	return 0;
@@ -199,7 +199,7 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
         rc = filp_close(vp->v_file, 0);
         vn_free(vp);
 
-	return rc;
+	return -rc;
 } /* vn_close() */
 EXPORT_SYMBOL(vn_close);
 
@@ -248,7 +248,7 @@ exit2:
 exit1:
         path_release(&nd);
 exit:
-        return rc;
+        return -rc;
 
 slashes:
         rc = !dentry->d_inode ? -ENOENT :
@@ -338,7 +338,7 @@ exit2:
 exit1:
         path_release(&oldnd);
 exit:
-        return rc;
+        return -rc;
 }
 EXPORT_SYMBOL(vn_rename);
 
@@ -357,7 +357,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 
         rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc)
-		return rc;
+		return -rc;
 
 	vap->va_type          = vn_get_sol_type(stat.mode);
 	vap->va_mode          = stat.mode;
@@ -377,7 +377,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	vap->va_rdev          = stat.rdev;
 	vap->va_blocks        = stat.blocks;
 
-        return rc;
+        return 0;
 }
 EXPORT_SYMBOL(vn_getattr);
 
@@ -391,7 +391,7 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	if (flags & FDSYNC)
 		datasync = 1;
 
-	return file_fsync(vp->v_file, vp->v_file->f_dentry, datasync);
+	return -file_fsync(vp->v_file, vp->v_file->f_dentry, datasync);
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
 
