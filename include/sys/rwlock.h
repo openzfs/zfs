@@ -163,6 +163,8 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 				rwlp->rw_owner = current;
 			}
 			break;
+		default:
+			BUG_ON(1);
 	}
 
 	return result;
@@ -193,6 +195,8 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 			BUG_ON(rwlp->rw_owner != NULL);
 			rwlp->rw_owner = current;
 			break;
+		default:
+			BUG_ON(1);
 	}
 }
 
