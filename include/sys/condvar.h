@@ -20,6 +20,7 @@ typedef struct {
 	wait_queue_head_t cv_event;
 	atomic_t cv_waiters;
 	kmutex_t *cv_mutex; /* only for verification purposes */
+	spinlock_t cv_lock;
 } kcondvar_t;
 
 typedef enum { CV_DEFAULT=0, CV_DRIVER } kcv_type_t;
@@ -33,13 +34,14 @@ cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 
 	cvp->cv_magic = CV_MAGIC;
 	init_waitqueue_head(&cvp->cv_event);
+	spin_lock_init(&cvp->cv_lock);
 	atomic_set(&cvp->cv_waiters, 0);
 	cvp->cv_mutex = NULL;
 	cvp->cv_name = NULL;
 
 	if (name) {
-	        cvp->cv_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
-	        if (cvp->cv_name)
+		cvp->cv_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		if (cvp->cv_name)
 		        strcpy(cvp->cv_name, name);
 	}
 }
@@ -48,6 +50,7 @@ static __inline__ void
 cv_destroy(kcondvar_t *cvp)
 {
 	BUG_ON(cvp == NULL);
+	spin_lock(&cvp->cv_lock);
 	BUG_ON(cvp->cv_magic != CV_MAGIC);
 	BUG_ON(atomic_read(&cvp->cv_waiters) != 0);
 	BUG_ON(waitqueue_active(&cvp->cv_event));
@@ -56,15 +59,16 @@ cv_destroy(kcondvar_t *cvp)
 		kfree(cvp->cv_name);
 
 	memset(cvp, CV_POISON, sizeof(*cvp));
+	spin_unlock(&cvp->cv_lock);
 }
 
 static __inline__ void
 cv_wait(kcondvar_t *cvp, kmutex_t *mtx)
 {
 	DEFINE_WAIT(wait);
-	int flag = 1;
 
 	BUG_ON(cvp == NULL || mtx == NULL);
+	spin_lock(&cvp->cv_lock);
 	BUG_ON(cvp->cv_magic != CV_MAGIC);
 	BUG_ON(!mutex_owned(mtx));
 
@@ -73,37 +77,18 @@ cv_wait(kcondvar_t *cvp, kmutex_t *mtx)
 
 	/* Ensure the same mutex is used by all callers */
 	BUG_ON(cvp->cv_mutex != mtx);
+	spin_unlock(&cvp->cv_lock);
 
-	for (;;) {
-		prepare_to_wait_exclusive(&cvp->cv_event, &wait,
-					  TASK_INTERRUPTIBLE);
-		/* Must occur after we are added to the list but only once */
-		if (flag) {
-			atomic_inc(&cvp->cv_waiters);
-			flag = 0;
-		}
+	prepare_to_wait_exclusive(&cvp->cv_event, &wait,
+				  TASK_UNINTERRUPTIBLE);
+	atomic_inc(&cvp->cv_waiters);
 
-		/* XXX - The correct thing to do here may be to wake up and 
-		 * force the caller to handle the signal.  Spurious wakeups 
-		 * should already be safely handled by the caller. */
-		if (signal_pending(current))
-			flush_signals(current);
-
-		/* Mutex should be dropped after prepare_to_wait() this
-		 * ensures we're linked in to the waiters list and avoids the
-		 * race where 'cvp->cv_waiters > 0' but the list is empty. */
-		mutex_exit(mtx);
-		schedule();
-		mutex_enter(mtx);
-
-		/* XXX - The correct thing to do here may be to wake up and 
-		 * force the caller to handle the signal.  Spurious wakeups 
-		 * should already be safely handled by the caller. */
-		if (signal_pending(current))
-			continue;
-
-		break;
-	}
+	/* Mutex should be dropped after prepare_to_wait() this
+	 * ensures we're linked in to the waiters list and avoids the
+	 * race where 'cvp->cv_waiters > 0' but the list is empty. */
+	mutex_exit(mtx);
+	schedule();
+	mutex_enter(mtx);
 
 	atomic_dec(&cvp->cv_waiters);
 	finish_wait(&cvp->cv_event, &wait);
@@ -117,56 +102,34 @@ cv_timedwait(kcondvar_t *cvp, kmutex_t *mtx, clock_t expire_time)
 {
 	DEFINE_WAIT(wait);
 	clock_t time_left;
-	int flag = 1;
 
 	BUG_ON(cvp == NULL || mtx == NULL);
+	spin_lock(&cvp->cv_lock);
 	BUG_ON(cvp->cv_magic != CV_MAGIC);
 	BUG_ON(!mutex_owned(mtx));
 
 	if (cvp->cv_mutex == NULL)
 		cvp->cv_mutex = mtx;
 
+	/* Ensure the same mutex is used by all callers */
+	BUG_ON(cvp->cv_mutex != mtx);
+	spin_unlock(&cvp->cv_lock);
+
 	/* XXX - Does not handle jiffie wrap properly */
 	time_left = expire_time - jiffies;
 	if (time_left <= 0)
 		return -1;
 
-	/* Ensure the same mutex is used by all callers */
-	BUG_ON(cvp->cv_mutex != mtx);
+	prepare_to_wait_exclusive(&cvp->cv_event, &wait,
+				  TASK_UNINTERRUPTIBLE);
+	atomic_inc(&cvp->cv_waiters);
 
-	for (;;) {
-		prepare_to_wait_exclusive(&cvp->cv_event, &wait,
-					  TASK_INTERRUPTIBLE);
-		if (flag) {
-			atomic_inc(&cvp->cv_waiters);
-			flag = 0;
-		}
-
-		/* XXX - The correct thing to do here may be to wake up and 
-		 * force the caller to handle the signal.  Spurious wakeups 
-		 * should already be safely handled by the caller. */
-		if (signal_pending(current))
-			flush_signals(current);
-
-		/* Mutex should be dropped after prepare_to_wait() this
-		 * ensures we're linked in to the waiters list and avoids the
-		 * race where 'cvp->cv_waiters > 0' but the list is empty. */
-		mutex_exit(mtx);
-		time_left = schedule_timeout(time_left);
-		mutex_enter(mtx);
-
-		/* XXX - The correct thing to do here may be to wake up and 
-		 * force the caller to handle the signal.  Spurious wakeups 
-		 * should already be safely handled by the caller. */
-		if (signal_pending(current)) {
-			if (time_left > 0)
-				continue;
-
-			flush_signals(current);
-		}
-
-		break;
-	}
+	/* Mutex should be dropped after prepare_to_wait() this
+	 * ensures we're linked in to the waiters list and avoids the
+	 * race where 'cvp->cv_waiters > 0' but the list is empty. */
+	mutex_exit(mtx);
+	time_left = schedule_timeout(time_left);
+	mutex_enter(mtx);
 
 	atomic_dec(&cvp->cv_waiters);
 	finish_wait(&cvp->cv_event, &wait);
