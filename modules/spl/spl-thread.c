@@ -1,4 +1,5 @@
 #include <sys/thread.h>
+#include <sys/kmem.h>
 
 /*
  * Thread interfaces
@@ -10,9 +11,6 @@ typedef struct thread_priv_s {
 	size_t tp_len;			/* Len to be passed to function */
 	int tp_state;			/* State to start thread at */
 	pri_t tp_pri;			/* Priority to start threat at */
-	volatile kthread_t *tp_task;	/* Task pointer for new thread */
-	spinlock_t tp_lock;		/* Syncronization lock */
-        wait_queue_head_t tp_waitq;	/* Syncronization wait queue */
 } thread_priv_t;
 
 static int
@@ -22,21 +20,13 @@ thread_generic_wrapper(void *arg)
 	void (*func)(void *);
 	void *args;
 
-        spin_lock(&tp->tp_lock);
 	BUG_ON(tp->tp_magic != TP_MAGIC);
 	func = tp->tp_func;
 	args = tp->tp_args;
-	tp->tp_task = get_current();
 	set_current_state(tp->tp_state);
-	set_user_nice((kthread_t *)tp->tp_task, PRIO_TO_NICE(tp->tp_pri));
+	set_user_nice((kthread_t *)get_current(), PRIO_TO_NICE(tp->tp_pri));
+	kmem_free(arg, sizeof(thread_priv_t));
 
-        spin_unlock(&tp->tp_lock);
-	wake_up(&tp->tp_waitq);
-
-	/* DO NOT USE 'ARG' AFTER THIS POINT, EVER, EVER, EVER!
-	 * Local variables are used here because after the calling thread
-	 * has been woken up it will exit and this memory will no longer
-	 * be safe to access since it was declared on the callers stack. */
 	if (func)
 		func(args);
 
@@ -59,7 +49,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		const char *name, void *args, size_t len, int *pp,
 		int state, pri_t pri)
 {
-	thread_priv_t tp;
+	thread_priv_t *tp;
 	DEFINE_WAIT(wait);
 	struct task_struct *tsk;
 
@@ -68,45 +58,24 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	BUG_ON(stk != NULL);
 	BUG_ON(stk != 0);
 
-	/* Variable tp is located on the stack and not the heap because I want
-	 * to minimize any chance of a failure, since the Solaris code is designed
-	 * such that this function cannot fail.  This is a little dangerous since
-	 * we're passing a stack address to a new thread but correct locking was
-	 * added to ensure the callee can use the data safely until wake_up(). */
-	tp.tp_magic = TP_MAGIC;
-	tp.tp_func  = func;
-	tp.tp_args  = args;
-	tp.tp_len   = len;
-	tp.tp_state = state;
-	tp.tp_pri   = pri;
-	tp.tp_task  = NULL;
-	spin_lock_init(&tp.tp_lock);
-        init_waitqueue_head(&tp.tp_waitq);
+	tp = kmem_alloc(sizeof(thread_priv_t), KM_SLEEP);
+	if (tp == NULL)
+		return NULL;
 
-	spin_lock(&tp.tp_lock);
+	tp->tp_magic = TP_MAGIC;
+	tp->tp_func  = func;
+	tp->tp_args  = args;
+	tp->tp_len   = len;
+	tp->tp_state = state;
+	tp->tp_pri   = pri;
 
-	tsk = kthread_create(thread_generic_wrapper, (void *)&tp, "%s", name);
+	tsk = kthread_create(thread_generic_wrapper, (void *)tp, "%s", name);
 	if (IS_ERR(tsk)) {
 		printk("spl: Failed to create thread: %ld\n", PTR_ERR(tsk));
 		return NULL;
 	}
 
 	wake_up_process(tsk);
-
-	/* All signals are ignored due to sleeping TASK_UNINTERRUPTIBLE */
-	for (;;) {
-		prepare_to_wait(&tp.tp_waitq, &wait, TASK_UNINTERRUPTIBLE);
-		if (tp.tp_task != NULL)
-			break;
-
-		spin_unlock(&tp.tp_lock);
-		schedule();
-		spin_lock(&tp.tp_lock);
-	}
-
-	BUG_ON(tsk != tp.tp_task); /* Extra paranoia */
-	spin_unlock(&tp.tp_lock);
-
-	return (kthread_t *)tp.tp_task;
+	return (kthread_t *)tsk;
 }
 EXPORT_SYMBOL(__thread_create);

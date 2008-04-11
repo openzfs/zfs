@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
+#include <linux/hardirq.h>
 #include <sys/types.h>
 
 /* See the "Big Theory Statement" in solaris mutex.c.
@@ -65,6 +66,14 @@ static __inline__ void
 mutex_enter(kmutex_t *mp)
 {
 	BUG_ON(mp->km_magic != KM_MAGIC);
+
+	if (unlikely(in_atomic() && !current->exit_state)) {
+		dump_stack();
+		printk("Scheduling while atomic: %s/0x%08x/%d\n",
+		       current->comm, preempt_count(), current->pid);
+		BUG();
+	}
+
 	down(&mp->km_sem);  /* Will check in_atomic() for us */
 	BUG_ON(mp->km_owner != NULL);
 	mp->km_owner = current;
@@ -78,6 +87,14 @@ mutex_tryenter(kmutex_t *mp)
 	int result;
 
 	BUG_ON(mp->km_magic != KM_MAGIC);
+
+	if (unlikely(in_atomic() && !current->exit_state)) {
+		dump_stack();
+		printk("Scheduling while atomic: %s/0x%08x/%d\n",
+		       current->comm, preempt_count(), current->pid);
+		BUG();
+	}
+
 	result = down_trylock(&mp->km_sem); /* returns 0 if acquired */
 	if (result == 0) {
 		BUG_ON(mp->km_owner != NULL);
