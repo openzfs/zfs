@@ -4,6 +4,7 @@
 #include <sys/kmem.h>
 #include <sys/debug.h>
 #include <linux/proc_fs.h>
+#include <linux/kmod.h>
 #include "config.h"
 
 /*
@@ -14,18 +15,22 @@ static spinlock_t spl_debug_lock = SPIN_LOCK_UNLOCKED;
 
 unsigned long spl_debug_mask = 0;
 unsigned long spl_debug_subsys = 0xff;
+unsigned long spl_hostid = 0;
+char hw_serial[11] = "<none>";
+
 EXPORT_SYMBOL(spl_debug_mask);
 EXPORT_SYMBOL(spl_debug_subsys);
+EXPORT_SYMBOL(spl_hostid);
+EXPORT_SYMBOL(hw_serial);
 
 static struct proc_dir_entry *spl_proc_root = NULL;
 static struct proc_dir_entry *spl_proc_debug_mask = NULL;
 static struct proc_dir_entry *spl_proc_debug_subsys = NULL;
+static struct proc_dir_entry *spl_proc_hostid = NULL;
+static struct proc_dir_entry *spl_proc_hw_serial = NULL;
 
 int p0 = 0;
 EXPORT_SYMBOL(p0);
-
-char hw_serial[11];
-EXPORT_SYMBOL(hw_serial);
 
 vmem_t *zio_alloc_arena = NULL;
 EXPORT_SYMBOL(zio_alloc_arena);
@@ -113,35 +118,68 @@ static int
 spl_proc_rd_generic_ul(char *page, char **start, off_t off,
 		       int count, int *eof, unsigned long val)
 {
-	int rc;
-
         *start = page;
         *eof = 1;
 
 	if (off || count > PAGE_SIZE)
 		return 0;
 
-	spin_lock(&spl_debug_lock);
-	rc = snprintf(page, PAGE_SIZE, "0x%lx\n", val);
-	spin_unlock(&spl_debug_lock);
-
-	return rc;
+	return snprintf(page, PAGE_SIZE, "0x%lx\n", val & 0xffffffff);
 }
 
 static int
 spl_proc_rd_debug_mask(char *page, char **start, off_t off,
                        int count, int *eof, void *data)
 {
-	return spl_proc_rd_generic_ul(page, start, off, count,
-				      eof, spl_debug_mask);
+	int rc;
+
+	spin_lock(&spl_debug_lock);
+	rc = spl_proc_rd_generic_ul(page, start, off, count,
+	                            eof, spl_debug_mask);
+	spin_unlock(&spl_debug_lock);
+
+	return rc;
 }
 
 static int
 spl_proc_rd_debug_subsys(char *page, char **start, off_t off,
                          int count, int *eof, void *data)
 {
-	return spl_proc_rd_generic_ul(page, start, off, count,
-				      eof, spl_debug_subsys);
+	int rc;
+
+	spin_lock(&spl_debug_lock);
+	rc = spl_proc_rd_generic_ul(page, start, off, count,
+		                    eof, spl_debug_subsys);
+	spin_unlock(&spl_debug_lock);
+
+	return rc;
+}
+
+static int
+spl_proc_rd_hostid(char *page, char **start, off_t off,
+                   int count, int *eof, void *data)
+{
+        *start = page;
+        *eof = 1;
+
+	if (off || count > PAGE_SIZE)
+		return 0;
+
+	return snprintf(page, PAGE_SIZE, "%lx\n", spl_hostid & 0xffffffff);
+}
+
+static int
+spl_proc_rd_hw_serial(char *page, char **start, off_t off,
+                      int count, int *eof, void *data)
+{
+        *start = page;
+        *eof = 1;
+
+	if (off || count > PAGE_SIZE)
+		return 0;
+
+	strncpy(page, hw_serial, 11);
+	return strlen(page);
 }
 
 static int
@@ -200,6 +238,23 @@ spl_proc_wr_debug_subsys(struct file *file, const char *ubuf,
 	return count;
 }
 
+static int
+spl_proc_wr_hostid(struct file *file, const char *ubuf,
+                   unsigned long count, void *data, int mode)
+{
+	unsigned long val;
+	int rc;
+
+	rc = spl_proc_wr_generic_ul(ubuf, count, &val, 16);
+	if (rc)
+		return rc;
+
+	spl_hostid = val;
+	sprintf(hw_serial, "%lu\n", ((long)val >= 0) ? val : -val);
+
+	return count;
+}
+
 static struct proc_dir_entry *
 spl_register_proc_entry(const char *name, mode_t mode,
                         struct proc_dir_entry *parent, void *data,
@@ -235,6 +290,15 @@ EXPORT_SYMBOL(spl_set_debug_subsys);
 static int __init spl_init(void)
 {
 	int rc = 0;
+	char sh_path[] = "/bin/sh";
+	char *argv[] = { sh_path,
+	                 "-c",
+	                 "/usr/bin/hostid >/proc/spl/hostid",
+	                 NULL };
+	char *envp[] = { "HOME=/",
+	                 "TERM=linux",
+	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+	                 NULL };
 
         spl_proc_root = proc_mkdir("spl", NULL);
         if (!spl_proc_root) {
@@ -260,16 +324,49 @@ static int __init spl_init(void)
 		goto out2;
 	}
 
+	spl_proc_hostid = spl_register_proc_entry("hostid", 0644,
+	                                          spl_proc_root, NULL,
+	                                          spl_proc_rd_hostid,
+	                                          spl_proc_wr_hostid);
+	if (IS_ERR(spl_proc_hostid)) {
+		rc = PTR_ERR(spl_proc_hostid);
+		goto out3;
+	}
+
+	spl_proc_hw_serial = spl_register_proc_entry("hw_serial", 0444,
+	                                          spl_proc_root, NULL,
+	                                          spl_proc_rd_hw_serial,
+	                                          NULL);
+	if (IS_ERR(spl_proc_hw_serial)) {
+		rc = PTR_ERR(spl_proc_hw_serial);
+		goto out4;
+	}
+
 	if ((rc = kmem_init()))
-		goto out2;
+		goto out4;
 
 	if ((rc = vn_init()))
-		goto out2;
+		goto out4;
 
-	strcpy(hw_serial, "007f0100"); /* loopback */
+	/* Doing address resolution in the kernel is tricky and just
+	 * not a good idea in general.  So to set the proper 'hw_serial'
+	 * use the usermodehelper support to ask '/bin/sh' to run
+	 * '/usr/bin/hostid' and redirect the result to /proc/spl/hostid
+	 * for us to use.  It's a horific solution but it will do.
+	 */
+	if ((rc = call_usermodehelper(sh_path, argv, envp, 1)))
+		goto out4;
+
         printk("spl: Loaded Solaris Porting Layer v%s\n", VERSION);
 
 	return 0;
+
+out4:
+	if (spl_proc_hw_serial)
+		remove_proc_entry("hw_serial", spl_proc_root);
+out3:
+	if (spl_proc_hostid)
+		remove_proc_entry("hostid", spl_proc_root);
 out2:
 	if (spl_proc_debug_mask)
 		remove_proc_entry("debug_mask", spl_proc_root);
@@ -287,6 +384,8 @@ static void spl_fini(void)
 	vn_fini();
 	kmem_fini();
 
+	remove_proc_entry("hw_serial", spl_proc_root);
+	remove_proc_entry("hostid", spl_proc_root);
 	remove_proc_entry("debug_subsys", spl_proc_root);
 	remove_proc_entry("debug_mask", spl_proc_root);
         remove_proc_entry("spl", NULL);
