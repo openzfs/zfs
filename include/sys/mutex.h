@@ -68,8 +68,7 @@ mutex_enter(kmutex_t *mp)
 	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
-		dump_stack();
-		printk("Scheduling while atomic: %s/0x%08x/%d\n",
+		printk("May schedule while atomic: %s/0x%08x/%d\n",
 		       current->comm, preempt_count(), current->pid);
 		BUG();
 	}
@@ -89,8 +88,7 @@ mutex_tryenter(kmutex_t *mp)
 	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
-		dump_stack();
-		printk("Scheduling while atomic: %s/0x%08x/%d\n",
+		printk("May schedule while atomic: %s/0x%08x/%d\n",
 		       current->comm, preempt_count(), current->pid);
 		BUG();
 	}
