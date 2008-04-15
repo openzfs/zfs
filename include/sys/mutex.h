@@ -29,16 +29,19 @@ typedef struct {
 	char *km_name;
 	struct task_struct *km_owner;
 	struct semaphore km_sem;
+	spinlock_t km_lock;
 } kmutex_t;
 
 #undef mutex_init
 static __inline__ void
 mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 {
+	BUG_ON(mp == NULL);
 	BUG_ON(ibc != NULL);		/* XXX - Spin mutexes not needed? */
 	BUG_ON(type != MUTEX_DEFAULT);	/* XXX - Only default type supported? */
 
 	mp->km_magic = KM_MAGIC;
+	spin_lock_init(&mp->km_lock);
 	sema_init(&mp->km_sem, 1);
 	mp->km_owner = NULL;
 	mp->km_name = NULL;
@@ -54,49 +57,65 @@ mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 static __inline__ void
 mutex_destroy(kmutex_t *mp)
 {
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (mp->km_name)
 		kfree(mp->km_name);
 
 	memset(mp, KM_POISON, sizeof(*mp));
+	spin_unlock(&mp->km_lock);
 }
 
 static __inline__ void
 mutex_enter(kmutex_t *mp)
 {
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
 		printk("May schedule while atomic: %s/0x%08x/%d\n",
 		       current->comm, preempt_count(), current->pid);
+		spin_unlock(&mp->km_lock);
 		BUG();
 	}
 
-	down(&mp->km_sem);  /* Will check in_atomic() for us */
+	spin_unlock(&mp->km_lock);
+
+	down(&mp->km_sem);
+
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_owner != NULL);
 	mp->km_owner = current;
+	spin_unlock(&mp->km_lock);
 }
 
-/* Return 1 if we acquired the mutex, else zero.
- */
+/* Return 1 if we acquired the mutex, else zero.  */
 static __inline__ int
 mutex_tryenter(kmutex_t *mp)
 {
-	int result;
+	int rc;
 
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
 		printk("May schedule while atomic: %s/0x%08x/%d\n",
 		       current->comm, preempt_count(), current->pid);
+		spin_unlock(&mp->km_lock);
 		BUG();
 	}
 
-	result = down_trylock(&mp->km_sem); /* returns 0 if acquired */
-	if (result == 0) {
+	spin_unlock(&mp->km_lock);
+	rc = down_trylock(&mp->km_sem); /* returns 0 if acquired */
+	if (rc == 0) {
+		spin_lock(&mp->km_lock);
 		BUG_ON(mp->km_owner != NULL);
 		mp->km_owner = current;
+		spin_unlock(&mp->km_lock);
 		return 1;
 	}
 	return 0;
@@ -105,28 +124,43 @@ mutex_tryenter(kmutex_t *mp)
 static __inline__ void
 mutex_exit(kmutex_t *mp)
 {
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
 	BUG_ON(mp->km_owner != current);
 	mp->km_owner = NULL;
+	spin_unlock(&mp->km_lock);
 	up(&mp->km_sem);
 }
 
-/* Return 1 if mutex is held by current process, else zero.
- */
+/* Return 1 if mutex is held by current process, else zero.  */
 static __inline__ int
 mutex_owned(kmutex_t *mp)
 {
+	int rc;
+
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
-	return (mp->km_owner == current);
+	rc = (mp->km_owner == current);
+	spin_unlock(&mp->km_lock);
+
+	return rc;
 }
 
-/* Return owner if mutex is owned, else NULL.
- */
+/* Return owner if mutex is owned, else NULL.  */
 static __inline__ kthread_t *
 mutex_owner(kmutex_t *mp)
 {
+	kthread_t *thr;
+
+	BUG_ON(mp == NULL);
+	spin_lock(&mp->km_lock);
 	BUG_ON(mp->km_magic != KM_MAGIC);
-	return mp->km_owner;
+	thr = mp->km_owner;
+	spin_unlock(&mp->km_lock);
+
+	return thr;
 }
 
 #ifdef	__cplusplus

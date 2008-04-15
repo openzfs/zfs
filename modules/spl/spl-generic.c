@@ -10,7 +10,8 @@
 /*
  * Generic support
  */
-static char spl_debug_buffer[MAXMSGLEN];
+static char spl_debug_buffer1[1024];
+static char spl_debug_buffer2[1024];
 static spinlock_t spl_debug_lock = SPIN_LOCK_UNLOCKED;
 
 unsigned long spl_debug_mask = 0;
@@ -83,12 +84,11 @@ EXPORT_SYMBOL(ddi_strtoul);
 void
 __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 {
-        char *sfp, *start, *ptr;
+        char *sfp;
         struct timeval tv;
 	unsigned long flags;
         va_list ap;
 
-	start = ptr = spl_debug_buffer;
         sfp = strrchr(file, '/');
         do_gettimeofday(&tv);
 
@@ -98,18 +98,21 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	 * reason why we really, really, need an internal debug log.
 	 */
 	spin_lock_irqsave(&spl_debug_lock, flags);
-        ptr += snprintf(ptr, MAXMSGLEN - 1,
-                        "spl: %lu.%06lu:%d:%u:%s:%d:%s(): ",
-                        tv.tv_sec, tv.tv_usec, current->pid,
-                        smp_processor_id(),
-                        sfp == NULL ? file : sfp + 1,
-                        line, func);
+	memset(spl_debug_buffer1, 0, 1024);
+	memset(spl_debug_buffer2, 0, 1024);
+
+        snprintf(spl_debug_buffer1, 1023,
+                 "spl: %lu.%06lu:%d:%u:%s:%d:%s(): ",
+                 tv.tv_sec, tv.tv_usec, current->pid,
+                 smp_processor_id(),
+                 sfp == NULL ? file : sfp + 1,
+                 line, func);
 
         va_start(ap, fmt);
-        ptr += vsnprintf(ptr, MAXMSGLEN - (ptr - start) - 1, fmt, ap);
+        vsnprintf(spl_debug_buffer2, 1023, fmt, ap);
         va_end(ap);
 
-        printk("%s", start);
+        printk("%s%s", spl_debug_buffer1, spl_debug_buffer2);
 	spin_unlock_irqrestore(&spl_debug_lock, flags);
 }
 EXPORT_SYMBOL(__dprintf);

@@ -50,7 +50,6 @@ typedef struct kmem_cache_cb {
 
 
 static spinlock_t kmem_cache_cb_lock = SPIN_LOCK_UNLOCKED;
-//static spinlock_t kmem_cache_cb_lock = (spinlock_t) { 1 SPINLOCK_MAGIC_INIT };
 static LIST_HEAD(kmem_cache_cb_list);
 static struct shrinker *kmem_cache_shrinker;
 
@@ -110,17 +109,22 @@ static void
 kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long flags)
 {
         kmem_cache_cb_t *kcc;
+	kmem_constructor_t constructor;
+	void *private;
 
 	spin_lock(&kmem_cache_cb_lock);
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
         BUG_ON(!kcc);
-
-	if (kcc->kcc_constructor)
-		kcc->kcc_constructor(ptr, kcc->kcc_private, (int)flags);
+	constructor = kcc->kcc_constructor;
+	private = kcc->kcc_private;
 
 	spin_unlock(&kmem_cache_cb_lock);
+
+	if (constructor)
+		constructor(ptr, private, (int)flags);
+
 	/* Linux constructor has no return code, silently eat it */
 }
 
@@ -128,18 +132,22 @@ static void
 kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flags)
 {
         kmem_cache_cb_t *kcc;
+        kmem_destructor_t destructor;
+	void *private;
 
 	spin_lock(&kmem_cache_cb_lock);
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
         BUG_ON(!kcc);
-
-	/* Solaris destructor takes no flags, silently eat them */
-	if (kcc->kcc_destructor)
-		kcc->kcc_destructor(ptr, kcc->kcc_private);
+	destructor = kcc->kcc_destructor;
+	private = kcc->kcc_private;
 
 	spin_unlock(&kmem_cache_cb_lock);
+
+	/* Solaris destructor takes no flags, silently eat them */
+	if (destructor)
+		destructor(ptr, private);
 }
 
 /* XXX - Arguments are ignored */
