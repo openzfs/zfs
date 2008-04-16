@@ -77,6 +77,7 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
                         void *priv, void *vmp)
 {
         kmem_cache_cb_t *kcc;
+	unsigned long flags;
 
         kcc = (kmem_cache_cb_t *)kmalloc(sizeof(*kcc), GFP_KERNEL);
         if (kcc) {
@@ -86,9 +87,9 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
                 kcc->kcc_reclaim = reclaim;
                 kcc->kcc_private = priv;
                 kcc->kcc_vmp = vmp;
-		spin_lock(&kmem_cache_cb_lock);
+		spin_lock_irqsave(&kmem_cache_cb_lock, flags);
                 list_add(&kcc->kcc_list, &kmem_cache_cb_list);
-		spin_unlock(&kmem_cache_cb_lock);
+		spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
         }
 
         return kcc;
@@ -97,9 +98,11 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
 static void
 kmem_cache_remove_cache_cb(kmem_cache_cb_t *kcc)
 {
-	spin_lock(&kmem_cache_cb_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
         list_del(&kcc->kcc_list);
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
 
        if (kcc)
               kfree(kcc);
@@ -110,9 +113,10 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 {
         kmem_cache_cb_t *kcc;
 	kmem_constructor_t constructor;
+	unsigned long irqflags;
 	void *private;
 
-	spin_lock(&kmem_cache_cb_lock);
+	spin_lock_irqsave(&kmem_cache_cb_lock, irqflags);
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
@@ -120,7 +124,7 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 	constructor = kcc->kcc_constructor;
 	private = kcc->kcc_private;
 
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, irqflags);
 
 	if (constructor)
 		constructor(ptr, private, (int)flags);
@@ -133,9 +137,10 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 {
         kmem_cache_cb_t *kcc;
         kmem_destructor_t destructor;
+	unsigned long irqflags;
 	void *private;
 
-	spin_lock(&kmem_cache_cb_lock);
+	spin_lock_irqsave(&kmem_cache_cb_lock, irqflags);
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
@@ -143,7 +148,7 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 	destructor = kcc->kcc_destructor;
 	private = kcc->kcc_private;
 
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, irqflags);
 
 	/* Solaris destructor takes no flags, silently eat them */
 	if (destructor)
@@ -155,6 +160,7 @@ static int
 kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 {
         kmem_cache_cb_t *kcc;
+	unsigned long flags;
         int total = 0;
 
 	/* Under linux a shrinker is not tightly coupled with a slab
@@ -164,7 +170,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * function in the shim layer for all slab caches.  And we always
 	 * attempt to shrink all caches when this generic shrinker is called.
 	 */
-	spin_lock(&kmem_cache_cb_lock);
+	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
 
         list_for_each_entry(kcc, &kmem_cache_cb_list, kcc_list) {
 	        /* Under linux the desired number and gfp type of objects
@@ -185,7 +191,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * was registered with the generic shrinker.  This should fake out
 	 * the linux VM when it attempts to shrink caches.
 	 */
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
 	return total;
 }
 
@@ -257,11 +263,12 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 {
         kmem_cache_cb_t *kcc;
 	char *name;
+	unsigned long flags;
 	int rc;
 
-	spin_lock(&kmem_cache_cb_lock);
+	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
         kcc = kmem_cache_find_cache_cb(cache);
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
         if (kcc == NULL)
                 return -EINVAL;
 
@@ -271,11 +278,11 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 	kfree(name);
 
 	/* Unregister generic shrinker on removal of all caches */
-	spin_lock(&kmem_cache_cb_lock);
+	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
 	if (list_empty(&kmem_cache_cb_list))
                 remove_shrinker(kmem_cache_shrinker);
 
-	spin_unlock(&kmem_cache_cb_lock);
+	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
 	return rc;
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);

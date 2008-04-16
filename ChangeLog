@@ -1,3 +1,11 @@
+2008-04-16 Herb Wartens <wartens2@llnl.gov>
+
+	* modules/spl/spl-kmem.c : Make sure to disable interrupts
+	when necessary to avoid deadlocks.  We were seeing the deadlock
+	when calling kmem_cache_generic_constructor() and then an interrupt
+	forced us to end up calling kmem_cache_generic_destructor()
+	which caused our deadlock.
+
 2008-02-26 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	: Initial commit of the solaris porting layer (spl).  Included
