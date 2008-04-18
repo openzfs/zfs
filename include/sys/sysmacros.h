@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/module.h>
+#include <sys/debug.h>
 #include <sys/varargs.h>
 #include <sys/zone.h>
 #include <sys/signal.h>
@@ -73,26 +74,6 @@ extern "C" {
 #define bzero(ptr,size)                 memset(ptr,0,size)
 #define bcopy(src,dest,size)            memcpy(dest,src,size)
 #define bcmp(src,dest,size)		memcmp((src), (dest), (size_t)(size))
-#define ASSERT(x)                       BUG_ON(!(x))
-#define VERIFY(x)			ASSERT(x)
-
-#define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST) do {         \
-	const TYPE __left = (TYPE)(LEFT);                           \
-	const TYPE __right = (TYPE)(RIGHT);                         \
-	if (!(__left OP __right)) {                                 \
-		printk("spl: Error VERIFY3(" FMT " " #OP " " FMT ")\n", \
-		        CAST __left,  CAST __right);                \
-		BUG();                                              \
-	}                                                           \
-} while (0)
-
-#define VERIFY3S(x, y, z)   VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
-#define VERIFY3U(x, y, z)   VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
-#define VERIFY3P(x, y, z)   VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
-
-#define ASSERT3S(x, y, z)   VERIFY3S(x, y, z)
-#define ASSERT3U(x, y, z)   VERIFY3U(x, y, z)
-#define ASSERT3P(x, y, z)   VERIFY3P(x, y, z)
 
 /* Dtrace probes do not exist in the linux kernel */
 
@@ -117,12 +98,13 @@ extern "C" {
 #define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
 
 /* Missing globals */
+extern unsigned long spl_hostid;
+extern char spl_hw_serial[11];
 extern int p0;
-extern char hw_serial[11];
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);
-extern int ddi_strtoul(const char *hw_serial, char **nptr,
+extern int ddi_strtoul(const char *str, char **nptr,
 		       int base, unsigned long *result);
 
 #define makedevice(maj,min) makedev(maj,min)

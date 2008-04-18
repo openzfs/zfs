@@ -9,6 +9,8 @@ CPPFLAGS += @KERNELCPPFLAGS@
 # Solaris porting layer module
 obj-m := spl.o
 
+spl-objs += spl-debug.o
+spl-objs += spl-proc.o
 spl-objs += spl-kmem.o
 spl-objs += spl-thread.o
 spl-objs += spl-taskq.o

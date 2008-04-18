@@ -588,7 +588,7 @@ vn_fini(void)
 
 	rc = kmem_cache_destroy(vn_file_cache);
 	if (rc)
-		printk("spl: Warning leaked vn_file_cache objects\n");
+		printk("spl: Warning leaked vn_file_cache objects, %d\n", rc);
 
 	vn_file_cache = NULL;
 	spin_unlock(&vn_file_lock);
@@ -598,7 +598,7 @@ vn_fini(void)
 
 	rc = kmem_cache_destroy(vn_cache);
 	if (rc)
-		printk("spl: Warning leaked vn_cache objects\n");
+		printk("spl: Warning leaked vn_cache objects, %d\n", rc);
 
 	return;
 } /* vn_fini() */
