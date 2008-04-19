@@ -195,8 +195,8 @@ proc_force_bug(struct ctl_table *table, int write, struct file *filp,
 	ENTRY;
 
         if (write) {
-               CERROR("Crashing due to forced BUG\n");
-               BUG();
+               CERROR("Crashing due to forced SBUG\n");
+               SBUG();
 	       /* Unreachable */
         } else {
                 *lenp = 0;

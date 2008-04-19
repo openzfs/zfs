@@ -146,12 +146,14 @@ struct page_collection {
         int               pc_want_daemon_pages;
 };
 
+#define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);
+
 /* ASSERTION that is safe to use within the debug system */
 #define __ASSERT(cond)							\
 do {									\
 	if (unlikely(!(cond))) {					\
                 printk(KERN_ERR "ASSERTION("#cond") failed");           \
-		BUG();                                                  \
+		SBUG();                                                 \
 	}								\
 } while (0)
 
@@ -194,7 +196,7 @@ do {                                                                    \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "VERIFY3(" FMT " " #OP " " FMT ")\n",     \
                               CAST __left,  CAST __right);              \
-                spl_debug_bug(__FILE__, __FUNCTION__, __LINE__)         \
+                spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);        \
         }                                                               \
 } while (0)
 
@@ -207,7 +209,6 @@ do {                                                                    \
 #define ASSERT3P(x,y,z) VERIFY3P(x, y, z)
 
 #define VERIFY(x)	ASSERT(x)
-#define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);
 
 #define spl_debug_msg(cdls, subsys, mask, file, fn, line, format, a...) \
         spl_debug_vmsg(cdls, subsys, mask, file, fn,                    \
