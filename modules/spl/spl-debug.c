@@ -102,7 +102,7 @@ struct rw_semaphore trace_sem;
 atomic_t trace_tage_allocated = ATOMIC_INIT(0);
 
 static int panic_notifier(struct notifier_block *, unsigned long, void *);
-static int spl_debug_dump_all_pages(char *);
+static int spl_debug_dump_all_pages(dumplog_priv_t *dp, char *);
 static void trace_fini(void);
 
 
@@ -344,12 +344,6 @@ spl_debug_str2mask(unsigned long *mask, const char *str, int is_subsys)
         return 0;
 }
 
-typedef struct dumplog_priv {
-        wait_queue_head_t dp_waitq;
-	pid_t dp_pid;
-	atomic_t dp_flag;
-} dumplog_priv_t;
-
 static void
 spl_debug_dumplog_internal(dumplog_priv_t *dp)
 {
@@ -362,7 +356,7 @@ spl_debug_dumplog_internal(dumplog_priv_t *dp)
                  "%s.%ld.%ld", spl_debug_file_path,
 		 get_seconds(), (long)dp->dp_pid);
         printk(KERN_ALERT "SPL: dumping log to %s\n", spl_debug_file_name);
-        spl_debug_dump_all_pages(spl_debug_file_name);
+        spl_debug_dump_all_pages(dp, spl_debug_file_name);
 
         current->journal_info = journal_info;
 }
@@ -373,29 +367,36 @@ spl_debug_dumplog_thread(void *arg)
 	dumplog_priv_t *dp = (dumplog_priv_t *)arg;
 
         spl_debug_dumplog_internal(dp);
-	atomic_set(&dp->dp_flag, 1);
+	atomic_set(&dp->dp_done, 1);
         wake_up(&dp->dp_waitq);
         do_exit(0);
 
         return 0; /* Unreachable */
 }
 
+/* When flag is set do not use a new thread for the debug dump */
 int
-spl_debug_dumplog(void)
+spl_debug_dumplog(int flags)
 {
 	struct task_struct *tsk;
 	dumplog_priv_t dp;
 
-	init_waitqueue_head(&dp.dp_waitq);
-	dp.dp_pid = current->pid;
-	atomic_set(&dp.dp_flag, 0);
+        init_waitqueue_head(&dp.dp_waitq);
+        dp.dp_pid = current->pid;
+        dp.dp_flags = flags;
+        atomic_set(&dp.dp_done, 0);
 
-        tsk = kthread_create(spl_debug_dumplog_thread,(void *)&dp,"spl_debug");
-        if (tsk == NULL)
-		return -ENOMEM;
+        if (dp.dp_flags & DL_NOTHREAD) {
+                spl_debug_dumplog_internal(&dp);
+        } else {
 
-	wake_up_process(tsk);
-	wait_event(dp.dp_waitq, atomic_read(&dp.dp_flag));
+                tsk = kthread_create(spl_debug_dumplog_thread,(void *)&dp,"spl_debug");
+                if (tsk == NULL)
+                        return -ENOMEM;
+
+                wake_up_process(tsk);
+                wait_event(dp.dp_waitq, atomic_read(&dp.dp_done));
+        }
 
 	return 0;
 }
@@ -849,7 +850,7 @@ EXPORT_SYMBOL(spl_debug_vmsg);
  * some arch, this will have to be implemented separately in each arch.
  */
 static void
-panic_collect_pages(struct page_collection *pc)
+collect_pages_from_single_cpu(struct page_collection *pc)
 {
         struct trace_cpu_data *tcd;
         int i, j;
@@ -876,12 +877,12 @@ collect_pages_on_cpu(void *info)
 }
 
 static void
-collect_pages(struct page_collection *pc)
+collect_pages(dumplog_priv_t *dp, struct page_collection *pc)
 {
         INIT_LIST_HEAD(&pc->pc_pages);
 
-        if (spl_panic_in_progress)
-                panic_collect_pages(pc);
+        if (spl_panic_in_progress || dp->dp_flags & DL_SINGLE_CPU)
+                collect_pages_from_single_cpu(pc);
         else
                 trace_call_on_all_cpus(collect_pages_on_cpu, pc);
 }
@@ -944,7 +945,7 @@ trace_filp_open (const char *name, int flags, int mode, int *err)
 #define trace_filp_poff(f)             (&(f)->f_pos)
 
 static int
-spl_debug_dump_all_pages(char *filename)
+spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
 {
         struct page_collection pc;
         struct file *filp;
@@ -965,7 +966,7 @@ spl_debug_dump_all_pages(char *filename)
         }
 
         spin_lock_init(&pc.pc_lock);
-        collect_pages(&pc);
+        collect_pages(dp, &pc);
         if (list_empty(&pc.pc_pages)) {
                 rc = 0;
                 goto close;
@@ -1006,13 +1007,18 @@ spl_debug_dump_all_pages(char *filename)
 static void
 spl_debug_flush_pages(void)
 {
+        dumplog_priv_t dp;
         struct page_collection pc;
         struct trace_page *tage;
         struct trace_page *tmp;
 
         spin_lock_init(&pc.pc_lock);
+        init_waitqueue_head(&dp.dp_waitq);
+        dp.dp_pid = current->pid;
+        dp.dp_flags = 0;
+        atomic_set(&dp.dp_done, 0);
 
-        collect_pages(&pc);
+        collect_pages(&dp, &pc);
         list_for_each_entry_safe(tage, tmp, &pc.pc_pages, linkage) {
                 __ASSERT_TAGE_INVARIANT(tage);
                 list_del(&tage->linkage);
@@ -1109,7 +1115,7 @@ void spl_debug_dumpstack(struct task_struct *tsk)
 }
 EXPORT_SYMBOL(spl_debug_dumpstack);
 
-void spl_debug_bug(char *file, const char *func, const int line)
+void spl_debug_bug(char *file, const char *func, const int line, int flags)
 {
         spl_debug_catastrophe = 1;
         spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SBUG\n");
@@ -1124,7 +1130,7 @@ void spl_debug_bug(char *file, const char *func, const int line)
                 spl_panic_in_progress = 1;
 
         spl_debug_dumpstack(NULL);
-        spl_debug_dumplog();
+        spl_debug_dumplog(flags);
 
         if (spl_debug_panic_on_bug)
                 panic("SBUG");
@@ -1168,7 +1174,7 @@ panic_notifier(struct notifier_block *self,
                 while (current->lock_depth >= 0)
                         unlock_kernel();
 
-                spl_debug_dumplog_internal((void *)(long)current->pid);
+                spl_debug_dumplog(DL_NOTHREAD | DL_SINGLE_CPU);
         }
 
         return 0;

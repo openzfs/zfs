@@ -64,6 +64,16 @@ extern unsigned int spl_debug_stack;
 #define SPL_DEFAULT_MIN_DELAY		((HZ + 1) / 2)
 #define SPL_DEFAULT_BACKOFF		2
 
+#define DL_NOTHREAD                     0x0001 /* Do not create a new thread */
+#define DL_SINGLE_CPU			0x0002 /* Collect pages from this CPU */
+
+typedef struct dumplog_priv {
+        wait_queue_head_t dp_waitq;
+        pid_t dp_pid;
+        int dp_flags;
+        atomic_t dp_done;
+} dumplog_priv_t;
+
 typedef struct {
         unsigned long cdls_next;
         int           cdls_count;
@@ -147,7 +157,7 @@ struct page_collection {
         int               pc_want_daemon_pages;
 };
 
-#define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);
+#define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);
 
 #ifdef  __ia64__
 #define CDEBUG_STACK() (THREAD_SIZE -                                   \
@@ -159,29 +169,24 @@ struct page_collection {
                         (THREAD_SIZE - 1)))
 # endif /* __ia64__ */
 
+/* DL_NOTHREAD and DL_SINGLE_CPU flags are passed to spl_debug_bug()
+ * because we have over run our stack and likely damaged at least one
+ * other unknown threads stack.  We must finish generating the needed
+ * debug info within this thread context because once we yeild the CPU
+ * its very likely the system will crash.
+ */
 #define __CHECK_STACK(file, func, line)                                 \
 do {                                                                    \
         unsigned long _stack = CDEBUG_STACK();                          \
-	unsigned long _soft_limit = (9 * THREAD_SIZE) / 10;             \
+	unsigned long _soft_limit = (8 * THREAD_SIZE) / 10;             \
                                                                         \
 	if (unlikely(_stack > _soft_limit && _stack > spl_debug_stack)){\
                 spl_debug_stack = _stack;                               \
-		if (_stack <= THREAD_SIZE) {                            \
-                        spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
-                                      file, func, line, "Warning "      \
-                                      "exceeded 90%% of maximum safe "  \
-				      "stack size (%lu/%lu)\n",         \
-				      _stack, THREAD_SIZE);             \
-			spl_debug_dumpstack(NULL);                      \
-			spl_debug_dumplog();                            \
-		} else {                                                \
-                        spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
-                                      file, func, line, "Error "        \
-                                      "exceeded maximum safe stack "    \
-				      "size (%lu/%lu)\n",               \
-				      _stack, THREAD_SIZE);             \
-			SBUG();                                         \
-		}                                                       \
+                spl_debug_msg(NULL, D_TRACE, D_WARNING,                 \
+                              file, func, line, "Error exceeded "       \
+			      "maximum safe stack size (%lu/%lu)\n",    \
+			      _stack, THREAD_SIZE);                     \
+		spl_debug_bug(file, func, line, DL_SINGLE_CPU);         \
         }                                                               \
 } while (0)
 
@@ -213,7 +218,7 @@ do {                                                                    \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "ASSERTION(" #cond ") failed\n");         \
-                spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);        \
+		SBUG();                                                 \
 	}                                                               \
 } while (0)
 
@@ -226,7 +231,7 @@ do {                                                                    \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "ASSERTION(" #cond ") failed:" fmt,       \
                                  ## a);                                 \
-                spl_debug_bug(__FILE__, __FUNCTION__, __LINE__)         \
+		SBUG();                                                 \
         }                                                               \
 } while (0)
 
@@ -242,7 +247,7 @@ do {                                                                    \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "VERIFY3(" FMT " " #OP " " FMT ")\n",     \
                               CAST __left,  CAST __right);              \
-                spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);        \
+		SBUG();                                                 \
         }                                                               \
 } while (0)
 
@@ -285,7 +290,6 @@ do {                                                                    \
 #define CDEBUG_LIMIT(mask, format, a...)                                \
         __CDEBUG_LIMIT(DEBUG_SUBSYSTEM, mask, format, ## a)
 
-#define dprintf(fmt, a...)             CDEBUG_LIMIT(D_INFO, fmt, ## a)
 #define CWARN(fmt, a...)               CDEBUG_LIMIT(D_WARNING, fmt, ## a)
 #define CERROR(fmt, a...)              CDEBUG_LIMIT(D_ERROR, fmt, ## a)
 #define CEMERG(fmt, a...)              CDEBUG_LIMIT(D_EMERG, fmt, ## a)
@@ -329,9 +333,9 @@ extern unsigned long spl_debug_get_subsys(void);
 extern int spl_debug_set_mb(int mb);
 extern int spl_debug_get_mb(void);
 
-extern int spl_debug_dumplog(void);
+extern int spl_debug_dumplog(int flags);
 extern void spl_debug_dumpstack(struct task_struct *tsk);
-extern void spl_debug_bug(char *file, const char *func, const int line);
+extern void spl_debug_bug(char *file, const char *func, const int line, int flags);
 
 extern int spl_debug_clear_buffer(void);
 extern int spl_debug_mark_buffer(char *text);

@@ -179,7 +179,7 @@ proc_dump_kernel(struct ctl_table *table, int write, struct file *filp,
 	ENTRY;
 
         if (write) {
-               spl_debug_dumplog();
+               spl_debug_dumplog(0);
                 *ppos += *lenp;
         } else {
                 *lenp = 0;
