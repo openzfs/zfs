@@ -41,7 +41,7 @@ typedef enum clock_type {
 
 #define hz					\
 ({						\
-        BUG_ON(HZ < 100 || HZ > MICROSEC);	\
+        ASSERT(HZ >= 100 && HZ <= MICROSEC);	\
         HZ;					\
 })
 

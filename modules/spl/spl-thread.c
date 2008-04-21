@@ -1,6 +1,12 @@
 #include <sys/thread.h>
 #include <sys/kmem.h>
 
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_THREAD
+
 /*
  * Thread interfaces
  */
@@ -20,7 +26,7 @@ thread_generic_wrapper(void *arg)
 	void (*func)(void *);
 	void *args;
 
-	BUG_ON(tp->tp_magic != TP_MAGIC);
+	ASSERT(tp->tp_magic == TP_MAGIC);
 	func = tp->tp_func;
 	args = tp->tp_args;
 	set_current_state(tp->tp_state);
@@ -36,8 +42,10 @@ thread_generic_wrapper(void *arg)
 void
 __thread_exit(void)
 {
+	ENTRY;
+	EXIT;
 	do_exit(0);
-	return;
+	/* Unreachable */
 }
 EXPORT_SYMBOL(__thread_exit);
 
@@ -52,15 +60,15 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	thread_priv_t *tp;
 	DEFINE_WAIT(wait);
 	struct task_struct *tsk;
+	ENTRY;
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
-	BUG_ON(stk != NULL);
-	BUG_ON(stk != 0);
+	ASSERT(stk == NULL);
 
 	tp = kmem_alloc(sizeof(thread_priv_t), KM_SLEEP);
 	if (tp == NULL)
-		return NULL;
+		RETURN(NULL);
 
 	tp->tp_magic = TP_MAGIC;
 	tp->tp_func  = func;
@@ -71,11 +79,11 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	tsk = kthread_create(thread_generic_wrapper, (void *)tp, "%s", name);
 	if (IS_ERR(tsk)) {
-		printk("spl: Failed to create thread: %ld\n", PTR_ERR(tsk));
-		return NULL;
+		CERROR("Failed to create thread: %ld\n", PTR_ERR(tsk));
+		RETURN(NULL);
 	}
 
 	wake_up_process(tsk);
-	return (kthread_t *)tsk;
+	RETURN((kthread_t *)tsk);
 }
 EXPORT_SYMBOL(__thread_create);

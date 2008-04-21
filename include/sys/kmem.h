@@ -13,6 +13,7 @@ extern "C" {
 #include <linux/vmalloc.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
+#include <sys/debug.h>
 /*
  * Memory allocation interfaces
  */
@@ -60,7 +61,7 @@ extern int kmem_warning_flag;
 
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
-        BUG_ON(!(ptr) || (size) < 0);                                         \
+        ASSERT((ptr) || (size > 0));                                          \
         atomic64_sub((size), &kmem_alloc_used);                               \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         kfree(ptr);                                                           \
@@ -69,7 +70,7 @@ extern int kmem_warning_flag;
 #define __vmem_alloc(size, flags)                                             \
 ({      void *_ptr_;                                                          \
                                                                               \
-	BUG_ON(!(flags & KM_SLEEP));                                          \
+	ASSERT(flags & KM_SLEEP);                                             \
                                                                               \
         _ptr_ = (void *)__vmalloc((size), ((flags) |                          \
                                   __GFP_HIGHMEM), PAGE_KERNEL);               \
@@ -93,7 +94,7 @@ extern int kmem_warning_flag;
 
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
-        BUG_ON(!(ptr) || (size) < 0);                                         \
+        ASSERT((ptr) || (size > 0));                                          \
         atomic64_sub((size), &vmem_alloc_used);                               \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         vfree(ptr);                                                           \
@@ -105,7 +106,7 @@ extern int kmem_warning_flag;
 #define kmem_zalloc(size, flags)        kzalloc((size), (flags))
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
-	BUG_ON(!(ptr) || (size) < 0);                                         \
+        ASSERT((ptr) || (size > 0));                                          \
 	kfree(ptr);                                                           \
 })
 
@@ -116,7 +117,7 @@ extern int kmem_warning_flag;
 						  PAGE_KERNEL)
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
-	BUG_ON(!(ptr) || (size) < 0);                                         \
+        ASSERT((ptr) || (size > 0));                                          \
 	vfree(ptr);                                                           \
 })
 

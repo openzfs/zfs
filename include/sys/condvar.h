@@ -28,9 +28,9 @@ typedef enum { CV_DEFAULT=0, CV_DRIVER } kcv_type_t;
 static __inline__ void
 cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
-	BUG_ON(cvp == NULL);
-	BUG_ON(type != CV_DEFAULT);
-	BUG_ON(arg != NULL);
+	ASSERT(cvp);
+	ASSERT(type == CV_DEFAULT);
+	ASSERT(arg == NULL);
 
 	cvp->cv_magic = CV_MAGIC;
 	init_waitqueue_head(&cvp->cv_event);
@@ -49,11 +49,11 @@ cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 static __inline__ void
 cv_destroy(kcondvar_t *cvp)
 {
-	BUG_ON(cvp == NULL);
+	ASSERT(cvp);
+	ASSERT(cvp->cv_magic == CV_MAGIC);
 	spin_lock(&cvp->cv_lock);
-	BUG_ON(cvp->cv_magic != CV_MAGIC);
-	BUG_ON(atomic_read(&cvp->cv_waiters) != 0);
-	BUG_ON(waitqueue_active(&cvp->cv_event));
+	ASSERT(atomic_read(&cvp->cv_waiters) == 0);
+	ASSERT(!waitqueue_active(&cvp->cv_event));
 
 	if (cvp->cv_name)
 		kfree(cvp->cv_name);
@@ -67,16 +67,17 @@ cv_wait(kcondvar_t *cvp, kmutex_t *mtx)
 {
 	DEFINE_WAIT(wait);
 
-	BUG_ON(cvp == NULL || mtx == NULL);
+	ASSERT(cvp);
+        ASSERT(mtx);
+	ASSERT(cvp->cv_magic == CV_MAGIC);
 	spin_lock(&cvp->cv_lock);
-	BUG_ON(cvp->cv_magic != CV_MAGIC);
-	BUG_ON(!mutex_owned(mtx));
+	ASSERT(mutex_owned(mtx));
 
 	if (cvp->cv_mutex == NULL)
 		cvp->cv_mutex = mtx;
 
 	/* Ensure the same mutex is used by all callers */
-	BUG_ON(cvp->cv_mutex != mtx);
+	ASSERT(cvp->cv_mutex == mtx);
 	spin_unlock(&cvp->cv_lock);
 
 	prepare_to_wait_exclusive(&cvp->cv_event, &wait,
@@ -103,16 +104,17 @@ cv_timedwait(kcondvar_t *cvp, kmutex_t *mtx, clock_t expire_time)
 	DEFINE_WAIT(wait);
 	clock_t time_left;
 
-	BUG_ON(cvp == NULL || mtx == NULL);
+	ASSERT(cvp);
+        ASSERT(mtx);
+	ASSERT(cvp->cv_magic == CV_MAGIC);
 	spin_lock(&cvp->cv_lock);
-	BUG_ON(cvp->cv_magic != CV_MAGIC);
-	BUG_ON(!mutex_owned(mtx));
+	ASSERT(mutex_owned(mtx));
 
 	if (cvp->cv_mutex == NULL)
 		cvp->cv_mutex = mtx;
 
 	/* Ensure the same mutex is used by all callers */
-	BUG_ON(cvp->cv_mutex != mtx);
+	ASSERT(cvp->cv_mutex == mtx);
 	spin_unlock(&cvp->cv_lock);
 
 	/* XXX - Does not handle jiffie wrap properly */
@@ -140,8 +142,8 @@ cv_timedwait(kcondvar_t *cvp, kmutex_t *mtx, clock_t expire_time)
 static __inline__ void
 cv_signal(kcondvar_t *cvp)
 {
-	BUG_ON(cvp == NULL);
-	BUG_ON(cvp->cv_magic != CV_MAGIC);
+	ASSERT(cvp);
+	ASSERT(cvp->cv_magic == CV_MAGIC);
 
 	/* All waiters are added with WQ_FLAG_EXCLUSIVE so only one
 	 * waiter will be set runable with each call to wake_up().
@@ -154,8 +156,8 @@ cv_signal(kcondvar_t *cvp)
 static __inline__ void
 cv_broadcast(kcondvar_t *cvp)
 {
-	BUG_ON(cvp == NULL);
-	BUG_ON(cvp->cv_magic != CV_MAGIC);
+	ASSERT(cvp);
+	ASSERT(cvp->cv_magic == CV_MAGIC);
 
 	/* Wake_up_all() will wake up all waiters even those which
 	 * have the WQ_FLAG_EXCLUSIVE flag set. */

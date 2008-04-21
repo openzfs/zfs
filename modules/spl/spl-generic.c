@@ -13,11 +13,11 @@
 
 #define DEBUG_SUBSYSTEM S_GENERIC
 
-unsigned long spl_hostid = 0;
+long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 
-char spl_hw_serial[11] = "<none>";
-EXPORT_SYMBOL(spl_hw_serial);
+char hw_serial[11] = "<none>";
+EXPORT_SYMBOL(hw_serial);
 
 int p0 = 0;
 EXPORT_SYMBOL(p0);
@@ -79,7 +79,7 @@ set_hostid(void)
 	                 NULL };
 
 	/* Doing address resolution in the kernel is tricky and just
-	 * not a good idea in general.  So to set the proper 'spl_hw_serial'
+	 * not a good idea in general.  So to set the proper 'hw_serial'
 	 * use the usermodehelper support to ask '/bin/sh' to run
 	 * '/usr/bin/hostid' and redirect the result to /proc/sys/spl/hostid
 	 * for us to use.  It's a horific solution but it will do for now.
@@ -107,7 +107,7 @@ static int __init spl_init(void)
 	if ((rc = set_hostid()))
 		GOTO(out4, rc = -EADDRNOTAVAIL);
 
-	CWARN("Loaded Solaris Porting Layer v%s\n", VERSION);
+	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);
 	RETURN(rc);
 out4:
 	proc_fini();
@@ -127,7 +127,7 @@ static void spl_fini(void)
 {
 	ENTRY;
 
-	CWARN("Unloaded Solaris Porting Layer v%s\n", VERSION);
+	printk("SPL: Unloaded Solaris Porting Layer v%s\n", VERSION);
 	proc_fini();
 	vn_fini();
 	kmem_fini();

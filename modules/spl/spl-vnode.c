@@ -2,6 +2,13 @@
 #include <sys/vnode.h>
 #include "config.h"
 
+
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_VNODE
+
 void *rootdir = NULL;
 EXPORT_SYMBOL(rootdir);
 
@@ -45,6 +52,7 @@ vnode_t *
 vn_alloc(int flag)
 {
 	vnode_t *vp;
+	ENTRY;
 
 	vp = kmem_cache_alloc(vn_cache, flag);
 	if (vp != NULL) {
@@ -52,14 +60,16 @@ vn_alloc(int flag)
 		vp->v_type = 0;
 	}
 
-	return vp;
+	RETURN(vp);
 } /* vn_alloc() */
 EXPORT_SYMBOL(vn_alloc);
 
 void
 vn_free(vnode_t *vp)
 {
+	ENTRY;
 	kmem_cache_free(vn_cache, vp);
+	EXIT;
 } /* vn_free() */
 EXPORT_SYMBOL(vn_free);
 
@@ -71,10 +81,11 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
         struct kstat stat;
         int rc, saved_umask;
 	vnode_t *vp;
+	ENTRY;
 
-	BUG_ON(!(flags & (FWRITE | FREAD)));
-	BUG_ON(seg != UIO_SYSSPACE);
-	BUG_ON(!vpp);
+	ASSERT(flags & (FWRITE | FREAD));
+	ASSERT(seg == UIO_SYSSPACE);
+	ASSERT(vpp);
 	*vpp = NULL;
 
 	if (!(flags & FCREAT) && (flags & FWRITE))
@@ -96,18 +107,18 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		(void)xchg(&current->fs->umask, saved_umask);
 
         if (IS_ERR(fp))
-		return -PTR_ERR(fp);
+		RETURN(-PTR_ERR(fp));
 
         rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc) {
 		filp_close(fp, 0);
-		return -rc;
+		RETURN(-rc);
 	}
 
 	vp = vn_alloc(KM_SLEEP);
 	if (!vp) {
 		filp_close(fp, 0);
-		return ENOMEM;
+		RETURN(ENOMEM);
 	}
 
 	mutex_enter(&vp->v_lock);
@@ -116,7 +127,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	*vpp = vp;
 	mutex_exit(&vp->v_lock);
 
-	return 0;
+	RETURN(0);
 } /* vn_open() */
 EXPORT_SYMBOL(vn_open);
 
@@ -126,19 +137,20 @@ vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 {
 	char *realpath;
 	int rc;
+	ENTRY;
 
-	BUG_ON(vp != rootdir);
+	ASSERT(vp == rootdir);
 
 	realpath = kmalloc(strlen(path) + 2, GFP_KERNEL);
 	if (!realpath)
-		return ENOMEM;
+		RETURN(ENOMEM);
 
 	sprintf(realpath, "/%s", path);
 	rc = vn_open(realpath, seg, flags, mode, vpp, x1, x2);
 
 	kfree(realpath);
 
-	return rc;
+	RETURN(rc);
 } /* vn_openat() */
 EXPORT_SYMBOL(vn_openat);
 
@@ -150,13 +162,14 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 	mm_segment_t saved_fs;
 	struct file *fp;
 	int rc;
+	ENTRY;
 
-	BUG_ON(!(uio == UIO_WRITE || uio == UIO_READ));
-	BUG_ON(!vp);
-	BUG_ON(!vp->v_file);
-	BUG_ON(seg != UIO_SYSSPACE);
-	BUG_ON(x1 != 0);
-	BUG_ON(x2 != RLIM64_INFINITY);
+	ASSERT(uio == UIO_WRITE || uio == UIO_READ);
+	ASSERT(vp);
+	ASSERT(vp->v_file);
+	ASSERT(seg == UIO_SYSSPACE);
+	ASSERT(x1 == 0);
+	ASSERT(x2 == RLIM64_INFINITY);
 
 	offset = off;
 	fp = vp->v_file;
@@ -175,16 +188,16 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 	set_fs(saved_fs);
 
 	if (rc < 0)
-		return -rc;
+		RETURN(-rc);
 
 	if (residp) {
 		*residp = len - rc;
 	} else {
 		if (rc != len)
-			return EIO;
+			RETURN(EIO);
 	}
 
-	return 0;
+	RETURN(0);
 } /* vn_rdwr() */
 EXPORT_SYMBOL(vn_rdwr);
 
@@ -192,14 +205,15 @@ int
 vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 {
 	int rc;
+	ENTRY;
 
-	BUG_ON(!vp);
-	BUG_ON(!vp->v_file);
+	ASSERT(vp);
+	ASSERT(vp->v_file);
 
         rc = filp_close(vp->v_file, 0);
         vn_free(vp);
 
-	return -rc;
+	RETURN(-rc);
 } /* vn_close() */
 EXPORT_SYMBOL(vn_close);
 
@@ -216,17 +230,18 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         struct nameidata nd;
         struct inode *inode = NULL;
         int rc = 0;
+	ENTRY;
 
-	BUG_ON(seg != UIO_SYSSPACE);
-	BUG_ON(flags != RMFILE);
+	ASSERT(seg == UIO_SYSSPACE);
+	ASSERT(flags == RMFILE);
 
         rc = path_lookup(path, LOOKUP_PARENT, &nd);
         if (rc)
-                goto exit;
+                GOTO(exit, rc);
 
         rc = -EISDIR;
         if (nd.last_type != LAST_NORM)
-                goto exit1;
+                GOTO(exit1, rc);
 
         mutex_lock_nested(&nd.dentry->d_inode->i_mutex, I_MUTEX_PARENT);
         dentry = lookup_hash(&nd);
@@ -234,7 +249,8 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         if (!IS_ERR(dentry)) {
                 /* Why not before? Because we want correct rc value */
                 if (nd.last.name[nd.last.len])
-                        goto slashes;
+                        GOTO(slashes, rc);
+
                 inode = dentry->d_inode;
                 if (inode)
                         atomic_inc(&inode->i_count);
@@ -248,12 +264,12 @@ exit2:
 exit1:
         path_release(&nd);
 exit:
-        return -rc;
+        RETURN(-rc);
 
 slashes:
         rc = !dentry->d_inode ? -ENOENT :
                 S_ISDIR(dentry->d_inode->i_mode) ? -EISDIR : -ENOTDIR;
-        goto exit2;
+        GOTO(exit2, rc);
 } /* vn_remove() */
 EXPORT_SYMBOL(vn_remove);
 
@@ -266,27 +282,28 @@ vn_rename(const char *oldname, const char *newname, int x1)
         struct dentry * trap;
         struct nameidata oldnd, newnd;
         int rc = 0;
+	ENTRY;
 
         rc = path_lookup(oldname, LOOKUP_PARENT, &oldnd);
         if (rc)
-                goto exit;
+                GOTO(exit, rc);
 
         rc = path_lookup(newname, LOOKUP_PARENT, &newnd);
         if (rc)
-                goto exit1;
+                GOTO(exit1, rc);
 
         rc = -EXDEV;
         if (oldnd.mnt != newnd.mnt)
-                goto exit2;
+                GOTO(exit2, rc);
 
         old_dir = oldnd.dentry;
         rc = -EBUSY;
         if (oldnd.last_type != LAST_NORM)
-                goto exit2;
+                GOTO(exit2, rc);
 
         new_dir = newnd.dentry;
         if (newnd.last_type != LAST_NORM)
-                goto exit2;
+                GOTO(exit2, rc);
 
         trap = lock_rename(new_dir, old_dir);
 
@@ -294,36 +311,36 @@ vn_rename(const char *oldname, const char *newname, int x1)
 
         rc = PTR_ERR(old_dentry);
         if (IS_ERR(old_dentry))
-                goto exit3;
+                GOTO(exit3, rc);
 
         /* source must exist */
         rc = -ENOENT;
         if (!old_dentry->d_inode)
-                goto exit4;
+                GOTO(exit4, rc);
 
         /* unless the source is a directory trailing slashes give -ENOTDIR */
         if (!S_ISDIR(old_dentry->d_inode->i_mode)) {
                 rc = -ENOTDIR;
                 if (oldnd.last.name[oldnd.last.len])
-                        goto exit4;
+                        GOTO(exit4, rc);
                 if (newnd.last.name[newnd.last.len])
-                        goto exit4;
+                        GOTO(exit4, rc);
         }
 
         /* source should not be ancestor of target */
         rc = -EINVAL;
         if (old_dentry == trap)
-                goto exit4;
+                GOTO(exit4, rc);
 
         new_dentry = lookup_hash(&newnd);
         rc = PTR_ERR(new_dentry);
         if (IS_ERR(new_dentry))
-                goto exit4;
+                GOTO(exit4, rc);
 
         /* target should not be an ancestor of source */
         rc = -ENOTEMPTY;
         if (new_dentry == trap)
-                goto exit5;
+                GOTO(exit5, rc);
 
         rc = vfs_rename(old_dir->d_inode, old_dentry,
                         new_dir->d_inode, new_dentry);
@@ -338,7 +355,7 @@ exit2:
 exit1:
         path_release(&oldnd);
 exit:
-        return -rc;
+        RETURN(-rc);
 }
 EXPORT_SYMBOL(vn_rename);
 
@@ -348,16 +365,17 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	struct file *fp;
         struct kstat stat;
 	int rc;
+	ENTRY;
 
-	BUG_ON(!vp);
-	BUG_ON(!vp->v_file);
-	BUG_ON(!vap);
+	ASSERT(vp);
+	ASSERT(vp->v_file);
+	ASSERT(vap);
 
 	fp = vp->v_file;
 
         rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc)
-		return -rc;
+		RETURN(-rc);
 
 	vap->va_type          = vn_get_sol_type(stat.mode);
 	vap->va_mode          = stat.mode;
@@ -377,21 +395,22 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	vap->va_rdev          = stat.rdev;
 	vap->va_blocks        = stat.blocks;
 
-        return 0;
+        RETURN(0);
 }
 EXPORT_SYMBOL(vn_getattr);
 
 int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 {
 	int datasync = 0;
+	ENTRY;
 
-	BUG_ON(!vp);
-	BUG_ON(!vp->v_file);
+	ASSERT(vp);
+	ASSERT(vp->v_file);
 
 	if (flags & FDSYNC)
 		datasync = 1;
 
-	return -file_fsync(vp->v_file, vp->v_file->f_dentry, datasync);
+	RETURN(-file_fsync(vp->v_file, vp->v_file->f_dentry, datasync));
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
 
@@ -401,11 +420,11 @@ file_find(int fd)
 {
         file_t *fp;
 
-	BUG_ON(!spin_is_locked(&vn_file_lock));
+	ASSERT(spin_is_locked(&vn_file_lock));
 
         list_for_each_entry(fp, &vn_file_list,  f_list) {
 		if (fd == fp->f_fd) {
-			BUG_ON(atomic_read(&fp->f_ref) == 0);
+			ASSERT(atomic_read(&fp->f_ref) != 0);
                         return fp;
 		}
 	}
@@ -420,6 +439,8 @@ vn_getf(int fd)
 	struct file *lfp;
 	file_t *fp;
 	vnode_t *vp;
+	int rc = 0;
+	ENTRY;
 
 	/* Already open just take an extra reference */
 	spin_lock(&vn_file_lock);
@@ -428,7 +449,7 @@ vn_getf(int fd)
 	if (fp) {
 		atomic_inc(&fp->f_ref);
 		spin_unlock(&vn_file_lock);
-		return fp;
+		RETURN(fp);
 	}
 
 	spin_unlock(&vn_file_lock);
@@ -436,7 +457,7 @@ vn_getf(int fd)
 	/* File was not yet opened create the object and setup */
 	fp = kmem_cache_alloc(vn_file_cache, 0);
 	if (fp == NULL)
-		goto out;
+		GOTO(out, rc);
 
 	mutex_enter(&fp->f_lock);
 
@@ -446,14 +467,14 @@ vn_getf(int fd)
 
 	lfp = fget(fd);
 	if (lfp == NULL)
-		goto out_mutex;
+		GOTO(out_mutex, rc);
 
 	vp = vn_alloc(KM_SLEEP);
 	if (vp == NULL)
-		goto out_fget;
+		GOTO(out_fget, rc);
 
         if (vfs_getattr(lfp->f_vfsmnt, lfp->f_dentry, &stat))
-		goto out_vnode;
+		GOTO(out_vnode, rc);
 
 	mutex_enter(&vp->v_lock);
 	vp->v_type = vn_get_sol_type(stat.mode);
@@ -469,7 +490,7 @@ vn_getf(int fd)
 	spin_unlock(&vn_file_lock);
 
 	mutex_exit(&fp->f_lock);
-	return fp;
+	RETURN(fp);
 
 out_vnode:
 	vn_free(vp);
@@ -479,14 +500,14 @@ out_mutex:
 	mutex_exit(&fp->f_lock);
 	kmem_cache_free(vn_file_cache, fp);
 out:
-        return NULL;
+        RETURN(NULL);
 } /* getf() */
 EXPORT_SYMBOL(getf);
 
 static void releasef_locked(file_t *fp)
 {
-	BUG_ON(fp->f_file == NULL);
-	BUG_ON(fp->f_vnode == NULL);
+	ASSERT(fp->f_file);
+	ASSERT(fp->f_vnode);
 
 	/* Unlinked from list, no refs, safe to free outside mutex */
 	fput(fp->f_file);
@@ -499,6 +520,7 @@ void
 vn_releasef(int fd)
 {
 	file_t *fp;
+	ENTRY;
 
 	spin_lock(&vn_file_lock);
 	fp = file_find(fd);
@@ -506,6 +528,7 @@ vn_releasef(int fd)
 		atomic_dec(&fp->f_ref);
 		if (atomic_read(&fp->f_ref) > 0) {
 			spin_unlock(&vn_file_lock);
+			EXIT;
 			return;
 		}
 
@@ -514,6 +537,7 @@ vn_releasef(int fd)
 	}
 	spin_unlock(&vn_file_lock);
 
+	EXIT;
 	return;
 } /* releasef() */
 EXPORT_SYMBOL(releasef);
@@ -559,6 +583,7 @@ vn_file_cache_destructor(void *buf, void *cdrarg)
 int
 vn_init(void)
 {
+	ENTRY;
 	vn_cache = kmem_cache_create("spl_vn_cache", sizeof(struct vnode), 64,
 	                             vn_cache_constructor,
 				     vn_cache_destructor,
@@ -569,7 +594,7 @@ vn_init(void)
 				          vn_file_cache_constructor,
 				          vn_file_cache_destructor,
 				          NULL, NULL, NULL, 0);
-	return 0;
+	RETURN(0);
 } /* vn_init() */
 
 void
@@ -577,6 +602,7 @@ vn_fini(void)
 {
         file_t *fp, *next_fp;
 	int rc, leaked = 0;
+	ENTRY;
 
 	spin_lock(&vn_file_lock);
 
@@ -588,17 +614,18 @@ vn_fini(void)
 
 	rc = kmem_cache_destroy(vn_file_cache);
 	if (rc)
-		printk("spl: Warning leaked vn_file_cache objects, %d\n", rc);
+		CWARN("Warning leaked vn_file_cache objects, %d\n", rc);
 
 	vn_file_cache = NULL;
 	spin_unlock(&vn_file_lock);
 
 	if (leaked > 0)
-		printk("spl: Warning %d files leaked\n", leaked);
+		CWARN("Warning %d files leaked\n", leaked);
 
 	rc = kmem_cache_destroy(vn_cache);
 	if (rc)
-		printk("spl: Warning leaked vn_cache objects, %d\n", rc);
+		CWARN("Warning leaked vn_cache objects, %d\n", rc);
 
+	EXIT;
 	return;
 } /* vn_fini() */

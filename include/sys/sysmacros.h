@@ -98,8 +98,8 @@ extern "C" {
 #define DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
 
 /* Missing globals */
-extern unsigned long spl_hostid;
-extern char spl_hw_serial[11];
+extern long spl_hostid;
+extern char hw_serial[11];
 extern int p0;
 
 /* Missing misc functions */

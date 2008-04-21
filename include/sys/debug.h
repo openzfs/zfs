@@ -22,6 +22,7 @@ extern unsigned long spl_debug_subsys;
 #define S_DEBUG       0x00001000
 #define S_GENERIC     0x00002000
 #define S_PROC        0x00004000
+#define S_MODULE      0x00008000
 
 #define D_TRACE       0x00000001
 #define D_INFO        0x00000002
@@ -148,9 +149,47 @@ struct page_collection {
 
 #define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__);
 
+#ifdef  __ia64__
+#define CDEBUG_STACK() (THREAD_SIZE -                                   \
+                       ((unsigned long)__builtin_dwarf_cfa() &          \
+                       (THREAD_SIZE - 1)))
+#else
+#define CDEBUG_STACK() (THREAD_SIZE -                                   \
+                       ((unsigned long)__builtin_frame_address(0) &     \
+                        (THREAD_SIZE - 1)))
+# endif /* __ia64__ */
+
+#define __CHECK_STACK(file, func, line)                                 \
+do {                                                                    \
+        unsigned long _stack = CDEBUG_STACK();                          \
+	unsigned long _soft_limit = (9 * THREAD_SIZE) / 10;             \
+                                                                        \
+	if (unlikely(_stack > _soft_limit && _stack > spl_debug_stack)){\
+                spl_debug_stack = _stack;                               \
+		if (_stack <= THREAD_SIZE) {                            \
+                        spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
+                                      file, func, line, "Warning "      \
+                                      "exceeded 90%% of maximum safe "  \
+				      "stack size (%lu/%lu)\n",         \
+				      _stack, THREAD_SIZE);             \
+		} else {                                                \
+                        spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
+                                      file, func, line, "Error "        \
+                                      "exceeded maximum safe stack "    \
+				      "size (%lu/%lu)\n",               \
+				      _stack, THREAD_SIZE);             \
+			SBUG();                                         \
+		}                                                       \
+        }                                                               \
+} while (0)
+
+#define CHECK_STACK()__CHECK_STACK(__FILE__, __func__, __LINE__)
+
 /* ASSERTION that is safe to use within the debug system */
 #define __ASSERT(cond)							\
 do {									\
+	CHECK_STACK();                                                  \
+                                                                        \
 	if (unlikely(!(cond))) {					\
                 printk(KERN_ERR "ASSERTION("#cond") failed");           \
 		SBUG();                                                 \
@@ -168,6 +207,8 @@ do {									\
 /* ASSERTION that will debug log used outside the debug sysytem */
 #define ASSERT(cond)                                                    \
 do {                                                                    \
+	CHECK_STACK();                                                  \
+	                                                                \
         if (unlikely(!(cond))) {                                        \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
@@ -178,6 +219,8 @@ do {                                                                    \
 
 #define ASSERTF(cond, fmt, a...)                                        \
 do {                                                                    \
+	CHECK_STACK();                                                  \
+	                                                                \
         if (unlikely(!(cond))) {                                        \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
@@ -191,6 +234,9 @@ do {                                                                    \
 do {                                                                    \
         const TYPE __left = (TYPE)(LEFT);                               \
         const TYPE __right = (TYPE)(RIGHT);                             \
+	                                                                \
+	CHECK_STACK();                                                  \
+	                                                                \
         if (!(__left OP __right)) {                                     \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
@@ -213,32 +259,6 @@ do {                                                                    \
 #define spl_debug_msg(cdls, subsys, mask, file, fn, line, format, a...) \
         spl_debug_vmsg(cdls, subsys, mask, file, fn,                    \
                        line, NULL, NULL, format, ##a)
-
-#ifdef  __ia64__
-#define CDEBUG_STACK() (THREAD_SIZE -                                   \
-                       ((unsigned long)__builtin_dwarf_cfa() &          \
-                       (THREAD_SIZE - 1)))
-#else
-#define CDEBUG_STACK() (THREAD_SIZE -                                   \
-                       ((unsigned long)__builtin_frame_address(0) &     \
-                        (THREAD_SIZE - 1)))
-# endif /* __ia64__ */
-
-#define __CHECK_STACK(file, func, line)                                 \
-do {                                                                    \
-        unsigned long _stack = CDEBUG_STACK();                          \
-                                                                        \
-        if (_stack > (3*THREAD_SIZE/4) && _stack > spl_debug_stack) {   \
-                spl_debug_stack = _stack;                               \
-                spl_debug_msg(NULL, D_TRACE, D_WARNING,                 \
-                              file, func, line,                         \
-                              "Exceeded maximum safe stack "            \
-                              "%lu/%lu\n", _stack, THREAD_SIZE);        \
-                __ASSERT(0);                                            \
-        }                                                               \
-} while (0)
-
-#define CHECK_STACK()__CHECK_STACK(__FILE__, __func__, __LINE__)
 
 #define __CDEBUG(cdls, subsys, mask, format, a...)                      \
 do {                                                                    \

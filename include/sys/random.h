@@ -17,7 +17,7 @@ extern "C" {
 static __inline__ int
 random_get_bytes(uint8_t *ptr, size_t len)
 {
-	BUG_ON(len < 0);
+	ASSERT(len >= 0);
 	get_random_bytes((void *)ptr,(int)len);
 	return 0;
 }
@@ -26,7 +26,7 @@ random_get_bytes(uint8_t *ptr, size_t len)
 static __inline__ int
 random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 {
-	BUG_ON(len < 0);
+	ASSERT(len >= 0);
 	get_random_bytes((void *)ptr,(int)len);
 	return 0;
 }

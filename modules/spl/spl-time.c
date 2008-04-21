@@ -2,6 +2,12 @@
 #include <sys/time.h>
 #include "config.h"
 
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_TIME
+
 void
 __gethrestime(timestruc_t *ts)
 {
@@ -13,7 +19,7 @@ int
 __clock_gettime(clock_type_t type, timespec_t *tp)
 {
 	/* Only support CLOCK_REALTIME+__CLOCK_REALTIME0 for now */
-        BUG_ON(!((type == CLOCK_REALTIME) || (type == __CLOCK_REALTIME0)));
+        ASSERT((type == CLOCK_REALTIME) || (type == __CLOCK_REALTIME0));
 
         getnstimeofday(tp);
         return 0;

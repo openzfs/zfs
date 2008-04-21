@@ -36,9 +36,9 @@ typedef struct {
 static __inline__ void
 mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 {
-	BUG_ON(mp == NULL);
-	BUG_ON(ibc != NULL);		/* XXX - Spin mutexes not needed? */
-	BUG_ON(type != MUTEX_DEFAULT);	/* XXX - Only default type supported? */
+	ASSERT(mp);
+	ASSERT(ibc == NULL);		/* XXX - Spin mutexes not needed */
+	ASSERT(type == MUTEX_DEFAULT);	/* XXX - Only default type supported */
 
 	mp->km_magic = KM_MAGIC;
 	spin_lock_init(&mp->km_lock);
@@ -57,9 +57,9 @@ mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 static __inline__ void
 mutex_destroy(kmutex_t *mp)
 {
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (mp->km_name)
 		kfree(mp->km_name);
@@ -71,9 +71,9 @@ mutex_destroy(kmutex_t *mp)
 static __inline__ void
 mutex_enter(kmutex_t *mp)
 {
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
 		printk("May schedule while atomic: %s/0x%08x/%d\n",
@@ -87,7 +87,7 @@ mutex_enter(kmutex_t *mp)
 	down(&mp->km_sem);
 
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_owner != NULL);
+	ASSERT(mp->km_owner == NULL);
 	mp->km_owner = current;
 	spin_unlock(&mp->km_lock);
 }
@@ -98,9 +98,9 @@ mutex_tryenter(kmutex_t *mp)
 {
 	int rc;
 
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
 		printk("May schedule while atomic: %s/0x%08x/%d\n",
@@ -113,7 +113,7 @@ mutex_tryenter(kmutex_t *mp)
 	rc = down_trylock(&mp->km_sem); /* returns 0 if acquired */
 	if (rc == 0) {
 		spin_lock(&mp->km_lock);
-		BUG_ON(mp->km_owner != NULL);
+		ASSERT(mp->km_owner == NULL);
 		mp->km_owner = current;
 		spin_unlock(&mp->km_lock);
 		return 1;
@@ -124,10 +124,11 @@ mutex_tryenter(kmutex_t *mp)
 static __inline__ void
 mutex_exit(kmutex_t *mp)
 {
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
-	BUG_ON(mp->km_owner != current);
+
+	ASSERT(mp->km_owner == current);
 	mp->km_owner = NULL;
 	spin_unlock(&mp->km_lock);
 	up(&mp->km_sem);
@@ -139,9 +140,9 @@ mutex_owned(kmutex_t *mp)
 {
 	int rc;
 
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
 	rc = (mp->km_owner == current);
 	spin_unlock(&mp->km_lock);
 
@@ -154,9 +155,9 @@ mutex_owner(kmutex_t *mp)
 {
 	kthread_t *thr;
 
-	BUG_ON(mp == NULL);
+	ASSERT(mp);
+	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
-	BUG_ON(mp->km_magic != KM_MAGIC);
 	thr = mp->km_owner;
 	spin_unlock(&mp->km_lock);
 

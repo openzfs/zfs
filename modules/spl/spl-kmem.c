@@ -1,5 +1,11 @@
 #include <sys/kmem.h>
 
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_KMEM
+
 /*
  * Memory allocation interfaces
  */
@@ -120,7 +126,8 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
-        BUG_ON(!kcc);
+        ASSERT(kcc);
+
 	constructor = kcc->kcc_constructor;
 	private = kcc->kcc_private;
 
@@ -144,7 +151,8 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
-        BUG_ON(!kcc);
+	ASSERT(kcc);
+
 	destructor = kcc->kcc_destructor;
 	private = kcc->kcc_private;
 
@@ -213,20 +221,21 @@ __kmem_cache_create(char *name, size_t size, size_t align,
         kmem_cache_cb_t *kcc;
 	int shrinker_flag = 0;
 	char *cache_name;
+	ENTRY;
 
-        /* FIXME: - Option currently unsupported by shim layer */
-        BUG_ON(vmp);
+        /* XXX: - Option currently unsupported by shim layer */
+        ASSERT(!vmp);
 
 	cache_name = kzalloc(strlen(name) + 1, GFP_KERNEL);
 	if (cache_name == NULL)
-		return NULL;
+		RETURN(NULL);
 
 	strcpy(cache_name, name);
         cache = kmem_cache_create(cache_name, size, align, flags,
                                   kmem_cache_generic_constructor,
                                   kmem_cache_generic_destructor);
 	if (cache == NULL)
-                return NULL;
+                RETURN(NULL);
 
         /* Register shared shrinker function on initial cache create */
 	spin_lock(&kmem_cache_cb_lock);
@@ -236,7 +245,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
                 if (kmem_cache_shrinker == NULL) {
                         kmem_cache_destroy(cache);
 			spin_unlock(&kmem_cache_cb_lock);
-                        return NULL;
+                        RETURN(NULL);
                 }
 
         }
@@ -249,10 +258,10 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 			remove_shrinker(kmem_cache_shrinker);
 
                 kmem_cache_destroy(cache);
-                return NULL;
+                RETURN(NULL);
         }
 
-        return cache;
+        RETURN(cache);
 }
 EXPORT_SYMBOL(__kmem_cache_create);
 
@@ -265,12 +274,13 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 	char *name;
 	unsigned long flags;
 	int rc;
+	ENTRY;
 
 	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
         kcc = kmem_cache_find_cache_cb(cache);
 	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
         if (kcc == NULL)
-                return -EINVAL;
+                RETURN(-EINVAL);
 
 	name = (char *)kmem_cache_name(cache);
         rc = kmem_cache_destroy(cache);
@@ -283,38 +293,44 @@ __kmem_cache_destroy(kmem_cache_t *cache)
                 remove_shrinker(kmem_cache_shrinker);
 
 	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
-	return rc;
+	RETURN(rc);
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);
 
 void
-__kmem_reap(void) {
+__kmem_reap(void)
+{
+	ENTRY;
 	/* Since there's no easy hook in to linux to force all the registered
 	 * shrinkers to run we just run the ones registered for this shim */
 	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
+	EXIT;
 }
 EXPORT_SYMBOL(__kmem_reap);
 
 int
 kmem_init(void)
 {
+        ENTRY;
 #ifdef DEBUG_KMEM
 	atomic64_set(&kmem_alloc_used, 0);
 	atomic64_set(&vmem_alloc_used, 0);
 #endif
-	return 0;
+	RETURN(0);
 }
 
 void
 kmem_fini(void)
 {
+	ENTRY;
 #ifdef DEBUG_KMEM
         if (atomic64_read(&kmem_alloc_used) != 0)
-                printk("spl: Warning kmem leaked %ld/%ld bytes\n",
+                CWARN("kmem leaked %ld/%ld bytes\n",
                        atomic_read(&kmem_alloc_used), kmem_alloc_max);
 
         if (atomic64_read(&vmem_alloc_used) != 0)
-                printk("spl: Warning vmem leaked %ld/%ld bytes\n",
+                CWARN("vmem leaked %ld/%ld bytes\n",
                        atomic_read(&vmem_alloc_used), vmem_alloc_max);
 #endif
+	EXIT;
 }

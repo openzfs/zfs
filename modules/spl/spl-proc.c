@@ -332,7 +332,7 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
               void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int len, rc = 0;
-        unsigned long val;
+        int32_t val;
         char *end, str[32];
 	ENTRY;
 
@@ -344,12 +344,12 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
                 if (rc < 0)
                         RETURN(rc);
 
-                val = simple_strtoul(str, &end, 16);
+                val = simple_strtol(str, &end, 16);
 		if (str == end)
 			RETURN(-EINVAL);
 
-		spl_hostid = val;
-                sprintf(spl_hw_serial, "%lu", ((long)val >= 0) ? val : -val);
+		spl_hostid = (long)val;
+                sprintf(hw_serial, "%u", (val >= 0) ? val : -val);
                 *ppos += *lenp;
         } else {
                 len = snprintf(str, sizeof(str), "%lx", spl_hostid);
@@ -530,8 +530,8 @@ static struct ctl_table spl_table[] = {
         {
                 .ctl_name = CTL_HW_SERIAL,
                 .procname = "hw_serial",
-                .data     = spl_hw_serial,
-                .maxlen   = sizeof(spl_hw_serial),
+                .data     = hw_serial,
+                .maxlen   = sizeof(hw_serial),
                 .mode     = 0444,
                 .proc_handler = &proc_dostring,
         },

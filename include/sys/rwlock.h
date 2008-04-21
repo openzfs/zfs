@@ -102,8 +102,9 @@ extern int __rw_lock_held(krwlock_t *rwlp);
 static __inline__ void
 rw_init(krwlock_t *rwlp, char *name, krw_type_t type, void *arg)
 {
-	BUG_ON(type != RW_DEFAULT);	/* XXX no irq handler use */
-	BUG_ON(arg != NULL);		/* XXX no irq handler use */
+	ASSERT(type == RW_DEFAULT);	/* XXX no irq handler use */
+	ASSERT(arg == NULL);		/* XXX no irq handler use */
+
 	rwlp->rw_magic = RW_MAGIC;
 	rwlp->rw_owner = NULL;          /* no one holds the write lock yet */
 	init_rwsem(&rwlp->rw_sem);
@@ -119,11 +120,11 @@ rw_init(krwlock_t *rwlp, char *name, krw_type_t type, void *arg)
 static __inline__ void
 rw_destroy(krwlock_t *rwlp)
 {
-	BUG_ON(rwlp == NULL);
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
-	BUG_ON(rwlp->rw_owner != NULL);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT(rwlp->rw_owner == NULL);
 	spin_lock(&rwlp->rw_sem.wait_lock);
-	BUG_ON(!list_empty(&rwlp->rw_sem.wait_list));
+	ASSERT(list_empty(&rwlp->rw_sem.wait_list));
 	spin_unlock(&rwlp->rw_sem.wait_lock);
 
 	if (rwlp->rw_name)
@@ -139,7 +140,9 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 {
 	int result;
 
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+
 	switch (rw) {
 		/* these functions return 1 if success, 0 if contention */
 		case RW_READER:
@@ -159,12 +162,12 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 			if (result) {
 				/* there better not be anyone else
 				 * holding the write lock here */
-				BUG_ON(rwlp->rw_owner != NULL);
+				ASSERT(rwlp->rw_owner == NULL);
 				rwlp->rw_owner = current;
 			}
 			break;
 		default:
-			BUG_ON(1);
+			SBUG();
 	}
 
 	return result;
@@ -173,7 +176,9 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 static __inline__ void
 rw_enter(krwlock_t *rwlp, krw_t rw)
 {
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+
 	switch (rw) {
 		case RW_READER:
 			/* Here the Solaris code would block
@@ -192,18 +197,19 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 
 			/* there better not be anyone else
 			 * holding the write lock here */
-			BUG_ON(rwlp->rw_owner != NULL);
+			ASSERT(rwlp->rw_owner == NULL);
 			rwlp->rw_owner = current;
 			break;
 		default:
-			BUG_ON(1);
+			SBUG();
 	}
 }
 
 static __inline__ void
 rw_exit(krwlock_t *rwlp)
 {
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
 
 	/* rw_owner is held by current
 	 * thread iff it is a writer */
@@ -218,8 +224,10 @@ rw_exit(krwlock_t *rwlp)
 static __inline__ void
 rw_downgrade(krwlock_t *rwlp)
 {
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
-	BUG_ON(rwlp->rw_owner != current);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT(rwlp->rw_owner == current);
+
 	rwlp->rw_owner = NULL;
 	downgrade_write(&rwlp->rw_sem);
 }
@@ -232,7 +240,9 @@ static __inline__ int
 rw_tryupgrade(krwlock_t *rwlp)
 {
 	int result = 0;
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
+
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
 
 	spin_lock(&rwlp->rw_sem.wait_lock);
 
@@ -280,8 +290,8 @@ rw_tryupgrade(krwlock_t *rwlp)
 
 	/* Check if upgrade failed.  Should not ever happen
 	 * if we got to this point */
-	BUG_ON(!result);
-	BUG_ON(rwlp->rw_owner != NULL);
+	ASSERT(result);
+	ASSERT(rwlp->rw_owner == NULL);
 	rwlp->rw_owner = current;
 	spin_unlock(&rwlp->rw_sem.wait_lock);
 	return 1;
@@ -290,7 +300,9 @@ rw_tryupgrade(krwlock_t *rwlp)
 static __inline__ kthread_t *
 rw_owner(krwlock_t *rwlp)
 {
-	BUG_ON(rwlp->rw_magic != RW_MAGIC);
+	ASSERT(rwlp);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+
 	return rwlp->rw_owner;
 }
 

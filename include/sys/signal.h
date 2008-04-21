@@ -16,7 +16,7 @@
 static __inline__ int
 issig(int why)
 {
-	BUG_ON(!(why == FORREAL || why == JUSTLOOKING));
+	ASSERT(why == FORREAL || why == JUSTLOOKING);
 
 	return signal_pending(current);
 }

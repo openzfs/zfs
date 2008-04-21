@@ -1104,10 +1104,10 @@ EXPORT_SYMBOL(spl_debug_dumpstack);
 void spl_debug_bug(char *file, const char *func, const int line)
 {
         spl_debug_catastrophe = 1;
-        spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SPL BUG\n");
+        spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SBUG\n");
 
         if (in_interrupt()) {
-                panic("SPL BUG in interrupt.\n");
+                panic("SBUG in interrupt.\n");
                 /* not reached */
         }
 
@@ -1119,7 +1119,7 @@ void spl_debug_bug(char *file, const char *func, const int line)
         spl_debug_dumplog();
 
         if (spl_debug_panic_on_bug)
-                panic("SPL BUG");
+                panic("SBUG");
 
         set_task_state(current, TASK_UNINTERRUPTIBLE);
         while (1)

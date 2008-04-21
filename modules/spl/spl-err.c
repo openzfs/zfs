@@ -2,6 +2,12 @@
 #include <sys/cmn_err.h>
 #include "config.h"
 
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_GENERIC
+
 static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 
@@ -25,7 +31,7 @@ cmn_err(int ce, const char *fmt, ...)
 	vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
 	va_end(ap);
 
-	printk("%s", msg);
+	CERROR("%s", msg);
 } /* cmn_err() */
 EXPORT_SYMBOL(cmn_err);
 
@@ -39,7 +45,7 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 
         if (ce != CE_NOTE) { /* suppress noise in stress testing */
 		vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
-		printk("%s%s%s", ce_prefix[ce], msg, ce_suffix[ce]);
+		CERROR("%s%s%s", ce_prefix[ce], msg, ce_suffix[ce]);
         }
 } /* vcmn_err() */
 EXPORT_SYMBOL(vcmn_err);

@@ -2,6 +2,12 @@
 #include <sys/sunddi.h>
 #include "config.h"
 
+#ifdef DEBUG_SUBSYSTEM
+#undef DEBUG_SUBSYSTEM
+#endif
+
+#define DEBUG_SUBSYSTEM S_MODULE
+
 static spinlock_t dev_info_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(dev_info_list);
 
@@ -50,29 +56,30 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	struct cb_ops *cb_ops;
 	struct file_operations *fops;
 	int rc;
+	ENTRY;
 
-	BUG_ON(spec_type != S_IFCHR);
-	BUG_ON(minor_num >= di->di_minors);
-	BUG_ON(strcmp(node_type, DDI_PSEUDO));
-	BUG_ON(flag != 0);
+	ASSERT(spec_type == S_IFCHR);
+	ASSERT(minor_num < di->di_minors);
+	ASSERT(!strcmp(node_type, DDI_PSEUDO));
+	ASSERT(flag == 0);
 
 	fops = kzalloc(sizeof(struct file_operations), GFP_KERNEL);
 	if (fops == NULL)
-		return DDI_FAILURE;
+		RETURN(DDI_FAILURE);
 
 	cdev = cdev_alloc();
 	if (cdev == NULL) {
 		kfree(fops);
-		return DDI_FAILURE;
+		RETURN(DDI_FAILURE);
 	}
 
 	cdev->ops = fops;
 
 	mutex_enter(&di->di_lock);
 	dev_ops = di->di_ops;
-	BUG_ON(dev_ops == NULL);
+	ASSERT(dev_ops);
 	cb_ops = di->di_ops->devo_cb_ops;
-	BUG_ON(cb_ops == NULL);
+	ASSERT(cb_ops);
 
 	/* Setup the fops to cb_ops mapping */
 	fops->owner = mod;
@@ -93,42 +100,42 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		fops->write = mod_generic_write;
 #endif
 	/* XXX: Currently unsupported operations */
-	BUG_ON(cb_ops->cb_open != NULL);
-	BUG_ON(cb_ops->cb_close != NULL);
-	BUG_ON(cb_ops->cb_read != NULL);
-	BUG_ON(cb_ops->cb_write != NULL);
-	BUG_ON(cb_ops->cb_strategy != NULL);
-	BUG_ON(cb_ops->cb_print != NULL);
-	BUG_ON(cb_ops->cb_dump != NULL);
-	BUG_ON(cb_ops->cb_devmap != NULL);
-	BUG_ON(cb_ops->cb_mmap != NULL);
-	BUG_ON(cb_ops->cb_segmap != NULL);
-	BUG_ON(cb_ops->cb_chpoll != NULL);
-	BUG_ON(cb_ops->cb_prop_op != NULL);
-	BUG_ON(cb_ops->cb_str != NULL);
-	BUG_ON(cb_ops->cb_aread != NULL);
-	BUG_ON(cb_ops->cb_awrite != NULL);
+	ASSERT(cb_ops->cb_open == NULL);
+	ASSERT(cb_ops->cb_close == NULL);
+	ASSERT(cb_ops->cb_read == NULL);
+	ASSERT(cb_ops->cb_write == NULL);
+	ASSERT(cb_ops->cb_strategy == NULL);
+	ASSERT(cb_ops->cb_print == NULL);
+	ASSERT(cb_ops->cb_dump == NULL);
+	ASSERT(cb_ops->cb_devmap == NULL);
+	ASSERT(cb_ops->cb_mmap == NULL);
+	ASSERT(cb_ops->cb_segmap == NULL);
+	ASSERT(cb_ops->cb_chpoll == NULL);
+	ASSERT(cb_ops->cb_prop_op == NULL);
+	ASSERT(cb_ops->cb_str == NULL);
+	ASSERT(cb_ops->cb_aread == NULL);
+	ASSERT(cb_ops->cb_awrite == NULL);
 
 	di->di_minor = minor_num;
 	di->di_dev = MKDEV(di->di_major, di->di_minor);
 
 	rc = cdev_add(cdev, di->di_dev, 1);
 	if (rc) {
-		printk("spl: Error adding cdev, %d\n", rc);
+		CERROR("Error adding cdev, %d\n", rc);
 		kfree(fops);
 		cdev_del(cdev);
 		mutex_exit(&di->di_lock);
-		return DDI_FAILURE;
+		RETURN(DDI_FAILURE);
 	}
 
 	di->di_class = class_create(THIS_MODULE, name);
 	if (IS_ERR(di->di_class)) {
                 rc = PTR_ERR(di->di_class);
-                printk("spl: Error creating %s class, %d\n", name, rc);
+                CERROR("Error creating %s class, %d\n", name, rc);
 		kfree(fops);
                 cdev_del(di->di_cdev);
 		mutex_exit(&di->di_lock);
-		return DDI_FAILURE;
+		RETURN(DDI_FAILURE);
 	}
 
 	/* Do not append a 0 to devices with minor nums of 0 */
@@ -148,7 +155,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	mutex_exit(&di->di_lock);
 
-	return DDI_SUCCESS;
+	RETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__ddi_create_minor_node);
 
@@ -176,9 +183,11 @@ __ddi_remove_minor_node_locked(dev_info_t *di, char *name)
 void
 __ddi_remove_minor_node(dev_info_t *di, char *name)
 {
+	ENTRY;
 	mutex_enter(&di->di_lock);
 	__ddi_remove_minor_node_locked(di, name);
 	mutex_exit(&di->di_lock);
+	EXIT;
 }
 EXPORT_SYMBOL(ddi_remove_minor_node);
 
@@ -245,11 +254,12 @@ __mod_install(struct modlinkage *modlp)
 	struct modldrv *drv = modlp->ml_modldrv;
 	struct dev_info *di;
 	int rc;
+	ENTRY;
 
 	di = dev_info_alloc(modlp->ml_major, modlp->ml_minors,
 			    drv->drv_dev_ops);
 	if (di == NULL)
-		return ENOMEM;
+		RETURN(ENOMEM);
 
 	/* XXX: Really we need to be calling devo_probe if it's available
 	 * and then calling devo_attach for each device discovered.  However
@@ -258,12 +268,12 @@ __mod_install(struct modlinkage *modlp)
 	rc = drv->drv_dev_ops->devo_attach(di, DDI_ATTACH);
 	if (rc != DDI_SUCCESS) {
 		dev_info_free(di);
-		return rc;
+		RETURN(rc);
 	}
 
 	drv->drv_dev_info = di;
 
-	return DDI_SUCCESS;
+	RETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__mod_install);
 
@@ -273,15 +283,16 @@ __mod_remove(struct modlinkage *modlp)
 	struct modldrv *drv = modlp->ml_modldrv;
 	struct dev_info *di = drv->drv_dev_info;
 	int rc;
+	ENTRY;
 
 	rc = drv->drv_dev_ops->devo_detach(di, DDI_DETACH);
 	if (rc != DDI_SUCCESS)
-		return rc;
+		RETURN(rc);
 
 	dev_info_free(di);
 	drv->drv_dev_info = NULL;
 
-	return DDI_SUCCESS;
+	RETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__mod_remove);
 
@@ -289,24 +300,28 @@ int
 ldi_ident_from_mod(struct modlinkage *modlp, ldi_ident_t *lip)
 {
 	ldi_ident_t li;
+	ENTRY;
 
-	BUG_ON(modlp == NULL || lip == NULL);
+	ASSERT(modlp);
+	ASSERT(lip);
 
 	li = kmalloc(sizeof(struct ldi_ident), GFP_KERNEL);
 	if (li == NULL)
-		return ENOMEM;
+		RETURN(ENOMEM);
 
 	li->li_dev = MKDEV(modlp->ml_major, 0);
 	*lip = li;
 
-	return 0;
+	RETURN(0);
 }
 EXPORT_SYMBOL(ldi_ident_from_mod);
 
 void
 ldi_ident_release(ldi_ident_t lip)
 {
-	BUG_ON(lip == NULL);
+	ENTRY;
+	ASSERT(lip);
 	kfree(lip);
+	EXIT;
 }
 EXPORT_SYMBOL(ldi_ident_release);

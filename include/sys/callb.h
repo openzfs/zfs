@@ -11,7 +11,7 @@ extern "C" {
 #define DEBUG_CALLB
 
 #ifndef DEBUG_CALLB
-#define CALLB_CPR_ASSERT(cp)		BUG_ON(!(MUTEX_HELD((cp)->cc_lockp)));
+#define CALLB_CPR_ASSERT(cp)		ASSERT(MUTEX_HELD((cp)->cc_lockp));
 #else
 #define CALLB_CPR_ASSERT(cp)
 #endif
