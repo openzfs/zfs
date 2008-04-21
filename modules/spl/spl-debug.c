@@ -504,8 +504,9 @@ trace_print_to_console(struct spl_debug_header *hdr, int mask, const char *buf,
         if ((mask & D_CONSOLE) != 0) {
                 printk("%s%s: %.*s", ptype, prefix, len, buf);
         } else {
-                printk("%s%s: %d:(%s:%d:%s()) %.*s", ptype, prefix, hdr->ph_pid,
-                       file, hdr->ph_line_num, fn, len, buf);
+                printk("%s%s: %d:%d:(%s:%d:%s()) %.*s", ptype, prefix,
+                       hdr->ph_pid, hdr->ph_stack, file,
+                       hdr->ph_line_num, fn, len, buf);
         }
 
         return;
@@ -1096,7 +1097,7 @@ void spl_debug_dumpstack(struct task_struct *tsk)
         if (tsk == NULL)
                 tsk = current;
 
-        CWARN("showing stack for process %d\n", tsk->pid);
+        printk(KERN_ERR "SPL: Showing stack for process %d\n", tsk->pid);
         show_task(tsk);
 }
 EXPORT_SYMBOL(spl_debug_dumpstack);

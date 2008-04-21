@@ -48,10 +48,10 @@ print_rec(struct dbg_line **linev, int used, FILE *out)
                 struct dbg_line *line = linev[i];
                 struct spl_debug_header *hdr = line->hdr;
 
-                fprintf(out, "%08x:%08x:%u:%u.%06llu:%u:%u:(%s:%u:%s()) %s",
+                fprintf(out, "%08x:%08x:%u:%u.%06llu:%u:%u:%u:(%s:%u:%s()) %s",
                         hdr->ph_subsys, hdr->ph_mask, hdr->ph_cpu_id,
                         hdr->ph_sec, (unsigned long long)hdr->ph_usec,
-                        hdr->ph_stack, hdr->ph_pid, line->file,
+                        hdr->ph_stack, hdr->ph_pid, hdr->ph_stack, line->file,
                         hdr->ph_line_num, line->fn, line->text);
                 free(line->hdr);
                 free(line);

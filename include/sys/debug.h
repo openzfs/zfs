@@ -172,6 +172,8 @@ do {                                                                    \
                                       "exceeded 90%% of maximum safe "  \
 				      "stack size (%lu/%lu)\n",         \
 				      _stack, THREAD_SIZE);             \
+			spl_debug_dumpstack(NULL);                      \
+			spl_debug_dumplog();                            \
 		} else {                                                \
                         spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
                                       file, func, line, "Error "        \
@@ -183,13 +185,11 @@ do {                                                                    \
         }                                                               \
 } while (0)
 
-#define CHECK_STACK()__CHECK_STACK(__FILE__, __func__, __LINE__)
+#define CHECK_STACK()   __CHECK_STACK(__FILE__, __func__, __LINE__)
 
 /* ASSERTION that is safe to use within the debug system */
 #define __ASSERT(cond)							\
 do {									\
-	CHECK_STACK();                                                  \
-                                                                        \
 	if (unlikely(!(cond))) {					\
                 printk(KERN_ERR "ASSERTION("#cond") failed");           \
 		SBUG();                                                 \
