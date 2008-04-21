@@ -149,6 +149,14 @@ spl_debug_subsys2str(int subsys)
                 return "taskq";
         case S_KMEM:
                 return "kmem";
+        case S_DEBUG:
+                return "debug";
+        case S_GENERIC:
+                return "generic";
+        case S_PROC:
+                return "proc";
+        case S_MODULE:
+                return "module";
         }
 }
 
