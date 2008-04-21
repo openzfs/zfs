@@ -377,7 +377,6 @@ spl_debug_dumplog(void)
 {
 	struct task_struct *tsk;
 	dumplog_priv_t dp;
-	ENTRY;
 
 	init_waitqueue_head(&dp.dp_waitq);
 	dp.dp_pid = current->pid;
@@ -385,12 +384,12 @@ spl_debug_dumplog(void)
 
         tsk = kthread_create(spl_debug_dumplog_thread,(void *)&dp,"spl_debug");
         if (tsk == NULL)
-		RETURN(-ENOMEM);
+		return -ENOMEM;
 
 	wake_up_process(tsk);
 	wait_event(dp.dp_waitq, atomic_read(&dp.dp_flag));
 
-	RETURN(0);
+	return 0;
 }
 EXPORT_SYMBOL(spl_debug_dumplog);
 
