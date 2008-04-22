@@ -52,8 +52,8 @@ typedef struct splat_cmd {
 /* Valid configuration commands */
 #define SPLAT_CFG_BUFFER_CLEAR		0x001	/* Clear text buffer */
 #define SPLAT_CFG_BUFFER_SIZE		0x002	/* Resize text buffer */
-#define SPLAT_CFG_SUBSYSTEM_COUNT		0x101	/* Number of subsystem */
-#define SPLAT_CFG_SUBSYSTEM_LIST		0x102	/* List of N subsystems */
+#define SPLAT_CFG_SUBSYSTEM_COUNT	0x101	/* Number of subsystem */
+#define SPLAT_CFG_SUBSYSTEM_LIST	0x102	/* List of N subsystems */
 #define SPLAT_CFG_TEST_COUNT		0x201	/* Number of tests */
 #define SPLAT_CFG_TEST_LIST		0x202	/* List of N tests */
 

@@ -142,8 +142,9 @@ typedef struct modldrv {
 #define mod_driverops			NULL
 #define ddi_prop_op			NULL
 
-#define getminor			MINOR
-#define getmajor			MAJOR
+#define getminor(x)			(x)
+#define getmajor(x)			(x)
+#define ddi_driver_major(di)		getmajor(di->di_dev)
 
 #define mod_install(x)			0
 #define mod_remove(x)			0
@@ -157,12 +158,6 @@ extern int __mod_remove(struct modlinkage *modlp);
 
 static __inline__ void ddi_report_dev(dev_info_t *d) { }
 static __inline__ void ddi_prop_remove_all(dev_info_t *dip) { }
-
-static __inline__ major_t
-ddi_driver_major(dev_info_t *di)
-{
-	return getmajor(di->di_dev);
-}
 
 static __inline__ int
 ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,

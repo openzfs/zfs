@@ -56,16 +56,16 @@ extern long spl_console_min_delay;
 extern unsigned int spl_console_backoff;
 extern unsigned int spl_debug_stack;
 
-#define TCD_MAX_PAGES			(5 << (20 - PAGE_SHIFT))
-#define TCD_STOCK_PAGES			(TCD_MAX_PAGES)
-#define TRACE_CONSOLE_BUFFER_SIZE	1024
+#define TCD_MAX_PAGES                   (5 << (20 - PAGE_SHIFT))
+#define TCD_STOCK_PAGES                 (TCD_MAX_PAGES)
+#define TRACE_CONSOLE_BUFFER_SIZE       1024
 
-#define SPL_DEFAULT_MAX_DELAY		(600 * HZ)
-#define SPL_DEFAULT_MIN_DELAY		((HZ + 1) / 2)
-#define SPL_DEFAULT_BACKOFF		2
+#define SPL_DEFAULT_MAX_DELAY           (600 * HZ)
+#define SPL_DEFAULT_MIN_DELAY           ((HZ + 1) / 2)
+#define SPL_DEFAULT_BACKOFF             2
 
 #define DL_NOTHREAD                     0x0001 /* Do not create a new thread */
-#define DL_SINGLE_CPU			0x0002 /* Collect pages from this CPU */
+#define DL_SINGLE_CPU                   0x0002 /* Collect pages from this CPU */
 
 typedef struct dumplog_priv {
         wait_queue_head_t dp_waitq;
@@ -157,7 +157,7 @@ struct page_collection {
         int               pc_want_daemon_pages;
 };
 
-#define SBUG()		spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);
+#define SBUG()            spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);
 
 #ifdef  __ia64__
 #define CDEBUG_STACK() (THREAD_SIZE -                                   \
@@ -169,85 +169,83 @@ struct page_collection {
                         (THREAD_SIZE - 1)))
 # endif /* __ia64__ */
 
-/* DL_NOTHREAD and DL_SINGLE_CPU flags are passed to spl_debug_bug()
- * because we have over run our stack and likely damaged at least one
- * other unknown threads stack.  We must finish generating the needed
- * debug info within this thread context because once we yeild the CPU
- * its very likely the system will crash.
+/* DL_SINGLE_CPU flag is passed to spl_debug_bug() because we are about
+ * to over run our stack and likely damage at least one other unknown
+ * thread stack.  We must finish generating the needed debug info within
+ * this thread context because once we yeild the CPU its very likely
+ * the system will crash.
  */
 #define __CHECK_STACK(file, func, line)                                 \
 do {                                                                    \
-        unsigned long _stack = CDEBUG_STACK();                          \
-	unsigned long _soft_limit = (8 * THREAD_SIZE) / 10;             \
+        if (unlikely(CDEBUG_STACK() > spl_debug_stack)) {               \
+                spl_debug_stack = CDEBUG_STACK();                       \
                                                                         \
-	if (unlikely(_stack > _soft_limit && _stack > spl_debug_stack)){\
-                spl_debug_stack = _stack;                               \
-                spl_debug_msg(NULL, D_TRACE, D_WARNING,                 \
-                              file, func, line, "Error exceeded "       \
-			      "maximum safe stack size (%lu/%lu)\n",    \
-			      _stack, THREAD_SIZE);                     \
-		spl_debug_bug(file, func, line, DL_SINGLE_CPU);         \
+                if (unlikely(CDEBUG_STACK() > (4 * THREAD_SIZE) / 5)) { \
+                        spl_debug_msg(NULL, D_TRACE, D_WARNING,         \
+                                      file, func, line, "Error "        \
+                                      "exceeded maximum safe stack "    \
+                                      "size (%lu/%lu)\n",               \
+                                      CDEBUG_STACK(), THREAD_SIZE);     \
+                        spl_debug_bug(file, func, line, DL_SINGLE_CPU); \
+                }                                                       \
         }                                                               \
 } while (0)
 
 #define CHECK_STACK()   __CHECK_STACK(__FILE__, __func__, __LINE__)
 
 /* ASSERTION that is safe to use within the debug system */
-#define __ASSERT(cond)							\
-do {									\
-	if (unlikely(!(cond))) {					\
-                printk(KERN_ERR "ASSERTION("#cond") failed");           \
-		SBUG();                                                 \
-	}								\
+#define __ASSERT(cond)                                                  \
+do {                                                                    \
+        if (unlikely(!(cond))) {                                        \
+                printk(KERN_ERR "ASSERTION(" #cond ") failed");         \
+                SBUG();                                                 \
+        }                                                               \
 } while (0)
 
-#define __ASSERT_TAGE_INVARIANT(tage)					\
-do {									\
-        __ASSERT(tage != NULL);						\
-        __ASSERT(tage->page != NULL);					\
-        __ASSERT(tage->used <= PAGE_SIZE);				\
-        __ASSERT(page_count(tage->page) > 0);				\
+#define __ASSERT_TAGE_INVARIANT(tage)                                   \
+do {                                                                    \
+        __ASSERT(tage != NULL);                                         \
+        __ASSERT(tage->page != NULL);                                   \
+        __ASSERT(tage->used <= PAGE_SIZE);                              \
+        __ASSERT(page_count(tage->page) > 0);                           \
 } while(0)
 
 /* ASSERTION that will debug log used outside the debug sysytem */
 #define ASSERT(cond)                                                    \
 do {                                                                    \
-	CHECK_STACK();                                                  \
-	                                                                \
+        CHECK_STACK();                                                  \
+                                                                        \
         if (unlikely(!(cond))) {                                        \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "ASSERTION(" #cond ") failed\n");         \
-		SBUG();                                                 \
-	}                                                               \
+                SBUG();                                                 \
+        }                                                               \
 } while (0)
 
 #define ASSERTF(cond, fmt, a...)                                        \
 do {                                                                    \
-	CHECK_STACK();                                                  \
-	                                                                \
+        CHECK_STACK();                                                  \
+                                                                        \
         if (unlikely(!(cond))) {                                        \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "ASSERTION(" #cond ") failed:" fmt,       \
                                  ## a);                                 \
-		SBUG();                                                 \
+                SBUG();                                                 \
         }                                                               \
 } while (0)
 
 #define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)                  \
 do {                                                                    \
-        const TYPE __left = (TYPE)(LEFT);                               \
-        const TYPE __right = (TYPE)(RIGHT);                             \
-	                                                                \
-	CHECK_STACK();                                                  \
-	                                                                \
-        if (!(__left OP __right)) {                                     \
+        CHECK_STACK();                                                  \
+                                                                        \
+        if (!((TYPE)(LEFT) OP (TYPE)(RIGHT))) {                         \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
                               "VERIFY3(" FMT " " #OP " " FMT ")\n",     \
-                              CAST __left,  CAST __right);              \
-		SBUG();                                                 \
+                              CAST (LEFT), CAST (RIGHT));               \
+                SBUG();                                                 \
         }                                                               \
 } while (0)
 
@@ -259,7 +257,7 @@ do {                                                                    \
 #define ASSERT3U(x,y,z) VERIFY3U(x, y, z)
 #define ASSERT3P(x,y,z) VERIFY3P(x, y, z)
 
-#define VERIFY(x)	ASSERT(x)
+#define VERIFY(x)       ASSERT(x)
 
 #define spl_debug_msg(cdls, subsys, mask, file, fn, line, format, a...) \
         spl_debug_vmsg(cdls, subsys, mask, file, fn,                    \
@@ -323,8 +321,8 @@ do {                                                                    \
 } while(0)
 
 extern int spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
-	                  const char *file, const char *fn, const int line,
-			  const char *format1, va_list args, const char *format2, ...);
+                          const char *file, const char *fn, const int line,
+                          const char *format1, va_list args, const char *format2, ...);
 
 extern unsigned long spl_debug_set_mask(unsigned long mask);
 extern unsigned long spl_debug_get_mask(void);
