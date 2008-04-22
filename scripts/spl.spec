@@ -1,6 +1,6 @@
 # spl
 %define name    spl 
-%define version 0.0.1
+%define version 0.2.0
 
 Summary: Solaris Porting Layer
 Name: %{name}
