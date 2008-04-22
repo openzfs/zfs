@@ -90,10 +90,9 @@ set_hostid(void)
 static int __init spl_init(void)
 {
 	int rc = 0;
-	ENTRY;
 
 	if ((rc = debug_init()))
-		RETURN(rc);
+		return rc;
 
 	if ((rc = kmem_init()))
 		GOTO(out , rc);
@@ -120,7 +119,7 @@ out:
 
 	printk("SPL: Failed to Load Solaris Porting Layer v%s, "
 	       "rc = %d\n", VERSION, rc);
-	RETURN(rc);
+	return rc;
 }
 
 static void spl_fini(void)
@@ -132,8 +131,6 @@ static void spl_fini(void)
 	vn_fini();
 	kmem_fini();
 	debug_fini();
-
-	EXIT;
 }
 
 module_init(spl_init);
