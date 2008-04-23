@@ -66,10 +66,14 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *priv, uint_t flags)
 }
 EXPORT_SYMBOL(__taskq_dispatch);
 
-/* XXX - Most args ignored until we decide if it's worth the effort
- *       to emulate the solaris notion of dynamic thread pools.  For
- *       now we simply serialize everything through one thread which
- *       may come back to bite us as a performance issue.
+/* XXX - We must fully implement dynamic workqueues since they make a
+ *       significant impact in terms of performance.  For now I've made
+ *       a trivial compromise.  If you ask for one thread you get one
+ *       thread, if you ask for more than that you get one per core.
+ *       It's unclear if you ever really need/want more than one per-core
+ *       anyway.  More analysis is required.
+ *
+ * name  - Workqueue names are limited to 10 chars
  * pri   - Ignore priority
  * min   - Ignored until this is a dynamic thread pool
  * max   - Ignored until this is a dynamic thread pool
@@ -79,9 +83,15 @@ taskq_t *
 __taskq_create(const char *name, int nthreads, pri_t pri,
                int minalloc, int maxalloc, uint_t flags)
 {
-	/* NOTE: Linux workqueue names are limited to 10 chars */
+	taskq_t *tq;
 	ENTRY;
-        RETURN(create_singlethread_workqueue(name));
+
+	if (nthreads == 1)
+		tq = create_singlethread_workqueue(name);
+	else
+		tq = create_workqueue(name);
+
+	return tq;
 }
 EXPORT_SYMBOL(__taskq_create);
 

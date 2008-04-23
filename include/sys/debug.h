@@ -198,7 +198,7 @@ do {                                                                    \
 do {                                                                    \
         if (unlikely(!(cond))) {                                        \
                 printk(KERN_ERR "ASSERTION(" #cond ") failed");         \
-                SBUG();                                                 \
+                BUG();                                                  \
         }                                                               \
 } while (0)
 
