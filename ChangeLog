@@ -1,3 +1,9 @@
+2008-04-24 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.2.1 
+
+	* modules/spl/spl-proc.c : Add /proc/sys/spl/version.
+
 2008-04-24 Herb Wartens <wartens2@llnl.gov>
 
 	* include/sys/kmem.h : Make sure that when calling __vmem_alloc

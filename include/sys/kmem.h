@@ -36,17 +36,21 @@ extern int kmem_warning_flag;
                                                                               \
 	/* Marked unlikely because we should never be doing this */           \
         if (unlikely((size) > (PAGE_SIZE * 4)) && kmem_warning_flag)          \
-                printk("spl: Warning kmem_alloc(%d, 0x%x) large alloc at %s:%d "\
-                       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
-		       __FILE__, __LINE__,                                    \
-		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
+			       "kmem_alloc(%d, 0x%x) large alloc at %s:%d "   \
+                               "(%ld/%ld)\n", (int)(size), (int)(flags),      \
+		               __FILE__, __LINE__,                            \
+		               atomic64_read(&kmem_alloc_used),               \
+			       kmem_alloc_max);                               \
                                                                               \
         _ptr_ = (void *)allocator((size), (flags));                           \
         if (_ptr_ == NULL) {                                                  \
-                printk("spl: Warning kmem_alloc(%d, 0x%x) failed at %s:%d "   \
-		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
-		       __FILE__, __LINE__,                                    \
-		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);      \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
+			       "kmem_alloc(%d, 0x%x) failed at %s:%d "        \
+		               "(%ld/%ld)\n", (int)(size), (int)(flags),      \
+		               __FILE__, __LINE__,                            \
+		               atomic64_read(&kmem_alloc_used),               \
+			       kmem_alloc_max);                               \
         } else {                                                              \
                 atomic64_add((size), &kmem_alloc_used);                       \
                 if (unlikely(atomic64_read(&kmem_alloc_used)>kmem_alloc_max)) \
@@ -72,17 +76,20 @@ extern int kmem_warning_flag;
                                                                               \
 	ASSERT(flags & KM_SLEEP);                                             \
                                                                               \
-        _ptr_ = (void *)__vmalloc((size), (((flags) |                         \
-                                  __GFP_HIGHMEM) &                            \
-			          ~__GFP_ZERO), PAGE_KERNEL);                 \
+        _ptr_ = (void *)__vmalloc((size),                                     \
+				  (((flags) | __GFP_HIGHMEM) & ~__GFP_ZERO),  \
+				  PAGE_KERNEL);                               \
         if (_ptr_ == NULL) {                                                  \
-                printk("spl: Warning vmem_alloc(%d, 0x%x) failed at %s:%d "   \
-		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
-		       __FILE__, __LINE__,                                    \
-		       atomic64_read(&vmem_alloc_used), vmem_alloc_max);      \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
+			       "vmem_alloc(%d, 0x%x) failed at %s:%d "        \
+		               "(%ld/%ld)\n", (int)(size), (int)(flags),      \
+		               __FILE__, __LINE__,                            \
+		              atomic64_read(&vmem_alloc_used),                \
+			      vmem_alloc_max);                                \
         } else {                                                              \
                 if (flags & __GFP_ZERO)                                       \
                         memset(_ptr_, 0, (size));                             \
+                                                                              \
                 atomic64_add((size), &vmem_alloc_used);                       \
                 if (unlikely(atomic64_read(&vmem_alloc_used)>vmem_alloc_max)) \
                         vmem_alloc_max = atomic64_read(&vmem_alloc_used);     \

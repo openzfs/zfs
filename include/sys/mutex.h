@@ -76,10 +76,11 @@ mutex_enter(kmutex_t *mp)
 	spin_lock(&mp->km_lock);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
-		printk("May schedule while atomic: %s/0x%08x/%d\n",
-		       current->comm, preempt_count(), current->pid);
 		spin_unlock(&mp->km_lock);
-		BUG();
+		__CDEBUG_LIMIT(S_MUTEX, D_ERROR,
+			       "May schedule while atomic: %s/0x%08x/%d\n",
+		               current->comm, preempt_count(), current->pid);
+		SBUG();
 	}
 
 	spin_unlock(&mp->km_lock);
@@ -103,10 +104,11 @@ mutex_tryenter(kmutex_t *mp)
 	spin_lock(&mp->km_lock);
 
 	if (unlikely(in_atomic() && !current->exit_state)) {
-		printk("May schedule while atomic: %s/0x%08x/%d\n",
-		       current->comm, preempt_count(), current->pid);
 		spin_unlock(&mp->km_lock);
-		BUG();
+		__CDEBUG_LIMIT(S_MUTEX, D_ERROR,
+			       "May schedule while atomic: %s/0x%08x/%d\n",
+		               current->comm, preempt_count(), current->pid);
+		SBUG();
 	}
 
 	spin_unlock(&mp->km_lock);

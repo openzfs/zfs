@@ -13,6 +13,8 @@
 
 #define DEBUG_SUBSYSTEM S_GENERIC
 
+char spl_version[16] = "SPL v" VERSION;
+
 long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 

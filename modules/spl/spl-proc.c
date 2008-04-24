@@ -20,7 +20,8 @@ static unsigned long table_max = ~0;
 
 #define CTL_SPL 0x87
 enum {
-        CTL_DEBUG_SUBSYS = 1,     /* Debug subsystem */
+	CTL_VERSION = 1,          /* Version */
+        CTL_DEBUG_SUBSYS,         /* Debug subsystem */
         CTL_DEBUG_MASK,           /* Debug mask */
         CTL_DEBUG_PRINTK,         /* Force all messages to console */
         CTL_DEBUG_MB,             /* Debug buffer size */
@@ -371,6 +372,14 @@ static struct ctl_table spl_table[] = {
         /* NB No .strategy entries have been provided since
          * sysctl(8) prefers to go via /proc for portability.
          */
+        {
+                .ctl_name = CTL_VERSION,
+                .procname = "version",
+                .data     = spl_version,
+                .maxlen   = sizeof(spl_version),
+                .mode     = 0444,
+                .proc_handler = &proc_dostring,
+        },
         {
                 .ctl_name = CTL_DEBUG_SUBSYS,
                 .procname = "debug_subsystem",
