@@ -72,14 +72,17 @@ extern int kmem_warning_flag;
                                                                               \
 	ASSERT(flags & KM_SLEEP);                                             \
                                                                               \
-        _ptr_ = (void *)__vmalloc((size), ((flags) |                          \
-                                  __GFP_HIGHMEM), PAGE_KERNEL);               \
+        _ptr_ = (void *)__vmalloc((size), (((flags) |                         \
+                                  __GFP_HIGHMEM) &                            \
+			          ~__GFP_ZERO), PAGE_KERNEL);                 \
         if (_ptr_ == NULL) {                                                  \
                 printk("spl: Warning vmem_alloc(%d, 0x%x) failed at %s:%d "   \
 		       "(%ld/%ld)\n", (int)(size), (int)(flags),              \
 		       __FILE__, __LINE__,                                    \
 		       atomic64_read(&vmem_alloc_used), vmem_alloc_max);      \
         } else {                                                              \
+                if (flags & __GFP_ZERO)                                       \
+                        memset(_ptr_, 0, (size));                             \
                 atomic64_add((size), &vmem_alloc_used);                       \
                 if (unlikely(atomic64_read(&vmem_alloc_used)>vmem_alloc_max)) \
                         vmem_alloc_max = atomic64_read(&vmem_alloc_used);     \
