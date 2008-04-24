@@ -1,3 +1,10 @@
+2008-04-24 Herb Wartens <wartens2@llnl.gov>
+
+	* include/sys/kmem.h : Make sure that when calling __vmem_alloc
+	that we do not have __GFP_ZERO set.  Once the memory is allocated
+	then zero out the memory if __GFP_ZERO is passed to
+	__vmem_alloc.
+
 2008-04-16 Herb Wartens <wartens2@llnl.gov>
 
 	* modules/spl/spl-kmem.c : Make sure to disable interrupts
