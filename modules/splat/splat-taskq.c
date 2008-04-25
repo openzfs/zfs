@@ -43,7 +43,8 @@ splat_taskq_test1(struct file *file, void *arg)
 
 	splat_vprint(file, SPLAT_TASKQ_TEST1_NAME, "Taskq '%s' creating\n",
 	           SPLAT_TASKQ_TEST1_NAME);
-	if ((tq = taskq_create(SPLAT_TASKQ_TEST1_NAME, 1, 0, 0, 0, 0)) == NULL) {
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST1_NAME, 1, maxclsyspri,
+			       50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 		           "Taskq '%s' create failed\n",
 		           SPLAT_TASKQ_TEST1_NAME);
@@ -58,7 +59,8 @@ splat_taskq_test1(struct file *file, void *arg)
 	splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 	           "Taskq '%s' function '%s' dispatching\n",
 	           tq_arg.name, sym2str(splat_taskq_test1_func));
-	if ((id = taskq_dispatch(tq, splat_taskq_test1_func, &tq_arg, 0)) == 0) {
+	if ((id = taskq_dispatch(tq, splat_taskq_test1_func,
+				 &tq_arg, TQ_SLEEP)) == 0) {
 		splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 		           "Taskq '%s' function '%s' dispatch failed\n",
 		           tq_arg.name, sym2str(splat_taskq_test1_func));
@@ -109,6 +111,8 @@ splat_taskq_test2_func2(void *arg)
 }
 
 #define TEST2_TASKQS                    8
+#define TEST2_THREADS_PER_TASKQ         4
+
 static int
 splat_taskq_test2(struct file *file, void *arg) {
 	taskq_t *tq[TEST2_TASKQS] = { NULL };
@@ -121,7 +125,9 @@ splat_taskq_test2(struct file *file, void *arg) {
 		splat_vprint(file, SPLAT_TASKQ_TEST2_NAME, "Taskq '%s/%d' "
 		           "creating\n", SPLAT_TASKQ_TEST2_NAME, i);
 		if ((tq[i] = taskq_create(SPLAT_TASKQ_TEST2_NAME,
-			                  1, 0, 0, 0, 0)) == NULL) {
+			                  TEST2_THREADS_PER_TASKQ,
+					  maxclsyspri, 50, INT_MAX,
+					  TASKQ_PREPOPULATE)) == NULL) {
 			splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
 			           "Taskq '%s/%d' create failed\n",
 				   SPLAT_TASKQ_TEST2_NAME, i);
@@ -139,7 +145,8 @@ splat_taskq_test2(struct file *file, void *arg) {
 			   tq_args[i].name, tq_args[i].id,
 		           sym2str(splat_taskq_test2_func1));
 		if ((id = taskq_dispatch(
-		     tq[i], splat_taskq_test2_func1, &tq_args[i], 0)) == 0) {
+		     tq[i], splat_taskq_test2_func1,
+		     &tq_args[i], TQ_SLEEP)) == 0) {
 			splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
 			           "Taskq '%s/%d' function '%s' dispatch "
 			           "failed\n", tq_args[i].name, tq_args[i].id,
@@ -153,7 +160,8 @@ splat_taskq_test2(struct file *file, void *arg) {
 			   tq_args[i].name, tq_args[i].id,
 		           sym2str(splat_taskq_test2_func2));
 		if ((id = taskq_dispatch(
-		     tq[i], splat_taskq_test2_func2, &tq_args[i], 0)) == 0) {
+		     tq[i], splat_taskq_test2_func2,
+		     &tq_args[i], TQ_SLEEP)) == 0) {
 			splat_vprint(file, SPLAT_TASKQ_TEST2_NAME,
 			           "Taskq '%s/%d' function '%s' dispatch failed\n",
 			           tq_args[i].name, tq_args[i].id,

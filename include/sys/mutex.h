@@ -36,6 +36,7 @@ typedef struct {
 static __inline__ void
 mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 {
+	ENTRY;
 	ASSERT(mp);
 	ASSERT(ibc == NULL);		/* XXX - Spin mutexes not needed */
 	ASSERT(type == MUTEX_DEFAULT);	/* XXX - Only default type supported */
@@ -51,12 +52,14 @@ mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 		if (mp->km_name)
 			strcpy(mp->km_name, name);
 	}
+	EXIT;
 }
 
 #undef mutex_destroy
 static __inline__ void
 mutex_destroy(kmutex_t *mp)
 {
+	ENTRY;
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
@@ -66,11 +69,13 @@ mutex_destroy(kmutex_t *mp)
 
 	memset(mp, KM_POISON, sizeof(*mp));
 	spin_unlock(&mp->km_lock);
+	EXIT;
 }
 
 static __inline__ void
 mutex_enter(kmutex_t *mp)
 {
+	ENTRY;
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
@@ -91,6 +96,7 @@ mutex_enter(kmutex_t *mp)
 	ASSERT(mp->km_owner == NULL);
 	mp->km_owner = current;
 	spin_unlock(&mp->km_lock);
+	EXIT;
 }
 
 /* Return 1 if we acquired the mutex, else zero.  */
@@ -98,6 +104,7 @@ static __inline__ int
 mutex_tryenter(kmutex_t *mp)
 {
 	int rc;
+	ENTRY;
 
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
@@ -118,14 +125,16 @@ mutex_tryenter(kmutex_t *mp)
 		ASSERT(mp->km_owner == NULL);
 		mp->km_owner = current;
 		spin_unlock(&mp->km_lock);
-		return 1;
+		RETURN(1);
 	}
-	return 0;
+
+	RETURN(0);
 }
 
 static __inline__ void
 mutex_exit(kmutex_t *mp)
 {
+	ENTRY;
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
 	spin_lock(&mp->km_lock);
@@ -134,6 +143,7 @@ mutex_exit(kmutex_t *mp)
 	mp->km_owner = NULL;
 	spin_unlock(&mp->km_lock);
 	up(&mp->km_sem);
+	EXIT;
 }
 
 /* Return 1 if mutex is held by current process, else zero.  */
@@ -141,6 +151,7 @@ static __inline__ int
 mutex_owned(kmutex_t *mp)
 {
 	int rc;
+	ENTRY;
 
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
@@ -148,7 +159,7 @@ mutex_owned(kmutex_t *mp)
 	rc = (mp->km_owner == current);
 	spin_unlock(&mp->km_lock);
 
-	return rc;
+	RETURN(rc);
 }
 
 /* Return owner if mutex is owned, else NULL.  */
@@ -156,6 +167,7 @@ static __inline__ kthread_t *
 mutex_owner(kmutex_t *mp)
 {
 	kthread_t *thr;
+	ENTRY;
 
 	ASSERT(mp);
 	ASSERT(mp->km_magic == KM_MAGIC);
@@ -163,7 +175,7 @@ mutex_owner(kmutex_t *mp)
 	thr = mp->km_owner;
 	spin_unlock(&mp->km_lock);
 
-	return thr;
+	RETURN(thr);
 }
 
 #ifdef	__cplusplus

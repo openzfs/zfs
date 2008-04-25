@@ -5,82 +5,75 @@
 extern "C" {
 #endif
 
-/*
- * Task Queues - As of linux 2.6.x task queues have been replaced by a
- * similar construct called work queues.  The big difference on the linux
- * side is that functions called from work queues run in process context
- * and not interrupt context.
- *
- * One nice feature of Solaris which does not exist in linux work
- * queues in the notion of a dynamic work queue.  Rather than implementing
- * this in the shim layer I'm hardcoding one-thread per work queue.
- *
- * XXX - This may end up being a significant performance penalty which
- * forces us to implement dynamic workqueues.  Which is all very doable
- * with a little effort.
- */
 #include <linux/module.h>
-#include <linux/workqueue.h>
 #include <linux/gfp.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
+#include <linux/kthread.h>
 #include <sys/types.h>
+#include <sys/kmem.h>
 
-#undef DEBUG_TASKQ_UNIMPLEMENTED
+#define TASKQ_NAMELEN           31
 
-#define TASKQ_NAMELEN   31
-#define taskq_t                         workq_t
+#define TASKQ_PREPOPULATE       0x00000001
+#define TASKQ_CPR_SAFE          0x00000002
+#define TASKQ_DYNAMIC           0x00000004
 
-typedef struct workqueue_struct workq_t;
 typedef unsigned long taskqid_t;
-typedef void (*task_func_t)(void *);
-
-/*
- * Public flags for taskq_create(): bit range 0-15
- */
-#define TASKQ_PREPOPULATE       0x0000  /* XXX - Workqueues fully populate */
-#define TASKQ_CPR_SAFE          0x0000  /* XXX - No analog */
-#define TASKQ_DYNAMIC           0x0000  /* XXX - Worksqueues not dynamic */
+typedef void (task_func_t)(void *);
 
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
- * KM_SLEEP/KM_NOSLEEP.
+ * KM_SLEEP/KM_NOSLEEP.  TQ_NOQUEUE/TQ_NOALLOC are set particularly
+ * large so as not to conflict with already used GFP_* defines.
  */
-#define TQ_SLEEP                0x00    /* XXX - Workqueues don't support    */
-#define TQ_NOSLEEP              0x00    /*       these sorts of flags.  They */
-#define TQ_NOQUEUE              0x00    /*       always run in application   */
-#define TQ_NOALLOC              0x00    /*       context and can sleep.      */
+#define TQ_SLEEP                KM_SLEEP
+#define TQ_NOSLEEP              KM_NOSLEEP
+#define TQ_NOQUEUE              0x01000000
+#define TQ_NOALLOC              0x02000000
+#define TQ_NEW                  0x04000000
+#define TQ_ACTIVE               0x80000000
 
+typedef struct task {
+	spinlock_t              t_lock;
+	struct list_head        t_list;
+	taskqid_t               t_id;
+        task_func_t             *t_func;
+        void                    *t_arg;
+} task_t;
 
-#ifdef DEBUG_TASKQ_UNIMPLEMENTED
-static __inline__ void taskq_init(void) {
-#error "taskq_init() not implemented"
-}
-
-static __inline__ taskq_t *
-taskq_create_instance(const char *, int, int, pri_t, int, int, uint_t) {
-#error "taskq_create_instance() not implemented"
-}
-
-extern void     nulltask(void *);
-extern void     taskq_suspend(taskq_t *);
-extern int      taskq_suspended(taskq_t *);
-extern void     taskq_resume(taskq_t *);
-
-#endif /* DEBUG_TASKQ_UNIMPLEMENTED */
+typedef struct taskq {
+        spinlock_t              tq_lock;       /* protects taskq_t */
+        struct task_struct      **tq_threads;  /* thread pointers */
+	const char              *tq_name;      /* taskq name */
+        int                     tq_nactive;    /* # of active threads */
+        int                     tq_nthreads;   /* # of total threads */
+	int                     tq_pri;        /* priority */
+        int                     tq_minalloc;   /* min task_t pool size */
+        int                     tq_maxalloc;   /* max task_t pool size */
+	int                     tq_nalloc;     /* cur task_t pool size */
+        uint_t                  tq_flags;      /* flags */
+	taskqid_t               tq_next_id;    /* next pend/work id */
+	taskqid_t               tq_lowest_id;  /* lowest pend/work id */
+	struct list_head        tq_free_list;  /* free task_t's */
+	struct list_head        tq_work_list;  /* work task_t's */
+	struct list_head        tq_pend_list;  /* pending task_t's */
+	wait_queue_head_t       tq_work_waitq; /* new work waitq */
+	wait_queue_head_t       tq_wait_waitq; /* wait waitq */
+} taskq_t;
 
 extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void __taskq_destroy(taskq_t *);
 extern void __taskq_wait(taskq_t *);
+extern int __taskq_member(taskq_t *, void *);
 
-#define taskq_create(name, thr, pri, min, max, flags) \
-	__taskq_create(name, thr, pri, min, max, flags)
-#define taskq_dispatch(tq, func, priv, flags)         \
-	__taskq_dispatch(tq, (task_func_t)func, priv, flags)
-#define taskq_destroy(tq)                             __taskq_destroy(tq)
-#define taskq_wait(tq)                                __taskq_wait(tq)
-#define taskq_member(tq, kthr)                        1 /* XXX -Just be true */
+#define taskq_member(tq, t)                __taskq_member(tq, t)
+#define taskq_wait_id(tq, id)              __taskq_wait_id(tq, id)
+#define taskq_wait(tq)                     __taskq_wait(tq)
+#define taskq_dispatch(tq, f, p, fl)       __taskq_dispatch(tq, f, p, fl)
+#define taskq_create(n, th, p, mi, ma, fl) __taskq_create(n, th, p, mi, ma, fl)
+#define taskq_destroy(tq)                  __taskq_destroy(tq)
 
 #ifdef  __cplusplus
 }
