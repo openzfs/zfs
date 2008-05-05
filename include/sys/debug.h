@@ -310,15 +310,18 @@ do {                                                                    \
         return RETURN__ret;                                             \
 } while (0)
 
-#define ENTRY                                                           \
+#define __ENTRY(subsys)                                                 \
 do {                                                                    \
-        CDEBUG(D_TRACE, "Process entered\n");                           \
+        __CDEBUG(NULL, subsys, D_TRACE, "Process entered\n");           \
 } while (0)
 
-#define EXIT                                                            \
+#define __EXIT(subsys)                                                  \
 do {                                                                    \
-        CDEBUG(D_TRACE, "Process leaving\n");                           \
+        __CDEBUG(NULL, subsys, D_TRACE, "Process leaving\n");           \
 } while(0)
+
+#define ENTRY				__ENTRY(DEBUG_SUBSYSTEM)
+#define EXIT                            __EXIT(DEBUG_SUBSYSTEM)
 
 extern int spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
                           const char *file, const char *fn, const int line,

@@ -54,9 +54,9 @@ extern int kmem_warning_flag;
                 if (unlikely(atomic64_read(&kmem_alloc_used)>kmem_alloc_max)) \
                         kmem_alloc_max = atomic64_read(&kmem_alloc_used);     \
 			                                                      \
-                __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_alloc(%d, 0x%x)'d "      \
+                __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_alloc(%d, 0x%x) = %p "   \
 			       "(%ld/%ld)\n", (int)(size), (int)(flags),      \
-		               atomic64_read(&kmem_alloc_used),               \
+		               _ptr_, atomic64_read(&kmem_alloc_used),        \
 			       kmem_alloc_max);                               \
         }                                                                     \
                                                                               \
@@ -70,8 +70,8 @@ extern int kmem_warning_flag;
 ({                                                                            \
         ASSERT((ptr) || (size > 0));                                          \
         atomic64_sub((size), &kmem_alloc_used);                               \
-        __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_free(%d)'d (%ld/%ld)\n",         \
-		       (int)(size), atomic64_read(&kmem_alloc_used),          \
+        __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_free(%p, %d) (%ld/%ld)\n",       \
+		       (ptr), (int)(size), atomic64_read(&kmem_alloc_used),   \
 		       kmem_alloc_max);                                       \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         kfree(ptr);                                                           \
@@ -99,9 +99,9 @@ extern int kmem_warning_flag;
                 if (unlikely(atomic64_read(&vmem_alloc_used)>vmem_alloc_max)) \
                         vmem_alloc_max = atomic64_read(&vmem_alloc_used);     \
                                                                               \
-                __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_alloc(%d, 0x%x)'d "      \
+                __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_alloc(%d, 0x%x) = %p "   \
 			       "(%ld/%ld)\n", (int)(size), (int)(flags),      \
-		               atomic64_read(&vmem_alloc_used),               \
+		               _ptr_, atomic64_read(&vmem_alloc_used),        \
 			       vmem_alloc_max);                               \
         }                                                                     \
                                                                               \
@@ -116,8 +116,8 @@ extern int kmem_warning_flag;
 ({                                                                            \
         ASSERT((ptr) || (size > 0));                                          \
         atomic64_sub((size), &vmem_alloc_used);                               \
-        __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_free(%d)'d (%ld/%ld)\n",         \
-		       (int)(size), atomic64_read(&vmem_alloc_used),          \
+        __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_free(%p, %d) (%ld/%ld)\n",       \
+		       (ptr), (int)(size), atomic64_read(&vmem_alloc_used),   \
 		       vmem_alloc_max);                                       \
         memset(ptr, 0x5a, (size)); /* Poison */                               \
         vfree(ptr);                                                           \

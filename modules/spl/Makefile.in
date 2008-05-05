@@ -22,6 +22,7 @@ spl-objs += spl-kobj.o
 spl-objs += spl-module.o
 spl-objs += spl-generic.o
 spl-objs += spl-atomic.o
+spl-objs += spl-mutex.o
 
 splmodule := spl.ko
 splmoduledir := @kmoduledir@/kernel/lib/

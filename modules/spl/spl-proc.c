@@ -3,8 +3,10 @@
 #include <linux/uaccess.h>
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
+#include <linux/seq_file.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
+#include <sys/mutex.h>
 #include <sys/debug.h>
 #include "config.h"
 
@@ -18,10 +20,17 @@ static struct ctl_table_header *spl_header = NULL;
 static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 
-#define CTL_SPL 0x87
+#define CTL_SPL		0x87
+#define CTL_SPL_DEBUG	0x88
+#define CTL_SPL_MUTEX	0x89
+#define CTL_SPL_KMEM	0x90
+
 enum {
 	CTL_VERSION = 1,          /* Version */
-        CTL_DEBUG_SUBSYS,         /* Debug subsystem */
+	CTL_HOSTID,               /* Host id reported by /usr/bin/hostid */
+	CTL_HW_SERIAL,            /* Hardware serial number from hostid */
+
+	CTL_DEBUG_SUBSYS,         /* Debug subsystem */
         CTL_DEBUG_MASK,           /* Debug mask */
         CTL_DEBUG_PRINTK,         /* Force all messages to console */
         CTL_DEBUG_MB,             /* Debug buffer size */
@@ -31,19 +40,23 @@ enum {
         CTL_DEBUG_PATH,           /* Dump log location */
         CTL_DEBUG_DUMP,           /* Dump debug buffer to file */
         CTL_DEBUG_FORCE_BUG,      /* Hook to force a BUG */
-        CTL_CONSOLE_RATELIMIT,    /* Ratelimit console messages */
+        CTL_DEBUG_STACK_SIZE,     /* Max observed stack size */
+
+	CTL_CONSOLE_RATELIMIT,    /* Ratelimit console messages */
         CTL_CONSOLE_MAX_DELAY_CS, /* Max delay at which we skip messages */
         CTL_CONSOLE_MIN_DELAY_CS, /* Init delay at which we skip messages */
         CTL_CONSOLE_BACKOFF,      /* Delay increase factor */
-        CTL_STACK_SIZE,           /* Max observed stack size */
+
 #ifdef DEBUG_KMEM
         CTL_KMEM_KMEMUSED,        /* Crrently alloc'd kmem bytes */
         CTL_KMEM_KMEMMAX,         /* Max alloc'd by kmem bytes */
         CTL_KMEM_VMEMUSED,        /* Currently alloc'd vmem bytes */
         CTL_KMEM_VMEMMAX,         /* Max alloc'd by vmem bytes */
 #endif
-	CTL_HOSTID,               /* Host id reported by /usr/bin/hostid */
-	CTL_HW_SERIAL,            /* Hardware serial number from hostid */
+
+	CTL_MUTEX_STATS,          /* Global mutex statistics */
+	CTL_MUTEX_STATS_PER,      /* Per mutex statistics */
+	CTL_MUTEX_SPIN_MAX,       /* Maximum mutex spin iterations */
 };
 
 static int
@@ -368,21 +381,107 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
         RETURN(rc);
 }
 
-static struct ctl_table spl_table[] = {
-        /* NB No .strategy entries have been provided since
-         * sysctl(8) prefers to go via /proc for portability.
-         */
-        {
-                .ctl_name = CTL_VERSION,
-                .procname = "version",
-                .data     = spl_version,
-                .maxlen   = sizeof(spl_version),
-                .mode     = 0444,
-                .proc_handler = &proc_dostring,
-        },
+#ifdef DEBUG_MUTEX
+static void
+mutex_seq_show_headers(struct seq_file *f)
+{
+        seq_printf(f, "%-36s %-4s %-16s\t"
+                   "e_tot\te_nh\te_sp\te_sl\tte_tot\tte_nh\n",
+		   "name", "type", "owner");
+}
+
+static int
+mutex_seq_show(struct seq_file *f, void *p)
+{
+        kmutex_t *mp = p;
+	char t = 'X';
+        int i;
+
+	ASSERT(mp->km_magic == KM_MAGIC);
+
+	switch (mp->km_type) {
+		case MUTEX_DEFAULT:	t = 'D';	break;
+		case MUTEX_SPIN:	t = 'S';	break;
+		case MUTEX_ADAPTIVE:	t = 'A';	break;
+		default:
+			SBUG();
+	}
+        seq_printf(f, "%-36s %c    ", mp->km_name, t);
+	if (mp->km_owner)
+                seq_printf(f, "%p\t", mp->km_owner);
+	else
+                seq_printf(f, "%-16s\t", "<not held>");
+
+        for (i = 0; i < MUTEX_STATS_SIZE; i++)
+                seq_printf(f, "%d%c", mp->km_stats[i],
+                           (i + 1 == MUTEX_STATS_SIZE) ? '\n' : '\t');
+
+        return 0;
+}
+
+static void *
+mutex_seq_start(struct seq_file *f, loff_t *pos)
+{
+        struct list_head *p;
+        loff_t n = *pos;
+        ENTRY;
+
+        mutex_lock(&mutex_stats_lock);
+        if (!n)
+                mutex_seq_show_headers(f);
+
+        p = mutex_stats_list.next;
+        while (n--) {
+                p = p->next;
+                if (p == &mutex_stats_list)
+                        RETURN(NULL);
+        }
+
+        RETURN(list_entry(p, kmutex_t, km_list));
+}
+
+static void *
+mutex_seq_next(struct seq_file *f, void *p, loff_t *pos)
+{
+	kmutex_t *mp = p;
+        ENTRY;
+
+        ++*pos;
+        RETURN((mp->km_list.next == &mutex_stats_list) ?
+	       NULL : list_entry(mp->km_list.next, kmutex_t, km_list));
+}
+
+static void
+mutex_seq_stop(struct seq_file *f, void *v)
+{
+        mutex_unlock(&mutex_stats_lock);
+}
+
+static struct seq_operations mutex_seq_ops = {
+        .show  = mutex_seq_show,
+        .start = mutex_seq_start,
+        .next  = mutex_seq_next,
+        .stop  = mutex_seq_stop,
+};
+
+static int
+proc_mutex_open(struct inode *inode, struct file *filp)
+{
+        return seq_open(filp, &mutex_seq_ops);
+}
+
+static struct file_operations proc_mutex_operations = {
+        .open           = proc_mutex_open,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = seq_release,
+};
+#endif /* DEBUG_MUTEX */
+
+static struct ctl_table spl_debug_table[] = {
         {
                 .ctl_name = CTL_DEBUG_SUBSYS,
-                .procname = "debug_subsystem",
+                .procname = "subsystem",
                 .data     = &spl_debug_subsys,
                 .maxlen   = sizeof(unsigned long),
                 .mode     = 0644,
@@ -390,7 +489,7 @@ static struct ctl_table spl_table[] = {
         },
         {
                 .ctl_name = CTL_DEBUG_MASK,
-                .procname = "debug_mask",
+                .procname = "mask",
                 .data     = &spl_debug_mask,
                 .maxlen   = sizeof(unsigned long),
                 .mode     = 0644,
@@ -398,7 +497,7 @@ static struct ctl_table spl_table[] = {
         },
         {
                 .ctl_name = CTL_DEBUG_PRINTK,
-                .procname = "debug_printk",
+                .procname = "printk",
                 .data     = &spl_debug_printk,
                 .maxlen   = sizeof(unsigned long),
                 .mode     = 0644,
@@ -406,13 +505,13 @@ static struct ctl_table spl_table[] = {
         },
         {
                 .ctl_name = CTL_DEBUG_MB,
-                .procname = "debug_mb",
+                .procname = "mb",
                 .mode     = 0644,
                 .proc_handler = &proc_debug_mb,
         },
         {
                 .ctl_name = CTL_DEBUG_BINARY,
-                .procname = "debug_binary",
+                .procname = "binary",
                 .data     = &spl_debug_binary,
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
@@ -436,7 +535,7 @@ static struct ctl_table spl_table[] = {
         },
         {
                 .ctl_name = CTL_DEBUG_PATH,
-                .procname = "debug_path",
+                .procname = "path",
                 .data     = spl_debug_file_path,
                 .maxlen   = sizeof(spl_debug_file_path),
                 .mode     = 0644,
@@ -444,7 +543,7 @@ static struct ctl_table spl_table[] = {
         },
         {
                 .ctl_name = CTL_DEBUG_DUMP,
-                .procname = "debug_dump",
+                .procname = "dump",
                 .mode     = 0200,
                 .proc_handler = &proc_dump_kernel,
         },
@@ -483,14 +582,40 @@ static struct ctl_table spl_table[] = {
                 .proc_handler = &proc_console_backoff,
         },
         {
-                .ctl_name = CTL_STACK_SIZE,
+                .ctl_name = CTL_DEBUG_STACK_SIZE,
                 .procname = "stack_max",
                 .data     = &spl_debug_stack,
                 .maxlen   = sizeof(int),
                 .mode     = 0444,
                 .proc_handler = &proc_dointvec,
         },
+	{0},
+};
+
+#ifdef DEBUG_MUTEX
+static struct ctl_table spl_mutex_table[] = {
+        {
+                .ctl_name = CTL_MUTEX_STATS,
+                .procname = "stats",
+                .data     = &mutex_stats,
+                .maxlen   = sizeof(int) * MUTEX_STATS_SIZE,
+                .mode     = 0444,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_MUTEX_SPIN_MAX,
+                .procname = "spin_max",
+                .data     = &mutex_spin_max,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+	{0},
+};
+#endif /* DEBUG_MUTEX */
+
 #ifdef DEBUG_KMEM
+static struct ctl_table spl_kmem_table[] = {
         {
                 .ctl_name = CTL_KMEM_KMEMUSED,
                 .procname = "kmem_used",
@@ -527,7 +652,22 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0444,
                 .proc_handler = &proc_doulongvec_minmax,
         },
-#endif
+	{0},
+};
+#endif /* DEBUG_MUTEX */
+
+static struct ctl_table spl_table[] = {
+        /* NB No .strategy entries have been provided since
+         * sysctl(8) prefers to go via /proc for portability.
+         */
+        {
+                .ctl_name = CTL_VERSION,
+                .procname = "version",
+                .data     = spl_version,
+                .maxlen   = sizeof(spl_version),
+                .mode     = 0444,
+                .proc_handler = &proc_dostring,
+        },
         {
                 .ctl_name = CTL_HOSTID,
                 .procname = "hostid",
@@ -544,10 +684,32 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0444,
                 .proc_handler = &proc_dostring,
         },
+	{
+		.ctl_name = CTL_SPL_DEBUG,
+		.procname = "debug",
+		.mode     = 0555,
+		.child    = spl_debug_table,
+	},
+#ifdef DEBUG_MUTEX
+	{
+		.ctl_name = CTL_SPL_MUTEX,
+		.procname = "mutex",
+		.mode     = 0555,
+		.child    = spl_mutex_table,
+	},
+#endif
+#ifdef DEBUG_KMEM
+	{
+		.ctl_name = CTL_SPL_KMEM,
+		.procname = "kmem",
+		.mode     = 0555,
+		.child    = spl_kmem_table,
+	},
+#endif
         { 0 },
 };
 
-static struct ctl_table spl_dir_table[] = {
+static struct ctl_table spl_dir[] = {
         {
                 .ctl_name = CTL_SPL,
                 .procname = "spl",
@@ -563,9 +725,22 @@ proc_init(void)
         ENTRY;
 
 #ifdef CONFIG_SYSCTL
-        spl_header = register_sysctl_table(spl_dir_table, 0);
+        spl_header = register_sysctl_table(spl_dir, 0);
 	if (spl_header == NULL)
 		RETURN(-EUNATCH);
+
+#ifdef DEBUG_MUTEX
+	{
+                struct proc_dir_entry *entry = create_proc_entry("mutex_stats",
+								 0444, NULL);
+                if (entry) {
+                        entry->proc_fops = &proc_mutex_operations;
+                } else {
+                        unregister_sysctl_table(spl_header);
+                        RETURN(-EUNATCH);
+                }
+	}
+#endif /* DEBUG_MUTEX */
 #endif
         RETURN(0);
 }
@@ -577,6 +752,7 @@ proc_fini(void)
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
+        remove_proc_entry("mutex_stats", NULL);
         unregister_sysctl_table(spl_header);
 #endif
         EXIT;

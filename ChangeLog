@@ -1,3 +1,10 @@
+2008-04-26 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* include/sys/mutex.h : Implemented a close approximation
+	of adaptive mutexes.  These changes however required me to 
+	export a new symbol from the kernel proper 'task_curr()'
+	which means we are now dependant on a patched kernel.
+
 2008-04-24 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.2.1 

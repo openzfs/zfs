@@ -106,7 +106,7 @@ task_done(taskq_t *tq, task_t *t)
 		t->t_id = 0;
 		t->t_func = NULL;
 		t->t_arg = NULL;
-                list_add(&t->t_list, &tq->tq_free_list);
+                list_add_tail(&t->t_list, &tq->tq_free_list);
 	} else {
 		task_free(tq, t);
 	}
@@ -209,7 +209,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 
 	spin_lock(&t->t_lock);
-	list_add(&t->t_list, &tq->tq_pend_list);
+	list_add_tail(&t->t_list, &tq->tq_pend_list);
 	t->t_id = rc = tq->tq_next_id;
 	tq->tq_next_id++;
         t->t_func = func;
@@ -282,7 +282,7 @@ taskq_thread(void *args)
                 if (!list_empty(&tq->tq_pend_list)) {
                         t = list_entry(tq->tq_pend_list.next, task_t, t_list);
                         list_del_init(&t->t_list);
-			list_add(&t->t_list, &tq->tq_work_list);
+			list_add_tail(&t->t_list, &tq->tq_work_list);
                         tq->tq_nactive++;
 			spin_unlock_irq(&tq->tq_lock);
 

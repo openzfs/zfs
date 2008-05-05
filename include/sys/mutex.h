@@ -8,175 +8,86 @@ extern "C" {
 #include <linux/module.h>
 #include <linux/hardirq.h>
 #include <sys/types.h>
+#include <sys/kmem.h>
 
-/* See the "Big Theory Statement" in solaris mutex.c.
- *
- * Spin mutexes apparently aren't needed by zfs so we assert
- * if ibc is non-zero.
- *
- * Our impementation of adaptive mutexes aren't really adaptive.
- * They go to sleep every time.
- */
+//#define DEBUG_MUTEX
+#undef DEBUG_MUTEX
 
 #define MUTEX_DEFAULT		0
-#define MUTEX_HELD(x)           (mutex_owned(x))
+#define MUTEX_SPIN		1
+#define MUTEX_ADAPTIVE		2
+
+#define MUTEX_ENTER_TOTAL	0
+#define MUTEX_ENTER_NOT_HELD	1
+#define MUTEX_ENTER_SPIN	2
+#define MUTEX_ENTER_SLEEP	3
+#define MUTEX_TRYENTER_TOTAL	4
+#define MUTEX_TRYENTER_NOT_HELD	5
+#define MUTEX_STATS_SIZE	6
 
 #define KM_MAGIC		0x42424242
 #define KM_POISON		0x84
 
 typedef struct {
-	int km_magic;
+	int32_t km_magic;
+	int16_t km_type;
+	int16_t km_name_size;
 	char *km_name;
 	struct task_struct *km_owner;
-	struct semaphore km_sem;
-	spinlock_t km_lock;
+	struct semaphore *km_sem;
+#ifdef DEBUG_MUTEX
+	int *km_stats;
+	struct list_head km_list;
+#endif
 } kmutex_t;
 
+extern int mutex_spin_max;
+
+#ifdef DEBUG_MUTEX
+extern int mutex_stats[MUTEX_STATS_SIZE];
+extern struct mutex mutex_stats_lock;
+extern struct list_head mutex_stats_list;
+#define MUTEX_STAT_INC(stats, stat)	((stats)[stat]++)
+#else
+#define MUTEX_STAT_INC(stats, stat)
+#endif
+
+int spl_mutex_init(void);
+void spl_mutex_fini(void);
+
+extern void __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc);
+extern void __spl_mutex_destroy(kmutex_t *mp);
+extern int __mutex_tryenter(kmutex_t *mp);
+extern void __mutex_enter(kmutex_t *mp);
+extern void __mutex_exit(kmutex_t *mp);
+extern int __mutex_owned(kmutex_t *mp);
+extern kthread_t *__spl_mutex_owner(kmutex_t *mp);
+
 #undef mutex_init
-static __inline__ void
-mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
-{
-	ENTRY;
-	ASSERT(mp);
-	ASSERT(ibc == NULL);		/* XXX - Spin mutexes not needed */
-	ASSERT(type == MUTEX_DEFAULT);	/* XXX - Only default type supported */
-
-	mp->km_magic = KM_MAGIC;
-	spin_lock_init(&mp->km_lock);
-	sema_init(&mp->km_sem, 1);
-	mp->km_owner = NULL;
-	mp->km_name = NULL;
-
-	if (name) {
-		mp->km_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
-		if (mp->km_name)
-			strcpy(mp->km_name, name);
-	}
-	EXIT;
-}
-
 #undef mutex_destroy
-static __inline__ void
-mutex_destroy(kmutex_t *mp)
-{
-	ENTRY;
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
 
-	if (mp->km_name)
-		kfree(mp->km_name);
+#define mutex_init(mp, name, type, ibc)					\
+({									\
+        __ENTRY(S_MUTEX);                                               \
+	if ((name) == NULL)						\
+		__spl_mutex_init(mp, #mp, type, ibc);			\
+	else								\
+		__spl_mutex_init(mp, name, type, ibc);			\
+        __EXIT(S_MUTEX);                                                \
+})
+#define mutex_destroy(mp)						\
+({									\
+        __ENTRY(S_MUTEX);                                               \
+	__spl_mutex_destroy(mp);                                        \
+        __EXIT(S_MUTEX);                                                \
+})
 
-	memset(mp, KM_POISON, sizeof(*mp));
-	spin_unlock(&mp->km_lock);
-	EXIT;
-}
-
-static __inline__ void
-mutex_enter(kmutex_t *mp)
-{
-	ENTRY;
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
-
-	if (unlikely(in_atomic() && !current->exit_state)) {
-		spin_unlock(&mp->km_lock);
-		__CDEBUG_LIMIT(S_MUTEX, D_ERROR,
-			       "May schedule while atomic: %s/0x%08x/%d\n",
-		               current->comm, preempt_count(), current->pid);
-		SBUG();
-	}
-
-	spin_unlock(&mp->km_lock);
-
-	down(&mp->km_sem);
-
-	spin_lock(&mp->km_lock);
-	ASSERT(mp->km_owner == NULL);
-	mp->km_owner = current;
-	spin_unlock(&mp->km_lock);
-	EXIT;
-}
-
-/* Return 1 if we acquired the mutex, else zero.  */
-static __inline__ int
-mutex_tryenter(kmutex_t *mp)
-{
-	int rc;
-	ENTRY;
-
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
-
-	if (unlikely(in_atomic() && !current->exit_state)) {
-		spin_unlock(&mp->km_lock);
-		__CDEBUG_LIMIT(S_MUTEX, D_ERROR,
-			       "May schedule while atomic: %s/0x%08x/%d\n",
-		               current->comm, preempt_count(), current->pid);
-		SBUG();
-	}
-
-	spin_unlock(&mp->km_lock);
-	rc = down_trylock(&mp->km_sem); /* returns 0 if acquired */
-	if (rc == 0) {
-		spin_lock(&mp->km_lock);
-		ASSERT(mp->km_owner == NULL);
-		mp->km_owner = current;
-		spin_unlock(&mp->km_lock);
-		RETURN(1);
-	}
-
-	RETURN(0);
-}
-
-static __inline__ void
-mutex_exit(kmutex_t *mp)
-{
-	ENTRY;
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
-
-	ASSERT(mp->km_owner == current);
-	mp->km_owner = NULL;
-	spin_unlock(&mp->km_lock);
-	up(&mp->km_sem);
-	EXIT;
-}
-
-/* Return 1 if mutex is held by current process, else zero.  */
-static __inline__ int
-mutex_owned(kmutex_t *mp)
-{
-	int rc;
-	ENTRY;
-
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
-	rc = (mp->km_owner == current);
-	spin_unlock(&mp->km_lock);
-
-	RETURN(rc);
-}
-
-/* Return owner if mutex is owned, else NULL.  */
-static __inline__ kthread_t *
-mutex_owner(kmutex_t *mp)
-{
-	kthread_t *thr;
-	ENTRY;
-
-	ASSERT(mp);
-	ASSERT(mp->km_magic == KM_MAGIC);
-	spin_lock(&mp->km_lock);
-	thr = mp->km_owner;
-	spin_unlock(&mp->km_lock);
-
-	RETURN(thr);
-}
+#define mutex_tryenter(mp)	__mutex_tryenter(mp)
+#define mutex_enter(mp)		__mutex_enter(mp)
+#define mutex_exit(mp)		__mutex_exit(mp)
+#define mutex_owned(mp)		__mutex_owned(mp)
+#define mutex_owner(mp)		__spl_mutex_owner(mp)
+#define MUTEX_HELD(mp)		mutex_owned(mp)
 
 #ifdef	__cplusplus
 }

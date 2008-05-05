@@ -2,6 +2,7 @@
 #include <sys/vmsystm.h>
 #include <sys/vnode.h>
 #include <sys/kmem.h>
+#include <sys/mutex.h>
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <linux/kmod.h>
@@ -99,21 +100,26 @@ static int __init spl_init(void)
 	if ((rc = kmem_init()))
 		GOTO(out , rc);
 
-	if ((rc = vn_init()))
-		GOTO(out2, rc);
+	if ((rc = spl_mutex_init()))
+		GOTO(out2 , rc);
 
-	if ((rc = proc_init()))
+	if ((rc = vn_init()))
 		GOTO(out3, rc);
 
+	if ((rc = proc_init()))
+		GOTO(out4, rc);
+
 	if ((rc = set_hostid()))
-		GOTO(out4, rc = -EADDRNOTAVAIL);
+		GOTO(out5, rc = -EADDRNOTAVAIL);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);
 	RETURN(rc);
-out4:
+out5:
 	proc_fini();
-out3:
+out4:
 	vn_fini();
+out3:
+	spl_mutex_fini();
 out2:
 	kmem_fini();
 out:
