@@ -30,7 +30,7 @@ int mutex_spin_max = 100;
 #ifdef DEBUG_MUTEX
 int mutex_stats[MUTEX_STATS_SIZE] = { 0 };
 struct rw_semaphore mutex_stats_sem;
-LIST_HEAD(mutex_stats_list);
+struct list_head mutex_stats_list;
 #endif
 
 void
@@ -91,8 +91,13 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	/* We may be called when there is a non-zero preempt_count or
 	 * interrupts are disabled is which case we must not sleep.
 	 */
-	while (!down_write_trylock(&mutex_stats_sem));
+	if (flags == KM_SLEEP)
+                down_write(&mutex_stats_sem);
+	else
+		while (!down_write_trylock(&mutex_stats_sem));
+
 	list_add_tail(&mp->km_list, &mutex_stats_list);
+
 	up_write(&mutex_stats_sem);
 #endif
 }
@@ -255,6 +260,10 @@ int
 spl_mutex_init(void)
 {
 	ENTRY;
+#ifdef DEBUG_MUTEX
+        init_rwsem(&mutex_stats_sem);
+        INIT_LIST_HEAD(&mutex_stats_list);
+#endif
 	RETURN(0);
 }
 

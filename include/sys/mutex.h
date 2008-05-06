@@ -10,8 +10,7 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/kmem.h>
 
-//#define DEBUG_MUTEX
-#undef DEBUG_MUTEX
+#define DEBUG_MUTEX
 
 #define MUTEX_DEFAULT		0
 #define MUTEX_SPIN		1
@@ -45,7 +44,7 @@ extern int mutex_spin_max;
 
 #ifdef DEBUG_MUTEX
 extern int mutex_stats[MUTEX_STATS_SIZE];
-extern struct mutex mutex_stats_lock;
+extern struct rw_semaphore mutex_stats_sem;
 extern struct list_head mutex_stats_list;
 #define MUTEX_STAT_INC(stats, stat)	((stats)[stat]++)
 #else
