@@ -68,20 +68,12 @@ extern kthread_t *__spl_mutex_owner(kmutex_t *mp);
 
 #define mutex_init(mp, name, type, ibc)					\
 ({									\
-        __ENTRY(S_MUTEX);                                               \
 	if ((name) == NULL)						\
 		__spl_mutex_init(mp, #mp, type, ibc);			\
 	else								\
 		__spl_mutex_init(mp, name, type, ibc);			\
-        __EXIT(S_MUTEX);                                                \
 })
-#define mutex_destroy(mp)						\
-({									\
-        __ENTRY(S_MUTEX);                                               \
-	__spl_mutex_destroy(mp);                                        \
-        __EXIT(S_MUTEX);                                                \
-})
-
+#define mutex_destroy(mp)	__spl_mutex_destroy(mp)
 #define mutex_tryenter(mp)	__mutex_tryenter(mp)
 #define mutex_enter(mp)		__mutex_enter(mp)
 #define mutex_exit(mp)		__mutex_exit(mp)
