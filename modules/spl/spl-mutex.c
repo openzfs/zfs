@@ -29,13 +29,15 @@ int mutex_spin_max = 100;
 
 #ifdef DEBUG_MUTEX
 int mutex_stats[MUTEX_STATS_SIZE] = { 0 };
-DEFINE_MUTEX(mutex_stats_lock);
+struct rw_semaphore mutex_stats_sem;
 LIST_HEAD(mutex_stats_list);
 #endif
 
 void
 __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 {
+	int flags = KM_SLEEP;
+
 	ASSERT(mp);
 	ASSERT(name);
 	ASSERT(ibc == NULL);
@@ -58,12 +60,18 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 			SBUG();
 	}
 
+	/* We may be called when there is a non-zero preempt_count or
+	 * interrupts are disabled is which case we must not sleep.
+	 */
+        if (current_thread_info()->preempt_count || irqs_disabled())
+		flags = KM_NOSLEEP;
+
 	/* Semaphore kmem_alloc'ed to keep struct size down (<64b) */
-	mp->km_sem = kmem_alloc(sizeof(struct semaphore), KM_SLEEP);
+	mp->km_sem = kmem_alloc(sizeof(struct semaphore), flags);
 	if (mp->km_sem == NULL)
 		return;
 
-	mp->km_name = kmem_alloc(mp->km_name_size, KM_SLEEP);
+	mp->km_name = kmem_alloc(mp->km_name_size, flags);
 	if (mp->km_name == NULL) {
 		kmem_free(mp->km_sem, sizeof(struct semaphore));
 		return;
@@ -73,16 +81,19 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	strcpy(mp->km_name, name);
 
 #ifdef DEBUG_MUTEX
-	mp->km_stats = kmem_zalloc(sizeof(int) * MUTEX_STATS_SIZE, KM_SLEEP);
+	mp->km_stats = kmem_zalloc(sizeof(int) * MUTEX_STATS_SIZE, flags);
         if (mp->km_stats == NULL) {
 		kmem_free(mp->km_name, mp->km_name_size);
 		kmem_free(mp->km_sem, sizeof(struct semaphore));
 		return;
 	}
 
-	mutex_lock(&mutex_stats_lock);
+	/* We may be called when there is a non-zero preempt_count or
+	 * interrupts are disabled is which case we must not sleep.
+	 */
+	while (!down_write_trylock(&mutex_stats_sem));
 	list_add_tail(&mp->km_list, &mutex_stats_list);
-	mutex_unlock(&mutex_stats_lock);
+	up_write(&mutex_stats_sem);
 #endif
 }
 EXPORT_SYMBOL(__spl_mutex_init);
@@ -94,9 +105,12 @@ __spl_mutex_destroy(kmutex_t *mp)
 	ASSERT(mp->km_magic == KM_MAGIC);
 
 #ifdef DEBUG_MUTEX
-	mutex_lock(&mutex_stats_lock);
+	/* We may be called when there is a non-zero preempt_count or
+	 * interrupts are disabled is which case we must not sleep.
+	 */
+	while (!down_write_trylock(&mutex_stats_sem));
 	list_del_init(&mp->km_list);
-	mutex_unlock(&mutex_stats_lock);
+	up_write(&mutex_stats_sem);
 
 	kmem_free(mp->km_stats, sizeof(int) * MUTEX_STATS_SIZE);
 #endif

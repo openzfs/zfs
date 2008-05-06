@@ -17,11 +17,19 @@ atomic64_t vmem_alloc_used;
 unsigned long vmem_alloc_max = 0;
 int kmem_warning_flag = 1;
 
+spinlock_t kmem_lock;
+struct hlist_head kmem_table[KMEM_TABLE_SIZE];
+struct list_head kmem_list;
+
 EXPORT_SYMBOL(kmem_alloc_used);
 EXPORT_SYMBOL(kmem_alloc_max);
 EXPORT_SYMBOL(vmem_alloc_used);
 EXPORT_SYMBOL(vmem_alloc_max);
 EXPORT_SYMBOL(kmem_warning_flag);
+
+EXPORT_SYMBOL(kmem_lock);
+EXPORT_SYMBOL(kmem_table);
+EXPORT_SYMBOL(kmem_list);
 
 int kmem_set_warning(int flag) { return (kmem_warning_flag = !!flag); }
 #else
@@ -44,7 +52,11 @@ EXPORT_SYMBOL(kmem_set_warning);
  * solaris style callback is needed.  There is some overhead in this
  * operation which isn't horibile but it needs to be kept in mind.
  */
+#define KCC_MAGIC                0x7a7a7a7a
+#define KCC_POISON               0x77
+
 typedef struct kmem_cache_cb {
+        int                 kcc_magic;
         struct list_head    kcc_list;
         kmem_cache_t *      kcc_cache;
         kmem_constructor_t  kcc_constructor;
@@ -52,14 +64,14 @@ typedef struct kmem_cache_cb {
         kmem_reclaim_t      kcc_reclaim;
         void *              kcc_private;
         void *              kcc_vmp;
+	atomic_t            kcc_ref;
 } kmem_cache_cb_t;
 
-
-static spinlock_t kmem_cache_cb_lock = SPIN_LOCK_UNLOCKED;
-static LIST_HEAD(kmem_cache_cb_list);
+static struct rw_semaphore kmem_cache_cb_sem;
+static struct list_head kmem_cache_cb_list;
 static struct shrinker *kmem_cache_shrinker;
 
-/* Function must be called while holding the kmem_cache_cb_lock
+/* Function must be called while holding the kmem_cache_cb_sem
  * Because kmem_cache_t is an opaque datatype we're forced to
  * match pointers to identify specific cache entires.
  */
@@ -67,6 +79,9 @@ static kmem_cache_cb_t *
 kmem_cache_find_cache_cb(kmem_cache_t *cache)
 {
         kmem_cache_cb_t *kcc;
+#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+        ASSERT(rwsem_is_locked(&kmem_cache_cb_sem));
+#endif
 
         list_for_each_entry(kcc, &kmem_cache_cb_list, kcc_list)
 		if (cache == kcc->kcc_cache)
@@ -83,19 +98,20 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
                         void *priv, void *vmp)
 {
         kmem_cache_cb_t *kcc;
-	unsigned long flags;
 
         kcc = (kmem_cache_cb_t *)kmalloc(sizeof(*kcc), GFP_KERNEL);
         if (kcc) {
+		kcc->kcc_magic = KCC_MAGIC;
 		kcc->kcc_cache = cache;
                 kcc->kcc_constructor = constructor;
                 kcc->kcc_destructor = destructor;
                 kcc->kcc_reclaim = reclaim;
                 kcc->kcc_private = priv;
                 kcc->kcc_vmp = vmp;
-		spin_lock_irqsave(&kmem_cache_cb_lock, flags);
+		atomic_set(&kcc->kcc_ref, 0);
+		down_write(&kmem_cache_cb_sem);
                 list_add(&kcc->kcc_list, &kmem_cache_cb_list);
-		spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
+		up_write(&kmem_cache_cb_sem);
         }
 
         return kcc;
@@ -104,14 +120,15 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
 static void
 kmem_cache_remove_cache_cb(kmem_cache_cb_t *kcc)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
+        down_write(&kmem_cache_cb_sem);
+	ASSERT(atomic_read(&kcc->kcc_ref) == 0);
         list_del(&kcc->kcc_list);
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
+        up_write(&kmem_cache_cb_sem);
 
-       if (kcc)
-              kfree(kcc);
+        if (kcc){
+		memset(kcc, KCC_POISON, sizeof(*kcc));
+                kfree(kcc);
+	}
 }
 
 static void
@@ -119,22 +136,35 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 {
         kmem_cache_cb_t *kcc;
 	kmem_constructor_t constructor;
-	unsigned long irqflags;
 	void *private;
 
-	spin_lock_irqsave(&kmem_cache_cb_lock, irqflags);
+	/* Ensure constructor verifies are not passed to the registered
+	 * constructors.  This may not be safe due to the Solaris constructor
+	 * not being aware of how to handle the SLAB_CTOR_VERIFY flag
+	 */
+	if (flags & SLAB_CTOR_VERIFY)
+		return;
+
+	/* We can be called with interrupts disabled so it is critical that
+	 * this function and the registered constructor never sleep.
+	 */
+        while (!down_read_trylock(&kmem_cache_cb_sem));
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
         ASSERT(kcc);
+	ASSERT(kcc->kcc_magic == KCC_MAGIC);
+	atomic_inc(&kcc->kcc_ref);
 
 	constructor = kcc->kcc_constructor;
 	private = kcc->kcc_private;
 
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, irqflags);
+        up_read(&kmem_cache_cb_sem);
 
 	if (constructor)
 		constructor(ptr, private, (int)flags);
+
+	atomic_dec(&kcc->kcc_ref);
 
 	/* Linux constructor has no return code, silently eat it */
 }
@@ -144,23 +174,29 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 {
         kmem_cache_cb_t *kcc;
         kmem_destructor_t destructor;
-	unsigned long irqflags;
 	void *private;
 
-	spin_lock_irqsave(&kmem_cache_cb_lock, irqflags);
+	/* We can be called with interrupts disabled so it is critical that
+	 * this function and the registered constructor never sleep.
+	 */
+        while (!down_read_trylock(&kmem_cache_cb_sem));
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
 	ASSERT(kcc);
+	ASSERT(kcc->kcc_magic == KCC_MAGIC);
+	atomic_inc(&kcc->kcc_ref);
 
 	destructor = kcc->kcc_destructor;
 	private = kcc->kcc_private;
 
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, irqflags);
+        up_read(&kmem_cache_cb_sem);
 
 	/* Solaris destructor takes no flags, silently eat them */
 	if (destructor)
 		destructor(ptr, private);
+
+	atomic_dec(&kcc->kcc_ref);
 }
 
 /* XXX - Arguments are ignored */
@@ -168,7 +204,6 @@ static int
 kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 {
         kmem_cache_cb_t *kcc;
-	unsigned long flags;
         int total = 0;
 
 	/* Under linux a shrinker is not tightly coupled with a slab
@@ -178,9 +213,23 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * function in the shim layer for all slab caches.  And we always
 	 * attempt to shrink all caches when this generic shrinker is called.
 	 */
-	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
+        down_read(&kmem_cache_cb_sem);
 
         list_for_each_entry(kcc, &kmem_cache_cb_list, kcc_list) {
+	        ASSERT(kcc);
+                ASSERT(kcc->kcc_magic == KCC_MAGIC);
+
+		/* Take a reference on the cache in question.  If that
+		 * cache is contended simply skip it, it may already be
+		 * in the process of a reclaim or the ctor/dtor may be
+		 * running in either case it's best to skip it.
+		 */
+	        atomic_inc(&kcc->kcc_ref);
+		if (atomic_read(&kcc->kcc_ref) > 1) {
+	                atomic_dec(&kcc->kcc_ref);
+			continue;
+		}
+
 	        /* Under linux the desired number and gfp type of objects
 		 * is passed to the reclaiming function as a sugested reclaim
 		 * target.  I do not pass these args on because reclaim
@@ -190,6 +239,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 		if (kcc->kcc_reclaim)
                         kcc->kcc_reclaim(kcc->kcc_private);
 
+	        atomic_dec(&kcc->kcc_ref);
 	        total += 1;
         }
 
@@ -199,7 +249,8 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * was registered with the generic shrinker.  This should fake out
 	 * the linux VM when it attempts to shrink caches.
 	 */
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
+        up_read(&kmem_cache_cb_sem);
+
 	return total;
 }
 
@@ -238,18 +289,18 @@ __kmem_cache_create(char *name, size_t size, size_t align,
                 RETURN(NULL);
 
         /* Register shared shrinker function on initial cache create */
-	spin_lock(&kmem_cache_cb_lock);
+        down_read(&kmem_cache_cb_sem);
 	if (list_empty(&kmem_cache_cb_list)) {
                 kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
                                                  kmem_cache_generic_shrinker);
                 if (kmem_cache_shrinker == NULL) {
                         kmem_cache_destroy(cache);
-			spin_unlock(&kmem_cache_cb_lock);
+                        up_read(&kmem_cache_cb_sem);
                         RETURN(NULL);
                 }
 
         }
-	spin_unlock(&kmem_cache_cb_lock);
+        up_read(&kmem_cache_cb_sem);
 
         kcc = kmem_cache_add_cache_cb(cache, constructor, destructor,
                                       reclaim, priv, vmp);
@@ -272,27 +323,31 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 {
         kmem_cache_cb_t *kcc;
 	char *name;
-	unsigned long flags;
 	int rc;
 	ENTRY;
 
-	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
+        down_read(&kmem_cache_cb_sem);
         kcc = kmem_cache_find_cache_cb(cache);
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
-        if (kcc == NULL)
+        if (kcc == NULL) {
+                up_read(&kmem_cache_cb_sem);
                 RETURN(-EINVAL);
+        }
+	atomic_inc(&kcc->kcc_ref);
+        up_read(&kmem_cache_cb_sem);
 
 	name = (char *)kmem_cache_name(cache);
         rc = kmem_cache_destroy(cache);
+
+	atomic_dec(&kcc->kcc_ref);
         kmem_cache_remove_cache_cb(kcc);
 	kfree(name);
 
 	/* Unregister generic shrinker on removal of all caches */
-	spin_lock_irqsave(&kmem_cache_cb_lock, flags);
+        down_read(&kmem_cache_cb_sem);
 	if (list_empty(&kmem_cache_cb_list))
                 remove_shrinker(kmem_cache_shrinker);
 
-	spin_unlock_irqrestore(&kmem_cache_cb_lock, flags);
+        up_read(&kmem_cache_cb_sem);
 	RETURN(rc);
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);
@@ -312,11 +367,64 @@ int
 kmem_init(void)
 {
         ENTRY;
+
+	init_rwsem(&kmem_cache_cb_sem);
+        INIT_LIST_HEAD(&kmem_cache_cb_list);
 #ifdef DEBUG_KMEM
-	atomic64_set(&kmem_alloc_used, 0);
-	atomic64_set(&vmem_alloc_used, 0);
+        {
+                int i;
+		atomic64_set(&kmem_alloc_used, 0);
+		atomic64_set(&vmem_alloc_used, 0);
+
+                spin_lock_init(&kmem_lock);
+                INIT_LIST_HEAD(&kmem_list);
+
+                for (i = 0; i < KMEM_TABLE_SIZE; i++)
+                        INIT_HLIST_HEAD(&kmem_table[i]);
+        }
 #endif
 	RETURN(0);
+}
+
+static char *sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
+{
+        int size = ((len - 1) < kd->kd_size) ? (len - 1) : kd->kd_size;
+	int i, flag = 1;
+
+	ASSERT(str != NULL && len >= 17);
+        memset(str, 0, len);
+
+	/* Check for a fully printable string, and while we are at
+         * it place the printable characters in the passed buffer. */
+	for (i = 0; i < size; i++) {
+                str[i] = ((char *)(kd->kd_addr))[i];
+                if (isprint(str[i])) {
+                        continue;
+                } else {
+                        /* Minimum number of printable characters found
+                         * to make it worthwhile to print this as ascii. */
+                        if (i > min)
+                                break;
+
+                         flag = 0;
+                         break;
+                }
+
+	}
+
+	if (!flag) {
+		sprintf(str, "%02x%02x%02x%02x%02x%02x%02x%02x",
+		        *((uint8_t *)kd->kd_addr),
+		        *((uint8_t *)kd->kd_addr + 2),
+		        *((uint8_t *)kd->kd_addr + 4),
+		        *((uint8_t *)kd->kd_addr + 6),
+		        *((uint8_t *)kd->kd_addr + 8),
+		        *((uint8_t *)kd->kd_addr + 10),
+		        *((uint8_t *)kd->kd_addr + 12),
+		        *((uint8_t *)kd->kd_addr + 14));
+	}
+
+	return str;
 }
 
 void
@@ -324,13 +432,36 @@ kmem_fini(void)
 {
 	ENTRY;
 #ifdef DEBUG_KMEM
-        if (atomic64_read(&kmem_alloc_used) != 0)
-                CWARN("kmem leaked %ld/%ld bytes\n",
-                       atomic_read(&kmem_alloc_used), kmem_alloc_max);
+        {
+                unsigned long flags;
+                kmem_debug_t *kd;
+		char str[17];
 
-        if (atomic64_read(&vmem_alloc_used) != 0)
-                CWARN("vmem leaked %ld/%ld bytes\n",
-                       atomic_read(&vmem_alloc_used), vmem_alloc_max);
+                if (atomic64_read(&kmem_alloc_used) != 0)
+                        CWARN("kmem leaked %ld/%ld bytes\n",
+                               atomic_read(&kmem_alloc_used), kmem_alloc_max);
+
+		/* Display all unreclaimed memory addresses, including the
+		 * allocation size and the first few bytes of what's located
+		 * at that address to aid in debugging.  Performance is not
+		 * a serious concern here since it is module unload time. */
+                spin_lock_irqsave(&kmem_lock, flags);
+                if (!list_empty(&kmem_list))
+                        CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
+			       "address", "size", "data", "func", "line");
+
+                list_for_each_entry(kd, &kmem_list, kd_list) {
+                        CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
+		 	       kd->kd_addr, kd->kd_size,
+                               sprintf_addr(kd, str, 17, 8),
+			       kd->kd_func, kd->kd_line);
+		}
+                spin_unlock_irqrestore(&kmem_lock, flags);
+
+                if (atomic64_read(&vmem_alloc_used) != 0)
+                        CWARN("vmem leaked %ld/%ld bytes\n",
+                               atomic_read(&vmem_alloc_used), vmem_alloc_max);
+        }
 #endif
 	EXIT;
 }

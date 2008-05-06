@@ -148,7 +148,7 @@ splat_kmem_test34_constructor(void *ptr, void *priv, int flags)
 		kcd->kcd_flag = 1;
 
 		if (kcp) {
-	 		kcd->kcd_magic = kcp->kcp_magic;
+			kcd->kcd_magic = kcp->kcp_magic;
 			kcp->kcp_count++;
 		}
 	}
@@ -258,8 +258,8 @@ splat_kmem_test4_reclaim(void *priv)
 	int i;
 
 	splat_vprint(kcp->kcp_file, SPLAT_KMEM_TEST4_NAME,
-                   "Reaping %d objects from '%s'\n",
-	           SPLAT_KMEM_OBJ_RECLAIM, SPLAT_KMEM_CACHE_NAME);
+                     "Reaping %d objects from '%s'\n",
+	             SPLAT_KMEM_OBJ_RECLAIM, SPLAT_KMEM_CACHE_NAME);
 	for (i = 0; i < SPLAT_KMEM_OBJ_RECLAIM; i++) {
 		if (kcp->kcp_kcd[i]) {
 			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
@@ -306,6 +306,7 @@ splat_kmem_test4(struct file *file, void *arg)
 	}
 
 	max = kcp.kcp_count;
+	ASSERT(max > 0);
 
 	/* Force shrinker to run */
 	kmem_reap();

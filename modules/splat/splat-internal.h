@@ -138,7 +138,7 @@ typedef struct splat_info {
 #define sym2str(sym)			(char *)(#sym)
 
 #define splat_print(file, format, args...)				\
-({	splat_info_t *_info_ = (splat_info_t *)file->private_data;		\
+({	splat_info_t *_info_ = (splat_info_t *)file->private_data;	\
 	int _rc_;							\
 									\
 	ASSERT(_info_);							\
@@ -160,7 +160,7 @@ typedef struct splat_info {
 	_rc_;								\
 })
 
-#define splat_vprint(file, test, format, args...)				\
+#define splat_vprint(file, test, format, args...)			\
 	splat_print(file, "%*s: " format, SPLAT_NAME_SIZE, test, args)
 
 splat_subsystem_t * splat_condvar_init(void);

@@ -426,7 +426,7 @@ mutex_seq_start(struct seq_file *f, loff_t *pos)
         loff_t n = *pos;
         ENTRY;
 
-        mutex_lock(&mutex_stats_lock);
+        down_read(&mutex_stats_sem);
         if (!n)
                 mutex_seq_show_headers(f);
 
@@ -454,7 +454,7 @@ mutex_seq_next(struct seq_file *f, void *p, loff_t *pos)
 static void
 mutex_seq_stop(struct seq_file *f, void *v)
 {
-        mutex_unlock(&mutex_stats_lock);
+        up_read(&mutex_stats_sem);
 }
 
 static struct seq_operations mutex_seq_ops = {
