@@ -16,9 +16,20 @@
 
 #define DEBUG_SUBSYSTEM S_PROC
 
-static struct ctl_table_header *spl_header = NULL;
+#ifdef DEBUG_KMEM
 static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
+#endif
+
+#ifdef CONFIG_SYSCTL
+static struct ctl_table_header *spl_header = NULL;
+static struct proc_dir_entry *proc_sys = NULL;
+static struct proc_dir_entry *proc_sys_spl = NULL;
+#ifdef DEBUG_MUTEX
+static struct proc_dir_entry *proc_sys_spl_mutex = NULL;
+static struct proc_dir_entry *proc_sys_spl_mutex_stats = NULL;
+#endif
+#endif
 
 #define CTL_SPL		0x87
 #define CTL_SPL_DEBUG	0x88
@@ -426,7 +437,7 @@ mutex_seq_start(struct seq_file *f, loff_t *pos)
         loff_t n = *pos;
         ENTRY;
 
-        down_read(&mutex_stats_sem);
+	spin_lock(&mutex_stats_lock);
         if (!n)
                 mutex_seq_show_headers(f);
 
@@ -454,7 +465,7 @@ mutex_seq_next(struct seq_file *f, void *p, loff_t *pos)
 static void
 mutex_seq_stop(struct seq_file *f, void *v)
 {
-        up_read(&mutex_stats_sem);
+	spin_unlock(&mutex_stats_lock);
 }
 
 static struct seq_operations mutex_seq_ops = {
@@ -719,9 +730,31 @@ static struct ctl_table spl_dir[] = {
         {0}
 };
 
+static int
+proc_dir_entry_match(int len, const char *name, struct proc_dir_entry *de)
+{
+        if (de->namelen != len)
+                return 0;
+
+        return !memcmp(name, de->name, len);
+}
+
+static struct proc_dir_entry *
+proc_dir_entry_find(struct proc_dir_entry *root, const char *str)
+{
+	struct proc_dir_entry *de;
+
+	for (de = root->subdir; de; de = de->next)
+		if (proc_dir_entry_match(strlen(str), str, de))
+			return de;
+
+	return NULL;
+}
+
 int
 proc_init(void)
 {
+	int rc = 0;
         ENTRY;
 
 #ifdef CONFIG_SYSCTL
@@ -729,20 +762,31 @@ proc_init(void)
 	if (spl_header == NULL)
 		RETURN(-EUNATCH);
 
+	proc_sys = proc_dir_entry_find(&proc_root, "sys");
+	if (proc_sys == NULL)
+		GOTO(out, rc = -EUNATCH);
+
+	proc_sys_spl = proc_dir_entry_find(proc_sys, "spl");
+	if (proc_sys_spl == NULL)
+		GOTO(out, rc = -EUNATCH);
+
 #ifdef DEBUG_MUTEX
-	{
-                struct proc_dir_entry *entry = create_proc_entry("mutex_stats",
-								 0444, NULL);
-                if (entry) {
-                        entry->proc_fops = &proc_mutex_operations;
-                } else {
-                        unregister_sysctl_table(spl_header);
-                        RETURN(-EUNATCH);
-                }
-	}
+	proc_sys_spl_mutex = proc_dir_entry_find(proc_sys_spl, "mutex");
+	if (proc_sys_spl_mutex == NULL)
+		GOTO(out, rc = -EUNATCH);
+
+	proc_sys_spl_mutex_stats = create_proc_entry("stats_per", 0444,
+						     proc_sys_spl_mutex);
+        if (proc_sys_spl_mutex_stats == NULL)
+		GOTO(out, rc = -EUNATCH);
+
+        proc_sys_spl_mutex_stats->proc_fops = &proc_mutex_operations;
 #endif /* DEBUG_MUTEX */
-#endif
-        RETURN(0);
+	RETURN(rc);
+out:
+        unregister_sysctl_table(spl_header);
+#endif /* CONFIG_SYSCTL */
+        RETURN(rc);
 }
 
 void
@@ -752,7 +796,7 @@ proc_fini(void)
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
-        remove_proc_entry("mutex_stats", NULL);
+        remove_proc_entry("stats_per", proc_sys_spl_mutex);
         unregister_sysctl_table(spl_header);
 #endif
         EXIT;

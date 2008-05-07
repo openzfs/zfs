@@ -44,7 +44,7 @@ extern int mutex_spin_max;
 
 #ifdef DEBUG_MUTEX
 extern int mutex_stats[MUTEX_STATS_SIZE];
-extern struct rw_semaphore mutex_stats_sem;
+extern spinlock_t mutex_stats_lock;
 extern struct list_head mutex_stats_list;
 #define MUTEX_STAT_INC(stats, stat)	((stats)[stat]++)
 #else
