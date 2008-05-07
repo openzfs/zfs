@@ -91,8 +91,9 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 			       "kmem_alloc(%d, 0x%x) debug failed\n",         \
 			       sizeof(kmem_debug_t), (int)(flags));           \
         } else {                                                              \
-		/* Marked unlikely because we should never be doing this */   \
-                if (unlikely((size) > (PAGE_SIZE * 4)) && kmem_warning_flag)  \
+		/* Marked unlikely because we should never be doing this, */  \
+		/* we tolerate to up 2 pages but a single page is best.   */  \
+                if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)  \
                         __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning large "    \
 				       "kmem_alloc(%d, 0x%x) (%ld/%ld)\n",    \
 				       (int)(size), (int)(flags),             \
