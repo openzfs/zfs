@@ -21,6 +21,10 @@ spinlock_t kmem_lock;
 struct hlist_head kmem_table[KMEM_TABLE_SIZE];
 struct list_head kmem_list;
 
+spinlock_t vmem_lock;
+struct hlist_head vmem_table[VMEM_TABLE_SIZE];
+struct list_head vmem_list;
+
 EXPORT_SYMBOL(kmem_alloc_used);
 EXPORT_SYMBOL(kmem_alloc_max);
 EXPORT_SYMBOL(vmem_alloc_used);
@@ -30,6 +34,10 @@ EXPORT_SYMBOL(kmem_warning_flag);
 EXPORT_SYMBOL(kmem_lock);
 EXPORT_SYMBOL(kmem_table);
 EXPORT_SYMBOL(kmem_list);
+
+EXPORT_SYMBOL(vmem_lock);
+EXPORT_SYMBOL(vmem_table);
+EXPORT_SYMBOL(vmem_list);
 
 int kmem_set_warning(int flag) { return (kmem_warning_flag = !!flag); }
 #else
@@ -381,6 +389,12 @@ kmem_init(void)
 
                 for (i = 0; i < KMEM_TABLE_SIZE; i++)
                         INIT_HLIST_HEAD(&kmem_table[i]);
+
+                spin_lock_init(&vmem_lock);
+                INIT_LIST_HEAD(&vmem_list);
+
+                for (i = 0; i < VMEM_TABLE_SIZE; i++)
+                        INIT_HLIST_HEAD(&vmem_table[i]);
         }
 #endif
 	RETURN(0);
@@ -437,30 +451,43 @@ kmem_fini(void)
                 kmem_debug_t *kd;
 		char str[17];
 
-                if (atomic64_read(&kmem_alloc_used) != 0)
-                        CWARN("kmem leaked %ld/%ld bytes\n",
-                               atomic_read(&kmem_alloc_used), kmem_alloc_max);
-
 		/* Display all unreclaimed memory addresses, including the
 		 * allocation size and the first few bytes of what's located
 		 * at that address to aid in debugging.  Performance is not
 		 * a serious concern here since it is module unload time. */
+                if (atomic64_read(&kmem_alloc_used) != 0)
+                        CWARN("kmem leaked %ld/%ld bytes\n",
+                               atomic_read(&kmem_alloc_used), kmem_alloc_max);
+
                 spin_lock_irqsave(&kmem_lock, flags);
                 if (!list_empty(&kmem_list))
                         CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
 			       "address", "size", "data", "func", "line");
 
-                list_for_each_entry(kd, &kmem_list, kd_list) {
+                list_for_each_entry(kd, &kmem_list, kd_list)
                         CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
-		 	       kd->kd_addr, kd->kd_size,
+			       kd->kd_addr, kd->kd_size,
                                sprintf_addr(kd, str, 17, 8),
 			       kd->kd_func, kd->kd_line);
-		}
+
                 spin_unlock_irqrestore(&kmem_lock, flags);
 
                 if (atomic64_read(&vmem_alloc_used) != 0)
                         CWARN("vmem leaked %ld/%ld bytes\n",
                                atomic_read(&vmem_alloc_used), vmem_alloc_max);
+
+                spin_lock_irqsave(&vmem_lock, flags);
+                if (!list_empty(&vmem_list))
+                        CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
+			       "address", "size", "data", "func", "line");
+
+                list_for_each_entry(kd, &vmem_list, kd_list)
+                        CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
+			       kd->kd_addr, kd->kd_size,
+                               sprintf_addr(kd, str, 17, 8),
+			       kd->kd_func, kd->kd_line);
+
+                spin_unlock_irqrestore(&vmem_lock, flags);
         }
 #endif
 	EXIT;
