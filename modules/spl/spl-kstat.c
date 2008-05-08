@@ -1,0 +1,470 @@
+#include <sys/kstat.h>
+
+#ifdef DEBUG_KSTAT
+
+static spinlock_t kstat_lock;
+static struct list_head kstat_list;
+static kid_t kstat_id;
+
+static void
+kstat_seq_show_headers(struct seq_file *f)
+{
+        kstat_t *ksp = (kstat_t *)f->private;
+        ASSERT(ksp->ks_magic == KS_MAGIC);
+
+        seq_printf(f, "%d %d 0x%02x %d %d %lld %lld\n",
+		   ksp->ks_kid, ksp->ks_type, ksp->ks_flags,
+		   ksp->ks_ndata, (int)ksp->ks_data_size,
+		   ksp->ks_crtime, ksp->ks_snaptime);
+
+	switch (ksp->ks_type) {
+                case KSTAT_TYPE_RAW:
+                        seq_printf(f, "raw data");
+                        break;
+                case KSTAT_TYPE_NAMED:
+                        seq_printf(f, "%-31s %-4s %s\n",
+                                   "name", "type", "data");
+                        break;
+                case KSTAT_TYPE_INTR:
+                        seq_printf(f, "%-8s %-8s %-8s %-8s %-8s\n",
+                                   "hard", "soft", "watchdog",
+                                   "spurious", "multsvc");
+                        break;
+                case KSTAT_TYPE_IO:
+                        seq_printf(f,
+                                   "%-8s %-8s %-8s %-8s %-8s %-8s "
+                                   "%-8s %-8s %-8s %-8s %-8s %-8s\n",
+                                   "nread", "nwritten", "reads", "writes",
+                                   "wtime", "wlentime", "wupdate",
+                                   "rtime", "rlentime", "rupdate",
+                                   "wcnt", "rcnt");
+                        break;
+                case KSTAT_TYPE_TIMER:
+                        seq_printf(f,
+                                   "%-31s %-8s "
+                                   "%-8s %-8s %-8s %-8s %-8s\n",
+                                   "name", "events", "elapsed",
+                                   "min", "max", "start", "stop");
+                        break;
+                default:
+                        SBUG(); /* Unreachable */
+        }
+}
+
+static int
+kstat_seq_show_raw(struct seq_file *f, unsigned char *p, int l)
+{
+        int i, j;
+
+        for (i = 0; ; i++) {
+                seq_printf(f, "%03x:", i);
+
+                for (j = 0; j < 16; j++) {
+                        if (i * 16 + j >= l) {
+                                seq_printf(f, "\n");
+                                goto out;
+                        }
+
+                        seq_printf(f, " %02x", (unsigned char)p[i * 16 + j]);
+                }
+                seq_printf(f, "\n");
+        }
+out:
+        return 0;
+}
+
+static int
+kstat_seq_show_named(struct seq_file *f, kstat_named_t *knp)
+{
+        seq_printf(f, "%-31s %-4d ", knp->name, knp->data_type);
+
+        switch (knp->data_type) {
+                case KSTAT_DATA_CHAR:
+                        knp->value.c[15] = '\0'; /* NULL terminate */
+                        seq_printf(f, "%-16s", knp->value.c);
+                        break;
+                /* XXX - We need to be more careful able what tokens are
+                 * used for each arch, for now this is correct for x86_64.
+                 */
+                case KSTAT_DATA_INT32:
+                        seq_printf(f, "%d", knp->value.i32);
+                        break;
+                case KSTAT_DATA_UINT32:
+                        seq_printf(f, "%u", knp->value.ui32);
+                        break;
+                case KSTAT_DATA_INT64:
+                        seq_printf(f, "%d", (int)knp->value.i64);
+                        break;
+                case KSTAT_DATA_UINT64:
+                        seq_printf(f, "%u", (unsigned int)knp->value.ui64);
+                        break;
+                case KSTAT_DATA_LONG:
+                        seq_printf(f, "%ld", knp->value.l);
+                        break;
+                case KSTAT_DATA_ULONG:
+                        seq_printf(f, "%lu", knp->value.l);
+                        break;
+                case KSTAT_DATA_STRING:
+                        KSTAT_NAMED_STR_PTR(knp)
+                                [KSTAT_NAMED_STR_BUFLEN(knp)-1] = '\0';
+                        seq_printf(f, "%s", KSTAT_NAMED_STR_PTR(knp));
+                        break;
+                default:
+                        SBUG(); /* Unreachable */
+        }
+
+        seq_printf(f, "\n");
+
+        return 0;
+}
+
+static int
+kstat_seq_show_intr(struct seq_file *f, kstat_intr_t *kip)
+{
+        seq_printf(f, "%-8u %-8u %-8u %-8u %-8u\n",
+                   kip->intrs[KSTAT_INTR_HARD],
+                   kip->intrs[KSTAT_INTR_SOFT],
+                   kip->intrs[KSTAT_INTR_WATCHDOG],
+                   kip->intrs[KSTAT_INTR_SPURIOUS],
+                   kip->intrs[KSTAT_INTR_MULTSVC]);
+
+        return 0;
+}
+
+static int
+kstat_seq_show_io(struct seq_file *f, kstat_io_t *kip)
+{
+        seq_printf(f,
+                   "%-8llu %-8llu %-8u %-8u %-8lld %-8lld "
+                   "%-8lld %-8lld %-8lld %-8lld %-8u %-8u\n",
+                   kip->nread, kip->nwritten,
+                   kip->reads, kip->writes,
+                   kip->wtime, kip->wlentime, kip->wlastupdate,
+                   kip->rtime, kip->wlentime, kip->rlastupdate,
+                   kip->wcnt,  kip->rcnt);
+
+        return 0;
+}
+
+static int
+kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
+{
+        seq_printf(f,
+                   "%-31s %-8llu %-8lld %-8lld %-8lld %-8lld %-8lld\n",
+                   ktp->name, ktp->num_events, ktp->elapsed_time,
+                   ktp->min_time, ktp->max_time,
+                   ktp->start_time, ktp->stop_time);
+
+        return 0;
+}
+
+static int
+kstat_seq_show(struct seq_file *f, void *p)
+{
+        kstat_t *ksp = (kstat_t *)f->private;
+        int rc = 0;
+
+        ASSERT(ksp->ks_magic == KS_MAGIC);
+
+	switch (ksp->ks_type) {
+                case KSTAT_TYPE_RAW:
+                        ASSERT(ksp->ks_ndata == 1);
+                        rc = kstat_seq_show_raw(f, ksp->ks_data,
+                                                ksp->ks_data_size);
+                        break;
+                case KSTAT_TYPE_NAMED:
+                        rc = kstat_seq_show_named(f, (kstat_named_t *)p);
+                        break;
+                case KSTAT_TYPE_INTR:
+                        rc = kstat_seq_show_intr(f, (kstat_intr_t *)p);
+                        break;
+                case KSTAT_TYPE_IO:
+                        rc = kstat_seq_show_io(f, (kstat_io_t *)p);
+                        break;
+                case KSTAT_TYPE_TIMER:
+                        rc = kstat_seq_show_timer(f, (kstat_timer_t *)p);
+                        break;
+                default:
+                        SBUG(); /* Unreachable */
+        }
+
+        return rc;
+}
+
+static void *
+kstat_seq_data_addr(kstat_t *ksp, loff_t n)
+{
+        void *rc = NULL;
+        ENTRY;
+
+	switch (ksp->ks_type) {
+                case KSTAT_TYPE_RAW:
+	                rc = ksp->ks_data;
+                        break;
+                case KSTAT_TYPE_NAMED:
+                        rc = ksp->ks_data + n * sizeof(kstat_named_t);
+                        break;
+                case KSTAT_TYPE_INTR:
+                        rc = ksp->ks_data + n * sizeof(kstat_intr_t);
+                        break;
+                case KSTAT_TYPE_IO:
+                        rc = ksp->ks_data + n * sizeof(kstat_io_t);
+                        break;
+                case KSTAT_TYPE_TIMER:
+                        rc = ksp->ks_data + n * sizeof(kstat_timer_t);
+                        break;
+                default:
+                        SBUG(); /* Unreachable */
+        }
+
+        RETURN(rc);
+}
+
+static void *
+kstat_seq_start(struct seq_file *f, loff_t *pos)
+{
+        loff_t n = *pos;
+        kstat_t *ksp = (kstat_t *)f->private;
+        ASSERT(ksp->ks_magic == KS_MAGIC);
+        ENTRY;
+
+        spin_lock(&ksp->ks_lock);
+	ksp->ks_snaptime = gethrtime();
+
+        if (!n)
+                kstat_seq_show_headers(f);
+
+        if (n >= ksp->ks_ndata)
+                RETURN(NULL);
+
+        RETURN(kstat_seq_data_addr(ksp, n));
+}
+
+static void *
+kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
+{
+        kstat_t *ksp = (kstat_t *)f->private;
+        ASSERT(ksp->ks_magic == KS_MAGIC);
+        ENTRY;
+
+        ++*pos;
+        if (*pos >= ksp->ks_ndata)
+                RETURN(NULL);
+
+        RETURN(kstat_seq_data_addr(ksp, *pos));
+}
+
+static void
+kstat_seq_stop(struct seq_file *f, void *v)
+{
+        kstat_t *ksp = (kstat_t *)f->private;
+        ASSERT(ksp->ks_magic == KS_MAGIC);
+
+        spin_unlock(&ksp->ks_lock);
+}
+
+static struct seq_operations kstat_seq_ops = {
+        .show  = kstat_seq_show,
+        .start = kstat_seq_start,
+        .next  = kstat_seq_next,
+        .stop  = kstat_seq_stop,
+};
+
+static int
+proc_kstat_open(struct inode *inode, struct file *filp)
+{
+        struct seq_file *f;
+        int rc;
+
+        rc = seq_open(filp, &kstat_seq_ops);
+        if (rc)
+                return rc;
+
+        f = filp->private_data;
+        f->private = PDE(inode)->data;
+
+        return rc;
+}
+
+static struct file_operations proc_kstat_operations = {
+        .open           = proc_kstat_open,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = seq_release,
+};
+
+kstat_t *
+__kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
+             const char *ks_class, uchar_t ks_type, uint_t ks_ndata,
+             uchar_t ks_flags)
+{
+	kstat_t *ksp;
+
+	ASSERT(ks_module);
+	ASSERT(ks_instance == 0);
+	ASSERT(ks_name);
+	ASSERT(!(ks_flags & KSTAT_FLAG_UNSUPPORTED));
+
+	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
+                ASSERT(ks_ndata == 1);
+
+	ksp = kmem_zalloc(sizeof(*ksp), KM_SLEEP);
+	if (ksp == NULL)
+		return ksp;
+
+	spin_lock(&kstat_lock);
+	ksp->ks_kid = kstat_id;
+        kstat_id++;
+	spin_unlock(&kstat_lock);
+
+        ksp->ks_magic = KS_MAGIC;
+	spin_lock_init(&ksp->ks_lock);
+	INIT_LIST_HEAD(&ksp->ks_list);
+
+	ksp->ks_crtime = gethrtime();
+        ksp->ks_snaptime = ksp->ks_crtime;
+	strncpy(ksp->ks_module, ks_module, KSTAT_STRLEN);
+	ksp->ks_instance = ks_instance;
+	strncpy(ksp->ks_name, ks_name, KSTAT_STRLEN);
+	strncpy(ksp->ks_class, ks_class, KSTAT_STRLEN);
+	ksp->ks_type = ks_type;
+	ksp->ks_flags = ks_flags;
+
+	switch (ksp->ks_type) {
+                case KSTAT_TYPE_RAW:
+	                ksp->ks_ndata = 1;
+                        ksp->ks_data_size = ks_ndata;
+                        break;
+                case KSTAT_TYPE_NAMED:
+	                ksp->ks_ndata = ks_ndata;
+                        ksp->ks_data_size = ks_ndata * sizeof(kstat_named_t);
+                        break;
+                case KSTAT_TYPE_INTR:
+	                ksp->ks_ndata = ks_ndata;
+                        ksp->ks_data_size = ks_ndata * sizeof(kstat_intr_t);
+                        break;
+                case KSTAT_TYPE_IO:
+	                ksp->ks_ndata = ks_ndata;
+                        ksp->ks_data_size = ks_ndata * sizeof(kstat_io_t);
+                        break;
+                case KSTAT_TYPE_TIMER:
+	                ksp->ks_ndata = ks_ndata;
+                        ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
+                        break;
+                default:
+                        SBUG(); /* Unreachable */
+        }
+
+	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL) {
+                ksp->ks_data = NULL;
+        } else {
+                ksp->ks_data = kmem_alloc(ksp->ks_data_size, KM_SLEEP);
+                if (ksp->ks_data == NULL) {
+                        kmem_free(ksp, sizeof(*ksp));
+                        ksp = NULL;
+                }
+        }
+
+	return ksp;
+}
+EXPORT_SYMBOL(__kstat_create);
+
+void
+__kstat_install(kstat_t *ksp)
+{
+	struct proc_dir_entry *de_module, *de_name;
+	kstat_t *tmp;
+	int rc = 0;
+	ENTRY;
+
+	spin_lock(&kstat_lock);
+
+	/* Item may only be added to the list once */
+        list_for_each_entry(tmp, &kstat_list, ks_list) {
+                if (tmp == ksp) {
+		        spin_unlock(&kstat_lock);
+			GOTO(out, rc = -EEXIST);
+		}
+	}
+
+        list_add_tail(&ksp->ks_list, &kstat_list);
+	spin_unlock(&kstat_lock);
+
+	de_module = proc_dir_entry_find(proc_sys_spl_kstat, ksp->ks_module);
+	if (de_module == NULL) {
+                de_module = proc_mkdir(ksp->ks_module, proc_sys_spl_kstat);
+		if (de_module == NULL)
+			GOTO(out, rc = -EUNATCH);
+	}
+
+	de_name = create_proc_entry(ksp->ks_name, 0444, de_module);
+	if (de_name == NULL)
+		GOTO(out, rc = -EUNATCH);
+
+	spin_lock(&ksp->ks_lock);
+	ksp->ks_proc = de_name;
+	de_name->proc_fops = &proc_kstat_operations;
+        de_name->data = (void *)ksp;
+	spin_unlock(&ksp->ks_lock);
+out:
+	if (rc) {
+		spin_lock(&kstat_lock);
+	        list_del_init(&ksp->ks_list);
+		spin_unlock(&kstat_lock);
+	}
+
+	EXIT;
+}
+EXPORT_SYMBOL(__kstat_install);
+
+void
+__kstat_delete(kstat_t *ksp)
+{
+	struct proc_dir_entry *de_module;
+
+	spin_lock(&kstat_lock);
+        list_del_init(&ksp->ks_list);
+	spin_unlock(&kstat_lock);
+
+        if (ksp->ks_proc) {
+	        de_module = ksp->ks_proc->parent;
+	        remove_proc_entry(ksp->ks_name, de_module);
+
+	        /* Remove top level module directory if it's empty */
+	        if (proc_dir_entries(de_module) == 0)
+		        remove_proc_entry(de_module->name, de_module->parent);
+	}
+
+	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
+                kmem_free(ksp->ks_data, ksp->ks_data_size);
+
+	kmem_free(ksp, sizeof(*ksp));
+
+	return;
+}
+EXPORT_SYMBOL(__kstat_delete);
+
+#endif /* DEBUG_KSTAT */
+
+int
+kstat_init(void)
+{
+	ENTRY;
+#ifdef DEBUG_KSTAT
+	spin_lock_init(&kstat_lock);
+	INIT_LIST_HEAD(&kstat_list);
+        kstat_id = 0;
+#endif /* DEBUG_KSTAT */
+	RETURN(0);
+}
+
+void
+kstat_fini(void)
+{
+	ENTRY;
+#ifdef DEBUG_KSTAT
+	ASSERT(list_empty(&kstat_list));
+#endif /* DEBUG_KSTAT */
+	EXIT;
+}
+

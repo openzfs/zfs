@@ -5,6 +5,7 @@
 #include <sys/mutex.h>
 #include <sys/debug.h>
 #include <sys/proc.h>
+#include <sys/kstat.h>
 #include <linux/kmod.h>
 #include "config.h"
 
@@ -109,11 +110,16 @@ static int __init spl_init(void)
 	if ((rc = proc_init()))
 		GOTO(out4, rc);
 
+	if ((rc = kstat_init()))
+		GOTO(out5, rc);
+
 	if ((rc = set_hostid()))
-		GOTO(out5, rc = -EADDRNOTAVAIL);
+		GOTO(out6, rc = -EADDRNOTAVAIL);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);
 	RETURN(rc);
+out6:
+	kstat_fini();
 out5:
 	proc_fini();
 out4:
@@ -135,6 +141,7 @@ static void spl_fini(void)
 	ENTRY;
 
 	printk("SPL: Unloaded Solaris Porting Layer v%s\n", VERSION);
+	kstat_fini();
 	proc_fini();
 	vn_fini();
 	kmem_fini();

@@ -1,14 +1,4 @@
-#include <linux/proc_fs.h>
-#include <linux/kmod.h>
-#include <linux/uaccess.h>
-#include <linux/ctype.h>
-#include <linux/sysctl.h>
-#include <linux/seq_file.h>
-#include <sys/sysmacros.h>
-#include <sys/kmem.h>
-#include <sys/mutex.h>
-#include <sys/debug.h>
-#include "config.h"
+#include <sys/proc.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -29,12 +19,19 @@ static struct proc_dir_entry *proc_sys_spl = NULL;
 static struct proc_dir_entry *proc_sys_spl_mutex = NULL;
 static struct proc_dir_entry *proc_sys_spl_mutex_stats = NULL;
 #endif
+#ifdef DEBUG_KMEM
+static struct proc_dir_entry *proc_sys_spl_kmem = NULL;
+#endif
+#ifdef DEBUG_KSTAT
+struct proc_dir_entry *proc_sys_spl_kstat = NULL;
+#endif
 #endif
 
 #define CTL_SPL		0x87
 #define CTL_SPL_DEBUG	0x88
 #define CTL_SPL_MUTEX	0x89
 #define CTL_SPL_KMEM	0x90
+#define CTL_SPL_KSTAT	0x91
 
 enum {
 	CTL_VERSION = 1,          /* Version */
@@ -665,7 +662,13 @@ static struct ctl_table spl_kmem_table[] = {
         },
 	{0},
 };
-#endif /* DEBUG_MUTEX */
+#endif /* DEBUG_KMEM */
+
+#ifdef DEBUG_KSTAT
+static struct ctl_table spl_kstat_table[] = {
+	{0},
+};
+#endif /* DEBUG_KSTAT */
 
 static struct ctl_table spl_table[] = {
         /* NB No .strategy entries have been provided since
@@ -717,6 +720,14 @@ static struct ctl_table spl_table[] = {
 		.child    = spl_kmem_table,
 	},
 #endif
+#ifdef DEBUG_KSTAT
+	{
+		.ctl_name = CTL_SPL_KSTAT,
+		.procname = "kstat",
+		.mode     = 0555,
+		.child    = spl_kstat_table,
+	},
+#endif
         { 0 },
 };
 
@@ -739,7 +750,7 @@ proc_dir_entry_match(int len, const char *name, struct proc_dir_entry *de)
         return !memcmp(name, de->name, len);
 }
 
-static struct proc_dir_entry *
+struct proc_dir_entry *
 proc_dir_entry_find(struct proc_dir_entry *root, const char *str)
 {
 	struct proc_dir_entry *de;
@@ -749,6 +760,18 @@ proc_dir_entry_find(struct proc_dir_entry *root, const char *str)
 			return de;
 
 	return NULL;
+}
+
+int
+proc_dir_entries(struct proc_dir_entry *root)
+{
+	struct proc_dir_entry *de;
+	int i = 0;
+
+	for (de = root->subdir; de; de = de->next)
+		i++;
+
+	return i;
 }
 
 int
@@ -782,7 +805,22 @@ proc_init(void)
 
         proc_sys_spl_mutex_stats->proc_fops = &proc_mutex_operations;
 #endif /* DEBUG_MUTEX */
+
+#ifdef DEBUG_KMEM
+        proc_sys_spl_kmem = proc_dir_entry_find(proc_sys_spl, "kmem");
+	        if (proc_sys_spl_kmem == NULL)
+	                GOTO(out2, rc = -EUNATCH);
+#endif /* DEBUG_KMEM */
+
+#ifdef DEBUG_KSTAT
+        proc_sys_spl_kstat = proc_dir_entry_find(proc_sys_spl, "kstat");
+	        if (proc_sys_spl_kstat == NULL)
+	                GOTO(out2, rc = -EUNATCH);
+#endif /* DEBUG_KSTAT */
+
 	RETURN(rc);
+out2:
+        remove_proc_entry("stats_per", proc_sys_spl_mutex);
 out:
         unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
