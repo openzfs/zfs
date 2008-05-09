@@ -60,6 +60,7 @@ enum {
         CTL_KMEM_KMEMMAX,         /* Max alloc'd by kmem bytes */
         CTL_KMEM_VMEMUSED,        /* Currently alloc'd vmem bytes */
         CTL_KMEM_VMEMMAX,         /* Max alloc'd by vmem bytes */
+	CTL_KMEM_ALLOC_FAILED,    /* Cache allocation failed */
 #endif
 
 	CTL_MUTEX_STATS,          /* Global mutex statistics */
@@ -659,6 +660,14 @@ static struct ctl_table spl_kmem_table[] = {
                 .extra2   = &table_max,
                 .mode     = 0444,
                 .proc_handler = &proc_doulongvec_minmax,
+        },
+        {
+                .ctl_name = CTL_KMEM_ALLOC_FAILED,
+                .procname = "kmem_alloc_failed",
+                .data     = &kmem_cache_alloc_failed,
+                .maxlen   = sizeof(atomic64_t),
+                .mode     = 0444,
+                .proc_handler = &proc_doatomic64,
         },
 	{0},
 };

@@ -16,6 +16,7 @@ unsigned long kmem_alloc_max = 0;
 atomic64_t vmem_alloc_used;
 unsigned long vmem_alloc_max = 0;
 int kmem_warning_flag = 1;
+atomic64_t kmem_cache_alloc_failed;
 
 spinlock_t kmem_lock;
 struct hlist_head kmem_table[KMEM_TABLE_SIZE];
@@ -268,6 +269,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
  */
 #undef kmem_cache_create
 #undef kmem_cache_destroy
+#undef kmem_cache_alloc
 
 kmem_cache_t *
 __kmem_cache_create(char *name, size_t size, size_t align,
@@ -360,6 +362,30 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);
 
+/* Under Solaris if the KM_SLEEP flag is passed we absolutely must
+ * sleep until we are allocated the memory.  Under Linux you can still
+ * get a memory allocation failure, so I'm forced to keep requesting
+ * the memory even if the system is under substantial memory pressure
+ * of fragmentation prevents the allocation from succeeded.  This is
+ * not the correct fix, or even a good one.  But it will do for now.
+ */
+void *
+__kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags)
+{
+	void *rc;
+	ENTRY;
+
+restart:
+	rc = kmem_cache_alloc(cache, flags);
+        if ((rc == NULL) && (flags & KM_SLEEP)) {
+		atomic64_inc(&kmem_cache_alloc_failed);
+		GOTO(restart, rc);
+	}
+
+	RETURN(rc);
+}
+EXPORT_SYMBOL(__kmem_cache_alloc);
+
 void
 __kmem_reap(void)
 {
@@ -395,6 +421,8 @@ kmem_init(void)
 
                 for (i = 0; i < VMEM_TABLE_SIZE; i++)
                         INIT_HLIST_HEAD(&vmem_table[i]);
+
+		atomic64_set(&kmem_cache_alloc_failed, 0);
         }
 #endif
 	RETURN(0);

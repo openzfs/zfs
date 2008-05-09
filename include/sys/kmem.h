@@ -32,7 +32,9 @@ extern atomic64_t kmem_alloc_used;
 extern unsigned long kmem_alloc_max;
 extern atomic64_t vmem_alloc_used;
 extern unsigned long vmem_alloc_max;
+
 extern int kmem_warning_flag;
+extern atomic64_t kmem_cache_alloc_failed;
 
 #define KMEM_HASH_BITS          10
 #define KMEM_TABLE_SIZE         (1 << KMEM_HASH_BITS)
@@ -351,11 +353,9 @@ __kmem_cache_create(char *name, size_t size, size_t align,
         kmem_reclaim_t reclaim,
         void *priv, void *vmp, int flags);
 
-int
-extern __kmem_cache_destroy(kmem_cache_t *cache);
-
-void
-extern __kmem_reap(void);
+extern int __kmem_cache_destroy(kmem_cache_t *cache);
+extern void *__kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags);
+extern void __kmem_reap(void);
 
 int kmem_init(void);
 void kmem_fini(void);
@@ -363,7 +363,7 @@ void kmem_fini(void);
 #define kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags) \
         __kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
 #define kmem_cache_destroy(cache)       __kmem_cache_destroy(cache)
-#define kmem_cache_alloc(cache, flags)  kmem_cache_alloc(cache, flags)
+#define kmem_cache_alloc(cache, flags)  __kmem_cache_alloc(cache, flags)
 #define kmem_cache_free(cache, ptr)     kmem_cache_free(cache, ptr)
 #define kmem_cache_reap_now(cache)      kmem_cache_shrink(cache)
 #define kmem_reap()                     __kmem_reap()
