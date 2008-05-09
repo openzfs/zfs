@@ -325,6 +325,7 @@ proc_console_backoff(struct ctl_table *table, int write, struct file *filp,
         RETURN(rc);
 }
 
+#ifdef DEBUG_KMEM
 static int
 proc_doatomic64(struct ctl_table *table, int write, struct file *filp,
                 void __user *buffer, size_t *lenp, loff_t *ppos)
@@ -349,6 +350,7 @@ proc_doatomic64(struct ctl_table *table, int write, struct file *filp,
 
         RETURN(rc);
 }
+#endif /* DEBUG_KMEM */
 
 static int
 proc_dohostid(struct ctl_table *table, int write, struct file *filp,
@@ -829,7 +831,9 @@ proc_init(void)
 
 	RETURN(rc);
 out2:
+#ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_sys_spl_mutex);
+#endif /* DEBUG_MUTEX */
 out:
         unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
@@ -843,7 +847,9 @@ proc_fini(void)
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
+#ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_sys_spl_mutex);
+#endif /* DEBUG_MUTEX */
         unregister_sysctl_table(spl_header);
 #endif
         EXIT;

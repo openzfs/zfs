@@ -378,7 +378,9 @@ __kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags)
 restart:
 	rc = kmem_cache_alloc(cache, flags);
         if ((rc == NULL) && (flags & KM_SLEEP)) {
+#ifdef DEBUG_KMEM
 		atomic64_inc(&kmem_cache_alloc_failed);
+#endif /* DEBUG_KMEM */
 		GOTO(restart, rc);
 	}
 
@@ -428,7 +430,9 @@ kmem_init(void)
 	RETURN(0);
 }
 
-static char *sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
+#ifdef DEBUG_KMEM
+static char *
+sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 {
         int size = ((len - 1) < kd->kd_size) ? (len - 1) : kd->kd_size;
 	int i, flag = 1;
@@ -468,6 +472,7 @@ static char *sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 
 	return str;
 }
+#endif /* DEBUG_KMEM */
 
 void
 kmem_fini(void)

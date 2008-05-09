@@ -88,6 +88,12 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 		return;
 	}
 
+	/* XXX - This appears to be a much more contended lock than I
+	 * would have expected.  To run with this debugging enabled and
+	 * get reasonable performance we may need to be more clever and
+	 * do something like hash the mutex ptr on to one of several
+	 * lists to ease this single point of contention.
+	 */
 	spin_lock(&mutex_stats_lock);
 	list_add_tail(&mp->km_list, &mutex_stats_list);
 	spin_unlock(&mutex_stats_lock);

@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-#define DEBUG_KMEM
+//#define DEBUG_KMEM
+#undef DEBUG_KMEM
 #undef DEBUG_KMEM_UNIMPLEMENTED
 
 #include <linux/module.h>
@@ -247,29 +248,24 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
         vfree(ptr);                                                           \
 })
 
-#else
+#else /* DEBUG_KMEM */
 
 #define kmem_alloc(size, flags)         kmalloc((size), (flags))
 #define kmem_zalloc(size, flags)        kzalloc((size), (flags))
-#define kmem_free(ptr, size)                                                  \
-({                                                                            \
-        ASSERT((ptr) || (size > 0));                                          \
-	kfree(ptr);                                                           \
-})
+#define kmem_free(ptr, size)            kfree(ptr)
 
 #define vmem_alloc(size, flags)         __vmalloc((size), ((flags) |          \
-						  __GFP_HIGHMEM), PAGE_KERNEL)
-#define vmem_zalloc(size, flags)        __vmalloc((size), ((flags) |          \
-						  __GFP_HIGHMEM | __GFP_ZERO) \
-						  PAGE_KERNEL)
-#define vmem_free(ptr, size)                                                  \
+					__GFP_HIGHMEM), PAGE_KERNEL)
+#define vmem_zalloc(size, flags)                                              \
 ({                                                                            \
-        ASSERT((ptr) || (size > 0));                                          \
-	vfree(ptr);                                                           \
+        void *_ptr_ = __vmalloc((size),((flags)|__GFP_HIGHMEM),PAGE_KERNEL);  \
+        if (_ptr_)                                                            \
+                memset(_ptr_, 0, (size));                                     \
+        _ptr_;                                                                \
 })
+#define vmem_free(ptr, size)            vfree(ptr)
 
 #endif /* DEBUG_KMEM */
-
 
 #ifdef DEBUG_KMEM_UNIMPLEMENTED
 static __inline__ void *
