@@ -37,6 +37,11 @@ extern unsigned long vmem_alloc_max;
 extern int kmem_warning_flag;
 extern atomic64_t kmem_cache_alloc_failed;
 
+/* XXX - Not to surprisingly with debugging enabled the xmem_locks are very
+ * highly contended particularly on xfree().  If we want to run with this
+ * detailed debugging enabled for anything other than debugging  we need to
+ * minimize the contention by moving to a lock per xmem_table entry model.
+ */
 #define KMEM_HASH_BITS          10
 #define KMEM_TABLE_SIZE         (1 << KMEM_HASH_BITS)
 
