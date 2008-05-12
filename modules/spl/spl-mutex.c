@@ -78,7 +78,7 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	}
 
 	sema_init(mp->km_sem, 1);
-	strcpy(mp->km_name, name);
+	strncpy(mp->km_name, name, mp->km_name_size);
 
 #ifdef DEBUG_MUTEX
 	mp->km_stats = kmem_zalloc(sizeof(int) * MUTEX_STATS_SIZE, flags);
