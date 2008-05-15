@@ -25,7 +25,7 @@
  * -1:         Spin until aquired or holder yeilds without dropping lock
  *  1-MAX_INT: Spin for N attempts before sleeping for lock
  */
-int mutex_spin_max = 100;
+int mutex_spin_max = 0;
 
 #ifdef DEBUG_MUTEX
 int mutex_stats[MUTEX_STATS_SIZE] = { 0 };
@@ -272,3 +272,5 @@ spl_mutex_fini(void)
         EXIT;
 }
 
+module_param(mutex_spin_max, int, 0644);
+MODULE_PARM_DESC(mutex_spin_max, "Spin a maximum of N times to aquire lock");
