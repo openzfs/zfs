@@ -146,6 +146,17 @@ typedef struct modldrv {
 #define getmajor(x)			(x)
 #define ddi_driver_major(di)		getmajor(di->di_dev)
 
+#define	DDI_DEV_T_NONE			((dev_t)-1)
+#define	DDI_DEV_T_ANY			((dev_t)-2)
+#define	DDI_MAJOR_T_UNKNOWN		((major_t)0)
+
+#define	DDI_PROP_DONTPASS		0x0001
+#define	DDI_PROP_CANSLEEP		0x0002
+
+#define ddi_prop_lookup_string(x1,x2,x3,x4,x5)	(*x5 = NULL)
+#define ddi_prop_free(x)			(void)0
+#define ddi_root_node()				(void)0
+
 #define mod_install(x)			0
 #define mod_remove(x)			0
 

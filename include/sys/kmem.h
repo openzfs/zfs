@@ -24,7 +24,7 @@ extern "C" {
 #define KM_SLEEP                        GFP_KERNEL
 #define KM_NOSLEEP                      GFP_ATOMIC
 #undef  KM_PANIC                        /* No linux analog */
-#define KM_PUSHPAGE			(GFP_KERNEL | GFP_HIGH)
+#define KM_PUSHPAGE			(GFP_KERNEL | __GFP_HIGH)
 #define KM_VMFLAGS                      GFP_LEVEL_MASK
 #define KM_FLAGS                        __GFP_BITS_MASK
 

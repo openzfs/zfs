@@ -2,12 +2,16 @@
 #define _SPL_VMSYSTM_H
 
 #include <linux/mm.h>
+#include <linux/swap.h>
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
 extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 
 #define physmem				num_physpages
+#define freemem				nr_free_pages() /* Expensive on linux,
+							   cheap on solaris */
+#define minfree				0
 #define ptob(pages)			(pages * PAGE_SIZE)
 #define membar_producer()		smp_wmb()
 
@@ -56,9 +60,6 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 }
 
 #if 0
-/* The approximate total number of free pages */
-#define freemem				0
-
 /* The average number of free pages over the last 5 seconds */
 #define avefree				0
 
@@ -81,10 +82,6 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 
 /* When free memory is above this limit, swapping is not performed */
 #define desfree				0
-
-/* Threshold for many low memory tests, e.g. swapping is
- * more active below this limit */
-#define minfree				0
 #endif
 
 #endif /* SPL_VMSYSTM_H */
