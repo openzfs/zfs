@@ -147,12 +147,19 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 	kmem_constructor_t constructor;
 	void *private;
 
+	ASSERT(flags & SLAB_CTOR_CONSTRUCTOR);
+
 	/* Ensure constructor verifies are not passed to the registered
 	 * constructors.  This may not be safe due to the Solaris constructor
 	 * not being aware of how to handle the SLAB_CTOR_VERIFY flag
 	 */
 	if (flags & SLAB_CTOR_VERIFY)
 		return;
+
+	if (flags & SLAB_CTOR_ATOMIC)
+		flags = KM_NOSLEEP;
+	else
+		flags = KM_SLEEP;
 
 	/* We can be called with interrupts disabled so it is critical that
 	 * this function and the registered constructor never sleep.
@@ -184,6 +191,9 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
         kmem_cache_cb_t *kcc;
         kmem_destructor_t destructor;
 	void *private;
+
+	/* No valid destructor flags */
+	ASSERT(flags == 0);
 
 	/* We can be called with interrupts disabled so it is critical that
 	 * this function and the registered constructor never sleep.
@@ -286,6 +296,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 
         /* XXX: - Option currently unsupported by shim layer */
         ASSERT(!vmp);
+	ASSERT(flags == 0);
 
 	cache_name = kzalloc(strlen(name) + 1, GFP_KERNEL);
 	if (cache_name == NULL)
