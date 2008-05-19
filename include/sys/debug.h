@@ -1,6 +1,10 @@
 #ifndef _SPL_DEBUG_H
 #define _SPL_DEBUG_H
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 #include <linux/sched.h> /* THREAD_SIZE */
 #include <linux/proc_fs.h>
 
@@ -159,6 +163,37 @@ struct page_collection {
 
 #define SBUG()            spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);
 
+#ifdef NDEBUG
+
+#define CDEBUG_STACK()			(0)
+#define CDEBUG(mask, format, a...)	((void)0)
+#define CWARN(fmt, a...)		((void)0)
+#define CERROR(fmt, a...)		((void)0)
+#define CEMERG(fmt, a...)		((void)0)
+#define CONSOLE(mask, fmt, a...)	((void)0)
+
+#define ENTRY				((void)0)
+#define EXIT				((void)0)
+#define RETURN(x)			return (x)
+#define GOTO(x, y)			{ ((void)(y)); goto x; }
+
+#define __ASSERT(x)			((void)0)
+#define __ASSERT_TAGE_INVARIANT(x)	((void)0)
+#define ASSERT(x)			((void)0)
+#define VERIFY(x)                       ((void)(x))
+
+#define VERIFY3_IMPL(x, y, z, t, f, c)  if (x == z) ((void)0)
+
+#define VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
+#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
+#define VERIFY3P(x,y,z) VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
+
+#define ASSERT3S(x,y,z) VERIFY3S(x, y, z)
+#define ASSERT3U(x,y,z) VERIFY3U(x, y, z)
+#define ASSERT3P(x,y,z) VERIFY3P(x, y, z)
+
+#else /* NDEBUG */
+
 #ifdef  __ia64__
 #define CDEBUG_STACK() (THREAD_SIZE -                                   \
                        ((unsigned long)__builtin_dwarf_cfa() &          \
@@ -259,10 +294,6 @@ do {                                                                    \
 
 #define VERIFY(x)       ASSERT(x)
 
-#define spl_debug_msg(cdls, subsys, mask, file, fn, line, format, a...) \
-        spl_debug_vmsg(cdls, subsys, mask, file, fn,                    \
-                       line, NULL, NULL, format, ##a)
-
 #define __CDEBUG(cdls, subsys, mask, format, a...)                      \
 do {                                                                    \
         CHECK_STACK();                                                  \
@@ -322,6 +353,11 @@ do {                                                                    \
 
 #define ENTRY				__ENTRY(DEBUG_SUBSYSTEM)
 #define EXIT                            __EXIT(DEBUG_SUBSYSTEM)
+#endif /* NDEBUG */
+
+#define spl_debug_msg(cdls, subsys, mask, file, fn, line, format, a...) \
+        spl_debug_vmsg(cdls, subsys, mask, file, fn,                    \
+                       line, NULL, NULL, format, ##a)
 
 extern int spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
                           const char *file, const char *fn, const int line,
@@ -340,5 +376,9 @@ extern void spl_debug_bug(char *file, const char *func, const int line, int flag
 
 extern int spl_debug_clear_buffer(void);
 extern int spl_debug_mark_buffer(char *text);
+
+#ifdef  __cplusplus
+}
+#endif
 
 #endif /* SPL_DEBUG_H */

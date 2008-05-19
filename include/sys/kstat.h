@@ -5,8 +5,6 @@
 extern "C" {
 #endif
 
-#define DEBUG_KSTAT
-
 #include <linux/module.h>
 #include <sys/types.h>
 #include <sys/time.h>

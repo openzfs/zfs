@@ -830,7 +830,9 @@ proc_init(void)
 #endif /* DEBUG_KSTAT */
 
 	RETURN(rc);
+#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 out2:
+#endif
 #ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_sys_spl_mutex);
 #endif /* DEBUG_MUTEX */

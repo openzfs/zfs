@@ -5,8 +5,6 @@
 extern "C" {
 #endif
 
-//#define DEBUG_KMEM
-#undef DEBUG_KMEM
 #undef DEBUG_KMEM_UNIMPLEMENTED
 
 #include <linux/module.h>

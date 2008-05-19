@@ -10,9 +10,6 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/kmem.h>
 
-//#define DEBUG_MUTEX
-#undef DEBUG_MUTEX
-
 #define MUTEX_DEFAULT		0
 #define MUTEX_SPIN		1
 #define MUTEX_ADAPTIVE		2
