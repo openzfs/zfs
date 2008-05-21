@@ -1,3 +1,9 @@
+2008-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.3.0
+
+	* configure.ac: Improved autotools support.
+
 2008-04-26 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* include/sys/mutex.h : Implemented a close approximation

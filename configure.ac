@@ -1,7 +1,7 @@
 AC_INIT
 
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE(spl, 0.2.2)
+AM_INIT_AUTOMAKE(spl, 0.3.0)
 AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_INSTALL
@@ -19,7 +19,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 		[Path to kernel source]),
 		[kernelsrc="$withval"; kernelbuild="$withval"])
 
-	AC_ARG_WITH([linux-build],
+	AC_ARG_WITH([linux-obj],
 		AS_HELP_STRING([--with-linux-obj=PATH],
 		[Path to kernel build objects]),
 		[kernelbuild="$withval"])
