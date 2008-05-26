@@ -1,7 +1,33 @@
 /*
- * My intent is to create a loadable 'splat' (solaris porting layer
- * aggressive test) module which can be used as an access point to
- * run in kernel Solaris ABI regression tests.  This provides a
+ *  This file is part of the SPL: Solaris Porting Layer.
+ *
+ *  Copyright (c) 2008 Lawrence Livermore National Security, LLC.
+ *  Produced at Lawrence Livermore National Laboratory
+ *  Written by:
+ *          Brian Behlendorf <behlendorf1@llnl.gov>,
+ *          Herb Wartens <wartens2@llnl.gov>,
+ *          Jim Garlick <garlick@llnl.gov>
+ *  UCRL-CODE-235197
+ *
+ *  This is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This is distributed in the hope that it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ *  for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
+ */
+
+/*
+ * My intent is to create a loadable 'splat' (Solaris Porting LAyer
+ * Tests) module which can be used as an access point to run
+ * in kernel Solaris ABI regression tests.  This provides a
  * nice mechanism to validate the shim primates are working properly.
  *
  * The basic design is the splat module is that it is constructed of
@@ -12,8 +38,6 @@
  * called when the splat module is removed.  Each test can then be
  * run by making an ioctl() call from a userspace control application
  * to pick the subsystem and test which should be run.
- *
- * Author: Brian Behlendorf
  */
 
 #include "splat-internal.h"
@@ -630,8 +654,8 @@ splat_init(void)
 	                    NULL, "splatctl");
 #endif
 
-	printk(KERN_INFO "splat: Loaded Solaris Porting Layer "
-	       "Aggressive Tests v%s\n", VERSION);
+	printk(KERN_INFO "splat: Loaded Solaris Porting LAyer "
+	       "Tests v%s\n", VERSION);
 	return 0;
 error:
 	printk(KERN_ERR "splat: Error registering splat device, %d\n", rc);
@@ -668,13 +692,13 @@ splat_fini(void)
 	SPLAT_SUBSYSTEM_FINI(kmem);
 
 	ASSERT(list_empty(&splat_module_list));
-	printk(KERN_INFO "splat: Unloaded Solaris Porting Layer "
-	       "Aggressive Tests v%s\n", VERSION);
+	printk(KERN_INFO "splat: Unloaded Solaris Porting LAyer "
+	       "Tests v%s\n", VERSION);
 }
 
 module_init(splat_init);
 module_exit(splat_fini);
 
 MODULE_AUTHOR("Lawrence Livermore National Labs");
-MODULE_DESCRIPTION("Solaris Porting Layer Aggresive Tests");
+MODULE_DESCRIPTION("Solaris Porting LAyer Tests");
 MODULE_LICENSE("GPL");

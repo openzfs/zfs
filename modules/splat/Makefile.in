@@ -9,7 +9,7 @@ DISTFILES = Makefile.in \
 
 CPPFLAGS += @KERNELCPPFLAGS@
 
-# Solaris porting layer aggressive tests
+# Solaris Porting LAyer Tests
 obj-m := splat.o
 
 splat-objs += splat-ctl.o
