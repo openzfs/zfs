@@ -1,5 +1,11 @@
 2008-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
+	* : Tag spl-0.3.1
+
+	* : License headers including URCL added for release.
+
+2008-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
+
 	* : Tag spl-0.3.0
 
 	* configure.ac: Improved autotools support.
