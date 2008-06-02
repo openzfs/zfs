@@ -59,7 +59,7 @@ typedef struct mutex_priv {
 	int mp_rc;
 } mutex_priv_t;
 
-
+#ifdef HAVE_3ARGS_INIT_WORK
 static void
 splat_mutex_test1_work(void *priv)
 {
@@ -71,14 +71,16 @@ splat_mutex_test1_work(void *priv)
 	if (!mutex_tryenter(&mp->mp_mtx))
 		mp->mp_rc = -EBUSY;
 }
+#endif
 
 static int
 splat_mutex_test1(struct file *file, void *arg)
 {
+	int rc = 0;
+#ifdef HAVE_3ARGS_INIT_WORK
 	struct workqueue_struct *wq;
 	struct work_struct work;
 	mutex_priv_t *mp;
-	int rc = 0;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
@@ -141,10 +143,11 @@ out:
 	destroy_workqueue(wq);
 out2:
 	kfree(mp);
-
+#endif
 	return rc;
 }
 
+#ifdef HAVE_3ARGS_INIT_WORK
 static void
 splat_mutex_test2_work(void *priv)
 {
@@ -162,13 +165,16 @@ splat_mutex_test2_work(void *priv)
 	mp->mp_rc = rc + 1;
 	mutex_exit(&mp->mp_mtx);
 }
+#endif
 
 static int
 splat_mutex_test2(struct file *file, void *arg)
 {
+	int rc = 0;
+#ifdef HAVE_3ARGS_INIT_WORK
 	struct workqueue_struct *wq;
 	mutex_priv_t *mp;
-	int i, rc = 0;
+	int i;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
@@ -220,7 +226,7 @@ splat_mutex_test2(struct file *file, void *arg)
 	destroy_workqueue(wq);
 out:
 	kfree(mp);
-
+#endif
 	return rc;
 }
 

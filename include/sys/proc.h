@@ -39,6 +39,15 @@
 #include <sys/kstat.h>
 #include <sys/debug.h>
 
+#ifdef CONFIG_SYSCTL
+#ifdef HAVE_2ARGS_REGISTER_SYSCTL
+#define spl_register_sysctl_table(t, a)	register_sysctl_table(t, a)
+#else
+#define spl_register_sysctl_table(t, a)	register_sysctl_table(t)
+#endif /* HAVE_2ARGS_REGISTER_SYSCTL */
+#define spl_unregister_sysctl_table(t)	unregister_sysctl_table(t)
+#endif /* CONFIG_SYSCTL */
+
 #ifdef DEBUG_KSTAT
 extern struct proc_dir_entry *proc_sys_spl_kstat;
 struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,

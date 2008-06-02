@@ -33,7 +33,6 @@
 #include <sys/proc.h>
 #include <sys/kstat.h>
 #include <linux/kmod.h>
-#include "config.h"
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -101,7 +100,7 @@ set_hostid(void)
 	char sh_path[] = "/bin/sh";
 	char *argv[] = { sh_path,
 	                 "-c",
-	                 "/usr/bin/hostid >/proc/sys/spl/hostid",
+	                 "/usr/bin/hostid >/proc/sys/kernel/spl/hostid",
 	                 NULL };
 	char *envp[] = { "HOME=/",
 	                 "TERM=linux",

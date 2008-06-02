@@ -26,7 +26,6 @@
 
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
-#include "config.h"
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM

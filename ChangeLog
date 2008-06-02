@@ -1,3 +1,8 @@
+2008-05-25 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* configure.ac, autoconf/* : Initial pass at resolving
+	API changes introduced by kernels newer than 2.6.18.
+
 2008-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.3.1

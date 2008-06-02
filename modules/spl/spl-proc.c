@@ -39,8 +39,10 @@ static unsigned long table_max = ~0;
 
 #ifdef CONFIG_SYSCTL
 static struct ctl_table_header *spl_header = NULL;
+#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 static struct proc_dir_entry *proc_sys = NULL;
 static struct proc_dir_entry *proc_sys_spl = NULL;
+#endif
 #ifdef DEBUG_MUTEX
 static struct proc_dir_entry *proc_sys_spl_mutex = NULL;
 static struct proc_dir_entry *proc_sys_spl_mutex_stats = NULL;
@@ -52,6 +54,49 @@ static struct proc_dir_entry *proc_sys_spl_kmem = NULL;
 struct proc_dir_entry *proc_sys_spl_kstat = NULL;
 #endif
 #endif
+
+#ifdef HAVE_CTL_UNNUMBERED
+
+#define CTL_SPL			CTL_UNNUMBERED
+#define CTL_SPL_DEBUG		CTL_UNNUMBERED
+#define CTL_SPL_MUTEX		CTL_UNNUMBERED
+#define CTL_SPL_KMEM		CTL_UNNUMBERED
+#define CTL_SPL_KSTAT		CTL_UNNUMBERED
+
+#define CTL_VERSION		CTL_UNNUMBERED /* Version */
+#define CTL_HOSTID		CTL_UNNUMBERED /* Host id by /usr/bin/hostid */
+#define CTL_HW_SERIAL		CTL_UNNUMBERED /* HW serial number by hostid */
+
+#define CTL_DEBUG_SUBSYS	CTL_UNNUMBERED /* Debug subsystem */
+#define CTL_DEBUG_MASK		CTL_UNNUMBERED /* Debug mask */
+#define CTL_DEBUG_PRINTK	CTL_UNNUMBERED /* All messages to console */
+#define CTL_DEBUG_MB		CTL_UNNUMBERED /* Debug buffer size */
+#define CTL_DEBUG_BINARY	CTL_UNNUMBERED /* Binary data in buffer */
+#define CTL_DEBUG_CATASTROPHE	CTL_UNNUMBERED /* Set if BUG'd or panic'd */
+#define CTL_DEBUG_PANIC_ON_BUG	CTL_UNNUMBERED /* Should panic on BUG */
+#define CTL_DEBUG_PATH		CTL_UNNUMBERED /* Dump log location */
+#define CTL_DEBUG_DUMP		CTL_UNNUMBERED /* Dump debug buffer to file */
+#define CTL_DEBUG_FORCE_BUG	CTL_UNNUMBERED /* Hook to force a BUG */
+#define CTL_DEBUG_STACK_SIZE	CTL_UNNUMBERED /* Max observed stack size */
+
+#define CTL_CONSOLE_RATELIMIT	CTL_UNNUMBERED /* Ratelimit console messages */
+#define CTL_CONSOLE_MAX_DELAY_CS CTL_UNNUMBERED /* Max delay skip messages */
+#define CTL_CONSOLE_MIN_DELAY_CS CTL_UNNUMBERED /* Init delay skip messages */
+#define CTL_CONSOLE_BACKOFF	CTL_UNNUMBERED /* Delay increase factor */
+
+#ifdef DEBUG_KMEM
+#define CTL_KMEM_KMEMUSED	CTL_UNNUMBERED /* Alloc'd kmem bytes */
+#define CTL_KMEM_KMEMMAX	CTL_UNNUMBERED /* Max alloc'd by kmem bytes */
+#define CTL_KMEM_VMEMUSED	CTL_UNNUMBERED /* Alloc'd vmem bytes */
+#define CTL_KMEM_VMEMMAX	CTL_UNNUMBERED /* Max alloc'd by vmem bytes */
+#define CTL_KMEM_ALLOC_FAILED	CTL_UNNUMBERED /* Cache allocations failed */
+#endif
+
+#define CTL_MUTEX_STATS		CTL_UNNUMBERED /* Global mutex statistics */
+#define CTL_MUTEX_STATS_PER	CTL_UNNUMBERED /* Per mutex statistics */
+#define CTL_MUTEX_SPIN_MAX	CTL_UNNUMBERED /* Max mutex spin iterations */
+
+#else /* HAVE_CTL_UNNUMBERED */
 
 #define CTL_SPL		0x87
 #define CTL_SPL_DEBUG	0x88
@@ -82,9 +127,9 @@ enum {
         CTL_CONSOLE_BACKOFF,      /* Delay increase factor */
 
 #ifdef DEBUG_KMEM
-        CTL_KMEM_KMEMUSED,        /* Crrently alloc'd kmem bytes */
+        CTL_KMEM_KMEMUSED,        /* Alloc'd kmem bytes */
         CTL_KMEM_KMEMMAX,         /* Max alloc'd by kmem bytes */
-        CTL_KMEM_VMEMUSED,        /* Currently alloc'd vmem bytes */
+        CTL_KMEM_VMEMUSED,        /* Alloc'd vmem bytes */
         CTL_KMEM_VMEMMAX,         /* Max alloc'd by vmem bytes */
 	CTL_KMEM_ALLOC_FAILED,    /* Cache allocation failed */
 #endif
@@ -93,6 +138,7 @@ enum {
 	CTL_MUTEX_STATS_PER,      /* Per mutex statistics */
 	CTL_MUTEX_SPIN_MAX,       /* Maximum mutex spin iterations */
 };
+#endif /* HAVE_CTL_UNNUMBERED */
 
 static int
 proc_copyin_string(char *kbuffer, int kbuffer_size,
@@ -775,7 +821,17 @@ static struct ctl_table spl_dir[] = {
                 .mode     = 0555,
                 .child    = spl_table,
         },
-        {0}
+        { 0 }
+};
+
+static struct ctl_table spl_root[] = {
+	{
+	.ctl_name = CTL_KERN,
+	.procname = "kernel",
+	.mode = 0555,
+	.child = spl_dir,
+	},
+	{ 0 }
 };
 
 static int
@@ -818,10 +874,11 @@ proc_init(void)
         ENTRY;
 
 #ifdef CONFIG_SYSCTL
-        spl_header = register_sysctl_table(spl_dir, 0);
+        spl_header = spl_register_sysctl_table(spl_root, 0);
 	if (spl_header == NULL)
 		RETURN(-EUNATCH);
 
+#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	proc_sys = proc_dir_entry_find(&proc_root, "sys");
 	if (proc_sys == NULL)
 		GOTO(out, rc = -EUNATCH);
@@ -829,6 +886,7 @@ proc_init(void)
 	proc_sys_spl = proc_dir_entry_find(proc_sys, "spl");
 	if (proc_sys_spl == NULL)
 		GOTO(out, rc = -EUNATCH);
+#endif
 
 #ifdef DEBUG_MUTEX
 	proc_sys_spl_mutex = proc_dir_entry_find(proc_sys_spl, "mutex");
@@ -862,8 +920,10 @@ out2:
 #ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_sys_spl_mutex);
 #endif /* DEBUG_MUTEX */
+#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 out:
-        unregister_sysctl_table(spl_header);
+#endif
+        spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
         RETURN(rc);
 }
@@ -878,7 +938,7 @@ proc_fini(void)
 #ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_sys_spl_mutex);
 #endif /* DEBUG_MUTEX */
-        unregister_sysctl_table(spl_header);
+        spl_unregister_sysctl_table(spl_header);
 #endif
         EXIT;
 }

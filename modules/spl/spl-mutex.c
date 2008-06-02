@@ -171,6 +171,11 @@ __mutex_tryenter(kmutex_t *mp)
 }
 EXPORT_SYMBOL(__mutex_tryenter);
 
+#ifndef HAVE_TASK_CURR
+#define task_curr(owner)                0
+#endif
+
+
 static void
 mutex_enter_adaptive(kmutex_t *mp)
 {

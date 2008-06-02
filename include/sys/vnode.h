@@ -40,6 +40,7 @@ extern "C" {
 #include <linux/namei.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/mount.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
 #include <sys/types.h>
@@ -91,6 +92,14 @@ extern "C" {
 
 #define B_INVAL		0x01
 #define B_TRUNC		0x02
+
+#ifdef HAVE_PATH_IN_NAMEIDATA
+# define nd_dentry	path.dentry
+# define nd_mnt		path.mnt
+#else
+# define nd_dentry	dentry
+# define nd_mnt		mnt
+#endif
 
 typedef enum vtype {
 	VNON		= 0,

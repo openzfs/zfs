@@ -7,9 +7,17 @@ extern "C" {
 
 #include <linux/types.h>
 #include <sys/sysmacros.h>
+#include "spl_config.h"
+
+#ifndef HAVE_UINTPTR_T
+typedef unsigned long			uintptr_t;
+#endif
+
+#ifndef HAVE_KMEM_CACHE_T
+typedef struct kmem_cache		kmem_cache_t;
+#endif
 
 typedef enum { B_FALSE=0, B_TRUE=1 }	boolean_t;
-typedef unsigned long			uintptr_t;
 typedef unsigned long			intptr_t;
 typedef unsigned long			ulong_t;
 typedef unsigned int			uint_t;

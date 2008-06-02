@@ -4,7 +4,7 @@ MODULES := spl
 DISTFILES = Makefile.in \
             spl-kmem.c spl-rwlock.c spl-taskq.c \
             spl-thread.c spl-generic.c
-CPPFLAGS += @KERNELCPPFLAGS@
+EXTRA_CFLAGS = @KERNELCPPFLAGS@
 
 # Solaris porting layer module
 obj-m := spl.o

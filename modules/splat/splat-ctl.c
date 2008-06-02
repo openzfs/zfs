@@ -41,7 +41,6 @@
  */
 
 #include "splat-internal.h"
-#include <config.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
 #include <linux/devfs_fs_kernel.h>

@@ -26,7 +26,6 @@
 
 #include <sys/sysmacros.h>
 #include <sys/vnode.h>
-#include "config.h"
 
 
 #ifdef DEBUG_SUBSYSTEM
@@ -105,7 +104,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 {
         struct file *fp;
         struct kstat stat;
-        int rc, saved_umask;
+        int rc, saved_umask = 0;
 	vnode_t *vp;
 	ENTRY;
 
@@ -243,10 +242,16 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 } /* vn_close() */
 EXPORT_SYMBOL(vn_close);
 
-static struct dentry *lookup_hash(struct nameidata *nd)
+static struct dentry *vn_lookup_hash(struct nameidata *nd)
 {
-	return __lookup_hash(&nd->last, nd->dentry, nd);
+	return lookup_one_len(nd->last.name, nd->nd_dentry, nd->last.len);
 } /* lookup_hash() */
+
+static void vn_path_release(struct nameidata *nd)
+{
+	dput(nd->nd_dentry);
+	mntput(nd->nd_mnt);
+}
 
 /* Modified do_unlinkat() from linux/fs/namei.c, only uses exported symbols */
 int
@@ -269,8 +274,8 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         if (nd.last_type != LAST_NORM)
                 GOTO(exit1, rc);
 
-        mutex_lock_nested(&nd.dentry->d_inode->i_mutex, I_MUTEX_PARENT);
-        dentry = lookup_hash(&nd);
+        mutex_lock_nested(&nd.nd_dentry->d_inode->i_mutex, I_MUTEX_PARENT);
+        dentry = vn_lookup_hash(&nd);
         rc = PTR_ERR(dentry);
         if (!IS_ERR(dentry)) {
                 /* Why not before? Because we want correct rc value */
@@ -280,15 +285,15 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
                 inode = dentry->d_inode;
                 if (inode)
                         atomic_inc(&inode->i_count);
-                rc = vfs_unlink(nd.dentry->d_inode, dentry);
+                rc = vfs_unlink(nd.nd_dentry->d_inode, dentry);
 exit2:
                 dput(dentry);
         }
-        mutex_unlock(&nd.dentry->d_inode->i_mutex);
+        mutex_unlock(&nd.nd_dentry->d_inode->i_mutex);
         if (inode)
                 iput(inode);    /* truncate the inode here */
 exit1:
-        path_release(&nd);
+        vn_path_release(&nd);
 exit:
         RETURN(-rc);
 
@@ -319,21 +324,21 @@ vn_rename(const char *oldname, const char *newname, int x1)
                 GOTO(exit1, rc);
 
         rc = -EXDEV;
-        if (oldnd.mnt != newnd.mnt)
+        if (oldnd.nd_mnt != newnd.nd_mnt)
                 GOTO(exit2, rc);
 
-        old_dir = oldnd.dentry;
+        old_dir = oldnd.nd_dentry;
         rc = -EBUSY;
         if (oldnd.last_type != LAST_NORM)
                 GOTO(exit2, rc);
 
-        new_dir = newnd.dentry;
+        new_dir = newnd.nd_dentry;
         if (newnd.last_type != LAST_NORM)
                 GOTO(exit2, rc);
 
         trap = lock_rename(new_dir, old_dir);
 
-        old_dentry = lookup_hash(&oldnd);
+        old_dentry = vn_lookup_hash(&oldnd);
 
         rc = PTR_ERR(old_dentry);
         if (IS_ERR(old_dentry))
@@ -358,7 +363,7 @@ vn_rename(const char *oldname, const char *newname, int x1)
         if (old_dentry == trap)
                 GOTO(exit4, rc);
 
-        new_dentry = lookup_hash(&newnd);
+        new_dentry = vn_lookup_hash(&newnd);
         rc = PTR_ERR(new_dentry);
         if (IS_ERR(new_dentry))
                 GOTO(exit4, rc);
@@ -377,9 +382,9 @@ exit4:
 exit3:
         unlock_rename(new_dir, old_dir);
 exit2:
-        path_release(&newnd);
+        vn_path_release(&newnd);
 exit1:
-        path_release(&oldnd);
+        vn_path_release(&oldnd);
 exit:
         RETURN(-rc);
 }
@@ -610,7 +615,8 @@ int
 vn_init(void)
 {
 	ENTRY;
-	vn_cache = kmem_cache_create("spl_vn_cache", sizeof(struct vnode), 64,
+	vn_cache = kmem_cache_create("spl_vn_cache",
+				     sizeof(struct vnode), 64,
 	                             vn_cache_constructor,
 				     vn_cache_destructor,
 				     NULL, NULL, NULL, 0);

@@ -25,7 +25,6 @@
  */
 
 #include <sys/kobj.h>
-#include "config.h"
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM

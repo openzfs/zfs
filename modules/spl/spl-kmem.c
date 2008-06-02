@@ -104,7 +104,15 @@ typedef struct kmem_cache_cb {
 
 static struct rw_semaphore kmem_cache_cb_sem;
 static struct list_head kmem_cache_cb_list;
+#ifdef HAVE_SET_SHRINKER
 static struct shrinker *kmem_cache_shrinker;
+#else
+static int kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask);
+static struct shrinker kmem_cache_shrinker = {
+	.shrink = kmem_cache_generic_shrinker,
+	.seeks = KMC_DEFAULT_SEEKS,
+};
+#endif
 
 /* Function must be called while holding the kmem_cache_cb_sem
  * Because kmem_cache_t is an opaque datatype we're forced to
@@ -166,19 +174,21 @@ kmem_cache_remove_cache_cb(kmem_cache_cb_t *kcc)
 	}
 }
 
+#ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
 static void
-kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long flags)
+kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache,
+			       unsigned long flags)
 {
         kmem_cache_cb_t *kcc;
 	kmem_constructor_t constructor;
 	void *private;
 
-	ASSERT(flags & SLAB_CTOR_CONSTRUCTOR);
-
 	/* Ensure constructor verifies are not passed to the registered
 	 * constructors.  This may not be safe due to the Solaris constructor
 	 * not being aware of how to handle the SLAB_CTOR_VERIFY flag
 	 */
+	ASSERT(flags & SLAB_CTOR_CONSTRUCTOR);
+
 	if (flags & SLAB_CTOR_VERIFY)
 		return;
 
@@ -186,7 +196,15 @@ kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache, unsigned long fla
 		flags = KM_NOSLEEP;
 	else
 		flags = KM_SLEEP;
-
+#else
+static void
+kmem_cache_generic_constructor(kmem_cache_t *cache, void *ptr)
+{
+        kmem_cache_cb_t *kcc;
+	kmem_constructor_t constructor;
+	void *private;
+	int flags = KM_NOSLEEP;
+#endif
 	/* We can be called with interrupts disabled so it is critical that
 	 * this function and the registered constructor never sleep.
 	 */
@@ -244,7 +262,7 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 	atomic_dec(&kcc->kcc_ref);
 }
 
-/* XXX - Arguments are ignored */
+/* Arguments are ignored */
 static int
 kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 {
@@ -306,6 +324,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 #undef kmem_cache_create
 #undef kmem_cache_destroy
 #undef kmem_cache_alloc
+#undef kmem_cache_free
 
 kmem_cache_t *
 __kmem_cache_create(char *name, size_t size, size_t align,
@@ -329,23 +348,32 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 		RETURN(NULL);
 
 	strcpy(cache_name, name);
+
+#ifdef HAVE_KMEM_CACHE_CREATE_DTOR
         cache = kmem_cache_create(cache_name, size, align, flags,
                                   kmem_cache_generic_constructor,
                                   kmem_cache_generic_destructor);
+#else
+        cache = kmem_cache_create(cache_name, size, align, flags, NULL);
+#endif
 	if (cache == NULL)
                 RETURN(NULL);
 
         /* Register shared shrinker function on initial cache create */
         down_read(&kmem_cache_cb_sem);
 	if (list_empty(&kmem_cache_cb_list)) {
-                kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
-                                                 kmem_cache_generic_shrinker);
+#ifdef HAVE_SET_SHRINKER
+                kmem_cache_shrinker =
+			set_shrinker(KMC_DEFAULT_SEEKS,
+                                     kmem_cache_generic_shrinker);
                 if (kmem_cache_shrinker == NULL) {
                         kmem_cache_destroy(cache);
                         up_read(&kmem_cache_cb_sem);
                         RETURN(NULL);
                 }
-
+#else
+		register_shrinker(&kmem_cache_shrinker);
+#endif
         }
         up_read(&kmem_cache_cb_sem);
 
@@ -353,7 +381,11 @@ __kmem_cache_create(char *name, size_t size, size_t align,
                                       reclaim, priv, vmp);
         if (kcc == NULL) {
 		if (shrinker_flag) /* New shrinker registered must be removed */
+#ifdef HAVE_SET_SHRINKER
 			remove_shrinker(kmem_cache_shrinker);
+#else
+			unregister_shrinker(&kmem_cache_shrinker);
+#endif
 
                 kmem_cache_destroy(cache);
                 RETURN(NULL);
@@ -383,7 +415,13 @@ __kmem_cache_destroy(kmem_cache_t *cache)
         up_read(&kmem_cache_cb_sem);
 
 	name = (char *)kmem_cache_name(cache);
+
+#ifdef HAVE_KMEM_CACHE_DESTROY_INT
         rc = kmem_cache_destroy(cache);
+#else
+        kmem_cache_destroy(cache);
+	rc = 0;
+#endif
 
 	atomic_dec(&kcc->kcc_ref);
         kmem_cache_remove_cache_cb(kcc);
@@ -392,7 +430,11 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 	/* Unregister generic shrinker on removal of all caches */
         down_read(&kmem_cache_cb_sem);
 	if (list_empty(&kmem_cache_cb_list))
-                remove_shrinker(kmem_cache_shrinker);
+#ifdef HAVE_SET_SHRINKER
+		remove_shrinker(kmem_cache_shrinker);
+#else
+		unregister_shrinker(&kmem_cache_shrinker);
+#endif
 
         up_read(&kmem_cache_cb_sem);
 	RETURN(rc);
@@ -409,21 +451,44 @@ EXPORT_SYMBOL(__kmem_cache_destroy);
 void *
 __kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags)
 {
-	void *rc;
+	void *obj;
 	ENTRY;
 
 restart:
-	rc = kmem_cache_alloc(cache, flags);
-        if ((rc == NULL) && (flags & KM_SLEEP)) {
+	obj = kmem_cache_alloc(cache, flags);
+        if ((obj == NULL) && (flags & KM_SLEEP)) {
 #ifdef DEBUG_KMEM
 		atomic64_inc(&kmem_cache_alloc_failed);
 #endif /* DEBUG_KMEM */
-		GOTO(restart, rc);
+		GOTO(restart, obj);
 	}
 
-	RETURN(rc);
+/* When destructor support is removed we must be careful not to
+ * use the provided constructor which will end up being called
+ * more often than the destructor which we only call on free.  Thus
+ * we many call the proper constructor when there is no destructor.
+ */
+#ifndef HAVE_KMEM_CACHE_CREATE_DTOR
+#ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
+	kmem_cache_generic_constructor(obj, cache, flags);
+#else
+	kmem_cache_generic_constructor(cache, obj);
+#endif
+#endif
+
+	RETURN(obj);
 }
 EXPORT_SYMBOL(__kmem_cache_alloc);
+
+void
+__kmem_cache_free(kmem_cache_t *cache, void *obj)
+{
+#ifndef HAVE_KMEM_CACHE_CREATE_DTOR
+	kmem_cache_generic_destructor(obj, cache, 0);
+#endif
+	kmem_cache_free(cache, obj);
+}
+EXPORT_SYMBOL(__kmem_cache_free);
 
 void
 __kmem_reap(void)

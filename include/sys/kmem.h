@@ -41,6 +41,7 @@ extern "C" {
 #include <linux/rwsem.h>
 #include <linux/hash.h>
 #include <linux/ctype.h>
+#include <sys/types.h>
 #include <sys/debug.h>
 /*
  * Memory allocation interfaces
@@ -316,15 +317,6 @@ kmem_alloc_tryhard(size_t size, size_t *alloc_size, int kmflags)
 #define KMC_REAP_CHUNK                  256
 #define KMC_DEFAULT_SEEKS               DEFAULT_SEEKS
 
-/* Defined by linux slab.h
- * typedef struct kmem_cache_s kmem_cache_t;
- */
-
-/* No linux analog
- * extern int kmem_ready;
- * extern pgcnt_t kmem_reapahead;
- */
-
 #ifdef DEBUG_KMEM_UNIMPLEMENTED
 static __inline__ void kmem_init(void) {
 #error "kmem_init() not implemented"
@@ -380,6 +372,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 
 extern int __kmem_cache_destroy(kmem_cache_t *cache);
 extern void *__kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags);
+extern void __kmem_cache_free(kmem_cache_t *cache, void *obj);
 extern void __kmem_reap(void);
 
 int kmem_init(void);
@@ -389,7 +382,7 @@ void kmem_fini(void);
         __kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
 #define kmem_cache_destroy(cache)       __kmem_cache_destroy(cache)
 #define kmem_cache_alloc(cache, flags)  __kmem_cache_alloc(cache, flags)
-#define kmem_cache_free(cache, ptr)     kmem_cache_free(cache, ptr)
+#define kmem_cache_free(cache, obj)     __kmem_cache_free(cache, obj)
 #define kmem_cache_reap_now(cache)      kmem_cache_shrink(cache)
 #define kmem_reap()                     __kmem_reap()
 

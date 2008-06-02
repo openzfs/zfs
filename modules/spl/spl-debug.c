@@ -44,7 +44,6 @@
 #include <sys/proc.h>
 #include <sys/debug.h>
 #include <spl-ctl.h>
-#include "config.h"
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -1118,7 +1117,7 @@ void spl_debug_dumpstack(struct task_struct *tsk)
                 tsk = current;
 
         printk(KERN_ERR "SPL: Showing stack for process %d\n", tsk->pid);
-        show_task(tsk);
+        dump_stack();
 }
 EXPORT_SYMBOL(spl_debug_dumpstack);
 
@@ -1255,8 +1254,13 @@ debug_init(void)
         if (rc)
                 return rc;
 
+#ifdef HAVE_ATOMIC_PANIC_NOTIFIER
         atomic_notifier_chain_register(&panic_notifier_list,
                                        &spl_panic_notifier);
+#else
+        notifier_chain_register(&panic_notifier_list,
+                                &spl_panic_notifier);
+#endif
 	return rc;
 }
 
@@ -1306,8 +1310,14 @@ trace_fini(void)
 void
 debug_fini(void)
 {
+#ifdef HAVE_ATOMIC_PANIC_NOTIFIER
         atomic_notifier_chain_unregister(&panic_notifier_list,
                                          &spl_panic_notifier);
+#else
+        notifier_chain_unregister(&panic_notifier_list,
+                                  &spl_panic_notifier);
+#endif
+
         trace_fini();
 
 	return;
