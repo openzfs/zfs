@@ -32,6 +32,7 @@
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <sys/kstat.h>
+#include <sys/utsname.h>
 #include <linux/kmod.h>
 
 #ifdef DEBUG_SUBSYSTEM
@@ -93,6 +94,12 @@ ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
         return (*result = simple_strtoul(str, &end, base));
 }
 EXPORT_SYMBOL(ddi_strtoul);
+
+struct new_utsname *__utsname(void)
+{
+	return init_utsname();
+}
+EXPORT_SYMBOL(__utsname);
 
 static int
 set_hostid(void)

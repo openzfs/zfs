@@ -3,6 +3,8 @@
 
 #include <linux/utsname.h>
 
-#define utsname				system_utsname
+extern struct new_utsname *__utsname(void);
+
+#define utsname			(*__utsname())
 
 #endif /* SPL_UTSNAME_H */
