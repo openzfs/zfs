@@ -110,7 +110,7 @@ splat_atomic_work(void *priv)
 				atomic_sub_64_nv(&ap->ap_atomic, 5);
 				break;
 			default:
-				BUG_ON(1);
+				SBUG();
 		}
 	}
 
@@ -153,7 +153,7 @@ splat_atomic_test1(struct file *file, void *arg)
 		thr = (kthread_t *)thread_create(NULL, 0, splat_atomic_work,
 						 &ap, 0, &p0, TS_RUN,
 						 minclsyspri);
-		BUG_ON(thr == NULL);
+		ASSERT(thr);
 
 		/* Prepare to wait, the new thread will wake us once it
 		 * has made a copy of the unique private passed data */

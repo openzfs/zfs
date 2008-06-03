@@ -374,6 +374,7 @@ fd_uninstall(int fd)
 	  * case I think that's reasonable. */
         spin_unlock(&files->file_lock);
         put_unused_fd(fd);
+        return 0;
 
 out_unlock:
         spin_unlock(&files->file_lock);
