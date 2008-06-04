@@ -81,19 +81,20 @@ AC_DEFUN([SPL_AC_DEBUG], [
 		[Enable generic debug support (default off)]),
 		[ case "$enableval" in
 			yes) spl_ac_debug=yes ;;
-			no) spl_ac_debug=no ;;
+			no)  spl_ac_debug=no  ;;
 			*) AC_MSG_RESULT([Error!])
 			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug]) ;;
 		esac ]
 	) 
 	if test "$spl_ac_debug" = yes; then
+		AC_MSG_RESULT([yes])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
 	else
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+		AC_MSG_RESULT([no])
 		AC_DEFINE([NDEBUG], [1],
 		[Define to 1 to disable debug tracing])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 	fi
-	AC_MSG_RESULT([${spl_ac_debug=no}])
 ])
 
 AC_DEFUN([SPL_AC_DEBUG_KMEM], [
@@ -102,18 +103,20 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM], [
 		AS_HELP_STRING([--enable-debug-kmem],
 		[Enable kmem debug support (default off)]),
 		[ case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no) spl_ac_debug=no ;;
+			yes) spl_ac_debug_kmem=yes ;;
+			no)  spl_ac_debug_kmem=no  ;;
 			*) AC_MSG_RESULT([Error!])
 			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-kmem]) ;;
 		esac ]
 	) 
-	if test "$spl_ac_debug" = yes; then
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+	if test "$spl_ac_debug_kmem" = yes; then
+		AC_MSG_RESULT([yes])
 		AC_DEFINE([DEBUG_KMEM], [1],
 		[Define to 1 to enable kmem debugging])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+	else
+		AC_MSG_RESULT([no])
 	fi
-	AC_MSG_RESULT([${spl_ac_debug=no}])
 ])
 
 AC_DEFUN([SPL_AC_DEBUG_MUTEX], [
@@ -122,18 +125,20 @@ AC_DEFUN([SPL_AC_DEBUG_MUTEX], [
 		AS_HELP_STRING([--enable-debug-mutex],
 		[Enable mutex debug support (default off)]),
 		[ case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no) spl_ac_debug=no ;;
+			yes) spl_ac_debug_mutex=yes ;;
+			no)  spl_ac_debug_mutex=no  ;;
 			*) AC_MSG_RESULT([Error!])
 			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-mutex]) ;;
 		esac ]
 	) 
-	if test "$spl_ac_debug" = yes; then
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_MUTEX"
+	if test "$spl_ac_debug_mutex" = yes; then
+		AC_MSG_RESULT([yes])
 		AC_DEFINE([DEBUG_MUTEX], [1],
 		[Define to 1 to enable mutex debugging])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_MUTEX"
+	else
+		AC_MSG_RESULT([no])
 	fi
-	AC_MSG_RESULT([${spl_ac_debug=no}])
 ])
 
 AC_DEFUN([SPL_AC_DEBUG_KSTAT], [
@@ -142,18 +147,20 @@ AC_DEFUN([SPL_AC_DEBUG_KSTAT], [
 		AS_HELP_STRING([--enable-debug-kstat],
 		[Enable kstat debug support (default off)]),
 		[ case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no) spl_ac_debug=no ;;
+			yes) spl_ac_debug_kstat=yes ;;
+			no)  spl_ac_debug_kstat=no  ;;
 			*) AC_MSG_RESULT([Error!])
 			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-kstat]) ;;
 		esac ]
 	) 
-	if test "$spl_ac_debug" = yes; then
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KSTAT"
+	if test "$spl_ac_debug_kstat" = yes; then
+		AC_MSG_RESULT([yes])
 		AC_DEFINE([DEBUG_KSTAT], [1],
 		[Define to 1 to enable kstat debugging])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KSTAT"
+	else
+		AC_MSG_RESULT([no])
 	fi
-	AC_MSG_RESULT([${spl_ac_debug=no}])
 ])
 
 AC_DEFUN([SPL_AC_DEBUG_CALLB], [
@@ -162,18 +169,20 @@ AC_DEFUN([SPL_AC_DEBUG_CALLB], [
 		AS_HELP_STRING([--enable-debug-callb],
 		[Enable callb debug support (default off)]),
 		[ case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no) spl_ac_debug=no ;;
+			yes) spl_ac_debug_callb=yes ;;
+			no)  spl_ac_debug_callb=no  ;;
 			*) AC_MSG_RESULT([Error!])
 			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-callb]) ;;
 		esac ]
 	) 
-	if test "$spl_ac_debug" = yes; then
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_CALLB"
+	if test "$spl_ac_debug_callb" = yes; then
+		AC_MSG_RESULT([yes])
 		AC_DEFINE([DEBUG_CALLB], [1],
 		[Define to 1 to enable callb debugging])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_CALLB"
+	else
+		AC_MSG_RESULT([no])
 	fi
-	AC_MSG_RESULT([${spl_ac_debug=no}])
 ])
 
 dnl #
@@ -278,17 +287,6 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 		AC_MSG_RESULT([yes])
 		$3
 	fi
-])
-
-dnl #
-dnl # 2.6.x API change
-dnl # Slab can now be implemented in terms of the Slub which provides
-dnl # slightly different semantics in terms of merged caches.
-dnl #
-AC_DEFUN([SPL_AC_SLUB], [
-	SPL_LINUX_CONFIG([SLUB],
-	        [AC_DEFINE(HAVE_SLUB, 1, [slub support configured])],
-                [])
 ])
 
 dnl #

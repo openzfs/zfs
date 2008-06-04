@@ -376,7 +376,7 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 	 *      SLAB_TRACE
 	 *      SLAB_DESTROY_BY_RCU
 	 */
-#ifdef HAVE_SLUB
+#ifdef CONFIG_SLUB
 	flags |= SLAB_STORE_USER;
 #endif
 

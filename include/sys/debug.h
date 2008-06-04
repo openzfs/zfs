@@ -192,6 +192,7 @@ struct page_collection {
 #ifdef NDEBUG
 
 #define CDEBUG_STACK()			(0)
+#define __CDEBUG_LIMIT(x, y, z, a...)   ((void)0)
 #define CDEBUG(mask, format, a...)	((void)0)
 #define CWARN(fmt, a...)		((void)0)
 #define CERROR(fmt, a...)		((void)0)
@@ -206,6 +207,7 @@ struct page_collection {
 #define __ASSERT(x)			((void)0)
 #define __ASSERT_TAGE_INVARIANT(x)	((void)0)
 #define ASSERT(x)			((void)0)
+#define ASSERTF(x, y, z...)	        ((void)0)
 #define VERIFY(x)                       ((void)(x))
 
 #define VERIFY3_IMPL(x, y, z, t, f, c)  if (x == z) ((void)0)
