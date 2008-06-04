@@ -496,7 +496,7 @@ restart:
 	/* When destructor support is removed we must be careful not to
 	 * use the provided constructor which will end up being called
 	 * more often than the destructor which we only call on free.  Thus
-	 * we many call the proper constructor when there is no destructor.
+	 * we call the proper constructor when there is no destructor.
 	 */
 #ifndef HAVE_KMEM_CACHE_CREATE_DTOR
 #ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
