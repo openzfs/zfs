@@ -915,6 +915,7 @@ out:
 		remove_proc_entry("kmem", proc_spl);
 	        remove_proc_entry("stats_per", proc_spl_mutex);
 		remove_proc_entry("mutex", proc_spl);
+		remove_proc_entry("spl", NULL);
 #ifdef CONFIG_SYSCTL
 	        spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
@@ -934,6 +935,7 @@ proc_fini(void)
 	remove_proc_entry("kmem", proc_spl);
         remove_proc_entry("stats_per", proc_spl_mutex);
 	remove_proc_entry("mutex", proc_spl);
+	remove_proc_entry("spl", NULL);
 #endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef CONFIG_SYSCTL
