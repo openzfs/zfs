@@ -210,7 +210,7 @@ struct page_collection {
 #define ASSERTF(x, y, z...)	        ((void)0)
 #define VERIFY(x)                       ((void)(x))
 
-#define VERIFY3_IMPL(x, y, z, t, f, c)  if (x == z) ((void)0)
+#define VERIFY3_IMPL(x, y, z, t, f, c)  if ((x) == (z)) ((void)0)
 
 #define VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
 #define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
