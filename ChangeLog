@@ -1,3 +1,13 @@
+2008-06-04 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.3.2
+
+	* : Extensive improvements to the build system to detect kernel
+	API changes so we can flexibly build with a wider range of kernel
+	versions.  The code has now been testing with the 2.6.18-32chaos
+	and 2.6.25.3-18.fc9 kernels, however we should also be compatible
+	with other kernels in the range of 2.6.18-2.6.25.
+
 2008-05-25 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* configure.ac, autoconf/* : Initial pass at resolving
