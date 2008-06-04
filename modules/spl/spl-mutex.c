@@ -59,7 +59,7 @@ spinlock_t mutex_stats_lock;
 struct list_head mutex_stats_list;
 #endif
 
-void
+int
 __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 {
 	int flags = KM_SLEEP;
@@ -69,8 +69,6 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	ASSERT(ibc == NULL);
 	ASSERT(mp->km_magic != KM_MAGIC); /* Never double init */
 
-	mp->km_magic = KM_MAGIC;
-	mp->km_owner = NULL;
 	mp->km_name = NULL;
 	mp->km_name_size = strlen(name) + 1;
 
@@ -95,12 +93,12 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	/* Semaphore kmem_alloc'ed to keep struct size down (<64b) */
 	mp->km_sem = kmem_alloc(sizeof(struct semaphore), flags);
 	if (mp->km_sem == NULL)
-		return;
+		return -ENOMEM;
 
 	mp->km_name = kmem_alloc(mp->km_name_size, flags);
 	if (mp->km_name == NULL) {
 		kmem_free(mp->km_sem, sizeof(struct semaphore));
-		return;
+		return -ENOMEM;
 	}
 
 	sema_init(mp->km_sem, 1);
@@ -111,7 +109,7 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
         if (mp->km_stats == NULL) {
 		kmem_free(mp->km_name, mp->km_name_size);
 		kmem_free(mp->km_sem, sizeof(struct semaphore));
-		return;
+		return -ENOMEM;
 	}
 
 	/* XXX - This appears to be a much more contended lock than I
@@ -124,6 +122,10 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	list_add_tail(&mp->km_list, &mutex_stats_list);
 	spin_unlock(&mutex_stats_lock);
 #endif
+	mp->km_magic = KM_MAGIC;
+	mp->km_owner = NULL;
+
+	return 0;
 }
 EXPORT_SYMBOL(__spl_mutex_init);
 

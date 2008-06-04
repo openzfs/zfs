@@ -282,6 +282,17 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 
 dnl #
 dnl # 2.6.x API change
+dnl # Slab can now be implemented in terms of the Slub which provides
+dnl # slightly different semantics in terms of merged caches.
+dnl #
+AC_DEFUN([SPL_AC_SLUB], [
+	SPL_LINUX_CONFIG([SLUB],
+	        [AC_DEFINE(HAVE_SLUB, 1, [slub support configured])],
+                [])
+])
+
+dnl #
+dnl # 2.6.x API change
 dnl # check if uintptr_t typedef is defined
 dnl #
 AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],

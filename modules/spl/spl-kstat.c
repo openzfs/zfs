@@ -416,9 +416,9 @@ __kstat_install(kstat_t *ksp)
         list_add_tail(&ksp->ks_list, &kstat_list);
 	spin_unlock(&kstat_lock);
 
-	de_module = proc_dir_entry_find(proc_sys_spl_kstat, ksp->ks_module);
+	de_module = proc_dir_entry_find(proc_spl_kstat, ksp->ks_module);
 	if (de_module == NULL) {
-                de_module = proc_mkdir(ksp->ks_module, proc_sys_spl_kstat);
+                de_module = proc_mkdir(ksp->ks_module, proc_spl_kstat);
 		if (de_module == NULL)
 			GOTO(out, rc = -EUNATCH);
 	}

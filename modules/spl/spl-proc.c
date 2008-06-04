@@ -39,21 +39,21 @@ static unsigned long table_max = ~0;
 
 #ifdef CONFIG_SYSCTL
 static struct ctl_table_header *spl_header = NULL;
+#endif /* CONFIG_SYSCTL */
+
 #if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
-static struct proc_dir_entry *proc_sys = NULL;
-static struct proc_dir_entry *proc_sys_spl = NULL;
-#endif
+static struct proc_dir_entry *proc_spl = NULL;
 #ifdef DEBUG_MUTEX
-static struct proc_dir_entry *proc_sys_spl_mutex = NULL;
-static struct proc_dir_entry *proc_sys_spl_mutex_stats = NULL;
-#endif
+static struct proc_dir_entry *proc_spl_mutex = NULL;
+static struct proc_dir_entry *proc_spl_mutex_stats = NULL;
+#endif /* DEBUG_MUTEX */
 #ifdef DEBUG_KMEM
-static struct proc_dir_entry *proc_sys_spl_kmem = NULL;
-#endif
+static struct proc_dir_entry *proc_spl_kmem = NULL;
+#endif /* DEBUG_KMEM */
 #ifdef DEBUG_KSTAT
-struct proc_dir_entry *proc_sys_spl_kstat = NULL;
-#endif
-#endif
+struct proc_dir_entry *proc_spl_kstat = NULL;
+#endif /* DEBUG_KSTAT */
+#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef HAVE_CTL_UNNUMBERED
 
@@ -877,54 +877,50 @@ proc_init(void)
         spl_header = spl_register_sysctl_table(spl_root, 0);
 	if (spl_header == NULL)
 		RETURN(-EUNATCH);
+#endif /* CONFIG_SYSCTL */
 
 #if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
-	proc_sys = proc_dir_entry_find(&proc_root, "sys");
-	if (proc_sys == NULL)
+	proc_spl = proc_mkdir("spl", NULL);
+	if (proc_spl == NULL)
 		GOTO(out, rc = -EUNATCH);
-
-	proc_sys_spl = proc_dir_entry_find(proc_sys, "spl");
-	if (proc_sys_spl == NULL)
-		GOTO(out, rc = -EUNATCH);
-#endif
 
 #ifdef DEBUG_MUTEX
-	proc_sys_spl_mutex = proc_dir_entry_find(proc_sys_spl, "mutex");
-	if (proc_sys_spl_mutex == NULL)
+	proc_spl_mutex = proc_mkdir("mutex", proc_spl);
+	if (proc_spl_mutex == NULL)
 		GOTO(out, rc = -EUNATCH);
 
-	proc_sys_spl_mutex_stats = create_proc_entry("stats_per", 0444,
-						     proc_sys_spl_mutex);
-        if (proc_sys_spl_mutex_stats == NULL)
+	proc_spl_mutex_stats = create_proc_entry("stats_per", 0444,
+						 proc_spl_mutex);
+        if (proc_spl_mutex_stats == NULL)
 		GOTO(out, rc = -EUNATCH);
 
-        proc_sys_spl_mutex_stats->proc_fops = &proc_mutex_operations;
+        proc_spl_mutex_stats->proc_fops = &proc_mutex_operations;
 #endif /* DEBUG_MUTEX */
 
 #ifdef DEBUG_KMEM
-        proc_sys_spl_kmem = proc_dir_entry_find(proc_sys_spl, "kmem");
-	        if (proc_sys_spl_kmem == NULL)
-	                GOTO(out2, rc = -EUNATCH);
+        proc_spl_kmem = proc_mkdir("kmem", proc_spl);
+        if (proc_spl_kmem == NULL)
+                GOTO(out, rc = -EUNATCH);
 #endif /* DEBUG_KMEM */
 
 #ifdef DEBUG_KSTAT
-        proc_sys_spl_kstat = proc_dir_entry_find(proc_sys_spl, "kstat");
-	        if (proc_sys_spl_kstat == NULL)
-	                GOTO(out2, rc = -EUNATCH);
+        proc_spl_kstat = proc_mkdir("kstat", proc_spl);
+        if (proc_spl_kstat == NULL)
+                GOTO(out, rc = -EUNATCH);
 #endif /* DEBUG_KSTAT */
 
-	RETURN(rc);
-#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
-out2:
-#endif
-#ifdef DEBUG_MUTEX
-        remove_proc_entry("stats_per", proc_sys_spl_mutex);
-#endif /* DEBUG_MUTEX */
-#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 out:
-#endif
-        spl_unregister_sysctl_table(spl_header);
+	if (rc) {
+		remove_proc_entry("kstat", proc_spl);
+		remove_proc_entry("kmem", proc_spl);
+	        remove_proc_entry("stats_per", proc_spl_mutex);
+		remove_proc_entry("mutex", proc_spl);
+#ifdef CONFIG_SYSCTL
+	        spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
+	}
+#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
+
         RETURN(rc);
 }
 
@@ -933,12 +929,17 @@ proc_fini(void)
 {
         ENTRY;
 
+#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
+	remove_proc_entry("kstat", proc_spl);
+	remove_proc_entry("kmem", proc_spl);
+        remove_proc_entry("stats_per", proc_spl_mutex);
+	remove_proc_entry("mutex", proc_spl);
+#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
+
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);
-#ifdef DEBUG_MUTEX
-        remove_proc_entry("stats_per", proc_sys_spl_mutex);
-#endif /* DEBUG_MUTEX */
         spl_unregister_sysctl_table(spl_header);
-#endif
+#endif /* CONFIG_SYSCTL */
+
         EXIT;
 }

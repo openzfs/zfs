@@ -49,7 +49,7 @@
 #endif /* CONFIG_SYSCTL */
 
 #ifdef DEBUG_KSTAT
-extern struct proc_dir_entry *proc_sys_spl_kstat;
+extern struct proc_dir_entry *proc_spl_kstat;
 struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
 					   const char *str);
 int proc_dir_entries(struct proc_dir_entry *root);

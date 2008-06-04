@@ -92,6 +92,7 @@ EXPORT_SYMBOL(kmem_set_warning);
 
 typedef struct kmem_cache_cb {
         int                 kcc_magic;
+        struct hlist_node   kcc_hlist;
         struct list_head    kcc_list;
         kmem_cache_t *      kcc_cache;
         kmem_constructor_t  kcc_constructor;
@@ -102,8 +103,13 @@ typedef struct kmem_cache_cb {
 	atomic_t            kcc_ref;
 } kmem_cache_cb_t;
 
-static struct rw_semaphore kmem_cache_cb_sem;
-static struct list_head kmem_cache_cb_list;
+#define KMEM_CACHE_HASH_BITS	10
+#define KMEM_CACHE_TABLE_SIZE	(1 << KMEM_CACHE_HASH_BITS)
+
+struct hlist_head kmem_cache_table[KMEM_CACHE_TABLE_SIZE];
+struct list_head kmem_cache_list;
+static struct rw_semaphore kmem_cache_sem;
+
 #ifdef HAVE_SET_SHRINKER
 static struct shrinker *kmem_cache_shrinker;
 #else
@@ -114,20 +120,23 @@ static struct shrinker kmem_cache_shrinker = {
 };
 #endif
 
-/* Function must be called while holding the kmem_cache_cb_sem
+/* Function must be called while holding the kmem_cache_sem
  * Because kmem_cache_t is an opaque datatype we're forced to
  * match pointers to identify specific cache entires.
  */
 static kmem_cache_cb_t *
 kmem_cache_find_cache_cb(kmem_cache_t *cache)
 {
+        struct hlist_head *head;
+        struct hlist_node *node;
         kmem_cache_cb_t *kcc;
 #ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
-        ASSERT(rwsem_is_locked(&kmem_cache_cb_sem));
+        ASSERT(rwsem_is_locked(&kmem_cache_sem));
 #endif
 
-        list_for_each_entry(kcc, &kmem_cache_cb_list, kcc_list)
-		if (cache == kcc->kcc_cache)
+        head = &kmem_cache_table[hash_ptr(cache, KMEM_CACHE_HASH_BITS)];
+        hlist_for_each_entry_rcu(kcc, node, head, kcc_hlist)
+                if (kcc->kcc_cache == cache)
                         return kcc;
 
         return NULL;
@@ -152,9 +161,11 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
                 kcc->kcc_private = priv;
                 kcc->kcc_vmp = vmp;
 		atomic_set(&kcc->kcc_ref, 0);
-		down_write(&kmem_cache_cb_sem);
-                list_add(&kcc->kcc_list, &kmem_cache_cb_list);
-		up_write(&kmem_cache_cb_sem);
+		down_write(&kmem_cache_sem);
+		hlist_add_head_rcu(&kcc->kcc_hlist, &kmem_cache_table[
+				   hash_ptr(cache, KMEM_CACHE_HASH_BITS)]);
+                list_add_tail(&kcc->kcc_list, &kmem_cache_list);
+		up_write(&kmem_cache_sem);
         }
 
         return kcc;
@@ -163,12 +174,13 @@ kmem_cache_add_cache_cb(kmem_cache_t *cache,
 static void
 kmem_cache_remove_cache_cb(kmem_cache_cb_t *kcc)
 {
-        down_write(&kmem_cache_cb_sem);
+        down_write(&kmem_cache_sem);
 	ASSERT(atomic_read(&kcc->kcc_ref) == 0);
-        list_del(&kcc->kcc_list);
-        up_write(&kmem_cache_cb_sem);
+        hlist_del_init(&kcc->kcc_hlist);
+        list_del_init(&kcc->kcc_list);
+        up_write(&kmem_cache_sem);
 
-        if (kcc){
+        if (kcc) {
 		memset(kcc, KCC_POISON, sizeof(*kcc));
                 kfree(kcc);
 	}
@@ -208,7 +220,7 @@ kmem_cache_generic_constructor(kmem_cache_t *cache, void *ptr)
 	/* We can be called with interrupts disabled so it is critical that
 	 * this function and the registered constructor never sleep.
 	 */
-        while (!down_read_trylock(&kmem_cache_cb_sem));
+        while (!down_read_trylock(&kmem_cache_sem));
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
@@ -219,7 +231,7 @@ kmem_cache_generic_constructor(kmem_cache_t *cache, void *ptr)
 	constructor = kcc->kcc_constructor;
 	private = kcc->kcc_private;
 
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 
 	if (constructor)
 		constructor(ptr, private, (int)flags);
@@ -242,7 +254,7 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 	/* We can be called with interrupts disabled so it is critical that
 	 * this function and the registered constructor never sleep.
 	 */
-        while (!down_read_trylock(&kmem_cache_cb_sem));
+        while (!down_read_trylock(&kmem_cache_sem));
 
         /* Callback list must be in sync with linux slab caches */
         kcc = kmem_cache_find_cache_cb(cache);
@@ -253,7 +265,7 @@ kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flag
 	destructor = kcc->kcc_destructor;
 	private = kcc->kcc_private;
 
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 
 	/* Solaris destructor takes no flags, silently eat them */
 	if (destructor)
@@ -276,9 +288,9 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * function in the shim layer for all slab caches.  And we always
 	 * attempt to shrink all caches when this generic shrinker is called.
 	 */
-        down_read(&kmem_cache_cb_sem);
+        down_read(&kmem_cache_sem);
 
-        list_for_each_entry(kcc, &kmem_cache_cb_list, kcc_list) {
+        list_for_each_entry(kcc, &kmem_cache_list, kcc_list) {
 	        ASSERT(kcc);
                 ASSERT(kcc->kcc_magic == KCC_MAGIC);
 
@@ -312,7 +324,7 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * was registered with the generic shrinker.  This should fake out
 	 * the linux VM when it attempts to shrink caches.
 	 */
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 
 	return total;
 }
@@ -349,6 +361,25 @@ __kmem_cache_create(char *name, size_t size, size_t align,
 
 	strcpy(cache_name, name);
 
+	/* When your slab is implemented in terms of the slub it
+	 * is possible similarly sized slab caches will be merged.
+	 * For our implementation we must make sure this never
+	 * happens because we require a unique cache address to
+	 * use as a hash key when looking up the constructor,
+	 * destructor, and shrinker registered for each unique
+	 * type of slab cache.  Passing any of the following flags
+	 * will prevent the slub merging.
+	 *
+	 *	SLAB_RED_ZONE
+	 *	SLAB_POISON
+	 *	SLAB_STORE_USER
+	 *      SLAB_TRACE
+	 *      SLAB_DESTROY_BY_RCU
+	 */
+#ifdef HAVE_SLUB
+	flags |= SLAB_STORE_USER;
+#endif
+
 #ifdef HAVE_KMEM_CACHE_CREATE_DTOR
         cache = kmem_cache_create(cache_name, size, align, flags,
                                   kmem_cache_generic_constructor,
@@ -360,22 +391,21 @@ __kmem_cache_create(char *name, size_t size, size_t align,
                 RETURN(NULL);
 
         /* Register shared shrinker function on initial cache create */
-        down_read(&kmem_cache_cb_sem);
-	if (list_empty(&kmem_cache_cb_list)) {
+        down_read(&kmem_cache_sem);
+	if (list_empty(&kmem_cache_list)) {
 #ifdef HAVE_SET_SHRINKER
-                kmem_cache_shrinker =
-			set_shrinker(KMC_DEFAULT_SEEKS,
-                                     kmem_cache_generic_shrinker);
+                kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
+                                      kmem_cache_generic_shrinker);
                 if (kmem_cache_shrinker == NULL) {
                         kmem_cache_destroy(cache);
-                        up_read(&kmem_cache_cb_sem);
+                        up_read(&kmem_cache_sem);
                         RETURN(NULL);
                 }
 #else
 		register_shrinker(&kmem_cache_shrinker);
 #endif
         }
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 
         kcc = kmem_cache_add_cache_cb(cache, constructor, destructor,
                                       reclaim, priv, vmp);
@@ -405,14 +435,14 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 	int rc;
 	ENTRY;
 
-        down_read(&kmem_cache_cb_sem);
+        down_read(&kmem_cache_sem);
         kcc = kmem_cache_find_cache_cb(cache);
         if (kcc == NULL) {
-                up_read(&kmem_cache_cb_sem);
+                up_read(&kmem_cache_sem);
                 RETURN(-EINVAL);
         }
 	atomic_inc(&kcc->kcc_ref);
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 
 	name = (char *)kmem_cache_name(cache);
 
@@ -428,15 +458,15 @@ __kmem_cache_destroy(kmem_cache_t *cache)
 	kfree(name);
 
 	/* Unregister generic shrinker on removal of all caches */
-        down_read(&kmem_cache_cb_sem);
-	if (list_empty(&kmem_cache_cb_list))
+        down_read(&kmem_cache_sem);
+	if (list_empty(&kmem_cache_list))
 #ifdef HAVE_SET_SHRINKER
 		remove_shrinker(kmem_cache_shrinker);
 #else
 		unregister_shrinker(&kmem_cache_shrinker);
 #endif
 
-        up_read(&kmem_cache_cb_sem);
+        up_read(&kmem_cache_sem);
 	RETURN(rc);
 }
 EXPORT_SYMBOL(__kmem_cache_destroy);
@@ -463,18 +493,18 @@ restart:
 		GOTO(restart, obj);
 	}
 
-/* When destructor support is removed we must be careful not to
- * use the provided constructor which will end up being called
- * more often than the destructor which we only call on free.  Thus
- * we many call the proper constructor when there is no destructor.
- */
+	/* When destructor support is removed we must be careful not to
+	 * use the provided constructor which will end up being called
+	 * more often than the destructor which we only call on free.  Thus
+	 * we many call the proper constructor when there is no destructor.
+	 */
 #ifndef HAVE_KMEM_CACHE_CREATE_DTOR
 #ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
 	kmem_cache_generic_constructor(obj, cache, flags);
 #else
 	kmem_cache_generic_constructor(cache, obj);
-#endif
-#endif
+#endif /* HAVE_KMEM_CACHE_CREATE_DTOR */
+#endif /* HAVE_3ARG_KMEM_CACHE_CREATE_CTOR */
 
 	RETURN(obj);
 }
@@ -504,30 +534,32 @@ EXPORT_SYMBOL(__kmem_reap);
 int
 kmem_init(void)
 {
+        int i;
         ENTRY;
 
-	init_rwsem(&kmem_cache_cb_sem);
-        INIT_LIST_HEAD(&kmem_cache_cb_list);
+	init_rwsem(&kmem_cache_sem);
+	INIT_LIST_HEAD(&kmem_cache_list);
+
+	for (i = 0; i < KMEM_CACHE_TABLE_SIZE; i++)
+		INIT_HLIST_HEAD(&kmem_cache_table[i]);
+
 #ifdef DEBUG_KMEM
-        {
-                int i;
-		atomic64_set(&kmem_alloc_used, 0);
-		atomic64_set(&vmem_alloc_used, 0);
+	atomic64_set(&kmem_alloc_used, 0);
+	atomic64_set(&vmem_alloc_used, 0);
 
-                spin_lock_init(&kmem_lock);
-                INIT_LIST_HEAD(&kmem_list);
+	spin_lock_init(&kmem_lock);
+	INIT_LIST_HEAD(&kmem_list);
 
-                for (i = 0; i < KMEM_TABLE_SIZE; i++)
-                        INIT_HLIST_HEAD(&kmem_table[i]);
+	for (i = 0; i < KMEM_TABLE_SIZE; i++)
+		INIT_HLIST_HEAD(&kmem_table[i]);
 
-                spin_lock_init(&vmem_lock);
-                INIT_LIST_HEAD(&vmem_list);
+	spin_lock_init(&vmem_lock);
+	INIT_LIST_HEAD(&vmem_list);
 
-                for (i = 0; i < VMEM_TABLE_SIZE; i++)
-                        INIT_HLIST_HEAD(&vmem_table[i]);
+	for (i = 0; i < VMEM_TABLE_SIZE; i++)
+		INIT_HLIST_HEAD(&vmem_table[i]);
 
-		atomic64_set(&kmem_cache_alloc_failed, 0);
-        }
+	atomic64_set(&kmem_cache_alloc_failed, 0);
 #endif
 	RETURN(0);
 }

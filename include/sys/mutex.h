@@ -78,7 +78,7 @@ extern struct list_head mutex_stats_list;
 int spl_mutex_init(void);
 void spl_mutex_fini(void);
 
-extern void __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc);
+extern int __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc);
 extern void __spl_mutex_destroy(kmutex_t *mp);
 extern int __mutex_tryenter(kmutex_t *mp);
 extern void __mutex_enter(kmutex_t *mp);
@@ -91,10 +91,11 @@ extern kthread_t *__spl_mutex_owner(kmutex_t *mp);
 
 #define mutex_init(mp, name, type, ibc)					\
 ({									\
+	/* May never fail or all subsequent mutex_* calls will ASSERT */\
 	if ((name) == NULL)						\
-		__spl_mutex_init(mp, #mp, type, ibc);			\
+		while(__spl_mutex_init(mp, #mp, type, ibc));		\
 	else								\
-		__spl_mutex_init(mp, name, type, ibc);			\
+		while(__spl_mutex_init(mp, name, type, ibc));		\
 })
 #define mutex_destroy(mp)	__spl_mutex_destroy(mp)
 #define mutex_tryenter(mp)	__mutex_tryenter(mp)
