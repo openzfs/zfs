@@ -119,16 +119,16 @@ kstat_seq_show_named(struct seq_file *f, kstat_named_t *knp)
                         seq_printf(f, "%u", knp->value.ui32);
                         break;
                 case KSTAT_DATA_INT64:
-                        seq_printf(f, "%d", (int)knp->value.i64);
+                        seq_printf(f, "%lld", (signed long long)knp->value.i64);
                         break;
                 case KSTAT_DATA_UINT64:
-                        seq_printf(f, "%u", (unsigned int)knp->value.ui64);
+                        seq_printf(f, "%llu", (unsigned long long)knp->value.ui64);
                         break;
                 case KSTAT_DATA_LONG:
                         seq_printf(f, "%ld", knp->value.l);
                         break;
                 case KSTAT_DATA_ULONG:
-                        seq_printf(f, "%lu", knp->value.l);
+                        seq_printf(f, "%lu", knp->value.ul);
                         break;
                 case KSTAT_DATA_STRING:
                         KSTAT_NAMED_STR_PTR(knp)
