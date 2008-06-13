@@ -427,6 +427,11 @@ spl_hash_ptr(void *ptr, unsigned int bits)
 	return hash_long((unsigned long)ptr >> PAGE_SHIFT, bits);
 }
 
+#ifndef list_first_entry
+#define list_first_entry(ptr, type, member) \
+	        list_entry((ptr)->next, type, member)
+#endif
+
 void *
 spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 {
@@ -640,20 +645,21 @@ spl_kmem_init(void)
 	spl_slab_cache = NULL;
 	spl_obj_cache = NULL;
 
-	spl_slab_cache = kmem_cache_create("spl_slab_cache",
-					   sizeof(spl_kmem_slab_t),
-					   0, 0, NULL);
+	spl_slab_cache = __kmem_cache_create("spl_slab_cache",
+					     sizeof(spl_kmem_slab_t),
+					     0, 0, NULL, NULL);
 	if (spl_slab_cache == NULL)
 		GOTO(out_cache, rc = -ENOMEM);
 
-	spl_obj_cache = kmem_cache_create("spl_obj_cache",
-					  sizeof(spl_kmem_obj_t),
-					  0, 0, NULL);
+	spl_obj_cache = __kmem_cache_create("spl_obj_cache",
+					    sizeof(spl_kmem_obj_t),
+					    0, 0, NULL, NULL);
 	if (spl_obj_cache == NULL)
 		GOTO(out_cache, rc = -ENOMEM);
 
 #ifdef HAVE_SET_SHRINKER
-	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS, shrinker);
+	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
+					       kmem_cache_generic_shrinker);
 	if (spl_kmem_cache_shrinker == NULL)
 		GOTO(out_cache, rc = -ENOMEM);
 #else

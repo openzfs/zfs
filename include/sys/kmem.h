@@ -453,6 +453,14 @@ void spl_kmem_fini(void);
 #define kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)
 #define kmem_reap()			spl_kmem_reap()
 
+#ifdef HAVE_KMEM_CACHE_CREATE_DTOR
+#define __kmem_cache_create(name, size, align, flags, ctor, dtor) \
+        kmem_cache_create(name, size, align, flags, ctor, dtor)
+#else
+#define __kmem_cache_create(name, size, align, flags, ctor, dtor) \
+        kmem_cache_create(name, size, align, flags, ctor)
+#endif /* HAVE_KMEM_CACHE_CREATE_DTOR */
+
 #ifdef	__cplusplus
 }
 #endif
