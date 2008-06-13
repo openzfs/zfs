@@ -1,3 +1,10 @@
+2008-06-13 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : modules/sys/kmem-slab.c : Re-implemented the slab to no
+	longer be based on the linux slab but to be it's own complete
+	implementation.  The new slab behaves much more like the
+	Solaris slab than the Linux slab.
+
 2008-06-04 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.3.2

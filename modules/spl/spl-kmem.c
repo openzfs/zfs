@@ -33,7 +33,13 @@
 #define DEBUG_SUBSYSTEM S_KMEM
 
 /*
- * Memory allocation interfaces
+ * Memory allocation interfaces and debugging for basic kmem_*
+ * and vmem_* style memory allocation.  When DEBUG_KMEM is enable
+ * all allocations will be tracked when they are allocated and
+ * freed.  When the SPL module is unload a list of all leaked
+ * addresses and where they were allocated will be dumped to the
+ * console.  Enabling this feature has a significant impant on
+ * performance but it makes finding memory leaks staight forward.
  */
 #ifdef DEBUG_KMEM
 /* Shim layer memory accounting */
@@ -75,211 +81,511 @@ EXPORT_SYMBOL(kmem_set_warning);
 /*
  * Slab allocation interfaces
  *
- * While the linux slab implementation was inspired by solaris they
- * have made some changes to the API which complicates this shim
- * layer.  For one thing the same symbol names are used with different
- * arguments for the prototypes.  To deal with this we must use the
- * preprocessor to re-order arguments.  Happily for us standard C says,
- * "Macro's appearing in their own expansion are not reexpanded" so
- * this does not result in an infinite recursion.  Additionally the
- * function pointers registered by solarias differ from those used
- * by linux so a lookup and mapping from linux style callback to a
- * solaris style callback is needed.  There is some overhead in this
- * operation which isn't horibile but it needs to be kept in mind.
+ * While the Linux slab implementation was inspired by the Solaris
+ * implemenation I cannot use it to emulate the Solaris APIs.  I
+ * require two features which are not provided by the Linux slab.
+ *
+ * 1) Constructors AND destructors.  Recent versions of the Linux
+ *    kernel have removed support for destructors.  This is a deal
+ *    breaker for the SPL which contains particularly expensive
+ *    initializers for mutex's, condition variables, etc.  We also
+ *    require a minimal level of cleaner for these data types unlike
+ *    may Linux data type which do need to be explicitly destroyed.
+ *
+ * 2) Virtual address backed slab.  Callers of the Solaris slab
+ *    expect it to work well for both small are very large allocations.
+ *    Because of memory fragmentation the Linux slab which is backed
+ *    by kmalloc'ed memory performs very badly when confronted with
+ *    large numbers of large allocations.  Basing the slab on the
+ *    virtual address space removes the need for contigeous pages
+ *    and greatly improve performance for large allocations.
+ *
+ * For these reasons, the SPL has its own slab implementation with
+ * the needed features.  It is not as highly optimized as either the
+ * Solaris or Linux slabs, but it should get me most of what is
+ * needed until it can be optimized or obsoleted by another approach.
+ *
+ * One serious concern I do have about this method is the relatively
+ * small virtual address space on 32bit arches.  This will seriously
+ * constrain the size of the slab caches and their performance.
+ *
+ * XXX: Refactor the below code in to smaller functions.  This works
+ *      for a first pass but each function is doing to much.
+ *
+ * XXX: Implement SPL proc interface to export full per cache stats.
+ *
+ * XXX: Implement work requests to keep an eye on each cache and
+ *      shrink them via slab_reclaim() when they are wasting lots
+ *      of space.  Currently this process is driven by the reapers.
+ *
+ * XXX: Implement proper small cache object support by embedding
+ *      the spl_kmem_slab_t, spl_kmem_obj_t's, and objects in the
+ *      allocated for a particular slab.
+ *
+ * XXX: Implement a resizable used object hash.  Currently the hash
+ *      is statically sized for thousands of objects but it should
+ *      grow based on observed worst case slab depth.
+ *
+ * XXX: Improve the partial slab list by carefully maintaining a
+ *      strict ordering of fullest to emptiest slabs based on
+ *      the slab reference count.  This gaurentees the when freeing
+ *      slabs back to the system we need only linearly traverse the
+ *      last N slabs in the list to discover all the freeable slabs.
+ *
+ * XXX: NUMA awareness for optionally allocating memory close to a
+ *      particular core.  This can be adventageous if you know the slab
+ *      object will be short lived and primarily accessed from one core.
+ *
+ * XXX: Slab coloring may also yield performance improvements and would
+ *      be desirable to implement.
  */
-#define KCC_MAGIC                0x7a7a7a7a
-#define KCC_POISON               0x77
 
-typedef struct kmem_cache_cb {
-        int                 kcc_magic;
-        struct hlist_node   kcc_hlist;
-        struct list_head    kcc_list;
-        kmem_cache_t *      kcc_cache;
-        kmem_constructor_t  kcc_constructor;
-        kmem_destructor_t   kcc_destructor;
-        kmem_reclaim_t      kcc_reclaim;
-        void *              kcc_private;
-        void *              kcc_vmp;
-	atomic_t            kcc_ref;
-} kmem_cache_cb_t;
+/* Ensure the __kmem_cache_create/__kmem_cache_destroy macros are
+ * removed here to prevent a recursive substitution, we want to call
+ * the native linux version.
+ */
+#undef kmem_cache_t
+#undef kmem_cache_create
+#undef kmem_cache_destroy
+#undef kmem_cache_alloc
+#undef kmem_cache_free
 
-#define KMEM_CACHE_HASH_BITS	10
-#define KMEM_CACHE_TABLE_SIZE	(1 << KMEM_CACHE_HASH_BITS)
-
-struct hlist_head kmem_cache_table[KMEM_CACHE_TABLE_SIZE];
-struct list_head kmem_cache_list;
-static struct rw_semaphore kmem_cache_sem;
+static struct list_head spl_kmem_cache_list;	/* List of caches */
+static struct rw_semaphore spl_kmem_cache_sem;	/* Cache list lock */
+static kmem_cache_t *spl_slab_cache;		/* Cache for slab structs */
+static kmem_cache_t *spl_obj_cache;		/* Cache for obj structs */
 
 #ifdef HAVE_SET_SHRINKER
-static struct shrinker *kmem_cache_shrinker;
+static struct shrinker *spl_kmem_cache_shrinker;
 #else
 static int kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask);
-static struct shrinker kmem_cache_shrinker = {
+static struct shrinker spl_kmem_cache_shrinker = {
 	.shrink = kmem_cache_generic_shrinker,
 	.seeks = KMC_DEFAULT_SEEKS,
 };
 #endif
 
-/* Function must be called while holding the kmem_cache_sem
- * Because kmem_cache_t is an opaque datatype we're forced to
- * match pointers to identify specific cache entires.
+static spl_kmem_slab_t *
+slab_alloc(spl_kmem_cache_t *skc, int flags) {
+	spl_kmem_slab_t *sks;
+	spl_kmem_obj_t *sko, *n;
+	int i;
+	ENTRY;
+
+	sks = kmem_cache_alloc(spl_slab_cache, flags);
+	if (sks == NULL)
+		RETURN(sks);
+
+	sks->sks_magic = SKS_MAGIC;
+	sks->sks_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+	sks->sks_age = jiffies;
+	sks->sks_cache = skc;
+	INIT_LIST_HEAD(&sks->sks_list);
+	INIT_LIST_HEAD(&sks->sks_free_list);
+	atomic_set(&sks->sks_ref, 0);
+
+	for (i = 0; i < sks->sks_objs; i++) {
+		sko = kmem_cache_alloc(spl_obj_cache, flags);
+		if (sko == NULL) {
+out_alloc:
+			/* Unable to fully construct slab, objects,
+			 * and object data buffers unwind everything.
+			 */
+			list_for_each_entry_safe(sko, n, &sks->sks_free_list,
+						 sko_list) {
+				ASSERT(sko->sko_magic == SKO_MAGIC);
+				vmem_free(sko->sko_addr, skc->skc_obj_size);
+				list_del(&sko->sko_list);
+				kmem_cache_free(spl_obj_cache, sko);
+			}
+
+			kmem_cache_free(spl_slab_cache, sks);
+			GOTO(out, sks = NULL);
+		}
+
+		sko->sko_addr = vmem_alloc(skc->skc_obj_size, flags);
+		if (sko->sko_addr == NULL) {
+			kmem_cache_free(spl_obj_cache, sko);
+			GOTO(out_alloc, sks = NULL);
+		}
+
+		sko->sko_magic = SKO_MAGIC;
+		sko->sko_flags = 0;
+		sko->sko_slab = sks;
+		INIT_LIST_HEAD(&sko->sko_list);
+	        INIT_HLIST_NODE(&sko->sko_hlist);
+		list_add(&sko->sko_list, &sks->sks_free_list);
+	}
+out:
+	RETURN(sks);
+}
+
+/* Removes slab from complete or partial list, so it must
+ * be called with the 'skc->skc_sem' semaphore held.
+ *                         */
+static void
+slab_free(spl_kmem_slab_t *sks) {
+	spl_kmem_cache_t *skc;
+	spl_kmem_obj_t *sko, *n;
+	int i = 0;
+	ENTRY;
+
+	ASSERT(sks->sks_magic == SKS_MAGIC);
+	ASSERT(atomic_read(&sks->sks_ref) == 0);
+	skc = sks->sks_cache;
+	skc->skc_obj_total -= sks->sks_objs;
+	skc->skc_slab_total--;
+
+#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+	ASSERT(rwsem_is_locked(&skc->skc_sem));
+#endif
+
+	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+
+		/* Run destructors for being freed */
+		if (skc->skc_dtor)
+			skc->skc_dtor(sko->sko_addr, skc->skc_private);
+
+		vmem_free(sko->sko_addr, skc->skc_obj_size);
+		list_del(&sko->sko_list);
+		kmem_cache_free(spl_obj_cache, sko);
+		i++;
+	}
+
+	ASSERT(sks->sks_objs == i);
+	list_del(&sks->sks_list);
+	kmem_cache_free(spl_slab_cache, sks);
+
+	EXIT;
+}
+
+static int
+__slab_reclaim(spl_kmem_cache_t *skc)
+{
+	spl_kmem_slab_t *sks, *m;
+	int rc = 0;
+	ENTRY;
+
+#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+	ASSERT(rwsem_is_locked(&skc->skc_sem));
+#endif
+	/*
+	 * Free empty slabs which have not been touched in skc_delay
+	 * seconds.  This delay time is important to avoid thrashing.
+	 * Empty slabs will be at the end of the skc_partial_list.
+	 */
+        list_for_each_entry_safe_reverse(sks, m, &skc->skc_partial_list,
+					 sks_list) {
+		if (atomic_read(&sks->sks_ref) > 0)
+		       break;
+
+		if (time_after(jiffies, sks->sks_age + skc->skc_delay * HZ)) {
+			slab_free(sks);
+			rc++;
+		}
+	}
+
+	/* Returns number of slabs reclaimed */
+	RETURN(rc);
+}
+
+static int
+slab_reclaim(spl_kmem_cache_t *skc)
+{
+	int rc;
+	ENTRY;
+
+	down_write(&skc->skc_sem);
+	rc = __slab_reclaim(skc);
+	up_write(&skc->skc_sem);
+
+	RETURN(rc);
+}
+
+spl_kmem_cache_t *
+spl_kmem_cache_create(char *name, size_t size, size_t align,
+                      spl_kmem_ctor_t ctor,
+                      spl_kmem_dtor_t dtor,
+                      spl_kmem_reclaim_t reclaim,
+                      void *priv, void *vmp, int flags)
+{
+        spl_kmem_cache_t *skc;
+	int i, kmem_flags = KM_SLEEP;
+	ENTRY;
+
+        /* We may be called when there is a non-zero preempt_count or
+         * interrupts are disabled is which case we must not sleep.
+	 */
+        if (current_thread_info()->preempt_count || irqs_disabled())
+		kmem_flags = KM_NOSLEEP;
+
+	/* Allocate new cache memory and initialize. */
+        skc = (spl_kmem_cache_t *)kmem_alloc(sizeof(*skc), kmem_flags);
+        if (skc == NULL)
+		RETURN(NULL);
+
+	skc->skc_magic = SKC_MAGIC;
+
+	skc->skc_name_size = strlen(name) + 1;
+	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, kmem_flags);
+	if (skc->skc_name == NULL) {
+		kmem_free(skc, sizeof(*skc));
+		RETURN(NULL);
+	}
+	strncpy(skc->skc_name, name, skc->skc_name_size);
+
+        skc->skc_ctor = ctor;
+        skc->skc_dtor = dtor;
+        skc->skc_reclaim = reclaim;
+	skc->skc_private = priv;
+	skc->skc_vmp = vmp;
+	skc->skc_flags = flags;
+	skc->skc_obj_size = size;
+	skc->skc_chunk_size = 0; /* XXX: Needed only when implementing   */
+	skc->skc_slab_size = 0;  /*      small slab object optimizations */
+	skc->skc_max_chunks = 0; /*      which are yet supported. */
+	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
+
+	skc->skc_hash_bits = SPL_KMEM_CACHE_HASH_BITS;
+	skc->skc_hash_size = SPL_KMEM_CACHE_HASH_SIZE;
+	skc->skc_hash_elts = SPL_KMEM_CACHE_HASH_ELTS;
+	skc->skc_hash = (struct hlist_head *)
+		        kmem_alloc(skc->skc_hash_size, kmem_flags);
+	if (skc->skc_hash == NULL) {
+		kmem_free(skc->skc_name, skc->skc_name_size);
+		kmem_free(skc, sizeof(*skc));
+	}
+
+	for (i = 0; i < skc->skc_hash_elts; i++)
+		INIT_HLIST_HEAD(&skc->skc_hash[i]);
+
+	INIT_LIST_HEAD(&skc->skc_list);
+	INIT_LIST_HEAD(&skc->skc_complete_list);
+	INIT_LIST_HEAD(&skc->skc_partial_list);
+	init_rwsem(&skc->skc_sem);
+        skc->skc_slab_fail = 0;
+        skc->skc_slab_create = 0;
+        skc->skc_slab_destroy = 0;
+	skc->skc_slab_total = 0;
+	skc->skc_slab_alloc = 0;
+	skc->skc_slab_max = 0;
+	skc->skc_obj_total = 0;
+	skc->skc_obj_alloc = 0;
+	skc->skc_obj_max = 0;
+	skc->skc_hash_depth = 0;
+	skc->skc_hash_max = 0;
+
+	down_write(&spl_kmem_cache_sem);
+        list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
+	up_write(&spl_kmem_cache_sem);
+
+        RETURN(skc);
+}
+EXPORT_SYMBOL(spl_kmem_cache_create);
+
+/* The caller must ensure there are no racing calls to
+ * spl_kmem_cache_alloc() for this spl_kmem_cache_t when
+ * it is being destroyed.
  */
-static kmem_cache_cb_t *
-kmem_cache_find_cache_cb(kmem_cache_t *cache)
+void
+spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
+{
+        spl_kmem_slab_t *sks, *m;
+	ENTRY;
+
+        down_write(&spl_kmem_cache_sem);
+        list_del_init(&skc->skc_list);
+        up_write(&spl_kmem_cache_sem);
+
+	down_write(&skc->skc_sem);
+
+	/* Validate there are no objects in use and free all the
+	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
+	 */
+	ASSERT(list_empty(&skc->skc_complete_list));
+
+        list_for_each_entry_safe(sks, m, &skc->skc_partial_list, sks_list)
+		slab_free(sks);
+
+	kmem_free(skc->skc_hash, skc->skc_hash_size);
+	kmem_free(skc->skc_name, skc->skc_name_size);
+	kmem_free(skc, sizeof(*skc));
+	up_write(&skc->skc_sem);
+
+	EXIT;
+}
+EXPORT_SYMBOL(spl_kmem_cache_destroy);
+
+/* The kernel provided hash_ptr() function behaves exceptionally badly
+ * when all the addresses are page aligned which is likely the case
+ * here.  To avoid this issue shift off the low order non-random bits.
+ */
+static unsigned long
+spl_hash_ptr(void *ptr, unsigned int bits)
+{
+	return hash_long((unsigned long)ptr >> PAGE_SHIFT, bits);
+}
+
+void *
+spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
+{
+        spl_kmem_slab_t *sks;
+	spl_kmem_obj_t *sko;
+	void *obj;
+	unsigned long key;
+	ENTRY;
+
+	down_write(&skc->skc_sem);
+restart:
+	/* Check for available objects from the partial slabs */
+	if (!list_empty(&skc->skc_partial_list)) {
+		sks = list_first_entry(&skc->skc_partial_list,
+		                       spl_kmem_slab_t, sks_list);
+		ASSERT(sks->sks_magic == SKS_MAGIC);
+		ASSERT(atomic_read(&sks->sks_ref) < sks->sks_objs);
+		ASSERT(!list_empty(&sks->sks_free_list));
+
+		sko = list_first_entry(&sks->sks_free_list,
+		                       spl_kmem_obj_t, sko_list);
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+		ASSERT(sko->sko_addr != NULL);
+
+		/* Remove from sks_free_list, add to used hash */
+		list_del_init(&sko->sko_list);
+		key = spl_hash_ptr(sko->sko_addr, skc->skc_hash_bits);
+		hlist_add_head_rcu(&sko->sko_hlist, &skc->skc_hash[key]);
+
+		sks->sks_age = jiffies;
+		atomic_inc(&sks->sks_ref);
+		skc->skc_obj_alloc++;
+
+		if (skc->skc_obj_alloc > skc->skc_obj_max)
+			skc->skc_obj_max = skc->skc_obj_alloc;
+
+		if (atomic_read(&sks->sks_ref) == 1) {
+			skc->skc_slab_alloc++;
+
+			if (skc->skc_slab_alloc > skc->skc_slab_max)
+				skc->skc_slab_max = skc->skc_slab_alloc;
+		}
+
+		/* Move slab to skc_complete_list when full */
+		if (atomic_read(&sks->sks_ref) == sks->sks_objs) {
+			list_del(&sks->sks_list);
+			list_add(&sks->sks_list, &skc->skc_complete_list);
+		}
+
+		GOTO(out_lock, obj = sko->sko_addr);
+	}
+
+	up_write(&skc->skc_sem);
+
+	/* No available objects create a new slab.  Since this is an
+	 * expensive operation we do it without holding the semaphore
+	 * and only briefly aquire it when we link in the fully
+	 * allocated and constructed slab.
+	 */
+
+	/* Under Solaris if the KM_SLEEP flag is passed we may never
+	 * fail, so sleep as long as needed.  Additionally, since we are
+	 * using vmem_alloc() KM_NOSLEEP is not an option and we must
+	 * fail.  Shifting to allocating our own pages and mapping the
+	 * virtual address space may allow us to bypass this issue.
+	 */
+	if (!flags)
+		flags |= KM_SLEEP;
+
+	if (flags & KM_SLEEP)
+		flags |= __GFP_NOFAIL;
+	else
+		GOTO(out, obj = NULL);
+
+	sks = slab_alloc(skc, flags);
+	if (sks == NULL)
+		GOTO(out, obj = NULL);
+
+	/* Run all the constructors now that the slab is fully allocated */
+	list_for_each_entry(sko, &sks->sks_free_list, sko_list) {
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+
+		if (skc->skc_ctor)
+			skc->skc_ctor(sko->sko_addr, skc->skc_private, flags);
+	}
+
+	/* Link the newly created slab in to the skc_partial_list,
+	 * and retry the allocation which will now succeed.
+	 */
+	down_write(&skc->skc_sem);
+	skc->skc_slab_total++;
+	skc->skc_obj_total += sks->sks_objs;
+	list_add_tail(&sks->sks_list, &skc->skc_partial_list);
+	GOTO(restart, obj = NULL);
+
+out_lock:
+	up_write(&skc->skc_sem);
+out:
+	RETURN(obj);
+}
+EXPORT_SYMBOL(spl_kmem_cache_alloc);
+
+void
+spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 {
         struct hlist_head *head;
         struct hlist_node *node;
-        kmem_cache_cb_t *kcc;
-#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
-        ASSERT(rwsem_is_locked(&kmem_cache_sem));
-#endif
+        spl_kmem_slab_t *sks = NULL;
+	spl_kmem_obj_t *sko = NULL;
+	ENTRY;
 
-        head = &kmem_cache_table[hash_ptr(cache, KMEM_CACHE_HASH_BITS)];
-        hlist_for_each_entry_rcu(kcc, node, head, kcc_hlist)
-                if (kcc->kcc_cache == cache)
-                        return kcc;
+	down_write(&skc->skc_sem);
 
-        return NULL;
-}
-
-static kmem_cache_cb_t *
-kmem_cache_add_cache_cb(kmem_cache_t *cache,
-			kmem_constructor_t constructor,
-                        kmem_destructor_t destructor,
-			kmem_reclaim_t reclaim,
-                        void *priv, void *vmp)
-{
-        kmem_cache_cb_t *kcc;
-
-        kcc = (kmem_cache_cb_t *)kmalloc(sizeof(*kcc), GFP_KERNEL);
-        if (kcc) {
-		kcc->kcc_magic = KCC_MAGIC;
-		kcc->kcc_cache = cache;
-                kcc->kcc_constructor = constructor;
-                kcc->kcc_destructor = destructor;
-                kcc->kcc_reclaim = reclaim;
-                kcc->kcc_private = priv;
-                kcc->kcc_vmp = vmp;
-		atomic_set(&kcc->kcc_ref, 0);
-		down_write(&kmem_cache_sem);
-		hlist_add_head_rcu(&kcc->kcc_hlist, &kmem_cache_table[
-				   hash_ptr(cache, KMEM_CACHE_HASH_BITS)]);
-                list_add_tail(&kcc->kcc_list, &kmem_cache_list);
-		up_write(&kmem_cache_sem);
-        }
-
-        return kcc;
-}
-
-static void
-kmem_cache_remove_cache_cb(kmem_cache_cb_t *kcc)
-{
-        down_write(&kmem_cache_sem);
-	ASSERT(atomic_read(&kcc->kcc_ref) == 0);
-        hlist_del_init(&kcc->kcc_hlist);
-        list_del_init(&kcc->kcc_list);
-        up_write(&kmem_cache_sem);
-
-        if (kcc) {
-		memset(kcc, KCC_POISON, sizeof(*kcc));
-                kfree(kcc);
+        head = &skc->skc_hash[spl_hash_ptr(obj, skc->skc_hash_bits)];
+        hlist_for_each_entry_rcu(sko, node, head, sko_hlist) {
+                if (sko->sko_addr == obj) {
+			ASSERT(sko->sko_magic == SKO_MAGIC);
+			sks = sko->sko_slab;
+			break;
+		}
 	}
-}
 
-#ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
-static void
-kmem_cache_generic_constructor(void *ptr, kmem_cache_t *cache,
-			       unsigned long flags)
-{
-        kmem_cache_cb_t *kcc;
-	kmem_constructor_t constructor;
-	void *private;
+	ASSERT(sko != NULL); /* Obj must be in hash */
+	ASSERT(sks != NULL); /* Obj must reference slab */
+	ASSERT(sks->sks_cache == skc);
+	hlist_del_init(&sko->sko_hlist);
+	list_add(&sko->sko_list, &sks->sks_free_list);
 
-	/* Ensure constructor verifies are not passed to the registered
-	 * constructors.  This may not be safe due to the Solaris constructor
-	 * not being aware of how to handle the SLAB_CTOR_VERIFY flag
+	sks->sks_age = jiffies;
+	atomic_dec(&sks->sks_ref);
+	skc->skc_obj_alloc--;
+
+	/* Move slab to skc_partial_list when no longer full.  Slabs
+	 * are added to the kead to keep the partial list is quasi
+	 * full sorted order.  Fuller at the head, emptier at the tail.
 	 */
-	ASSERT(flags & SLAB_CTOR_CONSTRUCTOR);
+	if (atomic_read(&sks->sks_ref) == (sks->sks_objs - 1)) {
+		list_del(&sks->sks_list);
+		list_add(&sks->sks_list, &skc->skc_partial_list);
+	}
 
-	if (flags & SLAB_CTOR_VERIFY)
-		return;
-
-	if (flags & SLAB_CTOR_ATOMIC)
-		flags = KM_NOSLEEP;
-	else
-		flags = KM_SLEEP;
-#else
-static void
-kmem_cache_generic_constructor(kmem_cache_t *cache, void *ptr)
-{
-        kmem_cache_cb_t *kcc;
-	kmem_constructor_t constructor;
-	void *private;
-	int flags = KM_NOSLEEP;
-#endif
-	/* We can be called with interrupts disabled so it is critical that
-	 * this function and the registered constructor never sleep.
+	/* Move emply slabs to the end of the partial list so
+	 * they can be easily found and freed during reclamation.
 	 */
-        while (!down_read_trylock(&kmem_cache_sem));
+	if (atomic_read(&sks->sks_ref) == 0) {
+		list_del(&sks->sks_list);
+		list_add_tail(&sks->sks_list, &skc->skc_partial_list);
+		skc->skc_slab_alloc--;
+	}
 
-        /* Callback list must be in sync with linux slab caches */
-        kcc = kmem_cache_find_cache_cb(cache);
-        ASSERT(kcc);
-	ASSERT(kcc->kcc_magic == KCC_MAGIC);
-	atomic_inc(&kcc->kcc_ref);
-
-	constructor = kcc->kcc_constructor;
-	private = kcc->kcc_private;
-
-        up_read(&kmem_cache_sem);
-
-	if (constructor)
-		constructor(ptr, private, (int)flags);
-
-	atomic_dec(&kcc->kcc_ref);
-
-	/* Linux constructor has no return code, silently eat it */
+	__slab_reclaim(skc);
+	up_write(&skc->skc_sem);
 }
+EXPORT_SYMBOL(spl_kmem_cache_free);
 
-static void
-kmem_cache_generic_destructor(void *ptr, kmem_cache_t *cache, unsigned long flags)
-{
-        kmem_cache_cb_t *kcc;
-        kmem_destructor_t destructor;
-	void *private;
-
-	/* No valid destructor flags */
-	ASSERT(flags == 0);
-
-	/* We can be called with interrupts disabled so it is critical that
-	 * this function and the registered constructor never sleep.
-	 */
-        while (!down_read_trylock(&kmem_cache_sem));
-
-        /* Callback list must be in sync with linux slab caches */
-        kcc = kmem_cache_find_cache_cb(cache);
-	ASSERT(kcc);
-	ASSERT(kcc->kcc_magic == KCC_MAGIC);
-	atomic_inc(&kcc->kcc_ref);
-
-	destructor = kcc->kcc_destructor;
-	private = kcc->kcc_private;
-
-        up_read(&kmem_cache_sem);
-
-	/* Solaris destructor takes no flags, silently eat them */
-	if (destructor)
-		destructor(ptr, private);
-
-	atomic_dec(&kcc->kcc_ref);
-}
-
-/* Arguments are ignored */
 static int
 kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 {
-        kmem_cache_cb_t *kcc;
-        int total = 0;
+        spl_kmem_cache_t *skc;
 
 	/* Under linux a shrinker is not tightly coupled with a slab
 	 * cache.  In fact linux always systematically trys calling all
@@ -288,264 +594,77 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 	 * function in the shim layer for all slab caches.  And we always
 	 * attempt to shrink all caches when this generic shrinker is called.
 	 */
-        down_read(&kmem_cache_sem);
+        down_read(&spl_kmem_cache_sem);
 
-        list_for_each_entry(kcc, &kmem_cache_list, kcc_list) {
-	        ASSERT(kcc);
-                ASSERT(kcc->kcc_magic == KCC_MAGIC);
+        list_for_each_entry(skc, &spl_kmem_cache_list, skc_list)
+		spl_kmem_cache_reap_now(skc);
 
-		/* Take a reference on the cache in question.  If that
-		 * cache is contended simply skip it, it may already be
-		 * in the process of a reclaim or the ctor/dtor may be
-		 * running in either case it's best to skip it.
-		 */
-	        atomic_inc(&kcc->kcc_ref);
-		if (atomic_read(&kcc->kcc_ref) > 1) {
-	                atomic_dec(&kcc->kcc_ref);
-			continue;
-		}
+        up_read(&spl_kmem_cache_sem);
 
-	        /* Under linux the desired number and gfp type of objects
-		 * is passed to the reclaiming function as a sugested reclaim
-		 * target.  I do not pass these args on because reclaim
-		 * policy is entirely up to the owner under solaris.  We only
-		 * pass on the pre-registered private data.
-                 */
-		if (kcc->kcc_reclaim)
-                        kcc->kcc_reclaim(kcc->kcc_private);
-
-	        atomic_dec(&kcc->kcc_ref);
-	        total += 1;
-        }
-
-	/* Under linux we should return the remaining number of entires in
-	 * the cache.  Unfortunately, I don't see an easy way to safely
-	 * emulate this behavior so I'm returning one entry per cache which
-	 * was registered with the generic shrinker.  This should fake out
-	 * the linux VM when it attempts to shrink caches.
+	/* XXX: Under linux we should return the remaining number of
+	 * entries in the cache.  We should do this as well.
 	 */
-        up_read(&kmem_cache_sem);
-
-	return total;
+	return 1;
 }
-
-/* Ensure the __kmem_cache_create/__kmem_cache_destroy macros are
- * removed here to prevent a recursive substitution, we want to call
- * the native linux version.
- */
-#undef kmem_cache_create
-#undef kmem_cache_destroy
-#undef kmem_cache_alloc
-#undef kmem_cache_free
-
-kmem_cache_t *
-__kmem_cache_create(char *name, size_t size, size_t align,
-        kmem_constructor_t constructor,
-	kmem_destructor_t destructor,
-	kmem_reclaim_t reclaim,
-        void *priv, void *vmp, int flags)
-{
-        kmem_cache_t *cache;
-        kmem_cache_cb_t *kcc;
-	int shrinker_flag = 0;
-	char *cache_name;
-	ENTRY;
-
-        /* XXX: - Option currently unsupported by shim layer */
-        ASSERT(!vmp);
-	ASSERT(flags == 0);
-
-	cache_name = kzalloc(strlen(name) + 1, GFP_KERNEL);
-	if (cache_name == NULL)
-		RETURN(NULL);
-
-	strcpy(cache_name, name);
-
-	/* When your slab is implemented in terms of the slub it
-	 * is possible similarly sized slab caches will be merged.
-	 * For our implementation we must make sure this never
-	 * happens because we require a unique cache address to
-	 * use as a hash key when looking up the constructor,
-	 * destructor, and shrinker registered for each unique
-	 * type of slab cache.  Passing any of the following flags
-	 * will prevent the slub merging.
-	 *
-	 *	SLAB_RED_ZONE
-	 *	SLAB_POISON
-	 *	SLAB_STORE_USER
-	 *      SLAB_TRACE
-	 *      SLAB_DESTROY_BY_RCU
-	 */
-#ifdef CONFIG_SLUB
-	flags |= SLAB_STORE_USER;
-#endif
-
-#ifdef HAVE_KMEM_CACHE_CREATE_DTOR
-        cache = kmem_cache_create(cache_name, size, align, flags,
-                                  kmem_cache_generic_constructor,
-                                  kmem_cache_generic_destructor);
-#else
-        cache = kmem_cache_create(cache_name, size, align, flags, NULL);
-#endif
-	if (cache == NULL)
-                RETURN(NULL);
-
-        /* Register shared shrinker function on initial cache create */
-        down_read(&kmem_cache_sem);
-	if (list_empty(&kmem_cache_list)) {
-#ifdef HAVE_SET_SHRINKER
-                kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
-                                      kmem_cache_generic_shrinker);
-                if (kmem_cache_shrinker == NULL) {
-                        kmem_cache_destroy(cache);
-                        up_read(&kmem_cache_sem);
-                        RETURN(NULL);
-                }
-#else
-		register_shrinker(&kmem_cache_shrinker);
-#endif
-        }
-        up_read(&kmem_cache_sem);
-
-        kcc = kmem_cache_add_cache_cb(cache, constructor, destructor,
-                                      reclaim, priv, vmp);
-        if (kcc == NULL) {
-		if (shrinker_flag) /* New shrinker registered must be removed */
-#ifdef HAVE_SET_SHRINKER
-			remove_shrinker(kmem_cache_shrinker);
-#else
-			unregister_shrinker(&kmem_cache_shrinker);
-#endif
-
-                kmem_cache_destroy(cache);
-                RETURN(NULL);
-        }
-
-        RETURN(cache);
-}
-EXPORT_SYMBOL(__kmem_cache_create);
-
-/* Return code provided despite Solaris's void return.  There should be no
- * harm here since the Solaris versions will ignore it anyway. */
-int
-__kmem_cache_destroy(kmem_cache_t *cache)
-{
-        kmem_cache_cb_t *kcc;
-	char *name;
-	int rc;
-	ENTRY;
-
-        down_read(&kmem_cache_sem);
-        kcc = kmem_cache_find_cache_cb(cache);
-        if (kcc == NULL) {
-                up_read(&kmem_cache_sem);
-                RETURN(-EINVAL);
-        }
-	atomic_inc(&kcc->kcc_ref);
-        up_read(&kmem_cache_sem);
-
-	name = (char *)kmem_cache_name(cache);
-
-#ifdef HAVE_KMEM_CACHE_DESTROY_INT
-        rc = kmem_cache_destroy(cache);
-#else
-        kmem_cache_destroy(cache);
-	rc = 0;
-#endif
-
-	atomic_dec(&kcc->kcc_ref);
-        kmem_cache_remove_cache_cb(kcc);
-	kfree(name);
-
-	/* Unregister generic shrinker on removal of all caches */
-        down_read(&kmem_cache_sem);
-	if (list_empty(&kmem_cache_list))
-#ifdef HAVE_SET_SHRINKER
-		remove_shrinker(kmem_cache_shrinker);
-#else
-		unregister_shrinker(&kmem_cache_shrinker);
-#endif
-
-        up_read(&kmem_cache_sem);
-	RETURN(rc);
-}
-EXPORT_SYMBOL(__kmem_cache_destroy);
-
-/* Under Solaris if the KM_SLEEP flag is passed we absolutely must
- * sleep until we are allocated the memory.  Under Linux you can still
- * get a memory allocation failure, so I'm forced to keep requesting
- * the memory even if the system is under substantial memory pressure
- * of fragmentation prevents the allocation from succeeded.  This is
- * not the correct fix, or even a good one.  But it will do for now.
- */
-void *
-__kmem_cache_alloc(kmem_cache_t *cache, gfp_t flags)
-{
-	void *obj;
-	ENTRY;
-
-restart:
-	obj = kmem_cache_alloc(cache, flags);
-        if ((obj == NULL) && (flags & KM_SLEEP)) {
-#ifdef DEBUG_KMEM
-		atomic64_inc(&kmem_cache_alloc_failed);
-#endif /* DEBUG_KMEM */
-		GOTO(restart, obj);
-	}
-
-	/* When destructor support is removed we must be careful not to
-	 * use the provided constructor which will end up being called
-	 * more often than the destructor which we only call on free.  Thus
-	 * we call the proper constructor when there is no destructor.
-	 */
-#ifndef HAVE_KMEM_CACHE_CREATE_DTOR
-#ifdef HAVE_3ARG_KMEM_CACHE_CREATE_CTOR
-	kmem_cache_generic_constructor(obj, cache, flags);
-#else
-	kmem_cache_generic_constructor(cache, obj);
-#endif /* HAVE_KMEM_CACHE_CREATE_DTOR */
-#endif /* HAVE_3ARG_KMEM_CACHE_CREATE_CTOR */
-
-	RETURN(obj);
-}
-EXPORT_SYMBOL(__kmem_cache_alloc);
 
 void
-__kmem_cache_free(kmem_cache_t *cache, void *obj)
-{
-#ifndef HAVE_KMEM_CACHE_CREATE_DTOR
-	kmem_cache_generic_destructor(obj, cache, 0);
-#endif
-	kmem_cache_free(cache, obj);
-}
-EXPORT_SYMBOL(__kmem_cache_free);
-
-void
-__kmem_reap(void)
+spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
 	ENTRY;
-	/* Since there's no easy hook in to linux to force all the registered
-	 * shrinkers to run we just run the ones registered for this shim */
-	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
+        ASSERT(skc && skc->skc_magic == SKC_MAGIC);
+
+	if (skc->skc_reclaim)
+		skc->skc_reclaim(skc->skc_private);
+
+	slab_reclaim(skc);
 	EXIT;
 }
-EXPORT_SYMBOL(__kmem_reap);
+EXPORT_SYMBOL(spl_kmem_cache_reap_now);
+
+void
+spl_kmem_reap(void)
+{
+	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
+}
+EXPORT_SYMBOL(spl_kmem_reap);
 
 int
-kmem_init(void)
+spl_kmem_init(void)
 {
-        int i;
+        int rc = 0;
         ENTRY;
 
-	init_rwsem(&kmem_cache_sem);
-	INIT_LIST_HEAD(&kmem_cache_list);
+	init_rwsem(&spl_kmem_cache_sem);
+	INIT_LIST_HEAD(&spl_kmem_cache_list);
 
-	for (i = 0; i < KMEM_CACHE_TABLE_SIZE; i++)
-		INIT_HLIST_HEAD(&kmem_cache_table[i]);
+	spl_slab_cache = NULL;
+	spl_obj_cache = NULL;
+
+	spl_slab_cache = kmem_cache_create("spl_slab_cache",
+					   sizeof(spl_kmem_slab_t),
+					   0, 0, NULL);
+	if (spl_slab_cache == NULL)
+		GOTO(out_cache, rc = -ENOMEM);
+
+	spl_obj_cache = kmem_cache_create("spl_obj_cache",
+					  sizeof(spl_kmem_obj_t),
+					  0, 0, NULL);
+	if (spl_obj_cache == NULL)
+		GOTO(out_cache, rc = -ENOMEM);
+
+#ifdef HAVE_SET_SHRINKER
+	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS, shrinker);
+	if (spl_kmem_cache_shrinker == NULL)
+		GOTO(out_cache, rc = -ENOMEM);
+#else
+	register_shrinker(&spl_kmem_cache_shrinker);
+#endif
 
 #ifdef DEBUG_KMEM
+	{ int i;
 	atomic64_set(&kmem_alloc_used, 0);
 	atomic64_set(&vmem_alloc_used, 0);
+	atomic64_set(&kmem_cache_alloc_failed, 0);
 
 	spin_lock_init(&kmem_lock);
 	INIT_LIST_HEAD(&kmem_list);
@@ -558,10 +677,18 @@ kmem_init(void)
 
 	for (i = 0; i < VMEM_TABLE_SIZE; i++)
 		INIT_HLIST_HEAD(&vmem_table[i]);
-
-	atomic64_set(&kmem_cache_alloc_failed, 0);
+	}
 #endif
-	RETURN(0);
+	RETURN(rc);
+
+out_cache:
+	if (spl_obj_cache)
+	        (void)kmem_cache_destroy(spl_obj_cache);
+
+	if (spl_slab_cache)
+	        (void)kmem_cache_destroy(spl_slab_cache);
+
+	RETURN(rc);
 }
 
 #ifdef DEBUG_KMEM
@@ -609,53 +736,61 @@ sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 #endif /* DEBUG_KMEM */
 
 void
-kmem_fini(void)
+spl_kmem_fini(void)
 {
-	ENTRY;
 #ifdef DEBUG_KMEM
-        {
-                unsigned long flags;
-                kmem_debug_t *kd;
-		char str[17];
+	unsigned long flags;
+	kmem_debug_t *kd;
+	char str[17];
 
-		/* Display all unreclaimed memory addresses, including the
-		 * allocation size and the first few bytes of what's located
-		 * at that address to aid in debugging.  Performance is not
-		 * a serious concern here since it is module unload time. */
-                if (atomic64_read(&kmem_alloc_used) != 0)
-                        CWARN("kmem leaked %ld/%ld bytes\n",
-                               atomic_read(&kmem_alloc_used), kmem_alloc_max);
+	/* Display all unreclaimed memory addresses, including the
+	 * allocation size and the first few bytes of what's located
+	 * at that address to aid in debugging.  Performance is not
+	 * a serious concern here since it is module unload time. */
+	if (atomic64_read(&kmem_alloc_used) != 0)
+		CWARN("kmem leaked %ld/%ld bytes\n",
+		      atomic_read(&kmem_alloc_used), kmem_alloc_max);
 
-                spin_lock_irqsave(&kmem_lock, flags);
-                if (!list_empty(&kmem_list))
-                        CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
-			       "address", "size", "data", "func", "line");
+	spin_lock_irqsave(&kmem_lock, flags);
+	if (!list_empty(&kmem_list))
+		CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
+		       "address", "size", "data", "func", "line");
 
-                list_for_each_entry(kd, &kmem_list, kd_list)
-                        CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
-			       kd->kd_addr, kd->kd_size,
-                               sprintf_addr(kd, str, 17, 8),
-			       kd->kd_func, kd->kd_line);
+	list_for_each_entry(kd, &kmem_list, kd_list)
+		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
+		       kd->kd_addr, kd->kd_size,
+		       sprintf_addr(kd, str, 17, 8),
+		       kd->kd_func, kd->kd_line);
 
-                spin_unlock_irqrestore(&kmem_lock, flags);
+	spin_unlock_irqrestore(&kmem_lock, flags);
 
-                if (atomic64_read(&vmem_alloc_used) != 0)
-                        CWARN("vmem leaked %ld/%ld bytes\n",
-                               atomic_read(&vmem_alloc_used), vmem_alloc_max);
+	if (atomic64_read(&vmem_alloc_used) != 0)
+		CWARN("vmem leaked %ld/%ld bytes\n",
+		      atomic_read(&vmem_alloc_used), vmem_alloc_max);
 
-                spin_lock_irqsave(&vmem_lock, flags);
-                if (!list_empty(&vmem_list))
-                        CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
-			       "address", "size", "data", "func", "line");
+	spin_lock_irqsave(&vmem_lock, flags);
+	if (!list_empty(&vmem_list))
+		CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
+		       "address", "size", "data", "func", "line");
 
-                list_for_each_entry(kd, &vmem_list, kd_list)
-                        CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
-			       kd->kd_addr, kd->kd_size,
-                               sprintf_addr(kd, str, 17, 8),
-			       kd->kd_func, kd->kd_line);
+	list_for_each_entry(kd, &vmem_list, kd_list)
+		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
+		       kd->kd_addr, kd->kd_size,
+		       sprintf_addr(kd, str, 17, 8),
+		       kd->kd_func, kd->kd_line);
 
-                spin_unlock_irqrestore(&vmem_lock, flags);
-        }
+	spin_unlock_irqrestore(&vmem_lock, flags);
 #endif
+	ENTRY;
+
+#ifdef HAVE_SET_SHRINKER
+	remove_shrinker(spl_kmem_cache_shrinker);
+#else
+	unregister_shrinker(&spl_kmem_cache_shrinker);
+#endif
+
+        (void)kmem_cache_destroy(spl_obj_cache);
+        (void)kmem_cache_destroy(spl_slab_cache);
+
 	EXIT;
 }

@@ -633,7 +633,7 @@ void
 vn_fini(void)
 {
         file_t *fp, *next_fp;
-	int rc, leaked = 0;
+	int leaked = 0;
 	ENTRY;
 
 	spin_lock(&vn_file_lock);
@@ -644,19 +644,14 @@ vn_fini(void)
 		leaked++;
 	}
 
-	rc = kmem_cache_destroy(vn_file_cache);
-	if (rc)
-		CWARN("Warning leaked vn_file_cache objects, %d\n", rc);
-
+	kmem_cache_destroy(vn_file_cache);
 	vn_file_cache = NULL;
 	spin_unlock(&vn_file_lock);
 
 	if (leaked > 0)
 		CWARN("Warning %d files leaked\n", leaked);
 
-	rc = kmem_cache_destroy(vn_cache);
-	if (rc)
-		CWARN("Warning leaked vn_cache objects, %d\n", rc);
+	kmem_cache_destroy(vn_cache);
 
 	EXIT;
 	return;

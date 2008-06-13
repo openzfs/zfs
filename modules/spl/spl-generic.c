@@ -130,7 +130,7 @@ static int __init spl_init(void)
 	if ((rc = debug_init()))
 		return rc;
 
-	if ((rc = kmem_init()))
+	if ((rc = spl_kmem_init()))
 		GOTO(out , rc);
 
 	if ((rc = spl_mutex_init()))
@@ -159,7 +159,7 @@ out4:
 out3:
 	spl_mutex_fini();
 out2:
-	kmem_fini();
+	spl_kmem_fini();
 out:
 	debug_fini();
 
@@ -176,7 +176,8 @@ static void spl_fini(void)
 	kstat_fini();
 	proc_fini();
 	vn_fini();
-	kmem_fini();
+	spl_mutex_fini();
+	spl_kmem_fini();
 	debug_fini();
 }
 

@@ -16,6 +16,7 @@ typedef unsigned long			uintptr_t;
 #ifndef HAVE_KMEM_CACHE_T
 typedef struct kmem_cache		kmem_cache_t;
 #endif
+#define kmem_cache_t			spl_kmem_cache_t
 
 typedef enum { B_FALSE=0, B_TRUE=1 }	boolean_t;
 typedef unsigned long			intptr_t;
