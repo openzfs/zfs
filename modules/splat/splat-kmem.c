@@ -58,8 +58,30 @@
 #define SPLAT_KMEM_TEST7_NAME		"kmem_reap"
 #define SPLAT_KMEM_TEST7_DESC		"Slab reaping test"
 
+#define SPLAT_KMEM_TEST8_ID		0x0108
+#define SPLAT_KMEM_TEST8_NAME		"kmem_lock"
+#define SPLAT_KMEM_TEST8_DESC		"Slab locking test"
+
 #define SPLAT_KMEM_ALLOC_COUNT		10
 #define SPLAT_VMEM_ALLOC_COUNT		10
+
+/* Not exported from the kernel, but we need it for timespec_sub.  Be very
+ *  * careful here we are using the kernel prototype, so that must not change.
+ *   */
+void
+set_normalized_timespec(struct timespec *ts, time_t sec, long nsec)
+{
+        while (nsec >= NSEC_PER_SEC) {
+                nsec -= NSEC_PER_SEC;
+                ++sec;
+        }
+        while (nsec < 0) {
+                nsec += NSEC_PER_SEC;
+                --sec;
+        }
+        ts->tv_sec = sec;
+        ts->tv_nsec = nsec;
+}
 
 /* XXX - This test may fail under tight memory conditions */
 static int
@@ -242,8 +264,12 @@ typedef struct kmem_cache_priv {
 	struct file *kcp_file;
 	kmem_cache_t *kcp_cache;
 	kmem_cache_data_t *kcp_kcd[SPLAT_KMEM_OBJ_COUNT];
+	spinlock_t kcp_lock;
+	wait_queue_head_t kcp_waitq;
 	int kcp_size;
 	int kcp_count;
+	int kcp_threads;
+	int kcp_alloc;
 	int kcp_rc;
 } kmem_cache_priv_t;
 
@@ -488,6 +514,135 @@ splat_kmem_test7(struct file *file, void *arg)
 	return rc;
 }
 
+static void
+splat_kmem_test8_thread(void *arg)
+{
+	kmem_cache_priv_t *kcp = (kmem_cache_priv_t *)arg;
+	int count = kcp->kcp_alloc, rc = 0, i;
+	void **objs;
+
+	ASSERT(kcp->kcp_magic == SPLAT_KMEM_TEST_MAGIC);
+
+	objs = vmem_zalloc(count * sizeof(void *), KM_SLEEP);
+	if (!objs) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	for (i = 0; i < count; i++) {
+		objs[i] = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
+		if (!objs[i]) {
+			splat_vprint(kcp->kcp_file, SPLAT_KMEM_TEST8_NAME,
+		                     "Unable to allocate from '%s'\n",
+			             SPLAT_KMEM_CACHE_NAME);
+			rc = -ENOMEM;
+			goto out_free;
+		}
+	}
+
+out_free:
+	for (i = 0; i < count; i++)
+		if (objs[i])
+			kmem_cache_free(kcp->kcp_cache, objs[i]);
+
+	vmem_free(objs, count * sizeof(void *));
+out:
+	spin_lock(&kcp->kcp_lock);
+	kcp->kcp_threads--;
+	if (!kcp->kcp_rc)
+		kcp->kcp_rc = rc;
+	spin_unlock(&kcp->kcp_lock);
+
+        wake_up(&kcp->kcp_waitq);
+        thread_exit();
+}
+
+static int
+splat_kmem_test8_count(kmem_cache_priv_t *kcp, int threads)
+{
+	int ret;
+
+	spin_lock(&kcp->kcp_lock);
+        ret = (kcp->kcp_threads == threads);
+        spin_unlock(&kcp->kcp_lock);
+
+        return ret;
+}
+
+/* This test will always pass and is simply here so I can easily
+ * eyeball the slab cache locking overhead to ensure it is reasonable.
+ */
+static int
+splat_kmem_test8(struct file *file, void *arg)
+{
+	kmem_cache_priv_t kcp;
+	kthread_t *thr;
+	struct timespec start, stop, delta;
+	int alloc, i;
+
+	kcp.kcp_magic = SPLAT_KMEM_TEST_MAGIC;
+	kcp.kcp_file = file;
+
+        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
+	             "time (sec)\tslabs       \tobjs\n");
+        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
+	             "          \ttot/max/calc\ttot/max/calc\n");
+
+	for (alloc = 64; alloc <= 1024; alloc *= 2) {
+		kcp.kcp_size = 256;
+		kcp.kcp_count = 0;
+		kcp.kcp_threads = 0;
+		kcp.kcp_alloc = alloc;
+		kcp.kcp_rc = 0;
+	        spin_lock_init(&kcp.kcp_lock);
+	        init_waitqueue_head(&kcp.kcp_waitq);
+
+
+		kcp.kcp_cache = kmem_cache_create(SPLAT_KMEM_CACHE_NAME,
+		                                  kcp.kcp_size, 0,
+		                                  splat_kmem_cache_test_constructor,
+		                                  splat_kmem_cache_test_destructor,
+						  NULL, &kcp, NULL, 0);
+		if (!kcp.kcp_cache) {
+			splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
+		                     "Unable to create '%s' cache\n",
+				     SPLAT_KMEM_CACHE_NAME);
+			return -ENOMEM;
+		}
+
+		start = current_kernel_time();
+
+		for (i = 0; i < 32; i++) {
+			thr = thread_create(NULL, 0, splat_kmem_test8_thread,
+			                    &kcp, 0, &p0, TS_RUN, minclsyspri);
+			ASSERT(thr != NULL);
+			kcp.kcp_threads++;
+		}
+
+	        /* Sleep until the thread sets kcp.kcp_threads == 0 */
+	        wait_event(kcp.kcp_waitq, splat_kmem_test8_count(&kcp, 0));
+		stop = current_kernel_time();
+		delta = timespec_sub(stop, start);
+
+	        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%2ld.%09ld\t"
+			     "%lu/%lu/%lu\t%lu/%lu/%lu\n",
+			     delta.tv_sec, delta.tv_nsec,
+			     (unsigned long)kcp.kcp_cache->skc_slab_total,
+			     (unsigned long)kcp.kcp_cache->skc_slab_max,
+			     (unsigned long)(kcp.kcp_alloc * 32 / SPL_KMEM_CACHE_OBJ_PER_SLAB),
+			     (unsigned long)kcp.kcp_cache->skc_obj_total,
+			     (unsigned long)kcp.kcp_cache->skc_obj_max,
+			     (unsigned long)(kcp.kcp_alloc * 32));
+
+		kmem_cache_destroy(kcp.kcp_cache);
+
+		if (kcp.kcp_rc)
+			break;
+	}
+
+	return kcp.kcp_rc;
+}
+
 splat_subsystem_t *
 splat_kmem_init(void)
 {
@@ -519,6 +674,8 @@ splat_kmem_init(void)
 	              SPLAT_KMEM_TEST6_ID, splat_kmem_test6);
         SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST7_NAME, SPLAT_KMEM_TEST7_DESC,
 	              SPLAT_KMEM_TEST7_ID, splat_kmem_test7);
+        SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST8_NAME, SPLAT_KMEM_TEST8_DESC,
+	              SPLAT_KMEM_TEST8_ID, splat_kmem_test8);
 
         return sub;
 }
@@ -527,6 +684,7 @@ void
 splat_kmem_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+        SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST8_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST7_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST6_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST5_ID);
