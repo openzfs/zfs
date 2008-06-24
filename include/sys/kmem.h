@@ -364,7 +364,7 @@ extern int kmem_set_warning(int flag);
 #define SKS_MAGIC			0x22222222
 #define SKC_MAGIC			0x2c2c2c2c
 
-#define SPL_KMEM_CACHE_HASH_BITS	12 /* 4k, sized for 1000's of objs */
+#define SPL_KMEM_CACHE_HASH_BITS	12
 #define SPL_KMEM_CACHE_HASH_ELTS	(1 << SPL_KMEM_CACHE_HASH_BITS)
 #define SPL_KMEM_CACHE_HASH_SIZE	(sizeof(struct hlist_head) * \
 					 SPL_KMEM_CACHE_HASH_ELTS)
@@ -417,16 +417,16 @@ typedef struct spl_kmem_cache {
         struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
-	struct rw_semaphore	skc_sem;	/* Cache semaphore */
+	spinlock_t		skc_lock;	/* Cache lock */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
 	uint64_t		skc_slab_create;/* Slab creates */
 	uint64_t		skc_slab_destroy;/* Slab destroys */
-	uint64_t		skc_slab_total;	/* Slab total */
-	uint64_t		skc_slab_alloc; /* Slab alloc */
-	uint64_t		skc_slab_max;	/* Slab max */
-	uint64_t		skc_obj_total;	/* Obj total */
-	uint64_t		skc_obj_alloc;	/* Obj alloc */
-	uint64_t		skc_obj_max;	/* Obj max */
+	uint64_t		skc_slab_total;	/* Slab total current */
+	uint64_t		skc_slab_alloc; /* Slab alloc current */
+	uint64_t		skc_slab_max;	/* Slab max historic  */
+	uint64_t		skc_obj_total;	/* Obj total current */
+	uint64_t		skc_obj_alloc;	/* Obj alloc current */
+	uint64_t		skc_obj_max;	/* Obj max historic */
 	uint64_t		skc_hash_depth;	/* Hash depth */
 	uint64_t		skc_hash_max;	/* Hash depth max */
 } spl_kmem_cache_t;

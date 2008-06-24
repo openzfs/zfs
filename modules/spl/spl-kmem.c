@@ -221,7 +221,7 @@ out:
 }
 
 /* Removes slab from complete or partial list, so it must
- * be called with the 'skc->skc_sem' semaphore held.
+ * be called with the 'skc->skc_lock' held.
  *                         */
 static void
 slab_free(spl_kmem_slab_t *sks) {
@@ -236,9 +236,9 @@ slab_free(spl_kmem_slab_t *sks) {
 	skc->skc_obj_total -= sks->sks_objs;
 	skc->skc_slab_total--;
 
-#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
-	ASSERT(rwsem_is_locked(&skc->skc_sem));
-#endif
+//#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+	ASSERT(spin_is_locked(&skc->skc_lock));
+//#endif
 
 	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
 		ASSERT(sko->sko_magic == SKO_MAGIC);
@@ -267,9 +267,9 @@ __slab_reclaim(spl_kmem_cache_t *skc)
 	int rc = 0;
 	ENTRY;
 
-#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
-	ASSERT(rwsem_is_locked(&skc->skc_sem));
-#endif
+//#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
+	ASSERT(spin_is_locked(&skc->skc_lock));
+//#endif
 	/*
 	 * Free empty slabs which have not been touched in skc_delay
 	 * seconds.  This delay time is important to avoid thrashing.
@@ -296,9 +296,9 @@ slab_reclaim(spl_kmem_cache_t *skc)
 	int rc;
 	ENTRY;
 
-	down_write(&skc->skc_sem);
+	spin_lock(&skc->skc_lock);
 	rc = __slab_reclaim(skc);
-	up_write(&skc->skc_sem);
+	spin_unlock(&skc->skc_lock);
 
 	RETURN(rc);
 }
@@ -363,7 +363,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	INIT_LIST_HEAD(&skc->skc_list);
 	INIT_LIST_HEAD(&skc->skc_complete_list);
 	INIT_LIST_HEAD(&skc->skc_partial_list);
-	init_rwsem(&skc->skc_sem);
+	spin_lock_init(&skc->skc_lock);
         skc->skc_slab_fail = 0;
         skc->skc_slab_create = 0;
         skc->skc_slab_destroy = 0;
@@ -398,7 +398,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
         list_del_init(&skc->skc_list);
         up_write(&spl_kmem_cache_sem);
 
-	down_write(&skc->skc_sem);
+	spin_lock(&skc->skc_lock);
 
 	/* Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
@@ -411,7 +411,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	kmem_free(skc->skc_hash, skc->skc_hash_size);
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	kmem_free(skc, sizeof(*skc));
-	up_write(&skc->skc_sem);
+	spin_unlock(&skc->skc_lock);
 
 	EXIT;
 }
@@ -441,7 +441,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	unsigned long key;
 	ENTRY;
 
-	down_write(&skc->skc_sem);
+	spin_lock(&skc->skc_lock);
 restart:
 	/* Check for available objects from the partial slabs */
 	if (!list_empty(&skc->skc_partial_list)) {
@@ -459,7 +459,7 @@ restart:
 		/* Remove from sks_free_list, add to used hash */
 		list_del_init(&sko->sko_list);
 		key = spl_hash_ptr(sko->sko_addr, skc->skc_hash_bits);
-		hlist_add_head_rcu(&sko->sko_hlist, &skc->skc_hash[key]);
+		hlist_add_head(&sko->sko_hlist, &skc->skc_hash[key]);
 
 		sks->sks_age = jiffies;
 		atomic_inc(&sks->sks_ref);
@@ -484,7 +484,7 @@ restart:
 		GOTO(out_lock, obj = sko->sko_addr);
 	}
 
-	up_write(&skc->skc_sem);
+	spin_unlock(&skc->skc_lock);
 
 	/* No available objects create a new slab.  Since this is an
 	 * expensive operation we do it without holding the semaphore
@@ -521,14 +521,14 @@ restart:
 	/* Link the newly created slab in to the skc_partial_list,
 	 * and retry the allocation which will now succeed.
 	 */
-	down_write(&skc->skc_sem);
+	spin_lock(&skc->skc_lock);
 	skc->skc_slab_total++;
 	skc->skc_obj_total += sks->sks_objs;
 	list_add_tail(&sks->sks_list, &skc->skc_partial_list);
 	GOTO(restart, obj = NULL);
 
 out_lock:
-	up_write(&skc->skc_sem);
+	spin_unlock(&skc->skc_lock);
 out:
 	RETURN(obj);
 }
@@ -537,16 +537,20 @@ EXPORT_SYMBOL(spl_kmem_cache_alloc);
 void
 spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 {
-        struct hlist_head *head;
         struct hlist_node *node;
         spl_kmem_slab_t *sks = NULL;
 	spl_kmem_obj_t *sko = NULL;
+	unsigned long key = spl_hash_ptr(obj, skc->skc_hash_bits);
+	int i = 0;
 	ENTRY;
 
-	down_write(&skc->skc_sem);
+	spin_lock(&skc->skc_lock);
 
-        head = &skc->skc_hash[spl_hash_ptr(obj, skc->skc_hash_bits)];
-        hlist_for_each_entry_rcu(sko, node, head, sko_hlist) {
+        hlist_for_each_entry(sko, node, &skc->skc_hash[key], sko_hlist) {
+
+		if (unlikely((++i) > skc->skc_hash_depth))
+			skc->skc_hash_depth = i;
+
                 if (sko->sko_addr == obj) {
 			ASSERT(sko->sko_magic == SKO_MAGIC);
 			sks = sko->sko_slab;
@@ -583,7 +587,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	}
 
 	__slab_reclaim(skc);
-	up_write(&skc->skc_sem);
+	spin_unlock(&skc->skc_lock);
 }
 EXPORT_SYMBOL(spl_kmem_cache_free);
 

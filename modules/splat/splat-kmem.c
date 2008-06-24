@@ -584,11 +584,11 @@ splat_kmem_test8(struct file *file, void *arg)
 	kcp.kcp_file = file;
 
         splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
-	             "time (sec)\tslabs       \tobjs\n");
+	             "time (sec)\tslabs       \tobjs        \thash\n");
         splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
-	             "          \ttot/max/calc\ttot/max/calc\n");
+	             "          \ttot/max/calc\ttot/max/calc\tsize/depth\n");
 
-	for (alloc = 64; alloc <= 1024; alloc *= 2) {
+	for (alloc = 64; alloc <= 4096; alloc *= 2) {
 		kcp.kcp_size = 256;
 		kcp.kcp_count = 0;
 		kcp.kcp_threads = 0;
@@ -625,14 +625,16 @@ splat_kmem_test8(struct file *file, void *arg)
 		delta = timespec_sub(stop, start);
 
 	        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%2ld.%09ld\t"
-			     "%lu/%lu/%lu\t%lu/%lu/%lu\n",
+			     "%lu/%lu/%lu\t%lu/%lu/%lu\t%lu/%lu\n",
 			     delta.tv_sec, delta.tv_nsec,
 			     (unsigned long)kcp.kcp_cache->skc_slab_total,
 			     (unsigned long)kcp.kcp_cache->skc_slab_max,
 			     (unsigned long)(kcp.kcp_alloc * 32 / SPL_KMEM_CACHE_OBJ_PER_SLAB),
 			     (unsigned long)kcp.kcp_cache->skc_obj_total,
 			     (unsigned long)kcp.kcp_cache->skc_obj_max,
-			     (unsigned long)(kcp.kcp_alloc * 32));
+			     (unsigned long)(kcp.kcp_alloc * 32),
+			     (unsigned long)kcp.kcp_cache->skc_hash_size,
+			     (unsigned long)kcp.kcp_cache->skc_hash_depth);
 
 		kmem_cache_destroy(kcp.kcp_cache);
 
