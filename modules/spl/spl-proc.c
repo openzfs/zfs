@@ -913,7 +913,9 @@ out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
 		remove_proc_entry("kmem", proc_spl);
+#ifdef DEBUG_MUTEX
 	        remove_proc_entry("stats_per", proc_spl_mutex);
+#endif
 		remove_proc_entry("mutex", proc_spl);
 		remove_proc_entry("spl", NULL);
 #ifdef CONFIG_SYSCTL
@@ -933,7 +935,9 @@ proc_fini(void)
 #if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	remove_proc_entry("kstat", proc_spl);
 	remove_proc_entry("kmem", proc_spl);
+#ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_spl_mutex);
+#endif
 	remove_proc_entry("mutex", proc_spl);
 	remove_proc_entry("spl", NULL);
 #endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */

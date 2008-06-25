@@ -109,13 +109,10 @@ EXPORT_SYMBOL(kmem_set_warning);
  * small virtual address space on 32bit arches.  This will seriously
  * constrain the size of the slab caches and their performance.
  *
- * XXX: Refactor the below code in to smaller functions.  This works
- *      for a first pass but each function is doing to much.
- *
  * XXX: Implement SPL proc interface to export full per cache stats.
  *
  * XXX: Implement work requests to keep an eye on each cache and
- *      shrink them via slab_reclaim() when they are wasting lots
+ *      shrink them via spl_slab_reclaim() when they are wasting lots
  *      of space.  Currently this process is driven by the reapers.
  *
  * XXX: Implement proper small cache object support by embedding
@@ -138,6 +135,8 @@ EXPORT_SYMBOL(kmem_set_warning);
  *
  * XXX: Slab coloring may also yield performance improvements and would
  *      be desirable to implement.
+ *
+ * XXX: Proper hardware cache alignment would be good too.
  */
 
 /* Ensure the __kmem_cache_create/__kmem_cache_destroy macros are
@@ -155,18 +154,22 @@ static struct rw_semaphore spl_kmem_cache_sem;	/* Cache list lock */
 static kmem_cache_t *spl_slab_cache;		/* Cache for slab structs */
 static kmem_cache_t *spl_obj_cache;		/* Cache for obj structs */
 
+static int spl_cache_flush(spl_kmem_cache_t *skc,
+			   spl_kmem_magazine_t *skm, int flush);
+
 #ifdef HAVE_SET_SHRINKER
 static struct shrinker *spl_kmem_cache_shrinker;
 #else
-static int kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask);
+static int spl_kmem_cache_generic_shrinker(int nr_to_scan,
+					   unsigned int gfp_mask);
 static struct shrinker spl_kmem_cache_shrinker = {
-	.shrink = kmem_cache_generic_shrinker,
+	.shrink = spl_kmem_cache_generic_shrinker,
 	.seeks = KMC_DEFAULT_SEEKS,
 };
 #endif
 
 static spl_kmem_slab_t *
-slab_alloc(spl_kmem_cache_t *skc, int flags) {
+spl_slab_alloc(spl_kmem_cache_t *skc, int flags) {
 	spl_kmem_slab_t *sks;
 	spl_kmem_obj_t *sko, *n;
 	int i;
@@ -182,7 +185,7 @@ slab_alloc(spl_kmem_cache_t *skc, int flags) {
 	sks->sks_cache = skc;
 	INIT_LIST_HEAD(&sks->sks_list);
 	INIT_LIST_HEAD(&sks->sks_free_list);
-	atomic_set(&sks->sks_ref, 0);
+	sks->sks_ref = 0;
 
 	for (i = 0; i < sks->sks_objs; i++) {
 		sko = kmem_cache_alloc(spl_obj_cache, flags);
@@ -224,21 +227,19 @@ out:
  * be called with the 'skc->skc_lock' held.
  *                         */
 static void
-slab_free(spl_kmem_slab_t *sks) {
+spl_slab_free(spl_kmem_slab_t *sks) {
 	spl_kmem_cache_t *skc;
 	spl_kmem_obj_t *sko, *n;
 	int i = 0;
 	ENTRY;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(atomic_read(&sks->sks_ref) == 0);
+	ASSERT(sks->sks_ref == 0);
 	skc = sks->sks_cache;
 	skc->skc_obj_total -= sks->sks_objs;
 	skc->skc_slab_total--;
 
-//#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
 	ASSERT(spin_is_locked(&skc->skc_lock));
-//#endif
 
 	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
 		ASSERT(sko->sko_magic == SKO_MAGIC);
@@ -261,15 +262,13 @@ slab_free(spl_kmem_slab_t *sks) {
 }
 
 static int
-__slab_reclaim(spl_kmem_cache_t *skc)
+__spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
 	spl_kmem_slab_t *sks, *m;
 	int rc = 0;
 	ENTRY;
 
-//#ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
 	ASSERT(spin_is_locked(&skc->skc_lock));
-//#endif
 	/*
 	 * Free empty slabs which have not been touched in skc_delay
 	 * seconds.  This delay time is important to avoid thrashing.
@@ -277,11 +276,11 @@ __slab_reclaim(spl_kmem_cache_t *skc)
 	 */
         list_for_each_entry_safe_reverse(sks, m, &skc->skc_partial_list,
 					 sks_list) {
-		if (atomic_read(&sks->sks_ref) > 0)
+		if (sks->sks_ref > 0)
 		       break;
 
 		if (time_after(jiffies, sks->sks_age + skc->skc_delay * HZ)) {
-			slab_free(sks);
+			spl_slab_free(sks);
 			rc++;
 		}
 	}
@@ -291,16 +290,108 @@ __slab_reclaim(spl_kmem_cache_t *skc)
 }
 
 static int
-slab_reclaim(spl_kmem_cache_t *skc)
+spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
 	int rc;
 	ENTRY;
 
 	spin_lock(&skc->skc_lock);
-	rc = __slab_reclaim(skc);
+	rc = __spl_slab_reclaim(skc);
 	spin_unlock(&skc->skc_lock);
 
 	RETURN(rc);
+}
+
+static int
+spl_magazine_size(spl_kmem_cache_t *skc)
+{
+	int size;
+	ENTRY;
+
+	/* Guesses for reasonable magazine sizes, they
+	 * should really adapt based on observed usage. */
+	if (skc->skc_obj_size > (PAGE_SIZE * 256))
+		size = 1;
+	else if (skc->skc_obj_size > (PAGE_SIZE * 32))
+		size = 4;
+	else if (skc->skc_obj_size > (PAGE_SIZE))
+		size = 16;
+	else if (skc->skc_obj_size > (PAGE_SIZE / 4))
+		size = 32;
+	else if (skc->skc_obj_size > (PAGE_SIZE / 16))
+		size = 64;
+	else
+		size = 128;
+
+	RETURN(size);
+}
+
+static spl_kmem_magazine_t *
+spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
+{
+	spl_kmem_magazine_t *skm;
+	int size = sizeof(spl_kmem_magazine_t) +
+	           sizeof(void *) * skc->skc_mag_size;
+	ENTRY;
+
+	skm = kmalloc_node(size, GFP_KERNEL, node);
+	if (skm) {
+		skm->skm_magic = SKM_MAGIC;
+		skm->skm_avail = 0;
+		skm->skm_size = skc->skc_mag_size;
+		skm->skm_refill = skc->skc_mag_refill;
+		skm->skm_age = jiffies;
+	}
+
+	RETURN(skm);
+}
+
+static void
+spl_magazine_free(spl_kmem_magazine_t *skm)
+{
+	ENTRY;
+	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT(skm->skm_avail == 0);
+	kfree(skm);
+	EXIT;
+}
+
+static int
+spl_magazine_create(spl_kmem_cache_t *skc)
+{
+	int i;
+	ENTRY;
+
+	skc->skc_mag_size = spl_magazine_size(skc);
+	skc->skc_mag_refill = (skc->skc_mag_size + 1)  / 2;
+
+	for_each_online_cpu(i) {
+		skc->skc_mag[i] = spl_magazine_alloc(skc, cpu_to_node(i));
+		if (!skc->skc_mag[i]) {
+			for (i--; i >= 0; i--)
+				spl_magazine_free(skc->skc_mag[i]);
+
+			RETURN(-ENOMEM);
+		}
+	}
+
+	RETURN(0);
+}
+
+static void
+spl_magazine_destroy(spl_kmem_cache_t *skc)
+{
+        spl_kmem_magazine_t *skm;
+	int i;
+	ENTRY;
+
+	for_each_online_cpu(i) {
+		skm = skc->skc_mag[i];
+		(void)spl_cache_flush(skc, skm, skm->skm_avail);
+		spl_magazine_free(skm);
+	}
+
+	EXIT;
 }
 
 spl_kmem_cache_t *
@@ -311,7 +402,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
                       void *priv, void *vmp, int flags)
 {
         spl_kmem_cache_t *skc;
-	int i, kmem_flags = KM_SLEEP;
+	int i, rc, kmem_flags = KM_SLEEP;
 	ENTRY;
 
         /* We may be called when there is a non-zero preempt_count or
@@ -326,7 +417,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		RETURN(NULL);
 
 	skc->skc_magic = SKC_MAGIC;
-
 	skc->skc_name_size = strlen(name) + 1;
 	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, kmem_flags);
 	if (skc->skc_name == NULL) {
@@ -355,6 +445,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	if (skc->skc_hash == NULL) {
 		kmem_free(skc->skc_name, skc->skc_name_size);
 		kmem_free(skc, sizeof(*skc));
+		RETURN(NULL);
 	}
 
 	for (i = 0; i < skc->skc_hash_elts; i++)
@@ -374,7 +465,15 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_alloc = 0;
 	skc->skc_obj_max = 0;
 	skc->skc_hash_depth = 0;
-	skc->skc_hash_max = 0;
+	skc->skc_hash_count = 0;
+
+	rc = spl_magazine_create(skc);
+	if (rc) {
+		kmem_free(skc->skc_hash, skc->skc_hash_size);
+		kmem_free(skc->skc_name, skc->skc_name_size);
+		kmem_free(skc, sizeof(*skc));
+		RETURN(NULL);
+	}
 
 	down_write(&spl_kmem_cache_sem);
         list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
@@ -385,8 +484,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
 /* The caller must ensure there are no racing calls to
- * spl_kmem_cache_alloc() for this spl_kmem_cache_t when
- * it is being destroyed.
+ * spl_kmem_cache_alloc() for this spl_kmem_cache_t.
  */
 void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
@@ -398,20 +496,22 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
         list_del_init(&skc->skc_list);
         up_write(&spl_kmem_cache_sem);
 
+	spl_magazine_destroy(skc);
 	spin_lock(&skc->skc_lock);
 
 	/* Validate there are no objects in use and free all the
-	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
-	 */
+	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers. */
 	ASSERT(list_empty(&skc->skc_complete_list));
+	ASSERTF(skc->skc_hash_count == 0, "skc->skc_hash_count=%d\n",
+		skc->skc_hash_count);
 
         list_for_each_entry_safe(sks, m, &skc->skc_partial_list, sks_list)
-		slab_free(sks);
+		spl_slab_free(sks);
 
 	kmem_free(skc->skc_hash, skc->skc_hash_size);
 	kmem_free(skc->skc_name, skc->skc_name_size);
-	kmem_free(skc, sizeof(*skc));
 	spin_unlock(&skc->skc_lock);
+	kmem_free(skc, sizeof(*skc));
 
 	EXIT;
 }
@@ -427,88 +527,92 @@ spl_hash_ptr(void *ptr, unsigned int bits)
 	return hash_long((unsigned long)ptr >> PAGE_SHIFT, bits);
 }
 
-#ifndef list_first_entry
-#define list_first_entry(ptr, type, member) \
-	        list_entry((ptr)->next, type, member)
-#endif
+static spl_kmem_obj_t *
+spl_hash_obj(spl_kmem_cache_t *skc, void *obj)
+{
+        struct hlist_node *node;
+	spl_kmem_obj_t *sko = NULL;
+	unsigned long key = spl_hash_ptr(obj, skc->skc_hash_bits);
+	int i = 0;
 
-void *
-spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
+	ASSERT(spin_is_locked(&skc->skc_lock));
+
+        hlist_for_each_entry(sko, node, &skc->skc_hash[key], sko_hlist) {
+
+		if (unlikely((++i) > skc->skc_hash_depth))
+			skc->skc_hash_depth = i;
+
+                if (sko->sko_addr == obj) {
+			ASSERT(sko->sko_magic == SKO_MAGIC);
+			RETURN(sko);
+		}
+	}
+
+	RETURN(NULL);
+}
+
+static void *
+spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
+{
+	spl_kmem_obj_t *sko;
+	unsigned long key;
+
+	ASSERT(spin_is_locked(&skc->skc_lock));
+
+	sko = list_entry((&sks->sks_free_list)->next,spl_kmem_obj_t,sko_list);
+	ASSERT(sko->sko_magic == SKO_MAGIC);
+	ASSERT(sko->sko_addr != NULL);
+
+	/* Remove from sks_free_list and add to used hash */
+	list_del_init(&sko->sko_list);
+	key = spl_hash_ptr(sko->sko_addr, skc->skc_hash_bits);
+	hlist_add_head(&sko->sko_hlist, &skc->skc_hash[key]);
+
+	sks->sks_age = jiffies;
+	sks->sks_ref++;
+	skc->skc_obj_alloc++;
+	skc->skc_hash_count++;
+
+	/* Track max obj usage statistics */
+	if (skc->skc_obj_alloc > skc->skc_obj_max)
+		skc->skc_obj_max = skc->skc_obj_alloc;
+
+	/* Track max slab usage statistics */
+	if (sks->sks_ref == 1) {
+		skc->skc_slab_alloc++;
+
+		if (skc->skc_slab_alloc > skc->skc_slab_max)
+			skc->skc_slab_max = skc->skc_slab_alloc;
+	}
+
+	return sko->sko_addr;
+}
+
+/* No available objects create a new slab.  Since this is an
+ * expensive operation we do it without holding the spinlock
+ * and only briefly aquire it when we link in the fully
+ * allocated and constructed slab.
+ */
+static spl_kmem_slab_t *
+spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 {
         spl_kmem_slab_t *sks;
 	spl_kmem_obj_t *sko;
-	void *obj;
-	unsigned long key;
 	ENTRY;
 
-	spin_lock(&skc->skc_lock);
-restart:
-	/* Check for available objects from the partial slabs */
-	if (!list_empty(&skc->skc_partial_list)) {
-		sks = list_first_entry(&skc->skc_partial_list,
-		                       spl_kmem_slab_t, sks_list);
-		ASSERT(sks->sks_magic == SKS_MAGIC);
-		ASSERT(atomic_read(&sks->sks_ref) < sks->sks_objs);
-		ASSERT(!list_empty(&sks->sks_free_list));
-
-		sko = list_first_entry(&sks->sks_free_list,
-		                       spl_kmem_obj_t, sko_list);
-		ASSERT(sko->sko_magic == SKO_MAGIC);
-		ASSERT(sko->sko_addr != NULL);
-
-		/* Remove from sks_free_list, add to used hash */
-		list_del_init(&sko->sko_list);
-		key = spl_hash_ptr(sko->sko_addr, skc->skc_hash_bits);
-		hlist_add_head(&sko->sko_hlist, &skc->skc_hash[key]);
-
-		sks->sks_age = jiffies;
-		atomic_inc(&sks->sks_ref);
-		skc->skc_obj_alloc++;
-
-		if (skc->skc_obj_alloc > skc->skc_obj_max)
-			skc->skc_obj_max = skc->skc_obj_alloc;
-
-		if (atomic_read(&sks->sks_ref) == 1) {
-			skc->skc_slab_alloc++;
-
-			if (skc->skc_slab_alloc > skc->skc_slab_max)
-				skc->skc_slab_max = skc->skc_slab_alloc;
-		}
-
-		/* Move slab to skc_complete_list when full */
-		if (atomic_read(&sks->sks_ref) == sks->sks_objs) {
-			list_del(&sks->sks_list);
-			list_add(&sks->sks_list, &skc->skc_complete_list);
-		}
-
-		GOTO(out_lock, obj = sko->sko_addr);
+        if (flags & __GFP_WAIT) {
+		flags |= __GFP_NOFAIL;
+		might_sleep();
+		local_irq_enable();
 	}
 
-	spin_unlock(&skc->skc_lock);
+	sks = spl_slab_alloc(skc, flags);
+	if (sks == NULL) {
+	        if (flags & __GFP_WAIT)
+			local_irq_disable();
 
-	/* No available objects create a new slab.  Since this is an
-	 * expensive operation we do it without holding the semaphore
-	 * and only briefly aquire it when we link in the fully
-	 * allocated and constructed slab.
-	 */
-
-	/* Under Solaris if the KM_SLEEP flag is passed we may never
-	 * fail, so sleep as long as needed.  Additionally, since we are
-	 * using vmem_alloc() KM_NOSLEEP is not an option and we must
-	 * fail.  Shifting to allocating our own pages and mapping the
-	 * virtual address space may allow us to bypass this issue.
-	 */
-	if (!flags)
-		flags |= KM_SLEEP;
-
-	if (flags & KM_SLEEP)
-		flags |= __GFP_NOFAIL;
-	else
-		GOTO(out, obj = NULL);
-
-	sks = slab_alloc(skc, flags);
-	if (sks == NULL)
-		GOTO(out, obj = NULL);
+		RETURN(NULL);
+	}
 
 	/* Run all the constructors now that the slab is fully allocated */
 	list_for_each_entry(sko, &sks->sks_free_list, sko_list) {
@@ -518,18 +622,171 @@ restart:
 			skc->skc_ctor(sko->sko_addr, skc->skc_private, flags);
 	}
 
-	/* Link the newly created slab in to the skc_partial_list,
-	 * and retry the allocation which will now succeed.
-	 */
+        if (flags & __GFP_WAIT)
+		local_irq_disable();
+
+	/* Link the new empty slab in to the end of skc_partial_list */
 	spin_lock(&skc->skc_lock);
 	skc->skc_slab_total++;
 	skc->skc_obj_total += sks->sks_objs;
 	list_add_tail(&sks->sks_list, &skc->skc_partial_list);
-	GOTO(restart, obj = NULL);
+	spin_unlock(&skc->skc_lock);
 
-out_lock:
+	RETURN(sks);
+}
+
+static int
+spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
+{
+        spl_kmem_slab_t *sks;
+	int refill = skm->skm_refill;
+	ENTRY;
+
+	/* XXX: Check for refill bouncing by age perhaps */
+
+	spin_lock(&skc->skc_lock);
+	while (refill > 0) {
+		/* No slabs available we must grow the cache */
+		if (list_empty(&skc->skc_partial_list)) {
+			spin_unlock(&skc->skc_lock);
+			sks = spl_cache_grow(skc, flags);
+			if (!sks)
+				GOTO(out, refill);
+
+			/* Rescheduled to different CPU skm is not local */
+			if (skm != skc->skc_mag[smp_processor_id()])
+				GOTO(out, refill);
+
+			spin_lock(&skc->skc_lock);
+			continue;
+		}
+
+		/* Grab the next available slab */
+		sks = list_entry((&skc->skc_partial_list)->next,
+		                 spl_kmem_slab_t, sks_list);
+		ASSERT(sks->sks_magic == SKS_MAGIC);
+		ASSERT(sks->sks_ref < sks->sks_objs);
+		ASSERT(!list_empty(&sks->sks_free_list));
+
+		/* Consume as many objects as needed to refill the requested
+		 * cache.  We must be careful to lock here because our local
+		 * magazine may not be local anymore due to spl_cache_grow. */
+		while ((sks->sks_ref < sks->sks_objs) && (refill-- > 0))
+			skm->skm_objs[skm->skm_avail++]=spl_cache_obj(skc,sks);
+
+		/* Move slab to skc_complete_list when full */
+		if (sks->sks_ref == sks->sks_objs) {
+			list_del(&sks->sks_list);
+			list_add(&sks->sks_list, &skc->skc_complete_list);
+		}
+	}
+
 	spin_unlock(&skc->skc_lock);
 out:
+	/* Returns the number of entries added to cache */
+	RETURN(skm->skm_refill - refill);
+}
+
+static void
+spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
+{
+        spl_kmem_slab_t *sks = NULL;
+	spl_kmem_obj_t *sko = NULL;
+	ENTRY;
+
+	ASSERT(spin_is_locked(&skc->skc_lock));
+
+	sko = spl_hash_obj(skc, obj);
+	ASSERTF(sko, "Obj %p missing from in-use hash (%d) for cache %s\n",
+	        obj, skc->skc_hash_count, skc->skc_name);
+
+	sks = sko->sko_slab;
+	ASSERTF(sks, "Obj %p/%p linked to invalid slab for cache %s\n",
+		obj, sko, skc->skc_name);
+
+	ASSERT(sks->sks_cache == skc);
+	hlist_del_init(&sko->sko_hlist);
+	list_add(&sko->sko_list, &sks->sks_free_list);
+
+	sks->sks_age = jiffies;
+	sks->sks_ref--;
+	skc->skc_obj_alloc--;
+	skc->skc_hash_count--;
+
+	/* Move slab to skc_partial_list when no longer full.  Slabs
+	 * are added to the head to keep the partial list is quasi-full
+	 * sorted order.  Fuller at the head, emptier at the tail. */
+	if (sks->sks_ref == (sks->sks_objs - 1)) {
+		list_del(&sks->sks_list);
+		list_add(&sks->sks_list, &skc->skc_partial_list);
+	}
+
+	/* Move emply slabs to the end of the partial list so
+	 * they can be easily found and freed during reclamation. */
+	if (sks->sks_ref == 0) {
+		list_del(&sks->sks_list);
+		list_add_tail(&sks->sks_list, &skc->skc_partial_list);
+		skc->skc_slab_alloc--;
+	}
+
+	EXIT;
+}
+
+static int
+spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
+{
+	int i, count = MIN(flush, skm->skm_avail);
+	ENTRY;
+
+
+	spin_lock(&skc->skc_lock);
+	for (i = 0; i < count; i++)
+		spl_cache_shrink(skc, skm->skm_objs[i]);
+
+	__spl_slab_reclaim(skc);
+        skm->skm_avail -= count;
+        memmove(skm->skm_objs, &(skm->skm_objs[count]),
+	        sizeof(void *) * skm->skm_avail);
+
+	spin_unlock(&skc->skc_lock);
+
+	RETURN(count);
+}
+
+void *
+spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
+{
+	spl_kmem_magazine_t *skm;
+	unsigned long irq_flags;
+	void *obj = NULL;
+	ENTRY;
+
+	ASSERT(flags & KM_SLEEP);
+	local_irq_save(irq_flags);
+
+restart:
+	/* Safe to update per-cpu structure without lock, but
+	 * in the restart case we must be careful to reaquire
+	 * the local magazine since this may have changed
+	 * when we need to grow the cache. */
+	skm = skc->skc_mag[smp_processor_id()];
+
+	if (likely(skm->skm_avail)) {
+		/* Object available in CPU cache, use it */
+		obj = skm->skm_objs[--skm->skm_avail];
+		skm->skm_age = jiffies;
+	} else {
+		/* Per-CPU cache empty, directly allocate from
+		 * the slab and refill the per-CPU cache. */
+		(void)spl_cache_refill(skc, skm, flags);
+		GOTO(restart, obj = NULL);
+	}
+
+	local_irq_restore(irq_flags);
+
+	/* Pre-emptively migrate object to CPU L1 cache */
+	prefetchw(obj);
+
 	RETURN(obj);
 }
 EXPORT_SYMBOL(spl_kmem_cache_alloc);
@@ -537,62 +794,33 @@ EXPORT_SYMBOL(spl_kmem_cache_alloc);
 void
 spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 {
-        struct hlist_node *node;
-        spl_kmem_slab_t *sks = NULL;
-	spl_kmem_obj_t *sko = NULL;
-	unsigned long key = spl_hash_ptr(obj, skc->skc_hash_bits);
-	int i = 0;
+	spl_kmem_magazine_t *skm;
+	unsigned long flags;
 	ENTRY;
 
-	spin_lock(&skc->skc_lock);
+	local_irq_save(flags);
 
-        hlist_for_each_entry(sko, node, &skc->skc_hash[key], sko_hlist) {
+	/* Safe to update per-cpu structure without lock, but
+	 * no remote memory allocation tracking is being performed
+	 * it is entirely possible to allocate an object from one
+	 * CPU cache and return it to another. */
+	skm = skc->skc_mag[smp_processor_id()];
 
-		if (unlikely((++i) > skc->skc_hash_depth))
-			skc->skc_hash_depth = i;
+	/* Per-CPU cache full, flush it to make space */
+	if (unlikely(skm->skm_avail >= skm->skm_size))
+		(void)spl_cache_flush(skc, skm, skm->skm_refill);
 
-                if (sko->sko_addr == obj) {
-			ASSERT(sko->sko_magic == SKO_MAGIC);
-			sks = sko->sko_slab;
-			break;
-		}
-	}
+	/* Available space in cache, use it */
+	skm->skm_objs[skm->skm_avail++] = obj;
 
-	ASSERT(sko != NULL); /* Obj must be in hash */
-	ASSERT(sks != NULL); /* Obj must reference slab */
-	ASSERT(sks->sks_cache == skc);
-	hlist_del_init(&sko->sko_hlist);
-	list_add(&sko->sko_list, &sks->sks_free_list);
+	local_irq_restore(flags);
 
-	sks->sks_age = jiffies;
-	atomic_dec(&sks->sks_ref);
-	skc->skc_obj_alloc--;
-
-	/* Move slab to skc_partial_list when no longer full.  Slabs
-	 * are added to the kead to keep the partial list is quasi
-	 * full sorted order.  Fuller at the head, emptier at the tail.
-	 */
-	if (atomic_read(&sks->sks_ref) == (sks->sks_objs - 1)) {
-		list_del(&sks->sks_list);
-		list_add(&sks->sks_list, &skc->skc_partial_list);
-	}
-
-	/* Move emply slabs to the end of the partial list so
-	 * they can be easily found and freed during reclamation.
-	 */
-	if (atomic_read(&sks->sks_ref) == 0) {
-		list_del(&sks->sks_list);
-		list_add_tail(&sks->sks_list, &skc->skc_partial_list);
-		skc->skc_slab_alloc--;
-	}
-
-	__slab_reclaim(skc);
-	spin_unlock(&skc->skc_lock);
+	EXIT;
 }
 EXPORT_SYMBOL(spl_kmem_cache_free);
 
 static int
-kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
+spl_kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 {
         spl_kmem_cache_t *skc;
 
@@ -619,13 +847,24 @@ kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 void
 spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
+	spl_kmem_magazine_t *skm;
+	int i;
 	ENTRY;
         ASSERT(skc && skc->skc_magic == SKC_MAGIC);
 
 	if (skc->skc_reclaim)
 		skc->skc_reclaim(skc->skc_private);
 
-	slab_reclaim(skc);
+	/* Ensure per-CPU caches which are idle gradually flush */
+	for_each_online_cpu(i) {
+		skm = skc->skc_mag[i];
+
+		if (time_after(jiffies, skm->skm_age + skc->skc_delay * HZ))
+			(void)spl_cache_flush(skc, skm, skm->skm_refill);
+	}
+
+	spl_slab_reclaim(skc);
+
 	EXIT;
 }
 EXPORT_SYMBOL(spl_kmem_cache_reap_now);
@@ -633,7 +872,7 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 void
 spl_kmem_reap(void)
 {
-	kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
+	spl_kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 
@@ -663,7 +902,7 @@ spl_kmem_init(void)
 
 #ifdef HAVE_SET_SHRINKER
 	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
-					       kmem_cache_generic_shrinker);
+					       spl_kmem_cache_generic_shrinker);
 	if (spl_kmem_cache_shrinker == NULL)
 		GOTO(out_cache, rc = -ENOMEM);
 #else
@@ -703,7 +942,7 @@ out_cache:
 
 #ifdef DEBUG_KMEM
 static char *
-sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
+spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 {
         int size = ((len - 1) < kd->kd_size) ? (len - 1) : kd->kd_size;
 	int i, flag = 1;
@@ -769,7 +1008,7 @@ spl_kmem_fini(void)
 	list_for_each_entry(kd, &kmem_list, kd_list)
 		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
 		       kd->kd_addr, kd->kd_size,
-		       sprintf_addr(kd, str, 17, 8),
+		       spl_sprintf_addr(kd, str, 17, 8),
 		       kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(&kmem_lock, flags);
@@ -786,7 +1025,7 @@ spl_kmem_fini(void)
 	list_for_each_entry(kd, &vmem_list, kd_list)
 		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
 		       kd->kd_addr, kd->kd_size,
-		       sprintf_addr(kd, str, 17, 8),
+		       spl_sprintf_addr(kd, str, 17, 8),
 		       kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(&vmem_lock, flags);

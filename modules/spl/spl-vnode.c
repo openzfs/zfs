@@ -486,7 +486,7 @@ vn_getf(int fd)
 	spin_unlock(&vn_file_lock);
 
 	/* File was not yet opened create the object and setup */
-	fp = kmem_cache_alloc(vn_file_cache, 0);
+	fp = kmem_cache_alloc(vn_file_cache, KM_SLEEP);
 	if (fp == NULL)
 		GOTO(out, rc);
 

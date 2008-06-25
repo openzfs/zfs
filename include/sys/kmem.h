@@ -360,6 +360,7 @@ kmem_debugging(void)
 extern int kmem_set_warning(int flag);
 
 
+#define SKM_MAGIC			0x2e2e2e2e
 #define SKO_MAGIC			0x20202020
 #define SKS_MAGIC			0x22222222
 #define SKC_MAGIC			0x2c2c2c2c
@@ -375,6 +376,15 @@ extern int kmem_set_warning(int flag);
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
 typedef void (*spl_kmem_reclaim_t)(void *);
+
+typedef struct spl_kmem_magazine {
+        uint32_t		skm_magic;	/* Sanity magic */
+	uint32_t		skm_avail;	/* Available objects */
+	uint32_t		skm_size;	/* Magazine size */
+	uint32_t		skm_refill;	/* Batch refill size */
+	unsigned long		skm_age;	/* Last cache access */
+	void			*skm_objs[0];	/* Object pointers */
+} spl_kmem_magazine_t;
 
 typedef struct spl_kmem_obj {
         uint32_t		sko_magic;	/* Sanity magic */
@@ -392,13 +402,16 @@ typedef struct spl_kmem_slab {
 	struct list_head	sks_list;	/* Slab list linkage */
 	struct list_head	sks_free_list;	/* Free object list */
 	unsigned long		sks_age;	/* Last modify jiffie */
-	atomic_t		sks_ref;	/* Ref count used objects */
+	uint32_t		sks_ref;	/* Ref count used objects */
 } spl_kmem_slab_t;
 
 typedef struct spl_kmem_cache {
         uint32_t		skc_magic;	/* Sanity magic */
         uint32_t		skc_name_size;	/* Name length */
         char			*skc_name;	/* Name string */
+	spl_kmem_magazine_t	*skc_mag[NR_CPUS]; /* Per-CPU warm cache */
+	uint32_t		skc_mag_size;	/* Magazine size */
+	uint32_t		skc_mag_refill;	/* Magazine refill count */
         spl_kmem_ctor_t		skc_ctor;	/* Constructor */
         spl_kmem_dtor_t		skc_dtor;	/* Destructor */
         spl_kmem_reclaim_t      skc_reclaim;	/* Reclaimator */
@@ -427,8 +440,8 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
-	uint64_t		skc_hash_depth;	/* Hash depth */
-	uint64_t		skc_hash_max;	/* Hash depth max */
+	uint64_t		skc_hash_depth;	/* Lazy hash depth */
+	uint64_t		skc_hash_count;	/* Hash entries current */
 } spl_kmem_cache_t;
 
 extern spl_kmem_cache_t *

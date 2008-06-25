@@ -525,6 +525,9 @@ splat_kmem_test8_thread(void *arg)
 
 	objs = vmem_zalloc(count * sizeof(void *), KM_SLEEP);
 	if (!objs) {
+		splat_vprint(kcp->kcp_file, SPLAT_KMEM_TEST8_NAME,
+	                     "Unable to alloc objp array for cache '%s'\n",
+		             kcp->kcp_cache->skc_name);
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -533,14 +536,13 @@ splat_kmem_test8_thread(void *arg)
 		objs[i] = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
 		if (!objs[i]) {
 			splat_vprint(kcp->kcp_file, SPLAT_KMEM_TEST8_NAME,
-		                     "Unable to allocate from '%s'\n",
-			             SPLAT_KMEM_CACHE_NAME);
+		                     "Unable to allocate from cache '%s'\n",
+			             kcp->kcp_cache->skc_name);
 			rc = -ENOMEM;
-			goto out_free;
+			break;
 		}
 	}
 
-out_free:
 	for (i = 0; i < count; i++)
 		if (objs[i])
 			kmem_cache_free(kcp->kcp_cache, objs[i]);
@@ -578,6 +580,7 @@ splat_kmem_test8(struct file *file, void *arg)
 	kmem_cache_priv_t kcp;
 	kthread_t *thr;
 	struct timespec start, stop, delta;
+	char cache_name[16];
 	int alloc, i;
 
 	kcp.kcp_magic = SPLAT_KMEM_TEST_MAGIC;
@@ -588,7 +591,7 @@ splat_kmem_test8(struct file *file, void *arg)
         splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
 	             "          \ttot/max/calc\ttot/max/calc\tsize/depth\n");
 
-	for (alloc = 64; alloc <= 4096; alloc *= 2) {
+	for (alloc = 1; alloc <= 4096; alloc *= 2) {
 		kcp.kcp_size = 256;
 		kcp.kcp_count = 0;
 		kcp.kcp_threads = 0;
@@ -597,9 +600,8 @@ splat_kmem_test8(struct file *file, void *arg)
 	        spin_lock_init(&kcp.kcp_lock);
 	        init_waitqueue_head(&kcp.kcp_waitq);
 
-
-		kcp.kcp_cache = kmem_cache_create(SPLAT_KMEM_CACHE_NAME,
-		                                  kcp.kcp_size, 0,
+		sprintf(cache_name, "%s-%d", SPLAT_KMEM_CACHE_NAME, alloc);
+		kcp.kcp_cache = kmem_cache_create(cache_name, kcp.kcp_size, 0,
 		                                  splat_kmem_cache_test_constructor,
 		                                  splat_kmem_cache_test_destructor,
 						  NULL, &kcp, NULL, 0);
