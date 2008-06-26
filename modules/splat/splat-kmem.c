@@ -553,9 +553,10 @@ out:
 	kcp->kcp_threads--;
 	if (!kcp->kcp_rc)
 		kcp->kcp_rc = rc;
-	spin_unlock(&kcp->kcp_lock);
 
         wake_up(&kcp->kcp_waitq);
+	spin_unlock(&kcp->kcp_lock);
+
         thread_exit();
 }
 
