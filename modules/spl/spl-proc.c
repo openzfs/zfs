@@ -49,6 +49,7 @@ static struct proc_dir_entry *proc_spl_mutex_stats = NULL;
 #endif /* DEBUG_MUTEX */
 #ifdef DEBUG_KMEM
 static struct proc_dir_entry *proc_spl_kmem = NULL;
+static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 #endif /* DEBUG_KMEM */
 #ifdef DEBUG_KSTAT
 struct proc_dir_entry *proc_spl_kstat = NULL;
@@ -131,7 +132,6 @@ enum {
         CTL_KMEM_KMEMMAX,         /* Max alloc'd by kmem bytes */
         CTL_KMEM_VMEMUSED,        /* Alloc'd vmem bytes */
         CTL_KMEM_VMEMMAX,         /* Max alloc'd by vmem bytes */
-	CTL_KMEM_ALLOC_FAILED,    /* Cache allocation failed */
 #endif
 
 	CTL_MUTEX_STATS,          /* Global mutex statistics */
@@ -561,6 +561,112 @@ static struct file_operations proc_mutex_operations = {
 };
 #endif /* DEBUG_MUTEX */
 
+#ifdef DEBUG_KMEM
+static void
+slab_seq_show_headers(struct seq_file *f)
+{
+        seq_printf(f, "%-36s\n", "name");
+}
+
+static int
+slab_seq_show(struct seq_file *f, void *p)
+{
+	spl_kmem_cache_t *skc = p;
+
+	ASSERT(skc->skc_magic == SKC_MAGIC);
+
+	spin_lock(&skc->skc_lock);
+        seq_printf(f, "%-36s      ", skc->skc_name);
+        seq_printf(f, "%u %u %u - %u %u %u - "
+		   "%lu %lu %lu - %lu %lu %lu - %lu %lu %lu - %lu %lu - "
+		   "%llu %llu %llu %llu %llu\n",
+		   (unsigned)skc->skc_obj_size,
+		   (unsigned)skc->skc_chunk_size,
+		   (unsigned)skc->skc_slab_size,
+		   (unsigned)skc->skc_hash_bits,
+		   (unsigned)skc->skc_hash_size,
+		   (unsigned)skc->skc_hash_elts,
+		   (long unsigned)skc->skc_slab_fail,
+		   (long unsigned)skc->skc_slab_create,
+		   (long unsigned)skc->skc_slab_destroy,
+		   (long unsigned)skc->skc_slab_total,
+		   (long unsigned)skc->skc_slab_alloc,
+		   (long unsigned)skc->skc_slab_max,
+		   (long unsigned)skc->skc_obj_total,
+		   (long unsigned)skc->skc_obj_alloc,
+		   (long unsigned)skc->skc_obj_max,
+		   (long unsigned)skc->skc_hash_depth,
+		   (long unsigned)skc->skc_hash_count,
+		   (long long unsigned)skc->skc_lock_reclaim,
+		   (long long unsigned)skc->skc_lock_destroy,
+		   (long long unsigned)skc->skc_lock_grow,
+		   (long long unsigned)skc->skc_lock_refill,
+		   (long long unsigned)skc->skc_lock_flush);
+
+	spin_unlock(&skc->skc_lock);
+
+        return 0;
+}
+
+static void *
+slab_seq_start(struct seq_file *f, loff_t *pos)
+{
+        struct list_head *p;
+        loff_t n = *pos;
+        ENTRY;
+
+	down_read(&spl_kmem_cache_sem);
+        if (!n)
+                slab_seq_show_headers(f);
+
+        p = spl_kmem_cache_list.next;
+        while (n--) {
+                p = p->next;
+                if (p == &spl_kmem_cache_list)
+                        RETURN(NULL);
+        }
+
+        RETURN(list_entry(p, spl_kmem_cache_t, skc_list));
+}
+
+static void *
+slab_seq_next(struct seq_file *f, void *p, loff_t *pos)
+{
+	spl_kmem_cache_t *skc = p;
+        ENTRY;
+
+        ++*pos;
+        RETURN((skc->skc_list.next == &spl_kmem_cache_list) ?
+	       NULL : list_entry(skc->skc_list.next, spl_kmem_cache_t, skc_list));
+}
+
+static void
+slab_seq_stop(struct seq_file *f, void *v)
+{
+	up_read(&spl_kmem_cache_sem);
+}
+
+static struct seq_operations slab_seq_ops = {
+        .show  = slab_seq_show,
+        .start = slab_seq_start,
+        .next  = slab_seq_next,
+        .stop  = slab_seq_stop,
+};
+
+static int
+proc_slab_open(struct inode *inode, struct file *filp)
+{
+        return seq_open(filp, &slab_seq_ops);
+}
+
+static struct file_operations proc_slab_operations = {
+        .open           = proc_slab_open,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = seq_release,
+};
+#endif /* DEBUG_KMEM */
+
 static struct ctl_table spl_debug_table[] = {
         {
                 .ctl_name = CTL_DEBUG_SUBSYS,
@@ -735,14 +841,6 @@ static struct ctl_table spl_kmem_table[] = {
                 .mode     = 0444,
                 .proc_handler = &proc_doulongvec_minmax,
         },
-        {
-                .ctl_name = CTL_KMEM_ALLOC_FAILED,
-                .procname = "kmem_alloc_failed",
-                .data     = &kmem_cache_alloc_failed,
-                .maxlen   = sizeof(atomic64_t),
-                .mode     = 0444,
-                .proc_handler = &proc_doatomic64,
-        },
 	{0},
 };
 #endif /* DEBUG_KMEM */
@@ -901,6 +999,12 @@ proc_init(void)
         proc_spl_kmem = proc_mkdir("kmem", proc_spl);
         if (proc_spl_kmem == NULL)
                 GOTO(out, rc = -EUNATCH);
+
+	proc_spl_kmem_slab = create_proc_entry("slab", 0444, proc_spl_kmem);
+        if (proc_spl_kmem_slab == NULL)
+		GOTO(out, rc = -EUNATCH);
+
+        proc_spl_kmem_slab->proc_fops = &proc_slab_operations;
 #endif /* DEBUG_KMEM */
 
 #ifdef DEBUG_KSTAT
@@ -912,6 +1016,9 @@ proc_init(void)
 out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
+#ifdef DEBUG_KMEM
+	        remove_proc_entry("slab", proc_spl_kmem);
+#endif
 		remove_proc_entry("kmem", proc_spl);
 #ifdef DEBUG_MUTEX
 	        remove_proc_entry("stats_per", proc_spl_mutex);
@@ -934,6 +1041,9 @@ proc_fini(void)
 
 #if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	remove_proc_entry("kstat", proc_spl);
+#ifdef DEBUG_KMEM
+        remove_proc_entry("slab", proc_spl_kmem);
+#endif
 	remove_proc_entry("kmem", proc_spl);
 #ifdef DEBUG_MUTEX
         remove_proc_entry("stats_per", proc_spl_mutex);

@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 #undef DEBUG_KMEM_UNIMPLEMENTED
+#undef DEBUG_KMEM_TRACKING /* Per-allocation memory tracking */
 
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -58,10 +59,9 @@ extern atomic64_t kmem_alloc_used;
 extern unsigned long kmem_alloc_max;
 extern atomic64_t vmem_alloc_used;
 extern unsigned long vmem_alloc_max;
-
 extern int kmem_warning_flag;
-extern atomic64_t kmem_cache_alloc_failed;
 
+#ifdef DEBUG_KMEM_TRACKING
 /* XXX - Not to surprisingly with debugging enabled the xmem_locks are very
  * highly contended particularly on xfree().  If we want to run with this
  * detailed debugging enabled for anything other than debugging  we need to
@@ -171,9 +171,6 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
         _ptr_;                                                                \
 })
 
-#define kmem_alloc(size, flags)         __kmem_alloc((size), (flags), kmalloc)
-#define kmem_zalloc(size, flags)        __kmem_alloc((size), (flags), kzalloc)
-
 #define kmem_free(ptr, size)                                                  \
 ({                                                                            \
         kmem_debug_t *_dptr_;                                                 \
@@ -252,10 +249,6 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
         _ptr_;                                                                \
 })
 
-#define vmem_alloc(size, flags)         __vmem_alloc((size), (flags))
-#define vmem_zalloc(size, flags)        __vmem_alloc((size), ((flags) |       \
-                                                     __GFP_ZERO))
-
 #define vmem_free(ptr, size)                                                  \
 ({                                                                            \
         kmem_debug_t *_dptr_;                                                 \
@@ -277,6 +270,108 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
         memset(ptr, 0x5a, (size));                                            \
         vfree(ptr);                                                           \
 })
+
+#else /* DEBUG_KMEM_TRACKING */
+
+#define __kmem_alloc(size, flags, allocator)                                  \
+({      void *_ptr_ = NULL;                                                   \
+                                                                              \
+	/* Marked unlikely because we should never be doing this, */          \
+	/* we tolerate to up 2 pages but a single page is best.   */          \
+        if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)          \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning large "            \
+			       "kmem_alloc(%d, 0x%x) (%ld/%ld)\n",            \
+			       (int)(size), (int)(flags),                     \
+		               atomic64_read(&kmem_alloc_used),               \
+			       kmem_alloc_max);                               \
+                                                                              \
+        _ptr_ = (void *)allocator((size), (flags));                           \
+        if (_ptr_ == NULL) {                                                  \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
+			       "kmem_alloc(%d, 0x%x) failed (%ld/"            \
+                               "%ld)\n", (int)(size), (int)(flags),           \
+		               atomic64_read(&kmem_alloc_used),               \
+			       kmem_alloc_max);                               \
+        } else {                                                              \
+                atomic64_add((size), &kmem_alloc_used);                       \
+                if (unlikely(atomic64_read(&kmem_alloc_used) >                \
+                    kmem_alloc_max))                                          \
+                        kmem_alloc_max =                                      \
+                                atomic64_read(&kmem_alloc_used);              \
+			                                                      \
+                __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_alloc(%d, 0x%x) = %p "   \
+			       "(%ld/%ld)\n", (int)(size), (int)(flags),      \
+			       _ptr_, atomic64_read(&kmem_alloc_used),        \
+			       kmem_alloc_max);                               \
+        }                                                                     \
+                                                                              \
+        _ptr_;                                                                \
+})
+
+#define kmem_free(ptr, size)                                                  \
+({                                                                            \
+        ASSERT((ptr) || (size > 0));                                          \
+                                                                              \
+        atomic64_sub((size), &kmem_alloc_used);                               \
+        __CDEBUG_LIMIT(S_KMEM, D_INFO, "kmem_free(%p, %d) (%ld/%ld)\n",       \
+		       (ptr), (int)(size), atomic64_read(&kmem_alloc_used),   \
+		       kmem_alloc_max);                                       \
+        memset(ptr, 0x5a, (size));                                            \
+        kfree(ptr);                                                           \
+})
+
+#define __vmem_alloc(size, flags)                                             \
+({      void *_ptr_ = NULL;                                                   \
+                                                                              \
+	ASSERT((flags) & KM_SLEEP);                                           \
+                                                                              \
+        _ptr_ = (void *)__vmalloc((size), (((flags) |                         \
+                                  __GFP_HIGHMEM) & ~__GFP_ZERO), PAGE_KERNEL);\
+        if (_ptr_ == NULL) {                                                  \
+                __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
+			       "vmem_alloc(%d, 0x%x) failed (%ld/"            \
+                               "%ld)\n", (int)(size), (int)(flags),           \
+		              atomic64_read(&vmem_alloc_used),                \
+			      vmem_alloc_max);                                \
+        } else {                                                              \
+                if (flags & __GFP_ZERO)                                       \
+                        memset(_ptr_, 0, (size));                             \
+                                                                              \
+                atomic64_add((size), &vmem_alloc_used);                       \
+                if (unlikely(atomic64_read(&vmem_alloc_used) >                \
+                    vmem_alloc_max))                                          \
+                        vmem_alloc_max =                                      \
+                                atomic64_read(&vmem_alloc_used);              \
+			                                                      \
+                __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_alloc("                  \
+                               "%d, 0x%x) = %p (%ld/%ld)\n",                  \
+                               (int)(size), (int)(flags), _ptr_,              \
+                               atomic64_read(&vmem_alloc_used),               \
+			       vmem_alloc_max);                               \
+        }                                                                     \
+                                                                              \
+	_ptr_;                                                                \
+})
+
+#define vmem_free(ptr, size)                                                  \
+({                                                                            \
+        ASSERT((ptr) || (size > 0));                                          \
+                                                                              \
+        atomic64_sub((size), &vmem_alloc_used);                               \
+        __CDEBUG_LIMIT(S_KMEM, D_INFO, "vmem_free(%p, %d) (%ld/%ld)\n",       \
+		       (ptr), (int)(size), atomic64_read(&vmem_alloc_used),   \
+		       vmem_alloc_max);                                       \
+        memset(ptr, 0x5a, (size));                                            \
+        vfree(ptr);                                                           \
+})
+
+#endif /* DEBUG_KMEM_TRACKING */
+
+#define kmem_alloc(size, flags)         __kmem_alloc((size), (flags), kmalloc)
+#define kmem_zalloc(size, flags)        __kmem_alloc((size), (flags), kzalloc)
+
+#define vmem_alloc(size, flags)         __vmem_alloc((size), (flags))
+#define vmem_zalloc(size, flags)        __vmem_alloc((size), ((flags) | __GFP_ZERO))
 
 #else /* DEBUG_KMEM */
 
@@ -359,6 +454,8 @@ kmem_debugging(void)
 
 extern int kmem_set_warning(int flag);
 
+extern struct list_head spl_kmem_cache_list;
+extern struct rw_semaphore spl_kmem_cache_sem;
 
 #define SKM_MAGIC			0x2e2e2e2e
 #define SKO_MAGIC			0x20202020
@@ -442,6 +539,11 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_max;	/* Obj max historic */
 	uint64_t		skc_hash_depth;	/* Lazy hash depth */
 	uint64_t		skc_hash_count;	/* Hash entries current */
+	cycles_t		skc_lock_reclaim;
+	cycles_t		skc_lock_destroy;
+	cycles_t		skc_lock_grow;
+	cycles_t		skc_lock_refill;
+	cycles_t		skc_lock_flush;
 } spl_kmem_cache_t;
 
 extern spl_kmem_cache_t *

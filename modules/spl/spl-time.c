@@ -66,3 +66,22 @@ __gethrtime(void) {
         return rc;
 }
 EXPORT_SYMBOL(__gethrtime);
+
+/* Not exported from the kernel, but we need it for timespec_sub.  Be very
+ * careful here we are using the kernel prototype, so that must not change.
+ */
+void
+set_normalized_timespec(struct timespec *ts, time_t sec, long nsec)
+{
+	while (nsec >= NSEC_PER_SEC) {
+	        nsec -= NSEC_PER_SEC;
+	        ++sec;
+	}
+	while (nsec < 0) {
+	        nsec += NSEC_PER_SEC;
+	        --sec;
+	}
+	ts->tv_sec = sec;
+	ts->tv_nsec = nsec;
+}
+EXPORT_SYMBOL(set_normalized_timespec);

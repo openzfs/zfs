@@ -48,8 +48,14 @@ unsigned long kmem_alloc_max = 0;
 atomic64_t vmem_alloc_used;
 unsigned long vmem_alloc_max = 0;
 int kmem_warning_flag = 1;
-atomic64_t kmem_cache_alloc_failed;
 
+EXPORT_SYMBOL(kmem_alloc_used);
+EXPORT_SYMBOL(kmem_alloc_max);
+EXPORT_SYMBOL(vmem_alloc_used);
+EXPORT_SYMBOL(vmem_alloc_max);
+EXPORT_SYMBOL(kmem_warning_flag);
+
+#ifdef DEBUG_KMEM_TRACKING
 spinlock_t kmem_lock;
 struct hlist_head kmem_table[KMEM_TABLE_SIZE];
 struct list_head kmem_list;
@@ -58,12 +64,6 @@ spinlock_t vmem_lock;
 struct hlist_head vmem_table[VMEM_TABLE_SIZE];
 struct list_head vmem_list;
 
-EXPORT_SYMBOL(kmem_alloc_used);
-EXPORT_SYMBOL(kmem_alloc_max);
-EXPORT_SYMBOL(vmem_alloc_used);
-EXPORT_SYMBOL(vmem_alloc_max);
-EXPORT_SYMBOL(kmem_warning_flag);
-
 EXPORT_SYMBOL(kmem_lock);
 EXPORT_SYMBOL(kmem_table);
 EXPORT_SYMBOL(kmem_list);
@@ -71,6 +71,7 @@ EXPORT_SYMBOL(kmem_list);
 EXPORT_SYMBOL(vmem_lock);
 EXPORT_SYMBOL(vmem_table);
 EXPORT_SYMBOL(vmem_list);
+#endif
 
 int kmem_set_warning(int flag) { return (kmem_warning_flag = !!flag); }
 #else
@@ -108,8 +109,6 @@ EXPORT_SYMBOL(kmem_set_warning);
  * One serious concern I do have about this method is the relatively
  * small virtual address space on 32bit arches.  This will seriously
  * constrain the size of the slab caches and their performance.
- *
- * XXX: Implement SPL proc interface to export full per cache stats.
  *
  * XXX: Implement work requests to keep an eye on each cache and
  *      shrink them via spl_slab_reclaim() when they are wasting lots
@@ -149,10 +148,10 @@ EXPORT_SYMBOL(kmem_set_warning);
 #undef kmem_cache_alloc
 #undef kmem_cache_free
 
-static struct list_head spl_kmem_cache_list;	/* List of caches */
-static struct rw_semaphore spl_kmem_cache_sem;	/* Cache list lock */
-static kmem_cache_t *spl_slab_cache;		/* Cache for slab structs */
-static kmem_cache_t *spl_obj_cache;		/* Cache for obj structs */
+struct list_head spl_kmem_cache_list;	/* List of caches */
+struct rw_semaphore spl_kmem_cache_sem;	/* Cache list lock */
+static kmem_cache_t *spl_slab_cache;	/* Cache for slab structs */
+static kmem_cache_t *spl_obj_cache;	/* Cache for obj structs */
 
 static int spl_cache_flush(spl_kmem_cache_t *skc,
 			   spl_kmem_magazine_t *skm, int flush);
@@ -206,7 +205,17 @@ out_alloc:
 			GOTO(out, sks = NULL);
 		}
 
-		sko->sko_addr = vmem_alloc(skc->skc_obj_size, flags);
+		/* Objects less than a page can use kmem_alloc() and avoid
+		 * the locking overhead in __get_vm_area_node() when locking
+		 * for a free address.  For objects over a page we use
+		 * vmem_alloc() because it is usually worth paying this
+		 * overhead to avoid the need to find contigeous pages.
+		 * This should give us the best of both worlds. */
+		if (skc->skc_obj_size <= PAGE_SIZE)
+			sko->sko_addr = kmem_alloc(skc->skc_obj_size, flags);
+		else
+			sko->sko_addr = vmem_alloc(skc->skc_obj_size, flags);
+
 		if (sko->sko_addr == NULL) {
 			kmem_cache_free(spl_obj_cache, sko);
 			GOTO(out_alloc, sks = NULL);
@@ -248,7 +257,11 @@ spl_slab_free(spl_kmem_slab_t *sks) {
 		if (skc->skc_dtor)
 			skc->skc_dtor(sko->sko_addr, skc->skc_private);
 
-		vmem_free(sko->sko_addr, skc->skc_obj_size);
+		if (skc->skc_obj_size <= PAGE_SIZE)
+			kmem_free(sko->sko_addr, skc->skc_obj_size);
+		else
+			vmem_free(sko->sko_addr, skc->skc_obj_size);
+
 		list_del(&sko->sko_list);
 		kmem_cache_free(spl_obj_cache, sko);
 		i++;
@@ -292,12 +305,17 @@ __spl_slab_reclaim(spl_kmem_cache_t *skc)
 static int
 spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
+	cycles_t start;
 	int rc;
 	ENTRY;
 
 	spin_lock(&skc->skc_lock);
+        start = get_cycles();
 	rc = __spl_slab_reclaim(skc);
 	spin_unlock(&skc->skc_lock);
+
+	if (unlikely((get_cycles() - start) > skc->skc_lock_reclaim))
+		skc->skc_lock_reclaim = get_cycles() - start;
 
 	RETURN(rc);
 }
@@ -311,17 +329,15 @@ spl_magazine_size(spl_kmem_cache_t *skc)
 	/* Guesses for reasonable magazine sizes, they
 	 * should really adapt based on observed usage. */
 	if (skc->skc_obj_size > (PAGE_SIZE * 256))
-		size = 1;
-	else if (skc->skc_obj_size > (PAGE_SIZE * 32))
 		size = 4;
-	else if (skc->skc_obj_size > (PAGE_SIZE))
+	else if (skc->skc_obj_size > (PAGE_SIZE * 32))
 		size = 16;
-	else if (skc->skc_obj_size > (PAGE_SIZE / 4))
-		size = 32;
-	else if (skc->skc_obj_size > (PAGE_SIZE / 16))
-		size = 48;
-	else
+	else if (skc->skc_obj_size > (PAGE_SIZE))
 		size = 64;
+	else if (skc->skc_obj_size > (PAGE_SIZE / 4))
+		size = 128;
+	else
+		size = 512;
 
 	RETURN(size);
 }
@@ -412,7 +428,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		kmem_flags = KM_NOSLEEP;
 
 	/* Allocate new cache memory and initialize. */
-	skc = (spl_kmem_cache_t *)kmem_alloc(sizeof(*skc), kmem_flags);
+	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc), kmem_flags);
 	if (skc == NULL)
 		RETURN(NULL);
 
@@ -441,7 +457,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_hash_size = SPL_KMEM_CACHE_HASH_SIZE;
 	skc->skc_hash_elts = SPL_KMEM_CACHE_HASH_ELTS;
 	skc->skc_hash = (struct hlist_head *)
-		        kmem_alloc(skc->skc_hash_size, kmem_flags);
+		        vmem_alloc(skc->skc_hash_size, kmem_flags);
 	if (skc->skc_hash == NULL) {
 		kmem_free(skc->skc_name, skc->skc_name_size);
 		kmem_free(skc, sizeof(*skc));
@@ -466,10 +482,15 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_max = 0;
 	skc->skc_hash_depth = 0;
 	skc->skc_hash_count = 0;
+	skc->skc_lock_reclaim = 0;
+	skc->skc_lock_destroy = 0;
+	skc->skc_lock_grow = 0;
+	skc->skc_lock_refill = 0;
+	skc->skc_lock_flush = 0;
 
 	rc = spl_magazine_create(skc);
 	if (rc) {
-		kmem_free(skc->skc_hash, skc->skc_hash_size);
+		vmem_free(skc->skc_hash, skc->skc_hash_size);
 		kmem_free(skc->skc_name, skc->skc_name_size);
 		kmem_free(skc, sizeof(*skc));
 		RETURN(NULL);
@@ -490,6 +511,7 @@ void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
         spl_kmem_slab_t *sks, *m;
+	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -500,6 +522,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	spl_magazine_destroy(skc);
 	spin_lock(&skc->skc_lock);
+	start = get_cycles();
 
 	/* Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers. */
@@ -510,9 +533,13 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	list_for_each_entry_safe(sks, m, &skc->skc_partial_list, sks_list)
 		spl_slab_free(sks);
 
-	kmem_free(skc->skc_hash, skc->skc_hash_size);
+	vmem_free(skc->skc_hash, skc->skc_hash_size);
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
+
+	if (unlikely((get_cycles() - start) > skc->skc_lock_destroy))
+		skc->skc_lock_destroy = get_cycles() - start;
+
 	kmem_free(skc, sizeof(*skc));
 
 	EXIT;
@@ -603,6 +630,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
 	spl_kmem_obj_t *sko;
+	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -634,10 +662,15 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 
 	/* Link the new empty slab in to the end of skc_partial_list */
 	spin_lock(&skc->skc_lock);
+	start = get_cycles();
 	skc->skc_slab_total++;
 	skc->skc_obj_total += sks->sks_objs;
 	list_add_tail(&sks->sks_list, &skc->skc_partial_list);
 	spin_unlock(&skc->skc_lock);
+
+	if (unlikely((get_cycles() - start) > skc->skc_lock_grow))
+		skc->skc_lock_grow = get_cycles() - start;
+
 
 	RETURN(sks);
 }
@@ -647,6 +680,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 {
 	spl_kmem_slab_t *sks;
 	int rc = 0, refill;
+	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -656,10 +690,16 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	refill = MIN(skm->skm_refill, skm->skm_size - skm->skm_avail);
 
 	spin_lock(&skc->skc_lock);
+	start = get_cycles();
+
 	while (refill > 0) {
 		/* No slabs available we must grow the cache */
 		if (list_empty(&skc->skc_partial_list)) {
 			spin_unlock(&skc->skc_lock);
+
+			if (unlikely((get_cycles() - start) > skc->skc_lock_refill))
+				skc->skc_lock_refill = get_cycles() - start;
+
 			sks = spl_cache_grow(skc, flags);
 			if (!sks)
 				GOTO(out, rc);
@@ -674,6 +714,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 			refill = MIN(refill, skm->skm_size - skm->skm_avail);
 
 			spin_lock(&skc->skc_lock);
+			start = get_cycles();
 			continue;
 		}
 
@@ -700,6 +741,9 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	}
 
 	spin_unlock(&skc->skc_lock);
+
+	if (unlikely((get_cycles() - start) > skc->skc_lock_refill))
+		skc->skc_lock_refill = get_cycles() - start;
 out:
 	/* Returns the number of entries added to cache */
 	RETURN(rc);
@@ -716,8 +760,8 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
 	sko = spl_hash_obj(skc, obj);
-	ASSERTF(sko, "Obj %p missing from in-use hash (%d) for cache %s\n",
-	        obj, skc->skc_hash_count, skc->skc_name);
+	ASSERTF(sko, "Obj %p missing from in-use hash (%d/%d) for cache %s\n",
+	        obj, skc->skc_hash_depth, skc->skc_hash_count, skc->skc_name);
 
 	sks = sko->sko_slab;
 	ASSERTF(sks, "Obj %p/%p linked to invalid slab for cache %s\n",
@@ -755,12 +799,15 @@ static int
 spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 {
 	int i, count = MIN(flush, skm->skm_avail);
+	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
 	spin_lock(&skc->skc_lock);
+	start = get_cycles();
+
 	for (i = 0; i < count; i++)
 		spl_cache_shrink(skc, skm->skm_objs[i]);
 
@@ -770,6 +817,9 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 	        sizeof(void *) * skm->skm_avail);
 
 	spin_unlock(&skc->skc_lock);
+
+	if (unlikely((get_cycles() - start) > skc->skc_lock_flush))
+		skc->skc_lock_flush = get_cycles() - start;
 
 	RETURN(count);
 }
@@ -942,11 +992,11 @@ spl_kmem_init(void)
 #endif
 
 #ifdef DEBUG_KMEM
-	{ int i;
 	atomic64_set(&kmem_alloc_used, 0);
 	atomic64_set(&vmem_alloc_used, 0);
-	atomic64_set(&kmem_cache_alloc_failed, 0);
 
+#ifdef DEBUG_KMEM_TRACKING
+	{ int i;
 	spin_lock_init(&kmem_lock);
 	INIT_LIST_HEAD(&kmem_list);
 
@@ -960,6 +1010,7 @@ spl_kmem_init(void)
 		INIT_HLIST_HEAD(&vmem_table[i]);
 	}
 #endif
+#endif
 	RETURN(rc);
 
 out_cache:
@@ -972,7 +1023,7 @@ out_cache:
 	RETURN(rc);
 }
 
-#ifdef DEBUG_KMEM
+#if defined(DEBUG_KMEM) && defined(DEBUG_KMEM_TRACKING)
 static char *
 spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 {
@@ -1013,16 +1064,35 @@ spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 
 	return str;
 }
-#endif /* DEBUG_KMEM */
+
+static void
+spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
+{
+	unsigned long flags;
+	kmem_debug_t *kd;
+	char str[17];
+
+	spin_lock_irqsave(lock, flags);
+	if (!list_empty(list))
+		CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
+		       "address", "size", "data", "func", "line");
+
+	list_for_each_entry(kd, list, kd_list)
+		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
+		       kd->kd_addr, kd->kd_size,
+		       spl_sprintf_addr(kd, str, 17, 8),
+		       kd->kd_func, kd->kd_line);
+
+	spin_unlock_irqrestore(lock, flags);
+}
+#else /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
+#define spl_kmem_fini_tracking(list, lock)
+#endif /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
 
 void
 spl_kmem_fini(void)
 {
 #ifdef DEBUG_KMEM
-	unsigned long flags;
-	kmem_debug_t *kd;
-	char str[17];
-
 	/* Display all unreclaimed memory addresses, including the
 	 * allocation size and the first few bytes of what's located
 	 * at that address to aid in debugging.  Performance is not
@@ -1031,36 +1101,14 @@ spl_kmem_fini(void)
 		CWARN("kmem leaked %ld/%ld bytes\n",
 		      atomic_read(&kmem_alloc_used), kmem_alloc_max);
 
-	spin_lock_irqsave(&kmem_lock, flags);
-	if (!list_empty(&kmem_list))
-		CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
-		       "address", "size", "data", "func", "line");
-
-	list_for_each_entry(kd, &kmem_list, kd_list)
-		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
-		       kd->kd_addr, kd->kd_size,
-		       spl_sprintf_addr(kd, str, 17, 8),
-		       kd->kd_func, kd->kd_line);
-
-	spin_unlock_irqrestore(&kmem_lock, flags);
 
 	if (atomic64_read(&vmem_alloc_used) != 0)
 		CWARN("vmem leaked %ld/%ld bytes\n",
 		      atomic_read(&vmem_alloc_used), vmem_alloc_max);
 
-	spin_lock_irqsave(&vmem_lock, flags);
-	if (!list_empty(&vmem_list))
-		CDEBUG(D_WARNING, "%-16s %-5s %-16s %s:%s\n",
-		       "address", "size", "data", "func", "line");
-
-	list_for_each_entry(kd, &vmem_list, kd_list)
-		CDEBUG(D_WARNING, "%p %-5d %-16s %s:%d\n",
-		       kd->kd_addr, kd->kd_size,
-		       spl_sprintf_addr(kd, str, 17, 8),
-		       kd->kd_func, kd->kd_line);
-
-	spin_unlock_irqrestore(&vmem_lock, flags);
-#endif
+	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
+	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);
+#endif /* DEBUG_KMEM */
 	ENTRY;
 
 #ifdef HAVE_SET_SHRINKER
