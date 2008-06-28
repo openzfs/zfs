@@ -114,10 +114,6 @@ EXPORT_SYMBOL(kmem_set_warning);
  *      shrink them via spl_slab_reclaim() when they are wasting lots
  *      of space.  Currently this process is driven by the reapers.
  *
- * XXX: Implement proper small cache object support by embedding
- *      the spl_kmem_slab_t, spl_kmem_obj_t's, and objects in the
- *      allocated for a particular slab.
- *
  * XXX: Implement a resizable used object hash.  Currently the hash
  *      is statically sized for thousands of objects but it should
  *      grow based on observed worst case slab depth.
@@ -407,17 +403,12 @@ __spl_slab_reclaim(spl_kmem_cache_t *skc)
 static int
 spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
-	cycles_t start;
 	int rc;
 	ENTRY;
 
 	spin_lock(&skc->skc_lock);
-        start = get_cycles();
 	rc = __spl_slab_reclaim(skc);
 	spin_unlock(&skc->skc_lock);
-
-	if (unlikely((get_cycles() - start) > skc->skc_lock_reclaim))
-		skc->skc_lock_reclaim = get_cycles() - start;
 
 	RETURN(rc);
 }
@@ -584,11 +575,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_max = 0;
 	skc->skc_hash_depth = 0;
 	skc->skc_hash_count = 0;
-	skc->skc_lock_reclaim = 0;
-	skc->skc_lock_destroy = 0;
-	skc->skc_lock_grow = 0;
-	skc->skc_lock_refill = 0;
-	skc->skc_lock_flush = 0;
 
 	rc = spl_magazine_create(skc);
 	if (rc) {
@@ -613,7 +599,6 @@ void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
         spl_kmem_slab_t *sks, *m;
-	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -624,7 +609,6 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	spl_magazine_destroy(skc);
 	spin_lock(&skc->skc_lock);
-	start = get_cycles();
 
 	/* Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers. */
@@ -638,9 +622,6 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	vmem_free(skc->skc_hash, skc->skc_hash_size);
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
-
-	if (unlikely((get_cycles() - start) > skc->skc_lock_destroy))
-		skc->skc_lock_destroy = get_cycles() - start;
 
 	kmem_free(skc, sizeof(*skc));
 
@@ -731,7 +712,6 @@ static spl_kmem_slab_t *
 spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -755,15 +735,10 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 
 	/* Link the new empty slab in to the end of skc_partial_list */
 	spin_lock(&skc->skc_lock);
-	start = get_cycles();
 	skc->skc_slab_total++;
 	skc->skc_obj_total += sks->sks_objs;
 	list_add_tail(&sks->sks_list, &skc->skc_partial_list);
 	spin_unlock(&skc->skc_lock);
-
-	if (unlikely((get_cycles() - start) > skc->skc_lock_grow))
-		skc->skc_lock_grow = get_cycles() - start;
-
 
 	RETURN(sks);
 }
@@ -773,7 +748,6 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 {
 	spl_kmem_slab_t *sks;
 	int rc = 0, refill;
-	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -783,15 +757,11 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	refill = MIN(skm->skm_refill, skm->skm_size - skm->skm_avail);
 
 	spin_lock(&skc->skc_lock);
-	start = get_cycles();
 
 	while (refill > 0) {
 		/* No slabs available we must grow the cache */
 		if (list_empty(&skc->skc_partial_list)) {
 			spin_unlock(&skc->skc_lock);
-
-			if (unlikely((get_cycles()-start)>skc->skc_lock_refill))
-				skc->skc_lock_refill = get_cycles() - start;
 
 			sks = spl_cache_grow(skc, flags);
 			if (!sks)
@@ -807,7 +777,6 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 			refill = MIN(refill, skm->skm_size - skm->skm_avail);
 
 			spin_lock(&skc->skc_lock);
-			start = get_cycles();
 			continue;
 		}
 
@@ -834,9 +803,6 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	}
 
 	spin_unlock(&skc->skc_lock);
-
-	if (unlikely((get_cycles() - start) > skc->skc_lock_refill))
-		skc->skc_lock_refill = get_cycles() - start;
 out:
 	/* Returns the number of entries added to cache */
 	RETURN(rc);
@@ -892,14 +858,12 @@ static int
 spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 {
 	int i, count = MIN(flush, skm->skm_avail);
-	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
 	spin_lock(&skc->skc_lock);
-	start = get_cycles();
 
 	for (i = 0; i < count; i++)
 		spl_cache_shrink(skc, skm->skm_objs[i]);
@@ -910,9 +874,6 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 	        sizeof(void *) * skm->skm_avail);
 
 	spin_unlock(&skc->skc_lock);
-
-	if (unlikely((get_cycles() - start) > skc->skc_lock_flush))
-		skc->skc_lock_flush = get_cycles() - start;
 
 	RETURN(count);
 }
@@ -983,7 +944,6 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	/* Per-CPU cache full, flush it to make space */
 	if (unlikely(skm->skm_avail >= skm->skm_size))
 		(void)spl_cache_flush(skc, skm, skm->skm_refill);
-		(void)spl_cache_flush(skc, skm, 1);
 
 	/* Available space in cache, use it */
 	skm->skm_objs[skm->skm_avail++] = obj;

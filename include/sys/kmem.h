@@ -538,11 +538,6 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_max;	/* Obj max historic */
 	uint64_t		skc_hash_depth;	/* Lazy hash depth */
 	uint64_t		skc_hash_count;	/* Hash entries current */
-	cycles_t		skc_lock_reclaim;
-	cycles_t		skc_lock_destroy;
-	cycles_t		skc_lock_grow;
-	cycles_t		skc_lock_refill;
-	cycles_t		skc_lock_flush;
 } spl_kmem_cache_t;
 
 extern spl_kmem_cache_t *

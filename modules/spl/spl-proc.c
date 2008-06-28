@@ -578,8 +578,7 @@ slab_seq_show(struct seq_file *f, void *p)
 	spin_lock(&skc->skc_lock);
         seq_printf(f, "%-36s      ", skc->skc_name);
         seq_printf(f, "%u %u %u - %u %u %u - "
-		   "%lu %lu %lu - %lu %lu %lu - %lu %lu %lu - %lu %lu - "
-		   "%llu %llu %llu %llu %llu\n",
+		   "%lu %lu %lu - %lu %lu %lu - %lu %lu %lu - %lu %lu\n",
 		   (unsigned)skc->skc_obj_size,
 		   (unsigned)skc->skc_chunk_size,
 		   (unsigned)skc->skc_slab_size,
@@ -596,12 +595,7 @@ slab_seq_show(struct seq_file *f, void *p)
 		   (long unsigned)skc->skc_obj_alloc,
 		   (long unsigned)skc->skc_obj_max,
 		   (long unsigned)skc->skc_hash_depth,
-		   (long unsigned)skc->skc_hash_count,
-		   (long long unsigned)skc->skc_lock_reclaim,
-		   (long long unsigned)skc->skc_lock_destroy,
-		   (long long unsigned)skc->skc_lock_grow,
-		   (long long unsigned)skc->skc_lock_refill,
-		   (long long unsigned)skc->skc_lock_flush);
+		   (long unsigned)skc->skc_hash_count);
 
 	spin_unlock(&skc->skc_lock);
 
