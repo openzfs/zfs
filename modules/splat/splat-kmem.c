@@ -559,36 +559,36 @@ splat_kmem_test8_count(kmem_cache_priv_t *kcp, int threads)
  * eyeball the slab cache locking overhead to ensure it is reasonable.
  */
 static int
-splat_kmem_test8(struct file *file, void *arg)
+splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 {
 	kmem_cache_priv_t kcp;
 	kthread_t *thr;
 	struct timespec start, stop, delta;
-	char cache_name[16];
-	int alloc, i;
+	char cache_name[32];
+	int i, j, threads = 32;
 
 	kcp.kcp_magic = SPLAT_KMEM_TEST_MAGIC;
 	kcp.kcp_file = file;
 
-        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
+        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s  %s", "name",
 	             "time (sec)\tslabs       \tobjs        \thash\n");
-        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%s",
+        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s  %s", "",
 	             "          \ttot/max/calc\ttot/max/calc\tsize/depth\n");
 
-	for (alloc = 1; alloc <= 4096; alloc *= 2) {
-		kcp.kcp_size = 256;
+	for (i = 1; i <= count; i *= 2) {
+		kcp.kcp_size = size;
 		kcp.kcp_count = 0;
 		kcp.kcp_threads = 0;
-		kcp.kcp_alloc = alloc;
+		kcp.kcp_alloc = i;
 		kcp.kcp_rc = 0;
 	        spin_lock_init(&kcp.kcp_lock);
 	        init_waitqueue_head(&kcp.kcp_waitq);
 
-		sprintf(cache_name, "%s-%d", SPLAT_KMEM_CACHE_NAME, alloc);
+		sprintf(cache_name, "%s-%d-%d", SPLAT_KMEM_CACHE_NAME, size, i);
 		kcp.kcp_cache = kmem_cache_create(cache_name, kcp.kcp_size, 0,
-		                                  splat_kmem_cache_test_constructor,
-		                                  splat_kmem_cache_test_destructor,
-						  NULL, &kcp, NULL, 0);
+	                                  splat_kmem_cache_test_constructor,
+	                                  splat_kmem_cache_test_destructor,
+					  NULL, &kcp, NULL, 0);
 		if (!kcp.kcp_cache) {
 			splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
 		                     "Unable to create '%s' cache\n",
@@ -598,7 +598,7 @@ splat_kmem_test8(struct file *file, void *arg)
 
 		start = current_kernel_time();
 
-		for (i = 0; i < 32; i++) {
+		for (j = 0; j < threads; j++) {
 			thr = thread_create(NULL, 0, splat_kmem_test8_thread,
 			                    &kcp, 0, &p0, TS_RUN, minclsyspri);
 			ASSERT(thr != NULL);
@@ -610,15 +610,17 @@ splat_kmem_test8(struct file *file, void *arg)
 		stop = current_kernel_time();
 		delta = timespec_sub(stop, start);
 
-	        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%2ld.%09ld\t"
+	        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s %2ld.%09ld\t"
 			     "%lu/%lu/%lu\t%lu/%lu/%lu\t%lu/%lu\n",
+			     kcp.kcp_cache->skc_name,
 			     delta.tv_sec, delta.tv_nsec,
 			     (unsigned long)kcp.kcp_cache->skc_slab_total,
 			     (unsigned long)kcp.kcp_cache->skc_slab_max,
-			     (unsigned long)(kcp.kcp_alloc * 32 / SPL_KMEM_CACHE_OBJ_PER_SLAB),
+			     (unsigned long)(kcp.kcp_alloc * threads /
+					    SPL_KMEM_CACHE_OBJ_PER_SLAB),
 			     (unsigned long)kcp.kcp_cache->skc_obj_total,
 			     (unsigned long)kcp.kcp_cache->skc_obj_max,
-			     (unsigned long)(kcp.kcp_alloc * 32),
+			     (unsigned long)(kcp.kcp_alloc * threads),
 			     (unsigned long)kcp.kcp_cache->skc_hash_size,
 			     (unsigned long)kcp.kcp_cache->skc_hash_depth);
 
@@ -629,6 +631,22 @@ splat_kmem_test8(struct file *file, void *arg)
 	}
 
 	return kcp.kcp_rc;
+}
+
+static int
+splat_kmem_test8(struct file *file, void *arg)
+{
+	int i, rc = 0;
+
+	/* Run through slab cache with objects size from
+	 * 16-1Mb in 4x multiples with 1024 objects each */
+	for (i = 16; i <= 1024*1024; i *= 4) {
+		rc = splat_kmem_test8_sc(file, arg, i, 1024);
+		if (rc)
+			break;
+	}
+
+	return rc;
 }
 
 splat_subsystem_t *

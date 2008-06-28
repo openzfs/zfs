@@ -485,7 +485,6 @@ typedef struct spl_kmem_magazine {
 
 typedef struct spl_kmem_obj {
         uint32_t		sko_magic;	/* Sanity magic */
-	uint32_t		sko_flags;	/* Per object flags */
 	void			*sko_addr;	/* Buffer address */
 	struct spl_kmem_slab	*sko_slab;	/* Owned by slab */
 	struct list_head	sko_list;	/* Free object list linkage */

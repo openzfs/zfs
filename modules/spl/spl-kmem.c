@@ -167,17 +167,9 @@ static struct shrinker spl_kmem_cache_shrinker = {
 };
 #endif
 
-static spl_kmem_slab_t *
-spl_slab_alloc(spl_kmem_cache_t *skc, int flags) {
-	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko, *n;
-	int i;
-	ENTRY;
-
-	sks = kmem_cache_alloc(spl_slab_cache, flags);
-	if (sks == NULL)
-		RETURN(sks);
-
+static void
+spl_slab_init(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
+{
 	sks->sks_magic = SKS_MAGIC;
 	sks->sks_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 	sks->sks_age = jiffies;
@@ -185,91 +177,201 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags) {
 	INIT_LIST_HEAD(&sks->sks_list);
 	INIT_LIST_HEAD(&sks->sks_free_list);
 	sks->sks_ref = 0;
+}
 
+static int
+spl_slab_alloc_kmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks, int flags)
+{
+	spl_kmem_obj_t *sko, *n;
+	int i, rc = 0;
+
+	/* This is based on the linux slab cache for now simply because
+	 * it means I get slab coloring, hardware cache alignment, etc
+	 * for free.  There's no reason we can't do this ourselves.  And
+	 * we probably should at in the future.  For now I'll just
+	 * leverage the existing linux slab here. */
 	for (i = 0; i < sks->sks_objs; i++) {
 		sko = kmem_cache_alloc(spl_obj_cache, flags);
 		if (sko == NULL) {
-out_alloc:
-			/* Unable to fully construct slab, objects,
-			 * and object data buffers unwind everything.
-			 */
-			list_for_each_entry_safe(sko, n, &sks->sks_free_list,
-						 sko_list) {
-				ASSERT(sko->sko_magic == SKO_MAGIC);
-				vmem_free(sko->sko_addr, skc->skc_obj_size);
-				list_del(&sko->sko_list);
-				kmem_cache_free(spl_obj_cache, sko);
-			}
-
-			kmem_cache_free(spl_slab_cache, sks);
-			GOTO(out, sks = NULL);
+			rc = -ENOMEM;
+			break;
 		}
 
-		/* Objects less than a page can use kmem_alloc() and avoid
-		 * the locking overhead in __get_vm_area_node() when locking
-		 * for a free address.  For objects over a page we use
-		 * vmem_alloc() because it is usually worth paying this
-		 * overhead to avoid the need to find contigeous pages.
-		 * This should give us the best of both worlds. */
-		if (skc->skc_obj_size <= PAGE_SIZE)
-			sko->sko_addr = kmem_alloc(skc->skc_obj_size, flags);
-		else
-			sko->sko_addr = vmem_alloc(skc->skc_obj_size, flags);
-
+		sko->sko_addr = kmem_alloc(skc->skc_obj_size, flags);
 		if (sko->sko_addr == NULL) {
 			kmem_cache_free(spl_obj_cache, sko);
-			GOTO(out_alloc, sks = NULL);
+			rc = -ENOMEM;
+			break;
 		}
 
 		sko->sko_magic = SKO_MAGIC;
-		sko->sko_flags = 0;
 		sko->sko_slab = sks;
 		INIT_LIST_HEAD(&sko->sko_list);
 	        INIT_HLIST_NODE(&sko->sko_hlist);
 		list_add(&sko->sko_list, &sks->sks_free_list);
 	}
+
+	/* Unable to fully construct slab, unwind everything */
+	if (rc) {
+		list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
+			ASSERT(sko->sko_magic == SKO_MAGIC);
+			kmem_free(sko->sko_addr, skc->skc_obj_size);
+			list_del(&sko->sko_list);
+			kmem_cache_free(spl_obj_cache, sko);
+		}
+	}
+
+	RETURN(rc);
+}
+
+static spl_kmem_slab_t *
+spl_slab_alloc_vmem(spl_kmem_cache_t *skc, int flags)
+{
+	spl_kmem_slab_t *sks;
+	spl_kmem_obj_t *sko, *sko_base;
+	void *slab, *obj, *obj_base;
+	int i, size;
+
+	/* For large vmem_alloc'ed buffers it's important that we pack the
+	 * spl_kmem_obj_t structure and the actual objects in to one large
+	 * virtual address zone to minimize the number of calls to
+	 * vmalloc().  Mapping the virtual address in done under a single
+	 * global lock which walks a list of all virtual zones.  So doing
+	 * lots of allocations simply results in lock contention and a
+	 * longer list of mapped addresses.  It is far better to do a
+	 * few large allocations and then subdivide it ourselves.  The
+	 * large vmem_alloc'ed space is divied as follows:
+	 *
+	 * 1 slab struct: sizeof(spl_kmem_slab_t)
+	 * N obj structs: sizeof(spl_kmem_obj_t) * skc->skc_objs
+	 * N objects:     skc->skc_obj_size * skc->skc_objs
+	 *
+	 * XXX: It would probably be a good idea to more carefully
+	 *      align the starts of these objects in memory.
+	 */
+	size = sizeof(spl_kmem_slab_t) + SPL_KMEM_CACHE_OBJ_PER_SLAB *
+	       (skc->skc_obj_size + sizeof(spl_kmem_obj_t));
+
+	slab = vmem_alloc(size, flags);
+	if (slab == NULL)
+		RETURN(NULL);
+
+	sks = (spl_kmem_slab_t *)slab;
+	spl_slab_init(skc, sks);
+
+	sko_base = (spl_kmem_obj_t *)(slab + sizeof(spl_kmem_slab_t));
+	obj_base = (void *)sko_base + sizeof(spl_kmem_obj_t) * sks->sks_objs;
+
+	for (i = 0; i < sks->sks_objs; i++) {
+		sko = &sko_base[i];
+		obj = obj_base + skc->skc_obj_size * i;
+		sko->sko_addr = obj;
+		sko->sko_magic = SKO_MAGIC;
+		sko->sko_slab = sks;
+		INIT_LIST_HEAD(&sko->sko_list);
+	        INIT_HLIST_NODE(&sko->sko_hlist);
+		list_add_tail(&sko->sko_list, &sks->sks_free_list);
+	}
+
+	RETURN(sks);
+}
+
+static spl_kmem_slab_t *
+spl_slab_alloc(spl_kmem_cache_t *skc, int flags) {
+	spl_kmem_slab_t *sks;
+	spl_kmem_obj_t *sko;
+	int rc;
+	ENTRY;
+
+	/* Objects less than a page can use kmem_alloc() and avoid
+	 * the locking overhead in __get_vm_area_node() when locking
+	 * for a free address.  For objects over a page we use
+	 * vmem_alloc() because it is usually worth paying this
+	 * overhead to avoid the need to find contigeous pages.
+	 * This should give us the best of both worlds. */
+	if (skc->skc_obj_size <= PAGE_SIZE) {
+		sks = kmem_cache_alloc(spl_slab_cache, flags);
+		if (sks == NULL)
+			GOTO(out, sks = NULL);
+
+		spl_slab_init(skc, sks);
+
+		rc = spl_slab_alloc_kmem(skc, sks, flags);
+		if (rc) {
+			kmem_cache_free(spl_slab_cache, sks);
+			GOTO(out, sks = NULL);
+		}
+	} else {
+		sks = spl_slab_alloc_vmem(skc, flags);
+		if (sks == NULL)
+			GOTO(out, sks = NULL);
+	}
+
+	ASSERT(sks);
+	list_for_each_entry(sko, &sks->sks_free_list, sko_list)
+		if (skc->skc_ctor)
+			skc->skc_ctor(sko->sko_addr, skc->skc_private, flags);
 out:
 	RETURN(sks);
 }
 
+static void
+spl_slab_free_kmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
+{
+	spl_kmem_obj_t *sko, *n;
+
+	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT(sks->sks_magic == SKS_MAGIC);
+
+	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+		kmem_free(sko->sko_addr, skc->skc_obj_size);
+		list_del(&sko->sko_list);
+		kmem_cache_free(spl_obj_cache, sko);
+	}
+
+	kmem_cache_free(spl_slab_cache, sks);
+}
+
+static void
+spl_slab_free_vmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
+{
+	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT(sks->sks_magic == SKS_MAGIC);
+
+	vmem_free(sks, SPL_KMEM_CACHE_OBJ_PER_SLAB *
+	          (skc->skc_obj_size + sizeof(spl_kmem_obj_t)));
+}
+
 /* Removes slab from complete or partial list, so it must
  * be called with the 'skc->skc_lock' held.
- *                         */
+ */
 static void
 spl_slab_free(spl_kmem_slab_t *sks) {
 	spl_kmem_cache_t *skc;
 	spl_kmem_obj_t *sko, *n;
-	int i = 0;
 	ENTRY;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
 	ASSERT(sks->sks_ref == 0);
-	skc = sks->sks_cache;
-	skc->skc_obj_total -= sks->sks_objs;
-	skc->skc_slab_total--;
 
+	skc = sks->sks_cache;
+	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
-	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
-		ASSERT(sko->sko_magic == SKO_MAGIC);
+	skc->skc_obj_total -= sks->sks_objs;
+	skc->skc_slab_total--;
+	list_del(&sks->sks_list);
 
-		/* Run destructors for being freed */
+	/* Run destructors slab is being released */
+	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list)
 		if (skc->skc_dtor)
 			skc->skc_dtor(sko->sko_addr, skc->skc_private);
 
-		if (skc->skc_obj_size <= PAGE_SIZE)
-			kmem_free(sko->sko_addr, skc->skc_obj_size);
-		else
-			vmem_free(sko->sko_addr, skc->skc_obj_size);
-
-		list_del(&sko->sko_list);
-		kmem_cache_free(spl_obj_cache, sko);
-		i++;
-	}
-
-	ASSERT(sks->sks_objs == i);
-	list_del(&sks->sks_list);
-	kmem_cache_free(spl_slab_cache, sks);
+	if (skc->skc_obj_size <= PAGE_SIZE)
+		spl_slab_free_kmem(skc, sks);
+	else
+		spl_slab_free_vmem(skc, sks);
 
 	EXIT;
 }
@@ -629,14 +731,13 @@ static spl_kmem_slab_t *
 spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko;
 	cycles_t start;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 
 	if (flags & __GFP_WAIT) {
-//		flags |= __GFP_NOFAIL; /* XXX: Solaris assumes this */
+		flags |= __GFP_NOFAIL;
 		might_sleep();
 		local_irq_enable();
 	}
@@ -647,14 +748,6 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 			local_irq_disable();
 
 		RETURN(NULL);
-	}
-
-	/* Run all the constructors now that the slab is fully allocated */
-	list_for_each_entry(sko, &sks->sks_free_list, sko_list) {
-		ASSERT(sko->sko_magic == SKO_MAGIC);
-
-		if (skc->skc_ctor)
-			skc->skc_ctor(sko->sko_addr, skc->skc_private, flags);
 	}
 
 	if (flags & __GFP_WAIT)
@@ -697,7 +790,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 		if (list_empty(&skc->skc_partial_list)) {
 			spin_unlock(&skc->skc_lock);
 
-			if (unlikely((get_cycles() - start) > skc->skc_lock_refill))
+			if (unlikely((get_cycles()-start)>skc->skc_lock_refill))
 				skc->skc_lock_refill = get_cycles() - start;
 
 			sks = spl_cache_grow(skc, flags);
@@ -861,6 +954,7 @@ restart:
 	}
 
 	local_irq_restore(irq_flags);
+	ASSERT(obj);
 
 	/* Pre-emptively migrate object to CPU L1 cache */
 	prefetchw(obj);
