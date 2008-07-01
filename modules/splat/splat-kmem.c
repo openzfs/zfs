@@ -371,18 +371,40 @@ out_free:
 	return rc;
 }
 
+/* Validate small object cache behavior for dynamic/kmem/vmem caches */
 static int
 splat_kmem_test5(struct file *file, void *arg)
 {
-	return splat_kmem_cache_size_test(file, arg, SPLAT_KMEM_TEST5_NAME,
-					  sizeof(kmem_cache_data_t) * 1, 0);
+	char *name = SPLAT_KMEM_TEST5_NAME;
+	int rc;
+
+	rc = splat_kmem_cache_size_test(file, arg, name, 128, 0);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_size_test(file, arg, name, 128, KMC_KMEM);
+	if (rc)
+		return rc;
+
+	return splat_kmem_cache_size_test(file, arg, name, 128, KMC_VMEM);
 }
 
+/* Validate large object cache behavior for dynamic/kmem/vmem caches */
 static int
 splat_kmem_test6(struct file *file, void *arg)
 {
-	return splat_kmem_cache_size_test(file, arg, SPLAT_KMEM_TEST6_NAME,
-					  sizeof(kmem_cache_data_t) * 1024, 0);
+	char *name = SPLAT_KMEM_TEST6_NAME;
+	int rc;
+
+	rc = splat_kmem_cache_size_test(file, arg, name, 128 * 1024, 0);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_size_test(file, arg, name, 128 * 1024, KMC_KMEM);
+	if (rc)
+		return rc;
+
+	return splat_kmem_cache_size_test(file, arg, name, 128 * 1028, KMC_VMEM);
 }
 
 static void
@@ -533,11 +555,12 @@ splat_kmem_test8_thread(void *arg)
 	vmem_free(objs, count * sizeof(void *));
 out:
 	spin_lock(&kcp->kcp_lock);
-	kcp->kcp_threads--;
 	if (!kcp->kcp_rc)
 		kcp->kcp_rc = rc;
 
-        wake_up(&kcp->kcp_waitq);
+	if (--kcp->kcp_threads == 0)
+	        wake_up(&kcp->kcp_waitq);
+
 	spin_unlock(&kcp->kcp_lock);
 
         thread_exit();
@@ -573,7 +596,7 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
         splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s  %s", "name",
 	             "time (sec)\tslabs       \tobjs        \thash\n");
         splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s  %s", "",
-	             "          \ttot/max/calc\ttot/max/calc\tsize/depth\n");
+	             "          \ttot/max/calc\ttot/max/calc\n");
 
 	for (i = 1; i <= count; i *= 2) {
 		kcp.kcp_size = size;
@@ -611,7 +634,7 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 		delta = timespec_sub(stop, start);
 
 	        splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "%-22s %2ld.%09ld\t"
-			     "%lu/%lu/%lu\t%lu/%lu/%lu\t%lu/%lu\n",
+			     "%lu/%lu/%lu\t%lu/%lu/%lu\n",
 			     kcp.kcp_cache->skc_name,
 			     delta.tv_sec, delta.tv_nsec,
 			     (unsigned long)kcp.kcp_cache->skc_slab_total,
@@ -620,9 +643,7 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 					    SPL_KMEM_CACHE_OBJ_PER_SLAB),
 			     (unsigned long)kcp.kcp_cache->skc_obj_total,
 			     (unsigned long)kcp.kcp_cache->skc_obj_max,
-			     (unsigned long)(kcp.kcp_alloc * threads),
-			     (unsigned long)kcp.kcp_cache->skc_hash_size,
-			     (unsigned long)kcp.kcp_cache->skc_hash_depth);
+			     (unsigned long)(kcp.kcp_alloc * threads));
 
 		kmem_cache_destroy(kcp.kcp_cache);
 

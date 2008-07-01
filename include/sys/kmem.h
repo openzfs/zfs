@@ -403,11 +403,14 @@ kmem_alloc_tryhard(size_t size, size_t *alloc_size, int kmflags)
 /*
  * Slab allocation interfaces
  */
-#undef  KMC_NOTOUCH                     /* XXX: Unsupported */
-#define KMC_NODEBUG                     0x00000000 /* Default behavior */
-#define KMC_NOMAGAZINE                  /* XXX: Unsupported */
-#define KMC_NOHASH                      /* XXX: Unsupported */
-#define KMC_QCACHE                      /* XXX: Unsupported */
+#define KMC_NOTOUCH                     0x00000001
+#define KMC_NODEBUG                     0x00000002 /* Default behavior */
+#define KMC_NOMAGAZINE                  0x00000004 /* XXX: No disable support available */
+#define KMC_NOHASH                      0x00000008 /* XXX: No hash available */
+#define KMC_QCACHE                      0x00000010 /* XXX: Unsupported */
+#define KMC_KMEM			0x00000100 /* Use kmem cache */
+#define KMC_VMEM			0x00000200 /* Use vmem cache */
+#define KMC_OFFSLAB			0x00000400 /* Objects not on slab */
 
 #define KMC_REAP_CHUNK                  256
 #define KMC_DEFAULT_SEEKS               DEFAULT_SEEKS
@@ -462,11 +465,6 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define SKS_MAGIC			0x22222222
 #define SKC_MAGIC			0x2c2c2c2c
 
-#define SPL_KMEM_CACHE_HASH_BITS	12
-#define SPL_KMEM_CACHE_HASH_ELTS	(1 << SPL_KMEM_CACHE_HASH_BITS)
-#define SPL_KMEM_CACHE_HASH_SIZE	(sizeof(struct hlist_head) * \
-					 SPL_KMEM_CACHE_HASH_ELTS)
-
 #define SPL_KMEM_CACHE_DELAY		5
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB	32
 
@@ -488,7 +486,6 @@ typedef struct spl_kmem_obj {
 	void			*sko_addr;	/* Buffer address */
 	struct spl_kmem_slab	*sko_slab;	/* Owned by slab */
 	struct list_head	sko_list;	/* Free object list linkage */
-	struct hlist_node	sko_hlist;	/* Used object hash linkage */
 } spl_kmem_obj_t;
 
 typedef struct spl_kmem_slab {
@@ -515,14 +512,9 @@ typedef struct spl_kmem_cache {
         void			*skc_vmp;	/* Unused */
 	uint32_t		skc_flags;	/* Flags */
 	uint32_t		skc_obj_size;	/* Object size */
-	uint32_t		skc_chunk_size;	/* sizeof(*obj) + alignment */
-	uint32_t		skc_slab_size;	/* slab size */
-	uint32_t		skc_max_chunks;	/* max chunks per slab */
+	uint32_t		skc_slab_objs;	/* Objects per slab */
+	uint32_t		skc_slab_size;  /* Slab size */
 	uint32_t		skc_delay;	/* slab reclaim interval */
-	uint32_t		skc_hash_bits;	/* Hash table bits */
-	uint32_t		skc_hash_size;	/* Hash table size */
-	uint32_t		skc_hash_elts;	/* Hash table elements */
-	struct hlist_head	*skc_hash;	/* Hash table address */
         struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
@@ -536,8 +528,6 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
-	uint64_t		skc_hash_depth;	/* Lazy hash depth */
-	uint64_t		skc_hash_count;	/* Hash entries current */
 } spl_kmem_cache_t;
 
 extern spl_kmem_cache_t *
@@ -561,6 +551,8 @@ void spl_kmem_fini(void);
 #define kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
 #define kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)
 #define kmem_reap()			spl_kmem_reap()
+#define kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
+					 ((ptr) <  (void *)VMALLOC_END))
 
 #ifdef HAVE_KMEM_CACHE_CREATE_DTOR
 #define __kmem_cache_create(name, size, align, flags, ctor, dtor) \

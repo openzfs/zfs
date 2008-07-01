@@ -114,10 +114,6 @@ EXPORT_SYMBOL(kmem_set_warning);
  *      shrink them via spl_slab_reclaim() when they are wasting lots
  *      of space.  Currently this process is driven by the reapers.
  *
- * XXX: Implement a resizable used object hash.  Currently the hash
- *      is statically sized for thousands of objects but it should
- *      grow based on observed worst case slab depth.
- *
  * XXX: Improve the partial slab list by carefully maintaining a
  *      strict ordering of fullest to emptiest slabs based on
  *      the slab reference count.  This gaurentees the when freeing
@@ -134,20 +130,8 @@ EXPORT_SYMBOL(kmem_set_warning);
  * XXX: Proper hardware cache alignment would be good too.
  */
 
-/* Ensure the __kmem_cache_create/__kmem_cache_destroy macros are
- * removed here to prevent a recursive substitution, we want to call
- * the native linux version.
- */
-#undef kmem_cache_t
-#undef kmem_cache_create
-#undef kmem_cache_destroy
-#undef kmem_cache_alloc
-#undef kmem_cache_free
-
 struct list_head spl_kmem_cache_list;	/* List of caches */
 struct rw_semaphore spl_kmem_cache_sem;	/* Cache list lock */
-static kmem_cache_t *spl_slab_cache;	/* Cache for slab structs */
-static kmem_cache_t *spl_obj_cache;	/* Cache for obj structs */
 
 static int spl_cache_flush(spl_kmem_cache_t *skc,
 			   spl_kmem_magazine_t *skm, int flush);
@@ -163,180 +147,119 @@ static struct shrinker spl_kmem_cache_shrinker = {
 };
 #endif
 
-static void
-spl_slab_init(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
+static void *
+kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
+	void *ptr;
+
+	if (skc->skc_flags & KMC_KMEM) {
+		if (size > (2 * PAGE_SIZE)) {
+			ptr = (void *)__get_free_pages(flags, get_order(size));
+		} else
+			ptr = kmem_alloc(size, flags);
+	} else {
+		ptr = vmem_alloc(size, flags);
+	}
+
+	return ptr;
+}
+
+static void
+kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
+{
+	if (skc->skc_flags & KMC_KMEM) {
+		if (size > (2 * PAGE_SIZE))
+			free_pages((unsigned long)ptr, get_order(size));
+		else
+			kmem_free(ptr, size);
+	} else {
+		vmem_free(ptr, size);
+	}
+}
+
+static spl_kmem_slab_t *
+spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
+{
+	spl_kmem_slab_t *sks;
+	spl_kmem_obj_t *sko, *n;
+	void *base, *obj;
+	int i, size, rc = 0;
+
+	/* It's important that we pack the spl_kmem_obj_t structure
+	 * and the actual objects in to one large address space
+	 * to minimize the number of calls to the allocator.  It
+	 * is far better to do a few large allocations and then
+	 * subdivide it ourselves.  Now which allocator we use
+	 * requires balancling a few trade offs.
+	 *
+	 * For small objects we use kmem_alloc() because as long
+	 * as you are only requesting a small number of pages
+	 * (ideally just one) its cheap.  However, when you start
+	 * requesting multiple pages kmem_alloc() get increasingly
+	 * expensive since it requires contigeous pages.  For this
+	 * reason we shift to vmem_alloc() for slabs of large
+	 * objects which removes the need for contigeous pages.
+	 * We do not use vmem_alloc() in all cases because there
+	 * is significant locking overhead in __get_vm_area_node().
+	 * This function takes a single global lock when aquiring
+	 * an available virtual address range which serialize all
+	 * vmem_alloc()'s for all slab caches.  Using slightly
+	 * different allocation functions for small and large
+	 * objects should give us the best of both worlds.
+	 *
+	 * sks struct:  sizeof(spl_kmem_slab_t)
+	 * obj data:    skc->skc_obj_size
+	 * obj struct:  sizeof(spl_kmem_obj_t)
+	 * <N obj data + obj structs>
+	 *
+	 * XXX: It would probably be a good idea to more carefully
+	 *      align these data structures in memory.
+	 */
+	base = kv_alloc(skc, skc->skc_slab_size, flags);
+	if (base == NULL)
+		RETURN(NULL);
+
+	sks = (spl_kmem_slab_t *)base;
 	sks->sks_magic = SKS_MAGIC;
-	sks->sks_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+	sks->sks_objs = skc->skc_slab_objs;
 	sks->sks_age = jiffies;
 	sks->sks_cache = skc;
 	INIT_LIST_HEAD(&sks->sks_list);
 	INIT_LIST_HEAD(&sks->sks_free_list);
 	sks->sks_ref = 0;
-}
-
-static int
-spl_slab_alloc_kmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks, int flags)
-{
-	spl_kmem_obj_t *sko, *n;
-	int i, rc = 0;
-
-	/* This is based on the linux slab cache for now simply because
-	 * it means I get slab coloring, hardware cache alignment, etc
-	 * for free.  There's no reason we can't do this ourselves.  And
-	 * we probably should at in the future.  For now I'll just
-	 * leverage the existing linux slab here. */
-	for (i = 0; i < sks->sks_objs; i++) {
-		sko = kmem_cache_alloc(spl_obj_cache, flags);
-		if (sko == NULL) {
-			rc = -ENOMEM;
-			break;
-		}
-
-		sko->sko_addr = kmem_alloc(skc->skc_obj_size, flags);
-		if (sko->sko_addr == NULL) {
-			kmem_cache_free(spl_obj_cache, sko);
-			rc = -ENOMEM;
-			break;
-		}
-
-		sko->sko_magic = SKO_MAGIC;
-		sko->sko_slab = sks;
-		INIT_LIST_HEAD(&sko->sko_list);
-	        INIT_HLIST_NODE(&sko->sko_hlist);
-		list_add(&sko->sko_list, &sks->sks_free_list);
-	}
-
-	/* Unable to fully construct slab, unwind everything */
-	if (rc) {
-		list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
-			ASSERT(sko->sko_magic == SKO_MAGIC);
-			kmem_free(sko->sko_addr, skc->skc_obj_size);
-			list_del(&sko->sko_list);
-			kmem_cache_free(spl_obj_cache, sko);
-		}
-	}
-
-	RETURN(rc);
-}
-
-static spl_kmem_slab_t *
-spl_slab_alloc_vmem(spl_kmem_cache_t *skc, int flags)
-{
-	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko, *sko_base;
-	void *slab, *obj, *obj_base;
-	int i, size;
-
-	/* For large vmem_alloc'ed buffers it's important that we pack the
-	 * spl_kmem_obj_t structure and the actual objects in to one large
-	 * virtual address zone to minimize the number of calls to
-	 * vmalloc().  Mapping the virtual address in done under a single
-	 * global lock which walks a list of all virtual zones.  So doing
-	 * lots of allocations simply results in lock contention and a
-	 * longer list of mapped addresses.  It is far better to do a
-	 * few large allocations and then subdivide it ourselves.  The
-	 * large vmem_alloc'ed space is divied as follows:
-	 *
-	 * 1 slab struct: sizeof(spl_kmem_slab_t)
-	 * N obj structs: sizeof(spl_kmem_obj_t) * skc->skc_objs
-	 * N objects:     skc->skc_obj_size * skc->skc_objs
-	 *
-	 * XXX: It would probably be a good idea to more carefully
-	 *      align the starts of these objects in memory.
-	 */
-	size = sizeof(spl_kmem_slab_t) + SPL_KMEM_CACHE_OBJ_PER_SLAB *
-	       (skc->skc_obj_size + sizeof(spl_kmem_obj_t));
-
-	slab = vmem_alloc(size, flags);
-	if (slab == NULL)
-		RETURN(NULL);
-
-	sks = (spl_kmem_slab_t *)slab;
-	spl_slab_init(skc, sks);
-
-	sko_base = (spl_kmem_obj_t *)(slab + sizeof(spl_kmem_slab_t));
-	obj_base = (void *)sko_base + sizeof(spl_kmem_obj_t) * sks->sks_objs;
+	size = sizeof(spl_kmem_obj_t) + skc->skc_obj_size;
 
 	for (i = 0; i < sks->sks_objs; i++) {
-		sko = &sko_base[i];
-		obj = obj_base + skc->skc_obj_size * i;
+		if (skc->skc_flags & KMC_OFFSLAB) {
+			obj = kv_alloc(skc, size, flags);
+			if (!obj)
+				GOTO(out, rc = -ENOMEM);
+		} else {
+			obj = base + sizeof(spl_kmem_slab_t) + i * size;
+		}
+
+		sko = obj + skc->skc_obj_size;
 		sko->sko_addr = obj;
 		sko->sko_magic = SKO_MAGIC;
 		sko->sko_slab = sks;
 		INIT_LIST_HEAD(&sko->sko_list);
-	        INIT_HLIST_NODE(&sko->sko_hlist);
 		list_add_tail(&sko->sko_list, &sks->sks_free_list);
 	}
 
-	RETURN(sks);
-}
-
-static spl_kmem_slab_t *
-spl_slab_alloc(spl_kmem_cache_t *skc, int flags) {
-	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko;
-	int rc;
-	ENTRY;
-
-	/* Objects less than a page can use kmem_alloc() and avoid
-	 * the locking overhead in __get_vm_area_node() when locking
-	 * for a free address.  For objects over a page we use
-	 * vmem_alloc() because it is usually worth paying this
-	 * overhead to avoid the need to find contigeous pages.
-	 * This should give us the best of both worlds. */
-	if (skc->skc_obj_size <= PAGE_SIZE) {
-		sks = kmem_cache_alloc(spl_slab_cache, flags);
-		if (sks == NULL)
-			GOTO(out, sks = NULL);
-
-		spl_slab_init(skc, sks);
-
-		rc = spl_slab_alloc_kmem(skc, sks, flags);
-		if (rc) {
-			kmem_cache_free(spl_slab_cache, sks);
-			GOTO(out, sks = NULL);
-		}
-	} else {
-		sks = spl_slab_alloc_vmem(skc, flags);
-		if (sks == NULL)
-			GOTO(out, sks = NULL);
-	}
-
-	ASSERT(sks);
 	list_for_each_entry(sko, &sks->sks_free_list, sko_list)
 		if (skc->skc_ctor)
 			skc->skc_ctor(sko->sko_addr, skc->skc_private, flags);
 out:
-	RETURN(sks);
-}
+	if (rc) {
+		if (skc->skc_flags & KMC_OFFSLAB)
+			list_for_each_entry_safe(sko,n,&sks->sks_free_list,sko_list)
+				kv_free(skc, sko->sko_addr, size);
 
-static void
-spl_slab_free_kmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
-{
-	spl_kmem_obj_t *sko, *n;
-
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(sks->sks_magic == SKS_MAGIC);
-
-	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
-		ASSERT(sko->sko_magic == SKO_MAGIC);
-		kmem_free(sko->sko_addr, skc->skc_obj_size);
-		list_del(&sko->sko_list);
-		kmem_cache_free(spl_obj_cache, sko);
+		kv_free(skc, base, skc->skc_slab_size);
+		sks = NULL;
 	}
 
-	kmem_cache_free(spl_slab_cache, sks);
-}
-
-static void
-spl_slab_free_vmem(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
-{
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(sks->sks_magic == SKS_MAGIC);
-
-	vmem_free(sks, SPL_KMEM_CACHE_OBJ_PER_SLAB *
-	          (skc->skc_obj_size + sizeof(spl_kmem_obj_t)));
+	RETURN(sks);
 }
 
 /* Removes slab from complete or partial list, so it must
@@ -346,6 +269,7 @@ static void
 spl_slab_free(spl_kmem_slab_t *sks) {
 	spl_kmem_cache_t *skc;
 	spl_kmem_obj_t *sko, *n;
+	int size;
 	ENTRY;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
@@ -358,17 +282,20 @@ spl_slab_free(spl_kmem_slab_t *sks) {
 	skc->skc_obj_total -= sks->sks_objs;
 	skc->skc_slab_total--;
 	list_del(&sks->sks_list);
+	size = sizeof(spl_kmem_obj_t) + skc->skc_obj_size;
 
 	/* Run destructors slab is being released */
-	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list)
+	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+
 		if (skc->skc_dtor)
 			skc->skc_dtor(sko->sko_addr, skc->skc_private);
 
-	if (skc->skc_obj_size <= PAGE_SIZE)
-		spl_slab_free_kmem(skc, sks);
-	else
-		spl_slab_free_vmem(skc, sks);
+		if (skc->skc_flags & KMC_OFFSLAB)
+			kv_free(skc, sko->sko_addr, size);
+	}
 
+	kv_free(skc, sks, skc->skc_slab_size);
 	EXIT;
 }
 
@@ -449,7 +376,8 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 		skm->skm_avail = 0;
 		skm->skm_size = skc->skc_mag_size;
 		skm->skm_refill = skc->skc_mag_refill;
-		skm->skm_age = jiffies;
+		if (!(skc->skc_flags & KMC_NOTOUCH))
+			skm->skm_age = jiffies;
 	}
 
 	RETURN(skm);
@@ -511,8 +439,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
                       void *priv, void *vmp, int flags)
 {
         spl_kmem_cache_t *skc;
-	int i, rc, kmem_flags = KM_SLEEP;
+	uint32_t slab_max, slab_size, slab_objs;
+	int rc, kmem_flags = KM_SLEEP;
 	ENTRY;
+
+	ASSERTF(!(flags & KMC_NOMAGAZINE), "Bad KMC_NOMAGAZINE (%x)\n", flags);
+	ASSERTF(!(flags & KMC_NOHASH), "Bad KMC_NOHASH (%x)\n", flags);
+	ASSERTF(!(flags & KMC_QCACHE), "Bad KMC_QCACHE (%x)\n", flags);
 
         /* We may be called when there is a non-zero preempt_count or
          * interrupts are disabled is which case we must not sleep.
@@ -541,24 +474,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_vmp = vmp;
 	skc->skc_flags = flags;
 	skc->skc_obj_size = size;
-	skc->skc_chunk_size = 0; /* XXX: Needed only when implementing   */
-	skc->skc_slab_size = 0;  /*      small slab object optimizations */
-	skc->skc_max_chunks = 0; /*      which are yet supported. */
 	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
-
-	skc->skc_hash_bits = SPL_KMEM_CACHE_HASH_BITS;
-	skc->skc_hash_size = SPL_KMEM_CACHE_HASH_SIZE;
-	skc->skc_hash_elts = SPL_KMEM_CACHE_HASH_ELTS;
-	skc->skc_hash = (struct hlist_head *)
-		        vmem_alloc(skc->skc_hash_size, kmem_flags);
-	if (skc->skc_hash == NULL) {
-		kmem_free(skc->skc_name, skc->skc_name_size);
-		kmem_free(skc, sizeof(*skc));
-		RETURN(NULL);
-	}
-
-	for (i = 0; i < skc->skc_hash_elts; i++)
-		INIT_HLIST_HEAD(&skc->skc_hash[i]);
 
 	INIT_LIST_HEAD(&skc->skc_list);
 	INIT_LIST_HEAD(&skc->skc_complete_list);
@@ -573,12 +489,37 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_total = 0;
 	skc->skc_obj_alloc = 0;
 	skc->skc_obj_max = 0;
-	skc->skc_hash_depth = 0;
-	skc->skc_hash_count = 0;
+
+	/* If none passed select a cache type based on object size */
+	if (!(skc->skc_flags & (KMC_KMEM | KMC_VMEM))) {
+		if (skc->skc_obj_size < (PAGE_SIZE / 8)) {
+			skc->skc_flags |= KMC_KMEM;
+		} else {
+			skc->skc_flags |= KMC_VMEM;
+		}
+	}
+
+	/* Size slabs properly so ensure they are not too large */
+	slab_max = ((uint64_t)1 << (MAX_ORDER - 1)) * PAGE_SIZE;
+	if (skc->skc_flags & KMC_OFFSLAB) {
+		skc->skc_slab_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+		skc->skc_slab_size = sizeof(spl_kmem_slab_t);
+		ASSERT(skc->skc_obj_size < slab_max);
+	} else {
+		slab_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB + 1;
+
+		do {
+			slab_objs--;
+			slab_size = sizeof(spl_kmem_slab_t) + slab_objs *
+			            (skc->skc_obj_size+sizeof(spl_kmem_obj_t));
+		} while (slab_size > slab_max);
+
+		skc->skc_slab_objs = slab_objs;
+		skc->skc_slab_size = slab_size;
+	}
 
 	rc = spl_magazine_create(skc);
 	if (rc) {
-		vmem_free(skc->skc_hash, skc->skc_hash_size);
 		kmem_free(skc->skc_name, skc->skc_name_size);
 		kmem_free(skc, sizeof(*skc));
 		RETURN(NULL);
@@ -592,9 +533,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 }
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
-/* The caller must ensure there are no racing calls to
- * spl_kmem_cache_alloc() for this spl_kmem_cache_t.
- */
 void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
@@ -613,13 +551,15 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	/* Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers. */
 	ASSERT(list_empty(&skc->skc_complete_list));
-	ASSERTF(skc->skc_hash_count == 0, "skc->skc_hash_count=%d\n",
-		skc->skc_hash_count);
+	ASSERT(skc->skc_slab_alloc == 0);
+	ASSERT(skc->skc_obj_alloc == 0);
 
 	list_for_each_entry_safe(sks, m, &skc->skc_partial_list, sks_list)
 		spl_slab_free(sks);
 
-	vmem_free(skc->skc_hash, skc->skc_hash_size);
+	ASSERT(skc->skc_slab_total == 0);
+	ASSERT(skc->skc_obj_total == 0);
+
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
 
@@ -629,64 +569,25 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 }
 EXPORT_SYMBOL(spl_kmem_cache_destroy);
 
-/* The kernel provided hash_ptr() function behaves exceptionally badly
- * when all the addresses are page aligned which is likely the case
- * here.  To avoid this issue shift off the low order non-random bits.
- */
-static unsigned long
-spl_hash_ptr(void *ptr, unsigned int bits)
-{
-	return hash_long((unsigned long)ptr >> PAGE_SHIFT, bits);
-}
-
-static spl_kmem_obj_t *
-spl_hash_obj(spl_kmem_cache_t *skc, void *obj)
-{
-	struct hlist_node *node;
-	spl_kmem_obj_t *sko = NULL;
-	unsigned long key = spl_hash_ptr(obj, skc->skc_hash_bits);
-	int i = 0;
-
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(spin_is_locked(&skc->skc_lock));
-
-	hlist_for_each_entry(sko, node, &skc->skc_hash[key], sko_hlist) {
-
-		if (unlikely((++i) > skc->skc_hash_depth))
-			skc->skc_hash_depth = i;
-
-		if (sko->sko_addr == obj) {
-			ASSERT(sko->sko_magic == SKO_MAGIC);
-			RETURN(sko);
-		}
-	}
-
-	RETURN(NULL);
-}
-
 static void *
 spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 {
 	spl_kmem_obj_t *sko;
-	unsigned long key;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(sks->sks_magic == SKS_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
-	sko = list_entry((&sks->sks_free_list)->next,spl_kmem_obj_t,sko_list);
+	sko = list_entry(sks->sks_free_list.next, spl_kmem_obj_t, sko_list);
 	ASSERT(sko->sko_magic == SKO_MAGIC);
 	ASSERT(sko->sko_addr != NULL);
 
-	/* Remove from sks_free_list and add to used hash */
+	/* Remove from sks_free_list */
 	list_del_init(&sko->sko_list);
-	key = spl_hash_ptr(sko->sko_addr, skc->skc_hash_bits);
-	hlist_add_head(&sko->sko_hlist, &skc->skc_hash[key]);
 
 	sks->sks_age = jiffies;
 	sks->sks_ref++;
 	skc->skc_obj_alloc++;
-	skc->skc_hash_count++;
 
 	/* Track max obj usage statistics */
 	if (skc->skc_obj_alloc > skc->skc_obj_max)
@@ -818,22 +719,17 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
-	sko = spl_hash_obj(skc, obj);
-	ASSERTF(sko, "Obj %p missing from in-use hash (%d/%d) for cache %s\n",
-	        obj, skc->skc_hash_depth, skc->skc_hash_count, skc->skc_name);
+	sko = obj + skc->skc_obj_size;
+	ASSERT(sko->sko_magic == SKO_MAGIC);
 
 	sks = sko->sko_slab;
-	ASSERTF(sks, "Obj %p/%p linked to invalid slab for cache %s\n",
-		obj, sko, skc->skc_name);
-
+	ASSERT(sks->sks_magic == SKS_MAGIC);
 	ASSERT(sks->sks_cache == skc);
-	hlist_del_init(&sko->sko_hlist);
 	list_add(&sko->sko_list, &sks->sks_free_list);
 
 	sks->sks_age = jiffies;
 	sks->sks_ref--;
 	skc->skc_obj_alloc--;
-	skc->skc_hash_count--;
 
 	/* Move slab to skc_partial_list when no longer full.  Slabs
 	 * are added to the head to keep the partial list is quasi-full
@@ -906,7 +802,8 @@ restart:
 	if (likely(skm->skm_avail)) {
 		/* Object available in CPU cache, use it */
 		obj = skm->skm_objs[--skm->skm_avail];
-		skm->skm_age = jiffies;
+		if (!(skc->skc_flags & KMC_NOTOUCH))
+			skm->skm_age = jiffies;
 	} else {
 		/* Per-CPU cache empty, directly allocate from
 		 * the slab and refill the per-CPU cache. */
@@ -1012,71 +909,6 @@ spl_kmem_reap(void)
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 
-int
-spl_kmem_init(void)
-{
-	int rc = 0;
-	ENTRY;
-
-	init_rwsem(&spl_kmem_cache_sem);
-	INIT_LIST_HEAD(&spl_kmem_cache_list);
-
-	spl_slab_cache = NULL;
-	spl_obj_cache = NULL;
-
-	spl_slab_cache = __kmem_cache_create("spl_slab_cache",
-					     sizeof(spl_kmem_slab_t),
-					     0, 0, NULL, NULL);
-	if (spl_slab_cache == NULL)
-		GOTO(out_cache, rc = -ENOMEM);
-
-	spl_obj_cache = __kmem_cache_create("spl_obj_cache",
-					    sizeof(spl_kmem_obj_t),
-					    0, 0, NULL, NULL);
-	if (spl_obj_cache == NULL)
-		GOTO(out_cache, rc = -ENOMEM);
-
-#ifdef HAVE_SET_SHRINKER
-	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
-					       spl_kmem_cache_generic_shrinker);
-	if (spl_kmem_cache_shrinker == NULL)
-		GOTO(out_cache, rc = -ENOMEM);
-#else
-	register_shrinker(&spl_kmem_cache_shrinker);
-#endif
-
-#ifdef DEBUG_KMEM
-	atomic64_set(&kmem_alloc_used, 0);
-	atomic64_set(&vmem_alloc_used, 0);
-
-#ifdef DEBUG_KMEM_TRACKING
-	{ int i;
-	spin_lock_init(&kmem_lock);
-	INIT_LIST_HEAD(&kmem_list);
-
-	for (i = 0; i < KMEM_TABLE_SIZE; i++)
-		INIT_HLIST_HEAD(&kmem_table[i]);
-
-	spin_lock_init(&vmem_lock);
-	INIT_LIST_HEAD(&vmem_list);
-
-	for (i = 0; i < VMEM_TABLE_SIZE; i++)
-		INIT_HLIST_HEAD(&vmem_table[i]);
-	}
-#endif
-#endif
-	RETURN(rc);
-
-out_cache:
-	if (spl_obj_cache)
-	        (void)kmem_cache_destroy(spl_obj_cache);
-
-	if (spl_slab_cache)
-	        (void)kmem_cache_destroy(spl_slab_cache);
-
-	RETURN(rc);
-}
-
 #if defined(DEBUG_KMEM) && defined(DEBUG_KMEM_TRACKING)
 static char *
 spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
@@ -1119,12 +951,28 @@ spl_sprintf_addr(kmem_debug_t *kd, char *str, int len, int min)
 	return str;
 }
 
+static int
+spl_kmem_init_tracking(struct list_head *list, spinlock_t *lock, int size)
+{
+	int i;
+	ENTRY;
+
+	spin_lock_init(lock);
+	INIT_LIST_HEAD(list);
+
+	for (i = 0; i < size; i++)
+		INIT_HLIST_HEAD(&kmem_table[i]);
+
+	RETURN(0);
+}
+
 static void
 spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 {
 	unsigned long flags;
 	kmem_debug_t *kd;
 	char str[17];
+	ENTRY;
 
 	spin_lock_irqsave(lock, flags);
 	if (!list_empty(list))
@@ -1138,10 +986,41 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 		       kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(lock, flags);
+	EXIT;
 }
 #else /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
+#define spl_kmem_init_tracking(list, lock, size)
 #define spl_kmem_fini_tracking(list, lock)
 #endif /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
+
+int
+spl_kmem_init(void)
+{
+	int rc = 0;
+	ENTRY;
+
+	init_rwsem(&spl_kmem_cache_sem);
+	INIT_LIST_HEAD(&spl_kmem_cache_list);
+
+#ifdef HAVE_SET_SHRINKER
+	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
+					       spl_kmem_cache_generic_shrinker);
+	if (spl_kmem_cache_shrinker == NULL)
+		GOTO(out, rc = -ENOMEM);
+#else
+	register_shrinker(&spl_kmem_cache_shrinker);
+#endif
+
+#ifdef DEBUG_KMEM
+	atomic64_set(&kmem_alloc_used, 0);
+	atomic64_set(&vmem_alloc_used, 0);
+
+	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);
+	spl_kmem_init_tracking(&vmem_list, &vmem_lock, VMEM_TABLE_SIZE);
+#endif
+out:
+	RETURN(rc);
+}
 
 void
 spl_kmem_fini(void)
@@ -1170,9 +1049,6 @@ spl_kmem_fini(void)
 #else
 	unregister_shrinker(&spl_kmem_cache_shrinker);
 #endif
-
-	(void)kmem_cache_destroy(spl_obj_cache);
-	(void)kmem_cache_destroy(spl_slab_cache);
 
 	EXIT;
 }
