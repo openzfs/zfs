@@ -619,8 +619,8 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 
 	if (flags & __GFP_WAIT) {
 		flags |= __GFP_NOFAIL;
-		might_sleep();
 		local_irq_enable();
+		might_sleep();
 	}
 
 	sks = spl_slab_alloc(skc, flags);
@@ -1006,7 +1006,7 @@ spl_kmem_init(void)
 	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
 					       spl_kmem_cache_generic_shrinker);
 	if (spl_kmem_cache_shrinker == NULL)
-		GOTO(out, rc = -ENOMEM);
+		RETURN(rc = -ENOMEM);
 #else
 	register_shrinker(&spl_kmem_cache_shrinker);
 #endif
@@ -1018,7 +1018,6 @@ spl_kmem_init(void)
 	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);
 	spl_kmem_init_tracking(&vmem_list, &vmem_lock, VMEM_TABLE_SIZE);
 #endif
-out:
 	RETURN(rc);
 }
 
