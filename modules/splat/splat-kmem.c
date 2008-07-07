@@ -572,10 +572,10 @@ splat_kmem_test8_count(kmem_cache_priv_t *kcp, int threads)
 	int ret;
 
 	spin_lock(&kcp->kcp_lock);
-        ret = (kcp->kcp_threads == threads);
-        spin_unlock(&kcp->kcp_lock);
+	ret = (kcp->kcp_threads == threads);
+	spin_unlock(&kcp->kcp_lock);
 
-        return ret;
+	return ret;
 }
 
 /* This test will always pass and is simply here so I can easily
@@ -625,7 +625,9 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 			thr = thread_create(NULL, 0, splat_kmem_test8_thread,
 			                    &kcp, 0, &p0, TS_RUN, minclsyspri);
 			ASSERT(thr != NULL);
+			spin_lock(&kcp.kcp_lock);
 			kcp.kcp_threads++;
+			spin_unlock(&kcp.kcp_lock);
 		}
 
 	        /* Sleep until the thread sets kcp.kcp_threads == 0 */
@@ -662,7 +664,7 @@ splat_kmem_test8(struct file *file, void *arg)
 	/* Run through slab cache with objects size from
 	 * 16-1Mb in 4x multiples with 1024 objects each */
 	for (i = 16; i <= 1024*1024; i *= 4) {
-		rc = splat_kmem_test8_sc(file, arg, i, 1024);
+		rc = splat_kmem_test8_sc(file, arg, i, 256);
 		if (rc)
 			break;
 	}
