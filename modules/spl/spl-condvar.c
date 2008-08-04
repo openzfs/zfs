@@ -78,8 +78,8 @@ __cv_destroy(kcondvar_t *cvp)
 	if (cvp->cv_name)
 		kmem_free(cvp->cv_name, cvp->cv_name_size);
 
-	memset(cvp, CV_POISON, sizeof(*cvp));
 	spin_unlock(&cvp->cv_lock);
+	memset(cvp, CV_POISON, sizeof(*cvp));
 	EXIT;
 }
 EXPORT_SYMBOL(__cv_destroy);
