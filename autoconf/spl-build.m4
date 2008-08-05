@@ -309,44 +309,6 @@ AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 ])
 
 dnl #
-dnl # 2.6.x API change
-dnl # check if kmem_cache_t typedef is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_KMEM_CACHE_T],
-	[AC_MSG_CHECKING([whether kernel defines kmem_cache_t])
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/slab.h>
-	],[
-	        kmem_cache_t *cache;
-	],[
-	        AC_MSG_RESULT([yes])
-	        AC_DEFINE(HAVE_KMEM_CACHE_T, 1, 
-		          [kernel defines kmem_cache_t])
-	],[
-	        AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.19 API change
-dnl # kmem_cache_destroy() return void instead of int
-dnl #
-AC_DEFUN([SPL_AC_KMEM_CACHE_DESTROY_INT],
-	[AC_MSG_CHECKING([whether kmem_cache_destroy() returns int])
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/slab.h>
-	],[
-	        int i = kmem_cache_destroy(NULL);
-	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_KMEM_CACHE_DESTROY_INT, 1,
-	                [kmem_cache_destroy() returns int])
-	],[
-	        AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.19 API change
 dnl # panic_notifier_list use atomic_notifier operations
 dnl #
@@ -405,77 +367,6 @@ AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
 	],[
 	        AC_MSG_RESULT(no)
 	])
-])
-
-dnl #
-dnl # 2.6.21 API change
-dnl # Use struct kmem_cache for missing kmem_cache_t
-dnl #
-AC_DEFUN([SPL_AC_KMEM_CACHE_T], [
-	AC_MSG_CHECKING([whether kernel has kmem_cache_t])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/slab.h>
-	],[
-	        kmem_cache_t *cachep = NULL;
-	        kmem_cache_free(cachep, NULL);
-
-	],[
-	        AC_MSG_RESULT([yes])
-	        AC_DEFINE(HAVE_KMEM_CACHE_T, 1,
-	                  [kernel has struct kmem_cache_t])
-	],[
-        	AC_MSG_RESULT([no])
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 2.6.23 API change
-dnl # Slab no longer accepts a dtor argument
-dnl # 
-AC_DEFUN([SPL_AC_KMEM_CACHE_CREATE_DTOR],
-	[AC_MSG_CHECKING([whether kmem_cache_create() has dtor arg])
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/slab.h>
-	],[
-	        kmem_cache_create(NULL, 0, 0, 0, NULL, NULL);
-	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_KMEM_CACHE_CREATE_DTOR, 1,
-	                  [kmem_cache_create() has dtor arg])
-	],[
-	        AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.x API change
-dnl # Slab ctor no longer takes 3 args
-dnl # 
-AC_DEFUN([SPL_AC_3ARG_KMEM_CACHE_CREATE_CTOR],
-	[AC_MSG_CHECKING([whether slab ctor wants 3 args])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/slab.h>
-	],[
-		void (*ctor)(void *,struct kmem_cache *,unsigned long) = NULL;
-
-		#ifdef HAVE_KMEM_CACHE_CREATE_DTOR
-	        kmem_cache_create(NULL, 0, 0, 0, ctor, NULL);
-		#else
-	        kmem_cache_create(NULL, 0, 0, 0, ctor);
-		#endif
-	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_3ARG_KMEM_CACHE_CREATE_CTOR, 1,
-	                  [slab ctor wants 3 args])
-	],[
-	        AC_MSG_RESULT(no)
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #

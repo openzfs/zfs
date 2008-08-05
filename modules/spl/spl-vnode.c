@@ -37,8 +37,8 @@
 void *rootdir = NULL;
 EXPORT_SYMBOL(rootdir);
 
-static kmem_cache_t *vn_cache;
-static kmem_cache_t *vn_file_cache;
+static spl_kmem_cache_t *vn_cache;
+static spl_kmem_cache_t *vn_file_cache;
 
 static spinlock_t vn_file_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(vn_file_list);

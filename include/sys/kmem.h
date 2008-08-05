@@ -529,6 +529,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
 } spl_kmem_cache_t;
+#define kmem_cache_t		spl_kmem_cache_t
 
 extern spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
