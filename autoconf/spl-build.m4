@@ -439,3 +439,21 @@ AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
 	        AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 2.6.16 API change.
+dnl # Check if 'fls64()' is available
+dnl #
+AC_DEFUN([SPL_AC_FLS64],
+       [AC_MSG_CHECKING([whether fls64() is available])
+       SPL_LINUX_TRY_COMPILE([
+               #include <linux/bitops.h>
+       ],[
+               return fls64(0);
+       ],[
+               AC_MSG_RESULT(yes)
+               AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
+       ],[
+               AC_MSG_RESULT(no)
+       ])
+])
