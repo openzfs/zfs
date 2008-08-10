@@ -60,7 +60,9 @@
 #include <sys/types.h>
 #include <sys/kobj.h>
 #include <sys/atomic.h>
+#include <linux/cdev.h>
 
+#include "spl-device.h"
 #include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \

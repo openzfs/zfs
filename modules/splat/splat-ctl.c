@@ -42,18 +42,7 @@
 
 #include "splat-internal.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-#include <linux/devfs_fs_kernel.h>
-#endif
-
-#include <linux/cdev.h>
-
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-static struct class_simple *splat_class;
-#else
-static struct class *splat_class;
-#endif
+static spl_class *splat_class;
 static struct list_head splat_module_list;
 static spinlock_t splat_module_lock;
 
@@ -594,7 +583,7 @@ static struct file_operations splat_fops = {
 
 static struct cdev splat_cdev = {
 	.owner  =	THIS_MODULE,
-	.kobj   =	{ .name = "splatctl", },
+	.kobj   =	{ .name = SPLAT_NAME, },
 };
 
 static int __init
@@ -619,7 +608,7 @@ splat_init(void)
 	SPLAT_SUBSYSTEM_INIT(atomic);
 
 	dev = MKDEV(SPLAT_MAJOR, 0);
-        if ((rc = register_chrdev_region(dev, SPLAT_MINORS, "splatctl")))
+        if ((rc = register_chrdev_region(dev, SPLAT_MINORS, SPLAT_NAME)))
 		goto error;
 
 	/* Support for registering a character driver */
@@ -632,11 +621,7 @@ splat_init(void)
 	}
 
 	/* Support for udev make driver info available in sysfs */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-        splat_class = class_simple_create(THIS_MODULE, "splat");
-#else
-        splat_class = class_create(THIS_MODULE, "splat");
-#endif
+        splat_class = spl_class_create(THIS_MODULE, "splat");
 	if (IS_ERR(splat_class)) {
 		rc = PTR_ERR(splat_class);
 		printk(KERN_ERR "splat: Error creating splat class, %d\n", rc);
@@ -645,13 +630,8 @@ splat_init(void)
 		goto error;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-	class_simple_device_add(splat_class, MKDEV(SPLAT_MAJOR, 0),
-	                        NULL, "splatctl");
-#else
-	class_device_create(splat_class, NULL, MKDEV(SPLAT_MAJOR, 0),
-	                    NULL, "splatctl");
-#endif
+	spl_device_create(splat_class, NULL, MKDEV(SPLAT_MAJOR, 0),
+			  NULL, SPLAT_NAME);
 
 	printk(KERN_INFO "splat: Loaded Solaris Porting LAyer "
 	       "Tests v%s\n", VERSION);
@@ -666,15 +646,8 @@ splat_fini(void)
 {
 	dev_t dev = MKDEV(SPLAT_MAJOR, 0);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)
-        class_simple_device_remove(dev);
-        class_simple_destroy(splat_class);
-        devfs_remove("splat/splatctl");
-        devfs_remove("splat");
-#else
-        class_device_destroy(splat_class, dev);
-        class_destroy(splat_class);
-#endif
+        spl_device_destroy(splat_class, dev);
+        spl_class_destroy(splat_class);
         cdev_del(&splat_cdev);
         unregister_chrdev_region(dev, SPLAT_MINORS);
 

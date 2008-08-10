@@ -35,7 +35,7 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/list.h>
-#include <linux/device.h>
+#include <spl-device.h>
 
 typedef int ddi_devid_t;
 
@@ -81,7 +81,7 @@ typedef struct dev_info {
 	kmutex_t di_lock;
 	struct dev_ops *di_ops;
 	struct cdev *di_cdev;
-	struct class *di_class;
+	spl_class *di_class;
 	major_t	di_major;
 	minor_t di_minor;
 	dev_t di_dev;

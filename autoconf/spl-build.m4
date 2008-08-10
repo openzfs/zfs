@@ -457,3 +457,31 @@ AC_DEFUN([SPL_AC_FLS64],
                AC_MSG_RESULT(no)
        ])
 ])
+
+dnl #
+dnl # 2.6.18 API change, check whether device_create() is available.
+dnl # Device_create() was introduced in 2.6.18 and depricated 
+dnl # class_device_create() which was fully removed in 2.6.26.
+dnl #
+AC_DEFUN([SPL_AC_DEVICE_CREATE], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[device_create],
+		[drivers/base/core.c],
+		[AC_DEFINE(HAVE_DEVICE_CREATE, 1,
+		[device_create() is available])],
+                [])
+])
+
+dnl #
+dnl # 2.6.13 API change, check whether class_device_create() is available.
+dnl # Class_device_create() was introduced in 2.6.13 and depricated
+dnl # class_simple_device_add() which was fully removed in 2.6.13.
+dnl #
+AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[class_device_create],
+		[drivers/base/class.c],
+		[AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
+		[class_device_create() is available])],
+                [])
+])

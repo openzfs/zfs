@@ -33,6 +33,7 @@
 
 #define SPLAT_MAJOR			229 /* XXX - Arbitrary */
 #define SPLAT_MINORS                    1
+#define SPLAT_NAME			"splatctl"
 #define SPLAT_DEV			"/dev/splatctl"
 
 #define SPLAT_NAME_SIZE			12
