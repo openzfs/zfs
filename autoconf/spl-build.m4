@@ -310,7 +310,7 @@ AC_DEFUN([SPL_CHECK_HEADER],
 ])
 
 dnl #
-dnl # 2.6.x API change
+dnl # 2.6.24 API change,
 dnl # check if uintptr_t typedef is defined
 dnl #
 AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
@@ -329,7 +329,7 @@ AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 ])
 
 dnl #
-dnl # 2.6.19 API change
+dnl # 2.6.19 API change,
 dnl # panic_notifier_list use atomic_notifier operations
 dnl #
 
@@ -350,7 +350,7 @@ AC_DEFUN([SPL_AC_ATOMIC_PANIC_NOTIFIER],
 ])
 
 dnl #
-dnl # 2.6.20 API change
+dnl # 2.6.20 API change,
 dnl # INIT_WORK use 2 args and not store data inside
 dnl #
 AC_DEFUN([SPL_AC_3ARGS_INIT_WORK],
@@ -371,7 +371,7 @@ AC_DEFUN([SPL_AC_3ARGS_INIT_WORK],
 ])
 
 dnl #
-dnl # 2.6.21 api change.
+dnl # 2.6.21 API change,
 dnl # 'register_sysctl_table' use only one argument instead of two
 dnl #
 AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
@@ -390,7 +390,7 @@ AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
 ])
 
 dnl #
-dnl # 2.6.x API change
+dnl # 2.6.23 API change
 dnl # Old set_shrinker API replaced with register_shrinker
 dnl #
 AC_DEFUN([SPL_AC_SET_SHRINKER], [
@@ -409,7 +409,7 @@ AC_DEFUN([SPL_AC_SET_SHRINKER], [
 ])
 
 dnl #
-dnl # 2.6.x API change
+dnl # 2.6.25 API change,
 dnl # struct path entry added to struct nameidata
 dnl #
 AC_DEFUN([SPL_AC_PATH_IN_NAMEIDATA],
@@ -440,7 +440,7 @@ AC_DEFUN([SPL_AC_TASK_CURR], [
 ])
 
 dnl #
-dnl # 2.6.x API change
+dnl # 2.6.19 API change,
 dnl # Use CTL_UNNUMBERED when binary sysctl is not required
 dnl #
 AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
@@ -509,18 +509,6 @@ AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
 dnl #
 dnl # 2.6.26 API change, set_normalized_timespec() is exported.
 dnl #
-AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[class_device_create],
-		[drivers/base/class.c],
-		[AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
-		[class_device_create() is available])],
-		[])
-])
-
-dnl #
-dnl # 2.6.26 API change, set_normalized_timespec() is exported.
-dnl #
 AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT], [
 	SPL_CHECK_SYMBOL_EXPORT(
 		[set_normalized_timespec],
@@ -540,7 +528,7 @@ AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE], [
 		#include <linux/time.h>
 	],[
 		void set_normalized_timespec(struct timespec *ts,
-		                             time_t sec, long nsec) { }
+		                             time_t sec, long nsec);
 	],[
 		AC_MSG_RESULT(no)
 	],[
@@ -570,17 +558,110 @@ AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
 ])
 
 dnl #
-dnl # 2.6.26 API change
-dnl # Definition of struct fdtable relocated to linux/fdtable.h
+dnl # 2.6.19 API change,
+dnl # check if init_utsname() is available in linux/utsname.h
+dnl #
+AC_DEFUN([SPL_AC_INIT_UTSNAME], [
+	AC_MSG_CHECKING([whether init_utsname() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/utsname.h>
+	],[
+		struct new_utsname *a = init_utsname();
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INIT_UTSNAME, 1, [init_utsname() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.26 API change,
+dnl # definition of struct fdtable relocated to linux/fdtable.h
 dnl #
 AC_DEFUN([SPL_AC_FDTABLE_HEADER], [
 	SPL_CHECK_HEADER([linux/fdtable.h], [FDTABLE], [], [])
 ])
 
 dnl #
-dnl # 2.6.18 API change
-dnl # Added linux/uaccess.h
+dnl # 2.6.14 API change,
+dnl # check whether 'files_fdtable()' exists
+dnl #
+AC_DEFUN([SPL_AC_FILES_FDTABLE], [
+	AC_MSG_CHECKING([whether files_fdtable() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+		#include <linux/file.h>
+		#ifdef HAVE_FDTABLE_HEADER
+		#include <linux/fdtable.h>
+		#endif
+	],[
+		struct files_struct *files = current->files;
+		struct fdtable *fdt = files_fdtable(files);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FILES_FDTABLE, 1, [files_fdtable() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.18 API change,
+dnl # added linux/uaccess.h
 dnl #
 AC_DEFUN([SPL_AC_UACCESS_HEADER], [
 	SPL_CHECK_HEADER([linux/uaccess.h], [UACCESS], [], [])
+])
+
+dnl #
+dnl # 2.6.12 API change,
+dnl # check whether 'kmalloc_node()' is available.
+dnl #
+AC_DEFUN([SPL_AC_KMALLOC_NODE], [
+	AC_MSG_CHECKING([whether kmalloc_node() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/slab.h>
+	],[
+		void *a = kmalloc_node(1, GFP_KERNEL, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KMALLOC_NODE, 1, [kmalloc_node() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.9 API change,
+dnl # check whether 'monotonic_clock()' is available it may
+dnl # be available for some archs but not others.
+dnl #
+AC_DEFUN([SPL_AC_MONOTONIC_CLOCK], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[monotonic_clock],
+		[],
+		[AC_DEFINE(HAVE_MONOTONIC_CLOCK, 1,
+		[monotonic_clock() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.16 API change,
+dnl # check whether 'struct inode' has i_mutex
+dnl #
+AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
+	AC_MSG_CHECKING([whether struct inode has i_mutex])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+		#include <linux/mutex.h>
+	],[
+		struct inode i;
+		mutex_init(&i.i_mutex);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_I_MUTEX, 1, [struct inode has i_mutex])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])

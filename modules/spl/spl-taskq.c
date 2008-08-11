@@ -25,6 +25,7 @@
  */
 
 #include <sys/taskq.h>
+#include <sys/kmem.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -32,39 +33,47 @@
 
 #define DEBUG_SUBSYSTEM S_TASKQ
 
+typedef struct spl_task {
+        spinlock_t              t_lock;
+        struct list_head        t_list;
+        taskqid_t               t_id;
+        task_func_t             *t_func;
+        void                    *t_arg;
+} spl_task_t;
+
 /* NOTE: Must be called with tq->tq_lock held, returns a list_t which
  * is not attached to the free, work, or pending taskq lists.
  */
-static task_t *
+static spl_task_t *
 task_alloc(taskq_t *tq, uint_t flags)
 {
-        task_t *t;
+        spl_task_t *t;
         int count = 0;
         ENTRY;
 
         ASSERT(tq);
         ASSERT(flags & (TQ_SLEEP | TQ_NOSLEEP));               /* One set */
         ASSERT(!((flags & TQ_SLEEP) && (flags & TQ_NOSLEEP))); /* Not both */
-	ASSERT(spin_is_locked(&tq->tq_lock));
+        ASSERT(spin_is_locked(&tq->tq_lock));
 retry:
-        /* Aquire task_t's from free list if available */
+        /* Aquire spl_task_t's from free list if available */
         if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
-                t = list_entry(tq->tq_free_list.next, task_t, t_list);
-	        list_del_init(&t->t_list);
-		RETURN(t);
+                t = list_entry(tq->tq_free_list.next, spl_task_t, t_list);
+                list_del_init(&t->t_list);
+                RETURN(t);
         }
 
         /* Free list is empty and memory allocs are prohibited */
         if (flags & TQ_NOALLOC)
                 RETURN(NULL);
 
-        /* Hit maximum task_t pool size */
+        /* Hit maximum spl_task_t pool size */
         if (tq->tq_nalloc >= tq->tq_maxalloc) {
                 if (flags & TQ_NOSLEEP)
                         RETURN(NULL);
 
                 /* Sleep periodically polling the free list for an available
-                 * task_t.  If a full second passes and we have not found
+                 * spl_task_t.  If a full second passes and we have not found
                  * one gives up and return a NULL to the caller. */
                 if (flags & TQ_SLEEP) {
                         spin_unlock_irq(&tq->tq_lock);
@@ -81,7 +90,7 @@ retry:
         }
 
 	spin_unlock_irq(&tq->tq_lock);
-        t = kmem_alloc(sizeof(task_t), flags & (TQ_SLEEP | TQ_NOSLEEP));
+        t = kmem_alloc(sizeof(spl_task_t), flags & (TQ_SLEEP | TQ_NOSLEEP));
         spin_lock_irq(&tq->tq_lock);
 
 	if (t) {
@@ -96,11 +105,11 @@ retry:
         RETURN(t);
 }
 
-/* NOTE: Must be called with tq->tq_lock held, expectes the task_t
+/* NOTE: Must be called with tq->tq_lock held, expectes the spl_task_t
  * to already be removed from the free, work, or pending taskq lists.
  */
 static void
-task_free(taskq_t *tq, task_t *t)
+task_free(taskq_t *tq, spl_task_t *t)
 {
         ENTRY;
 
@@ -109,17 +118,17 @@ task_free(taskq_t *tq, task_t *t)
 	ASSERT(spin_is_locked(&tq->tq_lock));
 	ASSERT(list_empty(&t->t_list));
 
-        kmem_free(t, sizeof(task_t));
+        kmem_free(t, sizeof(spl_task_t));
         tq->tq_nalloc--;
 
 	EXIT;
 }
 
 /* NOTE: Must be called with tq->tq_lock held, either destroyes the
- * task_t if too many exist or moves it to the free list for later use.
+ * spl_task_t if too many exist or moves it to the free list for later use.
  */
 static void
-task_done(taskq_t *tq, task_t *t)
+task_done(taskq_t *tq, spl_task_t *t)
 {
 	ENTRY;
 	ASSERT(tq);
@@ -207,7 +216,7 @@ EXPORT_SYMBOL(__taskq_member);
 taskqid_t
 __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
-        task_t *t;
+        spl_task_t *t;
 	taskqid_t rc = 0;
         ENTRY;
 
@@ -254,7 +263,7 @@ static taskqid_t
 taskq_lowest_id(taskq_t *tq)
 {
 	taskqid_t lowest_id = ~0;
-        task_t *t;
+        spl_task_t *t;
 	ENTRY;
 
 	ASSERT(tq);
@@ -278,7 +287,7 @@ taskq_thread(void *args)
         sigset_t blocked;
 	taskqid_t id;
         taskq_t *tq = args;
-        task_t *t;
+        spl_task_t *t;
 	ENTRY;
 
         ASSERT(tq);
@@ -306,7 +315,7 @@ taskq_thread(void *args)
 
 		remove_wait_queue(&tq->tq_work_waitq, &wait);
                 if (!list_empty(&tq->tq_pend_list)) {
-                        t = list_entry(tq->tq_pend_list.next, task_t, t_list);
+                        t = list_entry(tq->tq_pend_list.next, spl_task_t, t_list);
                         list_del_init(&t->t_list);
 			list_add_tail(&t->t_list, &tq->tq_work_list);
                         tq->tq_nactive++;
@@ -418,7 +427,7 @@ EXPORT_SYMBOL(__taskq_create);
 void
 __taskq_destroy(taskq_t *tq)
 {
-	task_t *t;
+	spl_task_t *t;
 	int i, nthreads;
 	ENTRY;
 
@@ -438,7 +447,7 @@ __taskq_destroy(taskq_t *tq)
         spin_lock_irq(&tq->tq_lock);
 
         while (!list_empty(&tq->tq_free_list)) {
-		t = list_entry(tq->tq_free_list.next, task_t, t_list);
+		t = list_entry(tq->tq_free_list.next, spl_task_t, t_list);
 	        list_del_init(&t->t_list);
                 task_free(tq, t);
         }
@@ -450,7 +459,7 @@ __taskq_destroy(taskq_t *tq)
         ASSERT(list_empty(&tq->tq_pend_list));
 
         spin_unlock_irq(&tq->tq_lock);
-        kmem_free(tq->tq_threads, nthreads * sizeof(task_t *));
+        kmem_free(tq->tq_threads, nthreads * sizeof(spl_task_t *));
         kmem_free(tq, sizeof(taskq_t));
 
 	EXIT;

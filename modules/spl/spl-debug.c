@@ -40,6 +40,7 @@
 #include <linux/kthread.h>
 #include <linux/hardirq.h>
 #include <linux/interrupt.h>
+#include <linux/notifier.h>
 #include <sys/sysmacros.h>
 #include <sys/proc.h>
 #include <sys/debug.h>
@@ -375,7 +376,7 @@ spl_debug_dumplog_thread(void *arg)
         spl_debug_dumplog_internal(dp);
 	atomic_set(&dp->dp_done, 1);
         wake_up(&dp->dp_waitq);
-        do_exit(0);
+	complete_and_exit(NULL, 0);
 
         return 0; /* Unreachable */
 }

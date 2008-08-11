@@ -261,10 +261,10 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         struct nameidata nd;
         struct inode *inode = NULL;
         int rc = 0;
-	ENTRY;
+        ENTRY;
 
-	ASSERT(seg == UIO_SYSSPACE);
-	ASSERT(flags == RMFILE);
+        ASSERT(seg == UIO_SYSSPACE);
+        ASSERT(flags == RMFILE);
 
         rc = path_lookup(path, LOOKUP_PARENT, &nd);
         if (rc)
@@ -274,7 +274,11 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         if (nd.last_type != LAST_NORM)
                 GOTO(exit1, rc);
 
+#ifdef HAVE_INODE_I_MUTEX
         mutex_lock_nested(&nd.nd_dentry->d_inode->i_mutex, I_MUTEX_PARENT);
+#else
+        down(&nd.nd_dentry->d_inode->i_sem);
+#endif
         dentry = vn_lookup_hash(&nd);
         rc = PTR_ERR(dentry);
         if (!IS_ERR(dentry)) {
@@ -289,7 +293,11 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
 exit2:
                 dput(dentry);
         }
+#ifdef HAVE_INODE_I_MUTEX
         mutex_unlock(&nd.nd_dentry->d_inode->i_mutex);
+#else
+        up(&nd.nd_dentry->d_inode->i_sem);
+#endif
         if (inode)
                 iput(inode);    /* truncate the inode here */
 exit1:

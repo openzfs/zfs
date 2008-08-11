@@ -37,7 +37,6 @@ extern "C" {
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <sys/types.h>
-#include <sys/kmem.h>
 
 #define TASKQ_NAMELEN           31
 
@@ -59,14 +58,6 @@ typedef void (task_func_t)(void *);
 #define TQ_NOALLOC              0x02000000
 #define TQ_NEW                  0x04000000
 #define TQ_ACTIVE               0x80000000
-
-typedef struct task {
-	spinlock_t              t_lock;
-	struct list_head        t_list;
-	taskqid_t               t_id;
-        task_func_t             *t_func;
-        void                    *t_arg;
-} task_t;
 
 typedef struct taskq {
         spinlock_t              tq_lock;       /* protects taskq_t */

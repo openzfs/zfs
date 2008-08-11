@@ -59,7 +59,7 @@ int
 highbit(unsigned long i)
 {
         register int h = 1;
-	ENTRY;
+        ENTRY;
 
         if (i == 0)
                 RETURN(0);
@@ -97,7 +97,11 @@ EXPORT_SYMBOL(ddi_strtoul);
 
 struct new_utsname *__utsname(void)
 {
+#ifdef HAVE_INIT_UTSNAME
 	return init_utsname();
+#else
+	return &system_utsname;
+#endif
 }
 EXPORT_SYMBOL(__utsname);
 

@@ -370,7 +370,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 	           sizeof(void *) * skc->skc_mag_size;
 	ENTRY;
 
-	skm = kmalloc_node(size, GFP_KERNEL, node);
+	skm = kmem_alloc_node(size, GFP_KERNEL, node);
 	if (skm) {
 		skm->skm_magic = SKM_MAGIC;
 		skm->skm_avail = 0;

@@ -54,6 +54,13 @@ extern "C" {
 #define KM_VMFLAGS                      GFP_LEVEL_MASK
 #define KM_FLAGS                        __GFP_BITS_MASK
 
+/*
+ * Used internally, the kernel does not need to support this flag
+ */
+#ifndef __GFP_ZERO
+#define __GFP_ZERO			0x8000
+#endif
+
 #ifdef DEBUG_KMEM
 extern atomic64_t kmem_alloc_used;
 extern unsigned long kmem_alloc_max;
@@ -113,7 +120,7 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
         return NULL;
 }
 
-#define __kmem_alloc(size, flags, allocator)                                  \
+#define __kmem_alloc(size, flags, allocator, args...)                         \
 ({      void *_ptr_ = NULL;                                                   \
         kmem_debug_t *_dptr_;                                                 \
         unsigned long _flags_;                                                \
@@ -133,7 +140,7 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 			               atomic64_read(&kmem_alloc_used),       \
 				       kmem_alloc_max);                       \
                                                                               \
-                _ptr_ = (void *)allocator((size), (flags));                   \
+                _ptr_ = (void *)allocator((size), (flags), ## args);          \
                 if (_ptr_ == NULL) {                                          \
                         kfree(_dptr_);                                        \
                         __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "          \
@@ -273,7 +280,7 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 
 #else /* DEBUG_KMEM_TRACKING */
 
-#define __kmem_alloc(size, flags, allocator)                                  \
+#define __kmem_alloc(size, flags, allocator, args...)                         \
 ({      void *_ptr_ = NULL;                                                   \
                                                                               \
 	/* Marked unlikely because we should never be doing this, */          \
@@ -285,7 +292,7 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 		               atomic64_read(&kmem_alloc_used),               \
 			       kmem_alloc_max);                               \
                                                                               \
-        _ptr_ = (void *)allocator((size), (flags));                           \
+        _ptr_ = (void *)allocator((size), (flags), ## args);                  \
         if (_ptr_ == NULL) {                                                  \
                 __CDEBUG_LIMIT(S_KMEM, D_WARNING, "Warning "                  \
 			       "kmem_alloc(%d, 0x%x) failed (%ld/"            \
@@ -370,6 +377,14 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 #define kmem_alloc(size, flags)         __kmem_alloc((size), (flags), kmalloc)
 #define kmem_zalloc(size, flags)        __kmem_alloc((size), (flags), kzalloc)
 
+#ifdef HAVE_KMALLOC_NODE
+#define kmem_alloc_node(size, flags, node)                                    \
+	__kmem_alloc((size), (flags), kmalloc_node, node)
+#else
+#define kmem_alloc_node(size, flags, node)                                    \
+	__kmem_alloc((size), (flags), kmalloc)
+#endif
+
 #define vmem_alloc(size, flags)         __vmem_alloc((size), (flags))
 #define vmem_zalloc(size, flags)        __vmem_alloc((size), ((flags) | __GFP_ZERO))
 
@@ -378,6 +393,14 @@ __kmem_del_init(spinlock_t *lock,struct hlist_head *table,int bits,void *addr)
 #define kmem_alloc(size, flags)         kmalloc((size), (flags))
 #define kmem_zalloc(size, flags)        kzalloc((size), (flags))
 #define kmem_free(ptr, size)            kfree(ptr)
+
+#ifdef HAVE_KMALLOC_NODE
+#define kmem_alloc_node(size, flags, node)                                    \
+	kmalloc_node((size), (flags), (node))
+#else
+#define kmem_alloc_node(size, flags, node)                                    \
+	kmalloc((size), (flags))
+#endif
 
 #define vmem_alloc(size, flags)         __vmalloc((size), ((flags) |          \
 					__GFP_HIGHMEM), PAGE_KERNEL)
@@ -554,14 +577,6 @@ void spl_kmem_fini(void);
 #define kmem_reap()			spl_kmem_reap()
 #define kmem_virt(ptr)			(((ptr) >= (void *)VMALLOC_START) && \
 					 ((ptr) <  (void *)VMALLOC_END))
-
-#ifdef HAVE_KMEM_CACHE_CREATE_DTOR
-#define __kmem_cache_create(name, size, align, flags, ctor, dtor) \
-        kmem_cache_create(name, size, align, flags, ctor, dtor)
-#else
-#define __kmem_cache_create(name, size, align, flags, ctor, dtor) \
-        kmem_cache_create(name, size, align, flags, ctor)
-#endif /* HAVE_KMEM_CACHE_CREATE_DTOR */
 
 #ifdef	__cplusplus
 }

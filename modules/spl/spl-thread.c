@@ -73,7 +73,7 @@ __thread_exit(void)
 {
 	ENTRY;
 	EXIT;
-	do_exit(0);
+	complete_and_exit(NULL, 0);
 	/* Unreachable */
 }
 EXPORT_SYMBOL(__thread_exit);

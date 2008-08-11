@@ -357,6 +357,7 @@ fd_uninstall(int fd)
         struct fdtable *fdt;
 
         spin_lock(&files->file_lock);
+#ifdef HAVE_FILES_FDTABLE
         fdt = files_fdtable(files);
 
         if (fd >= fdt->max_fds)
@@ -368,10 +369,20 @@ fd_uninstall(int fd)
 
         rcu_assign_pointer(fdt->fd[fd], NULL);
         FD_CLR(fd, fdt->close_on_exec);
+#else
+        if (fd >= files->max_fds)
+                goto out_unlock;
 
-	 /* Dropping the lock here exposes a minor race but it allows me
-	  * to use the existing kernel interfaces for this, and for a test
-	  * case I think that's reasonable. */
+        fp = files->fd[fd];
+        if (!fp)
+                goto out_unlock;
+
+        files->fd[fd] = NULL;
+        FD_CLR(fd, files->close_on_exec);
+#endif
+        /* Dropping the lock here exposes a minor race but it allows me
+         * to use the existing kernel interfaces for this, and for a test
+         * case I think that's reasonable. */
         spin_unlock(&files->file_lock);
         put_unused_fd(fd);
         return 0;

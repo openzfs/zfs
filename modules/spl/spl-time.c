@@ -27,6 +27,10 @@
 #include <sys/sysmacros.h>
 #include <sys/time.h>
 
+#ifdef HAVE_MONOTONIC_CLOCK
+extern unsigned long long monotonic_clock(void);
+#endif
+
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
 #endif
@@ -36,27 +40,26 @@
 void
 __gethrestime(timestruc_t *ts)
 {
-	getnstimeofday((struct timespec *)ts);
+        struct timeval tv;
+
+	do_gettimeofday(&tv);
+	ts->tv_sec = tv.tv_sec;
+	ts->tv_nsec = tv.tv_usec * NSEC_PER_USEC;
 }
 EXPORT_SYMBOL(__gethrestime);
 
-int
-__clock_gettime(clock_type_t type, timespec_t *tp)
-{
-	/* Only support CLOCK_REALTIME+__CLOCK_REALTIME0 for now */
-        ASSERT((type == CLOCK_REALTIME) || (type == __CLOCK_REALTIME0));
-
-        getnstimeofday(tp);
-        return 0;
-}
-EXPORT_SYMBOL(__clock_gettime);
-
-/* This function may not be as fast as using monotonic_clock() but it
- * should be much more portable, if performance becomes as issue we can
- * look at using monotonic_clock() for x86_64 and x86 arches.
+/* Use monotonic_clock() by default. It's faster and is available on older
+ * kernels, but few architectures have them, so we must fallback to
+ * do_posix_clock_monotonic_gettime().
  */
 hrtime_t
 __gethrtime(void) {
+#ifdef HAVE_MONOTONIC_CLOCK
+       unsigned long long res = monotonic_clock();
+
+       /* Deal with signed/unsigned mismatch */
+       return (hrtime_t)(res & ~(1ULL << (BITS_PER_LONG - 1)));
+#else
         timespec_t tv;
         hrtime_t rc;
 
@@ -64,12 +67,13 @@ __gethrtime(void) {
         rc = (NSEC_PER_SEC * (hrtime_t)tv.tv_sec) + (hrtime_t)tv.tv_nsec;
 
         return rc;
+#endif
 }
 EXPORT_SYMBOL(__gethrtime);
 
 /* set_normalized_timespec() API changes
  * 2.6.0  - 2.6.15: Inline function provided by linux/time.h
- * 2.6.16 - 2.6.25: Function prototypedefined but not exported
+ * 2.6.16 - 2.6.25: Function prototype defined but not exported
  * 2.6.26 - 2.6.x:  Function defined and exported
  */
 #if !defined(HAVE_SET_NORMALIZED_TIMESPEC_INLINE) && \
