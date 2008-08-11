@@ -665,3 +665,21 @@ AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 2.6.14 API change,
+dnl # check whether 'div64_64()' is available
+dnl #
+AC_DEFUN([SPL_AC_DIV64_64], [
+	AC_MSG_CHECKING([whether div64_64() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <asm/div64.h>
+	],[
+		uint64_t i = div64_64(1ULL, 1ULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DIV64_64, 1, [div64_64() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

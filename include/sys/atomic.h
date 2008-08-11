@@ -33,6 +33,7 @@ extern "C" {
 
 #include <linux/module.h>
 #include <linux/spinlock.h>
+#include <sys/isa_defs.h>
 
 /* XXX: Serialize everything through global locks.  This is
  * going to be bad for performance, but for now it's the easiest
@@ -133,7 +134,23 @@ atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
 	return rc;
 }
 
-#if defined(__x86_64__)
+static __inline__ uint32_t
+atomic_cas_32(volatile uint32_t *target,  uint32_t cmp,
+               uint32_t newval)
+{
+	uint32_t rc;
+
+	spin_lock(&atomic32_lock);
+	rc = *target;
+	if (*target == cmp)
+		*target = newval;
+
+	spin_unlock(&atomic32_lock);
+
+	return rc;
+}
+
+#ifdef _LP64
 /* XXX: Implement atomic_cas_ptr() in terms of uint64'ts.  This
  * is of course only safe and correct for 64 bit arches...  but
  * for now I'm OK with that.
@@ -143,6 +160,13 @@ atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
 	return (void *)atomic_cas_64((volatile uint64_t *)target,
 	                             (uint64_t)cmp, (uint64_t)newval);
+}
+#else
+static __inline__ void *
+atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
+{
+	return (void *)atomic_cas_32((volatile uint32_t *)target,
+	                             (uint32_t)cmp, (uint32_t)newval);
 }
 #endif
 

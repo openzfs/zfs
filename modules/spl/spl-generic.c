@@ -87,6 +87,30 @@ highbit(unsigned long i)
 }
 EXPORT_SYMBOL(highbit);
 
+/*
+ * Implementation of div64_64(), for kernels that don't have it.
+ *
+ * Taken from a 2.6.24 kernel.
+ */
+uint64_t spl_div64_64(uint64_t dividend, uint64_t divisor)
+{
+	uint32_t high, d;
+
+	high = divisor >> 32;
+	if (high) {
+		unsigned int shift = fls(high);
+
+		d = divisor >> shift;
+		dividend >>= shift;
+	} else
+		d = divisor;
+
+	do_div(dividend, d);
+
+	return dividend;
+}
+EXPORT_SYMBOL(spl_div64_64);
+
 int
 ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
 {
