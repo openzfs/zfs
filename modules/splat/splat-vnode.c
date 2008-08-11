@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 #include <linux/rcupdate.h>
-#include <linux/fdtable.h>
 
 #define SPLAT_SUBSYSTEM_VNODE		0x0900
 #define SPLAT_VNODE_NAME		"vnode"

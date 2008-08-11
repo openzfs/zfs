@@ -289,7 +289,25 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 	fi
 ])
 
-
+dnl #
+dnl # SPL_CHECK_HEADER
+dnl # check whether header exists and define HAVE_$2_HEADER
+dnl #
+AC_DEFUN([SPL_CHECK_HEADER],
+	[AC_MSG_CHECKING([whether header $1 exists])
+	SPL_LINUX_TRY_COMPILE([
+        	#include <$1>
+	],[
+		return 0;
+	],[
+		AC_DEFINE(HAVE_$2_HEADER, 1, [$1 exists])
+		AC_MSG_RESULT(yes)
+		$3
+	],[
+		AC_MSG_RESULT(no)
+		$4
+	])
+])
 
 dnl #
 dnl # 2.6.x API change
@@ -516,8 +534,8 @@ dnl #
 dnl # 2.6.16 API change, set_normalize_timespec() moved to time.c
 dnl # previously it was available in time.h as an inline.
 dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE],
-	[AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
+AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE], [
+	AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/time.h>
 	],[
@@ -536,8 +554,8 @@ dnl #
 dnl # 2.6.18 API change,
 dnl # timespec_sub() inline function available in linux/time.h
 dnl #
-AC_DEFUN([SPL_AC_TIMESPEC_SUB],
-	[AC_MSG_CHECKING([whether timespec_sub() is available])
+AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
+	AC_MSG_CHECKING([whether timespec_sub() is available])
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/time.h>
 	],[
@@ -551,3 +569,10 @@ AC_DEFUN([SPL_AC_TIMESPEC_SUB],
 	])
 ])
 
+dnl #
+dnl # 2.6,26 API change
+dnl # Definition of struct fdtable relocated to linux/fdtable.h
+dnl #
+AC_DEFUN([SPL_AC_FDTABLE_HEADER], [
+	SPL_CHECK_HEADER([linux/fdtable.h], [FDTABLE], [], [])
+])

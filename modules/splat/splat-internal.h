@@ -40,6 +40,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/list.h>
+
 #include <asm/ioctls.h>
 #include <asm/uaccess.h>
 #include <stdarg.h>
@@ -61,6 +62,11 @@
 #include <sys/kobj.h>
 #include <sys/atomic.h>
 #include <linux/cdev.h>
+
+#include <linux/file_compat.h>
+#include <linux/list_compat.h>
+#include <linux/time_compat.h>
+#include <linux/bitops_compat.h>
 
 #include "spl-device.h"
 #include "splat-ctl.h"
