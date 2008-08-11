@@ -289,6 +289,8 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 	fi
 ])
 
+
+
 dnl #
 dnl # 2.6.x API change
 dnl # check if uintptr_t typedef is defined
@@ -445,17 +447,17 @@ dnl # 2.6.16 API change.
 dnl # Check if 'fls64()' is available
 dnl #
 AC_DEFUN([SPL_AC_FLS64],
-       [AC_MSG_CHECKING([whether fls64() is available])
-       SPL_LINUX_TRY_COMPILE([
-               #include <linux/bitops.h>
-       ],[
-               return fls64(0);
-       ],[
-               AC_MSG_RESULT(yes)
-               AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
-       ],[
-               AC_MSG_RESULT(no)
-       ])
+	[AC_MSG_CHECKING([whether fls64() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/bitops.h>
+	],[
+		return fls64(0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FLS64, 1, [fls64() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -469,7 +471,7 @@ AC_DEFUN([SPL_AC_DEVICE_CREATE], [
 		[drivers/base/core.c],
 		[AC_DEFINE(HAVE_DEVICE_CREATE, 1,
 		[device_create() is available])],
-                [])
+		[])
 ])
 
 dnl #
@@ -483,5 +485,69 @@ AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
 		[drivers/base/class.c],
 		[AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
 		[class_device_create() is available])],
-                [])
+		[])
 ])
+
+dnl #
+dnl # 2.6.26 API change, set_normalized_timespec() is exported.
+dnl #
+AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[class_device_create],
+		[drivers/base/class.c],
+		[AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
+		[class_device_create() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.26 API change, set_normalized_timespec() is exported.
+dnl #
+AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[set_normalized_timespec],
+		[kernel/time.c],
+		[AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT, 1,
+		[set_normalized_timespec() is available as export])],
+		[])
+])
+
+dnl #
+dnl # 2.6.16 API change, set_normalize_timespec() moved to time.c
+dnl # previously it was available in time.h as an inline.
+dnl #
+AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE],
+	[AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/time.h>
+	],[
+		void set_normalized_timespec(struct timespec *ts,
+		                             time_t sec, long nsec) { }
+	],[
+		AC_MSG_RESULT(no)
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_INLINE, 1,
+		          [set_normalized_timespec() is available as inline])
+	])
+])
+
+dnl #
+dnl # 2.6.18 API change,
+dnl # timespec_sub() inline function available in linux/time.h
+dnl #
+AC_DEFUN([SPL_AC_TIMESPEC_SUB],
+	[AC_MSG_CHECKING([whether timespec_sub() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/time.h>
+	],[
+		struct timespec a, b, c = { 0 };
+		c = timespec_sub(a, b);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_TIMESPEC_SUB, 1, [timespec_sub() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+

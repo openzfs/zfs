@@ -67,9 +67,13 @@ __gethrtime(void) {
 }
 EXPORT_SYMBOL(__gethrtime);
 
-/* Not exported from the kernel, but we need it for timespec_sub.  Be very
- * careful here we are using the kernel prototype, so that must not change.
+/* set_normalized_timespec() API changes
+ * 2.6.0  - 2.6.15: Inline function provided by linux/time.h
+ * 2.6.16 - 2.6.25: Function prototypedefined but not exported
+ * 2.6.26 - 2.6.x:  Function defined and exported
  */
+#if !defined(HAVE_SET_NORMALIZED_TIMESPEC_INLINE) && \
+    !defined(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT)
 void
 set_normalized_timespec(struct timespec *ts, time_t sec, long nsec)
 {
@@ -85,3 +89,4 @@ set_normalized_timespec(struct timespec *ts, time_t sec, long nsec)
 	ts->tv_nsec = nsec;
 }
 EXPORT_SYMBOL(set_normalized_timespec);
+#endif
