@@ -82,6 +82,7 @@ typedef struct dev_info {
 	struct dev_ops *di_ops;
 	struct cdev *di_cdev;
 	spl_class *di_class;
+	spl_device *di_device;
 	major_t	di_major;
 	minor_t di_minor;
 	dev_t di_dev;

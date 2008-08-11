@@ -354,10 +354,10 @@ fd_uninstall(int fd)
 {
         struct file *fp;
         struct files_struct *files = current->files;
+#ifdef HAVE_FILES_FDTABLE
         struct fdtable *fdt;
 
         spin_lock(&files->file_lock);
-#ifdef HAVE_FILES_FDTABLE
         fdt = files_fdtable(files);
 
         if (fd >= fdt->max_fds)
@@ -370,6 +370,7 @@ fd_uninstall(int fd)
         rcu_assign_pointer(fdt->fd[fd], NULL);
         FD_CLR(fd, fdt->close_on_exec);
 #else
+        spin_lock(&files->file_lock);
         if (fd >= files->max_fds)
                 goto out_unlock;
 

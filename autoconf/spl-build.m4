@@ -526,10 +526,11 @@ AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE], [
 	AC_MSG_CHECKING([whether set_normalized_timespec() is an inline])
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/time.h>
-	],[
 		void set_normalized_timespec(struct timespec *ts,
-		                             time_t sec, long nsec);
-	],[
+		                             time_t sec, long nsec) { }
+	],
+	[],
+	[
 		AC_MSG_RESULT(no)
 	],[
 		AC_MSG_RESULT(yes)

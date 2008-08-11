@@ -43,6 +43,7 @@
 #include "splat-internal.h"
 
 static spl_class *splat_class;
+static spl_device *splat_device;
 static struct list_head splat_module_list;
 static spinlock_t splat_module_lock;
 
@@ -630,8 +631,9 @@ splat_init(void)
 		goto error;
 	}
 
-	spl_device_create(splat_class, NULL, MKDEV(SPLAT_MAJOR, 0),
-			  NULL, SPLAT_NAME);
+	splat_device = spl_device_create(splat_class, NULL,
+					 MKDEV(SPLAT_MAJOR, 0),
+					 NULL, SPLAT_NAME);
 
 	printk(KERN_INFO "splat: Loaded Solaris Porting LAyer "
 	       "Tests v%s\n", VERSION);
@@ -646,7 +648,7 @@ splat_fini(void)
 {
 	dev_t dev = MKDEV(SPLAT_MAJOR, 0);
 
-        spl_device_destroy(splat_class, dev);
+        spl_device_destroy(splat_class, splat_device, dev);
         spl_class_destroy(splat_class);
         cdev_del(&splat_cdev);
         unregister_chrdev_region(dev, SPLAT_MINORS);

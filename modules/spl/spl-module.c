@@ -165,11 +165,13 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	/* Do not append a 0 to devices with minor nums of 0 */
 	if (di->di_minor == 0) {
-	        spl_device_create(di->di_class, NULL, di->di_dev,
-		                  NULL, "%s", name);
+	        di->di_device = spl_device_create(di->di_class, NULL,
+						  di->di_dev, NULL,
+						  "%s", name);
 	} else {
-	        spl_device_create(di->di_class, NULL, di->di_dev,
-		                  NULL, "%s%d", name, di->di_minor);
+	        di->di_device = spl_device_create(di->di_class, NULL,
+						  di->di_dev, NULL,
+						  "%s%d", name, di->di_minor);
 	}
 
 	di->di_cdev = cdev;
@@ -188,7 +190,7 @@ static void
 __ddi_remove_minor_node_locked(dev_info_t *di, char *name)
 {
 	if (di->di_class) {
-		spl_device_destroy(di->di_class, di->di_dev);
+		spl_device_destroy(di->di_class, di->di_device, di->di_dev);
 		spl_class_destroy(di->di_class);
 
 		di->di_class = NULL;
