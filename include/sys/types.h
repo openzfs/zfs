@@ -9,6 +9,12 @@ extern "C" {
 #include <sys/sysmacros.h>
 #include "spl_config.h"
 
+#include <linux/uaccess_compat.h>
+#include <linux/file_compat.h>
+#include <linux/list_compat.h>
+#include <linux/time_compat.h>
+#include <linux/bitops_compat.h>
+
 #ifndef HAVE_UINTPTR_T
 typedef unsigned long			uintptr_t;
 #endif

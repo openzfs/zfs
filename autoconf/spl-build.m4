@@ -570,9 +570,17 @@ AC_DEFUN([SPL_AC_TIMESPEC_SUB], [
 ])
 
 dnl #
-dnl # 2.6,26 API change
+dnl # 2.6.26 API change
 dnl # Definition of struct fdtable relocated to linux/fdtable.h
 dnl #
 AC_DEFUN([SPL_AC_FDTABLE_HEADER], [
 	SPL_CHECK_HEADER([linux/fdtable.h], [FDTABLE], [], [])
+])
+
+dnl #
+dnl # 2.6.18 API change
+dnl # Added linux/uaccess.h
+dnl #
+AC_DEFUN([SPL_AC_UACCESS_HEADER], [
+	SPL_CHECK_HEADER([linux/uaccess.h], [UACCESS], [], [])
 ])

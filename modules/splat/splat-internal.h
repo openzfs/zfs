@@ -63,11 +63,6 @@
 #include <sys/atomic.h>
 #include <linux/cdev.h>
 
-#include <linux/file_compat.h>
-#include <linux/list_compat.h>
-#include <linux/time_compat.h>
-#include <linux/bitops_compat.h>
-
 #include "spl-device.h"
 #include "splat-ctl.h"
 

@@ -34,7 +34,6 @@ extern "C" {
 #include <linux/module.h>
 #include <linux/syscalls.h>
 #include <linux/fcntl.h>
-#include <linux/uaccess.h>
 #include <linux/buffer_head.h>
 #include <linux/dcache.h>
 #include <linux/namei.h>

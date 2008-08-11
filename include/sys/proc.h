@@ -29,7 +29,6 @@
 
 #include <linux/proc_fs.h>
 #include <linux/kmod.h>
-#include <linux/uaccess.h>
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
 #include <linux/seq_file.h>
