@@ -44,7 +44,21 @@ echo "Loading ${spl_module}"
 echo "Loading ${splat_module}"
 /sbin/insmod ${splat_module} || die "Unable to load ${splat_module}"
 
-while [ ! -c /dev/splatctl ]; do sleep 0.1; done
+# Wait a maximum of 3 seconds for udev to detect the new splatctl 
+# device, if we do not see the character device file created assume
+# udev is not running and manually create the character device.
+for i in `seq 1 50`; do
+	sleep 0.1
+
+	if [ -c /dev/splatctl ]; then
+		break
+	fi
+
+	if [ $i -eq 50 ]; then
+		mknod /dev/splatctl c 229 0
+	fi
+done
+
 $splat_cmd $tests $verbose
 
 echo "Unloading ${splat_module}"
