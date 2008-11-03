@@ -653,6 +653,7 @@ AC_DEFUN([SPL_AC_DIV64_64], [
 	AC_MSG_CHECKING([whether div64_64() is available])
 	SPL_LINUX_TRY_COMPILE([
 		#include <asm/div64.h>
+		#include <linux/types.h>
 	],[
 		uint64_t i = div64_64(1ULL, 1ULL);
 	],[

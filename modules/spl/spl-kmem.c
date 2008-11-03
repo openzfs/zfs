@@ -43,9 +43,9 @@
  */
 #ifdef DEBUG_KMEM
 /* Shim layer memory accounting */
-atomic64_t kmem_alloc_used;
+atomic64_t kmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long kmem_alloc_max = 0;
-atomic64_t vmem_alloc_used;
+atomic64_t vmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long vmem_alloc_max = 0;
 int kmem_warning_flag = 1;
 
@@ -1031,12 +1031,12 @@ spl_kmem_fini(void)
 	 * a serious concern here since it is module unload time. */
 	if (atomic64_read(&kmem_alloc_used) != 0)
 		CWARN("kmem leaked %ld/%ld bytes\n",
-		      atomic_read(&kmem_alloc_used), kmem_alloc_max);
+		      atomic64_read(&kmem_alloc_used), kmem_alloc_max);
 
 
 	if (atomic64_read(&vmem_alloc_used) != 0)
 		CWARN("vmem leaked %ld/%ld bytes\n",
-		      atomic_read(&vmem_alloc_used), vmem_alloc_max);
+		      atomic64_read(&vmem_alloc_used), vmem_alloc_max);
 
 	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
 	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);

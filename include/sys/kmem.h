@@ -42,8 +42,10 @@ extern "C" {
 #include <linux/rwsem.h>
 #include <linux/hash.h>
 #include <linux/ctype.h>
+#include <asm/atomic_compat.h>
 #include <sys/types.h>
 #include <sys/debug.h>
+
 /*
  * Memory allocation interfaces
  */

@@ -415,7 +415,7 @@ proc_doatomic64(struct ctl_table *table, int write, struct file *filp,
         if (write) {
                 *ppos += *lenp;
         } else {
-                val = atomic_read((atomic64_t *)table->data);
+                val = atomic64_read((atomic64_t *)table->data);
                 rc = proc_doulongvec_minmax(&dummy, write, filp,
                                             buffer, lenp, ppos);
         }
