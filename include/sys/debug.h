@@ -201,6 +201,7 @@ struct page_collection {
 #ifdef NDEBUG
 
 #define CDEBUG_STACK()			(0)
+#define CDEBUG_LIMIT(x, y, z, a...)     ((void)0)
 #define __CDEBUG_LIMIT(x, y, z, a...)   ((void)0)
 #define CDEBUG(mask, format, a...)	((void)0)
 #define CWARN(fmt, a...)		((void)0)

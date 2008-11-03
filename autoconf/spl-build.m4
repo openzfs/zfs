@@ -329,6 +329,25 @@ AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 ])
 
 dnl #
+dnl # 2.6.x API change,
+dnl # check if atomic64_t typedef is defined
+dnl #
+AC_DEFUN([SPL_AC_TYPE_ATOMIC64_T],
+	[AC_MSG_CHECKING([whether kernel defines atomic64_t])
+	SPL_LINUX_TRY_COMPILE([
+		#include <asm/atomic.h>
+	],[
+		atomic64_t *ptr;
+	],[
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_ATOMIC64_T, 1,
+		          [kernel defines atomic64_t])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
 dnl # 2.6.20 API change,
 dnl # INIT_WORK use 2 args and not store data inside
 dnl #
