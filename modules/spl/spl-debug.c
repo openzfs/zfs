@@ -40,7 +40,6 @@
 #include <linux/kthread.h>
 #include <linux/hardirq.h>
 #include <linux/interrupt.h>
-#include <linux/notifier.h>
 #include <sys/sysmacros.h>
 #include <sys/proc.h>
 #include <sys/debug.h>
@@ -108,7 +107,6 @@ char *trace_console_buffers[NR_CPUS][3];
 struct rw_semaphore trace_sem;
 atomic_t trace_tage_allocated = ATOMIC_INIT(0);
 
-static int panic_notifier(struct notifier_block *, unsigned long, void *);
 static int spl_debug_dump_all_pages(dumplog_priv_t *dp, char *);
 static void trace_fini(void);
 
@@ -118,12 +116,6 @@ static unsigned int pages_factor[TCD_TYPE_MAX] = {
        80,  /* 80% pages for TCD_TYPE_PROC */
        10,  /* 10% pages for TCD_TYPE_SOFTIRQ */
        10   /* 10% pages for TCD_TYPE_IRQ */
-};
-
-static struct notifier_block spl_panic_notifier = {
-        notifier_call:   panic_notifier,
-        next:            NULL,
-        priority:        10000
 };
 
 const char *
@@ -1168,26 +1160,6 @@ spl_debug_mark_buffer(char *text)
 EXPORT_SYMBOL(spl_debug_mark_buffer);
 
 static int
-panic_notifier(struct notifier_block *self,
-                   unsigned long unused1, void *unused2)
-{
-        if (spl_panic_in_progress)
-                return 0;
-
-        spl_panic_in_progress = 1;
-        mb();
-
-        if (!in_interrupt()) {
-                while (current->lock_depth >= 0)
-                        unlock_kernel();
-
-                spl_debug_dumplog(DL_NOTHREAD | DL_SINGLE_CPU);
-        }
-
-        return 0;
-}
-
-static int
 trace_init(int max_pages)
 {
         struct trace_cpu_data *tcd;
@@ -1255,14 +1227,7 @@ debug_init(void)
         if (rc)
                 return rc;
 
-#ifdef HAVE_ATOMIC_PANIC_NOTIFIER
-        atomic_notifier_chain_register(&panic_notifier_list,
-                                       &spl_panic_notifier);
-#else
-        notifier_chain_register(&panic_notifier_list,
-                                &spl_panic_notifier);
-#endif
-	return rc;
+        return rc;
 }
 
 static void
@@ -1311,15 +1276,5 @@ trace_fini(void)
 void
 debug_fini(void)
 {
-#ifdef HAVE_ATOMIC_PANIC_NOTIFIER
-        atomic_notifier_chain_unregister(&panic_notifier_list,
-                                         &spl_panic_notifier);
-#else
-        notifier_chain_unregister(&panic_notifier_list,
-                                  &spl_panic_notifier);
-#endif
-
         trace_fini();
-
-	return;
 }

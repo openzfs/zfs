@@ -230,10 +230,10 @@ dnl # SPL_LINUX_TRY_COMPILE like AC_TRY_COMPILE
 dnl #
 AC_DEFUN([SPL_LINUX_TRY_COMPILE],
 	[SPL_LINUX_COMPILE_IFELSE(
-        [AC_LANG_SOURCE([SPL_LANG_PROGRAM([[$1]], [[$2]])])],
-        [modules],
-        [test -s build/conftest.o],
-        [$3], [$4])
+	[AC_LANG_SOURCE([SPL_LANG_PROGRAM([[$1]], [[$2]])])],
+	[modules],
+	[test -s build/conftest.o],
+	[$3], [$4])
 ])
 
 dnl #
@@ -296,7 +296,7 @@ dnl #
 AC_DEFUN([SPL_CHECK_HEADER],
 	[AC_MSG_CHECKING([whether header $1 exists])
 	SPL_LINUX_TRY_COMPILE([
-        	#include <$1>
+		#include <$1>
 	],[
 		return 0;
 	],[
@@ -316,36 +316,15 @@ dnl #
 AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 	[AC_MSG_CHECKING([whether kernel defines uintptr_t])
 	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/types.h>
+		#include <linux/types.h>
 	],[
-	        uintptr_t *ptr;
+		uintptr_t *ptr;
 	],[
-	        AC_MSG_RESULT([yes])
-	        AC_DEFINE(HAVE_UINTPTR_T, 1,
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_UINTPTR_T, 1,
 		          [kernel defines uintptr_t])
 	],[
-	        AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.19 API change,
-dnl # panic_notifier_list use atomic_notifier operations
-dnl #
-
-AC_DEFUN([SPL_AC_ATOMIC_PANIC_NOTIFIER],
-	[AC_MSG_CHECKING([whether panic_notifier_list is atomic])
-	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/notifier.h>
-	        #include <linux/kernel.h>
-	],[
-	        struct atomic_notifier_head panic_notifier_list;
-	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_ATOMIC_PANIC_NOTIFIER, 1,
-	                [panic_notifier_list is atomic])
-	],[
-	        AC_MSG_RESULT(no)
+		AC_MSG_RESULT([no])
 	])
 ])
 
@@ -356,17 +335,16 @@ dnl #
 AC_DEFUN([SPL_AC_3ARGS_INIT_WORK],
 	[AC_MSG_CHECKING([whether INIT_WORK wants 3 args])
 	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/workqueue.h>
+		#include <linux/workqueue.h>
 	],[
-	        struct work_struct work;
-
-	        INIT_WORK(&work, NULL, NULL);
+		struct work_struct work;
+		INIT_WORK(&work, NULL, NULL);
 	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_3ARGS_INIT_WORK, 1,
-	                  [INIT_WORK wants 3 args])
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_3ARGS_INIT_WORK, 1,
+		          [INIT_WORK wants 3 args])
 	],[
-	        AC_MSG_RESULT(no)
+		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -377,15 +355,15 @@ dnl #
 AC_DEFUN([SPL_AC_2ARGS_REGISTER_SYSCTL],
 	[AC_MSG_CHECKING([whether register_sysctl_table() wants 2 args])
 	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/sysctl.h>
+		#include <linux/sysctl.h>
 	],[
-	        return register_sysctl_table(NULL,0);
+		return register_sysctl_table(NULL,0);
 	],[
-        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_2ARGS_REGISTER_SYSCTL, 1,
-        	          [register_sysctl_table() wants 2 args])
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_2ARGS_REGISTER_SYSCTL, 1,
+		          [register_sysctl_table() wants 2 args])
 	],[
-	        AC_MSG_RESULT(no)
+		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -415,18 +393,18 @@ dnl #
 AC_DEFUN([SPL_AC_PATH_IN_NAMEIDATA],
 	[AC_MSG_CHECKING([whether struct path used in struct nameidata])
 	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/namei.h>
+		#include <linux/namei.h>
 	],[
-	        struct nameidata nd;
+		struct nameidata nd;
 
 		nd.path.mnt = NULL;
 		nd.path.dentry = NULL;
 	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_PATH_IN_NAMEIDATA, 1,
-	                  [struct path used in struct nameidata])
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_PATH_IN_NAMEIDATA, 1,
+		          [struct path used in struct nameidata])
 	],[
-	        AC_MSG_RESULT(no)
+		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -446,17 +424,17 @@ dnl #
 AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
 	[AC_MSG_CHECKING([whether unnumbered sysctl support exists])
 	SPL_LINUX_TRY_COMPILE([
-	        #include <linux/sysctl.h>
+		#include <linux/sysctl.h>
 	],[
 		#ifndef CTL_UNNUMBERED
 		#error CTL_UNNUMBERED undefined
 		#endif
 	],[
-	        AC_MSG_RESULT(yes)
-	        AC_DEFINE(HAVE_CTL_UNNUMBERED, 1,
-	                  [unnumbered sysctl support exists])
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_CTL_UNNUMBERED, 1,
+		          [unnumbered sysctl support exists])
 	],[
-	        AC_MSG_RESULT(no)
+		AC_MSG_RESULT(no)
 	])
 ])
 
