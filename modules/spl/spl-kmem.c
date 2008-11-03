@@ -222,6 +222,18 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 			    (unsigned long long) size, flags,
 			    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
 
+		/* We use kstrdup() below because the string pointed to by
+		 * __FUNCTION__ might not be available by the time we want
+		 * to print it since the module might have been unloaded. */
+		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
+		if (unlikely(dptr->kd_func == NULL)) {
+			kfree(dptr);
+			CWARN("kstrdup() failed in kmem_alloc(%llu, 0x%x) "
+			    "(%lld/%llu)\n", (unsigned long long) size, flags,
+			    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+			goto out;
+		}
+
 		/* Use the correct allocator */
 		if (node_alloc) {
 			ASSERT(!(flags & __GFP_ZERO));
@@ -233,6 +245,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		}
 
 		if (unlikely(ptr == NULL)) {
+			kfree(dptr->kd_func);
 			kfree(dptr);
 			CWARN("kmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
@@ -251,7 +264,6 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 
 		dptr->kd_addr = ptr;
 		dptr->kd_size = size;
-		dptr->kd_func = func;
 		dptr->kd_line = line;
 
 		spin_lock_irqsave(&kmem_lock, irq_flags);
@@ -294,6 +306,8 @@ kmem_free_track(void *ptr, size_t size)
 	    (unsigned long long) size, atomic64_read(&kmem_alloc_used),
 	    kmem_alloc_max);
 
+	kfree(dptr->kd_func);
+
 	memset(dptr, 0x5a, sizeof(kmem_debug_t));
 	kfree(dptr);
 
@@ -319,10 +333,23 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		CWARN("vmem_alloc(%ld, 0x%x) debug failed\n",
 		    sizeof(kmem_debug_t), flags);
 	} else {
+		/* We use kstrdup() below because the string pointed to by
+		 * __FUNCTION__ might not be available by the time we want
+		 * to print it, since the module might have been unloaded. */
+		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
+		if (unlikely(dptr->kd_func == NULL)) {
+			kfree(dptr);
+			CWARN("kstrdup() failed in vmem_alloc(%llu, 0x%x) "
+			    "(%lld/%llu)\n", (unsigned long long) size, flags,
+			    atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+			goto out;
+		}
+
 		ptr = __vmalloc(size, (flags | __GFP_HIGHMEM) & ~__GFP_ZERO,
 		    PAGE_KERNEL);
 
 		if (unlikely(ptr == NULL)) {
+			kfree(dptr->kd_func);
 			kfree(dptr);
 			CWARN("vmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
@@ -344,7 +371,6 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 
 		dptr->kd_addr = ptr;
 		dptr->kd_size = size;
-		dptr->kd_func = func;
 		dptr->kd_line = line;
 
 		spin_lock_irqsave(&vmem_lock, irq_flags);
@@ -384,6 +410,8 @@ vmem_free_track(void *ptr, size_t size)
 	CDEBUG_LIMIT(D_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, atomic64_read(&vmem_alloc_used),
 	    vmem_alloc_max);
+
+	kfree(dptr->kd_func);
 
 	memset(dptr, 0x5a, sizeof(kmem_debug_t));
 	kfree(dptr);

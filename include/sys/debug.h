@@ -218,17 +218,32 @@ struct page_collection {
 #define __ASSERT_TAGE_INVARIANT(x)	((void)0)
 #define ASSERT(x)			((void)0)
 #define ASSERTF(x, y, z...)	        ((void)0)
-#define VERIFY(x)                       ((void)(x))
+#define VERIFY(cond)                                                    \
+do {                                                                    \
+        if (unlikely(!(cond))) {                                        \
+                printk(KERN_ERR "VERIFY(" #cond ") failed\n");          \
+                SBUG();                                                 \
+        }                                                               \
+} while (0)
 
-#define VERIFY3_IMPL(x, y, z, t, f, c)  if ((x) == (z)) ((void)0)
+#define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)                  \
+do {                                                                    \
+        if (!((TYPE)(LEFT) OP (TYPE)(RIGHT))) {                         \
+                printk(KERN_ERR "VERIFY3(" #LEFT " " #OP " " #RIGHT     \
+                       " failed (" FMT ", " FMT ")\n", CAST (LEFT),     \
+                       CAST (RIGHT));                                   \
+                SBUG();                                                 \
+        }                                                               \
+} while (0)
 
-#define VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
-#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
+#define VERIFY3S(x,y,z) VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
+#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%llu",         \
+                                     (unsigned long long))
 #define VERIFY3P(x,y,z) VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
 
-#define ASSERT3S(x,y,z) VERIFY3S(x, y, z)
-#define ASSERT3U(x,y,z) VERIFY3U(x, y, z)
-#define ASSERT3P(x,y,z) VERIFY3P(x, y, z)
+#define ASSERT3S(x,y,z) ((void)0)
+#define ASSERT3U(x,y,z) ((void)0)
+#define ASSERT3P(x,y,z) ((void)0)
 
 #else /* NDEBUG */
 
@@ -270,7 +285,7 @@ do {                                                                    \
 #define __ASSERT(cond)                                                  \
 do {                                                                    \
         if (unlikely(!(cond))) {                                        \
-                printk(KERN_ERR "ASSERTION(" #cond ") failed");         \
+                printk(KERN_ERR "ASSERTION(" #cond ") failed\n");       \
                 BUG();                                                  \
         }                                                               \
 } while (0)
@@ -322,8 +337,9 @@ do {                                                                    \
         }                                                               \
 } while (0)
 
-#define VERIFY3S(x,y,z) VERIFY3_IMPL(x, y, z, int64_t, "%ld", (long))
-#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%lu", (unsigned long))
+#define VERIFY3S(x,y,z) VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
+#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%llu`",        \
+                                     (unsigned long long))
 #define VERIFY3P(x,y,z) VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
 
 #define ASSERT3S(x,y,z) VERIFY3S(x, y, z)
