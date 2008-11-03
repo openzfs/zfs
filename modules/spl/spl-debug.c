@@ -40,6 +40,7 @@
 #include <linux/kthread.h>
 #include <linux/hardirq.h>
 #include <linux/interrupt.h>
+#include <linux/spinlock.h>
 #include <sys/sysmacros.h>
 #include <sys/proc.h>
 #include <sys/debug.h>
@@ -424,35 +425,12 @@ trace_put_console_buffer(char *buffer)
         put_cpu();
 }
 
-static struct trace_cpu_data *
-trace_get_tcd(void)
-{
-        int cpu;
-
-        cpu = get_cpu();
-        if (in_irq())
-                return &(*trace_data[TCD_TYPE_IRQ])[cpu].tcd;
-        else if (in_softirq())
-                return &(*trace_data[TCD_TYPE_SOFTIRQ])[cpu].tcd;
-
-        return &(*trace_data[TCD_TYPE_PROC])[cpu].tcd;
-}
-
-static void
-trace_put_tcd (struct trace_cpu_data *tcd)
-{
-        put_cpu();
-}
-
 static int
 trace_lock_tcd(struct trace_cpu_data *tcd)
 {
         __ASSERT(tcd->tcd_type < TCD_TYPE_MAX);
 
-        if (tcd->tcd_type == TCD_TYPE_IRQ)
-                local_irq_disable();
-        else if (tcd->tcd_type == TCD_TYPE_SOFTIRQ)
-                local_bh_disable();
+        spin_lock_irqsave(&tcd->tcd_lock, tcd->tcd_lock_flags);
 
         return 1;
 }
@@ -462,10 +440,34 @@ trace_unlock_tcd(struct trace_cpu_data *tcd)
 {
         __ASSERT(tcd->tcd_type < TCD_TYPE_MAX);
 
-        if (tcd->tcd_type == TCD_TYPE_IRQ)
-                local_irq_enable();
-        else if (tcd->tcd_type == TCD_TYPE_SOFTIRQ)
-                local_bh_enable();
+        spin_unlock_irqrestore(&tcd->tcd_lock, tcd->tcd_lock_flags);
+}
+
+static struct trace_cpu_data *
+trace_get_tcd(void)
+{
+        int cpu;
+        struct trace_cpu_data *tcd;
+
+        cpu = get_cpu();
+        if (in_irq())
+                tcd = &(*trace_data[TCD_TYPE_IRQ])[cpu].tcd;
+        else if (in_softirq())
+                tcd = &(*trace_data[TCD_TYPE_SOFTIRQ])[cpu].tcd;
+        else
+                tcd = &(*trace_data[TCD_TYPE_PROC])[cpu].tcd;
+
+        trace_lock_tcd(tcd);
+
+        return tcd;
+}
+
+static void
+trace_put_tcd (struct trace_cpu_data *tcd)
+{
+        trace_unlock_tcd(tcd);
+
+        put_cpu();
 }
 
 static void
@@ -523,23 +525,6 @@ static int
 trace_max_debug_mb(void)
 {
         return MAX(512, ((num_physpages >> (20 - PAGE_SHIFT)) * 80) / 100);
-}
-
-static void
-trace_call_on_all_cpus(void (*fn)(void *arg), void *arg)
-{
-        cpumask_t mask, cpus_allowed = current->cpus_allowed;
-        int cpu;
-
-	for_each_online_cpu(cpu) {
-                cpus_clear(mask);
-                cpu_set(cpu, mask);
-                set_cpus_allowed(current, mask);
-
-                fn(arg);
-
-                set_cpus_allowed(current, cpus_allowed);
-        }
 }
 
 static struct trace_page *
@@ -861,16 +846,17 @@ collect_pages_from_single_cpu(struct page_collection *pc)
 }
 
 static void
-collect_pages_on_cpu(void *info)
+collect_pages_on_all_cpus(struct page_collection *pc)
 {
         struct trace_cpu_data *tcd;
-        struct page_collection *pc = info;
-        int i;
+        int i, cpu;
 
         spin_lock(&pc->pc_lock);
-        tcd_for_each_type_lock(tcd, i) {
-                list_splice_init(&tcd->tcd_pages, &pc->pc_pages);
-                tcd->tcd_cur_pages = 0;
+        for_each_possible_cpu(cpu) {
+                tcd_for_each_type_lock(tcd, i, cpu) {
+                        list_splice_init(&tcd->tcd_pages, &pc->pc_pages);
+                        tcd->tcd_cur_pages = 0;
+                }
         }
         spin_unlock(&pc->pc_lock);
 }
@@ -883,34 +869,38 @@ collect_pages(dumplog_priv_t *dp, struct page_collection *pc)
         if (spl_panic_in_progress || dp->dp_flags & DL_SINGLE_CPU)
                 collect_pages_from_single_cpu(pc);
         else
-                trace_call_on_all_cpus(collect_pages_on_cpu, pc);
+                collect_pages_on_all_cpus(pc);
 }
 
 static void
-put_pages_back_on_cpu(void *info)
+put_pages_back_on_all_cpus(struct page_collection *pc)
 {
-        struct page_collection *pc = info;
         struct trace_cpu_data *tcd;
         struct list_head *cur_head;
         struct trace_page *tage;
         struct trace_page *tmp;
-        int i;
+        int i, cpu;
 
         spin_lock(&pc->pc_lock);
-        tcd_for_each_type_lock(tcd, i) {
-                cur_head = tcd->tcd_pages.next;
 
-                list_for_each_entry_safe(tage, tmp, &pc->pc_pages, linkage) {
+        for_each_possible_cpu(cpu) {
+                tcd_for_each_type_lock(tcd, i, cpu) {
+                        cur_head = tcd->tcd_pages.next;
 
-                        __ASSERT_TAGE_INVARIANT(tage);
+                        list_for_each_entry_safe(tage, tmp, &pc->pc_pages,
+                                                 linkage) {
 
-                        if (tage->cpu != smp_processor_id() || tage->type != i)
-                                continue;
+                                __ASSERT_TAGE_INVARIANT(tage);
 
-                        tage_to_tail(tage, cur_head);
-                        tcd->tcd_cur_pages++;
+                                if (tage->cpu != cpu || tage->type != i)
+                                        continue;
+
+                                tage_to_tail(tage, cur_head);
+                                tcd->tcd_cur_pages++;
+                        }
                 }
         }
+
         spin_unlock(&pc->pc_lock);
 }
 
@@ -918,7 +908,7 @@ static void
 put_pages_back(struct page_collection *pc)
 {
         if (!spl_panic_in_progress)
-                trace_call_on_all_cpus(put_pages_back_on_cpu, pc);
+                put_pages_back_on_all_cpus(pc);
 }
 
 static struct file *
@@ -1177,6 +1167,7 @@ trace_init(int max_pages)
         }
 
         tcd_for_each(tcd, i, j) {
+                spin_lock_init(&tcd->tcd_lock);
                 tcd->tcd_pages_factor = pages_factor[i];
                 tcd->tcd_type = i;
                 tcd->tcd_cpu = j;
@@ -1231,23 +1222,26 @@ debug_init(void)
 }
 
 static void
-trace_cleanup_on_cpu(void *info)
+trace_cleanup_on_all_cpus(void)
 {
         struct trace_cpu_data *tcd;
         struct trace_page *tage;
         struct trace_page *tmp;
-        int i;
+        int i, cpu;
 
-        tcd_for_each_type_lock(tcd, i) {
-                tcd->tcd_shutting_down = 1;
+        for_each_possible_cpu(cpu) {
+                tcd_for_each_type_lock(tcd, i, cpu) {
+                        tcd->tcd_shutting_down = 1;
 
-                list_for_each_entry_safe(tage, tmp, &tcd->tcd_pages, linkage) {
-                        __ASSERT_TAGE_INVARIANT(tage);
+                        list_for_each_entry_safe(tage, tmp, &tcd->tcd_pages,
+                                                 linkage) {
+                                __ASSERT_TAGE_INVARIANT(tage);
 
-                        list_del(&tage->linkage);
-                        tage_free(tage);
+                                list_del(&tage->linkage);
+                                tage_free(tage);
+                        }
+                        tcd->tcd_cur_pages = 0;
                 }
-                tcd->tcd_cur_pages = 0;
         }
 }
 
@@ -1256,7 +1250,7 @@ trace_fini(void)
 {
         int i, j;
 
-        trace_call_on_all_cpus(trace_cleanup_on_cpu, NULL);
+        trace_cleanup_on_all_cpus();
 
         for (i = 0; i < num_possible_cpus(); i++) {
                 for (j = 0; j < 3; j++) {

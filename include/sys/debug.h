@@ -157,6 +157,15 @@ union trace_data_union {
 		unsigned short          tcd_type;
 		/* The factors to share debug memory. */
 		unsigned short          tcd_pages_factor;
+
+		/*
+		 * This spinlock is needed to workaround the problem of
+		 * set_cpus_allowed() being GPL-only. Since we cannot
+		 * schedule a thread on a specific CPU when dumping the
+		 * pages, we must use the spinlock for mutual exclusion.
+		 */
+		spinlock_t              tcd_lock;
+		unsigned long           tcd_lock_flags;
 	} tcd;
 	char __pad[L1_CACHE_ALIGN(sizeof(struct trace_cpu_data))];
 };
@@ -168,9 +177,9 @@ extern union trace_data_union (*trace_data[TCD_TYPE_MAX])[NR_CPUS];
         for (j = 0, ((tcd) = &(*trace_data[i])[j].tcd);               \
              j < num_possible_cpus(); j++, (tcd) = &(*trace_data[i])[j].tcd)
 
-#define tcd_for_each_type_lock(tcd, i)                                \
+#define tcd_for_each_type_lock(tcd, i, cpu)                           \
     for (i = 0; trace_data[i] &&                                      \
-         (tcd = &(*trace_data[i])[smp_processor_id()].tcd) &&         \
+         (tcd = &(*trace_data[i])[cpu].tcd) &&                        \
          trace_lock_tcd(tcd); trace_unlock_tcd(tcd), i++)
 
 struct trace_page {
