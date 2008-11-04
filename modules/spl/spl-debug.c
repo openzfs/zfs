@@ -642,7 +642,7 @@ spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
                const char *format1, va_list args, const char *format2, ...)
 {
         struct trace_cpu_data   *tcd = NULL;
-        struct spl_debug_header header;
+        struct spl_debug_header header = { 0, };
         struct trace_page       *tage;
         /* string_buf is used only if tcd != NULL, and is always set then */
         char                    *string_buf = NULL;
