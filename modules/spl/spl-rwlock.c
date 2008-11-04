@@ -61,11 +61,11 @@ __rwsem_wake_one_writer_locked(struct rw_semaphore *sem)
 }
 
 /* release a read lock on the semaphore */
-static void 
+static void
 __up_read_locked(struct rw_semaphore *sem)
 {
 	if (--sem->activity == 0 && !list_empty(&sem->wait_list))
-		sem = __rwsem_wake_one_writer_locked(sem);
+		(void)__rwsem_wake_one_writer_locked(sem);
 }
 
 /* trylock for writing -- returns 1 if successful, 0 if contention */
