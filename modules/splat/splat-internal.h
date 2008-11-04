@@ -110,8 +110,8 @@
 		printk(KERN_ERR "splat: Error initializing: " n "/" #tid" \n");\
 	} else {							\
 		memset(_test_, 0, sizeof(*_test_));			\
-		strncpy(_test_->desc.name, n, SPLAT_NAME_SIZE);		\
-		strncpy(_test_->desc.desc, d, SPLAT_DESC_SIZE);		\
+		strncpy(_test_->desc.name, n, SPLAT_NAME_SIZE-1);	\
+		strncpy(_test_->desc.desc, d, SPLAT_DESC_SIZE-1);	\
 		_test_->desc.id = tid;					\
 	        _test_->test = func;					\
 		INIT_LIST_HEAD(&(_test_->test_list));			\
