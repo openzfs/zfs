@@ -40,10 +40,15 @@ kobj_open_file(const char *name)
 	int rc;
 	ENTRY;
 
-	if ((rc = vn_open(name, UIO_SYSSPACE, FREAD, 0644, &vp, 0, 0)))
+	file = kmalloc(sizeof(_buf_t), GFP_KERNEL);
+	if (file == NULL)
 		RETURN((_buf_t *)-1UL);
 
-	file = kmalloc(sizeof(_buf_t), GFP_KERNEL);
+	if ((rc = vn_open(name, UIO_SYSSPACE, FREAD, 0644, &vp, 0, 0))) {
+		kfree(file);
+		RETURN((_buf_t *)-1UL);
+	}
+
 	file->vp = vp;
 
 	RETURN(file);
