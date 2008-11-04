@@ -126,9 +126,9 @@ splat_atomic_work(void *priv)
 }
 
 static int
-splat_atomic_test1_cond(atomic_priv_t *ap)
+splat_atomic_test1_cond(atomic_priv_t *ap, int started)
 {
-	return (ap->ap_atomic_exited == SPLAT_ATOMIC_COUNT_64);
+	return (ap->ap_atomic_exited == started);
 }
 
 static int
@@ -137,7 +137,7 @@ splat_atomic_test1(struct file *file, void *arg)
 	atomic_priv_t ap;
         DEFINE_WAIT(wait);
 	kthread_t *thr;
-	int i;
+	int i, rc = 0;
 
 	ap.ap_magic = SPLAT_ATOMIC_TEST_MAGIC;
 	ap.ap_file = file;
@@ -153,7 +153,11 @@ splat_atomic_test1(struct file *file, void *arg)
 		thr = (kthread_t *)thread_create(NULL, 0, splat_atomic_work,
 						 &ap, 0, &p0, TS_RUN,
 						 minclsyspri);
-		ASSERT(thr);
+		if (thr == NULL) {
+			rc = -ESRCH;
+			spin_unlock(&ap.ap_lock);
+			break;
+		}
 
 		/* Prepare to wait, the new thread will wake us once it
 		 * has made a copy of the unique private passed data */
@@ -162,7 +166,13 @@ splat_atomic_test1(struct file *file, void *arg)
 		schedule();
 	}
 
-	wait_event_interruptible(ap.ap_waitq, splat_atomic_test1_cond(&ap));
+	wait_event_interruptible(ap.ap_waitq, splat_atomic_test1_cond(&ap, i));
+
+	if (rc) {
+		splat_vprint(file, SPLAT_ATOMIC_TEST1_NAME, "Only started "
+			     "%d/%d test threads\n", i, SPLAT_ATOMIC_COUNT_64);
+		return rc;
+	}
 
 	if (ap.ap_atomic != SPLAT_ATOMIC_INIT_VALUE) {
 		splat_vprint(file, SPLAT_ATOMIC_TEST1_NAME,
