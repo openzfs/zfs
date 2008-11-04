@@ -601,7 +601,8 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 	        spin_lock_init(&kcp.kcp_lock);
 	        init_waitqueue_head(&kcp.kcp_waitq);
 
-		sprintf(cache_name, "%s-%d-%d", SPLAT_KMEM_CACHE_NAME, size, i);
+		(void)snprintf(cache_name, 32, "%s-%d-%d",
+			       SPLAT_KMEM_CACHE_NAME, size, i);
 		kcp.kcp_cache = kmem_cache_create(cache_name, kcp.kcp_size, 0,
 	                                  splat_kmem_cache_test_constructor,
 	                                  splat_kmem_cache_test_destructor,

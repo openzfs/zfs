@@ -161,18 +161,18 @@ vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 	  vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd)
 {
 	char *realpath;
-	int rc;
+	int len, rc;
 	ENTRY;
 
 	ASSERT(vp == rootdir);
 
-	realpath = kmalloc(strlen(path) + 2, GFP_KERNEL);
+	len = strlen(path) + 2;
+	realpath = kmalloc(len, GFP_KERNEL);
 	if (!realpath)
 		RETURN(ENOMEM);
 
-	sprintf(realpath, "/%s", path);
+	(void)snprintf(realpath, len, "/%s", path);
 	rc = vn_open(realpath, seg, flags, mode, vpp, x1, x2);
-
 	kfree(realpath);
 
 	RETURN(rc);
