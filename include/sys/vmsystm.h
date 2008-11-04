@@ -72,9 +72,6 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 	if (len == 0)
 		return -ENAMETOOLONG;
 
-	if (len < 0)
-		return -EFAULT;
-
 	/* XXX: Should return ENAMETOOLONG if 'strlen(from) > len' */
 
 	memset(to, 0, len);

@@ -262,14 +262,11 @@ splat_kmem_cache_test_constructor(void *ptr, void *priv, int flags)
 	kmem_cache_priv_t *kcp = (kmem_cache_priv_t *)priv;
 	kmem_cache_data_t *kcd = (kmem_cache_data_t *)ptr;
 
-	if (kcd) {
-		if (kcp) {
-			kcd->kcd_magic = kcp->kcp_magic;
-			kcp->kcp_count++;
-		}
-
-		memset(kcd->kcd_buf, 0xaa, kcp->kcp_size - (sizeof *kcd));
+	if (kcd && kcp) {
+		kcd->kcd_magic = kcp->kcp_magic;
 		kcd->kcd_flag = 1;
+		memset(kcd->kcd_buf, 0xaa, kcp->kcp_size - (sizeof *kcd));
+		kcp->kcp_count++;
 	}
 
 	return 0;
@@ -281,14 +278,11 @@ splat_kmem_cache_test_destructor(void *ptr, void *priv)
 	kmem_cache_priv_t *kcp = (kmem_cache_priv_t *)priv;
 	kmem_cache_data_t *kcd = (kmem_cache_data_t *)ptr;
 
-	if (kcd) {
-		if (kcp) {
-			kcd->kcd_magic = 0;
-			kcp->kcp_count--;
-		}
-
-		memset(kcd->kcd_buf, 0xbb, kcp->kcp_size - (sizeof *kcd));
+	if (kcd && kcp) {
+		kcd->kcd_magic = 0;
 		kcd->kcd_flag = 0;
+		memset(kcd->kcd_buf, 0xbb, kcp->kcp_size - (sizeof *kcd));
+		kcp->kcp_count--;
 	}
 
 	return;
