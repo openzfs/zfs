@@ -55,18 +55,14 @@ EXPORT_SYMBOL(__gethrestime);
 hrtime_t
 __gethrtime(void) {
 #ifdef HAVE_MONOTONIC_CLOCK
-       unsigned long long res = monotonic_clock();
+        unsigned long long res = monotonic_clock();
 
-       /* Deal with signed/unsigned mismatch */
-       return (hrtime_t)(res & ~(1ULL << (BITS_PER_LONG - 1)));
+        /* Deal with signed/unsigned mismatch */
+        return (hrtime_t)(res & ~(1ULL << 63));
 #else
-        timespec_t tv;
-        hrtime_t rc;
+        int64_t j = get_jiffies_64();
 
-        do_posix_clock_monotonic_gettime(&tv);
-        rc = (NSEC_PER_SEC * (hrtime_t)tv.tv_sec) + (hrtime_t)tv.tv_nsec;
-
-        return rc;
+        return j * NSEC_PER_SEC / HZ;
 #endif
 }
 EXPORT_SYMBOL(__gethrtime);

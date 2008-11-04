@@ -184,7 +184,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	RETURN(DDI_SUCCESS);
 }
-EXPORT_SYMBOL(__ddi_create_minor_node);
+EXPORT_SYMBOL_GPL(__ddi_create_minor_node);
 
 static void
 __ddi_remove_minor_node_locked(dev_info_t *di, char *name)
@@ -216,7 +216,7 @@ __ddi_remove_minor_node(dev_info_t *di, char *name)
 	mutex_exit(&di->di_lock);
 	EXIT;
 }
-EXPORT_SYMBOL(ddi_remove_minor_node);
+EXPORT_SYMBOL_GPL(ddi_remove_minor_node);
 
 #if 0
 static int
