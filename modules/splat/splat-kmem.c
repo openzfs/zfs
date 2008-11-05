@@ -582,7 +582,7 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 	kthread_t *thr;
 	struct timespec start, stop, delta;
 	char cache_name[32];
-	int i, j, threads = 32;
+	int i, j, rc = 0, threads = 32;
 
 	kcp.kcp_magic = SPLAT_KMEM_TEST_MAGIC;
 	kcp.kcp_file = file;
@@ -611,7 +611,8 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 			splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
 		                     "Unable to create '%s' cache\n",
 				     SPLAT_KMEM_CACHE_NAME);
-			return -ENOMEM;
+			rc = -ENOMEM;
+			break;
 		}
 
 		start = current_kernel_time();
@@ -619,7 +620,10 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 		for (j = 0; j < threads; j++) {
 			thr = thread_create(NULL, 0, splat_kmem_test8_thread,
 			                    &kcp, 0, &p0, TS_RUN, minclsyspri);
-			ASSERT(thr != NULL);
+			if (thr == NULL) {
+				rc = -ESRCH;
+				break;
+			}
 			spin_lock(&kcp.kcp_lock);
 			kcp.kcp_threads++;
 			spin_unlock(&kcp.kcp_lock);
@@ -644,11 +648,14 @@ splat_kmem_test8_sc(struct file *file, void *arg, int size, int count)
 
 		kmem_cache_destroy(kcp.kcp_cache);
 
-		if (kcp.kcp_rc)
+		if (!rc && kcp.kcp_rc)
+			rc = kcp.kcp_rc;
+
+		if (rc)
 			break;
 	}
 
-	return kcp.kcp_rc;
+	return rc;
 }
 
 static int
