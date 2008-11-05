@@ -87,7 +87,6 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		int state, pri_t pri)
 {
 	thread_priv_t *tp;
-	DEFINE_WAIT(wait);
 	struct task_struct *tsk;
 	char *p;
 	ENTRY;

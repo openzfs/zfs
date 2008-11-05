@@ -78,7 +78,6 @@ static int
 splat_thread_test1(struct file *file, void *arg)
 {
 	thread_priv_t tp;
-        DEFINE_WAIT(wait);
 	kthread_t *thr;
 
 	tp.tp_magic = SPLAT_THREAD_TEST_MAGIC;
@@ -128,7 +127,6 @@ static int
 splat_thread_test2(struct file *file, void *arg)
 {
 	thread_priv_t tp;
-        DEFINE_WAIT(wait);
 	kthread_t *thr;
 	int rc = 0;
 
