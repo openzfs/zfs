@@ -1,3 +1,24 @@
+2008-11-05 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.3.4
+
+	* : Coverity clean.
+
+	* : Patches from Ricardo M. Correia <Ricardo.M.Correia@sun.com> 
+	applied with minor revisions:
+
+		spl-00-rm-gpl-symbol-notifier_chain.patch
+		spl-01-rm-gpl-symbol-set_cpus_allowed.patch
+		spl-02-rm-gpl-symbols-device.patch
+		spl-03-rm-gpl-symbol-ktime_get_ts.patch
+		spl-04-fix-taskq-spinlock-lockup.patch
+		spl-05-div64.patch
+		spl-06-atomic64.patch
+		spl-07-kmem-cleanup.patch
+		spl-08-km-sleep-nofail.patch
+		spl-09-fix-kmem-track-oops.patch
+		spl-10-fix-assert-verify-ndebug.patch
+
 2008-06-30 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.3.3
