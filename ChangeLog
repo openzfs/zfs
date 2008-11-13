@@ -1,3 +1,11 @@
+2008-11-13 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* include/sys/sunddi.h, modules/spl/spl-module.c : Removed default
+	udev support from sunddi implementation because it uses GPL-only
+	symbols.  This support is optionally available for SPL consumers
+	if they define HAVE_GPL_ONLY_SYMBOLS and license their module as
+	GPL using the MODULE_LICENSE("GPL") macro.
+
 2008-11-05 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.3.4

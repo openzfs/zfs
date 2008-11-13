@@ -87,6 +87,7 @@ typedef struct dev_info {
 	minor_t di_minor;
 	dev_t di_dev;
 	unsigned di_minors;
+	int di_flags;
 	struct list_head di_list;
 } dev_info_t;
 
@@ -180,6 +181,11 @@ typedef struct modldrv {
 #define	DDI_PROP_DONTPASS		0x0001
 #define	DDI_PROP_CANSLEEP		0x0002
 
+#define	GLOBAL_DEV			0x02
+#define	NODEBOUND_DEV			0x04
+#define	NODESPECIFIC_DEV		0x06
+#define	ENUMERATED_DEV			0x08
+
 #define ddi_prop_lookup_string(x1,x2,x3,x4,x5)	(*x5 = NULL)
 #define ddi_prop_free(x)			(void)0
 #define ddi_root_node()				(void)0
@@ -189,7 +195,7 @@ typedef struct modldrv {
 
 extern int __ddi_create_minor_node(dev_info_t *dip, char *name, int spec_type,
                                    minor_t minor_num, char *node_type,
-				   int flag, struct module *mod);
+				   int flags, struct module *mod);
 extern void __ddi_remove_minor_node(dev_info_t *dip, char *name);
 extern int __mod_install(struct modlinkage *modlp);
 extern int __mod_remove(struct modlinkage *modlp);
@@ -197,19 +203,64 @@ extern int __mod_remove(struct modlinkage *modlp);
 static __inline__ void ddi_report_dev(dev_info_t *d) { }
 static __inline__ void ddi_prop_remove_all(dev_info_t *dip) { }
 
+static __inline__ void
+ddi_remove_minor_node(dev_info_t *di, char *name)
+{
+#ifdef HAVE_GPL_ONLY_SYMBOLS
+	/* Cleanup udev (GPL-only symbols required).  This is performed as
+	 * part of an inline function to ensure that these symbols are not
+	 * linked against the SPL which is GPL'ed.  But instead they are
+	 * linked against the package building against the SPL to ensure
+	 * its license allows linking with GPL-only symbols. */
+	if (di->di_class) {
+		spl_device_destroy(di->di_class, di->di_device, di->di_dev);
+		spl_class_destroy(di->di_class);
+		di->di_class = NULL;
+		di->di_dev = 0;
+	}
+#endif
+
+	__ddi_remove_minor_node(di, name);
+}
+
 static __inline__ int
 ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
-                      minor_t minor_num, char *node_type, int flag)
+                      minor_t minor_num, char *node_type, int flags)
 {
-	return __ddi_create_minor_node(di, name, spec_type, minor_num,
-	                               node_type, flag, THIS_MODULE);
+	int rc;
 
+	rc = __ddi_create_minor_node(di, name, spec_type, minor_num,
+	                             node_type, flags, THIS_MODULE);
+	if (rc)
+		return rc;
+
+#ifdef HAVE_GPL_ONLY_SYMBOLS
+	/* Setup udev (GPL-only symbols required).  This is performed as
+	 * part of an inline function to ensure that these symbols are not
+	 * linked against the SPL which is GPL'ed.  But instead they are
+	 * linked against the package building against the SPL to ensure
+	 * its license allows linking with GPL-only symbols. */
+	di->di_class = spl_class_create(THIS_MODULE, name);
+	if (IS_ERR(di->di_class)) {
+		rc = PTR_ERR(di->di_class);
+		di->di_class = NULL;
+		ddi_remove_minor_node(di, name);
+		CERROR("Error creating %s class, %d\n", name, rc);
+		RETURN(DDI_FAILURE);
+	}
+
+	/* Do not append a 0 to devices with minor nums of 0 */
+	di->di_device = spl_device_create(di->di_class, NULL, di->di_dev, NULL,
+					  (di->di_minor == 0) ? "%s" : "%s%d",
+					  name, di->di_minor);
+#endif
+
+	return rc;
 }
 
 #undef mod_install
 #undef mod_remove
 
-#define ddi_remove_minor_node		__ddi_remove_minor_node
 #define mod_install			__mod_install
 #define mod_remove			__mod_remove
 

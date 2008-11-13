@@ -58,7 +58,7 @@ mod_generic_ioctl(struct inode *ino, struct file *filp,
 		  unsigned int cmd, unsigned long arg)
 {
 	struct dev_info *di;
-	int rc, flag = 0, rvalp = 0;
+	int rc, flags = 0, rvalp = 0;
 	cred_t *cr = NULL;
 
 	di = get_dev_info(MKDEV(imajor(ino), iminor(ino)));
@@ -67,14 +67,14 @@ mod_generic_ioctl(struct inode *ino, struct file *filp,
 
 	rc = di->di_ops->devo_cb_ops->cb_ioctl(di->di_dev,
 	                                       (int)cmd,(intptr_t)arg,
-	                                       flag, cr, &rvalp);
+	                                       flags, cr, &rvalp);
 	return rc;
 }
 
 int
 __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
                         minor_t minor_num, char *node_type,
-		        int flag, struct module *mod)
+		        int flags, struct module *mod)
 {
 	struct cdev *cdev;
 	struct dev_ops *dev_ops;
@@ -86,7 +86,6 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	ASSERT(spec_type == S_IFCHR);
 	ASSERT(minor_num < di->di_minors);
 	ASSERT(!strcmp(node_type, DDI_PSEUDO));
-	ASSERT(flag == 0);
 
 	fops = kzalloc(sizeof(struct file_operations), GFP_KERNEL);
 	if (fops == NULL)
@@ -141,8 +140,10 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	ASSERT(cb_ops->cb_aread == NULL);
 	ASSERT(cb_ops->cb_awrite == NULL);
 
+	di->di_cdev  = cdev;
+	di->di_flags = flags;
 	di->di_minor = minor_num;
-	di->di_dev = MKDEV(di->di_major, di->di_minor);
+	di->di_dev   = MKDEV(di->di_major, di->di_minor);
 
 	rc = cdev_add(cdev, di->di_dev, 1);
 	if (rc) {
@@ -153,29 +154,6 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		RETURN(DDI_FAILURE);
 	}
 
-	di->di_class = spl_class_create(THIS_MODULE, name);
-	if (IS_ERR(di->di_class)) {
-                rc = PTR_ERR(di->di_class);
-                CERROR("Error creating %s class, %d\n", name, rc);
-		kfree(fops);
-                cdev_del(di->di_cdev);
-		mutex_exit(&di->di_lock);
-		RETURN(DDI_FAILURE);
-	}
-
-	/* Do not append a 0 to devices with minor nums of 0 */
-	if (di->di_minor == 0) {
-	        di->di_device = spl_device_create(di->di_class, NULL,
-						  di->di_dev, NULL,
-						  "%s", name);
-	} else {
-	        di->di_device = spl_device_create(di->di_class, NULL,
-						  di->di_dev, NULL,
-						  "%s%d", name, di->di_minor);
-	}
-
-	di->di_cdev = cdev;
-
 	spin_lock(&dev_info_lock);
 	list_add(&di->di_list, &dev_info_list);
 	spin_unlock(&dev_info_lock);
@@ -184,19 +162,11 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	RETURN(DDI_SUCCESS);
 }
-EXPORT_SYMBOL_GPL(__ddi_create_minor_node);
+EXPORT_SYMBOL(__ddi_create_minor_node);
 
 static void
 __ddi_remove_minor_node_locked(dev_info_t *di, char *name)
 {
-	if (di->di_class) {
-		spl_device_destroy(di->di_class, di->di_device, di->di_dev);
-		spl_class_destroy(di->di_class);
-
-		di->di_class = NULL;
-		di->di_dev = 0;
-	}
-
 	if (di->di_cdev) {
 		cdev_del(di->di_cdev);
 		di->di_cdev = NULL;
@@ -216,19 +186,19 @@ __ddi_remove_minor_node(dev_info_t *di, char *name)
 	mutex_exit(&di->di_lock);
 	EXIT;
 }
-EXPORT_SYMBOL_GPL(ddi_remove_minor_node);
+EXPORT_SYMBOL(__ddi_remove_minor_node);
 
 #if 0
 static int
 mod_generic_open(struct inode *, struct file *)
 {
-	open(dev_t *devp, int flag, int otyp, cred_t *credp);
+	open(dev_t *devp, int flags, int otyp, cred_t *credp);
 }
 
 static int
 mod_generic_close(struct inode *, struct file *)
 {
-	close(dev_t dev, int flag, int otyp, cred_t *credp);
+	close(dev_t dev, int flags, int otyp, cred_t *credp);
 }
 
 static ssize_t

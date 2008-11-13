@@ -30,7 +30,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
 			*** Please specify the location of the kernel source
-			*** with the '--with-kernel=PATH' option])
+			*** with the '--with-linux=PATH' option])
 		fi
 	fi
 
@@ -72,6 +72,12 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(kmoduledir)
+])
+
+AC_DEFUN([SPL_AC_LICENSE], [
+        AC_MSG_CHECKING([license])
+        AC_MSG_RESULT([GPL])
+	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
 ])
 
 AC_DEFUN([SPL_AC_DEBUG], [
