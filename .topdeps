@@ -6,3 +6,4 @@ fix-get-configs
 fix-newlines
 fix-taskq
 fix-dnode-cons
+fix-dbuf_dirty_record_t
