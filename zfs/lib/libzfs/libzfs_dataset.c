@@ -1048,7 +1048,7 @@ zfs_build_perms(zfs_handle_t *zhp, char *whostr, char *perms,
 	nvlist_t *perms_nvp = NULL;
 	nvlist_t *sets_nvp = NULL;
 	char errbuf[1024];
-	char *who_tok, *perm;
+	char *who_tok = NULL, *perm;
 	int error;
 
 	*nvp = NULL;
@@ -3523,7 +3523,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	int err;
 	zfs_cmd_t zc = { 0 };
 	boolean_t restore_resv = 0;
-	uint64_t old_volsize, new_volsize;
+	uint64_t old_volsize = 0, new_volsize;
 	zfs_prop_t resv_prop;
 
 	assert(zhp->zfs_type == ZFS_TYPE_FILESYSTEM ||
@@ -3774,6 +3774,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 			    "child dataset with inherited mountpoint is used "
 			    "in a non-global zone"));
 			(void) zfs_error(hdl, EZFS_ZONED, errbuf);
+			ret = -1;
 			goto error;
 		}
 
