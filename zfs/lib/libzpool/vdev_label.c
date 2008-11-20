@@ -441,6 +441,8 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 
 		case VDEV_LABEL_SPARE:
 			return (spa_has_spare(spa, device_guid));
+		default:
+			break;
 		}
 	}
 
