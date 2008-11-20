@@ -335,6 +335,7 @@ spa_add(const char *name, const char *altroot)
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_scrub_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_scrub_io_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&spa->spa_zio_cv, NULL, CV_DEFAULT, NULL);
 
 	spa->spa_name = spa_strdup(name);
 	spa->spa_state = POOL_STATE_UNINITIALIZED;
@@ -398,6 +399,7 @@ spa_remove(spa_t *spa)
 	cv_destroy(&spa->spa_async_cv);
 	cv_destroy(&spa->spa_scrub_cv);
 	cv_destroy(&spa->spa_scrub_io_cv);
+	cv_destroy(&spa->spa_zio_cv);
 
 	mutex_destroy(&spa->spa_uberblock_lock);
 	mutex_destroy(&spa->spa_async_lock);
