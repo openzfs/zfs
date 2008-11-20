@@ -176,7 +176,7 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 }
 
 static char *
-spa_history_zone()
+spa_history_zone(void)
 {
 #ifdef _KERNEL
 	return (curproc->p_zone->zone_name);

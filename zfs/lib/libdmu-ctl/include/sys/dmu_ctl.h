@@ -47,7 +47,7 @@
  */
 int dctl_server_init(const char *cfg_dir, int min_threads,
     int max_free_threads);
-int dctl_server_fini();
+int dctl_server_fini(void);
 
 /*
  * The following functions are called by the DMU from the server process context

@@ -1211,7 +1211,7 @@ spa_busy(void)
 }
 
 void
-spa_boot_init()
+spa_boot_init(void)
 {
 	spa_config_load();
 }
