@@ -278,7 +278,6 @@ dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object)
 {
 	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
-	(void) dnode_cons(dn, NULL, 0); /* XXX */
 
 	dn->dn_objset = os;
 	dn->dn_object = object;
