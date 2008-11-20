@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix dsl_pool_t
+
+Fix one leak with dsl_pool_t
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---
