@@ -1,0 +1,6 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] feature zap cursor to key
+
+Add a ZAP API to move a ZAP cursor to a given key
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>

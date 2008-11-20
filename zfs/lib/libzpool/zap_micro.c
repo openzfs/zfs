@@ -1045,6 +1045,45 @@ zap_cursor_advance(zap_cursor_t *zc)
 	}
 }
 
+int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt)
+{
+	int err = 0;
+	mzap_ent_t *mze;
+	zap_name_t *zn;
+
+	if (zc->zc_zap == NULL) {
+		err = zap_lockdir(zc->zc_objset, zc->zc_zapobj, NULL,
+				RW_READER, TRUE, FALSE, &zc->zc_zap);
+		if (err)
+			return (err);
+	} else {
+		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
+	}
+
+	zn = zap_name_alloc(zc->zc_zap, name, mt);
+	if (zn == NULL) {
+		rw_exit(&zc->zc_zap->zap_rwlock);
+		return (ENOTSUP);
+	}
+
+	if (!zc->zc_zap->zap_ismicro) {
+		err = fzap_cursor_move_to_key(zc, zn);
+	} else {
+		mze = mze_find(zn);
+		if (mze == NULL) {
+			err = (ENOENT);
+			goto out;
+		}
+		zc->zc_hash = mze->mze_hash;
+		zc->zc_cd = mze->mze_phys.mze_cd;
+	}
+
+out:
+	zap_name_free(zn);
+	rw_exit(&zc->zc_zap->zap_rwlock);
+	return (err);
+}
+
 int
 zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 {

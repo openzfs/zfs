@@ -210,6 +210,7 @@ int fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
     const void *val, uint32_t cd, dmu_tx_t *tx);
 void fzap_upgrade(zap_t *zap, dmu_tx_t *tx);
+int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn);
 
 #ifdef	__cplusplus
 }

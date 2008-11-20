@@ -1029,6 +1029,30 @@ zap_stats_ptrtbl(zap_t *zap, uint64_t *tbl, int len, zap_stats_t *zs)
 	}
 }
 
+int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn)
+{
+	int err;
+	zap_leaf_t *l;
+	zap_entry_handle_t zeh;
+	uint64_t hash;
+
+	if (zn->zn_name_orij && strlen(zn->zn_name_orij) > ZAP_MAXNAMELEN)
+		return (E2BIG);
+
+	err = zap_deref_leaf(zc->zc_zap, zn->zn_hash, NULL, RW_READER, &l);
+	if (err != 0)
+		return (err);
+
+	err = zap_leaf_lookup(l, zn, &zeh);
+	if (err != 0)
+		return (err);
+
+	zc->zc_leaf = l;
+	zc->zc_hash = zeh.zeh_hash;
+	zc->zc_cd = zeh.zeh_cd;
+	return 0;
+}
+
 void
 fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 {
