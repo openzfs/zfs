@@ -59,7 +59,7 @@ uint8_t zio_priority_table[ZIO_PRIORITY_TABLE_SIZE] = {
  * ==========================================================================
  */
 char *zio_type_name[ZIO_TYPES] = {
-	"null", "read", "write", "free", "claim", "ioctl" };
+       "nul", "rd", "wr", "fr", "cm", "ctl" };
 
 /* Force an allocation failure when non-zero */
 uint16_t zio_zil_fail_shift = 0;
