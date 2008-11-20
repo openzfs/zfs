@@ -394,8 +394,12 @@ dnode_evict_dbufs(dnode_t *dn)
 		if (evicting)
 			delay(1);
 		pass++;
-		ASSERT(pass < 100); /* sanity check */
+		if ((pass % 100) == 0)
+			dprintf("Exceeded %d passes evicting dbufs\n", pass);
 	} while (progress);
+
+	if (pass >= 100)
+		dprintf("Required %d passes to evict dbufs\n", pass);
 
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	if (dn->dn_bonus && refcount_is_zero(&dn->dn_bonus->db_holds)) {
