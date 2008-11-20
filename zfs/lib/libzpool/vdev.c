@@ -1083,9 +1083,7 @@ vdev_close(vdev_t *vd)
 void
 vdev_reopen(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
-
-	ASSERT(spa_config_held(spa, RW_WRITER));
+	ASSERT(spa_config_held(vd->vdev_spa, RW_WRITER));
 
 	vdev_close(vd);
 	(void) vdev_open(vd);
