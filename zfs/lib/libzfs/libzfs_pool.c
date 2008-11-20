@@ -45,7 +45,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
-
+#include "dmu_config.h"
 
 /*
  * ====================================================================
@@ -2505,6 +2505,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
  * determine where a partition starts on a disk in the current
  * configuration
  */
+#ifdef HAVE_LIBEFI
 static diskaddr_t
 find_start_block(nvlist_t *config)
 {
@@ -2766,3 +2767,4 @@ out:
 	libzfs_fini(hdl);
 	return (ret);
 }
+#endif /* HAVE_LIBEFI */
