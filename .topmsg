@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix get configs size
+
+Increase nvlist *_GET_CONFIGS size
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---
