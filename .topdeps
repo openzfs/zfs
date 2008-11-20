@@ -3,3 +3,4 @@ gcc-no-parenthesis
 gcc-uninit
 gcc-unused
 gcc-cast
+gcc-invalid-prototype
