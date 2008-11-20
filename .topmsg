@@ -1,6 +1,8 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] feature-branch
+Subject: [PATCH] zfs branch
 
-Merged result of all features
+Merged result of all changes which are relevant to both Solaris
+and Linux builds of the ZFS code.  These are changes where there
+is a reasonable chance they will be accepted upstream.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
