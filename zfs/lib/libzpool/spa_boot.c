@@ -129,7 +129,7 @@ spa_check_devstate(char *devpath_list, char *dev, nvlist_t *conf)
 		} else {
 			char *blank;
 
-			if (blank = strchr(dev, ' '))
+			if ((blank = strchr(dev, ' ')))
 				*blank = '\0';
 			if (strcmp(physpath, dev) == 0)
 				return (EINVAL);
