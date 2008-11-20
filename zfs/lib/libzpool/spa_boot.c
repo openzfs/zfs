@@ -30,7 +30,7 @@
 #include <sys/sunddi.h>
 
 char *
-spa_get_bootfs()
+spa_get_bootfs(void)
 {
 	char *zfs_bp;
 

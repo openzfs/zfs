@@ -34,7 +34,7 @@
 extern "C" {
 #endif
 
-extern char *spa_get_bootfs();
+extern char *spa_get_bootfs(void);
 extern void spa_free_bootfs(char *bootfs);
 extern int spa_get_rootconf(char *devpath, char **bestdev_p,
     nvlist_t **bestconf_p);

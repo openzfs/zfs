@@ -55,8 +55,8 @@ static int dctl_create_socket_common();
 /*
  * Routines from zfs_ioctl.c
  */
-extern int zfs_ioctl_init();
-extern int zfs_ioctl_fini();
+extern int zfs_ioctl_init(void);
+extern int zfs_ioctl_fini(void);
 extern int zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr,
     int *rvalp);
 
