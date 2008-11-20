@@ -2904,10 +2904,10 @@ umem_cache_init(void)
  * the standalone version.
  */
 static void
-umem_startup() __attribute__((constructor));
+umem_startup(void) __attribute__((constructor));
 
 void
-umem_startup()
+umem_startup(void)
 {
 	caddr_t start = NULL;
 	size_t len = 0;

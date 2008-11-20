@@ -32,7 +32,7 @@
 #include "zfs_config.h"
 
 #ifndef HAVE_GETEXECNAME
-extern const char *getexecname();
+extern const char *getexecname(void);
 #endif
 
 #endif
