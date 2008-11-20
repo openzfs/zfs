@@ -476,7 +476,7 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 	ASSERT3U(ZAP_LEAF_HASH_NUMENTRIES(l), >, ZAP_LEAF_NUMCHUNKS(l) / 3);
 
 	/* The chunks should begin at the end of the hash table */
-	ASSERT3P(&ZAP_LEAF_CHUNK(l, 0), ==,
+	ASSERT3P(&ZAP_LEAF_CHUNK(l, 0), ==, (zap_leaf_chunk_t *)
 	    &l->l_phys->l_hash[ZAP_LEAF_HASH_NUMENTRIES(l)]);
 
 	/* The chunks should end at the end of the block */
