@@ -325,6 +325,8 @@ zfs_secpolicy_setprop(const char *name, zfs_prop_t prop, cred_t *cr)
 				return (EPERM);
 		}
 		break;
+	default:
+		break;
 	}
 
 	return (zfs_secpolicy_write_perms(name, zfs_prop_to_name(prop), cr));
@@ -1417,6 +1419,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 		case ZFS_PROP_SHARESMB:
 			if (zpl_check_version(name, ZPL_VERSION_FUID))
 				return (ENOTSUP);
+			break;
+		default:
 			break;
 		}
 		if ((error = zfs_secpolicy_setprop(name, prop, CRED())) != 0)
