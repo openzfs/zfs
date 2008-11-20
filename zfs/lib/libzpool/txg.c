@@ -28,6 +28,7 @@
 #include <sys/zfs_context.h>
 #include <sys/txg_impl.h>
 #include <sys/dmu_impl.h>
+#include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/callb.h>
 
@@ -66,6 +67,9 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 		for (i = 0; i < TXG_SIZE; i++) {
 			cv_init(&tx->tx_cpu[c].tc_cv[i], NULL, CV_DEFAULT,
 			    NULL);
+			list_create(&tx->tx_cpu[c].tc_callbacks[i],
+			    sizeof (dmu_callback_t), offsetof(dmu_callback_t,
+			    dcb_node));
 		}
 	}
 
@@ -93,8 +97,11 @@ txg_fini(dsl_pool_t *dp)
 		int i;
 
 		mutex_destroy(&tx->tx_cpu[c].tc_lock);
-		for (i = 0; i < TXG_SIZE; i++)
+		for (i = 0; i < TXG_SIZE; i++) {
 			cv_destroy(&tx->tx_cpu[c].tc_cv[i]);
+			ASSERT(list_is_empty(&tx->tx_cpu[c].tc_callbacks[i]));
+			list_destroy(&tx->tx_cpu[c].tc_callbacks[i]);
+		}
 	}
 
 	kmem_free(tx->tx_cpu, max_ncpus * sizeof (tx_cpu_t));
@@ -235,6 +242,21 @@ txg_rele_to_sync(txg_handle_t *th)
 	th->th_cpu = NULL;	/* defensive */
 }
 
+void
+txg_rele_commit_cb(txg_handle_t *th, list_t *tx_callbacks)
+{
+	dmu_callback_t *dcb;
+	tx_cpu_t *tc = th->th_cpu;
+	int g = th->th_txg & TXG_MASK;
+
+	mutex_enter(&tc->tc_lock);
+	while (dcb = list_head(tx_callbacks)) {
+		list_remove(tx_callbacks, dcb);
+		list_insert_tail(&tc->tc_callbacks[g], dcb);
+	}
+	mutex_exit(&tc->tc_lock);
+}
+
 static void
 txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
@@ -335,6 +357,21 @@ txg_sync_thread(dsl_pool_t *dp)
 		spa_sync(dp->dp_spa, txg);
 		delta = lbolt - start;
 
+		/*
+		 * Call all the callbacks for this txg. The callbacks must
+		 * call dmu_tx_callback_data_destroy to free memory.
+		 */
+		for (int c = 0; c < max_ncpus; c++) {
+			int g = txg & TXG_MASK;
+			tx_cpu_t *tc = &tx->tx_cpu[c];
+			/* No need to lock tx_cpu_t */
+
+			while (dcb = list_head(&tc->tc_callbacks[g])) {
+				list_remove(&tc->tc_callbacks[g], dcb);
+				dcb->dcb_func(dcb->dcb_data, 0);
+			}
+		}
+
 		written = dp->dp_space_towrite[txg & TXG_MASK];
 		dp->dp_space_towrite[txg & TXG_MASK] = 0;
 		ASSERT(dp->dp_tempreserved[txg & TXG_MASK] == 0);
@@ -390,6 +427,7 @@ txg_quiesce_thread(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
+	dmu_callback_t *dcb;
 
 	txg_thread_enter(tx, &cpr);
 

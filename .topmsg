@@ -1,0 +1,12 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] feature commit cb
+
+ZFS commit callbacks (v3) some version of this support is expected
+to appear in an official release from the core ZFS team.
+
+NOTE: The ztest test case was dropped because it assumed userspace
+pthreads support.  We should certainly keep the test case but the
+user space modification should be properly written to handle and
+kernel space build as well.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
