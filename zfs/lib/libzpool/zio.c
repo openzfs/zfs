@@ -830,7 +830,7 @@ void
 zio_interrupt(zio_t *zio)
 {
 	(void) taskq_dispatch(zio->io_spa->spa_zio_intr_taskq[zio->io_type],
-	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	    (task_func_t *)zio_execute, zio, TQ_NOSLEEP);
 }
 
 static int
