@@ -124,6 +124,7 @@
 #include <sys/arc.h>
 #include <sys/refcount.h>
 #ifdef _KERNEL
+#include <sys/zfs_debug.h>
 #include <sys/vmsystm.h>
 #include <vm/anon.h>
 #include <sys/fs/swapnode.h>
@@ -1725,11 +1726,16 @@ arc_shrink(void)
 	if (arc_c > arc_c_min) {
 		uint64_t to_free;
 
-#ifdef _KERNEL
+#if defined(_KERNEL)
+#if defined(HAVE_SPL)
+		/* XXX: Long term we should check with the linux vm here */
+		to_free = arc_c >> arc_shrink_shift;
+#else
 		to_free = MAX(arc_c >> arc_shrink_shift, ptob(needfree));
+#endif /* HAVE_SPL */
 #else
 		to_free = arc_c >> arc_shrink_shift;
-#endif
+#endif /* _KERNEL */
 		if (arc_c > arc_c_min + to_free)
 			atomic_add_64(&arc_c, -to_free);
 		else
@@ -1751,9 +1757,11 @@ arc_shrink(void)
 static int
 arc_reclaim_needed(void)
 {
+#if defined(_KERNEL)
+#if defined(HAVE_SPL)
+	/* XXX: Do linuxy vm integration here eventually */
+#else /* HAVE_SPL */
 	uint64_t extra;
-
-#ifdef _KERNEL
 
 	if (needfree)
 		return (1);
@@ -1798,12 +1806,13 @@ arc_reclaim_needed(void)
 	if (btop(vmem_size(heap_arena, VMEM_FREE)) <
 	    (btop(vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC)) >> 2))
 		return (1);
-#endif
-
-#else
+#endif /* __i386 */
+#endif /* HAVE_SPL */
+#else  /* _KERNEL */
 	if (spa_get_random(100) == 0)
 		return (1);
-#endif
+#endif /* _KERNEL */
+
 	return (0);
 }
 
@@ -1817,6 +1826,7 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 	extern kmem_cache_t	*zio_data_buf_cache[];
 
 #ifdef _KERNEL
+#ifndef HAVE_SPL
 	if (arc_meta_used >= arc_meta_limit) {
 		/*
 		 * We are exceeding our meta-data cache limit.
@@ -1824,13 +1834,14 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 		 */
 		dnlc_reduce_cache((void *)(uintptr_t)arc_reduce_dnlc_percent);
 	}
+#endif /* HAVE_SPL */
 #if defined(__i386)
 	/*
 	 * Reclaim unused memory from all kmem caches.
 	 */
 	kmem_reap();
-#endif
-#endif
+#endif /* __1386 */
+#endif /* _KERNEL */
 
 	/*
 	 * An aggressive reclamation will shrink the cache size as well as
@@ -1980,6 +1991,7 @@ arc_evict_needed(arc_buf_contents_t type)
 		return (1);
 
 #ifdef _KERNEL
+#ifndef HAVE_SPL
 	/*
 	 * If zio data pages are being allocated out of a separate heap segment,
 	 * then enforce that the size of available vmem for this area remains
@@ -1989,7 +2001,8 @@ arc_evict_needed(arc_buf_contents_t type)
 	    vmem_size(zio_arena, VMEM_FREE) <
 	    (vmem_size(zio_arena, VMEM_ALLOC) >> 5))
 		return (1);
-#endif
+#endif /* !HAVE_SPL */
+#endif /* _KERNEL */
 
 	if (arc_reclaim_needed())
 		return (1);
@@ -3104,7 +3117,8 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	static uint64_t page_load = 0;
 	static uint64_t last_txg = 0;
 
-#if defined(__i386)
+/* XXX: we should do something similar on Linux */
+#if defined(__i386) && !defined(HAVE_SPL)
 	available_memory =
 	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
 #endif
@@ -3120,7 +3134,11 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	 * the arc is already going to be evicting, so we just want to
 	 * continue to let page writes occur as quickly as possible.
 	 */
+#ifdef HAVE_SPL
+	if (0) { /* XXX: Do something similar in the linux VM case */
+#else
 	if (curproc == proc_pageout) {
+#endif
 		if (page_load > MAX(ptob(minfree), available_memory) / 4)
 			return (ERESTART);
 		/* Note: reserve is inflated, so we deflate */
@@ -3223,17 +3241,13 @@ arc_init(void)
 	 * than the addressable space (intel in 32-bit mode), we may
 	 * need to limit the cache to 1/8 of VM size.
 	 */
-	arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8);
+	/* arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8); */
 #endif
 
 	/* set min cache to 1/32 of all memory, or 64MB, whichever is more */
 	arc_c_min = MAX(arc_c / 4, 64<<20);
-	/* set max to 3/4 of all memory, or all but 1GB, whichever is more */
-	if (arc_c * 8 >= 1<<30)
-		arc_c_max = (arc_c * 8) - (1<<30);
-	else
-		arc_c_max = arc_c_min;
-	arc_c_max = MAX(arc_c * 6, arc_c_max);
+	/* set max to 1/2 of all memory */
+	arc_c_max = arc_c * 4;
 
 	/*
 	 * Allow the tunables to override our calculations if they are
