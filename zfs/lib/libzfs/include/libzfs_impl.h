@@ -27,8 +27,6 @@
 #ifndef	_LIBFS_IMPL_H
 #define	_LIBFS_IMPL_H
 
-#pragma ident	"@(#)libzfs_impl.h	1.27	08/04/14 SMI"
-
 #include <sys/dmu.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ioctl.h>

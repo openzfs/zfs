@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev_missing.c	1.3	07/11/27 SMI"
-
 /*
  * The 'missing' vdev is a special vdev type used only during import.  It
  * signifies a placeholder in the root vdev for some vdev that we know is

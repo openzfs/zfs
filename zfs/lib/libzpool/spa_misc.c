@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_misc.c	1.31	08/04/01 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa_impl.h>
 #include <sys/zio.h>

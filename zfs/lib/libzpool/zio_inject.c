@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zio_inject.c	1.2	07/12/07 SMI"
-
 /*
  * ZFS fault injection
  *

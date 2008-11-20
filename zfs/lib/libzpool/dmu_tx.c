@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dmu_tx.c	1.19	08/03/20 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>

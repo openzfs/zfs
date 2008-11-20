@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_dataset.c	1.79	08/04/01 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>

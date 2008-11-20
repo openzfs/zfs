@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_dataset.c	1.42	08/04/28 SMI"
-
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>

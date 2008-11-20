@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zil.c	1.34	08/02/22 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>

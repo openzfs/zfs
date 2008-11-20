@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_main.c	1.58	08/03/24 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>

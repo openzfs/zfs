@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dnode_sync.c	1.19	07/08/26 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>

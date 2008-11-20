@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_synctask.c	1.5	07/10/29 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>

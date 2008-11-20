@@ -26,8 +26,6 @@
 #ifndef	_DFETCH_H
 #define	_DFETCH_H
 
-#pragma ident	"@(#)dmu_zfetch.h	1.2	06/07/17 SMI"
-
 #include <sys/zfs_context.h>
 
 #ifdef	__cplusplus

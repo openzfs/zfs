@@ -26,8 +26,6 @@
 #ifndef	_SYS_REFCOUNT_H
 #define	_SYS_REFCOUNT_H
 
-#pragma ident	"@(#)refcount.h	1.3	07/08/02 SMI"
-
 #include <sys/inttypes.h>
 #include <sys/list.h>
 #include <sys/zfs_context.h>

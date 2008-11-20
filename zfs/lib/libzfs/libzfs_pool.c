@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_pool.c	1.44	08/04/11 SMI"
-
 #include <alloca.h>
 #include <assert.h>
 #include <ctype.h>

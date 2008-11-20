@@ -26,8 +26,6 @@
 #ifndef _SYS_VDEV_H
 #define	_SYS_VDEV_H
 
-#pragma ident	"@(#)vdev.h	1.16	07/12/12 SMI"
-
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/dmu.h>

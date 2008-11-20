@@ -26,8 +26,6 @@
 #ifndef _SYS_TXG_IMPL_H
 #define	_SYS_TXG_IMPL_H
 
-#pragma ident	"@(#)txg_impl.h	1.2	08/03/20 SMI"
-
 #include <sys/spa.h>
 #include <sys/txg.h>
 

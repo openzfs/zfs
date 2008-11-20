@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zap.c	1.13	07/11/19 SMI"
-
 
 /*
  * This file contains the top half of the zfs directory structure

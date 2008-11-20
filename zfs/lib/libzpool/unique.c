@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)unique.c	1.3	07/08/02 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
 #include <sys/unique.h>

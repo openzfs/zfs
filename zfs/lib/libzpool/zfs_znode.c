@@ -25,8 +25,6 @@
 
 /* Portions Copyright 2007 Jeremy Teo */
 
-#pragma ident	"@(#)zfs_znode.c	1.34	08/04/27 SMI"
-
 #ifdef _KERNEL
 #include <sys/types.h>
 #include <sys/param.h>

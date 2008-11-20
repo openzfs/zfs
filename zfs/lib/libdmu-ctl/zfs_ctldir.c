@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_ctldir.c	1.20	08/04/27 SMI"
-
 /*
  * ZFS control directory (a.k.a. ".zfs")
  *

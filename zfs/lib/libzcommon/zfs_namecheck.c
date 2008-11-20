@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_namecheck.c	1.10	07/10/26 SMI"
-
 /*
  * Common name validation routines for ZFS.  These routines are shared by the
  * userland code as well as the ioctl() layer to ensure that we don't

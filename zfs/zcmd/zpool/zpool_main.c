@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zpool_main.c	1.54	08/02/13 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>

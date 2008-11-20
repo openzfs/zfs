@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)uberblock.c	1.3	06/04/06 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_impl.h>

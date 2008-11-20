@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa.c	1.51	08/04/09 SMI"
-
 /*
  * This file contains all the routines used when modifying on-disk SPA state.
  * This includes opening, importing, destroying, exporting a pool, and syncing a

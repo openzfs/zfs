@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_import.c	1.24	08/04/08 SMI"
-
 /*
  * Pool import support functions.
  *

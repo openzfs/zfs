@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_pool.c	1.12	08/03/20 SMI"
-
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_iter.c	1.8	07/10/29 SMI"
-
 #include <libintl.h>
 #include <libuutil.h>
 #include <stddef.h>

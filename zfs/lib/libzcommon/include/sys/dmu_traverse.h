@@ -26,8 +26,6 @@
 #ifndef	_SYS_DMU_TRAVERSE_H
 #define	_SYS_DMU_TRAVERSE_H
 
-#pragma ident	"@(#)dmu_traverse.h	1.4	08/04/01 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/zio.h>

@@ -26,8 +26,6 @@
 #ifndef	_SYS_ZFS_IOCTL_H
 #define	_SYS_ZFS_IOCTL_H
 
-#pragma ident	"@(#)zfs_ioctl.h	1.19	08/04/27 SMI"
-
 #include <sys/cred.h>
 #include <sys/dmu.h>
 #include <sys/zio.h>

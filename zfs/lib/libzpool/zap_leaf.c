@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zap_leaf.c	1.9	07/11/16 SMI"
-
 /*
  * The 512-byte leaf is broken into 32 16-byte chunks.
  * chunk number n means l_chunk[n], even though the header precedes it.

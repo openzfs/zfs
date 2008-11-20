@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_sendrecv.c	1.7	08/04/23 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>

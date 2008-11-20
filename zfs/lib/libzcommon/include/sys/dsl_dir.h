@@ -26,8 +26,6 @@
 #ifndef	_SYS_DSL_DIR_H
 #define	_SYS_DSL_DIR_H
 
-#pragma ident	"@(#)dsl_dir.h	1.10	07/10/29 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_synctask.h>

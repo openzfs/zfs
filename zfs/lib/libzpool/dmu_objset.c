@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dmu_objset.c	1.37	08/04/27 SMI"
-
 #include <sys/cred.h>
 #include <sys/zfs_context.h>
 #include <sys/dmu_objset.h>
