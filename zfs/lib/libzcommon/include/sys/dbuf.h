@@ -26,8 +26,6 @@
 #ifndef	_SYS_DBUF_H
 #define	_SYS_DBUF_H
 
-#pragma ident	"@(#)dbuf.h	1.10	07/08/26 SMI"
-
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>

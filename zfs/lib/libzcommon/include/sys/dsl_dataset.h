@@ -26,8 +26,6 @@
 #ifndef	_SYS_DSL_DATASET_H
 #define	_SYS_DSL_DATASET_H
 
-#pragma ident	"@(#)dsl_dataset.h	1.16	08/04/27 SMI"
-
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>

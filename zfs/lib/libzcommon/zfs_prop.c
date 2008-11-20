@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_prop.c	1.32	08/04/08 SMI"
-
 #include <sys/zio.h>
 #include <sys/spa.h>
 #include <sys/u8_textprep.h>

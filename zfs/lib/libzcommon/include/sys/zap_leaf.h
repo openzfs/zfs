@@ -26,8 +26,6 @@
 #ifndef	_SYS_ZAP_LEAF_H
 #define	_SYS_ZAP_LEAF_H
 
-#pragma ident	"@(#)zap_leaf.h	1.5	07/11/16 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

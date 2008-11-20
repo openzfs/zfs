@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)bplist.c	1.5	07/10/29 SMI"
-
 #include <sys/bplist.h>
 #include <sys/zfs_context.h>
 

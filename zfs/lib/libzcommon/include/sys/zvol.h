@@ -27,8 +27,6 @@
 #ifndef	_SYS_ZVOL_H
 #define	_SYS_ZVOL_H
 
-#pragma ident	"@(#)zvol.h	1.5	08/04/01 SMI"
-
 #include <sys/zfs_context.h>
 
 #ifdef	__cplusplus

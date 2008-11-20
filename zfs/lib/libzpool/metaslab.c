@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)metaslab.c	1.17	07/11/27 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>

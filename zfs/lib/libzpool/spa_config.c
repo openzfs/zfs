@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_config.c	1.15	08/04/01 SMI"
-
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/nvpair.h>

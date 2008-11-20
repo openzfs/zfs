@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_replay.c	1.7	08/01/14 SMI"
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>

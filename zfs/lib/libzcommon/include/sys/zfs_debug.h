@@ -26,8 +26,6 @@
 #ifndef _SYS_ZFS_DEBUG_H
 #define	_SYS_ZFS_DEBUG_H
 
-#pragma ident	"@(#)zfs_debug.h	1.3	07/02/25 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

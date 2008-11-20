@@ -24,8 +24,6 @@
  */
 
 
-#pragma ident	"@(#)zfs_deleg.c	1.5	08/02/07 SMI"
-
 #if defined(_KERNEL)
 #include <sys/systm.h>
 #include <sys/sunddi.h>

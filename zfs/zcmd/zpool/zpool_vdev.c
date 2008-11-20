@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zpool_vdev.c	1.15	07/11/09 SMI"
-
 /*
  * Functions to convert between a list of vdevs and an nvlist representing the
  * configuration.  Each entry in the list can be one of:

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zprop_common.c	1.1	07/09/17 SMI"
-
 /*
  * Common routines used by zfs and zpool property management.
  */

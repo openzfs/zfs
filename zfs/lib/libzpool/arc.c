@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)arc.c	1.44	08/03/20 SMI"
-
 /*
  * DVA-based Adjustable Replacement Cache
  *
