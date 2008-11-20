@@ -8,3 +8,4 @@ fix-taskq
 fix-dnode-cons
 fix-dbuf_dirty_record_t
 fix-dsl_pool_t
+fix-stack
