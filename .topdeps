@@ -6,3 +6,4 @@ gcc-cast
 gcc-invalid-prototype
 gcc-c90
 gcc-missing-case
+gcc-no-pragmas
