@@ -26,8 +26,6 @@
 #ifndef	ZPOOL_UTIL_H
 #define	ZPOOL_UTIL_H
 
-#pragma ident	"@(#)zpool_util.h	1.11	07/09/17 SMI"
-
 #include <libnvpair.h>
 #include <libzfs.h>
 

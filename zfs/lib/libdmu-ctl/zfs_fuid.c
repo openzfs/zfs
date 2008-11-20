@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_fuid.c	1.5	08/01/31 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/sunddi.h>
 #include <sys/dmu.h>

@@ -26,8 +26,6 @@
 #ifndef	_SYS_DSL_POOL_H
 #define	_SYS_DSL_POOL_H
 
-#pragma ident	"@(#)dsl_pool.h	1.5	08/03/20 SMI"
-
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/txg_impl.h>

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)space_map.c	1.7	08/03/11 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>

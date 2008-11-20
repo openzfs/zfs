@@ -24,8 +24,6 @@
  */
 
 
-#pragma ident	"@(#)zfs_deleg.c	1.5	08/02/07 SMI"
-
 #if defined(_KERNEL)
 #include <sys/systm.h>
 #include <sys/sunddi.h>
@@ -179,8 +177,8 @@ zfs_deleg_verify_nvlist(nvlist_t *nvp)
 			    nvpair_name(perm_name));
 			if (error)
 				return (-1);
-		} while (perm_name = nvlist_next_nvpair(perms, perm_name));
-	} while (who = nvlist_next_nvpair(nvp, who));
+		} while ((perm_name = nvlist_next_nvpair(perms, perm_name)));
+	} while ((who = nvlist_next_nvpair(nvp, who)));
 	return (0);
 }
 

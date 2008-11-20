@@ -27,8 +27,6 @@
 #ifndef	_LIBZFS_H
 #define	_LIBZFS_H
 
-#pragma ident	"@(#)libzfs.h	1.51	08/04/01 SMI"
-
 #include <assert.h>
 #include <libnvpair.h>
 #include <sys/param.h>

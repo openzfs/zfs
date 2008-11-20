@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)arc.c	1.44	08/03/20 SMI"
-
 /*
  * DVA-based Adjustable Replacement Cache
  *
@@ -2393,7 +2391,7 @@ arc_read(zio_t *pio, spa_t *spa, blkptr_t *bp, arc_byteswap_func_t *swap,
     uint32_t *arc_flags, zbookmark_t *zb)
 {
 	arc_buf_hdr_t *hdr;
-	arc_buf_t *buf;
+	arc_buf_t *buf = NULL;
 	kmutex_t *hash_lock;
 	zio_t *rzio;
 
@@ -2767,7 +2765,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	l2arc_buf_hdr_t *l2hdr = NULL;
-	uint64_t buf_size;
+	uint64_t buf_size = 0;
 
 	/* this buffer is not on any list */
 	ASSERT(refcount_count(&hdr->b_refcnt) > 0);
@@ -3183,7 +3181,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	 * in order to compress/encrypt/etc the data.  We therefor need to
 	 * make sure that there is sufficient available memory for this.
 	 */
-	if (error = arc_memory_throttle(reserve, txg))
+	if ((error = arc_memory_throttle(reserve, txg)))
 		return (error);
 
 	/*
@@ -3684,7 +3682,7 @@ l2arc_read_done(zio_t *zio)
 static list_t *
 l2arc_list_locked(int list_num, kmutex_t **lock)
 {
-	list_t *list;
+	list_t *list = NULL;
 
 	ASSERT(list_num >= 0 && list_num <= 3);
 
@@ -3861,10 +3859,11 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev)
 	uint64_t target_sz = dev->l2ad_write;
 	uint64_t headroom = dev->l2ad_write * l2arc_headroom;
 	void *buf_data;
-	kmutex_t *hash_lock, *list_lock;
+	kmutex_t *hash_lock, *list_lock = NULL;
 	boolean_t have_lock, full;
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
+	int try;
 
 	ASSERT(MUTEX_HELD(&l2arc_dev_mtx));
 	ASSERT(dev->l2ad_vdev != NULL);
@@ -3879,7 +3878,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev)
 	 * Copy buffers for L2ARC writing.
 	 */
 	mutex_enter(&l2arc_buflist_mtx);
-	for (int try = 0; try <= 3; try++) {
+	for (try = 0; try <= 3; try++) {
 		list = l2arc_list_locked(try, &list_lock);
 		passed_sz = 0;
 

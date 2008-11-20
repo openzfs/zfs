@@ -34,7 +34,7 @@
 
 #ifndef HAVE_GETEXECNAME
 
-const char *getexecname()
+const char *getexecname(void)
 {
 #ifdef __linux__
 	static char execname[PATH_MAX + 1];

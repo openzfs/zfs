@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zio.c	1.32	08/03/20 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/spa.h>
@@ -1164,9 +1162,9 @@ zio_assess(zio_t *zio)
 		 * a result of vdev failures vs. a full pool.
 		 */
 		if (!(zio->io_flags & ZIO_FLAG_CANFAIL)) {
+#ifdef ZFS_DEBUG
 			char *blkbuf;
 
-#ifdef ZFS_DEBUG
 			blkbuf = kmem_alloc(BP_SPRINTF_LEN, KM_NOSLEEP);
 			if (blkbuf) {
 				sprintf_blkptr(blkbuf, BP_SPRINTF_LEN,
@@ -1700,7 +1698,6 @@ zio_vdev_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd ? vd->vdev_top : NULL;
-	blkptr_t *bp = zio->io_bp;
 	uint64_t align;
 	spa_t *spa = zio->io_spa;
 
@@ -1744,7 +1741,7 @@ zio_vdev_io_start(zio_t *zio)
 
 	ASSERT(P2PHASE(zio->io_offset, align) == 0);
 	ASSERT(P2PHASE(zio->io_size, align) == 0);
-	ASSERT(bp == NULL ||
+	ASSERT(zio->io_bp == NULL ||
 	    P2ROUNDUP(ZIO_GET_IOSIZE(zio), align) == zio->io_size);
 	ASSERT(zio->io_type != ZIO_TYPE_WRITE || (spa_mode & FWRITE));
 
@@ -1783,15 +1780,12 @@ zio_should_retry(zio_t *zio)
 static int
 zio_vdev_io_assess(zio_t *zio)
 {
-	vdev_t *vd = zio->io_vd;
-	vdev_t *tvd = vd ? vd->vdev_top : NULL;
-
 	ASSERT(zio->io_vsd == NULL);
 
 	if (zio->io_flags & ZIO_FLAG_SUBBLOCK) {
 		void *abuf;
 		uint64_t asize;
-		ASSERT(vd == tvd);
+		ASSERT(zio->io_vd == (zio->io_vd ? zio->io_vd->vdev_top : NULL));
 		zio_pop_transform(zio, &abuf, &asize, &asize);
 		if (zio->io_type == ZIO_TYPE_READ)
 			bcopy(abuf, zio->io_data, zio->io_size);
@@ -1807,7 +1801,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 */
 	/* XXPOLICY */
 	if (zio_should_retry(zio)) {
-		ASSERT(tvd == vd);
+		ASSERT(zio->io_vd == (zio->io_vd ? zio->io_vd->vdev_top : NULL));
 
 		zio->io_retries++;
 		zio->io_error = 0;

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dnode.c	1.20	07/08/26 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>
@@ -42,7 +40,9 @@ static int free_range_compar(const void *node1, const void *node2);
 
 static kmem_cache_t *dnode_cache;
 
+#ifndef NDEBUG
 static dnode_phys_t dnode_phys_zero;
+#endif
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
@@ -135,7 +135,6 @@ dnode_verify(dnode_t *dn)
 	}
 	if (dn->dn_phys->dn_type != DMU_OT_NONE || dn->dn_allocated_txg != 0) {
 		int i;
-		ASSERT3U(dn->dn_indblkshift, >=, 0);
 		ASSERT3U(dn->dn_indblkshift, <=, SPA_MAXBLOCKSHIFT);
 		if (dn->dn_datablkshift) {
 			ASSERT3U(dn->dn_datablkshift, >=, SPA_MINBLOCKSHIFT);
@@ -522,11 +521,12 @@ dnode_buf_pageout(dmu_buf_t *db, void *arg)
 
 	for (i = 0; i < epb; i++) {
 		dnode_t *dn = children_dnodes[i];
-		int n;
 
 		if (dn == NULL)
 			continue;
 #ifdef ZFS_DEBUG
+		{
+		int n;
 		/*
 		 * If there are holds on this dnode, then there should
 		 * be holds on the dnode's containing dbuf as well; thus
@@ -539,6 +539,7 @@ dnode_buf_pageout(dmu_buf_t *db, void *arg)
 
 		for (n = 0; n < TXG_SIZE; n++)
 			ASSERT(!list_link_active(&dn->dn_dirty_link[n]));
+		}
 #endif
 		children_dnodes[i] = NULL;
 		dnode_destroy(dn);
@@ -599,8 +600,8 @@ dnode_hold_impl(objset_impl_t *os, uint64_t object, int flag,
 		dnode_t **winner;
 		children_dnodes = kmem_zalloc(epb * sizeof (dnode_t *),
 		    KM_SLEEP);
-		if (winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
-		    dnode_buf_pageout)) {
+		if ((winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
+		    dnode_buf_pageout))) {
 			kmem_free(children_dnodes, epb * sizeof (dnode_t *));
 			children_dnodes = winner;
 		}

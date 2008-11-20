@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zpool_prop.c	1.4	07/11/20 SMI"
-
 #include <sys/zio.h>
 #include <sys/spa.h>
 #include <sys/zfs_acl.h>

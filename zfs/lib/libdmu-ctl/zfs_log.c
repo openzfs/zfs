@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_log.c	1.13	08/04/09 SMI"
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>

@@ -26,8 +26,6 @@
 #ifndef _SYS_ZIO_CHECKSUM_H
 #define	_SYS_ZIO_CHECKSUM_H
 
-#pragma ident	"@(#)zio_checksum.h	1.2	06/03/03 SMI"
-
 #include <sys/zio.h>
 
 #ifdef	__cplusplus

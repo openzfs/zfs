@@ -2097,7 +2097,7 @@ nvlist_xpack(nvlist_t *nvl, char **bufp, size_t *buflen, int encoding,
 	 */
 	nv_priv_init(&nvpriv, nva, 0);
 
-	if (err = nvlist_size(nvl, &alloc_size, encoding))
+	if ((err = nvlist_size(nvl, &alloc_size, encoding)))
 		return (err);
 
 	if ((buf = nv_mem_zalloc(&nvpriv, alloc_size)) == NULL)

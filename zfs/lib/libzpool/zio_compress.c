@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zio_compress.c	1.4	07/03/22 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/compress.h>
 #include <sys/spa.h>

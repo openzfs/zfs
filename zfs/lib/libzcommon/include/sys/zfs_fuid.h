@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_FUID_H
 #define	_SYS_FS_ZFS_FUID_H
 
-#pragma ident	"@(#)zfs_fuid.h	1.4	08/01/31 SMI"
-
 #ifdef _KERNEL
 #include <sys/kidmap.h>
 #include <sys/sid.h>

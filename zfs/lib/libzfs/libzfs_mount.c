@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_mount.c	1.25	08/03/04 SMI"
-
 /*
  * Routines to manage ZFS mounts.  We separate all the nasty routines that have
  * to deal with the OS.  The following functions are the main entry points --
@@ -95,7 +93,7 @@ zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
 static int (*iscsitgt_zfs_share)(const char *);
 static int (*iscsitgt_zfs_unshare)(const char *);
 static int (*iscsitgt_zfs_is_shared)(const char *);
-static int (*iscsitgt_svc_online)();
+static int (*iscsitgt_svc_online)(void);
 
 /*
  * The share protocols table must be in the same order as the zfs_share_prot_t
@@ -142,7 +140,7 @@ zfs_iscsi_init(void)
 	    "iscsitgt_zfs_unshare")) == NULL ||
 	    (iscsitgt_zfs_is_shared = (int (*)(const char *))dlsym(libiscsitgt,
 	    "iscsitgt_zfs_is_shared")) == NULL ||
-	    (iscsitgt_svc_online = (int (*)(const char *))dlsym(libiscsitgt,
+	    (iscsitgt_svc_online = (int (*)(void))dlsym(libiscsitgt,
 	    "iscsitgt_svc_online")) == NULL) {
 		iscsitgt_zfs_share = NULL;
 		iscsitgt_zfs_unshare = NULL;

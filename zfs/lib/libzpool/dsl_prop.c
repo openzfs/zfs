@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_prop.c	1.16	08/02/20 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
@@ -348,7 +346,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 
 	if (psa->numints == 0) {
 		int err = zap_remove(mos, zapobj, psa->name, tx);
-		ASSERT(err == 0 || err == ENOENT);
+		VERIFY(0 == err || ENOENT == err);
 		if (isint) {
 			VERIFY(0 == dsl_prop_get_impl(dd->dd_parent,
 			    psa->name, 8, 1, &intval, NULL));

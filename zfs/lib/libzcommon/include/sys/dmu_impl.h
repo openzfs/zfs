@@ -26,8 +26,6 @@
 #ifndef _SYS_DMU_IMPL_H
 #define	_SYS_DMU_IMPL_H
 
-#pragma ident	"@(#)dmu_impl.h	1.2	07/02/02 SMI"
-
 #include <sys/txg_impl.h>
 #include <sys/zio.h>
 #include <sys/dnode.h>

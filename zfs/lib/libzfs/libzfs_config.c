@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_config.c	1.9	07/04/19 SMI"
-
 /*
  * The pool configuration repository is stored in /etc/zfs/zpool.cache as a
  * single packed nvlist.  While it would be nice to just read in this

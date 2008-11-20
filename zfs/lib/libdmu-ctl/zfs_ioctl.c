@@ -325,6 +325,8 @@ zfs_secpolicy_setprop(const char *name, zfs_prop_t prop, cred_t *cr)
 				return (EPERM);
 		}
 		break;
+	default:
+		break;
 	}
 
 	return (zfs_secpolicy_write_perms(name, zfs_prop_to_name(prop), cr));
@@ -723,8 +725,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *config, *props = NULL;
 	char *buf;
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    &config))
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    &config)))
 		return (error);
 
 	if (zc->zc_nvlist_src_size != 0 && (error =
@@ -956,7 +958,7 @@ zfs_ioc_dsobj_to_dsname(zfs_cmd_t *zc)
 {
 	int error;
 
-	if (error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value))
+	if ((error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value)))
 		return (error);
 
 	return (0);
@@ -1380,8 +1382,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			    nvpair_type(elem) != DATA_TYPE_STRING)
 				return (EINVAL);
 
-			if (error = zfs_secpolicy_write_perms(name,
-			    ZFS_DELEG_PERM_USERPROP, CRED()))
+			if ((error = zfs_secpolicy_write_perms(name,
+			    ZFS_DELEG_PERM_USERPROP, CRED())))
 				return (error);
 			continue;
 		}
@@ -1417,6 +1419,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 		case ZFS_PROP_SHARESMB:
 			if (zpl_check_version(name, ZPL_VERSION_FUID))
 				return (ENOTSUP);
+			break;
+		default:
 			break;
 		}
 		if ((error = zfs_secpolicy_setprop(name, prop, CRED())) != 0)
@@ -2270,7 +2274,6 @@ static int
 zfs_ioc_recv(zfs_cmd_t *zc)
 {
 	file_t *fp;
-	objset_t *os;
 	dmu_recv_cookie_t drc;
 	zfsvfs_t *zfsvfs = NULL;
 	boolean_t force = (boolean_t)zc->zc_guid;
@@ -2654,7 +2657,9 @@ kmutex_t zfs_share_lock;
 static int
 zfs_init_sharefs()
 {
+#if 0
 	int error;
+#endif
 
 	ASSERT(MUTEX_HELD(&zfs_share_lock));
 	/* Both NFS and SMB shares also require sharetab support. */

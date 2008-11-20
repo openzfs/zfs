@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev_cache.c	1.7	08/01/10 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
@@ -261,7 +259,6 @@ vdev_cache_read(zio_t *zio)
 	vdev_cache_t *vc = &zio->io_vd->vdev_cache;
 	vdev_cache_entry_t *ve, ve_search;
 	uint64_t cache_offset = P2ALIGN(zio->io_offset, VCBS);
-	uint64_t cache_phase = P2PHASE(zio->io_offset, VCBS);
 	zio_t *fio;
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -278,7 +275,7 @@ vdev_cache_read(zio_t *zio)
 	if (P2CROSS(zio->io_offset, zio->io_offset + zio->io_size - 1, VCBS))
 		return (EXDEV);
 
-	ASSERT(cache_phase + zio->io_size <= VCBS);
+	ASSERT(P2PHASE(zio->io_offset, VCBS) + zio->io_size <= VCBS);
 
 	mutex_enter(&vc->vc_lock);
 

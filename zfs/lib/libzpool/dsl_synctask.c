@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_synctask.c	1.5	07/10/29 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
@@ -139,7 +137,7 @@ dsl_sync_task_group_destroy(dsl_sync_task_group_t *dstg)
 {
 	dsl_sync_task_t *dst;
 
-	while (dst = list_head(&dstg->dstg_tasks)) {
+	while ((dst = list_head(&dstg->dstg_tasks))) {
 		list_remove(&dstg->dstg_tasks, dst);
 		kmem_free(dst, sizeof (dsl_sync_task_t));
 	}

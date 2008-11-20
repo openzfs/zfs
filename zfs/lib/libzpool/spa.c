@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa.c	1.51	08/04/09 SMI"
-
 /*
  * This file contains all the routines used when modifying on-disk SPA state.
  * This includes opening, importing, destroying, exporting a pool, and syncing a
@@ -208,9 +206,9 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 
 				dp = spa_get_dsl(spa);
 				rw_enter(&dp->dp_config_rwlock, RW_READER);
-				if (err = dsl_dataset_open_obj(dp,
+				if ((err = dsl_dataset_open_obj(dp,
 				    za.za_first_integer, NULL, DS_MODE_NONE,
-				    FTAG, &ds)) {
+				    FTAG, &ds))) {
 					rw_exit(&dp->dp_config_rwlock);
 					break;
 				}
@@ -272,7 +270,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 {
 	nvpair_t *elem;
 	int error = 0, reset_bootfs = 0;
-	uint64_t objnum;
+	uint64_t objnum = 0;
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
@@ -335,8 +333,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if (error = dmu_objset_open(strval, DMU_OST_ZFS,
-				    DS_MODE_STANDARD | DS_MODE_READONLY, &os))
+				if ((error = dmu_objset_open(strval, DMU_OST_ZFS,
+				    DS_MODE_STANDARD | DS_MODE_READONLY, &os)))
 					break;
 				objnum = dmu_objset_id(os);
 				dmu_objset_close(os);
@@ -385,6 +383,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (slash[1] == '\0' || strcmp(slash, "/.") == 0 ||
 			    strcmp(slash, "/..") == 0)
 				error = EINVAL;
+			break;
+		default:
 			break;
 		}
 
@@ -804,7 +804,7 @@ spa_load_l2cache(spa_t *spa)
 	uint_t nl2cache;
 	int i, j, oldnvdevs;
 	uint64_t guid;
-	vdev_t *vd, **oldvdevs, **newvdevs;
+	vdev_t *vd, **oldvdevs, **newvdevs = NULL;
 	spa_aux_vdev_t *sav = &spa->spa_l2cache;
 
 	if (sav->sav_config != NULL) {
@@ -2263,7 +2263,7 @@ spa_import_rootpool(char *devpath_list)
 	 * Get the vdev pathname and configuation from the most
 	 * recently updated vdev (highest txg).
 	 */
-	if (error = spa_get_rootconf(devpath_list, &dev, &conf))
+	if ((error = spa_get_rootconf(devpath_list, &dev, &conf)))
 		goto msg_out;
 
 	/*
@@ -2831,7 +2831,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
-	uint64_t unspare_guid;
+	uint64_t unspare_guid = 0;
 
 	txg = spa_vdev_enter(spa);
 
@@ -4235,7 +4235,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		dsl_pool_sync(dp, txg);
 
 		dirty_vdevs = 0;
-		while (vd = txg_list_remove(&spa->spa_vdev_txg_list, txg)) {
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))) {
 			vdev_sync(vd, txg);
 			dirty_vdevs++;
 		}
@@ -4316,7 +4316,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	/*
 	 * Update usable space statistics.
 	 */
-	while (vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)))
+	while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg))))
 		vdev_sync_done(vd, txg);
 
 	/*

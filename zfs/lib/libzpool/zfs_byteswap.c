@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_byteswap.c	1.3	07/10/25 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/vfs.h>
 #include <sys/fs/zfs.h>
@@ -52,7 +50,7 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 {
 	caddr_t end;
 	caddr_t ptr;
-	zfs_ace_t *zacep;
+	zfs_ace_t *zacep = NULL;
 	ace_t *acep;
 	uint16_t entry_type;
 	size_t entry_size;

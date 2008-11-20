@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
-#pragma ident	"@(#)zfs_znode.h	1.25	07/12/07 SMI"
-
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
@@ -305,8 +303,8 @@ extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
 extern void	zfs_znode_free(znode_t *);
-extern void	zfs_remove_op_tables();
-extern int	zfs_create_op_tables();
+extern void	zfs_remove_op_tables(void);
+extern int	zfs_create_op_tables(void);
 extern int	zfs_sync(vfs_t *vfsp, short flag, cred_t *cr);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);

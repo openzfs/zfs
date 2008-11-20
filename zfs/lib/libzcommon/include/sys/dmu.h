@@ -26,8 +26,6 @@
 #ifndef	_SYS_DMU_H
 #define	_SYS_DMU_H
 
-#pragma ident	"@(#)dmu.h	1.38	08/04/27 SMI"
-
 /*
  * This file describes the interface that the DMU provides for its
  * consumers.
