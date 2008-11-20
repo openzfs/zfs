@@ -1,0 +1,115 @@
+Add a ZAP API to move a ZAP cursor to a given key.
+
+Index: zfs+chaos4/lib/libzfscommon/include/sys/zap.h
+===================================================================
+--- zfs+chaos4.orig/lib/libzfscommon/include/sys/zap.h
++++ zfs+chaos4/lib/libzfscommon/include/sys/zap.h
+@@ -302,6 +302,11 @@ void zap_cursor_advance(zap_cursor_t *zc
+ uint64_t zap_cursor_serialize(zap_cursor_t *zc);
+ 
+ /*
++ * Advance the cursor to the attribute having the key.
++ */
++int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt);
++
++/*
+  * Initialize a zap cursor pointing to the position recorded by
+  * zap_cursor_serialize (in the "serialized" argument).  You can also
+  * use a "serialized" argument of 0 to start at the beginning of the
+Index: zfs+chaos4/lib/libzfscommon/include/sys/zap_impl.h
+===================================================================
+--- zfs+chaos4.orig/lib/libzfscommon/include/sys/zap_impl.h
++++ zfs+chaos4/lib/libzfscommon/include/sys/zap_impl.h
+@@ -210,6 +210,7 @@ int fzap_add_cd(zap_name_t *zn,
+     uint64_t integer_size, uint64_t num_integers,
+     const void *val, uint32_t cd, dmu_tx_t *tx);
+ void fzap_upgrade(zap_t *zap, dmu_tx_t *tx);
++int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn);
+ 
+ #ifdef	__cplusplus
+ }
+Index: zfs+chaos4/lib/libzpool/zap.c
+===================================================================
+--- zfs+chaos4.orig/lib/libzpool/zap.c
++++ zfs+chaos4/lib/libzpool/zap.c
+@@ -1029,6 +1029,30 @@ zap_stats_ptrtbl(zap_t *zap, uint64_t *t
+ 	}
+ }
+ 
++int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn)
++{
++	int err;
++	zap_leaf_t *l;
++	zap_entry_handle_t zeh;
++	uint64_t hash;
++
++	if (zn->zn_name_orij && strlen(zn->zn_name_orij) > ZAP_MAXNAMELEN)
++		return (E2BIG);
++
++	err = zap_deref_leaf(zc->zc_zap, zn->zn_hash, NULL, RW_READER, &l);
++	if (err != 0)
++		return (err);
++
++	err = zap_leaf_lookup(l, zn, &zeh);
++	if (err != 0)
++		return (err);
++
++	zc->zc_leaf = l;
++	zc->zc_hash = zeh.zeh_hash;
++	zc->zc_cd = zeh.zeh_cd;
++	return 0;
++}
++
+ void
+ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
+ {
+Index: zfs+chaos4/lib/libzpool/zap_micro.c
+===================================================================
+--- zfs+chaos4.orig/lib/libzpool/zap_micro.c
++++ zfs+chaos4/lib/libzpool/zap_micro.c
+@@ -1045,6 +1045,45 @@ zap_cursor_advance(zap_cursor_t *zc)
+ 	}
+ }
+ 
++int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt)
++{
++	int err = 0;
++	mzap_ent_t *mze;
++	zap_name_t *zn;
++
++	if (zc->zc_zap == NULL) {
++		err = zap_lockdir(zc->zc_objset, zc->zc_zapobj, NULL,
++				RW_READER, TRUE, FALSE, &zc->zc_zap);
++		if (err)
++			return (err);
++	} else {
++		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
++	}
++
++	zn = zap_name_alloc(zc->zc_zap, name, mt);
++	if (zn == NULL) {
++		rw_exit(&zc->zc_zap->zap_rwlock);
++		return (ENOTSUP);
++	}
++
++	if (!zc->zc_zap->zap_ismicro) {
++		err = fzap_cursor_move_to_key(zc, zn);
++	} else {
++		mze = mze_find(zn);
++		if (mze == NULL) {
++			err = (ENOENT);
++			goto out;
++		}
++		zc->zc_hash = mze->mze_hash;
++		zc->zc_cd = mze->mze_phys.mze_cd;
++	}
++
++out:
++	zap_name_free(zn);
++	rw_exit(&zc->zc_zap->zap_rwlock);
++	return (err);
++}
++
+ int
+ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
+ {

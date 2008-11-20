@@ -1,0 +1,30 @@
+* We may need a libefi replacement.  It appears libefi is used
+  to determine if the device passed to zpool is a 'whole device'
+  or just a partition of a device.  In the short term I think we
+  can simply treat everything as a partition and be alright.
+
+* We also do not have support for getting Solaris style device
+  ids which is done when a zpool is setup.  We may or may not
+  be able to live without this, the jury is still out.
+
+-----------------------------------------------------------------------
+
+* Port zvol (ZFS volume interface).
+
+* Port zpl (ZFS posix interface).
+
+* Port lustre fsfilt interface to use DMU.
+
+* Andreas issue #1:
+  "the maximum allocation DMU "blocksize" was 128kB and it would be better
+  to be able to get 1MB contiguous allocations for best performance"
+
+* Andreas issue #2:
+  "there would need to be some work done to allow multiple operations to
+  be atomic.  This is needed by Lustre for object creation + LAST_ID
+  updates, unlink + llog updates, etc.  Conceptually this isn't very
+  much work for a phase tree, but I've never looked at the ZFS code."
+
+* Design and implement mechanism for viewing and modifying OST content
+  from user space (by manipulating datasets/objects), possibly
+  by implementing scaled down file system interface.

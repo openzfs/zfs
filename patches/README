@@ -1,0 +1,17 @@
+#
+# Mostly patches for a userspace build.  For now I'm leaving them all
+# out until we go through the code base and sort out the userspace
+# portion of the build system.  We may find we do not want or need
+# many of these patches anymore. -Brian
+#
+zap-cursor-move-to-key.patch    # Add a ZAP API to move a ZAP cursor to a
+given key.
+spa-force-readonly.patch        # Add API to discard all writes
+no-debug-userspace.patch        # Disable debug code on userspace
+no-events.patch                 # Define away spa_event_notify() in userspace
+pthreads.patch                  # Use POSIX threads in userspace.
+port-no-zmod.patch              # Do not use zmod.h in userspace.
+port-pragma-init.patch          # Use constructor attribute on non-Solaris
+platforms.
+lztest-lzdb.patch               # Make lztest call lzdb from PATH.
+zpool-force.patch               # Change -f to -F in zpool command

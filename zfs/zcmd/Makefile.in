@@ -1,0 +1,6 @@
+subdir-m += zfs
+subdir-m += zpool
+#subdir-m += zdb
+#subdir-m += ztest
+#subdir-m += zdump
+#subdir-m += zinject

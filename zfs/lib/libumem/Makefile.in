@@ -1,0 +1,40 @@
+subdir-m += include sys
+DISTFILES  = COPYING COPYRIGHT OPENSOLARIS.LICENSE README README-alpha TODO
+DISTFILES += config.h envvar.c getpcstack.c init_lib.c misc.c misc.h
+DISTFILES += sol_compat.h umem.c umem_agent_support.c umem_base.h
+DISTFILES += umem_fail.c umem_fork.c umem_impl.h umem_update_thread.c
+DISTFILES += vmem.c vmem_base.c vmem_base.h vmem_mmap.c vmem_sbrk.c
+DISTFILES += vmem_stand.h
+
+LIBRARY := libumem
+
+# Compile as shared library.  There's an extra useless host program
+# here called 'zu' because it was the easiest way I could convince
+# the kernel build system to construct a user space shared library.
+
+HOSTCFLAGS += @HOSTCFLAGS@
+HOSTCFLAGS += -I@LIBDIR@/libumem
+HOSTCFLAGS += -I@LIBDIR@/libumem/include
+HOSTCFLAGS += -I@LIBDIR@/libumem/sys
+
+HOSTLDFLAGS += -pthread
+HOSTLDFLAGS += -ldl
+
+hostprogs-y := zu
+always := $(hostprogs-y)
+
+zu-objs := zu.o ${LIBRARY}.so
+
+${LIBRARY}-objs += envvar.o
+${LIBRARY}-objs += getpcstack.o
+${LIBRARY}-objs += init_lib.o
+${LIBRARY}-objs += misc.o
+${LIBRARY}-objs += umem.o
+${LIBRARY}-objs += umem_agent_support.o
+${LIBRARY}-objs += umem_fail.o
+${LIBRARY}-objs += umem_fork.o
+${LIBRARY}-objs += umem_update_thread.o
+${LIBRARY}-objs += vmem.o
+${LIBRARY}-objs += vmem_base.o
+${LIBRARY}-objs += vmem_mmap.o
+${LIBRARY}-objs += vmem_sbrk.o

@@ -1,0 +1,28 @@
+# NOTE: dctl_client.c, dctl_common.c, dctl_server.c, dctl_thrpool.c unused
+# by kernel port.  Potentially they should just be removed if we don't care
+# able user space lustre intergration from this source base.
+
+# NOTE: For clarity this directly should simply be renamed libzpl and
+# the full kernel implementation should be minimally stubbed out.
+
+subdir-m += include
+DISTFILES  = dctl_client.c dctl_common.c dctl_server.c dctl_thrpool.c
+DISTFILES += dmu_send.c rrwlock.c zfs_acl.c zfs_ctldir.c
+DISTFILES += zfs_dir.c zfs_fuid.c zfs_ioctl.c zfs_log.c zfs_replay.c
+DISTFILES += zfs_rlock.c zfs_vfsops.c zfs_vnops.c zvol.c
+
+MODULE := zctl
+
+EXTRA_CFLAGS  = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -I@LIBDIR@/libzcommon/include
+EXTRA_CFLAGS += -I@LIBDIR@/libdmu-ctl/include
+EXTRA_CFLAGS += -I@LIBDIR@/libavl/include
+EXTRA_CFLAGS += -I@LIBDIR@/libport/include
+EXTRA_CFLAGS += -I@LIBDIR@/libnvpair/include
+
+obj-m := ${MODULE}.o
+
+${MODULE}-objs += zvol.o	# Volume emulation interface
+${MODULE}-objs += zfs_ioctl.o	# /dev/zfs_ioctl interface
+${MODULE}-objs += zfs_vfsops.o
+${MODULE}-objs += dmu_send.o

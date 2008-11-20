@@ -1,0 +1,3 @@
+DISTFILES  = byteorder.h debug.h efi_partition.h ioctl.h isa_defs.h
+DISTFILES += policy.h socket.h swap.h systeminfo.h systm.h time.h
+DISTFILES += types.h u8_textprep.h u8_textprep_data.h

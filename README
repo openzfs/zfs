@@ -1,0 +1,74 @@
+============================ ZFS KERNEL BUILD ============================
+
+1) Build the SPL (Solaris Porting Layer) module which is designed to
+   provide many Solaris APIs in the Linux kernel which are needed
+   by ZFS.  To build the SPL:
+
+        tar -xzf spl-x.y.z.tgz
+        cd spl-x.y.z
+        ./configure --with-linux=<kernel src>
+        make
+        make check <as root>
+
+2) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
+   You will need to have both the kernel and SPL source available.
+   To build ZFS for use as a Linux kernel module (default):
+
+        tar -xzf zfs-x.y.z.tgz
+        cd zfs-x.y.z
+        ./configure --with-linux=<kernel src> \
+                    --with-spl=<spl src>
+        make
+        make check <as root>
+
+========================= ZFS USER LIBRARY BUILD =========================
+
+1) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
+   To build ZFS as a userspace library:
+
+        tar -xzf zfs-x.y.z.tgz
+        cd zfs-x.y.z
+        ./configure --zfsconfig=user
+        make
+        make check <as root>
+
+============================ ZFS LUSTRE BUILD ============================
+
+1) Build the SPL (Solaris Porting Layer) module which is designed to
+   provide many Solaris APIs in the Linux kernel which are needed
+   by ZFS.  To build the SPL:
+
+        tar -xzf spl-x.y.z.tgz
+        cd spl-x.y.z
+        ./configure --with-linux=<kernel src>
+        make
+        make check <as root>
+
+2) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
+   To build ZFS as a userspace library for use by a Lustre filesystem:
+
+        tar -xzf zfs-x.y.z.tgz
+        cd zfs-x.y.z
+        ./configure --zfsconfig=lustre \
+                    --with-linux=<kernel src> \
+                    --with-spl=<spl src>
+        make
+        make check <as root>
+
+3) Provided is an in-kernel test application called kpios which can be
+   used to simulate a Lustre IO load.  It may be used as a stress test
+   or as a performance to measure your configuration.  To simplify testing
+   there are scripts provided in the scripts/ directory.  A single test
+   can be run as follows:
+
+        WARNING: You MUST update DEVICES in the create-zpool.sh script
+                 to reference the devices you wish to use.
+
+       cd scripts
+       ./load-zfs.sh		# Load the ZFS/SPL module stack
+       ./create-zpool.sh	# Modify DEVICES to list your zpool devices
+       ./zpios.sh		# Modify for your particular kpios test
+       ./unload-zfs.sh		# Unload the ZFS/SPL module stack
+
+Enjoy,
+Brian Behlendorf <behlendorf1@llnl.gov>

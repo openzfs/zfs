@@ -1,0 +1,40 @@
+Make lztest call lzdb from PATH.
+
+Index: zfs+chaos4/cmd/lztest/ztest.c
+===================================================================
+--- zfs+chaos4.orig/cmd/lztest/ztest.c
++++ zfs+chaos4/cmd/lztest/ztest.c
+@@ -3043,30 +3043,17 @@ ztest_verify_blocks(char *pool)
+ 	char zbuf[1024];
+ 	char *bin;
+ 	char *ztest;
+-	char *isa;
+-	int isalen;
+ 	FILE *fp;
+ 
+-	(void) realpath(getexecname(), zdb);
+-
+-	/* zdb lives in /usr/sbin, while ztest lives in /usr/bin */
+-	bin = strstr(zdb, "/usr/bin/");
+-	ztest = strstr(bin, "/ztest");
+-	isa = bin + 8;
+-	isalen = ztest - isa;
+-	isa = strdup(isa);
+ 	/* LINTED */
+-	(void) sprintf(bin,
+-	    "/usr/sbin%.*s/zdb -bc%s%s -U /tmp/zpool.cache -O %s %s",
+-	    isalen,
+-	    isa,
++	(void) sprintf(zdb,
++	    "lzdb -bc%s%s -U /tmp/zpool.cache -O %s %s",
+ 	    zopt_verbose >= 3 ? "s" : "",
+ 	    zopt_verbose >= 4 ? "v" : "",
+ 	    ztest_random(2) == 0 ? "pre" : "post", pool);
+-	free(isa);
+ 
+ 	if (zopt_verbose >= 5)
+-		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
++		(void) printf("Executing %s\n", strstr(zdb, "lzdb "));
+ 
+ 	fp = popen(zdb, "r");
+ 

@@ -1,0 +1,23 @@
+Portable libumem.
+================
+
+This is a port of Solaris libumem to non-Solaris systems.
+
+The port was made while integrating libumem with our Ecelerity MTA product, so
+your initial experience will not be 100% out-of-the-box, because there is no
+standalone configure script for the library at this time. (patches welcome!)
+
+In addition, since our deployment is threaded, we force the library into
+threaded mode.
+
+While the library is itself stable (it's the memory allocator used by the
+Solaris OS), the port may have a few rough edges.  We're shipping umem with
+Linux and Windows versions of our product as we have found it to be stable.
+
+We will continue to update this project as and when we make improvements, and
+welcome third-party patches that improve the usability for everyone.
+
+ 
+Wez Furlong,
+OmniTI, Inc.
+
