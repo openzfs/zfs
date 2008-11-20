@@ -516,13 +516,13 @@ zfs_nicenum(uint64_t num, char *buf, size_t buflen)
 	u = " KMGTPE"[index];
 
 	if (index == 0) {
-		(void) snprintf(buf, buflen, "%llu", n);
+		(void) snprintf(buf, buflen, "%llu", (u_longlong_t) n);
 	} else if ((num & ((1ULL << 10 * index) - 1)) == 0) {
 		/*
 		 * If this is an even multiple of the base, always display
 		 * without any decimal precision.
 		 */
-		(void) snprintf(buf, buflen, "%llu%c", n, u);
+		(void) snprintf(buf, buflen, "%llu%c", (u_longlong_t) n, u);
 	} else {
 		/*
 		 * We want to choose a precision that reflects the best choice

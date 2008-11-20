@@ -1126,7 +1126,7 @@ zfs_build_perms(zfs_handle_t *zhp, char *whostr, char *perms,
 			if (sets_nvp)
 				nvlist_free(sets_nvp);
 			(void) snprintf(errbuf, sizeof (errbuf),
-			    dgettext(TEXT_DOMAIN, "Who string is NULL"),
+			    dgettext(TEXT_DOMAIN, "Who string is NULL: %s"),
 			    whostr);
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADWHO, errbuf));
 		}
@@ -2248,7 +2248,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			    localtime_r(&time, &t) == NULL ||
 			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
 			    &t) == 0)
-				(void) snprintf(propbuf, proplen, "%llu", val);
+				(void) snprintf(propbuf, proplen, "%llu", (u_longlong_t) val);
 		}
 		break;
 

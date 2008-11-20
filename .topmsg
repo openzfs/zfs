@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc warning lacks a cast
+
+Gcc -Wall warn: 'lacks a cast'
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---
