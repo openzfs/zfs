@@ -299,6 +299,8 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 /*
  * Mount the given filesystem.
  */
+/* zfs-lustre: not supported */
+#ifdef HAVE_ZPL
 int
 zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 {
@@ -366,6 +368,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Unmount a single filesystem.
@@ -464,6 +467,8 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return (rc ? B_TRUE : B_FALSE);
 }
 
+/* zfs-lustre: unsupported */
+#ifdef HAVE_ZPL
 int
 zfs_share(zfs_handle_t *zhp)
 {
@@ -472,6 +477,7 @@ zfs_share(zfs_handle_t *zhp)
 
 	return (zfs_share_proto(zhp, share_all_proto));
 }
+#endif /* HAVE_ZPL */
 
 int
 zfs_unshare(zfs_handle_t *zhp)
@@ -1158,6 +1164,8 @@ dataset_cmp(const void *a, const void *b)
  * we have the list of all filesystems, we iterate over them in order and mount
  * and/or share each one.
  */
+/* zfs-lustre: not needed */
+#ifdef HAVE_ZPL
 #pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
 zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
@@ -1223,6 +1231,7 @@ out:
 
 	return (ret);
 }
+#endif /* HAVE_ZPL */
 
 
 static int

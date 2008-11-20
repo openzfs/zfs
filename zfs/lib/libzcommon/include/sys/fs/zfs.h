@@ -273,8 +273,8 @@ typedef enum zfs_share_op {
 #define	ZPL_VERSION_1			1ULL
 #define	ZPL_VERSION_2			2ULL
 #define	ZPL_VERSION_3			3ULL
-#define	ZPL_VERSION			ZPL_VERSION_3
-#define	ZPL_VERSION_STRING		"3"
+#define	ZPL_VERSION			ZPL_VERSION_1
+#define	ZPL_VERSION_STRING		"1"
 
 #define	ZPL_VERSION_INITIAL		ZPL_VERSION_1
 #define	ZPL_VERSION_DIRENT_TYPE		ZPL_VERSION_2
@@ -462,6 +462,8 @@ typedef struct vdev_stat {
 #define	ZVOL_DRIVER	"zvol"
 #define	ZFS_DRIVER	"zfs"
 #define	ZFS_DEV		"/dev/zfs"
+#define	ZFS_MAJOR	230 /* XXX: Arbitrary */
+#define	ZFS_MINORS	16  /* XXX: Arbitrary */
 
 /*
  * zvol paths.  Irritatingly, the devfsadm interfaces want all these
