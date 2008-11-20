@@ -42,7 +42,9 @@ static int free_range_compar(const void *node1, const void *node2);
 
 static kmem_cache_t *dnode_cache;
 
+#ifndef NDEBUG
 static dnode_phys_t dnode_phys_zero;
+#endif
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
@@ -519,11 +521,12 @@ dnode_buf_pageout(dmu_buf_t *db, void *arg)
 
 	for (i = 0; i < epb; i++) {
 		dnode_t *dn = children_dnodes[i];
-		int n;
 
 		if (dn == NULL)
 			continue;
 #ifdef ZFS_DEBUG
+		{
+		int n;
 		/*
 		 * If there are holds on this dnode, then there should
 		 * be holds on the dnode's containing dbuf as well; thus
@@ -536,6 +539,7 @@ dnode_buf_pageout(dmu_buf_t *db, void *arg)
 
 		for (n = 0; n < TXG_SIZE; n++)
 			ASSERT(!list_link_active(&dn->dn_dirty_link[n]));
+		}
 #endif
 		children_dnodes[i] = NULL;
 		dnode_destroy(dn);

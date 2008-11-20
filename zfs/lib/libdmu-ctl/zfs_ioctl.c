@@ -2270,7 +2270,6 @@ static int
 zfs_ioc_recv(zfs_cmd_t *zc)
 {
 	file_t *fp;
-	objset_t *os;
 	dmu_recv_cookie_t drc;
 	zfsvfs_t *zfsvfs = NULL;
 	boolean_t force = (boolean_t)zc->zc_guid;
@@ -2654,7 +2653,9 @@ kmutex_t zfs_share_lock;
 static int
 zfs_init_sharefs()
 {
+#if 0
 	int error;
+#endif
 
 	ASSERT(MUTEX_HELD(&zfs_share_lock));
 	/* Both NFS and SMB shares also require sharetab support. */
