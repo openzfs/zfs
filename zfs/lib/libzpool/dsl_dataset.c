@@ -345,7 +345,7 @@ dsl_dataset_open_obj(dsl_pool_t *dp, uint64_t dsobj, const char *snapname,
 		return (err);
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
-		dsl_dataset_t *winner;
+		dsl_dataset_t *winner = NULL;
 
 		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
 		ds->ds_dbuf = dbuf;

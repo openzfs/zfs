@@ -789,7 +789,7 @@ vdev_raidz_io_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *cvd;
 	raidz_map_t *rm = zio->io_vsd;
-	raidz_col_t *rc, *rc1;
+	raidz_col_t *rc = NULL, *rc1;
 	int unexpected_errors = 0;
 	int parity_errors = 0;
 	int parity_untried = 0;

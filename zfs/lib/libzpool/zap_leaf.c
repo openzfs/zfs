@@ -220,7 +220,7 @@ zap_leaf_array_create(zap_leaf_t *l, const char *buf,
 	uint16_t chunk_head;
 	uint16_t *chunkp = &chunk_head;
 	int byten = 0;
-	uint64_t value;
+	uint64_t value = 0;
 	int shift = (integer_size-1)*8;
 	int len = num_integers;
 
