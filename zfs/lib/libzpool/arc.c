@@ -3878,7 +3878,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev)
 	 * Copy buffers for L2ARC writing.
 	 */
 	mutex_enter(&l2arc_buflist_mtx);
-	for (int try = 0; try <= 3; try++) {
+	for (try = 0; try <= 3; try++) {
 		list = l2arc_list_locked(try, &list_lock);
 		passed_sz = 0;
 

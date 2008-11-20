@@ -3205,7 +3205,7 @@ append_options(char *mntopts, char *newopts)
 	/* original length plus new string to append plus 1 for the comma */
 	if (len + 1 + strlen(newopts) >= MNT_LINE_MAX) {
 		(void) fprintf(stderr, gettext("the opts argument for "
-		    "'%c' option is too long (more than %d chars)\n"),
+		    "'%s' option is too long (more than %d chars)\n"),
 		    "-o", MNT_LINE_MAX);
 		usage(B_FALSE);
 	}

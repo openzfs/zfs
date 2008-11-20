@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc error c90
+
+Gcc non-c90 compliant code
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---

@@ -91,10 +91,12 @@ parent_delta(dsl_dataset_t *ds, int64_t delta)
 void
 dsl_dataset_block_born(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx)
 {
-	int used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
-	int compressed = BP_GET_PSIZE(bp);
-	int uncompressed = BP_GET_UCSIZE(bp);
+	int used, compressed, uncompressed;
 	int64_t delta;
+
+	used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
+	compressed = BP_GET_PSIZE(bp);
+	uncompressed = BP_GET_UCSIZE(bp);
 
 	dprintf_bp(bp, "born, ds=%p\n", ds);
 
