@@ -1496,7 +1496,7 @@ arc_evict(arc_state_t *state, spa_t *spa, int64_t bytes, boolean_t recycle,
 	mutex_exit(&state->arcs_mtx);
 
 	if (bytes_evicted < bytes)
-		dprintf("only evicted %lld bytes from %x",
+		dprintf("only evicted %lld bytes from %x\n",
 		    (longlong_t)bytes_evicted, state);
 
 	if (skipped)
@@ -1596,7 +1596,7 @@ top:
 	}
 
 	if (bytes_deleted < bytes)
-		dprintf("only deleted %lld bytes from %p",
+		dprintf("only deleted %lld bytes from %p\n",
 		    (longlong_t)bytes_deleted, state);
 }
 
@@ -1858,7 +1858,7 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 static void
 arc_reclaim_thread(void)
 {
-	clock_t			growtime = 0;
+	int64_t			growtime = 0;
 	arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
 	callb_cpr_t		cpr;
 
@@ -1881,11 +1881,11 @@ arc_reclaim_thread(void)
 			}
 
 			/* reset the growth delay for every reclaim */
-			growtime = lbolt + (arc_grow_retry * hz);
+			growtime = lbolt64 + (arc_grow_retry * hz);
 
 			arc_kmem_reap_now(last_reclaim);
 
-		} else if (arc_no_grow && lbolt >= growtime) {
+		} else if (arc_no_grow && lbolt64 >= growtime) {
 			arc_no_grow = FALSE;
 		}
 
@@ -3364,6 +3364,7 @@ arc_fini(void)
 	mutex_destroy(&arc_mru_ghost->arcs_mtx);
 	mutex_destroy(&arc_mfu->arcs_mtx);
 	mutex_destroy(&arc_mfu_ghost->arcs_mtx);
+	mutex_destroy(&arc_l2c_only->arcs_mtx);
 
 	buf_fini();
 }
