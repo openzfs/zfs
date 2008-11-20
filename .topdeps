@@ -4,3 +4,4 @@ fix-rwlocks
 fix-evict-dbufs
 fix-get-configs
 fix-newlines
+fix-taskq
