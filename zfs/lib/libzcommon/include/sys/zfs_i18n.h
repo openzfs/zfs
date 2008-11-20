@@ -50,19 +50,19 @@ extern "C" {
  */
 #define	ZFS_UTF8_ONLY	0x04
 
-enum zfs_case {
+typedef enum zfs_case {
 	ZFS_CASE_SENSITIVE,
 	ZFS_CASE_INSENSITIVE,
 	ZFS_CASE_MIXED
-};
+} zfs_case_t;
 
-enum zfs_normal {
+typedef enum zfs_normal {
 	ZFS_NORMALIZE_NONE,
 	ZFS_NORMALIZE_D,
 	ZFS_NORMALIZE_KC,
 	ZFS_NORMALIZE_C,
 	ZFS_NORMALIZE_KD
-};
+} zfs_normal_t;
 
 #ifdef	__cplusplus
 }

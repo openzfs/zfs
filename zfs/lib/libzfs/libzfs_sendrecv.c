@@ -39,6 +39,7 @@
 #include <sys/mntent.h>
 #include <sys/mnttab.h>
 #include <sys/avl.h>
+#include <sys/debug.h>
 #include <stddef.h>
 
 #include <libzfs.h>
