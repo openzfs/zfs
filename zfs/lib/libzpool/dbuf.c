@@ -255,7 +255,13 @@ dbuf_init(void)
 
 retry:
 	h->hash_table_mask = hsize - 1;
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	/* Large allocations which do not require contiguous pages
+	 * should be using vmem_alloc() in the linux kernel */
+	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_SLEEP);
+#else
 	h->hash_table = kmem_zalloc(hsize * sizeof (void *), KM_NOSLEEP);
+#endif
 	if (h->hash_table == NULL) {
 		/* XXX - we should really return an error instead of assert */
 		ASSERT(hsize > (1ULL << 10));
@@ -279,7 +285,13 @@ dbuf_fini(void)
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
 		mutex_destroy(&h->hash_mutexes[i]);
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	/* Large allocations which do not require contiguous pages
+	 * should be using vmem_free() in the linux kernel */
+	vmem_free(h->hash_table, (h->hash_table_mask + 1) * sizeof (void *));
+#else
 	kmem_free(h->hash_table, (h->hash_table_mask + 1) * sizeof (void *));
+#endif
 	kmem_cache_destroy(dbuf_cache);
 }
 
