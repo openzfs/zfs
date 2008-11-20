@@ -26,8 +26,6 @@
 #ifndef	_SYS_ZFS_IOCTL_H
 #define	_SYS_ZFS_IOCTL_H
 
-#pragma ident	"@(#)zfs_ioctl.h	1.19	08/04/27 SMI"
-
 #include <sys/cred.h>
 #include <sys/dmu.h>
 #include <sys/zio.h>
@@ -145,6 +143,7 @@ typedef enum zfs_case {
 } zfs_case_t;
 
 typedef struct zfs_cmd {
+	uint64_t	zc_obj;
 	char		zc_name[MAXPATHLEN];
 	char		zc_value[MAXPATHLEN * 2];
 	char		zc_string[MAXNAMELEN];
@@ -161,7 +160,6 @@ typedef struct zfs_cmd {
 	uint64_t 	zc_history;		/* really (char *) */
 	uint64_t 	zc_history_len;
 	uint64_t	zc_history_offset;
-	uint64_t	zc_obj;
 	zfs_share_t	zc_share;
 	dmu_objset_stats_t zc_objset_stats;
 	struct drr_begin zc_begin_record;

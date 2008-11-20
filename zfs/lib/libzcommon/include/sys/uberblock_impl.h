@@ -26,8 +26,6 @@
 #ifndef _SYS_UBERBLOCK_IMPL_H
 #define	_SYS_UBERBLOCK_IMPL_H
 
-#pragma ident	"@(#)uberblock_impl.h	1.4	07/06/29 SMI"
-
 #include <sys/uberblock.h>
 
 #ifdef	__cplusplus

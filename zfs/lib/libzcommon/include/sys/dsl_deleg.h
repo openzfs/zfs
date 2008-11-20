@@ -26,8 +26,6 @@
 #ifndef	_SYS_DSL_DELEG_H
 #define	_SYS_DSL_DELEG_H
 
-#pragma ident	"@(#)dsl_deleg.h	1.4	07/10/25 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
 #include <sys/zfs_context.h>

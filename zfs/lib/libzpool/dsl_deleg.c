@@ -66,8 +66,6 @@
  * The ZAP OBJ is referred to as the jump object.
  */
 
-#pragma ident	"@(#)dsl_deleg.c	1.5	07/10/29 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
@@ -101,13 +99,13 @@ dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr)
 	if ((error = dsl_deleg_access(ddname, ZFS_DELEG_PERM_ALLOW, cr)) != 0)
 		return (error);
 
-	while (whopair = nvlist_next_nvpair(nvp, whopair)) {
+	while ((whopair = nvlist_next_nvpair(nvp, whopair))) {
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
 
 		VERIFY(nvpair_value_nvlist(whopair, &perms) == 0);
 
-		while (permpair = nvlist_next_nvpair(perms, permpair)) {
+		while ((permpair = nvlist_next_nvpair(perms, permpair))) {
 			const char *perm = nvpair_name(permpair);
 
 			if (strcmp(perm, ZFS_DELEG_PERM_ALLOW) == 0)
@@ -138,7 +136,7 @@ dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr)
 	(void) snprintf(idstr, sizeof (idstr), "%lld",
 	    (longlong_t)crgetuid(cr));
 
-	while (whopair = nvlist_next_nvpair(nvp, whopair)) {
+	while ((whopair = nvlist_next_nvpair(nvp, whopair))) {
 		zfs_deleg_who_type_t type = nvpair_name(whopair)[0];
 
 		if (type != ZFS_DELEG_USER &&
@@ -166,7 +164,7 @@ dsl_deleg_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
 	}
 
-	while (whopair = nvlist_next_nvpair(nvp, whopair)) {
+	while ((whopair = nvlist_next_nvpair(nvp, whopair))) {
 		const char *whokey = nvpair_name(whopair);
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
@@ -181,7 +179,7 @@ dsl_deleg_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 			    whokey, 8, 1, &jumpobj, tx) == 0);
 		}
 
-		while (permpair = nvlist_next_nvpair(perms, permpair)) {
+		while ((permpair = nvlist_next_nvpair(perms, permpair))) {
 			const char *perm = nvpair_name(permpair);
 			uint64_t n = 0;
 
@@ -207,7 +205,7 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	if (zapobj == 0)
 		return;
 
-	while (whopair = nvlist_next_nvpair(nvp, whopair)) {
+	while ((whopair = nvlist_next_nvpair(nvp, whopair))) {
 		const char *whokey = nvpair_name(whopair);
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
@@ -229,7 +227,7 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) != 0)
 			continue;
 
-		while (permpair = nvlist_next_nvpair(perms, permpair)) {
+		while ((permpair = nvlist_next_nvpair(perms, permpair))) {
 			const char *perm = nvpair_name(permpair);
 			uint64_t n = 0;
 
@@ -266,7 +264,7 @@ dsl_deleg_set(const char *ddname, nvlist_t *nvp, boolean_t unset)
 		return (ENOTSUP);
 	}
 
-	while (whopair = nvlist_next_nvpair(nvp, whopair))
+	while ((whopair = nvlist_next_nvpair(nvp, whopair)))
 		blocks_modified++;
 
 	error = dsl_sync_task_do(dd->dd_pool, NULL,

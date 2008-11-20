@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H
 
-#pragma ident	"@(#)zfs.h	1.44	08/04/09 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

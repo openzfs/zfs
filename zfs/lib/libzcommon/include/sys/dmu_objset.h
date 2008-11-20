@@ -26,8 +26,6 @@
 #ifndef	_SYS_DMU_OBJSET_H
 #define	_SYS_DMU_OBJSET_H
 
-#pragma ident	"@(#)dmu_objset.h	1.13	08/04/27 SMI"
-
 #include <sys/spa.h>
 #include <sys/arc.h>
 #include <sys/txg.h>

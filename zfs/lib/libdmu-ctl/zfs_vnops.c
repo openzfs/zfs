@@ -25,8 +25,6 @@
 
 /* Portions Copyright 2007 Jeremy Teo */
 
-#pragma ident	"@(#)zfs_vnops.c	1.73	08/04/27 SMI"
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>

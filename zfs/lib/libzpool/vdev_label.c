@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev_label.c	1.18	07/12/12 SMI"
-
 /*
  * Virtual Device Labels
  * ---------------------
@@ -441,6 +439,8 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 
 		case VDEV_LABEL_SPARE:
 			return (spa_has_spare(spa, device_guid));
+		default:
+			break;
 		}
 	}
 

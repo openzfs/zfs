@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dmu_tx.c	1.19	08/03/20 SMI"
-
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
@@ -967,7 +965,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg != 0);
 
-	while (txh = list_head(&tx->tx_holds)) {
+	while ((txh = list_head(&tx->tx_holds))) {
 		dnode_t *dn = txh->txh_dnode;
 
 		list_remove(&tx->tx_holds, txh);
@@ -1016,7 +1014,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg == 0);
 
-	while (txh = list_head(&tx->tx_holds)) {
+	while ((txh = list_head(&tx->tx_holds))) {
 		dnode_t *dn = txh->txh_dnode;
 
 		list_remove(&tx->tx_holds, txh);

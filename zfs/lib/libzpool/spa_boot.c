@@ -24,13 +24,11 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_boot.c	1.1	08/04/09 SMI"
-
 #include <sys/spa.h>
 #include <sys/sunddi.h>
 
 char *
-spa_get_bootfs()
+spa_get_bootfs(void)
 {
 	char *zfs_bp;
 
@@ -129,7 +127,7 @@ spa_check_devstate(char *devpath_list, char *dev, nvlist_t *conf)
 		} else {
 			char *blank;
 
-			if (blank = strchr(dev, ' '))
+			if ((blank = strchr(dev, ' ')))
 				*blank = '\0';
 			if (strcmp(physpath, dev) == 0)
 				return (EINVAL);

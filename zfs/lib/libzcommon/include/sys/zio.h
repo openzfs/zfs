@@ -27,8 +27,6 @@
 #ifndef _ZIO_H
 #define	_ZIO_H
 
-#pragma ident	"@(#)zio.h	1.20	08/04/01 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/txg.h>

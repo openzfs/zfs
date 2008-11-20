@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zap_micro.c	1.12	08/04/27 SMI"
-
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>
@@ -271,7 +269,7 @@ mze_destroy(zap_t *zap)
 	mzap_ent_t *mze;
 	void *avlcookie = NULL;
 
-	while (mze = avl_destroy_nodes(&zap->zap_m.zap_avl, &avlcookie))
+	while ((mze = avl_destroy_nodes(&zap->zap_m.zap_avl, &avlcookie)))
 		kmem_free(mze, sizeof (mzap_ent_t));
 	avl_destroy(&zap->zap_m.zap_avl);
 }

@@ -26,8 +26,6 @@
  * Portions Copyright 2007 Ramprakash Jelari
  */
 
-#pragma ident	"@(#)libzfs_changelist.c	1.23	08/03/04 SMI"
-
 #include <libintl.h>
 #include <libuutil.h>
 #include <stddef.h>
@@ -141,6 +139,8 @@ changelist_prefix(prop_changelist_t *clp)
 				 */
 				(void) zfs_unshare_iscsi(cn->cn_handle);
 				break;
+			default:
+				break;
 			}
 		} else {
 			/*
@@ -156,6 +156,8 @@ changelist_prefix(prop_changelist_t *clp)
 				break;
 			case ZFS_PROP_SHARESMB:
 				(void) zfs_unshare_smb(cn->cn_handle, NULL);
+				break;
+			default:
 				break;
 			}
 		}

@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_history.c	1.5	07/07/09 SMI"
-
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/zap.h>
@@ -176,7 +174,7 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 }
 
 static char *
-spa_history_zone()
+spa_history_zone(void)
 {
 #ifdef _KERNEL
 	return (curproc->p_zone->zone_name);

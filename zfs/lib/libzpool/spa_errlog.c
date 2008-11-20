@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_errlog.c	1.2	06/10/02 SMI"
-
 /*
  * Routines to manage the on-disk persistent error log.
  *

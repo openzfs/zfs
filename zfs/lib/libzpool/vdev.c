@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev.c	1.33	07/11/27 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/spa.h>
@@ -1083,9 +1081,7 @@ vdev_close(vdev_t *vd)
 void
 vdev_reopen(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
-
-	ASSERT(spa_config_held(spa, RW_WRITER));
+	ASSERT(spa_config_held(vd->vdev_spa, RW_WRITER));
 
 	vdev_close(vd);
 	(void) vdev_open(vd);
@@ -1420,7 +1416,7 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 
 	dprintf("%s txg %llu\n", vdev_description(vd), txg);
 
-	while (msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg)))
+	while ((msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg))))
 		metaslab_sync_done(msp, txg);
 }
 

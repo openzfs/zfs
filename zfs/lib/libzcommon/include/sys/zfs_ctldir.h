@@ -26,8 +26,6 @@
 #ifndef	_ZFS_CTLDIR_H
 #define	_ZFS_CTLDIR_H
 
-#pragma ident	"@(#)zfs_ctldir.h	1.4	08/02/22 SMI"
-
 #include <sys/pathname.h>
 #include <sys/vnode.h>
 #include <sys/zfs_vfsops.h>

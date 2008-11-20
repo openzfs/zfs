@@ -26,8 +26,6 @@
 #ifndef	_SYS_ARC_H
 #define	_SYS_ARC_H
 
-#pragma ident	"@(#)arc.h	1.12	08/03/20 SMI"
-
 #include <sys/zfs_context.h>
 
 #ifdef	__cplusplus

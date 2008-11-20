@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dmu_traverse.c	1.7	08/04/01 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_traverse.h>
@@ -301,16 +299,16 @@ traverse_callback(traverse_handle_t *th, zseg_t *zseg, traverse_blk_cache_t *bc)
 	 * always visited (or not) as part of visiting the objset_phys_t.
 	 */
 	if (bc->bc_errno == 0 && bc != &th->th_zil_cache) {
-		zbookmark_t *zb = &bc->bc_bookmark;
-		zbookmark_t *szb = &zseg->seg_start;
-		zbookmark_t *ezb = &zseg->seg_end;
-		zbookmark_t *lzb = &th->th_lastcb;
-		dnode_phys_t *dnp = bc->bc_dnode;
+                zbookmark_t *zb = &bc->bc_bookmark;
+                zbookmark_t *lzb = &th->th_lastcb;
 
-		ASSERT(compare_bookmark(zb, ezb, dnp, th->th_advance) <= 0);
-		ASSERT(compare_bookmark(zb, szb, dnp, th->th_advance) == 0);
-		ASSERT(compare_bookmark(lzb, zb, dnp, th->th_advance) < 0 ||
-		    lzb->zb_level == ZB_NO_LEVEL);
+                ASSERT(compare_bookmark(zb, &zseg->seg_end, bc->bc_dnode,
+                                        th->th_advance) <= 0);
+                ASSERT(compare_bookmark(zb, &zseg->seg_start, bc->bc_dnode,
+                                        th->th_advance) == 0);
+                ASSERT(compare_bookmark(lzb, zb, bc->bc_dnode,
+                                        th->th_advance) < 0 ||
+                                        lzb->zb_level == ZB_NO_LEVEL);
 		*lzb = *zb;
 	}
 
@@ -398,7 +396,7 @@ find_block(traverse_handle_t *th, zseg_t *zseg, dnode_phys_t *dnp, int depth)
 
 		for (i = first; i < nbp; i++)
 			if (bp[i].blk_birth > zseg->seg_mintxg ||
-			    BP_IS_HOLE(&bp[i]) && do_holes)
+			    (BP_IS_HOLE(&bp[i]) && do_holes))
 				break;
 
 		if (i != first) {
@@ -412,7 +410,7 @@ find_block(traverse_handle_t *th, zseg_t *zseg, dnode_phys_t *dnp, int depth)
 		SET_BOOKMARK(&bc->bc_bookmark, zb->zb_objset, zb->zb_object,
 		    level, blkid);
 
-		if (rc = traverse_read(th, bc, bp + i, dnp)) {
+		if ((rc = traverse_read(th, bc, bp + i, dnp))) {
 			if (rc != EAGAIN) {
 				SET_BOOKMARK_LB(zb, level, blkid);
 			}

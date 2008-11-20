@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dnode_sync.c	1.19	07/08/26 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dbuf.h>
 #include <sys/dnode.h>
@@ -306,8 +304,10 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		ASSERT3U(blkid + nblks, <=, dn->dn_phys->dn_nblkptr);
 		free_blocks(dn, bp + blkid, nblks, tx);
 		if (trunc) {
+#ifndef NDEBUG
 			uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
 			    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+#endif
 			dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 			ASSERT(off < dn->dn_phys->dn_maxblkid ||
 			    dn->dn_phys->dn_maxblkid == 0 ||
@@ -337,8 +337,10 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		dbuf_rele(db, FTAG);
 	}
 	if (trunc) {
+#ifndef NDEBUG
 		uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
 		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+#endif
 		dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
@@ -415,7 +417,7 @@ dnode_undirty_dbufs(list_t *list)
 {
 	dbuf_dirty_record_t *dr;
 
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list))) {
 		dmu_buf_impl_t *db = dr->dr_dbuf;
 		uint64_t txg = dr->dr_txg;
 

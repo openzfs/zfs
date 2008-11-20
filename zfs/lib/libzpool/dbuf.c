@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dbuf.c	1.32	08/03/20 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
@@ -113,10 +111,12 @@ dbuf_find(dnode_t *dn, uint8_t level, uint64_t blkid)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	objset_impl_t *os = dn->dn_objset;
-	uint64_t obj = dn->dn_object;
-	uint64_t hv = DBUF_HASH(os, obj, level, blkid);
-	uint64_t idx = hv & h->hash_table_mask;
+	uint64_t obj, hv, idx;
 	dmu_buf_impl_t *db;
+
+	obj = dn->dn_object;
+	hv = DBUF_HASH(os, obj, level, blkid);
+	idx = hv & h->hash_table_mask;
 
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (db = h->hash_table[idx]; db != NULL; db = db->db_hash_next) {
@@ -146,10 +146,12 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	objset_impl_t *os = db->db_objset;
 	uint64_t obj = db->db.db_object;
 	int level = db->db_level;
-	uint64_t blkid = db->db_blkid;
-	uint64_t hv = DBUF_HASH(os, obj, level, blkid);
-	uint64_t idx = hv & h->hash_table_mask;
+	uint64_t blkid, hv, idx;
 	dmu_buf_impl_t *dbf;
+
+	blkid = db->db_blkid;
+	hv = DBUF_HASH(os, obj, level, blkid);
+	idx = hv & h->hash_table_mask;
 
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (dbf = h->hash_table[idx]; dbf != NULL; dbf = dbf->db_hash_next) {
@@ -180,10 +182,12 @@ static void
 dbuf_hash_remove(dmu_buf_impl_t *db)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
-	uint64_t hv = DBUF_HASH(db->db_objset, db->db.db_object,
-	    db->db_level, db->db_blkid);
-	uint64_t idx = hv & h->hash_table_mask;
+	uint64_t hv, idx;
 	dmu_buf_impl_t *dbf, **dbp;
+
+	hv = DBUF_HASH(db->db_objset, db->db.db_object,
+	    db->db_level, db->db_blkid);
+	idx = hv & h->hash_table_mask;
 
 	/*
 	 * We musn't hold db_mtx to maintin lock ordering:
@@ -1517,7 +1521,7 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 		return;
 
 	/* dbuf_find() returns with db_mtx held */
-	if (db = dbuf_find(dn, 0, blkid)) {
+	if ((db = dbuf_find(dn, 0, blkid))) {
 		if (refcount_count(&db->db_holds) > 0) {
 			/*
 			 * This dbuf is active.  We assume that it is
@@ -1673,8 +1677,7 @@ dbuf_create_bonus(dnode_t *dn)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	int64_t holds = refcount_add(&db->db_holds, tag);
-	ASSERT(holds > 1);
+	VERIFY(refcount_add(&db->db_holds, tag) > 1);
 }
 
 #pragma weak dmu_buf_rele = dbuf_rele
@@ -2058,7 +2061,7 @@ dbuf_sync_list(list_t *list, dmu_tx_t *tx)
 {
 	dbuf_dirty_record_t *dr;
 
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list))) {
 		if (dr->dr_zio != NULL) {
 			/*
 			 * If we find an already initialized zio then we

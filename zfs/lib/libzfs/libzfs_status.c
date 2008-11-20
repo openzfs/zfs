@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_status.c	1.7	07/06/29 SMI"
-
 /*
  * This file contains the functions which analyze the status of a pool.  This
  * include both the status of an active pool, as well as the status exported

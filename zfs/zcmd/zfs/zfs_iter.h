@@ -26,8 +26,6 @@
 #ifndef	ZFS_ITER_H
 #define	ZFS_ITER_H
 
-#pragma ident	"@(#)zfs_iter.h	1.6	07/09/17 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

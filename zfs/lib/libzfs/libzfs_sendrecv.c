@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_sendrecv.c	1.7	08/04/23 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -898,7 +896,7 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 
 		(void) strncpy(newname, name, baselen);
 		(void) snprintf(newname+baselen, ZFS_MAXNAMELEN-baselen,
-		    "recv-%u-%u", getpid(), seq);
+		    "recv-%ld-%u", (long) getpid(), seq);
 		(void) strlcpy(zc.zc_value, newname, sizeof (zc.zc_value));
 
 		if (flags.verbose) {

@@ -26,8 +26,6 @@
 #ifndef	_ZFS_UTIL_H
 #define	_ZFS_UTIL_H
 
-#pragma ident	"@(#)zfs_util.h	1.2	06/05/24 SMI"
-
 #include <libzfs.h>
 
 #ifdef	__cplusplus

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_dataset.c	1.42	08/04/28 SMI"
-
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>
@@ -91,10 +89,12 @@ parent_delta(dsl_dataset_t *ds, int64_t delta)
 void
 dsl_dataset_block_born(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx)
 {
-	int used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
-	int compressed = BP_GET_PSIZE(bp);
-	int uncompressed = BP_GET_UCSIZE(bp);
+	int used, compressed, uncompressed;
 	int64_t delta;
+
+	used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
+	compressed = BP_GET_PSIZE(bp);
+	uncompressed = BP_GET_UCSIZE(bp);
 
 	dprintf_bp(bp, "born, ds=%p\n", ds);
 
@@ -345,7 +345,7 @@ dsl_dataset_open_obj(dsl_pool_t *dp, uint64_t dsobj, const char *snapname,
 		return (err);
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
-		dsl_dataset_t *winner;
+		dsl_dataset_t *winner = NULL;
 
 		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
 		ds->ds_dbuf = dbuf;
@@ -1862,10 +1862,8 @@ dsl_dataset_space(dsl_dataset_t *ds,
 boolean_t
 dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 {
-	dsl_pool_t *dp = ds->ds_dir->dd_pool;
-
-	ASSERT(RW_LOCK_HELD(&dp->dp_config_rwlock) ||
-	    dsl_pool_sync_context(dp));
+	ASSERT(RW_LOCK_HELD(&(ds->ds_dir->dd_pool)->dp_config_rwlock) ||
+	    dsl_pool_sync_context(ds->ds_dir->dd_pool));
 	if (ds->ds_prev == NULL)
 		return (B_FALSE);
 	if (ds->ds_phys->ds_bp.blk_birth >
@@ -1963,7 +1961,7 @@ dsl_snapshot_rename_one(char *name, void *arg)
 	 * For recursive snapshot renames the parent won't be changing
 	 * so we just pass name for both the to/from argument.
 	 */
-	if (err = zfs_secpolicy_rename_perms(name, name, CRED())) {
+	if ((err = zfs_secpolicy_rename_perms(name, name, CRED()))) {
 		(void) strcpy(ra->failed, name);
 		return (err);
 	}
@@ -2151,16 +2149,16 @@ dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	if (err = dsl_dataset_open_obj(dp, dd->dd_phys->dd_origin_obj,
-	    NULL, DS_MODE_EXCLUSIVE, FTAG, &origin_ds))
+	if ((err = dsl_dataset_open_obj(dp, dd->dd_phys->dd_origin_obj,
+	    NULL, DS_MODE_EXCLUSIVE, FTAG, &origin_ds)))
 		goto out;
 	odd = origin_ds->ds_dir;
 
 	{
 		dsl_dataset_t *phds;
-		if (err = dsl_dataset_open_obj(dd->dd_pool,
+		if ((err = dsl_dataset_open_obj(dd->dd_pool,
 		    odd->dd_phys->dd_head_dataset_obj,
-		    NULL, DS_MODE_NONE, FTAG, &phds))
+		    NULL, DS_MODE_NONE, FTAG, &phds)))
 			goto out;
 		pa->ds_flags = phds->ds_phys->ds_flags;
 		pa->snapnames_obj = phds->ds_phys->ds_snapnames_zapobj;
@@ -2178,9 +2176,9 @@ dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	while (newnext_ds->ds_phys->ds_prev_snap_obj != origin_ds->ds_object) {
 		dsl_dataset_t *prev;
 
-		if (err = dsl_dataset_open_obj(dd->dd_pool,
+		if ((err = dsl_dataset_open_obj(dd->dd_pool,
 		    newnext_ds->ds_phys->ds_prev_snap_obj,
-		    NULL, DS_MODE_NONE, FTAG, &prev))
+		    NULL, DS_MODE_NONE, FTAG, &prev)))
 			goto out;
 		dsl_dataset_close(newnext_ds, DS_MODE_NONE, FTAG);
 		newnext_ds = prev;
@@ -2227,12 +2225,12 @@ dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (ds->ds_phys->ds_prev_snap_obj == 0)
 			break;
 
-		if (err = bplist_space(&ds->ds_deadlist,
-		    &dlused, &dlcomp, &dluncomp))
+		if ((err = bplist_space(&ds->ds_deadlist,
+		    &dlused, &dlcomp, &dluncomp)))
 			goto out;
-		if (err = dsl_dataset_open_obj(dd->dd_pool,
+		if ((err = dsl_dataset_open_obj(dd->dd_pool,
 		    ds->ds_phys->ds_prev_snap_obj, NULL, DS_MODE_EXCLUSIVE,
-		    FTAG, &prev))
+		    FTAG, &prev)))
 			goto out;
 		pa->used += dlused - prev->ds_phys->ds_used_bytes;
 		pa->comp += dlcomp - prev->ds_phys->ds_compressed_bytes;

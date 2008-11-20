@@ -42,7 +42,7 @@
 
 #if !defined(__sun__) && !defined(__sun)
 /* It seems Solaris only returns positive host ids */
-static inline long fake_gethostid()
+static inline long fake_gethostid(void)
 {
 	long id = gethostid();
 	return id >= 0 ? id : -id;

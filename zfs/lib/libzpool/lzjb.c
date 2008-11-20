@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)lzjb.c	1.3	07/03/22 SMI"
-
 /*
  * We keep our own copy of this algorithm for 2 main reasons:
  * 	1. If we didn't, anyone modifying common/os/compress.c would
@@ -51,7 +49,7 @@ lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
 	uchar_t *src = s_start;
 	uchar_t *dst = d_start;
-	uchar_t *cpy, *copymap;
+	uchar_t *cpy, *copymap = NULL;
 	int copymask = 1 << (NBBY - 1);
 	int mlen, offset;
 	uint16_t *hp;
@@ -104,7 +102,7 @@ lzjb_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	uchar_t *src = s_start;
 	uchar_t *dst = d_start;
 	uchar_t *d_end = (uchar_t *)d_start + d_len;
-	uchar_t *cpy, copymap;
+	uchar_t *cpy, copymap = 0;
 	int copymask = 1 << (NBBY - 1);
 
 	while (dst < d_end) {

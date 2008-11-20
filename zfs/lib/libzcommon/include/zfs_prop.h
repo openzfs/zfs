@@ -26,8 +26,6 @@
 #ifndef	_ZFS_PROP_H
 #define	_ZFS_PROP_H
 
-#pragma ident	"@(#)zfs_prop.h	1.9	07/10/25 SMI"
-
 #include <sys/fs/zfs.h>
 #include <sys/types.h>
 

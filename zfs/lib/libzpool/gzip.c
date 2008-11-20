@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)gzip.c	1.1	07/03/22 SMI"
-
 #include <sys/debug.h>
 #include <sys/types.h>
 #include <sys/zmod.h>

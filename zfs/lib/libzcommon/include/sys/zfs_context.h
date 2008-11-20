@@ -26,8 +26,6 @@
 #ifndef _SYS_ZFS_CONTEXT_H
 #define	_SYS_ZFS_CONTEXT_H
 
-#pragma ident	"@(#)zfs_context.h	1.3	07/10/24 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
