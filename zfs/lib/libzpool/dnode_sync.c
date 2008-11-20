@@ -411,7 +411,7 @@ dnode_undirty_dbufs(list_t *list)
 {
 	dbuf_dirty_record_t *dr;
 
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list))) {
 		dmu_buf_impl_t *db = dr->dr_dbuf;
 		uint64_t txg = dr->dr_txg;
 

@@ -758,7 +758,7 @@ dmu_objset_snapshot(char *fsname, char *snapname, boolean_t recursive)
 	}
 
 out:
-	while (osn = list_head(&sn.objsets)) {
+	while ((osn = list_head(&sn.objsets))) {
 		list_remove(&sn.objsets, osn);
 		zil_resume(dmu_objset_zil(osn->os));
 		dmu_objset_close(osn->os);
@@ -778,7 +778,7 @@ dmu_objset_sync_dnodes(list_t *list, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 
-	while (dn = list_head(list)) {
+	while ((dn = list_head(list))) {
 		ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
 		ASSERT(dn->dn_dbuf->db_data_pending);
 		/*
@@ -890,7 +890,7 @@ dmu_objset_sync(objset_impl_t *os, zio_t *pio, dmu_tx_t *tx)
 	dmu_objset_sync_dnodes(&os->os_dirty_dnodes[txgoff], tx);
 
 	list = &os->os_meta_dnode->dn_dirty_records[txgoff];
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list))) {
 		ASSERT(dr->dr_dbuf->db_level == 0);
 		list_remove(list, dr);
 		if (dr->dr_zio)

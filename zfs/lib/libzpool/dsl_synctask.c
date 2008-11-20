@@ -139,7 +139,7 @@ dsl_sync_task_group_destroy(dsl_sync_task_group_t *dstg)
 {
 	dsl_sync_task_t *dst;
 
-	while (dst = list_head(&dstg->dstg_tasks)) {
+	while ((dst = list_head(&dstg->dstg_tasks))) {
 		list_remove(&dstg->dstg_tasks, dst);
 		kmem_free(dst, sizeof (dsl_sync_task_t));
 	}

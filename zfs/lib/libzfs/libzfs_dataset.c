@@ -481,7 +481,7 @@ zfs_spa_version(zfs_handle_t *zhp, int *spa_version)
 		return (-1);
 	}
 
-	if (p = strchr(pool_name, '/'))
+	if ((p = strchr(pool_name, '/')))
 		*p = '\0';
 	zpool_handle = zpool_open(zhp->zfs_hdl, pool_name);
 	free(pool_name);
@@ -1159,7 +1159,7 @@ zfs_build_perms(zfs_handle_t *zhp, char *whostr, char *perms,
 		zfs_perms_add_who_nvlist(who_nvp, who_id, who_tok,
 		    perms_nvp, sets_nvp, who_type, inherit);
 
-	} while (who_tok = strtok(NULL, ","));
+	} while ((who_tok = strtok(NULL, ",")));
 	*nvp = who_nvp;
 	return (0);
 }
@@ -1564,9 +1564,9 @@ zfs_perm_get(zfs_handle_t *zhp, zfs_allow_t **zfs_perms)
 				if (zfs_coalesce_perm(zhp, allownode,
 				    nvpair_name(perm_pair), ld) != 0)
 					goto abort;
-			} while (perm_pair = nvlist_next_nvpair(permnv,
-			    perm_pair));
-		} while (who_pair = nvlist_next_nvpair(sourcenv, who_pair));
+			} while ((perm_pair = nvlist_next_nvpair(permnv,
+			          perm_pair)));
+		} while ((who_pair = nvlist_next_nvpair(sourcenv, who_pair)));
 
 		source_pair = nvlist_next_nvpair(nvlist, source_pair);
 		if (source_pair == NULL)
@@ -2742,7 +2742,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 	 * up to the prefixlen-long one.
 	 */
 	for (cp = target + prefixlen + 1;
-	    cp = strchr(cp, '/'); *cp = '/', cp++) {
+	    (cp = strchr(cp, '/')); *cp = '/', cp++) {
 		char *logstr;
 
 		*cp = '\0';
@@ -3585,7 +3585,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	 */
 	if ((zhp->zfs_type == ZFS_TYPE_VOLUME) &&
 	    (zhp = make_dataset_handle(zhp->zfs_hdl, zhp->zfs_name))) {
-		if (err = zvol_create_link(zhp->zfs_hdl, zhp->zfs_name)) {
+		if ((err = zvol_create_link(zhp->zfs_hdl, zhp->zfs_name))) {
 			zfs_close(zhp);
 			return (err);
 		}

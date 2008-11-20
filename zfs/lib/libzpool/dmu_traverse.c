@@ -398,7 +398,7 @@ find_block(traverse_handle_t *th, zseg_t *zseg, dnode_phys_t *dnp, int depth)
 
 		for (i = first; i < nbp; i++)
 			if (bp[i].blk_birth > zseg->seg_mintxg ||
-			    BP_IS_HOLE(&bp[i]) && do_holes)
+			    (BP_IS_HOLE(&bp[i]) && do_holes))
 				break;
 
 		if (i != first) {
@@ -412,7 +412,7 @@ find_block(traverse_handle_t *th, zseg_t *zseg, dnode_phys_t *dnp, int depth)
 		SET_BOOKMARK(&bc->bc_bookmark, zb->zb_objset, zb->zb_object,
 		    level, blkid);
 
-		if (rc = traverse_read(th, bc, bp + i, dnp)) {
+		if ((rc = traverse_read(th, bc, bp + i, dnp))) {
 			if (rc != EAGAIN) {
 				SET_BOOKMARK_LB(zb, level, blkid);
 			}
