@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_history.c	1.5	07/07/09 SMI"
-
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/zap.h>

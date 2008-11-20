@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev_label.c	1.18	07/12/12 SMI"
-
 /*
  * Virtual Device Labels
  * ---------------------

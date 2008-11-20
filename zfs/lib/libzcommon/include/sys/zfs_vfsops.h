@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
 #define	_SYS_FS_ZFS_VFSOPS_H
 
-#pragma ident	"@(#)zfs_vfsops.h	1.11	08/02/22 SMI"
-
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
 #include <sys/list.h>

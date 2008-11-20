@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_fm.c	1.6	08/04/01 SMI"
-
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>

@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)rrwlock.c	1.1	07/10/24 SMI"
-
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
 

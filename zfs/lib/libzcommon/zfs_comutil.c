@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_comutil.c	1.1	08/01/25 SMI"
-
 /*
  * This file is intended for functions that ought to be common between user
  * land (libzfs) and the kernel. When many common routines need to be shared

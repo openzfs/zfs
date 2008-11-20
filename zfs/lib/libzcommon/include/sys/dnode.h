@@ -26,8 +26,6 @@
 #ifndef	_SYS_DNODE_H
 #define	_SYS_DNODE_H
 
-#pragma ident	"@(#)dnode.h	1.12	07/08/26 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
 #include <sys/spa.h>

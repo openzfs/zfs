@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zap_micro.c	1.12	08/04/27 SMI"
-
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>

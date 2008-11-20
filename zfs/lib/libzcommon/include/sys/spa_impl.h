@@ -26,8 +26,6 @@
 #ifndef _SYS_SPA_IMPL_H
 #define	_SYS_SPA_IMPL_H
 
-#pragma ident	"@(#)spa_impl.h	1.17	07/11/27 SMI"
-
 #include <sys/spa.h>
 #include <sys/vdev.h>
 #include <sys/metaslab.h>

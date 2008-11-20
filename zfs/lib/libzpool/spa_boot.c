@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_boot.c	1.1	08/04/09 SMI"
-
 #include <sys/spa.h>
 #include <sys/sunddi.h>
 

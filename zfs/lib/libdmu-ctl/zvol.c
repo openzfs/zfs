@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zvol.c	1.31	08/04/09 SMI"
-
 /*
  * ZFS volume emulation driver.
  *

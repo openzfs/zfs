@@ -26,8 +26,6 @@
 #ifndef _SYS_METASLAB_IMPL_H
 #define	_SYS_METASLAB_IMPL_H
 
-#pragma ident	"@(#)metaslab_impl.h	1.2	06/04/02 SMI"
-
 #include <sys/metaslab.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>

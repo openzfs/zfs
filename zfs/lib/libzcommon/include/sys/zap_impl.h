@@ -26,8 +26,6 @@
 #ifndef	_SYS_ZAP_IMPL_H
 #define	_SYS_ZAP_IMPL_H
 
-#pragma ident	"@(#)zap_impl.h	1.9	07/10/30 SMI"
-
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/avl.h>

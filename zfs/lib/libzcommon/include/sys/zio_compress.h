@@ -27,8 +27,6 @@
 #ifndef _SYS_ZIO_COMPRESS_H
 #define	_SYS_ZIO_COMPRESS_H
 
-#pragma ident	"@(#)zio_compress.h	1.2	07/03/22 SMI"
-
 #include <sys/zio.h>
 
 #ifdef	__cplusplus

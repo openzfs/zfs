@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_graph.c	1.8	08/02/27 SMI"
-
 /*
  * Iterate over all children of the current object.  This includes the normal
  * dataset hierarchy, but also arbitrary hierarchies due to clones.  We want to

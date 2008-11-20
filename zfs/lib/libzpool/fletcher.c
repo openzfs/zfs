@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)fletcher.c	1.2	06/03/03 SMI"
-
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>

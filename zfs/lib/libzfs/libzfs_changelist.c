@@ -26,8 +26,6 @@
  * Portions Copyright 2007 Ramprakash Jelari
  */
 
-#pragma ident	"@(#)libzfs_changelist.c	1.23	08/03/04 SMI"
-
 #include <libintl.h>
 #include <libuutil.h>
 #include <stddef.h>

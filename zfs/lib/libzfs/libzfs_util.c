@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_util.c	1.29	08/04/01 SMI"
-
 /*
  * Internal utility routines for the ZFS library.
  */

@@ -26,8 +26,6 @@
 #ifndef _SYS_SPA_H
 #define	_SYS_SPA_H
 
-#pragma ident	"@(#)spa.h	1.31	08/04/09 SMI"
-
 #include <sys/avl.h>
 #include <sys/zfs_context.h>
 #include <sys/nvpair.h>

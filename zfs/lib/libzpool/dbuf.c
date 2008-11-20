@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dbuf.c	1.32	08/03/20 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>

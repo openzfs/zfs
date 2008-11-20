@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_mount.c	1.25	08/03/04 SMI"
-
 /*
  * Routines to manage ZFS mounts.  We separate all the nasty routines that have
  * to deal with the OS.  The following functions are the main entry points --

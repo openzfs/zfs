@@ -26,8 +26,6 @@
 #ifndef _SYS_SPACE_MAP_H
 #define	_SYS_SPACE_MAP_H
 
-#pragma ident	"@(#)space_map.h	1.2	06/04/02 SMI"
-
 #include <sys/avl.h>
 #include <sys/dmu.h>
 

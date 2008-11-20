@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_ACL_H
 #define	_SYS_FS_ZFS_ACL_H
 
-#pragma ident	"@(#)zfs_acl.h	1.9	08/04/08 SMI"
-
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
 #include <sys/types32.h>

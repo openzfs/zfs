@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_rlock.c	1.4	07/08/08 SMI"
-
 /*
  * This file contains the code to implement file range locking in
  * ZFS, although there isn't much specific to ZFS (all that comes to mind

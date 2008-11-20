@@ -26,8 +26,6 @@
 #ifndef	_SYS_BPLIST_H
 #define	_SYS_BPLIST_H
 
-#pragma ident	"@(#)bplist.h	1.3	06/05/24 SMI"
-
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/txg.h>

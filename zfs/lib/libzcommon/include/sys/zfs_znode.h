@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
-#pragma ident	"@(#)zfs_znode.h	1.25	07/12/07 SMI"
-
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
 #include <sys/types32.h>

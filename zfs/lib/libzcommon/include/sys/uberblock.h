@@ -27,8 +27,6 @@
 #ifndef _SYS_UBERBLOCK_H
 #define	_SYS_UBERBLOCK_H
 
-#pragma ident	"@(#)uberblock.h	1.1	05/10/30 SMI"
-
 #include <sys/spa.h>
 #include <sys/vdev.h>
 #include <sys/zio.h>

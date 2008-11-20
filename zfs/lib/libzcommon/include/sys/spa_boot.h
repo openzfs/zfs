@@ -26,8 +26,6 @@
 #ifndef _SYS_SPA_BOOT_H
 #define	_SYS_SPA_BOOT_H
 
-#pragma ident	"@(#)spa_boot.h	1.1	08/04/09 SMI"
-
 #include <sys/nvpair.h>
 
 #ifdef	__cplusplus
