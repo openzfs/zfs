@@ -3364,6 +3364,7 @@ arc_fini(void)
 	mutex_destroy(&arc_mru_ghost->arcs_mtx);
 	mutex_destroy(&arc_mfu->arcs_mtx);
 	mutex_destroy(&arc_mfu_ghost->arcs_mtx);
+	mutex_destroy(&arc_l2c_only->arcs_mtx);
 
 	buf_fini();
 }

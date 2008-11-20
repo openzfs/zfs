@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix locks
+
+Properly initialize and destroy locking primitives.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---
