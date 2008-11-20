@@ -59,7 +59,7 @@ uint8_t zio_priority_table[ZIO_PRIORITY_TABLE_SIZE] = {
  * ==========================================================================
  */
 char *zio_type_name[ZIO_TYPES] = {
-	"null", "read", "write", "free", "claim", "ioctl" };
+       "nul", "rd", "wr", "fr", "cm", "ctl" };
 
 /* Force an allocation failure when non-zero */
 uint16_t zio_zil_fail_shift = 0;
@@ -830,7 +830,7 @@ void
 zio_interrupt(zio_t *zio)
 {
 	(void) taskq_dispatch(zio->io_spa->spa_zio_intr_taskq[zio->io_type],
-	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	    (task_func_t *)zio_execute, zio, TQ_NOSLEEP);
 }
 
 static int

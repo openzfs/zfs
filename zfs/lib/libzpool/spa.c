@@ -481,6 +481,7 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
 static void
 spa_activate(spa_t *spa)
 {
+	char str[16];
 	int t;
 
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
@@ -491,10 +492,13 @@ spa_activate(spa_t *spa)
 	spa->spa_log_class = metaslab_class_create();
 
 	for (t = 0; t < ZIO_TYPES; t++) {
-		spa->spa_zio_issue_taskq[t] = taskq_create("spa_zio_issue",
+		snprintf(str, 16, "zio_req_%s", zio_type_name[t]);
+		spa->spa_zio_issue_taskq[t] = taskq_create(str,
 		    zio_taskq_threads, maxclsyspri, 50, INT_MAX,
 		    TASKQ_PREPOPULATE);
-		spa->spa_zio_intr_taskq[t] = taskq_create("spa_zio_intr",
+
+		snprintf(str, 16, "zio_irq_%s", zio_type_name[t]);
+		spa->spa_zio_intr_taskq[t] = taskq_create(str,
 		    zio_taskq_threads, maxclsyspri, 50, INT_MAX,
 		    TASKQ_PREPOPULATE);
 	}
