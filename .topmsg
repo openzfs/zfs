@@ -1,8 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] gcc warning useless debug
+Subject: [PATCH] gcc branch
 
-Gcc useless debugging
+Merged result of all gcc changes
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
-
----
