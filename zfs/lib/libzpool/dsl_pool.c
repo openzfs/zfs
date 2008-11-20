@@ -187,7 +187,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	tx = dmu_tx_create_assigned(dp, txg);
 
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while (ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
 		if (!list_link_active(&ds->ds_synced_link))
 			list_insert_tail(&dp->dp_synced_datasets, ds);
 		else
@@ -197,9 +197,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	err = zio_wait(zio);
 	ASSERT(err == 0);
 
-	while (dstg = txg_list_remove(&dp->dp_sync_tasks, txg))
+	while ((dstg = txg_list_remove(&dp->dp_sync_tasks, txg)))
 		dsl_sync_task_group_sync(dstg, tx);
-	while (dd = txg_list_remove(&dp->dp_dirty_dirs, txg))
+	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)))
 		dsl_dir_sync(dd, tx);
 
 	if (list_head(&mosi->os_dirty_dnodes[txg & TXG_MASK]) != NULL ||
@@ -220,7 +220,7 @@ dsl_pool_zil_clean(dsl_pool_t *dp)
 {
 	dsl_dataset_t *ds;
 
-	while (ds = list_head(&dp->dp_synced_datasets)) {
+	while ((ds = list_head(&dp->dp_synced_datasets))) {
 		list_remove(&dp->dp_synced_datasets, ds);
 		ASSERT(ds->ds_user_ptr != NULL);
 		zil_clean(((objset_impl_t *)ds->ds_user_ptr)->os_zil);
@@ -297,7 +297,7 @@ dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 	 * the caller 1 clock tick.  This will slow down the "fill"
 	 * rate until the sync process can catch up with us.
 	 */
-	if (reserved && reserved > (write_limit - write_limit << 3))
+	if (reserved && reserved > (write_limit - (write_limit << 3)))
 		txg_delay(dp, tx->tx_txg, 1);
 
 	return (0);

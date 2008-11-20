@@ -723,8 +723,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *config, *props = NULL;
 	char *buf;
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    &config))
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    &config)))
 		return (error);
 
 	if (zc->zc_nvlist_src_size != 0 && (error =
@@ -956,7 +956,7 @@ zfs_ioc_dsobj_to_dsname(zfs_cmd_t *zc)
 {
 	int error;
 
-	if (error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value))
+	if ((error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value)))
 		return (error);
 
 	return (0);
@@ -1380,8 +1380,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			    nvpair_type(elem) != DATA_TYPE_STRING)
 				return (EINVAL);
 
-			if (error = zfs_secpolicy_write_perms(name,
-			    ZFS_DELEG_PERM_USERPROP, CRED()))
+			if ((error = zfs_secpolicy_write_perms(name,
+			    ZFS_DELEG_PERM_USERPROP, CRED())))
 				return (error);
 			continue;
 		}
