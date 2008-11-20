@@ -1,8 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] zfs branch
+Subject: [PATCH] linux symbol collisions
 
-Merged result of all changes which are relevant to both Solaris
-and Linux builds of the ZFS code.  These are changes where there
-is a reasonable chance they will be accepted upstream.
+Resolve Linux symbol collisions
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>

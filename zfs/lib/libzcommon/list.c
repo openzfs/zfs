@@ -161,7 +161,11 @@ list_prev(list_t *list, void *object)
  *  Insert src list after dst list. Empty src list thereafter.
  */
 void
+#if defined(_KERNEL) && defined(HAVE_SPL)
+__list_move_tail(list_t *dst, list_t *src)
+#else
 list_move_tail(list_t *dst, list_t *src)
+#endif
 {
 	list_node_t *dstnode = &dst->list_head;
 	list_node_t *srcnode = &src->list_head;
