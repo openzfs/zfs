@@ -1929,6 +1929,10 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 			drp = &(*drp)->dr_next;
 		ASSERT(dr->dr_next == NULL);
 		*drp = dr->dr_next;
+		if (dr->dr_dbuf->db_level != 0) {
+			mutex_destroy(&dr->dt.di.dr_mtx);
+			list_destroy(&dr->dt.di.dr_children);
+		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		ASSERT(db->db_dirtycnt > 0);
 		db->db_dirtycnt -= 1;
