@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack size
+
+Reduce stack usage
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+
+---
