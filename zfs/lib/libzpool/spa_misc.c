@@ -176,11 +176,15 @@ kmem_cache_t *spa_buffer_pool;
 int spa_mode;
 
 #ifdef ZFS_DEBUG
+#ifdef _KERNEL
 /* Everything except dprintf is on by default in debug builds */
 int zfs_flags = ~ZFS_DEBUG_DPRINTF;
 #else
+int zfs_flags = ~0;
+#endif /* _KERNEL */
+#else
 int zfs_flags = 0;
-#endif
+#endif /* ZFS_DEBUG */
 
 /*
  * zfs_recover can be set to nonzero to attempt to recover from
