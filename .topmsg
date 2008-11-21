@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] have libdiskmgt
+Subject: [PATCH] linux have libdiskmgt
 
 Use libdiskmgt if HAVE_LIBDISKMGT defined
 
