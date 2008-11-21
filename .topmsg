@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] have fm
+Subject: [PATCH] linux have fm
 
 Use fm_* if HAVE_FM defined
 
