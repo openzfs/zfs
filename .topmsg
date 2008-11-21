@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] have libefi
+Subject: [PATCH] linux have libefi
 
 Use libefi if HAVE_LIBEFI defined
 
