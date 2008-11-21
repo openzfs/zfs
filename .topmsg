@@ -1,0 +1,11 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix no zmod
+
+Do not use zmod.h in userspace.
+
+This has also been filed with the ZFS team. It makes the userspace
+libzpool code use the zlib API, instead of the Solaris-only and
+non-standard zmod.h.  The zlib API is almost identical and is a de
+facto standard, so this is a no-brainer.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
