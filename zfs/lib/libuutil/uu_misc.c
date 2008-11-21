@@ -251,7 +251,13 @@ uu_release_child(void)
 	uu_release();
 }
 
+#ifdef __GNUC__
+static void
+uu_init(void) __attribute__((constructor));
+#else
 #pragma init(uu_init)
+#endif
+
 static void
 uu_init(void)
 {
