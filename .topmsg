@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] gcc-init-pragmas
+Subject: [PATCH] gcc init pragmas
 
 Use constructor attribute on non-Solaris platforms.
 
