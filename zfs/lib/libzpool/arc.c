@@ -1802,7 +1802,7 @@ arc_reclaim_needed(void)
 		return (1);
 #endif
 
-#else
+#elif defined(ZFS_DEBUG)
 	if (spa_get_random(100) == 0)
 		return (1);
 #endif
@@ -2881,7 +2881,7 @@ arc_has_callback(arc_buf_t *buf)
 	return (buf->b_efunc != NULL);
 }
 
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) || (!defined(_KERNEL) && !defined(NDEBUG))
 int
 arc_referenced(arc_buf_t *buf)
 {

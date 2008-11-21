@@ -1,0 +1,12 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix no debug userspace
+
+Disable debug code on userspace
+
+This one has been filed with the ZFS team and they haven't presented
+any objections so far. Basically, in some places the ZFS code was
+assuming that !_KERNEL == debug mode, which isn't always true.
+
+There's also a symbol collision fix in the debug code (verify).
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
