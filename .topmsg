@@ -1,6 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] feature-branch
+Subject: [PATCH] feature branch
 
-Merged result of all features
+Merged result of all expected upstream ZFS features
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
