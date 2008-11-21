@@ -8,16 +8,16 @@ Three major concerns were on our mind when setting up this project.
     improvements and not get locked in to an old version of the code base.
 
   o Secondly, we wanted to be able to easily manage our changes in terms
-    of a patch stack.  This allows us to easily isolate specific changes
-    and push them upstream for inclusion.  It also allows us to easily
-    update or drop specific changes based on what occurs upstream.
+    of a patch stack or graph.  This allows us to easily isolate specific
+    changes and push them upstream for inclusion.  It also allows us to 
+    easily update or drop specific changes based on what occurs upstream.
 
   o Thirdly we needed our DVCS to be integrated with the management of this
-    patch stack.  We have tried other methods in the past such as SVN+Quilt
-    but have found managing the patch stack becomes cumbersome.  By using
-    Git+TopGit to more tightly integrate our patch stack in to the repo
+    patch stack or graph.  We have tried other methods in the past such as
+    SVN+Quilt but have found managing the patch stack becomes cumbersome.
+    By using Git+TopGit to more tightly integrate our patches in to the repo
     we expect several benefits.  One of the most important will be the
-    ability to easily work on the patch stack with a distributed developer
+    ability to easily work on the patch's with a distributed development
     team, additionally the repo can track patch history, and we can utilize
     Git to merge patches and resolve conflicts.
 
@@ -59,28 +59,34 @@ a summary command which shows all the branches and a brief summary for
 each branch obtained from the .topmsg files.
 
         > tg summary
- 0      t/LAST                          [PATCH] LAST
-        t/feature-commit-cb             [PATCH] zfs commit callbacks
-        t/fix-clock-wrap                [PATCH] fix clock wrap
-        t/fix-dnode-cons                [PATCH] fix dnode constructor
+ 0      feature-branch                  [PATCH] feature-branch
+        feature-commit-cb               [PATCH] feature commit cb
+        feature-zap-cursor-to-key       [PATCH] feature zap cursor to key
         ...
 
-By convention all TopGit branches are prefixed with 't/', and the Linux
-ZFS repo also introduces the convention that the top most development 
-branch be called 't/LAST".  This provides a consistent label to be used
-when you need to reference the branch which contains the union of all 
-topic branches.
+By convention all TopGit branches are usually prefixed with 't/', however
+I have chosen not to do this for simplicity.  A different convention I have
+adopted is to tag the top most TopGit branch as 'top' for easy reference.
+This provides a consistent label to be used when you need to reference the
+branch which contains the union of all topic branches.
 
 One thing you may also notice about the 'tg summary' command is it does
-not show the branches in dependent order.  While this project only expresses
-a single dependency per branch TopGit implements dependencies as a DAC just
-like Git.  To see the dependencies you will need to use the --graphviz
-option and pipe the result to dot for display.  The following command while
-long works fairly well for me.  Longer term it would be nice to update this
-option to use a preferred config options stored in the repo if they exist.
+not show the branches in dependent order.  This is done because TopGit allows
+each branch to express multiple dependencies as a DAC.  Initially this seemed
+like an added complication which I planned to avoid by just implementing a
+stack using the graph.   However, this ended up being problematic because
+with a stack when a change was made to a branch near the base, it was a
+very expensive operation to merge the change up to the top of the stack.
+By defining the dependencies as a graph it is possible to keep the depth
+much shallower thus minimizing the merging.  It has also proved insightful
+as to each patches actual dependencies.
 
-        > tg summary --graphviz | dot -Txlib -Nfontsize=8 -Eminlen=0.01 \
-        -Grankdir=LR -Nheight=0.3 -Nwidth=2 -Nfixedsize=true
+To see the dependencies you will need to use the --graphviz option and pipe
+the result to dot for display.  The following command works fairly well for
+me.  Longer term it would be nice to update this option to use a preferred
+config options stored in the repo.
+
+        > tg summary --graphviz | dot -Txlib -Nfontsize=8
 
 ========================= UPDATING A TOPIC BRANCH ========================
 
