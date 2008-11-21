@@ -7,3 +7,4 @@ gcc-invalid-prototype
 gcc-c90
 gcc-missing-case
 gcc-no-pragmas
+gcc-init-pragmas
