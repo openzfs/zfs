@@ -95,12 +95,13 @@ are a few rules you need to be aware of.  The basic process involves
 checking out the relevant topic branch where the changes need to be made,
 making the changes, committing the changes to the branch and then merging
 those changes in to dependent branches.  TopGit provides some tools to make
-this pretty easy, although it may be a little sluggish.  Here is an example:
+this pretty easy, although it may be a little sluggish depending on how many
+dependent branches are impacted by the change.  Here is an example:
 
-        > git checkout t/feature-commit-cb  # Checkout the proper branch
+        > git checkout modify-topic-branch  # Checkout the proper branch
         > ...update branch...               # Update the branch
         > git commit -a                     # Commit your changes
-        > git checkout t/LAST               # Checkout the LAST branch
+        > git checkout top                  # Checkout the top branch
         > tg update                         # Recursively merge in new branch
 
 Assuming you change does not introduce any conflicts your done.  All branches
@@ -110,24 +111,38 @@ continue on with the update.
 
 ========================== ADDING A TOPIC BRANCH =========================
 
-Adding a topic branch in TopGit is a little more complicated.  When adding
-a new branch to the end of the patch graph things are pretty easy and TopGit
-does all the work.  However, I expect out common case to be adding patches
-to the middle of the graph.  TopGit will allow you to do this but you must
-be careful to manually update the dependency information in the .topdeps
-file.
+Adding a topic branch in TopGit can be pretty straight forward.  If your 
+adding a non-conflicting patch in parallel with other patches of the same
+type, then things are pretty easy and TopGit does all the work.
 
-        > git co t/existing-topic-branch    # Checkout the branch to add after
-        > tg create t/new-topic-branch      # Create a new topic branch
+        > git co existing-topic-branch      # Checkout the branch to add after
+        > tg create new-topic-branch        # Create a new topic branch
         > ...update .topmsg...              # Update the branch message
         > ...create patch...                # Update with your changes
         > git commit -a                     # Commit your changes
-        > git co t/dependent-topic-branch   # Checkout dependent branch
+        > git co dependent-topic-branch     # Checkout dependent branch
+        > tg depend add new-topic-branch    # Update dependencies 
+        > git checkout top                  # Checkout the top branch
+        > tg update                         # Recursively merge in new branch
+
+If you need to add your patch in series with another change things are
+a little more complicated.  In this case TopGit does not yet support removing
+dependencies so you will need to do it by hand, as follows.
+
+        > git co existing-topic-branch      # Checkout the branch to add after
+        > tg create new-topic-branch        # Create a new topic branch
+        > ...update .topmsg...              # Update the branch message
+        > ...create patch...                # Update with your changes
+        > git commit -a                     # Commit your changes
+        > git co dependent-topic-branch     # Checkout dependent branch
         > ...update .topdeps...             # Manually update dependencies
         > git commit -a                     # Commit your changes
         > tg update                         # TopGit update
-        > git checkout t/LAST               # Checkout the LAST branch
+        > git checkout top                  # Checkout the top branch
         > tg update                         # Recursively merge in new branch
+
+Once your done, I find it is a good idea view the repo using the  
+'tg summary --graphviz' command and verify the updated dependency graph.
 
 ========================= REMOVING A TOPIC BRANCH ========================
 
@@ -137,15 +152,18 @@ changes on the branch.  Then that reversion must be merged in to all dependent
 branches, the dependencies manually updated and finally the branch removed.
 If the branch is not empty you will not be able to remove it.
 
-        > git co t/del-topic-branch         # Checkout the branch to delete
+        > git co delete-topic-branch        # Checkout the branch to delete
         > tg patch | patch -R -p1           # Revert all branch changes
         > git commit -a                     # Commit your changes
-        > git checkout t/LAST               # Checkout the LAST branch
+        > git checkout top                  # Checkout the top branch
         > tg update                         # Recursively merge revert
-        > git co t/dependent-topic-branch   # Checkout dependent branch
+        > git co dependent-topic-branch     # Checkout dependent branch
         > ...update .topdeps...             # Manually update dependencies
         > git commit -a                     # Commit your changes
-        > tg delete t/del-topic-branch      # Delete empty topic branch
+        > tg delete delete-topic-branch     # Delete empty topic branch
+
+Once your done, I find it is a good idea view the repo using the  
+'tg summary --graphviz' command and verify the updated dependency graph.
 
 ============================ TOPGIT TODO =================================
 
