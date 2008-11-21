@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] have mntent
+Subject: [PATCH] linux have mntent
 
 Use mount entry if HAVE_SETMNTENT defined
 
