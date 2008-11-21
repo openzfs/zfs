@@ -153,7 +153,9 @@ void zfs_znode_byteswap(void *buf, size_t size);
  * The maximum number of bytes that can be accessed as part of one
  * operation, including metadata.
  */
-#define	DMU_MAX_ACCESS (10<<20) /* 10MB */
+#define DMU_MAX_ACCESS		(10<<20) /* 10MB */
+#define DMU_WRITE_ZEROCOPY	0x0001
+#define DMU_READ_ZEROCOPY	0x0002
 
 /*
  * Public routines to create, destroy, open, and close objsets.
@@ -454,8 +456,12 @@ int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
  * Canfail routines will return 0 on success, or an errno if there is a
  * nonrecoverable I/O error.
  */
+int dmu_read_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+	void *buf, int flags);
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf);
+void dmu_write_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+	const void *buf, dmu_tx_t *tx, int flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	const void *buf, dmu_tx_t *tx);
 int dmu_read_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size);
