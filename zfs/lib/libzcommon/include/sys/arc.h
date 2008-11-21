@@ -82,7 +82,7 @@ int arc_released(arc_buf_t *buf);
 int arc_has_callback(arc_buf_t *buf);
 void arc_buf_freeze(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) || (!defined(_KERNEL) && !defined(NDEBUG))
 int arc_referenced(arc_buf_t *buf);
 #endif
 

@@ -383,6 +383,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 
 	vp->v_fd = fd;
 	vp->v_size = st.st_size;
+	vp->v_mode = st.st_mode;
 	vp->v_path = spa_strdup(path);
 
 	return (0);
@@ -421,10 +422,17 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 		 * To simulate partial disk writes, we split writes into two
 		 * system calls so that the process can be killed in between.
 		 */
-		split = (len > 0 ? rand() % len : 0);
-		iolen = pwrite64(vp->v_fd, addr, split, offset);
-		iolen += pwrite64(vp->v_fd, (char *)addr + split,
-		    len - split, offset + split);
+#ifdef ZFS_DEBUG
+		if (!S_ISBLK(vp->v_mode) && !S_ISCHR(vp->v_mode)) {
+			split = (len > 0 ? rand() % len : 0);
+			iolen = pwrite64(vp->v_fd, addr, split, offset);
+			iolen += pwrite64(vp->v_fd, (char *)addr + split,
+			    len - split, offset + split);
+		} else
+			iolen = pwrite64(vp->v_fd, addr, len, offset);
+#else
+		iolen = pwrite64(vp->v_fd, addr, len, offset);
+#endif
 	}
 
 	if (iolen < 0)
