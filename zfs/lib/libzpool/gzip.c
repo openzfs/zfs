@@ -26,22 +26,35 @@
 
 #include <sys/debug.h>
 #include <sys/types.h>
-#include <sys/zmod.h>
 
 #ifdef _KERNEL
+
 #include <sys/systm.h>
-#else
+#include <sys/zmod.h>
+
+typedef size_t zlen_t;
+#define compress_func   z_compress_level
+#define uncompress_func z_uncompress
+
+#else /* _KERNEL */
+
 #include <strings.h>
+#include <zlib.h>
+
+typedef uLongf zlen_t;
+#define compress_func   compress2
+#define uncompress_func uncompress
+
 #endif
 
 size_t
 gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
-	size_t dstlen = d_len;
+	zlen_t dstlen = d_len;
 
 	ASSERT(d_len <= s_len);
 
-	if (z_compress_level(d_start, &dstlen, s_start, s_len, n) != Z_OK) {
+	if (compress_func(d_start, &dstlen, s_start, s_len, n) != Z_OK) {
 		if (d_len != s_len)
 			return (s_len);
 
@@ -49,18 +62,18 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 		return (s_len);
 	}
 
-	return (dstlen);
+	return ((size_t) dstlen);
 }
 
 /*ARGSUSED*/
 int
 gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
-	size_t dstlen = d_len;
+	zlen_t dstlen = d_len;
 
 	ASSERT(d_len >= s_len);
 
-	if (z_uncompress(d_start, &dstlen, s_start, s_len) != Z_OK)
+	if (uncompress_func(d_start, &dstlen, s_start, s_len) != Z_OK)
 		return (-1);
 
 	return (0);
