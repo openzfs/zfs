@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] have spl debug
+Subject: [PATCH] linux have spl debug
 
 Use spl debug if HAVE_SPL defined
 
