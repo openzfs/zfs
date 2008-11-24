@@ -1,3 +1,13 @@
+2008-11-05 Jim Garlick <garlick@llnl.gov>
+
+	* : Add autogen.sh products.
+
+	* configure.ac : Use AC_CONFIG_AUX_DIR to put autoconf products
+	in ./auotconf.
+
+	* autogen.sh : Use --copy to avoid symlinks, remove error
+	redirection, run aclocal before libtoolize.
+
 2008-11-13 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* include/sys/sunddi.h, modules/spl/spl-module.c : Removed default

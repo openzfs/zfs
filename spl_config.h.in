@@ -1,0 +1,136 @@
+/* spl_config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* Define to 1 to enable callb debugging */
+#undef DEBUG_CALLB
+
+/* Define to 1 to enable kmem debugging */
+#undef DEBUG_KMEM
+
+/* Define to 1 to enable kstat debugging */
+#undef DEBUG_KSTAT
+
+/* Define to 1 to enable mutex debugging */
+#undef DEBUG_MUTEX
+
+/* register_sysctl_table() wants 2 args */
+#undef HAVE_2ARGS_REGISTER_SYSCTL
+
+/* INIT_WORK wants 3 args */
+#undef HAVE_3ARGS_INIT_WORK
+
+/* kernel defines atomic64_t */
+#undef HAVE_ATOMIC64_T
+
+/* class_device_create() is available */
+#undef HAVE_CLASS_DEVICE_CREATE
+
+/* unnumbered sysctl support exists */
+#undef HAVE_CTL_UNNUMBERED
+
+/* device_create() is available */
+#undef HAVE_DEVICE_CREATE
+
+/* div64_64() is available */
+#undef HAVE_DIV64_64
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* linux/fdtable.h exists */
+#undef HAVE_FDTABLE_HEADER
+
+/* files_fdtable() is available */
+#undef HAVE_FILES_FDTABLE
+
+/* fls64() is available */
+#undef HAVE_FLS64
+
+/* init_utsname() is available */
+#undef HAVE_INIT_UTSNAME
+
+/* struct inode has i_mutex */
+#undef HAVE_INODE_I_MUTEX
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* kmalloc_node() is available */
+#undef HAVE_KMALLOC_NODE
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* monotonic_clock() is available */
+#undef HAVE_MONOTONIC_CLOCK
+
+/* struct path used in struct nameidata */
+#undef HAVE_PATH_IN_NAMEIDATA
+
+/* set_normalized_timespec() is available as export */
+#undef HAVE_SET_NORMALIZED_TIMESPEC_EXPORT
+
+/* set_normalized_timespec() is available as inline */
+#undef HAVE_SET_NORMALIZED_TIMESPEC_INLINE
+
+/* set_shrinker() available */
+#undef HAVE_SET_SHRINKER
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* task_curr() exported */
+#undef HAVE_TASK_CURR
+
+/* timespec_sub() is available */
+#undef HAVE_TIMESPEC_SUB
+
+/* linux/uaccess.h exists */
+#undef HAVE_UACCESS_HEADER
+
+/* kernel defines uintptr_t */
+#undef HAVE_UINTPTR_T
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 to disable debug tracing */
+#undef NDEBUG
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
