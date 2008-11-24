@@ -26,7 +26,7 @@
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 
-#if defined(DEBUG)
+#if defined(DEBUG) || !defined(_KERNEL)
 
 #ifdef _KERNEL
 int reference_tracking_enable = FALSE; /* runs out of memory too easily */
