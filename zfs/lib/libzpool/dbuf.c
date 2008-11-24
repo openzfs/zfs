@@ -2220,15 +2220,14 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		else
 			ASSERT(arc_released(db->db_buf));
 	} else {
-		dnode_t *dn = db->db_dnode;
-
 		ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
-		ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
+		ASSERT3U(db->db.db_size, ==,
+			 1<<db->db_dnode->dn_phys->dn_indblkshift);
 		if (!BP_IS_HOLE(db->db_blkptr)) {
 			ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
 			    db->db.db_size);
-			ASSERT3U(dn->dn_phys->dn_maxblkid >> (db->db_level *
-			    (dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT)),
+			ASSERT3U(db->db_dnode->dn_phys->dn_maxblkid >> (db->db_level *
+			    (db->db_dnode->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT)),
 		            >=, db->db_blkid);
 			arc_set_callback(db->db_buf, dbuf_do_evict, db);
 		}
