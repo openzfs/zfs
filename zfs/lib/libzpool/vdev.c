@@ -1296,8 +1296,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 
 	if (vd->vdev_detached) {
 		if (smo->smo_object != 0) {
-			int err = dmu_object_free(mos, smo->smo_object, tx);
-			ASSERT3U(err, ==, 0);
+			VERIFY(0 == dmu_object_free(mos, smo->smo_object, tx));
 			smo->smo_object = 0;
 		}
 		dmu_tx_commit(tx);
