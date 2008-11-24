@@ -6,15 +6,15 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		[zfsconfig="$withval"])
 
 	AC_MSG_CHECKING([zfs config file])
-	if test -z "$zfsconfig" || test ! -r configs/$zfsconfig; then
+	if test -z "$zfsconfig" || test ! -r config/$zfsconfig; then
 		AC_MSG_RESULT([no])
 		AC_MSG_ERROR([
 	        *** Please specify one of the valid config files located
-	        *** in ./configs/ with the '--with-zfs-config=CONFIG' option])
+	        *** in ./config/ with the '--with-zfs-config=CONFIG' option])
 	fi
 
 	AC_MSG_RESULT([$zfsconfig]);
-	. ./configs/$zfsconfig
+	. ./config/$zfsconfig
 
 	TOPDIR=`/bin/pwd`
 	ZFSDIR=${TOPDIR}/$BUILDDIR
