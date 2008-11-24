@@ -244,7 +244,7 @@ dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 		if (fromsnap)
 			return (EINVAL);
 
-		if (ds->ds_dir->dd_phys->dd_origin_obj != NULL) {
+		if (ds->ds_dir->dd_phys->dd_origin_obj != 0) {
 			dsl_pool_t *dp = ds->ds_dir->dd_pool;
 			rw_enter(&dp->dp_config_rwlock, RW_READER);
 			err = dsl_dataset_open_obj(dp,
