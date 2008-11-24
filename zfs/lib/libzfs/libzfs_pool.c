@@ -45,7 +45,8 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
-#include "dmu_config.h"
+#include "zfs_config.h"
+
 
 /*
  * ====================================================================
