@@ -11,3 +11,4 @@ fix-dsl_pool_t
 fix-stack
 fix-zio-thread-names
 fix-no-zmod
+fix-pthreads
