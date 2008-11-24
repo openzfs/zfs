@@ -250,7 +250,7 @@ txg_rele_commit_cb(txg_handle_t *th, list_t *tx_callbacks)
 	int g = th->th_txg & TXG_MASK;
 
 	mutex_enter(&tc->tc_lock);
-	while (dcb = list_head(tx_callbacks)) {
+	while ((dcb = list_head(tx_callbacks))) {
 		list_remove(tx_callbacks, dcb);
 		list_insert_tail(&tc->tc_callbacks[g], dcb);
 	}
@@ -298,7 +298,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	uint64_t timeout, start, delta, timer;
-	int target;
+	int c, target;
 
 	txg_thread_enter(tx, &cpr);
 
@@ -361,12 +361,13 @@ txg_sync_thread(dsl_pool_t *dp)
 		 * Call all the callbacks for this txg. The callbacks must
 		 * call dmu_tx_callback_data_destroy to free memory.
 		 */
-		for (int c = 0; c < max_ncpus; c++) {
-			int g = txg & TXG_MASK;
+		for (c = 0; c < max_ncpus; c++) {
+			dmu_callback_t *dcb;
 			tx_cpu_t *tc = &tx->tx_cpu[c];
+			int g = txg & TXG_MASK;
 			/* No need to lock tx_cpu_t */
 
-			while (dcb = list_head(&tc->tc_callbacks[g])) {
+			while ((dcb = list_head(&tc->tc_callbacks[g]))) {
 				list_remove(&tc->tc_callbacks[g], dcb);
 				dcb->dcb_func(dcb->dcb_data, 0);
 			}
@@ -427,7 +428,6 @@ txg_quiesce_thread(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
-	dmu_callback_t *dcb;
 
 	txg_thread_enter(tx, &cpr);
 
