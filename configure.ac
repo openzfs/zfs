@@ -139,7 +139,6 @@ AC_SUBST(KERNELCPPFLAGS)
 AC_SUBST(HOSTCFLAGS)
 
 AC_CONFIG_FILES([ Makefile
-                  autoconf/Makefile
                   config/Makefile
                   doc/Makefile
                   scripts/Makefile
