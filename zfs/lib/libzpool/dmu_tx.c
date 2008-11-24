@@ -1023,7 +1023,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 			dnode_rele(dn, tx);
 	}
 
-	while (dcb = list_head(&tx->tx_callbacks)) {
+	while ((dcb = list_head(&tx->tx_callbacks))) {
 		list_remove(&tx->tx_callbacks, dcb);
 
 		/*
