@@ -43,7 +43,7 @@ extern "C" {
  */
 #define	FTAG ((char *)__func__)
 
-#if defined(DEBUG)
+#if defined(DEBUG) || !defined(_KERNEL)
 typedef struct reference {
 	list_node_t ref_link;
 	void *ref_holder;

@@ -96,8 +96,6 @@ extern "C" {
 
 #ifdef ZFS_DEBUG
 extern void dprintf_setup(int *argc, char **argv);
-#else
-#define dprintf_setup(ac,av) ((void) 0)
 #endif /* ZFS_DEBUG */
 
 extern void cmn_err(int, const char *, ...);
@@ -107,26 +105,21 @@ extern void vpanic(const char *, __va_list);
 
 #define	fm_panic	panic
 
-#ifndef zp_verify
 /* This definition is copied from assert.h. */
 #if defined(__STDC__)
 #if __STDC_VERSION__ - 0 >= 199901L
-#define	zp_verify(EX) (void)((EX) || \
+#define	verify(EX) (void)((EX) || \
 	(__assert_c99(#EX, __FILE__, __LINE__, __func__), 0))
 #else
-#define	zp_verify(EX) (void)((EX) || (__assert(#EX, __FILE__, __LINE__), 0))
+#define	verify(EX) (void)((EX) || (__assert(#EX, __FILE__, __LINE__), 0))
 #endif /* __STDC_VERSION__ - 0 >= 199901L */
 #else
-#define	zp_verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
+#define	verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
 #endif	/* __STDC__ */
-#endif
 
-#ifndef VERIFY
-#define	VERIFY	zp_verify
-#endif
-#ifndef ASSERT
+
+#define	VERIFY	verify
 #define	ASSERT	assert
-#endif
 
 extern void __assert(const char *, const char *, int);
 
@@ -339,7 +332,6 @@ extern int	taskq_member(taskq_t *, void *);
 typedef struct vnode {
 	uint64_t	v_size;
 	int		v_fd;
-	mode_t		v_mode;
 	char		*v_path;
 } vnode_t;
 
