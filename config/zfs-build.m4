@@ -243,9 +243,9 @@ AC_DEFUN([ZFS_AC_SCRIPT_CONFIG], [
 	echo "ZFSSRC=${TOPDIR}/src"       >>${SCRIPT_CONFIG}
 	echo "ZFSBUILD=${ZFSDIR}"         >>${SCRIPT_CONFIG}
 	echo                              >>${SCRIPT_CONFIG}
-	echo "TOPDIR=${TOPDIR}            >>${SCRIPT_CONFIG}
-	echo "LIBDIR=${LIBDIR}            >>${SCRIPT_CONFIG}
-	echo "CMDDIR=${CMDDIR}            >>${SCRIPT_CONFIG}
+	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
+	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
+	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
 ])
 
 dnl #
