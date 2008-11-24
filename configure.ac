@@ -138,7 +138,7 @@ AC_SUBST(HOSTCFLAGS)
 
 AC_CONFIG_FILES([ Makefile
                   autoconf/Makefile
-                  configs/Makefile
+                  config/Makefile
                   doc/Makefile
                   scripts/Makefile
                   zfs/Makefile
