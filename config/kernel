@@ -2,10 +2,10 @@
 
 UNAME=`uname -r | cut -d- -f1`
 
-CONFIG=user
+CONFIG=kernel
 
 NAME=zfs
 BRANCH=`awk '/[Bb]ranch:/ {print $$2}' META`
 VERSION=`awk '/[Vv]ersion:/ {print $$2}' META`
 RELEASE=`awk '/[Rr]elease:/ {print $$2}' META`
-BUILDDIR=$NAME+$CONFIG
+BUILDDIR=$NAME #+$CONFIG
