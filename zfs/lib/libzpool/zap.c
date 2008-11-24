@@ -1032,7 +1032,6 @@ int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn)
 	int err;
 	zap_leaf_t *l;
 	zap_entry_handle_t zeh;
-	uint64_t hash;
 
 	if (zn->zn_name_orij && strlen(zn->zn_name_orij) > ZAP_MAXNAMELEN)
 		return (E2BIG);
