@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_vfsops.c	1.41	08/04/11 SMI"
-
 #include <sys/zfs_znode.h>
 #include <sys/types.h>
 #include <sys/param.h>

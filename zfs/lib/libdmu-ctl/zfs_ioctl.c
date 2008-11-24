@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_ioctl.c	1.61	08/04/27 SMI"
-
 #include <sys/zfs_ioctl.h>
 #include <sys/types.h>
 #include <sys/param.h>
@@ -137,7 +135,7 @@ history_str_get(zfs_cmd_t *zc)
 {
 	char *buf;
 
-	if (zc->zc_history == NULL)
+	if (zc->zc_history == 0)
 		return (NULL);
 
 	buf = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
@@ -1248,7 +1246,7 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	 * which we aren't supposed to do with a DS_MODE_STANDARD
 	 * open, because it could be inconsistent.
 	 */
-	if (zc->zc_nvlist_dst != NULL &&
+	if (zc->zc_nvlist_dst != 0 &&
 	    !zc->zc_objset_stats.dds_inconsistent &&
 	    dmu_objset_type(os) == DMU_OST_ZFS) {
 		nvlist_t *nv;
@@ -1611,7 +1609,7 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 
 	error = spa_prop_get(spa, &nvp);
 
-	if (error == 0 && zc->zc_nvlist_dst != NULL)
+	if (error == 0 && zc->zc_nvlist_dst != 0)
 		error = put_nvlist(zc, nvp);
 	else
 		error = EFAULT;
@@ -1961,7 +1959,7 @@ zfs_ioc_create(zfs_cmd_t *zc)
 	    strchr(zc->zc_name, '%'))
 		return (EINVAL);
 
-	if (zc->zc_nvlist_src != NULL &&
+	if (zc->zc_nvlist_src != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 	    &nvprops)) != 0)
 		return (error);
@@ -2337,7 +2335,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	*tosnap = '\0';
 	tosnap++;
 
-	if (zc->zc_nvlist_src != NULL &&
+	if (zc->zc_nvlist_src != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 	    &props)) != 0)
 		return (error);
