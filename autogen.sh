@@ -1,10 +1,8 @@
 #!/bin/sh
 
-find . -type d -name .deps | xargs rm -rf
-rm -rf config.guess config.sub ltmain.sh
-libtoolize --automake
-aclocal -I autoconf 2>/dev/null &&
+aclocal -I config &&
+libtoolize --automake --copy
 autoheader &&
-automake --add-missing --include-deps # 2>/dev/null &&
+automake --add-missing --include-deps 2>/dev/null
 autoconf
-
+rm -rf autom4te.cache aclocal.m4
