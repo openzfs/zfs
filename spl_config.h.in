@@ -108,9 +108,6 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* Define the project alias string. */
-#undef META_ALIAS
-
 /* Define to 1 to disable debug tracing */
 #undef NDEBUG
 
@@ -131,6 +128,9 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define the project alias string. */
+#undef SPL_META_ALIAS
 
 /* Define the project author. */
 #undef SPL_META_AUTHOR
