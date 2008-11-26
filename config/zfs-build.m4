@@ -1,40 +1,3 @@
-AC_DEFUN([ZFS_AC_CONFIG], [
-
-	TOPDIR=`/bin/pwd`
-	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
-	ZFSDIR=$TOPDIR/$BUILDDIR
-	LIBDIR=$ZFSDIR/lib
-	CMDDIR=$ZFSDIR/zcmd
-	UNAME=`uname -r | cut -d- -f1`
-
-	AC_SUBST(UNAME)
-	AC_SUBST(TOPDIR)
-	AC_SUBST(BUILDDIR)
-	AC_SUBST(ZFSDIR)
-	AC_SUBST(LIBDIR)
-	AC_SUBST(CMDDIR)
-	AC_SUBST(UNAME)
-
-	AC_ARG_WITH([zfs-config],
-		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|lustre']),
-		[zfsconfig="$withval"])
-
-	AC_MSG_CHECKING([zfs config file])
-
-	[ case "$zfsconfig" in
-		kernel) ZFS_AC_KERNEL_CONFIG ;;
-		user)	ZFS_AC_USER_CONFIG ;;
-		lustre) ZFS_AC_LUSTRE_CONFIG ;;
-		*)
-		AC_MSG_RESULT([Error!])
-		AC_MSG_ERROR([Bad value "$zfsconfig" for --with-config,
-		              user kernel|user|lustre]) ;;
-	esac ]
-
-	AC_MSG_RESULT([$zfsconfig]);
-])
-
 AC_DEFUN([ZFS_AC_KERNEL], [
 	ver=`uname -r`
 
@@ -236,7 +199,7 @@ AC_DEFUN([ZFS_AC_DEBUG], [
         fi
 ])
 
-AC_DEFUN([ZFS_AC_SCRIPT_CONFIG], [
+AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
 	SCRIPT_CONFIG=.script-config
 	rm -f ${SCRIPT_CONFIG}
 	echo "KERNELSRC=${LINUX}"         >>${SCRIPT_CONFIG}
@@ -254,6 +217,44 @@ AC_DEFUN([ZFS_AC_SCRIPT_CONFIG], [
 	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
 	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
 	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
+])
+
+AC_DEFUN([ZFS_AC_CONFIG], [
+
+	TOPDIR=`/bin/pwd`
+	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
+	ZFSDIR=$TOPDIR/$BUILDDIR
+	LIBDIR=$ZFSDIR/lib
+	CMDDIR=$ZFSDIR/zcmd
+	UNAME=`uname -r | cut -d- -f1`
+
+	AC_SUBST(UNAME)
+	AC_SUBST(TOPDIR)
+	AC_SUBST(BUILDDIR)
+	AC_SUBST(ZFSDIR)
+	AC_SUBST(LIBDIR)
+	AC_SUBST(CMDDIR)
+	AC_SUBST(UNAME)
+
+	AC_ARG_WITH([zfs-config],
+		AS_HELP_STRING([--with-config=CONFIG],
+		[Config file 'kernel|user|lustre']),
+		[zfsconfig="$withval"])
+
+	AC_MSG_CHECKING([zfs config])
+	AC_MSG_RESULT([$zfsconfig]);
+
+	case "$zfsconfig" in
+		kernel) ZFS_AC_CONFIG_KERNEL ;;
+		user)	ZFS_AC_CONFIG_USER ;;
+		lustre) ZFS_AC_CONFIG_LUSTRE ;;
+		*)
+		AC_MSG_RESULT([Error!])
+		AC_MSG_ERROR([Bad value "$zfsconfig" for --with-config,
+		              user kernel|user|lustre]) ;;
+	esac
+
+	ZFS_AC_CONFIG_SCRIPT
 ])
 
 dnl #
