@@ -30,6 +30,7 @@
 #include <sys/dmu.h>
 #include <sys/zio.h>
 #include <sys/dsl_deleg.h>
+#include <sys/zfs_i18n.h>
 
 #ifdef _KERNEL
 #include <sys/nvpair.h>
@@ -135,12 +136,9 @@ typedef struct zfs_share {
  * name lookups are case-sensitive.  They may also be set up so that
  * all the name lookups are case-insensitive, or so that only some
  * lookups, the ones that set an FIGNORECASE flag, are case-insensitive.
+ *
+ * Defined in: <sys/zfs_i18n.h>
  */
-typedef enum zfs_case {
-	ZFS_CASE_SENSITIVE,
-	ZFS_CASE_INSENSITIVE,
-	ZFS_CASE_MIXED
-} zfs_case_t;
 
 typedef struct zfs_cmd {
 	uint64_t	zc_obj;
@@ -170,22 +168,56 @@ typedef struct zfs_cmd {
 #define	ZFS_MIN_MINOR	(ZVOL_MAX_MINOR + 1)
 
 #ifdef _KERNEL
+#ifdef HAVE_SPL
+/* XXX: DISABLE ALL PERMISSION CHECKS */
+static __inline__ int
+zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
+{
+        return 0;
+}
 
-typedef struct zfs_creat {
-	nvlist_t	*zct_zplprops;
-	nvlist_t	*zct_props;
-} zfs_creat_t;
+static __inline__ int
+secpolicy_zfs(const cred_t *cr)
+{
+        return 0;
+}
 
+static __inline__ int
+secpolicy_fs_unmount(cred_t *cr, struct vfs *vfsp)
+{
+        return 0;
+}
+static __inline__ int
+secpolicy_sys_config(cred_t *cr, boolean_t flag)
+{
+        return 0;
+}
+
+static __inline__ int
+secpolicy_zinject(cred_t *cr)
+{
+        return 0;
+}
+#else
 extern dev_info_t *zfs_dip;
 
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from,
     const char *to, cred_t *cr);
 extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
+#endif /* HAVE_SPL */
+
 extern int zfs_busy(void);
 extern int zfs_unmount_snap(char *, void *);
 
 #endif	/* _KERNEL */
+
+#if defined(_KERNEL) || defined(WANT_KERNEL_EMUL) || defined(HAVE_SPL)
+typedef struct zfs_creat {
+	nvlist_t	*zct_zplprops;
+	nvlist_t	*zct_props;
+} zfs_creat_t;
+#endif
 
 #ifdef	__cplusplus
 }

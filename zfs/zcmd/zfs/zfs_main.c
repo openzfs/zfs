@@ -466,7 +466,8 @@ zfs_do_clone(int argc, char **argv)
 	/* pass to libzfs */
 	ret = zfs_clone(zhp, argv[1], NULL);
 
-	/* create the mountpoint if necessary */
+	/* In zfs-lustre we can't mount the filesystem */
+#ifdef HAVE_ZPL
 	if (ret == 0) {
 		zfs_handle_t *clone;
 
@@ -477,6 +478,7 @@ zfs_do_clone(int argc, char **argv)
 			zfs_close(clone);
 		}
 	}
+#endif /* HAVE_ZPL */
 
 	zfs_close(zhp);
 
@@ -683,8 +685,11 @@ zfs_do_create(int argc, char **argv)
 	 * Mount and/or share the new filesystem as appropriate.  We provide a
 	 * verbose error message to let the user know that their filesystem was
 	 * in fact created, even if we failed to mount or share it.
+	 *
+	 * In zfs-lustre, this is not supported.
 	 */
 	ret = 0;
+#ifdef HAVE_ZPL
 	if (canmount == ZFS_CANMOUNT_ON) {
 		if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
@@ -696,6 +701,7 @@ zfs_do_create(int argc, char **argv)
 			ret = 1;
 		}
 	}
+#endif /* HAVE_ZPL */
 
 error:
 	if (zhp)
@@ -3059,7 +3065,7 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		 */
 		switch (op) {
 		case OP_SHARE:
-
+#ifdef HAVE_ZPL
 			shared_nfs = zfs_is_shared_nfs(zhp, NULL);
 			shared_smb = zfs_is_shared_smb(zhp, NULL);
 
@@ -3099,8 +3105,16 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			}
 
 			break;
+#else
+			/* zfs-lustre: unsupported operation */
+			(void) fprintf(stderr, gettext("cannot share "
+				    "'%s': unsupported operation\n"),
+				    zfs_get_name(zhp));
+			return (1);
+#endif /* HAVE_ZPL */
 
 		case OP_MOUNT:
+#ifdef HAVE_ZPL
 			if (options == NULL)
 				mnt.mnt_mntopts = "";
 			else
@@ -3119,7 +3133,15 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 
 			if (zfs_mount(zhp, options, flags) != 0)
 				return (1);
+
 			break;
+#else
+			/* zfs-lustre: unsupported operation */
+			(void) fprintf(stderr, gettext("cannot mount "
+				    "'%s': unsupported operation\n"),
+				    zfs_get_name(zhp));
+			return (1);
+#endif /* HAVE_ZPL */
 		}
 	} else {
 		assert(op == OP_SHARE);
@@ -3864,6 +3886,7 @@ zfs_do_unshare(int argc, char **argv)
  * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
  * 'legacy'.  Otherwise, complain that use should be using 'zfs mount'.
  */
+#ifdef HAVE_ZPL
 static int
 manual_mount(int argc, char **argv)
 {
@@ -3994,6 +4017,7 @@ manual_unmount(int argc, char **argv)
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
+#endif /* HAVE_ZPL */
 
 static int
 volcheck(zpool_handle_t *zhp, void *data)
@@ -4063,6 +4087,7 @@ main(int argc, char **argv)
 		return (1);
 	}
 
+#ifdef HAVE_ZPL
 	/*
 	 * This command also doubles as the /etc/fs mount and unmount program.
 	 * Determine if we should take this behavior based on argv[0].
@@ -4073,6 +4098,10 @@ main(int argc, char **argv)
 	} else if (strcmp(progname, "umount") == 0) {
 		ret = manual_unmount(argc, argv);
 	} else {
+#else
+	/* zfs-lustre: we always do this */
+	if (1) {
+#endif /* HAVE_ZPL */
 		/*
 		 * Make sure the user has specified some command.
 		 */

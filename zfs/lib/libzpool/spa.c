@@ -60,6 +60,7 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/spa_boot.h>
+#include <sys/zfs_znode.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -1857,10 +1858,11 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	dsl_pool_t *dp;
 	dmu_tx_t *tx;
 	int c, error = 0;
-	uint64_t txg = TXG_INITIAL;
-	nvlist_t **spares, **l2cache;
+	uint64_t txg = TXG_INITIAL, zpl_version;
+	nvlist_t **spares, **l2cache, *zprops;
 	uint_t nspares, nl2cache;
 	uint64_t version;
+	objset_t *os;
 
 	/*
 	 * If this pool already exists, return failure.
@@ -2033,6 +2035,39 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		(void) spa_history_log(spa, history_str, LOG_CMD_POOL_CREATE);
 
 	mutex_exit(&spa_namespace_lock);
+
+#ifndef HAVE_ZPL
+	/*
+	 * Create the pool's root filesystem.
+	 */
+	error = dmu_objset_open(pool, DMU_OST_ZFS, DS_MODE_PRIMARY, &os);
+	if (error != 0)
+		return (error);
+
+	tx = dmu_tx_create(os);
+
+	dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, TRUE, NULL); /* master */
+	dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, TRUE, NULL); /* del queue */
+	dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT); /* root node */
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	ASSERT3U(error, ==, 0);
+
+	if (spa_version(dmu_objset_spa(os)) >= SPA_VERSION_FUID)
+		zpl_version = ZPL_VERSION;
+	else
+		zpl_version = MIN(ZPL_VERSION, ZPL_VERSION_FUID - 1);
+
+	VERIFY(nvlist_alloc(&zprops, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_add_uint64(zprops, zfs_prop_to_name(ZFS_PROP_VERSION),
+		zpl_version) == 0);
+
+	zfs_create_fs(os, CRED(), zprops, tx);
+	nvlist_free(zprops);
+
+	dmu_tx_commit(tx);
+	dmu_objset_close(os);
+#endif
 
 	return (0);
 }

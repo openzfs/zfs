@@ -23,21 +23,15 @@
  * Use is subject to license terms.
  */
 
+#include <sys/zfs_znode.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/kmem.h>
-#include <sys/pathname.h>
-#include <sys/vnode.h>
 #include <sys/vfs.h>
-#include <sys/vfs_opreg.h>
 #include <sys/mntent.h>
 #include <sys/mount.h>
 #include <sys/cmn_err.h>
-#include "fs/fs_subr.h"
-#include <sys/zfs_znode.h>
-#include <sys/zfs_dir.h>
 #include <sys/zil.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
@@ -48,19 +42,15 @@
 #include <sys/zap.h>
 #include <sys/varargs.h>
 #include <sys/policy.h>
-#include <sys/atomic.h>
 #include <sys/mkdev.h>
-#include <sys/modctl.h>
-#include <sys/refstr.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
-#include <sys/bootconf.h>
 #include <sys/sunddi.h>
-#include <sys/dnlc.h>
-#include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
+#include <sys/dmu_objset.h>
 
+/* This code is not needed for zfs-lustre */
+#ifdef HAVE_ZPL
 int zfsfstype;
 vfsops_t *zfs_vfsops = NULL;
 static major_t zfs_major;
@@ -1562,6 +1552,7 @@ zfs_busy(void)
 {
 	return (zfs_active_fs_count != 0);
 }
+#endif /* HAVE_ZPL */
 
 int
 zfs_set_version(const char *name, uint64_t newvers)
@@ -1655,6 +1646,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	return (error);
 }
 
+#ifdef HAVE_ZPL
 static vfsdef_t vfw = {
 	VFSDEF_VERSION,
 	MNTTYPE_ZFS,
@@ -1667,3 +1659,4 @@ static vfsdef_t vfw = {
 struct modlfs zfs_modlfs = {
 	&mod_fsops, "ZFS filesystem version " SPA_VERSION_STRING, &vfw
 };
+#endif /* HAVE_ZPL */
