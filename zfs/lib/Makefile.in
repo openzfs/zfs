@@ -10,3 +10,5 @@ subdir-m += libavl		# Kernel + user space AVL tree support
 subdir-m += libnvpair		# Kernel + user space name/value support
 subdir-m += libzcommon		# Kernel + user space common support
 subdir-m += libport		# Kernel + user space linux support
+
+subdir-m += libzpios		# Kernel PIOS test app

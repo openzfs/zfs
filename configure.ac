@@ -190,6 +190,7 @@ AC_CONFIG_FILES([ Makefile
                   zfs/lib/libdmu-ctl/include/sys/Makefile
                   zfs/lib/libdmu-ctl/include/Makefile
                   zfs/lib/libdmu-ctl/Makefile
+                  zfs/lib/libzpios/Makefile
                   zfs/zcmd/ztest/Makefile
                   zfs/zcmd/Makefile
                   zfs/zcmd/zfs/Makefile
@@ -197,6 +198,7 @@ AC_CONFIG_FILES([ Makefile
                   zfs/zcmd/zinject/Makefile
                   zfs/zcmd/zdump/Makefile
                   zfs/zcmd/zpool/Makefile
+                  zfs/zcmd/zpios/Makefile
                ])
 AC_OUTPUT
 
