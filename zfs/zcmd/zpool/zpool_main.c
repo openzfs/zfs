@@ -691,6 +691,8 @@ zpool_do_create(int argc, char **argv)
 				    mountpoint);
 		}
 
+		/* zfs-lustre: not necessary */
+#ifdef HAVE_ZPL
 		if ((dirp = opendir(buf)) == NULL && errno != ENOENT) {
 			(void) fprintf(stderr, gettext("mountpoint '%s' : "
 			    "%s\n"), buf, strerror(errno));
@@ -713,6 +715,7 @@ zpool_do_create(int argc, char **argv)
 				goto errout;
 			}
 		}
+#endif /* HAVE_ZPL */
 	}
 
 	if (dryrun) {
@@ -742,8 +745,13 @@ zpool_do_create(int argc, char **argv)
 					    zfs_prop_to_name(
 					    ZFS_PROP_MOUNTPOINT),
 					    mountpoint) == 0);
+				/* zfs-lustre: not supported */
+#ifdef HAVE_ZPL
 				if (zfs_mount(pool, NULL, 0) == 0)
 					ret = zfs_shareall(pool);
+#else
+				ret = 0;
+#endif /* HAVE_ZPL */
 				zfs_close(pool);
 			}
 		} else if (libzfs_errno(g_zfs) == EZFS_INVALIDNAME) {
@@ -1273,10 +1281,13 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 	verify((zhp = zpool_open(g_zfs, name)) != NULL);
 
+	/* zfs-lustre: not needed */
+#if HAVE_ZPL
 	if (zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}
+#endif /* HAVE_ZPL */
 
 	zpool_close(zhp);
 	return (error);
