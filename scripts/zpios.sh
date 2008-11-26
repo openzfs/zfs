@@ -13,6 +13,8 @@ KPIOS_POST=$6
 PROFILE_KPIOS_PRE=/home/behlendo/src/zfs/scripts/profile-kpios-pre.sh
 PROFILE_KPIOS_POST=/home/behlendo/src/zfs/scripts/profile-kpios-post.sh
 
+DEVICES="/dev/hda"
+
 echo ------------------------- ZFS TEST LOG ---------------------------------
 echo -n "Date = "; date
 echo -n "Kernel = "; uname -r
@@ -35,16 +37,8 @@ else
 fi
 echo
 
-# LOCAL HACK
-if [ `hostname` = "ilc23" ]; then
-	DEVICES="/dev/sdy  /dev/sdo  /dev/sdp  /dev/sdq  /dev/sdr  /dev/sds \
-	         /dev/sdt  /dev/sdu  /dev/sdv  /dev/sdw  /dev/sdx"
-else
-	DEVICES="/dev/hda"
-fi
-
-echo "${CMDDIR}/zpool/zpool create -F lustre ${DEVICES}"
-${CMDDIR}/zpool/zpool create -F lustre ${DEVICES}
+echo "${CMDDIR}/zpool/zpool create -f lustre ${DEVICES}"
+${CMDDIR}/zpool/zpool create -f lustre ${DEVICES}
 
 echo "${CMDDIR}/zpool/zpool status lustre"
 ${CMDDIR}/zpool/zpool status lustre
@@ -101,8 +95,8 @@ CMD="${CMDDIR}/zpios/zpios                                       \
 	--path=lustre                                            \
 	--chunksize=1M                                           \
 	--regionsize=4M                                          \
-	--regioncount=16384                                      \
-	--threadcount=256,256,256,256,256                        \
+	--regioncount=64                                         \
+	--threadcount=4                                          \
 	--offset=4M                                              \
         --cleanup                                                \
 	--verbose                                                \
