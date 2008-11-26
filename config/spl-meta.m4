@@ -13,34 +13,34 @@ AC_DEFUN([SPL_AC_META], [
 	if test -f "$META"; then
 		_spl_ac_meta_got_file=yes
 
-		META_NAME=_SPL_AC_META_GETVAL([(?:NAME|PROJECT|PACKAGE)]);
-		if test -n "$META_NAME"; then
-			AC_DEFINE_UNQUOTED([META_NAME], ["$META_NAME"],
+		SPL_META_NAME=_SPL_AC_META_GETVAL([(?:NAME|PROJECT|PACKAGE)]);
+		if test -n "$SPL_META_NAME"; then
+			AC_DEFINE_UNQUOTED([SPL_META_NAME], ["$SPL_META_NAME"],
 				[Define the project name.]
 			)
-			AC_SUBST([META_NAME])
+			AC_SUBST([SPL_META_NAME])
 		fi
 
-		META_VERSION=_SPL_AC_META_GETVAL([VERSION]);
-		if test -n "$META_VERSION"; then
-			AC_DEFINE_UNQUOTED([META_VERSION], ["$META_VERSION"],
+		SPL_META_VERSION=_SPL_AC_META_GETVAL([VERSION]);
+		if test -n "$SPL_META_VERSION"; then
+			AC_DEFINE_UNQUOTED([SPL_META_VERSION], ["$SPL_META_VERSION"],
 				[Define the project version.]
 			)
-			AC_SUBST([META_VERSION])
+			AC_SUBST([SPL_META_VERSION])
 		fi
 
-		META_RELEASE=_SPL_AC_META_GETVAL([RELEASE]);
-		if test -n "$META_RELEASE"; then
-			AC_DEFINE_UNQUOTED([META_RELEASE], ["$META_RELEASE"],
+		SPL_META_RELEASE=_SPL_AC_META_GETVAL([RELEASE]);
+		if test -n "$SPL_META_RELEASE"; then
+			AC_DEFINE_UNQUOTED([SPL_META_RELEASE], ["$SPL_META_RELEASE"],
 				[Define the project release.]
 			)
-			AC_SUBST([META_RELEASE])
+			AC_SUBST([SPL_META_RELEASE])
 		fi
 
-		if test -n "$META_NAME" -a -n "$META_VERSION"; then
-				META_ALIAS="$META_NAME-$META_VERSION"
-				test -n "$META_RELEASE" && 
-				        META_ALIAS="$META_ALIAS-$META_RELEASE"
+		if test -n "$SPL_META_NAME" -a -n "$SPL_META_VERSION"; then
+				META_ALIAS="$SPL_META_NAME-$SPL_META_VERSION"
+				test -n "$SPL_META_RELEASE" && 
+				        META_ALIAS="$META_ALIAS-$SPL_META_RELEASE"
 				AC_DEFINE_UNQUOTED([META_ALIAS],
 					["$META_ALIAS"],
 					[Define the project alias string.] 
@@ -48,49 +48,49 @@ AC_DEFUN([SPL_AC_META], [
 				AC_SUBST([META_ALIAS])
 		fi
 
-		META_DATE=_SPL_AC_META_GETVAL([DATE]);
-		if test -n "$META_DATE"; then
-			AC_DEFINE_UNQUOTED([META_DATE], ["$META_DATE"],
+		SPL_META_DATA=_SPL_AC_META_GETVAL([DATE]);
+		if test -n "$SPL_META_DATA"; then
+			AC_DEFINE_UNQUOTED([SPL_META_DATA], ["$SPL_META_DATA"],
 				[Define the project release date.] 
 			)
-			AC_SUBST([META_DATE])
+			AC_SUBST([SPL_META_DATA])
 		fi
 
-		META_AUTHOR=_SPL_AC_META_GETVAL([AUTHOR]);
-		if test -n "$META_AUTHOR"; then
-			AC_DEFINE_UNQUOTED([META_AUTHOR], ["$META_AUTHOR"],
+		SPL_META_AUTHOR=_SPL_AC_META_GETVAL([AUTHOR]);
+		if test -n "$SPL_META_AUTHOR"; then
+			AC_DEFINE_UNQUOTED([SPL_META_AUTHOR], ["$SPL_META_AUTHOR"],
 				[Define the project author.]
 			)
-			AC_SUBST([META_AUTHOR])
+			AC_SUBST([SPL_META_AUTHOR])
 		fi
 
 		m4_pattern_allow([^LT_(CURRENT|REVISION|AGE)$])
-		META_LT_CURRENT=_SPL_AC_META_GETVAL([LT_CURRENT]);
-		META_LT_REVISION=_SPL_AC_META_GETVAL([LT_REVISION]);
-		META_LT_AGE=_SPL_AC_META_GETVAL([LT_AGE]);
-		if test -n "$META_LT_CURRENT" \
-				 -o -n "$META_LT_REVISION" \
-				 -o -n "$META_LT_AGE"; then
-			test -n "$META_LT_CURRENT" || META_LT_CURRENT="0"
-			test -n "$META_LT_REVISION" || META_LT_REVISION="0"
-			test -n "$META_LT_AGE" || META_LT_AGE="0"
-			AC_DEFINE_UNQUOTED([META_LT_CURRENT],
-				["$META_LT_CURRENT"],
+		SPL_META_LT_CURRENT=_SPL_AC_META_GETVAL([LT_CURRENT]);
+		SPL_META_LT_REVISION=_SPL_AC_META_GETVAL([LT_REVISION]);
+		SPL_META_LT_AGE=_SPL_AC_META_GETVAL([LT_AGE]);
+		if test -n "$SPL_META_LT_CURRENT" \
+				 -o -n "$SPL_META_LT_REVISION" \
+				 -o -n "$SPL_META_LT_AGE"; then
+			test -n "$SPL_META_LT_CURRENT" || SPL_META_LT_CURRENT="0"
+			test -n "$SPL_META_LT_REVISION" || SPL_META_LT_REVISION="0"
+			test -n "$SPL_META_LT_AGE" || SPL_META_LT_AGE="0"
+			AC_DEFINE_UNQUOTED([SPL_META_LT_CURRENT],
+				["$SPL_META_LT_CURRENT"],
 				[Define the libtool library 'current'
 				 version information.]
 			)
-			AC_DEFINE_UNQUOTED([META_LT_REVISION],
-				["$META_LT_REVISION"],
+			AC_DEFINE_UNQUOTED([SPL_META_LT_REVISION],
+				["$SPL_META_LT_REVISION"],
 				[Define the libtool library 'revision'
 				 version information.]
 			)
-			AC_DEFINE_UNQUOTED([META_LT_AGE], ["$META_LT_AGE"],
+			AC_DEFINE_UNQUOTED([SPL_META_LT_AGE], ["$SPL_META_LT_AGE"],
 				[Define the libtool library 'age' 
 				 version information.]
 			)
-			AC_SUBST([META_LT_CURRENT])
-			AC_SUBST([META_LT_REVISION])
-			AC_SUBST([META_LT_AGE])
+			AC_SUBST([SPL_META_LT_CURRENT])
+			AC_SUBST([SPL_META_LT_REVISION])
+			AC_SUBST([SPL_META_LT_AGE])
 		fi
 	fi
 

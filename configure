@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS META_NAME META_VERSION META_RELEASE META_ALIAS META_DATE META_AUTHOR META_LT_CURRENT META_LT_REVISION META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ kmoduledir KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS SPL_META_NAME SPL_META_VERSION SPL_META_RELEASE META_ALIAS SPL_META_DATA SPL_META_AUTHOR SPL_META_LT_CURRENT SPL_META_LT_REVISION SPL_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ kmoduledir KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1512,7 +1512,7 @@ echo $ECHO_N "checking metadata... $ECHO_C" >&6
 	if test -f "$META"; then
 		_spl_ac_meta_got_file=yes
 
-		META_NAME=`perl -n\
+		SPL_META_NAME=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1522,16 +1522,16 @@ echo $ECHO_N "checking metadata... $ECHO_C" >&6
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'(?:NAME|PROJECT|PACKAGE)' $META`;
-		if test -n "$META_NAME"; then
+		if test -n "$SPL_META_NAME"; then
 
 cat >>confdefs.h <<_ACEOF
-#define META_NAME "$META_NAME"
+#define SPL_META_NAME "$SPL_META_NAME"
 _ACEOF
 
 
 		fi
 
-		META_VERSION=`perl -n\
+		SPL_META_VERSION=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1541,16 +1541,16 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'VERSION' $META`;
-		if test -n "$META_VERSION"; then
+		if test -n "$SPL_META_VERSION"; then
 
 cat >>confdefs.h <<_ACEOF
-#define META_VERSION "$META_VERSION"
+#define SPL_META_VERSION "$SPL_META_VERSION"
 _ACEOF
 
 
 		fi
 
-		META_RELEASE=`perl -n\
+		SPL_META_RELEASE=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1560,19 +1560,19 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'RELEASE' $META`;
-		if test -n "$META_RELEASE"; then
+		if test -n "$SPL_META_RELEASE"; then
 
 cat >>confdefs.h <<_ACEOF
-#define META_RELEASE "$META_RELEASE"
+#define SPL_META_RELEASE "$SPL_META_RELEASE"
 _ACEOF
 
 
 		fi
 
-		if test -n "$META_NAME" -a -n "$META_VERSION"; then
-				META_ALIAS="$META_NAME-$META_VERSION"
-				test -n "$META_RELEASE" &&
-				        META_ALIAS="$META_ALIAS-$META_RELEASE"
+		if test -n "$SPL_META_NAME" -a -n "$SPL_META_VERSION"; then
+				META_ALIAS="$SPL_META_NAME-$SPL_META_VERSION"
+				test -n "$SPL_META_RELEASE" &&
+				        META_ALIAS="$META_ALIAS-$SPL_META_RELEASE"
 
 cat >>confdefs.h <<_ACEOF
 #define META_ALIAS "$META_ALIAS"
@@ -1581,7 +1581,7 @@ _ACEOF
 
 		fi
 
-		META_DATE=`perl -n\
+		SPL_META_DATA=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1591,16 +1591,16 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'DATE' $META`;
-		if test -n "$META_DATE"; then
+		if test -n "$SPL_META_DATA"; then
 
 cat >>confdefs.h <<_ACEOF
-#define META_DATE "$META_DATE"
+#define SPL_META_DATA "$SPL_META_DATA"
 _ACEOF
 
 
 		fi
 
-		META_AUTHOR=`perl -n\
+		SPL_META_AUTHOR=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1610,17 +1610,17 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'AUTHOR' $META`;
-		if test -n "$META_AUTHOR"; then
+		if test -n "$SPL_META_AUTHOR"; then
 
 cat >>confdefs.h <<_ACEOF
-#define META_AUTHOR "$META_AUTHOR"
+#define SPL_META_AUTHOR "$SPL_META_AUTHOR"
 _ACEOF
 
 
 		fi
 
 
-		META_LT_CURRENT=`perl -n\
+		SPL_META_LT_CURRENT=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1630,7 +1630,7 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'LT_CURRENT' $META`;
-		META_LT_REVISION=`perl -n\
+		SPL_META_LT_REVISION=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1640,7 +1640,7 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'LT_REVISION' $META`;
-		META_LT_AGE=`perl -n\
+		SPL_META_LT_AGE=`perl -n\
 		-e "BEGIN { \\$key=shift @ARGV; }"\
 		-e "next unless s/^\s*\\$key[:=]//i;"\
 		-e "s/^((?:[^'\"#]*(?:(['\"])[^\2]*\2)*)*)#.*/\\$1/;"\
@@ -1650,25 +1650,25 @@ _ACEOF
 		-e "\\$val=\\$_;"\
 		-e "END { print \\$val if defined \\$val; }"\
 		'LT_AGE' $META`;
-		if test -n "$META_LT_CURRENT" \
-				 -o -n "$META_LT_REVISION" \
-				 -o -n "$META_LT_AGE"; then
-			test -n "$META_LT_CURRENT" || META_LT_CURRENT="0"
-			test -n "$META_LT_REVISION" || META_LT_REVISION="0"
-			test -n "$META_LT_AGE" || META_LT_AGE="0"
+		if test -n "$SPL_META_LT_CURRENT" \
+				 -o -n "$SPL_META_LT_REVISION" \
+				 -o -n "$SPL_META_LT_AGE"; then
+			test -n "$SPL_META_LT_CURRENT" || SPL_META_LT_CURRENT="0"
+			test -n "$SPL_META_LT_REVISION" || SPL_META_LT_REVISION="0"
+			test -n "$SPL_META_LT_AGE" || SPL_META_LT_AGE="0"
 
 cat >>confdefs.h <<_ACEOF
-#define META_LT_CURRENT "$META_LT_CURRENT"
+#define SPL_META_LT_CURRENT "$SPL_META_LT_CURRENT"
 _ACEOF
 
 
 cat >>confdefs.h <<_ACEOF
-#define META_LT_REVISION "$META_LT_REVISION"
+#define SPL_META_LT_REVISION "$SPL_META_LT_REVISION"
 _ACEOF
 
 
 cat >>confdefs.h <<_ACEOF
-#define META_LT_AGE "$META_LT_AGE"
+#define SPL_META_LT_AGE "$SPL_META_LT_AGE"
 _ACEOF
 
 
@@ -2069,8 +2069,8 @@ fi
 
 
 # Define the identity of the package.
- PACKAGE=$META_NAME
- VERSION=$META_VERSION
+ PACKAGE=$SPL_META_NAME
+ VERSION=$SPL_META_VERSION
 
 
 cat >>confdefs.h <<_ACEOF
@@ -21102,15 +21102,15 @@ s,@ECHO_C@,$ECHO_C,;t t
 s,@ECHO_N@,$ECHO_N,;t t
 s,@ECHO_T@,$ECHO_T,;t t
 s,@LIBS@,$LIBS,;t t
-s,@META_NAME@,$META_NAME,;t t
-s,@META_VERSION@,$META_VERSION,;t t
-s,@META_RELEASE@,$META_RELEASE,;t t
+s,@SPL_META_NAME@,$SPL_META_NAME,;t t
+s,@SPL_META_VERSION@,$SPL_META_VERSION,;t t
+s,@SPL_META_RELEASE@,$SPL_META_RELEASE,;t t
 s,@META_ALIAS@,$META_ALIAS,;t t
-s,@META_DATE@,$META_DATE,;t t
-s,@META_AUTHOR@,$META_AUTHOR,;t t
-s,@META_LT_CURRENT@,$META_LT_CURRENT,;t t
-s,@META_LT_REVISION@,$META_LT_REVISION,;t t
-s,@META_LT_AGE@,$META_LT_AGE,;t t
+s,@SPL_META_DATA@,$SPL_META_DATA,;t t
+s,@SPL_META_AUTHOR@,$SPL_META_AUTHOR,;t t
+s,@SPL_META_LT_CURRENT@,$SPL_META_LT_CURRENT,;t t
+s,@SPL_META_LT_REVISION@,$SPL_META_LT_REVISION,;t t
+s,@SPL_META_LT_AGE@,$SPL_META_LT_AGE,;t t
 s,@build@,$build,;t t
 s,@build_cpu@,$build_cpu,;t t
 s,@build_vendor@,$build_vendor,;t t

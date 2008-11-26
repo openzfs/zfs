@@ -111,30 +111,6 @@
 /* Define the project alias string. */
 #undef META_ALIAS
 
-/* Define the project author. */
-#undef META_AUTHOR
-
-/* Define the project release date. */
-#undef META_DATE
-
-/* Define the libtool library 'age' version information. */
-#undef META_LT_AGE
-
-/* Define the libtool library 'current' version information. */
-#undef META_LT_CURRENT
-
-/* Define the libtool library 'revision' version information. */
-#undef META_LT_REVISION
-
-/* Define the project name. */
-#undef META_NAME
-
-/* Define the project release. */
-#undef META_RELEASE
-
-/* Define the project version. */
-#undef META_VERSION
-
 /* Define to 1 to disable debug tracing */
 #undef NDEBUG
 
@@ -155,6 +131,30 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define the project author. */
+#undef SPL_META_AUTHOR
+
+/* Define the project release date. */
+#undef SPL_META_DATA
+
+/* Define the libtool library 'age' version information. */
+#undef SPL_META_LT_AGE
+
+/* Define the libtool library 'current' version information. */
+#undef SPL_META_LT_CURRENT
+
+/* Define the libtool library 'revision' version information. */
+#undef SPL_META_LT_REVISION
+
+/* Define the project name. */
+#undef SPL_META_NAME
+
+/* Define the project release. */
+#undef SPL_META_RELEASE
+
+/* Define the project version. */
+#undef SPL_META_VERSION
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
