@@ -116,3 +116,30 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Define the project alias string. */
+#undef ZFS_META_ALIAS
+
+/* Define the project author. */
+#undef ZFS_META_AUTHOR
+
+/* Define the project release date. */
+#undef ZFS_META_DATA
+
+/* Define the libtool library 'age' version information. */
+#undef ZFS_META_LT_AGE
+
+/* Define the libtool library 'current' version information. */
+#undef ZFS_META_LT_CURRENT
+
+/* Define the libtool library 'revision' version information. */
+#undef ZFS_META_LT_REVISION
+
+/* Define the project name. */
+#undef ZFS_META_NAME
+
+/* Define the project release. */
+#undef ZFS_META_RELEASE
+
+/* Define the project version. */
+#undef ZFS_META_VERSION
