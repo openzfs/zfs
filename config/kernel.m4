@@ -1,10 +1,10 @@
 dnl #
-dnl # Default ZFS kernel mode configuration 
+dnl # Default ZFS kernel configuration 
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
+AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	dnl # Kernel build make options
+	dnl # KERNELMAKE_PARAMS="V=1"	# Enable verbose module build
 	KERNELMAKE_PARAMS=
-	dnl #KERNELMAKE_PARAMS="V=1"	# Enable verbose module build
 
 	dnl # Kernel build cpp flags
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
@@ -45,7 +45,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 	dnl # can be done in the Makefile but it will take some serious
 	dnl # investigation and I don't have the time now.
 
-	echo "Creating symlinks for additional make targets"
+	echo "creating symlinks for additional kernel make targets"
 	ln -f -s $LIBDIR/libport/u8_textprep.c      $LIBDIR/libport/ku8_textprep.c
 	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/kavl.c
 	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/uavl.c
@@ -59,5 +59,4 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 	ln -f -s $LIBDIR/libzcommon/zfs_namecheck.c $LIBDIR/libzcommon/kzfs_namecheck.c
 	ln -f -s $LIBDIR/libzcommon/zfs_comutil.c   $LIBDIR/libzcommon/kzfs_comutil.c
 	ln -f -s $LIBDIR/libzcommon/zpool_prop.c    $LIBDIR/libzcommon/kzpool_prop.c
-	]
-)
+])
