@@ -102,30 +102,6 @@ AC_EGREP_HEADER(sysinfo, sys/systeminfo.h,
 #AC_DEFINE([HAVE_UNICODE], 1, ["None"])
 #AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h> header file])
 
-# Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
-KERNELMAKE_PARAMS=
-KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL -I$splsrc -I$splsrc/include -I$TOPDIR"
-
-# Minimally required for pread() functionality an other GNU goodness
-HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 -D_GNU_SOURCE -D__EXTENSIONS__ "
-# Quiet warnings not covered by the gcc-* patches
-HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces -Wno-parentheses "
-HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
-# Expected defines not covered by zfs_config.h
-HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
-HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_REENTRANT "
-HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
-# Expected default include paths additional paths added by Makefiles
-HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
-
-if test "$kernelbuild" != "$kernelsrc"; then
-	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
-fi
-
-AC_SUBST(KERNELMAKE_PARAMS)
-AC_SUBST(KERNELCPPFLAGS)
-AC_SUBST(HOSTCFLAGS)
-
 AC_CONFIG_FILES([ Makefile
                   config/Makefile
                   doc/Makefile
@@ -187,26 +163,3 @@ AC_CONFIG_FILES([ Makefile
                   zfs/zcmd/zpool/Makefile
                ])
 AC_OUTPUT
-
-# HACK: I really, really hate this...  but to ensure the kernel build 
-# system compiles C files shared between a library and a kernel module, 
-# we need to ensure each file has a unique make target.  To do that 
-# I'm creating symlinks for each shared file at configure time.  It 
-# may be possible something better can be done in the Makefile but it
-# will take some serious investigation and I don't have the time now.
-
-echo
-echo "Creating symlinks for additional make targets"
-ln -s $LIBDIR/libport/u8_textprep.c      $LIBDIR/libport/ku8_textprep.c
-ln -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/kavl.c
-ln -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/uavl.c
-ln -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/knvpair.c
-ln -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/unvpair.c
-ln -s $LIBDIR/libzcommon/zfs_deleg.c     $LIBDIR/libzcommon/kzfs_deleg.c
-ln -s $LIBDIR/libzcommon/zfs_prop.c      $LIBDIR/libzcommon/kzfs_prop.c
-ln -s $LIBDIR/libzcommon/zprop_common.c  $LIBDIR/libzcommon/kzprop_common.c
-ln -s $LIBDIR/libzcommon/compress.c      $LIBDIR/libzcommon/kcompress.c
-ln -s $LIBDIR/libzcommon/list.c          $LIBDIR/libzcommon/klist.c
-ln -s $LIBDIR/libzcommon/zfs_namecheck.c $LIBDIR/libzcommon/kzfs_namecheck.c
-ln -s $LIBDIR/libzcommon/zfs_comutil.c   $LIBDIR/libzcommon/kzfs_comutil.c
-ln -s $LIBDIR/libzcommon/zpool_prop.c    $LIBDIR/libzcommon/kzpool_prop.c
