@@ -249,12 +249,17 @@ spa_config_entry_write(spa_config_entry_t *entry)
 	/*
 	 * Pack the configuration into a buffer.
 	 */
+#if defined(HAVE_XDR)
 	VERIFY(nvlist_size(config, &buflen, NV_ENCODE_XDR) == 0);
-
 	buf = kmem_alloc(buflen, KM_SLEEP);
-
 	VERIFY(nvlist_pack(config, &buf, &buflen, NV_ENCODE_XDR,
 	    KM_SLEEP) == 0);
+#else
+	VERIFY(nvlist_size(config, &buflen, NV_ENCODE_NATIVE) == 0);
+	buf = kmem_alloc(buflen, KM_SLEEP);
+	VERIFY(nvlist_pack(config, &buf, &buflen, NV_ENCODE_NATIVE,
+	    KM_SLEEP) == 0);
+#endif
 
 	/*
 	 * Write the configuration to disk.  We need to do the traditional
