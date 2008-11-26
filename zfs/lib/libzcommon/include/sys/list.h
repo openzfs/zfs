@@ -46,7 +46,14 @@ void list_insert_before(list_t *, void *, void *);
 void list_insert_head(list_t *, void *);
 void list_insert_tail(list_t *, void *);
 void list_remove(list_t *, void *);
+
+/* Resolve conflicting list_move_tail symbol in linux kernel */
+#if defined(_KERNEL) && defined(HAVE_SPL)
+void __list_move_tail(list_t *, list_t *);
+#define list_move_tail(l1, l2)	__list_move_tail(l1, l2)
+#else
 void list_move_tail(list_t *, list_t *);
+#endif
 
 void *list_head(list_t *);
 void *list_tail(list_t *);
