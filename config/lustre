@@ -1,11 +1,1 @@
 # Default ZFS lustre mode configuration
-
-UNAME=`uname -r | cut -d- -f1`
-
-CONFIG=lustre
-
-NAME=zfs
-BRANCH=`awk '/[Bb]ranch:/ {print $$2}' META`
-VERSION=`awk '/[Vv]ersion:/ {print $$2}' META`
-RELEASE=`awk '/[Rr]elease:/ {print $$2}' META`
-BUILDDIR=$NAME #+$CONFIG
