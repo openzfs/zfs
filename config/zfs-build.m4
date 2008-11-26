@@ -1,18 +1,5 @@
 AC_DEFUN([ZFS_AC_CONFIG], [
 
-	AC_ARG_WITH([zfs-config],
-		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|lustre']),
-		[zfsconfig="$withval"])
-
-	AC_MSG_CHECKING([zfs config file])
-	if test -z "$zfsconfig" || test ! -r config/$zfsconfig; then
-		AC_MSG_RESULT([no])
-		AC_MSG_ERROR([
-	        *** Please specify one of the valid config files located
-	        *** in ./config/ with the '--with-zfs-config=CONFIG' option])
-	fi
-
 	TOPDIR=`/bin/pwd`
 	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
 	ZFSDIR=$TOPDIR/$BUILDDIR
@@ -28,12 +15,24 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AC_SUBST(CMDDIR)
 	AC_SUBST(UNAME)
 
-	AC_MSG_RESULT([$zfsconfig]);
-	. ./config/$zfsconfig
+	AC_ARG_WITH([zfs-config],
+		AS_HELP_STRING([--with-config=CONFIG],
+		[Config file 'kernel|user|lustre']),
+		[zfsconfig="$withval"])
 
-	AC_SUBST(KERNELMAKE_PARAMS)
-	AC_SUBST(KERNELCPPFLAGS)
-	AC_SUBST(HOSTCFLAGS)
+	AC_MSG_CHECKING([zfs config file])
+
+	[ case "$zfsconfig" in
+		kernel) ZFS_AC_KERNEL_CONFIG ;;
+		user)	ZFS_AC_USER_CONFIG ;;
+		lustre) ZFS_AC_LUSTRE_CONFIG ;;
+		*)
+		AC_MSG_RESULT([Error!])
+		AC_MSG_ERROR([Bad value "$zfsconfig" for --with-config,
+		              user kernel|user|lustre]) ;;
+	esac ]
+
+	AC_MSG_RESULT([$zfsconfig]);
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL], [
