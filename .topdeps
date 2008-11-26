@@ -13,3 +13,4 @@ linux-kernel-disk
 linux-kernel-mem
 linux-legacy
 linux-symbol-collisions
+linux-user-disk
