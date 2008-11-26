@@ -364,6 +364,7 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 static boolean_t
 is_whole_disk(const char *arg)
 {
+#ifdef HAVE_LIBEFI
 	struct dk_gpt *label;
 	int	fd;
 	char	path[MAXPATHLEN];
@@ -379,6 +380,9 @@ is_whole_disk(const char *arg)
 	efi_free(label);
 	(void) close(fd);
 	return (B_TRUE);
+#else
+	return (B_FALSE);
+#endif
 }
 
 /*
@@ -888,6 +892,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 static int
 make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 {
+#ifdef HAVE_LIBEFI
 	nvlist_t **child;
 	uint_t c, children;
 	char *type, *path, *diskname;
@@ -975,7 +980,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		for (c = 0; c < children; c++)
 			if ((ret = make_disks(zhp, child[c])) != 0)
 				return (ret);
-
+#endif
 	return (0);
 }
 
