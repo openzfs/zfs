@@ -1,6 +1,8 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux configure branch
+Subject: [PATCH] top
 
-This branch contains the configure products from autogen.sh
+Top most branch, simply used as an well known reference.
+
+DO NOT COMMIT ANY CHANGES TO THIS BRANCH
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
