@@ -11,3 +11,4 @@ linux-have-zvol
 linux-ioctl
 linux-kernel-disk
 linux-kernel-mem
+linux-legacy
