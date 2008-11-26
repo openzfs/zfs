@@ -47,7 +47,7 @@ DIST_COMMON = $(am__configure_deps) $(srcdir)/Makefile.am \
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/spl-build.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/config/spl-meta.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
@@ -124,6 +124,15 @@ MAINT = @MAINT@
 MAINTAINER_MODE_FALSE = @MAINTAINER_MODE_FALSE@
 MAINTAINER_MODE_TRUE = @MAINTAINER_MODE_TRUE@
 MAKEINFO = @MAKEINFO@
+META_ALIAS = @META_ALIAS@
+META_AUTHOR = @META_AUTHOR@
+META_DATE = @META_DATE@
+META_LT_AGE = @META_LT_AGE@
+META_LT_CURRENT = @META_LT_CURRENT@
+META_LT_REVISION = @META_LT_REVISION@
+META_NAME = @META_NAME@
+META_RELEASE = @META_RELEASE@
+META_VERSION = @META_VERSION@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@

@@ -1,3 +1,9 @@
+2008-11-26 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.3.5
+
+	* : Include META file support.
+
 2008-11-05 Jim Garlick <garlick@llnl.gov>
 
 	* : Add autogen.sh products.
