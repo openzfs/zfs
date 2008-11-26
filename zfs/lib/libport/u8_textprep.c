@@ -23,6 +23,9 @@
  * Use is subject to license terms.
  */
 
+#ifdef	_KERNEL
+#include <sys/zfs_context.h>
+#endif	/* _KERNEL */
 
 #include "zfs_config.h"
 
@@ -37,21 +40,12 @@
  * Interface stability: Committed.
  */
 
-#include <sys/types.h>
-#ifdef	_KERNEL
-#include <sys/param.h>
-#include <sys/sysmacros.h>
-#include <sys/systm.h>
-#include <sys/debug.h>
-#include <sys/kmem.h>
-#include <sys/ddi.h>
-#include <sys/sunddi.h>
-#else
-#include <sys/u8_textprep.h>
+#ifndef	_KERNEL
 #include <strings.h>
 #endif	/* _KERNEL */
 #include <sys/byteorder.h>
 #include <sys/errno.h>
+#include <sys/u8_textprep.h>
 #include <sys/u8_textprep_data.h>
 
 #undef errno

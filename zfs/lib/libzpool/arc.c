@@ -163,9 +163,9 @@ static int arc_dead;
 /*
  * These tunables are for performance analysis.
  */
-uint64_t zfs_arc_max;
-uint64_t zfs_arc_min;
-uint64_t zfs_arc_meta_limit = 0;
+unsigned long zfs_arc_max = 0;
+unsigned long zfs_arc_min = 0;
+unsigned long zfs_arc_meta_limit = 0;
 
 /*
  * Note that buffers can be in one of 6 states:
@@ -4244,3 +4244,18 @@ l2arc_fini()
 	list_destroy(l2arc_dev_list);
 	list_destroy(l2arc_free_on_write);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(arc_read);
+EXPORT_SYMBOL(arc_buf_remove_ref);
+EXPORT_SYMBOL(arc_getbuf_func);
+
+module_param(zfs_arc_min, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_min, "Minimum arc size");
+
+module_param(zfs_arc_max, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_max, "Maximum arc size");
+
+module_param(zfs_arc_meta_limit, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
+#endif

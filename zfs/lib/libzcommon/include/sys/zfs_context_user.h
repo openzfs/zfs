@@ -23,8 +23,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SYS_ZFS_CONTEXT_H
-#define	_SYS_ZFS_CONTEXT_H
+#ifndef _SYS_ZFS_CONTEXT_USER_H
+#define	_SYS_ZFS_CONTEXT_USER_H
 
 
 

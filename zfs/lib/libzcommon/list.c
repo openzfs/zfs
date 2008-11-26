@@ -192,3 +192,23 @@ list_is_empty(list_t *list)
 {
 	return (list_empty(list));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(list_create);
+EXPORT_SYMBOL(list_destroy);
+
+EXPORT_SYMBOL(list_insert_after);
+EXPORT_SYMBOL(list_insert_before);
+EXPORT_SYMBOL(list_insert_head);
+EXPORT_SYMBOL(list_insert_tail);
+EXPORT_SYMBOL(list_remove);
+EXPORT_SYMBOL(list_move_tail);
+
+EXPORT_SYMBOL(list_head);
+EXPORT_SYMBOL(list_tail);
+EXPORT_SYMBOL(list_next);
+EXPORT_SYMBOL(list_prev);
+
+EXPORT_SYMBOL(list_link_active);
+EXPORT_SYMBOL(list_is_empty);
+#endif

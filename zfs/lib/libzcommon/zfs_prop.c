@@ -467,3 +467,24 @@ zfs_prop_align_right(zfs_prop_t prop)
 }
 
 #endif
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* zfs dataset property functions */
+EXPORT_SYMBOL(zfs_prop_init);
+EXPORT_SYMBOL(zfs_prop_get_type);
+EXPORT_SYMBOL(zfs_prop_delegatable);
+EXPORT_SYMBOL(zfs_prop_get_table);
+
+/* Dataset property functions shared between libzfs and kernel. */
+EXPORT_SYMBOL(zfs_prop_default_string);
+EXPORT_SYMBOL(zfs_prop_default_numeric);
+EXPORT_SYMBOL(zfs_prop_readonly);
+EXPORT_SYMBOL(zfs_prop_inheritable);
+EXPORT_SYMBOL(zfs_prop_setonce);
+EXPORT_SYMBOL(zfs_prop_to_name);
+EXPORT_SYMBOL(zfs_name_to_prop);
+EXPORT_SYMBOL(zfs_prop_user);
+EXPORT_SYMBOL(zfs_prop_index_to_string);
+EXPORT_SYMBOL(zfs_prop_string_to_index);
+EXPORT_SYMBOL(zfs_prop_valid_for_type);
+#endif
