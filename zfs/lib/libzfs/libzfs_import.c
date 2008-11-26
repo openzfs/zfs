@@ -780,7 +780,7 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv,
 	int i;
 	DIR *dirp = NULL;
 	struct dirent64 *dp;
-	char path[MAXPATHLEN];
+	char path[MAXPATHLEN], path2[MAXPATHLEN];
 	char *end;
 	size_t pathleft;
 	struct stat64 statbuf;
@@ -805,7 +805,6 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv,
 	 */
 	for (i = 0; i < argc; i++) {
 		char *rdsk;
-		int dfd;
 
 		/* use realpath to normalize the path */
 		if (realpath(argv[i], path) == 0) {
@@ -829,8 +828,7 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv,
 		else
 			rdsk = path;
 
-		if ((dfd = open64(rdsk, O_RDONLY)) < 0 ||
-		    (dirp = fdopendir(dfd)) == NULL) {
+		if ((dirp = opendir(rdsk)) == NULL) {
 			zfs_error_aux(hdl, strerror(errno));
 			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
@@ -847,20 +845,19 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv,
 			    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
 				continue;
 
-			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
-				continue;
+			snprintf(path2, sizeof (path2), "%s%s", rdsk, name);
 
 			/*
 			 * Ignore failed stats.  We only want regular
 			 * files, character devs and block devs.
 			 */
-			if (fstat64(fd, &statbuf) != 0 ||
+			if (stat64(path2, &statbuf) != 0 ||
 			    (!S_ISREG(statbuf.st_mode) &&
-			    !S_ISCHR(statbuf.st_mode) &&
-			    !S_ISBLK(statbuf.st_mode))) {
-				(void) close(fd);
+			    !S_ISBLK(statbuf.st_mode)))
 				continue;
-			}
+
+			if ((fd = open64(path2, O_RDONLY)) < 0)
+				continue;
 
 			if ((zpool_read_label(fd, &config)) != 0) {
 				(void) close(fd);
@@ -871,9 +868,7 @@ zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv,
 			(void) close(fd);
 
 			if (config != NULL) {
-				/* use the non-raw path for the config */
-				(void) strlcpy(end, name, pathleft);
-				if (add_config(hdl, &pools, path, config) != 0)
+				if (add_config(hdl, &pools, path2, config) != 0)
 					goto error;
 			}
 		}
