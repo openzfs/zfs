@@ -95,10 +95,11 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/zfs/zcmd/zinject/Makefile.in \
 	$(top_srcdir)/zfs/zcmd/zpios/Makefile.in \
 	$(top_srcdir)/zfs/zcmd/zpool/Makefile.in \
-	$(top_srcdir)/zfs/zcmd/ztest/Makefile.in AUTHORS ChangeLog \
-	TODO
+	$(top_srcdir)/zfs/zcmd/ztest/Makefile.in AUTHORS ChangeLog
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/config/zfs-build.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/config/kernel.m4 \
+	$(top_srcdir)/config/lustre.m4 $(top_srcdir)/config/user.m4 \
+	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)

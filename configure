@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL UNAME TOPDIR BUILDDIR ZFSDIR LIBDIR CMDDIR LINUX LINUX_OBJ kmoduledir splsrc splsymvers KERNELMAKE_PARAMS KERNELCPPFLAGS HOSTCFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ kmoduledir splsrc splsymvers UNAME TOPDIR BUILDDIR ZFSDIR LIBDIR CMDDIR KERNELMAKE_PARAMS KERNELCPPFLAGS HOSTCFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1044,11 +1044,11 @@ Optional Packages:
                           both]
   --with-tags[=TAGS]
                           include additional configurations [automatic]
-  --with-config=CONFIG    Config file 'kernel|user|lustre'
   --with-linux=PATH       Path to kernel source
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-config=CONFIG    Config file 'kernel|user|lustre'
 
 Some influential environment variables:
   CC          C compiler command
@@ -18929,48 +18929,6 @@ splsrc=
 splbuild=
 
 
-
-
-# Check whether --with-zfs-config or --without-zfs-config was given.
-if test "${with_zfs_config+set}" = set; then
-  withval="$with_zfs_config"
-  zfsconfig="$withval"
-fi;
-
-	echo "$as_me:$LINENO: checking zfs config file" >&5
-echo $ECHO_N "checking zfs config file... $ECHO_C" >&6
-	if test -z "$zfsconfig" || test ! -r config/$zfsconfig; then
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-		{ { echo "$as_me:$LINENO: error:
-	        *** Please specify one of the valid config files located
-	        *** in ./config/ with the '--with-zfs-config=CONFIG' option" >&5
-echo "$as_me: error:
-	        *** Please specify one of the valid config files located
-	        *** in ./config/ with the '--with-zfs-config=CONFIG' option" >&2;}
-   { (exit 1); exit 1; }; }
-	fi
-
-	echo "$as_me:$LINENO: result: $zfsconfig" >&5
-echo "${ECHO_T}$zfsconfig" >&6;
-	. ./config/$zfsconfig
-
-	TOPDIR=`/bin/pwd`
-	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
-	ZFSDIR=$TOPDIR/$BUILDDIR
-	LIBDIR=$ZFSDIR/lib
-	CMDDIR=$ZFSDIR/zcmd
-	UNAME=`uname -r | cut -d- -f1`
-
-
-
-
-
-
-
-
-
-
 	ver=`uname -r`
 
 
@@ -19185,6 +19143,92 @@ echo "${ECHO_T}$splsymvers" >&6
 
 
 
+
+	TOPDIR=`/bin/pwd`
+	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
+	ZFSDIR=$TOPDIR/$BUILDDIR
+	LIBDIR=$ZFSDIR/lib
+	CMDDIR=$ZFSDIR/zcmd
+	UNAME=`uname -r | cut -d- -f1`
+
+
+
+
+
+
+
+
+
+
+# Check whether --with-zfs-config or --without-zfs-config was given.
+if test "${with_zfs_config+set}" = set; then
+  withval="$with_zfs_config"
+  zfsconfig="$withval"
+fi;
+
+	echo "$as_me:$LINENO: checking zfs config" >&5
+echo $ECHO_N "checking zfs config... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $zfsconfig" >&5
+echo "${ECHO_T}$zfsconfig" >&6;
+
+	case "$zfsconfig" in
+		kernel)
+			KERNELMAKE_PARAMS=
+
+		KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
+
+		HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 "
+	HOSTCFLAGS="$HOSTCFLAGS -D_GNU_SOURCE -D__EXTENSIONS__ "
+
+			HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-parentheses "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
+
+		HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
+	HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 "
+	HOSTCFLAGS="$HOSTCFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT "
+	HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
+
+		HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
+
+	if test "$kernelbuild" != "$kernelsrc"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
+	fi
+
+
+
+
+
+
+	echo "creating symlinks for additional kernel make targets"
+	ln -f -s $LIBDIR/libport/u8_textprep.c      $LIBDIR/libport/ku8_textprep.c
+	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/kavl.c
+	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/uavl.c
+	ln -f -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/knvpair.c
+	ln -f -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/unvpair.c
+	ln -f -s $LIBDIR/libzcommon/zfs_deleg.c     $LIBDIR/libzcommon/kzfs_deleg.c
+	ln -f -s $LIBDIR/libzcommon/zfs_prop.c      $LIBDIR/libzcommon/kzfs_prop.c
+	ln -f -s $LIBDIR/libzcommon/zprop_common.c  $LIBDIR/libzcommon/kzprop_common.c
+	ln -f -s $LIBDIR/libzcommon/compress.c      $LIBDIR/libzcommon/kcompress.c
+	ln -f -s $LIBDIR/libzcommon/list.c          $LIBDIR/libzcommon/klist.c
+	ln -f -s $LIBDIR/libzcommon/zfs_namecheck.c $LIBDIR/libzcommon/kzfs_namecheck.c
+	ln -f -s $LIBDIR/libzcommon/zfs_comutil.c   $LIBDIR/libzcommon/kzfs_comutil.c
+	ln -f -s $LIBDIR/libzcommon/zpool_prop.c    $LIBDIR/libzcommon/kzpool_prop.c
+ ;;
+		user)	 ;;
+		lustre)  ;;
+		*)
+		echo "$as_me:$LINENO: result: Error!" >&5
+echo "${ECHO_T}Error!" >&6
+		{ { echo "$as_me:$LINENO: error: Bad value \"$zfsconfig\" for --with-config,
+		              user kernel|user|lustre" >&5
+echo "$as_me: error: Bad value \"$zfsconfig\" for --with-config,
+		              user kernel|user|lustre" >&2;}
+   { (exit 1); exit 1; }; } ;;
+	esac
+
+
 	SCRIPT_CONFIG=.script-config
 	rm -f ${SCRIPT_CONFIG}
 	echo "KERNELSRC=${LINUX}"         >>${SCRIPT_CONFIG}
@@ -19202,6 +19246,7 @@ echo "${ECHO_T}$splsymvers" >&6
 	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
 	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
 	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
+
 
 
         echo "$as_me:$LINENO: checking license" >&5
@@ -19901,30 +19946,6 @@ rm -f conftest*
 #AC_DEFINE([HAVE_DM_INUSE_SWAP], 1, ["None"])
 #AC_DEFINE([HAVE_UNICODE], 1, ["None"])
 #AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h> header file])
-
-# Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
-KERNELMAKE_PARAMS=
-KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL -I$splsrc -I$splsrc/include -I$TOPDIR"
-
-# Minimally required for pread() functionality an other GNU goodness
-HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 -D_GNU_SOURCE -D__EXTENSIONS__ "
-# Quiet warnings not covered by the gcc-* patches
-HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces -Wno-parentheses "
-HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
-# Expected defines not covered by zfs_config.h
-HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
-HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_REENTRANT "
-HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
-# Expected default include paths additional paths added by Makefiles
-HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
-
-if test "$kernelbuild" != "$kernelsrc"; then
-	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
-fi
-
-
-
-
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile zfs/Makefile zfs/lib/libudmu/include/Makefile zfs/lib/libudmu/Makefile zfs/lib/Makefile zfs/lib/libnvpair/include/sys/Makefile zfs/lib/libnvpair/include/Makefile zfs/lib/libnvpair/Makefile zfs/lib/libsolcompat/sparc64/Makefile zfs/lib/libsolcompat/Makefile zfs/lib/libsolcompat/include/tsol/Makefile zfs/lib/libsolcompat/include/sparc64/sys/Makefile zfs/lib/libsolcompat/include/sparc64/Makefile zfs/lib/libsolcompat/include/rpc/Makefile zfs/lib/libsolcompat/include/i386/sys/Makefile zfs/lib/libsolcompat/include/i386/Makefile zfs/lib/libsolcompat/include/ia32/sys/Makefile zfs/lib/libsolcompat/include/ia32/Makefile zfs/lib/libsolcompat/include/amd64/sys/Makefile zfs/lib/libsolcompat/include/amd64/Makefile zfs/lib/libsolcompat/include/sys/sysevent/Makefile zfs/lib/libsolcompat/include/sys/fm/Makefile zfs/lib/libsolcompat/include/sys/Makefile zfs/lib/libsolcompat/include/Makefile zfs/lib/libsolcompat/i386/Makefile zfs/lib/libsolcompat/amd64/Makefile zfs/lib/libavl/include/sys/Makefile zfs/lib/libavl/include/Makefile zfs/lib/libavl/Makefile zfs/lib/libuutil/include/Makefile zfs/lib/libuutil/Makefile zfs/lib/libzfs/include/Makefile zfs/lib/libzfs/Makefile zfs/lib/libumem/include/Makefile zfs/lib/libumem/Makefile zfs/lib/libumem/sys/Makefile zfs/lib/libzcommon/include/Makefile zfs/lib/libzcommon/include/sys/fm/fs/Makefile zfs/lib/libzcommon/include/sys/fm/Makefile zfs/lib/libzcommon/include/sys/Makefile zfs/lib/libzcommon/include/sys/fs/Makefile zfs/lib/libzcommon/Makefile zfs/lib/libzpool/Makefile zfs/lib/libport/include/sys/Makefile zfs/lib/libport/include/Makefile zfs/lib/libport/Makefile zfs/lib/libdmu-ctl/include/sys/Makefile zfs/lib/libdmu-ctl/include/Makefile zfs/lib/libdmu-ctl/Makefile zfs/lib/libzpios/Makefile zfs/zcmd/ztest/Makefile zfs/zcmd/Makefile zfs/zcmd/zfs/Makefile zfs/zcmd/zdb/Makefile zfs/zcmd/zinject/Makefile zfs/zcmd/zdump/Makefile zfs/zcmd/zpool/Makefile zfs/zcmd/zpios/Makefile"
 
@@ -20721,17 +20742,17 @@ s,@F77@,$F77,;t t
 s,@FFLAGS@,$FFLAGS,;t t
 s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
+s,@LINUX@,$LINUX,;t t
+s,@LINUX_OBJ@,$LINUX_OBJ,;t t
+s,@kmoduledir@,$kmoduledir,;t t
+s,@splsrc@,$splsrc,;t t
+s,@splsymvers@,$splsymvers,;t t
 s,@UNAME@,$UNAME,;t t
 s,@TOPDIR@,$TOPDIR,;t t
 s,@BUILDDIR@,$BUILDDIR,;t t
 s,@ZFSDIR@,$ZFSDIR,;t t
 s,@LIBDIR@,$LIBDIR,;t t
 s,@CMDDIR@,$CMDDIR,;t t
-s,@LINUX@,$LINUX,;t t
-s,@LINUX_OBJ@,$LINUX_OBJ,;t t
-s,@kmoduledir@,$kmoduledir,;t t
-s,@splsrc@,$splsrc,;t t
-s,@splsymvers@,$splsymvers,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
 s,@HOSTCFLAGS@,$HOSTCFLAGS,;t t
@@ -21452,26 +21473,3 @@ if test "$no_create" != yes; then
   $ac_cs_success || { (exit 1); exit 1; }
 fi
 
-
-# HACK: I really, really hate this...  but to ensure the kernel build
-# system compiles C files shared between a library and a kernel module,
-# we need to ensure each file has a unique make target.  To do that
-# I'm creating symlinks for each shared file at configure time.  It
-# may be possible something better can be done in the Makefile but it
-# will take some serious investigation and I don't have the time now.
-
-echo
-echo "Creating symlinks for additional make targets"
-ln -s $LIBDIR/libport/u8_textprep.c      $LIBDIR/libport/ku8_textprep.c
-ln -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/kavl.c
-ln -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/uavl.c
-ln -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/knvpair.c
-ln -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/unvpair.c
-ln -s $LIBDIR/libzcommon/zfs_deleg.c     $LIBDIR/libzcommon/kzfs_deleg.c
-ln -s $LIBDIR/libzcommon/zfs_prop.c      $LIBDIR/libzcommon/kzfs_prop.c
-ln -s $LIBDIR/libzcommon/zprop_common.c  $LIBDIR/libzcommon/kzprop_common.c
-ln -s $LIBDIR/libzcommon/compress.c      $LIBDIR/libzcommon/kcompress.c
-ln -s $LIBDIR/libzcommon/list.c          $LIBDIR/libzcommon/klist.c
-ln -s $LIBDIR/libzcommon/zfs_namecheck.c $LIBDIR/libzcommon/kzfs_namecheck.c
-ln -s $LIBDIR/libzcommon/zfs_comutil.c   $LIBDIR/libzcommon/kzfs_comutil.c
-ln -s $LIBDIR/libzcommon/zpool_prop.c    $LIBDIR/libzcommon/kzpool_prop.c
