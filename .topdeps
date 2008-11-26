@@ -2,3 +2,4 @@ linux-arc
 linux-have-uio-rw
 linux-have-sysevent
 linux-have-fm
+linux-have-libdiskmgt
