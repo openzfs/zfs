@@ -1,6 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux debug zerocopy
+Subject: [PATCH] linux have uio rw
 
-Add debug ONLY option for zerocopy
+Use uio-rw if HAVE_UIO_RW defined
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
