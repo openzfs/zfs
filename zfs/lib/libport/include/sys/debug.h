@@ -41,6 +41,9 @@
 #define zp_verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
 #endif  /* __STDC__ */
 
+#undef VERIFY
+#undef ASSERT
+
 #define VERIFY(EX) zp_verify(EX)
 #define ASSERT(EX) assert(EX)
 
