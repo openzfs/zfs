@@ -105,6 +105,7 @@ extern void vpanic(const char *, __va_list);
 #define	fm_panic	panic
 
 /* This definition is copied from assert.h. */
+#ifndef verify
 #if defined(__STDC__)
 #if __STDC_VERSION__ - 0 >= 199901L
 #define	verify(EX) (void)((EX) || \
@@ -115,7 +116,10 @@ extern void vpanic(const char *, __va_list);
 #else
 #define	verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
 #endif	/* __STDC__ */
+#endif
 
+#undef VERIFY
+#undef ASSERT
 
 #define	VERIFY	verify
 #define	ASSERT	assert
