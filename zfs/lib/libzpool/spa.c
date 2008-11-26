@@ -3925,12 +3925,21 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	size_t nvsize = 0;
 	dmu_buf_t *db;
 
+#ifdef HAVE_XDR
 	VERIFY(nvlist_size(nv, &nvsize, NV_ENCODE_XDR) == 0);
 
 	packed = kmem_alloc(nvsize, KM_SLEEP);
 
 	VERIFY(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_XDR,
 	    KM_SLEEP) == 0);
+#else
+	VERIFY(nvlist_size(nv, &nvsize, NV_ENCODE_NATIVE) == 0);
+
+	packed = kmem_alloc(nvsize, KM_SLEEP);
+
+	VERIFY(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_NATIVE,
+	    KM_SLEEP) == 0);
+#endif
 
 	dmu_write(spa->spa_meta_objset, obj, 0, nvsize, packed, tx);
 
