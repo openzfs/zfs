@@ -13,9 +13,6 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	        *** in ./config/ with the '--with-zfs-config=CONFIG' option])
 	fi
 
-	AC_MSG_RESULT([$zfsconfig]);
-	. ./config/$zfsconfig
-
 	TOPDIR=`/bin/pwd`
 	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
 	ZFSDIR=$TOPDIR/$BUILDDIR
@@ -30,6 +27,13 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AC_SUBST(LIBDIR)
 	AC_SUBST(CMDDIR)
 	AC_SUBST(UNAME)
+
+	AC_MSG_RESULT([$zfsconfig]);
+	. ./config/$zfsconfig
+
+	AC_SUBST(KERNELMAKE_PARAMS)
+	AC_SUBST(KERNELCPPFLAGS)
+	AC_SUBST(HOSTCFLAGS)
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL], [
