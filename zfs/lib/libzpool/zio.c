@@ -92,6 +92,7 @@ static boolean_t zio_io_should_fail(uint16_t);
 kmem_cache_t *zio_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
+int zio_bulk_flags = 0;
 
 #ifdef _KERNEL
 extern vmem_t *zio_alloc_arena;
@@ -157,13 +158,13 @@ zio_init(void)
 			char name[36];
 			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, KMC_NODEBUG);
+			    align, NULL, NULL, NULL, NULL, NULL,
+			    KMC_NODEBUG | zio_bulk_flags);
 
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL, data_alloc_arena,
-			    KMC_NODEBUG);
-
+			    KMC_NODEBUG | zio_bulk_flags);
 		}
 	}
 
@@ -2074,3 +2075,21 @@ zio_flush(zio_t *zio, vdev_t *vd)
 	    NULL, NULL, ZIO_PRIORITY_NOW,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* Delegate I/O to a child vdev. */
+EXPORT_SYMBOL(zio_vdev_resume_io);
+
+/* Fault injection */
+EXPORT_SYMBOL(zio_injection_enabled);
+EXPORT_SYMBOL(zio_inject_fault);
+EXPORT_SYMBOL(zio_inject_list_next);
+EXPORT_SYMBOL(zio_clear_fault);
+EXPORT_SYMBOL(zio_priority_table);
+
+module_param(zio_resume_threads, int, 0644);
+MODULE_PARM_DESC(zio_resume_threads, "Number of threads to reissue IO");
+
+module_param(zio_bulk_flags, int, 0644);
+MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
+#endif

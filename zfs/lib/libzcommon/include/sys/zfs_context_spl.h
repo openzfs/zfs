@@ -23,66 +23,63 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SYS_ZFS_CONTEXT_H
-#define	_SYS_ZFS_CONTEXT_H
+#ifndef _SYS_ZFS_CONTEXT_SPL_H
+#define _SYS_ZFS_CONTEXT_SPL_H
 
-#ifdef	__cplusplus
+#ifdef  __cplusplus
 extern "C" {
 #endif
 
-#if defined(_KERNEL)
-#if defined(HAVE_SPL)
+#define _SYS_MUTEX_H
+#define _SYS_RWLOCK_H
+#define _SYS_CONDVAR_H
+#define _SYS_SYSTM_H
+#define _SYS_DEBUG_H
+#define _SYS_T_LOCK_H
+#define _SYS_VNODE_H
+#define _SYS_VFS_H
+#define _SYS_SUNDDI_H
+#define _SYS_CALLB_H
 
-/* Linux kernel headers (SPL) */
-#include <sys/zfs_context_spl.h>
-
-#else
-
-/* Solaris kernel headers */
-#include <sys/note.h>
-#include <sys/types.h>
-#include <sys/t_lock.h>
-#include <sys/atomic.h>
+/* In SPL module */
+#include <sys/callb.h>
+#include <sys/condvar.h>
+#include <sys/cred.h>
 #include <sys/sysmacros.h>
-#include <sys/bitmap.h>
-#include <sys/cmn_err.h>
 #include <sys/kmem.h>
-#include <sys/taskq.h>
-#include <sys/buf.h>
-#include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/cpuvar.h>
-#include <sys/kobj.h>
-#include <sys/conf.h>
-#include <sys/disp.h>
-#include <sys/debug.h>
+#include <sys/kstat.h>
+#include <sys/mutex.h>
 #include <sys/random.h>
-#include <sys/byteorder.h>
-#include <sys/systm.h>
-#include <sys/list.h>
-#include <sys/uio.h>
-#include <sys/dirent.h>
+#include <sys/rwlock.h>
+#include <sys/taskq.h>
+#include <sys/thread.h>
 #include <sys/time.h>
-#include <vm/seg_kmem.h>
-#include <sys/zone.h>
+#include <sys/timer.h>
+#include <sys/types.h>
+#include <sys/vmsystm.h>
+#include <sys/atomic.h>
+#include <sys/vnode.h>
+#include <sys/cmn_err.h>
 #include <sys/uio.h>
-#include <sys/zfs_debug.h>
-#include <sys/sysevent.h>
 #include <sys/sysevent/eventdefs.h>
-#include <sys/fm/util.h>
+#include <sys/kobj.h>
 
-#define	CPU_SEQID	(CPU->cpu_seqid)
+/* Ensure we do not pick these values up from spl_config.h */
+#undef NDEBUG
+#undef PACKAGE
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef STDC_HEADERS
+#undef VERSION
 
-#endif /* HAVE_SPL */
-#else
+/* In libport */
+#include <sys/u8_textprep.h>
 
-/* Userspace headers */
-#include <sys/zfs_context_user.h>
+/* In libzcommon */
+#include <sys/list.h>
+#include <sys/zfs_debug.h>
 
-#endif /* _KERNEL */
-
-#ifdef	__cplusplus
-}
-#endif
-
-#endif	/* _SYS_ZFS_CONTEXT_H */
+#endif /* _SYS_ZFS_CONTEXT_SPL_H */

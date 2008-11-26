@@ -913,3 +913,7 @@ traverse_fini(traverse_handle_t *th)
 
 	kmem_free(th, sizeof (*th));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(traverse_dsl_dataset);
+#endif

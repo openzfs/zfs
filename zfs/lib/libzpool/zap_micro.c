@@ -1104,3 +1104,9 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 	zap_unlockdir(zap);
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zap_update);
+EXPORT_SYMBOL(zap_lookup);
+EXPORT_SYMBOL(zap_lookup_norm);
+#endif
