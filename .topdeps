@@ -7,3 +7,4 @@ linux-have-libefi
 linux-have-mntent
 linux-have-spl-debug
 linux-have-xdr
+linux-have-zvol
