@@ -17,7 +17,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	. ./config/$zfsconfig
 
 	TOPDIR=`/bin/pwd`
-	BUILDDIR=$META_NAME #+$zfsconfig
+	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
 	ZFSDIR=$TOPDIR/$BUILDDIR
 	LIBDIR=$ZFSDIR/lib
 	CMDDIR=$ZFSDIR/zcmd
