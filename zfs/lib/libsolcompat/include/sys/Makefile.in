@@ -1,8 +1,0 @@
-subdir-m += fm sysevent
-DISTFILES  = acl.h acl_impl.h bitmap.h byteorder.h callb.h cmn_err.h cred.h
-DISTFILES += dkio.h dklabel.h feature_tests.h file.h idmap.h int_limits.h
-DISTFILES += int_types.h inttypes.h isa_defs.h kmem.h kstat.h mkdev.h mntent.h
-DISTFILES += mntio.h mnttab.h modctl.h mount.h note.h param.h priv.h
-DISTFILES += processor.h rctl.h sdt.h stack.h stat.h sunddi.h sysevent.h
-DISTFILES += sysmacros.h time.h trap.h types.h types32.h uio.h utsname.h
-DISTFILES += uuid.h va_list.h varargs.h vmem.h vtoc.h zone.h
