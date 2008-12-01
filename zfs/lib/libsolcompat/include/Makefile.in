@@ -1,4 +1,0 @@
-subdir-m += amd64 i386 ia32 rpc sparc64 sys tsol
-DISTFILES  = assert.h atomic.h devid.h dirent.h libc.h libdevinfo.h libgen.h
-DISTFILES += mtlib.h priv.h stdarg.h stdio_ext.h strings.h ucred.h zone.h
-
