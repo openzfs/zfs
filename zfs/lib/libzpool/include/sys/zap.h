@@ -317,6 +317,11 @@ void zap_cursor_advance(zap_cursor_t *zc);
 uint64_t zap_cursor_serialize(zap_cursor_t *zc);
 
 /*
+ * Advance the cursor to the attribute having the key.
+ */
+int zap_cursor_move_to_key(zap_cursor_t *zc, const char *name, matchtype_t mt);
+
+/*
  * Initialize a zap cursor pointing to the position recorded by
  * zap_cursor_serialize (in the "serialized" argument).  You can also
  * use a "serialized" argument of 0 to start at the beginning of the
