@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,26 +18,20 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
-
-/* #pragma ident	"@(#)umem_fail.c	1.4	05/06/08 SMI" */
 
 /*
  * Failure routines for libumem (not standalone)
  */
 
-#include "config.h"
 #include <sys/types.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <string.h>
-#include <stdio.h>
 
 #include "misc.h"
 
@@ -74,31 +67,14 @@ firstexit(int type)
 static void __NORETURN
 umem_do_abort(void)
 {
-#ifdef _WIN32
-	abort();
-#else
-	if (firstexit(UMEM_EXIT_ABORT)) {
+	if (firstexit(UMEM_EXIT_ABORT))
 		(void) raise(SIGABRT);
-	}
 
 	for (;;) {
-#if defined(__FreeBSD__)
-		sigset_t set;
-		struct sigaction sa;
-
-		sa.sa_handler = SIG_DFL;
-		(void) sigaction(SIGABRT, &sa, NULL);
-		(void) sigemptyset (&set);
-		(void) sigaddset (&set, SIGABRT);
-		(void) sigprocmask (SIG_UNBLOCK, &set, NULL);
-		(void) raise (SIGABRT);
-#else
 		(void) signal(SIGABRT, SIG_DFL);
 		(void) sigrelse(SIGABRT);
 		(void) raise(SIGABRT);
-#endif
 	}
-#endif
 }
 
 #define	SKIP_FRAMES		1	/* skip the panic frame */
@@ -137,12 +113,6 @@ umem_panic(const char *format, ...)
 	if (format[strlen(format)-1] != '\n')
 		umem_error_enter("\n");
 
-#ifdef ECELERITY
-	va_start(va, format);
-	ec_debug_vprintf(DCRITICAL, DMEM, format, va);
-	va_end(va);
-#endif
-	
 	print_stacktrace();
 
 	umem_do_abort();
@@ -171,6 +141,6 @@ __umem_assert_failed(const char *assertion, const char *file, int line)
 {
 	umem_panic("Assertion failed: %s, file %s, line %d\n",
 	    assertion, file, line);
-	umem_do_abort();
 	/*NOTREACHED*/
+	return (0);
 }

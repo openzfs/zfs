@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zinject.c	1.4	07/09/17 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * ZFS Fault Injector
@@ -38,15 +38,18 @@
  * Errors can be injected into a particular vdev using the '-d' option.  This
  * option takes a path or vdev GUID to uniquely identify the device within a
  * pool.  There are two types of errors that can be injected, EIO and ENXIO,
- * that can be controlled through the '-t' option.  The default is ENXIO.  For
+ * that can be controlled through the '-e' option.  The default is ENXIO.  For
  * EIO failures, any attempt to read data from the device will return EIO, but
  * subsequent attempt to reopen the device will succeed.  For ENXIO failures,
  * any attempt to read from the device will return EIO, but any attempt to
  * reopen the device will also return ENXIO.
+ * For label faults, the -L option must be specified. This allows faults
+ * to be injected into either the nvlist or uberblock region of all the labels
+ * for the specified device.
  *
  * This form of the command looks like:
  *
- * 	zinject -d device [-t type] pool
+ * 	zinject -d device [-e errno] [-L <uber | nvlist>] pool
  *
  *
  * DATA FAULTS
@@ -165,7 +168,9 @@ static const char *errtable[TYPE_INVAL] = {
 	"config",
 	"bplist",
 	"spacemap",
-	"errlog"
+	"errlog",
+	"uber",
+	"nvlist"
 };
 
 static err_type_t
@@ -219,9 +224,10 @@ usage(void)
 	    "\t\tClear the particular record (if given a numeric ID), or\n"
 	    "\t\tall records if 'all' is specificed.\n"
 	    "\n"
-	    "\tzinject -d device [-e errno] pool\n"
-	    "\t\tInject a fault into a particular device.  'errno' can either\n"
-	    "\t\tbe 'nxio' (the default) or 'io'.\n"
+	    "\tzinject -d device [-e errno] [-L <nvlist|uber>] pool\n"
+	    "\t\tInject a fault into a particular device or the device's\n"
+	    "\t\tlabel.  Label injection can either be 'nvlist' or 'uber'.\n"
+	    "\t\t'errno' can either be 'nxio' (the default) or 'io'.\n"
 	    "\n"
 	    "\tzinject -b objset:object:level:blkid pool\n"
 	    "\n"
@@ -474,6 +480,7 @@ main(int argc, char **argv)
 	int error = 0;
 	int domount = 0;
 	err_type_t type = TYPE_INVAL;
+	err_type_t label = TYPE_INVAL;
 	zinject_record_t record = { 0 };
 	char pool[MAXNAMELEN];
 	char dataset[MAXNAMELEN];
@@ -509,7 +516,7 @@ main(int argc, char **argv)
 		return (0);
 	}
 
-	while ((c = getopt(argc, argv, ":ab:d:f:qhc:t:l:mr:e:u")) != -1) {
+	while ((c = getopt(argc, argv, ":ab:d:f:qhc:t:l:mr:e:uL:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
@@ -568,7 +575,8 @@ main(int argc, char **argv)
 			range = optarg;
 			break;
 		case 't':
-			if ((type = name_to_type(optarg)) == TYPE_INVAL) {
+			if ((type = name_to_type(optarg)) == TYPE_INVAL &&
+			    !MOS_TYPE(type)) {
 				(void) fprintf(stderr, "invalid type '%s'\n",
 				    optarg);
 				usage();
@@ -577,6 +585,15 @@ main(int argc, char **argv)
 			break;
 		case 'u':
 			flags |= ZINJECT_UNLOAD_SPA;
+			break;
+		case 'L':
+			if ((label = name_to_type(optarg)) == TYPE_INVAL &&
+			    !LABEL_TYPE(type)) {
+				(void) fprintf(stderr, "invalid label type "
+				    "'%s'\n", optarg);
+				usage();
+				return (1);
+			}
 			break;
 		case ':':
 			(void) fprintf(stderr, "option -%c requires an "
@@ -654,7 +671,7 @@ main(int argc, char **argv)
 			return (1);
 		}
 
-		if (translate_device(pool, device, &record) != 0)
+		if (translate_device(pool, device, label, &record) != 0)
 			return (1);
 		if (!error)
 			error = ENXIO;
