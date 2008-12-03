@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,26 +18,20 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)envvar.c	1.5	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "config.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#if HAVE_DLFCN_H
 #include <dlfcn.h>
-#endif
-
 #include "umem_base.h"
 #include "vmem_base.h"
 
@@ -95,6 +88,9 @@ static arg_process_t umem_backend_process;
 
 static arg_process_t umem_log_process;
 
+static size_t umem_size_tempval;
+static arg_process_t umem_size_process;
+
 const char *____umem_environ_msg_options = "-- UMEM_OPTIONS --";
 
 static umem_env_item_t umem_options_items[] = {
@@ -124,13 +120,31 @@ static umem_env_item_t umem_options_items[] = {
 		NULL, 0,	&umem_reap_interval
 	},
 
-#ifndef _WIN32
+	{ "size_add",		"Private",	ITEM_SPECIAL,
+		"add a size to the cache size table",
+		NULL, 0, NULL,
+		&umem_size_tempval,		&umem_size_process
+	},
+	{ "size_clear",		"Private",	ITEM_SPECIAL,
+		"clear all but the largest size from the cache size table",
+		NULL, 0, NULL,
+		&umem_size_tempval,		&umem_size_process
+	},
+	{ "size_remove",	"Private",	ITEM_SPECIAL,
+	    "remove a size from the cache size table",
+		NULL, 0, NULL,
+		&umem_size_tempval,		&umem_size_process
+	},
+
 #ifndef UMEM_STANDALONE
+	{ "sbrk_minalloc",	"Private",	ITEM_SIZE,
+		"The minimum allocation chunk for the sbrk(2) heap.",
+		NULL, 0, NULL,	&vmem_sbrk_minalloc
+	},
 	{ "sbrk_pagesize",	"Private",	ITEM_SIZE,
 		"The preferred page size for the sbrk(2) heap.",
 		NULL, 0, NULL,	&vmem_sbrk_pagesize
 	},
-#endif
 #endif
 
 	{ NULL, "-- end of UMEM_OPTIONS --",	ITEM_INVALID }
@@ -393,6 +407,49 @@ umem_log_process(const umem_env_item_t *item, const char *item_arg)
 	return (ARG_SUCCESS);
 }
 
+static int
+umem_size_process(const umem_env_item_t *item, const char *item_arg)
+{
+	const char *name = item->item_name;
+	void (*action_func)(size_t);
+
+	size_t result;
+
+	int ret;
+
+	if (strcmp(name, "size_clear") == 0) {
+		if (item_arg != NULL) {
+			log_message("%s: %s: does not take a value. ignored\n",
+			    CURRENT, name);
+			return (ARG_BAD);
+		}
+		umem_alloc_sizes_clear();
+		return (ARG_SUCCESS);
+	} else if (strcmp(name, "size_add") == 0) {
+		action_func = umem_alloc_sizes_add;
+	} else if (strcmp(name, "size_remove") == 0) {
+		action_func = umem_alloc_sizes_remove;
+	} else {
+		log_message("%s: %s: internally unrecognized\n",
+		    CURRENT, name, name, name);
+		return (ARG_BAD);
+	}
+
+	if (item_arg == NULL) {
+		log_message("%s: %s: requires a value. ignored\n",
+		    CURRENT, name);
+		return (ARG_BAD);
+	}
+
+	ret = item_size_process(item, item_arg);
+	if (ret != ARG_SUCCESS)
+		return (ret);
+
+	result = *item->item_size_target;
+	action_func(result);
+	return (ARG_SUCCESS);
+}
+
 #ifndef UMEM_STANDALONE
 static int
 umem_backend_process(const umem_env_item_t *item, const char *item_arg)
@@ -437,11 +494,6 @@ process_item(const umem_env_item_t *item, const char *item_arg)
 	case ITEM_SIZE:
 		arg_required = 1;
 		break;
-
-	default:
-		log_message("%s: %s: Invalid type.  Ignored\n",
-		    CURRENT, item->item_name);
-		return (1);
 	}
 
 	switch (item->item_type) {
@@ -558,6 +610,7 @@ umem_setup_envvars(int invalid)
 	static volatile enum {
 		STATE_START,
 		STATE_GETENV,
+		STATE_DLOPEN,
 		STATE_DLSYM,
 		STATE_FUNC,
 		STATE_DONE
@@ -581,6 +634,10 @@ umem_setup_envvars(int invalid)
 		case STATE_GETENV:
 			where = "during getenv(3C) calls -- "
 			    "getenv(3C) results ignored.";
+			break;
+		case STATE_DLOPEN:
+			where = "during dlopen(3C) call -- "
+			    "_umem_*() results ignored.";
 			break;
 		case STATE_DLSYM:
 			where = "during dlsym(3C) call -- "
@@ -622,12 +679,8 @@ umem_setup_envvars(int invalid)
 	}
 
 #ifndef UMEM_STANDALONE
-#ifdef _WIN32
-# define dlopen(a, b)	GetModuleHandle(NULL)
-# define dlsym(a, b)	GetProcAddress((HANDLE)a, b)
-# define dlclose(a)		0
-# define dlerror()		0
-#endif
+	state = STATE_DLOPEN;
+
 	/* get a handle to the "a.out" object */
 	if ((h = dlopen(0, RTLD_FIRST | RTLD_LAZY)) != NULL) {
 		for (cur_env = umem_envvars; cur_env->env_name != NULL;

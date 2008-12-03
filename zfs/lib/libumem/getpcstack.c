@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,39 +18,21 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)getpcstack.c	1.5	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "config.h"
 #include "misc.h"
-
-#if HAVE_UCONTEXT_H
 #include <ucontext.h>
-#endif
-
-#if HAVE_SYS_FRAME_H
 #include <sys/frame.h>
-#endif
-#if HAVE_SYS_STACK_H
 #include <sys/stack.h>
-#endif
-
 #include <stdio.h>
 
-#if defined(__MACH__)
-/*
- * Darwin doesn't have any exposed frame info, so give it some space.
- */
-#define UMEM_FRAMESIZE (2 * sizeof(long long))
-
-#elif defined(__sparc) || defined(__sparcv9)
+#if defined(__sparc) || defined(__sparcv9)
 extern void flush_windows(void);
 #define	UMEM_FRAMESIZE	MINFRAME
 
@@ -62,7 +43,7 @@ extern void flush_windows(void);
  */
 #define	UMEM_FRAMESIZE	(sizeof (struct frame))
 
-#elif !defined(EC_UMEM_DUMMY_PCSTACK)
+#else
 #error needs update for new architecture
 #endif
 
@@ -74,9 +55,6 @@ extern void flush_windows(void);
 int
 getpcstack(uintptr_t *pcstack, int pcstack_limit, int check_signal)
 {
-#ifdef EC_UMEM_DUMMY_PCSTACK
-  return 0;
-#else
 	struct frame *fp;
 	struct frame *nextfp, *minfp;
 	int depth = 0;
@@ -207,5 +185,4 @@ getpcstack(uintptr_t *pcstack, int pcstack_limit, int check_signal)
 		minfp = fp;
 	}
 	return (depth);
-#endif
 }
