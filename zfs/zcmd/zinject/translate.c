@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)translate.c	1.3	07/11/09 SMI"
 
 #include <libzfs.h>
 
@@ -47,6 +45,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dnode.h>
+#include <sys/vdev_impl.h>
 
 #include <sys/mkdev.h>
 
@@ -164,7 +163,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	sync();
 
 	if ((err = dmu_objset_open(dataset, DMU_OST_ZFS,
-	    DS_MODE_STANDARD | DS_MODE_READONLY, &os)) != 0) {
+	    DS_MODE_USER | DS_MODE_READONLY, &os)) != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		return (-1);
@@ -249,7 +248,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	 * size.
 	 */
 	if ((err = dmu_objset_open(dataset, DMU_OST_ANY,
-	    DS_MODE_STANDARD | DS_MODE_READONLY, &os)) != 0) {
+	    DS_MODE_USER | DS_MODE_READONLY, &os)) != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		goto out;
@@ -432,7 +431,8 @@ translate_raw(const char *str, zinject_record_t *record)
 }
 
 int
-translate_device(const char *pool, const char *device, zinject_record_t *record)
+translate_device(const char *pool, const char *device, err_type_t label_type,
+    zinject_record_t *record)
 {
 	char *end;
 	zpool_handle_t *zhp;
@@ -448,7 +448,7 @@ translate_device(const char *pool, const char *device, zinject_record_t *record)
 
 	record->zi_guid = strtoull(device, &end, 16);
 	if (record->zi_guid == 0 || *end != '\0') {
-		tgt = zpool_find_vdev(zhp, device, &isspare, &iscache);
+		tgt = zpool_find_vdev(zhp, device, &isspare, &iscache, NULL);
 
 		if (tgt == NULL) {
 			(void) fprintf(stderr, "cannot find device '%s' in "
@@ -460,5 +460,15 @@ translate_device(const char *pool, const char *device, zinject_record_t *record)
 		    &record->zi_guid) == 0);
 	}
 
+	switch (label_type) {
+	case TYPE_LABEL_UBERBLOCK:
+		record->zi_start = offsetof(vdev_label_t, vl_uberblock[0]);
+		record->zi_end = record->zi_start + VDEV_UBERBLOCK_RING - 1;
+		break;
+	case TYPE_LABEL_NVLIST:
+		record->zi_start = offsetof(vdev_label_t, vl_vdev_phys);
+		record->zi_end = record->zi_start + VDEV_PHYS_SIZE - 1;
+		break;
+	}
 	return (0);
 }

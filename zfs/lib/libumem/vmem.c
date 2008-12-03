@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,12 +18,11 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-/* #pragma ident	"@(#)vmem.c	1.10	05/06/08 SMI" */
 
 /*
  * For a more complete description of the main ideas, see:
@@ -37,7 +35,7 @@
  *	Proceedings of the 2001 Usenix Conference.
  *	Available as /shared/sac/PSARC/2000/550/materials/vmem.pdf.
  *
- * For the "Big Theory Statement", see usr/src/common/os/vmem.c
+ * For the "Big Theory Statement", see usr/src/uts/common/os/vmem.c
  *
  * 1. Overview of changes
  * ------------------------------
@@ -108,22 +106,12 @@
  * sorted in address order.
  */
 
-#include "config.h"
-/* #include "mtlib.h" */
 #include <sys/vmem_impl_user.h>
-#if HAVE_ALLOCA_H
 #include <alloca.h>
-#endif
-#ifdef HAVE_SYS_SYSMACROS_H
 #include <sys/sysmacros.h>
-#endif
 #include <stdio.h>
-#if HAVE_STRINGS_H
 #include <strings.h>
-#endif
-#if HAVE_ATOMIC_H
 #include <atomic.h>
-#endif
 
 #include "vmem_base.h"
 #include "umem_base.h"
@@ -210,12 +198,9 @@ static uint32_t vmem_id;
 static uint32_t vmem_populators;
 static vmem_seg_t vmem_seg0[VMEM_SEG_INITIAL];
 static vmem_seg_t *vmem_segfree;
-static mutex_t vmem_list_lock = DEFAULTMUTEX;
-static mutex_t vmem_segfree_lock = DEFAULTMUTEX;
-static vmem_populate_lock_t vmem_nosleep_lock = {
-  DEFAULTMUTEX,
-  0
-};
+static mutex_t vmem_list_lock;
+static mutex_t vmem_segfree_lock;
+static vmem_populate_lock_t vmem_nosleep_lock;
 #define	IN_POPULATE()	(vmem_nosleep_lock.vmpl_thr == thr_self())
 static vmem_t *vmem_list;
 static vmem_t *vmem_internal_arena;
@@ -229,12 +214,6 @@ vmem_free_t *vmem_heap_free;
 
 uint32_t vmem_mtbf;		/* mean time between failures [default: off] */
 size_t vmem_seg_size = sizeof (vmem_seg_t);
-
-/*
- * we use the _ version, since we don't want to be cancelled.
- * Actually, this is automatically taken care of by including "mtlib.h".
- */
-extern int _cond_wait(cond_t *cv, mutex_t *mutex);
 
 /*
  * Insert/delete from arena list (type 'a') or next-of-kin list (type 'k').
@@ -775,6 +754,8 @@ vmem_nextfit_alloc(vmem_t *vmp, size_t size, int vmflag)
 			break;
 		vsp = vsp->vs_anext;
 		if (vsp == rotor) {
+			int cancel_state;
+
 			/*
 			 * We've come full circle.  One possibility is that the
 			 * there's actually enough space, but the rotor itself
@@ -799,7 +780,10 @@ vmem_nextfit_alloc(vmem_t *vmp, size_t size, int vmflag)
 				    0, 0, NULL, NULL, vmflag & VM_UMFLAGS));
 			}
 			vmp->vm_kstat.vk_wait++;
-			(void) _cond_wait(&vmp->vm_cv, &vmp->vm_lock);
+			(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,
+			    &cancel_state);
+			(void) cond_wait(&vmp->vm_cv, &vmp->vm_lock);
+			(void) pthread_setcancelstate(cancel_state, NULL);
 			vsp = rotor->vs_anext;
 		}
 	}
@@ -867,6 +851,8 @@ vmem_xalloc(vmem_t *vmp, size_t size, size_t align, size_t phase,
 
 	(void) mutex_lock(&vmp->vm_lock);
 	for (;;) {
+		int cancel_state;
+
 		if (vmp->vm_nsegfree < VMEM_MINFREE &&
 		    !vmem_populate(vmp, vmflag))
 			break;
@@ -930,7 +916,7 @@ vmem_xalloc(vmem_t *vmp, size_t size, size_t align, size_t phase,
 			start = MAX(vsp->vs_start, (uintptr_t)minaddr);
 			end = MIN(vsp->vs_end - 1, (uintptr_t)maxaddr - 1) + 1;
 			taddr = P2PHASEUP(start, align, phase);
-			if (P2CROSS(taddr, taddr + size - 1, nocross))
+			if (P2BOUNDARY(taddr, size, nocross))
 				taddr +=
 				    P2ROUNDUP(P2NPHASE(taddr, nocross), align);
 			if ((taddr - start) + size > end - start ||
@@ -986,7 +972,10 @@ vmem_xalloc(vmem_t *vmp, size_t size, size_t align, size_t phase,
 		if (vmflag & VM_NOSLEEP)
 			break;
 		vmp->vm_kstat.vk_wait++;
-		(void) _cond_wait(&vmp->vm_cv, &vmp->vm_lock);
+		(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,
+		    &cancel_state);
+		(void) cond_wait(&vmp->vm_cv, &vmp->vm_lock);
+		(void) pthread_setcancelstate(cancel_state, NULL);
 	}
 	if (vbest != NULL) {
 		ASSERT(vbest->vs_type == VMEM_FREE);
@@ -994,7 +983,7 @@ vmem_xalloc(vmem_t *vmp, size_t size, size_t align, size_t phase,
 		(void) vmem_seg_alloc(vmp, vbest, addr, size);
 		(void) mutex_unlock(&vmp->vm_lock);
 		ASSERT(P2PHASE(addr, align) == phase);
-		ASSERT(!P2CROSS(addr, addr + size - 1, nocross));
+		ASSERT(!P2BOUNDARY(addr, size, nocross));
 		ASSERT(addr >= (uintptr_t)minaddr);
 		ASSERT(addr + size - 1 <= (uintptr_t)maxaddr - 1);
 		return ((void *)addr);

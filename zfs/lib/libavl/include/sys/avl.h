@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,14 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_AVL_H
 #define	_AVL_H
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * This is a private header file.  Applications should not directly include
@@ -38,6 +37,7 @@
 extern "C" {
 #endif
 
+#include <sys/types.h>
 #include <sys/avl_impl.h>
 
 /*
@@ -128,7 +128,6 @@ typedef uintptr_t avl_index_t;
 #define	AVL_AFTER	(1)
 
 
-
 /*
  * Prototypes
  *
@@ -182,7 +181,7 @@ extern void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
  * data to avoid doing avl_find() again for insertion.
  *
  * new_data	- new data to insert
- * here  	- existing node in "tree"
+ * here		- existing node in "tree"
  * direction	- either AVL_AFTER or AVL_BEFORE the data "here".
  */
 extern void avl_insert_here(avl_tree_t *tree, void *new_data, void *here,
@@ -251,12 +250,26 @@ extern void avl_add(avl_tree_t *tree, void *node);
  */
 extern void avl_remove(avl_tree_t *tree, void *node);
 
+/*
+ * Reinsert a node only if its order has changed relative to its nearest
+ * neighbors. To optimize performance avl_update_lt() checks only the previous
+ * node and avl_update_gt() checks only the next node. Use avl_update_lt() and
+ * avl_update_gt() only if you know the direction in which the order of the
+ * node may change.
+ */
+extern boolean_t avl_update(avl_tree_t *, void *);
+extern boolean_t avl_update_lt(avl_tree_t *, void *);
+extern boolean_t avl_update_gt(avl_tree_t *, void *);
 
 /*
  * Return the number of nodes in the tree
  */
 extern ulong_t avl_numnodes(avl_tree_t *tree);
 
+/*
+ * Return B_TRUE if there are zero nodes in the tree, B_FALSE otherwise.
+ */
+extern boolean_t avl_is_empty(avl_tree_t *tree);
 
 /*
  * Used to destroy any remaining nodes in a tree. The cookie argument should
