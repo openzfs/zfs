@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "libuutil_common.h"
 
@@ -120,7 +120,8 @@ uu_avl_pool_destroy(uu_avl_pool_t *pp)
 		    UU_PTR_ENCODE(&pp->uap_null_avl)) {
 			uu_panic("uu_avl_pool_destroy: Pool \"%.*s\" (%p) has "
 			    "outstanding avls, or is corrupt.\n",
-			    sizeof (pp->uap_name), pp->uap_name, pp);
+			    (int)sizeof (pp->uap_name), pp->uap_name,
+			    (void *)pp);
 		}
 	}
 	(void) pthread_mutex_lock(&uu_apool_list_lock);
@@ -142,14 +143,14 @@ uu_avl_node_init(void *base, uu_avl_node_t *np, uu_avl_pool_t *pp)
 		if (offset + sizeof (*np) > pp->uap_objsize) {
 			uu_panic("uu_avl_node_init(%p, %p, %p (\"%s\")): "
 			    "offset %ld doesn't fit in object (size %ld)\n",
-			    base, np, pp, pp->uap_name, offset,
-			    pp->uap_objsize);
+			    base, (void *)np, (void *)pp, pp->uap_name,
+			    (long)offset, (long)pp->uap_objsize);
 		}
 		if (offset != pp->uap_nodeoffset) {
 			uu_panic("uu_avl_node_init(%p, %p, %p (\"%s\")): "
 			    "offset %ld doesn't match pool's offset (%ld)\n",
-			    base, np, pp, pp->uap_name, offset,
-			    pp->uap_objsize);
+			    base, (void *)np, (void *)pp, pp->uap_name,
+			    (long)offset, (long)pp->uap_objsize);
 		}
 	}
 
@@ -166,12 +167,12 @@ uu_avl_node_fini(void *base, uu_avl_node_t *np, uu_avl_pool_t *pp)
 		if (na[0] == DEAD_MARKER && na[1] == DEAD_MARKER) {
 			uu_panic("uu_avl_node_fini(%p, %p, %p (\"%s\")): "
 			    "node already finied\n",
-			    base, np, pp, pp->uap_name);
+			    base, (void *)np, (void *)pp, pp->uap_name);
 		}
 		if (na[0] != POOL_TO_MARKER(pp) || na[1] != 0) {
 			uu_panic("uu_avl_node_fini(%p, %p, %p (\"%s\")): "
 			    "node corrupt, in tree, or in different pool\n",
-			    base, np, pp, pp->uap_name);
+			    base, (void *)np, (void *)pp, pp->uap_name);
 		}
 	}
 
@@ -251,12 +252,13 @@ uu_avl_destroy(uu_avl_t *ap)
 
 	if (ap->ua_debug) {
 		if (avl_numnodes(&ap->ua_tree) != 0) {
-			uu_panic("uu_avl_destroy(%p): tree not empty\n", ap);
+			uu_panic("uu_avl_destroy(%p): tree not empty\n",
+			    (void *)ap);
 		}
 		if (ap->ua_null_walk.uaw_next != &ap->ua_null_walk ||
 		    ap->ua_null_walk.uaw_prev != &ap->ua_null_walk) {
 			uu_panic("uu_avl_destroy(%p):  outstanding walkers\n",
-			    ap);
+			    (void *)ap);
 		}
 	}
 	(void) pthread_mutex_lock(&pp->uap_lock);
@@ -441,7 +443,7 @@ uu_avl_remove(uu_avl_t *ap, void *elem)
 				(void) _avl_walk_advance(wp, ap);
 		} else if (wp->uaw_next_result != NULL) {
 			uu_panic("uu_avl_remove(%p, %p): active non-robust "
-			    "walker\n", ap, elem);
+			    "walker\n", (void *)ap, elem);
 		}
 	}
 
@@ -497,19 +499,19 @@ uu_avl_insert(uu_avl_t *ap, void *elem, uu_avl_index_t idx)
 		if (na[1] != 0)
 			uu_panic("uu_avl_insert(%p, %p, %p): node already "
 			    "in tree, or corrupt\n",
-			    ap, elem, idx);
+			    (void *)ap, elem, (void *)idx);
 		if (na[0] == 0)
 			uu_panic("uu_avl_insert(%p, %p, %p): node not "
 			    "initialized\n",
-			    ap, elem, idx);
+			    (void *)ap, elem, (void *)idx);
 		if (na[0] != POOL_TO_MARKER(pp))
 			uu_panic("uu_avl_insert(%p, %p, %p): node from "
 			    "other pool, or corrupt\n",
-			    ap, elem, idx);
+			    (void *)ap, elem, (void *)idx);
 
 		if (!INDEX_VALID(ap, idx))
 			uu_panic("uu_avl_insert(%p, %p, %p): %s\n",
-			    ap, elem, idx,
+			    (void *)ap, elem, (void *)idx,
 			    INDEX_CHECK(idx)? "outdated index" :
 			    "invalid index");
 
@@ -526,8 +528,8 @@ uu_avl_nearest_next(uu_avl_t *ap, uu_avl_index_t idx)
 {
 	if (ap->ua_debug && !INDEX_VALID(ap, idx))
 		uu_panic("uu_avl_nearest_next(%p, %p): %s\n",
-		    ap, idx, INDEX_CHECK(idx)? "outdated index" :
-		    "invalid index");
+		    (void *)ap, (void *)idx, INDEX_CHECK(idx)?
+		    "outdated index" : "invalid index");
 	return (avl_nearest(&ap->ua_tree, INDEX_DECODE(idx), AVL_AFTER));
 }
 
@@ -536,8 +538,8 @@ uu_avl_nearest_prev(uu_avl_t *ap, uu_avl_index_t idx)
 {
 	if (ap->ua_debug && !INDEX_VALID(ap, idx))
 		uu_panic("uu_avl_nearest_prev(%p, %p): %s\n",
-		    ap, idx, INDEX_CHECK(idx)? "outdated index" :
-		    "invalid index");
+		    (void *)ap, (void *)idx, INDEX_CHECK(idx)?
+		    "outdated index" : "invalid index");
 	return (avl_nearest(&ap->ua_tree, INDEX_DECODE(idx), AVL_BEFORE));
 }
 

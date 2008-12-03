@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_mount.c	1.25	08/03/04 SMI"
-
 /*
  * Routines to manage ZFS mounts.  We separate all the nasty routines that have
  * to deal with the OS.  The following functions are the main entry points --
@@ -440,7 +438,7 @@ zfs_unmountall(zfs_handle_t *zhp, int flags)
 	prop_changelist_t *clp;
 	int ret;
 
-	clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT, flags);
+	clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT, 0, flags);
 	if (clp == NULL)
 		return (-1);
 
@@ -945,7 +943,7 @@ zfs_unshareall_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	prop_changelist_t *clp;
 	int ret;
 
-	clp = changelist_gather(zhp, ZFS_PROP_SHARENFS, 0);
+	clp = changelist_gather(zhp, ZFS_PROP_SHARENFS, 0, 0);
 	if (clp == NULL)
 		return (-1);
 

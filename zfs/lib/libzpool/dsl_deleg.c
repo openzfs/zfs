@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -66,7 +66,7 @@
  * The ZAP OBJ is referred to as the jump object.
  */
 
-#pragma ident	"@(#)dsl_deleg.c	1.5	07/10/29 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -533,42 +533,33 @@ dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
  * Check if user has requested permission.
  */
 int
-dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr)
+dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
 {
-	dsl_dir_t *dd, *startdd;
+	dsl_dataset_t *ds;
+	dsl_dir_t *dd;
 	dsl_pool_t *dp;
 	void *cookie;
 	int	error;
 	char	checkflag = ZFS_DELEG_LOCAL;
-	const char *tail;
 	objset_t *mos;
 	avl_tree_t permsets;
 	perm_set_t *setnode;
 
-	/*
-	 * Use tail so that zfs_ioctl() code doesn't have
-	 * to always to to figure out parent name in order
-	 * to do access check.  for example renaming a snapshot
-	 */
-	error = dsl_dir_open(ddname, FTAG, &startdd, &tail);
+	error = dsl_dataset_hold(dsname, FTAG, &ds);
 	if (error)
 		return (error);
 
-	if (tail && tail[0] != '@') {
-		dsl_dir_close(startdd, FTAG);
-		return (ENOENT);
-	}
-	dp = startdd->dd_pool;
+	dp = ds->ds_dir->dd_pool;
 	mos = dp->dp_meta_objset;
 
 	if (dsl_delegation_on(mos) == B_FALSE) {
-		dsl_dir_close(startdd, FTAG);
+		dsl_dataset_rele(ds, FTAG);
 		return (ECANCELED);
 	}
 
 	if (spa_version(dmu_objset_spa(dp->dp_meta_objset)) <
 	    SPA_VERSION_DELEGATED_PERMS) {
-		dsl_dir_close(startdd, FTAG);
+		dsl_dataset_rele(ds, FTAG);
 		return (EPERM);
 	}
 
@@ -576,7 +567,7 @@ dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr)
 	    offsetof(perm_set_t, p_node));
 
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
-	for (dd = startdd; dd != NULL; dd = dd->dd_parent,
+	for (dd = ds->ds_dir; dd != NULL; dd = dd->dd_parent,
 	    checkflag = ZFS_DELEG_DESCENDENT) {
 		uint64_t zapobj;
 		boolean_t expanded;
@@ -588,7 +579,7 @@ dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr)
 		if (!INGLOBALZONE(curproc)) {
 			uint64_t zoned;
 
-			if (dsl_prop_get_ds_locked(dd,
+			if (dsl_prop_get_dd(dd,
 			    zfs_prop_to_name(ZFS_PROP_ZONED),
 			    8, 1, &zoned, NULL) != 0)
 				break;
@@ -637,7 +628,7 @@ again:
 	error = EPERM;
 success:
 	rw_exit(&dp->dp_config_rwlock);
-	dsl_dir_close(startdd, FTAG);
+	dsl_dataset_rele(ds, FTAG);
 
 	cookie = NULL;
 	while ((setnode = avl_destroy_nodes(&permsets, &cookie)) != NULL)
