@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	ZFS_ITER_H
 #define	ZFS_ITER_H
-
-#pragma ident	"@(#)zfs_iter.h	1.6	07/09/17 SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -40,8 +38,12 @@ typedef struct zfs_sort_column {
 	boolean_t		sc_reverse;
 } zfs_sort_column_t;
 
-int zfs_for_each(int, char **, boolean_t, zfs_type_t, zfs_sort_column_t *,
-    zprop_list_t **, zfs_iter_f, void *, boolean_t);
+#define	ZFS_ITER_RECURSE	   (1 << 0)
+#define	ZFS_ITER_ARGS_CAN_BE_PATHS (1 << 1)
+#define	ZFS_ITER_PROP_LISTSNAPS    (1 << 2)
+
+int zfs_for_each(int, char **, int options, zfs_type_t,
+    zfs_sort_column_t *, zprop_list_t **, zfs_iter_f, void *);
 int zfs_add_sort_column(zfs_sort_column_t **, const char *, boolean_t);
 void zfs_free_sort_columns(zfs_sort_column_t *);
 
