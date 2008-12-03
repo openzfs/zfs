@@ -23,18 +23,13 @@
  * Copyright 2002 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)umem_agent_support.c	1.2	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "config.h"
 #include "umem_base.h"
 
 #define	AGENT_STACK_SIZE	4096
 
-#if 0
 char __umem_agent_stack_beg[AGENT_STACK_SIZE];
 char *__umem_agent_stack_end = __umem_agent_stack_beg + AGENT_STACK_SIZE;
 
@@ -46,5 +41,3 @@ __umem_agent_free_bp(umem_cache_t *cp, void *buf)
 	_umem_cache_free(cp, buf);
 	_breakpoint();
 }
-#endif
-

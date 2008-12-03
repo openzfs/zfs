@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)metaslab.c	1.17	07/11/27 SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/spa_impl.h>
@@ -716,7 +714,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
  */
 static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    dva_t *dva, int d, dva_t *hintdva, uint64_t txg, boolean_t hintdva_avoid)
+    dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags)
 {
 	metaslab_group_t *mg, *rotor;
 	vdev_t *vd;
@@ -758,7 +756,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 */
 	if (hintdva) {
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&hintdva[d]));
-		if (hintdva_avoid)
+		if (flags & METASLAB_HINTBP_AVOID)
 			mg = vd->vdev_mg->mg_next;
 		else
 			mg = vd->vdev_mg;
@@ -781,9 +779,9 @@ top:
 	do {
 		vd = mg->mg_vd;
 		/*
-		 * Dont allocate from faulted devices
+		 * Don't allocate from faulted devices.
 		 */
-		if (!vdev_writeable(vd))
+		if (!vdev_allocatable(vd))
 			goto next;
 		/*
 		 * Avoid writing single-copy data to a failing vdev
@@ -844,7 +842,7 @@ top:
 
 			DVA_SET_VDEV(&dva[d], vd->vdev_id);
 			DVA_SET_OFFSET(&dva[d], offset);
-			DVA_SET_GANG(&dva[d], 0);
+			DVA_SET_GANG(&dva[d], !!(flags & METASLAB_GANG_HEADER));
 			DVA_SET_ASIZE(&dva[d], asize);
 
 			return (0);
@@ -906,38 +904,6 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
 		if (msp->ms_freemap[txg & TXG_MASK].sm_space == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
 		space_map_add(&msp->ms_freemap[txg & TXG_MASK], offset, size);
-
-		/*
-		 * verify that this region is actually allocated in
-		 * either a ms_allocmap or the ms_map
-		 */
-		if (msp->ms_map.sm_loaded) {
-			boolean_t allocd = B_FALSE;
-			int i;
-
-			if (!space_map_contains(&msp->ms_map, offset, size)) {
-				allocd = B_TRUE;
-			} else {
-				for (i = 0; i < TXG_CONCURRENT_STATES; i++) {
-					space_map_t *sm = &msp->ms_allocmap
-					    [(txg - i) & TXG_MASK];
-					if (space_map_contains(sm,
-					    offset, size)) {
-						allocd = B_TRUE;
-						break;
-					}
-				}
-			}
-
-			if (!allocd) {
-				zfs_panic_recover("freeing free segment "
-				    "(vdev=%llu offset=%llx size=%llx)",
-				    (longlong_t)vdev, (longlong_t)offset,
-				    (longlong_t)size);
-			}
-		}
-
-
 	}
 
 	mutex_exit(&msp->ms_lock);
@@ -973,16 +939,18 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	mutex_enter(&msp->ms_lock);
 
 	error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
-	if (error) {
+	if (error || txg == 0) {	/* txg == 0 indicates dry run */
 		mutex_exit(&msp->ms_lock);
 		return (error);
 	}
 
-	if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
-		vdev_dirty(vd, VDD_METASLAB, msp, txg);
-
 	space_map_claim(&msp->ms_map, offset, size);
-	space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, size);
+
+	if (spa_mode & FWRITE) {	/* don't dirty if we're zdb(1M) */
+		if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
+			vdev_dirty(vd, VDD_METASLAB, msp, txg);
+		space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, size);
+	}
 
 	mutex_exit(&msp->ms_lock);
 
@@ -991,33 +959,43 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
-    int ndvas, uint64_t txg, blkptr_t *hintbp, boolean_t hintbp_avoid)
+    int ndvas, uint64_t txg, blkptr_t *hintbp, int flags)
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = hintbp->blk_dva;
-	int d;
 	int error = 0;
 
-	if (mc->mc_rotor == NULL)	/* no vdevs in this class */
+	ASSERT(bp->blk_birth == 0);
+
+	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
+
+	if (mc->mc_rotor == NULL) {	/* no vdevs in this class */
+		spa_config_exit(spa, SCL_ALLOC, FTAG);
 		return (ENOSPC);
+	}
 
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));
 	ASSERT(BP_GET_NDVAS(bp) == 0);
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 
-	for (d = 0; d < ndvas; d++) {
+	for (int d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
-		    txg, hintbp_avoid);
+		    txg, flags);
 		if (error) {
 			for (d--; d >= 0; d--) {
 				metaslab_free_dva(spa, &dva[d], txg, B_TRUE);
 				bzero(&dva[d], sizeof (dva_t));
 			}
+			spa_config_exit(spa, SCL_ALLOC, FTAG);
 			return (error);
 		}
 	}
 	ASSERT(error == 0);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);
+
+	spa_config_exit(spa, SCL_ALLOC, FTAG);
+
+	bp->blk_birth = txg;
 
 	return (0);
 }
@@ -1027,12 +1005,16 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
-	int d;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!now || bp->blk_birth >= spa->spa_syncing_txg);
 
-	for (d = 0; d < ndvas; d++)
+	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
+
+	for (int d = 0; d < ndvas; d++)
 		metaslab_free_dva(spa, &dva[d], txg, now);
+
+	spa_config_exit(spa, SCL_FREE, FTAG);
 }
 
 int
@@ -1040,14 +1022,28 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
-	int d, error;
-	int last_error = 0;
+	int error = 0;
 
 	ASSERT(!BP_IS_HOLE(bp));
 
-	for (d = 0; d < ndvas; d++)
-		if ((error = metaslab_claim_dva(spa, &dva[d], txg)) != 0)
-			last_error = error;
+	if (txg != 0) {
+		/*
+		 * First do a dry run to make sure all DVAs are claimable,
+		 * so we don't have to unwind from partial failures below.
+		 */
+		if ((error = metaslab_claim(spa, bp, 0)) != 0)
+			return (error);
+	}
 
-	return (last_error);
+	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
+
+	for (int d = 0; d < ndvas; d++)
+		if ((error = metaslab_claim_dva(spa, &dva[d], txg)) != 0)
+			break;
+
+	spa_config_exit(spa, SCL_ALLOC, FTAG);
+
+	ASSERT(error == 0 || txg == 0);
+
+	return (error);
 }
