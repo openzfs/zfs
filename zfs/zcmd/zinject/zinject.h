@@ -19,14 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_ZINJECT_H
 #define	_ZINJECT_H
 
-#pragma ident	"@(#)zinject.h	1.2	06/05/24 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_ioctl.h>
 
@@ -44,17 +44,22 @@ typedef enum {
 	TYPE_BPLIST,		/* block pointer list		*/
 	TYPE_SPACEMAP,		/* space map objects		*/
 	TYPE_ERRLOG,		/* persistent error log		*/
+	TYPE_LABEL_UBERBLOCK,	/* label specific uberblock	*/
+	TYPE_LABEL_NVLIST,	/* label specific nvlist	*/
 	TYPE_INVAL
 } err_type_t;
 
 #define	MOS_TYPE(t)	\
-	((t) >= TYPE_MOS && (t) < TYPE_INVAL)
+	((t) >= TYPE_MOS && (t) < TYPE_LABEL_UBERBLOCK)
+
+#define	LABEL_TYPE(t)	\
+	((t) >= TYPE_LABEL_UBERBLOCK && (t) < TYPE_INVAL)
 
 int translate_record(err_type_t type, const char *object, const char *range,
     int level, zinject_record_t *record, char *poolname, char *dataset);
 int translate_raw(const char *raw, zinject_record_t *record);
 int translate_device(const char *pool, const char *device,
-    zinject_record_t *record);
+    err_type_t label_type, zinject_record_t *record);
 void usage(void);
 
 extern libzfs_handle_t *g_zfs;

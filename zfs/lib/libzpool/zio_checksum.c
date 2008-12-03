@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)zio_checksum.c	1.6	06/11/10 SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -96,25 +94,59 @@ zio_checksum_select(uint8_t child, uint8_t parent)
 }
 
 /*
+ * Set the external verifier for a gang block based on <vdev, offset, txg>,
+ * a tuple which is guaranteed to be unique for the life of the pool.
+ */
+static void
+zio_checksum_gang_verifier(zio_cksum_t *zcp, blkptr_t *bp)
+{
+	dva_t *dva = BP_IDENTITY(bp);
+	uint64_t txg = bp->blk_birth;
+
+	ASSERT(BP_IS_GANG(bp));
+
+	ZIO_SET_CHECKSUM(zcp, DVA_GET_VDEV(dva), DVA_GET_OFFSET(dva), txg, 0);
+}
+
+/*
+ * Set the external verifier for a label block based on its offset.
+ * The vdev is implicit, and the txg is unknowable at pool open time --
+ * hence the logic in vdev_uberblock_load() to find the most recent copy.
+ */
+static void
+zio_checksum_label_verifier(zio_cksum_t *zcp, uint64_t offset)
+{
+	ZIO_SET_CHECKSUM(zcp, offset, 0, 0, 0);
+}
+
+/*
  * Generate the checksum.
  */
 void
-zio_checksum(uint_t checksum, zio_cksum_t *zcp, void *data, uint64_t size)
+zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
+	void *data, uint64_t size)
 {
+	blkptr_t *bp = zio->io_bp;
+	uint64_t offset = zio->io_offset;
 	zio_block_tail_t *zbt = (zio_block_tail_t *)((char *)data + size) - 1;
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 	zio_cksum_t zbt_cksum;
 
-	ASSERT(checksum < ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT((uint_t)checksum < ZIO_CHECKSUM_FUNCTIONS);
 	ASSERT(ci->ci_func[0] != NULL);
 
 	if (ci->ci_zbt) {
-		*zcp = zbt->zbt_cksum;
+		if (checksum == ZIO_CHECKSUM_GANG_HEADER)
+			zio_checksum_gang_verifier(&zbt->zbt_cksum, bp);
+		else if (checksum == ZIO_CHECKSUM_LABEL)
+			zio_checksum_label_verifier(&zbt->zbt_cksum, offset);
+		else
+			bp->blk_cksum = zbt->zbt_cksum;
 		zbt->zbt_magic = ZBT_MAGIC;
 		ci->ci_func[0](data, size, &zbt_cksum);
 		zbt->zbt_cksum = zbt_cksum;
 	} else {
-		ci->ci_func[0](data, size, zcp);
+		ci->ci_func[0](data, size, &bp->blk_cksum);
 	}
 }
 
@@ -122,47 +154,49 @@ int
 zio_checksum_error(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
-	zio_cksum_t zc = bp->blk_cksum;
-	uint_t checksum = BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER :
-	    BP_GET_CHECKSUM(bp);
-	int byteswap = BP_SHOULD_BYTESWAP(bp);
+	uint_t checksum = (bp == NULL ? zio->io_prop.zp_checksum :
+	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
+	int byteswap;
 	void *data = zio->io_data;
-	uint64_t size = ZIO_GET_IOSIZE(zio);
+	uint64_t size = (bp == NULL ? zio->io_size :
+	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
+	uint64_t offset = zio->io_offset;
 	zio_block_tail_t *zbt = (zio_block_tail_t *)((char *)data + size) - 1;
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
-	zio_cksum_t actual_cksum, expected_cksum;
+	zio_cksum_t actual_cksum, expected_cksum, verifier;
 
 	if (checksum >= ZIO_CHECKSUM_FUNCTIONS || ci->ci_func[0] == NULL)
 		return (EINVAL);
 
 	if (ci->ci_zbt) {
 		if (checksum == ZIO_CHECKSUM_GANG_HEADER)
-			zio_set_gang_verifier(zio, &zc);
+			zio_checksum_gang_verifier(&verifier, bp);
+		else if (checksum == ZIO_CHECKSUM_LABEL)
+			zio_checksum_label_verifier(&verifier, offset);
+		else
+			verifier = bp->blk_cksum;
 
-		if (zbt->zbt_magic == BSWAP_64(ZBT_MAGIC)) {
-			expected_cksum = zbt->zbt_cksum;
+		byteswap = (zbt->zbt_magic == BSWAP_64(ZBT_MAGIC));
+
+		if (byteswap)
+			byteswap_uint64_array(&verifier, sizeof (zio_cksum_t));
+
+		expected_cksum = zbt->zbt_cksum;
+		zbt->zbt_cksum = verifier;
+		ci->ci_func[byteswap](data, size, &actual_cksum);
+		zbt->zbt_cksum = expected_cksum;
+
+		if (byteswap)
 			byteswap_uint64_array(&expected_cksum,
 			    sizeof (zio_cksum_t));
-			zbt->zbt_cksum = zc;
-			byteswap_uint64_array(&zbt->zbt_cksum,
-			    sizeof (zio_cksum_t));
-			ci->ci_func[1](data, size, &actual_cksum);
-			zbt->zbt_cksum = expected_cksum;
-			byteswap_uint64_array(&zbt->zbt_cksum,
-			    sizeof (zio_cksum_t));
-		} else {
-			expected_cksum = zbt->zbt_cksum;
-			zbt->zbt_cksum = zc;
-			ci->ci_func[0](data, size, &actual_cksum);
-			zbt->zbt_cksum = expected_cksum;
-		}
-		zc = expected_cksum;
 	} else {
 		ASSERT(!BP_IS_GANG(bp));
+		byteswap = BP_SHOULD_BYTESWAP(bp);
+		expected_cksum = bp->blk_cksum;
 		ci->ci_func[byteswap](data, size, &actual_cksum);
 	}
 
-	if (!ZIO_CHECKSUM_EQUAL(actual_cksum, zc))
+	if (!ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
 		return (ECKSUM);
 
 	if (zio_injection_enabled && !zio->io_error)

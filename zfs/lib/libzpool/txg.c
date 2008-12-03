@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)txg.c	1.4	08/03/20 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/txg_impl.h>
 #include <sys/dmu_impl.h>
@@ -40,13 +38,6 @@ static void txg_sync_thread(dsl_pool_t *dp);
 static void txg_quiesce_thread(dsl_pool_t *dp);
 
 int zfs_txg_timeout = 30;	/* max seconds worth of delta per txg */
-int zfs_txg_synctime = 5;	/* target seconds to sync a txg */
-
-int zfs_write_limit_shift = 3;	/* 1/8th of physical memory */
-
-uint64_t zfs_write_limit_min = 32 << 20; /* min write limit is 32MB */
-uint64_t zfs_write_limit_max = 0; /* max data payload per txg */
-uint64_t zfs_write_limit_inflated = 0;
 
 /*
  * Prepare the txg subsystem.
@@ -128,7 +119,12 @@ txg_sync_start(dsl_pool_t *dp)
 	tx->tx_quiesce_thread = thread_create(NULL, 0, txg_quiesce_thread,
 	    dp, 0, &p0, TS_RUN, minclsyspri);
 
-	tx->tx_sync_thread = thread_create(NULL, 0, txg_sync_thread,
+	/*
+	 * The sync thread can need a larger-than-default stack size on
+	 * 32-bit x86.  This is due in part to nested pools and
+	 * scrub_visitbp() recursion.
+	 */
+	tx->tx_sync_thread = thread_create(NULL, 12<<10, txg_sync_thread,
 	    dp, 0, &p0, TS_RUN, minclsyspri);
 
 	mutex_exit(&tx->tx_sync_lock);
@@ -303,17 +299,19 @@ txg_sync_thread(dsl_pool_t *dp)
 	txg_thread_enter(tx, &cpr);
 
 	start = delta = 0;
-	timeout = zfs_txg_timeout * hz;
 	for (;;) {
-		uint64_t txg, written;
+		uint64_t timer, timeout = zfs_txg_timeout * hz;
+		uint64_t txg;
 
 		/*
-		 * We sync when there's someone waiting on us, or the
-		 * quiesce thread has handed off a txg to us, or we have
-		 * reached our timeout.
+		 * We sync when we're scrubbing, there's someone waiting
+		 * on us, or the quiesce thread has handed off a txg to
+		 * us, or we have reached our timeout.
 		 */
 		timer = (delta >= timeout ? 0 : timeout - delta);
-		while (!tx->tx_exiting && timer > 0 &&
+		while ((dp->dp_scrub_func == SCRUB_FUNC_NONE ||
+		    spa_shutting_down(dp->dp_spa)) &&
+		    !tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    tx->tx_quiesced_txg == 0) {
 			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
@@ -353,6 +351,7 @@ txg_sync_thread(dsl_pool_t *dp)
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
+
 		start = lbolt;
 		spa_sync(dp->dp_spa, txg);
 		delta = lbolt - start;
@@ -540,11 +539,20 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg)
 	mutex_exit(&tx->tx_sync_lock);
 }
 
-int
+boolean_t
 txg_stalled(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	return (tx->tx_quiesce_txg_waiting > tx->tx_open_txg);
+}
+
+boolean_t
+txg_sync_waiting(dsl_pool_t *dp)
+{
+	tx_state_t *tx = &dp->dp_tx;
+
+	return (tx->tx_syncing_txg <= tx->tx_sync_txg_waiting ||
+	    tx->tx_quiesced_txg != 0);
 }
 
 void
