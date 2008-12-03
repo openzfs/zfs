@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,40 +18,25 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)misc.c	1.6	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#define _BUILDING_UMEM_MISC_C
-#include "config.h"
-/* #include "mtlib.h" */
-#if HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_DLFCN_H
 #include <dlfcn.h>
-#endif
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
-#if HAVE_SYS_MACHELF_H
 #include <sys/machelf.h>
-#endif
 
 #include <umem_impl.h>
 #include "misc.h"
-
-#ifdef ECELERITY
-#include "util.h"
-#endif
 
 #define	UMEM_ERRFD	2	/* goes to standard error */
 #define	UMEM_MAX_ERROR_SIZE 4096 /* error messages are truncated to this */
@@ -77,15 +61,12 @@ static uint_t umem_error_end = 0;
 }
 
 static void
-umem_log_enter(const char *error_str, int serious)
+umem_log_enter(const char *error_str)
 {
 	int looped;
 	char c;
 
 	looped = 0;
-#ifdef ECELERITY
-	mem_printf(serious ? DCRITICAL : DINFO, "umem: %s", error_str);
-#endif
 
 	(void) mutex_lock(&umem_error_lock);
 
@@ -118,7 +99,7 @@ umem_error_enter(const char *error_str)
 		(void) write(UMEM_ERRFD, error_str, strlen(error_str));
 #endif
 
-	umem_log_enter(error_str, 1);
+	umem_log_enter(error_str);
 }
 
 int
@@ -204,7 +185,7 @@ log_message(const char *format, ...)
 		(void) write(UMEM_ERRFD, buf, strlen(buf));
 #endif
 
-	umem_log_enter(buf, 0);
+	umem_log_enter(buf);
 }
 
 #ifndef UMEM_STANDALONE
@@ -260,7 +241,6 @@ umem_printf_warn(void *ignored, const char *format, ...)
 int
 print_sym(void *pointer)
 {
-#if HAVE_SYS_MACHELF_H
 	int result;
 	Dl_info sym_info;
 
@@ -292,7 +272,4 @@ print_sym(void *pointer)
 		    (char *)pointer - (char *)sym_info.dli_saddr);
 		return (1);
 	}
-#else
-	return 0;
-#endif
 }

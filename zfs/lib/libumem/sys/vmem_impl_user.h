@@ -23,30 +23,17 @@
  * Copyright 1999-2002 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
 #ifndef _SYS_VMEM_IMPL_USER_H
 #define	_SYS_VMEM_IMPL_USER_H
 
-/* #pragma ident	"@(#)vmem_impl_user.h	1.2	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#if HAVE_SYS_KSTAT
 #include <sys/kstat.h>
-#endif
-#ifndef _WIN32
 #include <sys/time.h>
-#endif
 #include <sys/vmem.h>
-#if HAVE_THREAD_H
 #include <thread.h>
-#else
-# include "sol_compat.h"
-#endif
-#if HAVE_SYNC_H
 #include <synch.h>
-#endif
 
 #ifdef	__cplusplus
 extern "C" {
