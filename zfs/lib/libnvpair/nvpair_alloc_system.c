@@ -24,26 +24,25 @@
  * Use is subject to license terms.
  */
 
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-
+#include <rpc/types.h>
 #include <sys/nvpair.h>
-#include <stdlib.h>
 
-/*ARGSUSED*/
 static void *
 nv_alloc_sys(nv_alloc_t *nva, size_t size)
 {
-	return (malloc(size));
+	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
 }
 
 /*ARGSUSED*/
 static void
 nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
 {
-	free(buf);
+	kmem_free(buf, size);
 }
 
-const nv_alloc_ops_t system_ops_def = {
+static const nv_alloc_ops_t system_ops = {
 	NULL,			/* nv_ao_init() */
 	NULL,			/* nv_ao_fini() */
 	nv_alloc_sys,		/* nv_ao_alloc() */
@@ -51,9 +50,15 @@ const nv_alloc_ops_t system_ops_def = {
 	NULL			/* nv_ao_reset() */
 };
 
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops_def,
-	NULL
+nv_alloc_t nv_alloc_sleep_def = {
+	&system_ops,
+	(void *)KM_SLEEP
 };
 
+nv_alloc_t nv_alloc_nosleep_def = {
+	&system_ops,
+	(void *)KM_NOSLEEP
+};
+
+nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
 nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
