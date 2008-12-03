@@ -26,7 +26,7 @@
 #ifndef	_ZFS_DELEG_H
 #define	_ZFS_DELEG_H
 
-#pragma ident	"@(#)zfs_deleg.h	1.3	08/02/07 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/fs/zfs.h>
 
