@@ -19,14 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_NVPAIR_H
 #define	_SYS_NVPAIR_H
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/errno.h>
@@ -67,7 +67,12 @@ typedef enum {
 	DATA_TYPE_UINT8,
 	DATA_TYPE_BOOLEAN_ARRAY,
 	DATA_TYPE_INT8_ARRAY,
+#if !defined(_KERNEL)
+	DATA_TYPE_UINT8_ARRAY,
+	DATA_TYPE_DOUBLE
+#else
 	DATA_TYPE_UINT8_ARRAY
+#endif
 } data_type_t;
 
 typedef struct nvpair {
@@ -188,6 +193,9 @@ int nvlist_add_uint64_array(nvlist_t *, const char *, uint64_t *, uint_t);
 int nvlist_add_string_array(nvlist_t *, const char *, char *const *, uint_t);
 int nvlist_add_nvlist_array(nvlist_t *, const char *, nvlist_t **, uint_t);
 int nvlist_add_hrtime(nvlist_t *, const char *, hrtime_t);
+#if !defined(_KERNEL)
+int nvlist_add_double(nvlist_t *, const char *, double);
+#endif
 
 int nvlist_remove(nvlist_t *, const char *, data_type_t);
 int nvlist_remove_all(nvlist_t *, const char *);
@@ -220,15 +228,21 @@ int nvlist_lookup_string_array(nvlist_t *, const char *, char ***, uint_t *);
 int nvlist_lookup_nvlist_array(nvlist_t *, const char *,
     nvlist_t ***, uint_t *);
 int nvlist_lookup_hrtime(nvlist_t *, const char *, hrtime_t *);
-int nvlist_lookup_pairs(nvlist_t *nvl, int, ...);
+int nvlist_lookup_pairs(nvlist_t *, int, ...);
+#if !defined(_KERNEL)
+int nvlist_lookup_double(nvlist_t *, const char *, double *);
+#endif
 
-int nvlist_lookup_nvpair(nvlist_t *nvl, const char *, nvpair_t **);
-boolean_t nvlist_exists(nvlist_t *nvl, const char *);
+int nvlist_lookup_nvpair(nvlist_t *, const char *, nvpair_t **);
+int nvlist_lookup_nvpair_embedded_index(nvlist_t *, const char *, nvpair_t **,
+    int *, char **);
+boolean_t nvlist_exists(nvlist_t *, const char *);
 
 /* processing nvpair */
-nvpair_t *nvlist_next_nvpair(nvlist_t *nvl, nvpair_t *);
+nvpair_t *nvlist_next_nvpair(nvlist_t *, nvpair_t *);
 char *nvpair_name(nvpair_t *);
 data_type_t nvpair_type(nvpair_t *);
+int nvpair_type_is_array(nvpair_t *);
 int nvpair_value_boolean_value(nvpair_t *, boolean_t *);
 int nvpair_value_byte(nvpair_t *, uchar_t *);
 int nvpair_value_int8(nvpair_t *, int8_t *);
@@ -254,6 +268,9 @@ int nvpair_value_uint64_array(nvpair_t *, uint64_t **, uint_t *);
 int nvpair_value_string_array(nvpair_t *, char ***, uint_t *);
 int nvpair_value_nvlist_array(nvpair_t *, nvlist_t ***, uint_t *);
 int nvpair_value_hrtime(nvpair_t *, hrtime_t *);
+#if !defined(_KERNEL)
+int nvpair_value_double(nvpair_t *, double *);
+#endif
 
 #ifdef	__cplusplus
 }

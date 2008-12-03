@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-
 
 #include "libuutil_common.h"
 
@@ -52,6 +49,22 @@ void
 uu_free(void *p)
 {
 	free(p);
+}
+
+char *
+uu_strdup(const char *str)
+{
+	char *buf = NULL;
+
+	if (str != NULL) {
+		size_t sz;
+
+		sz = strlen(str) + 1;
+		buf = uu_zalloc(sz);
+		if (buf != NULL)
+			(void) memcpy(buf, str, sz);
+	}
+	return (buf);
 }
 
 char *

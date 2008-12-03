@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)libzfs_util.c	1.29	08/04/01 SMI"
-
 /*
  * Internal utility routines for the ZFS library.
  */
@@ -206,6 +204,12 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_VDEVNOTSUP:
 		return (dgettext(TEXT_DOMAIN, "vdev specification is not "
 		    "supported"));
+	case EZFS_NOTSUP:
+		return (dgettext(TEXT_DOMAIN, "operation not supported "
+		    "on this dataset"));
+	case EZFS_ACTIVE_SPARE:
+		return (dgettext(TEXT_DOMAIN, "pool has active shared spare "
+		    "device"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -408,7 +412,7 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 
 	case EBUSY:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
-		zfs_verror(hdl, EZFS_EXISTS, fmt, ap);
+		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
 		break;
 
 	case ENXIO:
@@ -587,6 +591,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 	zfs_uninit_libshare(hdl);
 	if (hdl->libzfs_log_str)
 		(void) free(hdl->libzfs_log_str);
+	zpool_free_handles(hdl);
 	namespace_clear(hdl);
 	free(hdl);
 }
@@ -601,6 +606,12 @@ libzfs_handle_t *
 zfs_get_handle(zfs_handle_t *zhp)
 {
 	return (zhp->zfs_hdl);
+}
+
+zpool_handle_t *
+zfs_get_pool_handle(const zfs_handle_t *zhp)
+{
+	return (zhp->zpool_hdl);
 }
 
 /*
@@ -1173,6 +1184,51 @@ error:
 	return (-1);
 }
 
+static int
+addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
+    zfs_type_t type)
+{
+	int prop;
+	zprop_list_t *entry;
+
+	prop = zprop_name_to_prop(propname, type);
+
+	if (prop != ZPROP_INVAL && !zprop_valid_for_type(prop, type))
+		prop = ZPROP_INVAL;
+
+	/*
+	 * When no property table entry can be found, return failure if
+	 * this is a pool property or if this isn't a user-defined
+	 * dataset property,
+	 */
+	if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
+	    !zfs_prop_user(propname))) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "invalid property '%s'"), propname);
+		return (zfs_error(hdl, EZFS_BADPROP,
+		    dgettext(TEXT_DOMAIN, "bad property list")));
+	}
+
+	if ((entry = zfs_alloc(hdl, sizeof (zprop_list_t))) == NULL)
+		return (-1);
+
+	entry->pl_prop = prop;
+	if (prop == ZPROP_INVAL) {
+		if ((entry->pl_user_prop = zfs_strdup(hdl, propname)) == NULL) {
+			free(entry);
+			return (-1);
+		}
+		entry->pl_width = strlen(propname);
+	} else {
+		entry->pl_width = zprop_width(prop, &entry->pl_fixed,
+		    type);
+	}
+
+	*listp = entry;
+
+	return (0);
+}
+
 /*
  * Given a comma-separated list of properties, construct a property list
  * containing both user-defined and native properties.  This function will
@@ -1183,15 +1239,7 @@ int
 zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
     zfs_type_t type)
 {
-	size_t len;
-	char *s, *p;
-	char c;
-	int prop;
-	zprop_list_t *entry;
-	zprop_list_t **last;
-
 	*listp = NULL;
-	last = listp;
 
 	/*
 	 * If 'all' is specified, return a NULL list.
@@ -1213,13 +1261,16 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 	 * It would be nice to use getsubopt() here, but the inclusion of column
 	 * aliases makes this more effort than it's worth.
 	 */
-	s = props;
-	while (*s != '\0') {
-		if ((p = strchr(s, ',')) == NULL) {
-			len = strlen(s);
-			p = s + len;
+	while (*props != '\0') {
+		size_t len;
+		char *p;
+		char c;
+
+		if ((p = strchr(props, ',')) == NULL) {
+			len = strlen(props);
+			p = props + len;
 		} else {
-			len = p - s;
+			len = p - props;
 		}
 
 		/*
@@ -1235,48 +1286,31 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 		/*
 		 * Check all regular property names.
 		 */
-		c = s[len];
-		s[len] = '\0';
-		prop = zprop_name_to_prop(s, type);
+		c = props[len];
+		props[len] = '\0';
 
-		if (prop != ZPROP_INVAL && !zprop_valid_for_type(prop, type))
-			prop = ZPROP_INVAL;
+		if (strcmp(props, "space") == 0) {
+			static char *spaceprops[] = {
+				"name", "avail", "used", "usedbysnapshots",
+				"usedbydataset", "usedbyrefreservation",
+				"usedbychildren", NULL
+			};
+			int i;
 
-		/*
-		 * When no property table entry can be found, return failure if
-		 * this is a pool property or if this isn't a user-defined
-		 * dataset property,
-		 */
-		if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
-		    !zfs_prop_user(s))) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "invalid property '%s'"), s);
-			return (zfs_error(hdl, EZFS_BADPROP,
-			    dgettext(TEXT_DOMAIN, "bad property list")));
-		}
-
-		if ((entry = zfs_alloc(hdl, sizeof (zprop_list_t))) == NULL)
-			return (-1);
-
-		entry->pl_prop = prop;
-		if (prop == ZPROP_INVAL) {
-			if ((entry->pl_user_prop = zfs_strdup(hdl, s))
-			    == NULL) {
-				free(entry);
-				return (-1);
+			for (i = 0; spaceprops[i]; i++) {
+				if (addlist(hdl, spaceprops[i], listp, type))
+					return (-1);
+				listp = &(*listp)->pl_next;
 			}
-			entry->pl_width = strlen(s);
 		} else {
-			entry->pl_width = zprop_width(prop, &entry->pl_fixed,
-			    type);
+			if (addlist(hdl, props, listp, type))
+				return (-1);
+			listp = &(*listp)->pl_next;
 		}
 
-		*last = entry;
-		last = &entry->pl_next;
-
-		s = p;
+		props = p;
 		if (c == ',')
-			s++;
+			props++;
 	}
 
 	return (0);

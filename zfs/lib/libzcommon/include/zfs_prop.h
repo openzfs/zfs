@@ -19,14 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_ZFS_PROP_H
 #define	_ZFS_PROP_H
 
-#pragma ident	"@(#)zfs_prop.h	1.9	07/10/25 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/fs/zfs.h>
 #include <sys/types.h>
@@ -120,7 +120,7 @@ int zprop_string_to_index(int, const char *, uint64_t *, zfs_type_t);
 int zprop_index_to_string(int, uint64_t, const char **, zfs_type_t);
 const char *zprop_values(int, zfs_type_t);
 size_t zprop_width(int, boolean_t *, zfs_type_t);
-int zprop_valid_for_type(int, zfs_type_t);
+boolean_t zprop_valid_for_type(int, zfs_type_t);
 
 #ifdef	__cplusplus
 }
