@@ -89,6 +89,7 @@ mkdir -p ${DST_LIB}/libspl/include/sys/
 cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libspl/include/sys/
 cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libc/port/gen/strlcpy.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libc/port/gen/strnlen.c		${DST_LIB}/libspl/
