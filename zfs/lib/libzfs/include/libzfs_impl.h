@@ -27,8 +27,6 @@
 #ifndef	_LIBFS_IMPL_H
 #define	_LIBFS_IMPL_H
 
-#pragma ident	"@(#)libzfs_impl.h	1.27	08/04/14 SMI"
-
 #include <sys/dmu.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ioctl.h>
@@ -54,6 +52,7 @@ struct libzfs_handle {
 	int libzfs_fd;
 	FILE *libzfs_mnttab;
 	FILE *libzfs_sharetab;
+	zpool_handle_t *libzfs_pool_handles;
 	uu_avl_pool_t *libzfs_ns_avlpool;
 	uu_avl_t *libzfs_ns_avl;
 	uint64_t libzfs_ns_gen;
@@ -69,6 +68,7 @@ struct libzfs_handle {
 
 struct zfs_handle {
 	libzfs_handle_t *zfs_hdl;
+	zpool_handle_t *zpool_hdl;
 	char zfs_name[ZFS_MAXNAMELEN];
 	zfs_type_t zfs_type; /* type including snapshot */
 	zfs_type_t zfs_head_type; /* type excluding snapshot */
@@ -77,7 +77,6 @@ struct zfs_handle {
 	nvlist_t *zfs_user_props;
 	boolean_t zfs_mntcheck;
 	char *zfs_mntopts;
-	char zfs_root[MAXPATHLEN];
 };
 
 /*
@@ -88,6 +87,7 @@ struct zfs_handle {
 
 struct zpool_handle {
 	libzfs_handle_t *zpool_hdl;
+	zpool_handle_t *zpool_next;
 	char zpool_name[ZPOOL_MAXNAMELEN];
 	int zpool_state;
 	size_t zpool_config_size;
@@ -136,6 +136,13 @@ int zprop_parse_value(libzfs_handle_t *, nvpair_t *, int, zfs_type_t,
 int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
     zfs_type_t type);
 
+/*
+ * Use this changelist_gather() flag to force attempting mounts
+ * on each change node regardless of whether or not it is currently
+ * mounted.
+ */
+#define	CL_GATHER_MOUNT_ALWAYS	1
+
 typedef struct prop_changelist prop_changelist_t;
 
 int zcmd_alloc_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, size_t);
@@ -150,7 +157,7 @@ int changelist_postfix(prop_changelist_t *);
 void changelist_rename(prop_changelist_t *, const char *, const char *);
 void changelist_remove(prop_changelist_t *, const char *);
 void changelist_free(prop_changelist_t *);
-prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int);
+prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int, int);
 int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *);
 int changelist_haszonedchild(prop_changelist_t *);
 

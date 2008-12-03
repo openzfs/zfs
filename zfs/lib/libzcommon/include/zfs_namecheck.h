@@ -26,7 +26,7 @@
 #ifndef	_ZFS_NAMECHECK_H
 #define	_ZFS_NAMECHECK_H
 
-#pragma ident	"@(#)zfs_namecheck.h	1.5	07/08/01 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
