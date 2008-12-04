@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)spa_errlog.c	1.2	06/10/02 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Routines to manage the on-disk persistent error log.
@@ -298,10 +298,7 @@ void
 spa_errlog_rotate(spa_t *spa)
 {
 	mutex_enter(&spa->spa_errlist_lock);
-
-	ASSERT(!spa->spa_scrub_finished);
 	spa->spa_scrub_finished = B_TRUE;
-
 	mutex_exit(&spa->spa_errlist_lock);
 }
 

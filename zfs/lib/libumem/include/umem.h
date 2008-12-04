@@ -27,7 +27,7 @@
 #ifndef _UMEM_H
 #define	_UMEM_H
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/types.h>
 #include <sys/vmem.h>

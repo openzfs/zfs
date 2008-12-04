@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)vdev_mirror.c	1.9	07/11/27 SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -39,8 +37,9 @@ typedef struct mirror_child {
 	vdev_t		*mc_vd;
 	uint64_t	mc_offset;
 	int		mc_error;
-	short		mc_tried;
-	short		mc_skipped;
+	uint8_t		mc_tried;
+	uint8_t		mc_skipped;
+	uint8_t		mc_speculative;
 } mirror_child_t;
 
 typedef struct mirror_map {
@@ -52,6 +51,14 @@ typedef struct mirror_map {
 } mirror_map_t;
 
 int vdev_mirror_shift = 21;
+
+static void
+vdev_mirror_map_free(zio_t *zio)
+{
+	mirror_map_t *mm = zio->io_vsd;
+
+	kmem_free(mm, offsetof(mirror_map_t, mm_child[mm->mm_children]));
+}
 
 static mirror_map_t *
 vdev_mirror_map_alloc(zio_t *zio)
@@ -110,16 +117,8 @@ vdev_mirror_map_alloc(zio_t *zio)
 	}
 
 	zio->io_vsd = mm;
+	zio->io_vsd_free = vdev_mirror_map_free;
 	return (mm);
-}
-
-static void
-vdev_mirror_map_free(zio_t *zio)
-{
-	mirror_map_t *mm = zio->io_vsd;
-
-	kmem_free(mm, offsetof(mirror_map_t, mm_child[mm->mm_children]));
-	zio->io_vsd = NULL;
 }
 
 static int
@@ -195,13 +194,6 @@ vdev_mirror_scrub_done(zio_t *zio)
 	mc->mc_skipped = 0;
 }
 
-static void
-vdev_mirror_repair_done(zio_t *zio)
-{
-	ASSERT(zio->io_private == zio->io_parent);
-	vdev_mirror_map_free(zio->io_private);
-}
-
 /*
  * Try to find a child whose DTL doesn't contain the block we want to read.
  * If we can't, try the read on any vdev we haven't already tried.
@@ -227,7 +219,7 @@ vdev_mirror_child_select(zio_t *zio)
 		mc = &mm->mm_child[c];
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
-		if (vdev_is_dead(mc->mc_vd) && !vdev_readable(mc->mc_vd)) {
+		if (!vdev_readable(mc->mc_vd)) {
 			mc->mc_error = ENXIO;
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;
@@ -237,6 +229,7 @@ vdev_mirror_child_select(zio_t *zio)
 			return (c);
 		mc->mc_error = ESTALE;
 		mc->mc_skipped = 1;
+		mc->mc_speculative = 1;
 	}
 
 	/*
@@ -275,11 +268,10 @@ vdev_mirror_io_start(zio_t *zio)
 				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 				    mc->mc_vd, mc->mc_offset,
 				    zio_buf_alloc(zio->io_size), zio->io_size,
-				    zio->io_type, zio->io_priority,
-				    ZIO_FLAG_CANFAIL,
+				    zio->io_type, zio->io_priority, 0,
 				    vdev_mirror_scrub_done, mc));
 			}
-			return (zio_wait_for_children_done(zio));
+			return (ZIO_PIPELINE_CONTINUE);
 		}
 		/*
 		 * For normal reads just pick one child.
@@ -309,16 +301,30 @@ vdev_mirror_io_start(zio_t *zio)
 	while (children--) {
 		mc = &mm->mm_child[c];
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-		    mc->mc_vd, mc->mc_offset,
-		    zio->io_data, zio->io_size, zio->io_type, zio->io_priority,
-		    ZIO_FLAG_CANFAIL, vdev_mirror_child_done, mc));
+		    mc->mc_vd, mc->mc_offset, zio->io_data, zio->io_size,
+		    zio->io_type, zio->io_priority, 0,
+		    vdev_mirror_child_done, mc));
 		c++;
 	}
 
-	return (zio_wait_for_children_done(zio));
+	return (ZIO_PIPELINE_CONTINUE);
 }
 
 static int
+vdev_mirror_worst_error(mirror_map_t *mm)
+{
+	int error[2] = { 0, 0 };
+
+	for (int c = 0; c < mm->mm_children; c++) {
+		mirror_child_t *mc = &mm->mm_child[c];
+		int s = mc->mc_speculative;
+		error[s] = zio_worst_error(error[s], mc->mc_error);
+	}
+
+	return (error[0] ? error[0] : error[1]);
+}
+
+static void
 vdev_mirror_io_done(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
@@ -327,41 +333,46 @@ vdev_mirror_io_done(zio_t *zio)
 	int good_copies = 0;
 	int unexpected_errors = 0;
 
-	zio->io_error = 0;
-	zio->io_numerrors = 0;
-
 	for (c = 0; c < mm->mm_children; c++) {
 		mc = &mm->mm_child[c];
 
-		if (mc->mc_tried && mc->mc_error == 0) {
-			good_copies++;
-			continue;
-		}
-
-		/*
-		 * We preserve any EIOs because those may be worth retrying;
-		 * whereas ECKSUM and ENXIO are more likely to be persistent.
-		 */
 		if (mc->mc_error) {
-			if (zio->io_error != EIO)
-				zio->io_error = mc->mc_error;
 			if (!mc->mc_skipped)
 				unexpected_errors++;
-			zio->io_numerrors++;
+		} else if (mc->mc_tried) {
+			good_copies++;
 		}
 	}
 
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		/*
 		 * XXX -- for now, treat partial writes as success.
-		 * XXX -- For a replacing vdev, we need to make sure the
-		 *	  new child succeeds.
+		 *
+		 * Now that we support write reallocation, it would be better
+		 * to treat partial failure as real failure unless there are
+		 * no non-degraded top-level vdevs left, and not update DTLs
+		 * if we intend to reallocate.
 		 */
 		/* XXPOLICY */
-		if (good_copies != 0)
-			zio->io_error = 0;
-		vdev_mirror_map_free(zio);
-		return (ZIO_PIPELINE_CONTINUE);
+		if (good_copies != mm->mm_children) {
+			/*
+			 * Always require at least one good copy.
+			 *
+			 * For ditto blocks (io_vd == NULL), require
+			 * all copies to be good.
+			 *
+			 * XXX -- for replacing vdevs, there's no great answer.
+			 * If the old device is really dead, we may not even
+			 * be able to access it -- so we only want to
+			 * require good writes to the new device.  But if
+			 * the new device turns out to be flaky, we want
+			 * to be able to detach it -- which requires all
+			 * writes to the old device to have succeeded.
+			 */
+			if (good_copies == 0 || zio->io_vd == NULL)
+				zio->io_error = vdev_mirror_worst_error(mm);
+		}
+		return;
 	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -373,39 +384,27 @@ vdev_mirror_io_done(zio_t *zio)
 	if (good_copies == 0 && (c = vdev_mirror_child_select(zio)) != -1) {
 		ASSERT(c >= 0 && c < mm->mm_children);
 		mc = &mm->mm_child[c];
-		dprintf("retrying i/o (err=%d) on child %s\n",
-		    zio->io_error, vdev_description(mc->mc_vd));
-		zio->io_error = 0;
 		zio_vdev_io_redone(zio);
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 		    mc->mc_vd, mc->mc_offset, zio->io_data, zio->io_size,
-		    ZIO_TYPE_READ, zio->io_priority, ZIO_FLAG_CANFAIL,
+		    ZIO_TYPE_READ, zio->io_priority, 0,
 		    vdev_mirror_child_done, mc));
-		return (zio_wait_for_children_done(zio));
+		return;
 	}
 
 	/* XXPOLICY */
-	if (good_copies)
-		zio->io_error = 0;
-	else
+	if (good_copies == 0) {
+		zio->io_error = vdev_mirror_worst_error(mm);
 		ASSERT(zio->io_error != 0);
+	}
 
 	if (good_copies && (spa_mode & FWRITE) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
 	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_replacing))) {
-		zio_t *rio;
-
 		/*
 		 * Use the good data we have in hand to repair damaged children.
-		 *
-		 * We issue all repair I/Os as children of 'rio' to arrange
-		 * that vdev_mirror_map_free(zio) will be invoked after all
-		 * repairs complete, but before we advance to the next stage.
 		 */
-		rio = zio_null(zio, zio->io_spa,
-		    vdev_mirror_repair_done, zio, ZIO_FLAG_CANFAIL);
-
 		for (c = 0; c < mm->mm_children; c++) {
 			/*
 			 * Don't rewrite known good children.
@@ -426,25 +425,13 @@ vdev_mirror_io_done(zio_t *zio)
 				mc->mc_error = ESTALE;
 			}
 
-			dprintf("resilvered %s @ 0x%llx error %d\n",
-			    vdev_description(mc->mc_vd), mc->mc_offset,
-			    mc->mc_error);
-
-			zio_nowait(zio_vdev_child_io(rio, zio->io_bp, mc->mc_vd,
-			    mc->mc_offset, zio->io_data, zio->io_size,
+			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
+			    mc->mc_vd, mc->mc_offset,
+			    zio->io_data, zio->io_size,
 			    ZIO_TYPE_WRITE, zio->io_priority,
-			    ZIO_FLAG_IO_REPAIR | ZIO_FLAG_CANFAIL |
-			    ZIO_FLAG_DONT_PROPAGATE, NULL, NULL));
+			    ZIO_FLAG_IO_REPAIR, NULL, NULL));
 		}
-
-		zio_nowait(rio);
-
-		return (zio_wait_for_children_done(zio));
 	}
-
-	vdev_mirror_map_free(zio);
-
-	return (ZIO_PIPELINE_CONTINUE);
 }
 
 static void
@@ -462,7 +449,6 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 vdev_ops_t vdev_mirror_ops = {
 	vdev_mirror_open,
 	vdev_mirror_close,
-	NULL,
 	vdev_default_asize,
 	vdev_mirror_io_start,
 	vdev_mirror_io_done,
@@ -474,7 +460,6 @@ vdev_ops_t vdev_mirror_ops = {
 vdev_ops_t vdev_replacing_ops = {
 	vdev_mirror_open,
 	vdev_mirror_close,
-	NULL,
 	vdev_default_asize,
 	vdev_mirror_io_start,
 	vdev_mirror_io_done,
@@ -486,7 +471,6 @@ vdev_ops_t vdev_replacing_ops = {
 vdev_ops_t vdev_spare_ops = {
 	vdev_mirror_open,
 	vdev_mirror_close,
-	NULL,
 	vdev_default_asize,
 	vdev_mirror_io_start,
 	vdev_mirror_io_done,

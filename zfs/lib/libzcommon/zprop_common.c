@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zprop_common.c	1.1	07/09/17 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Common routines used by zfs and zpool property management.
@@ -268,6 +268,10 @@ zprop_string_to_index(int prop, const char *string, uint64_t *index,
 	const zprop_index_t *idx_tbl;
 	int i;
 
+	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
+		return (-1);
+
+	ASSERT(prop < zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	if ((idx_tbl = prop_tbl[prop].pd_table) == NULL)
 		return (-1);
@@ -290,6 +294,10 @@ zprop_index_to_string(int prop, uint64_t index, const char **string,
 	const zprop_index_t *idx_tbl;
 	int i;
 
+	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
+		return (-1);
+
+	ASSERT(prop < zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	if ((idx_tbl = prop_tbl[prop].pd_table) == NULL)
 		return (-1);
@@ -309,6 +317,9 @@ zprop_values(int prop, zfs_type_t type)
 {
 	zprop_desc_t *prop_tbl;
 
+	ASSERT(prop != ZPROP_INVAL && prop != ZPROP_CONT);
+	ASSERT(prop < zprop_get_numprops(type));
+
 	prop_tbl = zprop_get_proptable(type);
 
 	return (prop_tbl[prop].pd_values);
@@ -317,11 +328,16 @@ zprop_values(int prop, zfs_type_t type)
 /*
  * Returns TRUE if the property applies to any of the given dataset types.
  */
-int
+boolean_t
 zprop_valid_for_type(int prop, zfs_type_t type)
 {
-	zprop_desc_t *prop_tbl = zprop_get_proptable(type);
+	zprop_desc_t *prop_tbl;
 
+	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
+		return (B_FALSE);
+
+	ASSERT(prop < zprop_get_numprops(type));
+	prop_tbl = zprop_get_proptable(type);
 	return ((prop_tbl[prop].pd_types & type) != 0);
 }
 
@@ -338,6 +354,9 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 	const zprop_index_t *idx;
 	size_t ret;
 	int i;
+
+	ASSERT(prop != ZPROP_INVAL && prop != ZPROP_CONT);
+	ASSERT(prop < zprop_get_numprops(type));
 
 	prop_tbl = zprop_get_proptable(type);
 	pd = &prop_tbl[prop];

@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include "libuutil_common.h"
 
@@ -117,7 +116,8 @@ uu_list_pool_destroy(uu_list_pool_t *pp)
 		    UU_PTR_ENCODE(&pp->ulp_null_list)) {
 			uu_panic("uu_list_pool_destroy: Pool \"%.*s\" (%p) has "
 			    "outstanding lists, or is corrupt.\n",
-			    sizeof (pp->ulp_name), pp->ulp_name, pp);
+			    (int)sizeof (pp->ulp_name), pp->ulp_name,
+			    (void *)pp);
 		}
 	}
 	(void) pthread_mutex_lock(&uu_lpool_list_lock);
@@ -139,14 +139,14 @@ uu_list_node_init(void *base, uu_list_node_t *np_arg, uu_list_pool_t *pp)
 		if (offset + sizeof (*np) > pp->ulp_objsize) {
 			uu_panic("uu_list_node_init(%p, %p, %p (\"%s\")): "
 			    "offset %ld doesn't fit in object (size %ld)\n",
-			    base, np, pp, pp->ulp_name, offset,
-			    pp->ulp_objsize);
+			    base, (void *)np, (void *)pp, pp->ulp_name,
+			    (long)offset, (long)pp->ulp_objsize);
 		}
 		if (offset != pp->ulp_nodeoffset) {
 			uu_panic("uu_list_node_init(%p, %p, %p (\"%s\")): "
 			    "offset %ld doesn't match pool's offset (%ld)\n",
-			    base, np, pp, pp->ulp_name, offset,
-			    pp->ulp_objsize);
+			    base, (void *)np, (void *)pp, pp->ulp_name,
+			    (long)offset, (long)pp->ulp_objsize);
 		}
 	}
 	np->uln_next = POOL_TO_MARKER(pp);
@@ -163,13 +163,13 @@ uu_list_node_fini(void *base, uu_list_node_t *np_arg, uu_list_pool_t *pp)
 		    np->uln_prev == NULL) {
 			uu_panic("uu_list_node_fini(%p, %p, %p (\"%s\")): "
 			    "node already finied\n",
-			    base, np_arg, pp, pp->ulp_name);
+			    base, (void *)np_arg, (void *)pp, pp->ulp_name);
 		}
 		if (np->uln_next != POOL_TO_MARKER(pp) ||
 		    np->uln_prev != NULL) {
 			uu_panic("uu_list_node_fini(%p, %p, %p (\"%s\")): "
 			    "node corrupt or on list\n",
-			    base, np_arg, pp, pp->ulp_name);
+			    base, (void *)np_arg, (void *)pp, pp->ulp_name);
 		}
 	}
 	np->uln_next = NULL;
@@ -190,7 +190,7 @@ uu_list_create(uu_list_pool_t *pp, void *parent, uint32_t flags)
 		if (pp->ulp_debug)
 			uu_panic("uu_list_create(%p, ...): requested "
 			    "UU_LIST_SORTED, but pool has no comparison func\n",
-			    pp);
+			    (void *)pp);
 		uu_set_error(UU_ERROR_NOT_SUPPORTED);
 		return (NULL);
 	}
@@ -236,16 +236,16 @@ uu_list_destroy(uu_list_t *lp)
 		if (lp->ul_null_node.uln_next != &lp->ul_null_node ||
 		    lp->ul_null_node.uln_prev != &lp->ul_null_node) {
 			uu_panic("uu_list_destroy(%p):  list not empty\n",
-			    lp);
+			    (void *)lp);
 		}
 		if (lp->ul_numnodes != 0) {
 			uu_panic("uu_list_destroy(%p):  numnodes is nonzero, "
-			    "but list is empty\n", lp);
+			    "but list is empty\n", (void *)lp);
 		}
 		if (lp->ul_null_walk.ulw_next != &lp->ul_null_walk ||
 		    lp->ul_null_walk.ulw_prev != &lp->ul_null_walk) {
 			uu_panic("uu_list_destroy(%p):  outstanding walkers\n",
-			    lp);
+			    (void *)lp);
 		}
 	}
 
@@ -266,13 +266,14 @@ list_insert(uu_list_t *lp, uu_list_node_impl_t *np, uu_list_node_impl_t *prev,
 	if (lp->ul_debug) {
 		if (next->uln_prev != prev || prev->uln_next != next)
 			uu_panic("insert(%p): internal error: %p and %p not "
-			    "neighbors\n", lp, next, prev);
+			    "neighbors\n", (void *)lp, (void *)next,
+			    (void *)prev);
 
 		if (np->uln_next != POOL_TO_MARKER(lp->ul_pool) ||
 		    np->uln_prev != NULL) {
 			uu_panic("insert(%p): elem %p node %p corrupt, "
 			    "not initialized, or already in a list.\n",
-			    lp, NODE_TO_ELEM(lp, np), np);
+			    (void *)lp, NODE_TO_ELEM(lp, np), (void *)np);
 		}
 		/*
 		 * invalidate outstanding uu_list_index_ts.
@@ -299,12 +300,12 @@ uu_list_insert(uu_list_t *lp, void *elem, uu_list_index_t idx)
 	if (lp->ul_debug) {
 		if (!INDEX_VALID(lp, idx))
 			uu_panic("uu_list_insert(%p, %p, %p): %s\n",
-			    lp, elem, idx,
+			    (void *)lp, elem, (void *)idx,
 			    INDEX_CHECK(idx)? "outdated index" :
 			    "invalid index");
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_insert(%p, %p, %p): out-of-date "
-			    "index\n", lp, elem, idx);
+			    "index\n", (void *)lp, elem, (void *)idx);
 	}
 
 	list_insert(lp, ELEM_TO_NODE(lp, elem), np->uln_prev, np);
@@ -354,11 +355,12 @@ uu_list_nearest_next(uu_list_t *lp, uu_list_index_t idx)
 	if (lp->ul_debug) {
 		if (!INDEX_VALID(lp, idx))
 			uu_panic("uu_list_nearest_next(%p, %p): %s\n",
-			    lp, idx, INDEX_CHECK(idx)? "outdated index" :
+			    (void *)lp, (void *)idx,
+			    INDEX_CHECK(idx)? "outdated index" :
 			    "invalid index");
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_nearest_next(%p, %p): out-of-date "
-			    "index\n", lp, idx);
+			    "index\n", (void *)lp, (void *)idx);
 	}
 
 	if (np == &lp->ul_null_node)
@@ -378,11 +380,11 @@ uu_list_nearest_prev(uu_list_t *lp, uu_list_index_t idx)
 	if (lp->ul_debug) {
 		if (!INDEX_VALID(lp, idx))
 			uu_panic("uu_list_nearest_prev(%p, %p): %s\n",
-			    lp, idx, INDEX_CHECK(idx)? "outdated index" :
-			    "invalid index");
+			    (void *)lp, (void *)idx, INDEX_CHECK(idx)?
+			    "outdated index" : "invalid index");
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_nearest_prev(%p, %p): out-of-date "
-			    "index\n", lp, idx);
+			    "index\n", (void *)lp, (void *)idx);
 	}
 
 	if ((np = np->uln_prev) == &lp->ul_null_node)
@@ -409,6 +411,11 @@ list_walk_init(uu_list_walk_t *wp, uu_list_t *lp, uint32_t flags)
 		wp->ulw_next_result = lp->ul_null_node.uln_prev;
 
 	if (lp->ul_debug || robust) {
+		/*
+		 * Add this walker to the list's list of walkers so
+		 * uu_list_remove() can advance us if somebody tries to
+		 * remove ulw_next_result.
+		 */
 		wp->ulw_next = next = &lp->ul_null_walk;
 		wp->ulw_prev = prev = next->ulw_prev;
 		next->ulw_prev = wp;
@@ -538,7 +545,7 @@ uu_list_remove(uu_list_t *lp, void *elem)
 	if (lp->ul_debug) {
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_remove(%p, %p): elem not on list\n",
-			    lp, elem);
+			    (void *)lp, elem);
 		/*
 		 * invalidate outstanding uu_list_index_ts.
 		 */
@@ -556,7 +563,7 @@ uu_list_remove(uu_list_t *lp, void *elem)
 				(void) list_walk_advance(wp, lp);
 		} else if (wp->ulw_next_result != NULL) {
 			uu_panic("uu_list_remove(%p, %p): active non-robust "
-			    "walker\n", lp, elem);
+			    "walker\n", (void *)lp, elem);
 		}
 	}
 
@@ -578,8 +585,8 @@ uu_list_teardown(uu_list_t *lp, void **cookie)
 	 * XXX: disable list modification until list is empty
 	 */
 	if (lp->ul_debug && *cookie != NULL)
-		uu_panic("uu_list_teardown(%p, %p): unexpected cookie\n", lp,
-		    cookie);
+		uu_panic("uu_list_teardown(%p, %p): unexpected cookie\n",
+		    (void *)lp, (void *)cookie);
 
 	ep = uu_list_first(lp);
 	if (ep)
@@ -599,12 +606,12 @@ uu_list_insert_before(uu_list_t *lp, void *target, void *elem)
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_insert_before(%p, %p, %p): %p is "
 			    "not currently on a list\n",
-			    lp, target, elem, target);
+			    (void *)lp, target, elem, target);
 	}
 	if (lp->ul_sorted) {
 		if (lp->ul_debug)
 			uu_panic("uu_list_insert_before(%p, ...): list is "
-			    "UU_LIST_SORTED\n", lp);
+			    "UU_LIST_SORTED\n", (void *)lp);
 		uu_set_error(UU_ERROR_NOT_SUPPORTED);
 		return (-1);
 	}
@@ -625,12 +632,12 @@ uu_list_insert_after(uu_list_t *lp, void *target, void *elem)
 		if (np->uln_prev == NULL)
 			uu_panic("uu_list_insert_after(%p, %p, %p): %p is "
 			    "not currently on a list\n",
-			    lp, target, elem, target);
+			    (void *)lp, target, elem, target);
 	}
 	if (lp->ul_sorted) {
 		if (lp->ul_debug)
 			uu_panic("uu_list_insert_after(%p, ...): list is "
-			    "UU_LIST_SORTED\n", lp);
+			    "UU_LIST_SORTED\n", (void *)lp);
 		uu_set_error(UU_ERROR_NOT_SUPPORTED);
 		return (-1);
 	}

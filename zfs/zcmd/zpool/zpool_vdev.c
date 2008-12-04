@@ -20,11 +20,9 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)zpool_vdev.c	1.15	07/11/09 SMI"
 
 /*
  * Functions to convert between a list of vdevs and an nvlist representing the
@@ -1352,7 +1350,7 @@ construct_spec(int argc, char **argv)
  */
 nvlist_t *
 make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
-    boolean_t isreplacing, int argc, char **argv)
+    boolean_t isreplacing, boolean_t dryrun, int argc, char **argv)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1394,7 +1392,7 @@ make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, newroot) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

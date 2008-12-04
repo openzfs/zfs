@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H
 
-#pragma ident	"@(#)zfs.h	1.44	08/04/09 SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -100,12 +98,19 @@ typedef enum {
 	ZFS_PROP_SHARESMB,
 	ZFS_PROP_REFQUOTA,
 	ZFS_PROP_REFRESERVATION,
+	ZFS_PROP_GUID,
+	ZFS_PROP_PRIMARYCACHE,
+	ZFS_PROP_SECONDARYCACHE,
+	ZFS_PROP_USEDSNAP,
+	ZFS_PROP_USEDDS,
+	ZFS_PROP_USEDCHILD,
+	ZFS_PROP_USEDREFRESERV,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
 /*
  * Pool properties are identified by these constants and must be added to the
- * end of this list to ensure that external conumsers are not affected
+ * end of this list to ensure that external consumers are not affected
  * by the change. If you make any changes to this list, be sure to update
  * the property table in usr/src/common/zfs/zpool_prop.c.
  */
@@ -124,6 +129,7 @@ typedef enum {
 	ZPOOL_PROP_AUTOREPLACE,
 	ZPOOL_PROP_CACHEFILE,
 	ZPOOL_PROP_FAILUREMODE,
+	ZPOOL_PROP_LISTSNAPS,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -146,6 +152,13 @@ typedef enum {
 typedef int (*zprop_func)(int, void *);
 
 /*
+ * Properties to be set on the root file system of a new pool
+ * are stuffed into their own nvlist, which is then included in
+ * the properties nvlist with the pool properties.
+ */
+#define	ZPOOL_ROOTFS_PROPS	"root-props-nvl"
+
+/*
  * Dataset property functions shared between libzfs and kernel.
  */
 const char *zfs_prop_default_string(zfs_prop_t);
@@ -158,7 +171,7 @@ zfs_prop_t zfs_name_to_prop(const char *);
 boolean_t zfs_prop_user(const char *);
 int zfs_prop_index_to_string(zfs_prop_t, uint64_t, const char **);
 int zfs_prop_string_to_index(zfs_prop_t, const char *, uint64_t *);
-int zfs_prop_valid_for_type(int, zfs_type_t);
+boolean_t zfs_prop_valid_for_type(int, zfs_type_t);
 
 /*
  * Pool property functions shared between libzfs and kernel.
@@ -213,6 +226,13 @@ typedef enum zfs_share_op {
 	ZFS_UNSHARE_SMB = 3
 } zfs_share_op_t;
 
+typedef enum zfs_cache_type {
+	ZFS_CACHE_NONE = 0,
+	ZFS_CACHE_METADATA = 1,
+	ZFS_CACHE_ALL = 2
+} zfs_cache_type_t;
+
+
 /*
  * On-disk version number.
  */
@@ -226,14 +246,17 @@ typedef enum zfs_share_op {
 #define	SPA_VERSION_8			8ULL
 #define	SPA_VERSION_9			9ULL
 #define	SPA_VERSION_10			10ULL
-
+#define	SPA_VERSION_11			11ULL
+#define	SPA_VERSION_12			12ULL
+#define	SPA_VERSION_13			13ULL
+#define	SPA_VERSION_14			14ULL
 /*
  * When bumping up SPA_VERSION, make sure GRUB ZFS understands the on-disk
  * format change. Go to usr/src/grub/grub-0.95/stage2/{zfs-include/, fsys_zfs*},
  * and do the appropriate changes.
  */
-#define	SPA_VERSION			SPA_VERSION_10
-#define	SPA_VERSION_STRING		"10"
+#define	SPA_VERSION			SPA_VERSION_14
+#define	SPA_VERSION_STRING		"14"
 
 /*
  * Symbolic names for the changes that caused a SPA_VERSION switch.
@@ -263,6 +286,12 @@ typedef enum zfs_share_op {
 #define	SPA_VERSION_REFQUOTA		SPA_VERSION_9
 #define	SPA_VERSION_UNIQUE_ACCURATE	SPA_VERSION_9
 #define	SPA_VERSION_L2CACHE		SPA_VERSION_10
+#define	SPA_VERSION_NEXT_CLONES		SPA_VERSION_11
+#define	SPA_VERSION_ORIGIN		SPA_VERSION_11
+#define	SPA_VERSION_DSL_SCRUB		SPA_VERSION_11
+#define	SPA_VERSION_SNAP_PROPS		SPA_VERSION_12
+#define	SPA_VERSION_USED_BREAKDOWN	SPA_VERSION_13
+#define	SPA_VERSION_PASSTHROUGH_X	SPA_VERSION_14
 
 /*
  * ZPL version - rev'd whenever an incompatible on-disk format change
@@ -320,6 +349,7 @@ typedef enum zfs_share_op {
 #define	ZPOOL_CONFIG_PHYS_PATH		"phys_path"
 #define	ZPOOL_CONFIG_IS_LOG		"is_log"
 #define	ZPOOL_CONFIG_L2CACHE		"l2cache"
+#define	ZPOOL_CONFIG_SUSPENDED		"suspended"	/* not stored on disk */
 #define	ZPOOL_CONFIG_TIMESTAMP		"timestamp"	/* not stored on disk */
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
 /*
@@ -352,11 +382,7 @@ typedef enum zfs_share_op {
  * The location of the pool configuration repository, shared between kernel and
  * userland.
  */
-#define	ZPOOL_CACHE_DIR		"/etc/zfs"
-#define	ZPOOL_CACHE_FILE	"zpool.cache"
-#define	ZPOOL_CACHE_TMP		".zpool.cache"
-
-#define	ZPOOL_CACHE		ZPOOL_CACHE_DIR "/" ZPOOL_CACHE_FILE
+#define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
 
 /*
  * vdev states are ordered from least to most healthy.
@@ -390,7 +416,9 @@ typedef enum vdev_aux {
 	VDEV_AUX_VERSION_NEWER,	/* on-disk version is too new		*/
 	VDEV_AUX_VERSION_OLDER,	/* on-disk version is too old		*/
 	VDEV_AUX_SPARED,	/* hot spare used in another pool	*/
-	VDEV_AUX_ERR_EXCEEDED	/* too many errors			*/
+	VDEV_AUX_ERR_EXCEEDED,	/* too many errors			*/
+	VDEV_AUX_IO_FAILURE,	/* experienced I/O failure		*/
+	VDEV_AUX_BAD_LOG	/* cannot read log chain(s)		*/
 } vdev_aux_t;
 
 /*
@@ -406,7 +434,6 @@ typedef enum pool_state {
 	POOL_STATE_SPARE,		/* Reserved for hot spare use	*/
 	POOL_STATE_L2CACHE,		/* Level 2 ARC device		*/
 	POOL_STATE_UNINITIALIZED,	/* Internal spa_t state		*/
-	POOL_STATE_IO_FAILURE,		/* Internal pool state		*/
 	POOL_STATE_UNAVAIL,		/* Internal libzfs state	*/
 	POOL_STATE_POTENTIALLY_ACTIVE	/* Internal libzfs state	*/
 } pool_state_t;
@@ -602,6 +629,11 @@ typedef enum {
 #define	ZFS_EV_VDEV_PATH	"vdev_path"
 #define	ZFS_EV_VDEV_GUID	"vdev_guid"
 
+/*
+ * Note: This is encoded on-disk, so new events must be added to the
+ * end, and unused events can not be removed.  Be sure to edit
+ * zpool_main.c: hist_event_table[].
+ */
 typedef enum history_internal_events {
 	LOG_NO_EVENT = 0,
 	LOG_POOL_CREATE,
@@ -640,6 +672,7 @@ typedef enum history_internal_events {
 	LOG_DS_UPGRADE,
 	LOG_DS_REFQUOTA,
 	LOG_DS_REFRESERV,
+	LOG_POOL_SCRUB_DONE,
 	LOG_END
 } history_internal_events_t;
 
