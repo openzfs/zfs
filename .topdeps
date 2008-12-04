@@ -5,3 +5,4 @@ fix-dsl_pool_t
 fix-evict-dbufs
 fix-get-configs
 fix-locks
+fix-newlines
