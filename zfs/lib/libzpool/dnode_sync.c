@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dnode_sync.c	1.19	07/08/26 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/dbuf.h>
@@ -109,25 +109,26 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	rw_exit(&dn->dn_struct_rwlock);
 }
 
-static void
+static int
 free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 {
-	objset_impl_t *os = dn->dn_objset;
+	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 	uint64_t bytesfreed = 0;
-	int i;
+	int i, blocks_freed = 0;
 
-	dprintf("os=%p obj=%llx num=%d\n", os, dn->dn_object, num);
+	dprintf("ds=%p obj=%llx num=%d\n", ds, dn->dn_object, num);
 
 	for (i = 0; i < num; i++, bp++) {
 		if (BP_IS_HOLE(bp))
 			continue;
 
-		bytesfreed += bp_get_dasize(os->os_spa, bp);
+		bytesfreed += dsl_dataset_block_kill(ds, bp, dn->dn_zio, tx);
 		ASSERT3U(bytesfreed, <=, DN_USED_BYTES(dn->dn_phys));
-		dsl_dataset_block_kill(os->os_dsl_dataset, bp, dn->dn_zio, tx);
 		bzero(bp, sizeof (blkptr_t));
+		blocks_freed += 1;
 	}
 	dnode_diduse_space(dn, -bytesfreed);
+	return (blocks_freed);
 }
 
 #ifdef ZFS_DEBUG
@@ -177,7 +178,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 				if (buf[j] != 0) {
 					panic("freed data not zero: "
 					    "child=%p i=%d off=%d num=%d\n",
-					    child, i, off, num);
+					    (void *)child, i, off, num);
 				}
 			}
 		}
@@ -194,7 +195,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 				if (buf[j] != 0) {
 					panic("freed data not zero: "
 					    "child=%p i=%d off=%d num=%d\n",
-					    child, i, off, num);
+					    (void *)child, i, off, num);
 				}
 			}
 		}
@@ -204,6 +205,8 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	}
 }
 #endif
+
+#define	ALL -1
 
 static int
 free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks, int trunc,
@@ -215,8 +218,18 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks, int trunc,
 	uint64_t start, end, dbstart, dbend, i;
 	int epbs, shift, err;
 	int all = TRUE;
+	int blocks_freed = 0;
 
-	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+	/*
+	 * There is a small possibility that this block will not be cached:
+	 *   1 - if level > 1 and there are no children with level <= 1
+	 *   2 - if we didn't get a dirty hold (because this block had just
+	 *	 finished being written -- and so had no holds), and then this
+	 *	 block got evicted before we got here.
+	 */
+	if (db->db_state != DB_CACHED)
+		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+
 	arc_release(db->db_buf, db);
 	bp = (blkptr_t *)db->db.db_data;
 
@@ -240,10 +253,10 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks, int trunc,
 
 	if (db->db_level == 1) {
 		FREE_VERIFY(db, start, end, tx);
-		free_blocks(dn, bp, end-start+1, tx);
+		blocks_freed = free_blocks(dn, bp, end-start+1, tx);
 		arc_buf_freeze(db->db_buf);
-		ASSERT(all || db->db_last_dirty);
-		return (all);
+		ASSERT(all || blocks_freed == 0 || db->db_last_dirty);
+		return (all ? ALL : blocks_freed);
 	}
 
 	for (i = start; i <= end; i++, bp++) {
@@ -254,9 +267,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks, int trunc,
 		ASSERT3U(err, ==, 0);
 		rw_exit(&dn->dn_struct_rwlock);
 
-		if (free_children(subdb, blkid, nblks, trunc, tx)) {
+		if (free_children(subdb, blkid, nblks, trunc, tx) == ALL) {
 			ASSERT3P(subdb->db_blkptr, ==, bp);
-			free_blocks(dn, bp, 1, tx);
+			blocks_freed += free_blocks(dn, bp, 1, tx);
 		} else {
 			all = FALSE;
 		}
@@ -273,8 +286,8 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks, int trunc,
 		ASSERT3U(bp->blk_birth, ==, 0);
 	}
 #endif
-	ASSERT(all || db->db_last_dirty);
-	return (all);
+	ASSERT(all || blocks_freed == 0 || db->db_last_dirty);
+	return (all ? ALL : blocks_freed);
 }
 
 /*
@@ -304,15 +317,14 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 			return;
 		}
 		ASSERT3U(blkid + nblks, <=, dn->dn_phys->dn_nblkptr);
-		free_blocks(dn, bp + blkid, nblks, tx);
+		(void) free_blocks(dn, bp + blkid, nblks, tx);
 		if (trunc) {
 			uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
 			    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 			dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 			ASSERT(off < dn->dn_phys->dn_maxblkid ||
 			    dn->dn_phys->dn_maxblkid == 0 ||
-			    dnode_next_offset(dn, FALSE, &off,
-			    1, 1, 0) != 0);
+			    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
 		}
 		return;
 	}
@@ -330,9 +342,9 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		ASSERT3U(err, ==, 0);
 		rw_exit(&dn->dn_struct_rwlock);
 
-		if (free_children(db, blkid, nblks, trunc, tx)) {
+		if (free_children(db, blkid, nblks, trunc, tx) == ALL) {
 			ASSERT3P(db->db_blkptr, ==, bp);
-			free_blocks(dn, bp, 1, tx);
+			(void) free_blocks(dn, bp, 1, tx);
 		}
 		dbuf_rele(db, FTAG);
 	}
@@ -342,7 +354,7 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
-		    dnode_next_offset(dn, FALSE, &off, 1, 1, 0) != 0);
+		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
 	}
 }
 
@@ -375,7 +387,6 @@ dnode_evict_dbufs(dnode_t *dn)
 				mutex_exit(&db->db_mtx);
 			} else if (refcount_is_zero(&db->db_holds)) {
 				progress = TRUE;
-				ASSERT(!arc_released(db->db_buf));
 				dbuf_clear(db); /* exits db_mtx for us */
 			} else {
 				mutex_exit(&db->db_mtx);
@@ -442,6 +453,13 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
+	/*
+	 * Our contents should have been freed in dnode_sync() by the
+	 * free range record inserted by the caller of dnode_free().
+	 */
+	ASSERT3U(DN_USED_BYTES(dn->dn_phys), ==, 0);
+	ASSERT(BP_IS_HOLE(dn->dn_phys->dn_blkptr));
+
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
 	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
@@ -460,10 +478,6 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_next_nlevels[txgoff] = 0;
 	dn->dn_next_indblkshift[txgoff] = 0;
 	dn->dn_next_blksz[txgoff] = 0;
-
-	/* free up all the blocks in the file. */
-	dnode_sync_free_range(dn, 0, dn->dn_phys->dn_maxblkid+1, tx);
-	ASSERT3U(DN_USED_BYTES(dn->dn_phys), ==, 0);
 
 	/* ASSERT(blkptrs are zero); */
 	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
@@ -541,7 +555,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		ASSERT(P2PHASE(dn->dn_next_blksz[txgoff],
 		    SPA_MINBLOCKSIZE) == 0);
 		ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
-		    list_head(list) != NULL ||
+		    dn->dn_maxblkid == 0 || list_head(list) != NULL ||
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT ==
 		    dnp->dn_datablkszsec);
 		dnp->dn_datablkszsec =
@@ -575,22 +589,15 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	/* process all the "freed" ranges in the file */
-	if (dn->dn_free_txg == 0 || dn->dn_free_txg > tx->tx_txg) {
-		for (rp = avl_last(&dn->dn_ranges[txgoff]); rp != NULL;
-		    rp = AVL_PREV(&dn->dn_ranges[txgoff], rp))
-			dnode_sync_free_range(dn,
-			    rp->fr_blkid, rp->fr_nblks, tx);
+	while (rp = avl_last(&dn->dn_ranges[txgoff])) {
+		dnode_sync_free_range(dn, rp->fr_blkid, rp->fr_nblks, tx);
+		/* grab the mutex so we don't race with dnode_block_freed() */
+		mutex_enter(&dn->dn_mtx);
+		avl_remove(&dn->dn_ranges[txgoff], rp);
+		mutex_exit(&dn->dn_mtx);
+		kmem_free(rp, sizeof (free_range_t));
 	}
-	/* grab the mutex so we don't race with dnode_block_freed() */
-	mutex_enter(&dn->dn_mtx);
-	for (rp = avl_first(&dn->dn_ranges[txgoff]); rp; ) {
 
-		free_range_t *last = rp;
-		rp = AVL_NEXT(&dn->dn_ranges[txgoff], rp);
-		avl_remove(&dn->dn_ranges[txgoff], last);
-		kmem_free(last, sizeof (free_range_t));
-	}
-	mutex_exit(&dn->dn_mtx);
 	if (dn->dn_free_txg > 0 && dn->dn_free_txg <= tx->tx_txg) {
 		dnode_sync_free(dn, tx);
 		return;

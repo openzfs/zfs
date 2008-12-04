@@ -1,59 +1,151 @@
 #!/bin/bash
+#
+# WARNING: This script removes the entire zfs subtree and will
+# repopulate it using the requested OpenSolaris source release.
+# This script should only be used when rebasing the TopGit tree
+# against the latest release.  
+#
+trap die_int INT
 
+RELEASE=$1
 PROG=update-zfs.sh
-ZFS_SRC=http://dlc.sun.com/osol/on/downloads/b89/on-src.tar.bz2
+REMOTE_SRC=http://dlc.sun.com/osol/on/downloads/${RELEASE}/on-src.tar.bz2
 
 die() {
-	rm -Rf $SRC
+	rm -Rf ${SRC}
 	echo "${PROG}: $1" >&2
 	exit 1
 }
 
-DEST=`pwd`
-if [ `basename $DEST` != "scripts" ]; then
+die_int() {
+	die "Ctrl-C abort"
+}
+
+DST=`pwd`
+if [ `basename $DST` != "scripts" ]; then
 	die "Must be run from scripts directory"
 fi
 
-SRC=`mktemp -d /tmp/zfs.XXXXXXXXXX`
-DEST=`dirname $DEST`
-DATE=`date +%Y%m%d%H%M%S`
+SRC=`mktemp -d /tmp/os-${RELEASE}.XXXXXXXXXX`
+DST=`dirname $DST`
 
-wget $ZFS_SRC
-
-echo "--- Updating ZFS source ---"
+echo "----------------------------------------------------------------------"
+echo "Remote Source: ${REMOTE_SRC}"
+echo "Local Source:  ${SRC}"
+echo "Local Dest:    ${DST}"
 echo
-echo "ZFS_REPO       = $ZFS_REPO"
-echo "ZFS_PATCH_REPO = $ZFS_PATCH_REPO"
-echo "SRC            = $SRC"
-echo "DEST           = $DEST"
+echo "------------- Fetching OpenSolaris ${RELEASE} archive ----------------"
+wget ${REMOTE_SRC} -P ${SRC} ||
+	die "Error 'wget ${REMOTE_SRC}'"
 
-echo
-echo "--- Cloning $ZFS_REPO ---"
-cd $SRC || die "Failed to 'cd $SRC'"
-hg clone $ZFS_REPO || die "Failed to clone $ZFS_REPO"
+echo "------------- Unpacking OperSolaris ${RELEASE} archive ---------------"
+tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC} ||
+	die "Error 'tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC}'"
 
-echo
-echo "--- Cloning $ZFS_PATCH_REPO ---"
-hg clone $ZFS_PATCH_REPO patches || die "Failed to clone $ZFS_PATCH_REPO"
+SRC_LIB=${SRC}/usr/src/lib
+SRC_CMD=${SRC}/usr/src/cmd
+SRC_CM=${SRC}/usr/src/common
+SRC_UTS=${SRC}/usr/src/uts
+SRC_UCM=${SRC}/usr/src/uts/common
+SRC_ZLIB=${SRC}/usr/src/uts/common/fs/zfs
 
-echo
-echo "--- Backing up existing files ---"
-echo "$DEST/zfs -> $DEST/zfs.$DATE"
-cp -Rf $DEST/zfs $DEST/zfs.$DATE || die "Failed to backup"
-echo "$DEST/zfs_patches -> $DEST/zfs_patches.$DATE"
-cp -Rf $DEST/zfs_patches $DEST/zfs_patches.$DATE || die "Failed to backup"
+DST_LIB=${DST}/zfs/lib
+DST_CMD=${DST}/zfs/zcmd
 
-echo
-echo "--- Overwriting $DEST/zfs and $DEST/zfs_patches ---"
-find $SRC/trunk/src/ -name SConstruct -type f -print | xargs /bin/rm -f
-find $SRC/trunk/src/ -name SConscript -type f -print | xargs /bin/rm -f
-find $SRC/trunk/src/ -name *.orig -type f -print | xargs /bin/rm -f
-rm -f $SRC/trunk/src/myconfig.py
-cp -Rf $SRC/trunk/src/* $DEST/zfs || die "Failed to overwrite"
-cp -Rf $SRC/patches/*.patch $DEST/zfs_patches/patches/ || die "Failed to overwrite"
-cp -f $SRC/patches/series $DEST/zfs_patches/series/zfs-lustre
+rm -Rf ${DST}/zfs
 
 echo
-echo "--- Removing $SRC ---"
-rm -Rf $SRC
+echo "------------- Updating ZFS from OpenSolaris ${RELEASE} ---------------"
+echo "* zfs/lib/libavl"
+mkdir -p ${DST_LIB}/libavl/include/sys/
+cp ${SRC_CM}/avl/avl.c				${DST_LIB}/libavl/
+cp ${SRC_UCM}/sys/avl.h				${DST_LIB}/libavl/include/sys/
+cp ${SRC_UCM}/sys/avl_impl.h			${DST_LIB}/libavl/include/sys/
 
+echo "* zfs/lib/libnvpair"
+mkdir -p ${DST_LIB}/libnvpair/include/sys/
+cp ${SRC_CM}/nvpair/nvpair.c			${DST_LIB}/libnvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_LIB}/libnvpair/
+cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_LIB}/libnvpair/
+cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_LIB}/libnvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_LIB}/libnvpair/include/
+cp ${SRC_UCM}/sys/nvpair.h			${DST_LIB}/libnvpair/include/sys/
+cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_LIB}/libnvpair/include/sys/
+
+echo "* zfs/lib/libumem"
+mkdir -p ${DST_LIB}/libumem/include/
+mkdir -p ${DST_LIB}/libumem/sys/
+cp ${SRC_LIB}/libumem/common/*.c		${DST_LIB}/libumem/
+cp ${SRC_LIB}/libumem/common/*.h		${DST_LIB}/libumem/include/
+cp ${SRC_LIB}/libumem/common/sys/*.h		${DST_LIB}/libumem/sys/
+
+echo "* zfs/lib/libuutil"
+mkdir -p ${DST_LIB}/libuutil/include/
+cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
+cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
+
+echo "* zfs/lib/libspl"
+mkdir -p ${DST_LIB}/libspl/include/sys/
+cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libspl/include/sys/
+cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libc/port/gen/strlcpy.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libc/port/gen/strnlen.c		${DST_LIB}/libspl/
+cp ${SRC_LIB}/libgen/common/mkdirp.c		${DST_LIB}/libspl/
+cp ${SRC_CM}/unicode/u8_textprep.c		${DST_LIB}/libspl/
+cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
+cp ${SRC_UCM}/sys/vmem.h			${DST_LIB}/libspl/include/sys/
+cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
+cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
+
+echo "* zfs/lib/libzcommon"
+mkdir -p ${DST_LIB}/libzcommon/include/sys/fs/
+mkdir -p ${DST_LIB}/libzcommon/include/sys/fm/fs/
+cp ${SRC_CM}/zfs/*.c				${DST_LIB}/libzcommon/
+cp ${SRC_CM}/zfs/*.h				${DST_LIB}/libzcommon/include/
+cp ${SRC_UCM}/sys/fs/zfs.h			${DST_LIB}/libzcommon/include/sys/fs/
+cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_LIB}/libzcommon/include/sys/fm/fs/
+
+echo "* zfs/lib/libzpool"
+mkdir -p ${DST_LIB}/libzpool/include/sys/
+cp ${SRC_ZLIB}/*.c				${DST_LIB}/libzpool/
+cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_LIB}/libzpool/
+cp ${SRC_ZLIB}/sys/*.h				${DST_LIB}/libzpool/include/sys/
+rm ${DST_LIB}/libzpool/vdev_disk.c
+rm ${DST_LIB}/libzpool/include/sys/vdev_disk.h
+
+echo "* zfs/lib/libzfs"
+mkdir -p ${DST_LIB}/libzfs/include/
+cp ${SRC_LIB}/libzfs/common/*.c			${DST_LIB}/libzfs/
+cp ${SRC_LIB}/libzfs/common/*.h			${DST_LIB}/libzfs/include/
+
+echo "* zfs/zcmd/zpool"
+mkdir -p ${DST_CMD}/zpool
+cp ${SRC_CMD}/zpool/*.c				${DST_CMD}/zpool/
+cp ${SRC_CMD}/zpool/*.h				${DST_CMD}/zpool/
+
+echo "* zfs/zcmd/zfs"
+mkdir -p ${DST_CMD}/zfs
+cp ${SRC_CMD}/zfs/*.c				${DST_CMD}/zfs/
+cp ${SRC_CMD}/zfs/*.h				${DST_CMD}/zfs/
+
+echo "* zfs/zcmd/zdb"
+mkdir -p ${DST_CMD}/zdb/
+cp ${SRC_CMD}/zdb/*.c				${DST_CMD}/zdb/
+
+echo "* zfs/zcmd/zdump"
+mkdir -p ${DST_CMD}/zdump
+cp ${SRC_CMD}/zdump/*.c				${DST_CMD}/zdump/
+
+echo "* zfs/zcmd/zinject"
+mkdir -p ${DST_CMD}/zinject
+cp ${SRC_CMD}/zinject/*.c			${DST_CMD}/zinject/
+cp ${SRC_CMD}/zinject/*.h			${DST_CMD}/zinject/
+
+echo "* zfs/zcmd/ztest"
+mkdir -p ${DST_CMD}/ztest
+cp ${SRC_CMD}/ztest/*.c				${DST_CMD}/ztest/
+
+rm -Rf ${SRC}
