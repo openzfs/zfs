@@ -19,14 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_FM_FS_ZFS_H
 #define	_SYS_FM_FS_ZFS_H
 
-#pragma ident	"@(#)zfs.h	1.2	07/06/07 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -45,8 +45,12 @@ extern "C" {
 #define	FM_EREPORT_ZFS_DEVICE_BAD_GUID_SUM	"vdev.bad_guid_sum"
 #define	FM_EREPORT_ZFS_DEVICE_TOO_SMALL		"vdev.too_small"
 #define	FM_EREPORT_ZFS_DEVICE_BAD_LABEL		"vdev.bad_label"
+#define	FM_EREPORT_ZFS_IO_FAILURE		"io_failure"
+#define	FM_EREPORT_ZFS_PROBE_FAILURE		"probe_failure"
+#define	FM_EREPORT_ZFS_LOG_REPLAY		"log_replay"
 
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL		"pool"
+#define	FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE	"pool_failmode"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_GUID	"pool_guid"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT	"pool_context"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID	"vdev_guid"
@@ -66,7 +70,10 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_SIZE		"zio_size"
 #define	FM_EREPORT_PAYLOAD_ZFS_PREV_STATE	"prev_state"
 
-#define	FM_RESOURCE_OK				"ok"
+#define	FM_EREPORT_FAILMODE_WAIT		"wait"
+#define	FM_EREPORT_FAILMODE_CONTINUE		"continue"
+#define	FM_EREPORT_FAILMODE_PANIC		"panic"
+
 #define	FM_RESOURCE_REMOVED			"removed"
 #define	FM_RESOURCE_AUTOREPLACE			"autoreplace"
 

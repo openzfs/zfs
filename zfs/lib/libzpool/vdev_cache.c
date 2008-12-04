@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)vdev_cache.c	1.7	08/01/10 SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
@@ -136,10 +134,6 @@ vdev_cache_evict(vdev_cache_t *vc, vdev_cache_entry_t *ve)
 	ASSERT(ve->ve_fill_io == NULL);
 	ASSERT(ve->ve_data != NULL);
 
-	dprintf("evicting %p, off %llx, LRU %llu, age %lu, hits %u, stale %u\n",
-	    vc, ve->ve_offset, ve->ve_lastused, lbolt - ve->ve_lastused,
-	    ve->ve_hits, ve->ve_missed_update);
-
 	avl_remove(&vc->vc_lastused_tree, ve);
 	avl_remove(&vc->vc_offset_tree, ve);
 	zio_buf_free(ve->ve_data, VCBS);
@@ -170,10 +164,8 @@ vdev_cache_allocate(zio_t *zio)
 	if ((avl_numnodes(&vc->vc_lastused_tree) << zfs_vdev_cache_bshift) >
 	    zfs_vdev_cache_size) {
 		ve = avl_first(&vc->vc_lastused_tree);
-		if (ve->ve_fill_io != NULL) {
-			dprintf("can't evict in %p, still filling\n", vc);
+		if (ve->ve_fill_io != NULL)
 			return (NULL);
-		}
 		ASSERT(ve->ve_hits != 0);
 		vdev_cache_evict(vc, ve);
 	}
@@ -275,7 +267,7 @@ vdev_cache_read(zio_t *zio)
 	/*
 	 * If the I/O straddles two or more cache blocks, don't cache it.
 	 */
-	if (P2CROSS(zio->io_offset, zio->io_offset + zio->io_size - 1, VCBS))
+	if (P2BOUNDARY(zio->io_offset, zio->io_size, VCBS))
 		return (EXDEV);
 
 	ASSERT(cache_phase + zio->io_size <= VCBS);
@@ -316,11 +308,9 @@ vdev_cache_read(zio_t *zio)
 		return (ENOMEM);
 	}
 
-	fio = zio_vdev_child_io(zio, NULL, zio->io_vd, cache_offset,
+	fio = zio_vdev_delegated_io(zio->io_vd, cache_offset,
 	    ve->ve_data, VCBS, ZIO_TYPE_READ, ZIO_PRIORITY_CACHE_FILL,
-	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY | ZIO_FLAG_NOBOOKMARK,
-	    vdev_cache_fill, ve);
+	    ZIO_FLAG_DONT_CACHE, vdev_cache_fill, ve);
 
 	ve->ve_fill_io = fio;
 	fio->io_delegate_list = zio;

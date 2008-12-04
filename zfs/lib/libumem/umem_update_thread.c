@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,30 +18,22 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)umem_update_thread.c	1.2	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "config.h"
 #include "umem_base.h"
 #include "vmem_base.h"
 
 #include <signal.h>
 
-/*
- * we use the _ version, since we don't want to be cancelled.
- */
-extern int _cond_timedwait(cond_t *cv, mutex_t *mutex, const timespec_t *delay);
-
 /*ARGSUSED*/
-static THR_RETURN
-THR_API umem_update_thread(void *arg)
+static void *
+umem_update_thread(void *arg)
 {
 	struct timeval now;
 	int in_update = 0;
@@ -110,12 +101,16 @@ THR_API umem_update_thread(void *arg)
 		 * next update, or someone wakes us.
 		 */
 		if (umem_null_cache.cache_unext == &umem_null_cache) {
+			int cancel_state;
 			timespec_t abs_time;
 			abs_time.tv_sec = umem_update_next.tv_sec;
 			abs_time.tv_nsec = umem_update_next.tv_usec * 1000;
 
-			(void) _cond_timedwait(&umem_update_cv,
+			(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,
+			    &cancel_state);
+			(void) cond_timedwait(&umem_update_cv,
 			    &umem_update_lock, &abs_time);
+			(void) pthread_setcancelstate(cancel_state, NULL);
 		}
 	}
 	/* LINTED no return statement */
@@ -124,30 +119,47 @@ THR_API umem_update_thread(void *arg)
 int
 umem_create_update_thread(void)
 {
-#ifndef _WIN32
 	sigset_t sigmask, oldmask;
-#endif
+	thread_t newthread;
 
 	ASSERT(MUTEX_HELD(&umem_update_lock));
 	ASSERT(umem_update_thr == 0);
 
-#ifndef _WIN32
 	/*
 	 * The update thread handles no signals
 	 */
 	(void) sigfillset(&sigmask);
 	(void) thr_sigsetmask(SIG_BLOCK, &sigmask, &oldmask);
-#endif
-	if (thr_create(NULL, 0, umem_update_thread, NULL,
-	    THR_BOUND | THR_DAEMON | THR_DETACHED, &umem_update_thr) == 0) {
-#ifndef _WIN32
+
+	/*
+	 * drop the umem_update_lock; we cannot hold locks acquired in
+	 * pre-fork handler while calling thr_create or thr_continue().
+	 */
+
+	(void) mutex_unlock(&umem_update_lock);
+
+	if (thr_create(NULL, NULL, umem_update_thread, NULL,
+	    THR_BOUND | THR_DAEMON | THR_DETACHED | THR_SUSPENDED,
+	    &newthread) == 0) {
 		(void) thr_sigsetmask(SIG_SETMASK, &oldmask, NULL);
-#endif
+
+		(void) mutex_lock(&umem_update_lock);
+		/*
+		 * due to the locking in umem_reap(), only one thread can
+		 * ever call umem_create_update_thread() at a time.  This
+		 * must be the case for this code to work.
+		 */
+
+		ASSERT(umem_update_thr == 0);
+		umem_update_thr = newthread;
+		(void) mutex_unlock(&umem_update_lock);
+		(void) thr_continue(newthread);
+		(void) mutex_lock(&umem_update_lock);
+
 		return (1);
+	} else { /* thr_create failed */
+		(void) thr_sigsetmask(SIG_SETMASK, &oldmask, NULL);
+		(void) mutex_lock(&umem_update_lock);
 	}
-	umem_update_thr = 0;
-#ifndef _WIN32
-	(void) thr_sigsetmask(SIG_SETMASK, &oldmask, NULL);
-#endif
 	return (0);
 }
