@@ -219,6 +219,7 @@ dsl_pool_close(dsl_pool_t *dp)
 
 	txg_list_destroy(&dp->dp_dirty_datasets);
 	txg_list_destroy(&dp->dp_dirty_dirs);
+	txg_list_destroy(&dp->dp_sync_tasks);
 	list_destroy(&dp->dp_synced_datasets);
 
 	arc_flush(dp->dp_spa);
