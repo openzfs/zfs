@@ -1895,7 +1895,11 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 	}
 }
 
-static void
+/* dbuf_sync_indirect() is called recursively from dbuf_sync_list() so it
+ * is critical the we not allow the compiler to inline this function in to
+ * dbuf_sync_list() thereby drastically bloating the stack usage.
+ */
+noinline static void
 dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
@@ -1935,7 +1939,11 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	zio_nowait(zio);
 }
 
-static void
+/* dbuf_sync_leaf() is called recursively from dbuf_sync_list() so it is
+ * critical the we not allow the compiler to inline this function in to
+ * dbuf_sync_list() thereby drastically bloating the stack usage.
+ */
+noinline static void
 dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	arc_buf_t **datap = &dr->dt.dl.dr_data;
