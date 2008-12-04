@@ -901,7 +901,7 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q)
 		t = ZIO_TYPE_NULL;
 
 	(void) taskq_dispatch(zio->io_spa->spa_zio_taskq[t][q],
-	    (task_func_t *)zio_execute, zio, TQ_SLEEP);
+	    (task_func_t *)zio_execute, zio, TQ_NOSLEEP);
 }
 
 static boolean_t
