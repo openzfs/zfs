@@ -1574,6 +1574,8 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	if (sense == ZFS_CASE_INSENSITIVE || sense == ZFS_CASE_MIXED)
 		zfsvfs.z_norm |= U8_TEXTPREP_TOUPPER;
 
+	/* XXX - This must be destroyed but I'm not quite sure yet so
+	 * I'm just annotating that fact when it's an issue.  -Brian */
 	mutex_init(&zfsvfs.z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zfsvfs.z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
