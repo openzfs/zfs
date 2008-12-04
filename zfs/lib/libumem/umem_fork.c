@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,26 +18,22 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)umem_fork.c	1.3	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "config.h"
-/* #include "mtlib.h" */
 #include "umem_base.h"
 #include "vmem_base.h"
 
-#ifndef _WIN32
 #include <unistd.h>
 
 /*
- * The following functions are for pre- and post-fork1(2) handling.
+ * The following functions are for pre- and post-fork1(2) handling.  See
+ * "Lock Ordering" in lib/libumem/common/umem.c for the lock ordering used.
  */
 
 static void
@@ -108,6 +103,10 @@ umem_lockup(void)
 		(void) umem_init();
 		(void) mutex_lock(&umem_init_lock);
 	}
+
+	vmem_lockup();
+	vmem_sbrk_lockup();
+
 	(void) mutex_lock(&umem_cache_lock);
 	(void) mutex_lock(&umem_update_lock);
 	(void) mutex_lock(&umem_flags_lock);
@@ -124,46 +123,30 @@ umem_lockup(void)
 
 	(void) cond_broadcast(&umem_update_cv);
 
-	vmem_sbrk_lockup();
-	vmem_lockup();
 }
 
 static void
-umem_release(void)
+umem_do_release(int as_child)
 {
 	umem_cache_t *cp;
-
-	vmem_release();
-	vmem_sbrk_release();
-
-	umem_release_log_header(umem_slab_log);
-	umem_release_log_header(umem_failure_log);
-	umem_release_log_header(umem_content_log);
-	umem_release_log_header(umem_transaction_log);
-
-	for (cp = umem_null_cache.cache_next; cp != &umem_null_cache;
-	    cp = cp->cache_next)
-		umem_release_cache(cp);
-	umem_release_cache(&umem_null_cache);
-
-	(void) mutex_unlock(&umem_flags_lock);
-	(void) mutex_unlock(&umem_update_lock);
-	(void) mutex_unlock(&umem_cache_lock);
-	(void) mutex_unlock(&umem_init_lock);
-}
-
-static void
-umem_release_child(void)
-{
-	umem_cache_t *cp;
+	int cleanup_update = 0;
 
 	/*
-	 * Clean up the update state
+	 * Clean up the update state if we are the child process and
+	 * another thread was processing updates.
 	 */
-	umem_update_thr = 0;
+	if (as_child) {
+		if (umem_update_thr != thr_self()) {
+			umem_update_thr = 0;
+			cleanup_update = 1;
+		}
+		if (umem_st_update_thr != thr_self()) {
+			umem_st_update_thr = 0;
+			cleanup_update = 1;
+		}
+	}
 
-	if (umem_st_update_thr != thr_self()) {
-		umem_st_update_thr = 0;
+	if (cleanup_update) {
 		umem_reaping = UMEM_REAP_DONE;
 
 		for (cp = umem_null_cache.cache_next; cp != &umem_null_cache;
@@ -196,19 +179,45 @@ umem_release_child(void)
 		}
 	}
 
-	umem_release();
+	umem_release_log_header(umem_slab_log);
+	umem_release_log_header(umem_failure_log);
+	umem_release_log_header(umem_content_log);
+	umem_release_log_header(umem_transaction_log);
+
+	for (cp = umem_null_cache.cache_next; cp != &umem_null_cache;
+	    cp = cp->cache_next)
+		umem_release_cache(cp);
+	umem_release_cache(&umem_null_cache);
+
+	(void) mutex_unlock(&umem_flags_lock);
+	(void) mutex_unlock(&umem_update_lock);
+	(void) mutex_unlock(&umem_cache_lock);
+
+	vmem_sbrk_release();
+	vmem_release();
+
+	(void) mutex_unlock(&umem_init_lock);
 }
-#endif
+
+static void
+umem_release(void)
+{
+	umem_do_release(0);
+}
+
+static void
+umem_release_child(void)
+{
+	umem_do_release(1);
+}
 
 void
 umem_forkhandler_init(void)
 {
-#ifndef _WIN32
 	/*
 	 * There is no way to unregister these atfork functions,
 	 * but we don't need to.  The dynamic linker and libc take
 	 * care of unregistering them if/when the library is unloaded.
 	 */
 	(void) pthread_atfork(umem_lockup, umem_release, umem_release_child);
-#endif
 }

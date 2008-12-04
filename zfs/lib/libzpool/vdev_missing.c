@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)vdev_missing.c	1.3	07/11/27 SMI"
 
 /*
  * The 'missing' vdev is a special vdev type used only during import.  It
@@ -70,23 +68,14 @@ vdev_missing_io_start(zio_t *zio)
 }
 
 /* ARGSUSED */
-static int
+static void
 vdev_missing_io_done(zio_t *zio)
 {
-	return (ZIO_PIPELINE_CONTINUE);
-}
-
-/* ARGSUSED */
-static int
-vdev_missing_probe(vdev_t *vd)
-{
-	return (0);
 }
 
 vdev_ops_t vdev_missing_ops = {
 	vdev_missing_open,
 	vdev_missing_close,
-	vdev_missing_probe,
 	vdev_default_asize,
 	vdev_missing_io_start,
 	vdev_missing_io_done,
