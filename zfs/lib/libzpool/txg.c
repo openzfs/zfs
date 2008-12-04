@@ -63,6 +63,13 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 	rw_init(&tx->tx_suspend, NULL, RW_DEFAULT, NULL);
 	mutex_init(&tx->tx_sync_lock, NULL, MUTEX_DEFAULT, NULL);
 
+	cv_init(&tx->tx_sync_more_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&tx->tx_sync_done_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&tx->tx_quiesce_more_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&tx->tx_quiesce_done_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&tx->tx_timeout_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&tx->tx_exit_cv, NULL, CV_DEFAULT, NULL);
+
 	tx->tx_open_txg = txg;
 }
 
@@ -76,6 +83,13 @@ txg_fini(dsl_pool_t *dp)
 	int c;
 
 	ASSERT(tx->tx_threads == 0);
+
+	cv_destroy(&tx->tx_sync_more_cv);
+	cv_destroy(&tx->tx_sync_done_cv);
+	cv_destroy(&tx->tx_quiesce_more_cv);
+	cv_destroy(&tx->tx_quiesce_done_cv);
+	cv_destroy(&tx->tx_timeout_cv);
+	cv_destroy(&tx->tx_exit_cv);
 
 	rw_destroy(&tx->tx_suspend);
 	mutex_destroy(&tx->tx_sync_lock);
