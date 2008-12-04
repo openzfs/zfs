@@ -440,6 +440,8 @@ dnode_undirty_dbufs(list_t *list)
 		} else {
 			mutex_exit(&db->db_mtx);
 			dnode_undirty_dbufs(&dr->dt.di.dr_children);
+			mutex_destroy(&dr->dt.di.dr_mtx);
+			list_destroy(&dr->dt.di.dr_children);
 		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		dbuf_rele(db, (void *)(uintptr_t)txg);
