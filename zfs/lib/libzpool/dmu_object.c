@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dmu_object.c	1.3	06/10/31 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -54,7 +54,8 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 		if (P2PHASE(object, L2_dnode_count) == 0) {
 			uint64_t offset = restarted ? object << DNODE_SHIFT : 0;
 			int error = dnode_next_offset(osi->os_meta_dnode,
-			    B_TRUE, &offset, 2, DNODES_PER_BLOCK >> 2, 0);
+			    DNODE_FIND_HOLE,
+			    &offset, 2, DNODES_PER_BLOCK >> 2, 0);
 			restarted = B_TRUE;
 			if (error == 0)
 				object = offset >> DNODE_SHIFT;
@@ -139,6 +140,7 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 		return (err);
 
 	ASSERT(dn->dn_type != DMU_OT_NONE);
+	dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
 	dnode_free(dn, tx);
 	dnode_rele(dn, FTAG);
 
@@ -152,7 +154,7 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 	int error;
 
 	error = dnode_next_offset(os->os->os_meta_dnode,
-	    hole, &offset, 0, DNODES_PER_BLOCK, txg);
+	    (hole ? DNODE_FIND_HOLE : 0), &offset, 0, DNODES_PER_BLOCK, txg);
 
 	*objectp = offset >> DNODE_SHIFT;
 

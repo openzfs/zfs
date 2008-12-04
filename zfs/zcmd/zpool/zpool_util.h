@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	ZPOOL_UTIL_H
 #define	ZPOOL_UTIL_H
-
-#pragma ident	"@(#)zpool_util.h	1.11	07/09/17 SMI"
 
 #include <libnvpair.h>
 #include <libzfs.h>
@@ -48,7 +46,7 @@ uint_t num_logs(nvlist_t *nv);
  */
 
 nvlist_t *make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
-    boolean_t isreplace, int argc, char **argv);
+    boolean_t isreplace, boolean_t dryrun, int argc, char **argv);
 
 /*
  * Pool list functions

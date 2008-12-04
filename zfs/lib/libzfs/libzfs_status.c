@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)libzfs_status.c	1.7	07/06/29 SMI"
 
 /*
  * This file contains the functions which analyze the status of a pool.  This
@@ -62,7 +60,10 @@ static char *zfs_msgid_table[] = {
 	"ZFS-8000-8A",
 	"ZFS-8000-9P",
 	"ZFS-8000-A5",
-	"ZFS-8000-EY"
+	"ZFS-8000-EY",
+	"ZFS-8000-HC",
+	"ZFS-8000-JQ",
+	"ZFS-8000-K4",
 };
 
 #define	NMSGID	(sizeof (zfs_msgid_table) / sizeof (zfs_msgid_table[0]))
@@ -169,6 +170,7 @@ check_status(nvlist_t *config, boolean_t isimport)
 	uint64_t nerr;
 	uint64_t version;
 	uint64_t stateval;
+	uint64_t suspended;
 	uint64_t hostid = 0;
 
 	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
@@ -201,6 +203,24 @@ check_status(nvlist_t *config, boolean_t isimport)
 	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
 	    vs->vs_aux == VDEV_AUX_BAD_GUID_SUM)
 		return (ZPOOL_STATUS_BAD_GUID_SUM);
+
+	/*
+	 * Check whether the pool has suspended due to failed I/O.
+	 */
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_SUSPENDED,
+	    &suspended) == 0) {
+		if (suspended == ZIO_FAILURE_MODE_CONTINUE)
+			return (ZPOOL_STATUS_IO_FAILURE_CONTINUE);
+		return (ZPOOL_STATUS_IO_FAILURE_WAIT);
+	}
+
+	/*
+	 * Could not read a log.
+	 */
+	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
+	    vs->vs_aux == VDEV_AUX_BAD_LOG) {
+		return (ZPOOL_STATUS_BAD_LOG);
+	}
 
 	/*
 	 * Bad devices in non-replicated config.

@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)dsl_prop.c	1.16	08/02/20 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -68,12 +68,15 @@ dodefault(const char *propname, int intsz, int numint, void *buf)
 	return (0);
 }
 
-static int
-dsl_prop_get_impl(dsl_dir_t *dd, const char *propname,
+int
+dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
     int intsz, int numint, void *buf, char *setpoint)
 {
 	int err = ENOENT;
+	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	zfs_prop_t prop;
+
+	ASSERT(RW_LOCK_HELD(&dd->dd_pool->dp_config_rwlock));
 
 	if (setpoint)
 		setpoint[0] = '\0';
@@ -85,7 +88,6 @@ dsl_prop_get_impl(dsl_dir_t *dd, const char *propname,
 	 * ouside this loop.
 	 */
 	for (; dd != NULL; dd = dd->dd_parent) {
-		objset_t *mos = dd->dd_pool->dp_meta_objset;
 		ASSERT(RW_LOCK_HELD(&dd->dd_pool->dp_config_rwlock));
 		err = zap_lookup(mos, dd->dd_phys->dd_props_zapobj,
 		    propname, intsz, numint, buf);
@@ -107,6 +109,26 @@ dsl_prop_get_impl(dsl_dir_t *dd, const char *propname,
 	return (err);
 }
 
+int
+dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
+    int intsz, int numint, void *buf, char *setpoint)
+{
+	ASSERT(RW_LOCK_HELD(&ds->ds_dir->dd_pool->dp_config_rwlock));
+
+	if (ds->ds_phys->ds_props_obj) {
+		int err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
+		    ds->ds_phys->ds_props_obj, propname, intsz, numint, buf);
+		if (err != ENOENT) {
+			if (setpoint)
+				dsl_dataset_name(ds, setpoint);
+			return (err);
+		}
+	}
+
+	return (dsl_prop_get_dd(ds->ds_dir, propname,
+	    intsz, numint, buf, setpoint));
+}
+
 /*
  * Register interest in the named property.  We'll call the callback
  * once to notify it of the current property value, and again each time
@@ -119,19 +141,20 @@ dsl_prop_register(dsl_dataset_t *ds, const char *propname,
     dsl_prop_changed_cb_t *callback, void *cbarg)
 {
 	dsl_dir_t *dd = ds->ds_dir;
+	dsl_pool_t *dp = dd->dd_pool;
 	uint64_t value;
 	dsl_prop_cb_record_t *cbr;
 	int err;
 	int need_rwlock;
 
-	need_rwlock = !RW_WRITE_HELD(&dd->dd_pool->dp_config_rwlock);
+	need_rwlock = !RW_WRITE_HELD(&dp->dp_config_rwlock);
 	if (need_rwlock)
-		rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
+		rw_enter(&dp->dp_config_rwlock, RW_READER);
 
-	err = dsl_prop_get_impl(dd, propname, 8, 1, &value, NULL);
+	err = dsl_prop_get_ds(ds, propname, 8, 1, &value, NULL);
 	if (err != 0) {
 		if (need_rwlock)
-			rw_exit(&dd->dd_pool->dp_config_rwlock);
+			rw_exit(&dp->dp_config_rwlock);
 		return (err);
 	}
 
@@ -147,56 +170,30 @@ dsl_prop_register(dsl_dataset_t *ds, const char *propname,
 
 	cbr->cbr_func(cbr->cbr_arg, value);
 
-	VERIFY(0 == dsl_dir_open_obj(dd->dd_pool, dd->dd_object,
+	VERIFY(0 == dsl_dir_open_obj(dp, dd->dd_object,
 	    NULL, cbr, &dd));
 	if (need_rwlock)
-		rw_exit(&dd->dd_pool->dp_config_rwlock);
-	/* Leave dataset open until this callback is unregistered */
+		rw_exit(&dp->dp_config_rwlock);
+	/* Leave dir open until this callback is unregistered */
 	return (0);
 }
 
 int
-dsl_prop_get_ds(dsl_dir_t *dd, const char *propname,
+dsl_prop_get(const char *dsname, const char *propname,
     int intsz, int numints, void *buf, char *setpoint)
 {
+	dsl_dataset_t *ds;
 	int err;
 
-	rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
-	err = dsl_prop_get_impl(dd, propname, intsz, numints, buf, setpoint);
-	rw_exit(&dd->dd_pool->dp_config_rwlock);
-
-	return (err);
-}
-
-/*
- * Get property when config lock is already held.
- */
-int dsl_prop_get_ds_locked(dsl_dir_t *dd, const char *propname,
-    int intsz, int numints, void *buf, char *setpoint)
-{
-	ASSERT(RW_LOCK_HELD(&dd->dd_pool->dp_config_rwlock));
-	return (dsl_prop_get_impl(dd, propname, intsz, numints, buf, setpoint));
-}
-
-int
-dsl_prop_get(const char *ddname, const char *propname,
-    int intsz, int numints, void *buf, char *setpoint)
-{
-	dsl_dir_t *dd;
-	const char *tail;
-	int err;
-
-	err = dsl_dir_open(ddname, FTAG, &dd, &tail);
+	err = dsl_dataset_hold(dsname, FTAG, &ds);
 	if (err)
 		return (err);
-	if (tail && tail[0] != '@') {
-		dsl_dir_close(dd, FTAG);
-		return (ENOENT);
-	}
 
-	err = dsl_prop_get_ds(dd, propname, intsz, numints, buf, setpoint);
+	rw_enter(&ds->ds_dir->dd_pool->dp_config_rwlock, RW_READER);
+	err = dsl_prop_get_ds(ds, propname, intsz, numints, buf, setpoint);
+	rw_exit(&ds->ds_dir->dd_pool->dp_config_rwlock);
 
-	dsl_dir_close(dd, FTAG);
+	dsl_dataset_rele(ds, FTAG);
 	return (err);
 }
 
@@ -282,6 +279,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	zap_cursor_t zc;
 	zap_attribute_t *za;
 	int err;
+	uint64_t dummyval;
 
 	ASSERT(RW_WRITE_HELD(&dp->dp_config_rwlock));
 	err = dsl_dir_open_obj(dp, ddobj, NULL, FTAG, &dd);
@@ -294,7 +292,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 		 * being inherited here or below; stop the recursion.
 		 */
 		err = zap_lookup(mos, dd->dd_phys->dd_props_zapobj, propname,
-		    8, 1, &value);
+		    8, 1, &dummyval);
 		if (err == 0) {
 			dsl_dir_close(dd, FTAG);
 			return;
@@ -303,11 +301,22 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	}
 
 	mutex_enter(&dd->dd_lock);
-	for (cbr = list_head(&dd->dd_prop_cbs);
-	    cbr; cbr = list_next(&dd->dd_prop_cbs, cbr)) {
-		if (strcmp(cbr->cbr_propname, propname) == 0) {
-			cbr->cbr_func(cbr->cbr_arg, value);
-		}
+	for (cbr = list_head(&dd->dd_prop_cbs); cbr;
+	    cbr = list_next(&dd->dd_prop_cbs, cbr)) {
+		uint64_t propobj = cbr->cbr_ds->ds_phys->ds_props_obj;
+
+		if (strcmp(cbr->cbr_propname, propname) != 0)
+			continue;
+
+		/*
+		 * If the property is set on this ds, then it is not
+		 * inherited here; don't call the callback.
+		 */
+		if (propobj && 0 == zap_lookup(mos, propobj, propname,
+		    8, 1, &dummyval))
+			continue;
+
+		cbr->cbr_func(cbr->cbr_arg, value);
 	}
 	mutex_exit(&dd->dd_lock);
 
@@ -335,22 +344,35 @@ struct prop_set_arg {
 static void
 dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 {
-	dsl_dir_t *dd = arg1;
+	dsl_dataset_t *ds = arg1;
 	struct prop_set_arg *psa = arg2;
-	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t zapobj = dd->dd_phys->dd_props_zapobj;
-	uint64_t intval;
+	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
+	uint64_t zapobj, intval;
 	int isint;
 	char valbuf[32];
 	char *valstr;
 
 	isint = (dodefault(psa->name, 8, 1, &intval) == 0);
 
+	if (dsl_dataset_is_snapshot(ds)) {
+		ASSERT(spa_version(ds->ds_dir->dd_pool->dp_spa) >=
+		    SPA_VERSION_SNAP_PROPS);
+		if (ds->ds_phys->ds_props_obj == 0) {
+			dmu_buf_will_dirty(ds->ds_dbuf, tx);
+			ds->ds_phys->ds_props_obj =
+			    zap_create(mos,
+			    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx);
+		}
+		zapobj = ds->ds_phys->ds_props_obj;
+	} else {
+		zapobj = ds->ds_dir->dd_phys->dd_props_zapobj;
+	}
+
 	if (psa->numints == 0) {
 		int err = zap_remove(mos, zapobj, psa->name, tx);
 		ASSERT(err == 0 || err == ENOENT);
 		if (isint) {
-			VERIFY(0 == dsl_prop_get_impl(dd->dd_parent,
+			VERIFY(0 == dsl_prop_get_ds(ds,
 			    psa->name, 8, 1, &intval, NULL));
 		}
 	} else {
@@ -361,8 +383,25 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	}
 
 	if (isint) {
-		dsl_prop_changed_notify(dd->dd_pool,
-		    dd->dd_object, psa->name, intval, TRUE);
+		if (dsl_dataset_is_snapshot(ds)) {
+			dsl_prop_cb_record_t *cbr;
+			/*
+			 * It's a snapshot; nothing can inherit this
+			 * property, so just look for callbacks on this
+			 * ds here.
+			 */
+			mutex_enter(&ds->ds_dir->dd_lock);
+			for (cbr = list_head(&ds->ds_dir->dd_prop_cbs); cbr;
+			    cbr = list_next(&ds->ds_dir->dd_prop_cbs, cbr)) {
+				if (cbr->cbr_ds == ds &&
+				    strcmp(cbr->cbr_propname, psa->name) == 0)
+					cbr->cbr_func(cbr->cbr_arg, intval);
+			}
+			mutex_exit(&ds->ds_dir->dd_lock);
+		} else {
+			dsl_prop_changed_notify(ds->ds_dir->dd_pool,
+			    ds->ds_dir->dd_object, psa->name, intval, TRUE);
+		}
 	}
 	if (isint) {
 		(void) snprintf(valbuf, sizeof (valbuf),
@@ -372,9 +411,8 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		valstr = (char *)psa->buf;
 	}
 	spa_history_internal_log((psa->numints == 0) ? LOG_DS_INHERIT :
-	    LOG_DS_PROPSET, dd->dd_pool->dp_spa, tx, cr,
-	    "%s=%s dataset = %llu", psa->name, valstr,
-	    dd->dd_phys->dd_head_dataset_obj);
+	    LOG_DS_PROPSET, ds->ds_dir->dd_pool->dp_spa, tx, cr,
+	    "%s=%s dataset = %llu", psa->name, valstr, ds->ds_object);
 }
 
 void
@@ -396,26 +434,12 @@ dsl_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
 }
 
 int
-dsl_prop_set_dd(dsl_dir_t *dd, const char *propname,
+dsl_prop_set(const char *dsname, const char *propname,
     int intsz, int numints, const void *buf)
 {
-	struct prop_set_arg psa;
-
-	psa.name = propname;
-	psa.intsz = intsz;
-	psa.numints = numints;
-	psa.buf = buf;
-
-	return (dsl_sync_task_do(dd->dd_pool,
-	    NULL, dsl_prop_set_sync, dd, &psa, 2));
-}
-
-int
-dsl_prop_set(const char *ddname, const char *propname,
-    int intsz, int numints, const void *buf)
-{
-	dsl_dir_t *dd;
+	dsl_dataset_t *ds;
 	int err;
+	struct prop_set_arg psa;
 
 	/*
 	 * We must do these checks before we get to the syncfunc, since
@@ -426,11 +450,24 @@ dsl_prop_set(const char *ddname, const char *propname,
 	if (intsz * numints >= ZAP_MAXVALUELEN)
 		return (E2BIG);
 
-	err = dsl_dir_open(ddname, FTAG, &dd, NULL);
+	err = dsl_dataset_hold(dsname, FTAG, &ds);
 	if (err)
 		return (err);
-	err = dsl_prop_set_dd(dd, propname, intsz, numints, buf);
-	dsl_dir_close(dd, FTAG);
+
+	if (dsl_dataset_is_snapshot(ds) &&
+	    spa_version(ds->ds_dir->dd_pool->dp_spa) < SPA_VERSION_SNAP_PROPS) {
+		dsl_dataset_rele(ds, FTAG);
+		return (ENOTSUP);
+	}
+
+	psa.name = propname;
+	psa.intsz = intsz;
+	psa.numints = numints;
+	psa.buf = buf;
+	err = dsl_sync_task_do(ds->ds_dir->dd_pool,
+	    NULL, dsl_prop_set_sync, ds, &psa, 2);
+
+	dsl_dataset_rele(ds, FTAG);
 	return (err);
 }
 
@@ -438,47 +475,55 @@ dsl_prop_set(const char *ddname, const char *propname,
  * Iterate over all properties for this dataset and return them in an nvlist.
  */
 int
-dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
+dsl_prop_get_all(objset_t *os, nvlist_t **nvp, boolean_t local)
 {
 	dsl_dataset_t *ds = os->os->os_dsl_dataset;
 	dsl_dir_t *dd = ds->ds_dir;
-	boolean_t snapshot;
+	boolean_t snapshot = dsl_dataset_is_snapshot(ds);
 	int err = 0;
-	dsl_pool_t *dp;
-	objset_t *mos;
-
-	snapshot = dsl_dataset_is_snapshot(ds);
+	dsl_pool_t *dp = dd->dd_pool;
+	objset_t *mos = dp->dp_meta_objset;
+	uint64_t propobj = ds->ds_phys->ds_props_obj;
 
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-	dp = dd->dd_pool;
-	mos = dp->dp_meta_objset;
+	if (local && snapshot && !propobj)
+		return (0);
 
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
-	for (; dd != NULL; dd = dd->dd_parent) {
+	while (dd != NULL) {
 		char setpoint[MAXNAMELEN];
 		zap_cursor_t zc;
 		zap_attribute_t za;
+		dsl_dir_t *dd_next;
 
-		dsl_dir_name(dd, setpoint);
+		if (propobj) {
+			dsl_dataset_name(ds, setpoint);
+			dd_next = dd;
+		} else {
+			dsl_dir_name(dd, setpoint);
+			propobj = dd->dd_phys->dd_props_zapobj;
+			dd_next = dd->dd_parent;
+		}
 
-		for (zap_cursor_init(&zc, mos, dd->dd_phys->dd_props_zapobj);
+		for (zap_cursor_init(&zc, mos, propobj);
 		    (err = zap_cursor_retrieve(&zc, &za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			nvlist_t *propval;
-			zfs_prop_t prop;
-			/*
-			 * Skip non-inheritable properties.
-			 */
-			if ((prop = zfs_name_to_prop(za.za_name)) !=
-			    ZPROP_INVAL && !zfs_prop_inheritable(prop) &&
-			    dd != ds->ds_dir)
+			zfs_prop_t prop = zfs_name_to_prop(za.za_name);
+
+			/* Skip non-inheritable properties. */
+			if (prop != ZPROP_INVAL &&
+			    !zfs_prop_inheritable(prop) &&
+			    (dd != ds->ds_dir || (snapshot && dd != dd_next)))
 				continue;
 
-			if (snapshot &&
+			/* Skip properties not valid for this type. */
+			if (snapshot && prop != ZPROP_INVAL &&
 			    !zfs_prop_valid_for_type(prop, ZFS_TYPE_SNAPSHOT))
 				continue;
 
+			/* Skip properties already defined */
 			if (nvlist_lookup_nvlist(*nvp, za.za_name,
 			    &propval) == 0)
 				continue;
@@ -491,10 +536,8 @@ dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
 				 */
 				char *tmp = kmem_alloc(za.za_num_integers,
 				    KM_SLEEP);
-				err = zap_lookup(mos,
-				    dd->dd_phys->dd_props_zapobj,
-				    za.za_name, 1, za.za_num_integers,
-				    tmp);
+				err = zap_lookup(mos, propobj,
+				    za.za_name, 1, za.za_num_integers, tmp);
 				if (err != 0) {
 					kmem_free(tmp, za.za_num_integers);
 					break;
@@ -522,6 +565,14 @@ dsl_prop_get_all(objset_t *os, nvlist_t **nvp)
 		if (err != ENOENT)
 			break;
 		err = 0;
+		/*
+		 * If we are just after the props that have been set
+		 * locally, then we are done after the first iteration.
+		 */
+		if (local)
+			break;
+		dd = dd_next;
+		propobj = 0;
 	}
 	rw_exit(&dp->dp_config_rwlock);
 

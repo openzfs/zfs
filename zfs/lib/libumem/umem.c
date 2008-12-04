@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,47 +18,15 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 /*
- * Portions Copyright 2006 OmniTI, Inc.
- */
-
-/* #pragma ident	"@(#)umem.c	1.11	05/06/08 SMI" */
-
-/*!
- * \mainpage Main Page
- *
- * \section README
- *
- * \include README
- *
- * \section Nuances
- *
- * There is a nuance in the behaviour of the umem port compared
- * with umem on Solaris.
- *
- * On Linux umem will not return memory back to the OS until umem fails
- * to allocate a chunk. On failure, umem_reap() will be called automatically,
- * to return memory to the OS. If your code is going to be running
- * for a long time on Linux and mixes calls to different memory allocators
- * (e.g.: malloc()) and umem, your code will need to call
- * umem_reap() periodically.
- *
- * This doesn't happen on Solaris, because malloc is replaced
- * with umem calls, meaning that umem_reap() is called automatically.
- *
- * \section References
- *
- * http://docs.sun.com/app/docs/doc/816-5173/6mbb8advq?a=view
- *
- * http://access1.sun.com/techarticles/libumem.html
- *
- * \section Overview
- *
- * \code
  * based on usr/src/uts/common/os/kmem.c r1.64 from 2001/12/18
  *
  * The slab allocator, as described in the following two papers:
@@ -88,6 +55,7 @@
  *
  *	* KM_SLEEP v.s. UMEM_NOFAIL
  *
+ *	* lock ordering
  *
  * 2. Initialization
  * -----------------
@@ -362,41 +330,51 @@
  *	If a constructor callback _does_ do a UMEM_NOFAIL allocation, and
  *	the nofail callback does a non-local exit, we will leak the
  *	partially-constructed buffer.
- * \endcode
+ *
+ *
+ * 6. Lock Ordering
+ * ----------------
+ * umem has a few more locks than kmem does, mostly in the update path.  The
+ * overall lock ordering (earlier locks must be acquired first) is:
+ *
+ *	umem_init_lock
+ *
+ *	vmem_list_lock
+ *	vmem_nosleep_lock.vmpl_mutex
+ *	vmem_t's:
+ *		vm_lock
+ *	sbrk_lock
+ *
+ *	umem_cache_lock
+ *	umem_update_lock
+ *	umem_flags_lock
+ *	umem_cache_t's:
+ *		cache_cpu[*].cc_lock
+ *		cache_depot_lock
+ *		cache_lock
+ *	umem_log_header_t's:
+ *		lh_cpu[*].clh_lock
+ *		lh_lock
  */
 
-#include "config.h"
-/* #include "mtlib.h" */
 #include <umem_impl.h>
 #include <sys/vmem_impl_user.h>
 #include "umem_base.h"
 #include "vmem_base.h"
 
-#if HAVE_SYS_PROCESSOR_H
 #include <sys/processor.h>
-#endif
-#if HAVE_SYS_SYSMACROS_H
 #include <sys/sysmacros.h>
-#endif
 
-#if HAVE_ALLOCA_H
 #include <alloca.h>
-#endif
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if HAVE_STRINGS_H
 #include <strings.h>
-#endif
 #include <signal.h>
-#if HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_ATOMIC_H
 #include <atomic.h>
-#endif
 
 #include "misc.h"
 
@@ -413,8 +391,12 @@ size_t pagesize;
  * bytes, so that it will be 64-byte aligned.  For all multiples of 64,
  * the next kmem_cache_size greater than or equal to it must be a
  * multiple of 64.
+ *
+ * This table must be in sorted order, from smallest to highest.  The
+ * highest slot must be UMEM_MAXBUF, and every slot afterwards must be
+ * zero.
  */
-static const int umem_alloc_sizes[] = {
+static int umem_alloc_sizes[] = {
 #ifdef _LP64
 	1 * 8,
 	1 * 16,
@@ -433,16 +415,18 @@ static const int umem_alloc_sizes[] = {
 	P2ALIGN(8192 / 7, 64),
 	P2ALIGN(8192 / 6, 64),
 	P2ALIGN(8192 / 5, 64),
-	P2ALIGN(8192 / 4, 64),
+	P2ALIGN(8192 / 4, 64), 2304,
 	P2ALIGN(8192 / 3, 64),
-	P2ALIGN(8192 / 2, 64),
-	P2ALIGN(8192 / 1, 64),
+	P2ALIGN(8192 / 2, 64), 4544,
+	P2ALIGN(8192 / 1, 64), 9216,
 	4096 * 3,
-	8192 * 2,
+	UMEM_MAXBUF,				/* = 8192 * 2 */
+	/* 24 slots for user expansion */
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
 };
 #define	NUM_ALLOC_SIZES (sizeof (umem_alloc_sizes) / sizeof (*umem_alloc_sizes))
-
-#define	UMEM_MAXBUF	16384
 
 static umem_magtype_t umem_magtype[] = {
 	{ 1,	8,	3200,	65536	},
@@ -480,21 +464,21 @@ size_t umem_minfirewall;	/* hardware-enforced redzone threshold */
 
 uint_t umem_flags = 0;
 
-mutex_t			umem_init_lock = DEFAULTMUTEX;		/* locks initialization */
-cond_t			umem_init_cv = DEFAULTCV;		/* initialization CV */
+mutex_t			umem_init_lock;		/* locks initialization */
+cond_t			umem_init_cv;		/* initialization CV */
 thread_t		umem_init_thr;		/* thread initializing */
 int			umem_init_env_ready;	/* environ pre-initted */
 int			umem_ready = UMEM_READY_STARTUP;
 
 static umem_nofail_callback_t *nofail_callback;
-static mutex_t		umem_nofail_exit_lock = DEFAULTMUTEX;
+static mutex_t		umem_nofail_exit_lock;
 static thread_t		umem_nofail_exit_thr;
 
 static umem_cache_t	*umem_slab_cache;
 static umem_cache_t	*umem_bufctl_cache;
 static umem_cache_t	*umem_bufctl_audit_cache;
 
-mutex_t			umem_flags_lock = DEFAULTMUTEX;
+mutex_t			umem_flags_lock;
 
 static vmem_t		*heap_arena;
 static vmem_alloc_t	*heap_alloc;
@@ -517,15 +501,7 @@ umem_log_header_t *umem_content_log;
 umem_log_header_t *umem_failure_log;
 umem_log_header_t *umem_slab_log;
 
-extern thread_t _thr_self(void);
-#if defined(__MACH__) || defined(__FreeBSD__)
-# define CPUHINT()	((int)(_thr_self()))
-#endif
-
-#ifndef CPUHINT
-#define	CPUHINT()		(_thr_self())
-#endif
-
+#define	CPUHINT()		(thr_self())
 #define	CPUHINT_MAX()		INT_MAX
 
 #define	CPU(mask)		(umem_cpus + (CPUHINT() & (mask)))
@@ -547,12 +523,12 @@ volatile thread_t	umem_st_update_thr;	/* only used when single-thd */
 			    thr_self() == umem_st_update_thr)
 #define	IN_REAP()	IN_UPDATE()
 
-mutex_t			umem_update_lock = DEFAULTMUTEX;	/* cache_u{next,prev,flags} */
-cond_t			umem_update_cv = DEFAULTCV;
+mutex_t			umem_update_lock;	/* cache_u{next,prev,flags} */
+cond_t			umem_update_cv;
 
 volatile hrtime_t umem_reap_next;	/* min hrtime of next reap */
 
-mutex_t			umem_cache_lock = DEFAULTMUTEX;	/* inter-cache linkage only */
+mutex_t			umem_cache_lock;	/* inter-cache linkage only */
 
 #ifdef UMEM_STANDALONE
 umem_cache_t		umem_null_cache;
@@ -624,12 +600,6 @@ static umem_cache_t *umem_alloc_table[UMEM_MAXBUF >> UMEM_ALIGN_SHIFT] = {
 caddr_t			umem_min_stack;
 caddr_t			umem_max_stack;
 
-
-/*
- * we use the _ versions, since we don't want to be cancelled.
- * Actually, this is automatically taken care of by including "mtlib.h".
- */
-extern int _cond_wait(cond_t *cv, mutex_t *mutex);
 
 #define	UMERR_MODIFIED	0	/* buffer modified while on freelist */
 #define	UMERR_REDZONE	1	/* redzone violation (write past end of buf) */
@@ -757,6 +727,8 @@ umem_remove_updates(umem_cache_t *cp)
 	 * Get it out of the active state
 	 */
 	while (cp->cache_uflags & UMU_ACTIVE) {
+		int cancel_state;
+
 		ASSERT(cp->cache_unext == NULL);
 
 		cp->cache_uflags |= UMU_NOTIFY;
@@ -768,7 +740,10 @@ umem_remove_updates(umem_cache_t *cp)
 		ASSERT(umem_update_thr != thr_self() &&
 		    umem_st_update_thr != thr_self());
 
-		(void) _cond_wait(&umem_update_cv, &umem_update_lock);
+		(void) pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,
+		    &cancel_state);
+		(void) cond_wait(&umem_update_cv, &umem_update_lock);
+		(void) pthread_setcancelstate(cancel_state, NULL);
 	}
 	/*
 	 * Get it out of the Work Requested state
@@ -1097,7 +1072,7 @@ umem_log_enter(umem_log_header_t *lhp, void *data, size_t size)
 {
 	void *logspace;
 	umem_cpu_log_header_t *clhp =
-	    &(lhp->lh_cpu[CPU(umem_cpu_mask)->cpu_number]);
+	    &lhp->lh_cpu[CPU(umem_cpu_mask)->cpu_number];
 
 	if (lhp == NULL || umem_logging == 0)
 		return (NULL);
@@ -1659,9 +1634,7 @@ umem_cpu_reload(umem_cpu_cache_t *ccp, umem_magazine_t *mp, int rounds)
 /*
  * Allocate a constructed object from cache cp.
  */
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_cache_alloc = _umem_cache_alloc
-#endif
 void *
 _umem_cache_alloc(umem_cache_t *cp, int umflag)
 {
@@ -1779,9 +1752,7 @@ retry:
 /*
  * Free a constructed object to cache cp.
  */
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_cache_free = _umem_cache_free
-#endif
 void
 _umem_cache_free(umem_cache_t *cp, void *buf)
 {
@@ -1886,9 +1857,7 @@ _umem_cache_free(umem_cache_t *cp, void *buf)
 	umem_slab_free(cp, buf);
 }
 
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_zalloc = _umem_zalloc
-#endif
 void *
 _umem_zalloc(size_t size, int umflag)
 {
@@ -1916,9 +1885,7 @@ retry:
 	return (buf);
 }
 
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_alloc = _umem_alloc
-#endif
 void *
 _umem_alloc(size_t size, int umflag)
 {
@@ -1954,9 +1921,7 @@ umem_alloc_retry:
 	return (buf);
 }
 
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_alloc_align = _umem_alloc_align
-#endif
 void *
 _umem_alloc_align(size_t size, size_t align, int umflag)
 {
@@ -1986,9 +1951,7 @@ umem_alloc_align_retry:
 	return (buf);
 }
 
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_free = _umem_free
-#endif
 void
 _umem_free(void *buf, size_t size)
 {
@@ -2026,9 +1989,7 @@ _umem_free(void *buf, size_t size)
 	}
 }
 
-#ifndef NO_WEAK_SYMBOLS
 #pragma weak umem_free_align = _umem_free_align
-#endif
 void
 _umem_free_align(void *buf, size_t size)
 {
@@ -2382,7 +2343,6 @@ umem_reap(void)
 		(void) mutex_unlock(&umem_update_lock);
 		return;
 	}
-
 	umem_reaping = UMEM_REAP_ADDING;	/* lock out other reaps */
 
 	(void) mutex_unlock(&umem_update_lock);
@@ -2770,6 +2730,88 @@ umem_cache_destroy(umem_cache_t *cp)
 	vmem_free(umem_cache_arena, cp, UMEM_CACHE_SIZE(umem_max_ncpus));
 }
 
+void
+umem_alloc_sizes_clear(void)
+{
+	int i;
+
+	umem_alloc_sizes[0] = UMEM_MAXBUF;
+	for (i = 1; i < NUM_ALLOC_SIZES; i++)
+		umem_alloc_sizes[i] = 0;
+}
+
+void
+umem_alloc_sizes_add(size_t size_arg)
+{
+	int i, j;
+	size_t size = size_arg;
+
+	if (size == 0) {
+		log_message("size_add: cannot add zero-sized cache\n",
+		    size, UMEM_MAXBUF);
+		return;
+	}
+
+	if (size > UMEM_MAXBUF) {
+		log_message("size_add: %ld > %d, cannot add\n", size,
+		    UMEM_MAXBUF);
+		return;
+	}
+
+	if (umem_alloc_sizes[NUM_ALLOC_SIZES - 1] != 0) {
+		log_message("size_add: no space in alloc_table for %d\n",
+		    size);
+		return;
+	}
+
+	if (P2PHASE(size, UMEM_ALIGN) != 0) {
+		size = P2ROUNDUP(size, UMEM_ALIGN);
+		log_message("size_add: rounding %d up to %d\n", size_arg,
+		    size);
+	}
+
+	for (i = 0; i < NUM_ALLOC_SIZES; i++) {
+		int cur = umem_alloc_sizes[i];
+		if (cur == size) {
+			log_message("size_add: %ld already in table\n",
+			    size);
+			return;
+		}
+		if (cur > size)
+			break;
+	}
+
+	for (j = NUM_ALLOC_SIZES - 1; j > i; j--)
+		umem_alloc_sizes[j] = umem_alloc_sizes[j-1];
+	umem_alloc_sizes[i] = size;
+}
+
+void
+umem_alloc_sizes_remove(size_t size)
+{
+	int i;
+
+	if (size == UMEM_MAXBUF) {
+		log_message("size_remove: cannot remove %ld\n", size);
+		return;
+	}
+
+	for (i = 0; i < NUM_ALLOC_SIZES; i++) {
+		int cur = umem_alloc_sizes[i];
+		if (cur == size)
+			break;
+		else if (cur > size || cur == 0) {
+			log_message("size_remove: %ld not found in table\n",
+			    size);
+			return;
+		}
+	}
+
+	for (; i + 1 < NUM_ALLOC_SIZES; i++)
+		umem_alloc_sizes[i] = umem_alloc_sizes[i+1];
+	umem_alloc_sizes[i] = 0;
+}
+
 static int
 umem_cache_init(void)
 {
@@ -2862,6 +2904,10 @@ umem_cache_init(void)
 	for (i = 0; i < NUM_ALLOC_SIZES; i++) {
 		size_t cache_size = umem_alloc_sizes[i];
 		size_t align = 0;
+
+		if (cache_size == 0)
+			break;		/* 0 terminates the list */
+
 		/*
 		 * If they allocate a multiple of the coherency granularity,
 		 * they get a coherency-granularity-aligned address.
@@ -2889,6 +2935,9 @@ umem_cache_init(void)
 	for (i = 0; i < NUM_ALLOC_SIZES; i++) {
 		size_t cache_size = umem_alloc_sizes[i];
 
+		if (cache_size == 0)
+			break;		/* 0 terminates the list */
+
 		cp = umem_alloc_caches[i];
 
 		while (size <= cache_size) {
@@ -2896,6 +2945,7 @@ umem_cache_init(void)
 			size += UMEM_ALIGN;
 		}
 	}
+	ASSERT(size - UMEM_ALIGN == UMEM_MAXBUF);
 	return (1);
 }
 
@@ -2903,16 +2953,15 @@ umem_cache_init(void)
  * umem_startup() is called early on, and must be called explicitly if we're
  * the standalone version.
  */
-static void
-umem_startup() __attribute__((constructor));
-
+#ifdef UMEM_STANDALONE
 void
-umem_startup()
+#else
+#pragma init(umem_startup)
+static void
+#endif
+umem_startup(caddr_t start, size_t len, size_t pagesize, caddr_t minstack,
+    caddr_t maxstack)
 {
-	caddr_t start = NULL;
-	size_t len = 0;
-	size_t pagesize = 0;
-
 #ifdef UMEM_STANDALONE
 	int idx;
 	/* Standalone doesn't fork */
@@ -2995,9 +3044,16 @@ umem_init(void)
 			 * someone else beat us to initializing umem.  Wait
 			 * for them to complete, then return.
 			 */
-			while (umem_ready == UMEM_READY_INITING)
-				(void) _cond_wait(&umem_init_cv,
+			while (umem_ready == UMEM_READY_INITING) {
+				int cancel_state;
+
+				(void) pthread_setcancelstate(
+				    PTHREAD_CANCEL_DISABLE, &cancel_state);
+				(void) cond_wait(&umem_init_cv,
 				    &umem_init_lock);
+				(void) pthread_setcancelstate(
+				    cancel_state, NULL);
+			}
 			ASSERT(umem_ready == UMEM_READY ||
 			    umem_ready == UMEM_READY_INIT_FAILED);
 			(void) mutex_unlock(&umem_init_lock);
@@ -3199,10 +3255,3 @@ fail:
 	(void) mutex_unlock(&umem_init_lock);
 	return (0);
 }
-
-size_t
-umem_cache_get_bufsize(umem_cache_t *cache)
-{
-	return cache->cache_bufsize;
-}
-
