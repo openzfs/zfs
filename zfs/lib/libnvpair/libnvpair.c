@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,14 +19,16 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <unistd.h>
 #include <strings.h>
+#include <sys/types.h>
+#include <sys/inttypes.h>
 #include "libnvpair.h"
 
 /*
@@ -135,6 +136,12 @@ nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
 			uint64_t val;
 			(void) nvpair_value_uint64(nvp, &val);
 			(void) fprintf(fp, " 0x%llx", (u_longlong_t)val);
+			break;
+		}
+		case DATA_TYPE_DOUBLE: {
+			double val;
+			(void) nvpair_value_double(nvp, &val);
+			(void) fprintf(fp, " 0x%llf", val);
 			break;
 		}
 		case DATA_TYPE_STRING: {
@@ -263,4 +270,349 @@ void
 nvlist_print(FILE *fp, nvlist_t *nvl)
 {
 	nvlist_print_with_indent(fp, nvl, 0);
+}
+
+/*
+ * Determine if string 'value' matches 'nvp' value.  The 'value' string is
+ * converted, depending on the type of 'nvp', prior to match.  For numeric
+ * types, a radix independent sscanf conversion of 'value' is used. If 'nvp'
+ * is an array type, 'ai' is the index into the array against which we are
+ * checking for match. If nvp is of DATA_TYPE_STRING*, the caller can pass
+ * in a regex_t compilation of value in 'value_regex' to trigger regular
+ * expression string match instead of simple strcmp().
+ *
+ * Return 1 on match, 0 on no-match, and -1 on error.  If the error is
+ * related to value syntax error and 'ep' is non-NULL, *ep will point into
+ * the 'value' string at the location where the error exists.
+ *
+ * NOTE: It may be possible to move the non-regex_t version of this into
+ * common code used by library/kernel/boot.
+ */
+int
+nvpair_value_match_regex(nvpair_t *nvp, int ai,
+    char *value, regex_t *value_regex, char **ep)
+{
+	char	*evalue;
+	uint_t	a_len;
+	int	sr;
+
+	if (ep)
+		*ep = NULL;
+
+	if ((nvp == NULL) || (value == NULL))
+		return (-1);		/* error fail match - invalid args */
+
+	/* make sure array and index combination make sense */
+	if ((nvpair_type_is_array(nvp) && (ai < 0)) ||
+	    (!nvpair_type_is_array(nvp) && (ai >= 0)))
+		return (-1);		/* error fail match - bad index */
+
+	/* non-string values should be single 'chunk' */
+	if ((nvpair_type(nvp) != DATA_TYPE_STRING) &&
+	    (nvpair_type(nvp) != DATA_TYPE_STRING_ARRAY)) {
+		value += strspn(value, " \t");
+		evalue = value + strcspn(value, " \t");
+		if (*evalue) {
+			if (ep)
+				*ep = evalue;
+			return (-1);	/* error fail match - syntax */
+		}
+	}
+
+	sr = EOF;
+	switch (nvpair_type(nvp)) {
+	case DATA_TYPE_STRING: {
+		char	*val;
+
+		/* check string value for match */
+		if (nvpair_value_string(nvp, &val) == 0) {
+			if (value_regex) {
+				if (regexec(value_regex, val,
+				    (size_t)0, NULL, 0) == 0)
+					return (1);	/* match */
+			} else {
+				if (strcmp(value, val) == 0)
+					return (1);	/* match */
+			}
+		}
+		break;
+	}
+	case DATA_TYPE_STRING_ARRAY: {
+		char **val_array;
+
+		/* check indexed string value of array for match */
+		if ((nvpair_value_string_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len)) {
+			if (value_regex) {
+				if (regexec(value_regex, val_array[ai],
+				    (size_t)0, NULL, 0) == 0)
+					return (1);
+			} else {
+				if (strcmp(value, val_array[ai]) == 0)
+					return (1);
+			}
+		}
+		break;
+	}
+	case DATA_TYPE_BYTE: {
+		uchar_t val, val_arg;
+
+		/* scanf uchar_t from value and check for match */
+		sr = sscanf(value, "%c", &val_arg);
+		if ((sr == 1) && (nvpair_value_byte(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_BYTE_ARRAY: {
+		uchar_t *val_array, val_arg;
+
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%c", &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_byte_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT8: {
+		int8_t val, val_arg;
+
+		/* scanf int8_t from value and check for match */
+		sr = sscanf(value, "%"SCNi8, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int8(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT8_ARRAY: {
+		int8_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi8, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int8_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT8: {
+		uint8_t val, val_arg;
+
+		/* scanf uint8_t from value and check for match */
+		sr = sscanf(value, "%"SCNi8, (int8_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint8(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT8_ARRAY: {
+		uint8_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi8, (int8_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint8_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT16: {
+		int16_t val, val_arg;
+
+		/* scanf int16_t from value and check for match */
+		sr = sscanf(value, "%"SCNi16, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int16(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT16_ARRAY: {
+		int16_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi16, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int16_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT16: {
+		uint16_t val, val_arg;
+
+		/* scanf uint16_t from value and check for match */
+		sr = sscanf(value, "%"SCNi16, (int16_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint16(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT16_ARRAY: {
+		uint16_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi16, (int16_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint16_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT32: {
+		int32_t val, val_arg;
+
+		/* scanf int32_t from value and check for match */
+		sr = sscanf(value, "%"SCNi32, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int32(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT32_ARRAY: {
+		int32_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi32, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int32_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT32: {
+		uint32_t val, val_arg;
+
+		/* scanf uint32_t from value and check for match */
+		sr = sscanf(value, "%"SCNi32, (int32_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint32(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT32_ARRAY: {
+		uint32_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi32, (int32_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint32_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT64: {
+		int64_t val, val_arg;
+
+		/* scanf int64_t from value and check for match */
+		sr = sscanf(value, "%"SCNi64, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int64(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_INT64_ARRAY: {
+		int64_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi64, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_int64_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+				return (1);
+		break;
+	}
+	case DATA_TYPE_UINT64: {
+		uint64_t val_arg, val;
+
+		/* scanf uint64_t from value and check for match */
+		sr = sscanf(value, "%"SCNi64, (int64_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint64(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_UINT64_ARRAY: {
+		uint64_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi64, (int64_t *)&val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_uint64_array(nvp, &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_BOOLEAN_VALUE: {
+		boolean_t val, val_arg;
+
+		/* scanf boolean_t from value and check for match */
+		sr = sscanf(value, "%"SCNi32, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_boolean_value(nvp, &val) == 0) &&
+		    (val == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_BOOLEAN_ARRAY: {
+		boolean_t *val_array, val_arg;
+
+		/* check indexed value of array for match */
+		sr = sscanf(value, "%"SCNi32, &val_arg);
+		if ((sr == 1) &&
+		    (nvpair_value_boolean_array(nvp,
+		    &val_array, &a_len) == 0) &&
+		    (ai < a_len) &&
+		    (val_array[ai] == val_arg))
+			return (1);
+		break;
+	}
+	case DATA_TYPE_HRTIME:
+	case DATA_TYPE_NVLIST:
+	case DATA_TYPE_NVLIST_ARRAY:
+	case DATA_TYPE_BOOLEAN:
+	case DATA_TYPE_DOUBLE:
+	case DATA_TYPE_UNKNOWN:
+	default:
+		/*
+		 * unknown/unsupported data type
+		 */
+		return (-1);		/* error fail match */
+	}
+
+	/*
+	 * check to see if sscanf failed conversion, return approximate
+	 * pointer to problem
+	 */
+	if (sr != 1) {
+		if (ep)
+			*ep = value;
+		return (-1);		/* error fail match  - syntax */
+	}
+
+	return (0);			/* fail match */
+}
+
+int
+nvpair_value_match(nvpair_t *nvp, int ai, char *value, char **ep)
+{
+	return (nvpair_value_match_regex(nvp, ai, value, NULL, ep));
 }

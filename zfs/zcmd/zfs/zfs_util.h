@@ -26,7 +26,7 @@
 #ifndef	_ZFS_UTIL_H
 #define	_ZFS_UTIL_H
 
-#pragma ident	"@(#)zfs_util.h	1.2	06/05/24 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <libzfs.h>
 

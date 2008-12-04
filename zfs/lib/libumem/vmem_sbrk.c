@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,15 +18,13 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-/*
- * Portions Copyright 2006 OmniTI, Inc.
- */
 
-/* #pragma ident	"@(#)vmem_sbrk.c	1.4	05/06/08 SMI" */
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * The structure of the sbrk backend:
@@ -54,13 +51,9 @@
  * before calling sbrk().
  */
 
-#include "config.h"
-/* #include "mtlib.h" */
 #include <errno.h>
 #include <limits.h>
-#ifdef HAVE_SYS_SYSMACROS_H
 #include <sys/sysmacros.h>
-#endif
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -70,7 +63,8 @@
 
 size_t vmem_sbrk_pagesize = 0; /* the preferred page size of the heap */
 
-#define	MIN_ALLOC	(64*1024)
+#define	VMEM_SBRK_MINALLOC	(64 * 1024)
+size_t vmem_sbrk_minalloc = VMEM_SBRK_MINALLOC; /* minimum allocation */
 
 static size_t real_pagesize;
 static vmem_t *sbrk_heap;
@@ -90,59 +84,6 @@ static sbrk_fail_t sbrk_fails = {
 };
 
 static mutex_t sbrk_faillock = DEFAULTMUTEX;
-
-/*
- * _sbrk_grow_aligned() aligns the old break to a low_align boundry,
- * adds min_size, aligns to a high_align boundry, and calls _brk_unlocked()
- * to set the new break.  The low_aligned-aligned value is returned, and
- * the actual space allocated is returned through actual_size.
- *
- * Unlike sbrk(2), _sbrk_grow_aligned takes an unsigned size, and does
- * not allow shrinking the heap.
- */
-void *
-_sbrk_grow_aligned(size_t min_size, size_t low_align, size_t high_align,
-    size_t *actual_size)
-{
-  uintptr_t old_brk;
-  uintptr_t ret_brk;
-  uintptr_t high_brk;
-  uintptr_t new_brk;
-  int brk_result;
-
-#define ALIGNSZ   16
-#define BRKALIGN(x) (caddr_t)P2ROUNDUP((uintptr_t)(x), ALIGNSZ)
-  
-  if ((low_align & (low_align - 1)) != 0 ||
-      (high_align & (high_align - 1)) != 0) {
-    errno = EINVAL;
-    return ((void *)-1);
-  }
-  low_align = MAX(low_align, ALIGNSZ);
-  high_align = MAX(high_align, ALIGNSZ);
-
-  old_brk = (uintptr_t)BRKALIGN(sbrk(0));
-  ret_brk = P2ROUNDUP(old_brk, low_align);
-  high_brk = ret_brk + min_size;
-  new_brk = P2ROUNDUP(high_brk, high_align);
-
-  /*
-   * Check for overflow
-   */
-  if (ret_brk < old_brk || high_brk < ret_brk || new_brk < high_brk) {
-    errno = ENOMEM;
-    return ((void *)-1);
-  }
-
-  brk_result = brk((void *)new_brk);
-
-  if (brk_result != 0)
-    return ((void *)-1);
-
-  if (actual_size != NULL)
-    *actual_size = (new_brk - ret_brk);
-  return ((void *)ret_brk);
-}
 
 /*
  * Try to extend src with [pos, pos + size).
@@ -234,7 +175,7 @@ vmem_sbrk_alloc(vmem_t *src, size_t size, int vmflags)
 	    (ret = vmem_sbrk_tryfail(src, size, vmflags)) != NULL)
 		return (ret);
 
-	buf_size = MAX(size, MIN_ALLOC);
+	buf_size = MAX(size, vmem_sbrk_minalloc);
 
 	/*
 	 * buf_size gets overwritten with the actual allocated size
@@ -293,7 +234,6 @@ vmem_sbrk_arena(vmem_alloc_t **a_out, vmem_free_t **f_out)
 		if (heap_size <= real_pagesize) {
 			heap_size = real_pagesize;
 		} else {
-#ifdef MHA_MAPSIZE_BSSBRK
 			struct memcntl_mha mha;
 			mha.mha_cmd = MHA_MAPSIZE_BSSBRK;
 			mha.mha_flags = 0;
@@ -305,11 +245,13 @@ vmem_sbrk_arena(vmem_alloc_t **a_out, vmem_free_t **f_out)
 				    "0x%p\n", heap_size);
 				heap_size = real_pagesize;
 			}
-#else
-			heap_size = real_pagesize;
-#endif
 		}
 		vmem_sbrk_pagesize = heap_size;
+
+		/* validate vmem_sbrk_minalloc */
+		if (vmem_sbrk_minalloc < VMEM_SBRK_MINALLOC)
+			vmem_sbrk_minalloc = VMEM_SBRK_MINALLOC;
+		vmem_sbrk_minalloc = P2ROUNDUP(vmem_sbrk_minalloc, heap_size);
 
 		sbrk_heap = vmem_init("sbrk_top", real_pagesize,
 		    vmem_sbrk_alloc, vmem_free,

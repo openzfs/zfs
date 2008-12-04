@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zpool_util.c	1.5	07/06/21 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <errno.h>
 #include <libgen.h>

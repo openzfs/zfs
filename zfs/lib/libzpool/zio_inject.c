@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)zio_inject.c	1.2	07/12/07 SMI"
 
 /*
  * ZFS fault injection
@@ -47,6 +45,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/fs/zfs.h>
 
 uint32_t zio_injection_enabled;
 
@@ -145,6 +144,56 @@ zio_handle_fault_injection(zio_t *zio, int error)
 	return (ret);
 }
 
+/*
+ * Determine if the zio is part of a label update and has an injection
+ * handler associated with that portion of the label. Currently, we
+ * allow error injection in either the nvlist or the uberblock region of
+ * of the vdev label.
+ */
+int
+zio_handle_label_injection(zio_t *zio, int error)
+{
+	inject_handler_t *handler;
+	vdev_t *vd = zio->io_vd;
+	uint64_t offset = zio->io_offset;
+	int label;
+	int ret = 0;
+
+	if (offset + zio->io_size > VDEV_LABEL_START_SIZE &&
+	    offset < vd->vdev_psize - VDEV_LABEL_END_SIZE)
+		return (0);
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+		uint64_t start = handler->zi_record.zi_start;
+		uint64_t end = handler->zi_record.zi_end;
+
+		/* Ignore device only faults */
+		if (handler->zi_record.zi_start == 0)
+			continue;
+
+		/*
+		 * The injection region is the relative offsets within a
+		 * vdev label. We must determine the label which is being
+		 * updated and adjust our region accordingly.
+		 */
+		label = vdev_label_number(vd->vdev_psize, offset);
+		start = vdev_label_offset(vd->vdev_psize, label, start);
+		end = vdev_label_offset(vd->vdev_psize, label, end);
+
+		if (zio->io_vd->vdev_guid == handler->zi_record.zi_guid &&
+		    (offset >= start && offset <= end)) {
+			ret = error;
+			break;
+		}
+	}
+	rw_exit(&inject_lock);
+	return (ret);
+}
+
+
 int
 zio_handle_device_injection(vdev_t *vd, int error)
 {
@@ -155,6 +204,10 @@ zio_handle_device_injection(vdev_t *vd, int error)
 
 	for (handler = list_head(&inject_handlers); handler != NULL;
 	    handler = list_next(&inject_handlers, handler)) {
+
+		/* Ignore label specific faults */
+		if (handler->zi_record.zi_start != 0)
+			continue;
 
 		if (vd->vdev_guid == handler->zi_record.zi_guid) {
 			if (handler->zi_record.zi_error == error) {
@@ -304,6 +357,7 @@ zio_clear_fault(int id)
 void
 zio_inject_init(void)
 {
+	rw_init(&inject_lock, NULL, RW_DEFAULT, NULL);
 	list_create(&inject_handlers, sizeof (inject_handler_t),
 	    offsetof(inject_handler_t, zi_link));
 }
@@ -312,4 +366,5 @@ void
 zio_inject_fini(void)
 {
 	list_destroy(&inject_handlers);
+	rw_destroy(&inject_lock);
 }

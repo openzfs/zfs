@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)zpool_prop.c	1.4	07/11/20 SMI"
 
 #include <sys/zio.h>
 #include <sys/spa.h>
@@ -96,6 +94,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "on | off", "DELEGATION", boolean_table);
 	register_index(ZPOOL_PROP_AUTOREPLACE, "autoreplace", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "on | off", "REPLACE", boolean_table);
+	register_index(ZPOOL_PROP_LISTSNAPS, "listsnapshots", 0, PROP_DEFAULT,
+	    ZFS_TYPE_POOL, "on | off", "LISTSNAPS", boolean_table);
 
 	/* default index properties */
 	register_index(ZPOOL_PROP_FAILUREMODE, "failmode",

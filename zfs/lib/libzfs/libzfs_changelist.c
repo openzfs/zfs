@@ -26,8 +26,6 @@
  * Portions Copyright 2007 Ramprakash Jelari
  */
 
-#pragma ident	"@(#)libzfs_changelist.c	1.23	08/03/04 SMI"
-
 #include <libintl.h>
 #include <libuutil.h>
 #include <stddef.h>
@@ -80,7 +78,8 @@ struct prop_changelist {
 	boolean_t		cl_waslegacy;
 	boolean_t		cl_allchildren;
 	boolean_t		cl_alldependents;
-	int			cl_flags;
+	int			cl_mflags;	/* Mount flags */
+	int			cl_gflags;	/* Gather request flags */
 	boolean_t		cl_haszonedchild;
 	boolean_t		cl_sorted;
 };
@@ -151,7 +150,7 @@ changelist_prefix(prop_changelist_t *clp)
 			switch (clp->cl_prop) {
 			case ZFS_PROP_MOUNTPOINT:
 				if (zfs_unmount(cn->cn_handle, NULL,
-				    clp->cl_flags) != 0) {
+				    clp->cl_mflags) != 0) {
 					ret = -1;
 					cn->cn_needpost = B_FALSE;
 				}
@@ -484,7 +483,8 @@ change_one(zfs_handle_t *zhp, void *data)
 		}
 
 		cn->cn_handle = zhp;
-		cn->cn_mounted = zfs_is_mounted(zhp, NULL);
+		cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
+		    zfs_is_mounted(zhp, NULL);
 		cn->cn_shared = zfs_is_shared(zhp);
 		cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 		cn->cn_needpost = B_TRUE;
@@ -560,7 +560,8 @@ compare_mountpoints(const void *a, const void *b, void *unused)
  * mark whether it was shared beforehand.
  */
 prop_changelist_t *
-changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int flags)
+changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
+    int mnt_flags)
 {
 	prop_changelist_t *clp;
 	prop_changenode_t *cn;
@@ -596,7 +597,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int flags)
 
 	clp->cl_list = uu_list_create(clp->cl_pool, NULL,
 	    clp->cl_sorted ? UU_LIST_SORTED : 0);
-	clp->cl_flags = flags;
+	clp->cl_gflags = gather_flags;
+	clp->cl_mflags = mnt_flags;
 
 	if (clp->cl_list == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
@@ -677,7 +679,8 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int flags)
 	}
 
 	cn->cn_handle = temp;
-	cn->cn_mounted = zfs_is_mounted(temp, NULL);
+	cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
+	    zfs_is_mounted(temp, NULL);
 	cn->cn_shared = zfs_is_shared(temp);
 	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 	cn->cn_needpost = B_TRUE;
