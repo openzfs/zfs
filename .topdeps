@@ -6,3 +6,4 @@ fix-evict-dbufs
 fix-get-configs
 fix-locks
 fix-newlines
+fix-no-zmod
