@@ -1,0 +1,7 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc cast
+
+Gcc -Wall warn: 'lacks a cast'
+Gcc -Wall warn: 'comparison between pointer and integer'
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
