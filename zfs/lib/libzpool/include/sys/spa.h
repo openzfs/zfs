@@ -522,7 +522,7 @@ extern void vdev_cache_stat_fini(void);
 /* Initialization and termination */
 extern void spa_init(int flags);
 extern void spa_fini(void);
-extern void spa_boot_init();
+extern void spa_boot_init(void);
 
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);
