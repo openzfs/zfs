@@ -9,3 +9,4 @@ fix-newlines
 fix-no-zmod
 fix-pthreads
 fix-rwlocks
+fix-stack
