@@ -3,6 +3,6 @@
 aclocal -I config &&
 libtoolize --automake --copy
 autoheader &&
-automake --add-missing --include-deps 2>/dev/null
+automake --add-missing --include-deps
 autoconf
 rm -rf autom4te.cache aclocal.m4
