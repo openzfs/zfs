@@ -3,3 +3,4 @@ linux-docs
 linux-have-fm
 linux-have-libdiskmgt
 linux-have-libefi
+linux-have-mntent
