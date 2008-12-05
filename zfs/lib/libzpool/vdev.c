@@ -1578,7 +1578,7 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 {
 	metaslab_t *msp;
 
-	while (msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg)))
+	while ((msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg))))
 		metaslab_sync_done(msp, txg);
 }
 

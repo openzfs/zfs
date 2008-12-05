@@ -297,7 +297,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 
 	dp->dp_read_overhead = 0;
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while (ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
 		if (!list_link_active(&ds->ds_synced_link))
 			list_insert_tail(&dp->dp_synced_datasets, ds);
 		else
@@ -386,7 +386,7 @@ dsl_pool_zil_clean(dsl_pool_t *dp)
 {
 	dsl_dataset_t *ds;
 
-	while (ds = list_head(&dp->dp_synced_datasets)) {
+	while ((ds = list_head(&dp->dp_synced_datasets))) {
 		list_remove(&dp->dp_synced_datasets, ds);
 		ASSERT(ds->ds_user_ptr != NULL);
 		zil_clean(((objset_impl_t *)ds->ds_user_ptr)->os_zil);

@@ -601,8 +601,8 @@ dnode_hold_impl(objset_impl_t *os, uint64_t object, int flag,
 		dnode_t **winner;
 		children_dnodes = kmem_zalloc(epb * sizeof (dnode_t *),
 		    KM_SLEEP);
-		if (winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
-		    dnode_buf_pageout)) {
+		if ((winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
+		    dnode_buf_pageout))) {
 			kmem_free(children_dnodes, epb * sizeof (dnode_t *));
 			children_dnodes = winner;
 		}

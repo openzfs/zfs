@@ -3994,7 +3994,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		dsl_pool_sync(dp, txg);
 
 		dirty_vdevs = 0;
-		while (vd = txg_list_remove(&spa->spa_vdev_txg_list, txg)) {
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))) {
 			vdev_sync(vd, txg);
 			dirty_vdevs++;
 		}
@@ -4078,7 +4078,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	/*
 	 * Update usable space statistics.
 	 */
-	while (vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)))
+	while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg))))
 		vdev_sync_done(vd, txg);
 
 	/*
