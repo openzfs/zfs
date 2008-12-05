@@ -1469,7 +1469,7 @@ zpool_do_import(int argc, char **argv)
 
 	if (searchdirs == NULL) {
 		searchdirs = safe_malloc(sizeof (char *));
-		searchdirs[0] = "/dev/dsk";
+		searchdirs[0] = DISK_ROOT;
 		nsearch = 1;
 	}
 
@@ -2223,14 +2223,15 @@ zpool_get_vdev_by_name(nvlist_t *nv, char *name)
 	uint_t c, children;
 	nvlist_t *match;
 	char *path;
+	size_t droot_len = strlen(DISK_ROOT) + 1;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0) {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
-		if (strncmp(name, "/dev/dsk/", 9) == 0)
-			name += 9;
-		if (strncmp(path, "/dev/dsk/", 9) == 0)
-			path += 9;
+		if (strncmp(name, DISK_ROOT "/", droot_len) == 0)
+			name += droot_len;
+		if (strncmp(path, DISK_ROOT "/", droot_len) == 0)
+			path += droot_len;
 		if (strcmp(name, path) == 0)
 			return (nv);
 		return (NULL);
