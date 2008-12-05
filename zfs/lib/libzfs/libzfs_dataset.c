@@ -2874,6 +2874,8 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			goto ancestorerr;
 		}
 
+		/* zfs-lustre: not needed */
+#ifdef HAVE_ZPL
 		if (zfs_mount(h, NULL, 0) != 0) {
 			opname = dgettext(TEXT_DOMAIN, "mount");
 			goto ancestorerr;
@@ -2883,6 +2885,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			opname = dgettext(TEXT_DOMAIN, "share");
 			goto ancestorerr;
 		}
+#endif /* HAVE_ZPL */
 
 		zfs_close(h);
 	}
