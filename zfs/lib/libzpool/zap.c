@@ -388,7 +388,7 @@ zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	rw_init(&l->l_rwlock, 0, 0, 0);
+	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&l->l_rwlock, RW_WRITER);
 	l->l_blkid = zap_allocate_blocks(zap, 1);
 	l->l_dbuf = NULL;
@@ -446,7 +446,7 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 	ASSERT(blkid != 0);
 
 	l = kmem_alloc(sizeof (zap_leaf_t), KM_SLEEP);
-	rw_init(&l->l_rwlock, 0, 0, 0);
+	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&l->l_rwlock, RW_WRITER);
 	l->l_blkid = blkid;
 	l->l_bs = highbit(db->db_size)-1;

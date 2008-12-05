@@ -286,7 +286,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 	ASSERT3U(MZAP_ENT_LEN, ==, sizeof (mzap_ent_phys_t));
 
 	zap = kmem_zalloc(sizeof (zap_t), KM_SLEEP);
-	rw_init(&zap->zap_rwlock, 0, 0, 0);
+	rw_init(&zap->zap_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&zap->zap_rwlock, RW_WRITER);
 	zap->zap_objset = os;
 	zap->zap_object = obj;
