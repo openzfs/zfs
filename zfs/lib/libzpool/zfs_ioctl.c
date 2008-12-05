@@ -349,6 +349,8 @@ zfs_secpolicy_setprop(const char *name, zfs_prop_t prop, cred_t *cr)
 				return (EPERM);
 		}
 		break;
+	default:
+		break;
 	}
 
 	return (zfs_secpolicy_write_perms(name, zfs_prop_to_name(prop), cr));
@@ -1472,6 +1474,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 				    SPA_VERSION_PASSTHROUGH_X))
 					return (ENOTSUP);
 		}
+		default:
+			break;
 	}
 
 	elem = NULL;

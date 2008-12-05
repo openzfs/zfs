@@ -393,6 +393,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			    strcmp(slash, "/..") == 0)
 				error = EINVAL;
 			break;
+		default:
+			break;
 		}
 
 		if (error)
