@@ -6,3 +6,4 @@ gcc-invalid-prototype
 gcc-missing-case
 gcc-no-parenthesis
 gcc-uninit
+gcc-unused
