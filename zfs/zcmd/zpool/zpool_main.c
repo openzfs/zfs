@@ -2061,9 +2061,9 @@ print_header(zprop_list_t *pl)
 		if (pl->pl_next == NULL && !right_justify)
 			(void) printf("%s", header);
 		else if (right_justify)
-			(void) printf("%*s", pl->pl_width, header);
+			(void) printf("%*s", (int)pl->pl_width, header);
 		else
-			(void) printf("%-*s", pl->pl_width, header);
+			(void) printf("%-*s", (int)pl->pl_width, header);
 	}
 
 	(void) printf("\n");
@@ -3368,7 +3368,7 @@ upgrade_one(zpool_handle_t *zhp, void *data)
 	if (cur_version > cbp->cb_version) {
 		(void) printf(gettext("Pool '%s' is already formatted "
 		    "using more current version '%llu'.\n"),
-		    zpool_get_name(zhp), cur_version);
+		    zpool_get_name(zhp), (u_longlong_t) cur_version);
 		return (0);
 	}
 	if (cur_version == cbp->cb_version) {
@@ -3631,8 +3631,8 @@ get_history_one(zpool_handle_t *zhp, void *data)
 				continue;
 			(void) snprintf(internalstr,
 			    sizeof (internalstr),
-			    "[internal %s txg:%lld] %s",
-			    hist_event_table[ievent], txg,
+			    "[internal %s txg:%llu] %s",
+			    hist_event_table[ievent], (u_longlong_t)txg,
 			    pathstr);
 			cmdstr = internalstr;
 		}

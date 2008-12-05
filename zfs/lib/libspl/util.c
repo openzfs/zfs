@@ -109,7 +109,7 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 		(void) printf("%*s%s%*s%*s%*s %5s %5s %5s %5s %5s %5s %5s\n",
 		    indent, "",
 		    prefix,
-		    indent + strlen(prefix) - 25 - (vs->vs_space ? 0 : 12),
+		    (int)(indent+strlen(prefix)-25-(vs->vs_space ? 0 : 12)),
 		    desc,
 		    vs->vs_space ? 6 : 0, vs->vs_space ? used : "",
 		    vs->vs_space ? 6 : 0, vs->vs_space ? avail : "",

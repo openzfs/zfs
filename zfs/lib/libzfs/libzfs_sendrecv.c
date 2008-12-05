@@ -915,7 +915,7 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 
 		(void) strncpy(newname, name, baselen);
 		(void) snprintf(newname+baselen, ZFS_MAXNAMELEN-baselen,
-		    "recv-%u-%u", getpid(), seq);
+		    "recv-%ld-%u", (long) getpid(), seq);
 		(void) strlcpy(zc.zc_value, newname, sizeof (zc.zc_value));
 
 		if (flags.verbose) {
@@ -1665,7 +1665,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			(void) printf("found clone origin %s\n", zc.zc_string);
 	}
 
-	stream_wantsnewfs = (drrb->drr_fromguid == NULL ||
+	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
 	    (drrb->drr_flags & DRR_FLAG_CLONE));
 
 	if (stream_wantsnewfs) {
