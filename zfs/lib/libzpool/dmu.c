@@ -539,8 +539,8 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 }
 
 int
-dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    void *buf)
+dmu_read_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    void *buf, int flags)
 {
 	dnode_t *dn;
 	dmu_buf_t **dbp;
@@ -584,7 +584,8 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = (int)MIN(db->db_size - bufoff, size);
 
-			bcopy((char *)db->db_data + bufoff, buf, tocpy);
+			if (!(flags & DMU_READ_ZEROCOPY))
+				bcopy((char *)db->db_data + bufoff, buf, tocpy);
 
 			offset += tocpy;
 			size -= tocpy;
@@ -596,9 +597,16 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	return (err);
 }
 
+int
+dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    void *buf)
+{
+	return dmu_read_impl(os, object, offset, size, buf, 0);
+}
+
 void
-dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx)
+dmu_write_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx, int flags)
 {
 	dmu_buf_t **dbp;
 	int numbufs, i;
@@ -626,7 +634,8 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		bcopy(buf, (char *)db->db_data + bufoff, tocpy);
+		if (!(flags & DMU_WRITE_ZEROCOPY))
+			bcopy(buf, (char *)db->db_data + bufoff, tocpy);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
@@ -659,7 +668,14 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
-#ifdef _KERNEL
+void
+dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_write_impl(os, object, offset, size, buf, tx, 0);
+}
+
+#if defined(_KERNEL) && defined(HAVE_UIO_RW)
 int
 dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 {
@@ -1229,7 +1245,9 @@ dmu_fini(void)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_bonus_hold);
 EXPORT_SYMBOL(dmu_free_range);
+EXPORT_SYMBOL(dmu_read_impl);
 EXPORT_SYMBOL(dmu_read);
+EXPORT_SYMBOL(dmu_write_impl);
 EXPORT_SYMBOL(dmu_write);
 
 /* Get information on a DMU object. */
