@@ -4,8 +4,7 @@ CMD := zpool
 
 HOSTCFLAGS += @HOSTCFLAGS@
 HOSTCFLAGS += -I@CMDDIR@/zpool/
-HOSTCFLAGS += -I@LIBDIR@/libsolcompat/include
-HOSTCFLAGS += -I@LIBDIR@/libport/include
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 HOSTCFLAGS += -I@LIBDIR@/libavl/include
 HOSTCFLAGS += -I@LIBDIR@/libnvpair/include
 HOSTCFLAGS += -I@LIBDIR@/libumem/include
@@ -17,13 +16,12 @@ HOSTLDFLAGS += -lavl -L@LIBDIR@/libavl
 HOSTLDFLAGS += -lnvpair -L@LIBDIR@/libnvpair
 HOSTLDFLAGS += -lumem -L@LIBDIR@/libumem
 HOSTLDFLAGS += -luutil -L@LIBDIR@/libuutil
-HOSTLDFLAGS += -lzport -L@LIBDIR@/libport
-HOSTLDFLAGS += -lsolcompat -L@LIBDIR@/libsolcompat
+HOSTLDFLAGS += -lzport -L@LIBDIR@/libspl
 HOSTLDFLAGS += -lzcommon -L@LIBDIR@/libzcommon
 HOSTLDFLAGS += -lzfs -L@LIBDIR@/libzfs
 
 # Additional shared library paths for executing binaries in-tree
-export LD_RUN_PATH = @LIBDIR@/libavl:@LIBDIR@/libnvpair:@LIBDIR@/libumem:@LIBDIR@/libuutil:@LIBDIR@/libport:@LIBDIR@/libsolcompat:@LIBDIR@/libzcommon:@LIBDIR@/libzfs
+export LD_RUN_PATH = @LIBDIR@/libavl:@LIBDIR@/libnvpair:@LIBDIR@/libumem:@LIBDIR@/libuutil:@LIBDIR@/libspl:@LIBDIR@/libzcommon:@LIBDIR@/libzfs
 
 hostprogs-y := ${CMD}
 always := $(hostprogs-y)
