@@ -1,0 +1,17 @@
+DISTFILES = Makefile.in *.c
+
+MODULE  := zpios
+
+# Compile as kernel module.  Needed symlinks created for all
+# k* objects created by top level configure script.
+
+EXTRA_CFLAGS  = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -I@LIBDIR@/libzpios/include
+EXTRA_CFLAGS += -I@LIBDIR@/libzcommon/include
+EXTRA_CFLAGS += -I@LIBDIR@/libport/include
+EXTRA_CFLAGS += -I@LIBDIR@/libavl/include
+EXTRA_CFLAGS += -I@LIBDIR@/libnvpair/include
+
+obj-m := ${MODULE}.o
+
+${MODULE}-objs += kpios.o	# Kernel PIOS test case
