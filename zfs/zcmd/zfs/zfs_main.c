@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zfs_main.c	1.58	08/03/24 SMI"
-
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -81,9 +79,10 @@ static int zfs_do_allow(int argc, char **argv);
 static int zfs_do_unallow(int argc, char **argv);
 
 /*
- * These libumem hooks provide a reasonable set of defaults for the allocator's
- * debugging facilities.
+ * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
  */
+
+#ifdef DEBUG
 const char *
 _umem_debug_init(void)
 {
@@ -95,6 +94,7 @@ _umem_logging_init(void)
 {
 	return ("fail,contents"); /* $UMEM_LOGGING setting */
 }
+#endif
 
 typedef enum {
 	HELP_CLONE,
@@ -173,8 +173,8 @@ get_usage(zfs_help_t idx)
 {
 	switch (idx) {
 	case HELP_CLONE:
-		return (gettext("\tclone [-p] <snapshot> "
-		    "<filesystem|volume>\n"));
+		return (gettext("\tclone [-p] [-o property=value] ... "
+		    "<snapshot> <filesystem|volume>\n"));
 	case HELP_CREATE:
 		return (gettext("\tcreate [-p] [-o property=value] ... "
 		    "<filesystem>\n"
@@ -190,7 +190,7 @@ get_usage(zfs_help_t idx)
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_INHERIT:
 		return (gettext("\tinherit [-r] <property> "
-		    "<filesystem|volume> ...\n"));
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade [-v]\n"
 		    "\tupgrade [-r] [-V version] <-a | filesystem ...>\n"));
@@ -219,11 +219,11 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tsend [-R] [-[iI] snapshot] <snapshot>\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> "
-		    "<filesystem|volume> ...\n"));
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_SHARE:
 		return (gettext("\tshare <-a | filesystem>\n"));
 	case HELP_SNAPSHOT:
-		return (gettext("\tsnapshot [-r] "
+		return (gettext("\tsnapshot [-r] [-o property=value] ... "
 		    "<filesystem@snapname|volume@snapname>\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-f] "
@@ -281,14 +281,12 @@ usage_prop_cb(int prop, void *cb)
 {
 	FILE *fp = cb;
 
-	(void) fprintf(fp, "\t%-14s ", zfs_prop_to_name(prop));
+	(void) fprintf(fp, "\t%-15s ", zfs_prop_to_name(prop));
 
-	if (prop == ZFS_PROP_CASE)
-		(void) fprintf(fp, "NO    ");
-	else if (zfs_prop_readonly(prop))
-		(void) fprintf(fp, "  NO    ");
+	if (zfs_prop_readonly(prop))
+		(void) fprintf(fp, " NO    ");
 	else
-		(void) fprintf(fp, " YES    ");
+		(void) fprintf(fp, "YES    ");
 
 	if (zfs_prop_inheritable(prop))
 		(void) fprintf(fp, "  YES   ");
@@ -363,7 +361,7 @@ usage(boolean_t requested)
 
 		(void) fprintf(fp, gettext("\nSizes are specified in bytes "
 		    "with standard units such as K, M, G, etc.\n"));
-		(void) fprintf(fp, gettext("\n\nUser-defined properties can "
+		(void) fprintf(fp, gettext("\nUser-defined properties can "
 		    "be specified by using a name containing a colon (:).\n"));
 
 	} else if (show_permissions) {
@@ -397,8 +395,35 @@ usage(boolean_t requested)
 	exit(requested ? 0 : 2);
 }
 
+static int
+parseprop(nvlist_t *props)
+{
+	char *propname = optarg;
+	char *propval, *strval;
+
+	if ((propval = strchr(propname, '=')) == NULL) {
+		(void) fprintf(stderr, gettext("missing "
+		    "'=' for -o option\n"));
+		return (-1);
+	}
+	*propval = '\0';
+	propval++;
+	if (nvlist_lookup_string(props, propname, &strval) == 0) {
+		(void) fprintf(stderr, gettext("property '%s' "
+		    "specified multiple times\n"), propname);
+		return (-1);
+	}
+	if (nvlist_add_string(props, propname, propval) != 0) {
+		(void) fprintf(stderr, gettext("internal "
+		    "error: out of memory\n"));
+		return (-1);
+	}
+	return (0);
+
+}
+
 /*
- * zfs clone [-p] <snap> <fs | vol>
+ * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
  *
  * Given an existing dataset, create a writable copy whose initial contents
  * are the same as the source.  The newly created dataset maintains a
@@ -410,21 +435,32 @@ usage(boolean_t requested)
 static int
 zfs_do_clone(int argc, char **argv)
 {
-	zfs_handle_t *zhp;
+	zfs_handle_t *zhp = NULL;
 	boolean_t parents = B_FALSE;
+	nvlist_t *props;
 	int ret;
 	int c;
 
+	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0) {
+		(void) fprintf(stderr, gettext("internal error: "
+		    "out of memory\n"));
+		return (1);
+	}
+
 	/* check options */
-	while ((c = getopt(argc, argv, "p")) != -1) {
+	while ((c = getopt(argc, argv, "o:p")) != -1) {
 		switch (c) {
+		case 'o':
+			if (parseprop(props))
+				return (1);
+			break;
 		case 'p':
 			parents = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
-			usage(B_FALSE);
+			goto usage;
 		}
 	}
 
@@ -435,16 +471,16 @@ zfs_do_clone(int argc, char **argv)
 	if (argc < 1) {
 		(void) fprintf(stderr, gettext("missing source dataset "
 		    "argument\n"));
-		usage(B_FALSE);
+		goto usage;
 	}
 	if (argc < 2) {
 		(void) fprintf(stderr, gettext("missing target dataset "
 		    "argument\n"));
-		usage(B_FALSE);
+		goto usage;
 	}
 	if (argc > 2) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
-		usage(B_FALSE);
+		goto usage;
 	}
 
 	/* open the source dataset */
@@ -466,7 +502,7 @@ zfs_do_clone(int argc, char **argv)
 	}
 
 	/* pass to libzfs */
-	ret = zfs_clone(zhp, argv[1], NULL);
+	ret = zfs_clone(zhp, argv[1], props);
 
 	/* create the mountpoint if necessary */
 	if (ret == 0) {
@@ -481,8 +517,16 @@ zfs_do_clone(int argc, char **argv)
 	}
 
 	zfs_close(zhp);
+	nvlist_free(props);
 
-	return (ret == 0 ? 0 : 1);
+	return (!!ret);
+
+usage:
+	if (zhp)
+		zfs_close(zhp);
+	nvlist_free(props);
+	usage(B_FALSE);
+	return (-1);
 }
 
 /*
@@ -511,11 +555,8 @@ zfs_do_create(int argc, char **argv)
 	boolean_t bflag = B_FALSE;
 	boolean_t parents = B_FALSE;
 	int ret = 1;
-	nvlist_t *props = NULL;
+	nvlist_t *props;
 	uint64_t intval;
-	char *propname;
-	char *propval = NULL;
-	char *strval;
 	int canmount;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0) {
@@ -566,25 +607,8 @@ zfs_do_create(int argc, char **argv)
 			}
 			break;
 		case 'o':
-			propname = optarg;
-			if ((propval = strchr(propname, '=')) == NULL) {
-				(void) fprintf(stderr, gettext("missing "
-				    "'=' for -o option\n"));
+			if (parseprop(props))
 				goto error;
-			}
-			*propval = '\0';
-			propval++;
-			if (nvlist_lookup_string(props, propname,
-			    &strval) == 0) {
-				(void) fprintf(stderr, gettext("property '%s' "
-				    "specified multiple times\n"), propname);
-				goto error;
-			}
-			if (nvlist_add_string(props, propname, propval) != 0) {
-				(void) fprintf(stderr, gettext("internal "
-				    "error: out of memory\n"));
-				goto error;
-			}
 			break;
 		case 's':
 			noreserve = B_TRUE;
@@ -626,6 +650,7 @@ zfs_do_create(int argc, char **argv)
 		uint64_t spa_version;
 		char *p;
 		zfs_prop_t resv_prop;
+		char *strval;
 
 		if (p = strchr(argv[0], '/'))
 			*p = '\0';
@@ -1081,8 +1106,7 @@ static int
 zfs_do_get(int argc, char **argv)
 {
 	zprop_get_cbdata_t cb = { 0 };
-	boolean_t recurse = B_FALSE;
-	int i, c;
+	int i, c, flags = 0;
 	char *value, *fields;
 	int ret;
 	zprop_list_t fake_name = { 0 };
@@ -1104,7 +1128,7 @@ zfs_do_get(int argc, char **argv)
 			cb.cb_literal = B_TRUE;
 			break;
 		case 'r':
-			recurse = B_TRUE;
+			flags |= ZFS_ITER_RECURSE;
 			break;
 		case 'H':
 			cb.cb_scripted = B_TRUE;
@@ -1232,8 +1256,8 @@ zfs_do_get(int argc, char **argv)
 	cb.cb_first = B_TRUE;
 
 	/* run for each object */
-	ret = zfs_for_each(argc, argv, recurse, ZFS_TYPE_DATASET, NULL,
-	    &cb.cb_proplist, get_callback, &cb, B_FALSE);
+	ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET, NULL,
+	    &cb.cb_proplist, get_callback, &cb);
 
 	if (cb.cb_proplist == &fake_name)
 		zprop_free_list(fake_name.pl_next);
@@ -1256,29 +1280,44 @@ zfs_do_get(int argc, char **argv)
  */
 
 static int
-inherit_callback(zfs_handle_t *zhp, void *data)
+inherit_recurse_cb(zfs_handle_t *zhp, void *data)
 {
 	char *propname = data;
-	int ret;
+	zfs_prop_t prop = zfs_name_to_prop(propname);
 
-	ret = zfs_prop_inherit(zhp, propname);
-	return (ret != 0);
+	/*
+	 * If we're doing it recursively, then ignore properties that
+	 * are not valid for this type of dataset.
+	 */
+	if (prop != ZPROP_INVAL &&
+	    !zfs_prop_valid_for_type(prop, zfs_get_type(zhp)))
+		return (0);
+
+	return (zfs_prop_inherit(zhp, propname) != 0);
+}
+
+static int
+inherit_cb(zfs_handle_t *zhp, void *data)
+{
+	char *propname = data;
+
+	return (zfs_prop_inherit(zhp, propname) != 0);
 }
 
 static int
 zfs_do_inherit(int argc, char **argv)
 {
-	boolean_t recurse = B_FALSE;
 	int c;
 	zfs_prop_t prop;
 	char *propname;
 	int ret;
+	int flags = 0;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "r")) != -1) {
 		switch (c) {
 		case 'r':
-			recurse = B_TRUE;
+			flags |= ZFS_ITER_RECURSE;
 			break;
 		case '?':
 		default:
@@ -1329,9 +1368,13 @@ zfs_do_inherit(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = zfs_for_each(argc, argv, recurse,
-	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, NULL, NULL,
-	    inherit_callback, propname, B_FALSE);
+	if (flags & ZFS_ITER_RECURSE) {
+		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET,
+		    NULL, NULL, inherit_recurse_cb, propname);
+	} else {
+		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_DATASET,
+		    NULL, NULL, inherit_cb, propname);
+	}
 
 	return (ret);
 }
@@ -1455,18 +1498,18 @@ upgrade_set_callback(zfs_handle_t *zhp, void *data)
 static int
 zfs_do_upgrade(int argc, char **argv)
 {
-	boolean_t recurse = B_FALSE;
 	boolean_t all = B_FALSE;
 	boolean_t showversions = B_FALSE;
 	int ret;
 	upgrade_cbdata_t cb = { 0 };
 	char c;
+	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "rvV:a")) != -1) {
 		switch (c) {
 		case 'r':
-			recurse = B_TRUE;
+			flags |= ZFS_ITER_RECURSE;
 			break;
 		case 'v':
 			showversions = B_TRUE;
@@ -1493,9 +1536,10 @@ zfs_do_upgrade(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if ((!all && !argc) && (recurse | cb.cb_version))
+	if ((!all && !argc) && ((flags & ZFS_ITER_RECURSE) | cb.cb_version))
 		usage(B_FALSE);
-	if (showversions && (recurse || all || cb.cb_version || argc))
+	if (showversions && (flags & ZFS_ITER_RECURSE || all ||
+	    cb.cb_version || argc))
 		usage(B_FALSE);
 	if ((all || argc) && (showversions))
 		usage(B_FALSE);
@@ -1523,8 +1567,8 @@ zfs_do_upgrade(int argc, char **argv)
 		/* Upgrade filesystems */
 		if (cb.cb_version == 0)
 			cb.cb_version = ZPL_VERSION;
-		ret = zfs_for_each(argc, argv, recurse, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, upgrade_set_callback, &cb, B_TRUE);
+		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_FILESYSTEM,
+		    NULL, NULL, upgrade_set_callback, &cb);
 		(void) printf(gettext("%llu filesystems upgraded\n"),
 		    cb.cb_numupgraded);
 		if (cb.cb_numsamegraded) {
@@ -1540,15 +1584,16 @@ zfs_do_upgrade(int argc, char **argv)
 		(void) printf(gettext("This system is currently running "
 		    "ZFS filesystem version %llu.\n\n"), ZPL_VERSION);
 
-		ret = zfs_for_each(0, NULL, B_TRUE, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, upgrade_list_callback, &cb, B_TRUE);
+		flags |= ZFS_ITER_RECURSE;
+		ret = zfs_for_each(0, NULL, flags, ZFS_TYPE_FILESYSTEM,
+		    NULL, NULL, upgrade_list_callback, &cb);
 
 		found = cb.cb_foundone;
 		cb.cb_foundone = B_FALSE;
 		cb.cb_newer = B_TRUE;
 
-		ret = zfs_for_each(0, NULL, B_TRUE, ZFS_TYPE_FILESYSTEM,
-		    NULL, NULL, upgrade_list_callback, &cb, B_TRUE);
+		ret = zfs_for_each(0, NULL, flags, ZFS_TYPE_FILESYSTEM,
+		    NULL, NULL, upgrade_list_callback, &cb);
 
 		if (!cb.cb_foundone && !found) {
 			(void) printf(gettext("All filesystems are "
@@ -1706,18 +1751,17 @@ static int
 zfs_do_list(int argc, char **argv)
 {
 	int c;
-	boolean_t recurse = B_FALSE;
 	boolean_t scripted = B_FALSE;
 	static char default_fields[] =
 	    "name,used,available,referenced,mountpoint";
-	int types = ZFS_TYPE_DATASET;
+	int types = ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME;
+	boolean_t types_specified = B_FALSE;
 	char *fields = NULL;
-	char *basic_fields = default_fields;
 	list_cbdata_t cb = { 0 };
 	char *value;
 	int ret;
-	char *type_subopts[] = { "filesystem", "volume", "snapshot", NULL };
 	zfs_sort_column_t *sortcol = NULL;
+	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
 	while ((c = getopt(argc, argv, ":o:rt:Hs:S:")) != -1) {
@@ -1726,7 +1770,7 @@ zfs_do_list(int argc, char **argv)
 			fields = optarg;
 			break;
 		case 'r':
-			recurse = B_TRUE;
+			flags |= ZFS_ITER_RECURSE;
 			break;
 		case 'H':
 			scripted = B_TRUE;
@@ -1749,7 +1793,12 @@ zfs_do_list(int argc, char **argv)
 			break;
 		case 't':
 			types = 0;
+			types_specified = B_TRUE;
+			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
 			while (*optarg != '\0') {
+				static char *type_subopts[] = { "filesystem",
+				    "volume", "snapshot", "all", NULL };
+
 				switch (getsubopt(&optarg, type_subopts,
 				    &value)) {
 				case 0:
@@ -1761,6 +1810,10 @@ zfs_do_list(int argc, char **argv)
 				case 2:
 					types |= ZFS_TYPE_SNAPSHOT;
 					break;
+				case 3:
+					types = ZFS_TYPE_DATASET;
+					break;
+
 				default:
 					(void) fprintf(stderr,
 					    gettext("invalid type '%s'\n"),
@@ -1785,7 +1838,13 @@ zfs_do_list(int argc, char **argv)
 	argv += optind;
 
 	if (fields == NULL)
-		fields = basic_fields;
+		fields = default_fields;
+
+	/*
+	 * If "-o space" and no types were specified, don't display snapshots.
+	 */
+	if (strcmp(fields, "space") == 0 && types_specified == B_FALSE)
+		types &= ~ZFS_TYPE_SNAPSHOT;
 
 	/*
 	 * If the user specifies '-o all', the zprop_get_list() doesn't
@@ -1799,8 +1858,8 @@ zfs_do_list(int argc, char **argv)
 	cb.cb_scripted = scripted;
 	cb.cb_first = B_TRUE;
 
-	ret = zfs_for_each(argc, argv, recurse, types, sortcol, &cb.cb_proplist,
-	    list_callback, &cb, B_TRUE);
+	ret = zfs_for_each(argc, argv, flags, types, sortcol, &cb.cb_proplist,
+	    list_callback, &cb);
 
 	zprop_free_list(cb.cb_proplist);
 	zfs_free_sort_columns(sortcol);
@@ -2166,7 +2225,8 @@ zfs_do_set(int argc, char **argv)
 
 	/* validate property=value argument */
 	cb.cb_propname = argv[1];
-	if ((cb.cb_value = strchr(cb.cb_propname, '=')) == NULL) {
+	if (((cb.cb_value = strchr(cb.cb_propname, '=')) == NULL) ||
+	    (cb.cb_value[1] == '\0')) {
 		(void) fprintf(stderr, gettext("missing value in "
 		    "property=value argument\n"));
 		usage(B_FALSE);
@@ -2181,15 +2241,14 @@ zfs_do_set(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-
-	ret = zfs_for_each(argc - 2, argv + 2, B_FALSE,
-	    ZFS_TYPE_DATASET, NULL, NULL, set_callback, &cb, B_FALSE);
+	ret = zfs_for_each(argc - 2, argv + 2, NULL,
+	    ZFS_TYPE_DATASET, NULL, NULL, set_callback, &cb);
 
 	return (ret);
 }
 
 /*
- * zfs snapshot [-r] <fs@snap>
+ * zfs snapshot [-r] [-o prop=value] ... <fs@snap>
  *
  * Creates a snapshot with the given name.  While functionally equivalent to
  * 'zfs create', it is a separate command to differentiate intent.
@@ -2200,17 +2259,28 @@ zfs_do_snapshot(int argc, char **argv)
 	boolean_t recursive = B_FALSE;
 	int ret;
 	char c;
+	nvlist_t *props;
+
+	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0) {
+		(void) fprintf(stderr, gettext("internal error: "
+		    "out of memory\n"));
+		return (1);
+	}
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":r")) != -1) {
+	while ((c = getopt(argc, argv, "ro:")) != -1) {
 		switch (c) {
+		case 'o':
+			if (parseprop(props))
+				return (1);
+			break;
 		case 'r':
 			recursive = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
-			usage(B_FALSE);
+			goto usage;
 		}
 	}
 
@@ -2220,17 +2290,23 @@ zfs_do_snapshot(int argc, char **argv)
 	/* check number of arguments */
 	if (argc < 1) {
 		(void) fprintf(stderr, gettext("missing snapshot argument\n"));
-		usage(B_FALSE);
+		goto usage;
 	}
 	if (argc > 1) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
-		usage(B_FALSE);
+		goto usage;
 	}
 
-	ret = zfs_snapshot(g_zfs, argv[0], recursive);
+	ret = zfs_snapshot(g_zfs, argv[0], recursive, props);
+	nvlist_free(props);
 	if (ret && recursive)
 		(void) fprintf(stderr, gettext("no snapshots were created\n"));
 	return (ret != 0);
+
+usage:
+	nvlist_free(props);
+	usage(B_FALSE);
+	return (-1);
 }
 
 /*
@@ -2787,14 +2863,17 @@ zfs_do_unallow(int argc, char **argv)
 	char *ds;
 	int error;
 	nvlist_t *zperms = NULL;
+	int flags = 0;
 
 	if (parse_allow_args(&argc, &argv, B_TRUE,
 	    &ds, &recurse, &zperms) == -1)
 		return (1);
 
-	error = zfs_for_each(argc, argv, recurse,
+	if (recurse)
+		flags |= ZFS_ITER_RECURSE;
+	error = zfs_for_each(argc, argv, flags,
 	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME, NULL,
-	    NULL, unallow_callback, (void *)zperms, B_FALSE);
+	    NULL, unallow_callback, (void *)zperms);
 
 	if (zperms)
 		nvlist_free(zperms);
@@ -3466,8 +3545,17 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	    ZFS_TYPE_FILESYSTEM)) == NULL)
 		return (1);
 
-
 	ret = 1;
+	if (stat64(entry.mnt_mountp, &statbuf) != 0) {
+		(void) fprintf(stderr, gettext("cannot %s '%s': %s\n"),
+		    cmdname, path, strerror(errno));
+		goto out;
+	} else if (statbuf.st_ino != path_inode) {
+		(void) fprintf(stderr, gettext("cannot "
+		    "%s '%s': not a mountpoint\n"), cmdname, path);
+		goto out;
+	}
+
 	if (op == OP_SHARE) {
 		char nfs_mnt_prop[ZFS_MAXPROPLEN];
 		char smbshare_prop[ZFS_MAXPROPLEN];
@@ -3495,13 +3583,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		verify(zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mtpt_prop,
 		    sizeof (mtpt_prop), NULL, NULL, 0, B_FALSE) == 0);
 
-		if (stat64(entry.mnt_mountp, &statbuf) != 0) {
-			(void) fprintf(stderr, gettext("cannot %s '%s': %s\n"),
-			    cmdname, path, strerror(errno));
-		} else if (statbuf.st_ino != path_inode) {
-			(void) fprintf(stderr, gettext("cannot "
-			    "unmount '%s': not a mountpoint\n"), path);
-		} else if (is_manual) {
+		if (is_manual) {
 			ret = zfs_unmount(zhp, NULL, flags);
 		} else if (strcmp(mtpt_prop, "legacy") == 0) {
 			(void) fprintf(stderr, gettext("cannot unmount "
@@ -3514,6 +3596,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		}
 	}
 
+out:
 	zfs_close(zhp);
 
 	return (ret != 0);

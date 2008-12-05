@@ -20,11 +20,9 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)vdev_raidz.c	1.10	07/11/27 SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -194,6 +192,18 @@ vdev_raidz_exp2(uint_t a, int exp)
 	return (vdev_raidz_pow2[exp]);
 }
 
+static void
+vdev_raidz_map_free(zio_t *zio)
+{
+	raidz_map_t *rm = zio->io_vsd;
+	int c;
+
+	for (c = 0; c < rm->rm_firstdatacol; c++)
+		zio_buf_free(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
+
+	kmem_free(rm, offsetof(raidz_map_t, rm_col[rm->rm_cols]));
+}
+
 static raidz_map_t *
 vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
     uint64_t nparity)
@@ -276,20 +286,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	}
 
 	zio->io_vsd = rm;
+	zio->io_vsd_free = vdev_raidz_map_free;
 	return (rm);
-}
-
-static void
-vdev_raidz_map_free(zio_t *zio)
-{
-	raidz_map_t *rm = zio->io_vsd;
-	int c;
-
-	for (c = 0; c < rm->rm_firstdatacol; c++)
-		zio_buf_free(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
-
-	kmem_free(rm, offsetof(raidz_map_t, rm_col[rm->rm_cols]));
-	zio->io_vsd = NULL;
 }
 
 static void
@@ -632,13 +630,6 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
-static void
-vdev_raidz_repair_done(zio_t *zio)
-{
-	ASSERT(zio->io_private == zio->io_parent);
-	vdev_raidz_map_free(zio->io_private);
-}
-
 static int
 vdev_raidz_io_start(zio_t *zio)
 {
@@ -669,11 +660,11 @@ vdev_raidz_io_start(zio_t *zio)
 			cvd = vd->vdev_child[rc->rc_devidx];
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
-			    zio->io_type, zio->io_priority, ZIO_FLAG_CANFAIL,
+			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		}
 
-		return (zio_wait_for_children_done(zio));
+		return (ZIO_PIPELINE_CONTINUE);
 	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -709,12 +700,12 @@ vdev_raidz_io_start(zio_t *zio)
 		    (zio->io_flags & ZIO_FLAG_SCRUB)) {
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
-			    zio->io_type, zio->io_priority, ZIO_FLAG_CANFAIL,
+			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		}
 	}
 
-	return (zio_wait_for_children_done(zio));
+	return (ZIO_PIPELINE_CONTINUE);
 }
 
 /*
@@ -724,8 +715,6 @@ static void
 raidz_checksum_error(zio_t *zio, raidz_col_t *rc)
 {
 	vdev_t *vd = zio->io_vd->vdev_child[rc->rc_devidx];
-	dprintf_bp(zio->io_bp, "imputed checksum error on %s: ",
-	    vdev_description(vd));
 
 	if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 		mutex_enter(&vd->vdev_stat_lock);
@@ -784,6 +773,17 @@ static uint64_t raidz_corrected_q;
 static uint64_t raidz_corrected_pq;
 
 static int
+vdev_raidz_worst_error(raidz_map_t *rm)
+{
+	int error = 0;
+
+	for (int c = 0; c < rm->rm_cols; c++)
+		error = zio_worst_error(error, rm->rm_col[c].rc_error);
+
+	return (error);
+}
+
+static void
 vdev_raidz_io_done(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
@@ -794,12 +794,10 @@ vdev_raidz_io_done(zio_t *zio)
 	int parity_errors = 0;
 	int parity_untried = 0;
 	int data_errors = 0;
+	int total_errors = 0;
 	int n, c, c1;
 
 	ASSERT(zio->io_bp != NULL);  /* XXX need to add code to enforce this */
-
-	zio->io_error = 0;
-	zio->io_numerrors = 0;
 
 	ASSERT(rm->rm_missingparity <= rm->rm_firstdatacol);
 	ASSERT(rm->rm_missingdata <= rm->rm_cols - rm->rm_firstdatacol);
@@ -807,13 +805,8 @@ vdev_raidz_io_done(zio_t *zio)
 	for (c = 0; c < rm->rm_cols; c++) {
 		rc = &rm->rm_col[c];
 
-		/*
-		 * We preserve any EIOs because those may be worth retrying;
-		 * whereas ECKSUM and ENXIO are more likely to be persistent.
-		 */
 		if (rc->rc_error) {
-			if (zio->io_error != EIO)
-				zio->io_error = rc->rc_error;
+			ASSERT(rc->rc_error != ECKSUM);	/* child has no bp */
 
 			if (c < rm->rm_firstdatacol)
 				parity_errors++;
@@ -823,7 +816,7 @@ vdev_raidz_io_done(zio_t *zio)
 			if (!rc->rc_skipped)
 				unexpected_errors++;
 
-			zio->io_numerrors++;
+			total_errors++;
 		} else if (c < rm->rm_firstdatacol && !rc->rc_tried) {
 			parity_untried++;
 		}
@@ -831,17 +824,20 @@ vdev_raidz_io_done(zio_t *zio)
 
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		/*
-		 * If this is not a failfast write, and we were able to
-		 * write enough columns to reconstruct the data, good enough.
+		 * XXX -- for now, treat partial writes as a success.
+		 * (If we couldn't write enough columns to reconstruct
+		 * the data, the I/O failed.  Otherwise, good enough.)
+		 *
+		 * Now that we support write reallocation, it would be better
+		 * to treat partial failure as real failure unless there are
+		 * no non-degraded top-level vdevs left, and not update DTLs
+		 * if we intend to reallocate.
 		 */
 		/* XXPOLICY */
-		if (zio->io_numerrors <= rm->rm_firstdatacol &&
-		    !(zio->io_flags & ZIO_FLAG_FAILFAST))
-			zio->io_error = 0;
+		if (total_errors > rm->rm_firstdatacol)
+			zio->io_error = vdev_raidz_worst_error(rm);
 
-		vdev_raidz_map_free(zio);
-
-		return (ZIO_PIPELINE_CONTINUE);
+		return;
 	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -862,12 +858,10 @@ vdev_raidz_io_done(zio_t *zio)
 	 * has a valid checksum. Naturally, this case applies in the absence of
 	 * any errors.
 	 */
-	if (zio->io_numerrors <= rm->rm_firstdatacol - parity_untried) {
+	if (total_errors <= rm->rm_firstdatacol - parity_untried) {
 		switch (data_errors) {
 		case 0:
 			if (zio_checksum_error(zio) == 0) {
-				zio->io_error = 0;
-
 				/*
 				 * If we read parity information (unnecessarily
 				 * as it happens since no reconstruction was
@@ -919,7 +913,6 @@ vdev_raidz_io_done(zio_t *zio)
 			}
 
 			if (zio_checksum_error(zio) == 0) {
-				zio->io_error = 0;
 				if (rm->rm_col[VDEV_RAIDZ_P].rc_error == 0)
 					atomic_inc_64(&raidz_corrected_p);
 				else
@@ -981,9 +974,7 @@ vdev_raidz_io_done(zio_t *zio)
 			vdev_raidz_reconstruct_pq(rm, c1, c);
 
 			if (zio_checksum_error(zio) == 0) {
-				zio->io_error = 0;
 				atomic_inc_64(&raidz_corrected_pq);
-
 				goto done;
 			}
 			break;
@@ -1009,7 +1000,6 @@ vdev_raidz_io_done(zio_t *zio)
 		if (rm->rm_col[c].rc_tried)
 			continue;
 
-		zio->io_error = 0;
 		zio_vdev_io_redone(zio);
 		do {
 			rc = &rm->rm_col[c];
@@ -1018,12 +1008,11 @@ vdev_raidz_io_done(zio_t *zio)
 			zio_nowait(zio_vdev_child_io(zio, NULL,
 			    vd->vdev_child[rc->rc_devidx],
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
-			    zio->io_type, zio->io_priority, ZIO_FLAG_CANFAIL,
+			    zio->io_type, zio->io_priority, 0,
 			    vdev_raidz_child_done, rc));
 		} while (++c < rm->rm_cols);
-		dprintf("rereading\n");
 
-		return (zio_wait_for_children_done(zio));
+		return;
 	}
 
 	/*
@@ -1034,8 +1023,15 @@ vdev_raidz_io_done(zio_t *zio)
 	 * in absent data. Before we attempt combinatorial reconstruction make
 	 * sure we have a chance of coming up with the right answer.
 	 */
-	if (zio->io_numerrors >= rm->rm_firstdatacol) {
-		ASSERT(zio->io_error != 0);
+	if (total_errors >= rm->rm_firstdatacol) {
+		zio->io_error = vdev_raidz_worst_error(rm);
+		/*
+		 * If there were exactly as many device errors as parity
+		 * columns, yet we couldn't reconstruct the data, then at
+		 * least one device must have returned bad data silently.
+		 */
+		if (total_errors == rm->rm_firstdatacol)
+			zio->io_error = zio_worst_error(zio->io_error, ECKSUM);
 		goto done;
 	}
 
@@ -1053,7 +1049,6 @@ vdev_raidz_io_done(zio_t *zio)
 
 			if (zio_checksum_error(zio) == 0) {
 				zio_buf_free(orig, rc->rc_size);
-				zio->io_error = 0;
 				atomic_inc_64(&raidz_corrected_p);
 
 				/*
@@ -1085,7 +1080,6 @@ vdev_raidz_io_done(zio_t *zio)
 
 			if (zio_checksum_error(zio) == 0) {
 				zio_buf_free(orig, rc->rc_size);
-				zio->io_error = 0;
 				atomic_inc_64(&raidz_corrected_q);
 
 				/*
@@ -1127,7 +1121,6 @@ vdev_raidz_io_done(zio_t *zio)
 				if (zio_checksum_error(zio) == 0) {
 					zio_buf_free(orig, rc->rc_size);
 					zio_buf_free(orig1, rc1->rc_size);
-					zio->io_error = 0;
 					atomic_inc_64(&raidz_corrected_pq);
 
 					/*
@@ -1159,6 +1152,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 * all children.
 	 */
 	zio->io_error = ECKSUM;
+
 	if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 		for (c = 0; c < rm->rm_cols; c++) {
 			rc = &rm->rm_col[c];
@@ -1173,18 +1167,9 @@ done:
 
 	if (zio->io_error == 0 && (spa_mode & FWRITE) &&
 	    (unexpected_errors || (zio->io_flags & ZIO_FLAG_RESILVER))) {
-		zio_t *rio;
-
 		/*
 		 * Use the good data we have in hand to repair damaged children.
-		 *
-		 * We issue all repair I/Os as children of 'rio' to arrange
-		 * that vdev_raidz_map_free(zio) will be invoked after all
-		 * repairs complete, but before we advance to the next stage.
 		 */
-		rio = zio_null(zio, zio->io_spa,
-		    vdev_raidz_repair_done, zio, ZIO_FLAG_CANFAIL);
-
 		for (c = 0; c < rm->rm_cols; c++) {
 			rc = &rm->rm_col[c];
 			cvd = vd->vdev_child[rc->rc_devidx];
@@ -1192,26 +1177,12 @@ done:
 			if (rc->rc_error == 0)
 				continue;
 
-			dprintf("%s resilvered %s @ 0x%llx error %d\n",
-			    vdev_description(vd),
-			    vdev_description(cvd),
-			    zio->io_offset, rc->rc_error);
-
-			zio_nowait(zio_vdev_child_io(rio, NULL, cvd,
+			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
 			    ZIO_TYPE_WRITE, zio->io_priority,
-			    ZIO_FLAG_IO_REPAIR | ZIO_FLAG_DONT_PROPAGATE |
-			    ZIO_FLAG_CANFAIL, NULL, NULL));
+			    ZIO_FLAG_IO_REPAIR, NULL, NULL));
 		}
-
-		zio_nowait(rio);
-
-		return (zio_wait_for_children_done(zio));
 	}
-
-	vdev_raidz_map_free(zio);
-
-	return (ZIO_PIPELINE_CONTINUE);
 }
 
 static void
@@ -1229,7 +1200,6 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 vdev_ops_t vdev_raidz_ops = {
 	vdev_raidz_open,
 	vdev_raidz_close,
-	NULL,
 	vdev_raidz_asize,
 	vdev_raidz_io_start,
 	vdev_raidz_io_done,

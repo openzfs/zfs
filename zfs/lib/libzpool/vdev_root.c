@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)vdev_root.c	1.5	07/10/24 SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -48,7 +46,7 @@ static int
 too_many_errors(vdev_t *vd, int numerrors)
 {
 	ASSERT3U(numerrors, <=, vd->vdev_children);
-	return (numerrors == vd->vdev_children);
+	return (numerrors > 0);
 }
 
 static int
@@ -67,22 +65,17 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 		vdev_t *cvd = vd->vdev_child[c];
 		int error;
 
-		if ((error = vdev_open(cvd)) != 0) {
+		if ((error = vdev_open(cvd)) != 0 &&
+		    !cvd->vdev_islog) {
 			lasterror = error;
 			numerrors++;
 			continue;
 		}
 	}
 
-	if (numerrors > 0) {
-		if (!too_many_errors(vd, numerrors)) {
-			/* XXX - should not be explicitly setting this state */
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_FAULTED,
-			    VDEV_AUX_NO_REPLICAS);
-		} else {
-			vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
-			return (lasterror);
-		}
+	if (too_many_errors(vd, numerrors)) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
+		return (lasterror);
 	}
 
 	*asize = 0;
@@ -103,13 +96,9 @@ vdev_root_close(vdev_t *vd)
 static void
 vdev_root_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	if (faulted) {
-		if (too_many_errors(vd, faulted))
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_NO_REPLICAS);
-		else
-			vdev_set_state(vd, B_FALSE, VDEV_STATE_FAULTED,
-			    VDEV_AUX_NO_REPLICAS);
+	if (too_many_errors(vd, faulted)) {
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_NO_REPLICAS);
 	} else if (degraded) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_DEGRADED, VDEV_AUX_NONE);
 	} else {
@@ -120,7 +109,6 @@ vdev_root_state_change(vdev_t *vd, int faulted, int degraded)
 vdev_ops_t vdev_root_ops = {
 	vdev_root_open,
 	vdev_root_close,
-	NULL,
 	vdev_default_asize,
 	NULL,			/* io_start - not applicable to the root */
 	NULL,			/* io_done - not applicable to the root */

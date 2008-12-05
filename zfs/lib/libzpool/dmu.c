@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"@(#)dmu.c	1.30	07/11/09 SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
@@ -44,6 +42,7 @@
 #include <sys/zio_checksum.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
+#include <sys/zfs_znode.h>
 #endif
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
@@ -84,6 +83,8 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	byteswap_uint8_array,	TRUE,	"ZFS SYSACL"		},
 	{	byteswap_uint8_array,	TRUE,	"FUID table"		},
 	{	byteswap_uint64_array,	TRUE,	"FUID table size"	},
+	{	zap_byteswap,		TRUE,	"DSL dataset next clones"},
+	{	zap_byteswap,		TRUE,	"scrub work queue"	},
 };
 
 int
@@ -182,11 +183,13 @@ static int
 dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
     uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
 {
+	dsl_pool_t *dp = NULL;
 	dmu_buf_t **dbp;
 	uint64_t blkid, nblks, i;
 	uint32_t flags;
 	int err;
 	zio_t *zio;
+	hrtime_t start;
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
@@ -213,7 +216,11 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 	}
 	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_SLEEP);
 
-	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, TRUE);
+	if (dn->dn_objset->os_dsl_dataset)
+		dp = dn->dn_objset->os_dsl_dataset->ds_dir->dd_pool;
+	if (dp && dsl_pool_sync_context(dp))
+		start = gethrtime();
+	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, offset);
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid+i, tag);
@@ -235,6 +242,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 
 	/* wait for async i/o */
 	err = zio_wait(zio);
+	/* track read overhead when we are in sync context */
+	if (dp && dsl_pool_sync_context(dp))
+		dp->dp_read_overhead += gethrtime() - start;
 	if (err) {
 		dmu_buf_rele_array(dbp, nblks, tag);
 		return (err);
@@ -364,6 +374,155 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 	dnode_rele(dn, FTAG);
 }
 
+static int
+get_next_chunk(dnode_t *dn, uint64_t *offset, uint64_t limit)
+{
+	uint64_t len = *offset - limit;
+	uint64_t chunk_len = dn->dn_datablksz * DMU_MAX_DELETEBLKCNT;
+	uint64_t subchunk =
+	    dn->dn_datablksz * EPB(dn->dn_indblkshift, SPA_BLKPTRSHIFT);
+
+	ASSERT(limit <= *offset);
+
+	if (len <= chunk_len) {
+		*offset = limit;
+		return (0);
+	}
+
+	ASSERT(ISP2(subchunk));
+
+	while (*offset > limit) {
+		uint64_t initial_offset = P2ROUNDUP(*offset, subchunk);
+		uint64_t delta;
+		int err;
+
+		/* skip over allocated data */
+		err = dnode_next_offset(dn,
+		    DNODE_FIND_HOLE|DNODE_FIND_BACKWARDS, offset, 1, 1, 0);
+		if (err == ESRCH)
+			*offset = limit;
+		else if (err)
+			return (err);
+
+		ASSERT3U(*offset, <=, initial_offset);
+		*offset = P2ALIGN(*offset, subchunk);
+		delta = initial_offset - *offset;
+		if (delta >= chunk_len) {
+			*offset += delta - chunk_len;
+			return (0);
+		}
+		chunk_len -= delta;
+
+		/* skip over unallocated data */
+		err = dnode_next_offset(dn,
+		    DNODE_FIND_BACKWARDS, offset, 1, 1, 0);
+		if (err == ESRCH)
+			*offset = limit;
+		else if (err)
+			return (err);
+
+		if (*offset < limit)
+			*offset = limit;
+		ASSERT3U(*offset, <, initial_offset);
+	}
+	return (0);
+}
+
+static int
+dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
+    uint64_t length, boolean_t free_dnode)
+{
+	dmu_tx_t *tx;
+	uint64_t object_size, start, end, len;
+	boolean_t trunc = (length == DMU_OBJECT_END);
+	int align, err;
+
+	align = 1 << dn->dn_datablkshift;
+	ASSERT(align > 0);
+	object_size = align == 1 ? dn->dn_datablksz :
+	    (dn->dn_maxblkid + 1) << dn->dn_datablkshift;
+
+	if (trunc || (end = offset + length) > object_size)
+		end = object_size;
+	if (end <= offset)
+		return (0);
+	length = end - offset;
+
+	while (length) {
+		start = end;
+		err = get_next_chunk(dn, &start, offset);
+		if (err)
+			return (err);
+		len = trunc ? DMU_OBJECT_END : end - start;
+
+		tx = dmu_tx_create(os);
+		dmu_tx_hold_free(tx, dn->dn_object, start, len);
+		err = dmu_tx_assign(tx, TXG_WAIT);
+		if (err) {
+			dmu_tx_abort(tx);
+			return (err);
+		}
+
+		dnode_free_range(dn, start, trunc ? -1 : len, tx);
+
+		if (start == 0 && free_dnode) {
+			ASSERT(trunc);
+			dnode_free(dn, tx);
+		}
+
+		length -= end - start;
+
+		dmu_tx_commit(tx);
+		end = start;
+	}
+	return (0);
+}
+
+int
+dmu_free_long_range(objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t length)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os->os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = dmu_free_long_range_impl(os, dn, offset, length, FALSE);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+int
+dmu_free_object(objset_t *os, uint64_t object)
+{
+	dnode_t *dn;
+	dmu_tx_t *tx;
+	int err;
+
+	err = dnode_hold_impl(os->os, object, DNODE_MUST_BE_ALLOCATED,
+	    FTAG, &dn);
+	if (err != 0)
+		return (err);
+	if (dn->dn_nlevels == 1) {
+		tx = dmu_tx_create(os);
+		dmu_tx_hold_bonus(tx, object);
+		dmu_tx_hold_free(tx, dn->dn_object, 0, DMU_OBJECT_END);
+		err = dmu_tx_assign(tx, TXG_WAIT);
+		if (err == 0) {
+			dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
+			dnode_free(dn, tx);
+			dmu_tx_commit(tx);
+		} else {
+			dmu_tx_abort(tx);
+		}
+	} else {
+		err = dmu_free_long_range_impl(os, dn, 0, DMU_OBJECT_END, TRUE);
+	}
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
 int
 dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size, dmu_tx_t *tx)
@@ -475,6 +634,27 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		offset += tocpy;
 		size -= tocpy;
 		buf = (char *)buf + tocpy;
+	}
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+void
+dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs, i;
+
+	if (size == 0)
+		return;
+
+	VERIFY(0 == dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp));
+
+	for (i = 0; i < numbufs; i++) {
+		dmu_buf_t *db = dbp[i];
+
+		dmu_buf_will_not_fill(db, tx);
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
@@ -609,9 +789,9 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		for (copied = 0; copied < tocpy; copied += PAGESIZE) {
 			ASSERT3U(pp->p_offset, ==, db->db_offset + bufoff);
 			thiscpy = MIN(PAGESIZE, tocpy - copied);
-			va = ppmapin(pp, PROT_READ, (caddr_t)-1);
+			va = zfs_map_page(pp, S_READ);
 			bcopy(va, (char *)db->db_data + bufoff, thiscpy);
-			ppmapout(va);
+			zfs_unmap_page(pp, va);
 			pp = pp->p_next;
 			bufoff += PAGESIZE;
 		}
@@ -638,18 +818,28 @@ typedef struct {
 
 /* ARGSUSED */
 static void
+dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
+{
+	blkptr_t *bp = zio->io_bp;
+
+	if (!BP_IS_HOLE(bp)) {
+		dmu_sync_arg_t *in = varg;
+		dbuf_dirty_record_t *dr = in->dr;
+		dmu_buf_impl_t *db = dr->dr_dbuf;
+		ASSERT(BP_GET_TYPE(bp) == db->db_dnode->dn_type);
+		ASSERT(BP_GET_LEVEL(bp) == 0);
+		bp->blk_fill = 1;
+	}
+}
+
+/* ARGSUSED */
+static void
 dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 {
 	dmu_sync_arg_t *in = varg;
 	dbuf_dirty_record_t *dr = in->dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	dmu_sync_cb_t *done = in->done;
-
-	if (!BP_IS_HOLE(zio->io_bp)) {
-		zio->io_bp->blk_fill = 1;
-		BP_SET_TYPE(zio->io_bp, db->db_dnode->dn_type);
-		BP_SET_LEVEL(zio->io_bp, 0);
-	}
 
 	mutex_enter(&db->db_mtx);
 	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
@@ -697,13 +887,12 @@ dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
 	dbuf_dirty_record_t *dr;
 	dmu_sync_arg_t *in;
 	zbookmark_t zb;
+	writeprops_t wp = { 0 };
 	zio_t *zio;
-	int zio_flags;
 	int err;
 
 	ASSERT(BP_IS_HOLE(bp));
 	ASSERT(txg != 0);
-
 
 	dprintf("dmu_sync txg=%llu, s,o,q %llu %llu %llu\n",
 	    txg, tx->tx_synced_txg, tx->tx_open_txg, tx->tx_quiesced_txg);
@@ -809,16 +998,20 @@ dmu_sync(zio_t *pio, dmu_buf_t *db_fake,
 	zb.zb_object = db->db.db_object;
 	zb.zb_level = db->db_level;
 	zb.zb_blkid = db->db_blkid;
-	zio_flags = ZIO_FLAG_MUSTSUCCEED;
-	if (dmu_ot[db->db_dnode->dn_type].ot_metadata || zb.zb_level != 0)
-		zio_flags |= ZIO_FLAG_METADATA;
-	zio = arc_write(pio, os->os_spa,
-	    zio_checksum_select(db->db_dnode->dn_checksum, os->os_checksum),
-	    zio_compress_select(db->db_dnode->dn_compress, os->os_compress),
-	    dmu_get_replication_level(os, &zb, db->db_dnode->dn_type),
-	    txg, bp, dr->dt.dl.dr_data, NULL, dmu_sync_done, in,
-	    ZIO_PRIORITY_SYNC_WRITE, zio_flags, &zb);
 
+	wp.wp_type = db->db_dnode->dn_type;
+	wp.wp_level = db->db_level;
+	wp.wp_copies = os->os_copies;
+	wp.wp_dnchecksum = db->db_dnode->dn_checksum;
+	wp.wp_oschecksum = os->os_checksum;
+	wp.wp_dncompress = db->db_dnode->dn_compress;
+	wp.wp_oscompress = os->os_compress;
+
+	ASSERT(BP_IS_HOLE(bp));
+
+	zio = arc_write(pio, os->os_spa, &wp, DBUF_IS_L2CACHEABLE(db),
+	    txg, bp, dr->dt.dl.dr_data, dmu_sync_ready, dmu_sync_done, in,
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 	if (pio) {
 		zio_nowait(zio);
 		err = EINPROGRESS;
@@ -873,21 +1066,6 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 }
 
 int
-dmu_get_replication_level(objset_impl_t *os,
-    zbookmark_t *zb, dmu_object_type_t ot)
-{
-	int ncopies = os->os_copies;
-
-	/* If it's the mos, it should have max copies set. */
-	ASSERT(zb->zb_objset != 0 ||
-	    ncopies == spa_max_replication(os->os_spa));
-
-	if (dmu_ot[ot].ot_metadata || zb->zb_level != 0)
-		ncopies++;
-	return (MIN(ncopies, spa_max_replication(os->os_spa)));
-}
-
-int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
@@ -912,7 +1090,7 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 			return (err);
 	}
 
-	err = dnode_next_offset(dn, hole, off, 1, 1, 0);
+	err = dnode_next_offset(dn, (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
 	dnode_rele(dn, FTAG);
 
 	return (err);

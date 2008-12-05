@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)sha256.c	1.2	07/12/12 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/zio.h>

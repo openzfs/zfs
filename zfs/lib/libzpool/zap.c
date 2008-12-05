@@ -19,11 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"@(#)zap.c	1.13	07/11/19 SMI"
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 
 /*
@@ -903,6 +903,10 @@ fzap_remove(zap_name_t *zn, dmu_tx_t *tx)
 	return (err);
 }
 
+/*
+ * Helper functions for consumers.
+ */
+
 int
 zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
     char *name)
@@ -928,6 +932,53 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	return (err);
 }
 
+int
+zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx)
+{
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	int err;
+
+	for (zap_cursor_init(&zc, os, fromobj);
+	    zap_cursor_retrieve(&zc, &za) == 0;
+	    (void) zap_cursor_advance(&zc)) {
+		if (za.za_integer_length != 8 || za.za_num_integers != 1)
+			return (EINVAL);
+		err = zap_add(os, intoobj, za.za_name,
+		    8, 1, &za.za_first_integer, tx);
+		if (err)
+			return (err);
+	}
+	zap_cursor_fini(&zc);
+	return (0);
+}
+
+int
+zap_add_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	return (zap_add(os, obj, name, 8, 1, &value, tx));
+}
+
+int
+zap_remove_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	return (zap_remove(os, obj, name, tx));
+}
+
+int
+zap_lookup_int(objset_t *os, uint64_t obj, uint64_t value)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	return (zap_lookup(os, obj, name, 8, 1, &value));
+}
 
 /*
  * Routines for iterating over the attributes.
