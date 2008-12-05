@@ -870,7 +870,7 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
 	if (tr_cookie == NULL)
 		return;
 
-	while (tr = list_head(tr_list)) {
+	while ((tr = list_head(tr_list))) {
 		if (tr->tr_dp) {
 			dsl_pool_tempreserve_clear(tr->tr_dp, tr->tr_size, tx);
 		} else if (tr->tr_ds) {
@@ -1221,8 +1221,8 @@ dsl_dir_rename_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (closest_common_ancestor(dd, ra->newparent) == dd)
 			return (EINVAL);
 
-		if (err = dsl_dir_transfer_possible(dd->dd_parent,
-		    ra->newparent, myspace))
+		if ((err = dsl_dir_transfer_possible(dd->dd_parent,
+		    ra->newparent, myspace)))
 			return (err);
 	}
 

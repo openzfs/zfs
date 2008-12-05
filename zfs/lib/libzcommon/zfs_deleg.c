@@ -179,8 +179,8 @@ zfs_deleg_verify_nvlist(nvlist_t *nvp)
 			    nvpair_name(perm_name));
 			if (error)
 				return (-1);
-		} while (perm_name = nvlist_next_nvpair(perms, perm_name));
-	} while (who = nvlist_next_nvpair(nvp, who));
+		} while ((perm_name = nvlist_next_nvpair(perms, perm_name)));
+	} while ((who = nvlist_next_nvpair(nvp, who)));
 	return (0);
 }
 
