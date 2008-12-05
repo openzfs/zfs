@@ -281,7 +281,7 @@ spa_history_log_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	dmu_buf_rele(dbp, FTAG);
 
 	if (hap->ha_log_type == LOG_INTERNAL) {
-		kmem_free((void*)hap->ha_history_str, HIS_MAX_RECORD_LEN);
+		vmem_free((void*)hap->ha_history_str, HIS_MAX_RECORD_LEN);
 		kmem_free(hap, sizeof (history_arg_t));
 	}
 }
@@ -407,7 +407,7 @@ spa_history_internal_log(history_internal_events_t event, spa_t *spa,
 		return;
 
 	hap = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
-	str = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
+	str = vmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
 
 	va_start(adx, fmt);
 	(void) vsnprintf(str, HIS_MAX_RECORD_LEN, fmt, adx);
