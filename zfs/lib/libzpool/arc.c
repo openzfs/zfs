@@ -3309,7 +3309,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	 * in order to compress/encrypt/etc the data.  We therefor need to
 	 * make sure that there is sufficient available memory for this.
 	 */
-	if (error = arc_memory_throttle(reserve, txg))
+	if ((error = arc_memory_throttle(reserve, txg)))
 		return (error);
 
 	/*
