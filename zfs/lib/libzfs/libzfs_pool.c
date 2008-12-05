@@ -46,6 +46,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
+#include "zfs_config.h"
 
 static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
 
@@ -2808,6 +2809,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
  * determine where a partition starts on a disk in the current
  * configuration
  */
+#ifdef HAVE_LIBEFI
 static diskaddr_t
 find_start_block(nvlist_t *config)
 {
@@ -3060,3 +3062,4 @@ out:
 	libzfs_fini(hdl);
 	return (ret);
 }
+#endif /* HAVE_LIBEFI */
