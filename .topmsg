@@ -1,11 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux kernel module
+Subject: [PATCH] linux debug zerocopy
 
-Setup linux kernel module support, this includes:
-- zfs context for kernel/user
-- kernel module build system integration
-- kernel module macros
-- kernel module symbol export
-- kernel module options
+Add debug ONLY option for zerocopy
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
