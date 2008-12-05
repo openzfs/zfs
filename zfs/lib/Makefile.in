@@ -8,3 +8,5 @@ subdir-m += libzpool		# Kernel | User SPA/DMU/ZVOL/ZPL
 subdir-m += libavl		# Kernel &| User space AVL tree support
 subdir-m += libnvpair		# Kernel &| User space name/value support
 subdir-m += libzcommon		# Kernel &| User space common support
+
+subdir-m += libzpios		# Kernel DMU test app

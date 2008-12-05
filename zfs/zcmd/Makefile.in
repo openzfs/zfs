@@ -4,3 +4,4 @@ subdir-m += zpool
 #subdir-m += ztest
 #subdir-m += zdump
 #subdir-m += zinject
+subdir-m += zpios

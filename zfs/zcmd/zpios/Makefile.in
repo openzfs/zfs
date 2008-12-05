@@ -1,0 +1,13 @@
+DISTFILES = Makefile.in *.c zpios.h
+
+CMD := zpios
+
+HOSTCFLAGS += @HOSTCFLAGS@
+HOSTCFLAGS += -I@CMDDIR@/lzpios
+HOSTCFLAGS += -I@LIBDIR@/libzpios/include
+
+hostprogs-y := ${CMD}
+always := $(hostprogs-y)
+
+${CMD}-objs += zpios_main.o
+${CMD}-objs += zpios_util.o
