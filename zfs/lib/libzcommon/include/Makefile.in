@@ -1,0 +1,2 @@
+subdir-m += sys
+DISTFILES = zfs_comutil.h zfs_deleg.h zfs_namecheck.h zfs_prop.h
