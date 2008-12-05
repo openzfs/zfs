@@ -7,7 +7,6 @@ spl_module=${SPLBUILD}/modules/spl/spl.ko
 zlib_module=/lib/modules/${KERNELSRCVER}/kernel/lib/zlib_deflate/zlib_deflate.ko
 zavl_module=${ZFSBUILD}/lib/libavl/zavl.ko
 znvpair_module=${ZFSBUILD}/lib/libnvpair/znvpair.ko
-zport_module=${ZFSBUILD}/lib/libport/zport.ko
 zcommon_module=${ZFSBUILD}/lib/libzcommon/zcommon.ko
 zpool_module=${ZFSBUILD}/lib/libzpool/zpool.ko
 zctl_module=${ZFSBUILD}/lib/libdmu-ctl/zctl.ko
@@ -31,7 +30,6 @@ unload_module ${zpios_module}
 unload_module ${zctl_module}
 unload_module ${zpool_module}
 unload_module ${zcommon_module}
-unload_module ${zport_module}
 unload_module ${znvpair_module}
 unload_module ${zavl_module}
 unload_module ${zlib_module}
