@@ -1,4 +1,0 @@
-subdir-m += sys
-
-DISTFILES  = fake_ioctl.h libdiskmgt.h libshare.h mntent.h stdlib.h
-DISTFILES += string.h strings.h stropts.h unistd.h
