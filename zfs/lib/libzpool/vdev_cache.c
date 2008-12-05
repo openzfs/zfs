@@ -253,7 +253,6 @@ vdev_cache_read(zio_t *zio)
 	vdev_cache_t *vc = &zio->io_vd->vdev_cache;
 	vdev_cache_entry_t *ve, ve_search;
 	uint64_t cache_offset = P2ALIGN(zio->io_offset, VCBS);
-	uint64_t cache_phase = P2PHASE(zio->io_offset, VCBS);
 	zio_t *fio;
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -270,7 +269,7 @@ vdev_cache_read(zio_t *zio)
 	if (P2BOUNDARY(zio->io_offset, zio->io_size, VCBS))
 		return (EXDEV);
 
-	ASSERT(cache_phase + zio->io_size <= VCBS);
+	ASSERT(P2PHASE(zio->io_offset, VCBS) + zio->io_size <= VCBS);
 
 	mutex_enter(&vc->vc_lock);
 
