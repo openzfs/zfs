@@ -234,8 +234,11 @@ struct dmu_pool;
 
 #define DMU_CALLBACK_MAGIC 0xca11bac0ca11bacfull
 
+/* container_of() already defined in linux kernel */
+#ifndef container_of
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
+#endif
 
 typedef struct dmu_callback {
 	list_node_t         dcb_node;    /* linked to tx_callbacks list */
