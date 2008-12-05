@@ -719,3 +719,7 @@ txg_list_next(txg_list_t *tl, void *p, uint64_t txg)
 
 	return (tn == NULL ? NULL : (char *)tn - tl->tl_offset);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(txg_wait_synced);
+#endif

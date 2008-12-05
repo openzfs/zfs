@@ -184,3 +184,19 @@ zpool_prop_align_right(zpool_prop_t prop)
 	return (zpool_prop_table[prop].pd_rightalign);
 }
 #endif
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* zpool property functions */
+EXPORT_SYMBOL(zpool_prop_init);
+EXPORT_SYMBOL(zpool_prop_get_type);
+EXPORT_SYMBOL(zpool_prop_get_table);
+
+/* Pool property functions shared between libzfs and kernel. */
+EXPORT_SYMBOL(zpool_name_to_prop);
+EXPORT_SYMBOL(zpool_prop_to_name);
+EXPORT_SYMBOL(zpool_prop_default_string);
+EXPORT_SYMBOL(zpool_prop_default_numeric);
+EXPORT_SYMBOL(zpool_prop_readonly);
+EXPORT_SYMBOL(zpool_prop_index_to_string);
+EXPORT_SYMBOL(zpool_prop_string_to_index);
+#endif

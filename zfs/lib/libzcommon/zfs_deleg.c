@@ -232,3 +232,9 @@ zfs_deleg_whokey(char *attr, zfs_deleg_who_type_t type,
 		ASSERT(!"bad zfs_deleg_who_type_t");
 	}
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_deleg_verify_nvlist);
+EXPORT_SYMBOL(zfs_deleg_whokey);
+EXPORT_SYMBOL(zfs_deleg_canonicalize_perm);
+#endif

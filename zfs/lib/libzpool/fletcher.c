@@ -143,3 +143,12 @@ fletcher_4_incremental_byteswap(const void *buf, uint64_t size,
 
 	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(fletcher_2_native);
+EXPORT_SYMBOL(fletcher_2_byteswap);
+EXPORT_SYMBOL(fletcher_4_native);
+EXPORT_SYMBOL(fletcher_4_byteswap);
+EXPORT_SYMBOL(fletcher_4_incremental_native);
+EXPORT_SYMBOL(fletcher_4_incremental_byteswap);
+#endif
