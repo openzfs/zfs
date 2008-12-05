@@ -11,8 +11,7 @@ LIBRARY := libzfs
 
 HOSTCFLAGS += @HOSTCFLAGS@
 HOSTCFLAGS += -I@LIBDIR@/libzfs/include
-HOSTCFLAGS += -I@LIBDIR@/libsolcompat/include
-HOSTCFLAGS += -I@LIBDIR@/libport/include
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 HOSTCFLAGS += -I@LIBDIR@/libumem/include
 HOSTCFLAGS += -I@LIBDIR@/libuutil/include
 HOSTCFLAGS += -I@LIBDIR@/libnvpair/include
@@ -24,9 +23,8 @@ HOSTCFLAGS += -I@LIBDIR@/libzpool	# For existing fletcher.c hack
 HOSTLDFLAGS += -ldl -lm
 HOSTLDFLAGS += -lavl -L@LIBDIR@/libavl
 HOSTLDFLAGS += -lnvpair -L@LIBDIR@/libnvpair
+HOSTLDFLAGS += -lspl -L@LIBDIR@/libspl
 HOSTLDFLAGS += -luutil -L@LIBDIR@/libuutil
-HOSTLDFLAGS += -lzport -L@LIBDIR@/libport
-HOSTLDFLAGS += -lsolcompat -L@LIBDIR@/libsolcompat
 HOSTLDFLAGS += -lzcommon -L@LIBDIR@/libzcommon
 
 hostprogs-y := zu
