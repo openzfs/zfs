@@ -46,7 +46,6 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	dnl # investigation and I don't have the time now.
 
 	echo "creating symlinks for additional kernel make targets"
-	ln -f -s $LIBDIR/libport/u8_textprep.c      $LIBDIR/libport/ku8_textprep.c
 	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/kavl.c
 	ln -f -s $LIBDIR/libavl/avl.c               $LIBDIR/libavl/uavl.c
 	ln -f -s $LIBDIR/libnvpair/nvpair.c         $LIBDIR/libnvpair/knvpair.c
@@ -54,8 +53,6 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ln -f -s $LIBDIR/libzcommon/zfs_deleg.c     $LIBDIR/libzcommon/kzfs_deleg.c
 	ln -f -s $LIBDIR/libzcommon/zfs_prop.c      $LIBDIR/libzcommon/kzfs_prop.c
 	ln -f -s $LIBDIR/libzcommon/zprop_common.c  $LIBDIR/libzcommon/kzprop_common.c
-	ln -f -s $LIBDIR/libzcommon/compress.c      $LIBDIR/libzcommon/kcompress.c
-	ln -f -s $LIBDIR/libzcommon/list.c          $LIBDIR/libzcommon/klist.c
 	ln -f -s $LIBDIR/libzcommon/zfs_namecheck.c $LIBDIR/libzcommon/kzfs_namecheck.c
 	ln -f -s $LIBDIR/libzcommon/zfs_comutil.c   $LIBDIR/libzcommon/kzfs_comutil.c
 	ln -f -s $LIBDIR/libzcommon/zpool_prop.c    $LIBDIR/libzcommon/kzpool_prop.c

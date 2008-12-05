@@ -20,8 +20,7 @@ ${MODULE}-objs += nvpair_alloc_spl.o	# Generic alloc/free support
 # the kernel build system to construct a user space shared library.
 
 HOSTCFLAGS += @HOSTCFLAGS@
-HOSTCFLAGS += -I@LIBDIR@/libsolcompat/include
-HOSTCFLAGS += -I@LIBDIR@/libport/include
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 HOSTCFLAGS += -I@LIBDIR@/libnvpair/include
 
 hostprogs-y := zu
