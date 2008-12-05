@@ -796,7 +796,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 	size_t pathleft;
 	struct stat64 statbuf;
 	nvlist_t *ret = NULL, *config;
-	static char *default_dir = "/dev/dsk";
+	static char *default_dir = DISK_ROOT;
 	int fd;
 	pool_list_t pools = { 0 };
 	pool_entry_t *pe, *penext;

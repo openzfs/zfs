@@ -1434,7 +1434,7 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	if (guid != 0 && *end == '\0') {
 		search = NULL;
 	} else if (path[0] != '/') {
-		(void) snprintf(buf, sizeof (buf), "%s%s", "/dev/dsk/", path);
+		(void) snprintf(buf, sizeof (buf), "%s/%s", DISK_ROOT, path);
 		search = buf;
 	} else {
 		search = path;
@@ -2345,6 +2345,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 	char buf[64];
 	vdev_stat_t *vs;
 	uint_t vsc;
+	size_t droot_len = strlen(DISK_ROOT) + 1;
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
 	    &value) == 0) {
@@ -2393,9 +2394,14 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 				devid_str_free(newdevid);
 		}
 
-		if (strncmp(path, "/dev/dsk/", 9) == 0)
-			path += 9;
+		if (strncmp(path, DISK_ROOT "/", droot_len) == 0)
+			path += droot_len;
 
+#if defined(__sun__) || defined(__sun)
+		/*
+		 * The following code strips the slice from the device path.
+		 * This is only meaningful in Solaris.
+		 */
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &value) == 0 && value) {
 			char *tmp = zfs_strdup(hdl, path);
@@ -2404,6 +2410,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 			tmp[strlen(path) - 2] = '\0';
 			return (tmp);
 		}
+#endif
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
 
@@ -2764,8 +2771,6 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	free(mntpnt);
 }
 
-#define	RDISK_ROOT	"/dev/rdsk"
-#define	BACKUP_SLICE	"s2"
 /*
  * Don't start the slice at the default block of 34; many storage
  * devices will use a stripe width of 128k, so start there instead.
