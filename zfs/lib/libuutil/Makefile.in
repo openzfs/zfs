@@ -8,8 +8,7 @@ LIBRARY := libuutil
 # the kernel build system to construct a user space shared library.
 
 HOSTCFLAGS += @HOSTCFLAGS@
-HOSTCFLAGS += -I@LIBDIR@/libsolcompat/include
-HOSTCFLAGS += -I@LIBDIR@/libport/include
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 HOSTCFLAGS += -I@LIBDIR@/libavl/include
 HOSTCFLAGS += -I@LIBDIR@/libuutil/include
 HOSTCFLAGS += -DNATIVE_BUILD
@@ -17,7 +16,7 @@ HOSTCFLAGS += -DNATIVE_BUILD
 HOSTLDFLAGS += -pthread
 HOSTLDFLAGS += -lrt
 HOSTLDFLAGS += -lavl -L@LIBDIR@/libavl
-HOSTLDFLAGS += -lzport -L@LIBDIR@/libport
+HOSTLDFLAGS += -lzport -L@LIBDIR@/libspl
 
 hostprogs-y := zu
 always := $(hostprogs-y)
