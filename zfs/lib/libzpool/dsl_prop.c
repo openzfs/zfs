@@ -600,3 +600,10 @@ dsl_prop_nvlist_add_string(nvlist_t *nv, zfs_prop_t prop, const char *value)
 	VERIFY(nvlist_add_nvlist(nv, zfs_prop_to_name(prop), propval) == 0);
 	nvlist_free(propval);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_prop_set);
+EXPORT_SYMBOL(dsl_prop_get_all);
+EXPORT_SYMBOL(dsl_prop_nvlist_add_uint64);
+EXPORT_SYMBOL(dsl_prop_get_integer);
+#endif

@@ -63,3 +63,7 @@ zfs_allocatable_devs(nvlist_t *nv)
 	}
 	return (B_FALSE);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_allocatable_devs);
+#endif

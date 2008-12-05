@@ -1127,3 +1127,15 @@ dmu_tx_callback_data_destroy(void *dcb_data)
 
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_tx_create);
+EXPORT_SYMBOL(dmu_tx_hold_write);
+EXPORT_SYMBOL(dmu_tx_hold_free);
+EXPORT_SYMBOL(dmu_tx_hold_zap);
+EXPORT_SYMBOL(dmu_tx_hold_bonus);
+EXPORT_SYMBOL(dmu_tx_abort);
+EXPORT_SYMBOL(dmu_tx_assign);
+EXPORT_SYMBOL(dmu_tx_wait);
+EXPORT_SYMBOL(dmu_tx_commit);
+#endif
