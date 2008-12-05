@@ -8,6 +8,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 	dnl # Kernel build cpp flags
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas "
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
 
 	dnl # Required for pread() functionality an other GNU goodness
