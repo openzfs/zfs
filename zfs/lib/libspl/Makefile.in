@@ -1,20 +1,8 @@
 subdir-m += include
-DISTFILES = port.c strlcat.c strlcpy.c strnlen.c u8_textprep.c
+DISTFILES  = kernel.c mkdirp.c strlcpy.c taskq.c util.c
+DISTFILES += list.c strlcat.c strnlen.c u8_textprep.c
 
-MODULE  := zport
 LIBRARY := libzport
-
-# Compile as kernel module.  Needed symlinks created for all
-# k* objects created by top level configure script.
-
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@LIBDIR@/libzcommon/include
-EXTRA_CFLAGS += -I@LIBDIR@/libport/include
-
-obj-m := ${MODULE}.o
-
-${MODULE}-objs += spl.o
-${MODULE}-objs += ku8_textprep.o
 
 # Compile as shared library.  There's an extra useless host program
 # here called 'zu' because it was the easiest way I could convince
@@ -22,16 +10,19 @@ ${MODULE}-objs += ku8_textprep.o
 
 HOSTCFLAGS += @HOSTCFLAGS@
 HOSTCFLAGS += -I@LIBDIR@/libzcommon/include
-HOSTCFLAGS += -I@LIBDIR@/libport/include
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 
 hostprogs-y := zu
 always := $(hostprogs-y)
 
 zu-objs := zu.o ${LIBRARY}.so
 
+${LIBRARY}-objs += kernel.o
+${LIBRARY}-objs += mkdirp.o
 ${LIBRARY}-objs += strlcpy.o
+${LIBRARY}-objs += taskq.o
+${LIBRARY}-objs += util.o
+${LIBRARY}-objs += list.o
 ${LIBRARY}-objs += strlcat.o
 ${LIBRARY}-objs += strnlen.o
-${LIBRARY}-objs += port.o
 ${LIBRARY}-objs += u8_textprep.o
-
