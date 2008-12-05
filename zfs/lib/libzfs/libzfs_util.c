@@ -40,6 +40,8 @@
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
+#include <sys/dmu_ctl.h>
+#include <sys/fs/zfs.h>
 
 #include <libzfs.h>
 
@@ -561,10 +563,21 @@ libzfs_init(void)
 		return (NULL);
 	}
 
+#ifdef HAVE_SPL
+#ifndef HAVE_GPL_ONLY_SYMBOLS
+	/* If we don't have access to GPL-only symbols then we may not use
+	 * the udev APIs, therefore we must mknod the device ourselves. */
+	(void)mknod(ZFS_DEV, S_IFCHR | 0600, makedev(ZFS_MAJOR, 0));
+#endif
+
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
 		free(hdl);
 		return (NULL);
 	}
+#else
+	if ((hdl->libzfs_fd = dctlc_connect(DMU_CTL_DEFAULT_DIR, B_TRUE)) < 0)
+		hdl->libzfs_fd = -1;
+#endif
 
 #ifdef HAVE_SETMNTENT
 	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r")) == NULL) {
@@ -587,7 +600,12 @@ libzfs_init(void)
 void
 libzfs_fini(libzfs_handle_t *hdl)
 {
+#ifdef HAVE_SPL
 	(void) close(hdl->libzfs_fd);
+#else
+	if (hdl->libzfs_fd != -1)
+		dctlc_disconnect(hdl->libzfs_fd);
+#endif
 	if (hdl->libzfs_mnttab)
 #ifdef HAVE_SETMNTENT
 		(void) endmntent(hdl->libzfs_mnttab);
