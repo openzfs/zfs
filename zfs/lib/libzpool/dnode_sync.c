@@ -319,8 +319,10 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		ASSERT3U(blkid + nblks, <=, dn->dn_phys->dn_nblkptr);
 		(void) free_blocks(dn, bp + blkid, nblks, tx);
 		if (trunc) {
+#ifndef NDEBUG
 			uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
 			    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+#endif
 			dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 			ASSERT(off < dn->dn_phys->dn_maxblkid ||
 			    dn->dn_phys->dn_maxblkid == 0 ||
@@ -349,8 +351,10 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		dbuf_rele(db, FTAG);
 	}
 	if (trunc) {
+#ifndef NDEBUG
 		uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
 		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+#endif
 		dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||

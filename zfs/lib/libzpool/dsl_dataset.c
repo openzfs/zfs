@@ -1997,10 +1997,8 @@ dsl_dataset_space(dsl_dataset_t *ds,
 boolean_t
 dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 {
-	dsl_pool_t *dp = ds->ds_dir->dd_pool;
-
-	ASSERT(RW_LOCK_HELD(&dp->dp_config_rwlock) ||
-	    dsl_pool_sync_context(dp));
+	ASSERT(RW_LOCK_HELD(&(ds->ds_dir->dd_pool)->dp_config_rwlock) ||
+	    dsl_pool_sync_context(ds->ds_dir->dd_pool));
 	if (ds->ds_prev == NULL)
 		return (B_FALSE);
 	if (ds->ds_phys->ds_bp.blk_birth >
