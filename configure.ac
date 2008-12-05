@@ -130,6 +130,7 @@ AC_CONFIG_FILES([ Makefile
                   zfs/lib/libspl/include/sys/Makefile
                   zfs/lib/libspl/include/Makefile
                   zfs/lib/libspl/Makefile
+                  zfs/lib/libzpios/Makefile
                   zfs/zcmd/ztest/Makefile
                   zfs/zcmd/Makefile
                   zfs/zcmd/zfs/Makefile
@@ -137,5 +138,6 @@ AC_CONFIG_FILES([ Makefile
                   zfs/zcmd/zinject/Makefile
                   zfs/zcmd/zdump/Makefile
                   zfs/zcmd/zpool/Makefile
+                  zfs/zcmd/zpios/Makefile
                ])
 AC_OUTPUT
