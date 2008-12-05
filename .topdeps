@@ -2,3 +2,4 @@ gcc-c90
 gcc-cast
 gcc-debug
 gcc-init-pragmas
+gcc-invalid-prototype
