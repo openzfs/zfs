@@ -1,0 +1,145 @@
+/* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* bio_end_io_t wants 2 args */
+#undef HAVE_2ARGS_BIO_END_IO_T
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the `getexecname' function. */
+#undef HAVE_GETEXECNAME
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if ioctl() is defined in <stropts.h> header file */
+#undef HAVE_IOCTL_IN_STROPTS_H
+
+/* Define to 1 if ioctl() is defined in <sys/ioctl.h> header file */
+#undef HAVE_IOCTL_IN_SYS_IOCTL_H
+
+/* Define to 1 if ioctl() is defined in <unistd.h> header file */
+#undef HAVE_IOCTL_IN_UNISTD_H
+
+/* Define to 1 if you have the `issetugid' function. */
+#undef HAVE_ISSETUGID
+
+/* Define to 1 if 'libdiskmgt' library available */
+#undef HAVE_LIBDISKMGT
+
+/* Define to 1 if you have the <libdiskmgt.h> header file. */
+#undef HAVE_LIBDISKMGT_H
+
+/* Define to 1 if 'libefi' library available */
+#undef HAVE_LIBEFI
+
+/* Define to 1 if 'libshare' library available */
+#undef HAVE_LIBSHARE
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the `setmntent' function. */
+#undef HAVE_SETMNTENT
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if strcmpl() is defined in <strings.h> header file */
+#undef HAVE_STRCMP_IN_STRINGS_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strlcat' function. */
+#undef HAVE_STRLCAT
+
+/* Define to 1 if you have the `strlcpy' function. */
+#undef HAVE_STRLCPY
+
+/* Define to 1 if you have the `strnlen' function. */
+#undef HAVE_STRNLEN
+
+/* Define to 1 if sysinfo() is defined in <sys/systeminfo.h> header file */
+#undef HAVE_SYSINFO_IN_SYS_SYSTEMINFO_H
+
+/* Define to 1 if you have the <sys/byteorder.h> header file. */
+#undef HAVE_SYS_BYTEORDER_H
+
+/* Define to 1 if you have the <sys/isa_defs.h> header file. */
+#undef HAVE_SYS_ISA_DEFS_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/systeminfo.h> header file. */
+#undef HAVE_SYS_SYSTEMINFO_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/u8_textprep.h> header file. */
+#undef HAVE_SYS_U8_TEXTPREP_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 to disable debug tracing */
+#undef NDEBUG
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
+
+/* Define the project alias string. */
+#undef ZFS_META_ALIAS
+
+/* Define the project author. */
+#undef ZFS_META_AUTHOR
+
+/* Define the project release date. */
+#undef ZFS_META_DATA
+
+/* Define the libtool library 'age' version information. */
+#undef ZFS_META_LT_AGE
+
+/* Define the libtool library 'current' version information. */
+#undef ZFS_META_LT_CURRENT
+
+/* Define the libtool library 'revision' version information. */
+#undef ZFS_META_LT_REVISION
+
+/* Define the project name. */
+#undef ZFS_META_NAME
+
+/* Define the project release. */
+#undef ZFS_META_RELEASE
+
+/* Define the project version. */
+#undef ZFS_META_VERSION
