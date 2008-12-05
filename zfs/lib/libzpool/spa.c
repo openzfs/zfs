@@ -274,7 +274,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 {
 	nvpair_t *elem;
 	int error = 0, reset_bootfs = 0;
-	uint64_t objnum;
+	uint64_t objnum = 0;
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
@@ -819,7 +819,7 @@ spa_load_l2cache(spa_t *spa)
 	uint_t nl2cache;
 	int i, j, oldnvdevs;
 	uint64_t guid, size;
-	vdev_t *vd, **oldvdevs, **newvdevs;
+	vdev_t *vd, **oldvdevs, **newvdevs = NULL;
 	spa_aux_vdev_t *sav = &spa->spa_l2cache;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
@@ -3008,7 +3008,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
-	uint64_t unspare_guid;
+	uint64_t unspare_guid = 0;
 	size_t len;
 
 	txg = spa_vdev_enter(spa);
