@@ -140,6 +140,8 @@ changelist_prefix(prop_changelist_t *clp)
 				 */
 				(void) zfs_unshare_iscsi(cn->cn_handle);
 				break;
+			default:
+				break;
 			}
 		} else {
 			/*
@@ -155,6 +157,8 @@ changelist_prefix(prop_changelist_t *clp)
 				break;
 			case ZFS_PROP_SHARESMB:
 				(void) zfs_unshare_smb(cn->cn_handle, NULL);
+				break;
+			default:
 				break;
 			}
 		}
