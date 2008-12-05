@@ -1043,7 +1043,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int fd, offset_t *voffp)
 #endif
 	ra.voff = *voffp;
 	ra.bufsize = 1<<20;
-	ra.buf = kmem_alloc(ra.bufsize, KM_SLEEP);
+	ra.buf = vmem_alloc(ra.bufsize, KM_SLEEP);
 
 	/* these were verified in dmu_recv_begin */
 	ASSERT(drc->drc_drrb->drr_version == DMU_BACKUP_STREAM_VERSION);
@@ -1133,7 +1133,7 @@ out:
 		dmu_recv_abort_cleanup(drc);
 	}
 
-	kmem_free(ra.buf, ra.bufsize);
+	vmem_free(ra.buf, ra.bufsize);
 	*voffp = ra.voff;
 	return (ra.err);
 }
