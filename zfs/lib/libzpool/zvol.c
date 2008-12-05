@@ -76,6 +76,11 @@
 #include <sys/zvol.h>
 #include <sys/dumphdr.h>
 
+#ifdef HAVE_SPL
+#include <linux/bitops.h>
+#include <linux/bitops_compat.h>
+#endif
+
 #include "zfs_namecheck.h"
 
 static void *zvol_state;
@@ -159,10 +164,22 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 	if (volsize % blocksize != 0)
 		return (EINVAL);
 
-#ifdef _ILP32
+#ifdef HAVE_SPL
+	if (volsize % 512 != 0)
+		return (EINVAL);
+
+	/*
+	 * On Linux, the maximum allowed block device size depends on the size
+	 * of sector_t.
+	 */
+	if (fls64(volsize / 512 - 1) > NBBY * sizeof (sector_t))
+		return (EOVERFLOW);
+
+#elif defined(_ILP32)
 	if (volsize - 1 > SPEC_MAXOFFSET_T)
 		return (EOVERFLOW);
 #endif
+
 	return (0);
 }
 

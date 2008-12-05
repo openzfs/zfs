@@ -2087,6 +2087,7 @@ int
 zpool_iter_zvol(zpool_handle_t *zhp, int (*cb)(const char *, void *),
     void *data)
 {
+#ifdef HAVE_ZVOL
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char (*paths)[MAXPATHLEN];
 	size_t size = 4;
@@ -2178,6 +2179,7 @@ zpool_iter_zvol(zpool_handle_t *zhp, int (*cb)(const char *, void *),
 err:
 	free(paths);
 	(void) close(base);
+#endif
 	return (-1);
 }
 
