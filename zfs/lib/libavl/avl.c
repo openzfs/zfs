@@ -1031,3 +1031,36 @@ done:
 
 	return (AVL_NODE2DATA(node, off));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+static int __init avl_init(void)
+{
+	return 0;
+}
+
+static void avl_fini(void)
+{
+        return;
+}
+
+module_init(avl_init);
+module_exit(avl_fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("Generic AVL tree implementation");
+MODULE_LICENSE("CDDL");
+
+EXPORT_SYMBOL(avl_create);
+EXPORT_SYMBOL(avl_find);
+EXPORT_SYMBOL(avl_insert);
+EXPORT_SYMBOL(avl_insert_here);
+EXPORT_SYMBOL(avl_walk);
+EXPORT_SYMBOL(avl_first);
+EXPORT_SYMBOL(avl_last);
+EXPORT_SYMBOL(avl_nearest);
+EXPORT_SYMBOL(avl_add);
+EXPORT_SYMBOL(avl_remove);
+EXPORT_SYMBOL(avl_numnodes);
+EXPORT_SYMBOL(avl_destroy_nodes);
+EXPORT_SYMBOL(avl_destroy);
+#endif

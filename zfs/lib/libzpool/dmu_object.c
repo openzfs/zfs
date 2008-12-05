@@ -160,3 +160,11 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 
 	return (error);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_object_alloc);
+EXPORT_SYMBOL(dmu_object_claim);
+EXPORT_SYMBOL(dmu_object_reclaim);
+EXPORT_SYMBOL(dmu_object_free);
+EXPORT_SYMBOL(dmu_object_next);
+#endif

@@ -530,7 +530,11 @@ extern int spa_prop_get(spa_t *spa, nvlist_t **nvp);
 extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
 
 /* asynchronous event notification */
+#ifdef HAVE_SYSEVENT
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, const char *name);
+#else
+#define spa_event_notify(s,v,n) ((void)0)
+#endif
 
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\

@@ -361,3 +361,10 @@ dataset_name_hidden(const char *name)
 
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(snapshot_namecheck);
+EXPORT_SYMBOL(pool_namecheck);
+EXPORT_SYMBOL(dataset_name_hidden);
+EXPORT_SYMBOL(dataset_namecheck);
+#endif
