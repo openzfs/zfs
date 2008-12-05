@@ -10,7 +10,6 @@ spl_module=${SPLBUILD}/modules/spl/spl.ko
 zlib_module=/lib/modules/${KERNELSRCVER}/kernel/lib/zlib_deflate/zlib_deflate.ko
 zavl_module=${ZFSBUILD}/lib/libavl/zavl.ko
 znvpair_module=${ZFSBUILD}/lib/libnvpair/znvpair.ko
-zport_module=${ZFSBUILD}/lib/libport/zport.ko
 zcommon_module=${ZFSBUILD}/lib/libzcommon/zcommon.ko
 zpool_module=${ZFSBUILD}/lib/libzpool/zpool.ko
 zctl_module=${ZFSBUILD}/lib/libdmu-ctl/zctl.ko
@@ -30,13 +29,12 @@ if [ $(id -u) != 0 ]; then
 	die "Must run as root"
 fi
 
-if /sbin/lsmod | egrep -q "^spl|^zavl|^znvpair|^zport|^zcommon|^zlib_deflate|^zpool"; then
+if /sbin/lsmod | egrep -q "^spl|^zavl|^znvpair|^zcommon|^zlib_deflate|^zpool"; then
 	die "Must start with modules unloaded"
 fi
 
 if [ ! -f ${zavl_module} ] ||
    [ ! -f ${znvpair_module} ] ||
-   [ ! -f ${zport_module} ] ||
    [ ! -f ${zcommon_module} ] ||
    [ ! -f ${zpool_module} ]; then
 	die "Source tree must be built, run 'make'"
@@ -46,7 +44,6 @@ load_module ${spl_module} ${spl_options}
 load_module ${zlib_module}
 load_module ${zavl_module}
 load_module ${znvpair_module}
-load_module ${zport_module}
 load_module ${zcommon_module}
 load_module ${zpool_module} ${zpool_options}
 load_module ${zctl_module}
