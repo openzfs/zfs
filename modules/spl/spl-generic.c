@@ -125,13 +125,60 @@ uint64_t __umoddi3(uint64_t dividend, uint64_t divisor)
 EXPORT_SYMBOL(__umoddi3);
 #endif
 
-int
-ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
-{
-        char *end;
-        return (*result = simple_strtoul(str, &end, base));
-}
+int ddi_strtoul(const char *, char **, int, unsigned long *);
+int ddi_strtol(const char *, char **, int, long *);
+int ddi_strtoull(const char *, char **, int, unsigned long long *);
+int ddi_strtoll(const char *, char **, int, long long *);
+
+#define define_ddi_strtoux(type, valtype)				\
+int ddi_strtou##type(const char *str, char **endptr,			\
+			int base, valtype *result)			\
+{									\
+	valtype val;							\
+	size_t len;							\
+									\
+	len = strlen(str);						\
+	if (len == 0)							\
+		return -EINVAL;						\
+									\
+	val = simple_strtoul(str, endptr, (unsigned int)base);		\
+	if ((**endptr == '\0') ||					\
+	   ((len == (size_t)(*endptr-str) + 1) && (**endptr == '\n'))) {\
+		*result = val;						\
+		return 0;						\
+	}								\
+									\
+	return -EINVAL;							\
+}									\
+
+#define define_ddi_strtox(type, valtype)				\
+int ddi_strto##type(const char *str, char **endptr,			\
+		       int base, valtype *result)			\
+{                                                                       \
+	int ret;                                                        \
+									\
+	if (*str == '-') {						\
+		ret = ddi_strtou##type(str+1, endptr,			\
+				       (unsigned int)base, result);	\
+		if (!ret)						\
+			*result = -(*result);				\
+	} else {							\
+		ret = ddi_strtou##type(str, endptr,			\
+				       (unsigned int)base, result);	\
+	}								\
+									\
+	return ret;							\
+}									\
+
+define_ddi_strtoux(l, unsigned long)
+define_ddi_strtox(l, long)
+define_ddi_strtoux(ll, unsigned long long)
+define_ddi_strtox(ll, long long)
+
 EXPORT_SYMBOL(ddi_strtoul);
+EXPORT_SYMBOL(ddi_strtol);
+EXPORT_SYMBOL(ddi_strtoll);
+EXPORT_SYMBOL(ddi_strtoull);
 
 struct new_utsname *__utsname(void)
 {
