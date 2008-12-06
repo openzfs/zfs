@@ -18,7 +18,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	dnl # XXX: Quiet warnings not covered by the gcc-* patches
 	dnl # XXX: Remove once all the warnings are resolved
 	HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-parentheses "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-unknown-pragmas -Wno-parentheses "
 	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
 
 	dnl # Expected defines not covered by zfs_config.h or spl_config.h
