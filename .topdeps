@@ -16,3 +16,4 @@ linux-legacy
 linux-symbol-collisions
 linux-user-disk
 linux-zpios
+linux-libspl
