@@ -20,11 +20,16 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_CMN_ERR_H
-#define _SOL_SYS_CMN_ERR_H
+#ifndef _SOL_SYS_SDT_H
+#define _SOL_SYS_SDT_H
+
+#define DTRACE_PROBE1(a,b,c)             ((void) 0)
+#define DTRACE_PROBE2(a,b,c,d,e)         ((void) 0)
+#define DTRACE_PROBE3(a,b,c,d,e,f,g)     ((void) 0)
+#define DTRACE_PROBE4(a,b,c,d,e,f,g,h,i) ((void) 0)
 
 #endif
