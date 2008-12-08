@@ -19176,13 +19176,14 @@ echo "${ECHO_T}$zfsconfig" >&6;
 			KERNELMAKE_PARAMS=
 
 		KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas "
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
 
 		HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 "
 	HOSTCFLAGS="$HOSTCFLAGS -D_GNU_SOURCE -D__EXTENSIONS__ "
 
 			HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-parentheses "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-unknown-pragmas -Wno-parentheses "
 	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
 
 		HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
