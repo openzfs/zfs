@@ -141,7 +141,7 @@ nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
 		case DATA_TYPE_DOUBLE: {
 			double val;
 			(void) nvpair_value_double(nvp, &val);
-			(void) fprintf(fp, " 0x%llf", val);
+			(void) fprintf(fp, "  %f", val);
 			break;
 		}
 		case DATA_TYPE_STRING: {
