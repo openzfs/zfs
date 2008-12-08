@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
-#include <sys/spa.h>
 #include <sys/stat.h>
 #include <sys/processor.h>
 #include <sys/zfs_context.h>

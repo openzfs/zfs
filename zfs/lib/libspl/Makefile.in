@@ -2,15 +2,20 @@ subdir-m += include
 DISTFILES  = kernel.c mkdirp.c strlcpy.c taskq.c util.c
 DISTFILES += list.c strlcat.c strnlen.c u8_textprep.c
 
-LIBRARY := libzport
+LIBRARY := libspl
 
 # Compile as shared library.  There's an extra useless host program
 # here called 'zu' because it was the easiest way I could convince
 # the kernel build system to construct a user space shared library.
 
 HOSTCFLAGS += @HOSTCFLAGS@
-HOSTCFLAGS += -I@LIBDIR@/libzcommon/include
+HOSTCFLAGS += -I@LIBDIR@/libumem/include
 HOSTCFLAGS += -I@LIBDIR@/libspl/include
+
+HOSTLDFLAGS += -lumem -L@LIBDIR@/libumem
+
+# Additional shared library paths for executing binaries in-tree
+export LD_RUN_PATH = @LIBDIR@/libumem
 
 hostprogs-y := zu
 always := $(hostprogs-y)
