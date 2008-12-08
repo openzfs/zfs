@@ -24,7 +24,9 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_CMN_ERR_H
-#define _SOL_SYS_CMN_ERR_H
+#ifndef _SOL_SYS_CRED_H
+#define _SOL_SYS_CRED_H
+
+typedef struct cred cred_t;
 
 #endif
