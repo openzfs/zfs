@@ -20,11 +20,37 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 1994 by Sun Microsystems, Inc.
  */
 
-#ifndef _SOL_SYS_CMN_ERR_H
-#define _SOL_SYS_CMN_ERR_H
+/*
+ * sys/note.h:	interface for annotating source with info for tools
+ *
+ * This is the underlying interface; NOTE (/usr/include/note.h) is the
+ * preferred interface, but all exported header files should include this
+ * file directly and use _NOTE so as not to take "NOTE" from the user's
+ * namespace.  For consistency, *all* kernel source should use _NOTE.
+ *
+ * By default, annotations expand to nothing.  This file implements
+ * that.  Tools using annotations will interpose a different version
+ * of this file that will expand annotations as needed.
+ */
 
+#ifndef	_SYS_NOTE_H
+#define	_SYS_NOTE_H
+
+
+
+#ifdef	__cplusplus
+extern "C" {
 #endif
+
+#ifndef _NOTE
+#define	_NOTE(s)
+#endif
+
+#ifdef	__cplusplus
+}
+#endif
+
+#endif	/* _SYS_NOTE_H */
