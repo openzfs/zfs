@@ -71,6 +71,7 @@ extern "C" {
 #include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
+#include <sys/va_list.h>
 #include <sys/sysevent/eventdefs.h>
 
 /*
