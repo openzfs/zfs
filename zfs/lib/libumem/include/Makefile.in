@@ -1,1 +1,2 @@
-DISTFILES = umem.h
+subdir-m += sys
+DISTFILES = misc.h umem.h umem_base.h umem_impl.h vmem_base.h vmem_stand.h
