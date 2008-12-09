@@ -26,7 +26,6 @@
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include "lint.h"
 #include <string.h>
 #include <sys/types.h>
 
