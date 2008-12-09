@@ -11,6 +11,7 @@ LIBRARY := libumem
 # the kernel build system to construct a user space shared library.
 
 HOSTCFLAGS += @HOSTCFLAGS@
+HOSTCFLAGS += -I@LIBDIR@/libspl/include
 HOSTCFLAGS += -I@LIBDIR@/libumem/include
 
 HOSTLDFLAGS += -pthread
