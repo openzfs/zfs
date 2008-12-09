@@ -86,9 +86,6 @@ cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
 
 echo "* zfs/lib/libspl"
 mkdir -p ${DST_LIB}/libspl/include/sys/
-cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libspl/
-cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libspl/
-cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libspl/include/sys/
 cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libc/port/gen/strlcpy.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libc/port/gen/strnlen.c		${DST_LIB}/libspl/
@@ -110,6 +107,9 @@ cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_LIB}/libzcommon/include/sys/fm/fs/
 echo "* zfs/lib/libzpool"
 mkdir -p ${DST_LIB}/libzpool/include/sys/
 cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libzpool/
+#cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libzpool/include/sys/
 cp ${SRC_ZLIB}/*.c				${DST_LIB}/libzpool/
 cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_LIB}/libzpool/
 cp ${SRC_ZLIB}/sys/*.h				${DST_LIB}/libzpool/include/sys/
