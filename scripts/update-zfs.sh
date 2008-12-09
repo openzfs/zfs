@@ -73,11 +73,11 @@ cp ${SRC_UCM}/sys/nvpair.h			${DST_LIB}/libnvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_LIB}/libnvpair/include/sys/
 
 echo "* zfs/lib/libumem"
-mkdir -p ${DST_LIB}/libumem/include/
-mkdir -p ${DST_LIB}/libumem/sys/
+mkdir -p ${DST_LIB}/libumem/include/sys/
 cp ${SRC_LIB}/libumem/common/*.c		${DST_LIB}/libumem/
 cp ${SRC_LIB}/libumem/common/*.h		${DST_LIB}/libumem/include/
-cp ${SRC_LIB}/libumem/common/sys/*.h		${DST_LIB}/libumem/sys/
+cp ${SRC_LIB}/libumem/common/sys/*.h		${DST_LIB}/libumem/include/sys/
+cp ${SRC_UCM}/sys/vmem.h			${DST_LIB}/libumem/include/sys/
 
 echo "* zfs/lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
@@ -92,7 +92,6 @@ cp ${SRC_LIB}/libc/port/gen/strnlen.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libgen/common/mkdirp.c		${DST_LIB}/libspl/
 cp ${SRC_CM}/unicode/u8_textprep.c		${DST_LIB}/libspl/
 cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
-cp ${SRC_UCM}/sys/vmem.h			${DST_LIB}/libspl/include/sys/
 cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
 cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
 
