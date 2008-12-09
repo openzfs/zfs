@@ -1,10 +1,8 @@
-subdir-m += include sys
-DISTFILES  = COPYING COPYRIGHT OPENSOLARIS.LICENSE README README-alpha TODO
-DISTFILES += config.h envvar.c getpcstack.c init_lib.c misc.c misc.h
-DISTFILES += sol_compat.h umem.c umem_agent_support.c umem_base.h
-DISTFILES += umem_fail.c umem_fork.c umem_impl.h umem_update_thread.c
-DISTFILES += vmem.c vmem_base.c vmem_base.h vmem_mmap.c vmem_sbrk.c
-DISTFILES += vmem_stand.h
+subdir-m += include
+DISTFILES  = envvar.c getpcstack.c init_lib.c init_stand.c linktest_stand.c
+DISTFILES += malloc.c misc.c stub_stand.c umem.c umem_agent_support.c
+DISTFILES += umem_fail.c umem_fork.c umem_update_thread.c vmem.c
+DISTFILES += vmem_base.c vmem_mmap.c vmem_sbrk.c vmem_stand.c zu.c
 
 LIBRARY := libumem
 
@@ -13,9 +11,7 @@ LIBRARY := libumem
 # the kernel build system to construct a user space shared library.
 
 HOSTCFLAGS += @HOSTCFLAGS@
-HOSTCFLAGS += -I@LIBDIR@/libumem
 HOSTCFLAGS += -I@LIBDIR@/libumem/include
-HOSTCFLAGS += -I@LIBDIR@/libumem/sys
 
 HOSTLDFLAGS += -pthread
 HOSTLDFLAGS += -ldl
@@ -38,3 +34,10 @@ ${LIBRARY}-objs += vmem.o
 ${LIBRARY}-objs += vmem_base.o
 ${LIBRARY}-objs += vmem_mmap.o
 ${LIBRARY}-objs += vmem_sbrk.o
+
+# Currently unused
+# ${LIBRARY}-objs += init_stand.o
+# ${LIBRARY}-objs += linktest_stand.o
+# ${LIBRARY}-objs += malloc.o
+# ${LIBRARY}-objs += stub_stand.o
+# ${LIBRARY}-objs += vmem_stand.o
