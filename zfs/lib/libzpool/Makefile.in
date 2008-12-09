@@ -93,5 +93,5 @@ ${MODULE}-objs += zfs_znode.o	# Vnode to znode mapping
 # Traversal
 ${MODULE}-objs += dmu_traverse.o# Traversal code
 
-# SPL (Solaris Porting Layer)
-${MODULE}-objs += spl.o		# Linux kernel glue and misc support
+# Kernel or User Space Integration
+${MODULE}-objs += kernel.o	# Linux kernel/user glue and misc support
