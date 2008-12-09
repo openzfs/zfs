@@ -1,5 +1,5 @@
 subdir-m += include
-DISTFILES  = kernel.c mkdirp.c strlcpy.c taskq.c util.c
+DISTFILES  = mkdirp.c strlcpy.c taskq.c util.c
 DISTFILES += list.c strlcat.c strnlen.c u8_textprep.c
 
 LIBRARY := libspl
@@ -22,7 +22,6 @@ always := $(hostprogs-y)
 
 zu-objs := zu.o ${LIBRARY}.so
 
-${LIBRARY}-objs += kernel.o
 ${LIBRARY}-objs += mkdirp.o
 ${LIBRARY}-objs += strlcpy.o
 ${LIBRARY}-objs += taskq.o
