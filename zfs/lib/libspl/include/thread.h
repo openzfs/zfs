@@ -35,7 +35,7 @@ thr_create(void *stack_base, size_t stack_size,
 	if (flags & THR_DETACHED)
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-	rc = pthread_create(new_thread_ID, &attr, start_func, arg);
+	rc = pthread_create(new_thread_id, &attr, start_func, arg);
 	pthread_attr_destroy(&attr);
 
 	return rc;
