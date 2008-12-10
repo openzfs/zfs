@@ -9,12 +9,6 @@
 
 #define STACK_BIAS	0
 
-typedef struct {
-	void    *ss_sp;
-	size_t  ss_size;
-	int     ss_flags;
-} stack_t;
-
 #ifdef __USE_GNU
 
 static inline int
