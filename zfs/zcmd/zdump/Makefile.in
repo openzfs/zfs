@@ -14,7 +14,7 @@ HOSTCFLAGS += -I@LIBDIR@/libzfs/include
 HOSTLDFLAGS += -lavl -L@LIBDIR@/libavl
 HOSTLDFLAGS += -lnvpair -L@LIBDIR@/libnvpair
 HOSTLDFLAGS += -luutil -L@LIBDIR@/libuutil
-HOSTLDFLAGS += -lzport -L@LIBDIR@/libspl
+HOSTLDFLAGS += -lspl -L@LIBDIR@/libspl
 HOSTLDFLAGS += -lzcommon -L@LIBDIR@/libzcommon
 HOSTLDFLAGS += -lzfs -L@LIBDIR@/libzfs
 
