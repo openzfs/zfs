@@ -87,4 +87,7 @@ typedef union {
 } lloff_t;
 #endif
 
+typedef longlong_t hrtime_t;
+typedef struct timespec timestruc_t;
+
 #endif
