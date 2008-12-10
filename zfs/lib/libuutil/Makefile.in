@@ -15,8 +15,8 @@ HOSTCFLAGS += -DNATIVE_BUILD
 
 HOSTLDFLAGS += -pthread
 HOSTLDFLAGS += -lrt
+HOSTLDFLAGS += -lspl -L@LIBDIR@/libspl
 HOSTLDFLAGS += -lavl -L@LIBDIR@/libavl
-HOSTLDFLAGS += -lzport -L@LIBDIR@/libspl
 
 hostprogs-y := zu
 always := $(hostprogs-y)
