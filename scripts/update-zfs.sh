@@ -72,13 +72,6 @@ cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_LIB}/libnvpair/include/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_LIB}/libnvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_LIB}/libnvpair/include/sys/
 
-echo "* zfs/lib/libumem"
-mkdir -p ${DST_LIB}/libumem/include/sys/
-cp ${SRC_LIB}/libumem/common/*.c		${DST_LIB}/libumem/
-cp ${SRC_LIB}/libumem/common/*.h		${DST_LIB}/libumem/include/
-cp ${SRC_LIB}/libumem/common/sys/*.h		${DST_LIB}/libumem/include/sys/
-cp ${SRC_UCM}/sys/vmem.h			${DST_LIB}/libumem/include/sys/
-
 echo "* zfs/lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
 cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
