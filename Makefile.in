@@ -50,9 +50,6 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/zfs/lib/libspl/Makefile.in \
 	$(top_srcdir)/zfs/lib/libspl/include/Makefile.in \
 	$(top_srcdir)/zfs/lib/libspl/include/sys/Makefile.in \
-	$(top_srcdir)/zfs/lib/libumem/Makefile.in \
-	$(top_srcdir)/zfs/lib/libumem/include/Makefile.in \
-	$(top_srcdir)/zfs/lib/libumem/include/sys/Makefile.in \
 	$(top_srcdir)/zfs/lib/libuutil/Makefile.in \
 	$(top_srcdir)/zfs/lib/libuutil/include/Makefile.in \
 	$(top_srcdir)/zfs/lib/libzcommon/Makefile.in \
@@ -317,12 +314,6 @@ zfs/lib/libzfs/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs/lib/libzfs/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libzfs/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-zfs/lib/libumem/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libumem/include/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-zfs/lib/libumem/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libumem/include/sys/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-zfs/lib/libumem/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libumem/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs/lib/libzcommon/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libzcommon/include/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs/lib/libzcommon/include/sys/fm/fs/Makefile: $(top_builddir)/config.status $(top_srcdir)/zfs/lib/libzcommon/include/sys/fm/fs/Makefile.in
@@ -507,7 +498,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config $(distdir)/zfs $(distdir)/zfs/lib $(distdir)/zfs/lib/libavl $(distdir)/zfs/lib/libavl/include $(distdir)/zfs/lib/libavl/include/sys $(distdir)/zfs/lib/libnvpair $(distdir)/zfs/lib/libnvpair/include $(distdir)/zfs/lib/libnvpair/include/sys $(distdir)/zfs/lib/libspl $(distdir)/zfs/lib/libspl/include $(distdir)/zfs/lib/libspl/include/sys $(distdir)/zfs/lib/libumem $(distdir)/zfs/lib/libumem/include $(distdir)/zfs/lib/libumem/include/sys $(distdir)/zfs/lib/libuutil $(distdir)/zfs/lib/libuutil/include $(distdir)/zfs/lib/libzcommon $(distdir)/zfs/lib/libzcommon/include $(distdir)/zfs/lib/libzcommon/include/sys $(distdir)/zfs/lib/libzcommon/include/sys/fm $(distdir)/zfs/lib/libzcommon/include/sys/fm/fs $(distdir)/zfs/lib/libzcommon/include/sys/fs $(distdir)/zfs/lib/libzfs $(distdir)/zfs/lib/libzfs/include $(distdir)/zfs/lib/libzpios $(distdir)/zfs/lib/libzpool $(distdir)/zfs/zcmd $(distdir)/zfs/zcmd/zdb $(distdir)/zfs/zcmd/zdump $(distdir)/zfs/zcmd/zfs $(distdir)/zfs/zcmd/zinject $(distdir)/zfs/zcmd/zpios $(distdir)/zfs/zcmd/zpool $(distdir)/zfs/zcmd/ztest
+	$(mkdir_p) $(distdir)/config $(distdir)/zfs $(distdir)/zfs/lib $(distdir)/zfs/lib/libavl $(distdir)/zfs/lib/libavl/include $(distdir)/zfs/lib/libavl/include/sys $(distdir)/zfs/lib/libnvpair $(distdir)/zfs/lib/libnvpair/include $(distdir)/zfs/lib/libnvpair/include/sys $(distdir)/zfs/lib/libspl $(distdir)/zfs/lib/libspl/include $(distdir)/zfs/lib/libspl/include/sys $(distdir)/zfs/lib/libuutil $(distdir)/zfs/lib/libuutil/include $(distdir)/zfs/lib/libzcommon $(distdir)/zfs/lib/libzcommon/include $(distdir)/zfs/lib/libzcommon/include/sys $(distdir)/zfs/lib/libzcommon/include/sys/fm $(distdir)/zfs/lib/libzcommon/include/sys/fm/fs $(distdir)/zfs/lib/libzcommon/include/sys/fs $(distdir)/zfs/lib/libzfs $(distdir)/zfs/lib/libzfs/include $(distdir)/zfs/lib/libzpios $(distdir)/zfs/lib/libzpool $(distdir)/zfs/zcmd $(distdir)/zfs/zcmd/zdb $(distdir)/zfs/zcmd/zdump $(distdir)/zfs/zcmd/zfs $(distdir)/zfs/zcmd/zinject $(distdir)/zfs/zcmd/zpios $(distdir)/zfs/zcmd/zpool $(distdir)/zfs/zcmd/ztest
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
