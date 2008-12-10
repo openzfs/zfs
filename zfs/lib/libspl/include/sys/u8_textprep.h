@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#include "zfs_config.h"
-
 #ifdef HAVE_UNICODE
 #include_next <sys/u8_textprep.h>
 #else
