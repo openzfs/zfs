@@ -27,7 +27,6 @@
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <string.h>
-#include <sys/types.h>
 
 /*
  * Returns the number of non-NULL bytes in string argument,
