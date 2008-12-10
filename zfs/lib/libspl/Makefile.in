@@ -1,6 +1,6 @@
 subdir-m += include
 DISTFILES  = list.c mkdirp.c strlcpy.c strlcat.c strnlen.c
-DISTFILES += u8_textprep.c getexecname.c
+DISTFILES += u8_textprep.c getexecname.c gethrtime.c
 
 LIBRARY := libspl
 
@@ -23,4 +23,4 @@ ${LIBRARY}-objs += strlcat.o
 ${LIBRARY}-objs += strnlen.o
 ${LIBRARY}-objs += u8_textprep.o
 ${LIBRARY}-objs += getexecname.o
-
+${LIBRARY}-objs += gethrtime.o
