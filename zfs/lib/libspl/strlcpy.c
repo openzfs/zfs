@@ -27,7 +27,6 @@
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <string.h>
-#include <sys/types.h>
 
 /*
  * Copies src to the dstsize buffer at dst. The copy will never
