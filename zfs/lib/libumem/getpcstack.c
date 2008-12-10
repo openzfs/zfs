@@ -148,7 +148,7 @@ getpcstack(uintptr_t *pcstack, int pcstack_limit, int check_signal)
 			break;
 		else if (nextfp <= minfp || (tmp - base) >= size) {
 #ifndef UMEM_STANDALONE
-			if (tmp == NULL || !on_altstack)
+			if (tmp == 0 || !on_altstack)
 				break;
 			/*
 			 * If we're on an alternate signal stack, try jumping
