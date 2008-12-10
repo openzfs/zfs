@@ -27,6 +27,7 @@
 #ifndef _SOL_SYS_TIME_H
 #define _SOL_SYS_TIME_H
 
+#include <sys/types.h>
 #include_next <sys/time.h>
 
 typedef longlong_t	hrtime_t;

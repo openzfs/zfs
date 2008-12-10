@@ -87,6 +87,4 @@ typedef union {
 } lloff_t;
 #endif
 
-#include <sys/time.h>
-
 #endif
