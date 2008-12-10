@@ -65,8 +65,6 @@
  * This file has been modified by Sun Microsystems, Inc.
  */
 
-#include "zfs_config.h"
-
 #ifdef HAVE_UNICODE
 #include_next <sys/u8_textprep_data.h>
 #else
