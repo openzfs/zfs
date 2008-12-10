@@ -97,9 +97,9 @@ getpcstack(uintptr_t *pcstack, int pcstack_limit, int check_signal)
 	}
 
 	if (check_signal != 0) {
-		void (*sigfunc)() = NULL;
+		void (*sigfunc)(void) = NULL;
 		int sigfuncsize = 0;
-		extern void thr_sighndlrinfo(void (**)(), int *);
+		extern void thr_sighndlrinfo(void (**)(void), int *);
 
 		thr_sighndlrinfo(&sigfunc, &sigfuncsize);
 		sigbase = (uintptr_t)sigfunc;
