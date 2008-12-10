@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,23 +18,29 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_TIME_H
-#define _SOL_SYS_TIME_H
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
-#include_next <sys/time.h>
+#include <sys/time.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-typedef longlong_t	hrtime_t;
-typedef struct timespec	timestruc_t;
+hrtime_t
+gethrtime(void)
+{
+	struct timespec ts;
+	int rc;
 
-#ifndef NANOSEC
-#define NANOSEC 1000000000
-#endif
+	rc = clock_gettime(CLOCK_MONOTONIC, &ts);
+	if (rc) {
+		fprintf(stderr, "Error: clock_gettime() = %d\n", rc)
+	        abort();
+	}
 
-extern hrtime_t gethrtime(void);
-
-#endif
+	return (((u_int64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec;
+}
