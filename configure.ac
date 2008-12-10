@@ -117,9 +117,6 @@ AC_CONFIG_FILES([ Makefile
                   zfs/lib/libuutil/Makefile
                   zfs/lib/libzfs/include/Makefile
                   zfs/lib/libzfs/Makefile
-                  zfs/lib/libumem/include/Makefile
-                  zfs/lib/libumem/include/sys/Makefile
-                  zfs/lib/libumem/Makefile
                   zfs/lib/libzcommon/include/Makefile
                   zfs/lib/libzcommon/include/sys/fm/fs/Makefile
                   zfs/lib/libzcommon/include/sys/fm/Makefile

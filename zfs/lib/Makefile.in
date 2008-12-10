@@ -1,5 +1,4 @@
 subdir-m += libuutil		# User space util support
-subdir-m += libumem		# User space memory support
 subdir-m += libzfs		# User space library support
 subdir-m += libspl		# User space compatibility library
 
