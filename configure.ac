@@ -120,5 +120,6 @@ AC_CONFIG_FILES([ Makefile
                   cmd/zinject/Makefile
                   cmd/zpool/Makefile
                   cmd/ztest/Makefile
+                  cmd/zpios/Makefile
                ])
 AC_OUTPUT
