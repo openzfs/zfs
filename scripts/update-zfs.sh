@@ -89,13 +89,6 @@ cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
 rm ${DST_MOD}/zfs/vdev_disk.c
 rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
 
-echo " lib/libzpool"
-mkdir -p ${DST_LIB}/libzpool/include/sys/
-cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
-cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libzpool/
-cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libzpool/
-cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libzpool/include/sys/
-
 echo "* lib/libspl"
 mkdir -p ${DST_LIB}/libspl/include/sys/
 cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
@@ -111,6 +104,13 @@ echo "* lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
 cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
 cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
+
+echo "* lib/libzpool"
+mkdir -p ${DST_LIB}/libzpool/include/sys/
+cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libzpool/include/sys/
 
 echo "* lib/libzfs"
 mkdir -p ${DST_LIB}/libzfs/include/
@@ -143,5 +143,7 @@ cp ${SRC_CMD}/zinject/*.h			${DST_CMD}/zinject/
 echo "* cmd/ztest"
 mkdir -p ${DST_CMD}/ztest
 cp ${SRC_CMD}/ztest/*.c				${DST_CMD}/ztest/
+
+echo "${REMOTE_SRC}" >${DST}/ZFS.RELEASE
 
 rm -Rf ${SRC}
