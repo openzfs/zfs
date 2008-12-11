@@ -113,7 +113,6 @@ AC_CONFIG_FILES([ Makefile
                   lib/libzcommon/Makefile
                   lib/libzpool/Makefile
                   lib/libzfs/Makefile
-                  lib/libzfs/include/Makefile
                   cmd/Makefile
                   cmd/zdb/Makefile
                   cmd/zdump/Makefile
