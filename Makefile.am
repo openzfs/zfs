@@ -1,25 +1,9 @@
 AUTOMAKE_OPTIONS = foreign dist-zip
+EXTRA_DIST  = autogen.sh AUTHORS COPYING COPYRIGHT ChangeLog DISCLAIMER
+EXTRA_DIST += GIT META OPENSOLARIS.LICENSE README ZFS.RELEASE
 
-SUBDIRS = doc scripts $(BUILDDIR)
-CONFIG_CLEAN_FILES =  aclocal.m4 config.guess config.sub
-CONFIG_CLEAN_FILES += depcomp missing mkinstalldirs
-EXTRA_DIST = autogen.sh
+SUBDIRS = config doc scripts lib cmd module
 
-.PHONY: quilt
-quilt:   .quilt-$(BUILDDIR)
-autogen: .autogen-$(BUILDDIR)
-config:  .config-$(BUILDDIR)
-.quilt-$(BUILDDIR):
-	./scripts/quilt.sh -p $(NAME) -b $(BUILDDIR) -s $(SERIESFILE) -d $(PATCHDIR)
-	echo $(BUILDDIR) >$@
-
-unquilt:
-	rm -rf $(BUILDDIR)
-	rm -f .quilt-$(BUILDDIR)
-
-clean-generic:
-
-distclean: unquilt
-
-rpms: dist Makefile
-	rpmbuild -ta $(distdir).tar.gz
+.PHONY: rpm
+rpms: dist-bzip2
+	rpmbuild -ta $(distdir).tar.bz2
