@@ -24,10 +24,10 @@
  * Use is subject to license terms.
  */
 
+#include_next <stdlib.h>
+
 #ifndef _SOL_STDLIB_H
 #define _SOL_STDLIB_H
-
-#include_next <stdlib.h>
 
 extern const char *getexecname(void);
 
