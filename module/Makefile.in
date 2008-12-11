@@ -1,0 +1,13 @@
+subdir-m = avl nvpair zcommon zfs
+
+# Make the exported SPL symbols available to these modules.
+# Unfortunately there is not a cleaner way to do this, modpost
+# does not contain an option to search additional symbol files.
+all:
+	cp @splsymvers@ .
+	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules
+
+install uninstall clean distclean maintainer-clean distdir:
+	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+
+check:
