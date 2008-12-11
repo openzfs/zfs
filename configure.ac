@@ -105,34 +105,21 @@ AC_CONFIG_FILES([ Makefile
                   config/Makefile
                   doc/Makefile
                   scripts/Makefile
-                  zfs/Makefile
-                  zfs/lib/Makefile
-                  zfs/lib/libnvpair/include/sys/Makefile
-                  zfs/lib/libnvpair/include/Makefile
-                  zfs/lib/libnvpair/Makefile
-                  zfs/lib/libavl/include/sys/Makefile
-                  zfs/lib/libavl/include/Makefile
-                  zfs/lib/libavl/Makefile
-                  zfs/lib/libuutil/include/Makefile
-                  zfs/lib/libuutil/Makefile
-                  zfs/lib/libzfs/include/Makefile
-                  zfs/lib/libzfs/Makefile
-                  zfs/lib/libzcommon/include/Makefile
-                  zfs/lib/libzcommon/include/sys/fm/fs/Makefile
-                  zfs/lib/libzcommon/include/sys/fm/Makefile
-                  zfs/lib/libzcommon/include/sys/Makefile
-                  zfs/lib/libzcommon/include/sys/fs/Makefile
-                  zfs/lib/libzcommon/Makefile
-                  zfs/lib/libzpool/Makefile
-                  zfs/lib/libspl/include/sys/Makefile
-                  zfs/lib/libspl/include/Makefile
-                  zfs/lib/libspl/Makefile
-                  zfs/zcmd/ztest/Makefile
-                  zfs/zcmd/Makefile
-                  zfs/zcmd/zfs/Makefile
-                  zfs/zcmd/zdb/Makefile
-                  zfs/zcmd/zinject/Makefile
-                  zfs/zcmd/zdump/Makefile
-                  zfs/zcmd/zpool/Makefile
+                  lib/Makefile
+                  lib/libspl/Makefile
+                  lib/libavl/Makefile
+                  lib/libnvpair/Makefile
+                  lib/libuutil/Makefile
+                  lib/libzcommon/Makefile
+                  lib/libzpool/Makefile
+                  lib/libzfs/Makefile
+                  lib/libzfs/include/Makefile
+                  cmd/Makefile
+                  cmd/zdb/Makefile
+                  cmd/zdump/Makefile
+                  cmd/zfs/Makefile
+                  cmd/zinject/Makefile
+                  cmd/zpool/Makefile
+                  cmd/ztest/Makefile
                ])
 AC_OUTPUT
