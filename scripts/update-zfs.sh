@@ -57,7 +57,7 @@ rm -Rf ${DST}/zfs
 
 echo
 echo "------------- Updating ZFS from OpenSolaris ${RELEASE} ---------------"
-echo "* module/avl + lib/libavl"
+echo "* module/avl"
 mkdir -p ${DST_MOD}/avl/include/sys/
 cp ${SRC_CM}/avl/avl.c				${DST_MOD}/avl/
 cp ${SRC_UCM}/sys/avl.h				${DST_MOD}/avl/include/sys/
@@ -69,7 +69,7 @@ cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
-echo "* module/zcommon + lib/libzcommon"
+echo "* module/zcommon"
 mkdir -p ${DST_MOD}/zcommon/include/sys/fs/
 mkdir -p ${DST_MOD}/zcommon/include/sys/fm/fs/
 cp ${SRC_CM}/zfs/*.c				${DST_MOD}/zcommon/
@@ -96,6 +96,9 @@ cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
 cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
 cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
 
+echo "* lib/libavl"
+# Full source available in 'module/avl'
+
 echo "* lib/libnvpair"
 mkdir -p ${DST_LIB}/libnvpair/include/
 cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_LIB}/libnvpair/
@@ -106,6 +109,9 @@ echo "* lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
 cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
 cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
+
+echo "* lib/libzcommon"
+# Full source available in 'module/zcommon'
 
 echo "* lib/libzpool"
 mkdir -p ${DST_LIB}/libzpool/include/sys/
