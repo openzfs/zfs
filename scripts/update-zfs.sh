@@ -38,7 +38,7 @@ echo "------------- Fetching OpenSolaris ${RELEASE} archive ----------------"
 wget ${REMOTE_SRC} -P ${SRC} ||
 	die "Error 'wget ${REMOTE_SRC}'"
 
-echo "------------- Unpacking OperSolaris ${RELEASE} archive ---------------"
+echo "------------- Unpacking OpenSolaris ${RELEASE} archive ---------------"
 tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC} ||
 	die "Error 'tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC}'"
 
