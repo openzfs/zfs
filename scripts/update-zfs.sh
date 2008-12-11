@@ -49,35 +49,54 @@ SRC_UTS=${SRC}/usr/src/uts
 SRC_UCM=${SRC}/usr/src/uts/common
 SRC_ZLIB=${SRC}/usr/src/uts/common/fs/zfs
 
-DST_LIB=${DST}/zfs/lib
-DST_CMD=${DST}/zfs/zcmd
+DST_MOD=${DST}/module
+DST_LIB=${DST}/lib
+DST_CMD=${DST}/cmd
 
 rm -Rf ${DST}/zfs
 
 echo
 echo "------------- Updating ZFS from OpenSolaris ${RELEASE} ---------------"
-echo "* zfs/lib/libavl"
-mkdir -p ${DST_LIB}/libavl/include/sys/
-cp ${SRC_CM}/avl/avl.c				${DST_LIB}/libavl/
-cp ${SRC_UCM}/sys/avl.h				${DST_LIB}/libavl/include/sys/
-cp ${SRC_UCM}/sys/avl_impl.h			${DST_LIB}/libavl/include/sys/
+echo "* module/avl + lib/libavl"
+mkdir -p ${DST_MOD}/avl/include/sys/
+cp ${SRC_CM}/avl/avl.c				${DST_MOD}/avl/
+cp ${SRC_UCM}/sys/avl.h				${DST_MOD}/avl/include/sys/
+cp ${SRC_UCM}/sys/avl_impl.h			${DST_MOD}/avl/include/sys/
 
-echo "* zfs/lib/libnvpair"
-mkdir -p ${DST_LIB}/libnvpair/include/sys/
-cp ${SRC_CM}/nvpair/nvpair.c			${DST_LIB}/libnvpair/
-cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_LIB}/libnvpair/
-cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_LIB}/libnvpair/
-cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_LIB}/libnvpair/
-cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_LIB}/libnvpair/include/
-cp ${SRC_UCM}/sys/nvpair.h			${DST_LIB}/libnvpair/include/sys/
-cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_LIB}/libnvpair/include/sys/
+echo "* module/nvpair + lib/libnvpair"
+mkdir -p ${DST_MOD}/nvpair/include/sys/
+cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_MOD}/nvpair/
+cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_MOD}/nvpair/
+cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_MOD}/nvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_MOD}/nvpair/include/
+cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
+cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
-echo "* zfs/lib/libuutil"
-mkdir -p ${DST_LIB}/libuutil/include/
-cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
-cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
+echo "* module/zcommon + lib/libzcommon"
+mkdir -p ${DST_MOD}/zcommon/include/sys/fs/
+mkdir -p ${DST_MOD}/zcommon/include/sys/fm/fs/
+cp ${SRC_CM}/zfs/*.c				${DST_MOD}/zcommon/
+cp ${SRC_CM}/zfs/*.h				${DST_MOD}/zcommon/include/
+cp ${SRC_UCM}/sys/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fs/
+cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fm/fs/
 
-echo "* zfs/lib/libspl"
+echo "* module/zfs"
+mkdir -p ${DST_MOD}/zpool/include/sys/
+cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_MOD}/zfs/
+cp ${SRC_ZLIB}/*.c				${DST_MOD}/zfs/
+cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
+rm ${DST_MOD}/zfs/vdev_disk.c
+rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
+
+echo " lib/libzpool"
+mkdir -p ${DST_LIB}/libzpool/include/sys/
+cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libzpool/
+cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libzpool/include/sys/
+
+echo "* lib/libspl"
 mkdir -p ${DST_LIB}/libspl/include/sys/
 cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
 cp ${SRC_LIB}/libc/port/gen/strlcpy.c		${DST_LIB}/libspl/
@@ -88,55 +107,40 @@ cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
 cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
 cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
 
-echo "* zfs/lib/libzcommon"
-mkdir -p ${DST_LIB}/libzcommon/include/sys/fs/
-mkdir -p ${DST_LIB}/libzcommon/include/sys/fm/fs/
-cp ${SRC_CM}/zfs/*.c				${DST_LIB}/libzcommon/
-cp ${SRC_CM}/zfs/*.h				${DST_LIB}/libzcommon/include/
-cp ${SRC_UCM}/sys/fs/zfs.h			${DST_LIB}/libzcommon/include/sys/fs/
-cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_LIB}/libzcommon/include/sys/fm/fs/
+echo "* lib/libuutil"
+mkdir -p ${DST_LIB}/libuutil/include/
+cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
+cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
 
-echo "* zfs/lib/libzpool"
-mkdir -p ${DST_LIB}/libzpool/include/sys/
-cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
-cp ${SRC_LIB}/libzpool/common/taskq.c		${DST_LIB}/libzpool/
-cp ${SRC_LIB}/libzpool/common/util.c		${DST_LIB}/libzpool/
-#cp ${SRC_LIB}/libzpool/common/sys/zfs_context.h	${DST_LIB}/libzpool/include/sys/
-cp ${SRC_ZLIB}/*.c				${DST_LIB}/libzpool/
-cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_LIB}/libzpool/
-cp ${SRC_ZLIB}/sys/*.h				${DST_LIB}/libzpool/include/sys/
-rm ${DST_LIB}/libzpool/vdev_disk.c
-rm ${DST_LIB}/libzpool/include/sys/vdev_disk.h
-
-echo "* zfs/lib/libzfs"
+echo "* lib/libzfs"
 mkdir -p ${DST_LIB}/libzfs/include/
 cp ${SRC_LIB}/libzfs/common/*.c			${DST_LIB}/libzfs/
 cp ${SRC_LIB}/libzfs/common/*.h			${DST_LIB}/libzfs/include/
 
-echo "* zfs/zcmd/zpool"
+echo "* cmd/zpool"
 mkdir -p ${DST_CMD}/zpool
 cp ${SRC_CMD}/zpool/*.c				${DST_CMD}/zpool/
 cp ${SRC_CMD}/zpool/*.h				${DST_CMD}/zpool/
 
-echo "* zfs/zcmd/zfs"
+echo "* cmd/zfs"
 mkdir -p ${DST_CMD}/zfs
 cp ${SRC_CMD}/zfs/*.c				${DST_CMD}/zfs/
 cp ${SRC_CMD}/zfs/*.h				${DST_CMD}/zfs/
 
-echo "* zfs/zcmd/zdb"
+echo "* cmd/zdb"
 mkdir -p ${DST_CMD}/zdb/
 cp ${SRC_CMD}/zdb/*.c				${DST_CMD}/zdb/
 
-echo "* zfs/zcmd/zdump"
+echo "* cmd/zdump"
 mkdir -p ${DST_CMD}/zdump
 cp ${SRC_CMD}/zdump/*.c				${DST_CMD}/zdump/
 
-echo "* zfs/zcmd/zinject"
+echo "* cmd/zinject"
 mkdir -p ${DST_CMD}/zinject
 cp ${SRC_CMD}/zinject/*.c			${DST_CMD}/zinject/
 cp ${SRC_CMD}/zinject/*.h			${DST_CMD}/zinject/
 
-echo "* zfs/zcmd/ztest"
+echo "* cmd/ztest"
 mkdir -p ${DST_CMD}/ztest
 cp ${SRC_CMD}/ztest/*.c				${DST_CMD}/ztest/
 
