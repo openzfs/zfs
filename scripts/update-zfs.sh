@@ -63,13 +63,9 @@ cp ${SRC_CM}/avl/avl.c				${DST_MOD}/avl/
 cp ${SRC_UCM}/sys/avl.h				${DST_MOD}/avl/include/sys/
 cp ${SRC_UCM}/sys/avl_impl.h			${DST_MOD}/avl/include/sys/
 
-echo "* module/nvpair + lib/libnvpair"
+echo "* module/nvpair"
 mkdir -p ${DST_MOD}/nvpair/include/sys/
 cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
-cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_MOD}/nvpair/
-cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_MOD}/nvpair/
-cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_MOD}/nvpair/
-cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_MOD}/nvpair/include/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
@@ -99,6 +95,12 @@ cp ${SRC_CM}/unicode/u8_textprep.c		${DST_LIB}/libspl/
 cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
 cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
 cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
+
+echo "* lib/libnvpair"
+mkdir -p ${DST_LIB}/libnvpair/include/
+cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_LIB}/libnvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_LIB}/libnvpair/
+cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_LIB}/libnvpair/include/
 
 echo "* lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
