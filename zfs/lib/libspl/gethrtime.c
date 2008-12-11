@@ -26,6 +26,7 @@
 
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
+#include <time.h>
 #include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@ gethrtime(void)
 
 	rc = clock_gettime(CLOCK_MONOTONIC, &ts);
 	if (rc) {
-		fprintf(stderr, "Error: clock_gettime() = %d\n", rc)
+		fprintf(stderr, "Error: clock_gettime() = %d\n", rc);
 	        abort();
 	}
 
