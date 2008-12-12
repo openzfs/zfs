@@ -187,7 +187,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-SUBDIRS = libspl libavl libnvpair libuutil libzpool libzfs
+SUBDIRS = libspl libavl libnvpair libuutil libzfs # libzpool
 all: all-recursive
 
 .SUFFIXES:
