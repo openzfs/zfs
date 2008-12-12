@@ -212,9 +212,9 @@ target_vendor = @target_vendor@
 AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
 	-Wno-unused -Wno-missing-braces -Wno-unknown-pragmas \
 	-Wno-parentheses -Wno-uninitialized -fno-strict-aliasing \
-	-D_GNU_SOURCE -D__EXTENSIONS__ -D_POSIX_PTHREAD_SEMANTICS \
-	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_REENTRANT \
-	-DTEXT_DOMAIN=\\\"zfs-linux-user\\\"
+	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
+	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
+	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 DEFAULT_INCLUDES = \
 	-I${top_srcdir}/module/nvpair/include \
 	-I${top_srcdir}/lib/libnvpair/include \
