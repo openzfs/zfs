@@ -58,7 +58,7 @@ typedef struct umem_cache {
 	size_t			cache_align;
 	umem_constructor_t	*cache_constructor;
 	umem_destructor_t	*cache_destructor;
-	umem_reclaim_t		*cache_reclaim
+	umem_reclaim_t		*cache_reclaim;
 	void			*cache_private;
 	void			*cache_arena;
 	int			cache_cflags;
