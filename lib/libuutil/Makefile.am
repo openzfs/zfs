@@ -6,7 +6,7 @@ DEFAULT_INCLUDES = \
 
 lib_LTLIBRARIES = libuutil.la
 
-libuutil_la_SOURCES =
+libuutil_la_SOURCES = \
 	${top_srcdir}/lib/libuutil/uu_alloc.c \
 	${top_srcdir}/lib/libuutil/uu_avl.c \
 	${top_srcdir}/lib/libuutil/uu_dprintf.c \
