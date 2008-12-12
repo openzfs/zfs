@@ -56,12 +56,6 @@ ZFS_AC_LICENSE
 ZFS_AC_DEBUG
 ZFS_AC_2ARGS_BIO_END_IO_T
 
-# Check for needed userspace bits
-AC_CHECK_HEADERS(sys/types.h sys/byteorder.h sys/isa_defs.h \
-                 sys/systeminfo.h sys/u8_textprep.h libdiskmgt.h)
-
-AC_CHECK_FUNCS(strlcat strlcpy strnlen issetugid setmntent getexecname)
-
 AC_CHECK_LIB([diskmgt], [libdiskmgt_error],
 	[AC_DEFINE([HAVE_LIBDISKMGT], 1,
         [Define to 1 if 'libdiskmgt' library available])])
@@ -99,7 +93,7 @@ AC_EGREP_HEADER(sysinfo, sys/systeminfo.h,
 #AC_DEFINE([WANT_FAKE_IOCTL], 1, ["Define to 1 to use fake ioctl() support"])
 #AC_DEFINE([HAVE_DM_INUSE_SWAP], 1, ["None"])
 #AC_DEFINE([HAVE_UNICODE], 1, ["None"])
-#AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h> header file])
+#AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h>])
 
 AC_CONFIG_FILES([ Makefile
                   config/Makefile
