@@ -39,8 +39,7 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/config/Rules.am
-sbin_PROGRAMS = zpios$(EXEEXT)
-subdir = cmd/zpios
+subdir = lib/libspl
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/lustre.m4 $(top_srcdir)/config/user.m4 \
@@ -51,13 +50,19 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/zfs_config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(sbindir)"
-sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
-PROGRAMS = $(sbin_PROGRAMS)
-am_zpios_OBJECTS = zpios_main.$(OBJEXT) zpios_util.$(OBJEXT)
-zpios_OBJECTS = $(am_zpios_OBJECTS)
-zpios_LDADD = $(LDADD)
-DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+am__installdirs = "$(DESTDIR)$(libdir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
+LTLIBRARIES = $(lib_LTLIBRARIES)
+libspl_la_LIBADD =
+am_libspl_la_OBJECTS = list.lo mkdirp.lo strlcat.lo strlcpy.lo \
+	strnlen.lo u8_textprep.lo
+libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -68,8 +73,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(zpios_SOURCES)
-DIST_SOURCES = $(zpios_SOURCES)
+SOURCES = $(libspl_la_SOURCES)
+DIST_SOURCES = $(libspl_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -214,10 +219,19 @@ AM_FLAGS = -ggdb -O2 -std=c99 -Wall -Wstrict-prototypes -Wshadow \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -D_REENTRANT \
 	-DTEXT_DOMAIN=\\\"zfs-linux-user\\\"
-zpios_SOURCES = \
-	$(top_srcdir)/cmd/zpios/zpios.h \
-	$(top_srcdir)/cmd/zpios/zpios_main.c \
-	$(top_srcdir)/cmd/zpios/zpios_util.c
+DEFAULT_INCLUDES = \
+	-I${top_srcdir}/lib/libspl/include
+
+lib_LTLIBRARIES = libspl.la
+libspl_la_SOURCES = \
+	${top_srcdir}/lib/libspl/list.c \
+	${top_srcdir}/lib/libspl/mkdirp.c \
+	${top_srcdir}/lib/libspl/strlcat.c \
+	${top_srcdir}/lib/libspl/strlcpy.c \
+	${top_srcdir}/lib/libspl/strnlen.c \
+	${top_srcdir}/lib/libspl/u8_textprep.c \
+	${top_srcdir}/lib/libspl/include/sys/list.h \
+	${top_srcdir}/lib/libspl/include/sys/list_impl.h
 
 all: all-am
 
@@ -232,9 +246,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  cmd/zpios/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/libspl/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  cmd/zpios/Makefile
+	  $(AUTOMAKE) --gnu  lib/libspl/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -252,37 +266,35 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-install-sbinPROGRAMS: $(sbin_PROGRAMS)
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
-	test -z "$(sbindir)" || $(mkdir_p) "$(DESTDIR)$(sbindir)"
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  p1=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  if test -f $$p \
-	     || test -f $$p1 \
-	  ; then \
-	    f=`echo "$$p1" | sed 's,^.*/,,;$(transform);s/$$/$(EXEEXT)/'`; \
-	   echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(sbinPROGRAMS_INSTALL) '$$p' '$(DESTDIR)$(sbindir)/$$f'"; \
-	   $(INSTALL_PROGRAM_ENV) $(LIBTOOL) --mode=install $(sbinPROGRAMS_INSTALL) "$$p" "$(DESTDIR)$(sbindir)/$$f" || exit 1; \
+	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f=$(am__strip_dir) \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
 	  else :; fi; \
 	done
 
-uninstall-sbinPROGRAMS:
+uninstall-libLTLIBRARIES:
 	@$(NORMAL_UNINSTALL)
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  f=`echo "$$p" | sed 's,^.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/'`; \
-	  echo " rm -f '$(DESTDIR)$(sbindir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(sbindir)/$$f"; \
+	@set -x; list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  p=$(am__strip_dir) \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
 	done
 
-clean-sbinPROGRAMS:
-	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
 	done
-zpios$(EXEEXT): $(zpios_OBJECTS) $(zpios_DEPENDENCIES) 
-	@rm -f zpios$(EXEEXT)
-	$(LINK) $(zpios_LDFLAGS) $(zpios_OBJECTS) $(zpios_LDADD) $(LIBS)
+libspl.la: $(libspl_la_OBJECTS) $(libspl_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libspl_la_LDFLAGS) $(libspl_la_OBJECTS) $(libspl_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -290,8 +302,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpios_main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpios_util.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdirp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcat.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcpy.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strnlen.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/u8_textprep.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -314,33 +330,47 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-zpios_main.o: $(top_srcdir)/cmd/zpios/zpios_main.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpios_main.o -MD -MP -MF "$(DEPDIR)/zpios_main.Tpo" -c -o zpios_main.o `test -f '$(top_srcdir)/cmd/zpios/zpios_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zpios/zpios_main.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpios_main.Tpo" "$(DEPDIR)/zpios_main.Po"; else rm -f "$(DEPDIR)/zpios_main.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zpios/zpios_main.c' object='zpios_main.o' libtool=no @AMDEPBACKSLASH@
+list.lo: ${top_srcdir}/lib/libspl/list.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT list.lo -MD -MP -MF "$(DEPDIR)/list.Tpo" -c -o list.lo `test -f '${top_srcdir}/lib/libspl/list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/list.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/list.Tpo" "$(DEPDIR)/list.Plo"; else rm -f "$(DEPDIR)/list.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/list.c' object='list.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpios_main.o `test -f '$(top_srcdir)/cmd/zpios/zpios_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zpios/zpios_main.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o list.lo `test -f '${top_srcdir}/lib/libspl/list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/list.c
 
-zpios_main.obj: $(top_srcdir)/cmd/zpios/zpios_main.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpios_main.obj -MD -MP -MF "$(DEPDIR)/zpios_main.Tpo" -c -o zpios_main.obj `if test -f '$(top_srcdir)/cmd/zpios/zpios_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zpios/zpios_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zpios/zpios_main.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpios_main.Tpo" "$(DEPDIR)/zpios_main.Po"; else rm -f "$(DEPDIR)/zpios_main.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zpios/zpios_main.c' object='zpios_main.obj' libtool=no @AMDEPBACKSLASH@
+mkdirp.lo: ${top_srcdir}/lib/libspl/mkdirp.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mkdirp.lo -MD -MP -MF "$(DEPDIR)/mkdirp.Tpo" -c -o mkdirp.lo `test -f '${top_srcdir}/lib/libspl/mkdirp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/mkdirp.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/mkdirp.Tpo" "$(DEPDIR)/mkdirp.Plo"; else rm -f "$(DEPDIR)/mkdirp.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/mkdirp.c' object='mkdirp.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpios_main.obj `if test -f '$(top_srcdir)/cmd/zpios/zpios_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zpios/zpios_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zpios/zpios_main.c'; fi`
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mkdirp.lo `test -f '${top_srcdir}/lib/libspl/mkdirp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/mkdirp.c
 
-zpios_util.o: $(top_srcdir)/cmd/zpios/zpios_util.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpios_util.o -MD -MP -MF "$(DEPDIR)/zpios_util.Tpo" -c -o zpios_util.o `test -f '$(top_srcdir)/cmd/zpios/zpios_util.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zpios/zpios_util.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpios_util.Tpo" "$(DEPDIR)/zpios_util.Po"; else rm -f "$(DEPDIR)/zpios_util.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zpios/zpios_util.c' object='zpios_util.o' libtool=no @AMDEPBACKSLASH@
+strlcat.lo: ${top_srcdir}/lib/libspl/strlcat.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strlcat.lo -MD -MP -MF "$(DEPDIR)/strlcat.Tpo" -c -o strlcat.lo `test -f '${top_srcdir}/lib/libspl/strlcat.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strlcat.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/strlcat.Tpo" "$(DEPDIR)/strlcat.Plo"; else rm -f "$(DEPDIR)/strlcat.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/strlcat.c' object='strlcat.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpios_util.o `test -f '$(top_srcdir)/cmd/zpios/zpios_util.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zpios/zpios_util.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strlcat.lo `test -f '${top_srcdir}/lib/libspl/strlcat.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strlcat.c
 
-zpios_util.obj: $(top_srcdir)/cmd/zpios/zpios_util.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpios_util.obj -MD -MP -MF "$(DEPDIR)/zpios_util.Tpo" -c -o zpios_util.obj `if test -f '$(top_srcdir)/cmd/zpios/zpios_util.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zpios/zpios_util.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zpios/zpios_util.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpios_util.Tpo" "$(DEPDIR)/zpios_util.Po"; else rm -f "$(DEPDIR)/zpios_util.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zpios/zpios_util.c' object='zpios_util.obj' libtool=no @AMDEPBACKSLASH@
+strlcpy.lo: ${top_srcdir}/lib/libspl/strlcpy.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strlcpy.lo -MD -MP -MF "$(DEPDIR)/strlcpy.Tpo" -c -o strlcpy.lo `test -f '${top_srcdir}/lib/libspl/strlcpy.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strlcpy.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/strlcpy.Tpo" "$(DEPDIR)/strlcpy.Plo"; else rm -f "$(DEPDIR)/strlcpy.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/strlcpy.c' object='strlcpy.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpios_util.obj `if test -f '$(top_srcdir)/cmd/zpios/zpios_util.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zpios/zpios_util.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zpios/zpios_util.c'; fi`
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strlcpy.lo `test -f '${top_srcdir}/lib/libspl/strlcpy.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strlcpy.c
+
+strnlen.lo: ${top_srcdir}/lib/libspl/strnlen.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strnlen.lo -MD -MP -MF "$(DEPDIR)/strnlen.Tpo" -c -o strnlen.lo `test -f '${top_srcdir}/lib/libspl/strnlen.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strnlen.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/strnlen.Tpo" "$(DEPDIR)/strnlen.Plo"; else rm -f "$(DEPDIR)/strnlen.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/strnlen.c' object='strnlen.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strnlen.lo `test -f '${top_srcdir}/lib/libspl/strnlen.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strnlen.c
+
+u8_textprep.lo: ${top_srcdir}/lib/libspl/u8_textprep.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT u8_textprep.lo -MD -MP -MF "$(DEPDIR)/u8_textprep.Tpo" -c -o u8_textprep.lo `test -f '${top_srcdir}/lib/libspl/u8_textprep.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/u8_textprep.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/u8_textprep.Tpo" "$(DEPDIR)/u8_textprep.Plo"; else rm -f "$(DEPDIR)/u8_textprep.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/u8_textprep.c' object='u8_textprep.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o u8_textprep.lo `test -f '${top_srcdir}/lib/libspl/u8_textprep.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/u8_textprep.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -430,9 +460,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES)
 installdirs:
-	for dir in "$(DESTDIR)$(sbindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -461,7 +491,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-sbinPROGRAMS \
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -482,7 +512,7 @@ info-am:
 
 install-data-am:
 
-install-exec-am: install-sbinPROGRAMS
+install-exec-am: install-libLTLIBRARIES
 
 install-info: install-info-am
 
@@ -508,20 +538,20 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-sbinPROGRAMS
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-sbinPROGRAMS ctags distclean \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-sbinPROGRAMS install-strip installcheck \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-strip installcheck \
 	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-sbinPROGRAMS
+	uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
