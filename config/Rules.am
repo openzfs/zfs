@@ -1,15 +1,15 @@
 # Default build options
-AM_FLAGS  = -ggdb -O2 -std=c99
-AM_FLAGS += -Wall -Wstrict-prototypes -Wshadow -Werror
+AM_CFLAGS  = -ggdb -O2 -std=c99
+AM_CFLAGS += -Wall -Wstrict-prototypes -Wshadow -Werror
 
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
-AM_FLAGS += -Wno-switch -Wno-unused -Wno-missing-braces
-AM_FLAGS += -Wno-unknown-pragmas -Wno-parentheses
-AM_FLAGS += -Wno-uninitialized -fno-strict-aliasing
+AM_CFLAGS += -Wno-switch -Wno-unused -Wno-missing-braces
+AM_CFLAGS += -Wno-unknown-pragmas -Wno-parentheses
+AM_CFLAGS += -Wno-uninitialized -fno-strict-aliasing
 
 # Expected defines not covered by zfs_config.h or spl_config.h
-AM_FLAGS += -D_GNU_SOURCE -D__EXTENSIONS__
-AM_FLAGS += -D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64
-AM_FLAGS += -D_LARGEFILE64_SOURCE -D_REENTRANT
-AM_FLAGS += -DTEXT_DOMAIN=\\\"zfs-linux-user\\\"
+AM_CFLAGS += -D_GNU_SOURCE -D__EXTENSIONS__
+AM_CFLAGS += -D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64
+AM_CFLAGS += -D_LARGEFILE64_SOURCE -D_REENTRANT
+AM_CFLAGS += -DTEXT_DOMAIN=\\\"zfs-linux-user\\\"
