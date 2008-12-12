@@ -18,6 +18,9 @@ typedef pthread_cond_t			cond_t;
 #define THR_DETACHED			2
 #define THR_DAEMON			4
 
+#define USYNC_THREAD			0x00 /* private to a process */
+#define USYNC_PROCESS			0x01 /* shared by processes */
+
 #define thr_self()			pthread_self()
 #define thr_sigsetmask			pthread_sigmask
 #define __nthreads()			2 /* XXX: Force multi-thread */
@@ -41,6 +44,20 @@ thr_create(void *stack_base, size_t stack_size,
 	return rc;
 }
 
+static inline int
+mutex_held(mutex_t *mp)
+{
+	int rc;
+
+	rc = pthread_mutex_trylock(mp);
+	if (rc)
+		return rc;
+
+	pthread_mutex_unlock(mp);
+	return rc;
+}
+#define MUTEX_HELD(mp)			mutex_held(mp)
+
 #define mutex_init(mp, type, arg)	pthread_mutex_init(mp, NULL)
 #define mutex_lock(mp)			pthread_mutex_lock(mp)
 #define mutex_unlock(mp)		pthread_mutex_unlock(mp)
@@ -48,7 +65,6 @@ thr_create(void *stack_base, size_t stack_size,
 #define mutex_trylock(mp)		pthread_mutex_trylock(mp)
 #define DEFAULTMUTEX			PTHREAD_MUTEX_INITIALIZER
 #define DEFAULTCV			PTHREAD_COND_INITIALIZER
-#define MUTEX_HELD(mp)			1 /* XXX: Use mutex_trylock() */
 
 #define cond_init(c, type, arg)		pthread_cond_init(c, NULL)
 #define cond_wait(c, m)			pthread_cond_wait(c, m)
