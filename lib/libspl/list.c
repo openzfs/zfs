@@ -226,16 +226,16 @@ list_link_replace(list_node_t *lold, list_node_t *lnew)
 }
 
 void
-list_link_init(list_node_t *link)
+list_link_init(list_node_t *ln)
 {
-	link->list_next = NULL;
-	link->list_prev = NULL;
+	ln->list_next = NULL;
+	ln->list_prev = NULL;
 }
 
 int
-list_link_active(list_node_t *link)
+list_link_active(list_node_t *ln)
 {
-	return (link->list_next != NULL);
+	return (ln->list_next != NULL);
 }
 
 int
