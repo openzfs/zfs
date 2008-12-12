@@ -85,17 +85,6 @@ cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
 rm ${DST_MOD}/zfs/vdev_disk.c
 rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
 
-echo "* lib/libspl"
-mkdir -p ${DST_LIB}/libspl/include/sys/
-cp ${SRC_LIB}/libc/port/gen/strlcat.c		${DST_LIB}/libspl/
-cp ${SRC_LIB}/libc/port/gen/strlcpy.c		${DST_LIB}/libspl/
-cp ${SRC_LIB}/libc/port/gen/strnlen.c		${DST_LIB}/libspl/
-cp ${SRC_LIB}/libgen/common/mkdirp.c		${DST_LIB}/libspl/
-cp ${SRC_CM}/unicode/u8_textprep.c		${DST_LIB}/libspl/
-cp ${SRC_UCM}/os/list.c				${DST_LIB}/libspl/
-cp ${SRC_UCM}/sys/list.h			${DST_LIB}/libspl/include/sys/
-cp ${SRC_UCM}/sys/list_impl.h			${DST_LIB}/libspl/include/sys/
-
 echo "* lib/libavl"
 # Full source available in 'module/avl'
 
