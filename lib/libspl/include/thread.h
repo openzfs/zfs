@@ -45,7 +45,7 @@ thr_create(void *stack_base, size_t stack_size,
 }
 
 static inline int
-mutex_held(mutex_t *mp)
+_mutex_held(mutex_t *mp)
 {
 	int rc;
 
@@ -56,15 +56,22 @@ mutex_held(mutex_t *mp)
 	pthread_mutex_unlock(mp);
 	return rc;
 }
-#define MUTEX_HELD(mp)			mutex_held(mp)
 
-#define mutex_init(mp, type, arg)	pthread_mutex_init(mp, NULL)
+static inline void
+_mutex_init(mutex_t *mp, int type, void *arg)
+{
+	pthread_mutex_init(mp, NULL);
+}
+
+
+#define mutex_init(mp, type, arg)	_mutex_init(mp, type, arg)
 #define mutex_lock(mp)			pthread_mutex_lock(mp)
 #define mutex_unlock(mp)		pthread_mutex_unlock(mp)
 #define mutex_destroy(mp)		pthread_mutex_destroy(mp)
 #define mutex_trylock(mp)		pthread_mutex_trylock(mp)
 #define DEFAULTMUTEX			PTHREAD_MUTEX_INITIALIZER
 #define DEFAULTCV			PTHREAD_COND_INITIALIZER
+#define MUTEX_HELD(mp)			_mutex_held(mp)
 
 #define cond_init(c, type, arg)		pthread_cond_init(c, NULL)
 #define cond_wait(c, m)			pthread_cond_wait(c, m)

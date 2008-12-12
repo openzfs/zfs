@@ -213,7 +213,7 @@ typedef mutex_t		kmutex_t;
  */
 #ifdef mutex_init
 #undef mutex_init
-#define	mutex_init(mp, b, c, d)		pthread_mutex_init(mp, NULL)
+#define	mutex_init(mp, name, type, args)	_mutex_init(mp, type, args)
 #endif
 
 /*
