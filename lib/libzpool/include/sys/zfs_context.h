@@ -203,18 +203,32 @@ extern kthread_t *zk_thread_create(void (*func)(void), void *arg);
 /*
  * Mutexes
  */
-typedef mutex_t		kmutex_t;
+typedef struct kmutex {
+	void		*m_owner;
+	boolean_t	initialized;
+	mutex_t		m_lock;
+} kmutex_t;
 
 #define	MUTEX_DEFAULT	USYNC_THREAD
+#undef MUTEX_HELD
+#define	MUTEX_HELD(m) _mutex_held(&(m)->m_lock)
 
 /*
- * Conflicts with lib/libspl/include/thread.h.  The kernel and user
- * space prototypes differ forcing us to do some special handling.
+ * Argh -- we have to get cheesy here because the kernel and userland
+ * have different signatures for the same routine.
  */
-#ifdef mutex_init
-#undef mutex_init
-#define	mutex_init(mp, name, type, args)	_mutex_init(mp, type, args)
-#endif
+extern int _mutex_init(mutex_t *mp, int type, void *arg);
+extern int _mutex_destroy(mutex_t *mp);
+
+#define	mutex_init(mp, b, c, d)		zmutex_init((kmutex_t *)(mp))
+#define	mutex_destroy(mp)		zmutex_destroy((kmutex_t *)(mp))
+
+extern void zmutex_init(kmutex_t *mp);
+extern void zmutex_destroy(kmutex_t *mp);
+extern void mutex_enter(kmutex_t *mp);
+extern void mutex_exit(kmutex_t *mp);
+extern int mutex_tryenter(kmutex_t *mp);
+extern void *mutex_owner(kmutex_t *mp);
 
 /*
  * RW locks
