@@ -6,9 +6,6 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
-/* Define to 1 if you have the `getexecname' function. */
-#undef HAVE_GETEXECNAME
-
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -21,14 +18,8 @@
 /* Define to 1 if ioctl() is defined in <unistd.h> header file */
 #undef HAVE_IOCTL_IN_UNISTD_H
 
-/* Define to 1 if you have the `issetugid' function. */
-#undef HAVE_ISSETUGID
-
 /* Define to 1 if 'libdiskmgt' library available */
 #undef HAVE_LIBDISKMGT
-
-/* Define to 1 if you have the <libdiskmgt.h> header file. */
-#undef HAVE_LIBDISKMGT_H
 
 /* Define to 1 if 'libefi' library available */
 #undef HAVE_LIBEFI
@@ -38,9 +29,6 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
-
-/* Define to 1 if you have the `setmntent' function. */
-#undef HAVE_SETMNTENT
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -57,35 +45,14 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
-/* Define to 1 if you have the `strlcat' function. */
-#undef HAVE_STRLCAT
-
-/* Define to 1 if you have the `strlcpy' function. */
-#undef HAVE_STRLCPY
-
-/* Define to 1 if you have the `strnlen' function. */
-#undef HAVE_STRNLEN
-
 /* Define to 1 if sysinfo() is defined in <sys/systeminfo.h> header file */
 #undef HAVE_SYSINFO_IN_SYS_SYSTEMINFO_H
-
-/* Define to 1 if you have the <sys/byteorder.h> header file. */
-#undef HAVE_SYS_BYTEORDER_H
-
-/* Define to 1 if you have the <sys/isa_defs.h> header file. */
-#undef HAVE_SYS_ISA_DEFS_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
 
-/* Define to 1 if you have the <sys/systeminfo.h> header file. */
-#undef HAVE_SYS_SYSTEMINFO_H
-
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
-
-/* Define to 1 if you have the <sys/u8_textprep.h> header file. */
-#undef HAVE_SYS_U8_TEXTPREP_H
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
