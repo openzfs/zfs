@@ -1,20 +1,22 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES  = -I${moddir}/zcommon/include \
-                    -I${libdir}/libspl/include
+DEFAULT_INCLUDES = \
+	-I${top_srcdir}/module/zcommon/include \
+	-I${top_srcdir}/lib/libspl/include
 
 lib_LTLIBRARIES = libzcommon.la
 
-libzfs_la_SOURCES = ${moddir}/zcommon/zfs_comutil.c \
-                    ${moddir}/zcommon/zfs_deleg.c \
-                    ${moddir}/zcommon/zfs_namecheck.c \
-                    ${moddir}/zcommon/zfs_prop.c \
-                    ${moddir}/zcommon/zpool_prop.c \
-                    ${moddir}/zcommon/zprop_common.c \
-                    ${moddir}/zcommon/include/sys/fm/fs/zfs.h \
-                    ${moddir}/zcommon/include/sys/fs \
-                    ${moddir}/zcommon/include/sys/fs/zfs.h \
-                    ${moddir}/zcommon/include/zfs_comutil.h \
-                    ${moddir}/zcommon/include/zfs_deleg.h \
-                    ${moddir}/zcommon/include/zfs_namecheck.h \
-                    ${moddir}/zcommon/include/zfs_prop.h
+libzcommon_la_SOURCES = \
+	${top_srcdir}/module/zcommon/zfs_comutil.c \
+	${top_srcdir}/module/zcommon/zfs_deleg.c \
+	${top_srcdir}/module/zcommon/zfs_namecheck.c \
+	${top_srcdir}/module/zcommon/zfs_prop.c \
+	${top_srcdir}/module/zcommon/zpool_prop.c \
+	${top_srcdir}/module/zcommon/zprop_common.c \
+	${top_srcdir}/module/zcommon/include/sys/fm/fs/zfs.h \
+	${top_srcdir}/module/zcommon/include/sys/fs \
+	${top_srcdir}/module/zcommon/include/sys/fs/zfs.h \
+	${top_srcdir}/module/zcommon/include/zfs_comutil.h \
+	${top_srcdir}/module/zcommon/include/zfs_deleg.h \
+	${top_srcdir}/module/zcommon/include/zfs_namecheck.h \
+	${top_srcdir}/module/zcommon/include/zfs_prop.h
