@@ -103,7 +103,6 @@ AC_CONFIG_FILES([ Makefile
                   lib/libavl/Makefile
                   lib/libnvpair/Makefile
                   lib/libuutil/Makefile
-                  lib/libzcommon/Makefile
                   lib/libzpool/Makefile
                   lib/libzfs/Makefile
                   cmd/Makefile
