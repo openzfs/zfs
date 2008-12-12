@@ -99,9 +99,6 @@ mkdir -p ${DST_LIB}/libuutil/include/
 cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
 cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
 
-echo "* lib/libzcommon"
-# Full source available in 'module/zcommon'
-
 echo "* lib/libzpool"
 mkdir -p ${DST_LIB}/libzpool/include/sys/
 cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
