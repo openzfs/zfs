@@ -100,6 +100,7 @@ AC_CONFIG_FILES([ Makefile
                   doc/Makefile
                   scripts/Makefile
                   lib/Makefile
+                  lib/libspl/Makefile
                   lib/libavl/Makefile
                   lib/libnvpair/Makefile
                   lib/libuutil/Makefile
