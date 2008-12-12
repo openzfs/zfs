@@ -17,4 +17,4 @@ libzfs_la_SOURCES = ${moddir}/zcommon/zfs_comutil.c \
                     ${moddir}/zcommon/include/zfs_comutil.h \
                     ${moddir}/zcommon/include/zfs_deleg.h \
                     ${moddir}/zcommon/include/zfs_namecheck.h \
-                    ${moddir}/zcommon/include/zfs_prop.h \
+                    ${moddir}/zcommon/include/zfs_prop.h
