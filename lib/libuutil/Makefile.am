@@ -2,7 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES = \
 	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/lib/libspl/include
+	-I${top_srcdir}/lib/libspl/include \
+	-I${top_srcdir}/module/avl/include
 
 lib_LTLIBRARIES = libuutil.la
 
