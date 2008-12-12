@@ -524,13 +524,11 @@ extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *,
 /*
  * When dealing with nvlists, verify() is extremely useful
  */
-#ifndef verify
 #ifdef NDEBUG
-#define        verify(EX)      ((void)(EX))
+#define	verify(EX)	((void)(EX))
 #else
-#define        verify(EX)      assert(EX)
-#endif /* NDEBUG */
-#endif /* verify */
+#define	verify(EX)	assert(EX)
+#endif
 
 /*
  * Utility function to convert a number to a human-readable form.
