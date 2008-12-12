@@ -60,7 +60,9 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libzpool_la_LIBADD =
-am_libzpool_la_OBJECTS = kernel.lo
+am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
+	zfs_deleg.lo zfs_namecheck.lo zfs_prop.lo zpool_prop.lo \
+	zprop_common.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -216,13 +218,32 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 DEFAULT_INCLUDES = \
-	-I${top_srcdir}/module/zpool/include \
-	-I${top_srcdir}/module/zcommon/include \
-	-I${top_srcdir}/lib/libspl/include
+        -I${top_srcdir}/lib/libzpool/include \
+        -I${top_srcdir}/lib/libspl/include \
+        -I${top_srcdir}/lib/libnvpair/include \
+        -I${top_srcdir}/module/zcommon/include \
+        -I${top_srcdir}/module/nvpair/include \
+        -I${top_srcdir}/module/avl/include \
+        -I${top_srcdir}/module/zfs/include
 
 lib_LTLIBRARIES = libzpool.la
 libzpool_la_SOURCES = \
-	${top_srcdir}/lib/libzpool/kernel.c
+	${top_srcdir}/lib/libzpool/kernel.c \
+	${top_srcdir}/lib/libzpool/taskq.c \
+	${top_srcdir}/lib/libzpool/util.c \
+        ${top_srcdir}/module/zcommon/zfs_comutil.c \
+        ${top_srcdir}/module/zcommon/zfs_deleg.c \
+        ${top_srcdir}/module/zcommon/zfs_namecheck.c \
+        ${top_srcdir}/module/zcommon/zfs_prop.c \
+        ${top_srcdir}/module/zcommon/zpool_prop.c \
+        ${top_srcdir}/module/zcommon/zprop_common.c \
+        ${top_srcdir}/module/zcommon/include/sys/fm/fs/zfs.h \
+        ${top_srcdir}/module/zcommon/include/sys/fs \
+        ${top_srcdir}/module/zcommon/include/sys/fs/zfs.h \
+        ${top_srcdir}/module/zcommon/include/zfs_comutil.h \
+        ${top_srcdir}/module/zcommon/include/zfs_deleg.h \
+        ${top_srcdir}/module/zcommon/include/zfs_namecheck.h \
+        ${top_srcdir}/module/zcommon/include/zfs_prop.h
 
 all: all-am
 
@@ -294,6 +315,14 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/kernel.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/taskq.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_comutil.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_deleg.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_namecheck.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_prop.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpool_prop.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zprop_common.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -322,6 +351,62 @@ kernel.lo: ${top_srcdir}/lib/libzpool/kernel.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libzpool/kernel.c' object='kernel.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o kernel.lo `test -f '${top_srcdir}/lib/libzpool/kernel.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzpool/kernel.c
+
+taskq.lo: ${top_srcdir}/lib/libzpool/taskq.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT taskq.lo -MD -MP -MF "$(DEPDIR)/taskq.Tpo" -c -o taskq.lo `test -f '${top_srcdir}/lib/libzpool/taskq.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzpool/taskq.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/taskq.Tpo" "$(DEPDIR)/taskq.Plo"; else rm -f "$(DEPDIR)/taskq.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libzpool/taskq.c' object='taskq.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o taskq.lo `test -f '${top_srcdir}/lib/libzpool/taskq.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzpool/taskq.c
+
+util.lo: ${top_srcdir}/lib/libzpool/util.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT util.lo -MD -MP -MF "$(DEPDIR)/util.Tpo" -c -o util.lo `test -f '${top_srcdir}/lib/libzpool/util.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzpool/util.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/util.Tpo" "$(DEPDIR)/util.Plo"; else rm -f "$(DEPDIR)/util.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libzpool/util.c' object='util.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o util.lo `test -f '${top_srcdir}/lib/libzpool/util.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzpool/util.c
+
+zfs_comutil.lo: ${top_srcdir}/module/zcommon/zfs_comutil.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_comutil.lo -MD -MP -MF "$(DEPDIR)/zfs_comutil.Tpo" -c -o zfs_comutil.lo `test -f '${top_srcdir}/module/zcommon/zfs_comutil.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_comutil.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_comutil.Tpo" "$(DEPDIR)/zfs_comutil.Plo"; else rm -f "$(DEPDIR)/zfs_comutil.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zfs_comutil.c' object='zfs_comutil.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_comutil.lo `test -f '${top_srcdir}/module/zcommon/zfs_comutil.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_comutil.c
+
+zfs_deleg.lo: ${top_srcdir}/module/zcommon/zfs_deleg.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_deleg.lo -MD -MP -MF "$(DEPDIR)/zfs_deleg.Tpo" -c -o zfs_deleg.lo `test -f '${top_srcdir}/module/zcommon/zfs_deleg.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_deleg.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_deleg.Tpo" "$(DEPDIR)/zfs_deleg.Plo"; else rm -f "$(DEPDIR)/zfs_deleg.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zfs_deleg.c' object='zfs_deleg.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_deleg.lo `test -f '${top_srcdir}/module/zcommon/zfs_deleg.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_deleg.c
+
+zfs_namecheck.lo: ${top_srcdir}/module/zcommon/zfs_namecheck.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_namecheck.lo -MD -MP -MF "$(DEPDIR)/zfs_namecheck.Tpo" -c -o zfs_namecheck.lo `test -f '${top_srcdir}/module/zcommon/zfs_namecheck.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_namecheck.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_namecheck.Tpo" "$(DEPDIR)/zfs_namecheck.Plo"; else rm -f "$(DEPDIR)/zfs_namecheck.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zfs_namecheck.c' object='zfs_namecheck.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_namecheck.lo `test -f '${top_srcdir}/module/zcommon/zfs_namecheck.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_namecheck.c
+
+zfs_prop.lo: ${top_srcdir}/module/zcommon/zfs_prop.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_prop.lo -MD -MP -MF "$(DEPDIR)/zfs_prop.Tpo" -c -o zfs_prop.lo `test -f '${top_srcdir}/module/zcommon/zfs_prop.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_prop.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_prop.Tpo" "$(DEPDIR)/zfs_prop.Plo"; else rm -f "$(DEPDIR)/zfs_prop.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zfs_prop.c' object='zfs_prop.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_prop.lo `test -f '${top_srcdir}/module/zcommon/zfs_prop.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zfs_prop.c
+
+zpool_prop.lo: ${top_srcdir}/module/zcommon/zpool_prop.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_prop.lo -MD -MP -MF "$(DEPDIR)/zpool_prop.Tpo" -c -o zpool_prop.lo `test -f '${top_srcdir}/module/zcommon/zpool_prop.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zpool_prop.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_prop.Tpo" "$(DEPDIR)/zpool_prop.Plo"; else rm -f "$(DEPDIR)/zpool_prop.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zpool_prop.c' object='zpool_prop.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_prop.lo `test -f '${top_srcdir}/module/zcommon/zpool_prop.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zpool_prop.c
+
+zprop_common.lo: ${top_srcdir}/module/zcommon/zprop_common.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zprop_common.lo -MD -MP -MF "$(DEPDIR)/zprop_common.Tpo" -c -o zprop_common.lo `test -f '${top_srcdir}/module/zcommon/zprop_common.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zprop_common.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zprop_common.Tpo" "$(DEPDIR)/zprop_common.Plo"; else rm -f "$(DEPDIR)/zprop_common.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zcommon/zprop_common.c' object='zprop_common.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zprop_common.lo `test -f '${top_srcdir}/module/zcommon/zprop_common.c' || echo '$(srcdir)/'`${top_srcdir}/module/zcommon/zprop_common.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -504,8 +589,6 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-	${top_srcdir}/lib/libzpool/taskq.c
-	${top_srcdir}/lib/libzpool/util.c
 
 # FIXME: ADD MISSING SOURCES FROM ZFS MODULE
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
