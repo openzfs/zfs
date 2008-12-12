@@ -19666,7 +19666,7 @@ rm -f conftest*
 #AC_DEFINE([HAVE_UNICODE], 1, ["None"])
 #AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h>])
 
-                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libuutil/Makefile lib/libzcommon/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zdump/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile"
+                                                                                                                                                                                              ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zdump/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -20240,7 +20240,6 @@ do
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
   "lib/libuutil/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libuutil/Makefile" ;;
-  "lib/libzcommon/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzcommon/Makefile" ;;
   "lib/libzpool/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzpool/Makefile" ;;
   "lib/libzfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzfs/Makefile" ;;
   "cmd/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/Makefile" ;;
