@@ -60,8 +60,12 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libuutil_la_LIBADD =
-am_libuutil_la_OBJECTS =
+am_libuutil_la_OBJECTS = uu_alloc.lo uu_avl.lo uu_dprintf.lo \
+	uu_ident.lo uu_list.lo uu_misc.lo uu_open.lo uu_pname.lo \
+	uu_strtoint.lo
 libuutil_la_OBJECTS = $(am_libuutil_la_OBJECTS)
+depcomp = $(SHELL) $(top_srcdir)/config/depcomp
+am__depfiles_maybe = depfiles
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
@@ -72,6 +76,8 @@ LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libuutil_la_SOURCES)
 DIST_SOURCES = $(libuutil_la_SOURCES)
+ETAGS = etags
+CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMDEP_FALSE = @AMDEP_FALSE@
@@ -216,10 +222,24 @@ DEFAULT_INCLUDES = \
 	-I${top_srcdir}/lib/libspl/include
 
 lib_LTLIBRARIES = libuutil.la
-libuutil_la_SOURCES = 
+libuutil_la_SOURCES = \
+	${top_srcdir}/lib/libuutil/uu_alloc.c \
+	${top_srcdir}/lib/libuutil/uu_avl.c \
+	${top_srcdir}/lib/libuutil/uu_dprintf.c \
+	${top_srcdir}/lib/libuutil/uu_ident.c \
+	${top_srcdir}/lib/libuutil/uu_list.c \
+	${top_srcdir}/lib/libuutil/uu_misc.c \
+	${top_srcdir}/lib/libuutil/uu_open.c \
+	${top_srcdir}/lib/libuutil/uu_pname.c \
+	${top_srcdir}/lib/libuutil/uu_strtoint.c \
+	${top_srcdir}/lib/libuutil/include/libuutil.h \
+	${top_srcdir}/lib/libuutil/include/libuutil_common.h \
+	${top_srcdir}/lib/libuutil/include/libuutil_impl.h
+
 all: all-am
 
 .SUFFIXES:
+.SUFFIXES: .c .lo .o .obj
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/Rules.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -285,6 +305,100 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_alloc.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_avl.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_dprintf.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_ident.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_list.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_misc.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_open.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_pname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/uu_strtoint.Plo@am__quote@
+
+.c.o:
+@am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(COMPILE) -c $<
+
+.c.obj:
+@am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ `$(CYGPATH_W) '$<'`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+
+.c.lo:
+@am__fastdepCC_TRUE@	if $(LTCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Plo"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+uu_alloc.lo: ${top_srcdir}/lib/libuutil/uu_alloc.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_alloc.lo -MD -MP -MF "$(DEPDIR)/uu_alloc.Tpo" -c -o uu_alloc.lo `test -f '${top_srcdir}/lib/libuutil/uu_alloc.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_alloc.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_alloc.Tpo" "$(DEPDIR)/uu_alloc.Plo"; else rm -f "$(DEPDIR)/uu_alloc.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_alloc.c' object='uu_alloc.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_alloc.lo `test -f '${top_srcdir}/lib/libuutil/uu_alloc.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_alloc.c
+
+uu_avl.lo: ${top_srcdir}/lib/libuutil/uu_avl.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_avl.lo -MD -MP -MF "$(DEPDIR)/uu_avl.Tpo" -c -o uu_avl.lo `test -f '${top_srcdir}/lib/libuutil/uu_avl.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_avl.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_avl.Tpo" "$(DEPDIR)/uu_avl.Plo"; else rm -f "$(DEPDIR)/uu_avl.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_avl.c' object='uu_avl.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_avl.lo `test -f '${top_srcdir}/lib/libuutil/uu_avl.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_avl.c
+
+uu_dprintf.lo: ${top_srcdir}/lib/libuutil/uu_dprintf.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_dprintf.lo -MD -MP -MF "$(DEPDIR)/uu_dprintf.Tpo" -c -o uu_dprintf.lo `test -f '${top_srcdir}/lib/libuutil/uu_dprintf.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_dprintf.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_dprintf.Tpo" "$(DEPDIR)/uu_dprintf.Plo"; else rm -f "$(DEPDIR)/uu_dprintf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_dprintf.c' object='uu_dprintf.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_dprintf.lo `test -f '${top_srcdir}/lib/libuutil/uu_dprintf.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_dprintf.c
+
+uu_ident.lo: ${top_srcdir}/lib/libuutil/uu_ident.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_ident.lo -MD -MP -MF "$(DEPDIR)/uu_ident.Tpo" -c -o uu_ident.lo `test -f '${top_srcdir}/lib/libuutil/uu_ident.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_ident.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_ident.Tpo" "$(DEPDIR)/uu_ident.Plo"; else rm -f "$(DEPDIR)/uu_ident.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_ident.c' object='uu_ident.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_ident.lo `test -f '${top_srcdir}/lib/libuutil/uu_ident.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_ident.c
+
+uu_list.lo: ${top_srcdir}/lib/libuutil/uu_list.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_list.lo -MD -MP -MF "$(DEPDIR)/uu_list.Tpo" -c -o uu_list.lo `test -f '${top_srcdir}/lib/libuutil/uu_list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_list.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_list.Tpo" "$(DEPDIR)/uu_list.Plo"; else rm -f "$(DEPDIR)/uu_list.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_list.c' object='uu_list.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_list.lo `test -f '${top_srcdir}/lib/libuutil/uu_list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_list.c
+
+uu_misc.lo: ${top_srcdir}/lib/libuutil/uu_misc.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_misc.lo -MD -MP -MF "$(DEPDIR)/uu_misc.Tpo" -c -o uu_misc.lo `test -f '${top_srcdir}/lib/libuutil/uu_misc.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_misc.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_misc.Tpo" "$(DEPDIR)/uu_misc.Plo"; else rm -f "$(DEPDIR)/uu_misc.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_misc.c' object='uu_misc.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_misc.lo `test -f '${top_srcdir}/lib/libuutil/uu_misc.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_misc.c
+
+uu_open.lo: ${top_srcdir}/lib/libuutil/uu_open.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_open.lo -MD -MP -MF "$(DEPDIR)/uu_open.Tpo" -c -o uu_open.lo `test -f '${top_srcdir}/lib/libuutil/uu_open.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_open.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_open.Tpo" "$(DEPDIR)/uu_open.Plo"; else rm -f "$(DEPDIR)/uu_open.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_open.c' object='uu_open.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_open.lo `test -f '${top_srcdir}/lib/libuutil/uu_open.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_open.c
+
+uu_pname.lo: ${top_srcdir}/lib/libuutil/uu_pname.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_pname.lo -MD -MP -MF "$(DEPDIR)/uu_pname.Tpo" -c -o uu_pname.lo `test -f '${top_srcdir}/lib/libuutil/uu_pname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_pname.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_pname.Tpo" "$(DEPDIR)/uu_pname.Plo"; else rm -f "$(DEPDIR)/uu_pname.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_pname.c' object='uu_pname.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_pname.lo `test -f '${top_srcdir}/lib/libuutil/uu_pname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_pname.c
+
+uu_strtoint.lo: ${top_srcdir}/lib/libuutil/uu_strtoint.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT uu_strtoint.lo -MD -MP -MF "$(DEPDIR)/uu_strtoint.Tpo" -c -o uu_strtoint.lo `test -f '${top_srcdir}/lib/libuutil/uu_strtoint.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_strtoint.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/uu_strtoint.Tpo" "$(DEPDIR)/uu_strtoint.Plo"; else rm -f "$(DEPDIR)/uu_strtoint.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libuutil/uu_strtoint.c' object='uu_strtoint.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o uu_strtoint.lo `test -f '${top_srcdir}/lib/libuutil/uu_strtoint.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libuutil/uu_strtoint.c
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
@@ -294,12 +408,54 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
+
+ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
+	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
+	unique=`for i in $$list; do \
+	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
+	  done | \
+	  $(AWK) '    { files[$$0] = 1; } \
+	       END { for (i in files) print i; }'`; \
+	mkid -fID $$unique
 tags: TAGS
-TAGS:
 
+TAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) \
+		$(TAGS_FILES) $(LISP)
+	tags=; \
+	here=`pwd`; \
+	list='$(SOURCES) $(HEADERS)  $(LISP) $(TAGS_FILES)'; \
+	unique=`for i in $$list; do \
+	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
+	  done | \
+	  $(AWK) '    { files[$$0] = 1; } \
+	       END { for (i in files) print i; }'`; \
+	if test -z "$(ETAGS_ARGS)$$tags$$unique"; then :; else \
+	  test -n "$$unique" || unique=$$empty_fix; \
+	  $(ETAGS) $(ETAGSFLAGS) $(AM_ETAGSFLAGS) $(ETAGS_ARGS) \
+	    $$tags $$unique; \
+	fi
 ctags: CTAGS
-CTAGS:
+CTAGS:  $(HEADERS) $(SOURCES)  $(TAGS_DEPENDENCIES) \
+		$(TAGS_FILES) $(LISP)
+	tags=; \
+	here=`pwd`; \
+	list='$(SOURCES) $(HEADERS)  $(LISP) $(TAGS_FILES)'; \
+	unique=`for i in $$list; do \
+	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
+	  done | \
+	  $(AWK) '    { files[$$0] = 1; } \
+	       END { for (i in files) print i; }'`; \
+	test -z "$(CTAGS_ARGS)$$tags$$unique" \
+	  || $(CTAGS) $(CTAGSFLAGS) $(AM_CTAGSFLAGS) $(CTAGS_ARGS) \
+	     $$tags $$unique
 
+GTAGS:
+	here=`$(am__cd) $(top_builddir) && pwd` \
+	  && cd $(top_srcdir) \
+	  && gtags -i $(GTAGS_ARGS) $$here
+
+distclean-tags:
+	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
 	$(mkdir_p) $(distdir)/../../config
@@ -366,9 +522,10 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
+	-rm -rf ./$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
-	distclean-libtool
+	distclean-libtool distclean-tags
 
 dvi: dvi-am
 
@@ -391,6 +548,7 @@ install-man:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
+	-rm -rf ./$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -409,30 +567,19 @@ ps-am:
 
 uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
-.PHONY: all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool distclean distclean-compile \
-	distclean-generic distclean-libtool distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-exec install-exec-am install-info \
-	install-info-am install-libLTLIBRARIES install-man \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am uninstall uninstall-am uninstall-info-am \
+.PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-	${top_srcdir}/lib/libuutil/uu_alloc.c \
-	${top_srcdir}/lib/libuutil/uu_avl.c \
-	${top_srcdir}/lib/libuutil/uu_dprintf.c \
-	${top_srcdir}/lib/libuutil/uu_ident.c \
-	${top_srcdir}/lib/libuutil/uu_list.c \
-	${top_srcdir}/lib/libuutil/uu_misc.c \
-	${top_srcdir}/lib/libuutil/uu_open.c \
-	${top_srcdir}/lib/libuutil/uu_pname.c \
-	${top_srcdir}/lib/libuutil/uu_strtoint.c \
-	${top_srcdir}/lib/libuutil/include/libuutil.h \
-	${top_srcdir}/lib/libuutil/include/libuutil_common.h \
-	${top_srcdir}/lib/libuutil/include/libuutil_impl.h
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
