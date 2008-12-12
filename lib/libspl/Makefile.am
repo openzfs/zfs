@@ -1,14 +1,16 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES  = -I${libdir}/libspl/include
+DEFAULT_INCLUDES = \
+	-I${top_srcdir}/lib/libspl/include
 
 lib_LTLIBRARIES = libspl.la
 
-libspl_la_SOURCES = list.c \
-                    mkdirp.c \
-                    strlcat.c \
-                    strlcpy.c \
-                    strnlen.c \
-                    u8_textprep.c \
-                    include/sys/list.h \
-                    include/sys/list_impl.h
+libspl_la_SOURCES = \
+	${top_srcdir}/lib/libspl/list.c \
+	${top_srcdir}/lib/libspl/mkdirp.c \
+	${top_srcdir}/lib/libspl/strlcat.c \
+	${top_srcdir}/lib/libspl/strlcpy.c \
+	${top_srcdir}/lib/libspl/strnlen.c \
+	${top_srcdir}/lib/libspl/u8_textprep.c \
+	${top_srcdir}/lib/libspl/include/sys/list.h \
+	${top_srcdir}/lib/libspl/include/sys/list_impl.h
