@@ -11,4 +11,4 @@ libnvpair_la_SOURCES = libnvpair.c \
                        include/libnvpair.h
                        ${moddir}/nvpair/nvpair.c \
                        ${moddir}/nvpair/include/sys/nvpair.h \
-                       ${moddir}/nvpair/include/sys/nvpair_impl.h \
+                       ${moddir}/nvpair/include/sys/nvpair_impl.h
