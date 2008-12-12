@@ -8,5 +8,5 @@ zdb_SOURCES = \
 	zdb.c \
 	zdb_il.c
 
-zdump_LDADD = \
+zdb_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la
