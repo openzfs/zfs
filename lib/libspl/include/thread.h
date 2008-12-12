@@ -3,12 +3,13 @@
  * This header file distributed under the terms of the CDDL.
  * Portions Copyright 2004 Sun Microsystems, Inc. All Rights reserved.
  */
-#ifndef _SYS_THREAD_H
-#define _SYS_THREAD_H
 
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/types.h>
+
+#ifndef _SYS_THREAD_H
+#define _SYS_THREAD_H
 
 typedef pthread_t			thread_t;
 typedef pthread_mutex_t			mutex_t;
@@ -43,6 +44,10 @@ thr_create(void *stack_base, size_t stack_size,
 
 	return rc;
 }
+#endif /* _SYS_THREAD_H */
+
+#ifndef _SYS_MUTEX_H
+#define _SYS_MUTEX_H
 
 static inline int
 _mutex_held(mutex_t *mp)
@@ -63,7 +68,6 @@ _mutex_init(mutex_t *mp, int type, void *arg)
 	pthread_mutex_init(mp, NULL);
 }
 
-
 #define mutex_init(mp, type, arg)	_mutex_init(mp, type, arg)
 #define mutex_lock(mp)			pthread_mutex_lock(mp)
 #define mutex_unlock(mp)		pthread_mutex_unlock(mp)
@@ -72,6 +76,10 @@ _mutex_init(mutex_t *mp, int type, void *arg)
 #define DEFAULTMUTEX			PTHREAD_MUTEX_INITIALIZER
 #define DEFAULTCV			PTHREAD_COND_INITIALIZER
 #define MUTEX_HELD(mp)			_mutex_held(mp)
+#endif /* _SYS_MUTEX_H */
+
+#ifndef _SYS_CONDVAR_H
+#define _SYS_CONDVAR_H
 
 #define cond_init(c, type, arg)		pthread_cond_init(c, NULL)
 #define cond_wait(c, m)			pthread_cond_wait(c, m)
@@ -81,9 +89,8 @@ _mutex_init(mutex_t *mp, int type, void *arg)
 #define cond_destroy(c)			pthread_cond_destroy(c)
 #define cond_timedwait			pthread_cond_timedwait
 #define _cond_timedwait			pthread_cond_timedwait
+#endif /* _SYS_CONDVAR_H */
 
 #ifndef RTLD_FIRST
 #define RTLD_FIRST			0
 #endif
-
-#endif /* _SYS_THREAD_H */
