@@ -32,7 +32,6 @@
 #include <sys/dmu.h>
 #include <sys/zio.h>
 #include <sys/dsl_deleg.h>
-#include <sys/zfs_i18n.h>
 
 #ifdef _KERNEL
 #include <sys/nvpair.h>
@@ -138,9 +137,12 @@ typedef struct zfs_share {
  * name lookups are case-sensitive.  They may also be set up so that
  * all the name lookups are case-insensitive, or so that only some
  * lookups, the ones that set an FIGNORECASE flag, are case-insensitive.
- *
- * Defined in: <sys/zfs_i18n.h>
  */
+typedef enum zfs_case {
+	ZFS_CASE_SENSITIVE,
+	ZFS_CASE_INSENSITIVE,
+	ZFS_CASE_MIXED
+} zfs_case_t;
 
 typedef struct zfs_cmd {
 	char		zc_name[MAXPATHLEN];
