@@ -238,7 +238,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 
 	AC_ARG_WITH([zfs-config],
 		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|lustre']),
+		[Config file 'kernel|user|all']),
 		[zfsconfig="$withval"])
 
 	AC_MSG_CHECKING([zfs config])
@@ -246,12 +246,13 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 
 	case "$zfsconfig" in
 		kernel) ZFS_AC_CONFIG_KERNEL ;;
-		user)	ZFS_AC_CONFIG_USER ;;
-		lustre) ZFS_AC_CONFIG_LUSTRE ;;
+		user)	ZFS_AC_CONFIG_USER   ;;
+		all)    ZFS_AC_CONFIG_KERNEL
+			ZFS_AC_CONFIG_USER   ;;
 		*)
 		AC_MSG_RESULT([Error!])
 		AC_MSG_ERROR([Bad value "$zfsconfig" for --with-config,
-		              user kernel|user|lustre]) ;;
+		              user kernel|user|all]) ;;
 	esac
 
 	ZFS_AC_CONFIG_SCRIPT
