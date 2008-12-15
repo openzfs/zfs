@@ -43,7 +43,7 @@ AC_PROG_INSTALL
 AC_PROG_CC
 AC_PROG_LIBTOOL
 
-zfsconfig=kernel
+zfsconfig=all
 kernelsrc=
 kernelbuild=
 splsrc=
@@ -67,18 +67,6 @@ AC_CHECK_LIB([efi], [efi_alloc_and_init],
 AC_CHECK_LIB([share], [sa_init],
 	[AC_DEFINE([HAVE_LIBSHARE], 1,
 	[Define to 1 if 'libshare' library available])])
-
-AC_EGREP_HEADER(ioctl, unistd.h,
-	[AC_DEFINE([HAVE_IOCTL_IN_UNISTD_H], 1,
-        [Define to 1 if ioctl() is defined in <unistd.h> header file])])
-
-AC_EGREP_HEADER(ioctl, sys/ioctl.h,
-	[AC_DEFINE([HAVE_IOCTL_IN_SYS_IOCTL_H], 1,
-        [Define to 1 if ioctl() is defined in <sys/ioctl.h> header file])])
-
-AC_EGREP_HEADER(ioctl, stropts.h,
-	[AC_DEFINE([HAVE_IOCTL_IN_STROPTS_H], 1,
-        [Define to 1 if ioctl() is defined in <stropts.h> header file])])
 
 AC_EGREP_HEADER(strcmp, strings.h, 
 	[AC_DEFINE([HAVE_STRCMP_IN_STRINGS_H], 1,
