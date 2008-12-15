@@ -29,13 +29,19 @@
 #ifndef _SYS_UNISTD_H
 #define _SYS_UNISTD_H
 
-#ifndef HAVE_ISSETUGID
-#include <sys/types.h>
-#define issetugid() (geteuid() == 0 || getegid() == 0)
+#if !defined(HAVE_IOCTL_IN_UNISTD_H)
+# if defined(HAVE_IOCTL_IN_SYS_IOCTL_H)
+#  include <sys/ioctl.h>
+# elif defined(HAVE_IOCTL_IN_STROPTS_H)
+#  include <stropts.h>
+# else
+#  error "System call ioctl() unavailable"
+# endif
 #endif
 
-#ifdef HAVE_IOCTL_IN_UNISTD_H
-#include <fake_ioctl.h>
+#if !defined(HAVE_ISSETUGID)
+# include <sys/types.h>
+# define issetugid() (geteuid() == 0 || getegid() == 0)
 #endif
 
 #if !defined(__sun__) && !defined(__sun)
