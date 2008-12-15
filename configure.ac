@@ -54,34 +54,6 @@ ZFS_AC_SPL
 ZFS_AC_CONFIG
 ZFS_AC_LICENSE
 ZFS_AC_DEBUG
-ZFS_AC_2ARGS_BIO_END_IO_T
-
-AC_CHECK_LIB([diskmgt], [libdiskmgt_error],
-	[AC_DEFINE([HAVE_LIBDISKMGT], 1,
-        [Define to 1 if 'libdiskmgt' library available])])
-
-AC_CHECK_LIB([efi], [efi_alloc_and_init],
-	[AC_DEFINE([HAVE_LIBEFI], 1,
-	[Define to 1 if 'libefi' library available])])
-
-AC_CHECK_LIB([share], [sa_init],
-	[AC_DEFINE([HAVE_LIBSHARE], 1,
-	[Define to 1 if 'libshare' library available])])
-
-AC_EGREP_HEADER(strcmp, strings.h, 
-	[AC_DEFINE([HAVE_STRCMP_IN_STRINGS_H], 1,
-        [Define to 1 if strcmpl() is defined in <strings.h> header file])])
-
-AC_EGREP_HEADER(sysinfo, sys/systeminfo.h, 
-	[AC_DEFINE([HAVE_SYSINFO_IN_SYS_SYSTEMINFO_H], 1,
-        [Define to 1 if sysinfo() is defined in <sys/systeminfo.h> header file])])
-
-#AC_DEFINE([HAVE_ZVOL], 1, ["Define to 1 to include ZVOL support"])
-#AC_DEFINE([HAVE_ZPL], 1, ["Define to 1 to include ZPL support"])
-#AC_DEFINE([WANT_FAKE_IOCTL], 1, ["Define to 1 to use fake ioctl() support"])
-#AC_DEFINE([HAVE_DM_INUSE_SWAP], 1, ["None"])
-#AC_DEFINE([HAVE_UNICODE], 1, ["None"])
-#AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h>])
 
 AC_CONFIG_FILES([ Makefile
                   config/Makefile
