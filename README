@@ -32,31 +32,10 @@
         make
         make check <as root>
 
-============================ ZFS LUSTRE BUILD ============================
-
-1) Build the SPL (Solaris Porting Layer) module which is designed to
-   provide many Solaris APIs in the Linux kernel which are needed
-   by ZFS.  To build the SPL:
-
-        tar -xzf spl-x.y.z.tgz
-        cd spl-x.y.z
-        ./configure --with-linux=<kernel src>
-        make
-        make check <as root>
-
-2) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
-   To build ZFS as a userspace library for use by a Lustre filesystem:
-
-        tar -xzf zfs-x.y.z.tgz
-        cd zfs-x.y.z
-        ./configure --zfsconfig=lustre \
-                    --with-linux=<kernel src> \
-                    --with-spl=<spl src>
-        make
-        make check <as root>
+============================ ZPIOS TEST SUITE ============================
 
 3) Provided is an in-kernel test application called zpios which can be
-   used to simulate a Lustre IO load.  It may be used as a stress test
+   used to simulate a parallel IO load.  It may be used as a stress test
    or as a performance to measure your configuration.  To simplify testing
    there are scripts provided in the scripts/ directory.  A single test
    can be run as follows:
