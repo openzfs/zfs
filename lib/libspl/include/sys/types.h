@@ -32,6 +32,7 @@
 #include_next <sys/types.h>
 #include <sys/param.h> /* for NBBY */
 #include <sys/types32.h>
+#include <sys/va_list.h>
 
 #ifndef HAVE_INTTYPES
 #include <inttypes.h>
