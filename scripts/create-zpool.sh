@@ -27,13 +27,13 @@ prog=create-zpool.sh
 DEVICES=""
 
 echo
-echo "zpool create lustre <devices>"
-${CMDDIR}/zpool/zpool create -F lustre ${DEVICES}
+echo "zpool create zpios <devices>"
+${CMDDIR}/zpool/zpool create -F zpios ${DEVICES}
 
 echo
 echo "zpool list"
 ${CMDDIR}/zpool/zpool list
 
 echo
-echo "zpool status lustre"
-${CMDDIR}/zpool/zpool status lustre
+echo "zpool status zpios"
+${CMDDIR}/zpool/zpool status zpios
