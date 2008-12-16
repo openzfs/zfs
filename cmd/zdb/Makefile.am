@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES  = -I${top_srcdir}/lib/libspl/include
+DEFAULT_INCLUDES += \
+	-I${top_srcdir}/lib/libspl/include
 
 sbin_PROGRAMS = zdb
 
