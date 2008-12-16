@@ -212,12 +212,12 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
  * informative error message.
  */
 static boolean_t
-dir_is_empty(const char *dirname)
+dir_is_empty(const char *dirn)
 {
 	DIR *dirp;
 	struct dirent64 *dp;
 
-	if ((dirp = opendir(dirname)) == NULL)
+	if ((dirp = opendir(dirn)) == NULL)
 		return (B_TRUE);
 
 	while ((dp = readdir64(dirp)) != NULL) {
