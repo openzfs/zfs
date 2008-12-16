@@ -1048,7 +1048,7 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
-  --with-config=CONFIG    Config file 'kernel|user|lustre'
+  --with-config=CONFIG    Config file 'kernel|user|all'
 
 Some influential environment variables:
   CC          C compiler command
@@ -18922,7 +18922,7 @@ LIBTOOL='$(SHELL) $(top_builddir)/libtool'
 
 
 
-zfsconfig=kernel
+zfsconfig=all
 kernelsrc=
 kernelbuild=
 splsrc=
@@ -19200,80 +19200,8 @@ echo "${ECHO_T}$zfsconfig" >&6;
 
 
 
- ;;
-		user)	 ;;
-		lustre)  ;;
-		*)
-		echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-		{ { echo "$as_me:$LINENO: error: Bad value \"$zfsconfig\" for --with-config,
-		              user kernel|user|lustre" >&5
-echo "$as_me: error: Bad value \"$zfsconfig\" for --with-config,
-		              user kernel|user|lustre" >&2;}
-   { (exit 1); exit 1; }; } ;;
-	esac
 
-
-	SCRIPT_CONFIG=.script-config
-	rm -f ${SCRIPT_CONFIG}
-	echo "KERNELSRC=${LINUX}"         >>${SCRIPT_CONFIG}
-	echo "KERNELBUILD=${LINUX_OBJ}"   >>${SCRIPT_CONFIG}
-	echo "KERNELSRCVER=$kernsrcver"   >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
-	echo "SPLSRC=$splsrc"             >>${SCRIPT_CONFIG}
-	echo "SPLBUILD=$splbuild"         >>${SCRIPT_CONFIG}
-	echo "SPLSRCVER=$splsrcver"       >>${SCRIPT_CONFIG}
-	echo "SPLSYMVERS=$splsymvers"     >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
-	echo "ZFSSRC=${TOPDIR}/src"       >>${SCRIPT_CONFIG}
-	echo "ZFSBUILD=${ZFSDIR}"         >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
-	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
-	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
-	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
-
-
-
-        echo "$as_me:$LINENO: checking license" >&5
-echo $ECHO_N "checking license... $ECHO_C" >&6
-        echo "$as_me:$LINENO: result: CDDL" >&5
-echo "${ECHO_T}CDDL" >&6
-
-
-        echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
-echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
-        # Check whether --enable-debug or --disable-debug was given.
-if test "${enable_debug+set}" = set; then
-  enableval="$enable_debug"
-   case "$enableval" in
-                        yes) zfs_ac_debug=yes ;;
-                        no)  zfs_ac_debug=no  ;;
-                        *) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-                        { { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug" >&2;}
-   { (exit 1); exit 1; }; } ;;
-                esac
-
-fi;
-        if test "$zfs_ac_debug" = yes; then
-        	echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
-		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
-        else
-        	echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define NDEBUG 1
-_ACEOF
-
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
-		HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
-        fi
-
-echo "$as_me:$LINENO: checking whether bio_end_io_t wants 2 args" >&5
+	echo "$as_me:$LINENO: checking whether bio_end_io_t wants 2 args" >&5
 echo $ECHO_N "checking whether bio_end_io_t wants 2 args... $ECHO_C" >&6
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
@@ -19287,7 +19215,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-	        #include <linux/bio.h>
+		#include <linux/bio.h>
 
 int
 main (void)
@@ -19318,7 +19246,7 @@ if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclud
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; }; then
 
-	        echo "$as_me:$LINENO: result: yes" >&5
+		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
@@ -19331,7 +19259,7 @@ else
 sed 's/^/| /' conftest.$ac_ext >&5
 
 
-	        echo "$as_me:$LINENO: result: no" >&5
+		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
 fi
@@ -19339,81 +19267,10 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
+ ;;
+		user)
 
-echo "$as_me:$LINENO: checking for libdiskmgt_error in -ldiskmgt" >&5
-echo $ECHO_N "checking for libdiskmgt_error in -ldiskmgt... $ECHO_C" >&6
-if test "${ac_cv_lib_diskmgt_libdiskmgt_error+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-ldiskmgt  $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-/* Override any gcc2 internal prototype to avoid an error.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-/* We use char because int might match the return type of a gcc2
-   builtin and then its argument prototype would still apply.  */
-char libdiskmgt_error ();
-int
-main ()
-{
-libdiskmgt_error ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
-  (eval $ac_link) 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"
-			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest$ac_exeext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_diskmgt_libdiskmgt_error=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-ac_cv_lib_diskmgt_libdiskmgt_error=no
-fi
-rm -f conftest.err conftest.$ac_objext \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-echo "$as_me:$LINENO: result: $ac_cv_lib_diskmgt_libdiskmgt_error" >&5
-echo "${ECHO_T}$ac_cv_lib_diskmgt_libdiskmgt_error" >&6
-if test $ac_cv_lib_diskmgt_libdiskmgt_error = yes; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_LIBDISKMGT 1
-_ACEOF
-
-fi
-
-
-echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
+	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
 echo $ECHO_N "checking for efi_alloc_and_init in -lefi... $ECHO_C" >&6
 if test "${ac_cv_lib_efi_efi_alloc_and_init+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -19486,7 +19343,82 @@ _ACEOF
 fi
 
 
-echo "$as_me:$LINENO: checking for sa_init in -lshare" >&5
+
+	echo "$as_me:$LINENO: checking for libdiskmgt_error in -ldiskmgt" >&5
+echo $ECHO_N "checking for libdiskmgt_error in -ldiskmgt... $ECHO_C" >&6
+if test "${ac_cv_lib_diskmgt_libdiskmgt_error+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ldiskmgt  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char libdiskmgt_error ();
+int
+main ()
+{
+libdiskmgt_error ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_diskmgt_libdiskmgt_error=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_diskmgt_libdiskmgt_error=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_diskmgt_libdiskmgt_error" >&5
+echo "${ECHO_T}$ac_cv_lib_diskmgt_libdiskmgt_error" >&6
+if test $ac_cv_lib_diskmgt_libdiskmgt_error = yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBDISKMGT 1
+_ACEOF
+
+fi
+
+
+
+	echo "$as_me:$LINENO: checking for sa_init in -lshare" >&5
 echo $ECHO_N "checking for sa_init in -lshare... $ECHO_C" >&6
 if test "${ac_cv_lib_share_sa_init+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -19559,7 +19491,10 @@ _ACEOF
 fi
 
 
-cat >conftest.$ac_ext <<_ACEOF
+
+	echo "$as_me:$LINENO: checking checking for ioctl()" >&5
+echo $ECHO_N "checking checking for ioctl()... $ECHO_C" >&6
+	cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -19570,16 +19505,13 @@ cat >>conftest.$ac_ext <<_ACEOF
 _ACEOF
 if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
   $EGREP "ioctl" >/dev/null 2>&1; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_IOCTL_IN_UNISTD_H 1
-_ACEOF
-
+  is_unistd=yes
+else
+  is_unistd=no
 fi
 rm -f conftest*
 
-
-cat >conftest.$ac_ext <<_ACEOF
+	cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -19590,16 +19522,13 @@ cat >>conftest.$ac_ext <<_ACEOF
 _ACEOF
 if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
   $EGREP "ioctl" >/dev/null 2>&1; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_IOCTL_IN_SYS_IOCTL_H 1
-_ACEOF
-
+  is_sys_ioctl=yes
+else
+  is_sys_ioctl=no
 fi
 rm -f conftest*
 
-
-cat >conftest.$ac_ext <<_ACEOF
+	cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -19610,61 +19539,535 @@ cat >>conftest.$ac_ext <<_ACEOF
 _ACEOF
 if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
   $EGREP "ioctl" >/dev/null 2>&1; then
+  is_stropts=yes
+else
+  is_stropts=no
+fi
+rm -f conftest*
+
+
+	if test $is_unistd = yes; then
+		result=unistd.h
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_IOCTL_IN_UNISTD_H 1
+_ACEOF
+
+	else
+
+		if test $is_sys_ioctl = yes; then
+			result=sys/ioctl.h
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_IOCTL_IN_SYS_IOCTL_H 1
+_ACEOF
+
+		elif test $is_stropts = yes; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_IOCTL_IN_STROPTS_H 1
 _ACEOF
 
+		else
+			result=no
+		fi
+	fi
+
+	if test $result = no; then
+                echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+                { { echo "$as_me:$LINENO: error: *** Cannot locate ioctl() definition" >&5
+echo "$as_me: error: *** Cannot locate ioctl() definition" >&2;}
+   { (exit 1); exit 1; }; }
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+	fi
+
+   ;;
+		all)
+			KERNELMAKE_PARAMS=
+
+		KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
+
+		HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 "
+	HOSTCFLAGS="$HOSTCFLAGS -D_GNU_SOURCE -D__EXTENSIONS__ "
+
+			HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-unknown-pragmas -Wno-parentheses "
+	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
+
+		HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
+	HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 "
+	HOSTCFLAGS="$HOSTCFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT "
+	HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
+
+		HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
+
+	if test "$kernelbuild" != "$kernelsrc"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
+	fi
+
+
+
+
+
+	echo "$as_me:$LINENO: checking whether bio_end_io_t wants 2 args" >&5
+echo $ECHO_N "checking whether bio_end_io_t wants 2 args... $ECHO_C" >&6
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/bio.h>
+
+int
+main (void)
+{
+
+		void (*wanted_end_io)(struct bio *, int) = NULL;
+		bio_end_io_t *local_end_io;
+
+		local_end_io = wanted_end_io;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
+echo "obj-m := conftest.o" >build/Makefile
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_2ARGS_BIO_END_IO_T 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
 fi
-rm -f conftest*
+rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
+
+
+	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
+echo $ECHO_N "checking for efi_alloc_and_init in -lefi... $ECHO_C" >&6
+if test "${ac_cv_lib_efi_efi_alloc_and_init+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lefi  $LIBS"
 cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
-#include <strings.h>
 
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char efi_alloc_and_init ();
+int
+main ()
+{
+efi_alloc_and_init ();
+  ;
+  return 0;
+}
 _ACEOF
-if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
-  $EGREP "strcmp" >/dev/null 2>&1; then
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_efi_efi_alloc_and_init=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_efi_efi_alloc_and_init=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_efi_efi_alloc_and_init" >&5
+echo "${ECHO_T}$ac_cv_lib_efi_efi_alloc_and_init" >&6
+if test $ac_cv_lib_efi_efi_alloc_and_init = yes; then
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_STRCMP_IN_STRINGS_H 1
+#define HAVE_LIBEFI 1
 _ACEOF
 
 fi
-rm -f conftest*
 
 
+
+	echo "$as_me:$LINENO: checking for libdiskmgt_error in -ldiskmgt" >&5
+echo $ECHO_N "checking for libdiskmgt_error in -ldiskmgt... $ECHO_C" >&6
+if test "${ac_cv_lib_diskmgt_libdiskmgt_error+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ldiskmgt  $LIBS"
 cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
-#include <sys/systeminfo.h>
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char libdiskmgt_error ();
+int
+main ()
+{
+libdiskmgt_error ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_diskmgt_libdiskmgt_error=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_diskmgt_libdiskmgt_error=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_diskmgt_libdiskmgt_error" >&5
+echo "${ECHO_T}$ac_cv_lib_diskmgt_libdiskmgt_error" >&6
+if test $ac_cv_lib_diskmgt_libdiskmgt_error = yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBDISKMGT 1
+_ACEOF
+
+fi
+
+
+
+	echo "$as_me:$LINENO: checking for sa_init in -lshare" >&5
+echo $ECHO_N "checking for sa_init in -lshare... $ECHO_C" >&6
+if test "${ac_cv_lib_share_sa_init+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lshare  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char sa_init ();
+int
+main ()
+{
+sa_init ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_share_sa_init=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_share_sa_init=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_share_sa_init" >&5
+echo "${ECHO_T}$ac_cv_lib_share_sa_init" >&6
+if test $ac_cv_lib_share_sa_init = yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSHARE 1
+_ACEOF
+
+fi
+
+
+
+	echo "$as_me:$LINENO: checking checking for ioctl()" >&5
+echo $ECHO_N "checking checking for ioctl()... $ECHO_C" >&6
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <unistd.h>
 
 _ACEOF
 if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
-  $EGREP "sysinfo" >/dev/null 2>&1; then
+  $EGREP "ioctl" >/dev/null 2>&1; then
+  is_unistd=yes
+else
+  is_unistd=no
+fi
+rm -f conftest*
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SYSINFO_IN_SYS_SYSTEMINFO_H 1
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
 _ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sys/ioctl.h>
 
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "ioctl" >/dev/null 2>&1; then
+  is_sys_ioctl=yes
+else
+  is_sys_ioctl=no
+fi
+rm -f conftest*
+
+	cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <stropts.h>
+
+_ACEOF
+if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+  $EGREP "ioctl" >/dev/null 2>&1; then
+  is_stropts=yes
+else
+  is_stropts=no
 fi
 rm -f conftest*
 
 
-#AC_DEFINE([HAVE_ZVOL], 1, ["Define to 1 to include ZVOL support"])
-#AC_DEFINE([HAVE_ZPL], 1, ["Define to 1 to include ZPL support"])
-#AC_DEFINE([WANT_FAKE_IOCTL], 1, ["Define to 1 to use fake ioctl() support"])
-#AC_DEFINE([HAVE_DM_INUSE_SWAP], 1, ["None"])
-#AC_DEFINE([HAVE_UNICODE], 1, ["None"])
-#AC_DEFINE([HAVE_INTTYPES], 1, [Define to 1 if unint16 defined in <sys/types.h>])
+	if test $is_unistd = yes; then
+		result=unistd.h
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_IOCTL_IN_UNISTD_H 1
+_ACEOF
+
+	else
+
+		if test $is_sys_ioctl = yes; then
+			result=sys/ioctl.h
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_IOCTL_IN_SYS_IOCTL_H 1
+_ACEOF
+
+		elif test $is_stropts = yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_IOCTL_IN_STROPTS_H 1
+_ACEOF
+
+		else
+			result=no
+		fi
+	fi
+
+	if test $result = no; then
+                echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+                { { echo "$as_me:$LINENO: error: *** Cannot locate ioctl() definition" >&5
+echo "$as_me: error: *** Cannot locate ioctl() definition" >&2;}
+   { (exit 1); exit 1; }; }
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+	fi
+
+   ;;
+		*)
+		echo "$as_me:$LINENO: result: Error!" >&5
+echo "${ECHO_T}Error!" >&6
+		{ { echo "$as_me:$LINENO: error: Bad value \"$zfsconfig\" for --with-config,
+		              user kernel|user|all" >&5
+echo "$as_me: error: Bad value \"$zfsconfig\" for --with-config,
+		              user kernel|user|all" >&2;}
+   { (exit 1); exit 1; }; } ;;
+	esac
+
+
+	SCRIPT_CONFIG=.script-config
+	rm -f ${SCRIPT_CONFIG}
+	echo "KERNELSRC=${LINUX}"         >>${SCRIPT_CONFIG}
+	echo "KERNELBUILD=${LINUX_OBJ}"   >>${SCRIPT_CONFIG}
+	echo "KERNELSRCVER=$kernsrcver"   >>${SCRIPT_CONFIG}
+	echo                              >>${SCRIPT_CONFIG}
+	echo "SPLSRC=$splsrc"             >>${SCRIPT_CONFIG}
+	echo "SPLBUILD=$splbuild"         >>${SCRIPT_CONFIG}
+	echo "SPLSRCVER=$splsrcver"       >>${SCRIPT_CONFIG}
+	echo "SPLSYMVERS=$splsymvers"     >>${SCRIPT_CONFIG}
+	echo                              >>${SCRIPT_CONFIG}
+	echo "ZFSSRC=${TOPDIR}/src"       >>${SCRIPT_CONFIG}
+	echo "ZFSBUILD=${ZFSDIR}"         >>${SCRIPT_CONFIG}
+	echo                              >>${SCRIPT_CONFIG}
+	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
+	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
+	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
+
+
+
+        echo "$as_me:$LINENO: checking license" >&5
+echo $ECHO_N "checking license... $ECHO_C" >&6
+        echo "$as_me:$LINENO: result: CDDL" >&5
+echo "${ECHO_T}CDDL" >&6
+
+
+        echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
+        # Check whether --enable-debug or --disable-debug was given.
+if test "${enable_debug+set}" = set; then
+  enableval="$enable_debug"
+   case "$enableval" in
+                        yes) zfs_ac_debug=yes ;;
+                        no)  zfs_ac_debug=no  ;;
+                        *) echo "$as_me:$LINENO: result: Error!" >&5
+echo "${ECHO_T}Error!" >&6
+                        { { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
+echo "$as_me: error: Bad value \"$enableval\" for --enable-debug" >&2;}
+   { (exit 1); exit 1; }; } ;;
+                esac
+
+fi;
+        if test "$zfs_ac_debug" = yes; then
+        	echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
+		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
+        else
+        	echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define NDEBUG 1
+_ACEOF
+
+                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
+		HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
+        fi
+
 
                                                                                                                                                                                               ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zdump/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile"
 
