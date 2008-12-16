@@ -208,18 +208,6 @@ uu_panic(const char *format, ...)
 			(void) pause();
 }
 
-int
-assfail(const char *astring, const char *file, int line)
-{
-#if defined(__STDC__) && __STDC_VERSION__ - 0 >= 199901L
-	__assert_c99(astring, file, line, "unknown func");
-#else
-	__assert(astring, file, line);
-#endif
-	/*NOTREACHED*/
-	return (0);
-}
-
 static void
 uu_lockup(void)
 {
