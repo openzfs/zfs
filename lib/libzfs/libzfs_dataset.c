@@ -735,6 +735,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 
 			/*FALLTHRU*/
 
+#ifdef HAVE_ZPL
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:
 			/*
@@ -845,6 +846,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 
 			break;
+#endif /* HAVE_ZPL */
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
