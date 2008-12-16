@@ -24,8 +24,6 @@
  * Use is subject to license terms.
  */
 
-#include_next <sys/systeminfo.h>
-
 #ifndef _SOL_SYS_SYSTEMINFO_H
 #define _SOL_SYS_SYSTEMINFO_H
 
