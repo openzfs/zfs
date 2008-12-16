@@ -1,3 +1,5 @@
+DEFAULT_INCLUDES = -I${top_srcdir}
+
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
 AM_CFLAGS  = -Wall -Wstrict-prototypes -Wshadow -Werror
