@@ -9,13 +9,13 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if ioctl() is defined in <stropts.h> header file */
+/* result=stropts.h Define to 1 if ioctl() defined in <stropts.h> */
 #undef HAVE_IOCTL_IN_STROPTS_H
 
-/* Define to 1 if ioctl() is defined in <sys/ioctl.h> header file */
+/* Define to 1 if ioctl() defined in <sys/ioctl.h> */
 #undef HAVE_IOCTL_IN_SYS_IOCTL_H
 
-/* Define to 1 if ioctl() is defined in <unistd.h> header file */
+/* Define to 1 if ioctl() defined in <unistd.h> */
 #undef HAVE_IOCTL_IN_UNISTD_H
 
 /* Define to 1 if 'libdiskmgt' library available */
@@ -36,17 +36,11 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
 
-/* Define to 1 if strcmpl() is defined in <strings.h> header file */
-#undef HAVE_STRCMP_IN_STRINGS_H
-
 /* Define to 1 if you have the <strings.h> header file. */
 #undef HAVE_STRINGS_H
 
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
-
-/* Define to 1 if sysinfo() is defined in <sys/systeminfo.h> header file */
-#undef HAVE_SYSINFO_IN_SYS_SYSTEMINFO_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
