@@ -536,6 +536,15 @@ extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *,
     void *, void *, int, zfs_share_op_t);
 
 /*
+ * When dealing with nvlists, verify() is extremely useful
+ */
+#ifdef NDEBUG
+#define	verify(EX)	((void)(EX))
+#else
+#define	verify(EX)	assert(EX)
+#endif
+
+/*
  * Utility function to convert a number to a human-readable form.
  */
 extern void zfs_nicenum(uint64_t, char *, size_t);
