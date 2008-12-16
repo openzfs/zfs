@@ -532,14 +532,14 @@ zfs_close(zfs_handle_t *zhp)
 }
 
 int
-zfs_spa_version(zfs_handle_t *zhp, int *spa_version)
+zfs_spa_version(zfs_handle_t *zhp, int *version)
 {
 	zpool_handle_t *zpool_handle = zhp->zpool_hdl;
 
 	if (zpool_handle == NULL)
 		return (-1);
 
-	*spa_version = zpool_get_prop_int(zpool_handle,
+	*version = zpool_get_prop_int(zpool_handle,
 	    ZPOOL_PROP_VERSION, NULL);
 	return (0);
 }
@@ -550,12 +550,12 @@ zfs_spa_version(zfs_handle_t *zhp, int *spa_version)
 static int
 zfs_which_resv_prop(zfs_handle_t *zhp, zfs_prop_t *resv_prop)
 {
-	int spa_version;
+	int version;
 
-	if (zfs_spa_version(zhp, &spa_version) < 0)
+	if (zfs_spa_version(zhp, &version) < 0)
 		return (-1);
 
-	if (spa_version >= SPA_VERSION_REFRESERVATION)
+	if (version >= SPA_VERSION_REFRESERVATION)
 		*resv_prop = ZFS_PROP_REFRESERVATION;
 	else
 		*resv_prop = ZFS_PROP_RESERVATION;
