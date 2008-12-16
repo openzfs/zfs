@@ -1858,13 +1858,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		avl_tree_t *local_avl;
 		nvlist_t *local_nv, *fs;
-		char *cp = strchr(zc.zc_value, '@');
 
 		/*
 		 * XXX Do this faster by just iterating over snaps in
 		 * this fs.  Also if zc_value does not exist, we will
 		 * get a strange "does not exist" error message.
 		 */
+		cp = strchr(zc.zc_value, '@');
 		*cp = '\0';
 		if (gather_nvlist(hdl, zc.zc_value, NULL, NULL,
 		    &local_nv, &local_avl) == 0) {
