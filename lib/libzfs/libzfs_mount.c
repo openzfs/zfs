@@ -206,7 +206,6 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 
 	return (SHARED_NOT_SHARED);
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Returns true if the specified directory is empty.  If we can't open the
@@ -307,7 +306,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 /*
  * Mount the given filesystem.
  */
-#ifdef HAVE_ZPL
 int
 zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 {
@@ -375,7 +373,6 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Unmount a single filesystem.
@@ -458,7 +455,6 @@ zfs_unmountall(zfs_handle_t *zhp, int flags)
 	return (ret);
 }
 
-#ifdef HAVE_ZPL
 boolean_t
 zfs_is_shared(zfs_handle_t *zhp)
 {
@@ -991,7 +987,6 @@ zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
 {
 	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Remove the mountpoint associated with the current dataset, if necessary.
@@ -1026,7 +1021,6 @@ remove_mountpoint(zfs_handle_t *zhp)
 	}
 }
 
-#ifdef HAVE_ZPL
 boolean_t
 zfs_is_shared_iscsi(zfs_handle_t *zhp)
 {
@@ -1101,7 +1095,6 @@ zfs_unshare_iscsi(zfs_handle_t *zhp)
 
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 typedef struct mount_cbdata {
 	zfs_handle_t	**cb_datasets;
@@ -1176,7 +1169,6 @@ dataset_cmp(const void *a, const void *b)
  * we have the list of all filesystems, we iterate over them in order and mount
  * and/or share each one.
  */
-#ifdef HAVE_ZPL
 #pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
 zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
@@ -1242,8 +1234,6 @@ out:
 
 	return (ret);
 }
-#endif /* HAVE_ZPL */
-
 
 static int
 zvol_cb(const char *dataset, void *data)
@@ -1417,3 +1407,4 @@ out:
 
 	return (ret);
 }
+#endif /* HAVE_ZPL */
