@@ -24,10 +24,11 @@
  * Use is subject to license terms.
  */
 
+#include_next <assert.h>
+
 #ifndef _SOL_ASSERT_H
 #define _SOL_ASSERT_H
 
-#include_next <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -39,6 +40,6 @@ __assert_c99(const char *expr, const char *file, int line, const char *func)
 		file, line, func, expr);
 	abort();
 }
-#endif
+#endif /* __assert_c99 */
 
 #endif
