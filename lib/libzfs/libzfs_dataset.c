@@ -534,13 +534,12 @@ zfs_close(zfs_handle_t *zhp)
 int
 zfs_spa_version(zfs_handle_t *zhp, int *version)
 {
-	zpool_handle_t *zpool_handle = zhp->zpool_hdl;
+	zpool_handle_t *handle = zhp->zpool_hdl;
 
-	if (zpool_handle == NULL)
+	if (handle == NULL)
 		return (-1);
 
-	*version = zpool_get_prop_int(zpool_handle,
-	    ZPOOL_PROP_VERSION, NULL);
+	*version = zpool_get_prop_int(handle, ZPOOL_PROP_VERSION, NULL);
 	return (0);
 }
 
@@ -2328,11 +2327,11 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		 */
 		{
 			val = getprop_uint64(zhp, prop, &source);
-			time_t time = (time_t)val;
+			time_t local_time = (time_t)val;
 			struct tm t;
 
 			if (literal ||
-			    localtime_r(&time, &t) == NULL ||
+			    localtime_r(&local_time, &t) == NULL ||
 			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu", (u_longlong_t) val);
