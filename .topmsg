@@ -1,0 +1,6 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc shadow
+
+Gcc -Wall warn: 'shadows a global declaration'
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
