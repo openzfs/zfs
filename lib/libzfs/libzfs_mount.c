@@ -86,6 +86,7 @@
 #include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
+#ifdef HAVE_ZPL
 static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);
 zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
@@ -205,6 +206,7 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 
 	return (SHARED_NOT_SHARED);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Returns true if the specified directory is empty.  If we can't open the
@@ -305,7 +307,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 /*
  * Mount the given filesystem.
  */
-/* zfs-lustre: not supported */
 #ifdef HAVE_ZPL
 int
 zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
@@ -457,6 +458,7 @@ zfs_unmountall(zfs_handle_t *zhp, int flags)
 	return (ret);
 }
 
+#ifdef HAVE_ZPL
 boolean_t
 zfs_is_shared(zfs_handle_t *zhp)
 {
@@ -473,8 +475,6 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return (rc ? B_TRUE : B_FALSE);
 }
 
-/* zfs-lustre: unsupported */
-#ifdef HAVE_ZPL
 int
 zfs_share(zfs_handle_t *zhp)
 {
@@ -483,7 +483,6 @@ zfs_share(zfs_handle_t *zhp)
 
 	return (zfs_share_proto(zhp, share_all_proto));
 }
-#endif /* HAVE_ZPL */
 
 int
 zfs_unshare(zfs_handle_t *zhp)
@@ -992,6 +991,7 @@ zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
 {
 	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Remove the mountpoint associated with the current dataset, if necessary.
@@ -1026,6 +1026,7 @@ remove_mountpoint(zfs_handle_t *zhp)
 	}
 }
 
+#ifdef HAVE_ZPL
 boolean_t
 zfs_is_shared_iscsi(zfs_handle_t *zhp)
 {
@@ -1100,6 +1101,7 @@ zfs_unshare_iscsi(zfs_handle_t *zhp)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 typedef struct mount_cbdata {
 	zfs_handle_t	**cb_datasets;
@@ -1174,7 +1176,6 @@ dataset_cmp(const void *a, const void *b)
  * we have the list of all filesystems, we iterate over them in order and mount
  * and/or share each one.
  */
-/* zfs-lustre: not needed */
 #ifdef HAVE_ZPL
 #pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
