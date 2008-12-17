@@ -114,9 +114,12 @@ extern "C" {
 
 /*
  * Convert mode bits (zp_mode) to BSD-style DT_* values for storing in
- * the directory entries.
+ * the directory entries.  On Linux systems this value is already
+ * defined correctly as part of the /usr/include/dirent.h header file.
  */
+#ifndef IFTODT
 #define	IFTODT(mode) (((mode) & S_IFMT) >> 12)
+#endif
 
 /*
  * The directory entry has the type (currently unused on Solaris) in the
