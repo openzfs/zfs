@@ -23,8 +23,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _ZONE_H
-#define	_ZONE_H
+#ifndef _LIBSPL_ZONE_H
+#define	_LIBSPL_ZONE_H
 
 
 
@@ -83,4 +83,4 @@ extern int	zone_list_datalink(zoneid_t, int *, char *);
 }
 #endif
 
-#endif /* _ZONE_H */
+#endif /* _LIBSPL_ZONE_H */

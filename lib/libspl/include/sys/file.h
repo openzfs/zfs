@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_FILE_H
-#define _SOL_SYS_FILE_H
+#ifndef _LIBSPL_SYS_FILE_H
+#define _LIBSPL_SYS_FILE_H
 
 #include_next <sys/file.h>
 

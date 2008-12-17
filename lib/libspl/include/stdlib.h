@@ -26,8 +26,8 @@
 
 #include_next <stdlib.h>
 
-#ifndef _SOL_STDLIB_H
-#define _SOL_STDLIB_H
+#ifndef _LIBSPL_STDLIB_H
+#define _LIBSPL_STDLIB_H
 
 extern const char *getexecname(void);
 

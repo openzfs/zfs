@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYNCH_H
-#define _SOL_SYNCH_H
+#ifndef _LIBSPL_SYNCH_H
+#define _LIBSPL_SYNCH_H
 
 #endif

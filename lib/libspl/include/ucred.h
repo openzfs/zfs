@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_UCRED_H
-#define _SOL_UCRED_H
+#ifndef _LIBSPL_UCRED_H
+#define _LIBSPL_UCRED_H
 
 typedef int ucred_t;
 

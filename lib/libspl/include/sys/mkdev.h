@@ -24,9 +24,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef _LIBSPL_SYS_DEBUG_H
-#define _LIBSPL_SYS_DEBUG_H
-
-#include <assert.h>
+#ifndef _LIBSPL_SYS_MKDEV_H
+#define _LIBSPL_SYS_MKDEV_H
 
 #endif

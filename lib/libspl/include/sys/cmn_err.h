@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_CMN_ERR_H
-#define _SOL_SYS_CMN_ERR_H
+#ifndef _LIBSPL_SYS_CMN_ERR_H
+#define _LIBSPL_SYS_CMN_ERR_H
 
 #endif

@@ -28,7 +28,7 @@
  * basic API declarations for share management
  */
 
-#ifndef _LIBSHARE_H
-#define _LIBSHARE_H
+#ifndef _LIBSPL_LIBSHARE_H
+#define _LIBSPL_LIBSHARE_H
 
-#endif /* _LIBSHARE_H */
+#endif /* _LIBSPL_LIBSHARE_H */
