@@ -41,24 +41,24 @@ void
 nicenum(uint64_t num, char *buf)
 {
 	uint64_t n = num;
-	int index = 0;
+	int i = 0;
 	char u;
 
 	while (n >= 1024) {
 		n = (n + (1024 / 2)) / 1024; /* Round up or down */
-		index++;
+		i++;
 	}
 
-	u = " KMGTPE"[index];
+	u = " KMGTPE"[i];
 
-	if (index == 0) {
+	if (i == 0) {
 		(void) sprintf(buf, "%llu", (u_longlong_t)n);
 	} else if (n < 10 && (num & (num - 1)) != 0) {
 		(void) sprintf(buf, "%.2f%c",
-		    (double)num / (1ULL << 10 * index), u);
+		    (double)num / (1ULL << 10 * i), u);
 	} else if (n < 100 && (num & (num - 1)) != 0) {
 		(void) sprintf(buf, "%.1f%c",
-		    (double)num / (1ULL << 10 * index), u);
+		    (double)num / (1ULL << 10 * i), u);
 	} else {
 		(void) sprintf(buf, "%llu%c", (u_longlong_t)n, u);
 	}
