@@ -335,7 +335,7 @@ typedef void zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
 typedef void zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
     uint64_t txg);
 typedef int zil_replay_func_t(void *, char *, boolean_t);
-typedef void zil_replay_cleaner_t(void);
+typedef void zil_replay_cleaner_t(void *);
 typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
 
 extern uint64_t	zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
