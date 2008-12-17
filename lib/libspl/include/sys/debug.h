@@ -24,24 +24,9 @@
  * Use is subject to license terms.
  */
 
-#ifndef _PORT_SYS_DEBUG_H
-#define _PORT_SYS_DEBUG_H
+#ifndef _SOL_SYS_DEBUG_H
+#define _SOL_SYS_DEBUG_H
 
 #include <assert.h>
-
-/* This definition is copied from assert.h. */
-#if defined(__STDC__)
-#if __STDC_VERSION__ - 0 >= 199901L
-#define zp_verify(EX) (void)((EX) || \
-        (__assert_c99(#EX, __FILE__, __LINE__, __func__), 0))
-#else
-#define zp_verify(EX) (void)((EX) || (__assert(#EX, __FILE__, __LINE__), 0))
-#endif /* __STDC_VERSION__ - 0 >= 199901L */
-#else
-#define zp_verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
-#endif  /* __STDC__ */
-
-#define VERIFY(EX) zp_verify(EX)
-#define ASSERT(EX) assert(EX)
 
 #endif
