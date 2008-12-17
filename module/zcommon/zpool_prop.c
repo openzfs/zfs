@@ -152,16 +152,16 @@ zpool_prop_default_numeric(zpool_prop_t prop)
 
 int
 zpool_prop_string_to_index(zpool_prop_t prop, const char *string,
-    uint64_t *index)
+    uint64_t *idx)
 {
-	return (zprop_string_to_index(prop, string, index, ZFS_TYPE_POOL));
+	return (zprop_string_to_index(prop, string, idx, ZFS_TYPE_POOL));
 }
 
 int
-zpool_prop_index_to_string(zpool_prop_t prop, uint64_t index,
+zpool_prop_index_to_string(zpool_prop_t prop, uint64_t idx,
     const char **string)
 {
-	return (zprop_index_to_string(prop, index, string, ZFS_TYPE_POOL));
+	return (zprop_index_to_string(prop, idx, string, ZFS_TYPE_POOL));
 }
 
 #ifndef _KERNEL
