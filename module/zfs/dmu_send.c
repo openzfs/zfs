@@ -38,17 +38,12 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zap.h>
 #include <sys/zio_checksum.h>
-#include <sys/dmu_ctl.h>
 
 static char *dmu_recv_tag = "dmu_recv_tag";
 
 struct backuparg {
 	dmu_replay_record_t *drr;
-#ifdef _KERNEL
 	vnode_t *vp;
-#else
-	int fd;
-#endif
 	offset_t *off;
 	objset_t *os;
 	zio_cksum_t zc;
@@ -58,7 +53,6 @@ struct backuparg {
 static int
 dump_bytes(struct backuparg *ba, void *buf, int len)
 {
-#ifdef _KERNEL
 	ssize_t resid; /* have to get resid to get detailed errno */
 	ASSERT3U(len % 8, ==, 0);
 
@@ -66,12 +60,6 @@ dump_bytes(struct backuparg *ba, void *buf, int len)
 	ba->err = vn_rdwr(UIO_WRITE, ba->vp,
 	    (caddr_t)buf, len,
 	    0, UIO_SYSSPACE, FAPPEND, RLIM64_INFINITY, CRED(), &resid);
-#else
-	ASSERT3U(len % 8, ==, 0);
-
-	fletcher_4_incremental_native(buf, len, &ba->zc);
-	ba->err = dctls_fd_write(ba->fd, buf, len);
-#endif
 	*ba->off += len;
 	return (ba->err);
 }
@@ -222,15 +210,9 @@ backup_cb(spa_t *spa, blkptr_t *bp, const zbookmark_t *zb,
 	return (err);
 }
 
-#ifdef _KERNEL
 int
 dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
     vnode_t *vp, offset_t *off)
-#else
-int
-dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
-    int fd, offset_t *off)
-#endif
 {
 	dsl_dataset_t *ds = tosnap->os->os_dsl_dataset;
 	dsl_dataset_t *fromds = fromsnap ? fromsnap->os->os_dsl_dataset : NULL;
@@ -290,11 +272,7 @@ dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 		dsl_dataset_rele(fromds, FTAG);
 
 	ba.drr = drr;
-#ifdef _KERNEL
 	ba.vp = vp;
-#else
-	ba.fd = fd;
-#endif
 	ba.os = tosnap;
 	ba.off = off;
 	ZIO_SET_CHECKSUM(&ba.zc, 0, 0, 0, 0);
@@ -698,11 +676,7 @@ dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *drrb,
 struct restorearg {
 	int err;
 	int byteswap;
-#ifdef _KERNEL
 	vnode_t *vp;
-#else
-	int fd;
-#endif
 	char *buf;
 	uint64_t voff;
 	int bufsize; /* amount of memory allocated for buf */
@@ -721,7 +695,6 @@ restore_read(struct restorearg *ra, int len)
 	while (done < len) {
 		ssize_t resid;
 
-#ifdef _KERNEL
 		ra->err = vn_rdwr(UIO_READ, ra->vp,
 		    (caddr_t)ra->buf + done, len - done,
 		    ra->voff, UIO_SYSSPACE, FAPPEND,
@@ -729,13 +702,6 @@ restore_read(struct restorearg *ra, int len)
 
 		if (resid == len - done)
 			ra->err = EINVAL;
-#else
-		ra->err = dctls_fd_read(ra->fd, (caddr_t) ra->buf + done,
-		    len - done, &resid);
-
-		if (ra->err == 0 && resid == len - done)
-			ra->err = EINVAL;
-#endif
 		ra->voff += len - done - resid;
 		done = len - resid;
 		if (ra->err)
@@ -993,13 +959,8 @@ dmu_recv_abort_cleanup(dmu_recv_cookie_t *drc)
 /*
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
-#ifdef _KERNEL
 int
 dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
-#else
-int
-dmu_recv_stream(dmu_recv_cookie_t *drc, int fd, offset_t *voffp)
-#endif
 {
 	struct restorearg ra = { 0 };
 	dmu_replay_record_t *drr;
@@ -1036,11 +997,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int fd, offset_t *voffp)
 		drrb->drr_fromguid = BSWAP_64(drrb->drr_fromguid);
 	}
 
-#ifdef _KERNEL
 	ra.vp = vp;
-#else
-	ra.fd = fd;
-#endif
 	ra.voff = *voffp;
 	ra.bufsize = 1<<20;
 	ra.buf = vmem_alloc(ra.bufsize, KM_SLEEP);
