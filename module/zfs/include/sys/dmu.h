@@ -637,13 +637,8 @@ typedef void (*dmu_traverse_cb_t)(objset_t *os, void *arg, struct blkptr *bp,
 void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
-#ifdef _KERNEL
 int dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
     struct vnode *vp, offset_t *off);
-#else
-int dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
-    int fd, offset_t *off);
-#endif
 
 typedef struct dmu_recv_cookie {
 	/*
@@ -663,11 +658,7 @@ typedef struct dmu_recv_cookie {
 
 int dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *,
     boolean_t force, objset_t *origin, boolean_t online, dmu_recv_cookie_t *);
-#ifdef _KERNEL
 int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp);
-#else
-int dmu_recv_stream(dmu_recv_cookie_t *drc, int fd, offset_t *voffp);
-#endif
 int dmu_recv_end(dmu_recv_cookie_t *drc);
 void dmu_recv_abort_cleanup(dmu_recv_cookie_t *drc);
 
