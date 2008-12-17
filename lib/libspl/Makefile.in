@@ -64,8 +64,8 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
-am_libspl_la_OBJECTS = list.lo mkdirp.lo strlcat.lo strlcpy.lo \
-	strnlen.lo u8_textprep.lo
+am_libspl_la_OBJECTS = getexecname.lo getmntany.lo list.lo mkdirp.lo \
+	strlcat.lo strlcpy.lo strnlen.lo u8_textprep.lo zone.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -223,12 +223,15 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
+	${top_srcdir}/lib/libspl/getexecname.c \
+	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
 	${top_srcdir}/lib/libspl/strlcat.c \
 	${top_srcdir}/lib/libspl/strlcpy.c \
 	${top_srcdir}/lib/libspl/strnlen.c \
 	${top_srcdir}/lib/libspl/u8_textprep.c \
+	${top_srcdir}/lib/libspl/zone.c \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
 	${top_srcdir}/lib/libspl/include/sys/list_impl.h
 
@@ -301,12 +304,15 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getexecname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getmntany.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdirp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcat.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcpy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strnlen.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/u8_textprep.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zone.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -328,6 +334,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+getexecname.lo: ${top_srcdir}/lib/libspl/getexecname.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getexecname.lo -MD -MP -MF "$(DEPDIR)/getexecname.Tpo" -c -o getexecname.lo `test -f '${top_srcdir}/lib/libspl/getexecname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getexecname.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/getexecname.Tpo" "$(DEPDIR)/getexecname.Plo"; else rm -f "$(DEPDIR)/getexecname.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/getexecname.c' object='getexecname.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o getexecname.lo `test -f '${top_srcdir}/lib/libspl/getexecname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getexecname.c
+
+getmntany.lo: ${top_srcdir}/lib/libspl/getmntany.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getmntany.lo -MD -MP -MF "$(DEPDIR)/getmntany.Tpo" -c -o getmntany.lo `test -f '${top_srcdir}/lib/libspl/getmntany.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getmntany.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/getmntany.Tpo" "$(DEPDIR)/getmntany.Plo"; else rm -f "$(DEPDIR)/getmntany.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/getmntany.c' object='getmntany.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o getmntany.lo `test -f '${top_srcdir}/lib/libspl/getmntany.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getmntany.c
 
 list.lo: ${top_srcdir}/lib/libspl/list.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT list.lo -MD -MP -MF "$(DEPDIR)/list.Tpo" -c -o list.lo `test -f '${top_srcdir}/lib/libspl/list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/list.c; \
@@ -370,6 +390,13 @@ u8_textprep.lo: ${top_srcdir}/lib/libspl/u8_textprep.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/u8_textprep.c' object='u8_textprep.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o u8_textprep.lo `test -f '${top_srcdir}/lib/libspl/u8_textprep.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/u8_textprep.c
+
+zone.lo: ${top_srcdir}/lib/libspl/zone.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zone.lo -MD -MP -MF "$(DEPDIR)/zone.Tpo" -c -o zone.lo `test -f '${top_srcdir}/lib/libspl/zone.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/zone.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zone.Tpo" "$(DEPDIR)/zone.Plo"; else rm -f "$(DEPDIR)/zone.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/zone.c' object='zone.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zone.lo `test -f '${top_srcdir}/lib/libspl/zone.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/zone.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
