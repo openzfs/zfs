@@ -2247,7 +2247,7 @@ zfs_do_set(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = zfs_for_each(argc - 2, argv + 2, NULL,
+	ret = zfs_for_each(argc - 2, argv + 2, 0,
 	    ZFS_TYPE_DATASET, NULL, NULL, set_callback, &cb);
 
 	return (ret);
