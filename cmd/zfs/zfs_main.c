@@ -846,7 +846,7 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (-1);
 	}
-#endif  /* HAVE_ZPL */ 
+#endif  /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	return (0);
@@ -3148,7 +3148,6 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		 */
 		switch (op) {
 		case OP_SHARE:
-#ifdef HAVE_ZPL
 			shared_nfs = zfs_is_shared_nfs(zhp, NULL);
 			shared_smb = zfs_is_shared_smb(zhp, NULL);
 
@@ -3188,16 +3187,8 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			}
 
 			break;
-#else
-			/* zfs-lustre: unsupported operation */
-			(void) fprintf(stderr, gettext("cannot share "
-				    "'%s': unsupported operation\n"),
-				    zfs_get_name(zhp));
-			return (1);
-#endif /* HAVE_ZPL */
 
 		case OP_MOUNT:
-#ifdef HAVE_ZPL
 			if (options == NULL)
 				mnt.mnt_mntopts = "";
 			else
@@ -3218,13 +3209,6 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 				return (1);
 
 			break;
-#else
-			/* zfs-lustre: unsupported operation */
-			(void) fprintf(stderr, gettext("cannot mount "
-				    "'%s': unsupported operation\n"),
-				    zfs_get_name(zhp));
-			return (1);
-#endif /* HAVE_ZPL */
 		}
 	} else {
 		assert(op == OP_SHARE);
@@ -3482,6 +3466,8 @@ zfs_do_mount(int argc, char **argv)
 {
 #ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
+#else
+	return ENOSYS;
 #endif  /* HAVE_ZPL */
 }
 
@@ -3496,6 +3482,8 @@ zfs_do_share(int argc, char **argv)
 {
 #ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
+#else
+	return ENOSYS;
 #endif  /* HAVE_ZPL */
 }
 
@@ -3965,6 +3953,8 @@ zfs_do_unmount(int argc, char **argv)
 {
 #ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
+#else
+	return ENOSYS;
 #endif  /* HAVE_ZPL */
 }
 
@@ -3979,6 +3969,8 @@ zfs_do_unshare(int argc, char **argv)
 {
 #ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
+#else
+	return ENOSYS;
 #endif  /* HAVE_ZPL */
 }
 
