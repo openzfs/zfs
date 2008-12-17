@@ -191,7 +191,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-SUBDIRS = zdb zdump zfs zinject zpool ztest zpios
+SUBDIRS = zfs zpool zpios # zdb zdump zinject ztest
 all: all-recursive
 
 .SUFFIXES:
