@@ -223,10 +223,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
-<<<<<<< HEAD:lib/libspl/Makefile.in
-=======
 	${top_srcdir}/lib/libspl/getexecname.c \
->>>>>>> refs/top-bases/top:lib/libspl/Makefile.in
 	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
@@ -307,10 +304,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-<<<<<<< HEAD:lib/libspl/Makefile.in
-=======
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getexecname.Plo@am__quote@
->>>>>>> refs/top-bases/top:lib/libspl/Makefile.in
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getmntany.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdirp.Plo@am__quote@
@@ -341,8 +335,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-<<<<<<< HEAD:lib/libspl/Makefile.in
-=======
 getexecname.lo: ${top_srcdir}/lib/libspl/getexecname.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getexecname.lo -MD -MP -MF "$(DEPDIR)/getexecname.Tpo" -c -o getexecname.lo `test -f '${top_srcdir}/lib/libspl/getexecname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getexecname.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/getexecname.Tpo" "$(DEPDIR)/getexecname.Plo"; else rm -f "$(DEPDIR)/getexecname.Tpo"; exit 1; fi
@@ -350,7 +342,6 @@ getexecname.lo: ${top_srcdir}/lib/libspl/getexecname.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o getexecname.lo `test -f '${top_srcdir}/lib/libspl/getexecname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getexecname.c
 
->>>>>>> refs/top-bases/top:lib/libspl/Makefile.in
 getmntany.lo: ${top_srcdir}/lib/libspl/getmntany.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getmntany.lo -MD -MP -MF "$(DEPDIR)/getmntany.Tpo" -c -o getmntany.lo `test -f '${top_srcdir}/lib/libspl/getmntany.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getmntany.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/getmntany.Tpo" "$(DEPDIR)/getmntany.Plo"; else rm -f "$(DEPDIR)/getmntany.Tpo"; exit 1; fi
