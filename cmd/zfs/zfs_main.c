@@ -837,7 +837,7 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (0);
 	}
-
+#ifdef HAVE_ZPL
 	/*
 	 * Bail out on the first error.
 	 */
@@ -846,6 +846,7 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (-1);
 	}
+#endif  /* HAVE_ZPL */ 
 
 	zfs_close(zhp);
 	return (0);
@@ -3012,6 +3013,7 @@ dataset_cmp(const void *a, const void *b)
 	return (strcmp(zfs_get_name(a), zfs_get_name(b)));
 }
 
+#if HAVE_ZPL
 /*
  * Generic callback for sharing or mounting filesystems.  Because the code is so
  * similar, we have a common function with an extra parameter to determine which
@@ -3262,6 +3264,7 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 
 	return (0);
 }
+#endif  /* HAVE_ZPL */
 
 /*
  * Reports progress in the form "(current/total)".  Not thread-safe.
@@ -3317,6 +3320,7 @@ append_options(char *mntopts, char *newopts)
 	(void) strcpy(&mntopts[len], newopts);
 }
 
+#ifdef HAVE_ZPL
 static int
 share_mount(int op, int argc, char **argv)
 {
@@ -3465,6 +3469,7 @@ share_mount(int op, int argc, char **argv)
 
 	return (ret);
 }
+#endif  /* HAVE_ZPL */
 
 /*
  * zfs mount -a [nfs | iscsi]
@@ -3475,7 +3480,9 @@ share_mount(int op, int argc, char **argv)
 static int
 zfs_do_mount(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
+#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3487,9 +3494,12 @@ zfs_do_mount(int argc, char **argv)
 static int
 zfs_do_share(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
+#endif  /* HAVE_ZPL */
 }
 
+#ifdef HAVE_ZPL
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
 	char		*un_mountp;
@@ -3942,6 +3952,7 @@ unshare_unmount(int op, int argc, char **argv)
 
 	return (ret);
 }
+#endif  /* HAVE_ZPL */
 
 /*
  * zfs unmount -a
@@ -3952,7 +3963,9 @@ unshare_unmount(int op, int argc, char **argv)
 static int
 zfs_do_unmount(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
+#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3964,7 +3977,9 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
+#endif  /* HAVE_ZPL */
 }
 
 /*
