@@ -93,6 +93,7 @@ struct prop_changelist {
 int
 changelist_prefix(prop_changelist_t *clp)
 {
+#ifdef HAVE_ZPL
 	prop_changenode_t *cn;
 	int ret = 0;
 
@@ -168,6 +169,9 @@ changelist_prefix(prop_changelist_t *clp)
 		(void) changelist_postfix(clp);
 
 	return (ret);
+#else
+	return 0;
+#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -182,8 +186,6 @@ changelist_prefix(prop_changelist_t *clp)
 int
 changelist_postfix(prop_changelist_t *clp)
 {
-	/* zfs-lustre: not needed */
-	return (0);
 #ifdef HAVE_ZPL
 	prop_changenode_t *cn;
 	char shareopts[ZFS_MAXPROPLEN];
@@ -299,7 +301,9 @@ changelist_postfix(prop_changelist_t *clp)
 	}
 
 	return (errors ? -1 : 0);
-#endif /* HAVE_ZPL */
+#else
+	return 0;
+#endif  /* HAVE_ZPL */
 }
 
 /*
