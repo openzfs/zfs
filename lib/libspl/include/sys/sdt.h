@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_SDT_H
-#define _SOL_SYS_SDT_H
+#ifndef _LIBSPL_SYS_SDT_H
+#define _LIBSPL_SYS_SDT_H
 
 #define DTRACE_PROBE1(a,b,c)             ((void) 0)
 #define DTRACE_PROBE2(a,b,c,d,e)         ((void) 0)

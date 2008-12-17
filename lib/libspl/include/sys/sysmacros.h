@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_SYSMACROS_H
-#define _SOL_SYS_SYSMACROS_H
+#ifndef _LIBSPL_SYS_SYSMACROS_H
+#define _LIBSPL_SYS_SYSMACROS_H
 
 #include_next <sys/sysmacros.h>
 
@@ -93,4 +93,4 @@
 #define	offsetof(s, m)	((size_t)(&(((s *)0)->m)))
 #endif
 
-#endif /* _SOL_SYS_SYSMACROS_H */
+#endif /* _LIBSPL_SYS_SYSMACROS_H */
