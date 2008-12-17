@@ -64,7 +64,8 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libnvpair_la_LIBADD =
-am_libnvpair_la_OBJECTS = libnvpair.lo nvpair_alloc_system.lo
+am_libnvpair_la_OBJECTS = libnvpair.lo nvpair_alloc_system.lo \
+	nvpair.lo
 libnvpair_la_OBJECTS = $(am_libnvpair_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -227,7 +228,10 @@ lib_LTLIBRARIES = libnvpair.la
 libnvpair_la_SOURCES = \
 	${top_srcdir}/lib/libnvpair/libnvpair.c \
 	${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c \
-	${top_srcdir}/lib/libnvpair/include/libnvpair.h
+	${top_srcdir}/lib/libnvpair/include/libnvpair.h \
+	${top_srcdir}/module/nvpair/nvpair.c \
+	${top_srcdir}/module/nvpair/include/sys/nvpair.h \
+	${top_srcdir}/module/nvpair/include/sys/nvpair_impl.h
 
 all: all-am
 
@@ -299,6 +303,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libnvpair.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair_alloc_system.Plo@am__quote@
 
 .c.o:
@@ -335,6 +340,13 @@ nvpair_alloc_system.lo: ${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' object='nvpair_alloc_system.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair_alloc_system.lo `test -f '${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
+
+nvpair.lo: ${top_srcdir}/module/nvpair/nvpair.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nvpair.lo -MD -MP -MF "$(DEPDIR)/nvpair.Tpo" -c -o nvpair.lo `test -f '${top_srcdir}/module/nvpair/nvpair.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/nvpair.Tpo" "$(DEPDIR)/nvpair.Plo"; else rm -f "$(DEPDIR)/nvpair.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/nvpair/nvpair.c' object='nvpair.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair.lo `test -f '${top_srcdir}/module/nvpair/nvpair.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -517,9 +529,6 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-	${top_srcdir}/module/nvpair/nvpair.c \
-	${top_srcdir}/module/nvpair/include/sys/nvpair.h \
-	${top_srcdir}/module/nvpair/include/sys/nvpair_impl.h
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
