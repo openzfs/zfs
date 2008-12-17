@@ -1,1 +1,1 @@
-SUBDIRS = libspl libavl libnvpair libuutil libzfs # libzpool
+SUBDIRS = libspl libavl libnvpair libuutil libzfs libzpool
