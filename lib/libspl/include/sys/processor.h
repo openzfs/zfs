@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_PROCESSOR_H
-#define _SOL_SYS_PROCESSOR_H
+#ifndef _LIBSPL_SYS_PROCESSOR_H
+#define _LIBSPL_SYS_PROCESSOR_H
 
 #define getcpuid() (-1)
 

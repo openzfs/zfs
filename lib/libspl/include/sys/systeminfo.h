@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_SYSTEMINFO_H
-#define _SOL_SYS_SYSTEMINFO_H
+#ifndef _LIBSPL_SYS_SYSTEMINFO_H
+#define _LIBSPL_SYS_SYSTEMINFO_H
 
 #define sysinfo(cmd,buf,cnt)		(-1)
 

@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _PORT_SYS_TYPES_H
-#define _PORT_SYS_TYPES_H
+#ifndef _LIBSPL_SYS_TYPES_H
+#define _LIBSPL_SYS_TYPES_H
 
 #include <sys/isa_defs.h>
 #include <sys/feature_tests.h>

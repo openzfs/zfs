@@ -26,8 +26,8 @@
 
 #include_next <sys/mount.h>
 
-#ifndef _SOL_SYS_MOUNT_H
-#define _SOL_SYS_MOUNT_H
+#ifndef _LIBSPL_SYS_MOUNT_H
+#define _LIBSPL_SYS_MOUNT_H
 
 #include <sys/mntent.h>
 #include <assert.h>
@@ -47,4 +47,4 @@
 #define MS_NOMNTTAB		0         /* Not supported in Linux */
 #define MS_OPTIONSTR		0         /* Not necessary in Linux */
 
-#endif /* _SOL_SYS_MOUNT_H */
+#endif /* _LIBSPL_SYS_MOUNT_H */
