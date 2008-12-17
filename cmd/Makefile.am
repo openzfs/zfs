@@ -1,1 +1,1 @@
-SUBDIRS = zdb zdump zfs zinject zpool ztest zpios
+SUBDIRS = zfs zpool zpios # zdb zdump zinject ztest
