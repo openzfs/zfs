@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef	_SYS_ATOMIC_H
-#define	_SYS_ATOMIC_H
+#ifndef	_LIBSPL_ATOMIC_H
+#define	_LIBSPL_ATOMIC_H
 
 
 
@@ -435,4 +435,4 @@ extern uint32_t swapl(uint32_t *, uint32_t);
 }
 #endif
 
-#endif	/* _SYS_ATOMIC_H */
+#endif	/* _LIBSPL_ATOMIC_H */
