@@ -37,8 +37,8 @@
  * contributors.
  */
 
-#ifndef _SOL_SYS_UIO_H
-#define	_SOL_SYS_UIO_H
+#ifndef _LIBSPL_SYS_UIO_H
+#define	_LIBSPL_SYS_UIO_H
 
 /* struct iovec is defined in glibc's sys/uio.h */
 #include_next <sys/uio.h>

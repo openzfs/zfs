@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_PARAM_H
-#define _SOL_SYS_PARAM_H
+#ifndef _LIBSPL_SYS_PARAM_H
+#define _LIBSPL_SYS_PARAM_H
 
 #include_next <sys/param.h>
 #include <unistd.h>

@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef _LIBDEVINFO_H
-#define _LIBDEVINFO_H
+#ifndef _LIBSPL_LIBDEVINFO_H
+#define _LIBSPL_LIBDEVINFO_H
 
-#endif /* _LIBDEVINFO_H */
+#endif /* _LIBSPL_LIBDEVINFO_H */

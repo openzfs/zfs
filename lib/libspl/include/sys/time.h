@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_SYS_TIME_H
-#define _SOL_SYS_TIME_H
+#ifndef _LIBSPL_SYS_TIME_H
+#define _LIBSPL_SYS_TIME_H
 
 #include_next <sys/time.h>
 #include <sys/types.h>

@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_UMEM_H
-#define _SOL_UMEM_H
+#ifndef _LIBSPL_UMEM_H
+#define _LIBSPL_UMEM_H
 
 /* XXX: We should use the real portable umem library if it is detected
  * at configure time.  However, if the library is not available we can
