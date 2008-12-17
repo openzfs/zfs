@@ -387,7 +387,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	int fd;
 	vnode_t *vp;
 	int old_umask;
-	char realpath[MAXPATHLEN];
+	char real_path[MAXPATHLEN];
 	struct stat64 st;
 
 	/*
@@ -410,14 +410,14 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 			return (errno);
 		}
 		close(fd);
-		(void) sprintf(realpath, "%s", path);
+		(void) sprintf(real_path, "%s", path);
 		dsk = strstr(path, "/dsk/");
 		if (dsk != NULL)
-			(void) sprintf(realpath + (dsk - path) + 1, "r%s",
+			(void) sprintf(real_path + (dsk - path) + 1, "r%s",
 			    dsk + 1);
 	} else {
-		(void) sprintf(realpath, "%s", path);
-		if (!(flags & FCREAT) && stat64(realpath, &st) == -1)
+		(void) sprintf(real_path, "%s", path);
+		if (!(flags & FCREAT) && stat64(real_path, &st) == -1)
 			return (errno);
 	}
 
@@ -428,7 +428,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	 * The construct 'flags - FREAD' conveniently maps combinations of
 	 * FREAD and FWRITE to the corresponding O_RDONLY, O_WRONLY, and O_RDWR.
 	 */
-	fd = open64(realpath, flags - FREAD, mode);
+	fd = open64(real_path, flags - FREAD, mode);
 
 	if (flags & FCREAT)
 		(void) umask(old_umask);
@@ -457,16 +457,16 @@ int
 vn_openat(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2,
     int x3, vnode_t *startvp, int fd)
 {
-	char *realpath = umem_alloc(strlen(path) + 2, UMEM_NOFAIL);
+	char *real_path = umem_alloc(strlen(path) + 2, UMEM_NOFAIL);
 	int ret;
 
 	ASSERT(startvp == rootdir);
-	(void) sprintf(realpath, "/%s", path);
+	(void) sprintf(real_path, "/%s", path);
 
 	/* fd ignored for now, need if want to simulate nbmand support */
-	ret = vn_open(realpath, x1, flags, mode, vpp, x2, x3);
+	ret = vn_open(real_path, x1, flags, mode, vpp, x2, x3);
 
-	umem_free(realpath, strlen(path) + 2);
+	umem_free(real_path, strlen(path) + 2);
 
 	return (ret);
 }
@@ -808,11 +808,11 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 
 int
-ddi_strtoul(const char *hw_serial, char **nptr, int base, unsigned long *result)
+ddi_strtoul(const char *serial, char **nptr, int base, unsigned long *result)
 {
 	char *end;
 
-	*result = strtoul(hw_serial, &end, base);
+	*result = strtoul(serial, &end, base);
 	if (*result == 0)
 		return (errno);
 	return (0);
