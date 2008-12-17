@@ -372,15 +372,15 @@ zfs_prop_user(const char *name)
  * (strings) and internal representation (uint64_t).
  */
 int
-zfs_prop_string_to_index(zfs_prop_t prop, const char *string, uint64_t *index)
+zfs_prop_string_to_index(zfs_prop_t prop, const char *string, uint64_t *idx)
 {
-	return (zprop_string_to_index(prop, string, index, ZFS_TYPE_DATASET));
+	return (zprop_string_to_index(prop, string, idx, ZFS_TYPE_DATASET));
 }
 
 int
-zfs_prop_index_to_string(zfs_prop_t prop, uint64_t index, const char **string)
+zfs_prop_index_to_string(zfs_prop_t prop, uint64_t idx, const char **string)
 {
-	return (zprop_index_to_string(prop, index, string, ZFS_TYPE_DATASET));
+	return (zprop_index_to_string(prop, idx, string, ZFS_TYPE_DATASET));
 }
 
 /*
