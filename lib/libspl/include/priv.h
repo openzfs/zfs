@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _PRIV_H
-#define _PRIV_H
+#ifndef _LIBSPL_PRIV_H
+#define _LIBSPL_PRIV_H
 
 #include <sys/types.h>
 

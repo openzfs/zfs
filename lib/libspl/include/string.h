@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _SOL_STRING_H
-#define _SOL_STRING_H
+#ifndef _LIBSPL_STRING_H
+#define _LIBSPL_STRING_H
 
 #include_next <string.h>
 

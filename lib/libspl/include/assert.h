@@ -26,8 +26,8 @@
 
 #include_next <assert.h>
 
-#ifndef _SOL_ASSERT_H
-#define _SOL_ASSERT_H
+#ifndef _LIBSPL_ASSERT_H
+#define _LIBSPL_ASSERT_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,4 +91,4 @@ _NOTE(CONSTCOND) } while (0)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)
 #endif  /* NDEBUG */
 
-#endif  /* _SOL_ASSERT_H */
+#endif  /* _LIBSPL_ASSERT_H */

@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef _DEVID_H
-#define _DEVID_H
+#ifndef _LIBSPL_DEVID_H
+#define _LIBSPL_DEVID_H
 
 #include <stdlib.h>
 

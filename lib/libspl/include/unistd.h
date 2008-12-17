@@ -26,8 +26,8 @@
 
 #include_next <unistd.h>
 
-#ifndef _SYS_UNISTD_H
-#define _SYS_UNISTD_H
+#ifndef _LIBSPL_UNISTD_H
+#define _LIBSPL_UNISTD_H
 
 #include <zfs_config.h>
 
@@ -56,4 +56,4 @@ static inline long fake_gethostid(void)
 #define gethostid() fake_gethostid()
 #endif
 
-#endif /* _SYS_UNISTD_H */
+#endif /* _LIBSPL_UNISTD_H */
