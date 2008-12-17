@@ -60,7 +60,12 @@ sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
 am_zfs_OBJECTS = zfs_iter.$(OBJEXT) zfs_main.$(OBJEXT)
 zfs_OBJECTS = $(am_zfs_OBJECTS)
-zfs_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la
+zfs_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
+	$(top_builddir)/lib/libzfs/libzfs.la
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -228,7 +233,12 @@ zfs_SOURCES = \
 	${top_srcdir}/cmd/zfs/zfs_util.h
 
 zfs_LDADD = \
-	$(top_builddir)/lib/libspl/libspl.la
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
+	$(top_builddir)/lib/libzfs/libzfs.la
 
 all: all-am
 
