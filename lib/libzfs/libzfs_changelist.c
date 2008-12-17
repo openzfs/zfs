@@ -366,6 +366,7 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 int
 changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 {
+#ifdef HAVE_ZPL
 	prop_changenode_t *cn;
 	int ret = 0;
 
@@ -380,6 +381,9 @@ changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 	}
 
 	return (ret);
+#else
+	return 0;
+#endif
 }
 
 /*

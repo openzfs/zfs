@@ -1407,4 +1407,30 @@ out:
 
 	return (ret);
 }
+
+#else  /* HAVE_ZPL */
+
+void
+remove_mountpoint(zfs_handle_t *zhp) {
+	return;
+}
+
+boolean_t
+is_mounted(libzfs_handle_t *zfs_hdl, const char *special, char **where)
+{
+	return B_FALSE;
+}
+
+boolean_t
+zfs_is_mounted(zfs_handle_t *zhp, char **where)
+{
+	return is_mounted(zhp->zfs_hdl, zfs_get_name(zhp), where);
+}
+
+boolean_t
+zfs_is_shared(zfs_handle_t *zhp)
+{
+	return B_FALSE;
+}
+
 #endif /* HAVE_ZPL */
