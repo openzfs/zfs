@@ -960,7 +960,7 @@ dmu_recv_abort_cleanup(dmu_recv_cookie_t *drc)
  * Compute checksum of drr_begin record
  */
 static void
-dmu_recv_stream_cksum(struct restorearg *ra)
+dmu_recv_stream_cksum(dmu_recv_cookie_t *drc, struct restorearg *ra)
 {
 	dmu_replay_record_t *drr;
 
@@ -992,7 +992,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC))
 		ra.byteswap = TRUE;
 
-	dmu_recv_stream_cksum(&ra);
+	dmu_recv_stream_cksum(drc, &ra);
 
 	if (ra.byteswap) {
 		struct drr_begin *drrb = drc->drc_drrb;
