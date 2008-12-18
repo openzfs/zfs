@@ -74,6 +74,12 @@ extern "C" {
 #include <sys/sysevent/eventdefs.h>
 
 /*
+ * Stack
+ */
+
+#define  noinline	__attribute__((noinline))
+
+/*
  * Debugging
  */
 
