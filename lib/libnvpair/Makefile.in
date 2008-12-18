@@ -216,14 +216,17 @@ DEFAULT_INCLUDES = -I${top_srcdir} \
 
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
+#
+# FIXME: Add -Wshadow once everything is working
+#
 
 # Expected defines not covered by zfs_config.h or spl_config.h
-AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
-	-Wno-unused -Wno-missing-braces -Wno-unknown-pragmas \
-	-Wno-parentheses -Wno-uninitialized -fno-strict-aliasing \
-	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
-	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
-	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
+AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
+	-Wno-missing-braces -Wno-unknown-pragmas -Wno-parentheses \
+	-Wno-uninitialized -fno-strict-aliasing -D_GNU_SOURCE \
+	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+	-DTEXT_DOMAIN=\"zfs-linux-user\"
 lib_LTLIBRARIES = libnvpair.la
 libnvpair_la_SOURCES = \
 	${top_srcdir}/lib/libnvpair/libnvpair.c \
