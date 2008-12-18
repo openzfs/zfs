@@ -195,7 +195,7 @@ typedef struct kthread kthread_t;
 	zk_thread_create(func, arg)
 #define	thread_exit() thr_exit(NULL)
 
-extern kthread_t *zk_thread_create(void (*func)(void), void *arg);
+extern kthread_t *zk_thread_create(void (*func)(), void *arg);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
