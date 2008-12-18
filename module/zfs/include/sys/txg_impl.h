@@ -37,7 +37,6 @@ struct tx_cpu {
 	kmutex_t	tc_lock;
 	kcondvar_t	tc_cv[TXG_SIZE];
 	uint64_t	tc_count[TXG_SIZE];
-	list_t		tc_callbacks[TXG_SIZE]; /* post-commit callbacks */
 	char		tc_pad[16];
 };
 
