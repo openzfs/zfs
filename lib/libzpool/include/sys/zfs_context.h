@@ -143,12 +143,13 @@ extern void vpanic(const char *, __va_list);
 #define	curthread	((void *)(uintptr_t)pthread_self())
 
 typedef struct kthread kthread_t;
+typedef void (*thread_func_t)(void *);
 
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(func, arg)
+	zk_thread_create((thread_func_t)func, arg)
 #define	thread_exit() pthread_exit(NULL)
 
-extern kthread_t *zk_thread_create(void (*func)(void), void *arg);
+extern kthread_t *zk_thread_create(thread_func_t func, void *arg);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
