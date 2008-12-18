@@ -64,7 +64,6 @@ struct objset_impl;
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
 typedef struct dsl_dir dsl_dir_t;
-typedef void dmu_callback_func_t(void *dcb_data, int error);
 
 typedef enum dmu_object_type {
 	DMU_OT_NONE,
@@ -429,32 +428,6 @@ void dmu_tx_abort(dmu_tx_t *tx);
 int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
-
-/*
- * To add a commit callback, you must first call dmu_tx_callback_data_create().
- * This will return a pointer to a memory area of size "bytes" (which can be 0,
- * or just the size of a pointer if there is a large or existing external data
- * struct to be referenced) that the caller and the callback can use to exchange
- * data.
- *
- * The callback can then be registered by calling dmu_tx_callback_commit_add()
- * with the pointer returned by dmu_tx_callback_data_create() passed in the
- * dcb_data argument. The transaction must be already created, but it cannot
- * be committed or aborted. It can be assigned to a txg or not.
- *
- * The callback will be called after the transaction has been safely written
- * to stable storage and will also be called if the dmu_tx is aborted.
- * If there is any error which prevents the transaction from being committed
- * to disk, the callback will be called with a value of error != 0.
- *
- * When the callback data is no longer needed, it must be destroyed by the
- * caller's code with dmu_tx_callback_data_destroy(). This is typically done at
- * the end of the callback function.
- */
-void *dmu_tx_callback_data_create(size_t bytes);
-int dmu_tx_callback_commit_add(dmu_tx_t *tx, dmu_callback_func_t *dcb_func,
-    void *dcb_data);
-int dmu_tx_callback_data_destroy(void *dcb_data);
 
 /*
  * Free up the data blocks for a defined range of a file.  If size is
