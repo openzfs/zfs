@@ -56,7 +56,7 @@ struct utsname utsname = {
  */
 /*ARGSUSED*/
 kthread_t *
-zk_thread_create(void (*func)(), void *arg)
+zk_thread_create(thread_func_t func, void *arg)
 {
 	pthread_t tid;
 
