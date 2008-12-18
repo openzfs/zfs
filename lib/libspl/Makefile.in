@@ -64,8 +64,9 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
-am_libspl_la_OBJECTS = getexecname.lo getmntany.lo list.lo mkdirp.lo \
-	strlcat.lo strlcpy.lo strnlen.lo u8_textprep.lo zone.lo
+am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo getmntany.lo \
+	list.lo mkdirp.lo strlcat.lo strlcpy.lo strnlen.lo \
+	u8_textprep.lo zone.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -224,6 +225,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Wshadow -Werror -Wno-switch \
 lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/getexecname.c \
+	${top_srcdir}/lib/libspl/gethrtime.c \
 	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
@@ -305,6 +307,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getexecname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gethrtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getmntany.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdirp.Plo@am__quote@
@@ -341,6 +344,13 @@ getexecname.lo: ${top_srcdir}/lib/libspl/getexecname.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/getexecname.c' object='getexecname.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o getexecname.lo `test -f '${top_srcdir}/lib/libspl/getexecname.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getexecname.c
+
+gethrtime.lo: ${top_srcdir}/lib/libspl/gethrtime.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gethrtime.lo -MD -MP -MF "$(DEPDIR)/gethrtime.Tpo" -c -o gethrtime.lo `test -f '${top_srcdir}/lib/libspl/gethrtime.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/gethrtime.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/gethrtime.Tpo" "$(DEPDIR)/gethrtime.Plo"; else rm -f "$(DEPDIR)/gethrtime.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/gethrtime.c' object='gethrtime.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gethrtime.lo `test -f '${top_srcdir}/lib/libspl/gethrtime.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/gethrtime.c
 
 getmntany.lo: ${top_srcdir}/lib/libspl/getmntany.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getmntany.lo -MD -MP -MF "$(DEPDIR)/getmntany.Tpo" -c -o getmntany.lo `test -f '${top_srcdir}/lib/libspl/getmntany.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getmntany.c; \
