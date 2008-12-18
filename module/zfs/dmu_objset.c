@@ -845,6 +845,8 @@ dmu_objset_sync_dnodes(list_t *list, dmu_tx_t *tx)
 static void
 ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
+	int i;
+
 	blkptr_t *bp = zio->io_bp;
 	blkptr_t *bp_orig = &zio->io_bp_orig;
 	objset_impl_t *os = arg;
@@ -858,7 +860,7 @@ ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 * Update rootbp fill count.
 	 */
 	bp->blk_fill = 1;	/* count the meta-dnode */
-	for (int i = 0; i < dnp->dn_nblkptr; i++)
+	for (i = 0; i < dnp->dn_nblkptr; i++)
 		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
@@ -962,11 +964,11 @@ dmu_objset_fsid_guid(objset_t *os)
 }
 
 void
-dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat)
+dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *st)
 {
-	stat->dds_type = os->os->os_phys->os_type;
+	st->dds_type = os->os->os_phys->os_type;
 	if (os->os->os_dsl_dataset)
-		dsl_dataset_fast_stat(os->os->os_dsl_dataset, stat);
+		dsl_dataset_fast_stat(os->os->os_dsl_dataset, st);
 }
 
 void
