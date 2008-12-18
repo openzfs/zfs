@@ -960,11 +960,11 @@ dmu_objset_fsid_guid(objset_t *os)
 }
 
 void
-dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat)
+dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *st)
 {
-	stat->dds_type = os->os->os_phys->os_type;
+	st->dds_type = os->os->os_phys->os_type;
 	if (os->os->os_dsl_dataset)
-		dsl_dataset_fast_stat(os->os->os_dsl_dataset, stat);
+		dsl_dataset_fast_stat(os->os->os_dsl_dataset, st);
 }
 
 void
