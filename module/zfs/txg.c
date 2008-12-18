@@ -315,7 +315,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	start = delta = 0;
 	for (;;) {
 		uint64_t timer, timeout = zfs_txg_timeout * hz;
-		uint64_t txg;
+		uint64_t txg, written;
 
 		/*
 		 * We sync when we're scrubbing, there's someone waiting
