@@ -609,10 +609,10 @@ dnode_hold_impl(objset_impl_t *os, uint64_t object, int flag,
 	}
 
 	if ((dn = children_dnodes[idx]) == NULL) {
-		dnode_phys_t *dnp = (dnode_phys_t *)db->db.db_data+idx;
+		dnode_phys_t *dnpp = (dnode_phys_t *)db->db.db_data+idx;
 		dnode_t *winner;
 
-		dn = dnode_create(os, dnp, db, object);
+		dn = dnode_create(os, dnpp, db, object);
 		winner = atomic_cas_ptr(&children_dnodes[idx], NULL, dn);
 		if (winner != NULL) {
 			dnode_destroy(dn);
