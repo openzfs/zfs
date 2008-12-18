@@ -843,6 +843,8 @@ dmu_objset_sync_dnodes(list_t *list, dmu_tx_t *tx)
 static void
 ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
+	int i;
+
 	blkptr_t *bp = zio->io_bp;
 	blkptr_t *bp_orig = &zio->io_bp_orig;
 	objset_impl_t *os = arg;
@@ -856,7 +858,7 @@ ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 * Update rootbp fill count.
 	 */
 	bp->blk_fill = 1;	/* count the meta-dnode */
-	for (int i = 0; i < dnp->dn_nblkptr; i++)
+	for (i = 0; i < dnp->dn_nblkptr; i++)
 		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
