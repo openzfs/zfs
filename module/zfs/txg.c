@@ -26,7 +26,6 @@
 #include <sys/zfs_context.h>
 #include <sys/txg_impl.h>
 #include <sys/dmu_impl.h>
-#include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/callb.h>
 
@@ -58,9 +57,6 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 		for (i = 0; i < TXG_SIZE; i++) {
 			cv_init(&tx->tx_cpu[c].tc_cv[i], NULL, CV_DEFAULT,
 			    NULL);
-			list_create(&tx->tx_cpu[c].tc_callbacks[i],
-			    sizeof (dmu_callback_t), offsetof(dmu_callback_t,
-			    dcb_node));
 		}
 	}
 
@@ -88,11 +84,8 @@ txg_fini(dsl_pool_t *dp)
 		int i;
 
 		mutex_destroy(&tx->tx_cpu[c].tc_lock);
-		for (i = 0; i < TXG_SIZE; i++) {
+		for (i = 0; i < TXG_SIZE; i++)
 			cv_destroy(&tx->tx_cpu[c].tc_cv[i]);
-			ASSERT(list_is_empty(&tx->tx_cpu[c].tc_callbacks[i]));
-			list_destroy(&tx->tx_cpu[c].tc_callbacks[i]);
-		}
 	}
 
 	kmem_free(tx->tx_cpu, max_ncpus * sizeof (tx_cpu_t));
@@ -238,21 +231,6 @@ txg_rele_to_sync(txg_handle_t *th)
 	th->th_cpu = NULL;	/* defensive */
 }
 
-void
-txg_rele_commit_cb(txg_handle_t *th, list_t *tx_callbacks)
-{
-	dmu_callback_t *dcb;
-	tx_cpu_t *tc = th->th_cpu;
-	int g = th->th_txg & TXG_MASK;
-
-	mutex_enter(&tc->tc_lock);
-	while ((dcb = list_head(tx_callbacks))) {
-		list_remove(tx_callbacks, dcb);
-		list_insert_tail(&tc->tc_callbacks[g], dcb);
-	}
-	mutex_exit(&tc->tc_lock);
-}
-
 static void
 txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
@@ -293,15 +271,14 @@ txg_sync_thread(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
-	uint64_t timeout, start, delta, timer;
-	int c, target;
+	uint64_t start, delta;
 
 	txg_thread_enter(tx, &cpr);
 
 	start = delta = 0;
 	for (;;) {
 		uint64_t timer, timeout = zfs_txg_timeout * hz;
-		uint64_t txg, written;
+		uint64_t txg;
 
 		/*
 		 * We sync when we're scrubbing, there's someone waiting
@@ -355,63 +332,6 @@ txg_sync_thread(dsl_pool_t *dp)
 		start = lbolt;
 		spa_sync(dp->dp_spa, txg);
 		delta = lbolt - start;
-
-		/*
-		 * Call all the callbacks for this txg. The callbacks must
-		 * call dmu_tx_callback_data_destroy to free memory.
-		 */
-		for (c = 0; c < max_ncpus; c++) {
-			dmu_callback_t *dcb;
-			tx_cpu_t *tc = &tx->tx_cpu[c];
-			int g = txg & TXG_MASK;
-			/* No need to lock tx_cpu_t */
-
-			while ((dcb = list_head(&tc->tc_callbacks[g]))) {
-				list_remove(&tc->tc_callbacks[g], dcb);
-				dcb->dcb_func(dcb->dcb_data, 0);
-			}
-		}
-
-		written = dp->dp_space_towrite[txg & TXG_MASK];
-		dp->dp_space_towrite[txg & TXG_MASK] = 0;
-		ASSERT(dp->dp_tempreserved[txg & TXG_MASK] == 0);
-
-		/*
-		 * If the write limit max has not been explicitly set, set it
-		 * to a fraction of available phisical memory (default 1/8th).
-		 * Note that we must inflate the limit because the spa
-		 * inflates write sizes to account for data replication.
-		 * Check this each sync phase to catch changing memory size.
-		 */
-		if (zfs_write_limit_inflated == 0 ||
-		    (zfs_write_limit_shift && zfs_write_limit_max !=
-		    physmem * PAGESIZE >> zfs_write_limit_shift)) {
-			zfs_write_limit_max =
-			    physmem * PAGESIZE >> zfs_write_limit_shift;
-			zfs_write_limit_inflated =
-			    spa_get_asize(dp->dp_spa, zfs_write_limit_max);
-			if (zfs_write_limit_min > zfs_write_limit_inflated)
-				zfs_write_limit_inflated = zfs_write_limit_min;
-		}
-
-		/*
-		 * Attempt to keep the sync time consistant by adjusting the
-		 * amount of write traffic allowed into each transaction group.
-		 */
-		target = zfs_txg_synctime * hz;
-		if (delta > target) {
-			uint64_t old = MIN(dp->dp_write_limit, written);
-
-			dp->dp_write_limit = MAX(zfs_write_limit_min,
-			    old * target / delta);
-		} else if (written >= dp->dp_write_limit &&
-		    delta >> 3 < target >> 3) {
-			uint64_t rescale =
-			    MIN((100 * target) / delta, 200);
-
-			dp->dp_write_limit = MIN(zfs_write_limit_inflated,
-			    written * rescale / 100);
-		}
 
 		mutex_enter(&tx->tx_sync_lock);
 		rw_enter(&tx->tx_suspend, RW_WRITER);
