@@ -3103,9 +3103,11 @@ zfs_destroy(zfs_handle_t *zhp)
 		 * abort the request.  This would only happen for a
 		 * non-privileged user.
 		 */
+#ifdef HAVE_ZPL
 		if (zfs_unshare_iscsi(zhp) != 0) {
 			return (-1);
 		}
+#endif
 
 		if (zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name) != 0)
 			return (-1);
