@@ -48,8 +48,6 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 		tx->tx_pool = dd->dd_pool;
 	list_create(&tx->tx_holds, sizeof (dmu_tx_hold_t),
 	    offsetof(dmu_tx_hold_t, txh_node));
-	list_create(&tx->tx_callbacks, sizeof (dmu_callback_t),
-	    offsetof(dmu_callback_t, dcb_node));
 #ifdef ZFS_DEBUG
 	refcount_create(&tx->tx_space_written);
 	refcount_create(&tx->tx_space_freed);
@@ -1022,9 +1020,6 @@ dmu_tx_commit(dmu_tx_t *tx)
 	if (tx->tx_tempreserve_cookie)
 		dsl_dir_tempreserve_clear(tx->tx_tempreserve_cookie, tx);
 
-	if (!list_is_empty(&tx->tx_callbacks))
-		txg_rele_commit_cb(&tx->tx_txgh, &tx->tx_callbacks);
-
 	if (tx->tx_anyobj == FALSE)
 		txg_rele_to_sync(&tx->tx_txgh);
 	list_destroy(&tx->tx_holds);
@@ -1037,8 +1032,6 @@ dmu_tx_commit(dmu_tx_t *tx)
 	refcount_destroy_many(&tx->tx_space_freed,
 	    refcount_count(&tx->tx_space_freed));
 #endif
-	ASSERT(list_is_empty(&tx->tx_callbacks));
-	list_destroy(&tx->tx_callbacks);
 	kmem_free(tx, sizeof (dmu_tx_t));
 }
 
@@ -1046,7 +1039,6 @@ void
 dmu_tx_abort(dmu_tx_t *tx)
 {
 	dmu_tx_hold_t *txh;
-	dmu_callback_t *dcb;
 
 	ASSERT(tx->tx_txg == 0);
 
@@ -1058,16 +1050,6 @@ dmu_tx_abort(dmu_tx_t *tx)
 		if (dn != NULL)
 			dnode_rele(dn, tx);
 	}
-
-	while ((dcb = list_head(&tx->tx_callbacks))) {
-		list_remove(&tx->tx_callbacks, dcb);
-
-		/*
-		 * Call the callback with an error code. The callback will
-		 * call dmu_tx_callback_data_destroy to free the memory.
-		 */
-		dcb->dcb_func(dcb->dcb_data, ECANCELED);
-	}
 	list_destroy(&tx->tx_holds);
 #ifdef ZFS_DEBUG
 	refcount_destroy_many(&tx->tx_space_written,
@@ -1075,7 +1057,6 @@ dmu_tx_abort(dmu_tx_t *tx)
 	refcount_destroy_many(&tx->tx_space_freed,
 	    refcount_count(&tx->tx_space_freed));
 #endif
-	list_destroy(&tx->tx_callbacks);
 	kmem_free(tx, sizeof (dmu_tx_t));
 }
 
@@ -1084,46 +1065,4 @@ dmu_tx_get_txg(dmu_tx_t *tx)
 {
 	ASSERT(tx->tx_txg != 0);
 	return (tx->tx_txg);
-}
-
-void *
-dmu_tx_callback_data_create(size_t bytes)
-{
-	dmu_callback_t *dcb;
-
-	dcb = kmem_alloc(sizeof (dmu_callback_t) + bytes, KM_SLEEP);
-
-	dcb->dcb_magic = DMU_CALLBACK_MAGIC;
-	dcb->dcb_bytes = bytes;
-
-	return &dcb->dcb_data;
-}
-
-int
-dmu_tx_callback_commit_add(dmu_tx_t *tx, dmu_callback_func_t *dcb_func,
-    void *dcb_data)
-{
-	dmu_callback_t *dcb = container_of(dcb_data, dmu_callback_t, dcb_data);
-
-	if (dcb->dcb_magic != DMU_CALLBACK_MAGIC)
-		return (EINVAL);
-
-	dcb->dcb_func = dcb_func;
-
-	list_insert_tail(&tx->tx_callbacks, dcb);
-
-	return (0);
-}
-
-int
-dmu_tx_callback_data_destroy(void *dcb_data)
-{
-	dmu_callback_t *dcb = container_of(dcb_data, dmu_callback_t, dcb_data);
-
-	if (dcb->dcb_magic != DMU_CALLBACK_MAGIC)
-		return (EINVAL);
-
-	kmem_free(dcb, sizeof (dmu_callback_t) + dcb->dcb_bytes);
-
-	return (0);
 }
