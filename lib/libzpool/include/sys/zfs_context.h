@@ -164,7 +164,7 @@ _NOTE(CONSTCOND) } while (0)
 
 #ifdef DTRACE_PROBE
 #undef	DTRACE_PROBE
-#define	DTRACE_PROBE(a) ((void)0)
+#define	DTRACE_PROBE(a)	((void)0)
 #endif	/* DTRACE_PROBE */
 
 #ifdef DTRACE_PROBE1
