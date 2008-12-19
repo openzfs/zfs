@@ -74,7 +74,7 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	spa_config.lo spa_errlog.lo spa_history.lo zfs_fm.lo zio.lo \
 	zio_checksum.lo fletcher.lo sha256.lo zio_compress.lo lzjb.lo \
 	gzip.lo uberblock.lo bplist.lo metaslab.lo space_map.lo \
-	zio_inject.lo vdev.lo vdev_disk.lo vdev_file.lo vdev_mirror.lo \
+	zio_inject.lo vdev.lo vdev_file.lo vdev_mirror.lo \
 	vdev_raidz.lo vdev_root.lo vdev_missing.lo vdev_label.lo \
 	vdev_cache.lo vdev_queue.lo dmu_traverse.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
@@ -302,7 +302,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/space_map.c \
 	${top_srcdir}/module/zfs/zio_inject.c \
 	${top_srcdir}/module/zfs/vdev.c \
-	${top_srcdir}/module/zfs/vdev_disk.c \
 	${top_srcdir}/module/zfs/vdev_file.c \
 	${top_srcdir}/module/zfs/vdev_mirror.c \
 	${top_srcdir}/module/zfs/vdev_raidz.c \
@@ -420,7 +419,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev_cache.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev_disk.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev_file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev_label.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vdev_mirror.Plo@am__quote@
@@ -821,13 +819,6 @@ vdev.lo: ${top_srcdir}/module/zfs/vdev.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/vdev.c' object='vdev.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vdev.lo `test -f '${top_srcdir}/module/zfs/vdev.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/vdev.c
-
-vdev_disk.lo: ${top_srcdir}/module/zfs/vdev_disk.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vdev_disk.lo -MD -MP -MF "$(DEPDIR)/vdev_disk.Tpo" -c -o vdev_disk.lo `test -f '${top_srcdir}/module/zfs/vdev_disk.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/vdev_disk.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/vdev_disk.Tpo" "$(DEPDIR)/vdev_disk.Plo"; else rm -f "$(DEPDIR)/vdev_disk.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/vdev_disk.c' object='vdev_disk.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vdev_disk.lo `test -f '${top_srcdir}/module/zfs/vdev_disk.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/vdev_disk.c
 
 vdev_file.lo: ${top_srcdir}/module/zfs/vdev_file.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vdev_file.lo -MD -MP -MF "$(DEPDIR)/vdev_file.Tpo" -c -o vdev_file.lo `test -f '${top_srcdir}/module/zfs/vdev_file.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/vdev_file.c; \
