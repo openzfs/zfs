@@ -85,6 +85,13 @@ ddi_strtoll(const char *str, char **endptr, int base,
 }
 
 /* FIXME: Unimplemented */
+dev_info_t *
+ddi_root_node(void)
+{
+	return NULL;
+}
+
+/* FIXME: Unimplemented */
 int
 ddi_prop_lookup_string(dev_t match_dev, dev_info_t *dip, uint_t flags,
                        char *name, char **data)
