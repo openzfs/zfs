@@ -449,6 +449,8 @@ extern void delay(clock_t ticks);
 #define	kcred		NULL
 #define	CRED()		NULL
 
+#define	ptob(x)		((x) * PAGESIZE)
+
 extern uint64_t physmem;
 
 extern int highbit(ulong_t i);
