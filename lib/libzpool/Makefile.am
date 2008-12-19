@@ -56,7 +56,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/spa_config.c \
 	${top_srcdir}/module/zfs/spa_errlog.c \
 	${top_srcdir}/module/zfs/spa_history.c \
-	${top_srcdir}/module/zfs/spa_boot.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
