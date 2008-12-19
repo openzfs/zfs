@@ -775,9 +775,9 @@ static uint64_t raidz_corrected_pq;
 static int
 vdev_raidz_worst_error(raidz_map_t *rm)
 {
-	int error = 0;
+	int c, error = 0;
 
-	for (int c = 0; c < rm->rm_cols; c++)
+	for (c = 0; c < rm->rm_cols; c++)
 		error = zio_worst_error(error, rm->rm_col[c].rc_error);
 
 	return (error);
