@@ -313,9 +313,9 @@ vdev_mirror_io_start(zio_t *zio)
 static int
 vdev_mirror_worst_error(mirror_map_t *mm)
 {
-	int error[2] = { 0, 0 };
+	int c, error[2] = { 0, 0 };
 
-	for (int c = 0; c < mm->mm_children; c++) {
+	for (c = 0; c < mm->mm_children; c++) {
 		mirror_child_t *mc = &mm->mm_child[c];
 		int s = mc->mc_speculative;
 		error[s] = zio_worst_error(error[s], mc->mc_error);
