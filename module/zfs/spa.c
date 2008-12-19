@@ -488,6 +488,8 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
 static void
 spa_activate(spa_t *spa)
 {
+	int t, q;
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
@@ -495,8 +497,8 @@ spa_activate(spa_t *spa)
 	spa->spa_normal_class = metaslab_class_create();
 	spa->spa_log_class = metaslab_class_create();
 
-	for (int t = 0; t < ZIO_TYPES; t++) {
-		for (int q = 0; q < ZIO_TASKQ_TYPES; q++) {
+	for (t = 0; t < ZIO_TYPES; t++) {
+		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
 			spa->spa_zio_taskq[t][q] = taskq_create("spa_zio",
 			    zio_taskq_threads[t][q], maxclsyspri, 50,
 			    INT_MAX, TASKQ_PREPOPULATE);
@@ -525,6 +527,8 @@ spa_activate(spa_t *spa)
 static void
 spa_deactivate(spa_t *spa)
 {
+	int t, q;
+
 	ASSERT(spa->spa_sync_on == B_FALSE);
 	ASSERT(spa->spa_dsl_pool == NULL);
 	ASSERT(spa->spa_root_vdev == NULL);
@@ -536,8 +540,8 @@ spa_deactivate(spa_t *spa)
 	list_destroy(&spa->spa_config_dirty_list);
 	list_destroy(&spa->spa_state_dirty_list);
 
-	for (int t = 0; t < ZIO_TYPES; t++) {
-		for (int q = 0; q < ZIO_TASKQ_TYPES; q++) {
+	for (t = 0; t < ZIO_TYPES; t++) {
+		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
 			taskq_destroy(spa->spa_zio_taskq[t][q]);
 			spa->spa_zio_taskq[t][q] = NULL;
 		}
@@ -3208,7 +3212,9 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 static nvlist_t *
 spa_nvlist_lookup_by_guid(nvlist_t **nvpp, int count, uint64_t target_guid)
 {
-	for (int i = 0; i < count; i++) {
+	int i;
+
+	for (i = 0; i < count; i++) {
 		uint64_t guid;
 
 		VERIFY(nvlist_lookup_uint64(nvpp[i], ZPOOL_CONFIG_GUID,
@@ -3226,11 +3232,12 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	nvlist_t *dev_to_remove)
 {
 	nvlist_t **newdev = NULL;
+	int i;
 
 	if (count > 1)
 		newdev = kmem_alloc((count - 1) * sizeof (void *), KM_SLEEP);
 
-	for (int i = 0, j = 0; i < count; i++) {
+	for (i = 0, j = 0; i < count; i++) {
 		if (dev[i] == dev_to_remove)
 			continue;
 		VERIFY(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP) == 0);
@@ -3239,7 +3246,7 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
 	VERIFY(nvlist_add_nvlist_array(config, name, newdev, count - 1) == 0);
 
-	for (int i = 0; i < count - 1; i++)
+	for (i = 0; i < count - 1; i++)
 		nvlist_free(newdev[i]);
 
 	if (count > 1)
@@ -3494,6 +3501,8 @@ spa_scrub(spa_t *spa, pool_scrub_type_t type)
 static void
 spa_async_remove(spa_t *spa, vdev_t *vd)
 {
+	int c;
+
 	if (vd->vdev_remove_wanted) {
 		vd->vdev_remove_wanted = 0;
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_REMOVED, VDEV_AUX_NONE);
@@ -3501,26 +3510,28 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 		vdev_state_dirty(vd->vdev_top);
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_async_remove(spa, vd->vdev_child[c]);
 }
 
 static void
 spa_async_probe(spa_t *spa, vdev_t *vd)
 {
+	int c;
+
 	if (vd->vdev_probe_wanted) {
 		vd->vdev_probe_wanted = 0;
 		vdev_reopen(vd);	/* vdev_open() does the actual probe */
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_async_probe(spa, vd->vdev_child[c]);
 }
 
 static void
 spa_async_thread(spa_t *spa)
 {
-	int tasks;
+	int tasks, i;
 
 	ASSERT(spa->spa_sync_on);
 
@@ -3544,9 +3555,9 @@ spa_async_thread(spa_t *spa)
 	if (tasks & SPA_ASYNC_REMOVE) {
 		spa_vdev_state_enter(spa);
 		spa_async_remove(spa, spa->spa_root_vdev);
-		for (int i = 0; i < spa->spa_l2cache.sav_count; i++)
+		for (i = 0; i < spa->spa_l2cache.sav_count; i++)
 			spa_async_remove(spa, spa->spa_l2cache.sav_vdevs[i]);
-		for (int i = 0; i < spa->spa_spares.sav_count; i++)
+		for (i = 0; i < spa->spa_spares.sav_count; i++)
 			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i]);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}
