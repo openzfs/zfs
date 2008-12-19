@@ -911,8 +911,9 @@ zio_taskq_member(zio_t *zio, enum zio_taskq_type q)
 {
 	kthread_t *executor = zio->io_executor;
 	spa_t *spa = zio->io_spa;
+	zio_type_t t;
 
-	for (zio_type_t t = 0; t < ZIO_TYPES; t++)
+	for (t = 0; t < ZIO_TYPES; t++)
 		if (taskq_member(spa->spa_zio_taskq[t][q], executor))
 			return (B_TRUE);
 
