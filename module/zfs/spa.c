@@ -3236,7 +3236,7 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	nvlist_t *dev_to_remove)
 {
 	nvlist_t **newdev = NULL;
-	int i;
+	int i, j;
 
 	if (count > 1)
 		newdev = kmem_alloc((count - 1) * sizeof (void *), KM_SLEEP);
