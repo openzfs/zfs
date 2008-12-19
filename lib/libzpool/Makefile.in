@@ -71,13 +71,12 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	refcount.lo dmu_send.lo dsl_dir.lo dsl_dataset.lo dsl_pool.lo \
 	dsl_prop.lo dsl_deleg.lo dsl_synctask.lo unique.lo zap.lo \
 	zap_leaf.lo zap_micro.lo zil.lo arc.lo spa.lo spa_misc.lo \
-	spa_config.lo spa_errlog.lo spa_history.lo spa_boot.lo \
-	zfs_fm.lo zio.lo zio_checksum.lo fletcher.lo sha256.lo \
-	zio_compress.lo lzjb.lo gzip.lo uberblock.lo bplist.lo \
-	metaslab.lo space_map.lo zio_inject.lo vdev.lo vdev_disk.lo \
-	vdev_file.lo vdev_mirror.lo vdev_raidz.lo vdev_root.lo \
-	vdev_missing.lo vdev_label.lo vdev_cache.lo vdev_queue.lo \
-	dmu_traverse.lo
+	spa_config.lo spa_errlog.lo spa_history.lo zfs_fm.lo zio.lo \
+	zio_checksum.lo fletcher.lo sha256.lo zio_compress.lo lzjb.lo \
+	gzip.lo uberblock.lo bplist.lo metaslab.lo space_map.lo \
+	zio_inject.lo vdev.lo vdev_disk.lo vdev_file.lo vdev_mirror.lo \
+	vdev_raidz.lo vdev_root.lo vdev_missing.lo vdev_label.lo \
+	vdev_cache.lo vdev_queue.lo dmu_traverse.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -289,7 +288,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/spa_config.c \
 	${top_srcdir}/module/zfs/spa_errlog.c \
 	${top_srcdir}/module/zfs/spa_history.c \
-	${top_srcdir}/module/zfs/spa_boot.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
@@ -410,7 +408,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/refcount.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sha256.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spa.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spa_boot.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spa_config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spa_errlog.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spa_history.Plo@am__quote@
@@ -726,13 +723,6 @@ spa_history.lo: ${top_srcdir}/module/zfs/spa_history.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/spa_history.c' object='spa_history.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o spa_history.lo `test -f '${top_srcdir}/module/zfs/spa_history.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/spa_history.c
-
-spa_boot.lo: ${top_srcdir}/module/zfs/spa_boot.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT spa_boot.lo -MD -MP -MF "$(DEPDIR)/spa_boot.Tpo" -c -o spa_boot.lo `test -f '${top_srcdir}/module/zfs/spa_boot.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/spa_boot.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/spa_boot.Tpo" "$(DEPDIR)/spa_boot.Plo"; else rm -f "$(DEPDIR)/spa_boot.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/spa_boot.c' object='spa_boot.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o spa_boot.lo `test -f '${top_srcdir}/module/zfs/spa_boot.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/spa_boot.c
 
 zfs_fm.lo: ${top_srcdir}/module/zfs/zfs_fm.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_fm.lo -MD -MP -MF "$(DEPDIR)/zfs_fm.Tpo" -c -o zfs_fm.lo `test -f '${top_srcdir}/module/zfs/zfs_fm.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_fm.c; \
