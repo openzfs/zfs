@@ -70,7 +70,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/space_map.c \
 	${top_srcdir}/module/zfs/zio_inject.c \
 	${top_srcdir}/module/zfs/vdev.c \
-	${top_srcdir}/module/zfs/vdev_disk.c \
 	${top_srcdir}/module/zfs/vdev_file.c \
 	${top_srcdir}/module/zfs/vdev_mirror.c \
 	${top_srcdir}/module/zfs/vdev_raidz.c \
