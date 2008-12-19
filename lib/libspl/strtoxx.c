@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <sys/sunddi.h>
 
