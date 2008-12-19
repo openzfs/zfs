@@ -83,3 +83,19 @@ ddi_strtoll(const char *str, char **endptr, int base,
 
 	return errno;
 }
+
+/* FIXME: Unimplemented */
+int
+ddi_prop_lookup_string(dev_t match_dev, dev_info_t *dip, uint_t flags,
+                       char *name, char **data)
+{
+	*data = NULL;
+	return ENOSYS;
+}
+
+/* FIXME: Unimplemented */
+void
+ddi_prop_free(void *datap)
+{
+	return;
+}
