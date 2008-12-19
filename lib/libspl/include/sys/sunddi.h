@@ -61,12 +61,18 @@
 #define DDI_PROP_DONTPASS	0x0001  /* Don't pass request to parent */
 #define DDI_PROP_CANSLEEP	0x0002  /* Memory allocation may sleep */
 
+typedef struct dev_info {
+        major_t di_major;
+        minor_t di_minor;
+        dev_t di_dev;
+} dev_info_t;
 
 extern int ddi_strtoul(const char *, char **, int, unsigned long *);
 extern int ddi_strtol(const char *, char **, int, long *);
 extern int ddi_strtoull(const char *, char **, int, unsigned long long *);
 extern int ddi_strtoll(const char *, char **, int, long long *);
 
+extern dev_info_t *ddi_root_node(void);
 extern int ddi_prop_lookup_string(dev_t, dev_info_t *, uint_t, char *, char **);
 extern void ddi_prop_free(void *);
 
