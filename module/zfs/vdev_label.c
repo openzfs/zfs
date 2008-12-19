@@ -489,6 +489,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	nvlist_t *label;
 	vdev_phys_t *vp;
 	vdev_boot_header_t *vb;
+	vdev_t *pvd;
 	uberblock_t *ub;
 	zio_t *zio;
 	char *buf;
@@ -536,7 +537,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 
 		vd->vdev_guid += guid_delta;
 
-		for (vdev_t *pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
+		for (pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
 			pvd->vdev_guid_sum += guid_delta;
 
 		/*
@@ -555,7 +556,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 
 		vd->vdev_guid += guid_delta;
 
-		for (vdev_t *pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
+		for (pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
 			pvd->vdev_guid_sum += guid_delta;
 
 		/*
