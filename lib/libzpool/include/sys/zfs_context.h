@@ -250,6 +250,7 @@ extern void kstat_delete(kstat_t *);
  * Kernel memory
  */
 #define	KM_SLEEP		UMEM_NOFAIL
+#define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
