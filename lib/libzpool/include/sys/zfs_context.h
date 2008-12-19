@@ -121,6 +121,11 @@ extern void vpanic(const char *, __va_list);
  * existence for their counterparts in libzpool.
  */
 
+#ifdef DTRACE_PROBE
+#undef	DTRACE_PROBE
+#define	DTRACE_PROBE(a)	((void)0)
+#endif	/* DTRACE_PROBE */
+
 #ifdef DTRACE_PROBE1
 #undef	DTRACE_PROBE1
 #define	DTRACE_PROBE1(a, b, c)	((void)0)
@@ -402,6 +407,8 @@ extern void delay(clock_t ticks);
 
 #define	kcred		NULL
 #define	CRED()		NULL
+
+#define	ptob(x)		((x) * PAGESIZE)
 
 extern uint64_t physmem;
 
