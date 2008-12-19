@@ -866,6 +866,7 @@ vdev_probe(vdev_t *vd, zio_t *pio)
 	spa_t *spa = vd->vdev_spa;
 	vdev_probe_stats_t *vps;
 	zio_t *zio;
+	int l;
 
 	vps = kmem_zalloc(sizeof (*vps), KM_SLEEP);
 
@@ -898,7 +899,7 @@ vdev_probe(vdev_t *vd, zio_t *pio)
 	vps->vps_root = zio;
 	vps->vps_vd = vd;
 
-	for (int l = 1; l < VDEV_LABELS; l++) {
+	for (l = 1; l < VDEV_LABELS; l++) {
 		zio_nowait(zio_read_phys(zio, vd,
 		    vdev_label_offset(vd->vdev_psize, l,
 		    offsetof(vdev_label_t, vl_pad)),
@@ -1792,6 +1793,7 @@ void
 vdev_clear(spa_t *spa, vdev_t *vd)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
+	int c;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
@@ -1802,7 +1804,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_write_errors = 0;
 	vd->vdev_stat.vs_checksum_errors = 0;
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);
 
 	/*
@@ -1885,6 +1887,7 @@ void
 vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 {
 	vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
+	int c, t;
 
 	mutex_enter(&vd->vdev_stat_lock);
 	bcopy(&vd->vdev_stat, vs, sizeof (*vs));
@@ -1899,12 +1902,12 @@ vdev_get_stats(vdev_t *vd, vdev_stat_t *vs)
 	 * over all top-level vdevs (i.e. the direct children of the root).
 	 */
 	if (vd == rvd) {
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *cvd = rvd->vdev_child[c];
 			vdev_stat_t *cvs = &cvd->vdev_stat;
 
 			mutex_enter(&vd->vdev_stat_lock);
-			for (int t = 0; t < ZIO_TYPES; t++) {
+			for (t = 0; t < ZIO_TYPES; t++) {
 				vs->vs_ops[t] += cvs->vs_ops[t];
 				vs->vs_bytes[t] += cvs->vs_bytes[t];
 			}
