@@ -24,7 +24,7 @@
  */
 
 #ifndef	_SYS_SUNDDI_H
-#define	_SYS_SUNDDI_Ha
+#define	_SYS_SUNDDI_H
 
 #include <sys/types.h>
 
