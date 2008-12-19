@@ -3703,7 +3703,7 @@ out:
  * Free buffers that were tagged for destruction.
  */
 static void
-l2arc_do_free_on_write()
+l2arc_do_free_on_write(void)
 {
 	list_t *buflist;
 	l2arc_data_free_t *df, *df_prev;
