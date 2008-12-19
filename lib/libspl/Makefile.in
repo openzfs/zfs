@@ -65,7 +65,7 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
 am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo getmntany.lo \
-	list.lo mkdirp.lo strlcat.lo strlcpy.lo strnlen.lo strtoxx.lo \
+	list.lo mkdirp.lo strlcat.lo strlcpy.lo strnlen.lo sunddi.lo \
 	u8_textprep.lo zone.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -235,7 +235,7 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/strlcat.c \
 	${top_srcdir}/lib/libspl/strlcpy.c \
 	${top_srcdir}/lib/libspl/strnlen.c \
-	${top_srcdir}/lib/libspl/strtoxx.c \
+	${top_srcdir}/lib/libspl/sunddi.c \
 	${top_srcdir}/lib/libspl/u8_textprep.c \
 	${top_srcdir}/lib/libspl/zone.c \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
@@ -318,7 +318,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcat.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcpy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strnlen.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strtoxx.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sunddi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/u8_textprep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zone.Plo@am__quote@
 
@@ -399,12 +399,12 @@ strnlen.lo: ${top_srcdir}/lib/libspl/strnlen.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strnlen.lo `test -f '${top_srcdir}/lib/libspl/strnlen.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strnlen.c
 
-strtoxx.lo: ${top_srcdir}/lib/libspl/strtoxx.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strtoxx.lo -MD -MP -MF "$(DEPDIR)/strtoxx.Tpo" -c -o strtoxx.lo `test -f '${top_srcdir}/lib/libspl/strtoxx.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strtoxx.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/strtoxx.Tpo" "$(DEPDIR)/strtoxx.Plo"; else rm -f "$(DEPDIR)/strtoxx.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/strtoxx.c' object='strtoxx.lo' libtool=yes @AMDEPBACKSLASH@
+sunddi.lo: ${top_srcdir}/lib/libspl/sunddi.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT sunddi.lo -MD -MP -MF "$(DEPDIR)/sunddi.Tpo" -c -o sunddi.lo `test -f '${top_srcdir}/lib/libspl/sunddi.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/sunddi.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/sunddi.Tpo" "$(DEPDIR)/sunddi.Plo"; else rm -f "$(DEPDIR)/sunddi.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/sunddi.c' object='sunddi.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strtoxx.lo `test -f '${top_srcdir}/lib/libspl/strtoxx.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strtoxx.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o sunddi.lo `test -f '${top_srcdir}/lib/libspl/sunddi.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/sunddi.c
 
 u8_textprep.lo: ${top_srcdir}/lib/libspl/u8_textprep.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT u8_textprep.lo -MD -MP -MF "$(DEPDIR)/u8_textprep.Tpo" -c -o u8_textprep.lo `test -f '${top_srcdir}/lib/libspl/u8_textprep.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/u8_textprep.c; \
