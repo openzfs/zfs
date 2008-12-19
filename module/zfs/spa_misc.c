@@ -260,7 +260,9 @@ int zfs_recover = 0;
 static void
 spa_config_lock_init(spa_t *spa)
 {
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	int i;
+
+	for (i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_init(&scl->scl_lock, NULL, MUTEX_DEFAULT, NULL);
 		cv_init(&scl->scl_cv, NULL, CV_DEFAULT, NULL);
@@ -273,7 +275,9 @@ spa_config_lock_init(spa_t *spa)
 static void
 spa_config_lock_destroy(spa_t *spa)
 {
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	int i;
+
+	for (i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
@@ -286,7 +290,9 @@ spa_config_lock_destroy(spa_t *spa)
 int
 spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	int i;
+
+	for (i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -315,7 +321,9 @@ spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	int i;
+
+	for (i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -341,7 +349,9 @@ spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_exit(spa_t *spa, int locks, void *tag)
 {
-	for (int i = SCL_LOCKS - 1; i >= 0; i--) {
+	int i;
+
+	for (i = SCL_LOCKS - 1; i >= 0; i--) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -360,9 +370,9 @@ spa_config_exit(spa_t *spa, int locks, void *tag)
 int
 spa_config_held(spa_t *spa, int locks, krw_t rw)
 {
-	int locks_held = 0;
+	int i, locks_held = 0;
 
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	for (i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
