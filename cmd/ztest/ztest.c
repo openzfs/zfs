@@ -834,11 +834,12 @@ static vdev_t *
 vdev_lookup_by_path(vdev_t *vd, const char *path)
 {
 	vdev_t *mvd;
+	int c;
 
 	if (vd->vdev_path != NULL && strcmp(path, vd->vdev_path) == 0)
 		return (vd);
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		if ((mvd = vdev_lookup_by_path(vd->vdev_child[c], path)) !=
 		    NULL)
 			return (mvd);

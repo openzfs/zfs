@@ -285,12 +285,13 @@ void
 vdev_queue_io_done(zio_t *zio)
 {
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
+	int i;
 
 	mutex_enter(&vq->vq_lock);
 
 	avl_remove(&vq->vq_pending_tree, zio);
 
-	for (int i = 0; i < zfs_vdev_ramp_rate; i++) {
+	for (i = 0; i < zfs_vdev_ramp_rate; i++) {
 		zio_t *nio = vdev_queue_io_to_issue(vq, zfs_vdev_max_pending);
 		if (nio == NULL)
 			break;
