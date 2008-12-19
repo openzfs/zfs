@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#if defined(_KERNEL)
+
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
@@ -34,9 +36,8 @@
 /*
  * Virtual device vector for disks.
  */
-#if defined(_KERNEL) && defined(HAVE_SPL)
 
-/* XXX: A slab entry for these would probably be good */
+/* FIXME: A slab entry for these would probably be good */
 typedef struct dio_request {
 	struct completion dr_comp;
 	atomic_t dr_ref;
@@ -64,13 +65,13 @@ vdev_disk_open_common(vdev_t *vd)
 	if (dvd == NULL)
 		return ENOMEM;
 
-	/* XXX: Since we do not have devid support like Solaris we
+	/* FIXME: Since we do not have devid support like Solaris we
 	 * currently can't be as clever about opening the right device.
 	 * For now we will simple open the device name provided and
 	 * fail when it doesn't exist.  If your devices get reordered
 	 * your going to be screwed, use udev for now to prevent this.
 	 *
-	 * XXX: mode here could be the global spa_mode with a little
+	 * FIXME: mode here could be the global spa_mode with a little
 	 * munging of the flags to make then more agreeable to linux.
 	 * However, simply passing a 0 for now gets us W/R behavior.
 	 */
@@ -80,7 +81,7 @@ vdev_disk_open_common(vdev_t *vd)
 		return -PTR_ERR(bdev);
 	}
 
-	/* XXX: Long term validate stored dvd->vd_devid with
+	/* FIXME: Long term validate stored dvd->vd_devid with
 	 * a unique identifier read from the disk.
 	 */
 
@@ -114,7 +115,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 	/* Check if this is a whole device and if it is try and
 	 * enable the write cache, it is OK if this fails.
 	 *
-	 * XXX: This behavior should probably be configurable.
+	 * FIXME: This behavior should probably be configurable.
 	 */
 	if (bdev->bd_contains == bdev) {
 		int wce = 1;
@@ -129,7 +130,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 			dprintf("Unable to enable IDE WCE and SCSI WCE "
 				"not yet supported: %d\n", rc);
 
-		/* XXX: To implement the scsi WCE enable we are going to need
+		/* FIXME: To implement the scsi WCE enable we are going to need
 		 * to use the SG_IO ioctl.  But that means fully forming the
 		 * SCSI command as the ioctl arg.  To get this right I need
 		 * to look at the sdparm source which does this.
@@ -388,7 +389,7 @@ vdev_disk_probe_io(vdev_t *vd, caddr_t kbuf, size_t size,
 	flags |= (1 << BIO_RW_SYNC);
 	flags |= (1 << BIO_RW_FAILFAST);
 
-	/* XXX: offset must be block aligned or we need to take
+	/* FIXME: offset must be block aligned or we need to take
 	 * care of it */
 
 	rc = vdev_disk_io(vd, NULL, kbuf, size, offset, flags);
@@ -583,7 +584,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	flags = ((zio->io_type == ZIO_TYPE_READ) ? READ : WRITE);
-	/* flags |= B_BUSY | B_NOCACHE; XXX : Not supported */
+	/* flags |= B_BUSY | B_NOCACHE; FIXME : Not supported */
 
 	if (zio->io_flags & ZIO_FLAG_FAILFAST)
 		flags |= (1 << BIO_RW_FAILFAST);
@@ -615,7 +616,7 @@ vdev_disk_io_done(zio_t *zio)
 	 * make sure it's still accessible.
 	 */
 	if (zio->io_error == EIO) {
-		ASSERT(0); /* XXX: Not yet supported */
+		ASSERT(0); /* FIXME: Not yet supported */
 #if 0
 		vdev_t *vd = zio->io_vd;
 		vdev_disk_t *dvd = vd->vdev_tsd;
@@ -655,4 +656,6 @@ vdev_ops_t vdev_disk_ops = {
 	B_TRUE			/* leaf vdev */
 };
 
-#endif /* defined(_KERNEL) && defined(HAVE_SPL) */
+#else
+#error "vdev_disk.c is only required for an in-kernel builds"
+#endif  /* _KERNEL */
