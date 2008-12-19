@@ -16,5 +16,6 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/strnlen.c \
 	${top_srcdir}/lib/libspl/u8_textprep.c \
 	${top_srcdir}/lib/libspl/zone.c \
+	${top_srcdir}/lib/libspl/asm/atomic.S \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
 	${top_srcdir}/lib/libspl/include/sys/list_impl.h

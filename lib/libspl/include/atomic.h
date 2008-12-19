@@ -24,10 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef	_LIBSPL_ATOMIC_H
-#define	_LIBSPL_ATOMIC_H
-
-
+#ifndef	_SYS_ATOMIC_H
+#define	_SYS_ATOMIC_H
 
 #include <sys/types.h>
 #include <sys/inttypes.h>
@@ -36,12 +34,7 @@
 extern "C" {
 #endif
 
-#if defined(_KERNEL) && defined(__GNUC__) && defined(_ASM_INLINES) && \
-	(defined(__i386) || defined(__amd64))
-#include <asm/atomic.h>
-#endif
-
-#if defined(_KERNEL) || defined(__STDC__)
+#if defined(__STDC__)
 /*
  * Increment target.
  */
@@ -52,7 +45,7 @@ extern void atomic_inc_ushort(volatile ushort_t *);
 extern void atomic_inc_32(volatile uint32_t *);
 extern void atomic_inc_uint(volatile uint_t *);
 extern void atomic_inc_ulong(volatile ulong_t *);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern void atomic_inc_64(volatile uint64_t *);
 #endif
 
@@ -66,7 +59,7 @@ extern void atomic_dec_ushort(volatile ushort_t *);
 extern void atomic_dec_32(volatile uint32_t *);
 extern void atomic_dec_uint(volatile uint_t *);
 extern void atomic_dec_ulong(volatile ulong_t *);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern void atomic_dec_64(volatile uint64_t *);
 #endif
 
@@ -81,7 +74,7 @@ extern void atomic_add_32(volatile uint32_t *, int32_t);
 extern void atomic_add_int(volatile uint_t *, int);
 extern void atomic_add_ptr(volatile void *, ssize_t);
 extern void atomic_add_long(volatile ulong_t *, long);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern void atomic_add_64(volatile uint64_t *, int64_t);
 #endif
 
@@ -95,7 +88,7 @@ extern void atomic_or_ushort(volatile ushort_t *, ushort_t);
 extern void atomic_or_32(volatile uint32_t *, uint32_t);
 extern void atomic_or_uint(volatile uint_t *, uint_t);
 extern void atomic_or_ulong(volatile ulong_t *, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern void atomic_or_64(volatile uint64_t *, uint64_t);
 #endif
 
@@ -109,7 +102,7 @@ extern void atomic_and_ushort(volatile ushort_t *, ushort_t);
 extern void atomic_and_32(volatile uint32_t *, uint32_t);
 extern void atomic_and_uint(volatile uint_t *, uint_t);
 extern void atomic_and_ulong(volatile ulong_t *, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern void atomic_and_64(volatile uint64_t *, uint64_t);
 #endif
 
@@ -131,7 +124,7 @@ extern ushort_t atomic_inc_ushort_nv(volatile ushort_t *);
 extern uint32_t atomic_inc_32_nv(volatile uint32_t *);
 extern uint_t atomic_inc_uint_nv(volatile uint_t *);
 extern ulong_t atomic_inc_ulong_nv(volatile ulong_t *);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_inc_64_nv(volatile uint64_t *);
 #endif
 
@@ -145,7 +138,7 @@ extern ushort_t atomic_dec_ushort_nv(volatile ushort_t *);
 extern uint32_t atomic_dec_32_nv(volatile uint32_t *);
 extern uint_t atomic_dec_uint_nv(volatile uint_t *);
 extern ulong_t atomic_dec_ulong_nv(volatile ulong_t *);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_dec_64_nv(volatile uint64_t *);
 #endif
 
@@ -160,7 +153,7 @@ extern uint32_t atomic_add_32_nv(volatile uint32_t *, int32_t);
 extern uint_t atomic_add_int_nv(volatile uint_t *, int);
 extern void *atomic_add_ptr_nv(volatile void *, ssize_t);
 extern ulong_t atomic_add_long_nv(volatile ulong_t *, long);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
 #endif
 
@@ -174,7 +167,7 @@ extern ushort_t atomic_or_ushort_nv(volatile ushort_t *, ushort_t);
 extern uint32_t atomic_or_32_nv(volatile uint32_t *, uint32_t);
 extern uint_t atomic_or_uint_nv(volatile uint_t *, uint_t);
 extern ulong_t atomic_or_ulong_nv(volatile ulong_t *, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_or_64_nv(volatile uint64_t *, uint64_t);
 #endif
 
@@ -188,7 +181,7 @@ extern ushort_t atomic_and_ushort_nv(volatile ushort_t *, ushort_t);
 extern uint32_t atomic_and_32_nv(volatile uint32_t *, uint32_t);
 extern uint_t atomic_and_uint_nv(volatile uint_t *, uint_t);
 extern ulong_t atomic_and_ulong_nv(volatile ulong_t *, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_and_64_nv(volatile uint64_t *, uint64_t);
 #endif
 
@@ -203,7 +196,7 @@ extern uint32_t atomic_cas_32(volatile uint32_t *, uint32_t, uint32_t);
 extern uint_t atomic_cas_uint(volatile uint_t *, uint_t, uint_t);
 extern void *atomic_cas_ptr(volatile void *, void *, void *);
 extern ulong_t atomic_cas_ulong(volatile ulong_t *, ulong_t, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_cas_64(volatile uint64_t *, uint64_t, uint64_t);
 #endif
 
@@ -218,7 +211,7 @@ extern uint32_t atomic_swap_32(volatile uint32_t *, uint32_t);
 extern uint_t atomic_swap_uint(volatile uint_t *, uint_t);
 extern void *atomic_swap_ptr(volatile void *, void *);
 extern ulong_t atomic_swap_ulong(volatile ulong_t *, ulong_t);
-#if defined(_KERNEL) || defined(_INT64_TYPE)
+#if defined(_INT64_TYPE)
 extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
 #endif
 
@@ -264,175 +257,10 @@ extern void membar_producer(void);
  * after the available flag has been seen, i.e. it imposes load ordering.
  */
 extern void membar_consumer(void);
-#endif
-
-#if !defined(_KERNEL) && !defined(__STDC__)
-extern void atomic_inc_8();
-extern void atomic_inc_uchar();
-extern void atomic_inc_16();
-extern void atomic_inc_ushort();
-extern void atomic_inc_32();
-extern void atomic_inc_uint();
-extern void atomic_inc_ulong();
-#if defined(_INT64_TYPE)
-extern void atomic_inc_64();
-#endif /* defined(_INT64_TYPE) */
-extern void atomic_dec_8();
-extern void atomic_dec_uchar();
-extern void atomic_dec_16();
-extern void atomic_dec_ushort();
-extern void atomic_dec_32();
-extern void atomic_dec_uint();
-extern void atomic_dec_ulong();
-#if defined(_INT64_TYPE)
-extern void atomic_dec_64();
-#endif /* defined(_INT64_TYPE) */
-extern void atomic_add_8();
-extern void atomic_add_char();
-extern void atomic_add_16();
-extern void atomic_add_short();
-extern void atomic_add_32();
-extern void atomic_add_int();
-extern void atomic_add_ptr();
-extern void atomic_add_long();
-#if defined(_INT64_TYPE)
-extern void atomic_add_64();
-#endif /* defined(_INT64_TYPE) */
-extern void atomic_or_8();
-extern void atomic_or_uchar();
-extern void atomic_or_16();
-extern void atomic_or_ushort();
-extern void atomic_or_32();
-extern void atomic_or_uint();
-extern void atomic_or_ulong();
-#if defined(_INT64_TYPE)
-extern void atomic_or_64();
-#endif /* defined(_INT64_TYPE) */
-extern void atomic_and_8();
-extern void atomic_and_uchar();
-extern void atomic_and_16();
-extern void atomic_and_ushort();
-extern void atomic_and_32();
-extern void atomic_and_uint();
-extern void atomic_and_ulong();
-#if defined(_INT64_TYPE)
-extern void atomic_and_64();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_inc_8_nv();
-extern uchar_t atomic_inc_uchar_nv();
-extern uint16_t atomic_inc_16_nv();
-extern ushort_t atomic_inc_ushort_nv();
-extern uint32_t atomic_inc_32_nv();
-extern uint_t atomic_inc_uint_nv();
-extern ulong_t atomic_inc_ulong_nv();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_inc_64_nv();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_dec_8_nv();
-extern uchar_t atomic_dec_uchar_nv();
-extern uint16_t atomic_dec_16_nv();
-extern ushort_t atomic_dec_ushort_nv();
-extern uint32_t atomic_dec_32_nv();
-extern uint_t atomic_dec_uint_nv();
-extern ulong_t atomic_dec_ulong_nv();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_dec_64_nv();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_add_8_nv();
-extern uchar_t atomic_add_char_nv();
-extern uint16_t atomic_add_16_nv();
-extern ushort_t atomic_add_short_nv();
-extern uint32_t atomic_add_32_nv();
-extern uint_t atomic_add_int_nv();
-extern void *atomic_add_ptr_nv();
-extern ulong_t atomic_add_long_nv();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_add_64_nv();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_or_8_nv();
-extern uchar_t atomic_or_uchar_nv();
-extern uint16_t atomic_or_16_nv();
-extern ushort_t atomic_or_ushort_nv();
-extern uint32_t atomic_or_32_nv();
-extern uint_t atomic_or_uint_nv();
-extern ulong_t atomic_or_ulong_nv();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_or_64_nv();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_and_8_nv();
-extern uchar_t atomic_and_uchar_nv();
-extern uint16_t atomic_and_16_nv();
-extern ushort_t atomic_and_ushort_nv();
-extern uint32_t atomic_and_32_nv();
-extern uint_t atomic_and_uint_nv();
-extern ulong_t atomic_and_ulong_nv();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_and_64_nv();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_cas_8();
-extern uchar_t atomic_cas_uchar();
-extern uint16_t atomic_cas_16();
-extern ushort_t atomic_cas_ushort();
-extern uint32_t atomic_cas_32();
-extern uint_t atomic_cas_uint();
-extern void *atomic_cas_ptr();
-extern ulong_t atomic_cas_ulong();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_cas_64();
-#endif /* defined(_INT64_TYPE) */
-extern uint8_t atomic_swap_8();
-extern uchar_t atomic_swap_uchar();
-extern uint16_t atomic_swap_16();
-extern ushort_t atomic_swap_ushort();
-extern uint32_t atomic_swap_32();
-extern uint_t atomic_swap_uint();
-extern void *atomic_swap_ptr();
-extern ulong_t atomic_swap_ulong();
-#if defined(_INT64_TYPE)
-extern uint64_t atomic_swap_64();
-#endif /* defined(_INT64_TYPE) */
-
-
-extern int atomic_set_long_excl();
-extern int atomic_clear_long_excl();
-
-extern void membar_enter();
-extern void membar_exit();
-extern void membar_producer();
-extern void membar_consumer();
-
-#endif
-
-#if defined(_KERNEL)
-
-#if defined(_LP64) || defined(_ILP32)
-#define	atomic_add_ip		atomic_add_long
-#define	atomic_add_ip_nv	atomic_add_long_nv
-#define	casip			atomic_cas_ulong
-#endif
-
-#if defined(__sparc)
-extern uint8_t ldstub(uint8_t *);
-#endif
-
-/*
- * Legacy kernel interfaces; they will go away (eventually).
- */
-extern uint8_t cas8(uint8_t *, uint8_t, uint8_t);
-extern uint32_t cas32(uint32_t *, uint32_t, uint32_t);
-extern uint64_t cas64(uint64_t *, uint64_t, uint64_t);
-extern ulong_t caslong(ulong_t *, ulong_t, ulong_t);
-extern void *casptr(void *, void *, void *);
-extern void atomic_and_long(ulong_t *, ulong_t);
-extern void atomic_or_long(ulong_t *, ulong_t);
-#if defined(__sparc)
-extern uint32_t swapl(uint32_t *, uint32_t);
-#endif
-
-#endif	/* _KERNEL */
+#endif  /* __STDC__ */
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _LIBSPL_ATOMIC_H */
+#endif	/* _SYS_ATOMIC_H */
