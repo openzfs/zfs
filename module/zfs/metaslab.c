@@ -963,7 +963,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = hintbp->blk_dva;
-	int error = 0;
+	int d, error = 0;
 
 	ASSERT(bp->blk_birth == 0);
 
@@ -978,7 +978,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	ASSERT(BP_GET_NDVAS(bp) == 0);
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 
-	for (int d = 0; d < ndvas; d++) {
+	for (d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
 		    txg, flags);
 		if (error) {
@@ -1004,14 +1004,14 @@ void
 metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 {
 	const dva_t *dva = bp->blk_dva;
-	int ndvas = BP_GET_NDVAS(bp);
+	int d, ndvas = BP_GET_NDVAS(bp);
 
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(!now || bp->blk_birth >= spa->spa_syncing_txg);
 
 	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
 
-	for (int d = 0; d < ndvas; d++)
+	for (d = 0; d < ndvas; d++)
 		metaslab_free_dva(spa, &dva[d], txg, now);
 
 	spa_config_exit(spa, SCL_FREE, FTAG);
@@ -1022,7 +1022,7 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
-	int error = 0;
+	int d, error = 0;
 
 	ASSERT(!BP_IS_HOLE(bp));
 
@@ -1037,7 +1037,7 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
-	for (int d = 0; d < ndvas; d++)
+	for (d = 0; d < ndvas; d++)
 		if ((error = metaslab_claim_dva(spa, &dva[d], txg)) != 0)
 			break;
 

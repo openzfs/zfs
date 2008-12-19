@@ -1389,10 +1389,11 @@ static void
 zdb_leak_init(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
+	int c, m;
 
-	for (int c = 0; c < rvd->vdev_children; c++) {
+	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		for (int m = 0; m < vd->vdev_ms_count; m++) {
+		for (m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
 			mutex_enter(&msp->ms_lock);
 			VERIFY(space_map_load(&msp->ms_map, &zdb_space_map_ops,
@@ -1407,10 +1408,11 @@ static void
 zdb_leak_fini(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
+	int c, m;
 
-	for (int c = 0; c < rvd->vdev_children; c++) {
+	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		for (int m = 0; m < vd->vdev_ms_count; m++) {
+		for (m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
 			mutex_enter(&msp->ms_lock);
 			space_map_unload(&msp->ms_map);
@@ -1445,7 +1447,9 @@ typedef struct zdb_cb {
 static void
 zdb_count_block(spa_t *spa, zdb_cb_t *zcb, blkptr_t *bp, dmu_object_type_t type)
 {
-	for (int i = 0; i < 4; i++) {
+	int i;
+
+	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : DMU_OT_TOTAL;
 		zdb_blkstats_t *zb = &zcb->zcb_type[l][t];

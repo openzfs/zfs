@@ -1045,13 +1045,14 @@ static void
 zio_reexecute(zio_t *pio)
 {
 	zio_t *zio, *zio_next;
+	int c;
 
 	pio->io_flags = pio->io_orig_flags;
 	pio->io_stage = pio->io_orig_stage;
 	pio->io_pipeline = pio->io_orig_pipeline;
 	pio->io_reexecute = 0;
 	pio->io_error = 0;
-	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
+	for (c = 0; c < ZIO_CHILD_TYPES; c++)
 		pio->io_child_error[c] = 0;
 
 	if (IO_IS_ALLOCATING(pio)) {
@@ -1309,8 +1310,9 @@ static void
 zio_gang_node_free(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = *gnpp;
+	int g;
 
-	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++)
+	for (g = 0; g < SPA_GBH_NBLKPTRS; g++)
 		ASSERT(gn->gn_child[g] == NULL);
 
 	zio_buf_free(gn->gn_gbh, SPA_GANGBLOCKSIZE);
@@ -1322,11 +1324,12 @@ static void
 zio_gang_tree_free(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = *gnpp;
+	int g;
 
 	if (gn == NULL)
 		return;
 
-	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++)
+	for (g = 0; g < SPA_GBH_NBLKPTRS; g++)
 		zio_gang_tree_free(&gn->gn_child[g]);
 
 	zio_gang_node_free(gnpp);
@@ -1351,6 +1354,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	zio_t *lio = zio->io_logical;
 	zio_gang_node_t *gn = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
+	int g;
 
 	ASSERT(zio->io_parent == lio);
 	ASSERT(zio->io_child == NULL);
@@ -1365,7 +1369,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	ASSERT(zio->io_size == SPA_GANGBLOCKSIZE);
 	ASSERT(gn->gn_gbh->zg_tail.zbt_magic == ZBT_MAGIC);
 
-	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+	for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 		blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
 		if (!BP_IS_GANG(gbp))
 			continue;
@@ -1378,6 +1382,7 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, void *data)
 {
 	zio_t *lio = pio->io_logical;
 	zio_t *zio;
+	int g;
 
 	ASSERT(BP_IS_GANG(bp) == !!gn);
 	ASSERT(BP_GET_CHECKSUM(bp) == BP_GET_CHECKSUM(lio->io_bp));
@@ -1392,7 +1397,7 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, void *data)
 	if (gn != NULL) {
 		ASSERT(gn->gn_gbh->zg_tail.zbt_magic == ZBT_MAGIC);
 
-		for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+		for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 			blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
 			if (BP_IS_HOLE(gbp))
 				continue;
@@ -1449,6 +1454,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
+	int d;
 
 	if (BP_IS_HOLE(zio->io_bp))
 		return;
@@ -1462,7 +1468,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	ASSERT3U(BP_GET_NDVAS(zio->io_bp), <=, BP_GET_NDVAS(pio->io_bp));
 
 	mutex_enter(&pio->io_lock);
-	for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+	for (d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
 		ASSERT(DVA_GET_GANG(&pdva[d]));
 		asize = DVA_GET_ASIZE(&pdva[d]);
 		asize += DVA_GET_ASIZE(&cdva[d]);
@@ -1486,7 +1492,7 @@ zio_write_gang_block(zio_t *pio)
 	int ndvas = lio->io_prop.zp_ndvas;
 	int gbh_ndvas = MIN(ndvas + 1, spa_max_replication(spa));
 	zio_prop_t zp;
-	int error;
+	int g, error;
 
 	error = metaslab_alloc(spa, spa->spa_normal_class, SPA_GANGBLOCKSIZE,
 	    bp, gbh_ndvas, txg, pio == lio ? NULL : lio->io_bp,
@@ -1516,7 +1522,7 @@ zio_write_gang_block(zio_t *pio)
 	/*
 	 * Create and nowait the gang children.
 	 */
-	for (int g = 0; resid != 0; resid -= lsize, g++) {
+	for (g = 0; resid != 0; resid -= lsize, g++) {
 		lsize = P2ROUNDUP(resid / (SPA_GBH_NBLKPTRS - g),
 		    SPA_MINBLOCKSIZE);
 		ASSERT(lsize >= SPA_MINBLOCKSIZE && lsize <= resid);
@@ -1606,6 +1612,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 {
 	spa_t *spa = zio->io_spa;
 	boolean_t now = !(zio->io_flags & ZIO_FLAG_IO_REWRITE);
+	int g;
 
 	ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
 
@@ -1636,7 +1643,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 		metaslab_free(spa, bp, bp->blk_birth, now);
 
 	if (gn != NULL) {
-		for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+		for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 			zio_dva_unallocate(zio, gn->gn_child[g],
 			    &gn->gn_gbh->zg_blkptr[g]);
 		}
@@ -2080,6 +2087,7 @@ zio_done(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	vdev_t *vd = zio->io_vd;
 	uint64_t psize = zio->io_size;
+	int c, w;
 
 	/*
 	 * If our of children haven't all completed,
@@ -2090,8 +2098,8 @@ zio_done(zio_t *zio)
 	    zio_wait_for_children(zio, ZIO_CHILD_LOGICAL, ZIO_WAIT_DONE))
 		return (ZIO_PIPELINE_STOP);
 
-	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
-		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
+	for (c = 0; c < ZIO_CHILD_TYPES; c++)
+		for (w = 0; w < ZIO_WAIT_TYPES; w++)
 			ASSERT(zio->io_children[c][w] == 0);
 
 	if (bp != NULL) {
