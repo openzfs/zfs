@@ -45,6 +45,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/dsl_prop.c \
 	${top_srcdir}/module/zfs/dsl_deleg.c \
 	${top_srcdir}/module/zfs/dsl_synctask.c \
+	${top_srcdir}/module/zfs/dsl_scrub.c \
 	${top_srcdir}/module/zfs/unique.c \
 	${top_srcdir}/module/zfs/zap.c \
 	${top_srcdir}/module/zfs/zap_leaf.c \
