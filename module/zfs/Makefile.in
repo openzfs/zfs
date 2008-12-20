@@ -1,7 +1,7 @@
 DISTFILES  = arc.c bplist.c dbuf.c dmu.c dmu_object.c dmu_objset.c
 DISTFILES += dmu_traverse.c dmu_tx.c dmu_zfetch.c dnode.c dnode_sync.c
 DISTFILES += dsl_dataset.c dsl_deleg.c dsl_dir.c dsl_pool.c dsl_prop.c
-DISTFILES += dsl_synctask.c fletcher.c gzip.c lzjb.c metaslab.c
+DISTFILES += dsl_synctask.c dsl_scrub.c fletcher.c gzip.c lzjb.c metaslab.c
 DISTFILES += refcount.c sha256.c spa.c spa_boot.c spa_config.c spa_errlog.c
 DISTFILES += spa_history.c spa_misc.c space_map.c txg.c uberblock.c
 DISTFILES += unique.c vdev.c vdev_cache.c vdev_disk.c vdev_missing.c
@@ -38,6 +38,7 @@ ${MODULE}-objs += dsl_pool.o	# Pool-level support
 ${MODULE}-objs += dsl_prop.o	# Property manipulation support
 ${MODULE}-objs += dsl_deleg.o	# XXX: ?
 ${MODULE}-objs += dsl_synctask.o# XXX: ?
+${MODULE}-objs += dsl_scrub.o	# Background pool scrubbing
 ${MODULE}-objs += unique.o	# Unique objset ID support
 
 # ZAP (ZFS Attribute Processor)
