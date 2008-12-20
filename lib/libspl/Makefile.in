@@ -66,10 +66,13 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
 am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo getmntany.lo \
 	list.lo mkdirp.lo strlcat.lo strlcpy.lo strnlen.lo \
-	u8_textprep.lo zone.lo
+	u8_textprep.lo zone.lo atomic.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
+CCASCOMPILE = $(CCAS) $(AM_CCASFLAGS) $(CCASFLAGS)
+LTCCASCOMPILE = $(LIBTOOL) --mode=compile $(CCAS) $(AM_CCASFLAGS) \
+	$(CCASFLAGS)
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
@@ -94,6 +97,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 BUILDDIR = @BUILDDIR@
 CC = @CC@
+CCAS = @CCAS@
+CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CMDDIR = @CMDDIR@
@@ -225,6 +230,9 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+AM_CCASFLAGS = \
+	-I${top_srcdir}/lib/libspl/include
+
 lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/getexecname.c \
@@ -237,13 +245,14 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/strnlen.c \
 	${top_srcdir}/lib/libspl/u8_textprep.c \
 	${top_srcdir}/lib/libspl/zone.c \
+	${top_srcdir}/lib/libspl/asm-${target_cpu}/atomic.S \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
 	${top_srcdir}/lib/libspl/include/sys/list_impl.h
 
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .lo .o .obj
+.SUFFIXES: .S .c .lo .o .obj
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/Rules.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -319,6 +328,18 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strnlen.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/u8_textprep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zone.Plo@am__quote@
+
+.S.o:
+	$(CCASCOMPILE) -c $<
+
+.S.obj:
+	$(CCASCOMPILE) -c `$(CYGPATH_W) '$<'`
+
+.S.lo:
+	$(LTCCASCOMPILE) -c -o $@ $<
+
+atomic.lo: ${top_srcdir}/lib/libspl/asm-${target_cpu}/atomic.S
+	$(LIBTOOL) --mode=compile $(CCAS) $(AM_CCASFLAGS) $(CCASFLAGS) -c -o atomic.lo `test -f '${top_srcdir}/lib/libspl/asm-${target_cpu}/atomic.S' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/asm-${target_cpu}/atomic.S
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
