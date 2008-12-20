@@ -69,14 +69,14 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	zprop_common.lo dmu.lo dmu_objset.lo dmu_object.lo txg.lo \
 	dmu_tx.lo dnode.lo dnode_sync.lo dbuf.lo dmu_zfetch.lo \
 	refcount.lo dmu_send.lo dsl_dir.lo dsl_dataset.lo dsl_pool.lo \
-	dsl_prop.lo dsl_deleg.lo dsl_synctask.lo unique.lo zap.lo \
-	zap_leaf.lo zap_micro.lo zil.lo arc.lo spa.lo spa_misc.lo \
-	spa_config.lo spa_errlog.lo spa_history.lo zfs_fm.lo zio.lo \
-	zio_checksum.lo fletcher.lo sha256.lo zio_compress.lo lzjb.lo \
-	gzip.lo uberblock.lo bplist.lo metaslab.lo space_map.lo \
-	zio_inject.lo vdev.lo vdev_file.lo vdev_mirror.lo \
-	vdev_raidz.lo vdev_root.lo vdev_missing.lo vdev_label.lo \
-	vdev_cache.lo vdev_queue.lo dmu_traverse.lo
+	dsl_prop.lo dsl_deleg.lo dsl_synctask.lo dsl_scrub.lo \
+	unique.lo zap.lo zap_leaf.lo zap_micro.lo zil.lo arc.lo spa.lo \
+	spa_misc.lo spa_config.lo spa_errlog.lo spa_history.lo \
+	zfs_fm.lo zio.lo zio_checksum.lo fletcher.lo sha256.lo \
+	zio_compress.lo lzjb.lo gzip.lo uberblock.lo bplist.lo \
+	metaslab.lo space_map.lo zio_inject.lo vdev.lo vdev_file.lo \
+	vdev_mirror.lo vdev_raidz.lo vdev_root.lo vdev_missing.lo \
+	vdev_label.lo vdev_cache.lo vdev_queue.lo dmu_traverse.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -279,6 +279,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/dsl_prop.c \
 	${top_srcdir}/module/zfs/dsl_deleg.c \
 	${top_srcdir}/module/zfs/dsl_synctask.c \
+	${top_srcdir}/module/zfs/dsl_scrub.c \
 	${top_srcdir}/module/zfs/unique.c \
 	${top_srcdir}/module/zfs/zap.c \
 	${top_srcdir}/module/zfs/zap_leaf.c \
@@ -400,6 +401,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_dir.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_pool.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_prop.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_scrub.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_synctask.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fletcher.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip.Plo@am__quote@
@@ -646,6 +648,13 @@ dsl_synctask.lo: ${top_srcdir}/module/zfs/dsl_synctask.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/dsl_synctask.c' object='dsl_synctask.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dsl_synctask.lo `test -f '${top_srcdir}/module/zfs/dsl_synctask.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/dsl_synctask.c
+
+dsl_scrub.lo: ${top_srcdir}/module/zfs/dsl_scrub.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT dsl_scrub.lo -MD -MP -MF "$(DEPDIR)/dsl_scrub.Tpo" -c -o dsl_scrub.lo `test -f '${top_srcdir}/module/zfs/dsl_scrub.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/dsl_scrub.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/dsl_scrub.Tpo" "$(DEPDIR)/dsl_scrub.Plo"; else rm -f "$(DEPDIR)/dsl_scrub.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/dsl_scrub.c' object='dsl_scrub.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dsl_scrub.lo `test -f '${top_srcdir}/module/zfs/dsl_scrub.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/dsl_scrub.c
 
 unique.lo: ${top_srcdir}/module/zfs/unique.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT unique.lo -MD -MP -MF "$(DEPDIR)/unique.Tpo" -c -o unique.lo `test -f '${top_srcdir}/module/zfs/unique.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/unique.c; \
