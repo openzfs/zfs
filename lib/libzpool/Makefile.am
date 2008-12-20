@@ -58,6 +58,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/spa_errlog.c \
 	${top_srcdir}/module/zfs/spa_history.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
+	${top_srcdir}/module/zfs/zfs_byteswap.c \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/fletcher.c \
