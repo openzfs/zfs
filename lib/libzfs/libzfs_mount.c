@@ -1433,4 +1433,16 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return B_FALSE;
 }
 
+int
+zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
+{
+	return B_TRUE;
+}
+
+int
+zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
+{
+	return B_TRUE;
+}
+
 #endif /* HAVE_ZPL */
