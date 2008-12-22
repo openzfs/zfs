@@ -59,7 +59,6 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/spa_boot.h>
-#include <sys/zfs_znode.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -1905,11 +1904,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	dsl_pool_t *dp;
 	dmu_tx_t *tx;
 	int c, error = 0;
-	uint64_t txg = TXG_INITIAL, zpl_version;
-	nvlist_t **spares, **l2cache, *zprops;
+	uint64_t txg = TXG_INITIAL;
+	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
 	uint64_t version;
-	objset_t *os;
 
 	/*
 	 * If this pool already exists, return failure.

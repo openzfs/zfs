@@ -265,6 +265,21 @@ typedef struct znode {
 	mutex_exit(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
 
 /*
+ * Macros to encode/decode ZFS stored time values from/to struct timespec
+ */
+#define	ZFS_TIME_ENCODE(tp, stmp)		\
+{						\
+	(stmp)[0] = (uint64_t)(tp)->tv_sec;	\
+	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
+}
+
+#define	ZFS_TIME_DECODE(tp, stmp)		\
+{						\
+	(tp)->tv_sec = (time_t)(stmp)[0];		\
+	(tp)->tv_nsec = (long)(stmp)[1];		\
+}
+
+/*
  * Timestamp defines
  */
 #define	ACCESSED		(AT_ATIME)
@@ -277,6 +292,8 @@ typedef struct znode {
 
 extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);
+extern void	zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
+    dmu_tx_t *tx);
 extern void	zfs_time_stamper(znode_t *, uint_t, dmu_tx_t *);
 extern void	zfs_time_stamper_locked(znode_t *, uint_t, dmu_tx_t *);
 extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
@@ -292,6 +309,8 @@ extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
 extern int	zfs_sync(vfs_t *vfsp, short flag, cred_t *cr);
 extern dev_t	zfs_cmpldev(uint64_t);
+extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
+extern int	zfs_set_version(const char *name, uint64_t newvers);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern void	zfs_znode_dmu_fini(znode_t *);
 
@@ -328,30 +347,6 @@ extern int zfsfstype;
 
 #endif /* _KERNEL */
 
-#if defined(_KERNEL) || defined(WANT_KERNEL_EMUL)
-
-extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
-extern int zfs_set_version(const char *name, uint64_t newvers);
-
-#endif
-
-/*
- * Macros to encode/decode ZFS stored time values from/to struct timespec
- */
-#define	ZFS_TIME_ENCODE(tp, stmp)		\
-{						\
-	(stmp)[0] = (uint64_t)(tp)->tv_sec; 	\
-	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
-}
-
-#define	ZFS_TIME_DECODE(tp, stmp)		\
-{						\
-	(tp)->tv_sec = (time_t)(stmp)[0];		\
-	(tp)->tv_nsec = (long)(stmp)[1];		\
-}
-
-extern void zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
-    dmu_tx_t *tx);
 extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
 
 #ifdef	__cplusplus

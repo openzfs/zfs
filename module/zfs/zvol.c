@@ -41,6 +41,11 @@
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
+#include <sys/buf.h>
+#include <sys/modctl.h>
+#include <sys/open.h>
+#include <sys/kmem.h>
+#include <sys/conf.h>
 #include <sys/cmn_err.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
@@ -53,7 +58,11 @@
 #include <sys/dkio.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
+#include <sys/pathname.h>
+#include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/crc32.h>
+#include <sys/dirent.h>
 #include <sys/policy.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ioctl.h>
@@ -69,8 +78,6 @@
 
 #include "zfs_namecheck.h"
 
-/* This code is not necessary for zfs-lustre */
-#ifdef HAVE_ZVOL
 static void *zvol_state;
 
 #define	ZVOL_DUMPSIZE		"dumpsize"
@@ -142,7 +149,6 @@ zvol_size_changed(zvol_state_t *zv, major_t maj)
 	spec_size_invalidate(dev, VBLK);
 	spec_size_invalidate(dev, VCHR);
 }
-#endif /* HAVE_ZVOL */
 
 int
 zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
@@ -171,7 +177,6 @@ zvol_check_volblocksize(uint64_t volblocksize)
 	return (0);
 }
 
-#ifdef HAVE_ZVOL
 static void
 zvol_readonly_changed_cb(void *arg, uint64_t newval)
 {
@@ -182,7 +187,6 @@ zvol_readonly_changed_cb(void *arg, uint64_t newval)
 	else
 		zv->zv_flags &= ~ZVOL_RDONLY;
 }
-#endif /* HAVE_ZVOL */
 
 int
 zvol_get_stats(objset_t *os, nvlist_t *nv)
@@ -208,8 +212,6 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 	return (error);
 }
 
-/* This code is not necessary for zfs-lustre */
-#ifdef HAVE_ZVOL
 /*
  * Find a free minor number.
  */
@@ -1718,4 +1720,3 @@ zvol_dump_fini(zvol_state_t *zv)
 
 	return (0);
 }
-#endif /* HAVE_ZVOL */
