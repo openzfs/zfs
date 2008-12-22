@@ -656,6 +656,4 @@ vdev_ops_t vdev_disk_ops = {
 	B_TRUE			/* leaf vdev */
 };
 
-#else
-#error "vdev_disk.c is only required for an in-kernel builds"
 #endif  /* _KERNEL */
