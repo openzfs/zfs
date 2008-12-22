@@ -60,6 +60,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zfs_byteswap.c \
 	${top_srcdir}/module/zfs/zfs_fuid.c \
+	${top_srcdir}/module/zfs/zfs_znode.c \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/fletcher.c \
