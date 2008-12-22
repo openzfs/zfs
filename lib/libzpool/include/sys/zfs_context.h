@@ -196,9 +196,9 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-
-/* XXX: not portable */
-#define	curthread	((void *)(uintptr_t)pthread_self())
+#define	curthread		((void *)(uintptr_t)pthread_self())
+#define	tsd_get(key)		pthread_getspecific(key)
+#define	tsd_set(key, val)	pthread_setspecific(key, val)
 
 typedef struct kthread kthread_t;
 typedef void (*thread_func_t)(void *);
