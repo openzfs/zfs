@@ -64,7 +64,9 @@
 #include <devid.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifdef HAVE_LIBDISKMGT
 #include <libdiskmgt.h>
+#endif
 #include <libintl.h>
 #include <libnvpair.h>
 #include <stdio.h>
