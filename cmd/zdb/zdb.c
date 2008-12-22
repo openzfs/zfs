@@ -72,7 +72,7 @@ int zdb_sig_cksumalg = ZIO_CHECKSUM_SHA256;
  * debugging facilities.
  */
 const char *
-_umem_debug_init()
+_umem_debug_init(void)
 {
 	return ("default,verbose"); /* $UMEM_DEBUG setting */
 }
@@ -860,7 +860,7 @@ static avl_tree_t domain_tree;
 static boolean_t fuid_table_loaded;
 
 static void
-fuid_table_destroy()
+fuid_table_destroy(void)
 {
 	if (fuid_table_loaded) {
 		zfs_fuid_table_destroy(&idx_tree, &domain_tree);
