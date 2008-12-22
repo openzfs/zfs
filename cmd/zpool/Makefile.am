@@ -12,11 +12,11 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zpool
 
 zpool_SOURCES = \
-	-I${top_srcdir}/cmd/zpool/zpool_iter.c \
-	-I${top_srcdir}/cmd/zpool/zpool_main.c \
-	-I${top_srcdir}/cmd/zpool/zpool_util.c \
-	-I${top_srcdir}/cmd/zpool/zpool_util.h \
-	-I${top_srcdir}/cmd/zpool/zpool_vdev.c
+	${top_srcdir}/cmd/zpool/zpool_iter.c \
+	${top_srcdir}/cmd/zpool/zpool_main.c \
+	${top_srcdir}/cmd/zpool/zpool_util.c \
+	${top_srcdir}/cmd/zpool/zpool_util.h \
+	${top_srcdir}/cmd/zpool/zpool_vdev.c
 
 zpool_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
