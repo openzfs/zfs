@@ -1745,7 +1745,7 @@ zvol_dump_fini(zvol_state_t *zv)
 int
 zvol_busy(void)
 {
-	return DDI_FAILURE;
+	return (0);
 }
 
 #endif /* HAVE_ZVOL */
