@@ -225,7 +225,7 @@ zil_prt_rec_acl(zilog_t *zilog, int txtype, lr_acl_t *lr)
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_aclcnt);
 }
 
-typedef void (*zil_prt_rec_func_t)();
+typedef void (*zil_prt_rec_func_t)(zilog_t *, int, lr_t *);
 typedef struct zil_rec_info {
 	zil_prt_rec_func_t	zri_print;
 	char			*zri_name;
