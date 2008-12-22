@@ -76,10 +76,8 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	space_map.lo txg.lo uberblock.lo unique.lo vdev.lo \
 	vdev_cache.lo vdev_disk.lo vdev_file.lo vdev_label.lo \
 	vdev_missing.lo vdev_mirror.lo vdev_queue.lo vdev_raidz.lo \
-	vdev_root.lo zap.lo zap_leaf.lo zap_micro.lo zfs_acl.lo \
-	zfs_byteswap.lo zfs_ctldir.lo zfs_dir.lo zfs_fm.lo zfs_fuid.lo \
-	zfs_ioctl.lo zfs_log.lo zfs_replay.lo zfs_rlock.lo \
-	zfs_vfsops.lo zfs_vnops.lo zfs_znode.lo zil.lo zio.lo \
+	vdev_root.lo zap.lo zap_leaf.lo zap_micro.lo zfs_byteswap.lo \
+	zfs_fm.lo zfs_fuid.lo zfs_znode.lo zil.lo zio.lo \
 	zio_checksum.lo zio_compress.lo zio_inject.lo zvol.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -315,18 +313,9 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zap.c \
 	${top_srcdir}/module/zfs/zap_leaf.c \
 	${top_srcdir}/module/zfs/zap_micro.c \
-	${top_srcdir}/module/zfs/zfs_acl.c \
 	${top_srcdir}/module/zfs/zfs_byteswap.c \
-	${top_srcdir}/module/zfs/zfs_ctldir.c \
-	${top_srcdir}/module/zfs/zfs_dir.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zfs_fuid.c \
-	${top_srcdir}/module/zfs/zfs_ioctl.c \
-	${top_srcdir}/module/zfs/zfs_log.c \
-	${top_srcdir}/module/zfs/zfs_replay.c \
-	${top_srcdir}/module/zfs/zfs_rlock.c \
-	${top_srcdir}/module/zfs/zfs_vfsops.c \
-	${top_srcdir}/module/zfs/zfs_vnops.c \
 	${top_srcdir}/module/zfs/zfs_znode.c \
 	${top_srcdir}/module/zfs/zil.c \
 	${top_srcdir}/module/zfs/zio.c \
@@ -456,22 +445,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zap_leaf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zap_micro.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_acl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_byteswap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_comutil.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_ctldir.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_deleg.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_dir.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_fm.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_fuid.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_ioctl.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_namecheck.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_prop.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_replay.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_rlock.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_vfsops.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_vnops.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_znode.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zil.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zio.Plo@am__quote@
@@ -909,33 +889,12 @@ zap_micro.lo: ${top_srcdir}/module/zfs/zap_micro.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zap_micro.lo `test -f '${top_srcdir}/module/zfs/zap_micro.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zap_micro.c
 
-zfs_acl.lo: ${top_srcdir}/module/zfs/zfs_acl.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_acl.lo -MD -MP -MF "$(DEPDIR)/zfs_acl.Tpo" -c -o zfs_acl.lo `test -f '${top_srcdir}/module/zfs/zfs_acl.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_acl.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_acl.Tpo" "$(DEPDIR)/zfs_acl.Plo"; else rm -f "$(DEPDIR)/zfs_acl.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_acl.c' object='zfs_acl.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_acl.lo `test -f '${top_srcdir}/module/zfs/zfs_acl.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_acl.c
-
 zfs_byteswap.lo: ${top_srcdir}/module/zfs/zfs_byteswap.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_byteswap.lo -MD -MP -MF "$(DEPDIR)/zfs_byteswap.Tpo" -c -o zfs_byteswap.lo `test -f '${top_srcdir}/module/zfs/zfs_byteswap.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_byteswap.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_byteswap.Tpo" "$(DEPDIR)/zfs_byteswap.Plo"; else rm -f "$(DEPDIR)/zfs_byteswap.Tpo"; exit 1; fi
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_byteswap.c' object='zfs_byteswap.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_byteswap.lo `test -f '${top_srcdir}/module/zfs/zfs_byteswap.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_byteswap.c
-
-zfs_ctldir.lo: ${top_srcdir}/module/zfs/zfs_ctldir.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_ctldir.lo -MD -MP -MF "$(DEPDIR)/zfs_ctldir.Tpo" -c -o zfs_ctldir.lo `test -f '${top_srcdir}/module/zfs/zfs_ctldir.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_ctldir.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_ctldir.Tpo" "$(DEPDIR)/zfs_ctldir.Plo"; else rm -f "$(DEPDIR)/zfs_ctldir.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_ctldir.c' object='zfs_ctldir.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_ctldir.lo `test -f '${top_srcdir}/module/zfs/zfs_ctldir.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_ctldir.c
-
-zfs_dir.lo: ${top_srcdir}/module/zfs/zfs_dir.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_dir.lo -MD -MP -MF "$(DEPDIR)/zfs_dir.Tpo" -c -o zfs_dir.lo `test -f '${top_srcdir}/module/zfs/zfs_dir.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_dir.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_dir.Tpo" "$(DEPDIR)/zfs_dir.Plo"; else rm -f "$(DEPDIR)/zfs_dir.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_dir.c' object='zfs_dir.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_dir.lo `test -f '${top_srcdir}/module/zfs/zfs_dir.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_dir.c
 
 zfs_fm.lo: ${top_srcdir}/module/zfs/zfs_fm.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_fm.lo -MD -MP -MF "$(DEPDIR)/zfs_fm.Tpo" -c -o zfs_fm.lo `test -f '${top_srcdir}/module/zfs/zfs_fm.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_fm.c; \
@@ -950,48 +909,6 @@ zfs_fuid.lo: ${top_srcdir}/module/zfs/zfs_fuid.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_fuid.c' object='zfs_fuid.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_fuid.lo `test -f '${top_srcdir}/module/zfs/zfs_fuid.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_fuid.c
-
-zfs_ioctl.lo: ${top_srcdir}/module/zfs/zfs_ioctl.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_ioctl.lo -MD -MP -MF "$(DEPDIR)/zfs_ioctl.Tpo" -c -o zfs_ioctl.lo `test -f '${top_srcdir}/module/zfs/zfs_ioctl.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_ioctl.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_ioctl.Tpo" "$(DEPDIR)/zfs_ioctl.Plo"; else rm -f "$(DEPDIR)/zfs_ioctl.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_ioctl.c' object='zfs_ioctl.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_ioctl.lo `test -f '${top_srcdir}/module/zfs/zfs_ioctl.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_ioctl.c
-
-zfs_log.lo: ${top_srcdir}/module/zfs/zfs_log.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_log.lo -MD -MP -MF "$(DEPDIR)/zfs_log.Tpo" -c -o zfs_log.lo `test -f '${top_srcdir}/module/zfs/zfs_log.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_log.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_log.Tpo" "$(DEPDIR)/zfs_log.Plo"; else rm -f "$(DEPDIR)/zfs_log.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_log.c' object='zfs_log.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_log.lo `test -f '${top_srcdir}/module/zfs/zfs_log.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_log.c
-
-zfs_replay.lo: ${top_srcdir}/module/zfs/zfs_replay.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_replay.lo -MD -MP -MF "$(DEPDIR)/zfs_replay.Tpo" -c -o zfs_replay.lo `test -f '${top_srcdir}/module/zfs/zfs_replay.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_replay.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_replay.Tpo" "$(DEPDIR)/zfs_replay.Plo"; else rm -f "$(DEPDIR)/zfs_replay.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_replay.c' object='zfs_replay.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_replay.lo `test -f '${top_srcdir}/module/zfs/zfs_replay.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_replay.c
-
-zfs_rlock.lo: ${top_srcdir}/module/zfs/zfs_rlock.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_rlock.lo -MD -MP -MF "$(DEPDIR)/zfs_rlock.Tpo" -c -o zfs_rlock.lo `test -f '${top_srcdir}/module/zfs/zfs_rlock.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_rlock.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_rlock.Tpo" "$(DEPDIR)/zfs_rlock.Plo"; else rm -f "$(DEPDIR)/zfs_rlock.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_rlock.c' object='zfs_rlock.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_rlock.lo `test -f '${top_srcdir}/module/zfs/zfs_rlock.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_rlock.c
-
-zfs_vfsops.lo: ${top_srcdir}/module/zfs/zfs_vfsops.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_vfsops.lo -MD -MP -MF "$(DEPDIR)/zfs_vfsops.Tpo" -c -o zfs_vfsops.lo `test -f '${top_srcdir}/module/zfs/zfs_vfsops.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_vfsops.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_vfsops.Tpo" "$(DEPDIR)/zfs_vfsops.Plo"; else rm -f "$(DEPDIR)/zfs_vfsops.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_vfsops.c' object='zfs_vfsops.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_vfsops.lo `test -f '${top_srcdir}/module/zfs/zfs_vfsops.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_vfsops.c
-
-zfs_vnops.lo: ${top_srcdir}/module/zfs/zfs_vnops.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_vnops.lo -MD -MP -MF "$(DEPDIR)/zfs_vnops.Tpo" -c -o zfs_vnops.lo `test -f '${top_srcdir}/module/zfs/zfs_vnops.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_vnops.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_vnops.Tpo" "$(DEPDIR)/zfs_vnops.Plo"; else rm -f "$(DEPDIR)/zfs_vnops.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_vnops.c' object='zfs_vnops.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_vnops.lo `test -f '${top_srcdir}/module/zfs/zfs_vnops.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_vnops.c
 
 zfs_znode.lo: ${top_srcdir}/module/zfs/zfs_znode.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_znode.lo -MD -MP -MF "$(DEPDIR)/zfs_znode.Tpo" -c -o zfs_znode.lo `test -f '${top_srcdir}/module/zfs/zfs_znode.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_znode.c; \
