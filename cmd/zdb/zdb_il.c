@@ -225,7 +225,7 @@ zil_prt_rec_acl(zilog_t *zilog, int txtype, lr_acl_t *lr)
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_aclcnt);
 }
 
-typedef void (*zil_prt_rec_func_t)(zilog_t *, int, lr_t *);
+typedef void (*zil_prt_rec_func_t)(zilog_t *, int, void *);
 typedef struct zil_rec_info {
 	zil_prt_rec_func_t	zri_print;
 	char			*zri_name;
@@ -233,26 +233,26 @@ typedef struct zil_rec_info {
 } zil_rec_info_t;
 
 static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
-	{	NULL,			"Total              " },
-	{	zil_prt_rec_create,	"TX_CREATE          " },
-	{	zil_prt_rec_create,	"TX_MKDIR           " },
-	{	zil_prt_rec_create,	"TX_MKXATTR         " },
-	{	zil_prt_rec_create,	"TX_SYMLINK         " },
-	{	zil_prt_rec_remove,	"TX_REMOVE          " },
-	{	zil_prt_rec_remove,	"TX_RMDIR           " },
-	{	zil_prt_rec_link,	"TX_LINK            " },
-	{	zil_prt_rec_rename,	"TX_RENAME          " },
-	{	zil_prt_rec_write,	"TX_WRITE           " },
-	{	zil_prt_rec_truncate,	"TX_TRUNCATE        " },
-	{	zil_prt_rec_setattr,	"TX_SETATTR         " },
-	{	zil_prt_rec_acl,	"TX_ACL_V0          " },
-	{	zil_prt_rec_acl,	"TX_ACL_ACL         " },
-	{	zil_prt_rec_create,	"TX_CREATE_ACL      " },
-	{	zil_prt_rec_create,	"TX_CREATE_ATTR     " },
-	{	zil_prt_rec_create,	"TX_CREATE_ACL_ATTR " },
-	{	zil_prt_rec_create,	"TX_MKDIR_ACL       " },
-	{	zil_prt_rec_create,	"TX_MKDIR_ATTR      " },
-	{	zil_prt_rec_create,	"TX_MKDIR_ACL_ATTR  " },
+	{ NULL,						"Total              " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE          " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR           " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKXATTR         " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_SYMLINK         " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_remove,	"TX_REMOVE          " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_remove,	"TX_RMDIR           " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_link,		"TX_LINK            " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_rename,	"TX_RENAME          " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_write,	"TX_WRITE           " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_truncate,	"TX_TRUNCATE        " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_setattr,	"TX_SETATTR         " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_acl,		"TX_ACL_V0          " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_acl,		"TX_ACL_ACL         " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ACL      " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ATTR     " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ACL_ATTR " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ACL       " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ATTR      " },
+	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ACL_ATTR  " },
 };
 
 /* ARGSUSED */
