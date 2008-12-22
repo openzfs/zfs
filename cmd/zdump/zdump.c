@@ -108,8 +108,7 @@ static time_t	yeartot(long y);
 #define	my_localtime	localtime
 #else /* !defined TYPECHECK */
 static struct tm *
-my_localtime(tp)
-time_t *tp;
+my_localtime(time_t *tp)
 {
 	register struct tm *tmp;
 
@@ -142,9 +141,7 @@ time_t *tp;
 #endif /* !defined TYPECHECK */
 
 static void
-abbrok(abbrp, zone)
-const char * const	abbrp;
-const char * const	zone;
+abbrok(const char *abbrp, const char *zone)
 {
 	register const char *cp;
 	int error = 0;
@@ -195,9 +192,7 @@ const char * const	zone;
 }
 
 int
-main(argc, argv)
-int	argc;
-char	*argv[];
+main(int argc, char *argv[])
 {
 	register int		i;
 	register int		c;
@@ -361,7 +356,7 @@ char	*argv[];
 }
 
 static void
-setabsolutes()
+setabsolutes(void)
 {
 #if defined(sun)
 	absolute_min_time = LONG_MIN;
@@ -406,8 +401,7 @@ setabsolutes()
 }
 
 static time_t
-yeartot(y)
-const long	y;
+yeartot(const long y)
 {
 	register long	myy;
 	register long	seconds;
@@ -438,10 +432,7 @@ const long	y;
 }
 
 static time_t
-hunt(name, lot, hit)
-char	*name;
-time_t	lot;
-time_t	hit;
+hunt(char *name, time_t lot, time_t hit)
 {
 	time_t			t;
 	long			diff;
@@ -488,9 +479,7 @@ time_t	hit;
  */
 
 static long
-delta(newp, oldp)
-struct tm	*newp;
-struct tm	*oldp;
+delta(struct tm *newp, struct tm *oldp)
 {
 	register long	result;
 	register int	tmy;
@@ -511,10 +500,7 @@ struct tm	*oldp;
 }
 
 static void
-show(zone, t, v)
-char	*zone;
-time_t	t;
-int	v;
+show(char *zone, time_t t, int v)
 {
 	register struct tm	*tmp;
 
@@ -547,8 +533,7 @@ int	v;
 }
 
 static char *
-abbr(tmp)
-struct tm	*tmp;
+abbr(struct tm *tmp)
 {
 	register char	*result;
 	static char	nada;
@@ -565,7 +550,7 @@ struct tm	*tmp;
  */
 
 static const char *
-tformat()
+tformat(void)
 {
 #if defined(sun)
 	/* time_t is signed long */
@@ -599,8 +584,7 @@ tformat()
 }
 
 static void
-dumptime(timeptr)
-register const struct tm	*timeptr;
+dumptime(register const struct tm *timeptr)
 {
 	static const char	wday_name[][3] = {
 		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
@@ -654,7 +638,7 @@ register const struct tm	*timeptr;
 }
 
 static void
-usage()
+usage(void)
 {
 	(void) fprintf(stderr, gettext(
 	    "%s: [ --version ] [ -v ] [ -c [loyear,]hiyear ] zonename ...\n"),
