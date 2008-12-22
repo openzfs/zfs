@@ -118,7 +118,7 @@ rrn_find_and_remove(rrwlock_t *rrl)
 	rrw_node_t *prev = NULL;
 
 	if (refcount_count(&rrl->rr_linked_rcount) == 0)
-		return (NULL);
+		return (B_FALSE);
 
 	for (rn = tsd_get(rrw_tsd_key); rn != NULL; rn = rn->rn_next) {
 		if (rn->rn_rrl == rrl) {
