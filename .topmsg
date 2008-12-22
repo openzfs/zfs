@@ -1,19 +1,8 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] zfs branch
+Subject: [PATCH] linux-have-zpl
 
-Merged result of all changes which are relevant to both Solaris
-and Linux builds of the ZFS code.  These are changes where there
-is a reasonable chance they will be accepted upstream.
-
-Additionally, since this is effectively the root of the linux
-ZFS tree the core linux build system is added here.  This
-includes autogen.sh, configure.ac, m4 macros, some scripts/*,
-and makefiles for all the core ZFS components.  Linux-only
-features which require tweaks to the build system should appear
-on the relevant topic branches.  All autotools products which
-result from autogen.sh are commited to the linux-configure-branch.
-
-This branch also contains the META, ChangeLog, AUTHORS,
-README, and GIT files.
+Changes required to build ZFS without the ZPL layer.  Or
+better yet long term the changes required to integrate ZFS
+in to linux's VFS layer.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
