@@ -210,7 +210,13 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include
+DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
+	-I${top_srcdir}/lib/libuutil/include \
+	-I${top_srcdir}/lib/libzfs/include \
+	-I${top_srcdir}/lib/libnvpair/include \
+	-I${top_srcdir}/module/zcommon/include \
+	-I${top_srcdir}/module/nvpair/include \
+	-I${top_srcdir}/module/avl/include
 
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
@@ -236,7 +242,7 @@ ztest_LDADD = \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
-ztest_LDFLAGS = -pthread -lm
+ztest_LDFLAGS = -pthread -lm -lz -lrt
 all: all-am
 
 .SUFFIXES:

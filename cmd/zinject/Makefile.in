@@ -58,7 +58,7 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)"
 sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
-am_zinject_OBJECTS = translate.$(OBJEXT)
+am_zinject_OBJECTS = translate.$(OBJEXT) zinject.$(OBJEXT)
 zinject_OBJECTS = $(am_zinject_OBJECTS)
 zinject_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -221,9 +221,9 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
 zinject_SOURCES = \
-	translate.c \
-	zinject.ci \
-	zinject.h
+	${top_srcdir}/cmd/zinject/translate.c \
+	${top_srcdir}/cmd/zinject/zinject.c \
+	${top_srcdir}/cmd/zinject/zinject.h
 
 zinject_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la
@@ -300,6 +300,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/translate.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zinject.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -321,6 +322,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+translate.o: ${top_srcdir}/cmd/zinject/translate.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.o -MD -MP -MF "$(DEPDIR)/translate.Tpo" -c -o translate.o `test -f '${top_srcdir}/cmd/zinject/translate.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/translate.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/translate.Tpo" "$(DEPDIR)/translate.Po"; else rm -f "$(DEPDIR)/translate.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/translate.c' object='translate.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.o `test -f '${top_srcdir}/cmd/zinject/translate.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/translate.c
+
+translate.obj: ${top_srcdir}/cmd/zinject/translate.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.obj -MD -MP -MF "$(DEPDIR)/translate.Tpo" -c -o translate.obj `if test -f '${top_srcdir}/cmd/zinject/translate.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/translate.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/translate.Tpo" "$(DEPDIR)/translate.Po"; else rm -f "$(DEPDIR)/translate.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/translate.c' object='translate.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.obj `if test -f '${top_srcdir}/cmd/zinject/translate.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/translate.c'; fi`
+
+zinject.o: ${top_srcdir}/cmd/zinject/zinject.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.o -MD -MP -MF "$(DEPDIR)/zinject.Tpo" -c -o zinject.o `test -f '${top_srcdir}/cmd/zinject/zinject.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/zinject.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zinject.Tpo" "$(DEPDIR)/zinject.Po"; else rm -f "$(DEPDIR)/zinject.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/zinject.c' object='zinject.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.o `test -f '${top_srcdir}/cmd/zinject/zinject.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/zinject.c
+
+zinject.obj: ${top_srcdir}/cmd/zinject/zinject.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.obj -MD -MP -MF "$(DEPDIR)/zinject.Tpo" -c -o zinject.obj `if test -f '${top_srcdir}/cmd/zinject/zinject.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/zinject.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zinject.Tpo" "$(DEPDIR)/zinject.Po"; else rm -f "$(DEPDIR)/zinject.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/zinject.c' object='zinject.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.obj `if test -f '${top_srcdir}/cmd/zinject/zinject.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/zinject.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

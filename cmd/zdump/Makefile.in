@@ -221,7 +221,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
 zdump_SOURCES = \
-	zdump.c
+	${top_srcdir}/cmd/zdump/zdump.c
 
 zdump_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la
@@ -319,6 +319,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+zdump.o: ${top_srcdir}/cmd/zdump/zdump.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdump.o -MD -MP -MF "$(DEPDIR)/zdump.Tpo" -c -o zdump.o `test -f '${top_srcdir}/cmd/zdump/zdump.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdump/zdump.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdump.Tpo" "$(DEPDIR)/zdump.Po"; else rm -f "$(DEPDIR)/zdump.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdump/zdump.c' object='zdump.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdump.o `test -f '${top_srcdir}/cmd/zdump/zdump.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdump/zdump.c
+
+zdump.obj: ${top_srcdir}/cmd/zdump/zdump.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdump.obj -MD -MP -MF "$(DEPDIR)/zdump.Tpo" -c -o zdump.obj `if test -f '${top_srcdir}/cmd/zdump/zdump.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdump/zdump.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdump/zdump.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdump.Tpo" "$(DEPDIR)/zdump.Po"; else rm -f "$(DEPDIR)/zdump.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdump/zdump.c' object='zdump.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdump.obj `if test -f '${top_srcdir}/cmd/zdump/zdump.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdump/zdump.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdump/zdump.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
