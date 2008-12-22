@@ -24,6 +24,8 @@
  * Use is subject to license terms.
  */
 
+#ifdef _KERNEL
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/spa.h>
@@ -45,3 +47,5 @@ spa_free_bootprop(char *value)
 {
 	ddi_prop_free(value);
 }
+
+#endif /* _KERNEL */
