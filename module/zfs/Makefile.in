@@ -60,6 +60,8 @@ ${MODULE}-objs += spa_errlog.o	# Log of persistent pool-wide data errors
 ${MODULE}-objs += spa_history.o	# Command history support
 ${MODULE}-objs += spa_boot.o	# Bootable root partitions
 ${MODULE}-objs += zfs_fm.o	# Post reports of FMA consumption support
+${MODULE}-objs += zfs_byteswap.c # XXX: ?
+${MODULE}-objs += zfs_fuid.c	# XXX: ?
 
 # ZIO (ZFS I/O Pipeline)
 ${MODULE}-objs += zio.o		# Interfaces zio core
