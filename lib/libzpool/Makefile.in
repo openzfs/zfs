@@ -72,10 +72,10 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	dsl_prop.lo dsl_deleg.lo dsl_synctask.lo dsl_scrub.lo \
 	unique.lo zap.lo zap_leaf.lo zap_micro.lo zil.lo arc.lo spa.lo \
 	spa_misc.lo spa_config.lo spa_errlog.lo spa_history.lo \
-	zfs_fm.lo zfs_byteswap.lo zio.lo zio_checksum.lo fletcher.lo \
-	sha256.lo zio_compress.lo lzjb.lo gzip.lo uberblock.lo \
-	bplist.lo metaslab.lo space_map.lo zio_inject.lo vdev.lo \
-	vdev_file.lo vdev_mirror.lo vdev_raidz.lo vdev_root.lo \
+	zfs_fm.lo zfs_byteswap.lo zfs_fuid.lo zio.lo zio_checksum.lo \
+	fletcher.lo sha256.lo zio_compress.lo lzjb.lo gzip.lo \
+	uberblock.lo bplist.lo metaslab.lo space_map.lo zio_inject.lo \
+	vdev.lo vdev_file.lo vdev_mirror.lo vdev_raidz.lo vdev_root.lo \
 	vdev_missing.lo vdev_label.lo vdev_cache.lo vdev_queue.lo \
 	dmu_traverse.lo
 libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
@@ -294,6 +294,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/spa_history.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zfs_byteswap.c \
+	${top_srcdir}/module/zfs/zfs_fuid.c \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/fletcher.c \
@@ -439,6 +440,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_comutil.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_deleg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_fm.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_fuid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_namecheck.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_prop.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zil.Plo@am__quote@
@@ -749,6 +751,13 @@ zfs_byteswap.lo: ${top_srcdir}/module/zfs/zfs_byteswap.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_byteswap.c' object='zfs_byteswap.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_byteswap.lo `test -f '${top_srcdir}/module/zfs/zfs_byteswap.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_byteswap.c
+
+zfs_fuid.lo: ${top_srcdir}/module/zfs/zfs_fuid.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_fuid.lo -MD -MP -MF "$(DEPDIR)/zfs_fuid.Tpo" -c -o zfs_fuid.lo `test -f '${top_srcdir}/module/zfs/zfs_fuid.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_fuid.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zfs_fuid.Tpo" "$(DEPDIR)/zfs_fuid.Plo"; else rm -f "$(DEPDIR)/zfs_fuid.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/zfs_fuid.c' object='zfs_fuid.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_fuid.lo `test -f '${top_srcdir}/module/zfs/zfs_fuid.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zfs_fuid.c
 
 zio.lo: ${top_srcdir}/module/zfs/zio.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zio.lo -MD -MP -MF "$(DEPDIR)/zio.Tpo" -c -o zio.lo `test -f '${top_srcdir}/module/zfs/zio.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/zio.c; \
