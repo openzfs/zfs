@@ -233,11 +233,11 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
 zpool_SOURCES = \
-	-I${top_srcdir}/cmd/zpool/zpool_iter.c \
-	-I${top_srcdir}/cmd/zpool/zpool_main.c \
-	-I${top_srcdir}/cmd/zpool/zpool_util.c \
-	-I${top_srcdir}/cmd/zpool/zpool_util.h \
-	-I${top_srcdir}/cmd/zpool/zpool_vdev.c
+	${top_srcdir}/cmd/zpool/zpool_iter.c \
+	${top_srcdir}/cmd/zpool/zpool_main.c \
+	${top_srcdir}/cmd/zpool/zpool_util.c \
+	${top_srcdir}/cmd/zpool/zpool_util.h \
+	${top_srcdir}/cmd/zpool/zpool_vdev.c
 
 zpool_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
@@ -345,61 +345,61 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-zpool_iter.o: -I${top_srcdir}/cmd/zpool/zpool_iter.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_iter.o -MD -MP -MF "$(DEPDIR)/zpool_iter.Tpo" -c -o zpool_iter.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_iter.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_iter.c; \
+zpool_iter.o: ${top_srcdir}/cmd/zpool/zpool_iter.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_iter.o -MD -MP -MF "$(DEPDIR)/zpool_iter.Tpo" -c -o zpool_iter.o `test -f '${top_srcdir}/cmd/zpool/zpool_iter.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_iter.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_iter.Tpo" "$(DEPDIR)/zpool_iter.Po"; else rm -f "$(DEPDIR)/zpool_iter.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_iter.c' object='zpool_iter.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_iter.c' object='zpool_iter.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_iter.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_iter.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_iter.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_iter.o `test -f '${top_srcdir}/cmd/zpool/zpool_iter.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_iter.c
 
-zpool_iter.obj: -I${top_srcdir}/cmd/zpool/zpool_iter.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_iter.obj -MD -MP -MF "$(DEPDIR)/zpool_iter.Tpo" -c -o zpool_iter.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_iter.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_iter.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_iter.c'; fi`; \
+zpool_iter.obj: ${top_srcdir}/cmd/zpool/zpool_iter.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_iter.obj -MD -MP -MF "$(DEPDIR)/zpool_iter.Tpo" -c -o zpool_iter.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_iter.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_iter.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_iter.c'; fi`; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_iter.Tpo" "$(DEPDIR)/zpool_iter.Po"; else rm -f "$(DEPDIR)/zpool_iter.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_iter.c' object='zpool_iter.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_iter.c' object='zpool_iter.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_iter.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_iter.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_iter.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_iter.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_iter.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_iter.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_iter.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_iter.c'; fi`
 
-zpool_main.o: -I${top_srcdir}/cmd/zpool/zpool_main.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_main.o -MD -MP -MF "$(DEPDIR)/zpool_main.Tpo" -c -o zpool_main.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_main.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_main.c; \
+zpool_main.o: ${top_srcdir}/cmd/zpool/zpool_main.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_main.o -MD -MP -MF "$(DEPDIR)/zpool_main.Tpo" -c -o zpool_main.o `test -f '${top_srcdir}/cmd/zpool/zpool_main.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_main.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_main.Tpo" "$(DEPDIR)/zpool_main.Po"; else rm -f "$(DEPDIR)/zpool_main.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_main.c' object='zpool_main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_main.c' object='zpool_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_main.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_main.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_main.o `test -f '${top_srcdir}/cmd/zpool/zpool_main.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_main.c
 
-zpool_main.obj: -I${top_srcdir}/cmd/zpool/zpool_main.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_main.obj -MD -MP -MF "$(DEPDIR)/zpool_main.Tpo" -c -o zpool_main.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_main.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_main.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_main.c'; fi`; \
+zpool_main.obj: ${top_srcdir}/cmd/zpool/zpool_main.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_main.obj -MD -MP -MF "$(DEPDIR)/zpool_main.Tpo" -c -o zpool_main.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_main.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_main.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_main.c'; fi`; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_main.Tpo" "$(DEPDIR)/zpool_main.Po"; else rm -f "$(DEPDIR)/zpool_main.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_main.c' object='zpool_main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_main.c' object='zpool_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_main.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_main.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_main.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_main.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_main.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_main.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_main.c'; fi`
 
-zpool_util.o: -I${top_srcdir}/cmd/zpool/zpool_util.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_util.o -MD -MP -MF "$(DEPDIR)/zpool_util.Tpo" -c -o zpool_util.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_util.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_util.c; \
+zpool_util.o: ${top_srcdir}/cmd/zpool/zpool_util.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_util.o -MD -MP -MF "$(DEPDIR)/zpool_util.Tpo" -c -o zpool_util.o `test -f '${top_srcdir}/cmd/zpool/zpool_util.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_util.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_util.Tpo" "$(DEPDIR)/zpool_util.Po"; else rm -f "$(DEPDIR)/zpool_util.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_util.c' object='zpool_util.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_util.c' object='zpool_util.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_util.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_util.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_util.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_util.o `test -f '${top_srcdir}/cmd/zpool/zpool_util.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_util.c
 
-zpool_util.obj: -I${top_srcdir}/cmd/zpool/zpool_util.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_util.obj -MD -MP -MF "$(DEPDIR)/zpool_util.Tpo" -c -o zpool_util.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_util.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_util.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_util.c'; fi`; \
+zpool_util.obj: ${top_srcdir}/cmd/zpool/zpool_util.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_util.obj -MD -MP -MF "$(DEPDIR)/zpool_util.Tpo" -c -o zpool_util.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_util.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_util.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_util.c'; fi`; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_util.Tpo" "$(DEPDIR)/zpool_util.Po"; else rm -f "$(DEPDIR)/zpool_util.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_util.c' object='zpool_util.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_util.c' object='zpool_util.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_util.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_util.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_util.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_util.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_util.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_util.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_util.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_util.c'; fi`
 
-zpool_vdev.o: -I${top_srcdir}/cmd/zpool/zpool_vdev.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_vdev.o -MD -MP -MF "$(DEPDIR)/zpool_vdev.Tpo" -c -o zpool_vdev.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_vdev.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_vdev.c; \
+zpool_vdev.o: ${top_srcdir}/cmd/zpool/zpool_vdev.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_vdev.o -MD -MP -MF "$(DEPDIR)/zpool_vdev.Tpo" -c -o zpool_vdev.o `test -f '${top_srcdir}/cmd/zpool/zpool_vdev.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_vdev.c; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_vdev.Tpo" "$(DEPDIR)/zpool_vdev.Po"; else rm -f "$(DEPDIR)/zpool_vdev.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_vdev.c' object='zpool_vdev.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_vdev.c' object='zpool_vdev.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_vdev.o `test -f '-I${top_srcdir}/cmd/zpool/zpool_vdev.c' || echo '$(srcdir)/'`-I${top_srcdir}/cmd/zpool/zpool_vdev.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_vdev.o `test -f '${top_srcdir}/cmd/zpool/zpool_vdev.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zpool/zpool_vdev.c
 
-zpool_vdev.obj: -I${top_srcdir}/cmd/zpool/zpool_vdev.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_vdev.obj -MD -MP -MF "$(DEPDIR)/zpool_vdev.Tpo" -c -o zpool_vdev.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; fi`; \
+zpool_vdev.obj: ${top_srcdir}/cmd/zpool/zpool_vdev.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_vdev.obj -MD -MP -MF "$(DEPDIR)/zpool_vdev.Tpo" -c -o zpool_vdev.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_vdev.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_vdev.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_vdev.c'; fi`; \
 @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zpool_vdev.Tpo" "$(DEPDIR)/zpool_vdev.Po"; else rm -f "$(DEPDIR)/zpool_vdev.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='-I${top_srcdir}/cmd/zpool/zpool_vdev.c' object='zpool_vdev.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zpool/zpool_vdev.c' object='zpool_vdev.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_vdev.obj `if test -f '-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; then $(CYGPATH_W) '-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; else $(CYGPATH_W) '$(srcdir)/-I${top_srcdir}/cmd/zpool/zpool_vdev.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zpool_vdev.obj `if test -f '${top_srcdir}/cmd/zpool/zpool_vdev.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zpool/zpool_vdev.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zpool/zpool_vdev.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

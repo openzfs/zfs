@@ -228,8 +228,8 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
 zdb_SOURCES = \
-	zdb.c \
-	zdb_il.c
+	${top_srcdir}/cmd/zdb/zdb.c \
+	${top_srcdir}/cmd/zdb/zdb_il.c
 
 zdb_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la
@@ -328,6 +328,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+zdb.o: ${top_srcdir}/cmd/zdb/zdb.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdb.o -MD -MP -MF "$(DEPDIR)/zdb.Tpo" -c -o zdb.o `test -f '${top_srcdir}/cmd/zdb/zdb.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdb/zdb.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdb.Tpo" "$(DEPDIR)/zdb.Po"; else rm -f "$(DEPDIR)/zdb.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdb/zdb.c' object='zdb.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdb.o `test -f '${top_srcdir}/cmd/zdb/zdb.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdb/zdb.c
+
+zdb.obj: ${top_srcdir}/cmd/zdb/zdb.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdb.obj -MD -MP -MF "$(DEPDIR)/zdb.Tpo" -c -o zdb.obj `if test -f '${top_srcdir}/cmd/zdb/zdb.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdb/zdb.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdb/zdb.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdb.Tpo" "$(DEPDIR)/zdb.Po"; else rm -f "$(DEPDIR)/zdb.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdb/zdb.c' object='zdb.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdb.obj `if test -f '${top_srcdir}/cmd/zdb/zdb.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdb/zdb.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdb/zdb.c'; fi`
+
+zdb_il.o: ${top_srcdir}/cmd/zdb/zdb_il.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdb_il.o -MD -MP -MF "$(DEPDIR)/zdb_il.Tpo" -c -o zdb_il.o `test -f '${top_srcdir}/cmd/zdb/zdb_il.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdb/zdb_il.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdb_il.Tpo" "$(DEPDIR)/zdb_il.Po"; else rm -f "$(DEPDIR)/zdb_il.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdb/zdb_il.c' object='zdb_il.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdb_il.o `test -f '${top_srcdir}/cmd/zdb/zdb_il.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zdb/zdb_il.c
+
+zdb_il.obj: ${top_srcdir}/cmd/zdb/zdb_il.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zdb_il.obj -MD -MP -MF "$(DEPDIR)/zdb_il.Tpo" -c -o zdb_il.obj `if test -f '${top_srcdir}/cmd/zdb/zdb_il.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdb/zdb_il.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdb/zdb_il.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/zdb_il.Tpo" "$(DEPDIR)/zdb_il.Po"; else rm -f "$(DEPDIR)/zdb_il.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zdb/zdb_il.c' object='zdb_il.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zdb_il.obj `if test -f '${top_srcdir}/cmd/zdb/zdb_il.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zdb/zdb_il.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zdb/zdb_il.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
