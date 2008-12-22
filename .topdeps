@@ -9,7 +9,6 @@ linux-have-sysevent
 linux-have-uio-rw
 linux-have-xdr
 linux-have-zvol
-linux-ioctl
 linux-kernel-disk
 linux-kernel-mem
 linux-legacy
