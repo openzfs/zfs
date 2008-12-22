@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#ifdef HAVE_ZPL
+
 #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/refcount.h>
@@ -247,3 +249,5 @@ rrw_held(rrwlock_t *rrl, krw_t rw)
 
 	return (held);
 }
+
+#endif /* HAVE_ZPL */
