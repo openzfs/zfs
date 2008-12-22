@@ -114,6 +114,7 @@ extern zfs_fuid_info_t *zfs_fuid_info_alloc(void);
 extern void zfs_fuid_info_free();
 extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
 #endif /* !HAVE_SPL */
+#endif /* _KERNEL */
 
 char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
 uint64_t zfs_fuid_table_load(objset_t *, uint64_t, avl_tree_t *, avl_tree_t *);
@@ -121,7 +122,6 @@ void zfs_fuid_table_destroy(avl_tree_t *, avl_tree_t *);
 
 #ifdef	__cplusplus
 }
-#endif
 #endif
 
 #endif	/* _SYS_FS_ZFS_FUID_H */
