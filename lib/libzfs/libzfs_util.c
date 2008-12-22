@@ -560,11 +560,6 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-#if defined(HAVE_SPL) && !defined(HAVE_GPL_ONLY_SYMBOLS)
-	/* If we don't have access to GPL-only symbols then we may not use
-	 * the udev APIs, therefore we must mknod the device ourselves. */
-	(void)mknod(ZFS_DEV, S_IFCHR | 0600, makedev(ZFS_MAJOR, 0));
-#endif
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
 		free(hdl);
 		return (NULL);
@@ -600,9 +595,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 #endif
 	if (hdl->libzfs_sharetab)
 		(void) fclose(hdl->libzfs_sharetab);
-#ifdef HAVE_ZPL
 	zfs_uninit_libshare(hdl);
-#endif
 	if (hdl->libzfs_log_str)
 		(void) free(hdl->libzfs_log_str);
 	zpool_free_handles(hdl);

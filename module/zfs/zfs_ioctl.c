@@ -23,14 +23,19 @@
  * Use is subject to license terms.
  */
 
-#include <sys/zfs_ioctl.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
+#include <sys/buf.h>
+#include <sys/modctl.h>
+#include <sys/open.h>
 #include <sys/file.h>
+#include <sys/kmem.h>
+#include <sys/conf.h>
 #include <sys/cmn_err.h>
 #include <sys/stat.h>
+#include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
 #include <sys/zap.h>
 #include <sys/spa.h>
@@ -43,34 +48,33 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_objset.h>
+#include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/sunldi.h>
 #include <sys/policy.h>
+#include <sys/zone.h>
 #include <sys/nvpair.h>
+#include <sys/pathname.h>
 #include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
+#include <sys/zfs_ctldir.h>
+#include <sys/zfs_dir.h>
 #include <sys/zvol.h>
+#include <sharefs/share.h>
 #include <sys/dmu_objset.h>
-#include <sys/systm.h>
-#ifndef _KERNEL
-#include <pthread.h>
-#endif
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
 
-#ifdef HAVE_ZPL
 extern struct modlfs zfs_modlfs;
-#endif
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
 
-#ifdef _KERNEL
 ldi_ident_t zfs_li = NULL;
 dev_info_t *zfs_dip;
-#endif
 
 typedef int zfs_ioc_func_t(zfs_cmd_t *);
 typedef int zfs_secpolicy_func_t(zfs_cmd_t *, cred_t *);
@@ -92,7 +96,6 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
 int zfs_set_prop_nvlist(const char *, nvlist_t *);
 
 /* _NOTE(PRINTFLIKE(4)) - this is printf-like, but lint is too whiney */
-#if 0
 void
 __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 {
@@ -127,7 +130,6 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	DTRACE_PROBE4(zfs__dprintf,
 	    char *, newfile, char *, func, int, line, char *, buf);
 }
-#endif
 
 static void
 history_str_free(char *buf)
@@ -392,8 +394,6 @@ zfs_secpolicy_send(zfs_cmd_t *zc, cred_t *cr)
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 {
-	return (ENOTSUP);
-#ifdef HAVE_ZPL
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -420,7 +420,6 @@ zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 		return (dsl_deleg_access(zc->zc_name,
 		    ZFS_DELEG_PERM_SHARE, cr));
 	}
-#endif /* HAVE_ZPL */
 }
 
 static int
@@ -445,8 +444,6 @@ zfs_get_parent(const char *datasetname, char *parent, int parentsize)
 	return (0);
 }
 
-/* For zfs-lustre function is already defined in kernel.c */
-#ifdef _KERENL
 int
 zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
 {
@@ -458,7 +455,6 @@ zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
 
 	return (zfs_secpolicy_write_perms(name, ZFS_DELEG_PERM_DESTROY, cr));
 }
-#endif /* _KERNEL */
 
 static int
 zfs_secpolicy_destroy(zfs_cmd_t *zc, cred_t *cr)
@@ -476,8 +472,6 @@ zfs_secpolicy_iscsi(zfs_cmd_t *zc, cred_t *cr)
 	return (secpolicy_zfs(cr));
 }
 
-/* For zfs-lustre function is already defined in kernel.c */
-#ifdef _KERNEL
 int
 zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 {
@@ -506,7 +500,6 @@ zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 
 	return (error);
 }
-#endif /* _KERNEL */
 
 static int
 zfs_secpolicy_rename(zfs_cmd_t *zc, cred_t *cr)
@@ -573,8 +566,6 @@ zfs_secpolicy_receive(zfs_cmd_t *zc, cred_t *cr)
 	    ZFS_DELEG_PERM_CREATE, cr));
 }
 
-/* For zfs-lustre function is already defined in kernel.c */
-#ifdef _KERNEL
 int
 zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
 {
@@ -589,7 +580,6 @@ zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
 
 	return (error);
 }
-#endif /* _KERNEL */
 
 static int
 zfs_secpolicy_snapshot(zfs_cmd_t *zc, cred_t *cr)
@@ -624,7 +614,6 @@ zfs_secpolicy_create(zfs_cmd_t *zc, cred_t *cr)
 	return (error);
 }
 
-#ifdef HAVE_ZPL
 static int
 zfs_secpolicy_umount(zfs_cmd_t *zc, cred_t *cr)
 {
@@ -636,7 +625,6 @@ zfs_secpolicy_umount(zfs_cmd_t *zc, cred_t *cr)
 	}
 	return (error);
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Policy for pool operations - create/destroy pools, add vdevs, etc.  Requires
@@ -1533,10 +1521,17 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			break;
 
 		case ZFS_PROP_VOLSIZE:
-			return (ENOTSUP);
+			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
+			    (error = zvol_set_volsize(name,
+			    ddi_driver_major(zfs_dip), intval)) != 0)
+				return (error);
+			break;
 
 		case ZFS_PROP_VOLBLOCKSIZE:
-			return (ENOTSUP);
+			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
+			    (error = zvol_set_volblocksize(name, intval)) != 0)
+				return (error);
+			break;
 
 		case ZFS_PROP_VERSION:
 			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
@@ -1693,8 +1688,6 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 static int
 zfs_ioc_iscsi_perm_check(zfs_cmd_t *zc)
 {
-	return (ENOTSUP);
-#if 0
 	nvlist_t *nvp;
 	int error;
 	uint32_t uid;
@@ -1737,7 +1730,6 @@ zfs_ioc_iscsi_perm_check(zfs_cmd_t *zc)
 	    zfs_prop_to_name(ZFS_PROP_SHAREISCSI), usercred);
 	crfree(usercred);
 	return (error);
-#endif
 }
 
 /*
@@ -1820,11 +1812,7 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 static int
 zfs_ioc_create_minor(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZVOL
 	return (zvol_create_minor(zc->zc_name, ddi_driver_major(zfs_dip)));
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZVOL */
 }
 
 /*
@@ -1836,11 +1824,7 @@ zfs_ioc_create_minor(zfs_cmd_t *zc)
 static int
 zfs_ioc_remove_minor(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZVOL
 	return (zvol_remove_minor(zc->zc_name));
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZVOL */
 }
 
 /*
@@ -1848,7 +1832,6 @@ zfs_ioc_remove_minor(zfs_cmd_t *zc)
  * or NULL if no suitable entry is found. The caller of this routine
  * is responsible for releasing the returned vfs pointer.
  */
-#ifdef HAVE_ZPL
 static vfs_t *
 zfs_get_vfs(const char *resource)
 {
@@ -1868,7 +1851,6 @@ zfs_get_vfs(const char *resource)
 	vfs_list_unlock();
 	return (vfs_found);
 }
-#endif /* HAVE_ZPL */
 
 /* ARGSUSED */
 static void
@@ -2056,12 +2038,8 @@ zfs_ioc_create(zfs_cmd_t *zc)
 		break;
 
 	case DMU_OST_ZVOL:
-#ifdef HAVE_ZPL
 		cbfunc = zvol_create_cb;
 		break;
-#else
-		return (ENOTSUP);
-#endif /* HAVE_ZPL */
 
 	default:
 		cbfunc = NULL;
@@ -2113,7 +2091,6 @@ zfs_ioc_create(zfs_cmd_t *zc)
 		}
 
 		if (type == DMU_OST_ZVOL) {
-#ifdef HAVE_ZVOL
 			uint64_t volsize, volblocksize;
 
 			if (nvprops == NULL ||
@@ -2142,10 +2119,6 @@ zfs_ioc_create(zfs_cmd_t *zc)
 				nvlist_free(nvprops);
 				return (error);
 			}
-#else
-			/* This should never be reached in zfs-lustre */
-			ASSERT(0);
-#endif /* HAVE_ZVOL */
 		} else if (type == DMU_OST_ZFS) {
 			int error;
 
@@ -2252,8 +2225,6 @@ zfs_ioc_snapshot(zfs_cmd_t *zc)
 int
 zfs_unmount_snap(char *name, void *arg)
 {
-	/* Not needed in zfs-lustre */
-#ifdef HAVE_ZPL
 	vfs_t *vfsp = NULL;
 
 	if (arg) {
@@ -2285,7 +2256,6 @@ zfs_unmount_snap(char *name, void *arg)
 		if ((err = dounmount(vfsp, flag, kcred)) != 0)
 			return (err);
 	}
-#endif /* HAVE_ZPL */
 	return (0);
 }
 
@@ -2338,7 +2308,6 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 static int
 zfs_ioc_rollback(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
 	objset_t *os;
 	int error;
 	zfsvfs_t *zfsvfs = NULL;
@@ -2384,13 +2353,6 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 	/* Note, the dmu_objset_rollback() releases the objset for us. */
 
 	return (error);
-#else
-	/*
-	 * Rollback is not supported in zfs-lustre yet.
-	 * This functionality would require a proper implementation.
-	 */
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
 }
 
 /*
@@ -2611,9 +2573,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 {
 	objset_t *fromsnap = NULL;
 	objset_t *tosnap;
-#ifdef _KERNEL
 	file_t *fp;
-#endif
 	int error;
 	offset_t off;
 
@@ -2641,7 +2601,6 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		}
 	}
 
-#ifdef _KERNEL
 	fp = getf(zc->zc_cookie);
 	if (fp == NULL) {
 		dmu_objset_close(tosnap);
@@ -2653,12 +2612,9 @@ zfs_ioc_send(zfs_cmd_t *zc)
 	off = fp->f_offset;
 	error = dmu_sendbackup(tosnap, fromsnap, zc->zc_obj, fp->f_vnode, &off);
 
+	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
+		fp->f_offset = off;
 	releasef(zc->zc_cookie);
-#else
-	off = 0;
-	error = dmu_sendbackup(tosnap, fromsnap, zc->zc_obj, zc->zc_cookie, &off);
-#endif /* _KERNEL */
-
 	if (fromsnap)
 		dmu_objset_close(fromsnap);
 	dmu_objset_close(tosnap);
@@ -2804,7 +2760,6 @@ zfs_ioc_promote(zfs_cmd_t *zc)
  * the first file system is shared.
  * Neither sharefs, nfs or smbsrv are unloadable modules.
  */
-#ifdef HAVE_ZPL
 int (*znfsexport_fs)(void *arg);
 int (*zshare_fs)(enum sharefs_sys_op, share_t *, uint32_t);
 int (*zsmbexport_fs)(void *arg, boolean_t add_share);
@@ -2815,13 +2770,8 @@ int zfs_smbshare_inited;
 ddi_modhandle_t nfs_mod;
 ddi_modhandle_t sharefs_mod;
 ddi_modhandle_t smbsrv_mod;
-
 kmutex_t zfs_share_lock;
-#endif /* HAVE_ZPL */
 
-
-/* Not supported in zfs-lustre */
-#ifdef HAVE_ZPL
 static int
 zfs_init_sharefs()
 {
@@ -2841,12 +2791,10 @@ zfs_init_sharefs()
 	}
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 static int
 zfs_ioc_share(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
 	int error;
 	int opcode;
 
@@ -2936,10 +2884,7 @@ zfs_ioc_share(zfs_cmd_t *zc)
 	    zc->zc_share.z_sharemax);
 
 	return (error);
-#else
-	/* Not supported in zfs-lustre */
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
+
 }
 
 /*
@@ -3000,24 +2945,18 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	{ zfs_ioc_inherit_prop, zfs_secpolicy_inherit, DATASET_NAME, B_TRUE },
 };
 
-int
+static int
 zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 {
 	zfs_cmd_t *zc;
 	uint_t vec;
 	int error, rc;
 
-#ifdef _KERNEL
-#ifdef HAVE_ZVOL
 	if (getminor(dev) != 0)
 		return (zvol_ioctl(dev, cmd, arg, flag, cr, rvalp));
-#endif /* HAVE_ZVOL */
 
 	vec = cmd - ZFS_IOC;
 	ASSERT3U(getmajor(dev), ==, ddi_driver_major(zfs_dip));
-#else
-	vec = cmd - ZFS_IOC;
-#endif /* _KERNEL */
 
 	if (vec >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
 		return (EINVAL);
@@ -3065,7 +3004,6 @@ zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 	return (error);
 }
 
-#ifdef _KERNEL
 static int
 zfs_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 {
@@ -3086,15 +3024,7 @@ zfs_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 static int
 zfs_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 {
-#ifdef HAVE_ZVOL
-	if (zvol_busy())
-		return (DDI_FAILURE);
-#endif
-#ifdef HAVE_ZPL
-	if (zfs_busy())
-		return (DDI_FAILURE);
-#endif
-	if (spa_busy())
+	if (spa_busy() || zfs_busy() || zvol_busy())
 		return (DDI_FAILURE);
 
 	if (cmd != DDI_DETACH)
@@ -3135,22 +3065,13 @@ zfs_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
  * so most of the standard driver entry points are in zvol.c.
  */
 static struct cb_ops zfs_cb_ops = {
-#ifdef HAVE_ZVOL
 	zvol_open,	/* open */
 	zvol_close,	/* close */
 	zvol_strategy,	/* strategy */
+	nodev,		/* print */
 	zvol_dump,	/* dump */
 	zvol_read,	/* read */
 	zvol_write,	/* write */
-#else
-	nodev,		/* open */
-	nodev,		/* close */
-	nodev,		/* strategy */
-	nodev,		/* dump */
-	nodev,		/* read */
-	nodev,		/* write */
-#endif
-	nodev,		/* print */
 	zfsdev_ioctl,	/* ioctl */
 	nodev,		/* devmap */
 	nodev,		/* mmap */
