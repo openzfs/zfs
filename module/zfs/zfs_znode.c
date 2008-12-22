@@ -87,7 +87,6 @@
  * (such as VFS logic) that will not compile easily in userland.
  */
 #ifdef _KERNEL
-#ifndef HAVE_SPL       /* Commented out until ZPL layer is written */
 static kmem_cache_t *znode_cache = NULL;
 
 /*ARGSUSED*/
@@ -1474,17 +1473,20 @@ log:
 	dmu_tx_commit(tx);
 	return (0);
 }
-#endif /* HAVE_SPL */
-#endif /* _KERNEL */
 
 void
 zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 {
+	zfsvfs_t	zfsvfs;
 	uint64_t	moid, doid, version;
 	uint64_t	sense = ZFS_CASE_SENSITIVE;
 	uint64_t	norm = 0;
 	nvpair_t	*elem;
 	int		error;
+	znode_t		*rootzp = NULL;
+	vnode_t		*vp;
+	vattr_t		vattr;
+	znode_t		*zp;
 
 	/*
 	 * First attempt to create master node.
@@ -1539,18 +1541,10 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	error = zap_add(os, moid, ZFS_UNLINKED_SET, 8, 1, &doid, tx);
 	ASSERT(error == 0);
 
-#if defined(_KERNEL) && defined(HAVE_VFS)
 	/*
 	 * Create root znode.  Create minimal znode/vnode/zfsvfs
 	 * to allow zfs_mknode to work.
 	 */
-	{
-	znode_t         *rootzp = NULL;
-	vnode_t         *vp;
-	vattr_t         vattr;
-	znode_t         *zp;
-	zfsvfs_t        zfsvfs;
-
 	vattr.va_mask = AT_MODE|AT_UID|AT_GID|AT_TYPE;
 	vattr.va_type = VDIR;
 	vattr.va_mode = S_IFDIR|0755;
@@ -1599,64 +1593,9 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	dmu_buf_rele(rootzp->z_dbuf, NULL);
 	rootzp->z_dbuf = NULL;
 	kmem_cache_free(znode_cache, rootzp);
-	}
-#else
-	/*
-	 * Create the root znode with code free of VFS dependencies.
-	 * Sadly, we cannot create ACE entries as it's too tied to
-	 * the VFS interface.
-	 */
-	{
-	uint64_t obj, z_norm = norm;
-	timestruc_t now;
-	dmu_buf_t *db;
-	znode_phys_t *pzp;
-
-	/*
-	 * Fold case on file systems that are always or sometimes case
-	 * insensitive.
-	 */
-	if (sense == ZFS_CASE_INSENSITIVE || sense == ZFS_CASE_MIXED)
-		z_norm |= U8_TEXTPREP_TOUPPER;
-
-	obj = zap_create_norm(os, z_norm, DMU_OT_DIRECTORY_CONTENTS,
-	    DMU_OT_ZNODE, sizeof (znode_phys_t), tx);
-
-	VERIFY(0 == dmu_bonus_hold(os, obj, FTAG, &db));
-	dmu_buf_will_dirty(db, tx);
-
-	/*
-	 * Initialize the znode physical data to zero.
-	 */
-	ASSERT(db->db_size >= sizeof (znode_phys_t));
-	bzero(db->db_data, db->db_size);
-	pzp = db->db_data;
-
-	if (USE_FUIDS(version, os))
-		pzp->zp_flags = ZFS_ARCHIVE | ZFS_AV_MODIFIED;
-
-	pzp->zp_size = 2; /* "." and ".." */
-	pzp->zp_links = 2;
-	pzp->zp_parent = obj;
-	pzp->zp_gen = dmu_tx_get_txg(tx);
-	pzp->zp_mode = S_IFDIR | 0755;
-	pzp->zp_flags = ZFS_ACL_TRIVIAL;
-
-	gethrestime(&now);
-
-	ZFS_TIME_ENCODE(&now, pzp->zp_crtime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_ctime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_atime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_mtime);
-
-	error = zap_add(os, moid, ZFS_ROOT_OBJ, 8, 1, &obj, tx);
-	ASSERT(error == 0);
-
-	dmu_buf_rele(db, FTAG);
-	}
-#endif /* _KERNEL */
 }
 
+#endif /* _KERNEL */
 /*
  * Given an object number, return its parent object number and whether
  * or not the object is an extended attribute directory.
