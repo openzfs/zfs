@@ -52,7 +52,6 @@
 #include <sys/zfs_fuid.h>
 #include <sys/arc.h>
 #undef ZFS_MAXNAMELEN
-#undef verify
 #include <libzfs.h>
 
 const char cmdname[] = "zdb";
