@@ -6,9 +6,9 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zinject
 
 zinject_SOURCES = \
-	translate.c \
-	zinject.ci \
-	zinject.h
+	${top_srcdir}/cmd/zinject/translate.c \
+	${top_srcdir}/cmd/zinject/zinject.c \
+	${top_srcdir}/cmd/zinject/zinject.h
 
 zinject_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la
