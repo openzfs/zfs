@@ -60,7 +60,12 @@ sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
 am_zdump_OBJECTS = zdump.$(OBJEXT)
 zdump_OBJECTS = $(am_zdump_OBJECTS)
-zdump_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la
+zdump_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
+	$(top_builddir)/lib/libzfs/libzfs.la
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -205,7 +210,14 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include
+DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
+	-I${top_srcdir}/lib/libzpool/include \
+	-I${top_srcdir}/lib/libnvpair/include \
+	-I${top_srcdir}/lib/libzfs/include \
+	-I${top_srcdir}/module/zfs/include \
+	-I${top_srcdir}/module/zcommon/include \
+	-I${top_srcdir}/module/nvpair/include \
+	-I${top_srcdir}/module/avl/include
 
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
@@ -224,8 +236,14 @@ zdump_SOURCES = \
 	${top_srcdir}/cmd/zdump/zdump.c
 
 zdump_LDADD = \
-	$(top_builddir)/lib/libspl/libspl.la
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
+	$(top_builddir)/lib/libzfs/libzfs.la
 
+zdump_LDFLAGS = -pthread -lm -lz -lrt
 all: all-am
 
 .SUFFIXES:
