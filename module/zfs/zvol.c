@@ -37,6 +37,8 @@
  * run before opening and using a device.
  */
 
+#ifdef HAVE_ZVOL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
@@ -1737,3 +1739,13 @@ zvol_dump_fini(zvol_state_t *zv)
 
 	return (0);
 }
+
+#else
+
+int
+zvol_busy(void)
+{
+	return DDI_FAILURE;
+}
+
+#endif /* HAVE_ZVOL */
