@@ -1936,6 +1936,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * created). Also mount any children of the target filesystem
 	 * if we did an incremental receive.
 	 */
+#ifdef HAVE_ZPL
 	cp = strchr(zc.zc_value, '@');
 	if (cp && (ioctl_err == 0 || !newfs)) {
 		zfs_handle_t *h;
@@ -1962,6 +1963,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 		*cp = '@';
 	}
+#endif /* HAVE_ZPL */
 
 	if (clp) {
 		err |= changelist_postfix(clp);
