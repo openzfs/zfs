@@ -34,6 +34,7 @@
 #include <sys/resource.h>
 #include <sys/mntent.h>
 #include <sys/mkdev.h>
+#include <sys/u8_textprep.h>
 #include <sys/dsl_dataset.h>
 #include <sys/vfs.h>
 #include <sys/vfs_opreg.h>
@@ -60,7 +61,6 @@
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
-#include <sys/zfs_i18n.h>
 
 #include "zfs_prop.h"
 
