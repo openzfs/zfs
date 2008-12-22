@@ -211,6 +211,7 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
+	-I${top_srcdir}/lib/libzpool/include \
 	-I${top_srcdir}/lib/libuutil/include \
 	-I${top_srcdir}/lib/libzfs/include \
 	-I${top_srcdir}/lib/libnvpair/include \
