@@ -1638,6 +1638,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	return (error);
 }
 
+#ifdef HAVE_ZPL
 static vfsdef_t vfw = {
 	VFSDEF_VERSION,
 	MNTTYPE_ZFS,
@@ -1650,3 +1651,4 @@ static vfsdef_t vfw = {
 struct modlfs zfs_modlfs = {
 	&mod_fsops, "ZFS filesystem version " SPA_VERSION_STRING, &vfw
 };
+#endif /* HAVE_ZPL */
