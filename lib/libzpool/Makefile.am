@@ -77,18 +77,9 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zap.c \
 	${top_srcdir}/module/zfs/zap_leaf.c \
 	${top_srcdir}/module/zfs/zap_micro.c \
-	${top_srcdir}/module/zfs/zfs_acl.c \
 	${top_srcdir}/module/zfs/zfs_byteswap.c \
-	${top_srcdir}/module/zfs/zfs_ctldir.c \
-	${top_srcdir}/module/zfs/zfs_dir.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zfs_fuid.c \
-	${top_srcdir}/module/zfs/zfs_ioctl.c \
-	${top_srcdir}/module/zfs/zfs_log.c \
-	${top_srcdir}/module/zfs/zfs_replay.c \
-	${top_srcdir}/module/zfs/zfs_rlock.c \
-	${top_srcdir}/module/zfs/zfs_vfsops.c \
-	${top_srcdir}/module/zfs/zfs_vnops.c \
 	${top_srcdir}/module/zfs/zfs_znode.c \
 	${top_srcdir}/module/zfs/zil.c \
 	${top_srcdir}/module/zfs/zio.c \
