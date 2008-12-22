@@ -17,3 +17,4 @@ linux-user-disk
 linux-zpios
 linux-libspl
 linux-unused
+linux-have-zpl
