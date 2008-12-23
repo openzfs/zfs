@@ -39,7 +39,20 @@ target_triplet = @target@
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/zfs_config.h.in \
-	$(top_srcdir)/configure AUTHORS COPYING ChangeLog
+	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+	$(top_srcdir)/module/avl/Makefile.in \
+	$(top_srcdir)/module/avl/include/Makefile.in \
+	$(top_srcdir)/module/avl/include/sys/Makefile.in \
+	$(top_srcdir)/module/nvpair/Makefile.in \
+	$(top_srcdir)/module/nvpair/include/Makefile.in \
+	$(top_srcdir)/module/nvpair/include/sys/Makefile.in \
+	$(top_srcdir)/module/zcommon/Makefile.in \
+	$(top_srcdir)/module/zcommon/include/Makefile.in \
+	$(top_srcdir)/module/zcommon/include/sys/Makefile.in \
+	$(top_srcdir)/module/zcommon/include/sys/fm/Makefile.in \
+	$(top_srcdir)/module/zcommon/include/sys/fm/fs/Makefile.in \
+	$(top_srcdir)/module/zcommon/include/sys/fs/Makefile.in \
+	$(top_srcdir)/module/zfs/Makefile.in AUTHORS COPYING ChangeLog
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
@@ -55,7 +68,15 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno configure.status.lineno
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = zfs_config.h
-CONFIG_CLEAN_FILES =
+CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
+	module/avl/include/Makefile module/avl/include/sys/Makefile \
+	module/nvpair/Makefile module/nvpair/include/Makefile \
+	module/nvpair/include/sys/Makefile module/zcommon/Makefile \
+	module/zcommon/include/Makefile \
+	module/zcommon/include/sys/Makefile \
+	module/zcommon/include/sys/fs/Makefile \
+	module/zcommon/include/sys/fm/Makefile \
+	module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -265,6 +286,34 @@ $(srcdir)/zfs_config.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f zfs_config.h stamp-h1
+module/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/avl/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/avl/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/include/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/avl/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/include/sys/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/nvpair/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/nvpair/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/include/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/nvpair/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/include/sys/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/include/sys/fs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fs/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/include/sys/fm/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fm/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zcommon/include/sys/fm/fs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fm/fs/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zfs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zfs/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -411,7 +460,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config
+	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
