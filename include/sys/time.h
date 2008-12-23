@@ -39,6 +39,7 @@ extern "C" {
 #include <linux/module.h>
 #include <linux/time.h>
 #include <sys/types.h>
+#include <sys/timer.h>
 
 #define TIME32_MAX			INT32_MAX
 #define TIME32_MIN			INT32_MIN
