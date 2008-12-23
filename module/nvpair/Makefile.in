@@ -1,12 +1,12 @@
 subdir-m += include
 DISTFILES = nvpair.c
 
-MODULE  := znvpair
+MODULE := znvpair
 
 EXTRA_CFLAGS  = @KERNELCPPFLAGS@
 EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
 
 obj-m := ${MODULE}.o
 
-${MODULE}-objs += nvpair.o		# Interfaces name/value pairs
-${MODULE}-objs += nvpair_alloc_spl.o	# Generic alloc/free support
+${MODULE}-objs += nvpair.o
+${MODULE}-objs += nvpair_alloc_spl.o
