@@ -260,7 +260,7 @@ static void usage(boolean_t) __NORETURN;
  * debugging facilities.
  */
 const char *
-_umem_debug_init()
+_umem_debug_init(void)
 {
 	return ("default,verbose"); /* $UMEM_DEBUG setting */
 }
@@ -763,19 +763,19 @@ ztest_replay_remove(ztest_replay_t *zr, lr_remove_t *lr, boolean_t byteswap)
 }
 
 zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
-	NULL,			/* 0 no such transaction type */
-	ztest_replay_create,	/* TX_CREATE */
-	NULL,			/* TX_MKDIR */
-	NULL,			/* TX_MKXATTR */
-	NULL,			/* TX_SYMLINK */
-	ztest_replay_remove,	/* TX_REMOVE */
-	NULL,			/* TX_RMDIR */
-	NULL,			/* TX_LINK */
-	NULL,			/* TX_RENAME */
-	NULL,			/* TX_WRITE */
-	NULL,			/* TX_TRUNCATE */
-	NULL,			/* TX_SETATTR */
-	NULL,			/* TX_ACL */
+	NULL,					/* 0 no such transaction type */
+	(zil_replay_func_t)ztest_replay_create,	/* TX_CREATE */
+	NULL,					/* TX_MKDIR */
+	NULL,					/* TX_MKXATTR */
+	NULL,					/* TX_SYMLINK */
+	(zil_replay_func_t)ztest_replay_remove,	/* TX_REMOVE */
+	NULL,					/* TX_RMDIR */
+	NULL,					/* TX_LINK */
+	NULL,					/* TX_RENAME */
+	NULL,					/* TX_WRITE */
+	NULL,					/* TX_TRUNCATE */
+	NULL,					/* TX_SETATTR */
+	NULL,					/* TX_ACL */
 };
 
 /*
