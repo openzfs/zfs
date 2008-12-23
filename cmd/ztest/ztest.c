@@ -764,11 +764,11 @@ ztest_replay_remove(ztest_replay_t *zr, lr_remove_t *lr, boolean_t byteswap)
 
 zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
 	NULL,					/* 0 no such transaction type */
-	(zil_replay_func_t)ztest_replay_create,	/* TX_CREATE */
+	(zil_replay_func_t *)ztest_replay_create,/* TX_CREATE */
 	NULL,					/* TX_MKDIR */
 	NULL,					/* TX_MKXATTR */
 	NULL,					/* TX_SYMLINK */
-	(zil_replay_func_t)ztest_replay_remove,	/* TX_REMOVE */
+	(zil_replay_func_t *)ztest_replay_remove,/* TX_REMOVE */
 	NULL,					/* TX_RMDIR */
 	NULL,					/* TX_LINK */
 	NULL,					/* TX_RENAME */
@@ -1133,7 +1133,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 		    (longlong_t)newsize, replacing, error, expected_error);
 	}
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /*
