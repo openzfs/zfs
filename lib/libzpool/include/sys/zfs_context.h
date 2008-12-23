@@ -50,7 +50,7 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 #include <strings.h>
-#include <thread.h>
+#include <pthread.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
