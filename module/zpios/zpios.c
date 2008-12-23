@@ -37,7 +37,7 @@
 #include <sys/dmu.h>
 #include <sys/txg.h>
 #include <linux/cdev.h>
-#include "kpios-internal.h"
+#include "zpios-internal.h"
 
 
 static struct class *kpios_class;

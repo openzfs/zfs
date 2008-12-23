@@ -1,1 +1,1 @@
-DISTFILES = kpios-ctl.h kpios-internal.h
+DISTFILES = zpios-ctl.h zpios-internal.h
