@@ -2,48 +2,19 @@ subdir-m += include
 DISTFILES  = zfs_comutil.c zfs_deleg.c zfs_namecheck.c
 DISTFILES += zfs_prop.c zpool_prop.c zprop_common.c
 
-MODULE  := zcommon
-LIBRARY := libzcommon
-
-# Compile as kernel module.  Needed symlinks created for all
-# k* objects created by top level configure script.
+MODULE := zcommon
 
 EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@LIBDIR@/libzcommon/include
-EXTRA_CFLAGS += -I@LIBDIR@/libspl/include
-EXTRA_CFLAGS += -I@LIBDIR@/libavl/include
-EXTRA_CFLAGS += -I@LIBDIR@/libnvpair/include
+EXTRA_CFLAGS += -I@MODIR@/zcommon/include
+EXTRA_CFLAGS += -I@MODIR@/spl/include
+EXTRA_CFLAGS += -I@MODIR@/avl/include
+EXTRA_CFLAGS += -I@MODIR@/nvpair/include
 
 obj-m := ${MODULE}.o
 
-${MODULE}-objs += spl.o
-${MODULE}-objs += kzfs_deleg.o
-${MODULE}-objs += kzfs_prop.o
-${MODULE}-objs += kzprop_common.o
-${MODULE}-objs += kzfs_namecheck.o
-${MODULE}-objs += kzfs_comutil.o
-${MODULE}-objs += kzpool_prop.o
-
-# Compile as shared library.  There's an extra useless host program
-# here called 'zu' because it was the easiest way I could convince
-# the kernel build system to construct a user space shared library.
-
-HOSTCFLAGS += @HOSTCFLAGS@
-HOSTCFLAGS += -I@LIBDIR@/libspl/include
-HOSTCFLAGS += -I@LIBDIR@/libavl/include
-HOSTCFLAGS += -I@LIBDIR@/libnvpair/include
-HOSTCFLAGS += -I@LIBDIR@/libumem/include
-
-HOSTLDFLAGS += -lnvpair -L@LIBDIR@/libnvpair
-
-hostprogs-y := zu
-always := $(hostprogs-y)
-
-zu-objs := zu.o ${LIBRARY}.so
-
-${LIBRARY}-objs += zfs_deleg.o
-${LIBRARY}-objs += zfs_prop.o
-${LIBRARY}-objs += zprop_common.o
-${LIBRARY}-objs += zfs_namecheck.o
-${LIBRARY}-objs += zfs_comutil.o
-${LIBRARY}-objs += zpool_prop.o
+${MODULE}-objs += zfs_deleg.o
+${MODULE}-objs += zfs_prop.o
+${MODULE}-objs += zprop_common.o
+${MODULE}-objs += zfs_namecheck.o
+${MODULE}-objs += zfs_comutil.o
+${MODULE}-objs += zpool_prop.o
