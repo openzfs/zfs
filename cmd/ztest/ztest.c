@@ -986,7 +986,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 	int oldvd_is_log;
 	int error, expected_error;
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -1039,7 +1039,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 		if (error != 0 && error != ENODEV && error != EBUSY)
 			fatal(0, "detach (%s) returned %d",
 			    oldpath, error);
-		(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+		(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 		return;
 	}
 
