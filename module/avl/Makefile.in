@@ -1,11 +1,11 @@
 subdir-m += include
 DISTFILES = avl.c
 
-MODULE  := zavl
+MODULE := zavl
 
 EXTRA_CFLAGS  = @KERNELCPPFLAGS@
 EXTRA_CFLAGS += -I@MODDIR@/avl/include
 
 obj-m := ${MODULE}.o
 
-${MODULE}-objs += avl.o		# Generic AVL support
+${MODULE}-objs += avl.o
