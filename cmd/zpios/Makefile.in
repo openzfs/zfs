@@ -205,7 +205,10 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-DEFAULT_INCLUDES = -I${top_srcdir}
+DEFAULT_INCLUDES = -I${top_srcdir} \
+	-I${top_srcdir}/module/zpios/include \
+	-I${top_srcdir}/module/zfs -I${top_srcdir}/module/zfs/include \
+	-I${top_srcdir}/module/zcommon/include
 
 # FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 # FIXME: consider removing this as soon as we reasonably can.
