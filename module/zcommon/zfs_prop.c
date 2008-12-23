@@ -514,4 +514,22 @@ EXPORT_SYMBOL(zfs_prop_user);
 EXPORT_SYMBOL(zfs_prop_index_to_string);
 EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
+
+static int __init zcommon_init(void)
+{
+	return 0;
+}
+
+static void zcommon_fini(void)
+{
+	return;
+}
+
+module_init(zcommon_init);
+module_exit(zcommon_fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("Generic ZFS support");
+MODULE_LICENSE("CDDL");
+
 #endif
