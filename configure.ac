@@ -56,24 +56,38 @@ ZFS_AC_CONFIG
 ZFS_AC_LICENSE
 ZFS_AC_DEBUG
 
-AC_CONFIG_FILES([ Makefile
-                  config/Makefile
-                  doc/Makefile
-                  scripts/Makefile
-                  lib/Makefile
-                  lib/libspl/Makefile
-                  lib/libavl/Makefile
-                  lib/libnvpair/Makefile
-                  lib/libuutil/Makefile
-                  lib/libzpool/Makefile
-                  lib/libzfs/Makefile
-                  cmd/Makefile
-                  cmd/zdb/Makefile
-                  cmd/zdump/Makefile
-                  cmd/zfs/Makefile
-                  cmd/zinject/Makefile
-                  cmd/zpool/Makefile
-                  cmd/ztest/Makefile
-                  cmd/zpios/Makefile
-               ])
+AC_CONFIG_FILES([ 
+	Makefile
+	config/Makefile
+	doc/Makefile
+	scripts/Makefile
+	lib/Makefile
+	lib/libavl/Makefile
+	lib/libnvpair/Makefile
+	lib/libuutil/Makefile
+	lib/libzpool/Makefile
+	lib/libzfs/Makefile
+	cmd/Makefile
+	cmd/zdb/Makefile
+	cmd/zdump/Makefile
+	cmd/zfs/Makefile
+	cmd/zinject/Makefile
+	cmd/zpool/Makefile
+	cmd/ztest/Makefile
+	cmd/zpios/Makefile
+	module/Makefile
+	module/avl/Makefile
+	module/avl/include/Makefile
+	module/avl/include/sys/Makefile
+	module/nvpair/Makefile
+	module/nvpair/include/Makefile
+	module/nvpair/include/sys/Makefile
+	module/zcommon/Makefile
+	module/zcommon/include/Makefile
+	module/zcommon/include/sys/Makefile
+	module/zcommon/include/sys/fs/Makefile
+	module/zcommon/include/sys/fm/Makefile
+	module/zcommon/include/sys/fm/fs/Makefile
+	module/zfs/Makefile
+])
 AC_OUTPUT
