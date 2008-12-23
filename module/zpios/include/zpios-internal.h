@@ -33,7 +33,7 @@
 #ifndef _KPIOS_INTERNAL_H
 #define _KPIOS_INTERNAL_H
 
-#include "kpios-ctl.h"
+#include "zpios-ctl.h"
 
 #define OBJ_SIZE	64
 
