@@ -211,9 +211,6 @@ AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
 	echo "SPLSRCVER=$splsrcver"       >>${SCRIPT_CONFIG}
 	echo "SPLSYMVERS=$splsymvers"     >>${SCRIPT_CONFIG}
 	echo                              >>${SCRIPT_CONFIG}
-	echo "ZFSSRC=${TOPDIR}/src"       >>${SCRIPT_CONFIG}
-	echo "ZFSBUILD=${ZFSDIR}"         >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
 	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
 	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
 	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
@@ -222,18 +219,18 @@ AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
 AC_DEFUN([ZFS_AC_CONFIG], [
 
 	TOPDIR=`/bin/pwd`
-	BUILDDIR=$ZFS_META_NAME #+$zfsconfig
-	ZFSDIR=$TOPDIR/$BUILDDIR
-	LIBDIR=$ZFSDIR/lib
-	CMDDIR=$ZFSDIR/zcmd
+	BUILDDIR=$TOPDIR
+	LIBDIR=$TOPDIR/lib
+	CMDDIR=$TOPDIR/cmd
+	MODDIR=$TOPDIR/module
 	UNAME=`uname -r | cut -d- -f1`
 
 	AC_SUBST(UNAME)
 	AC_SUBST(TOPDIR)
 	AC_SUBST(BUILDDIR)
-	AC_SUBST(ZFSDIR)
 	AC_SUBST(LIBDIR)
 	AC_SUBST(CMDDIR)
+	AC_SUBST(MODDIR)
 	AC_SUBST(UNAME)
 
 	AC_ARG_WITH([zfs-config],
