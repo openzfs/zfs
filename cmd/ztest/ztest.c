@@ -3093,8 +3093,7 @@ ztest_run(char *pool)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	VERIFY(pthread_create(&resume_tid, NULL, ztest_suspend_monitor,
-	    NULL) == 0);
+	VERIFY(pthread_create(&resume_tid, NULL, ztest_resume, spa) == 0);
 
 	/*
 	 * Verify that we can safely inquire about about any object,
