@@ -1133,7 +1133,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 		    (longlong_t)newsize, replacing, error, expected_error);
 	}
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /*
