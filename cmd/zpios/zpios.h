@@ -33,7 +33,7 @@
 #ifndef _ZPIOS_H
 #define _ZPIOS_H
 
-#include <kpios-ctl.h>
+#include <zpios-ctl.h>
 
 #define VERSION_SIZE		64
 
