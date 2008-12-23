@@ -64,8 +64,6 @@ extern "C" {
 #include <sys/sysevent/eventdefs.h>
 #include <sys/fm/util.h>
 
-#define	CPU_SEQID	(CPU->cpu_seqid)
-
 #ifdef	__cplusplus
 }
 #endif
