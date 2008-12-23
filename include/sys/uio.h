@@ -4,6 +4,7 @@
 #include <linux/uio.h>
 #include <asm/uaccess.h>
 #include <sys/types.h>
+#include <sys/sunddi.h>
 
 typedef enum uio_rw {
 	UIO_READ =	0,
