@@ -38,6 +38,7 @@ extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 #define freemem				nr_free_pages() // Expensive on linux,
 							// cheap on solaris
 #define minfree				0
+#define needfree			0	/* # of needed pages */
 #define ptob(pages)			(pages * PAGE_SIZE)
 #define membar_producer()		smp_wmb()
 
@@ -92,10 +93,6 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 /* A guess as to how much memory has been promised to
  * processes but not yet allocated */
 #define deficit				0
-
-/* A guess as to how many page are needed to satisfy
- * stalled page creation requests */
-#define needfree			0
 
 /* A bootlean the controls the setting of deficit */
 #define desperate
