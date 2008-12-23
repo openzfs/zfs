@@ -1,101 +1,88 @@
-DISTFILES  = arc.c bplist.c dbuf.c dmu.c dmu_object.c dmu_objset.c
-DISTFILES += dmu_traverse.c dmu_tx.c dmu_zfetch.c dnode.c dnode_sync.c
-DISTFILES += dsl_dataset.c dsl_deleg.c dsl_dir.c dsl_pool.c dsl_prop.c
-DISTFILES += dsl_synctask.c dsl_scrub.c fletcher.c gzip.c lzjb.c metaslab.c
-DISTFILES += refcount.c sha256.c spa.c spa_boot.c spa_config.c spa_errlog.c
-DISTFILES += spa_history.c spa_misc.c space_map.c txg.c uberblock.c
-DISTFILES += unique.c vdev.c vdev_cache.c vdev_disk.c vdev_missing.c
-DISTFILES += vdev_file.c vdev_label.c vdev_mirror.c vdev_queue.c vdev_raidz.c
-DISTFILES += vdev_root.c zap.c zap_leaf.c zap_micro.c zfs_byteswap.c zfs_fm.c
-DISTFILES += zfs_znode.c zil.c zio.c zio_checksum.c zio_compress.c zio_inject.c
+DISTFILES  = arc.o bplist.o dbuf.o dmu.o dmu_object.o dmu_objset.o
+DISTFILES += dmu_traverse.o dmu_tx.o dmu_zfetch.o dnode.o dnode_sync.o
+DISTFILES += dsl_dataset.o dsl_deleg.o dsl_dir.o dsl_pool.o dsl_prop.o
+DISTFILES += dsl_synctask.o dsl_scrub.o fletcher.o gzip.o lzjb.o metaslab.o
+DISTFILES += refcount.o sha256.o spa.o spa_boot.o spa_config.o spa_errlog.o
+DISTFILES += spa_history.o spa_misc.o space_map.o txg.o uberblock.o
+DISTFILES += unique.o vdev.o vdev_cache.o vdev_disk.o vdev_missing.o
+DISTFILES += vdev_file.o vdev_label.o vdev_mirror.o vdev_queue.o vdev_raidz.o
+DISTFILES += vdev_root.o zap.o zap_leaf.o zap_micro.o zfs_byteswap.o zfs_fm.o
+DISTFILES += zfs_znode.o zil.o zio.o zio_checksum.o zio_compress.o zio_inject.o
 
 MODULE := zpool
 
 EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@LIBDIR@/libzcommon/include
-EXTRA_CFLAGS += -I@LIBDIR@/libavl/include
-EXTRA_CFLAGS += -I@LIBDIR@/libnvpair/include
+EXTRA_CFLAGS += -I@MODDIR@/zfs/include
+EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
+EXTRA_CFLAGS += -I@MODDIR@/avl/include
+EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
 
 obj-m := ${MODULE}.o
 
-# DMU (Data Management Unit)
-${MODULE}-objs += dmu.o		# Interfaces dmu core
-${MODULE}-objs += dmu_objset.o	# Interfaces dmu objset open/close/manipulate
-${MODULE}-objs += dmu_object.o	# Interfaces dmu alloc/free
-${MODULE}-objs += txg.o		# Transaction model control threads
-${MODULE}-objs += dmu_tx.o	# Interfaces dmu transaction create/manipulate
-${MODULE}-objs += dnode.o	# Open context object-level support
-${MODULE}-objs += dnode_sync.o	# Syncing context object-level support
-${MODULE}-objs += dbuf.o	# Buffer management support
-${MODULE}-objs += dmu_zfetch.o	# Data stream prefetch logic
-${MODULE}-objs += refcount.o	# Generic refcount support
-#${MODULE}-objs += dmu_send.o	# XXX missing: Snapshot send/received support
-
-# DSL (Dataset and Snapshot Layer)
-${MODULE}-objs += dsl_dir.o	# Namespace and management support
-${MODULE}-objs += dsl_dataset.o	# Interfaces snapshot/rollback/clone
-${MODULE}-objs += dsl_pool.o	# Pool-level support
-${MODULE}-objs += dsl_prop.o	# Property manipulation support
-${MODULE}-objs += dsl_deleg.o	# XXX: ?
-${MODULE}-objs += dsl_synctask.o# XXX: ?
-${MODULE}-objs += dsl_scrub.o	# Background pool scrubbing
-${MODULE}-objs += unique.o	# Unique objset ID support
-
-# ZAP (ZFS Attribute Processor)
-${MODULE}-objs += zap.o		# Interfaces (fat)
-${MODULE}-objs += zap_leaf.o	# Low-level support
-${MODULE}-objs += zap_micro.o	# Interfaces (micro)
-
-# ZIL (ZFS Intent Log)
-${MODULE}-objs += zil.o		# Intent log
-
-# ARC (Adaptive Replacement Cache)
-${MODULE}-objs += arc.o		# Adaptive replacement cache
-
-# SPA (Storage Pool Allocator)
-${MODULE}-objs += spa.o		# Open/import/export/destroy support
-${MODULE}-objs += spa_misc.o	# Misc support (includes locking)
-${MODULE}-objs += spa_config.o	# Parse and update pool config data
-${MODULE}-objs += spa_errlog.o	# Log of persistent pool-wide data errors
-${MODULE}-objs += spa_history.o	# Command history support
-${MODULE}-objs += spa_boot.o	# Bootable root partitions
-${MODULE}-objs += zfs_fm.o	# Post reports of FMA consumption support
-${MODULE}-objs += zfs_byteswap.c # XXX: ?
-${MODULE}-objs += zfs_fuid.c	# XXX: ?
-${MODULE}-objs += zfs_znode.c	# XXX: ?
-
-# ZIO (ZFS I/O Pipeline)
-${MODULE}-objs += zio.o		# Interfaces zio core
-${MODULE}-objs += zio_checksum.o# Generic checksum interface
-${MODULE}-objs += fletcher.o	# Fletcher 2 and 4 checksum algorithms
-${MODULE}-objs += sha256.o	# SHA256 checksum algorithms
-${MODULE}-objs += zio_compress.o# Generic compression interface
-${MODULE}-objs += lzjb.o	# LZJB compression algorithm
-${MODULE}-objs += gzip.o	# GZIP compression algorithm
-${MODULE}-objs += uberblock.o	# Basic uberblock routines
-${MODULE}-objs += bplist.o	# Keeps track of list of block pointers
-${MODULE}-objs += metaslab.o	# Bulk of DVA translation
-${MODULE}-objs += space_map.o	# Keeps track of free space
-${MODULE}-objs += zio_inject.o	# Framework for persistent error injection
-
-# VDEV (Virtual Devices)
-${MODULE}-objs += vdev.o	# Interfaces vdev code
-${MODULE}-objs += vdev_disk.o	# Disk virtual device
-${MODULE}-objs += vdev_file.o	# File virtual device
-${MODULE}-objs += vdev_mirror.o	# N-Way mirroring
-${MODULE}-objs += vdev_raidz.o	# RAID-Z grouping
-${MODULE}-objs += vdev_root.o	# Top-level pseudo vdev
-${MODULE}-objs += vdev_missing.o# Special device for import
-${MODULE}-objs += vdev_label.o	# Read/write indentifying label support
-${MODULE}-objs += vdev_cache.o	# Simple device-level caching for reads
-${MODULE}-objs += vdev_queue.o	# I/O scheduling algorithm for vdevs
-
-# ZPL (ZFS Posix Layer)
-${MODULE}-objs += zfs_byteswap.o# Byteswap support for ZPL
-${MODULE}-objs += zfs_znode.o	# Vnode to znode mapping
-
-# Traversal
-${MODULE}-objs += dmu_traverse.o# Traversal code
-
-# Kernel or User Space Integration
-${MODULE}-objs += kernel.o	# Linux kernel/user glue and misc support
+${MODULE}-objs += arc.o
+${MODULE}-objs += bplist.o
+${MODULE}-objs += dbuf.o
+${MODULE}-objs += dmu.o
+${MODULE}-objs += dmu_object.o
+${MODULE}-objs += dmu_objset.o
+${MODULE}-objs += dmu_send.o
+${MODULE}-objs += dmu_traverse.o
+${MODULE}-objs += dmu_tx.o
+${MODULE}-objs += dmu_zfetch.o
+${MODULE}-objs += dnode.o
+${MODULE}-objs += dnode_sync.o
+${MODULE}-objs += dsl_dataset.o
+${MODULE}-objs += dsl_deleg.o
+${MODULE}-objs += dsl_dir.o
+${MODULE}-objs += dsl_pool.o
+${MODULE}-objs += dsl_prop.o
+${MODULE}-objs += dsl_scrub.o
+${MODULE}-objs += dsl_synctask.o
+${MODULE}-objs += fletcher.o
+${MODULE}-objs += gzip.o
+${MODULE}-objs += lzjb.o
+${MODULE}-objs += metaslab.o
+${MODULE}-objs += refcount.o
+${MODULE}-objs += rrwlock.o
+${MODULE}-objs += sha256.o
+${MODULE}-objs += spa.o
+${MODULE}-objs += spa_boot.o
+${MODULE}-objs += spa_config.o
+${MODULE}-objs += spa_errlog.o
+${MODULE}-objs += spa_history.o
+${MODULE}-objs += spa_misc.o
+${MODULE}-objs += space_map.o
+${MODULE}-objs += txg.o
+${MODULE}-objs += uberblock.o
+${MODULE}-objs += unique.o
+${MODULE}-objs += vdev.o
+${MODULE}-objs += vdev_cache.o
+${MODULE}-objs += vdev_file.o
+${MODULE}-objs += vdev_label.o
+${MODULE}-objs += vdev_mirror.o
+${MODULE}-objs += vdev_missing.o
+${MODULE}-objs += vdev_queue.o
+${MODULE}-objs += vdev_raidz.o
+${MODULE}-objs += vdev_root.o
+${MODULE}-objs += zap.o
+${MODULE}-objs += zap_leaf.o
+${MODULE}-objs += zap_micro.o
+${MODULE}-objs += zfs_acl.o
+# ${MODULE}-objs += zfs_byteswap.o
+# ${MODULE}-objs += zfs_ctldir.o
+# ${MODULE}-objs += zfs_dir.o
+${MODULE}-objs += zfs_fm.o
+${MODULE}-objs += zfs_fuid.o
+# ${MODULE}-objs += zfs_ioctl.o
+# ${MODULE}-objs += zfs_log.o
+# ${MODULE}-objs += zfs_replay.o
+# ${MODULE}-objs += zfs_rlock.o
+# ${MODULE}-objs += zfs_vfsops.o
+# ${MODULE}-objs += zfs_vnops.o
+${MODULE}-objs += zfs_znode.o
+${MODULE}-objs += zil.o
+${MODULE}-objs += zio.o
+${MODULE}-objs += zio_checksum.o
+${MODULE}-objs += zio_compress.o
+${MODULE}-objs += zio_inject.o
+# ${MODULE}-objs += zvol.o
