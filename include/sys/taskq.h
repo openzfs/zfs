@@ -37,6 +37,7 @@ extern "C" {
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <sys/types.h>
+#include <sys/thread.h>
 
 #define TASKQ_NAMELEN           31
 
