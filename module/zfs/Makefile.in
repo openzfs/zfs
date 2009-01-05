@@ -16,6 +16,7 @@ EXTRA_CFLAGS += -I@MODDIR@/zfs/include
 EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
 EXTRA_CFLAGS += -I@MODDIR@/avl/include
 EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
+EXTRA_CFLAGS += -I@MODDIR@/unicode/include
 
 obj-m := ${MODULE}.o
 
