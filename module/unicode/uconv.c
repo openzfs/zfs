@@ -853,3 +853,12 @@ uconv_u8tou32(const uchar_t *u8s, size_t *utf8len,
 
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(uconv_u16tou32);
+EXPORT_SYMBOL(uconv_u16tou8);
+EXPORT_SYMBOL(uconv_u32tou16);
+EXPORT_SYMBOL(uconv_u32tou8);
+EXPORT_SYMBOL(uconv_u8tou16);
+EXPORT_SYMBOL(uconv_u8tou32);
+#endif
