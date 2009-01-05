@@ -1,0 +1,12 @@
+subdir-m += include
+DISTFILES = u8_textprep.c uconv.c
+
+MODULE := zunicode
+
+EXTRA_CFLAGS  = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -I@MODDIR@/unicode/include
+
+obj-m := ${MODULE}.o
+
+${MODULE}-objs += u8_textprep.o
+${MODULE}-objs += uconv.o
