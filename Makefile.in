@@ -46,6 +46,9 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/module/nvpair/Makefile.in \
 	$(top_srcdir)/module/nvpair/include/Makefile.in \
 	$(top_srcdir)/module/nvpair/include/sys/Makefile.in \
+	$(top_srcdir)/module/unicode/Makefile.in \
+	$(top_srcdir)/module/unicode/include/Makefile.in \
+	$(top_srcdir)/module/unicode/include/sys/Makefile.in \
 	$(top_srcdir)/module/zcommon/Makefile.in \
 	$(top_srcdir)/module/zcommon/include/Makefile.in \
 	$(top_srcdir)/module/zcommon/include/sys/Makefile.in \
@@ -71,7 +74,9 @@ CONFIG_HEADER = zfs_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/avl/include/Makefile module/avl/include/sys/Makefile \
 	module/nvpair/Makefile module/nvpair/include/Makefile \
-	module/nvpair/include/sys/Makefile module/zcommon/Makefile \
+	module/nvpair/include/sys/Makefile module/unicode/Makefile \
+	module/unicode/include/Makefile \
+	module/unicode/include/sys/Makefile module/zcommon/Makefile \
 	module/zcommon/include/Makefile \
 	module/zcommon/include/sys/Makefile \
 	module/zcommon/include/sys/fs/Makefile \
@@ -300,6 +305,12 @@ module/nvpair/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/modu
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/nvpair/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/include/sys/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/unicode/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/unicode/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/include/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/unicode/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/include/sys/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zcommon/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zcommon/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/Makefile.in
@@ -460,7 +471,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs
+	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
