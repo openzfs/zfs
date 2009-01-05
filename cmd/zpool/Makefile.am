@@ -7,7 +7,8 @@ DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libnvpair/include \
 	-I${top_srcdir}/module/zcommon/include \
 	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/module/avl/include
+	-I${top_srcdir}/module/avl/include \
+	-I${top_srcdir}/module/unicode/include
 
 sbin_PROGRAMS = zpool
 
@@ -22,6 +23,7 @@ zpool_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libavl/libavl.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
