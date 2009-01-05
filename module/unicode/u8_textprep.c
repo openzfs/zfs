@@ -2130,3 +2130,26 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 
 	return (ret_val);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+static int __init unicode_init(void)
+{
+	return 0;
+}
+
+static void unicode_fini(void)
+{
+	return;
+}
+
+module_init(unicode_init);
+module_exit(unicode_fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("Unicode implementation");
+MODULE_LICENSE("CDDL");
+
+EXPORT_SYMBOL(u8_validate);
+EXPORT_SYMBOL(u8_strcmp);
+EXPORT_SYMBOL(u8_textprep_str);
+#endif
