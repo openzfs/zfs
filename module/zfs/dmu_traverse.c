@@ -409,5 +409,6 @@ traverse_pool(spa_t *spa, blkptr_cb_t func, void *arg)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-EXPORT_SYMBOL(traverse_dsl_dataset);
+EXPORT_SYMBOL(traverse_dataset);
+EXPORT_SYMBOL(traverse_pool);
 #endif
