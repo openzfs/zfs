@@ -1,4 +1,4 @@
-subdir-m = avl nvpair zcommon zfs zpios
+subdir-m = avl nvpair unicode zcommon zfs zpios
 
 # Make the exported SPL symbols available to these modules.
 # Unfortunately there is not a cleaner way to do this, modpost
