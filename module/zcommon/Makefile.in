@@ -4,12 +4,12 @@ DISTFILES += zfs_prop.c zpool_prop.c zprop_common.c
 
 MODULE := zcommon
 
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@MODDIR@/avl/include
+EXTRA_CFLAGS  = -I@MODDIR@/avl/include
 EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
 EXTRA_CFLAGS += -I@MODDIR@/unicode/include
 EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
 EXTRA_CFLAGS += -I@MODDIR@/zfs/include
+EXTRA_CFLAGS += @KERNELCPPFLAGS@
 
 obj-m := ${MODULE}.o
 
