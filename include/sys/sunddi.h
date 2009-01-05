@@ -31,6 +31,7 @@
 #include <sys/uio.h>
 #include <sys/sunldi.h>
 #include <sys/mutex.h>
+#include <sys/u8_textprep.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
