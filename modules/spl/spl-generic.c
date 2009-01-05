@@ -29,6 +29,7 @@
 #include <sys/vnode.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
+#include <sys/taskq.h>
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <sys/kstat.h>
@@ -225,26 +226,31 @@ static int __init spl_init(void)
 	if ((rc = spl_mutex_init()))
 		GOTO(out2 , rc);
 
-	if ((rc = vn_init()))
+	if ((rc = spl_taskq_init()))
 		GOTO(out3, rc);
 
-	if ((rc = proc_init()))
+	if ((rc = vn_init()))
 		GOTO(out4, rc);
 
-	if ((rc = kstat_init()))
+	if ((rc = proc_init()))
 		GOTO(out5, rc);
 
+	if ((rc = kstat_init()))
+		GOTO(out6, rc);
+
 	if ((rc = set_hostid()))
-		GOTO(out6, rc = -EADDRNOTAVAIL);
+		GOTO(out7, rc = -EADDRNOTAVAIL);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);
 	RETURN(rc);
-out6:
+out7:
 	kstat_fini();
-out5:
+out6:
 	proc_fini();
-out4:
+out5:
 	vn_fini();
+out4:
+	spl_taskq_fini();
 out3:
 	spl_mutex_fini();
 out2:
@@ -265,6 +271,7 @@ static void spl_fini(void)
 	kstat_fini();
 	proc_fini();
 	vn_fini();
+	spl_taskq_fini();
 	spl_mutex_fini();
 	spl_kmem_fini();
 	debug_fini();

@@ -81,11 +81,17 @@ typedef struct taskq {
 	wait_queue_head_t       tq_wait_waitq; /* wait waitq */
 } taskq_t;
 
+/* Global system-wide dynamic task queue available for all consumers */
+extern taskq_t *system_taskq;
+
 extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void __taskq_destroy(taskq_t *);
 extern void __taskq_wait(taskq_t *);
 extern int __taskq_member(taskq_t *, void *);
+
+int spl_taskq_init(void);
+void spl_taskq_fini(void);
 
 #define taskq_member(tq, t)                __taskq_member(tq, t)
 #define taskq_wait_id(tq, id)              __taskq_wait_id(tq, id)

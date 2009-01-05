@@ -38,6 +38,10 @@
 #define SPLAT_TASKQ_TEST2_NAME		"multiple"
 #define SPLAT_TASKQ_TEST2_DESC		"Multiple task queues, multiple tasks"
 
+#define SPLAT_TASKQ_TEST3_ID            0x0203
+#define SPLAT_TASKQ_TEST3_NAME		"system"
+#define SPLAT_TASKQ_TEST3_DESC		"System task queue, multiple tasks"
+
 typedef struct splat_taskq_arg {
 	int flag;
 	int id;
@@ -49,14 +53,14 @@ typedef struct splat_taskq_arg {
  * task completes, ensure task ran properly, cleanup taskq,
  */
 static void
-splat_taskq_test1_func(void *arg)
+splat_taskq_test13_func(void *arg)
 {
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 
 	ASSERT(tq_arg);
 	splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST1_NAME,
 	           "Taskq '%s' function '%s' setting flag\n",
-	           tq_arg->name, sym2str(splat_taskq_test1_func));
+	           tq_arg->name, sym2str(splat_taskq_test13_func));
 	tq_arg->flag = 1;
 }
 
@@ -84,12 +88,12 @@ splat_taskq_test1(struct file *file, void *arg)
 
 	splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 	           "Taskq '%s' function '%s' dispatching\n",
-	           tq_arg.name, sym2str(splat_taskq_test1_func));
-	if ((id = taskq_dispatch(tq, splat_taskq_test1_func,
+	           tq_arg.name, sym2str(splat_taskq_test13_func));
+	if ((id = taskq_dispatch(tq, splat_taskq_test13_func,
 				 &tq_arg, TQ_SLEEP)) == 0) {
 		splat_vprint(file, SPLAT_TASKQ_TEST1_NAME,
 		           "Taskq '%s' function '%s' dispatch failed\n",
-		           tq_arg.name, sym2str(splat_taskq_test1_func));
+		           tq_arg.name, sym2str(splat_taskq_test13_func));
 		taskq_destroy(tq);
 		return -EINVAL;
 	}
@@ -230,6 +234,38 @@ splat_taskq_test2(struct file *file, void *arg) {
 	return rc;
 }
 
+/* Validation Test 3 - Use the global system task queue with a single
+ * task, * wait until task completes, ensure task ran properly.
+ */
+static int
+splat_taskq_test3(struct file *file, void *arg)
+{
+	taskqid_t id;
+	splat_taskq_arg_t tq_arg;
+
+	tq_arg.flag = 0;
+	tq_arg.id   = 0;
+	tq_arg.file = file;
+	tq_arg.name = SPLAT_TASKQ_TEST3_NAME;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST3_NAME,
+	           "Taskq '%s' function '%s' dispatching\n",
+	           tq_arg.name, sym2str(splat_taskq_test13_func));
+	if ((id = taskq_dispatch(system_taskq, splat_taskq_test13_func,
+				 &tq_arg, TQ_SLEEP)) == 0) {
+		splat_vprint(file, SPLAT_TASKQ_TEST3_NAME,
+		           "Taskq '%s' function '%s' dispatch failed\n",
+		           tq_arg.name, sym2str(splat_taskq_test13_func));
+		return -EINVAL;
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST3_NAME, "Taskq '%s' waiting\n",
+	           tq_arg.name);
+	taskq_wait(system_taskq);
+
+	return (tq_arg.flag) ? 0 : -EINVAL;
+}
+
 splat_subsystem_t *
 splat_taskq_init(void)
 {
@@ -251,6 +287,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST1_ID, splat_taskq_test1);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST2_NAME, SPLAT_TASKQ_TEST2_DESC,
 	              SPLAT_TASKQ_TEST2_ID, splat_taskq_test2);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST3_NAME, SPLAT_TASKQ_TEST3_DESC,
+	              SPLAT_TASKQ_TEST3_ID, splat_taskq_test3);
 
         return sub;
 }
@@ -259,6 +297,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST3_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST2_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST1_ID);
 

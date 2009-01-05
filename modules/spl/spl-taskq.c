@@ -33,6 +33,10 @@
 
 #define DEBUG_SUBSYSTEM S_TASKQ
 
+/* Global system-wide dynamic task queue available for all consumers */
+taskq_t *system_taskq;
+EXPORT_SYMBOL(system_taskq);
+
 typedef struct spl_task {
         spinlock_t              t_lock;
         struct list_head        t_list;
@@ -464,3 +468,24 @@ __taskq_destroy(taskq_t *tq)
 	EXIT;
 }
 EXPORT_SYMBOL(__taskq_destroy);
+
+int
+spl_taskq_init(void)
+{
+        ENTRY;
+
+        system_taskq = taskq_create("system_taskq", 64, minclsyspri, 4, 512,
+                                    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
+	if (system_taskq == NULL)
+		RETURN(1);
+
+        RETURN(0);
+}
+
+void
+spl_taskq_fini(void)
+{
+        ENTRY;
+	taskq_destroy(system_taskq);
+        EXIT;
+}
