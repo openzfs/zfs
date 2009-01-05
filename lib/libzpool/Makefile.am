@@ -7,6 +7,7 @@ DEFAULT_INCLUDES += \
 	-I${top_srcdir}/module/zcommon/include \
 	-I${top_srcdir}/module/nvpair/include \
 	-I${top_srcdir}/module/avl/include \
+	-I${top_srcdir}/module/unicode/include \
 	-I${top_srcdir}/module/zfs/include
 
 lib_LTLIBRARIES = libzpool.la
