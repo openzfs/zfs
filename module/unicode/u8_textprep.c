@@ -45,11 +45,11 @@
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 #else
+#include <sys/u8_textprep.h>
 #include <strings.h>
 #endif	/* _KERNEL */
 #include <sys/byteorder.h>
 #include <sys/errno.h>
-#include <sys/u8_textprep.h>
 #include <sys/u8_textprep_data.h>
 
 
