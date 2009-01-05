@@ -20084,7 +20084,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile"
+                                                                                                                                                                                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -20657,6 +20657,7 @@ do
   "lib/libspl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/Makefile" ;;
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
+  "lib/libunicode/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libunicode/Makefile" ;;
   "lib/libuutil/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libuutil/Makefile" ;;
   "lib/libzpool/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzpool/Makefile" ;;
   "lib/libzfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzfs/Makefile" ;;
@@ -20674,6 +20675,9 @@ do
   "module/nvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/Makefile" ;;
   "module/nvpair/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/include/Makefile" ;;
   "module/nvpair/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/include/sys/Makefile" ;;
+  "module/unicode/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/Makefile" ;;
+  "module/unicode/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/include/Makefile" ;;
+  "module/unicode/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/include/sys/Makefile" ;;
   "module/zcommon/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/Makefile" ;;
   "module/zcommon/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/Makefile" ;;
   "module/zcommon/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/Makefile" ;;
