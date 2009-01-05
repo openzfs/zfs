@@ -69,6 +69,12 @@ cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
+echo "* module/unicode"
+mkdir -p ${DST_MOD}/unicode/include/sys/
+cp ${SRC_CM}/unicode/*.c			${DST_MOD}/unicode/
+cp ${SRC_UCM}/sys/u8_textprep.h			${DST_MOD}/unicode/include/sys/
+cp ${SRC_UCM}/sys/u8_textprep_data.h		${DST_MOD}/unicode/include/sys/
+
 echo "* module/zcommon"
 mkdir -p ${DST_MOD}/zcommon/include/sys/fs/
 mkdir -p ${DST_MOD}/zcommon/include/sys/fm/fs/
@@ -93,6 +99,9 @@ mkdir -p ${DST_LIB}/libnvpair/include/
 cp ${SRC_UCM}/os/nvpair_alloc_system.c		${DST_LIB}/libnvpair/
 cp ${SRC_LIB}/libnvpair/libnvpair.c		${DST_LIB}/libnvpair/
 cp ${SRC_LIB}/libnvpair/libnvpair.h		${DST_LIB}/libnvpair/include/
+
+echo "* lib/libunicode"
+# Full source available in 'module/unicode'
 
 echo "* lib/libuutil"
 mkdir -p ${DST_LIB}/libuutil/include/
