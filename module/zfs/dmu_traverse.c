@@ -309,7 +309,7 @@ traverse_impl(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
     uint64_t txg_start, int flags, blkptr_cb_t func, void *arg)
 {
 	struct traverse_data td;
-	struct prefetch_data pd = { 0 };
+	struct prefetch_data pd;
 	zbookmark_t czb;
 	int err;
 
@@ -323,7 +323,10 @@ traverse_impl(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
 	td.td_flags = flags;
 
 	pd.pd_blks_max = 100;
+	pd.pd_blks_fetched = 0;
 	pd.pd_flags = flags;
+	pd.pd_cancel = B_FALSE;
+	pd.pd_exited = B_FALSE;
 	mutex_init(&pd.pd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&pd.pd_cv, NULL, CV_DEFAULT, NULL);
 
