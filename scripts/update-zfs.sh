@@ -125,10 +125,6 @@ echo "* cmd/zdb"
 mkdir -p ${DST_CMD}/zdb/
 cp ${SRC_CMD}/zdb/*.c				${DST_CMD}/zdb/
 
-echo "* cmd/zdump"
-mkdir -p ${DST_CMD}/zdump
-cp ${SRC_CMD}/zdump/*.c				${DST_CMD}/zdump/
-
 echo "* cmd/zinject"
 mkdir -p ${DST_CMD}/zinject
 cp ${SRC_CMD}/zinject/*.c			${DST_CMD}/zinject/
