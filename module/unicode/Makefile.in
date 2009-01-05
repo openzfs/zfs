@@ -3,8 +3,8 @@ DISTFILES = u8_textprep.c uconv.c
 
 MODULE := zunicode
 
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@MODDIR@/unicode/include
+EXTRA_CFLAGS  = -I@MODDIR@/unicode/include
+EXTRA_CFLAGS += @KERNELCPPFLAGS@
 
 obj-m := ${MODULE}.o
 
