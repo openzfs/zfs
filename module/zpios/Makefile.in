@@ -7,4 +7,4 @@ EXTRA_CFLAGS += -I@MODDIR@/zpios/include
 
 obj-m := ${MODULE}.o
 
-${MODULE}-objs += kpios.o	# Kernel PIOS test case
+${MODULE}-objs += zpios.o	# Kernel PIOS test case
