@@ -93,5 +93,6 @@ AC_CONFIG_FILES([
 	module/zcommon/include/sys/fm/Makefile
 	module/zcommon/include/sys/fm/fs/Makefile
 	module/zfs/Makefile
+	module/zpios/Makefile
 ])
 AC_OUTPUT
