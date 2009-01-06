@@ -3106,15 +3106,18 @@ dsl_dataset_set_reservation(const char *dsname, uint64_t reservation)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-EXPORT_SYMBOL(dsl_dataset_open_spa);
-EXPORT_SYMBOL(dsl_dataset_open);
-EXPORT_SYMBOL(dsl_dataset_open_obj);
+EXPORT_SYMBOL(dsl_dataset_hold);
+EXPORT_SYMBOL(dsl_dataset_hold_obj);
+EXPORT_SYMBOL(dsl_dataset_own);
+EXPORT_SYMBOL(dsl_dataset_own_obj);
 EXPORT_SYMBOL(dsl_dataset_name);
-EXPORT_SYMBOL(dsl_dataset_close);
-EXPORT_SYMBOL(dsl_dataset_downgrade);
-EXPORT_SYMBOL(dsl_dataset_tryupgrade);
-EXPORT_SYMBOL(dsl_dataset_create_sync_impl);
+EXPORT_SYMBOL(dsl_dataset_rele);
+EXPORT_SYMBOL(dsl_dataset_disown);
+EXPORT_SYMBOL(dsl_dataset_drop_ref);
+EXPORT_SYMBOL(dsl_dataset_tryown);
+EXPORT_SYMBOL(dsl_dataset_make_exclusive);
 EXPORT_SYMBOL(dsl_dataset_create_sync);
+EXPORT_SYMBOL(dsl_dataset_create_sync_dd);
 EXPORT_SYMBOL(dsl_dataset_destroy);
 EXPORT_SYMBOL(dsl_snapshots_destroy);
 EXPORT_SYMBOL(dsl_dataset_destroy_check);
@@ -3127,6 +3130,7 @@ EXPORT_SYMBOL(dsl_dataset_promote);
 EXPORT_SYMBOL(dsl_dataset_clone_swap);
 EXPORT_SYMBOL(dsl_dataset_set_user_ptr);
 EXPORT_SYMBOL(dsl_dataset_get_user_ptr);
+EXPORT_SYMBOL(dsl_dataset_get_blkptr);
 EXPORT_SYMBOL(dsl_dataset_set_blkptr);
 EXPORT_SYMBOL(dsl_dataset_get_spa);
 EXPORT_SYMBOL(dsl_dataset_modified_since_lastsnap);
@@ -3140,10 +3144,11 @@ EXPORT_SYMBOL(dsl_dataset_stats);
 EXPORT_SYMBOL(dsl_dataset_fast_stat);
 EXPORT_SYMBOL(dsl_dataset_space);
 EXPORT_SYMBOL(dsl_dataset_fsid_guid);
-EXPORT_SYMBOL(dsl_dataset_create_root);
 EXPORT_SYMBOL(dsl_dsobj_to_dsname);
 EXPORT_SYMBOL(dsl_dataset_check_quota);
 EXPORT_SYMBOL(dsl_dataset_set_quota);
 EXPORT_SYMBOL(dsl_dataset_set_quota_sync);
 EXPORT_SYMBOL(dsl_dataset_set_reservation);
+EXPORT_SYMBOL(dsl_dataset_set_flags);
+EXPORT_SYMBOL(dsl_dataset_new_refreservation);
 #endif
