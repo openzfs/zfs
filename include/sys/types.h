@@ -49,5 +49,8 @@ typedef longlong_t			diskaddr_t;
 typedef ushort_t			o_mode_t;
 typedef uint_t				major_t;
 typedef uint_t				minor_t;
+typedef ulong_t				pfn_t;
+typedef ulong_t				pgcnt_t;
+typedef long				spgcnt_t;
 
 #endif	/* _SPL_TYPES_H */
