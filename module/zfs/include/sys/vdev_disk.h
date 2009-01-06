@@ -18,8 +18,8 @@ typedef struct vdev_disk {
 } vdev_disk_t;
 
 extern int vdev_disk_physio(ldi_handle_t, caddr_t, size_t, uint64_t, int);
-
-#endif
+extern int vdev_disk_read_rootlabel(char *, char *, nvlist_t **);
+#endif /* _KERNEL */
 
 #ifdef	__cplusplus
 }
