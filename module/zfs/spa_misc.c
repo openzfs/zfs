@@ -1437,6 +1437,7 @@ EXPORT_SYMBOL(spa_close);
 EXPORT_SYMBOL(spa_refcount_zero);
 
 /* Pool configuration lock */
+EXPORT_SYMBOL(spa_config_tryenter);
 EXPORT_SYMBOL(spa_config_enter);
 EXPORT_SYMBOL(spa_config_exit);
 EXPORT_SYMBOL(spa_config_held);
@@ -1445,9 +1446,12 @@ EXPORT_SYMBOL(spa_config_held);
 EXPORT_SYMBOL(spa_vdev_enter);
 EXPORT_SYMBOL(spa_vdev_exit);
 
+/* Pool vdev state change lock */
+EXPORT_SYMBOL(spa_vdev_state_enter);
+EXPORT_SYMBOL(spa_vdev_state_exit);
+
 /* Accessor functions */
-EXPORT_SYMBOL(spa_traverse_rwlock);
-EXPORT_SYMBOL(spa_traverse_wanted);
+EXPORT_SYMBOL(spa_shutting_down);
 EXPORT_SYMBOL(spa_get_dsl);
 EXPORT_SYMBOL(spa_get_rootblkptr);
 EXPORT_SYMBOL(spa_set_rootblkptr);
@@ -1467,6 +1471,7 @@ EXPORT_SYMBOL(spa_get_asize);
 EXPORT_SYMBOL(spa_max_replication);
 EXPORT_SYMBOL(spa_busy);
 EXPORT_SYMBOL(spa_get_failmode);
+EXPORT_SYMBOL(spa_suspended);
 
 /* Miscellaneous support routines */
 EXPORT_SYMBOL(spa_rename);
@@ -1482,6 +1487,7 @@ EXPORT_SYMBOL(spa_lookup_by_guid);
 EXPORT_SYMBOL(spa_has_spare);
 EXPORT_SYMBOL(bp_get_dasize);
 EXPORT_SYMBOL(spa_has_slogs);
+EXPORT_SYMBOL(spa_is_root);
 
 EXPORT_SYMBOL(spa_namespace_lock);
 #endif
