@@ -18,7 +18,6 @@ typedef struct vdev_disk {
 } vdev_disk_t;
 
 extern int vdev_disk_physio(ldi_handle_t, caddr_t, size_t, uint64_t, int);
-extern nvlist_t *vdev_disk_read_rootlabel(char *devpath);
 
 #endif
 
