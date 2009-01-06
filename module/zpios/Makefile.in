@@ -1,10 +1,9 @@
-DISTFILES = Makefile.in *.c
+subdir-m += include
+DISTFILES = zpios.c
 
-MODULE  := zpios
+MODULE := zpios
 
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@MODDIR@/zpios/include
+EXTRA_CFLAGS  = -I@MODDIR@/zpios/include
+EXTRA_CFLAGS += @KERNELCPPFLAGS@
 
 obj-m := ${MODULE}.o
-
-${MODULE}-objs += zpios.o	# Kernel PIOS test case
