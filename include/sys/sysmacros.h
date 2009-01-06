@@ -165,6 +165,8 @@ extern int ddi_strtoul(const char *str, char **nptr,
                              (-(type)(x) & ((type)(align) - 1))
 #define ISP2(x)              (((x) & ((x) - 1)) == 0)
 #define IS_P2ALIGNED(v, a)   ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
+#define P2BOUNDARY(off, len, align) \
+                             (((off) ^ ((off) + (len) - 1)) > (align) - 1)
 
 /*
  * Typed version of the P2* macros.  These macros should be used to ensure
