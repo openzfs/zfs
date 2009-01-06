@@ -445,10 +445,10 @@ spa_config_update_common(spa_t *spa, int what, boolean_t isroot)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(spa_config_sync);
-EXPORT_SYMBOL(spa_config_check);
 EXPORT_SYMBOL(spa_config_load);
 EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
+EXPORT_SYMBOL(spa_config_update_common);
 #endif
