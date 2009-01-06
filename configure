@@ -20084,7 +20084,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                                                  ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile module/zpios/Makefile"
+                                                                                                                                                                                                                                                                                                                                                                                            ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile scripts/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile module/zpios/Makefile module/zpios/include/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -20686,6 +20686,7 @@ do
   "module/zcommon/include/sys/fm/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/fm/fs/Makefile" ;;
   "module/zfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zfs/Makefile" ;;
   "module/zpios/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zpios/Makefile" ;;
+  "module/zpios/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zpios/include/Makefile" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "zfs_config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS zfs_config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
