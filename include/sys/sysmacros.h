@@ -102,6 +102,10 @@ extern "C" {
 #define bcmp(src,dest,size)		memcmp((src), (dest), (size_t)(size))
 
 /* Dtrace probes do not exist in the linux kernel */
+#ifdef DTRACE_PROBE
+#undef  DTRACE_PROBE
+#endif  /* DTRACE_PROBE */
+#define DTRACE_PROBE(a)					((void)0)
 
 #ifdef DTRACE_PROBE1
 #undef  DTRACE_PROBE1
