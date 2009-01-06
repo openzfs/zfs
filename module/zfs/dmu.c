@@ -1241,7 +1241,6 @@ EXPORT_SYMBOL(dmu_object_size_from_db);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
-EXPORT_SYMBOL(dmu_get_replication_level);
 
 EXPORT_SYMBOL(dmu_ot);
 #endif
