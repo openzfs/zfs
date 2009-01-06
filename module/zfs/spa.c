@@ -4353,9 +4353,6 @@ EXPORT_SYMBOL(spa_l2cache_space_update);
 
 /* scrubbing */
 EXPORT_SYMBOL(spa_scrub);
-EXPORT_SYMBOL(spa_scrub_suspend);
-EXPORT_SYMBOL(spa_scrub_resume);
-EXPORT_SYMBOL(spa_scrub_restart);
 
 /* spa syncing */
 EXPORT_SYMBOL(spa_sync); /* only for DMU use */
