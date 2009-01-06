@@ -173,3 +173,9 @@ zfs_znode_byteswap(void *buf, size_t size)
 		zfs_oldace_byteswap((ace_t *)&zp->zp_acl.z_ace_data[0],
 		    ACE_SLOT_CNT);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_oldacl_byteswap);
+EXPORT_SYMBOL(zfs_acl_byteswap);
+EXPORT_SYMBOL(zfs_znode_byteswap);
+#endif

@@ -3149,6 +3149,4 @@ EXPORT_SYMBOL(dsl_dataset_check_quota);
 EXPORT_SYMBOL(dsl_dataset_set_quota);
 EXPORT_SYMBOL(dsl_dataset_set_quota_sync);
 EXPORT_SYMBOL(dsl_dataset_set_reservation);
-EXPORT_SYMBOL(dsl_dataset_set_flags);
-EXPORT_SYMBOL(dsl_dataset_new_refreservation);
 #endif
