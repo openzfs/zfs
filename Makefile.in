@@ -56,7 +56,8 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/module/zcommon/include/sys/fm/fs/Makefile.in \
 	$(top_srcdir)/module/zcommon/include/sys/fs/Makefile.in \
 	$(top_srcdir)/module/zfs/Makefile.in \
-	$(top_srcdir)/module/zpios/Makefile.in AUTHORS COPYING \
+	$(top_srcdir)/module/zpios/Makefile.in \
+	$(top_srcdir)/module/zpios/include/Makefile.in AUTHORS COPYING \
 	ChangeLog
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
@@ -84,7 +85,7 @@ CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/zcommon/include/sys/fs/Makefile \
 	module/zcommon/include/sys/fm/Makefile \
 	module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile \
-	module/zpios/Makefile
+	module/zpios/Makefile module/zpios/include/Makefile
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -330,6 +331,8 @@ module/zfs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zfs/Make
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
+module/zpios/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/include/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -476,7 +479,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs $(distdir)/module/zpios
+	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs $(distdir)/module/zpios $(distdir)/module/zpios/include
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
