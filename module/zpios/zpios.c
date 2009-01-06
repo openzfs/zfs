@@ -176,7 +176,7 @@ kpios_dmu_setup(run_args_t *run_args)
 
 	t->start = current_kernel_time();
 
-        rc = dmu_objset_open(run_args->pool, DMU_OST_ZFS, DS_MODE_STANDARD, &os);
+        rc = dmu_objset_open(run_args->pool, DMU_OST_ZFS, DS_MODE_USER, &os);
         if (rc) {
 		kpios_print(run_args->file, "Error dmu_objset_open() "
 			    "failed: %d\n", rc);
