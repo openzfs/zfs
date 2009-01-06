@@ -639,7 +639,7 @@ vdev_disk_io_done(zio_t *zio)
 }
 
 nvlist_t *
-vdev_disk_read_rootlabel(char *devpath)
+vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 {
 	return NULL;
 }
