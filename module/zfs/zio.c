@@ -2284,18 +2284,16 @@ static zio_pipe_stage_t *zio_pipeline[ZIO_STAGES] = {
 };
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-/* Delegate I/O to a child vdev. */
-EXPORT_SYMBOL(zio_vdev_resume_io);
-
 /* Fault injection */
 EXPORT_SYMBOL(zio_injection_enabled);
 EXPORT_SYMBOL(zio_inject_fault);
 EXPORT_SYMBOL(zio_inject_list_next);
 EXPORT_SYMBOL(zio_clear_fault);
+EXPORT_SYMBOL(zio_handle_fault_injection);
+EXPORT_SYMBOL(zio_handle_device_injection);
+EXPORT_SYMBOL(zio_handle_label_injection);
 EXPORT_SYMBOL(zio_priority_table);
-
-module_param(zio_resume_threads, int, 0644);
-MODULE_PARM_DESC(zio_resume_threads, "Number of threads to reissue IO");
+EXPORT_SYMBOL(zio_type_name);
 
 module_param(zio_bulk_flags, int, 0644);
 MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
