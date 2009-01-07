@@ -1,13 +1,4 @@
-DISTFILES  = arc.o bplist.o dbuf.o dmu.o dmu_object.o dmu_objset.o
-DISTFILES += dmu_traverse.o dmu_tx.o dmu_zfetch.o dnode.o dnode_sync.o
-DISTFILES += dsl_dataset.o dsl_deleg.o dsl_dir.o dsl_pool.o dsl_prop.o
-DISTFILES += dsl_synctask.o dsl_scrub.o fletcher.o gzip.o lzjb.o metaslab.o
-DISTFILES += refcount.o sha256.o spa.o spa_boot.o spa_config.o spa_errlog.o
-DISTFILES += spa_history.o spa_misc.o space_map.o txg.o uberblock.o
-DISTFILES += unique.o vdev.o vdev_cache.o vdev_disk.o vdev_missing.o
-DISTFILES += vdev_file.o vdev_label.o vdev_mirror.o vdev_queue.o vdev_raidz.o
-DISTFILES += vdev_root.o zap.o zap_leaf.o zap_micro.o zfs_byteswap.o zfs_fm.o
-DISTFILES += zfs_znode.o zil.o zio.o zio_checksum.o zio_compress.o zio_inject.o
+DISTFILES = *.c
 
 MODULE := zpool
 
@@ -58,7 +49,6 @@ ${MODULE}-objs += uberblock.o
 ${MODULE}-objs += unique.o
 ${MODULE}-objs += vdev.o
 ${MODULE}-objs += vdev_cache.o
-# ${MODULE}-objs += vdev_disk.o  Must be updated to be b103 friendly
 ${MODULE}-objs += vdev_file.o
 ${MODULE}-objs += vdev_label.o
 ${MODULE}-objs += vdev_mirror.o
