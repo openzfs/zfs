@@ -35,11 +35,11 @@
 #define SPLAT_LIST_TEST1_DESC		"Create/destroy Test"
 
 #define SPLAT_LIST_TEST2_ID		0x0c02
-#define SPLAT_LIST_TEST2_NAME		"insert/remove head"
+#define SPLAT_LIST_TEST2_NAME		"ins/rm head"
 #define SPLAT_LIST_TEST2_DESC		"Insert/remove head Test"
 
 #define SPLAT_LIST_TEST3_ID		0x0c03
-#define SPLAT_LIST_TEST3_NAME		"insert/remove tail"
+#define SPLAT_LIST_TEST3_NAME		"ins/rm tail"
 #define SPLAT_LIST_TEST3_DESC		"Insert/remove tail Test"
 
 #define SPLAT_LIST_TEST4_ID		0x0c04
@@ -54,6 +54,9 @@
 #define SPLAT_LIST_TEST6_NAME		"remove"
 #define SPLAT_LIST_TEST6_DESC		"Remove Test"
 
+#define SPLAT_LIST_TEST7_ID		0x0c7
+#define SPLAT_LIST_TEST7_NAME		"active"
+#define SPLAT_LIST_TEST7_DESC		"Active Test"
 
 /* It is important that li_node is not the first element, this
  * ensures the list_d2l/list_object macros are working correctly. */
@@ -352,6 +355,66 @@ out:
         return rc;
 }
 
+static int
+splat_list_test7(struct file *file, void *arg)
+{
+	list_t list;
+	list_item_t *li;
+	int rc = 0;
+
+	splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Creating list\n%s", "");
+	list_create(&list, sizeof(list_item_t), offsetof(list_item_t, li_node));
+
+	li = kmem_alloc(sizeof(list_item_t), KM_SLEEP);
+	if (li == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	/* Validate newly initialized node is inactive */
+	splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Init list node\n%s", "");
+	list_link_init(&li->li_node);
+	if (list_link_active(&li->li_node)) {
+		splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Newly initialized "
+			    "list node should inactive %p/%p\n",
+			    li->li_node.prev, li->li_node.next);
+		rc = -EINVAL;
+		goto out;
+	}
+
+	/* Validate node is active when linked in to a list */
+	splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Insert list node\n%s", "");
+	list_insert_head(&list, li);
+	if (!list_link_active(&li->li_node)) {
+		splat_vprint(file, SPLAT_LIST_TEST7_NAME, "List node "
+			    "inserted in list should be active %p/%p\n",
+			    li->li_node.prev, li->li_node.next);
+		rc = -EINVAL;
+		goto out;
+	}
+
+	/* Validate node is inactive when removed from list */
+	splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Remove list node\n%s", "");
+	list_remove(&list, li);
+	if (list_link_active(&li->li_node)) {
+		splat_vprint(file, SPLAT_LIST_TEST7_NAME, "List node "
+			    "removed from list should be inactive %p/%p\n",
+			    li->li_node.prev, li->li_node.next);
+		rc = -EINVAL;
+	}
+
+	kmem_free(li, sizeof(list_item_t));
+out:
+	/* Remove all items */
+	while ((li = list_remove_head(&list)))
+		kmem_free(li, sizeof(list_item_t));
+
+	splat_vprint(file, SPLAT_LIST_TEST7_NAME, "Destroying list\n%s", "");
+	list_destroy(&list);
+
+        return rc;
+}
+
 splat_subsystem_t *
 splat_list_init(void)
 {
@@ -381,6 +444,8 @@ splat_list_init(void)
 	                SPLAT_LIST_TEST5_ID, splat_list_test5);
         SPLAT_TEST_INIT(sub, SPLAT_LIST_TEST6_NAME, SPLAT_LIST_TEST6_DESC,
 	                SPLAT_LIST_TEST6_ID, splat_list_test6);
+        SPLAT_TEST_INIT(sub, SPLAT_LIST_TEST7_NAME, SPLAT_LIST_TEST7_DESC,
+	                SPLAT_LIST_TEST7_ID, splat_list_test7);
 
         return sub;
 }
@@ -390,6 +455,7 @@ splat_list_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
 
+        SPLAT_TEST_FINI(sub, SPLAT_LIST_TEST7_ID);
         SPLAT_TEST_FINI(sub, SPLAT_LIST_TEST6_ID);
         SPLAT_TEST_FINI(sub, SPLAT_LIST_TEST5_ID);
         SPLAT_TEST_FINI(sub, SPLAT_LIST_TEST4_ID);
