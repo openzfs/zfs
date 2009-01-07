@@ -1,6 +1,5 @@
 subdir-m += include
-DISTFILES  = zfs_comutil.c zfs_deleg.c zfs_namecheck.c
-DISTFILES += zfs_prop.c zpool_prop.c zprop_common.c
+DISTFILES = *.c
 
 MODULE := zcommon
 
