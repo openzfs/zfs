@@ -61,6 +61,7 @@
 #include <sys/types.h>
 #include <sys/kobj.h>
 #include <sys/atomic.h>
+#include <sys/list.h>
 #include <linux/cdev.h>
 
 #include "spl-device.h"
@@ -192,17 +193,18 @@ typedef struct splat_info {
 #define splat_vprint(file, test, format, args...)			\
 	splat_print(file, "%*s: " format, SPLAT_NAME_SIZE, test, args)
 
-splat_subsystem_t * splat_condvar_init(void);
-splat_subsystem_t * splat_kmem_init(void);
-splat_subsystem_t * splat_mutex_init(void);
-splat_subsystem_t * splat_krng_init(void);
-splat_subsystem_t * splat_rwlock_init(void);
-splat_subsystem_t * splat_taskq_init(void);
-splat_subsystem_t * splat_thread_init(void);
-splat_subsystem_t * splat_time_init(void);
-splat_subsystem_t * splat_vnode_init(void);
-splat_subsystem_t * splat_kobj_init(void);
-splat_subsystem_t * splat_atomic_init(void);
+splat_subsystem_t *splat_condvar_init(void);
+splat_subsystem_t *splat_kmem_init(void);
+splat_subsystem_t *splat_mutex_init(void);
+splat_subsystem_t *splat_krng_init(void);
+splat_subsystem_t *splat_rwlock_init(void);
+splat_subsystem_t *splat_taskq_init(void);
+splat_subsystem_t *splat_thread_init(void);
+splat_subsystem_t *splat_time_init(void);
+splat_subsystem_t *splat_vnode_init(void);
+splat_subsystem_t *splat_kobj_init(void);
+splat_subsystem_t *splat_atomic_init(void);
+splat_subsystem_t *splat_list_init(void);
 
 void splat_condvar_fini(splat_subsystem_t *);
 void splat_kmem_fini(splat_subsystem_t *);
@@ -215,6 +217,7 @@ void splat_time_fini(splat_subsystem_t *);
 void splat_vnode_fini(splat_subsystem_t *);
 void splat_kobj_fini(splat_subsystem_t *);
 void splat_atomic_fini(splat_subsystem_t *);
+void splat_list_fini(splat_subsystem_t *);
 
 int splat_condvar_id(void);
 int splat_kmem_id(void);
@@ -227,5 +230,6 @@ int splat_time_id(void);
 int splat_vnode_id(void);
 int splat_kobj_id(void);
 int splat_atomic_id(void);
+int splat_list_id(void);
 
 #endif /* _SPLAT_INTERNAL_H */
