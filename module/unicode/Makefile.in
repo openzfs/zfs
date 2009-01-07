@@ -1,5 +1,5 @@
 subdir-m += include
-DISTFILES = u8_textprep.c uconv.c
+DISTFILES = *.c
 
 MODULE := zunicode
 
