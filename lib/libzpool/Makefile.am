@@ -67,7 +67,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/unique.c \
 	${top_srcdir}/module/zfs/vdev.c \
 	${top_srcdir}/module/zfs/vdev_cache.c \
-	${top_srcdir}/module/zfs/vdev_disk.c \
 	${top_srcdir}/module/zfs/vdev_file.c \
 	${top_srcdir}/module/zfs/vdev_label.c \
 	${top_srcdir}/module/zfs/vdev_missing.c \
