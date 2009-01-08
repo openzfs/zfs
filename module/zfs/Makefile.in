@@ -49,6 +49,7 @@ ${MODULE}-objs += uberblock.o
 ${MODULE}-objs += unique.o
 ${MODULE}-objs += vdev.o
 ${MODULE}-objs += vdev_cache.o
+${MODULE}-objs += vdev_disk.o
 ${MODULE}-objs += vdev_file.o
 ${MODULE}-objs += vdev_label.o
 ${MODULE}-objs += vdev_mirror.o
