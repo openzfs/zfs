@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#if defined(_KERNEL)
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
@@ -36,14 +34,11 @@
 /*
  * Virtual device vector for disks.
  */
-
-/* FIXME: A slab entry for these would probably be good */
 typedef struct dio_request {
 	struct completion dr_comp;
 	atomic_t dr_ref;
-	vdev_t *dr_vd;
 	zio_t *dr_zio;
-	int dr_rc;
+	int dr_error;
 } dio_request_t;
 
 static int
@@ -52,8 +47,6 @@ vdev_disk_open_common(vdev_t *vd)
 	vdev_disk_t *dvd;
 	struct block_device *bdev;
 	int mode = 0;
-
-	// dprintf("vd=%p\n", vd);
 
 	/* Must have a pathname and it must be absolute. */
 	if (vd->vdev_path == NULL || vd->vdev_path[0] != '/') {
@@ -65,13 +58,13 @@ vdev_disk_open_common(vdev_t *vd)
 	if (dvd == NULL)
 		return ENOMEM;
 
-	/* FIXME: Since we do not have devid support like Solaris we
+	/* XXX: Since we do not have devid support like Solaris we
 	 * currently can't be as clever about opening the right device.
-	 * For now we will simple open the device name provided and
+	 * For now we will simply open the device name provided and
 	 * fail when it doesn't exist.  If your devices get reordered
 	 * your going to be screwed, use udev for now to prevent this.
 	 *
-	 * FIXME: mode here could be the global spa_mode with a little
+	 * XXX: mode here could be the global spa_mode with a little
 	 * munging of the flags to make then more agreeable to linux.
 	 * However, simply passing a 0 for now gets us W/R behavior.
 	 */
@@ -81,8 +74,8 @@ vdev_disk_open_common(vdev_t *vd)
 		return -PTR_ERR(bdev);
 	}
 
-	/* FIXME: Long term validate stored dvd->vd_devid with
-	 * a unique identifier read from the disk.
+	/* XXX: Long term validate stored dvd->vd_devid with a unique
+	 * identifier read from the disk.
 	 */
 
 	dvd->vd_lh = bdev;
@@ -96,46 +89,44 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 {
 	vdev_disk_t *dvd;
 	struct block_device *bdev;
-	int rc;
+	int error;
 
-	// dprintf("vd=%p, psize=%p, ashift=%p\n", vd, psize, ashift);
-	dprintf("adding disk %s\n",
-	        vd->vdev_path ? vd->vdev_path : "<none>");
-
-	rc = vdev_disk_open_common(vd);
-	if (rc)
-		return rc;
+	error = vdev_disk_open_common(vd);
+	if (error)
+		return error;
 
 	dvd = vd->vdev_tsd;
 	bdev = dvd->vd_lh;
 
-	/* Determine the actual size of the device (in bytes) */
+	/* Determine the actual size of the device (in bytes)
+	 *
+	 * XXX: SECTOR_SIZE is defined to 512b which may not be true for
+	 * your device, we must use the actual hardware sector size.
+	 */
 	*psize = get_capacity(bdev->bd_disk) * SECTOR_SIZE;
 
 	/* Check if this is a whole device and if it is try and
-	 * enable the write cache, it is OK if this fails.
-	 *
-	 * FIXME: This behavior should probably be configurable.
-	 */
+	 * enable the write cache, it is OK if this fails. */
 	if (bdev->bd_contains == bdev) {
 		int wce = 1;
 
 		vd->vdev_wholedisk = 1ULL;
 
-		/* Different methods are needed for an IDE vs SCSI disk.
+		/* XXX: Different methods are needed for an IDE vs SCSI disk.
 		 * Since we're not sure what type of disk this is try IDE,
-		 * if that fails try SCSI. */
-		rc = ioctl_by_bdev(bdev, HDIO_SET_WCACHE, (unsigned long)&wce);
-		if (rc)
+		 * if that fails try SCSI.
+		 */
+		error = ioctl_by_bdev(bdev, HDIO_SET_WCACHE, (unsigned long)&wce);
+		if (error)
 			dprintf("Unable to enable IDE WCE and SCSI WCE "
-				"not yet supported: %d\n", rc);
+				"not yet supported: %d\n", error);
 
-		/* FIXME: To implement the scsi WCE enable we are going to need
+		/* XXX: To implement the scsi WCE enable we are going to need
 		 * to use the SG_IO ioctl.  But that means fully forming the
 		 * SCSI command as the ioctl arg.  To get this right I need
 		 * to look at the sdparm source which does this.
 		 */
-		rc = 0;
+		error = 0;
 	} else {
 		/* Must be a partition, that's fine. */
 		vd->vdev_wholedisk = 0;
@@ -147,7 +138,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	vd->vdev_nowritecache = B_FALSE;
 
-	return rc;
+	return error;
 }
 
 static void
@@ -155,14 +146,11 @@ vdev_disk_close(vdev_t *vd)
 {
 	vdev_disk_t *dvd = vd->vdev_tsd;
 
-	// dprintf("vd=%p\n", vd);
-	dprintf("removing disk %s\n",
-	        vd->vdev_path ? vd->vdev_path : "<none>");
-
 	if (dvd == NULL)
 		return;
 
-	close_bdev_excl(dvd->vd_lh);
+	if (dvd->vd_lh != NULL)
+		close_bdev_excl(dvd->vd_lh);
 
 	kmem_free(dvd, sizeof(vdev_disk_t));
 	vd->vdev_tsd = NULL;
@@ -170,16 +158,15 @@ vdev_disk_close(vdev_t *vd)
 
 #ifdef HAVE_2ARGS_BIO_END_IO_T
 static void
-vdev_disk_probe_io_completion(struct bio *bio, int rc)
+vdev_disk_physio_completion(struct bio *bio, int rc)
 #else
 static int
-vdev_disk_probe_io_completion(struct bio *bio, unsigned int size, int rc)
+vdev_disk_physio_completion(struct bio *bio, unsigned int size, int rc)
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 {
         dio_request_t *dr = bio->bi_private;
 	zio_t *zio;
 	int error;
-
 
 	/* Fatal error but print some useful debugging before asserting */
 	if (dr == NULL) {
@@ -208,7 +195,7 @@ vdev_disk_probe_io_completion(struct bio *bio, unsigned int size, int rc)
 		zio_interrupt(zio);
 	}
 
-	dr->dr_rc = error;
+	dr->dr_error = error;
         atomic_dec(&dr->dr_ref);
 
         if (bio_sync(bio)) {
@@ -302,34 +289,24 @@ bio_map(struct request_queue *q, void *data, unsigned int len, gfp_t gfp_mask)
 }
 
 static int
-vdev_disk_io(vdev_t *vd, zio_t *zio, caddr_t kbuf, size_t size,
-             uint64_t offset, int flags)
+__vdev_disk_physio(struct block_device *vd_lh, zio_t *zio, caddr_t kbuf,
+                   size_t size, uint64_t offset, int flags)
 {
 	struct bio *bio;
         dio_request_t *dr;
-	int rw, rc = 0;
-	struct block_device *bdev;
+	int rw, error = 0;
 	struct request_queue *q;
 
-	// dprintf("vd=%p, zio=%p, kbuf=%p, size=%ld, offset=%lu, flag=%lx\n",
-	//        vd, zio, kbuf, size, offset, flags);
-
 	ASSERT((offset % SECTOR_SIZE) == 0); /* Sector aligned */
-
-	if (vd == NULL || vd->vdev_tsd == NULL)
-		return EINVAL;
 
 	dr = kmem_alloc(sizeof(dio_request_t), KM_SLEEP);
 	if (dr == NULL)
 		return ENOMEM;
 
 	atomic_set(&dr->dr_ref, 0);
-	dr->dr_vd = vd;
 	dr->dr_zio = zio;
-	dr->dr_rc = 0;
-
-	bdev = ((vdev_disk_t *)(vd->vdev_tsd))->vd_lh;
-	q = bdev->bd_disk->queue;
+	dr->dr_error = 0;
+	q = vd_lh->bd_disk->queue;
 
 	bio = bio_map(q, kbuf, size, GFP_NOIO);
 	if (IS_ERR(bio)) {
@@ -337,9 +314,9 @@ vdev_disk_io(vdev_t *vd, zio_t *zio, caddr_t kbuf, size_t size,
 		return -PTR_ERR(bio);
 	}
 
-	bio->bi_bdev = bdev;
+	bio->bi_bdev = vd_lh;
 	bio->bi_sector = offset / SECTOR_SIZE;
-	bio->bi_end_io = vdev_disk_probe_io_completion;
+	bio->bi_end_io = vdev_disk_physio_completion;
 	bio->bi_private = dr;
 
 	init_completion(&dr->dr_comp);
@@ -354,7 +331,7 @@ vdev_disk_io(vdev_t *vd, zio_t *zio, caddr_t kbuf, size_t size,
 		rw |= 1 << BIO_RW_FAILFAST;
 
 	ASSERT3S(flags & ~((1 << BIO_RW) | (1 << BIO_RW_SYNC) |
-	    (1 << BIO_RW_FAILFAST)), ==, 0);
+	         (1 << BIO_RW_FAILFAST)), ==, 0);
 
 	submit_bio(rw, bio);
 
@@ -366,127 +343,29 @@ vdev_disk_io(vdev_t *vd, zio_t *zio, caddr_t kbuf, size_t size,
 	if (bio_sync(bio)) {
 		wait_for_completion(&dr->dr_comp);
 		ASSERT(atomic_read(&dr->dr_ref) == 0);
-		rc = dr->dr_rc;
+		error = dr->dr_error;
 		kmem_free(dr, sizeof(dio_request_t));
 	        bio_put(bio);
 	}
 
-	if (zio_injection_enabled && rc == 0)
-		rc = zio_handle_device_injection(vd, EIO);
-
-	return rc;
+	return error;
 }
 
-static int
-vdev_disk_probe_io(vdev_t *vd, caddr_t kbuf, size_t size,
-		   uint64_t offset, int flags)
+int
+vdev_disk_physio(ldi_handle_t vd_lh, caddr_t kbuf,
+		 size_t size, uint64_t offset, int flags)
 {
-	int rc;
-
-	// dprintf("vd=%p, kbuf=%p, size=%ld, offset=%lu, flag=%d\n",
-	//        vd, kbuf, size, offset, flags);
-
-	flags |= (1 << BIO_RW_SYNC);
-	flags |= (1 << BIO_RW_FAILFAST);
-
-	/* FIXME: offset must be block aligned or we need to take
-	 * care of it */
-
-	rc = vdev_disk_io(vd, NULL, kbuf, size, offset, flags);
-
-	return rc;
-}
-
-/*
- * Determine if the underlying device is accessible by reading and writing
- * to a known location. We must be able to do this during syncing context
- * and thus we cannot set the vdev state directly.
- */
-static int
-vdev_disk_probe(vdev_t *vd)
-{
-	vdev_t *nvd;
-	int label_idx, rc = 0, retries = 0;
-	uint64_t offset;
-        char *vl_pad;
-
-	// dprintf("vd=%p\n", vd);
-
-	if (vd == NULL)
-		return EINVAL;
-
-	/* Hijack the current vdev */
-	nvd = vd;
-
-	/* Pick a random label to rewrite */
-	label_idx = spa_get_random(VDEV_LABELS);
-	ASSERT(label_idx < VDEV_LABELS);
-
-	offset = vdev_label_offset(vd->vdev_psize, label_idx,
-	                           offsetof(vdev_label_t, vl_pad));
-
-        vl_pad = vmem_alloc(VDEV_SKIP_SIZE, KM_SLEEP);
-	if (vl_pad == NULL)
-		return ENOMEM;
-
-	/*
-	 * Try to read and write to a special location on the
-	 * label. We use the existing vdev initially and only
-	 * try to create and reopen it if we encounter a failure.
-	 */
-	while ((rc = vdev_disk_probe_io(nvd, vl_pad,
-	        VDEV_SKIP_SIZE, offset, READ)) != 0 && retries == 0) {
-
-		nvd = kmem_zalloc(sizeof(vdev_t), KM_SLEEP);
-
-		if (vd->vdev_path)
-			nvd->vdev_path = spa_strdup(vd->vdev_path);
-		if (vd->vdev_physpath)
-			nvd->vdev_physpath = spa_strdup(vd->vdev_physpath);
-		if (vd->vdev_devid)
-			nvd->vdev_devid = spa_strdup(vd->vdev_devid);
-
-		nvd->vdev_wholedisk = vd->vdev_wholedisk;
-		nvd->vdev_guid = vd->vdev_guid;
-		retries++;
-
-		rc = vdev_disk_open_common(nvd);
-		if (rc)
-			break;
-	}
-
-	if (!rc)
-		rc = vdev_disk_probe_io(nvd, vl_pad, VDEV_SKIP_SIZE,
-		                        offset, WRITE);
-
-	/* Clean up if we allocated a new vdev */
-	if (retries) {
-		vdev_disk_close(nvd);
-		if (nvd->vdev_path)
-			spa_strfree(nvd->vdev_path);
-		if (nvd->vdev_physpath)
-			spa_strfree(nvd->vdev_physpath);
-		if (nvd->vdev_devid)
-			spa_strfree(nvd->vdev_devid);
-		kmem_free(nvd, sizeof(vdev_t));
-	}
-
-	vmem_free(vl_pad, VDEV_SKIP_SIZE);
-
-	/* Reset the failing flag */
-	if (!rc)
-		vd->vdev_is_failing = B_FALSE;
-
-	return rc;
+	return __vdev_disk_physio(vd_lh, NULL, kbuf, size, offset, flags);
 }
 
 #if 0
+/* XXX: Not yet supported */
 static void
-vdev_disk_ioctl_done(void *zio_arg, int rc)
+vdev_disk_ioctl_done(void *zio_arg, int error)
 {
 	zio_t *zio = zio_arg;
 
-	zio->io_error = rc;
+	zio->io_error = error;
 
 	zio_interrupt(zio);
 }
@@ -496,10 +375,8 @@ static int
 vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-//	vdev_disk_t *dvd = vd->vdev_tsd;
-	int flags, rc;
-
-	// dprintf("zio=%p\n", zio);
+	vdev_disk_t *dvd = vd->vdev_tsd;
+	int flags, error;
 
 	if (zio->io_type == ZIO_TYPE_IOCTL) {
 		zio_vdev_io_bypass(zio);
@@ -523,15 +400,18 @@ vdev_disk_io_start(zio_t *zio)
 			}
 
 #if 0
+			/* XXX: Not yet supported */
+			vdev_disk_t *dvd = vd->vdev_tsd;
+
 			zio->io_dk_callback.dkc_callback = vdev_disk_ioctl_done;
 			zio->io_dk_callback.dkc_flag = FLUSH_VOLATILE;
 			zio->io_dk_callback.dkc_cookie = zio;
 
-			rc = ldi_ioctl(dvd->vd_lh, zio->io_cmd,
+			error = ldi_ioctl(dvd->vd_lh, zio->io_cmd,
 			    (uintptr_t)&zio->io_dk_callback,
 			    FKIOCTL, kcred, NULL);
 
-			if (rc == 0) {
+			if (error == 0) {
 				/*
 				 * The ioctl will be done asychronously,
 				 * and will call vdev_disk_ioctl_done()
@@ -540,10 +420,10 @@ vdev_disk_io_start(zio_t *zio)
 				return ZIO_PIPELINE_STOP;
 			}
 #else
-			rc = ENOTSUP;
+			error = ENOTSUP;
 #endif
 
-			if (rc == ENOTSUP || rc == ENOTTY) {
+			if (error == ENOTSUP || error == ENOTTY) {
 				/*
 				 * If we get ENOTSUP or ENOTTY, we know that
 				 * no future attempts will ever succeed.
@@ -553,7 +433,7 @@ vdev_disk_io_start(zio_t *zio)
 				 */
 				vd->vdev_nowritecache = B_TRUE;
 			}
-			zio->io_error = rc;
+			zio->io_error = error;
 
 			break;
 
@@ -564,51 +444,24 @@ vdev_disk_io_start(zio_t *zio)
 		return ZIO_PIPELINE_CONTINUE;
 	}
 
-	if (zio->io_type == ZIO_TYPE_READ && vdev_cache_read(zio) == 0)
-		return ZIO_PIPELINE_STOP;
-
-	if ((zio = vdev_queue_io(zio)) == NULL)
-		return ZIO_PIPELINE_STOP;
-
-	if (zio->io_type == ZIO_TYPE_WRITE)
-		rc = vdev_writeable(vd) ? vdev_error_inject(vd, zio) : ENXIO;
-	else
-		rc = vdev_readable(vd) ? vdev_error_inject(vd, zio) : ENXIO;
-
-	rc = (vd->vdev_remove_wanted || vd->vdev_is_failing) ? ENXIO : rc;
-
-	if (rc) {
-		zio->io_error = rc;
-		zio_interrupt(zio);
-		return ZIO_PIPELINE_STOP;
-	}
-
+	/*
+	 * B_BUSY	XXX: Not supported
+	 * B_NOCACHE	XXX: Not supported
+	 */
 	flags = ((zio->io_type == ZIO_TYPE_READ) ? READ : WRITE);
-	/* flags |= B_BUSY | B_NOCACHE; FIXME : Not supported */
 
-	if (zio->io_flags & ZIO_FLAG_FAILFAST)
+	if (zio->io_flags & ZIO_FLAG_IO_RETRY)
 		flags |= (1 << BIO_RW_FAILFAST);
 
-
-	vdev_disk_io(vd, zio, zio->io_data, zio->io_size,
-	             zio->io_offset, flags);
+	__vdev_disk_physio(dvd->vd_lh, zio, zio->io_data,
+			   zio->io_size, zio->io_offset, flags);
 
 	return ZIO_PIPELINE_STOP;
 }
 
-static int
+static void
 vdev_disk_io_done(zio_t *zio)
 {
-	// dprintf("zio=%p\n", zio);
-
-	vdev_queue_io_done(zio);
-
-	if (zio->io_type == ZIO_TYPE_WRITE)
-		vdev_cache_write(zio);
-
-	if (zio_injection_enabled && zio->io_error == 0)
-		zio->io_error = zio_handle_device_injection(zio->io_vd, EIO);
-
 	/*
 	 * If the device returned EIO, then attempt a DKIOCSTATE ioctl to see if
 	 * the device has been removed.  If this is the case, then we trigger an
@@ -616,38 +469,24 @@ vdev_disk_io_done(zio_t *zio)
 	 * make sure it's still accessible.
 	 */
 	if (zio->io_error == EIO) {
-		ASSERT(0); /* FIXME: Not yet supported */
+		ASSERT(0); /* XXX: Not yet supported */
 #if 0
 		vdev_t *vd = zio->io_vd;
 		vdev_disk_t *dvd = vd->vdev_tsd;
-		int state;
+		int state = DKIO_NONE;
 
-		state = DKIO_NONE;
-		if (dvd && ldi_ioctl(dvd->vd_lh, DKIOCSTATE, (intptr_t)&state,
-		    FKIOCTL, kcred, NULL) == 0 &&
-		    state != DKIO_INSERTED) {
+		if (ldi_ioctl(dvd->vd_lh, DKIOCSTATE, (intptr_t)&state,
+		    FKIOCTL, kcred, NULL) == 0 && state != DKIO_INSERTED) {
 			vd->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
-		} else if (vdev_probe(vd) != 0) {
-			ASSERT(vd->vdev_ops->vdev_op_leaf);
-			vd->vdev_is_failing = B_TRUE;
 		}
 #endif
 	}
-
-	return ZIO_PIPELINE_CONTINUE;
-}
-
-nvlist_t *
-vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
-{
-	return NULL;
 }
 
 vdev_ops_t vdev_disk_ops = {
 	vdev_disk_open,
 	vdev_disk_close,
-	vdev_disk_probe,
 	vdev_default_asize,
 	vdev_disk_io_start,
 	vdev_disk_io_done,
@@ -656,4 +495,79 @@ vdev_ops_t vdev_disk_ops = {
 	B_TRUE			/* leaf vdev */
 };
 
-#endif  /* _KERNEL */
+/*
+ * Given the root disk device devid or pathname, read the label from
+ * the device, and construct a configuration nvlist.
+ */
+int
+vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
+{
+	struct block_device *vd_lh;
+	vdev_label_t *label;
+	uint64_t s, size;
+	int i;
+
+	/*
+	 * Read the device label and build the nvlist.
+	 * XXX: Not yet supported
+	 */
+#if 0
+	if (devid != NULL && ddi_devid_str_decode(devid, &tmpdevid,
+	    &minor_name) == 0) {
+		error = ldi_open_by_devid(tmpdevid, minor_name, spa_mode,
+					  kcred, &vd_lh, zfs_li);
+		ddi_devid_free(tmpdevid);
+		ddi_devid_str_free(minor_name);
+	}
+#endif
+
+	vd_lh = open_bdev_excl(devpath, MS_RDONLY, NULL);
+	if (IS_ERR(vd_lh))
+		return -PTR_ERR(vd_lh);
+
+	if ((s = i_size_read(vd_lh->bd_inode)) == 0) {
+		close_bdev_excl(vd_lh);
+		return EIO;
+	}
+
+	size = P2ALIGN_TYPED(s, sizeof(vdev_label_t), uint64_t);
+	label = vmem_alloc(sizeof(vdev_label_t), KM_SLEEP);
+
+	for (i = 0; i < VDEV_LABELS; i++) {
+	        uint64_t offset, state, txg = 0;
+
+		/* read vdev label */
+		offset = vdev_label_offset(size, i, 0);
+		if (vdev_disk_physio(vd_lh, (caddr_t)label,
+		    VDEV_SKIP_SIZE + VDEV_BOOT_HEADER_SIZE +
+		    VDEV_PHYS_SIZE, offset, READ) != 0)
+			continue;
+
+		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
+		    sizeof (label->vl_vdev_phys.vp_nvlist), config, 0) != 0) {
+			*config = NULL;
+			continue;
+		}
+
+		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
+		    &state) != 0 || state >= POOL_STATE_DESTROYED) {
+			nvlist_free(*config);
+			*config = NULL;
+			continue;
+		}
+
+		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
+		    &txg) != 0 || txg == 0) {
+			nvlist_free(*config);
+			*config = NULL;
+			continue;
+		}
+
+		break;
+	}
+
+	vmem_free(label, sizeof(vdev_label_t));
+	close_bdev_excl(vd_lh);
+
+	return 0;
+}
