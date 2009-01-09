@@ -37,8 +37,6 @@
  * run before opening and using a device.
  */
 
-#ifdef HAVE_ZVOL
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
@@ -85,6 +83,7 @@
 
 #include "zfs_namecheck.h"
 
+#ifdef HAVE_ZVOL
 static void *zvol_state;
 
 #define	ZVOL_DUMPSIZE		"dumpsize"
@@ -156,6 +155,7 @@ zvol_size_changed(zvol_state_t *zv, major_t maj)
 	spec_size_invalidate(dev, VBLK);
 	spec_size_invalidate(dev, VCHR);
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
@@ -196,6 +196,7 @@ zvol_check_volblocksize(uint64_t volblocksize)
 	return (0);
 }
 
+#ifdef HAVE_ZVOL
 static void
 zvol_readonly_changed_cb(void *arg, uint64_t newval)
 {
@@ -206,6 +207,7 @@ zvol_readonly_changed_cb(void *arg, uint64_t newval)
 	else
 		zv->zv_flags &= ~ZVOL_RDONLY;
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_get_stats(objset_t *os, nvlist_t *nv)
@@ -231,6 +233,7 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 	return (error);
 }
 
+#ifdef HAVE_ZVOL
 /*
  * Find a free minor number.
  */
@@ -1491,6 +1494,7 @@ zvol_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 	mutex_exit(&zvol_state_lock);
 	return (error);
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_busy(void)
@@ -1520,6 +1524,7 @@ zvol_fini(void)
 #endif /*  HAVE_ZVOL */
 }
 
+#ifdef HAVE_ZVOL
 static boolean_t
 zvol_is_swap(zvol_state_t *zv)
 {
@@ -1747,13 +1752,4 @@ zvol_dump_fini(zvol_state_t *zv)
 
 	return (0);
 }
-
-#else
-
-int
-zvol_busy(void)
-{
-	return (0);
-}
-
 #endif /* HAVE_ZVOL */
