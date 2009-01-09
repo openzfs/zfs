@@ -1,6 +1,11 @@
 #!/bin/bash
+#
+# A simple script to simply the loading/unloading the ZFS module
+# stack.  It should probably be considered a first step towards
+# a full ZFS init script when that is needed.
+#
 
-prog=load-zfs.sh
+prog=zfs.sh
 . ../.script-config
 
 KMOD=/lib/modules/${KERNELSRCVER}/kernel
@@ -38,15 +43,20 @@ die() {
 
 usage() {
 cat << EOF
-usage: $0 [hvu] [module-options]
+USAGE:
+$0 [hvud] [module-options]
+
+DESCRIPTION:
+	Load/unload the ZFS module stack.
 
 OPTIONS:
-   -h      Show this message
-   -v      Verbose
-   -u      Unload modules
-   -d      Save debug log on unload
+	-h      Show this message
+	-v      Verbose
+	-u      Unload modules
+	-d      Save debug log on unload
 
-MODULE-OPTIONS: Must be of the frm module="options", for example:
+MODULE-OPTIONS:
+	Must be of the frm module="options", for example:
 
 $0 zpool="zfs_prefetch_disable=1"
 $0 zpool="zfs_prefetch_disable=1 zfs_mdcomp_disable=1"
