@@ -187,7 +187,7 @@ typedef struct vn_file {
 	kmutex_t	f_lock;		/* struct lock */
 	loff_t		f_offset;	/* offset */
 	vnode_t		*f_vnode;	/* vnode */
-	struct list_head f_list		/* list referenced file_t's */
+	struct list_head f_list;	/* list referenced file_t's */
 } file_t;
 
 typedef struct caller_context {
