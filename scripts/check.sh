@@ -11,7 +11,7 @@ if [ $(id -u) != 0 ]; then
 	die "Must run as root"
 fi
 
-./load-zfs.sh || die ""
-./unload-zfs.sh || die ""
+./zfs.sh -v  || die ""
+./zfs.sh -vu || die ""
 
 exit 0
