@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ kmoduledir splsrc splsymvers UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR KERNELMAKE_PARAMS KERNELCPPFLAGS HOSTCFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ kmoduledir splsrc splsymvers UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -19192,28 +19192,21 @@ echo "${ECHO_T}$zfsconfig" >&6;
 		kernel)
 			KERNELMAKE_PARAMS="V=1"
 
-		KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas "
+	# FIXME: Quiet warnings not covered by the gcc-* patches.  We should
+	# FIXME: consider removing this as soon as we reasonably can
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas -Wno-parentheses "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing "
+
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
+
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
-
-		HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 "
-	HOSTCFLAGS="$HOSTCFLAGS -D_GNU_SOURCE -D__EXTENSIONS__ "
-
-			HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-unknown-pragmas -Wno-parentheses "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
-
-		HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
-	HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 "
-	HOSTCFLAGS="$HOSTCFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT "
-	HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
-
-		HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
 
 	if test "$kernelbuild" != "$kernelsrc"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
 	fi
-
 
 
 
@@ -19605,28 +19598,21 @@ echo "${ECHO_T}yes" >&6
 		all)
 			KERNELMAKE_PARAMS="V=1"
 
-		KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas "
+	# FIXME: Quiet warnings not covered by the gcc-* patches.  We should
+	# FIXME: consider removing this as soon as we reasonably can
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas -Wno-parentheses "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing "
+
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
+
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
-
-		HOSTCFLAGS="$HOSTCFLAGS -ggdb -O2 -std=c99 "
-	HOSTCFLAGS="$HOSTCFLAGS -D_GNU_SOURCE -D__EXTENSIONS__ "
-
-			HOSTCFLAGS="$HOSTCFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-unknown-pragmas -Wno-parentheses "
-	HOSTCFLAGS="$HOSTCFLAGS -Wno-uninitialized -fno-strict-aliasing "
-
-		HOSTCFLAGS="$HOSTCFLAGS -DHAVE_SPL -D_POSIX_PTHREAD_SEMANTICS "
-	HOSTCFLAGS="$HOSTCFLAGS -D_FILE_OFFSET_BITS=64 "
-	HOSTCFLAGS="$HOSTCFLAGS -D_LARGEFILE64_SOURCE -D_REENTRANT "
-	HOSTCFLAGS="$HOSTCFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
-
-		HOSTCFLAGS="$HOSTCFLAGS -I$TOPDIR "
 
 	if test "$kernelbuild" != "$kernelsrc"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
 	fi
-
 
 
 
@@ -20871,7 +20857,6 @@ s,@CMDDIR@,$CMDDIR,;t t
 s,@MODDIR@,$MODDIR,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
-s,@HOSTCFLAGS@,$HOSTCFLAGS,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
