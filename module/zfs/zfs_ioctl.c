@@ -394,6 +394,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, cred_t *cr)
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 {
+#ifdef HAVE_ZPL
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -420,6 +421,9 @@ zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 		return (dsl_deleg_access(zc->zc_name,
 		    ZFS_DELEG_PERM_SHARE, cr));
 	}
+#else
+	return (ENOTSUP);
+#endif /* HAVE_ZPL */
 }
 
 static int
@@ -1688,6 +1692,7 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 static int
 zfs_ioc_iscsi_perm_check(zfs_cmd_t *zc)
 {
+#ifdef HAVE_ZPL
 	nvlist_t *nvp;
 	int error;
 	uint32_t uid;
@@ -1730,6 +1735,9 @@ zfs_ioc_iscsi_perm_check(zfs_cmd_t *zc)
 	    zfs_prop_to_name(ZFS_PROP_SHAREISCSI), usercred);
 	crfree(usercred);
 	return (error);
+#else
+	return (ENOTSUP);
+#endif /* HAVE_ZPL */
 }
 
 /*
@@ -1843,6 +1851,7 @@ zfs_ioc_remove_minor(zfs_cmd_t *zc)
 static vfs_t *
 zfs_get_vfs(const char *resource)
 {
+#ifdef HAVE_ZPL
 	struct vfs *vfsp;
 	struct vfs *vfs_found = NULL;
 
@@ -1858,6 +1867,9 @@ zfs_get_vfs(const char *resource)
 	} while (vfsp != rootvfs);
 	vfs_list_unlock();
 	return (vfs_found);
+#else
+	return NULL;
+#endif /* HAVE_ZPL */
 }
 
 /* ARGSUSED */
@@ -2238,6 +2250,7 @@ zfs_ioc_snapshot(zfs_cmd_t *zc)
 int
 zfs_unmount_snap(char *name, void *arg)
 {
+#ifdef HAVE_ZPL
 	vfs_t *vfsp = NULL;
 
 	if (arg) {
@@ -2269,6 +2282,7 @@ zfs_unmount_snap(char *name, void *arg)
 		if ((err = dounmount(vfsp, flag, kcred)) != 0)
 			return (err);
 	}
+#endif /* HAVE_ZPL */
 	return (0);
 }
 
@@ -2321,6 +2335,7 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 static int
 zfs_ioc_rollback(zfs_cmd_t *zc)
 {
+#ifdef HAVE_ZPL
 	objset_t *os;
 	int error;
 	zfsvfs_t *zfsvfs = NULL;
@@ -2366,6 +2381,9 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 	/* Note, the dmu_objset_rollback() releases the objset for us. */
 
 	return (error);
+#else
+	return (ENOTSUP);
+#endif /* HAVE_ZPL */
 }
 
 /*
@@ -2436,7 +2454,9 @@ static int
 zfs_ioc_recv(zfs_cmd_t *zc)
 {
 	file_t *fp;
+#ifdef HAVE_ZPL
 	objset_t *os;
+#endif /* HAVE_ZPL */
 	dmu_recv_cookie_t drc;
 	zfsvfs_t *zfsvfs = NULL;
 	boolean_t force = (boolean_t)zc->zc_guid;
@@ -2470,6 +2490,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		return (EBADF);
 	}
 
+#ifdef HAVE_ZPL
 	if (dmu_objset_open(tofs, DMU_OST_ANY,
 	    DS_MODE_USER | DS_MODE_READONLY, &os) == 0) {
 		/*
@@ -2499,6 +2520,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 		dmu_objset_close(os);
 	}
+#endif /* HAVE_ZPL */
 
 	if (zc->zc_string[0]) {
 		error = dmu_objset_open(zc->zc_string, DMU_OST_ANY,
@@ -2564,7 +2586,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 out:
 	if (zfsvfs) {
 		mutex_exit(&zfsvfs->z_online_recv_lock);
+#ifdef HAVE_ZPL
 		VFS_RELE(zfsvfs->z_vfs);
+#endif /* HAVE_ZPL */
 	}
 	nvlist_free(props);
 	nvlist_free(origprops);
@@ -2773,6 +2797,7 @@ zfs_ioc_promote(zfs_cmd_t *zc)
  * the first file system is shared.
  * Neither sharefs, nfs or smbsrv are unloadable modules.
  */
+#ifdef HAVE_ZPL
 int (*znfsexport_fs)(void *arg);
 int (*zshare_fs)(enum sharefs_sys_op, share_t *, uint32_t);
 int (*zsmbexport_fs)(void *arg, boolean_t add_share);
@@ -2804,10 +2829,12 @@ zfs_init_sharefs()
 	}
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 static int
 zfs_ioc_share(zfs_cmd_t *zc)
 {
+#ifdef HAVE_ZPL
 	int error;
 	int opcode;
 
@@ -2897,8 +2924,11 @@ zfs_ioc_share(zfs_cmd_t *zc)
 	    zc->zc_share.z_sharemax);
 
 	return (error);
-
+#else
+	return (ENOTSUP);
+#endif /* HAVE_ZPL */
 }
+
 
 /*
  * pool create, destroy, and export don't log the history as part of
@@ -3163,7 +3193,9 @@ _init(void)
 
 	error = ldi_ident_from_mod(&modlinkage, &zfs_li);
 	ASSERT(error == 0);
+#ifdef HAVE_ZPL
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif /* HAVE_ZPL */
 
 	return (0);
 }
@@ -3182,6 +3214,7 @@ _fini(void)
 	zvol_fini();
 	zfs_fini();
 	spa_fini();
+#ifdef HAVE_ZPL
 	if (zfs_nfsshare_inited)
 		(void) ddi_modclose(nfs_mod);
 	if (zfs_smbshare_inited)
@@ -3189,10 +3222,12 @@ _fini(void)
 	if (zfs_nfsshare_inited || zfs_smbshare_inited)
 		(void) ddi_modclose(sharefs_mod);
 
+	mutex_destroy(&zfs_share_lock);
+#endif /* HAVE_ZPL */
+
 	tsd_destroy(&zfs_fsyncer_key);
 	ldi_ident_release(zfs_li);
 	zfs_li = NULL;
-	mutex_destroy(&zfs_share_lock);
 
 	return (error);
 }

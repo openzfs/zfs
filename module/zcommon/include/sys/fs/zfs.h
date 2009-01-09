@@ -491,6 +491,8 @@ typedef struct vdev_stat {
 #define	ZVOL_DRIVER	"zvol"
 #define	ZFS_DRIVER	"zfs"
 #define	ZFS_DEV		"/dev/zfs"
+#define ZFS_MAJOR       230 /* XXX: Arbitrary */
+#define ZFS_MINORS      16  /* XXX: Arbitrary */
 
 /*
  * zvol paths.  Irritatingly, the devfsadm interfaces want all these
