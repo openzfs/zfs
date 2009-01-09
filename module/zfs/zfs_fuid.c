@@ -185,6 +185,7 @@ zfs_fuid_idx_domain(avl_tree_t *idx_tree, uint32_t idx)
 }
 
 #ifdef _KERNEL
+#ifdef HAVE_ZPL
 /*
  * Load the fuid table(s) into memory.
  */
@@ -705,4 +706,5 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 	gid = zfs_fuid_map_id(zfsvfs, id, cr, ZFS_GROUP);
 	return (groupmember(gid, cr));
 }
+#endif /* HAVE_ZPL */
 #endif
