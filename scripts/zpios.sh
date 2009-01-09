@@ -3,8 +3,8 @@
 prog=zpios.sh
 . ../.script-config
 
-SPL_OPTIONS="spl_debug_mask=0 spl_debug_subsys=0 ${1}"
-ZPOOL_OPTIONS=$2
+SPL_OPTIONS="spl=spl_debug_mask=0 spl_debug_subsys=0 ${1}"
+ZPOOL_OPTIONS="zpool=$2"
 ZPIOS_OPTIONS=$3
 PROFILE_ZPIOS_LOGS=$4
 ZPIOS_PRE=$5
@@ -21,7 +21,7 @@ echo -n "Kernel = "; uname -r
 echo ------------------------------------------------------------------------
 
 echo
-./load-zfs.sh "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}"
+./zfs.sh -v "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}" || exit 1
 
 echo ---------------------- SPL Sysctl Tunings ------------------------------
 sysctl -A | grep spl
@@ -38,10 +38,10 @@ fi
 echo
 
 echo "${CMDDIR}/zpool/zpool create -f lustre ${DEVICES}"
-${CMDDIR}/zpool/zpool create -f lustre ${DEVICES}
+${CMDDIR}/zpool/zpool create -f lustre ${DEVICES} || exit 1
 
 echo "${CMDDIR}/zpool/zpool status lustre"
-${CMDDIR}/zpool/zpool status lustre
+${CMDDIR}/zpool/zpool status lustre || exit 1
 
 echo "Waiting for /dev/zpios to come up..."
 while [ ! -c /dev/zpios ]; do
@@ -49,7 +49,7 @@ while [ ! -c /dev/zpios ]; do
 done
 
 if [ -n "${ZPIOS_PRE}" ]; then
-	${ZPIOS_PRE}
+	${ZPIOS_PRE} || exit 1
 fi 
 
 # Usage: zpios
@@ -106,11 +106,11 @@ CMD="${CMDDIR}/zpios/zpios                                       \
 echo
 date
 echo ${CMD}
-$CMD
+$CMD || exit 1
 date
 
 if [ -n "${ZPIOS_POST}" ]; then
-	${ZPIOS_POST}
+	${ZPIOS_POST} || exit 1
 fi 
 
 ${CMDDIR}/zpool/zpool destroy lustre
@@ -130,4 +130,6 @@ echo SLAB
 cat /proc/spl/kmem/slab
 echo
 
-./unload-zfs.sh
+./zfs.sh -vu || exit 1
+
+exit 0
