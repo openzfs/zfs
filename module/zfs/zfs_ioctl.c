@@ -2214,7 +2214,7 @@ zfs_ioc_snapshot(zfs_cmd_t *zc)
 	if (snapshot_namecheck(zc->zc_value, NULL, NULL) != 0)
 		return (EINVAL);
 
-	if (zc->zc_nvlist_src != NULL &&
+	if (zc->zc_nvlist_src != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 	    &nvprops)) != 0)
 		return (error);
