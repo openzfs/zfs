@@ -850,8 +850,8 @@ zio_write_bp_init(zio_t *zio)
 	 */
 	if (bp->blk_birth == zio->io_txg && BP_GET_PSIZE(bp) == csize &&
 	    pass > SYNC_PASS_REWRITE) {
-		ASSERT(csize != 0);
 		uint32_t gang_stages = zio->io_pipeline & ZIO_GANG_STAGES;
+		ASSERT(csize != 0);
 		zio->io_pipeline = ZIO_REWRITE_PIPELINE | gang_stages;
 		zio->io_flags |= ZIO_FLAG_IO_REWRITE;
 	} else {
