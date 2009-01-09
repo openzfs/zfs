@@ -1495,21 +1495,29 @@ zvol_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 int
 zvol_busy(void)
 {
+#ifdef HAVE_ZVOL
 	return (zvol_minors != 0);
+#else
+	return 0;
+#endif /* HAVE_ZVOL */
 }
 
 void
 zvol_init(void)
 {
+#ifdef HAVE_ZVOL
 	VERIFY(ddi_soft_state_init(&zvol_state, sizeof (zvol_state_t), 1) == 0);
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif /* HAVE_ZVOL */
 }
 
 void
 zvol_fini(void)
 {
+#ifdef HAVE_ZVOL
 	mutex_destroy(&zvol_state_lock);
 	ddi_soft_state_fini(&zvol_state);
+#endif /*  HAVE_ZVOL */
 }
 
 static boolean_t
