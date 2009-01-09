@@ -4367,7 +4367,4 @@ EXPORT_SYMBOL(spa_prop_clear_bootfs);
 /* asynchronous event notification */
 EXPORT_SYMBOL(spa_event_notify);
 #endif
-
-module_param(zio_taskq_threads, int, 0644);
-MODULE_PARM_DESC(zio_taskq_threads, "Number of zio_taskq_threads");
 #endif
