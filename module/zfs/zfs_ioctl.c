@@ -3181,8 +3181,14 @@ _fini(void)
 }
 
 #ifdef HAVE_SPL
+void
+__fini(void)
+{
+	_fini();
+}
+
 module_init(_init);
-module_exit(_fini);
+module_exit(__fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("ZFS");
