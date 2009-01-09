@@ -61,6 +61,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
 
+#ifdef HAVE_ZPL
 int zfsfstype;
 vfsops_t *zfs_vfsops = NULL;
 static major_t zfs_major;
@@ -1517,6 +1518,7 @@ zfs_vfsinit(int fstype, char *name)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 void
 zfs_init(void)
