@@ -193,6 +193,7 @@ ddi_quiesce_not_needed(dev_info_t *dip)
 {
 	RETURN(DDI_SUCCESS);
 }
+EXPORT_SYMBOL(ddi_quiesce_not_needed);
 
 #if 0
 static int
