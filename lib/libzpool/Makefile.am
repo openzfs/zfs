@@ -85,5 +85,4 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/zio_compress.c \
-	${top_srcdir}/module/zfs/zio_inject.c \
-	${top_srcdir}/module/zfs/zvol.c
+	${top_srcdir}/module/zfs/zio_inject.c
