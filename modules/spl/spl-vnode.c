@@ -235,19 +235,31 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 	ASSERT(vp);
 	ASSERT(vp->v_file);
 
-        rc = filp_close(vp->v_file, 0);
-        vn_free(vp);
+	rc = filp_close(vp->v_file, 0);
+	vn_free(vp);
 
 	RETURN(-rc);
 } /* vn_close() */
 EXPORT_SYMBOL(vn_close);
 
-static struct dentry *vn_lookup_hash(struct nameidata *nd)
+/* vn_seek() does not actually seek it only performs bounds checking on the
+ * proposed seek.  We perform minimal checking and allow vn_rdwr() to catch
+ * anything more serious. */
+int
+vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, caller_context_t *ct)
+{
+	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
+}
+EXPORT_SYMBOL(vn_seek);
+
+static struct dentry *
+vn_lookup_hash(struct nameidata *nd)
 {
 	return lookup_one_len(nd->last.name, nd->nd_dentry, nd->last.len);
 } /* lookup_hash() */
 
-static void vn_path_release(struct nameidata *nd)
+static void
+vn_path_release(struct nameidata *nd)
 {
 	dput(nd->nd_dentry);
 	mntput(nd->nd_mnt);

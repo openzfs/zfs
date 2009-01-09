@@ -207,6 +207,8 @@ extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 		   offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
 		   void *x3, ssize_t *residp);
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
+extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, caller_context_t *ct);
+
 extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
@@ -230,6 +232,7 @@ vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
 } /* vn_putpage() */
 
 #define VOP_CLOSE				vn_close
+#define VOP_SEEK				vn_seek
 #define VN_RELE					vn_rele
 #define VOP_GETATTR				vn_getattr
 #define VOP_FSYNC				vn_fsync
