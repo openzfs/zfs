@@ -136,6 +136,7 @@ typedef struct dev_ops {
 	struct cb_ops *devo_cb_ops;
 	struct bus_ops *devo_bus_ops;
 	int (*devo_power)(dev_info_t *dip, int component, int level);
+	int (*devo_quiesce)(dev_info_t *dip);
 } dev_ops_t;
 
 typedef struct mod_ops {
@@ -198,6 +199,7 @@ extern int __ddi_create_minor_node(dev_info_t *dip, char *name, int spec_type,
                                    minor_t minor_num, char *node_type,
 				   int flags, struct module *mod);
 extern void __ddi_remove_minor_node(dev_info_t *dip, char *name);
+extern int ddi_quiesce_not_needed(dev_info_t *dip);
 extern int __mod_install(struct modlinkage *modlp);
 extern int __mod_remove(struct modlinkage *modlp);
 

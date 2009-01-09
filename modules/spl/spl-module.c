@@ -188,6 +188,12 @@ __ddi_remove_minor_node(dev_info_t *di, char *name)
 }
 EXPORT_SYMBOL(__ddi_remove_minor_node);
 
+int
+ddi_quiesce_not_needed(dev_info_t *dip)
+{
+	RETURN(DDI_SUCCESS);
+}
+
 #if 0
 static int
 mod_generic_open(struct inode *, struct file *)
