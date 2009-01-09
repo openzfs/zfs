@@ -274,6 +274,7 @@ retry:
 		char *packed;
 		dmu_buf_t *db;
 		int i = 0;
+		int nv_encode = NV_ENCODE_NATIVE;
 
 		if (rw == RW_READER && !rw_tryupgrade(&zfsvfs->z_fuid_lock)) {
 			rw_exit(&zfsvfs->z_fuid_lock);
@@ -311,10 +312,13 @@ retry:
 		for (i = 0; i != retidx; i++)
 			nvlist_free(fuids[i]);
 		kmem_free(fuids, retidx * sizeof (void *));
-		VERIFY(nvlist_size(nvp, &nvsize, NV_ENCODE_XDR) == 0);
+#ifdef HAVE_XDR
+		nv_encode = NV_ENCODE_XDR;
+#endif
+		VERIFY(nvlist_size(nvp, &nvsize, nv_encode) == 0);
 		packed = kmem_alloc(nvsize, KM_SLEEP);
 		VERIFY(nvlist_pack(nvp, &packed, &nvsize,
-		    NV_ENCODE_XDR, KM_SLEEP) == 0);
+		    nv_encode, KM_SLEEP) == 0);
 		nvlist_free(nvp);
 		zfsvfs->z_fuid_size = nvsize;
 		dmu_write(zfsvfs->z_os, zfsvfs->z_fuid_obj, 0,
