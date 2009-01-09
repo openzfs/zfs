@@ -3156,15 +3156,27 @@ static struct dev_ops zfs_dev_ops = {
 };
 
 static struct modldrv zfs_modldrv = {
+#ifdef HAVE_SPL
+	NULL,
+#else
 	&mod_driverops,
+#endif /* HAVE_SPL */
 	"ZFS storage pool",
 	&zfs_dev_ops
 };
 
 static struct modlinkage modlinkage = {
 	MODREV_1,
+#ifdef HAVE_ZPL
 	(void *)&zfs_modlfs,
+#else
+	NULL,
+#endif /* HAVE_ZPL */
 	(void *)&zfs_modldrv,
+#ifdef HAVE_SPL
+	ZFS_MAJOR,
+	ZFS_MINORS,
+#endif /* HAVE_SPL */
 	NULL
 };
 
@@ -3232,8 +3244,17 @@ _fini(void)
 	return (error);
 }
 
+#ifdef HAVE_SPL
+module_init(_init);
+module_exit(_fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("ZFS");
+MODULE_LICENSE("CDDL");
+#else
 int
 _info(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
+#endif /* HAVE_SPL */
