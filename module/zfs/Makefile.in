@@ -1,6 +1,6 @@
 DISTFILES = *.c
 
-MODULE := zpool
+MODULE := zfs
 
 EXTRA_CFLAGS  = -I@MODDIR@/zfs/include
 EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
