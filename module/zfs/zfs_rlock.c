@@ -94,6 +94,8 @@
  * range to just the range to be written using zfs_reduce_range.
  */
 
+#ifdef HAVE_ZPL
+
 #include <sys/zfs_rlock.h>
 
 /*
@@ -600,3 +602,4 @@ zfs_range_compare(const void *arg1, const void *arg2)
 		return (-1);
 	return (0);
 }
+#endif /* HAVE_ZPL */
