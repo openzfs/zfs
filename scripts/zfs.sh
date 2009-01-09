@@ -22,7 +22,7 @@ zfs_modules=(					\
 	${MODDIR}/nvpair/znvpair.ko		\
 	${MODDIR}/unicode/zunicode.ko		\
 	${MODDIR}/zcommon/zcommon.ko		\
-	${MODDIR}/zfs/zpool.ko			\
+	${MODDIR}/zfs/zfs.ko			\
 )
 
 test_modules=(					\
@@ -58,8 +58,8 @@ OPTIONS:
 MODULE-OPTIONS:
 	Must be of the frm module="options", for example:
 
-$0 zpool="zfs_prefetch_disable=1"
-$0 zpool="zfs_prefetch_disable=1 zfs_mdcomp_disable=1"
+$0 zfs="zfs_prefetch_disable=1"
+$0 zfs="zfs_prefetch_disable=1 zfs_mdcomp_disable=1"
 $0 spl="spl_debug_mask=0"
 
 EOF
