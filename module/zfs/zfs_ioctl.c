@@ -3159,12 +3159,12 @@ _init(void)
 		return (error);
 	}
 
-	tsd_create(&zfs_fsyncer_key, NULL);
-	tsd_create(&rrw_tsd_key, NULL);
-
 	error = ldi_ident_from_mod(&modlinkage, &zfs_li);
 	ASSERT(error == 0);
 #ifdef HAVE_ZPL
+	tsd_create(&zfs_fsyncer_key, NULL);
+	tsd_create(&rrw_tsd_key, NULL);
+
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
 #endif /* HAVE_ZPL */
 
@@ -3194,9 +3194,9 @@ _fini(void)
 		(void) ddi_modclose(sharefs_mod);
 
 	mutex_destroy(&zfs_share_lock);
+	tsd_destroy(&zfs_fsyncer_key);
 #endif /* HAVE_ZPL */
 
-	tsd_destroy(&zfs_fsyncer_key);
 	ldi_ident_release(zfs_li);
 	zfs_li = NULL;
 
