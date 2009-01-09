@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#ifdef HAVE_ZPL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -692,3 +694,5 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	seq = zil_itx_assign(zilog, itx, tx);
 	zp->z_last_itx = seq;
 }
+
+#endif /* HAVE_ZPL */
