@@ -116,56 +116,56 @@ typedef enum vtype {
 } vtype_t;
 
 typedef struct vattr {
-	enum vtype     va_type;      /* vnode type */
-	u_int          va_mask;	     /* attribute bit-mask */
-	u_short        va_mode;      /* acc mode */
-	short          va_uid;       /* owner uid */
-	short          va_gid;       /* owner gid */
-	long           va_fsid;      /* fs id */
-	long           va_nodeid;    /* node # */
-	short          va_nlink;     /* # links */
-	u_long         va_size;      /* file size */
-	long           va_blocksize; /* block size */
-	struct timeval va_atime;     /* last acc */
-	struct timeval va_mtime;     /* last mod */
-	struct timeval va_ctime;     /* last chg */
-	dev_t          va_rdev;      /* dev */
-	long           va_blocks;    /* space used */
+	enum vtype	va_type;	/* vnode type */
+	u_int		va_mask;	/* attribute bit-mask */
+	u_short		va_mode;	/* acc mode */
+	short		va_uid;		/* owner uid */
+	short		va_gid;		/* owner gid */
+	long		va_fsid;	/* fs id */
+	long		va_nodeid;	/* node # */
+	short		va_nlink;	/* # links */
+	u_long		va_size;	/* file size */
+	long		va_blocksize;	/* block size */
+	struct timeval va_atime;	/* last acc */
+	struct timeval va_mtime;	/* last mod */
+	struct timeval va_ctime;	/* last chg */
+	dev_t		va_rdev;	/* dev */
+	long		va_blocks;	/* space used */
 } vattr_t;
 
 typedef struct xoptattr {
-        timestruc_t     xoa_createtime; /* Create time of file */
-        uint8_t         xoa_archive;
-        uint8_t         xoa_system;
-        uint8_t         xoa_readonly;
-        uint8_t         xoa_hidden;
-        uint8_t         xoa_nounlink;
-        uint8_t         xoa_immutable;
-        uint8_t         xoa_appendonly;
-        uint8_t         xoa_nodump;
-        uint8_t         xoa_settable;
-        uint8_t         xoa_opaque;
-        uint8_t         xoa_av_quarantined;
-        uint8_t         xoa_av_modified;
+	timestruc_t	xoa_createtime;	/* Create time of file */
+	uint8_t		xoa_archive;
+	uint8_t		xoa_system;
+	uint8_t		xoa_readonly;
+	uint8_t		xoa_hidden;
+	uint8_t		xoa_nounlink;
+	uint8_t		xoa_immutable;
+	uint8_t		xoa_appendonly;
+	uint8_t		xoa_nodump;
+	uint8_t		xoa_settable;
+	uint8_t		xoa_opaque;
+	uint8_t		xoa_av_quarantined;
+	uint8_t		xoa_av_modified;
 } xoptattr_t;
 
 typedef struct xvattr {
-        vattr_t         xva_vattr;      /* Embedded vattr structure */
-        uint32_t        xva_magic;      /* Magic Number */
-        uint32_t        xva_mapsize;    /* Size of attr bitmap (32-bit words) */
-        uint32_t        *xva_rtnattrmapp;       /* Ptr to xva_rtnattrmap[] */
-        uint32_t        xva_reqattrmap[XVA_MAPSIZE];    /* Requested attrs */
-        uint32_t        xva_rtnattrmap[XVA_MAPSIZE];    /* Returned attrs */
-        xoptattr_t      xva_xoptattrs;  /* Optional attributes */
+	vattr_t		xva_vattr;	/* Embedded vattr structure */
+	uint32_t	xva_magic;	/* Magic Number */
+	uint32_t	xva_mapsize;	/* Size of attr bitmap (32-bit words) */
+	uint32_t	*xva_rtnattrmapp;	/* Ptr to xva_rtnattrmap[] */
+	uint32_t	xva_reqattrmap[XVA_MAPSIZE];	/* Requested attrs */
+	uint32_t	xva_rtnattrmap[XVA_MAPSIZE];	/* Returned attrs */
+	xoptattr_t	xva_xoptattrs;	/* Optional attributes */
 } xvattr_t;
 
 typedef struct vsecattr {
-        uint_t          vsa_mask;       /* See below */
-        int             vsa_aclcnt;     /* ACL entry count */
-        void            *vsa_aclentp;   /* pointer to ACL entries */
-        int             vsa_dfaclcnt;   /* default ACL entry count */
-        void            *vsa_dfaclentp; /* pointer to default ACL entries */
-        size_t          vsa_aclentsz;   /* ACE size in bytes of vsa_aclentp */
+	uint_t		vsa_mask;	/* See below */
+	int		vsa_aclcnt;	/* ACL entry count */
+	void		*vsa_aclentp;	/* pointer to ACL entries */
+	int		vsa_dfaclcnt;	/* default ACL entry count */
+	void		*vsa_dfaclentp;	/* pointer to default ACL entries */
+	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
 typedef struct vnode {
@@ -181,14 +181,21 @@ typedef struct vnode {
 } vnode_t;
 
 typedef struct vn_file {
-	int			f_fd;	   /* linux fd for lookup */
-	struct file		*f_file;   /* linux file struct */
-	atomic_t		f_ref;	   /* ref count */
-	kmutex_t		f_lock;    /* struct lock */
-	loff_t			f_offset;  /* offset */
-	vnode_t			*f_vnode;  /* vnode */
-        struct list_head	f_list;	   /* list of referenced file_t's */
+	int		f_fd;		/* linux fd for lookup */
+	struct file	*f_file;	/* linux file struct */
+	atomic_t	f_ref;		/* ref count */
+	kmutex_t	f_lock;		/* struct lock */
+	loff_t		f_offset;	/* offset */
+	vnode_t		*f_vnode;	/* vnode */
+	struct list_head f_list		/* list referenced file_t's */
 } file_t;
+
+typedef struct caller_context {
+	pid_t		cc_pid;		/* Process ID of the caller */
+	int		cc_sysid;	/* System ID, used for remote calls */
+	u_longlong_t	cc_caller_id;	/* Identifier for (set of) caller(s) */
+	ulong_t		cc_flags;
+} caller_context_t;
 
 extern vnode_t *vn_alloc(int flag);
 void vn_free(vnode_t *vp);
@@ -218,7 +225,7 @@ vn_rele(vnode_t *vp)
 
 static __inline__ int
 vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
-           int flags, void *x1, void *x2) {
+	   int flags, void *x1, void *x2) {
 	return 0;
 } /* vn_putpage() */
 
