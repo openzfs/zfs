@@ -3188,7 +3188,7 @@ init(void)
 
 	rc = _init();
 	if (!rc)
-		printk(KERN_INFO "ZFS: Loaded v%s\n", VERSION);
+		printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n", VERSION);
 
 	return rc;
 }
@@ -3197,7 +3197,7 @@ void
 fini(void)
 {
 	(void)_fini();
-	printk(KERN_INFO "ZFS: Unloaded v%s\n", VERSION);
+	printk(KERN_INFO "ZFS: Unloaded ZFS Filesystem v%s\n", VERSION);
 }
 
 module_init(init);
