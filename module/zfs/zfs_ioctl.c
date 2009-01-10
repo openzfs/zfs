@@ -1520,6 +1520,7 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 				return (error);
 			break;
 
+#ifdef HAVE_ZVOL
 		case ZFS_PROP_VOLSIZE:
 			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
 			    (error = zvol_set_volsize(name,
@@ -1532,6 +1533,11 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			    (error = zvol_set_volblocksize(name, intval)) != 0)
 				return (error);
 			break;
+#else
+		case ZFS_PROP_VOLSIZE:
+		case ZFS_PROP_VOLBLOCKSIZE:
+			return (ENOTSUP);
+#endif /* HAVE_ZVOL */
 
 		case ZFS_PROP_VERSION:
 			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
