@@ -3182,7 +3182,7 @@ _fini(void)
 
 #ifdef HAVE_SPL
 int
-__init(void)
+init(void)
 {
 	int rc;
 
@@ -3194,14 +3194,14 @@ __init(void)
 }
 
 void
-__fini(void)
+fini(void)
 {
 	(void)_fini();
 	printk(KERN_INFO "ZFS: Unloaded v%s\n", VERSION);
 }
 
-module_init(__init);
-module_exit(__fini);
+module_init(init);
+module_exit(fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("ZFS");
