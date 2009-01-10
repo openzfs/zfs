@@ -3247,13 +3247,26 @@ _fini(void)
 }
 
 #ifdef HAVE_SPL
+int
+__init(void)
+{
+	int rc;
+
+	rc = _init();
+	if (!rc)
+		printk(KERN_INFO "ZFS: Loaded v%s\n", VERSION);
+
+	return rc;
+}
+
 void
 __fini(void)
 {
-	_fini();
+	(void)_fini();
+	printk(KERN_INFO "ZFS: Unloaded v%s\n", VERSION);
 }
 
-module_init(_init);
+module_init(__init);
 module_exit(__fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
