@@ -3,8 +3,8 @@
 prog=zpios.sh
 . ../.script-config
 
-SPL_OPTIONS="spl=spl_debug_mask=0 spl_debug_subsys=0 ${1}"
-ZPOOL_OPTIONS="zpool=$2"
+SPL_OPTIONS="spl=spl_debug_mask=-1 spl_debug_subsys=-1 spl_debug_mb=10 ${1}"
+ZFS_OPTIONS="zfs=$2"
 ZPIOS_OPTIONS=$3
 PROFILE_ZPIOS_LOGS=$4
 ZPIOS_PRE=$5
@@ -27,13 +27,19 @@ echo ---------------------- SPL Sysctl Tunings ------------------------------
 sysctl -A | grep spl
 echo
 
-echo ------------------- SPL/ZPOOL Module Tunings ---------------------------
+echo ------------------- SPL Module Tunings ---------------------------
 if [ -d /sys/module/spl/parameters ]; then
 	grep [0-9] /sys/module/spl/parameters/*
-	grep [0-9] /sys/module/zpool/parameters/*
 else
 	grep [0-9] /sys/module/spl/*
-	grep [0-9] /sys/module/zpool/*
+fi
+echo
+
+echo ------------------- ZFS Module Tunings ---------------------------
+if [ -d /sys/module/zfs/parameters ]; then
+	grep [0-9] /sys/module/zfs/parameters/*
+else
+	grep [0-9] /sys/module/zfs/*
 fi
 echo
 
