@@ -282,6 +282,13 @@ dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_dbuf = db;
 	dn->dn_phys = dnp;
 
+	list_link_init(&dn->dn_link);
+	{
+		int i;
+		for (i = 0; i < TXG_SIZE; i++)
+			list_link_init(&dn->dn_dirty_link[i]);
+	}
+
 	if (dnp->dn_datablkszsec)
 		dnode_setdblksz(dn, dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 	dn->dn_indblkshift = dnp->dn_indblkshift;
