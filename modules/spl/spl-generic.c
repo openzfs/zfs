@@ -126,6 +126,11 @@ uint64_t __umoddi3(uint64_t dividend, uint64_t divisor)
 EXPORT_SYMBOL(__umoddi3);
 #endif
 
+/* NOTE: The strtoxx behavior is solely based on my reading of the Solaris
+ * ddi_strtol(9F) man page.  I have not verified the behavior of these
+ * functions against their Solaris counterparts.  It is possible that I
+ * may have misinterpretted the man page or the man page is incorrect.
+ */
 int ddi_strtoul(const char *, char **, int, unsigned long *);
 int ddi_strtol(const char *, char **, int, long *);
 int ddi_strtoull(const char *, char **, int, unsigned long long *);
@@ -133,43 +138,81 @@ int ddi_strtoll(const char *, char **, int, long long *);
 
 #define define_ddi_strtoux(type, valtype)				\
 int ddi_strtou##type(const char *str, char **endptr,			\
-			int base, valtype *result)			\
+		     int base, valtype *result)				\
 {									\
-	valtype val;							\
-	size_t len;							\
+	valtype last_value, value = 0;					\
+	char *ptr = (char *)str;					\
+	int flag = 1, digit;						\
 									\
-	len = strlen(str);						\
-	if (len == 0)							\
-		return -EINVAL;						\
+	if (strlen(ptr) == 0)						\
+		return EINVAL;						\
 									\
-	val = simple_strtoul(str, endptr, (unsigned int)base);		\
-	if ((**endptr == '\0') ||					\
-	   ((len == (size_t)(*endptr-str) + 1) && (**endptr == '\n'))) {\
-		*result = val;						\
-		return 0;						\
+	/* Auto-detect base based on prefix */				\
+	if (!base) {							\
+		if (str[0] == '0') {					\
+			if (tolower(str[1])=='x' && isxdigit(str[2])) {	\
+				base = 16; /* hex */			\
+				ptr += 2;				\
+			} else if (str[1] >= '0' && str[1] < 8) {	\
+				base = 8; /* octal */			\
+				ptr += 1;				\
+			} else {					\
+				return EINVAL;				\
+			}						\
+		} else {						\
+			base = 10; /* decimal */			\
+		}							\
 	}								\
 									\
-	return -EINVAL;							\
+	while (1) {							\
+		if (isdigit(*ptr))					\
+			digit = *ptr - '0';				\
+		else if (isalpha(*ptr))					\
+			digit = tolower(*ptr) - 'a' + 10;		\
+		else							\
+			break;						\
+									\
+		if (digit >= base)					\
+			break;						\
+									\
+		last_value = value;					\
+		value = value * base + digit;				\
+		if (last_value > value) /* Overflow */			\
+			return ERANGE;					\
+									\
+		flag = 1;						\
+		ptr++;							\
+	}								\
+									\
+	if (flag)							\
+		*result = value;					\
+									\
+	if (endptr)							\
+		*endptr = (char *)(flag ? ptr : str);			\
+									\
+	return 0;							\
 }									\
 
 #define define_ddi_strtox(type, valtype)				\
 int ddi_strto##type(const char *str, char **endptr,			\
 		       int base, valtype *result)			\
-{                                                                       \
-	int ret;                                                        \
+{									\
+	int rc;								\
 									\
 	if (*str == '-') {						\
-		ret = ddi_strtou##type(str+1, endptr,			\
-				       (unsigned int)base, result);	\
-		if (!ret)						\
-			*result = -(*result);				\
+		rc = ddi_strtou##type(str + 1, endptr, base, result);	\
+		if (!rc) {						\
+			if (*endptr == str + 1)				\
+				*endptr = (char *)str;			\
+			else						\
+				*result = -*result;			\
+		}							\
 	} else {							\
-		ret = ddi_strtou##type(str, endptr,			\
-				       (unsigned int)base, result);	\
+		rc = ddi_strtou##type(str, endptr, base, result);	\
 	}								\
 									\
-	return ret;							\
-}									\
+	return rc;							\
+}
 
 define_ddi_strtoux(l, unsigned long)
 define_ddi_strtox(l, long)

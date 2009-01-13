@@ -1,11 +1,7 @@
 # Makefile.in for splat kernel module
 
 MODULES := splat
-DISTFILES = Makefile.in \
-            splat-kmem.c splat-random.c splat-taskq.c \
-            splat-time.c splat-condvar.c  splat-mutex.c \
-            splat-rwlock.c  splat-thread.c \
-            splat-ctl.c splat-internal.h
+DISTFILES = Makefile.in *.c *.h
 EXTRA_CFLAGS = @KERNELCPPFLAGS@
 
 # Solaris Porting LAyer Tests
@@ -24,6 +20,7 @@ splat-objs += splat-vnode.o
 splat-objs += splat-kobj.o
 splat-objs += splat-atomic.o
 splat-objs += splat-list.o
+splat-objs += splat-generic.o
 
 splatmodule := splat.ko
 splatmoduledir := @kmoduledir@/kernel/lib/

@@ -608,6 +608,7 @@ splat_init(void)
 	SPLAT_SUBSYSTEM_INIT(kobj);
 	SPLAT_SUBSYSTEM_INIT(atomic);
 	SPLAT_SUBSYSTEM_INIT(list);
+	SPLAT_SUBSYSTEM_INIT(generic);
 
 	dev = MKDEV(SPLAT_MAJOR, 0);
         if ((rc = register_chrdev_region(dev, SPLAT_MINORS, SPLAT_NAME)))
@@ -654,6 +655,7 @@ splat_fini(void)
         cdev_del(&splat_cdev);
         unregister_chrdev_region(dev, SPLAT_MINORS);
 
+	SPLAT_SUBSYSTEM_FINI(generic);
 	SPLAT_SUBSYSTEM_FINI(list);
 	SPLAT_SUBSYSTEM_FINI(atomic);
 	SPLAT_SUBSYSTEM_FINI(kobj);
