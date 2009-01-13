@@ -357,6 +357,7 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		ds->ds_dbuf = dbuf;
 		ds->ds_object = dsobj;
 		ds->ds_phys = dbuf->db_data;
+		list_link_init(&ds->ds_synced_link);
 
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
