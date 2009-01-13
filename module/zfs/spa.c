@@ -60,6 +60,7 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/spa_boot.h>
+#include <sys/zfs_znode.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -2086,6 +2087,44 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	mutex_exit(&spa_namespace_lock);
 
 	spa->spa_minref = refcount_count(&spa->spa_refcount);
+
+#if defined(_KERNEL) && !defined(HAVE_ZPL)
+	{
+        objset_t *os;
+	nvlist_t *zprops;
+
+        /*
+         * Create the pool's root filesystem.
+         */
+        error = dmu_objset_open(pool, DMU_OST_ZFS, DS_MODE_OWNER, &os);
+        if (error != 0)
+                return (error);
+
+        tx = dmu_tx_create(os);
+
+        dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, TRUE, NULL); /* master */
+        dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, TRUE, NULL); /* del queue */
+        dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT); /* root node */
+
+        error = dmu_tx_assign(tx, TXG_WAIT);
+        ASSERT3U(error, ==, 0);
+
+        if (spa_version(dmu_objset_spa(os)) >= SPA_VERSION_FUID)
+                version = ZPL_VERSION;
+        else
+                version = MIN(ZPL_VERSION, ZPL_VERSION_FUID - 1);
+
+        VERIFY(nvlist_alloc(&zprops, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+        VERIFY(nvlist_add_uint64(zprops, zfs_prop_to_name(ZFS_PROP_VERSION),
+                version) == 0);
+
+        zfs_create_fs(os, CRED(), zprops, tx);
+        nvlist_free(zprops);
+
+        dmu_tx_commit(tx);
+        dmu_objset_close(os);
+	}
+#endif
 
 	return (0);
 }
