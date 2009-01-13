@@ -122,7 +122,7 @@ load_modules() {
 		for opt in "$@"; do
 			opt_name=`echo $opt | cut -f1 -d'='`
 			
-			if [ ${name} = ${opt_name} ]; then
+			if [ ${name} = "${opt_name}" ]; then
 				value=`echo $opt | cut -f2- -d'='`
 			fi
 		done
