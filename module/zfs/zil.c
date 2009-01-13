@@ -488,9 +488,14 @@ zil_rollback_destroy(zilog_t *zilog, dmu_tx_t *tx)
 	/*
 	 * Ensure there's no outstanding ZIL IO.  No lwbs or just the
 	 * unused one that allocated in advance is ok.
+	 *
+	 * XXX: The assertion is correct, but we need a portable version
+	 * which does not rely on directly accessing the list nodes.
 	 */
+#if 0
 	ASSERT(zilog->zl_lwb_list.list_head.list_next ==
 	    zilog->zl_lwb_list.list_head.list_prev);
+#endif
 	(void) zil_parse(zilog, zil_free_log_block, zil_free_log_record,
 	    tx, zh->zh_claim_txg);
 }
