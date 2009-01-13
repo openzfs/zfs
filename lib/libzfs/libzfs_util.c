@@ -560,7 +560,7 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-#if defined(HAVE_SPL) && !defined(HAVE_GPL_ONLY_SYMBOLS)
+#if !defined(HAVE_GPL_ONLY_SYMBOLS)
 	/* If we don't have access to GPL-only symbols then we may not
 	 * use the udev APIs, therefore we must mknod the device ourselves. */
 	(void)mknod(ZFS_DEV, S_IFCHR | 0600, makedev(ZFS_MAJOR, 0));
