@@ -953,11 +953,13 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 		    dd->dd_phys->dd_used_breakdown[type] >= -used);
 		dd->dd_phys->dd_used_breakdown[type] += used;
 #ifdef DEBUG
-		dd_used_t t;
-		uint64_t u = 0;
-		for (t = 0; t < DD_USED_NUM; t++)
-			u += dd->dd_phys->dd_used_breakdown[t];
-		ASSERT3U(u, ==, dd->dd_phys->dd_used_bytes);
+		{
+			dd_used_t t;
+			uint64_t u = 0;
+			for (t = 0; t < DD_USED_NUM; t++)
+				u += dd->dd_phys->dd_used_breakdown[t];
+			ASSERT3U(u, ==, dd->dd_phys->dd_used_bytes);
+		}
 #endif
 	}
 	if (needlock)
