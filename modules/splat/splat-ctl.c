@@ -617,7 +617,7 @@ splat_init(void)
 	/* Support for registering a character driver */
 	cdev_init(&splat_cdev, &splat_fops);
 	if ((rc = cdev_add(&splat_cdev, dev, SPLAT_MINORS))) {
-		printk(KERN_ERR "splat: Error adding cdev, %d\n", rc);
+		printk(KERN_ERR "SPLAT: Error adding cdev, %d\n", rc);
 		kobject_put(&splat_cdev.kobj);
 		unregister_chrdev_region(dev, SPLAT_MINORS);
 		goto error;
@@ -627,7 +627,7 @@ splat_init(void)
         splat_class = spl_class_create(THIS_MODULE, "splat");
 	if (IS_ERR(splat_class)) {
 		rc = PTR_ERR(splat_class);
-		printk(KERN_ERR "splat: Error creating splat class, %d\n", rc);
+		printk(KERN_ERR "SPLAT: Error creating splat class, %d\n", rc);
 		cdev_del(&splat_cdev);
 		unregister_chrdev_region(dev, SPLAT_MINORS);
 		goto error;
@@ -637,11 +637,11 @@ splat_init(void)
 					 MKDEV(SPLAT_MAJOR, 0),
 					 NULL, SPLAT_NAME);
 
-	printk(KERN_INFO "splat: Loaded Solaris Porting LAyer "
+	printk(KERN_INFO "SPLAT: Loaded Solaris Porting LAyer "
 	       "Tests v%s\n", VERSION);
 	return 0;
 error:
-	printk(KERN_ERR "splat: Error registering splat device, %d\n", rc);
+	printk(KERN_ERR "SPLAT: Error registering splat device, %d\n", rc);
 	return rc;
 }
 
@@ -670,7 +670,7 @@ splat_fini(void)
 	SPLAT_SUBSYSTEM_FINI(kmem);
 
 	ASSERT(list_empty(&splat_module_list));
-	printk(KERN_INFO "splat: Unloaded Solaris Porting LAyer "
+	printk(KERN_INFO "SPLAT: Unloaded Solaris Porting LAyer "
 	       "Tests v%s\n", VERSION);
 }
 
