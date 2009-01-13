@@ -1264,8 +1264,6 @@ kpios_init(void)
 	}
 
 	class_device_create(kpios_class, NULL, dev, NULL, "kpios");
-
-	printk(KERN_INFO "kpios: Loaded Kernel PIOS Tests v%s\n", VERSION);
 	return 0;
 error:
 	printk(KERN_ERR "kpios: Error registering kpios device, %d\n", rc);
@@ -1283,7 +1281,6 @@ kpios_fini(void)
 	cdev_del(&kpios_cdev);
 	unregister_chrdev_region(dev, KPIOS_MINORS);
 
-	printk(KERN_INFO "kpios: Unloaded Kernel PIOS Tests\n");
 	return;
 }
 
