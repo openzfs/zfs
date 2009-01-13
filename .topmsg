@@ -5,4 +5,9 @@ Remove all instances of list handling where the API is not used
 and instead list data members are directly accessed.  Doing this
 sort of thing is bad for portability.
 
+Additionally, ensure that list_link_init() is called on newly
+created list nodes.  This ensures the node is properly initialized
+and does not rely on the assumption that zero'ing the list_node_t
+via kmem_zalloc() is the same as proper initialization.
+
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
