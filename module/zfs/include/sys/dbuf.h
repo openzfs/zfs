@@ -85,9 +85,6 @@ struct dmu_tx;
  * etc.
  */
 
-#define	LIST_LINK_INACTIVE(link) \
-	((link)->list_next == NULL && (link)->list_prev == NULL)
-
 struct dmu_buf_impl;
 
 typedef enum override_states {
