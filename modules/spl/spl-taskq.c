@@ -475,7 +475,7 @@ spl_taskq_init(void)
         ENTRY;
 
         system_taskq = taskq_create("system_taskq", 64, minclsyspri, 4, 512,
-                                    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
+                                    TASKQ_PREPOPULATE);
 	if (system_taskq == NULL)
 		RETURN(1);
 
