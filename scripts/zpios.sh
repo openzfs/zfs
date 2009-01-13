@@ -4,7 +4,7 @@ prog=zpios.sh
 . ../.script-config
 
 SPL_OPTIONS="spl=spl_debug_mask=-1 spl_debug_subsys=-1 spl_debug_mb=10 ${1}"
-ZFS_OPTIONS="zfs=$2"
+ZFS_OPTIONS="zfs=${2}"
 ZPIOS_OPTIONS=$3
 PROFILE_ZPIOS_LOGS=$4
 ZPIOS_PRE=$5
