@@ -121,6 +121,7 @@ if [ -n "${ZPIOS_POST}" ]; then
 	${ZPIOS_POST} || exit 1
 fi 
 
+echo "${CMDDIR}/zpool/zpool destroy lustre"
 ${CMDDIR}/zpool/zpool destroy lustre
 
 echo ---------------------- SPL Sysctl Tunings ------------------------------
