@@ -19,8 +19,10 @@ echo ------------------------- ZFS TEST LOG ---------------------------------
 echo -n "Date = "; date
 echo -n "Kernel = "; uname -r
 echo ------------------------------------------------------------------------
-
 echo
+
+echo "rm /etc/zfs/zpool.cache" || exit 1
+rm -f /etc/zfs/zpool.cache
 ./zfs.sh -v "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}" || exit 1
 
 echo ---------------------- SPL Sysctl Tunings ------------------------------
@@ -101,7 +103,7 @@ CMD="${CMDDIR}/zpios/zpios                                       \
 	--path=lustre                                            \
 	--chunksize=1M                                           \
 	--regionsize=4M                                          \
-	--regioncount=64                                         \
+	--regioncount=256                                        \
 	--threadcount=4                                          \
 	--offset=4M                                              \
         --cleanup                                                \
@@ -125,16 +127,25 @@ echo ---------------------- SPL Sysctl Tunings ------------------------------
 sysctl -A | grep spl
 echo
 
-echo ------------------------ KSTAT Statistics ------------------------------
-echo ARCSTATS
-cat /proc/spl/kstat/zfs/arcstats
-echo
-echo VDEV_CACHE_STATS
-cat /proc/spl/kstat/zfs/vdev_cache_stats
-echo
-echo SLAB
-cat /proc/spl/kmem/slab
-echo
+if [ -d /proc/spl/kstat/ ]; then
+	if [ -f /proc/spl/kstat/zfs/arcstats ]; then
+		echo "------------------ ARCSTATS --------------------------"
+		cat /proc/spl/kstat/zfs/arcstats
+		echo
+	fi
+
+	if [ -f /proc/spl/kstat/zfs/vdev_cache_stats ]; then
+		echo "-------------- VDEV_CACHE_STATS ----------------------"
+		cat /proc/spl/kstat/zfs/vdev_cache_stats
+		echo
+	fi
+fi
+
+if [ -f /proc/spl/kmem/slab ]; then
+	echo "-------------------- SLAB ----------------------------"
+	cat /proc/spl/kmem/slab
+	echo
+fi
 
 ./zfs.sh -vu || exit 1
 
