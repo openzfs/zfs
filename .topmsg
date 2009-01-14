@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux-zfs-branch
+Subject: [PATCH] linux zfs branch
 
 Merged result of all expected upstream ZFS changes and modifications
 required to make ZFS Linux friendly
