@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux-have-zpl
+Subject: [PATCH] linux have zpl
 
 Changes required to build ZFS without the ZPL layer.  Or
 better yet long term the changes required to integrate ZFS
