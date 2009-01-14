@@ -33,22 +33,23 @@
 const char *
 getexecname(void)
 {
-	static char execname[PATH_MAX + 1];
-	/* Must be MT-safe */
+	static char execname[PATH_MAX + 1] = "";
 	static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+	char *ptr = NULL;
+	ssize_t rc;
 
 	pthread_mutex_lock(&mtx);
 
 	if (strlen(execname) == 0) {
-		ssize_t rc = readlink("/proc/self/exe", execname, sizeof(execname - 1));
+		rc = readlink("/proc/self/exe", execname, sizeof(execname) - 1);
 		if (rc == -1) {
 			execname[0] = '\0';
-			pthread_mutex_unlock(&mtx);
-			return NULL;
-		} else
+		} else {
 			execname[rc] = '\0';
+			ptr = execname;
+		}
 	}
-	pthread_mutex_unlock(&mtx);
 
-	return execname;
+	pthread_mutex_unlock(&mtx);
+	return ptr;
 }
