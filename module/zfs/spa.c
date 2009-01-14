@@ -60,7 +60,6 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/spa_boot.h>
-#include <sys/zfs_znode.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
