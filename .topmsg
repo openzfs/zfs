@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] gcc-unused
+Subject: [PATCH] gcc unused
 
 Gcc -Wall warn: 'unused variable'
 
