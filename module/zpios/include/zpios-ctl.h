@@ -42,7 +42,7 @@
 
 #define KPIOS_MAJOR			232 /* XXX - Arbitrary */
 #define KPIOS_MINORS                    1
-#define KPIOS_DEV			"/dev/kpios"
+#define KPIOS_DEV			"/dev/zpios"
 
 #define DMU_IO				0x01
 
