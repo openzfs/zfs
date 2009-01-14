@@ -323,9 +323,9 @@ print_stats_header(void)
 }
 
 static void
-print_stats_human_readable(cmd_args_t *args, kpios_cmd_t *cmd)
+print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 {
-	kpios_stats_t *summary_stats;
+	zpios_stats_t *summary_stats;
 	double t_time, wr_time, rd_time, cr_time, rm_time;
 	char str[16];
 
@@ -350,7 +350,7 @@ print_stats_human_readable(cmd_args_t *args, kpios_cmd_t *cmd)
 		return;
 	}
 
-	summary_stats = (kpios_stats_t *)cmd->cmd_data_str;
+	summary_stats = (zpios_stats_t *)cmd->cmd_data_str;
 	t_time  = timespec_to_double(summary_stats->total_time.delta);
 	wr_time = timespec_to_double(summary_stats->wr_time.delta);
 	rd_time = timespec_to_double(summary_stats->rd_time.delta);
@@ -374,9 +374,9 @@ print_stats_human_readable(cmd_args_t *args, kpios_cmd_t *cmd)
 }
 
 static void
-print_stats_table(cmd_args_t *args, kpios_cmd_t *cmd)
+print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 {
-	kpios_stats_t *summary_stats;
+	zpios_stats_t *summary_stats;
 	double wr_time, rd_time;
 
 	if (args->rc)
@@ -400,7 +400,7 @@ print_stats_table(cmd_args_t *args, kpios_cmd_t *cmd)
 		return;
 	}
 
-	summary_stats = (kpios_stats_t *)cmd->cmd_data_str;
+	summary_stats = (zpios_stats_t *)cmd->cmd_data_str;
 	wr_time = timespec_to_double(summary_stats->wr_time.delta);
 	rd_time = timespec_to_double(summary_stats->rd_time.delta);
 
@@ -431,7 +431,7 @@ print_stats_table(cmd_args_t *args, kpios_cmd_t *cmd)
 }
 
 void
-print_stats(cmd_args_t *args, kpios_cmd_t *cmd)
+print_stats(cmd_args_t *args, zpios_cmd_t *cmd)
 {
 	if (args->human_readable)
 		print_stats_human_readable(args, cmd);
