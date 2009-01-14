@@ -43,7 +43,7 @@ for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0
 			txg_timelimit)	IDX=15;;
 			arc_reclaim)	IDX=16;;
 			l2arc_feed)	IDX=17;;
-			kpios_io)	IDX=18;;
+			zpios_io)	IDX=18;;
 			*)		continue;;
 		esac
 
@@ -55,7 +55,7 @@ for PID_FILE in `ls -r --sort=time --time=ctime ${RUN_LOG_DIR}/${RUN_ID}/pids-[0
                      "zio_req_rd, zio_irq_rd, zio_req_wr, zio_irq_wr, "   \
                      "zio_req_fr, zio_irq_fr, zio_req_cm, zio_irq_cm, "   \
                      "zio_req_ctl, zio_irq_ctl, txg_quiesce, txg_sync, "  \
-                     "txg_timelimit, arc_reclaim, l2arc_feed, kpios_io, " \
+                     "txg_timelimit, arc_reclaim, l2arc_feed, zpios_io, " \
 		     "idle"
 		HEADER=0
 	fi

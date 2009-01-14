@@ -21,7 +21,7 @@ POLL_INTERVAL=2.99
 # txg_timelimit_t
 # arc_reclaim_thr
 # l2arc_feed_thre
-# kpios_io/#
+# zpios_io/#
 
 ZIO_TASKQ_PIDS=()
 ZIO_REQ_NUL_PIDS=() 
@@ -44,7 +44,7 @@ TXG_TIMELIMIT_PIDS=()
 ARC_RECLAIM_PIDS=()
 L2ARC_FEED_PIDS=()
 
-KPIOS_IO_PIDS=()
+ZPIOS_IO_PIDS=()
 
 show_pids() {
 	echo "* zio_taskq:     { ${ZIO_TASKQ_PIDS[@]} } = ${#ZIO_TASKQ_PIDS[@]}"
@@ -65,7 +65,7 @@ show_pids() {
 	echo "* txg_timelimit: { ${TXG_TIMELIMIT_PIDS[@]} } = ${#TXG_TIMELIMIT_PIDS[@]}"
 	echo "* arc_reclaim:   { ${ARC_RECLAIM_PIDS[@]} } = ${#ARC_RECLAIM_PIDS[@]}"
 	echo "* l2arc_feed:    { ${L2ARC_FEED_PIDS[@]} } = ${#L2ARC_FEED_PIDS[@]}"
-	echo "* kpios_io:      { ${KPIOS_IO_PIDS[@]} } = ${#KPIOS_IO_PIDS[@]}"
+	echo "* zpios_io:      { ${ZPIOS_IO_PIDS[@]} } = ${#ZPIOS_IO_PIDS[@]}"
 }
 
 check_pid() {
@@ -154,13 +154,13 @@ aquire_pids() {
                                   "$(echo "${L2ARC_FEED_PIDS[@]}")"` )
 	done
 
-	# Wait for kpios_io threads to start
+	# Wait for zpios_io threads to start
 	kill -s SIGHUP ${PPID}
-	echo "* Waiting for kpios_io threads to start"
+	echo "* Waiting for zpios_io threads to start"
 	while [ ${RUN_DONE} -eq 0 ]; do
-		KPIOS_IO_PIDS=( `ps ax | grep kpios_io | grep -v grep | \
+		ZPIOS_IO_PIDS=( `ps ax | grep zpios_io | grep -v grep | \
                                  sed 's/^ *//g' | cut -f1 -d' '` )
-		if [ ${#KPIOS_IO_PIDS[@]} -gt 0 ]; then
+		if [ ${#ZPIOS_IO_PIDS[@]} -gt 0 ]; then
 			break;
 		fi
 		sleep 0.1
@@ -189,7 +189,7 @@ log_pids() {
                    ${TXG_TIMELIMIT_PIDS[@]} \
                    ${ARC_RECLAIM_PIDS[@]}   \
                    ${L2ARC_FEED_PIDS[@]}    \
-                   ${KPIOS_IO_PIDS[@]} )
+                   ${ZPIOS_IO_PIDS[@]} )
 
 	while [ ${RUN_DONE} -eq 0 ]; do
 		NOW=`date +%s.%N`
