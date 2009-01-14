@@ -89,9 +89,9 @@ typedef struct cmd_args {
 	uint64_t chunknoise;        /* Chunk noise */
 	uint64_t thread_delay;      /* Thread delay */
 
-	char pre[KPIOS_PATH_SIZE];  /* Pre-exec hook */
-	char post[KPIOS_PATH_SIZE]; /* Post-exec hook */
-	char log[KPIOS_PATH_SIZE];  /* Requested log dir */
+	char pre[ZPIOS_PATH_SIZE];  /* Pre-exec hook */
+	char post[ZPIOS_PATH_SIZE]; /* Post-exec hook */
+	char log[ZPIOS_PATH_SIZE];  /* Requested log dir */
 
 	/* Control */
 	int current_id;
@@ -112,6 +112,6 @@ int set_noise(uint64_t *noise, char *optarg, char *arg);
 int set_load_params(cmd_args_t *args, char *optarg);
 int check_mutual_exclusive_command_lines(uint32_t flag, char *arg);
 void print_stats_header(void);
-void print_stats(cmd_args_t *args, kpios_cmd_t *cmd);
+void print_stats(cmd_args_t *args, zpios_cmd_t *cmd);
 
 #endif /* _ZPIOS_H */
