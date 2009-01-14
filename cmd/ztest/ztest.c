@@ -2789,31 +2789,21 @@ static void
 ztest_verify_blocks(char *pool)
 {
 	int status;
+	char bin[MAXPATHLEN + MAXNAMELEN + 20];
 	char zdb[MAXPATHLEN + MAXNAMELEN + 20];
 	char zbuf[1024];
-	char *bin;
-	char *ztest;
-	char *isa;
-	int isalen;
 	FILE *fp;
 
-	(void) realpath(getexecname(), zdb);
+	/* Designed to be run exclusively in the development tree */
+	(void) realpath(getexecname(), bin);
+	strstr(bin, "/ztest/")[0] = '\0';
 
-	/* zdb lives in /usr/sbin, while ztest lives in /usr/bin */
-	bin = strstr(zdb, "/usr/bin/");
-	ztest = strstr(bin, "/ztest");
-	isa = bin + 8;
-	isalen = ztest - isa;
-	isa = strdup(isa);
-	/* LINTED */
-	(void) sprintf(bin,
-	    "/usr/sbin%.*s/zdb -bc%s%s -U /tmp/zpool.cache %s",
-	    isalen,
-	    isa,
+	(void) sprintf(zdb,
+	    "%s/zdb/zdb -bc%s%s -U /tmp/zpool.cache %s",
+	    bin,
 	    zopt_verbose >= 3 ? "s" : "",
 	    zopt_verbose >= 4 ? "v" : "",
 	    pool);
-	free(isa);
 
 	if (zopt_verbose >= 5)
 		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
