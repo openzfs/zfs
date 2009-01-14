@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] fix-list
+Subject: [PATCH] fix list
 
 Remove all instances of list handling where the API is not used
 and instead list data members are directly accessed.  Doing this
