@@ -23,7 +23,10 @@ echo
 
 echo "rm /etc/zfs/zpool.cache" || exit 1
 rm -f /etc/zfs/zpool.cache
-./zfs.sh -v "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}" || exit 1
+
+echo "./zfs.sh"
+./zfs.sh "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}" || exit 1
+echo
 
 echo ---------------------- SPL Sysctl Tunings ------------------------------
 sysctl -A | grep spl
@@ -121,8 +124,10 @@ if [ -n "${ZPIOS_POST}" ]; then
 	${ZPIOS_POST} || exit 1
 fi 
 
+echo
 echo "${CMDDIR}/zpool/zpool destroy lustre"
 ${CMDDIR}/zpool/zpool destroy lustre
+echo
 
 echo ---------------------- SPL Sysctl Tunings ------------------------------
 sysctl -A | grep spl
@@ -148,6 +153,7 @@ if [ -f /proc/spl/kmem/slab ]; then
 	echo
 fi
 
-./zfs.sh -vu || exit 1
+echo "./zfs.sh -u"
+./zfs.sh -u || exit 1
 
 exit 0
