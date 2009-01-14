@@ -1,5 +1,5 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] gcc-no-parenthesis
+Subject: [PATCH] gcc no parenthesis
 
 Gcc -Wall warn: 'missing parenthesis'
 
