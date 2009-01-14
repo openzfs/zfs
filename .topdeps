@@ -18,3 +18,4 @@ linux-zpios
 linux-libspl
 linux-unused
 linux-have-zpl
+linux-ztest
