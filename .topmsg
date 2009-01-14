@@ -1,6 +1,6 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux-arc
+Subject: [PATCH] linux arc
 
-<patch description>
+Linux VM arc integration.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
