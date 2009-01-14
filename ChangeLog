@@ -46,7 +46,7 @@
 	- Minor build system improvements
 	- Minor script improvements
 	- Create a full copy and not a link tree with quilt
-	- KPIOS_MAJOR changed from 231 to 232
+	- ZPIOS_MAJOR changed from 231 to 232
 	- BIO_RW_BARRIER flag removed from IO request
 
 2008-06-30 Brian Behlendorf <behlendorf1@llnl.gov>

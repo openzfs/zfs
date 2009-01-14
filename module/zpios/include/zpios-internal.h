@@ -30,8 +30,8 @@
  * CDDL HEADER END
  */
 
-#ifndef _KPIOS_INTERNAL_H
-#define _KPIOS_INTERNAL_H
+#ifndef _ZPIOS_INTERNAL_H
+#define _ZPIOS_INTERNAL_H
 
 #include "zpios-ctl.h"
 
@@ -49,26 +49,26 @@ typedef struct thread_data {
 	struct run_args *run_args;
 	int thread_no;
 	int rc;
-	kpios_stats_t stats;
+	zpios_stats_t stats;
         kmutex_t lock;
 } thread_data_t;
 
 /* region for IO data */
-typedef struct kpios_region {
+typedef struct zpios_region {
 	__u64 wr_offset;
 	__u64 rd_offset;
 	__u64 init_offset;
 	__u64 max_offset;
 	dmu_obj_t obj;
-	kpios_stats_t stats;
+	zpios_stats_t stats;
         kmutex_t lock;
-} kpios_region_t;
+} zpios_region_t;
 
 /* arguments for one run */
 typedef struct run_args {
 	/* Config args */
 	int id;
-	char pool[KPIOS_NAME_SIZE];
+	char pool[ZPIOS_NAME_SIZE];
 	__u64 chunk_size;
 	__u32 thread_count;
 	__u32 region_count;
@@ -78,9 +78,9 @@ typedef struct run_args {
 	__u32 chunk_noise;
 	__u32 thread_delay;
 	__u32 flags;
-	char pre[KPIOS_PATH_SIZE];
-	char post[KPIOS_PATH_SIZE];
-	char log[KPIOS_PATH_SIZE];
+	char pre[ZPIOS_PATH_SIZE];
+	char post[ZPIOS_PATH_SIZE];
+	char log[ZPIOS_PATH_SIZE];
 
 	/* Control data */
 	objset_t *os;
@@ -92,24 +92,24 @@ typedef struct run_args {
 
 	/* Results data */
 	struct file *file;
-	kpios_stats_t stats;
+	zpios_stats_t stats;
 
 	thread_data_t **threads;
-	kpios_region_t regions[0]; /* Must be last element */
+	zpios_region_t regions[0]; /* Must be last element */
 } run_args_t;
 
-#define KPIOS_INFO_BUFFER_SIZE          65536
-#define KPIOS_INFO_BUFFER_REDZONE       1024
+#define ZPIOS_INFO_BUFFER_SIZE          65536
+#define ZPIOS_INFO_BUFFER_REDZONE       1024
 
-typedef struct kpios_info {
+typedef struct zpios_info {
         spinlock_t info_lock;
         int info_size;
         char *info_buffer;
         char *info_head;        /* Internal kernel use only */
-} kpios_info_t;
+} zpios_info_t;
 
-#define kpios_print(file, format, args...)                              \
-({      kpios_info_t *_info_ = (kpios_info_t *)file->private_data;      \
+#define zpios_print(file, format, args...)                              \
+({      zpios_info_t *_info_ = (zpios_info_t *)file->private_data;      \
         int _rc_;                                                       \
                                                                         \
         ASSERT(_info_);                                                 \
@@ -119,7 +119,7 @@ typedef struct kpios_info {
                                                                         \
         /* Don't allow the kernel to start a write in the red zone */   \
         if ((int)(_info_->info_head - _info_->info_buffer) >            \
-            (_info_->info_size - KPIOS_INFO_BUFFER_REDZONE))      {     \
+            (_info_->info_size - ZPIOS_INFO_BUFFER_REDZONE))      {     \
                 _rc_ = -EOVERFLOW;                                      \
         } else {                                                        \
                 _rc_ = sprintf(_info_->info_head, format, args);        \
@@ -131,7 +131,7 @@ typedef struct kpios_info {
         _rc_;                                                           \
 })
 
-#define kpios_vprint(file, test, format, args...)                       \
-        kpios_print(file, "%*s: " format, KPIOS_NAME_SIZE, test, args)
+#define zpios_vprint(file, test, format, args...)                       \
+        zpios_print(file, "%*s: " format, ZPIOS_NAME_SIZE, test, args)
 
-#endif /* _KPIOS_INTERNAL_H */
+#endif /* _ZPIOS_INTERNAL_H */

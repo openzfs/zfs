@@ -259,13 +259,13 @@ args_init(int argc, char **argv)
 			args->flags |= DMU_REMOVE;
 			break;
 		case 'P': /* --prerun */
-			strncpy(args->pre, optarg, KPIOS_PATH_SIZE - 1);
+			strncpy(args->pre, optarg, ZPIOS_PATH_SIZE - 1);
 			break;
 		case 'R': /* --postrun */
-			strncpy(args->post, optarg, KPIOS_PATH_SIZE - 1);
+			strncpy(args->post, optarg, ZPIOS_PATH_SIZE - 1);
 			break;
 		case 'G': /* --log */
-			strncpy(args->log, optarg, KPIOS_PATH_SIZE - 1);
+			strncpy(args->log, optarg, ZPIOS_PATH_SIZE - 1);
 			break;
 		case 'I': /* --regionnoise */
 			rc = set_noise(&args->regionnoise, optarg, "regionnoise");
@@ -329,18 +329,18 @@ args_init(int argc, char **argv)
 static int
 dev_clear(void)
 {
-	kpios_cfg_t cfg;
+	zpios_cfg_t cfg;
 	int rc;
 
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.cfg_magic = KPIOS_CFG_MAGIC;
-        cfg.cfg_cmd   = KPIOS_CFG_BUFFER_CLEAR;
+	cfg.cfg_magic = ZPIOS_CFG_MAGIC;
+        cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_CLEAR;
 	cfg.cfg_arg1  = 0;
 
-	rc = ioctl(zpiosctl_fd, KPIOS_CFG, &cfg);
+	rc = ioctl(zpiosctl_fd, ZPIOS_CFG, &cfg);
 	if (rc)
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KPIOS_CFG, cfg.cfg_cmd, errno);
+		        (unsigned long) ZPIOS_CFG, cfg.cfg_cmd, errno);
 
 	lseek(zpiosctl_fd, 0, SEEK_SET);
 
@@ -351,18 +351,18 @@ dev_clear(void)
 static int
 dev_size(int size)
 {
-	kpios_cfg_t cfg;
+	zpios_cfg_t cfg;
 	int rc;
 
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.cfg_magic = KPIOS_CFG_MAGIC;
-        cfg.cfg_cmd   = KPIOS_CFG_BUFFER_SIZE;
+	cfg.cfg_magic = ZPIOS_CFG_MAGIC;
+        cfg.cfg_cmd   = ZPIOS_CFG_BUFFER_SIZE;
 	cfg.cfg_arg1  = size;
 
-	rc = ioctl(zpiosctl_fd, KPIOS_CFG, &cfg);
+	rc = ioctl(zpiosctl_fd, ZPIOS_CFG, &cfg);
 	if (rc) {
 		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) KPIOS_CFG, cfg.cfg_cmd, errno);
+		        (unsigned long) ZPIOS_CFG, cfg.cfg_cmd, errno);
 		return rc;
 	}
 
@@ -378,7 +378,7 @@ dev_fini(void)
 	if (zpiosctl_fd != -1) {
 		if (close(zpiosctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                KPIOS_DEV, errno);
+		                ZPIOS_DEV, errno);
 		}
 	}
 }
@@ -388,10 +388,10 @@ dev_init(void)
 {
 	int rc;
 
-	zpiosctl_fd = open(KPIOS_DEV, O_RDONLY);
+	zpiosctl_fd = open(ZPIOS_DEV, O_RDONLY);
 	if (zpiosctl_fd == -1) {
 		fprintf(stderr, "Unable to open %s: %d\n"
-		        "Is the zpios module loaded?\n", KPIOS_DEV, errno);
+		        "Is the zpios module loaded?\n", ZPIOS_DEV, errno);
 		rc = errno;
 		goto error;
 	}
@@ -415,7 +415,7 @@ error:
 	if (zpiosctl_fd != -1) {
 		if (close(zpiosctl_fd) == -1) {
 			fprintf(stderr, "Unable to close %s: %d\n",
-		                KPIOS_DEV, errno);
+		                ZPIOS_DEV, errno);
 		}
 	}
 
@@ -468,22 +468,22 @@ static int
 run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
         uint64_t C, uint64_t S, uint64_t O)
 {
-	kpios_cmd_t *cmd;
+	zpios_cmd_t *cmd;
         int rc, rc2, cmd_size;
 
         dev_clear();
 
-	cmd_size = sizeof(kpios_cmd_t) + ((T + N + 1) * sizeof(kpios_stats_t));
-        cmd = (kpios_cmd_t *)malloc(cmd_size);
+	cmd_size = sizeof(zpios_cmd_t) + ((T + N + 1) * sizeof(zpios_stats_t));
+        cmd = (zpios_cmd_t *)malloc(cmd_size);
         if (cmd == NULL)
                 return ENOMEM;
 
         memset(cmd, 0, cmd_size);
-        cmd->cmd_magic = KPIOS_CMD_MAGIC;
-	strncpy(cmd->cmd_pool, args->pool, KPIOS_NAME_SIZE - 1);
-	strncpy(cmd->cmd_pre, args->pre, KPIOS_PATH_SIZE - 1);
-	strncpy(cmd->cmd_post, args->post, KPIOS_PATH_SIZE - 1);
-	strncpy(cmd->cmd_log, args->log, KPIOS_PATH_SIZE - 1);
+        cmd->cmd_magic = ZPIOS_CMD_MAGIC;
+	strncpy(cmd->cmd_pool, args->pool, ZPIOS_NAME_SIZE - 1);
+	strncpy(cmd->cmd_pre, args->pre, ZPIOS_PATH_SIZE - 1);
+	strncpy(cmd->cmd_post, args->post, ZPIOS_PATH_SIZE - 1);
+	strncpy(cmd->cmd_log, args->log, ZPIOS_PATH_SIZE - 1);
 	cmd->cmd_id           = id;
 	cmd->cmd_chunk_size   = C;
 	cmd->cmd_thread_count = T;
@@ -494,9 +494,9 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 	cmd->cmd_chunk_noise  = args->chunknoise;
 	cmd->cmd_thread_delay = args->thread_delay;
 	cmd->cmd_flags        = args->flags;
-        cmd->cmd_data_size    = (T + N + 1) * sizeof(kpios_stats_t);
+        cmd->cmd_data_size    = (T + N + 1) * sizeof(zpios_stats_t);
 
-        rc = ioctl(zpiosctl_fd, KPIOS_CMD, cmd);
+        rc = ioctl(zpiosctl_fd, ZPIOS_CMD, cmd);
 	if (rc)
 		args->rc = errno;
 
