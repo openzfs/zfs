@@ -567,8 +567,16 @@ libzfs_init(void)
 #endif
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
-		free(hdl);
-		return (NULL);
+		/* XXX: Allow this failure on linux systems for now.  It
+		 * occurs when we attempt to open the /dev/zfs without the
+		 * ZFS module stack loaded.  This is normally a problem but
+		 * tools such as zdb call this function and never use the
+		 * ioctl() interface.  Long term this should be cleaned up.
+		 */
+		if (errno != ENXIO) {
+			free(hdl);
+			return (NULL);
+		}
 	}
 
 	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
@@ -588,7 +596,8 @@ libzfs_init(void)
 void
 libzfs_fini(libzfs_handle_t *hdl)
 {
-	(void) close(hdl->libzfs_fd);
+	if (hdl->libzfs_fd != -1)
+		(void) close(hdl->libzfs_fd);
 	if (hdl->libzfs_mnttab)
 		(void) fclose(hdl->libzfs_mnttab);
 	if (hdl->libzfs_sharetab)
