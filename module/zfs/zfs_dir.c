@@ -562,24 +562,6 @@ zfs_rmnode(znode_t *zp)
 	ASSERT(zp->z_phys->zp_links == 0);
 
 	/*
-	 * If this is a ZIL replay then leave the object in the unlinked set.
-	 * Otherwise we can get a deadlock, because the delete can be
-	 * quite large and span multiple tx's and txgs, but each replay
-	 * creates a tx to atomically run the replay function and mark the
-	 * replay record as complete. We deadlock trying to start a tx in
-	 * a new txg to further the deletion but can't because the replay
-	 * tx hasn't finished.
-	 *
-	 * We actually delete the object if we get a failure to create an
-	 * object in zil_replay_log_record(), or after calling zil_replay().
-	 */
-	if (zfsvfs->z_assign >= TXG_INITIAL) {
-		zfs_znode_dmu_fini(zp);
-		zfs_znode_free(zp);
-		return;
-	}
-
-	/*
 	 * If this is an attribute directory, purge its contents.
 	 */
 	if (ZTOV(zp)->v_type == VDIR && (zp->z_phys->zp_flags & ZFS_XATTR)) {
@@ -845,9 +827,9 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, vnode_t **xvpp, cred_t *cr)
 			    FUID_SIZE_ESTIMATE(zfsvfs));
 		}
 	}
-	error = dmu_tx_assign(tx, zfsvfs->z_assign);
+	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
-		if (error == ERESTART && zfsvfs->z_assign == TXG_NOWAIT)
+		if (error == ERESTART)
 			dmu_tx_wait(tx);
 		dmu_tx_abort(tx);
 		return (error);
@@ -930,7 +912,7 @@ top:
 	error = zfs_make_xattrdir(zp, &va, xvpp, cr);
 	zfs_dirent_unlock(dl);
 
-	if (error == ERESTART && zfsvfs->z_assign == TXG_NOWAIT) {
+	if (error == ERESTART) {
 		/* NB: we already did dmu_tx_wait() if necessary */
 		goto top;
 	}
@@ -959,7 +941,7 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	uid_t		fowner;
 	zfsvfs_t	*zfsvfs = zdp->z_zfsvfs;
 
-	if (zdp->z_zfsvfs->z_assign >= TXG_INITIAL)	/* ZIL replay */
+	if (zdp->z_zfsvfs->z_replay)
 		return (0);
 
 	if ((zdp->z_phys->zp_mode & S_ISVTX) == 0)
