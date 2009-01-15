@@ -149,8 +149,8 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_RESULT([$splsrcver])
 
 	AC_MSG_CHECKING([spl Module.symvers])
-	if test -r $splbuild/modules/Module.symvers; then
-		splsymvers=$splbuild/modules/Module.symvers
+	if test -r $splbuild/module/Module.symvers; then
+		splsymvers=$splbuild/module/Module.symvers
 	elif test -r $kernelbuild/Module.symvers; then
 		splsymvers=$kernelbuild/Module.symvers
 	fi
