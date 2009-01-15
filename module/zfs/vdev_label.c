@@ -277,9 +277,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		    vd->vdev_islog) == 0);
 	}
 
-	if (vd->vdev_dtl.smo_object != 0)
+	if (vd->vdev_dtl_smo.smo_object != 0)
 		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
-		    vd->vdev_dtl.smo_object) == 0);
+		    vd->vdev_dtl_smo.smo_object) == 0);
 
 	if (getstats) {
 		vdev_stat_t vs;
@@ -520,9 +520,6 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	    vdev_inuse(vd, crtxg, reason, &spare_guid, &l2cache_guid))
 		return (EBUSY);
 
-	ASSERT(reason != VDEV_LABEL_REMOVE ||
-	    vdev_inuse(vd, crtxg, reason, NULL, NULL));
-
 	/*
 	 * If this is a request to add or replace a spare or l2cache device
 	 * that is in use elsewhere on the system, then we must update the
@@ -705,6 +702,11 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
  */
 
 /*
+ * For use by zdb and debugging purposes only
+ */
+uint64_t ub_max_txg = UINT64_MAX;
+
+/*
  * Consider the following situation: txg is safely synced to disk.  We've
  * written the first uberblock for txg + 1, and then we lose power.  When we
  * come back up, we fail to see the uberblock for txg + 1 because, say,
@@ -741,7 +743,8 @@ vdev_uberblock_load_done(zio_t *zio)
 
 	if (zio->io_error == 0 && uberblock_verify(ub) == 0) {
 		mutex_enter(&rio->io_lock);
-		if (vdev_uberblock_compare(ub, ubbest) > 0)
+		if (ub->ub_txg <= ub_max_txg &&
+		    vdev_uberblock_compare(ub, ubbest) > 0)
 			*ubbest = *ub;
 		mutex_exit(&rio->io_lock);
 	}
