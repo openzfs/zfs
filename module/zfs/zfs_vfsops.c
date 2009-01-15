@@ -583,20 +583,49 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		 * allow replays to succeed.
 		 */
 		readonly = zfsvfs->z_vfs->vfs_flag & VFS_RDONLY;
-		zfsvfs->z_vfs->vfs_flag &= ~VFS_RDONLY;
+		if (readonly != 0)
+			zfsvfs->z_vfs->vfs_flag &= ~VFS_RDONLY;
+		else
+			zfs_unlinked_drain(zfsvfs);
 
-		/*
-		 * Parse and replay the intent log.
-		 */
-		zil_replay(zfsvfs->z_os, zfsvfs, &zfsvfs->z_assign,
-		    zfs_replay_vector, zfs_unlinked_drain);
-
-		zfs_unlinked_drain(zfsvfs);
+		zfsvfs->z_log = zil_open(zfsvfs->z_os, zfs_get_data);
+		if (zil_disable) {
+			zil_destroy(zfsvfs->z_log, 0);
+			zfsvfs->z_log = NULL;
+		} else {
+			/*
+			 * Parse and replay the intent log.
+			 *
+			 * Because of ziltest, this must be done after
+			 * zfs_unlinked_drain().  (Further note: ziltest
+			 * doesn't use readonly mounts, where
+			 * zfs_unlinked_drain() isn't called.)  This is because
+			 * ziltest causes spa_sync() to think it's committed,
+			 * but actually it is not, so the intent log contains
+			 * many txg's worth of changes.
+			 *
+			 * In particular, if object N is in the unlinked set in
+			 * the last txg to actually sync, then it could be
+			 * actually freed in a later txg and then reallocated
+			 * in a yet later txg.  This would write a "create
+			 * object N" record to the intent log.  Normally, this
+			 * would be fine because the spa_sync() would have
+			 * written out the fact that object N is free, before
+			 * we could write the "create object N" intent log
+			 * record.
+			 *
+			 * But when we are in ziltest mode, we advance the "open
+			 * txg" without actually spa_sync()-ing the changes to
+			 * disk.  So we would see that object N is still
+			 * allocated and in the unlinked set, and there is an
+			 * intent log record saying to allocate it.
+			 */
+			zfsvfs->z_replay = B_TRUE;
+			zil_replay(zfsvfs->z_os, zfsvfs, zfs_replay_vector);
+			zfsvfs->z_replay = B_FALSE;
+		}
 		zfsvfs->z_vfs->vfs_flag |= readonly; /* restore readonly bit */
 	}
-
-	if (!zil_disable)
-		zfsvfs->z_log = zil_open(zfsvfs->z_os, zfs_get_data);
 
 	return (0);
 }
@@ -634,7 +663,6 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 	zfsvfs->z_vfs = vfsp;
 	zfsvfs->z_parent = zfsvfs;
-	zfsvfs->z_assign = TXG_NOWAIT;
 	zfsvfs->z_max_blksz = SPA_MAXBLOCKSIZE;
 	zfsvfs->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
 

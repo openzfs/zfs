@@ -720,6 +720,8 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	vdev_t *vd;
 	int dshift = 3;
 	int all_zero;
+	int zio_lock = B_FALSE;
+	boolean_t allocatable;
 	uint64_t offset = -1ULL;
 	uint64_t asize;
 	uint64_t distance;
@@ -778,11 +780,20 @@ top:
 	all_zero = B_TRUE;
 	do {
 		vd = mg->mg_vd;
+
 		/*
 		 * Don't allocate from faulted devices.
 		 */
-		if (!vdev_allocatable(vd))
+		if (zio_lock) {
+			spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+			allocatable = vdev_allocatable(vd);
+			spa_config_exit(spa, SCL_ZIO, FTAG);
+		} else {
+			allocatable = vdev_allocatable(vd);
+		}
+		if (!allocatable)
 			goto next;
+
 		/*
 		 * Avoid writing single-copy data to a failing vdev
 		 */
@@ -855,6 +866,12 @@ next:
 	if (!all_zero) {
 		dshift++;
 		ASSERT(dshift < 64);
+		goto top;
+	}
+
+	if (!zio_lock) {
+		dshift = 3;
+		zio_lock = B_TRUE;
 		goto top;
 	}
 
@@ -946,7 +963,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 	space_map_claim(&msp->ms_map, offset, size);
 
-	if (spa_mode & FWRITE) {	/* don't dirty if we're zdb(1M) */
+	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(1M) */
 		if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
 		space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, size);
