@@ -370,18 +370,12 @@ usage(boolean_t requested)
 
 		zfs_deleg_permissions();
 	} else {
-		/*
-		 * TRANSLATION NOTE:
-		 * "zfs set|get" must not be localised this is the
-		 * command name and arguments.
-		 */
-
 		(void) fprintf(fp,
-		    gettext("\nFor the property list, run: zfs set|get\n"));
-
+		    gettext("\nFor the property list, run: %s\n"),
+		    "zfs set|get");
 		(void) fprintf(fp,
-		    gettext("\nFor the delegated permission list, run:"
-		    " zfs allow|unallow\n"));
+		    gettext("\nFor the delegated permission list, run: %s\n"),
+		    "zfs allow|unallow");
 	}
 
 	/*
@@ -419,7 +413,6 @@ parseprop(nvlist_t *props)
 		return (-1);
 	}
 	return (0);
-
 }
 
 /*
@@ -2584,14 +2577,15 @@ zfs_print_allows(char *ds)
 	for (curperms = perms; curperms; curperms = curperms->z_next) {
 
 		(void) snprintf(banner, sizeof (banner),
-		    "Permission sets on (%s)", curperms->z_setpoint);
+		    gettext("Permission sets on (%s)"), curperms->z_setpoint);
 		allowcb.a_treeoffset =
 		    offsetof(zfs_allow_node_t, z_localdescend);
 		allowcb.a_permcnt = 0;
 		zfs_iter_perms(&curperms->z_sets, banner, &allowcb);
 
 		(void) snprintf(banner, sizeof (banner),
-		    "Create time permissions on (%s)", curperms->z_setpoint);
+		    gettext("Create time permissions on (%s)"),
+		    curperms->z_setpoint);
 		allowcb.a_treeoffset =
 		    offsetof(zfs_allow_node_t, z_localdescend);
 		allowcb.a_permcnt = 0;
@@ -2599,7 +2593,7 @@ zfs_print_allows(char *ds)
 
 
 		(void) snprintf(banner, sizeof (banner),
-		    "Local permissions on (%s)", curperms->z_setpoint);
+		    gettext("Local permissions on (%s)"), curperms->z_setpoint);
 		allowcb.a_treeoffset = offsetof(zfs_allow_node_t, z_local);
 		allowcb.a_permcnt = 0;
 		zfs_iter_perms(&curperms->z_user, banner, &allowcb);
@@ -2607,7 +2601,8 @@ zfs_print_allows(char *ds)
 		zfs_iter_perms(&curperms->z_everyone, banner, &allowcb);
 
 		(void) snprintf(banner, sizeof (banner),
-		    "Descendent permissions on (%s)", curperms->z_setpoint);
+		    gettext("Descendent permissions on (%s)"),
+		    curperms->z_setpoint);
 		allowcb.a_treeoffset = offsetof(zfs_allow_node_t, z_descend);
 		allowcb.a_permcnt = 0;
 		zfs_iter_perms(&curperms->z_user, banner, &allowcb);
@@ -2615,7 +2610,7 @@ zfs_print_allows(char *ds)
 		zfs_iter_perms(&curperms->z_everyone, banner, &allowcb);
 
 		(void) snprintf(banner, sizeof (banner),
-		    "Local+Descendent permissions on (%s)",
+		    gettext("Local+Descendent permissions on (%s)"),
 		    curperms->z_setpoint);
 		allowcb.a_treeoffset =
 		    offsetof(zfs_allow_node_t, z_localdescend);
@@ -3071,7 +3066,6 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0);
 		verify(zfs_prop_get(zhp, ZFS_PROP_SHARESMB, smbshareopts,
 		    sizeof (smbshareopts), NULL, NULL, 0, B_FALSE) == 0);
-		canmount = zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT);
 
 		if (op == OP_SHARE && strcmp(shareopts, "off") == 0 &&
 		    strcmp(smbshareopts, "off") == 0) {
@@ -3081,7 +3075,8 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			(void) fprintf(stderr, gettext("cannot share '%s': "
 			    "legacy share\n"), zfs_get_name(zhp));
 			(void) fprintf(stderr, gettext("use share(1M) to "
-			    "share this filesystem\n"));
+			    "share this filesystem, or set "
+			    "sharenfs property on\n"));
 			return (1);
 		}
 
@@ -3119,6 +3114,7 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		 * noauto	no		return 0
 		 * noauto	yes		pass through
 		 */
+		canmount = zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT);
 		if (canmount == ZFS_CANMOUNT_OFF) {
 			if (!explicit)
 				return (0);
