@@ -279,6 +279,7 @@ static vdev_t *
 vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 {
 	vdev_t *vd;
+	int t;
 
 	vd = kmem_zalloc(sizeof (vdev_t), KM_SLEEP);
 
@@ -318,7 +319,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	mutex_init(&vd->vdev_dtl_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_stat_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_probe_lock, NULL, MUTEX_DEFAULT, NULL);
-	for (int t = 0; t < DTL_TYPES; t++) {
+	for (t = 0; t < DTL_TYPES; t++) {
 		space_map_create(&vd->vdev_dtl[t], 0, -1ULL, 0,
 		    &vd->vdev_dtl_lock);
 	}
@@ -513,7 +514,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 void
 vdev_free(vdev_t *vd)
 {
-	int c;
+	int c, t;
 	spa_t *spa = vd->vdev_spa;
 
 	/*
@@ -572,7 +573,7 @@ vdev_free(vdev_t *vd)
 	txg_list_destroy(&vd->vdev_dtl_list);
 
 	mutex_enter(&vd->vdev_dtl_lock);
-	for (int t = 0; t < DTL_TYPES; t++) {
+	for (t = 0; t < DTL_TYPES; t++) {
 		space_map_unload(&vd->vdev_dtl[t]);
 		space_map_destroy(&vd->vdev_dtl[t]);
 	}
@@ -1388,11 +1389,11 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 {
 	spa_t *spa = vd->vdev_spa;
 	avl_tree_t reftree;
-	int minref;
+	int c, t, minref;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_dtl_reassess(vd->vdev_child[c], txg,
 		    scrub_txg, scrub_done);
 
@@ -1450,7 +1451,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 	}
 
 	mutex_enter(&vd->vdev_dtl_lock);
-	for (int t = 0; t < DTL_TYPES; t++) {
+	for (t = 0; t < DTL_TYPES; t++) {
 		if (t == DTL_SCRUB)
 			continue;			/* leaf vdevs only */
 		if (t == DTL_PARTIAL)
@@ -1602,6 +1603,7 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 	boolean_t needed = B_FALSE;
 	uint64_t thismin = UINT64_MAX;
 	uint64_t thismax = 0;
+	int c;
 
 	if (vd->vdev_children == 0) {
 		mutex_enter(&vd->vdev_dtl_lock);
@@ -1617,7 +1619,7 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 		}
 		mutex_exit(&vd->vdev_dtl_lock);
 	} else {
-		for (int c = 0; c < vd->vdev_children; c++) {
+		for (c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			uint64_t cmin, cmax;
 
@@ -1639,10 +1641,12 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 void
 vdev_load(vdev_t *vd)
 {
+	int c;
+
 	/*
 	 * Recursively load all children.
 	 */
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_load(vd->vdev_child[c]);
 
 	/*
