@@ -230,7 +230,7 @@ static kmutex_t spa_l2cache_lock;
 static avl_tree_t spa_l2cache_avl;
 
 kmem_cache_t *spa_buffer_pool;
-int spa_mode;
+int spa_mode_global;
 
 #ifdef ZFS_DEBUG
 /* Everything except dprintf is on by default in debug builds */
@@ -890,8 +890,10 @@ spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error)
 		txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	if (vd != NULL) {
-		ASSERT(!vd->vdev_detached || vd->vdev_dtl.smo_object == 0);
+		ASSERT(!vd->vdev_detached || vd->vdev_dtl_smo.smo_object == 0);
+		spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
 		vdev_free(vd);
+		spa_config_exit(spa, SCL_ALL, spa);
 	}
 
 	/*
@@ -921,6 +923,15 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 		vdev_state_dirty(vd->vdev_top);
 
 	spa_config_exit(spa, SCL_STATE_ALL, spa);
+
+	/*
+	 * If anything changed, wait for it to sync.  This ensures that,
+	 * from the system administrator's perspective, zpool(1M) commands
+	 * are synchronous.  This is important for things like zpool offline:
+	 * when the command completes, you expect no further I/O from ZFS.
+	 */
+	if (vd != NULL)
+		txg_wait_synced(spa->spa_dsl_pool, 0);
 
 	return (error);
 }
@@ -1361,7 +1372,7 @@ spa_init(int mode)
 	avl_create(&spa_l2cache_avl, spa_l2cache_compare, sizeof (spa_aux_t),
 	    offsetof(spa_aux_t, aux_avl));
 
-	spa_mode = mode;
+	spa_mode_global = mode;
 
 	refcount_init();
 	unique_init();
@@ -1417,6 +1428,18 @@ boolean_t
 spa_is_root(spa_t *spa)
 {
 	return (spa->spa_is_root);
+}
+
+boolean_t
+spa_writeable(spa_t *spa)
+{
+	return (!!(spa->spa_mode & FWRITE));
+}
+
+int
+spa_mode(spa_t *spa)
+{
+	return (spa->spa_mode);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_SPACE_MAP_H
 #define	_SYS_SPACE_MAP_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/avl.h>
 #include <sys/dmu.h>
@@ -57,6 +55,12 @@ typedef struct space_seg {
 	uint64_t	ss_start;	/* starting offset of this segment */
 	uint64_t	ss_end;		/* ending offset (non-inclusive) */
 } space_seg_t;
+
+typedef struct space_ref {
+	avl_node_t	sr_node;	/* AVL node */
+	uint64_t	sr_offset;	/* offset (start or end) */
+	int64_t		sr_refcnt;	/* associated reference count */
+} space_ref_t;
 
 typedef struct space_map_obj {
 	uint64_t	smo_object;	/* on-disk space map object */
@@ -133,13 +137,12 @@ extern void space_map_create(space_map_t *sm, uint64_t start, uint64_t size,
 extern void space_map_destroy(space_map_t *sm);
 extern void space_map_add(space_map_t *sm, uint64_t start, uint64_t size);
 extern void space_map_remove(space_map_t *sm, uint64_t start, uint64_t size);
-extern int space_map_contains(space_map_t *sm, uint64_t start, uint64_t size);
+extern boolean_t space_map_contains(space_map_t *sm,
+    uint64_t start, uint64_t size);
 extern void space_map_vacate(space_map_t *sm,
     space_map_func_t *func, space_map_t *mdest);
 extern void space_map_walk(space_map_t *sm,
     space_map_func_t *func, space_map_t *mdest);
-extern void space_map_excise(space_map_t *sm, uint64_t start, uint64_t size);
-extern void space_map_union(space_map_t *smd, space_map_t *sms);
 
 extern void space_map_load_wait(space_map_t *sm);
 extern int space_map_load(space_map_t *sm, space_map_ops_t *ops,
@@ -154,6 +157,15 @@ extern void space_map_sync(space_map_t *sm, uint8_t maptype,
     space_map_obj_t *smo, objset_t *os, dmu_tx_t *tx);
 extern void space_map_truncate(space_map_obj_t *smo,
     objset_t *os, dmu_tx_t *tx);
+
+extern void space_map_ref_create(avl_tree_t *t);
+extern void space_map_ref_destroy(avl_tree_t *t);
+extern void space_map_ref_add_seg(avl_tree_t *t,
+    uint64_t start, uint64_t end, int64_t refcnt);
+extern void space_map_ref_add_map(avl_tree_t *t,
+    space_map_t *sm, int64_t refcnt);
+extern void space_map_ref_generate_map(avl_tree_t *t,
+    space_map_t *sm, int64_t minref);
 
 #ifdef	__cplusplus
 }
