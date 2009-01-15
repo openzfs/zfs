@@ -14,7 +14,7 @@ kernel_modules=(				\
 )
 
 spl_modules=(					\
-	${SPLBUILD}/modules/spl/spl.ko		\
+	${SPLBUILD}/module/spl/spl.ko		\
 )
 
 zfs_modules=(					\
