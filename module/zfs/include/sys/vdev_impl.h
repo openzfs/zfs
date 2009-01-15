@@ -123,8 +123,7 @@ struct vdev {
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/
 	uint64_t	vdev_children;	/* number of children		*/
-	space_map_t	vdev_dtl_map;	/* dirty time log in-core state	*/
-	space_map_t	vdev_dtl_scrub;	/* DTL for scrub repair writes	*/
+	space_map_t	vdev_dtl[DTL_TYPES]; /* in-core dirty time logs	*/
 	vdev_stat_t	vdev_stat;	/* virtual device statistics	*/
 
 	/*
@@ -149,7 +148,7 @@ struct vdev {
 	 * Leaf vdev state.
 	 */
 	uint64_t	vdev_psize;	/* physical device capacity	*/
-	space_map_obj_t	vdev_dtl;	/* dirty time log on-disk state	*/
+	space_map_obj_t	vdev_dtl_smo;	/* dirty time log space map obj	*/
 	txg_node_t	vdev_dtl_node;	/* per-txg dirty DTL linkage	*/
 	uint64_t	vdev_wholedisk;	/* true if this is a whole disk */
 	uint64_t	vdev_offline;	/* persistent offline state	*/
