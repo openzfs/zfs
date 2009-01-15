@@ -94,6 +94,12 @@ txg_fini(dsl_pool_t *dp)
 	rw_destroy(&tx->tx_suspend);
 	mutex_destroy(&tx->tx_sync_lock);
 
+	cv_destroy(&tx->tx_sync_more_cv);
+	cv_destroy(&tx->tx_sync_done_cv);
+	cv_destroy(&tx->tx_quiesce_more_cv);
+	cv_destroy(&tx->tx_quiesce_done_cv);
+	cv_destroy(&tx->tx_exit_cv);
+
 	for (c = 0; c < max_ncpus; c++) {
 		int i;
 
