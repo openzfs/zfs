@@ -26,8 +26,6 @@
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
 #define	_SYS_FS_ZFS_VFSOPS_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
 #include <sys/list.h>
@@ -49,7 +47,6 @@ struct zfsvfs {
 	uint64_t	z_root;		/* id of root znode */
 	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
 	uint64_t	z_max_blksz;	/* maximum block size for files */
-	uint64_t	z_assign;	/* TXG_NOWAIT or set by zil_replay() */
 	uint64_t	z_fuid_obj;	/* fuid table object number */
 	uint64_t	z_fuid_size;	/* fuid table size */
 	avl_tree_t	z_fuid_idx;	/* fuid tree keyed by index */
@@ -74,6 +71,7 @@ struct zfsvfs {
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */
 	boolean_t	z_use_fuids;	/* version allows fuids */
+	boolean_t	z_replay;	/* set during ZIL replay */
 	kmutex_t	z_online_recv_lock; /* recv in prog grabs as WRITER */
 	uint64_t	z_version;	/* ZPL version */
 #define	ZFS_OBJ_MTX_SZ	64
