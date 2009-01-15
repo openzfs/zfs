@@ -19,20 +19,23 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_UBERBLOCK_IMPL_H
 #define	_SYS_UBERBLOCK_IMPL_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/uberblock.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+/*
+ * For zdb use and debugging purposes only
+ */
+extern uint64_t ub_max_txg;
 
 /*
  * The uberblock version is incremented whenever an incompatible on-disk
