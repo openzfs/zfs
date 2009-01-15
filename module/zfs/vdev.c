@@ -1461,7 +1461,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		else
 			minref = vd->vdev_children;	/* any kind of mirror */
 		space_map_ref_create(&reftree);
-		for (int c = 0; c < vd->vdev_children; c++) {
+		for (c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			mutex_enter(&cvd->vdev_dtl_lock);
 			space_map_ref_add_map(&reftree, &cvd->vdev_dtl[t], 1);
