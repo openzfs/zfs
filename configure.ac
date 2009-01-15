@@ -60,7 +60,6 @@ AC_CONFIG_FILES([
 	Makefile
 	config/Makefile
 	doc/Makefile
-	scripts/Makefile
 	lib/Makefile
 	lib/libspl/Makefile
 	lib/libavl/Makefile
@@ -92,5 +91,6 @@ AC_CONFIG_FILES([
 	module/zcommon/include/sys/fm/Makefile
 	module/zcommon/include/sys/fm/fs/Makefile
 	module/zfs/Makefile
+	scripts/Makefile
 ])
 AC_OUTPUT
