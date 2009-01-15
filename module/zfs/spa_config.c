@@ -208,6 +208,9 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+	if (rootdir == NULL)
+		return;
+
 	/*
 	 * Iterate over all cachefiles for the pool, past or present.  When the
 	 * cachefile is changed, the new one is pushed onto this list, allowing
