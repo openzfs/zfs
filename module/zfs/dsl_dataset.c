@@ -1948,6 +1948,9 @@ dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat)
 	if (ds->ds_phys->ds_next_snap_obj) {
 		stat->dds_is_snapshot = B_TRUE;
 		stat->dds_num_clones = ds->ds_phys->ds_num_children - 1;
+	} else {
+		stat->dds_is_snapshot = B_FALSE;
+		stat->dds_num_clones = 0;
 	}
 
 	/* clone origin is really a dsl_dir thing... */
@@ -1959,6 +1962,8 @@ dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat)
 		    ds->ds_dir->dd_phys->dd_origin_obj, FTAG, &ods));
 		dsl_dataset_name(ods, stat->dds_origin);
 		dsl_dataset_drop_ref(ods, FTAG);
+	} else {
+		stat->dds_origin[0] = '\0';
 	}
 	rw_exit(&ds->ds_dir->dd_pool->dp_config_rwlock);
 }
