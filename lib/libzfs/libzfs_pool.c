@@ -1127,7 +1127,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
  * mounted datasets in the pool.
  */
 int
-zpool_export(zpool_handle_t *zhp, boolean_t force)
+zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce)
 {
 	zfs_cmd_t zc = { 0 };
 	char msg[1024];
@@ -1140,6 +1140,7 @@ zpool_export(zpool_handle_t *zhp, boolean_t force)
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_cookie = force;
+	zc.zc_guid = hardforce;
 
 	if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_EXPORT, &zc) != 0) {
 		switch (errno) {
@@ -1158,6 +1159,18 @@ zpool_export(zpool_handle_t *zhp, boolean_t force)
 	}
 
 	return (0);
+}
+
+int
+zpool_export(zpool_handle_t *zhp, boolean_t force)
+{
+	return (zpool_export_common(zhp, force, B_FALSE));
+}
+
+int
+zpool_export_force(zpool_handle_t *zhp)
+{
+	return (zpool_export_common(zhp, B_TRUE, B_TRUE));
 }
 
 /*
@@ -1182,7 +1195,9 @@ zpool_import(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		}
 
 		if (nvlist_add_string(props,
-		    zpool_prop_to_name(ZPOOL_PROP_ALTROOT), altroot) != 0) {
+		    zpool_prop_to_name(ZPOOL_PROP_ALTROOT), altroot) != 0 ||
+		    nvlist_add_string(props,
+		    zpool_prop_to_name(ZPOOL_PROP_CACHEFILE), "none") != 0) {
 			nvlist_free(props);
 			return (zfs_error_fmt(hdl, EZFS_NOMEM,
 			    dgettext(TEXT_DOMAIN, "cannot import '%s'"),
