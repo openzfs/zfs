@@ -19136,8 +19136,8 @@ echo "${ECHO_T}$splsrcver" >&6
 
 	echo "$as_me:$LINENO: checking spl Module.symvers" >&5
 echo $ECHO_N "checking spl Module.symvers... $ECHO_C" >&6
-	if test -r $splbuild/modules/Module.symvers; then
-		splsymvers=$splbuild/modules/Module.symvers
+	if test -r $splbuild/module/Module.symvers; then
+		splsymvers=$splbuild/module/Module.symvers
 	elif test -r $kernelbuild/Module.symvers; then
 		splsymvers=$kernelbuild/Module.symvers
 	fi
