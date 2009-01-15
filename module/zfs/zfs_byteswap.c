@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/vfs.h>
@@ -63,6 +61,20 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 
 	while (ptr < end) {
 		if (zfs_layout) {
+			/*
+			 * Avoid overrun.  Embedded aces can have one
+			 * of several sizes.  We don't know exactly
+			 * how many our present, only the size of the
+			 * buffer containing them.  That size may be
+			 * larger than needed to hold the aces
+			 * present.  As long as we do not do any
+			 * swapping beyond the end of our block we are
+			 * okay.  It it safe to swap any non-ace data
+			 * within the block since it is just zeros.
+			 */
+			if (ptr + sizeof (zfs_ace_hdr_t) > end) {
+				break;
+			}
 			zacep = (zfs_ace_t *)ptr;
 			zacep->z_hdr.z_access_mask =
 			    BSWAP_32(zacep->z_hdr.z_access_mask);
@@ -71,6 +83,10 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 			    BSWAP_16(zacep->z_hdr.z_type);
 			entry_type = zacep->z_hdr.z_flags & ACE_TYPE_FLAGS;
 		} else {
+			/* Overrun avoidance */
+			if (ptr + sizeof (ace_t) > end) {
+				break;
+			}
 			acep = (ace_t *)ptr;
 			acep->a_access_mask = BSWAP_32(acep->a_access_mask);
 			acep->a_flags = BSWAP_16(acep->a_flags);
@@ -87,8 +103,14 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 			break;
 		case ACE_IDENTIFIER_GROUP:
 		default:
+			/* Overrun avoidance */
 			if (zfs_layout) {
-				zacep->z_fuid = BSWAP_64(zacep->z_fuid);
+				if (ptr + sizeof (zfs_ace_t) <= end) {
+					zacep->z_fuid = BSWAP_64(zacep->z_fuid);
+				} else {
+					entry_size = sizeof (zfs_ace_t);
+					break;
+				}
 			}
 			switch (ace_type) {
 			case ACE_ACCESS_ALLOWED_OBJECT_ACE_TYPE:
@@ -169,7 +191,8 @@ zfs_znode_byteswap(void *buf, size_t size)
 	if (zp->zp_acl.z_acl_version == ZFS_ACL_VERSION) {
 		zfs_acl_byteswap((void *)&zp->zp_acl.z_ace_data[0],
 		    ZFS_ACE_SPACE);
-	} else
+	} else {
 		zfs_oldace_byteswap((ace_t *)&zp->zp_acl.z_ace_data[0],
 		    ACE_SLOT_CNT);
+	}
 }
