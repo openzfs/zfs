@@ -538,6 +538,7 @@ dump_dtl(vdev_t *vd, int indent)
 	boolean_t required;
 	char *name[DTL_TYPES] = { "missing", "partial", "scrub", "outage" };
 	char prefix[256];
+	int c, t;
 
 	spa_vdev_state_enter(spa);
 	required = vdev_dtl_required(vd);
@@ -551,7 +552,7 @@ dump_dtl(vdev_t *vd, int indent)
 	    vd->vdev_parent ? vd->vdev_ops->vdev_op_type : spa_name(spa),
 	    required ? "DTL-required" : "DTL-expendable");
 
-	for (int t = 0; t < DTL_TYPES; t++) {
+	for (t = 0; t < DTL_TYPES; t++) {
 		space_map_t *sm = &vd->vdev_dtl[t];
 		if (sm->sm_space == 0)
 			continue;
@@ -565,7 +566,7 @@ dump_dtl(vdev_t *vd, int indent)
 			    &vd->vdev_dtl_smo, sm);
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		dump_dtl(vd->vdev_child[c], indent + 4);
 }
 
