@@ -36,6 +36,14 @@
 extern "C" {
 #endif
 
+typedef enum vdev_dtl_type {
+	DTL_MISSING,	/* 0% replication: no copies of the data */
+	DTL_PARTIAL,	/* less than 100% replication: some copies missing */
+	DTL_SCRUB,	/* unable to fully repair during scrub/resilver */
+	DTL_OUTAGE,	/* temporarily missing (used to attempt detach) */
+	DTL_TYPES
+} vdev_dtl_type_t;
+
 extern boolean_t zfs_nocacheflush;
 
 extern int vdev_open(vdev_t *);
@@ -50,10 +58,14 @@ extern zio_t *vdev_probe(vdev_t *vd, zio_t *pio);
 extern boolean_t vdev_is_bootable(vdev_t *vd);
 extern vdev_t *vdev_lookup_top(spa_t *spa, uint64_t vdev);
 extern vdev_t *vdev_lookup_by_guid(vdev_t *vd, uint64_t guid);
-extern void vdev_dtl_dirty(space_map_t *sm, uint64_t txg, uint64_t size);
-extern int vdev_dtl_contains(space_map_t *sm, uint64_t txg, uint64_t size);
+extern void vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t d,
+    uint64_t txg, uint64_t size);
+extern boolean_t vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t d,
+    uint64_t txg, uint64_t size);
+extern boolean_t vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t d);
 extern void vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
     int scrub_done);
+extern boolean_t vdev_dtl_required(vdev_t *vd);
 extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);
 
