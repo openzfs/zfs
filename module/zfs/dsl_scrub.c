@@ -923,6 +923,7 @@ dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
 	boolean_t needs_io;
 	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
 	int zio_priority;
+	int d;
 
 	ASSERT(bp->blk_birth > dp->dp_scrub_min_txg);
 
@@ -947,7 +948,7 @@ dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
 	if (zb->zb_level == -1 && BP_GET_TYPE(bp) != DMU_OT_OBJSET)
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
-	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+	for (d = 0; d < BP_GET_NDVAS(bp); d++) {
 		vdev_t *vd = vdev_lookup_top(spa,
 		    DVA_GET_VDEV(&bp->blk_dva[d]));
 
