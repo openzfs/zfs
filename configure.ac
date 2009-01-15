@@ -60,7 +60,6 @@ AC_CONFIG_FILES([
 	Makefile
 	config/Makefile
 	doc/Makefile
-	scripts/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
 	lib/libnvpair/Makefile
@@ -94,5 +93,6 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	module/zpios/Makefile
 	module/zpios/include/Makefile
+	scripts/Makefile
 ])
 AC_OUTPUT
