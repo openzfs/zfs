@@ -3491,6 +3491,7 @@ arc_fini(void)
 	mutex_destroy(&arc_mru_ghost->arcs_mtx);
 	mutex_destroy(&arc_mfu->arcs_mtx);
 	mutex_destroy(&arc_mfu_ghost->arcs_mtx);
+	mutex_destroy(&arc_l2c_only->arcs_mtx);
 
 	mutex_destroy(&zfs_write_limit_lock);
 
@@ -4458,7 +4459,7 @@ l2arc_fini(void)
 void
 l2arc_start(void)
 {
-	if (!(spa_mode & FWRITE))
+	if (!(spa_mode_global & FWRITE))
 		return;
 
 	(void) thread_create(NULL, 0, l2arc_feed_thread, NULL, 0, &p0,
@@ -4468,7 +4469,7 @@ l2arc_start(void)
 void
 l2arc_stop(void)
 {
-	if (!(spa_mode & FWRITE))
+	if (!(spa_mode_global & FWRITE))
 		return;
 
 	mutex_enter(&l2arc_feed_thr_lock);
