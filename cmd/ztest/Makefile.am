@@ -28,3 +28,6 @@ ztest_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
 ztest_LDFLAGS = -pthread -lm -lz -lrt -ldl
+
+check:
+	./ztest -V
