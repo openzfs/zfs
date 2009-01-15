@@ -2148,12 +2148,12 @@ top:
 		}
 	}
 
-	error = dmu_tx_assign(tx, zfsvfs->z_assign);
+	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
 		mutex_exit(&zp->z_acl_lock);
 		mutex_exit(&zp->z_lock);
 
-		if (error == ERESTART && zfsvfs->z_assign == TXG_NOWAIT) {
+		if (error == ERESTART) {
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
 			goto top;
@@ -2208,7 +2208,7 @@ zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
 
 	*check_privs = B_TRUE;
 
-	if (zfsvfs->z_assign >= TXG_INITIAL) {		/* ZIL replay */
+	if (zfsvfs->z_replay) {
 		*working_mode = 0;
 		return (0);
 	}
