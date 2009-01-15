@@ -63,6 +63,7 @@ struct libzfs_handle {
 	int libzfs_printerr;
 	void *libzfs_sharehdl; /* libshare handle */
 	uint_t libzfs_shareflags;
+	avl_tree_t libzfs_mnttab_cache;
 };
 #define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */
 
