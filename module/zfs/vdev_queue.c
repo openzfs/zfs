@@ -176,6 +176,7 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 	zio_t *fio, *lio, *aio, *dio;
 	avl_tree_t *tree;
 	uint64_t size;
+	int flags;
 
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 
@@ -187,21 +188,32 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 
 	tree = fio->io_vdev_tree;
 	size = fio->io_size;
+	flags = fio->io_flags & ZIO_FLAG_AGG_INHERIT;
 
-	while ((dio = AVL_PREV(tree, fio)) != NULL && IS_ADJACENT(dio, fio) &&
-	    !((dio->io_flags | fio->io_flags) & ZIO_FLAG_DONT_AGGREGATE) &&
-	    size + dio->io_size <= zfs_vdev_aggregation_limit) {
-		dio->io_delegate_next = fio;
-		fio = dio;
-		size += dio->io_size;
-	}
-
-	while ((dio = AVL_NEXT(tree, lio)) != NULL && IS_ADJACENT(lio, dio) &&
-	    !((lio->io_flags | dio->io_flags) & ZIO_FLAG_DONT_AGGREGATE) &&
-	    size + dio->io_size <= zfs_vdev_aggregation_limit) {
-		lio->io_delegate_next = dio;
-		lio = dio;
-		size += dio->io_size;
+	if (!(flags & ZIO_FLAG_DONT_AGGREGATE)) {
+		/*
+		 * We can aggregate I/Os that are adjacent and of the
+		 * same flavor, as expressed by the AGG_INHERIT flags.
+		 * The latter is necessary so that certain attributes
+		 * of the I/O, such as whether it's a normal I/O or a
+		 * scrub/resilver, can be preserved in the aggregate.
+		 */
+		while ((dio = AVL_PREV(tree, fio)) != NULL &&
+		    IS_ADJACENT(dio, fio) &&
+		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
+		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
+			dio->io_delegate_next = fio;
+			fio = dio;
+			size += dio->io_size;
+		}
+		while ((dio = AVL_NEXT(tree, lio)) != NULL &&
+		    IS_ADJACENT(lio, dio) &&
+		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
+		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
+			lio->io_delegate_next = dio;
+			lio = dio;
+			size += dio->io_size;
+		}
 	}
 
 	if (fio != lio) {
@@ -212,7 +224,7 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 
 		aio = zio_vdev_delegated_io(fio->io_vd, fio->io_offset,
 		    buf, size, fio->io_type, ZIO_PRIORITY_NOW,
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
+		    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 		    vdev_queue_agg_io_done, NULL);
 
 		aio->io_delegate_list = fio;
