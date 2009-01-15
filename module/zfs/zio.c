@@ -769,7 +769,8 @@ zio_read_bp_init(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 
-	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF && zio->io_logical == zio) {
+	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
+	    zio->io_logical == zio && !(zio->io_flags & ZIO_FLAG_RAW)) {
 		uint64_t csize = BP_GET_PSIZE(bp);
 		void *cbuf = zio_buf_alloc(csize);
 
@@ -1800,7 +1801,30 @@ zio_vdev_io_start(zio_t *zio)
 
 	ASSERT(P2PHASE(zio->io_offset, align) == 0);
 	ASSERT(P2PHASE(zio->io_size, align) == 0);
-	ASSERT(zio->io_type != ZIO_TYPE_WRITE || (spa_mode & FWRITE));
+	ASSERT(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
+
+	/*
+	 * If this is a repair I/O, and there's no self-healing involved --
+	 * that is, we're just resilvering what we expect to resilver --
+	 * then don't do the I/O unless zio's txg is actually in vd's DTL.
+	 * This prevents spurious resilvering with nested replication.
+	 * For example, given a mirror of mirrors, (A+B)+(C+D), if only
+	 * A is out of date, we'll read from C+D, then use the data to
+	 * resilver A+B -- but we don't actually want to resilver B, just A.
+	 * The top-level mirror has no way to know this, so instead we just
+	 * discard unnecessary repairs as we work our way down the vdev tree.
+	 * The same logic applies to any form of nested replication:
+	 * ditto + mirror, RAID-Z + replacing, etc.  This covers them all.
+	 */
+	if ((zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
+	    !(zio->io_flags & ZIO_FLAG_SELF_HEAL) &&
+	    zio->io_txg != 0 &&	/* not a delegated i/o */
+	    !vdev_dtl_contains(vd, DTL_PARTIAL, zio->io_txg, 1)) {
+		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
+		ASSERT(zio->io_delegate_list == NULL);
+		zio_vdev_io_bypass(zio);
+		return (ZIO_PIPELINE_CONTINUE);
+	}
 
 	if (vd->vdev_ops->vdev_op_leaf &&
 	    (zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE)) {
@@ -1816,7 +1840,6 @@ zio_vdev_io_start(zio_t *zio)
 			zio_interrupt(zio);
 			return (ZIO_PIPELINE_STOP);
 		}
-
 	}
 
 	return (vd->vdev_ops->vdev_op_io_start(zio));
@@ -2168,6 +2191,7 @@ zio_done(zio_t *zio)
 		if ((zio->io_type == ZIO_TYPE_READ ||
 		    zio->io_type == ZIO_TYPE_FREE) &&
 		    zio->io_error == ENXIO &&
+		    spa->spa_load_state == SPA_LOAD_NONE &&
 		    spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)
 			zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
 

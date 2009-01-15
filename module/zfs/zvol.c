@@ -75,6 +75,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zvol.h>
 #include <sys/dumphdr.h>
+#include <sys/zil_impl.h>
 
 #include "zfs_namecheck.h"
 
@@ -113,7 +114,6 @@ typedef struct zvol_state {
 	uint32_t	zv_total_opens;	/* total open count */
 	zilog_t		*zv_zilog;	/* ZIL handle */
 	list_t		zv_extents;	/* List of extents for dump */
-	uint64_t	zv_txg_assign;	/* txg to assign during ZIL replay */
 	znode_t		zv_znode;	/* for range locking */
 } zvol_state_t;
 
@@ -381,7 +381,7 @@ zvol_replay_write(zvol_state_t *zv, lr_write_t *lr, boolean_t byteswap)
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_write(tx, ZVOL_OBJ, off, len);
-	error = dmu_tx_assign(tx, zv->zv_txg_assign);
+	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
@@ -558,7 +558,7 @@ zvol_create_minor(const char *name, major_t maj)
 	ASSERT(error == 0);
 	zv->zv_volblocksize = doi.doi_data_block_size;
 
-	zil_replay(os, zv, &zv->zv_txg_assign, zvol_replay_vector, NULL);
+	zil_replay(os, zv, zvol_replay_vector);
 	zvol_size_changed(zv, maj);
 
 	/* XXX this should handle the possible i/o error */
@@ -971,7 +971,15 @@ static void
 zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, offset_t off, ssize_t len)
 {
 	uint32_t blocksize = zv->zv_volblocksize;
+	zilog_t *zilog = zv->zv_zilog;
 	lr_write_t *lr;
+
+	if (zilog->zl_replay) {
+		dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
+		zilog->zl_replayed_seq[dmu_tx_get_txg(tx) & TXG_MASK] =
+		    zilog->zl_replaying_seq;
+		return;
+	}
 
 	while (len) {
 		ssize_t nbytes = MIN(len, blocksize - P2PHASE(off, blocksize));
@@ -987,7 +995,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, offset_t off, ssize_t len)
 		lr->lr_blkoff = off - P2ALIGN_TYPED(off, blocksize, uint64_t);
 		BP_ZERO(&lr->lr_blkptr);
 
-		(void) zil_itx_assign(zv->zv_zilog, itx, tx);
+		(void) zil_itx_assign(zilog, itx, tx);
 		len -= nbytes;
 		off += nbytes;
 	}
