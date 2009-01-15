@@ -38,7 +38,6 @@
 #include <zone.h>
 #include <fcntl.h>
 #include <sys/mntent.h>
-#include <sys/mnttab.h>
 #include <sys/mount.h>
 #include <sys/avl.h>
 #include <priv.h>
@@ -109,7 +108,6 @@ path_to_str(const char *path, int types)
 			return (dgettext(TEXT_DOMAIN, "snapshot"));
 		return (path_to_str(path, types & ~ZFS_TYPE_SNAPSHOT));
 	}
-
 
 	/*
 	 * The user has requested either filesystems or volumes.
@@ -323,37 +321,34 @@ zpool_free_handles(libzfs_handle_t *hdl)
  * Utility function to gather stats (objset and zpl) for the given object.
  */
 static int
-get_stats(zfs_handle_t *zhp)
+get_stats_ioctl(zfs_handle_t *zhp, zfs_cmd_t *zc)
 {
-	zfs_cmd_t zc = { 0 };
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	nvlist_t *allprops, *userprops;
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+	(void) strlcpy(zc->zc_name, zhp->zfs_name, sizeof (zc->zc_name));
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
-		return (-1);
-
-	while (ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
+	while (ioctl(hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, zc) != 0) {
 		if (errno == ENOMEM) {
-			if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
-				zcmd_free_nvlists(&zc);
+			if (zcmd_expand_dst_nvlist(hdl, zc) != 0) {
 				return (-1);
 			}
 		} else {
-			zcmd_free_nvlists(&zc);
 			return (-1);
 		}
 	}
+	return (0);
+}
 
-	zhp->zfs_dmustats = zc.zc_objset_stats; /* structure assignment */
+static int
+put_stats_zhdl(zfs_handle_t *zhp, zfs_cmd_t *zc)
+{
+	nvlist_t *allprops, *userprops;
 
-	if (zcmd_read_dst_nvlist(hdl, &zc, &allprops) != 0) {
-		zcmd_free_nvlists(&zc);
+	zhp->zfs_dmustats = zc->zc_objset_stats; /* structure assignment */
+
+	if (zcmd_read_dst_nvlist(zhp->zfs_hdl, zc, &allprops) != 0) {
 		return (-1);
 	}
-
-	zcmd_free_nvlists(&zc);
 
 	if ((userprops = process_user_props(zhp, allprops)) == NULL) {
 		nvlist_free(allprops);
@@ -369,6 +364,22 @@ get_stats(zfs_handle_t *zhp)
 	return (0);
 }
 
+static int
+get_stats(zfs_handle_t *zhp)
+{
+	int rc = 0;
+	zfs_cmd_t zc = { 0 };
+
+	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+		return (-1);
+	if (get_stats_ioctl(zhp, &zc) != 0)
+		rc = -1;
+	else if (put_stats_zhdl(zhp, &zc) != 0)
+		rc = -1;
+	zcmd_free_nvlists(&zc);
+	return (rc);
+}
+
 /*
  * Refresh the properties currently stored in the handle.
  */
@@ -382,16 +393,11 @@ zfs_refresh_properties(zfs_handle_t *zhp)
  * Makes a handle from the given dataset name.  Used by zfs_open() and
  * zfs_iter_* to create child handles on the fly.
  */
-zfs_handle_t *
-make_dataset_handle(libzfs_handle_t *hdl, const char *path)
+static int
+make_dataset_handle_common(zfs_handle_t *zhp, zfs_cmd_t *zc)
 {
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
 	char *logstr;
-
-	if (zhp == NULL)
-		return (NULL);
-
-	zhp->zfs_hdl = hdl;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	/*
 	 * Preserve history log string.
@@ -400,17 +406,16 @@ make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 	 */
 	logstr = zhp->zfs_hdl->libzfs_log_str;
 	zhp->zfs_hdl->libzfs_log_str = NULL;
-top:
-	(void) strlcpy(zhp->zfs_name, path, sizeof (zhp->zfs_name));
 
-	if (get_stats(zhp) != 0) {
+top:
+	if (put_stats_zhdl(zhp, zc) != 0) {
 		zhp->zfs_hdl->libzfs_log_str = logstr;
-		free(zhp);
-		return (NULL);
+		return (-1);
 	}
 
+
 	if (zhp->zfs_dmustats.dds_inconsistent) {
-		zfs_cmd_t zc = { 0 };
+		zfs_cmd_t zc2 = { 0 };
 
 		/*
 		 * If it is dds_inconsistent, then we've caught it in
@@ -427,28 +432,33 @@ top:
 		 * will fail with EBUSY and we will drive on as usual.
 		 */
 
-		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+		(void) strlcpy(zc2.zc_name, zhp->zfs_name,
+		    sizeof (zc2.zc_name));
 
 		if (zhp->zfs_dmustats.dds_type == DMU_OST_ZVOL) {
 			(void) zvol_remove_link(hdl, zhp->zfs_name);
-			zc.zc_objset_type = DMU_OST_ZVOL;
+			zc2.zc_objset_type = DMU_OST_ZVOL;
 		} else {
-			zc.zc_objset_type = DMU_OST_ZFS;
+			zc2.zc_objset_type = DMU_OST_ZFS;
 		}
 
 		/*
 		 * If we can successfully destroy it, pretend that it
 		 * never existed.
 		 */
-		if (ioctl(hdl->libzfs_fd, ZFS_IOC_DESTROY, &zc) == 0) {
+		if (ioctl(hdl->libzfs_fd, ZFS_IOC_DESTROY, &zc2) == 0) {
 			zhp->zfs_hdl->libzfs_log_str = logstr;
-			free(zhp);
 			errno = ENOENT;
-			return (NULL);
+			return (-1);
 		}
-		/* If we can successfully roll it back, reget the stats */
-		if (ioctl(hdl->libzfs_fd, ZFS_IOC_ROLLBACK, &zc) == 0)
+		/* If we can successfully roll it back, reset the stats */
+		if (ioctl(hdl->libzfs_fd, ZFS_IOC_ROLLBACK, &zc2) == 0) {
+			if (get_stats_ioctl(zhp, zc) != 0) {
+				zhp->zfs_hdl->libzfs_log_str = logstr;
+				return (-1);
+			}
 			goto top;
+		}
 	}
 
 	/*
@@ -473,6 +483,52 @@ top:
 
 	zhp->zfs_hdl->libzfs_log_str = logstr;
 	zhp->zpool_hdl = zpool_handle(zhp);
+	return (0);
+}
+
+zfs_handle_t *
+make_dataset_handle(libzfs_handle_t *hdl, const char *path)
+{
+	zfs_cmd_t zc = { 0 };
+
+	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+
+	if (zhp == NULL)
+		return (NULL);
+
+	zhp->zfs_hdl = hdl;
+	(void) strlcpy(zhp->zfs_name, path, sizeof (zhp->zfs_name));
+	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0) {
+		free(zhp);
+		return (NULL);
+	}
+	if (get_stats_ioctl(zhp, &zc) == -1) {
+		zcmd_free_nvlists(&zc);
+		free(zhp);
+		return (NULL);
+	}
+	if (make_dataset_handle_common(zhp, &zc) == -1) {
+		free(zhp);
+		zhp = NULL;
+	}
+	zcmd_free_nvlists(&zc);
+	return (zhp);
+}
+
+static zfs_handle_t *
+make_dataset_handle_zc(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+{
+	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+
+	if (zhp == NULL)
+		return (NULL);
+
+	zhp->zfs_hdl = hdl;
+	(void) strlcpy(zhp->zfs_name, zc->zc_name, sizeof (zhp->zfs_name));
+	if (make_dataset_handle_common(zhp, zc) == -1) {
+		free(zhp);
+		return (NULL);
+	}
 	return (zhp);
 }
 
@@ -529,6 +585,117 @@ zfs_close(zfs_handle_t *zhp)
 	nvlist_free(zhp->zfs_props);
 	nvlist_free(zhp->zfs_user_props);
 	free(zhp);
+}
+
+typedef struct mnttab_node {
+	struct mnttab mtn_mt;
+	avl_node_t mtn_node;
+} mnttab_node_t;
+
+static int
+libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
+{
+	const mnttab_node_t *mtn1 = arg1;
+	const mnttab_node_t *mtn2 = arg2;
+	int rv;
+
+	rv = strcmp(mtn1->mtn_mt.mnt_special, mtn2->mtn_mt.mnt_special);
+
+	if (rv == 0)
+		return (0);
+	return (rv > 0 ? 1 : -1);
+}
+
+void
+libzfs_mnttab_init(libzfs_handle_t *hdl)
+{
+	struct mnttab entry;
+
+	assert(avl_numnodes(&hdl->libzfs_mnttab_cache) == 0);
+	avl_create(&hdl->libzfs_mnttab_cache, libzfs_mnttab_cache_compare,
+	    sizeof (mnttab_node_t), offsetof(mnttab_node_t, mtn_node));
+
+	rewind(hdl->libzfs_mnttab);
+	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
+		mnttab_node_t *mtn;
+
+		if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
+			continue;
+		mtn = zfs_alloc(hdl, sizeof (mnttab_node_t));
+		mtn->mtn_mt.mnt_special = zfs_strdup(hdl, entry.mnt_special);
+		mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, entry.mnt_mountp);
+		mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, entry.mnt_fstype);
+		mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, entry.mnt_mntopts);
+		avl_add(&hdl->libzfs_mnttab_cache, mtn);
+	}
+}
+
+void
+libzfs_mnttab_fini(libzfs_handle_t *hdl)
+{
+	void *cookie = NULL;
+	mnttab_node_t *mtn;
+
+	while (mtn = avl_destroy_nodes(&hdl->libzfs_mnttab_cache, &cookie)) {
+		free(mtn->mtn_mt.mnt_special);
+		free(mtn->mtn_mt.mnt_mountp);
+		free(mtn->mtn_mt.mnt_fstype);
+		free(mtn->mtn_mt.mnt_mntopts);
+		free(mtn);
+	}
+	avl_destroy(&hdl->libzfs_mnttab_cache);
+}
+
+int
+libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
+    struct mnttab *entry)
+{
+	mnttab_node_t find;
+	mnttab_node_t *mtn;
+
+	if (avl_numnodes(&hdl->libzfs_mnttab_cache) == 0)
+		libzfs_mnttab_init(hdl);
+
+	find.mtn_mt.mnt_special = (char *)fsname;
+	mtn = avl_find(&hdl->libzfs_mnttab_cache, &find, NULL);
+	if (mtn) {
+		*entry = mtn->mtn_mt;
+		return (0);
+	}
+	return (ENOENT);
+}
+
+void
+libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
+    const char *mountp, const char *mntopts)
+{
+	mnttab_node_t *mtn;
+
+	if (avl_numnodes(&hdl->libzfs_mnttab_cache) == 0)
+		return;
+	mtn = zfs_alloc(hdl, sizeof (mnttab_node_t));
+	mtn->mtn_mt.mnt_special = zfs_strdup(hdl, special);
+	mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, mountp);
+	mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, MNTTYPE_ZFS);
+	mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, mntopts);
+	avl_add(&hdl->libzfs_mnttab_cache, mtn);
+}
+
+void
+libzfs_mnttab_remove(libzfs_handle_t *hdl, const char *fsname)
+{
+	mnttab_node_t find;
+	mnttab_node_t *ret;
+
+	find.mtn_mt.mnt_special = (char *)fsname;
+	if (ret = avl_find(&hdl->libzfs_mnttab_cache, (void *)&find, NULL)) {
+		avl_remove(&hdl->libzfs_mnttab_cache, ret);
+		free(ret->mtn_mt.mnt_special);
+		free(ret->mtn_mt.mnt_mountp);
+		free(ret->mtn_mt.mnt_fstype);
+		free(ret->mtn_mt.mnt_mntopts);
+		free(ret);
+	}
 }
 
 int
@@ -2141,15 +2308,11 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	 */
 	if (!zhp->zfs_mntcheck &&
 	    (mntopt_on != NULL || prop == ZFS_PROP_MOUNTED)) {
-		struct mnttab entry, search = { 0 };
-		FILE *mnttab = zhp->zfs_hdl->libzfs_mnttab;
+		libzfs_handle_t *hdl = zhp->zfs_hdl;
+		struct mnttab entry;
 
-		search.mnt_special = (char *)zhp->zfs_name;
-		search.mnt_fstype = MNTTYPE_ZFS;
-		rewind(mnttab);
-
-		if (getmntany(mnttab, &entry, &search) == 0) {
-			zhp->zfs_mntopts = zfs_strdup(zhp->zfs_hdl,
+		if (libzfs_mnttab_find(hdl, zhp->zfs_name, &entry) == 0) {
+			zhp->zfs_mntopts = zfs_strdup(hdl,
 			    entry.mnt_mntopts);
 			if (zhp->zfs_mntopts == NULL)
 				return (-1);
@@ -2593,6 +2756,46 @@ zfs_get_type(const zfs_handle_t *zhp)
 	return (zhp->zfs_type);
 }
 
+static int
+zfs_do_list_ioctl(zfs_handle_t *zhp, int arg, zfs_cmd_t *zc)
+{
+	int rc;
+	uint64_t	orig_cookie;
+
+	orig_cookie = zc->zc_cookie;
+top:
+	(void) strlcpy(zc->zc_name, zhp->zfs_name, sizeof (zc->zc_name));
+	rc = ioctl(zhp->zfs_hdl->libzfs_fd, arg, zc);
+
+	if (rc == -1) {
+		switch (errno) {
+		case ENOMEM:
+			/* expand nvlist memory and try again */
+			if (zcmd_expand_dst_nvlist(zhp->zfs_hdl, zc) != 0) {
+				zcmd_free_nvlists(zc);
+				return (-1);
+			}
+			zc->zc_cookie = orig_cookie;
+			goto top;
+		/*
+		 * An errno value of ESRCH indicates normal completion.
+		 * If ENOENT is returned, then the underlying dataset
+		 * has been removed since we obtained the handle.
+		 */
+		case ESRCH:
+		case ENOENT:
+			rc = 1;
+			break;
+		default:
+			rc = zfs_standard_error(zhp->zfs_hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot iterate filesystems"));
+			break;
+		}
+	}
+	return (rc);
+}
+
 /*
  * Iterate over all child filesystems
  */
@@ -2606,9 +2809,11 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM)
 		return (0);
 
-	for ((void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	    ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_DATASET_LIST_NEXT, &zc) == 0;
-	    (void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name))) {
+	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+		return (-1);
+
+	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_DATASET_LIST_NEXT,
+	    &zc)) == 0) {
 		/*
 		 * Ignore private dataset names.
 		 */
@@ -2619,24 +2824,18 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		 * Silently ignore errors, as the only plausible explanation is
 		 * that the pool has since been removed.
 		 */
-		if ((nzhp = make_dataset_handle(zhp->zfs_hdl,
-		    zc.zc_name)) == NULL)
+		if ((nzhp = make_dataset_handle_zc(zhp->zfs_hdl,
+		    &zc)) == NULL) {
 			continue;
+		}
 
-		if ((ret = func(nzhp, data)) != 0)
+		if ((ret = func(nzhp, data)) != 0) {
+			zcmd_free_nvlists(&zc);
 			return (ret);
+		}
 	}
-
-	/*
-	 * An errno value of ESRCH indicates normal completion.  If ENOENT is
-	 * returned, then the underlying dataset has been removed since we
-	 * obtained the handle.
-	 */
-	if (errno != ESRCH && errno != ENOENT)
-		return (zfs_standard_error(zhp->zfs_hdl, errno,
-		    dgettext(TEXT_DOMAIN, "cannot iterate filesystems")));
-
-	return (0);
+	zcmd_free_nvlists(&zc);
+	return ((ret < 0) ? ret : 0);
 }
 
 /*
@@ -2652,29 +2851,23 @@ zfs_iter_snapshots(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT)
 		return (0);
 
-	for ((void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	    ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_SNAPSHOT_LIST_NEXT,
-	    &zc) == 0;
-	    (void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name))) {
+	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
+		return (-1);
+	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_SNAPSHOT_LIST_NEXT,
+	    &zc)) == 0) {
 
-		if ((nzhp = make_dataset_handle(zhp->zfs_hdl,
-		    zc.zc_name)) == NULL)
+		if ((nzhp = make_dataset_handle_zc(zhp->zfs_hdl,
+		    &zc)) == NULL) {
 			continue;
+		}
 
-		if ((ret = func(nzhp, data)) != 0)
+		if ((ret = func(nzhp, data)) != 0) {
+			zcmd_free_nvlists(&zc);
 			return (ret);
+		}
 	}
-
-	/*
-	 * An errno value of ESRCH indicates normal completion.  If ENOENT is
-	 * returned, then the underlying dataset has been removed since we
-	 * obtained the handle.  Silently ignore this case, and return success.
-	 */
-	if (errno != ESRCH && errno != ENOENT)
-		return (zfs_standard_error(zhp->zfs_hdl, errno,
-		    dgettext(TEXT_DOMAIN, "cannot iterate filesystems")));
-
-	return (0);
+	zcmd_free_nvlists(&zc);
+	return ((ret < 0) ? ret : 0);
 }
 
 /*
@@ -2727,8 +2920,8 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 	zfs_handle_t *zhp;
 	char errbuf[1024];
 
-	(void) snprintf(errbuf, sizeof (errbuf), "cannot create '%s'",
-	    path);
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot create '%s'"), path);
 
 	/* get parent, and check to see if this is just a pool */
 	if (parent_name(path, parent, sizeof (parent)) != 0) {
