@@ -1396,6 +1396,7 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 	if (spa_writeable(spa)) {
 		dmu_tx_t *tx;
 		int need_update = B_FALSE;
+		int c;
 
 		ASSERT(state != SPA_LOAD_TRYIMPORT);
 
@@ -1425,7 +1426,7 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		    state == SPA_LOAD_IMPORT)
 			need_update = B_TRUE;
 
-		for (int c = 0; c < rvd->vdev_children; c++)
+		for (c = 0; c < rvd->vdev_children; c++)
 			if (rvd->vdev_child[c]->vdev_ms_array == 0)
 				need_update = B_TRUE;
 
@@ -2738,6 +2739,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	vdev_t *vd, *tvd;
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
+	int c;
 
 	txg = spa_vdev_enter(spa);
 
@@ -2772,7 +2774,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	/*
 	 * Transfer each new top-level vdev from vd to rvd.
 	 */
-	for (int c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		tvd = vd->vdev_child[c];
 		vdev_remove_child(vd, tvd);
 		tvd->vdev_id = rvd->vdev_children;
@@ -3034,6 +3036,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid = 0;
 	size_t len;
+	int t;
 
 	txg = spa_vdev_enter(spa);
 
@@ -3196,7 +3199,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * But first make sure we're not on any *other* txg's DTL list, to
 	 * prevent vd from being accessed after it's freed.
 	 */
-	for (int t = 0; t < TXG_SIZE; t++)
+	for (t = 0; t < TXG_SIZE; t++)
 		(void) txg_list_remove_this(&tvd->vdev_dtl_list, vd, t);
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
