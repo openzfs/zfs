@@ -170,6 +170,7 @@ struct spa {
 	boolean_t	spa_import_faulted;	/* allow faulted vdevs */
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
+	int		spa_mode;		/* FREAD | FWRITE */
 	spa_log_state_t spa_log_state;		/* log state */
 	/*
 	 * spa_refcnt & spa_config_lock must be the last elements
