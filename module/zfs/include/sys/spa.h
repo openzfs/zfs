@@ -332,7 +332,8 @@ extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props);
 extern int spa_import_faulted(const char *, nvlist_t *, nvlist_t *);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
 extern int spa_destroy(char *pool);
-extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force);
+extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+    boolean_t hardforce);
 extern int spa_reset(char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
@@ -351,7 +352,8 @@ extern void spa_inject_delref(spa_t *spa);
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot);
 extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
     int replacing);
-extern int spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done);
+extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
+    int replace_done);
 extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
 extern int spa_vdev_setpath(spa_t *spa, uint64_t guid, const char *newpath);
 
@@ -475,6 +477,8 @@ extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t bp_get_dasize(spa_t *spa, const blkptr_t *bp);
 extern boolean_t spa_has_slogs(spa_t *spa);
 extern boolean_t spa_is_root(spa_t *spa);
+extern boolean_t spa_writeable(spa_t *spa);
+extern int spa_mode(spa_t *spa);
 
 /* history logging */
 typedef enum history_log_type {
@@ -549,7 +553,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	dprintf_bp(bp, fmt, ...)
 #endif
 
-extern int spa_mode;			/* mode, e.g. FREAD | FWRITE */
+extern int spa_mode_global;			/* mode, e.g. FREAD | FWRITE */
 
 #ifdef	__cplusplus
 }

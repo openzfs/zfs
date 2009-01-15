@@ -351,13 +351,19 @@ zil_create(zilog_t *zilog)
 	blk = zh->zh_log;
 
 	/*
-	 * If we don't already have an initial log block, allocate one now.
+	 * If we don't already have an initial log block or we have one
+	 * but it's the wrong endianness then allocate one.
 	 */
-	if (BP_IS_HOLE(&blk)) {
+	if (BP_IS_HOLE(&blk) || BP_SHOULD_BYTESWAP(&blk)) {
 		tx = dmu_tx_create(zilog->zl_os);
 		(void) dmu_tx_assign(tx, TXG_WAIT);
 		dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 		txg = dmu_tx_get_txg(tx);
+
+		if (!BP_IS_HOLE(&blk)) {
+			zio_free_blk(zilog->zl_spa, &blk, txg);
+			BP_ZERO(&blk);
+		}
 
 		error = zio_alloc_blk(zilog->zl_spa, ZIL_MIN_BLKSZ, &blk,
 		    NULL, txg);
@@ -1219,7 +1225,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	ASSERT(zilog->zl_stop_sync == 0);
 
-	zh->zh_replay_seq = zilog->zl_replay_seq[txg & TXG_MASK];
+	zh->zh_replay_seq = zilog->zl_replayed_seq[txg & TXG_MASK];
 
 	if (zilog->zl_destroy_txg == txg) {
 		blkptr_t blk = zh->zh_log;
@@ -1228,7 +1234,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		ASSERT(spa_sync_pass(spa) == 1);
 
 		bzero(zh, sizeof (zil_header_t));
-		bzero(zilog->zl_replay_seq, sizeof (zilog->zl_replay_seq));
+		bzero(zilog->zl_replayed_seq, sizeof (zilog->zl_replayed_seq));
 
 		if (zilog->zl_keep_first) {
 			/*
@@ -1465,9 +1471,7 @@ zil_resume(zilog_t *zilog)
 typedef struct zil_replay_arg {
 	objset_t	*zr_os;
 	zil_replay_func_t **zr_replay;
-	zil_replay_cleaner_t *zr_replay_cleaner;
 	void		*zr_arg;
-	uint64_t	*zr_txgp;
 	boolean_t	zr_byteswap;
 	char		*zr_lrbuf;
 } zil_replay_arg_t;
@@ -1480,9 +1484,9 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
 	uint64_t reclen = lr->lrc_reclen;
 	uint64_t txtype = lr->lrc_txtype;
 	char *name;
-	int pass, error, sunk;
+	int pass, error;
 
-	if (zilog->zl_stop_replay)
+	if (!zilog->zl_replay)			/* giving up */
 		return;
 
 	if (lr->lrc_txg < claim_txg)		/* already committed */
@@ -1493,6 +1497,11 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
 
 	/* Strip case-insensitive bit, still present in log record */
 	txtype &= ~TX_CI;
+
+	if (txtype == 0 || txtype >= TX_MAX_TYPE) {
+		error = EINVAL;
+		goto bad;
+	}
 
 	/*
 	 * Make a copy of the data so we can revise and extend it.
@@ -1544,69 +1553,16 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
 	}
 
 	/*
-	 * Replay of large truncates can end up needing additional txs
-	 * and a different txg. If they are nested within the replay tx
-	 * as below then a hang is possible. So we do the truncate here
-	 * and redo the truncate later (a no-op) and update the sequence
-	 * number whilst in the replay tx. Fortunately, it's safe to repeat
-	 * a truncate if we crash and the truncate commits. A create over
-	 * an existing file will also come in as a TX_TRUNCATE record.
-	 *
-	 * Note, remove of large files and renames over large files is
-	 * handled by putting the deleted object on a stable list
-	 * and if necessary force deleting the object outside of the replay
-	 * transaction using the zr_replay_cleaner.
-	 */
-	if (txtype == TX_TRUNCATE) {
-		*zr->zr_txgp = TXG_NOWAIT;
-		error = zr->zr_replay[TX_TRUNCATE](zr->zr_arg, zr->zr_lrbuf,
-		    zr->zr_byteswap);
-		if (error)
-			goto bad;
-		zr->zr_byteswap = 0; /* only byteswap once */
-	}
-
-	/*
 	 * We must now do two things atomically: replay this log record,
-	 * and update the log header to reflect the fact that we did so.
-	 * We use the DMU's ability to assign into a specific txg to do this.
+	 * and update the log header sequence number to reflect the fact that
+	 * we did so. At the end of each replay function the sequence number
+	 * is updated if we are in replay mode.
 	 */
-	for (pass = 1, sunk = B_FALSE; /* CONSTANTCONDITION */; pass++) {
-		uint64_t replay_txg;
-		dmu_tx_t *replay_tx;
-
-		replay_tx = dmu_tx_create(zr->zr_os);
-		error = dmu_tx_assign(replay_tx, TXG_WAIT);
-		if (error) {
-			dmu_tx_abort(replay_tx);
-			break;
-		}
-
-		replay_txg = dmu_tx_get_txg(replay_tx);
-
-		if (txtype == 0 || txtype >= TX_MAX_TYPE) {
-			error = EINVAL;
-		} else {
-			/*
-			 * On the first pass, arrange for the replay vector
-			 * to fail its dmu_tx_assign().  That's the only way
-			 * to ensure that those code paths remain well tested.
-			 *
-			 * Only byteswap (if needed) on the 1st pass.
-			 */
-			*zr->zr_txgp = replay_txg - (pass == 1);
-			error = zr->zr_replay[txtype](zr->zr_arg, zr->zr_lrbuf,
-			    zr->zr_byteswap && pass == 1);
-			*zr->zr_txgp = TXG_NOWAIT;
-		}
-
-		if (error == 0) {
-			dsl_dataset_dirty(dmu_objset_ds(zr->zr_os), replay_tx);
-			zilog->zl_replay_seq[replay_txg & TXG_MASK] =
-			    lr->lrc_seq;
-		}
-
-		dmu_tx_commit(replay_tx);
+	for (pass = 1; pass <= 2; pass++) {
+		zilog->zl_replaying_seq = lr->lrc_seq;
+		/* Only byteswap (if needed) on the 1st pass.  */
+		error = zr->zr_replay[txtype](zr->zr_arg, zr->zr_lrbuf,
+		    zr->zr_byteswap && pass == 1);
 
 		if (!error)
 			return;
@@ -1614,37 +1570,22 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
 		/*
 		 * The DMU's dnode layer doesn't see removes until the txg
 		 * commits, so a subsequent claim can spuriously fail with
-		 * EEXIST. So if we receive any error other than ERESTART
-		 * we try syncing out any removes then retrying the
-		 * transaction.
+		 * EEXIST. So if we receive any error we try syncing out
+		 * any removes then retry the transaction.
 		 */
-		if (error != ERESTART && !sunk) {
-			if (zr->zr_replay_cleaner)
-				zr->zr_replay_cleaner(zr->zr_arg);
+		if (pass == 1)
 			txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
-			sunk = B_TRUE;
-			continue; /* retry */
-		}
-
-		if (error != ERESTART)
-			break;
-
-		if (pass != 1)
-			txg_wait_open(spa_get_dsl(zilog->zl_spa),
-			    replay_txg + 1);
-
-		dprintf("pass %d, retrying\n", pass);
 	}
 
 bad:
-	ASSERT(error && error != ERESTART);
+	ASSERT(error);
 	name = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 	dmu_objset_name(zr->zr_os, name);
 	cmn_err(CE_WARN, "ZFS replay transaction error %d, "
 	    "dataset %s, seq 0x%llx, txtype %llu %s\n",
 	    error, name, (u_longlong_t)lr->lrc_seq, (u_longlong_t)txtype,
 	    (lr->lrc_txtype & TX_CI) ? "CI" : "");
-	zilog->zl_stop_replay = 1;
+	zilog->zl_replay = B_FALSE;
 	kmem_free(name, MAXNAMELEN);
 }
 
@@ -1659,9 +1600,7 @@ zil_incr_blks(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
  * If this dataset has a non-empty intent log, replay it and destroy it.
  */
 void
-zil_replay(objset_t *os, void *arg, uint64_t *txgp,
-	zil_replay_func_t *replay_func[TX_MAX_TYPE],
-	zil_replay_cleaner_t *replay_cleaner)
+zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 	const zil_header_t *zh = zilog->zl_header;
@@ -1674,9 +1613,7 @@ zil_replay(objset_t *os, void *arg, uint64_t *txgp,
 
 	zr.zr_os = os;
 	zr.zr_replay = replay_func;
-	zr.zr_replay_cleaner = replay_cleaner;
 	zr.zr_arg = arg;
-	zr.zr_txgp = txgp;
 	zr.zr_byteswap = BP_SHOULD_BYTESWAP(&zh->zh_log);
 	/* XXX: Changed to use vmem_alloc instead of kmem_alloc for
 	 * large allocation size (I think this is safe here).
@@ -1688,7 +1625,7 @@ zil_replay(objset_t *os, void *arg, uint64_t *txgp,
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
 
-	zilog->zl_stop_replay = 0;
+	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = lbolt;
 	ASSERT(zilog->zl_replay_blks == 0);
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
@@ -1697,6 +1634,7 @@ zil_replay(objset_t *os, void *arg, uint64_t *txgp,
 
 	zil_destroy(zilog, B_FALSE);
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
+	zilog->zl_replay = B_FALSE;
 }
 
 /*
