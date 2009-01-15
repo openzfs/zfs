@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
@@ -60,6 +58,8 @@ space_map_create(space_map_t *sm, uint64_t start, uint64_t size, uint8_t shift,
 {
 	bzero(sm, sizeof (*sm));
 
+	cv_init(&sm->sm_load_cv, NULL, CV_DEFAULT, NULL);
+
 	avl_create(&sm->sm_root, space_map_seg_compare,
 	    sizeof (space_seg_t), offsetof(struct space_seg, ss_node));
 
@@ -75,6 +75,7 @@ space_map_destroy(space_map_t *sm)
 	ASSERT(!sm->sm_loaded && !sm->sm_loading);
 	VERIFY3U(sm->sm_space, ==, 0);
 	avl_destroy(&sm->sm_root);
+	cv_destroy(&sm->sm_load_cv);
 }
 
 void
@@ -180,7 +181,7 @@ space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 	sm->sm_space -= size;
 }
 
-int
+boolean_t
 space_map_contains(space_map_t *sm, uint64_t start, uint64_t size)
 {
 	avl_index_t where;
@@ -220,59 +221,10 @@ space_map_walk(space_map_t *sm, space_map_func_t *func, space_map_t *mdest)
 {
 	space_seg_t *ss;
 
-	for (ss = avl_first(&sm->sm_root); ss; ss = AVL_NEXT(&sm->sm_root, ss))
-		func(mdest, ss->ss_start, ss->ss_end - ss->ss_start);
-}
-
-void
-space_map_excise(space_map_t *sm, uint64_t start, uint64_t size)
-{
-	avl_tree_t *t = &sm->sm_root;
-	avl_index_t where;
-	space_seg_t *ss, search;
-	uint64_t end = start + size;
-	uint64_t rm_start, rm_end;
-
 	ASSERT(MUTEX_HELD(sm->sm_lock));
 
-	search.ss_start = start;
-	search.ss_end = start;
-
-	for (;;) {
-		ss = avl_find(t, &search, &where);
-
-		if (ss == NULL)
-			ss = avl_nearest(t, where, AVL_AFTER);
-
-		if (ss == NULL || ss->ss_start >= end)
-			break;
-
-		rm_start = MAX(ss->ss_start, start);
-		rm_end = MIN(ss->ss_end, end);
-
-		space_map_remove(sm, rm_start, rm_end - rm_start);
-	}
-}
-
-/*
- * Replace smd with the union of smd and sms.
- */
-void
-space_map_union(space_map_t *smd, space_map_t *sms)
-{
-	avl_tree_t *t = &sms->sm_root;
-	space_seg_t *ss;
-
-	ASSERT(MUTEX_HELD(smd->sm_lock));
-
-	/*
-	 * For each source segment, remove any intersections with the
-	 * destination, then add the source segment to the destination.
-	 */
-	for (ss = avl_first(t); ss != NULL; ss = AVL_NEXT(t, ss)) {
-		space_map_excise(smd, ss->ss_start, ss->ss_end - ss->ss_start);
-		space_map_add(smd, ss->ss_start, ss->ss_end - ss->ss_start);
-	}
+	for (ss = avl_first(&sm->sm_root); ss; ss = AVL_NEXT(&sm->sm_root, ss))
+		func(mdest, ss->ss_start, ss->ss_end - ss->ss_start);
 }
 
 /*
@@ -503,4 +455,132 @@ space_map_truncate(space_map_obj_t *smo, objset_t *os, dmu_tx_t *tx)
 
 	smo->smo_objsize = 0;
 	smo->smo_alloc = 0;
+}
+
+/*
+ * Space map reference trees.
+ *
+ * A space map is a collection of integers.  Every integer is either
+ * in the map, or it's not.  A space map reference tree generalizes
+ * the idea: it allows its members to have arbitrary reference counts,
+ * as opposed to the implicit reference count of 0 or 1 in a space map.
+ * This representation comes in handy when computing the union or
+ * intersection of multiple space maps.  For example, the union of
+ * N space maps is the subset of the reference tree with refcnt >= 1.
+ * The intersection of N space maps is the subset with refcnt >= N.
+ *
+ * [It's very much like a Fourier transform.  Unions and intersections
+ * are hard to perform in the 'space map domain', so we convert the maps
+ * into the 'reference count domain', where it's trivial, then invert.]
+ *
+ * vdev_dtl_reassess() uses computations of this form to determine
+ * DTL_MISSING and DTL_OUTAGE for interior vdevs -- e.g. a RAID-Z vdev
+ * has an outage wherever refcnt >= vdev_nparity + 1, and a mirror vdev
+ * has an outage wherever refcnt >= vdev_children.
+ */
+static int
+space_map_ref_compare(const void *x1, const void *x2)
+{
+	const space_ref_t *sr1 = x1;
+	const space_ref_t *sr2 = x2;
+
+	if (sr1->sr_offset < sr2->sr_offset)
+		return (-1);
+	if (sr1->sr_offset > sr2->sr_offset)
+		return (1);
+
+	if (sr1 < sr2)
+		return (-1);
+	if (sr1 > sr2)
+		return (1);
+
+	return (0);
+}
+
+void
+space_map_ref_create(avl_tree_t *t)
+{
+	avl_create(t, space_map_ref_compare,
+	    sizeof (space_ref_t), offsetof(space_ref_t, sr_node));
+}
+
+void
+space_map_ref_destroy(avl_tree_t *t)
+{
+	space_ref_t *sr;
+	void *cookie = NULL;
+
+	while ((sr = avl_destroy_nodes(t, &cookie)) != NULL)
+		kmem_free(sr, sizeof (*sr));
+
+	avl_destroy(t);
+}
+
+static void
+space_map_ref_add_node(avl_tree_t *t, uint64_t offset, int64_t refcnt)
+{
+	space_ref_t *sr;
+
+	sr = kmem_alloc(sizeof (*sr), KM_SLEEP);
+	sr->sr_offset = offset;
+	sr->sr_refcnt = refcnt;
+
+	avl_add(t, sr);
+}
+
+void
+space_map_ref_add_seg(avl_tree_t *t, uint64_t start, uint64_t end,
+	int64_t refcnt)
+{
+	space_map_ref_add_node(t, start, refcnt);
+	space_map_ref_add_node(t, end, -refcnt);
+}
+
+/*
+ * Convert (or add) a space map into a reference tree.
+ */
+void
+space_map_ref_add_map(avl_tree_t *t, space_map_t *sm, int64_t refcnt)
+{
+	space_seg_t *ss;
+
+	ASSERT(MUTEX_HELD(sm->sm_lock));
+
+	for (ss = avl_first(&sm->sm_root); ss; ss = AVL_NEXT(&sm->sm_root, ss))
+		space_map_ref_add_seg(t, ss->ss_start, ss->ss_end, refcnt);
+}
+
+/*
+ * Convert a reference tree into a space map.  The space map will contain
+ * all members of the reference tree for which refcnt >= minref.
+ */
+void
+space_map_ref_generate_map(avl_tree_t *t, space_map_t *sm, int64_t minref)
+{
+	uint64_t start = -1ULL;
+	int64_t refcnt = 0;
+	space_ref_t *sr;
+
+	ASSERT(MUTEX_HELD(sm->sm_lock));
+
+	space_map_vacate(sm, NULL, NULL);
+
+	for (sr = avl_first(t); sr != NULL; sr = AVL_NEXT(t, sr)) {
+		refcnt += sr->sr_refcnt;
+		if (refcnt >= minref) {
+			if (start == -1ULL) {
+				start = sr->sr_offset;
+			}
+		} else {
+			if (start != -1ULL) {
+				uint64_t end = sr->sr_offset;
+				ASSERT(start <= end);
+				if (end > start)
+					space_map_add(sm, start, end - start);
+				start = -1ULL;
+			}
+		}
+	}
+	ASSERT(refcnt == 0);
+	ASSERT(start == -1ULL);
 }
