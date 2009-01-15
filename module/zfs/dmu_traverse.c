@@ -119,7 +119,7 @@ traverse_zil(struct traverse_data *td, zil_header_t *zh)
 	 * We only want to visit blocks that have been claimed but not yet
 	 * replayed (or, in read-only mode, blocks that *would* be claimed).
 	 */
-	if (claim_txg == 0 && (spa_mode & FWRITE))
+	if (claim_txg == 0 && spa_writeable(td->td_spa))
 		return;
 
 	zilog = zil_alloc(spa_get_dsl(td->td_spa)->dp_meta_objset, zh);
