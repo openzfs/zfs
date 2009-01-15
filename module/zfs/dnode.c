@@ -56,6 +56,8 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	rw_init(&dn->dn_struct_rwlock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
+
 	refcount_create(&dn->dn_holds);
 	refcount_create(&dn->dn_tx_holds);
 
@@ -84,6 +86,7 @@ dnode_dest(void *arg, void *unused)
 	rw_destroy(&dn->dn_struct_rwlock);
 	mutex_destroy(&dn->dn_mtx);
 	mutex_destroy(&dn->dn_dbufs_mtx);
+	cv_destroy(&dn->dn_notxholds);
 	refcount_destroy(&dn->dn_holds);
 	refcount_destroy(&dn->dn_tx_holds);
 

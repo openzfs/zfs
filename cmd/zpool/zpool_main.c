@@ -877,16 +877,20 @@ int
 zpool_do_export(int argc, char **argv)
 {
 	boolean_t force = B_FALSE;
+	boolean_t hardforce = B_FALSE;
 	int c;
 	zpool_handle_t *zhp;
 	int ret;
 	int i;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "fF")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
+			break;
+		case 'F':
+			hardforce = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -917,8 +921,12 @@ zpool_do_export(int argc, char **argv)
 			continue;
 		}
 
-		if (zpool_export(zhp, force) != 0)
+		if (hardforce) {
+			if (zpool_export_force(zhp) != 0)
+				ret = 1;
+		} else if (zpool_export(zhp, force) != 0) {
 			ret = 1;
+		}
 
 		zpool_close(zhp);
 	}

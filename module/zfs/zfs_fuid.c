@@ -519,7 +519,6 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 	uint32_t rid;
 	idmap_stat status;
 	uint64_t idx;
-	boolean_t is_replay = (zfsvfs->z_assign >= TXG_INITIAL);
 	zfs_fuid_t *zfuid = NULL;
 	zfs_fuid_info_t *fuidp;
 
@@ -534,7 +533,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 	if (!zfsvfs->z_use_fuids || !IS_EPHEMERAL(id) || fuid_idx != 0)
 		return (id);
 
-	if (is_replay) {
+	if (zfsvfs->z_replay) {
 		fuidp = zfsvfs->z_fuid_replay;
 
 		/*
@@ -584,7 +583,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 
 	idx = zfs_fuid_find_by_domain(zfsvfs, domain, &kdomain, tx);
 
-	if (!is_replay)
+	if (!zfsvfs->z_replay)
 		zfs_fuid_node_add(fuidpp, kdomain, rid, idx, id, type);
 	else if (zfuid != NULL) {
 		list_remove(&fuidp->z_fuids, zfuid);
