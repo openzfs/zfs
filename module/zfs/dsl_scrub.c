@@ -391,7 +391,7 @@ traverse_zil(dsl_pool_t *dp, zil_header_t *zh)
 	 * We only want to visit blocks that have been claimed but not yet
 	 * replayed (or, in read-only mode, blocks that *would* be claimed).
 	 */
-	if (claim_txg == 0 && (spa_mode & FWRITE))
+	if (claim_txg == 0 && spa_writeable(dp->dp_spa))
 		return;
 
 	zilog = zil_alloc(dp->dp_meta_objset, zh);
@@ -408,9 +408,6 @@ scrub_visitbp(dsl_pool_t *dp, dnode_phys_t *dnp,
 {
 	int err;
 	arc_buf_t *buf = NULL;
-
-	if (bp->blk_birth == 0)
-		return;
 
 	if (bp->blk_birth <= dp->dp_scrub_min_txg)
 		return;
@@ -740,6 +737,7 @@ enqueue_cb(spa_t *spa, uint64_t dsobj, const char *dsname, void *arg)
 void
 dsl_pool_scrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 {
+	spa_t *spa = dp->dp_spa;
 	zap_cursor_t zc;
 	zap_attribute_t za;
 	boolean_t complete = B_TRUE;
@@ -747,8 +745,10 @@ dsl_pool_scrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (dp->dp_scrub_func == SCRUB_FUNC_NONE)
 		return;
 
-	/* If the spa is not fully loaded, don't bother. */
-	if (dp->dp_spa->spa_load_state != SPA_LOAD_NONE)
+	/*
+	 * If the pool is not loaded, or is trying to unload, leave it alone.
+	 */
+	if (spa->spa_load_state != SPA_LOAD_NONE || spa_shutting_down(spa))
 		return;
 
 	if (dp->dp_scrub_restart) {
@@ -757,13 +757,13 @@ dsl_pool_scrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		dsl_pool_scrub_setup_sync(dp, &func, kcred, tx);
 	}
 
-	if (dp->dp_spa->spa_root_vdev->vdev_stat.vs_scrub_type == 0) {
+	if (spa->spa_root_vdev->vdev_stat.vs_scrub_type == 0) {
 		/*
 		 * We must have resumed after rebooting; reset the vdev
 		 * stats to know that we're doing a scrub (although it
 		 * will think we're just starting now).
 		 */
-		vdev_scrub_stat_update(dp->dp_spa->spa_root_vdev,
+		vdev_scrub_stat_update(spa->spa_root_vdev,
 		    dp->dp_scrub_min_txg ? POOL_SCRUB_RESILVER :
 		    POOL_SCRUB_EVERYTHING, B_FALSE);
 	}
@@ -771,7 +771,7 @@ dsl_pool_scrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	dp->dp_scrub_pausing = B_FALSE;
 	dp->dp_scrub_start_time = lbolt64;
 	dp->dp_scrub_isresilver = (dp->dp_scrub_min_txg != 0);
-	dp->dp_spa->spa_scrub_active = B_TRUE;
+	spa->spa_scrub_active = B_TRUE;
 
 	if (dp->dp_scrub_bookmark.zb_objset == 0) {
 		/* First do the MOS & ORIGIN */
@@ -779,8 +779,8 @@ dsl_pool_scrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		if (dp->dp_scrub_pausing)
 			goto out;
 
-		if (spa_version(dp->dp_spa) < SPA_VERSION_DSL_SCRUB) {
-			VERIFY(0 == dmu_objset_find_spa(dp->dp_spa,
+		if (spa_version(spa) < SPA_VERSION_DSL_SCRUB) {
+			VERIFY(0 == dmu_objset_find_spa(spa,
 			    NULL, enqueue_cb, tx, DS_FIND_CHILDREN));
 		} else {
 			scrub_visitds(dp, dp->dp_origin_snap->ds_object, tx);
@@ -830,15 +830,13 @@ out:
 	VERIFY(0 == zap_update(dp->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_SCRUB_ERRORS, sizeof (uint64_t), 1,
-	    &dp->dp_spa->spa_scrub_errors, tx));
+	    &spa->spa_scrub_errors, tx));
 
 	/* XXX this is scrub-clean specific */
-	mutex_enter(&dp->dp_spa->spa_scrub_lock);
-	while (dp->dp_spa->spa_scrub_inflight > 0) {
-		cv_wait(&dp->dp_spa->spa_scrub_io_cv,
-		    &dp->dp_spa->spa_scrub_lock);
-	}
-	mutex_exit(&dp->dp_spa->spa_scrub_lock);
+	mutex_enter(&spa->spa_scrub_lock);
+	while (spa->spa_scrub_inflight > 0)
+		cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
+	mutex_exit(&spa->spa_scrub_lock);
 }
 
 void
@@ -920,12 +918,16 @@ static int
 dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
     const blkptr_t *bp, const zbookmark_t *zb)
 {
-	size_t size = BP_GET_LSIZE(bp);
-	int d;
+	size_t size = BP_GET_PSIZE(bp);
 	spa_t *spa = dp->dp_spa;
 	boolean_t needs_io;
-	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_CANFAIL;
+	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
 	int zio_priority;
+
+	ASSERT(bp->blk_birth > dp->dp_scrub_min_txg);
+
+	if (bp->blk_birth >= dp->dp_scrub_max_txg)
+		return (0);
 
 	count_block(dp->dp_blkstats, bp);
 
@@ -945,7 +947,7 @@ dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
 	if (zb->zb_level == -1 && BP_GET_TYPE(bp) != DMU_OT_OBJSET)
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++) {
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
 		vdev_t *vd = vdev_lookup_top(spa,
 		    DVA_GET_VDEV(&bp->blk_dva[d]));
 
@@ -963,16 +965,17 @@ dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
 			if (DVA_GET_GANG(&bp->blk_dva[d])) {
 				/*
 				 * Gang members may be spread across multiple
-				 * vdevs, so the best we can do is look at the
-				 * pool-wide DTL.
+				 * vdevs, so the best estimate we have is the
+				 * scrub range, which has already been checked.
 				 * XXX -- it would be better to change our
-				 * allocation policy to ensure that this can't
-				 * happen.
+				 * allocation policy to ensure that all
+				 * gang members reside on the same vdev.
 				 */
-				vd = spa->spa_root_vdev;
+				needs_io = B_TRUE;
+			} else {
+				needs_io = vdev_dtl_contains(vd, DTL_PARTIAL,
+				    bp->blk_birth, 1);
 			}
-			needs_io = vdev_dtl_contains(&vd->vdev_dtl_map,
-			    bp->blk_birth, 1);
 		}
 	}
 
