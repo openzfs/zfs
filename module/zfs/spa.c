@@ -486,13 +486,14 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
  * Activate an uninitialized pool.
  */
 static void
-spa_activate(spa_t *spa)
+spa_activate(spa_t *spa, int mode)
 {
 	int t, q;
 
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
+	spa->spa_mode = mode;
 
 	spa->spa_normal_class = metaslab_class_create();
 	spa->spa_log_class = metaslab_class_create();
@@ -644,17 +645,19 @@ spa_unload(spa_t *spa)
 	mutex_exit(&spa->spa_async_root_lock);
 
 	/*
-	 * Drop and purge level 2 cache
-	 */
-	spa_l2cache_drop(spa);
-
-	/*
 	 * Close the dsl pool.
 	 */
 	if (spa->spa_dsl_pool) {
 		dsl_pool_close(spa->spa_dsl_pool);
 		spa->spa_dsl_pool = NULL;
 	}
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/*
+	 * Drop and purge level 2 cache
+	 */
+	spa_l2cache_drop(spa);
 
 	/*
 	 * Close all vdevs.
@@ -690,6 +693,8 @@ spa_unload(spa_t *spa)
 	spa->spa_l2cache.sav_count = 0;
 
 	spa->spa_async_suspended = 0;
+
+	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
 /*
@@ -901,12 +906,9 @@ spa_load_l2cache(spa_t *spa)
 
 		vd = oldvdevs[i];
 		if (vd != NULL) {
-			if ((spa_mode & FWRITE) &&
-			    spa_l2cache_exists(vd->vdev_guid, &pool) &&
-			    pool != 0ULL &&
-			    l2arc_vdev_present(vd)) {
+			if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
+			    pool != 0ULL && l2arc_vdev_present(vd))
 				l2arc_remove_vdev(vd);
-			}
 			(void) vdev_close(vd);
 			spa_l2cache_remove(vd);
 		}
@@ -1022,7 +1024,15 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 	uint64_t pool_guid;
 	uint64_t version;
 	uint64_t autoreplace = 0;
+	int orig_mode = spa->spa_mode;
 	char *ereport = FM_EREPORT_ZFS_POOL;
+
+	/*
+	 * If this is an untrusted config, access the pool in read-only mode.
+	 * This prevents things like resilvering recently removed devices.
+	 */
+	if (!mosconfig)
+		spa->spa_mode = FREAD;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -1081,12 +1091,13 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 	 * Validate the labels for all leaf vdevs.  We need to grab the config
 	 * lock because all label I/O is done with ZIO_FLAG_CONFIG_WRITER.
 	 */
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	error = vdev_validate(rvd);
-	spa_config_exit(spa, SCL_ALL, FTAG);
-
-	if (error != 0)
-		goto out;
+	if (mosconfig) {
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+		error = vdev_validate(rvd);
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		if (error != 0)
+			goto out;
+	}
 
 	if (rvd->vdev_state <= VDEV_STATE_CANT_OPEN) {
 		error = ENXIO;
@@ -1188,7 +1199,7 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		spa_config_set(spa, newconfig);
 		spa_unload(spa);
 		spa_deactivate(spa);
-		spa_activate(spa);
+		spa_activate(spa, orig_mode);
 
 		return (spa_load(spa, newconfig, state, B_TRUE));
 	}
@@ -1380,10 +1391,11 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		goto out;
 	}
 
-	if ((spa_mode & FWRITE) && state != SPA_LOAD_TRYIMPORT) {
+	if (spa_writeable(spa)) {
 		dmu_tx_t *tx;
 		int need_update = B_FALSE;
-		int c;
+
+		ASSERT(state != SPA_LOAD_TRYIMPORT);
 
 		/*
 		 * Claim log blocks that haven't been committed yet.
@@ -1411,7 +1423,7 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		    state == SPA_LOAD_IMPORT)
 			need_update = B_TRUE;
 
-		for (c = 0; c < rvd->vdev_children; c++)
+		for (int c = 0; c < rvd->vdev_children; c++)
 			if (rvd->vdev_child[c]->vdev_ms_array == 0)
 				need_update = B_TRUE;
 
@@ -1421,6 +1433,12 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 		 */
 		if (need_update)
 			spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+
+		/*
+		 * Check all DTLs to see if anything needs resilvering.
+		 */
+		if (vdev_resilver_needed(rvd, NULL, NULL))
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
 	}
 
 	error = 0;
@@ -1473,7 +1491,7 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t **config)
 	}
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
 
-		spa_activate(spa);
+		spa_activate(spa, spa_mode_global);
 
 		error = spa_load(spa, spa->spa_config, SPA_LOAD_OPEN, B_FALSE);
 
@@ -1877,11 +1895,9 @@ spa_l2cache_drop(spa_t *spa)
 		vd = sav->sav_vdevs[i];
 		ASSERT(vd != NULL);
 
-		if ((spa_mode & FWRITE) &&
-		    spa_l2cache_exists(vd->vdev_guid, &pool) && pool != 0ULL &&
-		    l2arc_vdev_present(vd)) {
+		if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
+		    pool != 0ULL && l2arc_vdev_present(vd))
 			l2arc_remove_vdev(vd);
-		}
 		if (vd->vdev_isl2cache)
 			spa_l2cache_remove(vd);
 		vdev_clear_stats(vd);
@@ -1922,7 +1938,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	(void) nvlist_lookup_string(props,
 	    zpool_prop_to_name(ZPOOL_PROP_ALTROOT), &altroot);
 	spa = spa_add(pool, altroot);
-	spa_activate(spa);
+	spa_activate(spa, spa_mode_global);
 
 	spa->spa_uberblock.ub_txg = txg - 1;
 
@@ -2125,7 +2141,7 @@ spa_import_common(const char *pool, nvlist_t *config, nvlist_t *props,
 	(void) nvlist_lookup_string(props,
 	    zpool_prop_to_name(ZPOOL_PROP_ALTROOT), &altroot);
 	spa = spa_add(pool, altroot);
-	spa_activate(spa);
+	spa_activate(spa, spa_mode_global);
 
 	if (allowfaulted)
 		spa->spa_import_faulted = B_TRUE;
@@ -2164,7 +2180,8 @@ spa_import_common(const char *pool, nvlist_t *config, nvlist_t *props,
 		    VDEV_ALLOC_L2CACHE);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	if (error != 0 || (props && (error = spa_prop_set(spa, props)))) {
+	if (error != 0 || (props && spa_writeable(spa) &&
+	    (error = spa_prop_set(spa, props)))) {
 		if (loaderr != 0 && loaderr != EINVAL && allowfaulted) {
 			/*
 			 * If we failed to load the pool, but 'allowfaulted' is
@@ -2223,7 +2240,7 @@ spa_import_common(const char *pool, nvlist_t *config, nvlist_t *props,
 		spa->spa_l2cache.sav_sync = B_TRUE;
 	}
 
-	if (spa_mode & FWRITE) {
+	if (spa_writeable(spa)) {
 		/*
 		 * Update the config cache to include the newly-imported pool.
 		 */
@@ -2371,11 +2388,11 @@ spa_get_rootconf(char *devpath, char *devid, nvlist_t **bestconf)
 		char *cdevid, *cpath;
 		uint64_t tmptxg;
 
+		cpath = NULL;
+		cdevid = NULL;
 		if (nvlist_lookup_string(child[c], ZPOOL_CONFIG_PHYS_PATH,
-		    &cpath) != 0)
-			return (EINVAL);
-		if (nvlist_lookup_string(child[c], ZPOOL_CONFIG_DEVID,
-		    &cdevid) != 0)
+		    &cpath) != 0 && nvlist_lookup_string(child[c],
+		    ZPOOL_CONFIG_DEVID, &cdevid) != 0)
 			return (EINVAL);
 		if ((spa_check_rootconf(cpath, cdevid, NULL,
 		    &tmptxg) == 0) && (tmptxg > txg)) {
@@ -2493,7 +2510,7 @@ spa_tryimport(nvlist_t *tryconfig)
 	 */
 	mutex_enter(&spa_namespace_lock);
 	spa = spa_add(TRYIMPORT_NAME, NULL);
-	spa_activate(spa);
+	spa_activate(spa, FREAD);
 
 	/*
 	 * Pass off the heavy lifting to spa_load().
@@ -2567,18 +2584,19 @@ spa_tryimport(nvlist_t *tryconfig)
  * The act of destroying or exporting a pool is very simple.  We make sure there
  * is no more pending I/O and any references to the pool are gone.  Then, we
  * update the pool state and sync all the labels to disk, removing the
- * configuration from the cache afterwards.
+ * configuration from the cache afterwards. If the 'hardforce' flag is set, then
+ * we don't sync the labels or remove the configuration cache.
  */
 static int
 spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
-    boolean_t force)
+    boolean_t force, boolean_t hardforce)
 {
 	spa_t *spa;
 
 	if (oldconfig)
 		*oldconfig = NULL;
 
-	if (!(spa_mode & FWRITE))
+	if (!(spa_mode_global & FWRITE))
 		return (EROFS);
 
 	mutex_enter(&spa_namespace_lock);
@@ -2639,7 +2657,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		 * so mark them all dirty.  spa_unload() will do the
 		 * final sync that pushes these changes out.
 		 */
-		if (new_state != POOL_STATE_UNINITIALIZED) {
+		if (new_state != POOL_STATE_UNINITIALIZED && !hardforce) {
 			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 			spa->spa_state = new_state;
 			spa->spa_final_txg = spa_last_synced_txg(spa) + 1;
@@ -2659,7 +2677,8 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		VERIFY(nvlist_dup(spa->spa_config, oldconfig, 0) == 0);
 
 	if (new_state != POOL_STATE_UNINITIALIZED) {
-		spa_config_sync(spa, B_TRUE, B_TRUE);
+		if (!hardforce)
+			spa_config_sync(spa, B_TRUE, B_TRUE);
 		spa_remove(spa);
 	}
 	mutex_exit(&spa_namespace_lock);
@@ -2673,16 +2692,19 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 int
 spa_destroy(char *pool)
 {
-	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL, B_FALSE));
+	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
+	    B_FALSE, B_FALSE));
 }
 
 /*
  * Export a storage pool.
  */
 int
-spa_export(char *pool, nvlist_t **oldconfig, boolean_t force)
+spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+    boolean_t hardforce)
 {
-	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig, force));
+	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig,
+	    force, hardforce));
 }
 
 /*
@@ -2693,7 +2715,7 @@ int
 spa_reset(char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_UNINITIALIZED, NULL,
-	    B_FALSE));
+	    B_FALSE, B_FALSE));
 }
 
 /*
@@ -2709,7 +2731,7 @@ int
 spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 {
 	uint64_t txg;
-	int c, error;
+	int error;
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *tvd;
 	nvlist_t **spares, **l2cache;
@@ -2748,7 +2770,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	/*
 	 * Transfer each new top-level vdev from vd to rvd.
 	 */
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		tvd = vd->vdev_child[c];
 		vdev_remove_child(vd, tvd);
 		tvd->vdev_id = rvd->vdev_children;
@@ -2956,10 +2978,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	open_txg = txg + TXG_CONCURRENT_STATES - 1;
 
-	mutex_enter(&newvd->vdev_dtl_lock);
-	space_map_add(&newvd->vdev_dtl_map, TXG_INITIAL,
-	    open_txg - TXG_INITIAL + 1);
-	mutex_exit(&newvd->vdev_dtl_lock);
+	vdev_dtl_dirty(newvd, DTL_MISSING,
+	    TXG_INITIAL, open_txg - TXG_INITIAL + 1);
 
 	if (newvd->vdev_isspare)
 		spa_spare_activate(newvd);
@@ -3003,10 +3023,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
  * is a replacing vdev.
  */
 int
-spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
+spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 {
 	uint64_t txg;
-	int c, t, error;
+	int error;
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
@@ -3024,6 +3044,22 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
 	pvd = vd->vdev_parent;
+
+	/*
+	 * If the parent/child relationship is not as expected, don't do it.
+	 * Consider M(A,R(B,C)) -- that is, a mirror of A with a replacing
+	 * vdev that's replacing B with C.  The user's intent in replacing
+	 * is to go from M(A,B) to M(A,C).  If the user decides to cancel
+	 * the replace by detaching C, the expected behavior is to end up
+	 * M(A,B).  But suppose that right after deciding to detach C,
+	 * the replacement of B completes.  We would have M(A,C), and then
+	 * ask to detach C, which would leave us with just A -- not what
+	 * the user wanted.  To prevent this, we make sure that the
+	 * parent/child relationship hasn't changed -- in this example,
+	 * that C's parent is still the replacing vdev R.
+	 */
+	if (pvd->vdev_guid != pguid && pguid != 0)
+		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
 	/*
 	 * If replace_done is specified, only remove this device if it's
@@ -3051,36 +3087,13 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
 	/*
-	 * If there's only one replica, you can't detach it.
+	 * If this device has the only valid copy of some data,
+	 * we cannot safely detach it.
 	 */
-	if (pvd->vdev_children <= 1)
+	if (vdev_dtl_required(vd))
 		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
-	/*
-	 * If all siblings have non-empty DTLs, this device may have the only
-	 * valid copy of the data, which means we cannot safely detach it.
-	 *
-	 * XXX -- as in the vdev_offline() case, we really want a more
-	 * precise DTL check.
-	 */
-	for (c = 0; c < pvd->vdev_children; c++) {
-		uint64_t dirty;
-
-		cvd = pvd->vdev_child[c];
-		if (cvd == vd)
-			continue;
-		if (vdev_is_dead(cvd))
-			continue;
-		mutex_enter(&cvd->vdev_dtl_lock);
-		dirty = cvd->vdev_dtl_map.sm_space |
-		    cvd->vdev_dtl_scrub.sm_space;
-		mutex_exit(&cvd->vdev_dtl_lock);
-		if (!dirty)
-			break;
-	}
-
-	if (c == pvd->vdev_children)
-		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
+	ASSERT(pvd->vdev_children >= 2);
 
 	/*
 	 * If we are detaching the second disk from a replacing vdev, then
@@ -3106,7 +3119,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 	 * active spare list for the pool.
 	 */
 	if (pvd->vdev_ops == &vdev_spare_ops &&
-	    vd->vdev_id == 0)
+	    vd->vdev_id == 0 && pvd->vdev_child[1]->vdev_isspare)
 		unspare = B_TRUE;
 
 	/*
@@ -3132,14 +3145,18 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 
 	/*
 	 * If we need to remove the remaining child from the list of hot spares,
-	 * do it now, marking the vdev as no longer a spare in the process.  We
-	 * must do this before vdev_remove_parent(), because that can change the
-	 * GUID if it creates a new toplevel GUID.
+	 * do it now, marking the vdev as no longer a spare in the process.
+	 * We must do this before vdev_remove_parent(), because that can
+	 * change the GUID if it creates a new toplevel GUID.  For a similar
+	 * reason, we must remove the spare now, in the same txg as the detach;
+	 * otherwise someone could attach a new sibling, change the GUID, and
+	 * the subsequent attempt to spa_vdev_remove(unspare_guid) would fail.
 	 */
 	if (unspare) {
 		ASSERT(cvd->vdev_isspare);
 		spa_spare_remove(cvd);
 		unspare_guid = cvd->vdev_guid;
+		(void) spa_vdev_remove(spa, unspare_guid, B_TRUE);
 	}
 
 	/*
@@ -3177,7 +3194,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 	 * But first make sure we're not on any *other* txg's DTL list, to
 	 * prevent vd from being accessed after it's freed.
 	 */
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		(void) txg_list_remove_this(&tvd->vdev_dtl_list, vd, t);
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
@@ -3192,10 +3209,13 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, int replace_done)
 	 * list of every other pool.
 	 */
 	if (unspare) {
+		spa_t *myspa = spa;
 		spa = NULL;
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL) {
 			if (spa->spa_state != POOL_STATE_ACTIVE)
+				continue;
+			if (spa == myspa)
 				continue;
 			spa_open_ref(spa, FTAG);
 			mutex_exit(&spa_namespace_lock);
@@ -3263,10 +3283,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	vdev_t *vd;
 	nvlist_t **spares, **l2cache, *nv;
 	uint_t nspares, nl2cache;
-	uint64_t txg;
+	uint64_t txg = 0;
 	int error = 0;
+	boolean_t locked = MUTEX_HELD(&spa_namespace_lock);
 
-	txg = spa_vdev_enter(spa);
+	if (!locked)
+		txg = spa_vdev_enter(spa);
 
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
@@ -3309,7 +3331,10 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		error = ENOENT;
 	}
 
-	return (spa_vdev_exit(spa, NULL, txg, error));
+	if (!locked)
+		return (spa_vdev_exit(spa, NULL, txg, error));
+
+	return (error);
 }
 
 /*
@@ -3335,13 +3360,9 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 		oldvd = vd->vdev_child[0];
 		newvd = vd->vdev_child[1];
 
-		mutex_enter(&newvd->vdev_dtl_lock);
-		if (newvd->vdev_dtl_map.sm_space == 0 &&
-		    newvd->vdev_dtl_scrub.sm_space == 0) {
-			mutex_exit(&newvd->vdev_dtl_lock);
+		if (vdev_dtl_empty(newvd, DTL_MISSING) &&
+		    !vdev_dtl_required(oldvd))
 			return (oldvd);
-		}
-		mutex_exit(&newvd->vdev_dtl_lock);
 	}
 
 	/*
@@ -3351,15 +3372,12 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 		newvd = vd->vdev_child[0];
 		oldvd = vd->vdev_child[1];
 
-		mutex_enter(&newvd->vdev_dtl_lock);
 		if (newvd->vdev_unspare &&
-		    newvd->vdev_dtl_map.sm_space == 0 &&
-		    newvd->vdev_dtl_scrub.sm_space == 0) {
+		    vdev_dtl_empty(newvd, DTL_MISSING) &&
+		    !vdev_dtl_required(oldvd)) {
 			newvd->vdev_unspare = 0;
-			mutex_exit(&newvd->vdev_dtl_lock);
 			return (oldvd);
 		}
-		mutex_exit(&newvd->vdev_dtl_lock);
 	}
 
 	return (NULL);
@@ -3368,36 +3386,37 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 static void
 spa_vdev_resilver_done(spa_t *spa)
 {
-	vdev_t *vd;
-	vdev_t *pvd;
-	uint64_t guid;
-	uint64_t pguid = 0;
+	vdev_t *vd, *pvd, *ppvd;
+	uint64_t guid, sguid, pguid, ppguid;
 
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 
 	while ((vd = spa_vdev_resilver_done_hunt(spa->spa_root_vdev)) != NULL) {
+		pvd = vd->vdev_parent;
+		ppvd = pvd->vdev_parent;
 		guid = vd->vdev_guid;
+		pguid = pvd->vdev_guid;
+		ppguid = ppvd->vdev_guid;
+		sguid = 0;
 		/*
 		 * If we have just finished replacing a hot spared device, then
 		 * we need to detach the parent's first child (the original hot
 		 * spare) as well.
 		 */
-		pvd = vd->vdev_parent;
-		if (pvd->vdev_parent->vdev_ops == &vdev_spare_ops &&
-		    pvd->vdev_id == 0) {
+		if (ppvd->vdev_ops == &vdev_spare_ops && pvd->vdev_id == 0) {
 			ASSERT(pvd->vdev_ops == &vdev_replacing_ops);
-			ASSERT(pvd->vdev_parent->vdev_children == 2);
-			pguid = pvd->vdev_parent->vdev_child[1]->vdev_guid;
+			ASSERT(ppvd->vdev_children == 2);
+			sguid = ppvd->vdev_child[1]->vdev_guid;
 		}
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		if (spa_vdev_detach(spa, guid, B_TRUE) != 0)
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		if (spa_vdev_detach(spa, guid, pguid, B_TRUE) != 0)
 			return;
-		if (pguid != 0 && spa_vdev_detach(spa, pguid, B_TRUE) != 0)
+		if (sguid && spa_vdev_detach(spa, sguid, ppguid, B_TRUE) != 0)
 			return;
-		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	}
 
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
 /*
@@ -3936,9 +3955,22 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 * into config changes that go out with this transaction group.
 	 */
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-	while ((vd = list_head(&spa->spa_state_dirty_list)) != NULL) {
-		vdev_state_clean(vd);
-		vdev_config_dirty(vd);
+	while (list_head(&spa->spa_state_dirty_list) != NULL) {
+		/*
+		 * We need the write lock here because, for aux vdevs,
+		 * calling vdev_config_dirty() modifies sav_config.
+		 * This is ugly and will become unnecessary when we
+		 * eliminate the aux vdev wart by integrating all vdevs
+		 * into the root vdev tree.
+		 */
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_WRITER);
+		while ((vd = list_head(&spa->spa_state_dirty_list)) != NULL) {
+			vdev_state_clean(vd);
+			vdev_config_dirty(vd);
+		}
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 	}
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
