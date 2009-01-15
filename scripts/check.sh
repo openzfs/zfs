@@ -1,8 +1,8 @@
 #!/bin/bash
 
 prog=check.sh
-spl_module=../modules/spl/spl.ko
-splat_module=../modules/splat/splat.ko
+spl_module=../module/spl/spl.ko
+splat_module=../module/splat/splat.ko
 splat_cmd=../cmd/splat
 verbose=
 

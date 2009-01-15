@@ -86,9 +86,9 @@ AC_SUBST(KERNELCFLAGS)
 AC_CONFIG_FILES([ Makefile
                   lib/Makefile
                   cmd/Makefile
-                  modules/Makefile
-                  modules/spl/Makefile
-                  modules/splat/Makefile
+                  module/Makefile
+                  module/spl/Makefile
+                  module/splat/Makefile
                   include/Makefile
                   include/sys/Makefile
                   scripts/Makefile

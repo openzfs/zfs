@@ -20439,7 +20439,7 @@ fi
 
 
 
-                                                                                                    ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile modules/Makefile modules/spl/Makefile modules/splat/Makefile include/Makefile include/sys/Makefile scripts/Makefile scripts/spl.spec"
+                                                                                                    ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile include/sys/Makefile scripts/Makefile scripts/spl.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -21008,9 +21008,9 @@ do
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "lib/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
   "cmd/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/Makefile" ;;
-  "modules/Makefile" ) CONFIG_FILES="$CONFIG_FILES modules/Makefile" ;;
-  "modules/spl/Makefile" ) CONFIG_FILES="$CONFIG_FILES modules/spl/Makefile" ;;
-  "modules/splat/Makefile" ) CONFIG_FILES="$CONFIG_FILES modules/splat/Makefile" ;;
+  "module/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/Makefile" ;;
+  "module/spl/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/spl/Makefile" ;;
+  "module/splat/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/splat/Makefile" ;;
   "include/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
   "include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/Makefile" ;;
   "scripts/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;

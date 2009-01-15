@@ -38,9 +38,9 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/spl_config.h.in \
-	$(top_srcdir)/configure $(top_srcdir)/modules/Makefile.in \
-	$(top_srcdir)/modules/spl/Makefile.in \
-	$(top_srcdir)/modules/splat/Makefile.in AUTHORS COPYING \
+	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+	$(top_srcdir)/module/spl/Makefile.in \
+	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
 	ChangeLog INSTALL config/config.guess config/config.sub \
 	config/depcomp config/install-sh config/ltmain.sh \
 	config/missing
@@ -196,7 +196,7 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 AUTOMAKE_OPTIONS = foreign dist-zip
-SUBDIRS = lib cmd modules include scripts
+SUBDIRS = lib cmd module include scripts
 CONFIG_CLEAN_FILES = aclocal.m4 config.guess config.sub depcomp \
 	install-sh missing mkinstalldirs
 EXTRA_DIST = autogen.sh
@@ -254,11 +254,11 @@ $(srcdir)/spl_config.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f spl_config.h stamp-h1
-modules/Makefile: $(top_builddir)/config.status $(top_srcdir)/modules/Makefile.in
+module/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-modules/spl/Makefile: $(top_builddir)/config.status $(top_srcdir)/modules/spl/Makefile.in
+module/spl/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/spl/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-modules/splat/Makefile: $(top_builddir)/config.status $(top_srcdir)/modules/splat/Makefile.in
+module/splat/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/splat/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -406,7 +406,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config $(distdir)/modules $(distdir)/modules/spl $(distdir)/modules/splat $(distdir)/scripts
+	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/spl $(distdir)/module/splat $(distdir)/scripts
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
