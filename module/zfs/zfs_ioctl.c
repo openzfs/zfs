@@ -856,9 +856,10 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 {
 	int error;
 	boolean_t force = (boolean_t)zc->zc_cookie;
+	boolean_t hardforce = (boolean_t)zc->zc_guid;
 
 	zfs_log_history(zc);
-	error = spa_export(zc->zc_name, NULL, force);
+	error = spa_export(zc->zc_name, NULL, force, hardforce);
 	return (error);
 }
 
@@ -1162,7 +1163,7 @@ zfs_ioc_vdev_detach(zfs_cmd_t *zc)
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
 
-	error = spa_vdev_detach(spa, zc->zc_guid, B_FALSE);
+	error = spa_vdev_detach(spa, zc->zc_guid, 0, B_FALSE);
 
 	spa_close(spa, FTAG);
 	return (error);
