@@ -29,6 +29,7 @@
 
 #include <assert.h>
 #include <libnvpair.h>
+#include <sys/mnttab.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/varargs.h>
@@ -189,6 +190,13 @@ extern void libzfs_print_on_error(libzfs_handle_t *, boolean_t);
 extern int libzfs_errno(libzfs_handle_t *);
 extern const char *libzfs_error_action(libzfs_handle_t *);
 extern const char *libzfs_error_description(libzfs_handle_t *);
+extern void libzfs_mnttab_init(libzfs_handle_t *);
+extern void libzfs_mnttab_fini(libzfs_handle_t *);
+extern int libzfs_mnttab_find(libzfs_handle_t *, const char *,
+    struct mnttab *);
+extern void libzfs_mnttab_add(libzfs_handle_t *, const char *,
+    const char *, const char *);
+extern void libzfs_mnttab_remove(libzfs_handle_t *, const char *);
 
 /*
  * Basic handle functions
@@ -303,6 +311,7 @@ extern int zpool_get_errlog(zpool_handle_t *, nvlist_t **);
  * Import and export functions
  */
 extern int zpool_export(zpool_handle_t *, boolean_t);
+extern int zpool_export_force(zpool_handle_t *);
 extern int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 extern int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
