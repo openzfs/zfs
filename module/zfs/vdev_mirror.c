@@ -225,7 +225,7 @@ vdev_mirror_child_select(zio_t *zio)
 			mc->mc_skipped = 1;
 			continue;
 		}
-		if (!vdev_dtl_contains(&mc->mc_vd->vdev_dtl_map, txg, 1))
+		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
 			return (c);
 		mc->mc_error = ESTALE;
 		mc->mc_skipped = 1;
@@ -282,20 +282,10 @@ vdev_mirror_io_start(zio_t *zio)
 		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 
 		/*
-		 * If this is a resilvering I/O to a replacing vdev,
-		 * only the last child should be written -- unless the
-		 * first child happens to have a DTL entry here as well.
-		 * All other writes go to all children.
+		 * Writes go to all children.
 		 */
-		if ((zio->io_flags & ZIO_FLAG_RESILVER) && mm->mm_replacing &&
-		    !vdev_dtl_contains(&mm->mm_child[0].mc_vd->vdev_dtl_map,
-		    zio->io_txg, 1)) {
-			c = mm->mm_children - 1;
-			children = 1;
-		} else {
-			c = 0;
-			children = mm->mm_children;
-		}
+		c = 0;
+		children = mm->mm_children;
 	}
 
 	while (children--) {
@@ -398,7 +388,7 @@ vdev_mirror_io_done(zio_t *zio)
 		ASSERT(zio->io_error != 0);
 	}
 
-	if (good_copies && (spa_mode & FWRITE) &&
+	if (good_copies && spa_writeable(zio->io_spa) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
 	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_replacing))) {
@@ -419,7 +409,7 @@ vdev_mirror_io_done(zio_t *zio)
 				if (mc->mc_tried)
 					continue;
 				if (!(zio->io_flags & ZIO_FLAG_SCRUB) &&
-				    !vdev_dtl_contains(&mc->mc_vd->vdev_dtl_map,
+				    !vdev_dtl_contains(mc->mc_vd, DTL_PARTIAL,
 				    zio->io_txg, 1))
 					continue;
 				mc->mc_error = ESTALE;
@@ -429,7 +419,8 @@ vdev_mirror_io_done(zio_t *zio)
 			    mc->mc_vd, mc->mc_offset,
 			    zio->io_data, zio->io_size,
 			    ZIO_TYPE_WRITE, zio->io_priority,
-			    ZIO_FLAG_IO_REPAIR, NULL, NULL));
+			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
+			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}
 	}
 }
