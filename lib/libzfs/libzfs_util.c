@@ -796,6 +796,10 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 	cbp->cb_colwidths[GET_COL_SOURCE] = strlen(dgettext(TEXT_DOMAIN,
 	    "SOURCE"));
 
+	/* first property is always NAME */
+	assert(cbp->cb_proplist->pl_prop ==
+	    ((type == ZFS_TYPE_POOL) ?  ZPOOL_PROP_NAME : ZFS_PROP_NAME));
+
 	/*
 	 * Go through and calculate the widths for each column.  For the
 	 * 'source' column, we kludge it up by taking the worst-case scenario of
@@ -823,9 +827,13 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		}
 
 		/*
-		 * 'VALUE' column
+		 * 'VALUE' column.  The first property is always the 'name'
+		 * property that was tacked on either by /sbin/zfs's
+		 * zfs_do_get() or when calling zprop_expand_list(), so we
+		 * ignore its width.  If the user specified the name property
+		 * to display, then it will be later in the list in any case.
 		 */
-		if ((pl->pl_prop != ZFS_PROP_NAME || !pl->pl_all) &&
+		if (pl != cbp->cb_proplist &&
 		    pl->pl_width > cbp->cb_colwidths[GET_COL_VALUE])
 			cbp->cb_colwidths[GET_COL_VALUE] = pl->pl_width;
 
