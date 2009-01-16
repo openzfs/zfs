@@ -1,5 +1,6 @@
 #!/bin/bash
-# profile-zpios-pids.sh
+
+PROG=zpios-profile-pids.sh
 
 RUN_PIDS=${0}
 RUN_LOG_DIR=${1}
