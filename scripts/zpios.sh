@@ -108,8 +108,9 @@ check_test() {
 }
 
 PROFILE=
-ZPOOL_CONFIG="zpool-config.cfg"
-ZPIOS_TEST="zpios-test.cfg"
+ZPOOL_CONFIG=zpool-config.cfg
+ZPIOS_TEST=zpios-test.cfg
+ZPOOL_NAME=zpios
 
 while getopts 'hvpc:t:' OPTION; do
 	case $OPTION in
@@ -119,6 +120,7 @@ while getopts 'hvpc:t:' OPTION; do
 		;;
 	v)
 		VERBOSE=1
+		VERBOSE_FLAG="-v"
 		;;
 	p)
 		PROFILE=1
@@ -151,6 +153,11 @@ if check_modules; then
 	fi
 fi
 
+msg "Waiting for /dev/zpios to come up..."
+while [ ! -c /dev/zpios ]; do
+	sleep 1
+done
+
 if [ ${VERBOSE} ]; then
 	print_header
 	print_spl_info
@@ -158,15 +165,7 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Create the zpool configuration
-./zpool-create.sh -c ${ZPOOL_CONFIG} || exit 1
-
-msg "${CMDDIR}/zpool/zpool status zpios"
-${CMDDIR}/zpool/zpool status zpios || exit 1
-
-msg "Waiting for /dev/zpios to come up..."
-while [ ! -c /dev/zpios ]; do
-	sleep 1
-done
+./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} || exit 1
 
 if [ -n "${ZPIOS_PRE}" ]; then
 	msg "Executing ${ZPIOS_PRE}"
