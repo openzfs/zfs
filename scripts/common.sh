@@ -5,10 +5,15 @@
 # a full ZFS init script when that is needed.
 #
 
+if [ ! -f ../.script-config ]; then
+	echo "You must build your source tree"
+	exit 1
+fi
+
 . ../.script-config
 PROG="<define PROG>"
-
 VERBOSE=
+VERBOSE_FLAG=
 DUMP_LOG=
 ERROR=
 MODULES=()
