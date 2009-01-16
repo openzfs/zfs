@@ -186,14 +186,16 @@ date
 echo ${ZPIOS_CMD}
 $ZPIOS_CMD || exit 1
 
+print_stats
+
 if [ -n "${ZPIOS_POST}" ]; then
 	msg "Executing ${ZPIOS_POST}"
 	${ZPIOS_POST} || exit 1
 fi 
 
-msg "${CMDDIR}/zpool/zpool destroy zpios"
-${CMDDIR}/zpool/zpool destroy zpios
+msg "${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}"
+${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
 
-print_stats
+unload_modules
 
 exit 0
