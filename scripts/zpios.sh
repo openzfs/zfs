@@ -90,23 +90,6 @@ print_stats() {
 	fi
 }
 
-check_config() {
-
-	if [ ! -f ${ZPOOL_CONFIG} ]; then
-		local NAME=`basename ${ZPOOL_CONFIG} .cfg`
-		ERROR="Unknown config '${NAME}', available configs are:\n"
-
-		for CFG in `ls ${TOPDIR}/scripts/zpool-config/`; do
-			local NAME=`basename ${CFG} .cfg`
-			ERROR="${ERROR}${NAME}\n"
-		done
-
-		return 1
-	fi
-
-	return 0
-}
-
 check_test() {
 
 	if [ ! -f ${ZPIOS_TEST} ]; then
@@ -141,7 +124,7 @@ while getopts 'hvpc:t:' OPTION; do
 		PROFILE=1
 		;;
 	c)
-		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.cfg
+		ZPOOL_CONFIG=${OPTARG}
 		;;
 	t)
 		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.cfg
@@ -157,8 +140,7 @@ if [ $(id -u) != 0 ]; then
         die "Must run as root"
 fi
 
-# Validate your using a known config and test
-check_config || die "${ERROR}"
+# Validate your using a known test
 check_test || die "${ERROR}"
 
 # Pull in the zpios test module is not loaded.  If this fails it is
@@ -175,8 +157,8 @@ if [ ${VERBOSE} ]; then
 	print_zfs_info
 fi
 
-# Source the zpool configuration
-. ${ZPOOL_CONFIG}
+# Create the zpool configuration
+./zpool-create.sh -c ${ZPOOL_CONFIG} || exit 1
 
 msg "${CMDDIR}/zpool/zpool status zpios"
 ${CMDDIR}/zpool/zpool status zpios || exit 1
