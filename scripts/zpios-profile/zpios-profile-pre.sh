@@ -1,5 +1,7 @@
 #!/bin/bash
-# profile-zpios-pre.sh
+
+prog=profile-zpios-pre.sh
+. ../.script-config
 
 trap "PROFILE_ZPIOS_READY=1" SIGHUP
 
@@ -19,7 +21,7 @@ RUN_THREAD_DELAY=${12}
 RUN_FLAGS=${13}
 RUN_RESULT=${14}
 
-PROFILE_ZPIOS_BIN=/home/behlendo/src/zfs/scripts/profile-zpios.sh
+PROFILE_ZPIOS_BIN=${IOPDIR}/scripts/profile-zpios.sh
 PROFILE_ZPIOS_READY=0
 
 OPROFILE_LOG=${RUN_LOG_DIR}/${RUN_ID}/oprofile.txt
