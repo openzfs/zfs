@@ -19,10 +19,10 @@ RUN_THREAD_DELAY=${12}
 RUN_FLAGS=${13}
 RUN_RESULT=${14}
 
-PROFILE_ZPIOS_PIDS_BIN=/home/behlendo/src/zfs/scripts/profile-zpios-pids.sh
+PROFILE_ZPIOS_PIDS_BIN=${TOPDIR}/scripts/profile-zpios-pids.sh
 PROFILE_ZPIOS_PIDS_LOG=${RUN_LOG_DIR}/${RUN_ID}/pids-summary.csv
 
-PROFILE_ZPIOS_DISK_BIN=/home/behlendo/src/zfs/scripts/profile-zpios-disk.sh
+PROFILE_ZPIOS_DISK_BIN=${TOPDIR}/scripts/profile-zpios-disk.sh
 PROFILE_ZPIOS_DISK_LOG=${RUN_LOG_DIR}/${RUN_ID}/disk-summary.csv
 
 PROFILE_ZPIOS_ARC_LOG=${RUN_LOG_DIR}/${RUN_ID}/arcstats
