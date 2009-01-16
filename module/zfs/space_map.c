@@ -63,8 +63,6 @@ space_map_create(space_map_t *sm, uint64_t start, uint64_t size, uint8_t shift,
 	avl_create(&sm->sm_root, space_map_seg_compare,
 	    sizeof (space_seg_t), offsetof(struct space_seg, ss_node));
 
-	cv_init(&sm->sm_load_cv, NULL, CV_DEFAULT, NULL);
-
 	sm->sm_start = start;
 	sm->sm_size = size;
 	sm->sm_shift = shift;
@@ -76,7 +74,6 @@ space_map_destroy(space_map_t *sm)
 {
 	ASSERT(!sm->sm_loaded && !sm->sm_loading);
 	VERIFY3U(sm->sm_space, ==, 0);
-	cv_destroy(&sm->sm_load_cv);
 	avl_destroy(&sm->sm_root);
 	cv_destroy(&sm->sm_load_cv);
 }
