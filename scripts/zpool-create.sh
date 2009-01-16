@@ -62,6 +62,10 @@ while getopts 'hvc:p:' OPTION; do
 	esac
 done
 
+if [ $(id -u) != 0 ]; then
+        die "Must run as root"
+fi
+
 check_config || die "${ERROR}"
 . ${ZPOOL_CONFIG}
 
