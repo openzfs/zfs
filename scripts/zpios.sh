@@ -1,159 +1,218 @@
 #!/bin/bash
+#
+# Wrapper script for easily running zpios based tests
+#
 
-prog=zpios.sh
-. ../.script-config
+. ./common.sh
+PROG=zpios.sh
 
-SPL_OPTIONS="spl=spl_debug_mask=0 spl_debug_subsys=0 spl_debug_mb=-1 ${1}"
-ZFS_OPTIONS="zfs=${2}"
-ZPIOS_OPTIONS=$3
-PROFILE_ZPIOS_LOGS=$4
-ZPIOS_PRE=$5
-ZPIOS_POST=$6
+PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/profile-zpios-pre.sh
+PROFILE_ZPIOS_POST=${TOPDIR}/scripts/profile-zpios-post.sh
 
-PROFILE_ZPIOS_PRE=/home/behlendo/src/zfs/scripts/profile-zpios-pre.sh
-PROFILE_ZPIOS_POST=/home/behlendo/src/zfs/scripts/profile-zpios-post.sh
+MODULES=(				\
+	${MODDIR}/zpios/zpios.ko	\
+)
 
-DEVICES="/dev/hda"
+usage() {
+cat << EOF
+USAGE:
+$0 [hvp] [c <config>]
 
-echo ------------------------- ZFS TEST LOG ---------------------------------
-echo -n "Date = "; date
-echo -n "Kernel = "; uname -r
-echo ------------------------------------------------------------------------
-echo
+DESCRIPTION:
+        Helper script for easy zpios benchmarking.
 
-echo "rm /etc/zfs/zpool.cache" || exit 1
-rm -f /etc/zfs/zpool.cache
+OPTIONS:
+        -h      Show this message
+        -v      Verbose
+        -p      Enable profiling
+        -c     	Specify disk configuration
 
-echo "./zfs.sh"
-./zfs.sh "${SPL_OPTIONS}" "${ZPOOL_OPTIONS}" || exit 1
-echo
+EOF
+}
 
-echo ---------------------- SPL Sysctl Tunings ------------------------------
-sysctl -A | grep spl
-echo
+print_header() {
+	echo --------------------- ZPIOS RESULTS ----------------------------
+	echo -n "Date: "; date
+	echo -n "Kernel: "; uname -r
+	dmesg | grep "Loaded Solaris Porting Layer" | tail -n1
+	dmesg | grep "Loaded ZFS Filesystem" | tail -n1
+	echo
+}
 
-echo ------------------- SPL Module Tunings ---------------------------
-if [ -d /sys/module/spl/parameters ]; then
-	grep [0-9] /sys/module/spl/parameters/*
-else
-	grep [0-9] /sys/module/spl/*
+print_spl_info() {
+	echo --------------------- SPL Tunings ------------------------------
+	sysctl -A | grep spl
+
+	if [ -d /sys/module/spl/parameters ]; then
+		grep [0-9] /sys/module/spl/parameters/*
+	else
+		grep [0-9] /sys/module/spl/*
+	fi
+
+	echo
+}
+
+print_zfs_info() {
+	echo --------------------- ZFS Tunings ------------------------------
+	sysctl -A | grep zfs
+
+	if [ -d /sys/module/zfs/parameters ]; then
+		grep [0-9] /sys/module/zfs/parameters/*
+	else
+		grep [0-9] /sys/module/zfs/*
+	fi
+
+	echo
+}
+
+print_stats() {
+	echo ---------------------- Statistics -------------------------------
+	sysctl -A | grep spl | grep stack_max
+
+	if [ -d /proc/spl/kstat/ ]; then
+		if [ -f /proc/spl/kstat/zfs/arcstats ]; then
+			echo "* ARC"
+			cat /proc/spl/kstat/zfs/arcstats
+			echo
+		fi
+
+		if [ -f /proc/spl/kstat/zfs/vdev_cache_stats ]; then
+			echo "* VDEV Cache"
+			cat /proc/spl/kstat/zfs/vdev_cache_stats
+			echo
+		fi
+	fi
+
+	if [ -f /proc/spl/kmem/slab ]; then
+		echo "* SPL SLAB"
+		cat /proc/spl/kmem/slab
+		echo
+	fi
+}
+
+check_config() {
+
+	if [ ! -f ${ZPOOL_CONFIG} ]; then
+		local NAME=`basename ${ZPOOL_CONFIG} .cfg`
+		ERROR="Unknown config '${NAME}', available configs are:\n"
+
+		for CFG in `ls ${TOPDIR}/scripts/zpool-config/`; do
+			local NAME=`basename ${CFG} .cfg`
+			ERROR="${ERROR}${NAME}\n"
+		done
+
+		return 1
+	fi
+
+	return 0
+}
+
+check_test() {
+
+	if [ ! -f ${ZPIOS_TEST} ]; then
+		local NAME=`basename ${ZPIOS_TEST} .cfg`
+		ERROR="Unknown test '${NAME}', available tests are:\n"
+
+		for TST in `ls ${TOPDIR}/scripts/zpios-test/`; do
+			local NAME=`basename ${TST} .cfg`
+			ERROR="${ERROR}${NAME}\n"
+		done
+
+		return 1
+	fi
+
+	return 0
+}
+
+PROFILE=
+ZPOOL_CONFIG="zpool-config.cfg"
+ZPIOS_TEST="zpios-test.cfg"
+
+while getopts 'hvpc:t:' OPTION; do
+	case $OPTION in
+	h)
+		usage
+		exit 1
+		;;
+	v)
+		VERBOSE=1
+		;;
+	p)
+		PROFILE=1
+		;;
+	c)
+		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.cfg
+		;;
+	t)
+		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.cfg
+		;;
+	?)
+		usage
+		exit
+		;;
+	esac
+done
+
+if [ $(id -u) != 0 ]; then
+        die "Must run as root"
 fi
-echo
 
-echo ------------------- ZFS Module Tunings ---------------------------
-if [ -d /sys/module/zfs/parameters ]; then
-	grep [0-9] /sys/module/zfs/parameters/*
-else
-	grep [0-9] /sys/module/zfs/*
+# Validate your using a known config and test
+check_config || die "${ERROR}"
+check_test || die "${ERROR}"
+
+# Pull in the zpios test module is not loaded.  If this fails it is
+# likely because the full module stack was not yet loaded with zfs.sh
+if check_modules; then
+	if ! load_modules; then
+		die "Run 'zfs.sh' to ensure the full module stack is loaded"
+	fi
 fi
-echo
 
-echo "${CMDDIR}/zpool/zpool create -f lustre ${DEVICES}"
-${CMDDIR}/zpool/zpool create -f lustre ${DEVICES} || exit 1
+if [ ${VERBOSE} ]; then
+	print_header
+	print_spl_info
+	print_zfs_info
+fi
 
-echo "${CMDDIR}/zpool/zpool status lustre"
-${CMDDIR}/zpool/zpool status lustre || exit 1
+# Source the zpool configuration
+. ${ZPOOL_CONFIG}
 
-echo "Waiting for /dev/zpios to come up..."
+msg "${CMDDIR}/zpool/zpool status zpios"
+${CMDDIR}/zpool/zpool status zpios || exit 1
+
+msg "Waiting for /dev/zpios to come up..."
 while [ ! -c /dev/zpios ]; do
 	sleep 1
 done
 
 if [ -n "${ZPIOS_PRE}" ]; then
+	msg "Executing ${ZPIOS_PRE}"
 	${ZPIOS_PRE} || exit 1
 fi 
 
-# Usage: zpios
-#         --chunksize         -c    =values
-#         --chunksize_low     -a    =value
-#         --chunksize_high    -b    =value
-#         --chunksize_incr    -g    =value
-#         --offset            -o    =values
-#         --offset_low        -m    =value
-#         --offset_high       -q    =value
-#         --offset_incr       -r    =value
-#         --regioncount       -n    =values
-#         --regioncount_low   -i    =value
-#         --regioncount_high  -j    =value
-#         --regioncount_incr  -k    =value
-#         --threadcount       -t    =values
-#         --threadcount_low   -l    =value
-#         --threadcount_high  -h    =value
-#         --threadcount_incr  -e    =value
-#         --regionsize        -s    =values
-#         --regionsize_low    -A    =value
-#         --regionsize_high   -B    =value
-#         --regionsize_incr   -C    =value
-#         --cleanup           -x
-#         --verify            -V
-#         --zerocopy          -z
-#         --threaddelay       -T    =jiffies
-#         --regionnoise       -I    =shift
-#         --chunknoise        -N    =bytes
-#         --prerun            -P    =pre-command
-#         --postrun           -R    =post-command
-#         --log               -G    =log directory
-#         --pool | --path     -p    =pool name
-#         --load              -L    =dmuio
-#         --help              -?    =this help
-#         --verbose           -v    =increase verbosity
+# Source the zpios test configuration
+. ${ZPIOS_TEST}
 
-#        --prerun=${PROFILE_ZPIOS_PRE}                            \
-#        --postrun=${PROFILE_ZPIOS_POST}                          \
+if [ $PROFILE ]; then
+	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOGS}"
+	ZPIOS_CMD="${ZPIOS_CMD}	--prerun=${PROFILE_ZPIOS_PRE}"
+	ZPIOS_CMD="${ZPIOS_CMD}	--postrun=${PROFILE_ZPIOS_POST}"
+fi
 
-CMD="${CMDDIR}/zpios/zpios                                       \
-	--load=dmuio                                             \
-	--path=lustre                                            \
-	--chunksize=1M                                           \
-	--regionsize=4M                                          \
-	--regioncount=256                                        \
-	--threadcount=4                                          \
-	--offset=4M                                              \
-        --cleanup                                                \
-	--verbose                                                \
-	--human-readable                                         \
-	${ZPIOS_OPTIONS}                                         \
-        --log=${PROFILE_ZPIOS_LOGS}" 
 echo
 date
-echo ${CMD}
-$CMD || exit 1
-date
+echo ${ZPIOS_CMD}
+$ZPIOS_CMD || exit 1
 
 if [ -n "${ZPIOS_POST}" ]; then
+	msg "Executing ${ZPIOS_POST}"
 	${ZPIOS_POST} || exit 1
 fi 
 
-echo
-echo "${CMDDIR}/zpool/zpool destroy lustre"
-${CMDDIR}/zpool/zpool destroy lustre
-echo
+msg "${CMDDIR}/zpool/zpool destroy zpios"
+${CMDDIR}/zpool/zpool destroy zpios
 
-echo ---------------------- SPL Sysctl Tunings ------------------------------
-sysctl -A | grep spl
-echo
-
-if [ -d /proc/spl/kstat/ ]; then
-	if [ -f /proc/spl/kstat/zfs/arcstats ]; then
-		echo "------------------ ARCSTATS --------------------------"
-		cat /proc/spl/kstat/zfs/arcstats
-		echo
-	fi
-
-	if [ -f /proc/spl/kstat/zfs/vdev_cache_stats ]; then
-		echo "-------------- VDEV_CACHE_STATS ----------------------"
-		cat /proc/spl/kstat/zfs/vdev_cache_stats
-		echo
-	fi
-fi
-
-if [ -f /proc/spl/kmem/slab ]; then
-	echo "-------------------- SLAB ----------------------------"
-	cat /proc/spl/kmem/slab
-	echo
-fi
-
-echo "./zfs.sh -u"
-./zfs.sh -u || exit 1
+print_stats
 
 exit 0
