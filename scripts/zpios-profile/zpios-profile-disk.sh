@@ -1,5 +1,4 @@
 #!/bin/bash
-# profile-zpios-disk.sh
 #
 # /proc/diskinfo <after skipping major/minor>
 # Field 1 -- device name
@@ -14,6 +13,8 @@
 # Field 10 -- # of I/Os currently in progress
 # Field 11 -- # of milliseconds spent doing I/Os
 # Field 12 -- weighted # of milliseconds spent doing I/Os
+
+PROG=zpios-profile-disk.sh
 
 RUN_PIDS=${0}
 RUN_LOG_DIR=${1}

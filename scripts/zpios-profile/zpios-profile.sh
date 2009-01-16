@@ -1,5 +1,7 @@
 #!/bin/bash
-# profile-zpios.sh
+
+
+PROG=zpios-profile.sh
 
 trap "RUN_DONE=1" SIGHUP
 
