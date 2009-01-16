@@ -1,7 +1,7 @@
 #!/bin/bash
 
 . ./common.sh
-PROG=create-zpool.sh
+PROG=zpool-create.sh
 
 usage() {
 cat << EOF
@@ -50,7 +50,7 @@ while getopts 'hvc:p:' OPTION; do
 		VERBOSE=1
 		;;
 	c)
-		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}
+		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.cfg
 		;;
 	p)
 		ZPOOL_NAME=${OPTARG}
@@ -73,6 +73,6 @@ if [ ${VERBOSE} ]; then
 	echo
 	echo "zpool status ${ZPOOL_NAME}"
 	${CMDDIR}/zpool/zpool status ${ZPOOL_NAME} || exit 1
-}
+fi
 
 exit 0
