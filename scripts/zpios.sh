@@ -6,8 +6,9 @@
 . ./common.sh
 PROG=zpios.sh
 
-PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/profile-zpios-pre.sh
-PROFILE_ZPIOS_POST=${TOPDIR}/scripts/profile-zpios-post.sh
+PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
+PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
+PROFILE_ZPIOS_LOG=/tmp/
 
 MODULES=(				\
 	${MODDIR}/zpios/zpios.ko	\
@@ -25,7 +26,7 @@ OPTIONS:
         -h      Show this message
         -v      Verbose
         -p      Enable profiling
-        -c     	Specify disk configuration
+        -c     	Zpool configuration
 
 EOF
 }
@@ -153,7 +154,6 @@ if check_modules; then
 	fi
 fi
 
-msg "Waiting for /dev/zpios to come up..."
 while [ ! -c /dev/zpios ]; do
 	sleep 1
 done
@@ -176,7 +176,7 @@ fi
 . ${ZPIOS_TEST}
 
 if [ $PROFILE ]; then
-	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOGS}"
+	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOG}"
 	ZPIOS_CMD="${ZPIOS_CMD}	--prerun=${PROFILE_ZPIOS_PRE}"
 	ZPIOS_CMD="${ZPIOS_CMD}	--postrun=${PROFILE_ZPIOS_POST}"
 fi
