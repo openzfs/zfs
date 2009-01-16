@@ -3,37 +3,76 @@
 . ./common.sh
 PROG=create-zpool.sh
 
-# Device list, e.g.
-#
-# Single device
-#DEVICES="/dev/sda"
-#
-# All disks in a Sun Thumper/Thor
-#DEVICES="/dev/sda  /dev/sdb  /dev/sdc  /dev/sdd  /dev/sde  /dev/sdf  \
-#         /dev/sdg  /dev/sdh  /dev/sdi  /dev/sdj  /dev/sdk  /dev/sdl  \
-#         /dev/sdm  /dev/sdn  /dev/sdo  /dev/sdp  /dev/sdq  /dev/sdr  \
-#         /dev/sds  /dev/sdt  /dev/sdu  /dev/sdv  /dev/sdw  /dev/sdx  \
-#         /dev/sdy  /dev/sdz  /dev/sdaa /dev/sdab /dev/sdac /dev/sdad \
-#         /dev/sdae /dev/sdaf /dev/sdag /dev/sdah /dev/sdai /dev/sdaj \
-#         /dev/sdak /dev/sdal /dev/sdam /dev/sdan /dev/sdao /dev/sdap \
-#         /dev/sdaq /dev/sdar /dev/sdas /dev/sdat /dev/sdau /dev/sdav"
-#
-# Promise JBOD config
-#DEVICES="/dev/sdb  /dev/sdc  /dev/sdd \
-#         /dev/sde  /dev/sdf  /dev/sdg \
-#         /dev/sdh  /dev/sdi  /dev/sdj \
-#         /dev/sdk  /dev/sdl  /dev/sdm"
-#
-DEVICES=""
+usage() {
+cat << EOF
+USAGE:
+$0 [hvcp]
 
-echo
-echo "zpool create zpios <devices>"
-${CMDDIR}/zpool/zpool create -F zpios ${DEVICES}
+DESCRIPTION:
+        Create one of several predefined zpool configurations.
 
-echo
-echo "zpool list"
-${CMDDIR}/zpool/zpool list
+OPTIONS:
+        -h      Show this message
+        -v      Verbose
+        -c      Zpool configuration
+        -p      Zpool name
 
-echo
-echo "zpool status zpios"
-${CMDDIR}/zpool/zpool status zpios
+EOF
+}
+
+check_config() {
+
+	if [ ! -f ${ZPOOL_CONFIG} ]; then
+		local NAME=`basename ${ZPOOL_CONFIG} .cfg`
+		ERROR="Unknown config '${NAME}', available configs are:\n"
+
+		for CFG in `ls ${TOPDIR}/scripts/zpool-config/`; do
+			local NAME=`basename ${CFG} .cfg`
+			ERROR="${ERROR}${NAME}\n"
+		done
+
+		return 1
+	fi
+
+	return 0
+}
+
+ZPOOL_CONFIG=zpool_config.cfg
+ZPOOL_NAME=tank
+
+while getopts 'hvc:p:' OPTION; do
+	case $OPTION in
+	h)
+		usage
+		exit 1
+		;;
+	v)
+		VERBOSE=1
+		;;
+	c)
+		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}
+		;;
+	p)
+		ZPOOL_NAME=${OPTARG}
+		;;
+	?)
+		usage
+		exit
+		;;
+	esac
+done
+
+check_config || die "${ERROR}"
+. ${ZPOOL_CONFIG}
+
+if [ ${VERBOSE} ]; then
+	echo
+	echo "zpool list"
+	${CMDDIR}/zpool/zpool list || exit 1
+
+	echo
+	echo "zpool status ${ZPOOL_NAME}"
+	${CMDDIR}/zpool/zpool status ${ZPOOL_NAME} || exit 1
+}
+
+exit 0
