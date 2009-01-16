@@ -1,7 +1,7 @@
 #!/bin/bash
 
-prog=create-zpool.sh
-. ../.script-config
+. ./common.sh
+PROG=create-zpool.sh
 
 # Device list, e.g.
 #
