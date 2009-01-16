@@ -17,7 +17,7 @@ MODULES=(				\
 usage() {
 cat << EOF
 USAGE:
-$0 [hvp] [c <config>]
+$0 [hvp] <-c config> <-t test>
 
 DESCRIPTION:
         Helper script for easy zpios benchmarking.
@@ -27,6 +27,7 @@ OPTIONS:
         -v      Verbose
         -p      Enable profiling
         -c     	Zpool configuration
+        -t      Zpios test
 
 EOF
 }
