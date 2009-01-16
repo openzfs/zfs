@@ -2195,7 +2195,7 @@ err:
 	free(paths);
 	(void) close(base);
 #endif
-	return (-1);
+	return (0);
 }
 
 typedef struct zvol_cb {
