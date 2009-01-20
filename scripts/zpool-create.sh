@@ -14,8 +14,9 @@ DESCRIPTION:
 OPTIONS:
         -h      Show this message
         -v      Verbose
-        -c      Zpool configuration
-        -p      Zpool name
+        -c      Configuration for zpool
+        -p      Name for zpool
+	-d      Destroy zpool (default create)
 
 EOF
 }
@@ -39,8 +40,9 @@ check_config() {
 
 ZPOOL_CONFIG=zpool_config.cfg
 ZPOOL_NAME=tank
+ZPOOL_DESTROY=
 
-while getopts 'hvc:p:' OPTION; do
+while getopts 'hvc:p:d' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -55,6 +57,9 @@ while getopts 'hvc:p:' OPTION; do
 	p)
 		ZPOOL_NAME=${OPTARG}
 		;;
+	d)
+		ZPOOL_DESTROY=1
+		;;
 	?)
 		usage
 		exit
@@ -68,6 +73,12 @@ fi
 
 check_config || die "${ERROR}"
 . ${ZPOOL_CONFIG}
+
+if [ ${ZPOOL_DESTROY} ]; then
+	zpool_destroy
+else
+	zpool_create
+fi
 
 if [ ${VERBOSE} ]; then
 	echo
