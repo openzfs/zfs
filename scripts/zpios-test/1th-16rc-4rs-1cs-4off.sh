@@ -39,12 +39,20 @@
 ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 	--load=dmuio                                             \
 	--path=zpios                                             \
-	--chunksize=1M                                           \
+	--threadcount=1                                          \
+	--regioncount=16                                         \
 	--regionsize=4M                                          \
-	--regioncount=256                                        \
-	--threadcount=4                                          \
+	--chunksize=1M                                           \
 	--offset=4M                                              \
         --cleanup                                                \
 	--verbose                                                \
 	--human-readable                                         \
 	${ZPIOS_OPTIONS}"
+
+zpios_start() {
+	echo ${ZPIOS_CMD}
+	$ZPIOS_CMD || exit 1
+}
+
+zpios_stop() {
+}
