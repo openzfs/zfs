@@ -78,16 +78,16 @@ if [ ${ZPOOL_DESTROY} ]; then
 	zpool_destroy
 else
 	zpool_create
-fi
 
-if [ ${VERBOSE} ]; then
-	echo
-	echo "zpool list"
-	${CMDDIR}/zpool/zpool list || exit 1
+	if [ ${VERBOSE} ]; then
+		echo
+		echo "zpool list"
+		${CMDDIR}/zpool/zpool list || exit 1
 
-	echo
-	echo "zpool status ${ZPOOL_NAME}"
-	${CMDDIR}/zpool/zpool status ${ZPOOL_NAME} || exit 1
+		echo
+		echo "zpool status ${ZPOOL_NAME}"
+		${CMDDIR}/zpool/zpool status ${ZPOOL_NAME} || exit 1
+	fi
 fi
 
 exit 0
