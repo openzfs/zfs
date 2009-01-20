@@ -90,6 +90,8 @@ print_stats() {
 		cat /proc/spl/kmem/slab
 		echo
 	fi
+
+	echo
 }
 
 check_test() {
