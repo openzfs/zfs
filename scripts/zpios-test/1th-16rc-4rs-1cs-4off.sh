@@ -38,7 +38,7 @@
 
 ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 	--load=dmuio                                             \
-	--path=zpios                                             \
+	--path=${ZPOOL_NAME}                                     \
 	--threadcount=1                                          \
 	--regioncount=16                                         \
 	--regionsize=4M                                          \
@@ -51,8 +51,9 @@ ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 
 zpios_start() {
 	echo ${ZPIOS_CMD}
-	$ZPIOS_CMD || exit 1
+	${ZPIOS_CMD} || exit 1
 }
 
 zpios_stop() {
+	echo
 }
