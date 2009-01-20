@@ -95,11 +95,11 @@ print_stats() {
 check_test() {
 
 	if [ ! -f ${ZPIOS_TEST} ]; then
-		local NAME=`basename ${ZPIOS_TEST} .cfg`
+		local NAME=`basename ${ZPIOS_TEST} .sh`
 		ERROR="Unknown test '${NAME}', available tests are:\n"
 
 		for TST in `ls ${TOPDIR}/scripts/zpios-test/`; do
-			local NAME=`basename ${TST} .cfg`
+			local NAME=`basename ${TST} .sh`
 			ERROR="${ERROR}${NAME}\n"
 		done
 
@@ -110,8 +110,8 @@ check_test() {
 }
 
 PROFILE=
-ZPOOL_CONFIG=zpool-config.cfg
-ZPIOS_TEST=zpios-test.cfg
+ZPOOL_CONFIG=zpool-config.sh
+ZPIOS_TEST=zpios-test.sh
 ZPOOL_NAME=zpios
 
 while getopts 'hvpc:t:' OPTION; do
@@ -131,7 +131,7 @@ while getopts 'hvpc:t:' OPTION; do
 		ZPOOL_CONFIG=${OPTARG}
 		;;
 	t)
-		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.cfg
+		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.sh
 		;;
 	?)
 		usage
@@ -144,8 +144,9 @@ if [ $(id -u) != 0 ]; then
         die "Must run as root"
 fi
 
-# Validate your using a known test
+# Validate and source your test config
 check_test || die "${ERROR}"
+. ${ZPIOS_TEST}
 
 # Pull in the zpios test module is not loaded.  If this fails it is
 # likely because the full module stack was not yet loaded with zfs.sh
@@ -168,14 +169,6 @@ fi
 # Create the zpool configuration
 ./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} || exit 1
 
-if [ -n "${ZPIOS_PRE}" ]; then
-	msg "Executing ${ZPIOS_PRE}"
-	${ZPIOS_PRE} || exit 1
-fi 
-
-# Source the zpios test configuration
-. ${ZPIOS_TEST}
-
 if [ $PROFILE ]; then
 	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOG}"
 	ZPIOS_CMD="${ZPIOS_CMD}	--prerun=${PROFILE_ZPIOS_PRE}"
@@ -184,19 +177,14 @@ fi
 
 echo
 date
-echo ${ZPIOS_CMD}
-$ZPIOS_CMD || exit 1
-
+zpios_start
+zpios_stop
 print_stats
 
-if [ -n "${ZPIOS_POST}" ]; then
-	msg "Executing ${ZPIOS_POST}"
-	${ZPIOS_POST} || exit 1
-fi 
+# Destroy the zpool configuration
+./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || exit 1
 
-msg "${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}"
-${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
-
+# Unload the test module stack
 unload_modules
 
 exit 0
