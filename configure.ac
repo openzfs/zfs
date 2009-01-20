@@ -91,5 +91,6 @@ AC_CONFIG_FILES([
 	module/zcommon/include/sys/fm/fs/Makefile
 	module/zfs/Makefile
 	scripts/Makefile
+	scripts/zpool-config/Makefile
 ])
 AC_OUTPUT
