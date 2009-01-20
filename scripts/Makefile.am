@@ -1,5 +1,7 @@
-EXTRA_DIST  = update-zfs.sh check.sh zfs.sh create-zpool.sh
+SUBDIRS = zpool-config
+EXTRA_DIST = common.sh zfs-update.sh zfs.sh zpool-create.sh
 
 check:
 	./zfs.sh -v
+	./zpios.sh -c lo-raid0 -t tiny -v
 	./zfs.sh -vu
