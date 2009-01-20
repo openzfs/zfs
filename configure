@@ -19046,11 +19046,6 @@ echo "${ECHO_T}yes" >&6
 	else
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define NDEBUG 1
-_ACEOF
-
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 	fi
 

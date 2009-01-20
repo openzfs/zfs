@@ -97,8 +97,6 @@ AC_DEFUN([SPL_AC_DEBUG], [
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
 	else
 		AC_MSG_RESULT([no])
-		AC_DEFINE([NDEBUG], [1],
-		[Define to 1 to disable debug tracing])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 	fi
 ])

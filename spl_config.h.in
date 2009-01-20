@@ -108,9 +108,6 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* Define to 1 to disable debug tracing */
-#undef NDEBUG
-
 /* Name of package */
 #undef PACKAGE
 

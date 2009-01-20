@@ -1118,10 +1118,8 @@ void spl_debug_bug(char *file, const char *func, const int line, int flags)
          if (spl_debug_panic_on_bug)
                 spl_panic_in_progress = 1;
 
-#ifdef DEBUG
         spl_debug_dumpstack(NULL);
         spl_debug_dumplog(flags);
-#endif
 
         if (spl_debug_panic_on_bug)
                 panic("SBUG");
