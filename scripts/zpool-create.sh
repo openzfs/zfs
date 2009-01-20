@@ -24,11 +24,11 @@ EOF
 check_config() {
 
 	if [ ! -f ${ZPOOL_CONFIG} ]; then
-		local NAME=`basename ${ZPOOL_CONFIG} .cfg`
+		local NAME=`basename ${ZPOOL_CONFIG} .sh`
 		ERROR="Unknown config '${NAME}', available configs are:\n"
 
 		for CFG in `ls ${TOPDIR}/scripts/zpool-config/`; do
-			local NAME=`basename ${CFG} .cfg`
+			local NAME=`basename ${CFG} .sh`
 			ERROR="${ERROR}${NAME}\n"
 		done
 
@@ -38,7 +38,7 @@ check_config() {
 	return 0
 }
 
-ZPOOL_CONFIG=zpool_config.cfg
+ZPOOL_CONFIG=zpool_config.sh
 ZPOOL_NAME=tank
 ZPOOL_DESTROY=
 
@@ -52,7 +52,7 @@ while getopts 'hvc:p:d' OPTION; do
 		VERBOSE=1
 		;;
 	c)
-		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.cfg
+		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.sh
 		;;
 	p)
 		ZPOOL_NAME=${OPTARG}
