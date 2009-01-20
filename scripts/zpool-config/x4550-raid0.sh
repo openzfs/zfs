@@ -12,4 +12,12 @@ DEVICES="/dev/sda  /dev/sdb  /dev/sdc  /dev/sdd  /dev/sde  /dev/sdf  \
          /dev/sdak /dev/sdal /dev/sdam /dev/sdan /dev/sdao /dev/sdap \
          /dev/sdaq /dev/sdar /dev/sdas /dev/sdat /dev/sdau /dev/sdav"
 
-${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${DEVICES} || exit 1
+zpool_create() {
+	msg "${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${DEVICES}"
+	${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${DEVICES} || exit 1
+}
+
+zpool_destroy() {
+	msg "${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}"
+	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
+}
