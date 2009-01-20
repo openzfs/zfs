@@ -1381,7 +1381,7 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 
 	list_for_each_entry(kd, list, kd_list)
 		printk(KERN_WARNING "%p %-5d %-16s %s:%d\n", kd->kd_addr,
-		       kd->kd_size, spl_sprintf_addr(kd, str, 17, 8),
+		       (int)kd->kd_size, spl_sprintf_addr(kd, str, 17, 8),
 		       kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(lock, flags);
