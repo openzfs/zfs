@@ -332,6 +332,7 @@ splat_list_test6(struct file *file, void *arg)
 		if (li->li_data % 2 == 1) {
 			li_prev = list_prev(&list, li);
 			list_remove(&list, li);
+			kmem_free(li, sizeof(list_item_t));
 			li = li_prev;
 		}
 	}
