@@ -95,5 +95,7 @@ AC_CONFIG_FILES([
 	module/zpios/include/Makefile
 	scripts/Makefile
 	scripts/zpool-config/Makefile
+	scripts/zpios-test/Makefile
+	scripts/zpios-profile/Makefile
 ])
 AC_OUTPUT
