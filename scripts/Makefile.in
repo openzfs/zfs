@@ -506,7 +506,10 @@ uninstall-info: uninstall-info-recursive
 
 check:
 	./zfs.sh -v
-	./zpios.sh -c lo-raid0 -t tiny -v
+	./zpios.sh -c file-raid0  -t tiny
+	./zpios.sh -c file-raid10 -t tiny
+	./zpios.sh -c file-raidz  -t tiny
+	./zpios.sh -c file-raidz2 -t tiny
 	./zfs.sh -vu
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
