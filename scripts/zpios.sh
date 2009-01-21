@@ -158,6 +158,7 @@ if check_modules; then
 	fi
 fi
 
+# Wait for device creation
 while [ ! -c /dev/zpios ]; do
 	sleep 1
 done
@@ -181,12 +182,18 @@ echo
 date
 zpios_start
 zpios_stop
-print_stats
+
+if [ ${VERBOSE} ]; then
+	print_stats
+fi
 
 # Destroy the zpool configuration
 ./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || exit 1
 
-# Unload the test module stack
+# Unload the test module stack and wait for device removal
 unload_modules
+while [ -c /dev/zpios ]; do
+	sleep 1
+done
 
 exit 0
