@@ -1,4 +1,4 @@
-SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.0 (Development Release)
+SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
 
 - 'zpool create' hangs in the create ioctl() when initializing a new pool
   backed by loopback devices.  The lo-raid0 configuration easily recreates
