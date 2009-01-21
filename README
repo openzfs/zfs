@@ -10,9 +10,9 @@
         make
         make check <as root>
 
-2) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
-   You will need to have both the kernel and SPL source available.
-   To build ZFS for use as a Linux kernel module (default):
+2) Build ZFS, this port is based on build specified by the ZFS.RELEASE
+   file.  You will need to have both the kernel and SPL source available.
+   To build ZFS for use as a Linux kernel module.
 
         tar -xzf zfs-x.y.z.tgz
         cd zfs-x.y.z
@@ -21,33 +21,20 @@
         make
         make check <as root>
 
-========================= ZFS USER LIBRARY BUILD =========================
-
-1) Build ZFS, this port is based on build 89 of ZFS from OpenSolaris.
-   To build ZFS as a userspace library:
-
-        tar -xzf zfs-x.y.z.tgz
-        cd zfs-x.y.z
-        ./configure --zfsconfig=user
-        make
-        make check <as root>
-
 ============================ ZPIOS TEST SUITE ============================
 
 3) Provided is an in-kernel test application called zpios which can be
-   used to simulate a parallel IO load.  It may be used as a stress test
-   or as a performance to measure your configuration.  To simplify testing
-   there are scripts provided in the scripts/ directory.  A single test
-   can be run as follows:
-
-        WARNING: You MUST update DEVICES in the create-zpool.sh script
-                 to reference the devices you wish to use.
+   used to simulate a parallel IO load.  It may be used as a stress 
+   or performance test for your configuration.  To simplify testing
+   scripts provided in the scripts/ directory which provide a few
+   pre-built zpool configurations and zpios test cases.  By default
+   'make check' as root will run a simple test against several small
+   loopback devices created in /tmp/.
 
        cd scripts
-       ./load-zfs.sh		# Load the ZFS/SPL module stack
-       ./create-zpool.sh	# Modify DEVICES to list your zpool devices
-       ./zpios.sh		# Modify for your particular zpios test
-       ./unload-zfs.sh		# Unload the ZFS/SPL module stack
+       ./zfs.sh					# Load the ZFS/SPL modules
+       ./zpios.sh -c lo-raid0.sh -t tiny -v 	# Tiny zpios loopback test
+       ./zfs.sh -u				# Unload the ZFS/SPL modules
 
 Enjoy,
 Brian Behlendorf <behlendorf1@llnl.gov>
