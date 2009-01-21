@@ -1,12 +1,13 @@
 #!/bin/bash
 #
-# 4 File Raid-0 Configuration
+# 4 File Raid-10 Configuration
 #
 
-FILES="/tmp/zpool-vdev0  \
-       /tmp/zpool-vdev1  \
-       /tmp/zpool-vdev2  \
-       /tmp/zpool-vdev3"
+FILES_M1="/tmp/zpool-vdev0  \
+          /tmp/zpool-vdev1"
+FILES_M2="/tmp/zpool-vdev2  \
+          /tmp/zpool-vdev3"
+FILES="${FILES_M1} ${FILES_M2}"
 
 zpool_create() {
 	for FILE in ${FILES}; do
@@ -16,8 +17,10 @@ zpool_create() {
 			die "Error $? creating ${FILE}"
 	done
 
-	msg ${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} ${FILES}
-	${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} ${FILES} || exit 1
+	msg ${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} \
+		mirror ${FILES_M1} mirror ${FILES_M2}
+	${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} \
+		mirror ${FILES_M1} mirror ${FILES_M2} || exit 1
 }
 
 zpool_destroy() {
