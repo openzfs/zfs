@@ -468,8 +468,7 @@ vdev_disk_io_done(zio_t *zio)
 	 * asynchronous removal of the device. Otherwise, probe the device and
 	 * make sure it's still accessible.
 	 */
-	if (zio->io_error == EIO) {
-		ASSERT(0); /* XXX: Not yet supported */
+	VERIFY3S(zio->io_error, ==, 0);
 #if 0
 		vdev_t *vd = zio->io_vd;
 		vdev_disk_t *dvd = vd->vdev_tsd;
@@ -481,7 +480,6 @@ vdev_disk_io_done(zio_t *zio)
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
 		}
 #endif
-	}
 }
 
 vdev_ops_t vdev_disk_ops = {
