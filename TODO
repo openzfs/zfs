@@ -1,0 +1,29 @@
+SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.0 (Development Release)
+
+- 'zpool create' hangs in the create ioctl() when initializing a new pool
+  backed by loopback devices.  The lo-raid0 configuration easily recreates
+  this issue.  I currently suspect a problem in vdev_disk.c implementation
+  is causing this, but I have not yet looked to closely.  On the surface
+  things appear to be fine when creating the pool with real device or files.
+
+	./zpios.sh -c lo-raid0 -t tiny -v
+
+- SPLError: 10167:1968:(spl-kmem.c:1286:spl_kmem_cache_reap_now())
+  ASSERTION(skc->skc_magic == SKC_MAGIC) failed
+
+  The above assertion is overserved when perform more IO than can be fully
+  cached by the ARC.  The Linux VM applies back pressure to the slab which
+  in turn detect what appears to be memory corruption.  I've seen a few
+  flavors of this so far, so I'm not yet convinced this is actually an
+  issue with the SPL slab.  It may just be the most common victim, more
+  investigation is needed.  It is also possible the new untested vdev_disk.c
+  is to blame.  A lot of work is needed here.
+
+- SPLError: 7324:1224:(dnode.c:304:dnode_create()) VERIFY3(0` >= 1`)
+
+  When enabling debugging in ZFS with the --enable-debug configure option
+  we always trip the following VERIFY.  This issue was present in the
+  previous 0.3.3 release and was avoided simply by leaving debugging
+  disabled until it could be explained.  Well it has not just gone
+  always with the update to b105 so we need to run it to ground and 
+  explain what is going on.
