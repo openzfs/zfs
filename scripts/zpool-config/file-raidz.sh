@@ -16,8 +16,8 @@ zpool_create() {
 			die "Error $? creating ${FILE}"
 	done
 
-	msg ${CMDDIR}/zpool/zpool create raidz ${ZPOOL_NAME} ${FILES}
-	${CMDDIR}/zpool/zpool create raidz ${ZPOOL_NAME} ${FILES} || exit 1
+	msg ${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} raidz ${FILES}
+	${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} raidz ${FILES} || exit 1
 }
 
 zpool_destroy() {
