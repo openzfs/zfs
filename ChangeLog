@@ -1,3 +1,11 @@
+2009-01-21 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.1
+
+	* : Implement ksid_*, ddi_strto*, and system taskq functionality.
+	In addition, several other small Solaris compatibility changes 
+	were made, see the 'git log' for full details.
+
 2008-11-26 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.0 (Development now done with Git)
