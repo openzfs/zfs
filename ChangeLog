@@ -1,3 +1,14 @@
+2009-1-21 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.1
+
+	* : Rebased to ZFS b105 from OpenSolaris
+
+	* : Restructured project and build system to more closely
+	mirror the code organization used in OpenSolaris.  This
+	allows us minimize the changes to upstream source needed,
+        and allows concurrent user+kernel space builds of all components.
+
 2008-11-19 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.0
