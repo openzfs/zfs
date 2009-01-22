@@ -191,9 +191,9 @@ struct trace_page {
 };
 
 struct page_collection {
-        struct list_head  pc_pages;
-        spinlock_t        pc_lock;
-        int               pc_want_daemon_pages;
+	struct list_head  pc_pages;
+	spinlock_t        pc_lock;
+	int               pc_want_daemon_pages;
 };
 
 #define SBUG()            spl_debug_bug(__FILE__, __FUNCTION__, __LINE__, 0);
@@ -201,8 +201,8 @@ struct page_collection {
 #ifdef NDEBUG
 
 #define CDEBUG_STACK()			(0)
-#define CDEBUG_LIMIT(x, y, z, a...)     ((void)0)
-#define __CDEBUG_LIMIT(x, y, z, a...)   ((void)0)
+#define CDEBUG_LIMIT(x, y, z, a...)	((void)0)
+#define __CDEBUG_LIMIT(x, y, z, a...)	((void)0)
 #define CDEBUG(mask, format, a...)	((void)0)
 #define CWARN(fmt, a...)		((void)0)
 #define CERROR(fmt, a...)		((void)0)
@@ -217,7 +217,7 @@ struct page_collection {
 #define __ASSERT(x)			((void)0)
 #define __ASSERT_TAGE_INVARIANT(x)	((void)0)
 #define ASSERT(x)			((void)0)
-#define ASSERTF(x, y, z...)	        ((void)0)
+#define ASSERTF(x, y, z...)		((void)0)
 #define VERIFY(cond)                                                    \
 do {                                                                    \
         if (unlikely(!(cond))) {                                        \
@@ -229,9 +229,10 @@ do {                                                                    \
 #define VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)                  \
 do {                                                                    \
         if (!((TYPE)(LEFT) OP (TYPE)(RIGHT))) {                         \
-                printk(KERN_ERR "VERIFY3(" #LEFT " " #OP " " #RIGHT     \
-                       " failed (" FMT ", " FMT ")\n", CAST (LEFT),     \
-                       CAST (RIGHT));                                   \
+                printk(KERN_ERR                                         \
+                       "VERIFY3(" #LEFT " " #OP " " #RIGHT ") "         \
+                       "failed (" FMT " " #OP " " FMT ")\n",            \
+                       CAST (LEFT), CAST (RIGHT));                      \
                 SBUG();                                                 \
         }                                                               \
 } while (0)
@@ -331,7 +332,8 @@ do {                                                                    \
         if (!((TYPE)(LEFT) OP (TYPE)(RIGHT))) {                         \
                 spl_debug_msg(NULL, DEBUG_SUBSYSTEM, D_EMERG,           \
                               __FILE__, __FUNCTION__, __LINE__,         \
-                              "VERIFY3(" FMT " " #OP " " FMT ")\n",     \
+                              "VERIFY3(" #LEFT " " #OP " " #RIGHT ") "  \
+                              "failed (" FMT " " #OP " " FMT ")\n",     \
                               CAST (LEFT), CAST (RIGHT));               \
                 SBUG();                                                 \
         }                                                               \
@@ -405,7 +407,7 @@ do {                                                                    \
         __CDEBUG(NULL, subsys, D_TRACE, "Process leaving\n");           \
 } while(0)
 
-#define ENTRY				__ENTRY(DEBUG_SUBSYSTEM)
+#define ENTRY                           __ENTRY(DEBUG_SUBSYSTEM)
 #define EXIT                            __EXIT(DEBUG_SUBSYSTEM)
 #endif /* NDEBUG */
 
