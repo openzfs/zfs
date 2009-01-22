@@ -84,7 +84,7 @@ typedef struct rw_thr {
 static inline void
 splat_rwlock_sleep(signed long delay)
 {
-	set_current_state(TASK_INTERRUPTIBLE);
+	set_current_state(TASK_UNINTERRUPTIBLE);
 	schedule_timeout(delay);
 }
 
@@ -431,7 +431,7 @@ splat_rwlock_test2(struct file *file, void *arg)
 	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
 	       atomic_read(&rwv.rw_acquired) != 0 ||
 	       atomic_read(&rwv.rw_waiters) != 0)) {
-		splat_rwlock_sleep(1 * HZ);
+		splat_rwlock_sleep(HZ);
 	}
 
 	/* If any of the write threads ever acquired the lock

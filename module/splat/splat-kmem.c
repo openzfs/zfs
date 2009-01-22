@@ -309,31 +309,32 @@ splat_kmem_cache_size_test(struct file *file, void *arg,
 	                          NULL, &kcp, NULL, flags);
 	if (!cache) {
 		splat_vprint(file, name,
-	                   "Unable to create '%s'\n", SPLAT_KMEM_CACHE_NAME);
+	                     "Unable to create '%s'\n",
+			     SPLAT_KMEM_CACHE_NAME);
 		return -ENOMEM;
 	}
 
 	kcd = kmem_cache_alloc(cache, KM_SLEEP);
 	if (!kcd) {
 		splat_vprint(file, name,
-	                   "Unable to allocate from '%s'\n",
-		           SPLAT_KMEM_CACHE_NAME);
+	                     "Unable to allocate from '%s'\n",
+		             SPLAT_KMEM_CACHE_NAME);
 		rc = -EINVAL;
 		goto out_free;
 	}
 
 	if (!kcd->kcd_flag) {
 		splat_vprint(file, name,
-		           "Failed to run contructor for '%s'\n",
-		           SPLAT_KMEM_CACHE_NAME);
+		             "Failed to run contructor for '%s'\n",
+		             SPLAT_KMEM_CACHE_NAME);
 		rc = -EINVAL;
 		goto out_free;
 	}
 
 	if (kcd->kcd_magic != kcp.kcp_magic) {
 		splat_vprint(file, name,
-		           "Failed to pass private data to constructor "
-		           "for '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		             "Failed to pass private data to constructor "
+		             "for '%s'\n", SPLAT_KMEM_CACHE_NAME);
 		rc = -EINVAL;
 		goto out_free;
 	}
@@ -346,14 +347,14 @@ splat_kmem_cache_size_test(struct file *file, void *arg,
 	kmem_cache_destroy(cache);
 	if (kcp.kcp_count) {
 		splat_vprint(file, name,
-		           "Failed to run destructor on all slab objects "
-		           "for '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		             "Failed to run destructor on all slab objects "
+		             "for '%s'\n", SPLAT_KMEM_CACHE_NAME);
 		rc = -EINVAL;
 	}
 
 	splat_vprint(file, name,
-	           "Successfully ran ctors/dtors for %d elements in '%s'\n",
-	           max, SPLAT_KMEM_CACHE_NAME);
+	             "Successfully ran ctors/dtors for %d elements in '%s'\n",
+	             max, SPLAT_KMEM_CACHE_NAME);
 
 	return rc;
 
