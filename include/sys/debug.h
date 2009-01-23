@@ -340,7 +340,7 @@ do {                                                                    \
 } while (0)
 
 #define VERIFY3S(x,y,z) VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
-#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%llu`",        \
+#define VERIFY3U(x,y,z) VERIFY3_IMPL(x, y, z, uint64_t, "%llu",         \
                                      (unsigned long long))
 #define VERIFY3P(x,y,z) VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
 
