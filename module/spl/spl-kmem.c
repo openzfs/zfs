@@ -148,8 +148,6 @@ EXPORT_SYMBOL(kmem_set_warning);
  *
  * XXX: Slab coloring may also yield performance improvements and would
  *      be desirable to implement.
- *
- * XXX: Proper hardware cache alignment would be good too.
  */
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
@@ -573,44 +571,44 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	}
 }
 
+/* It's important that we pack the spl_kmem_obj_t structure and the
+ * actual objects in to one large address space to minimize the number
+ * of calls to the allocator.  It is far better to do a few large
+ * allocations and then subdivide it ourselves.  Now which allocator
+ * we use requires balancing a few trade offs.
+ *
+ * For small objects we use kmem_alloc() because as long as you are
+ * only requesting a small number of pages (ideally just one) its cheap.
+ * However, when you start requesting multiple pages with kmem_alloc()
+ * it gets increasingly expensive since it requires contigeous pages.
+ * For this reason we shift to vmem_alloc() for slabs of large objects
+ * which removes the need for contigeous pages.  We do not use
+ * vmem_alloc() in all cases because there is significant locking
+ * overhead in __get_vm_area_node().  This function takes a single
+ * global lock when aquiring an available virtual address range which
+ * serializes all vmem_alloc()'s for all slab caches.  Using slightly
+ * different allocation functions for small and large objects should
+ * give us the best of both worlds.
+ *
+ * KMC_ONSLAB                       KMC_OFFSLAB
+ *
+ * +------------------------+       +-----------------+
+ * | spl_kmem_slab_t --+-+  |       | spl_kmem_slab_t |---+-+
+ * | skc_obj_size    <-+ |  |       +-----------------+   | |
+ * | spl_kmem_obj_t      |  |                             | |
+ * | skc_obj_size    <---+  |       +-----------------+   | |
+ * | spl_kmem_obj_t      |  |       | skc_obj_size    | <-+ |
+ * | ...                 v  |       | spl_kmem_obj_t  |     |
+ * +------------------------+       +-----------------+     v
+ */
 static spl_kmem_slab_t *
 spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
 	spl_kmem_obj_t *sko, *n;
 	void *base, *obj;
-	int i, size, rc = 0;
+	int i, align, size, rc = 0;
 
-	/* It's important that we pack the spl_kmem_obj_t structure
-	 * and the actual objects in to one large address space
-	 * to minimize the number of calls to the allocator.  It
-	 * is far better to do a few large allocations and then
-	 * subdivide it ourselves.  Now which allocator we use
-	 * requires balancling a few trade offs.
-	 *
-	 * For small objects we use kmem_alloc() because as long
-	 * as you are only requesting a small number of pages
-	 * (ideally just one) its cheap.  However, when you start
-	 * requesting multiple pages kmem_alloc() get increasingly
-	 * expensive since it requires contigeous pages.  For this
-	 * reason we shift to vmem_alloc() for slabs of large
-	 * objects which removes the need for contigeous pages.
-	 * We do not use vmem_alloc() in all cases because there
-	 * is significant locking overhead in __get_vm_area_node().
-	 * This function takes a single global lock when aquiring
-	 * an available virtual address range which serialize all
-	 * vmem_alloc()'s for all slab caches.  Using slightly
-	 * different allocation functions for small and large
-	 * objects should give us the best of both worlds.
-	 *
-	 * sks struct:  sizeof(spl_kmem_slab_t)
-	 * obj data:    skc->skc_obj_size
-	 * obj struct:  sizeof(spl_kmem_obj_t)
-	 * <N obj data + obj structs>
-	 *
-	 * XXX: It would probably be a good idea to more carefully
-	 *      align these data structures in memory.
-	 */
 	base = kv_alloc(skc, skc->skc_slab_size, flags);
 	if (base == NULL)
 		RETURN(NULL);
@@ -623,7 +621,10 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 	INIT_LIST_HEAD(&sks->sks_list);
 	INIT_LIST_HEAD(&sks->sks_free_list);
 	sks->sks_ref = 0;
-	size = sizeof(spl_kmem_obj_t) + skc->skc_obj_size;
+
+	align = skc->skc_obj_align;
+	size = P2ROUNDUP(skc->skc_obj_size, align) +
+	       P2ROUNDUP(sizeof(spl_kmem_obj_t), align);
 
 	for (i = 0; i < sks->sks_objs; i++) {
 		if (skc->skc_flags & KMC_OFFSLAB) {
@@ -631,10 +632,12 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 			if (!obj)
 				GOTO(out, rc = -ENOMEM);
 		} else {
-			obj = base + sizeof(spl_kmem_slab_t) + i * size;
+			obj = base +
+			      P2ROUNDUP(sizeof(spl_kmem_slab_t), align) +
+			      (i * size);
 		}
 
-		sko = obj + skc->skc_obj_size;
+		sko = obj + P2ROUNDUP(skc->skc_obj_size, align);
 		sko->sko_addr = obj;
 		sko->sko_magic = SKO_MAGIC;
 		sko->sko_slab = sks;
@@ -648,7 +651,8 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 out:
 	if (rc) {
 		if (skc->skc_flags & KMC_OFFSLAB)
-			list_for_each_entry_safe(sko,n,&sks->sks_free_list,sko_list)
+			list_for_each_entry_safe(sko, n, &sks->sks_free_list,
+						 sko_list)
 				kv_free(skc, sko->sko_addr, size);
 
 		kv_free(skc, base, skc->skc_slab_size);
@@ -678,7 +682,8 @@ spl_slab_free(spl_kmem_slab_t *sks) {
 	skc->skc_obj_total -= sks->sks_objs;
 	skc->skc_slab_total--;
 	list_del(&sks->sks_list);
-	size = sizeof(spl_kmem_obj_t) + skc->skc_obj_size;
+	size = P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) +
+	       P2ROUNDUP(sizeof(spl_kmem_obj_t), skc->skc_obj_align);
 
 	/* Run destructors slab is being released */
 	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
@@ -736,21 +741,48 @@ spl_slab_reclaim(spl_kmem_cache_t *skc)
 	RETURN(rc);
 }
 
+/* Size slabs properly to ensure they are not too large */
+static int
+spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
+{
+	int max = ((uint64_t)1 << (MAX_ORDER - 1)) * PAGE_SIZE;
+	int align = skc->skc_obj_align;
+
+	*objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+
+	if (skc->skc_flags & KMC_OFFSLAB) {
+		*size = sizeof(spl_kmem_slab_t);
+	} else {
+resize:
+		*size = P2ROUNDUP(sizeof(spl_kmem_slab_t), align) +
+			*objs * (P2ROUNDUP(skc->skc_obj_size, align) +
+		        P2ROUNDUP(sizeof(spl_kmem_obj_t), align));
+
+		if (*size > max)
+			GOTO(resize, *objs = *objs - 1);
+
+		ASSERT(*objs > 0);
+	}
+
+	ASSERTF(*size <= max, "%d < %d\n", *size, max);
+	RETURN(0);
+}
+
 static int
 spl_magazine_size(spl_kmem_cache_t *skc)
 {
-	int size;
+	int size, align = skc->skc_obj_align;
 	ENTRY;
 
 	/* Guesses for reasonable magazine sizes, they
 	 * should really adapt based on observed usage. */
-	if (skc->skc_obj_size > (PAGE_SIZE * 256))
+	if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE * 256))
 		size = 4;
-	else if (skc->skc_obj_size > (PAGE_SIZE * 32))
+	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE * 32))
 		size = 16;
-	else if (skc->skc_obj_size > (PAGE_SIZE))
+	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE))
 		size = 64;
-	else if (skc->skc_obj_size > (PAGE_SIZE / 4))
+	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE / 4))
 		size = 128;
 	else
 		size = 512;
@@ -839,13 +871,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
                       void *priv, void *vmp, int flags)
 {
         spl_kmem_cache_t *skc;
-	uint32_t slab_max, slab_size, slab_objs;
 	int rc, kmem_flags = KM_SLEEP;
 	ENTRY;
 
 	ASSERTF(!(flags & KMC_NOMAGAZINE), "Bad KMC_NOMAGAZINE (%x)\n", flags);
 	ASSERTF(!(flags & KMC_NOHASH), "Bad KMC_NOHASH (%x)\n", flags);
 	ASSERTF(!(flags & KMC_QCACHE), "Bad KMC_QCACHE (%x)\n", flags);
+	ASSERT(vmp == NULL);
 
         /* We may be called when there is a non-zero preempt_count or
          * interrupts are disabled is which case we must not sleep.
@@ -874,6 +906,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_vmp = vmp;
 	skc->skc_flags = flags;
 	skc->skc_obj_size = size;
+	skc->skc_obj_align = SPL_KMEM_CACHE_ALIGN;
 	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
 
 	INIT_LIST_HEAD(&skc->skc_list);
@@ -890,46 +923,39 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_alloc = 0;
 	skc->skc_obj_max = 0;
 
+	if (align) {
+		ASSERT((align & (align - 1)) == 0);    /* Power of two */
+		ASSERT(align >= SPL_KMEM_CACHE_ALIGN); /* Minimum size */
+		skc->skc_obj_align = align;
+	}
+
 	/* If none passed select a cache type based on object size */
 	if (!(skc->skc_flags & (KMC_KMEM | KMC_VMEM))) {
-		if (skc->skc_obj_size < (PAGE_SIZE / 8)) {
+		if (P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) <
+		    (PAGE_SIZE / 8)) {
 			skc->skc_flags |= KMC_KMEM;
 		} else {
 			skc->skc_flags |= KMC_VMEM;
 		}
 	}
 
-	/* Size slabs properly so ensure they are not too large */
-	slab_max = ((uint64_t)1 << (MAX_ORDER - 1)) * PAGE_SIZE;
-	if (skc->skc_flags & KMC_OFFSLAB) {
-		skc->skc_slab_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
-		skc->skc_slab_size = sizeof(spl_kmem_slab_t);
-		ASSERT(skc->skc_obj_size < slab_max);
-	} else {
-		slab_objs = SPL_KMEM_CACHE_OBJ_PER_SLAB + 1;
-
-		do {
-			slab_objs--;
-			slab_size = sizeof(spl_kmem_slab_t) + slab_objs *
-			            (skc->skc_obj_size+sizeof(spl_kmem_obj_t));
-		} while (slab_size > slab_max);
-
-		skc->skc_slab_objs = slab_objs;
-		skc->skc_slab_size = slab_size;
-	}
+	rc = spl_slab_size(skc, &skc->skc_slab_objs, &skc->skc_slab_size);
+	if (rc)
+		GOTO(out, rc);
 
 	rc = spl_magazine_create(skc);
-	if (rc) {
-		kmem_free(skc->skc_name, skc->skc_name_size);
-		kmem_free(skc, sizeof(*skc));
-		RETURN(NULL);
-	}
+	if (rc)
+		GOTO(out, rc);
 
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
 	up_write(&spl_kmem_cache_sem);
 
 	RETURN(skc);
+out:
+	kmem_free(skc->skc_name, skc->skc_name_size);
+	kmem_free(skc, sizeof(*skc));
+	RETURN(NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
@@ -1119,7 +1145,7 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
-	sko = obj + skc->skc_obj_size;
+	sko = obj + P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align);
 	ASSERT(sko->sko_magic == SKO_MAGIC);
 
 	sks = sko->sko_slab;
@@ -1213,6 +1239,7 @@ restart:
 
 	local_irq_restore(irq_flags);
 	ASSERT(obj);
+	ASSERT(((unsigned long)(obj) % skc->skc_obj_align) == 0);
 
 	/* Pre-emptively migrate object to CPU L1 cache */
 	prefetchw(obj);

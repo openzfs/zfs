@@ -225,6 +225,7 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 
 #define SPL_KMEM_CACHE_DELAY		5
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB	32
+#define SPL_KMEM_CACHE_ALIGN		8
 
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
@@ -270,6 +271,7 @@ typedef struct spl_kmem_cache {
         void			*skc_vmp;	/* Unused */
 	uint32_t		skc_flags;	/* Flags */
 	uint32_t		skc_obj_size;	/* Object size */
+	uint32_t		skc_obj_align;	/* Object alignment */
 	uint32_t		skc_slab_objs;	/* Objects per slab */
 	uint32_t		skc_slab_size;  /* Slab size */
 	uint32_t		skc_delay;	/* slab reclaim interval */

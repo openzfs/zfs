@@ -47,11 +47,11 @@
 #define SPLAT_KMEM_TEST4_DESC		"Memory allocation test (vmem_zalloc)"
 
 #define SPLAT_KMEM_TEST5_ID		0x0105
-#define SPLAT_KMEM_TEST5_NAME		"kmem_cache1"
+#define SPLAT_KMEM_TEST5_NAME		"kmem_small"
 #define SPLAT_KMEM_TEST5_DESC		"Slab ctor/dtor test (small)"
 
 #define SPLAT_KMEM_TEST6_ID		0x0106
-#define SPLAT_KMEM_TEST6_NAME		"kmem_cache2"
+#define SPLAT_KMEM_TEST6_NAME		"kmem_large"
 #define SPLAT_KMEM_TEST6_DESC		"Slab ctor/dtor test (large)"
 
 #define SPLAT_KMEM_TEST7_ID		0x0107
@@ -61,6 +61,10 @@
 #define SPLAT_KMEM_TEST8_ID		0x0108
 #define SPLAT_KMEM_TEST8_NAME		"kmem_lock"
 #define SPLAT_KMEM_TEST8_DESC		"Slab locking test"
+
+#define SPLAT_KMEM_TEST9_ID		0x0109
+#define SPLAT_KMEM_TEST9_NAME		"kmem_align"
+#define SPLAT_KMEM_TEST9_DESC		"Slab alignment test"
 
 #define SPLAT_KMEM_ALLOC_COUNT		10
 #define SPLAT_VMEM_ALLOC_COUNT		10
@@ -250,6 +254,7 @@ typedef struct kmem_cache_priv {
 	spinlock_t kcp_lock;
 	wait_queue_head_t kcp_waitq;
 	int kcp_size;
+	int kcp_align;
 	int kcp_count;
 	int kcp_threads;
 	int kcp_alloc;
@@ -289,8 +294,8 @@ splat_kmem_cache_test_destructor(void *ptr, void *priv)
 }
 
 static int
-splat_kmem_cache_size_test(struct file *file, void *arg,
-			   char *name, int size, int flags)
+splat_kmem_cache_test(struct file *file, void *arg, char *name,
+			   int size, int align, int flags)
 {
 	kmem_cache_t *cache = NULL;
 	kmem_cache_data_t *kcd = NULL;
@@ -300,10 +305,12 @@ splat_kmem_cache_size_test(struct file *file, void *arg,
 	kcp.kcp_magic = SPLAT_KMEM_TEST_MAGIC;
 	kcp.kcp_file = file;
 	kcp.kcp_size = size;
+	kcp.kcp_align = align;
 	kcp.kcp_count = 0;
 	kcp.kcp_rc = 0;
 
-	cache = kmem_cache_create(SPLAT_KMEM_CACHE_NAME, kcp.kcp_size, 0,
+	cache = kmem_cache_create(SPLAT_KMEM_CACHE_NAME,
+				  kcp.kcp_size, kcp.kcp_align,
 	                          splat_kmem_cache_test_constructor,
 	                          splat_kmem_cache_test_destructor,
 	                          NULL, &kcp, NULL, flags);
@@ -373,15 +380,15 @@ splat_kmem_test5(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST5_NAME;
 	int rc;
 
-	rc = splat_kmem_cache_size_test(file, arg, name, 128, 0);
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0, 0);
 	if (rc)
 		return rc;
 
-	rc = splat_kmem_cache_size_test(file, arg, name, 128, KMC_KMEM);
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0, KMC_KMEM);
 	if (rc)
 		return rc;
 
-	return splat_kmem_cache_size_test(file, arg, name, 128, KMC_VMEM);
+	return splat_kmem_cache_test(file, arg, name, 128, 0, KMC_VMEM);
 }
 
 /* Validate large object cache behavior for dynamic/kmem/vmem caches */
@@ -391,15 +398,15 @@ splat_kmem_test6(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST6_NAME;
 	int rc;
 
-	rc = splat_kmem_cache_size_test(file, arg, name, 128 * 1024, 0);
+	rc = splat_kmem_cache_test(file, arg, name, 128*1024, 0, 0);
 	if (rc)
 		return rc;
 
-	rc = splat_kmem_cache_size_test(file, arg, name, 128 * 1024, KMC_KMEM);
+	rc = splat_kmem_cache_test(file, arg, name, 128*1024, 0, KMC_KMEM);
 	if (rc)
 		return rc;
 
-	return splat_kmem_cache_size_test(file, arg, name, 128 * 1028, KMC_VMEM);
+	return splat_kmem_cache_test(file, arg, name, 128*1028, 0, KMC_VMEM);
 }
 
 static void
@@ -675,6 +682,22 @@ splat_kmem_test8(struct file *file, void *arg)
 	return rc;
 }
 
+/* Validate object alignment cache behavior for caches */
+static int
+splat_kmem_test9(struct file *file, void *arg)
+{
+	char *name = SPLAT_KMEM_TEST9_NAME;
+	int i, rc;
+
+	for (i = 8; i <= PAGE_SIZE; i *= 2) {
+		rc = splat_kmem_cache_test(file, arg, name, 157, i, 0);
+		if (rc)
+			return rc;
+	}
+
+	return rc;
+}
+
 splat_subsystem_t *
 splat_kmem_init(void)
 {
@@ -708,6 +731,8 @@ splat_kmem_init(void)
 	              SPLAT_KMEM_TEST7_ID, splat_kmem_test7);
         SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST8_NAME, SPLAT_KMEM_TEST8_DESC,
 	              SPLAT_KMEM_TEST8_ID, splat_kmem_test8);
+        SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST9_NAME, SPLAT_KMEM_TEST9_DESC,
+	              SPLAT_KMEM_TEST9_ID, splat_kmem_test9);
 
         return sub;
 }
@@ -716,6 +741,7 @@ void
 splat_kmem_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+        SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST9_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST8_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST7_ID);
         SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST6_ID);
