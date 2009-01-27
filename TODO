@@ -11,7 +11,8 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
   investigation is needed.  It is also possible the new untested vdev_disk.c
   is to blame.  A lot of work is needed here.
 
-- SPLError: 7324:1224:(dnode.c:304:dnode_create()) VERIFY3(0` >= 1`)
+- 2009-01-26 16:23:00 SPLError: 7884:1360:(dnode.c:146:dnode_verify())
+  VERIFY3(dn->dn_nblkptr >= 1) failed (0 >= 1)
 
   When enabling debugging in ZFS with the --enable-debug configure option
   we always trip the following VERIFY.  This issue was present in the
