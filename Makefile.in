@@ -58,7 +58,7 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/module/zfs/Makefile.in \
 	$(top_srcdir)/module/zpios/Makefile.in \
 	$(top_srcdir)/module/zpios/include/Makefile.in AUTHORS COPYING \
-	ChangeLog
+	ChangeLog TODO
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
