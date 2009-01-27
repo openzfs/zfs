@@ -7,4 +7,8 @@ check:
 	./zpios.sh -c file-raid10 -t tiny
 	./zpios.sh -c file-raidz  -t tiny
 	./zpios.sh -c file-raidz2 -t tiny
+	./zpios.sh -c lo-raid0    -t tiny
+	./zpios.sh -c lo-raid10   -t tiny
+	./zpios.sh -c lo-raidz    -t tiny
+	./zpios.sh -c lo-raidz2   -t tiny
 	./zfs.sh -vu
