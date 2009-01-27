@@ -36,7 +36,7 @@ the latest version of TopGit which likely is not packaged nicely so you
 will need to build it from source.  You can use Git to clone TopGit
 from the official site here and your all set:
 
-        > git clone git://repo.or.cz/w/topgit.git
+        > git clone git://repo.or.cz/topgit.git
         > make
         > make install    # Default installs to $(HOME)
 
