@@ -1,13 +1,5 @@
 SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
 
-- 'zpool create' hangs in the create ioctl() when initializing a new pool
-  backed by loopback devices.  The lo-raid0 configuration easily recreates
-  this issue.  I currently suspect a problem in vdev_disk.c implementation
-  is causing this, but I have not yet looked to closely.  On the surface
-  things appear to be fine when creating the pool with real device or files.
-
-	./zpios.sh -c lo-raid0 -t tiny -v
-
 - SPLError: 10167:1968:(spl-kmem.c:1286:spl_kmem_cache_reap_now())
   ASSERTION(skc->skc_magic == SKC_MAGIC) failed
 
