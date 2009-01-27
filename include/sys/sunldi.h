@@ -32,6 +32,7 @@
 #include <linux/genhd.h>
 #include <linux/hdreg.h>
 #include <linux/bio.h>
+#include <linux/blkdev.h>
 
 #define SECTOR_SIZE 512
 
