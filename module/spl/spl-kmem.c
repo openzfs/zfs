@@ -1206,7 +1206,6 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	spl_kmem_magazine_t *skm;
 	unsigned long irq_flags;
 	void *obj = NULL;
-	int id;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -1218,8 +1217,6 @@ restart:
 	 * in the restart case we must be careful to reaquire
 	 * the local magazine since this may have changed
 	 * when we need to grow the cache. */
-	id = smp_processor_id();
-	ASSERTF(id < 4, "cache=%p smp_processor_id=%d\n", skc, id);
 	skm = skc->skc_mag[smp_processor_id()];
 	ASSERTF(skm->skm_magic == SKM_MAGIC, "%x != %x: %s/%p/%p %x/%x/%x\n",
 		skm->skm_magic, SKM_MAGIC, skc->skc_name, skc, skm,
