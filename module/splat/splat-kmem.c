@@ -630,7 +630,7 @@ out_free:
 
 static int
 splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
-			     int size, int alloc)
+			     int size, int alloc, int max_time)
 {
 	kmem_cache_priv_t *kcp;
 	kthread_t *thr;
@@ -701,7 +701,7 @@ splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
 		     (unsigned long)(kcp->kcp_alloc *
 				     SPLAT_KMEM_THREADS));
 
-	if (delta.tv_sec >= 5)
+	if (delta.tv_sec >= max_time)
 		rc = -ETIME;
 
 	if (!rc && kcp->kcp_rc)
@@ -989,7 +989,7 @@ splat_kmem_test10(struct file *file, void *arg)
 				continue;
 
 			rc = splat_kmem_cache_thread_test(file, arg,
-				SPLAT_KMEM_TEST10_NAME, size, alloc);
+				SPLAT_KMEM_TEST10_NAME, size, alloc, 5);
 			if (rc)
 				break;
 		}
@@ -1022,7 +1022,7 @@ splat_kmem_test11(struct file *file, void *arg)
 		     "	  \ttot/max/calc\ttot/max/calc\n");
 
 	rc = splat_kmem_cache_thread_test(file, arg,
-		SPLAT_KMEM_TEST11_NAME, size, alloc);
+		SPLAT_KMEM_TEST11_NAME, size, alloc, 60);
 
 	return rc;
 }
