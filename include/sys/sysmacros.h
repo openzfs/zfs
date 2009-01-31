@@ -203,18 +203,6 @@ extern int ddi_strtoul(const char *str, char **nptr,
 #define offsetof(s, m)  ((size_t)(&(((s *)0)->m)))
 #endif
 
-#ifdef HAVE_3ARGS_INIT_WORK
-
-#define spl_init_work(wq,cb,d)	INIT_WORK((wq), (void *)(cb), (void *)(d))
-#define spl_get_work_data(type,field,data)	(data)
-
-#else
-
-#define spl_init_work(wq,cb,d)	INIT_WORK((wq), (void *)(cb));
-#define spl_get_work_data(type,field,data)	container_of(data,type,field)
-
-#endif
-
 #ifdef  __cplusplus
 }
 #endif

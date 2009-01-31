@@ -35,8 +35,7 @@
 extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 
 #define physmem				num_physpages
-#define freemem				nr_free_pages() // Expensive on linux,
-							// cheap on solaris
+#define freemem				nr_free_pages()
 #define minfree				0
 #define needfree			0	/* # of needed pages */
 #define ptob(pages)			(pages * PAGE_SIZE)

@@ -45,6 +45,7 @@ extern "C" {
 #include <asm/atomic_compat.h>
 #include <sys/types.h>
 #include <sys/debug.h>
+#include <sys/workqueue.h>
 
 /*
  * Memory allocation interfaces
@@ -161,17 +162,32 @@ kmem_alloc_tryhard(size_t size, size_t *alloc_size, int kmflags)
 /*
  * Slab allocation interfaces
  */
-#define KMC_NOTOUCH                     0x00000001
-#define KMC_NODEBUG                     0x00000002 /* Default behavior */
-#define KMC_NOMAGAZINE                  0x00000004 /* XXX: No disable support available */
-#define KMC_NOHASH                      0x00000008 /* XXX: No hash available */
-#define KMC_QCACHE                      0x00000010 /* XXX: Unsupported */
-#define KMC_KMEM			0x00000100 /* Use kmem cache */
-#define KMC_VMEM			0x00000200 /* Use vmem cache */
-#define KMC_OFFSLAB			0x00000400 /* Objects not on slab */
+enum {
+	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
+	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
+	KMC_BIT_NOMAGAZINE	= 2,	/* XXX: Unsupported */
+	KMC_BIT_NOHASH		= 3,	/* XXX: Unsupported */
+	KMC_BIT_QCACHE		= 4,	/* XXX: Unsupported */
+	KMC_BIT_KMEM		= 5,	/* Use kmem cache */
+	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
+	KMC_BIT_OFFSLAB		= 7,	/* Objects not on slab */
+	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
+	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
+};
 
-#define KMC_REAP_CHUNK                  256
-#define KMC_DEFAULT_SEEKS               DEFAULT_SEEKS
+#define KMC_NOTOUCH		(1 << KMC_BIT_NOTOUCH)
+#define KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
+#define KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
+#define KMC_NOHASH		(1 << KMC_BIT_NOHASH)
+#define KMC_QCACHE		(1 << KMC_BIT_QCACHE)
+#define KMC_KMEM		(1 << KMC_BIT_KMEM)
+#define KMC_VMEM		(1 << KMC_BIT_VMEM)
+#define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
+#define KMC_REAPING		(1 << KMC_BIT_REAPING)
+#define KMC_DESTROY		(1 << KMC_BIT_DESTROY)
+
+#define KMC_REAP_CHUNK			INT_MAX
+#define KMC_DEFAULT_SEEKS		1
 
 #ifdef DEBUG_KMEM_UNIMPLEMENTED
 static __inline__ void kmem_init(void) {
@@ -223,9 +239,10 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define SKS_MAGIC			0x22222222
 #define SKC_MAGIC			0x2c2c2c2c
 
-#define SPL_KMEM_CACHE_DELAY		5
-#define SPL_KMEM_CACHE_OBJ_PER_SLAB	32
-#define SPL_KMEM_CACHE_ALIGN		8
+#define SPL_KMEM_CACHE_DELAY		5	/* Minimum slab release age */
+#define SPL_KMEM_CACHE_OBJ_PER_SLAB	32	/* Target objects per slab */
+#define SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	8	/* Minimum objects per slab */
+#define SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
 
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
@@ -258,24 +275,28 @@ typedef struct spl_kmem_slab {
 } spl_kmem_slab_t;
 
 typedef struct spl_kmem_cache {
-        uint32_t		skc_magic;	/* Sanity magic */
-        uint32_t		skc_name_size;	/* Name length */
-        char			*skc_name;	/* Name string */
+	uint32_t		skc_magic;	/* Sanity magic */
+	uint32_t		skc_name_size;	/* Name length */
+	char			*skc_name;	/* Name string */
 	spl_kmem_magazine_t	*skc_mag[NR_CPUS]; /* Per-CPU warm cache */
 	uint32_t		skc_mag_size;	/* Magazine size */
 	uint32_t		skc_mag_refill;	/* Magazine refill count */
-        spl_kmem_ctor_t		skc_ctor;	/* Constructor */
-        spl_kmem_dtor_t		skc_dtor;	/* Destructor */
-        spl_kmem_reclaim_t      skc_reclaim;	/* Reclaimator */
-        void			*skc_private;	/* Private data */
-        void			*skc_vmp;	/* Unused */
+	spl_kmem_ctor_t		skc_ctor;	/* Constructor */
+	spl_kmem_dtor_t		skc_dtor;	/* Destructor */
+	spl_kmem_reclaim_t	skc_reclaim;	/* Reclaimator */
+	void			*skc_private;	/* Private data */
+	void			*skc_vmp;	/* Unused */
 	uint32_t		skc_flags;	/* Flags */
 	uint32_t		skc_obj_size;	/* Object size */
 	uint32_t		skc_obj_align;	/* Object alignment */
 	uint32_t		skc_slab_objs;	/* Objects per slab */
-	uint32_t		skc_slab_size;  /* Slab size */
-	uint32_t		skc_delay;	/* slab reclaim interval */
-        struct list_head	skc_list;	/* List of caches linkage */
+	uint32_t		skc_slab_size;	/* Slab size */
+	uint32_t		skc_delay;	/* Slab reclaim interval */
+	atomic_t		skc_ref;	/* Ref count callers */
+	struct delayed_work	skc_work;	/* Slab reclaim work */
+        struct work_struct work;
+        struct timer_list timer;
+	struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
 	spinlock_t		skc_lock;	/* Cache lock */
@@ -283,7 +304,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_slab_create;/* Slab creates */
 	uint64_t		skc_slab_destroy;/* Slab destroys */
 	uint64_t		skc_slab_total;	/* Slab total current */
-	uint64_t		skc_slab_alloc; /* Slab alloc current */
+	uint64_t		skc_slab_alloc;	/* Slab alloc current */
 	uint64_t		skc_slab_max;	/* Slab max historic  */
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */

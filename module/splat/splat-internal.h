@@ -40,6 +40,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/list.h>
+#include <linux/swap.h>
 
 #include <asm/ioctls.h>
 #include <asm/uaccess.h>
