@@ -686,3 +686,22 @@ AC_DEFUN([SPL_AC_DIV64_64], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 2.6.27 API change,
+dnl # on_each_cpu() uses 3 args, no 'retry' argument
+dnl #
+AC_DEFUN([SPL_AC_3ARGS_ON_EACH_CPU], [
+	AC_MSG_CHECKING([whether on_each_cpu() wants 3 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/smp.h>
+	],[
+		on_each_cpu(NULL, NULL, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_3ARGS_ON_EACH_CPU, 1,
+		          [on_each_cpu wants 3 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

@@ -18,6 +18,9 @@
 /* INIT_WORK wants 3 args */
 #undef HAVE_3ARGS_INIT_WORK
 
+/* on_each_cpu wants 3 args */
+#undef HAVE_3ARGS_ON_EACH_CPU
+
 /* kernel defines atomic64_t */
 #undef HAVE_ATOMIC64_T
 

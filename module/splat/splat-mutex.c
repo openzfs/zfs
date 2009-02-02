@@ -59,28 +59,26 @@ typedef struct mutex_priv {
 	int mp_rc;
 } mutex_priv_t;
 
-#ifdef HAVE_3ARGS_INIT_WORK
 static void
 splat_mutex_test1_work(void *priv)
 {
-	mutex_priv_t *mp = (mutex_priv_t *)priv;
+	mutex_priv_t *mp;
 
+        mp = spl_get_work_data(priv, mutex_priv_t, mp_work.work);
 	ASSERT(mp->mp_magic == SPLAT_MUTEX_TEST_MAGIC);
 	mp->mp_rc = 0;
 
 	if (!mutex_tryenter(&mp->mp_mtx))
 		mp->mp_rc = -EBUSY;
 }
-#endif
 
 static int
 splat_mutex_test1(struct file *file, void *arg)
 {
-	int rc = 0;
-#ifdef HAVE_3ARGS_INIT_WORK
 	struct workqueue_struct *wq;
 	struct work_struct work;
 	mutex_priv_t *mp;
+	int rc = 0;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
@@ -97,7 +95,7 @@ splat_mutex_test1(struct file *file, void *arg)
 
 	mp->mp_magic = SPLAT_MUTEX_TEST_MAGIC;
 	mp->mp_file = file;
-	INIT_WORK(&work, splat_mutex_test1_work, mp);
+	spl_init_work(&work, splat_mutex_test1_work, mp);
 
 	/* Schedule a work item which will try and aquire the mutex via
 	  * mutex_tryenter() while its held.  This should fail and the work
@@ -143,17 +141,16 @@ out:
 	destroy_workqueue(wq);
 out2:
 	kfree(mp);
-#endif
 	return rc;
 }
 
-#ifdef HAVE_3ARGS_INIT_WORK
 static void
 splat_mutex_test2_work(void *priv)
 {
-	mutex_priv_t *mp = (mutex_priv_t *)priv;
+	mutex_priv_t *mp;
 	int rc;
 
+	mp = spl_get_work_data(priv, mutex_priv_t, mp_work.work);
 	ASSERT(mp->mp_magic == SPLAT_MUTEX_TEST_MAGIC);
 
 	/* Read the value before sleeping and write it after we wake up to
@@ -165,16 +162,13 @@ splat_mutex_test2_work(void *priv)
 	mp->mp_rc = rc + 1;
 	mutex_exit(&mp->mp_mtx);
 }
-#endif
 
 static int
 splat_mutex_test2(struct file *file, void *arg)
 {
-	int rc = 0;
-#ifdef HAVE_3ARGS_INIT_WORK
 	struct workqueue_struct *wq;
 	mutex_priv_t *mp;
-	int i;
+	int i, rc = 0;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
@@ -200,7 +194,7 @@ splat_mutex_test2(struct file *file, void *arg)
 	 * critical region at the same time the system will panic.  If the
 	 * mutex is implemented right this will never happy, that's a pass. */
 	for (i = 0; i < SPLAT_MUTEX_TEST_COUNT; i++) {
-		INIT_WORK(&(mp->mp_work[i]), splat_mutex_test2_work, mp);
+		spl_init_work(&(mp->mp_work[i]), splat_mutex_test2_work, mp);
 
 		if (!queue_work(wq, &(mp->mp_work[i]))) {
 		        splat_vprint(file, SPLAT_MUTEX_TEST2_NAME,
@@ -226,7 +220,6 @@ splat_mutex_test2(struct file *file, void *arg)
 	destroy_workqueue(wq);
 out:
 	kfree(mp);
-#endif
 	return rc;
 }
 

@@ -45,7 +45,6 @@ extern "C" {
 #include <asm/atomic_compat.h>
 #include <sys/types.h>
 #include <sys/debug.h>
-#include <sys/workqueue.h>
 
 /*
  * Memory allocation interfaces
@@ -286,7 +285,7 @@ typedef struct spl_kmem_cache {
 	spl_kmem_reclaim_t	skc_reclaim;	/* Reclaimator */
 	void			*skc_private;	/* Private data */
 	void			*skc_vmp;	/* Unused */
-	uint32_t		skc_flags;	/* Flags */
+	unsigned long		skc_flags;	/* Flags */
 	uint32_t		skc_obj_size;	/* Object size */
 	uint32_t		skc_obj_align;	/* Object alignment */
 	uint32_t		skc_slab_objs;	/* Objects per slab */

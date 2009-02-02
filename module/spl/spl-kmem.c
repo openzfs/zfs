@@ -783,7 +783,7 @@ spl_cache_age(void *data)
 		spl_get_work_data(data, spl_kmem_cache_t, skc_work.work);
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	on_each_cpu(spl_magazine_age, skc, 0, 1);
+	spl_on_each_cpu(spl_magazine_age, skc, 1);
 	spl_slab_reclaim(skc, 0);
 
 	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
@@ -923,7 +923,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 
 	skc->skc_mag_size = spl_magazine_size(skc);
 	skc->skc_mag_refill = (skc->skc_mag_size + 1) / 2;
-	on_each_cpu(__spl_magazine_create, skc, 0, 1);
+	spl_on_each_cpu(__spl_magazine_create, skc, 1);
 
 	RETURN(0);
 }
@@ -945,7 +945,7 @@ static void
 spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
 	ENTRY;
-	on_each_cpu(__spl_magazine_destroy, skc, 0, 1);
+	spl_on_each_cpu(__spl_magazine_destroy, skc, 1);
 	EXIT;
 }
 

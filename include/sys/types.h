@@ -14,6 +14,8 @@ extern "C" {
 #include <linux/list_compat.h>
 #include <linux/time_compat.h>
 #include <linux/bitops_compat.h>
+#include <linux/smp_compat.h>
+#include <linux/workqueue_compat.h>
 
 #ifndef HAVE_UINTPTR_T
 typedef unsigned long			uintptr_t;

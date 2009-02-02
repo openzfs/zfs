@@ -20420,6 +20420,67 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 
 
+	echo "$as_me:$LINENO: checking whether on_each_cpu() wants 3 args" >&5
+echo $ECHO_N "checking whether on_each_cpu() wants 3 args... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/smp.h>
+
+int
+main (void)
+{
+
+		on_each_cpu(NULL, NULL, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
+echo "obj-m := conftest.o" >build/Makefile
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_3ARGS_ON_EACH_CPU 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+fi
+rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+
+
 TOPDIR=`/bin/pwd`
 
 # Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
