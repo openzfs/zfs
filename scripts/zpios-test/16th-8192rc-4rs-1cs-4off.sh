@@ -39,12 +39,12 @@
 ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 	--load=dmuio                                             \
 	--path=${ZPOOL_NAME}                                     \
-	--threadcount=1                                          \
-	--regioncount=16                                         \
+	--threadcount=16                                         \
+	--regioncount=8192                                       \
 	--regionsize=4M                                          \
 	--chunksize=1M                                           \
 	--offset=4M                                              \
-        --cleanup                                                \
+	--cleanup                                                \
 	--verbose                                                \
 	--human-readable                                         \
 	${ZPIOS_OPTIONS}"
