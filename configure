@@ -19160,6 +19160,20 @@ echo "${ECHO_T}$splsymvers" >&6
 
 
 
+	echo "$as_me:$LINENO: checking zfs license" >&5
+echo $ECHO_N "checking zfs license... $ECHO_C" >&6
+	license=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
+	echo "$as_me:$LINENO: result: $license" >&5
+echo "${ECHO_T}$license" >&6
+	if test "$license" = GPL; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GPL_ONLY_SYMBOLS 1
+_ACEOF
+
+	fi
+
+
 
 	TOPDIR=`/bin/pwd`
 	BUILDDIR=$TOPDIR
@@ -19502,8 +19516,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking checking for ioctl()" >&5
-echo $ECHO_N "checking checking for ioctl()... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking for ioctl()" >&5
+echo $ECHO_N "checking for ioctl()... $ECHO_C" >&6
 	cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -19908,8 +19922,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking checking for ioctl()" >&5
-echo $ECHO_N "checking checking for ioctl()... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking for ioctl()" >&5
+echo $ECHO_N "checking for ioctl()... $ECHO_C" >&6
 	cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -20028,12 +20042,6 @@ echo "$as_me: error: Bad value \"$zfsconfig\" for --with-config,
 	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
 	echo "MODDIR=${MODDIR}"           >>${SCRIPT_CONFIG}
 
-
-
-        echo "$as_me:$LINENO: checking license" >&5
-echo $ECHO_N "checking license... $ECHO_C" >&6
-        echo "$as_me:$LINENO: result: CDDL" >&5
-echo "${ECHO_T}CDDL" >&6
 
 
         echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
