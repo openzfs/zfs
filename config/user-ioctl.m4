@@ -2,7 +2,7 @@ dnl #
 dnl # Check for ioctl()
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_USER_IOCTL], [
-	AC_MSG_CHECKING(checking for ioctl())
+	AC_MSG_CHECKING(for ioctl())
 	AC_EGREP_HEADER(ioctl, unistd.h, is_unistd=yes, is_unistd=no)
 	AC_EGREP_HEADER(ioctl, sys/ioctl.h, is_sys_ioctl=yes, is_sys_ioctl=no)
 	AC_EGREP_HEADER(ioctl, stropts.h, is_stropts=yes, is_stropts=no)
