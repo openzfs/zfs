@@ -1803,11 +1803,9 @@ arc_shrink(void)
 static int
 arc_reclaim_needed(void)
 {
-#ifdef _KERNEL
-#ifdef HAVE_SPL
-	/* FIXME: Linux VM integration */
-#else
 	uint64_t extra;
+
+#ifdef _KERNEL
 
 	if (needfree)
 		return (1);
@@ -1852,12 +1850,12 @@ arc_reclaim_needed(void)
 	if (btop(vmem_size(heap_arena, VMEM_FREE)) <
 	    (btop(vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC)) >> 2))
 		return (1);
-#endif /* __i386 */
-#endif /* HAVE_SPL */
+#endif
+
 #else
 	if (spa_get_random(100) == 0)
 		return (1);
-#endif /* _KERNEL */
+#endif
 	return (0);
 }
 
@@ -1871,7 +1869,6 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 	extern kmem_cache_t	*zio_data_buf_cache[];
 
 #ifdef _KERNEL
-#ifndef HAVE_SPL
 	if (arc_meta_used >= arc_meta_limit) {
 		/*
 		 * We are exceeding our meta-data cache limit.
@@ -1879,14 +1876,13 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 		 */
 		dnlc_reduce_cache((void *)(uintptr_t)arc_reduce_dnlc_percent);
 	}
-#endif /* HAVE_SPL */
 #if defined(__i386)
 	/*
 	 * Reclaim unused memory from all kmem caches.
 	 */
 	kmem_reap();
-#endif /* __i386 */
-#endif /* _KERNEL */
+#endif
+#endif
 
 	/*
 	 * An aggressive reclamation will shrink the cache size as well as
@@ -2037,7 +2033,6 @@ arc_evict_needed(arc_buf_contents_t type)
 		return (1);
 
 #ifdef _KERNEL
-#ifndef HAVE_SPL
 	/*
 	 * If zio data pages are being allocated out of a separate heap segment,
 	 * then enforce that the size of available vmem for this area remains
@@ -2047,8 +2042,7 @@ arc_evict_needed(arc_buf_contents_t type)
 	    vmem_size(zio_arena, VMEM_FREE) <
 	    (vmem_size(zio_arena, VMEM_ALLOC) >> 5))
 		return (1);
-#endif /* HAVE_SPL */
-#endif /* _KERNEL */
+#endif
 
 	if (arc_reclaim_needed())
 		return (1);
@@ -3270,7 +3264,6 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	 * the arc is already going to be evicting, so we just want to
 	 * continue to let page writes occur as quickly as possible.
 	 */
-#ifndef HAVE_SPL
 	if (curproc == proc_pageout) {
 		if (page_load > MAX(ptob(minfree), available_memory) / 4)
 			return (ERESTART);
@@ -3282,7 +3275,6 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
 		return (EAGAIN);
 	}
-#endif /* HAVE_SPL */
 	page_load = 0;
 
 	if (arc_size > arc_c_min) {
@@ -3375,10 +3367,8 @@ arc_init(void)
 	 * than the addressable space (intel in 32-bit mode), we may
 	 * need to limit the cache to 1/8 of VM size.
 	 */
-#ifndef HAVE_SPL
 	arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8);
-#endif /* HAVE_SPL */
-#endif /* _KERNEL */
+#endif
 
 	/* set min cache to 1/32 of all memory, or 64MB, whichever is more */
 	arc_c_min = MAX(arc_c / 4, 64<<20);
