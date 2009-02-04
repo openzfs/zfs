@@ -20481,6 +20481,123 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 
 
+	echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
+echo $ECHO_N "checking whether symbol first_online_pgdat is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_FIRST_ONLINE_PGDAT 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_FIRST_ONLINE_PGDAT 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol next_online_pgdat is exported" >&5
+echo $ECHO_N "checking whether symbol next_online_pgdat is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NEXT_ONLINE_PGDAT 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NEXT_ONLINE_PGDAT 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol next_zone is exported" >&5
+echo $ECHO_N "checking whether symbol next_zone is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]next_zone[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(next_zone)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NEXT_ZONE 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NEXT_ZONE 1
+_ACEOF
+
+	fi
+
+
+
 TOPDIR=`/bin/pwd`
 
 # Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build

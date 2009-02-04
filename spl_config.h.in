@@ -45,6 +45,9 @@
 /* files_fdtable() is available */
 #undef HAVE_FILES_FDTABLE
 
+/* first_online_pgdat() is available */
+#undef HAVE_FIRST_ONLINE_PGDAT
+
 /* fls64() is available */
 #undef HAVE_FLS64
 
@@ -65,6 +68,12 @@
 
 /* monotonic_clock() is available */
 #undef HAVE_MONOTONIC_CLOCK
+
+/* next_online_pgdat() is available */
+#undef HAVE_NEXT_ONLINE_PGDAT
+
+/* next_zone() is available */
+#undef HAVE_NEXT_ZONE
 
 /* struct path used in struct nameidata */
 #undef HAVE_PATH_IN_NAMEIDATA

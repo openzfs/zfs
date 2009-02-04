@@ -140,6 +140,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	ASSERT(cb_ops->cb_aread == NULL);
 	ASSERT(cb_ops->cb_awrite == NULL);
 
+	snprintf(di->di_name, DDI_MAX_NAME_LEN-1, "/dev/%s", name);
 	di->di_cdev  = cdev;
 	di->di_flags = flags;
 	di->di_minor = minor_num;
@@ -280,6 +281,30 @@ __mod_install(struct modlinkage *modlp)
 	RETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__mod_install);
+
+int
+__mod_mknod(char *name, char *type, int major, int minor)
+{
+	char cmd[] = "/bin/mknod";
+	char major_str[8];
+	char minor_str[8];
+	char *argv[] = { cmd,
+	                 name,
+	                 type,
+	                 major_str,
+	                 minor_str,
+	                 NULL };
+	char *envp[] = { "HOME=/",
+	                 "TERM=linux",
+	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+	                 NULL };
+
+	snprintf(major_str, 8, "%d", major);
+	snprintf(minor_str, 8, "%d", minor);
+
+	return call_usermodehelper(cmd, argv, envp, 1);
+}
+EXPORT_SYMBOL(__mod_mknod);
 
 int
 __mod_remove(struct modlinkage *modlp)

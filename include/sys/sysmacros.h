@@ -67,9 +67,12 @@ extern "C" {
 #define DEV_BSIZE			512
 #define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
 
+#define curproc				current
+#define proc_pageout			NULL
 #define max_ncpus                       64
 #define CPU_SEQID			smp_processor_id() /* I think... */
 #define _NOTE(x)
+
 
 #define RLIM64_INFINITY			RLIM_INFINITY
 
@@ -135,8 +138,6 @@ extern int p0;
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);
-extern int ddi_strtoul(const char *str, char **nptr,
-		       int base, unsigned long *result);
 
 #define makedevice(maj,min) makedev(maj,min)
 

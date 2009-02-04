@@ -705,3 +705,39 @@ AC_DEFUN([SPL_AC_3ARGS_ON_EACH_CPU], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # Distro specific first_online_pgdat symbol export.
+dnl #
+AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[first_online_pgdat],
+		[],
+		[AC_DEFINE(HAVE_FIRST_ONLINE_PGDAT, 1,
+		[first_online_pgdat() is available])],
+		[])
+])
+
+dnl #
+dnl # Distro specific next_online_pgdat symbol export.
+dnl #
+AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[next_online_pgdat],
+		[],
+		[AC_DEFINE(HAVE_NEXT_ONLINE_PGDAT, 1,
+		[next_online_pgdat() is available])],
+		[])
+])
+
+dnl #
+dnl # Distro specific next_zone symbol export.
+dnl #
+AC_DEFUN([SPL_AC_NEXT_ZONE], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[next_zone],
+		[],
+		[AC_DEFINE(HAVE_NEXT_ZONE, 1,
+		[next_zone() is available])],
+		[])
+])

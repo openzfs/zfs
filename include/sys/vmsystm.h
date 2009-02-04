@@ -27,19 +27,50 @@
 #ifndef _SPL_VMSYSTM_H
 #define _SPL_VMSYSTM_H
 
+#include <linux/mmzone.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
-extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
+/* These values are loosely coupled with the the VM page reclaim.
+ * Linux uses its own heuristics to trigger page reclamation, and
+ * because those interface are difficult to interface with.  These
+ * values should only be considered as a rough guide to the system
+ * memory state and not as direct evidence that page reclaimation
+ * is or is not currently in progress.
+ */
+#define ptob(pages)			(pages * PAGE_SIZE)
+#define membar_producer()		smp_wmb()
 
 #define physmem				num_physpages
 #define freemem				nr_free_pages()
-#define minfree				0
-#define needfree			0	/* # of needed pages */
-#define ptob(pages)			(pages * PAGE_SIZE)
-#define membar_producer()		smp_wmb()
+
+extern pgcnt_t minfree;			/* Sum of zone->pages_min */
+extern pgcnt_t desfree;			/* Sum of zone->pages_low */
+extern pgcnt_t lotsfree;		/* Sum of zone->pages_high */
+extern pgcnt_t needfree;		/* Always 0 */
+extern pgcnt_t swapfs_minfree;
+extern pgcnt_t swapfs_desfree;
+extern pgcnt_t swapfs_reserve;
+extern pgcnt_t availrmem;
+
+extern vmem_t *heap_arena;		/* primary kernel heap arena */
+extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
+extern vmem_t *zio_arena;		/* arena for allocating zio memory */
+
+#define VMEM_ALLOC			0x01
+#define VMEM_FREE			0x02
+
+static __inline__ size_t
+vmem_size(vmem_t *vmp, int typemask)
+{
+	/* Arena's unsupported */
+	ASSERT(vmp == NULL);
+	ASSERT(typemask & (VMEM_ALLOC | VMEM_FREE));
+
+	return 0;
+}
 
 #define xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define xcopyout(from, to, size)	copy_to_user(to, from, size)
@@ -81,26 +112,5 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 
 	return 0;
 }
-
-#if 0
-/* The average number of free pages over the last 5 seconds */
-#define avefree				0
-
-/* The average number of free pages over the last 30 seconds */
-#define avefree30			0
-
-/* A guess as to how much memory has been promised to
- * processes but not yet allocated */
-#define deficit				0
-
-/* A bootlean the controls the setting of deficit */
-#define desperate
-
-/* When free memory is above this limit, no paging or swapping is done */
-#define lotsfree			0
-
-/* When free memory is above this limit, swapping is not performed */
-#define desfree				0
-#endif
 
 #endif /* SPL_VMSYSTM_H */

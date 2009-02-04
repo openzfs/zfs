@@ -33,6 +33,96 @@
 #define DEBUG_SUBSYSTEM S_KMEM
 
 /*
+ * The minimum amount of memory measured in pages to be free at all
+ * times on the system.  This is similar to Linux's zone->pages_min
+ * multipled by the number of zones and is sized based on that.
+ */
+pgcnt_t minfree = 0;
+EXPORT_SYMBOL(minfree);
+
+/*
+ * The desired amount of memory measured in pages to be free at all
+ * times on the system.  This is similar to Linux's zone->pages_low
+ * multipled by the number of zones and is sized based on that.
+ * Assuming all zones are being used roughly equally, when we drop
+ * below this threshold async page reclamation is triggered.
+ */
+pgcnt_t desfree = 0;
+EXPORT_SYMBOL(desfree);
+
+/*
+ * When above this amount of memory measures in pages the system is
+ * determined to have enough free memory.  This is similar to Linux's
+ * zone->pages_high multipled by the number of zones and is sized based
+ * on that.  Assuming all zones are being used roughly equally, when
+ * async page reclamation reaches this threshold it stops.
+ */
+pgcnt_t lotsfree = 0;
+EXPORT_SYMBOL(lotsfree);
+
+/* Unused always 0 in this implementation */
+pgcnt_t needfree = 0;
+EXPORT_SYMBOL(needfree);
+
+pgcnt_t swapfs_desfree = 0;
+EXPORT_SYMBOL(swapfs_desfree);
+
+pgcnt_t swapfs_minfree = 0;
+EXPORT_SYMBOL(swapfs_minfree);
+
+pgcnt_t swapfs_reserve = 0;
+EXPORT_SYMBOL(swapfs_reserve);
+
+pgcnt_t availrmem = 0;
+EXPORT_SYMBOL(availrmem);
+
+vmem_t *heap_arena = NULL;
+EXPORT_SYMBOL(heap_arena);
+
+vmem_t *zio_alloc_arena = NULL;
+EXPORT_SYMBOL(zio_alloc_arena);
+
+vmem_t *zio_arena = NULL;
+EXPORT_SYMBOL(zio_arena);
+
+#ifndef HAVE_FIRST_ONLINE_PGDAT
+struct pglist_data *first_online_pgdat(void)
+{
+	return NODE_DATA(first_online_node);
+}
+#endif /* HAVE_FIRST_ONLINE_PGDAT */
+
+#ifndef HAVE_NEXT_ONLINE_PGDAT
+struct pglist_data *next_online_pgdat(struct pglist_data *pgdat)
+{
+	int nid = next_online_node(pgdat->node_id);
+
+	if (nid == MAX_NUMNODES)
+		return NULL;
+
+	return NODE_DATA(nid);
+}
+#endif /* HAVE_NEXT_ONLINE_PGDAT */
+
+#ifndef HAVE_NEXT_ZONE
+struct zone *next_zone(struct zone *zone)
+{
+	pg_data_t *pgdat = zone->zone_pgdat;
+
+	if (zone < pgdat->node_zones + MAX_NR_ZONES - 1)
+	zone++;
+	else {
+		pgdat = next_online_pgdat(pgdat);
+		if (pgdat)
+			zone = pgdat->node_zones;
+		else
+			zone = NULL;
+	}
+	return zone;
+}
+#endif /* HAVE_NEXT_ZONE */
+
+/*
  * Memory allocation interfaces and debugging for basic kmem_*
  * and vmem_* style memory allocation.  When DEBUG_KMEM is enable
  * all allocations will be tracked when they are allocated and
@@ -1601,6 +1691,24 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 #define spl_kmem_fini_tracking(list, lock)
 #endif /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
 
+static void
+spl_kmem_init_globals(void)
+{
+	struct zone *zone;
+
+	/* For now all zones are includes, it may be wise to restrict
+	 * this to normal and highmem zones if we see problems. */
+        for_each_zone(zone) {
+
+                if (!populated_zone(zone))
+                        continue;
+
+		minfree += zone->pages_min;
+		desfree += zone->pages_low;
+		lotsfree += zone->pages_high;
+	}
+}
+
 int
 spl_kmem_init(void)
 {
@@ -1609,6 +1717,7 @@ spl_kmem_init(void)
 
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
+	spl_kmem_init_globals();
 
 #ifdef HAVE_SET_SHRINKER
 	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,

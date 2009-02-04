@@ -32,11 +32,14 @@
 #include <sys/sunldi.h>
 #include <sys/mutex.h>
 #include <sys/u8_textprep.h>
+#include <sys/vnode.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/list.h>
 #include <spl-device.h>
+
+#define DDI_MAX_NAME_LEN	32
 
 typedef int ddi_devid_t;
 
@@ -80,6 +83,7 @@ typedef struct pollhead {
 
 typedef struct dev_info {
 	kmutex_t di_lock;
+	char di_name[DDI_MAX_NAME_LEN];
 	struct dev_ops *di_ops;
 	struct cdev *di_cdev;
 	spl_class *di_class;
@@ -202,6 +206,7 @@ extern void __ddi_remove_minor_node(dev_info_t *dip, char *name);
 extern int ddi_quiesce_not_needed(dev_info_t *dip);
 extern int __mod_install(struct modlinkage *modlp);
 extern int __mod_remove(struct modlinkage *modlp);
+extern int __mod_mknod(char *name, char *type, int major, int minor);
 
 extern int ddi_strtoul(const char *, char **, int, unsigned long *);
 extern int ddi_strtol(const char *, char **, int, long *);
@@ -226,7 +231,16 @@ ddi_remove_minor_node(dev_info_t *di, char *name)
 		di->di_class = NULL;
 		di->di_dev = 0;
 	}
-#endif
+#else
+	/* When we do not have access to the GPL-only device interfaces we
+	 * are forced to do something crude.  We unlink the special device
+	 * file in /dev/ ourselves from within the kernel.  On the upside we
+	 * are already providing this functionality for Solaris, and it is
+	 * easy to leverage the Solaris API to perform the unlink. */
+	if (strlen(di->di_name) > 0)
+		vn_remove(di->di_name, UIO_SYSSPACE, RMFILE);
+
+#endif /* HAVE_GPL_ONLY_SYMBOLS */
 
 	__ddi_remove_minor_node(di, name);
 }
@@ -254,14 +268,28 @@ ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		di->di_class = NULL;
 		ddi_remove_minor_node(di, name);
 		CERROR("Error creating %s class, %d\n", name, rc);
-		RETURN(DDI_FAILURE);
+		return DDI_FAILURE;
 	}
 
 	/* Do not append a 0 to devices with minor nums of 0 */
 	di->di_device = spl_device_create(di->di_class, NULL, di->di_dev, NULL,
 					  (di->di_minor == 0) ? "%s" : "%s%d",
 					  name, di->di_minor);
-#endif
+#else
+	/* When we do not have access to the GPL-only device interfaces we
+	 * are forced to do something horible.  We use a user mode helper to
+	 * create the special device file in /dev/.  By futher extending the
+	 * Solaris vnode implementation we could potentially do a vn_create()
+	 * from within the kernel but that's still a hack. */
+	if (name) {
+		rc = __mod_mknod(di->di_name, "c", di->di_major, di->di_minor);
+		if (rc) {
+			CERROR("Error mknod %s, %d\n", di->di_name, rc);
+			ddi_remove_minor_node(di, name);
+		}
+	}
+
+#endif /* HAVE_GPL_ONLY_SYMBOLS */
 
 	return rc;
 }

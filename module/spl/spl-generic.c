@@ -53,9 +53,6 @@ EXPORT_SYMBOL(hw_serial);
 int p0 = 0;
 EXPORT_SYMBOL(p0);
 
-vmem_t *zio_alloc_arena = NULL;
-EXPORT_SYMBOL(zio_alloc_arena);
-
 int
 highbit(unsigned long i)
 {

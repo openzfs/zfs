@@ -45,6 +45,7 @@ extern "C" {
 #include <asm/atomic_compat.h>
 #include <sys/types.h>
 #include <sys/debug.h>
+#include <sys/vmsystm.h>
 
 /*
  * Memory allocation interfaces

@@ -60,6 +60,7 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 
 #define CTL_SPL			CTL_UNNUMBERED
 #define CTL_SPL_DEBUG		CTL_UNNUMBERED
+#define CTL_SPL_VM		CTL_UNNUMBERED
 #define CTL_SPL_MUTEX		CTL_UNNUMBERED
 #define CTL_SPL_KMEM		CTL_UNNUMBERED
 #define CTL_SPL_KSTAT		CTL_UNNUMBERED
@@ -85,6 +86,15 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 #define CTL_CONSOLE_MIN_DELAY_CS CTL_UNNUMBERED /* Init delay skip messages */
 #define CTL_CONSOLE_BACKOFF	CTL_UNNUMBERED /* Delay increase factor */
 
+#define CTL_VM_MINFREE		CTL_UNNUMBERED /* Minimum free memory */
+#define CTL_VM_DESFREE		CTL_UNNUMBERED /* Desired free memory */
+#define CTL_VM_LOTSFREE		CTL_UNNUMBERED /* Lots of free memory */
+#define CTL_VM_NEEDFREE		CTL_UNNUMBERED /* Need free memory */
+#define CTL_VM_SWAPFS_MINFREE	CTL_UNNUMBERED /* Minimum swapfs memory */
+#define CTL_VM_SWAPFS_DESFREE	CTL_UNNUMBERED /* Desired swapfs memory */
+#define CTL_VM_SWAPFS_RESERVE	CTL_UNNUMBERED /* Reserved swapfs memory */
+#define CTL_VM_AVAILRMEM	CTL_UNNUMBERED /* Available reserved memory */
+
 #ifdef DEBUG_KMEM
 #define CTL_KMEM_KMEMUSED	CTL_UNNUMBERED /* Alloc'd kmem bytes */
 #define CTL_KMEM_KMEMMAX	CTL_UNNUMBERED /* Max alloc'd by kmem bytes */
@@ -99,44 +109,56 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 
 #else /* HAVE_CTL_UNNUMBERED */
 
-#define CTL_SPL		0x87
-#define CTL_SPL_DEBUG	0x88
-#define CTL_SPL_MUTEX	0x89
-#define CTL_SPL_KMEM	0x90
-#define CTL_SPL_KSTAT	0x91
+enum {
+	CTL_SPL = 0x87,
+	CTL_SPL_DEBUG = 0x88,
+	CTL_SPL_VM = 0x89,
+	CTL_SPL_MUTEX = 0x90,
+	CTL_SPL_KMEM = 0x91,
+	CTL_SPL_KSTAT = 0x92,
+};
 
 enum {
-	CTL_VERSION = 1,          /* Version */
-	CTL_HOSTID,               /* Host id reported by /usr/bin/hostid */
-	CTL_HW_SERIAL,            /* Hardware serial number from hostid */
+	CTL_VERSION = 1,		/* Version */
+	CTL_HOSTID,			/* Host id reported by /usr/bin/hostid */
+	CTL_HW_SERIAL,			/* Hardware serial number from hostid */
 
-	CTL_DEBUG_SUBSYS,         /* Debug subsystem */
-        CTL_DEBUG_MASK,           /* Debug mask */
-        CTL_DEBUG_PRINTK,         /* Force all messages to console */
-        CTL_DEBUG_MB,             /* Debug buffer size */
-        CTL_DEBUG_BINARY,         /* Include binary data in buffer */
-        CTL_DEBUG_CATASTROPHE,    /* Set if we have BUG'd or panic'd */
-        CTL_DEBUG_PANIC_ON_BUG,   /* Set if we should panic on BUG */
-        CTL_DEBUG_PATH,           /* Dump log location */
-        CTL_DEBUG_DUMP,           /* Dump debug buffer to file */
-        CTL_DEBUG_FORCE_BUG,      /* Hook to force a BUG */
-        CTL_DEBUG_STACK_SIZE,     /* Max observed stack size */
+	CTL_DEBUG_SUBSYS,		/* Debug subsystem */
+	CTL_DEBUG_MASK,			/* Debug mask */
+	CTL_DEBUG_PRINTK,		/* Force all messages to console */
+	CTL_DEBUG_MB,			/* Debug buffer size */
+	CTL_DEBUG_BINARY,		/* Include binary data in buffer */
+	CTL_DEBUG_CATASTROPHE,		/* Set if we have BUG'd or panic'd */
+	CTL_DEBUG_PANIC_ON_BUG,		/* Set if we should panic on BUG */
+	CTL_DEBUG_PATH,			/* Dump log location */
+	CTL_DEBUG_DUMP,			/* Dump debug buffer to file */
+	CTL_DEBUG_FORCE_BUG,		/* Hook to force a BUG */
+	CTL_DEBUG_STACK_SIZE,		/* Max observed stack size */
 
-	CTL_CONSOLE_RATELIMIT,    /* Ratelimit console messages */
-        CTL_CONSOLE_MAX_DELAY_CS, /* Max delay at which we skip messages */
-        CTL_CONSOLE_MIN_DELAY_CS, /* Init delay at which we skip messages */
-        CTL_CONSOLE_BACKOFF,      /* Delay increase factor */
+	CTL_CONSOLE_RATELIMIT,		/* Ratelimit console messages */
+	CTL_CONSOLE_MAX_DELAY_CS,	/* Max delay which we skip messages */
+	CTL_CONSOLE_MIN_DELAY_CS,	/* Init delay which we skip messages */
+	CTL_CONSOLE_BACKOFF,		/* Delay increase factor */
+
+	CTL_VM_MINFREE,			/* Minimum free memory threshold */
+	CTL_VM_DESFREE,			/* Desired free memory threshold */
+	CTL_VM_LOTSFREE,		/* Lots of free memory threshold */
+	CTL_VM_NEEDFREE,		/* Need free memory deficit */
+	CTL_VM_SWAPFS_MINFREE,		/* Minimum swapfs memory */
+	CTL_VM_SWAPFS_DESFREE,		/* Desired swapfs memory */
+	CTL_VM_SWAPFS_RESERVE,		/* Reserved swapfs memory */
+	CTL_VM_AVAILRMEM,		/* Available reserved memory */
 
 #ifdef DEBUG_KMEM
-        CTL_KMEM_KMEMUSED,        /* Alloc'd kmem bytes */
-        CTL_KMEM_KMEMMAX,         /* Max alloc'd by kmem bytes */
-        CTL_KMEM_VMEMUSED,        /* Alloc'd vmem bytes */
-        CTL_KMEM_VMEMMAX,         /* Max alloc'd by vmem bytes */
+	CTL_KMEM_KMEMUSED,		/* Alloc'd kmem bytes */
+	CTL_KMEM_KMEMMAX,		/* Max alloc'd by kmem bytes */
+	CTL_KMEM_VMEMUSED,		/* Alloc'd vmem bytes */
+	CTL_KMEM_VMEMMAX,		/* Max alloc'd by vmem bytes */
 #endif
 
-	CTL_MUTEX_STATS,          /* Global mutex statistics */
-	CTL_MUTEX_STATS_PER,      /* Per mutex statistics */
-	CTL_MUTEX_SPIN_MAX,       /* Maximum mutex spin iterations */
+	CTL_MUTEX_STATS,		/* Global mutex statistics */
+	CTL_MUTEX_STATS_PER,		/* Per mutex statistics */
+	CTL_MUTEX_SPIN_MAX,		/* Maximum mutex spin iterations */
 };
 #endif /* HAVE_CTL_UNNUMBERED */
 
@@ -769,6 +791,74 @@ static struct ctl_table spl_debug_table[] = {
 	{0},
 };
 
+static struct ctl_table spl_vm_table[] = {
+        {
+                .ctl_name = CTL_VM_MINFREE,
+                .procname = "minfree",
+                .data     = &minfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_DESFREE,
+                .procname = "desfree",
+                .data     = &desfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_LOTSFREE,
+                .procname = "lotsfree",
+                .data     = &lotsfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_NEEDFREE,
+                .procname = "needfree",
+                .data     = &needfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0444,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_SWAPFS_MINFREE,
+                .procname = "swapfs_minfree",
+                .data     = &swapfs_minfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_SWAPFS_DESFREE,
+                .procname = "swapfs_desfree",
+                .data     = &swapfs_desfree,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_SWAPFS_RESERVE,
+                .procname = "swapfs_reserve",
+                .data     = &swapfs_reserve,
+                .maxlen   = sizeof(int),
+                .mode     = 0644,
+                .proc_handler = &proc_dointvec,
+        },
+        {
+                .ctl_name = CTL_VM_AVAILRMEM,
+                .procname = "availrmem",
+                .data     = &availrmem,
+                .maxlen   = sizeof(int),
+                .mode     = 0444,
+                .proc_handler = &proc_dointvec,
+        },
+	{0},
+};
+
 #ifdef DEBUG_MUTEX
 static struct ctl_table spl_mutex_table[] = {
         {
@@ -872,6 +962,12 @@ static struct ctl_table spl_table[] = {
 		.procname = "debug",
 		.mode     = 0555,
 		.child    = spl_debug_table,
+	},
+	{
+		.ctl_name = CTL_SPL_VM,
+		.procname = "vm",
+		.mode     = 0555,
+		.child    = spl_vm_table,
 	},
 #ifdef DEBUG_MUTEX
 	{
