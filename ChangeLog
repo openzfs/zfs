@@ -1,4 +1,17 @@
-2009-1-21 Brian Behlendorf <behlendorf1@llnl.gov>
+2009-02-05 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.2
+
+	* lib/libzfs/libzfs_util.c: Remove mknod() this is now handled by
+	by the SPL with an upcall even without GPL-only symbols.
+
+	* module/zfs/vdev_diskc: Updated linux vdev_disk interfaces to issue
+	multiple bios if needed due to the maximum request size being smaller
+	than the request size passed down from the spa.
+
+	* scripts/zpool-config/lo-*: Add loopback based test configs.
+
+2009-01-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.1
 
