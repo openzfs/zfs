@@ -1,3 +1,27 @@
+2009-02-05 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.2
+
+	* module/spl/spl-kmem.c include/sys/kmem.h: Slab cache improvements:
+	  - Implement kmem cache alignment.
+	  - Implement slab ageing.
+	  - Optimized slab packing algorithm.
+	  - Fixed deadlock due to calling call kv_free() under the skc_lock.
+	  - Added additional SPLAT test cases
+	  - Performance optimizations
+
+	* module/spl/spl-kmem.c include/sys/kmem.h: Linux VM integration.
+	The Solaris global VM symbols minfree, desfree, lotsfree, needfree,
+	swapfs_minfree, swapfs_reserve, availrmem, freemem, and physmem are
+	now available and loosely integrating with the Linux VM.  Some
+	tuning will undoubtably be needed and these tunables are available
+	in /proc/sys/kernel/spl/vm/* for this very reason.
+
+	* config/spl-build.m4: New configure checks needed when building
+	against 2.6.27+ kernels.  More work is needed here.
+
+	* : Minor cleanup see the 'git log' for full details.
+
 2009-01-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.1
