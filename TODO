@@ -1,16 +1,5 @@
 SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
 
-- SPLError: 10167:1968:(spl-kmem.c:1286:spl_kmem_cache_reap_now())
-  ASSERTION(skc->skc_magic == SKC_MAGIC) failed
-
-  The above assertion is overserved when perform more IO than can be fully
-  cached by the ARC.  The Linux VM applies back pressure to the slab which
-  in turn detect what appears to be memory corruption.  I've seen a few
-  flavors of this so far, so I'm not yet convinced this is actually an
-  issue with the SPL slab.  It may just be the most common victim, more
-  investigation is needed.  It is also possible the new untested vdev_disk.c
-  is to blame.  A lot of work is needed here.
-
 - 2009-01-26 16:23:00 SPLError: 7884:1360:(dnode.c:146:dnode_verify())
   VERIFY3(dn->dn_nblkptr >= 1) failed (0 >= 1)
 
@@ -20,3 +9,29 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
   disabled until it could be explained.  Well it has not just gone
   always with the update to b105 so we need to run it to ground and 
   explain what is going on.
+
+- Implement FLUSH support probably in terms of a barrier as part of
+  the vdev_disk.c interface.  Required for correctness.
+
+- Implement something similar to the Solaris devid support to ensure
+  ZFS properly locates your disks even when moved.  The current port
+  is dependant on using something like udev to ensure this can never
+  happen but this is not a viable long term solution.
+
+- Implement something like Solaris's sysevent support to detect when
+  drives appear or are removed.  There is no easy analog to my knowledge
+  for linux and we will need to come up with something.
+
+- Integrate Ricardo XDR support for on disk encoding.  This mainly
+  just needs a good review and to be updated against this code tree.
+
+- Ztest failures have been observed after 8+ hours of runtime.  This
+  needs to be investigated and resolved.
+
+- Get the ZVOL working as a vehicle for further stress testing under
+  Linux, and to provide one useful user space interface for access to
+  the DMU.
+
+- Get the ZPL working minimal support will be needed for lustre.
+
+- If Richardo is willing integrate his FUSE port in to this code base.
