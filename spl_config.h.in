@@ -51,6 +51,9 @@
 /* fls64() is available */
 #undef HAVE_FLS64
 
+/* get_zone_counts() is available */
+#undef HAVE_GET_ZONE_COUNTS
+
 /* init_utsname() is available */
 #undef HAVE_INIT_UTSNAME
 

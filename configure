@@ -20598,6 +20598,45 @@ _ACEOF
 
 
 
+	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
+echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+	fi
+
+
+
 TOPDIR=`/bin/pwd`
 
 # Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build

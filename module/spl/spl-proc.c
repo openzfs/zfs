@@ -91,9 +91,10 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 #define CTL_VM_LOTSFREE		CTL_UNNUMBERED /* Lots of free memory */
 #define CTL_VM_NEEDFREE		CTL_UNNUMBERED /* Need free memory */
 #define CTL_VM_SWAPFS_MINFREE	CTL_UNNUMBERED /* Minimum swapfs memory */
-#define CTL_VM_SWAPFS_DESFREE	CTL_UNNUMBERED /* Desired swapfs memory */
 #define CTL_VM_SWAPFS_RESERVE	CTL_UNNUMBERED /* Reserved swapfs memory */
-#define CTL_VM_AVAILRMEM	CTL_UNNUMBERED /* Available reserved memory */
+#define CTL_VM_AVAILRMEM	CTL_UNNUMBERED /* Easily available memory */
+#define CTL_VM_FREEMEM		CTL_UNNUMBERED /* Free memory */
+#define CTL_VM_PHYSMEM		CTL_UNNUMBERED /* Total physical memory */
 
 #ifdef DEBUG_KMEM
 #define CTL_KMEM_KMEMUSED	CTL_UNNUMBERED /* Alloc'd kmem bytes */
@@ -145,9 +146,10 @@ enum {
 	CTL_VM_LOTSFREE,		/* Lots of free memory threshold */
 	CTL_VM_NEEDFREE,		/* Need free memory deficit */
 	CTL_VM_SWAPFS_MINFREE,		/* Minimum swapfs memory */
-	CTL_VM_SWAPFS_DESFREE,		/* Desired swapfs memory */
 	CTL_VM_SWAPFS_RESERVE,		/* Reserved swapfs memory */
-	CTL_VM_AVAILRMEM,		/* Available reserved memory */
+	CTL_VM_AVAILRMEM,		/* Easily available memory */
+	CTL_VM_FREEMEM,			/* Free memory */
+	CTL_VM_PHYSMEM,			/* Total physical memory */
 
 #ifdef DEBUG_KMEM
 	CTL_KMEM_KMEMUSED,		/* Alloc'd kmem bytes */
@@ -481,6 +483,58 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
                         *lenp = rc;
                         *ppos += rc;
                 }
+        }
+
+        RETURN(rc);
+}
+
+static int
+proc_doavailrmem(struct ctl_table *table, int write, struct file *filp,
+                 void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+        int len, rc = 0;
+	char str[32];
+	ENTRY;
+
+        if (write) {
+                *ppos += *lenp;
+        } else {
+		len = snprintf(str, sizeof(str), "%lu", (unsigned long)availrmem);
+		if (*ppos >= len)
+			rc = 0;
+		else
+			rc = proc_copyout_string(buffer, *lenp, str + *ppos, "\n");
+
+		if (rc >= 0) {
+			*lenp = rc;
+			*ppos += rc;
+		}
+        }
+
+        RETURN(rc);
+}
+
+static int
+proc_dofreemem(struct ctl_table *table, int write, struct file *filp,
+               void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+        int len, rc = 0;
+	char str[32];
+	ENTRY;
+
+        if (write) {
+                *ppos += *lenp;
+        } else {
+		len = snprintf(str, sizeof(str), "%lu", (unsigned long)freemem);
+		if (*ppos >= len)
+			rc = 0;
+		else
+			rc = proc_copyout_string(buffer, *lenp, str + *ppos, "\n");
+
+		if (rc >= 0) {
+			*lenp = rc;
+			*ppos += rc;
+		}
         }
 
         RETURN(rc);
@@ -833,14 +887,6 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_SWAPFS_DESFREE,
-                .procname = "swapfs_desfree",
-                .data     = &swapfs_desfree,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-        {
                 .ctl_name = CTL_VM_SWAPFS_RESERVE,
                 .procname = "swapfs_reserve",
                 .data     = &swapfs_reserve,
@@ -851,7 +897,21 @@ static struct ctl_table spl_vm_table[] = {
         {
                 .ctl_name = CTL_VM_AVAILRMEM,
                 .procname = "availrmem",
-                .data     = &availrmem,
+                .mode     = 0444,
+                .proc_handler = &proc_doavailrmem,
+        },
+        {
+                .ctl_name = CTL_VM_FREEMEM,
+                .procname = "freemem",
+                .data     = (void *)2,
+                .maxlen   = sizeof(int),
+                .mode     = 0444,
+                .proc_handler = &proc_dofreemem,
+        },
+        {
+                .ctl_name = CTL_VM_PHYSMEM,
+                .procname = "physmem",
+                .data     = &physmem,
                 .maxlen   = sizeof(int),
                 .mode     = 0444,
                 .proc_handler = &proc_dointvec,

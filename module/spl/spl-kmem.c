@@ -64,17 +64,11 @@ EXPORT_SYMBOL(lotsfree);
 pgcnt_t needfree = 0;
 EXPORT_SYMBOL(needfree);
 
-pgcnt_t swapfs_desfree = 0;
-EXPORT_SYMBOL(swapfs_desfree);
-
 pgcnt_t swapfs_minfree = 0;
 EXPORT_SYMBOL(swapfs_minfree);
 
 pgcnt_t swapfs_reserve = 0;
 EXPORT_SYMBOL(swapfs_reserve);
-
-pgcnt_t availrmem = 0;
-EXPORT_SYMBOL(availrmem);
 
 vmem_t *heap_arena = NULL;
 EXPORT_SYMBOL(heap_arena);
@@ -86,14 +80,17 @@ vmem_t *zio_arena = NULL;
 EXPORT_SYMBOL(zio_arena);
 
 #ifndef HAVE_FIRST_ONLINE_PGDAT
-struct pglist_data *first_online_pgdat(void)
+struct pglist_data *
+first_online_pgdat(void)
 {
 	return NODE_DATA(first_online_node);
 }
+EXPORT_SYMBOL(first_online_pgdat);
 #endif /* HAVE_FIRST_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ONLINE_PGDAT
-struct pglist_data *next_online_pgdat(struct pglist_data *pgdat)
+struct pglist_data *
+next_online_pgdat(struct pglist_data *pgdat)
 {
 	int nid = next_online_node(pgdat->node_id);
 
@@ -102,10 +99,12 @@ struct pglist_data *next_online_pgdat(struct pglist_data *pgdat)
 
 	return NODE_DATA(nid);
 }
+EXPORT_SYMBOL(next_online_pgdat);
 #endif /* HAVE_NEXT_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ZONE
-struct zone *next_zone(struct zone *zone)
+struct zone *
+next_zone(struct zone *zone)
 {
 	pg_data_t *pgdat = zone->zone_pgdat;
 
@@ -120,7 +119,72 @@ struct zone *next_zone(struct zone *zone)
 	}
 	return zone;
 }
+EXPORT_SYMBOL(next_zone);
 #endif /* HAVE_NEXT_ZONE */
+
+#ifndef HAVE_GET_ZONE_COUNTS
+void
+__get_zone_counts(unsigned long *active, unsigned long *inactive,
+                  unsigned long *free, struct pglist_data *pgdat)
+{
+	struct zone *zones = pgdat->node_zones;
+	int i;
+
+	*active = 0;
+	*inactive = 0;
+	*free = 0;
+	for (i = 0; i < MAX_NR_ZONES; i++) {
+		*active += zones[i].nr_active;
+		*inactive += zones[i].nr_inactive;
+		*free += zones[i].free_pages;
+	}
+}
+
+void
+get_zone_counts(unsigned long *active, unsigned long *inactive,
+                unsigned long *free)
+{
+	struct pglist_data *pgdat;
+
+	*active = 0;
+	*inactive = 0;
+	*free = 0;
+	for_each_online_pgdat(pgdat) {
+		unsigned long l, m, n;
+		__get_zone_counts(&l, &m, &n, pgdat);
+		*active += l;
+		*inactive += m;
+		*free += n;
+	}
+}
+EXPORT_SYMBOL(get_zone_counts);
+#endif /* HAVE_GET_ZONE_COUNTS */
+
+pgcnt_t
+spl_kmem_availrmem(void)
+{
+	unsigned long active;
+	unsigned long inactive;
+	unsigned long free;
+
+	get_zone_counts(&active, &inactive, &free);
+
+	/* The amount of easily available memory */
+	return free + inactive;
+}
+EXPORT_SYMBOL(spl_kmem_availrmem);
+
+size_t
+vmem_size(vmem_t *vmp, int typemask)
+{
+	/* Arena's unsupported */
+	ASSERT(vmp == NULL);
+	ASSERT(typemask & (VMEM_ALLOC | VMEM_FREE));
+
+	return 0;
+}
+EXPORT_SYMBOL(vmem_size);
+
 
 /*
  * Memory allocation interfaces and debugging for basic kmem_*
@@ -1707,6 +1771,10 @@ spl_kmem_init_globals(void)
 		desfree += zone->pages_low;
 		lotsfree += zone->pages_high;
 	}
+
+	/* Solaris default values */
+	swapfs_minfree = MAX(2*1024*1024 / PAGE_SIZE, physmem / 8);
+	swapfs_reserve = MIN(4*1024*1024 / PAGE_SIZE, physmem / 16);
 }
 
 int

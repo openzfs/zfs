@@ -45,15 +45,14 @@
 
 #define physmem				num_physpages
 #define freemem				nr_free_pages()
+#define availrmem			spl_kmem_availrmem()
 
 extern pgcnt_t minfree;			/* Sum of zone->pages_min */
 extern pgcnt_t desfree;			/* Sum of zone->pages_low */
 extern pgcnt_t lotsfree;		/* Sum of zone->pages_high */
-extern pgcnt_t needfree;		/* Always 0 */
-extern pgcnt_t swapfs_minfree;
-extern pgcnt_t swapfs_desfree;
-extern pgcnt_t swapfs_reserve;
-extern pgcnt_t availrmem;
+extern pgcnt_t needfree;		/* Always 0 unused in new Solaris */
+extern pgcnt_t swapfs_minfree;		/* Solaris default value */
+extern pgcnt_t swapfs_reserve;		/* Solaris default value */
 
 extern vmem_t *heap_arena;		/* primary kernel heap arena */
 extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
@@ -62,15 +61,8 @@ extern vmem_t *zio_arena;		/* arena for allocating zio memory */
 #define VMEM_ALLOC			0x01
 #define VMEM_FREE			0x02
 
-static __inline__ size_t
-vmem_size(vmem_t *vmp, int typemask)
-{
-	/* Arena's unsupported */
-	ASSERT(vmp == NULL);
-	ASSERT(typemask & (VMEM_ALLOC | VMEM_FREE));
-
-	return 0;
-}
+extern pgcnt_t spl_kmem_availrmem(void);
+extern size_t vmem_size(vmem_t *vmp, int typemask);
 
 #define xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define xcopyout(from, to, size)	copy_to_user(to, from, size)
