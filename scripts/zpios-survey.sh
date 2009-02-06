@@ -26,10 +26,11 @@ EOF
 }
 
 print_header() {
-	echo
-	echo "================================================================"
-	echo "Test: $1"
-	echo
+tee -a ${ZPIOS_SURVEY_LOG} << EOF
+
+================================================================
+Test: $1
+EOF
 }
 
 # Baseline performance for an out of the box config with no manual tuning.
