@@ -1,83 +1,115 @@
 #!/bin/bash
+#
+# Wrapper script for easily running a survey of zpios based tests
+#
 
-prog=survey.sh
-. ../.script-config
+. ./common.sh
+PROG=zpios-survey.sh
 
-LOG=/home/`whoami`/zpios-logs/`uname -r`/zpios-`date +%Y%m%d`/
-mkdir -p ${LOG}
+usage() {
+cat << EOF
+USAGE:
+$0 [hvp] <-c config> <-t test>
 
-# Apply all tunings described below to generate some best case
-# numbers for what is acheivable with some more elbow grease.
-NAME="prefetch+zerocopy+checksum+pending1024+kmem"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	"zfs_prefetch_disable=1 zfs_vdev_max_pending=1024 zio_bulk_flags=0x100" \
-        "--zerocopy"                                                 \
-	${LOG}/${NAME}/                                              \
-        "${CMDDIR}/zfs/zfs set checksum=off lustre" |       \
-	tee ${LOG}/${NAME}.txt
+DESCRIPTION:
+        Helper script for easy zpios survey benchmarking.
 
-# Baseline number for an out of the box config with no manual tuning.
-# Ideally, we will want things to be automatically tuned and for this
-# number to approach the tweaked out results above.
-NAME="baseline"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	""                                                           \
-        ""                                                           \
-	${LOG}/${NAME}/ |                                            \
-	tee ${LOG}/${NAME}.txt
+OPTIONS:
+        -h      Show this message
+        -v      Verbose
+        -p      Enable profiling
+        -c     	Zpool configuration
+        -t      Zpios test
+	-l	Zpios survey log
+
+EOF
+}
+
+print_header() {
+	echo
+	echo "================================================================"
+	echo "Test: $1"
+	echo
+}
+
+# Baseline performance for an out of the box config with no manual tuning.
+# Ideally, we want everything to be automatically tuned for your system and
+# for this to perform reasonably well.
+zpios_survey_base() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+baseline"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
 
 # Disable ZFS's prefetching.  For some reason still not clear to me
 # current prefetching policy is quite bad for a random workload.
-# Allow the algorithm to detect a random workload and not do anything
-# may be the way to address this issue.
-NAME="prefetch"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	"zfs_prefetch_disable=1"                                     \
-        ""                                                           \
-	${LOG}/${NAME}/ |                                            \
-	tee ${LOG}/${NAME}.txt
+# Allowint the algorithm to detect a random workload and not do 
+# anything may be the way to address this issue.
+zpios_survey_prefetch() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+prefetch"
+	print_header ${TEST_NAME}
 
-# As expected, simulating a zerocopy IO path improves performance
-# by freeing up lots of CPU which is wasted move data between buffers.
-NAME="zerocopy"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	""                                                           \
-        "--zerocopy"                                                 \
-	${LOG}/${NAME}/ |                                            \
-	tee ${LOG}/${NAME}.txt
+	./zfs.sh ${VERBOSE_FLAG}               \
+		zfs="zfs_prefetch_disable=1" | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
+
+# Simulating a zerocopy IO path should improve performance by freeing up
+# lots of CPU which is wasted move data between buffers.
+zpios_survey_zerocopy() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+zerocopy"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+		-o "--zerocopy" |                                      \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
 
 # Disabling checksumming should show some (if small) improvement
 # simply due to freeing up a modest amount of CPU.
-NAME="checksum"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	""                                                           \
-        ""                                                           \
-	${LOG}/${NAME}/                                              \
-        "${CMDDIR}/zfs/zfs set checksum=off lustre" |       \
-	tee ${LOG}/${NAME}.txt
+zpios_survey_checksum() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+checksum"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+		-s "set checksum=off" |                                \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
 
 # Increasing the pending IO depth also seems to improve things likely
-# at the expense of latency.  This should be exported more because I'm
+# at the expense of latency.  This should be explored more because I'm
 # seeing a much bigger impact there that I would have expected.  There
 # may be some low hanging fruit to be found here.
-NAME="pending"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	"zfs_vdev_max_pending=1024"                                  \
-        ""                                                           \
-	${LOG}/${NAME}/ |                                            \
-	tee ${LOG}/${NAME}.txt
+zpios_survey_pending() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+pending"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG}                  \
+		zfs="zfs_vdev_max_pending=1024" | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
 
 # To avoid memory fragmentation issues our slab implementation can be
 # based on a virtual address space.  Interestingly, we take a pretty
@@ -92,11 +124,84 @@ echo "----------------------- ${NAME} ------------------------------"
 #
 # 0x100 = KMC_KMEM - Force kmem_* based slab
 # 0x200 = KMC_VMEM - Force vmem_* based slab
-NAME="kmem"
-echo "----------------------- ${NAME} ------------------------------"
-./zpios.sh                                                           \
-	""                                                           \
-	"zio_bulk_flags=0x100"                                       \
-        ""                                                           \
-	${LOG}/${NAME}/ |                                            \
-	tee ${LOG}/${NAME}.txt
+zpios_survey_kmem() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+kmem"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG}             \  
+		zfs="zio_bulk_flags=0x100" | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
+
+# Apply all possible turning concurrently to get a best case number
+zpios_survey_all() {
+	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+all"
+	print_header ${TEST_NAME}
+
+	./zfs.sh ${VERBOSE_FLAG}                \  
+		zfs="zfs_prefetch_disable=1"    \
+		zfs="zfs_vdev_max_pending=1024" \
+		zfs="zio_bulk_flags=0x100" |    \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+		-o "--zerocopy"                                        \
+		-s "set checksum=off" |                                \
+		tee -a ${ZPIOS_SURVEY_LOG}
+	./zfs.sh -u ${VERBOSE_FLAG} | \
+		tee -a ${ZPIOS_SURVEY_LOG}
+}
+
+
+PROFILE=
+ZPOOL_NAME=zpios-survey
+ZPOOL_CONFIG=zpool-config.sh
+ZPIOS_TEST=zpios-test.sh
+ZPIOS_SURVEY_LOG=/dev/null
+
+while getopts 'hvpc:t:l:' OPTION; do
+	case $OPTION in
+	h)
+		usage
+		exit 1
+		;;
+	v)
+		VERBOSE=1
+		VERBOSE_FLAG="-v"
+		;;
+	p)
+		PROFILE=1
+		PROFILE_FLAG="-p"
+		;;
+	c)
+		ZPOOL_CONFIG=${OPTARG}
+		;;
+	t)
+		ZPIOS_TEST=${OPTARG}
+		;;
+	l)
+		ZPIOS_SURVEY_LOG=${OPTARG}
+		;;
+	?)
+		usage
+		exit
+		;;
+	esac
+done
+
+if [ $(id -u) != 0 ]; then
+        die "Must run as root"
+fi
+
+zpios_survey_base
+zpios_survey_prefetch
+zpios_survey_zerocopy
+zpios_survey_checksum
+zpios_survey_pending
+zpios_survey_kmem
+zpios_survey_all
+
+exit 0
