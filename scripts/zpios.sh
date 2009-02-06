@@ -26,8 +26,11 @@ OPTIONS:
         -h      Show this message
         -v      Verbose
         -p      Enable profiling
-        -c     	Zpool configuration
+        -c      Zpool configuration
         -t      Zpios test
+        -o      Additional zpios options
+        -l      Additional zpool options
+        -s      Additional zfs options
 
 EOF
 }
@@ -115,8 +118,11 @@ PROFILE=
 ZPOOL_CONFIG=zpool-config.sh
 ZPIOS_TEST=zpios-test.sh
 ZPOOL_NAME=zpios
+ZPIOS_OPTIONS=
+ZPOOL_OPTIONS=""
+ZFS_OPTIONS=""
 
-while getopts 'hvpc:t:' OPTION; do
+while getopts 'hvpc:t:o:l:s:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -134,6 +140,15 @@ while getopts 'hvpc:t:' OPTION; do
 		;;
 	t)
 		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.sh
+		;;
+	o)
+		ZPIOS_OPTIONS=${OPTARG}
+		;;
+	l)	# Passed through to zpool-create.sh 
+		ZPOOL_OPTIONS=${OPTARG}
+		;;
+	s)	# Passed through to zpool-create.sh
+		ZFS_OPTIONS=${OPTARG}
 		;;
 	?)
 		usage
@@ -170,7 +185,8 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Create the zpool configuration
-./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} || exit 1
+./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
+	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || exit 1
 
 if [ $PROFILE ]; then
 	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOG}"
