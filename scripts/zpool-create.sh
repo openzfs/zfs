@@ -16,7 +16,9 @@ OPTIONS:
         -v      Verbose
         -c      Configuration for zpool
         -p      Name for zpool
-	-d      Destroy zpool (default create)
+        -d      Destroy zpool (default create)
+        -l      Additional zpool options
+        -s      Additional zfs options
 
 EOF
 }
@@ -41,8 +43,10 @@ check_config() {
 ZPOOL_CONFIG=zpool_config.sh
 ZPOOL_NAME=tank
 ZPOOL_DESTROY=
+ZPOOL_OPTIONS=""
+ZFS_OPTIONS=""
 
-while getopts 'hvc:p:d' OPTION; do
+while getopts 'hvc:p:dl:s:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -60,9 +64,15 @@ while getopts 'hvc:p:d' OPTION; do
 	d)
 		ZPOOL_DESTROY=1
 		;;
+	l)
+		ZPOOL_OPTIONS=${OPTARG}
+		;;
+	s)
+		ZFS_OPTIONS=${OPTARG}
+		;;
 	?)
 		usage
-		exit
+		exit 1
 		;;
 	esac
 done
@@ -78,6 +88,22 @@ if [ ${ZPOOL_DESTROY} ]; then
 	zpool_destroy
 else
 	zpool_create
+
+	if [ "${ZPOOL_OPTIONS}" ]; then
+		if [ ${VERBOSE} ]; then
+			echo
+			echo "${CMDDIR}/zpool/zpool ${ZPOOL_OPTIONS} ${ZPOOL_NAME}"
+		fi
+		${CMDDIR}/zpool/zpool ${ZPOOL_OPTIONS} ${ZPOOL_NAME} || exit 1
+	fi
+
+	if [ "${ZFS_OPTIONS}" ]; then
+		if [ ${VERBOSE} ]; then
+			echo
+			echo "${CMDDIR}/zfs/zfs ${ZFS_OPTIONS} ${ZPOOL_NAME}"
+		fi
+		${CMDDIR}/zfs/zfs ${ZFS_OPTIONS} ${ZPOOL_NAME} || exit 1
+	fi
 
 	if [ ${VERBOSE} ]; then
 		echo
