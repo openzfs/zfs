@@ -61,7 +61,12 @@ extern "C" {
 #define MAXMSGLEN			256
 #define MAXNAMELEN                      256
 #define MAXPATHLEN                      PATH_MAX
+
+#ifdef _LP64
 #define MAXOFFSET_T			0x7fffffffffffffffl
+#else
+#define MAXOFFSET_T			0x7fffffffl
+#endif
 
 #define MAXBSIZE			8192
 #define DEV_BSIZE			512
