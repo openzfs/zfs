@@ -856,16 +856,19 @@ spl_slab_free(spl_kmem_slab_t *sks,
 /*
  * Traverses all the partial slabs attached to a cache and free those
  * which which are currently empty, and have not been touched for
- * skc_delay seconds.  This is to avoid thrashing.
+ * skc_delay seconds to  avoid thrashing.  The count argument is
+ * passed to optionally cap the number of slabs reclaimed, a count
+ * of zero means try and reclaim everything.  When flag is set we
+ * always free an available slab regardless of age.
  */
 static void
-spl_slab_reclaim(spl_kmem_cache_t *skc, int flag)
+spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 {
 	spl_kmem_slab_t *sks, *m;
 	spl_kmem_obj_t *sko, *n;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
-	int size;
+	int size, i = 0;
 	ENTRY;
 
 	/*
@@ -878,11 +881,18 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int flag)
 	spin_lock(&skc->skc_lock);
         list_for_each_entry_safe_reverse(sks, m, &skc->skc_partial_list,
 					 sks_list) {
-		if (sks->sks_ref > 0)
-		       break;
+		/* Release at most count slabs */
+		if (count && i > count)
+			break;
 
-		if (flag || time_after(jiffies,sks->sks_age+skc->skc_delay*HZ))
+		/* Skip active slabs */
+		if (sks->sks_ref > 0)
+			continue;
+
+		if (time_after(jiffies,sks->sks_age+skc->skc_delay*HZ)||flag) {
 			spl_slab_free(sks, &sks_list, &sko_list);
+			i++;
+		}
 	}
 	spin_unlock(&skc->skc_lock);
 
@@ -896,12 +906,18 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int flag)
 		size = P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) +
 		       P2ROUNDUP(sizeof(spl_kmem_obj_t), skc->skc_obj_align);
 
-		list_for_each_entry_safe(sko, n, &sko_list, sko_list)
+		/* To avoid soft lockups conditionally reschedule */
+		list_for_each_entry_safe(sko, n, &sko_list, sko_list) {
 			kv_free(skc, sko->sko_addr, size);
+			cond_resched();
+		}
 	}
 
-	list_for_each_entry_safe(sks, m, &sks_list, sks_list)
+	/* To avoid soft lockups conditionally reschedule */
+	list_for_each_entry_safe(sks, m, &sks_list, sks_list) {
 		kv_free(skc, sks, skc->skc_slab_size);
+		cond_resched();
+	}
 
 	EXIT;
 }
@@ -937,11 +953,11 @@ spl_cache_age(void *data)
 		spl_get_work_data(data, spl_kmem_cache_t, skc_work.work);
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	spl_on_each_cpu(spl_magazine_age, skc, 1);
-	spl_slab_reclaim(skc, 0);
+	spl_slab_reclaim(skc, skc->skc_reap, 0);
+	spl_on_each_cpu(spl_magazine_age, skc, 0);
 
 	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
-		schedule_delayed_work(&skc->skc_work, 2 * skc->skc_delay * HZ);
+		schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
 }
 
 /*
@@ -1057,39 +1073,29 @@ spl_magazine_free(spl_kmem_magazine_t *skm)
 	EXIT;
 }
 
-static void
-__spl_magazine_create(void *data)
-{
-        spl_kmem_cache_t *skc = data;
-	int id = smp_processor_id();
-
-	skc->skc_mag[id] = spl_magazine_alloc(skc, cpu_to_node(id));
-	ASSERT(skc->skc_mag[id]);
-}
-
 /*
  * Create all pre-cpu magazines of reasonable sizes.
  */
 static int
 spl_magazine_create(spl_kmem_cache_t *skc)
 {
+	int i;
 	ENTRY;
 
 	skc->skc_mag_size = spl_magazine_size(skc);
 	skc->skc_mag_refill = (skc->skc_mag_size + 1) / 2;
-	spl_on_each_cpu(__spl_magazine_create, skc, 1);
+
+	for_each_online_cpu(i) {
+		skc->skc_mag[i] = spl_magazine_alloc(skc, cpu_to_node(i));
+		if (!skc->skc_mag[i]) {
+			for (i--; i >= 0; i--)
+				spl_magazine_free(skc->skc_mag[i]);
+
+			RETURN(-ENOMEM);
+		}
+	}
 
 	RETURN(0);
-}
-
-static void
-__spl_magazine_destroy(void *data)
-{
-        spl_kmem_cache_t *skc = data;
-	spl_kmem_magazine_t *skm = skc->skc_mag[smp_processor_id()];
-
-	(void)spl_cache_flush(skc, skm, skm->skm_avail);
-	spl_magazine_free(skm);
 }
 
 /*
@@ -1098,8 +1104,16 @@ __spl_magazine_destroy(void *data)
 static void
 spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
+	spl_kmem_magazine_t *skm;
+	int i;
 	ENTRY;
-	spl_on_each_cpu(__spl_magazine_destroy, skc, 1);
+
+        for_each_online_cpu(i) {
+		skm = skc->skc_mag[i];
+		(void)spl_cache_flush(skc, skm, skm->skm_avail);
+		spl_magazine_free(skm);
+        }
+
 	EXIT;
 }
 
@@ -1168,6 +1182,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_size = size;
 	skc->skc_obj_align = SPL_KMEM_CACHE_ALIGN;
 	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
+	skc->skc_reap = SPL_KMEM_CACHE_REAP;
 	atomic_set(&skc->skc_ref, 0);
 
 	INIT_LIST_HEAD(&skc->skc_list);
@@ -1209,7 +1224,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		GOTO(out, rc);
 
 	spl_init_delayed_work(&skc->skc_work, spl_cache_age, skc);
-	schedule_delayed_work(&skc->skc_work, 2 * skc->skc_delay * HZ);
+	schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
 
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
@@ -1249,7 +1264,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	wait_event(wq, atomic_read(&skc->skc_ref) == 0);
 
 	spl_magazine_destroy(skc);
-	spl_slab_reclaim(skc, 1);
+	spl_slab_reclaim(skc, 0, 1);
 	spin_lock(&skc->skc_lock);
 
 	/* Validate there are no objects in use and free all the
@@ -1654,7 +1669,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 	if (skc->skc_reclaim)
 		skc->skc_reclaim(skc->skc_private);
 
-	spl_slab_reclaim(skc, 0);
+	spl_slab_reclaim(skc, skc->skc_reap, 0);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
 	atomic_dec(&skc->skc_ref);
 

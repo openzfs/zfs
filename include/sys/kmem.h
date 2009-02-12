@@ -239,7 +239,8 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define SKS_MAGIC			0x22222222
 #define SKC_MAGIC			0x2c2c2c2c
 
-#define SPL_KMEM_CACHE_DELAY		5	/* Minimum slab release age */
+#define SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
+#define SPL_KMEM_CACHE_REAP		0	/* Default reap everything */
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB	32	/* Target objects per slab */
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	8	/* Minimum objects per slab */
 #define SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
@@ -292,6 +293,7 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_slab_objs;	/* Objects per slab */
 	uint32_t		skc_slab_size;	/* Slab size */
 	uint32_t		skc_delay;	/* Slab reclaim interval */
+	uint32_t		skc_reap;	/* Slab reclaim count */
 	atomic_t		skc_ref;	/* Ref count callers */
 	struct delayed_work	skc_work;	/* Slab reclaim work */
         struct work_struct work;
