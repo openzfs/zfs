@@ -79,7 +79,7 @@ TOPDIR=`/bin/pwd`
 # Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
 KERNELMAKE_PARAMS=
 KERNELCPPFLAGS="${KERNELCPPFLAGS} -I$TOPDIR -I$TOPDIR/include"
-KERNELCPPFLAGS="${KERNELCPPFLAGS} -Wstrict-prototypes -Werror -Wshadow"
+KERNELCPPFLAGS="${KERNELCPPFLAGS} -Wstrict-prototypes -Werror"
 
 if test "${LINUX_OBJ}" != "${LINUX}"; then
 	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
