@@ -1,5 +1,4 @@
-DEFAULT_INCLUDES = -I. -I..
-AM_CFLAGS = -g -O2 -W -Wall -Wstrict-prototypes -Wshadow
+include $(top_srcdir)/config/Rules.am
 
 noinst_LTLIBRARIES = libcommon.la
 libcommon_la_SOURCES = list.c

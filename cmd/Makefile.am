@@ -1,5 +1,7 @@
-DEFAULT_INCLUDES = -I. -I.. -I../lib
-AM_CFLAGS = -g -O2 -W -Wall -Wstrict-prototypes -Wshadow -D__USE_LARGEFILE64
+include $(top_srcdir)/config/Rules.am
+
+DEFAULT_INCLUDES += \
+	-I${top_srcdir}/lib
 
 sbin_PROGRAMS = spl splat
 

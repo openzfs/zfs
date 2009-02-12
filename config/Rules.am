@@ -1,0 +1,4 @@
+DEFAULT_INCLUDES = -I${top_srcdir}
+
+AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror -Wshadow
+AM_CFLAGS += -D__USE_LARGEFILE64

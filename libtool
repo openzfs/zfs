@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # libtoolT - Provide generalized library-building support services.
-# Generated automatically by  (GNU spl 0.4.1)
+# Generated automatically by  (GNU spl 0.4.2)
 # NOTE: Changes made to this file will be lost: look at ltmain.sh.
 #
 # Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001
@@ -44,7 +44,7 @@ available_tags=" CXX F77"
 
 # ### BEGIN LIBTOOL CONFIG
 
-# Libtool was configured on host ilci:
+# Libtool was configured on host thales:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -100,7 +100,7 @@ gcc_ver=`gcc -dumpversion`
 EGREP="grep -E"
 
 # The linker used to build libraries.
-LD="/usr/local/bin/ld -m elf_x86_64"
+LD="/usr/bin/ld -m elf_x86_64"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"
@@ -331,7 +331,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=`echo "/lib64 /usr/lib64 /usr/local/lib64" | $SED -e "s@${gcc_dir}@\${gcc_dir}@g;s@${gcc_ver}@\${gcc_ver}@g"`
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/nvidia/lib /usr/nvidia/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/shmem/lib/shared /usr/lib64/mysql /usr/lib64/qt-3.3/lib "
+sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/openmpi/1.2.6-gcc /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/gen2/lib/shared /usr/lib64/mysql /usr/lib64/octave-3.0.1 /usr/lib64/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""
@@ -7266,7 +7266,7 @@ disable_libs=static
 # End:
 # ### BEGIN LIBTOOL TAG CONFIG: CXX
 
-# Libtool was configured on host ilci:
+# Libtool was configured on host thales:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -7322,7 +7322,7 @@ gcc_ver=`gcc -dumpversion`
 EGREP="grep -E"
 
 # The linker used to build libraries.
-LD="/usr/local/bin/ld -m elf_x86_64"
+LD="/usr/bin/ld -m elf_x86_64"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"
@@ -7550,7 +7550,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=`echo "/lib64 /usr/lib64 /usr/local/lib64" | $SED -e "s@${gcc_dir}@\${gcc_dir}@g;s@${gcc_ver}@\${gcc_ver}@g"`
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/nvidia/lib /usr/nvidia/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/shmem/lib/shared /usr/lib64/mysql /usr/lib64/qt-3.3/lib "
+sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/openmpi/1.2.6-gcc /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/gen2/lib/shared /usr/lib64/mysql /usr/lib64/octave-3.0.1 /usr/lib64/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""
@@ -7574,7 +7574,7 @@ include_expsyms=""
 
 # ### BEGIN LIBTOOL TAG CONFIG: F77
 
-# Libtool was configured on host ilci:
+# Libtool was configured on host thales:
 
 # Shell to use when invoking shell scripts.
 SHELL="/bin/sh"
@@ -7630,7 +7630,7 @@ gcc_ver=`gcc -dumpversion`
 EGREP="grep -E"
 
 # The linker used to build libraries.
-LD="/usr/local/bin/ld -m elf_x86_64"
+LD="/usr/bin/ld -m elf_x86_64"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"
@@ -7861,7 +7861,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec=`echo "/lib64 /usr/lib64 /usr/local/lib64" | $SED -e "s@${gcc_dir}@\${gcc_dir}@g;s@${gcc_ver}@\${gcc_ver}@g"`
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/nvidia/lib /usr/nvidia/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/shmem/lib/shared /usr/lib64/mysql /usr/lib64/qt-3.3/lib "
+sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/lib64/R/lib /usr/lib64/atlas /usr/lib64/ldapotp /usr/lib64/openmpi/1.2.6-gcc /usr/lib64/mvapich/0.9.9-1760.19chaos/gnu/gen2/lib/shared /usr/lib64/mysql /usr/lib64/octave-3.0.1 /usr/lib64/qt-3.3/lib "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""

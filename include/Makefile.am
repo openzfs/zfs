@@ -1,3 +1,3 @@
-SUBDIRS = sys
+SUBDIRS = asm linux rpc sys util fs sharefs vm
 
-EXTRA_DIST = splat-ctl.h
+EXTRA_DIST = *.h

@@ -20651,7 +20651,7 @@ fi
 
 
 
-                                                                                                    ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile include/sys/Makefile scripts/Makefile scripts/spl.spec"
+                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile include/asm/Makefile include/fs/Makefile include/linux/Makefile include/rpc/Makefile include/sharefs/Makefile include/sys/Makefile include/sys/fm/Makefile include/sys/fs/Makefile include/sys/sysevent/Makefile include/util/Makefile include/vm/Makefile scripts/Makefile scripts/spl.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -21224,7 +21224,17 @@ do
   "module/spl/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/spl/Makefile" ;;
   "module/splat/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/splat/Makefile" ;;
   "include/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
+  "include/asm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/asm/Makefile" ;;
+  "include/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/fs/Makefile" ;;
+  "include/linux/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/linux/Makefile" ;;
+  "include/rpc/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/rpc/Makefile" ;;
+  "include/sharefs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sharefs/Makefile" ;;
   "include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/Makefile" ;;
+  "include/sys/fm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/fm/Makefile" ;;
+  "include/sys/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/fs/Makefile" ;;
+  "include/sys/sysevent/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/sysevent/Makefile" ;;
+  "include/util/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/util/Makefile" ;;
+  "include/vm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/vm/Makefile" ;;
   "scripts/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;
   "scripts/spl.spec" ) CONFIG_FILES="$CONFIG_FILES scripts/spl.spec" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
