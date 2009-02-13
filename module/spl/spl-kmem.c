@@ -823,7 +823,6 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	      struct list_head *sks_list, struct list_head *sko_list)
 {
 	spl_kmem_cache_t *skc;
-	spl_kmem_obj_t *sko, *n;
 	ENTRY;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
@@ -833,23 +832,18 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
+	/*
+	 * Update slab/objects counters in the cache, then remove the
+	 * slab from the skc->skc_partial_list.  Finally add the slab
+	 * and all its objects in to the private work lists where the
+	 * destructors will be called and the memory freed to the system.
+	 */
 	skc->skc_obj_total -= sks->sks_objs;
 	skc->skc_slab_total--;
 	list_del(&sks->sks_list);
-
-	/* Run destructors slab is being released */
-	list_for_each_entry_safe(sko, n, &sks->sks_free_list, sko_list) {
-		ASSERT(sko->sko_magic == SKO_MAGIC);
-		list_del(&sko->sko_list);
-
-		if (skc->skc_dtor)
-			skc->skc_dtor(sko->sko_addr, skc->skc_private);
-
-		if (skc->skc_flags & KMC_OFFSLAB)
-			list_add(&sko->sko_list, sko_list);
-	}
-
 	list_add(&sks->sks_list, sks_list);
+	list_splice_init(&sks->sks_free_list, sko_list);
+
 	EXIT;
 }
 
@@ -868,26 +862,25 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	spl_kmem_obj_t *sko, *n;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
-	int size, i = 0;
+	int size = 0, i = 0;
 	ENTRY;
 
 	/*
 	 * Move empty slabs and objects which have not been touched in
 	 * skc_delay seconds on to private lists to be freed outside
-	 * the spin lock.  This delay time is important to avoid
-	 * thrashing however when flag is set the delay will not be
-	 * used.  Empty slabs will be at the end of the skc_partial_list.
+	 * the spin lock.  This delay time is important to avoid thrashing
+	 * however when flag is set the delay will not be used.
 	 */
 	spin_lock(&skc->skc_lock);
-        list_for_each_entry_safe_reverse(sks, m, &skc->skc_partial_list,
-					 sks_list) {
-		/* Release at most count slabs */
-		if (count && i > count)
+	list_for_each_entry_safe_reverse(sks,m,&skc->skc_partial_list,sks_list){
+		/*
+		 * All empty slabs are at the end of skc->skc_partial_list,
+		 * therefore once a non-empty slab is found we can stop
+		 * scanning.  Additionally, stop when reaching the target
+		 * reclaim 'count' if a non-zero threshhold is given.
+		 */
+		if ((sks->sks_ref > 0) || (count && i > count))
 			break;
-
-		/* Skip active slabs */
-		if (sks->sks_ref > 0)
-			continue;
 
 		if (time_after(jiffies,sks->sks_age+skc->skc_delay*HZ)||flag) {
 			spl_slab_free(sks, &sks_list, &sko_list);
@@ -897,24 +890,31 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	spin_unlock(&skc->skc_lock);
 
 	/*
-	 * We only have list of spl_kmem_obj_t's if they are located off
-	 * the slab, otherwise they get feed with the spl_kmem_slab_t.
+	 * The following two loops ensure all the object destructors are
+	 * run, any offslab objects are freed, and the slabs themselves
+	 * are freed.  This is all done outside the skc->skc_lock since
+	 * this allows the destructor to sleep, and allows us to perform
+	 * a conditional reschedule when a freeing a large number of
+	 * objects and slabs back to the system.
 	 */
-	if (!list_empty(&sko_list)) {
-		ASSERT(skc->skc_flags & KMC_OFFSLAB);
-
+	if (skc->skc_flags & KMC_OFFSLAB)
 		size = P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) +
 		       P2ROUNDUP(sizeof(spl_kmem_obj_t), skc->skc_obj_align);
 
-		/* To avoid soft lockups conditionally reschedule */
-		list_for_each_entry_safe(sko, n, &sko_list, sko_list) {
+	list_for_each_entry_safe(sko, n, &sko_list, sko_list) {
+		ASSERT(sko->sko_magic == SKO_MAGIC);
+
+		if (skc->skc_dtor)
+			skc->skc_dtor(sko->sko_addr, skc->skc_private);
+
+		if (skc->skc_flags & KMC_OFFSLAB)
 			kv_free(skc, sko->sko_addr, size);
-			cond_resched();
-		}
+
+		cond_resched();
 	}
 
-	/* To avoid soft lockups conditionally reschedule */
 	list_for_each_entry_safe(sks, m, &sks_list, sks_list) {
+		ASSERT(sks->sks_magic == SKS_MAGIC);
 		kv_free(skc, sks, skc->skc_slab_size);
 		cond_resched();
 	}
