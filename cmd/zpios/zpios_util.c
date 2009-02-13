@@ -270,8 +270,8 @@ set_load_params(cmd_args_t *args, char *optarg)
 
 		if (strcmp("fpp", param) == 0) {
 			args->flags |= DMU_FPP; /* File Per Process/Thread */
-		} else if (strcmp("sff", param) == 0) {
-			args->flags &= ~DMU_FPP; /* Shared Shared File */
+		} else if (strcmp("ssf", param) == 0) {
+			args->flags &= ~DMU_FPP; /* Single Shared File */
 		} else if (strcmp("dmuio", param) == 0) {
 			args->io_type |= DMU_IO;
 			args->flags |= (DMU_WRITE | DMU_READ);
