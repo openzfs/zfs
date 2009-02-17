@@ -932,12 +932,22 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 static void
 spl_magazine_age(void *data)
 {
-	spl_kmem_cache_t *skc = data;
-	spl_kmem_magazine_t *skm = skc->skc_mag[smp_processor_id()];
+	spl_kmem_magazine_t *skm =
+		spl_get_work_data(data, spl_kmem_magazine_t, skm_work.work);
+	spl_kmem_cache_t *skc = skm->skm_cache;
+	int i = smp_processor_id();
+
+	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT(skc->skc_mag[i] == skm);
 
 	if (skm->skm_avail > 0 &&
 	    time_after(jiffies, skm->skm_age + skc->skc_delay * HZ))
 		(void)spl_cache_flush(skc, skm, skm->skm_refill);
+
+	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
+		schedule_delayed_work_on(i, &skm->skm_work,
+					 skc->skc_delay / 3 * HZ);
 }
 
 /*
@@ -949,12 +959,11 @@ spl_magazine_age(void *data)
 static void
 spl_cache_age(void *data)
 {
-        spl_kmem_cache_t *skc =
+	spl_kmem_cache_t *skc =
 		spl_get_work_data(data, spl_kmem_cache_t, skc_work.work);
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	spl_slab_reclaim(skc, skc->skc_reap, 0);
-	spl_on_each_cpu(spl_magazine_age, skc, 0);
 
 	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
 		schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
@@ -1050,6 +1059,8 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 		skm->skm_avail = 0;
 		skm->skm_size = skc->skc_mag_size;
 		skm->skm_refill = skc->skc_mag_refill;
+		skm->skm_cache = skc;
+		spl_init_delayed_work(&skm->skm_work, spl_magazine_age, skm);
 		skm->skm_age = jiffies;
 	}
 
@@ -1094,6 +1105,11 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 			RETURN(-ENOMEM);
 		}
 	}
+
+	/* Only after everything is allocated schedule magazine work */
+	for_each_online_cpu(i)
+		schedule_delayed_work_on(i, &skc->skc_mag[i]->skm_work,
+				         skc->skc_delay / 3 * HZ);
 
 	RETURN(0);
 }
@@ -1245,6 +1261,7 @@ void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
 	DECLARE_WAIT_QUEUE_HEAD(wq);
+	int i;
 	ENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -1256,6 +1273,9 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	/* Cancel any and wait for any pending delayed work */
 	ASSERT(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 	cancel_delayed_work(&skc->skc_work);
+	for_each_online_cpu(i)
+		cancel_delayed_work(&skc->skc_mag[i]->skm_work);
+
 	flush_scheduled_work();
 
 	/* Wait until all current callers complete, this is mainly
