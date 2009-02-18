@@ -4220,6 +4220,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
 	uint64_t guid = spa_guid(spa);
+	int try;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
