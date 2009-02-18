@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -532,6 +532,7 @@ extern void spa_boot_init();
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);
 extern int spa_prop_get(spa_t *spa, nvlist_t **nvp);
 extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
+extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, const char *name);
