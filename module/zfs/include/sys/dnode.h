@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -160,6 +160,7 @@ typedef struct dnode {
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
+	uint8_t dn_next_nblkptr[TXG_SIZE];
 	uint8_t dn_next_nlevels[TXG_SIZE];
 	uint8_t dn_next_indblkshift[TXG_SIZE];
 	uint16_t dn_next_bonuslen[TXG_SIZE];
