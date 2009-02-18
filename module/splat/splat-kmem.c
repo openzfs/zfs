@@ -548,6 +548,7 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 		return -ENOMEM;
 	}
 
+	kcp->kcp_kcd[0] = NULL;
 	kcp->kcp_cache =
 		kmem_cache_create(SPLAT_KMEM_CACHE_NAME,
 				  kcp->kcp_size, kcp->kcp_align,
