@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -68,8 +68,19 @@ typedef enum arc_buf_contents {
 #define	ARC_CACHED	(1 << 4)	/* I/O was already in cache */
 #define	ARC_L2CACHE	(1 << 5)	/* cache in L2ARC */
 
-void arc_space_consume(uint64_t space);
-void arc_space_return(uint64_t space);
+/*
+ * The following breakdows of arc_size exist for kstat only.
+ */
+typedef enum arc_space_type {
+	ARC_SPACE_DATA,
+	ARC_SPACE_HDRS,
+	ARC_SPACE_L2HDRS,
+	ARC_SPACE_OTHER,
+	ARC_SPACE_NUMTYPES
+} arc_space_type_t;
+
+void arc_space_consume(uint64_t space, arc_space_type_t type);
+void arc_space_return(uint64_t space, arc_space_type_t type);
 void *arc_data_buf_alloc(uint64_t space);
 void arc_data_buf_free(void *buf, uint64_t space);
 arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
