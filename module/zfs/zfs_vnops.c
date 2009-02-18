@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -350,56 +350,28 @@ zfs_unmap_page(page_t *pp, caddr_t addr)
  *
  * On Write:	If we find a memory mapped page, we write to *both*
  *		the page and the dmu buffer.
- *
- * NOTE: We will always "break up" the IO into PAGESIZE uiomoves when
- *	the file is memory mapped.
  */
-static int
-mappedwrite(vnode_t *vp, int nbytes, uio_t *uio, dmu_tx_t *tx)
+static void
+update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid)
 {
-	znode_t	*zp = VTOZ(vp);
-	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	int64_t	start, off;
-	int len = nbytes;
-	int error = 0;
+	int64_t	off;
 
-	start = uio->uio_loffset;
 	off = start & PAGEOFFSET;
 	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
 		page_t *pp;
-		uint64_t bytes = MIN(PAGESIZE - off, len);
-		uint64_t woff = uio->uio_loffset;
+		uint64_t nbytes = MIN(PAGESIZE - off, len);
 
-		/*
-		 * We don't want a new page to "appear" in the middle of
-		 * the file update (because it may not get the write
-		 * update data), so we grab a lock to block
-		 * zfs_getpage().
-		 */
-		rw_enter(&zp->z_map_lock, RW_WRITER);
 		if (pp = page_lookup(vp, start, SE_SHARED)) {
 			caddr_t va;
 
-			rw_exit(&zp->z_map_lock);
 			va = zfs_map_page(pp, S_WRITE);
-			error = uiomove(va+off, bytes, UIO_WRITE, uio);
-			if (error == 0) {
-				dmu_write(zfsvfs->z_os, zp->z_id,
-				    woff, bytes, va+off, tx);
-			}
+			(void) dmu_read(os, oid, start+off, nbytes, va+off);
 			zfs_unmap_page(pp, va);
 			page_unlock(pp);
-		} else {
-			error = dmu_write_uio(zfsvfs->z_os, zp->z_id,
-			    uio, bytes, tx);
-			rw_exit(&zp->z_map_lock);
 		}
-		len -= bytes;
+		len -= nbytes;
 		off = 0;
-		if (error)
-			break;
 	}
-	return (error);
 }
 
 /*
@@ -735,18 +707,13 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		 * Perhaps we should use SPA_MAXBLOCKSIZE chunks?
 		 */
 		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
-		rw_enter(&zp->z_map_lock, RW_READER);
 
 		tx_bytes = uio->uio_resid;
-		if (vn_has_cached_data(vp)) {
-			rw_exit(&zp->z_map_lock);
-			error = mappedwrite(vp, nbytes, uio, tx);
-		} else {
-			error = dmu_write_uio(zfsvfs->z_os, zp->z_id,
-			    uio, nbytes, tx);
-			rw_exit(&zp->z_map_lock);
-		}
+		error = dmu_write_uio(zfsvfs->z_os, zp->z_id, uio, nbytes, tx);
 		tx_bytes -= uio->uio_resid;
+		if (tx_bytes && vn_has_cached_data(vp))
+			update_pages(vp, woff,
+			    tx_bytes, zfsvfs->z_os, zp->z_id);
 
 		/*
 		 * If we made no progress, we're done.  If we made even
@@ -3612,9 +3579,7 @@ zfs_putapage(vnode_t *vp, page_t *pp, u_offset_t *offp,
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	zilog_t		*zilog = zfsvfs->z_log;
 	dmu_tx_t	*tx;
-	rl_t		*rl;
 	u_offset_t	off, koff;
 	size_t		len, klen;
 	uint64_t	filesz;
@@ -3629,26 +3594,18 @@ zfs_putapage(vnode_t *vp, page_t *pp, u_offset_t *offp,
 	 * a read-modify-write).
 	 */
 	if (off < filesz && zp->z_blksz > PAGESIZE) {
-		if (!ISP2(zp->z_blksz)) {
-			/* Only one block in the file. */
-			klen = P2ROUNDUP((ulong_t)zp->z_blksz, PAGESIZE);
-			koff = 0;
-		} else {
-			klen = zp->z_blksz;
-			koff = P2ALIGN(off, (u_offset_t)klen);
-		}
+		klen = P2ROUNDUP((ulong_t)zp->z_blksz, PAGESIZE);
+		koff = ISP2(klen) ? P2ALIGN(off, (u_offset_t)klen) : 0;
 		ASSERT(koff <= filesz);
 		if (koff + klen > filesz)
 			klen = P2ROUNDUP(filesz - koff, (uint64_t)PAGESIZE);
 		pp = pvn_write_kluster(vp, pp, &off, &len, koff, klen, flags);
 	}
 	ASSERT3U(btop(len), ==, btopr(len));
-top:
-	rl = zfs_range_lock(zp, off, len, RL_WRITER);
+
 	/*
 	 * Can't push pages past end-of-file.
 	 */
-	filesz = zp->z_phys->zp_size;
 	if (off >= filesz) {
 		/* ignore all pages */
 		err = 0;
@@ -3663,17 +3620,15 @@ top:
 			pvn_write_done(trunc, flags);
 		len = filesz - off;
 	}
-
+top:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_write(tx, zp->z_id, off, len);
 	dmu_tx_hold_bonus(tx, zp->z_id);
 	err = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (err != 0) {
 		if (err == ERESTART) {
-			zfs_range_unlock(rl);
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
-			err = 0;
 			goto top;
 		}
 		dmu_tx_abort(tx);
@@ -3691,12 +3646,11 @@ top:
 
 	if (err == 0) {
 		zfs_time_stamper(zp, CONTENT_MODIFIED, tx);
-		zfs_log_write(zilog, tx, TX_WRITE, zp, off, len, 0);
+		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len, 0);
 		dmu_tx_commit(tx);
 	}
 
 out:
-	zfs_range_unlock(rl);
 	pvn_write_done(pp, (err ? B_ERROR : 0) | flags);
 	if (offp)
 		*offp = off;
@@ -3733,31 +3687,50 @@ zfs_putpage(vnode_t *vp, offset_t off, size_t len, int flags, cred_t *cr,
 	page_t		*pp;
 	size_t		io_len;
 	u_offset_t	io_off;
-	uint64_t	filesz;
+	uint_t		blksz;
+	rl_t		*rl;
 	int		error = 0;
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
-	if (len == 0) {
+	/*
+	 * Align this request to the file block size in case we kluster.
+	 * XXX - this can result in pretty aggresive locking, which can
+	 * impact simultanious read/write access.  One option might be
+	 * to break up long requests (len == 0) into block-by-block
+	 * operations to get narrower locking.
+	 */
+	blksz = zp->z_blksz;
+	if (ISP2(blksz))
+		io_off = P2ALIGN_TYPED(off, blksz, u_offset_t);
+	else
+		io_off = 0;
+	if (len > 0 && ISP2(blksz))
+		io_len = P2ROUNDUP_TYPED(len + (io_off - off), blksz, size_t);
+	else
+		io_len = 0;
+
+	if (io_len == 0) {
 		/*
-		 * Search the entire vp list for pages >= off.
+		 * Search the entire vp list for pages >= io_off.
 		 */
-		error = pvn_vplist_dirty(vp, (u_offset_t)off, zfs_putapage,
-		    flags, cr);
+		rl = zfs_range_lock(zp, io_off, UINT64_MAX, RL_WRITER);
+		error = pvn_vplist_dirty(vp, io_off, zfs_putapage, flags, cr);
 		goto out;
 	}
+	rl = zfs_range_lock(zp, io_off, io_len, RL_WRITER);
 
-	filesz = zp->z_phys->zp_size; /* get consistent copy of zp_size */
-	if (off > filesz) {
+	if (off > zp->z_phys->zp_size) {
 		/* past end of file */
+		zfs_range_unlock(rl);
 		ZFS_EXIT(zfsvfs);
 		return (0);
 	}
 
-	len = MIN(len, filesz - off);
+	len = MIN(io_len, P2ROUNDUP(zp->z_phys->zp_size, PAGESIZE) - io_off);
 
-	for (io_off = off; io_off < off + len; io_off += io_len) {
+	for (off = io_off; io_off < off + len; io_off += io_len) {
 		if ((flags & B_INVAL) || ((flags & B_ASYNC) == 0)) {
 			pp = page_lookup(vp, io_off,
 			    (flags & (B_INVAL | B_FREE)) ? SE_EXCL : SE_SHARED);
@@ -3780,6 +3753,7 @@ zfs_putpage(vnode_t *vp, offset_t off, size_t len, int flags, cred_t *cr,
 		}
 	}
 out:
+	zfs_range_unlock(rl);
 	if ((flags & B_ASYNC) == 0)
 		zil_commit(zfsvfs->z_log, UINT64_MAX, zp->z_id);
 	ZFS_EXIT(zfsvfs);
@@ -3896,7 +3870,8 @@ zfs_frlock(vnode_t *vp, int cmd, flock64_t *bfp, int flag, offset_t offset,
 /*
  * If we can't find a page in the cache, we will create a new page
  * and fill it with file data.  For efficiency, we may try to fill
- * multiple pages at once (klustering).
+ * multiple pages at once (klustering) to fill up the supplied page
+ * list.
  */
 static int
 zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
@@ -3905,57 +3880,27 @@ zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
 	znode_t *zp = VTOZ(vp);
 	page_t *pp, *cur_pp;
 	objset_t *os = zp->z_zfsvfs->z_os;
-	caddr_t va;
 	u_offset_t io_off, total;
-	uint64_t oid = zp->z_id;
 	size_t io_len;
-	uint64_t filesz;
 	int err;
 
-	/*
-	 * If we are only asking for a single page don't bother klustering.
-	 */
-	filesz = zp->z_phys->zp_size; /* get consistent copy of zp_size */
-	if (off >= filesz)
-		return (EFAULT);
 	if (plsz == PAGESIZE || zp->z_blksz <= PAGESIZE) {
+		/*
+		 * We only have a single page, don't bother klustering
+		 */
 		io_off = off;
 		io_len = PAGESIZE;
 		pp = page_create_va(vp, io_off, io_len, PG_WAIT, seg, addr);
 	} else {
 		/*
-		 * Try to fill a kluster of pages (a blocks worth).
+		 * Try to find enough pages to fill the page list
 		 */
-		size_t klen;
-		u_offset_t koff;
-
-		if (!ISP2(zp->z_blksz)) {
-			/* Only one block in the file. */
-			klen = P2ROUNDUP((ulong_t)zp->z_blksz, PAGESIZE);
-			koff = 0;
-		} else {
-			/*
-			 * It would be ideal to align our offset to the
-			 * blocksize but doing so has resulted in some
-			 * strange application crashes. For now, we
-			 * leave the offset as is and only adjust the
-			 * length if we are off the end of the file.
-			 */
-			koff = off;
-			klen = plsz;
-		}
-		ASSERT(koff <= filesz);
-		if (koff + klen > filesz)
-			klen = P2ROUNDUP(filesz, (uint64_t)PAGESIZE) - koff;
-		ASSERT3U(off, >=, koff);
-		ASSERT3U(off, <, koff + klen);
 		pp = pvn_read_kluster(vp, off, seg, addr, &io_off,
-		    &io_len, koff, klen, 0);
+		    &io_len, off, plsz, 0);
 	}
 	if (pp == NULL) {
 		/*
-		 * Some other thread entered the page before us.
-		 * Return to zfs_getpage to retry the lookup.
+		 * The page already exists, nothing to do here.
 		 */
 		*pl = NULL;
 		return (0);
@@ -3966,9 +3911,11 @@ zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
 	 */
 	cur_pp = pp;
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
+		caddr_t va;
+
 		ASSERT3U(io_off, ==, cur_pp->p_offset);
 		va = zfs_map_page(cur_pp, S_WRITE);
-		err = dmu_read(os, oid, io_off, PAGESIZE, va);
+		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va);
 		zfs_unmap_page(cur_pp, va);
 		if (err) {
 			/* On error, toss the entire kluster */
@@ -3980,15 +3927,14 @@ zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
 		}
 		cur_pp = cur_pp->p_next;
 	}
-out:
+
 	/*
-	 * Fill in the page list array from the kluster.  If
-	 * there are too many pages in the kluster, return
-	 * as many pages as possible starting from the desired
-	 * offset `off'.
+	 * Fill in the page list array from the kluster starting
+	 * from the desired offset `off'.
 	 * NOTE: the page list will always be null terminated.
 	 */
 	pvn_plist_init(pp, pl, plsz, off, io_len, rw);
+	ASSERT(pl == NULL || (*pl)->p_offset == off);
 
 	return (0);
 }
@@ -3996,10 +3942,10 @@ out:
 /*
  * Return pointers to the pages for the file region [off, off + len]
  * in the pl array.  If plsz is greater than len, this function may
- * also return page pointers from before or after the specified
- * region (i.e. some region [off', off' + plsz]).  These additional
- * pages are only returned if they are already in the cache, or were
- * created as part of a klustered read.
+ * also return page pointers from after the specified region
+ * (i.e. the region [off, off + plsz]).  These additional pages are
+ * only returned if they are already in the cache, or were created as
+ * part of a klustered read.
  *
  *	IN:	vp	- vnode of file to get data from.
  *		off	- position in file to get data from.
@@ -4028,9 +3974,17 @@ zfs_getpage(vnode_t *vp, offset_t off, size_t len, uint_t *protp,
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	page_t		*pp, **pl0 = pl;
-	int		need_unlock = 0, err = 0;
-	offset_t	orig_off;
+	page_t		**pl0 = pl;
+	int		err = 0;
+
+	/* we do our own caching, faultahead is unnecessary */
+	if (pl == NULL)
+		return (0);
+	else if (len > plsz)
+		len = plsz;
+	else
+		len = P2ROUNDUP(len, PAGESIZE);
+	ASSERT(plsz >= len);
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
@@ -4038,103 +3992,50 @@ zfs_getpage(vnode_t *vp, offset_t off, size_t len, uint_t *protp,
 	if (protp)
 		*protp = PROT_ALL;
 
-	/* no faultahead (for now) */
-	if (pl == NULL) {
-		ZFS_EXIT(zfsvfs);
-		return (0);
-	}
-
-	/* can't fault past EOF */
-	if (off >= zp->z_phys->zp_size) {
-		ZFS_EXIT(zfsvfs);
-		return (EFAULT);
-	}
-	orig_off = off;
-
-	/*
-	 * If we already own the lock, then we must be page faulting
-	 * in the middle of a write to this file (i.e., we are writing
-	 * to this file using data from a mapped region of the file).
-	 */
-	if (rw_owner(&zp->z_map_lock) != curthread) {
-		rw_enter(&zp->z_map_lock, RW_WRITER);
-		need_unlock = TRUE;
-	}
-
 	/*
 	 * Loop through the requested range [off, off + len] looking
 	 * for pages.  If we don't find a page, we will need to create
 	 * a new page and fill it with data from the file.
 	 */
 	while (len > 0) {
-		if (plsz < PAGESIZE)
-			break;
-		if (pp = page_lookup(vp, off, SE_SHARED)) {
-			*pl++ = pp;
+		if (*pl = page_lookup(vp, off, SE_SHARED))
+			*(pl+1) = NULL;
+		else if (err = zfs_fillpage(vp, off, seg, addr, pl, plsz, rw))
+			goto out;
+		while (*pl) {
+			ASSERT3U((*pl)->p_offset, ==, off);
 			off += PAGESIZE;
 			addr += PAGESIZE;
-			len -= PAGESIZE;
+			if (len > 0) {
+				ASSERT3U(len, >=, PAGESIZE);
+				len -= PAGESIZE;
+			}
+			ASSERT3U(plsz, >=, PAGESIZE);
 			plsz -= PAGESIZE;
-		} else {
-			err = zfs_fillpage(vp, off, seg, addr, pl, plsz, rw);
-			if (err)
-				goto out;
-			/*
-			 * klustering may have changed our region
-			 * to be block aligned.
-			 */
-			if (((pp = *pl) != 0) && (off != pp->p_offset)) {
-				int delta = off - pp->p_offset;
-				len += delta;
-				off -= delta;
-				addr -= delta;
-			}
-			while (*pl) {
-				pl++;
-				off += PAGESIZE;
-				addr += PAGESIZE;
-				plsz -= PAGESIZE;
-				if (len > PAGESIZE)
-					len -= PAGESIZE;
-				else
-					len = 0;
-			}
+			pl++;
 		}
 	}
 
 	/*
 	 * Fill out the page array with any pages already in the cache.
 	 */
-	while (plsz > 0) {
-		pp = page_lookup_nowait(vp, off, SE_SHARED);
-		if (pp == NULL)
-			break;
-		*pl++ = pp;
-		off += PAGESIZE;
-		plsz -= PAGESIZE;
+	while (plsz > 0 &&
+	    (*pl++ = page_lookup_nowait(vp, off, SE_SHARED))) {
+			off += PAGESIZE;
+			plsz -= PAGESIZE;
 	}
-
-	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 out:
-	/*
-	 * We can't grab the range lock for the page as reader which would
-	 * stop truncation as this leads to deadlock. So we need to recheck
-	 * the file size.
-	 */
-	if (orig_off >= zp->z_phys->zp_size)
-		err = EFAULT;
 	if (err) {
 		/*
 		 * Release any pages we have previously locked.
 		 */
 		while (pl > pl0)
 			page_unlock(*--pl);
+	} else {
+		ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 	}
 
 	*pl = NULL;
-
-	if (need_unlock)
-		rw_exit(&zp->z_map_lock);
 
 	ZFS_EXIT(zfsvfs);
 	return (err);

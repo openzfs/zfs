@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -180,11 +180,16 @@ vdev_mirror_scrub_done(zio_t *zio)
 	mirror_child_t *mc = zio->io_private;
 
 	if (zio->io_error == 0) {
-		zio_t *pio = zio->io_parent;
-		mutex_enter(&pio->io_lock);
-		ASSERT3U(zio->io_size, >=, pio->io_size);
-		bcopy(zio->io_data, pio->io_data, pio->io_size);
-		mutex_exit(&pio->io_lock);
+		zio_t *pio;
+
+		mutex_enter(&zio->io_lock);
+		while ((pio = zio_walk_parents(zio)) != NULL) {
+			mutex_enter(&pio->io_lock);
+			ASSERT3U(zio->io_size, >=, pio->io_size);
+			bcopy(zio->io_data, pio->io_data, pio->io_size);
+			mutex_exit(&pio->io_lock);
+		}
+		mutex_exit(&zio->io_lock);
 	}
 
 	zio_buf_free(zio->io_data, zio->io_size);
