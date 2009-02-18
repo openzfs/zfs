@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -117,7 +117,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	list_link_init(&zp->z_link_node);
 
 	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
-	rw_init(&zp->z_map_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zp->z_parent_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zp->z_name_lock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -142,7 +141,6 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	vn_free(ZTOV(zp));
 	ASSERT(!list_link_active(&zp->z_link_node));
 	mutex_destroy(&zp->z_lock);
-	rw_destroy(&zp->z_map_lock);
 	rw_destroy(&zp->z_parent_lock);
 	rw_destroy(&zp->z_name_lock);
 	mutex_destroy(&zp->z_acl_lock);
@@ -1375,15 +1373,12 @@ top:
 
 	dmu_tx_commit(tx);
 
-	zfs_range_unlock(rl);
-
 	/*
 	 * Clear any mapped pages in the truncated region.  This has to
 	 * happen outside of the transaction to avoid the possibility of
 	 * a deadlock with someone trying to push a page that we are
 	 * about to invalidate.
 	 */
-	rw_enter(&zp->z_map_lock, RW_WRITER);
 	if (vn_has_cached_data(vp)) {
 		page_t *pp;
 		uint64_t start = end & PAGEMASK;
@@ -1401,7 +1396,8 @@ top:
 		    B_INVAL | B_TRUNC, NULL);
 		ASSERT(error == 0);
 	}
-	rw_exit(&zp->z_map_lock);
+
+	zfs_range_unlock(rl);
 
 	return (0);
 }

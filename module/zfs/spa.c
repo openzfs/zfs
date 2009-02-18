@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -60,6 +60,10 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/spa_boot.h>
+
+#ifdef	_KERNEL
+#include <sys/zone.h>
+#endif	/* _KERNEL */
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -111,38 +115,38 @@ spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, char *strval,
 static void
 spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 {
-	uint64_t size = spa_get_space(spa);
-	uint64_t used = spa_get_alloc(spa);
+	uint64_t size;
+	uint64_t used;
 	uint64_t cap, version;
 	zprop_source_t src = ZPROP_SRC_NONE;
 	spa_config_dirent_t *dp;
 
 	ASSERT(MUTEX_HELD(&spa->spa_props_lock));
 
-	/*
-	 * readonly properties
-	 */
-	spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
-	spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
-	spa_prop_add_list(*nvp, ZPOOL_PROP_USED, NULL, used, src);
-	spa_prop_add_list(*nvp, ZPOOL_PROP_AVAILABLE, NULL, size - used, src);
+	if (spa->spa_root_vdev != NULL) {
+		size = spa_get_space(spa);
+		used = spa_get_alloc(spa);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_USED, NULL, used, src);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_AVAILABLE, NULL,
+		    size - used, src);
 
-	cap = (size == 0) ? 0 : (used * 100 / size);
-	spa_prop_add_list(*nvp, ZPOOL_PROP_CAPACITY, NULL, cap, src);
+		cap = (size == 0) ? 0 : (used * 100 / size);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_CAPACITY, NULL, cap, src);
+
+		spa_prop_add_list(*nvp, ZPOOL_PROP_HEALTH, NULL,
+		    spa->spa_root_vdev->vdev_state, src);
+
+		version = spa_version(spa);
+		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION))
+			src = ZPROP_SRC_DEFAULT;
+		else
+			src = ZPROP_SRC_LOCAL;
+		spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL, version, src);
+	}
 
 	spa_prop_add_list(*nvp, ZPOOL_PROP_GUID, NULL, spa_guid(spa), src);
-	spa_prop_add_list(*nvp, ZPOOL_PROP_HEALTH, NULL,
-	    spa->spa_root_vdev->vdev_state, src);
-
-	/*
-	 * settable properties that are not stored in the pool property object.
-	 */
-	version = spa_version(spa);
-	if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION))
-		src = ZPROP_SRC_DEFAULT;
-	else
-		src = ZPROP_SRC_LOCAL;
-	spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL, version, src);
 
 	if (spa->spa_root != NULL)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALTROOT, spa->spa_root,
@@ -417,16 +421,60 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 	return (error);
 }
 
+void
+spa_configfile_set(spa_t *spa, nvlist_t *nvp, boolean_t need_sync)
+{
+	char *cachefile;
+	spa_config_dirent_t *dp;
+
+	if (nvlist_lookup_string(nvp, zpool_prop_to_name(ZPOOL_PROP_CACHEFILE),
+	    &cachefile) != 0)
+		return;
+
+	dp = kmem_alloc(sizeof (spa_config_dirent_t),
+	    KM_SLEEP);
+
+	if (cachefile[0] == '\0')
+		dp->scd_path = spa_strdup(spa_config_path);
+	else if (strcmp(cachefile, "none") == 0)
+		dp->scd_path = NULL;
+	else
+		dp->scd_path = spa_strdup(cachefile);
+
+	list_insert_head(&spa->spa_config_list, dp);
+	if (need_sync)
+		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+}
+
 int
 spa_prop_set(spa_t *spa, nvlist_t *nvp)
 {
 	int error;
+	nvpair_t *elem;
+	boolean_t need_sync = B_FALSE;
+	zpool_prop_t prop;
 
 	if ((error = spa_prop_validate(spa, nvp)) != 0)
 		return (error);
 
-	return (dsl_sync_task_do(spa_get_dsl(spa), NULL, spa_sync_props,
-	    spa, nvp, 3));
+	elem = NULL;
+	while ((elem = nvlist_next_nvpair(nvp, elem)) != NULL) {
+		if ((prop = zpool_name_to_prop(
+		    nvpair_name(elem))) == ZPROP_INVAL)
+			return (EINVAL);
+
+		if (prop == ZPOOL_PROP_CACHEFILE || prop == ZPOOL_PROP_ALTROOT)
+			continue;
+
+		need_sync = B_TRUE;
+		break;
+	}
+
+	if (need_sync)
+		return (dsl_sync_task_do(spa_get_dsl(spa), NULL, spa_sync_props,
+		    spa, nvp, 3));
+	else
+		return (0);
 }
 
 /*
@@ -1187,9 +1235,17 @@ spa_load(spa_t *spa, nvlist_t *config, spa_load_state_t state, int mosconfig)
 			VERIFY(nvlist_lookup_string(newconfig,
 			    ZPOOL_CONFIG_HOSTNAME, &hostname) == 0);
 
+#ifdef	_KERNEL
+			myhostid = zone_get_hostid(NULL);
+#else	/* _KERNEL */
+			/*
+			 * We're emulating the system's hostid in userland, so
+			 * we can't use zone_get_hostid().
+			 */
 			(void) ddi_strtoul(hw_serial, NULL, 10, &myhostid);
+#endif	/* _KERNEL */
 			if (hostid != 0 && myhostid != 0 &&
-			    (unsigned long)hostid != myhostid) {
+			    hostid != myhostid) {
 				cmn_err(CE_WARN, "pool '%s' could not be "
 				    "loaded as it was last accessed by "
 				    "another system (host: %s hostid: 0x%lx). "
@@ -2081,8 +2137,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_bootfs = zpool_prop_default_numeric(ZPOOL_PROP_BOOTFS);
 	spa->spa_delegation = zpool_prop_default_numeric(ZPOOL_PROP_DELEGATION);
 	spa->spa_failmode = zpool_prop_default_numeric(ZPOOL_PROP_FAILUREMODE);
-	if (props)
+	if (props != NULL) {
+		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(spa, props, CRED(), tx);
+	}
 
 	dmu_tx_commit(tx);
 
@@ -2100,9 +2158,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (version >= SPA_VERSION_ZPOOL_HISTORY && history_str != NULL)
 		(void) spa_history_log(spa, history_str, LOG_CMD_POOL_CREATE);
 
-	mutex_exit(&spa_namespace_lock);
-
 	spa->spa_minref = refcount_count(&spa->spa_refcount);
+
+	mutex_exit(&spa_namespace_lock);
 
 	return (0);
 }
@@ -2185,6 +2243,9 @@ spa_import_common(const char *pool, nvlist_t *config, nvlist_t *props,
 		error = spa_validate_aux(spa, nvroot, -1ULL,
 		    VDEV_ALLOC_L2CACHE);
 	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	if (props != NULL)
+		spa_configfile_set(spa, props, B_FALSE);
 
 	if (error != 0 || (props && spa_writeable(spa) &&
 	    (error = spa_prop_set(spa, props)))) {
@@ -2502,6 +2563,7 @@ spa_tryimport(nvlist_t *tryconfig)
 	char *poolname;
 	spa_t *spa;
 	uint64_t state;
+	int error;
 
 	if (nvlist_lookup_string(tryconfig, ZPOOL_CONFIG_POOL_NAME, &poolname))
 		return (NULL);
@@ -2521,7 +2583,7 @@ spa_tryimport(nvlist_t *tryconfig)
 	 * Pass TRUE for mosconfig because the user-supplied config
 	 * is actually the one to trust when doing an import.
 	 */
-	(void) spa_load(spa, tryconfig, SPA_LOAD_TRYIMPORT, B_TRUE);
+	error = spa_load(spa, tryconfig, SPA_LOAD_TRYIMPORT, B_TRUE);
 
 	/*
 	 * If 'tryconfig' was at least parsable, return the current config.
@@ -2540,7 +2602,7 @@ spa_tryimport(nvlist_t *tryconfig)
 		 * copy it out so that external consumers can tell which
 		 * pools are bootable.
 		 */
-		if (spa->spa_bootfs) {
+		if ((!error || error == EEXIST) && spa->spa_bootfs) {
 			char *tmpname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
 			/*
@@ -3815,7 +3877,6 @@ spa_sync_props(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	zpool_prop_t prop;
 	const char *propname;
 	zprop_type_t proptype;
-	spa_config_dirent_t *dp;
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -3848,23 +3909,8 @@ spa_sync_props(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 
 		case ZPOOL_PROP_CACHEFILE:
 			/*
-			 * 'cachefile' is a non-persistent property, but note
-			 * an async request that the config cache needs to be
-			 * udpated.
+			 * 'cachefile' is also a non-persisitent property.
 			 */
-			VERIFY(nvpair_value_string(elem, &strval) == 0);
-
-			dp = kmem_alloc(sizeof (spa_config_dirent_t), KM_SLEEP);
-
-			if (strval[0] == '\0')
-				dp->scd_path = spa_strdup(spa_config_path);
-			else if (strcmp(strval, "none") == 0)
-				dp->scd_path = NULL;
-			else
-				dp->scd_path = spa_strdup(strval);
-
-			list_insert_head(&spa->spa_config_list, dp);
-			spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 			break;
 		default:
 			/*
