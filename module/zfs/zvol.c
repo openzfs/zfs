@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -1324,6 +1324,8 @@ zvol_write(dev_t dev, uio_t *uio, cred_t *cr)
 			break;
 	}
 	zfs_range_unlock(rl);
+	if (!zil_disable)
+		zil_commit(zv->zv_zilog, UINT64_MAX, ZVOL_OBJ);
 	return (error);
 }
 
