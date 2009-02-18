@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -1323,7 +1323,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 	verify((zhp = zpool_open_canfail(g_zfs, name)) != NULL);
 
-	if (zpool_enable_datasets(zhp, mntopts, 0) != 0) {
+	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
+	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}

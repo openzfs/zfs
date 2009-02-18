@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -149,20 +149,12 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 static void
 vdev_queue_agg_io_done(zio_t *aio)
 {
-	zio_t *dio;
-	uint64_t offset = 0;
+	zio_t *pio;
 
-	while ((dio = aio->io_delegate_list) != NULL) {
+	while ((pio = zio_walk_parents(aio)) != NULL)
 		if (aio->io_type == ZIO_TYPE_READ)
-			bcopy((char *)aio->io_data + offset, dio->io_data,
-			    dio->io_size);
-		offset += dio->io_size;
-		aio->io_delegate_list = dio->io_delegate_next;
-		dio->io_delegate_next = NULL;
-		dio->io_error = aio->io_error;
-		zio_execute(dio);
-	}
-	ASSERT3U(offset, ==, aio->io_size);
+			bcopy((char *)aio->io_data + (pio->io_offset -
+			    aio->io_offset), pio->io_data, pio->io_size);
 
 	zio_buf_free(aio->io_data, aio->io_size);
 }
@@ -173,8 +165,8 @@ vdev_queue_agg_io_done(zio_t *aio)
 static zio_t *
 vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 {
-	zio_t *fio, *lio, *aio, *dio;
-	avl_tree_t *tree;
+	zio_t *fio, *lio, *aio, *dio, *nio;
+	avl_tree_t *t;
 	uint64_t size;
 	int flags;
 
@@ -186,7 +178,7 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 
 	fio = lio = avl_first(&vq->vq_deadline_tree);
 
-	tree = fio->io_vdev_tree;
+	t = fio->io_vdev_tree;
 	size = fio->io_size;
 	flags = fio->io_flags & ZIO_FLAG_AGG_INHERIT;
 
@@ -198,55 +190,54 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 		 * of the I/O, such as whether it's a normal I/O or a
 		 * scrub/resilver, can be preserved in the aggregate.
 		 */
-		while ((dio = AVL_PREV(tree, fio)) != NULL &&
+		while ((dio = AVL_PREV(t, fio)) != NULL &&
 		    IS_ADJACENT(dio, fio) &&
 		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
 		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
-			dio->io_delegate_next = fio;
 			fio = dio;
 			size += dio->io_size;
 		}
-		while ((dio = AVL_NEXT(tree, lio)) != NULL &&
+		while ((dio = AVL_NEXT(t, lio)) != NULL &&
 		    IS_ADJACENT(lio, dio) &&
 		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
 		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
-			lio->io_delegate_next = dio;
 			lio = dio;
 			size += dio->io_size;
 		}
 	}
 
 	if (fio != lio) {
-		char *buf = zio_buf_alloc(size);
-		uint64_t offset = 0;
-
 		ASSERT(size <= zfs_vdev_aggregation_limit);
 
 		aio = zio_vdev_delegated_io(fio->io_vd, fio->io_offset,
-		    buf, size, fio->io_type, ZIO_PRIORITY_NOW,
+		    zio_buf_alloc(size), size, fio->io_type, ZIO_PRIORITY_NOW,
 		    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 		    vdev_queue_agg_io_done, NULL);
 
-		aio->io_delegate_list = fio;
-
-		for (dio = fio; dio != NULL; dio = dio->io_delegate_next) {
+		/* We want to process lio, then stop */
+		lio = AVL_NEXT(t, lio);
+		for (dio = fio; dio != lio; dio = nio) {
 			ASSERT(dio->io_type == aio->io_type);
-			ASSERT(dio->io_vdev_tree == tree);
+			ASSERT(dio->io_vdev_tree == t);
+
 			if (dio->io_type == ZIO_TYPE_WRITE)
-				bcopy(dio->io_data, buf + offset, dio->io_size);
-			offset += dio->io_size;
+				bcopy(dio->io_data, (char *)aio->io_data +
+				    (dio->io_offset - aio->io_offset),
+				    dio->io_size);
+			nio = AVL_NEXT(t, dio);
+
+			zio_add_child(dio, aio);
 			vdev_queue_io_remove(vq, dio);
 			zio_vdev_io_bypass(dio);
+			zio_execute(dio);
 		}
-
-		ASSERT(offset == size);
 
 		avl_add(&vq->vq_pending_tree, aio);
 
 		return (aio);
 	}
 
-	ASSERT(fio->io_vdev_tree == tree);
+	ASSERT(fio->io_vdev_tree == t);
 	vdev_queue_io_remove(vq, fio);
 
 	avl_add(&vq->vq_pending_tree, fio);
