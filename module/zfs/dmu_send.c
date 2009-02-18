@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -816,10 +816,11 @@ restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 		/* currently allocated, want to be allocated */
 		dmu_tx_hold_bonus(tx, drro->drr_object);
 		/*
-		 * We may change blocksize, so need to
-		 * hold_write
+		 * We may change blocksize and delete old content,
+		 * so need to hold_write and hold_free.
 		 */
 		dmu_tx_hold_write(tx, drro->drr_object, 0, 1);
+		dmu_tx_hold_free(tx, drro->drr_object, 0, DMU_OBJECT_END);
 		err = dmu_tx_assign(tx, TXG_WAIT);
 		if (err) {
 			dmu_tx_abort(tx);
