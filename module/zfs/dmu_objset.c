@@ -1213,6 +1213,39 @@ dmu_objset_find_spa(spa_t *spa, const char *name,
 	return (err);
 }
 
+/* ARGSUSED */
+int
+dmu_objset_prefetch(char *name, void *arg)
+{
+	dsl_dataset_t *ds;
+
+	if (dsl_dataset_hold(name, FTAG, &ds))
+		return (0);
+
+	if (!BP_IS_HOLE(&ds->ds_phys->ds_bp)) {
+		mutex_enter(&ds->ds_opening_lock);
+		if (!dsl_dataset_get_user_ptr(ds)) {
+			uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
+			zbookmark_t zb;
+
+			zb.zb_objset = ds->ds_object;
+			zb.zb_object = 0;
+			zb.zb_level = -1;
+			zb.zb_blkid = 0;
+
+			(void) arc_read_nolock(NULL, dsl_dataset_get_spa(ds),
+			    &ds->ds_phys->ds_bp, NULL, NULL,
+			    ZIO_PRIORITY_ASYNC_READ,
+			    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE,
+			    &aflags, &zb);
+		}
+		mutex_exit(&ds->ds_opening_lock);
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (0);
+}
+
 void
 dmu_objset_set_user(objset_t *os, void *user_ptr)
 {
