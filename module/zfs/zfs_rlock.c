@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * This file contains the code to implement file range locking in
@@ -431,6 +429,8 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 	new = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	new->r_zp = zp;
 	new->r_off = off;
+	if (len + off < off)	/* overflow */
+		len = UINT64_MAX - off;
 	new->r_len = len;
 	new->r_cnt = 1; /* assume it's going to be in the tree */
 	new->r_type = type;
