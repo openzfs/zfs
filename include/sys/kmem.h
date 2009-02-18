@@ -147,7 +147,7 @@ extern void vmem_free_debug(void *ptr, size_t size);
                 memset(_ptr_, 0, (size));                                     \
         _ptr_;                                                                \
 })
-# define vmem_free(ptr, size)           (vfree(ptr), (void)(size))
+# define vmem_free(ptr, size)           ((void)(size), vfree(ptr))
 
 #endif /* DEBUG_KMEM */
 
