@@ -67,7 +67,6 @@ __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc)
 	ASSERT(mp);
 	ASSERT(name);
 	ASSERT(ibc == NULL);
-	ASSERT(mp->km_magic != KM_MAGIC); /* Never double init */
 
 	mp->km_name = NULL;
 	mp->km_name_size = strlen(name) + 1;
