@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -90,7 +90,7 @@ typedef struct zfs_ioc_vec {
 	boolean_t		zvec_his_log;
 } zfs_ioc_vec_t;
 
-static void clear_props(char *dataset, nvlist_t *props);
+static void clear_props(char *dataset, nvlist_t *props, nvlist_t *newprops);
 static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, nvlist_t *);
@@ -1322,6 +1322,14 @@ zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
 		(void) strlcat(zc->zc_name, "/", sizeof (zc->zc_name));
 	p = zc->zc_name + strlen(zc->zc_name);
 
+	if (zc->zc_cookie == 0) {
+		uint64_t cookie = 0;
+		int len = sizeof (zc->zc_name) - (p - zc->zc_name);
+
+		while (dmu_dir_list_next(os, len, p, NULL, &cookie) == 0)
+			dmu_objset_prefetch(p, NULL);
+	}
+
 	do {
 		error = dmu_dir_list_next(os,
 		    sizeof (zc->zc_name) - (p - zc->zc_name), p,
@@ -1365,6 +1373,9 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	if (error)
 		return (error == ENOENT ? ESRCH : error);
 
+	if (zc->zc_cookie == 0)
+		dmu_objset_find(zc->zc_name, dmu_objset_prefetch,
+		    NULL, DS_FIND_SNAPSHOTS);
 	/*
 	 * A dataset name of maximum length cannot have any snapshots,
 	 * so exit immediately.
@@ -1606,7 +1617,7 @@ zfs_ioc_set_prop(zfs_cmd_t *zc)
 		if (dmu_objset_open(zc->zc_name, DMU_OST_ANY,
 		    DS_MODE_USER | DS_MODE_READONLY, &os) == 0) {
 			if (dsl_prop_get_all(os, &origprops, TRUE) == 0) {
-				clear_props(zc->zc_name, origprops);
+				clear_props(zc->zc_name, origprops, nvl);
 				nvlist_free(origprops);
 			}
 			dmu_objset_close(os);
@@ -1640,10 +1651,29 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	nvlist_t *props;
 	spa_t *spa;
 	int error;
+	nvpair_t *elem;
 
 	if ((error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 	    &props)))
 		return (error);
+
+	/*
+	 * If the only property is the configfile, then just do a spa_lookup()
+	 * to handle the faulted case.
+	 */
+	elem = nvlist_next_nvpair(props, NULL);
+	if (elem != NULL && strcmp(nvpair_name(elem),
+	    zpool_prop_to_name(ZPOOL_PROP_CACHEFILE)) == 0 &&
+	    nvlist_next_nvpair(props, elem) == NULL) {
+		mutex_enter(&spa_namespace_lock);
+		if ((spa = spa_lookup(zc->zc_name)) != NULL) {
+			spa_configfile_set(spa, props, B_FALSE);
+			spa_config_sync(spa, B_FALSE, B_TRUE);
+		}
+		mutex_exit(&spa_namespace_lock);
+		if (spa != NULL)
+			return (0);
+	}
 
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0) {
 		nvlist_free(props);
@@ -1665,20 +1695,27 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 	int error;
 	nvlist_t *nvp = NULL;
 
-	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
-		return (error);
-
-	error = spa_prop_get(spa, &nvp);
+	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0) {
+		/*
+		 * If the pool is faulted, there may be properties we can still
+		 * get (such as altroot and cachefile), so attempt to get them
+		 * anyway.
+		 */
+		mutex_enter(&spa_namespace_lock);
+		if ((spa = spa_lookup(zc->zc_name)) != NULL)
+			error = spa_prop_get(spa, &nvp);
+		mutex_exit(&spa_namespace_lock);
+	} else {
+		error = spa_prop_get(spa, &nvp);
+		spa_close(spa, FTAG);
+	}
 
 	if (error == 0 && zc->zc_nvlist_dst != NULL)
 		error = put_nvlist(zc, nvp);
 	else
 		error = EFAULT;
 
-	spa_close(spa, FTAG);
-
-	if (nvp)
-		nvlist_free(nvp);
+	nvlist_free(nvp);
 	return (error);
 }
 
@@ -2385,7 +2422,7 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 }
 
 static void
-clear_props(char *dataset, nvlist_t *props)
+clear_props(char *dataset, nvlist_t *props, nvlist_t *newprops)
 {
 	zfs_cmd_t *zc;
 	nvpair_t *prop;
@@ -2396,6 +2433,9 @@ clear_props(char *dataset, nvlist_t *props)
 	(void) strcpy(zc->zc_name, dataset);
 	for (prop = nvlist_next_nvpair(props, NULL); prop;
 	    prop = nvlist_next_nvpair(props, prop)) {
+		if (newprops != NULL &&
+		    nvlist_exists(newprops, nvpair_name(prop)))
+			continue;
 		(void) strcpy(zc->zc_value, nvpair_name(prop));
 		if (zfs_secpolicy_inherit(zc, CRED()) == 0)
 			(void) zfs_ioc_inherit_prop(zc);
@@ -2503,7 +2543,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	 * so that the properties are applied to the new data.
 	 */
 	if (props) {
-		clear_props(tofs, origprops);
+		clear_props(tofs, origprops, props);
 		/*
 		 * XXX - Note, this is all-or-nothing; should be best-effort.
 		 */
@@ -2542,7 +2582,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	 * On error, restore the original props.
 	 */
 	if (error && props) {
-		clear_props(tofs, props);
+		clear_props(tofs, props, NULL);
 		(void) zfs_set_prop_nvlist(tofs, origprops);
 	}
 out:

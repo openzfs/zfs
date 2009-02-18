@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -1079,10 +1079,6 @@ dsl_dir_set_reservation_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	uint64_t *reservationp = arg2;
 	uint64_t new_reservation = *reservationp;
 	uint64_t used, avail;
-	int64_t delta;
-
-	if (new_reservation > INT64_MAX)
-		return (EOVERFLOW);
 
 	/*
 	 * If we are doing the preliminary check in open context, the
@@ -1093,8 +1089,6 @@ dsl_dir_set_reservation_check(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	mutex_enter(&dd->dd_lock);
 	used = dd->dd_phys->dd_used_bytes;
-	delta = MAX(used, new_reservation) -
-	    MAX(used, dd->dd_phys->dd_reserved);
 	mutex_exit(&dd->dd_lock);
 
 	if (dd->dd_parent) {
@@ -1104,11 +1098,17 @@ dsl_dir_set_reservation_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		avail = dsl_pool_adjustedsize(dd->dd_pool, B_FALSE) - used;
 	}
 
-	if (delta > 0 && delta > avail)
-		return (ENOSPC);
-	if (delta > 0 && dd->dd_phys->dd_quota > 0 &&
-	    new_reservation > dd->dd_phys->dd_quota)
-		return (ENOSPC);
+	if (MAX(used, new_reservation) > MAX(used, dd->dd_phys->dd_reserved)) {
+		uint64_t delta = MAX(used, new_reservation) -
+		    MAX(used, dd->dd_phys->dd_reserved);
+
+		if (delta > avail)
+			return (ENOSPC);
+		if (dd->dd_phys->dd_quota > 0 &&
+		    new_reservation > dd->dd_phys->dd_quota)
+			return (ENOSPC);
+	}
+
 	return (0);
 }
 
