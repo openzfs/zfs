@@ -26,8 +26,6 @@
 #ifndef	_SYS_DMU_OBJSET_H
 #define	_SYS_DMU_OBJSET_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/spa.h>
 #include <sys/arc.h>
 #include <sys/txg.h>
@@ -118,6 +116,7 @@ int dmu_objset_find(char *name, int func(char *, void *), void *arg,
     int flags);
 int dmu_objset_find_spa(spa_t *spa, const char *name,
     int func(spa_t *, uint64_t, const char *, void *), void *arg, int flags);
+int dmu_objset_prefetch(char *name, void *arg);
 void dmu_objset_byteswap(void *buf, size_t size);
 int dmu_objset_evict_dbufs(objset_t *os);
 

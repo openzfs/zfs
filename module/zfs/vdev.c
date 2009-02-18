@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -816,23 +816,22 @@ typedef struct vdev_probe_stats {
 	boolean_t	vps_readable;
 	boolean_t	vps_writeable;
 	int		vps_flags;
-	zio_t		*vps_root;
-	vdev_t		*vps_vd;
 } vdev_probe_stats_t;
 
 static void
 vdev_probe_done(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
+	vdev_t *vd = zio->io_vd;
 	vdev_probe_stats_t *vps = zio->io_private;
-	vdev_t *vd = vps->vps_vd;
+
+	ASSERT(vd->vdev_probe_zio != NULL);
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		ASSERT(zio->io_vd == vd);
 		if (zio->io_error == 0)
 			vps->vps_readable = 1;
 		if (zio->io_error == 0 && spa_writeable(spa)) {
-			zio_nowait(zio_write_phys(vps->vps_root, vd,
+			zio_nowait(zio_write_phys(vd->vdev_probe_zio, vd,
 			    zio->io_offset, zio->io_size, zio->io_data,
 			    ZIO_CHECKSUM_OFF, vdev_probe_done, vps,
 			    ZIO_PRIORITY_SYNC_WRITE, vps->vps_flags, B_TRUE));
@@ -840,13 +839,11 @@ vdev_probe_done(zio_t *zio)
 			zio_buf_free(zio->io_data, zio->io_size);
 		}
 	} else if (zio->io_type == ZIO_TYPE_WRITE) {
-		ASSERT(zio->io_vd == vd);
 		if (zio->io_error == 0)
 			vps->vps_writeable = 1;
 		zio_buf_free(zio->io_data, zio->io_size);
 	} else if (zio->io_type == ZIO_TYPE_NULL) {
-		ASSERT(zio->io_vd == NULL);
-		ASSERT(zio == vps->vps_root);
+		zio_t *pio;
 
 		vd->vdev_cant_read |= !vps->vps_readable;
 		vd->vdev_cant_write |= !vps->vps_writeable;
@@ -860,6 +857,16 @@ vdev_probe_done(zio_t *zio)
 			    spa, vd, NULL, 0, 0);
 			zio->io_error = ENXIO;
 		}
+
+		mutex_enter(&vd->vdev_probe_lock);
+		ASSERT(vd->vdev_probe_zio == zio);
+		vd->vdev_probe_zio = NULL;
+		mutex_exit(&vd->vdev_probe_lock);
+
+		while ((pio = zio_walk_parents(zio)) != NULL)
+			if (!vdev_accessible(vd, pio))
+				pio->io_error = ENXIO;
+
 		kmem_free(vps, sizeof (*vps));
 	}
 }
@@ -870,45 +877,78 @@ vdev_probe_done(zio_t *zio)
  * but the first (which we leave alone in case it contains a VTOC).
  */
 zio_t *
-vdev_probe(vdev_t *vd, zio_t *pio)
+vdev_probe(vdev_t *vd, zio_t *zio)
 {
 	spa_t *spa = vd->vdev_spa;
-	vdev_probe_stats_t *vps;
-	zio_t *zio;
-
-	vps = kmem_zalloc(sizeof (*vps), KM_SLEEP);
-
-	vps->vps_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_PROBE |
-	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_AGGREGATE | ZIO_FLAG_DONT_RETRY;
-
-	if (spa_config_held(spa, SCL_ZIO, RW_WRITER)) {
-		/*
-		 * vdev_cant_read and vdev_cant_write can only transition
-		 * from TRUE to FALSE when we have the SCL_ZIO lock as writer;
-		 * otherwise they can only transition from FALSE to TRUE.
-		 * This ensures that any zio looking at these values can
-		 * assume that failures persist for the life of the I/O.
-		 * That's important because when a device has intermittent
-		 * connectivity problems, we want to ensure that they're
-		 * ascribed to the device (ENXIO) and not the zio (EIO).
-		 *
-		 * Since we hold SCL_ZIO as writer here, clear both values
-		 * so the probe can reevaluate from first principles.
-		 */
-		vps->vps_flags |= ZIO_FLAG_CONFIG_WRITER;
-		vd->vdev_cant_read = B_FALSE;
-		vd->vdev_cant_write = B_FALSE;
-	}
+	vdev_probe_stats_t *vps = NULL;
+	zio_t *pio;
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
-	zio = zio_null(pio, spa, vdev_probe_done, vps, vps->vps_flags);
+	/*
+	 * Don't probe the probe.
+	 */
+	if (zio && (zio->io_flags & ZIO_FLAG_PROBE))
+		return (NULL);
 
-	vps->vps_root = zio;
-	vps->vps_vd = vd;
+	/*
+	 * To prevent 'probe storms' when a device fails, we create
+	 * just one probe i/o at a time.  All zios that want to probe
+	 * this vdev will become parents of the probe io.
+	 */
+	mutex_enter(&vd->vdev_probe_lock);
+
+	if ((pio = vd->vdev_probe_zio) == NULL) {
+		vps = kmem_zalloc(sizeof (*vps), KM_SLEEP);
+
+		vps->vps_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_PROBE |
+		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_AGGREGATE |
+		    ZIO_FLAG_DONT_RETRY;
+
+		if (spa_config_held(spa, SCL_ZIO, RW_WRITER)) {
+			/*
+			 * vdev_cant_read and vdev_cant_write can only
+			 * transition from TRUE to FALSE when we have the
+			 * SCL_ZIO lock as writer; otherwise they can only
+			 * transition from FALSE to TRUE.  This ensures that
+			 * any zio looking at these values can assume that
+			 * failures persist for the life of the I/O.  That's
+			 * important because when a device has intermittent
+			 * connectivity problems, we want to ensure that
+			 * they're ascribed to the device (ENXIO) and not
+			 * the zio (EIO).
+			 *
+			 * Since we hold SCL_ZIO as writer here, clear both
+			 * values so the probe can reevaluate from first
+			 * principles.
+			 */
+			vps->vps_flags |= ZIO_FLAG_CONFIG_WRITER;
+			vd->vdev_cant_read = B_FALSE;
+			vd->vdev_cant_write = B_FALSE;
+		}
+
+		vd->vdev_probe_zio = pio = zio_null(NULL, spa, vd,
+		    vdev_probe_done, vps,
+		    vps->vps_flags | ZIO_FLAG_DONT_PROPAGATE);
+
+		if (zio != NULL) {
+			vd->vdev_probe_wanted = B_TRUE;
+			spa_async_request(spa, SPA_ASYNC_PROBE);
+		}
+	}
+
+	if (zio != NULL)
+		zio_add_child(zio, pio);
+
+	mutex_exit(&vd->vdev_probe_lock);
+
+	if (vps == NULL) {
+		ASSERT(zio != NULL);
+		return (NULL);
+	}
 
 	for (int l = 1; l < VDEV_LABELS; l++) {
-		zio_nowait(zio_read_phys(zio, vd,
+		zio_nowait(zio_read_phys(pio, vd,
 		    vdev_label_offset(vd->vdev_psize, l,
 		    offsetof(vdev_label_t, vl_pad)),
 		    VDEV_SKIP_SIZE, zio_buf_alloc(VDEV_SKIP_SIZE),
@@ -916,7 +956,11 @@ vdev_probe(vdev_t *vd, zio_t *pio)
 		    ZIO_PRIORITY_SYNC_READ, vps->vps_flags, B_TRUE));
 	}
 
-	return (zio);
+	if (zio == NULL)
+		return (pio);
+
+	zio_nowait(pio);
+	return (NULL);
 }
 
 /*
