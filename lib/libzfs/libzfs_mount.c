@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -1180,10 +1180,12 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 
 	/*
 	 * And mount all the datasets, keeping track of which ones
-	 * succeeded or failed. By using zfs_alloc(), the good pointer
-	 * will always be non-NULL.
+	 * succeeded or failed.
 	 */
-	good = zfs_alloc(zhp->zpool_hdl, cb.cb_used * sizeof (int));
+	if ((good = zfs_alloc(zhp->zpool_hdl,
+	    cb.cb_used * sizeof (int))) == NULL)
+		goto out;
+
 	ret = 0;
 	for (i = 0; i < cb.cb_used; i++) {
 		if (zfs_mount(cb.cb_datasets[i], mntopts, flags) != 0)
