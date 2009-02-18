@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -36,6 +36,7 @@
 #include <sys/sunddi.h>
 #ifdef _KERNEL
 #include <sys/kobj.h>
+#include <sys/zone.h>
 #endif
 
 /*
@@ -352,7 +353,15 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	    txg) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 	    spa_guid(spa)) == 0);
+#ifdef	_KERNEL
+	hostid = zone_get_hostid(NULL);
+#else	/* _KERNEL */
+	/*
+	 * We're emulating the system's hostid in userland, so we can't use
+	 * zone_get_hostid().
+	 */
 	(void) ddi_strtoul(hw_serial, NULL, 10, &hostid);
+#endif	/* _KERNEL */
 	if (hostid != 0) {
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID,
 		    hostid) == 0);
