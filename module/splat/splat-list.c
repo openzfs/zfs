@@ -380,7 +380,7 @@ splat_list_test7(struct file *file, void *arg)
 			    "list node should inactive %p/%p\n",
 			    li->li_node.prev, li->li_node.next);
 		rc = -EINVAL;
-		goto out;
+		goto out_li;
 	}
 
 	/* Validate node is active when linked in to a list */
@@ -403,7 +403,7 @@ splat_list_test7(struct file *file, void *arg)
 			    li->li_node.prev, li->li_node.next);
 		rc = -EINVAL;
 	}
-
+out_li:
 	kmem_free(li, sizeof(list_item_t));
 out:
 	/* Remove all items */
