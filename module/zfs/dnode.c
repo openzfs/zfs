@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -301,7 +301,7 @@ dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	list_insert_head(&os->os_dnodes, dn);
 	mutex_exit(&os->os_lock);
 
-	arc_space_consume(sizeof (dnode_t));
+	arc_space_consume(sizeof (dnode_t), ARC_SPACE_OTHER);
 	return (dn);
 }
 
@@ -336,7 +336,7 @@ dnode_destroy(dnode_t *dn)
 		dn->dn_bonus = NULL;
 	}
 	kmem_cache_free(dnode_cache, dn);
-	arc_space_return(sizeof (dnode_t));
+	arc_space_return(sizeof (dnode_t), ARC_SPACE_OTHER);
 }
 
 void
@@ -416,7 +416,7 @@ void
 dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
-	int i, old_nblkptr;
+	int i, nblkptr;
 	dmu_buf_impl_t *db = NULL;
 
 	ASSERT3U(blocksize, >=, SPA_MINBLOCKSIZE);
@@ -446,6 +446,8 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 		dnode_free_range(dn, 0, -1ULL, tx);
 	}
 
+	nblkptr = 1 + ((DN_MAX_BONUSLEN - bonuslen) >> SPA_BLKPTRSHIFT);
+
 	/* change blocksize */
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	if (blocksize != dn->dn_datablksz &&
@@ -458,6 +460,8 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	dnode_setdirty(dn, tx);
 	dn->dn_next_bonuslen[tx->tx_txg&TXG_MASK] = bonuslen;
 	dn->dn_next_blksz[tx->tx_txg&TXG_MASK] = blocksize;
+	if (dn->dn_nblkptr != nblkptr)
+		dn->dn_next_nblkptr[tx->tx_txg&TXG_MASK] = nblkptr;
 	rw_exit(&dn->dn_struct_rwlock);
 	if (db)
 		dbuf_rele(db, FTAG);
@@ -467,19 +471,15 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 
 	/* change bonus size and type */
 	mutex_enter(&dn->dn_mtx);
-	old_nblkptr = dn->dn_nblkptr;
 	dn->dn_bonustype = bonustype;
 	dn->dn_bonuslen = bonuslen;
-	dn->dn_nblkptr = 1 + ((DN_MAX_BONUSLEN - bonuslen) >> SPA_BLKPTRSHIFT);
+	dn->dn_nblkptr = nblkptr;
 	dn->dn_checksum = ZIO_CHECKSUM_INHERIT;
 	dn->dn_compress = ZIO_COMPRESS_INHERIT;
 	ASSERT3U(dn->dn_nblkptr, <=, DN_MAX_NBLKPTR);
 
-	/* XXX - for now, we can't make nblkptr smaller */
-	ASSERT3U(dn->dn_nblkptr, >=, old_nblkptr);
-
-	/* fix up the bonus db_size if dn_nblkptr has changed */
-	if (dn->dn_bonus && dn->dn_bonuslen != old_nblkptr) {
+	/* fix up the bonus db_size */
+	if (dn->dn_bonus) {
 		dn->dn_bonus->db.db_size =
 		    DN_MAX_BONUSLEN - (dn->dn_nblkptr-1) * sizeof (blkptr_t);
 		ASSERT(dn->dn_bonuslen <= dn->dn_bonus->db.db_size);
