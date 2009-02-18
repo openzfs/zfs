@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -2077,7 +2077,7 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, recvflags_t flags,
 
 	err = zfs_receive_impl(hdl, tosnap, flags, infd, stream_avl, &top_zfs);
 
-	if (err == 0 && top_zfs) {
+	if (err == 0 && !flags.nomount && top_zfs) {
 		zfs_handle_t *zhp;
 		prop_changelist_t *clp;
 
