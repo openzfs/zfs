@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/dbuf.h>
@@ -534,18 +532,12 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			/* XXX shouldn't the phys already be zeroed? */
 			bzero(dnp, DNODE_CORE_SIZE);
 			dnp->dn_nlevels = 1;
+			dnp->dn_nblkptr = dn->dn_nblkptr;
 		}
 
-		if (dn->dn_nblkptr > dnp->dn_nblkptr) {
-			/* zero the new blkptrs we are gaining */
-			bzero(dnp->dn_blkptr + dnp->dn_nblkptr,
-			    sizeof (blkptr_t) *
-			    (dn->dn_nblkptr - dnp->dn_nblkptr));
-		}
 		dnp->dn_type = dn->dn_type;
 		dnp->dn_bonustype = dn->dn_bonustype;
 		dnp->dn_bonuslen = dn->dn_bonuslen;
-		dnp->dn_nblkptr = dn->dn_nblkptr;
 	}
 
 	ASSERT(dnp->dn_nlevels > 1 ||
@@ -603,6 +595,30 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_free_txg > 0 && dn->dn_free_txg <= tx->tx_txg) {
 		dnode_sync_free(dn, tx);
 		return;
+	}
+
+	if (dn->dn_next_nblkptr[txgoff]) {
+		/* this should only happen on a realloc */
+		ASSERT(dn->dn_allocated_txg == tx->tx_txg);
+		if (dn->dn_next_nblkptr[txgoff] > dnp->dn_nblkptr) {
+			/* zero the new blkptrs we are gaining */
+			bzero(dnp->dn_blkptr + dnp->dn_nblkptr,
+			    sizeof (blkptr_t) *
+			    (dn->dn_next_nblkptr[txgoff] - dnp->dn_nblkptr));
+#ifdef ZFS_DEBUG
+		} else {
+			int i;
+			ASSERT(dn->dn_next_nblkptr[txgoff] < dnp->dn_nblkptr);
+			/* the blkptrs we are losing better be unallocated */
+			for (i = dn->dn_next_nblkptr[txgoff];
+			    i < dnp->dn_nblkptr; i++)
+				ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[i]));
+#endif
+		}
+		mutex_enter(&dn->dn_mtx);
+		dnp->dn_nblkptr = dn->dn_next_nblkptr[txgoff];
+		dn->dn_next_nblkptr[txgoff] = 0;
+		mutex_exit(&dn->dn_mtx);
 	}
 
 	if (dn->dn_next_nlevels[txgoff]) {
