@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -265,6 +265,13 @@ typedef int zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_REEXECUTE_NOW	0x01
 #define	ZIO_REEXECUTE_SUSPEND	0x02
 
+typedef struct zio_link {
+	zio_t		*zl_parent;
+	zio_t		*zl_child;
+	list_node_t	zl_parent_node;
+	list_node_t	zl_child_node;
+} zio_link_t;
+
 struct zio {
 	/* Core information about this I/O */
 	zbookmark_t	io_bookmark;
@@ -275,14 +282,14 @@ struct zio {
 	uint8_t		io_priority;
 	uint8_t		io_reexecute;
 	uint8_t		io_async_root;
+	uint8_t		io_state[ZIO_WAIT_TYPES];
 	uint64_t	io_txg;
 	spa_t		*io_spa;
 	blkptr_t	*io_bp;
 	blkptr_t	io_bp_copy;
-	zio_t		*io_parent;
-	zio_t		*io_child;
-	zio_t		*io_sibling_prev;
-	zio_t		*io_sibling_next;
+	list_t		io_parent_list;
+	list_t		io_child_list;
+	zio_link_t	*io_walk_link;
 	zio_t		*io_logical;
 	zio_transform_t *io_transform_stack;
 
@@ -305,8 +312,6 @@ struct zio {
 	avl_node_t	io_offset_node;
 	avl_node_t	io_deadline_node;
 	avl_tree_t	*io_vdev_tree;
-	zio_t		*io_delegate_list;
-	zio_t		*io_delegate_next;
 
 	/* Internal pipeline state */
 	int		io_flags;
@@ -329,7 +334,7 @@ struct zio {
 	uint64_t	io_ena;
 };
 
-extern zio_t *zio_null(zio_t *pio, spa_t *spa,
+extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
     zio_done_func_t *done, void *private, int flags);
 
 extern zio_t *zio_root(spa_t *spa,
@@ -378,6 +383,11 @@ extern int zio_wait(zio_t *zio);
 extern void zio_nowait(zio_t *zio);
 extern void zio_execute(zio_t *zio);
 extern void zio_interrupt(zio_t *zio);
+
+extern zio_t *zio_walk_parents(zio_t *cio);
+extern zio_t *zio_walk_children(zio_t *pio);
+extern zio_t *zio_unique_parent(zio_t *cio);
+extern void zio_add_child(zio_t *pio, zio_t *cio);
 
 extern void *zio_buf_alloc(size_t size);
 extern void zio_buf_free(void *buf, size_t size);
