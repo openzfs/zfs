@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -490,7 +490,7 @@ typedef struct callb_cpr {
 /*
  * Hostname information
  */
-extern char hw_serial[];
+extern char hw_serial[];	/* for userland-emulated hostid access */
 extern int ddi_strtoul(const char *str, char **nptr, int base,
     unsigned long *result);
 
