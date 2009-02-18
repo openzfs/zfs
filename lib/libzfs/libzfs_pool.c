@@ -228,7 +228,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 
 		case ZPOOL_PROP_GUID:
 			intval = zpool_get_prop_int(zhp, prop, &src);
-			(void) snprintf(buf, len, "%llu", intval);
+			(void) snprintf(buf, len, "%llu", (u_longlong_t)intval);
 			break;
 
 		case ZPOOL_PROP_ALTROOT:
