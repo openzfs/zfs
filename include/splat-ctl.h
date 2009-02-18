@@ -36,7 +36,7 @@
 #define SPLAT_NAME			"splatctl"
 #define SPLAT_DEV			"/dev/splatctl"
 
-#define SPLAT_NAME_SIZE			16
+#define SPLAT_NAME_SIZE			20
 #define SPLAT_DESC_SIZE			60
 
 typedef struct splat_user {
