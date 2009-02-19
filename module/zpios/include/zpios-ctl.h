@@ -53,6 +53,7 @@
 #define DMU_FPP				0x10
 #define DMU_WRITE_ZC			0x20 /* Incompatible with DMU_VERIFY */
 #define DMU_READ_ZC			0x40 /* Incompatible with DMU_VERIFY */
+#define DMU_WRITE_NOWAIT		0x80
 
 #define ZPIOS_NAME_SIZE			16
 #define ZPIOS_PATH_SIZE			128
