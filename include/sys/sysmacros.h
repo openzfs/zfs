@@ -143,6 +143,7 @@ extern int p0;
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);
+extern uint32_t zone_get_hostid(void *zone);
 
 #define makedevice(maj,min) makedev(maj,min)
 

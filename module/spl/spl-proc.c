@@ -470,7 +470,8 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
 			RETURN(-EINVAL);
 
 		spl_hostid = (long)val;
-                (void)snprintf(hw_serial, 11, "%u", (val >= 0) ? val : -val);
+                (void)snprintf(hw_serial, HW_HOSTID_LEN-1, "%u",
+			       (val >= 0) ? val : -val);
                 *ppos += *lenp;
         } else {
                 len = snprintf(str, sizeof(str), "%lx", spl_hostid);

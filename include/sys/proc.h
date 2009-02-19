@@ -33,6 +33,7 @@
 #include <linux/sysctl.h>
 #include <linux/seq_file.h>
 #include <sys/sysmacros.h>
+#include <sys/systeminfo.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
 #include <sys/kstat.h>

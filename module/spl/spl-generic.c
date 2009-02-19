@@ -25,6 +25,7 @@
  */
 
 #include <sys/sysmacros.h>
+#include <sys/systeminfo.h>
 #include <sys/vmsystm.h>
 #include <sys/vnode.h>
 #include <sys/kmem.h>
@@ -47,7 +48,7 @@ char spl_version[16] = "SPL v" VERSION;
 long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 
-char hw_serial[11] = "<none>";
+char hw_serial[HW_HOSTID_LEN] = "<none>";
 EXPORT_SYMBOL(hw_serial);
 
 int p0 = 0;
@@ -252,6 +253,21 @@ set_hostid(void)
 	 */
 	return call_usermodehelper(sh_path, argv, envp, 1);
 }
+
+uint32_t
+zone_get_hostid(void *zone)
+{
+	unsigned long hostid;
+
+	/* Only the global zone is supported */
+	ASSERT(zone == NULL);
+
+	if (ddi_strtoul(hw_serial, NULL, HW_HOSTID_LEN-1, &hostid) != 0)
+		return HW_INVALID_HOSTID;
+
+	return (uint32_t)hostid;
+}
+EXPORT_SYMBOL(zone_get_hostid);
 
 static int __init spl_init(void)
 {
