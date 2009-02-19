@@ -426,6 +426,9 @@ zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
         int rc, how = TXG_WAIT;
 	int flags = 0;
 
+	if (run_args->flags & DMU_WRITE_NOWAIT)
+		how = TXG_NOWAIT;
+
         while (1) {
                 tx = dmu_tx_create(os);
                 dmu_tx_hold_write(tx, object, offset, size);
@@ -661,13 +664,12 @@ zpios_thread_done(run_args_t *run_args)
 static int
 zpios_threads_run(run_args_t *run_args)
 {
-        struct task_struct *tsk, **tsks;
+	struct task_struct *tsk, **tsks;
 	thread_data_t *thr = NULL;
 	zpios_time_t *tt = &(run_args->stats.total_time);
 	zpios_time_t *tw = &(run_args->stats.wr_time);
 	zpios_time_t *tr = &(run_args->stats.rd_time);
-        int i, rc = 0, tc = run_args->thread_count;
-        DEFINE_WAIT(wait);
+	int i, rc = 0, tc = run_args->thread_count;
 
 	zpios_upcall(run_args->pre, PHASE_PRE, run_args, 0);
 
@@ -697,32 +699,32 @@ zpios_threads_run(run_args_t *run_args)
 		thr->thread_no = i;
 		thr->run_args = run_args;
 		thr->rc = 0;
-	        mutex_init(&thr->lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&thr->lock, NULL, MUTEX_DEFAULT, NULL);
 		run_args->threads[i] = thr;
 
-	        tsk = kthread_create(zpios_thread_main, (void *)thr,
-	                             "%s/%d", "zpios_io", i);
-	        if (IS_ERR(tsk)) {
+		tsk = kthread_create(zpios_thread_main, (void *)thr,
+		                     "%s/%d", "zpios_io", i);
+		if (IS_ERR(tsk)) {
 			rc = -EINVAL;
 			goto taskerr;
 		}
 
 		tsks[i] = tsk;
-        }
+	}
 
-        tt->start = current_kernel_time();
+	tt->start = current_kernel_time();
 
 	/* Wake up all threads for write phase */
 	zpios_upcall(run_args->pre, PHASE_WRITE, run_args, 0);
-        for (i = 0; i < tc; i++)
+	for (i = 0; i < tc; i++)
 		wake_up_process(tsks[i]);
 
 	/* Wait for write phase to complete */
-        tw->start = current_kernel_time();
-        wait_event(run_args->waitq, zpios_thread_done(run_args));
-        tw->stop = current_kernel_time();
+	tw->start = current_kernel_time();
+	wait_event(run_args->waitq, zpios_thread_done(run_args));
+	tw->stop = current_kernel_time();
 
-        for (i = 0; i < tc; i++) {
+	for (i = 0; i < tc; i++) {
 		thr = run_args->threads[i];
 
 		mutex_enter(&thr->lock);
@@ -759,11 +761,11 @@ zpios_threads_run(run_args_t *run_args)
 		wake_up_process(tsks[i]);
 
 	/* Wait for read phase to complete */
-        tr->start = current_kernel_time();
-        wait_event(run_args->waitq, zpios_thread_done(run_args));
-        tr->stop = current_kernel_time();
+	tr->start = current_kernel_time();
+	wait_event(run_args->waitq, zpios_thread_done(run_args));
+	tr->stop = current_kernel_time();
 
-        for (i = 0; i < tc; i++) {
+	for (i = 0; i < tc; i++) {
 		thr = run_args->threads[i];
 
 		mutex_enter(&thr->lock);
@@ -778,7 +780,7 @@ zpios_threads_run(run_args_t *run_args)
 
 	zpios_upcall(run_args->post, PHASE_READ, run_args, rc);
 out:
-        tt->stop = current_kernel_time();
+	tt->stop = current_kernel_time();
 	tt->delta = timespec_sub(tt->stop, tt->start);
 	tw->delta = timespec_sub(tw->stop, tw->start);
 	tr->delta = timespec_sub(tr->stop, tr->start);
@@ -804,7 +806,7 @@ static int
 zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
                  int data_size, void *data)
 {
-        run_args_t *run_args;
+	run_args_t *run_args;
 	zpios_stats_t *stats = (zpios_stats_t *)data;
 	int i, n, m, size, rc;
 
@@ -848,7 +850,7 @@ zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
 		return -ENOSPC;
 	}
 
-        rc = zpios_setup_run(&run_args, kcmd, file);
+	rc = zpios_setup_run(&run_args, kcmd, file);
 	if (rc)
 		return rc;
 
