@@ -1609,12 +1609,12 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 		if (mru_over > 0 && arc_mru_ghost->arcs_lsize[type] > 0) {
 			int64_t todelete =
 			    MIN(arc_mru_ghost->arcs_lsize[type], mru_over);
-			arc_evict_ghost(arc_mru_ghost, NULL, todelete);
+			arc_evict_ghost(arc_mru_ghost, 0, todelete);
 		} else if (arc_mfu_ghost->arcs_lsize[type] > 0) {
 			int64_t todelete = MIN(arc_mfu_ghost->arcs_lsize[type],
 			    arc_mru_ghost->arcs_size +
 			    arc_mfu_ghost->arcs_size - arc_c);
-			arc_evict_ghost(arc_mfu_ghost, NULL, todelete);
+			arc_evict_ghost(arc_mfu_ghost, 0, todelete);
 		}
 	}
 
@@ -1706,13 +1706,13 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_DATA] > 0) {
 		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_DATA], adjustment);
-		(void) arc_evict(arc_mru, NULL, delta, FALSE, ARC_BUFC_DATA);
+		(void) arc_evict(arc_mru, 0, delta, FALSE, ARC_BUFC_DATA);
 		adjustment -= delta;
 	}
 
 	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_METADATA], adjustment);
-		(void) arc_evict(arc_mru, NULL, delta, FALSE,
+		(void) arc_evict(arc_mru, 0, delta, FALSE,
 		    ARC_BUFC_METADATA);
 	}
 
@@ -1724,14 +1724,14 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_DATA] > 0) {
 		delta = MIN(adjustment, arc_mfu->arcs_lsize[ARC_BUFC_DATA]);
-		(void) arc_evict(arc_mfu, NULL, delta, FALSE, ARC_BUFC_DATA);
+		(void) arc_evict(arc_mfu, 0, delta, FALSE, ARC_BUFC_DATA);
 		adjustment -= delta;
 	}
 
 	if (adjustment > 0 && arc_mfu->arcs_lsize[ARC_BUFC_METADATA] > 0) {
 		int64_t delta = MIN(adjustment,
 		    arc_mfu->arcs_lsize[ARC_BUFC_METADATA]);
-		(void) arc_evict(arc_mfu, NULL, delta, FALSE,
+		(void) arc_evict(arc_mfu, 0, delta, FALSE,
 		    ARC_BUFC_METADATA);
 	}
 
@@ -1743,7 +1743,7 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mru_ghost->arcs_size > 0) {
 		delta = MIN(arc_mru_ghost->arcs_size, adjustment);
-		arc_evict_ghost(arc_mru_ghost, NULL, delta);
+		arc_evict_ghost(arc_mru_ghost, 0, delta);
 	}
 
 	adjustment =
@@ -1751,7 +1751,7 @@ arc_adjust(void)
 
 	if (adjustment > 0 && arc_mfu_ghost->arcs_size > 0) {
 		delta = MIN(arc_mfu_ghost->arcs_size, adjustment);
-		arc_evict_ghost(arc_mfu_ghost, NULL, delta);
+		arc_evict_ghost(arc_mfu_ghost, 0, delta);
 	}
 }
 
@@ -2171,7 +2171,7 @@ arc_get_data_buf(arc_buf_t *buf)
 		state =  (arc_mru->arcs_lsize[type] >= size &&
 		    mfu_space > arc_mfu->arcs_size) ? arc_mru : arc_mfu;
 	}
-	if ((buf->b_data = arc_evict(state, NULL, size, TRUE, type)) == NULL) {
+	if ((buf->b_data = arc_evict(state, 0, size, TRUE, type)) == NULL) {
 		if (type == ARC_BUFC_METADATA) {
 			buf->b_data = zio_buf_alloc(size);
 			arc_space_consume(size, ARC_SPACE_DATA);
