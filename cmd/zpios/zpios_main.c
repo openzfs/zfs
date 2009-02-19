@@ -44,45 +44,44 @@
 #include <sys/ioctl.h>
 #include "zpios.h"
 
-static const char short_opt[] = "t:l:h:e:n:i:j:k:c:u:a:b:g:L:P:R:I:"
-                                "G:T:N:VHzOs:A:B:C:o:m:q:r:fwxdp:v?";
+static const char short_opt[] = "t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
+                                "L:p:xP:R:G:I:N:T:VzOHv?";
 static const struct option long_opt[] = {
-	{"chunksize",           required_argument, 0, 'c' },
-	{"chunksize_low",       required_argument, 0, 'a' },
-	{"chunksize_high",      required_argument, 0, 'b' },
-	{"chunksize_incr",      required_argument, 0, 'g' },
-	{"offset",              required_argument, 0, 'o' },
-	{"offset_low",          required_argument, 0, 'm' },
-	{"offset_high",         required_argument, 0, 'q' },
-	{"offset_incr",         required_argument, 0, 'r' },
-	{"regioncount",         required_argument, 0, 'n' },
-	{"regioncount_low",     required_argument, 0, 'i' },
-	{"regioncount_high",    required_argument, 0, 'j' },
-	{"regioncount_incr",    required_argument, 0, 'k' },
 	{"threadcount",         required_argument, 0, 't' },
 	{"threadcount_low",     required_argument, 0, 'l' },
 	{"threadcount_high",    required_argument, 0, 'h' },
 	{"threadcount_incr",    required_argument, 0, 'e' },
+	{"regioncount",         required_argument, 0, 'n' },
+	{"regioncount_low",     required_argument, 0, 'i' },
+	{"regioncount_high",    required_argument, 0, 'j' },
+	{"regioncount_incr",    required_argument, 0, 'k' },
+	{"offset",              required_argument, 0, 'o' },
+	{"offset_low",          required_argument, 0, 'm' },
+	{"offset_high",         required_argument, 0, 'q' },
+	{"offset_incr",         required_argument, 0, 'r' },
+	{"chunksize",           required_argument, 0, 'c' },
+	{"chunksize_low",       required_argument, 0, 'a' },
+	{"chunksize_high",      required_argument, 0, 'b' },
+	{"chunksize_incr",      required_argument, 0, 'g' },
 	{"regionsize",          required_argument, 0, 's' },
 	{"regionsize_low",      required_argument, 0, 'A' },
 	{"regionsize_high",     required_argument, 0, 'B' },
 	{"regionsize_incr",     required_argument, 0, 'C' },
+	{"load",                required_argument, 0, 'L' },
+	{"pool",                required_argument, 0, 'p' },
 	{"cleanup",             no_argument,       0, 'x' },
-	{"verify",              no_argument,       0, 'V' },
-	{"zerocopy",            no_argument,       0, 'z' },
-	{"nowait",              no_argument,       0, 'O' },
-	{"threaddelay",         required_argument, 0, 'T' },
-	{"regionnoise",         required_argument, 0, 'I' },
-	{"chunknoise",          required_argument, 0, 'N' },
 	{"prerun",              required_argument, 0, 'P' },
 	{"postrun",             required_argument, 0, 'R' },
 	{"log",                 required_argument, 0, 'G' },
-	{"path",                required_argument, 0, 'p' },
-	{"pool",                required_argument, 0, 'p' },
-	{"load",                required_argument, 0, 'L' },
+	{"regionnoise",         required_argument, 0, 'I' },
+	{"chunknoise",          required_argument, 0, 'N' },
+	{"threaddelay",         required_argument, 0, 'T' },
+	{"verify",              no_argument,       0, 'V' },
+	{"zerocopy",            no_argument,       0, 'z' },
+	{"nowait",              no_argument,       0, 'O' },
 	{"human-readable",      no_argument,       0, 'H' },
-	{"help",                no_argument,       0, '?' },
 	{"verbose",             no_argument,       0, 'v' },
+	{"help",                no_argument,       0, '?' },
 	{ 0,                    0,                 0,  0  },
 };
 
@@ -96,41 +95,41 @@ usage(void)
 {
 	fprintf(stderr, "Usage: zpios\n");
 	fprintf(stderr,
-	        "	--chunksize         -c    =values\n"
-	        "	--chunksize_low     -a    =value\n"
-	        "	--chunksize_high    -b    =value\n"
-	        "	--chunksize_incr    -g    =value\n"
-	        "	--offset            -o    =values\n"
-	        "	--offset_low        -m    =value\n"
-	        "	--offset_high       -q    =value\n"
-	        "	--offset_incr       -r    =value\n"
-	        "	--regioncount       -n    =values\n"
-	        "	--regioncount_low   -i    =value\n"
-	        "	--regioncount_high  -j    =value\n"
-	        "	--regioncount_incr  -k    =value\n"
 	        "	--threadcount       -t    =values\n"
 	        "	--threadcount_low   -l    =value\n"
 	        "	--threadcount_high  -h    =value\n"
 	        "	--threadcount_incr  -e    =value\n"
+	        "	--regioncount       -n    =values\n"
+	        "	--regioncount_low   -i    =value\n"
+	        "	--regioncount_high  -j    =value\n"
+	        "	--regioncount_incr  -k    =value\n"
+	        "	--offset            -o    =values\n"
+	        "	--offset_low        -m    =value\n"
+	        "	--offset_high       -q    =value\n"
+	        "	--offset_incr       -r    =value\n"
+	        "	--chunksize         -c    =values\n"
+	        "	--chunksize_low     -a    =value\n"
+	        "	--chunksize_high    -b    =value\n"
+	        "	--chunksize_incr    -g    =value\n"
 	        "	--regionsize        -s    =values\n"
 	        "	--regionsize_low    -A    =value\n"
 	        "	--regionsize_high   -B    =value\n"
 	        "	--regionsize_incr   -C    =value\n"
+	        "	--load              -L    =dmuio|ssf|fpp\n"
+	        "	--pool              -p    =pool name\n"
 	        "	--cleanup           -x\n"
-	        "	--verify            -V\n"
-	        "	--zerocopy          -z\n"
-	        "	--nowait            -O\n"
-	        "	--threaddelay       -T    =jiffies\n"
-	        "	--regionnoise       -I    =shift\n"
-	        "	--chunknoise        -N    =bytes\n"
 	        "	--prerun            -P    =pre-command\n"
 	        "	--postrun           -R    =post-command\n"
 		"       --log               -G    =log directory\n"
-	        "	--pool | --path     -p    =pool name\n"
-	        "	--load              -L    =dmuio\n"
+	        "	--regionnoise       -I    =shift\n"
+	        "	--chunknoise        -N    =bytes\n"
+	        "	--threaddelay       -T    =jiffies\n"
+	        "	--verify            -V\n"
+	        "	--zerocopy          -z\n"
+	        "	--nowait            -O\n"
 		"       --human-readable    -H\n"
-	        "	--help              -?    =this help\n"
-	        "	--verbose           -v    =increase verbosity\n\n");
+	        "	--verbose           -v    =increase verbosity\n"
+	        "	--help              -?    =this help\n\n");
 
 	return 0;
 }
