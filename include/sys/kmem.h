@@ -126,9 +126,9 @@ extern void vmem_free_debug(void *ptr, size_t size);
 
 #else /* DEBUG_KMEM */
 
-# define kmem_alloc(size, flags)        kmalloc((size), (flags))
-# define kmem_zalloc(size, flags)       kzalloc((size), (flags))
-# define kmem_free(ptr, size)           (kfree(ptr), (void)(size))
+# define kmem_alloc(size, flags)              kmalloc((size), (flags))
+# define kmem_zalloc(size, flags)             kzalloc((size), (flags))
+# define kmem_free(ptr, size)                 ((void)(size), kfree(ptr))
 
 # ifdef HAVE_KMALLOC_NODE
 #  define kmem_alloc_node(size, flags, node)                                  \
@@ -138,8 +138,8 @@ extern void vmem_free_debug(void *ptr, size_t size);
           kmalloc((size), (flags))
 # endif
 
-# define vmem_alloc(size, flags)        __vmalloc((size), ((flags) |          \
-                                            __GFP_HIGHMEM), PAGE_KERNEL)
+# define vmem_alloc(size, flags)              __vmalloc((size), ((flags) |    \
+                                                  __GFP_HIGHMEM), PAGE_KERNEL)
 # define vmem_zalloc(size, flags)                                             \
 ({                                                                            \
         void *_ptr_ = __vmalloc((size),((flags)|__GFP_HIGHMEM),PAGE_KERNEL);  \
