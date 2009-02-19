@@ -355,6 +355,7 @@ void
 zio_add_child(zio_t *pio, zio_t *cio)
 {
 	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
+	int w;
 
 	/*
 	 * Logical I/Os can have logical, gang, or vdev children.
@@ -372,7 +373,7 @@ zio_add_child(zio_t *pio, zio_t *cio)
 
 	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
 
-	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
+	for (w = 0; w < ZIO_WAIT_TYPES; w++)
 		pio->io_children[cio->io_child_type][w] += !cio->io_state[w];
 
 	list_insert_head(&pio->io_child_list, zl);
@@ -1155,7 +1156,7 @@ zio_reexecute(zio_t *pio)
 	for (cio = zio_walk_children(pio); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio);
 		mutex_enter(&pio->io_lock);
-		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
+		for (w = 0; w < ZIO_WAIT_TYPES; w++)
 			pio->io_children[cio->io_child_type][w]++;
 		mutex_exit(&pio->io_lock);
 		zio_reexecute(cio);
