@@ -57,6 +57,8 @@
 #define GB			(MB * 1024)
 #define TB			(GB * 1024)
 
+#define KMGT_SIZE		16
+
 /* All offsets, sizes and counts can be passed to the application in
  * multiple ways.
  * 1. a value (stored in val[0], val_count will be 1)
