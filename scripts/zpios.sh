@@ -5,10 +5,7 @@
 
 . ./common.sh
 PROG=zpios.sh
-
-PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
-PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
-PROFILE_ZPIOS_LOG=/tmp/
+DATE=`date +%Y%m%d-%H%M%S`
 
 MODULES=(				\
 	${MODDIR}/zpios/zpios.ko	\
@@ -114,6 +111,43 @@ check_test() {
 	return 0
 }
 
+zpios_profile_config() {
+cat > ${PROFILE_ZPIOS_LOG}/zpios-config.sh << EOF
+#
+# Zpios Profiling Configuration
+#
+
+KERNEL_BIN="/lib/modules/`uname -r`/kernel/"
+SPL_BIN="${SPLBUILD}/module/"
+ZFS_BIN="${TOPDIR}/module/"
+
+PROFILE_ZPIOS_BIN=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
+PROFILE_ZPIOS_PIDS_BIN=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
+PROFILE_ZPIOS_DISK_BIN=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
+
+EOF
+}
+
+zpios_profile_start() {
+	PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
+	PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
+	PROFILE_ZPIOS_LOG=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --log=${PROFILE_ZPIOS_LOG}"
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --prerun=${PROFILE_ZPIOS_PRE}"
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --postrun=${PROFILE_ZPIOS_POST}"
+
+	mkdir -p ${PROFILE_ZPIOS_LOG}
+	zpios_profile_config
+
+	/usr/bin/opcontrol --init || exit 1
+	/usr/bin/opcontrol --setup --vmlinux=/boot/vmlinux || exit 1
+}
+
+zpios_profile_stop() {
+	/usr/bin/opcontrol --shutdown
+	/usr/bin/opcontrol --deinit
+}
+
 PROFILE=
 ZPOOL_CONFIG=zpool-config.sh
 ZPIOS_TEST=zpios-test.sh
@@ -139,6 +173,7 @@ while getopts 'hvpc:t:o:l:s:' OPTION; do
 		ZPOOL_CONFIG=${OPTARG}
 		;;
 	t)
+		ZPIOS_TEST_ARG=${OPTARG}
 		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.sh
 		;;
 	o)
@@ -188,16 +223,18 @@ fi
 ./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
 	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || exit 1
 
-if [ $PROFILE ]; then
-	ZPIOS_CMD="${ZPIOS_CMD} --log=${PROFILE_ZPIOS_LOG}"
-	ZPIOS_CMD="${ZPIOS_CMD}	--prerun=${PROFILE_ZPIOS_PRE}"
-	ZPIOS_CMD="${ZPIOS_CMD}	--postrun=${PROFILE_ZPIOS_POST}"
+if [ ${PROFILE} ]; then
+	zpios_profile_start
 fi
 
 echo
-date
+echo "${DATE}"
 zpios_start
 zpios_stop
+
+if [ ${PROFILE} ]; then
+	zpios_profile_stop
+fi
 
 if [ ${VERBOSE} ]; then
 	print_stats
