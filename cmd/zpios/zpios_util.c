@@ -87,10 +87,10 @@ uint64_to_kmgt(char *str, uint64_t val)
 	}
 
 	if (i >= 4)
-		sprintf(str, "inf");
+		(void)snprintf(str, KMGT_SIZE-1, "inf");
 	else
-		sprintf(str, "%lu%c", (unsigned long)val,
-		        (i == -1) ? '\0' : postfix[i]);
+		(void)snprintf(str, KMGT_SIZE-1, "%lu%c", (unsigned long)val,
+		               (i == -1) ? '\0' : postfix[i]);
 
 	return str;
 }
@@ -108,10 +108,10 @@ kmgt_per_sec(char *str, uint64_t v, double t)
 	}
 
 	if (i >= 4)
-		sprintf(str, "inf");
+		(void)snprintf(str, KMGT_SIZE-1, "inf");
 	else
-		sprintf(str, "%.2f%c", val,
-		        (i == -1) ? '\0' : postfix[i]);
+		(void)snprintf(str, KMGT_SIZE-1, "%.2f%c", val,
+		               (i == -1) ? '\0' : postfix[i]);
 
 	return str;
 }
@@ -125,7 +125,8 @@ print_flags(char *str, uint32_t flags)
 	str[3] = (flags & DMU_REMOVE) ? 'c' : '-';
 	str[4] = (flags & DMU_FPP)    ? 'p' : 's';
 	str[5] = (flags & (DMU_WRITE_ZC | DMU_READ_ZC)) ? 'z' : '-';
-	str[6] = '\0';
+	str[6] = (flags & DMU_WRITE_NOWAIT) ? 'O' : '-';
+	str[7] = '\0';
 
 	return str;
 }
@@ -140,7 +141,7 @@ timespec_to_double(struct timespec t)
 static int
 regex_match(const char *string, char *pattern)
 {
-	regex_t re;
+	regex_t re = { 0 };
 	int rc;
 
 	rc = regcomp(&re, pattern, REG_EXTENDED | REG_NOSUB | REG_ICASE);
@@ -327,7 +328,7 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 {
 	zpios_stats_t *summary_stats;
 	double t_time, wr_time, rd_time, cr_time, rm_time;
-	char str[16];
+	char str[KMGT_SIZE];
 
 	if (args->rc)
 		printf("FAILED: %3d ", args->rc);
