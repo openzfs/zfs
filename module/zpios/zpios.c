@@ -405,15 +405,12 @@ zpios_cleanup_run(run_args_t *run_args)
 			  sizeof(thread_data_t *) * run_args->thread_count);
 	}
 
-	if (run_args->regions != NULL)
-		for (i = 0; i < run_args->region_count; i++)
-			mutex_destroy(&run_args->regions[i].lock);
+	for (i = 0; i < run_args->region_count; i++)
+		mutex_destroy(&run_args->regions[i].lock);
 
-        mutex_destroy(&run_args->lock_work);
-        mutex_destroy(&run_args->lock_ctl);
-
-	if (run_args->regions != NULL)
-		size = run_args->region_count * sizeof(zpios_region_t);
+	mutex_destroy(&run_args->lock_work);
+	mutex_destroy(&run_args->lock_ctl);
+	size = run_args->region_count * sizeof(zpios_region_t);
 
 	vmem_free(run_args, sizeof(*run_args) + size);
 }
@@ -422,39 +419,39 @@ static int
 zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
 		uint64_t offset, uint64_t size, const void *buf)
 {
-        struct dmu_tx *tx;
-        int rc, how = TXG_WAIT;
+	struct dmu_tx *tx;
+	int rc, how = TXG_WAIT;
 	int flags = 0;
 
 	if (run_args->flags & DMU_WRITE_NOWAIT)
 		how = TXG_NOWAIT;
 
-        while (1) {
-                tx = dmu_tx_create(os);
-                dmu_tx_hold_write(tx, object, offset, size);
-                rc = dmu_tx_assign(tx, how);
+	while (1) {
+		tx = dmu_tx_create(os);
+		dmu_tx_hold_write(tx, object, offset, size);
+		rc = dmu_tx_assign(tx, how);
 
-                if (rc) {
-                        if (rc == ERESTART && how == TXG_NOWAIT) {
-                                dmu_tx_wait(tx);
-                                dmu_tx_abort(tx);
-                                continue;
-                        }
-                        zpios_print(run_args->file,
+		if (rc) {
+			if (rc == ERESTART && how == TXG_NOWAIT) {
+				dmu_tx_wait(tx);
+				dmu_tx_abort(tx);
+				continue;
+			}
+			zpios_print(run_args->file,
 				    "Error in dmu_tx_assign(), %d", rc);
-                        dmu_tx_abort(tx);
-                        return rc;
-                }
-                break;
-        }
+			dmu_tx_abort(tx);
+			return rc;
+		}
+		break;
+	}
 
 	if (run_args->flags & DMU_WRITE_ZC)
 		flags |= DMU_WRITE_ZEROCOPY;
 
-        dmu_write_impl(os, object, offset, size, buf, tx, flags);
-        dmu_tx_commit(tx);
+	dmu_write_impl(os, object, offset, size, buf, tx, flags);
+	dmu_tx_commit(tx);
 
-        return 0;
+	return 0;
 }
 
 static int
@@ -475,25 +472,22 @@ zpios_thread_main(void *data)
 	thread_data_t *thr = (thread_data_t *)data;
 	run_args_t *run_args = thr->run_args;
 	zpios_time_t t;
-
-        dmu_obj_t obj;
-        __u64 offset;
+	dmu_obj_t obj;
+	__u64 offset;
 	__u32 chunk_size;
 	zpios_region_t *region;
-        char *buf;
-
+	char *buf;
 	unsigned int random_int;
-        int chunk_noise = run_args->chunk_noise;
-        int chunk_noise_tmp = 0;
-        int thread_delay = run_args->thread_delay;
-        int thread_delay_tmp = 0;
+	int chunk_noise = run_args->chunk_noise;
+	int chunk_noise_tmp = 0;
+	int thread_delay = run_args->thread_delay;
+	int thread_delay_tmp = 0;
+	int i, rc = 0;
 
-        int i, rc = 0;
-
-        if (chunk_noise) {
+	if (chunk_noise) {
 		get_random_bytes(&random_int, sizeof(unsigned int));
-                chunk_noise_tmp = (random_int % (chunk_noise * 2)) - chunk_noise;
-        }
+		chunk_noise_tmp = (random_int % (chunk_noise * 2))-chunk_noise;
+	}
 
 	/* It's OK to vmem_alloc() this memory because it will be copied
 	 * in to the slab and pointers to the slab copy will be setup in
@@ -511,22 +505,22 @@ zpios_thread_main(void *data)
 
 	/* Write phase */
 	mutex_enter(&thr->lock);
-        thr->stats.wr_time.start = current_kernel_time();
+	thr->stats.wr_time.start = current_kernel_time();
 	mutex_exit(&thr->lock);
 
-        while (zpios_get_work_item(run_args, &obj, &offset,
+	while (zpios_get_work_item(run_args, &obj, &offset,
 				   &chunk_size, &region, DMU_WRITE)) {
 		if (thread_delay) {
 			get_random_bytes(&random_int, sizeof(unsigned int));
-	                thread_delay_tmp = random_int % thread_delay;
-		        set_current_state(TASK_UNINTERRUPTIBLE);
+			thread_delay_tmp = random_int % thread_delay;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(thread_delay_tmp); /* In jiffies */
 		}
 
-	        t.start = current_kernel_time();
+		t.start = current_kernel_time();
 		rc = zpios_dmu_write(run_args, obj.os, obj.obj,
 				     offset, chunk_size, buf);
-	        t.stop = current_kernel_time();
+		t.stop = current_kernel_time();
 		t.delta = timespec_sub(t.stop, t.start);
 
 		if (rc) {
@@ -553,7 +547,7 @@ zpios_thread_main(void *data)
 			region->stats.wr_time.start = t.start;
 
 		mutex_exit(&region->lock);
-        }
+	}
 
 	mutex_enter(&run_args->lock_ctl);
 	run_args->threads_done++;
@@ -561,11 +555,11 @@ zpios_thread_main(void *data)
 
 	mutex_enter(&thr->lock);
 	thr->rc = rc;
-        thr->stats.wr_time.stop = current_kernel_time();
+	thr->stats.wr_time.stop = current_kernel_time();
 	mutex_exit(&thr->lock);
-        wake_up(&run_args->waitq);
+	wake_up(&run_args->waitq);
 
-        set_current_state(TASK_UNINTERRUPTIBLE);
+	set_current_state(TASK_UNINTERRUPTIBLE);
 	schedule();
 
 	/* Check if we should exit */
@@ -577,25 +571,25 @@ zpios_thread_main(void *data)
 
 	/* Read phase */
 	mutex_enter(&thr->lock);
-        thr->stats.rd_time.start = current_kernel_time();
+	thr->stats.rd_time.start = current_kernel_time();
 	mutex_exit(&thr->lock);
 
-        while (zpios_get_work_item(run_args, &obj, &offset,
+	while (zpios_get_work_item(run_args, &obj, &offset,
 				   &chunk_size, &region, DMU_READ)) {
 		if (thread_delay) {
 			get_random_bytes(&random_int, sizeof(unsigned int));
-	                thread_delay_tmp = random_int % thread_delay;
-		        set_current_state(TASK_UNINTERRUPTIBLE);
+			thread_delay_tmp = random_int % thread_delay;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(thread_delay_tmp); /* In jiffies */
 		}
 
 		if (run_args->flags & DMU_VERIFY)
 			memset(buf, 0, chunk_size);
 
-	        t.start = current_kernel_time();
+		t.start = current_kernel_time();
 		rc = zpios_dmu_read(run_args, obj.os, obj.obj,
 				    offset, chunk_size, buf);
-	        t.stop = current_kernel_time();
+		t.stop = current_kernel_time();
 		t.delta = timespec_sub(t.stop, t.start);
 
 		if (rc) {
@@ -635,7 +629,7 @@ zpios_thread_main(void *data)
 			region->stats.rd_time.start = t.start;
 
 		mutex_exit(&region->lock);
-        }
+	}
 
 	mutex_enter(&run_args->lock_ctl);
 	run_args->threads_done++;
@@ -643,9 +637,9 @@ zpios_thread_main(void *data)
 
 	mutex_enter(&thr->lock);
 	thr->rc = rc;
-        thr->stats.rd_time.stop = current_kernel_time();
+	thr->stats.rd_time.stop = current_kernel_time();
 	mutex_exit(&thr->lock);
-        wake_up(&run_args->waitq);
+	wake_up(&run_args->waitq);
 
 out:
 	vmem_free(buf, chunk_size);
@@ -658,7 +652,7 @@ static int
 zpios_thread_done(run_args_t *run_args)
 {
 	ASSERT(run_args->threads_done <= run_args->thread_count);
-        return (run_args->threads_done == run_args->thread_count);
+	return (run_args->threads_done == run_args->thread_count);
 }
 
 static int
@@ -689,7 +683,7 @@ zpios_threads_run(run_args_t *run_args)
 	run_args->threads_done = 0;
 
 	/* Create all the needed threads which will sleep until awoken */
-        for (i = 0; i < tc; i++) {
+	for (i = 0; i < tc; i++) {
 		thr = kmem_zalloc(sizeof(thread_data_t), KM_SLEEP);
 		if (thr == NULL) {
 			rc = -ENOMEM;
