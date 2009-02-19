@@ -120,14 +120,14 @@ usage(void)
 	        "	--cleanup           -x\n"
 	        "	--prerun            -P    =pre-command\n"
 	        "	--postrun           -R    =post-command\n"
-		"       --log               -G    =log directory\n"
+	        "	--log               -G    =log directory\n"
 	        "	--regionnoise       -I    =shift\n"
 	        "	--chunknoise        -N    =bytes\n"
 	        "	--threaddelay       -T    =jiffies\n"
 	        "	--verify            -V\n"
 	        "	--zerocopy          -z\n"
 	        "	--nowait            -O\n"
-		"       --human-readable    -H\n"
+	        "	--human-readable    -H\n"
 	        "	--verbose           -v    =increase verbosity\n"
 	        "	--help              -?    =this help\n\n");
 
