@@ -45,7 +45,7 @@
 #include "zpios.h"
 
 static const char short_opt[] = "t:l:h:e:n:i:j:k:c:u:a:b:g:L:P:R:I:"
-                                "G:T:Vzs:A:B:C:o:m:q:r:fwxdp:v?";
+                                "G:T:N:VHzOs:A:B:C:o:m:q:r:fwxdp:v?";
 static const struct option long_opt[] = {
 	{"chunksize",           required_argument, 0, 'c' },
 	{"chunksize_low",       required_argument, 0, 'a' },
@@ -70,6 +70,7 @@ static const struct option long_opt[] = {
 	{"cleanup",             no_argument,       0, 'x' },
 	{"verify",              no_argument,       0, 'V' },
 	{"zerocopy",            no_argument,       0, 'z' },
+	{"nowait",              no_argument,       0, 'O' },
 	{"threaddelay",         required_argument, 0, 'T' },
 	{"regionnoise",         required_argument, 0, 'I' },
 	{"chunknoise",          required_argument, 0, 'N' },
@@ -118,6 +119,7 @@ usage(void)
 	        "	--cleanup           -x\n"
 	        "	--verify            -V\n"
 	        "	--zerocopy          -z\n"
+	        "	--nowait            -O\n"
 	        "	--threaddelay       -T    =jiffies\n"
 	        "	--regionnoise       -I    =shift\n"
 	        "	--chunknoise        -N    =bytes\n"
@@ -166,9 +168,6 @@ args_init(int argc, char **argv)
 		rc = 0;
 
 		switch (c) {
-		case 'v': /* --verbose */
-			args->verbose++;
-			break;
 		case 't': /* --thread count */
 		        rc = set_count(REGEX_NUMBERS, REGEX_NUMBERS_COMMA,
 				       &args->T, optarg, &fl_th, "threadcount");
@@ -279,11 +278,17 @@ args_init(int argc, char **argv)
 		case 'V': /* --verify */
 			args->flags |= DMU_VERIFY;
 			break;
-		case 'z': /* --verify */
+		case 'z': /* --zerocopy */
 			args->flags |= (DMU_WRITE_ZC | DMU_READ_ZC);
 			break;
-		case 'H':
+		case 'O': /* --nowait */
+			args->flags |= DMU_WRITE_NOWAIT;
+			break;
+		case 'H': /* --human-readable */
 			args->human_readable = 1;
+			break;
+		case 'v': /* --verbose */
+			args->verbose++;
 			break;
 		case '?':
 			rc = 1;
