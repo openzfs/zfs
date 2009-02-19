@@ -1,44 +1,45 @@
 #!/bin/bash
 #
-#
 # Usage: zpios
-#         --chunksize         -c    =values
-#         --chunksize_low     -a    =value
-#         --chunksize_high    -b    =value
-#         --chunksize_incr    -g    =value
-#         --offset            -o    =values
-#         --offset_low        -m    =value
-#         --offset_high       -q    =value
-#         --offset_incr       -r    =value
-#         --regioncount       -n    =values
-#         --regioncount_low   -i    =value
-#         --regioncount_high  -j    =value
-#         --regioncount_incr  -k    =value
-#         --threadcount       -t    =values
-#         --threadcount_low   -l    =value
-#         --threadcount_high  -h    =value
-#         --threadcount_incr  -e    =value
-#         --regionsize        -s    =values
-#         --regionsize_low    -A    =value
-#         --regionsize_high   -B    =value
-#         --regionsize_incr   -C    =value
-#         --cleanup           -x
-#         --verify            -V
-#         --zerocopy          -z
-#         --threaddelay       -T    =jiffies
-#         --regionnoise       -I    =shift
-#         --chunknoise        -N    =bytes
-#         --prerun            -P    =pre-command
-#         --postrun           -R    =post-command
-#         --log               -G    =log directory
-#         --pool | --path     -p    =pool name
-#         --load              -L    =dmuio
-#         --help              -?    =this help
-#         --verbose           -v    =increase verbosity
+#        --threadcount       -t    =values
+#        --threadcount_low   -l    =value
+#        --threadcount_high  -h    =value
+#        --threadcount_incr  -e    =value
+#        --regioncount       -n    =values
+#        --regioncount_low   -i    =value
+#        --regioncount_high  -j    =value
+#        --regioncount_incr  -k    =value
+#        --offset            -o    =values
+#        --offset_low        -m    =value
+#        --offset_high       -q    =value
+#        --offset_incr       -r    =value
+#        --chunksize         -c    =values
+#        --chunksize_low     -a    =value
+#        --chunksize_high    -b    =value
+#        --chunksize_incr    -g    =value
+#        --regionsize        -s    =values
+#        --regionsize_low    -A    =value
+#        --regionsize_high   -B    =value
+#        --regionsize_incr   -C    =value
+#        --load              -L    =dmuio|ssf|fpp
+#        --pool              -p    =pool name
+#        --cleanup           -x
+#        --prerun            -P    =pre-command
+#        --postrun           -R    =post-command
+#        --log               -G    =log directory
+#        --regionnoise       -I    =shift
+#        --chunknoise        -N    =bytes
+#        --threaddelay       -T    =jiffies
+#        --verify            -V
+#        --zerocopy          -z
+#        --nowait            -O
+#        --human-readable    -H
+#        --verbose           -v    =increase verbosity
+#        --help              -?    =this help
 
 ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 	--load=dmuio                                             \
-	--path=${ZPOOL_NAME}                                     \
+	--pool=${ZPOOL_NAME}                                     \
 	--threadcount=16                                         \
 	--regioncount=8192                                       \
 	--regionsize=4M                                          \
