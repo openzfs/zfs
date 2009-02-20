@@ -58,10 +58,16 @@
 #define ZPIOS_NAME_SIZE			16
 #define ZPIOS_PATH_SIZE			128
 
-#define PHASE_PRE			"pre"
-#define PHASE_POST			"post"
-#define PHASE_WRITE			"write"
-#define PHASE_READ			"read"
+#define PHASE_PRE_RUN			"pre-run"
+#define PHASE_PRE_CREATE		"pre-create"
+#define PHASE_PRE_WRITE			"pre-write"
+#define PHASE_PRE_READ			"pre-read"
+#define PHASE_PRE_REMOVE		"pre-remove"
+#define PHASE_POST_RUN			"post-run"
+#define PHASE_POST_CREATE		"post-create"
+#define PHASE_POST_WRITE		"post-write"
+#define PHASE_POST_READ			"post-read"
+#define PHASE_POST_REMOVE		"post-remove"
 
 #define	ZPIOS_CFG_MAGIC			0x87237190U
 typedef struct zpios_cfg {
