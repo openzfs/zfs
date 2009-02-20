@@ -29,7 +29,7 @@
  *
  * CDDL HEADER END
  *
- * Kernel PIOS DMU implemenation originally derived from PIOS test code.
+ * Kernel PIOS DMU implementation originally derived from PIOS test code.
  * Character control interface derived from SPL code.
  */
 
@@ -63,7 +63,7 @@ int zpios_upcall(char *path, char *phase, run_args_t *run_args, int rc)
         char thread_delay[16], flags[16], result[8];
         char *argv[16], *envp[4];
 
-	if (strlen(path) == 0)
+	if ((path == NULL) || (strlen(path) == 0))
 		return -ENOENT;
 
 	snprintf(id, 15, "%d", run_args->id);
@@ -96,7 +96,7 @@ int zpios_upcall(char *path, char *phase, run_args_t *run_args, int rc)
 	argv[14] = result;
 	argv[15] = NULL;
 
-	/* Passing environment for userspace upcall */
+	/* Passing environment for user space upcall */
         envp[0] = "HOME=/";
         envp[1] = "TERM=linux";
         envp[2] = "PATH=/sbin:/usr/sbin:/bin:/usr/bin";
@@ -174,6 +174,7 @@ zpios_dmu_setup(run_args_t *run_args)
 	uint64_t obj = 0ULL;
 	int i, rc = 0;
 
+	(void)zpios_upcall(run_args->pre, PHASE_PRE_CREATE, run_args, 0);
 	t->start = current_kernel_time();
 
         rc = dmu_objset_open(run_args->pool, DMU_OST_ZFS, DS_MODE_USER, &os);
@@ -225,6 +226,7 @@ zpios_dmu_setup(run_args_t *run_args)
 out:
 	t->stop = current_kernel_time();
 	t->delta = timespec_sub(t->stop, t->start);
+	(void)zpios_upcall(run_args->post, PHASE_POST_CREATE, run_args, rc);
 
 	return rc;
 }
@@ -352,6 +354,7 @@ zpios_remove_objects(run_args_t *run_args)
 	zpios_region_t *region;
 	int rc = 0, i;
 
+	(void)zpios_upcall(run_args->pre, PHASE_PRE_REMOVE, run_args, 0);
 	t->start = current_kernel_time();
 
 	if (run_args->flags & DMU_REMOVE) {
@@ -382,6 +385,7 @@ zpios_remove_objects(run_args_t *run_args)
 
 	t->stop = current_kernel_time();
 	t->delta = timespec_sub(t->stop, t->start);
+	(void)zpios_upcall(run_args->post, PHASE_POST_REMOVE, run_args, rc);
 }
 
 static void
@@ -665,8 +669,6 @@ zpios_threads_run(run_args_t *run_args)
 	zpios_time_t *tr = &(run_args->stats.rd_time);
 	int i, rc = 0, tc = run_args->thread_count;
 
-	zpios_upcall(run_args->pre, PHASE_PRE, run_args, 0);
-
 	tsks = kmem_zalloc(sizeof(struct task_struct *) * tc, KM_SLEEP);
 	if (tsks == NULL) {
 		rc = -ENOMEM;
@@ -709,7 +711,7 @@ zpios_threads_run(run_args_t *run_args)
 	tt->start = current_kernel_time();
 
 	/* Wake up all threads for write phase */
-	zpios_upcall(run_args->pre, PHASE_WRITE, run_args, 0);
+	(void)zpios_upcall(run_args->pre, PHASE_PRE_WRITE, run_args, 0);
 	for (i = 0; i < tc; i++)
 		wake_up_process(tsks[i]);
 
@@ -717,6 +719,7 @@ zpios_threads_run(run_args_t *run_args)
 	tw->start = current_kernel_time();
 	wait_event(run_args->waitq, zpios_thread_done(run_args));
 	tw->stop = current_kernel_time();
+	(void)zpios_upcall(run_args->post, PHASE_POST_WRITE, run_args, rc);
 
 	for (i = 0; i < tc; i++) {
 		thr = run_args->threads[i];
@@ -731,7 +734,6 @@ zpios_threads_run(run_args_t *run_args)
 		mutex_exit(&thr->lock);
 	}
 
-	zpios_upcall(run_args->post, PHASE_WRITE, run_args, rc);
 	if (rc) {
 		/* Wake up all threads and tell them to exit */
 		for (i = 0; i < tc; i++) {
@@ -750,7 +752,7 @@ zpios_threads_run(run_args_t *run_args)
 	mutex_exit(&run_args->lock_ctl);
 
 	/* Wake up all threads for read phase */
-	zpios_upcall(run_args->pre, PHASE_READ, run_args, 0);
+	(void)zpios_upcall(run_args->pre, PHASE_PRE_READ, run_args, 0);
         for (i = 0; i < tc; i++)
 		wake_up_process(tsks[i]);
 
@@ -758,6 +760,7 @@ zpios_threads_run(run_args_t *run_args)
 	tr->start = current_kernel_time();
 	wait_event(run_args->waitq, zpios_thread_done(run_args));
 	tr->stop = current_kernel_time();
+	(void)zpios_upcall(run_args->post, PHASE_POST_READ, run_args, rc);
 
 	for (i = 0; i < tc; i++) {
 		thr = run_args->threads[i];
@@ -771,8 +774,6 @@ zpios_threads_run(run_args_t *run_args)
 		run_args->stats.rd_chunks += thr->stats.rd_chunks;
 		mutex_exit(&thr->lock);
 	}
-
-	zpios_upcall(run_args->post, PHASE_READ, run_args, rc);
 out:
 	tt->stop = current_kernel_time();
 	tt->delta = timespec_sub(tt->stop, tt->start);
@@ -782,8 +783,6 @@ out:
 cleanup:
 	kmem_free(tsks, sizeof(struct task_struct *) * tc);
 cleanup2:
-	zpios_upcall(run_args->post, PHASE_POST, run_args, rc);
-
 	/* Returns first encountered thread error (if any) */
 	return rc;
 
@@ -844,6 +843,8 @@ zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
 		return -ENOSPC;
 	}
 
+	(void)zpios_upcall(kcmd->cmd_pre, PHASE_PRE_RUN, run_args, 0);
+
 	rc = zpios_setup_run(&run_args, kcmd, file);
 	if (rc)
 		return rc;
@@ -867,6 +868,9 @@ zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
 
 cleanup:
         zpios_cleanup_run(run_args);
+
+	(void)zpios_upcall(kcmd->cmd_post, PHASE_POST_RUN, run_args, 0);
+
 	return rc;
 }
 
