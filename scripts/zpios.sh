@@ -117,30 +117,34 @@ cat > ${PROFILE_ZPIOS_LOG}/zpios-config.sh << EOF
 # Zpios Profiling Configuration
 #
 
-KERNEL_BIN="/lib/modules/`uname -r`/kernel/"
-SPL_BIN="${SPLBUILD}/module/"
-ZFS_BIN="${TOPDIR}/module/"
+PROFILE_ZPIOS_LOG=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
+PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
+PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
+PROFILE_ZPIOS_USER=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
+PROFILE_ZPIOS_PIDS=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
+PROFILE_ZPIOS_DISK=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
 
-PROFILE_ZPIOS_BIN=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
-PROFILE_ZPIOS_PIDS_BIN=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
-PROFILE_ZPIOS_DISK_BIN=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
+OPROFILE_KERNEL_BIN="/boot/vmlinux-`uname -r`"
+OPROFILE_KERNEL_BIN_DIR="/lib/modules/`uname -r`/kernel/"
+OPROFILE_SPL_BIN_DIR="${SPLBUILD}/module/"
+OPROFILE_ZFS_BIN_DIR="${TOPDIR}/module/"
 
 EOF
 }
 
 zpios_profile_start() {
-	PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
-	PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
 	PROFILE_ZPIOS_LOG=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
+
+	mkdir -p ${PROFILE_ZPIOS_LOG}
+	zpios_profile_config
+	. ${PROFILE_ZPIOS_LOG}/zpios-config.sh
+
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --log=${PROFILE_ZPIOS_LOG}"
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --prerun=${PROFILE_ZPIOS_PRE}"
 	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --postrun=${PROFILE_ZPIOS_POST}"
 
-	mkdir -p ${PROFILE_ZPIOS_LOG}
-	zpios_profile_config
-
-	/usr/bin/opcontrol --init || exit 1
-	/usr/bin/opcontrol --setup --vmlinux=/boot/vmlinux || exit 1
+	/usr/bin/opcontrol --init
+	/usr/bin/opcontrol --setup --vmlinux=${OPROFILE_KERNEL_BIN}
 }
 
 zpios_profile_stop() {
