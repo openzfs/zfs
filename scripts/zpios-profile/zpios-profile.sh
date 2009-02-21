@@ -221,4 +221,6 @@ log_pids() {
 aquire_pids
 log_pids
 
+# rm ${PROFILE_PID}
+
 exit 0
