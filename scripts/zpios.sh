@@ -112,39 +112,41 @@ check_test() {
 }
 
 zpios_profile_config() {
-cat > ${PROFILE_ZPIOS_LOG}/zpios-config.sh << EOF
+cat > ${PROFILE_DIR}/zpios-config.sh << EOF
 #
 # Zpios Profiling Configuration
 #
 
-PROFILE_ZPIOS_LOG=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
-PROFILE_ZPIOS_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
-PROFILE_ZPIOS_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
-PROFILE_ZPIOS_USER=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
-PROFILE_ZPIOS_PIDS=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
-PROFILE_ZPIOS_DISK=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
+PROFILE_DIR=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
+PROFILE_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
+PROFILE_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
+PROFILE_USER=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
+PROFILE_PIDS=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
+PROFILE_DISK=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
+PROFILE_ARC_PROC=/proc/spl/kstat/zfs/arcstats
+PROFILE_VDEV_CACHE_PROC=/proc/spl/kstat/zfs/vdev_cache_stats
 
-OPROFILE_KERNEL_BIN="/boot/vmlinux-`uname -r`"
-OPROFILE_KERNEL_BIN_DIR="/lib/modules/`uname -r`/kernel/"
-OPROFILE_SPL_BIN_DIR="${SPLBUILD}/module/"
-OPROFILE_ZFS_BIN_DIR="${TOPDIR}/module/"
+OPROFILE_KERNEL="/boot/vmlinux-`uname -r`"
+OPROFILE_KERNEL_DIR="/lib/modules/`uname -r`/kernel/"
+OPROFILE_SPL_DIR="${SPLBUILD}/module/"
+OPROFILE_ZFS_DIR="${TOPDIR}/module/"
 
 EOF
 }
 
 zpios_profile_start() {
-	PROFILE_ZPIOS_LOG=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
+	PROFILE_DIR=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
 
-	mkdir -p ${PROFILE_ZPIOS_LOG}
+	mkdir -p ${PROFILE_DIR}
 	zpios_profile_config
-	. ${PROFILE_ZPIOS_LOG}/zpios-config.sh
+	. ${PROFILE_DIR}/zpios-config.sh
 
-	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --log=${PROFILE_ZPIOS_LOG}"
-	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --prerun=${PROFILE_ZPIOS_PRE}"
-	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --postrun=${PROFILE_ZPIOS_POST}"
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --log=${PROFILE_DIR}"
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --prerun=${PROFILE_PRE}"
+	ZPIOS_OPTIONS="${ZPIOS_OPTIONS} --postrun=${PROFILE_POST}"
 
 	/usr/bin/opcontrol --init
-	/usr/bin/opcontrol --setup --vmlinux=${OPROFILE_KERNEL_BIN}
+	/usr/bin/opcontrol --setup --vmlinux=${OPROFILE_KERNEL}
 }
 
 zpios_profile_stop() {
