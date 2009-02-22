@@ -48,8 +48,8 @@
  * Z_STREAM_ERROR if the level parameter is invalid.
  */
 static __inline__ int
-z_compress_level(Byte *dest, uLong *destLen, const Byte *source,
-                 uLong sourceLen, int level)
+z_compress_level(void *dest, size_t *destLen, const void *source,
+                 size_t sourceLen, int level)
 {
 	z_stream stream;
 	int err;
@@ -58,13 +58,13 @@ z_compress_level(Byte *dest, uLong *destLen, const Byte *source,
 	stream.avail_in = (uInt)sourceLen;
 #ifdef MAXSEG_64K
 	/* Check for source > 64K on 16-bit machine: */
-	if ((uLong)stream.avail_in != sourceLen)
+	if ((size_t)stream.avail_in != sourceLen)
 		return Z_BUF_ERROR;
 #endif
 	stream.next_out = dest;
 	stream.avail_out = (uInt)*destLen;
 
-	if ((uLong)stream.avail_out != *destLen)
+	if ((size_t)stream.avail_out != *destLen)
 		return Z_BUF_ERROR;
 
 	err = zlib_deflateInit(&stream, level);
@@ -98,7 +98,7 @@ z_compress_level(Byte *dest, uLong *destLen, const Byte *source,
  * buffer, or Z_DATA_ERROR if the input data was corrupted.
  */
 static __inline__ int
-z_uncompress(Byte *dest, uLong *destLen, const Byte *source, uLong sourceLen)
+z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 {
 	z_stream stream;
 	int err;
@@ -106,13 +106,13 @@ z_uncompress(Byte *dest, uLong *destLen, const Byte *source, uLong sourceLen)
 	stream.next_in = (Byte *)source;
 	stream.avail_in = (uInt)sourceLen;
 	/* Check for source > 64K on 16-bit machine: */
-	if ((uLong)stream.avail_in != sourceLen)
+	if ((size_t)stream.avail_in != sourceLen)
 		return Z_BUF_ERROR;
 
 	stream.next_out = dest;
 	stream.avail_out = (uInt)*destLen;
 
-	if ((uLong)stream.avail_out != *destLen)
+	if ((size_t)stream.avail_out != *destLen)
 		return Z_BUF_ERROR;
 
 	err = zlib_inflateInit(&stream);
