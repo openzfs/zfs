@@ -2495,7 +2495,7 @@ ztest_fault_inject(ztest_args_t *za)
 	int fd;
 	uint64_t offset;
 	uint64_t leaves = MAX(zopt_mirrors, 1) * zopt_raidz;
-	uint64_t bad = 0x1990c0ffeedecade;
+	uint64_t bad = 0x1990c0ffeedecadeull;
 	uint64_t top, leaf;
 	char path0[MAXPATHLEN];
 	char pathrand[MAXPATHLEN];
