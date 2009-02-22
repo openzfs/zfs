@@ -48,7 +48,12 @@
 #define DEV_BSHIFT 9     /* log2(DEV_BSIZE) */
 
 #define MAXNAMELEN 256
+
+#ifdef _LP64
 #define MAXOFFSET_T 0x7fffffffffffffffl
+#else
+#define MAXOFFSET_T 0x7fffffffl
+#endif
 
 #define UID_NOBODY      60001   /* user ID no body */
 #define GID_NOBODY      UID_NOBODY
