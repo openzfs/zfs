@@ -40,7 +40,6 @@
  * memory state and not as direct evidence that page reclaimation
  * is or is not currently in progress.
  */
-#define ptob(pages)			(pages * PAGE_SIZE)
 #define membar_producer()		smp_wmb()
 
 #define physmem				num_physpages
