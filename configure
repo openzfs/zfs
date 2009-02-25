@@ -19201,7 +19201,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19261,7 +19261,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19322,7 +19322,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19382,7 +19382,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19443,7 +19443,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19506,7 +19506,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19541,12 +19541,12 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 	echo "$as_me:$LINENO: checking whether symbol task_curr is exported" >&5
 echo $ECHO_N "checking whether symbol task_curr is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]task_curr[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]task_curr[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in kernel/sched.c; do
-			grep -q -E "EXPORT_SYMBOL.*(task_curr)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(task_curr)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19607,7 +19607,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19667,7 +19667,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19702,12 +19702,12 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 	echo "$as_me:$LINENO: checking whether symbol device_create is exported" >&5
 echo $ECHO_N "checking whether symbol device_create is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]device_create[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]device_create[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in drivers/base/core.c; do
-			grep -q -E "EXPORT_SYMBOL.*(device_create)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(device_create)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19741,12 +19741,12 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol class_device_create is exported" >&5
 echo $ECHO_N "checking whether symbol class_device_create is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]class_device_create[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]class_device_create[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in drivers/base/class.c; do
-			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19780,12 +19780,12 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol set_normalized_timespec is exported" >&5
 echo $ECHO_N "checking whether symbol set_normalized_timespec is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in kernel/time.c; do
-			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19845,7 +19845,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19907,7 +19907,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19968,7 +19968,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20029,7 +20029,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20098,7 +20098,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20159,7 +20159,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20223,7 +20223,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20258,12 +20258,12 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 	echo "$as_me:$LINENO: checking whether symbol monotonic_clock is exported" >&5
 echo $ECHO_N "checking whether symbol monotonic_clock is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20325,7 +20325,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20387,7 +20387,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20448,7 +20448,7 @@ _ACEOF
 
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20481,14 +20481,92 @@ rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.
 
 
 
-	echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
-echo $ECHO_N "checking whether symbol first_online_pgdat is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	echo "$as_me:$LINENO: checking whether symbol kallsyms_lookup_name is exported" >&5
+echo $ECHO_N "checking whether symbol kallsyms_lookup_name is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]kallsyms_lookup_name[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(kallsyms_lookup_name)" "$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_KALLSYMS_LOOKUP_NAME 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_KALLSYMS_LOOKUP_NAME 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol get_vmalloc_info is exported" >&5
+echo $ECHO_N "checking whether symbol get_vmalloc_info is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]get_vmalloc_info[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(get_vmalloc_info)" "$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_VMALLOC_INFO 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_VMALLOC_INFO 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
+echo $ECHO_N "checking whether symbol first_online_pgdat is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20522,12 +20600,12 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol next_online_pgdat is exported" >&5
 echo $ECHO_N "checking whether symbol next_online_pgdat is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20561,12 +20639,12 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol next_zone is exported" >&5
 echo $ECHO_N "checking whether symbol next_zone is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]next_zone[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]next_zone[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(next_zone)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(next_zone)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20600,12 +20678,12 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
 echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1

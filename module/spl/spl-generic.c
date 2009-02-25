@@ -54,6 +54,10 @@ EXPORT_SYMBOL(hw_serial);
 int p0 = 0;
 EXPORT_SYMBOL(p0);
 
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
+kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = NULL;
+#endif
+
 int
 highbit(unsigned long i)
 {
@@ -269,6 +273,42 @@ zone_get_hostid(void *zone)
 }
 EXPORT_SYMBOL(zone_get_hostid);
 
+#ifdef HAVE_KALLSYMS_LOOKUP_NAME
+#define set_kallsyms_lookup_name()	(0)
+#else
+/*
+ * Because kallsyms_lookup_name() is no longer exported in the
+ * mainline kernel we are forced to resort to somewhat drastic
+ * measures.  This function replaces the functionality by performing
+ * an upcall to user space where /proc/kallsyms is consulted for
+ * the requested address.
+ */
+#define GET_KALLSYMS_ADDR_CMD						\
+	"awk '{ if ( $3 == \"kallsyms_lookup_name\") { print $1 } }' "	\
+	"/proc/kallsyms >/proc/sys/kernel/spl/kallsyms_lookup_name"
+
+static int
+set_kallsyms_lookup_name(void)
+{
+	char sh_path[] = "/bin/sh";
+	char *argv[] = { sh_path,
+	                 "-c",
+			 GET_KALLSYMS_ADDR_CMD,
+	                 NULL };
+	char *envp[] = { "HOME=/",
+	                 "TERM=linux",
+	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+	                 NULL };
+	int rc;
+
+	rc = call_usermodehelper(sh_path, argv, envp, 1);
+	if (rc)
+		return rc;
+
+	return spl_kmem_init_kallsyms_lookup();
+}
+#endif
+
 static int __init spl_init(void)
 {
 	int rc = 0;
@@ -295,6 +335,9 @@ static int __init spl_init(void)
 		GOTO(out6, rc);
 
 	if ((rc = set_hostid()))
+		GOTO(out7, rc = -EADDRNOTAVAIL);
+
+	if ((rc = set_kallsyms_lookup_name()))
 		GOTO(out7, rc = -EADDRNOTAVAIL);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);

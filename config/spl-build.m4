@@ -221,8 +221,8 @@ AC_DEFUN([SPL_LINUX_COMPILE_IFELSE], [
 m4_ifvaln([$1], [SPL_LINUX_CONFTEST([$1])])dnl
 rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
 echo "obj-m := conftest.o" >build/Makefile
-dnl AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" -f $PWD/build/Makefile LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM SUBDIRS=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
-AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+dnl AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" -f $PWD/build/Makefile LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM SUBDIRS=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
         [$4],
         [_AC_MSG_LOG_CONFTEST
 m4_ifvaln([$5],[$5])dnl])dnl
@@ -268,12 +268,12 @@ dnl # check symbol exported or not
 dnl #
 AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 	[AC_MSG_CHECKING([whether symbol $1 is exported])
-	grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX_OBJ/Module.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in $2; do
-			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -707,7 +707,32 @@ AC_DEFUN([SPL_AC_3ARGS_ON_EACH_CPU], [
 ])
 
 dnl #
-dnl # Distro specific first_online_pgdat() symbol export.
+dnl # 2.6.18 API change,
+dnl # kallsyms_lookup_name no longer exported
+dnl #
+AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[kallsyms_lookup_name],
+		[],
+		[AC_DEFINE(HAVE_KALLSYMS_LOOKUP_NAME, 1,
+		[kallsyms_lookup_name() is available])],
+		[])
+])
+
+dnl #
+dnl # Symbol only available in custom kernels
+dnl #
+AC_DEFUN([SPL_AC_GET_VMALLOC_INFO], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[get_vmalloc_info],
+		[],
+		[AC_DEFINE(HAVE_GET_VMALLOC_INFO, 1,
+		[get_vmalloc_info() is available])],
+		[])
+])
+
+dnl #
+dnl # Symbol only available in custom kernels
 dnl #
 AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -719,7 +744,7 @@ AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
 ])
 
 dnl #
-dnl # Distro specific next_online_pgdat() symbol export.
+dnl # Symbol only available in custom kernels
 dnl #
 AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -731,7 +756,7 @@ AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
 ])
 
 dnl #
-dnl # Distro specific next_zone() symbol export.
+dnl # Symbol only available in custom kernels
 dnl #
 AC_DEFUN([SPL_AC_NEXT_ZONE], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -743,7 +768,7 @@ AC_DEFUN([SPL_AC_NEXT_ZONE], [
 ])
 
 dnl #
-dnl # Distro specific get_zone_counts() symbol export.
+dnl # Symbol only available in custom kernels
 dnl #
 AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 	SPL_CHECK_SYMBOL_EXPORT(

@@ -325,6 +325,7 @@ extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
 extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc);
 extern void spl_kmem_reap(void);
 
+int spl_kmem_init_kallsyms_lookup(void);
 int spl_kmem_init(void);
 void spl_kmem_fini(void);
 
