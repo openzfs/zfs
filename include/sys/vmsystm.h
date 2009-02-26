@@ -58,7 +58,9 @@ extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 extern vmem_t *zio_arena;		/* arena for allocating zio memory */
 
 extern pgcnt_t spl_kmem_availrmem(void);
+#if 0
 extern size_t vmem_size(vmem_t *vmp, int typemask);
+#endif
 
 /*
  * The following symbols are available for use within the kernel
