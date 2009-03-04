@@ -79,85 +79,29 @@ EXPORT_SYMBOL(zio_alloc_arena);
 vmem_t *zio_arena = NULL;
 EXPORT_SYMBOL(zio_arena);
 
+#ifndef HAVE_GET_VMALLOC_INFO
+get_vmalloc_info_t get_vmalloc_info_fn = NULL;
+EXPORT_SYMBOL(get_vmalloc_info_fn);
+#endif /* HAVE_GET_VMALLOC_INFO */
+
 #ifndef HAVE_FIRST_ONLINE_PGDAT
-struct pglist_data *
-first_online_pgdat(void)
-{
-	return NODE_DATA(first_online_node);
-}
-EXPORT_SYMBOL(first_online_pgdat);
+first_online_pgdat_t first_online_pgdat_fn = NULL;
+EXPORT_SYMBOL(first_online_pgdat_fn);
 #endif /* HAVE_FIRST_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ONLINE_PGDAT
-struct pglist_data *
-next_online_pgdat(struct pglist_data *pgdat)
-{
-	int nid = next_online_node(pgdat->node_id);
-
-	if (nid == MAX_NUMNODES)
-		return NULL;
-
-	return NODE_DATA(nid);
-}
-EXPORT_SYMBOL(next_online_pgdat);
+next_online_pgdat_t next_online_pgdat_fn = NULL;
+EXPORT_SYMBOL(next_online_pgdat_fn);
 #endif /* HAVE_NEXT_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ZONE
-struct zone *
-next_zone(struct zone *zone)
-{
-	pg_data_t *pgdat = zone->zone_pgdat;
-
-	if (zone < pgdat->node_zones + MAX_NR_ZONES - 1)
-	zone++;
-	else {
-		pgdat = next_online_pgdat(pgdat);
-		if (pgdat)
-			zone = pgdat->node_zones;
-		else
-			zone = NULL;
-	}
-	return zone;
-}
-EXPORT_SYMBOL(next_zone);
+next_zone_t next_zone_fn = NULL;
+EXPORT_SYMBOL(next_zone_fn);
 #endif /* HAVE_NEXT_ZONE */
 
 #ifndef HAVE_GET_ZONE_COUNTS
-void
-__get_zone_counts(unsigned long *active, unsigned long *inactive,
-                  unsigned long *free, struct pglist_data *pgdat)
-{
-	struct zone *zones = pgdat->node_zones;
-	int i;
-
-	*active = 0;
-	*inactive = 0;
-	*free = 0;
-	for (i = 0; i < MAX_NR_ZONES; i++) {
-		*active += zones[i].nr_active;
-		*inactive += zones[i].nr_inactive;
-		*free += zones[i].free_pages;
-	}
-}
-
-void
-get_zone_counts(unsigned long *active, unsigned long *inactive,
-                unsigned long *free)
-{
-	struct pglist_data *pgdat;
-
-	*active = 0;
-	*inactive = 0;
-	*free = 0;
-	for_each_online_pgdat(pgdat) {
-		unsigned long l, m, n;
-		__get_zone_counts(&l, &m, &n, pgdat);
-		*active += l;
-		*inactive += m;
-		*free += n;
-	}
-}
-EXPORT_SYMBOL(get_zone_counts);
+get_zone_counts_t get_zone_counts_fn = NULL;
+EXPORT_SYMBOL(get_zone_counts_fn);
 #endif /* HAVE_GET_ZONE_COUNTS */
 
 pgcnt_t
@@ -177,11 +121,20 @@ EXPORT_SYMBOL(spl_kmem_availrmem);
 size_t
 vmem_size(vmem_t *vmp, int typemask)
 {
-	/* Arena's unsupported */
+        struct vmalloc_info vmi;
+	size_t size = 0;
+
 	ASSERT(vmp == NULL);
 	ASSERT(typemask & (VMEM_ALLOC | VMEM_FREE));
 
-	return 0;
+	get_vmalloc_info(&vmi);
+	if (typemask & VMEM_ALLOC)
+		size += (size_t)vmi.used;
+
+	if (typemask & VMEM_FREE)
+		size += (size_t)(VMALLOC_TOTAL - vmi.used);
+
+	return size;
 }
 EXPORT_SYMBOL(vmem_size);
 
@@ -1812,6 +1765,57 @@ spl_kmem_init_globals(void)
 	swapfs_reserve = MIN(4*1024*1024 / PAGE_SIZE, physmem / 16);
 }
 
+/*
+ * Called at module init when it is safe to use spl_kallsyms_lookup_name()
+ */
+int
+spl_kmem_init_kallsyms_lookup(void)
+{
+#ifndef HAVE_GET_VMALLOC_INFO
+	get_vmalloc_info_fn = (get_vmalloc_info_t)
+		spl_kallsyms_lookup_name("get_vmalloc_info");
+	if (!get_vmalloc_info_fn)
+		return -EFAULT;
+#endif /* HAVE_GET_VMALLOC_INFO */
+
+#ifndef HAVE_FIRST_ONLINE_PGDAT
+	first_online_pgdat_fn = (first_online_pgdat_t)
+		spl_kallsyms_lookup_name("first_online_pgdat");
+	if (!first_online_pgdat_fn)
+		return -EFAULT;
+#endif /* HAVE_FIRST_ONLINE_PGDAT */
+
+#ifndef HAVE_NEXT_ONLINE_PGDAT
+	next_online_pgdat_fn = (next_online_pgdat_t)
+		spl_kallsyms_lookup_name("next_online_pgdat");
+	if (!next_online_pgdat_fn)
+		return -EFAULT;
+#endif /* HAVE_NEXT_ONLINE_PGDAT */
+
+#ifndef HAVE_NEXT_ZONE
+	next_zone_fn = (next_zone_t)
+		spl_kallsyms_lookup_name("next_zone");
+	if (!next_zone_fn)
+		return -EFAULT;
+#endif /* HAVE_NEXT_ZONE */
+
+#ifndef HAVE_GET_ZONE_COUNTS
+	get_zone_counts_fn = (get_zone_counts_t)
+		spl_kallsyms_lookup_name("get_zone_counts");
+	if (!get_zone_counts_fn)
+		return -EFAULT;
+#endif /* HAVE_GET_ZONE_COUNTS */
+
+	/*
+	 * It is now safe to initialize the global tunings which rely on
+	 * the use of the for_each_zone() macro.  This macro in turns
+	 * depends on the *_pgdat symbols which are now available.
+	 */
+	spl_kmem_init_globals();
+
+	return 0;
+}
+
 int
 spl_kmem_init(void)
 {
@@ -1820,7 +1824,6 @@ spl_kmem_init(void)
 
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
-	spl_kmem_init_globals();
 
 #ifdef HAVE_SET_SHRINKER
 	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,

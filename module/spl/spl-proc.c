@@ -68,6 +68,7 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 #define CTL_VERSION		CTL_UNNUMBERED /* Version */
 #define CTL_HOSTID		CTL_UNNUMBERED /* Host id by /usr/bin/hostid */
 #define CTL_HW_SERIAL		CTL_UNNUMBERED /* HW serial number by hostid */
+#define CTL_KALLSYMS		CTL_UNNUMBERED /* kallsyms_lookup_name addr */
 
 #define CTL_DEBUG_SUBSYS	CTL_UNNUMBERED /* Debug subsystem */
 #define CTL_DEBUG_MASK		CTL_UNNUMBERED /* Debug mask */
@@ -123,6 +124,7 @@ enum {
 	CTL_VERSION = 1,		/* Version */
 	CTL_HOSTID,			/* Host id reported by /usr/bin/hostid */
 	CTL_HW_SERIAL,			/* Hardware serial number from hostid */
+	CTL_KALLSYMS,			/* Address of kallsyms_lookup_name */
 
 	CTL_DEBUG_SUBSYS,		/* Debug subsystem */
 	CTL_DEBUG_MASK,			/* Debug mask */
@@ -488,6 +490,51 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
 
         RETURN(rc);
 }
+
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
+static int
+proc_dokallsyms_lookup_name(struct ctl_table *table, int write,
+			    struct file *filp, void __user *buffer,
+			    size_t *lenp, loff_t *ppos) {
+        int len, rc = 0;
+        char *end, str[32];
+	ENTRY;
+
+        if (write) {
+		/* This may only be set once at module load time */
+		if (spl_kallsyms_lookup_name_fn)
+			RETURN(-EEXIST);
+
+		/* We can't use proc_doulongvec_minmax() in the write
+		 * case hear because the address while a hex value has no
+		 * leading 0x which confuses the helper function. */
+                rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
+                if (rc < 0)
+                        RETURN(rc);
+
+                spl_kallsyms_lookup_name_fn =
+			(kallsyms_lookup_name_t)simple_strtoul(str, &end, 16);
+		if (str == end)
+			RETURN(-EINVAL);
+
+                *ppos += *lenp;
+        } else {
+                len = snprintf(str, sizeof(str), "%lx",
+			       (unsigned long)spl_kallsyms_lookup_name_fn);
+                if (*ppos >= len)
+                        rc = 0;
+                else
+                        rc = proc_copyout_string(buffer,*lenp,str+*ppos,"\n");
+
+                if (rc >= 0) {
+                        *lenp = rc;
+                        *ppos += rc;
+                }
+        }
+
+        RETURN(rc);
+}
+#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
 static int
 proc_doavailrmem(struct ctl_table *table, int write, struct file *filp,
@@ -1018,6 +1065,16 @@ static struct ctl_table spl_table[] = {
                 .mode     = 0444,
                 .proc_handler = &proc_dostring,
         },
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
+        {
+                .ctl_name = CTL_KALLSYMS,
+                .procname = "kallsyms_lookup_name",
+                .data     = &spl_kallsyms_lookup_name_fn,
+                .maxlen   = sizeof(unsigned long),
+                .mode     = 0644,
+                .proc_handler = &proc_dokallsyms_lookup_name,
+        },
+#endif
 	{
 		.ctl_name = CTL_SPL_DEBUG,
 		.procname = "debug",

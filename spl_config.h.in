@@ -51,6 +51,9 @@
 /* fls64() is available */
 #undef HAVE_FLS64
 
+/* get_vmalloc_info() is available */
+#undef HAVE_GET_VMALLOC_INFO
+
 /* get_zone_counts() is available */
 #undef HAVE_GET_ZONE_COUNTS
 
@@ -62,6 +65,9 @@
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* kallsyms_lookup_name() is available */
+#undef HAVE_KALLSYMS_LOOKUP_NAME
 
 /* kmalloc_node() is available */
 #undef HAVE_KMALLOC_NODE
