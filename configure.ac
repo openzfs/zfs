@@ -76,21 +76,6 @@ SPL_AC_NEXT_ONLINE_PGDAT
 SPL_AC_NEXT_ZONE
 SPL_AC_GET_ZONE_COUNTS
 
-TOPDIR=`/bin/pwd`
-
-# Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
-KERNELMAKE_PARAMS=
-KERNELCPPFLAGS="${KERNELCPPFLAGS} -I$TOPDIR -I$TOPDIR/include"
-KERNELCPPFLAGS="${KERNELCPPFLAGS} -Wstrict-prototypes -Werror"
-
-if test "${LINUX_OBJ}" != "${LINUX}"; then
-	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
-fi
-
-AC_SUBST(KERNELMAKE_PARAMS)
-AC_SUBST(KERNELCPPFLAGS)
-AC_SUBST(KERNELCFLAGS)
-
 AC_CONFIG_FILES([
 	Makefile
 	lib/Makefile
@@ -99,19 +84,8 @@ AC_CONFIG_FILES([
 	module/spl/Makefile
 	module/splat/Makefile
 	include/Makefile
-	include/asm/Makefile
-	include/fs/Makefile
-	include/linux/Makefile
-	include/rpc/Makefile
-	include/sharefs/Makefile
-	include/sys/Makefile
-	include/sys/fm/Makefile
-	include/sys/fs/Makefile
-	include/sys/sysevent/Makefile
-	include/util/Makefile
-	include/vm/Makefile
 	scripts/Makefile
-	scripts/spl.spec
+	spl.spec
 ])
 
 AC_OUTPUT

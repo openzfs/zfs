@@ -32,6 +32,10 @@ AC_DEFUN([SPL_AC_KERNEL], [
 			*** Please specify the location of the kernel source
 			*** with the '--with-linux=PATH' option])
 		fi
+	else
+		if test "$kernelsrc" = "NONE"; then
+			kernsrcver=NONE
+		fi
 	fi
 
 	AC_MSG_RESULT([$kernelsrc])
@@ -65,13 +69,28 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernsrcver])
 
-	kmoduledir=${INSTALL_MOD_PATH}/lib/modules/$kernsrcver
 	LINUX=${kernelsrc}
 	LINUX_OBJ=${kernelbuild}
+	LINUX_VERSION=${kernsrcver}
+
+	abs_srcdir=`readlink -f ${srcdir}`
+	kerninclude="-I${abs_srcdir} -I${abs_srcdir}/include"
+	kernwarn="-Wstrict-prototypes -Werror"
+
+	if test "${LINUX_OBJ}" != "${LINUX}"; then
+	        kernobjs="O=$kernelbuild"
+	fi
+
+	KERNELCFLAGS=
+	KERNELCPPFLAGS="${kerninclude} ${kernwarn}"
+	KERNELMAKE_PARAMS="${kernobjs}"
 
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
-	AC_SUBST(kmoduledir)
+	AC_SUBST(LINUX_VERSION)
+	AC_SUBST(KERNELMAKE_PARAMS)
+	AC_SUBST(KERNELCPPFLAGS)
+	AC_SUBST(KERNELCFLAGS)
 ])
 
 AC_DEFUN([SPL_AC_LICENSE], [
@@ -218,15 +237,15 @@ dnl #
 dnl # SPL_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([SPL_LINUX_COMPILE_IFELSE], [
-m4_ifvaln([$1], [SPL_LINUX_CONFTEST([$1])])dnl
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-dnl AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" -f $PWD/build/Makefile LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM SUBDIRS=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
-AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
-        [$4],
-        [_AC_MSG_LOG_CONFTEST
-m4_ifvaln([$5],[$5])dnl])dnl
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko m4_ifval([$1], [build/conftest.c conftest.c])[]dnl
+	m4_ifvaln([$1], [SPL_LINUX_CONFTEST([$1])])
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	AS_IF(
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+	        [$4],
+	        [_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
+	)
+	rm -Rf build
 ])
 
 dnl #

@@ -1,9 +1,6 @@
 # Makefile.in for spl kernel module
 
 MODULES := spl
-DISTFILES = Makefile.in \
-            spl-kmem.c spl-rwlock.c spl-taskq.c \
-            spl-thread.c spl-generic.c
 EXTRA_CFLAGS = @KERNELCPPFLAGS@
 
 # Solaris porting layer module
@@ -25,27 +22,3 @@ spl-objs += spl-atomic.o
 spl-objs += spl-mutex.o
 spl-objs += spl-kstat.o
 spl-objs += spl-condvar.o
-
-splmodule := spl.ko
-splmoduledir := @kmoduledir@/kernel/lib/
-
-install:
-	mkdir -p $(DESTDIR)$(splmoduledir)
-	$(INSTALL) -m 644 $(splmodule) $(DESTDIR)$(splmoduledir)/$(splmodule)
-	-/sbin/depmod -a
-
-uninstall:
-	rm -f $(DESTDIR)$(splmoduledir)/$(splmodule)
-	-/sbin/depmod -a
-
-clean:
-	-rm -f $(splmodule) *.o .*.cmd *.mod.c *.ko *.s */*.o
-
-distclean: clean
-	rm -f Makefile
-	rm -rf .tmp_versions
-
-maintainer-clean: distclean
-
-distdir: $(DISTFILES)
-	cp -p $(DISTFILES) $(distdir)

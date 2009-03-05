@@ -1,0 +1,104 @@
+# The following block is used to allow the source RPM to be rebuilt 
+# against arbitrary kernels.  It ensure the release name is correct
+# and the proper build/install requires are set.
+%if 0%{?require_kver:1}
+%define kver %{require_kver}
+%else
+%define _kdir %((echo X; ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null)|sed -e 's/linux-//' | tail -1)
+%define kver %(basename %{_kdir})
+%endif
+
+# Each distro has its own kernel package naming convention.
+%if 0%{?ch4}
+%define kstr chaos-kernel
+%define kdev chaos-kernel-devel
+%define kdir /usr/src/kernels/%{kver}
+%else
+%define kstr kernel
+%define kdev kernel-devel
+%define kdir /usr/src/kernels/%{kver}
+%endif
+
+%define debug_package %{nil}
+
+# The kernel version should only be appended to a binary RPM.
+# When building a source RPM it must be kernel version agnostic.
+%define name     @PACKAGE@
+%define version  @VERSION@
+
+%if %{?build_src_rpm:1}0
+%define release  @SPL_META_RELEASE@
+%else
+%define release  @SPL_META_RELEASE@_%(echo %{kver} | sed -e 's/-/_/g')
+%endif
+
+%if 0%{?require_kver:1}
+%define buildrequires %{kdev}=%{kver}
+%else
+%define buildrequires %{kdev}
+%endif
+
+Summary:         Solaris Porting Layer
+Group:           Utilities/System
+Name:            %{name}
+Version:         %{version}
+Release:         %{release}
+License:         GPL
+URL:             git://eris.llnl.gov/spl.git
+BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
+Source:          %{name}-%{version}.tar.gz
+Requires:        %{kstr} = %{kver}
+BuildRequires:   %{buildrequires}
+
+%description
+The %{name} package contains kernel modules and support utilities for
+emulating Solaris style primatives in the linux kernel. These include,
+but are not limited too, atomic, condvar, debug, error, memory, kobject,
+kstat, mutex, rwlock, taskq, thread, time, and vnode APIs.
+
+%package devel
+Summary:         Solaris Porting Layer Headers and Symbols
+Group:           Development/Libraries
+Requires:        %{kstr} = %{kver}
+BuildRequires:   %{buildrequires}
+
+%description devel
+The %{name}-devel package contains the header files and Module.symvers
+symbols needed for building additional modules which use %{name}.
+
+%prep
+%setup
+%build
+%configure --includedir=%{kdir}/include/spl --with-linux=%{kdir}
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-, root, root)
+%doc AUTHORS ChangeLog COPYING DISCLAIMER INSTALL
+%{_sbindir}/*
+/lib/modules/*
+
+%files devel
+%defattr(-,root,root)
+%{kdir}/include/spl/*
+
+%post
+if [ -f /boot/System.map-%{kver} ]; then
+	depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+else
+	depmod -ae %{kver} || exit 0
+fi
+
+%postun
+if [ -f /boot/System.map-%{kver} ]; then
+	depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+else
+	depmod -ae %{kver} || exit 0
+fi

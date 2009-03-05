@@ -1,7 +1,6 @@
 # Makefile.in for splat kernel module
 
 MODULES := splat
-DISTFILES = Makefile.in *.c *.h
 EXTRA_CFLAGS = @KERNELCPPFLAGS@
 
 # Solaris Porting LAyer Tests
@@ -21,27 +20,3 @@ splat-objs += splat-kobj.o
 splat-objs += splat-atomic.o
 splat-objs += splat-list.o
 splat-objs += splat-generic.o
-
-splatmodule := splat.ko
-splatmoduledir := @kmoduledir@/kernel/lib/
-
-install:
-	mkdir -p $(DESTDIR)$(splatmoduledir)
-	$(INSTALL) -m 644 $(splatmodule) $(DESTDIR)$(splatmoduledir)/$(splatmodule)
-	-/sbin/depmod -a
-
-uninstall:
-	rm -f $(DESTDIR)$(splatmoduledir)/$(splatmodule)
-	-/sbin/depmod -a
-
-clean:
-	-rm -f $(splmodule) *.o .*.cmd *.mod.c *.ko *.s */*.o
-
-distclean: clean
-	rm -f Makefile
-	rm -rf .tmp_versions
-
-maintainer-clean: distclean
-
-distdir: $(DISTFILES)
-	cp -p $(DISTFILES) $(distdir)

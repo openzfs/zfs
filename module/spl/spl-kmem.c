@@ -118,7 +118,6 @@ spl_kmem_availrmem(void)
 }
 EXPORT_SYMBOL(spl_kmem_availrmem);
 
-#if 0
 size_t
 vmem_size(vmem_t *vmp, int typemask)
 {
@@ -138,8 +137,6 @@ vmem_size(vmem_t *vmp, int typemask)
 	return size;
 }
 EXPORT_SYMBOL(vmem_size);
-#endif
-
 
 /*
  * Memory allocation interfaces and debugging for basic kmem_*

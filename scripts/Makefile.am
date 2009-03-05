@@ -1,4 +1,4 @@
-EXTRA_DIST = spl.spec.in
+EXTRA_DIST = check.sh
 
 check:
 	./check.sh

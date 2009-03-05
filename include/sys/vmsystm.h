@@ -30,14 +30,15 @@
 #include <linux/mmzone.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/highmem.h>
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
-/* These values are loosely coupled with the the VM page reclaim.
+/* These values are loosely coupled with the VM page reclaim.
  * Linux uses its own heuristics to trigger page reclamation, and
  * because those interface are difficult to interface with.  These
  * values should only be considered as a rough guide to the system
- * memory state and not as direct evidence that page reclaimation
+ * memory state and not as direct evidence that page reclamation.
  * is or is not currently in progress.
  */
 #define membar_producer()		smp_wmb()
@@ -58,9 +59,7 @@ extern vmem_t *zio_alloc_arena;		/* arena for zio caches */
 extern vmem_t *zio_arena;		/* arena for allocating zio memory */
 
 extern pgcnt_t spl_kmem_availrmem(void);
-#if 0
 extern size_t vmem_size(vmem_t *vmp, int typemask);
-#endif
 
 /*
  * The following symbols are available for use within the kernel

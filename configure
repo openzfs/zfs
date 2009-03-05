@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS SPL_META_NAME SPL_META_VERSION SPL_META_RELEASE SPL_META_ALIAS SPL_META_DATA SPL_META_AUTHOR SPL_META_LT_CURRENT SPL_META_LT_REVISION SPL_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ kmoduledir KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS SPL_META_NAME SPL_META_VERSION SPL_META_RELEASE SPL_META_ALIAS SPL_META_DATA SPL_META_AUTHOR SPL_META_LT_CURRENT SPL_META_LT_REVISION SPL_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ LINUX_VERSION KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -18964,6 +18964,10 @@ echo "$as_me: error:
 			*** with the '--with-linux=PATH' option" >&2;}
    { (exit 1); exit 1; }; }
 		fi
+	else
+		if test "$kernelsrc" = "NONE"; then
+			kernsrcver=NONE
+		fi
 	fi
 
 	echo "$as_me:$LINENO: result: $kernelsrc" >&5
@@ -19007,9 +19011,24 @@ echo "$as_me: error:
 	echo "$as_me:$LINENO: result: $kernsrcver" >&5
 echo "${ECHO_T}$kernsrcver" >&6
 
-	kmoduledir=${INSTALL_MOD_PATH}/lib/modules/$kernsrcver
 	LINUX=${kernelsrc}
 	LINUX_OBJ=${kernelbuild}
+	LINUX_VERSION=${kernsrcver}
+
+	abs_srcdir=`readlink -f ${srcdir}`
+	kerninclude="-I${abs_srcdir} -I${abs_srcdir}/include"
+	kernwarn="-Wstrict-prototypes -Werror"
+
+	if test "${LINUX_OBJ}" != "${LINUX}"; then
+	        kernobjs="O=$kernelbuild"
+	fi
+
+	KERNELCFLAGS=
+	KERNELCPPFLAGS="${kerninclude} ${kernwarn}"
+	KERNELMAKE_PARAMS="${kernobjs}"
+
+
+
 
 
 
@@ -19199,9 +19218,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19225,12 +19245,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 echo "$as_me:$LINENO: checking whether kernel defines atomic64_t" >&5
@@ -19259,9 +19282,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19285,12 +19309,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 echo "$as_me:$LINENO: checking whether INIT_WORK wants 3 args" >&5
@@ -19320,9 +19347,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19346,12 +19374,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 echo "$as_me:$LINENO: checking whether register_sysctl_table() wants 2 args" >&5
@@ -19380,9 +19411,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19406,12 +19438,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -19441,9 +19476,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19467,12 +19503,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 echo "$as_me:$LINENO: checking whether struct path used in struct nameidata" >&5
@@ -19504,9 +19543,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19530,12 +19570,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -19605,9 +19648,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19631,12 +19675,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 echo "$as_me:$LINENO: checking whether fls64() is available" >&5
@@ -19665,9 +19712,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19691,12 +19739,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -19843,9 +19894,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19864,7 +19916,6 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 
@@ -19873,8 +19924,12 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -19905,9 +19960,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19931,12 +19987,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -19966,9 +20025,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19992,12 +20052,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20027,9 +20090,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20054,13 +20118,16 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20096,9 +20163,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20122,12 +20190,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20157,9 +20228,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20184,13 +20256,16 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20221,9 +20296,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20247,12 +20323,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20323,9 +20402,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20349,12 +20429,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20385,9 +20468,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20411,12 +20495,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20446,9 +20533,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20472,12 +20560,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 
 
@@ -20715,22 +20806,7 @@ _ACEOF
 
 
 
-TOPDIR=`/bin/pwd`
-
-# Add "V=1" to KERNELMAKE_PARAMS to enable verbose module build
-KERNELMAKE_PARAMS=
-KERNELCPPFLAGS="${KERNELCPPFLAGS} -I$TOPDIR -I$TOPDIR/include"
-KERNELCPPFLAGS="${KERNELCPPFLAGS} -Wstrict-prototypes -Werror"
-
-if test "${LINUX_OBJ}" != "${LINUX}"; then
-	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
-fi
-
-
-
-
-
-                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile include/asm/Makefile include/fs/Makefile include/linux/Makefile include/rpc/Makefile include/sharefs/Makefile include/sys/Makefile include/sys/fm/Makefile include/sys/fs/Makefile include/sys/sysevent/Makefile include/util/Makefile include/vm/Makefile scripts/Makefile scripts/spl.spec"
+                                                                                          ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile scripts/Makefile spl.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -21303,19 +21379,8 @@ do
   "module/spl/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/spl/Makefile" ;;
   "module/splat/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/splat/Makefile" ;;
   "include/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
-  "include/asm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/asm/Makefile" ;;
-  "include/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/fs/Makefile" ;;
-  "include/linux/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/linux/Makefile" ;;
-  "include/rpc/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/rpc/Makefile" ;;
-  "include/sharefs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sharefs/Makefile" ;;
-  "include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/Makefile" ;;
-  "include/sys/fm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/fm/Makefile" ;;
-  "include/sys/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/fs/Makefile" ;;
-  "include/sys/sysevent/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/sys/sysevent/Makefile" ;;
-  "include/util/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/util/Makefile" ;;
-  "include/vm/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/vm/Makefile" ;;
   "scripts/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;
-  "scripts/spl.spec" ) CONFIG_FILES="$CONFIG_FILES scripts/spl.spec" ;;
+  "spl.spec" ) CONFIG_FILES="$CONFIG_FILES spl.spec" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "spl_config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS spl_config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -21487,7 +21552,7 @@ s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
 s,@LINUX@,$LINUX,;t t
 s,@LINUX_OBJ@,$LINUX_OBJ,;t t
-s,@kmoduledir@,$kmoduledir,;t t
+s,@LINUX_VERSION@,$LINUX_VERSION,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
 s,@KERNELCFLAGS@,$KERNELCFLAGS,;t t
