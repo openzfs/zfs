@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * The pool configuration repository is stored in /etc/zfs/zpool.cache as a
