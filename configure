@@ -18921,8 +18921,6 @@ LINUX=
 LINUX_OBJ=
 
 
-	ver=`uname -r`
-
 
 # Check whether --with-linux or --without-linux was given.
 if test "${with_linux+set}" = set; then
@@ -18941,19 +18939,12 @@ fi;
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
 		kernelbuild=
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
 
-		if test -e $sourcelink; then
-			kernelsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			kernelbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$kernelsrc"; then
-			kernelsrc=$kernelbuild
-		fi
-		if test -z "$kernelsrc" -o -z "$kernelbuild"; then
+		if test -e ${sourcelink}; then
+			kernelsrc=`readlink -f ${sourcelink}`
+			kernelbuild=${kernelsrc}
+		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
 			{ { echo "$as_me:$LINENO: error:
@@ -18984,7 +18975,7 @@ echo $ECHO_N "checking kernel source version... $ECHO_C" >&6
 
 		kernsrcver=`(echo "#include <linux/version.h>";
 		             echo "kernsrcver=UTS_RELEASE") |
-	        	     cpp -I $kernelbuild/include |
+		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 	elif test -r $kernelbuild/include/linux/utsrelease.h &&
@@ -18992,7 +18983,7 @@ echo $ECHO_N "checking kernel source version... $ECHO_C" >&6
 
 		kernsrcver=`(echo "#include <linux/utsrelease.h>";
 		             echo "kernsrcver=UTS_RELEASE") |
-	        	     cpp -I $kernelbuild/include |
+		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 	fi
 

@@ -1,6 +1,4 @@
 AC_DEFUN([SPL_AC_KERNEL], [
-	ver=`uname -r`
-
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
 		[Path to kernel source]),
@@ -14,19 +12,12 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
 		kernelbuild=
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
 
-		if test -e $sourcelink; then
-			kernelsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			kernelbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$kernelsrc"; then
-			kernelsrc=$kernelbuild
-		fi
-		if test -z "$kernelsrc" -o -z "$kernelbuild"; then
+		if test -e ${sourcelink}; then
+			kernelsrc=`readlink -f ${sourcelink}`
+			kernelbuild=${kernelsrc}
+		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
 			*** Please specify the location of the kernel source
@@ -48,7 +39,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 		kernsrcver=`(echo "#include <linux/version.h>"; 
 		             echo "kernsrcver=UTS_RELEASE") | 
-	        	     cpp -I $kernelbuild/include |
+		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 	elif test -r $kernelbuild/include/linux/utsrelease.h && 
@@ -56,7 +47,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 		kernsrcver=`(echo "#include <linux/utsrelease.h>"; 
 		             echo "kernsrcver=UTS_RELEASE") | 
-	        	     cpp -I $kernelbuild/include |
+		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 	fi
 
