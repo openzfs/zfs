@@ -1,34 +1,34 @@
-#
-# This file is part of the ZFS Linux port.
-#
-# Copyright (c) 2008 Lawrence Livermore National Security, LLC.
-# Produced at Lawrence Livermore National Laboratory
-# Written by:
-#         Brian Behlendorf <behlendorf1@llnl.gov>,
-#         Herb Wartens <wartens2@llnl.gov>,
-#         Jim Garlick <garlick@llnl.gov>
-# LLNL-CODE-403049
-#
-# CDDL HEADER START
-#
-# The contents of this file are subject to the terms of the
-# Common Development and Distribution License, Version 1.0 only
-# (the "License").  You may not use this file except in compliance
-# with the License.
-#
-# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
-# or http://www.opensolaris.org/os/licensing.
-# See the License for the specific language governing permissions
-# and limitations under the License.
-#
-# When distributing Covered Code, include this CDDL HEADER in each
-# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
-# If applicable, add the following below this CDDL HEADER, with the
-# fields enclosed by brackets "[]" replaced with your own identifying
-# information: Portions Copyright [yyyy] [name of copyright owner]
-#
-# CDDL HEADER END
-#
+/*
+ * This file is part of the ZFS Linux port.
+ *
+ * Copyright (c) 2008 Lawrence Livermore National Security, LLC.
+ * Produced at Lawrence Livermore National Laboratory
+ * Written by:
+ *         Brian Behlendorf <behlendorf1@llnl.gov>,
+ *         Herb Wartens <wartens2@llnl.gov>,
+ *         Jim Garlick <garlick@llnl.gov>
+ * LLNL-CODE-403049
+ *
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
 
 AC_INIT
 AC_LANG(C)
@@ -43,12 +43,6 @@ AC_PROG_INSTALL
 AC_PROG_CC
 AC_PROG_LIBTOOL
 AM_PROG_AS
-
-zfsconfig=all
-kernelsrc=
-kernelbuild=
-splsrc=
-splbuild=
 
 ZFS_AC_KERNEL
 ZFS_AC_SPL
@@ -93,5 +87,7 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	scripts/Makefile
 	scripts/zpool-config/Makefile
+	zfs.spec
 ])
+
 AC_OUTPUT
