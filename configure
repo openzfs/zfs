@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ kmoduledir splsrc splsymvers UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ kmoduledir splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -18939,12 +18939,6 @@ test "${CCASFLAGS+set}" = set || CCASFLAGS=$CFLAGS
 
 
 
-zfsconfig=all
-kernelsrc=
-kernelbuild=
-splsrc=
-splbuild=
-
 
 	ver=`uname -r`
 
@@ -19059,31 +19053,15 @@ fi;
 
 	echo "$as_me:$LINENO: checking spl source directory" >&5
 echo $ECHO_N "checking spl source directory... $ECHO_C" >&6
-	if test -z "$splsrc"; then
-		splbuild=
-		sourcelink=/tmp/`whoami`/spl
-		buildlink=/tmp/`whoami`/spl
-
-		if test -e $sourcelink; then
-			splsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			splbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$splsrc"; then
-			splsrc=$splbuild
-		fi
-	fi
-
 	if test -z "$splsrc" -o -z "$splbuild"; then
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=${LINUX}/include/spl
+		buildlink=${LINUX_OBJ}/include/spl
 
 		if test -e $sourcelink; then
-			splsrc=`(cd $sourcelink; /bin/pwd)`
+			splsrc=`readlink -f ${sourcelink}`
 		fi
 		if test -e $buildlink; then
-			splbuild=`(cd $buildlink; /bin/pwd)`
+			splbuild=`readlink -f ${buildlink}`
 		fi
 		if test -z "$splsrc"; then
 			splsrc=$splbuild
@@ -19107,6 +19085,29 @@ echo "${ECHO_T}$splsrc" >&6
 echo $ECHO_N "checking spl build directory... $ECHO_C" >&6
 	echo "$as_me:$LINENO: result: $splbuild" >&5
 echo "${ECHO_T}$splbuild" >&6
+
+	echo "$as_me:$LINENO: checking spl Module.symvers" >&5
+echo $ECHO_N "checking spl Module.symvers... $ECHO_C" >&6
+	if test -r $splbuild/module/Module.symvers; then
+		splsymvers=$splbuild/module/Module.symvers
+	elif test -r $kernelbuild/include/spl/Module.symvers; then
+		splsymvers=$kernelbuild/include/spl/Module.symvers
+	fi
+
+	if test -z "$splsymvers"; then
+	        echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+	        { { echo "$as_me:$LINENO: error:
+                *** Cannot find extra Module.symvers in the spl source.
+                *** Please prepare the spl source before running this script" >&5
+echo "$as_me: error:
+                *** Cannot find extra Module.symvers in the spl source.
+                *** Please prepare the spl source before running this script" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	echo "$as_me:$LINENO: result: $splsymvers" >&5
+echo "${ECHO_T}$splsymvers" >&6
 
 	echo "$as_me:$LINENO: checking spl source version" >&5
 echo $ECHO_N "checking spl source version... $ECHO_C" >&6
@@ -19134,38 +19135,16 @@ echo "$as_me: error:
 	echo "$as_me:$LINENO: result: $splsrcver" >&5
 echo "${ECHO_T}$splsrcver" >&6
 
-	echo "$as_me:$LINENO: checking spl Module.symvers" >&5
-echo $ECHO_N "checking spl Module.symvers... $ECHO_C" >&6
-	if test -r $splbuild/module/Module.symvers; then
-		splsymvers=$splbuild/module/Module.symvers
-	elif test -r $kernelbuild/Module.symvers; then
-		splsymvers=$kernelbuild/Module.symvers
-	fi
-
-	if test -z "$splsymvers"; then
-	        echo "$as_me:$LINENO: result: Not found" >&5
-echo "${ECHO_T}Not found" >&6
-	        { { echo "$as_me:$LINENO: error:
-                *** Cannot find extra Module.symvers in the spl source.
-                *** Please prepare the spl source before running this script" >&5
-echo "$as_me: error:
-                *** Cannot find extra Module.symvers in the spl source.
-                *** Please prepare the spl source before running this script" >&2;}
-   { (exit 1); exit 1; }; }
-	fi
-
-	echo "$as_me:$LINENO: result: $splsymvers" >&5
-echo "${ECHO_T}$splsymvers" >&6
 
 
 
 
 	echo "$as_me:$LINENO: checking zfs license" >&5
 echo $ECHO_N "checking zfs license... $ECHO_C" >&6
-	license=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
-	echo "$as_me:$LINENO: result: $license" >&5
-echo "${ECHO_T}$license" >&6
-	if test "$license" = GPL; then
+	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
+	echo "$as_me:$LINENO: result: $LICENSE" >&5
+echo "${ECHO_T}$LICENSE" >&6
+	if test "$LICENSE" = GPL; then
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GPL_ONLY_SYMBOLS 1
@@ -19175,12 +19154,18 @@ _ACEOF
 
 
 
+
+
 	TOPDIR=`/bin/pwd`
 	BUILDDIR=$TOPDIR
 	LIBDIR=$TOPDIR/lib
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
 	UNAME=`uname -r | cut -d- -f1`
+
+	if test -z "$ZFS_CONFIG"; then
+		ZFS_CONFIG=all
+	fi
 
 
 
@@ -19194,15 +19179,15 @@ _ACEOF
 # Check whether --with-zfs-config or --without-zfs-config was given.
 if test "${with_zfs_config+set}" = set; then
   withval="$with_zfs_config"
-  zfsconfig="$withval"
+  ZFS_CONFIG="$withval"
 fi;
 
 	echo "$as_me:$LINENO: checking zfs config" >&5
 echo $ECHO_N "checking zfs config... $ECHO_C" >&6
-	echo "$as_me:$LINENO: result: $zfsconfig" >&5
-echo "${ECHO_T}$zfsconfig" >&6;
+	echo "$as_me:$LINENO: result: $ZFS_CONFIG" >&5
+echo "${ECHO_T}$ZFS_CONFIG" >&6;
 
-	case "$zfsconfig" in
+	case "$ZFS_CONFIG" in
 		kernel)
 			KERNELMAKE_PARAMS="V=1"
 
@@ -19256,9 +19241,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19282,12 +19268,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
@@ -19662,9 +19651,10 @@ main (void)
 
 _ACEOF
 
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19688,12 +19678,15 @@ else
   echo "$as_me: failed program was:" >&5
 sed 's/^/| /' conftest.$ac_ext >&5
 
-
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+
+
 fi
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko build/conftest.c conftest.c
+
+	rm -Rf build
+
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
@@ -20018,9 +20011,9 @@ echo "${ECHO_T}yes" >&6
 		*)
 		echo "$as_me:$LINENO: result: Error!" >&5
 echo "${ECHO_T}Error!" >&6
-		{ { echo "$as_me:$LINENO: error: Bad value \"$zfsconfig\" for --with-config,
+		{ { echo "$as_me:$LINENO: error: Bad value \"$ZFS_CONFIG\" for --with-config,
 		              user kernel|user|all" >&5
-echo "$as_me: error: Bad value \"$zfsconfig\" for --with-config,
+echo "$as_me: error: Bad value \"$ZFS_CONFIG\" for --with-config,
 		              user kernel|user|all" >&2;}
    { (exit 1); exit 1; }; } ;;
 	esac
@@ -20078,7 +20071,8 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                                                                                          ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile module/zpios/Makefile module/zpios/include/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile"
+                                                                                                                                                                                                                                                                                                                                                                                                                                    ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile module/zpios/Makefile module/zpios/include/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
+
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -20684,6 +20678,7 @@ do
   "scripts/zpool-config/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpool-config/Makefile" ;;
   "scripts/zpios-test/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-test/Makefile" ;;
   "scripts/zpios-profile/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-profile/Makefile" ;;
+  "zfs.spec" ) CONFIG_FILES="$CONFIG_FILES zfs.spec" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "zfs_config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS zfs_config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -20860,12 +20855,14 @@ s,@LINUX_OBJ@,$LINUX_OBJ,;t t
 s,@kmoduledir@,$kmoduledir,;t t
 s,@splsrc@,$splsrc,;t t
 s,@splsymvers@,$splsymvers,;t t
+s,@LICENSE@,$LICENSE,;t t
 s,@UNAME@,$UNAME,;t t
 s,@TOPDIR@,$TOPDIR,;t t
 s,@BUILDDIR@,$BUILDDIR,;t t
 s,@LIBDIR@,$LIBDIR,;t t
 s,@CMDDIR@,$CMDDIR,;t t
 s,@MODDIR@,$MODDIR,;t t
+s,@ZFS_CONFIG@,$ZFS_CONFIG,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t

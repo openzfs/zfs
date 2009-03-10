@@ -13,6 +13,7 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
+
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -37,8 +38,9 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = .
-DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(srcdir)/zfs_config.h.in \
+DIST_COMMON = README $(am__configure_deps) $(include_HEADERS) \
+	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/zfs.spec.in $(srcdir)/zfs_config.h.in \
 	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
 	$(top_srcdir)/module/avl/include/Makefile.in \
@@ -85,7 +87,7 @@ CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/zcommon/include/sys/fs/Makefile \
 	module/zcommon/include/sys/fm/Makefile \
 	module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile \
-	module/zpios/Makefile module/zpios/include/Makefile
+	module/zpios/Makefile module/zpios/include/Makefile zfs.spec
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -94,6 +96,15 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+am__installdirs = "$(DESTDIR)$(includedir)"
+includeHEADERS_INSTALL = $(INSTALL_HEADER)
+HEADERS = $(include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -152,6 +163,7 @@ LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
 LN_S = @LN_S@
@@ -177,6 +189,7 @@ STRIP = @STRIP@
 TOPDIR = @TOPDIR@
 UNAME = @UNAME@
 VERSION = @VERSION@
+ZFS_CONFIG = @ZFS_CONFIG@
 ZFS_META_ALIAS = @ZFS_META_ALIAS@
 ZFS_META_AUTHOR = @ZFS_META_AUTHOR@
 ZFS_META_DATA = @ZFS_META_DATA@
@@ -236,10 +249,11 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh AUTHORS COPYING COPYRIGHT ChangeLog DISCLAIMER \
-	GIT META OPENSOLARIS.LICENSE README ZFS.RELEASE
 SUBDIRS = config doc scripts lib cmd module
+AUTOMAKE_OPTIONS = foreign dist-zip
+EXTRA_DIST = autogen.sh zfs.spec.in META DISCLAIMER GIT \
+	OPENSOLARIS.LICENSE ZFS.RELEASE
+include_HEADERS = zfs_config.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -332,6 +346,8 @@ module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zpios/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/include/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
+zfs.spec: $(top_builddir)/config.status $(srcdir)/zfs.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -342,6 +358,23 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
+install-includeHEADERS: $(include_HEADERS)
+	@$(NORMAL_INSTALL)
+	test -z "$(includedir)" || $(mkdir_p) "$(DESTDIR)$(includedir)"
+	@list='$(include_HEADERS)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  f=$(am__strip_dir) \
+	  echo " $(includeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(includedir)/$$f'"; \
+	  $(includeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(includedir)/$$f"; \
+	done
+
+uninstall-includeHEADERS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(include_HEADERS)'; for p in $$list; do \
+	  f=$(am__strip_dir) \
+	  echo " rm -f '$(DESTDIR)$(includedir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(includedir)/$$f"; \
+	done
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run `make' without going through this Makefile.
@@ -422,7 +455,6 @@ ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	  $(AWK) '    { files[$$0] = 1; } \
 	       END { for (i in files) print i; }'`; \
 	mkid -fID $$unique
-tags: TAGS
 
 TAGS: tags-recursive $(HEADERS) $(SOURCES) zfs_config.h.in $(TAGS_DEPENDENCIES) \
 		$(TAGS_FILES) $(LISP)
@@ -452,7 +484,6 @@ TAGS: tags-recursive $(HEADERS) $(SOURCES) zfs_config.h.in $(TAGS_DEPENDENCIES) 
 	  $(ETAGS) $(ETAGSFLAGS) $(AM_ETAGSFLAGS) $(ETAGS_ARGS) \
 	    $$tags $$unique; \
 	fi
-ctags: CTAGS
 CTAGS: ctags-recursive $(HEADERS) $(SOURCES) zfs_config.h.in $(TAGS_DEPENDENCIES) \
 		$(TAGS_FILES) $(LISP)
 	tags=; \
@@ -478,7 +509,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs $(distdir)/module/zpios $(distdir)/module/zpios/include
+	$(mkdir_p) $(distdir)/. $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs $(distdir)/module/zpios $(distdir)/module/zpios/include
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -620,9 +651,12 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-recursive
-all-am: Makefile zfs_config.h
+all-am: Makefile $(HEADERS) zfs_config.h
 installdirs: installdirs-recursive
 installdirs-am:
+	for dir in "$(DESTDIR)$(includedir)"; do \
+	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
+	done
 install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
@@ -655,7 +689,7 @@ distclean: distclean-recursive
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	-rm -f Makefile
 distclean-am: clean-am distclean-generic distclean-hdr \
-	distclean-libtool distclean-tags
+	distclean-libtool distclean-local distclean-tags
 
 dvi: dvi-recursive
 
@@ -667,7 +701,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am:
+install-data-am: install-data-local install-includeHEADERS
 
 install-exec-am:
 
@@ -695,7 +729,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-info-am
+uninstall-am: uninstall-includeHEADERS uninstall-info-am
 
 uninstall-info: uninstall-info-recursive
 
@@ -704,20 +738,69 @@ uninstall-info: uninstall-info-recursive
 	ctags ctags-recursive dist dist-all dist-bzip2 dist-gzip \
 	dist-shar dist-tarZ dist-zip distcheck distclean \
 	distclean-generic distclean-hdr distclean-libtool \
-	distclean-recursive distclean-tags distcleancheck distdir \
-	distuninstallcheck dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	maintainer-clean-recursive mostlyclean mostlyclean-generic \
-	mostlyclean-libtool mostlyclean-recursive pdf pdf-am ps ps-am \
-	tags tags-recursive uninstall uninstall-am uninstall-info-am
+	distclean-local distclean-recursive distclean-tags \
+	distcleancheck distdir distuninstallcheck dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-data-local install-exec \
+	install-exec-am install-includeHEADERS install-info \
+	install-info-am install-man install-strip installcheck \
+	installcheck-am installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic maintainer-clean-recursive \
+	mostlyclean mostlyclean-generic mostlyclean-libtool \
+	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
+	uninstall uninstall-am uninstall-includeHEADERS \
+	uninstall-info-am
 
 
-.PHONY: rpm
-rpms: dist-bzip2
-	rpmbuild -ta $(distdir).tar.bz2
+distclean-local::
+	-$(RM) -R autom4te*.cache
+	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
+		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
+		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
+		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
+		-o -name '.*.rej' -o -name 'aclocal.m4' -o -size 0 \
+		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
+		-o -name 'Makefile' -o -name 'Module.symvers' \
+		-o -name '.script-config' \) \
+		-type f -print | xargs $(RM)
+
+install-data-local:
+	$(INSTALL) module/Module.symvers $(DESTDIR)/$(includedir)
+
+ctags:
+	$(RM) $(top_srcdir)/tags
+	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
+
+etags:
+	$(RM) $(top_srcdir)/TAGS
+	find $(top_srcdir) -name .pc -prune -o -name '*.[hc]' | xargs etags -a
+
+tags: ctags etags
+
+rpm-local:
+	mkdir -p $(rpmbuild)/TMP && \
+	mkdir -p $(rpmbuild)/BUILD && \
+	mkdir -p $(rpmbuild)/RPMS && \
+	mkdir -p $(rpmbuild)/SRPMS && \
+	mkdir -p $(rpmbuild)/SPECS && cp $(PACKAGE).spec $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+
+srpm: dist
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
+	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "build_src_rpm 1" --define "dist %{nil}" --nodeps -bs $$rpmbuild/SPECS/$(PACKAGE).spec || exit 1; \
+	cp $$rpmbuild/SRPMS/$(distdir)-$(ZFS_META_RELEASE).src.rpm . || exit 1;\
+	$(RM) -R $$rpmbuild
+
+# Use 'make rpm LINUX_VERSION=2.x.y-z' to rebuild the source RPM
+# against any installed kernel-devel-2.x.y-z package.  This will
+# override the LINUX_VERSION detected at configure time.
+rpm: srpm
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
+	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(ZFS_META_RELEASE).src.rpm || exit 1; \
+	cp $$rpmbuild/RPMS/*/* . || exit 1; \
+	$(RM) -R $$rpmbuild
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
