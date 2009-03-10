@@ -88,31 +88,15 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 
 	AC_MSG_CHECKING([spl source directory])
-	if test -z "$splsrc"; then
-		splbuild=
-		sourcelink=/tmp/`whoami`/spl
-		buildlink=/tmp/`whoami`/spl
-
-		if test -e $sourcelink; then
-			splsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			splbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$splsrc"; then
-			splsrc=$splbuild
-		fi
-	fi
-
 	if test -z "$splsrc" -o -z "$splbuild"; then
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=${LINUX}/include/spl
+		buildlink=${LINUX_OBJ}/include/spl
 
 		if test -e $sourcelink; then
-			splsrc=`(cd $sourcelink; /bin/pwd)`
+			splsrc=`readlink -f ${sourcelink}`
 		fi
 		if test -e $buildlink; then
-			splbuild=`(cd $buildlink; /bin/pwd)`
+			splbuild=`readlink -f ${buildlink}`
 		fi
 		if test -z "$splsrc"; then
 			splsrc=$splbuild
@@ -128,6 +112,22 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_RESULT([$splsrc])
 	AC_MSG_CHECKING([spl build directory])
 	AC_MSG_RESULT([$splbuild])
+
+	AC_MSG_CHECKING([spl Module.symvers])
+	if test -r $splbuild/module/Module.symvers; then
+		splsymvers=$splbuild/module/Module.symvers
+	elif test -r $kernelbuild/include/spl/Module.symvers; then
+		splsymvers=$kernelbuild/include/spl/Module.symvers
+	fi
+
+	if test -z "$splsymvers"; then
+	        AC_MSG_RESULT([Not found])
+	        AC_MSG_ERROR([
+                *** Cannot find extra Module.symvers in the spl source.
+                *** Please prepare the spl source before running this script])
+	fi
+
+	AC_MSG_RESULT([$splsymvers])
 
 	AC_MSG_CHECKING([spl source version])
 	if test -r $splbuild/spl_config.h && 
@@ -148,33 +148,20 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_RESULT([$splsrcver])
 
-	AC_MSG_CHECKING([spl Module.symvers])
-	if test -r $splbuild/module/Module.symvers; then
-		splsymvers=$splbuild/module/Module.symvers
-	elif test -r $kernelbuild/Module.symvers; then
-		splsymvers=$kernelbuild/Module.symvers
-	fi
-
-	if test -z "$splsymvers"; then
-	        AC_MSG_RESULT([Not found])
-	        AC_MSG_ERROR([
-                *** Cannot find extra Module.symvers in the spl source.
-                *** Please prepare the spl source before running this script])
-	fi
-
-	AC_MSG_RESULT([$splsymvers])
 	AC_SUBST(splsrc)
 	AC_SUBST(splsymvers)
 ])
 
 AC_DEFUN([ZFS_AC_LICENSE], [
 	AC_MSG_CHECKING([zfs license])
-	license=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
-	AC_MSG_RESULT([$license])
-	if test "$license" = GPL; then
+	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
+	AC_MSG_RESULT([$LICENSE])
+	if test "$LICENSE" = GPL; then
 		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
 		          [Define to 1 if module is licensed under the GPL])
 	fi
+
+	AC_SUBST(LICENSE)
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG], [
@@ -229,30 +216,34 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	MODDIR=$TOPDIR/module
 	UNAME=`uname -r | cut -d- -f1`
 
+	if test -z "$ZFS_CONFIG"; then
+		ZFS_CONFIG=all
+	fi
+
 	AC_SUBST(UNAME)
 	AC_SUBST(TOPDIR)
 	AC_SUBST(BUILDDIR)
 	AC_SUBST(LIBDIR)
 	AC_SUBST(CMDDIR)
 	AC_SUBST(MODDIR)
-	AC_SUBST(UNAME)
+	AC_SUBST(ZFS_CONFIG)
 
 	AC_ARG_WITH([zfs-config],
 		AS_HELP_STRING([--with-config=CONFIG],
 		[Config file 'kernel|user|all']),
-		[zfsconfig="$withval"])
+		[ZFS_CONFIG="$withval"])
 
 	AC_MSG_CHECKING([zfs config])
-	AC_MSG_RESULT([$zfsconfig]);
+	AC_MSG_RESULT([$ZFS_CONFIG]);
 
-	case "$zfsconfig" in
+	case "$ZFS_CONFIG" in
 		kernel) ZFS_AC_CONFIG_KERNEL ;;
 		user)	ZFS_AC_CONFIG_USER   ;;
 		all)    ZFS_AC_CONFIG_KERNEL
 			ZFS_AC_CONFIG_USER   ;;
 		*)
 		AC_MSG_RESULT([Error!])
-		AC_MSG_ERROR([Bad value "$zfsconfig" for --with-config,
+		AC_MSG_ERROR([Bad value "$ZFS_CONFIG" for --with-config,
 		              user kernel|user|all]) ;;
 	esac
 
@@ -288,15 +279,15 @@ dnl #
 dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
-m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])dnl
-rm -f build/conftest.o build/conftest.mod.c build/conftest.ko build/Makefile
-echo "obj-m := conftest.o" >build/Makefile
-dnl AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" -f $PWD/build/Makefile LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM SUBDIRS=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
-AS_IF([AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
-        [$4],
-        [_AC_MSG_LOG_CONFTEST
-m4_ifvaln([$5],[$5])dnl])dnl
-rm -f build/conftest.o build/conftest.mod.c build/conftest.mod.o build/conftest.ko m4_ifval([$1], [build/conftest.c conftest.c])[]dnl
+	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	AS_IF(
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[$4],
+		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
+	)
+	rm -Rf build
 ])
 
 dnl #
@@ -304,10 +295,10 @@ dnl # ZFS_LINUX_TRY_COMPILE like AC_TRY_COMPILE
 dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE],
 	[ZFS_LINUX_COMPILE_IFELSE(
-        [AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
-        [modules],
-        [test -s build/conftest.o],
-        [$3], [$4])
+	[AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
+	[modules],
+	[test -s build/conftest.o],
+	[$3], [$4])
 ])
 
 dnl #
