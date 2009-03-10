@@ -1,8 +1,8 @@
 SUBDIRS = lib cmd module include scripts
 
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh spl.spec META DISCLAIMER
-include_HEADERS = spl_config.h
+EXTRA_DIST = autogen.sh spl.spec.in META DISCLAIMER
+noinst_HEADERS = spl_config.h
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -16,7 +16,7 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 install-data-local:
-	$(INSTALL) module/Module.symvers $(DESTDIR)/$(includedir)
+	$(INSTALL) -D spl_config.h $(DESTDIR)/$(LINUX)/include/spl/spl_config.h
 
 ctags:
 	$(RM) $(top_srcdir)/tags

@@ -38,7 +38,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = include
-DIST_COMMON = $(nobase_include_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/spl-build.m4 \
@@ -50,15 +50,7 @@ CONFIG_HEADER = $(top_builddir)/spl_config.h
 CONFIG_CLEAN_FILES =
 SOURCES =
 DIST_SOURCES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(includedir)"
-nobase_includeHEADERS_INSTALL = $(install_sh_DATA)
-HEADERS = $(nobase_include_HEADERS)
+HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -182,12 +174,12 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 
-# All headers are referenced by this top level Makefile.am and the
-# nobase_* rule is used to ensure all path information is preserved
-# when using the 'make install' target.
-nobase_include_HEADERS = *.h asm/*.h fs/*.h linux/*.h rpc/*.h \
-	sharefs/*.h sys/fm/*.h sys/fs/*.h sys/sysevent/*.h sys/*.h \
-	util/*.h vm/*.h
+# All headers are referenced by this top level Makefile.am are
+# noinst_HEADERS because they are not installed in the usual include
+# location.  We do not want to be using $includedir for this.
+# Installation is handled by the custom install-data-local rule.
+noinst_HEADERS = *.h asm/*.h fs/*.h linux/*.h rpc/*.h sharefs/*.h \
+	sys/fm/*.h sys/fs/*.h sys/sysevent/*.h sys/*.h util/*.h vm/*.h
 all: all-am
 
 .SUFFIXES:
@@ -230,25 +222,6 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-nobase_includeHEADERS: $(nobase_include_HEADERS)
-	@$(NORMAL_INSTALL)
-	test -z "$(includedir)" || $(mkdir_p) "$(DESTDIR)$(includedir)"
-	@$(am__vpath_adj_setup) \
-	list='$(nobase_include_HEADERS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  $(am__vpath_adj) \
-	  echo " $(nobase_includeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(includedir)/$$f'"; \
-	  $(nobase_includeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(includedir)/$$f"; \
-	done
-
-uninstall-nobase_includeHEADERS:
-	@$(NORMAL_UNINSTALL)
-	@$(am__vpath_adj_setup) \
-	list='$(nobase_include_HEADERS)'; for p in $$list; do \
-	  $(am__vpath_adj) \
-	  echo " rm -f '$(DESTDIR)$(includedir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(includedir)/$$f"; \
-	done
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -330,9 +303,6 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(includedir)"; do \
-	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -376,7 +346,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-nobase_includeHEADERS
+install-data-am: install-data-local
 
 install-exec-am:
 
@@ -402,20 +372,26 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-nobase_includeHEADERS
+uninstall-am: uninstall-info-am
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
 	clean-libtool ctags distclean distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
-	install-data-am install-exec install-exec-am install-info \
-	install-info-am install-man install-nobase_includeHEADERS \
+	install-data-am install-data-local install-exec \
+	install-exec-am install-info install-info-am install-man \
 	install-strip installcheck installcheck-am installdirs \
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-nobase_includeHEADERS
+	tags uninstall uninstall-am uninstall-info-am
 
+
+install-data-local:
+	instdest=$(DESTDIR)/$(LINUX)/include/spl; \
+	instfiles=`find . -name '*.h'`; \
+        for instfile in $$instfiles; do \
+		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+        done
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

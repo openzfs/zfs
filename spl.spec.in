@@ -69,7 +69,7 @@ symbols needed for building additional modules which use %{name}.
 %prep
 %setup
 %build
-%configure --includedir=%{kdir}/include/spl --with-linux=%{kdir}
+%configure --with-linux=%{kdir}
 make
 
 %install

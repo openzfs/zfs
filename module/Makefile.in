@@ -1,11 +1,16 @@
 subdir-m += spl
 subdir-m += splat
 
+INSTALL=/usr/bin/install
+
 modules clean:
 	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 modules_install:
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` \
+		INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	$(INSTALL) -D Module.symvers \
+		$(DESTDIR)/@LINUX@/include/spl/Module.symvers
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \
