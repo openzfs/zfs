@@ -1,6 +1,3 @@
-subdir-m += include
-DISTFILES = *.c
-
 MODULE := zavl
 
 EXTRA_CFLAGS  = -I@MODDIR@/avl/include
