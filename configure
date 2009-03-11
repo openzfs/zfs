@@ -1519,6 +1519,10 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
+
+
+
+
 	echo "$as_me:$LINENO: checking metadata" >&5
 echo $ECHO_N "checking metadata... $ECHO_C" >&6
 
@@ -3993,7 +3997,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 3996 "configure"' > conftest.$ac_ext
+  echo '#line 4000 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -5592,7 +5596,7 @@ fi
 
 
 # Provide some information about the compiler.
-echo "$as_me:5595:" \
+echo "$as_me:5599:" \
      "checking for Fortran 77 compiler version" >&5
 ac_compiler=`set X $ac_compile; echo $2`
 { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
@@ -6655,11 +6659,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6658: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6662: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6662: \$? = $ac_status" >&5
+   echo "$as_me:6666: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -6923,11 +6927,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6926: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6930: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6930: \$? = $ac_status" >&5
+   echo "$as_me:6934: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7027,11 +7031,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7030: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7034: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7034: \$? = $ac_status" >&5
+   echo "$as_me:7038: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8496,7 +8500,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 8499 "configure"' > conftest.$ac_ext
+    echo '#line 8503 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -9393,7 +9397,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9396 "configure"
+#line 9400 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -9493,7 +9497,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9496 "configure"
+#line 9500 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11836,11 +11840,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11839: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11843: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:11843: \$? = $ac_status" >&5
+   echo "$as_me:11847: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -11940,11 +11944,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11943: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11947: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:11947: \$? = $ac_status" >&5
+   echo "$as_me:11951: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -12476,7 +12480,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 12479 "configure"' > conftest.$ac_ext
+    echo '#line 12483 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -13534,11 +13538,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13537: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13541: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:13541: \$? = $ac_status" >&5
+   echo "$as_me:13545: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -13638,11 +13642,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13641: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13645: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13645: \$? = $ac_status" >&5
+   echo "$as_me:13649: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -15087,7 +15091,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 15090 "configure"' > conftest.$ac_ext
+    echo '#line 15094 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -15865,11 +15869,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15868: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15872: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:15872: \$? = $ac_status" >&5
+   echo "$as_me:15876: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16133,11 +16137,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16136: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16140: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:16140: \$? = $ac_status" >&5
+   echo "$as_me:16144: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16237,11 +16241,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16240: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16244: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:16244: \$? = $ac_status" >&5
+   echo "$as_me:16248: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -17706,7 +17710,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 17709 "configure"' > conftest.$ac_ext
+    echo '#line 17713 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -20071,7 +20075,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                    ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/avl/include/Makefile module/avl/include/sys/Makefile module/nvpair/Makefile module/nvpair/include/Makefile module/nvpair/include/sys/Makefile module/unicode/Makefile module/unicode/include/Makefile module/unicode/include/sys/Makefile module/zcommon/Makefile module/zcommon/include/Makefile module/zcommon/include/sys/Makefile module/zcommon/include/sys/fs/Makefile module/zcommon/include/sys/fm/Makefile module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile module/zpios/Makefile module/zpios/include/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
+                                                                                                                                                                                                                                                                                                                                                    ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i686/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -20642,11 +20646,15 @@ do
   "doc/Makefile" ) CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
   "lib/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
   "lib/libspl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/Makefile" ;;
+  "lib/libspl/asm-i686/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-i686/Makefile" ;;
+  "lib/libspl/asm-x86_64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-x86_64/Makefile" ;;
+  "lib/libspl/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/include/Makefile" ;;
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
   "lib/libunicode/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libunicode/Makefile" ;;
   "lib/libuutil/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libuutil/Makefile" ;;
   "lib/libzpool/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzpool/Makefile" ;;
+  "lib/libzpool/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzpool/include/Makefile" ;;
   "lib/libzfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libzfs/Makefile" ;;
   "cmd/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/Makefile" ;;
   "cmd/zdb/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zdb/Makefile" ;;
@@ -20657,23 +20665,11 @@ do
   "cmd/zpios/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zpios/Makefile" ;;
   "module/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/Makefile" ;;
   "module/avl/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/avl/Makefile" ;;
-  "module/avl/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/avl/include/Makefile" ;;
-  "module/avl/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/avl/include/sys/Makefile" ;;
   "module/nvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/Makefile" ;;
-  "module/nvpair/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/include/Makefile" ;;
-  "module/nvpair/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/nvpair/include/sys/Makefile" ;;
   "module/unicode/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/Makefile" ;;
-  "module/unicode/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/include/Makefile" ;;
-  "module/unicode/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/unicode/include/sys/Makefile" ;;
   "module/zcommon/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/Makefile" ;;
-  "module/zcommon/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/Makefile" ;;
-  "module/zcommon/include/sys/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/Makefile" ;;
-  "module/zcommon/include/sys/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/fs/Makefile" ;;
-  "module/zcommon/include/sys/fm/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/fm/Makefile" ;;
-  "module/zcommon/include/sys/fm/fs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zcommon/include/sys/fm/fs/Makefile" ;;
   "module/zfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zfs/Makefile" ;;
   "module/zpios/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zpios/Makefile" ;;
-  "module/zpios/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zpios/include/Makefile" ;;
   "scripts/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;
   "scripts/zpool-config/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpool-config/Makefile" ;;
   "scripts/zpios-test/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-test/Makefile" ;;

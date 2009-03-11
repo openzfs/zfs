@@ -13,7 +13,6 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -38,28 +37,16 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = .
-DIST_COMMON = README $(am__configure_deps) $(include_HEADERS) \
-	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/zfs.spec.in $(srcdir)/zfs_config.h.in \
-	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in $(srcdir)/zfs.spec.in \
+	$(srcdir)/zfs_config.h.in $(top_srcdir)/configure \
+	$(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
-	$(top_srcdir)/module/avl/include/Makefile.in \
-	$(top_srcdir)/module/avl/include/sys/Makefile.in \
 	$(top_srcdir)/module/nvpair/Makefile.in \
-	$(top_srcdir)/module/nvpair/include/Makefile.in \
-	$(top_srcdir)/module/nvpair/include/sys/Makefile.in \
 	$(top_srcdir)/module/unicode/Makefile.in \
-	$(top_srcdir)/module/unicode/include/Makefile.in \
-	$(top_srcdir)/module/unicode/include/sys/Makefile.in \
 	$(top_srcdir)/module/zcommon/Makefile.in \
-	$(top_srcdir)/module/zcommon/include/Makefile.in \
-	$(top_srcdir)/module/zcommon/include/sys/Makefile.in \
-	$(top_srcdir)/module/zcommon/include/sys/fm/Makefile.in \
-	$(top_srcdir)/module/zcommon/include/sys/fm/fs/Makefile.in \
-	$(top_srcdir)/module/zcommon/include/sys/fs/Makefile.in \
 	$(top_srcdir)/module/zfs/Makefile.in \
-	$(top_srcdir)/module/zpios/Makefile.in \
-	$(top_srcdir)/module/zpios/include/Makefile.in AUTHORS COPYING \
+	$(top_srcdir)/module/zpios/Makefile.in AUTHORS COPYING \
 	ChangeLog TODO
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
@@ -77,17 +64,9 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = zfs_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
-	module/avl/include/Makefile module/avl/include/sys/Makefile \
-	module/nvpair/Makefile module/nvpair/include/Makefile \
-	module/nvpair/include/sys/Makefile module/unicode/Makefile \
-	module/unicode/include/Makefile \
-	module/unicode/include/sys/Makefile module/zcommon/Makefile \
-	module/zcommon/include/Makefile \
-	module/zcommon/include/sys/Makefile \
-	module/zcommon/include/sys/fs/Makefile \
-	module/zcommon/include/sys/fm/Makefile \
-	module/zcommon/include/sys/fm/fs/Makefile module/zfs/Makefile \
-	module/zpios/Makefile module/zpios/include/Makefile zfs.spec
+	module/nvpair/Makefile module/unicode/Makefile \
+	module/zcommon/Makefile module/zfs/Makefile \
+	module/zpios/Makefile zfs.spec
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -96,15 +75,6 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(includedir)"
-includeHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -253,7 +223,6 @@ SUBDIRS = config doc scripts lib cmd module
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST = autogen.sh zfs.spec.in META DISCLAIMER GIT \
 	OPENSOLARIS.LICENSE ZFS.RELEASE
-include_HEADERS = zfs_config.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -312,39 +281,15 @@ module/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/avl/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/avl/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/include/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/avl/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/avl/include/sys/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/nvpair/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/nvpair/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/include/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/nvpair/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/nvpair/include/sys/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/unicode/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/unicode/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/include/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/unicode/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/unicode/include/sys/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zcommon/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zcommon/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zcommon/include/sys/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zcommon/include/sys/fs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fs/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zcommon/include/sys/fm/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fm/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zcommon/include/sys/fm/fs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zcommon/include/sys/fm/fs/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zfs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zfs/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/Makefile.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-module/zpios/include/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/include/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs.spec: $(top_builddir)/config.status $(srcdir)/zfs.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
@@ -358,23 +303,6 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-includeHEADERS: $(include_HEADERS)
-	@$(NORMAL_INSTALL)
-	test -z "$(includedir)" || $(mkdir_p) "$(DESTDIR)$(includedir)"
-	@list='$(include_HEADERS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(includeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(includedir)/$$f'"; \
-	  $(includeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(includedir)/$$f"; \
-	done
-
-uninstall-includeHEADERS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(include_HEADERS)'; for p in $$list; do \
-	  f=$(am__strip_dir) \
-	  echo " rm -f '$(DESTDIR)$(includedir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(includedir)/$$f"; \
-	done
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run `make' without going through this Makefile.
@@ -509,7 +437,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/. $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/avl/include $(distdir)/module/avl/include/sys $(distdir)/module/nvpair $(distdir)/module/nvpair/include $(distdir)/module/nvpair/include/sys $(distdir)/module/unicode $(distdir)/module/unicode/include $(distdir)/module/unicode/include/sys $(distdir)/module/zcommon $(distdir)/module/zcommon/include $(distdir)/module/zcommon/include/sys $(distdir)/module/zcommon/include/sys/fm $(distdir)/module/zcommon/include/sys/fm/fs $(distdir)/module/zcommon/include/sys/fs $(distdir)/module/zfs $(distdir)/module/zpios $(distdir)/module/zpios/include
+	$(mkdir_p) $(distdir)/. $(distdir)/config $(distdir)/module $(distdir)/module/avl $(distdir)/module/nvpair $(distdir)/module/unicode $(distdir)/module/zcommon $(distdir)/module/zfs $(distdir)/module/zpios
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -651,12 +579,9 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-recursive
-all-am: Makefile $(HEADERS) zfs_config.h
+all-am: Makefile zfs_config.h
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(includedir)"; do \
-	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
-	done
 install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
@@ -701,7 +626,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am: install-data-local install-includeHEADERS
+install-data-am: install-data-local
 
 install-exec-am:
 
@@ -729,7 +654,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-includeHEADERS uninstall-info-am
+uninstall-am: uninstall-info-am
 
 uninstall-info: uninstall-info-recursive
 
@@ -742,14 +667,12 @@ uninstall-info: uninstall-info-recursive
 	distcleancheck distdir distuninstallcheck dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-data-local install-exec \
-	install-exec-am install-includeHEADERS install-info \
-	install-info-am install-man install-strip installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic maintainer-clean-recursive \
-	mostlyclean mostlyclean-generic mostlyclean-libtool \
-	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-includeHEADERS \
-	uninstall-info-am
+	install-exec-am install-info install-info-am install-man \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	maintainer-clean-recursive mostlyclean mostlyclean-generic \
+	mostlyclean-libtool mostlyclean-recursive pdf pdf-am ps ps-am \
+	tags tags-recursive uninstall uninstall-am uninstall-info-am
 
 
 distclean-local::
@@ -765,7 +688,9 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 install-data-local:
-	$(INSTALL) module/Module.symvers $(DESTDIR)/$(includedir)
+	/bin/mkdir -p $(DESTDIR)/$(LINUX)/include/zfs
+	$(INSTALL) module/Module.symvers $(DESTDIR)/$(LINUX)/include/zfs
+	$(INSTALL) zfs_config.h $(DESTDIR)/$(LINUX)/include/zfs
 
 ctags:
 	$(RM) $(top_srcdir)/tags
