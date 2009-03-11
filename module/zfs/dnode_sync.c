@@ -591,7 +591,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	/* process all the "freed" ranges in the file */
-	while (rp = avl_last(&dn->dn_ranges[txgoff])) {
+	while ((rp = avl_last(&dn->dn_ranges[txgoff]))) {
 		dnode_sync_free_range(dn, rp->fr_blkid, rp->fr_nblks, tx);
 		/* grab the mutex so we don't race with dnode_block_freed() */
 		mutex_enter(&dn->dn_mtx);
