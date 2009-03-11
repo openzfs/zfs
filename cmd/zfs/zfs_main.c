@@ -645,7 +645,7 @@ zfs_do_create(int argc, char **argv)
 		zfs_prop_t resv_prop;
 		char *strval;
 
-		if (p = strchr(argv[0], '/'))
+		if ((p = strchr(argv[0], '/')))
 			*p = '\0';
 		zpool_handle = zpool_open(g_zfs, argv[0]);
 		if (p != NULL)

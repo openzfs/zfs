@@ -144,9 +144,10 @@
 #define	U8_16BIT_TABLE_INDICATOR	(0x8000U)
 
 /* The following are some convenience macros. */
-#define	U8_PUT_3BYTES_INTO_UTF32(u, b1, b2, b3) \
-	(u) = ((uint32_t)(b1) & 0x0F) << 12 | ((uint32_t)(b2) & 0x3F) << 6 | \
-		(uint32_t)(b3) & 0x3F;
+#define	U8_PUT_3BYTES_INTO_UTF32(u, b1, b2, b3)  \
+	(u) = ((((uint32_t)(b1) & 0x0F) << 12) | \
+	       (((uint32_t)(b2) & 0x3F) << 6)  | \
+		((uint32_t)(b3) & 0x3F));
 
 #define	U8_SIMPLE_SWAP(a, b, t) \
 	(t) = (a); \

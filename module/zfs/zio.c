@@ -2194,11 +2194,12 @@ zio_done(zio_t *zio)
 		 */
 		ASSERT(vd == NULL && bp != NULL);
 
-		if (IO_IS_ALLOCATING(zio))
+		if (IO_IS_ALLOCATING(zio)) {
 			if (zio->io_error != ENOSPC)
 				zio->io_reexecute |= ZIO_REEXECUTE_NOW;
 			else
 				zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
+		}
 
 		if ((zio->io_type == ZIO_TYPE_READ ||
 		    zio->io_type == ZIO_TYPE_FREE) &&
