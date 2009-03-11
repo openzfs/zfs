@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * Common name validation routines for ZFS.  These routines are shared by the
