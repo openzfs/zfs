@@ -186,7 +186,7 @@ xdrmem_enc_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 	if (xdrs->x_addr > xdrs->x_addr_end)
 		return FALSE;
 
-	if (xdrs->x_addr_end - xdrs->x_addr > size)
+	if (xdrs->x_addr_end - xdrs->x_addr < size)
 		return FALSE;
 
 	memcpy(xdrs->x_addr, cp, cnt);
@@ -215,7 +215,7 @@ xdrmem_dec_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 	if (xdrs->x_addr > xdrs->x_addr_end)
 		return FALSE;
 
-	if (xdrs->x_addr_end - xdrs->x_addr > size)
+	if (xdrs->x_addr_end - xdrs->x_addr < size)
 		return FALSE;
 
 	memcpy(cp, xdrs->x_addr, cnt);
