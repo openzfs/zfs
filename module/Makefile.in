@@ -10,7 +10,8 @@ modules clean:
 	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 modules_install:
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` \
+		INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
 	# Install the required headers in to the kernel source
 	(mkdir -p $(DESTDIR)/@LINUX@/include/zfs && \
 	 find . -mindepth 3 -maxdepth 3 -name '*.h' | \
