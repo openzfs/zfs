@@ -5,7 +5,7 @@ DEFAULT_INCLUDES = -I${top_srcdir}
 #
 # FIXME: Add -Wshadow once everything is working
 #
-AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror -Wno-parentheses
+AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror
 AM_CFLAGS += -Wno-switch -Wno-unused -Wno-missing-braces
 AM_CFLAGS += -Wno-uninitialized -fno-strict-aliasing
 
