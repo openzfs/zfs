@@ -3764,14 +3764,9 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	char *packed = NULL;
 	size_t bufsize;
 	size_t nvsize = 0;
-	int nv_encode = NV_ENCODE_NATIVE;
 	dmu_buf_t *db;
 
-#if defined(HAVE_XDR)
-	nv_encode = NV_ENCODE_XDR;
-#endif
-
-	VERIFY(nvlist_size(nv, &nvsize, nv_encode) == 0);
+	VERIFY(nvlist_size(nv, &nvsize, NV_ENCODE_XDR) == 0);
 
 	/*
 	 * Write full (SPA_CONFIG_BLOCKSIZE) blocks of configuration
@@ -3781,7 +3776,8 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	bufsize = P2ROUNDUP(nvsize, SPA_CONFIG_BLOCKSIZE);
 	packed = kmem_alloc(bufsize, KM_SLEEP);
 
-	VERIFY(nvlist_pack(nv, &packed, &nvsize, nv_encode, KM_SLEEP) == 0);
+	VERIFY(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_XDR,
+	    KM_SLEEP) == 0);
 	bzero(packed + nvsize, bufsize - nvsize);
 
 	dmu_write(spa->spa_meta_objset, obj, 0, bufsize, packed, tx);

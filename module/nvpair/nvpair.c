@@ -33,9 +33,7 @@
 #include <sys/nvpair.h>
 #include <sys/nvpair_impl.h>
 #include <rpc/types.h>
-#ifdef HAVE_XDR
 #include <rpc/xdr.h>
-#endif /* HAVE_XDR */
 
 #if defined(_KERNEL) && !defined(_BOOT)
 #include <sys/varargs.h>
@@ -2193,9 +2191,7 @@ nvs_embedded_nvl_array(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 }
 
 static int nvs_native(nvstream_t *, nvlist_t *, char *, size_t *);
-#if defined(HAVE_XDR)
 static int nvs_xdr(nvstream_t *, nvlist_t *, char *, size_t *);
-#endif /* HAVE_XDR */
 
 /*
  * Common routine for nvlist operations:
@@ -2272,11 +2268,9 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 			return (ENOTSUP);
 		err = nvs_native(&nvs, nvl, buf, buflen);
 		break;
-#if defined(HAVE_XDR)
 	case NV_ENCODE_XDR:
 		err = nvs_xdr(&nvs, nvl, buf, buflen);
 		break;
-#endif /* HAVE_XDR */
 	default:
 		err = ENOTSUP;
 		break;
@@ -2764,7 +2758,6 @@ nvs_native(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
-#if defined(HAVE_XDR)
 /*
  * XDR encoding functions
  *
@@ -3251,7 +3244,6 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 
 	return (err);
 }
-#endif /* HAVE_XDR */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 static int __init nvpair_init(void)

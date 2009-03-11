@@ -100,9 +100,7 @@ typedef struct nvlist {
 
 /* nvlist pack encoding */
 #define	NV_ENCODE_NATIVE	0
-#if defined(HAVE_XDR)
 #define	NV_ENCODE_XDR		1
-#endif
 
 /* nvlist persistent unique name flags, stored in nvl_nvflags */
 #define	NV_UNIQUE_NAME		0x1
