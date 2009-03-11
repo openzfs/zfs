@@ -7,7 +7,6 @@ linux-have-mntent
 linux-have-spl-debug
 linux-have-sysevent
 linux-have-uio-rw
-linux-have-xdr
 linux-have-zvol
 linux-kernel-disk
 linux-kernel-mem
