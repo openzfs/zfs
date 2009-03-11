@@ -1,6 +1,3 @@
-subdir-m += include
-DISTFILES = *.c
-
 MODULE := znvpair
 
 EXTRA_CFLAGS  = -I@MODDIR@/nvpair/include
