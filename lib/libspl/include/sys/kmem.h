@@ -26,8 +26,6 @@
 #ifndef _SYS_KMEM_H
 #define	_SYS_KMEM_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <stdlib.h>
 
 #ifdef	__cplusplus
