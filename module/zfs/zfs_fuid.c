@@ -161,12 +161,12 @@ zfs_fuid_table_destroy(avl_tree_t *idx_tree, avl_tree_t *domain_tree)
 	void *cookie;
 
 	cookie = NULL;
-	while (domnode = avl_destroy_nodes(domain_tree, &cookie))
+	while ((domnode = avl_destroy_nodes(domain_tree, &cookie)))
 		ksiddomain_rele(domnode->f_ksid);
 
 	avl_destroy(domain_tree);
 	cookie = NULL;
-	while (domnode = avl_destroy_nodes(idx_tree, &cookie))
+	while ((domnode = avl_destroy_nodes(idx_tree, &cookie)))
 		kmem_free(domnode, sizeof (fuid_domain_t));
 	avl_destroy(idx_tree);
 }

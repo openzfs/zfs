@@ -218,8 +218,8 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 
 				dp = spa_get_dsl(spa);
 				rw_enter(&dp->dp_config_rwlock, RW_READER);
-				if (err = dsl_dataset_hold_obj(dp,
-				    za.za_first_integer, FTAG, &ds)) {
+				if ((err = dsl_dataset_hold_obj(dp,
+				    za.za_first_integer, FTAG, &ds))) {
 					rw_exit(&dp->dp_config_rwlock);
 					break;
 				}
@@ -339,8 +339,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if (error = dmu_objset_open(strval, DMU_OST_ZFS,
-				    DS_MODE_USER | DS_MODE_READONLY, &os))
+				if ((error = dmu_objset_open(strval,DMU_OST_ZFS,
+				    DS_MODE_USER | DS_MODE_READONLY, &os)))
 					break;
 
 				/* We don't support gzip bootable datasets */
@@ -2370,7 +2370,7 @@ spa_check_rootconf(char *devpath, char *devid, nvlist_t **bestconf,
 	uint64_t txg;
 	int error;
 
-	if (error = vdev_disk_read_rootlabel(devpath, devid, &config))
+	if ((error = vdev_disk_read_rootlabel(devpath, devid, &config)))
 		return (error);
 
 	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG, &txg) == 0);
@@ -2416,7 +2416,7 @@ spa_get_rootconf(char *devpath, char *devid, nvlist_t **bestconf)
 
 	if (devpath && ((tmp = strchr(devpath, ' ')) != NULL))
 		*tmp = '\0';
-	if (error = spa_check_rootconf(devpath, devid, &conf, &txg)) {
+	if ((error = spa_check_rootconf(devpath, devid, &conf, &txg))) {
 		cmn_err(CE_NOTE, "error reading device label");
 		return (error);
 	}
@@ -2500,7 +2500,7 @@ spa_import_rootpool(char *devpath, char *devid)
 	 * Get the vdev pathname and configuation from the most
 	 * recently updated vdev (highest txg).
 	 */
-	if (error = spa_get_rootconf(devpath, devid, &conf))
+	if ((error = spa_get_rootconf(devpath, devid, &conf)))
 		goto msg_out;
 
 	/*
