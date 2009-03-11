@@ -153,7 +153,6 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	char *buf;
 	vnode_t *vp;
 	int oflags = FWRITE | FTRUNC | FCREAT | FOFFMAX;
-	int nv_encode = NV_ENCODE_NATIVE;
 	char *temp;
 
 	/*
@@ -167,15 +166,13 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	/*
 	 * Pack the configuration into a buffer.
 	 */
-#if defined(HAVE_XDR)
-	nv_encode = NV_ENCODE_XDR;
-#endif
-	VERIFY(nvlist_size(nvl, &buflen, nv_encode) == 0);
+	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
 
 	buf = kmem_alloc(buflen, KM_SLEEP);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-	VERIFY(nvlist_pack(nvl, &buf, &buflen, nv_encode, KM_SLEEP) == 0);
+	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
+	    KM_SLEEP) == 0);
 
 	/*
 	 * Write the configuration to disk.  We need to do the traditional
