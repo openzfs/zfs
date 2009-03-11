@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * The 512-byte leaf is broken into 32 16-byte chunks.
