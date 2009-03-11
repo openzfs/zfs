@@ -1295,4 +1295,5 @@ EXPORT_SYMBOL(dmu_objset_byteswap);
 /* Get stats on a dataset. */
 EXPORT_SYMBOL(dmu_objset_fast_stat);
 EXPORT_SYMBOL(dmu_objset_stats);
+EXPORT_SYMBOL(dmu_objset_space);
 #endif
