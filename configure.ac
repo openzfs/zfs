@@ -77,7 +77,6 @@ AC_CONFIG_FILES([
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/zpios/Makefile
-	module/zpios/include/Makefile
 	scripts/Makefile
 	scripts/zpool-config/Makefile
 	scripts/zpios-test/Makefile
