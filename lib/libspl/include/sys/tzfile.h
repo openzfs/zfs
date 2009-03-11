@@ -30,8 +30,6 @@
 #ifndef _LIBSPL_SYS_TZFILE_H
 #define	_LIBSPL_SYS_TZFILE_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
