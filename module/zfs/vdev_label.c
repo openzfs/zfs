@@ -625,11 +625,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-#ifdef HAVE_XDR
 	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
-#else
-	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_NATIVE, KM_SLEEP);
-#endif
 	if (error != 0) {
 		nvlist_free(label);
 		zio_buf_free(vp, sizeof (vdev_phys_t));
@@ -942,11 +938,7 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-#ifdef HAVE_XDR
 	if (nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP) == 0) {
-#else
-	if (nvlist_pack(label, &buf, &buflen, NV_ENCODE_NATIVE, KM_SLEEP) == 0) {
-#endif
 		for (; l < VDEV_LABELS; l += 2) {
 			vdev_label_write(zio, vd, l, vp,
 			    offsetof(vdev_label_t, vl_vdev_phys),
