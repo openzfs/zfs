@@ -1,5 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
+SUBDIRS = asm-i686 asm-x86_64 include
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libspl/include
 
