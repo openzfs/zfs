@@ -26,7 +26,7 @@
 #ifndef	_LIBNVPAIR_H
 #define	_LIBNVPAIR_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/nvpair.h>
 #include <stdlib.h>

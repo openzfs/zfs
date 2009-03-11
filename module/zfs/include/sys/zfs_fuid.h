@@ -26,7 +26,7 @@
 #ifndef	_SYS_FS_ZFS_FUID_H
 #define	_SYS_FS_ZFS_FUID_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #ifdef _KERNEL
 #include <sys/kidmap.h>
