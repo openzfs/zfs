@@ -1,6 +1,3 @@
-subdir-m += include
-DISTFILES = *.c
-
 MODULE := zunicode
 
 EXTRA_CFLAGS  = -I@MODDIR@/unicode/include
