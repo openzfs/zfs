@@ -748,8 +748,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *zplprops = NULL;
 	char *buf;
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    &config))
+	if ((error = get_nvlist(zc->zc_nvlist_conf,
+				zc->zc_nvlist_conf_size, &config)))
 		return (error);
 
 	if (zc->zc_nvlist_src_size != 0 && (error =
@@ -1020,7 +1020,7 @@ zfs_ioc_dsobj_to_dsname(zfs_cmd_t *zc)
 {
 	int error;
 
-	if (error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value))
+	if ((error = dsl_dsobj_to_dsname(zc->zc_name,zc->zc_obj,zc->zc_value)))
 		return (error);
 
 	return (0);
@@ -1203,8 +1203,8 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
 	int error;
 	nvlist_t *nv;
 
-	if (error = dmu_objset_open(zc->zc_name,
-	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os))
+	if ((error = dmu_objset_open(zc->zc_name,
+	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os)))
 		return (error);
 
 	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
@@ -1261,8 +1261,8 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	objset_t *os;
 	int err;
 
-	if (err = dmu_objset_open(zc->zc_name,
-	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os))
+	if ((err = dmu_objset_open(zc->zc_name,
+	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os)))
 		return (err);
 
 	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
@@ -1310,8 +1310,8 @@ zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
 	int error;
 	char *p;
 
-	if (error = dmu_objset_open(zc->zc_name,
-	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os)) {
+	if ((error = dmu_objset_open(zc->zc_name,
+	    DMU_OST_ANY, DS_MODE_USER | DS_MODE_READONLY, &os))) {
 		if (error == ENOENT)
 			error = ESRCH;
 		return (error);
@@ -1425,8 +1425,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			    nvpair_type(elem) != DATA_TYPE_STRING)
 				return (EINVAL);
 
-			if (error = zfs_secpolicy_write_perms(name,
-			    ZFS_DELEG_PERM_USERPROP, CRED()))
+			if ((error = zfs_secpolicy_write_perms(name,
+			    ZFS_DELEG_PERM_USERPROP, CRED())))
 				return (error);
 			continue;
 		}
