@@ -1,6 +1,3 @@
-subdir-m += include
-DISTFILES = zpios.c
-
 MODULE := zpios
 
 EXTRA_CFLAGS  = -I@MODDIR@/zfs/include
