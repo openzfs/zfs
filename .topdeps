@@ -9,3 +9,4 @@ gcc-uninit
 gcc-unused
 gcc-shadow
 gcc-64bit-constants
+gcc-ident-pragmas
