@@ -1,5 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
+SUBDIRS = include
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libzpool/include \
 	-I${top_srcdir}/lib/libspl/include \
