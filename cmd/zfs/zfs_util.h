@@ -26,7 +26,7 @@
 #ifndef	_ZFS_UTIL_H
 #define	_ZFS_UTIL_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <libzfs.h>
 
