@@ -73,7 +73,7 @@ symbols needed for building additional modules which use %{name}.
 %prep
 %setup
 %build
-%configure --includedir=%{kdir}/include/zfs --with-linux=%{kdir}
+%configure --with-linux=%{kdir} --with-spl=%{kdir}/include/spl
 make
 
 %install
@@ -88,6 +88,7 @@ rm -rf $RPM_BUILD_ROOT
 %doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER GIT
 %doc OPENSOLARIS.LICENSE README TODO ZFS.RELEASE
 %{_sbindir}/*
+%{_libdir}/*
 /lib/modules/*
 
 %files devel
