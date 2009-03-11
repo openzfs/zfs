@@ -26,7 +26,7 @@
 #ifndef	_SYS_ZAP_H
 #define	_SYS_ZAP_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * ZAP - ZFS Attribute Processor
