@@ -230,10 +230,10 @@ DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
 #
 
 # Expected defines not covered by zfs_config.h or spl_config.h
-AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-parentheses \
-	-Wno-switch -Wno-unused -Wno-missing-braces -Wno-uninitialized \
-	-fno-strict-aliasing -D_GNU_SOURCE -D__EXTENSIONS__ \
-	-D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
+AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wno-switch -Wno-unused \
+	-Wno-missing-braces -Wno-uninitialized -fno-strict-aliasing \
+	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
+	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 ztest_SOURCES = \
 	${top_srcdir}/cmd/ztest/ztest.c
