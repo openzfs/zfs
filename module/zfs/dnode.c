@@ -1115,7 +1115,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		int shift = epbs + dn->dn_datablkshift;
 
 		first = blkid >> epbs;
-		if (db = dbuf_hold_level(dn, 1, first, FTAG)) {
+		if ((db = dbuf_hold_level(dn, 1, first, FTAG))) {
 			dbuf_will_dirty(db, tx);
 			dbuf_rele(db, FTAG);
 		}
