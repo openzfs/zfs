@@ -1,13 +1,34 @@
-subdir-m = avl nvpair unicode zcommon zfs zpios
+subdir-m += avl
+subdir-m += nvpair
+subdir-m += unicode
+subdir-m += zcommon
+subdir-m += zfs
+subdir-m += zpios
 
-# Make the exported SPL symbols available to these modules.
-# Unfortunately there is not a cleaner way to do this, modpost
-# does not contain an option to search additional symbol files.
-all:
+modules clean:
+	# Make the exported SPL symbols available to these modules.
 	cp @splsymvers@ .
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ modules
-
-install uninstall clean distclean maintainer-clean distdir:
 	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
+modules_install:
+	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	# Install the required headers in to the kernel source
+	(mkdir -p $(DESTDIR)/@LINUX@/include/zfs && \
+	 find . -mindepth 3 -maxdepth 3 -name '*.h' | \
+	 xargs cp -t $(DESTDIR)/@LINUX@/include/zfs) || exit 1; \
+	(mkdir -p $(DESTDIR)/@LINUX@/include/zfs/sys && \
+	 find . -mindepth 4 -maxdepth 4 -name '*.h' | \
+	 xargs cp -t $(DESTDIR)/@LINUX@/include/zfs/sys) || exit 1;
+
+distdir:
+	distfiles=`find . -name '*.c' -o -name '*.h'`; \
+	for distfile in $$distfiles; do \
+		distpath=`dirname $$distdir/$$distfile`; \
+		(/bin/mkdir -p $$distpath && \
+		 /bin/cp $$distfile $$distdir/$$distfile) || exit 1; \
+	done
+
+distclean maintainer-clean: clean
+install: modules_install
+all: modules
 check:
