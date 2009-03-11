@@ -729,13 +729,8 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			if (err)
 				return (err);
 			VERIFY(0 == nvlist_add_nvlist(hdrnv, "fss", fss));
-#if defined(HAVE_XDR)
 			err = nvlist_pack(hdrnv, &packbuf, &buflen,
 			    NV_ENCODE_XDR, 0);
-#else
-			err = nvlist_pack(hdrnv, &packbuf, &buflen,
-			    NV_ENCODE_NATIVE, 0);
-#endif /* HAVE_XDR */
 			nvlist_free(hdrnv);
 			if (err) {
 				fsavl_destroy(fsavl);
