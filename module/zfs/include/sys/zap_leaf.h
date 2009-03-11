@@ -26,7 +26,7 @@
 #ifndef	_SYS_ZAP_LEAF_H
 #define	_SYS_ZAP_LEAF_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #ifdef	__cplusplus
 extern "C" {

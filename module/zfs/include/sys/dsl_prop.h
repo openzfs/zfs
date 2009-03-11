@@ -26,7 +26,7 @@
 #ifndef	_SYS_DSL_PROP_H
 #define	_SYS_DSL_PROP_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
