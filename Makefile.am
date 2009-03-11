@@ -3,7 +3,6 @@ SUBDIRS = config doc scripts lib cmd module
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST  = autogen.sh zfs.spec.in META DISCLAIMER GIT
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
-include_HEADERS = zfs_config.h
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -18,7 +17,9 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 install-data-local:
-	$(INSTALL) module/Module.symvers $(DESTDIR)/$(includedir)
+	/bin/mkdir -p $(DESTDIR)/$(LINUX)/include/zfs
+	$(INSTALL) module/Module.symvers $(DESTDIR)/$(LINUX)/include/zfs
+	$(INSTALL) zfs_config.h $(DESTDIR)/$(LINUX)/include/zfs
 
 ctags:
 	$(RM) $(top_srcdir)/tags

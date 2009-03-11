@@ -1,2 +1,0 @@
-subdir-m += sys
-DISTFILES = libnvpair.h
