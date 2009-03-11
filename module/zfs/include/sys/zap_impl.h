@@ -26,7 +26,7 @@
 #ifndef	_SYS_ZAP_IMPL_H
 #define	_SYS_ZAP_IMPL_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
