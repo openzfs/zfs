@@ -25,8 +25,6 @@
 
 #ifdef HAVE_ZPL
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
 
