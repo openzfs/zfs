@@ -26,7 +26,7 @@
 #ifndef	_ZFS_PROP_H
 #define	_ZFS_PROP_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/fs/zfs.h>
 #include <sys/types.h>

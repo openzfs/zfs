@@ -26,7 +26,7 @@
 #ifndef	_SYS_RR_RW_LOCK_H
 #define	_SYS_RR_RW_LOCK_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #ifdef	__cplusplus
 extern "C" {
