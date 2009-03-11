@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * Unicode encoding conversion functions among UTF-8, UTF-16, and UTF-32.
