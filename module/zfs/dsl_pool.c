@@ -313,12 +313,12 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(err == 0);
 	DTRACE_PROBE(pool_sync__2rootzio);
 
-	while (dstg = txg_list_remove(&dp->dp_sync_tasks, txg))
+	while ((dstg = txg_list_remove(&dp->dp_sync_tasks, txg)))
 		dsl_sync_task_group_sync(dstg, tx);
 	DTRACE_PROBE(pool_sync__3task);
 
 	start = gethrtime();
-	while (dd = txg_list_remove(&dp->dp_dirty_dirs, txg))
+	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)))
 		dsl_dir_sync(dd, tx);
 	write_time += gethrtime() - start;
 
