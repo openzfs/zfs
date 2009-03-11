@@ -24,7 +24,7 @@
  */
 
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #if defined(_KERNEL)
 #include <sys/systm.h>
