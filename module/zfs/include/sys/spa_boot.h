@@ -26,7 +26,7 @@
 #ifndef _SYS_SPA_BOOT_H
 #define	_SYS_SPA_BOOT_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/nvpair.h>
 

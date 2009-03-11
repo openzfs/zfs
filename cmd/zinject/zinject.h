@@ -26,7 +26,7 @@
 #ifndef	_ZINJECT_H
 #define	_ZINJECT_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/zfs_ioctl.h>
 
