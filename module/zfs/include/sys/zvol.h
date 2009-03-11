@@ -27,7 +27,7 @@
 #ifndef	_SYS_ZVOL_H
 #define	_SYS_ZVOL_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/zfs_context.h>
 

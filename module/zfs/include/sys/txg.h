@@ -26,7 +26,7 @@
 #ifndef _SYS_TXG_H
 #define	_SYS_TXG_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/spa.h>
 #include <sys/zfs_context.h>

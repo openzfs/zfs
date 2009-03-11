@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
