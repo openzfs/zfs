@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 /*
  * Iterate over all children of the current object.  This includes the normal

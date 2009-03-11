@@ -26,7 +26,7 @@
 #ifndef	_SYS_DMU_TX_H
 #define	_SYS_DMU_TX_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/inttypes.h>
 #include <sys/dmu.h>
