@@ -2337,8 +2337,8 @@ dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (ds->ds_phys->ds_prev_snap_obj == 0)
 			continue;
 
-		if (err = bplist_space(&ds->ds_deadlist,
-		    &dlused, &dlcomp, &dluncomp))
+		if ((err = bplist_space(&ds->ds_deadlist,
+		    &dlused, &dlcomp, &dluncomp)))
 			return (err);
 		pa->used += dlused;
 		pa->comp += dlcomp;

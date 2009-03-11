@@ -131,7 +131,7 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
 		for (i = 0; i < argc; i++) {
 			zpool_handle_t *zhp;
 
-			if (zhp = zpool_open_canfail(g_zfs, argv[i])) {
+			if ((zhp = zpool_open_canfail(g_zfs, argv[i]))) {
 				if (add_pool(zhp, zlp) != 0)
 					*err = B_TRUE;
 			} else {
