@@ -1108,7 +1108,17 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-EXPORT_SYMBOL(zap_update);
+EXPORT_SYMBOL(zap_add);
+EXPORT_SYMBOL(zap_create);
+EXPORT_SYMBOL(zap_cursor_advance);
+EXPORT_SYMBOL(zap_cursor_fini);
+EXPORT_SYMBOL(zap_cursor_init);
+EXPORT_SYMBOL(zap_cursor_init_serialized);
+EXPORT_SYMBOL(zap_cursor_move_to_key);
+EXPORT_SYMBOL(zap_cursor_retrieve);
+EXPORT_SYMBOL(zap_cursor_serialize);
 EXPORT_SYMBOL(zap_lookup);
 EXPORT_SYMBOL(zap_lookup_norm);
+EXPORT_SYMBOL(zap_remove);
+EXPORT_SYMBOL(zap_update);
 #endif
