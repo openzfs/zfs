@@ -3,7 +3,6 @@ subdir-m += nvpair
 subdir-m += unicode
 subdir-m += zcommon
 subdir-m += zfs
-subdir-m += zpios
 
 modules clean:
 	# Make the exported SPL symbols available to these modules.
