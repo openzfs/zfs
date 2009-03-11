@@ -8,10 +8,10 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 	# FIXME: Quiet warnings not covered by the gcc-* patches.  We should
 	# FIXME: consider removing this as soon as we reasonably can
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror "
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch -Wno-unused -Wno-missing-braces "
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unknown-pragmas -Wno-parentheses "
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing "
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch -Wno-unused"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-missing-braces -Wno-parentheses"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing"
 
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL "
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\" "
