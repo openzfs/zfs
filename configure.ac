@@ -61,6 +61,7 @@ AC_CONFIG_FILES([
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
 	lib/libzpool/Makefile
+	lib/libzpool/include/Makefile
 	lib/libzfs/Makefile
 	cmd/Makefile
 	cmd/zdb/Makefile
@@ -71,20 +72,9 @@ AC_CONFIG_FILES([
 	cmd/zpios/Makefile
 	module/Makefile
 	module/avl/Makefile
-	module/avl/include/Makefile
-	module/avl/include/sys/Makefile
 	module/nvpair/Makefile
-	module/nvpair/include/Makefile
-	module/nvpair/include/sys/Makefile
 	module/unicode/Makefile
-	module/unicode/include/Makefile
-	module/unicode/include/sys/Makefile
 	module/zcommon/Makefile
-	module/zcommon/include/Makefile
-	module/zcommon/include/sys/Makefile
-	module/zcommon/include/sys/fs/Makefile
-	module/zcommon/include/sys/fm/Makefile
-	module/zcommon/include/sys/fm/fs/Makefile
 	module/zfs/Makefile
 	module/zpios/Makefile
 	module/zpios/include/Makefile

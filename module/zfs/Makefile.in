@@ -1,5 +1,3 @@
-DISTFILES = *.c
-
 MODULE := zfs
 
 EXTRA_CFLAGS  = -I@MODDIR@/zfs/include
