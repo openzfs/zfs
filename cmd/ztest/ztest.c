@@ -1931,11 +1931,12 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	mutex_t *lp;
 	char osname[MAXNAMELEN];
 	char iobuf[SPA_MAXBLOCKSIZE];
-	blkptr_t blk = { 0 };
+	blkptr_t blk;
 	uint64_t blkoff;
 	zbookmark_t zb;
 	dmu_tx_t *tx = dmu_tx_create(os);
 
+	bzero(&blk, sizeof(blkptr_t));
 	dmu_objset_name(os, osname);
 
 	/*

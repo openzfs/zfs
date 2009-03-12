@@ -451,7 +451,7 @@ static int
 dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, boolean_t fromorigin,
     int outfd)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
@@ -552,7 +552,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 	int rv = 0;
 	send_dump_data_t *sdd = arg;
 	boolean_t missingfrom = B_FALSE;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 	    zhp->zfs_name, sdd->tosnap);
@@ -709,7 +709,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		dmu_replay_record_t drr = { 0 };
 		char *packbuf = NULL;
 		size_t buflen = 0;
-		zio_cksum_t zc = { 0 };
+		zio_cksum_t zc = { { 0 } };
 
 		assert(fromsnap || doall);
 
@@ -875,7 +875,7 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
     int baselen, char *newname, recvflags_t flags)
 {
 	static int seq;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int err;
 	prop_changelist_t *clp;
 	zfs_handle_t *zhp;
@@ -947,7 +947,7 @@ static int
 recv_destroy(libzfs_handle_t *hdl, const char *name, int baselen,
     char *newname, recvflags_t flags)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int err = 0;
 	prop_changelist_t *clp;
 	zfs_handle_t *zhp;
@@ -1158,7 +1158,7 @@ again:
 			    stream_originguid, originguid)) {
 			case 1: {
 				/* promote it! */
-				zfs_cmd_t zc = { 0 };
+				zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 				nvlist_t *origin_nvfs;
 				char *origin_fsname;
 
@@ -1230,7 +1230,7 @@ again:
 			if (0 == nvlist_lookup_nvlist(stream_nvfs, "snapprops",
 			    &props) && 0 == nvlist_lookup_nvlist(props,
 			    stream_snapname, &props)) {
-				zfs_cmd_t zc = { 0 };
+				zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 				zc.zc_cookie = B_TRUE; /* clear current props */
 				(void) snprintf(zc.zc_name, sizeof (zc.zc_name),
@@ -1556,7 +1556,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
     dmu_replay_record_t *drr_noswap, avl_tree_t *stream_avl,
     char **top_zfs)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	time_t begin_time;
 	int ioctl_err, ioctl_errno, err, choplen;
 	char *cp;
@@ -1835,7 +1835,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	zcmd_free_nvlists(&zc);
 
 	if (err == 0 && snapprops_nvlist) {
-		zfs_cmd_t zc2 = { 0 };
+		zfs_cmd_t zc2 = { "\0", "\0", "\0", 0 };
 
 		(void) strcpy(zc2.zc_name, zc.zc_value);
 		if (zcmd_write_src_nvlist(hdl, &zc2, snapprops_nvlist) == 0) {
@@ -1990,7 +1990,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t flags,
 	dmu_replay_record_t drr, drr_noswap;
 	struct drr_begin *drrb = &drr.drr_u.drr_begin;
 	char errbuf[1024];
-	zio_cksum_t zcksum = { 0 };
+	zio_cksum_t zcksum = { { 0 } };
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot receive"));

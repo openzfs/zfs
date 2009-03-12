@@ -1,0 +1,6 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc missing braces
+
+Resolve compiler warnings concerning missing braces.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>

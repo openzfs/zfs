@@ -381,7 +381,7 @@ zfs_graph_add(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *source,
 static int
 iterate_children(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	zfs_vertex_t *zvp;
 
 	/*
@@ -482,7 +482,7 @@ iterate_children(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset)
 static boolean_t
 external_dependents(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	/*
 	 * Check whether this dataset is a clone or has clones since

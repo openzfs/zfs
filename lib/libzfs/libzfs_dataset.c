@@ -364,7 +364,7 @@ static int
 get_stats(zfs_handle_t *zhp)
 {
 	int rc = 0;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
 		return (-1);
@@ -411,7 +411,7 @@ top:
 
 
 	if (zhp->zfs_dmustats.dds_inconsistent) {
-		zfs_cmd_t zc2 = { 0 };
+		zfs_cmd_t zc2 = { "\0", "\0", "\0", 0 };
 
 		/*
 		 * If it is dds_inconsistent, then we've caught it in
@@ -485,7 +485,7 @@ top:
 zfs_handle_t *
 make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
 
@@ -1380,7 +1380,7 @@ zfs_build_perms(zfs_handle_t *zhp, char *whostr, char *perms,
 static int
 zfs_perm_set_common(zfs_handle_t *zhp, nvlist_t *nvp, boolean_t unset)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int error;
 	char errbuf[1024];
 
@@ -1594,7 +1594,7 @@ zfs_coalesce_perm(zfs_handle_t *zhp, zfs_allow_node_t *allownode,
 int
 zfs_perm_get(zfs_handle_t *zhp, zfs_allow_t **zfs_perms)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int error;
 	nvlist_t *nvlist;
 	nvlist_t *permnv, *sourcenv;
@@ -1928,7 +1928,7 @@ zfs_deleg_permissions(void)
 int
 zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int ret = -1;
 	prop_changelist_t *cl = NULL;
 	char errbuf[1024];
@@ -2088,7 +2088,7 @@ error:
 int
 zfs_prop_inherit(zfs_handle_t *zhp, const char *propname)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int ret;
 	prop_changelist_t *cl;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -2238,7 +2238,7 @@ static int
 get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
     char **source, uint64_t *val)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	nvlist_t *zplprops = NULL;
 	struct mnttab mnt;
 	char *mntopt_on = NULL;
@@ -2784,7 +2784,7 @@ top:
 int
 zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	zfs_handle_t *nzhp;
 	int ret;
 
@@ -2826,7 +2826,7 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 int
 zfs_iter_snapshots(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	zfs_handle_t *nzhp;
 	int ret;
 
@@ -2896,7 +2896,7 @@ static int
 check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
     boolean_t accept_ancestor, int *prefixlen)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	char parent[ZFS_MAXNAMELEN];
 	char *slash;
 	zfs_handle_t *zhp;
@@ -3101,7 +3101,7 @@ int
 zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
     nvlist_t *props)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int ret;
 	uint64_t size = 0;
 	uint64_t blocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
@@ -3264,7 +3264,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 int
 zfs_destroy(zfs_handle_t *zhp)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
@@ -3344,7 +3344,7 @@ zfs_remove_link_cb(zfs_handle_t *zhp, void *arg)
 int
 zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int ret;
 	struct destroydata dd = { 0 };
 
@@ -3388,7 +3388,7 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname)
 int
 zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	char parent[ZFS_MAXNAMELEN];
 	int ret;
 	char errbuf[1024];
@@ -3537,7 +3537,7 @@ int
 zfs_promote(zfs_handle_t *zhp)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	char parent[MAXPATHLEN];
 	char *cp;
 	int ret;
@@ -3660,7 +3660,7 @@ zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
 	const char *delim;
 	char parent[ZFS_MAXNAMELEN];
 	zfs_handle_t *zhp;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int ret;
 	char errbuf[1024];
 
@@ -3812,7 +3812,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 {
 	rollback_data_t cb = { 0 };
 	int err;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	boolean_t restore_resv = 0;
 	uint64_t old_volsize, new_volsize;
 	zfs_prop_t resv_prop;
@@ -3934,7 +3934,7 @@ int
 zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 {
 	int ret;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	char *delim;
 	prop_changelist_t *cl = NULL;
 	zfs_handle_t *zhrp = NULL;
@@ -4251,7 +4251,7 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 int
 zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 
@@ -4426,7 +4426,7 @@ int
 zfs_deleg_share_nfs(libzfs_handle_t *hdl, char *dataset, char *path,
     void *export, void *sharetab, int sharemax, zfs_share_op_t operation)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int error;
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
