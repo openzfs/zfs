@@ -862,7 +862,7 @@ ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
-		ASSERT(DVA_EQUAL(BP_IDENTITY(bp), BP_IDENTITY(bp_orig)));
+		VERIFY(DVA_EQUAL(BP_IDENTITY(bp), BP_IDENTITY(bp_orig)));
 	} else {
 		if (zio->io_bp_orig.blk_birth == os->os_synctx->tx_txg)
 			(void) dsl_dataset_block_kill(os->os_dsl_dataset,
