@@ -817,7 +817,9 @@ out:
 static int
 destroy_callback(zfs_handle_t *zhp, void *data)
 {
+#ifdef HAVE_ZPL
 	destroy_cbdata_t *cbp = data;
+#endif
 
 	/*
 	 * Ignore pools (which we've already flagged as an error before getting
@@ -4152,7 +4154,9 @@ main(int argc, char **argv)
 {
 	int ret;
 	int i;
+#ifdef HAVE_ZPL
 	char *progname;
+#endif
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
