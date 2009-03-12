@@ -2609,7 +2609,7 @@ top:
 		uint64_t size = BP_GET_LSIZE(bp);
 		arc_callback_t	*acb;
 		vdev_t *vd = NULL;
-		daddr_t addr;
+		daddr_t addr = -1;
 		boolean_t devw = B_FALSE;
 
 		if (hdr == NULL) {
