@@ -189,7 +189,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 	uint32_t flags;
 	int err;
 	zio_t *zio;
-	hrtime_t start;
+	hrtime_t start = 0;
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
