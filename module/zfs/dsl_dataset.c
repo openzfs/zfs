@@ -2613,10 +2613,11 @@ dsl_dataset_promote(const char *name)
 	dsl_dir_t *dd;
 	dsl_pool_t *dp;
 	dmu_object_info_t doi;
-	struct promotearg pa = { 0 };
+	struct promotearg pa;
 	struct promotenode *snap;
 	int err;
 
+	bzero(&pa, sizeof(struct promotearg));
 	err = dsl_dataset_hold(name, FTAG, &ds);
 	if (err)
 		return (err);
