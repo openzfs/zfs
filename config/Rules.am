@@ -1,8 +1,7 @@
 DEFAULT_INCLUDES = -I${top_srcdir}
 
 # FIXME: Add -Wshadow once everything is working
-AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror -Wno-switch
-AM_CFLAGS += -Wno-uninitialized -fno-strict-aliasing
+AM_CFLAGS  = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror
 
 # Expected defines not covered by zfs_config.h or spl_config.h
 AM_CFLAGS += -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT
