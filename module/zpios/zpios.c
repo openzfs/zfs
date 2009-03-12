@@ -270,6 +270,8 @@ zpios_setup_run(run_args_t **run_args, zpios_cmd_t *kcmd, struct file *file)
         mutex_init(&ra->lock_work, NULL, MUTEX_DEFAULT, NULL);
         mutex_init(&ra->lock_ctl, NULL, MUTEX_DEFAULT, NULL);
 
+	(void)zpios_upcall(ra->pre, PHASE_PRE_RUN, ra, 0);
+
 	rc = zpios_dmu_setup(ra);
 	if (rc) {
 	        mutex_destroy(&ra->lock_ctl);
@@ -799,7 +801,7 @@ static int
 zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
                  int data_size, void *data)
 {
-	run_args_t *run_args;
+	run_args_t *run_args = { 0 };
 	zpios_stats_t *stats = (zpios_stats_t *)data;
 	int i, n, m, size, rc;
 
@@ -842,8 +844,6 @@ zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
 			    "size too small, (%d < %d)\n", data_size, size);
 		return -ENOSPC;
 	}
-
-	(void)zpios_upcall(kcmd->cmd_pre, PHASE_PRE_RUN, run_args, 0);
 
 	rc = zpios_setup_run(&run_args, kcmd, file);
 	if (rc)
