@@ -1170,7 +1170,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 		 */
 		if (fsize < 2 * zopt_vdev_size) {
 			size_t newsize = fsize + ztest_random(fsize / 32);
-			(void) ftruncate(fd, newsize);
+			VERIFY(ftruncate(fd, newsize) == 0);
 			if (zopt_verbose >= 6) {
 				(void) printf("%s grew from %lu to %lu bytes\n",
 				    dev_name, (ulong_t)fsize, (ulong_t)newsize);

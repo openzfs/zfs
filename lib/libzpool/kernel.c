@@ -764,7 +764,7 @@ umem_out_of_memory(void)
 {
 	char errmsg[] = "out of memory -- generating core dump\n";
 
-	write(fileno(stderr), errmsg, sizeof (errmsg));
+	(void) fprintf(stderr, "%s", errmsg);
 	abort();
 	return (0);
 }

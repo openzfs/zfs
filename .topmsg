@@ -1,0 +1,14 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] gcc fortify source
+
+Resolve issues uncovered by -D_FORTIFY_SOURCE=2, the default redhat
+macro's file adds this option to the cflags.  This causes warnings
+of the following type designed to keep the developer honest:
+
+        warning: ignoring return value of 'foo', declared
+                 with attribute warn_unused_result
+
+The short term fix is to wrap these calls in VERIFY() to check the
+return code.  The code was already assusing these would never fail.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
