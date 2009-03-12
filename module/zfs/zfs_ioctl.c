@@ -325,6 +325,8 @@ zfs_secpolicy_setprop(const char *name, zfs_prop_t prop, cred_t *cr)
 	 * Check permissions for special properties.
 	 */
 	switch (prop) {
+	default:
+		break;
 	case ZFS_PROP_ZONED:
 		/*
 		 * Disallow setting of 'zoned' from within a local zone.
@@ -1438,6 +1440,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 		 * Check that this value is valid for this pool version
 		 */
 		switch (prop) {
+		default:
+			break;
 		case ZFS_PROP_COMPRESSION:
 			/*
 			 * If the user specified gzip compression, make sure
