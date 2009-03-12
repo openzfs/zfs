@@ -749,8 +749,8 @@ mzap_addent(zap_name_t *zn, uint64_t value)
 
 #ifdef ZFS_DEBUG
 	for (i = 0; i < zap->zap_m.zap_num_chunks; i++) {
-		mzap_ent_phys_t *mze = &zap->zap_m.zap_phys->mz_chunk[i];
-		ASSERT(strcmp(zn->zn_name_orij, mze->mze_name) != 0);
+		ASSERT(strcmp(zn->zn_name_orij,
+		       (&zap->zap_m.zap_phys->mz_chunk[i])->mze_name) != 0);
 	}
 #endif
 
