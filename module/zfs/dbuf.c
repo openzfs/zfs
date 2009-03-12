@@ -316,12 +316,12 @@ dbuf_verify(dmu_buf_impl_t *db)
 	 * dnode_set_blksz().
 	 */
 	if (db->db_level == 0 && db->db.db_object == DMU_META_DNODE_OBJECT) {
-		dbuf_dirty_record_t *dr = db->db_data_pending;
 		/*
 		 * It should only be modified in syncing context, so
 		 * make sure we only have one copy of the data.
 		 */
-		ASSERT(dr == NULL || dr->dt.dl.dr_data == db->db_buf);
+		ASSERT(db->db_data_pending == NULL ||
+		       db->db_data_pending->dt.dl.dr_data == db->db_buf);
 	}
 
 	/* verify db->db_blkptr */
@@ -337,7 +337,6 @@ dbuf_verify(dmu_buf_impl_t *db)
 			    &dn->dn_phys->dn_blkptr[db->db_blkid]);
 		} else {
 			/* db is pointed to by an indirect block */
-			int epb = db->db_parent->db.db_size >> SPA_BLKPTRSHIFT;
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
@@ -349,7 +348,9 @@ dbuf_verify(dmu_buf_impl_t *db)
 			if (RW_WRITE_HELD(&db->db_dnode->dn_struct_rwlock)) {
 				ASSERT3P(db->db_blkptr, ==,
 				    ((blkptr_t *)db->db_parent->db.db_data +
-				    db->db_blkid % epb));
+				    db->db_blkid %
+				    (db->db_parent->db.db_size >>
+				    SPA_BLKPTRSHIFT)));
 			}
 		}
 	}
@@ -362,11 +363,10 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * data when we evict this buffer.
 		 */
 		if (db->db_dirtycnt == 0) {
-			uint64_t *buf = db->db.db_data;
 			int i;
 
 			for (i = 0; i < db->db.db_size >> 3; i++) {
-				ASSERT(buf[i] == 0);
+				ASSERT(db->db.db_data[i] == 0);
 			}
 		}
 	}

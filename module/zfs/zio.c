@@ -1522,7 +1522,6 @@ static void
 zio_write_gang_member_ready(zio_t *zio)
 {
 	zio_t *pio = zio_unique_parent(zio);
-	zio_t *lio = zio->io_logical;
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
@@ -1533,7 +1532,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	ASSERT(BP_IS_HOLE(&zio->io_bp_orig));
 
 	ASSERT(zio->io_child_type == ZIO_CHILD_GANG);
-	ASSERT3U(zio->io_prop.zp_ndvas, ==, lio->io_prop.zp_ndvas);
+	ASSERT3U(zio->io_prop.zp_ndvas, ==, zio->io_logical->io_prop.zp_ndvas);
 	ASSERT3U(zio->io_prop.zp_ndvas, <=, BP_GET_NDVAS(zio->io_bp));
 	ASSERT3U(pio->io_prop.zp_ndvas, <=, BP_GET_NDVAS(pio->io_bp));
 	ASSERT3U(BP_GET_NDVAS(zio->io_bp), <=, BP_GET_NDVAS(pio->io_bp));

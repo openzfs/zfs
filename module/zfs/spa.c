@@ -2889,7 +2889,6 @@ int
 spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 {
 	uint64_t txg, open_txg;
-	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	dmu_tx_t *tx;
@@ -3007,7 +3006,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	if (pvd->vdev_ops != pvops)
 		pvd = vdev_add_parent(oldvd, pvops);
 
-	ASSERT(pvd->vdev_top->vdev_parent == rvd);
+	ASSERT(pvd->vdev_top->vdev_parent == spa->spa_root_vdev);
 	ASSERT(pvd->vdev_ops == pvops);
 	ASSERT(oldvd->vdev_parent == pvd);
 
@@ -3026,7 +3025,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	tvd = newvd->vdev_top;
 	ASSERT(pvd->vdev_top == tvd);
-	ASSERT(tvd->vdev_parent == rvd);
+	ASSERT(tvd->vdev_parent == spa->spa_root_vdev);
 
 	vdev_config_dirty(tvd);
 
@@ -3085,7 +3084,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 {
 	uint64_t txg;
 	int error;
-	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid;
@@ -3229,7 +3227,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * may have been the previous top-level vdev.
 	 */
 	tvd = cvd->vdev_top;
-	ASSERT(tvd->vdev_parent == rvd);
+	ASSERT(tvd->vdev_parent == spa->spa_root_vdev);
 
 	/*
 	 * Reevaluate the parent vdev state.
