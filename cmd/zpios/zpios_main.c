@@ -429,8 +429,6 @@ error:
 static int
 get_next(uint64_t *val, range_repeat_t *range)
 {
-	int i;
-
 	/* if low, incr, high is given */
 	if (range->val_count == 0) {
 		*val = (range->val_low) +

@@ -839,10 +839,8 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 	blkptr_t *bp = zio->io_bp;
 
 	if (!BP_IS_HOLE(bp)) {
-		dmu_sync_arg_t *in = varg;
-		dbuf_dirty_record_t *dr = in->dr;
-		dmu_buf_impl_t *db = dr->dr_dbuf;
-		ASSERT(BP_GET_TYPE(bp) == db->db_dnode->dn_type);
+		ASSERT(BP_GET_TYPE(bp) == ((dmu_sync_arg_t *)
+		       varg)->dr->dr_dbuf->db_dnode->dn_type);
 		ASSERT(BP_GET_LEVEL(bp) == 0);
 		bp->blk_fill = 1;
 	}
