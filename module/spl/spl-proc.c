@@ -457,23 +457,24 @@ proc_dohostid(struct ctl_table *table, int write, struct file *filp,
         int len, rc = 0;
         int32_t val;
         char *end, str[32];
-	ENTRY;
+        ENTRY;
 
         if (write) {
-		/* We can't use proc_doulongvec_minmax() in the write
-		 * case hear because hostid while a hex value has no
-		 * leading 0x which confuses the helper function. */
+                /* We can't use proc_doulongvec_minmax() in the write
+                 * case hear because hostid while a hex value has no
+                 * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
                         RETURN(rc);
 
                 val = simple_strtol(str, &end, 16);
-		if (str == end)
-			RETURN(-EINVAL);
+                if (str == end)
+                        RETURN(-EINVAL);
 
-		spl_hostid = (long)val;
-                (void)snprintf(hw_serial, HW_HOSTID_LEN-1, "%u",
-			       (val >= 0) ? val : -val);
+                spl_hostid = (long) val;
+                (void) snprintf(hw_serial, HW_HOSTID_LEN, "%u",
+                               (val >= 0) ? val : -val);
+                hw_serial[HW_HOSTID_LEN - 1] = '\0';
                 *ppos += *lenp;
         } else {
                 len = snprintf(str, sizeof(str), "%lx", spl_hostid);
