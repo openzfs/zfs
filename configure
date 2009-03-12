@@ -19195,13 +19195,8 @@ echo "${ECHO_T}$ZFS_CONFIG" >&6;
 		kernel)
 			KERNELMAKE_PARAMS="V=1"
 
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing"
-
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
 
 	if test "$kernelbuild" != "$kernelsrc"; then
@@ -19602,13 +19597,8 @@ echo "${ECHO_T}yes" >&6
 		all)
 			KERNELMAKE_PARAMS="V=1"
 
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wall -Wstrict-prototypes -Werror"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-switch"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-uninitialized -fno-strict-aliasing"
-
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
 
 	if test "$kernelbuild" != "$kernelsrc"; then
