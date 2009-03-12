@@ -616,6 +616,7 @@ zfs_secpolicy_create(zfs_cmd_t *zc, cred_t *cr)
 	return (error);
 }
 
+#ifdef HAVE_ZPL
 static int
 zfs_secpolicy_umount(zfs_cmd_t *zc, cred_t *cr)
 {
@@ -627,6 +628,7 @@ zfs_secpolicy_umount(zfs_cmd_t *zc, cred_t *cr)
 	}
 	return (error);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Policy for pool operations - create/destroy pools, add vdevs, etc.  Requires
@@ -1869,6 +1871,7 @@ zfs_ioc_remove_minor(zfs_cmd_t *zc)
 	return (zvol_remove_minor(zc->zc_name));
 }
 
+#ifdef HAVE_ZPL
 /*
  * Search the vfs list for a specified resource.  Returns a pointer to it
  * or NULL if no suitable entry is found. The caller of this routine
@@ -1877,7 +1880,6 @@ zfs_ioc_remove_minor(zfs_cmd_t *zc)
 static vfs_t *
 zfs_get_vfs(const char *resource)
 {
-#ifdef HAVE_ZPL
 	struct vfs *vfsp;
 	struct vfs *vfs_found = NULL;
 
@@ -1893,10 +1895,8 @@ zfs_get_vfs(const char *resource)
 	} while (vfsp != rootvfs);
 	vfs_list_unlock();
 	return (vfs_found);
-#else
-	return NULL;
-#endif /* HAVE_ZPL */
 }
+#endif /* HAVE_ZPL */
 
 /* ARGSUSED */
 static void
