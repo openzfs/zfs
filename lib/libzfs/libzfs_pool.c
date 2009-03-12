@@ -48,7 +48,9 @@
 #include "libzfs_impl.h"
 #include "zfs_config.h"
 
+#ifdef HAVE_LIBEFI
 static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
+#endif
 
 #if defined(__i386) || defined(__amd64)
 #define	BOOTCMD	"installgrub(1M)"

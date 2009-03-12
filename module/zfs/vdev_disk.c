@@ -206,7 +206,6 @@ bio_map_virt(struct request_queue *q, void *data,
 	const int nr_pages = end - start;
 	struct page *page;
 	struct bio *bio;
-	int rc;
 
 	bio = bio_alloc(gfp_mask, nr_pages);
 	if (!bio)

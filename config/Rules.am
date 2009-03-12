@@ -1,12 +1,7 @@
 DEFAULT_INCLUDES = -I${top_srcdir}
 
-# FIXME: Quiet warnings not covered by the gcc-* patches.  We should
-# FIXME: consider removing this as soon as we reasonably can.
-#
 # FIXME: Add -Wshadow once everything is working
-#
-AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror
-AM_CFLAGS += -Wno-switch -Wno-unused -Wno-missing-braces
+AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror -Wno-switch
 AM_CFLAGS += -Wno-uninitialized -fno-strict-aliasing
 
 # Expected defines not covered by zfs_config.h or spl_config.h
