@@ -647,7 +647,7 @@ static int
 visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
     blkptr_t *bp, const zbookmark_t *zb)
 {
-	int err;
+	int err = 0;
 
 	if (bp->blk_birth == 0)
 		return (0);
