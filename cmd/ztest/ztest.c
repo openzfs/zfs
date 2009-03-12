@@ -2789,7 +2789,7 @@ ztest_verify_blocks(char *pool)
 	FILE *fp;
 
 	/* Designed to be run exclusively in the development tree */
-	(void) realpath(getexecname(), bin);
+	VERIFY(realpath(getexecname(), bin) != NULL);
 	strstr(bin, "/ztest/")[0] = '\0';
 
 	(void) sprintf(zdb,
