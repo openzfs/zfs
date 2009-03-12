@@ -1883,7 +1883,7 @@ zdb_dump_block_raw(void *buf, uint64_t size, int flags)
 {
 	if (flags & ZDB_FLAG_BSWAP)
 		byteswap_uint64_array(buf, size);
-	(void) write(2, buf, size);
+	VERIFY(write(fileno(stderr), buf, size) == size);
 }
 
 static void
