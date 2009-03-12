@@ -1702,7 +1702,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, cred_t *cr, dmu_tx_t *tx)
 
 	if (ds->ds_phys->ds_next_clones_obj != 0) {
 		uint64_t count;
-		ASSERT(0 == zap_count(mos,
+		VERIFY(0 == zap_count(mos,
 		    ds->ds_phys->ds_next_clones_obj, &count) && count == 0);
 		VERIFY(0 == dmu_object_free(mos,
 		    ds->ds_phys->ds_next_clones_obj, tx));
