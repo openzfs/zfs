@@ -29,37 +29,50 @@
  * under license from the Regents of the University of California.
  */
 
-#ifndef LIBSPL_RPC_XDR_H
-#define LIBSPL_RPC_XDR_H
-
-#include_next <rpc/xdr.h>
+#include <rpc/xdr.h>
 
 /*
- * These are XDR control operators
- */
-
-#define	XDR_GET_BYTES_AVAIL 1
-
-typedef struct xdr_bytesrec {
-	bool_t xc_is_last_record;
-	size_t xc_num_avail;
-} xdr_bytesrec_t;
-
-/*
- * These are the request arguments to XDR_CONTROL.
+ * As of glibc-2.5-25 there is not support for xdr_control().  The
+ * xdrmem implementation from OpenSolaris is used here.
  *
- * XDR_PEEK - returns the contents of the next XDR unit on the XDR stream.
- * XDR_SKIPBYTES - skips the next N bytes in the XDR stream.
- * XDR_RDMAGET - for xdr implementation over RDMA, gets private flags from
- *		 the XDR stream being moved over RDMA
- * XDR_RDMANOCHUNK - for xdr implementaion over RDMA, sets private flags in
- *                   the XDR stream moving over RDMA.
+ * FIXME: Not well tested it may not work as expected.
  */
-#define XDR_PEEK      2
-#define XDR_SKIPBYTES 3
-#define XDR_RDMAGET   4
-#define XDR_RDMASET   5
+bool_t
+xdr_control(XDR *xdrs, int request, void *info)
+{
+	xdr_bytesrec_t *xptr;
+	int32_t *int32p;
+	int len;
 
-extern bool_t xdr_control(XDR *xdrs, int request, void *info);
+	switch (request) {
+	case XDR_GET_BYTES_AVAIL:
+		xptr = (xdr_bytesrec_t *)info;
+		xptr->xc_is_last_record = TRUE;
+		xptr->xc_num_avail = xdrs->x_handy;
+		return (TRUE);
 
-#endif
+	case XDR_PEEK:
+		/*
+		 * Return the next 4 byte unit in the XDR stream.
+		 */
+		if (xdrs->x_handy < sizeof (int32_t))
+			return (FALSE);
+		int32p = (int32_t *)info;
+		*int32p = (int32_t)ntohl((uint32_t)
+		    (*((int32_t *)(xdrs->x_private))));
+		return (TRUE);
+
+	case XDR_SKIPBYTES:
+		/*
+		 * Skip the next N bytes in the XDR stream.
+		 */
+		int32p = (int32_t *)info;
+		len = RNDUP((int)(*int32p));
+		if ((xdrs->x_handy -= len) < 0)
+			return (FALSE);
+		xdrs->x_private += len;
+		return (TRUE);
+
+	}
+	return (FALSE);
+}
