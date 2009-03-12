@@ -818,7 +818,7 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 static void
 dump_bplist(objset_t *mos, uint64_t object, char *name)
 {
-	bplist_t bpl = { 0 };
+	bplist_t bpl;
 	blkptr_t blk, *bp = &blk;
 	uint64_t itor = 0;
 	char bytes[6];
@@ -828,6 +828,7 @@ dump_bplist(objset_t *mos, uint64_t object, char *name)
 	if (dump_opt['d'] < 3)
 		return;
 
+	bzero(&bpl, sizeof(bplist_t));
 	mutex_init(&bpl.bpl_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY(0 == bplist_open(&bpl, mos, object));
 	if (bplist_empty(&bpl)) {
@@ -1568,12 +1569,14 @@ zdb_blkptr_cb(spa_t *spa, blkptr_t *bp, const zbookmark_t *zb,
 static int
 dump_block_stats(spa_t *spa)
 {
-	zdb_cb_t zcb = { 0 };
+	zdb_cb_t zcb;
 	zdb_blkstats_t *zb, *tzb;
 	uint64_t alloc, space, logalloc;
 	vdev_t *rvd = spa->spa_root_vdev;
 	int leaks = 0;
 	int c, e;
+
+	bzero(&zcb, sizeof(zdb_cb_t));
 
 	if (!dump_opt['S']) {
 		(void) printf("\nTraversing all blocks %s%s%s%s...\n",
