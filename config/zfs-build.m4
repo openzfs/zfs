@@ -66,11 +66,13 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_MSG_RESULT([$kernsrcver])
 
 	kmoduledir=${INSTALL_MOD_PATH}/lib/modules/$kernsrcver
-        LINUX=${kernelsrc}
-        LINUX_OBJ=${kernelbuild}
+	LINUX=${kernelsrc}
+	LINUX_OBJ=${kernelbuild}
+	LINUX_VERSION=${kernsrcver}
 
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
+	AC_SUBST(LINUX_VERSION)
 	AC_SUBST(kmoduledir)
 ])
 

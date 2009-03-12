@@ -1,1 +1,1 @@
-noinst_HEADERS  = sys/*.h
+pkginclude_HEADERS  = sys/*.h
