@@ -1434,10 +1434,9 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	zio_t *lio = zio->io_logical;
 	zio_gang_node_t *gn = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
-	zio_t *pio = zio_unique_parent(zio);
 	int g;
 
-	ASSERT(pio == lio);
+	ASSERT(zio_unique_parent(zio) == lio);
 	ASSERT(zio_walk_children(zio) == NULL);
 
 	if (zio->io_error)
