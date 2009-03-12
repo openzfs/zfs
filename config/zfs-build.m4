@@ -14,23 +14,20 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
 		kernelbuild=
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
 
 		if test -e $sourcelink; then
-			kernelsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			kernelbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$kernelsrc"; then
-			kernelsrc=$kernelbuild
-		fi
-		if test -z "$kernelsrc" -o -z "$kernelbuild"; then
+			kernelsrc=`readlink -f ${sourcelink}`
+			kernelbuild=${kernelsrc}
+		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
 			*** Please specify the location of the kernel source
 			*** with the '--with-linux=PATH' option])
+		fi
+	else
+		if test "$kernelsrc" = "NONE"; then
+			kernsrcver=NONE
 		fi
 	fi
 
@@ -65,7 +62,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernsrcver])
 
-	kmoduledir=${INSTALL_MOD_PATH}/lib/modules/$kernsrcver
 	LINUX=${kernelsrc}
 	LINUX_OBJ=${kernelbuild}
 	LINUX_VERSION=${kernsrcver}
@@ -73,7 +69,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(LINUX_VERSION)
-	AC_SUBST(kmoduledir)
 ])
 
 AC_DEFUN([ZFS_AC_SPL], [
@@ -90,7 +85,7 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 
 	AC_MSG_CHECKING([spl source directory])
-	if test -z "$splsrc" -o -z "$splbuild"; then
+	if test -z "$splsrc"; then
 		sourcelink=${LINUX}/include/spl
 		buildlink=${LINUX_OBJ}/include/spl
 
@@ -109,6 +104,11 @@ AC_DEFUN([ZFS_AC_SPL], [
 			*** Please specify the location of the spl source
 			*** with the '--with-spl=PATH' option])
 		fi
+	else
+		if test "$splsrc" = "NONE"; then
+			splsymvers=NONE
+			splsrcver=NONE
+		fi			
 	fi
 
 	AC_MSG_RESULT([$splsrc])
