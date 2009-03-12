@@ -85,7 +85,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-, root, root)
-%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER GIT
+%doc AUTHORS ChangeLog COPYING DISCLAIMER GIT
 %doc OPENSOLARIS.LICENSE README TODO ZFS.RELEASE
 %{_sbindir}/*
 %{_libdir}/*
@@ -94,6 +94,7 @@ rm -rf $RPM_BUILD_ROOT
 %files devel
 %defattr(-,root,root)
 %{kdir}/include/zfs/*
+%{_includedir}/*
 
 %post
 if [ -f /boot/System.map-%{kver} ]; then
