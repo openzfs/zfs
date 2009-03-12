@@ -1050,6 +1050,8 @@ spa_check_logs(spa_t *spa)
 		(void) dmu_objset_find(spa->spa_name, zil_clear_log_chain, NULL,
 		    DS_FIND_CHILDREN);
 		break;
+	case SPA_LOG_GOOD:
+		break;
 	}
 	spa->spa_log_state = SPA_LOG_GOOD;
 	return (0);
