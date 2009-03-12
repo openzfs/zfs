@@ -1344,7 +1344,7 @@ ztest_dmu_objset_create_destroy(ztest_args_t *za)
 	objects = ztest_random(20);
 	seq = 0;
 	while (objects-- != 0) {
-		uint64_t object;
+		uint64_t object = 0;
 		dmu_tx_t *tx = dmu_tx_create(os);
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, sizeof (name));
 		error = dmu_tx_assign(tx, TXG_WAIT);

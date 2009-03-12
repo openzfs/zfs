@@ -548,7 +548,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	uint_t c, children;
 	nvlist_t *nv;
 	char *type;
-	replication_level_t lastrep, rep, *ret;
+	replication_level_t lastrep = { 0 }, rep, *ret;
 	boolean_t dontreport;
 
 	ret = safe_malloc(sizeof (replication_level_t));
