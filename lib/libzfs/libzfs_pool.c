@@ -183,6 +183,8 @@ char *
 zpool_state_to_name(vdev_state_t state, vdev_aux_t aux)
 {
 	switch (state) {
+	default:
+		break;
 	case VDEV_STATE_CLOSED:
 	case VDEV_STATE_OFFLINE:
 		return (gettext("OFFLINE"));
@@ -419,6 +421,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		 * Perform additional checking for specific properties.
 		 */
 		switch (prop) {
+		default:
+			break;
 		case ZPOOL_PROP_VERSION:
 			if (intval < version || intval > SPA_VERSION) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -711,7 +715,10 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "multiple '@' delimiters in name"));
 				break;
-
+			case NAME_ERR_NO_AT:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "permission set is missing '@'"));
+				break;
 			}
 		}
 		return (B_FALSE);
