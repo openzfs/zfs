@@ -287,11 +287,11 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	char  *name;
 	int fd;
 	int ret = 0;
-	int err;
 	pool_state_t state;
 	boolean_t inuse;
-
 #ifdef HAVE_DM_INUSE_SWAP
+	int err;
+
 	if (dm_inuse_swap(file, &err)) {
 		if (err)
 			libdiskmgt_error(err);
