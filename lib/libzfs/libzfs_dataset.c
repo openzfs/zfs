@@ -1619,7 +1619,7 @@ zfs_perm_get(zfs_handle_t *zhp, zfs_allow_t **zfs_perms)
 	char *nvpname;
 	uid_t	uid;
 	gid_t	gid;
-	avl_tree_t *tree;
+	avl_tree_t *tree = NULL;
 	avl_index_t where;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
