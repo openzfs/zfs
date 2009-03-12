@@ -11,3 +11,4 @@ gcc-shadow
 gcc-64bit-constants
 gcc-ident-pragmas
 gcc-missing-braces
+gcc-fortify-source
