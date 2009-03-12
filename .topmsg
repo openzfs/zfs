@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix strncat
+
+This look like a typo.  The intention was to use strlcat() however
+strncat() was used instead accidentally this may lead to a buffer
+overflow.  This was caught by gcc -D_FORTIFY_SOURCE=2.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
