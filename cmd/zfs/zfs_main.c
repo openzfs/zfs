@@ -2962,6 +2962,7 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
+#ifdef HAVE_ZPL
 static void
 get_all_datasets(uint_t types, zfs_handle_t ***dslist, size_t *count,
     boolean_t verbose)
@@ -3012,7 +3013,6 @@ dataset_cmp(const void *a, const void *b)
 	return (strcmp(zfs_get_name(a), zfs_get_name(b)));
 }
 
-#if HAVE_ZPL
 /*
  * Generic callback for sharing or mounting filesystems.  Because the code is so
  * similar, we have a common function with an extra parameter to determine which
@@ -3248,7 +3248,6 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 
 	return (0);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * Reports progress in the form "(current/total)".  Not thread-safe.
@@ -3304,7 +3303,6 @@ append_options(char *mntopts, char *newopts)
 	(void) strcpy(&mntopts[len], newopts);
 }
 
-#ifdef HAVE_ZPL
 static int
 share_mount(int op, int argc, char **argv)
 {
