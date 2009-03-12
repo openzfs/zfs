@@ -1,3 +1,4 @@
 From: Ricardo M. Correia <Ricardo.M.Correia@Sun.COM>
-Subject: Added 'gcc-ident-pragmas' branch.
+Subject: [PATCH] gcc ident pragmas
 
+Remove all ident pragmas which are unknown to gcc.
