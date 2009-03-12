@@ -11,3 +11,4 @@ fix-rwlocks
 fix-stack
 fix-taskq
 fix-list
+fix-strncat
