@@ -416,7 +416,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	pool_entry_t *pe;
 	vdev_entry_t *ve;
 	config_entry_t *ce;
-	nvlist_t *ret = NULL, *config = NULL, *tmp, *nvtop, *nvroot;
+	nvlist_t *ret = NULL, *config = NULL, *tmp = NULL, *nvtop, *nvroot;
 	nvlist_t **spares, **l2cache;
 	uint_t i, nspares, nl2cache;
 	boolean_t config_seen;

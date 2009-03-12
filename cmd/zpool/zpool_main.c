@@ -1373,7 +1373,7 @@ zpool_do_import(int argc, char **argv)
 	char **searchdirs = NULL;
 	int nsearch = 0;
 	int c;
-	int err;
+	int err = 1;
 	nvlist_t *pools = NULL;
 	boolean_t do_all = B_FALSE;
 	boolean_t do_destroyed = B_FALSE;
@@ -3943,6 +3943,7 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, gettext("unrecognized "
 		    "command '%s'\n"), cmdname);
 		usage(B_FALSE);
+		ret = 1;
 	}
 
 	libzfs_fini(g_zfs);
