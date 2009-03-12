@@ -1642,7 +1642,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * Determine name of destination snapshot, store in zc_value.
 	 */
 	(void) strcpy(zc.zc_value, tosnap);
-	(void) strncat(zc.zc_value, drrb->drr_toname+choplen,
+	(void) strlcat(zc.zc_value, drrb->drr_toname+choplen,
 	    sizeof (zc.zc_value));
 	if (!zfs_name_valid(zc.zc_value, ZFS_TYPE_SNAPSHOT)) {
 		zcmd_free_nvlists(&zc);
