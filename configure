@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ LINUX_VERSION kmoduledir splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ LINUX_VERSION splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -18964,19 +18964,12 @@ fi;
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
 		kernelbuild=
-		sourcelink=/lib/modules/${ver}/source
-		buildlink=/lib/modules/${ver}/build
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
 
 		if test -e $sourcelink; then
-			kernelsrc=`(cd $sourcelink; /bin/pwd)`
-		fi
-		if test -e $buildlink; then
-			kernelbuild=`(cd $buildlink; /bin/pwd)`
-		fi
-		if test -z "$kernelsrc"; then
-			kernelsrc=$kernelbuild
-		fi
-		if test -z "$kernelsrc" -o -z "$kernelbuild"; then
+			kernelsrc=`readlink -f ${sourcelink}`
+			kernelbuild=${kernelsrc}
+		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
 			{ { echo "$as_me:$LINENO: error:
@@ -18986,6 +18979,10 @@ echo "$as_me: error:
 			*** Please specify the location of the kernel source
 			*** with the '--with-linux=PATH' option" >&2;}
    { (exit 1); exit 1; }; }
+		fi
+	else
+		if test "$kernelsrc" = "NONE"; then
+			kernsrcver=NONE
 		fi
 	fi
 
@@ -19030,11 +19027,9 @@ echo "$as_me: error:
 	echo "$as_me:$LINENO: result: $kernsrcver" >&5
 echo "${ECHO_T}$kernsrcver" >&6
 
-	kmoduledir=${INSTALL_MOD_PATH}/lib/modules/$kernsrcver
 	LINUX=${kernelsrc}
 	LINUX_OBJ=${kernelbuild}
 	LINUX_VERSION=${kernsrcver}
-
 
 
 
@@ -19059,7 +19054,7 @@ fi;
 
 	echo "$as_me:$LINENO: checking spl source directory" >&5
 echo $ECHO_N "checking spl source directory... $ECHO_C" >&6
-	if test -z "$splsrc" -o -z "$splbuild"; then
+	if test -z "$splsrc"; then
 		sourcelink=${LINUX}/include/spl
 		buildlink=${LINUX_OBJ}/include/spl
 
@@ -19082,6 +19077,11 @@ echo "$as_me: error:
 			*** Please specify the location of the spl source
 			*** with the '--with-spl=PATH' option" >&2;}
    { (exit 1); exit 1; }; }
+		fi
+	else
+		if test "$splsrc" = "NONE"; then
+			splsymvers=NONE
+			splsrcver=NONE
 		fi
 	fi
 
@@ -20835,7 +20835,6 @@ s,@CCASFLAGS@,$CCASFLAGS,;t t
 s,@LINUX@,$LINUX,;t t
 s,@LINUX_OBJ@,$LINUX_OBJ,;t t
 s,@LINUX_VERSION@,$LINUX_VERSION,;t t
-s,@kmoduledir@,$kmoduledir,;t t
 s,@splsrc@,$splsrc,;t t
 s,@splsymvers@,$splsymvers,;t t
 s,@LICENSE@,$LICENSE,;t t
