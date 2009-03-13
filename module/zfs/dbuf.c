@@ -373,7 +373,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 			int i;
 
 			for (i = 0; i < db->db.db_size >> 3; i++) {
-				ASSERT(db->db.db_data[i] == 0);
+				ASSERT(((uint64_t *)db->db.db_data)[i] == 0);
 			}
 		}
 	}
