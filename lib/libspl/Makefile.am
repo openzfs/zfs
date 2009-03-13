@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
-SUBDIRS = asm-i686 asm-x86_64 include
+target_arch = $(shell echo ${target_cpu} | sed -e s/i.86/i386/)
+SUBDIRS = asm-i386 asm-x86_64 include
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libspl/include
 
@@ -20,6 +21,6 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/strnlen.c \
 	${top_srcdir}/lib/libspl/zone.c \
 	${top_srcdir}/lib/libspl/xdr.c \
-	${top_srcdir}/lib/libspl/asm-${target_cpu}/atomic.S \
+	${top_srcdir}/lib/libspl/asm-${target_arch}/atomic.S \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
 	${top_srcdir}/lib/libspl/include/sys/list_impl.h
