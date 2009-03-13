@@ -51,8 +51,10 @@ BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 Source:          %{name}-%{version}.tar.gz
 Requires:        %{kstr} = %{kver}
 Requires:        spl >= @VERSION@
+Requires:        zlib
 BuildRequires:   %{k_buildrequires}
 BuildRequires:   %{spl_buildrequires}
+BuildRequires:   zlib-devel
 
 %description
 The %{name} package contains kernel modules and support utilities for
@@ -61,10 +63,12 @@ the %{name} file system.
 %package devel
 Summary:         ZFS File System Headers and Symbols
 Group:           Development/Libraries
-Requires:        %{kstr} = %{kver}
-Requires:        spl >= @VERSION@
+Requires:        %{k_buildrequires} = %{kver}
+Requires:        %{spl_buildrequires} >= @VERSION@
+Requires:        zlib-devel
 BuildRequires:   %{k_buildrequires}
 BuildRequires:   %{spl_buildrequires}
+BuildRequires:   zlib-devel
 
 %description devel
 The %{name}-devel package contains the header files and Module.symvers
