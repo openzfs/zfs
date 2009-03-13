@@ -21,6 +21,9 @@
 /* on_each_cpu wants 3 args */
 #undef HAVE_3ARGS_ON_EACH_CPU
 
+/* device_create wants 5 args */
+#undef HAVE_5ARGS_DEVICE_CREATE
+
 /* kernel defines atomic64_t */
 #undef HAVE_ATOMIC64_T
 

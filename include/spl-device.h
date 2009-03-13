@@ -13,8 +13,15 @@ typedef struct device			spl_device;
 
 #define spl_class_create(mod, name)	class_create(mod, name)
 #define spl_class_destroy(cls)		class_destroy(cls)
-#define spl_device_create(cls, parent, devt, device, fmt, args...)            \
+
+# ifdef HAVE_5ARGS_DEVICE_CREATE
+# define spl_device_create(cls, parent, devt, drvdata, fmt, args...)          \
+	device_create(cls, parent, devt, drvdata, fmt, ## args)
+# else
+# define spl_device_create(cls, parent, devt, drvdata, fmt, args...)          \
 	device_create(cls, parent, devt, fmt, ## args)
+# endif
+
 #define spl_device_destroy(cls, cls_dev, devt)                                \
 	device_destroy(cls, devt)
 

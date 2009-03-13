@@ -504,6 +504,28 @@ AC_DEFUN([SPL_AC_DEVICE_CREATE], [
 ])
 
 dnl #
+dnl # 2.6.27 API change,
+dnl # device_create() uses 5 args, new 'drvdata' argument.
+dnl #
+AC_DEFUN([SPL_AC_5ARGS_DEVICE_CREATE], [
+	AC_MSG_CHECKING([whether device_create() wants 5 args])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/device.h>
+	],[
+		device_create(NULL, NULL, 0, NULL, "%d", 1);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_5ARGS_DEVICE_CREATE, 1,
+		          [device_create wants 5 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	EXTRA_KCFLAGS="$tmp_flags"
+])
+
+dnl #
 dnl # 2.6.13 API change, check whether class_device_create() is available.
 dnl # Class_device_create() was introduced in 2.6.13 and depricated
 dnl # class_simple_device_add() which was fully removed in 2.6.13.
