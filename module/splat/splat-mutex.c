@@ -48,109 +48,124 @@
 
 #define SPLAT_MUTEX_TEST_MAGIC		0x115599DDUL
 #define SPLAT_MUTEX_TEST_NAME		"mutex_test"
-#define SPLAT_MUTEX_TEST_WORKQ		"mutex_wq"
+#define SPLAT_MUTEX_TEST_TASKQ		"mutex_taskq"
 #define SPLAT_MUTEX_TEST_COUNT		128
 
 typedef struct mutex_priv {
         unsigned long mp_magic;
         struct file *mp_file;
-	struct work_struct mp_work[SPLAT_MUTEX_TEST_COUNT];
 	kmutex_t mp_mtx;
 	int mp_rc;
 } mutex_priv_t;
 
 static void
-splat_mutex_test1_work(void *priv)
+splat_mutex_test1_func(void *arg)
 {
-	mutex_priv_t *mp;
-
-        mp = spl_get_work_data(priv, mutex_priv_t, mp_work.work);
+	mutex_priv_t *mp = (mutex_priv_t *)arg;
 	ASSERT(mp->mp_magic == SPLAT_MUTEX_TEST_MAGIC);
-	mp->mp_rc = 0;
 
-	if (!mutex_tryenter(&mp->mp_mtx))
+	if (mutex_tryenter(&mp->mp_mtx)) {
+		mp->mp_rc = 0;
+		mutex_exit(&mp->mp_mtx);
+	} else {
 		mp->mp_rc = -EBUSY;
+	}
 }
 
 static int
 splat_mutex_test1(struct file *file, void *arg)
 {
-	struct workqueue_struct *wq;
-	struct work_struct work;
 	mutex_priv_t *mp;
-	int rc = 0;
+	taskq_t *tq;
+	int id, rc = 0;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
 		return -ENOMEM;
 
-	wq = create_singlethread_workqueue(SPLAT_MUTEX_TEST_WORKQ);
-	if (wq == NULL) {
+	tq = taskq_create(SPLAT_MUTEX_TEST_TASKQ, 1, maxclsyspri,
+			  50, INT_MAX, TASKQ_PREPOPULATE);
+	if (tq == NULL) {
 		rc = -ENOMEM;
 		goto out2;
 	}
 
-	mutex_init(&(mp->mp_mtx), SPLAT_MUTEX_TEST_NAME, MUTEX_DEFAULT, NULL);
-	mutex_enter(&(mp->mp_mtx));
-
 	mp->mp_magic = SPLAT_MUTEX_TEST_MAGIC;
 	mp->mp_file = file;
-	spl_init_work(&work, splat_mutex_test1_work, mp);
+	mutex_init(&mp->mp_mtx, SPLAT_MUTEX_TEST_NAME, MUTEX_DEFAULT, NULL);
+	mutex_enter(&mp->mp_mtx);
 
-	/* Schedule a work item which will try and aquire the mutex via
-	  * mutex_tryenter() while its held.  This should fail and the work
-	 * item will indicte this status in the passed private data. */
-	if (!queue_work(wq, &work)) {
-		mutex_exit(&(mp->mp_mtx));
+	/*
+	 * Schedule a task function which will try and acquire the mutex via
+	 * mutex_tryenter() while it's held.  This should fail and the task
+	 * function will indicate this status in the passed private data.
+	 */
+	mp->mp_rc = -EINVAL;
+	id = taskq_dispatch(tq, splat_mutex_test1_func, mp, TQ_SLEEP);
+	if (id == 0) {
+		mutex_exit(&mp->mp_mtx);
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
+		             "taskq_dispatch() failed\n");
 		rc = -EINVAL;
 		goto out;
 	}
 
-	flush_workqueue(wq);
-	mutex_exit(&(mp->mp_mtx));
+	taskq_wait_id(tq, id);
+	mutex_exit(&mp->mp_mtx);
 
-	/* Work item successfully aquired mutex, very bad! */
+	/* Task function successfully acquired mutex, very bad! */
 	if (mp->mp_rc != -EBUSY) {
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME,
+		             "mutex_trylock() incorrectly succeeded when "
+			     "the mutex was held, %d/%d\n", id, mp->mp_rc);
+		rc = -EINVAL;
+		goto out;
+	} else {
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
+			     "mutex_trylock() correctly failed when "
+		             "the mutex was held\n");
+	}
+
+	/*
+	 * Schedule a task function which will try and acquire the mutex via
+	 * mutex_tryenter() while it is not held.  This should succeed and
+	 * can be verified by checking the private data.
+	 */
+	mp->mp_rc = -EINVAL;
+	id = taskq_dispatch(tq, splat_mutex_test1_func, mp, TQ_SLEEP);
+	if (id == 0) {
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
+		             "taskq_dispatch() failed\n");
 		rc = -EINVAL;
 		goto out;
 	}
 
-        splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
-                   "mutex_trylock() correctly failed when mutex held\n");
+	taskq_wait_id(tq, id);
 
-	/* Schedule a work item which will try and aquire the mutex via
-	 * mutex_tryenter() while it is not  held.  This should work and
-	 * the item will indicte this status in the passed private data. */
-	if (!queue_work(wq, &work)) {
-		rc = -EINVAL;
-		goto out;
-	}
-
-	flush_workqueue(wq);
-
-	/* Work item failed to aquire mutex, very bad! */
+	/* Task function failed to acquire mutex, very bad! */
 	if (mp->mp_rc != 0) {
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME,
+			     "mutex_trylock() incorrectly failed when "
+			     "the mutex was not held, %d/%d\n", id, mp->mp_rc);
 		rc = -EINVAL;
-		goto out;
+	} else {
+		splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
+			     "mutex_trylock() correctly succeeded "
+			     "when the mutex was not held\n");
 	}
-
-        splat_vprint(file, SPLAT_MUTEX_TEST1_NAME, "%s",
-                   "mutex_trylock() correctly succeeded when mutex unheld\n");
 out:
+	taskq_destroy(tq);
 	mutex_destroy(&(mp->mp_mtx));
-	destroy_workqueue(wq);
 out2:
 	kfree(mp);
 	return rc;
 }
 
 static void
-splat_mutex_test2_work(void *priv)
+splat_mutex_test2_func(void *arg)
 {
-	mutex_priv_t *mp;
+	mutex_priv_t *mp = (mutex_priv_t *)arg;
 	int rc;
-
-	mp = spl_get_work_data(priv, mutex_priv_t, mp_work.work);
 	ASSERT(mp->mp_magic == SPLAT_MUTEX_TEST_MAGIC);
 
 	/* Read the value before sleeping and write it after we wake up to
@@ -159,6 +174,7 @@ splat_mutex_test2_work(void *priv)
 	rc = mp->mp_rc;
 	set_current_state(TASK_INTERRUPTIBLE);
 	schedule_timeout(HZ / 100);  /* 1/100 of a second */
+	VERIFY(mp->mp_rc == rc);
 	mp->mp_rc = rc + 1;
 	mutex_exit(&mp->mp_mtx);
 }
@@ -166,44 +182,46 @@ splat_mutex_test2_work(void *priv)
 static int
 splat_mutex_test2(struct file *file, void *arg)
 {
-	struct workqueue_struct *wq;
 	mutex_priv_t *mp;
+	taskq_t *tq;
 	int i, rc = 0;
 
 	mp = (mutex_priv_t *)kmalloc(sizeof(*mp), GFP_KERNEL);
 	if (mp == NULL)
 		return -ENOMEM;
 
-	/* Create a thread per CPU items on queue will race */
-	wq = create_workqueue(SPLAT_MUTEX_TEST_WORKQ);
-	if (wq == NULL) {
+	/* Create several threads allowing tasks to race with each other */
+	tq = taskq_create(SPLAT_MUTEX_TEST_TASKQ, num_online_cpus(),
+			  maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+	if (tq == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	mutex_init(&(mp->mp_mtx), SPLAT_MUTEX_TEST_NAME, MUTEX_DEFAULT, NULL);
-
 	mp->mp_magic = SPLAT_MUTEX_TEST_MAGIC;
 	mp->mp_file = file;
+	mutex_init(&(mp->mp_mtx), SPLAT_MUTEX_TEST_NAME, MUTEX_DEFAULT, NULL);
 	mp->mp_rc = 0;
 
-	/* Schedule N work items to the work queue each of which enters the
+	/*
+	 * Schedule N work items to the work queue each of which enters the
 	 * mutex, sleeps briefly, then exits the mutex.  On a multiprocessor
 	 * box these work items will be handled by all available CPUs.  The
-	 * mutex is instrumented such that if any two processors are in the
+	 * task function checks to ensure the tracked shared variable is
+	 * always only incremented by one.  Additionally, the mutex itself
+	 * is instrumented such that if any two processors are in the
 	 * critical region at the same time the system will panic.  If the
-	 * mutex is implemented right this will never happy, that's a pass. */
+	 * mutex is implemented right this will never happy, that's a pass.
+	 */
 	for (i = 0; i < SPLAT_MUTEX_TEST_COUNT; i++) {
-		spl_init_work(&(mp->mp_work[i]), splat_mutex_test2_work, mp);
-
-		if (!queue_work(wq, &(mp->mp_work[i]))) {
+		if (!taskq_dispatch(tq, splat_mutex_test2_func, mp, TQ_SLEEP)) {
 		        splat_vprint(file, SPLAT_MUTEX_TEST2_NAME,
-			           "Failed to queue work id %d\n", i);
+			             "Failed to queue task %d\n", i);
 			rc = -EINVAL;
 		}
 	}
 
-	flush_workqueue(wq);
+	taskq_wait(tq);
 
 	if (mp->mp_rc == SPLAT_MUTEX_TEST_COUNT) {
 	        splat_vprint(file, SPLAT_MUTEX_TEST2_NAME, "%d racing threads "
@@ -212,12 +230,12 @@ splat_mutex_test2(struct file *file, void *arg)
 	} else {
 	        splat_vprint(file, SPLAT_MUTEX_TEST2_NAME, "%d racing threads "
 			   "only processed %d/%d mutex work items\n",
-			   num_online_cpus(), mp->mp_rc, SPLAT_MUTEX_TEST_COUNT);
+			   num_online_cpus(),mp->mp_rc,SPLAT_MUTEX_TEST_COUNT);
 		rc = -EINVAL;
 	}
 
+	taskq_destroy(tq);
 	mutex_destroy(&(mp->mp_mtx));
-	destroy_workqueue(wq);
 out:
 	kfree(mp);
 	return rc;
