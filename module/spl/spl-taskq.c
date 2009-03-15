@@ -60,14 +60,14 @@ task_alloc(taskq_t *tq, uint_t flags)
         ASSERT(!((flags & TQ_SLEEP) && (flags & TQ_NOSLEEP))); /* Not both */
         ASSERT(spin_is_locked(&tq->tq_lock));
 retry:
-        /* Aquire spl_task_t's from free list if available */
+        /* Acquire spl_task_t's from free list if available */
         if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
                 t = list_entry(tq->tq_free_list.next, spl_task_t, t_list);
                 list_del_init(&t->t_list);
                 RETURN(t);
         }
 
-        /* Free list is empty and memory allocs are prohibited */
+        /* Free list is empty and memory allocations are prohibited */
         if (flags & TQ_NOALLOC)
                 RETURN(NULL);
 
@@ -89,7 +89,7 @@ retry:
                         RETURN(NULL);
                 }
 
-                /* Unreachable, TQ_SLEEP xor TQ_NOSLEEP */
+                /* Unreachable, TQ_SLEEP or TQ_NOSLEEP */
                 SBUG();
         }
 
@@ -109,7 +109,7 @@ retry:
         RETURN(t);
 }
 
-/* NOTE: Must be called with tq->tq_lock held, expectes the spl_task_t
+/* NOTE: Must be called with tq->tq_lock held, expects the spl_task_t
  * to already be removed from the free, work, or pending taskq lists.
  */
 static void
@@ -128,7 +128,7 @@ task_free(taskq_t *tq, spl_task_t *t)
 	EXIT;
 }
 
-/* NOTE: Must be called with tq->tq_lock held, either destroyes the
+/* NOTE: Must be called with tq->tq_lock held, either destroys the
  * spl_task_t if too many exist or moves it to the free list for later use.
  */
 static void
@@ -154,7 +154,7 @@ task_done(taskq_t *tq, spl_task_t *t)
 }
 
 /* Taskqid's are handed out in a monotonically increasing fashion per
- * taskq_t.  We don't handle taskqid wrapping yet, but fortuntely it isi
+ * taskq_t.  We don't handle taskqid wrapping yet, but fortunately it is
  * a 64-bit value so this is probably never going to happen.  The lowest
  * pending taskqid is stored in the taskq_t to make it easy for any
  * taskq_wait()'ers to know if the tasks they're waiting for have
@@ -164,12 +164,18 @@ task_done(taskq_t *tq, spl_task_t *t)
 static int
 taskq_wait_check(taskq_t *tq, taskqid_t id)
 {
-	RETURN(tq->tq_lowest_id >= id);
+	int rc;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	rc = (id < tq->tq_lowest_id);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	RETURN(rc);
 }
 
 /* Expected to wait for all previously scheduled tasks to complete.  We do
  * not need to wait for tasked scheduled after this call to complete.  In
- * otherwords we do not need to drain the entire taskq. */
+ * other words we do not need to drain the entire taskq. */
 void
 __taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
@@ -189,8 +195,9 @@ __taskq_wait(taskq_t *tq)
 	ENTRY;
 	ASSERT(tq);
 
+	/* Wait for the largest outstanding taskqid */
 	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-	id = tq->tq_next_id;
+	id = tq->tq_next_id - 1;
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	__taskq_wait_id(tq, id);
@@ -265,7 +272,7 @@ EXPORT_SYMBOL(__taskq_dispatch);
 static taskqid_t
 taskq_lowest_id(taskq_t *tq)
 {
-	taskqid_t lowest_id = ~0;
+	taskqid_t lowest_id = tq->tq_next_id;
         spl_task_t *t;
 	ENTRY;
 
@@ -318,7 +325,7 @@ taskq_thread(void *args)
 
 		remove_wait_queue(&tq->tq_work_waitq, &wait);
                 if (!list_empty(&tq->tq_pend_list)) {
-                        t = list_entry(tq->tq_pend_list.next, spl_task_t, t_list);
+                        t = list_entry(tq->tq_pend_list.next,spl_task_t,t_list);
                         list_del_init(&t->t_list);
 			list_add_tail(&t->t_list, &tq->tq_work_list);
                         tq->tq_nactive++;
@@ -332,7 +339,8 @@ taskq_thread(void *args)
 			id = t->t_id;
                         task_done(tq, t);
 
-			/* Update the lowest remaining taskqid yet to run */
+			/* When the current lowest outstanding taskqid is
+			 * done calculate the new lowest outstanding id */
 			if (tq->tq_lowest_id == id) {
 				tq->tq_lowest_id = taskq_lowest_id(tq);
 				ASSERT(tq->tq_lowest_id > id);

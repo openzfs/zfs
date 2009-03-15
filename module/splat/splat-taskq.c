@@ -42,9 +42,14 @@
 #define SPLAT_TASKQ_TEST3_NAME		"system"
 #define SPLAT_TASKQ_TEST3_DESC		"System task queue, multiple tasks"
 
+#define SPLAT_TASKQ_TEST4_ID            0x0204
+#define SPLAT_TASKQ_TEST4_NAME		"wait"
+#define SPLAT_TASKQ_TEST4_DESC		"Multiple task waiting"
+
 typedef struct splat_taskq_arg {
 	int flag;
 	int id;
+	atomic_t count;
 	struct file *file;
 	const char *name;
 } splat_taskq_arg_t;
@@ -266,6 +271,73 @@ splat_taskq_test3(struct file *file, void *arg)
 	return (tq_arg.flag) ? 0 : -EINVAL;
 }
 
+static void
+splat_taskq_test4_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	ASSERT(tq_arg);
+
+	atomic_inc(&tq_arg->count);
+}
+
+static int
+splat_taskq_test4(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	splat_taskq_arg_t tq_arg;
+	int i, j, rc = 0;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' creating\n",
+	             SPLAT_TASKQ_TEST4_NAME);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST4_NAME, 1, maxclsyspri,
+		               50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
+		             "Taskq '%s' create failed\n",
+		             SPLAT_TASKQ_TEST4_NAME);
+		return -EINVAL;
+	}
+
+	tq_arg.file = file;
+	tq_arg.name = SPLAT_TASKQ_TEST4_NAME;
+
+	for (i = 1; i <= 1024; i *= 2) {
+		atomic_set(&tq_arg.count, 0);
+		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
+		             "Taskq '%s' function '%s' dispatched %d times\n",
+		             tq_arg.name, sym2str(splat_taskq_test4_func), i);
+
+		for (j = 0; j < i; j++) {
+			if ((taskq_dispatch(tq, splat_taskq_test4_func,
+			                    &tq_arg, TQ_SLEEP)) == 0) {
+				splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
+				        "Taskq '%s' function '%s' dispatch "
+					"%d failed\n", tq_arg.name,
+					sym2str(splat_taskq_test13_func), j);
+					rc = -EINVAL;
+					goto out;
+			}
+		}
+
+		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' "
+			     "waiting for %d dispatches\n", tq_arg.name, i);
+		taskq_wait(tq);
+		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' "
+			     "%d/%d dispatches finished\n", tq_arg.name,
+			     atomic_read(&tq_arg.count), i);
+		if (atomic_read(&tq_arg.count) != i) {
+			rc = -ERANGE;
+			goto out;
+
+		}
+	}
+out:
+	splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' destroying\n",
+	           tq_arg.name);
+	taskq_destroy(tq);
+
+	return rc;
+}
+
 splat_subsystem_t *
 splat_taskq_init(void)
 {
@@ -289,6 +361,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST2_ID, splat_taskq_test2);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST3_NAME, SPLAT_TASKQ_TEST3_DESC,
 	              SPLAT_TASKQ_TEST3_ID, splat_taskq_test3);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST4_NAME, SPLAT_TASKQ_TEST4_DESC,
+	              SPLAT_TASKQ_TEST4_ID, splat_taskq_test4);
 
         return sub;
 }
@@ -297,6 +371,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST4_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST3_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST2_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST1_ID);

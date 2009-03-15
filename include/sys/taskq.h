@@ -87,6 +87,7 @@ extern taskq_t *system_taskq;
 extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void __taskq_destroy(taskq_t *);
+extern void __taskq_wait_id(taskq_t *, taskqid_t);
 extern void __taskq_wait(taskq_t *);
 extern int __taskq_member(taskq_t *, void *);
 
