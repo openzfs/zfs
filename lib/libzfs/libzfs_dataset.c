@@ -3795,7 +3795,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	boolean_t restore_resv = 0;
 	uint64_t old_volsize = 0, new_volsize;
-	zfs_prop_t resv_prop;
+	zfs_prop_t resv_prop = { 0 };
 
 	assert(zhp->zfs_type == ZFS_TYPE_FILESYSTEM ||
 	    zhp->zfs_type == ZFS_TYPE_VOLUME);
