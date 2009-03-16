@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix deadcode
+
+Remove deadcode.  It's possible the code should be in use
+somewhere, but as the source code is laid out it currently
+is not.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
