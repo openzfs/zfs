@@ -2899,6 +2899,7 @@ typedef struct get_all_cbdata {
 #define	SPINNER_TIME 3		/* seconds */
 #define	MOUNT_TIME 5		/* seconds */
 
+#ifdef HAVE_ZPL
 static int
 get_one_dataset(zfs_handle_t *zhp, void *data)
 {
@@ -2962,7 +2963,6 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
-#ifdef HAVE_ZPL
 static void
 get_all_datasets(uint_t types, zfs_handle_t ***dslist, size_t *count,
     boolean_t verbose)
