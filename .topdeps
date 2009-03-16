@@ -12,3 +12,4 @@ fix-stack
 fix-taskq
 fix-list
 fix-strncat
+fix-deadcode
