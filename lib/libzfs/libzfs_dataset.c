@@ -79,49 +79,6 @@ zfs_type_to_name(zfs_type_t type)
 }
 
 /*
- * Given a path and mask of ZFS types, return a string describing this dataset.
- * This is used when we fail to open a dataset and we cannot get an exact type.
- * We guess what the type would have been based on the path and the mask of
- * acceptable types.
- */
-static const char *
-path_to_str(const char *path, int types)
-{
-	/*
-	 * When given a single type, always report the exact type.
-	 */
-	if (types == ZFS_TYPE_SNAPSHOT)
-		return (dgettext(TEXT_DOMAIN, "snapshot"));
-	if (types == ZFS_TYPE_FILESYSTEM)
-		return (dgettext(TEXT_DOMAIN, "filesystem"));
-	if (types == ZFS_TYPE_VOLUME)
-		return (dgettext(TEXT_DOMAIN, "volume"));
-
-	/*
-	 * The user is requesting more than one type of dataset.  If this is the
-	 * case, consult the path itself.  If we're looking for a snapshot, and
-	 * a '@' is found, then report it as "snapshot".  Otherwise, remove the
-	 * snapshot attribute and try again.
-	 */
-	if (types & ZFS_TYPE_SNAPSHOT) {
-		if (strchr(path, '@') != NULL)
-			return (dgettext(TEXT_DOMAIN, "snapshot"));
-		return (path_to_str(path, types & ~ZFS_TYPE_SNAPSHOT));
-	}
-
-	/*
-	 * The user has requested either filesystems or volumes.
-	 * We have no way of knowing a priori what type this would be, so always
-	 * report it as "filesystem" or "volume", our two primitive types.
-	 */
-	if (types & ZFS_TYPE_FILESYSTEM)
-		return (dgettext(TEXT_DOMAIN, "filesystem"));
-
-	assert(types & ZFS_TYPE_VOLUME);
-	return (dgettext(TEXT_DOMAIN, "volume"));
-}
-
-/*
  * Validate a ZFS path.  This is used even before trying to open the dataset, to
  * provide a more meaningful error message.  We place a more useful message in
  * 'buf' detailing exactly why the name was not valid.
