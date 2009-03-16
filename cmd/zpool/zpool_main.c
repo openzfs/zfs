@@ -2224,34 +2224,6 @@ zpool_do_list(int argc, char **argv)
 	return (ret);
 }
 
-static nvlist_t *
-zpool_get_vdev_by_name(nvlist_t *nv, char *name)
-{
-	nvlist_t **child;
-	uint_t c, children;
-	nvlist_t *match;
-	char *path;
-	size_t droot_len = strlen(DISK_ROOT) + 1;
-
-	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) != 0) {
-		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
-		if (strncmp(name, DISK_ROOT "/", droot_len) == 0)
-			name += droot_len;
-		if (strncmp(path, DISK_ROOT "/", droot_len) == 0)
-			path += droot_len;
-		if (strcmp(name, path) == 0)
-			return (nv);
-		return (NULL);
-	}
-
-	for (c = 0; c < children; c++)
-		if ((match = zpool_get_vdev_by_name(child[c], name)) != NULL)
-			return (match);
-
-	return (NULL);
-}
-
 static int
 zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 {
