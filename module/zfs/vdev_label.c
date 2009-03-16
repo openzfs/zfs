@@ -497,7 +497,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	char *buf;
 	size_t buflen;
 	int error;
-	uint64_t spare_guid, l2cache_guid;
+	uint64_t spare_guid = 0, l2cache_guid;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 	int c, l, n;
 
