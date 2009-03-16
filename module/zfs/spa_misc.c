@@ -385,7 +385,7 @@ spa_lookup(const char *name)
 	static spa_t search;	/* spa_t is large; don't allocate on stack */
 	spa_t *spa;
 	avl_index_t where;
-	char c;
+	char c = 0;
 	char *cp;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
