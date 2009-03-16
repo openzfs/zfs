@@ -3451,7 +3451,7 @@ arc_init(void)
 	/* Start out with 1/8 of all memory */
 	arc_c = physmem * PAGESIZE / 8;
 
-#if defined(__i386)
+#if defined(_KERNEL) && defined(__i386)
 	/*
 	 * On architectures where the physical memory can be larger
 	 * than the addressable space (intel in 32-bit mode), we may
