@@ -67,6 +67,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
+#include "zfs_config.h"
 
 extern struct modlfs zfs_modlfs;
 
@@ -3233,7 +3234,8 @@ init(void)
 
 	rc = _init();
 	if (!rc)
-		printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n", VERSION);
+		printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n",
+		       ZFS_META_VERSION);
 
 	return rc;
 }
@@ -3242,7 +3244,8 @@ void
 fini(void)
 {
 	(void)_fini();
-	printk(KERN_INFO "ZFS: Unloaded ZFS Filesystem v%s\n", VERSION);
+	printk(KERN_INFO "ZFS: Unloaded ZFS Filesystem v%s\n",
+	       ZFS_META_VERSION);
 }
 
 module_init(init);
