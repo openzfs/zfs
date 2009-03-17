@@ -43,7 +43,7 @@
 
 #define DEBUG_SUBSYSTEM S_GENERIC
 
-char spl_version[16] = "SPL v" VERSION;
+char spl_version[16] = "SPL v" SPL_META_VERSION;
 
 long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
@@ -340,7 +340,7 @@ static int __init spl_init(void)
 	if ((rc = set_kallsyms_lookup_name()))
 		GOTO(out7, rc = -EADDRNOTAVAIL);
 
-	printk("SPL: Loaded Solaris Porting Layer v%s\n", VERSION);
+	printk("SPL: Loaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
 	RETURN(rc);
 out7:
 	kstat_fini();
@@ -358,7 +358,7 @@ out:
 	debug_fini();
 
 	printk("SPL: Failed to Load Solaris Porting Layer v%s, "
-	       "rc = %d\n", VERSION, rc);
+	       "rc = %d\n", SPL_META_VERSION, rc);
 	return rc;
 }
 
@@ -366,7 +366,7 @@ static void spl_fini(void)
 {
 	ENTRY;
 
-	printk("SPL: Unloaded Solaris Porting Layer v%s\n", VERSION);
+	printk("SPL: Unloaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
 	kstat_fini();
 	proc_fini();
 	vn_fini();

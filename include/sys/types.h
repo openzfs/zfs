@@ -7,7 +7,7 @@ extern "C" {
 
 #include <linux/types.h>
 #include <sys/sysmacros.h>
-#include "spl_config.h"
+#include <spl_config.h>
 
 #include <linux/uaccess_compat.h>
 #include <linux/file_compat.h>

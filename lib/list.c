@@ -26,7 +26,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#  include "spl_config.h"
+#  include <spl_config.h>
 #endif /* HAVE_CONFIG_H */
 
 #ifdef WITH_PTHREADS

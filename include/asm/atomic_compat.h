@@ -2,7 +2,7 @@
 #define _SPL_ATOMIC_COMPAT_H
 
 #include <asm/atomic.h>
-#include "spl_config.h"
+#include <spl_config.h>
 
 #ifndef HAVE_ATOMIC64_T
 #include <linux/spinlock.h>
