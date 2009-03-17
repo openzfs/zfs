@@ -30,6 +30,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
+#include <zfs_config.h>
 
 /*
  * Virtual device vector for disks.
