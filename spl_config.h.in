@@ -132,6 +132,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* free/inactive/active page state is available */
+#undef HAVE_ZONE_STAT_ITEM_FIA
+
 /* Name of package */
 #undef PACKAGE
 

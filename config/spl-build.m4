@@ -752,7 +752,11 @@ AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME], [
 ])
 
 dnl #
-dnl # Symbol only available in custom kernels
+dnl # Proposed API change,
+dnl # This symbol is not available in stock kernels.  You may build a
+dnl # custom kernel with the *-spl-export-symbols.patch which will export
+dnl # these symbols for use.  If your already rolling a custom kernel for
+dnl # your environment this is recommended.
 dnl #
 AC_DEFUN([SPL_AC_GET_VMALLOC_INFO], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -764,7 +768,11 @@ AC_DEFUN([SPL_AC_GET_VMALLOC_INFO], [
 ])
 
 dnl #
-dnl # Symbol only available in custom kernels
+dnl # Proposed API change,
+dnl # This symbol is not available in stock kernels.  You may build a
+dnl # custom kernel with the *-spl-export-symbols.patch which will export
+dnl # these symbols for use.  If your already rolling a custom kernel for
+dnl # your environment this is recommended.
 dnl #
 AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -776,7 +784,11 @@ AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
 ])
 
 dnl #
-dnl # Symbol only available in custom kernels
+dnl # Proposed API change,
+dnl # This symbol is not available in stock kernels.  You may build a
+dnl # custom kernel with the *-spl-export-symbols.patch which will export
+dnl # these symbols for use.  If your already rolling a custom kernel for
+dnl # your environment this is recommended.
 dnl #
 AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -788,7 +800,11 @@ AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
 ])
 
 dnl #
-dnl # Symbol only available in custom kernels
+dnl # Proposed API change,
+dnl # This symbol is not available in stock kernels.  You may build a
+dnl # custom kernel with the *-spl-export-symbols.patch which will export
+dnl # these symbols for use.  If your already rolling a custom kernel for
+dnl # your environment this is recommended.
 dnl #
 AC_DEFUN([SPL_AC_NEXT_ZONE], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -800,7 +816,11 @@ AC_DEFUN([SPL_AC_NEXT_ZONE], [
 ])
 
 dnl #
-dnl # Symbol only available in custom kernels
+dnl # Proposed API change,
+dnl # This symbol is not available in stock kernels.  You may build a
+dnl # custom kernel with the *-spl-export-symbols.patch which will export
+dnl # these symbols for use.  If your already rolling a custom kernel for
+dnl # your environment this is recommended.
 dnl #
 AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -809,4 +829,27 @@ AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 		[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
 		[get_zone_counts() is available])],
 		[])
+])
+
+dnl #
+dnl # 2.6.21 API change,
+dnl # Public global zone stats now include free/inactive/active page
+dnl # counts.  This replaced the priviate get_zone_counts() interface.
+dnl #
+AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_FIA], [
+	AC_MSG_CHECKING([whether free/inactive/active page state is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mmzone.h>
+	],[
+		enum zone_stat_item i1, i2, i3;
+		i1 = NR_FREE_PAGES;
+		i2 = NR_INACTIVE;
+		i3 = NR_ACTIVE;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_FIA, 1,
+		          [free/inactive/active page state is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])

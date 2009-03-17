@@ -99,22 +99,47 @@ next_zone_t next_zone_fn = NULL;
 EXPORT_SYMBOL(next_zone_fn);
 #endif /* HAVE_NEXT_ZONE */
 
-#ifndef HAVE_GET_ZONE_COUNTS
+#ifndef HAVE_ZONE_STAT_ITEM_FIA
+# ifndef HAVE_GET_ZONE_COUNTS
 get_zone_counts_t get_zone_counts_fn = NULL;
 EXPORT_SYMBOL(get_zone_counts_fn);
-#endif /* HAVE_GET_ZONE_COUNTS */
 
-pgcnt_t
-spl_kmem_availrmem(void)
+unsigned long
+spl_global_page_state(int item)
 {
 	unsigned long active;
 	unsigned long inactive;
 	unsigned long free;
 
-	get_zone_counts(&active, &inactive, &free);
+	if (item == NR_FREE_PAGES) {
+		get_zone_counts(&active, &inactive, &free);
+		return free;
+	}
 
+	if (item == NR_INACTIVE) {
+		get_zone_counts(&active, &inactive, &free);
+		return inactive;
+	}
+
+	if (item == NR_ACTIVE) {
+		get_zone_counts(&active, &inactive, &free);
+		return active;
+	}
+
+	return global_page_state((enum zone_stat_item)item);
+}
+EXPORT_SYMBOL(spl_global_page_state);
+# else
+# error "HAVE_ZONE_STAT_ITEM_FIA and HAVE_GET_ZONE_COUNTS unavailable"
+# endif /* HAVE_GET_ZONE_COUNTS */
+#endif  /* HAVE_ZONE_STAT_ITEM_FIA */
+
+pgcnt_t
+spl_kmem_availrmem(void)
+{
 	/* The amount of easily available memory */
-	return free + inactive;
+	return (spl_global_page_state(NR_FREE_PAGES) +
+	        spl_global_page_state(NR_INACTIVE));
 }
 EXPORT_SYMBOL(spl_kmem_availrmem);
 
@@ -1773,37 +1798,51 @@ spl_kmem_init_kallsyms_lookup(void)
 #ifndef HAVE_GET_VMALLOC_INFO
 	get_vmalloc_info_fn = (get_vmalloc_info_t)
 		spl_kallsyms_lookup_name("get_vmalloc_info");
-	if (!get_vmalloc_info_fn)
+	if (!get_vmalloc_info_fn) {
+		printk(KERN_ERR "Error: Unknown symbol get_vmalloc_info\n");
 		return -EFAULT;
+	}
 #endif /* HAVE_GET_VMALLOC_INFO */
 
 #ifndef HAVE_FIRST_ONLINE_PGDAT
 	first_online_pgdat_fn = (first_online_pgdat_t)
 		spl_kallsyms_lookup_name("first_online_pgdat");
-	if (!first_online_pgdat_fn)
+	if (!first_online_pgdat_fn) {
+		printk(KERN_ERR "Error: Unknown symbol first_online_pgdat\n");
 		return -EFAULT;
+	}
 #endif /* HAVE_FIRST_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ONLINE_PGDAT
 	next_online_pgdat_fn = (next_online_pgdat_t)
 		spl_kallsyms_lookup_name("next_online_pgdat");
-	if (!next_online_pgdat_fn)
+	if (!next_online_pgdat_fn) {
+		printk(KERN_ERR "Error: Unknown symbol next_online_pgdat\n");
 		return -EFAULT;
+	}
 #endif /* HAVE_NEXT_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ZONE
 	next_zone_fn = (next_zone_t)
 		spl_kallsyms_lookup_name("next_zone");
-	if (!next_zone_fn)
+	if (!next_zone_fn) {
+		printk(KERN_ERR "Error: Unknown symbol next_zone\n");
 		return -EFAULT;
+	}
 #endif /* HAVE_NEXT_ZONE */
 
-#ifndef HAVE_GET_ZONE_COUNTS
+#ifndef HAVE_ZONE_STAT_ITEM_FIA
+# ifndef HAVE_GET_ZONE_COUNTS
 	get_zone_counts_fn = (get_zone_counts_t)
 		spl_kallsyms_lookup_name("get_zone_counts");
-	if (!get_zone_counts_fn)
+	if (!get_zone_counts_fn) {
+		printk(KERN_ERR "Error: Unknown symbol get_zone_counts\n");
 		return -EFAULT;
-#endif /* HAVE_GET_ZONE_COUNTS */
+	}
+# else
+# error "HAVE_ZONE_STAT_ITEM_FIA and HAVE_GET_ZONE_COUNTS unavailable"
+# endif /* HAVE_GET_ZONE_COUNTS */
+#endif  /* HAVE_ZONE_STAT_ITEM_FIA */
 
 	/*
 	 * It is now safe to initialize the global tunings which rely on

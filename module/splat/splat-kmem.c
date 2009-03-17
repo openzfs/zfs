@@ -74,6 +74,10 @@
 #define SPLAT_KMEM_TEST11_NAME		"slab_overcommit"
 #define SPLAT_KMEM_TEST11_DESC		"Slab memory overcommit test"
 
+#define SPLAT_KMEM_TEST12_ID		0x010c
+#define SPLAT_KMEM_TEST12_NAME		"vmem_size"
+#define SPLAT_KMEM_TEST12_DESC		"Memory zone test"
+
 #define SPLAT_KMEM_ALLOC_COUNT		10
 #define SPLAT_VMEM_ALLOC_COUNT		10
 
@@ -652,7 +656,7 @@ splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
 				  splat_kmem_cache_test_constructor,
 				  splat_kmem_cache_test_destructor,
 				  splat_kmem_cache_test_reclaim,
-				  kcp, NULL, KMC_VMEM);
+				  kcp, NULL, KMC_KMEM);
 	if (!kcp->kcp_cache) {
 		splat_vprint(file, name, "Unable to create '%s'\n", cache_name);
 		rc = -ENOMEM;
@@ -973,9 +977,8 @@ splat_kmem_test9(struct file *file, void *arg)
 static int
 splat_kmem_test10(struct file *file, void *arg)
 {
-	uint64_t size, alloc, free_mem, rc = 0;
+	uint64_t size, alloc, rc = 0;
 
-	free_mem = nr_free_pages() * PAGE_SIZE;
 	for (size = 16; size <= 1024*1024; size *= 2) {
 
 		splat_vprint(file, SPLAT_KMEM_TEST10_NAME, "%-22s  %s", "name",
@@ -985,8 +988,9 @@ splat_kmem_test10(struct file *file, void *arg)
 
 		for (alloc = 1; alloc <= 1024; alloc *= 2) {
 
-			/* Skip tests which exceed free memory */
-			if (size * alloc * SPLAT_KMEM_THREADS > free_mem / 2)
+			/* Skip tests which exceed available memory.  We
+			 * leverage availrmem here for some extra testing */
+			if (size * alloc * SPLAT_KMEM_THREADS > availrmem / 2)
 				continue;
 
 			rc = splat_kmem_cache_thread_test(file, arg,
@@ -1014,18 +1018,93 @@ splat_kmem_test11(struct file *file, void *arg)
 {
 	uint64_t size, alloc, rc;
 
-	size = 1024*1024;
-	alloc = ((4 * num_physpages * PAGE_SIZE) / size) / SPLAT_KMEM_THREADS;
+	size = 256*1024;
+	alloc = ((4 * physmem * PAGE_SIZE) / size) / SPLAT_KMEM_THREADS;
 
-	splat_vprint(file, SPLAT_KMEM_TEST10_NAME, "%-22s  %s", "name",
+	splat_vprint(file, SPLAT_KMEM_TEST11_NAME, "%-22s  %s", "name",
 		     "time (sec)\tslabs       \tobjs	\thash\n");
-	splat_vprint(file, SPLAT_KMEM_TEST10_NAME, "%-22s  %s", "",
+	splat_vprint(file, SPLAT_KMEM_TEST11_NAME, "%-22s  %s", "",
 		     "	  \ttot/max/calc\ttot/max/calc\n");
 
 	rc = splat_kmem_cache_thread_test(file, arg,
 		SPLAT_KMEM_TEST11_NAME, size, alloc, 60);
 
 	return rc;
+}
+
+/*
+ * Check vmem_size() behavior by acquiring the alloc/free/total vmem
+ * space, then allocate a known buffer size from vmem space.  We can
+ * then check that vmem_size() values were updated properly with in
+ * a fairly small tolerence.  The tolerance is important because we
+ * are not the only vmem consumer on the system.  Other unrelated
+ * allocations might occur during the small test window.  The vmem
+ * allocation itself may also add in a little extra private space to
+ * the buffer.  Finally, verify total space always remains unchanged.
+ */
+static int
+splat_kmem_test12(struct file *file, void *arg)
+{
+	ssize_t alloc1, free1, total1;
+	ssize_t alloc2, free2, total2;
+	int size = 8*1024*1024;
+	void *ptr;
+
+	alloc1 = vmem_size(NULL, VMEM_ALLOC);
+	free1  = vmem_size(NULL, VMEM_FREE);
+	total1 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%d free=%d "
+	             "total=%d\n", (int)alloc1, (int)free1, (int)total1);
+
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Alloc %d bytes\n", size);
+	ptr = vmem_alloc(size, KM_SLEEP);
+	if (!ptr) {
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+		             "Failed to alloc %d bytes\n", size);
+		return -ENOMEM;
+	}
+
+	alloc2 = vmem_size(NULL, VMEM_ALLOC);
+	free2  = vmem_size(NULL, VMEM_FREE);
+	total2 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%d free=%d "
+	             "total=%d\n", (int)alloc2, (int)free2, (int)total2);
+
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Free %d bytes\n", size);
+	vmem_free(ptr, size);
+	if (alloc2 < (alloc1 + size - (size / 100)) ||
+	    alloc2 > (alloc1 + size + (size / 100))) {
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+		             "Failed VMEM_ALLOC size: %d != %d+%d (+/- 1%%)\n",
+		             (int)alloc2, (int)alloc1, size);
+		return -ERANGE;
+	}
+
+	if (free2 < (free1 - size - (size / 100)) ||
+	    free2 > (free1 - size + (size / 100))) {
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+		             "Failed VMEM_FREE size: %d != %d-%d (+/- 1%%)\n",
+		             (int)free2, (int)free1, size);
+		return -ERANGE;
+	}
+
+	if (total1 != total2) {
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+		             "Failed VMEM_ALLOC | VMEM_FREE not constant: "
+		             "%d != %d\n", (int)total2, (int)total1);
+		return -ERANGE;
+	}
+
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+	             "VMEM_ALLOC within tolerance: ~%d%% (%d/%d)\n",
+	             (int)(((alloc1 + size) - alloc2) * 100 / size),
+	             (int)((alloc1 + size) - alloc2), size);
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
+	             "VMEM_FREE within tolerance:  ~%d%% (%d/%d)\n",
+	             (int)(((free1 - size) - free2) * 100 / size),
+	             (int)((free1 - size) - free2), size);
+
+	return 0;
 }
 
 splat_subsystem_t *
@@ -1067,6 +1146,8 @@ splat_kmem_init(void)
 			SPLAT_KMEM_TEST10_ID, splat_kmem_test10);
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST11_NAME, SPLAT_KMEM_TEST11_DESC,
 			SPLAT_KMEM_TEST11_ID, splat_kmem_test11);
+	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST12_NAME, SPLAT_KMEM_TEST12_DESC,
+			SPLAT_KMEM_TEST12_ID, splat_kmem_test12);
 
 	return sub;
 }
@@ -1075,6 +1156,7 @@ void
 splat_kmem_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST12_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST11_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST10_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST9_ID);
