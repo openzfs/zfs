@@ -1263,7 +1263,7 @@ zpios_init(void)
 		goto error;
 	}
 
-	class_device_create(zpios_class, NULL, dev, NULL, "zpios");
+	spl_device_create(zpios_class, NULL, dev, NULL, "zpios");
 	return 0;
 error:
 	printk(KERN_ERR "ZPIOS: Error registering zpios device, %d\n", rc);
@@ -1275,7 +1275,7 @@ zpios_fini(void)
 {
 	dev_t dev = MKDEV(ZPIOS_MAJOR, 0);
 
-	class_device_destroy(zpios_class, dev);
+	spl_device_destroy(zpios_class, NULL, dev);
 	class_destroy(zpios_class);
 
 	cdev_del(&zpios_cdev);
