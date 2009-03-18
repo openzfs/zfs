@@ -197,6 +197,9 @@ target_vendor = @target_vendor@
 SUBDIRS = zpool-config zpios-test zpios-profile
 EXTRA_DIST = common.sh zfs-update.sh zfs.sh zpool-create.sh zpios.sh \
 	zpios-survey.sh
+ZFS = ${top_srcdir}/scripts/zfs.sh
+ZTEST = ${top_builddir}/cmd/ztest/ztest
+ZPIOS = ${top_srcdir}/scripts/zpios.sh
 all: all-recursive
 
 .SUFFIXES:
@@ -507,16 +510,17 @@ uninstall-info: uninstall-info-recursive
 
 
 check:
-	./zfs.sh -v
-	./zpios.sh -c file-raid0  -t tiny
-	./zpios.sh -c file-raid10 -t tiny
-	./zpios.sh -c file-raidz  -t tiny
-	./zpios.sh -c file-raidz2 -t tiny
-	./zpios.sh -c lo-raid0    -t tiny
-	./zpios.sh -c lo-raid10   -t tiny
-	./zpios.sh -c lo-raidz    -t tiny
-	./zpios.sh -c lo-raidz2   -t tiny
-	./zfs.sh -vu
+	$(ZFS) -v
+	$(ZTEST) -V
+	$(ZPIOS) -c file-raid0  -t tiny
+	$(ZPIOS) -c file-raid10 -t tiny
+	$(ZPIOS) -c file-raidz  -t tiny
+	$(ZPIOS) -c file-raidz2 -t tiny
+	$(ZPIOS) -c lo-raid0    -t tiny
+	$(ZPIOS) -c lo-raid10   -t tiny
+	$(ZPIOS) -c lo-raidz    -t tiny
+	$(ZPIOS) -c lo-raidz2   -t tiny
+	$(ZFS) -vu
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
