@@ -1,14 +1,4 @@
-SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
-
-- 2009-01-26 16:23:00 SPLError: 7884:1360:(dnode.c:146:dnode_verify())
-  VERIFY3(dn->dn_nblkptr >= 1) failed (0 >= 1)
-
-  When enabling debugging in ZFS with the --enable-debug configure option
-  we always trip the following VERIFY.  This issue was present in the
-  previous 0.3.3 release and was avoided simply by leaving debugging
-  disabled until it could be explained.  Well it has not just gone
-  always with the update to b105 so we need to run it to ground and 
-  explain what is going on.
+SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.3 (Development Release)
 
 - Implement FLUSH support probably in terms of a barrier as part of
   the vdev_disk.c interface.  Required for correctness.
@@ -22,16 +12,11 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.1 (Development Release)
   drives appear or are removed.  There is no easy analog to my knowledge
   for linux and we will need to come up with something.
 
-- Integrate Ricardo XDR support for on disk encoding.  This mainly
-  just needs a good review and to be updated against this code tree.
-
-- Ztest failures have been observed after 8+ hours of runtime.  This
-  needs to be investigated and resolved.
-
 - Get the ZVOL working as a vehicle for further stress testing under
   Linux, and to provide one useful user space interface for access to
   the DMU.
 
 - Get the ZPL working minimal support will be needed for lustre.
 
-- If Richardo is willing integrate his FUSE port in to this code base.
+- Integrate the FUSE port in to this code base, or rebase it as its
+  own zfs-fuse package which is built against the zfs-devel package.
