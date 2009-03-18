@@ -611,6 +611,7 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 		rc = -EINVAL;
 	}
 
+	splat_kmem_cache_test_kcp_free(kcp);
 	splat_vprint(file, name,
 		     "Successfully ran ctors/dtors for %d elements in '%s'\n",
 		     max, SPLAT_KMEM_CACHE_NAME);
