@@ -339,11 +339,10 @@ static void test_list(List l, int indent)
 	i = list_iterator_create(l);
 
 	while ((test = list_next(i)))
-		fprintf(stdout, "%*s0x%0*x %-*s %-*s\n",
-		        indent, "",
-		        04, test->test_desc.id,
+		fprintf(stdout, "%*s0x%0*x %-*s %s\n",
+		        indent, "", 04, test->test_desc.id,
 		        SPLAT_NAME_SIZE, test->test_desc.name,
-		        SPLAT_DESC_SIZE, test->test_desc.desc);
+		        test->test_desc.desc);
 
 	list_iterator_destroy(i);
 }
