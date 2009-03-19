@@ -222,6 +222,7 @@ void dnode_free(dnode_t *dn, dmu_tx_t *tx);
 void dnode_byteswap(dnode_phys_t *dnp);
 void dnode_buf_byteswap(void *buf, size_t size);
 void dnode_verify(dnode_t *dn);
+void dnode_verify_clean(dnode_t *dn);
 int dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx);
 uint64_t dnode_current_max_length(dnode_t *dn);
 void dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx);
@@ -259,12 +260,14 @@ void dnode_evict_dbufs(dnode_t *dn);
 _NOTE(CONSTCOND) } while (0)
 
 #define	DNODE_VERIFY(dn)		dnode_verify(dn)
+#define	DNODE_VERIFY_CLEAN(dn)		dnode_verify_clean(dn)
 #define	FREE_VERIFY(db, start, end, tx)	free_verify(db, start, end, tx)
 
 #else
 
 #define	dprintf_dnode(db, fmt, ...)
 #define	DNODE_VERIFY(dn)
+#define	DNODE_VERIFY_CLEAN(dn)
 #define	FREE_VERIFY(db, start, end, tx)
 
 #endif
