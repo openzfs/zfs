@@ -74,6 +74,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 
 	list_create(&dn->dn_dbufs, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
+	dmu_zfetch_cons(&dn->dn_zfetch);
 
 	return (0);
 }
@@ -98,6 +99,7 @@ dnode_dest(void *arg, void *unused)
 	}
 
 	list_destroy(&dn->dn_dbufs);
+	dmu_zfetch_dest(&dn->dn_zfetch);
 }
 
 void
@@ -165,6 +167,27 @@ dnode_verify(dnode_t *dn)
 	}
 	if (drop_struct_lock)
 		rw_exit(&dn->dn_struct_rwlock);
+}
+
+void
+dnode_verify_clean(dnode_t *dn)
+{
+	int i;
+
+	ASSERT(!RW_LOCK_HELD(&dn->dn_struct_rwlock));
+	ASSERT(!MUTEX_HELD(&dn->dn_mtx));
+	ASSERT(!MUTEX_HELD(&dn->dn_dbufs_mtx));
+	ASSERT(refcount_is_zero(&dn->dn_holds));
+	ASSERT(refcount_is_zero(&dn->dn_tx_holds));
+
+	for (i = 0; i < TXG_SIZE; i++) {
+		ASSERT(NULL == list_head(&dn->dn_dirty_records[i]));
+                ASSERT(0 == avl_numnodes(&dn->dn_ranges[i]));
+	}
+
+	ASSERT(NULL == list_head(&dn->dn_dbufs));
+	ASSERT(NULL == list_head(&dn->dn_zfetch.zf_stream));
+	ASSERT(!RW_LOCK_HELD(&dn->dn_zfetch.zf_rwlock));
 }
 #endif
 
@@ -277,14 +300,32 @@ dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object)
 {
 	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
+	int i;
 
+	DNODE_VERIFY_CLEAN(dn);
 	dn->dn_objset = os;
 	dn->dn_object = object;
 	dn->dn_dbuf = db;
 	dn->dn_phys = dnp;
 
-	if (dnp->dn_datablkszsec)
+	list_link_init(&dn->dn_link);
+	for (i = 0; i < TXG_SIZE; i++) {
+		list_link_init(&dn->dn_dirty_link[i]);
+		dn->dn_next_nblkptr[i] = 0;
+		dn->dn_next_nlevels[i] = 0;
+		dn->dn_next_indblkshift[i] = 0;
+		dn->dn_next_bonuslen[i] = 0;
+		dn->dn_next_blksz[i] = 0;
+	}
+
+	if (dnp->dn_datablkszsec) {
 		dnode_setdblksz(dn, dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+	} else {
+		dn->dn_datablksz = 0;
+		dn->dn_datablkszsec = 0;
+		dn->dn_datablkshift = 0;
+	}
+
 	dn->dn_indblkshift = dnp->dn_indblkshift;
 	dn->dn_nlevels = dnp->dn_nlevels;
 	dn->dn_type = dnp->dn_type;
@@ -294,7 +335,13 @@ dnode_create(objset_impl_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_bonustype = dnp->dn_bonustype;
 	dn->dn_bonuslen = dnp->dn_bonuslen;
 	dn->dn_maxblkid = dnp->dn_maxblkid;
-
+	dn->dn_allocated_txg = 0;
+	dn->dn_free_txg = 0;
+	dn->dn_assigned_txg = 0;
+	dn->dn_dirtyctx = DN_UNDIRTIED;
+	dn->dn_dirtyctx_firstset = NULL;
+	dn->dn_bonus = NULL;
+	dn->dn_zio = NULL;
 	dmu_zfetch_init(&dn->dn_zfetch, dn);
 
 	ASSERT(dn->dn_phys->dn_type < DMU_OT_NUMTYPES);
@@ -336,6 +383,7 @@ dnode_destroy(dnode_t *dn)
 		dbuf_evict(dn->dn_bonus);
 		dn->dn_bonus = NULL;
 	}
+	DNODE_VERIFY_CLEAN(dn);
 	kmem_cache_free(dnode_cache, dn);
 	arc_space_return(sizeof (dnode_t), ARC_SPACE_OTHER);
 }
