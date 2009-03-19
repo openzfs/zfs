@@ -1,7 +1,20 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
 Subject: [PATCH] fix dnode constructor
 
-Don't call the constructor twice
+The patch removes the extra call to dnode_cons() in dnode_create().  The
+extra call to the constructor was there to reinitialize the non-trivial
+data structures in the dnode (lists, mutexs, condvars, avl tree, etc).
+This was safe, although not exactly clean, on Solaris because none of
+the primitives allocate memory.  In the Linux port this is not true.
+To keep stack usage to a minimum several of the primatives dynamically
+allocate memory thus initializing them twice results in a memory leak.
+
+This patch resolves this problem for Solaris and Linux by ensures all
+*_init's are called in the constructor, and all *_destroy's are called
+in the destructor.  Additionally we ensure that all dnode objects are
+properly deconstructed before being freed to the slab, and when the
+objects are allocated from the slab all required data members are
+explicity initialized to correct values.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
 

@@ -203,18 +203,51 @@ dmu_zfetch_dofetch(zfetch_t *zf, zstream_t *zs)
 void
 dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 {
-	if (zf == NULL) {
-		return;
-	}
-
 	zf->zf_dnode = dno;
 	zf->zf_stream_cnt = 0;
 	zf->zf_alloc_fail = 0;
+}
 
+/*
+ * Clean-up state associated with a zfetch structure.  This frees allocated
+ * structure members, empties the zf_stream tree, and generally makes things
+ * nice.  This doesn't free the zfetch_t itself, that's left to the caller.
+ */
+void
+dmu_zfetch_rele(zfetch_t *zf)
+{
+	zstream_t *zs;
+	zstream_t *zs_next;
+
+	for (zs = list_head(&zf->zf_stream); zs; zs = zs_next) {
+		zs_next = list_next(&zf->zf_stream, zs);
+
+		list_remove(&zf->zf_stream, zs);
+		mutex_destroy(&zs->zst_lock);
+		kmem_free(zs, sizeof (zstream_t));
+	}
+}
+
+/*
+ * Construct a zfetch structure.
+ */
+void
+dmu_zfetch_cons(zfetch_t *zf)
+{
 	list_create(&zf->zf_stream, sizeof (zstream_t),
 	    offsetof(zstream_t, zst_node));
 
 	rw_init(&zf->zf_rwlock, NULL, RW_DEFAULT, NULL);
+}
+
+/*
+ * Destruct a zfetch structure.
+ */
+void
+dmu_zfetch_dest(zfetch_t *zf)
+{
+	list_destroy(&zf->zf_stream);
+	rw_destroy(&zf->zf_rwlock);
 }
 
 /*
@@ -439,32 +472,6 @@ top:
 out:
 	rw_exit(&zf->zf_rwlock);
 	return (rc);
-}
-
-/*
- * Clean-up state associated with a zfetch structure.  This frees allocated
- * structure members, empties the zf_stream tree, and generally makes things
- * nice.  This doesn't free the zfetch_t itself, that's left to the caller.
- */
-void
-dmu_zfetch_rele(zfetch_t *zf)
-{
-	zstream_t	*zs;
-	zstream_t	*zs_next;
-
-	ASSERT(!RW_LOCK_HELD(&zf->zf_rwlock));
-
-	for (zs = list_head(&zf->zf_stream); zs; zs = zs_next) {
-		zs_next = list_next(&zf->zf_stream, zs);
-
-		list_remove(&zf->zf_stream, zs);
-		mutex_destroy(&zs->zst_lock);
-		kmem_free(zs, sizeof (zstream_t));
-	}
-	list_destroy(&zf->zf_stream);
-	rw_destroy(&zf->zf_rwlock);
-
-	zf->zf_dnode = NULL;
 }
 
 /*
