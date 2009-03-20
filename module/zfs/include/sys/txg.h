@@ -26,8 +26,6 @@
 #ifndef _SYS_TXG_H
 #define	_SYS_TXG_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/spa.h>
 #include <sys/zfs_context.h>
 
@@ -71,6 +69,7 @@ extern void txg_sync_stop(struct dsl_pool *dp);
 extern uint64_t txg_hold_open(struct dsl_pool *dp, txg_handle_t *txghp);
 extern void txg_rele_to_quiesce(txg_handle_t *txghp);
 extern void txg_rele_to_sync(txg_handle_t *txghp);
+extern void txg_register_callbacks(txg_handle_t *txghp, list_t *tx_callbacks);
 extern void txg_suspend(struct dsl_pool *dp);
 extern void txg_resume(struct dsl_pool *dp);
 
