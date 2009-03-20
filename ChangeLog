@@ -1,3 +1,53 @@
+2009-03-20 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.3 - Use 'git log --no-merges' for full change log.
+
+	* : Rebased to ZFS b108 from OpenSolaris
+
+	* configure.ac, *Makefile.am: Build system updatei.  This includes
+	resolving various build issues and adding support for the remaining
+	common build targets.  Available targets now include:
+
+	- make all        # Build everything
+	- make install    # Install everything
+	- make clean      # Clean up build products
+	- make distclean  # Clean up everything
+	- make dist       # Create package tarball
+	- make srpm       # Create package source RPM
+	- make rpm        # Create package binary RPMs
+	- make tags       # Create ctags and etags for everything
+
+	Extra care was taken to ensure that the source RPMs are fully
+	rebuildable against Fedora/RHEL/Chaos kernels.  To build binary
+	RPMs from the source RPM for your system simply run:
+
+	rpmbuild --rebuild zfs-x.y.z-1.src.rpm
+
+	This will produce two binary RPMs with correct 'requires'
+	dependencies for your kernel.  One will contain all zfs modules
+	and support utilities, the other is a devel package for compiling
+	additional kernel modules which are dependant on the zfs.
+
+	zfs-x.y.z-1_<kernel version>.x86_64.rpm
+	zfs-devel-x.y.2-1_<kernel version>.x86_64.rpm
+
+	* config/kernel.m4, config/Rules.am: Removed the build options
+	-Wno-unused -Wno-missing -Wno-unused -Wno-parentheses and
+	-Wno-unknown-pragmas.  All upstream warnings which were being
+	suppressed by these options are now handled in the matching
+	gcc-* topic branch.
+
+	* zpios: Various zpios and test infrastructure improvements.
+
+	* feature-commit-cb: New feature commit callbacks.
+
+	* : Various bug fixes which are more clearly detailed in the
+	git commit logs.  For a detailed summary of changes post version
+	0.4.2, check out the 'top' topic branch and view the commit logs.
+
+	git checkout top
+	git log --no-merges -53
+
 2009-02-05 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.2
@@ -20,7 +70,7 @@
 	* : Restructured project and build system to more closely
 	mirror the code organization used in OpenSolaris.  This
 	allows us minimize the changes to upstream source needed,
-        and allows concurrent user+kernel space builds of all components.
+	and allows concurrent user+kernel space builds of all components.
 
 2008-11-19 Brian Behlendorf <behlendorf1@llnl.gov>
 
