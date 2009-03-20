@@ -25,6 +25,8 @@
 
 #include <libzfs.h>
 
+#undef verify	/* both libzfs.h and zfs_context.h want to define this */
+
 #include <sys/zfs_context.h>
 
 #include <errno.h>
