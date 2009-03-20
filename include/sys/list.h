@@ -170,4 +170,12 @@ list_link_active(list_node_t *node)
         return (node->next != LIST_POISON1) && (node->prev != LIST_POISON2);
 }
 
+static inline void
+spl_list_move_tail(list_t *dst, list_t *src)
+{
+	list_splice_init(&src->list_head, dst->list_head.prev);
+}
+
+#define list_move_tail(dst, src)	spl_list_move_tail(dst, src)
+
 #endif /* SPL_LIST_H */
