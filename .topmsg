@@ -1,8 +1,9 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] feature commit cb
+Subject: [PATCH] feature pthreads
 
-DMU commit callbacks. Provides an API to attach callbacks to transactions,
-which are called by the DMU when they are safely committed to disk.
-See Lustre bug 14117 for details.
+This converts the userspace code to use the POSIX threads API instead of
+the Solaris-only threads API.  The API is almost identical and POSIX
+threads are a standard, so this is also a no-brainer and it's also
+going upstream.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
