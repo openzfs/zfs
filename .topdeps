@@ -6,7 +6,6 @@ fix-evict-dbufs
 fix-get-configs
 fix-newlines
 fix-no-zmod
-fix-pthreads
 fix-rwlocks
 fix-stack
 fix-taskq
