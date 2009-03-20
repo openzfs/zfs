@@ -138,7 +138,7 @@ typedef struct ztest_args {
 	spa_t		*za_spa;
 	objset_t	*za_os;
 	zilog_t		*za_zilog;
-	thread_t	za_thread;
+	pthread_t	za_thread;
 	uint64_t	za_instance;
 	uint64_t	za_random;
 	uint64_t	za_diroff;
@@ -164,6 +164,7 @@ typedef void ztest_func_t(ztest_args_t *);
 ztest_func_t ztest_dmu_read_write;
 ztest_func_t ztest_dmu_write_parallel;
 ztest_func_t ztest_dmu_object_alloc_free;
+ztest_func_t ztest_dmu_commit_callbacks;
 ztest_func_t ztest_zap;
 ztest_func_t ztest_zap_parallel;
 ztest_func_t ztest_traverse;
@@ -198,6 +199,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_dmu_read_write,			1,	&zopt_always	},
 	{ ztest_dmu_write_parallel,		30,	&zopt_always	},
 	{ ztest_dmu_object_alloc_free,		1,	&zopt_always	},
+	{ ztest_dmu_commit_callbacks,		10,	&zopt_always	},
 	{ ztest_zap,				30,	&zopt_always	},
 	{ ztest_zap_parallel,			100,	&zopt_always	},
 	{ ztest_dsl_prop_get_set,		1,	&zopt_sometimes	},
@@ -218,21 +220,32 @@ ztest_info_t ztest_info[] = {
 #define	ZTEST_SYNC_LOCKS	16
 
 /*
+ * The following struct is used to hold a list of uncalled commit callbacks.
+ *
+ * The callbacks are ordered by txg number.
+ */
+typedef struct ztest_cb_list {
+	pthread_mutex_t		zcl_callbacks_lock;
+	list_t			zcl_callbacks;
+} ztest_cb_list_t;
+
+/*
  * Stuff we need to share writably between parent and child.
  */
 typedef struct ztest_shared {
-	mutex_t		zs_vdev_lock;
-	rwlock_t	zs_name_lock;
-	uint64_t	zs_vdev_primaries;
-	uint64_t	zs_vdev_aux;
-	uint64_t	zs_enospc_count;
-	hrtime_t	zs_start_time;
-	hrtime_t	zs_stop_time;
-	uint64_t	zs_alloc;
-	uint64_t	zs_space;
-	ztest_info_t	zs_info[ZTEST_FUNCS];
-	mutex_t		zs_sync_lock[ZTEST_SYNC_LOCKS];
-	uint64_t	zs_seq[ZTEST_SYNC_LOCKS];
+	pthread_mutex_t		zs_vdev_lock;
+	pthread_rwlock_t	zs_name_lock;
+	uint64_t		zs_vdev_primaries;
+	uint64_t		zs_vdev_aux;
+	uint64_t		zs_enospc_count;
+	hrtime_t		zs_start_time;
+	hrtime_t		zs_stop_time;
+	uint64_t		zs_alloc;
+	uint64_t		zs_space;
+	ztest_info_t		zs_info[ZTEST_FUNCS];
+	pthread_mutex_t		zs_sync_lock[ZTEST_SYNC_LOCKS];
+	uint64_t		zs_seq[ZTEST_SYNC_LOCKS];
+	ztest_cb_list_t		zs_cb_list;
 } ztest_shared_t;
 
 static char ztest_dev_template[] = "%s/%s.%llua";
@@ -804,7 +817,7 @@ ztest_spa_create_destroy(ztest_args_t *za)
 	 * Attempt to create an existing pool.  It shouldn't matter
 	 * what's in the nvroot; we should fail with EEXIST.
 	 */
-	(void) rw_rdlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 	nvroot = make_vdev_root("/dev/bogus", NULL, 0, 0, 0, 0, 0, 1);
 	error = spa_create(za->za_pool, nvroot, NULL, NULL, NULL);
 	nvlist_free(nvroot);
@@ -820,7 +833,7 @@ ztest_spa_create_destroy(ztest_args_t *za)
 		fatal(0, "spa_destroy() = %d", error);
 
 	spa_close(spa, FTAG);
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 static vdev_t *
@@ -850,7 +863,7 @@ ztest_vdev_add_remove(ztest_args_t *za)
 	nvlist_t *nvroot;
 	int error;
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -868,7 +881,7 @@ ztest_vdev_add_remove(ztest_args_t *za)
 	error = spa_vdev_add(spa, nvroot);
 	nvlist_free(nvroot);
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 
 	if (error == ENOSPC)
 		ztest_record_enospc("spa_vdev_add");
@@ -897,7 +910,7 @@ ztest_vdev_aux_add_remove(ztest_args_t *za)
 		aux = ZPOOL_CONFIG_L2CACHE;
 	}
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -953,7 +966,7 @@ ztest_vdev_aux_add_remove(ztest_args_t *za)
 			fatal(0, "spa_vdev_remove(%llu) = %d", guid, error);
 	}
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /*
@@ -979,7 +992,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 	int oldvd_is_log;
 	int error, expected_error;
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -1039,7 +1052,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP)
 			fatal(0, "detach (%s) returned %d", oldpath, error);
-		(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+		(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 		return;
 	}
 
@@ -1132,7 +1145,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 		    (longlong_t)newsize, replacing, error, expected_error);
 	}
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /*
@@ -1148,7 +1161,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	size_t fsize;
 	int fd;
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 
 	/*
 	 * Pick a random leaf vdev.
@@ -1179,7 +1192,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 		(void) close(fd);
 	}
 
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /* ARGSUSED */
@@ -1278,7 +1291,7 @@ ztest_dmu_objset_create_destroy(ztest_args_t *za)
 	uint64_t seq;
 	uint64_t objects;
 
-	(void) rw_rdlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 	(void) snprintf(name, 100, "%s/%s_temp_%llu", za->za_pool, za->za_pool,
 	    (u_longlong_t)za->za_instance);
 
@@ -1321,7 +1334,7 @@ ztest_dmu_objset_create_destroy(ztest_args_t *za)
 	if (error) {
 		if (error == ENOSPC) {
 			ztest_record_enospc("dmu_objset_create");
-			(void) rw_unlock(&ztest_shared->zs_name_lock);
+			(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 			return;
 		}
 		fatal(0, "dmu_objset_create(%s) = %d", name, error);
@@ -1403,7 +1416,7 @@ ztest_dmu_objset_create_destroy(ztest_args_t *za)
 	if (error)
 		fatal(0, "dmu_objset_destroy(%s) = %d", name, error);
 
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 /*
@@ -1417,7 +1430,7 @@ ztest_dmu_snapshot_create_destroy(ztest_args_t *za)
 	char snapname[100];
 	char osname[MAXNAMELEN];
 
-	(void) rw_rdlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 	dmu_objset_name(os, osname);
 	(void) snprintf(snapname, 100, "%s@%llu", osname,
 	    (u_longlong_t)za->za_instance);
@@ -1430,7 +1443,7 @@ ztest_dmu_snapshot_create_destroy(ztest_args_t *za)
 		ztest_record_enospc("dmu_take_snapshot");
 	else if (error != 0 && error != EEXIST)
 		fatal(0, "dmu_take_snapshot() = %d", error);
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 /*
@@ -1928,7 +1941,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	int bs = ZTEST_DIROBJ_BLOCKSIZE;
 	int do_free = 0;
 	uint64_t off, txg, txg_how;
-	mutex_t *lp;
+	pthread_mutex_t *lp;
 	char osname[MAXNAMELEN];
 	char iobuf[SPA_MAXBLOCKSIZE];
 	blkptr_t blk = { 0 };
@@ -1978,7 +1991,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	txg = dmu_tx_get_txg(tx);
 
 	lp = &ztest_shared->zs_sync_lock[b];
-	(void) mutex_lock(lp);
+	(void) pthread_mutex_lock(lp);
 
 	wbt->bt_objset = dmu_objset_id(os);
 	wbt->bt_object = ZTEST_DIROBJ;
@@ -2031,7 +2044,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 		dmu_write(os, ZTEST_DIROBJ, off, btsize, wbt, tx);
 	}
 
-	(void) mutex_unlock(lp);
+	(void) pthread_mutex_unlock(lp);
 
 	if (ztest_random(1000) == 0)
 		(void) poll(NULL, 0, 1); /* open dn_notxholds window */
@@ -2050,13 +2063,13 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	/*
 	 * dmu_sync() the block we just wrote.
 	 */
-	(void) mutex_lock(lp);
+	(void) pthread_mutex_lock(lp);
 
 	blkoff = P2ALIGN_TYPED(off, bs, uint64_t);
 	error = dmu_buf_hold(os, ZTEST_DIROBJ, blkoff, FTAG, &db);
 	za->za_dbuf = db;
 	if (error) {
-		(void) mutex_unlock(lp);
+		(void) pthread_mutex_unlock(lp);
 		return;
 	}
 	blkoff = off - blkoff;
@@ -2064,7 +2077,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	dmu_buf_rele(db, FTAG);
 	za->za_dbuf = NULL;
 
-	(void) mutex_unlock(lp);
+	(void) pthread_mutex_unlock(lp);
 
 	if (error)
 		return;
@@ -2433,6 +2446,205 @@ ztest_zap_parallel(ztest_args_t *za)
 		dmu_tx_commit(tx);
 }
 
+/*
+ * Commit callback data.
+ */
+typedef struct ztest_cb_data {
+	list_node_t		zcd_node;
+	ztest_cb_list_t		*zcd_zcl;
+	uint64_t		zcd_txg;
+	int			zcd_expected_err;
+	boolean_t		zcd_added;
+	boolean_t		zcd_called;
+	spa_t			*zcd_spa;
+} ztest_cb_data_t;
+
+static void
+ztest_commit_callback(void *arg, int error)
+{
+	ztest_cb_data_t *data = arg;
+	ztest_cb_list_t *zcl;
+	uint64_t synced_txg;
+
+	VERIFY(data != NULL);
+	VERIFY3S(data->zcd_expected_err, ==, error);
+	VERIFY(!data->zcd_called);
+
+	synced_txg = spa_last_synced_txg(data->zcd_spa);
+	if (data->zcd_txg > synced_txg)
+		fatal(0, "commit callback of txg %llu prematurely called, last"
+		    " synced txg = %llu\n", data->zcd_txg, synced_txg);
+
+	zcl = data->zcd_zcl;
+	data->zcd_called = B_TRUE;
+
+	if (error == ECANCELED) {
+		ASSERT3U(data->zcd_txg, ==, 0);
+		ASSERT(!data->zcd_added);
+
+		/*
+		 * The private callback data should be destroyed here, but
+		 * since we are going to check the zcd_called field after
+		 * dmu_tx_abort(), we will destroy it there.
+		 */
+		return;
+	}
+
+	if (!data->zcd_added)
+		goto out;
+
+	ASSERT3U(data->zcd_txg, !=, 0);
+
+	/* Remove our callback from the list */
+	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+	list_remove(&zcl->zcl_callbacks, data);
+	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+
+out:
+	umem_free(data, sizeof (ztest_cb_data_t));
+}
+
+static ztest_cb_data_t *
+ztest_create_cb_data(objset_t *os, ztest_cb_list_t *zcl, uint64_t txg)
+{
+	ztest_cb_data_t *cb_data;
+
+	cb_data = umem_zalloc(sizeof (ztest_cb_data_t), UMEM_NOFAIL);
+
+	cb_data->zcd_zcl = zcl;
+	cb_data->zcd_txg = txg;
+	cb_data->zcd_spa = os->os->os_spa;
+
+	return (cb_data);
+}
+
+/*
+ * If a number of txgs equal to this threshold have been created after a commit
+ * callback has been registered but not called, then we assume there is an
+ * implementation bug.
+ */
+#define	ZTEST_COMMIT_CALLBACK_THRESH	3
+
+/*
+ * Commit callback test.
+ */
+void
+ztest_dmu_commit_callbacks(ztest_args_t *za)
+{
+	objset_t *os = za->za_os;
+	dmu_tx_t *tx;
+	ztest_cb_list_t *zcl = &ztest_shared->zs_cb_list;
+	ztest_cb_data_t *cb_data[3], *tmp_cb;
+	uint64_t old_txg, txg;
+	int i, error;
+
+	tx = dmu_tx_create(os);
+
+	cb_data[0] = ztest_create_cb_data(os, zcl, 0);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[0]);
+
+	dmu_tx_hold_write(tx, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t));
+
+	/* Every once in a while, abort the transaction on purpose */
+	if (ztest_random(100) == 0)
+		error = -1;
+
+	if (!error)
+		error = dmu_tx_assign(tx, TXG_NOWAIT);
+
+	txg = error ? 0 : dmu_tx_get_txg(tx);
+
+	cb_data[1] = ztest_create_cb_data(os, zcl, txg);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[1]);
+
+	if (error) {
+		/*
+		 * It's not a strict requirement to call the registered
+		 * callbacks from inside dmu_tx_abort(), but that's what
+		 * happens in the current implementation so we will check for
+		 * that.
+		 */
+		for (i = 0; i < 2; i++) {
+			cb_data[i]->zcd_expected_err = ECANCELED;
+			VERIFY(!cb_data[i]->zcd_called);
+		}
+
+		dmu_tx_abort(tx);
+
+		for (i = 0; i < 2; i++) {
+			VERIFY(cb_data[i]->zcd_called);
+			umem_free(cb_data[i], sizeof (ztest_cb_data_t));
+		}
+
+		return;
+	}
+
+	cb_data[0]->zcd_txg = txg;
+	cb_data[2] = ztest_create_cb_data(os, zcl, txg);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[2]);
+
+	/*
+	 * Read existing data to make sure there isn't a future leak.
+	 */
+	VERIFY(0 == dmu_read(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t),
+	    &old_txg));
+
+	if (old_txg > txg)
+		fatal(0, "future leak: got %llx, open txg is %llx", old_txg,
+		    txg);
+
+	dmu_write(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t), &txg, tx);
+
+	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+
+	/*
+	 * Since commit callbacks don't have any ordering requirement and since
+	 * it is theoretically possible for a commit callback to be called
+	 * after an arbitrary amount of time has elapsed since its txg has been
+	 * synced, it is difficult to reliably determine whether a commit
+	 * callback hasn't been called due to high load or due to a flawed
+	 * implementation.
+	 *
+	 * In practice, we will assume that if after a certain number of txgs a
+	 * commit callback hasn't been called, then most likely there's an
+	 * implementation bug..
+	 */
+	tmp_cb = list_head(&zcl->zcl_callbacks);
+	if (tmp_cb != NULL)
+		VERIFY3U(tmp_cb->zcd_txg, >,
+		    txg - ZTEST_COMMIT_CALLBACK_THRESH);
+
+	/*
+	 * Let's find the place to insert our callbacks.
+	 *
+	 * Even though the list is ordered by txg, it is possible for the
+	 * insertion point to not be the end because our txg may already be
+	 * quiescing at this point and other callbacks in the open txg may
+	 * have sneaked in.
+	 */
+	tmp_cb = list_tail(&zcl->zcl_callbacks);
+	while (tmp_cb != NULL && tmp_cb->zcd_txg > txg)
+		tmp_cb = list_prev(&zcl->zcl_callbacks, tmp_cb);
+
+	/* Add the 3 callbacks to the list */
+	for (i = 0; i < 3; i++) {
+		if (tmp_cb == NULL)
+			list_insert_head(&zcl->zcl_callbacks, cb_data[i]);
+		else
+			list_insert_after(&zcl->zcl_callbacks, tmp_cb,
+			    cb_data[i]);
+
+		cb_data[i]->zcd_added = B_TRUE;
+		VERIFY(!cb_data[i]->zcd_called);
+
+		tmp_cb = cb_data[i];
+	}
+
+	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+
+	dmu_tx_commit(tx);
+}
+
 void
 ztest_dsl_prop_get_set(ztest_args_t *za)
 {
@@ -2444,7 +2656,7 @@ ztest_dsl_prop_get_set(ztest_args_t *za)
 	char osname[MAXNAMELEN];
 	int error;
 
-	(void) rw_rdlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 
 	dmu_objset_name(os, osname);
 
@@ -2483,7 +2695,7 @@ ztest_dsl_prop_get_set(ztest_args_t *za)
 		}
 	}
 
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 /*
@@ -2647,7 +2859,7 @@ ztest_spa_rename(ztest_args_t *za)
 	int error;
 	spa_t *spa;
 
-	(void) rw_wrlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_wrlock(&ztest_shared->zs_name_lock);
 
 	oldname = za->za_pool;
 	newname = umem_alloc(strlen(oldname) + 5, UMEM_NOFAIL);
@@ -2699,7 +2911,7 @@ ztest_spa_rename(ztest_args_t *za)
 
 	umem_free(newname, strlen(newname) + 1);
 
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 
@@ -2937,15 +3149,18 @@ ztest_spa_import_export(char *oldname, char *newname)
 	nvlist_free(config);
 }
 
-static void
-ztest_resume(spa_t *spa)
+static void *
+ztest_resume(void *arg)
 {
+	spa_t *spa = arg;
+
 	if (spa_suspended(spa)) {
 		spa_vdev_state_enter(spa);
 		vdev_clear(spa, NULL);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 		zio_resume(spa);
 	}
+	return (NULL);
 }
 
 static void *
@@ -3035,15 +3250,19 @@ ztest_run(char *pool)
 	ztest_args_t *za;
 	spa_t *spa;
 	char name[100];
-	thread_t resume_tid;
+	pthread_t resume_tid;
 
 	ztest_exiting = B_FALSE;
 
-	(void) _mutex_init(&zs->zs_vdev_lock, USYNC_THREAD, NULL);
-	(void) rwlock_init(&zs->zs_name_lock, USYNC_THREAD, NULL);
+	(void) pthread_mutex_init(&zs->zs_vdev_lock, NULL);
+	(void) pthread_rwlock_init(&zs->zs_name_lock, NULL);
+	(void) pthread_mutex_init(&zs->zs_cb_list.zcl_callbacks_lock, NULL);
+
+	list_create(&zs->zs_cb_list.zcl_callbacks, sizeof (ztest_cb_data_t),
+	    offsetof(ztest_cb_data_t, zcd_node));
 
 	for (t = 0; t < ZTEST_SYNC_LOCKS; t++)
-		(void) _mutex_init(&zs->zs_sync_lock[t], USYNC_THREAD, NULL);
+		(void) pthread_mutex_init(&zs->zs_sync_lock[t], NULL);
 
 	/*
 	 * Destroy one disk before we even start.
@@ -3110,8 +3329,7 @@ ztest_run(char *pool)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	VERIFY(thr_create(0, 0, ztest_resume_thread, spa, THR_BOUND,
-	    &resume_tid) == 0);
+	VERIFY(pthread_create(&resume_tid, NULL, ztest_resume_thread, spa)==0);
 
 	/*
 	 * Verify that we can safely inquire about about any object,
@@ -3160,7 +3378,7 @@ ztest_run(char *pool)
 
 		if (t < zopt_datasets) {
 			int test_future = FALSE;
-			(void) rw_rdlock(&ztest_shared->zs_name_lock);
+			(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 			(void) snprintf(name, 100, "%s/%s_%d", pool, pool, d);
 			error = dmu_objset_create(name, DMU_OST_OTHER, NULL, 0,
 			    ztest_create_cb, NULL);
@@ -3168,7 +3386,7 @@ ztest_run(char *pool)
 				test_future = TRUE;
 			} else if (error == ENOSPC) {
 				zs->zs_enospc_count++;
-				(void) rw_unlock(&ztest_shared->zs_name_lock);
+				(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 				break;
 			} else if (error != 0) {
 				fatal(0, "dmu_objset_create(%s) = %d",
@@ -3179,7 +3397,7 @@ ztest_run(char *pool)
 			if (error)
 				fatal(0, "dmu_objset_open('%s') = %d",
 				    name, error);
-			(void) rw_unlock(&ztest_shared->zs_name_lock);
+			(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 			if (test_future)
 				ztest_dmu_check_future_leak(&za[t]);
 			zil_replay(za[d].za_os, za[d].za_os,
@@ -3187,12 +3405,12 @@ ztest_run(char *pool)
 			za[d].za_zilog = zil_open(za[d].za_os, NULL);
 		}
 
-		VERIFY(thr_create(0, 0, ztest_thread, &za[t], THR_BOUND,
-		    &za[t].za_thread) == 0);
+		VERIFY(pthread_create(&za[t].za_thread, NULL, ztest_thread,
+		    &za[t]) == 0);
 	}
 
 	while (--t >= 0) {
-		VERIFY(thr_join(za[t].za_thread, NULL, NULL) == 0);
+		VERIFY(pthread_join(za[t].za_thread, NULL) == 0);
 		if (t < zopt_datasets) {
 			zil_close(za[t].za_zilog);
 			dmu_objset_close(za[t].za_os);
@@ -3211,14 +3429,14 @@ ztest_run(char *pool)
 	 * If we had out-of-space errors, destroy a random objset.
 	 */
 	if (zs->zs_enospc_count != 0) {
-		(void) rw_rdlock(&ztest_shared->zs_name_lock);
+		(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 		d = (int)ztest_random(zopt_datasets);
 		(void) snprintf(name, 100, "%s/%s_%d", pool, pool, d);
 		if (zopt_verbose >= 3)
 			(void) printf("Destroying %s to free up space\n", name);
 		(void) dmu_objset_find(name, ztest_destroy_cb, &za[d],
 		    DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
-		(void) rw_unlock(&ztest_shared->zs_name_lock);
+		(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 	}
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
@@ -3227,7 +3445,7 @@ ztest_run(char *pool)
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
-	VERIFY(thr_join(resume_tid, NULL, NULL) == 0);
+	VERIFY(pthread_join(resume_tid, NULL) == 0);
 	ztest_resume(spa);
 
 	/*
@@ -3240,6 +3458,12 @@ ztest_run(char *pool)
 	spa_close(spa, FTAG);
 
 	kernel_fini();
+
+	list_destroy(&zs->zs_cb_list.zcl_callbacks);
+
+	(void) pthread_mutex_destroy(&zs->zs_cb_list.zcl_callbacks_lock);
+	(void) pthread_rwlock_destroy(&zs->zs_name_lock);
+	(void) pthread_mutex_destroy(&zs->zs_vdev_lock);
 }
 
 void
