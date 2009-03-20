@@ -2498,9 +2498,9 @@ ztest_commit_callback(void *arg, int error)
 	ASSERT3U(data->zcd_txg, !=, 0);
 
 	/* Remove our callback from the list */
-	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+	(void) pthread_mutex_lock(&zcl->zcl_callbacks_lock);
 	list_remove(&zcl->zcl_callbacks, data);
-	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+	(void) pthread_mutex_unlock(&zcl->zcl_callbacks_lock);
 
 out:
 	umem_free(data, sizeof (ztest_cb_data_t));
@@ -2597,7 +2597,7 @@ ztest_dmu_commit_callbacks(ztest_args_t *za)
 
 	dmu_write(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t), &txg, tx);
 
-	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+	(void) pthread_mutex_lock(&zcl->zcl_callbacks_lock);
 
 	/*
 	 * Since commit callbacks don't have any ordering requirement and since
@@ -2642,7 +2642,7 @@ ztest_dmu_commit_callbacks(ztest_args_t *za)
 		tmp_cb = cb_data[i];
 	}
 
-	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+	(void) pthread_mutex_unlock(&zcl->zcl_callbacks_lock);
 
 	dmu_tx_commit(tx);
 }
