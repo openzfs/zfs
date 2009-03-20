@@ -48,6 +48,8 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 		tx->tx_pool = dd->dd_pool;
 	list_create(&tx->tx_holds, sizeof (dmu_tx_hold_t),
 	    offsetof(dmu_tx_hold_t, txh_node));
+	list_create(&tx->tx_callbacks, sizeof (dmu_tx_callback_t),
+	    offsetof(dmu_tx_callback_t, dcb_node));
 #ifdef ZFS_DEBUG
 	refcount_create(&tx->tx_space_written);
 	refcount_create(&tx->tx_space_freed);
@@ -1020,8 +1022,13 @@ dmu_tx_commit(dmu_tx_t *tx)
 	if (tx->tx_tempreserve_cookie)
 		dsl_dir_tempreserve_clear(tx->tx_tempreserve_cookie, tx);
 
+	if (!list_is_empty(&tx->tx_callbacks))
+		txg_register_callbacks(&tx->tx_txgh, &tx->tx_callbacks);
+
 	if (tx->tx_anyobj == FALSE)
 		txg_rele_to_sync(&tx->tx_txgh);
+
+	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
 #ifdef ZFS_DEBUG
 	dprintf("towrite=%llu written=%llu tofree=%llu freed=%llu\n",
@@ -1050,6 +1057,14 @@ dmu_tx_abort(dmu_tx_t *tx)
 		if (dn != NULL)
 			dnode_rele(dn, tx);
 	}
+
+	/*
+	 * Call any registered callbacks with an error code.
+	 */
+	if (!list_is_empty(&tx->tx_callbacks))
+		dmu_tx_callback(&tx->tx_callbacks, ECANCELED);
+
+	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
 #ifdef ZFS_DEBUG
 	refcount_destroy_many(&tx->tx_space_written,
@@ -1065,6 +1080,34 @@ dmu_tx_get_txg(dmu_tx_t *tx)
 {
 	ASSERT(tx->tx_txg != 0);
 	return (tx->tx_txg);
+}
+
+void
+dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)
+{
+	dmu_tx_callback_t *dcb;
+
+	dcb = kmem_alloc(sizeof (dmu_tx_callback_t), KM_SLEEP);
+
+	dcb->dcb_func = func;
+	dcb->dcb_data = data;
+
+	list_insert_tail(&tx->tx_callbacks, dcb);
+}
+
+/*
+ * Call all the commit callbacks on a list, with a given error code.
+ */
+void
+dmu_tx_callback(list_t *cb_list, int error)
+{
+	dmu_tx_callback_t *dcb;
+
+	while (dcb = list_head(cb_list)) {
+		list_remove(cb_list, dcb);
+		dcb->dcb_func(dcb->dcb_data, error);
+		kmem_free(dcb, sizeof (dmu_tx_callback_t));
+	}
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
