@@ -4,7 +4,7 @@
 
 	* : Rebased to ZFS b108 from OpenSolaris
 
-	* configure.ac, *Makefile.am: Build system updatei.  This includes
+	* configure.ac, *Makefile.am: Build system update.  This includes
 	resolving various build issues and adding support for the remaining
 	common build targets.  Available targets now include:
 
@@ -26,7 +26,7 @@
 	This will produce two binary RPMs with correct 'requires'
 	dependencies for your kernel.  One will contain all zfs modules
 	and support utilities, the other is a devel package for compiling
-	additional kernel modules which are dependant on the zfs.
+	additional kernel modules which are dependent on the zfs.
 
 	zfs-x.y.z-1_<kernel version>.x86_64.rpm
 	zfs-devel-x.y.2-1_<kernel version>.x86_64.rpm
