@@ -20,3 +20,116 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.3 (Development Release)
 
 - Integrate the FUSE port in to this code base, or rebase it as its
   own zfs-fuse package which is built against the zfs-devel package.
+
+----------------------- OBSERVED ZTEST FAILURES ------------------------
+
+1) Easily reproduced on my FC10-i686 box:
+
+  ztest -V -T 18000
+  5 vdevs, 7 datasets, 23 threads, 18000 seconds...
+  Pass   1,  SIGKILL,   0 ENOSPC,  0.7% of  238M used,   0% done, 4h59m42s to go
+  ...
+  Pass   4,  SIGKILL,   0 ENOSPC, 17.8% of  476M used,   1% done, 4h57m59s to go
+  lt-ztest: ../../lib/libzpool/taskq.c:199: Assertion
+  `pthread_create(&tq->tq_threadlist[t], NULL, taskq_thread, tq) == 0' failed.
+
+2) Reproducable on my RHEL5-x86_64 box after perhaps an hour:
+
+  ztest -V -T 18000
+  5 vdevs, 7 datasets, 23 threads, 18000 seconds...
+  Pass   1,  SIGKILL,   0 ENOSPC,  4.1% of  476M used,   0% done, 4h59m44s to go
+  ...
+  Pass  43,  SIGKILL,   0 ENOSPC, 76.7% of  476M used,  17% done, 4h09m28s to go
+  lt-ztest: ../../module/zfs/dsl_scrub.c:659: Assertion `0 ==
+  dsl_dataset_hold_obj(dp, dsobj, ((char *)__func__), &ds) (0x0 == 0x2)' failed.
+  child died with signal 6
+
+3) Reproducable on my RHEL5-x86_64 box after perhaps an hour:
+
+  ztest -V -T 18000
+  5 vdevs, 7 datasets, 23 threads, 18000 seconds...
+  Pass   1,  SIGKILL,   0 ENOSPC, 46.3% of  238M used,   0% done, 4h59m11s to go  ...
+  Pass  22,  SIGKILL,   0 ENOSPC, 80.4% of  238M used,   8% done, 4h34m46s to go
+  ztest: spa_vdev_attach(in-place) = 75
+  child died with signal 6
+
+----------------------- OBSERVED ZPIOS FAILURES ------------------------
+
+1) Observed failure only on FC10-i686 system, never on my RHEL5 box.  It 
+is possible this is due to stack corruption because the 32-bit system
+is running with stock 4K stacks and the x86_64 system has 8K stacks.  It's
+also possible the newer FC10 kernel is just catching something the older
+RHEL5 kernels are not.
+
+FC10-i686 Kernel: 2.6.27.19-170.2.35.fc10.i686
+RHEL5/Chaos-x86_64 Kernel: 2.6.18-63chaos
+
+SPL: Loaded Solaris Porting Layer v0.4.2
+ZFS: Loaded ZFS Filesystem v0.4.2
+VM: killing process zpool-create.sh
+swap_free: Bad swap file entry f0f668c0
+swap_free: Bad swap file entry f0f668c0
+Eeek! page_mapcount(page) went negative! (-1)
+  page pfn = 1
+  page->flags = 400
+  page->count = 1
+  page->mapping = 00000000
+  vma->vm_ops = generic_file_vm_ops+0x0/0x14
+  vma->vm_ops->fault = filemap_fault+0x0/0x32b
+  vma->vm_file->f_op->mmap = generic_file_mmap+0x0/0x42
+------------[ cut here ]------------
+kernel BUG at mm/rmap.c:684!
+invalid opcode: 0000 [#1] SMP
+Modules linked in: zpios zfs(P) zcommon(P) zunicode(P) znvpair(P) zavl(P) spl
+zlib_deflate nfs lockd nfs_acl sco bridge stp bnep l2cap bluetooth sunrpc
+ip6t_REJECT nf_conntrack_ipv6 ip6table_filter ip6_tables ipv6 cpufreq_ondemand
+acpi_cpufreq dm_multipath uinput snd_intel8x0 snd_ac97_codec ac97_bus
+snd_seq_dummy snd_seq_oss snd_seq_midi_event snd_seq snd_seq_device
+snd_pcm_oss snd_mixer_oss ppdev snd_pcm snd_timer snd tg3 dcdbas soundcore
+snd_page_alloc iTCO_wdt libphy iTCO_vendor_support pcspkr yenta_socket
+parport_pc rsrc_nonstatic joydev video output parport ata_generic pata_acpi
+radeon drm i2c_algo_bit i2c_core [last unloaded: microcode]
+
+Pid: 6793, comm: zpool-create.sh Tainted: P
+(2.6.27.19-170.2.35.fc10.i686 #1) Latitude D600
+EIP: 0060:[<c0482db5>] EFLAGS: 00210246 CPU: 0
+EIP is at page_remove_rmap+0xc1/0xde
+EAX: 0000003b EBX: c1000020 ECX: c076fdd0 EDX: 00200046
+ESI: f64a3528 EDI: 00349000 EBP: ee9bbd28 ESP: ee9bbd20
+ DS: 007b ES: 007b FS: 00d8 GS: 0000 SS: 0068
+Process zpool-create.sh (pid: 6793, ti=ee9bb000 task=f668b340
+task.ti=ee9bb000)
+Stack: 00001093 c1000020 ee9bbdb8 c047ca46 00400000 c087a654 003acfff c06b6738
+       00000000 f64a3528 ee9bbdd0 00001093 00000001 00385f4d 00000000 ee9e71c0
+       003ad000 d3f2b000 d3f2b000 ee9bbd74 c04281ea c1809664 c043ef71 00000000
+Call Trace:
+ [<c047ca46>] ? unmap_vmas+0x384/0x5bd
+ [<c04281ea>] ? default_wake_function+0xb/0xd
+ [<c043ef71>] ? autoremove_wake_function+0xf/0x33
+ [<c047fd85>] ? exit_mmap+0x71/0xe5
+ [<c042be3f>] ? mmput+0x37/0x86
+ [<c042f21b>] ? exit_mm+0xeb/0xf3
+ [<c0430ae7>] ? do_exit+0x1cc/0x744
+ [<c04a18ef>] ? d_lookup+0x27/0x3d
+ [<c04310cf>] ? do_group_exit+0x70/0x97
+ [<c06acd38>] ? do_page_fault+0x686/0x710
+ [<c048f311>] ? kmem_cache_free+0x8c/0xa7
+ [<c042bc4a>] ? __cleanup_signal+0x17/0x1a
+ [<c042fc7c>] ? release_task+0x3f7/0x407
+ [<c04f9035>] ? selinux_task_wait+0x2a/0x2c
+ [<c0430239>] ? wait_consider_task+0x5ad/0x8e4
+ [<c043f1b9>] ? remove_wait_queue+0x22/0x29
+ [<c0430743>] ? do_wait+0x1d3/0x281
+ [<c04281df>] ? default_wake_function+0x0/0xd
+ [<c0498be2>] ? path_put+0x15/0x18
+ [<c0461bfc>] ? audit_syscall_exit+0xb2/0xc7
+ [<c06ac6b2>] ? do_page_fault+0x0/0x710
+ [<c06aaf8a>] ? error_code+0x72/0x78
+ =======================
+Code: c0 74 0d 8b 50 08 b8 b2 fd 76 c0 e8 50 ff ff ff 8b 46 48 85 c0 74 14 8b
+40 10 85 c0 74 0d 8b 50 2c b8 d0 fd 76 c0 e8 35 ff ff ff <0f> 0b eb fe 8b 53
+10 89 d8 83 e2 01 f7 da 83 c2 04 e8 7a 6d ff
+EIP: [<c0482db5>] page_remove_rmap+0xc1/0xde SS:ESP 0068:ee9bbd20
+---[ end trace bdf37696bb24901e ]---
+Fixing recursive fault but reboot is needed!
+BUG: scheduling while atomic: zpool-create.sh/6793/0x00000001
