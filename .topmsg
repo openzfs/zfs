@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] feature commit cb
+
+DMU commit callbacks. Provides an API to attach callbacks to transactions,
+which are called by the DMU when they are safely committed to disk.
+See Lustre bug 14117 for details.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>

@@ -26,8 +26,6 @@
 #ifndef	_SYS_DMU_TX_H
 #define	_SYS_DMU_TX_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/inttypes.h>
 #include <sys/dmu.h>
 #include <sys/txg.h>
@@ -59,6 +57,7 @@ struct dmu_tx {
 	txg_handle_t tx_txgh;
 	void *tx_tempreserve_cookie;
 	struct dmu_tx_hold *tx_needassign_txh;
+	list_t tx_callbacks; /* list of dmu_tx_callback_t on this dmu_tx */
 	uint8_t tx_anyobj;
 	int tx_err;
 #ifdef ZFS_DEBUG
@@ -98,6 +97,11 @@ typedef struct dmu_tx_hold {
 #endif
 } dmu_tx_hold_t;
 
+typedef struct dmu_tx_callback {
+	list_node_t		dcb_node;    /* linked to tx_callbacks list */
+	dmu_tx_callback_func_t	*dcb_func;   /* caller function pointer */
+	void			*dcb_data;   /* caller private data */
+} dmu_tx_callback_t;
 
 /*
  * These routines are defined in dmu.h, and are called by the user.
@@ -108,6 +112,10 @@ void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_abort(dmu_tx_t *tx);
 uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
 void dmu_tx_wait(dmu_tx_t *tx);
+
+void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
+    void *dcb_data);
+void dmu_tx_callback(list_t *cb_list, int error);
 
 /*
  * These routines are defined in dmu_spa.h, and are called by the SPA.

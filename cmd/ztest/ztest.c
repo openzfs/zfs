@@ -164,6 +164,7 @@ typedef void ztest_func_t(ztest_args_t *);
 ztest_func_t ztest_dmu_read_write;
 ztest_func_t ztest_dmu_write_parallel;
 ztest_func_t ztest_dmu_object_alloc_free;
+ztest_func_t ztest_dmu_commit_callbacks;
 ztest_func_t ztest_zap;
 ztest_func_t ztest_zap_parallel;
 ztest_func_t ztest_traverse;
@@ -198,6 +199,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_dmu_read_write,			1,	&zopt_always	},
 	{ ztest_dmu_write_parallel,		30,	&zopt_always	},
 	{ ztest_dmu_object_alloc_free,		1,	&zopt_always	},
+	{ ztest_dmu_commit_callbacks,		10,	&zopt_always	},
 	{ ztest_zap,				30,	&zopt_always	},
 	{ ztest_zap_parallel,			100,	&zopt_always	},
 	{ ztest_dsl_prop_get_set,		1,	&zopt_sometimes	},
@@ -218,6 +220,16 @@ ztest_info_t ztest_info[] = {
 #define	ZTEST_SYNC_LOCKS	16
 
 /*
+ * The following struct is used to hold a list of uncalled commit callbacks.
+ *
+ * The callbacks are ordered by txg number.
+ */
+typedef struct ztest_cb_list {
+	mutex_t	zcl_callbacks_lock;
+	list_t	zcl_callbacks;
+} ztest_cb_list_t;
+
+/*
  * Stuff we need to share writably between parent and child.
  */
 typedef struct ztest_shared {
@@ -233,6 +245,7 @@ typedef struct ztest_shared {
 	ztest_info_t	zs_info[ZTEST_FUNCS];
 	mutex_t		zs_sync_lock[ZTEST_SYNC_LOCKS];
 	uint64_t	zs_seq[ZTEST_SYNC_LOCKS];
+	ztest_cb_list_t	zs_cb_list;
 } ztest_shared_t;
 
 static char ztest_dev_template[] = "%s/%s.%llua";
@@ -2433,6 +2446,205 @@ ztest_zap_parallel(ztest_args_t *za)
 		dmu_tx_commit(tx);
 }
 
+/*
+ * Commit callback data.
+ */
+typedef struct ztest_cb_data {
+	list_node_t		zcd_node;
+	ztest_cb_list_t		*zcd_zcl;
+	uint64_t		zcd_txg;
+	int			zcd_expected_err;
+	boolean_t		zcd_added;
+	boolean_t		zcd_called;
+	spa_t			*zcd_spa;
+} ztest_cb_data_t;
+
+static void
+ztest_commit_callback(void *arg, int error)
+{
+	ztest_cb_data_t *data = arg;
+	ztest_cb_list_t *zcl;
+	uint64_t synced_txg;
+
+	VERIFY(data != NULL);
+	VERIFY3S(data->zcd_expected_err, ==, error);
+	VERIFY(!data->zcd_called);
+
+	synced_txg = spa_last_synced_txg(data->zcd_spa);
+	if (data->zcd_txg > synced_txg)
+		fatal(0, "commit callback of txg %llu prematurely called, last"
+		    " synced txg = %llu\n", data->zcd_txg, synced_txg);
+
+	zcl = data->zcd_zcl;
+	data->zcd_called = B_TRUE;
+
+	if (error == ECANCELED) {
+		ASSERT3U(data->zcd_txg, ==, 0);
+		ASSERT(!data->zcd_added);
+
+		/*
+		 * The private callback data should be destroyed here, but
+		 * since we are going to check the zcd_called field after
+		 * dmu_tx_abort(), we will destroy it there.
+		 */
+		return;
+	}
+
+	if (!data->zcd_added)
+		goto out;
+
+	ASSERT3U(data->zcd_txg, !=, 0);
+
+	/* Remove our callback from the list */
+	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+	list_remove(&zcl->zcl_callbacks, data);
+	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+
+out:
+	umem_free(data, sizeof (ztest_cb_data_t));
+}
+
+static ztest_cb_data_t *
+ztest_create_cb_data(objset_t *os, ztest_cb_list_t *zcl, uint64_t txg)
+{
+	ztest_cb_data_t *cb_data;
+
+	cb_data = umem_zalloc(sizeof (ztest_cb_data_t), UMEM_NOFAIL);
+
+	cb_data->zcd_zcl = zcl;
+	cb_data->zcd_txg = txg;
+	cb_data->zcd_spa = os->os->os_spa;
+
+	return (cb_data);
+}
+
+/*
+ * If a number of txgs equal to this threshold have been created after a commit
+ * callback has been registered but not called, then we assume there is an
+ * implementation bug.
+ */
+#define	ZTEST_COMMIT_CALLBACK_THRESH	3
+
+/*
+ * Commit callback test.
+ */
+void
+ztest_dmu_commit_callbacks(ztest_args_t *za)
+{
+	objset_t *os = za->za_os;
+	dmu_tx_t *tx;
+	ztest_cb_list_t *zcl = &ztest_shared->zs_cb_list;
+	ztest_cb_data_t *cb_data[3], *tmp_cb;
+	uint64_t old_txg, txg;
+	int i, error;
+
+	tx = dmu_tx_create(os);
+
+	cb_data[0] = ztest_create_cb_data(os, zcl, 0);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[0]);
+
+	dmu_tx_hold_write(tx, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t));
+
+	/* Every once in a while, abort the transaction on purpose */
+	if (ztest_random(100) == 0)
+		error = -1;
+
+	if (!error)
+		error = dmu_tx_assign(tx, TXG_NOWAIT);
+
+	txg = error ? 0 : dmu_tx_get_txg(tx);
+
+	cb_data[1] = ztest_create_cb_data(os, zcl, txg);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[1]);
+
+	if (error) {
+		/*
+		 * It's not a strict requirement to call the registered
+		 * callbacks from inside dmu_tx_abort(), but that's what
+		 * happens in the current implementation so we will check for
+		 * that.
+		 */
+		for (i = 0; i < 2; i++) {
+			cb_data[i]->zcd_expected_err = ECANCELED;
+			VERIFY(!cb_data[i]->zcd_called);
+		}
+
+		dmu_tx_abort(tx);
+
+		for (i = 0; i < 2; i++) {
+			VERIFY(cb_data[i]->zcd_called);
+			umem_free(cb_data[i], sizeof (ztest_cb_data_t));
+		}
+
+		return;
+	}
+
+	cb_data[0]->zcd_txg = txg;
+	cb_data[2] = ztest_create_cb_data(os, zcl, txg);
+	dmu_tx_callback_register(tx, ztest_commit_callback, cb_data[2]);
+
+	/*
+	 * Read existing data to make sure there isn't a future leak.
+	 */
+	VERIFY(0 == dmu_read(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t),
+	    &old_txg));
+
+	if (old_txg > txg)
+		fatal(0, "future leak: got %llx, open txg is %llx", old_txg,
+		    txg);
+
+	dmu_write(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t), &txg, tx);
+
+	(void) mutex_lock(&zcl->zcl_callbacks_lock);
+
+	/*
+	 * Since commit callbacks don't have any ordering requirement and since
+	 * it is theoretically possible for a commit callback to be called
+	 * after an arbitrary amount of time has elapsed since its txg has been
+	 * synced, it is difficult to reliably determine whether a commit
+	 * callback hasn't been called due to high load or due to a flawed
+	 * implementation.
+	 *
+	 * In practice, we will assume that if after a certain number of txgs a
+	 * commit callback hasn't been called, then most likely there's an
+	 * implementation bug..
+	 */
+	tmp_cb = list_head(&zcl->zcl_callbacks);
+	if (tmp_cb != NULL)
+		VERIFY3U(tmp_cb->zcd_txg, >,
+		    txg - ZTEST_COMMIT_CALLBACK_THRESH);
+
+	/*
+	 * Let's find the place to insert our callbacks.
+	 *
+	 * Even though the list is ordered by txg, it is possible for the
+	 * insertion point to not be the end because our txg may already be
+	 * quiescing at this point and other callbacks in the open txg may
+	 * have sneaked in.
+	 */
+	tmp_cb = list_tail(&zcl->zcl_callbacks);
+	while (tmp_cb != NULL && tmp_cb->zcd_txg > txg)
+		tmp_cb = list_prev(&zcl->zcl_callbacks, tmp_cb);
+
+	/* Add the 3 callbacks to the list */
+	for (i = 0; i < 3; i++) {
+		if (tmp_cb == NULL)
+			list_insert_head(&zcl->zcl_callbacks, cb_data[i]);
+		else
+			list_insert_after(&zcl->zcl_callbacks, tmp_cb,
+			    cb_data[i]);
+
+		cb_data[i]->zcd_added = B_TRUE;
+		VERIFY(!cb_data[i]->zcd_called);
+
+		tmp_cb = cb_data[i];
+	}
+
+	(void) mutex_unlock(&zcl->zcl_callbacks_lock);
+
+	dmu_tx_commit(tx);
+}
+
 void
 ztest_dsl_prop_get_set(ztest_args_t *za)
 {
@@ -3041,6 +3253,11 @@ ztest_run(char *pool)
 
 	(void) _mutex_init(&zs->zs_vdev_lock, USYNC_THREAD, NULL);
 	(void) rwlock_init(&zs->zs_name_lock, USYNC_THREAD, NULL);
+	(void) _mutex_init(&zs->zs_cb_list.zcl_callbacks_lock, USYNC_THREAD,
+	    NULL);
+
+	list_create(&zs->zs_cb_list.zcl_callbacks, sizeof (ztest_cb_data_t),
+	    offsetof(ztest_cb_data_t, zcd_node));
 
 	for (t = 0; t < ZTEST_SYNC_LOCKS; t++)
 		(void) _mutex_init(&zs->zs_sync_lock[t], USYNC_THREAD, NULL);
@@ -3240,6 +3457,12 @@ ztest_run(char *pool)
 	spa_close(spa, FTAG);
 
 	kernel_fini();
+
+	list_destroy(&zs->zs_cb_list.zcl_callbacks);
+
+	(void) _mutex_destroy(&zs->zs_cb_list.zcl_callbacks_lock);
+	(void) rwlock_destroy(&zs->zs_name_lock);
+	(void) _mutex_destroy(&zs->zs_vdev_lock);
 }
 
 void
