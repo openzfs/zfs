@@ -1,3 +1,59 @@
+2009-03-20 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.3
+
+	* configure.ac, *Makefile.am: Build system update.  This includes
+	resolving various build issues and adding support for the remaining
+	common build targets.  Available targets now include:
+
+	- make all        # Build everything
+	- make install    # Install everything
+	- make clean      # Clean up build products
+	- make distclean  # Clean up everything
+	- make dist       # Create package tarball
+	- make srpm       # Create package source RPM
+	- make rpm        # Create package binary RPMs
+	- make tags       # Create ctags and etags for everything
+
+	Extra care was taken to ensure that the source RPMs are fully
+	rebuildable against Fedora/RHEL/Chaos kernels.  To build binary
+	RPMs from the source RPM for your system simply run:
+
+	rpmbuild --rebuild spl-x.y.z-1.src.rpm
+
+	This will produce two binary RPMs with correct 'requires'
+	dependencies for your kernel.  One will contain all zpl modules
+	and support utilities, the other is a devel package for compiling
+	additional kernel modules which are dependent on the spl.
+
+	spl-x.y.z-1_<kernel version>.x86_64.rpm
+	spl-devel-x.y.2-1_<kernel version>.x86_64.rpm
+
+	* : FC10 (linux-2.6.27.19) and i686 compatibility update.  The
+	list of support platforms has been extended to include FC10
+	systems and x86 architectures.  It should be noted that kernels
+	older the 2.6.27.19 should work but have not have not been tested.
+
+	* configure.ac: Fix build issue preventing spl_config.h from being
+	cleanly included by dependent packages.
+
+	* module/spl/spl-taskq.c: Fix taskq_wait() not waiting bug.
+
+	* module/spl/spl-xdr.c: Add XDR implementation provided by Ricardo
+	Correia from Sun.
+
+	* module/spl/spl-kmem.c: Linux VM integration cleanup.
+
+	* module/spl/spl-kmem.c: Slab cache improvements and fixes.
+
+	* modules/splat/*: Include additional SPLAT regression tests.
+
+	* : Various bug fixes are more clearly detailed in the git
+	commit logs.  For a detailed summary of changes post version
+	0.4.2 check the git commit logs.
+
+	git log -35
+
 2009-02-05 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.2
@@ -46,7 +102,7 @@
 
 	* : Add autogen.sh products.
 
-	* configure.ac : Use AC_CONFIG_AUX_DIR to put autoconf products
+	* configure.ac : Use AC_CONFIG_AUX_DIR to put autograph products
 	in ./auotconf.
 
 	* autogen.sh : Use --copy to avoid symlinks, remove error
