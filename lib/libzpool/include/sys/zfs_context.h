@@ -50,8 +50,7 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 #include <strings.h>
-#include <synch.h>
-#include <thread.h>
+#include <pthread.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
@@ -110,6 +109,7 @@ extern void vpanic(const char *, __va_list);
 #define	fm_panic	panic
 
 /* This definition is copied from assert.h. */
+#ifndef verify
 #if defined(__STDC__)
 #if __STDC_VERSION__ - 0 >= 199901L
 #define	verify(EX) (void)((EX) || \
@@ -120,7 +120,10 @@ extern void vpanic(const char *, __va_list);
 #else
 #define	verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
 #endif	/* __STDC__ */
+#endif
 
+#undef VERIFY
+#undef ASSERT
 
 #define	VERIFY	verify
 #define	ASSERT	assert
@@ -193,15 +196,18 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-#define	curthread	((void *)(uintptr_t)thr_self())
+#define	curthread		((void *)(uintptr_t)pthread_self())
+#define	tsd_get(key)		pthread_getspecific(key)
+#define	tsd_set(key, val)	pthread_setspecific(key, val)
 
 typedef struct kthread kthread_t;
+typedef void (*thread_func_t)(void *);
 
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(func, arg)
-#define	thread_exit() thr_exit(NULL)
+	zk_thread_create((thread_func_t)func, arg)
+#define	thread_exit() pthread_exit(NULL)
 
-extern kthread_t *zk_thread_create(void (*func)(), void *arg);
+extern kthread_t *zk_thread_create(thread_func_t func, void *arg);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
@@ -209,28 +215,18 @@ extern kthread_t *zk_thread_create(void (*func)(), void *arg);
 /*
  * Mutexes
  */
+#define MTX_MAGIC 0x9522f51362a6e326ull
 typedef struct kmutex {
 	void		*m_owner;
-	boolean_t	initialized;
-	mutex_t		m_lock;
+	uint64_t	m_magic;
+	pthread_mutex_t	m_lock;
 } kmutex_t;
 
-#define	MUTEX_DEFAULT	USYNC_THREAD
-#undef MUTEX_HELD
-#define	MUTEX_HELD(m) _mutex_held(&(m)->m_lock)
+#define	MUTEX_DEFAULT	0
+#define	MUTEX_HELD(m)	((m)->m_owner == curthread)
 
-/*
- * Argh -- we have to get cheesy here because the kernel and userland
- * have different signatures for the same routine.
- */
-extern int _mutex_init(mutex_t *mp, int type, void *arg);
-extern int _mutex_destroy(mutex_t *mp);
-
-#define	mutex_init(mp, b, c, d)		zmutex_init((kmutex_t *)(mp))
-#define	mutex_destroy(mp)		zmutex_destroy((kmutex_t *)(mp))
-
-extern void zmutex_init(kmutex_t *mp);
-extern void zmutex_destroy(kmutex_t *mp);
+extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
+extern void mutex_destroy(kmutex_t *mp);
 extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
@@ -239,23 +235,24 @@ extern void *mutex_owner(kmutex_t *mp);
 /*
  * RW locks
  */
+#define RW_MAGIC 0x4d31fb123648e78aull
 typedef struct krwlock {
-	void		*rw_owner;
-	boolean_t	initialized;
-	rwlock_t	rw_lock;
+	void			*rw_owner;
+	void			*rw_wr_owner;
+	uint64_t		rw_magic;
+	pthread_rwlock_t	rw_lock;
+	uint_t			rw_readers;
 } krwlock_t;
 
 typedef int krw_t;
 
 #define	RW_READER	0
 #define	RW_WRITER	1
-#define	RW_DEFAULT	USYNC_THREAD
+#define	RW_DEFAULT	0
 
-#undef RW_READ_HELD
-#define	RW_READ_HELD(x)		_rw_read_held(&(x)->rw_lock)
-
-#undef RW_WRITE_HELD
-#define	RW_WRITE_HELD(x)	_rw_write_held(&(x)->rw_lock)
+#define	RW_READ_HELD(x)		((x)->rw_readers > 0)
+#define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
+#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);
 extern void rw_destroy(krwlock_t *rwlp);
@@ -273,9 +270,13 @@ extern gid_t *crgetgroups(cred_t *cr);
 /*
  * Condition variables
  */
-typedef cond_t kcondvar_t;
+#define CV_MAGIC 0xd31ea9a83b1b30c4ull
+typedef struct kcondvar {
+	uint64_t cv_magic;
+	pthread_cond_t cv;
+} kcondvar_t;
 
-#define	CV_DEFAULT	USYNC_THREAD
+#define	CV_DEFAULT	0
 
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
 extern void cv_destroy(kcondvar_t *cv);
@@ -452,7 +453,8 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(thr_self() & (max_ncpus - 1))
+/* XXX: not portable */
+#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
