@@ -35,6 +35,7 @@
 #include <sys/processor.h>
 #include <sys/zfs_context.h>
 #include <sys/utsname.h>
+#include <sys/time.h>
 #include <sys/systeminfo.h>
 
 /*
@@ -56,13 +57,17 @@ struct utsname utsname = {
  */
 /*ARGSUSED*/
 kthread_t *
-zk_thread_create(void (*func)(), void *arg)
+zk_thread_create(thread_func_t func, void *arg)
 {
-	thread_t tid;
+	pthread_t tid;
 
-	VERIFY(thr_create(0, 0, (void *(*)(void *))func, arg, THR_DETACHED,
-	    &tid) == 0);
+	pthread_attr_t attr;
+	VERIFY(pthread_attr_init(&attr) == 0);
+	VERIFY(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0);
 
+	VERIFY(pthread_create(&tid, &attr, (void *(*)(void *))func, arg) == 0);
+
+	/* XXX: not portable */
 	return ((void *)(uintptr_t)tid);
 }
 
@@ -95,30 +100,37 @@ kstat_delete(kstat_t *ksp)
  * =========================================================================
  */
 void
-zmutex_init(kmutex_t *mp)
+mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 {
+	ASSERT(type == MUTEX_DEFAULT);
+	ASSERT(cookie == NULL);
+
+#ifdef IM_FEELING_LUCKY
+	ASSERT(mp->m_magic != MTX_MAGIC);
+#endif
+
 	mp->m_owner = NULL;
-	mp->initialized = B_TRUE;
-	(void) _mutex_init(&mp->m_lock, USYNC_THREAD, NULL);
+	mp->m_magic = MTX_MAGIC;
+	VERIFY3S(pthread_mutex_init(&mp->m_lock, NULL), ==, 0);
 }
 
 void
-zmutex_destroy(kmutex_t *mp)
+mutex_destroy(kmutex_t *mp)
 {
-	ASSERT(mp->initialized == B_TRUE);
+	ASSERT(mp->m_magic == MTX_MAGIC);
 	ASSERT(mp->m_owner == NULL);
-	(void) _mutex_destroy(&(mp)->m_lock);
+	VERIFY3S(pthread_mutex_destroy(&(mp)->m_lock), ==, 0);
 	mp->m_owner = (void *)-1UL;
-	mp->initialized = B_FALSE;
+	mp->m_magic = 0;
 }
 
 void
 mutex_enter(kmutex_t *mp)
 {
-	ASSERT(mp->initialized == B_TRUE);
+	ASSERT(mp->m_magic == MTX_MAGIC);
 	ASSERT(mp->m_owner != (void *)-1UL);
 	ASSERT(mp->m_owner != curthread);
-	VERIFY(mutex_lock(&mp->m_lock) == 0);
+	VERIFY3S(pthread_mutex_lock(&mp->m_lock), ==, 0);
 	ASSERT(mp->m_owner == NULL);
 	mp->m_owner = curthread;
 }
@@ -126,9 +138,9 @@ mutex_enter(kmutex_t *mp)
 int
 mutex_tryenter(kmutex_t *mp)
 {
-	ASSERT(mp->initialized == B_TRUE);
+	ASSERT(mp->m_magic == MTX_MAGIC);
 	ASSERT(mp->m_owner != (void *)-1UL);
-	if (0 == mutex_trylock(&mp->m_lock)) {
+	if (0 == pthread_mutex_trylock(&mp->m_lock)) {
 		ASSERT(mp->m_owner == NULL);
 		mp->m_owner = curthread;
 		return (1);
@@ -140,16 +152,16 @@ mutex_tryenter(kmutex_t *mp)
 void
 mutex_exit(kmutex_t *mp)
 {
-	ASSERT(mp->initialized == B_TRUE);
+	ASSERT(mp->m_magic == MTX_MAGIC);
 	ASSERT(mutex_owner(mp) == curthread);
 	mp->m_owner = NULL;
-	VERIFY(mutex_unlock(&mp->m_lock) == 0);
+	VERIFY3S(pthread_mutex_unlock(&mp->m_lock), ==, 0);
 }
 
 void *
 mutex_owner(kmutex_t *mp)
 {
-	ASSERT(mp->initialized == B_TRUE);
+	ASSERT(mp->m_magic == MTX_MAGIC);
 	return (mp->m_owner);
 }
 
@@ -162,31 +174,48 @@ mutex_owner(kmutex_t *mp)
 void
 rw_init(krwlock_t *rwlp, char *name, int type, void *arg)
 {
-	rwlock_init(&rwlp->rw_lock, USYNC_THREAD, NULL);
+	ASSERT(type == RW_DEFAULT);
+	ASSERT(arg == NULL);
+
+#ifdef IM_FEELING_LUCKY
+	ASSERT(rwlp->rw_magic != RW_MAGIC);
+#endif
+
+	VERIFY3S(pthread_rwlock_init(&rwlp->rw_lock, NULL), ==, 0);
 	rwlp->rw_owner = NULL;
-	rwlp->initialized = B_TRUE;
+	rwlp->rw_wr_owner = NULL;
+	rwlp->rw_readers = 0;
+	rwlp->rw_magic = RW_MAGIC;
 }
 
 void
 rw_destroy(krwlock_t *rwlp)
 {
-	rwlock_destroy(&rwlp->rw_lock);
-	rwlp->rw_owner = (void *)-1UL;
-	rwlp->initialized = B_FALSE;
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+
+	VERIFY3S(pthread_rwlock_destroy(&rwlp->rw_lock), ==, 0);
+	rwlp->rw_magic = 0;
 }
 
 void
 rw_enter(krwlock_t *rwlp, krw_t rw)
 {
-	ASSERT(!RW_LOCK_HELD(rwlp));
-	ASSERT(rwlp->initialized == B_TRUE);
-	ASSERT(rwlp->rw_owner != (void *)-1UL);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
 	ASSERT(rwlp->rw_owner != curthread);
+	ASSERT(rwlp->rw_wr_owner != curthread);
 
-	if (rw == RW_READER)
-		VERIFY(rw_rdlock(&rwlp->rw_lock) == 0);
-	else
-		VERIFY(rw_wrlock(&rwlp->rw_lock) == 0);
+	if (rw == RW_READER) {
+		VERIFY3S(pthread_rwlock_rdlock(&rwlp->rw_lock), ==, 0);
+		ASSERT(rwlp->rw_wr_owner == NULL);
+
+		atomic_inc_uint(&rwlp->rw_readers);
+	} else {
+		VERIFY3S(pthread_rwlock_wrlock(&rwlp->rw_lock), ==, 0);
+		ASSERT(rwlp->rw_wr_owner == NULL);
+		ASSERT3U(rwlp->rw_readers, ==, 0);
+
+		rwlp->rw_wr_owner = curthread;
+	}
 
 	rwlp->rw_owner = curthread;
 }
@@ -194,11 +223,16 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 void
 rw_exit(krwlock_t *rwlp)
 {
-	ASSERT(rwlp->initialized == B_TRUE);
-	ASSERT(rwlp->rw_owner != (void *)-1UL);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT(RW_LOCK_HELD(rwlp));
+
+	if (RW_READ_HELD(rwlp))
+		atomic_dec_uint(&rwlp->rw_readers);
+	else
+		rwlp->rw_wr_owner = NULL;
 
 	rwlp->rw_owner = NULL;
-	VERIFY(rw_unlock(&rwlp->rw_lock) == 0);
+	VERIFY3S(pthread_rwlock_unlock(&rwlp->rw_lock), ==, 0);
 }
 
 int
@@ -206,18 +240,28 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 {
 	int rv;
 
-	ASSERT(rwlp->initialized == B_TRUE);
-	ASSERT(rwlp->rw_owner != (void *)-1UL);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
 
 	if (rw == RW_READER)
-		rv = rw_tryrdlock(&rwlp->rw_lock);
+		rv = pthread_rwlock_tryrdlock(&rwlp->rw_lock);
 	else
-		rv = rw_trywrlock(&rwlp->rw_lock);
+		rv = pthread_rwlock_trywrlock(&rwlp->rw_lock);
 
 	if (rv == 0) {
+		ASSERT(rwlp->rw_wr_owner == NULL);
+
+		if (rw == RW_READER)
+			atomic_inc_uint(&rwlp->rw_readers);
+		else {
+			ASSERT3U(rwlp->rw_readers, ==, 0);
+			rwlp->rw_wr_owner = curthread;
+		}
+
 		rwlp->rw_owner = curthread;
 		return (1);
 	}
+
+	VERIFY3S(rv, ==, EBUSY);
 
 	return (0);
 }
@@ -226,8 +270,7 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {
-	ASSERT(rwlp->initialized == B_TRUE);
-	ASSERT(rwlp->rw_owner != (void *)-1UL);
+	ASSERT(rwlp->rw_magic == RW_MAGIC);
 
 	return (0);
 }
@@ -241,22 +284,34 @@ rw_tryupgrade(krwlock_t *rwlp)
 void
 cv_init(kcondvar_t *cv, char *name, int type, void *arg)
 {
-	VERIFY(cond_init(cv, type, NULL) == 0);
+	ASSERT(type == CV_DEFAULT);
+
+#ifdef IM_FEELING_LUCKY
+	ASSERT(cv->cv_magic != CV_MAGIC);
+#endif
+
+	cv->cv_magic = CV_MAGIC;
+
+	VERIFY3S(pthread_cond_init(&cv->cv, NULL), ==, 0);
 }
 
 void
 cv_destroy(kcondvar_t *cv)
 {
-	VERIFY(cond_destroy(cv) == 0);
+	ASSERT(cv->cv_magic == CV_MAGIC);
+	VERIFY3S(pthread_cond_destroy(&cv->cv), ==, 0);
+	cv->cv_magic = 0;
 }
 
 void
 cv_wait(kcondvar_t *cv, kmutex_t *mp)
 {
+	ASSERT(cv->cv_magic == CV_MAGIC);
 	ASSERT(mutex_owner(mp) == curthread);
 	mp->m_owner = NULL;
-	int ret = cond_wait(cv, &mp->m_lock);
-	VERIFY(ret == 0 || ret == EINTR);
+	int ret = pthread_cond_wait(&cv->cv, &mp->m_lock);
+	if (ret != 0)
+		VERIFY3S(ret, ==, EINTR);
 	mp->m_owner = curthread;
 }
 
@@ -264,29 +319,38 @@ clock_t
 cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 {
 	int error;
+	struct timeval tv;
 	timestruc_t ts;
 	clock_t delta;
+
+	ASSERT(cv->cv_magic == CV_MAGIC);
 
 top:
 	delta = abstime - lbolt;
 	if (delta <= 0)
 		return (-1);
 
-	ts.tv_sec = delta / hz;
-	ts.tv_nsec = (delta % hz) * (NANOSEC / hz);
+	VERIFY(gettimeofday(&tv, NULL) == 0);
+
+	ts.tv_sec = tv.tv_sec + delta / hz;
+	ts.tv_nsec = tv.tv_usec * 1000 + (delta % hz) * (NANOSEC / hz);
+	if (ts.tv_nsec >= NANOSEC) {
+		ts.tv_sec++;
+		ts.tv_nsec -= NANOSEC;
+	}
 
 	ASSERT(mutex_owner(mp) == curthread);
 	mp->m_owner = NULL;
-	error = cond_reltimedwait(cv, &mp->m_lock, &ts);
+	error = pthread_cond_timedwait(&cv->cv, &mp->m_lock, &ts);
 	mp->m_owner = curthread;
 
-	if (error == ETIME)
+	if (error == ETIMEDOUT)
 		return (-1);
 
 	if (error == EINTR)
 		goto top;
 
-	ASSERT(error == 0);
+	VERIFY3S(error, ==, 0);
 
 	return (1);
 }
@@ -294,13 +358,15 @@ top:
 void
 cv_signal(kcondvar_t *cv)
 {
-	VERIFY(cond_signal(cv) == 0);
+	ASSERT(cv->cv_magic == CV_MAGIC);
+	VERIFY3S(pthread_cond_signal(&cv->cv), ==, 0);
 }
 
 void
 cv_broadcast(kcondvar_t *cv)
 {
-	VERIFY(cond_broadcast(cv) == 0);
+	ASSERT(cv->cv_magic == CV_MAGIC);
+	VERIFY3S(pthread_cond_broadcast(&cv->cv), ==, 0);
 }
 
 /*
@@ -554,7 +620,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		if (dprintf_find_string("pid"))
 			(void) printf("%d ", getpid());
 		if (dprintf_find_string("tid"))
-			(void) printf("%u ", thr_self());
+			(void) printf("%u ", (uint_t) pthread_self());
 		if (dprintf_find_string("cpu"))
 			(void) printf("%u ", getcpuid());
 		if (dprintf_find_string("time"))
