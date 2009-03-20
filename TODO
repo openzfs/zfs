@@ -5,7 +5,7 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.3 (Development Release)
 
 - Implement something similar to the Solaris devid support to ensure
   ZFS properly locates your disks even when moved.  The current port
-  is dependant on using something like udev to ensure this can never
+  is dependent on using something like udev to ensure this can never
   happen but this is not a viable long term solution.
 
 - Implement something like Solaris's sysevent support to detect when
@@ -33,7 +33,7 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.3 (Development Release)
   lt-ztest: ../../lib/libzpool/taskq.c:199: Assertion
   `pthread_create(&tq->tq_threadlist[t], NULL, taskq_thread, tq) == 0' failed.
 
-2) Reproducable on my RHEL5-x86_64 box after perhaps an hour:
+2) Reproducible on my RHEL5-x86_64 box after perhaps an hour:
 
   ztest -V -T 18000
   5 vdevs, 7 datasets, 23 threads, 18000 seconds...
@@ -44,7 +44,7 @@ SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.3 (Development Release)
   dsl_dataset_hold_obj(dp, dsobj, ((char *)__func__), &ds) (0x0 == 0x2)' failed.
   child died with signal 6
 
-3) Reproducable on my RHEL5-x86_64 box after perhaps an hour:
+3) Reproducible on my RHEL5-x86_64 box after perhaps an hour:
 
   ztest -V -T 18000
   5 vdevs, 7 datasets, 23 threads, 18000 seconds...
