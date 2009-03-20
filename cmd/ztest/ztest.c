@@ -2536,7 +2536,7 @@ ztest_dmu_commit_callbacks(ztest_args_t *za)
 	ztest_cb_list_t *zcl = &ztest_shared->zs_cb_list;
 	ztest_cb_data_t *cb_data[3], *tmp_cb;
 	uint64_t old_txg, txg;
-	int i, error;
+	int i, error = 0;
 
 	tx = dmu_tx_create(os);
 
