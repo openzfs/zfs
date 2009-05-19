@@ -11,12 +11,12 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
-		kernelbuild=
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
+                            2>/dev/null | grep -v obj | tail -1`
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=${kernelsrc}
+			kernelbuild=
 		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
@@ -31,6 +31,11 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
+	if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
+		kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+	else
+		kernelbuild=${kernelsrc}
+	fi
 	AC_MSG_RESULT([$kernelbuild])
 
 	AC_MSG_CHECKING([kernel source version])
@@ -232,7 +237,7 @@ AC_DEFUN([SPL_LINUX_COMPILE_IFELSE], [
 	rm -Rf build && mkdir -p build
 	echo "obj-m := conftest.o" >build/Makefile
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
 	        [$4],
 	        [_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
