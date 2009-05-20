@@ -121,15 +121,13 @@ typedef void (*get_zone_counts_t)(unsigned long *, unsigned long *,
 				  unsigned long *);
 extern get_zone_counts_t get_zone_counts_fn;
 # define get_zone_counts(a,i,f)	get_zone_counts_fn(a,i,f)
+# endif /* HAVE_GET_ZONE_COUNTS */
 
 extern unsigned long spl_global_page_state(int);
 /* Defines designed to simulate enum but large enough to ensure no overlap */
 # define NR_FREE_PAGES		0x8001
 # define NR_INACTIVE		0x8002
 # define NR_ACTIVE		0x8003
-# else
-# error "HAVE_ZONE_STAT_ITEM_FIA and HAVE_GET_ZONE_COUNTS unavailable"
-# endif /* HAVE_GET_ZONE_COUNTS */
 #else
 #define spl_global_page_state(item)	global_page_state(item)
 #endif /* HAVE_ZONE_STAT_ITEM_FIA */

@@ -706,22 +706,29 @@ AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
 ])
 
 dnl #
-dnl # 2.6.14 API change,
-dnl # check whether 'div64_64()' is available
-dnl #
+dnl # 2.6.22 API change,
+dnl # First introduced 'div64_64()' in lib/div64.c
+dnl 
 AC_DEFUN([SPL_AC_DIV64_64], [
-	AC_MSG_CHECKING([whether div64_64() is available])
-	SPL_LINUX_TRY_COMPILE([
-		#include <asm/div64.h>
-		#include <linux/types.h>
-	],[
-		uint64_t i = div64_64(1ULL, 1ULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DIV64_64, 1, [div64_64() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
+	SPL_CHECK_SYMBOL_EXPORT(
+		[div64_64],
+		[],
+		[AC_DEFINE(HAVE_DIV64_64, 1,
+		[div64_64() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.26 API change,
+dnl # Renamed 'div64_64()' to 'div64_u64' in lib/div64.c
+dnl #
+AC_DEFUN([SPL_AC_DIV64_U64], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[div64_u64],
+		[],
+		[AC_DEFINE(HAVE_DIV64_U64, 1,
+		[div64_u64() is available])],
+		[])
 ])
 
 dnl #
@@ -834,6 +841,26 @@ AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 		[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
 		[get_zone_counts() is available])],
 		[])
+])
+
+dnl #
+dnl # 2.6.18 API change,
+dnl # First introduced global_page_state() support as an inline.
+dnl #
+AC_DEFUN([SPL_AC_GLOBAL_PAGE_STATE], [
+	AC_MSG_CHECKING([whether global_page_state() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/vmstat.h>
+	],[
+		unsigned long state;
+		state = global_page_state(NR_FREE_PAGES);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GLOBAL_PAGE_STATE, 1,
+		          [global_page_state() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #

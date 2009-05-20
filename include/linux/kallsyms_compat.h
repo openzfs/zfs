@@ -1,6 +1,8 @@
 #ifndef _SPL_KALLSYMS_COMPAT_H
 #define _SPL_KALLSYMS_COMPAT_H
 
+#define SYMBOL_POISON ((void*)0xabcddcba)
+
 #ifdef HAVE_KALLSYMS_LOOKUP_NAME
 
 #include <linux/kallsyms.h>

@@ -20510,48 +20510,34 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking whether div64_64() is available" >&5
-echo $ECHO_N "checking whether div64_64() is available... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking whether symbol div64_64 is exported" >&5
+echo $ECHO_N "checking whether symbol div64_64 is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]div64_64[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(div64_64)" "$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
 
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
 
-cat >conftest.c <<_ACEOF
-/* confdefs.h.  */
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DIV64_64 1
 _ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
 
-
-		#include <asm/div64.h>
-		#include <linux/types.h>
-
-int
-main (void)
-{
-
-		uint64_t i = div64_64(1ULL, 1ULL);
-
-  ;
-  return 0;
-}
-
-_ACEOF
-
-
-	rm -Rf build && mkdir -p build
-	echo "obj-m := conftest.o" >build/Makefile
-	if { ac_try='cp conftest.c build && make modules LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-
+		fi
+	else
 		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
 
@@ -20559,20 +20545,46 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_DIV64_64 1
 _ACEOF
 
+	fi
 
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
 
-		echo "$as_me:$LINENO: result: no" >&5
+
+	echo "$as_me:$LINENO: checking whether symbol div64_u64 is exported" >&5
+echo $ECHO_N "checking whether symbol div64_u64 is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]div64_u64[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(div64_u64)" "$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
 
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DIV64_U64 1
+_ACEOF
 
-fi
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
 
-	rm -Rf build
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DIV64_U64 1
+_ACEOF
 
+	fi
 
 
 
@@ -20872,6 +20884,72 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether global_page_state() is available" >&5
+echo $ECHO_N "checking whether global_page_state() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/vmstat.h>
+
+int
+main (void)
+{
+
+		unsigned long state;
+		state = global_page_state(NR_FREE_PAGES);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GLOBAL_PAGE_STATE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
 
 
 

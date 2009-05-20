@@ -327,7 +327,7 @@ splat_list_test6(struct file *file, void *arg)
 
 	/* Remove all odd items from the queue */
 	splat_vprint(file, SPLAT_LIST_TEST6_NAME,
-		     "Removing %d odd items from the list\n", list_size / 2);
+		     "Removing %d odd items from the list\n", list_size >> 1);
 	for (li = list_head(&list); li != NULL; li = list_next(&list, li)) {
 		if (li->li_data % 2 == 1) {
 			li_prev = list_prev(&list, li);

@@ -55,7 +55,7 @@ int p0 = 0;
 EXPORT_SYMBOL(p0);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
-kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = NULL;
+kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = SYMBOL_POISON;
 #endif
 
 int
@@ -96,10 +96,12 @@ EXPORT_SYMBOL(highbit);
 #if BITS_PER_LONG == 32
 uint64_t __udivdi3(uint64_t dividend, uint64_t divisor)
 {
-#ifdef HAVE_DIV64_64
+#if defined(HAVE_DIV64_64) /* 2.6.22 - 2.6.25 API */
 	return div64_64(dividend, divisor);
+#elif defined(HAVE_DIV64_U64) /* 2.6.26 - 2.6.x API */
+	return div64_u64(dividend, divisor);
 #else
-	/* Taken from a 2.6.24 kernel. */
+	/* Implementation from 2.6.30 kernel */
 	uint32_t high, d;
 
 	high = divisor >> 32;
@@ -111,10 +113,8 @@ uint64_t __udivdi3(uint64_t dividend, uint64_t divisor)
 	} else
 		d = divisor;
 
-	do_div(dividend, d);
-
-	return dividend;
-#endif
+	return do_div64(dividend, d);
+#endif /* HAVE_DIV64_64, HAVE_DIV64_U64 */
 }
 EXPORT_SYMBOL(__udivdi3);
 
@@ -126,12 +126,12 @@ uint64_t __umoddi3(uint64_t dividend, uint64_t divisor)
 	return dividend - divisor * (dividend / divisor);
 }
 EXPORT_SYMBOL(__umoddi3);
-#endif
+#endif /* BITS_PER_LONG */
 
 /* NOTE: The strtoxx behavior is solely based on my reading of the Solaris
  * ddi_strtol(9F) man page.  I have not verified the behavior of these
  * functions against their Solaris counterparts.  It is possible that I
- * may have misinterpretted the man page or the man page is incorrect.
+ * may have misinterpreted the man page or the man page is incorrect.
  */
 int ddi_strtoul(const char *, char **, int, unsigned long *);
 int ddi_strtol(const char *, char **, int, long *);
@@ -248,14 +248,20 @@ set_hostid(void)
 	                 "TERM=linux",
 	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
 	                 NULL };
+	int rc;
 
 	/* Doing address resolution in the kernel is tricky and just
 	 * not a good idea in general.  So to set the proper 'hw_serial'
 	 * use the usermodehelper support to ask '/bin/sh' to run
 	 * '/usr/bin/hostid' and redirect the result to /proc/sys/spl/hostid
-	 * for us to use.  It's a horific solution but it will do for now.
+	 * for us to use.  It's a horrific solution but it will do for now.
 	 */
-	return call_usermodehelper(sh_path, argv, envp, 1);
+	rc = call_usermodehelper(sh_path, argv, envp, 1);
+	if (rc)
+		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
+		       argv[0], argv[1], argv[2], rc);
+
+	return rc;
 }
 
 uint32_t
@@ -273,9 +279,7 @@ zone_get_hostid(void *zone)
 }
 EXPORT_SYMBOL(zone_get_hostid);
 
-#ifdef HAVE_KALLSYMS_LOOKUP_NAME
-#define set_kallsyms_lookup_name()	(0)
-#else
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
 /*
  * Because kallsyms_lookup_name() is no longer exported in the
  * mainline kernel we are forced to resort to somewhat drastic
@@ -303,9 +307,10 @@ set_kallsyms_lookup_name(void)
 
 	rc = call_usermodehelper(sh_path, argv, envp, 1);
 	if (rc)
-		return rc;
+		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
+		       argv[0], argv[1], argv[2], rc);
 
-	return spl_kmem_init_kallsyms_lookup();
+	return rc;
 }
 #endif
 
@@ -337,8 +342,13 @@ static int __init spl_init(void)
 	if ((rc = set_hostid()))
 		GOTO(out7, rc = -EADDRNOTAVAIL);
 
+#ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
 		GOTO(out7, rc = -EADDRNOTAVAIL);
+#endif /* HAVE_KALLSYMS_LOOKUP_NAME */
+
+	if ((rc = spl_kmem_init_kallsyms_lookup()))
+		GOTO(out7, rc);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
 	RETURN(rc);

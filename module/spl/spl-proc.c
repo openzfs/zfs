@@ -503,7 +503,7 @@ proc_dokallsyms_lookup_name(struct ctl_table *table, int write,
 
         if (write) {
 		/* This may only be set once at module load time */
-		if (spl_kallsyms_lookup_name_fn)
+		if (spl_kallsyms_lookup_name_fn != SYMBOL_POISON)
 			RETURN(-EEXIST);
 
 		/* We can't use proc_doulongvec_minmax() in the write

@@ -39,6 +39,9 @@
 /* div64_64() is available */
 #undef HAVE_DIV64_64
 
+/* div64_u64() is available */
+#undef HAVE_DIV64_U64
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
@@ -59,6 +62,9 @@
 
 /* get_zone_counts() is available */
 #undef HAVE_GET_ZONE_COUNTS
+
+/* global_page_state() is available */
+#undef HAVE_GLOBAL_PAGE_STATE
 
 /* init_utsname() is available */
 #undef HAVE_INIT_UTSNAME

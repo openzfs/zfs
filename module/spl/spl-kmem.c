@@ -80,29 +80,30 @@ vmem_t *zio_arena = NULL;
 EXPORT_SYMBOL(zio_arena);
 
 #ifndef HAVE_GET_VMALLOC_INFO
-get_vmalloc_info_t get_vmalloc_info_fn = NULL;
+get_vmalloc_info_t get_vmalloc_info_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(get_vmalloc_info_fn);
 #endif /* HAVE_GET_VMALLOC_INFO */
 
 #ifndef HAVE_FIRST_ONLINE_PGDAT
-first_online_pgdat_t first_online_pgdat_fn = NULL;
+first_online_pgdat_t first_online_pgdat_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(first_online_pgdat_fn);
 #endif /* HAVE_FIRST_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ONLINE_PGDAT
-next_online_pgdat_t next_online_pgdat_fn = NULL;
+next_online_pgdat_t next_online_pgdat_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(next_online_pgdat_fn);
 #endif /* HAVE_NEXT_ONLINE_PGDAT */
 
 #ifndef HAVE_NEXT_ZONE
-next_zone_t next_zone_fn = NULL;
+next_zone_t next_zone_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(next_zone_fn);
 #endif /* HAVE_NEXT_ZONE */
 
 #ifndef HAVE_ZONE_STAT_ITEM_FIA
 # ifndef HAVE_GET_ZONE_COUNTS
-get_zone_counts_t get_zone_counts_fn = NULL;
+get_zone_counts_t get_zone_counts_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(get_zone_counts_fn);
+# endif /* HAVE_GET_ZONE_COUNTS */
 
 unsigned long
 spl_global_page_state(int item)
@@ -126,12 +127,13 @@ spl_global_page_state(int item)
 		return active;
 	}
 
+# ifdef HAVE_GLOBAL_PAGE_STATE
 	return global_page_state((enum zone_stat_item)item);
+# else
+	return 0; /* Unsupported */
+# endif /* HAVE_GLOBAL_PAGE_STATE */
 }
 EXPORT_SYMBOL(spl_global_page_state);
-# else
-# error "HAVE_ZONE_STAT_ITEM_FIA and HAVE_GET_ZONE_COUNTS unavailable"
-# endif /* HAVE_GET_ZONE_COUNTS */
 #endif  /* HAVE_ZONE_STAT_ITEM_FIA */
 
 pgcnt_t
@@ -1785,8 +1787,8 @@ spl_kmem_init_globals(void)
 	}
 
 	/* Solaris default values */
-	swapfs_minfree = MAX(2*1024*1024 / PAGE_SIZE, physmem / 8);
-	swapfs_reserve = MIN(4*1024*1024 / PAGE_SIZE, physmem / 16);
+	swapfs_minfree = MAX(2*1024*1024 >> PAGE_SHIFT, physmem >> 3);
+	swapfs_reserve = MIN(4*1024*1024 >> PAGE_SHIFT, physmem >> 4);
 }
 
 /*
@@ -1839,8 +1841,6 @@ spl_kmem_init_kallsyms_lookup(void)
 		printk(KERN_ERR "Error: Unknown symbol get_zone_counts\n");
 		return -EFAULT;
 	}
-# else
-# error "HAVE_ZONE_STAT_ITEM_FIA and HAVE_GET_ZONE_COUNTS unavailable"
 # endif /* HAVE_GET_ZONE_COUNTS */
 #endif  /* HAVE_ZONE_STAT_ITEM_FIA */
 

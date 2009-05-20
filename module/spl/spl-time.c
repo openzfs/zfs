@@ -60,9 +60,9 @@ __gethrtime(void) {
         /* Deal with signed/unsigned mismatch */
         return (hrtime_t)(res & ~(1ULL << 63));
 #else
-        int64_t j = get_jiffies_64();
+        uint64_t j = get_jiffies_64();
 
-        return j * NSEC_PER_SEC / HZ;
+        return (hrtime_t)(j * NSEC_PER_SEC / HZ);
 #endif
 }
 EXPORT_SYMBOL(__gethrtime);
