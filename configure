@@ -20798,6 +20798,24 @@ _ACEOF
 
 
 
+	echo "$as_me:$LINENO: checking whether symbol *_pgdat exist" >&5
+echo $ECHO_N "checking whether symbol *_pgdat exist... $ECHO_C" >&6
+	grep -q -E 'first_online_pgdat' $LINUX/include/linux/mmzone.h 2>/dev/null
+	rc=$?
+	if test $rc -eq 0; then
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PGDAT_HELPERS 1
+_ACEOF
+
+	else
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+	fi
+
+
 	echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
 echo $ECHO_N "checking whether symbol first_online_pgdat is exported... $ECHO_C" >&6
 	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
@@ -20909,6 +20927,45 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_NEXT_ZONE 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol pgdat_list is exported" >&5
+echo $ECHO_N "checking whether symbol pgdat_list is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]pgdat_list[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(pgdat_list)" "$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PGDAT_LIST 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PGDAT_LIST 1
 _ACEOF
 
 	fi

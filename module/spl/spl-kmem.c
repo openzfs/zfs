@@ -84,20 +84,30 @@ get_vmalloc_info_t get_vmalloc_info_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(get_vmalloc_info_fn);
 #endif /* HAVE_GET_VMALLOC_INFO */
 
-#ifndef HAVE_FIRST_ONLINE_PGDAT
+#ifdef HAVE_PGDAT_HELPERS
+# ifndef HAVE_FIRST_ONLINE_PGDAT
 first_online_pgdat_t first_online_pgdat_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(first_online_pgdat_fn);
-#endif /* HAVE_FIRST_ONLINE_PGDAT */
+# endif /* HAVE_FIRST_ONLINE_PGDAT */
 
-#ifndef HAVE_NEXT_ONLINE_PGDAT
+# ifndef HAVE_NEXT_ONLINE_PGDAT
 next_online_pgdat_t next_online_pgdat_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(next_online_pgdat_fn);
-#endif /* HAVE_NEXT_ONLINE_PGDAT */
+# endif /* HAVE_NEXT_ONLINE_PGDAT */
 
-#ifndef HAVE_NEXT_ZONE
+# ifndef HAVE_NEXT_ZONE
 next_zone_t next_zone_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(next_zone_fn);
-#endif /* HAVE_NEXT_ZONE */
+# endif /* HAVE_NEXT_ZONE */
+
+#else /* HAVE_PGDAT_HELPERS */
+
+# ifndef HAVE_PGDAT_LIST
+struct pglist_data *pgdat_list_addr = SYMBOL_POISON;
+EXPORT_SYMBOL(pgdat_list_addr);
+# endif /* HAVE_PGDAT_LIST */
+
+#endif /* HAVE_PGDAT_HELPERS */
 
 #ifndef HAVE_ZONE_STAT_ITEM_FIA
 # ifndef HAVE_GET_ZONE_COUNTS
@@ -1806,32 +1816,45 @@ spl_kmem_init_kallsyms_lookup(void)
 	}
 #endif /* HAVE_GET_VMALLOC_INFO */
 
-#ifndef HAVE_FIRST_ONLINE_PGDAT
+#ifdef HAVE_PGDAT_HELPERS
+# ifndef HAVE_FIRST_ONLINE_PGDAT
 	first_online_pgdat_fn = (first_online_pgdat_t)
 		spl_kallsyms_lookup_name("first_online_pgdat");
 	if (!first_online_pgdat_fn) {
 		printk(KERN_ERR "Error: Unknown symbol first_online_pgdat\n");
 		return -EFAULT;
 	}
-#endif /* HAVE_FIRST_ONLINE_PGDAT */
+# endif /* HAVE_FIRST_ONLINE_PGDAT */
 
-#ifndef HAVE_NEXT_ONLINE_PGDAT
+# ifndef HAVE_NEXT_ONLINE_PGDAT
 	next_online_pgdat_fn = (next_online_pgdat_t)
 		spl_kallsyms_lookup_name("next_online_pgdat");
 	if (!next_online_pgdat_fn) {
 		printk(KERN_ERR "Error: Unknown symbol next_online_pgdat\n");
 		return -EFAULT;
 	}
-#endif /* HAVE_NEXT_ONLINE_PGDAT */
+# endif /* HAVE_NEXT_ONLINE_PGDAT */
 
-#ifndef HAVE_NEXT_ZONE
+# ifndef HAVE_NEXT_ZONE
 	next_zone_fn = (next_zone_t)
 		spl_kallsyms_lookup_name("next_zone");
 	if (!next_zone_fn) {
 		printk(KERN_ERR "Error: Unknown symbol next_zone\n");
 		return -EFAULT;
 	}
-#endif /* HAVE_NEXT_ZONE */
+# endif /* HAVE_NEXT_ZONE */
+
+#else /* HAVE_PGDAT_HELPERS */
+
+# ifndef HAVE_PGDAT_LIST
+	pgdat_list_addr = (struct pglist_data *)
+		spl_kallsyms_lookup_name("pgdat_list");
+	if (!pgdat_list_addr) {
+		printk(KERN_ERR "Error: Unknown symbol pgdat_list\n");
+		return -EFAULT;
+	}
+# endif /* HAVE_PGDAT_LIST */
+#endif /* HAVE_PGDAT_HELPERS */
 
 #ifndef HAVE_ZONE_STAT_ITEM_FIA
 # ifndef HAVE_GET_ZONE_COUNTS

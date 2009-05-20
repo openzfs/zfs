@@ -803,6 +803,31 @@ AC_DEFUN([SPL_AC_GET_VMALLOC_INFO], [
 ])
 
 dnl #
+dnl # 2.6.17 API change
+dnl # The helper functions first_online_pgdat(), next_online_pgdat(), and
+dnl # next_zone() are introduced to simplify for_each_zone().  These symbols
+dnl # were exported in 2.6.17 for use by modules which was consistent with
+dnl # the previous implementation of for_each_zone().  From 2.6.18 - 2.6.19
+dnl # the symbols were exported as 'unused', and by 2.6.20 they exports
+dnl # were dropped entirely leaving modules no way to directly iterate over
+dnl # the zone list.  Because we need access to the zone helpers we check
+dnl # if the kernel contains the old or new implementation.  Then we check
+dnl # to see if the symbols we need for each version are available.  If they
+dnl # are not, dynamically aquire the addresses with kallsyms_lookup_name().
+dnl #
+AC_DEFUN([SPL_AC_PGDAT_HELPERS], [
+	AC_MSG_CHECKING([whether symbol *_pgdat exist])
+	grep -q -E 'first_online_pgdat' $LINUX/include/linux/mmzone.h 2>/dev/null
+	rc=$?
+	if test $rc -eq 0; then
+		AC_MSG_RESULT([yes])
+                AC_DEFINE(HAVE_PGDAT_HELPERS, 1, [pgdat helpers are available])
+	else
+		AC_MSG_RESULT([no])
+	fi
+])
+
+dnl #
 dnl # Proposed API change,
 dnl # This symbol is not available in stock kernels.  You may build a
 dnl # custom kernel with the *-spl-export-symbols.patch which will export
@@ -847,6 +872,19 @@ AC_DEFUN([SPL_AC_NEXT_ZONE], [
 		[],
 		[AC_DEFINE(HAVE_NEXT_ZONE, 1,
 		[next_zone() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.17 API change,
+dnl # See SPL_AC_PGDAT_HELPERS for details.
+dnl #
+AC_DEFUN([SPL_AC_PGDAT_LIST], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[pgdat_list],
+		[],
+		[AC_DEFINE(HAVE_PGDAT_LIST, 1,
+		[pgdat_list is available])],
 		[])
 ])
 

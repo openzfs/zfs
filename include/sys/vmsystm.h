@@ -93,26 +93,34 @@ extern get_vmalloc_info_t get_vmalloc_info_fn;
 #endif /* CONFIG_MMU */
 #endif /* HAVE_GET_VMALLOC_INFO */
 
+#ifdef HAVE_PGDAT_HELPERS
 /* Source linux/mm/mmzone.c */
-#ifndef HAVE_FIRST_ONLINE_PGDAT
+# ifndef HAVE_FIRST_ONLINE_PGDAT
 typedef struct pglist_data *(*first_online_pgdat_t)(void);
 extern first_online_pgdat_t first_online_pgdat_fn;
-#define first_online_pgdat()	first_online_pgdat_fn()
-#endif /* HAVE_FIRST_ONLINE_PGDAT */
+# define first_online_pgdat()	first_online_pgdat_fn()
+# endif /* HAVE_FIRST_ONLINE_PGDAT */
 
-/* Source linux/mm/mmzone.c */
-#ifndef HAVE_NEXT_ONLINE_PGDAT
+# ifndef HAVE_NEXT_ONLINE_PGDAT
 typedef struct pglist_data *(*next_online_pgdat_t)(struct pglist_data *);
 extern next_online_pgdat_t next_online_pgdat_fn;
-#define next_online_pgdat(pgd)	next_online_pgdat_fn(pgd)
-#endif /* HAVE_NEXT_ONLINE_PGDAT */
+# define next_online_pgdat(pgd)	next_online_pgdat_fn(pgd)
+# endif /* HAVE_NEXT_ONLINE_PGDAT */
 
-/* Source linux/mm/mmzone.c */
-#ifndef HAVE_NEXT_ZONE
+# ifndef HAVE_NEXT_ZONE
 typedef struct zone *(*next_zone_t)(struct zone *);
 extern next_zone_t next_zone_fn;
-#define next_zone(zone)		next_zone_fn(zone)
-#endif /* HAVE_NEXT_ZONE */
+# define next_zone(zone)	next_zone_fn(zone)
+# endif /* HAVE_NEXT_ZONE */
+
+#else /* HAVE_PGDAT_HELPERS */
+
+# ifndef HAVE_PGDAT_LIST
+extern struct pglist_data *pgdat_list_addr;
+# define pgdat_list		pgdat_list_addr
+# endif /* HAVE_PGDAT_LIST */
+
+#endif /* HAVE_PGDAT_HELPERS */
 
 /* Source linux/mm/vmstat.c */
 #ifndef HAVE_ZONE_STAT_ITEM_FIA

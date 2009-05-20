@@ -105,6 +105,12 @@
 /* struct path used in struct nameidata */
 #undef HAVE_PATH_IN_NAMEIDATA
 
+/* pgdat helpers are available */
+#undef HAVE_PGDAT_HELPERS
+
+/* pgdat_list is available */
+#undef HAVE_PGDAT_LIST
+
 /* set_normalized_timespec() is available as export */
 #undef HAVE_SET_NORMALIZED_TIMESPEC_EXPORT
 
