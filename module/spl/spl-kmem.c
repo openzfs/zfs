@@ -1847,7 +1847,7 @@ spl_kmem_init_kallsyms_lookup(void)
 #else /* HAVE_PGDAT_HELPERS */
 
 # ifndef HAVE_PGDAT_LIST
-	pgdat_list_addr = (struct pglist_data *)
+	pgdat_list_addr = *(struct pglist_data **)
 		spl_kallsyms_lookup_name("pgdat_list");
 	if (!pgdat_list_addr) {
 		printk(KERN_ERR "Error: Unknown symbol pgdat_list\n");

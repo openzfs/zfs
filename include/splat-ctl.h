@@ -31,7 +31,7 @@
  * and kernelspace portions of splat must agree on.
  */
 
-#define SPLAT_MAJOR			229 /* XXX - Arbitrary */
+#define SPLAT_MAJOR			225 /* XXX - Arbitrary */
 #define SPLAT_MINORS                    1
 #define SPLAT_NAME			"splatctl"
 #define SPLAT_DEV			"/dev/splatctl"

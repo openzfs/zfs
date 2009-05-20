@@ -1261,7 +1261,7 @@ trace_fini(void)
                 }
         }
 
-        for (i = 0; trace_data[i] != NULL; i++) {
+        for (i = 0; i < TCD_TYPE_MAX && trace_data[i] != NULL; i++) {
                 kfree(trace_data[i]);
                 trace_data[i] = NULL;
         }
