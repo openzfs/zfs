@@ -460,6 +460,15 @@ splat_ioctl(struct inode *inode, struct file *file,
 	return rc;
 }
 
+#ifdef CONFIG_COMPAT
+/* Compatibility handler for ioctls from 32-bit ELF binaries */
+static long
+splat_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return splat_ioctl(NULL, file, cmd, arg);
+}
+#endif /* CONFIG_COMPAT */
+
 /* I'm not sure why you would want to write in to this buffer from
  * user space since its principle use is to pass test status info
  * back to the user space, but I don't see any reason to prevent it.
@@ -573,13 +582,16 @@ static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 }
 
 static struct file_operations splat_fops = {
-	.owner   = THIS_MODULE,
-	.open    = splat_open,
-	.release = splat_release,
-	.ioctl   = splat_ioctl,
-	.read    = splat_read,
-	.write   = splat_write,
-	.llseek  = splat_seek,
+	.owner		= THIS_MODULE,
+	.open		= splat_open,
+	.release	= splat_release,
+	.ioctl		= splat_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= splat_compat_ioctl,
+#endif
+	.read		= splat_read,
+	.write		= splat_write,
+	.llseek		= splat_seek,
 };
 
 static struct cdev splat_cdev = {
