@@ -706,6 +706,29 @@ AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
 ])
 
 dnl #
+dnl # 2.6.18 API change,
+dnl # First introduced 'mutex_lock_nested()' in include/linux/mutex.h,
+dnl # as part of the mutex validator.  Fallback to using 'mutex_lock()' 
+dnl # if the mutex validator is disabled or otherwise unavailable.
+dnl #
+AC_DEFUN([SPL_AC_MUTEX_LOCK_NESTED], [
+	AC_MSG_CHECKING([whether mutex_lock_nested() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mutex.h>
+	],[
+		struct mutex mutex;
+		mutex_init(&mutex);
+		mutex_lock_nested(&mutex, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_MUTEX_LOCK_NESTED, 1,
+		[mutex_lock_nested() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 2.6.22 API change,
 dnl # First introduced 'div64_64()' in lib/div64.c
 dnl 

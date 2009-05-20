@@ -87,6 +87,9 @@
 /* monotonic_clock() is available */
 #undef HAVE_MONOTONIC_CLOCK
 
+/* mutex_lock_nested() is available */
+#undef HAVE_MUTEX_LOCK_NESTED
+
 /* next_online_pgdat() is available */
 #undef HAVE_NEXT_ONLINE_PGDAT
 

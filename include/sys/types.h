@@ -17,6 +17,7 @@ extern "C" {
 #include <linux/smp_compat.h>
 #include <linux/workqueue_compat.h>
 #include <linux/kallsyms_compat.h>
+#include <linux/mutex_compat.h>
 
 #ifndef HAVE_UINTPTR_T
 typedef unsigned long			uintptr_t;
