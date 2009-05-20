@@ -39,7 +39,7 @@ typedef struct class_device		spl_device;
 #define spl_class_create(mod, name)	class_create(mod, name)
 #define spl_class_destroy(cls)		class_destroy(cls)
 #define spl_device_create(cls, parent, devt, device, fmt, args...)            \
-	class_device_create(cls, devt, device, fmt, ## args)
+	class_device_create(cls, parent, devt, device, fmt, ## args)
 #define spl_device_destroy(cls, cls_dev, devt)                                \
 	class_device_unregister(cls_dev)
 
@@ -60,7 +60,7 @@ typedef struct class_device		spl_class_device;
 #define spl_device_destroy(cls, cls_dev, devt)                                \
 	class_simple_device_remove(devt)
 
-#endif
-#endif
+#endif /* HAVE_CLASS_DEVICE_CREATE */
+#endif /* HAVE_DEVICE_CREATE */
 
 #endif /* _SPL_DEVICE_H */
