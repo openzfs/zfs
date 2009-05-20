@@ -85,7 +85,8 @@ splat_kobj_test2(struct file *file, void *arg)
 	if (!buf) {
 		rc = -ENOMEM;
 		splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Failed to alloc "
-			     "%lld bytes for tmp buffer (%d)\n", size, rc);
+			     "%lld bytes for tmp buffer (%d)\n",
+			     (long long)size, rc);
 		goto out;
 	}
 
@@ -104,7 +105,8 @@ splat_kobj_test2(struct file *file, void *arg)
 		rc = -EFBIG;
 		splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Stat'ed size "
 			     "(%lld) does not match number of bytes read "
-			     "(%lld)\n", size, (uint64_t)strlen(buf));
+			     "(%lld)\n", (long long)size,
+			     (long long)strlen(buf));
 		goto out2;
 	}
 
@@ -112,7 +114,7 @@ splat_kobj_test2(struct file *file, void *arg)
 	splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "\n%s\n", buf);
 	splat_vprint(file, SPLAT_KOBJ_TEST2_NAME, "Successfully stat'ed "
 		     "and read expected number of bytes (%lld) from test "
-		     "file: %s\n", size, SPLAT_KOBJ_TEST_FILE);
+		     "file: %s\n", (long long)size, SPLAT_KOBJ_TEST_FILE);
 out2:
 	kfree(buf);
 out:

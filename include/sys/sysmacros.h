@@ -149,13 +149,19 @@ extern uint32_t zone_get_hostid(void *zone);
 
 /* common macros */
 #ifndef MIN
-#define MIN(a, b)       ((a) < (b) ? (a) : (b))
+#define MIN(a, b)		((a) < (b) ? (a) : (b))
 #endif
 #ifndef MAX
-#define MAX(a, b)       ((a) < (b) ? (b) : (a))
+#define MAX(a, b)		((a) < (b) ? (b) : (a))
 #endif
 #ifndef ABS
-#define ABS(a)          ((a) < 0 ? -(a) : (a))
+#define ABS(a)			((a) < 0 ? -(a) : (a))
+#endif
+#ifndef DIV_ROUND_UP
+#define DIV_ROUND_UP(n,d)	(((n) + (d) - 1) / (d))
+#endif
+#ifndef roundup
+#define roundup(x, y)		((((x) + ((y) - 1)) / (y)) * (y))
 #endif
 
 /*

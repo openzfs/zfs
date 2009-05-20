@@ -39,7 +39,22 @@ extern "C" {
 #define _ILP32
 #endif
 
-#else /* Currently only x86_64 and i386 arches supported */
+/* powerpc (ppc64) arch specific defines */
+#elif defined(__powerpc) || defined(__powerpc__)
+
+#if !defined(__powerpc)
+#define __powerpc
+#endif
+
+#if !defined(__powerpc__)
+#define __powerpc__
+#endif
+
+#if !defined(_LP64)
+#define _LP64
+#endif
+
+#else /* Currently only x86_64, i386, and powerpc arches supported */
 #error "Unsupported ISA type"
 #endif
 
