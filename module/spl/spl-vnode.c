@@ -290,7 +290,7 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         mutex_lock_nested(&nd.nd_dentry->d_inode->i_mutex, I_MUTEX_PARENT);
 #else
         down(&nd.nd_dentry->d_inode->i_sem);
-#endif
+#endif /* HAVE_INODE_I_MUTEX */
         dentry = vn_lookup_hash(&nd);
         rc = PTR_ERR(dentry);
         if (!IS_ERR(dentry)) {
@@ -301,7 +301,11 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
                 inode = dentry->d_inode;
                 if (inode)
                         atomic_inc(&inode->i_count);
+#ifdef HAVE_2ARGS_VFS_UNLINK
                 rc = vfs_unlink(nd.nd_dentry->d_inode, dentry);
+#else
+                rc = vfs_unlink(nd.nd_dentry->d_inode, dentry, nd.mnt);
+#endif /* HAVE_2ARGS_VFS_UNLINK */
 exit2:
                 dput(dentry);
         }
@@ -309,7 +313,7 @@ exit2:
         mutex_unlock(&nd.nd_dentry->d_inode->i_mutex);
 #else
         up(&nd.nd_dentry->d_inode->i_sem);
-#endif
+#endif /* HAVE_INODE_I_MUTEX */
         if (inode)
                 iput(inode);    /* truncate the inode here */
 exit1:
@@ -328,9 +332,9 @@ EXPORT_SYMBOL(vn_remove);
 int
 vn_rename(const char *oldname, const char *newname, int x1)
 {
-        struct dentry * old_dir, * new_dir;
-        struct dentry * old_dentry, *new_dentry;
-        struct dentry * trap;
+        struct dentry *old_dir, *new_dir;
+        struct dentry *old_dentry, *new_dentry;
+        struct dentry *trap;
         struct nameidata oldnd, newnd;
         int rc = 0;
 	ENTRY;
@@ -393,8 +397,13 @@ vn_rename(const char *oldname, const char *newname, int x1)
         if (new_dentry == trap)
                 GOTO(exit5, rc);
 
+#ifdef HAVE_4ARGS_VFS_RENAME
         rc = vfs_rename(old_dir->d_inode, old_dentry,
                         new_dir->d_inode, new_dentry);
+#else
+        rc = vfs_rename(old_dir->d_inode, old_dentry, oldnd.mnt,
+                        new_dir->d_inode, new_dentry, newnd.mnt);
+#endif /* HAVE_4ARGS_VFS_RENAME */
 exit5:
         dput(new_dentry);
 exit4:

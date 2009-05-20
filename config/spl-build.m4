@@ -908,3 +908,41 @@ AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_FIA], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # SLES API change, never adopted in mainline,
+dnl # Third 'struct vfsmount *' argument removed.
+dnl #
+AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
+	[AC_MSG_CHECKING([whether vfs_unlink() wants 2 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		vfs_unlink(NULL, NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_2ARGS_VFS_UNLINK, 1,
+		          [vfs_unlink() wants 2 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # SLES API change, never adopted in mainline,
+dnl # Third and sixth 'struct vfsmount *' argument removed.
+dnl #
+AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
+	[AC_MSG_CHECKING([whether vfs_rename() wants 4 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		vfs_rename(NULL, NULL, NULL, NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_4ARGS_VFS_RENAME, 1,
+		          [vfs_rename() wants 4 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
