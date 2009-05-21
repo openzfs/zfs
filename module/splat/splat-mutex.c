@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_MUTEX		0x0400
 #define SPLAT_MUTEX_NAME		"mutex"
 #define SPLAT_MUTEX_DESC		"Kernel Mutex Tests"
 

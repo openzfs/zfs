@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_KRNG		0x0300
 #define SPLAT_KRNG_NAME			"krng"
 #define SPLAT_KRNG_DESC			"Kernel Random Number Generator Tests"
 

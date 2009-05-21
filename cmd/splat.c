@@ -131,8 +131,8 @@ static int subsystem_setup(void)
 
 	rc = ioctl(splatctl_fd, SPLAT_CFG, cfg);
 	if (rc) {
-		fprintf(stderr, "Ioctl() error %lu / %d: %d\n",
-		        (unsigned long) SPLAT_CFG, cfg->cfg_cmd, errno);
+		fprintf(stderr, "Ioctl() error 0x%lx / %d: %d\n",
+		        (unsigned long)SPLAT_CFG, cfg->cfg_cmd, errno);
 		free(cfg);
 		return rc;
 	}
@@ -140,7 +140,7 @@ static int subsystem_setup(void)
 	size = cfg->cfg_rc1;
 	free(cfg);
 
-	/* Based on the newly aquired number of subsystems allocate enough
+	/* Based on the newly acquired number of subsystems allocate
 	 * memory to get the descriptive information for them all. */
 	cfg_size = sizeof(*cfg) + size * sizeof(splat_user_t);
 	cfg = (splat_cfg_t *)malloc(cfg_size);
@@ -179,23 +179,6 @@ static int subsystem_setup(void)
 	free(cfg);
 	return 0;
 }
-
-/* XXX - Commented out until we sort the lists */
-#if 0
-static int subsystem_compare(const void *l_arg, const void *r_arg, void *private)
-{
-	const subsystem_t *l = l_arg;
-	const subsystem_t *r = r_arg;
-
-	if (l->sub_desc.id > r->sub_desc.id)
-		return 1;
-
-	if (l->sub_desc.id < r->sub_desc.id)
-		return -1;
-
-	return 0;
-}
-#endif
 
 static void subsystem_list(List l, int indent)
 {
@@ -271,7 +254,7 @@ static int test_setup(subsystem_t *sub)
 
 	/* Based on the newly aquired number of tests allocate enough
 	 * memory to get the descriptive information for them all. */
-	cfg = (splat_cfg_t *)malloc(sizeof(*cfg) + size * sizeof(splat_user_t));
+	cfg = (splat_cfg_t *)malloc(sizeof(*cfg) + size*sizeof(splat_user_t));
 	if (cfg == NULL)
 		return -ENOMEM;
 
@@ -308,23 +291,6 @@ static int test_setup(subsystem_t *sub)
 	free(cfg);
 	return 0;
 }
-
-/* XXX - Commented out until we sort the lists */
-#if 0
-static int test_compare(const void *l_arg, const void *r_arg, void *private)
-{
-	const test_t *l = l_arg;
-	const test_t *r = r_arg;
-
-	if (l->test_desc.id > r->test_desc.id)
-		return 1;
-
-	if (l->test_desc.id < r->test_desc.id)
-		return -1;
-
-	return 0;
-}
-#endif
 
 static test_t *test_copy(test_t *test)
 {
@@ -374,7 +340,7 @@ static test_t *test_find(char *sub_str, char *test_str)
 		while ((test = list_next(ti))) {
 
 			if (!strncmp(test->test_desc.name, test_str,
-		            SPLAT_NAME_SIZE) || test->test_desc.id == test_num) {
+		            SPLAT_NAME_SIZE) || test->test_desc.id==test_num) {
 				list_iterator_destroy(ti);
 			        list_iterator_destroy(si);
 				return test;
@@ -467,7 +433,8 @@ static int test_run(cmd_args_t *args, test_t *test)
 	free(cmd);
 
 	if (args->args_verbose) {
-		if ((rc = read(splatctl_fd, splat_buffer, splat_buffer_size - 1)) < 0) {
+		if ((rc = read(splatctl_fd, splat_buffer,
+			       splat_buffer_size - 1)) < 0) {
 			fprintf(stdout, "Error reading results: %d\n", rc);
 		} else {
 			fprintf(stdout, "\n%s\n", splat_buffer);
@@ -530,7 +497,7 @@ static int args_parse_test(cmd_args_t *args, char *str)
 	if (!strncasecmp(sub_str, "all", strlen(sub_str)) || (sub_num == -1))
 		sub_all = 1;
 
-	if (!strncasecmp(test_str, "all", strlen(test_str)) || (test_num == -1))
+	if (!strncasecmp(test_str,"all",strlen(test_str)) || (test_num == -1))
 		test_all = 1;
 
 	si = list_iterator_create(subsystems);
@@ -551,7 +518,7 @@ static int args_parse_test(cmd_args_t *args, char *str)
 		} else {
 			/* Add a specific test from all subsystems */
 			while ((s = list_next(si))) {
-				if ((t = test_find(s->sub_desc.name,test_str))) {
+				if ((t=test_find(s->sub_desc.name,test_str))) {
 					if ((rc = test_add(args, t)))
 						goto error_run;
 

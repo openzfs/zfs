@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_LIST		0x0c00
 #define SPLAT_LIST_NAME			"list"
 #define SPLAT_LIST_DESC			"Kernel List Tests"
 

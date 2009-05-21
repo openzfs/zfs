@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_TIME		0x0800
 #define SPLAT_TIME_NAME			"time"
 #define SPLAT_TIME_DESC			"Kernel Time Tests"
 

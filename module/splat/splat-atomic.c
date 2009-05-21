@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_ATOMIC		0x0b00
 #define SPLAT_ATOMIC_NAME		"atomic"
 #define SPLAT_ATOMIC_DESC		"Kernel Atomic Tests"
 

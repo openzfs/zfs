@@ -326,10 +326,14 @@ splat_validate(struct file *file, splat_subsystem_t *sub, int cmd, void *arg)
 }
 
 static int
-splat_ioctl_cfg(struct file *file, unsigned long arg)
+splat_ioctl_cfg(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	splat_cfg_t kcfg;
 	int rc = 0;
+
+	/* User and kernel space agree about arg size */
+	if (_IOC_SIZE(cmd) != sizeof(kcfg))
+		return -EBADMSG;
 
 	if (copy_from_user(&kcfg, (splat_cfg_t *)arg, sizeof(kcfg)))
 		return -EFAULT;
@@ -362,7 +366,7 @@ splat_ioctl_cfg(struct file *file, unsigned long arg)
 		case SPLAT_CFG_SUBSYSTEM_LIST:
 			/* cfg_arg1 - Unused
 			 * cfg_rc1  - Set to number of subsystems
-			 * cfg_data.splat_subsystems - Populated with subsystems
+			 * cfg_data.splat_subsystems - Set with subsystems
 			 */
 			rc = splat_subsystem_list(&kcfg, arg);
 			break;
@@ -380,7 +384,8 @@ splat_ioctl_cfg(struct file *file, unsigned long arg)
 			rc = splat_test_list(&kcfg, arg);
 			break;
 		default:
-			splat_print(file, "Bad config command %d\n", kcfg.cfg_cmd);
+			splat_print(file, "Bad config command %d\n",
+				    kcfg.cfg_cmd);
 			rc = -EINVAL;
 			break;
 	}
@@ -389,12 +394,16 @@ splat_ioctl_cfg(struct file *file, unsigned long arg)
 }
 
 static int
-splat_ioctl_cmd(struct file *file, unsigned long arg)
+splat_ioctl_cmd(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	splat_subsystem_t *sub;
 	splat_cmd_t kcmd;
 	int rc = -EINVAL;
 	void *data = NULL;
+
+	/* User and kernel space agree about arg size */
+	if (_IOC_SIZE(cmd) != sizeof(kcmd))
+		return -EBADMSG;
 
 	if (copy_from_user(&kcmd, (splat_cfg_t *)arg, sizeof(kcmd)))
 		return -EFAULT;
@@ -432,7 +441,7 @@ splat_ioctl_cmd(struct file *file, unsigned long arg)
 
 static int
 splat_ioctl(struct inode *inode, struct file *file,
-	  unsigned int cmd, unsigned long arg)
+	    unsigned int cmd, unsigned long arg)
 {
         unsigned int minor = iminor(file->f_dentry->d_inode);
 	int rc = 0;
@@ -446,10 +455,10 @@ splat_ioctl(struct inode *inode, struct file *file,
 
 	switch (cmd) {
 		case SPLAT_CFG:
-			rc = splat_ioctl_cfg(file, arg);
+			rc = splat_ioctl_cfg(file, cmd, arg);
 			break;
 		case SPLAT_CMD:
-			rc = splat_ioctl_cmd(file, arg);
+			rc = splat_ioctl_cmd(file, cmd, arg);
 			break;
 		default:
 			splat_print(file, "Bad ioctl command %d\n", cmd);

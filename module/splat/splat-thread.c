@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_THREAD		0x0600
 #define SPLAT_THREAD_NAME		"thread"
 #define SPLAT_THREAD_DESC		"Kernel Thread Tests"
 

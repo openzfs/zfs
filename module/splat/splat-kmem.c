@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_KMEM		0x0100
 #define SPLAT_KMEM_NAME			"kmem"
 #define SPLAT_KMEM_DESC			"Kernel Malloc/Slab Tests"
 

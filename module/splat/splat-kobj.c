@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_KOBJ		0x0a00
 #define SPLAT_KOBJ_NAME			"kobj"
 #define SPLAT_KOBJ_DESC			"Kernel Kobj Tests"
 

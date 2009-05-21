@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_GENERIC		0x0d00
 #define SPLAT_GENERIC_NAME		"generic"
 #define SPLAT_GENERIC_DESC		"Kernel Generic Tests"
 

@@ -27,7 +27,6 @@
 #include "splat-internal.h"
 #include <linux/rcupdate.h>
 
-#define SPLAT_SUBSYSTEM_VNODE		0x0900
 #define SPLAT_VNODE_NAME		"vnode"
 #define SPLAT_VNODE_DESC		"Kernel Vnode Tests"
 

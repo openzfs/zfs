@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_RWLOCK		0x0700
 #define SPLAT_RWLOCK_NAME		"rwlock"
 #define SPLAT_RWLOCK_DESC		"Kernel RW Lock Tests"
 

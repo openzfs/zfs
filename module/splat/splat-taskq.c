@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_TASKQ		0x0200
 #define SPLAT_TASKQ_NAME		"taskq"
 #define SPLAT_TASKQ_DESC		"Kernel Task Queue Tests"
 

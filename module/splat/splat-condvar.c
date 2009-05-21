@@ -26,7 +26,6 @@
 
 #include "splat-internal.h"
 
-#define SPLAT_SUBSYSTEM_CONDVAR		0x0500
 #define SPLAT_CONDVAR_NAME		"condvar"
 #define SPLAT_CONDVAR_DESC		"Kernel Condition Variable Tests"
 
