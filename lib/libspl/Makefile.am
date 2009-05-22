@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 target_arch = $(shell echo ${target_cpu} | sed -e s/i.86/i386/)
-SUBDIRS = asm-i386 asm-x86_64 include
+SUBDIRS = asm-i386 asm-x86_64 asm-powerpc64 include
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libspl/include
 
