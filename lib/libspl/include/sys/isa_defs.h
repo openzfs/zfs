@@ -69,7 +69,7 @@ extern "C" {
 
 #define        _SUNOS_VTOC_16
 
-/* powerpc (ppc64) arch specific defines */
+/* powerpc arch specific defines */
 #elif defined(__powerpc) || defined(__powerpc__)
 
 #if !defined(__powerpc)
@@ -81,7 +81,11 @@ extern "C" {
 #endif
 
 #if !defined(_LP64)
+#ifdef __powerpc64__
 #define _LP64
+#else
+#define _LP32
+#endif
 #endif
 
 #define        _SUNOS_VTOC_16
