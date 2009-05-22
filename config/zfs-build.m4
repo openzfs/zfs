@@ -1,6 +1,4 @@
 AC_DEFUN([ZFS_AC_KERNEL], [
-	ver=`uname -r`
-
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
 		[Path to kernel source]),
@@ -13,12 +11,12 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
-		kernelbuild=
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
+                            2>/dev/null | grep -v obj | tail -1`
 
 		if test -e $sourcelink; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=${kernelsrc}
+			kernelbuild=
 		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
@@ -33,6 +31,11 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
+        if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
+                kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+        else
+                kernelbuild=${kernelsrc}
+        fi
 	AC_MSG_RESULT([$kernelbuild])
 
 	AC_MSG_CHECKING([kernel source version])
@@ -72,7 +75,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 ])
 
 AC_DEFUN([ZFS_AC_SPL], [
-
 	AC_ARG_WITH([spl],
 		AS_HELP_STRING([--with-spl=PATH],
 		[Path to spl source]),
@@ -118,14 +120,18 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_CHECKING([spl Module.symvers])
 	if test -r $splbuild/module/Module.symvers; then
 		splsymvers=$splbuild/module/Module.symvers
+	elif test -r $splbuild/module/Modules.symvers; then
+		splsymvers=$splbuild/module/Modules.symvers
 	elif test -r $kernelbuild/include/spl/Module.symvers; then
 		splsymvers=$kernelbuild/include/spl/Module.symvers
+	elif test -r $kernelbuild/include/spl/Modules.symvers; then
+		splsymvers=$kernelbuild/include/spl/Modules.symvers
 	fi
 
 	if test -z "$splsymvers"; then
 	        AC_MSG_RESULT([Not found])
 	        AC_MSG_ERROR([
-                *** Cannot find extra Module.symvers in the spl source.
+                *** Cannot find extra Module{s}.symvers in the spl source.
                 *** Please prepare the spl source before running this script])
 	fi
 
@@ -330,7 +336,8 @@ dnl # check symbol exported or not
 dnl #
 AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
 	[AC_MSG_CHECKING([whether symbol $1 is exported])
-	grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX/Module.symvers 2>/dev/null
+	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
+		$LINUX/Module.symvers $splsymvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
