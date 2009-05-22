@@ -117,7 +117,7 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_CHECKING([spl build directory])
 	AC_MSG_RESULT([$splbuild])
 
-	AC_MSG_CHECKING([spl Module.symvers])
+	AC_MSG_CHECKING([spl Module{s}.symvers])
 	if test -r $splbuild/module/Module.symvers; then
 		splsymvers=$splbuild/module/Module.symvers
 	elif test -r $splbuild/module/Modules.symvers; then
@@ -139,10 +139,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_CHECKING([spl source version])
 	if test -r $splbuild/spl_config.h && 
-		fgrep -q VERSION $splbuild/spl_config.h; then
+		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>"; 
-		            echo "splsrcver=VERSION") | 
+		            echo "splsrcver=SPL_META_VERSION") | 
 		            cpp -I $splbuild |
 	        	    grep "^splsrcver=" | cut -d \" -f 2`
 	fi
@@ -290,7 +290,7 @@ AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	rm -Rf build && mkdir -p build
 	echo "obj-m := conftest.o" >build/Makefile
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
