@@ -1503,7 +1503,7 @@ zfs_do_upgrade(int argc, char **argv)
 	boolean_t showversions = B_FALSE;
 	int ret;
 	upgrade_cbdata_t cb = { 0 };
-	char c;
+	signed char c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
@@ -2259,7 +2259,7 @@ zfs_do_snapshot(int argc, char **argv)
 {
 	boolean_t recursive = B_FALSE;
 	int ret;
-	char c;
+	signed char c;
 	nvlist_t *props;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0) {
