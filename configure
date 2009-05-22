@@ -18944,8 +18944,6 @@ test "${CCASFLAGS+set}" = set || CCASFLAGS=$CFLAGS
 
 
 
-	ver=`uname -r`
-
 
 # Check whether --with-linux or --without-linux was given.
 if test "${with_linux+set}" = set; then
@@ -18963,12 +18961,12 @@ fi;
 	echo "$as_me:$LINENO: checking kernel source directory" >&5
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
-		kernelbuild=
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null | tail -1`
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
+                            2>/dev/null | grep -v obj | tail -1`
 
 		if test -e $sourcelink; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=${kernelsrc}
+			kernelbuild=
 		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
@@ -18990,6 +18988,11 @@ echo "$as_me: error:
 echo "${ECHO_T}$kernelsrc" >&6
 	echo "$as_me:$LINENO: checking kernel build directory" >&5
 echo $ECHO_N "checking kernel build directory... $ECHO_C" >&6
+        if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
+                kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+        else
+                kernelbuild=${kernelsrc}
+        fi
 	echo "$as_me:$LINENO: result: $kernelbuild" >&5
 echo "${ECHO_T}$kernelbuild" >&6
 
@@ -19030,7 +19033,6 @@ echo "${ECHO_T}$kernsrcver" >&6
 	LINUX=${kernelsrc}
 	LINUX_OBJ=${kernelbuild}
 	LINUX_VERSION=${kernsrcver}
-
 
 
 
@@ -19096,18 +19098,22 @@ echo "${ECHO_T}$splbuild" >&6
 echo $ECHO_N "checking spl Module.symvers... $ECHO_C" >&6
 	if test -r $splbuild/module/Module.symvers; then
 		splsymvers=$splbuild/module/Module.symvers
+	elif test -r $splbuild/module/Modules.symvers; then
+		splsymvers=$splbuild/module/Modules.symvers
 	elif test -r $kernelbuild/include/spl/Module.symvers; then
 		splsymvers=$kernelbuild/include/spl/Module.symvers
+	elif test -r $kernelbuild/include/spl/Modules.symvers; then
+		splsymvers=$kernelbuild/include/spl/Modules.symvers
 	fi
 
 	if test -z "$splsymvers"; then
 	        echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
 	        { { echo "$as_me:$LINENO: error:
-                *** Cannot find extra Module.symvers in the spl source.
+                *** Cannot find extra Module{s}.symvers in the spl source.
                 *** Please prepare the spl source before running this script" >&5
 echo "$as_me: error:
-                *** Cannot find extra Module.symvers in the spl source.
+                *** Cannot find extra Module{s}.symvers in the spl source.
                 *** Please prepare the spl source before running this script" >&2;}
    { (exit 1); exit 1; }; }
 	fi
