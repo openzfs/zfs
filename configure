@@ -19094,8 +19094,8 @@ echo $ECHO_N "checking spl build directory... $ECHO_C" >&6
 	echo "$as_me:$LINENO: result: $splbuild" >&5
 echo "${ECHO_T}$splbuild" >&6
 
-	echo "$as_me:$LINENO: checking spl Module.symvers" >&5
-echo $ECHO_N "checking spl Module.symvers... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking spl Module{s}.symvers" >&5
+echo $ECHO_N "checking spl Module{s}.symvers... $ECHO_C" >&6
 	if test -r $splbuild/module/Module.symvers; then
 		splsymvers=$splbuild/module/Module.symvers
 	elif test -r $splbuild/module/Modules.symvers; then
@@ -19124,10 +19124,10 @@ echo "${ECHO_T}$splsymvers" >&6
 	echo "$as_me:$LINENO: checking spl source version" >&5
 echo $ECHO_N "checking spl source version... $ECHO_C" >&6
 	if test -r $splbuild/spl_config.h &&
-		fgrep -q VERSION $splbuild/spl_config.h; then
+		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=VERSION") |
+		            echo "splsrcver=SPL_META_VERSION") |
 		            cpp -I $splbuild |
 	        	    grep "^splsrcver=" | cut -d \" -f 2`
 	fi
@@ -19248,7 +19248,7 @@ _ACEOF
 
 	rm -Rf build && mkdir -p build
 	echo "obj-m := conftest.o" >build/Makefile
-	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+	if { ac_try='cp conftest.c build && make modules LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -19650,7 +19650,7 @@ _ACEOF
 
 	rm -Rf build && mkdir -p build
 	echo "obj-m := conftest.o" >build/Makefile
-	if { ac_try='cp conftest.c build && make modules CC="$CC" LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+	if { ac_try='cp conftest.c build && make modules LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -20067,7 +20067,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                    ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
+                                                                                                                                                                                                                                                                                                                                                              ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/asm-powerpc64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -20640,6 +20640,7 @@ do
   "lib/libspl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/Makefile" ;;
   "lib/libspl/asm-i386/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-i386/Makefile" ;;
   "lib/libspl/asm-x86_64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-x86_64/Makefile" ;;
+  "lib/libspl/asm-powerpc64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-powerpc64/Makefile" ;;
   "lib/libspl/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/include/Makefile" ;;
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;

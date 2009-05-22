@@ -233,7 +233,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 target_arch = $(shell echo ${target_cpu} | sed -e s/i.86/i386/)
-SUBDIRS = asm-i386 asm-x86_64 include
+SUBDIRS = asm-i386 asm-x86_64 asm-powerpc64 include
 AM_CCASFLAGS = \
 	-I${top_srcdir}/lib/libspl/include
 
