@@ -51,6 +51,7 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
+	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libefi.m4 \
@@ -157,6 +158,8 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TARGET_ARCH = @TARGET_ARCH@
+TARGET_ARCH_DIR = @TARGET_ARCH_DIR@
 TOPDIR = @TOPDIR@
 UNAME = @UNAME@
 VERSION = @VERSION@

@@ -42,6 +42,7 @@ subdir = lib/libspl/asm-powerpc64
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
+	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libefi.m4 \
@@ -124,6 +125,8 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TARGET_ARCH = @TARGET_ARCH@
+TARGET_ARCH_DIR = @TARGET_ARCH_DIR@
 TOPDIR = @TOPDIR@
 UNAME = @UNAME@
 VERSION = @VERSION@
@@ -198,7 +201,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	  $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 
-atomic_SOURCES = atomic.c
+atomic_SOURCE = atomic.c
 atomic_ASM = atomic.S
 all: all-am
 
@@ -362,7 +365,7 @@ uninstall-am: uninstall-info-am
 
 # Generates assembly to simplify inclusion in ../Makefile.am
 all-am:
-	$(COMPILE) -c -S ${atomic_SOURCES} -o ${atomic_ASM}
+	$(COMPILE) -c -S ${atomic_SOURCE} -o ${atomic_ASM}
 
 clean-generic:
 	rm ${atomic_ASM}

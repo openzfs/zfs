@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ LINUX_VERSION splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ LINUX_VERSION splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ARCH TARGET_ARCH_DIR LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -19287,6 +19287,30 @@ fi
  ;;
 		user)
 
+	echo "$as_me:$LINENO: checking for target arch" >&5
+echo $ECHO_N "checking for target arch... $ECHO_C" >&6
+	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
+	TARGET_ARCH_DIR=asm-$TARGET_ARCH
+        echo "$as_me:$LINENO: result: $TARGET_ARCH" >&5
+echo "${ECHO_T}$TARGET_ARCH" >&6
+
+	case $TARGET_ARCH in
+	i386|x86_64|powerpc)
+
+
+		;;
+	*)
+                { { echo "$as_me:$LINENO: error:
+		*** Unsupported architecture $TARGET_ARCH
+		*** Available architectures: x86, x86_64, powerpc" >&5
+echo "$as_me: error:
+		*** Unsupported architecture $TARGET_ARCH
+		*** Available architectures: x86, x86_64, powerpc" >&2;}
+   { (exit 1); exit 1; }; }
+		;;
+	esac
+
+
 	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
 echo $ECHO_N "checking for efi_alloc_and_init in -lefi... $ECHO_C" >&6
 if test "${ac_cv_lib_efi_efi_alloc_and_init+set}" = set; then
@@ -19687,6 +19711,30 @@ fi
 	EXTRA_KCFLAGS="$tmp_flags"
 
 
+
+
+	echo "$as_me:$LINENO: checking for target arch" >&5
+echo $ECHO_N "checking for target arch... $ECHO_C" >&6
+	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
+	TARGET_ARCH_DIR=asm-$TARGET_ARCH
+        echo "$as_me:$LINENO: result: $TARGET_ARCH" >&5
+echo "${ECHO_T}$TARGET_ARCH" >&6
+
+	case $TARGET_ARCH in
+	i386|x86_64|powerpc)
+
+
+		;;
+	*)
+                { { echo "$as_me:$LINENO: error:
+		*** Unsupported architecture $TARGET_ARCH
+		*** Available architectures: x86, x86_64, powerpc" >&5
+echo "$as_me: error:
+		*** Unsupported architecture $TARGET_ARCH
+		*** Available architectures: x86, x86_64, powerpc" >&2;}
+   { (exit 1); exit 1; }; }
+		;;
+	esac
 
 
 	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
@@ -20854,6 +20902,8 @@ s,@MODDIR@,$MODDIR,;t t
 s,@ZFS_CONFIG@,$ZFS_CONFIG,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
+s,@TARGET_ARCH@,$TARGET_ARCH,;t t
+s,@TARGET_ARCH_DIR@,$TARGET_ARCH_DIR,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF

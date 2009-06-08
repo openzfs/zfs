@@ -43,6 +43,7 @@ subdir = lib/libspl
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
+	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libefi.m4 \
@@ -91,7 +92,6 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	uninstall-recursive
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = $(SUBDIRS)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMDEP_FALSE = @AMDEP_FALSE@
@@ -161,6 +161,8 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TARGET_ARCH = @TARGET_ARCH@
+TARGET_ARCH_DIR = @TARGET_ARCH_DIR@
 TOPDIR = @TOPDIR@
 UNAME = @UNAME@
 VERSION = @VERSION@
@@ -232,8 +234,8 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
-target_arch = $(shell echo ${target_cpu} | sed -e s/i.86/i386/)
-SUBDIRS = asm-i386 asm-x86_64 asm-powerpc64 include
+SUBDIRS = include $(TARGET_ARCH_DIR)
+DIST_SUBDIRS = include asm-i386 asm-x86_64 asm-powerpc64
 AM_CCASFLAGS = \
 	-I${top_srcdir}/lib/libspl/include
 
@@ -249,7 +251,7 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/strnlen.c \
 	${top_srcdir}/lib/libspl/zone.c \
 	${top_srcdir}/lib/libspl/xdr.c \
-	${top_srcdir}/lib/libspl/asm-${target_arch}/atomic.S \
+	${top_srcdir}/lib/libspl/${TARGET_ARCH_DIR}/atomic.S \
 	${top_srcdir}/lib/libspl/include/sys/list.h \
 	${top_srcdir}/lib/libspl/include/sys/list_impl.h
 
@@ -342,8 +344,8 @@ distclean-compile:
 .S.lo:
 	$(LTCCASCOMPILE) -c -o $@ $<
 
-atomic.lo: ${top_srcdir}/lib/libspl/asm-${target_arch}/atomic.S
-	$(LIBTOOL) --mode=compile $(CCAS) $(AM_CCASFLAGS) $(CCASFLAGS) -c -o atomic.lo `test -f '${top_srcdir}/lib/libspl/asm-${target_arch}/atomic.S' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/asm-${target_arch}/atomic.S
+atomic.lo: ${top_srcdir}/lib/libspl/${TARGET_ARCH_DIR}/atomic.S
+	$(LIBTOOL) --mode=compile $(CCAS) $(AM_CCASFLAGS) $(CCASFLAGS) -c -o atomic.lo `test -f '${top_srcdir}/lib/libspl/${TARGET_ARCH_DIR}/atomic.S' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/${TARGET_ARCH_DIR}/atomic.S
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
