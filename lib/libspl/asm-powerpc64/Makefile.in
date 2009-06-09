@@ -47,7 +47,8 @@ am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libefi.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
-	$(top_srcdir)/config/user.m4 $(top_srcdir)/config/zfs-build.m4 \
+	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
