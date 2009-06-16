@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS SPL_META_NAME SPL_META_VERSION SPL_META_RELEASE SPL_META_ALIAS SPL_META_DATA SPL_META_AUTHOR SPL_META_LT_CURRENT SPL_META_LT_REVISION SPL_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ LINUX_VERSION KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS SPL_META_NAME SPL_META_VERSION SPL_META_RELEASE SPL_META_ALIAS SPL_META_DATA SPL_META_AUTHOR SPL_META_LT_CURRENT SPL_META_LT_REVISION SPL_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LINUX LINUX_OBJ LINUX_VERSION KERNELMAKE_PARAMS KERNELCPPFLAGS KERNELCFLAGS LINUX_SYMBOLS LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -19039,9 +19039,21 @@ echo "${ECHO_T}$kernsrcver" >&6
 
 
 
-        echo "$as_me:$LINENO: checking license" >&5
+	echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
+echo $ECHO_N "checking kernel file name for module symbols... $ECHO_C" >&6
+	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
+		LINUX_SYMBOLS=Modules.symvers
+	else
+		LINUX_SYMBOLS=Module.symvers
+	fi
+	echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
+echo "${ECHO_T}$LINUX_SYMBOLS" >&6
+
+
+
+	echo "$as_me:$LINENO: checking license" >&5
 echo $ECHO_N "checking license... $ECHO_C" >&6
-        echo "$as_me:$LINENO: result: GPL" >&5
+	echo "$as_me:$LINENO: result: GPL" >&5
 echo "${ECHO_T}GPL" >&6
 	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
 
@@ -19588,12 +19600,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol task_curr is exported" >&5
 echo $ECHO_N "checking whether symbol task_curr is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]task_curr[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]task_curr[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in kernel/sched.c; do
-			grep -q -E "EXPORT_SYMBOL.*(task_curr)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(task_curr)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19757,12 +19771,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol device_create is exported" >&5
 echo $ECHO_N "checking whether symbol device_create is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]device_create[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]device_create[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in drivers/base/core.c; do
-			grep -q -E "EXPORT_SYMBOL.*(device_create)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(device_create)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19864,12 +19880,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol class_device_create is exported" >&5
 echo $ECHO_N "checking whether symbol class_device_create is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]class_device_create[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]class_device_create[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in drivers/base/class.c; do
-			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -19903,12 +19921,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol set_normalized_timespec is exported" >&5
 echo $ECHO_N "checking whether symbol set_normalized_timespec is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in kernel/time.c; do
-			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20409,12 +20429,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol monotonic_clock is exported" >&5
 echo $ECHO_N "checking whether symbol monotonic_clock is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20582,12 +20604,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol div64_64 is exported" >&5
 echo $ECHO_N "checking whether symbol div64_64 is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]div64_64[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]div64_64[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(div64_64)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(div64_64)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20621,12 +20645,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol div64_u64 is exported" >&5
 echo $ECHO_N "checking whether symbol div64_u64 is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]div64_u64[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]div64_u64[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(div64_u64)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(div64_u64)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20725,12 +20751,14 @@ fi
 
 	echo "$as_me:$LINENO: checking whether symbol kallsyms_lookup_name is exported" >&5
 echo $ECHO_N "checking whether symbol kallsyms_lookup_name is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]kallsyms_lookup_name[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]kallsyms_lookup_name[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(kallsyms_lookup_name)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(kallsyms_lookup_name)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20764,12 +20792,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol get_vmalloc_info is exported" >&5
 echo $ECHO_N "checking whether symbol get_vmalloc_info is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]get_vmalloc_info[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]get_vmalloc_info[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(get_vmalloc_info)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(get_vmalloc_info)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20821,12 +20851,14 @@ echo "${ECHO_T}no" >&6
 
 	echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
 echo $ECHO_N "checking whether symbol first_online_pgdat is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20860,12 +20892,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol next_online_pgdat is exported" >&5
 echo $ECHO_N "checking whether symbol next_online_pgdat is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20899,12 +20933,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol next_zone is exported" >&5
 echo $ECHO_N "checking whether symbol next_zone is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]next_zone[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]next_zone[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(next_zone)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(next_zone)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20938,12 +20974,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol pgdat_list is exported" >&5
 echo $ECHO_N "checking whether symbol pgdat_list is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]pgdat_list[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]pgdat_list[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(pgdat_list)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(pgdat_list)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -20977,12 +21015,14 @@ _ACEOF
 
 	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
 echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1
@@ -22026,6 +22066,7 @@ s,@LINUX_VERSION@,$LINUX_VERSION,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
 s,@KERNELCFLAGS@,$KERNELCFLAGS,;t t
+s,@LINUX_SYMBOLS@,$LINUX_SYMBOLS,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF

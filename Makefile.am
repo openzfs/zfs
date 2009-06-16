@@ -12,12 +12,12 @@ distclean-local::
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
 		-o -name '.*.rej' -o -name 'aclocal.m4' -o -size 0 \
 		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
-		-o -name 'Makefile' -o -name 'Module.symvers' \) \
+		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \) \
 		-type f -print | xargs $(RM)
 
 install-data-local:
 	instdest=$(DESTDIR)/${prefix}/src/spl-$(SPL_META_VERSION); \
-	for instfile in $(noinst_HEADERS) module/Module.symvers; do \
+	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done
 	(cd $(DESTDIR)/${prefix}/src && ln -f -s spl-$(SPL_META_VERSION) spl)

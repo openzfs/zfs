@@ -92,9 +92,20 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_SUBST(KERNELCFLAGS)
 ])
 
+AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
+	AC_MSG_CHECKING([kernel file name for module symbols])
+	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
+		LINUX_SYMBOLS=Modules.symvers
+	else
+		LINUX_SYMBOLS=Module.symvers
+	fi
+	AC_MSG_RESULT($LINUX_SYMBOLS)
+	AC_SUBST(LINUX_SYMBOLS)
+])
+
 AC_DEFUN([SPL_AC_LICENSE], [
-        AC_MSG_CHECKING([license])
-        AC_MSG_RESULT([GPL])
+	AC_MSG_CHECKING([license])
+	AC_MSG_RESULT([GPL])
 	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
 ])
 
@@ -286,12 +297,14 @@ dnl # check symbol exported or not
 dnl #
 AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 	[AC_MSG_CHECKING([whether symbol $1 is exported])
-	grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX_OBJ/Module.symvers 2>/dev/null
+	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
 		for file in $2; do
-			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX_OBJ/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*($1)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
 		        if test $rc -eq 0; then
 		                export=1

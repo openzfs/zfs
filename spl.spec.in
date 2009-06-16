@@ -93,7 +93,7 @@ Requires:        %{kstr} = %{kver}
 BuildRequires:   %{buildrequires}
 
 %description devel
-The %{name}-devel package contains the header files and Module.symvers
+The %{name}-devel package contains the header files and Module{s}.symvers
 symbols needed for building additional modules which use %{name}.
 
 %prep
