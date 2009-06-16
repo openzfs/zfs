@@ -1,22 +1,52 @@
 # The following block is used to allow the source RPM to be rebuilt 
 # against arbitrary kernels.  It ensure the release name is correct
 # and the proper build/install requires are set.
+
+# When require_kdir is defined we do one of two things:
+#   require_kver: Ideally defined to match the kernel.
+#  !require_kver: A best guess is made.
+%if 0%{?require_kdir:1}
 %if 0%{?require_kver:1}
 %define kver %{require_kver}
+%define kdir %{require_kdir}
 %else
-%define _kdir %((echo X; ls -1d /usr/src/kernels/* /usr/src/linux-* 2>/dev/null)|sed -e 's/linux-//' | tail -1)
-%define kver %(basename %{_kdir})
+%{!?require_kobj: %define require_kobj %{require_kdir}}
+%define kdir %{require_kdir}
+%define kuts %{require_kobj}/include/linux/utsrelease.h \
+             %{require_kobj}/include/linux/version.h
+%define kver %((grep UTS_RELEASE %{kuts}) | cut -f2 -d'"' | tail -1)
+%endif
+
+# When require_kdir is not defined we do one of two things:
+#    require_kver: Locate the requested kernel in default dirs.
+#   !require_kver: Locate the newest kernel in default dirs.
+%else
+%if 0%{?require_kver:1}
+%define kver %{require_kver}
+%define kdef %{_prefix}/src/kernels/%{kver} %{_prefix}/src/linux-%{kver}
+%define kdir %((echo X; ls -1d %kdef 2>/dev/null)|sed -e 's/linux-//'|tail -1)
+%else
+%define kdef %{_prefix}/src/kernels/* %{_prefix}/src/linux-*
+%define kdir %((echo X; ls -1d %kdef 2>/dev/null)|sed -e 's/linux-//'|tail -1)
+%define kver %(basename %{kdir})
+%endif
+%endif
+
+# Kernel objects may not be located with the source.  Assume 
+# that they are but allow this to be overrided if required.
+%if 0%{?require_kobj:1}
+%define kobj %{require_kobj}
+%else
+%define kobj %{kdir}
 %endif
 
 # Each distro has its own kernel package naming convention.
 %if 0%{?ch4}
 %define kstr chaos-kernel
 %define kdev chaos-kernel-devel
-%define kdir /usr/src/kernels/%{kver}
 %else
 %define kstr kernel
 %define kdev kernel-devel
-%define kdir /usr/src/kernels/%{kver}
 %endif
 
 %define debug_package %{nil}
@@ -69,7 +99,7 @@ symbols needed for building additional modules which use %{name}.
 %prep
 %setup
 %build
-%configure --with-linux=%{kdir}
+%configure --with-linux=%{kdir} --with-linux-obj=%{kobj}
 make
 
 %install
@@ -87,7 +117,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files devel
 %defattr(-,root,root)
-%{kdir}/include/spl/*
+%{_prefix}/src/*
 
 %post
 if [ -f /boot/System.map-%{kver} ]; then

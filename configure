@@ -18930,7 +18930,7 @@ LIBTOOL='$(SHELL) $(top_builddir)/libtool'
 # Check whether --with-linux or --without-linux was given.
 if test "${with_linux+set}" = set; then
   withval="$with_linux"
-  kernelsrc="$withval"; kernelbuild="$withval"
+  kernelsrc="$withval"
 fi;
 
 
@@ -18948,7 +18948,6 @@ echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=
 		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
@@ -18970,10 +18969,14 @@ echo "$as_me: error:
 echo "${ECHO_T}$kernelsrc" >&6
 	echo "$as_me:$LINENO: checking kernel build directory" >&5
 echo $ECHO_N "checking kernel build directory... $ECHO_C" >&6
-	if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
-		kernelbuild=${kernelsrc}-obj/`arch`/`arch`
-	else
-		kernelbuild=${kernelsrc}
+	if test -z "$kernelbuild"; then
+		if test -d ${kernelsrc}-obj; then
+			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
+			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
+		else
+			kernelbuild=${kernelsrc}
+		fi
 	fi
 	echo "$as_me:$LINENO: result: $kernelbuild" >&5
 echo "${ECHO_T}$kernelbuild" >&6

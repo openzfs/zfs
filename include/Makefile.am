@@ -16,7 +16,7 @@ noinst_HEADERS += util/*.h
 noinst_HEADERS += vm/*.h
 
 install-data-local:
-	instdest=$(DESTDIR)/$(LINUX)/include/spl; \
+	instdest=$(DESTDIR)/${prefix}/src/spl-$(SPL_META_VERSION); \
 	instfiles=`find . -name '*.h'`; \
         for instfile in $$instfiles; do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \

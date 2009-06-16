@@ -9,8 +9,6 @@ modules clean:
 modules_install:
 	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` \
 		INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
-	$(INSTALL) -D Module.symvers \
-		$(DESTDIR)/@LINUX@/include/spl/Module.symvers
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \

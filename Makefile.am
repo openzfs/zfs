@@ -16,8 +16,11 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 install-data-local:
-	$(INSTALL) -D spl_config.h $(DESTDIR)/$(LINUX)/include/spl/spl_config.h
-	$(INSTALL) -D spl_unconfig.h $(DESTDIR)/$(LINUX)/include/spl/spl_unconfig.h
+	instdest=$(DESTDIR)/${prefix}/src/spl-$(SPL_META_VERSION); \
+	for instfile in $(noinst_HEADERS) module/Module.symvers; do \
+		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+	done
+	(cd $(DESTDIR)/${prefix}/src && ln -f -s spl-$(SPL_META_VERSION) spl)
 
 ctags:
 	$(RM) $(top_srcdir)/tags
@@ -50,6 +53,6 @@ srpm: dist
 rpm: srpm
 	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
 	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(SPL_META_RELEASE).src.rpm || exit 1; \
+	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kdir $(LINUX)" --define "require_kobj $(LINUX_OBJ)" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(SPL_META_RELEASE).src.rpm || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild

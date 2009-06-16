@@ -2,7 +2,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
 		[Path to kernel source]),
-		[kernelsrc="$withval"; kernelbuild="$withval"])
+		[kernelsrc="$withval"])
 
 	AC_ARG_WITH([linux-obj],
 		AS_HELP_STRING([--with-linux-obj=PATH],
@@ -16,7 +16,6 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=
 		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
@@ -31,10 +30,14 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
-	if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
-		kernelbuild=${kernelsrc}-obj/`arch`/`arch`
-	else
-		kernelbuild=${kernelsrc}
+	if test -z "$kernelbuild"; then
+		if test -d ${kernelsrc}-obj; then
+			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
+			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
+		else
+			kernelbuild=${kernelsrc}
+		fi
 	fi
 	AC_MSG_RESULT([$kernelbuild])
 
