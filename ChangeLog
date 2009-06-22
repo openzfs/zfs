@@ -1,3 +1,83 @@
+2009-06-22 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.4
+
+	* : Added SLES10 support.  This includes all compatibility
+	changes to support 2.6.16 based kernels and the required
+	build system improvements.
+
+	* : Build System changes for SLES10:
+	- Exclude -obj when detecting installed kernel source.
+	- Detect -obj directory for out of tree kernel builds.
+	- Allow kernel build system to set CC to ensure -m64 is set properly.
+	  This is an issue on 64-bit SLES systems which by default always
+	  build 32-bit binaries (unlike RHEL/Fedora which default to 64-bit)
+
+	* : Configure Checks added for SLES10:
+	- div64_64() renamed to div64_u64() as of 2.6.26.
+	- global_page_state() fuction was introduced in 2.6.18 kernels.
+	  The earlier 2.6.16 based SLES10 must not try and use it,
+	  thankfully get_zone_counts() is still available.
+	- monotonic_clock() is unavailable __gethrtime() must perform the
+	  HZ division as an 'unsigned long long' because the SPL only
+	  implements __udivdi3(), and not __divdi3() for 'long long'
+	  division on 32-bit arches.
+	- mutex_lock_nested() was introduced as part of the mutex
+	  validator in 2.6.18, when it is unavailable it is safe to
+	  fallback to using a plain mutex_lock().
+	- SLES specific API change to vfs_unlink() and vfs_rename() which
+	  added a 'struct vfsmount *' argument.  This was for something
+	  called the linux-security-module, but it appears that it was
+	  never adopted upstream.
+	- spl_device_create() correctly mapped to class_device_create()
+	  for 2.6.13 to 2.6.17 based kernels, this is the preferred API.
+	- Prior to 2.6.17 there were no *_pgdat helper functions in 
+	  mm/mmzone.c.  Instead for_each_zone() operated directly on
+	  pgdat_list which may or may not have been exported depending on
+	  how your kernel was compiled.  A configure check was added to
+	  determine if you have the helpers or not, and if the needed
+	  symbols are exported.  If they are not exported then they are
+	  dynamically aquired at runtime by kallsyms_lookup_name().
+
+	* : Packaging changes for SLES10
+	- Properly honor --prefix in build system and rpm spec file.
+	- Add '--define require_kdir' to spec file to support building
+	  rpms against kernel sources installed in non-default locations.
+	- Add '--define require_kobj' to spec file to support building
+	  rpms against kernel object installed in non-default locations.
+	- Stop suppressing errors in autogen.sh script.
+	- Improved logic to detect missing kernel objects when they are
+	  not located with the source.  This is the common case for SLES
+	  as well as in-tree chaos kernel builds and is done to simply
+	  support for multiple arches.
+	- Moved spl-devel build products to /usr/src/spl-<version>, a
+	  spl symlink is created to reference the last installed version.
+	- Allow checking for exported symbols in both Module.symvers
+	  and Module.symvers.  My stock SLES kernel ships an objects
+	  directory with Module.symvers, yet produces a Module.symvers
+	  in the local build directory.
+
+	* : Added powerpc64 support.
+	- Enable builds for powerpc64 ISA type.
+	- Add DIV_ROUND_UP and roundup macros if unavailable.
+	- Cast 64-bit values for %lld format string to (long long) to
+	  quiet compile warning.
+
+	* module/splat/splat-ctl.c: Proper ioctl() 32/64-bit binary
+	  compatibility.  We need to ensure the ioctl data itself is always
+	  packed the same for 32/64-bit binaries.  Additionally, the correct
+	  thing to do is encode this size in bytes as part of the command
+	  using _IOC_SIZE().
+
+	* modules/spl/spl-kmem.c: Fixed a long standing bug in the debug
+	  tracing.  The tcd_for_each() macro expected a NULL to terminate
+	  the trace_data[i] array but this was only ever true due to luck.
+	  All trace_data[] iterators are now properly capped by TCD_TYPE_MAX.
+
+	* modules/spl/spl-kmem.c: To simplify debugging all symbols aquired
+	  dynamically using spl_kallsyms_lookup_name() are initially poisoned
+	  with SYMBOL_POISON.
+
 2009-03-20 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.3
