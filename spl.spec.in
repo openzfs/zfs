@@ -74,14 +74,14 @@
 
 # The kernel version should only be appended to a binary RPM.
 # When building a source RPM it must be kernel version agnostic.
-%if %{?build_src_rpm:1}0
+%if %{defined build_src_rpm}
 %define release  @SPL_META_RELEASE@
 %else
 %define release  @SPL_META_RELEASE@_%(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %endif
 
-%if 0%{?require_kver:1}
-%define buildrequires %{kdevpkg}=%{kverpkg}
+%if %{defined require_kver}
+%define buildrequires %{kdevpkg}=%{require_kver}
 %else
 %define buildrequires %{kdevpkg}
 %endif
