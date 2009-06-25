@@ -4,11 +4,13 @@ subdir-m += splat
 INSTALL=/usr/bin/install
 
 modules clean:
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 modules_install:
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` \
-		INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
+		INSTALL_MOD_PATH=$(DESTDIR) \
+		INSTALL_MOD_DIR=addon/spl $@
+	find ${DESTDIR}/lib/modules/ -name 'modules.*' | xargs ${RM}
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \
