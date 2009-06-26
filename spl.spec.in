@@ -17,8 +17,8 @@
 # SLES*:
 %if %{defined sles_version}
  %if %{undefined kver}
-  %define klnk            %{_usrsrc}/linux-obj/%{_target_cpu}/%{_target_cpu}
-  %define kver            %(%{__cat} %{klnk}/.kernelrelease)
+  %define klnk           %{_usrsrc}/linux-obj/%{_target_cpu}/%{_target_cpu}
+  %define kver           %((echo unknown; %{__cat} %{klnk}/.kernelrelease 2>/dev/null) | tail -1)
  %endif                
  %define kpkg            kernel-%{_target_cpu}
  %define kdevpkg         kernel-source kernel-syms
@@ -30,8 +30,8 @@
 %else
 %if %{defined ch4}
  %if %{undefined kver}
-  %define klnk            %{_usrsrc}/kernels/*/include/config
-  %define kver            %((%{__cat} %{klnk}/kernel.release) | tail -1)
+  %define klnk           %{_usrsrc}/kernels/*/include/config
+  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release 2>/dev/null) | tail -1)
  %endif                
  %define kpkg            chaos-kernel
  %define kdevpkg         chaos-kernel-devel
@@ -43,8 +43,8 @@
 %else
 %if %{defined fedora} || %{defined rhel}
  %if %{undefined kver}
-  %define klnk            %{_usrsrc}/kernels/*/include/config
-  %define kver            %((%{__cat} %{klnk}/kernel.release) | tail -1)
+  %define klnk           %{_usrsrc}/kernels/*/include/config
+  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release 2>/dev/null) | tail -1)
  %endif
  %define kpkg            kernel
  %define kdevpkg         kernel-devel
@@ -55,12 +55,12 @@
 %else
 
 # Unsupported distro:
-%{!?kver: %define kver  unknown}
-%define kpkg            kernel
-%define kdevpkg         kernel-devel
-%define kverpkg         %{kver}
-%{!?kdir: %define kdir  %{_usrsrc}/kernels/%{kver}}
-%{!?kobj: %define kobj  %{kdir}}
+%{!?kver: %define kver   unknown}
+%define kpkg             kernel
+%define kdevpkg          kernel-devel
+%define kverpkg          %{kver}
+%{!?kdir: %define kdir   %{_usrsrc}/kernels/%{kver}}
+%{!?kobj: %define kobj   %{kdir}}
 
 %endif
 %endif
@@ -80,9 +80,14 @@
 %define release  @SPL_META_RELEASE@_%(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %endif
 
+# Required by mock to ensure valid 'Requires' and 'BuildRequires' fields
+# are set even when a specific kernel version was not requested.  This is
+# used when mock is attempting to rebuild the srpm for the latest kernel.
 %if %{defined require_kver}
-%define buildrequires %{kdevpkg}=%{require_kver}
+%define requires      %{kpkg}=%{kverpkg}
+%define buildrequires %{kdevpkg}=%{kverpkg}
 %else
+%define requires      %{kpkg}
 %define buildrequires %{kdevpkg}
 %endif
 
@@ -95,7 +100,7 @@ License:         GPL
 URL:             git://eris.llnl.gov/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 Source:          %{name}-%{version}.tar.gz
-Requires:        %{kpkg} = %{kverpkg}
+Requires:        %{requires}
 BuildRequires:   %{buildrequires}
 
 %description
@@ -107,7 +112,7 @@ kstat, mutex, rwlock, taskq, thread, time, and vnode APIs.
 %package devel
 Summary:         Solaris Porting Layer Headers and Symbols
 Group:           Development/Libraries
-Requires:        %{kpkg} = %{kverpkg}
+Requires:        %{requires}
 BuildRequires:   %{buildrequires}
 
 %description devel
