@@ -46,8 +46,11 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
+#include "zfs_config.h"
 
+#ifdef HAVE_LIBEFI
 static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
+#endif
 
 #if defined(__i386) || defined(__amd64)
 #define	BOOTCMD	"installgrub(1M)"
@@ -338,6 +341,7 @@ bootfs_name_valid(const char *pool, char *bootfs)
 static boolean_t
 pool_uses_efi(nvlist_t *config)
 {
+#ifdef HAVE_LIBEFI
 	nvlist_t **child;
 	uint_t c, children;
 
@@ -349,6 +353,7 @@ pool_uses_efi(nvlist_t *config)
 		if (pool_uses_efi(child[c]))
 			return (B_TRUE);
 	}
+#endif
 	return (B_FALSE);
 }
 
@@ -2818,6 +2823,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
  */
 #define	NEW_START_BLOCK	256
 
+#ifdef HAVE_LIBEFI
 /*
  * Read the EFI label from the config, if a label does not exist then
  * pass back the error to the caller. If the caller has passed a non-NULL
@@ -3106,3 +3112,4 @@ out:
 	libzfs_fini(hdl);
 	return (ret);
 }
+#endif /* HAVE_LIBEFI */
