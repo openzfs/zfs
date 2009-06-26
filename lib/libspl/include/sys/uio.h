@@ -20,45 +20,31 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
+/*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
+/*	  All Rights Reserved  	*/
 
+/*
+ * University Copyright- Copyright (c) 1982, 1986, 1988
+ * The Regents of the University of California
+ * All Rights Reserved
+ *
+ * University Acknowledgment- Portions of this document are derived from
+ * software developed by the University of California, Berkeley, and its
+ * contributors.
+ */
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
+#ifndef _LIBSPL_SYS_UIO_H
+#define	_LIBSPL_SYS_UIO_H
 
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
-{
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
-}
+/* struct iovec is defined in glibc's sys/uio.h */
+#include_next <sys/uio.h>
 
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
+typedef enum uio_rw { UIO_READ, UIO_WRITE } uio_rw_t;
 
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
+#define UIO_SYSSPACE 1
 
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
+#endif	/* _SYS_UIO_H */

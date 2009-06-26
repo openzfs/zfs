@@ -20,45 +20,40 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
+#include_next <unistd.h>
 
+#ifndef _LIBSPL_UNISTD_H
+#define _LIBSPL_UNISTD_H
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
+#include <zfs_config.h>
 
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
+#if !defined(HAVE_IOCTL_IN_UNISTD_H)
+# if defined(HAVE_IOCTL_IN_SYS_IOCTL_H)
+#  include <sys/ioctl.h>
+# elif defined(HAVE_IOCTL_IN_STROPTS_H)
+#  include <stropts.h>
+# else
+#  error "System call ioctl() unavailable"
+# endif
+#endif
+
+#if !defined(HAVE_ISSETUGID)
+# include <sys/types.h>
+# define issetugid() (geteuid() == 0 || getegid() == 0)
+#endif
+
+#if !defined(__sun__) && !defined(__sun)
+/* It seems Solaris only returns positive host ids */
+static inline long fake_gethostid(void)
 {
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
+	long id = gethostid();
+	return id >= 0 ? id : -id;
 }
+#define gethostid() fake_gethostid()
+#endif
 
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
-
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
-
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
+#endif /* _LIBSPL_UNISTD_H */

@@ -20,45 +20,31 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
+#ifndef _LIBSPL_SYS_FILE_H
+#define _LIBSPL_SYS_FILE_H
 
+#include_next <sys/file.h>
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
+#include <sys/user.h>
 
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
-{
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
-}
+#define FREAD   1
+#define FWRITE  2
+//#define FAPPEND  8
 
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
+#define FCREAT  O_CREAT
+#define FTRUNC  O_TRUNC
+#define FOFFMAX O_LARGEFILE
+#define FSYNC   O_SYNC
+#define FDSYNC  O_DSYNC
+#define FRSYNC  O_RSYNC
+#define FEXCL   O_EXCL
 
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
+#define FNODSYNC        0x10000 /* fsync pseudo flag */
+#define FNOFOLLOW       0x20000 /* don't follow symlinks */
+#define FIGNORECASE     0x80000 /* request case-insensitive lookups */
 
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
+#endif

@@ -20,45 +20,21 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
+#include_next <limits.h>
 
+#ifndef _LIBSPL_LIMITS_H
+#define _LIBSPL_LIMITS_H
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
+#define DBL_DIG		15
+#define DBL_MAX		1.7976931348623157081452E+308
+#define DBL_MIN		2.2250738585072013830903E-308
 
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
-{
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
-}
+#define FLT_DIG		6
+#define FLT_MAX		3.4028234663852885981170E+38F
+#define FLT_MIN		1.1754943508222875079688E-38F
 
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
-
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
-
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
+#endif /* _LIBSPL_LIMITS_H */

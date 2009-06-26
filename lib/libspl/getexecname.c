@@ -20,45 +20,36 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <limits.h>
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
-
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
+const char *
+getexecname(void)
 {
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
+	static char execname[PATH_MAX + 1] = "";
+	static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+	char *ptr = NULL;
+	ssize_t rc;
+
+	pthread_mutex_lock(&mtx);
+
+	if (strlen(execname) == 0) {
+		rc = readlink("/proc/self/exe", execname, sizeof(execname) - 1);
+		if (rc == -1) {
+			execname[0] = '\0';
+		} else {
+			execname[rc] = '\0';
+			ptr = execname;
+		}
+	}
+
+	pthread_mutex_unlock(&mtx);
+	return ptr;
 }
-
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
-
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
-
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;

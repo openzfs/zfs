@@ -20,45 +20,31 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
+#include_next <sys/mount.h>
 
+#ifndef _LIBSPL_SYS_MOUNT_H
+#define _LIBSPL_SYS_MOUNT_H
 
-#include <sys/kmem.h>
-#include <sys/nvpair.h>
+#include <sys/mntent.h>
+#include <assert.h>
+#include <string.h>
+#include <stdlib.h>
 
-static void *
-nv_alloc_sys(nv_alloc_t *nva, size_t size)
-{
-	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
-}
+/*
+ * Some old glibc headers don't define BLKGETSIZE64
+ * and we don't want to require the kernel headers
+ */
+#if !defined(BLKGETSIZE64)
+#define BLKGETSIZE64		_IOR(0x12, 114, size_t)
+#endif
 
-/*ARGSUSED*/
-static void
-nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
-{
-	kmem_free(buf, size);
-}
+#define MS_FORCE		MNT_FORCE
+#define MS_OVERLAY		32768
+#define MS_NOMNTTAB		0         /* Not supported in Linux */
+#define MS_OPTIONSTR		0         /* Not necessary in Linux */
 
-static const nv_alloc_ops_t system_ops = {
-	NULL,			/* nv_ao_init() */
-	NULL,			/* nv_ao_fini() */
-	nv_alloc_sys,		/* nv_ao_alloc() */
-	nv_free_sys,		/* nv_ao_free() */
-	NULL			/* nv_ao_reset() */
-};
-
-nv_alloc_t nv_alloc_sleep_def = {
-	&system_ops,
-	(void *)KM_SLEEP
-};
-
-nv_alloc_t nv_alloc_nosleep_def = {
-	&system_ops,
-	(void *)KM_NOSLEEP
-};
-
-nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
-nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;
+#endif /* _LIBSPL_SYS_MOUNT_H */
