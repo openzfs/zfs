@@ -68,14 +68,18 @@ AC_CONFIG_FILES([
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
 	cmd/ztest/Makefile
+	cmd/zpios/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
+	module/zpios/Makefile
 	scripts/Makefile
 	scripts/zpool-config/Makefile
+	scripts/zpios-test/Makefile
+	scripts/zpios-profile/Makefile
 	zfs.spec
 ])
 
