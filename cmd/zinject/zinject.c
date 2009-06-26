@@ -750,17 +750,20 @@ main(int argc, char **argv)
 	if (dataset[0] != '\0' && domount) {
 		if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_DATASET)) == NULL)
 			return (1);
-
+#ifdef HAVE_ZPL
 		if (zfs_unmount(zhp, NULL, 0) != 0)
 			return (1);
+#endif /* HAVE_ZPL */
 	}
 
 	record.zi_error = error;
 
 	ret = register_handler(pool, flags, &record, quiet);
 
+#ifdef HAVE_ZPL
 	if (dataset[0] != '\0' && domount)
 		ret = (zfs_mount(zhp, NULL, 0) != 0);
+#endif /* HAVE_ZPL */
 
 	libzfs_fini(g_zfs);
 

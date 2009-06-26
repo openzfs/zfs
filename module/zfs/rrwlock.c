@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-
+#ifdef HAVE_ZPL
 
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
@@ -247,3 +247,4 @@ rrw_held(rrwlock_t *rrl, krw_t rw)
 
 	return (held);
 }
+#endif /* HAVE_ZPL */

@@ -100,6 +100,7 @@ typedef struct zfs_fuid_info {
 } zfs_fuid_info_t;
 
 #ifdef _KERNEL
+#ifdef HAVE_ZPL
 struct znode;
 extern uid_t zfs_fuid_map_id(zfsvfs_t *, uint64_t, cred_t *, zfs_fuid_type_t);
 extern void zfs_fuid_destroy(zfsvfs_t *);
@@ -112,6 +113,7 @@ extern void zfs_fuid_map_ids(struct znode *zp, cred_t *cr, uid_t *uid,
 extern zfs_fuid_info_t *zfs_fuid_info_alloc(void);
 extern void zfs_fuid_info_free();
 extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
+#endif /* HAVE_ZPL */
 #endif
 
 char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
