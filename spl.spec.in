@@ -18,49 +18,70 @@
 %if %{defined sles_version}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/linux-obj/%{_target_cpu}/%{_target_cpu}
-  %define kver           %((echo unknown; %{__cat} %{klnk}/.kernelrelease 2>/dev/null) | tail -1)
- %endif                
+  %define kver           %((echo unknown; %{__cat} %{klnk}/.kernelrelease 
+                            2>/dev/null) | tail -1)
+ %endif
  %define kpkg            kernel-%{_target_cpu}
  %define kdevpkg         kernel-source kernel-syms
  %define kverpkg         %(echo %{kver} | cut -d'-' -f1-2)
- %{!?kdir: %define kdir  %{_usrsrc}/linux-%{kverpkg}}
- %{!?kobj: %define kobj  %{kdir}-obj/%{_target_cpu}/%{_target_cpu}}
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/linux-%{kverpkg}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}-obj/%{_target_cpu}/%{_target_cpu}
+ %endif
 
 # CHAOS4:
 %else
 %if %{defined ch4}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release 2>/dev/null) | tail -1)
- %endif                
+  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | tail -1)
+ %endif
  %define kpkg            chaos-kernel
  %define kdevpkg         chaos-kernel-devel
  %define kverpkg         %{kver}
- %{!?kdir: %define kdir  %{_usrsrc}/kernels/%{kver}}
- %{!?kobj: %define kobj  %{kdir}}
+ %if %{undefined kdir}
+  %define kdir %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
 
 # RHEL*/Fedora:
 %else
 %if %{defined fedora} || %{defined rhel}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release 2>/dev/null) | tail -1)
+  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | tail -1)
  %endif
  %define kpkg            kernel
  %define kdevpkg         kernel-devel
  %define kverpkg         %(echo %{kver} | cut -d'.' -f1-7)
- %{!?kdir: %define kdir  %{_usrsrc}/kernels/%{kver}}
- %{!?kobj: %define kobj  %{kdir}}
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
 
 %else
 
 # Unsupported distro:
-%{!?kver: %define kver   unknown}
-%define kpkg             kernel
-%define kdevpkg          kernel-devel
-%define kverpkg          %{kver}
-%{!?kdir: %define kdir   %{_usrsrc}/kernels/%{kver}}
-%{!?kobj: %define kobj   %{kdir}}
+ %if %{undefined kver}
+  %define kver            unknown
+ %endif
+ %define kpkg             kernel
+ %define kdevpkg          kernel-devel
+ %define kverpkg          %{kver}
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
 
 %endif
 %endif
