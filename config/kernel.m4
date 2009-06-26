@@ -4,7 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	dnl # Kernel build make options
 	dnl # KERNELMAKE_PARAMS="V=1"	# Enable verbose module build
-	KERNELMAKE_PARAMS=
+	KERNELMAKE_PARAMS="V=1"
 
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.

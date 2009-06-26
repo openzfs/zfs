@@ -212,6 +212,7 @@ AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
 	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
 	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
 	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
+	echo "MODDIR=${MODDIR}"           >>${SCRIPT_CONFIG}
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [

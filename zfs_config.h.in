@@ -1,0 +1,122 @@
+/* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* bio_end_io_t wants 2 args */
+#undef HAVE_2ARGS_BIO_END_IO_T
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if module is licensed under the GPL */
+#undef HAVE_GPL_ONLY_SYMBOLS
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* result=stropts.h Define to 1 if ioctl() defined in <stropts.h> */
+#undef HAVE_IOCTL_IN_STROPTS_H
+
+/* Define to 1 if ioctl() defined in <sys/ioctl.h> */
+#undef HAVE_IOCTL_IN_SYS_IOCTL_H
+
+/* Define to 1 if ioctl() defined in <unistd.h> */
+#undef HAVE_IOCTL_IN_UNISTD_H
+
+/* Define to 1 if 'libdiskmgt' library available */
+#undef HAVE_LIBDISKMGT
+
+/* Define to 1 if 'libefi' library available */
+#undef HAVE_LIBEFI
+
+/* Define to 1 if 'libshare' library available */
+#undef HAVE_LIBSHARE
+
+/* Define to 1 if you have the `z' library (-lz). */
+#undef HAVE_LIBZ
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 to disable debug tracing */
+#undef NDEBUG
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
+
+/* Define the project alias string. */
+#undef ZFS_META_ALIAS
+
+/* Define the project author. */
+#undef ZFS_META_AUTHOR
+
+/* Define the project release date. */
+#undef ZFS_META_DATA
+
+/* Define the libtool library 'age' version information. */
+#undef ZFS_META_LT_AGE
+
+/* Define the libtool library 'current' version information. */
+#undef ZFS_META_LT_CURRENT
+
+/* Define the libtool library 'revision' version information. */
+#undef ZFS_META_LT_REVISION
+
+/* Define the project name. */
+#undef ZFS_META_NAME
+
+/* Define the project release. */
+#undef ZFS_META_RELEASE
+
+/* Define the project version. */
+#undef ZFS_META_VERSION
+
+
+#undef PACKAGE
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef STDC_HEADERS
+#undef VERSION
