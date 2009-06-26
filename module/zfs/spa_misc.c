@@ -233,8 +233,13 @@ kmem_cache_t *spa_buffer_pool;
 int spa_mode_global;
 
 #ifdef ZFS_DEBUG
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* All filtering done by the SPL */
+int zfs_flags = ~0;
+#else
 /* Everything except dprintf is on by default in debug builds */
 int zfs_flags = ~ZFS_DEBUG_DPRINTF;
+#endif
 #else
 int zfs_flags = 0;
 #endif

@@ -57,11 +57,16 @@ extern int zfs_flags;
 #define	ZFS_DEBUG_MODIFY	0x0010
 
 #ifdef ZFS_DEBUG
+#if defined(_KERNEL) && defined(HAVE_SPL)
+#include <sys/debug.h>
+#define dprintf(...) CDEBUG_LIMIT(D_DPRINTF, __VA_ARGS__)
+#else
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
 #define	dprintf(...) \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
 		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+#endif /* _KERNEL && HAVE_SPL */
 #else
 #define	dprintf(...) ((void)0)
 #endif /* ZFS_DEBUG */
