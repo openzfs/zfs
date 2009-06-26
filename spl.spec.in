@@ -18,7 +18,7 @@
 %if %{defined sles_version}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/linux-obj/%{_target_cpu}/%{_target_cpu}
-  %define kver           %((echo unknown; %{__cat} %{klnk}/.kernelrelease 
+  %define kver           %((echo X; %{__cat} %{klnk}/.kernelrelease
                             2>/dev/null) | tail -1)
  %endif
  %define kpkg            kernel-%{_target_cpu}
@@ -36,7 +36,7 @@
 %if %{defined ch4}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release
+  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
                             2>/dev/null) | tail -1)
  %endif
  %define kpkg            chaos-kernel
@@ -54,7 +54,7 @@
 %if %{defined fedora} || %{defined rhel}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo unknown; %{__cat} %{klnk}/kernel.release
+  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
                             2>/dev/null) | tail -1)
  %endif
  %define kpkg            kernel
@@ -71,7 +71,7 @@
 
 # Unsupported distro:
  %if %{undefined kver}
-  %define kver            unknown
+  %define kver            X
  %endif
  %define kpkg             kernel
  %define kdevpkg          kernel-devel
@@ -92,6 +92,7 @@
 %define version          @VERSION@
 %define debug_package    %{nil}
 
+
 # The kernel version should only be appended to a binary RPM.  When
 # building a source RPM it must be kernel version agnostic.  This means
 # the source RPM must never specify a required kernel version, but the
@@ -99,12 +100,10 @@
 %if %{defined build_src_rpm}
 %define release          @SPL_META_RELEASE@
 %define requires         %{kpkg}
-%define buildrequires    %{kdevpkg}
 %else
-%define release          @SPL_META_RELEASE@_%(echo %{kverpkg} |
-                                              %{__sed} -e 's/-/_/g')
+%define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
+%define release          @SPL_META_RELEASE@_%{relext}
 %define requires         %{kpkg} = %{kverpkg}
-%define buildrequires    %{kdevpkg} = %{kverpkg}
 %endif
 
 Summary:         Solaris Porting Layer
@@ -117,7 +116,7 @@ URL:             git://eris.llnl.gov/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 Source:          %{name}-%{version}.tar.gz
 Requires:        %{requires}
-BuildRequires:   %{buildrequires}
+BuildRequires:   %{kdevpkg}
 
 %description
 The %{name} package contains kernel modules and support utilities for
@@ -129,7 +128,7 @@ kstat, mutex, rwlock, taskq, thread, time, and vnode APIs.
 Summary:         Solaris Porting Layer Headers and Symbols
 Group:           Development/Libraries
 Requires:        %{requires}
-BuildRequires:   %{buildrequires}
+BuildRequires:   %{kdevpkg}
 
 %description devel
 The %{name}-devel package contains the header files and Module{s}.symvers
