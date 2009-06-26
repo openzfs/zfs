@@ -726,9 +726,11 @@ dmu_objset_snapshot_one(char *name, void *arg)
 	 * doing a recursive snapshot.  The permission checks for the starting
 	 * dataset have already been performed in zfs_secpolicy_snapshot()
 	 */
+#ifdef HAVE_ZPL
 	if (sn->checkperms == B_TRUE &&
 	    (err = zfs_secpolicy_snapshot_perms(name, CRED())))
 		return (err);
+#endif
 
 	err = dmu_objset_open(name, DMU_OST_ANY, DS_MODE_USER, &os);
 	if (err != 0)
@@ -1261,3 +1263,37 @@ dmu_objset_get_user(objset_t *os)
 	ASSERT(MUTEX_HELD(&os->os->os_user_ptr_lock));
 	return (os->os->os_user_ptr);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_objset_spa);
+EXPORT_SYMBOL(dmu_objset_zil);
+EXPORT_SYMBOL(dmu_objset_pool);
+EXPORT_SYMBOL(dmu_objset_ds);
+EXPORT_SYMBOL(dmu_objset_name);
+EXPORT_SYMBOL(dmu_objset_type);
+EXPORT_SYMBOL(dmu_objset_id);
+EXPORT_SYMBOL(dmu_snapshot_list_next);
+EXPORT_SYMBOL(dmu_dir_list_next);
+EXPORT_SYMBOL(dmu_objset_set_user);
+EXPORT_SYMBOL(dmu_objset_get_user);
+
+/* Public routines to create, destroy, open, and close objsets. */
+EXPORT_SYMBOL(dmu_objset_open);
+EXPORT_SYMBOL(dmu_objset_open_ds);
+EXPORT_SYMBOL(dmu_objset_close);
+EXPORT_SYMBOL(dmu_objset_evict_dbufs);
+EXPORT_SYMBOL(dmu_objset_create);
+EXPORT_SYMBOL(dmu_objset_create_impl);
+EXPORT_SYMBOL(dmu_objset_destroy);
+EXPORT_SYMBOL(dmu_snapshots_destroy);
+EXPORT_SYMBOL(dmu_objset_rollback);
+EXPORT_SYMBOL(dmu_objset_snapshot);
+EXPORT_SYMBOL(dmu_objset_rename);
+EXPORT_SYMBOL(dmu_objset_find);
+EXPORT_SYMBOL(dmu_objset_byteswap);
+
+/* Get stats on a dataset. */
+EXPORT_SYMBOL(dmu_objset_fast_stat);
+EXPORT_SYMBOL(dmu_objset_stats);
+EXPORT_SYMBOL(dmu_objset_space);
+#endif

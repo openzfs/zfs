@@ -404,3 +404,20 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 }
 
 #endif
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* Common routines to initialize property tables */
+EXPORT_SYMBOL(register_impl);
+EXPORT_SYMBOL(register_string);
+EXPORT_SYMBOL(register_number);
+EXPORT_SYMBOL(register_index);
+EXPORT_SYMBOL(register_hidden);
+
+/* Common routines for zfs and zpool property management */
+EXPORT_SYMBOL(zprop_iter_common);
+EXPORT_SYMBOL(zprop_name_to_prop);
+EXPORT_SYMBOL(zprop_string_to_index);
+EXPORT_SYMBOL(zprop_index_to_string);
+EXPORT_SYMBOL(zprop_values);
+EXPORT_SYMBOL(zprop_valid_for_type);
+#endif

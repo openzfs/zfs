@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-
+#ifdef _KERNEL
 
 #include <sys/spa.h>
 #include <sys/sunddi.h>
@@ -45,3 +45,5 @@ spa_free_bootprop(char *value)
 {
 	ddi_prop_free(value);
 }
+
+#endif /* _KERNEL */

@@ -1615,7 +1615,10 @@ zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 	zr.zr_replay = replay_func;
 	zr.zr_arg = arg;
 	zr.zr_byteswap = BP_SHOULD_BYTESWAP(&zh->zh_log);
-	zr.zr_lrbuf = kmem_alloc(2 * SPA_MAXBLOCKSIZE, KM_SLEEP);
+	/* XXX: Changed to use vmem_alloc instead of kmem_alloc for
+	 * large allocation size (I think this is safe here).
+	 */
+	zr.zr_lrbuf = vmem_alloc(2 * SPA_MAXBLOCKSIZE, KM_SLEEP);
 
 	/*
 	 * Wait for in-progress removes to sync before starting replay.
@@ -1627,7 +1630,7 @@ zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 	ASSERT(zilog->zl_replay_blks == 0);
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
 	    zh->zh_claim_txg);
-	kmem_free(zr.zr_lrbuf, 2 * SPA_MAXBLOCKSIZE);
+	vmem_free(zr.zr_lrbuf, 2 * SPA_MAXBLOCKSIZE);
 
 	zil_destroy(zilog, B_FALSE);
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);

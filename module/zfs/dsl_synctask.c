@@ -223,3 +223,8 @@ dsl_sync_task_do_nowait(dsl_pool_t *dp,
 	    arg1, arg2, blocks_modified);
 	dsl_sync_task_group_nowait(dstg, tx);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_sync_task_do);
+EXPORT_SYMBOL(dsl_sync_task_do_nowait);
+#endif

@@ -179,7 +179,11 @@ static char *
 spa_history_zone(void)
 {
 #ifdef _KERNEL
+#ifdef HAVE_SPL
+	return ("linux");
+#else
 	return (curproc->p_zone->zone_name);
+#endif
 #else
 	return ("global");
 #endif
@@ -426,3 +430,11 @@ spa_history_internal_log(history_internal_events_t event, spa_t *spa,
 	}
 	/* spa_history_log_sync() will free hap and str */
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* history logging */
+EXPORT_SYMBOL(spa_history_create_obj);
+EXPORT_SYMBOL(spa_history_get);
+EXPORT_SYMBOL(spa_history_log);
+EXPORT_SYMBOL(spa_history_internal_log);
+#endif

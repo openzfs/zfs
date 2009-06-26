@@ -1441,3 +1441,71 @@ spa_mode(spa_t *spa)
 {
 	return (spa->spa_mode);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* Namespace manipulation */
+EXPORT_SYMBOL(spa_lookup);
+EXPORT_SYMBOL(spa_add);
+EXPORT_SYMBOL(spa_remove);
+EXPORT_SYMBOL(spa_next);
+
+/* Refcount functions */
+EXPORT_SYMBOL(spa_open_ref);
+EXPORT_SYMBOL(spa_close);
+EXPORT_SYMBOL(spa_refcount_zero);
+
+/* Pool configuration lock */
+EXPORT_SYMBOL(spa_config_tryenter);
+EXPORT_SYMBOL(spa_config_enter);
+EXPORT_SYMBOL(spa_config_exit);
+EXPORT_SYMBOL(spa_config_held);
+
+/* Pool vdev add/remove lock */
+EXPORT_SYMBOL(spa_vdev_enter);
+EXPORT_SYMBOL(spa_vdev_exit);
+
+/* Pool vdev state change lock */
+EXPORT_SYMBOL(spa_vdev_state_enter);
+EXPORT_SYMBOL(spa_vdev_state_exit);
+
+/* Accessor functions */
+EXPORT_SYMBOL(spa_shutting_down);
+EXPORT_SYMBOL(spa_get_dsl);
+EXPORT_SYMBOL(spa_get_rootblkptr);
+EXPORT_SYMBOL(spa_set_rootblkptr);
+EXPORT_SYMBOL(spa_altroot);
+EXPORT_SYMBOL(spa_sync_pass);
+EXPORT_SYMBOL(spa_name);
+EXPORT_SYMBOL(spa_guid);
+EXPORT_SYMBOL(spa_last_synced_txg);
+EXPORT_SYMBOL(spa_first_txg);
+EXPORT_SYMBOL(spa_version);
+EXPORT_SYMBOL(spa_state);
+EXPORT_SYMBOL(spa_freeze_txg);
+EXPORT_SYMBOL(spa_get_alloc);
+EXPORT_SYMBOL(spa_get_space);
+EXPORT_SYMBOL(spa_get_dspace);
+EXPORT_SYMBOL(spa_get_asize);
+EXPORT_SYMBOL(spa_max_replication);
+EXPORT_SYMBOL(spa_busy);
+EXPORT_SYMBOL(spa_get_failmode);
+EXPORT_SYMBOL(spa_suspended);
+
+/* Miscellaneous support routines */
+EXPORT_SYMBOL(spa_rename);
+EXPORT_SYMBOL(spa_guid_exists);
+EXPORT_SYMBOL(spa_strdup);
+EXPORT_SYMBOL(spa_strfree);
+EXPORT_SYMBOL(spa_get_random);
+EXPORT_SYMBOL(sprintf_blkptr);
+EXPORT_SYMBOL(spa_freeze);
+EXPORT_SYMBOL(spa_upgrade);
+EXPORT_SYMBOL(spa_evict_all);
+EXPORT_SYMBOL(spa_lookup_by_guid);
+EXPORT_SYMBOL(spa_has_spare);
+EXPORT_SYMBOL(bp_get_dasize);
+EXPORT_SYMBOL(spa_has_slogs);
+EXPORT_SYMBOL(spa_is_root);
+
+EXPORT_SYMBOL(spa_namespace_lock);
+#endif

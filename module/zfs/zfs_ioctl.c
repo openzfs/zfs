@@ -67,6 +67,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
+#include "zfs_config.h"
 
 extern struct modlfs zfs_modlfs;
 
@@ -3142,15 +3143,27 @@ static struct dev_ops zfs_dev_ops = {
 };
 
 static struct modldrv zfs_modldrv = {
+#ifdef HAVE_SPL
+	NULL,
+#else
 	&mod_driverops,
+#endif /* HAVE_SPL */
 	"ZFS storage pool",
 	&zfs_dev_ops
 };
 
 static struct modlinkage modlinkage = {
 	MODREV_1,
+#ifdef HAVE_ZPL
 	(void *)&zfs_modlfs,
+#else
+	NULL,
+#endif /* HAVE_ZPL */
 	(void *)&zfs_modldrv,
+#ifdef HAVE_SPL
+	ZFS_MAJOR,
+	ZFS_MINORS,
+#endif /* HAVE_SPL */
 	NULL
 };
 
@@ -3213,8 +3226,38 @@ _fini(void)
 	return (error);
 }
 
+#ifdef HAVE_SPL
+int
+init(void)
+{
+	int rc;
+
+	rc = _init();
+	if (!rc)
+		printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n",
+		       ZFS_META_VERSION);
+
+	return rc;
+}
+
+void
+fini(void)
+{
+	(void)_fini();
+	printk(KERN_INFO "ZFS: Unloaded ZFS Filesystem v%s\n",
+	       ZFS_META_VERSION);
+}
+
+module_init(init);
+module_exit(fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("ZFS");
+MODULE_LICENSE("CDDL");
+#else
 int
 _info(struct modinfo *modinfop)
 {
 	return (mod_info(&modlinkage, modinfop));
 }
+#endif /* HAVE_SPL */

@@ -310,3 +310,14 @@ vdev_queue_io_done(zio_t *zio)
 
 	mutex_exit(&vq->vq_lock);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_vdev_max_pending, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_max_pending, "Maximum pending VDEV IO");
+
+module_param(zfs_vdev_min_pending, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_min_pending, "Minimum pending VDEV IO");
+
+module_param(zfs_vdev_aggregation_limit, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_aggregation_limit, "Maximum VDEV IO aggregation");
+#endif

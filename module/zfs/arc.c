@@ -174,9 +174,9 @@ static boolean_t arc_warm;
 /*
  * These tunables are for performance analysis.
  */
-uint64_t zfs_arc_max;
-uint64_t zfs_arc_min;
-uint64_t zfs_arc_meta_limit = 0;
+unsigned long zfs_arc_max = 0;
+unsigned long zfs_arc_min = 0;
+unsigned long zfs_arc_meta_limit = 0;
 int zfs_mdcomp_disable = 0;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
@@ -4638,3 +4638,21 @@ l2arc_stop(void)
 		cv_wait(&l2arc_feed_thr_cv, &l2arc_feed_thr_lock);
 	mutex_exit(&l2arc_feed_thr_lock);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(arc_read);
+EXPORT_SYMBOL(arc_buf_remove_ref);
+EXPORT_SYMBOL(arc_getbuf_func);
+
+module_param(zfs_arc_min, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_min, "Minimum arc size");
+
+module_param(zfs_arc_max, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_max, "Maximum arc size");
+
+module_param(zfs_arc_meta_limit, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
+
+module_param(zfs_mdcomp_disable, int, 0644);
+MODULE_PARM_DESC(zfs_mdcomp_disable, "Meta compression disable");
+#endif

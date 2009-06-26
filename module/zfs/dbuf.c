@@ -24,6 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/arc.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
@@ -2371,3 +2372,8 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 	dbuf_rele(db, (void *)(uintptr_t)txg);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_buf_rele);
+EXPORT_SYMBOL(dmu_buf_will_dirty);
+#endif

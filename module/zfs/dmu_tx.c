@@ -1109,3 +1109,17 @@ dmu_tx_callback(list_t *cb_list, int error)
 		kmem_free(dcb, sizeof (dmu_tx_callback_t));
 	}
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_tx_create);
+EXPORT_SYMBOL(dmu_tx_hold_write);
+EXPORT_SYMBOL(dmu_tx_hold_free);
+EXPORT_SYMBOL(dmu_tx_hold_zap);
+EXPORT_SYMBOL(dmu_tx_hold_bonus);
+EXPORT_SYMBOL(dmu_tx_abort);
+EXPORT_SYMBOL(dmu_tx_assign);
+EXPORT_SYMBOL(dmu_tx_wait);
+EXPORT_SYMBOL(dmu_tx_commit);
+EXPORT_SYMBOL(dmu_tx_get_txg);
+EXPORT_SYMBOL(dmu_tx_callback_register);
+#endif

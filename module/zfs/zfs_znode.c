@@ -1667,3 +1667,8 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
 		(void) memmove(buf, path, buf + len - path);
 	return (error);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_create_fs);
+EXPORT_SYMBOL(zfs_obj_to_path);
+#endif

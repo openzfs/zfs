@@ -1330,3 +1330,10 @@ dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd, uint64_t space)
 
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_dir_set_quota);
+EXPORT_SYMBOL(dsl_dir_set_reservation);
+EXPORT_SYMBOL(dsl_dir_open);
+EXPORT_SYMBOL(dsl_dir_close);
+#endif

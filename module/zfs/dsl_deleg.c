@@ -733,3 +733,8 @@ dsl_delegation_on(objset_t *os)
 {
 	return (os->os->os_spa->spa_delegation);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_deleg_get);
+EXPORT_SYMBOL(dsl_deleg_set);
+#endif
