@@ -77,8 +77,14 @@
 #include <sys/dumphdr.h>
 #include <sys/zil_impl.h>
 
+#ifdef HAVE_SPL
+#include <linux/bitops.h>
+#include <linux/bitops_compat.h>
+#endif
+
 #include "zfs_namecheck.h"
 
+#ifdef HAVE_ZVOL
 static void *zvol_state;
 
 #define	ZVOL_DUMPSIZE		"dumpsize"
@@ -149,6 +155,7 @@ zvol_size_changed(zvol_state_t *zv, major_t maj)
 	spec_size_invalidate(dev, VBLK);
 	spec_size_invalidate(dev, VCHR);
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
@@ -159,10 +166,22 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 	if (volsize % blocksize != 0)
 		return (EINVAL);
 
-#ifdef _ILP32
+#ifdef HAVE_SPL
+	if (volsize % 512 != 0)
+		return (EINVAL);
+
+	/*
+	 * On Linux, the maximum allowed block device size depends on the size
+	 * of sector_t.
+	 */
+	if (fls64(volsize / 512 - 1) > NBBY * sizeof (sector_t))
+		return (EOVERFLOW);
+
+#elif defined(_ILP32)
 	if (volsize - 1 > SPEC_MAXOFFSET_T)
 		return (EOVERFLOW);
 #endif
+
 	return (0);
 }
 
@@ -177,6 +196,7 @@ zvol_check_volblocksize(uint64_t volblocksize)
 	return (0);
 }
 
+#ifdef HAVE_ZVOL
 static void
 zvol_readonly_changed_cb(void *arg, uint64_t newval)
 {
@@ -187,6 +207,7 @@ zvol_readonly_changed_cb(void *arg, uint64_t newval)
 	else
 		zv->zv_flags &= ~ZVOL_RDONLY;
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_get_stats(objset_t *os, nvlist_t *nv)
@@ -212,6 +233,7 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 	return (error);
 }
 
+#ifdef HAVE_ZVOL
 /*
  * Find a free minor number.
  */
@@ -1482,27 +1504,37 @@ zvol_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 	mutex_exit(&zvol_state_lock);
 	return (error);
 }
+#endif /* HAVE_ZVOL */
 
 int
 zvol_busy(void)
 {
+#ifdef HAVE_ZVOL
 	return (zvol_minors != 0);
+#else
+	return 0;
+#endif /* HAVE_ZVOL */
 }
 
 void
 zvol_init(void)
 {
+#ifdef HAVE_ZVOL
 	VERIFY(ddi_soft_state_init(&zvol_state, sizeof (zvol_state_t), 1) == 0);
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif /* HAVE_ZVOL */
 }
 
 void
 zvol_fini(void)
 {
+#ifdef HAVE_ZVOL
 	mutex_destroy(&zvol_state_lock);
 	ddi_soft_state_fini(&zvol_state);
+#endif /*  HAVE_ZVOL */
 }
 
+#ifdef HAVE_ZVOL
 static boolean_t
 zvol_is_swap(zvol_state_t *zv)
 {
@@ -1730,3 +1762,4 @@ zvol_dump_fini(zvol_state_t *zv)
 
 	return (0);
 }
+#endif /* HAVE_ZVOL */

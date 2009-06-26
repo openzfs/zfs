@@ -4130,6 +4130,11 @@ zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
 static int
 zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 {
+#if !defined(HAVE_ZVOL)
+	return (zfs_standard_error_fmt(hdl, ENOTSUP,
+		    dgettext(TEXT_DOMAIN, "cannot create device links "
+		    "for '%s'"), dataset));
+#else
 	zfs_cmd_t zc = { 0 };
 	di_devlink_handle_t dhdl;
 	priv_set_t *priv_effective;
@@ -4218,6 +4223,7 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 	}
 
 	return (0);
+#endif
 }
 
 /*
@@ -4354,6 +4360,9 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp)
 int
 zfs_iscsi_perm_check(libzfs_handle_t *hdl, char *dataset, ucred_t *cred)
 {
+#if !defined(HAVE_ZVOL)
+	return (ENOTSUP);
+#else
 	zfs_cmd_t zc = { 0 };
 	nvlist_t *nvp;
 	gid_t gid;
@@ -4395,6 +4404,7 @@ zfs_iscsi_perm_check(libzfs_handle_t *hdl, char *dataset, ucred_t *cred)
 	error = ioctl(hdl->libzfs_fd, ZFS_IOC_ISCSI_PERM_CHECK, &zc);
 	nvlist_free(nvp);
 	return (error);
+#endif
 }
 
 int
