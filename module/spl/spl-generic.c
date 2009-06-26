@@ -113,7 +113,7 @@ uint64_t __udivdi3(uint64_t dividend, uint64_t divisor)
 	} else
 		d = divisor;
 
-	return do_div64(dividend, d);
+	return do_div(dividend, d);
 #endif /* HAVE_DIV64_64, HAVE_DIV64_U64 */
 }
 EXPORT_SYMBOL(__udivdi3);
