@@ -16,11 +16,11 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 install-data-local:
-	instdest=$(DESTDIR)/${prefix}/src/spl-$(SPL_META_VERSION); \
+	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
+	instdest=$(DESTDIR)/${prefix}/src/$$destname; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done
-	(cd $(DESTDIR)/${prefix}/src && ln -f -s spl-$(SPL_META_VERSION) spl)
 
 ctags:
 	$(RM) $(top_srcdir)/tags
