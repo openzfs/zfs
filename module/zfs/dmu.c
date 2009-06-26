@@ -675,7 +675,7 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_write_impl(os, object, offset, size, buf, tx, 0);
 }
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(HAVE_UIO_RW)
 int
 dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 {
