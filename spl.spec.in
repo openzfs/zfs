@@ -88,28 +88,23 @@
 %endif
 
 # Distro agnostic:
-%define debug_package %{nil}
+%define name             @PACKAGE@
+%define version          @VERSION@
+%define debug_package    %{nil}
 
-%define name     @PACKAGE@
-%define version  @VERSION@
-
-# The kernel version should only be appended to a binary RPM.
-# When building a source RPM it must be kernel version agnostic.
+# The kernel version should only be appended to a binary RPM.  When
+# building a source RPM it must be kernel version agnostic.  This means
+# the source RPM must never specify a required kernel version, but the
+# final RPM should be keyed to the kernel version it was built against.
 %if %{defined build_src_rpm}
-%define release  @SPL_META_RELEASE@
+%define release          @SPL_META_RELEASE@
+%define requires         %{kpkg}
+%define buildrequires    %{kdevpkg}
 %else
-%define release  @SPL_META_RELEASE@_%(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
-%endif
-
-# Required by mock to ensure valid 'Requires' and 'BuildRequires' fields
-# are set even when a specific kernel version was not requested.  This is
-# used when mock is attempting to rebuild the srpm for the latest kernel.
-%if %{defined require_kver}
-%define requires      %{kpkg}=%{kverpkg}
-%define buildrequires %{kdevpkg}=%{kverpkg}
-%else
-%define requires      %{kpkg}
-%define buildrequires %{kdevpkg}
+%define release          @SPL_META_RELEASE@_%(echo %{kverpkg} |
+                                              %{__sed} -e 's/-/_/g')
+%define requires         %{kpkg} = %{kverpkg}
+%define buildrequires    %{kdevpkg} = %{kverpkg}
 %endif
 
 Summary:         Solaris Porting Layer
