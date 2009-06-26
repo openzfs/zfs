@@ -77,10 +77,6 @@
 
 #include "zpool_util.h"
 
-#define	DISK_ROOT	"/dev/dsk"
-#define	RDISK_ROOT	"/dev/rdsk"
-#define	BACKUP_SLICE	"s2"
-
 /*
  * For any given vdev specification, we can have multiple errors.  The
  * vdev_error() function keeps track of whether we have seen an error yet, and

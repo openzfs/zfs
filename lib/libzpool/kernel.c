@@ -401,7 +401,11 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	 * for its size.  So -- gag -- we open the block device to get
 	 * its size, and remember it for subsequent VOP_GETATTR().
 	 */
+#if defined(__sun__) || defined(__sun)
 	if (strncmp(path, "/dev/", 5) == 0) {
+#else
+	if (0) {
+#endif
 		char *dsk;
 		fd = open64(path, O_RDONLY);
 		if (fd == -1)
@@ -421,6 +425,14 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 		if (!(flags & FCREAT) && stat64(real_path, &st) == -1)
 			return (errno);
 	}
+
+#ifdef __linux__
+	if (!(flags & FCREAT) && S_ISBLK(st.st_mode)) {
+		flags |= O_DIRECT;
+		if (flags & FWRITE)
+			flags |= O_EXCL;
+	}
+#endif
 
 	if (flags & FCREAT)
 		old_umask = umask(0);

@@ -50,6 +50,20 @@ extern "C" {
 #define	ZPOOL_MAXPROPLEN	MAXPATHLEN
 
 /*
+ * Default device paths
+ */
+
+#if defined(__sun__) || defined(__sun)
+#define	DISK_ROOT	"/dev/dsk"
+#define	RDISK_ROOT	"/dev/rdsk"
+#define	BACKUP_SLICE	"s2"
+#endif
+
+#ifdef __linux__
+#define	DISK_ROOT	"/dev"
+#endif
+
+/*
  * libzfs errors
  */
 enum {
