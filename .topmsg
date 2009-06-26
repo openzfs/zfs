@@ -1,11 +1,15 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] linux kernel module
+Subject: [PATCH] linux have sysevent
 
-Setup linux kernel module support, this includes:
-- zfs context for kernel/user
-- kernel module build system integration
-- kernel module macros
-- kernel module symbol export
-- kernel module options
+Use sysevent if HAVE_SYSEVENT defined
+
+We don't have FMA in Linux, so disable spa_event_notify() to allow
+compilation.  It would be a good idea to code at least some kind of
+ad-hoc notification for such events, e.g., make it output some syslog
+messages when a disk faults/fails.
+
+Also, I think it's FMA in Solaris that is responsible for triggering the
+hot spares when a disk starts failing, so we should also think about
+doing this in Linux.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>

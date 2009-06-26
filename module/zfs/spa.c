@@ -4344,10 +4344,10 @@ spa_has_active_shared_spare(spa_t *spa)
  * in the userland libzpool, as we don't want consumers to misinterpret ztest
  * or zdb as real changes.
  */
+#ifdef HAVE_SYSEVENT
 void
 spa_event_notify(spa_t *spa, vdev_t *vd, const char *name)
 {
-#ifdef _KERNEL
 	sysevent_t		*ev;
 	sysevent_attr_list_t	*attr = NULL;
 	sysevent_value_t	value;
@@ -4392,8 +4392,8 @@ done:
 	if (attr)
 		sysevent_free_attr(attr);
 	sysevent_free(ev);
-#endif
 }
+#endif /* HAVE_SYSEVENT */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* state manipulation functions */

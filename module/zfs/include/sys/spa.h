@@ -535,7 +535,11 @@ extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
 extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 
 /* asynchronous event notification */
+#ifdef HAVE_SYSEVENT
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, const char *name);
+#else
+#define spa_event_notify(s,v,n) ((void)0)
+#endif
 
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\
