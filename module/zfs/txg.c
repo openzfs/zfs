@@ -49,7 +49,7 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 	int c;
 	bzero(tx, sizeof (tx_state_t));
 
-	tx->tx_cpu = kmem_zalloc(max_ncpus * sizeof (tx_cpu_t), KM_SLEEP);
+	tx->tx_cpu = vmem_zalloc(max_ncpus * sizeof (tx_cpu_t), KM_SLEEP);
 
 	for (c = 0; c < max_ncpus; c++) {
 		int i;
@@ -109,7 +109,7 @@ txg_fini(dsl_pool_t *dp)
 	if (tx->tx_commit_cb_taskq != NULL)
 		taskq_destroy(tx->tx_commit_cb_taskq);
 
-	kmem_free(tx->tx_cpu, max_ncpus * sizeof (tx_cpu_t));
+	vmem_free(tx->tx_cpu, max_ncpus * sizeof (tx_cpu_t));
 
 	bzero(tx, sizeof (tx_state_t));
 }

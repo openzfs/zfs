@@ -134,7 +134,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 static void
 history_str_free(char *buf)
 {
-	kmem_free(buf, HIS_MAX_RECORD_LEN);
+	vmem_free(buf, HIS_MAX_RECORD_LEN);
 }
 
 static char *
@@ -145,7 +145,7 @@ history_str_get(zfs_cmd_t *zc)
 	if (zc->zc_history == 0)
 		return (NULL);
 
-	buf = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
+	buf = vmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
 	if (copyinstr((void *)(uintptr_t)zc->zc_history,
 	    buf, HIS_MAX_RECORD_LEN, NULL) != 0) {
 		history_str_free(buf);
@@ -729,12 +729,12 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 	if (size > zc->zc_nvlist_dst_size) {
 		error = ENOMEM;
 	} else {
-		packed = kmem_alloc(size, KM_SLEEP);
+		packed = vmem_alloc(size, KM_SLEEP);
 		VERIFY(nvlist_pack(nvl, &packed, &size, NV_ENCODE_NATIVE,
 		    KM_SLEEP) == 0);
 		error = xcopyout(packed, (void *)(uintptr_t)zc->zc_nvlist_dst,
 		    size);
-		kmem_free(packed, size);
+		vmem_free(packed, size);
 	}
 
 	zc->zc_nvlist_dst_size = size;
@@ -3002,7 +3002,7 @@ zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 	if (vec >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
 		return (EINVAL);
 
-	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+	zc = vmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 
 	error = xcopyin((void *)arg, zc, sizeof (zfs_cmd_t));
 
@@ -3041,7 +3041,7 @@ zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 			zfs_log_history(zc);
 	}
 
-	kmem_free(zc, sizeof (zfs_cmd_t));
+	vmem_free(zc, sizeof (zfs_cmd_t));
 	return (error);
 }
 

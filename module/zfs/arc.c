@@ -755,8 +755,15 @@ buf_fini(void)
 {
 	int i;
 
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	/* Large allocations which do not require contiguous pages
+	 * should be using vmem_free() in the linux kernel */
+	vmem_free(buf_hash_table.ht_table,
+	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
+#else
 	kmem_free(buf_hash_table.ht_table,
 	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
+#endif
 	for (i = 0; i < BUF_LOCKS; i++)
 		mutex_destroy(&buf_hash_table.ht_locks[i].ht_lock);
 	kmem_cache_destroy(hdr_cache);
@@ -855,8 +862,15 @@ buf_init(void)
 		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
+#if defined(_KERNEL) && defined(HAVE_SPL)
+	/* Large allocations which do not require contiguous pages
+	 * should be using vmem_alloc() in the linux kernel */
+	buf_hash_table.ht_table =
+	    vmem_zalloc(hsize * sizeof (void*), KM_SLEEP);
+#else
 	buf_hash_table.ht_table =
 	    kmem_zalloc(hsize * sizeof (void*), KM_NOSLEEP);
+#endif
 	if (buf_hash_table.ht_table == NULL) {
 		ASSERT(hsize > (1ULL << 8));
 		hsize >>= 1;
