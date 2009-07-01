@@ -32,9 +32,7 @@ additional applications against the %{name} libraries.
 %prep
 %setup
 %build
-%configure --with-linux=%{kdir} --with-linux-obj=%{kobj} \
-           --with-spl=%{spldir} --with-spl-obj=%{splobj} \
-           --with-config=user
+%configure --with-config=user
 make
 
 %install
