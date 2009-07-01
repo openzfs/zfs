@@ -205,11 +205,12 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
+atomic_SOURCE = atomic.c
+atomic_ASM = atomic.S
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	  $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 
-atomic_SOURCE = atomic.c
-atomic_ASM = atomic.S
+EXTRA_DIST = ${atomic_SOURCE}
 all: all-am
 
 .SUFFIXES:
