@@ -1,4 +1,12 @@
-SUBDIRS = lib cmd module include scripts
+include $(top_srcdir)/config/rpm.am
+
+if CONFIG_USER
+USER_DIR = lib cmd scripts
+endif
+if CONFIG_KERNEL
+KERNEL_DIR = module include
+endif
+SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST = autogen.sh spl.spec.in META DISCLAIMER
@@ -15,6 +23,7 @@ distclean-local::
 		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \) \
 		-type f -print | xargs $(RM)
 
+if CONFIG_KERNEL
 install-data-local:
 	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
 	instdest=$(DESTDIR)/${prefix}/src/$$destname; \
@@ -22,6 +31,7 @@ install-data-local:
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done
+endif
 
 ctags:
 	$(RM) $(top_srcdir)/tags
@@ -33,27 +43,22 @@ etags:
 
 tags: ctags etags
 
-rpm-local:
-	mkdir -p $(rpmbuild)/TMP && \
-	mkdir -p $(rpmbuild)/BUILD && \
-	mkdir -p $(rpmbuild)/RPMS && \
-	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(PACKAGE).spec $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
-srpm: dist
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "build_src_rpm 1" --define "dist %{nil}" --nodeps -bs $$rpmbuild/SPECS/$(PACKAGE).spec || exit 1; \
-	cp $$rpmbuild/SRPMS/$(distdir)-$(SPL_META_RELEASE).src.rpm . || exit 1;\
-	$(RM) -R $$rpmbuild
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
-# Use 'make rpm LINUX_VERSION=2.x.y-z' to rebuild the source RPM
-# against any installed kernel-devel-2.x.y-z package.  This will
-# override the LINUX_VERSION detected at configure time.
-rpm: srpm
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kdir $(LINUX)" --define "require_kobj $(LINUX_OBJ)" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(SPL_META_RELEASE).src.rpm || exit 1; \
-	cp $$rpmbuild/RPMS/*/* . || exit 1; \
-	$(RM) -R $$rpmbuild
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm-utils: srpm-utils
+
+rpm: rpm-modules rpm-utils

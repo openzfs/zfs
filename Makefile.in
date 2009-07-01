@@ -39,7 +39,8 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/spl.spec.in $(srcdir)/spl_config.h.in \
+	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.spec.in \
+	$(srcdir)/spl_config.h.in $(top_srcdir)/config/rpm.am \
 	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/spl/Makefile.in \
 	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
@@ -57,7 +58,7 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = spl_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/spl/Makefile \
-	module/splat/Makefile spl.spec
+	module/splat/Makefile spl.spec spl-modules.spec
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -69,7 +70,7 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = $(SUBDIRS)
+DIST_SUBDIRS = lib cmd scripts module include
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -93,6 +94,10 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CONFIG_KERNEL_FALSE = @CONFIG_KERNEL_FALSE@
+CONFIG_KERNEL_TRUE = @CONFIG_KERNEL_TRUE@
+CONFIG_USER_FALSE = @CONFIG_USER_FALSE@
+CONFIG_USER_TRUE = @CONFIG_USER_TRUE@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CXX = @CXX@
@@ -114,13 +119,13 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
-KERNELCFLAGS = @KERNELCFLAGS@
 KERNELCPPFLAGS = @KERNELCPPFLAGS@
 KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
 LINUX_SYMBOLS = @LINUX_SYMBOLS@
@@ -143,6 +148,7 @@ RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SPL_CONFIG = @SPL_CONFIG@
 SPL_META_ALIAS = @SPL_META_ALIAS@
 SPL_META_AUTHOR = @SPL_META_AUTHOR@
 SPL_META_DATA = @SPL_META_DATA@
@@ -201,7 +207,9 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-SUBDIRS = lib cmd module include scripts
+@CONFIG_USER_TRUE@USER_DIR = lib cmd scripts
+@CONFIG_KERNEL_TRUE@KERNEL_DIR = module include
+SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST = autogen.sh spl.spec.in META DISCLAIMER
 noinst_HEADERS = spl_config.h spl_unconfig.h
@@ -211,7 +219,7 @@ all: spl_config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -266,6 +274,8 @@ module/spl/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/spl/Make
 module/splat/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/splat/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 spl.spec: $(top_builddir)/config.status $(srcdir)/spl.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+spl-modules.spec: $(top_builddir)/config.status $(srcdir)/spl-modules.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -580,6 +590,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+@CONFIG_KERNEL_FALSE@install-data-local:
 clean: clean-recursive
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -648,6 +659,49 @@ uninstall-info: uninstall-info-recursive
 	mostlyclean-libtool mostlyclean-recursive pdf pdf-am ps ps-am \
 	tags tags-recursive uninstall uninstall-am uninstall-info-am
 
+rpm-local:
+	mkdir -p $(rpmbuild)/TMP && \
+	mkdir -p $(rpmbuild)/BUILD && \
+	mkdir -p $(rpmbuild)/RPMS && \
+	mkdir -p $(rpmbuild)/SRPMS && \
+	mkdir -p $(rpmbuild)/SPECS && cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+
+srpm-common: dist
+	rpmpkg=$(pkg)-$(SPL_META_VERSION)-$(SPL_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	/usr/bin/rpmbuild \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "build_src_rpm 1" \
+		--define "dist %{nil}" \
+		--nodeps -bs $$rpmbuild/SPECS/$$rpmspec || exit 1; \
+	cp $$rpmbuild/SRPMS/$$rpmpkg . || exit 1; \
+	$(RM) -R $$rpmbuild
+
+rpm-common: 
+	rpmpkg=$(pkg)-$(SPL_META_VERSION)-$(SPL_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	/usr/bin/rpmbuild \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "require_kdir $(LINUX)" \
+		--define "require_kobj $(LINUX_OBJ)" \
+		--define "require_kver $(LINUX_VERSION)" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/*/* . || exit 1; \
+	$(RM) -R $$rpmbuild
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -660,13 +714,13 @@ distclean-local::
 		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \) \
 		-type f -print | xargs $(RM)
 
-install-data-local:
-	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
-	instdest=$(DESTDIR)/${prefix}/src/$$destname; \
-	echo "${SPL_META_VERSION}" >$$instdest/spl.release; \
-	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
-	done
+@CONFIG_KERNEL_TRUE@install-data-local:
+@CONFIG_KERNEL_TRUE@	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
+@CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/${prefix}/src/$$destname; \
+@CONFIG_KERNEL_TRUE@	echo "${SPL_META_VERSION}" >$$instdest/spl.release; \
+@CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
+@CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+@CONFIG_KERNEL_TRUE@	done
 
 ctags:
 	$(RM) $(top_srcdir)/tags
@@ -678,30 +732,25 @@ etags:
 
 tags: ctags etags
 
-rpm-local:
-	mkdir -p $(rpmbuild)/TMP && \
-	mkdir -p $(rpmbuild)/BUILD && \
-	mkdir -p $(rpmbuild)/RPMS && \
-	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(PACKAGE).spec $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
-srpm: dist
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "build_src_rpm 1" --define "dist %{nil}" --nodeps -bs $$rpmbuild/SPECS/$(PACKAGE).spec || exit 1; \
-	cp $$rpmbuild/SRPMS/$(distdir)-$(SPL_META_RELEASE).src.rpm . || exit 1;\
-	$(RM) -R $$rpmbuild
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
-# Use 'make rpm LINUX_VERSION=2.x.y-z' to rebuild the source RPM
-# against any installed kernel-devel-2.x.y-z package.  This will
-# override the LINUX_VERSION detected at configure time.
-rpm: srpm
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kdir $(LINUX)" --define "require_kobj $(LINUX_OBJ)" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(SPL_META_RELEASE).src.rpm || exit 1; \
-	cp $$rpmbuild/RPMS/*/* . || exit 1; \
-	$(RM) -R $$rpmbuild
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm-utils: srpm-utils
+
+rpm: rpm-modules rpm-utils
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

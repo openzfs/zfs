@@ -1,3 +1,82 @@
+dnl #
+dnl # Default SPL kernel configuration
+dnl #
+AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
+	SPL_AC_KERNEL
+
+	dnl # Kernel build make options
+	dnl # KERNELMAKE_PARAMS="V=1"   # Enable verbose module build
+	KERNELMAKE_PARAMS="V=1"
+
+	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
+	dnl # compiler options are added by the kernel build system.
+	abs_srcdir=`readlink -f ${srcdir}`
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes -Werror"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir} -I${abs_srcdir}/include"
+
+	if test "${LINUX_OBJ}" != "${LINUX}"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
+	fi
+
+	AC_SUBST(KERNELMAKE_PARAMS)
+	AC_SUBST(KERNELCPPFLAGS)
+
+	SPL_AC_DEBUG
+	SPL_AC_DEBUG_KMEM
+	SPL_AC_DEBUG_MUTEX
+	SPL_AC_DEBUG_KSTAT
+	SPL_AC_DEBUG_CALLB
+	SPL_AC_TYPE_UINTPTR_T
+	SPL_AC_TYPE_ATOMIC64_T
+	SPL_AC_3ARGS_INIT_WORK
+	SPL_AC_2ARGS_REGISTER_SYSCTL
+	SPL_AC_SET_SHRINKER
+	SPL_AC_PATH_IN_NAMEIDATA
+	SPL_AC_TASK_CURR
+	SPL_AC_CTL_UNNUMBERED
+	SPL_AC_FLS64
+	SPL_AC_DEVICE_CREATE
+	SPL_AC_5ARGS_DEVICE_CREATE
+	SPL_AC_CLASS_DEVICE_CREATE
+	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
+	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
+	SPL_AC_TIMESPEC_SUB
+	SPL_AC_INIT_UTSNAME
+	SPL_AC_FDTABLE_HEADER
+	SPL_AC_FILES_FDTABLE
+	SPL_AC_UACCESS_HEADER
+	SPL_AC_KMALLOC_NODE
+	SPL_AC_MONOTONIC_CLOCK
+	SPL_AC_INODE_I_MUTEX
+	SPL_AC_MUTEX_LOCK_NESTED
+	SPL_AC_DIV64_64
+	SPL_AC_DIV64_U64
+	SPL_AC_3ARGS_ON_EACH_CPU
+	SPL_AC_KALLSYMS_LOOKUP_NAME
+	SPL_AC_GET_VMALLOC_INFO
+	SPL_AC_PGDAT_HELPERS
+	SPL_AC_FIRST_ONLINE_PGDAT
+	SPL_AC_NEXT_ONLINE_PGDAT
+	SPL_AC_NEXT_ZONE
+	SPL_AC_PGDAT_LIST
+	SPL_AC_GET_ZONE_COUNTS
+	SPL_AC_GLOBAL_PAGE_STATE
+	SPL_AC_ZONE_STAT_ITEM_FIA
+	SPL_AC_2ARGS_VFS_UNLINK
+	SPL_AC_4ARGS_VFS_RENAME
+])
+
+AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
+	AC_MSG_CHECKING([kernel file name for module symbols])
+	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
+		LINUX_SYMBOLS=Modules.symvers
+	else
+		LINUX_SYMBOLS=Module.symvers
+	fi
+	AC_MSG_RESULT($LINUX_SYMBOLS)
+	AC_SUBST(LINUX_SYMBOLS)
+])
+
 AC_DEFUN([SPL_AC_KERNEL], [
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
@@ -72,41 +151,54 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	LINUX_OBJ=${kernelbuild}
 	LINUX_VERSION=${kernsrcver}
 
-	abs_srcdir=`readlink -f ${srcdir}`
-	kerninclude="-I${abs_srcdir} -I${abs_srcdir}/include"
-	kernwarn="-Wstrict-prototypes -Werror"
-
-	if test "${LINUX_OBJ}" != "${LINUX}"; then
-	        kernobjs="O=$kernelbuild"
-	fi
-
-	KERNELCFLAGS=
-	KERNELCPPFLAGS="${kerninclude} ${kernwarn}"
-	KERNELMAKE_PARAMS="${kernobjs}"
-
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(LINUX_VERSION)
-	AC_SUBST(KERNELMAKE_PARAMS)
-	AC_SUBST(KERNELCPPFLAGS)
-	AC_SUBST(KERNELCFLAGS)
+
+	SPL_AC_MODULE_SYMVERS
 ])
 
-AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
-	AC_MSG_CHECKING([kernel file name for module symbols])
-	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
-		LINUX_SYMBOLS=Modules.symvers
-	else
-		LINUX_SYMBOLS=Module.symvers
-	fi
-	AC_MSG_RESULT($LINUX_SYMBOLS)
-	AC_SUBST(LINUX_SYMBOLS)
-])
+dnl #
+dnl # Default SPL user configuration
+dnl #
+AC_DEFUN([SPL_AC_CONFIG_USER], [])
 
 AC_DEFUN([SPL_AC_LICENSE], [
-	AC_MSG_CHECKING([license])
-	AC_MSG_RESULT([GPL])
+	AC_MSG_CHECKING([spl license])
+	LICENSE=GPL
+	AC_MSG_RESULT([$LICENSE])
 	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
+	AC_SUBST(LICENSE)
+])
+
+AC_DEFUN([SPL_AC_CONFIG], [
+        SPL_CONFIG=all
+        AC_ARG_WITH([config],
+                AS_HELP_STRING([--with-config=CONFIG],
+                [Config file 'kernel|user|all']),
+                [SPL_CONFIG="$withval"])
+
+        AC_MSG_CHECKING([spl config])
+        AC_MSG_RESULT([$SPL_CONFIG]);
+        AC_SUBST(SPL_CONFIG)
+
+        case "$SPL_CONFIG" in
+                kernel) SPL_AC_CONFIG_KERNEL ;;
+                user)   SPL_AC_CONFIG_USER   ;;
+                all)    SPL_AC_CONFIG_KERNEL
+                        SPL_AC_CONFIG_USER   ;;
+                *)
+                AC_MSG_RESULT([Error!])
+                AC_MSG_ERROR([Bad value "$SPL_CONFIG" for --with-config,
+                              user kernel|user|all]) ;;
+        esac
+
+        AM_CONDITIONAL([CONFIG_USER],
+                       [test "$SPL_CONFIG" = user] ||
+                       [test "$SPL_CONFIG" = all])
+        AM_CONDITIONAL([CONFIG_KERNEL],
+                       [test "$SPL_CONFIG" = kernel] ||
+                       [test "$SPL_CONFIG" = all])
 ])
 
 AC_DEFUN([SPL_AC_DEBUG], [
