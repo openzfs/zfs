@@ -1,1 +1,1 @@
-pkginclude_HEADERS  = sys/*.h
+nobase_pkginclude_HEADERS  = sys/*.h
