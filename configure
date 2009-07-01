@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LINUX LINUX_OBJ LINUX_VERSION splsrc splsymvers LICENSE UNAME TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ARCH TARGET_ARCH_DIR LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ARCH TARGET_ARCH_DIR CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1052,11 +1052,11 @@ Optional Packages:
                           both]
   --with-tags[=TAGS]
                           include additional configurations [automatic]
+  --with-config=CONFIG    Config file 'kernel|user|all'
   --with-linux=PATH       Path to kernel source
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
-  --with-config=CONFIG    Config file 'kernel|user|all'
 
 Some influential environment variables:
   CC          C compiler command
@@ -2220,6 +2220,8 @@ am__tar='${AMTAR} chof - "$$tardir"'; am__untar='${AMTAR} xf -'
 
 
           ac_config_headers="$ac_config_headers zfs_config.h"
+
+
 
 echo "$as_me:$LINENO: checking whether to enable maintainer-specific portions of Makefiles" >&5
 echo $ECHO_N "checking whether to enable maintainer-specific portions of Makefiles... $ECHO_C" >&6
@@ -3997,7 +3999,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 4000 "configure"' > conftest.$ac_ext
+  echo '#line 4002 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -5596,7 +5598,7 @@ fi
 
 
 # Provide some information about the compiler.
-echo "$as_me:5599:" \
+echo "$as_me:5601:" \
      "checking for Fortran 77 compiler version" >&5
 ac_compiler=`set X $ac_compile; echo $2`
 { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
@@ -6659,11 +6661,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6662: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6664: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6666: \$? = $ac_status" >&5
+   echo "$as_me:6668: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -6927,11 +6929,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6930: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6932: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6934: \$? = $ac_status" >&5
+   echo "$as_me:6936: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7031,11 +7033,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7034: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7036: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7038: \$? = $ac_status" >&5
+   echo "$as_me:7040: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8500,7 +8502,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 8503 "configure"' > conftest.$ac_ext
+    echo '#line 8505 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -9397,7 +9399,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9400 "configure"
+#line 9402 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -9497,7 +9499,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9500 "configure"
+#line 9502 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11840,11 +11842,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11843: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11845: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:11847: \$? = $ac_status" >&5
+   echo "$as_me:11849: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -11944,11 +11946,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11947: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11949: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:11951: \$? = $ac_status" >&5
+   echo "$as_me:11953: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -12480,7 +12482,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 12483 "configure"' > conftest.$ac_ext
+    echo '#line 12485 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -13538,11 +13540,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13541: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13543: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:13545: \$? = $ac_status" >&5
+   echo "$as_me:13547: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -13642,11 +13644,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13645: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13647: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13649: \$? = $ac_status" >&5
+   echo "$as_me:13651: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -15091,7 +15093,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 15094 "configure"' > conftest.$ac_ext
+    echo '#line 15096 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -15869,11 +15871,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15872: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15874: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:15876: \$? = $ac_status" >&5
+   echo "$as_me:15878: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16137,11 +16139,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16140: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16142: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:16144: \$? = $ac_status" >&5
+   echo "$as_me:16146: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16241,11 +16243,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16244: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16246: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:16248: \$? = $ac_status" >&5
+   echo "$as_me:16250: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -17710,7 +17712,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 17713 "configure"' > conftest.$ac_ext
+    echo '#line 17715 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -18944,11 +18946,56 @@ test "${CCASFLAGS+set}" = set || CCASFLAGS=$CFLAGS
 
 
 
+	echo "$as_me:$LINENO: checking zfs license" >&5
+echo $ECHO_N "checking zfs license... $ECHO_C" >&6
+	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
+	echo "$as_me:$LINENO: result: $LICENSE" >&5
+echo "${ECHO_T}$LICENSE" >&6
+	if test "$LICENSE" = GPL; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GPL_ONLY_SYMBOLS 1
+_ACEOF
+
+	fi
+
+
+
+
+	TOPDIR=`readlink -f ${srcdir}`
+	BUILDDIR=$TOPDIR
+	LIBDIR=$TOPDIR/lib
+	CMDDIR=$TOPDIR/cmd
+	MODDIR=$TOPDIR/module
+
+
+
+
+
+
+
+	ZFS_CONFIG=all
+
+# Check whether --with-config or --without-config was given.
+if test "${with_config+set}" = set; then
+  withval="$with_config"
+  ZFS_CONFIG="$withval"
+fi;
+
+	echo "$as_me:$LINENO: checking zfs config" >&5
+echo $ECHO_N "checking zfs config... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $ZFS_CONFIG" >&5
+echo "${ECHO_T}$ZFS_CONFIG" >&6;
+
+
+	case "$ZFS_CONFIG" in
+		kernel)
+
 
 # Check whether --with-linux or --without-linux was given.
 if test "${with_linux+set}" = set; then
   withval="$with_linux"
-  kernelsrc="$withval"; kernelbuild="$withval"
+  kernelsrc="$withval"
 fi;
 
 
@@ -18962,11 +19009,10 @@ fi;
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
 		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
-                            2>/dev/null | grep -v obj | tail -1`
+		            2>/dev/null | grep -v obj | tail -1`
 
 		if test -e $sourcelink; then
 			kernelsrc=`readlink -f ${sourcelink}`
-			kernelbuild=
 		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
@@ -18988,11 +19034,15 @@ echo "$as_me: error:
 echo "${ECHO_T}$kernelsrc" >&6
 	echo "$as_me:$LINENO: checking kernel build directory" >&5
 echo $ECHO_N "checking kernel build directory... $ECHO_C" >&6
-        if test -z "$kernelbuild" && test -d ${kernelsrc}-obj; then
-                kernelbuild=${kernelsrc}-obj/`arch`/`arch`
-        else
-                kernelbuild=${kernelsrc}
-        fi
+	if test -z "$kernelbuild"; then
+		if test -d ${kernelsrc}-obj; then
+			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
+			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
+		else
+			kernelbuild=${kernelsrc}
+		fi
+	fi
 	echo "$as_me:$LINENO: result: $kernelbuild" >&5
 echo "${ECHO_T}$kernelbuild" >&6
 
@@ -19011,7 +19061,7 @@ echo $ECHO_N "checking kernel source version... $ECHO_C" >&6
 
 		kernsrcver=`(echo "#include <linux/utsrelease.h>";
 		             echo "kernsrcver=UTS_RELEASE") |
-	        	     cpp -I $kernelbuild/include |
+		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 	fi
 
@@ -19039,11 +19089,24 @@ echo "${ECHO_T}$kernsrcver" >&6
 
 
 
+	echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
+echo $ECHO_N "checking kernel file name for module symbols... $ECHO_C" >&6
+	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
+		LINUX_SYMBOLS=Modules.symvers
+	else
+		LINUX_SYMBOLS=Module.symvers
+	fi
+	echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
+echo "${ECHO_T}$LINUX_SYMBOLS" >&6
+
+
+
+
 
 # Check whether --with-spl or --without-spl was given.
 if test "${with_spl+set}" = set; then
   withval="$with_spl"
-  splsrc="$withval"; splbuild="$withval"
+  splsrc="$withval"
 fi;
 
 
@@ -19057,19 +19120,12 @@ fi;
 	echo "$as_me:$LINENO: checking spl source directory" >&5
 echo $ECHO_N "checking spl source directory... $ECHO_C" >&6
 	if test -z "$splsrc"; then
-		sourcelink=${LINUX}/include/spl
-		buildlink=${LINUX_OBJ}/include/spl
+		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
+		            2>/dev/null | tail -1`
 
 		if test -e $sourcelink; then
 			splsrc=`readlink -f ${sourcelink}`
-		fi
-		if test -e $buildlink; then
-			splbuild=`readlink -f ${buildlink}`
-		fi
-		if test -z "$splsrc"; then
-			splsrc=$splbuild
-		fi
-		if test -z "$splsrc" -o -z "$splbuild"; then
+		else
 			echo "$as_me:$LINENO: result: Not found" >&5
 echo "${ECHO_T}Not found" >&6
 			{ { echo "$as_me:$LINENO: error:
@@ -19082,7 +19138,7 @@ echo "$as_me: error:
 		fi
 	else
 		if test "$splsrc" = "NONE"; then
-			splsymvers=NONE
+			splbuild=NONE
 			splsrcver=NONE
 		fi
 	fi
@@ -19091,45 +19147,25 @@ echo "$as_me: error:
 echo "${ECHO_T}$splsrc" >&6
 	echo "$as_me:$LINENO: checking spl build directory" >&5
 echo $ECHO_N "checking spl build directory... $ECHO_C" >&6
+	if test -z "$splbuild"; then
+		if test -d ${splsrc}/module; then
+			splbuild=${splsrc}/module
+		else
+			splbuild=${splsrc}
+		fi
+	fi
 	echo "$as_me:$LINENO: result: $splbuild" >&5
 echo "${ECHO_T}$splbuild" >&6
 
-	echo "$as_me:$LINENO: checking spl Module{s}.symvers" >&5
-echo $ECHO_N "checking spl Module{s}.symvers... $ECHO_C" >&6
-	if test -r $splbuild/module/Module.symvers; then
-		splsymvers=$splbuild/module/Module.symvers
-	elif test -r $splbuild/module/Modules.symvers; then
-		splsymvers=$splbuild/module/Modules.symvers
-	elif test -r $kernelbuild/include/spl/Module.symvers; then
-		splsymvers=$kernelbuild/include/spl/Module.symvers
-	elif test -r $kernelbuild/include/spl/Modules.symvers; then
-		splsymvers=$kernelbuild/include/spl/Modules.symvers
-	fi
-
-	if test -z "$splsymvers"; then
-	        echo "$as_me:$LINENO: result: Not found" >&5
-echo "${ECHO_T}Not found" >&6
-	        { { echo "$as_me:$LINENO: error:
-                *** Cannot find extra Module{s}.symvers in the spl source.
-                *** Please prepare the spl source before running this script" >&5
-echo "$as_me: error:
-                *** Cannot find extra Module{s}.symvers in the spl source.
-                *** Please prepare the spl source before running this script" >&2;}
-   { (exit 1); exit 1; }; }
-	fi
-
-	echo "$as_me:$LINENO: result: $splsymvers" >&5
-echo "${ECHO_T}$splsymvers" >&6
-
 	echo "$as_me:$LINENO: checking spl source version" >&5
 echo $ECHO_N "checking spl source version... $ECHO_C" >&6
-	if test -r $splbuild/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
+	if test -r $splsrc/spl_config.h &&
+		fgrep -q SPL_META_VERSION $splsrc/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
-		            cpp -I $splbuild |
-	        	    grep "^splsrcver=" | cut -d \" -f 2`
+		            cpp -I $splsrc |
+		            grep "^splsrcver=" | cut -d \" -f 2`
 	fi
 
 	if test -z "$splsrcver"; then
@@ -19147,70 +19183,36 @@ echo "$as_me: error:
 	echo "$as_me:$LINENO: result: $splsrcver" >&5
 echo "${ECHO_T}$splsrcver" >&6
 
+	SPL=${splsrc}
+	SPL_OBJ=${splbuild}
+	SPL_VERSION=${splsrcver}
 
 
 
 
-	echo "$as_me:$LINENO: checking zfs license" >&5
-echo $ECHO_N "checking zfs license... $ECHO_C" >&6
-	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
-	echo "$as_me:$LINENO: result: $LICENSE" >&5
-echo "${ECHO_T}$LICENSE" >&6
-	if test "$LICENSE" = GPL; then
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GPL_ONLY_SYMBOLS 1
-_ACEOF
 
+	echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
+echo $ECHO_N "checking spl file name for module symbols... $ECHO_C" >&6
+
+	if test -r $SPL_OBJ/Module.symvers; then
+		SPL_SYMBOLS=Module.symvers
+	elif test -r $SPL_OBJ/Modules.symvers; then
+		SPL_SYMBOLS=Modules.symvers
+	else
+		echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+		{ { echo "$as_me:$LINENO: error:
+		*** Cannot find extra Module{s}.symvers in the spl source.
+		*** Please prepare the spl source before running this script" >&5
+echo "$as_me: error:
+		*** Cannot find extra Module{s}.symvers in the spl source.
+		*** Please prepare the spl source before running this script" >&2;}
+   { (exit 1); exit 1; }; }
 	fi
 
-
-
-
-
-	TOPDIR=`/bin/pwd`
-	BUILDDIR=$TOPDIR
-	LIBDIR=$TOPDIR/lib
-	CMDDIR=$TOPDIR/cmd
-	MODDIR=$TOPDIR/module
-	UNAME=`uname -r | cut -d- -f1`
-
-	if test -z "$ZFS_CONFIG"; then
-		ZFS_CONFIG=all
-	fi
-
-
-
-
-
-
-
-
-
-
-# Check whether --with-zfs-config or --without-zfs-config was given.
-if test "${with_zfs_config+set}" = set; then
-  withval="$with_zfs_config"
-  ZFS_CONFIG="$withval"
-fi;
-
-	echo "$as_me:$LINENO: checking zfs config" >&5
-echo $ECHO_N "checking zfs config... $ECHO_C" >&6
-	echo "$as_me:$LINENO: result: $ZFS_CONFIG" >&5
-echo "${ECHO_T}$ZFS_CONFIG" >&6;
-
-	case "$ZFS_CONFIG" in
-		kernel)
-			KERNELMAKE_PARAMS="V=1"
-
-			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
-
-	if test "$kernelbuild" != "$kernelsrc"; then
-		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
-	fi
-
+	echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
+echo "${ECHO_T}$SPL_SYMBOLS" >&6
 
 
 
@@ -19283,6 +19285,19 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+			KERNELMAKE_PARAMS="V=1"
+
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$TOPDIR -I$SPL -I$SPL/include"
+
+	if test "$LINUX_OBJ" != "$LINUX"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
+	fi
+
+
 
  ;;
 		user)
@@ -19937,16 +19952,229 @@ fi
 
    ;;
 		all)
-			KERNELMAKE_PARAMS="V=1"
 
-			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$splsrc -I$splsrc/include -I$TOPDIR"
 
-	if test "$kernelbuild" != "$kernelsrc"; then
-		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$kernelbuild"
+# Check whether --with-linux or --without-linux was given.
+if test "${with_linux+set}" = set; then
+  withval="$with_linux"
+  kernelsrc="$withval"
+fi;
+
+
+# Check whether --with-linux-obj or --without-linux-obj was given.
+if test "${with_linux_obj+set}" = set; then
+  withval="$with_linux_obj"
+  kernelbuild="$withval"
+fi;
+
+	echo "$as_me:$LINENO: checking kernel source directory" >&5
+echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
+	if test -z "$kernelsrc"; then
+		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
+		            2>/dev/null | grep -v obj | tail -1`
+
+		if test -e $sourcelink; then
+			kernelsrc=`readlink -f ${sourcelink}`
+		else
+			echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+			{ { echo "$as_me:$LINENO: error:
+			*** Please specify the location of the kernel source
+			*** with the '--with-linux=PATH' option" >&5
+echo "$as_me: error:
+			*** Please specify the location of the kernel source
+			*** with the '--with-linux=PATH' option" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+	else
+		if test "$kernelsrc" = "NONE"; then
+			kernsrcver=NONE
+		fi
 	fi
 
+	echo "$as_me:$LINENO: result: $kernelsrc" >&5
+echo "${ECHO_T}$kernelsrc" >&6
+	echo "$as_me:$LINENO: checking kernel build directory" >&5
+echo $ECHO_N "checking kernel build directory... $ECHO_C" >&6
+	if test -z "$kernelbuild"; then
+		if test -d ${kernelsrc}-obj; then
+			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
+			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
+		else
+			kernelbuild=${kernelsrc}
+		fi
+	fi
+	echo "$as_me:$LINENO: result: $kernelbuild" >&5
+echo "${ECHO_T}$kernelbuild" >&6
+
+	echo "$as_me:$LINENO: checking kernel source version" >&5
+echo $ECHO_N "checking kernel source version... $ECHO_C" >&6
+	if test -r $kernelbuild/include/linux/version.h &&
+		fgrep -q UTS_RELEASE $kernelbuild/include/linux/version.h; then
+
+		kernsrcver=`(echo "#include <linux/version.h>";
+		             echo "kernsrcver=UTS_RELEASE") |
+		             cpp -I $kernelbuild/include |
+		             grep "^kernsrcver=" | cut -d \" -f 2`
+
+	elif test -r $kernelbuild/include/linux/utsrelease.h &&
+		fgrep -q UTS_RELEASE $kernelbuild/include/linux/utsrelease.h; then
+
+		kernsrcver=`(echo "#include <linux/utsrelease.h>";
+		             echo "kernsrcver=UTS_RELEASE") |
+		             cpp -I $kernelbuild/include |
+		             grep "^kernsrcver=" | cut -d \" -f 2`
+	fi
+
+	if test -z "$kernsrcver"; then
+		echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+		{ { echo "$as_me:$LINENO: error:
+		*** Cannot determine the version of the linux kernel source.
+		*** Please prepare the kernel before running this script" >&5
+echo "$as_me: error:
+		*** Cannot determine the version of the linux kernel source.
+		*** Please prepare the kernel before running this script" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	echo "$as_me:$LINENO: result: $kernsrcver" >&5
+echo "${ECHO_T}$kernsrcver" >&6
+
+	LINUX=${kernelsrc}
+	LINUX_OBJ=${kernelbuild}
+	LINUX_VERSION=${kernsrcver}
+
+
+
+
+
+
+	echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
+echo $ECHO_N "checking kernel file name for module symbols... $ECHO_C" >&6
+	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
+		LINUX_SYMBOLS=Modules.symvers
+	else
+		LINUX_SYMBOLS=Module.symvers
+	fi
+	echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
+echo "${ECHO_T}$LINUX_SYMBOLS" >&6
+
+
+
+
+
+# Check whether --with-spl or --without-spl was given.
+if test "${with_spl+set}" = set; then
+  withval="$with_spl"
+  splsrc="$withval"
+fi;
+
+
+# Check whether --with-spl-obj or --without-spl-obj was given.
+if test "${with_spl_obj+set}" = set; then
+  withval="$with_spl_obj"
+  splbuild="$withval"
+fi;
+
+
+	echo "$as_me:$LINENO: checking spl source directory" >&5
+echo $ECHO_N "checking spl source directory... $ECHO_C" >&6
+	if test -z "$splsrc"; then
+		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
+		            2>/dev/null | tail -1`
+
+		if test -e $sourcelink; then
+			splsrc=`readlink -f ${sourcelink}`
+		else
+			echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+			{ { echo "$as_me:$LINENO: error:
+			*** Please specify the location of the spl source
+			*** with the '--with-spl=PATH' option" >&5
+echo "$as_me: error:
+			*** Please specify the location of the spl source
+			*** with the '--with-spl=PATH' option" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+	else
+		if test "$splsrc" = "NONE"; then
+			splbuild=NONE
+			splsrcver=NONE
+		fi
+	fi
+
+	echo "$as_me:$LINENO: result: $splsrc" >&5
+echo "${ECHO_T}$splsrc" >&6
+	echo "$as_me:$LINENO: checking spl build directory" >&5
+echo $ECHO_N "checking spl build directory... $ECHO_C" >&6
+	if test -z "$splbuild"; then
+		if test -d ${splsrc}/module; then
+			splbuild=${splsrc}/module
+		else
+			splbuild=${splsrc}
+		fi
+	fi
+	echo "$as_me:$LINENO: result: $splbuild" >&5
+echo "${ECHO_T}$splbuild" >&6
+
+	echo "$as_me:$LINENO: checking spl source version" >&5
+echo $ECHO_N "checking spl source version... $ECHO_C" >&6
+	if test -r $splsrc/spl_config.h &&
+		fgrep -q SPL_META_VERSION $splsrc/spl_config.h; then
+
+		splsrcver=`(echo "#include <spl_config.h>";
+		            echo "splsrcver=SPL_META_VERSION") |
+		            cpp -I $splsrc |
+		            grep "^splsrcver=" | cut -d \" -f 2`
+	fi
+
+	if test -z "$splsrcver"; then
+		echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+		{ { echo "$as_me:$LINENO: error:
+		*** Cannot determine the version of the spl source.
+		*** Please prepare the spl source before running this script" >&5
+echo "$as_me: error:
+		*** Cannot determine the version of the spl source.
+		*** Please prepare the spl source before running this script" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	echo "$as_me:$LINENO: result: $splsrcver" >&5
+echo "${ECHO_T}$splsrcver" >&6
+
+	SPL=${splsrc}
+	SPL_OBJ=${splbuild}
+	SPL_VERSION=${splsrcver}
+
+
+
+
+
+
+	echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
+echo $ECHO_N "checking spl file name for module symbols... $ECHO_C" >&6
+
+	if test -r $SPL_OBJ/Module.symvers; then
+		SPL_SYMBOLS=Module.symvers
+	elif test -r $SPL_OBJ/Modules.symvers; then
+		SPL_SYMBOLS=Modules.symvers
+	else
+		echo "$as_me:$LINENO: result: Not found" >&5
+echo "${ECHO_T}Not found" >&6
+		{ { echo "$as_me:$LINENO: error:
+		*** Cannot find extra Module{s}.symvers in the spl source.
+		*** Please prepare the spl source before running this script" >&5
+echo "$as_me: error:
+		*** Cannot find extra Module{s}.symvers in the spl source.
+		*** Please prepare the spl source before running this script" >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
+echo "${ECHO_T}$SPL_SYMBOLS" >&6
 
 
 
@@ -20019,6 +20247,19 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+			KERNELMAKE_PARAMS="V=1"
+
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$TOPDIR -I$SPL -I$SPL/include"
+
+	if test "$LINUX_OBJ" != "$LINUX"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
+	fi
+
+
 
 
 
@@ -20683,21 +20924,44 @@ echo "$as_me: error: Bad value \"$ZFS_CONFIG\" for --with-config,
 	esac
 
 
+
+if test "$ZFS_CONFIG" = user ||
+	               test "$ZFS_CONFIG" = all; then
+  CONFIG_USER_TRUE=
+  CONFIG_USER_FALSE='#'
+else
+  CONFIG_USER_TRUE='#'
+  CONFIG_USER_FALSE=
+fi
+
+
+
+if test "$ZFS_CONFIG" = kernel ||
+	               test "$ZFS_CONFIG" = all; then
+  CONFIG_KERNEL_TRUE=
+  CONFIG_KERNEL_FALSE='#'
+else
+  CONFIG_KERNEL_TRUE='#'
+  CONFIG_KERNEL_FALSE=
+fi
+
+
+
 	SCRIPT_CONFIG=.script-config
 	rm -f ${SCRIPT_CONFIG}
-	echo "KERNELSRC=${LINUX}"         >>${SCRIPT_CONFIG}
-	echo "KERNELBUILD=${LINUX_OBJ}"   >>${SCRIPT_CONFIG}
-	echo "KERNELSRCVER=$kernsrcver"   >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
-	echo "SPLSRC=$splsrc"             >>${SCRIPT_CONFIG}
-	echo "SPLBUILD=$splbuild"         >>${SCRIPT_CONFIG}
-	echo "SPLSRCVER=$splsrcver"       >>${SCRIPT_CONFIG}
-	echo "SPLSYMVERS=$splsymvers"     >>${SCRIPT_CONFIG}
-	echo                              >>${SCRIPT_CONFIG}
-	echo "TOPDIR=${TOPDIR}"           >>${SCRIPT_CONFIG}
-	echo "LIBDIR=${LIBDIR}"           >>${SCRIPT_CONFIG}
-	echo "CMDDIR=${CMDDIR}"           >>${SCRIPT_CONFIG}
-	echo "MODDIR=${MODDIR}"           >>${SCRIPT_CONFIG}
+	echo "KERNELSRC=${LINUX}"             >>${SCRIPT_CONFIG}
+	echo "KERNELBUILD=${LINUX_OBJ}"       >>${SCRIPT_CONFIG}
+	echo "KERNELSRCVER=${LINUX_VERSION}"  >>${SCRIPT_CONFIG}
+	echo                                  >>${SCRIPT_CONFIG}
+	echo "SPLSRC=${SPL}"                  >>${SCRIPT_CONFIG}
+	echo "SPLBUILD=${SPL_OBJ}"            >>${SCRIPT_CONFIG}
+	echo "SPLSRCVER=${SPL_VERSION}"       >>${SCRIPT_CONFIG}
+	echo                                  >>${SCRIPT_CONFIG}
+	echo "TOPDIR=${TOPDIR}"               >>${SCRIPT_CONFIG}
+	echo "BUILDDIR=${BUILDDIR}"           >>${SCRIPT_CONFIG}
+	echo "LIBDIR=${LIBDIR}"               >>${SCRIPT_CONFIG}
+	echo "CMDDIR=${CMDDIR}"               >>${SCRIPT_CONFIG}
+	echo "MODDIR=${MODDIR}"               >>${SCRIPT_CONFIG}
 
 
 
@@ -20735,7 +20999,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                              ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/asm-powerpc64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec"
+                                                                                                                                                                                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/asm-powerpc64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec zfs-modules.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -20854,6 +21118,20 @@ if test -z "${am__fastdepCXX_TRUE}" && test -z "${am__fastdepCXX_FALSE}"; then
   { { echo "$as_me:$LINENO: error: conditional \"am__fastdepCXX\" was never defined.
 Usually this means the macro was only invoked conditionally." >&5
 echo "$as_me: error: conditional \"am__fastdepCXX\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
+if test -z "${CONFIG_USER_TRUE}" && test -z "${CONFIG_USER_FALSE}"; then
+  { { echo "$as_me:$LINENO: error: conditional \"CONFIG_USER\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+echo "$as_me: error: conditional \"CONFIG_USER\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
+if test -z "${CONFIG_KERNEL_TRUE}" && test -z "${CONFIG_KERNEL_FALSE}"; then
+  { { echo "$as_me:$LINENO: error: conditional \"CONFIG_KERNEL\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+echo "$as_me: error: conditional \"CONFIG_KERNEL\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi
@@ -21336,6 +21614,7 @@ do
   "scripts/zpios-test/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-test/Makefile" ;;
   "scripts/zpios-profile/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-profile/Makefile" ;;
   "zfs.spec" ) CONFIG_FILES="$CONFIG_FILES zfs.spec" ;;
+  "zfs-modules.spec" ) CONFIG_FILES="$CONFIG_FILES zfs-modules.spec" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "zfs_config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS zfs_config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -21507,23 +21786,29 @@ s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
 s,@CCAS@,$CCAS,;t t
 s,@CCASFLAGS@,$CCASFLAGS,;t t
-s,@LINUX@,$LINUX,;t t
-s,@LINUX_OBJ@,$LINUX_OBJ,;t t
-s,@LINUX_VERSION@,$LINUX_VERSION,;t t
-s,@splsrc@,$splsrc,;t t
-s,@splsymvers@,$splsymvers,;t t
 s,@LICENSE@,$LICENSE,;t t
-s,@UNAME@,$UNAME,;t t
 s,@TOPDIR@,$TOPDIR,;t t
 s,@BUILDDIR@,$BUILDDIR,;t t
 s,@LIBDIR@,$LIBDIR,;t t
 s,@CMDDIR@,$CMDDIR,;t t
 s,@MODDIR@,$MODDIR,;t t
 s,@ZFS_CONFIG@,$ZFS_CONFIG,;t t
+s,@LINUX@,$LINUX,;t t
+s,@LINUX_OBJ@,$LINUX_OBJ,;t t
+s,@LINUX_VERSION@,$LINUX_VERSION,;t t
+s,@LINUX_SYMBOLS@,$LINUX_SYMBOLS,;t t
+s,@SPL@,$SPL,;t t
+s,@SPL_OBJ@,$SPL_OBJ,;t t
+s,@SPL_VERSION@,$SPL_VERSION,;t t
+s,@SPL_SYMBOLS@,$SPL_SYMBOLS,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
 s,@TARGET_ARCH@,$TARGET_ARCH,;t t
 s,@TARGET_ARCH_DIR@,$TARGET_ARCH_DIR,;t t
+s,@CONFIG_USER_TRUE@,$CONFIG_USER_TRUE,;t t
+s,@CONFIG_USER_FALSE@,$CONFIG_USER_FALSE,;t t
+s,@CONFIG_KERNEL_TRUE@,$CONFIG_KERNEL_TRUE,;t t
+s,@CONFIG_KERNEL_FALSE@,$CONFIG_KERNEL_FALSE,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF

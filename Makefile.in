@@ -13,6 +13,7 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
+
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -36,11 +37,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-subdir = .
-DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(srcdir)/zfs.spec.in \
-	$(srcdir)/zfs_config.h.in $(top_srcdir)/configure \
-	$(top_srcdir)/module/Makefile.in \
+DIST_COMMON = README $(am__configure_deps) $(noinst_HEADERS) \
+	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/zfs-modules.spec.in $(srcdir)/zfs.spec.in \
+	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/rpm.am \
+	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
 	$(top_srcdir)/module/nvpair/Makefile.in \
 	$(top_srcdir)/module/unicode/Makefile.in \
@@ -48,6 +49,7 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	$(top_srcdir)/module/zfs/Makefile.in \
 	$(top_srcdir)/module/zpios/Makefile.in AUTHORS COPYING \
 	ChangeLog TODO
+subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
 	$(top_srcdir)/config/kernel.m4 \
@@ -68,7 +70,7 @@ CONFIG_HEADER = zfs_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/nvpair/Makefile module/unicode/Makefile \
 	module/zcommon/Makefile module/zfs/Makefile \
-	module/zpios/Makefile zfs.spec
+	module/zpios/Makefile zfs.spec zfs-modules.spec
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -77,9 +79,10 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
+HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = $(SUBDIRS)
+DIST_SUBDIRS = config doc scripts lib cmd module
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -107,6 +110,10 @@ CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CMDDIR = @CMDDIR@
+CONFIG_KERNEL_FALSE = @CONFIG_KERNEL_FALSE@
+CONFIG_KERNEL_TRUE = @CONFIG_KERNEL_TRUE@
+CONFIG_USER_FALSE = @CONFIG_USER_FALSE@
+CONFIG_USER_TRUE = @CONFIG_USER_TRUE@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CXX = @CXX@
@@ -138,6 +145,7 @@ LIBTOOL = @LIBTOOL@
 LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
+LINUX_SYMBOLS = @LINUX_SYMBOLS@
 LINUX_VERSION = @LINUX_VERSION@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -158,11 +166,14 @@ RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SPL = @SPL@
+SPL_OBJ = @SPL_OBJ@
+SPL_SYMBOLS = @SPL_SYMBOLS@
+SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ARCH = @TARGET_ARCH@
 TARGET_ARCH_DIR = @TARGET_ARCH_DIR@
 TOPDIR = @TOPDIR@
-UNAME = @UNAME@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
 ZFS_META_ALIAS = @ZFS_META_ALIAS@
@@ -215,25 +226,26 @@ prefix = @prefix@
 program_transform_name = @program_transform_name@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
-splsrc = @splsrc@
-splsymvers = @splsymvers@
 sysconfdir = @sysconfdir@
 target = @target@
 target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-SUBDIRS = config doc scripts lib cmd module
+@CONFIG_USER_TRUE@USER_DIR = config doc scripts lib cmd
+@CONFIG_KERNEL_TRUE@KERNEL_DIR = module
+SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh zfs.spec.in META DISCLAIMER GIT \
-	OPENSOLARIS.LICENSE ZFS.RELEASE
+EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in META \
+	DISCLAIMER GIT OPENSOLARIS.LICENSE ZFS.RELEASE
+noinst_HEADERS = zfs_config.h zfs_unconfig.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -296,6 +308,8 @@ module/zfs/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zfs/Make
 module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/Makefile.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs.spec: $(top_builddir)/config.status $(srcdir)/zfs.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+zfs-modules.spec: $(top_builddir)/config.status $(srcdir)/zfs-modules.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -583,7 +597,7 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-recursive
-all-am: Makefile zfs_config.h
+all-am: Makefile $(HEADERS) zfs_config.h
 installdirs: installdirs-recursive
 installdirs-am:
 install: install-recursive
@@ -610,6 +624,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+@CONFIG_KERNEL_FALSE@install-data-local:
 clean: clean-recursive
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -678,6 +693,52 @@ uninstall-info: uninstall-info-recursive
 	mostlyclean-libtool mostlyclean-recursive pdf pdf-am ps ps-am \
 	tags tags-recursive uninstall uninstall-am uninstall-info-am
 
+rpm-local:
+	mkdir -p $(rpmbuild)/TMP && \
+	mkdir -p $(rpmbuild)/BUILD && \
+	mkdir -p $(rpmbuild)/RPMS && \
+	mkdir -p $(rpmbuild)/SRPMS && \
+	mkdir -p $(rpmbuild)/SPECS && cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+
+srpm-common: dist
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	/usr/bin/rpmbuild \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "build_src_rpm 1" \
+		--define "dist %{nil}" \
+		--nodeps -bs $$rpmbuild/SPECS/$$rpmspec || exit 1; \
+	cp $$rpmbuild/SRPMS/$$rpmpkg . || exit 1; \
+	$(RM) -R $$rpmbuild
+
+rpm-common: 
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	/usr/bin/rpmbuild \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "require_kdir $(LINUX)" \
+		--define "require_kobj $(LINUX_OBJ)" \
+		--define "require_kver $(LINUX_VERSION)" \
+		--define "require_spldir $(SPL)" \
+		--define "require_splobj $(SPL_OBJ)" \
+		--define "require_splver $(SPL_VERSION)" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/*/* . || exit 1; \
+	$(RM) -R $$rpmbuild
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -691,10 +752,11 @@ distclean-local::
 		-o -name '.script-config' \) \
 		-type f -print | xargs $(RM)
 
-install-data-local:
-	/bin/mkdir -p $(DESTDIR)/$(LINUX)/include/zfs
-	$(INSTALL) module/Module.symvers $(DESTDIR)/$(LINUX)/include/zfs
-	$(INSTALL) zfs_config.h $(DESTDIR)/$(LINUX)/include/zfs
+@CONFIG_KERNEL_TRUE@install-data-local:
+@CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/${prefix}/src/zfs-$(ZFS_META_VERSION); \
+@CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
+@CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+@CONFIG_KERNEL_TRUE@	done
 
 ctags:
 	$(RM) $(top_srcdir)/tags
@@ -706,30 +768,25 @@ etags:
 
 tags: ctags etags
 
-rpm-local:
-	mkdir -p $(rpmbuild)/TMP && \
-	mkdir -p $(rpmbuild)/BUILD && \
-	mkdir -p $(rpmbuild)/RPMS && \
-	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(PACKAGE).spec $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
-srpm: dist
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "build_src_rpm 1" --define "dist %{nil}" --nodeps -bs $$rpmbuild/SPECS/$(PACKAGE).spec || exit 1; \
-	cp $$rpmbuild/SRPMS/$(distdir)-$(ZFS_META_RELEASE).src.rpm . || exit 1;\
-	$(RM) -R $$rpmbuild
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
-# Use 'make rpm LINUX_VERSION=2.x.y-z' to rebuild the source RPM
-# against any installed kernel-devel-2.x.y-z package.  This will
-# override the LINUX_VERSION detected at configure time.
-rpm: srpm
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(ZFS_META_RELEASE).src.rpm || exit 1; \
-	cp $$rpmbuild/RPMS/*/* . || exit 1; \
-	$(RM) -R $$rpmbuild
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm-utils: srpm-utils
+
+rpm: rpm-modules rpm-utils
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

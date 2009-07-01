@@ -120,3 +120,5 @@
 #undef PACKAGE_VERSION
 #undef STDC_HEADERS
 #undef VERSION
+
+#include <zfs_unconfig.h>

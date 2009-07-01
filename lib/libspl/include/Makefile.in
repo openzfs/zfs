@@ -38,7 +38,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = lib/libspl/include
-DIST_COMMON = $(pkginclude_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = $(nobase_pkginclude_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
@@ -65,8 +65,8 @@ am__vpath_adj = case $$p in \
   esac;
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(pkgincludedir)"
-pkgincludeHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(pkginclude_HEADERS)
+nobase_pkgincludeHEADERS_INSTALL = $(install_sh_DATA)
+HEADERS = $(nobase_pkginclude_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -86,6 +86,10 @@ CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CMDDIR = @CMDDIR@
+CONFIG_KERNEL_FALSE = @CONFIG_KERNEL_FALSE@
+CONFIG_KERNEL_TRUE = @CONFIG_KERNEL_TRUE@
+CONFIG_USER_FALSE = @CONFIG_USER_FALSE@
+CONFIG_USER_TRUE = @CONFIG_USER_TRUE@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CXX = @CXX@
@@ -117,6 +121,7 @@ LIBTOOL = @LIBTOOL@
 LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
+LINUX_SYMBOLS = @LINUX_SYMBOLS@
 LINUX_VERSION = @LINUX_VERSION@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -137,11 +142,14 @@ RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SPL = @SPL@
+SPL_OBJ = @SPL_OBJ@
+SPL_SYMBOLS = @SPL_SYMBOLS@
+SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ARCH = @TARGET_ARCH@
 TARGET_ARCH_DIR = @TARGET_ARCH_DIR@
 TOPDIR = @TOPDIR@
-UNAME = @UNAME@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
 ZFS_META_ALIAS = @ZFS_META_ALIAS@
@@ -194,16 +202,14 @@ prefix = @prefix@
 program_transform_name = @program_transform_name@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
-splsrc = @splsrc@
-splsymvers = @splsymvers@
 sysconfdir = @sysconfdir@
 target = @target@
 target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-pkginclude_HEADERS = *.h ia32/sys/*.h rpc/*.h sys/*.h sys/fm/*.h \
-	sys/sysevent/*.h tsol/*.h
+nobase_pkginclude_HEADERS = *.h ia32/sys/*.h rpc/*.h sys/*.h \
+	sys/fm/*.h sys/sysevent/*.h tsol/*.h
 all: all-am
 
 .SUFFIXES:
@@ -246,20 +252,22 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-pkgincludeHEADERS: $(pkginclude_HEADERS)
+install-nobase_pkgincludeHEADERS: $(nobase_pkginclude_HEADERS)
 	@$(NORMAL_INSTALL)
 	test -z "$(pkgincludedir)" || $(mkdir_p) "$(DESTDIR)$(pkgincludedir)"
-	@list='$(pkginclude_HEADERS)'; for p in $$list; do \
+	@$(am__vpath_adj_setup) \
+	list='$(nobase_pkginclude_HEADERS)'; for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(pkgincludeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(pkgincludedir)/$$f'"; \
-	  $(pkgincludeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(pkgincludedir)/$$f"; \
+	  $(am__vpath_adj) \
+	  echo " $(nobase_pkgincludeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(pkgincludedir)/$$f'"; \
+	  $(nobase_pkgincludeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(pkgincludedir)/$$f"; \
 	done
 
-uninstall-pkgincludeHEADERS:
+uninstall-nobase_pkgincludeHEADERS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(pkginclude_HEADERS)'; for p in $$list; do \
-	  f=$(am__strip_dir) \
+	@$(am__vpath_adj_setup) \
+	list='$(nobase_pkginclude_HEADERS)'; for p in $$list; do \
+	  $(am__vpath_adj) \
 	  echo " rm -f '$(DESTDIR)$(pkgincludedir)/$$f'"; \
 	  rm -f "$(DESTDIR)$(pkgincludedir)/$$f"; \
 	done
@@ -390,7 +398,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-pkgincludeHEADERS
+install-data-am: install-nobase_pkgincludeHEADERS
 
 install-exec-am:
 
@@ -416,19 +424,19 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-pkgincludeHEADERS
+uninstall-am: uninstall-info-am uninstall-nobase_pkgincludeHEADERS
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
 	clean-libtool ctags distclean distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-exec install-exec-am install-info \
-	install-info-am install-man install-pkgincludeHEADERS \
+	install-info-am install-man install-nobase_pkgincludeHEADERS \
 	install-strip installcheck installcheck-am installdirs \
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-pkgincludeHEADERS
+	uninstall-nobase_pkgincludeHEADERS
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
