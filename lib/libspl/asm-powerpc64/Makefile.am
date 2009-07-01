@@ -12,4 +12,4 @@ all-am:
 	$(COMPILE) -c -S ${atomic_SOURCE} -o ${atomic_ASM}
 
 clean-generic:
-	rm ${atomic_ASM}
+	$(RM) ${atomic_ASM}
