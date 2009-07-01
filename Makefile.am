@@ -1,8 +1,18 @@
-SUBDIRS = config doc scripts lib cmd module
+include $(top_srcdir)/config/rpm.am
+
+if CONFIG_USER
+USER_DIR = config doc scripts lib cmd
+endif
+if CONFIG_KERNEL
+KERNEL_DIR = module
+endif
+SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST  = autogen.sh zfs.spec.in META DISCLAIMER GIT
+EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
+EXTRA_DIST += META DISCLAIMER GIT
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
+noinst_HEADERS = zfs_config.h zfs_unconfig.h
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -16,10 +26,13 @@ distclean-local::
 		-o -name '.script-config' \) \
 		-type f -print | xargs $(RM)
 
+if CONFIG_KERNEL
 install-data-local:
-	/bin/mkdir -p $(DESTDIR)/$(LINUX)/include/zfs
-	$(INSTALL) module/Module.symvers $(DESTDIR)/$(LINUX)/include/zfs
-	$(INSTALL) zfs_config.h $(DESTDIR)/$(LINUX)/include/zfs
+	instdest=$(DESTDIR)/${prefix}/src/zfs-$(ZFS_META_VERSION); \
+	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
+		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+	done
+endif
 
 ctags:
 	$(RM) $(top_srcdir)/tags
@@ -31,27 +44,22 @@ etags:
 
 tags: ctags etags
 
-rpm-local:
-	mkdir -p $(rpmbuild)/TMP && \
-	mkdir -p $(rpmbuild)/BUILD && \
-	mkdir -p $(rpmbuild)/RPMS && \
-	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(PACKAGE).spec $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
-srpm: dist
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "build_src_rpm 1" --define "dist %{nil}" --nodeps -bs $$rpmbuild/SPECS/$(PACKAGE).spec || exit 1; \
-	cp $$rpmbuild/SRPMS/$(distdir)-$(ZFS_META_RELEASE).src.rpm . || exit 1;\
-	$(RM) -R $$rpmbuild
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
-# Use 'make rpm LINUX_VERSION=2.x.y-z' to rebuild the source RPM
-# against any installed kernel-devel-2.x.y-z package.  This will
-# override the LINUX_VERSION detected at configure time.
-rpm: srpm
-	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
-	$(MAKE) $(AM_MAKEFLAGS) rpmbuild="$$rpmbuild" rpm-local || exit 1; \
-	/usr/bin/rpmbuild --define "_tmppath $$rpmbuild/TMP" --define "_topdir $$rpmbuild" --define "dist %{nil}" --define "require_kver $(LINUX_VERSION)" --nodeps --rebuild $(distdir)-$(ZFS_META_RELEASE).src.rpm || exit 1; \
-	cp $$rpmbuild/RPMS/*/* . || exit 1; \
-	$(RM) -R $$rpmbuild
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm-utils: srpm-utils
+
+rpm: rpm-modules rpm-utils

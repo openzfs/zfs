@@ -37,6 +37,7 @@ AC_CONFIG_AUX_DIR([config])
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE([$ZFS_META_NAME], [$ZFS_META_VERSION])
 AC_CONFIG_HEADERS([zfs_config.h])
+AH_BOTTOM([#include <zfs_unconfig.h>])
 AM_MAINTAINER_MODE
 
 AC_PROG_INSTALL
@@ -44,8 +45,6 @@ AC_PROG_CC
 AC_PROG_LIBTOOL
 AM_PROG_AS
 
-ZFS_AC_KERNEL
-ZFS_AC_SPL
 ZFS_AC_LICENSE
 ZFS_AC_CONFIG
 ZFS_AC_DEBUG
@@ -82,6 +81,7 @@ AC_CONFIG_FILES([
 	scripts/Makefile
 	scripts/zpool-config/Makefile
 	zfs.spec
+	zfs-modules.spec
 ])
 
 AC_OUTPUT
