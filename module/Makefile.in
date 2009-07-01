@@ -6,19 +6,23 @@ subdir-m += zfs
 
 modules clean:
 	# Make the exported SPL symbols available to these modules.
-	cp @splsymvers@ .
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	cp @SPL_OBJ@/@SPL_SYMBOLS@ .
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 modules_install:
-	$(MAKE) -C @LINUX@ SUBDIRS=`pwd` \
-		INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=addon $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
+		INSTALL_MOD_PATH=$(DESTDIR) \
+		INSTALL_MOD_DIR=addon/zfs $@
+	find ${DESTDIR}/lib/modules/ -name 'modules.*' | xargs ${RM}
 	# Install the required headers in to the kernel source
-	(mkdir -p $(DESTDIR)/@LINUX@/include/zfs && \
+	destname=zfs-@ZFS_META_VERSION@/@LINUX_VERSION@; \
+	instdest=$(DESTDIR)/@prefix@/src/$$destname; \
+	(mkdir -p $$instdest && \
 	 find . -mindepth 3 -maxdepth 3 -name '*.h' | \
-	 xargs cp -t $(DESTDIR)/@LINUX@/include/zfs) || exit 1; \
-	(mkdir -p $(DESTDIR)/@LINUX@/include/zfs/sys && \
+	 xargs cp -t $$instdest) || exit 1; \
+	(mkdir -p $$instdest/sys && \
 	 find . -mindepth 4 -maxdepth 4 -name '*.h' | \
-	 xargs cp -t $(DESTDIR)/@LINUX@/include/zfs/sys) || exit 1;
+	 xargs cp -t $$instdest/sys) || exit 1;
 
 distdir:
 	distfiles=`find . -name '*.c' -o -name '*.h'`; \
