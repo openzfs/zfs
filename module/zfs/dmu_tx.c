@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -160,6 +160,41 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	return (err);
 }
 
+static void
+dmu_tx_count_indirects(dmu_tx_hold_t *txh, dmu_buf_impl_t *db,
+    boolean_t freeable, dmu_buf_impl_t **history)
+{
+	int i = db->db_level + 1;
+	dnode_t *dn = db->db_dnode;
+
+	if (i >= dn->dn_nlevels)
+		return;
+
+	db = db->db_parent;
+	if (db == NULL) {
+		uint64_t lvls = dn->dn_nlevels - i;
+
+		txh->txh_space_towrite += lvls << dn->dn_indblkshift;
+		return;
+	}
+
+	if (db != history[i]) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+		uint64_t space = 1ULL << dn->dn_indblkshift;
+
+		freeable = (db->db_blkptr && (freeable ||
+		    dsl_dataset_block_freeable(ds, db->db_blkptr->blk_birth)));
+		if (freeable)
+			txh->txh_space_tooverwrite += space;
+		else
+			txh->txh_space_towrite += space;
+		if (db->db_blkptr)
+			txh->txh_space_tounref += space;
+		history[i] = db;
+		dmu_tx_count_indirects(txh, db, freeable, history);
+	}
+}
+
 /* ARGSUSED */
 static void
 dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
@@ -177,18 +212,24 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	min_ibs = DN_MIN_INDBLKSHIFT;
 	max_ibs = DN_MAX_INDBLKSHIFT;
 
-	/*
-	 * For i/o error checking, read the first and last level-0
-	 * blocks (if they are not aligned), and all the level-1 blocks.
-	 */
-
 	if (dn) {
+		dmu_buf_impl_t *last[DN_MAX_LEVELS];
+		int nlvls = dn->dn_nlevels;
+		int delta;
+
+		/*
+		 * For i/o error checking, read the first and last level-0
+		 * blocks (if they are not aligned), and all the level-1 blocks.
+		 */
 		if (dn->dn_maxblkid == 0) {
-			if ((off > 0 || len < dn->dn_datablksz) &&
-			    off < dn->dn_datablksz) {
+			delta = dn->dn_datablksz;
+			start = (off < dn->dn_datablksz) ? 0 : 1;
+			end = (off+len <= dn->dn_datablksz) ? 0 : 1;
+			if (start == 0 && (off > 0 || len < dn->dn_datablksz)) {
 				err = dmu_tx_check_ioerr(NULL, dn, 0, 0);
 				if (err)
 					goto out;
+				delta -= off;
 			}
 		} else {
 			zio_t *zio = zio_root(dn->dn_objset->os_spa,
@@ -213,10 +254,9 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			}
 
 			/* level-1 blocks */
-			if (dn->dn_nlevels > 1) {
-				start >>= dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-				end >>= dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-				for (i = start+1; i < end; i++) {
+			if (nlvls > 1) {
+				int shft = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+				for (i = (start>>shft)+1; i < end>>shft; i++) {
 					err = dmu_tx_check_ioerr(zio, dn, 1, i);
 					if (err)
 						goto out;
@@ -226,20 +266,70 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			err = zio_wait(zio);
 			if (err)
 				goto out;
+			delta = P2NPHASE(off, dn->dn_datablksz);
 		}
-	}
 
-	/*
-	 * If there's more than one block, the blocksize can't change,
-	 * so we can make a more precise estimate.  Alternatively,
-	 * if the dnode's ibs is larger than max_ibs, always use that.
-	 * This ensures that if we reduce DN_MAX_INDBLKSHIFT,
-	 * the code will still work correctly on existing pools.
-	 */
-	if (dn && (dn->dn_maxblkid != 0 || dn->dn_indblkshift > max_ibs)) {
-		min_ibs = max_ibs = dn->dn_indblkshift;
-		if (dn->dn_datablkshift != 0)
+		if (dn->dn_maxblkid > 0) {
+			/*
+			 * The blocksize can't change,
+			 * so we can make a more precise estimate.
+			 */
+			ASSERT(dn->dn_datablkshift != 0);
 			min_bs = max_bs = dn->dn_datablkshift;
+			min_ibs = max_ibs = dn->dn_indblkshift;
+		} else if (dn->dn_indblkshift > max_ibs) {
+			/*
+			 * This ensures that if we reduce DN_MAX_INDBLKSHIFT,
+			 * the code will still work correctly on older pools.
+			 */
+			min_ibs = max_ibs = dn->dn_indblkshift;
+		}
+
+		/*
+		 * If this write is not off the end of the file
+		 * we need to account for overwrites/unref.
+		 */
+		if (start <= dn->dn_maxblkid)
+			bzero(last, sizeof (dmu_buf_impl_t *) * DN_MAX_LEVELS);
+		while (start <= dn->dn_maxblkid) {
+			spa_t *spa = txh->txh_tx->tx_pool->dp_spa;
+			dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+			dmu_buf_impl_t *db;
+
+			rw_enter(&dn->dn_struct_rwlock, RW_READER);
+			db = dbuf_hold_level(dn, 0, start, FTAG);
+			rw_exit(&dn->dn_struct_rwlock);
+			if (db->db_blkptr && dsl_dataset_block_freeable(ds,
+			    db->db_blkptr->blk_birth)) {
+				dprintf_bp(db->db_blkptr, "can free old%s", "");
+				txh->txh_space_tooverwrite += dn->dn_datablksz;
+				txh->txh_space_tounref += dn->dn_datablksz;
+				dmu_tx_count_indirects(txh, db, TRUE, last);
+			} else {
+				txh->txh_space_towrite += dn->dn_datablksz;
+				if (db->db_blkptr)
+					txh->txh_space_tounref +=
+					    bp_get_dasize(spa, db->db_blkptr);
+				dmu_tx_count_indirects(txh, db, FALSE, last);
+			}
+			dbuf_rele(db, FTAG);
+			if (++start > end) {
+				/*
+				 * Account for new indirects appearing
+				 * before this IO gets assigned into a txg.
+				 */
+				bits = 64 - min_bs;
+				epbs = min_ibs - SPA_BLKPTRSHIFT;
+				for (bits -= epbs * (nlvls - 1);
+				    bits >= 0; bits -= epbs)
+					txh->txh_fudge += 1ULL << max_ibs;
+				goto out;
+			}
+			off += delta;
+			if (len >= delta)
+				len -= delta;
+			delta = dn->dn_datablksz;
+		}
 	}
 
 	/*
@@ -262,20 +352,22 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	for (bits = 64 - min_bs; bits >= 0; bits -= epbs) {
 		start >>= epbs;
 		end >>= epbs;
-		/*
-		 * If we increase the number of levels of indirection,
-		 * we'll need new blkid=0 indirect blocks.  If start == 0,
-		 * we're already accounting for that blocks; and if end == 0,
-		 * we can't increase the number of levels beyond that.
-		 */
-		if (start != 0 && end != 0)
-			txh->txh_space_towrite += 1ULL << max_ibs;
+		ASSERT3U(end, >=, start);
 		txh->txh_space_towrite += (end - start + 1) << max_ibs;
+		if (start != 0) {
+			/*
+			 * We also need a new blkid=0 indirect block
+			 * to reference any existing file data.
+			 */
+			txh->txh_space_towrite += 1ULL << max_ibs;
+		}
 	}
 
-	ASSERT(txh->txh_space_towrite < 2 * DMU_MAX_ACCESS);
-
 out:
+	if (txh->txh_space_towrite + txh->txh_space_tooverwrite >
+	    2 * DMU_MAX_ACCESS)
+		err = EFBIG;
+
 	if (err)
 		txh->txh_tx->tx_err = err;
 }
@@ -292,6 +384,7 @@ dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 	    dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 	    dn->dn_dbuf->db_blkptr->blk_birth)) {
 		txh->txh_space_tooverwrite += space;
+		txh->txh_space_tounref += space;
 	} else {
 		txh->txh_space_towrite += space;
 		if (dn && dn->dn_dbuf->db_blkptr)
@@ -535,7 +628,7 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 }
 
 void
-dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
+dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 {
 	dmu_tx_hold_t *txh;
 	dnode_t *dn;
@@ -584,9 +677,9 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
 			txh->txh_space_tooverwrite += SPA_MAXBLOCKSIZE;
 		} else {
 			txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
-			txh->txh_space_tounref +=
-			    BP_GET_ASIZE(dn->dn_phys->dn_blkptr);
 		}
+		if (dn->dn_phys->dn_blkptr[0].blk_birth)
+			txh->txh_space_tounref += SPA_MAXBLOCKSIZE;
 		return;
 	}
 
@@ -603,12 +696,9 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
 		}
 	}
 
-	/*
-	 * 3 blocks overwritten: target leaf, ptrtbl block, header block
-	 * 3 new blocks written if adding: new split leaf, 2 grown ptrtbl blocks
-	 */
-	dmu_tx_count_write(txh, dn->dn_maxblkid * dn->dn_datablksz,
-	    (3 + (add ? 3 : 0)) << dn->dn_datablkshift);
+	err = zap_count_write(&dn->dn_objset->os, dn->dn_object, name, add,
+	    &txh->txh_space_towrite, &txh->txh_space_tooverwrite,
+	    txh->txh_dnode->dn_datablkshift);
 
 	/*
 	 * If the modified blocks are scattered to the four winds,
@@ -616,7 +706,10 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name)
 	 */
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 	for (nblocks = dn->dn_maxblkid >> epbs; nblocks != 0; nblocks >>= epbs)
-		txh->txh_space_towrite += 3 << dn->dn_indblkshift;
+		if (dn->dn_objset->os_dsl_dataset->ds_phys->ds_prev_snap_obj)
+			txh->txh_space_towrite += 3 << dn->dn_indblkshift;
+		else
+			txh->txh_space_tooverwrite += 3 << dn->dn_indblkshift;
 }
 
 void
