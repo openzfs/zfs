@@ -1,6 +1,27 @@
-2009-06-22 Brian Behlendorf <behlendorf1@llnl.gov>
+2009-07-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.4
+
+	* : Generic distro friendly build system / packaging improvements
+	for RPM based distros including CHAOS, RHEL, Fedora, and SLES.
+
+	spl-<version>.src.rpm
+	- Fully rebuildable source rpm for utils.
+	spl-modules-<version>.src.rpm
+	- Fully rebuildable source rpm for kernel modules.
+
+	spl-<version>.<arch>.rpm
+	- Binary rpm for utils.  The utils in this package are compatible
+	with all spl-module rpms of the same version.
+	
+	spl-modules-<verion>-<kernel>.arch.rpm
+	- Binary rpm containing the kernel modules for a specific kernel build.
+	  The package name contains the kernel version and you should have one
+	  of these packages installed to match every kernel on your system.
+	spl-modules-devel-<verion>-<kernel>.arch.rpm
+	- Binary rpm containing development header and module symbols needed
+	  for building additional kernel modules which are dependent on the
+	  spl module.
 
 	* : Added SLES10 support.  This includes all compatibility
 	changes to support 2.6.16 based kernels and the required
