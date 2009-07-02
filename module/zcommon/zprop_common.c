@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Common routines used by zfs and zpool property management.
@@ -205,9 +203,6 @@ propname_match(const char *p, size_t len, zprop_desc_t *prop_entry)
 #ifndef _KERNEL
 	const char *colname = prop_entry->pd_colname;
 	int c;
-
-	if (colname == NULL)
-		return (B_FALSE);
 #endif
 
 	if (len == strlen(propname) &&
@@ -215,7 +210,7 @@ propname_match(const char *p, size_t len, zprop_desc_t *prop_entry)
 		return (B_TRUE);
 
 #ifndef _KERNEL
-	if (len != strlen(colname))
+	if (colname == NULL || len != strlen(colname))
 		return (B_FALSE);
 
 	for (c = 0; c < len; c++)
