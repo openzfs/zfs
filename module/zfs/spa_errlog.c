@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Routines to manage the on-disk persistent error log.
@@ -61,8 +59,8 @@
  * lowercase hexidecimal numbers that don't overflow.
  */
 #ifdef _KERNEL
-static uint64_t
-strtonum(char *str, char **nptr)
+uint64_t
+strtonum(const char *str, char **nptr)
 {
 	uint64_t val = 0;
 	char c;
@@ -82,7 +80,8 @@ strtonum(char *str, char **nptr)
 		str++;
 	}
 
-	*nptr = str;
+	if (nptr)
+		*nptr = (char *)str;
 
 	return (val);
 }

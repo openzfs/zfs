@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_DSL_DELEG_H
 #define	_SYS_DSL_DELEG_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -51,6 +49,10 @@ extern "C" {
 #define	ZFS_DELEG_PERM_ALLOW		"allow"
 #define	ZFS_DELEG_PERM_USERPROP		"userprop"
 #define	ZFS_DELEG_PERM_VSCAN		"vscan"
+#define	ZFS_DELEG_PERM_USERQUOTA	"userquota"
+#define	ZFS_DELEG_PERM_GROUPQUOTA	"groupquota"
+#define	ZFS_DELEG_PERM_USERUSED		"userused"
+#define	ZFS_DELEG_PERM_GROUPUSED	"groupused"
 
 /*
  * Note: the names of properties that are marked delegatable are also
