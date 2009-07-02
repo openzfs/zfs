@@ -28,11 +28,16 @@ dnl #
 dnl # Detect name used more Module.symvers file
 dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
+	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
-		LINUX_SYMBOLS=Modules.symvers
+	if test -f "$modpost"; then
+		if grep -q Modules.symvers $modpost; then
+			LINUX_SYMBOLS=Modules.symvers
+		else
+			LINUX_SYMBOLS=Module.symvers
+		fi
 	else
-		LINUX_SYMBOLS=Module.symvers
+		LINUX_SYMBOLS=NONE
 	fi
 	AC_MSG_RESULT($LINUX_SYMBOLS)
 	AC_SUBST(LINUX_SYMBOLS)
@@ -127,16 +132,12 @@ dnl # Detect name used for the additional SPL Module.symvers file
 dnl #
 AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 	AC_MSG_CHECKING([spl file name for module symbols])
-
 	if test -r $SPL_OBJ/Module.symvers; then
 		SPL_SYMBOLS=Module.symvers
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
-		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([
-		*** Cannot find extra Module{s}.symvers in the spl source.
-		*** Please prepare the spl source before running this script])
+		SPL_SYMBOLS=NONE
 	fi
 
 	AC_MSG_RESULT([$SPL_SYMBOLS])
