@@ -491,11 +491,10 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 		zio->io_bp_orig = *bp;
 		if (type != ZIO_TYPE_WRITE)
 			zio->io_bp = &zio->io_bp_copy;	/* so caller can free */
-		if (zio->io_child_type == ZIO_CHILD_LOGICAL) {
-			if (BP_IS_GANG(bp))
-				pipeline |= ZIO_GANG_STAGES;
+		if (zio->io_child_type == ZIO_CHILD_LOGICAL)
 			zio->io_logical = zio;
-		}
+		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
+			pipeline |= ZIO_GANG_STAGES;
 	}
 
 	zio->io_spa = spa;
@@ -521,6 +520,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	if (pio != NULL) {
 		if (zio->io_logical == NULL)
 			zio->io_logical = pio->io_logical;
+		if (zio->io_child_type == ZIO_CHILD_GANG)
+			zio->io_gang_leader = pio->io_gang_leader;
 		zio_add_child(pio, zio);
 	}
 
@@ -530,21 +531,11 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 static void
 zio_destroy(zio_t *zio)
 {
-	spa_t *spa = zio->io_spa;
-	uint8_t async_root = zio->io_async_root;
-
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
 	mutex_destroy(&zio->io_lock);
 	cv_destroy(&zio->io_cv);
 	kmem_cache_free(zio_cache, zio);
-
-	if (async_root) {
-		mutex_enter(&spa->spa_async_root_lock);
-		if (--spa->spa_async_root_count == 0)
-			cv_broadcast(&spa->spa_async_root_cv);
-		mutex_exit(&spa->spa_async_root_lock);
-	}
 }
 
 zio_t *
@@ -837,7 +828,8 @@ zio_read_bp_init(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 
 	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
-	    zio->io_logical == zio && !(zio->io_flags & ZIO_FLAG_RAW)) {
+	    zio->io_child_type == ZIO_CHILD_LOGICAL &&
+	    !(zio->io_flags & ZIO_FLAG_RAW)) {
 		uint64_t csize = BP_GET_PSIZE(bp);
 		void *cbuf = zio_buf_alloc(csize);
 
@@ -886,15 +878,9 @@ zio_write_bp_init(zio_t *zio)
 		 * few passes, stop compressing to ensure convergence.
 		 */
 		pass = spa_sync_pass(zio->io_spa);
-		ASSERT(pass > 1);
 
 		if (pass > SYNC_PASS_DONT_COMPRESS)
 			compress = ZIO_COMPRESS_OFF;
-
-		/*
-		 * Only MOS (objset 0) data should need to be rewritten.
-		 */
-		ASSERT(zio->io_logical->io_bookmark.zb_objset == 0);
 
 		/* Make sure someone doesn't change their mind on overwrites */
 		ASSERT(MIN(zp->zp_ndvas + BP_IS_GANG(bp),
@@ -957,11 +943,11 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q)
 	zio_type_t t = zio->io_type;
 
 	/*
-	 * If we're a config writer, the normal issue and interrupt threads
-	 * may all be blocked waiting for the config lock.  In this case,
-	 * select the otherwise-unused taskq for ZIO_TYPE_NULL.
+	 * If we're a config writer or a probe, the normal issue and
+	 * interrupt threads may all be blocked waiting for the config lock.
+	 * In this case, select the otherwise-unused taskq for ZIO_TYPE_NULL.
 	 */
-	if (zio->io_flags & ZIO_FLAG_CONFIG_WRITER)
+	if (zio->io_flags & (ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_PROBE))
 		t = ZIO_TYPE_NULL;
 
 	/*
@@ -1094,14 +1080,12 @@ zio_nowait(zio_t *zio)
 	    zio_unique_parent(zio) == NULL) {
 		/*
 		 * This is a logical async I/O with no parent to wait for it.
-		 * Track how many outstanding I/Os of this type exist so
-		 * that spa_unload() knows when they are all done.
+		 * We add it to the spa_async_root_zio "Godfather" I/O which
+		 * will ensure they complete prior to unloading the pool.
 		 */
 		spa_t *spa = zio->io_spa;
-		zio->io_async_root = B_TRUE;
-		mutex_enter(&spa->spa_async_root_lock);
-		spa->spa_async_root_count++;
-		mutex_exit(&spa->spa_async_root_lock);
+
+		zio_add_child(spa->spa_async_zio_root, zio);
 	}
 
 	zio_execute(zio);
@@ -1121,6 +1105,8 @@ zio_reexecute(zio_t *pio)
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(pio->io_orig_stage == ZIO_STAGE_OPEN);
+	ASSERT(pio->io_gang_leader == NULL);
+	ASSERT(pio->io_gang_tree == NULL);
 
 	pio->io_flags = pio->io_orig_flags;
 	pio->io_stage = pio->io_orig_stage;
@@ -1164,8 +1150,11 @@ zio_reexecute(zio_t *pio)
 
 	/*
 	 * Now that all children have been reexecuted, execute the parent.
+	 * We don't reexecute "The Godfather" I/O here as it's the
+	 * responsibility of the caller to wait on him.
 	 */
-	zio_execute(pio);
+	if (!(pio->io_flags & ZIO_FLAG_GODFATHER))
+		zio_execute(pio);
 }
 
 void
@@ -1181,11 +1170,14 @@ zio_suspend(spa_t *spa, zio_t *zio)
 	mutex_enter(&spa->spa_suspend_lock);
 
 	if (spa->spa_suspend_zio_root == NULL)
-		spa->spa_suspend_zio_root = zio_root(spa, NULL, NULL, 0);
+		spa->spa_suspend_zio_root = zio_root(spa, NULL, NULL,
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
+		    ZIO_FLAG_GODFATHER);
 
 	spa->spa_suspended = B_TRUE;
 
 	if (zio != NULL) {
+		ASSERT(!(zio->io_flags & ZIO_FLAG_GODFATHER));
 		ASSERT(zio != spa->spa_suspend_zio_root);
 		ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 		ASSERT(zio_unique_parent(zio) == NULL);
@@ -1196,10 +1188,10 @@ zio_suspend(spa_t *spa, zio_t *zio)
 	mutex_exit(&spa->spa_suspend_lock);
 }
 
-void
+int
 zio_resume(spa_t *spa)
 {
-	zio_t *pio, *cio, *cio_next;
+	zio_t *pio;
 
 	/*
 	 * Reexecute all previously suspended i/o.
@@ -1212,18 +1204,10 @@ zio_resume(spa_t *spa)
 	mutex_exit(&spa->spa_suspend_lock);
 
 	if (pio == NULL)
-		return;
+		return (0);
 
-	for (cio = zio_walk_children(pio); cio != NULL; cio = cio_next) {
-		zio_link_t *zl = pio->io_walk_link;
-		cio_next = zio_walk_children(pio);
-		zio_remove_child(pio, cio, zl);
-		zio_reexecute(cio);
-	}
-
-	ASSERT(pio->io_children[ZIO_CHILD_LOGICAL][ZIO_WAIT_DONE] == 0);
-
-	(void) zio_wait(pio);
+	zio_reexecute(pio);
+	return (zio_wait(pio));
 }
 
 void
@@ -1330,7 +1314,7 @@ zio_rewrite_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, void *data)
 		 * (Presently, nothing actually uses interior data checksums;
 		 * this is just good hygiene.)
 		 */
-		if (gn != pio->io_logical->io_gang_tree) {
+		if (gn != pio->io_gang_leader->io_gang_tree) {
 			zio_checksum_compute(zio, BP_GET_CHECKSUM(bp),
 			    data, BP_GET_PSIZE(bp));
 		}
@@ -1414,27 +1398,27 @@ zio_gang_tree_free(zio_gang_node_t **gnpp)
 }
 
 static void
-zio_gang_tree_assemble(zio_t *lio, blkptr_t *bp, zio_gang_node_t **gnpp)
+zio_gang_tree_assemble(zio_t *gio, blkptr_t *bp, zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = zio_gang_node_alloc(gnpp);
 
-	ASSERT(lio->io_logical == lio);
+	ASSERT(gio->io_gang_leader == gio);
 	ASSERT(BP_IS_GANG(bp));
 
-	zio_nowait(zio_read(lio, lio->io_spa, bp, gn->gn_gbh,
+	zio_nowait(zio_read(gio, gio->io_spa, bp, gn->gn_gbh,
 	    SPA_GANGBLOCKSIZE, zio_gang_tree_assemble_done, gn,
-	    lio->io_priority, ZIO_GANG_CHILD_FLAGS(lio), &lio->io_bookmark));
+	    gio->io_priority, ZIO_GANG_CHILD_FLAGS(gio), &gio->io_bookmark));
 }
 
 static void
 zio_gang_tree_assemble_done(zio_t *zio)
 {
-	zio_t *lio = zio->io_logical;
+	zio_t *gio = zio->io_gang_leader;
 	zio_gang_node_t *gn = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
 	int g;
 
-	ASSERT(zio_unique_parent(zio) == lio);
+	ASSERT(gio == zio_unique_parent(zio));
 	ASSERT(zio_walk_children(zio) == NULL);
 
 	if (zio->io_error)
@@ -1451,26 +1435,26 @@ zio_gang_tree_assemble_done(zio_t *zio)
 		blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
 		if (!BP_IS_GANG(gbp))
 			continue;
-		zio_gang_tree_assemble(lio, gbp, &gn->gn_child[g]);
+		zio_gang_tree_assemble(gio, gbp, &gn->gn_child[g]);
 	}
 }
 
 static void
 zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, void *data)
 {
-	zio_t *lio = pio->io_logical;
+	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
 	int g;
 
 	ASSERT(BP_IS_GANG(bp) == !!gn);
-	ASSERT(BP_GET_CHECKSUM(bp) == BP_GET_CHECKSUM(lio->io_bp));
-	ASSERT(BP_GET_LSIZE(bp) == BP_GET_PSIZE(bp) || gn == lio->io_gang_tree);
+	ASSERT(BP_GET_CHECKSUM(bp) == BP_GET_CHECKSUM(gio->io_bp));
+	ASSERT(BP_GET_LSIZE(bp) == BP_GET_PSIZE(bp) || gn == gio->io_gang_tree);
 
 	/*
 	 * If you're a gang header, your data is in gn->gn_gbh.
 	 * If you're a gang member, your data is in 'data' and gn == NULL.
 	 */
-	zio = zio_gang_issue_func[lio->io_type](pio, bp, gn, data);
+	zio = zio_gang_issue_func[gio->io_type](pio, bp, gn, data);
 
 	if (gn != NULL) {
 		ASSERT(gn->gn_gbh->zg_tail.zbt_magic == ZBT_MAGIC);
@@ -1484,8 +1468,8 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, void *data)
 		}
 	}
 
-	if (gn == lio->io_gang_tree)
-		ASSERT3P((char *)lio->io_data + lio->io_size, ==, data);
+	if (gn == gio->io_gang_tree)
+		ASSERT3P((char *)gio->io_data + gio->io_size, ==, data);
 
 	if (zio != pio)
 		zio_nowait(zio);
@@ -1496,7 +1480,10 @@ zio_gang_assemble(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 
-	ASSERT(BP_IS_GANG(bp) && zio == zio->io_logical);
+	ASSERT(BP_IS_GANG(bp) && zio->io_gang_leader == NULL);
+	ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
+
+	zio->io_gang_leader = zio;
 
 	zio_gang_tree_assemble(zio, bp, &zio->io_gang_tree);
 
@@ -1506,18 +1493,18 @@ zio_gang_assemble(zio_t *zio)
 static int
 zio_gang_issue(zio_t *zio)
 {
-	zio_t *lio = zio->io_logical;
 	blkptr_t *bp = zio->io_bp;
 
 	if (zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_DONE))
 		return (ZIO_PIPELINE_STOP);
 
-	ASSERT(BP_IS_GANG(bp) && zio == lio);
+	ASSERT(BP_IS_GANG(bp) && zio->io_gang_leader == zio);
+	ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
 
 	if (zio->io_child_error[ZIO_CHILD_GANG] == 0)
-		zio_gang_tree_issue(lio, lio->io_gang_tree, bp, lio->io_data);
+		zio_gang_tree_issue(zio, zio->io_gang_tree, bp, zio->io_data);
 	else
-		zio_gang_tree_free(&lio->io_gang_tree);
+		zio_gang_tree_free(&zio->io_gang_tree);
 
 	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 
@@ -1528,7 +1515,7 @@ static void
 zio_write_gang_member_ready(zio_t *zio)
 {
 	zio_t *pio = zio_unique_parent(zio);
-	zio_t *lio = zio->io_logical;
+	zio_t *gio = zio->io_gang_leader;
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
@@ -1540,7 +1527,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	ASSERT(BP_IS_HOLE(&zio->io_bp_orig));
 
 	ASSERT(zio->io_child_type == ZIO_CHILD_GANG);
-	ASSERT3U(zio->io_prop.zp_ndvas, ==, lio->io_prop.zp_ndvas);
+	ASSERT3U(zio->io_prop.zp_ndvas, ==, gio->io_prop.zp_ndvas);
 	ASSERT3U(zio->io_prop.zp_ndvas, <=, BP_GET_NDVAS(zio->io_bp));
 	ASSERT3U(pio->io_prop.zp_ndvas, <=, BP_GET_NDVAS(pio->io_bp));
 	ASSERT3U(BP_GET_NDVAS(zio->io_bp), <=, BP_GET_NDVAS(pio->io_bp));
@@ -1560,28 +1547,28 @@ zio_write_gang_block(zio_t *pio)
 {
 	spa_t *spa = pio->io_spa;
 	blkptr_t *bp = pio->io_bp;
-	zio_t *lio = pio->io_logical;
+	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
 	zio_gang_node_t *gn, **gnpp;
 	zio_gbh_phys_t *gbh;
 	uint64_t txg = pio->io_txg;
 	uint64_t resid = pio->io_size;
 	uint64_t lsize;
-	int ndvas = lio->io_prop.zp_ndvas;
+	int ndvas = gio->io_prop.zp_ndvas;
 	int gbh_ndvas = MIN(ndvas + 1, spa_max_replication(spa));
 	zio_prop_t zp;
 	int g, error;
 
 	error = metaslab_alloc(spa, spa->spa_normal_class, SPA_GANGBLOCKSIZE,
-	    bp, gbh_ndvas, txg, pio == lio ? NULL : lio->io_bp,
+	    bp, gbh_ndvas, txg, pio == gio ? NULL : gio->io_bp,
 	    METASLAB_HINTBP_FAVOR | METASLAB_GANG_HEADER);
 	if (error) {
 		pio->io_error = error;
 		return (ZIO_PIPELINE_CONTINUE);
 	}
 
-	if (pio == lio) {
-		gnpp = &lio->io_gang_tree;
+	if (pio == gio) {
+		gnpp = &gio->io_gang_tree;
 	} else {
 		gnpp = pio->io_private;
 		ASSERT(pio->io_ready == zio_write_gang_member_ready);
@@ -1605,11 +1592,11 @@ zio_write_gang_block(zio_t *pio)
 		    SPA_MINBLOCKSIZE);
 		ASSERT(lsize >= SPA_MINBLOCKSIZE && lsize <= resid);
 
-		zp.zp_checksum = lio->io_prop.zp_checksum;
+		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
 		zp.zp_type = DMU_OT_NONE;
 		zp.zp_level = 0;
-		zp.zp_ndvas = lio->io_prop.zp_ndvas;
+		zp.zp_ndvas = gio->io_prop.zp_ndvas;
 
 		zio_nowait(zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
 		    (char *)pio->io_data + (pio->io_size - resid), lsize, &zp,
@@ -1641,6 +1628,11 @@ zio_dva_allocate(zio_t *zio)
 	metaslab_class_t *mc = spa->spa_normal_class;
 	blkptr_t *bp = zio->io_bp;
 	int error;
+
+	if (zio->io_gang_leader == NULL) {
+		ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
+		zio->io_gang_leader = zio;
+	}
 
 	ASSERT(BP_IS_HOLE(bp));
 	ASSERT3U(BP_GET_NDVAS(bp), ==, 0);
@@ -1872,7 +1864,8 @@ zio_vdev_io_done(zio_t *zio)
 			vdev_cache_write(zio);
 
 		if (zio_injection_enabled && zio->io_error == 0)
-			zio->io_error = zio_handle_device_injection(vd, EIO);
+			zio->io_error = zio_handle_device_injection(vd,
+			    zio, EIO);
 
 		if (zio_injection_enabled && zio->io_error == 0)
 			zio->io_error = zio_handle_label_injection(zio, EIO);
@@ -2087,11 +2080,10 @@ zio_ready(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	zio_t *pio, *pio_next;
 
-	if (zio->io_ready) {
-		if (BP_IS_GANG(bp) &&
-		    zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_READY))
-			return (ZIO_PIPELINE_STOP);
+	if (zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_READY))
+		return (ZIO_PIPELINE_STOP);
 
+	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
 		ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
@@ -2137,7 +2129,7 @@ zio_done(zio_t *zio)
 	int c, w;
 
 	/*
-	 * If our of children haven't all completed,
+	 * If our children haven't all completed,
 	 * wait for them and then repeat this pipeline stage.
 	 */
 	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV, ZIO_WAIT_DONE) ||
@@ -2228,6 +2220,21 @@ zio_done(zio_t *zio)
 	 */
 	zio_inherit_child_errors(zio, ZIO_CHILD_LOGICAL);
 
+	if ((zio->io_error || zio->io_reexecute) && IO_IS_ALLOCATING(zio) &&
+	    zio->io_child_type == ZIO_CHILD_LOGICAL) {
+		ASSERT(zio->io_child_type != ZIO_CHILD_GANG);
+		zio_dva_unallocate(zio, zio->io_gang_tree, bp);
+	}
+
+	zio_gang_tree_free(&zio->io_gang_tree);
+
+	/*
+	 * Godfather I/Os should never suspend.
+	 */
+	if ((zio->io_flags & ZIO_FLAG_GODFATHER) &&
+	    (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND))
+		zio->io_reexecute = 0;
+
 	if (zio->io_reexecute) {
 		/*
 		 * This is a logical I/O that wants to reexecute.
@@ -2244,14 +2251,29 @@ zio_done(zio_t *zio)
 		 */
 		ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
-		if (IO_IS_ALLOCATING(zio))
-			zio_dva_unallocate(zio, zio->io_gang_tree, bp);
-
-		zio_gang_tree_free(&zio->io_gang_tree);
+		zio->io_gang_leader = NULL;
 
 		mutex_enter(&zio->io_lock);
 		zio->io_state[ZIO_WAIT_DONE] = 1;
 		mutex_exit(&zio->io_lock);
+
+		/*
+		 * "The Godfather" I/O monitors its children but is
+		 * not a true parent to them. It will track them through
+		 * the pipeline but severs its ties whenever they get into
+		 * trouble (e.g. suspended). This allows "The Godfather"
+		 * I/O to return status without blocking.
+		 */
+		for (pio = zio_walk_parents(zio); pio != NULL; pio = pio_next) {
+			zio_link_t *zl = zio->io_walk_link;
+			pio_next = zio_walk_parents(zio);
+
+			if ((pio->io_flags & ZIO_FLAG_GODFATHER) &&
+			    (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND)) {
+				zio_remove_child(pio, zio, zl);
+				zio_notify_parent(pio, zio, ZIO_WAIT_DONE);
+			}
+		}
 
 		if ((pio = zio_unique_parent(zio)) != NULL) {
 			/*
@@ -2259,6 +2281,7 @@ zio_done(zio_t *zio)
 			 * but notify our parent.  Don't propagate errors
 			 * upward since we haven't permanently failed yet.
 			 */
+			ASSERT(!(zio->io_flags & ZIO_FLAG_GODFATHER));
 			zio->io_flags |= ZIO_FLAG_DONT_PROPAGATE;
 			zio_notify_parent(pio, zio, ZIO_WAIT_DONE);
 		} else if (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND) {
@@ -2290,8 +2313,6 @@ zio_done(zio_t *zio)
 	 */
 	if (zio->io_done)
 		zio->io_done(zio);
-
-	zio_gang_tree_free(&zio->io_gang_tree);
 
 	mutex_enter(&zio->io_lock);
 	zio->io_state[ZIO_WAIT_DONE] = 1;
