@@ -19,12 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #if defined(_KERNEL)
 #include <sys/systm.h>
@@ -66,6 +63,10 @@ zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_SHARE, ZFS_DELEG_NOTE_SHARE },
 	{ZFS_DELEG_PERM_SEND, ZFS_DELEG_NOTE_NONE },
 	{ZFS_DELEG_PERM_USERPROP, ZFS_DELEG_NOTE_USERPROP },
+	{ZFS_DELEG_PERM_USERQUOTA, ZFS_DELEG_NOTE_USERQUOTA },
+	{ZFS_DELEG_PERM_GROUPQUOTA, ZFS_DELEG_NOTE_GROUPQUOTA },
+	{ZFS_DELEG_PERM_USERUSED, ZFS_DELEG_NOTE_USERUSED },
+	{ZFS_DELEG_PERM_GROUPUSED, ZFS_DELEG_NOTE_GROUPUSED },
 	{NULL, ZFS_DELEG_NOTE_NONE }
 };
 
