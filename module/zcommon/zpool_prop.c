@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -96,6 +96,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "on | off", "REPLACE", boolean_table);
 	register_index(ZPOOL_PROP_LISTSNAPS, "listsnapshots", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "on | off", "LISTSNAPS", boolean_table);
+	register_index(ZPOOL_PROP_AUTOEXPAND, "autoexpand", 0, PROP_DEFAULT,
+	    ZFS_TYPE_POOL, "on | off", "EXPAND", boolean_table);
 
 	/* default index properties */
 	register_index(ZPOOL_PROP_FAILUREMODE, "failmode",
