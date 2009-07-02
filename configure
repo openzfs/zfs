@@ -19051,12 +19051,17 @@ echo "${ECHO_T}$kernsrcver" >&6
 
 
 
+	modpost=$LINUX/scripts/Makefile.modpost
 	echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
 echo $ECHO_N "checking kernel file name for module symbols... $ECHO_C" >&6
-	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
-		LINUX_SYMBOLS=Modules.symvers
+	if test -f "$modpost"; then
+		if grep -q Modules.symvers $modpost; then
+			LINUX_SYMBOLS=Modules.symvers
+		else
+			LINUX_SYMBOLS=Module.symvers
+		fi
 	else
-		LINUX_SYMBOLS=Module.symvers
+		LINUX_SYMBOLS=NONE
 	fi
 	echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
 echo "${ECHO_T}$LINUX_SYMBOLS" >&6
@@ -21437,12 +21442,17 @@ echo "${ECHO_T}$kernsrcver" >&6
 
 
 
+	modpost=$LINUX/scripts/Makefile.modpost
 	echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
 echo $ECHO_N "checking kernel file name for module symbols... $ECHO_C" >&6
-	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
-		LINUX_SYMBOLS=Modules.symvers
+	if test -f "$modpost"; then
+		if grep -q Modules.symvers $modpost; then
+			LINUX_SYMBOLS=Modules.symvers
+		else
+			LINUX_SYMBOLS=Module.symvers
+		fi
 	else
-		LINUX_SYMBOLS=Module.symvers
+		LINUX_SYMBOLS=NONE
 	fi
 	echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
 echo "${ECHO_T}$LINUX_SYMBOLS" >&6

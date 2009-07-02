@@ -67,11 +67,16 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
+	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost; then
-		LINUX_SYMBOLS=Modules.symvers
+	if test -f "$modpost"; then
+		if grep -q Modules.symvers $modpost; then
+			LINUX_SYMBOLS=Modules.symvers
+		else
+			LINUX_SYMBOLS=Module.symvers
+		fi
 	else
-		LINUX_SYMBOLS=Module.symvers
+		LINUX_SYMBOLS=NONE
 	fi
 	AC_MSG_RESULT($LINUX_SYMBOLS)
 	AC_SUBST(LINUX_SYMBOLS)
