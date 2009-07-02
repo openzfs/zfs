@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -85,6 +85,8 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	byteswap_uint64_array,	TRUE,	"FUID table size"	},
 	{	zap_byteswap,		TRUE,	"DSL dataset next clones"},
 	{	zap_byteswap,		TRUE,	"scrub work queue"	},
+	{	zap_byteswap,		TRUE,	"ZFS user/group used"	},
+	{	zap_byteswap,		TRUE,	"ZFS user/group quota"	},
 };
 
 int
@@ -180,22 +182,22 @@ dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
  * whose dnodes are in the same block.
  */
 static int
-dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
-    uint64_t length, int rd, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
+dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
+    int rd, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
 {
 	dsl_pool_t *dp = NULL;
 	dmu_buf_t **dbp;
 	uint64_t blkid, nblks, i;
-	uint32_t flags;
+	uint32_t dbuf_flags;
 	int err;
 	zio_t *zio;
 	hrtime_t start;
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
-	flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT;
-	if (length > zfetch_array_rd_sz)
-		flags |= DB_RF_NOPREFETCH;
+	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT;
+	if (flags & DMU_READ_NO_PREFETCH || length > zfetch_array_rd_sz)
+		dbuf_flags |= DB_RF_NOPREFETCH;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift) {
@@ -233,7 +235,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
 		/* initiate async i/o */
 		if (rd) {
 			rw_exit(&dn->dn_struct_rwlock);
-			(void) dbuf_read(db, zio, flags);
+			(void) dbuf_read(db, zio, dbuf_flags);
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		}
 		dbp[i] = &db->db;
@@ -285,7 +287,7 @@ dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
 		return (err);
 
 	err = dmu_buf_hold_array_by_dnode(dn, offset, length, rd, tag,
-	    numbufsp, dbpp);
+	    numbufsp, dbpp, DMU_READ_PREFETCH);
 
 	dnode_rele(dn, FTAG);
 
@@ -300,7 +302,7 @@ dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
 	int err;
 
 	err = dmu_buf_hold_array_by_dnode(dn, offset, length, rd, tag,
-	    numbufsp, dbpp);
+	    numbufsp, dbpp, DMU_READ_PREFETCH);
 
 	return (err);
 }
@@ -442,7 +444,8 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 	object_size = align == 1 ? dn->dn_datablksz :
 	    (dn->dn_maxblkid + 1) << dn->dn_datablkshift;
 
-	if (trunc || (end = offset + length) > object_size)
+	end = offset + length;
+	if (trunc || end > object_size)
 		end = object_size;
 	if (end <= offset)
 		return (0);
@@ -450,6 +453,7 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 
 	while (length) {
 		start = end;
+		/* assert(offset <= start) */
 		err = get_next_chunk(dn, &start, offset);
 		if (err)
 			return (err);
@@ -540,7 +544,7 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 
 int
 dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    void *buf)
+    void *buf, uint32_t flags)
 {
 	dnode_t *dn;
 	dmu_buf_t **dbp;
@@ -570,7 +574,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		 * to be reading in parallel.
 		 */
 		err = dmu_buf_hold_array_by_dnode(dn, offset, mylen,
-		    TRUE, FTAG, &numbufs, &dbp);
+		    TRUE, FTAG, &numbufs, &dbp, flags);
 		if (err)
 			break;
 
@@ -809,6 +813,58 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	return (err);
 }
 #endif
+
+/*
+ * Allocate a loaned anonymous arc buffer.
+ */
+arc_buf_t *
+dmu_request_arcbuf(dmu_buf_t *handle, int size)
+{
+	dnode_t *dn = ((dmu_buf_impl_t *)handle)->db_dnode;
+
+	return (arc_loan_buf(dn->dn_objset->os_spa, size));
+}
+
+/*
+ * Free a loaned arc buffer.
+ */
+void
+dmu_return_arcbuf(arc_buf_t *buf)
+{
+	arc_return_buf(buf, FTAG);
+	VERIFY(arc_buf_remove_ref(buf, FTAG) == 1);
+}
+
+/*
+ * When possible directly assign passed loaned arc buffer to a dbuf.
+ * If this is not possible copy the contents of passed arc buf via
+ * dmu_write().
+ */
+void
+dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
+    dmu_tx_t *tx)
+{
+	dnode_t *dn = ((dmu_buf_impl_t *)handle)->db_dnode;
+	dmu_buf_impl_t *db;
+	uint32_t blksz = (uint32_t)arc_buf_size(buf);
+	uint64_t blkid;
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	blkid = dbuf_whichblock(dn, offset);
+	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
+	rw_exit(&dn->dn_struct_rwlock);
+
+	if (offset == db->db.db_offset && blksz == db->db.db_size) {
+		dbuf_assign_arcbuf(db, buf, tx);
+		dbuf_rele(db, FTAG);
+	} else {
+		dbuf_rele(db, FTAG);
+		ASSERT(dn->dn_objset->os.os == dn->dn_objset);
+		dmu_write(&dn->dn_objset->os, dn->dn_object, offset, blksz,
+		    buf->b_data, tx);
+		dmu_return_arcbuf(buf);
+	}
+}
 
 typedef struct {
 	dbuf_dirty_record_t	*dr;

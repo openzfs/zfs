@@ -504,9 +504,6 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 /*
  * Write out the dnode's dirty buffers.
- *
- * NOTE: The dnode is kept in memory by being dirty.  Once the
- * dirty bit is cleared, it may be evicted.  Beware of this!
  */
 void
 dnode_sync(dnode_t *dn, dmu_tx_t *tx)
@@ -515,20 +512,33 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
+	static const dnode_phys_t zerodn = { 0 };
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
+	ASSERT(dnp->dn_type != DMU_OT_NONE ||
+	    bcmp(dnp, &zerodn, DNODE_SIZE) == 0);
 	DNODE_VERIFY(dn);
 
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
+
+	if (dmu_objset_userused_enabled(dn->dn_objset) &&
+	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
+		ASSERT(dn->dn_oldphys == NULL);
+		dn->dn_oldphys = zio_buf_alloc(sizeof (dnode_phys_t));
+		*dn->dn_oldphys = *dn->dn_phys; /* struct assignment */
+		dn->dn_phys->dn_flags |= DNODE_FLAG_USERUSED_ACCOUNTED;
+	} else {
+		/* Once we account for it, we should always account for it. */
+		ASSERT(!(dn->dn_phys->dn_flags &
+		    DNODE_FLAG_USERUSED_ACCOUNTED));
+	}
 
 	mutex_enter(&dn->dn_mtx);
 	if (dn->dn_allocated_txg == tx->tx_txg) {
 		/* The dnode is newly allocated or reallocated */
 		if (dnp->dn_type == DMU_OT_NONE) {
 			/* this is a first alloc, not a realloc */
-			/* XXX shouldn't the phys already be zeroed? */
-			bzero(dnp, DNODE_CORE_SIZE);
 			dnp->dn_nlevels = 1;
 			dnp->dn_nblkptr = dn->dn_nblkptr;
 		}
@@ -626,7 +636,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 
 	dbuf_sync_list(list, tx);
 
-	if (dn->dn_object != DMU_META_DNODE_OBJECT) {
+	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		ASSERT3P(list_head(list), ==, NULL);
 		dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	}
