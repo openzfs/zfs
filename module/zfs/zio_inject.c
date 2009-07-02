@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -195,7 +195,7 @@ zio_handle_label_injection(zio_t *zio, int error)
 
 
 int
-zio_handle_device_injection(vdev_t *vd, int error)
+zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 {
 	inject_handler_t *handler;
 	int ret = 0;
@@ -210,6 +210,12 @@ zio_handle_device_injection(vdev_t *vd, int error)
 			continue;
 
 		if (vd->vdev_guid == handler->zi_record.zi_guid) {
+			if (handler->zi_record.zi_failfast &&
+			    (zio == NULL || (zio->io_flags &
+			    (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))) {
+				continue;
+			}
+
 			if (handler->zi_record.zi_error == error) {
 				/*
 				 * For a failed open, pretend like the device
