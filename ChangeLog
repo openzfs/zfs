@@ -1,3 +1,67 @@
+2009-07-02 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.4 - Use 'git log --no-merges' for full change log.
+
+	* : Generic distro friendly build system / packaging improvements
+	for RPM based distros including CHAOS, RHEL, Fedora, and SLES.
+
+	These changes bring the zfs-0.4.4 tree in to compliance with
+	the spl-0.4.4 packaging changes.  The bottom line is 2 source
+	rpms and 4 binary rpms will now be generated when creating
+	packages there will be:
+
+	zfs-<version>.src.rpm
+	- Fully rebuildable source rpm for libzfs and utils.
+	zfs-modules-<version>.src.rpm
+	- Fully rebuildable source rpm for kernel modules.
+
+	zfs-<version>.<arch>.rpm
+	- Binary rpm for libzfs and utils.  The utils in this package are
+	  compatible with all zfs-module rpms of the same version.
+	zfs-devel-<version>.<arch>.rpm
+	- Binary rpm containing headers for building against libzfs libraries.
+
+	zfs-modules-<verion>-<kernel>.arch.rpm
+	- Binary rpm containing the kernel modules for a specific kernel build.
+	  The package name contains the kernel version and you should have one
+	  of these packages installed to match every kernel on your system.
+	zfs-modules-devel-<verion>-<kernel>.arch.rpm
+	- Binary rpm containing development header and module symbols needed
+	  for building additional kernel modules which are dependent on the
+	  zfs module stack.
+
+	* : SLES9/10 distro support added: Several significant updates to
+	the build system were required to support this including:
+
+	- Autoconf macros updated to be aware of the standard install
+	locations for SLES kernel sources and build objects.  Additionally
+	changes were made to support multiple names for Module{s}.symvers.
+	- By default on SLES all user space builds are 32-bit even on
+	64-bit arches.  This means we need to be careful to pass -m64 in
+	the autoconf checks which probe the kernel.  Additionally, 
+	ioctl_compat handles still need to be added so 32-bit user
+	binarys can perform ioctls with the 64-bit kernel.
+
+	* : Powerpc64 support added:
+
+	- 64-bit user space atomic support for power64 was obtained from
+	an old version of OpenSolaris which offered minimal powerpc support.
+	The atomic support is not 100% fully implemented but it's a good
+	first step towards cleanly supporting the architecture.
+	- Added powerpc ISA type.
+	- Explictly use signed char for portability.  On x86/x86_64
+	systems the default char type is signed, on ppc/ppc64 systems
+	the default char type is unsigned.
+	- Core target arch support for conditional compilation of SUBDIRs.
+	Required by libspl for its arch specific atomic implementations.
+
+	* COPYRIGHT: Readded accidentally dropped COPYRIGHT, it just
+	references the OPENSOLARIS.LICENSE which was still in the project.
+
+	* module/zfs/dmu_tx.c: Add EXPORT_SYMBOL(dmu_tx_callback_register).
+
+	* config/user-zlib.m4: Add basic zlib autoconf check for user space.
+
 2009-03-20 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.3 - Use 'git log --no-merges' for full change log.
