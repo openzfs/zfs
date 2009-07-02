@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * ZFS Fault Injector
@@ -224,7 +222,7 @@ usage(void)
 	    "\t\tClear the particular record (if given a numeric ID), or\n"
 	    "\t\tall records if 'all' is specificed.\n"
 	    "\n"
-	    "\tzinject -d device [-e errno] [-L <nvlist|uber>] pool\n"
+	    "\tzinject -d device [-e errno] [-L <nvlist|uber>] [-F] pool\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist' or 'uber'.\n"
 	    "\t\t'errno' can either be 'nxio' (the default) or 'io'.\n"
@@ -516,7 +514,7 @@ main(int argc, char **argv)
 		return (0);
 	}
 
-	while ((c = getopt(argc, argv, ":ab:d:f:qhc:t:l:mr:e:uL:")) != -1) {
+	while ((c = getopt(argc, argv, ":ab:d:f:Fqhc:t:l:mr:e:uL:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
@@ -552,6 +550,9 @@ main(int argc, char **argv)
 				    "be in the range (0, 100]\n");
 				return (1);
 			}
+			break;
+		case 'F':
+			record.zi_failfast = B_TRUE;
 			break;
 		case 'h':
 			usage();

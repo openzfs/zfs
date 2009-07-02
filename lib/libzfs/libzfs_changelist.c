@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  *
  * Portions Copyright 2007 Ramprakash Jelari
@@ -218,6 +218,7 @@ changelist_postfix(prop_changelist_t *clp)
 
 		boolean_t sharenfs;
 		boolean_t sharesmb;
+		boolean_t mounted;
 
 		/*
 		 * If we are in the global zone, but this dataset is exported
@@ -272,20 +273,29 @@ changelist_postfix(prop_changelist_t *clp)
 		    shareopts, sizeof (shareopts), NULL, NULL, 0,
 		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
 
-		if ((cn->cn_mounted || clp->cl_waslegacy || sharenfs ||
-		    sharesmb) && !zfs_is_mounted(cn->cn_handle, NULL) &&
-		    zfs_mount(cn->cn_handle, NULL, 0) != 0)
-			errors++;
+		mounted = zfs_is_mounted(cn->cn_handle, NULL);
+
+		if (!mounted && (cn->cn_mounted ||
+		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
+		    (zfs_prop_get_int(cn->cn_handle,
+		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {
+
+			if (zfs_mount(cn->cn_handle, NULL, 0) != 0)
+				errors++;
+			else
+				mounted = TRUE;
+		}
 
 		/*
-		 * We always re-share even if the filesystem is currently
-		 * shared, so that we can adopt any new options.
+		 * If the file system is mounted we always re-share even
+		 * if the filesystem is currently shared, so that we can
+		 * adopt any new options.
 		 */
-		if (sharenfs)
+		if (sharenfs && mounted)
 			errors += zfs_share_nfs(cn->cn_handle);
 		else if (cn->cn_shared || clp->cl_waslegacy)
 			errors += zfs_unshare_nfs(cn->cn_handle, NULL);
-		if (sharesmb)
+		if (sharesmb && mounted)
 			errors += zfs_share_smb(cn->cn_handle);
 		else if (cn->cn_shared || clp->cl_waslegacy)
 			errors += zfs_unshare_smb(cn->cn_handle, NULL);
@@ -620,8 +630,6 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	} else if (prop == ZFS_PROP_CANMOUNT) {
 		clp->cl_prop = ZFS_PROP_MOUNTPOINT;
 	} else if (prop == ZFS_PROP_VOLSIZE) {
-		clp->cl_prop = ZFS_PROP_MOUNTPOINT;
-	} else if (prop == ZFS_PROP_VERSION) {
 		clp->cl_prop = ZFS_PROP_MOUNTPOINT;
 	} else {
 		clp->cl_prop = prop;
