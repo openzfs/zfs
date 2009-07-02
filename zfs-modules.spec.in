@@ -104,8 +104,8 @@
  %define splver          %((echo X; %{__cat} %{spllnk}/spl.release
                             2>/dev/null) | tail -1)
 %endif
-%define splpkg           spl
-%define spldevpkg        spl-devel
+%define splpkg           spl-modules
+%define spldevpkg        spl-modules-devel
 %define splverpkg        %{splver}
 %if %{undefined spldir}
  %define spldir %{_usrsrc}/spl-%{splver}/%{kver}
