@@ -233,6 +233,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 		    vd->vdev_physpath) == 0);
 
+	if (vd->vdev_fru != NULL)
+		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_FRU,
+		    vd->vdev_fru) == 0);
+
 	if (vd->vdev_nparity != 0) {
 		ASSERT(strcmp(vd->vdev_ops->vdev_op_type,
 		    VDEV_TYPE_RAIDZ) == 0);
@@ -335,8 +339,8 @@ vdev_label_read_config(vdev_t *vd)
 	nvlist_t *config = NULL;
 	vdev_phys_t *vp;
 	zio_t *zio;
-	int flags =
-	    ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SPECULATIVE;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
@@ -345,6 +349,7 @@ vdev_label_read_config(vdev_t *vd)
 
 	vp = zio_buf_alloc(sizeof (vdev_phys_t));
 
+retry:
 	for (int l = 0; l < VDEV_LABELS; l++) {
 
 		zio = zio_root(spa, NULL, NULL, flags);
@@ -362,6 +367,11 @@ vdev_label_read_config(vdev_t *vd)
 			nvlist_free(config);
 			config = NULL;
 		}
+	}
+
+	if (config == NULL && !(flags & ZIO_FLAG_TRYHARD)) {
+		flags |= ZIO_FLAG_TRYHARD;
+		goto retry;
 	}
 
 	zio_buf_free(vp, sizeof (vdev_phys_t));
@@ -490,7 +500,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
 	vdev_phys_t *vp;
-	vdev_boot_header_t *vb;
+	char *pad2;
 	uberblock_t *ub;
 	zio_t *zio;
 	char *buf;
@@ -632,16 +642,6 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	}
 
 	/*
-	 * Initialize boot block header.
-	 */
-	vb = zio_buf_alloc(sizeof (vdev_boot_header_t));
-	bzero(vb, sizeof (vdev_boot_header_t));
-	vb->vb_magic = VDEV_BOOT_MAGIC;
-	vb->vb_version = VDEV_BOOT_VERSION;
-	vb->vb_offset = VDEV_BOOT_OFFSET;
-	vb->vb_size = VDEV_BOOT_SIZE;
-
-	/*
 	 * Initialize uberblock template.
 	 */
 	ub = zio_buf_alloc(VDEV_UBERBLOCK_SIZE(vd));
@@ -649,9 +649,14 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	*ub = spa->spa_uberblock;
 	ub->ub_txg = 0;
 
+	/* Initialize the 2nd padding area. */
+	pad2 = zio_buf_alloc(VDEV_PAD_SIZE);
+	bzero(pad2, VDEV_PAD_SIZE);
+
 	/*
 	 * Write everything in parallel.
 	 */
+retry:
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
@@ -660,9 +665,14 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		    offsetof(vdev_label_t, vl_vdev_phys),
 		    sizeof (vdev_phys_t), NULL, NULL, flags);
 
-		vdev_label_write(zio, vd, l, vb,
-		    offsetof(vdev_label_t, vl_boot_header),
-		    sizeof (vdev_boot_header_t), NULL, NULL, flags);
+		/*
+		 * Skip the 1st padding area.
+		 * Zero out the 2nd padding area where it might have
+		 * left over data from previous filesystem format.
+		 */
+		vdev_label_write(zio, vd, l, pad2,
+		    offsetof(vdev_label_t, vl_pad2),
+		    VDEV_PAD_SIZE, NULL, NULL, flags);
 
 		for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 			vdev_label_write(zio, vd, l, ub,
@@ -673,9 +683,14 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 
 	error = zio_wait(zio);
 
+	if (error != 0 && !(flags & ZIO_FLAG_TRYHARD)) {
+		flags |= ZIO_FLAG_TRYHARD;
+		goto retry;
+	}
+
 	nvlist_free(label);
+	zio_buf_free(pad2, VDEV_PAD_SIZE);
 	zio_buf_free(ub, VDEV_UBERBLOCK_SIZE(vd));
-	zio_buf_free(vb, sizeof (vdev_boot_header_t));
 	zio_buf_free(vp, sizeof (vdev_phys_t));
 
 	/*
@@ -759,8 +774,8 @@ vdev_uberblock_load(zio_t *zio, vdev_t *vd, uberblock_t *ubbest)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
-	int flags =
-	    ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
 	if (vd == rvd) {
 		ASSERT(zio == NULL);
@@ -998,7 +1013,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
  * at any time, you can just call it again, and it will resume its work.
  */
 int
-vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
+vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg, boolean_t tryhard)
 {
 	spa_t *spa = svd[0]->vdev_spa;
 	uberblock_t *ub = &spa->spa_uberblock;
@@ -1006,6 +1021,16 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
 	zio_t *zio;
 	int error;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
+
+	/*
+	 * Normally, we don't want to try too hard to write every label and
+	 * uberblock.  If there is a flaky disk, we don't want the rest of the
+	 * sync process to block while we retry.  But if we can't write a
+	 * single label out, we should retry with ZIO_FLAG_TRYHARD before
+	 * bailing out and declaring the pool faulted.
+	 */
+	if (tryhard)
+		flags |= ZIO_FLAG_TRYHARD;
 
 	ASSERT(ub->ub_txg <= txg);
 
