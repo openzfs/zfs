@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -805,44 +805,49 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, vnode_t **xvpp, cred_t *cr)
 	znode_t *xzp;
 	dmu_tx_t *tx;
 	int error;
-	zfs_fuid_info_t *fuidp = NULL;
+	zfs_acl_ids_t acl_ids;
+	boolean_t fuid_dirtied;
 
 	*xvpp = NULL;
 
 	if (error = zfs_zaccess(zp, ACE_WRITE_NAMED_ATTRS, 0, B_FALSE, cr))
 		return (error);
 
+	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
+	    &acl_ids)) != 0)
+		return (error);
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+		zfs_acl_ids_free(&acl_ids);
+		return (EDQUOT);
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_bonus(tx, zp->z_id);
 	dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, FALSE, NULL);
-	if (IS_EPHEMERAL(crgetuid(cr)) || IS_EPHEMERAL(crgetgid(cr))) {
-		if (zfsvfs->z_fuid_obj == 0) {
-			dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
-			dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0,
-			    FUID_SIZE_ESTIMATE(zfsvfs));
-			dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, FALSE, NULL);
-		} else {
-			dmu_tx_hold_bonus(tx, zfsvfs->z_fuid_obj);
-			dmu_tx_hold_write(tx, zfsvfs->z_fuid_obj, 0,
-			    FUID_SIZE_ESTIMATE(zfsvfs));
-		}
-	}
+	fuid_dirtied = zfsvfs->z_fuid_dirty;
+	if (fuid_dirtied)
+		zfs_fuid_txhold(zfsvfs, tx);
 	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
+		zfs_acl_ids_free(&acl_ids);
 		if (error == ERESTART)
 			dmu_tx_wait(tx);
 		dmu_tx_abort(tx);
 		return (error);
 	}
-	zfs_mknode(zp, vap, tx, cr, IS_XATTR, &xzp, 0, NULL, &fuidp);
+	zfs_mknode(zp, vap, tx, cr, IS_XATTR, &xzp, 0, &acl_ids);
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
+
 	ASSERT(xzp->z_phys->zp_parent == zp->z_id);
 	dmu_buf_will_dirty(zp->z_dbuf, tx);
 	zp->z_phys->zp_xattr = xzp->z_id;
 
 	(void) zfs_log_create(zfsvfs->z_log, tx, TX_MKXATTR, zp,
-	    xzp, "", NULL, fuidp, vap);
-	if (fuidp)
-		zfs_fuid_info_free(fuidp);
+	    xzp, "", NULL, acl_ids.z_fuidp, vap);
+
+	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
 	*xvpp = ZTOV(xzp);

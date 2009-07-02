@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -42,12 +42,20 @@ struct dsl_dataset;
 struct dmu_tx;
 struct objset_impl;
 
+#define	OBJSET_PHYS_SIZE 2048
+#define	OBJSET_OLD_PHYS_SIZE 1024
+
+#define	OBJSET_FLAG_USERACCOUNTING_COMPLETE	(1ULL<<0)
+
 typedef struct objset_phys {
 	dnode_phys_t os_meta_dnode;
 	zil_header_t os_zil_header;
 	uint64_t os_type;
-	char os_pad[1024 - sizeof (dnode_phys_t) - sizeof (zil_header_t) -
-	    sizeof (uint64_t)];
+	uint64_t os_flags;
+	char os_pad[OBJSET_PHYS_SIZE - sizeof (dnode_phys_t)*3 -
+	    sizeof (zil_header_t) - sizeof (uint64_t)*2];
+	dnode_phys_t os_userused_dnode;
+	dnode_phys_t os_groupused_dnode;
 } objset_phys_t;
 
 struct objset {
@@ -62,6 +70,8 @@ typedef struct objset_impl {
 	arc_buf_t *os_phys_buf;
 	objset_phys_t *os_phys;
 	dnode_t *os_meta_dnode;
+	dnode_t *os_userused_dnode;
+	dnode_t *os_groupused_dnode;
 	zilog_t *os_zil;
 	objset_t os;
 	uint8_t os_checksum;	/* can change, under dsl_dir's locks */
@@ -74,6 +84,8 @@ typedef struct objset_impl {
 	struct dmu_tx *os_synctx; /* XXX sketchy */
 	blkptr_t *os_rootbp;
 	zil_header_t os_zil_header;
+	list_t os_synced_dnodes;
+	uint64_t os_flags;
 
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;
@@ -92,6 +104,7 @@ typedef struct objset_impl {
 } objset_impl_t;
 
 #define	DMU_META_DNODE_OBJECT	0
+#define	DMU_OBJECT_IS_SPECIAL(obj) ((int64_t)(obj) <= 0)
 
 #define	DMU_OS_IS_L2CACHEABLE(os)				\
 	((os)->os_secondary_cache == ZFS_CACHE_ALL ||		\
@@ -106,7 +119,8 @@ int dmu_objset_create(const char *name, dmu_objset_type_t type,
     void (*func)(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx), void *arg);
 int dmu_objset_destroy(const char *name);
 int dmu_objset_rollback(objset_t *os);
-int dmu_objset_snapshot(char *fsname, char *snapname, boolean_t recursive);
+int dmu_objset_snapshot(char *fsname, char *snapname, nvlist_t *props,
+    boolean_t recursive);
 void dmu_objset_stats(objset_t *os, nvlist_t *nv);
 void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
 void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
@@ -127,6 +141,10 @@ objset_impl_t *dmu_objset_create_impl(spa_t *spa, struct dsl_dataset *ds,
 int dmu_objset_open_impl(spa_t *spa, struct dsl_dataset *ds, blkptr_t *bp,
     objset_impl_t **osip);
 void dmu_objset_evict(struct dsl_dataset *ds, void *arg);
+void dmu_objset_do_userquota_callbacks(objset_impl_t *os, dmu_tx_t *tx);
+boolean_t dmu_objset_userused_enabled(objset_impl_t *os);
+int dmu_objset_userspace_upgrade(objset_t *os);
+boolean_t dmu_objset_userspace_present(objset_t *os);
 
 #ifdef	__cplusplus
 }
