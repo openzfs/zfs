@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -116,18 +116,32 @@ space_map_add(space_map_t *sm, uint64_t start, uint64_t size)
 
 	if (merge_before && merge_after) {
 		avl_remove(&sm->sm_root, ss_before);
+		if (sm->sm_pp_root) {
+			avl_remove(sm->sm_pp_root, ss_before);
+			avl_remove(sm->sm_pp_root, ss_after);
+		}
 		ss_after->ss_start = ss_before->ss_start;
 		kmem_free(ss_before, sizeof (*ss_before));
+		ss = ss_after;
 	} else if (merge_before) {
 		ss_before->ss_end = end;
+		if (sm->sm_pp_root)
+			avl_remove(sm->sm_pp_root, ss_before);
+		ss = ss_before;
 	} else if (merge_after) {
 		ss_after->ss_start = start;
+		if (sm->sm_pp_root)
+			avl_remove(sm->sm_pp_root, ss_after);
+		ss = ss_after;
 	} else {
 		ss = kmem_alloc(sizeof (*ss), KM_SLEEP);
 		ss->ss_start = start;
 		ss->ss_end = end;
 		avl_insert(&sm->sm_root, ss, where);
 	}
+
+	if (sm->sm_pp_root)
+		avl_add(sm->sm_pp_root, ss);
 
 	sm->sm_space += size;
 }
@@ -163,12 +177,17 @@ space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 	left_over = (ss->ss_start != start);
 	right_over = (ss->ss_end != end);
 
+	if (sm->sm_pp_root)
+		avl_remove(sm->sm_pp_root, ss);
+
 	if (left_over && right_over) {
 		newseg = kmem_alloc(sizeof (*newseg), KM_SLEEP);
 		newseg->ss_start = end;
 		newseg->ss_end = ss->ss_end;
 		ss->ss_end = start;
 		avl_insert_here(&sm->sm_root, newseg, ss, AVL_AFTER);
+		if (sm->sm_pp_root)
+			avl_add(sm->sm_pp_root, newseg);
 	} else if (left_over) {
 		ss->ss_end = start;
 	} else if (right_over) {
@@ -176,7 +195,11 @@ space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 	} else {
 		avl_remove(&sm->sm_root, ss);
 		kmem_free(ss, sizeof (*ss));
+		ss = NULL;
 	}
+
+	if (sm->sm_pp_root && ss != NULL)
+		avl_add(sm->sm_pp_root, ss);
 
 	sm->sm_space -= size;
 }
@@ -288,7 +311,8 @@ space_map_load(space_map_t *sm, space_map_ops_t *ops, uint8_t maptype,
 		    smo->smo_object, offset, size);
 
 		mutex_exit(sm->sm_lock);
-		error = dmu_read(os, smo->smo_object, offset, size, entry_map);
+		error = dmu_read(os, smo->smo_object, offset, size, entry_map,
+		    DMU_READ_PREFETCH);
 		mutex_enter(sm->sm_lock);
 		if (error != 0)
 			break;
@@ -339,6 +363,15 @@ space_map_unload(space_map_t *sm)
 	sm->sm_ops = NULL;
 
 	space_map_vacate(sm, NULL, NULL);
+}
+
+uint64_t
+space_map_maxsize(space_map_t *sm)
+{
+	if (sm->sm_loaded && sm->sm_ops != NULL)
+		return (sm->sm_ops->smop_max(sm));
+	else
+		return (-1ULL);
 }
 
 uint64_t
