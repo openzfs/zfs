@@ -19,12 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-
-
 
 /*
  * This file contains the top half of the zfs directory structure
@@ -45,6 +42,7 @@
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
+#include <sys/fs/zfs.h>
 #include <sys/zap.h>
 #include <sys/refcount.h>
 #include <sys/zap_impl.h>
@@ -1133,4 +1131,59 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 			}
 		}
 	}
+}
+
+int
+fzap_count_write(zap_name_t *zn, int add, uint64_t *towrite,
+    uint64_t *tooverwrite)
+{
+	zap_t *zap = zn->zn_zap;
+	zap_leaf_t *l;
+	int err;
+
+	/*
+	 * Account for the header block of the fatzap.
+	 */
+	if (!add && dmu_buf_freeable(zap->zap_dbuf)) {
+		tooverwrite += zap->zap_dbuf->db_size;
+	} else {
+		towrite += zap->zap_dbuf->db_size;
+	}
+
+	/*
+	 * Account for the pointer table blocks.
+	 * If we are adding we need to account for the following cases :
+	 * - If the pointer table is embedded, this operation could force an
+	 *   external pointer table.
+	 * - If this already has an external pointer table this operation
+	 *   could extend the table.
+	 */
+	if (add) {
+		if (zap->zap_f.zap_phys->zap_ptrtbl.zt_blk == 0)
+			towrite += zap->zap_dbuf->db_size;
+		else
+			towrite += (zap->zap_dbuf->db_size * 3);
+	}
+
+	/*
+	 * Now, check if the block containing leaf is freeable
+	 * and account accordingly.
+	 */
+	err = zap_deref_leaf(zap, zn->zn_hash, NULL, RW_READER, &l);
+	if (err != 0) {
+		return (err);
+	}
+
+	if (!add && dmu_buf_freeable(l->l_dbuf)) {
+		tooverwrite += l->l_dbuf->db_size;
+	} else {
+		/*
+		 * If this an add operation, the leaf block could split.
+		 * Hence, we need to account for an additional leaf block.
+		 */
+		towrite += (add ? 2 : 1) * l->l_dbuf->db_size;
+	}
+
+	zap_put_leaf(l);
+	return (0);
 }
