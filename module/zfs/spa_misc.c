@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -425,7 +425,6 @@ spa_add(const char *name, const char *altroot)
 	spa = kmem_zalloc(sizeof (spa_t), KM_SLEEP);
 
 	mutex_init(&spa->spa_async_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&spa->spa_async_root_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_scrub_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_errlog_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_errlist_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -434,7 +433,6 @@ spa_add(const char *name, const char *altroot)
 	mutex_init(&spa->spa_props_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
-	cv_init(&spa->spa_async_root_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_scrub_io_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_suspend_cv, NULL, CV_DEFAULT, NULL);
 
@@ -508,12 +506,10 @@ spa_remove(spa_t *spa)
 	spa_config_lock_destroy(spa);
 
 	cv_destroy(&spa->spa_async_cv);
-	cv_destroy(&spa->spa_async_root_cv);
 	cv_destroy(&spa->spa_scrub_io_cv);
 	cv_destroy(&spa->spa_suspend_cv);
 
 	mutex_destroy(&spa->spa_async_lock);
-	mutex_destroy(&spa->spa_async_root_lock);
 	mutex_destroy(&spa->spa_scrub_lock);
 	mutex_destroy(&spa->spa_errlog_lock);
 	mutex_destroy(&spa->spa_errlist_lock);
