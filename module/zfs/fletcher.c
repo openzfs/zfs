@@ -124,7 +124,6 @@
  * For both cached and uncached data, both fletcher checksums are much faster
  * than sha-256, and slower than 'off', which doesn't touch the data at all.
  */
->>>>>>> gcc-c90:module/zfs/fletcher.c
 
 #include <sys/types.h>
 #include <sys/sysmacros.h>
