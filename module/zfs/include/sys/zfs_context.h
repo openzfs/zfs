@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
 #define	_SYS_ZFS_CONTEXT_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -62,6 +60,7 @@ extern "C" {
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
 #include <sys/sysevent/eventdefs.h>
+#include <sys/sysevent/dev.h>
 #include <sys/fm/util.h>
 
 #define	CPU_SEQID	(CPU->cpu_seqid)
