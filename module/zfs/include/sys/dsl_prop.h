@@ -19,18 +19,17 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_DSL_PROP_H
 #define	_SYS_DSL_PROP_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
 #include <sys/zfs_context.h>
+#include <sys/dsl_synctask.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -66,8 +65,10 @@ int dsl_prop_get_ds(struct dsl_dataset *ds, const char *propname,
 int dsl_prop_get_dd(struct dsl_dir *dd, const char *propname,
     int intsz, int numints, void *buf, char *setpoint);
 
+dsl_syncfunc_t dsl_props_set_sync;
 int dsl_prop_set(const char *ddname, const char *propname,
     int intsz, int numints, const void *buf);
+int dsl_props_set(const char *dsname, nvlist_t *nvl);
 void dsl_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
     cred_t *cr, dmu_tx_t *tx);
 

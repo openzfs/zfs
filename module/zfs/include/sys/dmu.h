@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -60,6 +60,7 @@ struct zbookmark;
 struct spa;
 struct nvlist;
 struct objset_impl;
+struct arc_buf;
 
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
@@ -114,6 +115,8 @@ typedef enum dmu_object_type {
 	DMU_OT_FUID_SIZE,		/* FUID table size UINT64 */
 	DMU_OT_NEXT_CLONES,		/* ZAP */
 	DMU_OT_SCRUB_QUEUE,		/* ZAP */
+	DMU_OT_USERGROUP_USED,		/* ZAP */
+	DMU_OT_USERGROUP_QUOTA,		/* ZAP */
 	DMU_OT_NUMTYPES
 } dmu_object_type_t;
 
@@ -156,6 +159,9 @@ void zfs_znode_byteswap(void *buf, size_t size);
 #define	DMU_MAX_ACCESS (10<<20) /* 10MB */
 #define	DMU_MAX_DELETEBLKCNT (20480) /* ~5MB of indirect blocks */
 
+#define	DMU_USERUSED_OBJECT	(-1ULL)
+#define	DMU_GROUPUSED_OBJECT	(-2ULL)
+
 /*
  * Public routines to create, destroy, open, and close objsets.
  */
@@ -171,7 +177,8 @@ int dmu_objset_create(const char *name, dmu_objset_type_t type,
 int dmu_objset_destroy(const char *name);
 int dmu_snapshots_destroy(char *fsname, char *snapname);
 int dmu_objset_rollback(objset_t *os);
-int dmu_objset_snapshot(char *fsname, char *snapname, boolean_t recursive);
+int dmu_objset_snapshot(char *fsname, char *snapname, struct nvlist *props,
+    boolean_t recursive);
 int dmu_objset_rename(const char *name, const char *newname,
     boolean_t recursive);
 int dmu_objset_find(char *name, int func(char *, void *), void *arg,
@@ -235,7 +242,7 @@ uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
-    int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+    int blocksize, dmu_object_type_t bonustype, int bonuslen);
 
 /*
  * Free an object from this objset.
@@ -398,6 +405,11 @@ void *dmu_buf_get_user(dmu_buf_t *db);
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 
 /*
+ * Tells if the given dbuf is freeable.
+ */
+boolean_t dmu_buf_freeable(dmu_buf_t *);
+
+/*
  * You must create a transaction, then hold the objects which you will
  * (or might) modify as part of this transaction.  Then you must assign
  * the transaction to a transaction group.  Once the transaction has
@@ -422,7 +434,7 @@ dmu_tx_t *dmu_tx_create(objset_t *os);
 void dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
-void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, char *name);
+void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name);
 void dmu_tx_hold_bonus(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_abort(dmu_tx_t *tx);
 int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
@@ -445,8 +457,10 @@ int dmu_free_object(objset_t *os, uint64_t object);
  * Canfail routines will return 0 on success, or an errno if there is a
  * nonrecoverable I/O error.
  */
+#define	DMU_READ_PREFETCH	0 /* prefetch */
+#define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-	void *buf);
+	void *buf, uint32_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	const void *buf, dmu_tx_t *tx);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
@@ -456,6 +470,10 @@ int dmu_write_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size,
     dmu_tx_t *tx);
 int dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size, struct page *pp, dmu_tx_t *tx);
+struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
+void dmu_return_arcbuf(struct arc_buf *buf);
+void dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, struct arc_buf *buf,
+    dmu_tx_t *tx);
 
 extern int zfs_prefetch_disable;
 
@@ -562,6 +580,12 @@ extern int dmu_snapshot_realname(objset_t *os, char *name, char *real,
     int maxlen, boolean_t *conflict);
 extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
+
+typedef void objset_used_cb_t(objset_t *os, dmu_object_type_t bonustype,
+    void *oldbonus, void *newbonus, uint64_t oldused, uint64_t newused,
+    dmu_tx_t *tx);
+extern void dmu_objset_register_type(dmu_objset_type_t ost,
+    objset_used_cb_t *cb);
 extern void dmu_objset_set_user(objset_t *os, void *user_ptr);
 extern void *dmu_objset_get_user(objset_t *os);
 
