@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -90,6 +90,9 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dp->dp_scrub_cancel_lock, NULL, MUTEX_DEFAULT, NULL);
 
+	dp->dp_vnrele_taskq = taskq_create("zfs_vn_rele_taskq", 1, minclsyspri,
+	    1, 4, 0);
+
 	return (dp);
 }
 
@@ -129,14 +132,15 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 			goto out;
 		err = dsl_dataset_hold_obj(dp, dd->dd_phys->dd_head_dataset_obj,
 		    FTAG, &ds);
-		if (err)
-			goto out;
-		err = dsl_dataset_hold_obj(dp, ds->ds_phys->ds_prev_snap_obj,
-		    dp, &dp->dp_origin_snap);
-		if (err)
-			goto out;
-		dsl_dataset_rele(ds, FTAG);
+		if (err == 0) {
+			err = dsl_dataset_hold_obj(dp,
+			    ds->ds_phys->ds_prev_snap_obj, dp,
+			    &dp->dp_origin_snap);
+			dsl_dataset_rele(ds, FTAG);
+		}
 		dsl_dir_close(dd, dp);
+		if (err)
+			goto out;
 	}
 
 	/* get scrub status */
@@ -227,6 +231,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	rw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	mutex_destroy(&dp->dp_scrub_cancel_lock);
+	taskq_destroy(dp->dp_vnrele_taskq);
 	if (dp->dp_blkstats)
 		kmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 	kmem_free(dp, sizeof (dsl_pool_t));
@@ -297,24 +302,52 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	tx = dmu_tx_create_assigned(dp, txg);
 
 	dp->dp_read_overhead = 0;
+	start = gethrtime();
+
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
-		if (!list_link_active(&ds->ds_synced_link))
-			list_insert_tail(&dp->dp_synced_datasets, ds);
-		else
-			dmu_buf_rele(ds->ds_dbuf, ds);
+		/*
+		 * We must not sync any non-MOS datasets twice, because
+		 * we may have taken a snapshot of them.  However, we
+		 * may sync newly-created datasets on pass 2.
+		 */
+		ASSERT(!list_link_active(&ds->ds_synced_link));
+		list_insert_tail(&dp->dp_synced_datasets, ds);
 		dsl_dataset_sync(ds, zio, tx);
 	}
 	DTRACE_PROBE(pool_sync__1setup);
-
-	start = gethrtime();
 	err = zio_wait(zio);
+
 	write_time = gethrtime() - start;
 	ASSERT(err == 0);
 	DTRACE_PROBE(pool_sync__2rootzio);
 
-	while ((dstg = txg_list_remove(&dp->dp_sync_tasks, txg)))
+	for (ds = list_head(&dp->dp_synced_datasets); ds;
+	    ds = list_next(&dp->dp_synced_datasets, ds))
+		dmu_objset_do_userquota_callbacks(ds->ds_user_ptr, tx);
+
+	/*
+	 * Sync the datasets again to push out the changes due to
+	 * userquota updates.  This must be done before we process the
+	 * sync tasks, because that could cause a snapshot of a dataset
+	 * whose ds_bp will be rewritten when we do this 2nd sync.
+	 */
+	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
+		ASSERT(list_link_active(&ds->ds_synced_link));
+		dmu_buf_rele(ds->ds_dbuf, ds);
+		dsl_dataset_sync(ds, zio, tx);
+	}
+	err = zio_wait(zio);
+
+	while ((dstg = txg_list_remove(&dp->dp_sync_tasks, txg))) {
+		/*
+		 * No more sync tasks should have been added while we
+		 * were syncing.
+		 */
+		ASSERT(spa_sync_pass(dp->dp_spa) == 1);
 		dsl_sync_task_group_sync(dstg, tx);
+	}
 	DTRACE_PROBE(pool_sync__3task);
 
 	start = gethrtime();
@@ -611,4 +644,10 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	    dp, &dp->dp_origin_snap));
 	dsl_dataset_rele(ds, FTAG);
 	rw_exit(&dp->dp_config_rwlock);
+}
+
+taskq_t *
+dsl_pool_vnrele_taskq(dsl_pool_t *dp)
+{
+	return (dp->dp_vnrele_taskq);
 }

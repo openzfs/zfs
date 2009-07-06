@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -114,8 +114,6 @@ typedef struct zfs_acl_phys {
 	uint8_t		z_ace_data[ZFS_ACE_SPACE]; /* space for embedded ACEs */
 } zfs_acl_phys_t;
 
-
-
 typedef struct acl_ops {
 	uint32_t	(*ace_mask_get) (void *acep); /* get  access mask */
 	void 		(*ace_mask_set) (void *acep,
@@ -161,11 +159,20 @@ typedef struct zfs_acl {
 	zfs_acl_node_t	*z_curr_node;	/* current node iterator is handling */
 	list_t		z_acl;		/* chunks of ACE data */
 	acl_ops_t	z_ops;		/* ACL operations */
-	boolean_t	z_has_fuids;	/* FUIDs present in ACL? */
 } zfs_acl_t;
 
 #define	ACL_DATA_ALLOCED	0x1
 #define	ZFS_ACL_SIZE(aclcnt)	(sizeof (ace_t) * (aclcnt))
+
+struct zfs_fuid_info;
+
+typedef struct zfs_acl_ids {
+	uint64_t		z_fuid;		/* file owner fuid */
+	uint64_t		z_fgid;		/* file group owner fuid */
+	uint64_t		z_mode;		/* mode to set on create */
+	zfs_acl_t		*z_aclp;	/* ACL to create with file */
+	struct zfs_fuid_info 	*z_fuidp;	/* for tracking fuids for log */
+} zfs_acl_ids_t;
 
 /*
  * Property values for acl_mode and acl_inherit.
@@ -183,16 +190,18 @@ typedef struct zfs_acl {
 
 struct znode;
 struct zfsvfs;
-struct zfs_fuid_info;
 
 #ifdef _KERNEL
-void zfs_perm_init(struct znode *, struct znode *, int, vattr_t *,
-    dmu_tx_t *, cred_t *, zfs_acl_t *, zfs_fuid_info_t **);
+int zfs_acl_ids_create(struct znode *, int, vattr_t *,
+    cred_t *, vsecattr_t *, zfs_acl_ids_t *);
+void zfs_acl_ids_free(zfs_acl_ids_t *);
+boolean_t zfs_acl_ids_overquota(struct zfsvfs *, zfs_acl_ids_t *);
 int zfs_getacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 int zfs_setacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 void zfs_acl_rele(void *);
 void zfs_oldace_byteswap(ace_t *, int);
 void zfs_ace_byteswap(void *, size_t, boolean_t);
+extern boolean_t zfs_has_access(struct znode *zp, cred_t *cr);
 extern int zfs_zaccess(struct znode *, int, int, boolean_t, cred_t *);
 extern int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *);
 extern int zfs_zaccess_unix(struct znode *, mode_t, cred_t *);
@@ -202,9 +211,9 @@ int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
     struct znode *, struct znode *, cred_t *cr);
 void zfs_acl_free(zfs_acl_t *);
-int zfs_vsec_2_aclp(struct zfsvfs *, vtype_t, vsecattr_t *, zfs_acl_t **);
-int zfs_aclset_common(struct znode *, zfs_acl_t *, cred_t *,
-    struct zfs_fuid_info **, dmu_tx_t *);
+int zfs_vsec_2_aclp(struct zfsvfs *, vtype_t, vsecattr_t *, cred_t *,
+    struct zfs_fuid_info **, zfs_acl_t **);
+int zfs_aclset_common(struct znode *, zfs_acl_t *, cred_t *, dmu_tx_t *);
 
 #endif
 
