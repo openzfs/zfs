@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_ZAP_H
 #define	_SYS_ZAP_H
-
-
 
 /*
  * ZAP - ZFS Attribute Processor
@@ -86,9 +84,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-#define	ZAP_MAXNAMELEN 256
-#define	ZAP_MAXVALUELEN 1024
 
 /*
  * The matchtype specifies which entry will be accessed.
@@ -185,6 +180,10 @@ int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *normalization_conflictp);
+
+int zap_count_write(objset_t *os, uint64_t zapobj, const char *name,
+    int add, uint64_t *towrite, uint64_t *tooverwrite,
+    uint64_t dn_datablkshift);
 
 /*
  * Create an attribute with the given name and value.
