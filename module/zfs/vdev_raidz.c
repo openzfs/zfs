@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -697,7 +697,7 @@ vdev_raidz_io_start(zio_t *zio)
 			continue;
 		}
 		if (c >= rm->rm_firstdatacol || rm->rm_missingdata > 0 ||
-		    (zio->io_flags & ZIO_FLAG_SCRUB)) {
+		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
