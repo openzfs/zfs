@@ -46,14 +46,15 @@
 
 #define DMU_IO				0x01
 
-#define DMU_WRITE			0x01
-#define DMU_READ			0x02
-#define DMU_VERIFY			0x04
-#define DMU_REMOVE			0x08
-#define DMU_FPP				0x10
-#define DMU_WRITE_ZC			0x20 /* Incompatible with DMU_VERIFY */
-#define DMU_READ_ZC			0x40 /* Incompatible with DMU_VERIFY */
-#define DMU_WRITE_NOWAIT		0x80
+#define DMU_WRITE			0x0001
+#define DMU_READ			0x0002
+#define DMU_VERIFY			0x0004
+#define DMU_REMOVE			0x0008
+#define DMU_FPP				0x0010
+#define DMU_WRITE_ZC			0x0020 /* Incompatible w/DMU_VERIFY */
+#define DMU_READ_ZC			0x0040 /* Incompatible w/DMU_VERIFY */
+#define DMU_WRITE_NOWAIT		0x0080
+#define DMU_READ_NOPF			0x0100
 
 #define ZPIOS_NAME_SIZE			16
 #define ZPIOS_PATH_SIZE			128
