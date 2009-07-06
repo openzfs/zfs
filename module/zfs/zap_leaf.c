@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * The 512-byte leaf is broken into 32 16-byte chunks.
@@ -31,12 +29,13 @@
  * the names are stored null-terminated.
  */
 
+#include <sys/spa.h>
+#include <sys/dmu.h>
 #include <sys/zfs_context.h>
+#include <sys/fs/zfs.h>
 #include <sys/zap.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
-#include <sys/spa.h>
-#include <sys/dmu.h>
 
 static uint16_t *zap_leaf_rehash_entry(zap_leaf_t *l, uint16_t entry);
 
