@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_ZFS_CTLDIR_H
 #define	_ZFS_CTLDIR_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/pathname.h>
 #include <sys/vnode.h>
@@ -66,6 +64,7 @@ int zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp);
 
 #define	ZFSCTL_INO_ROOT		0x1
 #define	ZFSCTL_INO_SNAPDIR	0x2
+#define	ZFSCTL_INO_SHARES	0x3
 
 #ifdef	__cplusplus
 }
