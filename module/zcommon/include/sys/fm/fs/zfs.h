@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_FM_FS_ZFS_H
 #define	_SYS_FM_FS_ZFS_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -57,6 +55,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE	"vdev_type"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH	"vdev_path"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DEVID	"vdev_devid"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU		"vdev_fru"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID	"parent_guid"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_TYPE	"parent_type"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_PATH	"parent_path"
