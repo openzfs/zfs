@@ -1975,6 +1975,7 @@ zfs_init(void)
 	 * Initialize znode cache, vnode ops, etc...
 	 */
 	zfs_znode_init();
+
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 #endif /* HAVE_ZPL */
 }
