@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -210,6 +210,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ACTIVE_SPARE:
 		return (dgettext(TEXT_DOMAIN, "pool has active shared spare "
 		    "device"));
+	case EZFS_UNPLAYED_LOGS:
+		return (dgettext(TEXT_DOMAIN, "log device has unplayed intent "
+		    "logs"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -364,6 +367,11 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ENOTSUP:
 		zfs_verror(hdl, EZFS_BADVERSION, fmt, ap);
 		break;
+	case EAGAIN:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "pool I/O is currently suspended"));
+		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, strerror(errno));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
@@ -437,6 +445,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case EDQUOT:
 		zfs_verror(hdl, EZFS_NOSPC, fmt, ap);
 		return (-1);
+	case EAGAIN:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "pool I/O is currently suspended"));
+		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		break;
 
 	default:
 		zfs_error_aux(hdl, strerror(error));
@@ -578,6 +591,7 @@ libzfs_init(void)
 
 	zfs_prop_init();
 	zpool_prop_init();
+	libzfs_mnttab_init(hdl);
 
 	return (hdl);
 }
@@ -599,6 +613,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 		(void) free(hdl->libzfs_log_str);
 	zpool_free_handles(hdl);
 	namespace_clear(hdl);
+	libzfs_mnttab_fini(hdl);
 	free(hdl);
 }
 
@@ -1215,7 +1230,7 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	 * dataset property,
 	 */
 	if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
-	    !zfs_prop_user(propname))) {
+	    (!zfs_prop_user(propname) && !zfs_prop_userquota(propname)))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
 		return (zfs_error(hdl, EZFS_BADPROP,
