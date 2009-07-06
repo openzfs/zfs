@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Print intent log header and statistics.
@@ -345,8 +343,10 @@ dump_intent_log(zilog_t *zilog)
 	if (zh->zh_log.blk_birth == 0 || verbose < 2)
 		return;
 
-	(void) printf("\n    ZIL header: claim_txg %llu, seq %llu\n",
-	    (u_longlong_t)zh->zh_claim_txg, (u_longlong_t)zh->zh_replay_seq);
+	(void) printf("\n    ZIL header: claim_txg %llu, claim_seq %llu",
+	    (u_longlong_t)zh->zh_claim_txg, (u_longlong_t)zh->zh_claim_seq);
+	(void) printf(" replay_seq %llu, flags 0x%llx\n",
+	    (u_longlong_t)zh->zh_replay_seq, (u_longlong_t)zh->zh_flags);
 
 	if (verbose >= 4)
 		print_log_bp(&zh->zh_log, "\n\tfirst block: ");
