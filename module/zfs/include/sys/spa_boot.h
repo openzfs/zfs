@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_SPA_BOOT_H
 #define	_SYS_SPA_BOOT_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/nvpair.h>
 
@@ -36,7 +34,6 @@ extern "C" {
 
 extern char *spa_get_bootprop(char *prop);
 extern void spa_free_bootprop(char *prop);
-extern int spa_get_rootconf(char *devpath, char *devid, nvlist_t **bestconf_p);
 
 #ifdef	__cplusplus
 }
