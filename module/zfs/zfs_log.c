@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -467,9 +467,6 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 ssize_t zfs_immediate_write_sz = 32768;
 
-#define	ZIL_MAX_LOG_DATA (SPA_MAXBLOCKSIZE - sizeof (zil_trailer_t) - \
-    sizeof (lr_write_t))
-
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	znode_t *zp, offset_t off, ssize_t resid, int ioflag)
@@ -483,29 +480,6 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 	ZFS_HANDLE_REPLAY(zilog, tx); /* exits if replay */
 
-	/*
-	 * Writes are handled in three different ways:
-	 *
-	 * WR_INDIRECT:
-	 *    In this mode, if we need to commit the write later, then the block
-	 *    is immediately written into the file system (using dmu_sync),
-	 *    and a pointer to the block is put into the log record.
-	 *    When the txg commits the block is linked in.
-	 *    This saves additionally writing the data into the log record.
-	 *    There are a few requirements for this to occur:
-	 *	- write is greater than zfs_immediate_write_sz
-	 *	- not using slogs (as slogs are assumed to always be faster
-	 *	  than writing into the main pool)
-	 *	- the write occupies only one block
-	 * WR_COPIED:
-	 *    If we know we'll immediately be committing the
-	 *    transaction (FSYNC or FDSYNC), the we allocate a larger
-	 *    log record here for the data and copy the data in.
-	 * WR_NEED_COPY:
-	 *    Otherwise we don't allocate a buffer, and *if* we need to
-	 *    flush the write later then a buffer is allocated and
-	 *    we retrieve the data using the dmu.
-	 */
 	slogging = spa_has_slogs(zilog->zl_spa);
 	if (resid > zfs_immediate_write_sz && !slogging && resid <= zp->z_blksz)
 		write_state = WR_INDIRECT;
@@ -535,7 +509,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		    (write_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
 		if (write_state == WR_COPIED && dmu_read(zp->z_zfsvfs->z_os,
-		    zp->z_id, off, len, lr + 1) != 0) {
+		    zp->z_id, off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
 			kmem_free(itx, offsetof(itx_t, itx_lr) +
 			    itx->itx_lr.lrc_reclen);
 			itx = zil_itx_create(txtype, sizeof (*lr));
