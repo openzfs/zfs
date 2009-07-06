@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -46,12 +46,14 @@ typedef struct space_map {
 	uint8_t		sm_loading;	/* map loading? */
 	kcondvar_t	sm_load_cv;	/* map load completion */
 	space_map_ops_t	*sm_ops;	/* space map block picker ops vector */
+	avl_tree_t	*sm_pp_root;	/* picker-private AVL tree */
 	void		*sm_ppd;	/* picker-private data */
 	kmutex_t	*sm_lock;	/* pointer to lock that protects map */
 } space_map_t;
 
 typedef struct space_seg {
 	avl_node_t	ss_node;	/* AVL node */
+	avl_node_t	ss_pp_node;	/* AVL picker-private node */
 	uint64_t	ss_start;	/* starting offset of this segment */
 	uint64_t	ss_end;		/* ending offset (non-inclusive) */
 } space_seg_t;
@@ -74,6 +76,7 @@ struct space_map_ops {
 	uint64_t (*smop_alloc)(space_map_t *sm, uint64_t size);
 	void	(*smop_claim)(space_map_t *sm, uint64_t start, uint64_t size);
 	void	(*smop_free)(space_map_t *sm, uint64_t start, uint64_t size);
+	uint64_t (*smop_max)(space_map_t *sm);
 };
 
 /*
@@ -152,6 +155,7 @@ extern void space_map_unload(space_map_t *sm);
 extern uint64_t space_map_alloc(space_map_t *sm, uint64_t size);
 extern void space_map_claim(space_map_t *sm, uint64_t start, uint64_t size);
 extern void space_map_free(space_map_t *sm, uint64_t start, uint64_t size);
+extern uint64_t space_map_maxsize(space_map_t *sm);
 
 extern void space_map_sync(space_map_t *sm, uint8_t maptype,
     space_map_obj_t *smo, objset_t *os, dmu_tx_t *tx);
