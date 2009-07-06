@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_ZFS_DELEG_H
 #define	_ZFS_DELEG_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/fs/zfs.h>
 
@@ -59,6 +57,10 @@ typedef enum {
 	ZFS_DELEG_NOTE_USERPROP,
 	ZFS_DELEG_NOTE_MOUNT,
 	ZFS_DELEG_NOTE_SHARE,
+	ZFS_DELEG_NOTE_USERQUOTA,
+	ZFS_DELEG_NOTE_GROUPQUOTA,
+	ZFS_DELEG_NOTE_USERUSED,
+	ZFS_DELEG_NOTE_GROUPUSED,
 	ZFS_DELEG_NOTE_NONE
 } zfs_deleg_note_t;
 

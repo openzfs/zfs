@@ -324,12 +324,9 @@ extern int spa_get_stats(const char *pool, nvlist_t **config,
     char *altroot, size_t buflen);
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     const char *history_str, nvlist_t *zplprops);
-extern int spa_check_rootconf(char *devpath, char *devid,
-    nvlist_t **bestconf, uint64_t *besttxg);
-extern boolean_t spa_rootdev_validate(nvlist_t *nv);
 extern int spa_import_rootpool(char *devpath, char *devid);
 extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props);
-extern int spa_import_faulted(const char *, nvlist_t *, nvlist_t *);
+extern int spa_import_verbatim(const char *, nvlist_t *, nvlist_t *);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
 extern int spa_destroy(char *pool);
 extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
@@ -347,6 +344,7 @@ extern void spa_inject_delref(spa_t *spa);
 #define	SPA_ASYNC_PROBE		0x04
 #define	SPA_ASYNC_RESILVER_DONE	0x08
 #define	SPA_ASYNC_RESILVER	0x10
+#define	SPA_ASYNC_AUTOEXPAND	0x20
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot);
@@ -356,6 +354,7 @@ extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
     int replace_done);
 extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
 extern int spa_vdev_setpath(spa_t *spa, uint64_t guid, const char *newpath);
+extern int spa_vdev_setfru(spa_t *spa, uint64_t guid, const char *newfru);
 
 /* spare state (which is global across all pools) */
 extern void spa_spare_add(vdev_t *vd);
