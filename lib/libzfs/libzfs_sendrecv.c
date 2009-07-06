@@ -237,6 +237,8 @@ send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv)
 		zfs_prop_t prop = zfs_name_to_prop(propname);
 		nvlist_t *propnv;
 
+		assert(zfs_prop_user(propname) || prop != ZPROP_INVAL);
+
 		if (!zfs_prop_user(propname) && zfs_prop_readonly(prop))
 			continue;
 
@@ -594,12 +596,18 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 			    zhp->zfs_name, sdd->fromsnap);
 			sdd->err = B_TRUE;
 		} else if (!sdd->seento) {
-			(void) fprintf(stderr,
-			    "WARNING: could not send %s@%s:\n"
-			    "incremental source (%s@%s) "
-			    "is not earlier than it\n",
-			    zhp->zfs_name, sdd->tosnap,
-			    zhp->zfs_name, sdd->fromsnap);
+			if (sdd->fromsnap) {
+				(void) fprintf(stderr,
+				    "WARNING: could not send %s@%s:\n"
+				    "incremental source (%s@%s) "
+				    "is not earlier than it\n",
+				    zhp->zfs_name, sdd->tosnap,
+				    zhp->zfs_name, sdd->fromsnap);
+			} else {
+				(void) fprintf(stderr, "WARNING: "
+				    "could not send %s@%s: does not exist\n",
+				    zhp->zfs_name, sdd->tosnap);
+			}
 			sdd->err = B_TRUE;
 		}
 	} else {
