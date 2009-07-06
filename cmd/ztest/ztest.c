@@ -1256,7 +1256,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	size_t psize, newsize;
 	uint64_t spa_newsize, spa_cursize, ms_count;
 
-	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
 	mutex_enter(&spa_namespace_lock);
 	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
 
@@ -1284,7 +1284,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	if (psize == 0 || psize >= 4 * zopt_vdev_size) {
 		spa_config_exit(spa, SCL_STATE, spa);
 		mutex_exit(&spa_namespace_lock);
-		(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+		(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 		return;
 	}
 	ASSERT(psize > 0);
@@ -1313,7 +1313,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 		}
 		(void) spa_config_exit(spa, SCL_STATE, spa);
 		mutex_exit(&spa_namespace_lock);
-		(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+		(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 		return;
 	}
 
@@ -1353,7 +1353,7 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 		    spa->spa_name, oldnumbuf, newnumbuf);
 	}
 	spa_config_exit(spa, SCL_STATE, spa);
-	(void) mutex_unlock(&ztest_shared->zs_vdev_lock);
+	(void) pthread_mutex_unlock(&ztest_shared->zs_vdev_lock);
 }
 
 /* ARGSUSED */
@@ -1662,7 +1662,7 @@ ztest_dsl_dataset_promote_busy(ztest_args_t *za)
 	char osname[MAXNAMELEN];
 	uint64_t curval = za->za_instance;
 
-	(void) rw_rdlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_rdlock(&ztest_shared->zs_name_lock);
 
 	dmu_objset_name(os, osname);
 	ztest_dsl_dataset_cleanup(osname, curval);
@@ -1747,7 +1747,7 @@ ztest_dsl_dataset_promote_busy(ztest_args_t *za)
 out:
 	ztest_dsl_dataset_cleanup(osname, curval);
 
-	(void) rw_unlock(&ztest_shared->zs_name_lock);
+	(void) pthread_rwlock_unlock(&ztest_shared->zs_name_lock);
 }
 
 /*
@@ -2708,18 +2708,18 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	za->za_dbuf = NULL;
 
 	if (error) {
-		(void) mutex_unlock(lp);
+		(void) pthread_mutex_unlock(lp);
 		return;
 	}
 
 	if (blk.blk_birth == 0)	{	/* concurrent free */
-		(void) mutex_unlock(lp);
+		(void) pthread_mutex_unlock(lp);
 		return;
 	}
 
 	txg_suspend(dmu_objset_pool(os));
 
-	(void) mutex_unlock(lp);
+	(void) pthread_mutex_unlock(lp);
 
 	ASSERT(blk.blk_fill == 1);
 	ASSERT3U(BP_GET_TYPE(&blk), ==, DMU_OT_UINT64_OTHER);
