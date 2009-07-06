@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -63,6 +63,9 @@ struct traverse_data {
 	blkptr_cb_t *td_func;
 	void *td_arg;
 };
+
+static int traverse_dnode(struct traverse_data *td, const dnode_phys_t *dnp,
+    arc_buf_t *buf, uint64_t objset, uint64_t object);
 
 /* ARGSUSED */
 static void
@@ -189,7 +192,7 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 		}
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
 		uint32_t flags = ARC_WAIT;
-		int i, j;
+		int i;
 		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 
 		err = arc_read(NULL, td->td_spa, bp, pbuf,
@@ -201,20 +204,15 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 		/* recursively visitbp() blocks below this */
 		dnp = buf->b_data;
 		for (i = 0; i < epb && err == 0; i++, dnp++) {
-			for (j = 0; j < dnp->dn_nblkptr; j++) {
-				SET_BOOKMARK(&czb, zb->zb_objset,
-				    zb->zb_blkid * epb + i,
-				    dnp->dn_nlevels - 1, j);
-				err = traverse_visitbp(td, dnp, buf,
-				    (blkptr_t *)&dnp->dn_blkptr[j], &czb);
-				if (err)
-					break;
-			}
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    zb->zb_blkid * epb + i);
+			if (err)
+				break;
 		}
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
 		uint32_t flags = ARC_WAIT;
 		objset_phys_t *osp;
-		int j;
+		dnode_phys_t *dnp;
 
 		err = arc_read_nolock(NULL, td->td_spa, bp,
 		    arc_getbuf_func, &buf,
@@ -223,20 +221,19 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 			return (err);
 
 		osp = buf->b_data;
-		/*
-		 * traverse_zil is just here for zdb's leak checking.
-		 * For other consumers, there will be no ZIL blocks.
-		 */
 		traverse_zil(td, &osp->os_zil_header);
 
-		for (j = 0; j < osp->os_meta_dnode.dn_nblkptr; j++) {
-			SET_BOOKMARK(&czb, zb->zb_objset, 0,
-			    osp->os_meta_dnode.dn_nlevels - 1, j);
-			err = traverse_visitbp(td, &osp->os_meta_dnode, buf,
-			    (blkptr_t *)&osp->os_meta_dnode.dn_blkptr[j],
-			    &czb);
-			if (err)
-				break;
+		dnp = &osp->os_meta_dnode;
+		err = traverse_dnode(td, dnp, buf, zb->zb_objset, 0);
+		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+			dnp = &osp->os_userused_dnode;
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    DMU_USERUSED_OBJECT);
+		}
+		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+			dnp = &osp->os_groupused_dnode;
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    DMU_GROUPUSED_OBJECT);
 		}
 	}
 
@@ -246,6 +243,23 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 	if (err == 0 && (td->td_flags & TRAVERSE_POST))
 		err = td->td_func(td->td_spa, bp, zb, dnp, td->td_arg);
 
+	return (err);
+}
+
+static int
+traverse_dnode(struct traverse_data *td, const dnode_phys_t *dnp,
+    arc_buf_t *buf, uint64_t objset, uint64_t object)
+{
+	int j, err = 0;
+	zbookmark_t czb;
+
+	for (j = 0; j < dnp->dn_nblkptr; j++) {
+		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
+		err = traverse_visitbp(td, dnp, buf,
+		    (blkptr_t *)&dnp->dn_blkptr[j], &czb);
+		if (err)
+			break;
+	}
 	return (err);
 }
 
