@@ -93,12 +93,15 @@ extern "C" {
 
 /*
  * Special attributes for master node.
+ * "userquota@" and "groupquota@" are also valid (from
+ * zfs_userquota_prop_prefixes[]).
  */
 #define	ZFS_FSID		"FSID"
 #define	ZFS_UNLINKED_SET	"DELETE_QUEUE"
 #define	ZFS_ROOT_OBJ		"ROOT"
 #define	ZPL_VERSION_STR		"VERSION"
 #define	ZFS_FUID_TABLES		"FUID"
+#define	ZFS_SHARES_DIR		"SHARES"
 
 #define	ZFS_MAX_BLOCKSIZE	(SPA_MAXBLOCKSIZE)
 
@@ -309,7 +312,6 @@ extern int	zfs_create_op_tables();
 extern int	zfs_sync(vfs_t *vfsp, short flag, cred_t *cr);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
-extern int	zfs_set_version(const char *name, uint64_t newvers);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern void	zfs_znode_dmu_fini(znode_t *);
 
@@ -336,6 +338,7 @@ extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
+extern int zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
 extern caddr_t zfs_map_page(page_t *, enum seg_rw);
 extern void zfs_unmap_page(page_t *, caddr_t);
