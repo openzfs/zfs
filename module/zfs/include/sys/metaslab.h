@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -39,6 +39,8 @@ extern "C" {
 typedef struct metaslab_class metaslab_class_t;
 typedef struct metaslab_group metaslab_group_t;
 
+extern space_map_ops_t *zfs_metaslab_ops;
+
 extern metaslab_t *metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
     uint64_t start, uint64_t size, uint64_t txg);
 extern void metaslab_fini(metaslab_t *msp);
@@ -55,7 +57,7 @@ extern void metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg,
     boolean_t now);
 extern int metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg);
 
-extern metaslab_class_t *metaslab_class_create(void);
+extern metaslab_class_t *metaslab_class_create(space_map_ops_t *ops);
 extern void metaslab_class_destroy(metaslab_class_t *mc);
 extern void metaslab_class_add(metaslab_class_t *mc, metaslab_group_t *mg);
 extern void metaslab_class_remove(metaslab_class_t *mc, metaslab_group_t *mg);
