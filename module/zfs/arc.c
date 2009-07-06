@@ -124,6 +124,7 @@
 #include <sys/arc.h>
 #include <sys/refcount.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <vm/anon.h>
@@ -397,6 +398,7 @@ static arc_state_t	*arc_l2c_only;
 
 static int		arc_no_grow;	/* Don't try to grow cache size */
 static uint64_t		arc_tempreserve;
+static uint64_t		arc_loaned_bytes;
 static uint64_t		arc_meta_used;
 static uint64_t		arc_meta_limit;
 static uint64_t		arc_meta_max = 0;
@@ -610,7 +612,7 @@ typedef struct l2arc_write_callback {
 struct l2arc_buf_hdr {
 	/* protected by arc_buf_hdr  mutex */
 	l2arc_dev_t	*b_dev;			/* L2ARC device */
-	daddr_t		b_daddr;		/* disk address, offset byte */
+	uint64_t	b_daddr;		/* disk address, offset byte */
 };
 
 typedef struct l2arc_data_free {
@@ -1203,6 +1205,41 @@ arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 	(void) refcount_add(&hdr->b_refcnt, tag);
 
 	return (buf);
+}
+
+static char *arc_onloan_tag = "onloan";
+
+/*
+ * Loan out an anonymous arc buffer. Loaned buffers are not counted as in
+ * flight data by arc_tempreserve_space() until they are "returned". Loaned
+ * buffers must be returned to the arc before they can be used by the DMU or
+ * freed.
+ */
+arc_buf_t *
+arc_loan_buf(spa_t *spa, int size)
+{
+	arc_buf_t *buf;
+
+	buf = arc_buf_alloc(spa, size, arc_onloan_tag, ARC_BUFC_DATA);
+
+	atomic_add_64(&arc_loaned_bytes, size);
+	return (buf);
+}
+
+/*
+ * Return a loaned arc buffer to the arc.
+ */
+void
+arc_return_buf(arc_buf_t *buf, void *tag)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	ASSERT(hdr->b_state == arc_anon);
+	ASSERT(buf->b_data != NULL);
+	VERIFY(refcount_remove(&hdr->b_refcnt, arc_onloan_tag) == 0);
+	VERIFY(refcount_add(&hdr->b_refcnt, tag) == 1);
+
+	atomic_add_64(&arc_loaned_bytes, -hdr->b_size);
 }
 
 static arc_buf_t *
@@ -2506,7 +2543,6 @@ arc_read(zio_t *pio, spa_t *spa, blkptr_t *bp, arc_buf_t *pbuf,
     uint32_t *arc_flags, const zbookmark_t *zb)
 {
 	int err;
-	arc_buf_hdr_t *hdr = pbuf->b_hdr;
 
 	ASSERT(!refcount_is_zero(&pbuf->b_hdr->b_refcnt));
 	ASSERT3U((char *)bp - (char *)pbuf->b_data, <, pbuf->b_hdr->b_size);
@@ -2514,9 +2550,8 @@ arc_read(zio_t *pio, spa_t *spa, blkptr_t *bp, arc_buf_t *pbuf,
 
 	err = arc_read_nolock(pio, spa, bp, done, private, priority,
 	    zio_flags, arc_flags, zb);
-
-	ASSERT3P(hdr, ==, pbuf->b_hdr);
 	rw_exit(&pbuf->b_lock);
+
 	return (err);
 }
 
@@ -2606,7 +2641,7 @@ top:
 		uint64_t size = BP_GET_LSIZE(bp);
 		arc_callback_t	*acb;
 		vdev_t *vd = NULL;
-		daddr_t addr;
+		uint64_t addr;
 		boolean_t devw = B_FALSE;
 
 		if (hdr == NULL) {
@@ -2925,6 +2960,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	kmutex_t *hash_lock;
 	l2arc_buf_hdr_t *l2hdr;
 	uint64_t buf_size;
+	boolean_t released = B_FALSE;
 
 	rw_enter(&buf->b_lock, RW_WRITER);
 	hdr = buf->b_hdr;
@@ -2940,11 +2976,11 @@ arc_release(arc_buf_t *buf, void *tag)
 		ASSERT(buf->b_efunc == NULL);
 		arc_buf_thaw(buf);
 		rw_exit(&buf->b_lock);
-		return;
+		released = B_TRUE;
+	} else {
+		hash_lock = HDR_LOCK(hdr);
+		mutex_enter(hash_lock);
 	}
-
-	hash_lock = HDR_LOCK(hdr);
-	mutex_enter(hash_lock);
 
 	l2hdr = hdr->b_l2hdr;
 	if (l2hdr) {
@@ -2952,6 +2988,9 @@ arc_release(arc_buf_t *buf, void *tag)
 		hdr->b_l2hdr = NULL;
 		buf_size = hdr->b_size;
 	}
+
+	if (released)
+		goto out;
 
 	/*
 	 * Do we have more than one buf?
@@ -3020,6 +3059,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	buf->b_efunc = NULL;
 	buf->b_private = NULL;
 
+out:
 	if (l2hdr) {
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
@@ -3313,10 +3353,9 @@ arc_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 }
 
 static int
-arc_memory_throttle(uint64_t reserve, uint64_t txg)
+arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 {
 #ifdef _KERNEL
-	uint64_t inflight_data = arc_anon->arcs_size;
 	uint64_t available_memory = ptob(freemem);
 	static uint64_t page_load = 0;
 	static uint64_t last_txg = 0;
@@ -3378,6 +3417,7 @@ int
 arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 {
 	int error;
+	uint64_t anon_size;
 
 #ifdef ZFS_DEBUG
 	/*
@@ -3394,11 +3434,18 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		return (ENOMEM);
 
 	/*
+	 * Don't count loaned bufs as in flight dirty data to prevent long
+	 * network delays from blocking transactions that are ready to be
+	 * assigned to a txg.
+	 */
+	anon_size = MAX((int64_t)(arc_anon->arcs_size - arc_loaned_bytes), 0);
+
+	/*
 	 * Writes will, almost always, require additional memory allocations
 	 * in order to compress/encrypt/etc the data.  We therefor need to
 	 * make sure that there is sufficient available memory for this.
 	 */
-	if (error = arc_memory_throttle(reserve, txg))
+	if (error = arc_memory_throttle(reserve, anon_size, txg))
 		return (error);
 
 	/*
@@ -3408,8 +3455,9 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	 * Note: if two requests come in concurrently, we might let them
 	 * both succeed, when one of them should fail.  Not a huge deal.
 	 */
-	if (reserve + arc_tempreserve + arc_anon->arcs_size > arc_c / 2 &&
-	    arc_anon->arcs_size > arc_c / 4) {
+
+	if (reserve + arc_tempreserve + anon_size > arc_c / 2 &&
+	    anon_size > arc_c / 4) {
 		dprintf("failing, arc_tempreserve=%lluK anon_meta=%lluK "
 		    "anon_data=%lluK tempreserve=%lluK arc_c=%lluK\n",
 		    arc_tempreserve>>10,
@@ -3594,6 +3642,8 @@ arc_fini(void)
 	mutex_destroy(&zfs_write_limit_lock);
 
 	buf_fini();
+
+	ASSERT(arc_loaned_bytes == 0);
 }
 
 /*
@@ -4488,7 +4538,7 @@ l2arc_vdev_present(vdev_t *vd)
  * validated the vdev and opened it.
  */
 void
-l2arc_add_vdev(spa_t *spa, vdev_t *vd, uint64_t start, uint64_t end)
+l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 {
 	l2arc_dev_t *adddev;
 
@@ -4502,8 +4552,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd, uint64_t start, uint64_t end)
 	adddev->l2ad_vdev = vd;
 	adddev->l2ad_write = l2arc_write_max;
 	adddev->l2ad_boost = l2arc_write_boost;
-	adddev->l2ad_start = start;
-	adddev->l2ad_end = end;
+	adddev->l2ad_start = VDEV_LABEL_START_SIZE;
+	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
 	adddev->l2ad_hand = adddev->l2ad_start;
 	adddev->l2ad_evict = adddev->l2ad_start;
 	adddev->l2ad_first = B_TRUE;
