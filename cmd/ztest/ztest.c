@@ -1257,8 +1257,8 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	size_t psize, newsize;
 	uint64_t spa_newsize, spa_cursize, ms_count;
 
-	(void) pthread_mutex_lock(&ztest_shared->zs_vdev_lock);
-	pthread_mutex_enter(&spa_namespace_lock);
+	(void) mutex_lock(&ztest_shared->zs_vdev_lock);
+	mutex_enter(&spa_namespace_lock);
 	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
 
 	while (tvd == NULL || tvd->vdev_islog) {
