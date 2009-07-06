@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_FS_ZFS_FUID_H
 #define	_SYS_FS_ZFS_FUID_H
-
-
 
 #ifdef _KERNEL
 #include <sys/kidmap.h>
@@ -51,11 +49,11 @@ typedef enum {
  * Estimate space needed for one more fuid table entry.
  * for now assume its current size + 1K
  */
-#define	FUID_SIZE_ESTIMATE(z) (z->z_fuid_size + (SPA_MINBLOCKSIZE << 1))
+#define	FUID_SIZE_ESTIMATE(z) ((z)->z_fuid_size + (SPA_MINBLOCKSIZE << 1))
 
-#define	FUID_INDEX(x)	(x >> 32)
-#define	FUID_RID(x)	(x & 0xffffffff)
-#define	FUID_ENCODE(idx, rid) ((idx << 32) | rid)
+#define	FUID_INDEX(x)	((x) >> 32)
+#define	FUID_RID(x)	((x) & 0xffffffff)
+#define	FUID_ENCODE(idx, rid) (((uint64_t)(idx) << 32) | (rid))
 /*
  * FUIDs cause problems for the intent log
  * we need to replay the creation of the FUID,
@@ -105,18 +103,24 @@ struct znode;
 extern uid_t zfs_fuid_map_id(zfsvfs_t *, uint64_t, cred_t *, zfs_fuid_type_t);
 extern void zfs_fuid_destroy(zfsvfs_t *);
 extern uint64_t zfs_fuid_create_cred(zfsvfs_t *, zfs_fuid_type_t,
-    dmu_tx_t *, cred_t *, zfs_fuid_info_t **);
+    cred_t *, zfs_fuid_info_t **);
 extern uint64_t zfs_fuid_create(zfsvfs_t *, uint64_t, cred_t *, zfs_fuid_type_t,
-    dmu_tx_t *, zfs_fuid_info_t **);
-extern void zfs_fuid_map_ids(struct znode *zp, cred_t *cr, uid_t *uid,
-    uid_t *gid);
+    zfs_fuid_info_t **);
+extern void zfs_fuid_map_ids(struct znode *zp, cred_t *cr,
+    uid_t *uid, uid_t *gid);
 extern zfs_fuid_info_t *zfs_fuid_info_alloc(void);
-extern void zfs_fuid_info_free();
+extern void zfs_fuid_info_free(zfs_fuid_info_t *);
 extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
+void zfs_fuid_sync(zfsvfs_t *, dmu_tx_t *);
+extern int zfs_fuid_find_by_domain(zfsvfs_t *, const char *domain,
+    char **retdomain, boolean_t addok);
+extern const char *zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx);
+extern void zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 #endif /* HAVE_ZPL */
 #endif
 
 char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
+void zfs_fuid_avl_tree_create(avl_tree_t *, avl_tree_t *);
 uint64_t zfs_fuid_table_load(objset_t *, uint64_t, avl_tree_t *, avl_tree_t *);
 void zfs_fuid_table_destroy(avl_tree_t *, avl_tree_t *);
 

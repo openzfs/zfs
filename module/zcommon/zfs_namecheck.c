@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-
 
 /*
  * Common name validation routines for ZFS.  These routines are shared by the
@@ -346,25 +344,8 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	return (0);
 }
 
-/*
- * Check if the dataset name is private for internal usage.
- * '$' is reserved for internal dataset names. e.g. "$MOS"
- *
- * Return 1 if the given name is used internally.
- * Return 0 if it is not.
- */
-int
-dataset_name_hidden(const char *name)
-{
-	if (strchr(name, '$') != NULL)
-		return (1);
-
-	return (0);
-}
-
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(snapshot_namecheck);
 EXPORT_SYMBOL(pool_namecheck);
-EXPORT_SYMBOL(dataset_name_hidden);
 EXPORT_SYMBOL(dataset_namecheck);
 #endif
