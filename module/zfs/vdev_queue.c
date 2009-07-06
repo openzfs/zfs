@@ -48,10 +48,11 @@ int zfs_vdev_time_shift = 6;
 int zfs_vdev_ramp_rate = 2;
 
 /*
- * i/os will be aggregated into a single large i/o up to
- * zfs_vdev_aggregation_limit bytes long.
+ * To reduce IOPs, we aggregate small adjacent i/os into one large i/o.
+ * For read i/os, we also aggregate across small adjacency gaps.
  */
 int zfs_vdev_aggregation_limit = SPA_MAXBLOCKSIZE;
+int zfs_vdev_read_gap_limit = 32 << 10;
 
 /*
  * Virtual device vector for disk I/O scheduling.
@@ -159,16 +160,23 @@ vdev_queue_agg_io_done(zio_t *aio)
 	zio_buf_free(aio->io_data, aio->io_size);
 }
 
-#define	IS_ADJACENT(io, nio) \
-	((io)->io_offset + (io)->io_size == (nio)->io_offset)
+/*
+ * Compute the range spanned by two i/os, which is the endpoint of the last
+ * (lio->io_offset + lio->io_size) minus start of the first (fio->io_offset).
+ * Conveniently, the gap between fio and lio is given by -IO_SPAN(lio, fio);
+ * thus fio and lio are adjacent if and only if IO_SPAN(lio, fio) == 0.
+ */
+#define	IO_SPAN(fio, lio) ((lio)->io_offset + (lio)->io_size - (fio)->io_offset)
+#define	IO_GAP(fio, lio) (-IO_SPAN(lio, fio))
 
 static zio_t *
 vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 {
 	zio_t *fio, *lio, *aio, *dio, *nio;
 	avl_tree_t *t;
-	uint64_t size;
 	int flags;
+	uint64_t maxspan = zfs_vdev_aggregation_limit;
+	uint64_t maxgap;
 
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 
@@ -179,8 +187,8 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 	fio = lio = avl_first(&vq->vq_deadline_tree);
 
 	t = fio->io_vdev_tree;
-	size = fio->io_size;
 	flags = fio->io_flags & ZIO_FLAG_AGG_INHERIT;
+	maxgap = (t == &vq->vq_read_tree) ? zfs_vdev_read_gap_limit : 0;
 
 	if (!(flags & ZIO_FLAG_DONT_AGGREGATE)) {
 		/*
@@ -191,22 +199,18 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 		 * scrub/resilver, can be preserved in the aggregate.
 		 */
 		while ((dio = AVL_PREV(t, fio)) != NULL &&
-		    IS_ADJACENT(dio, fio) &&
 		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
-		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
+		    IO_SPAN(dio, lio) <= maxspan && IO_GAP(dio, fio) <= maxgap)
 			fio = dio;
-			size += dio->io_size;
-		}
+
 		while ((dio = AVL_NEXT(t, lio)) != NULL &&
-		    IS_ADJACENT(lio, dio) &&
 		    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
-		    size + dio->io_size <= zfs_vdev_aggregation_limit) {
+		    IO_SPAN(fio, dio) <= maxspan && IO_GAP(lio, dio) <= maxgap)
 			lio = dio;
-			size += dio->io_size;
-		}
 	}
 
 	if (fio != lio) {
+		uint64_t size = IO_SPAN(fio, lio);
 		ASSERT(size <= zfs_vdev_aggregation_limit);
 
 		aio = zio_vdev_delegated_io(fio->io_vd, fio->io_offset,
@@ -214,9 +218,10 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 		    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 		    vdev_queue_agg_io_done, NULL);
 
-		/* We want to process lio, then stop */
-		lio = AVL_NEXT(t, lio);
-		for (dio = fio; dio != lio; dio = nio) {
+		nio = fio;
+		do {
+			dio = nio;
+			nio = AVL_NEXT(t, dio);
 			ASSERT(dio->io_type == aio->io_type);
 			ASSERT(dio->io_vdev_tree == t);
 
@@ -224,13 +229,12 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 				bcopy(dio->io_data, (char *)aio->io_data +
 				    (dio->io_offset - aio->io_offset),
 				    dio->io_size);
-			nio = AVL_NEXT(t, dio);
 
 			zio_add_child(dio, aio);
 			vdev_queue_io_remove(vq, dio);
 			zio_vdev_io_bypass(dio);
 			zio_execute(dio);
-		}
+		} while (dio != lio);
 
 		avl_add(&vq->vq_pending_tree, aio);
 

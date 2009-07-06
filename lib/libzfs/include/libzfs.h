@@ -130,6 +130,7 @@ enum {
 	EZFS_VDEVNOTSUP,	/* unsupported vdev type */
 	EZFS_NOTSUP,		/* ops not supported on this dataset */
 	EZFS_ACTIVE_SPARE,	/* pool has active shared spare devices */
+	EZFS_UNPLAYED_LOGS,	/* log device has unplayed logs */
 	EZFS_UNKNOWN
 };
 
@@ -192,6 +193,7 @@ extern const char *libzfs_error_action(libzfs_handle_t *);
 extern const char *libzfs_error_description(libzfs_handle_t *);
 extern void libzfs_mnttab_init(libzfs_handle_t *);
 extern void libzfs_mnttab_fini(libzfs_handle_t *);
+extern void libzfs_mnttab_cache(libzfs_handle_t *, boolean_t);
 extern int libzfs_mnttab_find(libzfs_handle_t *, const char *,
     struct mnttab *);
 extern void libzfs_mnttab_add(libzfs_handle_t *, const char *,
@@ -243,6 +245,8 @@ extern int zpool_vdev_clear(zpool_handle_t *, uint64_t);
 
 extern nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
     boolean_t *, boolean_t *);
+extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
+    boolean_t *, boolean_t *, boolean_t *);
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
 /*
@@ -349,7 +353,8 @@ extern int zpool_stage_history(libzfs_handle_t *, const char *);
 extern void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t len);
 extern int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);
-extern int zpool_get_physpath(zpool_handle_t *, char *);
+extern int zpool_get_physpath(zpool_handle_t *, char *, size_t);
+
 /*
  * Basic handle manipulations.  These functions do not create or destroy the
  * underlying datasets, only the references to them.
@@ -382,6 +387,10 @@ extern int zfs_prop_get(zfs_handle_t *, zfs_prop_t, char *, size_t,
     zprop_source_t *, char *, size_t, boolean_t);
 extern int zfs_prop_get_numeric(zfs_handle_t *, zfs_prop_t, uint64_t *,
     zprop_source_t *, char *, size_t);
+extern int zfs_prop_get_userquota_int(zfs_handle_t *zhp, const char *propname,
+    uint64_t *propvalue);
+extern int zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
+    char *propbuf, int proplen, boolean_t literal);
 extern uint64_t zfs_prop_get_int(zfs_handle_t *, zfs_prop_t);
 extern int zfs_prop_inherit(zfs_handle_t *, const char *);
 extern const char *zfs_prop_values(zfs_prop_t);
@@ -398,6 +407,7 @@ typedef struct zprop_list {
 } zprop_list_t;
 
 extern int zfs_expand_proplist(zfs_handle_t *, zprop_list_t **);
+extern void zfs_prune_proplist(zfs_handle_t *, uint8_t *);
 
 #define	ZFS_MOUNTPOINT_NONE	"none"
 #define	ZFS_MOUNTPOINT_LEGACY	"legacy"
@@ -468,6 +478,12 @@ extern int zfs_send(zfs_handle_t *, const char *, const char *,
     boolean_t, boolean_t, boolean_t, boolean_t, int);
 extern int zfs_promote(zfs_handle_t *);
 
+typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
+    uid_t rid, uint64_t space);
+
+extern int zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
+    zfs_userspace_cb_t func, void *arg);
+
 typedef struct recvflags {
 	/* print informational messages (ie, -v was specified) */
 	int verbose : 1;
@@ -506,17 +522,6 @@ extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
 extern int zfs_spa_version(zfs_handle_t *, int *);
 
 /*
- * dataset permission functions.
- */
-extern int zfs_perm_set(zfs_handle_t *, nvlist_t *);
-extern int zfs_perm_remove(zfs_handle_t *, nvlist_t *);
-extern int zfs_build_perms(zfs_handle_t *, char *, char *,
-    zfs_deleg_who_type_t, zfs_deleg_inherit_t, nvlist_t **nvlist_t);
-extern int zfs_perm_get(zfs_handle_t *, zfs_allow_t **);
-extern void zfs_free_allows(zfs_allow_t *);
-extern void zfs_deleg_permissions(void);
-
-/*
  * Mount support functions.
  */
 extern boolean_t is_mounted(libzfs_handle_t *, const char *special, char **);
@@ -550,7 +555,7 @@ extern boolean_t zfs_is_shared_iscsi(zfs_handle_t *);
 extern int zfs_share_iscsi(zfs_handle_t *);
 extern int zfs_unshare_iscsi(zfs_handle_t *);
 extern int zfs_iscsi_perm_check(libzfs_handle_t *, char *, ucred_t *);
-extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *,
+extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
 
 /*
@@ -578,6 +583,15 @@ extern int zpool_remove_zvol_links(zpool_handle_t *);
 
 /* is this zvol valid for use as a dump device? */
 extern int zvol_check_dump_config(char *);
+
+/*
+ * Management interfaces for SMB ACL files
+ */
+
+int zfs_smb_acl_add(libzfs_handle_t *, char *, char *, char *);
+int zfs_smb_acl_remove(libzfs_handle_t *, char *, char *, char *);
+int zfs_smb_acl_purge(libzfs_handle_t *, char *, char *);
+int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *, char *);
 
 /*
  * Enable and disable datasets within a pool by mounting/unmounting and

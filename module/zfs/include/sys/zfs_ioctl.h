@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
 #define	_SYS_ZFS_IOCTL_H
-
-
 
 #include <sys/cred.h>
 #include <sys/dmu.h>
@@ -118,7 +116,7 @@ typedef struct zinject_record {
 	uint32_t	zi_error;
 	uint64_t	zi_type;
 	uint32_t	zi_freq;
-	uint32_t	zi_pad;	/* pad out to 64 bit alignment */
+	uint32_t	zi_failfast;
 } zinject_record_t;
 
 #define	ZINJECT_NULL		0x1
@@ -162,11 +160,19 @@ typedef struct zfs_cmd {
 	uint64_t 	zc_history_len;
 	uint64_t	zc_history_offset;
 	uint64_t	zc_obj;
+	uint64_t	zc_iflags;		/* internal to zfs(7fs) */
 	zfs_share_t	zc_share;
 	dmu_objset_stats_t zc_objset_stats;
 	struct drr_begin zc_begin_record;
 	zinject_record_t zc_inject_record;
 } zfs_cmd_t;
+
+typedef struct zfs_useracct {
+	char zu_domain[256];
+	uid_t zu_rid;
+	uint32_t zu_pad;
+	uint64_t zu_space;
+} zfs_useracct_t;
 
 #define	ZVOL_MAX_MINOR	(1 << 16)
 #define	ZFS_MIN_MINOR	(ZVOL_MAX_MINOR + 1)
