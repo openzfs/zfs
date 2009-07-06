@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -100,6 +100,9 @@ typedef struct zil_dva_node {
 	dva_t		zn_dva;
 	avl_node_t	zn_node;
 } zil_dva_node_t;
+
+#define	ZIL_MAX_LOG_DATA (SPA_MAXBLOCKSIZE - sizeof (zil_trailer_t) - \
+    sizeof (lr_write_t))
 
 #ifdef	__cplusplus
 }

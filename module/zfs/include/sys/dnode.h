@@ -98,7 +98,8 @@ enum dnode_dirtycontext {
 };
 
 /* Is dn_used in bytes?  if not, it's in multiples of SPA_MINBLOCKSIZE */
-#define	DNODE_FLAG_USED_BYTES	(1<<0)
+#define	DNODE_FLAG_USED_BYTES		(1<<0)
+#define	DNODE_FLAG_USERUSED_ACCOUNTED	(1<<1)
 
 typedef struct dnode_phys {
 	uint8_t dn_type;		/* dmu_object_type_t */
@@ -131,10 +132,7 @@ typedef struct dnode {
 	 */
 	krwlock_t dn_struct_rwlock;
 
-	/*
-	 * Our link on dataset's dd_dnodes list.
-	 * Protected by dd_accounting_mtx.
-	 */
+	/* Our link on dn_objset->os_dnodes list; protected by os_lock.  */
 	list_node_t dn_link;
 
 	/* immutable: */
@@ -190,6 +188,9 @@ typedef struct dnode {
 
 	/* parent IO for current sync write */
 	zio_t *dn_zio;
+
+	/* used in syncing context */
+	dnode_phys_t *dn_oldphys;
 
 	/* holds prefetch structure */
 	struct zfetch	dn_zfetch;
