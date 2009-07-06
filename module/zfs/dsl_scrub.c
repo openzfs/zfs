@@ -45,6 +45,8 @@ typedef int (scrub_cb_t)(dsl_pool_t *, const blkptr_t *, const zbookmark_t *);
 
 static scrub_cb_t dsl_pool_scrub_clean_cb;
 static dsl_syncfunc_t dsl_pool_scrub_cancel_sync;
+static void scrub_visitdnode(dsl_pool_t *dp, dnode_phys_t *dnp, arc_buf_t *buf,
+    uint64_t objset, uint64_t object);
 
 int zfs_scrub_min_time = 1; /* scrub for at least 1 sec each txg */
 int zfs_resilver_min_time = 3; /* resilver for at least 3 sec each txg */
@@ -348,6 +350,12 @@ traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 	if (bp->blk_birth <= dp->dp_scrub_min_txg)
 		return;
 
+	/*
+	 * One block ("stubby") can be allocated a long time ago; we
+	 * want to visit that one because it has been allocated
+	 * (on-disk) even if it hasn't been claimed (even though for
+	 * plain scrub there's nothing to do to it).
+	 */
 	if (claim_txg == 0 && bp->blk_birth >= spa_first_txg(dp->dp_spa))
 		return;
 
@@ -373,6 +381,11 @@ traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 		if (bp->blk_birth <= dp->dp_scrub_min_txg)
 			return;
 
+		/*
+		 * birth can be < claim_txg if this record's txg is
+		 * already txg sync'ed (but this log block contains
+		 * other records that are not synced)
+		 */
 		if (claim_txg == 0 || bp->blk_birth < claim_txg)
 			return;
 
@@ -472,7 +485,7 @@ scrub_visitbp(dsl_pool_t *dp, dnode_phys_t *dnp,
 	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
 		uint32_t flags = ARC_WAIT;
 		dnode_phys_t *child_dnp;
-		int i, j;
+		int i;
 		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 
 		err = arc_read(NULL, dp->dp_spa, bp, pbuf,
@@ -487,20 +500,12 @@ scrub_visitbp(dsl_pool_t *dp, dnode_phys_t *dnp,
 		child_dnp = buf->b_data;
 
 		for (i = 0; i < epb; i++, child_dnp++) {
-			for (j = 0; j < child_dnp->dn_nblkptr; j++) {
-				zbookmark_t czb;
-
-				SET_BOOKMARK(&czb, zb->zb_objset,
-				    zb->zb_blkid * epb + i,
-				    child_dnp->dn_nlevels - 1, j);
-				scrub_visitbp(dp, child_dnp, buf,
-				    &child_dnp->dn_blkptr[j], &czb);
-			}
+			scrub_visitdnode(dp, child_dnp, buf, zb->zb_objset,
+			    zb->zb_blkid * epb + i);
 		}
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
 		uint32_t flags = ARC_WAIT;
 		objset_phys_t *osp;
-		int j;
 
 		err = arc_read_nolock(NULL, dp->dp_spa, bp,
 		    arc_getbuf_func, &buf,
@@ -516,19 +521,34 @@ scrub_visitbp(dsl_pool_t *dp, dnode_phys_t *dnp,
 
 		traverse_zil(dp, &osp->os_zil_header);
 
-		for (j = 0; j < osp->os_meta_dnode.dn_nblkptr; j++) {
-			zbookmark_t czb;
-
-			SET_BOOKMARK(&czb, zb->zb_objset, 0,
-			    osp->os_meta_dnode.dn_nlevels - 1, j);
-			scrub_visitbp(dp, &osp->os_meta_dnode, buf,
-			    &osp->os_meta_dnode.dn_blkptr[j], &czb);
+		scrub_visitdnode(dp, &osp->os_meta_dnode,
+		    buf, zb->zb_objset, 0);
+		if (arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+			scrub_visitdnode(dp, &osp->os_userused_dnode,
+			    buf, zb->zb_objset, 0);
+			scrub_visitdnode(dp, &osp->os_groupused_dnode,
+			    buf, zb->zb_objset, 0);
 		}
 	}
 
 	(void) scrub_funcs[dp->dp_scrub_func](dp, bp, zb);
 	if (buf)
 		(void) arc_buf_remove_ref(buf, &buf);
+}
+
+static void
+scrub_visitdnode(dsl_pool_t *dp, dnode_phys_t *dnp, arc_buf_t *buf,
+    uint64_t objset, uint64_t object)
+{
+	int j;
+
+	for (j = 0; j < dnp->dn_nblkptr; j++) {
+		zbookmark_t czb;
+
+		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
+		scrub_visitbp(dp, dnp, buf, &dnp->dn_blkptr[j], &czb);
+	}
+
 }
 
 static void

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -173,6 +173,19 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 {
 	taskq_t *tq = kmem_zalloc(sizeof (taskq_t), KM_SLEEP);
 	int t;
+
+	if (flags & TASKQ_THREADS_CPU_PCT) {
+		int pct;
+		ASSERT3S(nthreads, >=, 0);
+		ASSERT3S(nthreads, <=, 100);
+		pct = MIN(nthreads, 100);
+		pct = MAX(pct, 0);
+
+		nthreads = (sysconf(_SC_NPROCESSORS_ONLN) * pct) / 100;
+		nthreads = MAX(nthreads, 1);	/* need at least 1 thread */
+	} else {
+		ASSERT3S(nthreads, >=, 1);
+	}
 
 	rw_init(&tq->tq_threadlock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&tq->tq_lock, NULL, MUTEX_DEFAULT, NULL);
