@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Iterate over all children of the current object.  This includes the normal
@@ -399,13 +397,6 @@ iterate_children(libzfs_handle_t *hdl, zfs_graph_t *zgp, const char *dataset)
 	for ((void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	    ioctl(hdl->libzfs_fd, ZFS_IOC_DATASET_LIST_NEXT, &zc) == 0;
 	    (void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name))) {
-
-		/*
-		 * Ignore private dataset names.
-		 */
-		if (dataset_name_hidden(zc.zc_name))
-			continue;
-
 		/*
 		 * Get statistics for this dataset, to determine the type of the
 		 * dataset and clone statistics.  If this fails, the dataset has

@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
 #define	_SYS_METASLAB_IMPL_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/metaslab.h>
 #include <sys/space_map.h>
@@ -41,6 +39,7 @@ extern "C" {
 struct metaslab_class {
 	metaslab_group_t	*mc_rotor;
 	uint64_t		mc_allocated;
+	space_map_ops_t		*mc_ops;
 };
 
 struct metaslab_group {
