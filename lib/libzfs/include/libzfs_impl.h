@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -63,6 +63,7 @@ struct libzfs_handle {
 	int libzfs_printerr;
 	void *libzfs_sharehdl; /* libshare handle */
 	uint_t libzfs_shareflags;
+	boolean_t libzfs_mnttab_enable;
 	avl_tree_t libzfs_mnttab_cache;
 };
 #define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */
@@ -78,6 +79,7 @@ struct zfs_handle {
 	nvlist_t *zfs_user_props;
 	boolean_t zfs_mntcheck;
 	char *zfs_mntopts;
+	uint8_t *zfs_props_table;
 };
 
 /*
@@ -185,7 +187,7 @@ extern int zfs_init_libshare(libzfs_handle_t *, int);
 extern void zfs_uninit_libshare(libzfs_handle_t *);
 extern int zfs_parse_options(char *, zfs_share_proto_t);
 
-extern int zfs_unshare_proto(zfs_handle_t *zhp,
+extern int zfs_unshare_proto(zfs_handle_t *,
     const char *, zfs_share_proto_t *);
 #ifdef	__cplusplus
 }
