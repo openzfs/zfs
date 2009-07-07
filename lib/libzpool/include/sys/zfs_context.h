@@ -58,7 +58,6 @@ extern "C" {
 #include <atomic.h>
 #include <dirent.h>
 #include <time.h>
-#include <libsysevent.h>
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
@@ -72,8 +71,11 @@ extern "C" {
 #include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
+#ifdef HAVE_SYSEVENT
+#include <libsysevent.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
+#endif /* HAVE_SYSEVENT */
 
 /*
  * Stack
