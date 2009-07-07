@@ -2217,7 +2217,8 @@ zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
 		return (err);
 
 	if (literal) {
-		(void) snprintf(propbuf, proplen, "%llu", propvalue);
+		(void) snprintf(propbuf, proplen, "%llu",
+			       (u_longlong_t)propvalue);
 	} else if (propvalue == 0 &&
 	    (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA)) {
 		(void) strlcpy(propbuf, "none", proplen);
