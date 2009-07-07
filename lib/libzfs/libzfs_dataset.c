@@ -2153,7 +2153,7 @@ zfs_prop_get_userquota_common(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue, zfs_userquota_prop_t *typep)
 {
 	int err;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 
 	(void) strncpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
@@ -2197,7 +2197,8 @@ zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
 		return (err);
 
 	if (literal) {
-		(void) snprintf(propbuf, proplen, "%llu", propvalue);
+		(void) snprintf(propbuf, proplen, "%llu",
+			       (u_longlong_t)propvalue);
 	} else if (propvalue == 0 &&
 	    (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA)) {
 		(void) strlcpy(propbuf, "none", proplen);
@@ -3637,7 +3638,7 @@ zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
 static int
 zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	di_devlink_handle_t dhdl;
 	priv_set_t *priv_effective;
 	int privileged;
@@ -3861,7 +3862,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp)
 int
 zfs_iscsi_perm_check(libzfs_handle_t *hdl, char *dataset, ucred_t *cred)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	nvlist_t *nvp;
 	gid_t gid;
 	uid_t uid;
@@ -3957,7 +3958,7 @@ static int
 zfs_smb_acl_mgmt(libzfs_handle_t *hdl, char *dataset, char *path,
     zfs_smb_acl_op_t cmd, char *resource1, char *resource2)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	nvlist_t *nvlist = NULL;
 	int error;
 
@@ -4039,7 +4040,7 @@ int
 zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
     zfs_userspace_cb_t func, void *arg)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	int error;
 	zfs_useracct_t buf[100];
 
