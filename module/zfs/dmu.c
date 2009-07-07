@@ -601,13 +601,6 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	return (err);
 }
 
-int
-dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    void *buf)
-{
-	return dmu_read_impl(os, object, offset, size, buf, 0);
-}
-
 void
 dmu_write_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx, int flags)
@@ -652,6 +645,13 @@ dmu_write_impl(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 void
+dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_write_impl(os, object, offset, size, buf, tx, 0);
+}
+
+void
 dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     dmu_tx_t *tx)
 {
@@ -670,13 +670,6 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		dmu_buf_will_not_fill(db, tx);
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
-}
-
-void
-dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx)
-{
-	dmu_write_impl(os, object, offset, size, buf, tx, 0);
 }
 
 #if defined(_KERNEL) && defined(HAVE_UIO_RW)
@@ -1299,7 +1292,6 @@ dmu_fini(void)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_bonus_hold);
 EXPORT_SYMBOL(dmu_free_range);
-EXPORT_SYMBOL(dmu_read_impl);
 EXPORT_SYMBOL(dmu_read);
 EXPORT_SYMBOL(dmu_write_impl);
 EXPORT_SYMBOL(dmu_write);
