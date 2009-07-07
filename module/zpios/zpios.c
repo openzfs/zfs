@@ -469,7 +469,10 @@ zpios_dmu_read(run_args_t *run_args, objset_t *os, uint64_t object,
 	if (run_args->flags & DMU_READ_ZC)
 		flags |= DMU_READ_ZEROCOPY;
 
-	return dmu_read_impl(os, object, offset, size, buf, flags);
+	if (run_args->flags & DMU_READ_NOPF)
+		flags |= DMU_READ_NO_PREFETCH;
+
+	return dmu_read(os, object, offset, size, buf, flags);
 }
 
 static int
