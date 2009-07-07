@@ -2955,7 +2955,7 @@ void
 arc_release(arc_buf_t *buf, void *tag)
 {
 	arc_buf_hdr_t *hdr;
-	kmutex_t *hash_lock;
+	kmutex_t *hash_lock = NULL;
 	l2arc_buf_hdr_t *l2hdr;
 	uint64_t buf_size = 0;
 	boolean_t released = B_FALSE;
