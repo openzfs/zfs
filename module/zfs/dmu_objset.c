@@ -1044,7 +1044,7 @@ dmu_objset_do_userquota_callbacks(objset_impl_t *os, dmu_tx_t *tx)
 
 	ASSERT(list_head(list) == NULL || dmu_objset_userused_enabled(os));
 
-	while (dn = list_head(list)) {
+	while ((dn = list_head(list))) {
 		dmu_object_type_t bonustype;
 
 		ASSERT(!DMU_OBJECT_IS_SPECIAL(dn->dn_object));
