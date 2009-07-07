@@ -50,16 +50,16 @@ zpios_survey_base() {
 
 # Disable ZFS's prefetching.  For some reason still not clear to me
 # current prefetching policy is quite bad for a random workload.
-# Allowint the algorithm to detect a random workload and not do 
+# Allowing the algorithm to detect a random workload and not do 
 # anything may be the way to address this issue.
 zpios_survey_prefetch() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+prefetch"
 	print_header ${TEST_NAME}
 
 	./zfs.sh ${VERBOSE_FLAG}               \
-		zfs="zfs_prefetch_disable=1" | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+		-o "--noprefetch" |                                      \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	./zfs.sh -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
@@ -144,12 +144,11 @@ zpios_survey_all() {
 	print_header ${TEST_NAME}
 
 	./zfs.sh ${VERBOSE_FLAG}                \  
-		zfs="zfs_prefetch_disable=1"    \
 		zfs="zfs_vdev_max_pending=1024" \
 		zfs="zio_bulk_flags=0x100" |    \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
-		-o "--zerocopy"                                        \
+		-o "--noprefetch --zerocopy"                           \
 		-s "set checksum=off" |                                \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	./zfs.sh -u ${VERBOSE_FLAG} | \

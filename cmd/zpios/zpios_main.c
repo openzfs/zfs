@@ -45,7 +45,7 @@
 #include "zpios.h"
 
 static const char short_opt[] = "t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
-                                "L:p:xP:R:G:I:N:T:VzOHv?";
+                                "L:p:xP:R:G:I:N:T:VzOfHv?";
 static const struct option long_opt[] = {
 	{"threadcount",         required_argument, 0, 't' },
 	{"threadcount_low",     required_argument, 0, 'l' },
@@ -79,6 +79,7 @@ static const struct option long_opt[] = {
 	{"verify",              no_argument,       0, 'V' },
 	{"zerocopy",            no_argument,       0, 'z' },
 	{"nowait",              no_argument,       0, 'O' },
+	{"noprefetch",          no_argument,       0, 'f' },
 	{"human-readable",      no_argument,       0, 'H' },
 	{"verbose",             no_argument,       0, 'v' },
 	{"help",                no_argument,       0, '?' },
@@ -127,6 +128,7 @@ usage(void)
 	        "	--verify            -V\n"
 	        "	--zerocopy          -z\n"
 	        "	--nowait            -O\n"
+		"	--noprefetch        -f\n"
 	        "	--human-readable    -H\n"
 	        "	--verbose           -v    =increase verbosity\n"
 	        "	--help              -?    =this help\n\n");
@@ -282,6 +284,9 @@ args_init(int argc, char **argv)
 			break;
 		case 'O': /* --nowait */
 			args->flags |= DMU_WRITE_NOWAIT;
+			break;
+		case 'f': /* --noprefetch */
+			args->flags |= DMU_READ_NOPF;
 			break;
 		case 'H': /* --human-readable */
 			args->human_readable = 1;
