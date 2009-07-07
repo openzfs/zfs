@@ -258,6 +258,7 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 	return (metaslab_block_picker(t, cursor, size, align));
 }
 
+#if 0
 /*
  * ==========================================================================
  * The first-fit block allocator
@@ -310,6 +311,7 @@ static space_map_ops_t metaslab_ff_ops = {
 	metaslab_ff_free,
 	NULL	/* maxsize */
 };
+#endif
 
 /*
  * Dynamic block allocator -
