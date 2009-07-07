@@ -1763,8 +1763,9 @@ is_guid_type(zpool_handle_t *zhp, uint64_t guid, const char *type)
 static int
 zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 {
-	char path[MAXPATHLEN];
 	char errbuf[1024];
+#ifdef HAVE_LIBEFI
+	char path[MAXPATHLEN];
 	int fd, error;
 	int (*_efi_use_whole_disk)(int);
 
@@ -1793,6 +1794,11 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 	return (0);
+#else
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
+	    "relabel '%s/%s': libefi is unsupported"), DISK_ROOT, name);
+	return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
+#endif /* HAVE_LIBEFI */
 }
 
 /*
