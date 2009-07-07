@@ -47,8 +47,8 @@
 #include <ucred.h>
 #ifdef HAVE_IDMAP
 #include <idmap.h>
-#endif /* HAVE_IDMAP */
 #include <aclutils.h>
+#endif /* HAVE_IDMAP */
 
 #include <sys/spa.h>
 #include <sys/zap.h>
