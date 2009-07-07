@@ -1130,6 +1130,8 @@ int
 spa_check_logs(spa_t *spa)
 {
 	switch (spa->spa_log_state) {
+	default:
+		break;
 	case SPA_LOG_MISSING:
 		/* need to recheck in case slog has been restored */
 	case SPA_LOG_UNKNOWN:
