@@ -510,7 +510,7 @@ dsl_props_set(const char *dsname, nvlist_t *nvl)
 	nvpair_t *elem = NULL;
 	int err;
 
-	if (err = dsl_dataset_hold(dsname, FTAG, &ds))
+	if ((err = dsl_dataset_hold(dsname, FTAG, &ds)))
 		return (err);
 	/*
 	 * Do these checks before the syncfunc, since it can't fail.
