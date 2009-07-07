@@ -59,10 +59,6 @@ static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
 #define	BOOTCMD	"installboot(1M)"
 #endif
 
-#define	DISK_ROOT	"/dev/dsk"
-#define	RDISK_ROOT	"/dev/rdsk"
-#define	BACKUP_SLICE	"s2"
-
 /*
  * ====================================================================
  *   zpool property functions
