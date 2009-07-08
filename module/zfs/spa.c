@@ -3716,9 +3716,11 @@ spa_async_probe(spa_t *spa, vdev_t *vd)
 static void
 spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 {
+#ifdef HAVE_SYSEVENT
 	sysevent_id_t eid;
 	nvlist_t *attr;
 	char *physpath;
+#endif
 	int c;
 
 	if (!spa->spa_autoexpand)
@@ -3732,6 +3734,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf || vd->vdev_physpath == NULL)
 		return;
 
+#ifdef HAVE_SYSEVENT
 	physpath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 	(void) snprintf(physpath, MAXPATHLEN, "/devices%s", vd->vdev_physpath);
 
@@ -3743,6 +3746,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 
 	nvlist_free(attr);
 	kmem_free(physpath, MAXPATHLEN);
+#endif
 }
 
 static void
