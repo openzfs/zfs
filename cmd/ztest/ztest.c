@@ -3220,8 +3220,8 @@ ztest_dmu_commit_callbacks(ztest_args_t *za)
 	/*
 	 * Read existing data to make sure there isn't a future leak.
 	 */
-	VERIFY(0 == dmu_read(os, ZTEST_DIROBJ, za->za_diroff, sizeof (uint64_t),
-	    &old_txg));
+	VERIFY(0 == dmu_read(os, ZTEST_DIROBJ, za->za_diroff,
+			     sizeof (uint64_t), &old_txg, DMU_READ_PREFETCH));
 
 	if (old_txg > txg)
 		fatal(0, "future leak: got %llx, open txg is %llx", old_txg,
