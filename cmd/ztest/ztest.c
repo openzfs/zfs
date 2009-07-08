@@ -1321,17 +1321,17 @@ ztest_vdev_LUN_growth(ztest_args_t *za)
 	}
 
 	(void) spa_config_exit(spa, SCL_STATE, spa);
-	pthread_mutex_exit(&spa_namespace_lock);
+	mutex_exit(&spa_namespace_lock);
 
 	/*
 	 * Expanding the LUN will update the config asynchronously,
 	 * thus we must wait for the async thread to complete any
 	 * pending tasks before proceeding.
 	 */
-	pthread_mutex_enter(&spa->spa_async_lock);
+	mutex_enter(&spa->spa_async_lock);
 	while (spa->spa_async_thread != NULL || spa->spa_async_tasks)
 		cv_wait(&spa->spa_async_cv, &spa->spa_async_lock);
-	pthread_mutex_exit(&spa->spa_async_lock);
+	mutex_exit(&spa->spa_async_lock);
 
 	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
 	spa_newsize = spa_get_space(spa);
