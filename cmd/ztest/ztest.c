@@ -1611,11 +1611,16 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t curval)
 	char snap3name[100];
 	int error;
 
-	(void) snprintf(snap1name, 100, "%s@s1_%llu", osname, curval);
-	(void) snprintf(clone1name, 100, "%s/c1_%llu", osname, curval);
-	(void) snprintf(snap2name, 100, "%s@s2_%llu", clone1name, curval);
-	(void) snprintf(clone2name, 100, "%s/c2_%llu", osname, curval);
-	(void) snprintf(snap3name, 100, "%s@s3_%llu", clone1name, curval);
+	(void) snprintf(snap1name, 100, "%s@s1_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(clone1name, 100, "%s/c1_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(snap2name, 100, "%s@s2_%llu",
+			clone1name, (u_longlong_t)curval);
+	(void) snprintf(clone2name, 100, "%s/c2_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(snap3name, 100, "%s@s3_%llu",
+			clone1name, (u_longlong_t)curval);
 
 	error = dmu_objset_destroy(clone2name);
 	if (error && error != ENOENT)
@@ -1657,11 +1662,16 @@ ztest_dsl_dataset_promote_busy(ztest_args_t *za)
 	dmu_objset_name(os, osname);
 	ztest_dsl_dataset_cleanup(osname, curval);
 
-	(void) snprintf(snap1name, 100, "%s@s1_%llu", osname, curval);
-	(void) snprintf(clone1name, 100, "%s/c1_%llu", osname, curval);
-	(void) snprintf(snap2name, 100, "%s@s2_%llu", clone1name, curval);
-	(void) snprintf(clone2name, 100, "%s/c2_%llu", osname, curval);
-	(void) snprintf(snap3name, 100, "%s@s3_%llu", clone1name, curval);
+	(void) snprintf(snap1name, 100, "%s@s1_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(clone1name, 100, "%s/c1_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(snap2name, 100, "%s@s2_%llu",
+			clone1name, (u_longlong_t)curval);
+	(void) snprintf(clone2name, 100, "%s/c2_%llu",
+			osname, (u_longlong_t)curval);
+	(void) snprintf(snap3name, 100, "%s@s3_%llu",
+			clone1name, (u_longlong_t)curval);
 
 	error = dmu_objset_snapshot(osname, strchr(snap1name, '@')+1,
 	    NULL, FALSE);
