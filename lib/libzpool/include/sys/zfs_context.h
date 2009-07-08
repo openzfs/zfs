@@ -192,18 +192,24 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-#define	curthread		((void *)(uintptr_t)pthread_self())
 #define	tsd_get(key)		pthread_getspecific(key)
 #define	tsd_set(key, val)	pthread_setspecific(key, val)
 
-typedef struct kthread kthread_t;
 typedef void (*thread_func_t)(void *);
+typedef struct kthread {
+        list_node_t	t_node;
+	pthread_t	t_id;
+	pthread_attr_t	t_attr;
+} kthread_t;
 
-#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create((thread_func_t)func, arg)
-#define	thread_exit() pthread_exit(NULL)
+#define	curthread		zk_curthread()
+#define thread_create(stk, stksize, func, arg, len, pp, state, pri) \
+				zk_thread_create((thread_func_t)func, arg)
+#define thr_join(kt, v1, v2)	pthread_join(kt->t_id, v2)
 
+extern kthread_t *zk_curthread(void);
 extern kthread_t *zk_thread_create(thread_func_t func, void *arg);
+extern void thread_exit(void);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
