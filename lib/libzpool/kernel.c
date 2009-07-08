@@ -55,20 +55,66 @@ struct utsname utsname = {
  * threads
  * =========================================================================
  */
-/*ARGSUSED*/
+
+kmutex_t kthread_lock;
+list_t kthread_list;
+
+kthread_t *
+zk_curthread(void)
+{
+	kthread_t *kt;
+	pthread_t tid;
+
+	tid = pthread_self();
+	mutex_enter(&kthread_lock);
+        for (kt = list_head(&kthread_list); kt != NULL;
+	     kt = list_next(&kthread_list, kt)) {
+
+		if (kt->t_id == tid) {
+			mutex_exit(&kthread_lock);
+			return kt;
+		}
+	}
+	mutex_exit(&kthread_lock);
+
+	return NULL;
+}
+
 kthread_t *
 zk_thread_create(thread_func_t func, void *arg)
 {
-	pthread_t tid;
+	kthread_t *kt;
 
-	pthread_attr_t attr;
-	VERIFY(pthread_attr_init(&attr) == 0);
-	VERIFY(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0);
+	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
 
-	VERIFY(pthread_create(&tid, &attr, (void *(*)(void *))func, arg) == 0);
+	VERIFY(pthread_attr_init(&kt->t_attr) == 0);
+	VERIFY(pthread_attr_setdetachstate(&kt->t_attr,
+					   PTHREAD_CREATE_DETACHED) == 0);
+	VERIFY(pthread_create(&kt->t_id, &kt->t_attr,
+			      (void *(*)(void *))func, arg) == 0);
 
-	/* XXX: not portable */
-	return ((void *)(uintptr_t)tid);
+	mutex_enter(&kthread_lock);
+	list_insert_head(&kthread_list, kt);
+	mutex_exit(&kthread_lock);
+
+	return kt;
+}
+
+void
+thread_exit(void)
+{
+	kthread_t *kt;
+
+	VERIFY((kt = curthread) != NULL);
+
+	mutex_enter(&kthread_lock);
+	list_remove(&kthread_list, kt);
+	mutex_exit(&kthread_lock);
+
+	VERIFY(pthread_attr_destroy(&kt->t_attr) == 0);
+	umem_free(kt, sizeof(kthread_t));
+
+	pthread_exit(NULL);
 }
 
 /*
@@ -849,6 +895,10 @@ kernel_init(int mode)
 	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
 	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
 
+	mutex_init(&kthread_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&kthread_list, sizeof (kthread_t),
+		    offsetof(kthread_t, t_node));
+
 	system_taskq_init();
 
 	spa_init(mode);
@@ -858,6 +908,9 @@ void
 kernel_fini(void)
 {
 	spa_fini();
+
+	list_destroy(&kthread_list);
+	mutex_destroy(&kthread_lock);
 
 	close(random_fd);
 	close(urandom_fd);
