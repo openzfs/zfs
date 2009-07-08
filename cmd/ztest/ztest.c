@@ -1218,6 +1218,8 @@ online_vdev(vdev_t *vd, void *arg)
 vdev_t *
 vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 {
+	uint_t c;
+
 	if (vd->vdev_ops->vdev_op_leaf) {
 		if (func == NULL)
 			return (vd);
@@ -1225,7 +1227,7 @@ vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 			return (func(vd, arg));
 	}
 
-	for (uint_t c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 		if ((cvd = vdev_walk_tree(cvd, func, arg)) != NULL)
 			return (cvd);
