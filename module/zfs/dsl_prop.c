@@ -368,7 +368,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 
 	if (psa->numints == 0) {
 		int err = zap_remove(mos, zapobj, psa->name, tx);
-		VERIFY(0 == err || ENOENT == err);
+		VERIFY(err == 0 || err == ENOENT);
 		if (isint) {
 			VERIFY(0 == dsl_prop_get_ds(ds,
 			    psa->name, 8, 1, &intval, NULL));
