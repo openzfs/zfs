@@ -218,6 +218,7 @@ struct page_collection {
 #define __ASSERT_TAGE_INVARIANT(x)	((void)0)
 #define ASSERT(x)			((void)0)
 #define ASSERTF(x, y, z...)		((void)0)
+#define ASSERTV(x)
 #define VERIFY(cond)                                                    \
 do {                                                                    \
         if (unlikely(!(cond))) {                                        \
@@ -348,6 +349,7 @@ do {                                                                    \
 #define ASSERT3U(x,y,z) VERIFY3U(x, y, z)
 #define ASSERT3P(x,y,z) VERIFY3P(x, y, z)
 
+#define ASSERTV(x)      x
 #define VERIFY(x)       ASSERT(x)
 
 #define __CDEBUG(cdls, subsys, mask, format, a...)                      \
