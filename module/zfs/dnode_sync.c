@@ -317,10 +317,8 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		ASSERT3U(blkid + nblks, <=, dn->dn_phys->dn_nblkptr);
 		(void) free_blocks(dn, bp + blkid, nblks, tx);
 		if (trunc) {
-#ifndef NDEBUG
-			uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
-			    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
-#endif
+			ASSERTV(uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
+			    (dn->dn_phys->dn_datablkszsec<<SPA_MINBLOCKSHIFT));
 			dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 			ASSERT(off < dn->dn_phys->dn_maxblkid ||
 			    dn->dn_phys->dn_maxblkid == 0 ||
@@ -349,10 +347,8 @@ dnode_sync_free_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		dbuf_rele(db, FTAG);
 	}
 	if (trunc) {
-#ifndef NDEBUG
-		uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
-		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
-#endif
+		ASSERTV(uint64_t off = (dn->dn_phys->dn_maxblkid + 1) *
+		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT));
 		dn->dn_phys->dn_maxblkid = (blkid ? blkid - 1 : 0);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
@@ -522,7 +518,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
-	static const dnode_phys_t zerodn = { 0 };
+	ASSERTV(static const dnode_phys_t zerodn = { 0 });
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
