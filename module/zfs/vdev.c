@@ -132,8 +132,8 @@ vdev_get_min_asize(vdev_t *vd)
 void
 vdev_set_min_asize(vdev_t *vd)
 {
-	vd->vdev_min_asize = vdev_get_min_asize(vd);
 	int c;
+	vd->vdev_min_asize = vdev_get_min_asize(vd);
 
 	for (c = 0; c < vd->vdev_children; c++)
 		vdev_set_min_asize(vd->vdev_child[c]);
