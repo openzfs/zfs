@@ -85,10 +85,12 @@ _NOTE(CONSTCOND) } while (0)
 #define	ASSERT3S(x, y, z)	((void)0)
 #define	ASSERT3U(x, y, z)	((void)0)
 #define	ASSERT3P(x, y, z)	((void)0)
+#define	ASSERTV(x)
 #else
 #define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
 #define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)
+#define	ASSERTV(x)		x
 #endif  /* NDEBUG */
 
 #endif  /* _LIBSPL_ASSERT_H */
