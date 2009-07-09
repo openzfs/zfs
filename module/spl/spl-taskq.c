@@ -375,6 +375,15 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
         ASSERT(maxalloc <= INT_MAX);
         ASSERT(!(flags & (TASKQ_CPR_SAFE | TASKQ_DYNAMIC))); /* Unsupported */
 
+	/* Scale the number of threads using nthreads as a percentage */
+	if (flags & TASKQ_THREADS_CPU_PCT) {
+		ASSERT(nthreads <= 100);
+		ASSERT(nthreads >= 0);
+		nthreads = MIN(nthreads, 100);
+		nthreads = MAX(nthreads, 0);
+		nthreads = MAX((num_online_cpus() * nthreads) / 100, 1);
+	}
+
         tq = kmem_alloc(sizeof(*tq), KM_SLEEP);
         if (tq == NULL)
                 RETURN(NULL);

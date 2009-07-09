@@ -44,6 +44,7 @@ extern "C" {
 #define TASKQ_PREPOPULATE       0x00000001
 #define TASKQ_CPR_SAFE          0x00000002
 #define TASKQ_DYNAMIC           0x00000004
+#define TASKQ_THREADS_CPU_PCT   0x00000008
 
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
