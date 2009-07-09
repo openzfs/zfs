@@ -316,12 +316,12 @@ dbuf_verify(dmu_buf_impl_t *db)
 	 * dnode_set_blksz().
 	 */
 	if (db->db_level == 0 && db->db.db_object == DMU_META_DNODE_OBJECT) {
+		ASSERTV(dbuf_dirty_record_t *dr = db->db_data_pending);
 		/*
 		 * It should only be modified in syncing context, so
 		 * make sure we only have one copy of the data.
 		 */
-		ASSERT(db->db_data_pending == NULL ||
-		       db->db_data_pending->dt.dl.dr_data == db->db_buf);
+		ASSERT(dr == NULL || dr->dt.dl.dr_data == db->db_buf);
 	}
 
 	/* verify db->db_blkptr */
@@ -337,6 +337,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 			    &dn->dn_phys->dn_blkptr[db->db_blkid]);
 		} else {
 			/* db is pointed to by an indirect block */
+			ASSERTV(int epb = db->db_parent->db.db_size >>
+				SPA_BLKPTRSHIFT);
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
@@ -348,9 +350,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 			if (RW_WRITE_HELD(&db->db_dnode->dn_struct_rwlock)) {
 				ASSERT3P(db->db_blkptr, ==,
 				    ((blkptr_t *)db->db_parent->db.db_data +
-				    db->db_blkid %
-				    (db->db_parent->db.db_size >>
-				    SPA_BLKPTRSHIFT)));
+				    db->db_blkid % epb));
 			}
 		}
 	}
@@ -363,10 +363,11 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * data when we evict this buffer.
 		 */
 		if (db->db_dirtycnt == 0) {
+			ASSERTV(uint64_t *buf = db->db.db_data);
 			int i;
 
 			for (i = 0; i < db->db.db_size >> 3; i++) {
-				ASSERT(((uint64_t *)db->db.db_data)[i] == 0);
+				ASSERT(buf[i] == 0);
 			}
 		}
 	}
@@ -1793,7 +1794,8 @@ dbuf_create_bonus(dnode_t *dn)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	VERIFY(refcount_add(&db->db_holds, tag) > 1);
+	ASSERTV(int64_t holds = refcount_add(&db->db_holds, tag));
+	ASSERT(holds > 1);
 }
 
 #pragma weak dmu_buf_rele = dbuf_rele
@@ -2387,15 +2389,17 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 				ASSERT(arc_released(db->db_buf));
 		}
 	} else {
+		ASSERTV(dnode_t *dn = db->db_dnode);
+
 		ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
-		ASSERT3U(db->db.db_size, ==,
-			 1<<db->db_dnode->dn_phys->dn_indblkshift);
+		ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
 		if (!BP_IS_HOLE(db->db_blkptr)) {
+			ASSERTV(int epbs = dn->dn_phys->dn_indblkshift -
+			    SPA_BLKPTRSHIFT);
 			ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
 			    db->db.db_size);
-			ASSERT3U(db->db_dnode->dn_phys->dn_maxblkid >> (db->db_level *
-			    (db->db_dnode->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT)),
-		            >=, db->db_blkid);
+			ASSERT3U(dn->dn_phys->dn_maxblkid
+			    >> (db->db_level * epbs), >=, db->db_blkid);
 			arc_set_callback(db->db_buf, dbuf_do_evict, db);
 		}
 		mutex_destroy(&dr->dt.di.dr_mtx);

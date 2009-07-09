@@ -988,7 +988,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag)
 	 */
 	if (ds->ds_phys->ds_bp.blk_fill == 0 &&
 	    dmu_objset_userused_enabled(os->os)) {
-		uint64_t count;
+		ASSERTV(uint64_t count);
 
 		ASSERT(zap_count(os, DMU_USERUSED_OBJECT, &count) != 0 ||
 		    count == 0);
@@ -1725,8 +1725,8 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, cred_t *cr, dmu_tx_t *tx)
 	    cr, "dataset = %llu", ds->ds_object);
 
 	if (ds->ds_phys->ds_next_clones_obj != 0) {
-		uint64_t count;
-		VERIFY(0 == zap_count(mos,
+		ASSERTV(uint64_t count);
+		ASSERT(0 == zap_count(mos,
 		    ds->ds_phys->ds_next_clones_obj, &count) && count == 0);
 		VERIFY(0 == dmu_object_free(mos,
 		    ds->ds_phys->ds_next_clones_obj, tx));
@@ -2027,8 +2027,10 @@ dsl_dataset_space(dsl_dataset_t *ds,
 boolean_t
 dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 {
-	ASSERT(RW_LOCK_HELD(&(ds->ds_dir->dd_pool)->dp_config_rwlock) ||
-	    dsl_pool_sync_context(ds->ds_dir->dd_pool));
+	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
+
+	ASSERT(RW_LOCK_HELD(&dp->dp_config_rwlock) ||
+	    dsl_pool_sync_context(dp));
 	if (ds->ds_prev == NULL)
 		return (B_FALSE);
 	if (ds->ds_phys->ds_bp.blk_birth >

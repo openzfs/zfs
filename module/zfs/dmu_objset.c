@@ -891,9 +891,9 @@ static void
 ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
 	blkptr_t *bp = zio->io_bp;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
 	objset_impl_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
+	ASSERTV(blkptr_t *bp_orig = &zio->io_bp_orig);
 
 	ASSERT(bp == os->os_rootbp);
 	ASSERT(BP_GET_TYPE(bp) == DMU_OT_OBJSET);
@@ -910,7 +910,7 @@ ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
-		VERIFY(DVA_EQUAL(BP_IDENTITY(bp), BP_IDENTITY(bp_orig)));
+		ASSERT(DVA_EQUAL(BP_IDENTITY(bp), BP_IDENTITY(bp_orig)));
 	} else {
 		if (zio->io_bp_orig.blk_birth == os->os_synctx->tx_txg)
 			(void) dsl_dataset_block_kill(os->os_dsl_dataset,
@@ -1038,7 +1038,7 @@ dmu_objset_do_userquota_callbacks(objset_impl_t *os, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	list_t *list = &os->os_synced_dnodes;
-	static const char zerobuf[DN_MAX_BONUSLEN] = {0};
+	ASSERTV(static const char zerobuf[DN_MAX_BONUSLEN] = {0});
 
 	ASSERT(list_head(list) == NULL || dmu_objset_userused_enabled(os));
 
