@@ -1250,8 +1250,9 @@ vdev_validate(vdev_t *vd)
 void
 vdev_close(vdev_t *vd)
 {
-	ASSERT(spa_config_held(vd->vdev_spa, SCL_STATE_ALL, RW_WRITER) ==
-	       SCL_STATE_ALL);
+	ASSERTV(spa_t *spa = vd->vdev_spa);
+
+	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
 	vd->vdev_ops->vdev_op_close(vd);
 
