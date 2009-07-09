@@ -531,8 +531,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 		/* read vdev label */
 		offset = vdev_label_offset(size, i, 0);
 		if (vdev_disk_physio(vd_lh, (caddr_t)label,
-		    VDEV_SKIP_SIZE + VDEV_BOOT_HEADER_SIZE +
-		    VDEV_PHYS_SIZE, offset, READ) != 0)
+		    VDEV_SKIP_SIZE + VDEV_PHYS_SIZE, offset, READ) != 0)
 			continue;
 
 		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
