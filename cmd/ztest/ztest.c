@@ -1150,7 +1150,7 @@ ztest_vdev_attach_detach(ztest_args_t *za)
 vdev_t *
 grow_vdev(vdev_t *vd, void *arg)
 {
-	spa_t *spa = vd->vdev_spa;
+	ASSERTV(spa_t *spa = vd->vdev_spa);
 	size_t *newsize = arg;
 	size_t fsize;
 	int fd;
