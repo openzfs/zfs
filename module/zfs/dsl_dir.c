@@ -48,10 +48,11 @@ static void
 dsl_dir_evict(dmu_buf_t *db, void *arg)
 {
 	dsl_dir_t *dd = arg;
+	ASSERTV(dsl_pool_t *dp = dd->dd_pool;)
 	int t;
 
 	for (t = 0; t < TXG_SIZE; t++) {
-		ASSERT(!txg_list_member(&dd->dd_pool->dp_dirty_dirs, dd, t));
+		ASSERT(!txg_list_member(&dp->dp_dirty_dirs, dd, t));
 		ASSERT(dd->dd_tempreserved[t] == 0);
 		ASSERT(dd->dd_space_towrite[t] == 0);
 	}
