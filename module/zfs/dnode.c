@@ -40,9 +40,7 @@ static int free_range_compar(const void *node1, const void *node2);
 
 static kmem_cache_t *dnode_cache;
 
-#ifndef NDEBUG
-static dnode_phys_t dnode_phys_zero;
-#endif
+ASSERTV(static dnode_phys_t dnode_phys_zero);
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
