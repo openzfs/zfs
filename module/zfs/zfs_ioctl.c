@@ -1623,8 +1623,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			 */
 			if (zfs_prop_user(propname) &&
 			    nvpair_type(elem) == DATA_TYPE_STRING) {
-				if (error = zfs_secpolicy_write_perms(name,
-				    ZFS_DELEG_PERM_USERPROP, CRED()))
+				if ((error = zfs_secpolicy_write_perms(name,
+				    ZFS_DELEG_PERM_USERPROP, CRED())))
 					return (error);
 				continue;
 			}
@@ -1638,8 +1638,8 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 					perm = ZFS_DELEG_PERM_USERQUOTA;
 				else
 					perm = ZFS_DELEG_PERM_GROUPQUOTA;
-				if (error = zfs_secpolicy_write_perms(name,
-				    perm, CRED()))
+				if ((error = zfs_secpolicy_write_perms(name,
+				    perm, CRED())))
 					return (error);
 				continue;
 			}
@@ -1895,8 +1895,8 @@ zfs_check_userprops(char *fsname, nvlist_t *nvl)
 		    nvpair_type(elem) != DATA_TYPE_STRING)
 			return (EINVAL);
 
-		if (error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_USERPROP, CRED()))
+		if ((error = zfs_secpolicy_write_perms(fsname,
+		    ZFS_DELEG_PERM_USERPROP, CRED())))
 			return (error);
 
 		if (strlen(propname) >= ZAP_MAXNAMELEN)
