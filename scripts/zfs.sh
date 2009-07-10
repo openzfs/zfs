@@ -14,7 +14,7 @@ KERNEL_MODULES=(				\
 )
 
 SPL_MODULES=(					\
-	${SPLBUILD}/module/spl/spl.ko		\
+	${SPLBUILD}/spl/spl.ko			\
 )
 
 ZFS_MODULES=(					\
