@@ -1508,7 +1508,7 @@ static void
 zio_write_gang_member_ready(zio_t *zio)
 {
 	zio_t *pio = zio_unique_parent(zio);
-	ASSERTV(zio_t *gio = zio->io_gang_leader);
+	ASSERTV(zio_t *gio = zio->io_gang_leader;)
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
