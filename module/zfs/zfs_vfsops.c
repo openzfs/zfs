@@ -1999,6 +1999,7 @@ zfs_busy(void)
 #endif /* HAVE_ZPL */
 }
 
+#ifdef HAVE_ZPL
 int
 zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 {
@@ -2041,6 +2042,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Read a property stored within the master node.
