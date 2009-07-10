@@ -35,6 +35,7 @@
 #include <sys/proc.h>
 #include <sys/kstat.h>
 #include <sys/utsname.h>
+#include <sys/file.h>
 #include <linux/kmod.h>
 
 #ifdef DEBUG_SUBSYSTEM
@@ -225,6 +226,32 @@ EXPORT_SYMBOL(ddi_strtoul);
 EXPORT_SYMBOL(ddi_strtol);
 EXPORT_SYMBOL(ddi_strtoll);
 EXPORT_SYMBOL(ddi_strtoull);
+
+int
+ddi_copyin(const void *from, void *to, size_t len, int flags)
+{
+	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
+	if (flags & FKIOCTL) {
+		memcpy(to, from, len);
+		return 0;
+	}
+
+	return copyin(from, to, len);
+}
+EXPORT_SYMBOL(ddi_copyin);
+
+int
+ddi_copyout(const void *from, void *to, size_t len, int flags)
+{
+	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
+	if (flags & FKIOCTL) {
+		memcpy(to, from, len);
+		return 0;
+	}
+
+	return copyout(from, to, len);
+}
+EXPORT_SYMBOL(ddi_copyout);
 
 struct new_utsname *__utsname(void)
 {

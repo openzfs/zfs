@@ -213,6 +213,9 @@ extern int ddi_strtol(const char *, char **, int, long *);
 extern int ddi_strtoull(const char *, char **, int, unsigned long long *);
 extern int ddi_strtoll(const char *, char **, int, long long *);
 
+extern int ddi_copyin(const void *from, void *to, size_t len, int flags);
+extern int ddi_copyout(const void *from, void *to, size_t len, int flags);
+
 static __inline__ void ddi_report_dev(dev_info_t *d) { }
 static __inline__ void ddi_prop_remove_all(dev_info_t *dip) { }
 
