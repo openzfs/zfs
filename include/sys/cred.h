@@ -61,6 +61,18 @@ crgetgroups(cred_t *cr)
 	return NULL;
 }
 
+static __inline__ int
+groupmember(gid_t gid, const cred_t *cr)
+{
+	/* Primary group check */
+	if ((cr) && (gid == cr->cr_gid))
+		return 1;
+
+	/* Supplemental group check (unsupported) */
+	return 0;
+}
+
+
 #ifdef  __cplusplus
 }
 #endif
