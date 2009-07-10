@@ -3369,10 +3369,10 @@ ace_t full_access[] = {
 /*
  * Remove all ACL files in shares dir
  */
+#ifdef HAVE_ZPL
 static int
 zfs_smb_acl_purge(znode_t *dzp)
 {
-#ifdef HAVE_ZPL
 	zap_cursor_t	zc;
 	zap_attribute_t	zap;
 	zfsvfs_t *zfsvfs = dzp->z_zfsvfs;
@@ -3387,10 +3387,8 @@ zfs_smb_acl_purge(znode_t *dzp)
 	}
 	zap_cursor_fini(&zc);
 	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE ZPL */
 }
+#endif /* HAVE ZPL */
 
 static int
 zfs_ioc_smb_acl(zfs_cmd_t *zc)
