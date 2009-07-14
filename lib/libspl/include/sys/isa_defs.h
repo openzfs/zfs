@@ -50,6 +50,10 @@ extern "C" {
 #define _LP64
 #endif
 
+#if !defined(_LITTLE_ENDIAN)
+#define _LITTLE_ENDIAN
+#endif
+
 #define        _SUNOS_VTOC_16
 
 /* i386 arch specific defines */
@@ -65,6 +69,10 @@ extern "C" {
 
 #if !defined(_ILP32)
 #define _ILP32
+#endif
+
+#if !defined(_LITTLE_ENDIAN)
+#define _LITTLE_ENDIAN
 #endif
 
 #define        _SUNOS_VTOC_16
@@ -88,6 +96,10 @@ extern "C" {
 #endif
 #endif
 
+#if !defined(_BIG_ENDIAN)
+#define _BIG_ENDIAN
+#endif
+
 #define        _SUNOS_VTOC_16
 
 #else /* Currently only x86_64, i386, and powerpc arches supported */
@@ -96,6 +108,14 @@ extern "C" {
 
 #if defined(_ILP32) && defined(_LP64)
 #error "Both _ILP32 and _LP64 are defined"
+#endif
+
+#if defined(_LITTLE_ENDIAN) && defined(_BIG_ENDIAN)
+#error "Both _LITTLE_ENDIAN and _BIG_ENDIAN are defined"
+#endif
+
+#if !defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)
+#error "Neither _LITTLE_ENDIAN nor _BIG_ENDIAN are defined"
 #endif
 
 #ifdef  __cplusplus
