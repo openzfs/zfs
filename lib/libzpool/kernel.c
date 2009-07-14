@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
+#include <sys/signal.h>
 #include <sys/spa.h>
 #include <sys/stat.h>
 #include <sys/processor.h>
@@ -57,64 +58,157 @@ struct utsname utsname = {
  * =========================================================================
  */
 
-kmutex_t kthread_lock;
+/* NOTE: Tracking each tid on a list and using it for curthread lookups
+ *       is slow at best but it provides an easy way to provide a kthread
+ *       style API on top of pthreads.  For now we just want ztest to work
+ *       to validate correctness.  Performance is not much of an issue
+ *       since that is what the in-kernel version is for.  That said
+ *       reworking this to track the kthread_t structure as thread
+ *       specific data would be probably the best way to speed this up.
+ */
+
+pthread_cond_t kthread_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t kthread_lock = PTHREAD_MUTEX_INITIALIZER;
 list_t kthread_list;
 
-kthread_t *
-zk_curthread(void)
+static int
+thread_count(void)
 {
 	kthread_t *kt;
-	pthread_t tid;
+	int count = 0;
 
-	tid = pthread_self();
-	mutex_enter(&kthread_lock);
-        for (kt = list_head(&kthread_list); kt != NULL;
-	     kt = list_next(&kthread_list, kt)) {
+	for (kt = list_head(&kthread_list); kt != NULL;
+	     kt = list_next(&kthread_list, kt))
+		count++;
 
-		if (kt->t_id == tid) {
-			mutex_exit(&kthread_lock);
-			return kt;
-		}
-	}
-	mutex_exit(&kthread_lock);
-
-	return NULL;
+	return count;
 }
 
-kthread_t *
-zk_thread_create(thread_func_t func, void *arg)
+static void
+thread_init(void)
 {
 	kthread_t *kt;
 
+	/* Initialize list for tracking kthreads */
+	list_create(&kthread_list, sizeof (kthread_t),
+		    offsetof(kthread_t, t_node));
+
+	/* Create entry for primary kthread */
 	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
-
-	VERIFY(pthread_attr_init(&kt->t_attr) == 0);
-	VERIFY(pthread_attr_setdetachstate(&kt->t_attr,
-					   PTHREAD_CREATE_DETACHED) == 0);
-	VERIFY(pthread_create(&kt->t_id, &kt->t_attr,
-			      (void *(*)(void *))func, arg) == 0);
-
-	mutex_enter(&kthread_lock);
+	list_link_init(&kt->t_node);
+	VERIFY3U(kt->t_tid = pthread_self(), !=, 0);
+        VERIFY3S(pthread_attr_init(&kt->t_attr), ==, 0);
+	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
 	list_insert_head(&kthread_list, kt);
-	mutex_exit(&kthread_lock);
-
-	return kt;
+	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
 }
 
-void
-thread_exit(void)
+static void
+thread_fini(void)
 {
 	kthread_t *kt;
+	struct timespec ts = { 0 };
+	int count;
 
-	VERIFY((kt = curthread) != NULL);
+	/* Wait for all threads to exit via thread_exit() */
+	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
+	while ((count = thread_count()) > 1) {
+		printf("Waiting for %d\n", count);
+		clock_gettime(CLOCK_REALTIME, &ts);
+		ts.tv_sec += 1;
+		pthread_cond_timedwait(&kthread_cond, &kthread_lock, &ts);
+	}
 
-	mutex_enter(&kthread_lock);
+	ASSERT3S(thread_count(), ==, 1);
+	kt = list_head(&kthread_list);
 	list_remove(&kthread_list, kt);
-	mutex_exit(&kthread_lock);
+	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
 
 	VERIFY(pthread_attr_destroy(&kt->t_attr) == 0);
 	umem_free(kt, sizeof(kthread_t));
 
+	/* Cleanup list for tracking kthreads */
+	list_destroy(&kthread_list);
+}
+
+kthread_t *
+zk_thread_current(void)
+{
+	kt_did_t tid = pthread_self();
+	kthread_t *kt;
+	int count = 1;
+
+	/*
+	 * Because a newly created thread may call zk_thread_current()
+	 * before the thread parent has had time to add the thread's tid
+	 * to our lookup list.  We will loop as long as there are tid
+	 * which have not yet been set which must be one of ours.
+	 * Yes it's a hack, at some point we can just use native pthreads.
+	 */
+	while (count > 0) {
+		count = 0;
+		VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
+		for (kt = list_head(&kthread_list); kt != NULL;
+		     kt = list_next(&kthread_list, kt)) {
+
+			if (kt->t_tid == tid) {
+				VERIFY3S(pthread_mutex_unlock(
+				         &kthread_lock), ==, 0);
+				return kt;
+			}
+
+			if (kt->t_tid == (kt_did_t)-1)
+				count++;
+		}
+		VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+	}
+
+	/* Unreachable */
+	ASSERT(0);
+	return NULL;
+}
+
+kthread_t *
+zk_thread_create(caddr_t stk, size_t  stksize, thread_func_t func, void *arg,
+	      size_t len, void *pp, int state, pri_t pri)
+{
+	kthread_t *kt;
+
+	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
+	kt->t_tid = (kt_did_t)-1;
+	list_link_init(&kt->t_node);
+	VERIFY(pthread_attr_init(&kt->t_attr) == 0);
+
+	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
+	list_insert_head(&kthread_list, kt);
+	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+
+	VERIFY(pthread_create(&kt->t_tid, &kt->t_attr,
+			      (void *(*)(void *))func, arg) == 0);
+
+	return kt;
+}
+
+int
+zk_thread_join(kt_did_t tid, kthread_t *dtid, void **status)
+{
+	return pthread_join(tid, status);
+}
+
+void
+zk_thread_exit(void)
+{
+	kthread_t *kt;
+
+	VERIFY3P(kt = curthread, !=, NULL);
+	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
+	list_remove(&kthread_list, kt);
+	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+
+	VERIFY(pthread_attr_destroy(&kt->t_attr) == 0);
+	umem_free(kt, sizeof(kthread_t));
+
+	pthread_cond_broadcast(&kthread_cond);
 	pthread_exit(NULL);
 }
 
@@ -149,14 +243,14 @@ kstat_delete(kstat_t *ksp)
 void
 mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 {
-	ASSERT(type == MUTEX_DEFAULT);
-	ASSERT(cookie == NULL);
+	ASSERT3S(type, ==, MUTEX_DEFAULT);
+	ASSERT3P(cookie, ==, NULL);
 
 #ifdef IM_FEELING_LUCKY
-	ASSERT(mp->m_magic != MTX_MAGIC);
+	ASSERT3U(mp->m_magic, !=, MTX_MAGIC);
 #endif
 
-	mp->m_owner = NULL;
+	mp->m_owner = MTX_INIT;
 	mp->m_magic = MTX_MAGIC;
 	VERIFY3S(pthread_mutex_init(&mp->m_lock, NULL), ==, 0);
 }
@@ -164,31 +258,31 @@ mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 void
 mutex_destroy(kmutex_t *mp)
 {
-	ASSERT(mp->m_magic == MTX_MAGIC);
-	ASSERT(mp->m_owner == NULL);
+	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
+	ASSERT3P(mp->m_owner, ==, MTX_INIT);
 	VERIFY3S(pthread_mutex_destroy(&(mp)->m_lock), ==, 0);
-	mp->m_owner = (void *)-1UL;
+	mp->m_owner = MTX_DEST;
 	mp->m_magic = 0;
 }
 
 void
 mutex_enter(kmutex_t *mp)
 {
-	ASSERT(mp->m_magic == MTX_MAGIC);
-	ASSERT(mp->m_owner != (void *)-1UL);
-	ASSERT(mp->m_owner != curthread);
+	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
+	ASSERT3P(mp->m_owner, !=, MTX_DEST);
+	ASSERT3P(mp->m_owner, !=, curthread);
 	VERIFY3S(pthread_mutex_lock(&mp->m_lock), ==, 0);
-	ASSERT(mp->m_owner == NULL);
+	ASSERT3P(mp->m_owner, ==, MTX_INIT);
 	mp->m_owner = curthread;
 }
 
 int
 mutex_tryenter(kmutex_t *mp)
 {
-	ASSERT(mp->m_magic == MTX_MAGIC);
-	ASSERT(mp->m_owner != (void *)-1UL);
+	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
+	ASSERT3P(mp->m_owner, !=, MTX_DEST);
 	if (0 == pthread_mutex_trylock(&mp->m_lock)) {
-		ASSERT(mp->m_owner == NULL);
+		ASSERT3P(mp->m_owner, ==, MTX_INIT);
 		mp->m_owner = curthread;
 		return (1);
 	} else {
@@ -199,16 +293,16 @@ mutex_tryenter(kmutex_t *mp)
 void
 mutex_exit(kmutex_t *mp)
 {
-	ASSERT(mp->m_magic == MTX_MAGIC);
-	ASSERT(mutex_owner(mp) == curthread);
-	mp->m_owner = NULL;
+	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
+	ASSERT3P(mutex_owner(mp), ==, curthread);
+	mp->m_owner = MTX_INIT;
 	VERIFY3S(pthread_mutex_unlock(&mp->m_lock), ==, 0);
 }
 
 void *
 mutex_owner(kmutex_t *mp)
 {
-	ASSERT(mp->m_magic == MTX_MAGIC);
+	ASSERT3U(mp->m_magic, ==, MTX_MAGIC);
 	return (mp->m_owner);
 }
 
@@ -221,16 +315,16 @@ mutex_owner(kmutex_t *mp)
 void
 rw_init(krwlock_t *rwlp, char *name, int type, void *arg)
 {
-	ASSERT(type == RW_DEFAULT);
-	ASSERT(arg == NULL);
+	ASSERT3S(type, ==, RW_DEFAULT);
+	ASSERT3P(arg, ==, NULL);
 
 #ifdef IM_FEELING_LUCKY
-	ASSERT(rwlp->rw_magic != RW_MAGIC);
+	ASSERT3U(rwlp->rw_magic, !=, RW_MAGIC);
 #endif
 
 	VERIFY3S(pthread_rwlock_init(&rwlp->rw_lock, NULL), ==, 0);
-	rwlp->rw_owner = NULL;
-	rwlp->rw_wr_owner = NULL;
+	rwlp->rw_owner = RW_INIT;
+	rwlp->rw_wr_owner = RW_INIT;
 	rwlp->rw_readers = 0;
 	rwlp->rw_magic = RW_MAGIC;
 }
@@ -238,7 +332,7 @@ rw_init(krwlock_t *rwlp, char *name, int type, void *arg)
 void
 rw_destroy(krwlock_t *rwlp)
 {
-	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
 
 	VERIFY3S(pthread_rwlock_destroy(&rwlp->rw_lock), ==, 0);
 	rwlp->rw_magic = 0;
@@ -247,18 +341,18 @@ rw_destroy(krwlock_t *rwlp)
 void
 rw_enter(krwlock_t *rwlp, krw_t rw)
 {
-	ASSERT(rwlp->rw_magic == RW_MAGIC);
-	ASSERT(rwlp->rw_owner != curthread);
-	ASSERT(rwlp->rw_wr_owner != curthread);
+	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
+	ASSERT3P(rwlp->rw_owner, !=, curthread);
+	ASSERT3P(rwlp->rw_wr_owner, !=, curthread);
 
 	if (rw == RW_READER) {
 		VERIFY3S(pthread_rwlock_rdlock(&rwlp->rw_lock), ==, 0);
-		ASSERT(rwlp->rw_wr_owner == NULL);
+		ASSERT3P(rwlp->rw_wr_owner, ==, RW_INIT);
 
 		atomic_inc_uint(&rwlp->rw_readers);
 	} else {
 		VERIFY3S(pthread_rwlock_wrlock(&rwlp->rw_lock), ==, 0);
-		ASSERT(rwlp->rw_wr_owner == NULL);
+		ASSERT3P(rwlp->rw_wr_owner, ==, RW_INIT);
 		ASSERT3U(rwlp->rw_readers, ==, 0);
 
 		rwlp->rw_wr_owner = curthread;
@@ -270,15 +364,15 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 void
 rw_exit(krwlock_t *rwlp)
 {
-	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
 	ASSERT(RW_LOCK_HELD(rwlp));
 
 	if (RW_READ_HELD(rwlp))
 		atomic_dec_uint(&rwlp->rw_readers);
 	else
-		rwlp->rw_wr_owner = NULL;
+		rwlp->rw_wr_owner = RW_INIT;
 
-	rwlp->rw_owner = NULL;
+	rwlp->rw_owner = RW_INIT;
 	VERIFY3S(pthread_rwlock_unlock(&rwlp->rw_lock), ==, 0);
 }
 
@@ -287,7 +381,7 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 {
 	int rv;
 
-	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
 
 	if (rw == RW_READER)
 		rv = pthread_rwlock_tryrdlock(&rwlp->rw_lock);
@@ -295,7 +389,7 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 		rv = pthread_rwlock_trywrlock(&rwlp->rw_lock);
 
 	if (rv == 0) {
-		ASSERT(rwlp->rw_wr_owner == NULL);
+		ASSERT3P(rwlp->rw_wr_owner, ==, RW_INIT);
 
 		if (rw == RW_READER)
 			atomic_inc_uint(&rwlp->rw_readers);
@@ -317,7 +411,7 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {
-	ASSERT(rwlp->rw_magic == RW_MAGIC);
+	ASSERT3U(rwlp->rw_magic, ==, RW_MAGIC);
 
 	return (0);
 }
@@ -331,10 +425,10 @@ rw_tryupgrade(krwlock_t *rwlp)
 void
 cv_init(kcondvar_t *cv, char *name, int type, void *arg)
 {
-	ASSERT(type == CV_DEFAULT);
+	ASSERT3S(type, ==, CV_DEFAULT);
 
 #ifdef IM_FEELING_LUCKY
-	ASSERT(cv->cv_magic != CV_MAGIC);
+	ASSERT3U(cv->cv_magic, !=, CV_MAGIC);
 #endif
 
 	cv->cv_magic = CV_MAGIC;
@@ -345,7 +439,7 @@ cv_init(kcondvar_t *cv, char *name, int type, void *arg)
 void
 cv_destroy(kcondvar_t *cv)
 {
-	ASSERT(cv->cv_magic == CV_MAGIC);
+	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 	VERIFY3S(pthread_cond_destroy(&cv->cv), ==, 0);
 	cv->cv_magic = 0;
 }
@@ -353,9 +447,9 @@ cv_destroy(kcondvar_t *cv)
 void
 cv_wait(kcondvar_t *cv, kmutex_t *mp)
 {
-	ASSERT(cv->cv_magic == CV_MAGIC);
-	ASSERT(mutex_owner(mp) == curthread);
-	mp->m_owner = NULL;
+	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
+	ASSERT3P(mutex_owner(mp), ==, curthread);
+	mp->m_owner = MTX_INIT;
 	int ret = pthread_cond_wait(&cv->cv, &mp->m_lock);
 	if (ret != 0)
 		VERIFY3S(ret, ==, EINTR);
@@ -370,7 +464,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 	timestruc_t ts;
 	clock_t delta;
 
-	ASSERT(cv->cv_magic == CV_MAGIC);
+	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 
 top:
 	delta = abstime - lbolt;
@@ -386,8 +480,8 @@ top:
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	ASSERT(mutex_owner(mp) == curthread);
-	mp->m_owner = NULL;
+	ASSERT3P(mutex_owner(mp), ==, curthread);
+	mp->m_owner = MTX_INIT;
 	error = pthread_cond_timedwait(&cv->cv, &mp->m_lock, &ts);
 	mp->m_owner = curthread;
 
@@ -405,14 +499,14 @@ top:
 void
 cv_signal(kcondvar_t *cv)
 {
-	ASSERT(cv->cv_magic == CV_MAGIC);
+	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 	VERIFY3S(pthread_cond_signal(&cv->cv), ==, 0);
 }
 
 void
 cv_broadcast(kcondvar_t *cv)
 {
-	ASSERT(cv->cv_magic == CV_MAGIC);
+	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
 	VERIFY3S(pthread_cond_broadcast(&cv->cv), ==, 0);
 }
 
@@ -896,12 +990,8 @@ kernel_init(int mode)
 	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
 	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
 
-	mutex_init(&kthread_lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&kthread_list, sizeof (kthread_t),
-		    offsetof(kthread_t, t_node));
-
+	thread_init();
 	system_taskq_init();
-
 	spa_init(mode);
 }
 
@@ -909,9 +999,8 @@ void
 kernel_fini(void)
 {
 	spa_fini();
-
-	list_destroy(&kthread_list);
-	mutex_destroy(&kthread_lock);
+	system_taskq_fini();
+	thread_fini();
 
 	close(random_fd);
 	close(urandom_fd);

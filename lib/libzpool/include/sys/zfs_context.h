@@ -192,24 +192,34 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-#define	tsd_get(key)		pthread_getspecific(key)
-#define	tsd_set(key, val)	pthread_setspecific(key, val)
+#define THR_BOUND		0x00000001
+#define TS_RUN			0x00000002
 
 typedef void (*thread_func_t)(void *);
+typedef pthread_t kt_did_t;
+
 typedef struct kthread {
         list_node_t	t_node;
-	pthread_t	t_id;
+	kt_did_t	t_tid;
 	pthread_attr_t	t_attr;
 } kthread_t;
 
-#define	curthread		zk_curthread()
-#define thread_create(stk, stksize, func, arg, len, pp, state, pri) \
-				zk_thread_create((thread_func_t)func, arg)
-#define thr_join(kt, v1, v2)	pthread_join(kt->t_id, v2)
+#define	tsd_get(key)		pthread_getspecific(key)
+#define	tsd_set(key, val)	pthread_setspecific(key, val)
+#define	curthread		zk_thread_current()
+#define thread_exit		zk_thread_exit
+#define thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
+			 len, NULL, state, pri)
+#define thread_join(tid, dtid, status)					\
+	zk_thread_join(tid, dtid, status)
 
-extern kthread_t *zk_curthread(void);
-extern kthread_t *zk_thread_create(thread_func_t func, void *arg);
-extern void thread_exit(void);
+extern kthread_t *zk_thread_current(void);
+extern void zk_thread_exit(void);
+extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
+	thread_func_t func, void *arg, size_t len,
+	void *pp, int state, pri_t pri);
+extern int zk_thread_join(kt_did_t tid, kthread_t *dtid, void **status);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
@@ -218,6 +228,8 @@ extern void thread_exit(void);
  * Mutexes
  */
 #define MTX_MAGIC 0x9522f51362a6e326ull
+#define MTX_INIT  (void *)NULL
+#define MTX_DEST  (void *)-1UL
 typedef struct kmutex {
 	void		*m_owner;
 	uint64_t	m_magic;
@@ -238,6 +250,8 @@ extern void *mutex_owner(kmutex_t *mp);
  * RW locks
  */
 #define RW_MAGIC 0x4d31fb123648e78aull
+#define RW_INIT  (void *)NULL
+#define RW_DEST  (void *)-1UL
 typedef struct krwlock {
 	void			*rw_owner;
 	void			*rw_wr_owner;
@@ -339,6 +353,7 @@ extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
 extern int	taskq_member(taskq_t *, void *);
 extern void	system_taskq_init(void);
+extern void	system_taskq_fini(void);
 
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
