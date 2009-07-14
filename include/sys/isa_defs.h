@@ -73,7 +73,11 @@ extern "C" {
 #endif
 
 #if defined(_LITTLE_ENDIAN) && defined(_BIG_ENDIAN)
-#error "Both _LITTLE_ENDIAN and __BIG_ENDIAN are defined"
+#error "Both _LITTLE_ENDIAN and _BIG_ENDIAN are defined"
+#endif
+
+#if !defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)
+#error "Neither _LITTLE_ENDIAN or _BIG_ENDIAN are defined"
 #endif
 
 #ifdef  __cplusplus
