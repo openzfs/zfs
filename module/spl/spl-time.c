@@ -62,7 +62,7 @@ __gethrtime(void) {
 #else
         uint64_t j = get_jiffies_64();
 
-        return (hrtime_t)(j * NSEC_PER_SEC / HZ);
+        return (hrtime_t)(j * (NSEC_PER_SEC / HZ));
 #endif
 }
 EXPORT_SYMBOL(__gethrtime);
