@@ -113,7 +113,6 @@ thread_fini(void)
 	/* Wait for all threads to exit via thread_exit() */
 	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
 	while ((count = thread_count()) > 1) {
-		printf("Waiting for %d\n", count);
 		clock_gettime(CLOCK_REALTIME, &ts);
 		ts.tv_sec += 1;
 		pthread_cond_timedwait(&kthread_cond, &kthread_lock, &ts);
