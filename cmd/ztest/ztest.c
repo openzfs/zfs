@@ -141,6 +141,7 @@ typedef struct ztest_args {
 	objset_t	*za_os;
 	zilog_t		*za_zilog;
 	kthread_t	*za_thread;
+	kt_did_t	za_threadid;
 	uint64_t	za_instance;
 	uint64_t	za_random;
 	uint64_t	za_diroff;
@@ -3820,6 +3821,8 @@ ztest_resume_thread(void *arg)
 		(void) poll(NULL, 0, 1000);
 		ztest_resume(spa);
 	}
+
+	thread_exit();
 	return (NULL);
 }
 
@@ -3884,6 +3887,7 @@ ztest_thread(void *arg)
 			break;
 	}
 
+	thread_exit();
 	return (NULL);
 }
 
@@ -3899,6 +3903,7 @@ ztest_run(char *pool)
 	spa_t *spa;
 	char name[100];
 	kthread_t *resume_thread;
+	kt_did_t resume_id;
 
 	ztest_exiting = B_FALSE;
 
@@ -3977,8 +3982,9 @@ ztest_run(char *pool)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	resume_thread = thread_create(NULL, 0, ztest_resume_thread, spa,
-				      THR_BOUND, NULL, 0, 0);
+	VERIFY3P((resume_thread = thread_create(NULL, 0, ztest_resume_thread,
+	         spa, THR_BOUND, NULL, 0, 0)), !=, NULL);
+	resume_id = resume_thread->t_tid;
 
 	/*
 	 * Verify that we can safely inquire about about any object,
@@ -4054,12 +4060,13 @@ ztest_run(char *pool)
 			za[d].za_zilog = zil_open(za[d].za_os, NULL);
 		}
 
-		za[t].za_thread = thread_create(NULL, 0, ztest_thread, &za[t],
-						THR_BOUND, NULL, 0, 0);
+		VERIFY3P((za[t].za_thread = thread_create(NULL, 0, ztest_thread,
+		         &za[t], THR_BOUND, NULL, 0, 0)), !=, NULL);
+		za[t].za_threadid = za[t].za_thread->t_tid;
 	}
 
 	while (--t >= 0) {
-		VERIFY(thr_join(za[t].za_thread, NULL, NULL) == 0);
+		VERIFY(thread_join(za[t].za_threadid, NULL, NULL) == 0);
 		if (t < zopt_datasets) {
 			zil_close(za[t].za_zilog);
 			dmu_objset_close(za[t].za_os);
@@ -4098,7 +4105,7 @@ ztest_run(char *pool)
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
-	VERIFY(thr_join(resume_thread, NULL, NULL) == 0);
+	VERIFY(thread_join(resume_id, NULL, NULL) == 0);
 	ztest_resume(spa);
 
 	/*
