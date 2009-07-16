@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ARCH TARGET_ARCH_DIR CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -19298,28 +19298,22 @@ fi
  ;;
 		user)
 
-	echo "$as_me:$LINENO: checking for target arch" >&5
-echo $ECHO_N "checking for target arch... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking for target asm dir" >&5
+echo $ECHO_N "checking for target asm dir... $ECHO_C" >&6
 	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
-	TARGET_ARCH_DIR=asm-$TARGET_ARCH
-        echo "$as_me:$LINENO: result: $TARGET_ARCH" >&5
-echo "${ECHO_T}$TARGET_ARCH" >&6
 
 	case $TARGET_ARCH in
-	i386|x86_64|powerpc64)
-
-
+	i386|x86_64)
+		TARGET_ASM_DIR=asm-${TARGET_ARCH}
 		;;
 	*)
-                { { echo "$as_me:$LINENO: error:
-		*** Unsupported architecture $TARGET_ARCH
-		*** Available architectures: x86, x86_64, powerpc64" >&5
-echo "$as_me: error:
-		*** Unsupported architecture $TARGET_ARCH
-		*** Available architectures: x86, x86_64, powerpc64" >&2;}
-   { (exit 1); exit 1; }; }
+		TARGET_ASM_DIR=asm-generic
 		;;
 	esac
+
+
+	echo "$as_me:$LINENO: result: $TARGET_ASM_DIR" >&5
+echo "${ECHO_T}$TARGET_ASM_DIR" >&6
 
 
 	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
@@ -20256,28 +20250,22 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking for target arch" >&5
-echo $ECHO_N "checking for target arch... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking for target asm dir" >&5
+echo $ECHO_N "checking for target asm dir... $ECHO_C" >&6
 	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
-	TARGET_ARCH_DIR=asm-$TARGET_ARCH
-        echo "$as_me:$LINENO: result: $TARGET_ARCH" >&5
-echo "${ECHO_T}$TARGET_ARCH" >&6
 
 	case $TARGET_ARCH in
-	i386|x86_64|powerpc64)
-
-
+	i386|x86_64)
+		TARGET_ASM_DIR=asm-${TARGET_ARCH}
 		;;
 	*)
-                { { echo "$as_me:$LINENO: error:
-		*** Unsupported architecture $TARGET_ARCH
-		*** Available architectures: x86, x86_64, powerpc64" >&5
-echo "$as_me: error:
-		*** Unsupported architecture $TARGET_ARCH
-		*** Available architectures: x86, x86_64, powerpc64" >&2;}
-   { (exit 1); exit 1; }; }
+		TARGET_ASM_DIR=asm-generic
 		;;
 	esac
+
+
+	echo "$as_me:$LINENO: result: $TARGET_ASM_DIR" >&5
+echo "${ECHO_T}$TARGET_ASM_DIR" >&6
 
 
 	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
@@ -20991,7 +20979,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/asm-powerpc64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec zfs-modules.spec"
+                                                                                                                                                                                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec zfs-modules.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -21576,9 +21564,9 @@ do
   "doc/Makefile" ) CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
   "lib/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
   "lib/libspl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/Makefile" ;;
+  "lib/libspl/asm-generic/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-generic/Makefile" ;;
   "lib/libspl/asm-i386/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-i386/Makefile" ;;
   "lib/libspl/asm-x86_64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-x86_64/Makefile" ;;
-  "lib/libspl/asm-powerpc64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-powerpc64/Makefile" ;;
   "lib/libspl/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/include/Makefile" ;;
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
@@ -21795,8 +21783,7 @@ s,@SPL_VERSION@,$SPL_VERSION,;t t
 s,@SPL_SYMBOLS@,$SPL_SYMBOLS,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
-s,@TARGET_ARCH@,$TARGET_ARCH,;t t
-s,@TARGET_ARCH_DIR@,$TARGET_ARCH_DIR,;t t
+s,@TARGET_ASM_DIR@,$TARGET_ASM_DIR,;t t
 s,@CONFIG_USER_TRUE@,$CONFIG_USER_TRUE,;t t
 s,@CONFIG_USER_FALSE@,$CONFIG_USER_FALSE,;t t
 s,@CONFIG_KERNEL_TRUE@,$CONFIG_KERNEL_TRUE,;t t
