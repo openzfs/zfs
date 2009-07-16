@@ -111,7 +111,6 @@ void atomic_add_ptr(volatile void *target, ssize_t bits)
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
 	}
 
-ATOMIC_OR(long, ulong_t)
 ATOMIC_OR(8, uint8_t)
 ATOMIC_OR(uchar, uchar_t)
 ATOMIC_OR(16, uint16_t)
@@ -130,7 +129,6 @@ ATOMIC_OR(64, uint64_t)
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
 	}
 
-ATOMIC_AND(long, ulong_t)
 ATOMIC_AND(8, uint8_t)
 ATOMIC_AND(uchar, uchar_t)
 ATOMIC_AND(16, uint16_t)
