@@ -74,7 +74,7 @@ extern void __assert(const char *, const char *, int);
 			(u_longlong_t)__left, #OP, (u_longlong_t)__right); \
 		__assert(__buf, __FILE__, __LINE__); \
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 /* END CSTYLED */
 
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
