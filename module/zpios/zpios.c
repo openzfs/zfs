@@ -40,7 +40,8 @@
 #include "zpios-internal.h"
 
 
-static struct class *zpios_class;
+static spl_class *zpios_class;
+static spl_device *zpios_device;
 
 
 static
@@ -1237,7 +1238,7 @@ static struct file_operations zpios_fops = {
 
 static struct cdev zpios_cdev = {
 	.owner  =       THIS_MODULE,
-	.kobj   =       { .name = "zpios", },
+	.kobj   =       { .name = ZPIOS_NAME, },
 };
 
 static int __init
@@ -1247,7 +1248,7 @@ zpios_init(void)
 	int rc;
 
 	dev = MKDEV(ZPIOS_MAJOR, 0);
-	if ((rc = register_chrdev_region(dev, ZPIOS_MINORS, "zpios")))
+	if ((rc = register_chrdev_region(dev, ZPIOS_MINORS, ZPIOS_NAME)))
 		goto error;
 
 	/* Support for registering a character driver */
@@ -1260,7 +1261,7 @@ zpios_init(void)
 	}
 
 	/* Support for udev make driver info available in sysfs */
-	zpios_class = class_create(THIS_MODULE, "zpios");
+	zpios_class = spl_class_create(THIS_MODULE, ZPIOS_NAME);
 	if (IS_ERR(zpios_class)) {
 		rc = PTR_ERR(zpios_class);
 		printk(KERN_ERR "ZPIOS: Error creating zpios class, %d\n", rc);
@@ -1269,7 +1270,8 @@ zpios_init(void)
 		goto error;
 	}
 
-	spl_device_create(zpios_class, NULL, dev, NULL, "zpios");
+	zpios_device = spl_device_create(zpios_class, NULL,
+					 dev, NULL, ZPIOS_NAME);
 	return 0;
 error:
 	printk(KERN_ERR "ZPIOS: Error registering zpios device, %d\n", rc);
@@ -1281,9 +1283,8 @@ zpios_fini(void)
 {
 	dev_t dev = MKDEV(ZPIOS_MAJOR, 0);
 
-	spl_device_destroy(zpios_class, NULL, dev);
-	class_destroy(zpios_class);
-
+	spl_device_destroy(zpios_class, zpios_device, dev);
+	spl_class_destroy(zpios_class);
 	cdev_del(&zpios_cdev);
 	unregister_chrdev_region(dev, ZPIOS_MINORS);
 
