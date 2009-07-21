@@ -43,15 +43,6 @@
 static struct class *zpios_class;
 
 
-static inline
-struct timespec timespec_add(struct timespec lhs, struct timespec rhs)
-{
-        struct timespec ts_delta;
-        set_normalized_timespec(&ts_delta, lhs.tv_sec + rhs.tv_sec,
-                                lhs.tv_nsec + rhs.tv_nsec);
-        return ts_delta;
-}
-
 static
 int zpios_upcall(char *path, char *phase, run_args_t *run_args, int rc)
 {
@@ -175,7 +166,7 @@ zpios_dmu_setup(run_args_t *run_args)
 	int i, rc = 0;
 
 	(void)zpios_upcall(run_args->pre, PHASE_PRE_CREATE, run_args, 0);
-	t->start = current_kernel_time();
+	t->start = zpios_timespec_now();
 
         rc = dmu_objset_open(run_args->pool, DMU_OST_ZFS, DS_MODE_USER, &os);
         if (rc) {
@@ -224,8 +215,8 @@ zpios_dmu_setup(run_args_t *run_args)
 
 	run_args->os = os;
 out:
-	t->stop = current_kernel_time();
-	t->delta = timespec_sub(t->stop, t->start);
+	t->stop  = zpios_timespec_now();
+	t->delta = zpios_timespec_sub(t->stop, t->start);
 	(void)zpios_upcall(run_args->post, PHASE_POST_CREATE, run_args, rc);
 
 	return rc;
@@ -320,9 +311,9 @@ zpios_get_work_item(run_args_t *run_args, dmu_obj_t *obj, __u64 *offset,
 			i++;
 			count++;
 
-			if (unlikely(rw_time->stop.tv_sec == 0) &&
-			    unlikely(rw_time->stop.tv_nsec == 0))
-				rw_time->stop = current_kernel_time();
+			if (unlikely(rw_time->stop.ts_sec == 0) &&
+			    unlikely(rw_time->stop.ts_nsec == 0))
+				rw_time->stop = zpios_timespec_now();
 
 			continue;
 		}
@@ -357,7 +348,7 @@ zpios_remove_objects(run_args_t *run_args)
 	int rc = 0, i;
 
 	(void)zpios_upcall(run_args->pre, PHASE_PRE_REMOVE, run_args, 0);
-	t->start = current_kernel_time();
+	t->start = zpios_timespec_now();
 
 	if (run_args->flags & DMU_REMOVE) {
 		if (run_args->flags & DMU_FPP) {
@@ -385,8 +376,8 @@ zpios_remove_objects(run_args_t *run_args)
 
 	dmu_objset_close(run_args->os);
 
-	t->stop = current_kernel_time();
-	t->delta = timespec_sub(t->stop, t->start);
+	t->stop  = zpios_timespec_now();
+	t->delta = zpios_timespec_sub(t->stop, t->start);
 	(void)zpios_upcall(run_args->post, PHASE_POST_REMOVE, run_args, rc);
 }
 
@@ -514,7 +505,7 @@ zpios_thread_main(void *data)
 
 	/* Write phase */
 	mutex_enter(&thr->lock);
-	thr->stats.wr_time.start = current_kernel_time();
+	thr->stats.wr_time.start = zpios_timespec_now();
 	mutex_exit(&thr->lock);
 
 	while (zpios_get_work_item(run_args, &obj, &offset,
@@ -526,11 +517,11 @@ zpios_thread_main(void *data)
 			schedule_timeout(thread_delay_tmp); /* In jiffies */
 		}
 
-		t.start = current_kernel_time();
+		t.start = zpios_timespec_now();
 		rc = zpios_dmu_write(run_args, obj.os, obj.obj,
 				     offset, chunk_size, buf);
-		t.stop = current_kernel_time();
-		t.delta = timespec_sub(t.stop, t.start);
+		t.stop  = zpios_timespec_now();
+		t.delta = zpios_timespec_sub(t.stop, t.start);
 
 		if (rc) {
 			zpios_print(run_args->file, "IO error while doing "
@@ -541,14 +532,14 @@ zpios_thread_main(void *data)
 		mutex_enter(&thr->lock);
 		thr->stats.wr_data += chunk_size;
 		thr->stats.wr_chunks++;
-		thr->stats.wr_time.delta = timespec_add(
+		thr->stats.wr_time.delta = zpios_timespec_add(
 		        thr->stats.wr_time.delta, t.delta);
 		mutex_exit(&thr->lock);
 
 		mutex_enter(&region->lock);
 		region->stats.wr_data += chunk_size;
 		region->stats.wr_chunks++;
-		region->stats.wr_time.delta = timespec_add(
+		region->stats.wr_time.delta = zpios_timespec_add(
 		        region->stats.wr_time.delta, t.delta);
 
 		/* First time region was accessed */
@@ -564,7 +555,7 @@ zpios_thread_main(void *data)
 
 	mutex_enter(&thr->lock);
 	thr->rc = rc;
-	thr->stats.wr_time.stop = current_kernel_time();
+	thr->stats.wr_time.stop = zpios_timespec_now();
 	mutex_exit(&thr->lock);
 	wake_up(&run_args->waitq);
 
@@ -580,7 +571,7 @@ zpios_thread_main(void *data)
 
 	/* Read phase */
 	mutex_enter(&thr->lock);
-	thr->stats.rd_time.start = current_kernel_time();
+	thr->stats.rd_time.start = zpios_timespec_now();
 	mutex_exit(&thr->lock);
 
 	while (zpios_get_work_item(run_args, &obj, &offset,
@@ -595,11 +586,11 @@ zpios_thread_main(void *data)
 		if (run_args->flags & DMU_VERIFY)
 			memset(buf, 0, chunk_size);
 
-		t.start = current_kernel_time();
+		t.start = zpios_timespec_now();
 		rc = zpios_dmu_read(run_args, obj.os, obj.obj,
 				    offset, chunk_size, buf);
-		t.stop = current_kernel_time();
-		t.delta = timespec_sub(t.stop, t.start);
+		t.stop  = zpios_timespec_now();
+		t.delta = zpios_timespec_sub(t.stop, t.start);
 
 		if (rc) {
 			zpios_print(run_args->file, "IO error while doing "
@@ -623,14 +614,14 @@ zpios_thread_main(void *data)
 		mutex_enter(&thr->lock);
 		thr->stats.rd_data += chunk_size;
 		thr->stats.rd_chunks++;
-		thr->stats.rd_time.delta = timespec_add(
+		thr->stats.rd_time.delta = zpios_timespec_add(
 		        thr->stats.rd_time.delta, t.delta);
 		mutex_exit(&thr->lock);
 
 		mutex_enter(&region->lock);
 		region->stats.rd_data += chunk_size;
 		region->stats.rd_chunks++;
-		region->stats.rd_time.delta = timespec_add(
+		region->stats.rd_time.delta = zpios_timespec_add(
 		        region->stats.rd_time.delta, t.delta);
 
 		/* First time region was accessed */
@@ -646,7 +637,7 @@ zpios_thread_main(void *data)
 
 	mutex_enter(&thr->lock);
 	thr->rc = rc;
-	thr->stats.rd_time.stop = current_kernel_time();
+	thr->stats.rd_time.stop = zpios_timespec_now();
 	mutex_exit(&thr->lock);
 	wake_up(&run_args->waitq);
 
@@ -713,7 +704,7 @@ zpios_threads_run(run_args_t *run_args)
 		tsks[i] = tsk;
 	}
 
-	tt->start = current_kernel_time();
+	tt->start = zpios_timespec_now();
 
 	/* Wake up all threads for write phase */
 	(void)zpios_upcall(run_args->pre, PHASE_PRE_WRITE, run_args, 0);
@@ -721,9 +712,9 @@ zpios_threads_run(run_args_t *run_args)
 		wake_up_process(tsks[i]);
 
 	/* Wait for write phase to complete */
-	tw->start = current_kernel_time();
+	tw->start = zpios_timespec_now();
 	wait_event(run_args->waitq, zpios_thread_done(run_args));
-	tw->stop = current_kernel_time();
+	tw->stop = zpios_timespec_now();
 	(void)zpios_upcall(run_args->post, PHASE_POST_WRITE, run_args, rc);
 
 	for (i = 0; i < tc; i++) {
@@ -762,9 +753,9 @@ zpios_threads_run(run_args_t *run_args)
 		wake_up_process(tsks[i]);
 
 	/* Wait for read phase to complete */
-	tr->start = current_kernel_time();
+	tr->start = zpios_timespec_now();
 	wait_event(run_args->waitq, zpios_thread_done(run_args));
-	tr->stop = current_kernel_time();
+	tr->stop = zpios_timespec_now();
 	(void)zpios_upcall(run_args->post, PHASE_POST_READ, run_args, rc);
 
 	for (i = 0; i < tc; i++) {
@@ -780,10 +771,10 @@ zpios_threads_run(run_args_t *run_args)
 		mutex_exit(&thr->lock);
 	}
 out:
-	tt->stop = current_kernel_time();
-	tt->delta = timespec_sub(tt->stop, tt->start);
-	tw->delta = timespec_sub(tw->stop, tw->start);
-	tr->delta = timespec_sub(tr->stop, tr->start);
+	tt->stop  = zpios_timespec_now();
+	tt->delta = zpios_timespec_sub(tt->stop, tt->start);
+	tw->delta = zpios_timespec_sub(tw->stop, tw->start);
+	tr->delta = zpios_timespec_sub(tr->stop, tr->start);
 
 cleanup:
 	kmem_free(tsks, sizeof(struct task_struct *) * tc);
@@ -1082,7 +1073,7 @@ static int
 zpios_ioctl(struct inode *inode, struct file *file,
             unsigned int cmd, unsigned long arg)
 {
-        unsigned int minor = iminor(file->f_dentry->d_inode);
+        unsigned int minor = iminor(inode);
 	int rc = 0;
 
 	/* Ignore tty ioctls */
@@ -1107,6 +1098,15 @@ zpios_ioctl(struct inode *inode, struct file *file,
 
 	return rc;
 }
+
+#ifdef CONFIG_COMPAT
+/* Compatibility handler for ioctls from 32-bit ELF binaries */
+static long
+zpios_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return zpios_ioctl(file->f_dentry->d_inode, file, cmd, arg);
+}
+#endif /* CONFIG_COMPAT */
 
 /* I'm not sure why you would want to write in to this buffer from
  * user space since its principle use is to pass test status info
@@ -1223,13 +1223,16 @@ static loff_t zpios_seek(struct file *file, loff_t offset, int origin)
 }
 
 static struct file_operations zpios_fops = {
-	.owner   = THIS_MODULE,
-	.open    = zpios_open,
-	.release = zpios_release,
-	.ioctl   = zpios_ioctl,
-	.read    = zpios_read,
-	.write   = zpios_write,
-	.llseek  = zpios_seek,
+	.owner		= THIS_MODULE,
+	.open		= zpios_open,
+	.release	= zpios_release,
+	.ioctl		= zpios_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= zpios_compat_ioctl,
+#endif
+	.read		= zpios_read,
+	.write		= zpios_write,
+	.llseek		= zpios_seek,
 };
 
 static struct cdev zpios_cdev = {
