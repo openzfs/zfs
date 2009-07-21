@@ -23,6 +23,7 @@
 #        --regionsize_incr   -C    =value
 #        --load              -L    =dmuio|ssf|fpp
 #        --pool              -p    =pool name
+#        --name              -M    =test name
 #        --cleanup           -x
 #        --prerun            -P    =pre-command
 #        --postrun           -R    =post-command
@@ -40,21 +41,25 @@
 ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
 	--load=dmuio                                             \
 	--pool=${ZPOOL_NAME}                                     \
+	--name=${ZPOOL_CONFIG}                                   \
 	--threadcount=16                                         \
 	--regioncount=8192                                       \
 	--regionsize=4M                                          \
 	--chunksize=1M                                           \
 	--offset=4M                                              \
 	--cleanup                                                \
-	--verbose                                                \
 	--human-readable                                         \
 	${ZPIOS_OPTIONS}"
 
 zpios_start() {
-	echo ${ZPIOS_CMD}
+	if [ ${VERBOSE} ]; then
+		ZPIOS_CMD="${ZPIOS_CMD} --verbose"
+		echo ${ZPIOS_CMD}
+	fi
+
 	${ZPIOS_CMD} || exit 1
 }
 
 zpios_stop() {
-	echo
+	[ ${VERBOSE} ] && echo
 }

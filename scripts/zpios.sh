@@ -233,8 +233,6 @@ if [ ${PROFILE} ]; then
 	zpios_profile_start
 fi
 
-echo
-echo "${DATE}"
 zpios_start
 zpios_stop
 
