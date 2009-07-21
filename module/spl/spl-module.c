@@ -54,7 +54,7 @@ out:
 }
 
 static int
-mod_generic_ioctl(struct inode *ino, struct file *filp,
+mod_generic_ioctl(struct inode *ino, struct file *file,
 		  unsigned int cmd, unsigned long arg)
 {
 	struct dev_info *di;
@@ -66,10 +66,20 @@ mod_generic_ioctl(struct inode *ino, struct file *filp,
 		return EINVAL;
 
 	rc = di->di_ops->devo_cb_ops->cb_ioctl(di->di_dev,
-	                                       (int)cmd,(intptr_t)arg,
+	                                       (int)cmd, (intptr_t)arg,
 	                                       flags, cr, &rvalp);
 	return rc;
 }
+
+#ifdef CONFIG_COMPAT
+/* Compatibility handler for ioctls from 32-bit ELF binaries */
+static long
+mod_generic_compat_ioctl(struct file *file,
+			 unsigned int cmd, unsigned long arg)
+{
+	return mod_generic_ioctl(file->f_dentry->d_inode, file, cmd, arg);
+}
+#endif /* CONFIG_COMPAT */
 
 int
 __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
@@ -107,8 +117,12 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	/* Setup the fops to cb_ops mapping */
 	fops->owner = mod;
-	if (cb_ops->cb_ioctl)
+	if (cb_ops->cb_ioctl) {
 		fops->ioctl = mod_generic_ioctl;
+#ifdef CONFIG_COMPAT
+		fops->compat_ioctl = mod_generic_compat_ioctl;
+#endif
+	}
 
 #if 0
 	if (cb_ops->cb_open)
