@@ -131,13 +131,6 @@ print_flags(char *str, uint32_t flags)
 	return str;
 }
 
-static double
-timespec_to_double(struct timespec t)
-{
-	return ((double)(t.tv_sec) +
-	        ((double)(t.tv_nsec) / (double)(1000*1000*1000)));
-}
-
 static int
 regex_match(const char *string, char *pattern)
 {
@@ -352,11 +345,11 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 	}
 
 	summary_stats = (zpios_stats_t *)cmd->cmd_data_str;
-	t_time  = timespec_to_double(summary_stats->total_time.delta);
-	wr_time = timespec_to_double(summary_stats->wr_time.delta);
-	rd_time = timespec_to_double(summary_stats->rd_time.delta);
-	cr_time = timespec_to_double(summary_stats->cr_time.delta);
-	rm_time = timespec_to_double(summary_stats->rm_time.delta);
+	t_time  = zpios_timespec_to_double(summary_stats->total_time.delta);
+	wr_time = zpios_timespec_to_double(summary_stats->wr_time.delta);
+	rd_time = zpios_timespec_to_double(summary_stats->rd_time.delta);
+	cr_time = zpios_timespec_to_double(summary_stats->cr_time.delta);
+	rm_time = zpios_timespec_to_double(summary_stats->rm_time.delta);
 
 	printf("%.2f\t", t_time);
 	printf("%.3f\t", cr_time);
@@ -402,24 +395,24 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 	}
 
 	summary_stats = (zpios_stats_t *)cmd->cmd_data_str;
-	wr_time = timespec_to_double(summary_stats->wr_time.delta);
-	rd_time = timespec_to_double(summary_stats->rd_time.delta);
+	wr_time = zpios_timespec_to_double(summary_stats->wr_time.delta);
+	rd_time = zpios_timespec_to_double(summary_stats->rd_time.delta);
 
 	printf("%ld.%02ld\t",
-	       summary_stats->total_time.delta.tv_sec,
-	       summary_stats->total_time.delta.tv_nsec);
+	       (long)summary_stats->total_time.delta.ts_sec,
+	       (long)summary_stats->total_time.delta.ts_nsec);
 	printf("%ld.%02ld\t",
-	       summary_stats->cr_time.delta.tv_sec,
-	       summary_stats->cr_time.delta.tv_nsec);
+	       (long)summary_stats->cr_time.delta.ts_sec,
+	       (long)summary_stats->cr_time.delta.ts_nsec);
 	printf("%ld.%02ld\t",
-	       summary_stats->rm_time.delta.tv_sec,
-	       summary_stats->rm_time.delta.tv_nsec);
+	       (long)summary_stats->rm_time.delta.ts_sec,
+	       (long)summary_stats->rm_time.delta.ts_nsec);
 	printf("%ld.%02ld\t",
-	       summary_stats->wr_time.delta.tv_sec,
-	       summary_stats->wr_time.delta.tv_nsec);
+	       (long)summary_stats->wr_time.delta.ts_sec,
+	       (long)summary_stats->wr_time.delta.ts_nsec);
 	printf("%ld.%02ld\t",
-	       summary_stats->rd_time.delta.tv_sec,
-	       summary_stats->rd_time.delta.tv_nsec);
+	       (long)summary_stats->rd_time.delta.ts_sec,
+	       (long)summary_stats->rd_time.delta.ts_nsec);
 
         printf("%lld\t", (long long unsigned)summary_stats->wr_data);
         printf("%lld\t", (long long unsigned)summary_stats->wr_chunks);
