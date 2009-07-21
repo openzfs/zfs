@@ -293,7 +293,7 @@ check_mutual_exclusive_command_lines(uint32_t flag, char *arg)
 		return 0;
 	}
 
-	if ((flag & (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) && !(flag & FLAG_SET)) {
+	if ((flag & (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) && !(flag & FLAG_SET)){
 		if (flag != (FLAG_LOW | FLAG_HIGH | FLAG_INCR)) {
 			fprintf(stderr, "Error: One or more values missing "
 			        "from --%s_low, --%s_high, --%s_incr.\n",
@@ -306,14 +306,24 @@ check_mutual_exclusive_command_lines(uint32_t flag, char *arg)
 }
 
 void
-print_stats_header(void)
+print_stats_header(cmd_args_t *args)
 {
-	printf("ret-code    id\tth-cnt\trg-cnt\trg-sz\tch-sz\toffset\trg-no\tch-no\t"
-	       "th-dly\tflags\ttime\tcr-time\trm-time\twr-time\t"
-	       "rd-time\twr-data\twr-ch\twr-bw\trd-data\trd-ch\trd-bw\n");
-	printf("------------------------------------------------------------"
-	       "------------------------------------------------------------"
-	       "-----------------------------------------------------------\n");
+	if (args->verbose) {
+		printf("status    name        id\tth-cnt\trg-cnt\trg-sz\t"
+		       "ch-sz\toffset\trg-no\tch-no\tth-dly\tflags\ttime\t"
+		       "cr-time\trm-time\twr-time\trd-time\twr-data\twr-ch\t"
+		       "wr-bw\trd-data\trd-ch\trd-bw\n");
+		printf("------------------------------------------------"
+		       "------------------------------------------------"
+		       "------------------------------------------------"
+		       "----------------------------------------------\n");
+	} else {
+		printf("status    name        id\t"
+		       "wr-data\twr-ch\twr-bw\t"
+		       "rd-data\trd-ch\trd-bw\n");
+		printf("-----------------------------------------"
+		       "--------------------------------------\n");
+	}
 }
 
 static void
@@ -324,20 +334,24 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 	char str[KMGT_SIZE];
 
 	if (args->rc)
-		printf("FAILED: %3d ", args->rc);
+		printf("FAIL: %3d ", args->rc);
 	else
-		printf("PASSED: %3d ", args->rc);
+		printf("PASS:     ");
 
-        printf("%u\t", cmd->cmd_id);
-        printf("%u\t", cmd->cmd_thread_count);
-        printf("%u\t", cmd->cmd_region_count);
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_size));
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_size));
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_offset));
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_noise));
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_noise));
-        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_thread_delay));
-	printf("%s\t", print_flags(str, cmd->cmd_flags));
+	printf("%-12s", args->name ? args->name : ZPIOS_NAME);
+        printf("%2u\t", cmd->cmd_id);
+
+	if (args->verbose) {
+	        printf("%u\t", cmd->cmd_thread_count);
+	        printf("%u\t", cmd->cmd_region_count);
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_size));
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_size));
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_offset));
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_region_noise));
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_chunk_noise));
+	        printf("%s\t", uint64_to_kmgt(str, cmd->cmd_thread_delay));
+		printf("%s\t", print_flags(str, cmd->cmd_flags));
+	}
 
 	if (args->rc) {
 		printf("\n");
@@ -351,11 +365,13 @@ print_stats_human_readable(cmd_args_t *args, zpios_cmd_t *cmd)
 	cr_time = zpios_timespec_to_double(summary_stats->cr_time.delta);
 	rm_time = zpios_timespec_to_double(summary_stats->rm_time.delta);
 
-	printf("%.2f\t", t_time);
-	printf("%.3f\t", cr_time);
-	printf("%.3f\t", rm_time);
-	printf("%.2f\t", wr_time);
-	printf("%.2f\t", rd_time);
+	if (args->verbose) {
+		printf("%.2f\t", t_time);
+		printf("%.3f\t", cr_time);
+		printf("%.3f\t", rm_time);
+		printf("%.2f\t", wr_time);
+		printf("%.2f\t", rd_time);
+	}
 
         printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_data));
         printf("%s\t", uint64_to_kmgt(str, summary_stats->wr_chunks));
@@ -374,20 +390,24 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 	double wr_time, rd_time;
 
 	if (args->rc)
-		printf("FAILED: %3d ", args->rc);
+		printf("FAIL: %3d ", args->rc);
 	else
-		printf("PASSED: %3d ", args->rc);
+		printf("PASS:     ");
 
-        printf("%u\t", cmd->cmd_id);
-        printf("%u\t", cmd->cmd_thread_count);
-        printf("%u\t", cmd->cmd_region_count);
-        printf("%llu\t", (long long unsigned)cmd->cmd_region_size);
-        printf("%llu\t", (long long unsigned)cmd->cmd_chunk_size);
-        printf("%llu\t", (long long unsigned)cmd->cmd_offset);
-        printf("%u\t", cmd->cmd_region_noise);
-        printf("%u\t", cmd->cmd_chunk_noise);
-        printf("%u\t", cmd->cmd_thread_delay);
-	printf("0x%x\t", cmd->cmd_flags);
+	printf("%-12s", args->name ? args->name : ZPIOS_NAME);
+        printf("%2u\t", cmd->cmd_id);
+
+	if (args->verbose) {
+	        printf("%u\t", cmd->cmd_thread_count);
+	        printf("%u\t", cmd->cmd_region_count);
+	        printf("%llu\t", (long long unsigned)cmd->cmd_region_size);
+	        printf("%llu\t", (long long unsigned)cmd->cmd_chunk_size);
+	        printf("%llu\t", (long long unsigned)cmd->cmd_offset);
+	        printf("%u\t", cmd->cmd_region_noise);
+	        printf("%u\t", cmd->cmd_chunk_noise);
+	        printf("%u\t", cmd->cmd_thread_delay);
+		printf("0x%x\t", cmd->cmd_flags);
+	}
 
 	if (args->rc) {
 		printf("\n");
@@ -398,21 +418,23 @@ print_stats_table(cmd_args_t *args, zpios_cmd_t *cmd)
 	wr_time = zpios_timespec_to_double(summary_stats->wr_time.delta);
 	rd_time = zpios_timespec_to_double(summary_stats->rd_time.delta);
 
-	printf("%ld.%02ld\t",
-	       (long)summary_stats->total_time.delta.ts_sec,
-	       (long)summary_stats->total_time.delta.ts_nsec);
-	printf("%ld.%02ld\t",
-	       (long)summary_stats->cr_time.delta.ts_sec,
-	       (long)summary_stats->cr_time.delta.ts_nsec);
-	printf("%ld.%02ld\t",
-	       (long)summary_stats->rm_time.delta.ts_sec,
-	       (long)summary_stats->rm_time.delta.ts_nsec);
-	printf("%ld.%02ld\t",
-	       (long)summary_stats->wr_time.delta.ts_sec,
-	       (long)summary_stats->wr_time.delta.ts_nsec);
-	printf("%ld.%02ld\t",
-	       (long)summary_stats->rd_time.delta.ts_sec,
-	       (long)summary_stats->rd_time.delta.ts_nsec);
+	if (args->verbose) {
+		printf("%ld.%02ld\t",
+		       (long)summary_stats->total_time.delta.ts_sec,
+		       (long)summary_stats->total_time.delta.ts_nsec);
+		printf("%ld.%02ld\t",
+		       (long)summary_stats->cr_time.delta.ts_sec,
+		       (long)summary_stats->cr_time.delta.ts_nsec);
+		printf("%ld.%02ld\t",
+		       (long)summary_stats->rm_time.delta.ts_sec,
+		       (long)summary_stats->rm_time.delta.ts_nsec);
+		printf("%ld.%02ld\t",
+		       (long)summary_stats->wr_time.delta.ts_sec,
+		       (long)summary_stats->wr_time.delta.ts_nsec);
+		printf("%ld.%02ld\t",
+		       (long)summary_stats->rd_time.delta.ts_sec,
+		       (long)summary_stats->rd_time.delta.ts_nsec);
+	}
 
         printf("%lld\t", (long long unsigned)summary_stats->wr_data);
         printf("%lld\t", (long long unsigned)summary_stats->wr_chunks);
