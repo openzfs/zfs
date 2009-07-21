@@ -82,6 +82,7 @@ typedef struct cmd_args {
 	range_repeat_t S;           /* Regionsize */
 
 	const char *pool;           /* Pool */
+	const char *name;           /* Name */
 	uint32_t flags;             /* Flags */
 	uint32_t io_type;           /* DMUIO only */
 	uint32_t verbose;           /* Verbose */
@@ -113,7 +114,7 @@ int set_lhi(char *pattern, range_repeat_t *range, char *optarg,
 int set_noise(uint64_t *noise, char *optarg, char *arg);
 int set_load_params(cmd_args_t *args, char *optarg);
 int check_mutual_exclusive_command_lines(uint32_t flag, char *arg);
-void print_stats_header(void);
+void print_stats_header(cmd_args_t *args);
 void print_stats(cmd_args_t *args, zpios_cmd_t *cmd);
 
 #endif /* _ZPIOS_H */
