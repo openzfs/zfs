@@ -78,10 +78,15 @@ typedef struct zpios_cfg {
 	int32_t cfg_rc1;		/* Config response 1 */
 } zpios_cfg_t;
 
+typedef struct zpios_timespec {
+	uint32_t ts_sec;
+	uint32_t ts_nsec;
+} zpios_timespec_t;
+
 typedef struct zpios_time {
-	struct timespec start;
-	struct timespec stop;
-	struct timespec delta;
+	zpios_timespec_t start;
+	zpios_timespec_t stop;
+	zpios_timespec_t delta;
 } zpios_time_t;
 
 typedef struct zpios_stats {
@@ -118,11 +123,74 @@ typedef struct zpios_cmd {
 } zpios_cmd_t;
 
 /* Valid ioctls */
-#define ZPIOS_CFG				_IOWR('f', 101, long)
-#define ZPIOS_CMD				_IOWR('f', 102, long)
+#define ZPIOS_CFG			_IOWR('f', 101, zpios_cfg_t)
+#define ZPIOS_CMD			_IOWR('f', 102, zpios_cmd_t)
 
 /* Valid configuration commands */
 #define ZPIOS_CFG_BUFFER_CLEAR		0x001	/* Clear text buffer */
 #define ZPIOS_CFG_BUFFER_SIZE		0x002	/* Resize text buffer */
+
+#ifndef NSEC_PER_SEC
+#define NSEC_PER_SEC    1000000000L
+#endif
+
+static inline
+void zpios_timespec_normalize(zpios_timespec_t *ts, uint32_t sec, uint32_t nsec)
+{
+	while (nsec >= NSEC_PER_SEC) {
+		nsec -= NSEC_PER_SEC;
+		sec++;
+	}
+	while (nsec < 0) {
+		nsec += NSEC_PER_SEC;
+		sec--;
+	}
+	ts->ts_sec = sec;
+	ts->ts_nsec = nsec;
+}
+
+static inline
+zpios_timespec_t zpios_timespec_add(zpios_timespec_t lhs, zpios_timespec_t rhs)
+{
+	zpios_timespec_t ts_delta;
+	zpios_timespec_normalize(&ts_delta, lhs.ts_sec + rhs.ts_sec,
+	                         lhs.ts_nsec + rhs.ts_nsec);
+        return ts_delta;
+}
+
+static inline
+zpios_timespec_t zpios_timespec_sub(zpios_timespec_t lhs, zpios_timespec_t rhs)
+{
+	zpios_timespec_t ts_delta;
+	zpios_timespec_normalize(&ts_delta, lhs.ts_sec - rhs.ts_sec,
+	                         lhs.ts_nsec - rhs.ts_nsec);
+	return ts_delta;
+}
+
+#ifdef _KERNEL
+
+static inline
+zpios_timespec_t zpios_timespec_now(void)
+{
+	zpios_timespec_t zts_now;
+	struct timespec ts_now;
+
+	ts_now = current_kernel_time();
+	zts_now.ts_sec  = ts_now.tv_sec;
+	zts_now.ts_nsec = ts_now.tv_nsec;
+
+	return zts_now;
+}
+
+#else
+
+static inline
+double zpios_timespec_to_double(zpios_timespec_t ts)
+{
+	return ((double)(ts.ts_sec) +
+	       ((double)(ts.ts_nsec) / (double)(NSEC_PER_SEC)));
+}
+
+#endif /* _KERNEL */
 
 #endif /* _ZPIOS_CTL_H */
