@@ -143,3 +143,15 @@ unload_modules() {
 
 	return 0
 }
+
+unused_loop_device() {
+	for DEVICE in `ls -1 /dev/loop*`; do
+		losetup $DEVICE &>/dev/null
+		if [ $? -ne 0 ]; then
+			echo $DEVICE
+			return
+		fi
+	done
+
+	die "Error: Unable to find unused loopback device"
+}
