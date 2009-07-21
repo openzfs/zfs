@@ -45,7 +45,7 @@
 #include "zpios.h"
 
 static const char short_opt[] = "t:l:h:e:n:i:j:k:o:m:q:r:c:a:b:g:s:A:B:C:"
-                                "L:p:xP:R:G:I:N:T:VzOfHv?";
+                                "L:p:M:xP:R:G:I:N:T:VzOfHv?";
 static const struct option long_opt[] = {
 	{"threadcount",         required_argument, 0, 't' },
 	{"threadcount_low",     required_argument, 0, 'l' },
@@ -69,6 +69,7 @@ static const struct option long_opt[] = {
 	{"regionsize_incr",     required_argument, 0, 'C' },
 	{"load",                required_argument, 0, 'L' },
 	{"pool",                required_argument, 0, 'p' },
+	{"name",		required_argument, 0, 'M' },
 	{"cleanup",             no_argument,       0, 'x' },
 	{"prerun",              required_argument, 0, 'P' },
 	{"postrun",             required_argument, 0, 'R' },
@@ -118,6 +119,7 @@ usage(void)
 	        "	--regionsize_incr   -C    =value\n"
 	        "	--load              -L    =dmuio|ssf|fpp\n"
 	        "	--pool              -p    =pool name\n"
+		"	--name              -M    =test name\n"
 	        "	--cleanup           -x\n"
 	        "	--prerun            -P    =pre-command\n"
 	        "	--postrun           -R    =post-command\n"
@@ -254,6 +256,9 @@ args_init(int argc, char **argv)
 			break;
 		case 'p': /* --pool */
 			args->pool = optarg;
+			break;
+		case 'M':
+			args->name = optarg;
 			break;
 		case 'x': /* --cleanup */
 			args->flags |= DMU_REMOVE;
@@ -615,7 +620,7 @@ main(int argc, char **argv)
 	if (args->verbose)
 		fprintf(stdout, "%s", zpios_version);
 
-	print_stats_header();
+	print_stats_header(args);
 	rc = run_thread_counts(args);
 out:
 	if (args != NULL)
