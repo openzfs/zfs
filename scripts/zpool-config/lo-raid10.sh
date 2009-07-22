@@ -24,7 +24,7 @@ zpool_create() {
 	done
 
 	for FILE in ${FILES_M2}; do
-		DEVICE=`/sbin/losetup -f`
+		DEVICE=`unused_loop_device`
 		msg "Creating ${FILE} using loopback device ${DEVICE}"
 		rm -f ${FILE} || exit 1
 		dd if=/dev/zero of=${FILE} bs=1024k count=256 &>/dev/null ||
