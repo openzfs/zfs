@@ -115,8 +115,10 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
 	if test -z "$kernelbuild"; then
-		if test -d ${kernelsrc}-obj; then
+		if test -d ${kernelsrc}-obj/`arch`/`arch`; then
 			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
+		elif test -d ${kernelsrc}-obj/`arch`/default; then
+			kernelbuild=${kernelsrc}-obj/`arch`/default
 		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
 			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
 		else
