@@ -656,7 +656,7 @@ splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
 				  splat_kmem_cache_test_constructor,
 				  splat_kmem_cache_test_destructor,
 				  splat_kmem_cache_test_reclaim,
-				  kcp, NULL, KMC_KMEM);
+				  kcp, NULL, 0);
 	if (!kcp->kcp_cache) {
 		splat_vprint(file, name, "Unable to create '%s'\n", cache_name);
 		rc = -ENOMEM;
