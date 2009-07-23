@@ -63,12 +63,19 @@ mod_generic_ioctl(struct inode *ino, struct file *file,
 
 	di = get_dev_info(MKDEV(imajor(ino), iminor(ino)));
 	if (di == NULL)
-		return EINVAL;
+		return -EINVAL;
 
 	rc = di->di_ops->devo_cb_ops->cb_ioctl(di->di_dev,
 	                                       (int)cmd, (intptr_t)arg,
 	                                       flags, cr, &rvalp);
-	return rc;
+	/*
+	 * The Solaris the kernel returns positive error codes to indicate
+	 * a failure.  Under linux the kernel is expected to return a
+	 * small negative value which is trapped by libc and used to
+	 * set errno correctly.  For this reason we negate the Solaris
+	 * return code to ensure errno gets set correctly.
+	 */
+	return -rc;
 }
 
 #ifdef CONFIG_COMPAT
