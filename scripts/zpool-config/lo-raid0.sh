@@ -16,7 +16,7 @@ zpool_create() {
 		rm -f ${FILE} || exit 1
 		dd if=/dev/zero of=${FILE} bs=1024k count=256 &>/dev/null ||
 			die "Error $? creating ${FILE}"
-		losetup ${DEVICE} ${FILE} ||
+		${LOSETUP} ${DEVICE} ${FILE} ||
 			die "Error $? creating ${FILE} -> ${DEVICE} loopback"
 		DEVICES="${DEVICES} ${DEVICE}"
 	done
@@ -30,9 +30,9 @@ zpool_destroy() {
 	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
 
 	for FILE in ${FILES}; do
-		DEVICE=`/sbin/losetup -a | grep ${FILE} | head -n1|cut -f1 -d:`
+		DEVICE=`${LOSETUP} -a | grep ${FILE} | head -n1|cut -f1 -d:`
 		msg "Removing ${FILE} using loopback device ${DEVICE}"
-		losetup -d ${DEVICE} ||
+		${LOSETUP} -d ${DEVICE} ||
 			die "Error $? destroying ${FILE} -> ${DEVICE} loopback"
 		rm -f ${FILE} || exit 1
 	done
