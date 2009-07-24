@@ -18,6 +18,8 @@ DUMP_LOG=
 ERROR=
 MODULES=()
 
+LOSETUP=/sbin/losetup
+
 die() {
 	echo -e "${PROG}: $1" >&2
 	exit 1
@@ -146,9 +148,9 @@ unload_modules() {
 
 unused_loop_device() {
 	for DEVICE in `ls -1 /dev/loop*`; do
-		losetup $DEVICE &>/dev/null
+		${LOSETUP} ${DEVICE} &>/dev/null
 		if [ $? -ne 0 ]; then
-			echo $DEVICE
+			echo ${DEVICE}
 			return
 		fi
 	done
