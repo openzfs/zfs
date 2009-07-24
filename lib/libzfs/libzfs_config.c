@@ -123,7 +123,7 @@ namespace_reload(libzfs_handle_t *hdl)
 			return (no_memory(hdl));
 	}
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc, 32768) != 0)
+	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
 		return (-1);
 
 	for (;;) {
