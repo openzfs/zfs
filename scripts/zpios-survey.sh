@@ -18,9 +18,9 @@ OPTIONS:
         -h      Show this message
         -v      Verbose
         -p      Enable profiling
-        -c     	Zpool configuration
+        -c      Zpool configuration
         -t      Zpios test
-	-l	Zpios survey log
+        -l      Zpios survey log
 
 EOF
 }
@@ -58,8 +58,8 @@ zpios_survey_prefetch() {
 
 	./zfs.sh ${VERBOSE_FLAG}               \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
-		-o "--noprefetch" |                                      \
+	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+		-o "--noprefetch" |                                    \
 		tee -a ${ZPIOS_SURVEY_LOG}
 	./zfs.sh -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
@@ -193,7 +193,7 @@ while getopts 'hvpc:t:l:' OPTION; do
 done
 
 if [ $(id -u) != 0 ]; then
-        die "Must run as root"
+	die "Must run as root"
 fi
 
 zpios_survey_base
