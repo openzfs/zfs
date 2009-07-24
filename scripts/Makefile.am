@@ -7,6 +7,7 @@ ZPIOS=${top_srcdir}/scripts/zpios.sh
 
 check:
 	$(ZFS) -v
+	ulimit -c unlimited
 	$(ZTEST) -V
 	$(ZPIOS) -c file-raid0  -t tiny
 	$(ZPIOS) -c file-raid10 -t tiny
