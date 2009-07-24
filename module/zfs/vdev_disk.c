@@ -260,10 +260,6 @@ __vdev_disk_physio(struct block_device *vd_lh, zio_t *zio, caddr_t kbuf_ptr,
 	int i, j, error = 0, bio_count, bio_size, dio_size;
 
 	ASSERT3S(kbuf_offset % SECTOR_SIZE, ==, 0);
-	ASSERT3S(flags &
-		 ~((1 << BIO_RW) |
-		   (1 << BIO_RW_SYNC) |
-		   (1 << BIO_RW_FAILFAST)), ==, 0);
 
 	bio_count = (kbuf_size / (q->max_hw_sectors << 9)) + 1;
 	dio_size  = sizeof(dio_request_t) + sizeof(struct bio *) * bio_count;
@@ -282,8 +278,10 @@ __vdev_disk_physio(struct block_device *vd_lh, zio_t *zio, caddr_t kbuf_ptr,
 	if (flags & (1 << BIO_RW))
 		dr->dr_rw = (flags & (1 << BIO_RW_SYNC)) ? WRITE_SYNC : WRITE;
 
+#ifdef BIO_RW_FAILFAST
 	if (flags & (1 << BIO_RW_FAILFAST))
 		dr->dr_rw |= 1 << BIO_RW_FAILFAST;
+#endif /* BIO_RW_FAILFAST */
 
 	/*
 	 * When the IO size exceeds the maximum bio size for the request
@@ -439,8 +437,10 @@ vdev_disk_io_start(zio_t *zio)
 	 */
 	flags = ((zio->io_type == ZIO_TYPE_READ) ? READ : WRITE);
 
+#ifdef BIO_RW_FAILFAST
 	if (zio->io_flags & ZIO_FLAG_IO_RETRY)
 		flags |= (1 << BIO_RW_FAILFAST);
+#endif /* BIO_RW_FAILFAST */
 
 	error = __vdev_disk_physio(dvd->vd_lh, zio, zio->io_data,
 		                   zio->io_size, zio->io_offset, flags);
