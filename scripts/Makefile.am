@@ -13,20 +13,7 @@ check:
 	@echo -n " ZTEST "
 	@echo    "===================================="
 	@echo
-	@ulimit -c unlimited
+	@$(shell ulimit -c unlimited)
 	@$(ZTEST) -V
-	@echo
-	@echo -n "===================================="
-	@echo -n " ZPIOS "
-	@echo    "===================================="
-	@echo
-	@$(ZPIOS) -c file-raid0  -t tiny
-	@$(ZPIOS) -c file-raid10 -t tiny | tail -1
-	@$(ZPIOS) -c file-raidz  -t tiny | tail -1
-	@$(ZPIOS) -c file-raidz2 -t tiny | tail -1
-	@$(ZPIOS) -c lo-raid0    -t tiny | tail -1
-	@$(ZPIOS) -c lo-raid10   -t tiny | tail -1
-	@$(ZPIOS) -c lo-raidz    -t tiny | tail -1
-	@$(ZPIOS) -c lo-raidz2   -t tiny | tail -1
 	@echo
 	@$(ZFS) -vu
