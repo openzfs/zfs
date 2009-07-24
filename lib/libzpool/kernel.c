@@ -182,8 +182,8 @@ zk_thread_create(caddr_t stk, size_t  stksize, thread_func_t func, void *arg,
 	list_insert_head(&kthread_list, kt);
 	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
 
-	VERIFY(pthread_create(&kt->t_tid, &kt->t_attr,
-			      (void *(*)(void *))func, arg) == 0);
+	VERIFY3U(pthread_create(&kt->t_tid, &kt->t_attr,
+			      (void *(*)(void *))func, arg), ==, 0);
 
 	return kt;
 }
