@@ -13,6 +13,7 @@ check:
 	@echo -n " ZTEST "
 	@echo    "===================================="
 	@echo
+	@ulimit -c unlimited
 	@$(ZTEST) -V
 	@echo
 	@echo -n "===================================="
