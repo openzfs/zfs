@@ -136,18 +136,17 @@ vdev_disk_physio_completion(struct bio *bio, unsigned int size, int rc)
 	if (dr == NULL) {
 		printk("FATAL: bio->bi_private == NULL\n"
 		       "bi_next: %p, bi_flags: %lx, bi_rw: %lu, bi_vcnt: %d\n"
-		       "bi_idx: %d, bi->size: %d, bi_end_io: %p, bi_cnt: %d\n",
+		       "bi_idx: %d, bi_size: %d, bi_end_io: %p, bi_cnt: %d\n",
 		       bio->bi_next, bio->bi_flags, bio->bi_rw, bio->bi_vcnt,
 		       bio->bi_idx, bio->bi_size, bio->bi_end_io,
 		       atomic_read(&bio->bi_cnt));
 		SBUG();
 	}
 
-	/* Incomplete */
-	if (bio->bi_size) {
-		rc = 1;
-		goto out;
-	}
+#ifndef HAVE_2ARGS_BIO_END_IO_T
+	if (bio->bi_size)
+		return 1;
+#endif /* HAVE_2ARGS_BIO_END_IO_T */
 
 	error = rc;
 	if (error == 0 && !test_bit(BIO_UPTODATE, &bio->bi_flags))
@@ -168,7 +167,7 @@ vdev_disk_physio_completion(struct bio *bio, unsigned int size, int rc)
 		zio = dr->dr_zio;
 		spin_unlock(&dr->dr_lock);
 
-		/* Syncronous dio cleanup handled by waiter */
+		/* Synchronous dio cleanup handled by waiter */
 		if (dr->dr_rw & (1 << BIO_RW_SYNC)) {
 			complete(&dr->dr_comp);
 		} else {
@@ -188,7 +187,7 @@ vdev_disk_physio_completion(struct bio *bio, unsigned int size, int rc)
 	}
 
 	rc = 0;
-out:
+
 #ifdef HAVE_2ARGS_BIO_END_IO_T
 	return;
 #else
