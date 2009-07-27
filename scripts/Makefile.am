@@ -12,7 +12,6 @@ check:
 	@echo -n " ZTEST "
 	@echo    "===================================="
 	@echo
-	@$(shell ulimit -c unlimited)
 	@$(ZTEST) -V
 	@echo
 	@$(ZFS) -vu
