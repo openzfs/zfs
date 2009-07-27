@@ -350,7 +350,7 @@ AC_DEFUN([SPL_LINUX_COMPILE_IFELSE], [
 	rm -Rf build && mkdir -p build
 	echo "obj-m := conftest.o" >build/Makefile
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] LINUXINCLUDE="-Iinclude -Iinclude2 -I$LINUX/include -include include/linux/autoconf.h" -o tmp_include_depends -o scripts -o include/config/MARKER -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
 	        [$4],
 	        [_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
