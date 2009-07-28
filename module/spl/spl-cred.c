@@ -179,18 +179,10 @@ groupmember(gid_t gid, const cred_t *cr)
  */
 
 /* Hold a reference on the credential and group info */
-void
-crhold(cred_t *cr)
-{
-	get_task_struct(cr);
-}
+void crhold(cred_t *cr) { }
 
 /* Free a reference on the credential and group info */
-void
-crfree(cred_t *cr)
-{
-	put_task_struct(cr);
-}
+void crfree(cred_t *cr) { }
 
 /* Return the effective user id */
 uid_t
