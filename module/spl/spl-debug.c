@@ -157,6 +157,8 @@ spl_debug_subsys2str(int subsys)
                 return "proc";
         case S_MODULE:
                 return "module";
+	case S_CRED:
+                return "cred";
         }
 }
 

@@ -64,6 +64,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_ZONE_STAT_ITEM_FIA
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
+	SPL_AC_CRED_STRUCT
+	SPL_AC_GROUPS_SEARCH
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1098,4 +1100,35 @@ AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
 	],[
 		AC_MSG_RESULT(no)
 	])
+])
+
+dnl #
+dnl # 2.6.29 API change,
+dnl # check whether 'struct cred' exists
+dnl #
+AC_DEFUN([SPL_AC_CRED_STRUCT], [
+	AC_MSG_CHECKING([whether struct cred exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/cred.h>
+	],[
+		struct cred *cr;
+		cr  = NULL;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_CRED_STRUCT, 1, [struct cred exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Custom SPL patch may export this symbol
+dnl #
+AC_DEFUN([SPL_AC_GROUPS_SEARCH], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[groups_search],
+		[],
+		[AC_DEFINE(HAVE_GROUPS_SEARCH, 1,
+		[groups_search() is available])],
+		[])
 ])

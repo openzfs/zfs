@@ -23,3 +23,4 @@ spl-objs += spl-mutex.o
 spl-objs += spl-kstat.o
 spl-objs += spl-condvar.o
 spl-objs += spl-xdr.o
+spl-objs += spl-cred.o

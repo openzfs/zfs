@@ -20,3 +20,4 @@ splat-objs += splat-kobj.o
 splat-objs += splat-atomic.o
 splat-objs += splat-list.o
 splat-objs += splat-generic.o
+splat-objs += splat-cred.o

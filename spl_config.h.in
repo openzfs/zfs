@@ -36,6 +36,9 @@
 /* class_device_create() is available */
 #undef HAVE_CLASS_DEVICE_CREATE
 
+/* struct cred exists */
+#undef HAVE_CRED_STRUCT
+
 /* unnumbered sysctl support exists */
 #undef HAVE_CTL_UNNUMBERED
 
@@ -71,6 +74,9 @@
 
 /* global_page_state() is available */
 #undef HAVE_GLOBAL_PAGE_STATE
+
+/* groups_search() is available */
+#undef HAVE_GROUPS_SEARCH
 
 /* init_utsname() is available */
 #undef HAVE_INIT_UTSNAME
