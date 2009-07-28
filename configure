@@ -21040,47 +21040,6 @@ _ACEOF
 
 
 
-	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
-echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
-		$LINUX_OBJ/Module*.symvers 2>/dev/null
-	rc=$?
-	if test $rc -ne 0; then
-		export=0
-		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
-				"$LINUX_OBJ/$file" 2>/dev/null
-			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
-		done
-		if test $export -eq 0; then
-			echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-
-		else
-			echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
-		fi
-	else
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
-	fi
-
-
-
 	echo "$as_me:$LINENO: checking whether global_page_state() is available" >&5
 echo $ECHO_N "checking whether global_page_state() is available... $ECHO_C" >&6
 
@@ -21093,14 +21052,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/vmstat.h>
+		#include <linux/mm.h>
 
 int
 main (void)
 {
 
 		unsigned long state;
-		state = global_page_state(NR_FREE_PAGES);
+		state = global_page_state(0);
 
   ;
   return 0;
@@ -21147,8 +21106,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking whether free/inactive/active page state is available" >&5
-echo $ECHO_N "checking whether free/inactive/active page state is available... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking whether page state NR_FREE_PAGES is available" >&5
+echo $ECHO_N "checking whether page state NR_FREE_PAGES is available... $ECHO_C" >&6
 
 
 cat >conftest.c <<_ACEOF
@@ -21159,16 +21118,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/mmzone.h>
+		#include <linux/mm.h>
 
 int
 main (void)
 {
 
-		enum zone_stat_item i1, i2, i3;
-		i1 = NR_FREE_PAGES;
-		i2 = NR_INACTIVE;
-		i3 = NR_ACTIVE;
+		enum zone_stat_item zsi;
+		zsi = NR_FREE_PAGES;
 
   ;
   return 0;
@@ -21195,7 +21152,7 @@ _ACEOF
 echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_ZONE_STAT_ITEM_FIA 1
+#define HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES 1
 _ACEOF
 
 
@@ -21205,6 +21162,516 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE_ANON is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE_ANON is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_ANON;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE_FILE is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE_FILE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_FILE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE_ANON is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE_ANON is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_ANON;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE_FILE is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE_FILE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_FILE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is needed" >&5
+echo $ECHO_N "checking whether symbol get_zone_counts is needed... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+
+int
+main (void)
+{
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES)
+		#error "global_page_state needs NR_FREE_PAGES"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE)
+		#error "global_page_state needs NR_ACTIVE*"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE)
+		#error "global_page_state needs NR_INACTIVE*"
+		#endif
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define NEED_GET_ZONE_COUNTS 1
+_ACEOF
+
+
+		echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
+echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+	fi
+
 
 
 
@@ -23540,47 +24007,6 @@ _ACEOF
 
 
 
-	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
-echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
-	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
-		$LINUX_OBJ/Module*.symvers 2>/dev/null
-	rc=$?
-	if test $rc -ne 0; then
-		export=0
-		for file in ; do
-			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
-				"$LINUX_OBJ/$file" 2>/dev/null
-			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
-		done
-		if test $export -eq 0; then
-			echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-
-		else
-			echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
-		fi
-	else
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
-	fi
-
-
-
 	echo "$as_me:$LINENO: checking whether global_page_state() is available" >&5
 echo $ECHO_N "checking whether global_page_state() is available... $ECHO_C" >&6
 
@@ -23593,14 +24019,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/vmstat.h>
+		#include <linux/mm.h>
 
 int
 main (void)
 {
 
 		unsigned long state;
-		state = global_page_state(NR_FREE_PAGES);
+		state = global_page_state(0);
 
   ;
   return 0;
@@ -23647,8 +24073,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking whether free/inactive/active page state is available" >&5
-echo $ECHO_N "checking whether free/inactive/active page state is available... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking whether page state NR_FREE_PAGES is available" >&5
+echo $ECHO_N "checking whether page state NR_FREE_PAGES is available... $ECHO_C" >&6
 
 
 cat >conftest.c <<_ACEOF
@@ -23659,16 +24085,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/mmzone.h>
+		#include <linux/mm.h>
 
 int
 main (void)
 {
 
-		enum zone_stat_item i1, i2, i3;
-		i1 = NR_FREE_PAGES;
-		i2 = NR_INACTIVE;
-		i3 = NR_ACTIVE;
+		enum zone_stat_item zsi;
+		zsi = NR_FREE_PAGES;
 
   ;
   return 0;
@@ -23695,7 +24119,7 @@ _ACEOF
 echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_ZONE_STAT_ITEM_FIA 1
+#define HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES 1
 _ACEOF
 
 
@@ -23705,6 +24129,516 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE_ANON is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE_ANON is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_ANON;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_INACTIVE_FILE is available" >&5
+echo $ECHO_N "checking whether page state NR_INACTIVE_FILE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_FILE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE_ANON is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE_ANON is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_ANON;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether page state NR_ACTIVE_FILE is available" >&5
+echo $ECHO_N "checking whether page state NR_ACTIVE_FILE is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_FILE;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol get_zone_counts is needed" >&5
+echo $ECHO_N "checking whether symbol get_zone_counts is needed... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+
+int
+main (void)
+{
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES)
+		#error "global_page_state needs NR_FREE_PAGES"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE)
+		#error "global_page_state needs NR_ACTIVE*"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE)
+		#error "global_page_state needs NR_INACTIVE*"
+		#endif
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define NEED_GET_ZONE_COUNTS 1
+_ACEOF
+
+
+		echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
+echo $ECHO_N "checking whether symbol get_zone_counts is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_ZONE_COUNTS 1
+_ACEOF
+
+	fi
+
 
 
 

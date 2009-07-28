@@ -109,49 +109,82 @@ EXPORT_SYMBOL(pgdat_list_addr);
 
 #endif /* HAVE_PGDAT_HELPERS */
 
-#ifndef HAVE_ZONE_STAT_ITEM_FIA
+#ifdef NEED_GET_ZONE_COUNTS
 # ifndef HAVE_GET_ZONE_COUNTS
 get_zone_counts_t get_zone_counts_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(get_zone_counts_fn);
 # endif /* HAVE_GET_ZONE_COUNTS */
 
 unsigned long
-spl_global_page_state(int item)
+spl_global_page_state(spl_zone_stat_item_t item)
 {
 	unsigned long active;
 	unsigned long inactive;
 	unsigned long free;
 
-	if (item == NR_FREE_PAGES) {
-		get_zone_counts(&active, &inactive, &free);
-		return free;
+	get_zone_counts(&active, &inactive, &free);
+	switch (item) {
+	case SPL_NR_FREE_PAGES: return free;
+	case SPL_NR_INACTIVE:   return inactive;
+	case SPL_NR_ACTIVE:     return active;
+	default:                ASSERT(0); /* Unsupported */
 	}
 
-	if (item == NR_INACTIVE) {
-		get_zone_counts(&active, &inactive, &free);
-		return inactive;
-	}
-
-	if (item == NR_ACTIVE) {
-		get_zone_counts(&active, &inactive, &free);
-		return active;
-	}
-
-# ifdef HAVE_GLOBAL_PAGE_STATE
-	return global_page_state((enum zone_stat_item)item);
-# else
-	return 0; /* Unsupported */
-# endif /* HAVE_GLOBAL_PAGE_STATE */
+	return 0;
 }
+#else
+# ifdef HAVE_GLOBAL_PAGE_STATE
+unsigned long
+spl_global_page_state(spl_zone_stat_item_t item)
+{
+	unsigned long pages = 0;
+
+	switch (item) {
+	case SPL_NR_FREE_PAGES:
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES
+		pages += global_page_state(NR_FREE_PAGES);
+#  endif
+		break;
+	case SPL_NR_INACTIVE:
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_INACTIVE
+		pages += global_page_state(NR_INACTIVE);
+#  endif
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON
+		pages += global_page_state(NR_INACTIVE_ANON);
+#  endif
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE
+		pages += global_page_state(NR_INACTIVE_FILE);
+#  endif
+		break;
+	case SPL_NR_ACTIVE:
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_ACTIVE
+		pages += global_page_state(NR_ACTIVE);
+#  endif
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON
+		pages += global_page_state(NR_ACTIVE_ANON);
+#  endif
+#  ifdef HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE
+		pages += global_page_state(NR_ACTIVE_FILE);
+#  endif
+		break;
+	default:
+		ASSERT(0); /* Unsupported */
+	}
+
+	return pages;
+}
+# else
+#  error "Both global_page_state() and get_zone_counts() unavailable"
+# endif /* HAVE_GLOBAL_PAGE_STATE */
+#endif /* NEED_GET_ZONE_COUNTS */
 EXPORT_SYMBOL(spl_global_page_state);
-#endif  /* HAVE_ZONE_STAT_ITEM_FIA */
 
 pgcnt_t
 spl_kmem_availrmem(void)
 {
 	/* The amount of easily available memory */
-	return (spl_global_page_state(NR_FREE_PAGES) +
-	        spl_global_page_state(NR_INACTIVE));
+	return (spl_global_page_state(SPL_NR_FREE_PAGES) +
+	        spl_global_page_state(SPL_NR_INACTIVE));
 }
 EXPORT_SYMBOL(spl_kmem_availrmem);
 
@@ -1856,16 +1889,14 @@ spl_kmem_init_kallsyms_lookup(void)
 # endif /* HAVE_PGDAT_LIST */
 #endif /* HAVE_PGDAT_HELPERS */
 
-#ifndef HAVE_ZONE_STAT_ITEM_FIA
-# ifndef HAVE_GET_ZONE_COUNTS
+#if defined(NEED_GET_ZONE_COUNTS) && !defined(HAVE_GET_ZONE_COUNTS)
 	get_zone_counts_fn = (get_zone_counts_t)
 		spl_kallsyms_lookup_name("get_zone_counts");
 	if (!get_zone_counts_fn) {
 		printk(KERN_ERR "Error: Unknown symbol get_zone_counts\n");
 		return -EFAULT;
 	}
-# endif /* HAVE_GET_ZONE_COUNTS */
-#endif  /* HAVE_ZONE_STAT_ITEM_FIA */
+#endif  /* NEED_GET_ZONE_COUNTS && !HAVE_GET_ZONE_COUNTS */
 
 	/*
 	 * It is now safe to initialize the global tunings which rely on

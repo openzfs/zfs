@@ -159,8 +159,29 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* free/inactive/active page state is available */
-#undef HAVE_ZONE_STAT_ITEM_FIA
+/* Page state NR_ACTIVE is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_ACTIVE
+
+/* Page state NR_ACTIVE_ANON is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON
+
+/* Page state NR_ACTIVE_FILE is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE
+
+/* Page state NR_FREE_PAGES is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES
+
+/* Page state NR_INACTIVE is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_INACTIVE
+
+/* Page state NR_INACTIVE_ANON is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON
+
+/* Page state NR_INACTIVE_FILE is available */
+#undef HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE
+
+/* get_zone_counts() is needed */
+#undef NEED_GET_ZONE_COUNTS
 
 /* Name of package */
 #undef PACKAGE

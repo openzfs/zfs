@@ -59,9 +59,11 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_NEXT_ONLINE_PGDAT
 	SPL_AC_NEXT_ZONE
 	SPL_AC_PGDAT_LIST
-	SPL_AC_GET_ZONE_COUNTS
 	SPL_AC_GLOBAL_PAGE_STATE
-	SPL_AC_ZONE_STAT_ITEM_FIA
+	SPL_AC_ZONE_STAT_ITEM_FREE
+	SPL_AC_ZONE_STAT_ITEM_INACTIVE
+	SPL_AC_ZONE_STAT_ITEM_ACTIVE
+	SPL_AC_GET_ZONE_COUNTS
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_CRED_STRUCT
@@ -1006,32 +1008,16 @@ AC_DEFUN([SPL_AC_PGDAT_LIST], [
 ])
 
 dnl #
-dnl # Proposed API change,
-dnl # This symbol is not available in stock kernels.  You may build a
-dnl # custom kernel with the *-spl-export-symbols.patch which will export
-dnl # these symbols for use.  If your already rolling a custom kernel for
-dnl # your environment this is recommended.
-dnl #
-AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[get_zone_counts],
-		[],
-		[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
-		[get_zone_counts() is available])],
-		[])
-])
-
-dnl #
 dnl # 2.6.18 API change,
 dnl # First introduced global_page_state() support as an inline.
 dnl #
 AC_DEFUN([SPL_AC_GLOBAL_PAGE_STATE], [
 	AC_MSG_CHECKING([whether global_page_state() is available])
 	SPL_LINUX_TRY_COMPILE([
-		#include <linux/vmstat.h>
+		#include <linux/mm.h>
 	],[
 		unsigned long state;
-		state = global_page_state(NR_FREE_PAGES);
+		state = global_page_state(0);
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_GLOBAL_PAGE_STATE, 1,
@@ -1042,25 +1028,180 @@ AC_DEFUN([SPL_AC_GLOBAL_PAGE_STATE], [
 ])
 
 dnl #
-dnl # 2.6.21 API change,
-dnl # Public global zone stats now include free/inactive/active page
-dnl # counts.  This replaced the priviate get_zone_counts() interface.
+dnl # 2.6.21 API change (plus subsequent naming convention changes),
+dnl # Public global zone stats now include a free page count.  However
+dnl # the enumerated names of the counters have changed since this API
+dnl # was introduced.  We need to deduce the corrent name to use.  This
+dnl # replaces the priviate get_zone_counts() interface.
 dnl #
-AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_FIA], [
-	AC_MSG_CHECKING([whether free/inactive/active page state is available])
+dnl # NR_FREE_PAGES was available from 2.6.21 to current kernels, which
+dnl # is 2.6.30 as of when this was written.
+dnl #
+AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_FREE], [
+	AC_MSG_CHECKING([whether page state NR_FREE_PAGES is available])
 	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mmzone.h>
+		#include <linux/mm.h>
 	],[
-		enum zone_stat_item i1, i2, i3;
-		i1 = NR_FREE_PAGES;
-		i2 = NR_INACTIVE;
-		i3 = NR_ACTIVE;
+		enum zone_stat_item zsi;
+		zsi = NR_FREE_PAGES;
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZONE_STAT_ITEM_FIA, 1,
-		          [free/inactive/active page state is available])
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES, 1,
+		          [Page state NR_FREE_PAGES is available])
 	],[
 		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.21 API change (plus subsequent naming convention changes),
+dnl # Public global zone stats now include an inactive page count.  However
+dnl # the enumerated names of the counters have changed since this API
+dnl # was introduced.  We need to deduce the corrent name to use.  This
+dnl # replaces the priviate get_zone_counts() interface.
+dnl #
+dnl # NR_INACTIVE was available from 2.6.21 to 2.6.27 and included both
+dnl # anonymous and file inactive pages.  As of 2.6.28 it was split in
+dnl # to NR_INACTIVE_ANON and NR_INACTIVE_FILE.
+dnl #
+AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_INACTIVE], [
+	AC_MSG_CHECKING([whether page state NR_INACTIVE is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE, 1,
+		          [Page state NR_INACTIVE is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether page state NR_INACTIVE_ANON is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_ANON;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON, 1,
+		          [Page state NR_INACTIVE_ANON is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether page state NR_INACTIVE_FILE is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_INACTIVE_FILE;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE, 1,
+		          [Page state NR_INACTIVE_FILE is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.21 API change (plus subsequent naming convention changes),
+dnl # Public global zone stats now include an active page count.  However
+dnl # the enumerated names of the counters have changed since this API
+dnl # was introduced.  We need to deduce the corrent name to use.  This
+dnl # replaces the priviate get_zone_counts() interface.
+dnl #
+dnl # NR_ACTIVE was available from 2.6.21 to 2.6.27 and included both
+dnl # anonymous and file active pages.  As of 2.6.28 it was split in
+dnl # to NR_ACTIVE_ANON and NR_ACTIVE_FILE.
+dnl #
+AC_DEFUN([SPL_AC_ZONE_STAT_ITEM_ACTIVE], [
+	AC_MSG_CHECKING([whether page state NR_ACTIVE is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE, 1,
+		          [Page state NR_ACTIVE is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether page state NR_ACTIVE_ANON is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_ANON;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON, 1,
+		          [Page state NR_ACTIVE_ANON is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether page state NR_ACTIVE_FILE is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		enum zone_stat_item zsi;
+		zsi = NR_ACTIVE_FILE;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE, 1,
+		          [Page state NR_ACTIVE_FILE is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Proposed API change for legacy kernels.
+dnl # This symbol is not available in older kernels.  For kernels post
+dnl # 2.6.21 the global_page_state() API is used to get free/inactive/active
+dnl # page state information.  This symbol is only used in legacy kernels
+dnl # any only as a last resort.
+dnl
+AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
+	AC_MSG_CHECKING([whether symbol get_zone_counts is needed])
+	SPL_LINUX_TRY_COMPILE([
+	],[
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_FREE_PAGES)
+		#error "global_page_state needs NR_FREE_PAGES"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_ACTIVE_FILE)
+		#error "global_page_state needs NR_ACTIVE*"
+		#endif
+
+		#if !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_ANON) && \
+		    !defined(HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE)
+		#error "global_page_state needs NR_INACTIVE*"
+		#endif
+	],[
+		AC_MSG_RESULT(no)
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(NEED_GET_ZONE_COUNTS, 1,
+		          [get_zone_counts() is needed])
+
+		SPL_CHECK_SYMBOL_EXPORT(
+			[get_zone_counts],
+			[],
+			[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
+			[get_zone_counts() is available])],
+			[])
 	])
 ])
 

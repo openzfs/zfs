@@ -123,22 +123,21 @@ extern struct pglist_data *pgdat_list_addr;
 #endif /* HAVE_PGDAT_HELPERS */
 
 /* Source linux/mm/vmstat.c */
-#ifndef HAVE_ZONE_STAT_ITEM_FIA
-# ifndef HAVE_GET_ZONE_COUNTS
+#if defined(NEED_GET_ZONE_COUNTS) && !defined(HAVE_GET_ZONE_COUNTS)
 typedef void (*get_zone_counts_t)(unsigned long *, unsigned long *,
 				  unsigned long *);
 extern get_zone_counts_t get_zone_counts_fn;
 # define get_zone_counts(a,i,f)	get_zone_counts_fn(a,i,f)
-# endif /* HAVE_GET_ZONE_COUNTS */
+#endif /* NEED_GET_ZONE_COUNTS && !HAVE_GET_ZONE_COUNTS */
 
-extern unsigned long spl_global_page_state(int);
-/* Defines designed to simulate enum but large enough to ensure no overlap */
-# define NR_FREE_PAGES		0x8001
-# define NR_INACTIVE		0x8002
-# define NR_ACTIVE		0x8003
-#else
-#define spl_global_page_state(item)	global_page_state(item)
-#endif /* HAVE_ZONE_STAT_ITEM_FIA */
+typedef enum spl_zone_stat_item {
+	SPL_NR_FREE_PAGES,
+	SPL_NR_INACTIVE,
+	SPL_NR_ACTIVE,
+	SPL_NR_ZONE_STAT_ITEMS
+} spl_zone_stat_item_t;
+
+extern unsigned long spl_global_page_state(spl_zone_stat_item_t);
 
 #define xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define xcopyout(from, to, size)	copy_to_user(to, from, size)

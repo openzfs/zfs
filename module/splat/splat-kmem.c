@@ -1045,16 +1045,17 @@ splat_kmem_test11(struct file *file, void *arg)
 static int
 splat_kmem_test12(struct file *file, void *arg)
 {
-	ssize_t alloc1, free1, total1;
-	ssize_t alloc2, free2, total2;
+	size_t alloc1, free1, total1;
+	size_t alloc2, free2, total2;
 	int size = 8*1024*1024;
 	void *ptr;
 
 	alloc1 = vmem_size(NULL, VMEM_ALLOC);
 	free1  = vmem_size(NULL, VMEM_FREE);
 	total1 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%d free=%d "
-	             "total=%d\n", (int)alloc1, (int)free1, (int)total1);
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%lu "
+		     "free=%lu total=%lu\n", (unsigned long)alloc1,
+		     (unsigned long)free1, (unsigned long)total1);
 
 	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Alloc %d bytes\n", size);
 	ptr = vmem_alloc(size, KM_SLEEP);
@@ -1067,42 +1068,44 @@ splat_kmem_test12(struct file *file, void *arg)
 	alloc2 = vmem_size(NULL, VMEM_ALLOC);
 	free2  = vmem_size(NULL, VMEM_FREE);
 	total2 = vmem_size(NULL, VMEM_ALLOC | VMEM_FREE);
-	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%d free=%d "
-	             "total=%d\n", (int)alloc2, (int)free2, (int)total2);
+	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Vmem alloc=%lu "
+		     "free=%lu total=%lu\n", (unsigned long)alloc2,
+		     (unsigned long)free2, (unsigned long)total2);
 
 	splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Free %d bytes\n", size);
 	vmem_free(ptr, size);
 	if (alloc2 < (alloc1 + size - (size / 100)) ||
 	    alloc2 > (alloc1 + size + (size / 100))) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-		             "Failed VMEM_ALLOC size: %d != %d+%d (+/- 1%%)\n",
-		             (int)alloc2, (int)alloc1, size);
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
+			     "VMEM_ALLOC size: %lu != %lu+%d (+/- 1%%)\n",
+		             (unsigned long)alloc2,(unsigned long)alloc1,size);
 		return -ERANGE;
 	}
 
 	if (free2 < (free1 - size - (size / 100)) ||
 	    free2 > (free1 - size + (size / 100))) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-		             "Failed VMEM_FREE size: %d != %d-%d (+/- 1%%)\n",
-		             (int)free2, (int)free1, size);
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
+			     "VMEM_FREE size: %lu != %lu-%d (+/- 1%%)\n",
+		             (unsigned long)free2, (unsigned long)free1, size);
 		return -ERANGE;
 	}
 
 	if (total1 != total2) {
-		splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-		             "Failed VMEM_ALLOC | VMEM_FREE not constant: "
-		             "%d != %d\n", (int)total2, (int)total1);
+		splat_vprint(file, SPLAT_KMEM_TEST12_NAME, "Failed "
+			     "VMEM_ALLOC | VMEM_FREE not constant: "
+		             "%lu != %lu\n", (unsigned long)total2,
+			     (unsigned long)total1);
 		return -ERANGE;
 	}
 
 	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-	             "VMEM_ALLOC within tolerance: ~%d%% (%d/%d)\n",
-	             (int)(((alloc1 + size) - alloc2) * 100 / size),
-	             (int)((alloc1 + size) - alloc2), size);
+	             "VMEM_ALLOC within tolerance: ~%ld%% (%ld/%d)\n",
+	             (long)abs(alloc1 + (long)size - alloc2) * 100 / (long)size,
+	             (long)abs(alloc1 + (long)size - alloc2), size);
 	splat_vprint(file, SPLAT_KMEM_TEST12_NAME,
-	             "VMEM_FREE within tolerance:  ~%d%% (%d/%d)\n",
-	             (int)(((free1 - size) - free2) * 100 / size),
-	             (int)((free1 - size) - free2), size);
+	             "VMEM_FREE within tolerance:  ~%ld%% (%ld/%d)\n",
+	             (long)abs((free1 - (long)size) - free2) * 100 / (long)size,
+	             (long)abs((free1 - (long)size) - free2), size);
 
 	return 0;
 }
