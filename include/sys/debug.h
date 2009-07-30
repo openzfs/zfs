@@ -282,7 +282,15 @@ do {                                                                    \
         }                                                               \
 } while (0)
 
-#define CHECK_STACK()   __CHECK_STACK(__FILE__, __func__, __LINE__)
+/* NOTE: The run time stack overflow checking is being disabled by default
+ * because it is not safe for use with 2.6.29 and latter kernels.  These
+ * kernels do now have their own stack overflow checking so this support
+ * has become redundant anyway.  It can be re-enabled for older kernels or
+ * arches without stack overflow checking by redefining CHECK_STACK().
+ *
+ * #define CHECK_STACK()   __CHECK_STACK(__FILE__, __func__, __LINE__)
+ */
+#define CHECK_STACK()	((void)0)
 
 /* ASSERTION that is safe to use within the debug system */
 #define __ASSERT(cond)                                                  \
