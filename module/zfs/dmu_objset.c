@@ -816,46 +816,50 @@ dmu_objset_snapshot(char *fsname, char *snapname,
     nvlist_t *props, boolean_t recursive)
 {
 	dsl_sync_task_t *dst;
-	struct snaparg sn;
+	struct snaparg *sn;
 	spa_t *spa;
 	int err;
 
-	(void) strcpy(sn.failed, fsname);
+	sn = kmem_alloc(sizeof (struct snaparg), KM_SLEEP);
+	(void) strcpy(sn->failed, fsname);
 
 	err = spa_open(fsname, &spa, FTAG);
-	if (err)
+	if (err) {
+		kmem_free(sn, sizeof (struct snaparg));
 		return (err);
+	}
 
-	sn.dstg = dsl_sync_task_group_create(spa_get_dsl(spa));
-	sn.snapname = snapname;
-	sn.props = props;
+	sn->dstg = dsl_sync_task_group_create(spa_get_dsl(spa));
+	sn->snapname = snapname;
+	sn->props = props;
 
 	if (recursive) {
-		sn.checkperms = B_TRUE;
+		sn->checkperms = B_TRUE;
 		err = dmu_objset_find(fsname,
-		    dmu_objset_snapshot_one, &sn, DS_FIND_CHILDREN);
+		    dmu_objset_snapshot_one, sn, DS_FIND_CHILDREN);
 	} else {
-		sn.checkperms = B_FALSE;
-		err = dmu_objset_snapshot_one(fsname, &sn);
+		sn->checkperms = B_FALSE;
+		err = dmu_objset_snapshot_one(fsname, sn);
 	}
 
 	if (err == 0)
-		err = dsl_sync_task_group_wait(sn.dstg);
+		err = dsl_sync_task_group_wait(sn->dstg);
 
-	for (dst = list_head(&sn.dstg->dstg_tasks); dst;
-	    dst = list_next(&sn.dstg->dstg_tasks, dst)) {
+	for (dst = list_head(&sn->dstg->dstg_tasks); dst;
+	    dst = list_next(&sn->dstg->dstg_tasks, dst)) {
 		objset_t *os = dst->dst_arg1;
 		dsl_dataset_t *ds = os->os->os_dsl_dataset;
 		if (dst->dst_err)
-			dsl_dataset_name(ds, sn.failed);
+			dsl_dataset_name(ds, sn->failed);
 		zil_resume(dmu_objset_zil(os));
 		dmu_objset_close(os);
 	}
 
 	if (err)
-		(void) strcpy(fsname, sn.failed);
-	dsl_sync_task_group_destroy(sn.dstg);
+		(void) strcpy(fsname, sn->failed);
+	dsl_sync_task_group_destroy(sn->dstg);
 	spa_close(spa, FTAG);
+	kmem_free(sn, sizeof (struct snaparg));
 	return (err);
 }
 
