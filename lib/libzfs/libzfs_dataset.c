@@ -2580,7 +2580,7 @@ zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 	int prefix;
 	uint64_t zoned;
 	char *path_copy;
-	int rc;
+	int rc = 0;
 
 	if (check_parents(hdl, path, &zoned, B_TRUE, &prefix) != 0)
 		return (-1);
