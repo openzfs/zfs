@@ -41,7 +41,12 @@ subdir = lib/libspl/asm-i386
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/config/kernel-bio-args.m4 \
+am__aclocal_m4_deps =  \
+	$(top_srcdir)/config/kernel-bio-empty-barrier.m4 \
+	$(top_srcdir)/config/kernel-bio-end-io-t-args.m4 \
+	$(top_srcdir)/config/kernel-bio-rw-syncio.m4 \
+	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
+	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
