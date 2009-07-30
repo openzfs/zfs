@@ -290,15 +290,19 @@ spa_history_log_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 int
 spa_history_log(spa_t *spa, const char *history_str, history_log_type_t what)
 {
-	history_arg_t ha;
+	history_arg_t *ha;
+	int err;
 
 	ASSERT(what != LOG_INTERNAL);
 
-	ha.ha_history_str = history_str;
-	ha.ha_log_type = what;
-	(void) strlcpy(ha.ha_zone, spa_history_zone(), sizeof (ha.ha_zone));
-	return (dsl_sync_task_do(spa_get_dsl(spa), NULL, spa_history_log_sync,
-	    spa, &ha, 0));
+	ha = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
+	ha->ha_history_str = history_str;
+	ha->ha_log_type = what;
+	(void) strlcpy(ha->ha_zone, spa_history_zone(), sizeof (ha->ha_zone));
+	err = dsl_sync_task_do(spa_get_dsl(spa), NULL, spa_history_log_sync,
+	    spa, ha, 0);
+	kmem_free(ha, sizeof (history_arg_t));
+	return (err);
 }
 
 /*
