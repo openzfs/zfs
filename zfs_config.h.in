@@ -1,7 +1,16 @@
 /* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* invalidate_bdev() wants 1 arg */
+#undef HAVE_1ARG_INVALIDATE_BDEV
+
 /* bio_end_io_t wants 2 args */
 #undef HAVE_2ARGS_BIO_END_IO_T
+
+/* bio_empy_barrier() is defined */
+#undef HAVE_BIO_EMPTY_BARRIER
+
+/* BIO_RW_SYNCIO is defined */
+#undef HAVE_BIO_RW_SYNCIO
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
@@ -35,6 +44,9 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
+
+/* open_bdev_exclusive() is available */
+#undef HAVE_OPEN_BDEV_EXCLUSIVE
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
