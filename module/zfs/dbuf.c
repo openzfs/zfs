@@ -1800,8 +1800,7 @@ dbuf_create_bonus(dnode_t *dn)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	ASSERTV(int64_t holds = refcount_add(&db->db_holds, tag));
-	ASSERT(holds > 1);
+	VERIFY(refcount_add(&db->db_holds, tag) > 1);
 }
 
 #pragma weak dmu_buf_rele = dbuf_rele
