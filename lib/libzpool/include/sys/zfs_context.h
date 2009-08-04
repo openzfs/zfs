@@ -198,34 +198,34 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
+#define THR_BOUND		0x00000001
 #define TS_RUN			0x00000002
 
-#define STACK_SIZE 8192 /* x86/x64 */
-
-typedef void (*thread_func_t)(void);
-typedef void (*thread_func_arg_t)(void *);
+typedef void (*thread_func_t)(void *);
 typedef pthread_t kt_did_t;
 
 typedef struct kthread {
+        list_node_t	t_node;
 	kt_did_t	t_tid;
-	thread_func_t	t_func;
-	void *		t_arg;
+	pthread_attr_t	t_attr;
 } kthread_t;
 
-/* XXX tsd_create()/tsd_destroy() missing */
 #define	tsd_get(key)		pthread_getspecific(key)
 #define	tsd_set(key, val)	pthread_setspecific(key, val)
 #define	curthread		zk_thread_current()
 #define thread_exit		zk_thread_exit
 #define thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(stk, stksize, (thread_func_t) func, arg, len,  \
-	    NULL, state, pri)
+	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
+			 len, NULL, state, pri)
+#define thread_join(tid, dtid, status)					\
+	zk_thread_join(tid, dtid, status)
 
 extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
 extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 	thread_func_t func, void *arg, size_t len,
 	void *pp, int state, pri_t pri);
+extern int zk_thread_join(kt_did_t tid, kthread_t *dtid, void **status);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
@@ -360,7 +360,7 @@ extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
-extern int	taskq_member(taskq_t *, kthread_t *);
+extern int	taskq_member(taskq_t *, void *);
 extern void	system_taskq_init(void);
 extern void	system_taskq_fini(void);
 
