@@ -1,3 +1,74 @@
+2009-08-04 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.5 - Use 'git log --no-merges' for full change log.
+
+	* FC11 and SLES11 support: This includes all compatibility changes
+	to support 2.6.29 based kernels and the required build system
+	improvements.
+	* lib/libspl/asm-generic/atomic.c: Generic user space atomic support.
+	* module/zpios/zpios.c: Register a basic compat ioctl handler for
+	32-bit user vs 64-bit kernel compatibility.  This is the default
+	build environment for all 64-bit SLES systems.  Additionally
+	replace the use of 'struct timespec' which uses longs internally
+	and is therefore different sizes on 32-bit vs 64-bit objects with
+	'struct zpios_timespec_t'.a
+	* config/kernel.m4: Check arch/default path when detecting kernel
+	objects under SLES.  We still preferentially use arch/arch if
+	available but if that fails it is acceptable to use default.
+	* config/kernel.m4: Remove LINUXINCLUDE from autoconf wrapper.
+	This breaks the 2.6.28+ kernels build system, all kernel build systems
+	at least post 2.6.16 will set this properly so we should not.
+	* lib/libspl/include/assert.h: Add ASSERTV macro to simplify removing
+	variables (the V in ASSERTV) which are only used in ASSERT().
+	Also revert all previously modified ASSERT()s to their original
+	definitions and use the ASSERTV macro to handle unused variables.
+	* module/zpios/zpios.c: Use spl device interfaces for portability.
+	* scripts/common.sh: The losetup -f option is unavailable for
+	SLES10 use the unused_loop_device() common function.  Additionally
+	LOSETUP is now used to portably reference the losetup binary.
+	* module/zfs/vdev_disk.c: Unused destroy_dirty_buffers arg removed.
+	* module/zfs/vdev_disk.c: BIO_RW_SYNC renamed to BIO_RW_SYNCIO.
+	* module/zfs/vdev_disk.c: open/close_bdev_excl() renamed to
+	open/close_bdev_exclusive().
+	* module/zfs/vdev_disk.c: Empty write barriers are supported as of
+	linux 2.6.24 and are now used to implement DKIOCFLUSHWRITECACHE.
+	* module/zfs/vdev_disk.c: The bi_end_io API changes make partial
+	IO's impossible handle this case cleanly.
+	* module/zfs/vdev_disk.c: BIO_RW_FAILFAST replaced with
+	BIO_RW_FAILFAST_{DEV|_TRANSPORT|_DRIVER}, use the legacy
+	BIO_RW_FAILFAST flag if it exists for now.
+	* module/zfs/dmu_objset.c, module/zfs/spa_history.c: Excessively
+	large stack frames (>2048) were detected in dmu_objset_snapshot()
+	and spa_history_log() and were reduced by allocating from the heap.
+
+	* Rebased to ZFS b117 from OpenSolaris:
+	* module/zfs/dmu.c: Update zerocopy patch to be consistent with
+	new flags arg passed to dmu_read().
+	* module/zpios/zpios.c: Update zpios to be aware of the new flags
+	argument available in dmu_read().  Additionally add a zpios command
+	line flag to set the DMU_READ_NO_PREFETCH flag for a test.
+	* module/zfs/include/sys/zfs_context.h: Wrap new sysevent includes
+	until sysevent or something like it is implemented.
+	* module/zfs/zfs_ioctl.c: Wrap all the ACL interfaces with HAVE_ZPL.
+	They are integrated with the vfs layer which is not yet supported.
+	* module/zcommon/zfs_prop.c: Export new quota related symbols.
+	* lib/libzfs/libzfs_util.c: Increase buffer size for nvlist which
+	is needed for large configurations.
+	* lib/libzpool/kernel.c: Reimplement user kthreads based on pthread
+	thread specific data.  This resolves previous scalabily concerns about
+	the cost of calling curthread which previously required a list walk.
+
+	* Bug fixes:
+	* lib/libspl/include/sys/zfs_debug.h: Removed duplicate file.
+	* lib/libspl/include/sys/isa_defs.h: Fixed missing macro definitions
+	for little endian and big endian.
+	* cmd/zpios/zpios_main.c: Pretty-up the zpios 'make check' output.
+	* module/zfs/vdev_disk.c: Honor spa_mode() when opening block devs.
+	* module/zfs/vdev_disk.c: Initial error handling added to
+	vdev_disk_io_done() to revalidate the media on EIO.
+	* lib/libzfs/libzfs_util.c: Fix an accidentally introduced formatting
+	issue in zfs_nicenum() output.
+	
 2009-07-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.4 - Use 'git log --no-merges' for full change log.
