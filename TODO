@@ -1,8 +1,5 @@
 SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.5 (Development Release)
 
-- Implement FLUSH support probably in terms of a barrier as part of
-  the vdev_disk.c interface.  Required for correctness.
-
 - Implement something similar to the Solaris devid support to ensure
   ZFS properly locates your disks even when moved.  The current port
   is dependent on using something like udev to ensure this can never
