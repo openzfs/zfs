@@ -57,154 +57,140 @@ struct utsname utsname = {
  * =========================================================================
  */
 
-/* NOTE: Tracking each tid on a list and using it for curthread lookups
- *       is slow at best but it provides an easy way to provide a kthread
- *       style API on top of pthreads.  For now we just want ztest to work
- *       to validate correctness.  Performance is not much of an issue
- *       since that is what the in-kernel version is for.  That said
- *       reworking this to track the kthread_t structure as thread
- *       specific data would be probably the best way to speed this up.
- */
-
 pthread_cond_t kthread_cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t kthread_lock = PTHREAD_MUTEX_INITIALIZER;
-list_t kthread_list;
-
-static int
-thread_count(void)
-{
-	kthread_t *kt;
-	int count = 0;
-
-	for (kt = list_head(&kthread_list); kt != NULL;
-	     kt = list_next(&kthread_list, kt))
-		count++;
-
-	return count;
-}
+pthread_key_t kthread_key;
+int kthread_nr = 0;
 
 static void
 thread_init(void)
 {
 	kthread_t *kt;
 
-	/* Initialize list for tracking kthreads */
-	list_create(&kthread_list, sizeof (kthread_t),
-		    offsetof(kthread_t, t_node));
+	VERIFY3S(pthread_key_create(&kthread_key, NULL), ==, 0);
 
 	/* Create entry for primary kthread */
 	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
-	list_link_init(&kt->t_node);
-	VERIFY3U(kt->t_tid = pthread_self(), !=, 0);
-        VERIFY3S(pthread_attr_init(&kt->t_attr), ==, 0);
-	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
-	list_insert_head(&kthread_list, kt);
-	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+	kt->t_tid = pthread_self();
+	kt->t_func = NULL;
+
+	VERIFY3S(pthread_setspecific(kthread_key, kt), ==, 0);
+
+	/* Only the main thread should be running at the moment */
+	ASSERT3S(kthread_nr, ==, 0);
+	kthread_nr = 1;
 }
 
 static void
 thread_fini(void)
 {
-	kthread_t *kt;
-	struct timespec ts = { 0 };
-	int count;
+	kthread_t *kt = curthread;
+
+	ASSERT(pthread_equal(kt->t_tid, pthread_self()));
+	ASSERT3P(kt->t_func, ==, NULL);
+
+	umem_free(kt, sizeof(kthread_t));
 
 	/* Wait for all threads to exit via thread_exit() */
 	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
-	while ((count = thread_count()) > 1) {
-		clock_gettime(CLOCK_REALTIME, &ts);
-		ts.tv_sec += 1;
-		pthread_cond_timedwait(&kthread_cond, &kthread_lock, &ts);
-	}
 
-	ASSERT3S(thread_count(), ==, 1);
-	kt = list_head(&kthread_list);
-	list_remove(&kthread_list, kt);
+	kthread_nr--; /* Main thread is exiting */
+
+	while (kthread_nr > 0)
+		VERIFY3S(pthread_cond_wait(&kthread_cond, &kthread_lock), ==,
+		    0);
+
+	ASSERT3S(kthread_nr, ==, 0);
 	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
 
-	VERIFY(pthread_attr_destroy(&kt->t_attr) == 0);
-	umem_free(kt, sizeof(kthread_t));
-
-	/* Cleanup list for tracking kthreads */
-	list_destroy(&kthread_list);
+	VERIFY3S(pthread_key_delete(kthread_key), ==, 0);
 }
 
 kthread_t *
 zk_thread_current(void)
 {
-	kt_did_t tid = pthread_self();
-	kthread_t *kt;
-	int count = 1;
+	kthread_t *kt = pthread_getspecific(kthread_key);
 
-	/*
-	 * Because a newly created thread may call zk_thread_current()
-	 * before the thread parent has had time to add the thread's tid
-	 * to our lookup list.  We will loop as long as there are tid
-	 * which have not yet been set which must be one of ours.
-	 * Yes it's a hack, at some point we can just use native pthreads.
-	 */
-	while (count > 0) {
-		count = 0;
-		VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
-		for (kt = list_head(&kthread_list); kt != NULL;
-		     kt = list_next(&kthread_list, kt)) {
-
-			if (kt->t_tid == tid) {
-				VERIFY3S(pthread_mutex_unlock(
-				         &kthread_lock), ==, 0);
-				return kt;
-			}
-
-			if (kt->t_tid == (kt_did_t)-1)
-				count++;
-		}
-		VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
-	}
-
-	/* Unreachable */
-	ASSERT(0);
-	return NULL;
-}
-
-kthread_t *
-zk_thread_create(caddr_t stk, size_t  stksize, thread_func_t func, void *arg,
-	      size_t len, void *pp, int state, pri_t pri)
-{
-	kthread_t *kt;
-
-	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
-	kt->t_tid = (kt_did_t)-1;
-	list_link_init(&kt->t_node);
-	VERIFY(pthread_attr_init(&kt->t_attr) == 0);
-
-	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
-	list_insert_head(&kthread_list, kt);
-	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
-
-	VERIFY3U(pthread_create(&kt->t_tid, &kt->t_attr,
-			      (void *(*)(void *))func, arg), ==, 0);
+	ASSERT3P(kt, !=, NULL);
 
 	return kt;
 }
 
-int
-zk_thread_join(kt_did_t tid, kthread_t *dtid, void **status)
+void *
+zk_thread_helper(void *arg)
 {
-	return pthread_join(tid, status);
+	kthread_t *kt = (kthread_t *) arg;
+
+	VERIFY3S(pthread_setspecific(kthread_key, kt), ==, 0);
+
+	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
+	kthread_nr++;
+	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+
+	kt->t_tid = pthread_self();
+	((thread_func_arg_t) kt->t_func)(kt->t_arg);
+
+	/* Unreachable, thread must exit with thread_exit() */
+	abort();
+
+	return NULL;
+}
+
+kthread_t *
+zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
+	      size_t len, void *pp, int state, pri_t pri)
+{
+	kthread_t *kt;
+	pthread_t tid;
+	pthread_attr_t attr;
+	size_t stack;
+
+	/*
+	 * Due to a race when getting/setting the thread ID, currently only
+	 * detached threads are supported.
+	 */
+	ASSERT3S(state & ~TS_RUN, ==, 0);
+
+	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
+	kt->t_func = func;
+	kt->t_arg = arg;
+
+	/*
+	 * The Solaris kernel stack size in x86/x64 is 8K, so we reduce the
+	 * default stack size in userspace, for sanity checking.
+	 *
+	 * PTHREAD_STACK_MIN is the stack required for a NULL procedure in
+	 * userspace.
+	 *
+	 * XXX: Stack size for other architectures is not being taken into
+	 * account.
+	 */
+	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE);
+	
+	VERIFY3S(pthread_attr_init(&attr), ==, 0);
+	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
+	VERIFY3S(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED),
+	    ==, 0);
+
+	VERIFY3S(pthread_create(&tid, &attr, &zk_thread_helper, kt), ==, 0);
+
+	VERIFY3S(pthread_attr_destroy(&attr), ==, 0);
+
+	return kt;
 }
 
 void
 zk_thread_exit(void)
 {
-	kthread_t *kt;
+	kthread_t *kt = curthread;
 
-	VERIFY3P(kt = curthread, !=, NULL);
-	VERIFY3S(pthread_mutex_lock(&kthread_lock), ==, 0);
-	list_remove(&kthread_list, kt);
-	VERIFY3S(pthread_mutex_unlock(&kthread_lock), ==, 0);
+	ASSERT(pthread_equal(kt->t_tid, pthread_self()));
 
-	VERIFY(pthread_attr_destroy(&kt->t_attr) == 0);
 	umem_free(kt, sizeof(kthread_t));
+
+	pthread_mutex_lock(&kthread_lock);
+	kthread_nr--;
+	pthread_mutex_unlock(&kthread_lock);
 
 	pthread_cond_broadcast(&kthread_cond);
 	pthread_exit(NULL);
