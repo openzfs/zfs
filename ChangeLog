@@ -54,9 +54,6 @@
 	* module/zcommon/zfs_prop.c: Export new quota related symbols.
 	* lib/libzfs/libzfs_util.c: Increase buffer size for nvlist which
 	is needed for large configurations.
-	* lib/libzpool/kernel.c: Reimplement user kthreads based on pthread
-	thread specific data.  This resolves previous scalabily concerns about
-	the cost of calling curthread which previously required a list walk.
 
 	* Bug fixes:
 	* lib/libspl/include/sys/zfs_debug.h: Removed duplicate file.
