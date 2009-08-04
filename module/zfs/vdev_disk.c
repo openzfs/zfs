@@ -460,11 +460,7 @@ vdev_disk_io_start(zio_t *zio)
 		break;
 
 	case ZIO_TYPE_READ:
-		if (zio->io_flags & ZIO_FLAG_SPECULATIVE)
-			flags = READA;
-		else
-			flags = READ;
-
+		flags = READ;
 		break;
 
 	default:
