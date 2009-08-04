@@ -3787,18 +3787,15 @@ ztest_spa_import_export(char *oldname, char *newname)
 	nvlist_free(config);
 }
 
-static void *
-ztest_resume(void *arg)
+static void
+ztest_resume(spa_t *spa)
 {
-	spa_t *spa = arg;
-
 	if (spa_suspended(spa)) {
 		spa_vdev_state_enter(spa);
 		vdev_clear(spa, NULL);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 		(void) zio_resume(spa);
 	}
-	return (NULL);
 }
 
 static void *
