@@ -1,9 +1,57 @@
+2009-08-04 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.5
+
+	* FC11 and SLES11 support: This includes all compatibility changes
+	to support 2.6.29 based kernels and the required build system
+	improvements.
+	* module/spl/spl-module.c: Register a basic compat ioctl handler
+	for 32-bit user vs 64-bit kernel compatibility.  This is the default
+	build environment for all 64-bit SLES systems.
+	* config/spl-build.m4: Check arch/default path when detecting kernel
+	objects under SLES.  We still preferentially use arch/arch if
+	available but if that fails it is acceptable to use default.
+	* module/spl/spl-vnode.: Use HAVE_PATH_IN_NAMEIDATA compat macros
+	for maximum kernel compatibility.
+	* config/spl-build.m4: Remove LINUXINCLUDE from autoconf wrapper.
+	This breaks the 2.6.28+ kernels build system, all kernel build systems
+	at least post 2.6.16 will set this properly so we should not.
+	* include/sys/vmsystm.h, module/spl/spl-kmem.c: Perferentially use the
+	global_page_state() API when your kernel supports the required enums.
+	* include/sys/debug.h: Add ASSERTV macro to simplify removing
+	variables (the V in ASSERTV) which are only used in ASSERT().
+	* include/sys/debug.h: Disable stack overflow checking by default
+	when build with --enable-debug, modern kernels now provide this.
+	* patches/fc11-spl-export-symbols.patch: Recommended missing symbols
+	patch for FC11.  This is not required for correct functionality but
+	it is recommended for individuals who are already patching the kernel.
+
+	* Additional Solaris API emulation:
+	* include/sys/taskq.h: Add basic taskq support for the flag
+	TASKQ_THREADS_CPU_PCT which is used to scale the number of threads
+	based on the number of online CPUs.
+	* include/sys/file.hi, module/spl/spl-generic.c: Add support for
+	fake ioctls which originate from the kernel instead of user space.
+	* include/sys/acl.h: Add ACE_ALL_PERMS ACL definition.
+	* include/sys/cred.h, module/splat/splat-cred.c: Add basic credential
+	support and splat regression tests.
+
+	* Bug fixes:
+	* include/sys/isa_defs.h: Add more endianess paranoia.
+	* module/spl/spl-time.c: Integer overflow after ~164 days.
+	* include/sys/debug.h: NULL dereference by tcd_for_each().
+	* module/splat/splat-kmem.c: Allow kmem or vmem based slabs for
+	slab_lock and slab_overcommit tests.  This may still be an issue on
+	32-bit systems due to the small virtual address space.
+	* module/spl/spl-module.c: Positive Solaris ioctl return codes are
+	need to be negated for use by libc to ensure errno is set correctly.
+
 2009-07-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.4
 
 	* : Generic distro friendly build system / packaging improvements
-	for RPM based distros including CHAOS, RHEL, Fedora, and SLES.
+	for rpm based distros including CHAOS, RHEL, Fedora, and SLES.
 
 	spl-<version>.src.rpm
 	- Fully rebuildable source rpm for utils.
