@@ -3,6 +3,13 @@
 # require_kver, require_kdir, require_obj constants for us, but if it does not
 # not we attempt to determine the correct values based on your distro.
 
+# kdir:    Full path to the kernel source headers
+# kobj:    Full path to the kernel build objects
+# kver:    Kernel version
+# kpkg:    Kernel package name
+# kdevpkg: Kernel devel package name
+# kverpkg: Kernel package version
+
 %if %{defined require_kver}
 %define kver %{require_kver}
 %endif
@@ -15,12 +22,133 @@
 %define kobj %{require_kobj}
 %endif
 
-# kdir:    Full path to the kernel source headers
-# kobj:    Full path to the kernel build objects
-# kver:    Kernel version
-# kpkg:    Kernel package name
-# kdevpkg: Kernel devel package name
-# kverpkg: Kernel package version
+# SLES 10, SLES 11:
+%if %{defined suse_version}
+ %if %{undefined kver}
+  %ifarch ppc64
+   %define kverextra     ppc64
+  %else
+   %define kverextra     default
+  %endif
+
+  %if %{suse_version} >= 1100
+   %define klnk          %{_usrsrc}/linux-obj/%{_target_cpu}/%{kverextra}
+   %define krelease      %{klnk}/include/config/kernel.release
+  %else
+   %define klnk          %{_usrsrc}/linux-obj/%{_target_cpu}/%{kverextra}
+   %define krelease      %{klnk}/.kernelrelease
+  %endif
+
+  %define kver           %((echo X; %{__cat} %{krelease} 2>/dev/null)|tail -1)
+ %endif
+
+ %if %{undefined kverextra}
+  %define kverextra      %(echo %{kver} | cut -f3 -d'-')
+ %endif
+
+ %define kpkg            kernel-%{kverextra}
+ %define kdevpkg         kernel-source
+ %define kverpkg         %(echo %{kver} | %{__sed} -e 's/-%{kverextra}//g')
+
+ # The kernel and rpm versions do not strictly match under SLES11
+ # e.g. kernel version 2.6.27.19-5 != rpm version 2.6.27.19-5.1
+ %if %{suse_version} >= 1100
+  %define koppkg         >=
+ %else
+  %define koppkg         =
+ %endif
+
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/linux-%{kverpkg}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}-obj/%{_target_cpu}/%{kverextra}
+ %endif
+%else
+
+# CHAOS 4.x:
+%if %{defined ch4}
+ %if %{undefined kver}
+  %define klnk           %{_usrsrc}/kernels/*/include/config
+  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | tail -1)
+ %endif
+ %define kpkg            chaos-kernel
+ %define kdevpkg         chaos-kernel-devel
+ %define kverpkg         %{kver}
+ %define koppkg          =
+ %if %{undefined kdir}
+  %define kdir %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
+%else
+
+# RHEL 5:
+%if %{defined el5}
+ %if %{undefined kver}
+  %define klnk           %{_usrsrc}/kernels/*/include/config
+  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | tail -1)
+ %endif
+ %define kpkg            kernel
+ %define kdevpkg         kernel-devel
+ %define kverpkg         %{kver}
+ %define koppkg          =
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/kernels/%{kver}-%{_target_cpu}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
+%else
+
+# Fedora 11:
+%if %{defined fedora}
+ %if %{undefined kver}
+  %define klnk           %{_usrsrc}/kernels/*/include/config
+  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | tail -1)
+ %endif
+ %define kpkg            kernel
+ %define kdevpkg         kernel-devel
+ %define kverpkg         %(echo %{kver} | %{__sed} -e 's/.%{_target_cpu}//g')
+ %define koppkg          =
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
+%else
+
+# Unsupported distro:
+ %if %{undefined kver}
+  %define kver           X
+ %endif
+ %define kpkg            kernel
+ %define kdevpkg         kernel-devel
+ %define kverpkg         %{kver}
+ %define koppkg          =
+ %if %{undefined kdir}
+  %define kdir           %{_usrsrc}/kernels/%{kver}
+ %endif
+ %if %{undefined kobj}
+  %define kobj           %{kdir}
+ %endif
+
+%endif
+%endif
+%endif
+%endif
+
+# spldir:    Full path to the spl source headers
+# splobj:    Full path to the spl build objects
+# splver:    Spl version
+# splpkg:    Spl package name
+# spldevpkg: Spl devel package name
+# splverpkg: Spl package version
 
 %if %{defined require_splver}
 %define splver %{require_splver}
@@ -34,87 +162,6 @@
 %define splobj %{require_splobj}
 %endif
 
-# spldir:    Full path to the spl source headers
-# splobj:    Full path to the spl build objects
-# splver:    Spl version
-# splpkg:    Spl package name
-# spldevpkg: Spl devel package name
-# splverpkg: Spl package version
-
-# SLES*:
-%if %{defined sles_version}
- %if %{undefined kver}
-  %define klnk           %{_usrsrc}/linux-obj/%{_target_cpu}/%{_target_cpu}
-  %define kver           %((echo X; %{__cat} %{klnk}/.kernelrelease
-                            2>/dev/null) | tail -1)
- %endif
- %define kpkg            kernel-%{_target_cpu}
- %define kdevpkg         kernel-source kernel-syms
- %define kverpkg         %(echo %{kver} | cut -d'-' -f1-2)
- %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/linux-%{kverpkg}
- %endif
- %if %{undefined kobj}
-  %define kobj           %{kdir}-obj/%{_target_cpu}/%{_target_cpu}
- %endif
-
-# CHAOS4:
-%else
-%if %{defined ch4}
- %if %{undefined kver}
-  %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
-                            2>/dev/null) | tail -1)
- %endif
- %define kpkg            chaos-kernel
- %define kdevpkg         chaos-kernel-devel
- %define kverpkg         %{kver}
- %if %{undefined kdir}
-  %define kdir %{_usrsrc}/kernels/%{kver}
- %endif
- %if %{undefined kobj}
-  %define kobj           %{kdir}
- %endif
-
-# RHEL*/Fedora:
-%else
-%if %{defined fedora} || %{defined rhel}
- %if %{undefined kver}
-  %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
-                            2>/dev/null) | tail -1)
- %endif
- %define kpkg            kernel
- %define kdevpkg         kernel-devel
- %define kverpkg         %(echo %{kver} | cut -d'.' -f1-7)
- %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/kernels/%{kver}
- %endif
- %if %{undefined kobj}
-  %define kobj           %{kdir}
- %endif
-
-%else
-
-# Unsupported distro:
- %if %{undefined kver}
-  %define kver            X
- %endif
- %define kpkg             kernel
- %define kdevpkg          kernel-devel
- %define kverpkg          %{kver}
- %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/kernels/%{kver}
- %endif
- %if %{undefined kobj}
-  %define kobj           %{kdir}
- %endif
-
-%endif
-%endif
-%endif
-
-# SPL package dependencies
 %if %{undefined splver}
  %define spllnk          %{_usrsrc}/spl-*/%{kver}
  %define splver          %((echo X; %{__cat} %{spllnk}/spl.release
@@ -148,7 +195,7 @@
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @ZFS_META_RELEASE@_%{relext}
-%define krequires        %{kpkg} = %{kverpkg}
+%define krequires        %{kpkg} %{koppkg} %{kverpkg}
 %define splrequires      %{splpkg} = %{splverpkg}
 %endif
 
