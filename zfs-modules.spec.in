@@ -3,9 +3,17 @@
 # require_kver, require_kdir, require_obj constants for us, but if it does not
 # not we attempt to determine the correct values based on your distro.
 
-%{?require_kver: %define kver %{require_kver}}
-%{?require_kdir: %define kdir %{require_kdir}}
-%{?require_kobj: %define kobj %{require_kobj}}
+%if %{defined require_kver}
+%define kver %{require_kver}
+%endif
+
+%if %{defined require_kdir}
+%define kdir %{require_kdir}
+%endif
+
+%if %{defined require_kobj}
+%define kobj %{require_kobj}
+%endif
 
 # kdir:    Full path to the kernel source headers
 # kobj:    Full path to the kernel build objects
@@ -14,9 +22,17 @@
 # kdevpkg: Kernel devel package name
 # kverpkg: Kernel package version
 
-%{?require_splver: %define splver %{require_splver}}
-%{?require_spldir: %define spldir %{require_spldir}}
-%{?require_splobj: %define splobj %{require_splobj}}
+%if %{defined require_splver}
+%define splver %{require_splver}
+%endif
+
+%if %{defined require_spldir}
+%define spldir %{require_spldir}
+%endif
+
+%if %{defined require_splobj}
+%define splobj %{require_splobj}
+%endif
 
 # spldir:    Full path to the spl source headers
 # splobj:    Full path to the spl build objects
