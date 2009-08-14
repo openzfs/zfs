@@ -1176,7 +1176,7 @@ grow_vdev(vdev_t *vd, void *arg)
 		return (vd);
 
 	fsize = lseek(fd, 0, SEEK_END);
-	(void) ftruncate(fd, *newsize);
+	VERIFY(ftruncate(fd, *newsize) == 0);
 
 	if (zopt_verbose >= 6) {
 		(void) printf("%s grew from %lu to %lu bytes\n",
