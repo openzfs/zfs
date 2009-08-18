@@ -362,7 +362,7 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	cb.cb_types = types;
 	cb.cb_depth_limit = limit;
 	/*
-	 * If cb_proplist is provided then in the zfs_handles created  we
+	 * If cb_proplist is provided then in the zfs_handles created we
 	 * retain only those properties listed in cb_proplist and sortcol.
 	 * The rest are pruned. So, the caller should make sure that no other
 	 * properties other than those listed in cb_proplist/sortcol are
