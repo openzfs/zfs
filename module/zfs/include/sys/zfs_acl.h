@@ -203,6 +203,7 @@ void zfs_oldace_byteswap(ace_t *, int);
 void zfs_ace_byteswap(void *, size_t, boolean_t);
 extern boolean_t zfs_has_access(struct znode *zp, cred_t *cr);
 extern int zfs_zaccess(struct znode *, int, int, boolean_t, cred_t *);
+int zfs_fastaccesschk_execute(struct znode *, cred_t *);
 extern int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *);
 extern int zfs_zaccess_unix(struct znode *, mode_t, cred_t *);
 extern int zfs_acl_access(struct znode *, int, cred_t *);
