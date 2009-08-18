@@ -47,6 +47,7 @@
 #include <ucred.h>
 #include <idmap.h>
 #include <aclutils.h>
+#include <directory.h>
 
 #include <sys/spa.h>
 #include <sys/zap.h>
@@ -1674,21 +1675,13 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_OBJSET_ZPLPROPS, &zc)) {
 			zcmd_free_nvlists(&zc);
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "unable to get %s property"),
-			    zfs_prop_to_name(prop));
-			return (zfs_error(zhp->zfs_hdl, EZFS_BADVERSION,
-			    dgettext(TEXT_DOMAIN, "internal error")));
+			return (-1);
 		}
 		if (zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc, &zplprops) != 0 ||
 		    nvlist_lookup_uint64(zplprops, zfs_prop_to_name(prop),
 		    val) != 0) {
 			zcmd_free_nvlists(&zc);
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "unable to get %s property"),
-			    zfs_prop_to_name(prop));
-			return (zfs_error(zhp->zfs_hdl, EZFS_NOMEM,
-			    dgettext(TEXT_DOMAIN, "internal error")));
+			return (-1);
 		}
 		if (zplprops)
 			nvlist_free(zplprops);
@@ -2074,6 +2067,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 {
 	zfs_userquota_prop_t type;
 	char *cp, *end;
+	char *numericsid = NULL;
 	boolean_t isuser;
 
 	domain[0] = '\0';
@@ -2096,33 +2090,41 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	if (strchr(cp, '@')) {
 		/*
 		 * It's a SID name (eg "user@domain") that needs to be
-		 * turned into S-1-domainID-RID.  There should be a
-		 * better way to do this, but for now just translate it
-		 * to the (possibly ephemeral) uid and then back to the
-		 * SID.  This is like getsidname(noresolve=TRUE).
+		 * turned into S-1-domainID-RID.
 		 */
-		uid_t id;
-		idmap_rid_t rid;
-		char *mapdomain;
-
+		directory_error_t e;
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
-		if (sid_to_id(cp, isuser, &id) != 0)
+		if (isuser) {
+			e = directory_sid_from_user_name(NULL,
+			    cp, &numericsid);
+		} else {
+			e = directory_sid_from_group_name(NULL,
+			    cp, &numericsid);
+		}
+		if (e != NULL) {
+			directory_error_free(e);
 			return (ENOENT);
-		if (idmap_id_to_numeric_domain_rid(id, isuser,
-		    &mapdomain, &rid) != 0)
+		}
+		if (numericsid == NULL)
 			return (ENOENT);
-		(void) strlcpy(domain, mapdomain, domainlen);
-		*ridp = rid;
-	} else if (strncmp(cp, "S-1-", 4) == 0) {
+		cp = numericsid;
+		/* will be further decoded below */
+	}
+
+	if (strncmp(cp, "S-1-", 4) == 0) {
 		/* It's a numeric SID (eg "S-1-234-567-89") */
-		(void) strcpy(domain, cp);
+		(void) strlcpy(domain, cp, domainlen);
 		cp = strrchr(domain, '-');
 		*cp = '\0';
 		cp++;
 
 		errno = 0;
 		*ridp = strtoull(cp, &end, 10);
+		if (numericsid) {
+			free(numericsid);
+			numericsid = NULL;
+		}
 		if (errno != 0 || *end != '\0')
 			return (EINVAL);
 	} else if (!isdigit(*cp)) {
@@ -2158,13 +2160,14 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 			if (idmap_id_to_numeric_domain_rid(id, isuser,
 			    &mapdomain, &rid) != 0)
 				return (ENOENT);
-			(void) strcpy(domain, mapdomain);
+			(void) strlcpy(domain, mapdomain, domainlen);
 			*ridp = rid;
 		} else {
 			*ridp = id;
 		}
 	}
 
+	ASSERT3P(numericsid, ==, NULL);
 	return (0);
 }
 
@@ -2763,7 +2766,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
  * isn't mounted, and that there are no active dependents.
  */
 int
-zfs_destroy(zfs_handle_t *zhp)
+zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 {
 	zfs_cmd_t zc = { 0 };
 
@@ -2787,6 +2790,7 @@ zfs_destroy(zfs_handle_t *zhp)
 		zc.zc_objset_type = DMU_OST_ZFS;
 	}
 
+	zc.zc_defer_destroy = defer;
 	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0) {
 		return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
@@ -2843,7 +2847,7 @@ zfs_remove_link_cb(zfs_handle_t *zhp, void *arg)
  * Destroys all snapshots with the given name in zhp & descendants.
  */
 int
-zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname)
+zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname, boolean_t defer)
 {
 	zfs_cmd_t zc = { 0 };
 	int ret;
@@ -2860,6 +2864,7 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname)
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
+	zc.zc_defer_destroy = defer;
 
 	ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY_SNAPS, &zc);
 	if (ret != 0) {
@@ -3275,7 +3280,7 @@ rollback_destroy(zfs_handle_t *zhp, void *data)
 
 			logstr = zhp->zfs_hdl->libzfs_log_str;
 			zhp->zfs_hdl->libzfs_log_str = NULL;
-			cbp->cb_error |= zfs_destroy(zhp);
+			cbp->cb_error |= zfs_destroy(zhp, B_FALSE);
 			zhp->zfs_hdl->libzfs_log_str = logstr;
 		}
 	} else {
@@ -3289,7 +3294,7 @@ rollback_destroy(zfs_handle_t *zhp, void *data)
 			zfs_close(zhp);
 			return (0);
 		}
-		if (zfs_destroy(zhp) != 0)
+		if (zfs_destroy(zhp, B_FALSE) != 0)
 			cbp->cb_error = B_TRUE;
 		else
 			changelist_remove(clp, zhp->zfs_name);
@@ -4089,4 +4094,80 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 	}
 
 	return (error);
+}
+
+int
+zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
+    boolean_t recursive)
+{
+	zfs_cmd_t zc = { 0 };
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
+	(void) strlcpy(zc.zc_string, tag, sizeof (zc.zc_string));
+	zc.zc_cookie = recursive;
+
+	if (zfs_ioctl(hdl, ZFS_IOC_HOLD, &zc) != 0) {
+		char errbuf[ZFS_MAXNAMELEN+32];
+
+		/*
+		 * if it was recursive, the one that actually failed will be in
+		 * zc.zc_name.
+		 */
+		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+		    "cannot hold '%s@%s'"), zc.zc_name, snapname);
+		switch (errno) {
+		case ENOTSUP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "pool must be upgraded"));
+			return (zfs_error(hdl, EZFS_BADVERSION, errbuf));
+		case EINVAL:
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		case EEXIST:
+			return (zfs_error(hdl, EZFS_REFTAG_HOLD, errbuf));
+		default:
+			return (zfs_standard_error_fmt(hdl, errno, errbuf));
+		}
+	}
+
+	return (0);
+}
+
+int
+zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
+    boolean_t recursive)
+{
+	zfs_cmd_t zc = { 0 };
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
+	(void) strlcpy(zc.zc_string, tag, sizeof (zc.zc_string));
+	zc.zc_cookie = recursive;
+
+	if (zfs_ioctl(hdl, ZFS_IOC_RELEASE, &zc) != 0) {
+		char errbuf[ZFS_MAXNAMELEN+32];
+
+		/*
+		 * if it was recursive, the one that actually failed will be in
+		 * zc.zc_name.
+		 */
+		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+		    "cannot release '%s@%s'"), zc.zc_name, snapname);
+		switch (errno) {
+		case ESRCH:
+			return (zfs_error(hdl, EZFS_REFTAG_RELE, errbuf));
+		case ENOTSUP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "pool must be upgraded"));
+			return (zfs_error(hdl, EZFS_BADVERSION, errbuf));
+		case EINVAL:
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		default:
+			return (zfs_standard_error_fmt(hdl, errno, errbuf));
+		}
+	}
+
+	return (0);
 }

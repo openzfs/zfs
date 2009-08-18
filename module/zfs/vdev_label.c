@@ -246,8 +246,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		 * into a crufty old storage pool.
 		 */
 		ASSERT(vd->vdev_nparity == 1 ||
-		    (vd->vdev_nparity == 2 &&
-		    spa_version(spa) >= SPA_VERSION_RAID6));
+		    (vd->vdev_nparity <= 2 &&
+		    spa_version(spa) >= SPA_VERSION_RAIDZ2) ||
+		    (vd->vdev_nparity <= 3 &&
+		    spa_version(spa) >= SPA_VERSION_RAIDZ3));
 
 		/*
 		 * Note that we'll add the nparity tag even on storage pools
@@ -642,8 +644,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	/*
 	 * Initialize uberblock template.
 	 */
-	ub = zio_buf_alloc(VDEV_UBERBLOCK_SIZE(vd));
-	bzero(ub, VDEV_UBERBLOCK_SIZE(vd));
+	ub = zio_buf_alloc(VDEV_UBERBLOCK_RING);
+	bzero(ub, VDEV_UBERBLOCK_RING);
 	*ub = spa->spa_uberblock;
 	ub->ub_txg = 0;
 
@@ -672,11 +674,9 @@ retry:
 		    offsetof(vdev_label_t, vl_pad2),
 		    VDEV_PAD_SIZE, NULL, NULL, flags);
 
-		for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
-			vdev_label_write(zio, vd, l, ub,
-			    VDEV_UBERBLOCK_OFFSET(vd, n),
-			    VDEV_UBERBLOCK_SIZE(vd), NULL, NULL, flags);
-		}
+		vdev_label_write(zio, vd, l, ub,
+		    offsetof(vdev_label_t, vl_uberblock),
+		    VDEV_UBERBLOCK_RING, NULL, NULL, flags);
 	}
 
 	error = zio_wait(zio);
@@ -688,7 +688,7 @@ retry:
 
 	nvlist_free(label);
 	zio_buf_free(pad2, VDEV_PAD_SIZE);
-	zio_buf_free(ub, VDEV_UBERBLOCK_SIZE(vd));
+	zio_buf_free(ub, VDEV_UBERBLOCK_RING);
 	zio_buf_free(vp, sizeof (vdev_phys_t));
 
 	/*
