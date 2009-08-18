@@ -2861,6 +2861,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	error = dmu_recv_stream(&drc, fp->f_vnode, &off);
 
 	if (error == 0) {
+#ifdef HAVE_ZPL
 		zfsvfs_t *zfsvfs = NULL;
 
 		if (getzfsvfs(tofs, &zfsvfs) == 0) {
@@ -2887,6 +2888,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		} else {
 			error = dmu_recv_end(&drc);
 		}
+#else
+		error = dmu_recv_end(&drc);
+#endif /* HAVE_ZPL */
 	}
 
 	zc->zc_cookie = off - fp->f_offset;
