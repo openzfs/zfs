@@ -700,7 +700,7 @@ zfsctl_snapdir_remove(vnode_t *dvp, char *name, vnode_t *cwd, cred_t *cr,
 		if (err)
 			avl_add(&sdp->sd_snaps, sep);
 		else
-			err = dmu_objset_destroy(snapname);
+			err = dmu_objset_destroy(snapname, B_FALSE);
 	} else {
 		err = ENOENT;
 	}
