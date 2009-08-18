@@ -235,6 +235,9 @@ zfs_prop_init(void)
 	/* readonly index (boolean) properties */
 	register_index(ZFS_PROP_MOUNTED, "mounted", 0, PROP_READONLY,
 	    ZFS_TYPE_FILESYSTEM, "yes | no", "MOUNTED", boolean_table);
+	register_index(ZFS_PROP_DEFER_DESTROY, "defer_destroy", 0,
+	    PROP_READONLY, ZFS_TYPE_SNAPSHOT, "yes | no", "DEFER_DESTROY",
+	    boolean_table);
 
 	/* set once index properties */
 	register_index(ZFS_PROP_NORMALIZE, "normalization", 0,
@@ -286,6 +289,8 @@ zfs_prop_init(void)
 	register_number(ZFS_PROP_USEDREFRESERV, "usedbyrefreservation", 0,
 	    PROP_READONLY,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>", "USEDREFRESERV");
+	register_number(ZFS_PROP_USERREFS, "userrefs", 0, PROP_READONLY,
+	    ZFS_TYPE_SNAPSHOT, "<count>", "USERREFS");
 
 	/* default number properties */
 	register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
