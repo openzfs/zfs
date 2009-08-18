@@ -33,11 +33,11 @@ zpool_create() {
 		let Z_IDX=Z_IDX+1
 	done
 
-	msg ${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${RAIDZ2S[*]}
-	${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${RAIDZ2S[*]} || exit 1
+	msg ${ZPOOL} create -f ${ZPOOL_NAME} ${RAIDZ2S[*]}
+	${ZPOOL} create -f ${ZPOOL_NAME} ${RAIDZ2S[*]} || exit 1
 }
 
 zpool_destroy() {
-	msg ${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
-	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
+	msg ${ZPOOL} destroy ${ZPOOL_NAME}
+	${ZPOOL} destroy ${ZPOOL_NAME}
 }
