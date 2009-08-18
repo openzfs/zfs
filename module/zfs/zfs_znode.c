@@ -133,6 +133,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	zp->z_dbuf = NULL;
 	zp->z_dirlocks = NULL;
+	zp->z_acl_cached = NULL;
 	return (0);
 }
 
@@ -155,6 +156,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 
 	ASSERT(zp->z_dbuf == NULL);
 	ASSERT(zp->z_dirlocks == NULL);
+	ASSERT(zp->z_acl_cached == NULL);
 }
 
 #ifdef	ZNODE_STATS
@@ -198,6 +200,18 @@ zfs_znode_move_impl(znode_t *ozp, znode_t *nzp)
 	nzp->z_sync_cnt = ozp->z_sync_cnt;
 	nzp->z_phys = ozp->z_phys;
 	nzp->z_dbuf = ozp->z_dbuf;
+
+	/*
+	 * Release any cached ACL, since it *may* have
+	 * zfs_acl_node_t's that directly references an
+	 * embedded ACL in the zp_acl of the old znode_phys_t
+	 *
+	 * It will be recached the next time the ACL is needed.
+	 */
+	if (ozp->z_acl_cached) {
+		zfs_acl_free(ozp->z_acl_cached);
+		ozp->z_acl_cached = NULL;
+	}
 
 	/* Update back pointers. */
 	(void) dmu_buf_update_user(nzp->z_dbuf, ozp, nzp, &nzp->z_phys,
@@ -1080,6 +1094,11 @@ zfs_znode_free(znode_t *zp)
 	POINTER_INVALIDATE(&zp->z_zfsvfs);
 	list_remove(&zfsvfs->z_all_znodes, zp);
 	mutex_exit(&zfsvfs->z_znodes_lock);
+
+	if (zp->z_acl_cached) {
+		zfs_acl_free(zp->z_acl_cached);
+		zp->z_acl_cached = NULL;
+	}
 
 	kmem_cache_free(znode_cache, zp);
 
