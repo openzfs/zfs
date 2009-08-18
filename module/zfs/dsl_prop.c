@@ -442,7 +442,7 @@ dsl_props_set_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 }
 
 void
-dsl_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
+dsl_dir_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
     cred_t *cr, dmu_tx_t *tx)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
