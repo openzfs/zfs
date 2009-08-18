@@ -4081,7 +4081,7 @@ int
 zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
     boolean_t recursive)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -4119,7 +4119,7 @@ int
 zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
     boolean_t recursive)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
