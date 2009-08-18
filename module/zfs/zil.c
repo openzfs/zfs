@@ -714,14 +714,15 @@ zil_lwb_write_done(zio_t *zio)
 	lwb->lwb_buf = NULL;
 	if (zio->io_error)
 		zilog->zl_log_error = B_TRUE;
-	mutex_exit(&zilog->zl_lock);
 
 	/*
 	 * Now that we've written this log block, we have a stable pointer
 	 * to the next block in the chain, so it's OK to let the txg in
-	 * which we allocated the next block sync.
+	 * which we allocated the next block sync. We still have the
+	 * zl_lock to ensure zil_sync doesn't kmem free the lwb.
 	 */
 	txg_rele_to_sync(&lwb->lwb_txgh);
+	mutex_exit(&zilog->zl_lock);
 }
 
 /*
@@ -925,6 +926,10 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 			}
 			error = zilog->zl_get_data(
 			    itx->itx_private, lr, dbuf, lwb->lwb_zio);
+			if (error == EIO) {
+				txg_wait_synced(zilog->zl_dmu_pool, txg);
+				return (lwb);
+			}
 			if (error) {
 				ASSERT(error == ENOENT || error == EEXIST ||
 				    error == EALREADY);

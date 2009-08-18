@@ -935,7 +935,6 @@ zfsvfs_create(const char *osname, int mode, zfsvfs_t **zvp)
 		goto out;
 
 	mutex_init(&zfsvfs->z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&zfsvfs->z_online_recv_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
@@ -1051,7 +1050,6 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	zfs_fuid_destroy(zfsvfs);
 
 	mutex_destroy(&zfsvfs->z_znodes_lock);
-	mutex_destroy(&zfsvfs->z_online_recv_lock);
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
 	rrw_destroy(&zfsvfs->z_teardown_lock);

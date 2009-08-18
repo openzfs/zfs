@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
@@ -118,7 +116,7 @@ rrn_find_and_remove(rrwlock_t *rrl)
 	rrw_node_t *prev = NULL;
 
 	if (refcount_count(&rrl->rr_linked_rcount) == 0)
-		return (NULL);
+		return (B_FALSE);
 
 	for (rn = tsd_get(rrw_tsd_key); rn != NULL; rn = rn->rn_next) {
 		if (rn->rn_rrl == rrl) {
@@ -159,6 +157,14 @@ static void
 rrw_enter_read(rrwlock_t *rrl, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
+#if !defined(DEBUG) && defined(_KERNEL)
+	if (!rrl->rr_writer && !rrl->rr_writer_wanted) {
+		rrl->rr_anon_rcount.rc_count++;
+		mutex_exit(&rrl->rr_lock);
+		return;
+	}
+	DTRACE_PROBE(zfs__rrwfastpath__rdmiss);
+#endif
 	ASSERT(rrl->rr_writer != curthread);
 	ASSERT(refcount_count(&rrl->rr_anon_rcount) >= 0);
 
@@ -208,19 +214,28 @@ void
 rrw_exit(rrwlock_t *rrl, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
+#if !defined(DEBUG) && defined(_KERNEL)
+	if (!rrl->rr_writer && rrl->rr_linked_rcount.rc_count == 0) {
+		rrl->rr_anon_rcount.rc_count--;
+		if (rrl->rr_anon_rcount.rc_count == 0)
+			cv_broadcast(&rrl->rr_cv);
+		mutex_exit(&rrl->rr_lock);
+		return;
+	}
+	DTRACE_PROBE(zfs__rrwfastpath__exitmiss);
+#endif
 	ASSERT(!refcount_is_zero(&rrl->rr_anon_rcount) ||
 	    !refcount_is_zero(&rrl->rr_linked_rcount) ||
 	    rrl->rr_writer != NULL);
 
 	if (rrl->rr_writer == NULL) {
-		if (rrn_find_and_remove(rrl)) {
-			if (refcount_remove(&rrl->rr_linked_rcount, tag) == 0)
-				cv_broadcast(&rrl->rr_cv);
-
-		} else {
-			if (refcount_remove(&rrl->rr_anon_rcount, tag) == 0)
-				cv_broadcast(&rrl->rr_cv);
-		}
+		int64_t count;
+		if (rrn_find_and_remove(rrl))
+			count = refcount_remove(&rrl->rr_linked_rcount, tag);
+		else
+			count = refcount_remove(&rrl->rr_anon_rcount, tag);
+		if (count == 0)
+			cv_broadcast(&rrl->rr_cv);
 	} else {
 		ASSERT(rrl->rr_writer == curthread);
 		ASSERT(refcount_is_zero(&rrl->rr_anon_rcount) &&
