@@ -113,6 +113,9 @@ fsavl_destroy(avl_tree_t *avl)
 	free(avl);
 }
 
+/*
+ * Given an nvlist, produce an avl tree of snapshots, ordered by guid
+ */
 static avl_tree_t *
 fsavl_create(nvlist_t *fss)
 {
@@ -243,7 +246,9 @@ send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv)
 			continue;
 
 		verify(nvpair_value_nvlist(elem, &propnv) == 0);
-		if (prop == ZFS_PROP_QUOTA || prop == ZFS_PROP_RESERVATION) {
+		if (prop == ZFS_PROP_QUOTA || prop == ZFS_PROP_RESERVATION ||
+		    prop == ZFS_PROP_REFQUOTA ||
+		    prop == ZFS_PROP_REFRESERVATION) {
 			/* these guys are modifyable, but have no source */
 			uint64_t value;
 			verify(nvlist_lookup_uint64(propnv,
@@ -274,6 +279,11 @@ send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv)
 	}
 }
 
+/*
+ * recursively generate nvlists describing datasets.  See comment
+ * for the data structure send_data_t above for description of contents
+ * of the nvlist.
+ */
 static int
 send_iterate_fs(zfs_handle_t *zhp, void *arg)
 {
@@ -689,9 +699,20 @@ again:
 }
 
 /*
- * Dumps a backup of tosnap, incremental from fromsnap if it isn't NULL.
- * If 'doall', dump all intermediate snaps.
- * If 'replicate', dump special header and do recursively.
+ * Generate a send stream for the dataset identified by the argument zhp.
+ *
+ * The content of the send stream is the snapshot identified by
+ * 'tosnap'.  Incremental streams are requested in two ways:
+ *     - from the snapshot identified by "fromsnap" (if non-null) or
+ *     - from the origin of the dataset identified by zhp, which must
+ *	 be a clone.  In this case, "fromsnap" is null and "fromorigin"
+ *	 is TRUE.
+ *
+ * The send stream is recursive (i.e. dumps a hierarchy of snapshots) and
+ * uses a special header (with a version field of DMU_BACKUP_HEADER_VERSION)
+ * if "replicate" is set.  If "doall" is set, dump all the intermediate
+ * snapshots. The DMU_BACKUP_HEADER_VERSION header is used in the "doall"
+ * case too.
  */
 int
 zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
@@ -900,11 +921,12 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 	if (err)
 		return (err);
 
+	zc.zc_objset_type = DMU_OST_ZFS;
+	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+
 	if (tryname) {
 		(void) strcpy(newname, tryname);
 
-		zc.zc_objset_type = DMU_OST_ZFS;
-		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 		(void) strlcpy(zc.zc_value, tryname, sizeof (zc.zc_value));
 
 		if (flags.verbose) {
@@ -959,12 +981,18 @@ recv_destroy(libzfs_handle_t *hdl, const char *name, int baselen,
 	int err = 0;
 	prop_changelist_t *clp;
 	zfs_handle_t *zhp;
+	boolean_t defer = B_FALSE;
+	int spa_version;
 
 	zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
 	if (zhp == NULL)
 		return (-1);
 	clp = changelist_gather(zhp, ZFS_PROP_NAME, 0,
 	    flags.force ? MS_FORCE : 0);
+	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT &&
+	    zfs_spa_version(zhp, &spa_version) == 0 &&
+	    spa_version >= SPA_VERSION_USERREFS)
+		defer = B_TRUE;
 	zfs_close(zhp);
 	if (clp == NULL)
 		return (-1);
@@ -973,12 +1001,12 @@ recv_destroy(libzfs_handle_t *hdl, const char *name, int baselen,
 		return (err);
 
 	zc.zc_objset_type = DMU_OST_ZFS;
+	zc.zc_defer_destroy = defer;
 	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
 	if (flags.verbose)
 		(void) printf("attempting destroy %s\n", zc.zc_name);
 	err = ioctl(hdl->libzfs_fd, ZFS_IOC_DESTROY, &zc);
-
 	if (err == 0) {
 		if (flags.verbose)
 			(void) printf("success\n");
@@ -988,7 +1016,12 @@ recv_destroy(libzfs_handle_t *hdl, const char *name, int baselen,
 	(void) changelist_postfix(clp);
 	changelist_free(clp);
 
-	if (err != 0)
+	/*
+	 * Deferred destroy should always succeed. Since we can't tell
+	 * if it destroyed the dataset or just marked it for deferred
+	 * destroy, always do the rename just in case.
+	 */
+	if (err != 0 || defer)
 		err = recv_rename(hdl, name, NULL, baselen, newname, flags);
 
 	return (err);
@@ -1775,11 +1808,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			/* We can't do online recv in this case */
 			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0);
 			if (clp == NULL) {
+				zfs_close(zhp);
 				zcmd_free_nvlists(&zc);
 				return (-1);
 			}
 			if (changelist_prefix(clp) != 0) {
 				changelist_free(clp);
+				zfs_close(zhp);
 				zcmd_free_nvlists(&zc);
 				return (-1);
 			}
@@ -1936,7 +1971,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * (if created, or if we tore them down to do an incremental
 	 * restore), and the /dev links for the new snapshot (if
 	 * created). Also mount any children of the target filesystem
-	 * if we did an incremental receive.
+	 * if we did a replication receive (indicated by stream_avl
+	 * being non-NULL).
 	 */
 	cp = strchr(zc.zc_value, '@');
 	if (cp && (ioctl_err == 0 || !newfs)) {
@@ -1952,7 +1988,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				if (err == 0 && ioctl_err == 0)
 					err = zvol_create_link(hdl,
 					    zc.zc_value);
-			} else if (newfs) {
+			} else if (newfs || stream_avl) {
 				/*
 				 * Track the first/top of hierarchy fs,
 				 * for mounting and sharing later.
