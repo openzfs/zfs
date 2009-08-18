@@ -818,6 +818,8 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	    (u_longlong_t)ds->ds_snapnames_zapobj);
 	(void) printf("\t\tnum_children = %llu\n",
 	    (u_longlong_t)ds->ds_num_children);
+	(void) printf("\t\tuserrefs_obj = %llu\n",
+	    (u_longlong_t)ds->ds_userrefs_obj);
 	(void) printf("\t\tcreation_time = %s", ctime(&crtime));
 	(void) printf("\t\tcreation_txg = %llu\n",
 	    (u_longlong_t)ds->ds_creation_txg);
@@ -1049,6 +1051,7 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES] = {
 	dump_zap,		/* DSL scrub queue		*/
 	dump_zap,		/* ZFS user/group used		*/
 	dump_zap,		/* ZFS user/group quota		*/
+	dump_zap,		/* snapshot refcount tags	*/
 };
 
 static void

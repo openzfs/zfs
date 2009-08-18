@@ -53,6 +53,8 @@ extern "C" {
 #define	ZFS_DELEG_PERM_GROUPQUOTA	"groupquota"
 #define	ZFS_DELEG_PERM_USERUSED		"userused"
 #define	ZFS_DELEG_PERM_GROUPUSED	"groupused"
+#define	ZFS_DELEG_PERM_HOLD		"hold"
+#define	ZFS_DELEG_PERM_RELEASE		"release"
 
 /*
  * Note: the names of properties that are marked delegatable are also

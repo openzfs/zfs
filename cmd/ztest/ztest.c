@@ -479,7 +479,7 @@ process_options(int argc, char **argv)
 			zopt_raidz = MAX(1, value);
 			break;
 		case 'R':
-			zopt_raidz_parity = MIN(MAX(value, 1), 2);
+			zopt_raidz_parity = MIN(MAX(value, 1), 3);
 			break;
 		case 'd':
 			zopt_datasets = MAX(1, value);
@@ -1387,7 +1387,7 @@ ztest_destroy_cb(char *name, void *arg)
 	/*
 	 * Destroy the dataset.
 	 */
-	error = dmu_objset_destroy(name);
+	error = dmu_objset_destroy(name, B_FALSE);
 	if (error) {
 		(void) dmu_objset_open(name, DMU_OST_OTHER,
 		    DS_MODE_USER | DS_MODE_READONLY, &os);
@@ -1560,7 +1560,7 @@ ztest_dmu_objset_create_destroy(ztest_args_t *za)
 	zil_close(zilog);
 	dmu_objset_close(os);
 
-	error = dmu_objset_destroy(name);
+	error = dmu_objset_destroy(name, B_FALSE);
 	if (error)
 		fatal(0, "dmu_objset_destroy(%s) = %d", name, error);
 
@@ -1583,7 +1583,7 @@ ztest_dmu_snapshot_create_destroy(ztest_args_t *za)
 	(void) snprintf(snapname, 100, "%s@%llu", osname,
 	    (u_longlong_t)za->za_instance);
 
-	error = dmu_objset_destroy(snapname);
+	error = dmu_objset_destroy(snapname, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		fatal(0, "dmu_objset_destroy() = %d", error);
 	error = dmu_objset_snapshot(osname, strchr(snapname, '@')+1,
@@ -1614,19 +1614,19 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t curval)
 	(void) snprintf(clone2name, 100, "%s/c2_%llu", osname, curval);
 	(void) snprintf(snap3name, 100, "%s@s3_%llu", clone1name, curval);
 
-	error = dmu_objset_destroy(clone2name);
+	error = dmu_objset_destroy(clone2name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", clone2name, error);
-	error = dmu_objset_destroy(snap3name);
+	error = dmu_objset_destroy(snap3name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", snap3name, error);
-	error = dmu_objset_destroy(snap2name);
+	error = dmu_objset_destroy(snap2name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", snap2name, error);
-	error = dmu_objset_destroy(clone1name);
+	error = dmu_objset_destroy(clone1name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", clone1name, error);
-	error = dmu_objset_destroy(snap1name);
+	error = dmu_objset_destroy(snap1name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", snap1name, error);
 }

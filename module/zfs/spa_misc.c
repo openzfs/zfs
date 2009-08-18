@@ -310,8 +310,12 @@ spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
+	int wlocks_held = 0;
+
 	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
+		if (scl->scl_writer == curthread)
+			wlocks_held |= (1 << i);
 		if (!(locks & (1 << i)))
 			continue;
 		mutex_enter(&scl->scl_lock);
@@ -331,6 +335,7 @@ spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 		(void) refcount_add(&scl->scl_count, tag);
 		mutex_exit(&scl->scl_lock);
 	}
+	ASSERT(wlocks_held <= locks);
 }
 
 void
