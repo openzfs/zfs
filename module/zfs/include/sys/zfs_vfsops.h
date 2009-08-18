@@ -73,7 +73,6 @@ struct zfsvfs {
 	boolean_t	z_vscan;	/* virus scan on/off */
 	boolean_t	z_use_fuids;	/* version allows fuids */
 	boolean_t	z_replay;	/* set during ZIL replay */
-	kmutex_t	z_online_recv_lock; /* held while recv in progress */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	kmutex_t	z_lock;
