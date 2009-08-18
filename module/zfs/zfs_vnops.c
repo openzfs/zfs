@@ -208,18 +208,18 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr,
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
+	/*
+	 * Clean up any locks held by this process on the vp.
+	 */
+	cleanlocks(vp, ddi_get_pid(), 0);
+	cleanshares(vp, ddi_get_pid());
+
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
 	/* Decrement the synchronous opens in the znode */
 	if ((flag & (FSYNC | FDSYNC)) && (count == 1))
 		atomic_dec_32(&zp->z_sync_cnt);
-
-	/*
-	 * Clean up any locks held by this process on the vp.
-	 */
-	cleanlocks(vp, ddi_get_pid(), 0);
-	cleanshares(vp, ddi_get_pid());
 
 	if (!zfs_has_ctldir(zp) && zp->z_zfsvfs->z_vscan &&
 	    ZTOV(zp)->v_type == VREG &&
@@ -855,6 +855,10 @@ zfs_get_done(dmu_buf_t *db, void *vzgd)
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
+#ifdef DEBUG
+static int zil_fault_io = 0;
+#endif
+
 /*
  * Get data to generate a TX_WRITE intent log record.
  */
@@ -936,7 +940,21 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		zgd->zgd_rl = rl;
 		zgd->zgd_zilog = zfsvfs->z_log;
 		zgd->zgd_bp = &lr->lr_blkptr;
-		VERIFY(0 == dmu_buf_hold(os, lr->lr_foid, boff, zgd, &db));
+#ifdef DEBUG
+		if (zil_fault_io) {
+			error = EIO;
+			zil_fault_io = 0;
+		} else {
+			error = dmu_buf_hold(os, lr->lr_foid, boff, zgd, &db);
+		}
+#else
+		error = dmu_buf_hold(os, lr->lr_foid, boff, zgd, &db);
+#endif
+		if (error != 0) {
+			kmem_free(zgd, sizeof (zgd_t));
+			goto out;
+		}
+
 		ASSERT(boff == db->db_offset);
 		lr->lr_blkoff = off - boff;
 		error = dmu_sync(zio, db, &lr->lr_blkptr,
@@ -988,6 +1006,27 @@ zfs_access(vnode_t *vp, int mode, int flag, cred_t *cr,
 }
 
 /*
+ * If vnode is for a device return a specfs vnode instead.
+ */
+static int
+specvp_check(vnode_t **vpp, cred_t *cr)
+{
+	int error = 0;
+
+	if (IS_DEVVP(*vpp)) {
+		struct vnode *svp;
+
+		svp = specvp(*vpp, (*vpp)->v_rdev, (*vpp)->v_type, cr);
+		VN_RELE(*vpp);
+		if (svp == NULL)
+			error = ENOSYS;
+		*vpp = svp;
+	}
+	return (error);
+}
+
+
+/*
  * Lookup an entry in a directory, or an extended attribute directory.
  * If it exists, return a held vnode reference for it.
  *
@@ -1017,7 +1056,46 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 {
 	znode_t *zdp = VTOZ(dvp);
 	zfsvfs_t *zfsvfs = zdp->z_zfsvfs;
-	int	error;
+	int	error = 0;
+
+	/* fast path */
+	if (!(flags & (LOOKUP_XATTR | FIGNORECASE))) {
+
+		if (dvp->v_type != VDIR) {
+			return (ENOTDIR);
+		} else if (zdp->z_dbuf == NULL) {
+			return (EIO);
+		}
+
+		if (nm[0] == 0 || (nm[0] == '.' && nm[1] == '\0')) {
+			error = zfs_fastaccesschk_execute(zdp, cr);
+			if (!error) {
+				*vpp = dvp;
+				VN_HOLD(*vpp);
+				return (0);
+			}
+			return (error);
+		} else {
+			vnode_t *tvp = dnlc_lookup(dvp, nm);
+
+			if (tvp) {
+				error = zfs_fastaccesschk_execute(zdp, cr);
+				if (error) {
+					VN_RELE(tvp);
+					return (error);
+				}
+				if (tvp == DNLC_NO_VNODE) {
+					VN_RELE(tvp);
+					return (ENOENT);
+				} else {
+					*vpp = tvp;
+					return (specvp_check(vpp, cr));
+				}
+			}
+		}
+	}
+
+	DTRACE_PROBE2(zfs__fastpath__lookup__miss, vnode_t *, dvp, char *, nm);
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zdp);
@@ -1082,21 +1160,8 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 	}
 
 	error = zfs_dirlook(zdp, nm, vpp, flags, direntflags, realpnp);
-	if (error == 0) {
-		/*
-		 * Convert device special files
-		 */
-		if (IS_DEVVP(*vpp)) {
-			vnode_t	*svp;
-
-			svp = specvp(*vpp, (*vpp)->v_rdev, (*vpp)->v_type, cr);
-			VN_RELE(*vpp);
-			if (svp == NULL)
-				error = ENOSYS;
-			else
-				*vpp = svp;
-		}
-	}
+	if (error == 0)
+		error = specvp_check(vpp, cr);
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -1235,6 +1300,7 @@ top:
 		    &acl_ids)) != 0)
 			goto out;
 		if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+			zfs_acl_ids_free(&acl_ids);
 			error = EDQUOT;
 			goto out;
 		}
@@ -1332,19 +1398,7 @@ out:
 			VN_RELE(ZTOV(zp));
 	} else {
 		*vpp = ZTOV(zp);
-		/*
-		 * If vnode is for a device return a specfs vnode instead.
-		 */
-		if (IS_DEVVP(*vpp)) {
-			struct vnode *svp;
-
-			svp = specvp(*vpp, (*vpp)->v_rdev, (*vpp)->v_type, cr);
-			VN_RELE(*vpp);
-			if (svp == NULL) {
-				error = ENOSYS;
-			}
-			*vpp = svp;
-		}
+		error = specvp_check(vpp, cr);
 	}
 
 	ZFS_EXIT(zfsvfs);
@@ -1653,6 +1707,7 @@ top:
 		return (error);
 	}
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		ZFS_EXIT(zfsvfs);
 		return (EDQUOT);
@@ -2456,6 +2511,7 @@ zfs_setattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 top:
 	attrzp = NULL;
 
+	/* Can this be moved to before the top label? */
 	if (zfsvfs->z_vfs->vfs_flag & VFS_RDONLY) {
 		ZFS_EXIT(zfsvfs);
 		return (EROFS);
@@ -2765,6 +2821,8 @@ top:
 		zp->z_phys->zp_mode = new_mode;
 		err = zfs_aclset_common(zp, aclp, cr, tx);
 		ASSERT3U(err, ==, 0);
+		zp->z_acl_cached = aclp;
+		aclp = NULL;
 		mutex_exit(&zp->z_acl_lock);
 	}
 
@@ -2856,10 +2914,8 @@ out:
 	if (attrzp)
 		VN_RELE(ZTOV(attrzp));
 
-	if (aclp) {
+	if (aclp)
 		zfs_acl_free(aclp);
-		aclp = NULL;
-	}
 
 	if (fuidp) {
 		zfs_fuid_info_free(fuidp);
@@ -3724,8 +3780,8 @@ top:
 	if (err == 0) {
 		zfs_time_stamper(zp, CONTENT_MODIFIED, tx);
 		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len, 0);
-		dmu_tx_commit(tx);
 	}
+	dmu_tx_commit(tx);
 
 out:
 	pvn_write_done(pp, (err ? B_ERROR : 0) | flags);
