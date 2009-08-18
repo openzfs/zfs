@@ -79,7 +79,6 @@ AC_CONFIG_FILES([
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	scripts/Makefile
-	scripts/zpool-config/Makefile
 	zfs.spec
 	zfs-modules.spec
 ])
