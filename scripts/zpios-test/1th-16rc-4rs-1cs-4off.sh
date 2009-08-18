@@ -39,7 +39,7 @@
 #        --help              -?    =this help
 
 
-ZPIOS_CMD="${CMDDIR}/zpios/zpios                                 \
+ZPIOS_CMD="${ZPIOS}                                              \
 	--load=dmuio                                             \
 	--pool=${ZPOOL_NAME}                                     \
 	--name=${ZPOOL_CONFIG}                                   \
