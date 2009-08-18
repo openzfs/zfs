@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Sun Fire x4550 (Thumper) Raid-0 Configuration
+# Dragon (White Box) Raid-0 Configuration (1x120)
 #
 
 DEVICES=(`ls /dev/disk/by-path/* | grep -v part | grep pci-0000`)
