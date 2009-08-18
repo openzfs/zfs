@@ -127,6 +127,8 @@ struct vdev {
 	space_map_t	vdev_dtl[DTL_TYPES]; /* in-core dirty time logs	*/
 	vdev_stat_t	vdev_stat;	/* virtual device statistics	*/
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
+	int		vdev_open_error; /* error on last open		*/
+	kthread_t	*vdev_open_thread; /* thread opening children	*/
 
 	/*
 	 * Top-level vdev state.

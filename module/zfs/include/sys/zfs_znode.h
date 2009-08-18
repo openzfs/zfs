@@ -77,6 +77,7 @@ extern "C" {
 #define	ZFS_ACL_DEFAULTED	0x20		/* ACL should be defaulted */
 #define	ZFS_ACL_AUTO_INHERIT	0x40		/* ACL should be inherited */
 #define	ZFS_BONUS_SCANSTAMP	0x80		/* Scanstamp in bonus area */
+#define	ZFS_NO_EXECS_DENIED	0x100		/* exec was given to everyone */
 
 /*
  * Is ID ephemeral?
@@ -200,6 +201,7 @@ typedef struct znode {
 	uint64_t	z_gen;		/* generation (same as zp_gen) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
+	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	/*
 	 * These are dmu managed fields.
