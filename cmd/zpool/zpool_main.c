@@ -1469,7 +1469,7 @@ show_import(nvlist_t *config)
  */
 static int
 do_import(nvlist_t *config, const char *newname, const char *mntopts,
-    int force, nvlist_t *props, boolean_t allowfaulted)
+    int force, nvlist_t *props, boolean_t do_verbatim)
 {
 	zpool_handle_t *zhp;
 	char *name;
@@ -1522,14 +1522,14 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		}
 	}
 
-	if (zpool_import_props(g_zfs, config, newname, props,
-	    allowfaulted) != 0)
+	if (zpool_import_props(g_zfs, config, newname, props, do_verbatim) != 0)
 		return (1);
 
 	if (newname != NULL)
 		name = (char *)newname;
 
-	verify((zhp = zpool_open_canfail(g_zfs, name)) != NULL);
+	if ((zhp = zpool_open_canfail(g_zfs, name)) == NULL)
+		return (1);
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
@@ -1566,7 +1566,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *       -F	Import even in the presence of faulted vdevs.  This is an
  *       	intentionally undocumented option for testing purposes, and
  *       	treats the pool configuration as complete, leaving any bad
- *		vdevs in the FAULTED state.
+ *		vdevs in the FAULTED state. In other words, it does verbatim
+ *		import.
  *
  *       -a	Import all pools found.
  *
@@ -1595,7 +1596,7 @@ zpool_do_import(int argc, char **argv)
 	nvlist_t *found_config;
 	nvlist_t *props = NULL;
 	boolean_t first;
-	boolean_t allow_faulted = B_FALSE;
+	boolean_t do_verbatim = B_FALSE;
 	uint64_t pool_state;
 	char *cachefile = NULL;
 
@@ -1628,7 +1629,7 @@ zpool_do_import(int argc, char **argv)
 			do_force = B_TRUE;
 			break;
 		case 'F':
-			allow_faulted = B_TRUE;
+			do_verbatim = B_TRUE;
 			break;
 		case 'o':
 			if ((propval = strchr(optarg, '=')) != NULL) {
@@ -1778,7 +1779,7 @@ zpool_do_import(int argc, char **argv)
 
 			if (do_all)
 				err |= do_import(config, NULL, mntopts,
-				    do_force, props, allow_faulted);
+				    do_force, props, do_verbatim);
 			else
 				show_import(config);
 		} else if (searchname != NULL) {
@@ -1826,7 +1827,7 @@ zpool_do_import(int argc, char **argv)
 			err = B_TRUE;
 		} else {
 			err |= do_import(found_config, argc == 1 ? NULL :
-			    argv[1], mntopts, do_force, props, allow_faulted);
+			    argv[1], mntopts, do_force, props, do_verbatim);
 		}
 	}
 
@@ -3117,6 +3118,17 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "replace'.\n"));
 		break;
 
+	case ZPOOL_STATUS_REMOVED_DEV:
+		(void) printf(gettext("status: One or more devices has "
+		    "been removed by the administrator.\n\tSufficient "
+		    "replicas exist for the pool to continue functioning in "
+		    "a\n\tdegraded state.\n"));
+		(void) printf(gettext("action: Online the device using "
+		    "'zpool online' or replace the device with\n\t'zpool "
+		    "replace'.\n"));
+		break;
+
+
 	case ZPOOL_STATUS_RESILVERING:
 		(void) printf(gettext("status: One or more devices is "
 		    "currently being resilvered.  The pool will\n\tcontinue "
@@ -3539,6 +3551,8 @@ zpool_do_upgrade(int argc, char **argv)
 		(void) printf(gettext(" 14  passthrough-x aclinherit\n"));
 		(void) printf(gettext(" 15  user/group space accounting\n"));
 		(void) printf(gettext(" 16  stmf property support\n"));
+		(void) printf(gettext(" 17  Triple-parity RAID-Z\n"));
+		(void) printf(gettext(" 18  snapshot user holds\n"));
 		(void) printf(gettext("For more information on a particular "
 		    "version, including supported releases, see:\n\n"));
 		(void) printf("http://www.opensolaris.org/os/community/zfs/"
@@ -3624,6 +3638,8 @@ char *hist_event_table[LOG_END] = {
 	"refquota set",
 	"refreservation set",
 	"pool scrub done",
+	"user hold",
+	"user release",
 };
 
 /*
