@@ -1506,7 +1506,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 	void *orig[VDEV_RAIDZ_MAXPARITY];
 	int tstore[VDEV_RAIDZ_MAXPARITY + 2];
 	int *tgts = &tstore[1];
-	int current, next, i, c, n;
+	int curr, next, i, c, n;
 	int code, ret = 0;
 
 	ASSERT(total_errors < rm->rm_firstdatacol);
@@ -1554,12 +1554,12 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 
 		orig[n - 1] = zio_buf_alloc(rm->rm_col[0].rc_size);
 
-		current = 0;
-		next = tgts[current];
+		curr = 0;
+		next = tgts[curr];
 
-		while (current != n) {
-			tgts[current] = next;
-			current = 0;
+		while (curr != n) {
+			tgts[curr] = next;
+			curr = 0;
 
 			/*
 			 * Save off the original data that we're going to
@@ -1606,34 +1606,34 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 
 			do {
 				/*
-				 * Find the next valid column after the current
+				 * Find the next valid column after the curr
 				 * position..
 				 */
-				for (next = tgts[current] + 1;
+				for (next = tgts[curr] + 1;
 				    next < rm->rm_cols &&
 				    rm->rm_col[next].rc_error != 0; next++)
 					continue;
 
-				ASSERT(next <= tgts[current + 1]);
+				ASSERT(next <= tgts[curr + 1]);
 
 				/*
 				 * If that spot is available, we're done here.
 				 */
-				if (next != tgts[current + 1])
+				if (next != tgts[curr + 1])
 					break;
 
 				/*
 				 * Otherwise, find the next valid column after
 				 * the previous position.
 				 */
-				for (c = tgts[current - 1] + 1;
+				for (c = tgts[curr - 1] + 1;
 				    rm->rm_col[c].rc_error != 0; c++)
 					continue;
 
-				tgts[current] = c;
-				current++;
+				tgts[curr] = c;
+				curr++;
 
-			} while (current != n);
+			} while (curr != n);
 		}
 	}
 	n--;
