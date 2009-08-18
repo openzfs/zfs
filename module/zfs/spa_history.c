@@ -390,13 +390,12 @@ spa_history_get(spa_t *spa, uint64_t *offp, uint64_t *len, char *buf)
 	return (err);
 }
 
-void
-spa_history_internal_log(history_internal_events_t event, spa_t *spa,
-    dmu_tx_t *tx, cred_t *cr, const char *fmt, ...)
+static void
+log_internal(history_internal_events_t event, spa_t *spa,
+    dmu_tx_t *tx, cred_t *cr, const char *fmt, va_list adx)
 {
 	history_arg_t *hap;
 	char *str;
-	va_list adx;
 
 	/*
 	 * If this is part of creating a pool, not everything is
@@ -408,9 +407,7 @@ spa_history_internal_log(history_internal_events_t event, spa_t *spa,
 	hap = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
 	str = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
 
-	va_start(adx, fmt);
 	(void) vsnprintf(str, HIS_MAX_RECORD_LEN, fmt, adx);
-	va_end(adx);
 
 	hap->ha_log_type = LOG_INTERNAL;
 	hap->ha_history_str = str;
@@ -424,4 +421,49 @@ spa_history_internal_log(history_internal_events_t event, spa_t *spa,
 		    spa_history_log_sync, spa, hap, 0, tx);
 	}
 	/* spa_history_log_sync() will free hap and str */
+}
+
+void
+spa_history_internal_log(history_internal_events_t event, spa_t *spa,
+    dmu_tx_t *tx, cred_t *cr, const char *fmt, ...)
+{
+	dmu_tx_t *htx = tx;
+	va_list adx;
+
+	/* create a tx if we didn't get one */
+	if (tx == NULL) {
+		htx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+		if (dmu_tx_assign(htx, TXG_WAIT) != 0) {
+			dmu_tx_abort(htx);
+			return;
+		}
+	}
+
+	va_start(adx, fmt);
+	log_internal(event, spa, htx, cr, fmt, adx);
+	va_end(adx);
+
+	/* if we didn't get a tx from the caller, commit the one we made */
+	if (tx == NULL)
+		dmu_tx_commit(htx);
+}
+
+void
+spa_history_log_version(spa_t *spa, history_internal_events_t event)
+{
+#ifdef _KERNEL
+	uint64_t current_vers = spa_version(spa);
+
+	if (current_vers >= SPA_VERSION_ZPOOL_HISTORY) {
+		spa_history_internal_log(event, spa, NULL, CRED(),
+		    "pool spa %llu; zfs spa %llu; zpl %d; uts %s %s %s %s",
+		    (u_longlong_t)current_vers, SPA_VERSION, ZPL_VERSION,
+		    utsname.nodename, utsname.release, utsname.version,
+		    utsname.machine);
+	}
+	cmn_err(CE_CONT, "!%s version %llu pool %s using %llu",
+	    event == LOG_POOL_IMPORT ? "imported" :
+	    event == LOG_POOL_CREATE ? "created" : "accessed",
+	    (u_longlong_t)current_vers, spa_name(spa), SPA_VERSION);
+#endif
 }

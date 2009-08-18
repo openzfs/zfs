@@ -697,8 +697,7 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 	}
 
 	err = zap_count_write(&dn->dn_objset->os, dn->dn_object, name, add,
-	    &txh->txh_space_towrite, &txh->txh_space_tooverwrite,
-	    txh->txh_dnode->dn_datablkshift);
+	    &txh->txh_space_towrite, &txh->txh_space_tooverwrite);
 
 	/*
 	 * If the modified blocks are scattered to the four winds,
