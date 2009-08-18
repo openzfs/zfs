@@ -87,6 +87,7 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	zap_byteswap,		TRUE,	"scrub work queue"	},
 	{	zap_byteswap,		TRUE,	"ZFS user/group used"	},
 	{	zap_byteswap,		TRUE,	"ZFS user/group quota"	},
+	{	zap_byteswap,		TRUE,	"snapshot refcount tags"},
 };
 
 int
@@ -195,7 +196,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
-	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT;
+	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT;
 	if (flags & DMU_READ_NO_PREFETCH || length > zfetch_array_rd_sz)
 		dbuf_flags |= DB_RF_NOPREFETCH;
 
@@ -212,6 +213,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			    os_dsl_dataset->ds_object,
 			    (longlong_t)dn->dn_object, dn->dn_datablksz,
 			    (longlong_t)offset, (longlong_t)length);
+			rw_exit(&dn->dn_struct_rwlock);
 			return (EIO);
 		}
 		nblks = 1;
@@ -234,9 +236,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		}
 		/* initiate async i/o */
 		if (rd) {
-			rw_exit(&dn->dn_struct_rwlock);
 			(void) dbuf_read(db, zio, dbuf_flags);
-			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		}
 		dbp[i] = &db->db;
 	}
@@ -376,56 +376,51 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 	dnode_rele(dn, FTAG);
 }
 
+/*
+ * Get the next "chunk" of file data to free.  We traverse the file from
+ * the end so that the file gets shorter over time (if we crashes in the
+ * middle, this will leave us in a better state).  We find allocated file
+ * data by simply searching the allocated level 1 indirects.
+ */
 static int
-get_next_chunk(dnode_t *dn, uint64_t *offset, uint64_t limit)
+get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t limit)
 {
-	uint64_t len = *offset - limit;
-	uint64_t chunk_len = dn->dn_datablksz * DMU_MAX_DELETEBLKCNT;
-	uint64_t subchunk =
+	uint64_t len = *start - limit;
+	uint64_t blkcnt = 0;
+	uint64_t maxblks = DMU_MAX_ACCESS / (1ULL << (dn->dn_indblkshift + 1));
+	uint64_t iblkrange =
 	    dn->dn_datablksz * EPB(dn->dn_indblkshift, SPA_BLKPTRSHIFT);
 
-	ASSERT(limit <= *offset);
+	ASSERT(limit <= *start);
 
-	if (len <= chunk_len) {
-		*offset = limit;
+	if (len <= iblkrange * maxblks) {
+		*start = limit;
 		return (0);
 	}
+	ASSERT(ISP2(iblkrange));
 
-	ASSERT(ISP2(subchunk));
-
-	while (*offset > limit) {
-		uint64_t initial_offset = P2ROUNDUP(*offset, subchunk);
-		uint64_t delta;
+	while (*start > limit && blkcnt < maxblks) {
 		int err;
 
-		/* skip over allocated data */
+		/* find next allocated L1 indirect */
 		err = dnode_next_offset(dn,
-		    DNODE_FIND_HOLE|DNODE_FIND_BACKWARDS, offset, 1, 1, 0);
-		if (err == ESRCH)
-			*offset = limit;
-		else if (err)
-			return (err);
+		    DNODE_FIND_BACKWARDS, start, 2, 1, 0);
 
-		ASSERT3U(*offset, <=, initial_offset);
-		*offset = P2ALIGN(*offset, subchunk);
-		delta = initial_offset - *offset;
-		if (delta >= chunk_len) {
-			*offset += delta - chunk_len;
+		/* if there are no more, then we are done */
+		if (err == ESRCH) {
+			*start = limit;
 			return (0);
-		}
-		chunk_len -= delta;
-
-		/* skip over unallocated data */
-		err = dnode_next_offset(dn,
-		    DNODE_FIND_BACKWARDS, offset, 1, 1, 0);
-		if (err == ESRCH)
-			*offset = limit;
-		else if (err)
+		} else if (err) {
 			return (err);
+		}
+		blkcnt += 1;
 
-		if (*offset < limit)
-			*offset = limit;
-		ASSERT3U(*offset, <, initial_offset);
+		/* reset offset to end of "next" block back */
+		*start = P2ALIGN(*start, iblkrange);
+		if (*start <= limit)
+			*start = limit;
+		else
+			*start -= 1;
 	}
 	return (0);
 }
@@ -548,7 +543,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 {
 	dnode_t *dn;
 	dmu_buf_t **dbp;
-	int numbufs, i, err;
+	int numbufs, err;
 
 	err = dnode_hold(os->os, object, FTAG, &dn);
 	if (err)
@@ -559,7 +554,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	 * block.  If we ever do the tail block optimization, we will need to
 	 * handle that here as well.
 	 */
-	if (dn->dn_datablkshift == 0) {
+	if (dn->dn_maxblkid == 0) {
 		int newsz = offset > dn->dn_datablksz ? 0 :
 		    MIN(size, dn->dn_datablksz - offset);
 		bzero((char *)buf + newsz, size - newsz);
@@ -568,6 +563,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 	while (size > 0) {
 		uint64_t mylen = MIN(size, DMU_MAX_ACCESS / 2);
+		int i;
 
 		/*
 		 * NB: we could do this block-at-a-time, but it's nice
@@ -802,9 +798,6 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
-
-		if (err)
-			break;
 
 		offset += tocpy;
 		size -= tocpy;

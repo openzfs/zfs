@@ -1260,6 +1260,22 @@ dnode_willuse_space(dnode_t *dn, int64_t space, dmu_tx_t *tx)
 	dmu_tx_willuse_space(tx, space);
 }
 
+/*
+ * This function scans a block at the indicated "level" looking for
+ * a hole or data (depending on 'flags').  If level > 0, then we are
+ * scanning an indirect block looking at its pointers.  If level == 0,
+ * then we are looking at a block of dnodes.  If we don't find what we
+ * are looking for in the block, we return ESRCH.  Otherwise, return
+ * with *offset pointing to the beginning (if searching forwards) or
+ * end (if searching backwards) of the range covered by the block
+ * pointer we matched on (or dnode).
+ *
+ * The basic search algorithm used below by dnode_next_offset() is to
+ * use this function to search up the block tree (widen the search) until
+ * we find something (i.e., we don't return ESRCH) and then search back
+ * down the tree (narrow the search) until we reach our original search
+ * level.
+ */
 static int
 dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	int lvl, uint64_t blkfill, uint64_t txg)
@@ -1330,6 +1346,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			error = ESRCH;
 	} else {
 		blkptr_t *bp = data;
+		uint64_t start = *offset;
 		span = (lvl - 1) * epbs + dn->dn_datablkshift;
 		minfill = 0;
 		maxfill = blkfill << ((lvl - 1) * epbs);
@@ -1339,18 +1356,25 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		else
 			minfill++;
 
-		for (i = (*offset >> span) & ((1ULL << epbs) - 1);
+		*offset = *offset >> span;
+		for (i = BF64_GET(*offset, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
 			if (bp[i].blk_fill >= minfill &&
 			    bp[i].blk_fill <= maxfill &&
 			    (hole || bp[i].blk_birth > txg))
 				break;
-			if (inc < 0 && *offset < (1ULL << span))
-				*offset = 0;
-			else
-				*offset += (1ULL << span) * inc;
+			if (inc > 0 || *offset > 0)
+				*offset += inc;
 		}
-		if (i < 0 || i == epb)
+		*offset = *offset << span;
+		if (inc < 0) {
+			/* traversing backwards; position offset at the end */
+			ASSERT3U(*offset, <=, start);
+			*offset = MIN(*offset + (1ULL << span) - 1, start);
+		} else if (*offset < start) {
+			*offset = start;
+		}
+		if (i < 0 || i >= epb)
 			error = ESRCH;
 	}
 

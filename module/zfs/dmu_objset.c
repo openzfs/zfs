@@ -679,7 +679,7 @@ dmu_objset_create(const char *name, dmu_objset_type_t type,
 }
 
 int
-dmu_objset_destroy(const char *name)
+dmu_objset_destroy(const char *name, boolean_t defer)
 {
 	objset_t *os;
 	int error;
@@ -696,7 +696,7 @@ dmu_objset_destroy(const char *name)
 		dsl_dataset_t *ds = os->os->os_dsl_dataset;
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
 
-		error = dsl_dataset_destroy(ds, os);
+		error = dsl_dataset_destroy(ds, os, defer);
 		/*
 		 * dsl_dataset_destroy() closes the ds.
 		 */
@@ -1130,7 +1130,7 @@ dmu_objset_userspace_upgrade(objset_t *os)
 	 */
 
 	for (obj = 0; err == 0; err = dmu_object_next(os, &obj, FALSE, 0)) {
-		dmu_tx_t *tx = dmu_tx_create(os);
+		dmu_tx_t *tx;
 		dmu_buf_t *db;
 		int objerr;
 
@@ -1140,6 +1140,7 @@ dmu_objset_userspace_upgrade(objset_t *os)
 		objerr = dmu_bonus_hold(os, obj, FTAG, &db);
 		if (objerr)
 			continue;
+		tx = dmu_tx_create(os);
 		dmu_tx_hold_bonus(tx, obj);
 		objerr = dmu_tx_assign(tx, TXG_WAIT);
 		if (objerr) {
