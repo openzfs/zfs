@@ -1,6 +1,14 @@
 #!/bin/bash
 
-. ./common.sh
+SCRIPT_COMMON=common.sh
+if [ -f ./${SCRIPT_COMMON} ]; then
+. ./${SCRIPT_COMMON}
+elif [ -f /usr/libexec/zfs/${SCRIPT_COMMON} ]; then
+. /usr/libexec/zfs/${SCRIPT_COMMON}
+else
+echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
+fi
+
 PROG=zpool-create.sh
 
 usage() {
@@ -29,7 +37,7 @@ check_config() {
 		local NAME=`basename ${ZPOOL_CONFIG} .sh`
 		ERROR="Unknown config '${NAME}', available configs are:\n"
 
-		for CFG in `ls ${TOPDIR}/scripts/zpool-config/`; do
+		for CFG in `ls ${ZPOOLDIR}/ | grep ".sh"`; do
 			local NAME=`basename ${CFG} .sh`
 			ERROR="${ERROR}${NAME}\n"
 		done
@@ -40,7 +48,7 @@ check_config() {
 	return 0
 }
 
-ZPOOL_CONFIG=zpool_config.sh
+ZPOOL_CONFIG=unknown
 ZPOOL_NAME=tank
 ZPOOL_DESTROY=
 ZPOOL_OPTIONS=""
@@ -56,7 +64,7 @@ while getopts 'hvc:p:dl:s:' OPTION; do
 		VERBOSE=1
 		;;
 	c)
-		ZPOOL_CONFIG=${TOPDIR}/scripts/zpool-config/${OPTARG}.sh
+		ZPOOL_CONFIG=${ZPOOLDIR}/${OPTARG}.sh
 		;;
 	p)
 		ZPOOL_NAME=${OPTARG}
@@ -92,27 +100,27 @@ else
 	if [ "${ZPOOL_OPTIONS}" ]; then
 		if [ ${VERBOSE} ]; then
 			echo
-			echo "${CMDDIR}/zpool/zpool ${ZPOOL_OPTIONS} ${ZPOOL_NAME}"
+			echo "${ZPOOL} ${ZPOOL_OPTIONS} ${ZPOOL_NAME}"
 		fi
-		${CMDDIR}/zpool/zpool ${ZPOOL_OPTIONS} ${ZPOOL_NAME} || exit 1
+		${ZPOOL} ${ZPOOL_OPTIONS} ${ZPOOL_NAME} || exit 1
 	fi
 
 	if [ "${ZFS_OPTIONS}" ]; then
 		if [ ${VERBOSE} ]; then
 			echo
-			echo "${CMDDIR}/zfs/zfs ${ZFS_OPTIONS} ${ZPOOL_NAME}"
+			echo "${ZFS} ${ZFS_OPTIONS} ${ZPOOL_NAME}"
 		fi
-		${CMDDIR}/zfs/zfs ${ZFS_OPTIONS} ${ZPOOL_NAME} || exit 1
+		${ZFS} ${ZFS_OPTIONS} ${ZPOOL_NAME} || exit 1
 	fi
 
 	if [ ${VERBOSE} ]; then
 		echo
 		echo "zpool list"
-		${CMDDIR}/zpool/zpool list || exit 1
+		${ZPOOL} list || exit 1
 
 		echo
 		echo "zpool status ${ZPOOL_NAME}"
-		${CMDDIR}/zpool/zpool status ${ZPOOL_NAME} || exit 1
+		${ZPOOL} status ${ZPOOL_NAME} || exit 1
 	fi
 fi
 
