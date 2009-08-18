@@ -7,7 +7,6 @@ EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 
 ZFS=${top_srcdir}/scripts/zfs.sh
 ZTEST=${top_builddir}/cmd/ztest/ztest
-ZPIOS=${top_srcdir}/scripts/zpios.sh
 
 check:
 	@$(ZFS) -v
