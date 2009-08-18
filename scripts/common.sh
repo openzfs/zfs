@@ -1,24 +1,41 @@
 #!/bin/bash
 #
-# A simple script to simply the loading/unloading the ZFS module
-# stack.  It should probably be considered a first step towards
-# a full ZFS init script when that is needed.
-#
+# Common support functions for testing scripts.  If a .script-config
+# files is available it will be sourced so in-tree kernel modules and
+# utilities will be used.  If no .script-config can be found then the
+# installed kernel modules and utilities will be used.
 
-if [ ! -f ../.script-config ]; then
-	echo "You must build your source tree"
-	exit 1
+SCRIPT_CONFIG=.script-config
+if [ -f ../${SCRIPT_CONFIG} ]; then
+. ../${SCRIPT_CONFIG}
+else
+MODULES=(zlib_deflate spl zavl znvpair zunicode zcommon zfs)
 fi
 
-. ../.script-config
 PROG="<define PROG>"
 VERBOSE=
 VERBOSE_FLAG=
 DUMP_LOG=
 ERROR=
-MODULES=()
 
-LOSETUP=/sbin/losetup
+ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
+
+ZDB=${ZDB:-/usr/sbin/zdb}
+ZFS=${ZFS:-/usr/sbin/zfs}
+ZINJECT=${ZINJECT:-/usr/sbin/zinject}
+ZPOOL=${ZPOOL:-/usr/sbin/zpool}
+ZTEST=${ZTEST:-/usr/sbin/ztest}
+
+COMMON_SH=${COMMON_SH:-/usr/libexec/zfs/common.sh}
+ZFS_SH=${ZFS_SH:-/usr/libexec/zfs/zfs.sh}
+ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-/usr/libexec/zfs/zpool-create.sh}
+
+LDMOD=${LDMOD:-/sbin/modprobe}
+LSMOD=${LSMOD:-/sbin/lsmod}
+RMMOD=${RMMOD:-/sbin/rmmod}
+INFOMOD=${INFOMOD:-/sbin/modinfo}
+LOSETUP=${LOSETUP:-/sbin/losetup}
+SYSCTL=${SYSCTL:-/sbin/sysctl}
 
 die() {
 	echo -e "${PROG}: $1" >&2
@@ -32,7 +49,7 @@ msg() {
 }
 
 spl_dump_log() {
-        sysctl -w kernel.spl.debug.dump=1 &>/dev/null
+        ${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
 	local NAME=`dmesg | tail -n 1 | cut -f5 -d' '`
         ${SPLBUILD}/cmd/spl ${NAME} >${NAME}.log
 	echo
@@ -49,11 +66,11 @@ check_modules() {
 	for MOD in ${MODULES[*]}; do
 		local NAME=`basename $MOD .ko`
 
-		if /sbin/lsmod | egrep -q "^${NAME}"; then
+		if ${LSMOD} | egrep -q "^${NAME}"; then
 			LOADED_MODULES=(${NAME} ${LOADED_MODULES[*]})
 		fi
 
-		if [ ! -f ${MOD} ]; then
+		if [ ${INFOMOD} ${MOD} 2>/dev/null ]; then
 			MISSING_MODULES=("\t${MOD}\n" ${MISSING_MODULES[*]})
 		fi
 	done
@@ -78,10 +95,10 @@ load_module() {
 	local NAME=`basename $1 .ko`
 
 	if [ ${VERBOSE} ]; then
-		echo "Loading $NAME ($@)"
+		echo "Loading ${NAME} ($@)"
 	fi
 
-	/sbin/insmod $* || ERROR="Failed to load $1" return 1
+	${LDMOD} $* || ERROR="Failed to load $1" return 1
 
 	return 0
 }
@@ -114,10 +131,10 @@ unload_module() {
 	local NAME=`basename $1 .ko`
 
 	if [ ${VERBOSE} ]; then
-		echo "Unloading $NAME ($@)"
+		echo "Unloading ${NAME} ($@)"
 	fi
 
-	/sbin/rmmod $NAME || ERROR="Failed to unload $NAME" return 1
+	${RMMOD} ${NAME} || ERROR="Failed to unload ${NAME}" return 1
 
 	return 0
 }
@@ -129,7 +146,7 @@ unload_modules() {
 	for MOD in ${MODULES_REVERSE[*]}; do
 		local NAME=`basename ${MOD} .ko`
 
-		if /sbin/lsmod | egrep -q "^${NAME}"; then
+		if ${LSMOD} | egrep -q "^${NAME}"; then
 
 			if [ "${DUMP_LOG}" -a ${NAME} = "spl" ]; then
 				spl_dump_log
