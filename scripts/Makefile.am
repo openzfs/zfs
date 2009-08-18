@@ -1,5 +1,9 @@
-SUBDIRS = zpool-config
-EXTRA_DIST = common.sh zfs-update.sh zfs.sh zpool-create.sh
+pkglibexecdir = $(libexecdir)/@PACKAGE@
+nobase_pkglibexec_SCRIPTS  = common.sh
+nobase_pkglibexec_SCRIPTS += zfs.sh
+nobase_pkglibexec_SCRIPTS += zpool-create.sh
+nobase_pkglibexec_SCRIPTS += zpool-config/*
+EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 
 ZFS=${top_srcdir}/scripts/zfs.sh
 ZTEST=${top_builddir}/cmd/ztest/ztest
