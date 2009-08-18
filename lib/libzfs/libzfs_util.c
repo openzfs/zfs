@@ -213,6 +213,11 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_UNPLAYED_LOGS:
 		return (dgettext(TEXT_DOMAIN, "log device has unplayed intent "
 		    "logs"));
+	case EZFS_REFTAG_RELE:
+		return (dgettext(TEXT_DOMAIN, "no such tag on this dataset"));
+	case EZFS_REFTAG_HOLD:
+		return (dgettext(TEXT_DOMAIN, "tag already exists on this "
+		    "dataset"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
