@@ -19,16 +19,21 @@ DUMP_LOG=
 ERROR=
 
 ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
+ZPIOSDIR=${ZPIOSDIR:-/usr/libexec/zfs/zpios-test}
+ZPIOSPROFILEDIR=${ZPIOSPROFILEDIR:-/usr/libexec/zfs/zpios-profile}
 
 ZDB=${ZDB:-/usr/sbin/zdb}
 ZFS=${ZFS:-/usr/sbin/zfs}
 ZINJECT=${ZINJECT:-/usr/sbin/zinject}
 ZPOOL=${ZPOOL:-/usr/sbin/zpool}
 ZTEST=${ZTEST:-/usr/sbin/ztest}
+ZPIOS=${ZPIOS:-/usr/sbin/zpios}
 
 COMMON_SH=${COMMON_SH:-/usr/libexec/zfs/common.sh}
 ZFS_SH=${ZFS_SH:-/usr/libexec/zfs/zfs.sh}
 ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-/usr/libexec/zfs/zpool-create.sh}
+ZPIOS_SH=${ZPIOS_SH:-/usr/libexec/zfs/zpios.sh}
+ZPIOS_SURVEY_SH=${ZPIOS_SURVEY_SH:-/usr/libexec/zfs/zpios-survey.sh}
 
 LDMOD=${LDMOD:-/sbin/modprobe}
 LSMOD=${LSMOD:-/sbin/lsmod}

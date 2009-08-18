@@ -3,13 +3,22 @@
 # Wrapper script for easily running zpios based tests
 #
 
-. ./common.sh
+SCRIPT_COMMON=common.sh
+if [ -f ./${SCRIPT_COMMON} ]; then
+. ./${SCRIPT_COMMON}
+elif [ -f /usr/libexec/zfs/${SCRIPT_COMMON} ]; then
+. /usr/libexec/zfs/${SCRIPT_COMMON}
+else
+echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
+fi
+
 PROG=zpios.sh
 DATE=`date +%Y%m%d-%H%M%S`
-
-MODULES=(				\
-	${MODDIR}/zpios/zpios.ko	\
-)
+if [ "${ZPIOS_MODULES}" ]; then
+	MODULES=(${ZPIOS_MODULES[*]})
+else
+	MODULES=(zpios)
+fi
 
 usage() {
 cat << EOF
@@ -43,7 +52,7 @@ print_header() {
 
 print_spl_info() {
 	echo --------------------- SPL Tunings ------------------------------
-	sysctl -A | grep spl
+	${SYSCTL} -A | grep spl
 
 	if [ -d /sys/module/spl/parameters ]; then
 		grep [0-9] /sys/module/spl/parameters/*
@@ -56,7 +65,7 @@ print_spl_info() {
 
 print_zfs_info() {
 	echo --------------------- ZFS Tunings ------------------------------
-	sysctl -A | grep zfs
+	${SYSCTL} -A | grep zfs
 
 	if [ -d /sys/module/zfs/parameters ]; then
 		grep [0-9] /sys/module/zfs/parameters/*
@@ -69,7 +78,7 @@ print_zfs_info() {
 
 print_stats() {
 	echo ---------------------- Statistics -------------------------------
-	sysctl -A | grep spl | grep stack_max
+	${SYSCTL} -A | grep spl | grep stack_max
 
 	if [ -d /proc/spl/kstat/ ]; then
 		if [ -f /proc/spl/kstat/zfs/arcstats ]; then
@@ -100,7 +109,7 @@ check_test() {
 		local NAME=`basename ${ZPIOS_TEST} .sh`
 		ERROR="Unknown test '${NAME}', available tests are:\n"
 
-		for TST in `ls ${TOPDIR}/scripts/zpios-test/`; do
+		for TST in `ls ${ZPIOSDIR}/ | grep ".sh"`; do
 			local NAME=`basename ${TST} .sh`
 			ERROR="${ERROR}${NAME}\n"
 		done
@@ -118,18 +127,18 @@ cat > ${PROFILE_DIR}/zpios-config.sh << EOF
 #
 
 PROFILE_DIR=/tmp/zpios/${ZPOOL_CONFIG}+${ZPIOS_TEST_ARG}+${DATE}
-PROFILE_PRE=${TOPDIR}/scripts/zpios-profile/zpios-profile-pre.sh
-PROFILE_POST=${TOPDIR}/scripts/zpios-profile/zpios-profile-post.sh
-PROFILE_USER=${TOPDIR}/scripts/zpios-profile/zpios-profile.sh
-PROFILE_PIDS=${TOPDIR}/scripts/zpios-profile/zpios-profile-pids.sh
-PROFILE_DISK=${TOPDIR}/scripts/zpios-/profile/zpios-profile-disk.sh
+PROFILE_PRE=${ZPIOSPROFILEDIR}/zpios-profile-pre.sh
+PROFILE_POST=${ZPIOSPROFILEDIR}/zpios-profile-post.sh
+PROFILE_USER=${ZPIOSPROFILEDIR}/zpios-profile.sh
+PROFILE_PIDS=${ZPIOSPROFILEDIR}/zpios-profile-pids.sh
+PROFILE_DISK=${ZPIOSPROFILEDIR}/zpios-profile-disk.sh
 PROFILE_ARC_PROC=/proc/spl/kstat/zfs/arcstats
 PROFILE_VDEV_CACHE_PROC=/proc/spl/kstat/zfs/vdev_cache_stats
 
 OPROFILE_KERNEL="/boot/vmlinux-`uname -r`"
 OPROFILE_KERNEL_DIR="/lib/modules/`uname -r`/kernel/"
-OPROFILE_SPL_DIR="${SPLBUILD}/module/"
-OPROFILE_ZFS_DIR="${TOPDIR}/module/"
+OPROFILE_SPL_DIR=${SPLBUILD}/module/
+OPROFILE_ZFS_DIR=${MODDIR}
 
 EOF
 }
@@ -180,7 +189,7 @@ while getopts 'hvpc:t:o:l:s:' OPTION; do
 		;;
 	t)
 		ZPIOS_TEST_ARG=${OPTARG}
-		ZPIOS_TEST=${TOPDIR}/scripts/zpios-test/${OPTARG}.sh
+		ZPIOS_TEST=${ZPIOSDIR}/${OPTARG}.sh
 		;;
 	o)
 		ZPIOS_OPTIONS=${OPTARG}
@@ -226,7 +235,7 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Create the zpool configuration
-./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
+${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
 	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || exit 1
 
 if [ ${PROFILE} ]; then
@@ -245,7 +254,8 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Destroy the zpool configuration
-./zpool-create.sh ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || exit 1
+${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} -p ${ZPOOL_NAME} \
+	-c ${ZPOOL_CONFIG} -d || exit 1
 
 # Unload the test module stack and wait for device removal
 unload_modules

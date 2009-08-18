@@ -3,7 +3,15 @@
 # Wrapper script for easily running a survey of zpios based tests
 #
 
-. ./common.sh
+SCRIPT_COMMON=common.sh
+if [ -f ./${SCRIPT_COMMON} ]; then
+. ./${SCRIPT_COMMON}
+elif [ -f /usr/libexec/zfs/${SCRIPT_COMMON} ]; then
+. /usr/libexec/zfs/${SCRIPT_COMMON}
+else
+echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
+fi
+
 PROG=zpios-survey.sh
 
 usage() {
@@ -40,11 +48,11 @@ zpios_survey_base() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+baseline"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG} | \
+	${ZFS_SH} ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -56,12 +64,12 @@ zpios_survey_prefetch() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+prefetch"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG}               \
+	${ZFS_SH} ${VERBOSE_FLAG}               \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
 		-o "--noprefetch" |                                    \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -71,12 +79,12 @@ zpios_survey_zerocopy() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+zerocopy"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG} | \
+	${ZFS_SH} ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
 		-o "--zerocopy" |                                      \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -86,12 +94,12 @@ zpios_survey_checksum() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+checksum"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG} | \
+	${ZFS_SH} ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
 		-s "set checksum=off" |                                \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -103,12 +111,12 @@ zpios_survey_pending() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+pending"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG}                  \
+	${ZFS_SH} ${VERBOSE_FLAG}                  \
 		zfs="zfs_vdev_max_pending=1024" | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -129,12 +137,12 @@ zpios_survey_kmem() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+kmem"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG}             \  
+	${ZFS_SH} ${VERBOSE_FLAG}             \  
 		zfs="zio_bulk_flags=0x100" | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
@@ -143,15 +151,15 @@ zpios_survey_all() {
 	TEST_NAME="${ZPOOL_CONFIG}+${ZPIOS_TEST}+all"
 	print_header ${TEST_NAME}
 
-	./zfs.sh ${VERBOSE_FLAG}                \  
+	${ZFS_SH} ${VERBOSE_FLAG}                \  
 		zfs="zfs_vdev_max_pending=1024" \
 		zfs="zio_bulk_flags=0x100" |    \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zpios.sh ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
+	${ZPIOS_SH} ${VERBOSE_FLAG} -c ${ZPOOL_CONFIG} -t ${ZPIOS_TEST} \
 		-o "--noprefetch --zerocopy"                           \
 		-s "set checksum=off" |                                \
 		tee -a ${ZPIOS_SURVEY_LOG}
-	./zfs.sh -u ${VERBOSE_FLAG} | \
+	${ZFS_SH} -u ${VERBOSE_FLAG} | \
 		tee -a ${ZPIOS_SURVEY_LOG}
 }
 
