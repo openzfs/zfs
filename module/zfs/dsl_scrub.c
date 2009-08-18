@@ -1024,6 +1024,8 @@ dsl_pool_scrub_clean_cb(dsl_pool_t *dp,
 int
 dsl_pool_scrub_clean(dsl_pool_t *dp)
 {
+	spa_t *spa = dp->dp_spa;
+
 	/*
 	 * Purge all vdev caches.  We do this here rather than in sync
 	 * context because this requires a writer lock on the spa_config
@@ -1031,11 +1033,11 @@ dsl_pool_scrub_clean(dsl_pool_t *dp)
 	 * spa_scrub_reopen flag indicates that vdev_open() should not
 	 * attempt to start another scrub.
 	 */
-	spa_config_enter(dp->dp_spa, SCL_ALL, FTAG, RW_WRITER);
-	dp->dp_spa->spa_scrub_reopen = B_TRUE;
-	vdev_reopen(dp->dp_spa->spa_root_vdev);
-	dp->dp_spa->spa_scrub_reopen = B_FALSE;
-	spa_config_exit(dp->dp_spa, SCL_ALL, FTAG);
+	spa_vdev_state_enter(spa);
+	spa->spa_scrub_reopen = B_TRUE;
+	vdev_reopen(spa->spa_root_vdev);
+	spa->spa_scrub_reopen = B_FALSE;
+	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	return (dsl_pool_scrub_setup(dp, SCRUB_FUNC_CLEAN));
 }
