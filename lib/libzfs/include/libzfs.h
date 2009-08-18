@@ -131,6 +131,8 @@ enum {
 	EZFS_NOTSUP,		/* ops not supported on this dataset */
 	EZFS_ACTIVE_SPARE,	/* pool has active shared spare devices */
 	EZFS_UNPLAYED_LOGS,	/* log device has unplayed logs */
+	EZFS_REFTAG_RELE,	/* snapshot release: tag not found */
+	EZFS_REFTAG_HOLD,	/* snapshot hold: tag already exists */
 	EZFS_UNKNOWN
 };
 
@@ -300,6 +302,7 @@ typedef enum {
 	ZPOOL_STATUS_VERSION_OLDER,	/* older on-disk version */
 	ZPOOL_STATUS_RESILVERING,	/* device being resilvered */
 	ZPOOL_STATUS_OFFLINE_DEV,	/* device online */
+	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -468,8 +471,8 @@ extern int zfs_iter_snapshots(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_create(libzfs_handle_t *, const char *, zfs_type_t,
     nvlist_t *);
 extern int zfs_create_ancestors(libzfs_handle_t *, const char *);
-extern int zfs_destroy(zfs_handle_t *);
-extern int zfs_destroy_snaps(zfs_handle_t *, char *);
+extern int zfs_destroy(zfs_handle_t *, boolean_t);
+extern int zfs_destroy_snaps(zfs_handle_t *, char *, boolean_t);
 extern int zfs_clone(zfs_handle_t *, const char *, nvlist_t *);
 extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t, nvlist_t *);
 extern int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t);
@@ -477,6 +480,8 @@ extern int zfs_rename(zfs_handle_t *, const char *, boolean_t);
 extern int zfs_send(zfs_handle_t *, const char *, const char *,
     boolean_t, boolean_t, boolean_t, boolean_t, int);
 extern int zfs_promote(zfs_handle_t *);
+extern int zfs_hold(zfs_handle_t *, const char *, const char *, boolean_t);
+extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t);
 
 typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
     uid_t rid, uint64_t space);
