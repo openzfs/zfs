@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -211,10 +211,11 @@ extern "C" {
  * ds_lock
  *    protects:
  *    	ds_user_ptr
- *    	ds_user_evice_func
+ *    	ds_user_evict_func
  *    	ds_open_refcount
  *    	ds_snapname
  *    	ds_phys accounting
+ *	ds_phys userrefs zapobj
  *	ds_reserved
  *    held from:
  *    	dsl_dataset_*
