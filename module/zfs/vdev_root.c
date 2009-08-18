@@ -54,6 +54,7 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 {
 	int lasterror = 0;
 	int numerrors = 0;
+	int c;
 
 	if (vd->vdev_children == 0) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
@@ -62,7 +63,7 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 
 	vdev_open_children(vd);
 
-	for (int c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (cvd->vdev_open_error && !cvd->vdev_islog) {
@@ -85,7 +86,9 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 static void
 vdev_root_close(vdev_t *vd)
 {
-	for (int c = 0; c < vd->vdev_children; c++)
+	int c;
+
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_close(vd->vdev_child[c]);
 }
 
