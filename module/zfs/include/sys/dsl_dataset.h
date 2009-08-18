@@ -63,6 +63,14 @@ typedef void dsl_dataset_evict_func_t(struct dsl_dataset *, void *);
 #define	DS_FLAG_UNIQUE_ACCURATE	(1ULL<<2)
 
 /*
+ * DS_FLAG_DEFER_DESTROY is set after 'zfs destroy -d' has been called
+ * on a dataset. This allows the dataset to be destroyed using 'zfs release'.
+ */
+#define	DS_FLAG_DEFER_DESTROY	(1ULL<<3)
+#define	DS_IS_DEFER_DESTROY(ds)	\
+	((ds)->ds_phys->ds_flags & DS_FLAG_DEFER_DESTROY)
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */
@@ -93,7 +101,8 @@ typedef struct dsl_dataset_phys {
 	blkptr_t ds_bp;
 	uint64_t ds_next_clones_obj;	/* DMU_OT_DSL_CLONES */
 	uint64_t ds_props_obj;		/* DMU_OT_DSL_PROPS for snaps */
-	uint64_t ds_pad[6]; /* pad out to 320 bytes for good measure */
+	uint64_t ds_userrefs_obj;	/* DMU_OT_USERREFS */
+	uint64_t ds_pad[5]; /* pad out to 320 bytes for good measure */
 } dsl_dataset_phys_t;
 
 typedef struct dsl_dataset {
@@ -111,6 +120,9 @@ typedef struct dsl_dataset {
 	/* has internal locking: */
 	bplist_t ds_deadlist;
 
+	/* to protect against multiple concurrent incremental recv */
+	kmutex_t ds_recvlock;
+
 	/* protected by lock on pool's dp_dirty_datasets list */
 	txg_node_t ds_dirty_link;
 	list_node_t ds_synced_link;
@@ -122,6 +134,7 @@ typedef struct dsl_dataset {
 	kmutex_t ds_lock;
 	void *ds_user_ptr;
 	dsl_dataset_evict_func_t *ds_user_evict_func;
+	uint64_t ds_userrefs;
 
 	/*
 	 * ds_owner is protected by the ds_rwlock and the ds_lock
@@ -142,6 +155,15 @@ typedef struct dsl_dataset {
 	/* Protected by ds_lock; keep at end of struct for better locality */
 	char ds_snapname[MAXNAMELEN];
 } dsl_dataset_t;
+
+struct dsl_ds_destroyarg {
+	dsl_dataset_t *ds;		/* ds to destroy */
+	dsl_dataset_t *rm_origin;	/* also remove our origin? */
+	boolean_t is_origin_rm;		/* set if removing origin snap */
+	boolean_t defer;		/* destroy -d requested? */
+	boolean_t releasing;		/* destroying due to release? */
+	boolean_t need_prep;		/* do we need to retry due to EBUSY? */
+};
 
 #define	dsl_dataset_is_snapshot(ds)	\
 	((ds)->ds_phys->ds_num_children != 0)
@@ -167,8 +189,8 @@ uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *, dmu_tx_t *);
 uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
     uint64_t flags, dmu_tx_t *tx);
-int dsl_dataset_destroy(dsl_dataset_t *ds, void *tag);
-int dsl_snapshots_destroy(char *fsname, char *snapname);
+int dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer);
+int dsl_snapshots_destroy(char *fsname, char *snapname, boolean_t defer);
 dsl_checkfunc_t dsl_dataset_destroy_check;
 dsl_syncfunc_t dsl_dataset_destroy_sync;
 dsl_checkfunc_t dsl_dataset_snapshot_check;
@@ -178,6 +200,11 @@ int dsl_dataset_rename(char *name, const char *newname, boolean_t recursive);
 int dsl_dataset_promote(const char *name);
 int dsl_dataset_clone_swap(dsl_dataset_t *clone, dsl_dataset_t *origin_head,
     boolean_t force);
+int dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
+    boolean_t recursive);
+int dsl_dataset_user_release(char *dsname, char *snapname, char *htag,
+    boolean_t recursive);
+int dsl_dataset_get_holds(const char *dsname, nvlist_t **nvp);
 
 void *dsl_dataset_set_user_ptr(dsl_dataset_t *ds,
     void *p, dsl_dataset_evict_func_t func);
