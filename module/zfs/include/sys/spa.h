@@ -500,8 +500,9 @@ extern int spa_history_get(spa_t *spa, uint64_t *offset, uint64_t *len_read,
     char *his_buf);
 extern int spa_history_log(spa_t *spa, const char *his_buf,
     history_log_type_t what);
-void spa_history_internal_log(history_internal_events_t event, spa_t *spa,
-    dmu_tx_t *tx, cred_t *cr, const char *fmt, ...);
+extern void spa_history_internal_log(history_internal_events_t event,
+    spa_t *spa, dmu_tx_t *tx, cred_t *cr, const char *fmt, ...);
+extern void spa_history_log_version(spa_t *spa, history_internal_events_t evt);
 
 /* error handling */
 struct zbookmark;
