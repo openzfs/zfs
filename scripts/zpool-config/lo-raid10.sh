@@ -34,15 +34,15 @@ zpool_create() {
 		DEVICES_M2="${DEVICES_M2} ${DEVICE}"
 	done
 
-	msg ${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} \
+	msg ${ZPOOL} create ${ZPOOL_NAME} \
 		mirror ${DEVICES_M1} mirror ${DEVICES_M2}
-	${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} \
+	${ZPOOL} create ${ZPOOL_NAME} \
 		mirror ${DEVICES_M1} mirror ${DEVICES_M2}
 }
 
 zpool_destroy() {
-	msg ${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
-	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
+	msg ${ZPOOL} destroy ${ZPOOL_NAME}
+	${ZPOOL} destroy ${ZPOOL_NAME}
 
 	for FILE in ${FILES}; do
 		DEVICE=`${LOSETUP} -a | grep ${FILE} | head -n1|cut -f1 -d:`
