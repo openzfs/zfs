@@ -59,7 +59,7 @@ valid_char(char c)
  * Snapshot names must be made up of alphanumeric characters plus the following
  * characters:
  *
- * 	[-_.:]
+ * 	[-_.: ]
  */
 int
 snapshot_namecheck(const char *path, namecheck_err_t *why, char *what)
