@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -102,6 +102,13 @@ static int
 vdev_offlined(uint64_t state, uint64_t aux, uint64_t errs)
 {
 	return (state == VDEV_STATE_OFFLINE);
+}
+
+/* ARGSUSED */
+static int
+vdev_removed(uint64_t state, uint64_t aux, uint64_t errs)
+{
+	return (state == VDEV_STATE_REMOVED);
 }
 
 /*
@@ -274,6 +281,12 @@ check_status(nvlist_t *config, boolean_t isimport)
 	 */
 	if (find_vdev_problem(nvroot, vdev_offlined))
 		return (ZPOOL_STATUS_OFFLINE_DEV);
+
+	/*
+	 * Removed device
+	 */
+	if (find_vdev_problem(nvroot, vdev_removed))
+		return (ZPOOL_STATUS_REMOVED_DEV);
 
 	/*
 	 * Currently resilvering
