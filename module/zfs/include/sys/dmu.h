@@ -117,6 +117,7 @@ typedef enum dmu_object_type {
 	DMU_OT_SCRUB_QUEUE,		/* ZAP */
 	DMU_OT_USERGROUP_USED,		/* ZAP */
 	DMU_OT_USERGROUP_QUOTA,		/* ZAP */
+	DMU_OT_USERREFS,		/* ZAP */
 	DMU_OT_NUMTYPES
 } dmu_object_type_t;
 
@@ -174,8 +175,8 @@ int dmu_objset_evict_dbufs(objset_t *os);
 int dmu_objset_create(const char *name, dmu_objset_type_t type,
     objset_t *clone_parent, uint64_t flags,
     void (*func)(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx), void *arg);
-int dmu_objset_destroy(const char *name);
-int dmu_snapshots_destroy(char *fsname, char *snapname);
+int dmu_objset_destroy(const char *name, boolean_t defer);
+int dmu_snapshots_destroy(char *fsname, char *snapname, boolean_t defer);
 int dmu_objset_rollback(objset_t *os);
 int dmu_objset_snapshot(char *fsname, char *snapname, struct nvlist *props,
     boolean_t recursive);
@@ -672,10 +673,9 @@ typedef struct dmu_recv_cookie {
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap, struct drr_begin *,
-    boolean_t force, objset_t *origin, boolean_t online, dmu_recv_cookie_t *);
+    boolean_t force, objset_t *origin, dmu_recv_cookie_t *);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp);
 int dmu_recv_end(dmu_recv_cookie_t *drc);
-void dmu_recv_abort_cleanup(dmu_recv_cookie_t *drc);
 
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */
