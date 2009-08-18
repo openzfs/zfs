@@ -450,5 +450,4 @@ EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
-EXPORT_SYMBOL(spa_config_update_common);
 #endif
