@@ -1021,13 +1021,14 @@ vdev_open_children(vdev_t *vd)
 {
 	taskq_t *tq;
 	int children = vd->vdev_children;
+	int c;
 
 	tq = taskq_create("vdev_open", children, minclsyspri,
 	    children, children, TASKQ_PREPOPULATE);
 
-	for (int c = 0; c < children; c++)
+	for (c = 0; c < children; c++)
 		VERIFY(taskq_dispatch(tq, vdev_open_child, vd->vdev_child[c],
-		    TQ_SLEEP) != NULL);
+		    TQ_SLEEP) != 0);
 
 	taskq_destroy(tq);
 }
