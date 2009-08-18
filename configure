@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR SCRIPTDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -18967,6 +18967,8 @@ _ACEOF
 	LIBDIR=$TOPDIR/lib
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
+	SCRIPTDIR=$TOPDIR/scripts
+
 
 
 
@@ -21409,21 +21411,67 @@ fi
 
 
 
-	SCRIPT_CONFIG=.script-config
-	rm -f ${SCRIPT_CONFIG}
-	echo "KERNELSRC=${LINUX}"             >>${SCRIPT_CONFIG}
-	echo "KERNELBUILD=${LINUX_OBJ}"       >>${SCRIPT_CONFIG}
-	echo "KERNELSRCVER=${LINUX_VERSION}"  >>${SCRIPT_CONFIG}
-	echo                                  >>${SCRIPT_CONFIG}
-	echo "SPLSRC=${SPL}"                  >>${SCRIPT_CONFIG}
-	echo "SPLBUILD=${SPL_OBJ}"            >>${SCRIPT_CONFIG}
-	echo "SPLSRCVER=${SPL_VERSION}"       >>${SCRIPT_CONFIG}
-	echo                                  >>${SCRIPT_CONFIG}
-	echo "TOPDIR=${TOPDIR}"               >>${SCRIPT_CONFIG}
-	echo "BUILDDIR=${BUILDDIR}"           >>${SCRIPT_CONFIG}
-	echo "LIBDIR=${LIBDIR}"               >>${SCRIPT_CONFIG}
-	echo "CMDDIR=${CMDDIR}"               >>${SCRIPT_CONFIG}
-	echo "MODDIR=${MODDIR}"               >>${SCRIPT_CONFIG}
+	cat >.script-config <<EOF
+KERNELSRC=${LINUX}
+KERNELBUILD=${LINUX_OBJ}
+KERNELSRCVER=${LINUX_VERSION}
+KERNELMOD=/lib/modules/\${KERNELSRCVER}/kernel
+
+SPLSRC=${SPL}
+SPLBUILD=${SPL_OBJ}
+SPLSRCVER=${SPL_VERSION}
+
+TOPDIR=${TOPDIR}
+BUILDDIR=${BUILDDIR}
+LIBDIR=${LIBDIR}
+CMDDIR=${CMDDIR}
+MODDIR=${MODDIR}
+SCRIPTDIR=${SCRIPTDIR}
+ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
+ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
+ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
+
+ZDB=\${CMDDIR}/zdb/zdb
+ZFS=\${CMDDIR}/zfs/zfs
+ZINJECT=\${CMDDIR}/zinject/zinject
+ZPOOL=\${CMDDIR}/zpool/zpool
+ZTEST=\${CMDDIR}/ztest/ztest
+ZPIOS=\${CMDDIR}/zpios/zpios
+
+COMMON_SH=\${SCRIPTDIR}/common.sh
+ZFS_SH=\${SCRIPTDIR}/zfs.sh
+ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
+ZPIOS_SH=\${SCRIPTDIR}/zpios.sh
+ZPIOS_SURVEY_SH=\${SCRIPTDIR}/zpios-survey.sh
+
+LDMOD=/sbin/insmod
+
+KERNEL_MODULES=(                                      \\
+        \${KERNELMOD}/lib/zlib_deflate/zlib_deflate.ko \\
+)
+
+SPL_MODULES=(                                         \\
+        \${SPLBUILD}/spl/spl.ko                        \\
+)
+
+ZFS_MODULES=(                                         \\
+        \${MODDIR}/avl/zavl.ko                         \\
+        \${MODDIR}/nvpair/znvpair.ko                   \\
+        \${MODDIR}/unicode/zunicode.ko                 \\
+        \${MODDIR}/zcommon/zcommon.ko                  \\
+        \${MODDIR}/zfs/zfs.ko                          \\
+)
+
+ZPIOS_MODULES=(                                       \\
+        \${MODDIR}/zpios/zpios.ko                      \\
+)
+
+MODULES=(                                             \\
+        \${KERNEL_MODULES[*]}                          \\
+        \${SPL_MODULES[*]}                             \\
+        \${ZFS_MODULES[*]}                             \\
+)
+EOF
 
 
 
@@ -21461,7 +21509,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                                                        ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/zpool-config/Makefile scripts/zpios-test/Makefile scripts/zpios-profile/Makefile zfs.spec zfs-modules.spec"
+                                                                                                                                                                                                                                                                                                                                          ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -22072,9 +22120,6 @@ do
   "module/zfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zfs/Makefile" ;;
   "module/zpios/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/zpios/Makefile" ;;
   "scripts/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;
-  "scripts/zpool-config/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpool-config/Makefile" ;;
-  "scripts/zpios-test/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-test/Makefile" ;;
-  "scripts/zpios-profile/Makefile" ) CONFIG_FILES="$CONFIG_FILES scripts/zpios-profile/Makefile" ;;
   "zfs.spec" ) CONFIG_FILES="$CONFIG_FILES zfs.spec" ;;
   "zfs-modules.spec" ) CONFIG_FILES="$CONFIG_FILES zfs-modules.spec" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
@@ -22254,6 +22299,7 @@ s,@BUILDDIR@,$BUILDDIR,;t t
 s,@LIBDIR@,$LIBDIR,;t t
 s,@CMDDIR@,$CMDDIR,;t t
 s,@MODDIR@,$MODDIR,;t t
+s,@SCRIPTDIR@,$SCRIPTDIR,;t t
 s,@ZFS_CONFIG@,$ZFS_CONFIG,;t t
 s,@LINUX@,$LINUX,;t t
 s,@LINUX_OBJ@,$LINUX_OBJ,;t t
