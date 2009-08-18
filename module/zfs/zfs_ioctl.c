@@ -776,6 +776,20 @@ zfs_secpolicy_userspace_upgrade(zfs_cmd_t *zc, cred_t *cr)
 	return (zfs_secpolicy_setprop(zc->zc_name, ZFS_PROP_VERSION, cr));
 }
 
+static int
+zfs_secpolicy_hold(zfs_cmd_t *zc, cred_t *cr)
+{
+	return (zfs_secpolicy_write_perms(zc->zc_name,
+	    ZFS_DELEG_PERM_HOLD, cr));
+}
+
+static int
+zfs_secpolicy_release(zfs_cmd_t *zc, cred_t *cr)
+{
+	return (zfs_secpolicy_write_perms(zc->zc_name,
+	    ZFS_DELEG_PERM_RELEASE, cr));
+}
+
 /*
  * Returns the nvlist as specified by the user in the zfs_cmd_t.
  */
@@ -2520,7 +2534,7 @@ zfs_ioc_create(zfs_cmd_t *zc)
 	 */
 	if (error == 0) {
 		if ((error = zfs_set_prop_nvlist(zc->zc_name, nvprops)) != 0)
-			(void) dmu_objset_destroy(zc->zc_name);
+			(void) dmu_objset_destroy(zc->zc_name, B_FALSE);
 	}
 	nvlist_free(nvprops);
 	return (error);
@@ -2609,8 +2623,9 @@ zfs_unmount_snap(char *name, void *arg)
 
 /*
  * inputs:
- * zc_name	name of filesystem
- * zc_value	short name of snapshot
+ * zc_name		name of filesystem
+ * zc_value		short name of snapshot
+ * zc_defer_destroy	mark for deferred destroy
  *
  * outputs:	none
  */
@@ -2625,13 +2640,15 @@ zfs_ioc_destroy_snaps(zfs_cmd_t *zc)
 	    zfs_unmount_snap, zc->zc_value, DS_FIND_CHILDREN);
 	if (err)
 		return (err);
-	return (dmu_snapshots_destroy(zc->zc_name, zc->zc_value));
+	return (dmu_snapshots_destroy(zc->zc_name, zc->zc_value,
+	    zc->zc_defer_destroy));
 }
 
 /*
  * inputs:
  * zc_name		name of dataset to destroy
  * zc_objset_type	type of objset
+ * zc_defer_destroy	mark for deferred destroy
  *
  * outputs:		none
  */
@@ -2644,7 +2661,7 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 			return (err);
 	}
 
-	return (dmu_objset_destroy(zc->zc_name));
+	return (dmu_objset_destroy(zc->zc_name, zc->zc_defer_destroy));
 }
 
 /*
@@ -2770,7 +2787,6 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	objset_t *os;
 #endif /* HAVE_ZPL */
 	dmu_recv_cookie_t drc;
-	zfsvfs_t *zfsvfs = NULL;
 	boolean_t force = (boolean_t)zc->zc_guid;
 	int error, fd;
 	offset_t off;
@@ -2803,24 +2819,11 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	}
 
 #ifdef HAVE_ZPL
-	if (getzfsvfs(tofs, &zfsvfs) == 0) {
-		if (!mutex_tryenter(&zfsvfs->z_online_recv_lock)) {
-			VFS_RELE(zfsvfs->z_vfs);
-			zfsvfs = NULL;
-			error = EBUSY;
-			goto out;
-		}
+	if (props && dmu_objset_open(tofs, DMU_OST_ANY,
+	    DS_MODE_USER | DS_MODE_READONLY, &os) == 0) {
 		/*
 		 * If new properties are supplied, they are to completely
 		 * replace the existing ones, so stash away the existing ones.
-		 */
-		if (props)
-			(void) dsl_prop_get_all(zfsvfs->z_os, &origprops, TRUE);
-	} else if (props && dmu_objset_open(tofs, DMU_OST_ANY,
-	    DS_MODE_USER | DS_MODE_READONLY, &os) == 0) {
-		/*
-		 * Get the props even if there was no zfsvfs (zvol or
-		 * unmounted zpl).
 		 */
 		(void) dsl_prop_get_all(os, &origprops, TRUE);
 
@@ -2836,7 +2839,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	}
 
 	error = dmu_recv_begin(tofs, tosnap, &zc->zc_begin_record,
-	    force, origin, zfsvfs != NULL, &drc);
+	    force, origin, &drc);
 	if (origin)
 		dmu_objset_close(origin);
 	if (error)
@@ -2857,25 +2860,33 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	off = fp->f_offset;
 	error = dmu_recv_stream(&drc, fp->f_vnode, &off);
 
-	if (error == 0 && zfsvfs) {
-		char *osname;
-		int mode;
+	if (error == 0) {
+		zfsvfs_t *zfsvfs = NULL;
 
-		/* online recv */
-		osname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
-		error = zfs_suspend_fs(zfsvfs, osname, &mode);
-		if (error == 0) {
-			int resume_err;
+		if (getzfsvfs(tofs, &zfsvfs) == 0) {
+			/* online recv */
+			int end_err;
+			char *osname;
+			int mode;
 
-			error = dmu_recv_end(&drc);
-			resume_err = zfs_resume_fs(zfsvfs, osname, mode);
-			error = error ? error : resume_err;
+			osname = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+			error = zfs_suspend_fs(zfsvfs, osname, &mode);
+			/*
+			 * If the suspend fails, then the recv_end will
+			 * likely also fail, and clean up after itself.
+			 */
+			end_err = dmu_recv_end(&drc);
+			if (error == 0) {
+				int resume_err =
+				    zfs_resume_fs(zfsvfs, osname, mode);
+				error = error ? error : resume_err;
+			}
+			error = error ? error : end_err;
+			VFS_RELE(zfsvfs->z_vfs);
+			kmem_free(osname, MAXNAMELEN);
 		} else {
-			dmu_recv_abort_cleanup(&drc);
+			error = dmu_recv_end(&drc);
 		}
-		kmem_free(osname, MAXNAMELEN);
-	} else if (error == 0) {
-		error = dmu_recv_end(&drc);
 	}
 
 	zc->zc_cookie = off - fp->f_offset;
@@ -2890,12 +2901,6 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		(void) zfs_set_prop_nvlist(tofs, origprops);
 	}
 out:
-	if (zfsvfs) {
-		mutex_exit(&zfsvfs->z_online_recv_lock);
-#ifdef HAVE_ZPL
-		VFS_RELE(zfsvfs->z_vfs);
-#endif /* HAVE_ZPL */
-	}
 	nvlist_free(props);
 	nvlist_free(origprops);
 	releasef(fd);
@@ -3521,6 +3526,69 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 }
 
 /*
+ * inputs:
+ * zc_name	name of filesystem
+ * zc_value	short name of snap
+ * zc_string	user-supplied tag for this reference
+ * zc_cookie	recursive flag
+ *
+ * outputs:		none
+ */
+static int
+zfs_ioc_hold(zfs_cmd_t *zc)
+{
+	boolean_t recursive = zc->zc_cookie;
+
+	if (snapshot_namecheck(zc->zc_value, NULL, NULL) != 0)
+		return (EINVAL);
+
+	return (dsl_dataset_user_hold(zc->zc_name, zc->zc_value,
+	    zc->zc_string, recursive));
+}
+
+/*
+ * inputs:
+ * zc_name	name of dataset from which we're releasing a user reference
+ * zc_value	short name of snap
+ * zc_string	user-supplied tag for this reference
+ * zc_cookie	recursive flag
+ *
+ * outputs:		none
+ */
+static int
+zfs_ioc_release(zfs_cmd_t *zc)
+{
+	boolean_t recursive = zc->zc_cookie;
+
+	if (snapshot_namecheck(zc->zc_value, NULL, NULL) != 0)
+		return (EINVAL);
+
+	return (dsl_dataset_user_release(zc->zc_name, zc->zc_value,
+	    zc->zc_string, recursive));
+}
+
+/*
+ * inputs:
+ * zc_name		name of filesystem
+ *
+ * outputs:
+ * zc_nvlist_src{_size}	nvlist of snapshot holds
+ */
+static int
+zfs_ioc_get_holds(zfs_cmd_t *zc)
+{
+	nvlist_t *nvp;
+	int error;
+
+	if ((error = dsl_dataset_get_holds(zc->zc_name, &nvp)) == 0) {
+		error = put_nvlist(zc, nvp);
+		nvlist_free(nvp);
+	}
+
+	return (error);
+}
+
+/*
  * pool create, destroy, and export don't log the history as part of
  * zfsdev_ioctl, but rather zfs_ioc_pool_create, and zfs_ioc_pool_export
  * do the logging of those commands.
@@ -3600,8 +3668,8 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    B_TRUE },
 	{ zfs_ioc_dsobj_to_dsname, zfs_secpolicy_config, POOL_NAME, B_FALSE,
 	    B_FALSE },
-	{ zfs_ioc_obj_to_path, zfs_secpolicy_config, NO_NAME, B_FALSE,
-	    B_FALSE },
+	{ zfs_ioc_obj_to_path, zfs_secpolicy_config, DATASET_NAME, B_FALSE,
+	    B_TRUE },
 	{ zfs_ioc_pool_set_props, zfs_secpolicy_config,	POOL_NAME, B_TRUE,
 	    B_TRUE },
 	{ zfs_ioc_pool_get_props, zfs_secpolicy_read, POOL_NAME, B_FALSE,
@@ -3623,6 +3691,11 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    DATASET_NAME, B_FALSE, B_FALSE },
 	{ zfs_ioc_userspace_upgrade, zfs_secpolicy_userspace_upgrade,
 	    DATASET_NAME, B_FALSE, B_TRUE },
+	{ zfs_ioc_hold, zfs_secpolicy_hold, DATASET_NAME, B_TRUE, B_TRUE },
+	{ zfs_ioc_release, zfs_secpolicy_release, DATASET_NAME, B_TRUE,
+	    B_TRUE },
+	{ zfs_ioc_get_holds, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
+	    B_TRUE }
 };
 
 int
