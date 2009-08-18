@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -52,7 +52,6 @@ too_many_errors(vdev_t *vd, int numerrors)
 static int
 vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 {
-	int c;
 	int lasterror = 0;
 	int numerrors = 0;
 
@@ -61,15 +60,14 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 		return (EINVAL);
 	}
 
-	for (c = 0; c < vd->vdev_children; c++) {
-		vdev_t *cvd = vd->vdev_child[c];
-		int error;
+	vdev_open_children(vd);
 
-		if ((error = vdev_open(cvd)) != 0 &&
-		    !cvd->vdev_islog) {
-			lasterror = error;
+	for (int c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (cvd->vdev_open_error && !cvd->vdev_islog) {
+			lasterror = cvd->vdev_open_error;
 			numerrors++;
-			continue;
 		}
 	}
 
@@ -87,9 +85,7 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 static void
 vdev_root_close(vdev_t *vd)
 {
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_close(vd->vdev_child[c]);
 }
 
