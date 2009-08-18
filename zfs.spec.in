@@ -29,6 +29,16 @@ BuildRequires:   zlib-devel
 The %{name}-devel package contains the header files needed for building
 additional applications against the %{name} libraries.
 
+%package test
+Summary:         ZFS File System Test Infrastructure
+Group:           Utilities/System
+
+%description test
+The %{name}-test package contains a test infrastructure for zpios which
+can be used to simplfy the benchmarking of various hardware and software
+configurations.  The test infrastructure additionally integrates with
+various system profiling tools to facilitate an in depth analysis.
+
 %prep
 %setup
 %build
@@ -52,6 +62,10 @@ rm -rf $RPM_BUILD_ROOT
 %files devel
 %defattr(-,root,root)
 %{_includedir}/*
+
+%files test
+%defattr(-,root,root)
+%{_libexecdir}/@PACKAGE@/*
 
 %post
 %postun
