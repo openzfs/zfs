@@ -16,13 +16,13 @@ zpool_create() {
 			die "Error $? creating ${FILE}"
 	done
 
-	msg ${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} raidz ${FILES}
-	${CMDDIR}/zpool/zpool create ${ZPOOL_NAME} raidz ${FILES} || exit 1
+	msg ${ZPOOL} create ${ZPOOL_NAME} raidz ${FILES}
+	${ZPOOL} create ${ZPOOL_NAME} raidz ${FILES} || exit 1
 }
 
 zpool_destroy() {
-	msg ${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
-	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
+	msg ${ZPOOL} destroy ${ZPOOL_NAME}
+	${ZPOOL} destroy ${ZPOOL_NAME}
 
 	for FILE in ${FILES}; do
 		msg "Removing ${FILE}"
