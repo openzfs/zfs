@@ -1,35 +1,18 @@
 #!/bin/bash
 #
-# A simple script to simply the loading/unloading the ZFS module
-# stack.  It should probably be considered a first step towards
-# a full ZFS init script when that is needed.
-#
+# A simple script to simply the loading/unloading the ZFS module stack.
 
-. ./common.sh
+SCRIPT_COMMON=common.sh
+if [ -f ./${SCRIPT_COMMON} ]; then
+. ./${SCRIPT_COMMON}
+elif [ -f /usr/libexec/zfs/${SCRIPT_COMMON} ]; then
+. /usr/libexec/zfs/${SCRIPT_COMMON}
+else
+echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
+fi
+
 PROG=zfs.sh
-
-KMOD=/lib/modules/${KERNELSRCVER}/kernel
-KERNEL_MODULES=(				\
-	$KMOD/lib/zlib_deflate/zlib_deflate.ko	\
-)
-
-SPL_MODULES=(					\
-	${SPLBUILD}/spl/spl.ko			\
-)
-
-ZFS_MODULES=(					\
-	${MODDIR}/avl/zavl.ko			\
-	${MODDIR}/nvpair/znvpair.ko		\
-	${MODDIR}/unicode/zunicode.ko		\
-	${MODDIR}/zcommon/zcommon.ko		\
-	${MODDIR}/zfs/zfs.ko			\
-)
-
-MODULES=(					\
-	${KERNEL_MODULES[*]}			\
-	${SPL_MODULES[*]}			\
-	${ZFS_MODULES[*]}			\
-)
+UNLOAD=
 
 usage() {
 cat << EOF
@@ -54,8 +37,6 @@ $0 spl="spl_debug_mask=0"
 
 EOF
 }
-
-UNLOAD=
 
 while getopts 'hvud' OPTION; do
 	case $OPTION in
