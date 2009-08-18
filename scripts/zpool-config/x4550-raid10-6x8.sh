@@ -29,11 +29,11 @@ zpool_create() {
 		let M_IDX=M_IDX+1
 	done
 
-	msg ${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${MIRRORS[*]}
-	${CMDDIR}/zpool/zpool create -f ${ZPOOL_NAME} ${MIRRORS[*]} || exit 1
+	msg ${ZPOOL} create -f ${ZPOOL_NAME} ${MIRRORS[*]}
+	${ZPOOL} create -f ${ZPOOL_NAME} ${MIRRORS[*]} || exit 1
 }
 
 zpool_destroy() {
-	msg ${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
-	${CMDDIR}/zpool/zpool destroy ${ZPOOL_NAME}
+	msg ${ZPOOL} destroy ${ZPOOL_NAME}
+	${ZPOOL} destroy ${ZPOOL_NAME}
 }
