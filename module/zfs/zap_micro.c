@@ -1068,7 +1068,7 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 
 int
 zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
-    uint64_t *towrite, uint64_t *tooverwrite, uint64_t dn_datablkshift)
+    uint64_t *towrite, uint64_t *tooverwrite)
 {
 	zap_t *zap;
 	int err = 0;
@@ -1113,28 +1113,28 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 			*towrite += (3 + (add ? 4 : 0)) * SPA_MAXBLOCKSIZE;
 		}
 	} else {
-		if (!add) {
-			if (dmu_buf_freeable(zap->zap_dbuf))
-				*tooverwrite += SPA_MAXBLOCKSIZE;
-			else
-				*towrite += SPA_MAXBLOCKSIZE;
-		} else {
-			/*
-			 * We are here if we are adding and (name != NULL).
-			 * It is hard to find out if this add will promote this
-			 * microzap to fatzap. Hence, we assume the worst case
-			 * and account for the blocks assuming this microzap
-			 * would be promoted to a fatzap.
-			 *
-			 * 1 block overwritten  : header block
-			 * 4 new blocks written : 2 new split leaf, 2 grown
-			 *			ptrtbl blocks
-			 */
-			if (dmu_buf_freeable(zap->zap_dbuf))
-				*tooverwrite += 1 << dn_datablkshift;
-			else
-				*towrite += 1 << dn_datablkshift;
-			*towrite += 4 << dn_datablkshift;
+		/*
+		 * We are here if (name != NULL) and this is a micro-zap.
+		 * We account for the header block depending on whether it
+		 * is freeable.
+		 *
+		 * Incase of an add-operation it is hard to find out
+		 * if this add will promote this microzap to fatzap.
+		 * Hence, we consider the worst case and account for the
+		 * blocks assuming this microzap would be promoted to a
+		 * fatzap.
+		 *
+		 * 1 block overwritten  : header block
+		 * 4 new blocks written : 2 new split leaf, 2 grown
+		 *			ptrtbl blocks
+		 */
+		if (dmu_buf_freeable(zap->zap_dbuf))
+			*tooverwrite += SPA_MAXBLOCKSIZE;
+		else
+			*towrite += SPA_MAXBLOCKSIZE;
+
+		if (add) {
+			*towrite += 4 * SPA_MAXBLOCKSIZE;
 		}
 	}
 

@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -65,8 +65,6 @@
  *
  * The ZAP OBJ is referred to as the jump object.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -540,7 +538,7 @@ dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
 	dsl_pool_t *dp;
 	void *cookie;
 	int	error;
-	char	checkflag = ZFS_DELEG_LOCAL;
+	char	checkflag;
 	objset_t *mos;
 	avl_tree_t permsets;
 	perm_set_t *setnode;
@@ -561,6 +559,16 @@ dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
 	    SPA_VERSION_DELEGATED_PERMS) {
 		dsl_dataset_rele(ds, FTAG);
 		return (EPERM);
+	}
+
+	if (dsl_dataset_is_snapshot(ds)) {
+		/*
+		 * Snapshots are treated as descendents only,
+		 * local permissions do not apply.
+		 */
+		checkflag = ZFS_DELEG_DESCENDENT;
+	} else {
+		checkflag = ZFS_DELEG_LOCAL;
 	}
 
 	avl_create(&permsets, perm_set_compare, sizeof (perm_set_t),

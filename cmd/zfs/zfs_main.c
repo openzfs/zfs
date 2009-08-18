@@ -80,6 +80,8 @@ static int zfs_do_receive(int argc, char **argv);
 static int zfs_do_promote(int argc, char **argv);
 static int zfs_do_userspace(int argc, char **argv);
 static int zfs_do_python(int argc, char **argv);
+static int zfs_do_hold(int argc, char **argv);
+static int zfs_do_release(int argc, char **argv);
 
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
@@ -121,7 +123,10 @@ typedef enum {
 	HELP_ALLOW,
 	HELP_UNALLOW,
 	HELP_USERSPACE,
-	HELP_GROUPSPACE
+	HELP_GROUPSPACE,
+	HELP_HOLD,
+	HELP_HOLDS,
+	HELP_RELEASE
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -169,6 +174,10 @@ static zfs_command_t command_table[] = {
 	{ "allow",	zfs_do_python,		HELP_ALLOW		},
 	{ NULL },
 	{ "unallow",	zfs_do_python,		HELP_UNALLOW		},
+	{ NULL },
+	{ "hold",	zfs_do_hold,		HELP_HOLD		},
+	{ "holds",	zfs_do_python,		HELP_HOLDS		},
+	{ "release",	zfs_do_release,		HELP_RELEASE		},
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -189,7 +198,8 @@ get_usage(zfs_help_t idx)
 		    "-V <size> <volume>\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-rRf] "
-		    "<filesystem|volume|snapshot>\n"));
+		    "<filesystem|volume|snapshot>\n"
+		    "\tdestroy -d [-r] <filesystem|volume|snapshot>\n"));
 	case HELP_GET:
 		return (gettext("\tget [-rHp] [-d max] "
 		    "[-o field[,...]] [-s source[,...]]\n"
@@ -236,7 +246,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tunmount [-f] "
 		    "<-a | filesystem|mountpoint>\n"));
 	case HELP_UNSHARE:
-		return (gettext("\tunshare [-f] "
+		return (gettext("\tunshare "
 		    "<-a | filesystem|mountpoint>\n"));
 	case HELP_ALLOW:
 		return (gettext("\tallow <filesystem|volume>\n"
@@ -266,6 +276,12 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tgroupspace [-hniHpU] [-o field[,...]] "
 		    "[-sS field] ... [-t type[,...]]\n"
 		    "\t    <filesystem|snapshot>\n"));
+	case HELP_HOLD:
+		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
+	case HELP_HOLDS:
+		return (gettext("\tholds [-r] <snapshot> ...\n"));
+	case HELP_RELEASE:
+		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	}
 
 	abort();
@@ -769,11 +785,13 @@ badusage:
 }
 
 /*
- * zfs destroy [-rf] <fs, snap, vol>
+ * zfs destroy [-rRf] <fs, snap, vol>
+ * zfs destroy -d [-r] <fs, snap, vol>
  *
  * 	-r	Recursively destroy all children
  * 	-R	Recursively destroy all dependents, including clones
  * 	-f	Force unmounting of any dependents
+ *	-d	If we can't destroy now, mark for deferred destruction
  *
  * Destroys the given dataset.  By default, it will unmount any filesystems,
  * and refuse to destroy a dataset that has any dependents.  A dependent can
@@ -789,6 +807,7 @@ typedef struct destroy_cbdata {
 	boolean_t	cb_closezhp;
 	zfs_handle_t	*cb_target;
 	char		*cb_snapname;
+	boolean_t	cb_defer_destroy;
 } destroy_cbdata_t;
 
 /*
@@ -869,7 +888,7 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 	 * Bail out on the first error.
 	 */
 	if (zfs_unmount(zhp, NULL, cbp->cb_force ? MS_FORCE : 0) != 0 ||
-	    zfs_destroy(zhp) != 0) {
+	    zfs_destroy(zhp, cbp->cb_defer_destroy) != 0) {
 		zfs_close(zhp);
 		return (-1);
 	}
@@ -923,8 +942,11 @@ zfs_do_destroy(int argc, char **argv)
 	char *cp;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "frR")) != -1) {
+	while ((c = getopt(argc, argv, "dfrR")) != -1) {
 		switch (c) {
+		case 'd':
+			cb.cb_defer_destroy = B_TRUE;
+			break;
 		case 'f':
 			cb.cb_force = 1;
 			break;
@@ -956,6 +978,9 @@ zfs_do_destroy(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	if (cb.cb_defer_destroy && cb.cb_doclones)
+		usage(B_FALSE);
+
 	/*
 	 * If we are doing recursive destroy of a snapshot, then the
 	 * named snapshot may not exist.  Go straight to libzfs.
@@ -977,7 +1002,7 @@ zfs_do_destroy(int argc, char **argv)
 			}
 		}
 
-		ret = zfs_destroy_snaps(zhp, cp);
+		ret = zfs_destroy_snaps(zhp, cp, cb.cb_defer_destroy);
 		zfs_close(zhp);
 		if (ret) {
 			(void) fprintf(stderr,
@@ -985,7 +1010,6 @@ zfs_do_destroy(int argc, char **argv)
 		}
 		return (ret != 0);
 	}
-
 
 	/* Open the given dataset */
 	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET)) == NULL)
@@ -1014,15 +1038,15 @@ zfs_do_destroy(int argc, char **argv)
 	 * Check for any dependents and/or clones.
 	 */
 	cb.cb_first = B_TRUE;
-	if (!cb.cb_doclones &&
+	if (!cb.cb_doclones && !cb.cb_defer_destroy &&
 	    zfs_iter_dependents(zhp, B_TRUE, destroy_check_dependent,
 	    &cb) != 0) {
 		zfs_close(zhp);
 		return (1);
 	}
 
-	if (cb.cb_error ||
-	    zfs_iter_dependents(zhp, B_FALSE, destroy_callback, &cb) != 0) {
+	if (cb.cb_error || (!cb.cb_defer_destroy &&
+	    (zfs_iter_dependents(zhp, B_FALSE, destroy_callback, &cb) != 0))) {
 		zfs_close(zhp);
 		return (1);
 	}
@@ -1034,7 +1058,6 @@ zfs_do_destroy(int argc, char **argv)
 
 	if (destroy_callback(zhp, &cb) != 0)
 		return (1);
-
 
 	return (0);
 }
@@ -1613,7 +1636,7 @@ zfs_do_upgrade(int argc, char **argv)
 		(void) printf(gettext(" 1   Initial ZFS filesystem version\n"));
 		(void) printf(gettext(" 2   Enhanced directory entries\n"));
 		(void) printf(gettext(" 3   Case insensitive and File system "
-		    "unique identifer (FUID)\n"));
+		    "unique identifier (FUID)\n"));
 		(void) printf(gettext(" 4   userquota, groupquota "
 		    "properties\n"));
 		(void) printf(gettext("\nFor more information on a particular "
@@ -2649,6 +2672,108 @@ zfs_do_receive(int argc, char **argv)
 	err = zfs_receive(g_zfs, argv[0], flags, STDIN_FILENO, NULL);
 
 	return (err != 0);
+}
+
+static int
+zfs_do_hold_rele_impl(int argc, char **argv, boolean_t holding)
+{
+	int errors = 0;
+	int i;
+	const char *tag;
+	boolean_t recursive = B_FALSE;
+	int c;
+	int (*func)(zfs_handle_t *, const char *, const char *, boolean_t);
+
+	/* check options */
+	while ((c = getopt(argc, argv, "r")) != -1) {
+		switch (c) {
+		case 'r':
+			recursive = B_TRUE;
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	/* check number of arguments */
+	if (argc < 2)
+		usage(B_FALSE);
+
+	tag = argv[0];
+	--argc;
+	++argv;
+
+	if (holding) {
+		if (tag[0] == '.') {
+			/* tags starting with '.' are reserved for libzfs */
+			(void) fprintf(stderr,
+			    gettext("tag may not start with '.'\n"));
+			usage(B_FALSE);
+		}
+		func = zfs_hold;
+	} else {
+		func = zfs_release;
+	}
+
+	for (i = 0; i < argc; ++i) {
+		zfs_handle_t *zhp;
+		char parent[ZFS_MAXNAMELEN];
+		const char *delim;
+		char *path = argv[i];
+
+		delim = strchr(path, '@');
+		if (delim == NULL) {
+			(void) fprintf(stderr,
+			    gettext("'%s' is not a snapshot\n"), path);
+			++errors;
+			continue;
+		}
+		(void) strncpy(parent, path, delim - path);
+		parent[delim - path] = '\0';
+
+		zhp = zfs_open(g_zfs, parent,
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		if (zhp == NULL) {
+			++errors;
+			continue;
+		}
+		if (func(zhp, delim+1, tag, recursive) != 0)
+			++errors;
+		zfs_close(zhp);
+	}
+
+	return (errors != 0);
+}
+
+/*
+ * zfs hold [-r] <tag> <snap> ...
+ *
+ * 	-r	Recursively hold
+ *
+ * Apply a user-hold with the given tag to the list of snapshots.
+ */
+static int
+zfs_do_hold(int argc, char **argv)
+{
+	return (zfs_do_hold_rele_impl(argc, argv, B_TRUE));
+}
+
+/*
+ * zfs release [-r] <tag> <snap> ...
+ *
+ * 	-r	Recursively release
+ *
+ * Release a user-hold with the given tag from the list of snapshots.
+ */
+static int
+zfs_do_release(int argc, char **argv)
+{
+	return (zfs_do_hold_rele_impl(argc, argv, B_FALSE));
 }
 
 typedef struct get_all_cbdata {
