@@ -36,21 +36,58 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
-	SCRIPT_CONFIG=.script-config
-	rm -f ${SCRIPT_CONFIG}
-	echo "KERNELSRC=${LINUX}"             >>${SCRIPT_CONFIG}
-	echo "KERNELBUILD=${LINUX_OBJ}"       >>${SCRIPT_CONFIG}
-	echo "KERNELSRCVER=${LINUX_VERSION}"  >>${SCRIPT_CONFIG}
-	echo                                  >>${SCRIPT_CONFIG}
-	echo "SPLSRC=${SPL}"                  >>${SCRIPT_CONFIG}
-	echo "SPLBUILD=${SPL_OBJ}"            >>${SCRIPT_CONFIG}
-	echo "SPLSRCVER=${SPL_VERSION}"       >>${SCRIPT_CONFIG}
-	echo                                  >>${SCRIPT_CONFIG}
-	echo "TOPDIR=${TOPDIR}"               >>${SCRIPT_CONFIG}
-	echo "BUILDDIR=${BUILDDIR}"           >>${SCRIPT_CONFIG}
-	echo "LIBDIR=${LIBDIR}"               >>${SCRIPT_CONFIG}
-	echo "CMDDIR=${CMDDIR}"               >>${SCRIPT_CONFIG}
-	echo "MODDIR=${MODDIR}"               >>${SCRIPT_CONFIG}
+	cat >.script-config <<EOF
+KERNELSRC=${LINUX}
+KERNELBUILD=${LINUX_OBJ}
+KERNELSRCVER=${LINUX_VERSION}
+KERNELMOD=/lib/modules/\${KERNELSRCVER}/kernel
+
+SPLSRC=${SPL}
+SPLBUILD=${SPL_OBJ}
+SPLSRCVER=${SPL_VERSION}
+
+TOPDIR=${TOPDIR}
+BUILDDIR=${BUILDDIR}
+LIBDIR=${LIBDIR}
+CMDDIR=${CMDDIR}
+MODDIR=${MODDIR}
+SCRIPTDIR=${SCRIPTDIR}
+ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
+
+ZDB=\${CMDDIR}/zdb/zdb
+ZFS=\${CMDDIR}/zfs/zfs
+ZINJECT=\${CMDDIR}/zinject/zinject
+ZPOOL=\${CMDDIR}/zpool/zpool
+ZTEST=\${CMDDIR}/ztest/ztest
+
+COMMON_SH=\${SCRIPTDIR}/common.sh
+ZFS_SH=\${SCRIPTDIR}/zfs.sh
+ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
+
+LDMOD=/sbin/insmod
+
+KERNEL_MODULES=(                                      \\
+        \${KERNELMOD}/lib/zlib_deflate/zlib_deflate.ko \\
+)
+
+SPL_MODULES=(                                         \\
+        \${SPLBUILD}/spl/spl.ko                        \\
+)
+
+ZFS_MODULES=(                                         \\
+        \${MODDIR}/avl/zavl.ko                         \\
+        \${MODDIR}/nvpair/znvpair.ko                   \\
+        \${MODDIR}/unicode/zunicode.ko                 \\
+        \${MODDIR}/zcommon/zcommon.ko                  \\
+        \${MODDIR}/zfs/zfs.ko                          \\
+)
+
+MODULES=(                                             \\
+        \${KERNEL_MODULES[[*]]}                          \\
+        \${SPL_MODULES[[*]]}                             \\
+        \${ZFS_MODULES[[*]]}                             \\
+)
+EOF
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -59,12 +96,14 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	LIBDIR=$TOPDIR/lib
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
+	SCRIPTDIR=$TOPDIR/scripts
 
 	AC_SUBST(TOPDIR)
 	AC_SUBST(BUILDDIR)
 	AC_SUBST(LIBDIR)
 	AC_SUBST(CMDDIR)
 	AC_SUBST(MODDIR)
+	AC_SUBST(SCRIPTDIR)
 
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
