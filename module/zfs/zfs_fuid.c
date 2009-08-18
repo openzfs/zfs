@@ -353,6 +353,7 @@ retry:
 		rw_exit(&zfsvfs->z_fuid_lock);
 		return (retidx);
 	} else {
+		rw_exit(&zfsvfs->z_fuid_lock);
 		return (-1);
 	}
 }

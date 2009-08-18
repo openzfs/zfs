@@ -105,6 +105,7 @@ struct spa {
 	int		spa_inject_ref;		/* injection references */
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
+	boolean_t	spa_load_verbatim;	/* load the given config? */
 	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
 	metaslab_class_t *spa_normal_class;	/* normal data class */
