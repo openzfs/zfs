@@ -3,6 +3,10 @@ nobase_pkglibexec_SCRIPTS  = common.sh
 nobase_pkglibexec_SCRIPTS += zfs.sh
 nobase_pkglibexec_SCRIPTS += zpool-create.sh
 nobase_pkglibexec_SCRIPTS += zpool-config/*
+nobase_pkglibexec_SCRIPTS += zpios.sh
+nobase_pkglibexec_SCRIPTS += zpios-survey.sh
+nobase_pkglibexec_SCRIPTS += zpios-test/*
+nobase_pkglibexec_SCRIPTS += zpios-profile/*
 EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 
 ZFS=${top_srcdir}/scripts/zfs.sh
