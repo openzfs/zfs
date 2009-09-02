@@ -36,9 +36,8 @@
  */
 typedef struct dio_request {
 	struct completion	dr_comp;	/* Completion for sync IO */
-	spinlock_t		dr_lock;	/* Completion lock */
+	atomic_t		dr_ref;		/* References */
 	zio_t			*dr_zio;	/* Parent ZIO */
-	int			dr_ref;		/* Outstanding bio count */
 	int			dr_rw;		/* Read/Write */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
@@ -152,11 +151,72 @@ vdev_disk_close(vdev_t *v)
 	v->vdev_tsd = NULL;
 }
 
-BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, rc)
+static dio_request_t *
+vdev_disk_dio_alloc(int bio_count)
+{
+	dio_request_t *dr;
+	int i;
+
+	dr = kmem_zalloc(sizeof(dio_request_t) +
+	                 sizeof(struct bio *) * bio_count, KM_SLEEP);
+	if (dr) {
+		init_completion(&dr->dr_comp);
+		atomic_set(&dr->dr_ref, 0);
+		dr->dr_bio_count = bio_count;
+		dr->dr_error = 0;
+
+		for (i = 0; i < dr->dr_bio_count; i++)
+			dr->dr_bio[i] = NULL;
+	}
+
+	return dr;
+}
+
+static void
+vdev_disk_dio_free(dio_request_t *dr)
+{
+	int i;
+
+	for (i = 0; i < dr->dr_bio_count; i++)
+		if (dr->dr_bio[i])
+			bio_put(dr->dr_bio[i]);
+
+	kmem_free(dr, sizeof(dio_request_t) +
+	          sizeof(struct bio *) * dr->dr_bio_count);
+}
+
+static void
+vdev_disk_dio_get(dio_request_t *dr)
+{
+	atomic_inc(&dr->dr_ref);
+}
+
+static int
+vdev_disk_dio_put(dio_request_t *dr)
+{
+	int rc = atomic_dec_return(&dr->dr_ref);
+
+	/* Free the dio_request when the last reference is dropped and
+	 * ensure zio_interpret is called only once with the correct zio */
+	if (rc == 0) {
+		zio_t *zio = dr->dr_zio;
+		int error = dr->dr_error;
+
+		vdev_disk_dio_free(dr);
+
+		if (zio) {
+			zio->io_error = error;
+			zio_interrupt(zio);
+		}
+	}
+
+	return rc;
+}
+
+BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 {
 	dio_request_t *dr = bio->bi_private;
-	zio_t *zio;
-	int i, error;
+	int rc;
 
 	/* Fatal error but print some useful debugging before asserting */
 	if (dr == NULL) {
@@ -174,43 +234,18 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, rc)
 		return 1;
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
-	error = rc;
 	if (error == 0 && !test_bit(BIO_UPTODATE, &bio->bi_flags))
 		error = EIO;
 
-	spin_lock(&dr->dr_lock);
-
-	dr->dr_ref--;
 	if (dr->dr_error == 0)
 		dr->dr_error = error;
 
-	/*
-	 * All bio's attached to this dio request have completed.  This
-	 * means it is safe to access the dio outside the spin lock, we
-	 * are assured there will be no racing accesses.
-	 */
-	if (dr->dr_ref == 0) {
-		zio = dr->dr_zio;
-		spin_unlock(&dr->dr_lock);
+	/* Drop reference aquired by __vdev_disk_physio */
+	rc = vdev_disk_dio_put(dr);
 
-		/* Synchronous dio cleanup handled by waiter */
-		if (dr->dr_rw & (1 << DIO_RW_SYNCIO)) {
-			complete(&dr->dr_comp);
-		} else {
-			for (i = 0; i < dr->dr_bio_count; i++)
-				bio_put(dr->dr_bio[i]);
-
-			kmem_free(dr, sizeof(dio_request_t) +
-			          sizeof(struct bio *) * dr->dr_bio_count);
-		}
-
-		if (zio) {
-			zio->io_error = dr->dr_error;
-			zio_interrupt(zio);
-		}
-	} else {
-		spin_unlock(&dr->dr_lock);
-	}
+	/* Wake up synchronous waiter this is the last outstanding bio */
+	if ((rc == 1) && (dr->dr_rw & (1 << DIO_RW_SYNCIO)))
+		complete(&dr->dr_comp);
 
 	BIO_END_IO_RETURN(0);
 }
@@ -277,7 +312,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
         dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
-	int i, j, error = 0, bio_count, bio_size, dio_size;
+	int i, error = 0, bio_count, bio_size;
 
 	ASSERT3S(kbuf_offset % SECTOR_SIZE, ==, 0);
 	q = bdev_get_queue(bdev);
@@ -285,18 +320,12 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 		return ENXIO;
 
 	bio_count = (kbuf_size / (q->max_hw_sectors << 9)) + 1;
-	dio_size  = sizeof(dio_request_t) + sizeof(struct bio *) * bio_count;
-	dr = kmem_zalloc(dio_size, KM_SLEEP);
+	dr = vdev_disk_dio_alloc(bio_count);
 	if (dr == NULL)
 		return ENOMEM;
 
-	init_completion(&dr->dr_comp);
-	spin_lock_init(&dr->dr_lock);
-	dr->dr_ref = 0;
 	dr->dr_zio = zio;
 	dr->dr_rw = flags;
-	dr->dr_error = 0;
-	dr->dr_bio_count = bio_count;
 
 #ifdef BIO_RW_FAILFAST
 	if (flags & (1 << BIO_RW_FAILFAST))
@@ -317,24 +346,26 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 
 		dr->dr_bio[i] = bio_map(q, bio_ptr, bio_size, GFP_NOIO);
 		if (IS_ERR(dr->dr_bio[i])) {
-			for (j = 0; j < i; j++)
-				bio_put(dr->dr_bio[j]);
-
 			error = -PTR_ERR(dr->dr_bio[i]);
-			kmem_free(dr, dio_size);
+			vdev_disk_dio_free(dr);
 			return error;
 		}
+
+		/* Matching put called by vdev_disk_physio_completion */
+		vdev_disk_dio_get(dr);
 
 		dr->dr_bio[i]->bi_bdev = bdev;
 		dr->dr_bio[i]->bi_sector = bio_offset >> 9;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
-		dr->dr_ref++;
 
 		bio_ptr    += bio_size;
 		bio_offset += bio_size;
 		kbuf_size  -= bio_size;
 	}
+
+	/* Extra reference to protect dio_request during submit_bio */
+	vdev_disk_dio_get(dr);
 
 	for (i = 0; i < dr->dr_bio_count; i++)
 		submit_bio(dr->dr_rw, dr->dr_bio[i]);
@@ -342,21 +373,18 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	/*
 	 * On synchronous blocking requests we wait for all bio the completion
 	 * callbacks to run.  We will be woken when the last callback runs
-	 * for this dio.  We are responsible for freeing the dio_request_t as
-	 * well as the final reference on all attached bios.  Currently, the
+	 * for this dio.  We are responsible for putting the last dio_request
+	 * reference will in turn put back the last bio references.  The
 	 * only synchronous consumer is vdev_disk_read_rootlabel() all other
 	 * IO originating from vdev_disk_io_start() is asynchronous.
 	 */
 	if (dr->dr_rw & (1 << DIO_RW_SYNCIO)) {
 		wait_for_completion(&dr->dr_comp);
-		ASSERT(dr->dr_ref == 0);
 		error = dr->dr_error;
-
-		for (i = 0; i < dr->dr_bio_count; i++)
-			bio_put(dr->dr_bio[i]);
-
-		kmem_free(dr, dio_size);
+		ASSERT3S(atomic_read(&dr->dr_ref), ==, 1);
 	}
+
+	(void)vdev_disk_dio_put(dr);
 
 	return error;
 }
