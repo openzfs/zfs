@@ -41,6 +41,7 @@
 #include <linux/device.h>
 #include <linux/list.h>
 #include <linux/swap.h>
+#include <linux/delay.h>
 
 #include <asm/ioctls.h>
 #include <asm/uaccess.h>
@@ -194,6 +195,15 @@ typedef struct splat_info {
 
 #define splat_vprint(file, test, format, args...)			\
 	splat_print(file, "%*s: " format, SPLAT_NAME_SIZE, test, args)
+
+#define splat_locked_test(lock, test)					\
+({									\
+	int _rc_;							\
+	spin_lock(lock);						\
+	_rc_ = (test) ? 1 : 0;						\
+	spin_unlock(lock);						\
+	_rc_;								\
+})
 
 splat_subsystem_t *splat_condvar_init(void);
 splat_subsystem_t *splat_kmem_init(void);

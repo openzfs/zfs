@@ -1,7 +1,7 @@
 /*
  *  This file is part of the SPL: Solaris Porting Layer.
  *
- *  Copyright (c) 2008 Lawrence Livermore National Security, LLC.
+ *  Copyright (c) 2009 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory
  *  Written by:
  *          Brian Behlendorf <behlendorf1@llnl.gov>,
@@ -30,68 +30,89 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/rwsem.h>
-#include <asm/current.h>
 #include <sys/types.h>
-#include <sys/kmem.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef enum {
-	RW_DRIVER  = 2,		/* driver (DDI) rwlock */
-	RW_DEFAULT = 4		/* kernel default rwlock */
+        RW_DRIVER  = 2,
+        RW_DEFAULT = 4
 } krw_type_t;
 
 typedef enum {
-	RW_WRITER,
-	RW_READER
+	RW_NONE   = 0,
+        RW_WRITER = 1,
+        RW_READER = 2
 } krw_t;
 
+typedef struct rw_semaphore krwlock_t;
 
-#define RW_MAGIC  0x3423645a
-#define RW_POISON 0xa6
-
-typedef struct {
-	int32_t rw_magic;
-	int32_t rw_name_size;
-	char *rw_name;
-	struct rw_semaphore rw_sem;
-	struct task_struct *rw_owner;	/* holder of the write lock */
-} krwlock_t;
-
-extern void __rw_init(krwlock_t *rwlp, char *name, krw_type_t type, void *arg);
-extern void __rw_destroy(krwlock_t *rwlp);
-extern int __rw_tryenter(krwlock_t *rwlp, krw_t rw);
-extern void __rw_enter(krwlock_t *rwlp, krw_t rw);
-extern void __rw_exit(krwlock_t *rwlp);
-extern void __rw_downgrade(krwlock_t *rwlp);
-extern int __rw_tryupgrade(krwlock_t *rwlp);
-extern kthread_t *__rw_owner(krwlock_t *rwlp);
-extern int __rw_read_held(krwlock_t *rwlp);
-extern int __rw_write_held(krwlock_t *rwlp);
-extern int __rw_lock_held(krwlock_t *rwlp);
-
-#define rw_init(rwlp, name, type, arg)					\
-({									\
-        if ((name) == NULL)						\
-                __rw_init(rwlp, #rwlp, type, arg);			\
-        else								\
-                __rw_init(rwlp, name, type, arg);			\
-})
-#define rw_destroy(rwlp)	__rw_destroy(rwlp)
-#define rw_tryenter(rwlp, rw)	__rw_tryenter(rwlp, rw)
-#define rw_enter(rwlp, rw)	__rw_enter(rwlp, rw)
-#define rw_exit(rwlp)		__rw_exit(rwlp)
-#define rw_downgrade(rwlp)	__rw_downgrade(rwlp)
-#define rw_tryupgrade(rwlp)	__rw_tryupgrade(rwlp)
-#define rw_owner(rwlp)		__rw_owner(rwlp)
-#define RW_READ_HELD(rwlp)	__rw_read_held(rwlp)
-#define RW_WRITE_HELD(rwlp)	__rw_write_held(rwlp)
-#define RW_LOCK_HELD(rwlp)	__rw_lock_held(rwlp)
-
-#ifdef __cplusplus
-}
+#define rw_init(rwlp, name, type, arg)  init_rwsem(rwlp)
+#define rw_destroy(rwlp)                ((void)0)
+#define rw_downgrade(rwlp)              downgrade_write(rwlp)
+#define RW_LOCK_HELD(rwlp)              rwsem_is_locked(rwlp)
+/*
+ * the rw-semaphore definition
+ * - if activity/count is 0 then there are no active readers or writers
+ * - if activity/count is +ve then that is the number of active readers
+ * - if activity/count is -1 then there is one active writer
+ */
+#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+# define RW_COUNT(rwlp)            ((rwlp)->activity)
+# define RW_READ_HELD(rwlp)        ((RW_COUNT(rwlp) > 0) ? RW_COUNT(rwlp) : 0)
+# define RW_WRITE_HELD(rwlp)       ((RW_COUNT(rwlp) < 0))
+# define rw_exit_locked(rwlp)      __up_read_locked(rwlp)
+# define rw_tryenter_locked(rwlp)  __down_write_trylock_locked(rwlp)
+void __up_read_locked(struct rw_semaphore *);
+int __down_write_trylock_locked(struct rw_semaphore *);
+#else
+# define RW_COUNT(rwlp)            ((rwlp)->count & RWSEM_ACTIVE_MASK)
+# define RW_READ_HELD(rwlp)        ((RW_COUNT(rwlp) > 0) ? RW_COUNT(rwlp) : 0)
+# define RW_WRITE_HELD(rwlp)       ((RW_COUNT(rwlp) < 0))
+# define rw_exit_locked(rwlp)      up_read(rwlp)
+# define rw_tryenter_locked(rwlp)  down_write_trylock(rwlp)
 #endif
+
+#define rw_tryenter(rwlp, rw)                                                 \
+({                                                                            \
+        int _rc_ = 0;                                                         \
+        switch (rw) {                                                         \
+                case RW_READER: _rc_ = down_read_trylock(rwlp);  break;       \
+                case RW_WRITER: _rc_ = down_write_trylock(rwlp); break;       \
+                default:        SBUG();                                       \
+        }                                                                     \
+        _rc_;                                                                 \
+})
+
+#define rw_enter(rwlp, rw)                                                    \
+({                                                                            \
+        switch (rw) {                                                         \
+                case RW_READER: down_read(rwlp);  break;                      \
+                case RW_WRITER: down_write(rwlp); break;                      \
+                default:        SBUG();                                       \
+        }                                                                     \
+})
+
+#define rw_exit(rwlp)                                                         \
+({                                                                            \
+        if (RW_READ_HELD(rwlp))                                               \
+              up_read(rwlp);                                                  \
+        else if (RW_WRITE_HELD(rwlp))                                         \
+              up_write(rwlp);                                                 \
+        else                                                                  \
+              SBUG();                                                         \
+})
+
+#define rw_tryupgrade(rwlp)                                                   \
+({                                                                            \
+        unsigned long flags;                                                  \
+        int _rc_ = 0;                                                         \
+        spin_lock_irqsave(&(rwlp)->wait_lock, flags);                         \
+        if (list_empty(&(rwlp)->wait_list) && (RW_READ_HELD(rwlp) == 1)) {    \
+                rw_exit_locked(rwlp);                                         \
+                _rc_ = rw_tryenter_locked(rwlp);                              \
+                ASSERT(_rc_);                                                 \
+        }                                                                     \
+        spin_unlock_irqrestore(&(rwlp)->wait_lock, flags);                    \
+        _rc_;                                                                 \
+})
 
 #endif /* _SPL_RWLOCK_H */

@@ -21916,6 +21916,47 @@ _ACEOF
 	fi
 
 
+
+	echo "$as_me:$LINENO: checking whether symbol __put_task_struct is exported" >&5
+echo $ECHO_N "checking whether symbol __put_task_struct is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]__put_task_struct[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(__put_task_struct)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PUT_TASK_STRUCT 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PUT_TASK_STRUCT 1
+_ACEOF
+
+	fi
+
+
  ;;
                 user)      ;;
                 all)
@@ -24878,6 +24919,47 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GROUPS_SEARCH 1
+_ACEOF
+
+	fi
+
+
+
+	echo "$as_me:$LINENO: checking whether symbol __put_task_struct is exported" >&5
+echo $ECHO_N "checking whether symbol __put_task_struct is exported... $ECHO_C" >&6
+	grep -q -E '[[:space:]]__put_task_struct[[:space:]]' \
+		$LINUX_OBJ/Module*.symvers 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in ; do
+			grep -q -E "EXPORT_SYMBOL.*(__put_task_struct)" \
+				"$LINUX_OBJ/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+		else
+			echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PUT_TASK_STRUCT 1
+_ACEOF
+
+		fi
+	else
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PUT_TASK_STRUCT 1
 _ACEOF
 
 	fi

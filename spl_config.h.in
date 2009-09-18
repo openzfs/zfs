@@ -117,6 +117,9 @@
 /* pgdat_list is available */
 #undef HAVE_PGDAT_LIST
 
+/* __put_task_struct() is available */
+#undef HAVE_PUT_TASK_STRUCT
+
 /* set_normalized_timespec() is available as export */
 #undef HAVE_SET_NORMALIZED_TIMESPEC_EXPORT
 

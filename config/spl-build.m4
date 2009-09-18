@@ -68,6 +68,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_CRED_STRUCT
 	SPL_AC_GROUPS_SEARCH
+	SPL_AC_PUT_TASK_STRUCT
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1263,7 +1264,7 @@ AC_DEFUN([SPL_AC_CRED_STRUCT], [
 ])
 
 dnl #
-dnl # Custom SPL patch may export this symbol
+dnl # Custom SPL patch may export this symbol.
 dnl #
 AC_DEFUN([SPL_AC_GROUPS_SEARCH], [
 	SPL_CHECK_SYMBOL_EXPORT(
@@ -1271,5 +1272,18 @@ AC_DEFUN([SPL_AC_GROUPS_SEARCH], [
 		[],
 		[AC_DEFINE(HAVE_GROUPS_SEARCH, 1,
 		[groups_search() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.x API change,
+dnl # __put_task_struct() was exported in RHEL5 but unavailable elsewhere.
+dnl #
+AC_DEFUN([SPL_AC_PUT_TASK_STRUCT], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[__put_task_struct],
+		[],
+		[AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
+		[__put_task_struct() is available])],
 		[])
 ])

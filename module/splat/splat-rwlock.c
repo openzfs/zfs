@@ -4,9 +4,9 @@
  *  Copyright (c) 2008 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory
  *  Written by:
- *          Brian Behlendorf <behlendorf1@llnl.gov>,
- *          Herb Wartens <wartens2@llnl.gov>,
- *          Jim Garlick <garlick@llnl.gov>
+ *	  Brian Behlendorf <behlendorf1@llnl.gov>,
+ *	  Herb Wartens <wartens2@llnl.gov>,
+ *	  Jim Garlick <garlick@llnl.gov>
  *  UCRL-CODE-235197
  *
  *  This is free software; you can redistribute it and/or modify it
@@ -30,210 +30,168 @@
 #define SPLAT_RWLOCK_DESC		"Kernel RW Lock Tests"
 
 #define SPLAT_RWLOCK_TEST1_ID		0x0701
-#define SPLAT_RWLOCK_TEST1_NAME		"rwtest1"
-#define SPLAT_RWLOCK_TEST1_DESC		"Multiple Readers One Writer"
+#define SPLAT_RWLOCK_TEST1_NAME		"N-rd/1-wr"
+#define SPLAT_RWLOCK_TEST1_DESC		"Multiple readers one writer"
 
 #define SPLAT_RWLOCK_TEST2_ID		0x0702
-#define SPLAT_RWLOCK_TEST2_NAME		"rwtest2"
-#define SPLAT_RWLOCK_TEST2_DESC		"Multiple Writers"
+#define SPLAT_RWLOCK_TEST2_NAME		"0-rd/N-wr"
+#define SPLAT_RWLOCK_TEST2_DESC		"Multiple writers"
 
 #define SPLAT_RWLOCK_TEST3_ID		0x0703
-#define SPLAT_RWLOCK_TEST3_NAME		"rwtest3"
-#define SPLAT_RWLOCK_TEST3_DESC		"Owner Verification"
+#define SPLAT_RWLOCK_TEST3_NAME		"held"
+#define SPLAT_RWLOCK_TEST3_DESC		"RW_{LOCK|READ|WRITE}_HELD"
 
 #define SPLAT_RWLOCK_TEST4_ID		0x0704
-#define SPLAT_RWLOCK_TEST4_NAME		"rwtest4"
-#define SPLAT_RWLOCK_TEST4_DESC		"Trylock Test"
+#define SPLAT_RWLOCK_TEST4_NAME		"tryenter"
+#define SPLAT_RWLOCK_TEST4_DESC		"Tryenter"
 
 #define SPLAT_RWLOCK_TEST5_ID		0x0705
-#define SPLAT_RWLOCK_TEST5_NAME		"rwtest5"
-#define SPLAT_RWLOCK_TEST5_DESC		"Write Downgrade Test"
+#define SPLAT_RWLOCK_TEST5_NAME		"rw_downgrade"
+#define SPLAT_RWLOCK_TEST5_DESC		"Write downgrade"
 
 #define SPLAT_RWLOCK_TEST6_ID		0x0706
-#define SPLAT_RWLOCK_TEST6_NAME		"rwtest6"
-#define SPLAT_RWLOCK_TEST6_DESC		"Read Upgrade Test"
+#define SPLAT_RWLOCK_TEST6_NAME		"rw_tryupgrade"
+#define SPLAT_RWLOCK_TEST6_DESC		"Read upgrade"
 
 #define SPLAT_RWLOCK_TEST_MAGIC		0x115599DDUL
 #define SPLAT_RWLOCK_TEST_NAME		"rwlock_test"
+#define SPLAT_RWLOCK_TEST_TASKQ		"rwlock_taskq"
 #define SPLAT_RWLOCK_TEST_COUNT		8
 
 #define SPLAT_RWLOCK_RELEASE_INIT	0
-#define SPLAT_RWLOCK_RELEASE_WRITERS	1
-#define SPLAT_RWLOCK_RELEASE_READERS	2
+#define SPLAT_RWLOCK_RELEASE_WR		1
+#define SPLAT_RWLOCK_RELEASE_RD		2
 
 typedef struct rw_priv {
-        unsigned long rw_magic;
-        struct file *rw_file;
-	krwlock_t rwl;
-	spinlock_t rw_priv_lock;
+	unsigned long rw_magic;
+	struct file *rw_file;
+	krwlock_t rw_rwlock;
+	spinlock_t rw_lock;
 	wait_queue_head_t rw_waitq;
-	atomic_t rw_completed;
-	atomic_t rw_acquired;
-	atomic_t rw_waiters;
-	atomic_t rw_release;
+	int rw_completed;
+	int rw_holders;
+	int rw_waiters;
+	int rw_release;
+	int rw_rc;
+	krw_type_t rw_type;
 } rw_priv_t;
 
 typedef struct rw_thr {
-	int rwt_id;
 	const char *rwt_name;
 	rw_priv_t *rwt_rwp;
-	int rwt_rc;
+	int rwt_id;
 } rw_thr_t;
 
-static inline void
-splat_rwlock_sleep(signed long delay)
+void splat_init_rw_priv(rw_priv_t *rwp, struct file *file)
 {
-	set_current_state(TASK_UNINTERRUPTIBLE);
-	schedule_timeout(delay);
+	rwp->rw_magic = SPLAT_RWLOCK_TEST_MAGIC;
+	rwp->rw_file = file;
+	rw_init(&rwp->rw_rwlock, SPLAT_RWLOCK_TEST_NAME, RW_DEFAULT, NULL);
+	spin_lock_init(&rwp->rw_lock);
+	init_waitqueue_head(&rwp->rw_waitq);
+	rwp->rw_completed = 0;
+	rwp->rw_holders = 0;
+	rwp->rw_waiters = 0;
+	rwp->rw_release = SPLAT_RWLOCK_RELEASE_INIT;
+	rwp->rw_rc = 0;
+	rwp->rw_type = 0;
 }
 
-#define splat_rwlock_lock_and_test(lock,test)	\
-({						\
-	int ret = 0;				\
-						\
-	spin_lock(lock);			\
-	ret = (test) ? 1 : 0;			\
-	spin_unlock(lock);			\
-	ret;					\
-})
-
-void splat_init_rw_priv(rw_priv_t *rwv, struct file *file)
-{
-	rwv->rw_magic = SPLAT_RWLOCK_TEST_MAGIC;
-	rwv->rw_file = file;
-	spin_lock_init(&rwv->rw_priv_lock);
-	init_waitqueue_head(&rwv->rw_waitq);
-	atomic_set(&rwv->rw_completed, 0);
-	atomic_set(&rwv->rw_acquired, 0);
-	atomic_set(&rwv->rw_waiters, 0);
-	atomic_set(&rwv->rw_release, SPLAT_RWLOCK_RELEASE_INIT);
-
-	/* Initialize the read/write lock */
-	rw_init(&rwv->rwl, SPLAT_RWLOCK_TEST_NAME, RW_DEFAULT, NULL);
-}
-
-int
-splat_rwlock_test1_writer_thread(void *arg)
+static int
+splat_rwlock_wr_thr(void *arg)
 {
 	rw_thr_t *rwt = (rw_thr_t *)arg;
-	rw_priv_t *rwv = rwt->rwt_rwp;
-	uint8_t rnd = 0;
+	rw_priv_t *rwp = rwt->rwt_rwp;
+	uint8_t rnd;
 	char name[16];
 
-	ASSERT(rwv->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-        snprintf(name, sizeof(name), "%s%d",
-		 SPLAT_RWLOCK_TEST_NAME, rwt->rwt_id);
+	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
+	snprintf(name, sizeof(name), "rwlock_wr_thr%d", rwt->rwt_id);
 	daemonize(name);
 	get_random_bytes((void *)&rnd, 1);
-	splat_rwlock_sleep(rnd * HZ / 1000);
+	msleep((unsigned int)rnd);
 
-	spin_lock(&rwv->rw_priv_lock);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread trying to acquire rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	atomic_inc(&rwv->rw_waiters);
-	spin_unlock(&rwv->rw_priv_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		     "%s trying to acquire rwlock (%d holding/%d waiting)\n",
+		     name, rwp->rw_holders, rwp->rw_waiters);
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_waiters++;
+	spin_unlock(&rwp->rw_lock);
+	rw_enter(&rwp->rw_rwlock, RW_WRITER);
 
-	/* Take the semaphore for writing
-	 * release it when we are told to */
-	rw_enter(&rwv->rwl, RW_WRITER);
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_waiters--;
+	rwp->rw_holders++;
+	spin_unlock(&rwp->rw_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		     "%s acquired rwlock (%d holding/%d waiting)\n",
+		     name, rwp->rw_holders, rwp->rw_waiters);
 
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_dec(&rwv->rw_waiters);
-	atomic_inc(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread acquired rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
+	/* Wait for control thread to signal we can release the write lock */
+	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
+				 rwp->rw_release == SPLAT_RWLOCK_RELEASE_WR));
 
-	/* Wait here until the control thread
-	 * says we can release the write lock */
-	wait_event_interruptible(rwv->rw_waitq,
-				 splat_rwlock_lock_and_test(&rwv->rw_priv_lock,
-					 atomic_read(&rwv->rw_release) ==
-					 SPLAT_RWLOCK_RELEASE_WRITERS));
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_inc(&rwv->rw_completed);
-	atomic_dec(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread dropped rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_completed++;
+	rwp->rw_holders--;
+	spin_unlock(&rwp->rw_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		   "%s dropped rwlock (%d holding/%d waiting)\n",
+		   name, rwp->rw_holders, rwp->rw_waiters);
 
-	/* Release the semaphore */
-	rw_exit(&rwv->rwl);
+	rw_exit(&rwp->rw_rwlock);
+
 	return 0;
 }
 
-int
-splat_rwlock_test1_reader_thread(void *arg)
+static int
+splat_rwlock_rd_thr(void *arg)
 {
 	rw_thr_t *rwt = (rw_thr_t *)arg;
-	rw_priv_t *rwv = rwt->rwt_rwp;
-	uint8_t rnd = 0;
+	rw_priv_t *rwp = rwt->rwt_rwp;
+	uint8_t rnd;
 	char name[16];
 
-	ASSERT(rwv->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-        snprintf(name, sizeof(name), "%s%d",
-		 SPLAT_RWLOCK_TEST_NAME, rwt->rwt_id);
+	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
+	snprintf(name, sizeof(name), "rwlock_rd_thr%d", rwt->rwt_id);
 	daemonize(name);
 	get_random_bytes((void *)&rnd, 1);
-        splat_rwlock_sleep(rnd * HZ / 1000);
+	msleep((unsigned int)rnd);
 
-	/* Don't try and and take the semaphore until
-	 * someone else has already acquired it */
-        wait_event_interruptible(rwv->rw_waitq,
-				 splat_rwlock_lock_and_test(&rwv->rw_priv_lock,
-					 atomic_read(&rwv->rw_acquired) > 0));
+	/* Don't try and take the semaphore until after someone has it */
+	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
+				 rwp->rw_holders > 0));
 
-	spin_lock(&rwv->rw_priv_lock);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s reader thread trying to acquire rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	atomic_inc(&rwv->rw_waiters);
-	spin_unlock(&rwv->rw_priv_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		     "%s trying to acquire rwlock (%d holding/%d waiting)\n",
+		     name, rwp->rw_holders, rwp->rw_waiters);
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_waiters++;
+	spin_unlock(&rwp->rw_lock);
+	rw_enter(&rwp->rw_rwlock, RW_READER);
 
-	/* Take the semaphore for reading
-	 * release it when we are told to */
-	rw_enter(&rwv->rwl, RW_READER);
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_waiters--;
+	rwp->rw_holders++;
+	spin_unlock(&rwp->rw_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		     "%s acquired rwlock (%d holding/%d waiting)\n",
+		     name, rwp->rw_holders, rwp->rw_waiters);
 
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_dec(&rwv->rw_waiters);
-	atomic_inc(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s reader thread acquired rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
+	/* Wait for control thread to signal we can release the read lock */
+	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
+				 rwp->rw_release == SPLAT_RWLOCK_RELEASE_RD));
 
-	/* Wait here until the control thread
-         * says we can release the read lock */
-	wait_event_interruptible(rwv->rw_waitq,
-				 splat_rwlock_lock_and_test(&rwv->rw_priv_lock,
-				 atomic_read(&rwv->rw_release) ==
-				 SPLAT_RWLOCK_RELEASE_READERS));
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_completed++;
+	rwp->rw_holders--;
+	spin_unlock(&rwp->rw_lock);
+	splat_vprint(rwp->rw_file, rwt->rwt_name,
+		     "%s dropped rwlock (%d holding/%d waiting)\n",
+		     name, rwp->rw_holders, rwp->rw_waiters);
 
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_inc(&rwv->rw_completed);
-	atomic_dec(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s reader thread dropped rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
+	rw_exit(&rwp->rw_rwlock);
 
-	/* Release the semaphore */
-	rw_exit(&rwv->rwl);
 	return 0;
 }
 
@@ -243,543 +201,467 @@ splat_rwlock_test1(struct file *file, void *arg)
 	int i, count = 0, rc = 0;
 	long pids[SPLAT_RWLOCK_TEST_COUNT];
 	rw_thr_t rwt[SPLAT_RWLOCK_TEST_COUNT];
-	rw_priv_t rwv;
+	rw_priv_t *rwp;
 
-	/* Initialize private data including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
+
+	splat_init_rw_priv(rwp, file);
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
+
+
+
 	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
-		rwt[i].rwt_rwp = &rwv;
+		rwt[i].rwt_rwp = rwp;
 		rwt[i].rwt_id = i;
 		rwt[i].rwt_name = SPLAT_RWLOCK_TEST1_NAME;
-		rwt[i].rwt_rc = 0;
 
-		/* The first thread will be a writer */
-		if (i == 0) {
-			pids[i] = kernel_thread(splat_rwlock_test1_writer_thread,
-						&rwt[i], 0);
-		} else {
-			pids[i] = kernel_thread(splat_rwlock_test1_reader_thread,
-						&rwt[i], 0);
-		}
+		/* The first thread will be the writer */
+		if (i == 0)
+			pids[i] = kernel_thread(splat_rwlock_wr_thr, &rwt[i], 0);
+		else
+			pids[i] = kernel_thread(splat_rwlock_rd_thr, &rwt[i], 0);
 
-		if (pids[i] >= 0) {
+		if (pids[i] >= 0)
 			count++;
-		}
 	}
 
-	/* Once the writer has the lock, release the readers */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock, atomic_read(&rwv.rw_acquired) <= 0)) {
-		splat_rwlock_sleep(1 * HZ);
+	/* Wait for the writer */
+	while (splat_locked_test(&rwp->rw_lock, rwp->rw_holders == 0)) {
+		wake_up_interruptible(&rwp->rw_waitq);
+		msleep(100);
 	}
-	wake_up_interruptible(&rwv.rw_waitq);
 
-	/* Ensure that there is only 1 writer and all readers are waiting */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-				        atomic_read(&rwv.rw_acquired) != 1 ||
-					atomic_read(&rwv.rw_waiters) !=
-					SPLAT_RWLOCK_TEST_COUNT - 1)) {
-
-		splat_rwlock_sleep(1 * HZ);
+	/* Wait for 'count-1' readers */
+	while (splat_locked_test(&rwp->rw_lock, rwp->rw_waiters < count - 1)) {
+		wake_up_interruptible(&rwp->rw_waitq);
+		msleep(100);
 	}
-	/* Relase the writer */
-	spin_lock(&rwv.rw_priv_lock);
-	atomic_set(&rwv.rw_release, SPLAT_RWLOCK_RELEASE_WRITERS);
-	spin_unlock(&rwv.rw_priv_lock);
-	wake_up_interruptible(&rwv.rw_waitq);
 
-	/* Now ensure that there are multiple reader threads holding the lock */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_acquired) <= 1)) {
-		splat_rwlock_sleep(1 * HZ);
+	/* Verify there is only one lock holder */
+	if (splat_locked_test(&rwp->rw_lock, rwp->rw_holders) != 1) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST1_NAME, "Only 1 holder "
+			     "expected for rwlock (%d holding/%d waiting)\n",
+			     rwp->rw_holders, rwp->rw_waiters);
+		rc = -EINVAL;
 	}
-	/* Release the readers */
-	spin_lock(&rwv.rw_priv_lock);
-	atomic_set(&rwv.rw_release, SPLAT_RWLOCK_RELEASE_READERS);
-	spin_unlock(&rwv.rw_priv_lock);
-	wake_up_interruptible(&rwv.rw_waitq);
+
+	/* Verify 'count-1' readers */
+	if (splat_locked_test(&rwp->rw_lock, rwp->rw_waiters != count - 1)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST1_NAME, "Only %d waiters "
+			     "expected for rwlock (%d holding/%d waiting)\n",
+			     count - 1, rwp->rw_holders, rwp->rw_waiters);
+		rc = -EINVAL;
+	}
+
+	/* Signal the writer to release, allows readers to acquire */
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_release = SPLAT_RWLOCK_RELEASE_WR;
+	wake_up_interruptible(&rwp->rw_waitq);
+	spin_unlock(&rwp->rw_lock);
+
+	/* Wait for 'count-1' readers to hold the lock */
+	while (splat_locked_test(&rwp->rw_lock, rwp->rw_holders < count - 1)) {
+		wake_up_interruptible(&rwp->rw_waitq);
+		msleep(100);
+	}
+
+	/* Verify there are 'count-1' readers */
+	if (splat_locked_test(&rwp->rw_lock, rwp->rw_holders != count - 1)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST1_NAME, "Only %d holders "
+			     "expected for rwlock (%d holding/%d waiting)\n",
+			     count - 1, rwp->rw_holders, rwp->rw_waiters);
+		rc = -EINVAL;
+	}
+
+	/* Release 'count-1' readers */
+	spin_lock(&rwp->rw_lock);
+	rwp->rw_release = SPLAT_RWLOCK_RELEASE_RD;
+	wake_up_interruptible(&rwp->rw_waitq);
+	spin_unlock(&rwp->rw_lock);
 
 	/* Wait for the test to complete */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_acquired) != 0 ||
-	       atomic_read(&rwv.rw_waiters) != 0)) {
-		splat_rwlock_sleep(1 * HZ);
+	while (splat_locked_test(&rwp->rw_lock,
+				 rwp->rw_holders>0 || rwp->rw_waiters>0))
+		msleep(100);
 
-	}
+	rw_destroy(&(rwp->rw_rwlock));
+	kfree(rwp);
 
-	rw_destroy(&rwv.rwl);
 	return rc;
 }
 
-int
-splat_rwlock_test2_writer_thread(void *arg)
+static void
+splat_rwlock_test2_func(void *arg)
 {
-	rw_thr_t *rwt = (rw_thr_t *)arg;
-	rw_priv_t *rwv = rwt->rwt_rwp;
-	uint8_t rnd = 0;
-	char name[16];
+	rw_priv_t *rwp = (rw_priv_t *)arg;
+	int rc;
+	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
 
-	ASSERT(rwv->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-	snprintf(name, sizeof(name), "%s%d",
-		 SPLAT_RWLOCK_TEST_NAME, rwt->rwt_id);
-	daemonize(name);
-	get_random_bytes((void *)&rnd, 1);
-	splat_rwlock_sleep(rnd * HZ / 1000);
-
-	/* Here just increment the waiters count even if we are not
-	 * exactly about to call rw_enter().  Not really a big deal
-	 * since more than likely will be true when we simulate work
-	 * later on */
-	spin_lock(&rwv->rw_priv_lock);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread trying to acquire rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	atomic_inc(&rwv->rw_waiters);
-	spin_unlock(&rwv->rw_priv_lock);
-
-	/* Wait here until the control thread
-	 * says we can acquire the write lock */
-	wait_event_interruptible(rwv->rw_waitq,
-				 splat_rwlock_lock_and_test(&rwv->rw_priv_lock,
-				 atomic_read(&rwv->rw_release) ==
-				 SPLAT_RWLOCK_RELEASE_WRITERS));
-
-	/* Take the semaphore for writing */
-	rw_enter(&rwv->rwl, RW_WRITER);
-
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_dec(&rwv->rw_waiters);
-	atomic_inc(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread acquired rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
-
-	/* Give up the processor for a bit to simulate
-	 * doing some work while taking the write lock */
-	splat_rwlock_sleep(rnd * HZ / 1000);
-
-	/* Ensure that we are the only one writing */
-	if (atomic_read(&rwv->rw_acquired) > 1) {
-		rwt->rwt_rc = 1;
-	} else {
-		rwt->rwt_rc = 0;
-	}
-
-	spin_lock(&rwv->rw_priv_lock);
-	atomic_inc(&rwv->rw_completed);
-	atomic_dec(&rwv->rw_acquired);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s writer thread dropped rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
-
-	rw_exit(&rwv->rwl);
-
-	return 0;
+	/* Read the value before sleeping and write it after we wake up to
+	 * maximize the chance of a race if rwlocks are not working properly */
+	rw_enter(&rwp->rw_rwlock, RW_WRITER);
+	rc = rwp->rw_rc;
+	set_current_state(TASK_INTERRUPTIBLE);
+	schedule_timeout(HZ / 100);  /* 1/100 of a second */
+	VERIFY(rwp->rw_rc == rc);
+	rwp->rw_rc = rc + 1;
+	rw_exit(&rwp->rw_rwlock);
 }
 
 static int
 splat_rwlock_test2(struct file *file, void *arg)
 {
-	int i, count = 0, rc = 0;
-	long pids[SPLAT_RWLOCK_TEST_COUNT];
-	rw_thr_t rwt[SPLAT_RWLOCK_TEST_COUNT];
-	rw_priv_t rwv;
+	rw_priv_t *rwp;
+	taskq_t *tq;
+	int i, rc = 0, tq_count = 256;
 
-	/* Initialize private data including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
 
-	/* Create some threads, the exact number isn't important just as
-	 * long as we know how many we managed to create and should expect. */
-	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
-		rwt[i].rwt_rwp = &rwv;
-		rwt[i].rwt_id = i;
-		rwt[i].rwt_name = SPLAT_RWLOCK_TEST2_NAME;
-		rwt[i].rwt_rc = 0;
+	splat_init_rw_priv(rwp, file);
 
-		/* The first thread will be a writer */
-		pids[i] = kernel_thread(splat_rwlock_test2_writer_thread,
-					&rwt[i], 0);
+	/* Create several threads allowing tasks to race with each other */
+	tq = taskq_create(SPLAT_RWLOCK_TEST_TASKQ, num_online_cpus(),
+			  maxclsyspri, 50, INT_MAX, TASKQ_PREPOPULATE);
+	if (tq == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
-		if (pids[i] >= 0) {
-			count++;
+	/*
+	 * Schedule N work items to the work queue each of which enters the
+	 * writer rwlock, sleeps briefly, then exits the writer rwlock.  On a
+	 * multiprocessor box these work items will be handled by all available
+	 * CPUs.  The task function checks to ensure the tracked shared variable
+	 * is always only incremented by one.  Additionally, the rwlock itself
+	 * is instrumented such that if any two processors are in the
+	 * critical region at the same time the system will panic.  If the
+	 * rwlock is implemented right this will never happy, that's a pass.
+	 */
+	for (i = 0; i < tq_count; i++) {
+		if (!taskq_dispatch(tq,splat_rwlock_test2_func,rwp,TQ_SLEEP)) {
+			splat_vprint(file, SPLAT_RWLOCK_TEST2_NAME,
+				     "Failed to queue task %d\n", i);
+			rc = -EINVAL;
 		}
 	}
 
-	/* Wait for writers to get queued up */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_waiters) < SPLAT_RWLOCK_TEST_COUNT)) {
-		splat_rwlock_sleep(1 * HZ);
-	}
-	/* Relase the writers */
-	spin_lock(&rwv.rw_priv_lock);
-	atomic_set(&rwv.rw_release, SPLAT_RWLOCK_RELEASE_WRITERS);
-	spin_unlock(&rwv.rw_priv_lock);
-	wake_up_interruptible(&rwv.rw_waitq);
+	taskq_wait(tq);
 
-	/* Wait for the test to complete */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_acquired) != 0 ||
-	       atomic_read(&rwv.rw_waiters) != 0)) {
-		splat_rwlock_sleep(HZ);
+	if (rwp->rw_rc == tq_count) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST2_NAME, "%d racing threads "
+			     "correctly entered/exited the rwlock %d times\n",
+			     num_online_cpus(), rwp->rw_rc);
+	} else {
+		splat_vprint(file, SPLAT_RWLOCK_TEST2_NAME, "%d racing threads "
+			     "only processed %d/%d w rwlock work items\n",
+			     num_online_cpus(), rwp->rw_rc, tq_count);
+		rc = -EINVAL;
 	}
 
-	/* If any of the write threads ever acquired the lock
-	 * while another thread had it, make sure we return
-	 * an error */
-	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
-		if (rwt[i].rwt_rc) {
-			rc++;
-		}
-	}
-
-	rw_destroy(&rwv.rwl);
+	taskq_destroy(tq);
+	rw_destroy(&(rwp->rw_rwlock));
+out:
+	kfree(rwp);
 	return rc;
 }
+
+#define splat_rwlock_test3_helper(rwp,rex1,rex2,wex1,wex2,held_func,rc)	\
+do {									\
+	int result, _rc1_, _rc2_, _rc3_, _rc4_;				\
+									\
+	rc = 0;								\
+	rw_enter(&(rwp)->rw_rwlock, RW_READER);				\
+	_rc1_ = ((result = held_func(&(rwp)->rw_rwlock)) != rex1);	\
+	splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "%s" #held_func	\
+		     " returned %d (expected %d) when RW_READER\n",	\
+		     _rc1_ ? "Fail " : "", result, rex1);		\
+	rw_exit(&(rwp)->rw_rwlock);					\
+	_rc2_ = ((result = held_func(&(rwp)->rw_rwlock)) != rex2);	\
+	splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "%s" #held_func	\
+		     " returned %d (expected %d) when !RW_READER\n",	\
+		     _rc2_ ? "Fail " : "", result, rex2);		\
+									\
+	rw_enter(&(rwp)->rw_rwlock, RW_WRITER);				\
+	_rc3_ = ((result = held_func(&(rwp)->rw_rwlock)) != wex1);	\
+	splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "%s" #held_func	\
+		     " returned %d (expected %d) when RW_WRITER\n",	\
+		     _rc3_ ? "Fail " : "", result, wex1);		\
+	rw_exit(&(rwp)->rw_rwlock);					\
+	_rc4_ = ((result = held_func(&(rwp)->rw_rwlock)) != wex2);	\
+	splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "%s" #held_func	\
+		     " returned %d (expected %d) when !RW_WRITER\n",	\
+		     _rc4_ ? "Fail " : "", result, wex2);		\
+									\
+	rc = ((_rc1_ ||  _rc2_ || _rc3_ || _rc4_) ? -EINVAL : 0);	\
+} while(0);
 
 static int
 splat_rwlock_test3(struct file *file, void *arg)
 {
-	kthread_t *owner;
-	rw_priv_t rwv;
-	int rc = 0;
+	rw_priv_t *rwp;
+	int rc1, rc2, rc3;
 
-	/* Initialize private data 
-	 * including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
 
-	/* Take the rwlock for writing */
-	rw_enter(&rwv.rwl, RW_WRITER);
-	owner = rw_owner(&rwv.rwl);
-	if (current != owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "rwlock should "
-			   "be owned by pid %d but is owned by pid %d\n",
-			   current->pid, owner ? owner->pid : -1);
-		rc = -EINVAL;
-		goto out;
-	}
+	splat_init_rw_priv(rwp, file);
 
-	/* Release the rwlock */
-	rw_exit(&rwv.rwl);
-	owner = rw_owner(&rwv.rwl);
-	if (owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "rwlock should not "
-			   "be owned but is owned by pid %d\n", owner->pid);
-		rc = -EINVAL;
-		goto out;
-	}
+	splat_rwlock_test3_helper(rwp, 1, 0, 1, 0, RW_LOCK_HELD, rc1);
+	splat_rwlock_test3_helper(rwp, 1, 0, 0, 0, RW_READ_HELD, rc2);
+	splat_rwlock_test3_helper(rwp, 0, 0, 1, 0, RW_WRITE_HELD, rc3);
 
-	/* Take the rwlock for reading.
-	 * Should not have an owner */
-	rw_enter(&rwv.rwl, RW_READER);
-	owner = rw_owner(&rwv.rwl);
-	if (owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST3_NAME, "rwlock should not "
-			   "be owned but is owned by pid %d\n", owner->pid);
-		/* Release the rwlock */
-		rw_exit(&rwv.rwl);
-		rc = -EINVAL;
-		goto out;
-	}
+	rw_destroy(&rwp->rw_rwlock);
+	kfree(rwp);
 
-	/* Release the rwlock */
-	rw_exit(&rwv.rwl);
-
-out:
-	rw_destroy(&rwv.rwl);
-	return rc;
+	return ((rc1 || rc2 || rc3) ? -EINVAL : 0);
 }
 
-int
-splat_rwlock_test4_reader_thread(void *arg)
+static void
+splat_rwlock_test4_func(void *arg)
 {
-	rw_thr_t *rwt = (rw_thr_t *)arg;
-	rw_priv_t *rwv = rwt->rwt_rwp;
-	uint8_t rnd = 0;
-	char name[16];
+	rw_priv_t *rwp = (rw_priv_t *)arg;
+	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
 
-	ASSERT(rwv->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-        snprintf(name, sizeof(name), "%s%d",
-		 SPLAT_RWLOCK_TEST_NAME, rwt->rwt_id);
-	daemonize(name);
-	get_random_bytes((void *)&rnd, 1);
-        splat_rwlock_sleep(rnd * HZ / 1000);
-
-	/* Don't try and and take the semaphore until
-	 * someone else has already acquired it */
-        wait_event_interruptible(rwv->rw_waitq,
-				 splat_rwlock_lock_and_test(&rwv->rw_priv_lock,
-				 atomic_read(&rwv->rw_acquired) > 0));
-
-	spin_lock(&rwv->rw_priv_lock);
-	splat_vprint(rwv->rw_file, rwt->rwt_name,
-	           "%s reader thread trying to acquire rwlock with "
-		   "%d holding lock and %d waiting\n",
-		   name, atomic_read(&rwv->rw_acquired),
-		   atomic_read(&rwv->rw_waiters));
-	spin_unlock(&rwv->rw_priv_lock);
-
-	/* Take the semaphore for reading
-	 * release it when we are told to */
-	rwt->rwt_rc = rw_tryenter(&rwv->rwl, RW_READER);
-
-	/* Here we acquired the lock this is a
-	 * failure since the writer should be
-	 * holding the lock */
-	if (rwt->rwt_rc == 1) {
-		spin_lock(&rwv->rw_priv_lock);
-		atomic_inc(&rwv->rw_acquired);
-		splat_vprint(rwv->rw_file, rwt->rwt_name,
-			   "%s reader thread acquired rwlock with "
-			   "%d holding lock and %d waiting\n",
-			   name, atomic_read(&rwv->rw_acquired),
-			   atomic_read(&rwv->rw_waiters));
-		spin_unlock(&rwv->rw_priv_lock);
-
-		spin_lock(&rwv->rw_priv_lock);
-		atomic_dec(&rwv->rw_acquired);
-		splat_vprint(rwv->rw_file, rwt->rwt_name,
-			   "%s reader thread dropped rwlock with "
-			   "%d holding lock and %d waiting\n",
-			   name, atomic_read(&rwv->rw_acquired),
-			   atomic_read(&rwv->rw_waiters));
-		spin_unlock(&rwv->rw_priv_lock);
-
-		/* Release the semaphore */
-		rw_exit(&rwv->rwl);
+	if (rw_tryenter(&rwp->rw_rwlock, rwp->rw_type)) {
+		rwp->rw_rc = 0;
+		rw_exit(&rwp->rw_rwlock);
+	} else {
+		rwp->rw_rc = -EBUSY;
 	}
-	/* Here we know we didn't block and didn't
-	 * acquire the rwlock for reading */
-	else {
-		spin_lock(&rwv->rw_priv_lock);
-		atomic_inc(&rwv->rw_completed);
-		splat_vprint(rwv->rw_file, rwt->rwt_name,
-			   "%s reader thread could not acquire rwlock with "
-			   "%d holding lock and %d waiting\n",
-			   name, atomic_read(&rwv->rw_acquired),
-			   atomic_read(&rwv->rw_waiters));
-		spin_unlock(&rwv->rw_priv_lock);
+}
+
+static char *
+splat_rwlock_test4_name(krw_t type)
+{
+	switch (type) {
+		case RW_NONE: return "RW_NONE";
+		case RW_WRITER: return "RW_WRITER";
+		case RW_READER: return "RW_READER";
 	}
 
-	return 0;
+	return NULL;
+}
+
+static int
+splat_rwlock_test4_type(taskq_t *tq, rw_priv_t *rwp, int expected_rc,
+			krw_t holder_type, krw_t try_type)
+{
+	int id, rc = 0;
+
+	/* Schedule a task function which will try and acquire the rwlock
+	 * using type try_type while the rwlock is being held as holder_type.
+	 * The result must match expected_rc for the test to pass */
+	rwp->rw_rc = -EINVAL;
+	rwp->rw_type = try_type;
+
+	if (holder_type == RW_WRITER || holder_type == RW_READER)
+		rw_enter(&rwp->rw_rwlock, holder_type);
+
+	id = taskq_dispatch(tq, splat_rwlock_test4_func, rwp, TQ_SLEEP);
+	if (id == 0) {
+		splat_vprint(rwp->rw_file, SPLAT_RWLOCK_TEST4_NAME, "%s",
+			     "taskq_dispatch() failed\n");
+		rc = -EINVAL;
+		goto out;
+	}
+
+	taskq_wait_id(tq, id);
+
+	if (rwp->rw_rc != expected_rc)
+		rc = -EINVAL;
+
+	splat_vprint(rwp->rw_file, SPLAT_RWLOCK_TEST4_NAME,
+		     "%srw_tryenter(%s) returned %d (expected %d) when %s\n",
+		     rc ? "Fail " : "", splat_rwlock_test4_name(try_type),
+		     rwp->rw_rc, expected_rc,
+		     splat_rwlock_test4_name(holder_type));
+out:
+	if (holder_type == RW_WRITER || holder_type == RW_READER)
+		rw_exit(&rwp->rw_rwlock);
+
+	return rc;
 }
 
 static int
 splat_rwlock_test4(struct file *file, void *arg)
 {
-	int i, count = 0, rc = 0;
-	long pids[SPLAT_RWLOCK_TEST_COUNT];
-	rw_thr_t rwt[SPLAT_RWLOCK_TEST_COUNT];
-	rw_priv_t rwv;
+	rw_priv_t *rwp;
+	taskq_t *tq;
+	int rc = 0, rc1, rc2, rc3, rc4, rc5, rc6;
 
-	/* Initialize private data 
-	 * including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
 
-	/* Create some threads, the exact number isn't important just as
-	 * long as we know how many we managed to create and should expect. */
-	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
-		rwt[i].rwt_rwp = &rwv;
-		rwt[i].rwt_id = i;
-		rwt[i].rwt_name = SPLAT_RWLOCK_TEST4_NAME;
-		rwt[i].rwt_rc = 0;
-
-		/* The first thread will be a writer */
-		if (i == 0) {
-			/* We can reuse the test1 writer thread here */
-			pids[i] = kernel_thread(splat_rwlock_test1_writer_thread,
-						&rwt[i], 0);
-		} else {
-			 pids[i] = kernel_thread(splat_rwlock_test4_reader_thread,
-						&rwt[i], 0);
-		}
-
-		if (pids[i] >= 0) {
-			count++;
-		}
+	tq = taskq_create(SPLAT_RWLOCK_TEST_TASKQ, 1, maxclsyspri,
+			  50, INT_MAX, TASKQ_PREPOPULATE);
+	if (tq == NULL) {
+		rc = -ENOMEM;
+		goto out;
 	}
 
-	/* Once the writer has the lock, release the readers */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_acquired) <= 0)) {
-		splat_rwlock_sleep(1 * HZ);
-	}
-	wake_up_interruptible(&rwv.rw_waitq);
+	splat_init_rw_priv(rwp, file);
 
-	/* Make sure that the reader threads complete */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_completed) != SPLAT_RWLOCK_TEST_COUNT - 1)) {
-		splat_rwlock_sleep(1 * HZ);
-	}
-	/* Release the writer */
-	spin_lock(&rwv.rw_priv_lock);
-	atomic_set(&rwv.rw_release, SPLAT_RWLOCK_RELEASE_WRITERS);
-	spin_unlock(&rwv.rw_priv_lock);
-	wake_up_interruptible(&rwv.rw_waitq);
+	/* Validate all combinations of rw_tryenter() contention */
+	rc1 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_WRITER, RW_WRITER);
+	rc2 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_WRITER, RW_READER);
+	rc3 = splat_rwlock_test4_type(tq, rwp, -EBUSY, RW_READER, RW_WRITER);
+	rc4 = splat_rwlock_test4_type(tq, rwp, 0,      RW_READER, RW_READER);
+	rc5 = splat_rwlock_test4_type(tq, rwp, 0,      RW_NONE,   RW_WRITER);
+	rc6 = splat_rwlock_test4_type(tq, rwp, 0,      RW_NONE,   RW_READER);
 
-	/* Wait for the test to complete */
-	while (splat_rwlock_lock_and_test(&rwv.rw_priv_lock,
-	       atomic_read(&rwv.rw_acquired) != 0 ||
-	       atomic_read(&rwv.rw_waiters) != 0)) {
-		splat_rwlock_sleep(1 * HZ);
-	}
+	if (rc1 || rc2 || rc3 || rc4 || rc5 || rc6)
+		rc = -EINVAL;
 
-	/* If any of the reader threads ever acquired the lock
-	 * while another thread had it, make sure we return
-	 * an error since the rw_tryenter() should have failed */
-	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
-		if (rwt[i].rwt_rc) {
-			rc++;
-		}
-	}
+	taskq_destroy(tq);
+out:
+	rw_destroy(&(rwp->rw_rwlock));
+	kfree(rwp);
 
-	rw_destroy(&rwv.rwl);
 	return rc;
 }
 
 static int
 splat_rwlock_test5(struct file *file, void *arg)
 {
-	kthread_t *owner;
-	rw_priv_t rwv;
-	int rc = 0;
+	rw_priv_t *rwp;
+	int rc = -EINVAL;
 
-	/* Initialize private data 
-	 * including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
 
-	/* Take the rwlock for writing */
-	rw_enter(&rwv.rwl, RW_WRITER);
-	owner = rw_owner(&rwv.rwl);
-	if (current != owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST5_NAME, "rwlock should "
-			   "be owned by pid %d but is owned by pid %d\n",
-			   current->pid, owner ? owner->pid : -1);
-		rc = -EINVAL;
+	splat_init_rw_priv(rwp, file);
+
+	rw_enter(&rwp->rw_rwlock, RW_WRITER);
+	if (!RW_WRITE_HELD(&rwp->rw_rwlock)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST5_NAME,
+			     "rwlock should be write lock: %d\n",
+			     RW_WRITE_HELD(&rwp->rw_rwlock));
 		goto out;
 	}
 
-	/* Make sure that the downgrade
-	 * worked properly */
-	rw_downgrade(&rwv.rwl);
-
-	owner = rw_owner(&rwv.rwl);
-	if (owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST5_NAME, "rwlock should not "
-			   "be owned but is owned by pid %d\n", owner->pid);
-		/* Release the rwlock */
-		rw_exit(&rwv.rwl);
-		rc = -EINVAL;
+	rw_downgrade(&rwp->rw_rwlock);
+	if (!RW_READ_HELD(&rwp->rw_rwlock)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST5_NAME,
+			     "rwlock should be read lock: %d\n",
+			     RW_READ_HELD(&rwp->rw_rwlock));
 		goto out;
 	}
 
-	/* Release the rwlock */
-	rw_exit(&rwv.rwl);
-
+	rc = 0;
+	splat_vprint(file, SPLAT_RWLOCK_TEST5_NAME, "%s",
+		     "rwlock properly downgraded\n");
 out:
-	rw_destroy(&rwv.rwl);
+	rw_exit(&rwp->rw_rwlock);
+	rw_destroy(&rwp->rw_rwlock);
+	kfree(rwp);
+
 	return rc;
 }
 
 static int
 splat_rwlock_test6(struct file *file, void *arg)
 {
-	kthread_t *owner;
-	rw_priv_t rwv;
-	int rc = 0;
+	rw_priv_t *rwp;
+	int rc = -EINVAL;
 
-	/* Initialize private data 
-	 * including the rwlock */
-	splat_init_rw_priv(&rwv, file);
+	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
+	if (rwp == NULL)
+		return -ENOMEM;
 
-	/* Take the rwlock for reading */
-	rw_enter(&rwv.rwl, RW_READER);
-	owner = rw_owner(&rwv.rwl);
-	if (owner) {
-		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "rwlock should not "
-			   "be owned but is owned by pid %d\n", owner->pid);
-		rc = -EINVAL;
+	splat_init_rw_priv(rwp, file);
+
+	rw_enter(&rwp->rw_rwlock, RW_READER);
+	if (!RW_READ_HELD(&rwp->rw_rwlock)) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
+		             "rwlock should be read lock: %d\n",
+			     RW_READ_HELD(&rwp->rw_rwlock));
 		goto out;
 	}
 
-	/* Make sure that the upgrade
-	 * worked properly */
-	rc = !rw_tryupgrade(&rwv.rwl);
+	/* With one reader upgrade should never fail */
+	rc = rw_tryupgrade(&rwp->rw_rwlock);
+	if (!rc) {
+		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
+			     "rwlock contended preventing upgrade: %d\n",
+			     RW_COUNT(&rwp->rw_rwlock));
+		goto out;
+	}
 
-	owner = rw_owner(&rwv.rwl);
-	if (rc || current != owner) {
+	if (RW_READ_HELD(&rwp->rw_rwlock) || !RW_WRITE_HELD(&rwp->rw_rwlock)) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "rwlock should "
-			   "be owned by pid %d but is owned by pid %d "
-			   "trylock rc %d\n",
-			   current->pid, owner ? owner->pid : -1, rc);
-		rc = -EINVAL;
+			   "have 0 (not %d) reader and 1 (not %d) writer\n",
+			   RW_READ_HELD(&rwp->rw_rwlock),
+			   RW_WRITE_HELD(&rwp->rw_rwlock));
 		goto out;
 	}
 
-	/* Release the rwlock */
-	rw_exit(&rwv.rwl);
-
+	rc = 0;
+	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
+		     "rwlock properly upgraded\n");
 out:
-	rw_destroy(&rwv.rwl);
+	rw_exit(&rwp->rw_rwlock);
+	rw_destroy(&rwp->rw_rwlock);
+	kfree(rwp);
+
 	return rc;
 }
 
 splat_subsystem_t *
 splat_rwlock_init(void)
 {
-        splat_subsystem_t *sub;
+	splat_subsystem_t *sub;
 
-        sub = kmalloc(sizeof(*sub), GFP_KERNEL);
-        if (sub == NULL)
-                return NULL;
+	sub = kmalloc(sizeof(*sub), GFP_KERNEL);
+	if (sub == NULL)
+		return NULL;
 
-        memset(sub, 0, sizeof(*sub));
-        strncpy(sub->desc.name, SPLAT_RWLOCK_NAME, SPLAT_NAME_SIZE);
-        strncpy(sub->desc.desc, SPLAT_RWLOCK_DESC, SPLAT_DESC_SIZE);
-        INIT_LIST_HEAD(&sub->subsystem_list);
-        INIT_LIST_HEAD(&sub->test_list);
-        spin_lock_init(&sub->test_lock);
-        sub->desc.id = SPLAT_SUBSYSTEM_RWLOCK;
+	memset(sub, 0, sizeof(*sub));
+	strncpy(sub->desc.name, SPLAT_RWLOCK_NAME, SPLAT_NAME_SIZE);
+	strncpy(sub->desc.desc, SPLAT_RWLOCK_DESC, SPLAT_DESC_SIZE);
+	INIT_LIST_HEAD(&sub->subsystem_list);
+	INIT_LIST_HEAD(&sub->test_list);
+	spin_lock_init(&sub->test_lock);
+	sub->desc.id = SPLAT_SUBSYSTEM_RWLOCK;
 
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST1_NAME, SPLAT_RWLOCK_TEST1_DESC,
-                      SPLAT_RWLOCK_TEST1_ID, splat_rwlock_test1);
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST2_NAME, SPLAT_RWLOCK_TEST2_DESC,
-                      SPLAT_RWLOCK_TEST2_ID, splat_rwlock_test2);
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST3_NAME, SPLAT_RWLOCK_TEST3_DESC,
-                      SPLAT_RWLOCK_TEST3_ID, splat_rwlock_test3);
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST4_NAME, SPLAT_RWLOCK_TEST4_DESC,
-                      SPLAT_RWLOCK_TEST4_ID, splat_rwlock_test4);
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST5_NAME, SPLAT_RWLOCK_TEST5_DESC,
-                      SPLAT_RWLOCK_TEST5_ID, splat_rwlock_test5);
-        SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST6_NAME, SPLAT_RWLOCK_TEST6_DESC,
-                      SPLAT_RWLOCK_TEST6_ID, splat_rwlock_test6);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST1_NAME, SPLAT_RWLOCK_TEST1_DESC,
+		      SPLAT_RWLOCK_TEST1_ID, splat_rwlock_test1);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST2_NAME, SPLAT_RWLOCK_TEST2_DESC,
+		      SPLAT_RWLOCK_TEST2_ID, splat_rwlock_test2);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST3_NAME, SPLAT_RWLOCK_TEST3_DESC,
+		      SPLAT_RWLOCK_TEST3_ID, splat_rwlock_test3);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST4_NAME, SPLAT_RWLOCK_TEST4_DESC,
+		      SPLAT_RWLOCK_TEST4_ID, splat_rwlock_test4);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST5_NAME, SPLAT_RWLOCK_TEST5_DESC,
+		      SPLAT_RWLOCK_TEST5_ID, splat_rwlock_test5);
+	SPLAT_TEST_INIT(sub, SPLAT_RWLOCK_TEST6_NAME, SPLAT_RWLOCK_TEST6_DESC,
+		      SPLAT_RWLOCK_TEST6_ID, splat_rwlock_test6);
 
-        return sub;
+	return sub;
 }
 
 void
 splat_rwlock_fini(splat_subsystem_t *sub)
 {
-        ASSERT(sub);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST6_ID);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST5_ID);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST4_ID);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST3_ID);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST2_ID);
-        SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST1_ID);
-        kfree(sub);
+	ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST6_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST5_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST4_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST3_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST2_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_RWLOCK_TEST1_ID);
+	kfree(sub);
 }
 
 int
 splat_rwlock_id(void) {
-        return SPLAT_SUBSYSTEM_RWLOCK;
+	return SPLAT_SUBSYSTEM_RWLOCK;
 }
