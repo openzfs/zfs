@@ -1,7 +1,7 @@
 /*
  *  This file is part of the SPL: Solaris Porting Layer.
  *
- *  Copyright (c) 2008 Lawrence Livermore National Security, LLC.
+ *  Copyright (c) 2009 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory
  *  Written by:
  *          Brian Behlendorf <behlendorf1@llnl.gov>,
@@ -25,88 +25,177 @@
  */
 
 #ifndef _SPL_MUTEX_H
-#define	_SPL_MUTEX_H
+#define _SPL_MUTEX_H
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
-
-#include <linux/module.h>
-#include <linux/hardirq.h>
 #include <sys/types.h>
-#include <sys/kmem.h>
+#include <linux/mutex.h>
 
-#define MUTEX_DEFAULT		0
-#define MUTEX_SPIN		1
-#define MUTEX_ADAPTIVE		2
+typedef enum {
+        MUTEX_DEFAULT  = 0,
+        MUTEX_SPIN     = 1,
+        MUTEX_ADAPTIVE = 2
+} kmutex_type_t;
 
-#define MUTEX_ENTER_TOTAL	0
-#define MUTEX_ENTER_NOT_HELD	1
-#define MUTEX_ENTER_SPIN	2
-#define MUTEX_ENTER_SLEEP	3
-#define MUTEX_TRYENTER_TOTAL	4
-#define MUTEX_TRYENTER_NOT_HELD	5
-#define MUTEX_STATS_SIZE	6
+#ifdef HAVE_MUTEX_OWNER
 
-#define KM_MAGIC		0x42424242
-#define KM_POISON		0x84
+typedef struct mutex kmutex_t;
+
+static inline kthread_t *
+mutex_owner(kmutex_t *mp)
+{
+        if (mp->owner)
+                return (mp->owner)->task;
+
+        return NULL;
+}
+#define mutex_owned(mp)         (mutex_owner(mp) == current)
+#define MUTEX_HELD(mp)          mutex_owned(mp)
+#undef mutex_init
+#define mutex_init(mp, name, type, ibc)                                 \
+({                                                                    \
+        static struct lock_class_key __key;                             \
+        ASSERT(type == MUTEX_DEFAULT);                                  \
+                                                                        \
+        __mutex_init((mp), #mp, &__key);                                \
+})
+/* #define mutex_destroy(mp)    ((void)0) */
+#define mutex_tryenter(mp)      mutex_trylock(mp)
+#define mutex_enter(mp)         mutex_lock(mp)
+#define mutex_exit(mp)          mutex_unlock(mp)
+
+#else /* HAVE_MUTEX_OWNER */
 
 typedef struct {
-	int32_t km_magic;
-	int16_t km_type;
-	int16_t km_name_size;
-	char *km_name;
-	struct task_struct *km_owner;
-	struct semaphore *km_sem;
-#ifdef DEBUG_MUTEX
-	int *km_stats;
-	struct list_head km_list;
-#endif
+        struct mutex m_mutex;
+        kthread_t *m_owner;
 } kmutex_t;
 
-extern int mutex_spin_max;
+#ifdef HAVE_TASK_CURR
+extern int spl_mutex_spin_max(void);
+#else /* HAVE_TASK_CURR */
+# define task_curr(owner)       0
+# define spl_mutex_spin_max()   0
+#endif /* HAVE_TASK_CURR */
 
-#ifdef DEBUG_MUTEX
-extern int mutex_stats[MUTEX_STATS_SIZE];
-extern spinlock_t mutex_stats_lock;
-extern struct list_head mutex_stats_list;
-#define MUTEX_STAT_INC(stats, stat)	((stats)[stat]++)
-#else
-#define MUTEX_STAT_INC(stats, stat)
-#endif
+#define MUTEX(mp)               ((struct mutex *)(mp))
+
+static inline kthread_t *
+spl_mutex_get_owner(kmutex_t *mp)
+{
+        return mp->m_owner;
+}
+
+static inline void
+spl_mutex_set_owner(kmutex_t *mp)
+{
+        unsigned long flags;
+
+        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
+        mp->m_owner = current;
+        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
+}
+
+static inline void
+spl_mutex_clear_owner(kmutex_t *mp)
+{
+        unsigned long flags;
+
+        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
+        mp->m_owner = NULL;
+        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
+}
+
+static inline kthread_t *
+mutex_owner(kmutex_t *mp)
+{
+        unsigned long flags;
+        kthread_t *owner;
+
+        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
+        owner = spl_mutex_get_owner(mp);
+        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
+
+        return owner;
+}
+
+#define mutex_owned(mp)         (mutex_owner(mp) == current)
+#define MUTEX_HELD(mp)          mutex_owned(mp)
+
+/*
+ * The following functions must be a #define and not static inline.
+ * This ensures that the native linux mutex functions (lock/unlock)
+ * will be correctly located in the users code which is important
+ * for the built in kernel lock analysis tools
+ */
+#undef mutex_init
+#define mutex_init(mp, name, type, ibc)                                 \
+({                                                                      \
+        static struct lock_class_key __key;                             \
+        ASSERT(type == MUTEX_DEFAULT);                                  \
+                                                                        \
+        __mutex_init(MUTEX(mp), #mp, &__key);                           \
+        spl_mutex_clear_owner(mp);                                      \
+})
+
+#undef mutex_destroy
+#define mutex_destroy(mp)                                               \
+({                                                                      \
+        VERIFY(!MUTEX_HELD(mp));                                        \
+})
+
+#define mutex_tryenter(mp)                                              \
+({                                                                      \
+        int _rc_;                                                       \
+                                                                        \
+        if ((_rc_ = mutex_trylock(MUTEX(mp))) == 1)                     \
+                spl_mutex_set_owner(mp);                                \
+                                                                        \
+        _rc_;                                                           \
+})
+
+/*
+ * Adaptive mutexs assume that the lock may be held by a task running
+ * on a different cpu.  The expectation is that the task will drop the
+ * lock before leaving the head of the run queue.  So the ideal thing
+ * to do is spin until we acquire the lock and avoid a context switch.
+ * However it is also possible the task holding the lock yields the
+ * processor with out dropping lock.  In this case, we know it's going
+ * to be a while so we stop spinning and go to sleep waiting for the
+ * lock to be available.  This should strike the optimum balance
+ * between spinning and sleeping waiting for a lock.
+ */
+#define mutex_enter(mp)                                                 \
+({                                                                      \
+        kthread_t *_owner_;                                             \
+        int _rc_, _count_;                                              \
+                                                                        \
+        _rc_ = 0;                                                       \
+        _count_ = 0;                                                    \
+        _owner_ = mutex_owner(mp);                                      \
+                                                                        \
+        while (_owner_ && task_curr(_owner_) &&                         \
+               _count_ <= spl_mutex_spin_max()) {                       \
+                if ((_rc_ = mutex_trylock(MUTEX(mp))))                  \
+                        break;                                          \
+                                                                        \
+                _count_++;                                              \
+        }                                                               \
+                                                                        \
+        if (!_rc_)                                                      \
+                mutex_lock(MUTEX(mp));                                  \
+                                                                        \
+        spl_mutex_set_owner(mp);                                        \
+})
+
+#define mutex_exit(mp)                                                  \
+({                                                                      \
+        spl_mutex_clear_owner(mp);                                      \
+        mutex_unlock(MUTEX(mp));                                        \
+})
+
+#endif /* HAVE_MUTEX_OWNER */
 
 int spl_mutex_init(void);
 void spl_mutex_fini(void);
 
-extern int __spl_mutex_init(kmutex_t *mp, char *name, int type, void *ibc);
-extern void __spl_mutex_destroy(kmutex_t *mp);
-extern int __mutex_tryenter(kmutex_t *mp);
-extern void __mutex_enter(kmutex_t *mp);
-extern void __mutex_exit(kmutex_t *mp);
-extern int __mutex_owned(kmutex_t *mp);
-extern kthread_t *__spl_mutex_owner(kmutex_t *mp);
-
-#undef mutex_init
-#undef mutex_destroy
-
-#define mutex_init(mp, name, type, ibc)					\
-({									\
-	/* May never fail or all subsequent mutex_* calls will ASSERT */\
-	if ((name) == NULL)						\
-		while(__spl_mutex_init(mp, #mp, type, ibc));		\
-	else								\
-		while(__spl_mutex_init(mp, name, type, ibc));		\
-})
-#define mutex_destroy(mp)	__spl_mutex_destroy(mp)
-#define mutex_tryenter(mp)	__mutex_tryenter(mp)
-#define mutex_enter(mp)		__mutex_enter(mp)
-#define mutex_exit(mp)		__mutex_exit(mp)
-#define mutex_owned(mp)		__mutex_owned(mp)
-#define mutex_owner(mp)		__spl_mutex_owner(mp)
-#define MUTEX_HELD(mp)		mutex_owned(mp)
-
-#ifdef	__cplusplus
-}
-#endif
-
-#endif	/* _SPL_MUTEX_H */
+#endif /* _SPL_MUTEX_H */

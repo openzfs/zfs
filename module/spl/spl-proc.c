@@ -41,12 +41,8 @@ static unsigned long table_max = ~0;
 static struct ctl_table_header *spl_header = NULL;
 #endif /* CONFIG_SYSCTL */
 
-#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
+#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 static struct proc_dir_entry *proc_spl = NULL;
-#ifdef DEBUG_MUTEX
-static struct proc_dir_entry *proc_spl_mutex = NULL;
-static struct proc_dir_entry *proc_spl_mutex_stats = NULL;
-#endif /* DEBUG_MUTEX */
 #ifdef DEBUG_KMEM
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
@@ -54,7 +50,7 @@ static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 #ifdef DEBUG_KSTAT
 struct proc_dir_entry *proc_spl_kstat = NULL;
 #endif /* DEBUG_KSTAT */
-#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
+#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef HAVE_CTL_UNNUMBERED
 
@@ -104,10 +100,6 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 #define CTL_KMEM_VMEMMAX	CTL_UNNUMBERED /* Max alloc'd by vmem bytes */
 #define CTL_KMEM_ALLOC_FAILED	CTL_UNNUMBERED /* Cache allocations failed */
 #endif
-
-#define CTL_MUTEX_STATS		CTL_UNNUMBERED /* Global mutex statistics */
-#define CTL_MUTEX_STATS_PER	CTL_UNNUMBERED /* Per mutex statistics */
-#define CTL_MUTEX_SPIN_MAX	CTL_UNNUMBERED /* Max mutex spin iterations */
 
 #else /* HAVE_CTL_UNNUMBERED */
 
@@ -159,10 +151,6 @@ enum {
 	CTL_KMEM_VMEMUSED,		/* Alloc'd vmem bytes */
 	CTL_KMEM_VMEMMAX,		/* Max alloc'd by vmem bytes */
 #endif
-
-	CTL_MUTEX_STATS,		/* Global mutex statistics */
-	CTL_MUTEX_STATS_PER,		/* Per mutex statistics */
-	CTL_MUTEX_SPIN_MAX,		/* Maximum mutex spin iterations */
 };
 #endif /* HAVE_CTL_UNNUMBERED */
 
@@ -589,103 +577,6 @@ proc_dofreemem(struct ctl_table *table, int write, struct file *filp,
         RETURN(rc);
 }
 
-#ifdef DEBUG_MUTEX
-static void
-mutex_seq_show_headers(struct seq_file *f)
-{
-        seq_printf(f, "%-36s %-4s %-16s\t"
-                   "e_tot\te_nh\te_sp\te_sl\tte_tot\tte_nh\n",
-		   "name", "type", "owner");
-}
-
-static int
-mutex_seq_show(struct seq_file *f, void *p)
-{
-        kmutex_t *mp = p;
-	char t = 'X';
-        int i;
-
-	ASSERT(mp->km_magic == KM_MAGIC);
-
-	switch (mp->km_type) {
-		case MUTEX_DEFAULT:	t = 'D';	break;
-		case MUTEX_SPIN:	t = 'S';	break;
-		case MUTEX_ADAPTIVE:	t = 'A';	break;
-		default:
-			SBUG();
-	}
-        seq_printf(f, "%-36s %c    ", mp->km_name, t);
-	if (mp->km_owner)
-                seq_printf(f, "%p\t", mp->km_owner);
-	else
-                seq_printf(f, "%-16s\t", "<not held>");
-
-        for (i = 0; i < MUTEX_STATS_SIZE; i++)
-                seq_printf(f, "%d%c", mp->km_stats[i],
-                           (i + 1 == MUTEX_STATS_SIZE) ? '\n' : '\t');
-
-        return 0;
-}
-
-static void *
-mutex_seq_start(struct seq_file *f, loff_t *pos)
-{
-        struct list_head *p;
-        loff_t n = *pos;
-        ENTRY;
-
-	spin_lock(&mutex_stats_lock);
-        if (!n)
-                mutex_seq_show_headers(f);
-
-        p = mutex_stats_list.next;
-        while (n--) {
-                p = p->next;
-                if (p == &mutex_stats_list)
-                        RETURN(NULL);
-        }
-
-        RETURN(list_entry(p, kmutex_t, km_list));
-}
-
-static void *
-mutex_seq_next(struct seq_file *f, void *p, loff_t *pos)
-{
-	kmutex_t *mp = p;
-        ENTRY;
-
-        ++*pos;
-        RETURN((mp->km_list.next == &mutex_stats_list) ?
-	       NULL : list_entry(mp->km_list.next, kmutex_t, km_list));
-}
-
-static void
-mutex_seq_stop(struct seq_file *f, void *v)
-{
-	spin_unlock(&mutex_stats_lock);
-}
-
-static struct seq_operations mutex_seq_ops = {
-        .show  = mutex_seq_show,
-        .start = mutex_seq_start,
-        .next  = mutex_seq_next,
-        .stop  = mutex_seq_stop,
-};
-
-static int
-proc_mutex_open(struct inode *inode, struct file *filp)
-{
-        return seq_open(filp, &mutex_seq_ops);
-}
-
-static struct file_operations proc_mutex_operations = {
-        .open           = proc_mutex_open,
-        .read           = seq_read,
-        .llseek         = seq_lseek,
-        .release        = seq_release,
-};
-#endif /* DEBUG_MUTEX */
-
 #ifdef DEBUG_KMEM
 static void
 slab_seq_show_headers(struct seq_file *f)
@@ -968,28 +859,6 @@ static struct ctl_table spl_vm_table[] = {
 	{0},
 };
 
-#ifdef DEBUG_MUTEX
-static struct ctl_table spl_mutex_table[] = {
-        {
-                .ctl_name = CTL_MUTEX_STATS,
-                .procname = "stats",
-                .data     = &mutex_stats,
-                .maxlen   = sizeof(int) * MUTEX_STATS_SIZE,
-                .mode     = 0444,
-                .proc_handler = &proc_dointvec,
-        },
-        {
-                .ctl_name = CTL_MUTEX_SPIN_MAX,
-                .procname = "spin_max",
-                .data     = &mutex_spin_max,
-                .maxlen   = sizeof(int),
-                .mode     = 0644,
-                .proc_handler = &proc_dointvec,
-        },
-	{0},
-};
-#endif /* DEBUG_MUTEX */
-
 #ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
         {
@@ -1088,14 +957,6 @@ static struct ctl_table spl_table[] = {
 		.mode     = 0555,
 		.child    = spl_vm_table,
 	},
-#ifdef DEBUG_MUTEX
-	{
-		.ctl_name = CTL_SPL_MUTEX,
-		.procname = "mutex",
-		.mode     = 0555,
-		.child    = spl_mutex_table,
-	},
-#endif
 #ifdef DEBUG_KMEM
 	{
 		.ctl_name = CTL_SPL_KMEM,
@@ -1180,23 +1041,10 @@ proc_init(void)
 		RETURN(-EUNATCH);
 #endif /* CONFIG_SYSCTL */
 
-#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
+#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	proc_spl = proc_mkdir("spl", NULL);
 	if (proc_spl == NULL)
 		GOTO(out, rc = -EUNATCH);
-
-#ifdef DEBUG_MUTEX
-	proc_spl_mutex = proc_mkdir("mutex", proc_spl);
-	if (proc_spl_mutex == NULL)
-		GOTO(out, rc = -EUNATCH);
-
-	proc_spl_mutex_stats = create_proc_entry("stats_per", 0444,
-						 proc_spl_mutex);
-        if (proc_spl_mutex_stats == NULL)
-		GOTO(out, rc = -EUNATCH);
-
-        proc_spl_mutex_stats->proc_fops = &proc_mutex_operations;
-#endif /* DEBUG_MUTEX */
 
 #ifdef DEBUG_KMEM
         proc_spl_kmem = proc_mkdir("kmem", proc_spl);
@@ -1223,16 +1071,12 @@ out:
 	        remove_proc_entry("slab", proc_spl_kmem);
 #endif
 		remove_proc_entry("kmem", proc_spl);
-#ifdef DEBUG_MUTEX
-	        remove_proc_entry("stats_per", proc_spl_mutex);
-#endif
-		remove_proc_entry("mutex", proc_spl);
 		remove_proc_entry("spl", NULL);
 #ifdef CONFIG_SYSCTL
 	        spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
 	}
-#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
+#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
         RETURN(rc);
 }
@@ -1242,18 +1086,14 @@ proc_fini(void)
 {
         ENTRY;
 
-#if defined(DEBUG_MUTEX) || defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
+#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	remove_proc_entry("kstat", proc_spl);
 #ifdef DEBUG_KMEM
         remove_proc_entry("slab", proc_spl_kmem);
 #endif
 	remove_proc_entry("kmem", proc_spl);
-#ifdef DEBUG_MUTEX
-        remove_proc_entry("stats_per", proc_spl_mutex);
-#endif
-	remove_proc_entry("mutex", proc_spl);
 	remove_proc_entry("spl", NULL);
-#endif /* DEBUG_MUTEX || DEBUG_KMEM || DEBUG_KSTAT */
+#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);

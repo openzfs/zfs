@@ -1036,7 +1036,6 @@ Optional Features:
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --enable-debug          Enable generic debug support (default off)
   --enable-debug-kmem     Enable kmem debug support (default off)
-  --enable-debug-mutex    Enable mutex debug support (default off)
   --enable-debug-kstat    Enable kstat debug support (default off)
   --enable-debug-callb    Enable callb debug support (default off)
 
@@ -3987,7 +3986,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 3990 "configure"' > conftest.$ac_ext
+  echo '#line 3989 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -5586,7 +5585,7 @@ fi
 
 
 # Provide some information about the compiler.
-echo "$as_me:5589:" \
+echo "$as_me:5588:" \
      "checking for Fortran 77 compiler version" >&5
 ac_compiler=`set X $ac_compile; echo $2`
 { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
@@ -6649,11 +6648,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6652: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6651: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6656: \$? = $ac_status" >&5
+   echo "$as_me:6655: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -6917,11 +6916,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6920: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6919: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6924: \$? = $ac_status" >&5
+   echo "$as_me:6923: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7021,11 +7020,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7024: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7023: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7028: \$? = $ac_status" >&5
+   echo "$as_me:7027: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8490,7 +8489,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 8493 "configure"' > conftest.$ac_ext
+    echo '#line 8492 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -9387,7 +9386,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9390 "configure"
+#line 9389 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -9487,7 +9486,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<EOF
-#line 9490 "configure"
+#line 9489 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11830,11 +11829,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11833: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11832: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:11837: \$? = $ac_status" >&5
+   echo "$as_me:11836: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -11934,11 +11933,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:11937: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:11936: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:11941: \$? = $ac_status" >&5
+   echo "$as_me:11940: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -12470,7 +12469,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 12473 "configure"' > conftest.$ac_ext
+    echo '#line 12472 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -13528,11 +13527,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13531: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13530: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:13535: \$? = $ac_status" >&5
+   echo "$as_me:13534: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -13632,11 +13631,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13635: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13634: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13639: \$? = $ac_status" >&5
+   echo "$as_me:13638: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -15081,7 +15080,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 15084 "configure"' > conftest.$ac_ext
+    echo '#line 15083 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -15859,11 +15858,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:15862: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:15861: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:15866: \$? = $ac_status" >&5
+   echo "$as_me:15865: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16127,11 +16126,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16130: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16129: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:16134: \$? = $ac_status" >&5
+   echo "$as_me:16133: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -16231,11 +16230,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:16234: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:16233: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:16238: \$? = $ac_status" >&5
+   echo "$as_me:16237: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -17700,7 +17699,7 @@ linux*)
   libsuff=
   case "$host_cpu" in
   x86_64*|s390x*|powerpc64*)
-    echo '#line 17703 "configure"' > conftest.$ac_ext
+    echo '#line 17702 "configure"' > conftest.$ac_ext
     if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -19143,37 +19142,6 @@ echo "${ECHO_T}no" >&6
 	fi
 
 
-	echo "$as_me:$LINENO: checking whether mutex debugging is enabled" >&5
-echo $ECHO_N "checking whether mutex debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-mutex or --disable-debug-mutex was given.
-if test "${enable_debug_mutex+set}" = set; then
-  enableval="$enable_debug_mutex"
-   case "$enableval" in
-			yes) spl_ac_debug_mutex=yes ;;
-			no)  spl_ac_debug_mutex=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-mutex" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-mutex" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
-
-fi;
-	if test "$spl_ac_debug_mutex" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG_MUTEX 1
-_ACEOF
-
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_MUTEX"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
-
-
 	echo "$as_me:$LINENO: checking whether kstat debugging is enabled" >&5
 echo $ECHO_N "checking whether kstat debugging is enabled... $ECHO_C" >&6
 	# Check whether --enable-debug-kstat or --disable-debug-kstat was given.
@@ -20543,6 +20511,72 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_INODE_I_MUTEX 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether struct mutex has owner" >&5
+echo $ECHO_N "checking whether struct mutex has owner... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mutex.h>
+
+int
+main (void)
+{
+
+		struct mutex mtx;
+		mtx.owner = NULL;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_MUTEX_OWNER 1
 _ACEOF
 
 
@@ -22151,37 +22185,6 @@ echo "${ECHO_T}no" >&6
 	fi
 
 
-	echo "$as_me:$LINENO: checking whether mutex debugging is enabled" >&5
-echo $ECHO_N "checking whether mutex debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-mutex or --disable-debug-mutex was given.
-if test "${enable_debug_mutex+set}" = set; then
-  enableval="$enable_debug_mutex"
-   case "$enableval" in
-			yes) spl_ac_debug_mutex=yes ;;
-			no)  spl_ac_debug_mutex=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-mutex" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-mutex" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
-
-fi;
-	if test "$spl_ac_debug_mutex" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG_MUTEX 1
-_ACEOF
-
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_MUTEX"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
-
-
 	echo "$as_me:$LINENO: checking whether kstat debugging is enabled" >&5
 echo $ECHO_N "checking whether kstat debugging is enabled... $ECHO_C" >&6
 	# Check whether --enable-debug-kstat or --disable-debug-kstat was given.
@@ -23551,6 +23554,72 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_INODE_I_MUTEX 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether struct mutex has owner" >&5
+echo $ECHO_N "checking whether struct mutex has owner... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mutex.h>
+
+int
+main (void)
+{
+
+		struct mutex mtx;
+		mtx.owner = NULL;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_MUTEX_OWNER 1
 _ACEOF
 
 

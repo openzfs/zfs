@@ -23,7 +23,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 
 	SPL_AC_DEBUG
 	SPL_AC_DEBUG_KMEM
-	SPL_AC_DEBUG_MUTEX
 	SPL_AC_DEBUG_KSTAT
 	SPL_AC_DEBUG_CALLB
 	SPL_AC_TYPE_UINTPTR_T
@@ -48,6 +47,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KMALLOC_NODE
 	SPL_AC_MONOTONIC_CLOCK
 	SPL_AC_INODE_I_MUTEX
+	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_LOCK_NESTED
 	SPL_AC_DIV64_64
 	SPL_AC_DIV64_U64
@@ -251,28 +251,6 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM], [
 		AC_DEFINE([DEBUG_KMEM], [1],
 		[Define to 1 to enable kmem debugging])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
-	else
-		AC_MSG_RESULT([no])
-	fi
-])
-
-AC_DEFUN([SPL_AC_DEBUG_MUTEX], [
-	AC_MSG_CHECKING([whether mutex debugging is enabled])
-	AC_ARG_ENABLE( [debug-mutex],
-		AS_HELP_STRING([--enable-debug-mutex],
-		[Enable mutex debug support (default off)]),
-		[ case "$enableval" in
-			yes) spl_ac_debug_mutex=yes ;;
-			no)  spl_ac_debug_mutex=no  ;;
-			*) AC_MSG_RESULT([Error!])
-			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-mutex]) ;;
-		esac ]
-	) 
-	if test "$spl_ac_debug_mutex" = yes; then
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([DEBUG_MUTEX], [1],
-		[Define to 1 to enable mutex debugging])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_MUTEX"
 	else
 		AC_MSG_RESULT([no])
 	fi
@@ -820,6 +798,25 @@ AC_DEFUN([SPL_AC_INODE_I_MUTEX], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_INODE_I_MUTEX, 1, [struct inode has i_mutex])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.29 API change,
+dnl # Adaptive mutexs introduced.
+dnl #
+AC_DEFUN([SPL_AC_MUTEX_OWNER], [
+	AC_MSG_CHECKING([whether struct mutex has owner])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mutex.h>
+	],[
+		struct mutex mtx;
+		mtx.owner = NULL;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_MUTEX_OWNER, 1, [struct mutex has owner])
 	],[
 		AC_MSG_RESULT(no)
 	])

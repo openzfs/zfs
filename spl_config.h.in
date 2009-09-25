@@ -9,9 +9,6 @@
 /* Define to 1 to enable kstat debugging */
 #undef DEBUG_KSTAT
 
-/* Define to 1 to enable mutex debugging */
-#undef DEBUG_MUTEX
-
 /* register_sysctl_table() wants 2 args */
 #undef HAVE_2ARGS_REGISTER_SYSCTL
 
@@ -101,6 +98,9 @@
 
 /* mutex_lock_nested() is available */
 #undef HAVE_MUTEX_LOCK_NESTED
+
+/* struct mutex has owner */
+#undef HAVE_MUTEX_OWNER
 
 /* next_online_pgdat() is available */
 #undef HAVE_NEXT_ONLINE_PGDAT

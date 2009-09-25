@@ -33,6 +33,7 @@ extern "C" {
 
 #include <linux/module.h>
 #include <linux/wait.h>
+#include <sys/kmem.h>
 #include <sys/mutex.h>
 
 /* The kcondvar_t struct is protected by mutex taken externally before
