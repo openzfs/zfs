@@ -27,10 +27,8 @@
 #ifndef _SPL_RWLOCK_H
 #define _SPL_RWLOCK_H
 
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/rwsem.h>
 #include <sys/types.h>
+#include <linux/rwsem.h>
 
 typedef enum {
         RW_DRIVER  = 2,
@@ -38,81 +36,199 @@ typedef enum {
 } krw_type_t;
 
 typedef enum {
-	RW_NONE   = 0,
+        RW_NONE   = 0,
         RW_WRITER = 1,
         RW_READER = 2
 } krw_t;
 
-typedef struct rw_semaphore krwlock_t;
+typedef struct {
+        struct rw_semaphore rw_rwlock;
+        kthread_t *rw_owner;
+} krwlock_t;
 
-#define rw_init(rwlp, name, type, arg)  init_rwsem(rwlp)
-#define rw_destroy(rwlp)                ((void)0)
-#define rw_downgrade(rwlp)              downgrade_write(rwlp)
-#define RW_LOCK_HELD(rwlp)              rwsem_is_locked(rwlp)
 /*
- * the rw-semaphore definition
+ * For the generic and x86 implementations of rw-semaphores the following
+ * is true.  If your semaphore implementation internally represents the
+ * semaphore state differently special case handling will be required.
  * - if activity/count is 0 then there are no active readers or writers
  * - if activity/count is +ve then that is the number of active readers
  * - if activity/count is -1 then there is one active writer
  */
+#define SEM(rwp)                        ((struct rw_semaphore *)(rwp))
+
 #if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
-# define RW_COUNT(rwlp)            ((rwlp)->activity)
-# define RW_READ_HELD(rwlp)        ((RW_COUNT(rwlp) > 0) ? RW_COUNT(rwlp) : 0)
-# define RW_WRITE_HELD(rwlp)       ((RW_COUNT(rwlp) < 0))
-# define rw_exit_locked(rwlp)      __up_read_locked(rwlp)
-# define rw_tryenter_locked(rwlp)  __down_write_trylock_locked(rwlp)
-void __up_read_locked(struct rw_semaphore *);
-int __down_write_trylock_locked(struct rw_semaphore *);
+# define RW_COUNT(rwp)                  (SEM(rwp)->activity)
+# define rw_exit_locked(rwp)            __up_read_locked(rwp)
+# define rw_tryenter_locked(rwp)        __down_write_trylock_locked(rwp)
+extern void __up_read_locked(struct rw_semaphore *);
+extern int __down_write_trylock_locked(struct rw_semaphore *);
 #else
-# define RW_COUNT(rwlp)            ((rwlp)->count & RWSEM_ACTIVE_MASK)
-# define RW_READ_HELD(rwlp)        ((RW_COUNT(rwlp) > 0) ? RW_COUNT(rwlp) : 0)
-# define RW_WRITE_HELD(rwlp)       ((RW_COUNT(rwlp) < 0))
-# define rw_exit_locked(rwlp)      up_read(rwlp)
-# define rw_tryenter_locked(rwlp)  down_write_trylock(rwlp)
+# define RW_COUNT(rwp)                  (SEM(rwp)->count & RWSEM_ACTIVE_MASK)
+# define rw_exit_locked(rwp)            up_read(rwp)
+# define rw_tryenter_locked(rwp)        down_write_trylock(rwp)
 #endif
 
-#define rw_tryenter(rwlp, rw)                                                 \
-({                                                                            \
-        int _rc_ = 0;                                                         \
-        switch (rw) {                                                         \
-                case RW_READER: _rc_ = down_read_trylock(rwlp);  break;       \
-                case RW_WRITER: _rc_ = down_write_trylock(rwlp); break;       \
-                default:        SBUG();                                       \
-        }                                                                     \
-        _rc_;                                                                 \
+static inline kthread_t *
+spl_rw_get_owner(krwlock_t *rwp)
+{
+        return rwp->rw_owner;
+}
+
+static inline void
+spl_rw_set_owner(krwlock_t *rwp)
+{
+        unsigned long flags;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        rwp->rw_owner = current;
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+}
+
+static inline void
+spl_rw_clear_owner(krwlock_t *rwp)
+{
+        unsigned long flags;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        rwp->rw_owner = NULL;
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+}
+
+static inline kthread_t *
+rw_owner(krwlock_t *rwp)
+{
+        unsigned long flags;
+        kthread_t *owner;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        owner = spl_rw_get_owner(rwp);
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+
+        return owner;
+}
+
+static inline int
+RW_READ_HELD(krwlock_t *rwp)
+{
+        unsigned long flags;
+        int rc;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        rc = ((RW_COUNT(rwp) > 0) && (spl_rw_get_owner(rwp) == NULL));
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+
+        return rc;
+}
+
+static inline int
+RW_WRITE_HELD(krwlock_t *rwp)
+{
+        unsigned long flags;
+        int rc;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        rc = ((RW_COUNT(rwp) < 0) && (spl_rw_get_owner(rwp) == current));
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+
+        return rc;
+}
+
+static inline int
+RW_LOCK_HELD(krwlock_t *rwp)
+{
+        unsigned long flags;
+        int rc;
+
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        rc = (RW_COUNT(rwp) != 0);
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+
+        return rc;
+}
+
+/*
+ * The following functions must be a #define and not static inline.
+ * This ensures that the native linux semaphore functions (down/up)
+ * will be correctly located in the users code which is important
+ * for the built in kernel lock analysis tools
+ */
+#define rw_init(rwp, name, type, arg)                                   \
+({                                                                      \
+        init_rwsem(SEM(rwp));                                           \
+        spl_rw_clear_owner(rwp);                                        \
 })
 
-#define rw_enter(rwlp, rw)                                                    \
-({                                                                            \
-        switch (rw) {                                                         \
-                case RW_READER: down_read(rwlp);  break;                      \
-                case RW_WRITER: down_write(rwlp); break;                      \
-                default:        SBUG();                                       \
-        }                                                                     \
+#define rw_destroy(rwp)                                                 \
+({                                                                      \
+        VERIFY(!RW_LOCK_HELD(rwp));                                     \
 })
 
-#define rw_exit(rwlp)                                                         \
-({                                                                            \
-        if (RW_READ_HELD(rwlp))                                               \
-              up_read(rwlp);                                                  \
-        else if (RW_WRITE_HELD(rwlp))                                         \
-              up_write(rwlp);                                                 \
-        else                                                                  \
-              SBUG();                                                         \
+#define rw_tryenter(rwp, rw)                                            \
+({                                                                      \
+        int _rc_ = 0;                                                   \
+                                                                        \
+        switch (rw) {                                                   \
+        case RW_READER:                                                 \
+                _rc_ = down_read_trylock(SEM(rwp));                     \
+                break;                                                  \
+        case RW_WRITER:                                                 \
+                if ((_rc_ = down_write_trylock(SEM(rwp))))              \
+                        spl_rw_set_owner(rwp);                          \
+                break;                                                  \
+        default:                                                        \
+                SBUG();                                                 \
+        }                                                               \
+        _rc_;                                                           \
 })
 
-#define rw_tryupgrade(rwlp)                                                   \
-({                                                                            \
-        unsigned long flags;                                                  \
-        int _rc_ = 0;                                                         \
-        spin_lock_irqsave(&(rwlp)->wait_lock, flags);                         \
-        if (list_empty(&(rwlp)->wait_list) && (RW_READ_HELD(rwlp) == 1)) {    \
-                rw_exit_locked(rwlp);                                         \
-                _rc_ = rw_tryenter_locked(rwlp);                              \
-                ASSERT(_rc_);                                                 \
-        }                                                                     \
-        spin_unlock_irqrestore(&(rwlp)->wait_lock, flags);                    \
-        _rc_;                                                                 \
+#define rw_enter(rwp, rw)                                               \
+({                                                                      \
+        switch (rw) {                                                   \
+        case RW_READER:                                                 \
+                down_read(SEM(rwp));                                    \
+                break;                                                  \
+        case RW_WRITER:                                                 \
+                down_write(SEM(rwp));                                   \
+                spl_rw_set_owner(rwp);                                  \
+                break;                                                  \
+        default:                                                        \
+                SBUG();                                                 \
+        }                                                               \
 })
+
+#define rw_exit(rwp)                                                    \
+({                                                                      \
+        if (RW_WRITE_HELD(rwp)) {                                       \
+                spl_rw_clear_owner(rwp);                                \
+                up_write(SEM(rwp));                                     \
+        } else {                                                        \
+                ASSERT(RW_READ_HELD(rwp));                              \
+                up_read(SEM(rwp));                                      \
+        }                                                               \
+})
+
+#define rw_downgrade(rwp)                                               \
+({                                                                      \
+        spl_rw_clear_owner(rwp);                                        \
+        downgrade_write(SEM(rwp));                                      \
+})
+
+#define rw_tryupgrade(rwp)                                              \
+({                                                                      \
+        unsigned long _flags_;                                          \
+        int _rc_ = 0;                                                   \
+                                                                        \
+        spin_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);               \
+        if (list_empty(&SEM(rwp)->wait_list) && (RW_COUNT(rwp) == 1)) { \
+                rw_exit_locked(SEM(rwp));                               \
+                VERIFY(_rc_ = rw_tryenter_locked(SEM(rwp)));            \
+                (rwp)->rw_owner = current;                              \
+        }                                                               \
+        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);          \
+        _rc_;                                                           \
+})
+
+int spl_rw_init(void);
+void spl_rw_fini(void);
 
 #endif /* _SPL_RWLOCK_H */

@@ -91,3 +91,6 @@ __down_write_trylock_locked(struct rw_semaphore *sem)
 EXPORT_SYMBOL(__down_write_trylock_locked);
 
 #endif
+
+int spl_rw_init(void) { return 0; }
+void spl_rw_fini(void) { }

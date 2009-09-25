@@ -30,6 +30,7 @@
 #include <sys/vnode.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
+#include <sys/rwlock.h>
 #include <sys/taskq.h>
 #include <sys/debug.h>
 #include <sys/proc.h>
@@ -365,49 +366,54 @@ static int __init spl_init(void)
 		return rc;
 
 	if ((rc = spl_kmem_init()))
-		GOTO(out , rc);
+		GOTO(out1, rc);
 
 	if ((rc = spl_mutex_init()))
-		GOTO(out2 , rc);
+		GOTO(out2, rc);
 
-	if ((rc = spl_taskq_init()))
+	if ((rc = spl_rw_init()))
 		GOTO(out3, rc);
 
-	if ((rc = vn_init()))
+	if ((rc = spl_taskq_init()))
 		GOTO(out4, rc);
 
-	if ((rc = proc_init()))
+	if ((rc = vn_init()))
 		GOTO(out5, rc);
 
-	if ((rc = kstat_init()))
+	if ((rc = proc_init()))
 		GOTO(out6, rc);
 
+	if ((rc = kstat_init()))
+		GOTO(out7, rc);
+
 	if ((rc = set_hostid()))
-		GOTO(out7, rc = -EADDRNOTAVAIL);
+		GOTO(out8, rc = -EADDRNOTAVAIL);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
-		GOTO(out7, rc = -EADDRNOTAVAIL);
+		GOTO(out8, rc = -EADDRNOTAVAIL);
 #endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
-		GOTO(out7, rc);
+		GOTO(out8, rc);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
 	RETURN(rc);
-out7:
+out8:
 	kstat_fini();
-out6:
+out7:
 	proc_fini();
-out5:
+out6:
 	vn_fini();
-out4:
+out5:
 	spl_taskq_fini();
+out4:
+	spl_rw_fini();
 out3:
 	spl_mutex_fini();
 out2:
 	spl_kmem_fini();
-out:
+out1:
 	debug_fini();
 
 	printk("SPL: Failed to Load Solaris Porting Layer v%s, "
@@ -424,6 +430,7 @@ static void spl_fini(void)
 	proc_fini();
 	vn_fini();
 	spl_taskq_fini();
+	spl_rw_fini();
 	spl_mutex_fini();
 	spl_kmem_fini();
 	debug_fini();
