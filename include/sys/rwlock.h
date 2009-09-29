@@ -154,7 +154,9 @@ RW_LOCK_HELD(krwlock_t *rwp)
  */
 #define rw_init(rwp, name, type, arg)                                   \
 ({                                                                      \
-        init_rwsem(SEM(rwp));                                           \
+        static struct lock_class_key __key;                             \
+                                                                        \
+        __init_rwsem(SEM(rwp), #rwp, &__key);                           \
         spl_rw_clear_owner(rwp);                                        \
 })
 
