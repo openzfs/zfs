@@ -3847,6 +3847,8 @@ _init(void)
 	ASSERT(error == 0);
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
 
+	printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n", ZFS_META_VERSION);
+
 	return (0);
 }
 
@@ -3880,29 +3882,8 @@ _fini(void)
 }
 
 #ifdef HAVE_SPL
-int
-init(void)
-{
-	int rc;
-
-	rc = _init();
-	if (!rc)
-		printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n",
-		       ZFS_META_VERSION);
-
-	return rc;
-}
-
-void
-fini(void)
-{
-	(void)_fini();
-	printk(KERN_INFO "ZFS: Unloaded ZFS Filesystem v%s\n",
-	       ZFS_META_VERSION);
-}
-
-module_init(init);
-module_exit(fini);
+spl_module_init(_init);
+spl_module_exit(_fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("ZFS");
