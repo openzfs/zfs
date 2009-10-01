@@ -358,7 +358,8 @@ set_kallsyms_lookup_name(void)
 }
 #endif
 
-static int __init spl_init(void)
+static int
+__init spl_init(void)
 {
 	int rc = 0;
 
@@ -421,7 +422,8 @@ out1:
 	return rc;
 }
 
-static void spl_fini(void)
+static void
+spl_fini(void)
 {
 	ENTRY;
 
@@ -435,6 +437,26 @@ static void spl_fini(void)
 	spl_kmem_fini();
 	debug_fini();
 }
+
+/* Called when a dependent module is loaded */
+void
+spl_setup(void)
+{
+        /*
+         * At module load time the pwd is set to '/' on a Solaris system.
+         * On a Linux system will be set to whatever directory the caller
+         * was in when executing insmod/modprobe.
+         */
+        vn_set_pwd("/");
+}
+EXPORT_SYMBOL(spl_setup);
+
+/* Called when a dependent module is unloaded */
+void
+spl_cleanup(void)
+{
+}
+EXPORT_SYMBOL(spl_cleanup);
 
 module_init(spl_init);
 module_exit(spl_fini);

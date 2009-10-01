@@ -12,6 +12,9 @@
 /* register_sysctl_table() wants 2 args */
 #undef HAVE_2ARGS_REGISTER_SYSCTL
 
+/* set_fs_pwd() wants 2 args */
+#undef HAVE_2ARGS_SET_FS_PWD
+
 /* vfs_unlink() wants 2 args */
 #undef HAVE_2ARGS_VFS_UNLINK
 
@@ -119,6 +122,9 @@
 
 /* __put_task_struct() is available */
 #undef HAVE_PUT_TASK_STRUCT
+
+/* set_fs_pwd() is available */
+#undef HAVE_SET_FS_PWD
 
 /* set_normalized_timespec() is available as export */
 #undef HAVE_SET_NORMALIZED_TIMESPEC_EXPORT

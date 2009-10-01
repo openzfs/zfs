@@ -215,6 +215,7 @@ extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
 extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
+extern int vn_set_pwd(const char *filename);
 
 int vn_init(void);
 void vn_fini(void);
@@ -241,7 +242,7 @@ vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
 #define getf					vn_getf
 #define releasef				vn_releasef
 
-extern void *rootdir;
+extern vnode_t *rootdir;
 
 #ifdef  __cplusplus
 }

@@ -64,6 +64,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_ZONE_STAT_ITEM_INACTIVE
 	SPL_AC_ZONE_STAT_ITEM_ACTIVE
 	SPL_AC_GET_ZONE_COUNTS
+	SPL_AC_SET_FS_PWD
+	SPL_AC_2ARGS_SET_FS_PWD
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_CRED_STRUCT
@@ -1200,6 +1202,37 @@ AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 			[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
 			[get_zone_counts() is available])],
 			[])
+	])
+])
+
+dnl #
+dnl # Symbol available in RHEL kernels not in stock kernels.
+dnl #
+AC_DEFUN([SPL_AC_SET_FS_PWD], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[set_fs_pwd],
+		[],
+		[AC_DEFINE(HAVE_SET_FS_PWD, 1,
+		[set_fs_pwd() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.25 API change,
+dnl # Simplied API by replacing mnt+dentry args with a single path arg.
+dnl #
+AC_DEFUN([SPL_AC_2ARGS_SET_FS_PWD],
+	[AC_MSG_CHECKING([whether set_fs_pwd() wants 2 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+	],[
+		set_fs_pwd(NULL, NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_2ARGS_SET_FS_PWD, 1,
+		          [set_fs_pwd() wants 2 args])
+	],[
+		AC_MSG_RESULT(no)
 	])
 ])
 

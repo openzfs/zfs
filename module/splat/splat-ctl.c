@@ -608,7 +608,7 @@ static struct cdev splat_cdev = {
 	.kobj   =	{ .name = SPLAT_NAME, },
 };
 
-static int __init
+static int
 splat_init(void)
 {
 	dev_t dev;
@@ -667,7 +667,7 @@ error:
 	return rc;
 }
 
-static void
+static int
 splat_fini(void)
 {
 	dev_t dev = MKDEV(SPLAT_MAJOR, 0);
@@ -695,10 +695,12 @@ splat_fini(void)
 	ASSERT(list_empty(&splat_module_list));
 	printk(KERN_INFO "SPLAT: Unloaded Solaris Porting LAyer "
 	       "Tests v%s\n", SPL_META_VERSION);
+
+	return 0;
 }
 
-module_init(splat_init);
-module_exit(splat_fini);
+spl_module_init(splat_init);
+spl_module_exit(splat_fini);
 
 MODULE_AUTHOR("Lawrence Livermore National Labs");
 MODULE_DESCRIPTION("Solaris Porting LAyer Tests");
