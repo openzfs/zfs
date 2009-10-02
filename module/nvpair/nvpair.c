@@ -3246,18 +3246,11 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-static int __init nvpair_init(void)
-{
-	        return 0;
-}
+static int nvpair_init(void) { return 0; }
+static int nvpair_fini(void) { return 0; }
 
-static void nvpair_fini(void)
-{
-	        return;
-}
-
-module_init(nvpair_init);
-module_exit(nvpair_fini);
+spl_module_init(nvpair_init);
+spl_module_exit(nvpair_fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Generic name/value pair implementation");
