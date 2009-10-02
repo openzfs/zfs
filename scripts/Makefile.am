@@ -6,15 +6,23 @@ nobase_pkglibexec_SCRIPTS += zpool-config/*
 EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 
 ZFS=${top_srcdir}/scripts/zfs.sh
+ZCONFIG=${top_srcdir}/scripts/zconfig.sh
 ZTEST=${top_builddir}/cmd/ztest/ztest
 
 check:
-	@$(ZFS) -v
 	@echo
 	@echo -n "===================================="
 	@echo -n " ZTEST "
 	@echo    "===================================="
 	@echo
+	@$(ZFS)
 	@$(ZTEST) -V
+	@$(ZFS) -u
 	@echo
-	@$(ZFS) -vu
+	@echo
+	@echo -n "===================================="
+	@echo -n " ZCONFIG "
+	@echo    "===================================="
+	@echo
+	@$(ZCONFIG)
+	@echo
