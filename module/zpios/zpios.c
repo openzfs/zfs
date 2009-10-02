@@ -1241,7 +1241,7 @@ static struct cdev zpios_cdev = {
 	.kobj   =       { .name = ZPIOS_NAME, },
 };
 
-static int __init
+static int
 zpios_init(void)
 {
 	dev_t dev;
@@ -1278,7 +1278,7 @@ error:
 	return rc;
 }
 
-static void
+static int
 zpios_fini(void)
 {
 	dev_t dev = MKDEV(ZPIOS_MAJOR, 0);
@@ -1288,11 +1288,11 @@ zpios_fini(void)
 	cdev_del(&zpios_cdev);
 	unregister_chrdev_region(dev, ZPIOS_MINORS);
 
-	return;
+	return 0;
 }
 
-module_init(zpios_init);
-module_exit(zpios_fini);
+spl_module_init(zpios_init);
+spl_module_exit(zpios_fini);
 
 MODULE_AUTHOR("LLNL / Sun");
 MODULE_DESCRIPTION("Kernel PIOS implementation");
