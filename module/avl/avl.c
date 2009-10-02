@@ -1033,18 +1033,11 @@ done:
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-static int __init avl_init(void)
-{
-	return 0;
-}
+static int avl_init(void) { return 0; }
+static int avl_fini(void) { return 0; }
 
-static void avl_fini(void)
-{
-        return;
-}
-
-module_init(avl_init);
-module_exit(avl_fini);
+spl_module_init(avl_init);
+spl_module_exit(avl_fini);
 
 MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Generic AVL tree implementation");
