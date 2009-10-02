@@ -534,6 +534,16 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+static int zcommon_init(void) { return 0; }
+static int zcommon_fini(void) { return 0; }
+
+spl_module_init(zcommon_init);
+spl_module_exit(zcommon_fini);
+
+MODULE_AUTHOR("Sun Microsystems, Inc");
+MODULE_DESCRIPTION("Generic ZFS support");
+MODULE_LICENSE("CDDL");
+
 /* zfs dataset property functions */
 EXPORT_SYMBOL(zfs_userquota_prop_prefixes);
 EXPORT_SYMBOL(zfs_prop_init);
@@ -554,22 +564,5 @@ EXPORT_SYMBOL(zfs_prop_userquota);
 EXPORT_SYMBOL(zfs_prop_index_to_string);
 EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
-
-static int __init zcommon_init(void)
-{
-	return 0;
-}
-
-static void zcommon_fini(void)
-{
-	return;
-}
-
-module_init(zcommon_init);
-module_exit(zcommon_fini);
-
-MODULE_AUTHOR("Sun Microsystems, Inc");
-MODULE_DESCRIPTION("Generic ZFS support");
-MODULE_LICENSE("CDDL");
 
 #endif
