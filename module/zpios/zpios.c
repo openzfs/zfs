@@ -1223,6 +1223,7 @@ static loff_t zpios_seek(struct file *file, loff_t offset, int origin)
 	return rc;
 }
 
+static struct cdev zpios_cdev;
 static struct file_operations zpios_fops = {
 	.owner		= THIS_MODULE,
 	.open		= zpios_open,
@@ -1234,11 +1235,6 @@ static struct file_operations zpios_fops = {
 	.read		= zpios_read,
 	.write		= zpios_write,
 	.llseek		= zpios_seek,
-};
-
-static struct cdev zpios_cdev = {
-	.owner  =       THIS_MODULE,
-	.kobj   =       { .name = ZPIOS_NAME, },
 };
 
 static int
@@ -1253,6 +1249,8 @@ zpios_init(void)
 
 	/* Support for registering a character driver */
 	cdev_init(&zpios_cdev, &zpios_fops);
+	zpios_cdev.owner = THIS_MODULE;
+	kobject_set_name(&zpios_cdev.kobj, ZPIOS_NAME);
 	if ((rc = cdev_add(&zpios_cdev, dev, ZPIOS_MINORS))) {
 		printk(KERN_ERR "ZPIOS: Error adding cdev, %d\n", rc);
 		kobject_put(&zpios_cdev.kobj);
