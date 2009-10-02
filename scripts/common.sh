@@ -53,6 +53,15 @@ msg() {
 	fi
 }
 
+pass() {
+	echo "PASS"
+}
+
+fail() {
+	echo "FAIL ($1)"
+	exit $1
+}
+
 spl_dump_log() {
         ${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
 	local NAME=`dmesg | tail -n 1 | cut -f5 -d' '`
@@ -109,6 +118,7 @@ load_module() {
 }
 
 load_modules() {
+	mkdir -p /etc/zfs
 
 	for MOD in ${MODULES[*]}; do
 		local NAME=`basename ${MOD} .ko`
