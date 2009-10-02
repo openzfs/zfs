@@ -590,6 +590,7 @@ static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 	return rc;
 }
 
+static struct cdev splat_cdev;
 static struct file_operations splat_fops = {
 	.owner		= THIS_MODULE,
 	.open		= splat_open,
@@ -601,11 +602,6 @@ static struct file_operations splat_fops = {
 	.read		= splat_read,
 	.write		= splat_write,
 	.llseek		= splat_seek,
-};
-
-static struct cdev splat_cdev = {
-	.owner  =	THIS_MODULE,
-	.kobj   =	{ .name = SPLAT_NAME, },
 };
 
 static int
@@ -638,6 +634,8 @@ splat_init(void)
 
 	/* Support for registering a character driver */
 	cdev_init(&splat_cdev, &splat_fops);
+	splat_cdev.owner = THIS_MODULE;
+	kobject_set_name(&splat_cdev.kobj, SPLAT_NAME);
 	if ((rc = cdev_add(&splat_cdev, dev, SPLAT_MINORS))) {
 		printk(KERN_ERR "SPLAT: Error adding cdev, %d\n", rc);
 		kobject_put(&splat_cdev.kobj);
