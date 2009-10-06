@@ -62,7 +62,7 @@ static uint64_t spa_config_generation = 1;
  * This can be overridden in userland to preserve an alternate namespace for
  * userland pools when doing testing.
  */
-const char *spa_config_path = ZPOOL_CACHE;
+char *spa_config_path = ZPOOL_CACHE;
 
 /*
  * Called when the module is first loaded, this routine loads the configuration
@@ -450,4 +450,7 @@ EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
+
+module_param(spa_config_path, charp, 0444);
+MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
 #endif
