@@ -181,7 +181,7 @@ struct spa {
 	refcount_t	spa_refcount;		/* number of opens */
 };
 
-extern const char *spa_config_path;
+extern char *spa_config_path;
 
 #define	BOOTFS_COMPRESS_VALID(compress) \
 	((compress) == ZIO_COMPRESS_LZJB || \
