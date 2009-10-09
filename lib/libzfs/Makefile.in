@@ -51,7 +51,6 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
-	$(top_srcdir)/config/user-libefi.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
@@ -234,7 +233,8 @@ DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libzfs/include \
 	-I${top_srcdir}/lib/libspl/include \
 	-I${top_srcdir}/lib/libnvpair/include \
 	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/module/zfs -I${top_srcdir}/module/zfs/include \
+	-I${top_srcdir}/lib/libefi/include -I${top_srcdir}/module/zfs \
+	-I${top_srcdir}/module/zfs/include \
 	-I${top_srcdir}/module/zcommon/include \
 	-I${top_srcdir}/module/nvpair/include \
 	-I${top_srcdir}/module/avl/include \

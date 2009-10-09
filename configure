@@ -19559,80 +19559,6 @@ echo $ECHO_N "checking for target asm dir... $ECHO_C" >&6
 echo "${ECHO_T}$TARGET_ASM_DIR" >&6
 
 
-	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
-echo $ECHO_N "checking for efi_alloc_and_init in -lefi... $ECHO_C" >&6
-if test "${ac_cv_lib_efi_efi_alloc_and_init+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lefi  $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-/* Override any gcc2 internal prototype to avoid an error.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-/* We use char because int might match the return type of a gcc2
-   builtin and then its argument prototype would still apply.  */
-char efi_alloc_and_init ();
-int
-main ()
-{
-efi_alloc_and_init ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
-  (eval $ac_link) 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"
-			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest$ac_exeext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_efi_efi_alloc_and_init=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-ac_cv_lib_efi_efi_alloc_and_init=no
-fi
-rm -f conftest.err conftest.$ac_objext \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-echo "$as_me:$LINENO: result: $ac_cv_lib_efi_efi_alloc_and_init" >&5
-echo "${ECHO_T}$ac_cv_lib_efi_efi_alloc_and_init" >&6
-if test $ac_cv_lib_efi_efi_alloc_and_init = yes; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_LIBEFI 1
-_ACEOF
-
-fi
-
-
-
 	echo "$as_me:$LINENO: checking for libdiskmgt_error in -ldiskmgt" >&5
 echo $ECHO_N "checking for libdiskmgt_error in -ldiskmgt... $ECHO_C" >&6
 if test "${ac_cv_lib_diskmgt_libdiskmgt_error+set}" = set; then
@@ -20752,80 +20678,6 @@ echo $ECHO_N "checking for target asm dir... $ECHO_C" >&6
 echo "${ECHO_T}$TARGET_ASM_DIR" >&6
 
 
-	echo "$as_me:$LINENO: checking for efi_alloc_and_init in -lefi" >&5
-echo $ECHO_N "checking for efi_alloc_and_init in -lefi... $ECHO_C" >&6
-if test "${ac_cv_lib_efi_efi_alloc_and_init+set}" = set; then
-  echo $ECHO_N "(cached) $ECHO_C" >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lefi  $LIBS"
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-
-/* Override any gcc2 internal prototype to avoid an error.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-/* We use char because int might match the return type of a gcc2
-   builtin and then its argument prototype would still apply.  */
-char efi_alloc_and_init ();
-int
-main ()
-{
-efi_alloc_and_init ();
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext conftest$ac_exeext
-if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
-  (eval $ac_link) 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } &&
-	 { ac_try='test -z "$ac_c_werror_flag"
-			 || test ! -s conftest.err'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; } &&
-	 { ac_try='test -s conftest$ac_exeext'
-  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); }; }; then
-  ac_cv_lib_efi_efi_alloc_and_init=yes
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-ac_cv_lib_efi_efi_alloc_and_init=no
-fi
-rm -f conftest.err conftest.$ac_objext \
-      conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-echo "$as_me:$LINENO: result: $ac_cv_lib_efi_efi_alloc_and_init" >&5
-echo "${ECHO_T}$ac_cv_lib_efi_efi_alloc_and_init" >&6
-if test $ac_cv_lib_efi_efi_alloc_and_init = yes; then
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_LIBEFI 1
-_ACEOF
-
-fi
-
-
-
 	echo "$as_me:$LINENO: checking for libdiskmgt_error in -ldiskmgt" >&5
 echo $ECHO_N "checking for libdiskmgt_error in -ldiskmgt... $ECHO_C" >&6
 if test "${ac_cv_lib_diskmgt_libdiskmgt_error+set}" = set; then
@@ -21509,7 +21361,7 @@ _ACEOF
         fi
 
 
-                                                                                                                                                                                                                                                                                                                                          ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
+                                                                                                                                                                                                                                                                                                                                                    ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -22099,6 +21951,7 @@ do
   "lib/libspl/asm-x86_64/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-x86_64/Makefile" ;;
   "lib/libspl/include/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libspl/include/Makefile" ;;
   "lib/libavl/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
+  "lib/libefi/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libefi/Makefile" ;;
   "lib/libnvpair/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
   "lib/libunicode/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libunicode/Makefile" ;;
   "lib/libuutil/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/libuutil/Makefile" ;;
