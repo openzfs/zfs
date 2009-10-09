@@ -108,6 +108,12 @@ mkdir -p ${DST_LIB}/libuutil/include/
 cp ${SRC_LIB}/libuutil/common/*.c		${DST_LIB}/libuutil/
 cp ${SRC_LIB}/libuutil/common/*.h		${DST_LIB}/libuutil/include/
 
+echo "* lib/libefi"
+mkdir -p ${DST_LIB}/libefi/include/sys/
+cp ${SRC_LIB}/libefi/common/rdwr_efi.c		${DST_LIB}/libefi/
+cp ${SRC_UCM}/sys/efi_partition.h		${DST_LIB}/libefi/include/sys/
+cp ${SRC_UCM}/sys/uuid.h			${DST_LIB}/libefi/include/sys/
+
 echo "* lib/libzpool"
 mkdir -p ${DST_LIB}/libzpool/include/sys/
 cp ${SRC_LIB}/libzpool/common/kernel.c		${DST_LIB}/libzpool/
