@@ -55,6 +55,7 @@ AC_CONFIG_FILES([
 	doc/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
+	lib/libefi/Makefile
 	lib/libnvpair/Makefile
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
