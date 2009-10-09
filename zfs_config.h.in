@@ -33,9 +33,6 @@
 /* Define to 1 if 'libdiskmgt' library available */
 #undef HAVE_LIBDISKMGT
 
-/* Define to 1 if 'libefi' library available */
-#undef HAVE_LIBEFI
-
 /* Define to 1 if 'libshare' library available */
 #undef HAVE_LIBSHARE
 

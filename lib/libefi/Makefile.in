@@ -39,7 +39,7 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/config/Rules.am
-subdir = lib/libnvpair
+subdir = lib/libefi
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-bio-empty-barrier.m4 \
@@ -69,10 +69,9 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libnvpair_la_LIBADD =
-am_libnvpair_la_OBJECTS = libnvpair.lo nvpair_alloc_system.lo \
-	nvpair.lo
-libnvpair_la_OBJECTS = $(am_libnvpair_la_OBJECTS)
+libefi_la_LIBADD =
+am_libefi_la_OBJECTS = rdwr_efi.lo
+libefi_la_OBJECTS = $(am_libefi_la_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -83,8 +82,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libnvpair_la_SOURCES)
-DIST_SOURCES = $(libnvpair_la_SOURCES)
+SOURCES = $(libefi_la_SOURCES)
+DIST_SOURCES = $(libefi_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -226,9 +225,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-DEFAULT_INCLUDES = -I${top_srcdir} \
-	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/lib/libnvpair/include \
+DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libefi/include \
 	-I${top_srcdir}/lib/libspl/include
 
 # FIXME: Add -Wshadow once everything is working
@@ -238,14 +235,11 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
-lib_LTLIBRARIES = libnvpair.la
-libnvpair_la_SOURCES = \
-	${top_srcdir}/lib/libnvpair/libnvpair.c \
-	${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c \
-	${top_srcdir}/lib/libnvpair/include/libnvpair.h \
-	${top_srcdir}/module/nvpair/nvpair.c \
-	${top_srcdir}/module/nvpair/include/sys/nvpair.h \
-	${top_srcdir}/module/nvpair/include/sys/nvpair_impl.h
+lib_LTLIBRARIES = libefi.la
+libefi_la_SOURCES = \
+	${top_srcdir}/lib/libefi/rdwr_efi.c \
+	${top_srcdir}/lib/libefi/include/sys/efi_partition.h \
+	${top_srcdir}/lib/libefi/include/sys/uuid.h
 
 all: all-am
 
@@ -260,9 +254,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/libnvpair/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  lib/libefi/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  lib/libnvpair/Makefile
+	  $(AUTOMAKE) --gnu  lib/libefi/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -307,8 +301,8 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libnvpair.la: $(libnvpair_la_OBJECTS) $(libnvpair_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libnvpair_la_LDFLAGS) $(libnvpair_la_OBJECTS) $(libnvpair_la_LIBADD) $(LIBS)
+libefi.la: $(libefi_la_OBJECTS) $(libefi_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libefi_la_LDFLAGS) $(libefi_la_OBJECTS) $(libefi_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -316,9 +310,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libnvpair.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair_alloc_system.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdwr_efi.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -341,26 +333,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-libnvpair.lo: ${top_srcdir}/lib/libnvpair/libnvpair.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libnvpair.lo -MD -MP -MF "$(DEPDIR)/libnvpair.Tpo" -c -o libnvpair.lo `test -f '${top_srcdir}/lib/libnvpair/libnvpair.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/libnvpair.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libnvpair.Tpo" "$(DEPDIR)/libnvpair.Plo"; else rm -f "$(DEPDIR)/libnvpair.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libnvpair/libnvpair.c' object='libnvpair.lo' libtool=yes @AMDEPBACKSLASH@
+rdwr_efi.lo: ${top_srcdir}/lib/libefi/rdwr_efi.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT rdwr_efi.lo -MD -MP -MF "$(DEPDIR)/rdwr_efi.Tpo" -c -o rdwr_efi.lo `test -f '${top_srcdir}/lib/libefi/rdwr_efi.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libefi/rdwr_efi.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rdwr_efi.Tpo" "$(DEPDIR)/rdwr_efi.Plo"; else rm -f "$(DEPDIR)/rdwr_efi.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libefi/rdwr_efi.c' object='rdwr_efi.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libnvpair.lo `test -f '${top_srcdir}/lib/libnvpair/libnvpair.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/libnvpair.c
-
-nvpair_alloc_system.lo: ${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nvpair_alloc_system.lo -MD -MP -MF "$(DEPDIR)/nvpair_alloc_system.Tpo" -c -o nvpair_alloc_system.lo `test -f '${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/nvpair_alloc_system.Tpo" "$(DEPDIR)/nvpair_alloc_system.Plo"; else rm -f "$(DEPDIR)/nvpair_alloc_system.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' object='nvpair_alloc_system.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair_alloc_system.lo `test -f '${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
-
-nvpair.lo: ${top_srcdir}/module/nvpair/nvpair.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nvpair.lo -MD -MP -MF "$(DEPDIR)/nvpair.Tpo" -c -o nvpair.lo `test -f '${top_srcdir}/module/nvpair/nvpair.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/nvpair.Tpo" "$(DEPDIR)/nvpair.Plo"; else rm -f "$(DEPDIR)/nvpair.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/nvpair/nvpair.c' object='nvpair.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair.lo `test -f '${top_srcdir}/module/nvpair/nvpair.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o rdwr_efi.lo `test -f '${top_srcdir}/lib/libefi/rdwr_efi.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libefi/rdwr_efi.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

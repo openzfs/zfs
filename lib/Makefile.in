@@ -49,7 +49,6 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
-	$(top_srcdir)/config/user-libefi.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
@@ -209,7 +208,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-SUBDIRS = libspl libavl libnvpair libunicode libuutil libzfs libzpool
+SUBDIRS = libspl libavl libefi libnvpair libunicode libuutil libzfs libzpool
 all: all-recursive
 
 .SUFFIXES:
