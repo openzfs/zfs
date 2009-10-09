@@ -47,11 +47,8 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
-#include "zfs_config.h"
 
-#ifdef HAVE_LIBEFI
 static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
-#endif
 
 #if defined(__i386) || defined(__amd64)
 #define	BOOTCMD	"installgrub(1M)"
@@ -346,7 +343,6 @@ bootfs_name_valid(const char *pool, char *bootfs)
 static boolean_t
 pool_uses_efi(nvlist_t *config)
 {
-#ifdef HAVE_LIBEFI
 	nvlist_t **child;
 	uint_t c, children;
 
@@ -358,7 +354,6 @@ pool_uses_efi(nvlist_t *config)
 		if (pool_uses_efi(child[c]))
 			return (B_TRUE);
 	}
-#endif
 	return (B_FALSE);
 }
 
@@ -1767,9 +1762,8 @@ is_guid_type(zpool_handle_t *zhp, uint64_t guid, const char *type)
 static int
 zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 {
-	char errbuf[1024];
-#ifdef HAVE_LIBEFI
 	char path[MAXPATHLEN];
+	char errbuf[1024];
 	int fd, error;
 	int (*_efi_use_whole_disk)(int);
 
@@ -1798,11 +1792,6 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 	return (0);
-#else
-	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-	    "relabel '%s/%s': libefi is unsupported"), DISK_ROOT, name);
-	return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
-#endif /* HAVE_LIBEFI */
 }
 
 /*
@@ -3046,7 +3035,6 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	free(mntpnt);
 }
 
-#ifdef HAVE_LIBEFI
 /*
  * Read the EFI label from the config, if a label does not exist then
  * pass back the error to the caller. If the caller has passed a non-NULL
@@ -3335,4 +3323,3 @@ out:
 	libzfs_fini(hdl);
 	return (ret);
 }
-#endif /* HAVE_LIBEFI */
