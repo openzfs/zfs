@@ -1,7 +1,6 @@
 linux-docs
 linux-have-fm
 linux-have-libdiskmgt
-linux-have-libefi
 linux-have-mntent
 linux-have-spl-debug
 linux-have-sysevent
