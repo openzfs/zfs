@@ -6,6 +6,7 @@ DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libspl/include \
         -I${top_srcdir}/lib/libnvpair/include \
 	-I${top_srcdir}/lib/libuutil/include \
+	-I${top_srcdir}/lib/libefi/include \
 	-I${top_srcdir}/module/zfs \
 	-I${top_srcdir}/module/zfs/include \
         -I${top_srcdir}/module/zcommon/include \
