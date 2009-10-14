@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -19,8 +18,9 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 1997-1998,2002 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -31,8 +31,6 @@
 
 #ifndef _SYS_VTOC_H
 #define	_SYS_VTOC_H
-
-
 
 #include <sys/dklabel.h>
 
@@ -64,6 +62,7 @@ extern "C" {
 
 #define	VTOC_SANE	0x600DDEEE	/* Indicates a sane VTOC */
 #define	V_VERSION	0x01		/* layout version number */
+#define	V_EXTVERSION	V_VERSION	/* extvtoc layout version number */
 
 /*
  * Partition identification tags
@@ -94,10 +93,12 @@ extern "C" {
 #define	VT_EIO		(-3)		/* I/O error accessing vtoc */
 #define	VT_EINVAL	(-4)		/* illegal value in vtoc or request */
 #define	VT_ENOTSUP	(-5)		/* VTOC op. not supported */
+#define	VT_ENOSPC	(-6)		/* requested space not found */
+#define	VT_EOVERFLOW	(-7)		/* VTOC op. data struct limited */
 
 struct partition	{
 	ushort_t p_tag;			/* ID tag of partition */
-	ushort_t p_flag;			/* permision flags */
+	ushort_t p_flag;		/* permission flags */
 	daddr_t	p_start;		/* start sector no of partition */
 	long	p_size;			/* # of blocks in partition */
 };
@@ -115,10 +116,83 @@ struct vtoc {
 	char	v_asciilabel[LEN_DKL_ASCII];	/* for compatibility */
 };
 
+struct extpartition {
+	ushort_t p_tag;			/* ID tag of partition */
+	ushort_t p_flag;		/* permission flags */
+	ushort_t p_pad[2];
+	diskaddr_t p_start;		/* start sector no of partition */
+	diskaddr_t p_size;			/* # of blocks in partition */
+};
+
+
+struct extvtoc {
+	uint64_t	v_bootinfo[3];	/* info needed by mboot (unsupported) */
+	uint64_t	v_sanity;	/* to verify vtoc sanity */
+	uint64_t	v_version;	/* layout version */
+	char	v_volume[LEN_DKL_VVOL];	/* volume name */
+	ushort_t	v_sectorsz;	/* sector size in bytes */
+	ushort_t	v_nparts;	/* number of partitions */
+	ushort_t	pad[2];
+	uint64_t	v_reserved[10];
+	struct extpartition v_part[V_NUMPAR]; /* partition headers */
+	uint64_t timestamp[V_NUMPAR];	/* partition timestamp (unsupported) */
+	char	v_asciilabel[LEN_DKL_ASCII];	/* for compatibility */
+};
+
+#ifdef _KERNEL
+#define	extvtoctovtoc(extv, v)						\
+	{								\
+	int i;								\
+	v.v_bootinfo[0]		= (unsigned long)extv.v_bootinfo[0];	\
+	v.v_bootinfo[1]		= (unsigned long)extv.v_bootinfo[1];	\
+	v.v_bootinfo[2]		= (unsigned long)extv.v_bootinfo[2];	\
+	v.v_sanity		= (unsigned long)extv.v_sanity;		\
+	v.v_version		= (unsigned long)extv.v_version;	\
+	bcopy(extv.v_volume, v.v_volume, LEN_DKL_VVOL);			\
+	v.v_sectorsz		= extv.v_sectorsz;			\
+	v.v_nparts		= extv.v_nparts;			\
+	for (i = 0; i < 10; i++)					\
+		v.v_reserved[i] = (unsigned long)extv.v_reserved[i];	\
+	for (i = 0; i < V_NUMPAR; i++) {				\
+		v.v_part[i].p_tag = extv.v_part[i].p_tag;		\
+		v.v_part[i].p_flag = extv.v_part[i].p_flag;		\
+		v.v_part[i].p_start = (daddr_t)extv.v_part[i].p_start;	\
+		v.v_part[i].p_size = (long)extv.v_part[i].p_size;	\
+		v.timestamp[i] = (time_t)extv.timestamp[i];		\
+	}								\
+	bcopy(extv.v_asciilabel, v.v_asciilabel, LEN_DKL_ASCII);	\
+	}
+
+#define	vtoctoextvtoc(v, extv)						\
+	{								\
+	int i;								\
+	extv.v_bootinfo[0]	= (uint64_t)v.v_bootinfo[0];		\
+	extv.v_bootinfo[1]	= (uint64_t)v.v_bootinfo[1];		\
+	extv.v_bootinfo[2]	= (uint64_t)v.v_bootinfo[2];		\
+	extv.v_sanity		= (uint64_t)v.v_sanity;			\
+	extv.v_version		= (uint64_t)v.v_version;		\
+	bcopy(v.v_volume, extv.v_volume, LEN_DKL_VVOL);			\
+	extv.v_sectorsz		= v.v_sectorsz;				\
+	extv.v_nparts		= v.v_nparts;				\
+	for (i = 0; i < 10; i++)					\
+		extv.v_reserved[i] = (uint64_t)v.v_reserved[i];		\
+	for (i = 0; i < V_NUMPAR; i++) {				\
+		extv.v_part[i].p_tag = v.v_part[i].p_tag;		\
+		extv.v_part[i].p_flag = v.v_part[i].p_flag;		\
+		extv.v_part[i].p_start =				\
+		    (diskaddr_t)(unsigned long)v.v_part[i].p_start;	\
+		extv.v_part[i].p_size =					\
+		    (diskaddr_t)(unsigned long)v.v_part[i].p_size;	\
+		extv.timestamp[i] = (uint64_t)v.timestamp[i];		\
+	}								\
+	bcopy(v.v_asciilabel, extv.v_asciilabel, LEN_DKL_ASCII);	\
+	}
+#endif /* _KERNEL */
+
 #if defined(_SYSCALL32)
 struct partition32	{
 	uint16_t	p_tag;		/* ID tag of partition */
-	uint16_t	p_flag;		/* permision flags */
+	uint16_t	p_flag;		/* permission flags */
 	daddr32_t	p_start;	/* start sector no of partition */
 	int32_t		p_size;		/* # of blocks in partition */
 };
@@ -153,13 +227,38 @@ struct vtoc32 {
 	for (i = 0; i < V_NUMPAR; i++) {		\
 		v.v_part[i].p_tag = (ushort_t)v32.v_part[i].p_tag;	\
 		v.v_part[i].p_flag = (ushort_t)v32.v_part[i].p_flag;	\
-		v.v_part[i].p_start = (daddr_t)v32.v_part[i].p_start;	\
-		v.v_part[i].p_size = (long)v32.v_part[i].p_size;	\
+		v.v_part[i].p_start = (unsigned)v32.v_part[i].p_start;	\
+		v.v_part[i].p_size = (unsigned)v32.v_part[i].p_size;	\
 	}						\
 	for (i = 0; i < V_NUMPAR; i++)			\
 		v.timestamp[i] = (time_t)v32.timestamp[i];		\
 	bcopy(v32.v_asciilabel, v.v_asciilabel, LEN_DKL_ASCII);		\
 	}
+
+#define	vtoc32toextvtoc(v32, extv)					\
+	{								\
+	int i;								\
+	extv.v_bootinfo[0]		= v32.v_bootinfo[0];		\
+	extv.v_bootinfo[1]		= v32.v_bootinfo[1];		\
+	extv.v_bootinfo[2]		= v32.v_bootinfo[2];		\
+	extv.v_sanity		= v32.v_sanity;				\
+	extv.v_version		= v32.v_version;			\
+	bcopy(v32.v_volume, extv.v_volume, LEN_DKL_VVOL);		\
+	extv.v_sectorsz		= v32.v_sectorsz;			\
+	extv.v_nparts		= v32.v_nparts;				\
+	extv.v_version		= v32.v_version;			\
+	for (i = 0; i < 10; i++)					\
+		extv.v_reserved[i] = v32.v_reserved[i];			\
+	for (i = 0; i < V_NUMPAR; i++) {				\
+		extv.v_part[i].p_tag = (ushort_t)v32.v_part[i].p_tag;	\
+		extv.v_part[i].p_flag = (ushort_t)v32.v_part[i].p_flag;	\
+		extv.v_part[i].p_start = (diskaddr_t)v32.v_part[i].p_start; \
+		extv.v_part[i].p_size = (diskaddr_t)v32.v_part[i].p_size; \
+		extv.timestamp[i] = (time_t)v32.timestamp[i];		\
+	}								\
+	bcopy(v32.v_asciilabel, extv.v_asciilabel, LEN_DKL_ASCII);	\
+	}
+
 
 #define	vtoctovtoc32(v, v32)				\
 	{						\
@@ -178,8 +277,8 @@ struct vtoc32 {
 	for (i = 0; i < V_NUMPAR; i++) {		\
 		v32.v_part[i].p_tag = (ushort_t)v.v_part[i].p_tag;	\
 		v32.v_part[i].p_flag = (ushort_t)v.v_part[i].p_flag;	\
-		v32.v_part[i].p_start = (daddr32_t)v.v_part[i].p_start;	\
-		v32.v_part[i].p_size = (int32_t)v.v_part[i].p_size;	\
+		v32.v_part[i].p_start = (unsigned)v.v_part[i].p_start;	\
+		v32.v_part[i].p_size = (unsigned)v.v_part[i].p_size;	\
 	}						\
 	for (i = 0; i < V_NUMPAR; i++) {		\
 		if (v.timestamp[i] > TIME32_MAX)	\
@@ -189,6 +288,36 @@ struct vtoc32 {
 	}						\
 	bcopy(v.v_asciilabel, v32.v_asciilabel, LEN_DKL_ASCII);		\
 	}
+
+#define	extvtoctovtoc32(extv, v32)				\
+	{						\
+	int i;						\
+	v32.v_bootinfo[0]	= extv.v_bootinfo[0];	\
+	v32.v_bootinfo[1]	= extv.v_bootinfo[1];	\
+	v32.v_bootinfo[2]	= extv.v_bootinfo[2];	\
+	v32.v_sanity		= extv.v_sanity;		\
+	v32.v_version		= extv.v_version;		\
+	bcopy(extv.v_volume, v32.v_volume, LEN_DKL_VVOL);	\
+	v32.v_sectorsz		= extv.v_sectorsz;		\
+	v32.v_nparts		= extv.v_nparts;		\
+	v32.v_version		= extv.v_version;		\
+	for (i = 0; i < 10; i++)			\
+		v32.v_reserved[i] = extv.v_reserved[i];	\
+	for (i = 0; i < V_NUMPAR; i++) {		\
+		v32.v_part[i].p_tag = (ushort_t)extv.v_part[i].p_tag;	\
+		v32.v_part[i].p_flag = (ushort_t)extv.v_part[i].p_flag;	\
+		v32.v_part[i].p_start = (unsigned)extv.v_part[i].p_start; \
+		v32.v_part[i].p_size = (unsigned)extv.v_part[i].p_size;	\
+	}						\
+	for (i = 0; i < V_NUMPAR; i++) {		\
+		if (extv.timestamp[i] > TIME32_MAX)	\
+			v32.timestamp[i] = TIME32_MAX;	\
+		else 					\
+			v32.timestamp[i] = (time32_t)extv.timestamp[i];	\
+	}						\
+	bcopy(extv.v_asciilabel, v32.v_asciilabel, LEN_DKL_ASCII);	\
+	}
+
 
 #endif /* _SYSCALL32 */
 
@@ -202,11 +331,15 @@ struct vtoc32 {
 
 extern	int	read_vtoc(int, struct vtoc *);
 extern	int	write_vtoc(int, struct vtoc *);
+extern	int	read_extvtoc(int, struct extvtoc *);
+extern	int	write_extvtoc(int, struct extvtoc *);
 
 #else
 
 extern	int	read_vtoc();
 extern	int	write_vtoc();
+extern	int	read_extvtoc();
+extern	int	write_extvtoc();
 
 #endif 	/* __STDC__ */
 
