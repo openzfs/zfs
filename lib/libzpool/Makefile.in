@@ -50,8 +50,10 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
+	$(top_srcdir)/config/user-libblkid.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
+	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -151,10 +153,12 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 KERNELCPPFLAGS = @KERNELCPPFLAGS@
 KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LDFLAGS = @LDFLAGS@
+LIBBLKID = @LIBBLKID@
 LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LIBUUID = @LIBUUID@
 LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
@@ -198,6 +202,7 @@ ZFS_META_LT_REVISION = @ZFS_META_LT_REVISION@
 ZFS_META_NAME = @ZFS_META_NAME@
 ZFS_META_RELEASE = @ZFS_META_RELEASE@
 ZFS_META_VERSION = @ZFS_META_VERSION@
+ZLIB = @ZLIB@
 ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
