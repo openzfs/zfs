@@ -406,17 +406,23 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 	if (arg[0] == '/') {
 		/*
 		 * Complete device or file path.  Exact type is determined by
-		 * examining the file descriptor afterwards.
+		 * examining the file descriptor afterwards.  Symbolic links
+		 * are resolved to their real paths for the is_whole_disk()
+		 * and S_ISBLK/S_ISREG type checks.
 		 */
-		wholedisk = is_whole_disk(arg);
-		if (!wholedisk && (stat64(arg, &statbuf) != 0)) {
+		if (realpath(arg, path) == NULL) {
 			(void) fprintf(stderr,
-			    gettext("cannot open '%s': %s\n"),
-			    arg, strerror(errno));
+			    gettext("cannot resolve path '%s'\n"), arg);
 			return (NULL);
 		}
 
-		(void) strlcpy(path, arg, sizeof (path));
+		wholedisk = is_whole_disk(path);
+		if (!wholedisk && (stat64(path, &statbuf) != 0)) {
+			(void) fprintf(stderr,
+			    gettext("cannot open '%s': %s\n"),
+			    path, strerror(errno));
+			return (NULL);
+		}
 	} else {
 		/*
 		 * This may be a short path for a device, or it could be total
@@ -894,8 +900,10 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	uint64_t wholedisk;
 	int fd;
 	int ret;
+#if defined(__sun__) || defined(__sun)
 	ddi_devid_t devid;
 	char *minor = NULL, *devid_str = NULL;
+#endif
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -924,7 +932,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		/*
 		 * Fill in the devid, now that we've labeled the disk.
 		 */
-		(void) snprintf(buf, sizeof (buf), "%ss0", path);
+		(void) snprintf(buf, sizeof (buf), "%s%s", path, FIRST_SLICE);
 		if ((fd = open(buf, O_RDONLY)) < 0) {
 			(void) fprintf(stderr,
 			    gettext("cannot open '%s': %s\n"),
@@ -932,6 +940,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			return (-1);
 		}
 
+#if defined(__sun__) || defined(__sun)
 		if (devid_get(fd, &devid) == 0) {
 			if (devid_get_minor_name(fd, &minor) == 0 &&
 			    (devid_str = devid_str_encode(devid, minor)) !=
@@ -945,6 +954,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 				devid_str_free(minor);
 			devid_free(devid);
 		}
+#endif
 
 		/*
 		 * Update the path to refer to the 's0' slice.  The presence of
