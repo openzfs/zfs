@@ -76,6 +76,19 @@ vdev_bdev_mode(int smode)
 }
 #endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
 
+static uint64_t
+bdev_capacity(struct block_device *bdev)
+{
+	struct hd_struct *part = bdev->bd_part;
+
+	/* The partition capacity referenced by the block device */
+	if (part)
+	       return part->nr_sects;
+
+	/* Otherwise assume the full device capacity */
+	return get_capacity(bdev->bd_disk);
+}
+
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 {
@@ -122,15 +135,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
 
-	/* Determine the actual size of the device (in bytes)
-	 *
-	 * XXX: SECTOR_SIZE is defined to 512b which may not be true for
-	 * your device, we must use the actual hardware sector size.
-	 */
-	*psize = get_capacity(bdev->bd_disk) * SECTOR_SIZE;
+	/* Physical volume size in bytes */
+	*psize = bdev_capacity(bdev) * bdev_hardsect_size(bdev);
 
 	/* Based on the minimum sector size set the block size */
-	*ashift = highbit(MAX(SECTOR_SIZE, SPA_MINBLOCKSIZE)) - 1;
+	*ashift = highbit(MAX(bdev_hardsect_size(bdev), SPA_MINBLOCKSIZE)) - 1;
 
 	return 0;
 }
@@ -314,7 +323,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	uint64_t bio_offset;
 	int i, error = 0, bio_count, bio_size;
 
-	ASSERT3S(kbuf_offset % SECTOR_SIZE, ==, 0);
+	ASSERT3S(kbuf_offset % bdev_hardsect_size(bdev), ==, 0);
 	q = bdev_get_queue(bdev);
 	if (!q)
 		return ENXIO;
@@ -558,7 +567,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 
-	s = get_capacity(bdev->bd_disk) * SECTOR_SIZE;
+	s = bdev_capacity(bdev) * bdev_hardsect_size(bdev);
 	if (s == 0) {
 		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
 		return EIO;
