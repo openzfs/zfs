@@ -634,9 +634,12 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
 
 /*
  * Don't start the slice at the default block of 34; many storage
- * devices will use a stripe width of 128k, so start there instead.
+ * devices will use a stripe width of 128k, other vendors prefer a 1m
+ * alignment.  It is best to play it safe and ensure a 1m alignment
+ * give 512b blocks.  When the block size is larger by a power of 2
+ * we will still be 1m aligned.
  */
-#define	NEW_START_BLOCK	256
+#define	NEW_START_BLOCK	2048
 
 /*
  * Validate the given pool name, optionally putting an extended error message in
@@ -1758,6 +1761,7 @@ is_guid_type(zpool_handle_t *zhp, uint64_t guid, const char *type)
 static int
 zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 {
+#if 0
 	char path[MAXPATHLEN];
 	char errbuf[1024];
 	int fd, error;
@@ -1788,6 +1792,12 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 	return (0);
+#else
+	char errbuf[1024];
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
+	    "relabel '%s/%s': libefi is unsupported"), DISK_ROOT, name);
+	return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
+#endif
 }
 
 /*
@@ -3117,7 +3127,10 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	uint64_t slice_size;
 	diskaddr_t start_block;
 	char errbuf[1024];
-
+#if defined(__linux__)
+	struct stat64 statbuf;
+	int i;
+#endif
 	/* prepare an error message just in case */
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot label '%s'"), name);
@@ -3153,6 +3166,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.
 		 */
+		printf("errno =%d\n", errno);
 		zfs_error_aux(hdl,
 		    dgettext(TEXT_DOMAIN, "unable to open device"));
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
@@ -3214,6 +3228,24 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 
 	(void) close(fd);
 	efi_free(vtoc);
+
+#if defined(__linux__)
+	/*
+	 * The efi partition table has been successfully written and the
+	 * kernel notified.  However, it still may take a moment for udev
+	 * to notice the devfs update and properly populate /dev/.  We will
+	 * wait up to 3 seconds which is far far far longer than needed.
+	 */
+	(void) snprintf(path, sizeof (path), "%s/%s%s", RDISK_ROOT, name,
+	    FIRST_SLICE);
+	for (i = 0; i < 3000; i++) {
+		if (stat64(path, &statbuf) == 0 || errno != ENOENT)
+			break;
+
+		usleep(1000);
+	}
+#endif
+
 	return (0);
 }
 
