@@ -56,11 +56,15 @@ extern "C" {
 #if defined(__sun__) || defined(__sun)
 #define	DISK_ROOT	"/dev/dsk"
 #define	RDISK_ROOT	"/dev/rdsk"
+#define	FIRST_SLICE	"s0"
 #define	BACKUP_SLICE	"s2"
 #endif
 
 #ifdef __linux__
 #define	DISK_ROOT	"/dev"
+#define	RDISK_ROOT	DISK_ROOT
+#define	FIRST_SLICE	"1"
+#define	BACKUP_SLICE	""
 #endif
 
 /*
