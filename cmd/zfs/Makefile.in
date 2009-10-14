@@ -51,8 +51,10 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
+	$(top_srcdir)/config/user-libblkid.m4 \
 	$(top_srcdir)/config/user-libdiskmgt.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
+	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -68,6 +70,7 @@ am_zfs_OBJECTS = zfs_iter.$(OBJEXT) zfs_main.$(OBJEXT)
 zfs_OBJECTS = $(am_zfs_OBJECTS)
 zfs_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
@@ -132,10 +135,12 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 KERNELCPPFLAGS = @KERNELCPPFLAGS@
 KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LDFLAGS = @LDFLAGS@
+LIBBLKID = @LIBBLKID@
 LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LIBUUID = @LIBUUID@
 LICENSE = @LICENSE@
 LINUX = @LINUX@
 LINUX_OBJ = @LINUX_OBJ@
@@ -179,6 +184,7 @@ ZFS_META_LT_REVISION = @ZFS_META_LT_REVISION@
 ZFS_META_NAME = @ZFS_META_NAME@
 ZFS_META_RELEASE = @ZFS_META_RELEASE@
 ZFS_META_VERSION = @ZFS_META_VERSION@
+ZLIB = @ZLIB@
 ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
@@ -227,6 +233,7 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
+	-I${top_srcdir}/lib/libefi/include \
 	-I${top_srcdir}/lib/libuutil/include \
 	-I${top_srcdir}/lib/libzfs/include \
 	-I${top_srcdir}/lib/libnvpair/include \
@@ -251,13 +258,14 @@ zfs_SOURCES = \
 zfs_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
-zfs_LDFLAGS = -pthread -lm -lz -lrt
+zfs_LDFLAGS = -pthread -lm $(ZLIB) -lrt $(LIBUUID)
 all: all-am
 
 .SUFFIXES:
