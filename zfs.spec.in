@@ -12,8 +12,8 @@ License:         CDDL
 URL:             git://eris.llnl.gov/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          %{name}-%{version}.tar.gz
-Requires:        zlib
-BuildRequires:   zlib-devel
+Requires:        zlib e2fsprogs
+BuildRequires:   zlib-devel e2fsprogs-devel
 
 %description
 The %{name} package contains the libzfs library and support utilities
@@ -22,8 +22,8 @@ for the zfs file system.
 %package devel
 Summary:         ZFS File System User Headers
 Group:           Development/Libraries
-Requires:        zlib
-BuildRequires:   zlib-devel
+Requires:        zlib e2fsprogs
+BuildRequires:   zlib-devel e2fsprogs-devel
 
 %description devel
 The %{name}-devel package contains the header files needed for building
