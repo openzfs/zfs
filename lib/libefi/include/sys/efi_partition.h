@@ -26,8 +26,6 @@
 #ifndef	_SYS_EFI_PARTITION_H
 #define	_SYS_EFI_PARTITION_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <sys/uuid.h>
 
 #ifdef	__cplusplus
@@ -221,7 +219,11 @@ struct partition64 {
 /*
  * Number of EFI partitions
  */
+#if defined(__linux__)
+#define	EFI_NUMPAR	128 /* Expected by parted-1.8.1 */
+#else
 #define	EFI_NUMPAR	9
+#endif
 
 #ifndef _KERNEL
 extern	int	efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
