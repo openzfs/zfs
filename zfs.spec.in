@@ -42,7 +42,7 @@ various system profiling tools to facilitate an in depth analysis.
 %prep
 %setup
 %build
-%configure --with-config=user
+%configure --with-config=user --with-blkid
 make
 
 %install
