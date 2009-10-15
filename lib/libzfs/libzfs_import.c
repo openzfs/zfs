@@ -52,6 +52,9 @@
 #include <fcntl.h>
 
 #include <sys/vdev_impl.h>
+#ifdef HAVE_LIBBLKID
+#include <blkid/blkid.h>
+#endif
 
 #include "libzfs.h"
 #include "libzfs_impl.h"
@@ -777,6 +780,77 @@ zpool_read_label(int fd, nvlist_t **config)
 	return (0);
 }
 
+#ifdef HAVE_LIBBLKID
+/*
+ * Use libblkid to quickly search for zfs devices
+ */
+static int
+zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
+{
+	blkid_cache cache;
+	blkid_dev_iterate iter;
+	blkid_dev dev;
+	const char *devname;
+	nvlist_t *config;
+	int fd, err;
+
+	err = blkid_get_cache(&cache, NULL);
+	if (err != 0) {
+		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		    dgettext(TEXT_DOMAIN, "blkid_get_cache() %d"), err);
+		goto err_blkid1;
+	}
+
+	err = blkid_probe_all(cache);
+	if (err != 0) {
+		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		    dgettext(TEXT_DOMAIN, "blkid_probe_all() %d"), err);
+		goto err_blkid2;
+	}
+
+	iter = blkid_dev_iterate_begin(cache);
+	if (iter == NULL) {
+		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		    dgettext(TEXT_DOMAIN, "blkid_dev_iterate_begin()"));
+		goto err_blkid2;
+	}
+
+	err = blkid_dev_set_search(iter, "TYPE", "zfs");
+	if (err != 0) {
+		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		    dgettext(TEXT_DOMAIN, "blkid_dev_set_search() %d"), err);
+		goto err_blkid3;
+	}
+
+	while (blkid_dev_next(iter, &dev) == 0) {
+		devname = blkid_dev_devname(dev);
+		if ((fd = open64(devname, O_RDONLY)) < 0)
+			continue;
+
+		err = zpool_read_label(fd, &config);
+		(void) close(fd);
+
+		if (err != 0) {
+			(void) no_memory(hdl);
+			goto err_blkid3;
+		}
+
+		if (config != NULL) {
+			err = add_config(hdl, pools, devname, config);
+			if (err != 0)
+				goto err_blkid3;
+		}
+	}
+
+err_blkid3:
+	blkid_dev_iterate_end(iter);
+err_blkid2:
+	blkid_put_cache(cache);
+err_blkid1:
+	return err;
+}
+#endif /* HAVE_LIBBLKID */
+
 /*
  * Given a list of directories to search, find all pools stored on disk.  This
  * includes partial pools which are not available to import.  If no args are
@@ -807,6 +881,15 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 	verify(poolname == NULL || guid == 0);
 
 	if (argc == 0) {
+#ifdef HAVE_LIBBLKID
+		/* Use libblkid to scan all device for their type */
+		if (zpool_find_import_blkid(hdl, &pools) == 0)
+			goto skip_scanning;
+
+		(void) zfs_error_fmt(hdl, EZFS_BADCACHE,
+		    dgettext(TEXT_DOMAIN, "blkid failure falling back "
+		    "to manual probing"));
+#endif /* HAVE_LIBBLKID */
 		argc = 1;
 		argv = &default_dir;
 	}
@@ -917,6 +1000,9 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 		dirp = NULL;
 	}
 
+#ifdef HAVE_LIBBLKID
+skip_scanning:
+#endif
 	ret = get_configs(hdl, &pools, active_ok);
 
 error:

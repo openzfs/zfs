@@ -1674,12 +1674,6 @@ zpool_do_import(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	if (searchdirs == NULL) {
-		searchdirs = safe_malloc(sizeof (char *));
-		searchdirs[0] = DISK_ROOT;
-		nsearch = 1;
-	}
-
 	/* check argument count */
 	if (do_all) {
 		if (argc != 0) {
@@ -1700,7 +1694,8 @@ zpool_do_import(int argc, char **argv)
 		if (argc == 0 && !priv_ineffect(PRIV_SYS_CONFIG)) {
 			(void) fprintf(stderr, gettext("cannot "
 			    "discover pools: permission denied\n"));
-			free(searchdirs);
+			if (searchdirs != NULL)
+				free(searchdirs);
 			return (1);
 		}
 	}
@@ -1747,7 +1742,8 @@ zpool_do_import(int argc, char **argv)
 			(void) fprintf(stderr, gettext("cannot import '%s': "
 			    "no such pool available\n"), argv[0]);
 		}
-		free(searchdirs);
+		if (searchdirs != NULL)
+			free(searchdirs);
 		return (1);
 	}
 
@@ -1842,7 +1838,8 @@ zpool_do_import(int argc, char **argv)
 error:
 	nvlist_free(props);
 	nvlist_free(pools);
-	free(searchdirs);
+	if (searchdirs != NULL)
+		free(searchdirs);
 
 	return (err ? 1 : 0);
 }

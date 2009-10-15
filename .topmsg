@@ -1,6 +1,9 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
 Subject: [PATCH] linux user disk
 
-Use Linux style /dev/disk names
+This topic branch contains all the changes needed to integrate the user
+side zfs tools with Linux style devices.  Primarily this includes fixing
+up the Solaris libefi library to be Linux friendly, and integrating with
+the libblkid library which is provided by e2fsprogs.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
