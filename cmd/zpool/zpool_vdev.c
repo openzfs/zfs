@@ -64,9 +64,7 @@
 #include <devid.h>
 #include <errno.h>
 #include <fcntl.h>
-#ifdef HAVE_LIBDISKMGT
 #include <libdiskmgt.h>
-#endif
 #include <libintl.h>
 #include <libnvpair.h>
 #include <limits.h>
@@ -110,7 +108,6 @@ vdev_error(const char *fmt, ...)
 	va_end(ap);
 }
 
-#ifdef HAVE_LIBDISKMGT
 static void
 libdiskmgt_error(int error)
 {
@@ -272,7 +269,6 @@ check_device(const char *path, boolean_t force, boolean_t isspare)
 
 	return (check_slice(path, force, B_FALSE, isspare));
 }
-#endif
 
 /*
  * Check that a file is valid.  All we can do in this case is check that it's
@@ -284,10 +280,9 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	char  *name;
 	int fd;
 	int ret = 0;
+	int err;
 	pool_state_t state;
 	boolean_t inuse;
-#ifdef HAVE_DM_INUSE_SWAP
-	int err;
 
 	if (dm_inuse_swap(file, &err)) {
 		if (err)
@@ -297,7 +292,6 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 			    "Please see swap(1M).\n"), file);
 		return (-1);
 	}
-#endif
 
 	if ((fd = open(file, O_RDONLY)) < 0)
 		return (0);
@@ -1074,15 +1068,11 @@ check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
 				return (0);
 		}
 
-#ifdef HAVE_LIBDISKMGT
 		if (strcmp(type, VDEV_TYPE_DISK) == 0)
 			ret = check_device(path, force, isspare);
 
 		if (strcmp(type, VDEV_TYPE_FILE) == 0)
 			ret = check_file(path, force, isspare);
-#else
-		ret = check_file(path, force, isspare);
-#endif
 
 		return (ret);
 	}
