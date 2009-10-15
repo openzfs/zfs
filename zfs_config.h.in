@@ -33,9 +33,6 @@
 /* Define if you have libblkid */
 #undef HAVE_LIBBLKID
 
-/* Define to 1 if 'libdiskmgt' library available */
-#undef HAVE_LIBDISKMGT
-
 /* Define to 1 if 'libshare' library available */
 #undef HAVE_LIBSHARE
 
