@@ -28,4 +28,4 @@ zdb_LDADD = \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
-zdb_LDFLAGS = -pthread -lm $(ZLIB) -lrt $(LIBUUID)
+zdb_LDFLAGS = -pthread -lm $(ZLIB) -lrt $(LIBUUID) $(LIBBLKID)

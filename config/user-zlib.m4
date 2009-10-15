@@ -13,6 +13,9 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_ZLIB], [
 	AC_CHECK_LIB([z], [uncompress], [], [AC_MSG_FAILURE([
 	*** uncompress() missing, zlib-devel package required])])
 
+	AC_CHECK_LIB([z], [crc32], [], [AC_MSG_FAILURE([
+	*** crc32() missing, zlib-devel package required])])
+
 	AC_SUBST([ZLIB], ["-lz"])
 	AC_DEFINE([HAVE_ZLIB], 1, [Define if you have zlib])
 ])
