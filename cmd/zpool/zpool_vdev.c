@@ -1083,7 +1083,7 @@ check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
 	char *type, *path;
 	int ret = 0;
 	char buf[MAXPATHLEN];
-	uint64_t wholedisk;
+	uint64_t wholedisk = B_FALSE;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -1091,8 +1091,9 @@ check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
 	    &child, &children) != 0) {
 
 		verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
-		verify(!nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
-					     &wholedisk));
+		if (strcmp(type, VDEV_TYPE_DISK) == 0)
+			verify(!nvlist_lookup_uint64(nv,
+			       ZPOOL_CONFIG_WHOLE_DISK, &wholedisk));
 
 		/*
 		 * As a generic check, we look to see if this is a replace of a
