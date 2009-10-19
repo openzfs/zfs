@@ -192,7 +192,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 	int err;
 
 	if (stat64(path, &statbuf) != 0) {
-		vdev_error(gettext("cannot open %s: %s\n"),
+		vdev_error(gettext("cannot stat %s: %s\n"),
 		           path, strerror(errno));
 		return (-1);
 	}
@@ -295,7 +295,15 @@ check_disk(const char *path, blkid_cache cache, int force,
 		    uuid_is_null((uchar_t *)&vtoc->efi_parts[i].p_guid))
 			continue;
 
-		sprintf(slice_path, "%s%d", path, i+1);
+		/* Resolve possible symlink to safely append partition */
+		if (realpath(path, slice_path) == NULL) {
+			(void) fprintf(stderr,
+			    gettext("cannot resolve path '%s'\n"), slice_path);
+			err = errno;
+			break;
+		}
+
+		sprintf(slice_path, "%s%d", slice_path, i+1);
 		err = check_slice(slice_path, cache, force, isspare);
 		if (err)
 			break;
@@ -400,7 +408,9 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 		 * Complete device or file path.  Exact type is determined by
 		 * examining the file descriptor afterwards.  Symbolic links
 		 * are resolved to their real paths for the is_whole_disk()
-		 * and S_ISBLK/S_ISREG type checks.
+		 * and S_ISBLK/S_ISREG type checks.  However, we are careful
+		 * to store the given path as ZPOOL_CONFIG_PATH to ensure we
+		 * can leverage udev's persistent device labels.
 		 */
 		if (realpath(arg, path) == NULL) {
 			(void) fprintf(stderr,
@@ -415,6 +425,9 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 			    path, strerror(errno));
 			return (NULL);
 		}
+
+		/* After is_whole_disk() check restore original passed path */
+		strlcpy(path, arg, MAXPATHLEN);
 	} else {
 		/*
 		 * This may be a short path for a device, or it could be total
@@ -476,6 +489,7 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
 
+#if defined(__sun__) || defined(__sun)
 	/*
 	 * For a whole disk, defer getting its devid until after labeling it.
 	 */
@@ -510,6 +524,7 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 
 		(void) close(fd);
 	}
+#endif
 
 	return (vdev);
 }
@@ -954,21 +969,36 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			return (ret);
 		}
 
-		diskname = strrchr(path, '/');
+		if (realpath(path, buf) == NULL) {
+			ret = errno;
+			(void) fprintf(stderr,
+			    gettext("cannot resolve path '%s'\n"), path);
+			return (ret);
+		}
+
+		diskname = strrchr(buf, '/');
 		assert(diskname != NULL);
 		diskname++;
 		if (zpool_label_disk(g_zfs, zhp, diskname) == -1)
 			return (-1);
 
 		/*
-		 * Fill in the devid, now that we've labeled the disk.
+		 * Fill in the devid, now that we've labeled the disk.  We
+		 * attempt to open the new zfs slice first by appending the
+		 * slice number.  If that fails this may be a Linux udev
+		 * path in which case the -part# convention is tried.
 		 */
 		(void) snprintf(buf, sizeof (buf), "%s%s", path, FIRST_SLICE);
 		if ((fd = open(buf, O_RDONLY)) < 0) {
-			(void) fprintf(stderr,
-			    gettext("cannot open '%s': %s\n"),
-			    buf, strerror(errno));
-			return (-1);
+
+			(void) snprintf(buf, sizeof (buf), "%s%s%s",
+					path, "-part", FIRST_SLICE);
+			if ((fd = open(buf, O_RDONLY)) < 0) {
+				(void) fprintf(stderr,
+				    gettext("cannot open '%s': %s\n"),
+				    buf, strerror(errno));
+				return (-1);
+			}
 		}
 
 #if defined(__sun__) || defined(__sun)
