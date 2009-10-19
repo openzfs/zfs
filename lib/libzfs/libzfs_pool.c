@@ -2619,12 +2619,11 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 char *
 zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 {
-	char *path, *devid;
+	char *path, *devid, *type;
 	uint64_t value;
 	char buf[64];
 	vdev_stat_t *vs;
 	uint_t vsc;
-	size_t droot_len = strlen(DISK_ROOT) + 1;
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
 	    &value) == 0) {
@@ -2634,7 +2633,6 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 		    (u_longlong_t)value);
 		path = buf;
 	} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
-
 		/*
 		 * If the device is dead (faulted, offline, etc) then don't
 		 * bother opening it.  Otherwise we may be forcing the user to
@@ -2673,13 +2671,18 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv)
 				devid_str_free(newdevid);
 		}
 
-		if (strncmp(path, DISK_ROOT "/", droot_len) == 0)
-			path += droot_len;
+		/*
+		 * For a block device only use the name.
+		 */
+		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+		if (strcmp(type, VDEV_TYPE_DISK) == 0) {
+			path = strrchr(path, '/');
+			path++;
+		}
 
 #if defined(__sun__) || defined(__sun)
 		/*
 		 * The following code strips the slice from the device path.
-		 * This is only meaningful in Solaris.
 		 */
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &value) == 0 && value) {
