@@ -52,6 +52,7 @@ LIBDIR=${LIBDIR}
 CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
+UDEVDIR=\${TOPDIR}/scripts/udev-rules
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
 ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile

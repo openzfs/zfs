@@ -56,6 +56,7 @@ extern "C" {
 #if defined(__sun__) || defined(__sun)
 #define	DISK_ROOT	"/dev/dsk"
 #define	RDISK_ROOT	"/dev/rdsk"
+#define	UDISK_ROOT	RDISK_ROOT
 #define	FIRST_SLICE	"s0"
 #define	BACKUP_SLICE	"s2"
 #endif
@@ -63,6 +64,7 @@ extern "C" {
 #ifdef __linux__
 #define	DISK_ROOT	"/dev"
 #define	RDISK_ROOT	DISK_ROOT
+#define	UDISK_ROOT	"/dev/disk"
 #define	FIRST_SLICE	"1"
 #define	BACKUP_SLICE	""
 #endif
@@ -253,6 +255,7 @@ extern nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
     boolean_t *, boolean_t *);
 extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
     boolean_t *, boolean_t *, boolean_t *);
+extern int zpool_label_disk_wait(char *, int);
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
 /*
