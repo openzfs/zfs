@@ -25,6 +25,7 @@ OPTIONS:
         -c      Configuration for zpool
         -p      Name for zpool
         -d      Destroy zpool (default create)
+        -f      Force everything
         -l      Additional zpool options
         -s      Additional zfs options
 
@@ -54,7 +55,7 @@ ZPOOL_DESTROY=
 ZPOOL_OPTIONS=""
 ZFS_OPTIONS=""
 
-while getopts 'hvc:p:dl:s:' OPTION; do
+while getopts 'hvfc:p:dl:s:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -62,6 +63,11 @@ while getopts 'hvc:p:dl:s:' OPTION; do
 		;;
 	v)
 		VERBOSE=1
+		VERBOSE_FLAG="-v"
+		;;
+	f)
+		FORCE=1
+		FORCE_FLAG="-f"
 		;;
 	c)
 		ZPOOL_CONFIG=${ZPOOLDIR}/${OPTARG}.sh
