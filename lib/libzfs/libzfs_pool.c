@@ -3118,6 +3118,33 @@ find_start_block(nvlist_t *config)
 	return (MAXOFFSET_T);
 }
 
+int
+zpool_label_disk_wait(char *path, int timeout)
+{
+#if defined(__linux__)
+	struct stat64 statbuf;
+	int i;
+
+	/*
+	 * Wait timeout miliseconds for a newly created device to be available
+	 * from the given path.  There is a small window when a /dev/ device
+	 * will exist and the udev link will not, so we must wait for the
+	 * symlink.  Depending on the udev rules this may take a few seconds.
+	 */
+	for (i = 0; i < timeout; i++) {
+		usleep(1000);
+
+		errno = 0;
+		if ((stat64(path, &statbuf) == 0) && (errno == 0))
+			return (0);
+	}
+
+	return (ENOENT);
+#else
+	return (0);
+#endif
+}
+
 /*
  * Label an individual disk.  The name provided is the short name,
  * stripped of any leading /dev path.
@@ -3132,10 +3159,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	uint64_t slice_size;
 	diskaddr_t start_block;
 	char errbuf[1024];
-#if defined(__linux__)
-	struct stat64 statbuf;
-	int i;
-#endif
+
 	/* prepare an error message just in case */
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot label '%s'"), name);
@@ -3235,23 +3259,13 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	efi_free(vtoc);
 
 #if defined(__linux__)
-	/*
-	 * The efi partition table has been successfully written and the
-	 * kernel notified.  However, it still may take a moment for udev
-	 * to notice the devfs update and properly populate /dev/.  We will
-	 * wait up to 3 seconds which is far far far longer than needed.
-	 */
-	(void) snprintf(path, sizeof (path), "%s/%s%s", RDISK_ROOT, name,
-	    FIRST_SLICE);
-	for (i = 0; i < 3000; i++) {
-		if (stat64(path, &statbuf) == 0 || errno != ENOENT)
-			break;
-
-		usleep(1000);
-	}
-#endif
-
+	/* Wait for the first expected slice to appear */
+	(void) snprintf(path, sizeof (path), "%s/%s%s",
+	    DISK_ROOT, name, FIRST_SLICE);
+	return zpool_label_disk_wait(path, 3000);
+#else
 	return (0);
+#endif
 }
 
 static boolean_t
