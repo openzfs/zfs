@@ -279,7 +279,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * label at the end of the device is intact.  Rather than use this
 	 * label we should play it safe and treat this as a non efi device.
 	 */
-	if (vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
+	if (!force && vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
 		vdev_error(gettext(
 		    "%s contains a corrupt primary efi partition table.  "
 		    "If you are\nsure you want to use this device use "
@@ -938,12 +938,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	char *type, *path, *diskname;
 	char buf[MAXPATHLEN];
 	uint64_t wholedisk;
-	int fd;
 	int ret;
-#if defined(__sun__) || defined(__sun)
-	ddi_devid_t devid;
-	char *minor = NULL, *devid_str = NULL;
-#endif
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -983,49 +978,33 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			return (-1);
 
 		/*
-		 * Fill in the devid, now that we've labeled the disk.  We
-		 * attempt to open the new zfs slice first by appending the
-		 * slice number.  If that fails this may be a Linux udev
-		 * path in which case the -part# convention is tried.
+		 * Now the we've labeled the disk and the partitions have
+		 * been created.  We still need to wait for udev to create
+		 * the symlinks to those partitions.  If we are accessing
+		 * the devices via a udev disk path, /dev/disk, then wait
+		 * for *-part# to be created.  Otherwise just use the normal
+		 * syntax for devices in /dev.
 		 */
-		(void) snprintf(buf, sizeof (buf), "%s%s", path, FIRST_SLICE);
-		if ((fd = open(buf, O_RDONLY)) < 0) {
+		if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0)
+			(void) snprintf(buf, sizeof (buf),
+			    "%s%s%s", path, "-part", FIRST_SLICE);
+		else
+			(void) snprintf(buf, sizeof (buf),
+			    "%s%s", path, FIRST_SLICE);
 
-			(void) snprintf(buf, sizeof (buf), "%s%s%s",
-					path, "-part", FIRST_SLICE);
-			if ((fd = open(buf, O_RDONLY)) < 0) {
-				(void) fprintf(stderr,
-				    gettext("cannot open '%s': %s\n"),
-				    buf, strerror(errno));
-				return (-1);
-			}
+		if ((ret = zpool_label_disk_wait(buf, 1000)) != 0) {
+			(void) fprintf(stderr,
+			    gettext( "cannot resolve path '%s'\n"), buf);
+			return (-1);
 		}
-
-#if defined(__sun__) || defined(__sun)
-		if (devid_get(fd, &devid) == 0) {
-			if (devid_get_minor_name(fd, &minor) == 0 &&
-			    (devid_str = devid_str_encode(devid, minor)) !=
-			    NULL) {
-				verify(nvlist_add_string(nv,
-				    ZPOOL_CONFIG_DEVID, devid_str) == 0);
-			}
-			if (devid_str != NULL)
-				devid_str_free(devid_str);
-			if (minor != NULL)
-				devid_str_free(minor);
-			devid_free(devid);
-		}
-#endif
 
 		/*
-		 * Update the path to refer to the 's0' slice.  The presence of
+		 * Update the path to refer to FIRST_SLICE.  The presence of
 		 * the 'whole_disk' field indicates to the CLI that we should
 		 * chop off the slice number when displaying the device in
 		 * future output.
 		 */
 		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, buf) == 0);
-
-		(void) close(fd);
 
 		/* Just in case this partition already existed. */
 		(void) zero_label(buf);
