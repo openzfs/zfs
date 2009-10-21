@@ -15,9 +15,17 @@ fi
 PROG="<define PROG>"
 VERBOSE=
 VERBOSE_FLAG=
+FORCE=
+FORCE_FLAG=
 DUMP_LOG=
 ERROR=
+UPATH="/dev/disk/zpool"
+RAID0S=()
+RAID10S=()
+RAIDZS=()
+RAIDZ2S=()
 
+UDEVDIR=${UDEVDIR:-/usr/libexec/zfs/udev-rules}
 ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
 
 ZDB=${ZDB:-/usr/sbin/zdb}
@@ -58,12 +66,12 @@ fail() {
 }
 
 spl_dump_log() {
-        ${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
+	${SYSCTL} -w kernel.spl.debug.dump=1 &>/dev/null
 	local NAME=`dmesg | tail -n 1 | cut -f5 -d' '`
-        ${SPLBUILD}/cmd/spl ${NAME} >${NAME}.log
+	${SPLBUILD}/cmd/spl ${NAME} >${NAME}.log
 	echo
-        echo "Dumped debug log: ${NAME}.log"
-        tail -n1 ${NAME}.log
+	echo "Dumped debug log: ${NAME}.log"
+	tail -n1 ${NAME}.log
 	echo
 	return 0
 }
@@ -183,4 +191,109 @@ unused_loop_device() {
 	done
 
 	die "Error: Unable to find unused loopback device"
+}
+
+#
+# The following udev helper functions assume that the provided
+# udev rules file will create a /dev/disk/zpool/<CHANNEL><RANK>
+# disk mapping.  In this mapping each CHANNEL is represented by
+# the letters a-z, and the RANK is represented by the numbers
+# 1-n.  A CHANNEL should identify a group of RANKS which are all
+# attached to a single controller, each RANK represents a disk.
+# This provides a simply mechanism to locate a specific drive
+# given a known hardware configuration.
+#
+udev_setup() {
+	local SRC_PATH=$1
+	local DST_FILE=`basename ${SRC_PATH} | cut -f1-2 -d'.'`
+	local DST_PATH=/etc/udev/rules.d/${DST_FILE}
+
+	cp -f ${SRC_PATH} ${DST_PATH}
+
+	udevadm trigger
+	udevadm settle
+
+	return 0
+}
+
+udev_cr2d() {
+	local CHANNEL=`echo "obase=16; $1+96" | bc`
+	local RANK=$2
+
+	printf "\x${CHANNEL}${RANK}"
+}
+
+udev_raid0_setup() {
+	local RANKS=$1
+	local CHANNELS=$2
+	local IDX=0
+
+	RAID0S=()
+	for RANK in `seq 1 ${RANKS}`; do
+		for CHANNEL in `seq 1 ${CHANNELS}`; do
+			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+			RAID0S[${IDX}]="${UPATH}/${DISK}"
+			let IDX=IDX+1
+		done
+	done
+
+	return 0
+}
+
+udev_raid10_setup() {
+	local RANKS=$1
+	local CHANNELS=$2
+	local IDX=0
+
+	RAID10S=()
+	for RANK in `seq 1 ${RANKS}`; do
+		for CHANNEL1 in `seq 1 2 ${CHANNELS}`; do
+			let CHANNEL2=CHANNEL1+1
+			DISK1=`udev_cr2d ${CHANNEL1} ${RANK}`
+			DISK2=`udev_cr2d ${CHANNEL2} ${RANK}`
+			GROUP="${UPATH}/${DISK1} ${UPATH}/${DISK2}"
+			RAID10S[${IDX}]="mirror ${GROUP}"
+			let IDX=IDX+1
+		done
+	done
+
+	return 0
+}
+
+udev_raidz_setup() {
+	local RANKS=$1
+	local CHANNELS=$2
+	
+	RAIDZS=()
+	for RANK in `seq 1 ${RANKS}`; do
+		RAIDZ=("raidz")
+
+		for CHANNEL in `seq 1 ${CHANNELS}`; do
+			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+			RAIDZ[${CHANNEL}]="${UPATH}/${DISK}"
+		done
+
+		RAIDZS[${RANK}]="${RAIDZ[*]}"
+	done
+
+	return 0
+}
+
+udev_raidz2_setup() {
+	local RANKS=$1
+	local CHANNELS=$2
+
+	RAIDZ2S=()
+	for RANK in `seq 1 ${RANKS}`; do
+		RAIDZ2=("raidz2")
+
+		for CHANNEL in `seq 1 ${CHANNELS}`; do
+			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
+			RAIDZ2[${CHANNEL}]="${UPATH}/${DISK}"
+		done
+
+		RAIDZ2S[${RANK}]="${RAIDZ2[*]}"
+	done
+
+	return 0
 }
