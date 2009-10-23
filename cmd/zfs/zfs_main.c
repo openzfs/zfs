@@ -4027,7 +4027,7 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	int i;
+	int i = 0;
 	char *progname;
 	char *cmdname;
 
