@@ -31,6 +31,7 @@ DESCRIPTION:
 OPTIONS:
         -h      Show this message
         -v      Verbose
+        -f      Force everything
         -p      Enable profiling
         -c      Zpool configuration
         -t      Zpios test
@@ -171,7 +172,7 @@ ZPIOS_OPTIONS=
 ZPOOL_OPTIONS=""
 ZFS_OPTIONS=""
 
-while getopts 'hvpc:t:o:l:s:' OPTION; do
+while getopts 'hvfpc:t:o:l:s:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -180,6 +181,10 @@ while getopts 'hvpc:t:o:l:s:' OPTION; do
 	v)
 		VERBOSE=1
 		VERBOSE_FLAG="-v"
+		;;
+	f)
+		FORCE=1
+		FORCE_FLAG="-f"
 		;;
 	p)
 		PROFILE=1
@@ -235,7 +240,8 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Create the zpool configuration
-${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} -p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
+${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
+	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
 	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || exit 1
 
 if [ ${PROFILE} ]; then
@@ -254,8 +260,8 @@ if [ ${VERBOSE} ]; then
 fi
 
 # Destroy the zpool configuration
-${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} -p ${ZPOOL_NAME} \
-	-c ${ZPOOL_CONFIG} -d || exit 1
+${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
+	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || exit 1
 
 # Unload the test module stack and wait for device removal
 unload_modules

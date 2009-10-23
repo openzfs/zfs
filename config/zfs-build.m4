@@ -11,28 +11,34 @@ AC_DEFUN([ZFS_AC_LICENSE], [
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG], [
-        AC_MSG_CHECKING([whether debugging is enabled])
-        AC_ARG_ENABLE( [debug],
-                AS_HELP_STRING([--enable-debug],
-                [Enable generic debug support (default off)]),
-                [ case "$enableval" in
-                        yes) zfs_ac_debug=yes ;;
-                        no)  zfs_ac_debug=no  ;;
-                        *) AC_MSG_RESULT([Error!])
-                        AC_MSG_ERROR([Bad value "$enableval" for --enable-debug]) ;;
-                esac ]
-        )
-        if test "$zfs_ac_debug" = yes; then
-        	AC_MSG_RESULT([yes])
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
+	AC_MSG_CHECKING([whether debugging is enabled])
+	AC_ARG_ENABLE( [debug],
+		AS_HELP_STRING([--enable-debug],
+		[Enable generic debug support (default off)]),
+		[ case "$enableval" in
+			yes) zfs_ac_debug=yes ;;
+			no)  zfs_ac_debug=no  ;;
+			*) AC_MSG_RESULT([Error!])
+			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug]) ;;
+		esac ]
+)
+if test "$zfs_ac_debug" = yes; then
+	AC_MSG_RESULT([yes])
+		AC_DEFINE([DEBUG], [1],
+		[Define to 1 to enable debug tracing])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
-        else
-        	AC_MSG_RESULT([no])
-                AC_DEFINE([NDEBUG], [1],
-                [Define to 1 to disable debug tracing])
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
+		USERDEBUG="-DDEBUG"
+	else
+		AC_MSG_RESULT([no])
+		AC_DEFINE([NDEBUG], [1],
+		[Define to 1 to disable debug tracing])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
-        fi
+		USERDEBUG="-DNDEBUG"
+	fi
+
+	AC_SUBST(USERDEBUG)
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG_SCRIPT], [
