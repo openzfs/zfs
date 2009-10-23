@@ -237,14 +237,9 @@ check_disk(const char *path, blkid_cache cache, int force,
 	int err = 0;
 	int fd, i;
 
-	/* Check the device as given */
-	err = check_slice(path, cache, force, isspare);
-	if (err)
-		return (err);
-
-	/* Additional checking is only required for whole disks */
+	/* This is not a wholedisk we only check the given partition */
 	if (!iswholedisk)
-		return 0;
+		return check_slice(path, cache, force, isspare);
 
 	/*
 	 * When the device is a whole disk try to read the efi partition
@@ -252,9 +247,9 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * partitions.  However, when it fails it may simply be because
 	 * the disk is partitioned via the MBR.  Since we currently can
 	 * not easily decode the MBR return a failure and prompt to the
-	 * user to use --force since we cannot check the partitions.
+	 * user to use force option since we cannot check the partitions.
 	 */
-	if ((fd = open(path, O_RDONLY|O_NDELAY)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		check_error(errno);
 		return -1;
 	}
@@ -265,11 +260,9 @@ check_disk(const char *path, blkid_cache cache, int force,
 		if (force) {
 			return 0;
 		} else {
-			vdev_error(gettext(
-			    "%s may contain a non-efi partition table "
-			    "describing existing\nfilesystems.  If you are "
-			    "sure you want to use this device use the\n"
-			    "force command line option.\n"), path);
+			vdev_error(gettext("%s does not contain an EFI "
+			    "label but it may contain partition\n"
+			    "information in the MBR.\n"), path);
 			return -1;
 		}
 	}
@@ -279,14 +272,18 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * label at the end of the device is intact.  Rather than use this
 	 * label we should play it safe and treat this as a non efi device.
 	 */
-	if (!force && vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
-		vdev_error(gettext(
-		    "%s contains a corrupt primary efi partition table.  "
-		    "If you are\nsure you want to use this device use "
-		    "the force command line option.\n"), path);
+	if (vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
 		efi_free(vtoc);
 		(void) close(fd);
-		return -1;
+
+		if (force) {
+			/* Partitions will no be created using the backup */
+			return 0;
+		} else {
+			vdev_error(gettext("%s contains a corrupt primary "
+			    "EFI label.\n"), path);
+			return -1;
+		}
 	}
 
 	for (i = 0; i < vtoc->efi_nparts; i++) {
@@ -295,15 +292,13 @@ check_disk(const char *path, blkid_cache cache, int force,
 		    uuid_is_null((uchar_t *)&vtoc->efi_parts[i].p_guid))
 			continue;
 
-		/* Resolve possible symlink to safely append partition */
-		if (realpath(path, slice_path) == NULL) {
-			(void) fprintf(stderr,
-			    gettext("cannot resolve path '%s'\n"), slice_path);
-			err = errno;
-			break;
-		}
+		if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0)
+			(void) snprintf(slice_path, sizeof (slice_path),
+			    "%s%s%d", path, "-part", i+1);
+		else
+			(void) snprintf(slice_path, sizeof (slice_path),
+			    "%s%d", path, i+1);
 
-		sprintf(slice_path, "%s%d", slice_path, i+1);
 		err = check_slice(slice_path, cache, force, isspare);
 		if (err)
 			break;
@@ -369,7 +364,7 @@ is_whole_disk(const char *arg)
 
 	(void) snprintf(path, sizeof (path), "%s%s%s",
 	    RDISK_ROOT, strrchr(arg, '/'), BACKUP_SLICE);
-	if ((fd = open(path, O_RDWR | O_NDELAY)) < 0)
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0)
 		return (B_FALSE);
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
 		(void) close(fd);

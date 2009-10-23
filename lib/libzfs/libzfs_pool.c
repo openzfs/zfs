@@ -1759,23 +1759,14 @@ is_guid_type(zpool_handle_t *zhp, uint64_t guid, const char *type)
  * the disk to use the new unallocated space.
  */
 static int
-zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
+zpool_relabel_disk(libzfs_handle_t *hdl, const char *path)
 {
-#if 0
-	char path[MAXPATHLEN];
 	char errbuf[1024];
 	int fd, error;
-	int (*_efi_use_whole_disk)(int);
 
-	if ((_efi_use_whole_disk = (int (*)(int))dlsym(RTLD_DEFAULT,
-	    "efi_use_whole_disk")) == NULL)
-		return (-1);
-
-	(void) snprintf(path, sizeof (path), "%s/%s", RDISK_ROOT, name);
-
-	if ((fd = open(path, O_RDWR | O_NDELAY)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "relabel '%s': unable to open device"), name);
+		    "relabel '%s': unable to open device"), path);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -1784,20 +1775,14 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 	 * does not have any unallocated space left. If so, we simply
 	 * ignore that error and continue on.
 	 */
-	error = _efi_use_whole_disk(fd);
+	error = efi_use_whole_disk(fd);
 	(void) close(fd);
 	if (error && error != VT_ENOSPC) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "relabel '%s': unable to read disk capacity"), name);
+		    "relabel '%s': unable to read disk capacity"), path);
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 	return (0);
-#else
-	char errbuf[1024];
-	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-	    "relabel '%s/%s': libefi is unsupported"), DISK_ROOT, name);
-	return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
-#endif
 }
 
 /*
@@ -1853,7 +1838,6 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 		}
 
 		if (wholedisk) {
-			pathname += strlen(DISK_ROOT) + 1;
 			(void) zpool_relabel_disk(zhp->zpool_hdl, pathname);
 		}
 	}
@@ -3070,7 +3054,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 
 	(void) snprintf(diskname, sizeof (diskname), "%s%s", RDISK_ROOT,
 	    strrchr(path, '/'));
-	if ((fd = open(diskname, O_RDONLY|O_NDELAY)) >= 0) {
+	if ((fd = open(diskname, O_RDWR|O_DIRECT)) >= 0) {
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
@@ -3119,7 +3103,6 @@ find_start_block(nvlist_t *config)
 int
 zpool_label_disk_wait(char *path, int timeout)
 {
-#if defined(__linux__)
 	struct stat64 statbuf;
 	int i;
 
@@ -3138,9 +3121,31 @@ zpool_label_disk_wait(char *path, int timeout)
 	}
 
 	return (ENOENT);
-#else
-	return (0);
-#endif
+}
+
+int
+zpool_label_disk_check(char *path)
+{
+	struct dk_gpt *vtoc;
+	int fd, err;
+
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0)
+		return errno;
+
+	if ((err = efi_alloc_and_read(fd, &vtoc)) != 0) {
+		(void) close(fd);
+		return err;
+	}
+
+	if (vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
+		efi_free(vtoc);
+		(void) close(fd);
+		return EIDRM;
+	}
+		
+	efi_free(vtoc);
+	(void) close(fd);
+	return 0;
 }
 
 /*
@@ -3152,7 +3157,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 {
 	char path[MAXPATHLEN];
 	struct dk_gpt *vtoc;
-	int fd;
+	int rval, fd;
 	size_t resv = EFI_MIN_RESV_SIZE;
 	uint64_t slice_size;
 	diskaddr_t start_block;
@@ -3188,14 +3193,13 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	(void) snprintf(path, sizeof (path), "%s/%s%s", RDISK_ROOT, name,
 	    BACKUP_SLICE);
 
-	if ((fd = open(path, O_RDWR | O_NDELAY)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		/*
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.
 		 */
-		printf("errno =%d\n", errno);
-		zfs_error_aux(hdl,
-		    dgettext(TEXT_DOMAIN, "unable to open device"));
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "unable to open device '%s': %d"), path, errno);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -3238,7 +3242,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	vtoc->efi_parts[8].p_size = resv;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
-	if (efi_write(fd, vtoc) != 0) {
+	if ((rval = efi_write(fd, vtoc)) != 0) {
 		/*
 		 * Some block drivers (like pcata) may not support EFI
 		 * GPT labels.  Print out a helpful error message dir-
@@ -3248,22 +3252,36 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		(void) close(fd);
 		efi_free(vtoc);
 
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "try using fdisk(1M) and then provide a specific slice"));
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "try using "
+		    "parted(8) and then provide a specific slice: %d"), rval);
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 
 	(void) close(fd);
 	efi_free(vtoc);
 
-#if defined(__linux__)
-	/* Wait for the first expected slice to appear */
+	/* Wait for the first expected slice to appear. */
 	(void) snprintf(path, sizeof (path), "%s/%s%s",
 	    DISK_ROOT, name, FIRST_SLICE);
-	return zpool_label_disk_wait(path, 3000);
-#else
-	return (0);
-#endif
+	rval = zpool_label_disk_wait(path, 3000);
+	if (rval) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "failed to "
+		    "detect device partitions on '%s': %d"), path, rval);
+		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
+	}
+
+	/* We can't be to paranoid.  Read the label back and verify it. */
+	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	rval = zpool_label_disk_check(path);
+	if (rval) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "freshly written "
+		    "EFI label on '%s' is damaged.  Ensure\nthis device "
+		    "is not in in use, and is functioning properly: %d"),
+		    path, rval);
+		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
+	}
+
+	return 0;
 }
 
 static boolean_t
