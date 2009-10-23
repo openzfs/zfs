@@ -151,26 +151,67 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 #if defined(__linux__)
 	char path[PATH_MAX];
 	char *dev_path;
-	int rval;
+	int rval = 0;
 
 	/*
 	 * The simplest way to get the partition number under linux is
 	 * to parse it out of the /dev/<disk><parition> block device name.
 	 * The kernel creates this using the partition number when it
-	 * populates /dev/ so it may be trusted.  Another issue is that
-	 * that the libefi API only provides the open fd and not the
-	 * file path.  To handle this realpath(3) is used to resolve
-	 * the block device name from /proc/self/fd/<fd>.  Aside from
-	 * the partition number we collect some additional device info.
+	 * populates /dev/ so it may be trusted.  The tricky bit here is
+	 * that the naming convention is based on the block device type.
+	 * So we need to take this in to account when parsing out the
+	 * partition information.  Another issue is that the libefi API
+	 * API only provides the open fd and not the file path.  To handle
+	 * this realpath(3) is used to resolve the block device name from
+	 * /proc/self/fd/<fd>.  Aside from the partition number we collect
+	 * some additional device info.
 	 */
 	memset(dki_info, 0, sizeof(*dki_info));
 	(void) sprintf(path, "/proc/self/fd/%d", fd);
 	if ((dev_path = realpath(path, NULL)) == NULL)
 		goto error;
 
-	rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
+	if ((strncmp(dev_path, "/dev/sd", 7) == 0)) {
+		strcpy(dki_info->dki_cname, "sd");
+		dki_info->dki_ctype = DKC_SCSI_CCS;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/hd", 7) == 0)) {
+		strcpy(dki_info->dki_cname, "hd");
+		dki_info->dki_ctype = DKC_DIRECT;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/md", 7) == 0)) {
+		strcpy(dki_info->dki_cname, "pseudo");
+		dki_info->dki_ctype = DKC_MD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
+		strcpy(dki_info->dki_cname, "pseudo");
+		dki_info->dki_ctype = DKC_MD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9-]p%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/ram", 8) == 0)) {
+		strcpy(dki_info->dki_cname, "pseudo");
+		dki_info->dki_ctype = DKC_PCMCIA_MEM;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/loop", 9) == 0)) {
+		strcpy(dki_info->dki_cname, "pseudo");
+		dki_info->dki_ctype = DKC_VBD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9]p%hu",
+			      dki_info->dki_dname,
+			      &dki_info->dki_partition);
+	} else {
+		strcpy(dki_info->dki_dname, "unknown");
+		strcpy(dki_info->dki_cname, "unknown");
+		dki_info->dki_ctype = DKC_UNKNOWN;
+	}
 
 	switch (rval) {
 	case 0:
@@ -178,26 +219,6 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 		goto error;
 	case 1:
 		dki_info->dki_partition = 0;
-	}
-
-	if ((strncmp(dki_info->dki_dname, "sd", 2) == 0)) {
-		strcpy(dki_info->dki_cname, "sd");
-		dki_info->dki_ctype = DKC_SCSI_CCS;
-	} else if ((strncmp(dki_info->dki_dname, "hd", 2) == 0)) {
-		strcpy(dki_info->dki_cname, "hd");
-		dki_info->dki_ctype = DKC_DIRECT;
-	} else if ((strncmp(dki_info->dki_dname, "md", 2) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_MD;
-	} else if ((strncmp(dki_info->dki_dname, "ram", 3) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_PCMCIA_MEM;
-	} else if ((strncmp(dki_info->dki_dname, "loop", 4) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_VBD;
-	} else {
-		strcpy(dki_info->dki_cname, "unknown");
-		dki_info->dki_ctype = DKC_UNKNOWN;
 	}
 
 	free(dev_path);
@@ -255,22 +276,14 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 		return (-1);
 	}
 
-	if (dki_info.dki_partition != 0) {
-		if (efi_debug)
-			(void) fprintf(stderr,
-			    "can only partition whole devices\n");
+	if (dki_info.dki_partition != 0)
 		return (-1);
-	}
 
 	if ((dki_info.dki_ctype == DKC_PCMCIA_MEM) ||
 	    (dki_info.dki_ctype == DKC_VBD) ||
-	    (dki_info.dki_ctype == DKC_UNKNOWN)) {
-		if (efi_debug)
-			(void) fprintf(stderr,
-			    "unpartitionable device type %d\n",
-			    dki_info.dki_ctype);
+	    (dki_info.dki_ctype == DKC_UNKNOWN) ||
+	    (dki_info.dki_ctype == DKC_MD))
 		return (-1);
-	}
 #endif
 
 	nblocks = NBLOCKS(nparts, lbsize);
