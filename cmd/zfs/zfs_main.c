@@ -4056,7 +4056,7 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	int i;
+	int i = 0;
 #ifdef HAVE_ZPL
 	char *progname;
 #endif
