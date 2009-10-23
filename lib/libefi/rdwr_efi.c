@@ -111,7 +111,7 @@ int efi_debug = 1;
 int efi_debug = 0;
 #endif
 
-static int		efi_read(int, struct dk_gpt *);
+static int efi_read(int, struct dk_gpt *);
 
 /*
  * Return a 32-bit CRC of the contents of the buffer.  Pre-and-post
@@ -394,12 +394,20 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 		}
 
 		error = lseek(fd, dk_ioc->dki_lba * lbsize, SEEK_SET);
-		if (error == -1)
+		if (error == -1) {
+			if (efi_debug)
+				(void) fprintf(stderr, "DKIOCGETEFI lseek "
+				               "error: %d\n", errno);
 			return error;
+		}
 
 		error = read(fd, data, dk_ioc->dki_length);
-		if (error == -1)
+		if (error == -1) {
+			if (efi_debug)
+				(void) fprintf(stderr, "DKIOCGETEFI read "
+				               "error: %d\n", errno);
 			return error;
+		}
 
 		if (error != dk_ioc->dki_length) {
 			if (efi_debug)
@@ -421,12 +429,20 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 		}
 
 		error = lseek(fd, dk_ioc->dki_lba * lbsize, SEEK_SET);
-		if (error == -1)
+		if (error == -1) {
+			if (efi_debug)
+				(void) fprintf(stderr, "DKIOCSETEFI lseek "
+				               "error: %d\n", errno);
 			return error;
+		}
 
 		error = write(fd, data, dk_ioc->dki_length);
-		if (error == -1)
+		if (error == -1) {
+			if (efi_debug)
+				(void) fprintf(stderr, "DKIOCSETEFI write "
+				               "error: %d\n", errno);
 			return error;
+		}
 
 		if (error != dk_ioc->dki_length) {
 			if (efi_debug)
@@ -436,8 +452,13 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 			return -1;
 		}
 
-		error = fdatasync(fd);
+		/* Sync the new EFI table to disk */
+		error = fsync(fd);
 		if (error == -1)
+			return error;
+
+		/* Ensure any local disk cache is also flushed */
+		if (ioctl(fd, BLKFLSBUF, 0) == -1)
 			return error;
 
 		error = 0;
@@ -597,9 +618,11 @@ efi_read(int fd, struct dk_gpt *vtoc)
 		}
 	}
 
-	if ((dk_ioc.dki_data = calloc(label_len, 1)) == NULL)
+	if (posix_memalign((void **)&dk_ioc.dki_data,
+		           disk_info.dki_lbsize, label_len))
 		return (VT_ERROR);
 
+	memset(dk_ioc.dki_data, 0, label_len);
 	dk_ioc.dki_length = disk_info.dki_lbsize;
 	user_length = vtoc->efi_nparts;
 	efi = dk_ioc.dki_data;
@@ -795,12 +818,14 @@ write_pmbr(int fd, struct dk_gpt *vtoc)
 	int		len;
 
 	len = (vtoc->efi_lbasize == 0) ? sizeof (mb) : vtoc->efi_lbasize;
-	buf = calloc(len, 1);
+	if (posix_memalign((void **)&buf, len, len))
+		return (VT_ERROR);
 
 	/*
 	 * Preserve any boot code and disk signature if the first block is
 	 * already an MBR.
 	 */
+	memset(buf, 0, len);
 	dk_ioc.dki_lba = 0;
 	dk_ioc.dki_length = len;
 	/* LINTED -- always longlong aligned */
@@ -886,10 +911,9 @@ check_input(struct dk_gpt *vtoc)
 		if ((vtoc->efi_parts[i].p_tag == V_UNASSIGNED) &&
 		    (vtoc->efi_parts[i].p_size != 0)) {
 			if (efi_debug) {
-				(void) fprintf(stderr,
-"partition %d is \"unassigned\" but has a size of %llu",
-				    i,
-				    vtoc->efi_parts[i].p_size);
+				(void) fprintf(stderr, "partition %d is "
+				    "\"unassigned\" but has a size of %llu",
+				    i, vtoc->efi_parts[i].p_size);
 			}
 			return (VT_EINVAL);
 		}
@@ -902,9 +926,9 @@ check_input(struct dk_gpt *vtoc)
 		if (vtoc->efi_parts[i].p_tag == V_RESERVED) {
 			if (resv_part != -1) {
 				if (efi_debug) {
-					(void) fprintf(stderr,
-"found duplicate reserved partition at %d\n",
-					    i);
+					(void) fprintf(stderr, "found "
+					    "duplicate reserved partition "
+					    "at %d\n", i);
 				}
 				return (VT_EINVAL);
 			}
@@ -955,8 +979,8 @@ check_input(struct dk_gpt *vtoc)
 				    (istart <= endsect)) {
 					if (efi_debug) {
 						(void) fprintf(stderr,
-"Partition %d overlaps partition %d.",
-						    i, j);
+						    "Partition %d overlaps "
+						    "partition %d.", i, j);
 					}
 					return (VT_EINVAL);
 				}
@@ -1106,9 +1130,11 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	 * for backup GPT header.
 	 */
 	lba_backup_gpt_hdr = vtoc->efi_last_u_lba + 1 + nblocks;
-	if ((dk_ioc.dki_data = calloc(dk_ioc.dki_length, 1)) == NULL)
+	if (posix_memalign((void **)&dk_ioc.dki_data,
+		           vtoc->efi_lbasize, dk_ioc.dki_length))
 		return (VT_ERROR);
 
+	memset(dk_ioc.dki_data, 0, dk_ioc.dki_length);
 	efi = dk_ioc.dki_data;
 
 	/* stuff user's input into EFI struct */
