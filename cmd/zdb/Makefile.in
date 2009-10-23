@@ -172,6 +172,7 @@ SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ASM_DIR = @TARGET_ASM_DIR@
 TOPDIR = @TOPDIR@
+USERDEBUG = @USERDEBUG@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
 ZFS_META_ALIAS = @ZFS_META_ALIAS@
@@ -246,7 +247,7 @@ DEFAULT_INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib/libspl/include \
 
 # Expected defines not covered by zfs_config.h or spl_config.h
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
-	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
+	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT $(USERDEBUG) \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 zdb_SOURCES = \
