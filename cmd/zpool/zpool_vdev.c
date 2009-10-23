@@ -61,6 +61,7 @@
  */
 
 #include <assert.h>
+#include <ctype.h>
 #include <devid.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -297,7 +298,8 @@ check_disk(const char *path, blkid_cache cache, int force,
 			    "%s%s%d", path, "-part", i+1);
 		else
 			(void) snprintf(slice_path, sizeof (slice_path),
-			    "%s%d", path, i+1);
+			    "%s%s%d", path, isdigit(path[strlen(path)-1]) ?
+			    "p" : "", i+1);
 
 		err = check_slice(slice_path, cache, force, isspare);
 		if (err)
@@ -985,7 +987,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			    "%s%s%s", path, "-part", FIRST_SLICE);
 		else
 			(void) snprintf(buf, sizeof (buf),
-			    "%s%s", path, FIRST_SLICE);
+			    "%s%s%s", path, isdigit(path[strlen(path)-1]) ?
+			    "p" : "", FIRST_SLICE);
 
 		if ((ret = zpool_label_disk_wait(buf, 1000)) != 0) {
 			(void) fprintf(stderr,
