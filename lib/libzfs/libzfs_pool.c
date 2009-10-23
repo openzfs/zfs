@@ -3263,8 +3263,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	efi_free(vtoc);
 
 	/* Wait for the first expected slice to appear. */
-	(void) snprintf(path, sizeof (path), "%s/%s%s",
-	    DISK_ROOT, name, FIRST_SLICE);
+	(void) snprintf(path, sizeof (path), "%s/%s%s%s", DISK_ROOT, name,
+	    isdigit(name[strlen(name)-1]) ? "p" : "", FIRST_SLICE);
 	rval = zpool_label_disk_wait(path, 3000);
 	if (rval) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "failed to "
