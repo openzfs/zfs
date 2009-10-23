@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR SCRIPTDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR ZLIB LIBUUID LIBBLKID CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR SCRIPTDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR ZLIB LIBUUID LIBBLKID CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE USERDEBUG LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -22451,38 +22451,47 @@ EOF
 
 
 
-        echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+	echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
 echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
-        # Check whether --enable-debug or --disable-debug was given.
+	# Check whether --enable-debug or --disable-debug was given.
 if test "${enable_debug+set}" = set; then
   enableval="$enable_debug"
    case "$enableval" in
-                        yes) zfs_ac_debug=yes ;;
-                        no)  zfs_ac_debug=no  ;;
-                        *) echo "$as_me:$LINENO: result: Error!" >&5
+			yes) zfs_ac_debug=yes ;;
+			no)  zfs_ac_debug=no  ;;
+			*) echo "$as_me:$LINENO: result: Error!" >&5
 echo "${ECHO_T}Error!" >&6
-                        { { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
+			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
 echo "$as_me: error: Bad value \"$enableval\" for --enable-debug" >&2;}
    { (exit 1); exit 1; }; } ;;
-                esac
+		esac
 
 fi;
-        if test "$zfs_ac_debug" = yes; then
-        	echo "$as_me:$LINENO: result: yes" >&5
+if test "$zfs_ac_debug" = yes; then
+	echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
-        else
-        	echo "$as_me:$LINENO: result: no" >&5
+		USERDEBUG="-DDEBUG"
+	else
+		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define NDEBUG 1
 _ACEOF
 
-                KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
-        fi
+		USERDEBUG="-DNDEBUG"
+	fi
+
+
 
 
                                                                                                                                                                                                                                                                                                                                                     ac_config_files="$ac_config_files Makefile config/Makefile doc/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
@@ -23296,6 +23305,7 @@ s,@CONFIG_USER_TRUE@,$CONFIG_USER_TRUE,;t t
 s,@CONFIG_USER_FALSE@,$CONFIG_USER_FALSE,;t t
 s,@CONFIG_KERNEL_TRUE@,$CONFIG_KERNEL_TRUE,;t t
 s,@CONFIG_KERNEL_FALSE@,$CONFIG_KERNEL_FALSE,;t t
+s,@USERDEBUG@,$USERDEBUG,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
