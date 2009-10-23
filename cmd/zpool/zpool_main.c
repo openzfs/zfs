@@ -3912,7 +3912,7 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	int i;
+	int i = 0;
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
