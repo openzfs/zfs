@@ -932,10 +932,12 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 * This can happen if the user has specified the same
 			 * device multiple times.  We can't reliably detect this
 			 * until we try to add it and see we already have a
-			 * label.
+			 * label.  This can also happen under if the device is
+			 * part of an active md or lvm device.
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "one or more vdevs refer to the same device"));
+			    "one or more vdevs refer to the same device, or one of\n"
+			    "the devices is part of an active md or lvm device"));
 			return (zfs_error(hdl, EZFS_BADDEV, msg));
 
 		case EOVERFLOW:
