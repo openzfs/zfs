@@ -10,23 +10,29 @@ MDRAID=${MDRAID:-10}
 
 DEVICES="/dev/md0"
 
+zpool_md_destroy() {
+	msg ${MDADM} --manage --stop ${DEVICES}
+	${MDADM} --manage --stop ${DEVICES} &>/dev/null
+
+	msg ${MDADM} --zero-superblock ${MDDEVICES}
+	${MDADM} --zero-superblock ${MDDEVICES} >/dev/null
+}
+
 zpool_create() {
 	msg ${MDADM} --create ${DEVICES} --level=${MDRAID} \
 		--raid-devices=${MDCOUNT} ${MDDEVICES}
 	${MDADM} --create ${DEVICES} --level=${MDRAID} \
-		--raid-devices=${MDCOUNT} ${MDDEVICES} || exit 1
+		--raid-devices=${MDCOUNT} ${MDDEVICES} \
+		&>/dev/null || (zpool_md_destroy && exit 1)
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES} || exit 2
+	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+		${DEVICES} || (zpool_md_destroy && exit 2)
 }
 
 zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
-	${ZPOOL} destroy ${ZPOOL_NAME} || exit 1
+	${ZPOOL} destroy ${ZPOOL_NAME}
 
-	msg ${MDADM} --manage --stop ${DEVICES}
-	${MDADM} --manage --stop ${DEVICES} || exit 2
-
-	msg ${MDADM} --zero-superblock ${MDDEVICES}
-	${MDADM} --zero-superblock ${MDDEVICES} || exit 3
+	zpool_md_destroy
 }
