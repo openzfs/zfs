@@ -724,10 +724,6 @@ spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
                         break;
         }
 
-        if (unlikely(*(string_buf + needed - 1) != '\n'))
-                printk(KERN_INFO "format at %s:%d:%s doesn't end in newline\n",
-                       file, line, fn);
-
         header.ph_len = known_size + needed;
         debug_buf = (char *)page_address(tage->page) + tage->used;
 
