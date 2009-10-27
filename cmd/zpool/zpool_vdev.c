@@ -125,7 +125,7 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	pool_state_t state;
 	boolean_t inuse;
 
-	if ((fd = open(file, O_RDONLY)) < 0)
+	if ((fd = open(file, O_RDONLY|O_EXCL)) < 0)
 		return (0);
 
 	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) == 0 && inuse) {
@@ -250,7 +250,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * not easily decode the MBR return a failure and prompt to the
 	 * user to use force option since we cannot check the partitions.
 	 */
-	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0) {
 		check_error(errno);
 		return -1;
 	}
@@ -366,7 +366,7 @@ is_whole_disk(const char *arg)
 
 	(void) snprintf(path, sizeof (path), "%s%s%s",
 	    RDISK_ROOT, strrchr(arg, '/'), BACKUP_SLICE);
-	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0)
+	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0)
 		return (B_FALSE);
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
 		(void) close(fd);
@@ -498,7 +498,7 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 		ddi_devid_t devid;
 		char *minor = NULL, *devid_str = NULL;
 
-		if ((fd = open(path, O_RDONLY)) < 0) {
+		if ((fd = open(path, O_RDONLY|O_EXCL)) < 0) {
 			(void) fprintf(stderr, gettext("cannot open '%s': "
 			    "%s\n"), path, strerror(errno));
 			nvlist_free(vdev);
@@ -891,7 +891,7 @@ zero_label(char *path)
 	char buf[size];
 	int err, fd;
 
-	if ((fd = open(path, O_WRONLY)) < 0) {
+	if ((fd = open(path, O_WRONLY|O_EXCL)) < 0) {
 		(void) fprintf(stderr, gettext("cannot open '%s': %s\n"),
 		    path, strerror(errno));
 		return (-1);
@@ -1045,7 +1045,7 @@ is_spare(nvlist_t *config, const char *path)
 	uint_t i, nspares;
 	boolean_t inuse;
 
-	if ((fd = open(path, O_RDONLY)) < 0)
+	if ((fd = open(path, O_RDONLY|O_EXCL)) < 0)
 		return (B_FALSE);
 
 	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
