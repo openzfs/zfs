@@ -222,7 +222,7 @@ EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 ZFS = ${top_srcdir}/scripts/zfs.sh
 ZCONFIG = ${top_srcdir}/scripts/zconfig.sh
 ZTEST = ${top_builddir}/cmd/ztest/ztest
-ZPIOS = ${top_srcdir}/scripts/zpios.sh
+ZPIOS_SANITY = ${top_srcdir}/scripts/zpios-sanity.sh
 all: all-am
 
 .SUFFIXES:
@@ -436,14 +436,7 @@ check:
 	@echo    "===================================="
 	@echo
 	@$(ZFS)
-	@$(ZPIOS) -c file-raid0  -t tiny
-	@$(ZPIOS) -c file-raid10 -t tiny | tail -1
-	@$(ZPIOS) -c file-raidz  -t tiny | tail -1
-	@$(ZPIOS) -c file-raidz2 -t tiny | tail -1
-	@$(ZPIOS) -c lo-raid0    -t tiny | tail -1
-	@$(ZPIOS) -c lo-raid10   -t tiny | tail -1
-	@$(ZPIOS) -c lo-raidz    -t tiny | tail -1
-	@$(ZPIOS) -c lo-raidz2   -t tiny | tail -1
+	@$(ZPIOS_SANITY)
 	@$(ZFS) -u
 	@echo
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
