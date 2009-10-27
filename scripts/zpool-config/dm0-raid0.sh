@@ -15,9 +15,20 @@ LVCREATE=${LVCREATE:-/sbin/lvcreate}
 LVREMOVE=${LVREMOVE:-/sbin/lvremove}
 LVNAME=${LVNAME:-"lv_tank"}
 LVSTRIPES=${LVSTRIPES:-4}
-LVSIZE=${LVSIZE:-4G}
+LVSIZE=${LVSIZE:-32G}
 
 DEVICES="/dev/${VGNAME}/${LVNAME}"
+
+zpool_dm_destroy() {
+	msg ${LVREMOVE} -f ${VGNAME}/${LVNAME}
+	${LVREMOVE} -f ${VGNAME}/${LVNAME} >/dev/null
+
+	msg ${VGREMOVE} -f ${VGNAME}
+	${VGREMOVE} -f ${VGNAME} >/dev/null
+
+	msg ${PVREMOVE} ${PVDEVICES}
+	${PVREMOVE} ${PVDEVICES} >/dev/null
+}
 
 zpool_create() {
 	# Remove EFI labels which cause pvcreate failure
@@ -26,30 +37,24 @@ zpool_create() {
 	done
 
 	msg ${PVCREATE} -f ${PVDEVICES}
-	${PVCREATE} -f ${PVDEVICES} || exit 1
+	${PVCREATE} -f ${PVDEVICES} >/dev/null || exit 1
 
 	msg ${VGCREATE} ${VGNAME} ${PVDEVICES}
-	${VGCREATE} ${VGNAME} ${PVDEVICES} || exit 2
+	${VGCREATE} ${VGNAME} ${PVDEVICES} >/dev/null || exit 2
 
 	msg ${LVCREATE} --size=${LVSIZE} --stripes=${LVSTRIPES} \
 		--name=${LVNAME} ${VGNAME}
 	${LVCREATE} --size=${LVSIZE} --stripes=${LVSTRIPES} \
-		--name=${LVNAME} ${VGNAME} || exit 3
+		--name=${LVNAME} ${VGNAME} >/dev/null || exit 3
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES}
-	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${DEVICES} || exit 4
+	${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} \
+		${DEVICES} || (zpool_dm_destroy && exit 4)
 }
 
 zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
-	${ZPOOL} destroy ${ZPOOL_NAME} || exit 1
+	${ZPOOL} destroy ${ZPOOL_NAME}
 
-	msg ${LVREMOVE} -f ${VGNAME}/${LVNAME}
-	${LVREMOVE} -f ${VGNAME}/${LVNAME} || exit 2
-
-	msg ${VGREMOVE} -f ${VGNAME}
-	${VGREMOVE} -f ${VGNAME} || exit 3
-
-	msg ${PVREMOVE} ${PVDEVICES}
-	${PVREMOVE} ${PVDEVICES} || exit 4
+	zpool_dm_destroy
 }
