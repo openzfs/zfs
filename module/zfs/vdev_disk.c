@@ -107,11 +107,18 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 		return ENOMEM;
 
 	/*
-	 * XXX: Since we do not have devid support like Solaris we
-	 * currently can't be as clever about opening the right device.
-	 * For now we will simply open the device name provided and
-	 * fail when it doesn't exist.  If your devices get reordered
-	 * your going to be screwed, use udev for now to prevent this.
+	 * Devices are always opened by the path provided at configuration
+	 * time.  This means that if the provided path is a udev by-id path
+	 * then drives may be recabled without an issue.  If the provided
+	 * path is a udev by-path path then the physical location information
+	 * will be preserved.  This can be critical for more complicated
+	 * configurations where drives are located in specific physical
+	 * locations to maximize the systems tolerence to component failure.
+	 * Alternately you can provide your own udev rule to flexibly map
+	 * the drives as you see fit.  It is not advised that you use the
+	 * /dev/[hd]d devices which may be reorder due to probing order.
+	 * Devices in the wrong locations will be detected by the higher
+	 * level vdev validation.
 	 */
 	mode = spa_mode(v->vdev_spa);
 	bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
@@ -119,11 +126,6 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 		kmem_free(vd, sizeof(vdev_disk_t));
 		return -PTR_ERR(bdev);
 	}
-
-	/*
-	 * XXX: Long term validate stored vd->vd_devid with a unique
-	 * identifier read from the disk, likely EFI support.
-	 */
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
@@ -205,8 +207,10 @@ vdev_disk_dio_put(dio_request_t *dr)
 {
 	int rc = atomic_dec_return(&dr->dr_ref);
 
-	/* Free the dio_request when the last reference is dropped and
-	 * ensure zio_interpret is called only once with the correct zio */
+	/*
+	 * Free the dio_request when the last reference is dropped and
+	 * ensure zio_interpret is called only once with the correct zio
+	 */
 	if (rc == 0) {
 		zio_t *zio = dr->dr_zio;
 		int error = dr->dr_error;
@@ -259,76 +263,56 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 	BIO_END_IO_RETURN(0);
 }
 
-static struct bio *
-bio_map_virt(struct request_queue *q, void *data,
-               unsigned int len, gfp_t gfp_mask)
+static inline unsigned long
+bio_nr_pages(void *bio_ptr, unsigned int bio_size)
 {
-	unsigned long kaddr = (unsigned long)data;
-	unsigned long end = (kaddr + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	unsigned long start = kaddr >> PAGE_SHIFT;
-	unsigned int offset, i, data_len = len;
-	const int nr_pages = end - start;
-	struct page *page;
-	struct bio *bio;
-
-	bio = bio_alloc(gfp_mask, nr_pages);
-	if (!bio)
-		return ERR_PTR(-ENOMEM);
-
-	offset = offset_in_page(kaddr);
-	for (i = 0; i < nr_pages; i++) {
-		unsigned int bytes = PAGE_SIZE - offset;
-
-		if (len <= 0)
-			break;
-
-		if (bytes > len)
-			bytes = len;
-
-		VERIFY3P(page = vmalloc_to_page(data), !=, NULL);
-		VERIFY3U(bio_add_pc_page(q, bio, page, bytes, offset),==,bytes);
-
-		data += bytes;
-		len -= bytes;
-		offset = 0;
-		bytes = PAGE_SIZE;
-	}
-
-	VERIFY3U(bio->bi_size, ==, data_len);
-        return bio;
+	return ((((unsigned long)bio_ptr + bio_size + PAGE_SIZE - 1) >>
+	        PAGE_SHIFT) - ((unsigned long)bio_ptr >> PAGE_SHIFT));
 }
 
-static struct bio *
-bio_map(struct request_queue *q, void *data, unsigned int len, gfp_t gfp_mask)
+static unsigned int
+bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
 {
-	struct bio *bio;
+	unsigned int offset, size, i;
+	struct page *page;
 
-	/* Cleanly map buffer we are passed in to a bio regardless
-	 * of if the buffer is a virtual or physical address. */
-	if (kmem_virt(data))
-		bio = bio_map_virt(q, data, len, gfp_mask);
-	else
-		bio = bio_map_kern(q, data, len, gfp_mask);
+	offset = offset_in_page(bio_ptr);
+	for (i = 0; i < bio->bi_max_vecs; i++) {
+		size = PAGE_SIZE - offset;
 
-	return bio;
+		if (bio_size <= 0)
+			break;
+
+		if (size > bio_size)
+			size = bio_size;
+
+		if (kmem_virt(bio_ptr))
+			page = vmalloc_to_page(bio_ptr);
+		else
+			page = virt_to_page(bio_ptr);
+
+		if (bio_add_page(bio, page, size, offset) != size)
+			break;
+
+		bio_ptr  += size;
+		bio_size -= size;
+		offset = 0;
+	}
+
+        return bio_size;
 }
 
 static int
 __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
                    size_t kbuf_size, uint64_t kbuf_offset, int flags)
 {
-	struct request_queue *q;
         dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
-	int i, error = 0, bio_count, bio_size;
+	int bio_size, bio_count = 16;
+	int i = 0, error = 0;
 
-	ASSERT3S(kbuf_offset % bdev_hardsect_size(bdev), ==, 0);
-	q = bdev_get_queue(bdev);
-	if (!q)
-		return ENXIO;
-
-	bio_count = (kbuf_size / (q->max_hw_sectors << 9)) + 1;
+retry:
 	dr = vdev_disk_dio_alloc(bio_count);
 	if (dr == NULL)
 		return ENOMEM;
@@ -348,36 +332,58 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	 * their volume block size to match the maximum request size and
 	 * the common case will be one bio per vdev IO request.
 	 */
-	bio_ptr = kbuf_ptr;
+	bio_ptr    = kbuf_ptr;
 	bio_offset = kbuf_offset;
-	for (i = 0; i < dr->dr_bio_count; i++) {
-		bio_size = MIN(kbuf_size, q->max_hw_sectors << 9);
+	bio_size   = kbuf_size;
+	for (i = 0; i <= dr->dr_bio_count; i++) {
 
-		dr->dr_bio[i] = bio_map(q, bio_ptr, bio_size, GFP_NOIO);
-		if (IS_ERR(dr->dr_bio[i])) {
-			error = -PTR_ERR(dr->dr_bio[i]);
+		/* Finished constructing bio's for given buffer */
+		if (bio_size <= 0)
+			break;
+
+		/*
+		 * By default only 'bio_count' bio's per dio are allowed.
+		 * However, if we find ourselves in a situation where more
+		 * are needed we allocate a larger dio and warn the user.
+		 */
+		if (dr->dr_bio_count == i) {
 			vdev_disk_dio_free(dr);
-			return error;
+			bio_count *= 2;
+			printk("WARNING: Resized bio's/dio to %d\n",bio_count);
+			goto retry;
+		}
+
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
+		                          bio_nr_pages(bio_ptr, bio_size));
+		if (dr->dr_bio[i] == NULL) {
+			vdev_disk_dio_free(dr);
+			return ENOMEM;
 		}
 
 		/* Matching put called by vdev_disk_physio_completion */
 		vdev_disk_dio_get(dr);
 
 		dr->dr_bio[i]->bi_bdev = bdev;
-		dr->dr_bio[i]->bi_sector = bio_offset >> 9;
+		dr->dr_bio[i]->bi_sector = bio_offset/bdev_hardsect_size(bdev);
+		dr->dr_bio[i]->bi_rw = dr->dr_rw;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
 
-		bio_ptr    += bio_size;
-		bio_offset += bio_size;
-		kbuf_size  -= bio_size;
+		/* Remaining size is returned to become the new size */
+		bio_size = bio_map(dr->dr_bio[i], bio_ptr, bio_size);
+
+		/* Advance in buffer and construct another bio if needed */
+		bio_ptr    += dr->dr_bio[i]->bi_size;
+		bio_offset += dr->dr_bio[i]->bi_size;
 	}
 
 	/* Extra reference to protect dio_request during submit_bio */
 	vdev_disk_dio_get(dr);
 
+	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
-		submit_bio(dr->dr_rw, dr->dr_bio[i]);
+		if (dr->dr_bio[i])
+			submit_bio(dr->dr_rw, dr->dr_bio[i]);
 
 	/*
 	 * On synchronous blocking requests we wait for all bio the completion
