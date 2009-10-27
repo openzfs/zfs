@@ -33,8 +33,10 @@
 
 #define DEBUG_SUBSYSTEM S_GENERIC
 
+#ifndef NDEBUG
 static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
+#endif
 
 void
 vpanic(const char *fmt, va_list ap)
