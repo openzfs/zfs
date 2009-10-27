@@ -191,7 +191,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 			      &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_MD;
+		dki_info->dki_ctype = DKC_VBD;
 		rval = sscanf(dev_path, "/dev/%[a-zA-Z0-9-]p%hu",
 			      dki_info->dki_dname,
 			      &dki_info->dki_partition);
@@ -281,8 +281,7 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 
 	if ((dki_info.dki_ctype == DKC_PCMCIA_MEM) ||
 	    (dki_info.dki_ctype == DKC_VBD) ||
-	    (dki_info.dki_ctype == DKC_UNKNOWN) ||
-	    (dki_info.dki_ctype == DKC_MD))
+	    (dki_info.dki_ctype == DKC_UNKNOWN))
 		return (-1);
 #endif
 
