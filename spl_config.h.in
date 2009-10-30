@@ -1,5 +1,8 @@
 /* spl_config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Atomic types use spinlocks */
+#undef ATOMIC_SPINLOCK
+
 /* Define to 1 to enable callb debugging */
 #undef DEBUG_CALLB
 

@@ -25,6 +25,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_DEBUG_KMEM
 	SPL_AC_DEBUG_KSTAT
 	SPL_AC_DEBUG_CALLB
+	SPL_AC_ATOMIC_SPINLOCK
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_TYPE_ATOMIC64_T
 	SPL_AC_3ARGS_INIT_WORK
@@ -300,6 +301,27 @@ AC_DEFUN([SPL_AC_DEBUG_CALLB], [
 	else
 		AC_MSG_RESULT([no])
 	fi
+])
+
+dnl #
+dnl # Use the atomic implemenation based on global spinlocks.  This
+dnl # should never be needed, however it has been left in place as
+dnl # a fallback option in case problems are observed with directly
+dnl # mapping to the native Linux atomic operations.
+dnl #
+AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
+	AC_ARG_ENABLE([atomic-spinlocks],
+		[AS_HELP_STRING([--enable-atomic-spinlocks],
+		[Atomic types use spinlocks @<:@default=no@:>@])],
+		[],
+		[enable_atomic_spinlocks=no])
+
+	AS_IF([test "x$enable_atomic_spinlocks" = xyes],
+		[AC_DEFINE([ATOMIC_SPINLOCK], [1],
+		[Atomic types use spinlocks])])
+
+	AC_MSG_CHECKING([whether atomic types use spinlocks])
+	AC_MSG_RESULT([$enable_atomic_spinlocks])
 ])
 
 dnl #

@@ -27,31 +27,94 @@
 #ifndef _SPL_ATOMIC_H
 #define _SPL_ATOMIC_H
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
-
 #include <linux/module.h>
 #include <linux/spinlock.h>
-#include <sys/isa_defs.h>
+#include <sys/types.h>
 
-/* XXX: Serialize everything through global locks.  This is
- * going to be bad for performance, but for now it's the easiest
- * way to ensure correct behavior.  I don't like it at all.
- * It would be nicer to make these function to the atomic linux
- * functions, but the normal uint64_t type complicates this.
+/*
+ * Two approaches to atomic operations are implemented each with its
+ * own benefits are drawbacks imposed by the Solaris API.  Neither
+ * approach handles the issue of word breaking when using a 64-bit
+ * atomic variable on a 32-bit arch.  The Solaris API would need to
+ * add an atomic read call to correctly support this.
+ *
+ * When ATOMIC_SPINLOCK is defined all atomic operations will be
+ * serialized through global spin locks.  This is bad for performance
+ * but it does allow a simple generic implementation.
+ *
+ * When ATOMIC_SPINLOCK is not defined the Linux atomic operations
+ * are used.  This is safe as long as the core Linux implementation
+ * doesn't change because we are relying on the fact that an atomic
+ * type is really just a uint32 or uint64.  If this changes at some
+ * point in the future we need to fall-back to the spin approach.
  */
-extern spinlock_t atomic64_lock;
+#ifdef ATOMIC_SPINLOCK
 extern spinlock_t atomic32_lock;
+extern spinlock_t atomic64_lock;
+
+static __inline__ void
+atomic_inc_32(volatile uint32_t *target)
+{
+	spin_lock(&atomic32_lock);
+	(*target)++;
+	spin_unlock(&atomic32_lock);
+}
+
+static __inline__ void
+atomic_dec_32(volatile uint32_t *target)
+{
+	spin_lock(&atomic32_lock);
+	(*target)--;
+	spin_unlock(&atomic32_lock);
+}
+
+static __inline__ void
+atomic_add_32(volatile uint32_t *target, int32_t delta)
+{
+	spin_lock(&atomic32_lock);
+	*target += delta;
+	spin_unlock(&atomic32_lock);
+}
+
+static __inline__ void
+atomic_sub_32(volatile uint32_t *target, int32_t delta)
+{
+	spin_lock(&atomic32_lock);
+	*target -= delta;
+	spin_unlock(&atomic32_lock);
+}
 
 static __inline__ uint32_t
-atomic_add_32(volatile uint32_t *target, int32_t delta)
+atomic_add_32_nv(volatile uint32_t *target, uint32_t delta)
+{
+	spin_lock(&atomic32_lock);
+	*target += delta;
+	spin_unlock(&atomic32_lock);
+
+	return *target;
+}
+
+static __inline__ uint32_t
+atomic_sub_32_nv(volatile uint32_t *target, uint32_t delta)
+{
+	spin_lock(&atomic32_lock);
+	*target -= delta;
+	spin_unlock(&atomic32_lock);
+
+	return *target;
+}
+
+static __inline__ uint32_t
+atomic_cas_32(volatile uint32_t *target,  uint32_t cmp,
+              uint32_t newval)
 {
 	uint32_t rc;
 
 	spin_lock(&atomic32_lock);
 	rc = *target;
-	*target += delta;
+	if (*target == cmp)
+		*target = newval;
+
 	spin_unlock(&atomic32_lock);
 
 	return rc;
@@ -73,30 +136,20 @@ atomic_dec_64(volatile uint64_t *target)
 	spin_unlock(&atomic64_lock);
 }
 
-static __inline__ uint64_t
+static __inline__ void
 atomic_add_64(volatile uint64_t *target, uint64_t delta)
 {
-	uint64_t rc;
-
 	spin_lock(&atomic64_lock);
-	rc = *target;
 	*target += delta;
 	spin_unlock(&atomic64_lock);
-
-	return rc;
 }
 
-static __inline__ uint64_t
+static __inline__ void
 atomic_sub_64(volatile uint64_t *target, uint64_t delta)
 {
-	uint64_t rc;
-
 	spin_lock(&atomic64_lock);
-	rc = *target;
 	*target -= delta;
 	spin_unlock(&atomic64_lock);
-
-	return rc;
 }
 
 static __inline__ uint64_t
@@ -121,7 +174,7 @@ atomic_sub_64_nv(volatile uint64_t *target, uint64_t delta)
 
 static __inline__ uint64_t
 atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
-               uint64_t newval)
+              uint64_t newval)
 {
 	uint64_t rc;
 
@@ -134,45 +187,40 @@ atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
 	return rc;
 }
 
-static __inline__ uint32_t
-atomic_cas_32(volatile uint32_t *target,  uint32_t cmp,
-               uint32_t newval)
-{
-	uint32_t rc;
 
-	spin_lock(&atomic32_lock);
-	rc = *target;
-	if (*target == cmp)
-		*target = newval;
+#else /* ATOMIC_SPINLOCK */
 
-	spin_unlock(&atomic32_lock);
+#define atomic_inc_32(v)	atomic_inc((atomic_t *)(v))
+#define atomic_dec_32(v)	atomic_dec((atomic_t *)(v))
+#define atomic_add_32(v, i)	atomic_add((i), (atomic_t *)(v))
+#define atomic_sub_32(v, i)	atomic_sub((i), (atomic_t *)(v))
+#define atomic_add_32_nv(v, i)	atomic_add_return((i), (atomic_t *)(v))
+#define atomic_sub_32_nv(v, i)	atomic_sub_return((i), (atomic_t *)(v))
+#define atomic_cas_32(v, x, y)	atomic_cmpxchg((atomic_t *)(v), x, y)
+#define atomic_inc_64(v)	atomic64_inc((atomic64_t *)(v))
+#define atomic_dec_64(v)	atomic64_dec((atomic64_t *)(v))
+#define atomic_add_64(v, i)	atomic64_add((i), (atomic64_t *)(v))
+#define atomic_sub_64(v, i)	atomic64_sub((i), (atomic64_t *)(v))
+#define atomic_add_64_nv(v, i)	atomic64_add_return((i), (atomic64_t *)(v))
+#define atomic_sub_64_nv(v, i)	atomic64_sub_return((i), (atomic64_t *)(v))
+#define atomic_cas_64(v, x, y)	atomic64_cmpxchg((atomic64_t *)(v), x, y)
 
-	return rc;
-}
+#endif /* ATOMIC_SPINLOCK */
 
 #ifdef _LP64
-/* XXX: Implement atomic_cas_ptr() in terms of uint64'ts.  This
- * is of course only safe and correct for 64 bit arches...  but
- * for now I'm OK with that.
- */
 static __inline__ void *
 atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
 	return (void *)atomic_cas_64((volatile uint64_t *)target,
 	                             (uint64_t)cmp, (uint64_t)newval);
 }
-#else
+#else /* _LP64 */
 static __inline__ void *
 atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
 	return (void *)atomic_cas_32((volatile uint32_t *)target,
 	                             (uint32_t)cmp, (uint32_t)newval);
 }
-#endif
-
-#ifdef  __cplusplus
-}
-#endif
+#endif /* _LP64 */
 
 #endif  /* _SPL_ATOMIC_H */
-
