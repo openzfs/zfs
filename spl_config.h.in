@@ -33,8 +33,14 @@
 /* device_create wants 5 args */
 #undef HAVE_5ARGS_DEVICE_CREATE
 
+/* kernel defines atomic64_cmpxchg */
+#undef HAVE_ATOMIC64_CMPXCHG
+
 /* kernel defines atomic64_t */
 #undef HAVE_ATOMIC64_T
+
+/* kernel defines atomic64_xchg */
+#undef HAVE_ATOMIC64_XCHG
 
 /* class_device_create() is available */
 #undef HAVE_CLASS_DEVICE_CREATE

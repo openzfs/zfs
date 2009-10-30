@@ -28,6 +28,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_ATOMIC_SPINLOCK
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_TYPE_ATOMIC64_T
+	SPL_AC_TYPE_ATOMIC64_CMPXCHG
+	SPL_AC_TYPE_ATOMIC64_XCHG
 	SPL_AC_3ARGS_INIT_WORK
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SET_SHRINKER
@@ -483,6 +485,44 @@ AC_DEFUN([SPL_AC_TYPE_ATOMIC64_T],
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_ATOMIC64_T, 1,
 		          [kernel defines atomic64_t])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # 2.6.24 API change,
+dnl # check if atomic64_cmpxchg is defined
+dnl #
+AC_DEFUN([SPL_AC_TYPE_ATOMIC64_CMPXCHG],
+	[AC_MSG_CHECKING([whether kernel defines atomic64_cmpxchg])
+	SPL_LINUX_TRY_COMPILE([
+		#include <asm/atomic.h>
+	],[
+		atomic64_cmpxchg((atomic64_t *)NULL, 0, 0);
+	],[
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_ATOMIC64_CMPXCHG, 1,
+		          [kernel defines atomic64_cmpxchg])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # 2.6.24 API change,
+dnl # check if atomic64_xchg is defined
+dnl #
+AC_DEFUN([SPL_AC_TYPE_ATOMIC64_XCHG],
+	[AC_MSG_CHECKING([whether kernel defines atomic64_xchg])
+	SPL_LINUX_TRY_COMPILE([
+		#include <asm/atomic.h>
+	],[
+		atomic64_xchg((atomic64_t *)NULL, 0);
+	],[
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_ATOMIC64_XCHG, 1,
+		          [kernel defines atomic64_xchg])
 	],[
 		AC_MSG_RESULT([no])
 	])

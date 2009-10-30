@@ -30,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <sys/types.h>
+#include <asm/atomic_compat.h>
 
 /*
  * Two approaches to atomic operations are implemented each with its

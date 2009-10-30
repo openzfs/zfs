@@ -55,5 +55,13 @@ static inline void atomic64_set(atomic64_t *v, __s64 i)
 
 #endif /* HAVE_ATOMIC64_T */
 
+#ifndef HAVE_ATOMIC64_CMPXCHG
+#define atomic64_cmpxchg(v, o, n)	(cmpxchg(&((v)->counter), (o), (n)))
+#endif
+
+#ifndef HAVE_ATOMIC64_XCHG
+#define atomic64_xchg(v, n)		(xchg(&((v)->counter), n))
+#endif
+
 #endif /* _SPL_ATOMIC_COMPAT_H */
 
