@@ -23,8 +23,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 
 	SPL_AC_DEBUG
 	SPL_AC_DEBUG_KMEM
-	SPL_AC_DEBUG_KSTAT
-	SPL_AC_DEBUG_CALLB
+	SPL_AC_DEBUG_KMEM_TRACKING
 	SPL_AC_ATOMIC_SPINLOCK
 	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_TYPE_ATOMIC64_T
@@ -218,91 +217,71 @@ AC_DEFUN([SPL_AC_CONFIG], [
                        [test "$SPL_CONFIG" = all])
 ])
 
+dnl #
+dnl # Enable if the SPL should be compiled with internal debugging enabled.
+dnl # By default this support is disabled.
+dnl #
 AC_DEFUN([SPL_AC_DEBUG], [
+	AC_ARG_ENABLE([debug],
+		[AS_HELP_STRING([--enable-debug],
+		[Enable generic debug support @<:@default=no@:>@])],
+		[],
+		[enable_debug=no])
+
+	AS_IF([test "x$enable_debug" = xyes],
+		[KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"],
+		[KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"])
+
 	AC_MSG_CHECKING([whether debugging is enabled])
-	AC_ARG_ENABLE( [debug],
-		AS_HELP_STRING([--enable-debug],
-		[Enable generic debug support (default off)]),
-		[ case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no)  spl_ac_debug=no  ;;
-			*) AC_MSG_RESULT([Error!])
-			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug]) ;;
-		esac ]
-	) 
-	if test "$spl_ac_debug" = yes; then
-		AC_MSG_RESULT([yes])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
-	else
-		AC_MSG_RESULT([no])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
-	fi
+	AC_MSG_RESULT([$enable_debug])
 ])
 
+dnl #
+dnl # Enabled by default it provides a minimal level of memory tracking.
+dnl # A total count of bytes allocated is kept for each alloc and free.
+dnl # Then at module unload time a report to the console will be printed
+dnl # if memory was leaked.  Additionally, /proc/spl/kmem/slab will exist
+dnl # and provide an easy way to inspect the kmem based slab.
+dnl #
 AC_DEFUN([SPL_AC_DEBUG_KMEM], [
-	AC_MSG_CHECKING([whether kmem debugging is enabled])
-	AC_ARG_ENABLE( [debug-kmem],
-		AS_HELP_STRING([--enable-debug-kmem],
-		[Enable kmem debug support (default off)]),
-		[ case "$enableval" in
-			yes) spl_ac_debug_kmem=yes ;;
-			no)  spl_ac_debug_kmem=no  ;;
-			*) AC_MSG_RESULT([Error!])
-			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-kmem]) ;;
-		esac ]
-	) 
-	if test "$spl_ac_debug_kmem" = yes; then
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([DEBUG_KMEM], [1],
-		[Define to 1 to enable kmem debugging])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
-	else
-		AC_MSG_RESULT([no])
-	fi
+	AC_ARG_ENABLE([debug-kmem],
+		[AS_HELP_STRING([--enable-debug-kmem],
+		[Enable basic kmem accounting @<:@default=yes@:>@])],
+		[],
+		[enable_debug_kmem=yes])
+
+	AS_IF([test "x$enable_debug_kmem" = xyes],
+		[AC_DEFINE([DEBUG_KMEM], [1],
+		[Define to 1 to enable basic kmem accounting])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"])
+
+	AC_MSG_CHECKING([whether basic kmem accounting is enabled])
+	AC_MSG_RESULT([$enable_debug_kmem])
 ])
 
-AC_DEFUN([SPL_AC_DEBUG_KSTAT], [
-	AC_MSG_CHECKING([whether kstat debugging is enabled])
-	AC_ARG_ENABLE( [debug-kstat],
-		AS_HELP_STRING([--enable-debug-kstat],
-		[Enable kstat debug support (default off)]),
-		[ case "$enableval" in
-			yes) spl_ac_debug_kstat=yes ;;
-			no)  spl_ac_debug_kstat=no  ;;
-			*) AC_MSG_RESULT([Error!])
-			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-kstat]) ;;
-		esac ]
-	) 
-	if test "$spl_ac_debug_kstat" = yes; then
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([DEBUG_KSTAT], [1],
-		[Define to 1 to enable kstat debugging])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KSTAT"
-	else
-		AC_MSG_RESULT([no])
-	fi
-])
+dnl #
+dnl # Disabled by default it provides detailed memory tracking.  This
+dnl # feature also requires --enable-debug-kmem to be set.  When enabled
+dnl # not only will total bytes be tracked but also the location of every
+dnl # alloc and free.  When the SPL module is unloaded a list of all leaked
+dnl # addresses and where they were allocated will be dumped to the console.
+dnl # Enabling this feature has a significant impact on performance but it
+dnl # makes finding memory leaks pretty straight forward.
+dnl #
+AC_DEFUN([SPL_AC_DEBUG_KMEM_TRACKING], [
+	AC_ARG_ENABLE([debug-kmem-tracking],
+		[AS_HELP_STRING([--enable-debug-kmem-tracking],
+		[Enable detailed kmem tracking  @<:@default=no@:>@])],
+		[],
+		[enable_debug_kmem_tracking=no])
 
-AC_DEFUN([SPL_AC_DEBUG_CALLB], [
-	AC_MSG_CHECKING([whether callb debugging is enabled])
-	AC_ARG_ENABLE( [debug-callb],
-		AS_HELP_STRING([--enable-debug-callb],
-		[Enable callb debug support (default off)]),
-		[ case "$enableval" in
-			yes) spl_ac_debug_callb=yes ;;
-			no)  spl_ac_debug_callb=no  ;;
-			*) AC_MSG_RESULT([Error!])
-			AC_MSG_ERROR([Bad value "$enableval" for --enable-debug-callb]) ;;
-		esac ]
-	) 
-	if test "$spl_ac_debug_callb" = yes; then
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([DEBUG_CALLB], [1],
-		[Define to 1 to enable callb debugging])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_CALLB"
-	else
-		AC_MSG_RESULT([no])
-	fi
+	AS_IF([test "x$enable_debug_kmem_tracking" = xyes],
+		[AC_DEFINE([DEBUG_KMEM_TRACKING], [1],
+		[Define to 1 to enable detailed kmem tracking])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"])
+
+	AC_MSG_CHECKING([whether detailed kmem tracking is enabled])
+	AC_MSG_RESULT([$enable_debug_kmem_tracking])
 ])
 
 dnl #

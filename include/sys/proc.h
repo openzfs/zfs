@@ -48,12 +48,10 @@
 #define spl_unregister_sysctl_table(t)	unregister_sysctl_table(t)
 #endif /* CONFIG_SYSCTL */
 
-#ifdef DEBUG_KSTAT
 extern struct proc_dir_entry *proc_spl_kstat;
 struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
 					   const char *str);
 int proc_dir_entries(struct proc_dir_entry *root);
-#endif
 
 int proc_init(void);
 void proc_fini(void);

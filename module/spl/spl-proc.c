@@ -41,16 +41,12 @@ static unsigned long table_max = ~0;
 static struct ctl_table_header *spl_header = NULL;
 #endif /* CONFIG_SYSCTL */
 
-#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 static struct proc_dir_entry *proc_spl = NULL;
 #ifdef DEBUG_KMEM
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 #endif /* DEBUG_KMEM */
-#ifdef DEBUG_KSTAT
 struct proc_dir_entry *proc_spl_kstat = NULL;
-#endif /* DEBUG_KSTAT */
-#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef HAVE_CTL_UNNUMBERED
 
@@ -901,11 +897,9 @@ static struct ctl_table spl_kmem_table[] = {
 };
 #endif /* DEBUG_KMEM */
 
-#ifdef DEBUG_KSTAT
 static struct ctl_table spl_kstat_table[] = {
 	{0},
 };
-#endif /* DEBUG_KSTAT */
 
 static struct ctl_table spl_table[] = {
         /* NB No .strategy entries have been provided since
@@ -965,14 +959,12 @@ static struct ctl_table spl_table[] = {
 		.child    = spl_kmem_table,
 	},
 #endif
-#ifdef DEBUG_KSTAT
 	{
 		.ctl_name = CTL_SPL_KSTAT,
 		.procname = "kstat",
 		.mode     = 0555,
 		.child    = spl_kstat_table,
 	},
-#endif
         { 0 },
 };
 
@@ -1041,7 +1033,6 @@ proc_init(void)
 		RETURN(-EUNATCH);
 #endif /* CONFIG_SYSCTL */
 
-#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	proc_spl = proc_mkdir("spl", NULL);
 	if (proc_spl == NULL)
 		GOTO(out, rc = -EUNATCH);
@@ -1058,25 +1049,21 @@ proc_init(void)
         proc_spl_kmem_slab->proc_fops = &proc_slab_operations;
 #endif /* DEBUG_KMEM */
 
-#ifdef DEBUG_KSTAT
         proc_spl_kstat = proc_mkdir("kstat", proc_spl);
         if (proc_spl_kstat == NULL)
                 GOTO(out, rc = -EUNATCH);
-#endif /* DEBUG_KSTAT */
-
 out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
 #ifdef DEBUG_KMEM
 	        remove_proc_entry("slab", proc_spl_kmem);
-#endif
 		remove_proc_entry("kmem", proc_spl);
+#endif
 		remove_proc_entry("spl", NULL);
 #ifdef CONFIG_SYSCTL
 	        spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
 	}
-#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
         RETURN(rc);
 }
@@ -1086,14 +1073,12 @@ proc_fini(void)
 {
         ENTRY;
 
-#if defined(DEBUG_KMEM) || defined(DEBUG_KSTAT)
 	remove_proc_entry("kstat", proc_spl);
 #ifdef DEBUG_KMEM
         remove_proc_entry("slab", proc_spl_kmem);
-#endif
 	remove_proc_entry("kmem", proc_spl);
+#endif
 	remove_proc_entry("spl", NULL);
-#endif /* DEBUG_KMEM || DEBUG_KSTAT */
 
 #ifdef CONFIG_SYSCTL
         ASSERT(spl_header != NULL);

@@ -26,8 +26,6 @@
 
 #include <sys/kstat.h>
 
-#ifdef DEBUG_KSTAT
-
 static spinlock_t kstat_lock;
 static struct list_head kstat_list;
 static kid_t kstat_id;
@@ -470,17 +468,13 @@ __kstat_delete(kstat_t *ksp)
 }
 EXPORT_SYMBOL(__kstat_delete);
 
-#endif /* DEBUG_KSTAT */
-
 int
 kstat_init(void)
 {
 	ENTRY;
-#ifdef DEBUG_KSTAT
 	spin_lock_init(&kstat_lock);
 	INIT_LIST_HEAD(&kstat_list);
         kstat_id = 0;
-#endif /* DEBUG_KSTAT */
 	RETURN(0);
 }
 
@@ -488,9 +482,7 @@ void
 kstat_fini(void)
 {
 	ENTRY;
-#ifdef DEBUG_KSTAT
 	ASSERT(list_empty(&kstat_list));
-#endif /* DEBUG_KSTAT */
 	EXIT;
 }
 

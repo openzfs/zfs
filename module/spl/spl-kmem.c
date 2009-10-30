@@ -210,12 +210,9 @@ EXPORT_SYMBOL(vmem_size);
 
 /*
  * Memory allocation interfaces and debugging for basic kmem_*
- * and vmem_* style memory allocation.  When DEBUG_KMEM is enable
- * all allocations will be tracked when they are allocated and
- * freed.  When the SPL module is unload a list of all leaked
- * addresses and where they were allocated will be dumped to the
- * console.  Enabling this feature has a significant impant on
- * performance but it makes finding memory leaks staight forward.
+ * and vmem_* style memory allocation.  When DEBUG_KMEM is enabled
+ * the SPL will keep track of the total memory allocated, and
+ * report any memory leaked when the module is unloaded.
  */
 #ifdef DEBUG_KMEM
 /* Shim layer memory accounting */
@@ -231,13 +228,18 @@ EXPORT_SYMBOL(vmem_alloc_used);
 EXPORT_SYMBOL(vmem_alloc_max);
 EXPORT_SYMBOL(kmem_warning_flag);
 
-# ifdef DEBUG_KMEM_TRACKING
-
-/* XXX - Not to surprisingly with debugging enabled the xmem_locks are very
- * highly contended particularly on xfree().  If we want to run with this
- * detailed debugging enabled for anything other than debugging  we need to
- * minimize the contention by moving to a lock per xmem_table entry model.
+/* When DEBUG_KMEM_TRACKING is enabled not only will total bytes be tracked
+ * but also the location of every alloc and free.  When the SPL module is
+ * unloaded a list of all leaked addresses and where they were allocated
+ * will be dumped to the console.  Enabling this feature has a significant
+ * impact on performance but it makes finding memory leaks straight forward.
+ *
+ * Not surprisingly with debugging enabled the xmem_locks are very highly
+ * contended particularly on xfree().  If we want to run with this detailed
+ * debugging enabled for anything other than debugging  we need to minimize
+ * the contention by moving to a lock per xmem_table entry model.
  */
+# ifdef DEBUG_KMEM_TRACKING
 
 #  define KMEM_HASH_BITS          10
 #  define KMEM_TABLE_SIZE         (1 << KMEM_HASH_BITS)

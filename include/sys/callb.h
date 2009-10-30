@@ -8,11 +8,7 @@ extern "C" {
 #include <linux/module.h>
 #include <sys/mutex.h>
 
-#ifdef DEBUG_CALLB
 #define CALLB_CPR_ASSERT(cp)		ASSERT(MUTEX_HELD((cp)->cc_lockp));
-#else
-#define CALLB_CPR_ASSERT(cp)		(void)0
-#endif
 
 typedef struct callb_cpr {
         kmutex_t        *cc_lockp;

@@ -1034,10 +1034,10 @@ Optional Features:
   --enable-fast-install[=PKGS]
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
-  --enable-debug          Enable generic debug support (default off)
-  --enable-debug-kmem     Enable kmem debug support (default off)
-  --enable-debug-kstat    Enable kstat debug support (default off)
-  --enable-debug-callb    Enable callb debug support (default off)
+  --enable-debug          Enable generic debug support [default=no]
+  --enable-debug-kmem     Enable basic kmem accounting [default=yes]
+  --enable-debug-kmem-tracking
+                          Enable detailed kmem tracking [default=no]
   --enable-atomic-spinlocks
                           Atomic types use spinlocks [default=no]
 
@@ -19086,124 +19086,73 @@ echo "${ECHO_T}$LINUX_SYMBOLS" >&6
 
 
 
-	echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
-echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
 	# Check whether --enable-debug or --disable-debug was given.
 if test "${enable_debug+set}" = set; then
   enableval="$enable_debug"
-   case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no)  spl_ac_debug=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
 
+else
+  enable_debug=no
 fi;
-	if test "$spl_ac_debug" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
-	fi
+
+	if test "x$enable_debug" = xyes; then
+  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
+else
+  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+fi
 
 
-	echo "$as_me:$LINENO: checking whether kmem debugging is enabled" >&5
-echo $ECHO_N "checking whether kmem debugging is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug" >&5
+echo "${ECHO_T}$enable_debug" >&6
+
+
 	# Check whether --enable-debug-kmem or --disable-debug-kmem was given.
 if test "${enable_debug_kmem+set}" = set; then
   enableval="$enable_debug_kmem"
-   case "$enableval" in
-			yes) spl_ac_debug_kmem=yes ;;
-			no)  spl_ac_debug_kmem=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-kmem" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-kmem" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
 
+else
+  enable_debug_kmem=yes
 fi;
-	if test "$spl_ac_debug_kmem" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
+
+	if test "x$enable_debug_kmem" = xyes; then
 
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM 1
 _ACEOF
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+fi
 
 
-	echo "$as_me:$LINENO: checking whether kstat debugging is enabled" >&5
-echo $ECHO_N "checking whether kstat debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-kstat or --disable-debug-kstat was given.
-if test "${enable_debug_kstat+set}" = set; then
-  enableval="$enable_debug_kstat"
-   case "$enableval" in
-			yes) spl_ac_debug_kstat=yes ;;
-			no)  spl_ac_debug_kstat=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-kstat" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-kstat" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
+	echo "$as_me:$LINENO: checking whether basic kmem accounting is enabled" >&5
+echo $ECHO_N "checking whether basic kmem accounting is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug_kmem" >&5
+echo "${ECHO_T}$enable_debug_kmem" >&6
 
+
+	# Check whether --enable-debug-kmem-tracking or --disable-debug-kmem-tracking was given.
+if test "${enable_debug_kmem_tracking+set}" = set; then
+  enableval="$enable_debug_kmem_tracking"
+
+else
+  enable_debug_kmem_tracking=no
 fi;
-	if test "$spl_ac_debug_kstat" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
+
+	if test "x$enable_debug_kmem_tracking" = xyes; then
 
 cat >>confdefs.h <<\_ACEOF
-#define DEBUG_KSTAT 1
+#define DEBUG_KMEM_TRACKING 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KSTAT"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+fi
 
 
-	echo "$as_me:$LINENO: checking whether callb debugging is enabled" >&5
-echo $ECHO_N "checking whether callb debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-callb or --disable-debug-callb was given.
-if test "${enable_debug_callb+set}" = set; then
-  enableval="$enable_debug_callb"
-   case "$enableval" in
-			yes) spl_ac_debug_callb=yes ;;
-			no)  spl_ac_debug_callb=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-callb" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-callb" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
-
-fi;
-	if test "$spl_ac_debug_callb" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG_CALLB 1
-_ACEOF
-
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_CALLB"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+	echo "$as_me:$LINENO: checking whether detailed kmem tracking is enabled" >&5
+echo $ECHO_N "checking whether detailed kmem tracking is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug_kmem_tracking" >&5
+echo "${ECHO_T}$enable_debug_kmem_tracking" >&6
 
 
 	# Check whether --enable-atomic-spinlocks or --disable-atomic-spinlocks was given.
@@ -22385,124 +22334,73 @@ echo "${ECHO_T}$LINUX_SYMBOLS" >&6
 
 
 
-	echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
-echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
 	# Check whether --enable-debug or --disable-debug was given.
 if test "${enable_debug+set}" = set; then
   enableval="$enable_debug"
-   case "$enableval" in
-			yes) spl_ac_debug=yes ;;
-			no)  spl_ac_debug=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
 
+else
+  enable_debug=no
 fi;
-	if test "$spl_ac_debug" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
-	fi
+
+	if test "x$enable_debug" = xyes; then
+  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
+else
+  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+fi
 
 
-	echo "$as_me:$LINENO: checking whether kmem debugging is enabled" >&5
-echo $ECHO_N "checking whether kmem debugging is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+echo $ECHO_N "checking whether debugging is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug" >&5
+echo "${ECHO_T}$enable_debug" >&6
+
+
 	# Check whether --enable-debug-kmem or --disable-debug-kmem was given.
 if test "${enable_debug_kmem+set}" = set; then
   enableval="$enable_debug_kmem"
-   case "$enableval" in
-			yes) spl_ac_debug_kmem=yes ;;
-			no)  spl_ac_debug_kmem=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-kmem" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-kmem" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
 
+else
+  enable_debug_kmem=yes
 fi;
-	if test "$spl_ac_debug_kmem" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
+
+	if test "x$enable_debug_kmem" = xyes; then
 
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM 1
 _ACEOF
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+fi
 
 
-	echo "$as_me:$LINENO: checking whether kstat debugging is enabled" >&5
-echo $ECHO_N "checking whether kstat debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-kstat or --disable-debug-kstat was given.
-if test "${enable_debug_kstat+set}" = set; then
-  enableval="$enable_debug_kstat"
-   case "$enableval" in
-			yes) spl_ac_debug_kstat=yes ;;
-			no)  spl_ac_debug_kstat=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-kstat" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-kstat" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
+	echo "$as_me:$LINENO: checking whether basic kmem accounting is enabled" >&5
+echo $ECHO_N "checking whether basic kmem accounting is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug_kmem" >&5
+echo "${ECHO_T}$enable_debug_kmem" >&6
 
+
+	# Check whether --enable-debug-kmem-tracking or --disable-debug-kmem-tracking was given.
+if test "${enable_debug_kmem_tracking+set}" = set; then
+  enableval="$enable_debug_kmem_tracking"
+
+else
+  enable_debug_kmem_tracking=no
 fi;
-	if test "$spl_ac_debug_kstat" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
+
+	if test "x$enable_debug_kmem_tracking" = xyes; then
 
 cat >>confdefs.h <<\_ACEOF
-#define DEBUG_KSTAT 1
+#define DEBUG_KMEM_TRACKING 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KSTAT"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+fi
 
 
-	echo "$as_me:$LINENO: checking whether callb debugging is enabled" >&5
-echo $ECHO_N "checking whether callb debugging is enabled... $ECHO_C" >&6
-	# Check whether --enable-debug-callb or --disable-debug-callb was given.
-if test "${enable_debug_callb+set}" = set; then
-  enableval="$enable_debug_callb"
-   case "$enableval" in
-			yes) spl_ac_debug_callb=yes ;;
-			no)  spl_ac_debug_callb=no  ;;
-			*) echo "$as_me:$LINENO: result: Error!" >&5
-echo "${ECHO_T}Error!" >&6
-			{ { echo "$as_me:$LINENO: error: Bad value \"$enableval\" for --enable-debug-callb" >&5
-echo "$as_me: error: Bad value \"$enableval\" for --enable-debug-callb" >&2;}
-   { (exit 1); exit 1; }; } ;;
-		esac
-
-fi;
-	if test "$spl_ac_debug_callb" = yes; then
-		echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG_CALLB 1
-_ACEOF
-
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_CALLB"
-	else
-		echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-	fi
+	echo "$as_me:$LINENO: checking whether detailed kmem tracking is enabled" >&5
+echo $ECHO_N "checking whether detailed kmem tracking is enabled... $ECHO_C" >&6
+	echo "$as_me:$LINENO: result: $enable_debug_kmem_tracking" >&5
+echo "${ECHO_T}$enable_debug_kmem_tracking" >&6
 
 
 	# Check whether --enable-atomic-spinlocks or --disable-atomic-spinlocks was given.

@@ -32,7 +32,6 @@ extern "C" {
 #endif
 
 #undef DEBUG_KMEM_UNIMPLEMENTED
-#undef DEBUG_KMEM_TRACKING /* Per-allocation memory tracking */
 
 #include <linux/module.h>
 #include <linux/slab.h>

@@ -3,14 +3,11 @@
 /* Atomic types use spinlocks */
 #undef ATOMIC_SPINLOCK
 
-/* Define to 1 to enable callb debugging */
-#undef DEBUG_CALLB
-
-/* Define to 1 to enable kmem debugging */
+/* Define to 1 to enable basic kmem accounting */
 #undef DEBUG_KMEM
 
-/* Define to 1 to enable kstat debugging */
-#undef DEBUG_KSTAT
+/* Define to 1 to enable detailed kmem tracking */
+#undef DEBUG_KMEM_TRACKING
 
 /* register_sysctl_table() wants 2 args */
 #undef HAVE_2ARGS_REGISTER_SYSCTL

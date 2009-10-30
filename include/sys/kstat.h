@@ -27,10 +27,6 @@
 #ifndef _SPL_KSTAT_H
 #define _SPL_KSTAT_H
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
-
 #include <linux/module.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -155,7 +151,6 @@ typedef struct kstat_timer {
 int kstat_init(void);
 void kstat_fini(void);
 
-#ifdef DEBUG_KSTAT
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
 			     const char *ks_name, const char *ks_class,
 			     uchar_t ks_type, uint_t ks_ndata,
@@ -166,18 +161,6 @@ extern void __kstat_delete(kstat_t *ksp);
 #define kstat_create(m,i,n,c,t,s,f)	__kstat_create(m,i,n,c,t,s,f)
 #define kstat_install(k)		__kstat_install(k)
 #define kstat_delete(k)			__kstat_delete(k)
-
-#else
-
-#define kstat_create(m,i,n,c,t,s,f)	(NULL)
-#define kstat_install(k)		((void)0)
-#define kstat_delete(k)			((void)0)
-
-#endif /* DEBUG_KSTAT */
-
-#ifdef  __cplusplus
-}
-#endif
 
 #endif  /* _SPL_KSTAT_H */
 
