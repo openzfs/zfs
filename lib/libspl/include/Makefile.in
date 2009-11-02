@@ -218,7 +218,7 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 nobase_pkginclude_HEADERS = *.h ia32/sys/*.h rpc/*.h sys/*.h \
-	sys/fm/*.h sys/sysevent/*.h tsol/*.h
+	sys/fm/*.h sys/dktp/*.h sys/sysevent/*.h tsol/*.h
 all: all-am
 
 .SUFFIXES:
@@ -330,7 +330,7 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/ia32/sys $(distdir)/rpc $(distdir)/sys $(distdir)/sys/fm $(distdir)/sys/sysevent $(distdir)/tsol
+	$(mkdir_p) $(distdir)/ia32/sys $(distdir)/rpc $(distdir)/sys $(distdir)/sys/dktp $(distdir)/sys/fm $(distdir)/sys/sysevent $(distdir)/tsol
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

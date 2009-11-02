@@ -215,9 +215,9 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 pkglibexecdir = $(libexecdir)/@PACKAGE@
-nobase_pkglibexec_SCRIPTS = common.sh zfs.sh zpool-create.sh \
-	zpool-config/* zpios.sh zpios-survey.sh zpios-test/* \
-	zpios-profile/*
+nobase_pkglibexec_SCRIPTS = common.sh zconfig.sh zfs.sh \
+	zpool-create.sh zpool-config/* zpios.sh zpios-sanity.sh \
+	zpios-survey.sh zpios-test/* zpios-profile/*
 EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 ZFS = ${top_srcdir}/scripts/zfs.sh
 ZCONFIG = ${top_srcdir}/scripts/zconfig.sh
