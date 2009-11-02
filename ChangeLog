@@ -1,3 +1,84 @@
+2009-11-02 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.6 - Use 'git log --no-merges' for full change log.
+
+	* Rebased to ZFS b121 from OpenSolaris.
+
+	* module/zfs/vdev_disk.c: Finally a feature complete implementation:
+	- Handle dynamic bio merge_bdev limitations when constructing the
+	bio set associated with a dio.  This previously prevented us from
+	layering cleanly on the md and dm virtual devices.
+	- Removed hard coded 512 byte sector size.
+	- Correctly determine the device size when using a partition.
+	- Hold and extra dio reference when submitting bio's using
+	bio_submit() to prevent a completion race.
+
+	* lib/libefi/*: Added fully function libefi library from Solaris.
+	This allows us to properly create and access GPT style partition
+	tables which are used when a whole device is added to a zpool.
+
+	* cmd/zpool/zpool_vdev.c: Fully integrated zpool with Linux package
+	libblkid.  This allows zpool to identify existing devices of
+	various types to prevent devices from accidentally being used.  When
+	given a whole device with a GPT partition table all partitions will
+	be checked for existing filesystems.  At the moment MBR style
+	partition tables cannot be check and the force option must be used.
+
+	* cmd/zpool/zpool_vdev.c: Solaris devid support has been removed in
+	favor of Linux's udev.  This means that a zpool device will always be
+	opened using the path provided at configuration time.  This may
+	initially seem limiting but it has certain advantages:
+	- When creating a zpool where the physical location of the device
+	is NOT import simply create the pool using the /dev/disk/by-id paths.
+	This will ensure that regardless of physical location the device
+	will be properly located.
+	- When creating a zpool where the physical location of the device
+	is important use the /dev/disk/by-path paths.  This will ensure that
+	devices are never accidentally detected and used in an incorrect
+	location which would compromise the redundancy of the system.
+	- Ever better you can create use your own udev rules file to setup
+	any mapping and naming convention you desire.  One example of a
+	custom rule is to map physical device locations using grid with
+	numbers are letter for coordinates.  Each letter might represent
+	a specific bus/channel and each number a specific device.  For large
+	configurations this provides an easy way to identify devices.
+
+	* module/zpios/zpios.c: Update to use kobject_set_name() for
+	increased portability.
+
+	* modules/*/*: Update module init/exit access points to use
+	spl_module_{init,exit}() macro API.  This ensures the cwd is
+	immediately set to '/' and may be leveraged latter for any
+	additional module setup/cleanup which is required.
+
+	* cmd/ztest/ztest.c: Check ftrucate() return code to prevent
+	warnings when --fortify-source options is used in rpm builds.
+
+	* config/Rules.am: Set DEBUG/NDEBUG globally when building user
+	space components.
+
+	* scripts/zconfig.sh: Initial hook for running additional sanity
+	tests are part of 'make check'.  Currently, there are only two
+	tests which do some basic configuration checking but they should
+	be extended as much as possible to prevent regressions.  Tests
+	should also all be written so they run entirely in-tree.
+
+	* scripts/zpios-sanity.sh: Initial hook for validating real IO
+	using all block devices and all raid configurations.  Supported
+	device types include scsi, ide, md, dm, ram, loop, and file. 
+	Supported raid types include raid0, raid10, raidz, and raidz2.
+
+	* scripts/zpool-config/*: Update dragon and x4550 configs to use
+	custom udev rules file with <A-Z><1-N> naming convention.  Add
+	configs for md, dm, and ram block devices to verify functionality.
+
+	* zfs-test.spec.in: Added zfs-test package which extends the existing
+	in-tree test infrastructure such that it can be run as part of an
+	installed package.  This simplifies the testing of tagged releases.
+
+	* zfs-modules.spec.in: Various spec file tweaks for the supported
+	distros: RHEL5, RHEL6, SLES10, SLES11, Chaos4, Fedora 11.
+
 2009-08-04 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.5 - Use 'git log --no-merges' for full change log.
@@ -117,7 +198,7 @@
 	The atomic support is not 100% fully implemented but it's a good
 	first step towards cleanly supporting the architecture.
 	- Added powerpc ISA type.
-	- Explictly use signed char for portability.  On x86/x86_64
+	- Explicitly use signed char for portability.  On x86/x86_64
 	systems the default char type is signed, on ppc/ppc64 systems
 	the default char type is unsigned.
 	- Core target arch support for conditional compilation of SUBDIRs.
