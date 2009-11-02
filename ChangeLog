@@ -1,3 +1,46 @@
+2009-11-02 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.6
+
+	* config/spl-build.m4: Cleanup --enable-debug-* configure options.
+	--enable-debug=<default no>  generic debug support.
+	--enable-debug-kmem=<default yes> basic kmem and slab accounting.
+	--enable-debug-kmem-tracking=<default no> detailed kmem tracking.
+	--enable-debug-kstat removed option support always enabled.
+	--enable-debug-callb removed option which never did anything.
+
+	* module/spl/spl-atomic.c: Reimplemented atomic functions by
+	layering them on top of the Linux atomic functions.  This improves
+	performance by removing the need for a global spinlock.
+
+	* module/spl/spl-debug.c: Rebase cmn_err on vcmn_err.  Handle the
+	case where the message contains a leading ! which means only send
+	it to syslog.  And suppress warnings for messages which do not end
+	in a '\n'.
+
+	* module/splat/splat-ctl.c: Update to use kobject_set_name() for
+	increased portability.
+
+	* module/spl/spl-generic.c: Set cwd to '/' for the task during
+	module load for SPL dependent modules.  Under Solaris this is
+	the expected behavior, on a Linux system your cwd remains set
+	to whatever the tasks cwd was when loading a module.
+
+	* module/spl/spl-mutex.c: Reimplemented mutexs for improved
+	performance and cleaner integration with the Linux kernels built
+	in lock analyzer.  As of 2.6.29 based kernels adaptive mutexs
+	are supported, for these newer kernels task_curr() does not need
+	to be exported.  Finally, DEBUG_MUTEX support was dropped in
+	favor of more detailed kernel profiling which is now available.
+
+	* module/spl/spl-rwlock.c: Reimplemented rwlocks for improved
+	performance and cleaner integration with the Linux kernels built
+	in lock analyzer.  Additionally, the rwlock regression tests were
+	improved to help validate correctness.
+
+	* spl-modules.spec.in: Various spec file tweaks for the supported
+	distros: RHEL5, RHEL6, SLES10, SLES11, Chaos4, Fedora 11.
+
 2009-08-04 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.5
