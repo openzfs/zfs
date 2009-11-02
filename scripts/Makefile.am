@@ -1,5 +1,6 @@
 pkglibexecdir = $(libexecdir)/@PACKAGE@
 nobase_pkglibexec_SCRIPTS  = common.sh
+nobase_pkglibexec_SCRIPTS += zconfig.sh
 nobase_pkglibexec_SCRIPTS += zfs.sh
 nobase_pkglibexec_SCRIPTS += zpool-create.sh
 nobase_pkglibexec_SCRIPTS += zpool-config/*
