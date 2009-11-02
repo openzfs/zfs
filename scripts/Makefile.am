@@ -4,6 +4,7 @@ nobase_pkglibexec_SCRIPTS += zfs.sh
 nobase_pkglibexec_SCRIPTS += zpool-create.sh
 nobase_pkglibexec_SCRIPTS += zpool-config/*
 nobase_pkglibexec_SCRIPTS += zpios.sh
+nobase_pkglibexec_SCRIPTS += zpios-sanity.sh
 nobase_pkglibexec_SCRIPTS += zpios-survey.sh
 nobase_pkglibexec_SCRIPTS += zpios-test/*
 nobase_pkglibexec_SCRIPTS += zpios-profile/*
