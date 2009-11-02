@@ -1,19 +1,51 @@
-SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.5 (Development Release)
+SUMMARY OF MAJOR KNOWN PROBLEMS IN v0.4.6 (Development Release)
 
-- Implement something similar to the Solaris devid support to ensure
-  ZFS properly locates your disks even when moved.  The current port
-  is dependent on using something like udev to ensure this can never
-  happen but this is not a viable long term solution.
+* Fault Management (FM) and sysevent support / analog.
+  bugzilla 14866, 15645
 
-- Implement something like Solaris's sysevent support to detect when
-  drives appear or are removed.  There is no easy analog to my knowledge
-  for linux and we will need to come up with something.
+This is probably the biggest remaining chunk of work.  Linux has no
+direct equivalent of the Solaris Fault Management Architecture (FMA)
+and we need one.  All fault information is currently ignored and no
+disk errors are even logged.  We need to settle on a design for this
+but minimally it needs to log the events to syslog.
 
-- Get the ZVOL working as a vehicle for further stress testing under
-  Linux, and to provide one useful user space interface for access to
-  the DMU.
+* Implement the ZVOL.
+  bugzilla xxxxx
 
-- Get the ZPL working minimal support will be needed for lustre.
+This should be pretty staight forward now that the DMU is fully
+implemented and solid.  It just needs to be done.
 
-- Integrate the FUSE port in to this code base, or rebase it as its
-  own zfs-fuse package which is built against the zfs-devel package.
+* Implement the ZPL.
+  bugzilla xxxxx
+
+Getting basic ZPL support should be pretty straight forward.  Moving
+beyond that to fully integrate with the VFS for things like mmap and
+file locking will be trickier.  
+
+* Integrate the ZFS-FUSE port in to this code base.
+  bugzilla xxxxx
+
+Merging the zfs-fuse code base in with this project would be nice from a
+code maintence standpoint.  This code base is quite a bit newer than
+zfs-fuse and it already provides a libzpool library for zfs-fuse to link
+against.  This should be a pretty straight forward addition.
+
+* Emulate kthreads with pthreads in userspace.
+  bugzilla xxxxx
+
+There is a patch available for this but each time I've integrated it
+I've observed SIGSEGVs in ztest.  Once this patch is in place ztest
+can be used to use the kthread API which brings us one step closer
+to being able to run it in the kernel as an additional sanity check.
+
+* DMU Performance
+  bugzilla 13566
+
+While performance is currently not bad it is not where it needs to be
+for production use.  The latest test results which can be found in the
+docs directly show that on hardware which is capable of 8GB/s we only
+see a few GB/s when running through the DMU.  To address this we need
+to finish getting the code working with the kernel lock profiler and
+look for some hot locks.  Additionally, it would be interesting to run
+the same tests on Solaris (once we have a ZVOL/ZPL) and compare the
+performance.  It's not at all clear to me Solaris currently does better.
