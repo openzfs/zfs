@@ -1826,9 +1826,9 @@ spl_kmem_init_globals(void)
                 if (!populated_zone(zone))
                         continue;
 
-		minfree += zone->pages_min;
-		desfree += zone->pages_low;
-		lotsfree += zone->pages_high;
+		minfree += min_wmark_pages(zone);
+		desfree += low_wmark_pages(zone);
+		lotsfree += high_wmark_pages(zone);
 	}
 
 	/* Solaris default values */

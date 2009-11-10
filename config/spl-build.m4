@@ -1266,6 +1266,7 @@ AC_DEFUN([SPL_AC_2ARGS_SET_FS_PWD],
 	[AC_MSG_CHECKING([whether set_fs_pwd() wants 2 args])
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/sched.h>
+		#include <linux/fs_struct.h>
 	],[
 		set_fs_pwd(NULL, NULL);
 	],[

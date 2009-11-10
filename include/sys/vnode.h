@@ -39,6 +39,7 @@ extern "C" {
 #include <linux/namei.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/fs_struct.h>
 #include <linux/mount.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>

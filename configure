@@ -21871,6 +21871,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <linux/sched.h>
+		#include <linux/fs_struct.h>
 
 int
 main (void)
@@ -25119,6 +25120,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <linux/sched.h>
+		#include <linux/fs_struct.h>
 
 int
 main (void)
