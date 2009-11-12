@@ -94,7 +94,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 {
 	struct block_device *bdev;
 	vdev_disk_t *vd;
-	int mode;
+	int mode, block_size;
 
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
@@ -129,6 +129,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
+	block_size =  vdev_bdev_block_size(bdev);
 
 	/* Check if this is a whole device.  When bdev->bd_contains ==
 	 * bdev we have a whole device and not simply a partition. */
@@ -138,10 +139,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(bdev) * bdev_hardsect_size(bdev);
+	*psize = bdev_capacity(bdev) * block_size;
 
 	/* Based on the minimum sector size set the block size */
-	*ashift = highbit(MAX(bdev_hardsect_size(bdev), SPA_MINBLOCKSIZE)) - 1;
+	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
 
 	return 0;
 }
@@ -310,7 +311,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
-	int i = 0, error = 0;
+	int i = 0, error = 0, block_size;
 
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
@@ -319,6 +320,7 @@ retry:
 
 	dr->dr_zio = zio;
 	dr->dr_rw = flags;
+	block_size = vdev_bdev_block_size(bdev);
 
 #ifdef BIO_RW_FAILFAST
 	if (flags & (1 << BIO_RW_FAILFAST))
@@ -364,7 +366,7 @@ retry:
 		vdev_disk_dio_get(dr);
 
 		dr->dr_bio[i]->bi_bdev = bdev;
-		dr->dr_bio[i]->bi_sector = bio_offset/bdev_hardsect_size(bdev);
+		dr->dr_bio[i]->bi_sector = bio_offset / block_size;
 		dr->dr_bio[i]->bi_rw = dr->dr_rw;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
@@ -573,7 +575,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 
-	s = bdev_capacity(bdev) * bdev_hardsect_size(bdev);
+	s = bdev_capacity(bdev) * vdev_bdev_block_size(bdev);
 	if (s == 0) {
 		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
 		return EIO;
