@@ -55,6 +55,13 @@ extern int vdev_disk_read_rootlabel(char *, char *, nvlist_t **);
 # define vdev_bdev_invalidate(bdev)	invalidate_bdev(bdev, 1)
 #endif /* HAVE_1ARG_INVALIDATE_BDEV */
 
+/* 2.6.30 API change */
+#ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+# define vdev_bdev_block_size(bdev)	bdev_logical_block_size(bdev)
+#else
+# define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
+#endif
+
 #endif /* _KERNEL */
 
 #ifdef	__cplusplus
