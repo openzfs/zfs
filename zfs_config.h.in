@@ -9,6 +9,9 @@
 /* bio_end_io_t wants 2 args */
 #undef HAVE_2ARGS_BIO_END_IO_T
 
+/* bdev_logical_block_size() is available */
+#undef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+
 /* bio_empy_barrier() is defined */
 #undef HAVE_BIO_EMPTY_BARRIER
 
