@@ -380,7 +380,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	unsigned long irq_flags;
 	ENTRY;
 
-	dptr = (kmem_debug_t *) kmalloc(sizeof(kmem_debug_t),
+	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 
 	if (dptr == NULL) {
@@ -409,11 +409,11 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		/* Use the correct allocator */
 		if (node_alloc) {
 			ASSERT(!(flags & __GFP_ZERO));
-			ptr = kmalloc_node(size, flags, node);
+			ptr = kmalloc_node_nofail(size, flags, node);
 		} else if (flags & __GFP_ZERO) {
-			ptr = kzalloc(size, flags & ~__GFP_ZERO);
+			ptr = kzalloc_nofail(size, flags & ~__GFP_ZERO);
 		} else {
-			ptr = kmalloc(size, flags);
+			ptr = kmalloc_nofail(size, flags);
 		}
 
 		if (unlikely(ptr == NULL)) {
@@ -500,7 +500,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 
 	ASSERT(flags & KM_SLEEP);
 
-	dptr = (kmem_debug_t *) kmalloc(sizeof(kmem_debug_t), flags);
+	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t), flags);
 	if (dptr == NULL) {
 		CWARN("vmem_alloc(%ld, 0x%x) debug failed\n",
 		    sizeof(kmem_debug_t), flags);
@@ -614,11 +614,11 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	/* Use the correct allocator */
 	if (node_alloc) {
 		ASSERT(!(flags & __GFP_ZERO));
-		ptr = kmalloc_node(size, flags, node);
+		ptr = kmalloc_node_nofail(size, flags, node);
 	} else if (flags & __GFP_ZERO) {
-		ptr = kzalloc(size, flags & (~__GFP_ZERO));
+		ptr = kzalloc_nofail(size, flags & (~__GFP_ZERO));
 	} else {
-		ptr = kmalloc(size, flags);
+		ptr = kmalloc_nofail(size, flags);
 	}
 
 	if (ptr == NULL) {
@@ -1077,7 +1077,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 	           sizeof(void *) * skc->skc_mag_size;
 	ENTRY;
 
-	skm = kmem_alloc_node(size, GFP_KERNEL | __GFP_NOFAIL, node);
+	skm = kmem_alloc_node(size, KM_SLEEP, node);
 	if (skm) {
 		skm->skm_magic = SKM_MAGIC;
 		skm->skm_avail = 0;

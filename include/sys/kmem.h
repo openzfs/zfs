@@ -49,7 +49,7 @@ extern "C" {
 /*
  * Memory allocation interfaces
  */
-#define KM_SLEEP                        (GFP_KERNEL | __GFP_NOFAIL)
+#define KM_SLEEP                        GFP_KERNEL
 #define KM_NOSLEEP                      GFP_ATOMIC
 #undef  KM_PANIC                        /* No linux analog */
 #define KM_PUSHPAGE                     (KM_SLEEP | __GFP_HIGH)
@@ -62,6 +62,51 @@ extern "C" {
 #ifndef __GFP_ZERO
 # define __GFP_ZERO                     0x8000
 #endif
+
+/*
+ * __GFP_NOFAIL looks like it will be removed from the kernel perhaps as
+ * early as 2.6.32.  To avoid this issue when it occurs in upstream kernels
+ * we retry the allocation here as long as it is not __GFP_WAIT (GFP_ATOMIC).
+ * I would prefer the caller handle the failure case cleanly but we are
+ * trying to emulate Solaris and those are not the Solaris semantics.
+ */
+static inline void *
+kmalloc_nofail(size_t size, gfp_t flags)
+{
+	void *ptr;
+
+	do {
+		ptr = kmalloc(size, flags);
+	} while (ptr == NULL && (flags & __GFP_WAIT));
+
+	return ptr;
+}
+
+static inline void *
+kzalloc_nofail(size_t size, gfp_t flags)
+{
+	void *ptr;
+
+	do {
+		ptr = kzalloc(size, flags);
+	} while (ptr == NULL && (flags & __GFP_WAIT));
+
+	return ptr;
+}
+
+#ifdef HAVE_KMALLOC_NODE
+static inline void *
+kmalloc_node_nofail(size_t size, gfp_t flags, int node)
+{
+	void *ptr;
+
+	do {
+		ptr = kmalloc_node(size, flags, node);
+	} while (ptr == NULL && (flags & __GFP_WAIT));
+
+	return ptr;
+}
+#endif /* HAVE_KMALLOC_NODE */
 
 #ifdef DEBUG_KMEM
 
@@ -125,16 +170,16 @@ extern void vmem_free_debug(void *ptr, size_t size);
 
 #else /* DEBUG_KMEM */
 
-# define kmem_alloc(size, flags)              kmalloc((size), (flags))
-# define kmem_zalloc(size, flags)             kzalloc((size), (flags))
+# define kmem_alloc(size, flags)              kmalloc_nofail((size), (flags))
+# define kmem_zalloc(size, flags)             kzalloc_nofail((size), (flags))
 # define kmem_free(ptr, size)                 ((void)(size), kfree(ptr))
 
 # ifdef HAVE_KMALLOC_NODE
 #  define kmem_alloc_node(size, flags, node)                                  \
-          kmalloc_node((size), (flags), (node))
+          kmalloc_node_nofail((size), (flags), (node))
 # else
 #  define kmem_alloc_node(size, flags, node)                                  \
-          kmalloc((size), (flags))
+          kmalloc_nofail((size), (flags))
 # endif
 
 # define vmem_alloc(size, flags)              __vmalloc((size), ((flags) |    \
