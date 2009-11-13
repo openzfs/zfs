@@ -172,12 +172,8 @@ extern void spl_cleanup(void);
 #define P2ALIGN(x, align)    ((x) & -(align))
 #define P2CROSS(x, y, align) (((x) ^ (y)) > (align) - 1)
 #define P2ROUNDUP(x, align)  (-(-(x) & -(align)))
-#define P2ROUNDUP_TYPED(x, align, type) \
-                             (-(-(type)(x) & -(type)(align)))
 #define P2PHASE(x, align)    ((x) & ((align) - 1))
 #define P2NPHASE(x, align)   (-(x) & ((align) - 1))
-#define P2NPHASE_TYPED(x, align, type) \
-                             (-(type)(x) & ((type)(align) - 1))
 #define ISP2(x)              (((x) & ((x) - 1)) == 0)
 #define IS_P2ALIGNED(v, a)   ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
 #define P2BOUNDARY(off, len, align) \

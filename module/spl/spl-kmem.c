@@ -720,14 +720,15 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
 	void *ptr;
 
-	if (skc->skc_flags & KMC_KMEM) {
-		if (size > (2 * PAGE_SIZE)) {
-			ptr = (void *)__get_free_pages(flags, get_order(size));
-		} else
-			ptr = kmem_alloc(size, flags);
-	} else {
-		ptr = vmem_alloc(size, flags);
-	}
+	ASSERT(ISP2(size));
+
+	if (skc->skc_flags & KMC_KMEM)
+		ptr = (void *)__get_free_pages(flags, get_order(size));
+	else
+		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+
+	/* Resulting allocated memory will be page aligned */
+	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
 
 	return ptr;
 }
@@ -735,14 +736,55 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 static void
 kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 {
-	if (skc->skc_flags & KMC_KMEM) {
-		if (size > (2 * PAGE_SIZE))
-			free_pages((unsigned long)ptr, get_order(size));
-		else
-			kmem_free(ptr, size);
-	} else {
-		vmem_free(ptr, size);
-	}
+	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
+	ASSERT(ISP2(size));
+
+	if (skc->skc_flags & KMC_KMEM)
+		free_pages((unsigned long)ptr, get_order(size));
+	else
+		vfree(ptr);
+}
+
+/*
+ * Required space for each aligned sks.
+ */
+static inline uint32_t
+spl_sks_size(spl_kmem_cache_t *skc)
+{
+	return P2ROUNDUP_TYPED(sizeof(spl_kmem_slab_t),
+	       skc->skc_obj_align, uint32_t);
+}
+
+/*
+ * Required space for each aligned object.
+ */
+static inline uint32_t
+spl_obj_size(spl_kmem_cache_t *skc)
+{
+	uint32_t align = skc->skc_obj_align;
+
+	return P2ROUNDUP_TYPED(skc->skc_obj_size, align, uint32_t) +
+	       P2ROUNDUP_TYPED(sizeof(spl_kmem_obj_t), align, uint32_t);
+}
+
+/*
+ * Lookup the spl_kmem_object_t for an object given that object.
+ */
+static inline spl_kmem_obj_t *
+spl_sko_from_obj(spl_kmem_cache_t *skc, void *obj)
+{
+	return obj + P2ROUNDUP_TYPED(skc->skc_obj_size,
+	       skc->skc_obj_align, uint32_t);
+}
+
+/*
+ * Required space for each offslab object taking in to account alignment
+ * restrictions and the power-of-two requirement of kv_alloc().
+ */
+static inline uint32_t
+spl_offslab_size(spl_kmem_cache_t *skc)
+{
+	return 1UL << (highbit(spl_obj_size(skc)) + 1);
 }
 
 /*
@@ -782,7 +824,8 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 	spl_kmem_slab_t *sks;
 	spl_kmem_obj_t *sko, *n;
 	void *base, *obj;
-	int i, align, size, rc = 0;
+	uint32_t obj_size, offslab_size = 0;
+	int i,  rc = 0;
 
 	base = kv_alloc(skc, skc->skc_slab_size, flags);
 	if (base == NULL)
@@ -796,23 +839,22 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 	INIT_LIST_HEAD(&sks->sks_list);
 	INIT_LIST_HEAD(&sks->sks_free_list);
 	sks->sks_ref = 0;
+	obj_size = spl_obj_size(skc);
 
-	align = skc->skc_obj_align;
-	size = P2ROUNDUP(skc->skc_obj_size, align) +
-	       P2ROUNDUP(sizeof(spl_kmem_obj_t), align);
+	if (skc->skc_flags * KMC_OFFSLAB)
+		offslab_size = spl_offslab_size(skc);
 
 	for (i = 0; i < sks->sks_objs; i++) {
 		if (skc->skc_flags & KMC_OFFSLAB) {
-			obj = kv_alloc(skc, size, flags);
+			obj = kv_alloc(skc, offslab_size, flags);
 			if (!obj)
 				GOTO(out, rc = -ENOMEM);
 		} else {
-			obj = base +
-			      P2ROUNDUP(sizeof(spl_kmem_slab_t), align) +
-			      (i * size);
+			obj = base + spl_sks_size(skc) + (i * obj_size);
 		}
 
-		sko = obj + P2ROUNDUP(skc->skc_obj_size, align);
+		ASSERT(IS_P2ALIGNED(obj, skc->skc_obj_align));
+		sko = spl_sko_from_obj(skc, obj);
 		sko->sko_addr = obj;
 		sko->sko_magic = SKO_MAGIC;
 		sko->sko_slab = sks;
@@ -828,7 +870,7 @@ out:
 		if (skc->skc_flags & KMC_OFFSLAB)
 			list_for_each_entry_safe(sko, n, &sks->sks_free_list,
 						 sko_list)
-				kv_free(skc, sko->sko_addr, size);
+				kv_free(skc, sko->sko_addr, offslab_size);
 
 		kv_free(skc, base, skc->skc_slab_size);
 		sks = NULL;
@@ -886,7 +928,8 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	spl_kmem_obj_t *sko, *n;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
-	int size = 0, i = 0;
+	uint32_t size = 0;
+	int i = 0;
 	ENTRY;
 
 	/*
@@ -922,8 +965,7 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	 * objects and slabs back to the system.
 	 */
 	if (skc->skc_flags & KMC_OFFSLAB)
-		size = P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) +
-		       P2ROUNDUP(sizeof(spl_kmem_obj_t), skc->skc_obj_align);
+		size = spl_offslab_size(skc);
 
 	list_for_each_entry_safe(sko, n, &sko_list, sko_list) {
 		ASSERT(sko->sko_magic == SKO_MAGIC);
@@ -994,7 +1036,7 @@ spl_cache_age(void *data)
 }
 
 /*
- * Size a slab based on the size of each aliged object plus spl_kmem_obj_t.
+ * Size a slab based on the size of each aligned object plus spl_kmem_obj_t.
  * When on-slab we want to target SPL_KMEM_CACHE_OBJ_PER_SLAB.  However,
  * for very small objects we may end up with more than this so as not
  * to waste space in the minimal allocation of a single page.  Also for
@@ -1004,30 +1046,29 @@ spl_cache_age(void *data)
 static int
 spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 {
-	int sks_size, obj_size, max_size, align;
+	uint32_t sks_size, obj_size, max_size;
 
 	if (skc->skc_flags & KMC_OFFSLAB) {
 		*objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 		*size = sizeof(spl_kmem_slab_t);
 	} else {
-		align = skc->skc_obj_align;
-		sks_size = P2ROUNDUP(sizeof(spl_kmem_slab_t), align);
-		obj_size = P2ROUNDUP(skc->skc_obj_size, align) +
-                           P2ROUNDUP(sizeof(spl_kmem_obj_t), align);
+		sks_size = spl_sks_size(skc);
+		obj_size = spl_obj_size(skc);
 
 		if (skc->skc_flags & KMC_KMEM)
-			max_size = ((uint64_t)1 << (MAX_ORDER-1)) * PAGE_SIZE;
+			max_size = ((uint32_t)1 << (MAX_ORDER-1)) * PAGE_SIZE;
 		else
 			max_size = (32 * 1024 * 1024);
 
-		for (*size = PAGE_SIZE; *size <= max_size; *size += PAGE_SIZE) {
+		/* Power of two sized slab */
+		for (*size = PAGE_SIZE; *size <= max_size; *size *= 2) {
 			*objs = (*size - sks_size) / obj_size;
 			if (*objs >= SPL_KMEM_CACHE_OBJ_PER_SLAB)
 				RETURN(0);
 		}
 
 		/*
-		 * Unable to satisfy target objets per slab, fallback to
+		 * Unable to satisfy target objects per slab, fall back to
 		 * allocating a maximally sized slab and assuming it can
 		 * contain the minimum objects count use it.  If not fail.
 		 */
@@ -1048,17 +1089,18 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 static int
 spl_magazine_size(spl_kmem_cache_t *skc)
 {
-	int size, align = skc->skc_obj_align;
+	uint32_t obj_size = spl_obj_size(skc);
+	int size;
 	ENTRY;
 
 	/* Per-magazine sizes below assume a 4Kib page size */
-	if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE * 256))
+	if (obj_size > (PAGE_SIZE * 256))
 		size = 4;  /* Minimum 4Mib per-magazine */
-	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE * 32))
+	else if (obj_size > (PAGE_SIZE * 32))
 		size = 16; /* Minimum 2Mib per-magazine */
-	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE))
+	else if (obj_size > (PAGE_SIZE))
 		size = 64; /* Minimum 256Kib per-magazine */
-	else if (P2ROUNDUP(skc->skc_obj_size, align) > (PAGE_SIZE / 4))
+	else if (obj_size > (PAGE_SIZE / 4))
 		size = 128; /* Minimum 128Kib per-magazine */
 	else
 		size = 256;
@@ -1240,19 +1282,18 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_max = 0;
 
 	if (align) {
-		ASSERT((align & (align - 1)) == 0);    /* Power of two */
-		ASSERT(align >= SPL_KMEM_CACHE_ALIGN); /* Minimum size */
+		VERIFY(ISP2(align));
+		VERIFY3U(align, >=, SPL_KMEM_CACHE_ALIGN); /* Min alignment */
+		VERIFY3U(align, <=, PAGE_SIZE);            /* Max alignment */
 		skc->skc_obj_align = align;
 	}
 
 	/* If none passed select a cache type based on object size */
 	if (!(skc->skc_flags & (KMC_KMEM | KMC_VMEM))) {
-		if (P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align) <
-		    (PAGE_SIZE / 8)) {
+		if (spl_obj_size(skc) < (PAGE_SIZE / 8))
 			skc->skc_flags |= KMC_KMEM;
-		} else {
+		else
 			skc->skc_flags |= KMC_VMEM;
-		}
 	}
 
 	rc = spl_slab_size(skc, &skc->skc_slab_objs, &skc->skc_slab_size);
@@ -1492,9 +1533,8 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
 
-	sko = obj + P2ROUNDUP(skc->skc_obj_size, skc->skc_obj_align);
+	sko = spl_sko_from_obj(skc, obj);
 	ASSERT(sko->sko_magic == SKO_MAGIC);
-
 	sks = sko->sko_slab;
 	ASSERT(sks->sks_magic == SKS_MAGIC);
 	ASSERT(sks->sks_cache == skc);
@@ -1600,7 +1640,7 @@ restart:
 
 	local_irq_restore(irq_flags);
 	ASSERT(obj);
-	ASSERT(((unsigned long)(obj) % skc->skc_obj_align) == 0);
+	ASSERT(IS_P2ALIGNED(obj, skc->skc_obj_align));
 
 	/* Pre-emptively migrate object to CPU L1 cache */
 	prefetchw(obj);

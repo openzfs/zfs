@@ -762,7 +762,7 @@ splat_kmem_test7(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST7_NAME;
 	int i, rc;
 
-	for (i = 8; i <= PAGE_SIZE; i *= 2) {
+	for (i = SPL_KMEM_CACHE_ALIGN; i <= PAGE_SIZE; i *= 2) {
 		rc = splat_kmem_cache_test(file, arg, name, 157, i, 0);
 		if (rc)
 			return rc;
