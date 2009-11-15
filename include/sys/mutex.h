@@ -52,16 +52,25 @@ mutex_owner(kmutex_t *mp)
 #define MUTEX_HELD(mp)          mutex_owned(mp)
 #undef mutex_init
 #define mutex_init(mp, name, type, ibc)                                 \
-({                                                                    \
+({                                                                      \
         static struct lock_class_key __key;                             \
         ASSERT(type == MUTEX_DEFAULT);                                  \
                                                                         \
         __mutex_init((mp), #mp, &__key);                                \
 })
-/* #define mutex_destroy(mp)    ((void)0) */
+
 #define mutex_tryenter(mp)      mutex_trylock(mp)
 #define mutex_enter(mp)         mutex_lock(mp)
 #define mutex_exit(mp)          mutex_unlock(mp)
+
+#ifdef HAVE_GPL_ONLY_SYMBOLS
+# define mutex_enter_nested(mp, sc)     mutex_lock_nested(mp, sc)
+#else
+# define mutex_enter_nested(mp, sc)     mutex_enter(mp)
+# ifdef CONFIG_DEBUG_MUTEXES
+#  define mutex_destroy(mp)		((void)0)
+# endif /* CONFIG_DEBUG_MUTEXES */
+#endif /* HAVE_GPL_ONLY_SYMBOLS */
 
 #else /* HAVE_MUTEX_OWNER */
 
@@ -192,6 +201,19 @@ mutex_owner(kmutex_t *mp)
         spl_mutex_clear_owner(mp);                                      \
         mutex_unlock(MUTEX(mp));                                        \
 })
+
+#ifdef HAVE_GPL_ONLY_SYMBOLS
+# define mutex_enter_nested(mp, sc)                                     \
+({                                                                      \
+        mutex_lock_nested(MUTEX(mp, sc));                               \
+        spl_mutex_set_owner(mp);                                        \
+})
+#else
+# define mutex_enter_nested(mp, sc)                                     \
+({                                                                      \
+        mutex_enter(mp);                                                \
+})
+#endif
 
 #endif /* HAVE_MUTEX_OWNER */
 
