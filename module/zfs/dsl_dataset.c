@@ -973,10 +973,8 @@ dsl_dataset_zvol_cleanup(dsl_dataset_t *ds, const char *name)
 	if (error)
 		return (error);
 
-#ifdef HAVE_ZVOL
 	if (dmu_objset_type(os) == DMU_OST_ZVOL)
 		error = zvol_remove_minor(name);
-#endif /* HAVE_ZVOL */
 	dmu_objset_close(os);
 
 	return (error);

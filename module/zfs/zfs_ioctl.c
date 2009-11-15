@@ -1799,7 +1799,6 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 				goto out;
 			break;
 
-#ifdef HAVE_ZVOL
 		case ZFS_PROP_VOLSIZE:
 			if ((error = nvpair_value_uint64(elem, &intval)) != 0 ||
 			    (error = zvol_set_volsize(name,
@@ -1812,11 +1811,6 @@ zfs_set_prop_nvlist(const char *name, nvlist_t *nvl)
 			    (error = zvol_set_volblocksize(name, intval)) != 0)
 				goto out;
 			break;
-#else
-		case ZFS_PROP_VOLSIZE:
-		case ZFS_PROP_VOLBLOCKSIZE:
-			return (ENOTSUP);
-#endif /* HAVE_ZVOL */
 
 		case ZFS_PROP_VERSION:
 		{
@@ -2182,11 +2176,7 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 static int
 zfs_ioc_create_minor(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZVOL
 	return (zvol_create_minor(zc->zc_name, ddi_driver_major(zfs_dip)));
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZVOL */
 }
 
 /*
@@ -2198,11 +2188,7 @@ zfs_ioc_create_minor(zfs_cmd_t *zc)
 static int
 zfs_ioc_remove_minor(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZVOL
 	return (zvol_remove_minor(zc->zc_name));
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZVOL */
 }
 
 #ifdef HAVE_ZPL
@@ -2418,11 +2404,9 @@ zfs_ioc_create(zfs_cmd_t *zc)
 		cbfunc = zfs_create_cb;
 		break;
 
-#ifdef HAVE_ZVOL
 	case DMU_OST_ZVOL:
 		cbfunc = zvol_create_cb;
 		break;
-#endif /* HAVE_ZVOL */
 
 	default:
 		cbfunc = NULL;
@@ -2473,7 +2457,6 @@ zfs_ioc_create(zfs_cmd_t *zc)
 			return (EINVAL);
 		}
 
-#ifdef HAVE_ZVOL
 		if (type == DMU_OST_ZVOL) {
 			uint64_t volsize, volblocksize;
 
@@ -2503,9 +2486,7 @@ zfs_ioc_create(zfs_cmd_t *zc)
 				nvlist_free(nvprops);
 				return (error);
 			}
-		} else
-#endif /* HAVE_ZVOL */
-		if (type == DMU_OST_ZFS) {
+		} else if (type == DMU_OST_ZFS) {
 			int error;
 
 			/*
@@ -3726,10 +3707,8 @@ zfsdev_ioctl(dev_t dev, int cmd, intptr_t arg, int flag, cred_t *cr, int *rvalp)
 	uint_t vec;
 	int error, rc;
 
-#ifdef HAVE_ZVOL
 	if (getminor(dev) != 0)
 		return (zvol_ioctl(dev, cmd, arg, flag, cr, rvalp));
-#endif
 
 	vec = cmd - ZFS_IOC;
 	ASSERT3U(getmajor(dev), ==, ddi_driver_major(zfs_dip));
@@ -3848,7 +3827,6 @@ zfs_info(dev_info_t *dip, ddi_info_cmd_t infocmd, void *arg, void **result)
  * so most of the standard driver entry points are in zvol.c.
  */
 static struct cb_ops zfs_cb_ops = {
-#ifdef HAVE_ZVOL
 	zvol_open,	/* open */
 	zvol_close,	/* close */
 	zvol_strategy,	/* strategy */
@@ -3856,15 +3834,6 @@ static struct cb_ops zfs_cb_ops = {
 	zvol_dump,	/* dump */
 	zvol_read,	/* read */
 	zvol_write,	/* write */
-#else
-	nodev,		/* open */
-	nodev,		/* close */
-	nodev,		/* strategy */
-	nodev,		/* print */
-	nodev,		/* dump */
-	nodev,		/* read */
-	nodev,		/* write */
-#endif /* HAVE_ZVOL */
 	zfsdev_ioctl,	/* ioctl */
 	nodev,		/* devmap */
 	nodev,		/* mmap */
