@@ -59,17 +59,21 @@ mutex_owner(kmutex_t *mp)
         __mutex_init((mp), #mp, &__key);                                \
 })
 
+#undef mutex_destroy
+#define mutex_destroy(mp)                                               \
+({                                                                      \
+        VERIFY(!MUTEX_HELD(mp));                                        \
+})
+
 #define mutex_tryenter(mp)      mutex_trylock(mp)
 #define mutex_enter(mp)         mutex_lock(mp)
 #define mutex_exit(mp)          mutex_unlock(mp)
+
 
 #ifdef HAVE_GPL_ONLY_SYMBOLS
 # define mutex_enter_nested(mp, sc)     mutex_lock_nested(mp, sc)
 #else
 # define mutex_enter_nested(mp, sc)     mutex_enter(mp)
-# ifdef CONFIG_DEBUG_MUTEXES
-#  define mutex_destroy(mp)		((void)0)
-# endif /* CONFIG_DEBUG_MUTEXES */
 #endif /* HAVE_GPL_ONLY_SYMBOLS */
 
 #else /* HAVE_MUTEX_OWNER */
