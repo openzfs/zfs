@@ -38,6 +38,7 @@
 #include <sys/utsname.h>
 #include <sys/file.h>
 #include <linux/kmod.h>
+#include "spl_config.h"
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
