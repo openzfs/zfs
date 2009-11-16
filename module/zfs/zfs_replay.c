@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 
-#ifdef HAVE_ZPL
+
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -876,4 +876,3 @@ zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_create,	/* TX_MKDIR_ATTR */
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 };
-#endif /* HAVE_ZPL */
