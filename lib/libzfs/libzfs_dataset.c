@@ -965,7 +965,6 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 
 			/*FALLTHRU*/
 
-#ifdef HAVE_ZPL
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:
 			/*
@@ -1076,7 +1075,6 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 
 			break;
-#endif /* HAVE_ZPL */
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
@@ -2524,7 +2522,6 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			goto ancestorerr;
 		}
 
-#ifdef HAVE_ZPL
 		if (zfs_mount(h, NULL, 0) != 0) {
 			opname = dgettext(TEXT_DOMAIN, "mount");
 			goto ancestorerr;
@@ -2534,7 +2531,6 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			opname = dgettext(TEXT_DOMAIN, "share");
 			goto ancestorerr;
 		}
-#endif /* HAVE_ZPL */
 
 		zfs_close(h);
 	}
@@ -2751,11 +2747,9 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 		 * abort the request.  This would only happen for a
 		 * non-privileged user.
 		 */
-#ifdef HAVE_ZPL
 		if (zfs_unshare_iscsi(zhp) != 0) {
 			return (-1);
 		}
-#endif
 
 		if (zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name) != 0)
 			return (-1);

@@ -554,7 +554,6 @@ zfs_do_clone(int argc, char **argv)
 	ret = zfs_clone(zhp, argv[1], props);
 
 	/* create the mountpoint if necessary */
-#ifdef HAVE_ZPL
 	if (ret == 0) {
 		zfs_handle_t *clone;
 
@@ -565,7 +564,6 @@ zfs_do_clone(int argc, char **argv)
 			zfs_close(clone);
 		}
 	}
-#endif /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	nvlist_free(props);
@@ -763,7 +761,6 @@ zfs_do_create(int argc, char **argv)
 	 * in fact created, even if we failed to mount or share it.
 	 */
 	ret = 0;
-#ifdef HAVE_ZPL
 	if (canmount == ZFS_CANMOUNT_ON) {
 		if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
@@ -775,7 +772,6 @@ zfs_do_create(int argc, char **argv)
 			ret = 1;
 		}
 	}
-#endif /* HAVE_ZPL */
 
 error:
 	if (zhp)
@@ -876,9 +872,7 @@ out:
 static int
 destroy_callback(zfs_handle_t *zhp, void *data)
 {
-#ifdef HAVE_ZPL
 	destroy_cbdata_t *cbp = data;
-#endif
 
 	/*
 	 * Ignore pools (which we've already flagged as an error before getting
@@ -890,7 +884,6 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
-#ifdef HAVE_ZPL
 	/*
 	 * Bail out on the first error.
 	 */
@@ -899,7 +892,6 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (-1);
 	}
-#endif  /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	return (0);
@@ -2795,7 +2787,6 @@ typedef struct get_all_cbdata {
 #define	SPINNER_TIME 3		/* seconds */
 #define	MOUNT_TIME 5		/* seconds */
 
-#ifdef HAVE_ZPL
 static int
 get_one_dataset(zfs_handle_t *zhp, void *data)
 {
@@ -3347,7 +3338,6 @@ share_mount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs mount -a [nfs | iscsi]
@@ -3358,11 +3348,7 @@ share_mount(int op, int argc, char **argv)
 static int
 zfs_do_mount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3374,14 +3360,9 @@ zfs_do_mount(int argc, char **argv)
 static int
 zfs_do_share(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
-#ifdef HAVE_ZPL
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
 	char		*un_mountp;
@@ -3834,7 +3815,6 @@ unshare_unmount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs unmount -a
@@ -3845,11 +3825,7 @@ unshare_unmount(int op, int argc, char **argv)
 static int
 zfs_do_unmount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3861,11 +3837,7 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /* ARGSUSED */
@@ -3881,7 +3853,6 @@ zfs_do_python(int argc, char **argv)
  * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
  * 'legacy'.  Otherwise, complain that use should be using 'zfs mount'.
  */
-#ifdef HAVE_ZPL
 static int
 manual_mount(int argc, char **argv)
 {
@@ -4012,7 +3983,6 @@ manual_unmount(int argc, char **argv)
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
-#endif /* HAVE_ZPL */
 
 static int
 volcheck(zpool_handle_t *zhp, void *data)
@@ -4057,9 +4027,7 @@ main(int argc, char **argv)
 {
 	int ret;
 	int i = 0;
-#ifdef HAVE_ZPL
 	char *progname;
-#endif
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
@@ -4084,7 +4052,6 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-#ifdef HAVE_ZPL
 	/*
 	 * This command also doubles as the /etc/fs mount and unmount program.
 	 * Determine if we should take this behavior based on argv[0].
@@ -4095,9 +4062,6 @@ main(int argc, char **argv)
 	} else if (strcmp(progname, "umount") == 0) {
 		ret = manual_unmount(argc, argv);
 	} else {
-#else
-	{
-#endif /* HAVE_ZPL */
 		/*
 		 * Make sure the user has specified some command.
 		 */
