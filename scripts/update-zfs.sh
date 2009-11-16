@@ -89,6 +89,7 @@ cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/*.c				${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
 rm ${DST_MOD}/zfs/vdev_disk.c
+rm ${DST_MOD}/zfs/zvol.c
 rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
 
 echo "* lib/libavl"
