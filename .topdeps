@@ -12,6 +12,5 @@ linux-user-disk
 linux-zpios
 linux-libspl
 linux-unused
-linux-have-zpl
 linux-ztest
 linux-have-idmap
