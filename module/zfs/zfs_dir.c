@@ -23,8 +23,6 @@
  * Use is subject to license terms.
  */
 
-#ifdef HAVE_ZPL
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -964,4 +962,3 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	else
 		return (secpolicy_vnode_remove(cr));
 }
-#endif /* HAVE_ZPL */
