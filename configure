@@ -19218,6 +19218,87 @@ echo "${ECHO_T}$SPL_SYMBOLS" >&6
 
 
 
+	echo "$as_me:$LINENO: checking block device operation prototypes" >&5
+echo $ECHO_N "checking block device operation prototypes... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		int (*blk_open) (struct block_device *, fmode_t) = NULL;
+		int (*blk_release) (struct gendisk *, fmode_t) = NULL;
+		int (*blk_ioctl) (struct block_device *, fmode_t,
+		                  unsigned, unsigned long) = NULL;
+		int (*blk_compat_ioctl) (struct block_device *, fmode_t,
+                                         unsigned, unsigned long) = NULL;
+		struct block_device_operations blk_ops = {
+			.open		= blk_open,
+			.release	= blk_release,
+			.ioctl		= blk_ioctl,
+			.compat_ioctl	= blk_compat_ioctl,
+		};
+
+		blk_ops.open(NULL, 0);
+		blk_ops.release(NULL, 0);
+		blk_ops.ioctl(NULL, 0, 0, 0);
+		blk_ops.compat_ioctl(NULL, 0, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: struct block_device" >&5
+echo "${ECHO_T}struct block_device" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BDEV_BLOCK_DEVICE_OPERATIONS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: struct inode" >&5
+echo "${ECHO_T}struct inode" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	echo "$as_me:$LINENO: checking whether symbol open_bdev_exclusive is exported" >&5
 echo $ECHO_N "checking whether symbol open_bdev_exclusive is exported... $ECHO_C" >&6
 	grep -q -E '[[:space:]]open_bdev_exclusive[[:space:]]' \
@@ -19390,6 +19471,73 @@ fi
 
 
 
+	echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
+echo $ECHO_N "checking whether bio_empty_barrier() is defined... $ECHO_C" >&6
+	EXTRA_KCFLAGS="-Werror"
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/bio.h>
+
+int
+main (void)
+{
+
+		struct bio bio;
+		(void)bio_empty_barrier(&bio);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BIO_EMPTY_BARRIER 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	echo "$as_me:$LINENO: checking whether bio_end_io_t wants 2 args" >&5
 echo $ECHO_N "checking whether bio_end_io_t wants 2 args... $ECHO_C" >&6
 	tmp_flags="$EXTRA_KCFLAGS"
@@ -19526,9 +19674,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
-echo $ECHO_N "checking whether bio_empty_barrier() is defined... $ECHO_C" >&6
-	EXTRA_KCFLAGS="-Werror"
+	echo "$as_me:$LINENO: checking whether blk_end_request() is available" >&5
+echo $ECHO_N "checking whether blk_end_request() is available... $ECHO_C" >&6
 
 
 cat >conftest.c <<_ACEOF
@@ -19539,14 +19686,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/bio.h>
+		#include <linux/blkdev.h>
 
 int
 main (void)
 {
 
-		struct bio bio;
-		(void)bio_empty_barrier(&bio);
+		struct request *req = NULL;
+		(void) blk_end_request(req, 0, 0);
 
   ;
   return 0;
@@ -19573,7 +19720,470 @@ _ACEOF
 echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_BIO_EMPTY_BARRIER 1
+#define HAVE_BLK_END_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_fetch_request() is available" >&5
+echo $ECHO_N "checking whether blk_fetch_request() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request_queue *q = NULL;
+		(void) blk_fetch_request(q);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_FETCH_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_requeue_request() is available" >&5
+echo $ECHO_N "checking whether blk_requeue_request() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request_queue *q = NULL;
+		struct request *req = NULL;
+		blk_requeue_request(q, req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_REQUEUE_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_bytes() is available" >&5
+echo $ECHO_N "checking whether blk_rq_bytes() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_bytes(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_BYTES 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_pos() is available" >&5
+echo $ECHO_N "checking whether blk_rq_pos() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_pos(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_POS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_sectors() is available" >&5
+echo $ECHO_N "checking whether blk_rq_sectors() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_sectors(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_SECTORS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether get_disk_ro() is available" >&5
+echo $ECHO_N "checking whether get_disk_ro() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct gendisk *disk = NULL;
+		(void) get_disk_ro(disk);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_DISK_RO 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
+echo $ECHO_N "checking whether rq_is_sync() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) rq_is_sync(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_RQ_IS_SYNC 1
 _ACEOF
 
 
@@ -20964,6 +21574,87 @@ echo "${ECHO_T}$SPL_SYMBOLS" >&6
 
 
 
+	echo "$as_me:$LINENO: checking block device operation prototypes" >&5
+echo $ECHO_N "checking block device operation prototypes... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		int (*blk_open) (struct block_device *, fmode_t) = NULL;
+		int (*blk_release) (struct gendisk *, fmode_t) = NULL;
+		int (*blk_ioctl) (struct block_device *, fmode_t,
+		                  unsigned, unsigned long) = NULL;
+		int (*blk_compat_ioctl) (struct block_device *, fmode_t,
+                                         unsigned, unsigned long) = NULL;
+		struct block_device_operations blk_ops = {
+			.open		= blk_open,
+			.release	= blk_release,
+			.ioctl		= blk_ioctl,
+			.compat_ioctl	= blk_compat_ioctl,
+		};
+
+		blk_ops.open(NULL, 0);
+		blk_ops.release(NULL, 0);
+		blk_ops.ioctl(NULL, 0, 0, 0);
+		blk_ops.compat_ioctl(NULL, 0, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: struct block_device" >&5
+echo "${ECHO_T}struct block_device" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BDEV_BLOCK_DEVICE_OPERATIONS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: struct inode" >&5
+echo "${ECHO_T}struct inode" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	echo "$as_me:$LINENO: checking whether symbol open_bdev_exclusive is exported" >&5
 echo $ECHO_N "checking whether symbol open_bdev_exclusive is exported... $ECHO_C" >&6
 	grep -q -E '[[:space:]]open_bdev_exclusive[[:space:]]' \
@@ -21136,6 +21827,73 @@ fi
 
 
 
+	echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
+echo $ECHO_N "checking whether bio_empty_barrier() is defined... $ECHO_C" >&6
+	EXTRA_KCFLAGS="-Werror"
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/bio.h>
+
+int
+main (void)
+{
+
+		struct bio bio;
+		(void)bio_empty_barrier(&bio);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BIO_EMPTY_BARRIER 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	echo "$as_me:$LINENO: checking whether bio_end_io_t wants 2 args" >&5
 echo $ECHO_N "checking whether bio_end_io_t wants 2 args... $ECHO_C" >&6
 	tmp_flags="$EXTRA_KCFLAGS"
@@ -21272,9 +22030,8 @@ fi
 
 
 
-	echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
-echo $ECHO_N "checking whether bio_empty_barrier() is defined... $ECHO_C" >&6
-	EXTRA_KCFLAGS="-Werror"
+	echo "$as_me:$LINENO: checking whether blk_end_request() is available" >&5
+echo $ECHO_N "checking whether blk_end_request() is available... $ECHO_C" >&6
 
 
 cat >conftest.c <<_ACEOF
@@ -21285,14 +22042,14 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#include <linux/bio.h>
+		#include <linux/blkdev.h>
 
 int
 main (void)
 {
 
-		struct bio bio;
-		(void)bio_empty_barrier(&bio);
+		struct request *req = NULL;
+		(void) blk_end_request(req, 0, 0);
 
   ;
   return 0;
@@ -21319,7 +22076,470 @@ _ACEOF
 echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
-#define HAVE_BIO_EMPTY_BARRIER 1
+#define HAVE_BLK_END_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_fetch_request() is available" >&5
+echo $ECHO_N "checking whether blk_fetch_request() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request_queue *q = NULL;
+		(void) blk_fetch_request(q);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_FETCH_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_requeue_request() is available" >&5
+echo $ECHO_N "checking whether blk_requeue_request() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request_queue *q = NULL;
+		struct request *req = NULL;
+		blk_requeue_request(q, req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_REQUEUE_REQUEST 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_bytes() is available" >&5
+echo $ECHO_N "checking whether blk_rq_bytes() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_bytes(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_BYTES 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_pos() is available" >&5
+echo $ECHO_N "checking whether blk_rq_pos() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_pos(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_POS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_sectors() is available" >&5
+echo $ECHO_N "checking whether blk_rq_sectors() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_sectors(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_SECTORS 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether get_disk_ro() is available" >&5
+echo $ECHO_N "checking whether get_disk_ro() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct gendisk *disk = NULL;
+		(void) get_disk_ro(disk);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_DISK_RO 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
+echo $ECHO_N "checking whether rq_is_sync() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) rq_is_sync(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_RQ_IS_SYNC 1
 _ACEOF
 
 
