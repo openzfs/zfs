@@ -25,8 +25,6 @@
 
 /* Portions Copyright 2007 Jeremy Teo */
 
-#ifdef HAVE_ZPL
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -4699,4 +4697,3 @@ const fs_operation_def_t zfs_evnodeops_template[] = {
 	VOPNAME_PATHCONF,	{ .vop_pathconf = zfs_pathconf },
 	NULL,			NULL
 };
-#endif /* HAVE_ZPL */

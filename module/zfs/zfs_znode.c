@@ -87,7 +87,6 @@
  * (such as VFS logic) that will not compile easily in userland.
  */
 #ifdef _KERNEL
-#ifdef HAVE_ZPL
 /*
  * Needed to close a small window in zfs_znode_move() that allows the zfsvfs to
  * be freed before it can be safely accessed.
@@ -1474,28 +1473,21 @@ log:
 	dmu_tx_commit(tx);
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 void
 zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 {
+	zfsvfs_t	zfsvfs;
 	uint64_t	moid, obj, version;
 	uint64_t	sense = ZFS_CASE_SENSITIVE;
 	uint64_t	norm = 0;
 	nvpair_t	*elem;
 	int		error;
-#ifdef HAVE_ZPL
-	zfsvfs_t	zfsvfs;
 	znode_t		*rootzp = NULL;
 	vnode_t		*vp;
 	vattr_t		vattr;
 	znode_t		*zp;
 	zfs_acl_ids_t	acl_ids;
-#else
-	timestruc_t	now;
-	dmu_buf_t	*db;
-	znode_phys_t	*pzp;
-#endif /* HAVE_ZPL */
 
 	/*
 	 * First attempt to create master node.
@@ -1550,7 +1542,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	error = zap_add(os, moid, ZFS_UNLINKED_SET, 8, 1, &obj, tx);
 	ASSERT(error == 0);
 
-#ifdef HAVE_ZPL
 	/*
 	 * Create root znode.  Create minimal znode/vnode/zfsvfs
 	 * to allow zfs_mknode to work.
@@ -1605,46 +1596,14 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	dmu_buf_rele(rootzp->z_dbuf, NULL);
 	rootzp->z_dbuf = NULL;
 	kmem_cache_free(znode_cache, rootzp);
+
+	/*
+	 * Create shares directory
+	 */
+
 	error = zfs_create_share_dir(&zfsvfs, tx);
-#else
-	/*
-	 * Create root znode with code free of VFS dependencies
-	 */
-	obj = zap_create_norm(os, norm, DMU_OT_DIRECTORY_CONTENTS,
-	                      DMU_OT_ZNODE, sizeof (znode_phys_t), tx);
 
-	VERIFY(0 == dmu_bonus_hold(os, obj, FTAG, &db));
-	dmu_buf_will_dirty(db, tx);
-
-	/*
-	 * Initialize the znode physical data to zero.
-	 */
-	ASSERT(db->db_size >= sizeof (znode_phys_t));
-	bzero(db->db_data, db->db_size);
-	pzp = db->db_data;
-
-	if (USE_FUIDS(version, os))
-		pzp->zp_flags = ZFS_ARCHIVE | ZFS_AV_MODIFIED;
-
-	pzp->zp_size = 2; /* "." and ".." */
-	pzp->zp_links = 2;
-	pzp->zp_parent = obj;
-	pzp->zp_gen = dmu_tx_get_txg(tx);
-	pzp->zp_mode = S_IFDIR | 0755;
-	pzp->zp_flags = ZFS_ACL_TRIVIAL;
-
-	gethrestime(&now);
-
-	ZFS_TIME_ENCODE(&now, pzp->zp_crtime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_ctime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_atime);
-	ZFS_TIME_ENCODE(&now, pzp->zp_mtime);
-
-	error = zap_add(os, moid, ZFS_ROOT_OBJ, 8, 1, &obj, tx);
 	ASSERT(error == 0);
-
-	dmu_buf_rele(db, FTAG);
-#endif /* HAVE_ZPL */
 }
 
 #endif /* _KERNEL */
