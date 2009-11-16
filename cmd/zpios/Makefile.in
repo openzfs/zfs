@@ -43,12 +43,21 @@ sbin_PROGRAMS = zpios$(EXEEXT)
 subdir = cmd/zpios
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
+	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
 	$(top_srcdir)/config/kernel-bio-empty-barrier.m4 \
 	$(top_srcdir)/config/kernel-bio-end-io-t-args.m4 \
 	$(top_srcdir)/config/kernel-bio-rw-syncio.m4 \
+	$(top_srcdir)/config/kernel-blk-end-request.m4 \
+	$(top_srcdir)/config/kernel-blk-fetch-request.m4 \
+	$(top_srcdir)/config/kernel-blk-requeue-request.m4 \
+	$(top_srcdir)/config/kernel-blk-rq-bytes.m4 \
+	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
+	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
+	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
+	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
