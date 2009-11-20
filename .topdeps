@@ -3,7 +3,6 @@ linux-have-fm
 linux-have-mntent
 linux-have-spl-debug
 linux-have-sysevent
-linux-have-uio-rw
 linux-kernel-disk
 linux-kernel-mem
 linux-legacy
