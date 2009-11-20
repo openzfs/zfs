@@ -668,7 +668,7 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
-#if defined(_KERNEL) && defined(HAVE_UIO_RW)
+#ifdef _KERNEL
 int
 dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 {
