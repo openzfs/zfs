@@ -85,6 +85,7 @@
 #include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
+#ifdef HAVE_ZPL
 static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);
 zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
@@ -1225,7 +1226,6 @@ out:
 	return (ret);
 }
 
-
 static int
 zvol_cb(const char *dataset, void *data)
 {
@@ -1398,3 +1398,53 @@ out:
 
 	return (ret);
 }
+
+#else  /* HAVE_ZPL */
+
+int
+zfs_unshare_iscsi(zfs_handle_t *zhp)
+{
+	return 0;
+}
+
+int
+zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
+{
+	return 0;
+}
+
+void
+remove_mountpoint(zfs_handle_t *zhp) {
+	return;
+}
+
+boolean_t
+is_mounted(libzfs_handle_t *zfs_hdl, const char *special, char **where)
+{
+	return B_FALSE;
+}
+
+boolean_t
+zfs_is_mounted(zfs_handle_t *zhp, char **where)
+{
+	return is_mounted(zhp->zfs_hdl, zfs_get_name(zhp), where);
+}
+
+boolean_t
+zfs_is_shared(zfs_handle_t *zhp)
+{
+	return B_FALSE;
+}
+
+int
+zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
+{
+	return B_FALSE;
+}
+
+int
+zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
+{
+	return B_FALSE;
+}
+#endif /* HAVE_ZPL */
