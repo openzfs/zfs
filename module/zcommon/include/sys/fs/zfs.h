@@ -533,23 +533,13 @@ typedef struct vdev_stat {
 	uint64_t	vs_scrub_end;		/* UTC scrub end time	*/
 } vdev_stat_t;
 
-#define	ZVOL_DRIVER	"zvol"
-#define	ZFS_DRIVER	"zfs"
-#define	ZFS_DEV		"/dev/zfs"
-
-/*
- * zvol paths.  Irritatingly, the devfsadm interfaces want all these
- * paths without the /dev prefix, but for some things, we want the
- * /dev prefix.  Below are the names without /dev.
- */
-#define	ZVOL_DEV_DIR	"zvol/dsk"
-#define	ZVOL_RDEV_DIR	"zvol/rdsk"
-
-/*
- * And here are the things we need with /dev, etc. in front of them.
- */
-#define	ZVOL_PSEUDO_DEV		"/devices/pseudo/zfs@0:"
-#define	ZVOL_FULL_DEV_DIR	"/dev/" ZVOL_DEV_DIR "/"
+#define	ZVOL_DRIVER		"zvol"
+#define	ZFS_DRIVER		"zfs"
+#define	ZFS_DEV			"/dev/zfs"
+#define ZVOL_MAJOR		230
+#define ZVOL_MINOR_BITS		4
+#define ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)
+#define ZVOL_MINORS		(1 << 4)
 
 #define	ZVOL_PROP_NAME		"name"
 

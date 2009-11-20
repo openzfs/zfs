@@ -25,6 +25,8 @@
 
 /* Portions Copyright 2007 Jeremy Teo */
 
+#ifdef HAVE_ZPL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -318,6 +320,7 @@ zfs_ioctl(vnode_t *vp, int com, intptr_t data, int flag, cred_t *cred,
 	return (ENOTTY);
 }
 
+#if defined(_KERNEL) && defined(HAVE_UIO_RW)
 /*
  * Utility functions to map and unmap a single physical page.  These
  * are used to manage the mappable copies of ZFS file data, and therefore
@@ -342,6 +345,7 @@ zfs_unmap_page(page_t *pp, caddr_t addr)
 		ppmapout(addr);
 	}
 }
+#endif /* _KERNEL && HAVE_UIO_RW */
 
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
@@ -4695,3 +4699,4 @@ const fs_operation_def_t zfs_evnodeops_template[] = {
 	VOPNAME_PATHCONF,	{ .vop_pathconf = zfs_pathconf },
 	NULL,			NULL
 };
+#endif /* HAVE_ZPL */

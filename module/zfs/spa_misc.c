@@ -1348,12 +1348,6 @@ spa_name_compare(const void *a1, const void *a2)
 	return (0);
 }
 
-int
-spa_busy(void)
-{
-	return (spa_active_count);
-}
-
 void
 spa_boot_init(void)
 {

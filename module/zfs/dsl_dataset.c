@@ -246,7 +246,13 @@ dsl_dataset_evict(dmu_buf_t *db, void *dsv)
 
 	ASSERT(ds->ds_owner == NULL || DSL_DATASET_IS_DESTROYED(ds));
 
-	dprintf_ds(ds, "evicting %s\n", "");
+	/*
+	 * XXX: Commented out because dsl_dataset_name() is called
+	 * which references ds->ds_dir which it seems may be NULL.
+	 * This is easily trigged with 'zfs destroy <pool>/<ds>.
+	 *                   *
+	 * dprintf_ds(ds, "evicting %s\n", "");
+	 */
 
 	unique_remove(ds->ds_fsid_guid);
 
