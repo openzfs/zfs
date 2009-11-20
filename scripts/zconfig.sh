@@ -115,4 +115,52 @@ zconfig_test2() {
 }
 zconfig_test2
 
+# ZVOL sanity check
+zconfig_test3() {
+	POOL_NAME=tank
+	ZVOL_NAME=fish
+	FULL_NAME=${POOL_NAME}/${ZVOL_NAME}
+	SRC_DIR=/bin/
+	TMP_FILE1=`mktemp`
+	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+
+	echo -n "test 3 - ZVOL sanity: "
+
+	# Create a pool and volume.
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
+	${ZFS} create -V 400M ${FULL_NAME} || fail 3
+
+	# Partition the volume, for a 400M volume there will be
+	# 812 cylinders, 16 heads, and 63 sectors per track.
+	/sbin/sfdisk -q /dev/${FULL_NAME} << EOF &>${TMP_FILE1} || fail 4
+,812
+;
+;
+;
+EOF
+
+	# Format the partition with ext3.
+	/sbin/mkfs.ext3 /dev/${FULL_NAME}1 &>${TMP_FILE1} || fail 5
+
+	# Mount the ext3 filesystem and copy some data to it.
+	mkdir -p /tmp/${ZVOL_NAME} || fail 6
+	mount /dev/${FULL_NAME}1 /tmp/${ZVOL_NAME} || fail 7
+	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME} || fail 8
+
+	# Verify the copied files match the original files.
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}${SRC_DIR} || fail 9
+
+	# Remove the files, umount, destroy the volume and pool.
+	rm -Rf /tmp/${ZVOL_NAME}${SRC_DIR}* || fail 10
+	umount /tmp/${ZVOL_NAME} || fail 11
+	${ZFS} destroy ${FULL_NAME} || fail 12
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 13
+	rm -f ${TMP_FILE1} || fail 14
+	${ZFS_SH} -u || fail 15
+
+	pass
+}
+zconfig_test3
+
 exit 0
