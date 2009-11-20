@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#ifdef HAVE_ZPL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
@@ -2848,3 +2850,5 @@ zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
 
 	return (error);
 }
+
+#endif /* HAVE_ZPL */
