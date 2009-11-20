@@ -669,9 +669,58 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 #ifdef _KERNEL
-int
-dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
+
+/*
+ * Copy up to size bytes between arg_buf and req based on the data direction
+ * described by the req.  If an entire req's data cannot be transfered the
+ * req's is updated such that it's current index and bv offsets correctly
+ * reference any residual data which could not be copied.  The return value
+ * is the number of bytes successfully copied to arg_buf.
+ */
+static int
+dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 {
+	struct bio_vec *bv;
+	struct req_iterator iter;
+	char *bv_buf;
+	int tocpy;
+
+	*offset = 0;
+	rq_for_each_segment(bv, req, iter) {
+
+		/* Fully consumed the passed arg_buf */
+		ASSERT3S(offset, <=, size);
+		if (size == *offset)
+			break;
+
+		/* Skip fully consumed bv's */
+		if (bv->bv_len == 0)
+			continue;
+
+		tocpy = MIN(bv->bv_len, size - *offset);
+		ASSERT3S(tocpy, >=, 0);
+
+		bv_buf = page_address(bv->bv_page) + bv->bv_offset;
+		ASSERT3P(bv_buf, !=, NULL);
+
+		if (rq_data_dir(req) == WRITE)
+			memcpy(arg_buf + *offset, bv_buf, tocpy);
+		else
+			memcpy(bv_buf, arg_buf + *offset, tocpy);
+
+		*offset += tocpy;
+		bv->bv_offset += tocpy;
+		bv->bv_len -= tocpy;
+	}
+
+	return 0;
+}
+
+int
+dmu_read_req(objset_t *os, uint64_t object, struct request *req)
+{
+	uint64_t size = blk_rq_bytes(req);
+	uint64_t offset = blk_rq_pos(req) << 9;
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
 
@@ -679,27 +728,33 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 	 * NB: we could do this block-at-a-time, but it's nice
 	 * to be reading in parallel.
 	 */
-	err = dmu_buf_hold_array(os, object, uio->uio_loffset, size, TRUE, FTAG,
-	    &numbufs, &dbp);
+	err = dmu_buf_hold_array(os, object, offset, size, TRUE, FTAG,
+				 &numbufs, &dbp);
 	if (err)
 		return (err);
 
 	for (i = 0; i < numbufs; i++) {
-		int tocpy;
-		int bufoff;
+		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
 
-		ASSERT(size > 0);
+		bufoff = offset - db->db_offset;
+		ASSERT3S(bufoff, >=, 0);
 
-		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = (int)MIN(db->db_size - bufoff, size);
+		if (tocpy == 0)
+			break;
 
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_READ, uio);
+		err = dmu_req_copy(db->db_data + bufoff, tocpy, &didcpy, req);
+
+		if (didcpy < tocpy)
+			err = EIO;
+
 		if (err)
 			break;
 
 		size -= tocpy;
+		offset += didcpy;
+		err = 0;
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
@@ -707,30 +762,31 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 }
 
 int
-dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
-    dmu_tx_t *tx)
+dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 {
+	uint64_t size = blk_rq_bytes(req);
+	uint64_t offset = blk_rq_pos(req) << 9;
 	dmu_buf_t **dbp;
-	int numbufs, i;
-	int err = 0;
+	int numbufs, i, err;
 
 	if (size == 0)
 		return (0);
 
-	err = dmu_buf_hold_array(os, object, uio->uio_loffset, size,
-	    FALSE, FTAG, &numbufs, &dbp);
+	err = dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
+				 &numbufs, &dbp);
 	if (err)
 		return (err);
 
 	for (i = 0; i < numbufs; i++) {
-		int tocpy;
-		int bufoff;
+		int tocpy, didcpy, bufoff;
 		dmu_buf_t *db = dbp[i];
 
-		ASSERT(size > 0);
+		bufoff = offset - db->db_offset;
+		ASSERT3S(bufoff, >=, 0);
 
-		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = (int)MIN(db->db_size - bufoff, size);
+		if (tocpy == 0)
+			break;
 
 		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
 
@@ -739,27 +795,27 @@ dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		/*
-		 * XXX uiomove could block forever (eg. nfs-backed
-		 * pages).  There needs to be a uiolockdown() function
-		 * to lock the pages in memory, so that uiomove won't
-		 * block.
-		 */
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_WRITE, uio);
+		err = dmu_req_copy(db->db_data + bufoff, tocpy, &didcpy, req);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
+
+		if (didcpy < tocpy)
+			err = EIO;
 
 		if (err)
 			break;
 
 		size -= tocpy;
+		offset += didcpy;
+		err = 0;
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 	return (err);
 }
+#endif
 
+#ifdef HAVE_ZPL
 int
 dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     page_t *pp, dmu_tx_t *tx)
