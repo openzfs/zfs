@@ -24,6 +24,9 @@
 /* blk_end_request() is available */
 #undef HAVE_BLK_END_REQUEST
 
+/* blk_end_request() is GPL-only */
+#undef HAVE_BLK_END_REQUEST_GPL_ONLY
+
 /* blk_fetch_request() is available */
 #undef HAVE_BLK_FETCH_REQUEST
 
@@ -32,6 +35,9 @@
 
 /* blk_rq_bytes() is available */
 #undef HAVE_BLK_RQ_BYTES
+
+/* blk_rq_bytes() is GPL-only */
+#undef HAVE_BLK_RQ_BYTES_GPL_ONLY
 
 /* blk_rq_pos() is available */
 #undef HAVE_BLK_RQ_POS
@@ -77,6 +83,9 @@
 
 /* open_bdev_exclusive() is available */
 #undef HAVE_OPEN_BDEV_EXCLUSIVE
+
+/* rq_for_each_segment() is available */
+#undef HAVE_RQ_FOR_EACH_SEGMENT
 
 /* rq_is_sync() is available */
 #undef HAVE_RQ_IS_SYNC
