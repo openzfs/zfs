@@ -1492,7 +1492,6 @@ EXPORT_SYMBOL(spa_get_space);
 EXPORT_SYMBOL(spa_get_dspace);
 EXPORT_SYMBOL(spa_get_asize);
 EXPORT_SYMBOL(spa_max_replication);
-EXPORT_SYMBOL(spa_busy);
 EXPORT_SYMBOL(spa_get_failmode);
 EXPORT_SYMBOL(spa_suspended);
 
