@@ -967,6 +967,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 
 			/*FALLTHRU*/
 
+#ifdef HAVE_ZPL
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:
 			/*
@@ -1077,6 +1078,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 
 			break;
+#endif /* HAVE_ZPL */
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
@@ -2534,6 +2536,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			goto ancestorerr;
 		}
 
+#ifdef HAVE_ZPL
 		if (zfs_mount(h, NULL, 0) != 0) {
 			opname = dgettext(TEXT_DOMAIN, "mount");
 			goto ancestorerr;
@@ -2543,6 +2546,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			opname = dgettext(TEXT_DOMAIN, "share");
 			goto ancestorerr;
 		}
+#endif /* HAVE_ZPL */
 
 		zfs_close(h);
 	}
@@ -3632,7 +3636,7 @@ error:
 
 /*
  * Given a zvol dataset, issue the ioctl to create the appropriate minor node,
- * poke devfsadm to create the /dev link, and then wait for the link to appear.
+ * and wait briefly for udev to create the /dev link.
  */
 int
 zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
@@ -3644,9 +3648,8 @@ static int
 zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
-	di_devlink_handle_t dhdl;
-	priv_set_t *priv_effective;
-	int privileged;
+	char path[MAXPATHLEN];
+	int error;
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 
@@ -3683,52 +3686,13 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 	}
 
 	/*
-	 * If privileged call devfsadm and wait for the links to
-	 * magically appear.
-	 * Otherwise, print out an informational message.
+	 * Wait up to 10 seconds for udev to create the device.
 	 */
-
-	priv_effective = priv_allocset();
-	(void) getppriv(PRIV_EFFECTIVE, priv_effective);
-	privileged = (priv_isfullset(priv_effective) == B_TRUE);
-	priv_freeset(priv_effective);
-
-	if (privileged) {
-		if ((dhdl = di_devlink_init(ZFS_DRIVER,
-		    DI_MAKE_LINK)) == NULL) {
-			zfs_error_aux(hdl, strerror(errno));
-			(void) zfs_error_fmt(hdl, errno,
-			    dgettext(TEXT_DOMAIN, "cannot create device links "
-			    "for '%s'"), dataset);
-			(void) ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc);
-			return (-1);
-		} else {
-			(void) di_devlink_fini(&dhdl);
-		}
-	} else {
-		char pathname[MAXPATHLEN];
-		struct stat64 statbuf;
-		int i;
-
-#define	MAX_WAIT	10
-
-		/*
-		 * This is the poor mans way of waiting for the link
-		 * to show up.  If after 10 seconds we still don't
-		 * have it, then print out a message.
-		 */
-		(void) snprintf(pathname, sizeof (pathname), "/dev/zvol/dsk/%s",
-		    dataset);
-
-		for (i = 0; i != MAX_WAIT; i++) {
-			if (stat64(pathname, &statbuf) == 0)
-				break;
-			(void) sleep(1);
-		}
-		if (i == MAX_WAIT)
-			(void) printf(gettext("%s may not be immediately "
-			    "available\n"), pathname);
-	}
+	(void) snprintf(path, sizeof (path), "/dev/%s", dataset);
+	error = zpool_label_disk_wait(path, 10000);
+	if (error)
+		(void) printf(gettext("%s may not be immediately "
+		    "available\n"), path);
 
 	return (0);
 }
@@ -3864,6 +3828,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp)
 	return (0);
 }
 
+#ifdef HAVE_ZPL
 int
 zfs_iscsi_perm_check(libzfs_handle_t *hdl, char *dataset, ucred_t *cred)
 {
@@ -3929,6 +3894,7 @@ zfs_deleg_share_nfs(libzfs_handle_t *hdl, char *dataset, char *path,
 	error = ioctl(hdl->libzfs_fd, ZFS_IOC_SHARE, &zc);
 	return (error);
 }
+#endif /* HAVE_ZPL */
 
 void
 zfs_prune_proplist(zfs_handle_t *zhp, uint8_t *props)

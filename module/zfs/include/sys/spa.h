@@ -456,7 +456,6 @@ extern uint64_t spa_get_dspace(spa_t *spa);
 extern uint64_t spa_get_asize(spa_t *spa, uint64_t lsize);
 extern uint64_t spa_version(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
-extern int spa_busy(void);
 extern uint8_t spa_get_failmode(spa_t *spa);
 extern boolean_t spa_suspended(spa_t *spa);
 

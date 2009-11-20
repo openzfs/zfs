@@ -61,6 +61,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
 
+#ifdef HAVE_ZPL
 int zfsfstype;
 vfsops_t *zfs_vfsops = NULL;
 static major_t zfs_major;
@@ -1957,10 +1958,12 @@ zfs_vfsinit(int fstype, char *name)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 void
 zfs_init(void)
 {
+#ifdef HAVE_ZPL
 	/*
 	 * Initialize .zfs directory structures
 	 */
@@ -1972,21 +1975,19 @@ zfs_init(void)
 	zfs_znode_init();
 
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
+#endif /* HAVE_ZPL */
 }
 
 void
 zfs_fini(void)
 {
+#ifdef HAVE_ZPL
 	zfsctl_fini();
 	zfs_znode_fini();
+#endif /* HAVE_ZPL */
 }
 
-int
-zfs_busy(void)
-{
-	return (zfs_active_fs_count != 0);
-}
-
+#ifdef HAVE_ZPL
 int
 zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 {
@@ -2029,6 +2030,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Read a property stored within the master node.
@@ -2072,6 +2074,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	return (error);
 }
 
+#ifdef HAVE_ZPL
 static vfsdef_t vfw = {
 	VFSDEF_VERSION,
 	MNTTYPE_ZFS,
@@ -2084,3 +2087,4 @@ static vfsdef_t vfw = {
 struct modlfs zfs_modlfs = {
 	&mod_fsops, "ZFS filesystem version " SPA_VERSION_STRING, &vfw
 };
+#endif /* HAVE_ZPL */
