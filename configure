@@ -19627,7 +19627,8 @@ int
 main (void)
 {
 
-		int flags = BIO_RW_SYNCIO;
+		int flags;
+		flags = BIO_RW_SYNCIO;
 
   ;
   return 0;
@@ -19730,6 +19731,74 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_end_request() is GPL-only" >&5
+echo $ECHO_N "checking whether blk_end_request() is GPL-only... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/module.h>
+		#include <linux/blkdev.h>
+
+		MODULE_LICENSE("CDDL");
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_end_request(req, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_END_REQUEST_GPL_ONLY 1
+_ACEOF
+
 
 
 
@@ -19929,6 +19998,74 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_bytes() is GPL-only" >&5
+echo $ECHO_N "checking whether blk_rq_bytes() is GPL-only... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/module.h>
+		#include <linux/blkdev.h>
+
+		MODULE_LICENSE("CDDL");
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_bytes(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_BYTES_GPL_ONLY 1
+_ACEOF
+
 
 
 
@@ -20184,6 +20321,74 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_RQ_IS_SYNC 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether rq_for_each_segment() is available" >&5
+echo $ECHO_N "checking whether rq_for_each_segment() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct bio_vec *bv;
+		struct req_iterator iter;
+		struct request *req = NULL;
+		rq_for_each_segment(bv, req, iter) { }
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_RQ_FOR_EACH_SEGMENT 1
 _ACEOF
 
 
@@ -21983,7 +22188,8 @@ int
 main (void)
 {
 
-		int flags = BIO_RW_SYNCIO;
+		int flags;
+		flags = BIO_RW_SYNCIO;
 
   ;
   return 0;
@@ -22086,6 +22292,74 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_end_request() is GPL-only" >&5
+echo $ECHO_N "checking whether blk_end_request() is GPL-only... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/module.h>
+		#include <linux/blkdev.h>
+
+		MODULE_LICENSE("CDDL");
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_end_request(req, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_END_REQUEST_GPL_ONLY 1
+_ACEOF
+
 
 
 
@@ -22285,6 +22559,74 @@ sed 's/^/| /' conftest.$ac_ext >&5
 
 		echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+	echo "$as_me:$LINENO: checking whether blk_rq_bytes() is GPL-only" >&5
+echo $ECHO_N "checking whether blk_rq_bytes() is GPL-only... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/module.h>
+		#include <linux/blkdev.h>
+
+		MODULE_LICENSE("CDDL");
+
+int
+main (void)
+{
+
+		struct request *req = NULL;
+		(void) blk_rq_bytes(req);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLK_RQ_BYTES_GPL_ONLY 1
+_ACEOF
+
 
 
 
@@ -22540,6 +22882,74 @@ echo "${ECHO_T}yes" >&6
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_RQ_IS_SYNC 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	echo "$as_me:$LINENO: checking whether rq_for_each_segment() is available" >&5
+echo $ECHO_N "checking whether rq_for_each_segment() is available... $ECHO_C" >&6
+
+
+cat >conftest.c <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct bio_vec *bv;
+		struct req_iterator iter;
+		struct request *req = NULL;
+		rq_for_each_segment(bv, req, iter) { }
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_RQ_FOR_EACH_SEGMENT 1
 _ACEOF
 
 
