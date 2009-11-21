@@ -20,7 +20,8 @@ distclean-local::
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
 		-o -name '.*.rej' -o -name 'aclocal.m4' -o -size 0 \
 		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
-		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \) \
+		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \
+		-o -name '*.order' -o -name '*.markers' \) \
 		-type f -print | xargs $(RM)
 
 if CONFIG_KERNEL
