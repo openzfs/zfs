@@ -1,3 +1,34 @@
+2009-11-20 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.7
+
+	* config/spl-build.m4: Linux 2.6.31 compat, SPL_AC_2ARGS_SET_FS_PWD
+	macro updated to explicitly include linux/fs_struct.h which was
+	dropped from linux/sched.h.
+
+	* include/linux/mm_compat.h: Linux 2.6.31 compat, use the macros
+	min_wmark_pages, low_wmark_pages, and high_wmark_pages which were
+	introduced.  For older kernels a compability macro is used.
+
+	* include/sys/kmem.h: Linux 2.6.31 compat, the __GFP_NOFAIL flag
+	should no longer be used and it may disappear from the kernel at any
+	time.  To handle this I have simply added *_nofail wrappers in the
+	kmem implementation which perform the retry for non-atomic allocations.
+
+	* module/spl/spl-kmem.c: Linux 2.6.31 compat, kmem cache alignment
+	fixes and cleanup.  Always perform allocations for the kmem cache
+	using __get_free_pages() or __vmalloc() to ensure the returned
+	memory is page aligned.  Also introduce helper functions which use
+	P2ROUNDUP_TYPE instead of P2ROUNDUP force all types to be explicit.
+
+	* include/sys/mutex.h: Add mutex_enter_nested() as wrapper for
+	mutex_lock_nested() to permit integration with the lock checker.
+
+	* include/sys/mutex.h: Always use the generic mutex_destroy().
+
+	* Makefile.am: Ensure *.order and *.markers build products are
+	removed by distclean rule.
+
 2009-11-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.6
