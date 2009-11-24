@@ -113,6 +113,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
 	SCRIPTDIR=$TOPDIR/scripts
+	TARGET_ASM_DIR=asm-generic
 
 	AC_SUBST(TOPDIR)
 	AC_SUBST(BUILDDIR)
@@ -120,11 +121,12 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AC_SUBST(CMDDIR)
 	AC_SUBST(MODDIR)
 	AC_SUBST(SCRIPTDIR)
+	AC_SUBST(TARGET_ASM_DIR)
 
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
 		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|all']),
+		[Config file 'kernel|user|all|srpm']),
 		[ZFS_CONFIG="$withval"])
 
 	AC_MSG_CHECKING([zfs config])
@@ -136,10 +138,11 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		user)	ZFS_AC_CONFIG_USER   ;;
 		all)    ZFS_AC_CONFIG_KERNEL
 			ZFS_AC_CONFIG_USER   ;;
+		srpm)                        ;;
 		*)
 		AC_MSG_RESULT([Error!])
 		AC_MSG_ERROR([Bad value "$ZFS_CONFIG" for --with-config,
-		              user kernel|user|all]) ;;
+		              user kernel|user|all|srpm]) ;;
 	esac
 
 	AM_CONDITIONAL([CONFIG_USER],
