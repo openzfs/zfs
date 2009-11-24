@@ -462,7 +462,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR SCRIPTDIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS TARGET_ASM_DIR ZLIB LIBUUID LIBBLKID CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE USERDEBUG LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS ZFS_META_NAME ZFS_META_VERSION ZFS_META_RELEASE ZFS_META_ALIAS ZFS_META_DATA ZFS_META_AUTHOR ZFS_META_LT_CURRENT ZFS_META_LT_REVISION ZFS_META_LT_AGE build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar MAINTAINER_MODE_TRUE MAINTAINER_MODE_FALSE MAINT CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE SED EGREP LN_S ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CPP CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL CCAS CCASFLAGS LICENSE TOPDIR BUILDDIR LIBDIR CMDDIR MODDIR SCRIPTDIR TARGET_ASM_DIR ZFS_CONFIG LINUX LINUX_OBJ LINUX_VERSION LINUX_SYMBOLS SPL SPL_OBJ SPL_VERSION SPL_SYMBOLS KERNELMAKE_PARAMS KERNELCPPFLAGS ZLIB LIBUUID LIBBLKID CONFIG_USER_TRUE CONFIG_USER_FALSE CONFIG_KERNEL_TRUE CONFIG_KERNEL_FALSE USERDEBUG LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1052,7 +1052,7 @@ Optional Packages:
                           both]
   --with-tags[=TAGS]
                           include additional configurations [automatic]
-  --with-config=CONFIG    Config file 'kernel|user|all'
+  --with-config=CONFIG    Config file 'kernel|user|all|srpm'
   --with-linux=PATH       Path to kernel source
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
@@ -18969,6 +18969,8 @@ _ACEOF
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
 	SCRIPTDIR=$TOPDIR/scripts
+	TARGET_ASM_DIR=asm-generic
+
 
 
 
@@ -24114,13 +24116,14 @@ fi
 
 
    ;;
+		srpm)                        ;;
 		*)
 		echo "$as_me:$LINENO: result: Error!" >&5
 echo "${ECHO_T}Error!" >&6
 		{ { echo "$as_me:$LINENO: error: Bad value \"$ZFS_CONFIG\" for --with-config,
-		              user kernel|user|all" >&5
+		              user kernel|user|all|srpm" >&5
 echo "$as_me: error: Bad value \"$ZFS_CONFIG\" for --with-config,
-		              user kernel|user|all" >&2;}
+		              user kernel|user|all|srpm" >&2;}
    { (exit 1); exit 1; }; } ;;
 	esac
 
@@ -25048,6 +25051,7 @@ s,@LIBDIR@,$LIBDIR,;t t
 s,@CMDDIR@,$CMDDIR,;t t
 s,@MODDIR@,$MODDIR,;t t
 s,@SCRIPTDIR@,$SCRIPTDIR,;t t
+s,@TARGET_ASM_DIR@,$TARGET_ASM_DIR,;t t
 s,@ZFS_CONFIG@,$ZFS_CONFIG,;t t
 s,@LINUX@,$LINUX,;t t
 s,@LINUX_OBJ@,$LINUX_OBJ,;t t
@@ -25059,7 +25063,6 @@ s,@SPL_VERSION@,$SPL_VERSION,;t t
 s,@SPL_SYMBOLS@,$SPL_SYMBOLS,;t t
 s,@KERNELMAKE_PARAMS@,$KERNELMAKE_PARAMS,;t t
 s,@KERNELCPPFLAGS@,$KERNELCPPFLAGS,;t t
-s,@TARGET_ASM_DIR@,$TARGET_ASM_DIR,;t t
 s,@ZLIB@,$ZLIB,;t t
 s,@LIBUUID@,$LIBUUID,;t t
 s,@LIBBLKID@,$LIBBLKID,;t t
