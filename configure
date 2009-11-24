@@ -1049,7 +1049,7 @@ Optional Packages:
                           both]
   --with-tags[=TAGS]
                           include additional configurations [automatic]
-  --with-config=CONFIG    Config file 'kernel|user|all'
+  --with-config=CONFIG    Config file 'kernel|user|all|srpm'
   --with-linux=PATH       Path to kernel source
   --with-linux-obj=PATH   Path to kernel build objects
 
@@ -25450,13 +25450,14 @@ _ACEOF
 
 
                            ;;
+		srpm)                        ;;
                 *)
                 echo "$as_me:$LINENO: result: Error!" >&5
 echo "${ECHO_T}Error!" >&6
                 { { echo "$as_me:$LINENO: error: Bad value \"$SPL_CONFIG\" for --with-config,
-                              user kernel|user|all" >&5
+                              user kernel|user|all|srpm" >&5
 echo "$as_me: error: Bad value \"$SPL_CONFIG\" for --with-config,
-                              user kernel|user|all" >&2;}
+                              user kernel|user|all|srpm" >&2;}
    { (exit 1); exit 1; }; } ;;
         esac
 
