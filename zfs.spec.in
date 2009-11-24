@@ -22,8 +22,13 @@ for the zfs file system.
 %package devel
 Summary:         ZFS File System User Headers
 Group:           Development/Libraries
+%if %{defined ch5} || %{defined el6} || %{defined fc12}
+Requires:        zlib libuuid libblkid
+BuildRequires:   zlib-devel libuuid-devel libblkid-devel
+%else
 Requires:        zlib e2fsprogs
 BuildRequires:   zlib-devel e2fsprogs-devel
+%endif
 
 %description devel
 The %{name}-devel package contains the header files needed for building
@@ -42,7 +47,7 @@ various system profiling tools to facilitate an in depth analysis.
 %prep
 %setup
 %build
-%configure --with-config=user --with-blkid
+%configure --with-config=user --without-blkid
 make
 
 %install
