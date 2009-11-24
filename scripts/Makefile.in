@@ -227,8 +227,8 @@ target_os = @target_os@
 target_vendor = @target_vendor@
 pkglibexecdir = $(libexecdir)/@PACKAGE@
 nobase_pkglibexec_SCRIPTS = common.sh zconfig.sh zfs.sh \
-	zpool-create.sh zpool-config/* zpios.sh zpios-sanity.sh \
-	zpios-survey.sh zpios-test/* zpios-profile/*
+	zpool-create.sh udev-rules/* zpool-config/* zpios.sh \
+	zpios-sanity.sh zpios-survey.sh zpios-test/* zpios-profile/*
 EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
 ZFS = ${top_srcdir}/scripts/zfs.sh
 ZCONFIG = ${top_srcdir}/scripts/zconfig.sh
@@ -309,7 +309,7 @@ CTAGS:
 
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/zpios-profile $(distdir)/zpios-test $(distdir)/zpool-config
+	$(mkdir_p) $(distdir)/udev-rules $(distdir)/zpios-profile $(distdir)/zpios-test $(distdir)/zpool-config
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
