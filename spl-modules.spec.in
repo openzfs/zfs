@@ -155,10 +155,12 @@
 %if %{defined build_src_rpm}
 %define release          @SPL_META_RELEASE@
 %define requires         %{kpkg}
+%define devel_requires   %{kdevpkg}
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @SPL_META_RELEASE@_%{relext}
 %define requires         %{kpkg} %{koppkg} %{kverpkg}
+%define devel_requires   %{kdevpkg} %{koppkg} %{kverpkg}
 %endif
 
 Summary:         Solaris Porting Layer Modules
@@ -182,7 +184,7 @@ taskq, thread, time, and vnode APIs.
 %package devel
 Summary:         Solaris Porting Layer Headers and Symbols
 Group:           Development/Libraries
-Requires:        %{requires}
+Requires:        %{devel_requires}
 BuildRequires:   %{kdevpkg}
 
 %description devel
