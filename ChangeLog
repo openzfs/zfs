@@ -1,3 +1,42 @@
+2009-11-24 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.7 - Use 'git log --no-merges' for full change log.
+
+	* module/zcommon/include/sys/fs/zfs.h, module/zfs/include/sys/blkdev.h,
+	  module/zfs/include/sys/dmu.h, module/zfs/dmu.c,
+	  module/zfs/include/sys/zvol.h, module/zfs/zvol.c,
+	  module/zfs/zfs_ioctl.c:
+	Added the ZVOL block device, with the addition of the ZVOL real ZFS
+	based block devices are available and can be compared head to head
+	with Linux's MD and LVM block drivers.  The Linux ZVOL has not yet
+	had any performance work done but from a user perspective it should
+	be functionally complete and behave like any other Linux block device.
+	The ZVOL has so far been tested using zconfig.sh on the following
+	x86_64 based platforms: FC11, CHAOS4, RHEL5, RHEL6, and SLES11.
+	However, more testing is required to ensure everything is working
+	as designed.
+
+	* scripts/udev-rules/99-zpool.rules.promise,
+	  scripts/zpool-config/promise-raid0-1x16.sh,
+	  scripts/zpool-config/promise-raid10-8x2.sh,
+	  scripts/zpool-config/promise-raidz-2x8.sh,
+	  scripts/zpool-config/promise-raidz2-2x8.sh:
+	Additional test configurations for a small 16 drive JBOD.
+
+	* module/zfs/arc.c: Linux 2.6.31 compat, mutexes can now exceed 64
+	bytes depending on the the kernel build options.  To account for
+	this increase the pad size to 256 bytes.
+
+	* module/zfs/vdev_disk.c: Linux 2.6.31 compat, to get the hard
+	sector size use bdev_logical_block_size() this function replaces
+	bdev_hardsect_size().
+
+	* module/zfs/zfs_rlock.c: Prevent gcc uninit compiler warning in
+	zfs_range_unlock_reader().
+
+	* Makefile.am: Ensure *.order and *.markers build products are
+	removed by distclean rule.
+
 2009-11-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.6 - Use 'git log --no-merges' for full change log.
