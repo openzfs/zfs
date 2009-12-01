@@ -32,6 +32,38 @@ static inline void atomic64_sub(__s64 i, atomic64_t *v)
 	spin_unlock_irqrestore(&v->lock, flags);
 }
 
+#define atomic64_inc(v)		(atomic64_add(1, (v)))
+#define atomic64_dec(v)		(atomic64_sub(1, (v)))
+
+static inline __s64 atomic64_add_return(__s64 i, atomic64_t *v)
+{
+	unsigned long flags;
+	__s64 ret;
+
+	spin_lock_irqsave(&v->lock, flags);
+	v->val += i;
+	ret = v->val;
+	spin_unlock_irqrestore(&v->lock, flags);
+
+	return ret;
+}
+
+static inline __s64 atomic64_sub_return(__s64 i, atomic64_t *v)
+{
+	unsigned long flags;
+	__s64 ret;
+
+	spin_lock_irqsave(&v->lock, flags);
+	v->val -= i;
+	ret = v->val;
+	spin_unlock_irqrestore(&v->lock, flags);
+
+	return ret;
+}
+
+#define atomic64_inc_return(v)	(atomic64_add_return(1, (v)))
+#define atomic64_dec_return(v)	(atomic64_sub_return(1, (v)))
+
 static inline __s64 atomic64_read(atomic64_t *v)
 {
 	unsigned long flags;
