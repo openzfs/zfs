@@ -47,9 +47,10 @@ typedef struct {
 } krwlock_t;
 
 /*
- * For the generic and x86 implementations of rw-semaphores the following
- * is true.  If your semaphore implementation internally represents the
- * semaphore state differently special case handling will be required.
+ * For the generic implementations of rw-semaphores the following is
+ * true.  If your semaphore implementation internally represents the
+ * semaphore state differently.  Then special case handling will be
+ * required so RW_COUNT() provides these semantics:
  * - if activity/count is 0 then there are no active readers or writers
  * - if activity/count is +ve then that is the number of active readers
  * - if activity/count is -1 then there is one active writer
@@ -63,9 +64,14 @@ typedef struct {
 extern void __up_read_locked(struct rw_semaphore *);
 extern int __down_write_trylock_locked(struct rw_semaphore *);
 #else
-# define RW_COUNT(rwp)                  (SEM(rwp)->count & RWSEM_ACTIVE_MASK)
-# define rw_exit_locked(rwp)            up_read(rwp)
-# define rw_tryenter_locked(rwp)        down_write_trylock(rwp)
+# ifdef _I386_RWSEM_H
+#  define RW_COUNT(rwp)                 ((SEM(rwp)->count < 0) ? (-1) : \
+					 (SEM(rwp)->count & RWSEM_ACTIVE_MASK))
+# else
+#  define RW_COUNT(rwp)                 (SEM(rwp)->count & RWSEM_ACTIVE_MASK)
+# endif
+# define rw_exit_locked(rwp)           up_read(rwp)
+# define rw_tryenter_locked(rwp)       down_write_trylock(rwp)
 #endif
 
 static inline kthread_t *
