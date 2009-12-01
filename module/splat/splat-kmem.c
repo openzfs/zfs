@@ -69,9 +69,11 @@
 #define SPLAT_KMEM_TEST10_NAME		"slab_lock"
 #define SPLAT_KMEM_TEST10_DESC		"Slab locking test"
 
+#ifdef _LP64
 #define SPLAT_KMEM_TEST11_ID		0x010b
 #define SPLAT_KMEM_TEST11_NAME		"slab_overcommit"
 #define SPLAT_KMEM_TEST11_DESC		"Slab memory overcommit test"
+#endif /* _LP64 */
 
 #define SPLAT_KMEM_TEST12_ID		0x010c
 #define SPLAT_KMEM_TEST12_NAME		"vmem_size"
@@ -1003,6 +1005,7 @@ splat_kmem_test10(struct file *file, void *arg)
 	return rc;
 }
 
+#ifdef _LP64
 /*
  * This test creates N threads with a shared kmem cache which overcommits
  * memory by 4x.  This makes it impossible for the slab to satify the
@@ -1011,7 +1014,9 @@ splat_kmem_test10(struct file *file, void *arg)
  * detecting a low memory condition on the node and invoking the shrinkers.
  * This should allow all the threads to complete while avoiding deadlock
  * and for the most part out of memory events.  This is very tough on the
- * system so it is possible the test app may get oom'ed.
+ * system so it is possible the test app may get oom'ed.  This particular
+ * test has proven troublesome on 32-bit archs with limited virtual
+ * address space so it only run on 64-bit systems.
  */
 static int
 splat_kmem_test11(struct file *file, void *arg)
@@ -1031,6 +1036,7 @@ splat_kmem_test11(struct file *file, void *arg)
 
 	return rc;
 }
+#endif /* _LP64 */
 
 /*
  * Check vmem_size() behavior by acquiring the alloc/free/total vmem
@@ -1147,8 +1153,10 @@ splat_kmem_init(void)
 			SPLAT_KMEM_TEST9_ID, splat_kmem_test9);
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST10_NAME, SPLAT_KMEM_TEST10_DESC,
 			SPLAT_KMEM_TEST10_ID, splat_kmem_test10);
+#ifdef _LP64
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST11_NAME, SPLAT_KMEM_TEST11_DESC,
 			SPLAT_KMEM_TEST11_ID, splat_kmem_test11);
+#endif /* _LP64 */
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST12_NAME, SPLAT_KMEM_TEST12_DESC,
 			SPLAT_KMEM_TEST12_ID, splat_kmem_test12);
 
@@ -1160,7 +1168,9 @@ splat_kmem_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST12_ID);
+#ifdef _LP64
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST11_ID);
+#endif /* _LP64 */
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST10_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST9_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST8_ID);
