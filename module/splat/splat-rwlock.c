@@ -591,8 +591,8 @@ splat_rwlock_test6(struct file *file, void *arg)
 	rc = rw_tryupgrade(&rwp->rw_rwlock);
 	if (!rc) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
-			     "rwlock contended preventing upgrade: %d\n",
-			     RW_COUNT(&rwp->rw_rwlock));
+			     "rwlock contended preventing upgrade: %ld\n",
+			     (long int)RW_COUNT(&rwp->rw_rwlock));
 		goto out;
 	}
 
