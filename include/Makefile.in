@@ -184,8 +184,8 @@ target_vendor = @target_vendor@
 # noinst_HEADERS because they are not installed in the usual include
 # location.  We do not want to be using $includedir for this.
 # Installation is handled by the custom install-data-local rule.
-noinst_HEADERS = *.h asm/*.h fs/*.h linux/*.h rpc/*.h sharefs/*.h \
-	sys/fm/*.h sys/fs/*.h sys/sysevent/*.h sys/*.h util/*.h vm/*.h
+noinst_HEADERS = *.h fs/*.h linux/*.h rpc/*.h sharefs/*.h sys/fm/*.h \
+	sys/fs/*.h sys/sysevent/*.h sys/*.h util/*.h vm/*.h
 all: all-am
 
 .SUFFIXES:
@@ -278,7 +278,7 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/asm $(distdir)/fs $(distdir)/linux $(distdir)/rpc $(distdir)/sharefs $(distdir)/sys $(distdir)/sys/fm $(distdir)/sys/fs $(distdir)/sys/sysevent $(distdir)/util $(distdir)/vm
+	$(mkdir_p) $(distdir)/fs $(distdir)/linux $(distdir)/rpc $(distdir)/sharefs $(distdir)/sys $(distdir)/sys/fm $(distdir)/sys/fs $(distdir)/sys/sysevent $(distdir)/util $(distdir)/vm
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

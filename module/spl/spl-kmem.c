@@ -215,11 +215,19 @@ EXPORT_SYMBOL(vmem_size);
  * report any memory leaked when the module is unloaded.
  */
 #ifdef DEBUG_KMEM
+
 /* Shim layer memory accounting */
+# ifdef HAVE_ATOMIC64_T
 atomic64_t kmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long long kmem_alloc_max = 0;
 atomic64_t vmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long long vmem_alloc_max = 0;
+# else
+atomic_t kmem_alloc_used = ATOMIC_INIT(0);
+unsigned long long kmem_alloc_max = 0;
+atomic_t vmem_alloc_used = ATOMIC_INIT(0);
+unsigned long long vmem_alloc_max = 0;
+# endif /* _LP64 */
 int kmem_warning_flag = 1;
 
 EXPORT_SYMBOL(kmem_alloc_used);
@@ -392,7 +400,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)
 			CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
-			    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+			    kmem_alloc_used_read(), kmem_alloc_max);
 
 		/* We use kstrdup() below because the string pointed to by
 		 * __FUNCTION__ might not be available by the time we want
@@ -402,7 +410,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 			kfree(dptr);
 			CWARN("kstrdup() failed in kmem_alloc(%llu, 0x%x) "
 			    "(%lld/%llu)\n", (unsigned long long) size, flags,
-			    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+			    kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
 		}
 
@@ -421,15 +429,13 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 			kfree(dptr);
 			CWARN("kmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
-			    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+			    kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
 		}
 
-		atomic64_add(size, &kmem_alloc_used);
-		if (unlikely(atomic64_read(&kmem_alloc_used) >
-		    kmem_alloc_max))
-			kmem_alloc_max =
-			    atomic64_read(&kmem_alloc_used);
+		kmem_alloc_used_add(size);
+		if (unlikely(kmem_alloc_used_read() > kmem_alloc_max))
+			kmem_alloc_max = kmem_alloc_used_read();
 
 		INIT_HLIST_NODE(&dptr->kd_hlist);
 		INIT_LIST_HEAD(&dptr->kd_list);
@@ -446,7 +452,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 
 		CDEBUG_LIMIT(D_INFO, "kmem_alloc(%llu, 0x%x) = %p "
 		    "(%lld/%llu)\n", (unsigned long long) size, flags,
-		    ptr, atomic64_read(&kmem_alloc_used),
+		    ptr, kmem_alloc_used_read(),
 		    kmem_alloc_max);
 	}
 out:
@@ -472,10 +478,9 @@ kmem_free_track(void *ptr, size_t size)
 	    "kd_func = %s, kd_line = %d\n", (unsigned long long) dptr->kd_size,
 	    (unsigned long long) size, dptr->kd_func, dptr->kd_line);
 
-	atomic64_sub(size, &kmem_alloc_used);
-
+	kmem_alloc_used_sub(size);
 	CDEBUG_LIMIT(D_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
-	    (unsigned long long) size, atomic64_read(&kmem_alloc_used),
+	    (unsigned long long) size, kmem_alloc_used_read(),
 	    kmem_alloc_max);
 
 	kfree(dptr->kd_func);
@@ -513,7 +518,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 			kfree(dptr);
 			CWARN("kstrdup() failed in vmem_alloc(%llu, 0x%x) "
 			    "(%lld/%llu)\n", (unsigned long long) size, flags,
-			    atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+			    vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
 
@@ -525,18 +530,16 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 			kfree(dptr);
 			CWARN("vmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
-			    atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+			    vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
 
 		if (flags & __GFP_ZERO)
 			memset(ptr, 0, size);
 
-		atomic64_add(size, &vmem_alloc_used);
-		if (unlikely(atomic64_read(&vmem_alloc_used) >
-		    vmem_alloc_max))
-			vmem_alloc_max =
-			    atomic64_read(&vmem_alloc_used);
+		vmem_alloc_used_add(size);
+		if (unlikely(vmem_alloc_used_read() > vmem_alloc_max))
+			vmem_alloc_max = vmem_alloc_used_read();
 
 		INIT_HLIST_NODE(&dptr->kd_hlist);
 		INIT_LIST_HEAD(&dptr->kd_list);
@@ -553,7 +556,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 
 		CDEBUG_LIMIT(D_INFO, "vmem_alloc(%llu, 0x%x) = %p "
 		    "(%lld/%llu)\n", (unsigned long long) size, flags,
-		    ptr, atomic64_read(&vmem_alloc_used),
+		    ptr, vmem_alloc_used_read(),
 		    vmem_alloc_max);
 	}
 out:
@@ -578,9 +581,9 @@ vmem_free_track(void *ptr, size_t size)
 	    "kd_func = %s, kd_line = %d\n", (unsigned long long) dptr->kd_size,
 	    (unsigned long long) size, dptr->kd_func, dptr->kd_line);
 
-	atomic64_sub(size, &vmem_alloc_used);
+	vmem_alloc_used_sub(size);
 	CDEBUG_LIMIT(D_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
-	    (unsigned long long) size, atomic64_read(&vmem_alloc_used),
+	    (unsigned long long) size, vmem_alloc_used_read(),
 	    vmem_alloc_max);
 
 	kfree(dptr->kd_func);
@@ -609,7 +612,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	if (unlikely(size > (PAGE_SIZE * 2)) && kmem_warning_flag)
 		CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 		    (unsigned long long) size, flags,
-		    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+		    kmem_alloc_used_read(), kmem_alloc_max);
 
 	/* Use the correct allocator */
 	if (node_alloc) {
@@ -624,15 +627,15 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	if (ptr == NULL) {
 		CWARN("kmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags,
-		    atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+		    kmem_alloc_used_read(), kmem_alloc_max);
 	} else {
-		atomic64_add(size, &kmem_alloc_used);
-		if (unlikely(atomic64_read(&kmem_alloc_used) > kmem_alloc_max))
-			kmem_alloc_max = atomic64_read(&kmem_alloc_used);
+		kmem_alloc_used_add(size);
+		if (unlikely(kmem_alloc_used_read() > kmem_alloc_max))
+			kmem_alloc_max = kmem_alloc_used_read();
 
 		CDEBUG_LIMIT(D_INFO, "kmem_alloc(%llu, 0x%x) = %p "
 		       "(%lld/%llu)\n", (unsigned long long) size, flags, ptr,
-		       atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+		       kmem_alloc_used_read(), kmem_alloc_max);
 	}
 	RETURN(ptr);
 }
@@ -646,10 +649,9 @@ kmem_free_debug(void *ptr, size_t size)
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
 
-	atomic64_sub(size, &kmem_alloc_used);
-
+	kmem_alloc_used_sub(size);
 	CDEBUG_LIMIT(D_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
-	    (unsigned long long) size, atomic64_read(&kmem_alloc_used),
+	    (unsigned long long) size, kmem_alloc_used_read(),
 	    kmem_alloc_max);
 
 	memset(ptr, 0x5a, size);
@@ -672,19 +674,18 @@ vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 	if (ptr == NULL) {
 		CWARN("vmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags,
-		    atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
 		if (flags & __GFP_ZERO)
 			memset(ptr, 0, size);
 
-		atomic64_add(size, &vmem_alloc_used);
-
-		if (unlikely(atomic64_read(&vmem_alloc_used) > vmem_alloc_max))
-			vmem_alloc_max = atomic64_read(&vmem_alloc_used);
+		vmem_alloc_used_add(size);
+		if (unlikely(vmem_alloc_used_read() > vmem_alloc_max))
+			vmem_alloc_max = vmem_alloc_used_read();
 
 		CDEBUG_LIMIT(D_INFO, "vmem_alloc(%llu, 0x%x) = %p "
 		    "(%lld/%llu)\n", (unsigned long long) size, flags, ptr,
-		    atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+		    vmem_alloc_used_read(), vmem_alloc_max);
 	}
 
 	RETURN(ptr);
@@ -699,10 +700,9 @@ vmem_free_debug(void *ptr, size_t size)
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
 
-	atomic64_sub(size, &vmem_alloc_used);
-
+	vmem_alloc_used_sub(size);
 	CDEBUG_LIMIT(D_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
-	    (unsigned long long) size, atomic64_read(&vmem_alloc_used),
+	    (unsigned long long) size, vmem_alloc_used_read(),
 	    vmem_alloc_max);
 
 	memset(ptr, 0x5a, size);
@@ -1969,8 +1969,8 @@ spl_kmem_init(void)
 #endif
 
 #ifdef DEBUG_KMEM
-	atomic64_set(&kmem_alloc_used, 0);
-	atomic64_set(&vmem_alloc_used, 0);
+	kmem_alloc_used_set(0);
+	vmem_alloc_used_set(0);
 
 	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);
 	spl_kmem_init_tracking(&vmem_list, &vmem_lock, VMEM_TABLE_SIZE);
@@ -1986,14 +1986,14 @@ spl_kmem_fini(void)
 	 * allocation size and the first few bytes of what's located
 	 * at that address to aid in debugging.  Performance is not
 	 * a serious concern here since it is module unload time. */
-	if (atomic64_read(&kmem_alloc_used) != 0)
+	if (kmem_alloc_used_read() != 0)
 		CWARN("kmem leaked %ld/%ld bytes\n",
-		      atomic64_read(&kmem_alloc_used), kmem_alloc_max);
+		      kmem_alloc_used_read(), kmem_alloc_max);
 
 
-	if (atomic64_read(&vmem_alloc_used) != 0)
+	if (vmem_alloc_used_read() != 0)
 		CWARN("vmem leaked %ld/%ld bytes\n",
-		      atomic64_read(&vmem_alloc_used), vmem_alloc_max);
+		      vmem_alloc_used_read(), vmem_alloc_max);
 
 	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
 	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);

@@ -30,7 +30,14 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <sys/types.h>
-#include <asm/atomic_compat.h>
+
+#ifndef HAVE_ATOMIC64_CMPXCHG
+#define atomic64_cmpxchg(v, o, n)       (cmpxchg(&((v)->counter), (o), (n)))
+#endif
+
+#ifndef HAVE_ATOMIC64_XCHG
+#define atomic64_xchg(v, n)             (xchg(&((v)->counter), n))
+#endif
 
 /*
  * Two approaches to atomic operations are implemented each with its

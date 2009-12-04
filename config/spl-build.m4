@@ -25,10 +25,9 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_DEBUG_KMEM
 	SPL_AC_DEBUG_KMEM_TRACKING
 	SPL_AC_ATOMIC_SPINLOCK
-	SPL_AC_TYPE_UINTPTR_T
-	SPL_AC_TYPE_ATOMIC64_T
 	SPL_AC_TYPE_ATOMIC64_CMPXCHG
 	SPL_AC_TYPE_ATOMIC64_XCHG
+	SPL_AC_TYPE_UINTPTR_T
 	SPL_AC_3ARGS_INIT_WORK
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SET_SHRINKER
@@ -286,27 +285,6 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM_TRACKING], [
 ])
 
 dnl #
-dnl # Use the atomic implemenation based on global spinlocks.  This
-dnl # should never be needed, however it has been left in place as
-dnl # a fallback option in case problems are observed with directly
-dnl # mapping to the native Linux atomic operations.
-dnl #
-AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
-	AC_ARG_ENABLE([atomic-spinlocks],
-		[AS_HELP_STRING([--enable-atomic-spinlocks],
-		[Atomic types use spinlocks @<:@default=no@:>@])],
-		[],
-		[enable_atomic_spinlocks=no])
-
-	AS_IF([test "x$enable_atomic_spinlocks" = xyes],
-		[AC_DEFINE([ATOMIC_SPINLOCK], [1],
-		[Atomic types use spinlocks])])
-
-	AC_MSG_CHECKING([whether atomic types use spinlocks])
-	AC_MSG_RESULT([$enable_atomic_spinlocks])
-])
-
-dnl #
 dnl # SPL_LINUX_CONFTEST
 dnl #
 AC_DEFUN([SPL_LINUX_CONFTEST], [
@@ -433,41 +411,55 @@ AC_DEFUN([SPL_CHECK_HEADER],
 ])
 
 dnl #
-dnl # 2.6.24 API change,
-dnl # check if uintptr_t typedef is defined
+dnl # Use the atomic implemenation based on global spinlocks.  This
+dnl # should only be needed by 32-bit kernels which do not provide
+dnl # the atomic64_* API.  It may be optionally enabled as a fallback
+dnl # if problems are observed with the direct mapping to the native
+dnl # Linux atomic operations.  You may not disable atomic spinlocks
+dnl # if you kernel does not an atomic64_* API.
 dnl #
-AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
-	[AC_MSG_CHECKING([whether kernel defines uintptr_t])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/types.h>
-	],[
-		uintptr_t *ptr;
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_UINTPTR_T, 1,
-		          [kernel defines uintptr_t])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
+AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
+	AC_ARG_ENABLE([atomic-spinlocks],
+		[AS_HELP_STRING([--enable-atomic-spinlocks],
+		[Atomic types use spinlocks @<:@default=check@:>@])],
+		[],
+		[enable_atomic_spinlocks=check])
 
-dnl #
-dnl # 2.6.x API change,
-dnl # check if atomic64_t typedef is defined
-dnl #
-AC_DEFUN([SPL_AC_TYPE_ATOMIC64_T],
-	[AC_MSG_CHECKING([whether kernel defines atomic64_t])
 	SPL_LINUX_TRY_COMPILE([
 		#include <asm/atomic.h>
 	],[
 		atomic64_t *ptr;
 	],[
-		AC_MSG_RESULT([yes])
+		have_atomic64_t=yes
 		AC_DEFINE(HAVE_ATOMIC64_T, 1,
-		          [kernel defines atomic64_t])
+			[kernel defines atomic64_t])
 	],[
-		AC_MSG_RESULT([no])
+		have_atomic64_t=no
 	])
+
+	AS_IF([test "x$enable_atomic_spinlocks" = xcheck], [
+		AS_IF([test "x$have_atomic64_t" = xyes], [
+			enable_atomic_spinlocks=no
+		],[
+			enable_atomic_spinlocks=yes
+		])
+	])
+
+	AS_IF([test "x$enable_atomic_spinlocks" = xyes], [
+		AC_DEFINE([ATOMIC_SPINLOCK], [1],
+			[Atomic types use spinlocks])
+	],[
+		AS_IF([test "x$have_atomic64_t" = xno], [
+			AC_MSG_FAILURE(
+			[--disable-atomic-spinlocks given but required atomic64 support is unavailable])
+		])
+	])
+
+	AC_MSG_CHECKING([whether atomic types use spinlocks])
+	AC_MSG_RESULT([$enable_atomic_spinlocks])
+
+	AC_MSG_CHECKING([whether kernel defines atomic64_t])
+	AC_MSG_RESULT([$have_atomic64_t])
 ])
 
 dnl #
@@ -503,6 +495,25 @@ AC_DEFUN([SPL_AC_TYPE_ATOMIC64_XCHG],
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_ATOMIC64_XCHG, 1,
 		          [kernel defines atomic64_xchg])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # 2.6.24 API change,
+dnl # check if uintptr_t typedef is defined
+dnl #
+AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
+	[AC_MSG_CHECKING([whether kernel defines uintptr_t])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/types.h>
+	],[
+		uintptr_t *ptr;
+	],[
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_UINTPTR_T, 1,
+		          [kernel defines uintptr_t])
 	],[
 		AC_MSG_RESULT([no])
 	])

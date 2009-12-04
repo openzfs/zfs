@@ -409,8 +409,8 @@ proc_console_backoff(struct ctl_table *table, int write, struct file *filp,
 
 #ifdef DEBUG_KMEM
 static int
-proc_doatomic64(struct ctl_table *table, int write, struct file *filp,
-                void __user *buffer, size_t *lenp, loff_t *ppos)
+proc_domemused(struct ctl_table *table, int write, struct file *filp,
+               void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int rc = 0;
         unsigned long min = 0, max = ~0, val;
@@ -425,7 +425,11 @@ proc_doatomic64(struct ctl_table *table, int write, struct file *filp,
         if (write) {
                 *ppos += *lenp;
         } else {
+# ifdef HAVE_ATOMIC64_T
                 val = atomic64_read((atomic64_t *)table->data);
+# else
+                val = atomic_read((atomic_t *)table->data);
+# endif /* HAVE_ATOMIC64_T */
                 rc = proc_doulongvec_minmax(&dummy, write, filp,
                                             buffer, lenp, ppos);
         }
@@ -861,9 +865,13 @@ static struct ctl_table spl_kmem_table[] = {
                 .ctl_name = CTL_KMEM_KMEMUSED,
                 .procname = "kmem_used",
                 .data     = &kmem_alloc_used,
+# ifdef HAVE_ATOMIC64_T
                 .maxlen   = sizeof(atomic64_t),
+# else
+                .maxlen   = sizeof(atomic_t),
+# endif /* HAVE_ATOMIC64_T */
                 .mode     = 0444,
-                .proc_handler = &proc_doatomic64,
+                .proc_handler = &proc_domemused,
         },
         {
                 .ctl_name = CTL_KMEM_KMEMMAX,
@@ -879,9 +887,13 @@ static struct ctl_table spl_kmem_table[] = {
                 .ctl_name = CTL_KMEM_VMEMUSED,
                 .procname = "vmem_used",
                 .data     = &vmem_alloc_used,
+# ifdef HAVE_ATOMIC64_T
                 .maxlen   = sizeof(atomic64_t),
+# else
+                .maxlen   = sizeof(atomic_t),
+# endif /* HAVE_ATOMIC64_T */
                 .mode     = 0444,
-                .proc_handler = &proc_doatomic64,
+                .proc_handler = &proc_domemused,
         },
         {
                 .ctl_name = CTL_KMEM_VMEMMAX,

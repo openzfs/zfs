@@ -3,7 +3,6 @@
 # location.  We do not want to be using $includedir for this.
 # Installation is handled by the custom install-data-local rule.
 noinst_HEADERS  = *.h
-noinst_HEADERS += asm/*.h
 noinst_HEADERS += fs/*.h
 noinst_HEADERS += linux/*.h
 noinst_HEADERS += rpc/*.h

@@ -41,7 +41,7 @@ extern "C" {
 #include <linux/rwsem.h>
 #include <linux/hash.h>
 #include <linux/ctype.h>
-#include <asm/atomic_compat.h>
+#include <asm/atomic.h>
 #include <sys/types.h>
 #include <sys/debug.h>
 #include <sys/vmsystm.h>
@@ -109,11 +109,39 @@ kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 #endif /* HAVE_KMALLOC_NODE */
 
 #ifdef DEBUG_KMEM
+# ifdef HAVE_ATOMIC64_T
 
 extern atomic64_t kmem_alloc_used;
 extern unsigned long long kmem_alloc_max;
 extern atomic64_t vmem_alloc_used;
 extern unsigned long long vmem_alloc_max;
+
+# define kmem_alloc_used_add(size)      atomic64_add(size, &kmem_alloc_used)
+# define kmem_alloc_used_sub(size)      atomic64_sub(size, &kmem_alloc_used)
+# define kmem_alloc_used_read()         atomic64_read(&kmem_alloc_used)
+# define kmem_alloc_used_set(size)      atomic64_set(&kmem_alloc_used, size)
+# define vmem_alloc_used_add(size)      atomic64_add(size, &vmem_alloc_used)
+# define vmem_alloc_used_sub(size)      atomic64_sub(size, &vmem_alloc_used)
+# define vmem_alloc_used_read()         atomic64_read(&vmem_alloc_used)
+# define vmem_alloc_used_set(size)      atomic64_set(&vmem_alloc_used, size)
+
+# else
+
+extern atomic_t kmem_alloc_used;
+extern unsigned long long kmem_alloc_max;
+extern atomic_t vmem_alloc_used;
+extern unsigned long long vmem_alloc_max;
+
+# define kmem_alloc_used_add(size)      atomic_add(size, &kmem_alloc_used)
+# define kmem_alloc_used_sub(size)      atomic_sub(size, &kmem_alloc_used)
+# define kmem_alloc_used_read()         atomic_read(&kmem_alloc_used)
+# define kmem_alloc_used_set(size)      atomic_set(&kmem_alloc_used, size)
+# define vmem_alloc_used_add(size)      atomic_add(size, &vmem_alloc_used)
+# define vmem_alloc_used_sub(size)      atomic_sub(size, &vmem_alloc_used)
+# define vmem_alloc_used_read()         atomic_read(&vmem_alloc_used)
+# define vmem_alloc_used_set(size)      atomic_set(&vmem_alloc_used, size)
+
+# endif /* _LP64 */
 
 # define kmem_alloc(size, flags)             __kmem_alloc((size), (flags), 0, 0)
 # define kmem_zalloc(size, flags)            __kmem_alloc((size), ((flags) |  \
