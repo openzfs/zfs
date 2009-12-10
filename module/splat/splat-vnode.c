@@ -65,6 +65,51 @@
 #define SPLAT_VNODE_TEST_FILE_RW2	"/tmp/spl.vnode.tmp.2"
 
 static int
+splat_vnode_user_cmd(struct file *file, void *arg,
+                     char *name, char *cmd)
+{
+	char sh_path[] = "/bin/sh";
+	char *argv[] = { sh_path,
+	                 "-c",
+	                 cmd,
+	                 NULL };
+	char *envp[] = { "HOME=/",
+	                 "TERM=linux",
+	                 "PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+	                 NULL };
+	int rc;
+
+	rc = call_usermodehelper(sh_path, argv, envp, 1);
+	if (rc) {
+		splat_vprint(file, name,
+			     "Failed command: %s %s %s (%d)\n",
+			     argv[0], argv[1], cmd, rc);
+		return -EPERM;
+	}
+
+	return 0;
+}
+
+static int
+splat_vnode_unlink_all(struct file *file, void *arg, char *name)
+{
+	char *cmds[] = { "rm -f " SPLAT_VNODE_TEST_FILE_RW,
+	                 "rm -f " SPLAT_VNODE_TEST_FILE_RW1,
+			 "rm -f " SPLAT_VNODE_TEST_FILE_RW2,
+	                 NULL };
+	int i = 0, rc = 0;
+
+	while (cmds[i] != NULL) {
+		if ((rc = splat_vnode_user_cmd(file, arg, name, cmds[i])))
+			return rc;
+
+		i++;
+	}
+
+	return rc;
+}
+
+static int
 splat_vnode_test1(struct file *file, void *arg)
 {
 	vnode_t *vp;
@@ -75,7 +120,7 @@ splat_vnode_test1(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_VNODE_TEST1_NAME,
 			     "Failed to vn_open test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE, rc);
-		return rc;
+		return -rc;
 	}
 
         rc = VOP_CLOSE(vp, 0, 0, 0, 0, 0);
@@ -85,13 +130,13 @@ splat_vnode_test1(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_VNODE_TEST1_NAME,
 			     "Failed to vn_close test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE, rc);
-		return rc;
+		return -rc;
 	}
 
 	splat_vprint(file, SPLAT_VNODE_TEST1_NAME, "Successfully vn_open'ed "
 		     "and vn_closed test file: %s\n", SPLAT_VNODE_TEST_FILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test1() */
 
 static int
@@ -105,7 +150,7 @@ splat_vnode_test2(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_VNODE_TEST2_NAME,
 			     "Failed to vn_openat test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE, rc);
-		return rc;
+		return -rc;
 	}
 
         rc = VOP_CLOSE(vp, 0, 0, 0, 0, 0);
@@ -115,13 +160,13 @@ splat_vnode_test2(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_VNODE_TEST2_NAME,
 			     "Failed to vn_close test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE, rc);
-		return rc;
+		return -rc;
 	}
 
 	splat_vprint(file, SPLAT_VNODE_TEST2_NAME, "Successfully vn_openat'ed "
 		     "and vn_closed test file: %s\n", SPLAT_VNODE_TEST_FILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test2() */
 
 static int
@@ -132,18 +177,21 @@ splat_vnode_test3(struct file *file, void *arg)
 	char buf2[32] = "";
 	int rc;
 
+	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST3_NAME)))
+		return rc;
+
 	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE,
 			  FWRITE | FREAD | FCREAT | FEXCL,
 			  0644, &vp, 0, 0))) {
 		splat_vprint(file, SPLAT_VNODE_TEST3_NAME,
 			     "Failed to vn_open test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
-		return rc;
+		return -rc;
 	}
 
         rc = vn_rdwr(UIO_WRITE, vp, buf1, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST3_NAME,
 			     "Failed vn_rdwr write of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
@@ -152,7 +200,7 @@ splat_vnode_test3(struct file *file, void *arg)
 
         rc = vn_rdwr(UIO_READ, vp, buf2, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST3_NAME,
 			     "Failed vn_rdwr read of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
@@ -160,7 +208,7 @@ splat_vnode_test3(struct file *file, void *arg)
 	}
 
 	if (strncmp(buf1, buf2, strlen(buf1))) {
-		rc = -EINVAL;
+		rc = EINVAL;
 		splat_vprint(file, SPLAT_VNODE_TEST3_NAME,
 			     "Failed strncmp data written does not match "
 			     "data read\nWrote: %sRead:  %s\n", buf1, buf2);
@@ -179,7 +227,7 @@ out:
         VN_RELE(vp);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test3() */
 
 static int
@@ -189,6 +237,9 @@ splat_vnode_test4(struct file *file, void *arg)
 	char buf1[32] = "SPL VNode Interface Test File\n";
 	char buf2[32] = "";
 	int rc;
+
+	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST4_NAME)))
+		return rc;
 
 	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE,
 			  FWRITE | FREAD | FCREAT | FEXCL, 0644, &vp, 0, 0))) {
@@ -200,7 +251,7 @@ splat_vnode_test4(struct file *file, void *arg)
 
         rc = vn_rdwr(UIO_WRITE, vp, buf1, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
 			     "Failed vn_rdwr write of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW1, rc);
@@ -229,7 +280,7 @@ splat_vnode_test4(struct file *file, void *arg)
 
         rc = vn_rdwr(UIO_READ, vp, buf2, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
 			     "Failed vn_rdwr read of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW2, rc);
@@ -259,7 +310,7 @@ out:
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE, RMFILE);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW2, UIO_SYSSPACE, RMFILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test4() */
 
 static int
@@ -274,7 +325,7 @@ splat_vnode_test5(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_VNODE_TEST5_NAME,
 			     "Failed to vn_open test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE, rc);
-		return rc;
+		return -rc;
 	}
 
 	rc = VOP_GETATTR(vp, &vap, 0, 0, NULL);
@@ -286,7 +337,7 @@ splat_vnode_test5(struct file *file, void *arg)
 	}
 
 	if (vap.va_type != VREG) {
-		rc = -EINVAL;
+		rc = EINVAL;
 		splat_vprint(file, SPLAT_VNODE_TEST5_NAME,
 			     "Failed expected regular file type "
 			     "(%d != VREG): %s (%d)\n", vap.va_type,
@@ -301,7 +352,7 @@ out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
         VN_RELE(vp);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test5() */
 
 static int
@@ -311,17 +362,20 @@ splat_vnode_test6(struct file *file, void *arg)
 	char buf[32] = "SPL VNode Interface Test File\n";
 	int rc;
 
+	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST6_NAME)))
+		return rc;
+
 	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE,
 			  FWRITE | FCREAT | FEXCL, 0644, &vp, 0, 0))) {
 		splat_vprint(file, SPLAT_VNODE_TEST6_NAME,
 			     "Failed to vn_open test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
-		return rc;
+		return -rc;
 	}
 
         rc = vn_rdwr(UIO_WRITE, vp, buf, strlen(buf), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST6_NAME,
 			     "Failed vn_rdwr write of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
@@ -344,7 +398,7 @@ out:
         VN_RELE(vp);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test6() */
 
 /* Basically a slightly modified version of sys_close() */
@@ -401,6 +455,9 @@ splat_vnode_test7(struct file *file, void *arg)
 	file_t *fp;
 	int rc, fd;
 
+	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST7_NAME)))
+		return rc;
+
 	/* Prep work needed to test getf/releasef */
 	fd = get_unused_fd();
 	if (fd < 0) {
@@ -426,7 +483,7 @@ splat_vnode_test7(struct file *file, void *arg)
 	/* Actual getf()/releasef() test */
 	fp = vn_getf(fd);
 	if (fp == NULL) {
-		rc = -EINVAL;
+		rc = EINVAL;
 		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
 			     "Failed to getf fd %d: (%d)\n", fd, rc);
 		goto out;
@@ -434,7 +491,7 @@ splat_vnode_test7(struct file *file, void *arg)
 
         rc = vn_rdwr(UIO_WRITE, fp->f_vnode, buf1, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
 			     "Failed vn_rdwr write of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
@@ -443,7 +500,7 @@ splat_vnode_test7(struct file *file, void *arg)
 
         rc = vn_rdwr(UIO_READ, fp->f_vnode, buf2, strlen(buf1), 0,
                      UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc < 0) {
+	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
 			     "Failed vn_rdwr read of test file: %s (%d)\n",
 			     SPLAT_VNODE_TEST_FILE_RW, rc);
@@ -451,7 +508,7 @@ splat_vnode_test7(struct file *file, void *arg)
 	}
 
 	if (strncmp(buf1, buf2, strlen(buf1))) {
-		rc = -EINVAL;
+		rc = EINVAL;
 		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
 			     "Failed strncmp data written does not match "
 			     "data read\nWrote: %sRead:  %s\n", buf1, buf2);
@@ -470,7 +527,7 @@ out:
         filp_close(lfp, 0);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
-        return rc;
+        return -rc;
 } /* splat_vnode_test7() */
 
 splat_subsystem_t *
