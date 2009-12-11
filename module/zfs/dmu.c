@@ -689,7 +689,7 @@ dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 	rq_for_each_segment(bv, req, iter) {
 
 		/* Fully consumed the passed arg_buf */
-		ASSERT3S(offset, <=, size);
+		ASSERT3S(*offset, <=, size);
 		if (size == *offset)
 			break;
 
