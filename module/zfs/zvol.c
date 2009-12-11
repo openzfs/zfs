@@ -213,7 +213,7 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 		return (EINVAL);
 
 #ifdef _ILP32
-	if (volsize - 1 > SPEC_MAXOFFSET_T)
+	if (volsize - 1 > MAXOFFSET_T)
 		return (EOVERFLOW);
 #endif
 	return (0);
@@ -225,6 +225,7 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
+	struct block_device *bdev;
 	dmu_tx_t *tx;
 	int error;
 
@@ -252,9 +253,16 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 
 	zv->zv_volsize = volsize;
 	zv->zv_changed = 1;
-	error = revalidate_disk(zv->zv_disk);
 
-	return (error);
+	bdev = bdget_disk(zv->zv_disk, 0);
+	if (!bdev)
+		return EIO;
+
+	error = check_disk_change(bdev);
+	ASSERT3U(error, !=, 0);
+	bdput(bdev);
+
+	return (0);
 }
 
 /*
