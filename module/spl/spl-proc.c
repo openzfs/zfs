@@ -581,33 +581,40 @@ proc_dofreemem(struct ctl_table *table, int write, struct file *filp,
 static void
 slab_seq_show_headers(struct seq_file *f)
 {
-        seq_printf(f, "%-36s\n", "name");
+        seq_printf(f, "%-36s      %-6s - %s %s %s - %s %s %s - "
+                   "%s %s %s - %s %s %s\n", "name", "flags",
+                   "obj_size", "slab_objs", "slab_size",
+                   "slab_fail", "slab_create", "slab_destroy",
+                   "slab_total", "slab_alloc", "slab_max",
+                   "obj_total", "obj_alloc", "obj_max");
 }
 
 static int
 slab_seq_show(struct seq_file *f, void *p)
 {
-	spl_kmem_cache_t *skc = p;
+        spl_kmem_cache_t *skc = p;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+        ASSERT(skc->skc_magic == SKC_MAGIC);
 
-	spin_lock(&skc->skc_lock);
+        spin_lock(&skc->skc_lock);
         seq_printf(f, "%-36s      ", skc->skc_name);
-        seq_printf(f, "%u %u %u - %lu %lu %lu - %lu %lu %lu - %lu %lu %lu\n",
-		   (unsigned)skc->skc_obj_size,
-		   (unsigned)skc->skc_slab_objs,
-		   (unsigned)skc->skc_slab_size,
-		   (long unsigned)skc->skc_slab_fail,
-		   (long unsigned)skc->skc_slab_create,
-		   (long unsigned)skc->skc_slab_destroy,
-		   (long unsigned)skc->skc_slab_total,
-		   (long unsigned)skc->skc_slab_alloc,
-		   (long unsigned)skc->skc_slab_max,
-		   (long unsigned)skc->skc_obj_total,
-		   (long unsigned)skc->skc_obj_alloc,
-		   (long unsigned)skc->skc_obj_max);
+        seq_printf(f, "0x%04lx - %u %u %u - %lu %lu %lu - "
+                   "%lu %lu %lu - %lu %lu %lu\n",
+                   (long unsigned)skc->skc_flags,
+                   (unsigned)skc->skc_obj_size,
+                   (unsigned)skc->skc_slab_objs,
+                   (unsigned)skc->skc_slab_size,
+                   (long unsigned)skc->skc_slab_fail,
+                   (long unsigned)skc->skc_slab_create,
+                   (long unsigned)skc->skc_slab_destroy,
+                   (long unsigned)skc->skc_slab_total,
+                   (long unsigned)skc->skc_slab_alloc,
+                   (long unsigned)skc->skc_slab_max,
+                   (long unsigned)skc->skc_obj_total,
+                   (long unsigned)skc->skc_obj_alloc,
+                   (long unsigned)skc->skc_obj_max);
 
-	spin_unlock(&skc->skc_lock);
+        spin_unlock(&skc->skc_lock);
 
         return 0;
 }
