@@ -63,6 +63,7 @@ rm -rf $RPM_BUILD_ROOT
 %doc OPENSOLARIS.LICENSE README TODO ZFS.RELEASE
 %{_sbindir}/*
 %{_libdir}/*
+%{_mandir}/man8/*
 
 %files devel
 %defattr(-,root,root)
