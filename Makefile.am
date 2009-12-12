@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/rpm.am
 
 if CONFIG_USER
-USER_DIR = config doc scripts lib cmd
+USER_DIR = config man scripts lib cmd
 endif
 if CONFIG_KERNEL
 KERNEL_DIR = module
