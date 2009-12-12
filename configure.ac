@@ -52,7 +52,8 @@ ZFS_AC_DEBUG
 AC_CONFIG_FILES([ 
 	Makefile
 	config/Makefile
-	doc/Makefile
+	man/Makefile
+	man/man8/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
