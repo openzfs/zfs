@@ -64,7 +64,11 @@ typedef struct {
 extern void __up_read_locked(struct rw_semaphore *);
 extern int __down_write_trylock_locked(struct rw_semaphore *);
 #else
-# ifdef _I386_RWSEM_H
+/*
+ * 2.6.x  - 2.6.27  use guard macro _I386_RWSEM_H
+ * 2.6.28 - 2.6.32+ use guard macro _ASM_X86_RWSEM_H
+ */
+# if defined(_I386_RWSEM_H) || defined(_ASM_X86_RWSEM_H)
 #  define RW_COUNT(rwp)                 ((SEM(rwp)->count < 0) ? (-1) : \
 					 (SEM(rwp)->count & RWSEM_ACTIVE_MASK))
 # else
