@@ -681,10 +681,6 @@ zvol_remove(zvol_state_t *zv_remove)
 	list_remove(&zvol_state_list, zv_remove);
 }
 
-#ifndef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
-typedef unsigned __bitwise__ fmode_t;
-#endif /* HAVE_BDEV_BLOCK_DEVICE_OPERATIONS */
-
 static int
 zvol_open(struct block_device *bdev, fmode_t flag)
 {
