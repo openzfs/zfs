@@ -7,6 +7,10 @@
 #include <linux/elevator.h>
 #include "zfs_config.h"
 
+#ifndef HAVE_FMODE_T
+typedef unsigned __bitwise__ fmode_t;
+#endif /* HAVE_FMODE_T */
+
 #ifndef HAVE_BLK_FETCH_REQUEST
 static inline struct request *
 blk_fetch_request(struct request_queue *q)
