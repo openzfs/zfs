@@ -505,7 +505,8 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 
 	ASSERT(flags & KM_SLEEP);
 
-	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t), flags);
+	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
+	    flags & ~__GFP_ZERO);
 	if (dptr == NULL) {
 		CWARN("vmem_alloc(%ld, 0x%x) debug failed\n",
 		    sizeof(kmem_debug_t), flags);
