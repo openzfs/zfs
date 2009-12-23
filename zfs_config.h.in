@@ -48,6 +48,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* kernel defines fmode_t */
+#undef HAVE_FMODE_T
+
 /* blk_disk_ro() is available */
 #undef HAVE_GET_DISK_RO
 
