@@ -418,9 +418,10 @@ splat_kmem_cache_test_reclaim(void *priv)
 	for (i = 0; i < kcp->kcp_kct_count; i++) {
 		spin_lock(&kcp->kcp_lock);
 		kct = kcp->kcp_kct[i];
-		spin_unlock(&kcp->kcp_lock);
-		if (!kct)
+		if (!kct) {
+			spin_unlock(&kcp->kcp_lock);
 			continue;
+		}
 
 		spin_lock(&kct->kct_lock);
 		count = kct->kct_kcd_count * SPLAT_KMEM_OBJ_RECLAIM / 100;
@@ -435,6 +436,7 @@ splat_kmem_cache_test_reclaim(void *priv)
 			}
 		}
 		spin_unlock(&kct->kct_lock);
+		spin_unlock(&kcp->kcp_lock);
 	}
 
 	return;
