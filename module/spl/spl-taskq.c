@@ -45,7 +45,8 @@ typedef struct spl_task {
         void                    *t_arg;
 } spl_task_t;
 
-/* NOTE: Must be called with tq->tq_lock held, returns a list_t which
+/*
+ * NOTE: Must be called with tq->tq_lock held, returns a list_t which
  * is not attached to the free, work, or pending taskq lists.
  */
 static spl_task_t *
@@ -109,7 +110,8 @@ retry:
         RETURN(t);
 }
 
-/* NOTE: Must be called with tq->tq_lock held, expects the spl_task_t
+/*
+ * NOTE: Must be called with tq->tq_lock held, expects the spl_task_t
  * to already be removed from the free, work, or pending taskq lists.
  */
 static void
@@ -128,7 +130,8 @@ task_free(taskq_t *tq, spl_task_t *t)
 	EXIT;
 }
 
-/* NOTE: Must be called with tq->tq_lock held, either destroys the
+/*
+ * NOTE: Must be called with tq->tq_lock held, either destroys the
  * spl_task_t if too many exist or moves it to the free list for later use.
  */
 static void
@@ -153,13 +156,28 @@ task_done(taskq_t *tq, spl_task_t *t)
         EXIT;
 }
 
-/* Taskqid's are handed out in a monotonically increasing fashion per
- * taskq_t.  We don't handle taskqid wrapping yet, but fortunately it is
- * a 64-bit value so this is probably never going to happen.  The lowest
- * pending taskqid is stored in the taskq_t to make it easy for any
- * taskq_wait()'ers to know if the tasks they're waiting for have
- * completed.  Unfortunately, tq_task_lowest is kept up to date is
- * a pretty brain dead way, something more clever should be done.
+/*
+ * As tasks are submitted to the task queue they are assigned a
+ * monotonically increasing taskqid and added to the tail of the
+ * pending list.  As worker threads become available the tasks are
+ * removed from the head of the pending list and added to the tail
+ * of the work list.  Finally, as tasks complete they are removed
+ * from the work list.  This means that the pending and work lists
+ * are always kept sorted by taskqid.  Thus the lowest outstanding
+ * incomplete taskqid can be determined simply by checking the min
+ * taskqid for each head item on the pending and work list.  This
+ * value is stored in tq->tq_lowest_id and only updated to the new
+ * lowest id when the previous lowest id completes.  All taskqids
+ * lower than tq->tq_lowest_id must have completed.  It is also
+ * possible larger taskqid's have completed because they may be
+ * processed in parallel by several worker threads.  However, this
+ * is not a problem because the behavior of taskq_wait_id() is to
+ * block until all previously submitted taskqid's have completed.
+ *
+ * XXX: Taskqid_t wrapping is not handled.  However, taskqid_t's are
+ * 64-bit values so even if a taskq is processing 2^24 (16,777,216)
+ * taskqid_ts per second it will still take 2^40 seconds, 34,865 years,
+ * before the wrap occurs.  I can live with that for now.
  */
 static int
 taskq_wait_check(taskq_t *tq, taskqid_t id)
@@ -173,9 +191,6 @@ taskq_wait_check(taskq_t *tq, taskqid_t id)
 	RETURN(rc);
 }
 
-/* Expected to wait for all previously scheduled tasks to complete.  We do
- * not need to wait for tasked scheduled after this call to complete.  In
- * other words we do not need to drain the entire taskq. */
 void
 __taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
@@ -268,7 +283,11 @@ out:
 }
 EXPORT_SYMBOL(__taskq_dispatch);
 
-/* NOTE: Must be called with tq->tq_lock held */
+/*
+ * Returns the lowest incomplete taskqid_t.  The taskqid_t may
+ * be queued on the pending list or may be on the work list
+ * currently being handled, but it is not 100% complete yet.
+ */
 static taskqid_t
 taskq_lowest_id(taskq_t *tq)
 {
@@ -279,13 +298,15 @@ taskq_lowest_id(taskq_t *tq)
 	ASSERT(tq);
 	ASSERT(spin_is_locked(&tq->tq_lock));
 
-	list_for_each_entry(t, &tq->tq_pend_list, t_list)
-		if (t->t_id < lowest_id)
-			lowest_id = t->t_id;
+	if (!list_empty(&tq->tq_pend_list)) {
+		t = list_entry(tq->tq_pend_list.next, spl_task_t, t_list);
+		lowest_id = MIN(lowest_id, t->t_id);
+	}
 
-	list_for_each_entry(t, &tq->tq_work_list, t_list)
-		if (t->t_id < lowest_id)
-			lowest_id = t->t_id;
+	if (!list_empty(&tq->tq_work_list)) {
+		t = list_entry(tq->tq_work_list.next, spl_task_t, t_list);
+		lowest_id = MIN(lowest_id, t->t_id);
+	}
 
 	RETURN(lowest_id);
 }
