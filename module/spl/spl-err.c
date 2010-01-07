@@ -53,10 +53,10 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 {
 	char msg[MAXMSGLEN];
 
-        if (ce == CE_PANIC)
-                vpanic(fmt, ap);
+	if (ce == CE_PANIC)
+		vpanic(fmt, ap);
 
-        if (ce != CE_NOTE) {
+	if (ce != CE_NOTE) {
 		vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
 
 		if (fmt[0] == '!')
@@ -64,7 +64,7 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 			       ce_prefix[ce], msg, ce_suffix[ce]);
 		else
 			CERROR("%s%s%s", ce_prefix[ce], msg, ce_suffix[ce]);
-        }
+	}
 } /* vcmn_err() */
 EXPORT_SYMBOL(vcmn_err);
 

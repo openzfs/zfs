@@ -167,7 +167,7 @@ list_prev(list_t *list, void *object)
 static inline int
 list_link_active(list_node_t *node)
 {
-        return (node->next != LIST_POISON1) && (node->prev != LIST_POISON2);
+	return (node->next != LIST_POISON1) && (node->prev != LIST_POISON2);
 }
 
 static inline void

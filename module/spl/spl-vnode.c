@@ -102,9 +102,9 @@ int
 vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	vnode_t **vpp, int x1, void *x2)
 {
-        struct file *fp;
-        struct kstat stat;
-        int rc, saved_umask = 0;
+	struct file *fp;
+	struct kstat stat;
+	int rc, saved_umask = 0;
 	vnode_t *vp;
 	ENTRY;
 
@@ -126,15 +126,15 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	if (flags & FCREAT)
 		saved_umask = xchg(&current->fs->umask, 0);
 
-        fp = filp_open(path, flags, mode);
+	fp = filp_open(path, flags, mode);
 
 	if (flags & FCREAT)
 		(void)xchg(&current->fs->umask, saved_umask);
 
-        if (IS_ERR(fp))
+	if (IS_ERR(fp))
 		RETURN(-PTR_ERR(fp));
 
-        rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
+	rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
 	if (rc) {
 		filp_close(fp, 0);
 		RETURN(-rc);
