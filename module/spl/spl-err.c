@@ -44,7 +44,7 @@ vpanic(const char *fmt, va_list ap)
 	char msg[MAXMSGLEN];
 
 	vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
-	panic(msg);
+	panic("%s", msg);
 } /* vpanic() */
 EXPORT_SYMBOL(vpanic);
 
