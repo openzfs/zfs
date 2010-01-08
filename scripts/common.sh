@@ -44,6 +44,7 @@ RMMOD=${RMMOD:-/sbin/rmmod}
 INFOMOD=${INFOMOD:-/sbin/modinfo}
 LOSETUP=${LOSETUP:-/sbin/losetup}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
+UDEVADM=${UDEVADM:-/sbin/udevadm}
 
 die() {
 	echo -e "${PROG}: $1" >&2
@@ -210,8 +211,13 @@ udev_setup() {
 
 	cp -f ${SRC_PATH} ${DST_PATH}
 
-	udevadm trigger
-	udevadm settle
+	if [ -f ${UDEVADM} ]; then
+		${UDEVADM} trigger
+		${UDEVADM} settle
+	else
+		/sbin/udevtrigger
+		/sbin/udevsettle
+	fi
 
 	return 0
 }
