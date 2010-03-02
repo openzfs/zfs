@@ -25,7 +25,7 @@ RAID10S=()
 RAIDZS=()
 RAIDZ2S=()
 
-UDEVDIR=${UDEVDIR:-/usr/libexec/zfs/udev-rules}
+ETCDIR=${ETCDIR:-/etc}
 ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
 ZPIOSDIR=${ZPIOSDIR:-/usr/libexec/zfs/zpios-test}
 ZPIOSPROFILEDIR=${ZPIOSPROFILEDIR:-/usr/libexec/zfs/zpios-profile}
@@ -34,6 +34,7 @@ ZDB=${ZDB:-/usr/sbin/zdb}
 ZFS=${ZFS:-/usr/sbin/zfs}
 ZINJECT=${ZINJECT:-/usr/sbin/zinject}
 ZPOOL=${ZPOOL:-/usr/sbin/zpool}
+ZPOOL_ID=${ZPOOL_ID:-/usr/bin/zpool_id}
 ZTEST=${ZTEST:-/usr/sbin/ztest}
 ZPIOS=${ZPIOS:-/usr/sbin/zpios}
 
@@ -211,10 +212,31 @@ unused_loop_device() {
 #
 udev_setup() {
 	local SRC_PATH=$1
+	local SRC_RULES=${ETCDIR}/udev/rules.d/99-zpool.rules
+	local DST_RULES=/etc/udev/rules.d/99-zpool.rules
+	local DST_ZPOOL_ID=/usr/bin/zpool_id
 	local DST_FILE=`basename ${SRC_PATH} | cut -f1-2 -d'.'`
-	local DST_PATH=/etc/udev/rules.d/${DST_FILE}
+	local DST_PATH=/etc/zfs/${DST_FILE}
+
+	# XXX: Copy files from source tree to installed system.
+	# This should be avoided if at all possible, however at
+	# the moment I see no clean way to add a udev rules file
+	# which is not in the default udevd search paths.  On
+	# top of the the rules file we add will need to find
+	# the zpool_id support utility and the zdef.conf file.
 
 	cp -f ${SRC_PATH} ${DST_PATH}
+
+	if [ ! -f ${DST_ZPOOL_ID} ]; then
+		cp ${ZPOOL_ID} ${DST_ZPOOL_ID}
+		chmod 755 ${DST_ZPOOL_ID}
+	fi
+
+	if [ ! -f ${DST_RULES} ]; then
+		cp ${SRC_RULES} ${DST_RULES}
+		chmod 644 ${DST_RULES}
+	fi
+
 
 	if [ -f ${UDEVADM} ]; then
 		${UDEVADM} trigger
