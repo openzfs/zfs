@@ -7,7 +7,7 @@ RANKS=8
 CHANNELS=6
 
 zpool_create() {
-	udev_setup ${UDEVDIR}/99-zpool.rules.x4550
+	udev_setup ${ETCDIR}/zfs/zdev.conf.x4550.example
 	udev_raid0_setup ${RANKS} ${CHANNELS}
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${RAID0S[*]}
