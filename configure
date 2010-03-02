@@ -24295,7 +24295,7 @@ LIBDIR=${LIBDIR}
 CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
-UDEVDIR=\${TOPDIR}/scripts/udev-rules
+ETCDIR=\${TOPDIR}/etc
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
 ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
@@ -24304,6 +24304,7 @@ ZDB=\${CMDDIR}/zdb/zdb
 ZFS=\${CMDDIR}/zfs/zfs
 ZINJECT=\${CMDDIR}/zinject/zinject
 ZPOOL=\${CMDDIR}/zpool/zpool
+ZPOOL_ID=\${CMDDIR}/zpool_id/zpool_id
 ZTEST=\${CMDDIR}/ztest/ztest
 ZPIOS=\${CMDDIR}/zpios/zpios
 
@@ -24387,7 +24388,7 @@ _ACEOF
 
 
 
-                                                                                                                                                                                                                                                                                                                                                              ac_config_files="$ac_config_files Makefile config/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
+                                                                                                                                                                                                                                                                                                                                                                                  ac_config_files="$ac_config_files Makefile config/Makefile etc/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/zpool_id/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile zfs.spec zfs-modules.spec"
 
 
 cat >confcache <<\_ACEOF
@@ -24969,6 +24970,7 @@ do
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "config/Makefile" ) CONFIG_FILES="$CONFIG_FILES config/Makefile" ;;
+  "etc/Makefile" ) CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
   "man/Makefile" ) CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
   "man/man8/Makefile" ) CONFIG_FILES="$CONFIG_FILES man/man8/Makefile" ;;
   "lib/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
@@ -24990,6 +24992,7 @@ do
   "cmd/zfs/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zfs/Makefile" ;;
   "cmd/zinject/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zinject/Makefile" ;;
   "cmd/zpool/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zpool/Makefile" ;;
+  "cmd/zpool_id/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zpool_id/Makefile" ;;
   "cmd/ztest/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/ztest/Makefile" ;;
   "cmd/zpios/Makefile" ) CONFIG_FILES="$CONFIG_FILES cmd/zpios/Makefile" ;;
   "module/Makefile" ) CONFIG_FILES="$CONFIG_FILES module/Makefile" ;;
