@@ -52,7 +52,7 @@ LIBDIR=${LIBDIR}
 CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
-UDEVDIR=\${TOPDIR}/scripts/udev-rules
+ETCDIR=\${TOPDIR}/etc
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
 ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
@@ -61,6 +61,7 @@ ZDB=\${CMDDIR}/zdb/zdb
 ZFS=\${CMDDIR}/zfs/zfs
 ZINJECT=\${CMDDIR}/zinject/zinject
 ZPOOL=\${CMDDIR}/zpool/zpool
+ZPOOL_ID=\${CMDDIR}/zpool_id/zpool_id
 ZTEST=\${CMDDIR}/ztest/ztest
 ZPIOS=\${CMDDIR}/zpios/zpios
 
