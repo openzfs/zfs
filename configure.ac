@@ -52,6 +52,7 @@ ZFS_AC_DEBUG
 AC_CONFIG_FILES([ 
 	Makefile
 	config/Makefile
+	etc/Makefile
 	man/Makefile
 	man/man8/Makefile
 	lib/Makefile
@@ -73,6 +74,7 @@ AC_CONFIG_FILES([
 	cmd/zfs/Makefile
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
+	cmd/zpool_id/Makefile
 	cmd/ztest/Makefile
 	cmd/zpios/Makefile
 	module/Makefile
