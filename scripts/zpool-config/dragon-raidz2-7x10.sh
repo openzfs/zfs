@@ -7,7 +7,7 @@ RANKS=7
 CHANNELS=10
 
 zpool_create() {
-	udev_setup ${UDEVDIR}/99-zpool.rules.dragon
+	udev_setup ${ETCDIR}/zfs/zdev.conf.dragon.example
 	udev_raidz2_setup ${RANKS} ${CHANNELS}
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${RAIDZ2S[*]}
