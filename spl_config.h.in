@@ -30,6 +30,9 @@
 /* device_create wants 5 args */
 #undef HAVE_5ARGS_DEVICE_CREATE
 
+/* proc_handler() wants 5 args */
+#undef HAVE_5ARGS_PROC_HANDLER
+
 /* kernel defines atomic64_cmpxchg */
 #undef HAVE_ATOMIC64_CMPXCHG
 
