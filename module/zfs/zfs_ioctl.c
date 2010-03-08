@@ -3867,7 +3867,7 @@ _fini(void)
 spl_module_init(_init);
 spl_module_exit(_fini);
 
-MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("ZFS");
-MODULE_LICENSE("CDDL");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
 #endif /* HAVE_SPL */

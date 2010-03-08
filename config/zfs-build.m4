@@ -1,13 +1,9 @@
 AC_DEFUN([ZFS_AC_LICENSE], [
-	AC_MSG_CHECKING([zfs license])
-	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
-	AC_MSG_RESULT([$LICENSE])
-	if test "$LICENSE" = GPL; then
-		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
-		          [Define to 1 if module is licensed under the GPL])
-	fi
+	AC_MSG_CHECKING([zfs author])
+	AC_MSG_RESULT([$ZFS_META_AUTHOR])
 
-	AC_SUBST(LICENSE)
+	AC_MSG_CHECKING([zfs license])
+	AC_MSG_RESULT([$ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG], [
