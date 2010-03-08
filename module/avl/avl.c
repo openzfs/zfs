@@ -1033,15 +1033,17 @@ done:
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include "zfs_config.h"
+
 static int avl_init(void) { return 0; }
 static int avl_fini(void) { return 0; }
 
 spl_module_init(avl_init);
 spl_module_exit(avl_fini);
 
-MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Generic AVL tree implementation");
-MODULE_LICENSE("CDDL");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
 
 EXPORT_SYMBOL(avl_create);
 EXPORT_SYMBOL(avl_find);
