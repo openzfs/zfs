@@ -54,7 +54,7 @@
 /* blk_disk_ro() is available */
 #undef HAVE_GET_DISK_RO
 
-/* Define to 1 if module is licensed under the GPL */
+/* Define to 1 if licensed under the GPL */
 #undef HAVE_GPL_ONLY_SYMBOLS
 
 /* Define to 1 if you have the <inttypes.h> header file. */
@@ -152,6 +152,9 @@
 
 /* Define the project release date. */
 #undef ZFS_META_DATA
+
+/* Define the project license. */
+#undef ZFS_META_LICENSE
 
 /* Define the libtool library 'age' version information. */
 #undef ZFS_META_LT_AGE
