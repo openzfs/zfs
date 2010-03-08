@@ -3246,15 +3246,17 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include "zfs_config.h"
+
 static int nvpair_init(void) { return 0; }
 static int nvpair_fini(void) { return 0; }
 
 spl_module_init(nvpair_init);
 spl_module_exit(nvpair_fini);
 
-MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Generic name/value pair implementation");
-MODULE_LICENSE("CDDL");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
 
 EXPORT_SYMBOL(nv_alloc_init);
 EXPORT_SYMBOL(nv_alloc_reset);

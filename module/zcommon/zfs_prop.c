@@ -534,15 +534,17 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include "zfs_config.h"
+
 static int zcommon_init(void) { return 0; }
 static int zcommon_fini(void) { return 0; }
 
 spl_module_init(zcommon_init);
 spl_module_exit(zcommon_fini);
 
-MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Generic ZFS support");
-MODULE_LICENSE("CDDL");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
 
 /* zfs dataset property functions */
 EXPORT_SYMBOL(zfs_userquota_prop_prefixes);
