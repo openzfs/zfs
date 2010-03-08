@@ -18971,8 +18971,14 @@ fi;
 	echo "$as_me:$LINENO: checking kernel source directory" >&5
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
-                            2>/dev/null | grep -v obj | tail -1`
+		headersdir="/lib/modules/$(uname -r)/build"
+		if test -e "$headersdir"; then
+			sourcelink=$(readlink -f "$headersdir")
+		else
+			sourcelink=$(ls -1d /usr/src/kernels/* \
+				     /usr/src/linux-* \
+			             2>/dev/null | grep -v obj | tail -1)
+		fi
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
@@ -22317,8 +22323,14 @@ fi;
 	echo "$as_me:$LINENO: checking kernel source directory" >&5
 echo $ECHO_N "checking kernel source directory... $ECHO_C" >&6
 	if test -z "$kernelsrc"; then
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
-                            2>/dev/null | grep -v obj | tail -1`
+		headersdir="/lib/modules/$(uname -r)/build"
+		if test -e "$headersdir"; then
+			sourcelink=$(readlink -f "$headersdir")
+		else
+			sourcelink=$(ls -1d /usr/src/kernels/* \
+				     /usr/src/linux-* \
+			             2>/dev/null | grep -v obj | tail -1)
+		fi
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`

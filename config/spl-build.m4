@@ -104,8 +104,14 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
-                            2>/dev/null | grep -v obj | tail -1`
+		headersdir="/lib/modules/$(uname -r)/build"
+		if test -e "$headersdir"; then
+			sourcelink=$(readlink -f "$headersdir")
+		else
+			sourcelink=$(ls -1d /usr/src/kernels/* \
+				     /usr/src/linux-* \
+			             2>/dev/null | grep -v obj | tail -1)
+		fi
 
 		if test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
