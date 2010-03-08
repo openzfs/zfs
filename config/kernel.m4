@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_TYPE_FMODE_T
 	ZFS_AC_KERNEL_OPEN_BDEV_EXCLUSIVE
@@ -236,6 +237,30 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_SUBST(SPL_VERSION)
 
 	ZFS_AC_SPL_MODULE_SYMVERS
+])
+
+dnl #
+dnl # There are certain kernel build options which when enabled are
+dnl # completely incompatible with non GPL kernel modules.  It is best
+dnl # to detect these at configure time and fail with a clear error
+dnl # rather than build everything and fail during linking.
+dnl #
+dnl # CONFIG_DEBUG_LOCK_ALLOC - Maps mutex_lock() to mutex_lock_nested()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
+
+	if test "$ZFS_META_LICENSE" = CDDL; then
+		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],
+		AC_MSG_ERROR([
+		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+		*** incompatible with the CDDL license.  You must rebuild
+		*** your kernel without this option.]), [])
+	fi
+
+	if test "$ZFS_META_LICENSE" = GPL; then
+		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
+			[Define to 1 if licensed under the GPL])
+	fi
 ])
 
 dnl #
