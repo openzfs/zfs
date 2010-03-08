@@ -125,14 +125,11 @@
 
 # Unsupported distro:
  %if %{undefined kver}
-  %define kver           X
+  %define kver           %(uname -r)
  %endif
- %define kpkg            kernel
- %define kdevpkg         kernel-devel
  %define kverpkg         %{kver}
- %define koppkg          =
  %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/kernels/%{kver}
+  %define kdir           /lib/modules/%{kver}/build
  %endif
  %if %{undefined kobj}
   %define kobj           %{kdir}
@@ -159,8 +156,12 @@
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @SPL_META_RELEASE@_%{relext}
-%define requires         %{kpkg} %{koppkg} %{kverpkg}
+%if %{defined kpkg}
+%define krequires        %{kpkg} %{koppkg} %{kverpkg}
+%endif
+%if %{defined kdevpkg}
 %define devel_requires   %{kdevpkg} %{koppkg} %{kverpkg}
+%endif
 %endif
 
 Summary:         Solaris Porting Layer Modules
@@ -172,8 +173,12 @@ License:         @LICENSE@
 URL:             git://eris.llnl.gov/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          @PACKAGE@-%{version}.tar.gz
-Requires:        %{requires}
+%if %{defined krequires}
+Requires:        %{krequires}
+%endif
+%if %{defined kdevpkg}
 BuildRequires:   %{kdevpkg}
+%endif
 
 %description
 The %{name} package contains kernel modules for emulating Solaris style
@@ -184,8 +189,12 @@ taskq, thread, time, and vnode APIs.
 %package devel
 Summary:         Solaris Porting Layer Headers and Symbols
 Group:           Development/Libraries
+%if %{defined devel_requires}
 Requires:        %{devel_requires}
+%endif
+%if %{defined kdevpkg}
 BuildRequires:   %{kdevpkg}
+%endif
 
 %description devel
 The %{name}-devel package contains the header files and Module{s}.symvers
