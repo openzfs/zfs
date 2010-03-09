@@ -3,9 +3,11 @@
 # Wrapper script for easily running zpios based tests
 #
 
+basedir="$(dirname $0)"
+
 SCRIPT_COMMON=common.sh
-if [ -f ./${SCRIPT_COMMON} ]; then
-. ./${SCRIPT_COMMON}
+if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
+. "${basedir}/${SCRIPT_COMMON}"
 elif [ -f /usr/libexec/zfs/${SCRIPT_COMMON} ]; then
 . /usr/libexec/zfs/${SCRIPT_COMMON}
 else
