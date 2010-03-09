@@ -58,6 +58,9 @@
  *     the transaction group number is less than the current, open txg.
  *     If you add a new test, please do this if applicable.
  *
+ * (7) Threads are created with a reduced stack size, for sanity checking.
+ *     Therefore, it's important not to allocate huge buffers on the stack.
+ *
  * When run with no arguments, ztest runs for about five minutes and
  * produces no output if successful.  To get a little bit of information,
  * specify -V.  To get more information, specify -VV, and so on.
@@ -141,7 +144,6 @@ typedef struct ztest_args {
 	objset_t	*za_os;
 	zilog_t		*za_zilog;
 	kthread_t	*za_thread;
-	kt_did_t	za_threadid;
 	uint64_t	za_instance;
 	uint64_t	za_random;
 	uint64_t	za_diroff;
@@ -157,6 +159,7 @@ typedef struct ztest_args {
 	ztest_block_tag_t za_wbt;
 	dmu_object_info_t za_doi;
 	dmu_buf_t	*za_dbuf;
+	boolean_t	za_exited;
 } ztest_args_t;
 
 typedef void ztest_func_t(ztest_args_t *);
@@ -253,6 +256,8 @@ typedef struct ztest_shared {
 	kmutex_t		zs_sync_lock[ZTEST_SYNC_LOCKS];
 	uint64_t		zs_seq[ZTEST_SYNC_LOCKS];
 	ztest_cb_list_t		zs_cb_list;
+	kmutex_t		zs_thr_lock;
+	kcondvar_t		zs_thr_cv;
 } ztest_shared_t;
 
 static char ztest_dev_template[] = "%s/%s.%llua";
@@ -264,6 +269,7 @@ static int ztest_dump_core = 1;
 
 static uint64_t metaslab_sz;
 static boolean_t ztest_exiting;
+static boolean_t resume_thr_exited;
 
 extern uint64_t metaslab_gang_bang;
 extern uint64_t metaslab_df_alloc_threshold;
@@ -2571,7 +2577,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	uint64_t off, txg, txg_how;
 	kmutex_t *lp;
 	char osname[MAXNAMELEN];
-	char iobuf[SPA_MAXBLOCKSIZE];
+	char *iobuf;
 	blkptr_t blk;
 	uint64_t blkoff;
 	zbookmark_t zb;
@@ -2741,6 +2747,8 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	ASSERT3U(BP_GET_LEVEL(&blk), ==, 0);
 	ASSERT3U(BP_GET_LSIZE(&blk), ==, bs);
 
+	iobuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+
 	/*
 	 * Read the block that dmu_sync() returned to make sure its contents
 	 * match what we wrote.  We do this while still txg_suspend()ed
@@ -2759,10 +2767,10 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	bcopy(&iobuf[blkoff], rbt, btsize);
 
 	if (rbt->bt_objset == 0)		/* concurrent free */
-		return;
+		goto out;
 
 	if (wbt->bt_objset == 0)		/* all-zero overwrite */
-		return;
+		goto out;
 
 	ASSERT3U(rbt->bt_objset, ==, wbt->bt_objset);
 	ASSERT3U(rbt->bt_object, ==, wbt->bt_object);
@@ -2778,6 +2786,8 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 		ASSERT3U(rbt->bt_seq, ==, wbt->bt_seq);
 	else
 		ASSERT3U(rbt->bt_seq, >, wbt->bt_seq);
+out:
+	umem_free(iobuf, SPA_MAXBLOCKSIZE);
 }
 
 /*
@@ -3819,6 +3829,8 @@ ztest_resume_thread(void *arg)
 		ztest_resume(spa);
 	}
 
+	resume_thr_exited = B_TRUE;
+
 	thread_exit();
 	return (NULL);
 }
@@ -3884,6 +3896,13 @@ ztest_thread(void *arg)
 			break;
 	}
 
+	mutex_enter(&zs->zs_thr_lock);
+	za->za_exited = B_TRUE;
+	mutex_exit(&zs->zs_thr_lock);
+
+	/* Announce that the thread has finished */
+	cv_broadcast(&zs->zs_thr_cv);
+
 	thread_exit();
 	return (NULL);
 }
@@ -3900,13 +3919,14 @@ ztest_run(char *pool)
 	spa_t *spa;
 	char name[100];
 	kthread_t *resume_thread;
-	kt_did_t resume_id;
 
 	ztest_exiting = B_FALSE;
 
 	mutex_init(&zs->zs_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zs->zs_name_lock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&zs->zs_cb_list.zcl_callbacks_lock,NULL,MUTEX_DEFAULT,NULL);
+	mutex_init(&zs->zs_thr_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zs->zs_thr_cv, NULL, CV_DEFAULT, NULL);
 
 	list_create(&zs->zs_cb_list.zcl_callbacks, sizeof (ztest_cb_data_t),
 	    offsetof(ztest_cb_data_t, zcd_node));
@@ -3979,9 +3999,9 @@ ztest_run(char *pool)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
+	resume_thr_exited = B_FALSE;
 	VERIFY3P((resume_thread = thread_create(NULL, 0, ztest_resume_thread,
-	         spa, THR_BOUND, NULL, 0, 0)), !=, NULL);
-	resume_id = resume_thread->t_tid;
+	    spa, TS_RUN, NULL, 0, 0)), !=, NULL);
 
 	/*
 	 * Verify that we can safely inquire about about any object,
@@ -4057,13 +4077,18 @@ ztest_run(char *pool)
 			za[d].za_zilog = zil_open(za[d].za_os, NULL);
 		}
 
+		za[t].za_exited = B_FALSE;
+
 		VERIFY3P((za[t].za_thread = thread_create(NULL, 0, ztest_thread,
-		         &za[t], THR_BOUND, NULL, 0, 0)), !=, NULL);
-		za[t].za_threadid = za[t].za_thread->t_tid;
+		    &za[t], TS_RUN, NULL, 0, 0)), !=, NULL);
 	}
 
 	while (--t >= 0) {
-		VERIFY(thread_join(za[t].za_threadid, NULL, NULL) == 0);
+		mutex_enter(&zs->zs_thr_lock);
+		while (!za[t].za_exited)
+			cv_wait(&zs->zs_thr_cv, &zs->zs_thr_lock);
+		mutex_exit(&zs->zs_thr_lock);
+
 		if (t < zopt_datasets) {
 			zil_close(za[t].za_zilog);
 			dmu_objset_close(za[t].za_os);
@@ -4102,7 +4127,11 @@ ztest_run(char *pool)
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
-	VERIFY(thread_join(resume_id, NULL, NULL) == 0);
+
+	/* Wait for the resume thread to exit */
+	while (!resume_thr_exited)
+		(void) poll(NULL, 0, 200);
+
 	ztest_resume(spa);
 
 	/*
@@ -4118,6 +4147,8 @@ ztest_run(char *pool)
 
 	list_destroy(&zs->zs_cb_list.zcl_callbacks);
 
+	cv_destroy(&zs->zs_thr_cv);
+	mutex_destroy(&zs->zs_thr_lock);
 	mutex_destroy(&zs->zs_cb_list.zcl_callbacks_lock);
 	rw_destroy(&zs->zs_name_lock);
 	mutex_destroy(&zs->zs_vdev_lock);
