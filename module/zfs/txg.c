@@ -348,8 +348,8 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			 * Commit callback taskq hasn't been created yet.
 			 */
 			tx->tx_commit_cb_taskq = taskq_create("tx_commit_cb",
-			    max_ncpus, minclsyspri, max_ncpus, max_ncpus * 4,
-			    TASKQ_PREPOPULATE);
+			    100, minclsyspri, max_ncpus, max_ncpus * 4,
+			    TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
 		}
 
 		tcb = kmem_alloc(sizeof (tx_cb_t), KM_SLEEP);
