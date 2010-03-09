@@ -5,9 +5,11 @@
 # utilities will be used.  If no .script-config can be found then the
 # installed kernel modules and utilities will be used.
 
+basedir="$(dirname $0)"
+
 SCRIPT_CONFIG=.script-config
-if [ -f ../${SCRIPT_CONFIG} ]; then
-. ../${SCRIPT_CONFIG}
+if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
+. "${basedir}/../${SCRIPT_CONFIG}"
 else
 MODULES=(zlib_deflate spl zavl znvpair zunicode zcommon zfs)
 fi
