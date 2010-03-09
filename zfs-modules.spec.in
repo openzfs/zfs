@@ -125,14 +125,11 @@
 
 # Unsupported distro:
  %if %{undefined kver}
-  %define kver           X
+  %define kver           %(uname -r)
  %endif
- %define kpkg            kernel
- %define kdevpkg         kernel-devel
  %define kverpkg         %{kver}
- %define koppkg          =
  %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/kernels/%{kver}
+  %define kdir           /lib/modules/%{kver}/build
  %endif
  %if %{undefined kobj}
   %define kobj           %{kdir}
@@ -183,7 +180,6 @@
 %define version          @VERSION@
 %define debug_package    %{nil}
 
-
 # The kernel version should only be appended to a binary RPM.  When
 # building a source RPM it must be kernel version agnostic.  This means
 # the source RPM must never specify a required kernel version, but the
@@ -195,7 +191,9 @@
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @ZFS_META_RELEASE@_%{relext}
+%if %{defined kpkg}
 %define krequires        %{kpkg} %{koppkg} %{kverpkg}
+%endif
 %define splrequires      %{splpkg} = %{splverpkg}
 %endif
 
@@ -208,9 +206,13 @@ License:         @LICENSE@
 URL:             git://eris.llnl.gov/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          @PACKAGE@-%{version}.tar.gz
+%if %{defined krequires}
 Requires:        %{krequires}
-Requires:        %{splrequires}
+%endif
+%if %{defined kdevpkg}
 BuildRequires:   %{kdevpkg}
+%endif
+Requires:        %{splrequires}
 BuildRequires:   %{spldevpkg}
 
 %description
@@ -220,9 +222,13 @@ the %{name} file system.
 %package devel
 Summary:         ZFS File System Headers and Symbols
 Group:           Development/Libraries
+%if %{defined krequires}
 Requires:        %{krequires}
+%endif
 Requires:        %{splrequires}
+%if %{defined kdevpkg}
 BuildRequires:   %{kdevpkg}
+%endif
 BuildRequires:   %{spldevpkg}
 
 %description devel
