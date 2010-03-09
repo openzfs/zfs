@@ -43,7 +43,6 @@ struct taskq {
 	kcondvar_t	tq_dispatch_cv;
 	kcondvar_t	tq_wait_cv;
 	kthread_t	**tq_threadlist;
-	kt_did_t	*tq_idlist;
 	int		tq_flags;
 	int		tq_active;
 	int		tq_nthreads;
@@ -135,7 +134,7 @@ taskq_wait(taskq_t *tq)
 	mutex_exit(&tq->tq_lock);
 }
 
-static void *
+static void
 taskq_thread(void *arg)
 {
 	taskq_t *tq = arg;
@@ -165,7 +164,6 @@ taskq_thread(void *arg)
 	cv_broadcast(&tq->tq_wait_cv);
 	mutex_exit(&tq->tq_lock);
 	thread_exit();
-	return (NULL);
 }
 
 /*ARGSUSED*/
@@ -200,10 +198,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	tq->tq_maxalloc = maxalloc;
 	tq->tq_task.task_next = &tq->tq_task;
 	tq->tq_task.task_prev = &tq->tq_task;
-	VERIFY3P((tq->tq_threadlist = kmem_alloc(tq->tq_nthreads *
-	         sizeof(kthread_t *), KM_SLEEP)), !=, NULL);
-	VERIFY3P((tq->tq_idlist = kmem_alloc(tq->tq_nthreads *
-	         sizeof(kt_did_t), KM_SLEEP)), !=, NULL);
+	tq->tq_threadlist = kmem_alloc(tq->tq_nthreads * sizeof(kthread_t *),
+	    KM_SLEEP);
 
 	if (flags & TASKQ_PREPOPULATE) {
 		mutex_enter(&tq->tq_lock);
@@ -214,8 +210,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 
 	for (t = 0; t < tq->tq_nthreads; t++) {
 		VERIFY((tq->tq_threadlist[t] = thread_create(NULL, 0,
-		       taskq_thread, tq, THR_BOUND, NULL, 0, 0)) != NULL);
-		tq->tq_idlist[t] = tq->tq_threadlist[t]->t_tid;
+		    taskq_thread, tq, TS_RUN, NULL, 0, 0)) != NULL);
 	}
 
 	return (tq);
@@ -224,7 +219,6 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 void
 taskq_destroy(taskq_t *tq)
 {
-	int t;
 	int nthreads = tq->tq_nthreads;
 
 	taskq_wait(tq);
@@ -245,11 +239,7 @@ taskq_destroy(taskq_t *tq)
 
 	mutex_exit(&tq->tq_lock);
 
-	for (t = 0; t < nthreads; t++)
-		VERIFY3S(thread_join(tq->tq_idlist[t], NULL, NULL), ==, 0);
-
 	kmem_free(tq->tq_threadlist, nthreads * sizeof(kthread_t *));
-	kmem_free(tq->tq_idlist, nthreads * sizeof(kt_did_t));
 
 	rw_destroy(&tq->tq_threadlock);
 	mutex_destroy(&tq->tq_lock);
@@ -260,7 +250,7 @@ taskq_destroy(taskq_t *tq)
 }
 
 int
-taskq_member(taskq_t *tq, void *t)
+taskq_member(taskq_t *tq, kthread_t *t)
 {
 	int i;
 
@@ -268,7 +258,7 @@ taskq_member(taskq_t *tq, void *t)
 		return (1);
 
 	for (i = 0; i < tq->tq_nthreads; i++)
-		if (tq->tq_threadlist[i] == (kthread_t *)t)
+		if (tq->tq_threadlist[i] == t)
 			return (1);
 
 	return (0);
