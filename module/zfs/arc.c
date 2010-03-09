@@ -517,12 +517,13 @@ static void arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes);
  * Hash table routines
  */
 
-#define	HT_LOCK_PAD	256
+#define	HT_LOCK_ALIGN	64
+#define	HT_LOCK_PAD	(P2NPHASE(sizeof (kmutex_t), (HT_LOCK_ALIGN)))
 
 struct ht_lock {
 	kmutex_t	ht_lock;
 #ifdef _KERNEL
-	unsigned char	pad[(HT_LOCK_PAD - sizeof (kmutex_t))];
+	unsigned char	pad[HT_LOCK_PAD];
 #endif
 };
 
