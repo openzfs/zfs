@@ -446,8 +446,6 @@ txg_sync_thread(dsl_pool_t *dp)
 		rw_exit(&tx->tx_suspend);
 		cv_broadcast(&tx->tx_sync_done_cv);
 	}
-
-	thread_exit();
 }
 
 static void
@@ -492,8 +490,6 @@ txg_quiesce_thread(dsl_pool_t *dp)
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_broadcast(&tx->tx_quiesce_done_cv);
 	}
-
-	thread_exit();
 }
 
 /*
