@@ -189,6 +189,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
+		if test -z "$sourcelink" || test ! -e $sourcelink; then
+			sourcelink=../spl
+		fi
+
 		if test -e $sourcelink; then
 			splsrc=`readlink -f ${sourcelink}`
 		else
