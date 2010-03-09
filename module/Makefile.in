@@ -24,12 +24,8 @@ modules_install:
 	# Install the required headers in to the kernel source
 	destname=zfs-@ZFS_META_VERSION@/@LINUX_VERSION@; \
 	instdest=$(DESTDIR)/@prefix@/src/$$destname; \
-	(mkdir -p $$instdest && \
-	 find . -mindepth 3 -maxdepth 3 -name '*.h' | \
-	 xargs cp -t $$instdest) || exit 1; \
-	(mkdir -p $$instdest/sys && \
-	 find . -mindepth 4 -maxdepth 4 -name '*.h' | \
-	 xargs cp -t $$instdest/sys) || exit 1;
+	(find . -mindepth 3 -name '*.h' | xargs -Ihdr sh -c \
+	 "DEST=hdr && install -D hdr $$instdest/\$${DEST#*/*/*/}") || exit 1
 
 distdir:
 	distfiles=`find . -name '*.c' -o -name '*.h'`; \
