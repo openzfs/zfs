@@ -324,6 +324,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	int old_umask;
 	char realpath[MAXPATHLEN];
 	struct stat64 st;
+	int err;
 
 	/*
 	 * If we're accessing a real disk from userland, we need to use
@@ -372,8 +373,9 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 		return (errno);
 
 	if (fstat64(fd, &st) == -1) {
+		err = errno;
 		close(fd);
-		return (errno);
+		return (err);
 	}
 
 	(void) fcntl(fd, F_SETFD, FD_CLOEXEC);
@@ -411,26 +413,32 @@ int
 vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 	int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp)
 {
-	ssize_t iolen, split;
+	ssize_t rc, done = 0, split;
 
 	if (uio == UIO_READ) {
-		iolen = pread64(vp->v_fd, addr, len, offset);
+		rc = pread64(vp->v_fd, addr, len, offset);
 	} else {
 		/*
 		 * To simulate partial disk writes, we split writes into two
 		 * system calls so that the process can be killed in between.
 		 */
 		split = (len > 0 ? rand() % len : 0);
-		iolen = pwrite64(vp->v_fd, addr, split, offset);
-		iolen += pwrite64(vp->v_fd, (char *)addr + split,
-		    len - split, offset + split);
+		rc = pwrite64(vp->v_fd, addr, split, offset);
+		if (rc != -1) {
+			done = rc;
+			rc = pwrite64(vp->v_fd, (char *)addr + split,
+			    len - split, offset + split);
+		}
 	}
 
-	if (iolen == -1)
+	if (rc == -1)
 		return (errno);
+
+	done += rc;
+
 	if (residp)
-		*residp = len - iolen;
-	else if (iolen != len)
+		*residp = len - done;
+	else if (done != len)
 		return (EIO);
 	return (0);
 }
