@@ -13,3 +13,4 @@ fix-list
 fix-strncat
 fix-deadcode
 fix-acl
+fix-error-handling
