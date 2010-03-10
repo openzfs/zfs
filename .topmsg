@@ -1,0 +1,12 @@
+From: Ricardo M. Correia <Ricardo.M.Correia@Sun.COM>
+Subject: [PATCH] fix error handling
+
+Fix some incorrect error handling.
+
+1) In vn_open(), if fstat64() returned an error, the real errno
+was being obscured by calling close().
+
+2) Add error handling for both pwrite64() calls in vn_rdwr().
+
+Signed-off-by: Ricardo M. Correia <Ricardo.M.Correia@Sun.COM>
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
