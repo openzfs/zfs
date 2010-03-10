@@ -37,6 +37,7 @@
 #include <sys/zfs_context.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
+#include <sys/mount.h> /* for BLKGETSIZE64 */
 #include <sys/systeminfo.h>
 
 /*
@@ -552,13 +553,13 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 			return (errno);
 	}
 
-#ifdef __linux__
 	if (!(flags & FCREAT) && S_ISBLK(st.st_mode)) {
+#ifdef __linux__
 		flags |= O_DIRECT;
-		if (flags & FWRITE)
-			flags |= O_EXCL;
-	}
 #endif
+		/* We shouldn't be writing to block devices in userspace */
+		VERIFY(!(flags & FWRITE));
+	}
 
 	if (flags & FCREAT)
 		old_umask = umask(0);
@@ -581,6 +582,16 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 		return (err);
 	}
 
+#ifdef __linux__
+	/* In Linux, use an ioctl to get the size of a block device. */
+	if (S_ISBLK(st.st_mode)) {
+		if (ioctl(fd, BLKGETSIZE64, &st.st_size) != 0) {
+			err = errno;
+			close(fd);
+			return (err);
+		}
+	}
+#endif
 	(void) fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 	*vpp = vp = umem_zalloc(sizeof (vnode_t), UMEM_NOFAIL);
@@ -634,6 +645,16 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 		}
 	}
 
+#ifdef __linux__
+	if (rc == -1 && errno == EINVAL) {
+		/*
+		 * Under Linux, this most likely means an alignment issue
+		 * (memory or disk) due to O_DIRECT, so we abort() in order to
+		 * catch the offender.
+		 */
+		 abort();
+	}
+#endif
 	if (rc == -1)
 		return (errno);
 
