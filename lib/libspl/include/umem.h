@@ -37,6 +37,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -82,9 +83,30 @@ umem_alloc(size_t size, int flags)
 {
 	void *ptr;
 
-	ptr = malloc(size);
-	while (ptr == NULL && (flags & UMEM_NOFAIL))
+	do {
 		ptr = malloc(size);
+	} while (ptr == NULL && (flags & UMEM_NOFAIL));
+
+	return ptr;
+}
+
+static inline void *
+umem_alloc_aligned(size_t size, size_t align, int flags)
+{
+	void *ptr;
+	int rc;
+
+	do {
+		rc = posix_memalign(&ptr, align, size);
+	} while (rc == ENOMEM && (flags & UMEM_NOFAIL));
+
+	if (rc == EINVAL) {
+		fprintf(stderr, "%s: invalid memory alignment (%zd)\n",
+		    __func__, align);
+		if (flags & UMEM_NOFAIL)
+			abort();
+		return NULL;
+	}
 
 	return ptr;
 }
@@ -146,7 +168,11 @@ umem_cache_alloc(umem_cache_t *cp, int flags)
 {
 	void *ptr;
 
-	ptr = umem_alloc(cp->cache_bufsize, flags);
+	if (cp->cache_align != 0)
+		ptr = umem_alloc_aligned(cp->cache_bufsize, cp->cache_align, flags);
+	else
+		ptr = umem_alloc(cp->cache_bufsize, flags);
+
 	if (ptr && cp->cache_constructor)
 		cp->cache_constructor(ptr, cp->cache_private, UMEM_DEFAULT);
 
