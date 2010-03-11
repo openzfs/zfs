@@ -21,13 +21,13 @@ FORCE=
 FORCE_FLAG=
 DUMP_LOG=
 ERROR=
-UPATH="/dev/disk/zpool"
 RAID0S=()
 RAID10S=()
 RAIDZS=()
 RAIDZ2S=()
 
 ETCDIR=${ETCDIR:-/etc}
+DEVDIR=${DEVDIR:-/dev/disk/zpool}
 ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
 ZPIOSDIR=${ZPIOSDIR:-/usr/libexec/zfs/zpios-test}
 ZPIOSPROFILEDIR=${ZPIOSPROFILEDIR:-/usr/libexec/zfs/zpios-profile}
@@ -53,6 +53,7 @@ INFOMOD=${INFOMOD:-/sbin/modinfo}
 LOSETUP=${LOSETUP:-/sbin/losetup}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
+AWK=${AWK:-/bin/awk}
 
 die() {
 	echo -e "${PROG}: $1" >&2
@@ -168,7 +169,7 @@ unload_module() {
 
 unload_modules() {
 	local MODULES_REVERSE=( $(echo ${MODULES[@]} |
-		awk '{for (i=NF;i>=1;i--) printf $i" "} END{print ""}') )
+		${AWK} '{for (i=NF;i>=1;i--) printf $i" "} END{print ""}') )
 
 	for MOD in ${MODULES_REVERSE[*]}; do
 		local NAME=`basename ${MOD} .ko`
@@ -214,38 +215,53 @@ unused_loop_device() {
 #
 udev_setup() {
 	local SRC_PATH=$1
-	local SRC_RULES=${ETCDIR}/udev/rules.d/99-zpool.rules
-	local DST_RULES=/etc/udev/rules.d/99-zpool.rules
-	local DST_ZPOOL_ID=/usr/bin/zpool_id
-	local DST_FILE=`basename ${SRC_PATH} | cut -f1-2 -d'.'`
-	local DST_PATH=/etc/zfs/${DST_FILE}
 
-	# XXX: Copy files from source tree to installed system.
-	# This should be avoided if at all possible, however at
-	# the moment I see no clean way to add a udev rules file
-	# which is not in the default udevd search paths.  On
-	# top of the the rules file we add will need to find
-	# the zpool_id support utility and the zdef.conf file.
-
-	cp -f ${SRC_PATH} ${DST_PATH}
-
-	if [ ! -f ${DST_ZPOOL_ID} ]; then
-		cp ${ZPOOL_ID} ${DST_ZPOOL_ID}
-		chmod 755 ${DST_ZPOOL_ID}
-	fi
-
-	if [ ! -f ${DST_RULES} ]; then
-		cp ${SRC_RULES} ${DST_RULES}
-		chmod 644 ${DST_RULES}
-	fi
-
-
-	if [ -f ${UDEVADM} ]; then
-		${UDEVADM} trigger
-		${UDEVADM} settle
+	# When running in tree manually contruct symlinks in tree to
+	# the proper devices.  Symlinks are installed for all entires
+	# in the config file regardless of if that device actually
+	# exists.  When installed as a package udev can be relied on for
+	# this and it will only create links for devices which exist.
+	if [ ${INTREE} ]; then
+		PWD=`pwd`
+		mkdir -p ${DEVDIR}/
+		cd ${DEVDIR}/
+		${AWK} '!/^#/ && /./ { system( \
+			"ln -f -s /dev/disk/by-path/"$2" "$1";" \
+			"ln -f -s /dev/disk/by-path/"$2"-part1 "$1"p1;" \
+			"ln -f -s /dev/disk/by-path/"$2"-part9 "$1"p9;" \
+			) }' $SRC_PATH
+		cd ${PWD}
 	else
-		/sbin/udevtrigger
-		/sbin/udevsettle
+		DST_FILE=`basename ${SRC_PATH} | cut -f1-2 -d'.'`
+		DST_PATH=/etc/zfs/${DST_FILE}
+
+		if [ -e ${DST_PATH} ]; then
+			die "Error: Config ${DST_PATH} already exists"
+		fi
+
+		cp ${SRC_PATH} ${DST_PATH}
+
+		if [ -f ${UDEVADM} ]; then
+			${UDEVADM} trigger
+			${UDEVADM} settle
+		else
+			/sbin/udevtrigger
+			/sbin/udevsettle
+		fi
+	fi
+
+	return 0
+}
+
+udev_cleanup() {
+	local SRC_PATH=$1
+
+	if [ ${INTREE} ]; then
+		PWD=`pwd`
+		cd ${DEVDIR}/
+		${AWK} '!/^#/ && /./ { system( \
+			"rm -f "$1" "$1"p1 "$1"p9") }' $SRC_PATH
+		cd ${PWD}
 	fi
 
 	return 0
@@ -267,7 +283,7 @@ udev_raid0_setup() {
 	for RANK in `seq 1 ${RANKS}`; do
 		for CHANNEL in `seq 1 ${CHANNELS}`; do
 			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
-			RAID0S[${IDX}]="${UPATH}/${DISK}"
+			RAID0S[${IDX}]="${DEVDIR}/${DISK}"
 			let IDX=IDX+1
 		done
 	done
@@ -286,7 +302,7 @@ udev_raid10_setup() {
 			let CHANNEL2=CHANNEL1+1
 			DISK1=`udev_cr2d ${CHANNEL1} ${RANK}`
 			DISK2=`udev_cr2d ${CHANNEL2} ${RANK}`
-			GROUP="${UPATH}/${DISK1} ${UPATH}/${DISK2}"
+			GROUP="${DEVDIR}/${DISK1} ${DEVDIR}/${DISK2}"
 			RAID10S[${IDX}]="mirror ${GROUP}"
 			let IDX=IDX+1
 		done
@@ -305,7 +321,7 @@ udev_raidz_setup() {
 
 		for CHANNEL in `seq 1 ${CHANNELS}`; do
 			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
-			RAIDZ[${CHANNEL}]="${UPATH}/${DISK}"
+			RAIDZ[${CHANNEL}]="${DEVDIR}/${DISK}"
 		done
 
 		RAIDZS[${RANK}]="${RAIDZ[*]}"
@@ -324,7 +340,7 @@ udev_raidz2_setup() {
 
 		for CHANNEL in `seq 1 ${CHANNELS}`; do
 			DISK=`udev_cr2d ${CHANNEL} ${RANK}`
-			RAIDZ2[${CHANNEL}]="${UPATH}/${DISK}"
+			RAIDZ2[${CHANNEL}]="${DEVDIR}/${DISK}"
 		done
 
 		RAIDZ2S[${RANK}]="${RAIDZ2[*]}"
