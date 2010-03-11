@@ -15,6 +15,9 @@
 #
 *.[oa]
 *.ko
+*.ko.unsigned
+*.ko.out
+*.ko.out.sig
 *.lo
 *.la
 *.mod.c
