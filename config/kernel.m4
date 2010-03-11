@@ -42,7 +42,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 ])
 
 dnl #
-dnl # Detect name used more Module.symvers file
+dnl # Detect name used for Module.symvers file in kernel
 dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
@@ -153,7 +153,14 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 ])
 
 dnl #
-dnl # Detect name used for the additional SPL Module.symvers file
+dnl # Detect name used for the additional SPL Module.symvers file.  If one
+dnl # does not exist this is likely because the SPL has been configured
+dnl # but not built.  To allow recursive builds a good guess is made as to
+dnl # what this file will be named based on what it is named in the kernel
+dnl # build products.  This file will first be used at link time so if
+dnl # the guess is wrong the build will fail then.  This unfortunately
+dnl # means the ZFS package does not contain a reliable mechanism to
+dnl # detect symbols exported by the SPL at configure time.
 dnl #
 AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 	AC_MSG_CHECKING([spl file name for module symbols])
@@ -162,7 +169,7 @@ AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
-		SPL_SYMBOLS=NONE
+		SPL_SYMBOLS=$LINUX_SYMBOLS
 	fi
 
 	AC_MSG_RESULT([$SPL_SYMBOLS])
@@ -353,7 +360,7 @@ dnl #
 AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
 	[AC_MSG_CHECKING([whether symbol $1 is exported])
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
-		$LINUX_OBJ/Module*.symvers $SPL_OBJ/Module*.symvers 2>/dev/null
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
