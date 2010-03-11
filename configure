@@ -19235,7 +19235,7 @@ echo $ECHO_N "checking spl file name for module symbols... $ECHO_C" >&6
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
-		SPL_SYMBOLS=NONE
+		SPL_SYMBOLS=$LINUX_SYMBOLS
 	fi
 
 	echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
@@ -19478,7 +19478,7 @@ fi
 	echo "$as_me:$LINENO: checking whether symbol open_bdev_exclusive is exported" >&5
 echo $ECHO_N "checking whether symbol open_bdev_exclusive is exported... $ECHO_C" >&6
 	grep -q -E '[[:space:]]open_bdev_exclusive[[:space:]]' \
-		$LINUX_OBJ/Module*.symvers $SPL_OBJ/Module*.symvers 2>/dev/null
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
@@ -21956,7 +21956,7 @@ echo $ECHO_N "checking spl file name for module symbols... $ECHO_C" >&6
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
-		SPL_SYMBOLS=NONE
+		SPL_SYMBOLS=$LINUX_SYMBOLS
 	fi
 
 	echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
@@ -22199,7 +22199,7 @@ fi
 	echo "$as_me:$LINENO: checking whether symbol open_bdev_exclusive is exported" >&5
 echo $ECHO_N "checking whether symbol open_bdev_exclusive is exported... $ECHO_C" >&6
 	grep -q -E '[[:space:]]open_bdev_exclusive[[:space:]]' \
-		$LINUX_OBJ/Module*.symvers $SPL_OBJ/Module*.symvers 2>/dev/null
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0
@@ -24502,6 +24502,7 @@ CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
 ETCDIR=\${TOPDIR}/etc
+DEVDIR=\${TOPDIR}/dev
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
 ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
@@ -24520,6 +24521,7 @@ ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
 ZPIOS_SH=\${SCRIPTDIR}/zpios.sh
 ZPIOS_SURVEY_SH=\${SCRIPTDIR}/zpios-survey.sh
 
+INTREE=1
 LDMOD=/sbin/insmod
 
 KERNEL_MODULES=(                                      \\
