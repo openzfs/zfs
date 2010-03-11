@@ -49,6 +49,7 @@ CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
 ETCDIR=\${TOPDIR}/etc
+DEVDIR=\${TOPDIR}/dev
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
 ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
@@ -67,6 +68,7 @@ ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
 ZPIOS_SH=\${SCRIPTDIR}/zpios.sh
 ZPIOS_SURVEY_SH=\${SCRIPTDIR}/zpios-survey.sh
 
+INTREE=1
 LDMOD=/sbin/insmod
 
 KERNEL_MODULES=(                                      \\
