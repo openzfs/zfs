@@ -17,4 +17,5 @@ zpool_create() {
 zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
 	${ZPOOL} destroy ${ZPOOL_NAME}
+	udev_cleanup ${ETCDIR}/zfs/zdev.conf.x4550.example
 }
