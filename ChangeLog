@@ -1,3 +1,45 @@
+2010-03-11 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.8
+
+	* : Build system improvements:
+	- Remove Module.markers and Module.symver{s} in clean target.
+	- Improved kernel source detection when none specified.
+	- Fix RPM definitions for the unknown distro/installation.
+
+	* config/spl-build.m4: Linux 2.6.32 compat, SPL_AC_5ARGS_PROC_HANDLER
+	  macro added to handle updated proc_handler () API.
+
+	* module/spl/spl-err.c: Fix panic() string, which was being used as a
+	  format string, instead of an already-formatted string.
+
+	* /module/spl/spl-taskq.c: Optimize lowest outstanding taskqid
+	  calculation in taskq_lowest_id().  The motivation for this change
+	  was that I was observing as much as 10% of the total CPU time go
+	  to waiting on the tq->tq_lock when the pending list was long.
+
+	* module/spl/spl-kmem.c: Strip __GFP_ZERO from kmalloc it is not
+	  available for older kernels.
+
+	* module/spl/spl-proc.c: Add skc_flags and full header to
+	  /proc/spl/kmem/slab 
+	
+	* module/spl/spl-generic.c: Correctly handle division on 32-bit RHEL5
+	  systems by returning dividend.
+
+	* include/sys/rwlock.h: When using x86 specific rwsem correctly
+	  intepret rwsem->count.  Additionally check for changed guard macro
+	  in 2.6.28+ for rwsem implementation
+
+	* module/splat/splat-vnode.c, module/splat/splat-kmem.c,
+	  module/splat/splat-taskq.c: Several new tests were added to the
+	  test suite and various bug fixes.
+
+	* include/asm/atomic_compat.h: Atomic64 compatibility for 32-bit
+	  systems without kernel support.
+
+	* .gitignore: Added .gitignore files.
+
 2009-11-20 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.7
