@@ -49,6 +49,7 @@ CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
 ETCDIR=\${TOPDIR}/etc
+DEVDIR=\${TOPDIR}/dev
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 
 ZDB=\${CMDDIR}/zdb/zdb
@@ -62,6 +63,7 @@ COMMON_SH=\${SCRIPTDIR}/common.sh
 ZFS_SH=\${SCRIPTDIR}/zfs.sh
 ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
 
+INTREE=1
 LDMOD=/sbin/insmod
 
 KERNEL_MODULES=(                                      \\

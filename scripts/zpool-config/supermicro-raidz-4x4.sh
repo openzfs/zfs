@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Flash (White Box) Raid-Z Configuration (2x8(7+1))
+# Supermicro (White Box) Raid-Z Configuration (4x4(3+1))
 #
 
-RANKS=8
-CHANNELS=2
+RANKS=4
+CHANNELS=4
 
 zpool_create() {
-	udev_setup ${ETCDIR}/zfs/zdev.conf.promise.example
+	udev_setup ${ETCDIR}/zfs/zdev.conf.supermicro.example
 	udev_raidz_setup ${RANKS} ${CHANNELS}
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${RAIDZS[*]}
@@ -17,4 +17,5 @@ zpool_create() {
 zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
 	${ZPOOL} destroy ${ZPOOL_NAME}
+	udev_cleanup ${ETCDIR}/zfs/zdev.conf.supermicro.example
 }
