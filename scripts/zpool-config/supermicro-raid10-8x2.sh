@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Flash (White Box) Raid-10 Configuration (10x2(1+1))
+# Supermicro (White Box) Raid-10 Configuration (8x2(1+1))
 #
 
-RANKS=8
-CHANNELS=2
+RANKS=4
+CHANNELS=4
 
 zpool_create() {
-	udev_setup ${ETCDIR}/zfs/zdev.conf.promise.example
+	udev_setup ${ETCDIR}/zfs/zdev.conf.supermicro.example
 	udev_raid10_setup ${RANKS} ${CHANNELS}
 
 	msg ${ZPOOL} create ${FORCE_FLAG} ${ZPOOL_NAME} ${RAID10S[*]}
@@ -17,4 +17,5 @@ zpool_create() {
 zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
 	${ZPOOL} destroy ${ZPOOL_NAME}
+	udev_cleanup ${ETCDIR}/zfs/zdev.conf.supermicro.example
 }
