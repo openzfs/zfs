@@ -1057,7 +1057,7 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 		obj_size = spl_obj_size(skc);
 
 		if (skc->skc_flags & KMC_KMEM)
-			max_size = ((uint32_t)1 << (MAX_ORDER-1)) * PAGE_SIZE;
+			max_size = ((uint32_t)1 << (MAX_ORDER-3)) * PAGE_SIZE;
 		else
 			max_size = (32 * 1024 * 1024);
 
