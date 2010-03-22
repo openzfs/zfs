@@ -1033,7 +1033,6 @@ done:
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-#include "zfs_config.h"
 
 static int avl_init(void) { return 0; }
 static int avl_fini(void) { return 0; }
