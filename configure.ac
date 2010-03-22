@@ -35,10 +35,12 @@ AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE([$ZFS_META_NAME], [$ZFS_META_VERSION])
-AC_CONFIG_HEADERS([zfs_config.h])
-AH_BOTTOM([#include <zfs_unconfig.h>])
 AM_MAINTAINER_MODE
+AM_INIT_AUTOMAKE([$ZFS_META_NAME], [$ZFS_META_VERSION])
+AC_CONFIG_HEADERS([zfs_config.h], [
+	(mv zfs_config.h zfs_config.h.tmp &&
+	awk -f config/config.awk zfs_config.h.tmp >zfs_config.h &&
+	rm zfs_config.h.tmp) || exit 1])
 
 AC_PROG_INSTALL
 AC_PROG_CC
