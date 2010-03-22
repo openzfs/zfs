@@ -9,10 +9,11 @@ endif
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
+EXTRA_DIST  = autogen.sh config/config.awk
+EXTRA_DIST += zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += META DISCLAIMER GIT
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
-noinst_HEADERS = zfs_config.h zfs_unconfig.h
+noinst_HEADERS = zfs_config.h
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
