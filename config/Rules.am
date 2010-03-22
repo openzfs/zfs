@@ -1,4 +1,4 @@
-DEFAULT_INCLUDES = -I${top_srcdir}
+DEFAULT_INCLUDES = -include ${top_srcdir}/zfs_config.h
 
 # FIXME: Add -Wshadow once everything is working
 AM_CFLAGS  = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror
