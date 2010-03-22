@@ -251,5 +251,3 @@
 
 /* Version number of package */
 #undef VERSION
-
-#include <spl_unconfig.h>

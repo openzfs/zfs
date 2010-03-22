@@ -9,8 +9,8 @@ endif
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh spl.spec.in META DISCLAIMER
-noinst_HEADERS = spl_config.h spl_unconfig.h
+EXTRA_DIST = autogen.sh spl.spec.in config/config.awk META DISCLAIMER
+noinst_HEADERS = spl_config.h
 
 distclean-local::
 	-$(RM) -R autom4te*.cache

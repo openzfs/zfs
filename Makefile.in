@@ -211,8 +211,8 @@ target_vendor = @target_vendor@
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module include
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh spl.spec.in META DISCLAIMER
-noinst_HEADERS = spl_config.h spl_unconfig.h
+EXTRA_DIST = autogen.sh spl.spec.in config/config.awk META DISCLAIMER
+noinst_HEADERS = spl_config.h
 all: spl_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 

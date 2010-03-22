@@ -1,4 +1,4 @@
-DEFAULT_INCLUDES = -I${top_srcdir}
+DEFAULT_INCLUDES = -include ${top_srcdir}/spl_config.h
 
 AM_CFLAGS  = -Wall -Wstrict-prototypes -Werror -Wshadow
 AM_CFLAGS += -D__USE_LARGEFILE64

@@ -29,10 +29,12 @@ AC_LANG(C)
 SPL_AC_META
 AC_CONFIG_AUX_DIR([config])
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE([$SPL_META_NAME], [$SPL_META_VERSION])
-AC_CONFIG_HEADERS([spl_config.h])
-AH_BOTTOM([#include <spl_unconfig.h>])
 AM_MAINTAINER_MODE
+AM_INIT_AUTOMAKE([$SPL_META_NAME], [$SPL_META_VERSION])
+AC_CONFIG_HEADERS([spl_config.h], [
+	(mv spl_config.h spl_config.h.tmp &&
+	awk -f config/config.awk spl_config.h.tmp >spl_config.h &&
+	rm spl_config.h.tmp) || exit 1])
 
 AC_PROG_INSTALL
 AC_PROG_CC

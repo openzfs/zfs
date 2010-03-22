@@ -4,15 +4,12 @@ dnl #
 AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL
 
-	dnl # Kernel build make options
-	dnl # KERNELMAKE_PARAMS="V=1"   # Enable verbose module build
-	KERNELMAKE_PARAMS="V=1"
-
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
 	abs_srcdir=`readlink -f ${srcdir}`
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes -Werror"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir} -I${abs_srcdir}/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
 
 	if test "${LINUX_OBJ}" != "${LINUX}"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"

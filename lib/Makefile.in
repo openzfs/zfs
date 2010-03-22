@@ -192,7 +192,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-DEFAULT_INCLUDES = -I${top_srcdir}
+DEFAULT_INCLUDES = -include ${top_srcdir}/spl_config.h
 AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wshadow \
 	-D__USE_LARGEFILE64
 noinst_LTLIBRARIES = libcommon.la
