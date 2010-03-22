@@ -23,15 +23,13 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_RQ_IS_SYNC
 	ZFS_AC_KERNEL_RQ_FOR_EACH_SEGMENT
 
-	dnl # Kernel build make options
-	dnl # KERNELMAKE_PARAMS="V=1"	# Enable verbose module build
-	KERNELMAKE_PARAMS=
-
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$TOPDIR -I$SPL -I$SPL/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $SPL/spl_config.h"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $TOPDIR/zfs_config.h"
 
 	if test "$LINUX_OBJ" != "$LINUX"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
