@@ -10,7 +10,6 @@ extern "C" {
 #include <sys/ddi.h>
 #include <sys/sunldi.h>
 #include <sys/sunddi.h>
-#include <zfs_config.h>
 
 typedef struct vdev_disk {
 	ddi_devid_t		vd_devid;
