@@ -5,7 +5,6 @@
 
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
-#include "zfs_config.h"
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;

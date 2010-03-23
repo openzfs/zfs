@@ -69,7 +69,6 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
-#include "zfs_config.h"
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
