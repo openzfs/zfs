@@ -29,8 +29,6 @@
 #ifndef _LIBSPL_UNISTD_H
 #define _LIBSPL_UNISTD_H
 
-#include <zfs_config.h>
-
 #if !defined(HAVE_IOCTL_IN_UNISTD_H)
 # if defined(HAVE_IOCTL_IN_SYS_IOCTL_H)
 #  include <sys/ioctl.h>
