@@ -257,9 +257,10 @@ target_vendor = @target_vendor@
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in META \
-	DISCLAIMER GIT OPENSOLARIS.LICENSE ZFS.RELEASE
-noinst_HEADERS = zfs_config.h zfs_unconfig.h
+EXTRA_DIST = autogen.sh config/config.awk zfs.spec.in \
+	zfs-modules.spec.in META DISCLAIMER GIT OPENSOLARIS.LICENSE \
+	ZFS.RELEASE
+noinst_HEADERS = zfs_config.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
