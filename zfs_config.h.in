@@ -117,6 +117,10 @@
 /* Define if you have zlib */
 #undef HAVE_ZLIB
 
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
 /* Define to 1 to disable debug tracing */
 #undef NDEBUG
 
