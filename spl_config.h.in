@@ -198,6 +198,10 @@
 /* Page state NR_INACTIVE_FILE is available */
 #undef HAVE_ZONE_STAT_ITEM_NR_INACTIVE_FILE
 
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
 /* get_zone_counts() is needed */
 #undef NEED_GET_ZONE_COUNTS
 
