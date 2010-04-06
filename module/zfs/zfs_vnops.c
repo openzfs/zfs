@@ -3174,7 +3174,7 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 	ZFS_VERIFY_ZP(sdzp);
 	zilog = zsb->z_log;
 
-	if (tdip->i_sb != sdip->i_sb) {
+	if (tdip->i_sb != sdip->i_sb || zfsctl_is_node(tdip)) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EXDEV));
 	}
@@ -3716,7 +3716,7 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr)
 		return (SET_ERROR(EPERM));
 	}
 
-	if (sip->i_sb != tdip->i_sb) {
+	if (sip->i_sb != tdip->i_sb || zfsctl_is_node(sip)) {
 		ZFS_EXIT(zsb);
 		return (SET_ERROR(EXDEV));
 	}
