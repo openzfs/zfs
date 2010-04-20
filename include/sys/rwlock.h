@@ -70,7 +70,7 @@ extern int __down_write_trylock_locked(struct rw_semaphore *);
  */
 # if defined(_I386_RWSEM_H) || defined(_ASM_X86_RWSEM_H)
 #  define RW_COUNT(rwp)                 ((SEM(rwp)->count < 0) ? (-1) : \
-					 (SEM(rwp)->count & RWSEM_ACTIVE_MASK))
+                                        (SEM(rwp)->count & RWSEM_ACTIVE_MASK))
 # else
 #  define RW_COUNT(rwp)                 (SEM(rwp)->count & RWSEM_ACTIVE_MASK)
 # endif
@@ -225,6 +225,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
         downgrade_write(SEM(rwp));                                      \
 })
 
+#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
 #define rw_tryupgrade(rwp)                                              \
 ({                                                                      \
         unsigned long _flags_;                                          \
@@ -239,6 +240,14 @@ RW_LOCK_HELD(krwlock_t *rwp)
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);          \
         _rc_;                                                           \
 })
+#else
+/*
+ * This can be done correctly but for each supported arch we will need
+ * a custom cmpxchg() to atomically check and promote the rwsem.  That's
+ * not worth the trouble for now so rw_tryupgrade() will always fail.
+ */
+#define rw_tryupgrade(rwp)      ({ 0; })
+#endif
 
 int spl_rw_init(void);
 void spl_rw_fini(void);
