@@ -647,9 +647,22 @@ vn_set_pwd(const char *filename)
 {
 #ifdef HAVE_2ARGS_SET_FS_PWD
         struct path path;
+#else
+        struct nameidata nd;
+#endif /* HAVE_2ARGS_SET_FS_PWD */
+        mm_segment_t saved_fs;
         int rc;
         ENTRY;
 
+        /*
+         * user_path_dir() and __user_walk() both expect 'filename' to be
+         * a user space address so we must briefly increase the data segment
+         * size to ensure strncpy_from_user() does not fail with -EFAULT.
+         */
+        saved_fs = get_fs();
+        set_fs(get_ds());
+
+#ifdef HAVE_2ARGS_SET_FS_PWD
         rc = user_path_dir(filename, &path);
         if (rc)
                 GOTO(out, rc);
@@ -663,10 +676,6 @@ vn_set_pwd(const char *filename)
 dput_and_out:
         path_put(&path);
 #else
-        struct nameidata nd;
-        int rc;
-        ENTRY;
-
         rc = __user_walk(filename,
                          LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);
         if (rc)
@@ -682,6 +691,8 @@ dput_and_out:
         vn_path_release(&nd);
 #endif /* HAVE_2ARGS_SET_FS_PWD */
 out:
+	set_fs(saved_fs);
+
         RETURN(-rc);
 } /* vn_set_pwd() */
 EXPORT_SYMBOL(vn_set_pwd);

@@ -444,12 +444,16 @@ spl_fini(void)
 void
 spl_setup(void)
 {
+        int rc;
+
         /*
          * At module load time the pwd is set to '/' on a Solaris system.
          * On a Linux system will be set to whatever directory the caller
          * was in when executing insmod/modprobe.
          */
-        vn_set_pwd("/");
+        rc = vn_set_pwd("/");
+        if (rc)
+                printk("SPL: Warning unable to set pwd to '/': %d\n", rc);
 }
 EXPORT_SYMBOL(spl_setup);
 
