@@ -248,6 +248,11 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
         ASSERT(tq);
         ASSERT(func);
+
+	/* Solaris assumes TQ_SLEEP if not passed explicitly */
+	if (!(flags & (TQ_SLEEP | TQ_NOSLEEP)))
+		flags |= TQ_SLEEP;
+
         if (unlikely(in_atomic() && (flags & TQ_SLEEP))) {
 		CERROR("May schedule while atomic: %s/0x%08x/%d\n",
                        current->comm, preempt_count(), current->pid);
