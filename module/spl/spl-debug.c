@@ -1112,6 +1112,9 @@ void spl_debug_bug(char *file, const char *func, const int line, int flags)
                 /* not reached */
         }
 
+	if (in_atomic() || irqs_disabled())
+		flags |= DL_NOTHREAD;
+
         /* Ensure all debug pages and dumped by current cpu */
          if (spl_debug_panic_on_bug)
                 spl_panic_in_progress = 1;
