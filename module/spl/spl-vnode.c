@@ -181,7 +181,7 @@ EXPORT_SYMBOL(vn_openat);
 
 int
 vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
-	uio_seg_t seg, int x1, rlim64_t x2, void *x3, ssize_t *residp)
+	uio_seg_t seg, int ioflag, rlim64_t x2, void *x3, ssize_t *residp)
 {
 	loff_t offset;
 	mm_segment_t saved_fs;
@@ -193,11 +193,14 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 	ASSERT(vp);
 	ASSERT(vp->v_file);
 	ASSERT(seg == UIO_SYSSPACE);
-	ASSERT(x1 == 0);
+	ASSERT((ioflag & ~FAPPEND) == 0);
 	ASSERT(x2 == RLIM64_INFINITY);
 
-	offset = off;
 	fp = vp->v_file;
+
+	offset = off;
+	if (ioflag & FAPPEND)
+		offset = fp->f_pos;
 
 	/* Writable user data segment must be briefly increased for this
 	 * process so we can use the user space read call paths to write
