@@ -78,7 +78,9 @@
 #include <uuid/uuid.h>
 #ifdef HAVE_LIBBLKID
 #include <blkid/blkid.h>
-#endif
+#else
+#define blkid_cache void *
+#endif /* HAVE_LIBBLKID */
 
 #include "zpool_util.h"
 
@@ -125,7 +127,7 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	pool_state_t state;
 	boolean_t inuse;
 
-	if ((fd = open(file, O_RDONLY|O_EXCL)) < 0)
+	if ((fd = open(file, O_RDONLY)) < 0)
 		return (0);
 
 	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) == 0 && inuse) {
@@ -177,7 +179,6 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 	return (ret);
 }
 
-#ifdef HAVE_LIBBLKID
 static void
 check_error(int err)
 {
@@ -189,8 +190,10 @@ static int
 check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 {
 	struct stat64 statbuf;
-	char *value;
 	int err;
+#ifdef HAVE_LIBBLKID
+	char *value;
+#endif /* HAVE_LIBBLKID */
 
 	if (stat64(path, &statbuf) != 0) {
 		vdev_error(gettext("cannot stat %s: %s\n"),
@@ -198,6 +201,7 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 		return (-1);
 	}
 
+#ifdef HAVE_LIBBLKID
 	/* No valid type detected device is safe to use */
 	value = blkid_get_tag_value(cache, "TYPE", path);
 	if (value == NULL)
@@ -221,6 +225,9 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 	}
 
 	free(value);
+#else
+	err = check_file(path, force, isspare);
+#endif /* HAVE_LIBBLKID */
 
 	return (err);
 }
@@ -317,13 +324,15 @@ check_device(const char *path, boolean_t force,
 	     boolean_t isspare, boolean_t iswholedisk)
 {
 	static blkid_cache cache = NULL;
-	int err;
 
+#ifdef HAVE_LIBBLKID
 	/*
 	 * There is no easy way to add a correct blkid_put_cache() call,
 	 * memory will be reclaimed when the command exits.
 	 */
 	if (cache == NULL) {
+		int err;
+
 		if ((err = blkid_get_cache(&cache, NULL)) != 0) {
 			check_error(err);
 			return -1;
@@ -335,19 +344,10 @@ check_device(const char *path, boolean_t force,
 			return -1;
 		}
 	}
+#endif /* HAVE_LIBBLKID */
 
 	return check_disk(path, cache, force, isspare, iswholedisk);
 }
-
-#else /* HAVE_LIBBLKID */
-
-static int
-check_device(const char *path, boolean_t force,
-	     boolean_t isspare, boolean_t iswholedisk)
-{
-	return check_file(path, force, isspare);
-}
-#endif /* HAVE_LIBBLKID */
 
 /*
  * By "whole disk" we mean an entire physical disk (something we can
