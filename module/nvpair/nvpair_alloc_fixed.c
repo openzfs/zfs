@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/stropts.h>
 #include <sys/isa_defs.h>
@@ -118,3 +118,7 @@ const nv_alloc_ops_t nv_fixed_ops_def = {
 };
 
 const nv_alloc_ops_t *nv_fixed_ops = &nv_fixed_ops_def;
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(nv_fixed_ops);
+#endif
