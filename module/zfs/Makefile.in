@@ -29,6 +29,7 @@ ${MODULE}-objs += dsl_prop.o
 ${MODULE}-objs += dsl_scrub.o
 ${MODULE}-objs += dsl_synctask.o
 ${MODULE}-objs += fletcher.o
+${MODULE}-objs += fm.o
 ${MODULE}-objs += gzip.o
 ${MODULE}-objs += lzjb.o
 ${MODULE}-objs += metaslab.o
