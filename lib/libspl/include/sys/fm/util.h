@@ -27,4 +27,7 @@
 #ifndef _LIBSPL_SYS_FM_UTIL_H
 #define _LIBSPL_SYS_FM_UTIL_H
 
+static inline void fm_init(void) { }
+static inline void fm_fini(void) { }
+
 #endif
