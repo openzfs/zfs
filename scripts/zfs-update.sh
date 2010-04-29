@@ -83,6 +83,7 @@ cp ${SRC_UCM}/sys/avl_impl.h			${DST_MOD}/avl/include/sys/
 echo "* module/nvpair"
 mkdir -p ${DST_MOD}/nvpair/include/sys/
 cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
+cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_MOD}/nvpair/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
