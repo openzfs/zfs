@@ -31,9 +31,14 @@
 #include <sys/types.h>
 
 #ifndef NANOSEC
-#define NANOSEC 1000000000
+#define NANOSEC		1000000000
+#endif
+
+#ifndef NSEC_PER_USEC
+#define NSEC_PER_USEC	1000L
 #endif
 
 extern hrtime_t gethrtime(void);
+extern void gethrestime(timestruc_t *);
 
 #endif
