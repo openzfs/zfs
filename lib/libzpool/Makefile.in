@@ -102,7 +102,7 @@ am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	dmu_objset.lo dmu_send.lo dmu_traverse.lo dmu_tx.lo \
 	dmu_zfetch.lo dnode.lo dnode_sync.lo dsl_dataset.lo \
 	dsl_deleg.lo dsl_dir.lo dsl_pool.lo dsl_prop.lo dsl_scrub.lo \
-	dsl_synctask.lo fletcher.lo gzip.lo lzjb.lo metaslab.lo \
+	dsl_synctask.lo fletcher.lo fm.lo gzip.lo lzjb.lo metaslab.lo \
 	refcount.lo sha256.lo spa.lo spa_boot.lo spa_config.lo \
 	spa_errlog.lo spa_history.lo spa_misc.lo space_map.lo txg.lo \
 	uberblock.lo unique.lo vdev.lo vdev_cache.lo vdev_file.lo \
@@ -359,7 +359,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zcommon/zfs_prop.c \
 	${top_srcdir}/module/zcommon/zpool_prop.c \
 	${top_srcdir}/module/zcommon/zprop_common.c \
-	${top_srcdir}/module/zcommon/include/sys/fm/fs/zfs.h \
 	${top_srcdir}/module/zcommon/include/sys/fs \
 	${top_srcdir}/module/zcommon/include/sys/fs/zfs.h \
 	${top_srcdir}/module/zcommon/include/zfs_comutil.h \
@@ -386,6 +385,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/dsl_scrub.c \
 	${top_srcdir}/module/zfs/dsl_synctask.c \
 	${top_srcdir}/module/zfs/fletcher.c \
+	${top_srcdir}/module/zfs/fm.c \
 	${top_srcdir}/module/zfs/gzip.c \
 	${top_srcdir}/module/zfs/lzjb.c \
 	${top_srcdir}/module/zfs/metaslab.c \
@@ -421,7 +421,62 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/zio_compress.c \
-	${top_srcdir}/module/zfs/zio_inject.c
+	${top_srcdir}/module/zfs/zio_inject.c \
+	${top_srcdir}/module/zfs/include/sys/arc.h \
+	${top_srcdir}/module/zfs/include/sys/bplist.h \
+	${top_srcdir}/module/zfs/include/sys/dbuf.h \
+	${top_srcdir}/module/zfs/include/sys/dmu.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_impl.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_objset.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_traverse.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_tx.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_zfetch.h \
+	${top_srcdir}/module/zfs/include/sys/dnode.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_dataset.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_deleg.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_dir.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_pool.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_prop.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_synctask.h \
+	${top_srcdir}/module/zfs/include/sys/metaslab.h \
+	${top_srcdir}/module/zfs/include/sys/metaslab_impl.h \
+	${top_srcdir}/module/zfs/include/sys/refcount.h \
+	${top_srcdir}/module/zfs/include/sys/rrwlock.h \
+	${top_srcdir}/module/zfs/include/sys/spa_boot.h \
+	${top_srcdir}/module/zfs/include/sys/space_map.h \
+	${top_srcdir}/module/zfs/include/sys/spa.h \
+	${top_srcdir}/module/zfs/include/sys/spa_impl.h \
+	${top_srcdir}/module/zfs/include/sys/txg.h \
+	${top_srcdir}/module/zfs/include/sys/txg_impl.h \
+	${top_srcdir}/module/zfs/include/sys/uberblock.h \
+	${top_srcdir}/module/zfs/include/sys/uberblock_impl.h \
+	${top_srcdir}/module/zfs/include/sys/unique.h \
+	${top_srcdir}/module/zfs/include/sys/vdev_file.h \
+	${top_srcdir}/module/zfs/include/sys/vdev.h \
+	${top_srcdir}/module/zfs/include/sys/vdev_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zap.h \
+	${top_srcdir}/module/zfs/include/sys/zap_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zap_leaf.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_acl.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_context.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_ctldir.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_debug.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_dir.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_fuid.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_ioctl.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_rlock.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_vfsops.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_znode.h \
+	${top_srcdir}/module/zfs/include/sys/zil.h \
+	${top_srcdir}/module/zfs/include/sys/zil_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zio_checksum.h \
+	${top_srcdir}/module/zfs/include/sys/zio_compress.h \
+	${top_srcdir}/module/zfs/include/sys/zio.h \
+	${top_srcdir}/module/zfs/include/sys/zio_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zvol.h \
+	${top_srcdir}/module/zfs/include/sys/fm/protocol.h \
+	${top_srcdir}/module/zfs/include/sys/fm/util.h \
+	${top_srcdir}/module/zfs/include/sys/fm/fs/zfs.h
 
 all: all-recursive
 
@@ -517,6 +572,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_scrub.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dsl_synctask.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fletcher.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fm.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/kernel.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lzjb.Plo@am__quote@
@@ -818,6 +874,14 @@ fletcher.lo: ${top_srcdir}/module/zfs/fletcher.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/fletcher.c' object='fletcher.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o fletcher.lo `test -f '${top_srcdir}/module/zfs/fletcher.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/fletcher.c
+
+fm.lo: ${top_srcdir}/module/zfs/fm.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT fm.lo -MD -MP -MF $(DEPDIR)/fm.Tpo -c -o fm.lo `test -f '${top_srcdir}/module/zfs/fm.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/fm.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/fm.Tpo $(DEPDIR)/fm.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/zfs/fm.c' object='fm.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o fm.lo `test -f '${top_srcdir}/module/zfs/fm.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/fm.c
 
 gzip.lo: ${top_srcdir}/module/zfs/gzip.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gzip.lo -MD -MP -MF $(DEPDIR)/gzip.Tpo -c -o gzip.lo `test -f '${top_srcdir}/module/zfs/gzip.c' || echo '$(srcdir)/'`${top_srcdir}/module/zfs/gzip.c
