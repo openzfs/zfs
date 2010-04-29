@@ -23,7 +23,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zcommon/zfs_prop.c \
 	${top_srcdir}/module/zcommon/zpool_prop.c \
 	${top_srcdir}/module/zcommon/zprop_common.c \
-	${top_srcdir}/module/zcommon/include/sys/fm/fs/zfs.h \
 	${top_srcdir}/module/zcommon/include/sys/fs \
 	${top_srcdir}/module/zcommon/include/sys/fs/zfs.h \
 	${top_srcdir}/module/zcommon/include/zfs_comutil.h \
@@ -50,6 +49,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/dsl_scrub.c \
 	${top_srcdir}/module/zfs/dsl_synctask.c \
 	${top_srcdir}/module/zfs/fletcher.c \
+	${top_srcdir}/module/zfs/fm.c \
 	${top_srcdir}/module/zfs/gzip.c \
 	${top_srcdir}/module/zfs/lzjb.c \
 	${top_srcdir}/module/zfs/metaslab.c \
@@ -85,4 +85,59 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zio.c \
 	${top_srcdir}/module/zfs/zio_checksum.c \
 	${top_srcdir}/module/zfs/zio_compress.c \
-	${top_srcdir}/module/zfs/zio_inject.c
+	${top_srcdir}/module/zfs/zio_inject.c \
+	${top_srcdir}/module/zfs/include/sys/arc.h \
+	${top_srcdir}/module/zfs/include/sys/bplist.h \
+	${top_srcdir}/module/zfs/include/sys/dbuf.h \
+	${top_srcdir}/module/zfs/include/sys/dmu.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_impl.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_objset.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_traverse.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_tx.h \
+	${top_srcdir}/module/zfs/include/sys/dmu_zfetch.h \
+	${top_srcdir}/module/zfs/include/sys/dnode.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_dataset.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_deleg.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_dir.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_pool.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_prop.h \
+	${top_srcdir}/module/zfs/include/sys/dsl_synctask.h \
+	${top_srcdir}/module/zfs/include/sys/metaslab.h \
+	${top_srcdir}/module/zfs/include/sys/metaslab_impl.h \
+	${top_srcdir}/module/zfs/include/sys/refcount.h \
+	${top_srcdir}/module/zfs/include/sys/rrwlock.h \
+	${top_srcdir}/module/zfs/include/sys/spa_boot.h \
+	${top_srcdir}/module/zfs/include/sys/space_map.h \
+	${top_srcdir}/module/zfs/include/sys/spa.h \
+	${top_srcdir}/module/zfs/include/sys/spa_impl.h \
+	${top_srcdir}/module/zfs/include/sys/txg.h \
+	${top_srcdir}/module/zfs/include/sys/txg_impl.h \
+	${top_srcdir}/module/zfs/include/sys/uberblock.h \
+	${top_srcdir}/module/zfs/include/sys/uberblock_impl.h \
+	${top_srcdir}/module/zfs/include/sys/unique.h \
+	${top_srcdir}/module/zfs/include/sys/vdev_file.h \
+	${top_srcdir}/module/zfs/include/sys/vdev.h \
+	${top_srcdir}/module/zfs/include/sys/vdev_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zap.h \
+	${top_srcdir}/module/zfs/include/sys/zap_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zap_leaf.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_acl.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_context.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_ctldir.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_debug.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_dir.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_fuid.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_ioctl.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_rlock.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_vfsops.h \
+	${top_srcdir}/module/zfs/include/sys/zfs_znode.h \
+	${top_srcdir}/module/zfs/include/sys/zil.h \
+	${top_srcdir}/module/zfs/include/sys/zil_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zio_checksum.h \
+	${top_srcdir}/module/zfs/include/sys/zio_compress.h \
+	${top_srcdir}/module/zfs/include/sys/zio.h \
+	${top_srcdir}/module/zfs/include/sys/zio_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zvol.h \
+	${top_srcdir}/module/zfs/include/sys/fm/protocol.h \
+	${top_srcdir}/module/zfs/include/sys/fm/util.h \
+	${top_srcdir}/module/zfs/include/sys/fm/fs/zfs.h
