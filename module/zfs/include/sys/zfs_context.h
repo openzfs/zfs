@@ -58,11 +58,9 @@ extern "C" {
 #include <sys/zone.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
-#ifdef HAVE_SYSEVENT
 #include <sys/sysevent.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
-#endif /* HAVE_SYSEVENT */
 #include <sys/fm/util.h>
 
 #ifdef	__cplusplus
