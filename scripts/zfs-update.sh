@@ -94,17 +94,19 @@ cp ${SRC_UCM}/sys/u8_textprep_data.h		${DST_MOD}/unicode/include/sys/
 
 echo "* module/zcommon"
 mkdir -p ${DST_MOD}/zcommon/include/sys/fs/
-mkdir -p ${DST_MOD}/zcommon/include/sys/fm/fs/
 cp ${SRC_CM}/zfs/*.c				${DST_MOD}/zcommon/
 cp ${SRC_CM}/zfs/*.h				${DST_MOD}/zcommon/include/
 cp ${SRC_UCM}/sys/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fs/
-cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fm/fs/
 
 echo "* module/zfs"
-mkdir -p ${DST_MOD}/zpool/include/sys/
+mkdir -p ${DST_MOD}/zfs/include/sys/fm/fs/
 cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/*.c				${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
+cp ${SRC_UCM}/os/fm.c				${DST_MOD}/zfs/
+cp ${SRC_UCM}/sys/fm/protocol.h			${DST_MOD}/zfs/include/sys/fm/
+cp ${SRC_UCM}/sys/fm/util.h			${DST_MOD}/zfs/include/sys/fm/
+cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_MOD}/zfs/include/sys/fm/fs/
 rm ${DST_MOD}/zfs/vdev_disk.c
 rm ${DST_MOD}/zfs/zvol.c
 rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
