@@ -3721,11 +3721,9 @@ spa_async_probe(spa_t *spa, vdev_t *vd)
 static void
 spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 {
-#ifdef HAVE_SYSEVENT
 	sysevent_id_t eid;
 	nvlist_t *attr;
 	char *physpath;
-#endif
 	int c;
 
 	if (!spa->spa_autoexpand)
@@ -3739,7 +3737,6 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf || vd->vdev_physpath == NULL)
 		return;
 
-#ifdef HAVE_SYSEVENT
 	physpath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 	(void) snprintf(physpath, MAXPATHLEN, "/devices%s", vd->vdev_physpath);
 
@@ -3751,7 +3748,6 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 
 	nvlist_free(attr);
 	kmem_free(physpath, MAXPATHLEN);
-#endif
 }
 
 static void
@@ -4521,10 +4517,10 @@ spa_has_active_shared_spare(spa_t *spa)
  * in the userland libzpool, as we don't want consumers to misinterpret ztest
  * or zdb as real changes.
  */
-#ifdef HAVE_SYSEVENT
 void
 spa_event_notify(spa_t *spa, vdev_t *vd, const char *name)
 {
+#ifdef _KERNEL
 	sysevent_t		*ev;
 	sysevent_attr_list_t	*attr = NULL;
 	sysevent_value_t	value;
@@ -4569,8 +4565,8 @@ done:
 	if (attr)
 		sysevent_free_attr(attr);
 	sysevent_free(ev);
+#endif
 }
-#endif /* HAVE_SYSEVENT */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* state manipulation functions */
