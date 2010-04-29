@@ -7,3 +7,4 @@ obj-m := ${MODULE}.o
 
 ${MODULE}-objs += nvpair.o
 ${MODULE}-objs += nvpair_alloc_spl.o
+${MODULE}-objs += nvpair_alloc_fixed.o
