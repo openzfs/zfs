@@ -94,12 +94,12 @@ dsl_pool_scrub_setup_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 		if (vdev_resilver_needed(rvd,
 		    &dp->dp_scrub_min_txg, &dp->dp_scrub_max_txg)) {
 			spa_event_notify(dp->dp_spa, NULL,
-			    ESC_ZFS_RESILVER_START);
+			    FM_EREPORT_ZFS_RESILVER_START);
 			dp->dp_scrub_max_txg = MIN(dp->dp_scrub_max_txg,
 			    tx->tx_txg);
 		} else {
 			spa_event_notify(dp->dp_spa, NULL,
-			    ESC_ZFS_SCRUB_START);
+			    FM_EREPORT_ZFS_SCRUB_START);
 		}
 
 		/* zero out the scrub stats in all vdev_stat_t's */
@@ -219,7 +219,8 @@ dsl_pool_scrub_cancel_sync(void *arg1, void *arg2, cred_t *cr, dmu_tx_t *tx)
 	    *completep ? dp->dp_scrub_max_txg : 0, B_TRUE);
 	if (*completep)
 		spa_event_notify(dp->dp_spa, NULL, dp->dp_scrub_min_txg ?
-		    ESC_ZFS_RESILVER_FINISH : ESC_ZFS_SCRUB_FINISH);
+		    FM_EREPORT_ZFS_RESILVER_FINISH :
+		    FM_EREPORT_ZFS_SCRUB_FINISH);
 	spa_errlog_rotate(dp->dp_spa);
 
 	/*

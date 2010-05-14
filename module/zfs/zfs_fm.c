@@ -88,6 +88,14 @@
  * doesn't actually correspond to any particular device or piece of data,
  * and the caller will always retry without caching or queueing anyway).
  */
+#ifdef _KERNEL
+static void
+zfs_ereport_post_cb(nvlist_t *nvl)
+{
+	fm_nvlist_destroy(nvl, FM_NVA_FREE);
+}
+#endif /* _KERNEL */
+
 void
 zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
     uint64_t stateoroffset, uint64_t size)
@@ -205,6 +213,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	    vd != NULL ? vd->vdev_guid : 0);
 
 	fm_ereport_set(ereport, FM_EREPORT_VERSION, class, ena, detector, NULL);
+	fm_nvlist_destroy(detector, FM_NVA_FREE);
 
 	/*
 	 * Construct the per-ereport payload, depending on which parameters are
@@ -324,58 +333,11 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	}
 	mutex_exit(&spa->spa_errlist_lock);
 
-	fm_ereport_post(ereport, EVCH_SLEEP);
-
-	fm_nvlist_destroy(ereport, FM_NVA_FREE);
-	fm_nvlist_destroy(detector, FM_NVA_FREE);
-#endif
+	/* Cleanup must be handled by the passed callback function */
+	fm_zevent_post(ereport, zfs_ereport_post_cb);
+#endif /* _KERNEL */
 }
 
-static void
-zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
-{
-#ifdef _KERNEL
-	nvlist_t *resource;
-	char class[64];
-
-	if ((resource = fm_nvlist_create(NULL)) == NULL)
-		return;
-
-	(void) snprintf(class, sizeof (class), "%s.%s.%s", FM_RSRC_RESOURCE,
-	    ZFS_ERROR_CLASS, name);
-	VERIFY(nvlist_add_uint8(resource, FM_VERSION, FM_RSRC_VERSION) == 0);
-	VERIFY(nvlist_add_string(resource, FM_CLASS, class) == 0);
-	VERIFY(nvlist_add_uint64(resource,
-	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)) == 0);
-	if (vd)
-		VERIFY(nvlist_add_uint64(resource,
-		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid) == 0);
-
-	fm_ereport_post(resource, EVCH_SLEEP);
-
-	fm_nvlist_destroy(resource, FM_NVA_FREE);
-#endif
-}
-
-/*
- * The 'resource.fs.zfs.removed' event is an internal signal that the given vdev
- * has been removed from the system.  This will cause the DE to ignore any
- * recent I/O errors, inferring that they are due to the asynchronous device
- * removal.
- */
-void
-zfs_post_remove(spa_t *spa, vdev_t *vd)
-{
-	zfs_post_common(spa, vd, FM_RESOURCE_REMOVED);
-}
-
-/*
- * The 'resource.fs.zfs.autoreplace' event is an internal signal that the pool
- * has the 'autoreplace' property set, and therefore any broken vdevs will be
- * handled by higher level logic, and no vdev fault should be generated.
- */
-void
-zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
-{
-	zfs_post_common(spa, vd, FM_RESOURCE_AUTOREPLACE);
-}
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_ereport_post);
+#endif /* _KERNEL */
