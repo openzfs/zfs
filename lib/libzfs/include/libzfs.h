@@ -360,6 +360,8 @@ extern int zpool_get_history(zpool_handle_t *, nvlist_t **);
 extern void zpool_set_history_str(const char *subcommand, int argc,
     char **argv, char *history_str);
 extern int zpool_stage_history(libzfs_handle_t *, const char *);
+extern int zpool_events_next(libzfs_handle_t *, nvlist_t **, int *, int);
+extern int zpool_events_clear(libzfs_handle_t *, int *);
 extern void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t len);
 extern int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);
