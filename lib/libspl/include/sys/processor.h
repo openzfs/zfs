@@ -29,4 +29,6 @@
 
 #define getcpuid() (-1)
 
+typedef int	processorid_t;
+
 #endif

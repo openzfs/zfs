@@ -14,6 +14,7 @@ lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/getexecname.c \
 	${top_srcdir}/lib/libspl/gethrtime.c \
+	${top_srcdir}/lib/libspl/gethrestime.c \
 	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
