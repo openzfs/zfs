@@ -123,6 +123,9 @@ typedef struct zinject_record {
 #define	ZINJECT_FLUSH_ARC	0x2
 #define	ZINJECT_UNLOAD_SPA	0x4
 
+#define	ZEVENT_NONBLOCK		0x1
+#define	ZEVENT_SIZE		1024
+
 typedef struct zfs_share {
 	uint64_t	z_exportdata;
 	uint64_t	z_sharedata;
@@ -186,6 +189,9 @@ typedef struct zfs_creat {
 } zfs_creat_t;
 
 extern dev_info_t *zfs_dip;
+
+extern int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
+extern int put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl);
 
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from,
