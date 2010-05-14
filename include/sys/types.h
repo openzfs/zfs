@@ -57,5 +57,6 @@ typedef uint_t				minor_t;
 typedef ulong_t				pfn_t;
 typedef ulong_t				pgcnt_t;
 typedef long				spgcnt_t;
+typedef short				index_t;
 
 #endif	/* _SPL_TYPES_H */
