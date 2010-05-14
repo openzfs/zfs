@@ -35,7 +35,9 @@ extern "C" {
 #define	FM_EREPORT_ZFS_CHECKSUM			"checksum"
 #define	FM_EREPORT_ZFS_IO			"io"
 #define	FM_EREPORT_ZFS_DATA			"data"
+#define	FM_EREPORT_ZFS_CONFIG_SYNC		"config.sync"
 #define	FM_EREPORT_ZFS_POOL			"zpool"
+#define	FM_EREPORT_ZFS_POOL_DESTROY		"zpool.destroy"
 #define	FM_EREPORT_ZFS_DEVICE_UNKNOWN		"vdev.unknown"
 #define	FM_EREPORT_ZFS_DEVICE_OPEN_FAILED	"vdev.open_failed"
 #define	FM_EREPORT_ZFS_DEVICE_CORRUPT_DATA	"vdev.corrupt_data"
@@ -43,9 +45,18 @@ extern "C" {
 #define	FM_EREPORT_ZFS_DEVICE_BAD_GUID_SUM	"vdev.bad_guid_sum"
 #define	FM_EREPORT_ZFS_DEVICE_TOO_SMALL		"vdev.too_small"
 #define	FM_EREPORT_ZFS_DEVICE_BAD_LABEL		"vdev.bad_label"
+#define	FM_EREPORT_ZFS_DEVICE_REMOVE		"vdev.remove"
+#define	FM_EREPORT_ZFS_DEVICE_CLEAR		"vdev.clear"
+#define	FM_EREPORT_ZFS_DEVICE_CHECK		"vdev.check"
+#define	FM_EREPORT_ZFS_DEVICE_SPARE		"vdev.spare"
+#define	FM_EREPORT_ZFS_DEVICE_AUTOEXPAND	"vdev.autoexpand"
 #define	FM_EREPORT_ZFS_IO_FAILURE		"io_failure"
 #define	FM_EREPORT_ZFS_PROBE_FAILURE		"probe_failure"
 #define	FM_EREPORT_ZFS_LOG_REPLAY		"log_replay"
+#define	FM_EREPORT_ZFS_RESILVER_START		"resilver.start"
+#define	FM_EREPORT_ZFS_RESILVER_FINISH		"resilver.finish"
+#define	FM_EREPORT_ZFS_SCRUB_START		"scrub.start"
+#define	FM_EREPORT_ZFS_SCRUB_FINISH		"scrub.finish"
 
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL		"pool"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE	"pool_failmode"
@@ -73,8 +84,8 @@ extern "C" {
 #define	FM_EREPORT_FAILMODE_CONTINUE		"continue"
 #define	FM_EREPORT_FAILMODE_PANIC		"panic"
 
-#define	FM_RESOURCE_REMOVED			"removed"
-#define	FM_RESOURCE_AUTOREPLACE			"autoreplace"
+#define	FM_EREPORT_RESOURCE_REMOVED		"removed"
+#define	FM_EREPORT_RESOURCE_AUTOREPLACE		"autoreplace"
 
 #ifdef	__cplusplus
 }
