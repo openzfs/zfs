@@ -84,8 +84,8 @@ __cv_destroy(kcondvar_t *cvp)
 }
 EXPORT_SYMBOL(__cv_destroy);
 
-void
-__cv_wait(kcondvar_t *cvp, kmutex_t *mp)
+static void
+cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 {
 	DEFINE_WAIT(wait);
 	ENTRY;
@@ -103,8 +103,7 @@ __cv_wait(kcondvar_t *cvp, kmutex_t *mp)
 	ASSERT(cvp->cv_mutex == mp);
 	spin_unlock(&cvp->cv_lock);
 
-	prepare_to_wait_exclusive(&cvp->cv_event, &wait,
-				  TASK_UNINTERRUPTIBLE);
+	prepare_to_wait_exclusive(&cvp->cv_event, &wait, state);
 	atomic_inc(&cvp->cv_waiters);
 
 	/* Mutex should be dropped after prepare_to_wait() this
@@ -118,7 +117,20 @@ __cv_wait(kcondvar_t *cvp, kmutex_t *mp)
 	finish_wait(&cvp->cv_event, &wait);
 	EXIT;
 }
+
+void
+__cv_wait(kcondvar_t *cvp, kmutex_t *mp)
+{
+	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE);
+}
 EXPORT_SYMBOL(__cv_wait);
+
+void
+__cv_wait_interruptible(kcondvar_t *cvp, kmutex_t *mp)
+{
+	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE);
+}
+EXPORT_SYMBOL(__cv_wait_interruptible);
 
 /* 'expire_time' argument is an absolute wall clock time in jiffies.
  * Return value is time left (expire_time - now) or -1 if timeout occurred.
