@@ -13,3 +13,4 @@ linux-ztest
 linux-have-idmap
 linux-kernel-device
 linux-events
+linux-debug-zerocopy
