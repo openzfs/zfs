@@ -1,3 +1,127 @@
+2010-03-11 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.8 - Use 'git log --no-merges' for full change log.
+
+	* : Build system improvements:
+	- Remove Module.markers and Module.symver{s} in clean target.
+	- Improved kernel source detection when none specified.
+	- Fix RPM definitions for the unknown distro/installation.
+	- Check for spl in ../spl if not found in install path.
+	- Include all headers regardless of depth in packages.
+	- Allow recursive configure/make.
+
+	* lib/libzpool/kernel.c: Fixed several zdb bugs when opening a pool
+	- zdb wasn't getting the correct device size when the vdev is a
+	  block device.  In Solaris, fstat64() returns the device size but
+	  in Linux an ioctl() is needed.
+	- make sure that we don't try to open a block device in write mode
+	  from userspace.  This shouldn't happen, because zdb opens devices
+	  in read-only mode, and ztest only uses files.
+
+	* lib/libspl/include/umem.h: Add umem_alloc_aligned() and honor
+	cache_align field for umem cache.  Under linux we open block devices
+	with O_DIRECT which means we must provide aligned memory buffers.
+
+	* lib/libzpool/kernel.c: Fix some incorrect error handling.  In
+	vn_open(), if fstat64() returned an error, the real errno was being
+	obscured by calling close().
+
+	* scripts/*: Fix scripts to work when invoked from other directories.
+
+	* module/zfs/arc.c: Fix struct ht_lock padding in arc.c.
+
+	* lib/libefi/include/sys/uuid.h: Fix duplicate uuid_t typedef.
+
+	* module/zfs/txg.c: Use CPU percentages for number of commit cb
+	threads.  This doesn't change number of threads in the kernel, but it
+	reduces number of threads in ztest (important due to 32-bit address
+	limitations).
+
+	* cmd/ztest/ztest.c: Clean up emulation of kernel threads in
+	userspace.  Updated to use pthread thread specific data rather than
+	keeping a global list.  This also fixes at least one easily
+	reproducible crash in ztest
+
+	* META, config/kernel.m4: Add configure check for kernel build
+	options which are incompatible with the license.  If your building
+	against a kernel deemed incompatible configure will fail and
+	suggest how you should rebuild your kernel.
+
+	* config/kernel-fmode-t.m4: Linux 2.6.28 compat, add a check for the
+	fmode_t type.  This typedef first appears in 2.6.28 kernels as part
+	of some block device operation reworking.
+
+	* module/zfs/dmu_send.c: No inline to keep dmu_recv_stream() stack
+	frame less than 1024 bytes.  Recent builds against 2.6.31 flagged
+	dmu_recv_stream() as stack heavy.  Further analysis of this function
+	should be performed to further reduce its stack usage.
+
+	* scripts/common.sh: Split the udev rule from a specific configuration
+	by providing a generic 60-zpool.rules file which uses a small helper
+	util 'zpool_id' to parse a configuration file by default located in
+	/etc/zfs/zdev.conf.  The helper script maps a by-path udev name to a
+	more friendly name of <channel><rank> for large configurations.
+
+	Additionally, when running zpool-create.sh in-tree it will no longer
+	use udev because we would have to copy certain helper scripts in to
+	the installed system.  To avoid this the config file in simply
+	parsed and symlinks are created in your working tree.  The script
+	will use udev if it as run as part of an installed zfs-test package.
+
+	* module/zfs/zvol.c: Use check_disk_change() instead of
+	revalidate_disk().  For 2.6.27 kernels are earlier revalidate_disk()
+	was not available.  However, check_disk_change() has been available
+	for far longer and will properly inform the kernel of the volume
+	change for both older and newer kernels.
+
+	* module/zfs/dmu.c: Fixed incorrect ASSERT3S() added by ZVOL.
+
+	* module/zfs/vdev_raidz.c, module/zfs/zvol.c: Minor fixes for 32-bit.
+
+	* scripts/zfs-update.sh, man/man8/*: Added man pages based on the
+	latest documentation and modified zfs-update.sh script to update them.
+
+	* .gitignore: Updated .gitignore rules to exclude build products.
+
+2009-11-24 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.7 - Use 'git log --no-merges' for full change log.
+
+	* module/zcommon/include/sys/fs/zfs.h, module/zfs/include/sys/blkdev.h,
+	  module/zfs/include/sys/dmu.h, module/zfs/dmu.c,
+	  module/zfs/include/sys/zvol.h, module/zfs/zvol.c,
+	  module/zfs/zfs_ioctl.c:
+	Added the ZVOL block device, with the addition of the ZVOL real ZFS
+	based block devices are available and can be compared head to head
+	with Linux's MD and LVM block drivers.  The Linux ZVOL has not yet
+	had any performance work done but from a user perspective it should
+	be functionally complete and behave like any other Linux block device.
+	The ZVOL has so far been tested using zconfig.sh on the following
+	x86_64 based platforms: FC11, CHAOS4, RHEL5, RHEL6, and SLES11.
+	However, more testing is required to ensure everything is working
+	as designed.
+
+	* scripts/udev-rules/99-zpool.rules.promise,
+	  scripts/zpool-config/promise-raid0-1x16.sh,
+	  scripts/zpool-config/promise-raid10-8x2.sh,
+	  scripts/zpool-config/promise-raidz-2x8.sh,
+	  scripts/zpool-config/promise-raidz2-2x8.sh:
+	Additional test configurations for a small 16 drive JBOD.
+
+	* module/zfs/arc.c: Linux 2.6.31 compat, mutexes can now exceed 64
+	bytes depending on the the kernel build options.  To account for
+	this increase the pad size to 256 bytes.
+
+	* module/zfs/vdev_disk.c: Linux 2.6.31 compat, to get the hard
+	sector size use bdev_logical_block_size() this function replaces
+	bdev_hardsect_size().
+
+	* module/zfs/zfs_rlock.c: Prevent gcc uninit compiler warning in
+	zfs_range_unlock_reader().
+
+	* Makefile.am: Ensure *.order and *.markers build products are
+	removed by distclean rule.
+
 2009-11-02 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.6 - Use 'git log --no-merges' for full change log.
@@ -333,7 +457,7 @@
 	- Minor build system improvements
 	- Minor script improvements
 	- Create a full copy and not a link tree with quilt
-	- KPIOS_MAJOR changed from 231 to 232
+	- ZPIOS_MAJOR changed from 231 to 232
 	- BIO_RW_BARRIER flag removed from IO request
 
 2008-06-30 Brian Behlendorf <behlendorf1@llnl.gov>

@@ -4,22 +4,33 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_KERNEL_CONFIG
+	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
+	ZFS_AC_KERNEL_TYPE_FMODE_T
 	ZFS_AC_KERNEL_OPEN_BDEV_EXCLUSIVE
 	ZFS_AC_KERNEL_INVALIDATE_BDEV_ARGS
 	ZFS_AC_KERNEL_BDEV_LOGICAL_BLOCK_SIZE
+	ZFS_AC_KERNEL_BIO_EMPTY_BARRIER
 	ZFS_AC_KERNEL_BIO_END_IO_T_ARGS
 	ZFS_AC_KERNEL_BIO_RW_SYNCIO
-	ZFS_AC_KERNEL_BIO_EMPTY_BARRIER
-
-	dnl # Kernel build make options
-	dnl # KERNELMAKE_PARAMS="V=1"	# Enable verbose module build
-	KERNELMAKE_PARAMS=
+	ZFS_AC_KERNEL_BLK_END_REQUEST
+	ZFS_AC_KERNEL_BLK_FETCH_REQUEST
+	ZFS_AC_KERNEL_BLK_REQUEUE_REQUEST
+	ZFS_AC_KERNEL_BLK_RQ_BYTES
+	ZFS_AC_KERNEL_BLK_RQ_POS
+	ZFS_AC_KERNEL_BLK_RQ_SECTORS
+	ZFS_AC_KERNEL_GET_DISK_RO
+	ZFS_AC_KERNEL_RQ_IS_SYNC
+	ZFS_AC_KERNEL_RQ_FOR_EACH_SEGMENT
 
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -Werror -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$TOPDIR -I$SPL -I$SPL/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL/include"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $SPL/spl_config.h"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $TOPDIR/zfs_config.h"
 
 	if test "$LINUX_OBJ" != "$LINUX"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
@@ -30,7 +41,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 ])
 
 dnl #
-dnl # Detect name used more Module.symvers file
+dnl # Detect name used for Module.symvers file in kernel
 dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
@@ -64,8 +75,14 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
-		sourcelink=`ls -1d /usr/src/kernels/* /usr/src/linux-* \
-		            2>/dev/null | grep -v obj | tail -1`
+		headersdir="/lib/modules/$(uname -r)/build"
+		if test -e "$headersdir"; then
+			sourcelink=$(readlink -f "$headersdir")
+		else
+			sourcelink=$(ls -1d /usr/src/kernels/* \
+				     /usr/src/linux-* \
+			             2>/dev/null | grep -v obj | tail -1)
+		fi
 
 		if test -e $sourcelink; then
 			kernelsrc=`readlink -f ${sourcelink}`
@@ -135,7 +152,14 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 ])
 
 dnl #
-dnl # Detect name used for the additional SPL Module.symvers file
+dnl # Detect name used for the additional SPL Module.symvers file.  If one
+dnl # does not exist this is likely because the SPL has been configured
+dnl # but not built.  To allow recursive builds a good guess is made as to
+dnl # what this file will be named based on what it is named in the kernel
+dnl # build products.  This file will first be used at link time so if
+dnl # the guess is wrong the build will fail then.  This unfortunately
+dnl # means the ZFS package does not contain a reliable mechanism to
+dnl # detect symbols exported by the SPL at configure time.
 dnl #
 AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 	AC_MSG_CHECKING([spl file name for module symbols])
@@ -144,7 +168,7 @@ AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
-		SPL_SYMBOLS=NONE
+		SPL_SYMBOLS=$LINUX_SYMBOLS
 	fi
 
 	AC_MSG_RESULT([$SPL_SYMBOLS])
@@ -170,6 +194,10 @@ AC_DEFUN([ZFS_AC_SPL], [
 	if test -z "$splsrc"; then
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
+
+		if test -z "$sourcelink" || test ! -e $sourcelink; then
+			sourcelink=../spl
+		fi
 
 		if test -e $sourcelink; then
 			splsrc=`readlink -f ${sourcelink}`
@@ -225,6 +253,30 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_SUBST(SPL_VERSION)
 
 	ZFS_AC_SPL_MODULE_SYMVERS
+])
+
+dnl #
+dnl # There are certain kernel build options which when enabled are
+dnl # completely incompatible with non GPL kernel modules.  It is best
+dnl # to detect these at configure time and fail with a clear error
+dnl # rather than build everything and fail during linking.
+dnl #
+dnl # CONFIG_DEBUG_LOCK_ALLOC - Maps mutex_lock() to mutex_lock_nested()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
+
+	if test "$ZFS_META_LICENSE" = CDDL; then
+		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],
+		AC_MSG_ERROR([
+		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+		*** incompatible with the CDDL license.  You must rebuild
+		*** your kernel without this option.]), [])
+	fi
+
+	if test "$ZFS_META_LICENSE" = GPL; then
+		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
+			[Define to 1 if licensed under the GPL])
+	fi
 ])
 
 dnl #
@@ -307,7 +359,7 @@ dnl #
 AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
 	[AC_MSG_CHECKING([whether symbol $1 is exported])
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
-		$LINUX_OBJ/Module*.symvers $SPL_OBJ/Module*.symvers 2>/dev/null
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
 		export=0

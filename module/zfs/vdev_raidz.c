@@ -139,7 +139,7 @@ typedef struct raidz_map {
 	(mask) = (x) & 0x8080808080808080ULL; \
 	(mask) = ((mask) << 1) - ((mask) >> 7); \
 	(x) = (((x) << 1) & 0xfefefefefefefefeULL) ^ \
-	    ((mask) & 0x1d1d1d1d1d1d1d1d); \
+	    ((mask) & 0x1d1d1d1d1d1d1d1dULL); \
 }
 
 #define	VDEV_RAIDZ_64MUL_4(x, mask) \

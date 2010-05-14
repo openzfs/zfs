@@ -4,10 +4,16 @@ subdir-m += unicode
 subdir-m += zcommon
 subdir-m += zfs
 
-modules clean:
+modules:
 	# Make the exported SPL symbols available to these modules.
 	cp @SPL_OBJ@/@SPL_SYMBOLS@ .
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+
+clean:
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	if [ -f @SPL_SYMBOLS@ ]; then $(RM) @SPL_SYMBOLS@; fi
+	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
+	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
@@ -17,12 +23,8 @@ modules_install:
 	# Install the required headers in to the kernel source
 	destname=zfs-@ZFS_META_VERSION@/@LINUX_VERSION@; \
 	instdest=$(DESTDIR)/@prefix@/src/$$destname; \
-	(mkdir -p $$instdest && \
-	 find . -mindepth 3 -maxdepth 3 -name '*.h' | \
-	 xargs cp -t $$instdest) || exit 1; \
-	(mkdir -p $$instdest/sys && \
-	 find . -mindepth 4 -maxdepth 4 -name '*.h' | \
-	 xargs cp -t $$instdest/sys) || exit 1;
+	(find . -mindepth 3 -name '*.h' | xargs -Ihdr sh -c \
+	 "DEST=hdr && install -D hdr $$instdest/\$${DEST#*/*/*/}") || exit 1
 
 distdir:
 	distfiles=`find . -name '*.c' -o -name '*.h'`; \

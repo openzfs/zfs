@@ -2133,15 +2133,16 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+
 static int unicode_init(void) { return 0; }
 static int unicode_fini(void) { return 0; }
 
 spl_module_init(unicode_init);
 spl_module_exit(unicode_fini);
 
-MODULE_AUTHOR("Sun Microsystems, Inc");
 MODULE_DESCRIPTION("Unicode implementation");
-MODULE_LICENSE("CDDL");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
 
 EXPORT_SYMBOL(u8_validate);
 EXPORT_SYMBOL(u8_strcmp);

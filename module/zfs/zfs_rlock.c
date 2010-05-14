@@ -460,7 +460,7 @@ static void
 zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 {
 	avl_tree_t *tree = &zp->z_range_avl;
-	rl_t *rl, *next;
+	rl_t *rl, *next = NULL;
 	uint64_t len;
 
 	/*

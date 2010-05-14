@@ -1,13 +1,9 @@
 AC_DEFUN([ZFS_AC_LICENSE], [
-	AC_MSG_CHECKING([zfs license])
-	LICENSE=`grep MODULE_LICENSE module/zfs/zfs_ioctl.c | cut -f2 -d'"'`
-	AC_MSG_RESULT([$LICENSE])
-	if test "$LICENSE" = GPL; then
-		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
-		          [Define to 1 if module is licensed under the GPL])
-	fi
+	AC_MSG_CHECKING([zfs author])
+	AC_MSG_RESULT([$ZFS_META_AUTHOR])
 
-	AC_SUBST(LICENSE)
+	AC_MSG_CHECKING([zfs license])
+	AC_MSG_RESULT([$ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG], [
@@ -52,19 +48,22 @@ LIBDIR=${LIBDIR}
 CMDDIR=${CMDDIR}
 MODDIR=${MODDIR}
 SCRIPTDIR=${SCRIPTDIR}
-UDEVDIR=\${TOPDIR}/scripts/udev-rules
+ETCDIR=\${TOPDIR}/etc
+DEVDIR=\${TOPDIR}/dev
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
 
 ZDB=\${CMDDIR}/zdb/zdb
 ZFS=\${CMDDIR}/zfs/zfs
 ZINJECT=\${CMDDIR}/zinject/zinject
 ZPOOL=\${CMDDIR}/zpool/zpool
+ZPOOL_ID=\${CMDDIR}/zpool_id/zpool_id
 ZTEST=\${CMDDIR}/ztest/ztest
 
 COMMON_SH=\${SCRIPTDIR}/common.sh
 ZFS_SH=\${SCRIPTDIR}/zfs.sh
 ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
 
+INTREE=1
 LDMOD=/sbin/insmod
 
 KERNEL_MODULES=(                                      \\
@@ -98,6 +97,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	CMDDIR=$TOPDIR/cmd
 	MODDIR=$TOPDIR/module
 	SCRIPTDIR=$TOPDIR/scripts
+	TARGET_ASM_DIR=asm-generic
 
 	AC_SUBST(TOPDIR)
 	AC_SUBST(BUILDDIR)
@@ -105,11 +105,12 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AC_SUBST(CMDDIR)
 	AC_SUBST(MODDIR)
 	AC_SUBST(SCRIPTDIR)
+	AC_SUBST(TARGET_ASM_DIR)
 
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
 		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|all']),
+		[Config file 'kernel|user|all|srpm']),
 		[ZFS_CONFIG="$withval"])
 
 	AC_MSG_CHECKING([zfs config])
@@ -121,10 +122,11 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		user)	ZFS_AC_CONFIG_USER   ;;
 		all)    ZFS_AC_CONFIG_KERNEL
 			ZFS_AC_CONFIG_USER   ;;
+		srpm)                        ;;
 		*)
 		AC_MSG_RESULT([Error!])
 		AC_MSG_ERROR([Bad value "$ZFS_CONFIG" for --with-config,
-		              user kernel|user|all]) ;;
+		              user kernel|user|all|srpm]) ;;
 	esac
 
 	AM_CONDITIONAL([CONFIG_USER],

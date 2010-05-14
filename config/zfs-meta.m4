@@ -48,6 +48,14 @@ AC_DEFUN([ZFS_AC_META], [
 			AC_SUBST([ZFS_META_RELEASE])
 		fi
 
+		ZFS_META_LICENSE=_ZFS_AC_META_GETVAL([LICENSE]);
+		if test -n "$ZFS_META_LICENSE"; then
+			AC_DEFINE_UNQUOTED([ZFS_META_LICENSE], ["$ZFS_META_LICENSE"],
+				[Define the project license.]
+			)
+			AC_SUBST([ZFS_META_LICENSE])
+		fi
+
 		if test -n "$ZFS_META_NAME" -a -n "$ZFS_META_VERSION"; then
 				ZFS_META_ALIAS="$ZFS_META_NAME-$ZFS_META_VERSION"
 				test -n "$ZFS_META_RELEASE" && 

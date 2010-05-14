@@ -7,7 +7,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_RW_SYNCIO], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags = BIO_RW_SYNCIO;
+		int flags;
+		flags = BIO_RW_SYNCIO;
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BIO_RW_SYNCIO, 1,

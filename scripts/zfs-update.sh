@@ -9,6 +9,8 @@ trap die_int INT
 
 RELEASE=$1
 PROG=update-zfs.sh
+REMOTE_DOC_FILE=man-sunosman-20090930.tar.bz2
+REMOTE_DOC=http://dlc.sun.com/osol/man/downloads/current/${REMOTE_DOC_FILE}
 REMOTE_SRC=http://dlc.sun.com/osol/on/downloads/${RELEASE}/on-src.tar.bz2
 
 die() {
@@ -26,21 +28,34 @@ if [ `basename $DST` != "scripts" ]; then
 	die "Must be run from scripts directory"
 fi
 
+if [ ! "$RELEASE" ]; then
+	die "Must specify ZFS release build"
+fi
+
 SRC=`mktemp -d /tmp/os-${RELEASE}.XXXXXXXXXX`
 DST=`dirname $DST`
 
-echo "----------------------------------------------------------------------"
+echo "----------------------------------------------------------------"
 echo "Remote Source: ${REMOTE_SRC}"
+echo "Remote Docs:   ${REMOTE_DOC}"
 echo "Local Source:  ${SRC}"
 echo "Local Dest:    ${DST}"
 echo
 echo "------------- Fetching OpenSolaris ${RELEASE} archive ----------------"
-wget ${REMOTE_SRC} -P ${SRC} ||
+wget -q ${REMOTE_SRC} -P ${SRC} ||
 	die "Error 'wget ${REMOTE_SRC}'"
+
+echo "------------- Fetching OpenSolaris documentation ---------------"
+wget -q ${REMOTE_DOC} -P ${SRC} ||
+	die "Error 'wget ${REMOTE_DOC}'"
 
 echo "------------- Unpacking OpenSolaris ${RELEASE} archive ---------------"
 tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC} ||
 	die "Error 'tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC}'"
+
+echo "------------- Unpacking OpenSolaris documentation --------------"
+tar -xjf ${SRC}/${REMOTE_DOC_FILE} -C ${SRC} ||
+	die "Error 'tar -xjf ${SRC}/${REMOTE_DOC_FILE} -C ${SRC}'"
 
 SRC_LIB=${SRC}/usr/src/lib
 SRC_CMD=${SRC}/usr/src/cmd
@@ -48,14 +63,16 @@ SRC_CM=${SRC}/usr/src/common
 SRC_UTS=${SRC}/usr/src/uts
 SRC_UCM=${SRC}/usr/src/uts/common
 SRC_ZLIB=${SRC}/usr/src/uts/common/fs/zfs
+SRC_MAN=${SRC}/man
 
 DST_MOD=${DST}/module
 DST_LIB=${DST}/lib
 DST_CMD=${DST}/cmd
+DST_MAN=${DST}/man
 
+umask 022
 rm -Rf ${DST}/zfs
 
-echo
 echo "------------- Updating ZFS from OpenSolaris ${RELEASE} ---------------"
 echo "* module/avl"
 mkdir -p ${DST_MOD}/avl/include/sys/
@@ -66,6 +83,7 @@ cp ${SRC_UCM}/sys/avl_impl.h			${DST_MOD}/avl/include/sys/
 echo "* module/nvpair"
 mkdir -p ${DST_MOD}/nvpair/include/sys/
 cp ${SRC_CM}/nvpair/nvpair.c			${DST_MOD}/nvpair/
+cp ${SRC_CM}/nvpair/nvpair_alloc_fixed.c	${DST_MOD}/nvpair/
 cp ${SRC_UCM}/sys/nvpair.h			${DST_MOD}/nvpair/include/sys/
 cp ${SRC_UCM}/sys/nvpair_impl.h			${DST_MOD}/nvpair/include/sys/
 
@@ -77,18 +95,21 @@ cp ${SRC_UCM}/sys/u8_textprep_data.h		${DST_MOD}/unicode/include/sys/
 
 echo "* module/zcommon"
 mkdir -p ${DST_MOD}/zcommon/include/sys/fs/
-mkdir -p ${DST_MOD}/zcommon/include/sys/fm/fs/
 cp ${SRC_CM}/zfs/*.c				${DST_MOD}/zcommon/
 cp ${SRC_CM}/zfs/*.h				${DST_MOD}/zcommon/include/
 cp ${SRC_UCM}/sys/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fs/
-cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_MOD}/zcommon/include/sys/fm/fs/
 
 echo "* module/zfs"
-mkdir -p ${DST_MOD}/zpool/include/sys/
+mkdir -p ${DST_MOD}/zfs/include/sys/fm/fs/
 cp ${SRC_UTS}/intel/zfs/spa_boot.c		${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/*.c				${DST_MOD}/zfs/
 cp ${SRC_ZLIB}/sys/*.h				${DST_MOD}/zfs/include/sys/
+cp ${SRC_UCM}/os/fm.c				${DST_MOD}/zfs/
+cp ${SRC_UCM}/sys/fm/protocol.h			${DST_MOD}/zfs/include/sys/fm/
+cp ${SRC_UCM}/sys/fm/util.h			${DST_MOD}/zfs/include/sys/fm/
+cp ${SRC_UCM}/sys/fm/fs/zfs.h			${DST_MOD}/zfs/include/sys/fm/fs/
 rm ${DST_MOD}/zfs/vdev_disk.c
+rm ${DST_MOD}/zfs/zvol.c
 rm ${DST_MOD}/zfs/include/sys/vdev_disk.h
 
 echo "* lib/libavl"
@@ -148,6 +169,13 @@ cp ${SRC_CMD}/zinject/*.h			${DST_CMD}/zinject/
 echo "* cmd/ztest"
 mkdir -p ${DST_CMD}/ztest
 cp ${SRC_CMD}/ztest/*.c				${DST_CMD}/ztest/
+
+echo "* man/"
+mkdir -p ${DST_MAN}/man8
+cp ${SRC_MAN}/man1m/zfs.1m			${DST_MAN}/man8/zfs.8
+cp ${SRC_MAN}/man1m/zpool.1m			${DST_MAN}/man8/zpool.8
+cp ${SRC_MAN}/man1m/zdb.1m			${DST_MAN}/man8/zdb.8
+chmod -R 644 ${DST_MAN}/man8/*
 
 echo "${REMOTE_SRC}" >${DST}/ZFS.RELEASE
 

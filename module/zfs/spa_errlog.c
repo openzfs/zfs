@@ -438,9 +438,6 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* error handling */
 EXPORT_SYMBOL(spa_log_error);
-EXPORT_SYMBOL(zfs_ereport_post);
-EXPORT_SYMBOL(zfs_post_remove);
-EXPORT_SYMBOL(zfs_post_autoreplace);
 EXPORT_SYMBOL(spa_get_errlog_size);
 EXPORT_SYMBOL(spa_get_errlog);
 EXPORT_SYMBOL(spa_errlog_rotate);

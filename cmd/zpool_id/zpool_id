@@ -1,0 +1,60 @@
+#!/bin/bash
+
+CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
+PATH_ID=${PATH_ID:-/lib/udev/path_id}
+AWK=${AWK:-/bin/awk}
+
+die() {
+	echo "Error: $*"
+	exit 1
+}
+
+usage() {
+	cat << EOF
+Usage: zpool_id [h] [-c configfile] <devpath>
+  -c    Alternate config file [default /etc/zfs/zdev.conf]
+  -d    Use path_id from device as the mapping key
+  -h    Show this message
+EOF
+	exit 1
+}
+
+while getopts 'c:d:h' OPTION; do
+	case ${OPTION} in
+	c)
+		CONFIG=${OPTARG}
+		;;
+	d)
+		DEVICE=${OPTARG}
+		;;
+	h)
+		usage
+		;;
+	esac
+done
+
+# Check that a device was requested
+[ -z ${DEVICE} ] && usage
+
+# Check for the existence of a configuration file
+[ ! -f ${CONFIG} ] && die "Missing config file: ${CONFIG}"
+
+# Use udev's path_id to generate a unique persistent key
+eval `${PATH_ID} ${DEVICE}`
+[ -z ${ID_PATH} ] && die "Missing ID_PATH for ${DEVICE}"
+
+# Use the persistent key to lookup the zpool device id in the
+# configuration file which is of the format <device id> <key>.
+# Lines starting with #'s are treated as comments and ignored.
+# Exact matches are required, wild cards are not supported,
+# and only the first match is returned.
+ID_ZPOOL=`${AWK} "/${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" ${CONFIG}`
+[ -z ${ID_ZPOOL} ] && die "Missing ID_ZPOOL for ID_PATH: ${ID_PATH}"
+
+if [ ${ID_ZPOOL} ]; then
+	echo "ID_PATH=${ID_PATH}"
+	echo "ID_ZPOOL=${ID_ZPOOL}"
+	echo "ID_ZPOOL_PATH=disk/zpool/${ID_ZPOOL}"
+fi
+
+exit 0

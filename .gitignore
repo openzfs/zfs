@@ -1,0 +1,52 @@
+#
+# N.B.
+# This is the toplevel .gitignore file.
+# This is not the place for entries that are specific to
+# a subdirectory.  Instead add those files to the
+# .gitignore file in that subdirectory.
+#
+# N.B.
+# Please use 'git ls-files -i --exclude-standard'
+# command after changing this file, to see if there are
+# any tracked files which get ignored after the change.
+
+#
+# Normal rules
+#
+*.[oa]
+*.ko
+*.ko.unsigned
+*.ko.out
+*.ko.out.sig
+*.lo
+*.la
+*.mod.c
+*~
+*.swp
+.*.cmd
+.deps
+.libs
+.DS_Store
+modules.order
+Makefile
+
+#
+# Top level generated files specific to this top level dir
+#
+/Makefile
+/config.log
+/config.status
+/libtool
+/zfs_config.h
+/zfs.spec
+/zfs-modules.spec
+/stamp-h1
+/.script-config
+
+#
+# Top level generic files
+#
+!.gitignore
+tags
+TAGS
+cscope.*
