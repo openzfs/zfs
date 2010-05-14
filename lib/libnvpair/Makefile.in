@@ -97,7 +97,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libnvpair_la_LIBADD =
 am_libnvpair_la_OBJECTS = libnvpair.lo nvpair_alloc_system.lo \
-	nvpair.lo
+	nvpair_alloc_fixed.lo nvpair.lo
 libnvpair_la_OBJECTS = $(am_libnvpair_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -297,6 +297,7 @@ libnvpair_la_SOURCES = \
 	${top_srcdir}/lib/libnvpair/libnvpair.c \
 	${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c \
 	${top_srcdir}/lib/libnvpair/include/libnvpair.h \
+	${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c \
 	${top_srcdir}/module/nvpair/nvpair.c \
 	${top_srcdir}/module/nvpair/include/sys/nvpair.h \
 	${top_srcdir}/module/nvpair/include/sys/nvpair_impl.h
@@ -377,6 +378,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libnvpair.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair_alloc_fixed.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nvpair_alloc_system.Plo@am__quote@
 
 .c.o:
@@ -418,6 +420,14 @@ nvpair_alloc_system.lo: ${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' object='nvpair_alloc_system.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair_alloc_system.lo `test -f '${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libnvpair/nvpair_alloc_system.c
+
+nvpair_alloc_fixed.lo: ${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nvpair_alloc_fixed.lo -MD -MP -MF $(DEPDIR)/nvpair_alloc_fixed.Tpo -c -o nvpair_alloc_fixed.lo `test -f '${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/nvpair_alloc_fixed.Tpo $(DEPDIR)/nvpair_alloc_fixed.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c' object='nvpair_alloc_fixed.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nvpair_alloc_fixed.lo `test -f '${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair_alloc_fixed.c
 
 nvpair.lo: ${top_srcdir}/module/nvpair/nvpair.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nvpair.lo -MD -MP -MF $(DEPDIR)/nvpair.Tpo -c -o nvpair.lo `test -f '${top_srcdir}/module/nvpair/nvpair.c' || echo '$(srcdir)/'`${top_srcdir}/module/nvpair/nvpair.c
