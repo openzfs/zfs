@@ -1,19 +1,13 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] zfs branch
+Subject: [PATCH] linux-kernel-device
 
-Merged result of all changes which are relevant to both Solaris
-and Linux builds of the ZFS code.  These are changes where there
-is a reasonable chance they will be accepted upstream.
-
-Additionally, since this is effectively the root of the linux
-ZFS tree the core linux build system is added here.  This
-includes autogen.sh, configure.ac, m4 macros, some scripts/*,
-and makefiles for all the core ZFS components.  Linux-only
-features which require tweaks to the build system should appear
-on the relevant topic branches.  All autotools products which
-result from autogen.sh are commited to the linux-configure-branch.
-
-This branch also contains the META, ChangeLog, AUTHORS, TODO,
-and README, files.
+This branch contains the majority of the changes required to cleanly
+intergrate with Linux style special devices (/dev/zfs).  Mainly this
+means dropping all the Solaris style callbacks and replacing them
+with the Linux equivilants.  Additionally, this means slightly
+expanding the zfs_ioc_* functions to include a 'struct file *' to
+allow the tracking of private data for each open file descriptor.
+This is very helpful when you need to maintain a little information
+about the open file between ioctls().
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
