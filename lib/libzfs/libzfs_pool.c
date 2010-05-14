@@ -2987,6 +2987,92 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp)
 	return (err);
 }
 
+/*
+ * Retrieve the next event.  If there is a new event available 'nvp' will
+ * contain a newly allocated nvlist and 'dropped' will be set to the number
+ * of missed events since the last call to this function.  When 'nvp' is
+ * set to NULL it indicates no new events are available.  In either case
+ * the function returns 0 and it is up to the caller to free 'nvp'.  In
+ * the case of a fatal error the function will return a non-zero value.
+ * When the function is called in blocking mode it will not return until
+ * a new event is available.
+ */
+int
+zpool_events_next(libzfs_handle_t *hdl, nvlist_t **nvp, int *dropped, int block)
+{
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
+	int error = 0;
+
+	*nvp = NULL;
+	*dropped = 0;
+
+	if (!block)
+		zc.zc_guid = ZEVENT_NONBLOCK;
+
+	if (zcmd_alloc_dst_nvlist(hdl, &zc, ZEVENT_SIZE) != 0)
+		return (-1);
+
+retry:
+	if (zfs_ioctl(hdl, ZFS_IOC_EVENTS_NEXT, &zc) != 0) {
+		switch (errno) {
+		case ESHUTDOWN:
+			error = zfs_error_fmt(hdl, EZFS_POOLUNAVAIL,
+			    dgettext(TEXT_DOMAIN, "zfs shutdown"));
+			goto out;
+		case ENOENT:
+			/* Blocking error case should not occur */
+			if (block)
+				error = zpool_standard_error_fmt(hdl, errno,
+				    dgettext(TEXT_DOMAIN, "cannot get event"));
+
+			goto out;
+		case ENOMEM:
+			if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
+				error = zfs_error_fmt(hdl, EZFS_NOMEM,
+				    dgettext(TEXT_DOMAIN, "cannot get event"));
+				goto out;
+			} else {
+				goto retry;
+			}
+		default:
+			error = zpool_standard_error_fmt(hdl, errno,
+			    dgettext(TEXT_DOMAIN, "cannot get event"));
+			goto out;
+		}
+	}
+
+	error = zcmd_read_dst_nvlist(hdl, &zc, nvp);
+	if (error != 0)
+		goto out;
+
+	*dropped = (int)zc.zc_cookie;
+out:
+	zcmd_free_nvlists(&zc);
+
+	return (error);
+}
+
+/*
+ * Clear all events.
+ */
+int
+zpool_events_clear(libzfs_handle_t *hdl, int *count)
+{
+	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
+	char msg[1024];
+
+	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+	    "cannot clear events"));
+
+	if (zfs_ioctl(hdl, ZFS_IOC_EVENTS_CLEAR, &zc) != 0)
+		return (zpool_standard_error_fmt(hdl, errno, msg));
+
+	if (count != NULL)
+		*count = (int)zc.zc_cookie; /* # of events cleared */
+
+	return (0);
+}
+
 void
 zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len)

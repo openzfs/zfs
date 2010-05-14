@@ -2097,7 +2097,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		if (vd->vdev_aux == NULL && !vdev_is_dead(vd))
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_CLEAR);
+		spa_event_notify(spa, vd, FM_EREPORT_ZFS_DEVICE_CLEAR);
 	}
 }
 
@@ -2634,7 +2634,8 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 		 * Indicate to the ZFS DE that this device has been removed, and
 		 * any recent errors should be ignored.
 		 */
-		zfs_post_remove(spa, vd);
+		zfs_ereport_post(FM_EREPORT_RESOURCE_REMOVED,
+		    spa, vd, NULL, 0, 0);
 		vd->vdev_removed = B_TRUE;
 	} else if (state == VDEV_STATE_CANT_OPEN) {
 		/*

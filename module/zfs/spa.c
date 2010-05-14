@@ -1098,8 +1098,9 @@ spa_check_removed(vdev_t *vd)
 		spa_check_removed(vd->vdev_child[c]);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd)) {
-		zfs_post_autoreplace(vd->vdev_spa, vd);
-		spa_event_notify(vd->vdev_spa, vd, ESC_ZFS_VDEV_CHECK);
+		zfs_ereport_post(FM_EREPORT_RESOURCE_AUTOREPLACE,
+		    vd->vdev_spa, vd, NULL, 0, 0);
+		spa_event_notify(vd->vdev_spa, vd, FM_EREPORT_ZFS_DEVICE_CHECK);
 	}
 }
 
@@ -2848,7 +2849,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		}
 	}
 
-	spa_event_notify(spa, NULL, ESC_ZFS_POOL_DESTROY);
+	spa_event_notify(spa, NULL, FM_EREPORT_ZFS_POOL_DESTROY);
 
 	if (spa->spa_state != POOL_STATE_UNINITIALIZED) {
 		spa_unload(spa);
@@ -3158,7 +3159,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	if (newvd->vdev_isspare) {
 		spa_spare_activate(newvd);
-		spa_event_notify(spa, newvd, ESC_ZFS_VDEV_SPARE);
+		spa_event_notify(spa, newvd, FM_EREPORT_ZFS_DEVICE_SPARE);
 	}
 
 	oldvdpath = spa_strdup(oldvd->vdev_path);
@@ -3376,7 +3377,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
 
-	spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE);
+	spa_event_notify(spa, vd, FM_EREPORT_ZFS_DEVICE_REMOVE);
 
 	error = spa_vdev_exit(spa, vd, txg, 0);
 
@@ -3718,9 +3719,6 @@ spa_async_probe(spa_t *spa, vdev_t *vd)
 static void
 spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 {
-	sysevent_id_t eid;
-	nvlist_t *attr;
-	char *physpath;
 	int c;
 
 	if (!spa->spa_autoexpand)
@@ -3734,17 +3732,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf || vd->vdev_physpath == NULL)
 		return;
 
-	physpath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-	(void) snprintf(physpath, MAXPATHLEN, "/devices%s", vd->vdev_physpath);
-
-	VERIFY(nvlist_alloc(&attr, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(attr, DEV_PHYS_PATH, physpath) == 0);
-
-	(void) ddi_log_sysevent(zfs_dip, SUNW_VENDOR, EC_DEV_STATUS,
-	    ESC_DEV_DLE, attr, &eid, DDI_SLEEP);
-
-	nvlist_free(attr);
-	kmem_free(physpath, MAXPATHLEN);
+	spa_event_notify(vd->vdev_spa, vd, FM_EREPORT_ZFS_DEVICE_AUTOEXPAND);
 }
 
 static void
@@ -4508,8 +4496,7 @@ spa_has_active_shared_spare(spa_t *spa)
 }
 
 /*
- * Post a sysevent corresponding to the given event.  The 'name' must be one of
- * the event definitions in sys/sysevent/eventdefs.h.  The payload will be
+ * Post a FM_EREPORT_ZFS_* event from sys/fm/fs/zfs.h.  The payload will be
  * filled in from the spa and (optionally) the vdev.  This doesn't do anything
  * in the userland libzpool, as we don't want consumers to misinterpret ztest
  * or zdb as real changes.
@@ -4518,49 +4505,6 @@ void
 spa_event_notify(spa_t *spa, vdev_t *vd, const char *name)
 {
 #ifdef _KERNEL
-	sysevent_t		*ev;
-	sysevent_attr_list_t	*attr = NULL;
-	sysevent_value_t	value;
-	sysevent_id_t		eid;
-
-	ev = sysevent_alloc(EC_ZFS, (char *)name, SUNW_KERN_PUB "zfs",
-	    SE_SLEEP);
-
-	value.value_type = SE_DATA_TYPE_STRING;
-	value.value.sv_string = spa_name(spa);
-	if (sysevent_add_attr(&attr, ZFS_EV_POOL_NAME, &value, SE_SLEEP) != 0)
-		goto done;
-
-	value.value_type = SE_DATA_TYPE_UINT64;
-	value.value.sv_uint64 = spa_guid(spa);
-	if (sysevent_add_attr(&attr, ZFS_EV_POOL_GUID, &value, SE_SLEEP) != 0)
-		goto done;
-
-	if (vd) {
-		value.value_type = SE_DATA_TYPE_UINT64;
-		value.value.sv_uint64 = vd->vdev_guid;
-		if (sysevent_add_attr(&attr, ZFS_EV_VDEV_GUID, &value,
-		    SE_SLEEP) != 0)
-			goto done;
-
-		if (vd->vdev_path) {
-			value.value_type = SE_DATA_TYPE_STRING;
-			value.value.sv_string = vd->vdev_path;
-			if (sysevent_add_attr(&attr, ZFS_EV_VDEV_PATH,
-			    &value, SE_SLEEP) != 0)
-				goto done;
-		}
-	}
-
-	if (sysevent_attach_attributes(ev, attr) != 0)
-		goto done;
-	attr = NULL;
-
-	(void) log_sysevent(ev, SE_SLEEP, &eid);
-
-done:
-	if (attr)
-		sysevent_free_attr(attr);
-	sysevent_free(ev);
+	zfs_ereport_post(name, spa, vd, NULL, 0, 0);
 #endif
 }

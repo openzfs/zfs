@@ -34,7 +34,6 @@ extern "C" {
 #endif
 
 #include <sys/nvpair.h>
-#include <sys/errorq.h>
 
 /*
  * Shared user/kernel definitions for class length, error channel name,
@@ -74,27 +73,41 @@ typedef struct erpt_dump {
 } erpt_dump_t;
 
 #ifdef _KERNEL
+
 #include <sys/systm.h>
+#include <sys/zfs_ioctl.h>
 
-#define	FM_STK_DEPTH	20	/* maximum stack depth */
-#define	FM_SYM_SZ	64	/* maximum symbol size */
-#define	FM_ERR_PIL	2	/* PIL for ereport_errorq drain processing */
+#define ZEVENT_SHUTDOWN	0x1
 
-#define	FM_EREPORT_PAYLOAD_NAME_STACK		"stack"
+typedef void zevent_cb_t(nvlist_t *);
 
-extern errorq_t *ereport_errorq;
-extern void *ereport_dumpbuf;
-extern size_t ereport_dumplen;
+typedef struct zevent_s {
+	nvlist_t	*ev_nvl;     /* protected by the zevent_lock */
+	list_t		ev_zpd_list; /* " */
+	list_node_t	ev_node;     /* " */
+	zevent_cb_t	*ev_cb;      /* " */
+} zevent_t;
+
+typedef struct zfs_private_data {
+	zevent_t	*zpd_zevent; /* protected by the zevent_lock */
+	list_node_t	zpd_node;    /* " */
+	uint64_t	zpd_dropped; /* " */
+} zfs_private_data_t;
 
 extern void fm_init(void);
+extern void fm_fini(void);
 extern void fm_nvprint(nvlist_t *);
-extern void fm_panic(const char *, ...);
-extern void fm_banner(void);
+extern void fm_zevent_init(zfs_private_data_t *);
+extern void fm_zevent_fini(zfs_private_data_t *);
+extern void fm_zevent_post(nvlist_t *, zevent_cb_t *);
+extern void fm_zevent_drain_all(int *);
+extern int fm_zevent_next(zfs_private_data_t *, zfs_cmd_t *);
+extern int fm_zevent_wait(zfs_private_data_t *);
 
-extern void fm_ereport_dump(void);
-extern void fm_ereport_post(nvlist_t *, int);
+#else
 
-extern void fm_payload_stack_add(nvlist_t *, const pc_t *, int);
+static inline void fm_init(void) { }
+static inline void fm_fini(void) { }
 
 #endif  /* _KERNEL */
 

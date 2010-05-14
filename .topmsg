@@ -1,19 +1,70 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] zfs branch
+Subject: [PATCH] linux-events
 
-Merged result of all changes which are relevant to both Solaris
-and Linux builds of the ZFS code.  These are changes where there
-is a reasonable chance they will be accepted upstream.
+This topic branch leverages the Solaris style FMA call points
+in ZFS to create a user space visible event notification system
+under Linux.  This new system is called zevent and it unifies
+all previous Solaris style ereports and sysevent notifications.
 
-Additionally, since this is effectively the root of the linux
-ZFS tree the core linux build system is added here.  This
-includes autogen.sh, configure.ac, m4 macros, some scripts/*,
-and makefiles for all the core ZFS components.  Linux-only
-features which require tweaks to the build system should appear
-on the relevant topic branches.  All autotools products which
-result from autogen.sh are commited to the linux-configure-branch.
+Under this Linux specific scheme when a sysevent or ereport event
+occurs an nvlist describing the event is created which looks almost
+exactly like a Solaris ereport.  These events are queued up in the
+kernel when they occur and conditionally logged to the console.
+It is then up to a user space application to consume the events
+and do whatever it likes with them.
 
-This branch also contains the META, ChangeLog, AUTHORS, TODO,
-and README, files.
+To make this possible the existing /dev/zfs ABI has been extended
+with two new ioctls which behave as follows.
+
+* ZFS_IOC_EVENTS_NEXT
+Get the next pending event.  The kernel will keep track of the last
+event consumed by the file descriptor and provide the next one if
+available.  If no new events are available the ioctl() will block
+waiting for the next event.  This ioctl may also be called in a
+non-blocking mode by setting zc.zc_guid = ZEVENT_NONBLOCK.  In the
+non-blocking case if no events are available ENOENT will be returned.
+It is possible that ESHUTDOWN will be returned if the ioctl() is
+called while module unloading is in progress.  And finally ENOMEM
+may occur if the provided nvlist buffer is not large enough to
+contain the entire event.
+
+* ZFS_IOC_EVENTS_CLEAR
+Clear are events queued by the kernel.  The kernel will keep a fairly
+large number of recent events queued, use this ioctl to clear the
+in kernel list.  This will effect all user space processes consuming
+events.
+
+The zpool command has been extended to use this events ABI with the
+'events' subcommand.  You may run 'zpool events -v' to output a 
+verbose log of all recent events.  This is very similar to the
+Solaris 'fmdump -ev' command with the key difference being it also
+includes what would be considered sysevents under Solaris.  You
+may also run in follow mode with the '-f' option.  To clear the
+in kernel event queue use the '-c' option.
+
+$ sudo cmd/zpool/zpool events -fv
+TIME                        CLASS
+May 13 2010 16:31:15.777711000 ereport.fs.zfs.config.sync
+        class = "ereport.fs.zfs.config.sync"
+        ena = 0x40982b7897700001
+        detector = (embedded nvlist)
+                version = 0x0
+                scheme = "zfs"
+                pool = 0xed976600de75dfa6
+        (end detector)
+
+        time = 0x4bec8bc3 0x2e5aed98
+        pool = "zpios"
+        pool_guid = 0xed976600de75dfa6
+        pool_context = 0x0
+
+While the 'zpool events' command is handy for interactive debugging
+it is not expected to be the primary consumer of zevents.  This ABI
+was primarily added to facilitate the addition of a user space
+monitoring daemon.  This daemon would consume all events posted by
+the kernel and based on the type of event perform an action.  For
+most events simply forwarding them on to syslog is likely enough.
+But this interface also cleanly allows for more sophisticated
+actions to be taken such as generating an email for a failed drive.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
