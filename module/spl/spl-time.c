@@ -60,9 +60,10 @@ __gethrtime(void) {
         /* Deal with signed/unsigned mismatch */
         return (hrtime_t)(res & ~(1ULL << 63));
 #else
-        uint64_t j = get_jiffies_64();
+        struct timespec ts;
 
-        return (hrtime_t)(j * (NSEC_PER_SEC / HZ));
+        do_posix_clock_monotonic_gettime(&ts);
+        return (hrtime_t)((ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec);
 #endif
 }
 EXPORT_SYMBOL(__gethrtime);
