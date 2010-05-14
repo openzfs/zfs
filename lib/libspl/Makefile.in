@@ -96,9 +96,9 @@ am__base_list = \
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
-am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo getmntany.lo \
-	list.lo mkdirp.lo strlcat.lo strlcpy.lo strnlen.lo zone.lo \
-	xdr.lo atomic.lo
+am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo gethrestime.lo \
+	getmntany.lo list.lo mkdirp.lo strlcat.lo strlcpy.lo \
+	strnlen.lo zone.lo xdr.lo atomic.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -346,6 +346,7 @@ lib_LTLIBRARIES = libspl.la
 libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/getexecname.c \
 	${top_srcdir}/lib/libspl/gethrtime.c \
+	${top_srcdir}/lib/libspl/gethrestime.c \
 	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
@@ -434,6 +435,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/atomic.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getexecname.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gethrestime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gethrtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getmntany.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
@@ -515,6 +517,14 @@ gethrtime.lo: ${top_srcdir}/lib/libspl/gethrtime.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/gethrtime.c' object='gethrtime.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gethrtime.lo `test -f '${top_srcdir}/lib/libspl/gethrtime.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/gethrtime.c
+
+gethrestime.lo: ${top_srcdir}/lib/libspl/gethrestime.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT gethrestime.lo -MD -MP -MF $(DEPDIR)/gethrestime.Tpo -c -o gethrestime.lo `test -f '${top_srcdir}/lib/libspl/gethrestime.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/gethrestime.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/gethrestime.Tpo $(DEPDIR)/gethrestime.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/gethrestime.c' object='gethrestime.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o gethrestime.lo `test -f '${top_srcdir}/lib/libspl/gethrestime.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/gethrestime.c
 
 getmntany.lo: ${top_srcdir}/lib/libspl/getmntany.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT getmntany.lo -MD -MP -MF $(DEPDIR)/getmntany.Tpo -c -o getmntany.lo `test -f '${top_srcdir}/lib/libspl/getmntany.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/getmntany.c

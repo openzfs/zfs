@@ -258,7 +258,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 nobase_pkginclude_HEADERS = *.h ia32/sys/*.h rpc/*.h sys/*.h \
-	sys/fm/*.h sys/dktp/*.h sys/sysevent/*.h tsol/*.h
+	sys/dktp/*.h sys/sysevent/*.h tsol/*.h
 all: all-am
 
 .SUFFIXES:
