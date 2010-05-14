@@ -11,3 +11,4 @@ linux-libspl
 linux-unused
 linux-ztest
 linux-have-idmap
+linux-kernel-device
