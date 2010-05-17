@@ -1,4 +1,10 @@
-Brian Behlendorf <behlendorf1@llnl.gov>,
+Brian Behlendorf <behlendorf1@llnl.gov>
+- Core Implementation.
+
 Ricardo M. Correia <Ricardo.M.Correia@Sun.COM>
-Herb Wartens <wartens2@llnl.gov>,
-Jim Garlick <garlick@llnl.gov>
+- Bug Fixes
+- XDR Implementation.
+
+Chris Dunlap <cdunlap@llnl.gov>
+- LSD-Tools List Implementation.
+- AutoConf META File Support.

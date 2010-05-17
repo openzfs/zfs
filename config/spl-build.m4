@@ -1,6 +1,11 @@
-dnl #
-dnl # Default SPL kernel configuration
-dnl #
+###############################################################################
+# Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+# Copyright (C) 2007 The Regents of the University of California.
+# Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# SPL_AC_CONFIG_KERNEL: Default SPL kernel configuration.
+###############################################################################
+
 AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL
 

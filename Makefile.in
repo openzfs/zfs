@@ -15,6 +15,14 @@
 
 @SET_MAKE@
 
+###############################################################################
+# Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+# Copyright (C) 2007 The Regents of the University of California.
+# Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# Build targets for RPM.
+###############################################################################
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -760,6 +768,7 @@ uninstall-am:
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags tags-recursive uninstall uninstall-am
+
 
 rpm-local:
 	mkdir -p $(rpmbuild)/TMP && \

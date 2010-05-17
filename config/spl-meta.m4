@@ -1,11 +1,10 @@
-dnl #
-dnl # SPL_AC_META
-dnl # Read metadata from the META file.
-dnl #
-dnl # AUTHOR:
-dnl # Chris Dunlap <cdunlap@llnl.gov>
-dnl # Brian Behlendorf <behlendorf1@llnl.gov>
-dnl #
+###############################################################################
+# Written by Chris Dunlap <cdunlap@llnl.gov>.
+# Modified by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# SPL_AC_META: Read metadata from the META file.
+###############################################################################
+
 AC_DEFUN([SPL_AC_META], [
 	AC_MSG_CHECKING([metadata])
 

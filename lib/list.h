@@ -1,10 +1,10 @@
 /*****************************************************************************
- *  $Id: list.h 2899 2002-12-11 19:00:36Z dun $
- *****************************************************************************
- *  Copyright (C) 2001-2002 The Regents of the University of California.
+ *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+ *  Copyright (C) 2001-2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Chris Dunlap <cdunlap@llnl.gov>.
- *  
+ *  UCRL-CODE-235197
+ *
  *  This file is from LSD-Tools, the LLNL Software Development Toolbox.
  *
  *  LSD-Tools is free software; you can redistribute it and/or modify it under
@@ -18,10 +18,8 @@
  *  more details.
  *
  *  You should have received a copy of the GNU General Public License along
- *  with LSD-Tools; if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA.
+ *  with LSD-Tools.  If not, see <http://www.gnu.org/licenses/>.
  *****************************************************************************/
-
 
 #ifndef LSD_LIST_H
 #define LSD_LIST_H

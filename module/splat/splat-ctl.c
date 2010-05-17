@@ -1,44 +1,47 @@
-/*
- *  This file is part of the SPL: Solaris Porting Layer.
- *
- *  Copyright (c) 2008 Lawrence Livermore National Security, LLC.
- *  Produced at Lawrence Livermore National Laboratory
- *  Written by:
- *          Brian Behlendorf <behlendorf1@llnl.gov>,
- *          Herb Wartens <wartens2@llnl.gov>,
- *          Jim Garlick <garlick@llnl.gov>
+/*****************************************************************************\
+ *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
+ *  Copyright (C) 2007 The Regents of the University of California.
+ *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+ *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
  *  UCRL-CODE-235197
  *
- *  This is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ *  This file is part of the SPL, Solaris Porting Layer.
+ *  For details, see <http://github.com/behlendorf/spl/>.
  *
- *  This is distributed in the hope that it will be useful, but WITHOUT
+ *  The SPL is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License as published by the
+ *  Free Software Foundation; either version 2 of the License, or (at your
+ *  option) any later version.
+ *
+ *  The SPL is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
  *
  *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
- */
-
-/*
- * My intent is to create a loadable 'splat' (Solaris Porting LAyer
- * Tests) module which can be used as an access point to run
- * in kernel Solaris ABI regression tests.  This provides a
- * nice mechanism to validate the shim primates are working properly.
+ *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
+ *****************************************************************************
+ *  Solaris Porting LAyer Tests (SPLAT) Test Control Interface.
  *
- * The basic design is the splat module is that it is constructed of
- * various splat_* source files each of which contains regression tests.
- * For example the splat_linux_kmem.c file contains tests for validating
- * kmem correctness.  When the splat module is loaded splat_*_init()
- * will be called for each subsystems tests, similarly splat_*_fini() is
- * called when the splat module is removed.  Each test can then be
- * run by making an ioctl() call from a userspace control application
- * to pick the subsystem and test which should be run.
- */
+ *  The 'splat' (Solaris Porting LAyer Tests) module is designed as a
+ *  framework which runs various in kernel regression tests to validate
+ *  the SPL primitives honor the Solaris ABI.
+ *
+ *  The splat module is constructed of various splat_* source files each
+ *  of which contain regression tests for a particular subsystem.  For
+ *  example, the splat_kmem.c file contains all the tests for validating
+ *  the kmem interfaces have been implemented correctly.  When the splat
+ *  module is loaded splat_*_init() will be called for each subsystems
+ *  tests.  It is the responsibility of splat_*_init() to register all
+ *  the tests for this subsystem using the SPLAT_TEST_INIT() macro.
+ *  Similarly splat_*_fini() is called when the splat module is removed
+ *  and is responsible for unregistering its tests via the SPLAT_TEST_FINI
+ *  macro.  Once a test is registered it can then be run with an ioctl()
+ *  call which specifies the subsystem and test to be run.  The provided
+ *  splat command line tool can be used to display all available
+ *  subsystems and tests.  It can also be used to run the full suite
+ *  of regression tests or particular tests.
+\*****************************************************************************/
 
 #include "splat-internal.h"
 
