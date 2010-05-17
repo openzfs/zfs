@@ -1,3 +1,54 @@
+2010-05-17 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag spl-0.4.9
+
+	* : Build system improvements:
+	- Added support for the 'make -s' silent build option.
+	- Allow spl_config.h to be included by dependant packages.
+
+	* AUTHORS, COPYING, DISCLAIMER, and INSTALL: Updated.
+
+	* *.c, *.h, *.sh, AUTHORS, COPYING, DISCLAIMER, and INSTALL:
+	Added standard header to source files which includes the copyright,
+	license, and author information.  Additionally, updated the listed
+	top level files to the latest versions.
+
+	* include/sys/processor.h, include/sys/systm.h, include/sys/types.h:
+	Added 3 missing typedefs processorid_t, pc_t, and index_t.
+
+	* include/sys/console.h: Added support for console_* functions().
+
+	* module/spl/spl-time.c: Updated gethrtime() to use the function
+	do_posix_clock_monotonic_gettime() as described in the comment.
+
+	* module/spl/spl-condvar.c: Added cv_wait_interruptible() function
+	as an extension to the existing condition variable ABI to enable
+	sleeping threads a way to cleanly handle signals in the kernel.
+
+	* module/spl/spl-debug.c: Dump log from current process as required.
+
+	* module/spl/spl-taskq.c: Assume TQ_SLEEP in taskq_dispatch() if
+	the caller does not specify, this is the Solaris default.
+
+	* module/spl/spl-vnode.c: Extend the vn_rdwr() implementation to
+	correctly handle the FAPPEND option.
+
+	* module/spl/spl-generic.c, module/spl/spl-vnode.c: Update
+	vn_set_pwd() to allow a kernal address as filename.  This turns
+	out to be critical because spl_setup()->The vn_set_pwd("/") which
+	is called at module load time was failing with -EFAULT.
+
+	* include/sys/rwlock.h: Disable rw_tryupgrade() for kernels built
+	without CONFIG_RWSEM_GENERIC_SPINLOCK defined.  The existing
+	implementation is not safe in this case and needs to be replaced
+	with a correct native per-arch implementation.
+
+	* module/spl/spl-kmem.c: Reduce maximum kmem based slab size.
+	Allowing MAX_ORDER-1 sized memory allocations while the system
+	is low on memory has been observed to result in deadlocks.  Callers
+	should not be using the slab in this way but we should still handle
+	the case more cleanly.
+
 2010-03-11 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.8
