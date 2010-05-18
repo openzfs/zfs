@@ -22,7 +22,7 @@
 %define kobj %{require_kobj}
 %endif
 
-# SLES 10, SLES 11:
+# SLES:
 %if %{defined suse_version}
  %if %{undefined kver}
   %ifarch ppc64
@@ -104,7 +104,7 @@
  %endif
 %else
 
-# Fedora 11:
+# Fedora:
 %if %{defined fedora}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
@@ -152,7 +152,9 @@
 %if %{defined build_src_rpm}
 %define release          @SPL_META_RELEASE@
 %define requires         %{kpkg}
+%if %{defined kdevpkg}
 %define devel_requires   %{kdevpkg}
+%endif
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @SPL_META_RELEASE@_%{relext}
