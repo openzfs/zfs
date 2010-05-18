@@ -22,7 +22,7 @@
 %define kobj %{require_kobj}
 %endif
 
-# SLES 10, SLES 11:
+# SLES:
 %if %{defined suse_version}
  %if %{undefined kver}
   %ifarch ppc64
@@ -104,7 +104,7 @@
  %endif
 %else
 
-# Fedora 11:
+# Fedora:
 %if %{defined fedora}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
@@ -186,7 +186,9 @@
 # final RPM should be keyed to the kernel version it was built against.
 %if %{defined build_src_rpm}
 %define release          @ZFS_META_RELEASE@
+%if %{defined kpkg}
 %define krequires        %{kpkg}
+%endif
 %define splrequires      %{splpkg}
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
