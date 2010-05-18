@@ -2,7 +2,6 @@ linux-have-mntent
 linux-have-spl-debug
 linux-kernel-disk
 linux-kernel-mem
-linux-legacy
 linux-symbol-collisions
 linux-user-disk
 linux-zpios
