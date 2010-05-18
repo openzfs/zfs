@@ -19,8 +19,10 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (C) 2008-2010 Lawrence Livermore National Security, LLC.
+ * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+ * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
+ * LLNL-CODE-403049.
  */
 
 #include <sys/zfs_context.h>

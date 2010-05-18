@@ -17,6 +17,12 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
+ */
+/*
+ * Copyright (C) 2008-2010 Lawrence Livermore National Security, LLC.
+ * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+ * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
+ * LLNL-CODE-403049.
  *
  * ZFS volume emulation driver.
  *
@@ -25,8 +31,8 @@
  *
  * /dev/<pool_name>/<dataset_name>
  *
- * Volumes are persistent through reboot.  No user command needs to be
- * run before opening and using a device.
+ * Volumes are persistent through reboot and module load.  No user command
+ * needs to be run before opening and using a device.
  */
 
 #include <sys/dmu_traverse.h>
