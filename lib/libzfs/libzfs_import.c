@@ -948,11 +948,10 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 
 			/*
 			 * Ignore failed stats.  We only want regular
-			 * files, character devs and block devs.
+			 * files and block devs.
 			 */
 			if (fstat64(fd, &statbuf) != 0 ||
 			    (!S_ISREG(statbuf.st_mode) &&
-			    !S_ISCHR(statbuf.st_mode) &&
 			    !S_ISBLK(statbuf.st_mode))) {
 				(void) close(fd);
 				continue;

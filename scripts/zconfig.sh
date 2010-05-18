@@ -64,20 +64,16 @@ zconfig_test1() {
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE1} || fail 3
 
-	# Unload/load the module stack to clear any configuration state
-	# then verify the pool is defined in the cache file, it can be
-	# imported without error, and it matches the original pool.
+	# Unload/load the module stack and verify the pool persists.
 	${ZFS_SH} -u || fail 4
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 5
-	${ZPOOL} import -c ${TMP_CACHE} | grep ${POOL_NAME} >/dev/null||fail 6
-	${ZPOOL} import -c ${TMP_CACHE} ${POOL_NAME} || fail 7
-	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 8
-	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 9
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 6
+	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 7
 
 	# Cleanup the test pool and temporary files
-	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 10
-	rm -f ${TMP_FILE1} ${TMP_FILE2} ${TMP_CACHE} || fail 11
-	${ZFS_SH} -u || fail 12
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 8
+	rm -f ${TMP_FILE1} ${TMP_FILE2} ${TMP_CACHE} || fail 9
+	${ZFS_SH} -u || fail 10
 
 	pass
 }
@@ -97,9 +93,9 @@ zconfig_test2() {
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE1} || fail 3
 
-	# Unload/load the module stack to clear any configuration state
-	# then remove the cache file, probe the disks for pools, import
-	# the pool without error, and match it against the original pool.
+	# Unload the module stack, remove the cache file, load the module
+	# stack and attempt to probe the disks to import the pool.  As
+	# a cross check verify the old pool state against the imported.
 	${ZFS_SH} -u || fail 4
 	rm -f ${TMP_CACHE} || fail 5
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 6
