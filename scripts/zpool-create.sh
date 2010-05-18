@@ -24,10 +24,10 @@ DESCRIPTION:
 OPTIONS:
         -h      Show this message
         -v      Verbose
+        -f      Force everything
         -c      Configuration for zpool
         -p      Name for zpool
         -d      Destroy zpool (default create)
-        -f      Force everything
         -l      Additional zpool options
         -s      Additional zfs options
 
