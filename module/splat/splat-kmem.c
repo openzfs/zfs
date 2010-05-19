@@ -90,15 +90,11 @@ splat_kmem_test1(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, count, rc = 0;
 
-	/* We are intentionally going to push kmem_alloc to its max
-	 * allocation size, so suppress the console warnings for now */
-	kmem_set_warning(0);
-
 	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_alloc(size, KM_SLEEP);
+			ptr[i] = kmem_alloc(size, KM_SLEEP | __GFP_NOWARN);
 			if (ptr[i])
 				count++;
 		}
@@ -116,8 +112,6 @@ splat_kmem_test1(struct file *file, void *arg)
 		size *= 2;
 	}
 
-	kmem_set_warning(1);
-
 	return rc;
 }
 
@@ -128,15 +122,11 @@ splat_kmem_test2(struct file *file, void *arg)
 	int size = PAGE_SIZE;
 	int i, j, count, rc = 0;
 
-	/* We are intentionally going to push kmem_alloc to its max
-	 * allocation size, so suppress the console warnings for now */
-	kmem_set_warning(0);
-
 	while ((!rc) && (size <= (PAGE_SIZE * 32))) {
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_zalloc(size, KM_SLEEP);
+			ptr[i] = kmem_zalloc(size, KM_SLEEP | __GFP_NOWARN);
 			if (ptr[i])
 				count++;
 		}
@@ -145,7 +135,7 @@ splat_kmem_test2(struct file *file, void *arg)
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
 			for (j = 0; j < size; j++) {
 				if (((char *)ptr[i])[j] != '\0') {
-					splat_vprint(file, SPLAT_KMEM_TEST2_NAME,
+					splat_vprint(file,SPLAT_KMEM_TEST2_NAME,
 						  "%d-byte allocation was "
 						  "not zeroed\n", size);
 					rc = -EFAULT;
@@ -165,8 +155,6 @@ splat_kmem_test2(struct file *file, void *arg)
 
 		size *= 2;
 	}
-
-	kmem_set_warning(1);
 
 	return rc;
 }

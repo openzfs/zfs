@@ -228,13 +228,11 @@ unsigned long long kmem_alloc_max = 0;
 atomic_t vmem_alloc_used = ATOMIC_INIT(0);
 unsigned long long vmem_alloc_max = 0;
 # endif /* _LP64 */
-int kmem_warning_flag = 1;
 
 EXPORT_SYMBOL(kmem_alloc_used);
 EXPORT_SYMBOL(kmem_alloc_max);
 EXPORT_SYMBOL(vmem_alloc_used);
 EXPORT_SYMBOL(vmem_alloc_max);
-EXPORT_SYMBOL(kmem_warning_flag);
 
 /* When DEBUG_KMEM_TRACKING is enabled not only will total bytes be tracked
  * but also the location of every alloc and free.  When the SPL module is
@@ -280,12 +278,7 @@ EXPORT_SYMBOL(vmem_lock);
 EXPORT_SYMBOL(vmem_table);
 EXPORT_SYMBOL(vmem_list);
 # endif
-
-int kmem_set_warning(int flag) { return (kmem_warning_flag = !!flag); }
-#else
-int kmem_set_warning(int flag) { return 0; }
 #endif
-EXPORT_SYMBOL(kmem_set_warning);
 
 /*
  * Slab allocation interfaces
@@ -397,10 +390,12 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	} else {
 		/* Marked unlikely because we should never be doing this,
 		 * we tolerate to up 2 pages but a single page is best.   */
-		if (unlikely((size) > (PAGE_SIZE * 2)) && kmem_warning_flag)
+		if (unlikely((size > PAGE_SIZE*2) && !(flags & __GFP_NOWARN))) {
 			CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
 			    kmem_alloc_used_read(), kmem_alloc_max);
+			spl_debug_dumpstack(NULL);
+		}
 
 		/* We use kstrdup() below because the string pointed to by
 		 * __FUNCTION__ might not be available by the time we want
@@ -610,10 +605,12 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 
 	/* Marked unlikely because we should never be doing this,
 	 * we tolerate to up 2 pages but a single page is best.   */
-	if (unlikely(size > (PAGE_SIZE * 2)) && kmem_warning_flag)
+	if (unlikely((size > PAGE_SIZE * 2) && !(flags & __GFP_NOWARN))) {
 		CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 		    (unsigned long long) size, flags,
 		    kmem_alloc_used_read(), kmem_alloc_max);
+		spl_debug_dumpstack(NULL);
+	}
 
 	/* Use the correct allocator */
 	if (node_alloc) {
@@ -1242,8 +1239,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	if (current_thread_info()->preempt_count || irqs_disabled())
 		kmem_flags = KM_NOSLEEP;
 
-	/* Allocate new cache memory and initialize. */
-	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc), kmem_flags);
+	/* Allocate memry for a new cache an initialize it.  Unfortunately,
+	 * this usually ends up being a large allocation of ~32k because
+	 * we need to allocate enough memory for the worst case number of
+	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
+	 * explicitly pass __GFP_NOWARN to suppress the kmem warning */
+	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc),
+	                                      kmem_flags | __GFP_NOWARN);
 	if (skc == NULL)
 		RETURN(NULL);
 
