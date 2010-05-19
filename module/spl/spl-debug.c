@@ -77,7 +77,7 @@ module_param(spl_debug_panic_on_bug, int, 0644);
 MODULE_PARM_DESC(spl_debug_panic_on_bug, "Panic on BUG");
 
 static char spl_debug_file_name[PATH_MAX];
-char spl_debug_file_path[PATH_MAX] = "/var/dumps/spl-log";
+char spl_debug_file_path[PATH_MAX] = "/tmp/spl-log";
 
 unsigned int spl_console_ratelimit = 1;
 EXPORT_SYMBOL(spl_console_ratelimit);
@@ -350,7 +350,7 @@ spl_debug_dumplog_internal(dumplog_priv_t *dp)
         snprintf(spl_debug_file_name, sizeof(spl_debug_file_path) - 1,
                  "%s.%ld.%ld", spl_debug_file_path,
 		 get_seconds(), (long)dp->dp_pid);
-        printk(KERN_ALERT "SPL: dumping log to %s\n", spl_debug_file_name);
+        printk("SPL: Dumping log to %s\n", spl_debug_file_name);
         spl_debug_dump_all_pages(dp, spl_debug_file_name);
 
         current->journal_info = journal_info;
@@ -1090,7 +1090,7 @@ void spl_debug_dumpstack(struct task_struct *tsk)
         if (tsk == NULL)
                 tsk = current;
 
-        printk(KERN_ERR "SPL: Showing stack for process %d\n", tsk->pid);
+        printk("SPL: Showing stack for process %d\n", tsk->pid);
         dump_stack();
 }
 EXPORT_SYMBOL(spl_debug_dumpstack);
