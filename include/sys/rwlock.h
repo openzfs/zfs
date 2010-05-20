@@ -44,37 +44,7 @@ typedef struct {
         kthread_t *rw_owner;
 } krwlock_t;
 
-/*
- * For the generic implementations of rw-semaphores the following is
- * true.  If your semaphore implementation internally represents the
- * semaphore state differently.  Then special case handling will be
- * required so RW_COUNT() provides these semantics:
- * - if activity/count is 0 then there are no active readers or writers
- * - if activity/count is +ve then that is the number of active readers
- * - if activity/count is -1 then there is one active writer
- */
 #define SEM(rwp)                        ((struct rw_semaphore *)(rwp))
-
-#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
-# define RW_COUNT(rwp)                  (SEM(rwp)->activity)
-# define rw_exit_locked(rwp)            __up_read_locked(rwp)
-# define rw_tryenter_locked(rwp)        __down_write_trylock_locked(rwp)
-extern void __up_read_locked(struct rw_semaphore *);
-extern int __down_write_trylock_locked(struct rw_semaphore *);
-#else
-/*
- * 2.6.x  - 2.6.27  use guard macro _I386_RWSEM_H
- * 2.6.28 - 2.6.32+ use guard macro _ASM_X86_RWSEM_H
- */
-# if defined(_I386_RWSEM_H) || defined(_ASM_X86_RWSEM_H)
-#  define RW_COUNT(rwp)                 ((SEM(rwp)->count < 0) ? (-1) : \
-                                        (SEM(rwp)->count & RWSEM_ACTIVE_MASK))
-# else
-#  define RW_COUNT(rwp)                 (SEM(rwp)->count & RWSEM_ACTIVE_MASK)
-# endif
-# define rw_exit_locked(rwp)           up_read(rwp)
-# define rw_tryenter_locked(rwp)       down_write_trylock(rwp)
-#endif
 
 static inline kthread_t *
 spl_rw_get_owner(krwlock_t *rwp)
@@ -122,7 +92,7 @@ RW_READ_HELD(krwlock_t *rwp)
         int rc;
 
         spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = ((RW_COUNT(rwp) > 0) && (spl_rw_get_owner(rwp) == NULL));
+        rc = (rwsem_is_locked(SEM(rwp)) && spl_rw_get_owner(rwp) == NULL);
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 
         return rc;
@@ -135,7 +105,7 @@ RW_WRITE_HELD(krwlock_t *rwp)
         int rc;
 
         spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = ((RW_COUNT(rwp) < 0) && (spl_rw_get_owner(rwp) == current));
+        rc = (rwsem_is_locked(SEM(rwp)) && spl_rw_get_owner(rwp) == current);
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 
         return rc;
@@ -148,7 +118,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
         int rc;
 
         spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = (RW_COUNT(rwp) != 0);
+        rc = rwsem_is_locked(SEM(rwp));
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 
         return rc;
@@ -224,15 +194,28 @@ RW_LOCK_HELD(krwlock_t *rwp)
 })
 
 #if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+/*
+ * For the generic implementations of rw-semaphores the following is
+ * true.  If your semaphore implementation internally represents the
+ * semaphore state differently then special case handling is required.
+ * - if activity/count is 0 then there are no active readers or writers
+ * - if activity/count is +ve then that is the number of active readers
+ * - if activity/count is -1 then there is one active writer
+ */
+
+extern void __up_read_locked(struct rw_semaphore *);
+extern int __down_write_trylock_locked(struct rw_semaphore *);
+
 #define rw_tryupgrade(rwp)                                              \
 ({                                                                      \
         unsigned long _flags_;                                          \
         int _rc_ = 0;                                                   \
                                                                         \
         spin_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);               \
-        if (list_empty(&SEM(rwp)->wait_list) && (RW_COUNT(rwp) == 1)) { \
-                rw_exit_locked(SEM(rwp));                               \
-                VERIFY(_rc_ = rw_tryenter_locked(SEM(rwp)));            \
+        if ((list_empty(&SEM(rwp)->wait_list)) &&                       \
+            (SEM(rwp)->activity == 1)) {                                \
+                __up_read_locked(SEM(rwp));                             \
+                VERIFY(_rc_ = __down_write_trylock_locked(SEM(rwp)));   \
                 (rwp)->rw_owner = current;                              \
         }                                                               \
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);          \
@@ -240,9 +223,11 @@ RW_LOCK_HELD(krwlock_t *rwp)
 })
 #else
 /*
- * This can be done correctly but for each supported arch we will need
- * a custom cmpxchg() to atomically check and promote the rwsem.  That's
- * not worth the trouble for now so rw_tryupgrade() will always fail.
+ * rw_tryupgrade() can be implemented correctly but for each supported
+ * arch we will need a custom implementation.  For the x86 implementation
+ * it looks like a custom cmpxchg() to atomically check and promote the
+ * rwsem would be safe.  For now that's not worth the trouble so in this
+ * case rw_tryupgrade() has just been disabled.
  */
 #define rw_tryupgrade(rwp)      ({ 0; })
 #endif

@@ -571,7 +571,7 @@ static int
 splat_rwlock_test6(struct file *file, void *arg)
 {
 	rw_priv_t *rwp;
-	int rc = -EINVAL;
+	int rc;
 
 	rwp = (rw_priv_t *)kmalloc(sizeof(*rwp), GFP_KERNEL);
 	if (rwp == NULL)
@@ -584,15 +584,18 @@ splat_rwlock_test6(struct file *file, void *arg)
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
 		             "rwlock should be read lock: %d\n",
 			     RW_READ_HELD(&rwp->rw_rwlock));
+		rc = -ENOLCK;
 		goto out;
 	}
 
-	/* With one reader upgrade should never fail */
+#if defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
+	/* With one reader upgrade should never fail. */
 	rc = rw_tryupgrade(&rwp->rw_rwlock);
 	if (!rc) {
 		splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME,
-			     "rwlock contended preventing upgrade: %ld\n",
-			     (long int)RW_COUNT(&rwp->rw_rwlock));
+			     "rwlock failed upgrade from reader: %d\n",
+			     RW_READ_HELD(&rwp->rw_rwlock));
+		rc = -ENOLCK;
 		goto out;
 	}
 
@@ -607,6 +610,11 @@ splat_rwlock_test6(struct file *file, void *arg)
 	rc = 0;
 	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
 		     "rwlock properly upgraded\n");
+#else
+	rc = 0;
+	splat_vprint(file, SPLAT_RWLOCK_TEST6_NAME, "%s",
+		     "rw_tryupgrade() is disabled for this arch\n");
+#endif
 out:
 	rw_exit(&rwp->rw_rwlock);
 	rw_destroy(&rwp->rw_rwlock);
