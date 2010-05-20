@@ -736,15 +736,15 @@ splat_kmem_test6(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST6_NAME;
 	int rc;
 
-	rc = splat_kmem_cache_test(file, arg, name, 128*1024, 0, 0);
+	rc = splat_kmem_cache_test(file, arg, name, 256*1024, 0, 0);
 	if (rc)
 		return rc;
 
-	rc = splat_kmem_cache_test(file, arg, name, 128*1024, 0, KMC_KMEM);
+	rc = splat_kmem_cache_test(file, arg, name, 64*1024, 0, KMC_KMEM);
 	if (rc)
 		return rc;
 
-	return splat_kmem_cache_test(file, arg, name, 128*1028, 0, KMC_VMEM);
+	return splat_kmem_cache_test(file, arg, name, 1024*1024, 0, KMC_VMEM);
 }
 
 /* Validate object alignment cache behavior for caches */
