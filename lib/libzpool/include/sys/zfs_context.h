@@ -321,6 +321,7 @@ extern void kstat_delete(kstat_t *);
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
+#define	KM_NODEBUG		0x0
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
