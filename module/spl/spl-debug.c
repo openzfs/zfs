@@ -71,7 +71,7 @@ EXPORT_SYMBOL(spl_debug_binary);
 unsigned int spl_debug_catastrophe;
 EXPORT_SYMBOL(spl_debug_catastrophe);
 
-unsigned int spl_debug_panic_on_bug = 1;
+unsigned int spl_debug_panic_on_bug = 0;
 EXPORT_SYMBOL(spl_debug_panic_on_bug);
 module_param(spl_debug_panic_on_bug, int, 0644);
 MODULE_PARM_DESC(spl_debug_panic_on_bug, "Panic on BUG");
