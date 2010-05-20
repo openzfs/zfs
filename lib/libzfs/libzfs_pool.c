@@ -37,6 +37,7 @@
 #include <strings.h>
 #include <unistd.h>
 #include <zone.h>
+#include <sys/stat.h>
 #include <sys/efi_partition.h>
 #include <sys/vtoc.h>
 #include <sys/zfs_ioctl.h>

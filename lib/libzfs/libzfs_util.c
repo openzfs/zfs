@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <math.h>
+#include <sys/stat.h>
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
