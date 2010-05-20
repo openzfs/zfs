@@ -49,6 +49,7 @@
 #define KM_PUSHPAGE                     (KM_SLEEP | __GFP_HIGH)
 #define KM_VMFLAGS                      GFP_LEVEL_MASK
 #define KM_FLAGS                        __GFP_BITS_MASK
+#define KM_NODEBUG                      __GFP_NOWARN
 
 /*
  * Used internally, the kernel does not need to support this flag

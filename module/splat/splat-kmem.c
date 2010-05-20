@@ -94,7 +94,7 @@ splat_kmem_test1(struct file *file, void *arg)
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_alloc(size, KM_SLEEP | __GFP_NOWARN);
+			ptr[i] = kmem_alloc(size, KM_SLEEP | KM_NODEBUG);
 			if (ptr[i])
 				count++;
 		}
@@ -126,7 +126,7 @@ splat_kmem_test2(struct file *file, void *arg)
 		count = 0;
 
 		for (i = 0; i < SPLAT_KMEM_ALLOC_COUNT; i++) {
-			ptr[i] = kmem_zalloc(size, KM_SLEEP | __GFP_NOWARN);
+			ptr[i] = kmem_zalloc(size, KM_SLEEP | KM_NODEBUG);
 			if (ptr[i])
 				count++;
 		}

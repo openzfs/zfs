@@ -390,7 +390,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	} else {
 		/* Marked unlikely because we should never be doing this,
 		 * we tolerate to up 2 pages but a single page is best.   */
-		if (unlikely((size > PAGE_SIZE*2) && !(flags & __GFP_NOWARN))) {
+		if (unlikely((size > PAGE_SIZE*2) && !(flags & KM_NODEBUG))) {
 			CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 			    (unsigned long long) size, flags,
 			    kmem_alloc_used_read(), kmem_alloc_max);
@@ -605,7 +605,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 
 	/* Marked unlikely because we should never be doing this,
 	 * we tolerate to up 2 pages but a single page is best.   */
-	if (unlikely((size > PAGE_SIZE * 2) && !(flags & __GFP_NOWARN))) {
+	if (unlikely((size > PAGE_SIZE * 2) && !(flags & KM_NODEBUG))) {
 		CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
 		    (unsigned long long) size, flags,
 		    kmem_alloc_used_read(), kmem_alloc_max);
@@ -1243,9 +1243,9 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
 	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
-	 * explicitly pass __GFP_NOWARN to suppress the kmem warning */
+	 * explicitly pass KM_NODEBUG to suppress the kmem warning */
 	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc),
-	                                      kmem_flags | __GFP_NOWARN);
+	                                      kmem_flags | KM_NODEBUG);
 	if (skc == NULL)
 		RETURN(NULL);
 
@@ -1438,7 +1438,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 	}
 
 	/* Allocate a new slab for the cache */
-	sks = spl_slab_alloc(skc, flags | __GFP_NORETRY | __GFP_NOWARN);
+	sks = spl_slab_alloc(skc, flags | __GFP_NORETRY | KM_NODEBUG);
 	if (sks == NULL)
 		GOTO(out, sks = NULL);
 
