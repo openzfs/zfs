@@ -11,7 +11,7 @@ SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST  = autogen.sh config/config.awk
 EXTRA_DIST += zfs.spec.in zfs-modules.spec.in
-EXTRA_DIST += META DISCLAIMER GIT
+EXTRA_DIST += META DISCLAIMER COPYRIGHT GIT
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
 noinst_HEADERS = zfs_config.h
 
