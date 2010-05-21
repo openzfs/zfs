@@ -2395,7 +2395,7 @@ main(int argc, char **argv)
 
 	kernel_init(FREAD);
 	g_zfs = libzfs_init();
-	VERIFY(g_zfs != NULL);
+	ASSERT(g_zfs != NULL);
 
 	for (c = 0; c < 256; c++) {
 		if (dump_all && c != 'l' && c != 'R')
