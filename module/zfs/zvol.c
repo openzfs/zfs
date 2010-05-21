@@ -1095,6 +1095,25 @@ out:
 	return (-error);
 }
 
+static int
+zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
+		      const char *dsname, void *arg)
+{
+	return zvol_create_minor(dsname);
+}
+
+static void
+zvol_create_minors(void)
+{
+	spa_t *spa = NULL;
+
+	mutex_enter(&spa_namespace_lock);
+	while ((spa = spa_next(spa)) != NULL)
+		(void) dmu_objset_find_spa(NULL, spa_name(spa), zvol_create_minors_cb,
+		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	mutex_exit(&spa_namespace_lock);
+}
+
 /*
  * Remove a block device minor node for the specified volume.
  */
@@ -1186,6 +1205,8 @@ zvol_init(void)
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
 	            offsetof(zvol_state_t, zv_next));
+
+	zvol_create_minors();
 
 	return (0);
 }
