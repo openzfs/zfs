@@ -13995,10 +13995,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid/uuid.h missing, e2fsprogs-devel package required
+	*** uuid/uuid.h missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid/uuid.h missing, e2fsprogs-devel package required
+	*** uuid/uuid.h missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -14082,10 +14082,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid_generate() missing, e2fsprogs-devel package required
+	*** uuid_generate() missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid_generate() missing, e2fsprogs-devel package required
+	*** uuid_generate() missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -14168,10 +14168,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid_is_null() missing, e2fsprogs-devel package required
+	*** uuid_is_null() missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid_is_null() missing, e2fsprogs-devel package required
+	*** uuid_is_null() missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -16738,10 +16738,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid/uuid.h missing, e2fsprogs-devel package required
+	*** uuid/uuid.h missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid/uuid.h missing, e2fsprogs-devel package required
+	*** uuid/uuid.h missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -16825,10 +16825,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid_generate() missing, e2fsprogs-devel package required
+	*** uuid_generate() missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid_generate() missing, e2fsprogs-devel package required
+	*** uuid_generate() missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -16911,10 +16911,10 @@ else
   { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error:
-	*** uuid_is_null() missing, e2fsprogs-devel package required
+	*** uuid_is_null() missing, libuuid-devel package required
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error:
-	*** uuid_is_null() missing, e2fsprogs-devel package required
+	*** uuid_is_null() missing, libuuid-devel package required
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
