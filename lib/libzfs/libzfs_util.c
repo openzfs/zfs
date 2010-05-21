@@ -579,8 +579,6 @@ libzfs_init(void)
 	}
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
-		(void) fprintf(stderr, "Unable to open %s: (%d) %s\n",
-			       ZFS_DEV, errno, strerror(errno));
 		free(hdl);
 		return (NULL);
 	}
