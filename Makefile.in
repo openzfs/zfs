@@ -303,8 +303,8 @@ top_srcdir = @top_srcdir@
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST = autogen.sh config/config.awk zfs.spec.in \
-	zfs-modules.spec.in META DISCLAIMER GIT OPENSOLARIS.LICENSE \
-	ZFS.RELEASE
+	zfs-modules.spec.in META DISCLAIMER COPYRIGHT GIT \
+	OPENSOLARIS.LICENSE ZFS.RELEASE
 noinst_HEADERS = zfs_config.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
