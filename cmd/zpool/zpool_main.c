@@ -3921,14 +3921,6 @@ main(int argc, char **argv)
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
 
-	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, gettext("internal error: failed to "
-		    "initialize ZFS library\n"));
-		return (1);
-	}
-
-	libzfs_print_on_error(g_zfs, B_TRUE);
-
 	opterr = 0;
 
 	/*
@@ -3944,8 +3936,14 @@ main(int argc, char **argv)
 	/*
 	 * Special case '-?'
 	 */
-	if (strcmp(cmdname, "-?") == 0)
+	if ((strcmp(cmdname, "-?") == 0) ||
+	     strcmp(cmdname, "--help") == 0)
 		usage(B_TRUE);
+
+	if ((g_zfs = libzfs_init()) == NULL)
+		return (1);
+
+	libzfs_print_on_error(g_zfs, B_TRUE);
 
 	zpool_set_history_str("zpool", argc, argv, history_str);
 	verify(zpool_stage_history(g_zfs, history_str) == 0);

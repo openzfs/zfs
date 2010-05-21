@@ -4035,17 +4035,6 @@ main(int argc, char **argv)
 
 	opterr = 0;
 
-	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, gettext("internal error: failed to "
-		    "initialize ZFS library\n"));
-		return (1);
-	}
-
-	zpool_set_history_str("zfs", argc, argv, history_str);
-	verify(zpool_stage_history(g_zfs, history_str) == 0);
-
-	libzfs_print_on_error(g_zfs, B_TRUE);
-
 	if ((mnttab_file = fopen(MNTTAB, "r")) == NULL) {
 		(void) fprintf(stderr, gettext("internal error: unable to "
 		    "open %s\n"), MNTTAB);
@@ -4087,8 +4076,17 @@ main(int argc, char **argv)
 		/*
 		 * Special case '-?'
 		 */
-		if (strcmp(cmdname, "-?") == 0)
+		if ((strcmp(cmdname, "-?") == 0) ||
+		    (strcmp(cmdname, "--help") == 0))
 			usage(B_TRUE);
+
+		if ((g_zfs = libzfs_init()) == NULL)
+			return (1);
+
+		zpool_set_history_str("zfs", argc, argv, history_str);
+		verify(zpool_stage_history(g_zfs, history_str) == 0);
+
+		libzfs_print_on_error(g_zfs, B_TRUE);
 
 		/*
 		 * 'volinit' and 'volfini' do not appear in the usage message,
