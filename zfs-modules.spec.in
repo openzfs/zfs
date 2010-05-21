@@ -94,7 +94,11 @@
  %endif
  %define kpkg            kernel
  %define kdevpkg         kernel-devel
- %define kverpkg         %{kver}
+ %if %{defined el6}
+  %define kverpkg        %(echo %{kver} | %{__sed} -e 's/.%{_target_cpu}//g')
+ %else
+  %define kverpkg        %{kver}
+ %endif
  %define koppkg          =
  %if %{undefined kdir}
   %define kdir           %{_usrsrc}/kernels/%{kver}-%{_target_cpu}

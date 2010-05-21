@@ -1,3 +1,47 @@
+2010-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.4.9 - Use 'git log --no-merges' for full change log.
+
+	 * : Build system improvements:
+	- Added support for the 'make -s' silent build option.
+	- Allow zfs_config.h to be included by dependent packages.
+	- Minor spec file updates.
+	- Minor build system message updates.
+
+	* : Topic branch cleanup.  Several old branches were removed and
+	numerous hunks which were accidentaly commited to incorrect topic
+	branches in the past were relocated to the correct topic branch.
+
+	* *.c, *.h, *.sh, AUTHORS, COPYING, COPYRIGHT, DISCLAIMER, README:
+	Added standard header to source files which includes the copyright,
+	license, and author information.  Additionally, updated the listed
+	top level files to the latest versions.
+
+	* cmd/zpool/zpool_vdev.c: Check all partitions with check_file()
+	even when no libblkid is found.  This oversight would result in
+	ZFS not detecting existing filesystems on partitions.
+
+	* module/zfs/fm.c, module/zfs/zfs_fm, libzfs/libzfs_pool.c:
+	Added zevents which are similar to Solaris FMA support.  The
+	existing FMA and sysevent call points in ZFS were unified in
+	to a single event type and used to create a user space visible
+	event notification system under Linux.  The new 'zpool events'
+	command can be used to show all recent ZFS events.
+
+	* module/zfs/spa.c, module/zfs/zil.c: Suppress large memory
+	allocation warnings for two particular kmem_alloc()'s.  For
+	now we can live with them as is but long term a way should be
+	found to perform small allocations or use the vmem based slab.
+
+	* module/zfs/zvol.c: Recreate volume and snapshot /dev links during
+	module load.  Links in /dev for volumes/snapshots were only being
+	created at volume/snapshot creation time.  Those links are now also
+	created dynamically at module load time based on the spa config.
+
+	* module/zfs/zvol.c, module/zfs/include/sys/blkdev.h: The handler
+	zvol_request() should use the unlocked version of blk_end_request()
+	to avoid a deadlock in the ZVOL.
+
 2010-03-11 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.8 - Use 'git log --no-merges' for full change log.

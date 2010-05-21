@@ -626,14 +626,14 @@ zvol_request(struct request_queue *q)
 			       req->rq_disk->disk_name,
 			       (long long unsigned)blk_rq_pos(req),
 			       (long unsigned)blk_rq_sectors(req));
-			blk_end_request(req, -EIO, size);
+			__blk_end_request(req, -EIO, size);
 			continue;
 		}
 
 		if (!blk_fs_request(req)) {
 			printk(KERN_INFO "%s: non-fs cmd\n",
 			       req->rq_disk->disk_name);
-			blk_end_request(req, -EIO, size);
+			__blk_end_request(req, -EIO, size);
 			continue;
 		}
 
@@ -642,8 +642,9 @@ zvol_request(struct request_queue *q)
 			zvol_dispatch(zvol_read, req);
 			break;
 		case WRITE:
-			if (unlikely(get_disk_ro(zv->zv_disk))) {
-				blk_end_request(req, -EROFS, size);
+			if (unlikely(get_disk_ro(zv->zv_disk)) ||
+			    unlikely(zv->zv_mode & DS_MODE_READONLY)) {
+				__blk_end_request(req, -EROFS, size);
 				break;
 			}
 
@@ -652,7 +653,7 @@ zvol_request(struct request_queue *q)
 		default:
 			printk(KERN_INFO "%s: unknown cmd: %d\n",
 			       req->rq_disk->disk_name, (int)rq_data_dir(req));
-			blk_end_request(req, -EIO, size);
+			__blk_end_request(req, -EIO, size);
 			break;
 		}
 	}

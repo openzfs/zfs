@@ -61,9 +61,8 @@ blk_requeue_request(request_queue_t *q, struct request *req)
 
 #ifndef HAVE_BLK_END_REQUEST
 static inline bool
-blk_end_request(struct request *req, int error, unsigned int nr_bytes)
+__blk_end_request(struct request *req, int error, unsigned int nr_bytes)
 {
-	struct request_queue *q = req->q;
 	LIST_HEAD(list);
 
 	/*
@@ -79,13 +78,22 @@ blk_end_request(struct request *req, int error, unsigned int nr_bytes)
 	 * entire request partial requests are not supported.
 	 */
 	req->hard_cur_sectors = nr_bytes >> 9;
-
-
-	spin_lock_irq(q->queue_lock);
 	end_request(req, ((error == 0) ? 1 : error));
-	spin_unlock_irq(q->queue_lock);
 
 	return 0;
+}
+
+static inline bool
+blk_end_request(struct request *req, int error, unsigned int nr_bytes)
+{
+	struct request_queue *q = req->q;
+	bool rc;
+
+	spin_lock_irq(q->queue_lock);
+	rc = __blk_end_request(req, error, nr_bytes);
+	spin_unlock_irq(q->queue_lock);
+
+	return rc;
 }
 #else
 # ifdef HAVE_BLK_END_REQUEST_GPL_ONLY
@@ -94,24 +102,33 @@ blk_end_request(struct request *req, int error, unsigned int nr_bytes)
  * GPL-only version of the helper.  As of 2.6.31 the helper is available
  * to non-GPL modules and is not explicitly exported GPL-only.
  */
-# define blk_end_request ___blk_end_request
-static inline bool
-___blk_end_request(struct request *req, int error, unsigned int nr_bytes)
-{
-	struct request_queue *q = req->q;
+# define __blk_end_request __blk_end_request_x
+# define blk_end_request blk_end_request_x
 
+static inline bool
+__blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
+{
 	/*
 	 * The old API required the driver to end each segment and not
 	 * the entire request.  In our case we always need to end the
 	 * entire request partial requests are not supported.
 	 */
 	req->hard_cur_sectors = nr_bytes >> 9;
-
-	spin_lock_irq(q->queue_lock);
 	end_request(req, ((error == 0) ? 1 : error));
-	spin_unlock_irq(q->queue_lock);
 
 	return 0;
+}
+static inline bool
+blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
+{
+	struct request_queue *q = req->q;
+	bool rc;
+
+	spin_lock_irq(q->queue_lock);
+	__blk_end_request_x(req, error, nr_bytes);
+	spin_unlock_irq(q->queue_lock);
+
+	return rc;
 }
 # endif /* HAVE_BLK_END_REQUEST_GPL_ONLY */
 #endif /* HAVE_BLK_END_REQUEST */
