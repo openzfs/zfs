@@ -1,10 +1,11 @@
-2010-05-17 Brian Behlendorf <behlendorf1@llnl.gov>
+2010-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag spl-0.4.9
 
 	* : Build system improvements:
 	- Added support for the 'make -s' silent build option.
-	- Allow spl_config.h to be included by dependant packages.
+	- Allow spl_config.h to be included by dependent packages.
+	- Minor spec file updates.
 
 	* AUTHORS, COPYING, DISCLAIMER, and INSTALL: Updated.
 
@@ -12,6 +13,9 @@
 	Added standard header to source files which includes the copyright,
 	license, and author information.  Additionally, updated the listed
 	top level files to the latest versions.
+
+	* module/spl/spl-debug.c: Debugging defaults adjusted.  The default
+	log dump path is now /tmp/spl-log and panic on SBUG has been disabled.
 
 	* include/sys/processor.h, include/sys/systm.h, include/sys/types.h:
 	Added 3 missing typedefs processorid_t, pc_t, and index_t.
@@ -48,6 +52,19 @@
 	is low on memory has been observed to result in deadlocks.  Callers
 	should not be using the slab in this way but we should still handle
 	the case more cleanly.
+
+	* module/spl/spl-kmem.c: Remove kmem_set_warning() interface and
+	replace it with KM_NODEBUG flag which can be specific per allocation.
+
+	* module/splat/splat-kmem.c: Tweaked what the idea of a large object
+	is for the kmem:slab_large regression tests because failures were
+	observed for very large kmem objects in newer kernels.
+
+	* include/sys/rwlock.h, module/splat/splat-rwlock.c: The rwlock
+	implementation was simplified because failures were being observed
+	when using the non-generic implementation.  This change leverages
+	the rwsem_is_locked() function instead of directly consulting the
+	rwsem internals which differ per-arch and per-kernel-version.
 
 2010-03-11 Brian Behlendorf <behlendorf1@llnl.gov>
 
