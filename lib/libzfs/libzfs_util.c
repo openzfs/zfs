@@ -579,6 +579,13 @@ libzfs_init(void)
 	}
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
+		(void) fprintf(stderr, gettext("Unable to open %s: %s.\n"),
+			       ZFS_DEV, strerror(errno));
+		if (errno == ENOENT)
+			(void) fprintf(stderr,
+			     gettext("Verify the ZFS module stack is "
+			     "loaded by running '/sbin/modprobe zfs'.\n"));
+
 		free(hdl);
 		return (NULL);
 	}
