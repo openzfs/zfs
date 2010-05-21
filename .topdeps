@@ -12,3 +12,4 @@ linux-have-idmap
 linux-kernel-device
 linux-events
 linux-debug-zerocopy
+linux-user-util
