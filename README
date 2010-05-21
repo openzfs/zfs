@@ -1,40 +1,95 @@
-============================ ZFS KERNEL BUILD ============================
+============================ ZFS QUICK START ============================
 
-1) Build the SPL (Solaris Porting Layer) module which is designed to
-   provide many Solaris APIs in the Linux kernel which are needed
-   by ZFS.  To build the SPL:
+1) Build the SPL (Solaris Porting Layer) and install it.  This package
+   provides several Solaris APIs used by ZFS and is a required dependency.
+   Before building ZFS build this package and install the resulting rpms.
 
-        tar -xzf spl-x.y.z.tgz
-        cd spl-x.y.z
-        ./configure --with-linux=<kernel src>
-        make
-        make check <as root>
+> tar -xzf spl-x.y.z.tgz
+> cd spl-x.y.z
+> ./configure --with-linux=<kernel src>
+> make
+> make rpm
 
-2) Build ZFS, this port is based on build specified by the ZFS.RELEASE
-   file.  You will need to have both the kernel and SPL source available.
-   To build ZFS for use as a Linux kernel module.
+> sudo rpm -Uvh *.<arch>.rpm
+Preparing...                ########################################### [100%]
+   1:spl                    ########################################### [ 33%]
+   2:spl-modules-devel      ########################################### [ 67%]
+   3:spl-modules            ########################################### [100%]
 
-        tar -xzf zfs-x.y.z.tgz
-        cd zfs-x.y.z
-        ./configure --with-linux=<kernel src> \
-                    --with-spl=<spl src>
-        make
-        make check <as root>
 
-============================ ZPIOS TEST SUITE ============================
+2) Build ZFS and install it.  This package provides the native port of
+   ZFS for Linux including all kernel modules and command line utilities.
+   Note it is important that you have installed spl-module-devel package
+   from step 1) before attempting to build ZFS.
 
-3) Provided is an in-kernel test application called zpios which can be
-   used to simulate a parallel IO load.  It may be used as a stress 
-   or performance test for your configuration.  To simplify testing
-   scripts provided in the scripts/ directory which provide a few
-   pre-built zpool configurations and zpios test cases.  By default
-   'make check' as root will run a simple test against several small
-   loopback devices created in /tmp/.
+> tar -xzf zfs-x.y.z.tgz
+> cd zfs-x.y.z
+> ./configure --with-linux=<kernel src>
+> make
+> make rpm
 
-       cd scripts
-       ./zfs.sh					# Load the ZFS/SPL modules
-       ./zpios.sh -c lo-raid0.sh -t tiny -v 	# Tiny zpios loopback test
-       ./zfs.sh -u				# Unload the ZFS/SPL modules
+> sudo rpm -Uvh *.<arch>.rpm
+Preparing...                ########################################### [100%]
+   1:zfs                    ########################################### [ 20%]
+   2:zfs-test               ########################################### [ 40%]
+   3:zfs-modules-devel      ########################################### [ 60%]
+   4:zfs-modules            ########################################### [ 80%]
+
+
+3) Enjoy ZFS on Linux!  Currently only the ZVOL is fully functional
+   but work on the ZPL is underway.  Why is just having the ZVOL still
+   useful you ask?  Well here's an example of what you can do today using
+   just the ZVOL:
+
+> # Create the 'tank' zpool containing a raidz vdev spread over 4 devices.
+> zpool create tank raidz /dev/sdb /dev/sdc /dev/sdd /dev/sde
+> zpool list
+NAME   SIZE   USED  AVAIL    CAP  HEALTH  ALTROOT
+tank  1.81T   132K  1.81T     0%  ONLINE  -
+
+> # Create a 100G block device named 'fish' in the 'tank' zpool.
+> zfs create -V 100G tank/fish
+> zfs list
+NAME        USED  AVAIL  REFER  MOUNTPOINT
+tank        100G  1.24T  26.9K  /tank
+tank/fish   100G  1.33T  23.9K  -
+
+> # Partition 'tank/fish' as if it were a normal block device.
+> sfdisk /dev/tank/fish << EOF
+0,
+EOF
+> sfdisk -l /dev/tank/fish
+
+Disk /dev/tank/fish: 208050 cylinders, 16 heads, 63 sectors/track
+Units = cylinders of 516096 bytes, blocks of 1024 bytes, counting from 0
+
+   Device Boot Start     End   #cyls    #blocks   Id  System
+/dev/tank/fish1          0+ 208049  208050- 104857199+  83  Linux
+/dev/tank/fish2          0       -       0          0    0  Empty
+/dev/tank/fish3          0       -       0          0    0  Empty
+/dev/tank/fish4          0       -       0          0    0  Empty
+
+> # Format the new /dev/tank/fish1 partition with ext2 and mount it.
+> mkfs.ext2 -q /dev/tank/fish1
+> mkdir -p /mnt/tank/fish1
+> mount /dev/tank/fish1 /mnt/tank/fish1
+> ls /mnt/tank/fish1
+lost+found
+
+> # Take a snapshot of the pristine ext2 filesystem and mount it read-only.
+> zfs snapshot tank/fish@pristine
+> mkdir /mnt/tank/fish@pristine1
+> mount /dev/tank/fish@pristine1 /mnt/tank/fish@pristine1
+> ls /mnt/tank/fish\@pristine1
+lost+found
+
+> # Changes made to tank/fish1 do not appear in tank/fish@pristine1
+> touch /mnt/tank/fish1/foo
+> ls /mnt/tank/fish1/
+foo  lost+found
+> ls /mnt/tank/fish\@pristine1
+lost+found
+
 
 Enjoy,
 Brian Behlendorf <behlendorf1@llnl.gov>
