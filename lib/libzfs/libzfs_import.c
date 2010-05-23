@@ -943,6 +943,14 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 			    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
 				continue;
 
+			/*
+			 * Do not open /dev/watchdog to stat it because
+			 * it requires a special close or the watchdog
+			 * with be triggered and the system reset.
+			 */
+			if (strcmp(name, "watchdog") == 0)
+				continue;
+
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
 				continue;
 
