@@ -53,7 +53,7 @@ INFOMOD=${INFOMOD:-/sbin/modinfo}
 LOSETUP=${LOSETUP:-/sbin/losetup}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
-AWK=${AWK:-/bin/awk}
+AWK=${AWK:-/usr/bin/awk}
 
 die() {
 	echo -e "${PROG}: $1" >&2
