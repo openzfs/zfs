@@ -63,7 +63,7 @@ __gethrtime(void) {
         struct timespec ts;
 
         do_posix_clock_monotonic_gettime(&ts);
-        return (hrtime_t)((ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec);
+        return (((hrtime_t)ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec);
 #endif
 }
 EXPORT_SYMBOL(__gethrtime);
