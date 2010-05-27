@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/debug.h>
+#include <thread.h>
 #include <unistd.h>
 
 #if !defined(TEXT_DOMAIN)
@@ -69,12 +70,11 @@ static va_list		uu_panic_args;
 static pthread_t	uu_panic_thread;
 
 static uint32_t		_uu_main_error;
-static __thread int	_uu_main_thread = 0;
 
 void
 uu_set_error(uint_t code)
 {
-	if (_uu_main_thread) {
+	if (thr_main() != 0) {
 		_uu_main_error = code;
 		return;
 	}
@@ -103,7 +103,7 @@ uu_set_error(uint_t code)
 uint32_t
 uu_error(void)
 {
-	if (_uu_main_thread)
+	if (thr_main() != 0)
 		return (_uu_main_error);
 
 	if (uu_error_key_setup < 0)	/* can't happen? */
@@ -249,6 +249,5 @@ uu_init(void) __attribute__((constructor));
 static void
 uu_init(void)
 {
-	_uu_main_thread = 1;
 	(void) pthread_atfork(uu_lockup, uu_release, uu_release_child);
 }
