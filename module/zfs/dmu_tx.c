@@ -1170,5 +1170,4 @@ EXPORT_SYMBOL(dmu_tx_assign);
 EXPORT_SYMBOL(dmu_tx_wait);
 EXPORT_SYMBOL(dmu_tx_commit);
 EXPORT_SYMBOL(dmu_tx_get_txg);
-EXPORT_SYMBOL(dmu_tx_callback_register);
 #endif
