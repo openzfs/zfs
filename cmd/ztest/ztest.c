@@ -58,9 +58,6 @@
  *     the transaction group number is less than the current, open txg.
  *     If you add a new test, please do this if applicable.
  *
- * (7) Threads are created with a reduced stack size, for sanity checking.
- *     Therefore, it's important not to allocate huge buffers on the stack.
- *
  * When run with no arguments, ztest runs for about five minutes and
  * produces no output if successful.  To get a little bit of information,
  * specify -V.  To get more information, specify -VV, and so on.
@@ -159,7 +156,6 @@ typedef struct ztest_args {
 	ztest_block_tag_t za_wbt;
 	dmu_object_info_t za_doi;
 	dmu_buf_t	*za_dbuf;
-	boolean_t	za_exited;
 } ztest_args_t;
 
 typedef void ztest_func_t(ztest_args_t *);
@@ -254,7 +250,6 @@ static int ztest_dump_core = 1;
 
 static uint64_t metaslab_sz;
 static boolean_t ztest_exiting;
-static boolean_t resume_thr_exited;
 
 extern uint64_t metaslab_gang_bang;
 extern uint64_t metaslab_df_alloc_threshold;
@@ -2549,7 +2544,7 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	uint64_t off, txg, txg_how;
 	mutex_t *lp;
 	char osname[MAXNAMELEN];
-	char *iobuf;
+	char iobuf[SPA_MAXBLOCKSIZE];
 	blkptr_t blk = { 0 };
 	uint64_t blkoff;
 	zbookmark_t zb;
@@ -2718,8 +2713,6 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	ASSERT3U(BP_GET_LEVEL(&blk), ==, 0);
 	ASSERT3U(BP_GET_LSIZE(&blk), ==, bs);
 
-	iobuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-
 	/*
 	 * Read the block that dmu_sync() returned to make sure its contents
 	 * match what we wrote.  We do this while still txg_suspend()ed
@@ -2738,10 +2731,10 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 	bcopy(&iobuf[blkoff], rbt, btsize);
 
 	if (rbt->bt_objset == 0)		/* concurrent free */
-		goto out;
+		return;
 
 	if (wbt->bt_objset == 0)		/* all-zero overwrite */
-		goto out;
+		return;
 
 	ASSERT3U(rbt->bt_objset, ==, wbt->bt_objset);
 	ASSERT3U(rbt->bt_object, ==, wbt->bt_object);
@@ -2757,8 +2750,6 @@ ztest_dmu_write_parallel(ztest_args_t *za)
 		ASSERT3U(rbt->bt_seq, ==, wbt->bt_seq);
 	else
 		ASSERT3U(rbt->bt_seq, >, wbt->bt_seq);
-out:
-	umem_free(iobuf, SPA_MAXBLOCKSIZE);
 }
 
 /*
