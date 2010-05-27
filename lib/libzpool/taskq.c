@@ -134,7 +134,7 @@ taskq_wait(taskq_t *tq)
 	mutex_exit(&tq->tq_lock);
 }
 
-static void
+static void *
 taskq_thread(void *arg)
 {
 	taskq_t *tq = arg;
@@ -217,6 +217,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 void
 taskq_destroy(taskq_t *tq)
 {
+	int t;
 	int nthreads = tq->tq_nthreads;
 
 	taskq_wait(tq);
@@ -251,7 +252,7 @@ taskq_destroy(taskq_t *tq)
 }
 
 int
-taskq_member(taskq_t *tq, kthread_t *t)
+taskq_member(taskq_t *tq, void *t)
 {
 	int i;
 
