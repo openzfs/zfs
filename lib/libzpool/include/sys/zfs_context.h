@@ -50,7 +50,8 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 #include <strings.h>
-#include <pthread.h>
+#include <synch.h>
+#include <thread.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
@@ -149,34 +150,15 @@ extern void vpanic(const char *, __va_list);
 /*
  * Threads
  */
-#define TS_RUN			0x00000002
+#define	curthread	((void *)(uintptr_t)thr_self())
 
-#define STACK_SIZE 8192 /* Linux x86 and amd64 */
+typedef struct kthread kthread_t;
 
-typedef void (*thread_func_t)(void);
-typedef void (*thread_func_arg_t)(void *);
-typedef pthread_t kt_did_t;
+#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	zk_thread_create(func, arg)
+#define	thread_exit() thr_exit(NULL)
 
-typedef struct kthread {
-	kt_did_t	t_tid;
-	thread_func_t	t_func;
-	void *		t_arg;
-} kthread_t;
-
-/* XXX tsd_create()/tsd_destroy() missing */
-#define	tsd_get(key)		pthread_getspecific(key)
-#define	tsd_set(key, val)	pthread_setspecific(key, val)
-#define	curthread		zk_thread_current()
-#define thread_exit		zk_thread_exit
-#define thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(stk, stksize, (thread_func_t) func, arg, len,  \
-	    NULL, state, pri)
-
-extern kthread_t *zk_thread_current(void);
-extern void zk_thread_exit(void);
-extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
-	thread_func_t func, void *arg, size_t len,
-	void *pp, int state, pri_t pri);
+extern kthread_t *zk_thread_create(void (*func)(), void *arg);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
@@ -184,20 +166,28 @@ extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 /*
  * Mutexes
  */
-#define MTX_MAGIC 0x9522f51362a6e326ull
-#define MTX_INIT  (void *)NULL
-#define MTX_DEST  (void *)-1UL
 typedef struct kmutex {
 	void		*m_owner;
-	uint64_t	m_magic;
-	pthread_mutex_t	m_lock;
+	boolean_t	initialized;
+	mutex_t		m_lock;
 } kmutex_t;
 
-#define	MUTEX_DEFAULT	0
-#define	MUTEX_HELD(m)	((m)->m_owner == curthread)
+#define	MUTEX_DEFAULT	USYNC_THREAD
+#undef MUTEX_HELD
+#define	MUTEX_HELD(m) _mutex_held(&(m)->m_lock)
 
-extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
-extern void mutex_destroy(kmutex_t *mp);
+/*
+ * Argh -- we have to get cheesy here because the kernel and userland
+ * have different signatures for the same routine.
+ */
+extern int _mutex_init(mutex_t *mp, int type, void *arg);
+extern int _mutex_destroy(mutex_t *mp);
+
+#define	mutex_init(mp, b, c, d)		zmutex_init((kmutex_t *)(mp))
+#define	mutex_destroy(mp)		zmutex_destroy((kmutex_t *)(mp))
+
+extern void zmutex_init(kmutex_t *mp);
+extern void zmutex_destroy(kmutex_t *mp);
 extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
@@ -206,26 +196,23 @@ extern void *mutex_owner(kmutex_t *mp);
 /*
  * RW locks
  */
-#define RW_MAGIC 0x4d31fb123648e78aull
-#define RW_INIT  (void *)NULL
-#define RW_DEST  (void *)-1UL
 typedef struct krwlock {
-	void			*rw_owner;
-	void			*rw_wr_owner;
-	uint64_t		rw_magic;
-	pthread_rwlock_t	rw_lock;
-	uint_t			rw_readers;
+	void		*rw_owner;
+	boolean_t	initialized;
+	rwlock_t	rw_lock;
 } krwlock_t;
 
 typedef int krw_t;
 
 #define	RW_READER	0
 #define	RW_WRITER	1
-#define	RW_DEFAULT	0
+#define	RW_DEFAULT	USYNC_THREAD
 
-#define	RW_READ_HELD(x)		((x)->rw_readers > 0)
-#define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
-#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
+#undef RW_READ_HELD
+#define	RW_READ_HELD(x)		_rw_read_held(&(x)->rw_lock)
+
+#undef RW_WRITE_HELD
+#define	RW_WRITE_HELD(x)	_rw_write_held(&(x)->rw_lock)
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);
 extern void rw_destroy(krwlock_t *rwlp);
@@ -243,13 +230,9 @@ extern gid_t *crgetgroups(cred_t *cr);
 /*
  * Condition variables
  */
-#define CV_MAGIC 0xd31ea9a83b1b30c4ull
-typedef struct kcondvar {
-	uint64_t cv_magic;
-	pthread_cond_t cv;
-} kcondvar_t;
+typedef cond_t kcondvar_t;
 
-#define	CV_DEFAULT	0
+#define	CV_DEFAULT	USYNC_THREAD
 
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
 extern void cv_destroy(kcondvar_t *cv);
@@ -314,7 +297,6 @@ extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
 extern int	taskq_member(taskq_t *, kthread_t *);
 extern void	system_taskq_init(void);
-extern void	system_taskq_fini(void);
 
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
@@ -429,8 +411,7 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-/* XXX: not portable */
-#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID	(thr_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
