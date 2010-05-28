@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DIR_H
@@ -70,7 +69,8 @@ typedef struct dsl_dir_phys {
 	uint64_t dd_deleg_zapobj; /* dataset delegation permissions */
 	uint64_t dd_flags;
 	uint64_t dd_used_breakdown[DD_USED_NUM];
-	uint64_t dd_pad[14]; /* pad out to 256 bytes for good measure */
+	uint64_t dd_clones; /* dsl_dir objects */
+	uint64_t dd_pad[13]; /* pad out to 256 bytes for good measure */
 } dsl_dir_phys_t;
 
 struct dsl_dir {
@@ -89,6 +89,8 @@ struct dsl_dir {
 	/* Protected by dd_lock */
 	kmutex_t dd_lock;
 	list_t dd_prop_cbs; /* list of dsl_prop_cb_record_t's */
+	timestruc_t dd_snap_cmtime; /* last time snapshot namespace changed */
+	uint64_t dd_origin_txg;
 
 	/* gross estimate of space used by in-flight tx's */
 	uint64_t dd_tempreserved[TXG_SIZE];
@@ -125,18 +127,24 @@ void dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
     int64_t used, int64_t compressed, int64_t uncompressed, dmu_tx_t *tx);
 void dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
     dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx);
-int dsl_dir_set_quota(const char *ddname, uint64_t quota);
-int dsl_dir_set_reservation(const char *ddname, uint64_t reservation);
+int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
+    uint64_t quota);
+int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
+    uint64_t reservation);
 int dsl_dir_rename(dsl_dir_t *dd, const char *newname);
 int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd, uint64_t space);
 int dsl_dir_set_reservation_check(void *arg1, void *arg2, dmu_tx_t *tx);
 boolean_t dsl_dir_is_clone(dsl_dir_t *dd);
 void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
+void dsl_dir_snap_cmtime_update(dsl_dir_t *dd);
+timestruc_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
 
 /* internal reserved dir name */
 #define	MOS_DIR_NAME "$MOS"
 #define	ORIGIN_DIR_NAME "$ORIGIN"
+#define	XLATION_DIR_NAME "$XLATION"
+#define	FREE_DIR_NAME "$FREE"
 
 #ifdef ZFS_DEBUG
 #define	dprintf_dd(dd, fmt, ...) do { \

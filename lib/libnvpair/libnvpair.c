@@ -19,14 +19,13 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #include <unistd.h>
 #include <strings.h>
+#include <libintl.h>
 #include <sys/types.h>
 #include <sys/inttypes.h>
 #include "libnvpair.h"
@@ -270,6 +269,156 @@ void
 nvlist_print(FILE *fp, nvlist_t *nvl)
 {
 	nvlist_print_with_indent(fp, nvl, 0);
+}
+
+
+#define	NVP(elem, type, vtype, ptype, format) { \
+	vtype	value; \
+\
+	(void) nvpair_value_##type(elem, &value); \
+	(void) printf("%*s%s: " format "\n", indent, "", \
+	    nvpair_name(elem), (ptype)value); \
+}
+
+#define	NVPA(elem, type, vtype, ptype, format) { \
+	uint_t	i, count; \
+	vtype	*value;  \
+\
+	(void) nvpair_value_##type(elem, &value, &count); \
+	for (i = 0; i < count; i++) { \
+		(void) printf("%*s%s[%d]: " format "\n", indent, "", \
+		    nvpair_name(elem), i, (ptype)value[i]); \
+	} \
+}
+
+/*
+ * Similar to nvlist_print() but handles arrays slightly differently.
+ */
+void
+dump_nvlist(nvlist_t *list, int indent)
+{
+	nvpair_t	*elem = NULL;
+	boolean_t	bool_value;
+	nvlist_t	*nvlist_value;
+	nvlist_t	**nvlist_array_value;
+	uint_t		i, count;
+
+	if (list == NULL) {
+		return;
+	}
+
+	while ((elem = nvlist_next_nvpair(list, elem)) != NULL) {
+		switch (nvpair_type(elem)) {
+		case DATA_TYPE_BOOLEAN_VALUE:
+			(void) nvpair_value_boolean_value(elem, &bool_value);
+			(void) printf("%*s%s: %s\n", indent, "",
+			    nvpair_name(elem), bool_value ? "true" : "false");
+			break;
+
+		case DATA_TYPE_BYTE:
+			NVP(elem, byte, uchar_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT8:
+			NVP(elem, int8, int8_t, int, "%d");
+			break;
+
+		case DATA_TYPE_UINT8:
+			NVP(elem, uint8, uint8_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT16:
+			NVP(elem, int16, int16_t, int, "%d");
+			break;
+
+		case DATA_TYPE_UINT16:
+			NVP(elem, uint16, uint16_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT32:
+			NVP(elem, int32, int32_t, long, "%ld");
+			break;
+
+		case DATA_TYPE_UINT32:
+			NVP(elem, uint32, uint32_t, ulong_t, "%lu");
+			break;
+
+		case DATA_TYPE_INT64:
+			NVP(elem, int64, int64_t, longlong_t, "%lld");
+			break;
+
+		case DATA_TYPE_UINT64:
+			NVP(elem, uint64, uint64_t, u_longlong_t, "%llu");
+			break;
+
+		case DATA_TYPE_STRING:
+			NVP(elem, string, char *, char *, "'%s'");
+			break;
+
+		case DATA_TYPE_BYTE_ARRAY:
+			NVPA(elem, byte_array, uchar_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT8_ARRAY:
+			NVPA(elem, int8_array, int8_t, int, "%d");
+			break;
+
+		case DATA_TYPE_UINT8_ARRAY:
+			NVPA(elem, uint8_array, uint8_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT16_ARRAY:
+			NVPA(elem, int16_array, int16_t, int, "%d");
+			break;
+
+		case DATA_TYPE_UINT16_ARRAY:
+			NVPA(elem, uint16_array, uint16_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT32_ARRAY:
+			NVPA(elem, int32_array, int32_t, long, "%ld");
+			break;
+
+		case DATA_TYPE_UINT32_ARRAY:
+			NVPA(elem, uint32_array, uint32_t, ulong_t, "%lu");
+			break;
+
+		case DATA_TYPE_INT64_ARRAY:
+			NVPA(elem, int64_array, int64_t, longlong_t, "%lld");
+			break;
+
+		case DATA_TYPE_UINT64_ARRAY:
+			NVPA(elem, uint64_array, uint64_t, u_longlong_t,
+			    "%llu");
+			break;
+
+		case DATA_TYPE_STRING_ARRAY:
+			NVPA(elem, string_array, char *, char *, "'%s'");
+			break;
+
+		case DATA_TYPE_NVLIST:
+			(void) nvpair_value_nvlist(elem, &nvlist_value);
+			(void) printf("%*s%s:\n", indent, "",
+			    nvpair_name(elem));
+			dump_nvlist(nvlist_value, indent + 4);
+			break;
+
+		case DATA_TYPE_NVLIST_ARRAY:
+			(void) nvpair_value_nvlist_array(elem,
+			    &nvlist_array_value, &count);
+			for (i = 0; i < count; i++) {
+				(void) printf("%*s%s[%u]:\n", indent, "",
+				    nvpair_name(elem), i);
+				dump_nvlist(nvlist_array_value[i], indent + 4);
+			}
+			break;
+
+		default:
+			(void) printf(dgettext(TEXT_DOMAIN, "bad config type "
+			    "%d for %s\n"), nvpair_type(elem),
+			    nvpair_name(elem));
+		}
+	}
 }
 
 /*
