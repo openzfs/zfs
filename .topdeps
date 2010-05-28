@@ -1,4 +1,3 @@
-fix-clock-wrap
 fix-dbuf_dirty_record_t
 fix-dnode-cons
 fix-dsl_pool_t
