@@ -689,14 +689,15 @@ libzfs_mnttab_remove(libzfs_handle_t *hdl, const char *fsname)
 }
 
 int
-zfs_spa_version(zfs_handle_t *zhp, int *version)
+zfs_spa_version(zfs_handle_t *zhp, int *spa_version)
 {
-	zpool_handle_t *handle = zhp->zpool_hdl;
+	zpool_handle_t *zpool_handle = zhp->zpool_hdl;
 
-	if (handle == NULL)
+	if (zpool_handle == NULL)
 		return (-1);
 
-	*version = zpool_get_prop_int(handle, ZPOOL_PROP_VERSION, NULL);
+	*spa_version = zpool_get_prop_int(zpool_handle,
+	    ZPOOL_PROP_VERSION, NULL);
 	return (0);
 }
 
@@ -706,12 +707,12 @@ zfs_spa_version(zfs_handle_t *zhp, int *version)
 static int
 zfs_which_resv_prop(zfs_handle_t *zhp, zfs_prop_t *resv_prop)
 {
-	int version;
+	int spa_version;
 
-	if (zfs_spa_version(zhp, &version) < 0)
+	if (zfs_spa_version(zhp, &spa_version) < 0)
 		return (-1);
 
-	if (version >= SPA_VERSION_REFRESERVATION)
+	if (spa_version >= SPA_VERSION_REFRESERVATION)
 		*resv_prop = ZFS_PROP_REFRESERVATION;
 	else
 		*resv_prop = ZFS_PROP_RESERVATION;
@@ -1744,11 +1745,11 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		 */
 		{
 			val = getprop_uint64(zhp, prop, &source);
-			time_t local_time = (time_t)val;
+			time_t time = (time_t)val;
 			struct tm t;
 
 			if (literal ||
-			    localtime_r(&local_time, &t) == NULL ||
+			    localtime_r(&time, &t) == NULL ||
 			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu", (u_longlong_t) val);
