@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -103,6 +102,7 @@ typedef struct raidz_col {
 	uint64_t rc_offset;		/* device offset */
 	uint64_t rc_size;		/* I/O size */
 	void *rc_data;			/* I/O data */
+	void *rc_gdata;			/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
@@ -116,14 +116,18 @@ typedef struct raidz_map {
 	uint64_t rm_missingdata;	/* Count of missing data devices */
 	uint64_t rm_missingparity;	/* Count of missing parity devices */
 	uint64_t rm_firstdatacol;	/* First data column/parity count */
-	uint64_t rm_skipped;		/* Skipped sectors for padding */
+	uint64_t rm_nskip;		/* Skipped sectors for padding */
+	uint64_t rm_skipstart;	/* Column index of padding start */
+	void *rm_datacopy;		/* rm_asize-buffer of copied data */
+	uintptr_t rm_reports;		/* # of referencing checksum reports */
+	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
+	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
 
 #define	VDEV_RAIDZ_P		0
 #define	VDEV_RAIDZ_Q		1
 #define	VDEV_RAIDZ_R		2
-#define	VDEV_RAIDZ_MAXPARITY	3
 
 #define	VDEV_RAIDZ_MUL_2(x)	(((x) << 1) ^ (((x) & 0x80) ? 0x1d : 0))
 #define	VDEV_RAIDZ_MUL_4(x)	(VDEV_RAIDZ_MUL_2(VDEV_RAIDZ_MUL_2(x)))
@@ -226,6 +230,8 @@ static const uint8_t vdev_raidz_log2[256] = {
 	0x74, 0xd6, 0xf4, 0xea, 0xa8, 0x50, 0x58, 0xaf,
 };
 
+static void vdev_raidz_generate_parity(raidz_map_t *rm);
+
 /*
  * Multiply a given number by 2 raised to the given power.
  */
@@ -246,16 +252,183 @@ vdev_raidz_exp2(uint_t a, int exp)
 }
 
 static void
-vdev_raidz_map_free(zio_t *zio)
+vdev_raidz_map_free(raidz_map_t *rm)
 {
-	raidz_map_t *rm = zio->io_vsd;
 	int c;
+	size_t size;
 
-	for (c = 0; c < rm->rm_firstdatacol; c++)
+	for (c = 0; c < rm->rm_firstdatacol; c++) {
 		zio_buf_free(rm->rm_col[c].rc_data, rm->rm_col[c].rc_size);
+
+		if (rm->rm_col[c].rc_gdata != NULL)
+			zio_buf_free(rm->rm_col[c].rc_gdata,
+			    rm->rm_col[c].rc_size);
+	}
+
+	size = 0;
+	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++)
+		size += rm->rm_col[c].rc_size;
+
+	if (rm->rm_datacopy != NULL)
+		zio_buf_free(rm->rm_datacopy, size);
 
 	kmem_free(rm, offsetof(raidz_map_t, rm_col[rm->rm_scols]));
 }
+
+static void
+vdev_raidz_map_free_vsd(zio_t *zio)
+{
+	raidz_map_t *rm = zio->io_vsd;
+
+	ASSERT3U(rm->rm_freed, ==, 0);
+	rm->rm_freed = 1;
+
+	if (rm->rm_reports == 0)
+		vdev_raidz_map_free(rm);
+}
+
+/*ARGSUSED*/
+static void
+vdev_raidz_cksum_free(void *arg, size_t ignored)
+{
+	raidz_map_t *rm = arg;
+
+	ASSERT3U(rm->rm_reports, >, 0);
+
+	if (--rm->rm_reports == 0 && rm->rm_freed != 0)
+		vdev_raidz_map_free(rm);
+}
+
+static void
+vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const void *good_data)
+{
+	raidz_map_t *rm = zcr->zcr_cbdata;
+	size_t c = zcr->zcr_cbinfo;
+	size_t x;
+
+	const char *good = NULL;
+	const char *bad = rm->rm_col[c].rc_data;
+
+	if (good_data == NULL) {
+		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
+		return;
+	}
+
+	if (c < rm->rm_firstdatacol) {
+		/*
+		 * The first time through, calculate the parity blocks for
+		 * the good data (this relies on the fact that the good
+		 * data never changes for a given logical ZIO)
+		 */
+		if (rm->rm_col[0].rc_gdata == NULL) {
+			char *bad_parity[VDEV_RAIDZ_MAXPARITY];
+			char *buf;
+
+			/*
+			 * Set up the rm_col[]s to generate the parity for
+			 * good_data, first saving the parity bufs and
+			 * replacing them with buffers to hold the result.
+			 */
+			for (x = 0; x < rm->rm_firstdatacol; x++) {
+				bad_parity[x] = rm->rm_col[x].rc_data;
+				rm->rm_col[x].rc_data = rm->rm_col[x].rc_gdata =
+				    zio_buf_alloc(rm->rm_col[x].rc_size);
+			}
+
+			/* fill in the data columns from good_data */
+			buf = (char *)good_data;
+			for (; x < rm->rm_cols; x++) {
+				rm->rm_col[x].rc_data = buf;
+				buf += rm->rm_col[x].rc_size;
+			}
+
+			/*
+			 * Construct the parity from the good data.
+			 */
+			vdev_raidz_generate_parity(rm);
+
+			/* restore everything back to its original state */
+			for (x = 0; x < rm->rm_firstdatacol; x++)
+				rm->rm_col[x].rc_data = bad_parity[x];
+
+			buf = rm->rm_datacopy;
+			for (x = rm->rm_firstdatacol; x < rm->rm_cols; x++) {
+				rm->rm_col[x].rc_data = buf;
+				buf += rm->rm_col[x].rc_size;
+			}
+		}
+
+		ASSERT3P(rm->rm_col[c].rc_gdata, !=, NULL);
+		good = rm->rm_col[c].rc_gdata;
+	} else {
+		/* adjust good_data to point at the start of our column */
+		good = good_data;
+
+		for (x = rm->rm_firstdatacol; x < c; x++)
+			good += rm->rm_col[x].rc_size;
+	}
+
+	/* we drop the ereport if it ends up that the data was good */
+	zfs_ereport_finish_checksum(zcr, good, bad, B_TRUE);
+}
+
+/*
+ * Invoked indirectly by zfs_ereport_start_checksum(), called
+ * below when our read operation fails completely.  The main point
+ * is to keep a copy of everything we read from disk, so that at
+ * vdev_raidz_cksum_finish() time we can compare it with the good data.
+ */
+static void
+vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
+{
+	size_t c = (size_t)(uintptr_t)arg;
+	caddr_t buf;
+
+	raidz_map_t *rm = zio->io_vsd;
+	size_t size;
+
+	/* set up the report and bump the refcount  */
+	zcr->zcr_cbdata = rm;
+	zcr->zcr_cbinfo = c;
+	zcr->zcr_finish = vdev_raidz_cksum_finish;
+	zcr->zcr_free = vdev_raidz_cksum_free;
+
+	rm->rm_reports++;
+	ASSERT3U(rm->rm_reports, >, 0);
+
+	if (rm->rm_datacopy != NULL)
+		return;
+
+	/*
+	 * It's the first time we're called for this raidz_map_t, so we need
+	 * to copy the data aside; there's no guarantee that our zio's buffer
+	 * won't be re-used for something else.
+	 *
+	 * Our parity data is already in separate buffers, so there's no need
+	 * to copy them.
+	 */
+
+	size = 0;
+	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++)
+		size += rm->rm_col[c].rc_size;
+
+	buf = rm->rm_datacopy = zio_buf_alloc(size);
+
+	for (c = rm->rm_firstdatacol; c < rm->rm_cols; c++) {
+		raidz_col_t *col = &rm->rm_col[c];
+
+		bcopy(col->rc_data, buf, col->rc_size);
+		col->rc_data = buf;
+
+		buf += col->rc_size;
+	}
+	ASSERT3P(buf - (caddr_t)rm->rm_datacopy, ==, size);
+}
+
+static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
+	vdev_raidz_map_free_vsd,
+	vdev_raidz_cksum_report
+};
 
 static raidz_map_t *
 vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
@@ -288,9 +461,14 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	rm->rm_cols = acols;
 	rm->rm_scols = scols;
 	rm->rm_bigcols = bc;
+	rm->rm_skipstart = bc;
 	rm->rm_missingdata = 0;
 	rm->rm_missingparity = 0;
 	rm->rm_firstdatacol = nparity;
+	rm->rm_datacopy = NULL;
+	rm->rm_reports = 0;
+	rm->rm_freed = 0;
+	rm->rm_ecksuminjected = 0;
 
 	asize = 0;
 
@@ -304,6 +482,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		rm->rm_col[c].rc_devidx = col;
 		rm->rm_col[c].rc_offset = coff;
 		rm->rm_col[c].rc_data = NULL;
+		rm->rm_col[c].rc_gdata = NULL;
 		rm->rm_col[c].rc_error = 0;
 		rm->rm_col[c].rc_tried = 0;
 		rm->rm_col[c].rc_skipped = 0;
@@ -320,9 +499,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 
 	ASSERT3U(asize, ==, tot << unit_shift);
 	rm->rm_asize = roundup(asize, (nparity + 1) << unit_shift);
-	rm->rm_skipped = roundup(tot, nparity + 1) - tot;
-	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_skipped << unit_shift);
-	ASSERT3U(rm->rm_skipped, <=, nparity);
+	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
+	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << unit_shift);
+	ASSERT3U(rm->rm_nskip, <=, nparity);
 
 	for (c = 0; c < rm->rm_firstdatacol; c++)
 		rm->rm_col[c].rc_data = zio_buf_alloc(rm->rm_col[c].rc_size);
@@ -347,6 +526,11 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	 * Unfortunately, this decision created an implicit on-disk format
 	 * requirement that we need to support for all eternity, but only
 	 * for single-parity RAID-Z.
+	 *
+	 * If we intend to skip a sector in the zeroth column for padding
+	 * we must make sure to note this swap. We will never intend to
+	 * skip the first column since at least one data and one parity
+	 * column must appear in each row.
 	 */
 	ASSERT(rm->rm_cols >= 2);
 	ASSERT(rm->rm_col[0].rc_size == rm->rm_col[1].rc_size);
@@ -358,10 +542,13 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		rm->rm_col[0].rc_offset = rm->rm_col[1].rc_offset;
 		rm->rm_col[1].rc_devidx = devidx;
 		rm->rm_col[1].rc_offset = o;
+
+		if (rm->rm_skipstart == 0)
+			rm->rm_skipstart = 1;
 	}
 
 	zio->io_vsd = rm;
-	zio->io_vsd_free = vdev_raidz_map_free;
+	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
 	return (rm);
 }
 
@@ -1335,7 +1522,6 @@ vdev_raidz_io_start(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
 	vdev_t *cvd;
-	blkptr_t *bp = zio->io_bp;
 	raidz_map_t *rm;
 	raidz_col_t *rc;
 	int c, i;
@@ -1361,7 +1547,7 @@ vdev_raidz_io_start(zio_t *zio)
 		 * Generate optional I/Os for any skipped sectors to improve
 		 * aggregation contiguity.
 		 */
-		for (c = rm->rm_bigcols, i = 0; i < rm->rm_skipped; c++, i++) {
+		for (c = rm->rm_skipstart, i = 0; i < rm->rm_nskip; c++, i++) {
 			ASSERT(c <= rm->rm_scols);
 			if (c == rm->rm_scols)
 				c = 0;
@@ -1396,7 +1582,7 @@ vdev_raidz_io_start(zio_t *zio)
 			rc->rc_skipped = 1;
 			continue;
 		}
-		if (vdev_dtl_contains(cvd, DTL_MISSING, bp->blk_birth, 1)) {
+		if (vdev_dtl_contains(cvd, DTL_MISSING, zio->io_txg, 1)) {
 			if (c >= rm->rm_firstdatacol)
 				rm->rm_missingdata++;
 			else
@@ -1417,23 +1603,47 @@ vdev_raidz_io_start(zio_t *zio)
 	return (ZIO_PIPELINE_CONTINUE);
 }
 
+
 /*
  * Report a checksum error for a child of a RAID-Z device.
  */
 static void
-raidz_checksum_error(zio_t *zio, raidz_col_t *rc)
+raidz_checksum_error(zio_t *zio, raidz_col_t *rc, void *bad_data)
 {
 	vdev_t *vd = zio->io_vd->vdev_child[rc->rc_devidx];
 
 	if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
+		zio_bad_cksum_t zbc;
+		raidz_map_t *rm = zio->io_vsd;
+
 		mutex_enter(&vd->vdev_stat_lock);
 		vd->vdev_stat.vs_checksum_errors++;
 		mutex_exit(&vd->vdev_stat_lock);
-	}
 
-	if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE))
-		zfs_ereport_post(FM_EREPORT_ZFS_CHECKSUM,
-		    zio->io_spa, vd, zio, rc->rc_offset, rc->rc_size);
+		zbc.zbc_has_cksum = 0;
+		zbc.zbc_injected = rm->rm_ecksuminjected;
+
+		zfs_ereport_post_checksum(zio->io_spa, vd, zio,
+		    rc->rc_offset, rc->rc_size, rc->rc_data, bad_data,
+		    &zbc);
+	}
+}
+
+/*
+ * We keep track of whether or not there were any injected errors, so that
+ * any ereports we generate can note it.
+ */
+static int
+raidz_checksum_verify(zio_t *zio)
+{
+	zio_bad_cksum_t zbc;
+	raidz_map_t *rm = zio->io_vsd;
+
+	int ret = zio_checksum_error(zio, &zbc);
+	if (ret != 0 && zbc.zbc_injected != 0)
+		rm->rm_ecksuminjected = 1;
+
+	return (ret);
 }
 
 /*
@@ -1464,7 +1674,7 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
 		if (bcmp(orig[c], rc->rc_data, rc->rc_size) != 0) {
-			raidz_checksum_error(zio, rc);
+			raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = ECKSUM;
 			ret++;
 		}
@@ -1579,7 +1789,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 			 * success.
 			 */
 			code = vdev_raidz_reconstruct(rm, tgts, n);
-			if (zio_checksum_error(zio) == 0) {
+			if (raidz_checksum_verify(zio) == 0) {
 				atomic_inc_64(&raidz_corrected[code]);
 
 				for (i = 0; i < n; i++) {
@@ -1587,7 +1797,8 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 					rc = &rm->rm_col[c];
 					ASSERT(rc->rc_error == 0);
 					if (rc->rc_tried)
-						raidz_checksum_error(zio, rc);
+						raidz_checksum_error(zio, rc,
+						    orig[i]);
 					rc->rc_error = ECKSUM;
 				}
 
@@ -1724,7 +1935,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 */
 	if (total_errors <= rm->rm_firstdatacol - parity_untried) {
 		if (data_errors == 0) {
-			if (zio_checksum_error(zio) == 0) {
+			if (raidz_checksum_verify(zio) == 0) {
 				/*
 				 * If we read parity information (unnecessarily
 				 * as it happens since no reconstruction was
@@ -1770,7 +1981,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 			code = vdev_raidz_reconstruct(rm, tgts, n);
 
-			if (zio_checksum_error(zio) == 0) {
+			if (raidz_checksum_verify(zio) == 0) {
 				atomic_inc_64(&raidz_corrected[code]);
 
 				/*
@@ -1839,18 +2050,11 @@ vdev_raidz_io_done(zio_t *zio)
 	 * reconstruction over all possible combinations. If that fails,
 	 * we're cooked.
 	 */
-	if (total_errors >= rm->rm_firstdatacol) {
+	if (total_errors > rm->rm_firstdatacol) {
 		zio->io_error = vdev_raidz_worst_error(rm);
-		/*
-		 * If there were exactly as many device errors as parity
-		 * columns, yet we couldn't reconstruct the data, then at
-		 * least one device must have returned bad data silently.
-		 */
-		if (total_errors == rm->rm_firstdatacol)
-			zio->io_error = zio_worst_error(zio->io_error, ECKSUM);
 
-	} else if ((code = vdev_raidz_combrec(zio, total_errors,
-	    data_errors)) != 0) {
+	} else if (total_errors < rm->rm_firstdatacol &&
+	    (code = vdev_raidz_combrec(zio, total_errors, data_errors)) != 0) {
 		/*
 		 * If we didn't use all the available parity for the
 		 * combinatorial reconstruction, verify that the remaining
@@ -1860,17 +2064,34 @@ vdev_raidz_io_done(zio_t *zio)
 			(void) raidz_parity_verify(zio, rm);
 	} else {
 		/*
-		 * All combinations failed to checksum. Generate checksum
-		 * ereports for all children.
+		 * We're here because either:
+		 *
+		 *	total_errors == rm_first_datacol, or
+		 *	vdev_raidz_combrec() failed
+		 *
+		 * In either case, there is enough bad data to prevent
+		 * reconstruction.
+		 *
+		 * Start checksum ereports for all children which haven't
+		 * failed, and the IO wasn't speculative.
 		 */
 		zio->io_error = ECKSUM;
 
 		if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			for (c = 0; c < rm->rm_cols; c++) {
 				rc = &rm->rm_col[c];
-				zfs_ereport_post(FM_EREPORT_ZFS_CHECKSUM,
-				    zio->io_spa, vd->vdev_child[rc->rc_devidx],
-				    zio, rc->rc_offset, rc->rc_size);
+				if (rc->rc_error == 0) {
+					zio_bad_cksum_t zbc;
+					zbc.zbc_has_cksum = 0;
+					zbc.zbc_injected =
+					    rm->rm_ecksuminjected;
+
+					zfs_ereport_start_checksum(
+					    zio->io_spa,
+					    vd->vdev_child[rc->rc_devidx],
+					    zio, rc->rc_offset, rc->rc_size,
+					    (void *)(uintptr_t)c, &zbc);
+				}
 			}
 		}
 	}
@@ -1918,6 +2139,8 @@ vdev_ops_t vdev_raidz_ops = {
 	vdev_raidz_io_start,
 	vdev_raidz_io_done,
 	vdev_raidz_state_change,
+	NULL,
+	NULL,
 	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };
