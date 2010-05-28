@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef _SYS_ZIO_CHECKSUM_H
@@ -43,28 +42,31 @@ typedef void zio_checksum_t(const void *data, uint64_t size, zio_cksum_t *zcp);
 typedef struct zio_checksum_info {
 	zio_checksum_t	*ci_func[2]; /* checksum function for each byteorder */
 	int		ci_correctable;	/* number of correctable bits	*/
-	int		ci_zbt;		/* uses zio block tail?	*/
+	int		ci_eck;		/* uses zio embedded checksum? */
+	int		ci_dedup;	/* strong enough for dedup? */
 	char		*ci_name;	/* descriptive name */
 } zio_checksum_info_t;
+
+typedef struct zio_bad_cksum {
+	zio_cksum_t		zbc_expected;
+	zio_cksum_t		zbc_actual;
+	const char		*zbc_checksum_name;
+	uint8_t			zbc_byteswapped;
+	uint8_t			zbc_injected;
+	uint8_t			zbc_has_cksum;	/* expected/actual valid */
+} zio_bad_cksum_t;
 
 extern zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 
 /*
  * Checksum routines.
  */
-extern zio_checksum_t fletcher_2_native;
-extern zio_checksum_t fletcher_4_native;
-extern zio_checksum_t fletcher_4_incremental_native;
-
-extern zio_checksum_t fletcher_2_byteswap;
-extern zio_checksum_t fletcher_4_byteswap;
-extern zio_checksum_t fletcher_4_incremental_byteswap;
-
 extern zio_checksum_t zio_checksum_SHA256;
 
 extern void zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
     void *data, uint64_t size);
-extern int zio_checksum_error(zio_t *zio);
+extern int zio_checksum_error(zio_t *zio, zio_bad_cksum_t *out);
+extern enum zio_checksum spa_dedup_checksum(spa_t *spa);
 
 #ifdef	__cplusplus
 }
