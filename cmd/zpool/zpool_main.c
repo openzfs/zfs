@@ -4109,7 +4109,7 @@ get_history_one(zpool_handle_t *zhp, void *data)
 				continue;
 			(void) snprintf(internalstr,
 			    sizeof (internalstr),
-			    "[internal %s txg:%lld] %s",
+			    "[internal %s txg:%llu] %s",
 			    zfs_history_event_names[ievent], (u_longlong_t)txg,
 			    pathstr);
 			cmdstr = internalstr;

@@ -3039,16 +3039,16 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 	char snap3name[MAXNAMELEN];
 	int error;
 
-	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu", clone1name,
-	    (u_longlong_t)id);
-	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu", clone1name,
-	    (u_longlong_t)id);
+	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu",
+	    clone1name, (u_longlong_t)id);
+	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu",
+	    clone1name, (u_longlong_t)id);
 
 	error = dmu_objset_destroy(clone2name, B_FALSE);
 	if (error && error != ENOENT)
@@ -3088,16 +3088,16 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 
 	ztest_dsl_dataset_cleanup(osname, id);
 
-	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu", clone1name,
-	    (u_longlong_t)id);
-	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu", osname,
-	    (u_longlong_t)id);
-	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu", clone1name,
-	    (u_longlong_t)id);
+	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu",
+	    clone1name, (u_longlong_t)id);
+	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu",
+	    clone1name, (u_longlong_t)id);
 
 	error = dmu_objset_snapshot(osname, strchr(snap1name, '@')+1,
 	    NULL, B_FALSE);
