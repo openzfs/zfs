@@ -1383,7 +1383,6 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
     nvlist_t *props, boolean_t importfaulted)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
-	zfs_cmd_t zc = { 0 };
 	zpool_rewind_policy_t policy;
 	nvlist_t *nvi = NULL;
 	char *thename;
