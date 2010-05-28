@@ -258,8 +258,10 @@ space_map_load_wait(space_map_t *sm)
 {
 	ASSERT(MUTEX_HELD(sm->sm_lock));
 
-	while (sm->sm_loading)
+	while (sm->sm_loading) {
+		ASSERT(!sm->sm_loaded);
 		cv_wait(&sm->sm_load_cv, sm->sm_lock);
+	}
 }
 
 /*
@@ -276,11 +278,8 @@ space_map_load(space_map_t *sm, space_map_ops_t *ops, uint8_t maptype,
 	int error = 0;
 
 	ASSERT(MUTEX_HELD(sm->sm_lock));
-
-	space_map_load_wait(sm);
-
-	if (sm->sm_loaded)
-		return (0);
+	ASSERT(!sm->sm_loaded);
+	ASSERT(!sm->sm_loading);
 
 	sm->sm_loading = B_TRUE;
 	end = smo->smo_objsize;
@@ -368,10 +367,8 @@ space_map_unload(space_map_t *sm)
 uint64_t
 space_map_maxsize(space_map_t *sm)
 {
-	if (sm->sm_loaded && sm->sm_ops != NULL)
-		return (sm->sm_ops->smop_max(sm));
-	else
-		return (-1ULL);
+	ASSERT(sm->sm_ops != NULL);
+	return (sm->sm_ops->smop_max(sm));
 }
 
 uint64_t

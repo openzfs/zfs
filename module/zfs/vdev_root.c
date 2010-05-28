@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -109,6 +109,8 @@ vdev_ops_t vdev_root_ops = {
 	NULL,			/* io_start - not applicable to the root */
 	NULL,			/* io_done - not applicable to the root */
 	vdev_root_state_change,
+	NULL,
+	NULL,
 	VDEV_TYPE_ROOT,		/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };

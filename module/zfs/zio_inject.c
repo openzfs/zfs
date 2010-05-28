@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -43,8 +42,8 @@
 #include <sys/arc.h>
 #include <sys/zio_impl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/dmu_objset.h>
 #include <sys/fs/zfs.h>
 
 uint32_t zio_injection_enabled;
@@ -70,8 +69,9 @@ zio_match_handler(zbookmark_t *zb, uint64_t type,
 	/*
 	 * Check for a match against the MOS, which is based on type
 	 */
-	if (zb->zb_objset == 0 && record->zi_objset == 0 &&
-	    record->zi_object == 0) {
+	if (zb->zb_objset == DMU_META_OBJSET &&
+	    record->zi_objset == DMU_META_OBJSET &&
+	    record->zi_object == DMU_META_DNODE_OBJECT) {
 		if (record->zi_type == DMU_OT_NONE ||
 		    type == record->zi_type)
 			return (record->zi_freq == 0 ||
@@ -93,6 +93,31 @@ zio_match_handler(zbookmark_t *zb, uint64_t type,
 		    spa_get_random(100) < record->zi_freq);
 
 	return (B_FALSE);
+}
+
+/*
+ * Panic the system when a config change happens in the function
+ * specified by tag.
+ */
+void
+zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type)
+{
+	inject_handler_t *handler;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+
+		if (spa != handler->zi_spa)
+			continue;
+
+		if (handler->zi_record.zi_type == type &&
+		    strcmp(tag, handler->zi_record.zi_func) == 0)
+			panic("Panic requested in function %s\n", tag);
+	}
+
+	rw_exit(&inject_lock);
 }
 
 /*
@@ -126,8 +151,10 @@ zio_handle_fault_injection(zio_t *zio, int error)
 		if (zio->io_spa != handler->zi_spa)
 			continue;
 
-		/* Ignore device errors */
-		if (handler->zi_record.zi_guid != 0)
+		/* Ignore device errors and panic injection */
+		if (handler->zi_record.zi_guid != 0 ||
+		    handler->zi_record.zi_func[0] != '\0' ||
+		    handler->zi_record.zi_duration != 0)
 			continue;
 
 		/* If this handler matches, return EIO */
@@ -159,7 +186,7 @@ zio_handle_label_injection(zio_t *zio, int error)
 	int label;
 	int ret = 0;
 
-	if (offset + zio->io_size > VDEV_LABEL_START_SIZE &&
+	if (offset >= VDEV_LABEL_START_SIZE &&
 	    offset < vd->vdev_psize - VDEV_LABEL_END_SIZE)
 		return (0);
 
@@ -170,8 +197,10 @@ zio_handle_label_injection(zio_t *zio, int error)
 		uint64_t start = handler->zi_record.zi_start;
 		uint64_t end = handler->zi_record.zi_end;
 
-		/* Ignore device only faults */
-		if (handler->zi_record.zi_start == 0)
+		/* Ignore device only faults or panic injection */
+		if (handler->zi_record.zi_start == 0 ||
+		    handler->zi_record.zi_func[0] != '\0' ||
+		    handler->zi_record.zi_duration != 0)
 			continue;
 
 		/*
@@ -200,13 +229,30 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 	inject_handler_t *handler;
 	int ret = 0;
 
+	/*
+	 * We skip over faults in the labels unless it's during
+	 * device open (i.e. zio == NULL).
+	 */
+	if (zio != NULL) {
+		uint64_t offset = zio->io_offset;
+
+		if (offset < VDEV_LABEL_START_SIZE ||
+		    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE)
+			return (0);
+	}
+
 	rw_enter(&inject_lock, RW_READER);
 
 	for (handler = list_head(&inject_handlers); handler != NULL;
 	    handler = list_next(&inject_handlers, handler)) {
 
-		/* Ignore label specific faults */
-		if (handler->zi_record.zi_start != 0)
+		/*
+		 * Ignore label specific faults, panic injection
+		 * or fake writes
+		 */
+		if (handler->zi_record.zi_start != 0 ||
+		    handler->zi_record.zi_func[0] != '\0' ||
+		    handler->zi_record.zi_duration != 0)
 			continue;
 
 		if (vd->vdev_guid == handler->zi_record.zi_guid) {
@@ -216,6 +262,12 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 				continue;
 			}
 
+			/* Handle type specific I/O failures */
+			if (zio != NULL &&
+			    handler->zi_record.zi_iotype != ZIO_TYPES &&
+			    handler->zi_record.zi_iotype != zio->io_type)
+				continue;
+
 			if (handler->zi_record.zi_error == error) {
 				/*
 				 * For a failed open, pretend like the device
@@ -224,6 +276,16 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 				if (error == ENXIO)
 					vd->vdev_stat.vs_aux =
 					    VDEV_AUX_OPEN_FAILED;
+
+				/*
+				 * Treat these errors as if they had been
+				 * retried so that all the appropriate stats
+				 * and FMA events are generated.
+				 */
+				if (!handler->zi_record.zi_failfast &&
+				    zio != NULL)
+					zio->io_flags |= ZIO_FLAG_IO_RETRY;
+
 				ret = error;
 				break;
 			}
@@ -237,6 +299,84 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 	rw_exit(&inject_lock);
 
 	return (ret);
+}
+
+/*
+ * Simulate hardware that ignores cache flushes.  For requested number
+ * of seconds nix the actual writing to disk.
+ */
+void
+zio_handle_ignored_writes(zio_t *zio)
+{
+	inject_handler_t *handler;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+
+		/* Ignore errors not destined for this pool */
+		if (zio->io_spa != handler->zi_spa)
+			continue;
+
+		if (handler->zi_record.zi_duration == 0)
+			continue;
+
+		/*
+		 * Positive duration implies # of seconds, negative
+		 * a number of txgs
+		 */
+		if (handler->zi_record.zi_timer == 0) {
+			if (handler->zi_record.zi_duration > 0)
+				handler->zi_record.zi_timer = ddi_get_lbolt64();
+			else
+				handler->zi_record.zi_timer = zio->io_txg;
+		}
+
+		/* Have a "problem" writing 60% of the time */
+		if (spa_get_random(100) < 60)
+			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
+		break;
+	}
+
+	rw_exit(&inject_lock);
+}
+
+void
+spa_handle_ignored_writes(spa_t *spa)
+{
+	inject_handler_t *handler;
+
+	if (zio_injection_enabled == 0)
+		return;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+
+		/* Ignore errors not destined for this pool */
+		if (spa != handler->zi_spa)
+			continue;
+
+		if (handler->zi_record.zi_duration == 0)
+			continue;
+
+		if (handler->zi_record.zi_duration > 0) {
+			VERIFY(handler->zi_record.zi_timer == 0 ||
+			    handler->zi_record.zi_timer +
+			    handler->zi_record.zi_duration * hz >
+			    ddi_get_lbolt64());
+		} else {
+			/* duration is negative so the subtraction here adds */
+			VERIFY(handler->zi_record.zi_timer == 0 ||
+			    handler->zi_record.zi_timer -
+			    handler->zi_record.zi_duration >=
+			    spa_syncing_txg(spa));
+		}
+	}
+
+	rw_exit(&inject_lock);
 }
 
 /*
