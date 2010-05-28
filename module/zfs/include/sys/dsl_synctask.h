@@ -19,14 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SYNCTASK_H
 #define	_SYS_DSL_SYNCTASK_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/txg.h>
 #include <sys/zfs_context.h>
@@ -38,7 +35,7 @@ extern "C" {
 struct dsl_pool;
 
 typedef int (dsl_checkfunc_t)(void *, void *, dmu_tx_t *);
-typedef void (dsl_syncfunc_t)(void *, void *, cred_t *, dmu_tx_t *);
+typedef void (dsl_syncfunc_t)(void *, void *, dmu_tx_t *);
 
 typedef struct dsl_sync_task {
 	list_node_t dst_node;
@@ -53,7 +50,6 @@ typedef struct dsl_sync_task_group {
 	txg_node_t dstg_node;
 	list_t dstg_tasks;
 	struct dsl_pool *dstg_pool;
-	cred_t *dstg_cr;
 	uint64_t dstg_txg;
 	int dstg_err;
 	int dstg_space;

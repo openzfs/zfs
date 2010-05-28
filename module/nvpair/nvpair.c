@@ -20,11 +20,9 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/stropts.h>
 #include <sys/debug.h>
@@ -692,6 +690,18 @@ nvlist_remove(nvlist_t *nvl, const char *name, data_type_t type)
 	return (ENOENT);
 }
 
+int
+nvlist_remove_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+{
+	if (nvl == NULL || nvp == NULL)
+		return (EINVAL);
+
+	nvp_buf_unlink(nvl, nvp);
+	nvpair_free(nvp);
+	nvp_buf_free(nvl, nvp);
+	return (0);
+}
+
 /*
  * This function calculates the size of an nvpair value.
  *
@@ -1160,6 +1170,42 @@ nvlist_next_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	priv->nvp_curr = curr;
 
 	return (curr != NULL ? &curr->nvi_nvp : NULL);
+}
+
+nvpair_t *
+nvlist_prev_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+{
+	nvpriv_t *priv;
+	i_nvp_t *curr;
+
+	if (nvl == NULL ||
+	    (priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
+		return (NULL);
+
+	curr = NVPAIR2I_NVP(nvp);
+
+	if (nvp == NULL)
+		curr = priv->nvp_last;
+	else if (priv->nvp_curr == curr || nvlist_contains_nvp(nvl, nvp))
+		curr = curr->nvi_prev;
+	else
+		curr = NULL;
+
+	priv->nvp_curr = curr;
+
+	return (curr != NULL ? &curr->nvi_nvp : NULL);
+}
+
+boolean_t
+nvlist_empty(nvlist_t *nvl)
+{
+	nvpriv_t *priv;
+
+	if (nvl == NULL ||
+	    (priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
+		return (B_TRUE);
+
+	return (priv->nvp_list == NULL);
 }
 
 char *
