@@ -332,7 +332,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 	 * dnode_set_blksz().
 	 */
 	if (db->db_level == 0 && db->db.db_object == DMU_META_DNODE_OBJECT) {
-		ASSERTV(dbuf_dirty_record_t *dr = db->db_data_pending);
+		dr = db->db_data_pending;
 		/*
 		 * It should only be modified in syncing context, so
 		 * make sure we only have one copy of the data.
