@@ -444,7 +444,7 @@ top:
 
 	if (zs) {
 		if (reset) {
-			zstream_t *rm = zs;
+			zstream_t *remove = zs;
 
 			rc = 0;
 			mutex_exit(&zs->zst_lock);
@@ -456,7 +456,7 @@ top:
 			 */
 			for (zs = list_head(&zf->zf_stream); zs;
 			    zs = list_next(&zf->zf_stream, zs)) {
-				if (zs == rm) {
+				if (zs == remove) {
 					dmu_zfetch_stream_remove(zf, zs);
 					mutex_destroy(&zs->zst_lock);
 					kmem_free(zs, sizeof (zstream_t));
