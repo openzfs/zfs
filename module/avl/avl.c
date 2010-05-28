@@ -19,12 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 
 /*
  * AVL - generic AVL tree implementation for kernel use
@@ -243,7 +240,7 @@ avl_nearest(avl_tree_t *tree, avl_index_t where, int direction)
  *	"void *"  of the found tree node
  */
 void *
-avl_find(avl_tree_t *tree, void *value, avl_index_t *where)
+avl_find(avl_tree_t *tree, const void *value, avl_index_t *where)
 {
 	avl_node_t *node;
 	avl_node_t *prev = NULL;
