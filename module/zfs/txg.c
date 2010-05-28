@@ -154,12 +154,12 @@ txg_thread_exit(tx_state_t *tx, callb_cpr_t *cpr, kthread_t **tpp)
 }
 
 static void
-txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, uint64_t wt)
+txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, uint64_t time)
 {
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
-	if (wt)
-		(void) cv_timedwait(cv, &tx->tx_sync_lock, lbolt + wt);
+	if (time)
+		(void) cv_timedwait(cv, &tx->tx_sync_lock, lbolt + time);
 	else
 		cv_wait(cv, &tx->tx_sync_lock);
 

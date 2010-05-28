@@ -526,19 +526,19 @@ void
 zfs_nicenum(uint64_t num, char *buf, size_t buflen)
 {
 	uint64_t n = num;
-	int i = 0, j;
+	int index = 0;
 	char u;
 
 	while (n >= 1024) {
 		n /= 1024;
-		i++;
+		index++;
 	}
 
-	u = " KMGTPE"[i];
+	u = " KMGTPE"[index];
 
-	if (i == 0) {
+	if (index == 0) {
 		(void) snprintf(buf, buflen, "%llu", n);
-	} else if ((num & ((1ULL << 10 * i) - 1)) == 0) {
+	} else if ((num & ((1ULL << 10 * index) - 1)) == 0) {
 		/*
 		 * If this is an even multiple of the base, always display
 		 * without any decimal precision.
@@ -554,9 +554,10 @@ zfs_nicenum(uint64_t num, char *buf, size_t buflen)
 		 * develop some complex heuristics for this, but it's much
 		 * easier just to try each combination in turn.
 		 */
-		for (j = 2; j >= 0; j--) {
-			if (snprintf(buf, buflen, "%.*f%c", j,
-			    (double)num / (1ULL << 10 * i), u) <= 5)
+		int i;
+		for (i = 2; i >= 0; i--) {
+			if (snprintf(buf, buflen, "%.*f%c", i,
+			    (double)num / (1ULL << 10 * index), u) <= 5)
 				break;
 		}
 	}
@@ -1385,7 +1386,7 @@ zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp, zfs_type_t type)
 {
 	zprop_list_t *entry;
 	zprop_list_t **last;
-	expand_data_t ed;
+	expand_data_t exp;
 
 	if (*plp == NULL) {
 		/*
@@ -1395,11 +1396,11 @@ zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp, zfs_type_t type)
 		 */
 		last = plp;
 
-		ed.last = last;
-		ed.hdl = hdl;
-		ed.type = type;
+		exp.last = last;
+		exp.hdl = hdl;
+		exp.type = type;
 
-		if (zprop_iter_common(zprop_expand_list_cb, &ed, B_FALSE,
+		if (zprop_iter_common(zprop_expand_list_cb, &exp, B_FALSE,
 		    B_FALSE, type) == ZPROP_INVAL)
 			return (-1);
 
