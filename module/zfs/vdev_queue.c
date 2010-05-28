@@ -24,7 +24,6 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #include <sys/avl.h>
@@ -38,10 +37,10 @@
  * of i/os pending to each device (before it starts ramping up to
  * max_pending).
  */
-int zfs_vdev_max_pending = 35;
+int zfs_vdev_max_pending = 10;
 int zfs_vdev_min_pending = 4;
 
-/* deadline = pri + (lbolt >> time_shift) */
+/* deadline = pri + ddi_get_lbolt64() >> time_shift) */
 int zfs_vdev_time_shift = 6;
 
 /* exponential I/O issue ramp-up rate */
@@ -286,7 +285,7 @@ again:
 		ASSERT(size <= zfs_vdev_aggregation_limit);
 
 		aio = zio_vdev_delegated_io(fio->io_vd, fio->io_offset,
-		    zio_buf_alloc(size), size, fio->io_type, ZIO_PRIORITY_NOW,
+		    zio_buf_alloc(size), size, fio->io_type, ZIO_PRIORITY_AGG,
 		    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 		    vdev_queue_agg_io_done, NULL);
 
@@ -360,7 +359,8 @@ vdev_queue_io(zio_t *zio)
 
 	mutex_enter(&vq->vq_lock);
 
-	zio->io_deadline = (lbolt64 >> zfs_vdev_time_shift) + zio->io_priority;
+	zio->io_deadline = (ddi_get_lbolt64() >> zfs_vdev_time_shift) +
+	    zio->io_priority;
 
 	vdev_queue_io_add(vq, zio);
 
