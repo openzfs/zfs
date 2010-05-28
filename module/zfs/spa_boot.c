@@ -20,12 +20,13 @@
  */
 
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifdef _KERNEL
 
+#include <sys/zio.h>
 #include <sys/spa.h>
 #include <sys/sunddi.h>
 
