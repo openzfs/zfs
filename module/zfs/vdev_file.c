@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -34,6 +33,18 @@
 /*
  * Virtual device vector for files.
  */
+
+static void
+vdev_file_hold(vdev_t *vd)
+{
+	ASSERT(vd->vdev_path != NULL);
+}
+
+static void
+vdev_file_rele(vdev_t *vd)
+{
+	ASSERT(vd->vdev_path != NULL);
+}
 
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
@@ -49,6 +60,16 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 	if (vd->vdev_path == NULL || vd->vdev_path[0] != '/') {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (EINVAL);
+	}
+
+	/*
+	 * Reopen the device if it's not currently open.  Otherwise,
+	 * just update the physical size of the device.
+	 */
+	if (vd->vdev_tsd != NULL) {
+		ASSERT(vd->vdev_reopening);
+		vf = vd->vdev_tsd;
+		goto skip_open;
 	}
 
 	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
@@ -79,6 +100,8 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 		return (ENODEV);
 	}
 #endif
+
+skip_open:
 	/*
 	 * Determine the physical size of the file.
 	 */
@@ -100,7 +123,7 @@ vdev_file_close(vdev_t *vd)
 {
 	vdev_file_t *vf = vd->vdev_tsd;
 
-	if (vf == NULL)
+	if (vd->vdev_reopening || vf == NULL)
 		return;
 
 	if (vf->vf_vnode != NULL) {
@@ -110,6 +133,7 @@ vdev_file_close(vdev_t *vd)
 		VN_RELE(vf->vf_vnode);
 	}
 
+	vd->vdev_delayed_close = B_FALSE;
 	kmem_free(vf, sizeof (vdev_file_t));
 	vd->vdev_tsd = NULL;
 }
@@ -166,6 +190,8 @@ vdev_ops_t vdev_file_ops = {
 	vdev_file_io_start,
 	vdev_file_io_done,
 	NULL,
+	vdev_file_hold,
+	vdev_file_rele,
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
@@ -182,6 +208,8 @@ vdev_ops_t vdev_disk_ops = {
 	vdev_file_io_start,
 	vdev_file_io_done,
 	NULL,
+	vdev_file_hold,
+	vdev_file_rele,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
