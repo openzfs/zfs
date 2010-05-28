@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_AVL_H
 #define	_AVL_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * This is a private header file.  Applications should not directly include
@@ -163,7 +161,7 @@ extern void avl_create(avl_tree_t *tree,
  * node   - node that has the value being looked for
  * where  - position for use with avl_nearest() or avl_insert(), may be NULL
  */
-extern void *avl_find(avl_tree_t *tree, void *node, avl_index_t *where);
+extern void *avl_find(avl_tree_t *tree, const void *node, avl_index_t *where);
 
 /*
  * Insert a node into the tree.
