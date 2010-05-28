@@ -19,13 +19,10 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <libzfs.h>
-
-#undef verify	/* both libzfs.h and zfs_context.h want to define this */
 
 #include <sys/zfs_context.h>
 
@@ -69,6 +66,18 @@ ziprintf(const char *fmt, ...)
 	va_end(ap);
 }
 
+static void
+compress_slashes(const char *src, char *dest)
+{
+	while (*src != '\0') {
+		*dest = *src++;
+		while (*dest == '/' && *src == '/')
+			++src;
+		++dest;
+	}
+	*dest = '\0';
+}
+
 /*
  * Given a full path to a file, translate into a dataset name and a relative
  * path within the dataset.  'dataset' must be at least MAXNAMELEN characters,
@@ -76,13 +85,16 @@ ziprintf(const char *fmt, ...)
  * buffer, which we need later to get the object ID.
  */
 static int
-parse_pathname(const char *fullpath, char *dataset, char *relpath,
+parse_pathname(const char *inpath, char *dataset, char *relpath,
     struct stat64 *statbuf)
 {
 	struct extmnttab mp;
 	FILE *fp;
 	int match;
 	const char *rel;
+	char fullpath[MAXPATHLEN];
+
+	compress_slashes(inpath, fullpath);
 
 	if (fullpath[0] != '/') {
 		(void) fprintf(stderr, "invalid object '%s': must be full "
@@ -162,8 +174,8 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	 */
 	sync();
 
-	if ((err = dmu_objset_open(dataset, DMU_OST_ZFS,
-	    DS_MODE_USER | DS_MODE_READONLY, &os)) != 0) {
+	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, FTAG, &os);
+	if (err != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		return (-1);
@@ -172,7 +184,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	record->zi_objset = dmu_objset_id(os);
 	record->zi_object = statbuf->st_ino;
 
-	dmu_objset_close(os);
+	dmu_objset_disown(os, FTAG);
 
 	return (0);
 }
@@ -247,17 +259,17 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	 * Get the dnode associated with object, so we can calculate the block
 	 * size.
 	 */
-	if ((err = dmu_objset_open(dataset, DMU_OST_ANY,
-	    DS_MODE_USER | DS_MODE_READONLY, &os)) != 0) {
+	if ((err = dmu_objset_own(dataset, DMU_OST_ANY,
+	    B_TRUE, FTAG, &os)) != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		goto out;
 	}
 
 	if (record->zi_object == 0) {
-		dn = os->os->os_meta_dnode;
+		dn = os->os_meta_dnode;
 	} else {
-		err = dnode_hold(os->os, record->zi_object, FTAG, &dn);
+		err = dnode_hold(os, record->zi_object, FTAG, &dn);
 		if (err != 0) {
 			(void) fprintf(stderr, "failed to hold dnode "
 			    "for object %llu\n",
@@ -306,11 +318,11 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	ret = 0;
 out:
 	if (dn) {
-		if (dn != os->os->os_meta_dnode)
+		if (dn != os->os_meta_dnode)
 			dnode_rele(dn, FTAG);
 	}
 	if (os)
-		dmu_objset_close(os);
+		dmu_objset_disown(os, FTAG);
 
 	return (ret);
 }
@@ -347,8 +359,8 @@ translate_record(err_type_t type, const char *object, const char *range,
 		case TYPE_CONFIG:
 			record->zi_type = DMU_OT_PACKED_NVLIST;
 			break;
-		case TYPE_BPLIST:
-			record->zi_type = DMU_OT_BPLIST;
+		case TYPE_BPOBJ:
+			record->zi_type = DMU_OT_BPOBJ;
 			break;
 		case TYPE_SPACEMAP:
 			record->zi_type = DMU_OT_SPACE_MAP;
@@ -468,6 +480,14 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 	case TYPE_LABEL_NVLIST:
 		record->zi_start = offsetof(vdev_label_t, vl_vdev_phys);
 		record->zi_end = record->zi_start + VDEV_PHYS_SIZE - 1;
+		break;
+	case TYPE_LABEL_PAD1:
+		record->zi_start = offsetof(vdev_label_t, vl_pad1);
+		record->zi_end = record->zi_start + VDEV_PAD_SIZE - 1;
+		break;
+	case TYPE_LABEL_PAD2:
+		record->zi_start = offsetof(vdev_label_t, vl_pad2);
+		record->zi_end = record->zi_start + VDEV_PAD_SIZE - 1;
 		break;
 	}
 	return (0);

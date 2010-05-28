@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -100,6 +100,8 @@ typedef struct zfs_fuid_info {
 #ifdef _KERNEL
 struct znode;
 extern uid_t zfs_fuid_map_id(zfsvfs_t *, uint64_t, cred_t *, zfs_fuid_type_t);
+extern void zfs_fuid_node_add(zfs_fuid_info_t **, const char *, uint32_t,
+    uint64_t, uint64_t, zfs_fuid_type_t);
 extern void zfs_fuid_destroy(zfsvfs_t *);
 extern uint64_t zfs_fuid_create_cred(zfsvfs_t *, zfs_fuid_type_t,
     cred_t *, zfs_fuid_info_t **);

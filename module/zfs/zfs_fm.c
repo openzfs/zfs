@@ -28,6 +28,7 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
+#include <sys/zio_checksum.h>
 
 #include <sys/fm/fs/zfs.h>
 #include <sys/fm/protocol.h>
@@ -87,20 +88,32 @@
  * this pointer is set to NULL, and no ereport will be generated (since it
  * doesn't actually correspond to any particular device or piece of data,
  * and the caller will always retry without caching or queueing anyway).
+ *
+ * For checksum errors, we want to include more information about the actual
+ * error which occurs.  Accordingly, we build an ereport when the error is
+ * noticed, but instead of sending it in immediately, we hang it off of the
+ * io_cksum_report field of the logical IO.  When the logical IO completes
+ * (successfully or not), zfs_ereport_finish_checksum() is called with the
+ * good and bad versions of the buffer (if available), and we annotate the
+ * ereport with information about the differences.
  */
-void
-zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
+#ifdef _KERNEL
+static void
+zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
+    const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
     uint64_t stateoroffset, uint64_t size)
 {
-#ifdef _KERNEL
 	nvlist_t *ereport, *detector;
+
 	uint64_t ena;
 	char class[64];
 
 	/*
-	 * If we are doing a spa_tryimport(), ignore errors.
+	 * If we are doing a spa_tryimport() or in recovery mode,
+	 * ignore errors.
 	 */
-	if (spa->spa_load_state == SPA_LOAD_TRYIMPORT)
+	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT ||
+	    spa_load_state(spa) == SPA_LOAD_RECOVER)
 		return;
 
 	/*
@@ -108,7 +121,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	 * failed, don't bother logging any new ereports - we're just going to
 	 * get the same diagnosis anyway.
 	 */
-	if (spa->spa_load_state != SPA_LOAD_NONE &&
+	if (spa_load_state(spa) != SPA_LOAD_NONE &&
 	    spa->spa_last_open_failed)
 		return;
 
@@ -147,9 +160,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 			 * not yet been asynchronously placed into the REMOVED
 			 * state.
 			 */
-			if (zio->io_vd == vd &&
-			    !vdev_accessible(vd, zio) &&
-			    strcmp(subclass, FM_EREPORT_ZFS_PROBE_FAILURE) != 0)
+			if (zio->io_vd == vd && !vdev_accessible(vd, zio))
 				return;
 
 			/*
@@ -163,6 +174,15 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 				return;
 		}
 	}
+
+	/*
+	 * For probe failure, we want to avoid posting ereports if we've
+	 * already removed the device in the meantime.
+	 */
+	if (vd != NULL &&
+	    strcmp(subclass, FM_EREPORT_ZFS_PROBE_FAILURE) == 0 &&
+	    (vd->vdev_remove_wanted || vd->vdev_state == VDEV_STATE_REMOVED))
+		return;
 
 	if ((ereport = fm_nvlist_create(NULL)) == NULL)
 		return;
@@ -182,7 +202,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	 * state, use a SPA-wide ENA.  Otherwise, if we are in an I/O state, use
 	 * a root zio-wide ENA.  Otherwise, simply use a unique ENA.
 	 */
-	if (spa->spa_load_state != SPA_LOAD_NONE) {
+	if (spa_load_state(spa) != SPA_LOAD_NONE) {
 		if (spa->spa_ena == 0)
 			spa->spa_ena = fm_ena_generate(0, FM_ENA_FMT1);
 		ena = spa->spa_ena;
@@ -218,7 +238,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	    DATA_TYPE_STRING, spa_name(spa), FM_EREPORT_PAYLOAD_ZFS_POOL_GUID,
 	    DATA_TYPE_UINT64, spa_guid(spa),
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_CONTEXT, DATA_TYPE_INT32,
-	    spa->spa_load_state, NULL);
+	    spa_load_state(spa), NULL);
 
 	if (spa != NULL) {
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE,
@@ -322,12 +342,459 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 		    FM_EREPORT_PAYLOAD_ZFS_PREV_STATE,
 		    DATA_TYPE_UINT64, stateoroffset, NULL);
 	}
+
 	mutex_exit(&spa->spa_errlist_lock);
+
+	*ereport_out = ereport;
+	*detector_out = detector;
+}
+
+/* if it's <= 128 bytes, save the corruption directly */
+#define	ZFM_MAX_INLINE		(128 / sizeof (uint64_t))
+
+#define	MAX_RANGES		16
+
+typedef struct zfs_ecksum_info {
+	/* histograms of set and cleared bits by bit number in a 64-bit word */
+	uint16_t zei_histogram_set[sizeof (uint64_t) * NBBY];
+	uint16_t zei_histogram_cleared[sizeof (uint64_t) * NBBY];
+
+	/* inline arrays of bits set and cleared. */
+	uint64_t zei_bits_set[ZFM_MAX_INLINE];
+	uint64_t zei_bits_cleared[ZFM_MAX_INLINE];
+
+	/*
+	 * for each range, the number of bits set and cleared.  The Hamming
+	 * distance between the good and bad buffers is the sum of them all.
+	 */
+	uint32_t zei_range_sets[MAX_RANGES];
+	uint32_t zei_range_clears[MAX_RANGES];
+
+	struct zei_ranges {
+		uint32_t	zr_start;
+		uint32_t	zr_end;
+	} zei_ranges[MAX_RANGES];
+
+	size_t	zei_range_count;
+	uint32_t zei_mingap;
+	uint32_t zei_allowed_mingap;
+
+} zfs_ecksum_info_t;
+
+static void
+update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
+{
+	size_t i;
+	size_t bits = 0;
+	uint64_t value = BE_64(value_arg);
+
+	/* We store the bits in big-endian (largest-first) order */
+	for (i = 0; i < 64; i++) {
+		if (value & (1ull << i)) {
+			hist[63 - i]++;
+			++bits;
+		}
+	}
+	/* update the count of bits changed */
+	*count += bits;
+}
+
+/*
+ * We've now filled up the range array, and need to increase "mingap" and
+ * shrink the range list accordingly.  zei_mingap is always the smallest
+ * distance between array entries, so we set the new_allowed_gap to be
+ * one greater than that.  We then go through the list, joining together
+ * any ranges which are closer than the new_allowed_gap.
+ *
+ * By construction, there will be at least one.  We also update zei_mingap
+ * to the new smallest gap, to prepare for our next invocation.
+ */
+static void
+shrink_ranges(zfs_ecksum_info_t *eip)
+{
+	uint32_t mingap = UINT32_MAX;
+	uint32_t new_allowed_gap = eip->zei_mingap + 1;
+
+	size_t idx, output;
+	size_t max = eip->zei_range_count;
+
+	struct zei_ranges *r = eip->zei_ranges;
+
+	ASSERT3U(eip->zei_range_count, >, 0);
+	ASSERT3U(eip->zei_range_count, <=, MAX_RANGES);
+
+	output = idx = 0;
+	while (idx < max - 1) {
+		uint32_t start = r[idx].zr_start;
+		uint32_t end = r[idx].zr_end;
+
+		while (idx < max - 1) {
+			idx++;
+
+			uint32_t nstart = r[idx].zr_start;
+			uint32_t nend = r[idx].zr_end;
+
+			uint32_t gap = nstart - end;
+			if (gap < new_allowed_gap) {
+				end = nend;
+				continue;
+			}
+			if (gap < mingap)
+				mingap = gap;
+			break;
+		}
+		r[output].zr_start = start;
+		r[output].zr_end = end;
+		output++;
+	}
+	ASSERT3U(output, <, eip->zei_range_count);
+	eip->zei_range_count = output;
+	eip->zei_mingap = mingap;
+	eip->zei_allowed_mingap = new_allowed_gap;
+}
+
+static void
+add_range(zfs_ecksum_info_t *eip, int start, int end)
+{
+	struct zei_ranges *r = eip->zei_ranges;
+	size_t count = eip->zei_range_count;
+
+	if (count >= MAX_RANGES) {
+		shrink_ranges(eip);
+		count = eip->zei_range_count;
+	}
+	if (count == 0) {
+		eip->zei_mingap = UINT32_MAX;
+		eip->zei_allowed_mingap = 1;
+	} else {
+		int gap = start - r[count - 1].zr_end;
+
+		if (gap < eip->zei_allowed_mingap) {
+			r[count - 1].zr_end = end;
+			return;
+		}
+		if (gap < eip->zei_mingap)
+			eip->zei_mingap = gap;
+	}
+	r[count].zr_start = start;
+	r[count].zr_end = end;
+	eip->zei_range_count++;
+}
+
+static size_t
+range_total_size(zfs_ecksum_info_t *eip)
+{
+	struct zei_ranges *r = eip->zei_ranges;
+	size_t count = eip->zei_range_count;
+	size_t result = 0;
+	size_t idx;
+
+	for (idx = 0; idx < count; idx++)
+		result += (r[idx].zr_end - r[idx].zr_start);
+
+	return (result);
+}
+
+static zfs_ecksum_info_t *
+annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
+    const uint8_t *goodbuf, const uint8_t *badbuf, size_t size,
+    boolean_t drop_if_identical)
+{
+	const uint64_t *good = (const uint64_t *)goodbuf;
+	const uint64_t *bad = (const uint64_t *)badbuf;
+
+	uint64_t allset = 0;
+	uint64_t allcleared = 0;
+
+	size_t nui64s = size / sizeof (uint64_t);
+
+	size_t inline_size;
+	int no_inline = 0;
+	size_t idx;
+	size_t range;
+
+	size_t offset = 0;
+	ssize_t start = -1;
+
+	zfs_ecksum_info_t *eip = kmem_zalloc(sizeof (*eip), KM_SLEEP);
+
+	/* don't do any annotation for injected checksum errors */
+	if (info != NULL && info->zbc_injected)
+		return (eip);
+
+	if (info != NULL && info->zbc_has_cksum) {
+		fm_payload_set(ereport,
+		    FM_EREPORT_PAYLOAD_ZFS_CKSUM_EXPECTED,
+		    DATA_TYPE_UINT64_ARRAY,
+		    sizeof (info->zbc_expected) / sizeof (uint64_t),
+		    (uint64_t *)&info->zbc_expected,
+		    FM_EREPORT_PAYLOAD_ZFS_CKSUM_ACTUAL,
+		    DATA_TYPE_UINT64_ARRAY,
+		    sizeof (info->zbc_actual) / sizeof (uint64_t),
+		    (uint64_t *)&info->zbc_actual,
+		    FM_EREPORT_PAYLOAD_ZFS_CKSUM_ALGO,
+		    DATA_TYPE_STRING,
+		    info->zbc_checksum_name,
+		    NULL);
+
+		if (info->zbc_byteswapped) {
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_CKSUM_BYTESWAP,
+			    DATA_TYPE_BOOLEAN, 1,
+			    NULL);
+		}
+	}
+
+	if (badbuf == NULL || goodbuf == NULL)
+		return (eip);
+
+	ASSERT3U(nui64s, <=, UINT16_MAX);
+	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
+	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(size, <=, UINT32_MAX);
+
+	/* build up the range list by comparing the two buffers. */
+	for (idx = 0; idx < nui64s; idx++) {
+		if (good[idx] == bad[idx]) {
+			if (start == -1)
+				continue;
+
+			add_range(eip, start, idx);
+			start = -1;
+		} else {
+			if (start != -1)
+				continue;
+
+			start = idx;
+		}
+	}
+	if (start != -1)
+		add_range(eip, start, idx);
+
+	/* See if it will fit in our inline buffers */
+	inline_size = range_total_size(eip);
+	if (inline_size > ZFM_MAX_INLINE)
+		no_inline = 1;
+
+	/*
+	 * If there is no change and we want to drop if the buffers are
+	 * identical, do so.
+	 */
+	if (inline_size == 0 && drop_if_identical) {
+		kmem_free(eip, sizeof (*eip));
+		return (NULL);
+	}
+
+	/*
+	 * Now walk through the ranges, filling in the details of the
+	 * differences.  Also convert our uint64_t-array offsets to byte
+	 * offsets.
+	 */
+	for (range = 0; range < eip->zei_range_count; range++) {
+		size_t start = eip->zei_ranges[range].zr_start;
+		size_t end = eip->zei_ranges[range].zr_end;
+
+		for (idx = start; idx < end; idx++) {
+			uint64_t set, cleared;
+
+			// bits set in bad, but not in good
+			set = ((~good[idx]) & bad[idx]);
+			// bits set in good, but not in bad
+			cleared = (good[idx] & (~bad[idx]));
+
+			allset |= set;
+			allcleared |= cleared;
+
+			if (!no_inline) {
+				ASSERT3U(offset, <, inline_size);
+				eip->zei_bits_set[offset] = set;
+				eip->zei_bits_cleared[offset] = cleared;
+				offset++;
+			}
+
+			update_histogram(set, eip->zei_histogram_set,
+			    &eip->zei_range_sets[range]);
+			update_histogram(cleared, eip->zei_histogram_cleared,
+			    &eip->zei_range_clears[range]);
+		}
+
+		/* convert to byte offsets */
+		eip->zei_ranges[range].zr_start	*= sizeof (uint64_t);
+		eip->zei_ranges[range].zr_end	*= sizeof (uint64_t);
+	}
+	eip->zei_allowed_mingap	*= sizeof (uint64_t);
+	inline_size		*= sizeof (uint64_t);
+
+	/* fill in ereport */
+	fm_payload_set(ereport,
+	    FM_EREPORT_PAYLOAD_ZFS_BAD_OFFSET_RANGES,
+	    DATA_TYPE_UINT32_ARRAY, 2 * eip->zei_range_count,
+	    (uint32_t *)eip->zei_ranges,
+	    FM_EREPORT_PAYLOAD_ZFS_BAD_RANGE_MIN_GAP,
+	    DATA_TYPE_UINT32, eip->zei_allowed_mingap,
+	    FM_EREPORT_PAYLOAD_ZFS_BAD_RANGE_SETS,
+	    DATA_TYPE_UINT32_ARRAY, eip->zei_range_count, eip->zei_range_sets,
+	    FM_EREPORT_PAYLOAD_ZFS_BAD_RANGE_CLEARS,
+	    DATA_TYPE_UINT32_ARRAY, eip->zei_range_count, eip->zei_range_clears,
+	    NULL);
+
+	if (!no_inline) {
+		fm_payload_set(ereport,
+		    FM_EREPORT_PAYLOAD_ZFS_BAD_SET_BITS,
+		    DATA_TYPE_UINT8_ARRAY,
+		    inline_size, (uint8_t *)eip->zei_bits_set,
+		    FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_BITS,
+		    DATA_TYPE_UINT8_ARRAY,
+		    inline_size, (uint8_t *)eip->zei_bits_cleared,
+		    NULL);
+	} else {
+		fm_payload_set(ereport,
+		    FM_EREPORT_PAYLOAD_ZFS_BAD_SET_HISTOGRAM,
+		    DATA_TYPE_UINT16_ARRAY,
+		    NBBY * sizeof (uint64_t), eip->zei_histogram_set,
+		    FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_HISTOGRAM,
+		    DATA_TYPE_UINT16_ARRAY,
+		    NBBY * sizeof (uint64_t), eip->zei_histogram_cleared,
+		    NULL);
+	}
+	return (eip);
+}
+#endif
+
+void
+zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
+    uint64_t stateoroffset, uint64_t size)
+{
+#ifdef _KERNEL
+	nvlist_t *ereport = NULL;
+	nvlist_t *detector = NULL;
+
+	zfs_ereport_start(&ereport, &detector,
+	    subclass, spa, vd, zio, stateoroffset, size);
+
+	if (ereport == NULL)
+		return;
 
 	fm_ereport_post(ereport, EVCH_SLEEP);
 
 	fm_nvlist_destroy(ereport, FM_NVA_FREE);
 	fm_nvlist_destroy(detector, FM_NVA_FREE);
+#endif
+}
+
+void
+zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
+    struct zio *zio, uint64_t offset, uint64_t length, void *arg,
+    zio_bad_cksum_t *info)
+{
+	zio_cksum_report_t *report = kmem_zalloc(sizeof (*report), KM_SLEEP);
+
+	if (zio->io_vsd != NULL)
+		zio->io_vsd_ops->vsd_cksum_report(zio, report, arg);
+	else
+		zio_vsd_default_cksum_report(zio, report, arg);
+
+	/* copy the checksum failure information if it was provided */
+	if (info != NULL) {
+		report->zcr_ckinfo = kmem_zalloc(sizeof (*info), KM_SLEEP);
+		bcopy(info, report->zcr_ckinfo, sizeof (*info));
+	}
+
+	report->zcr_align = 1ULL << vd->vdev_top->vdev_ashift;
+	report->zcr_length = length;
+
+#ifdef _KERNEL
+	zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
+	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+
+	if (report->zcr_ereport == NULL) {
+		report->zcr_free(report->zcr_cbdata, report->zcr_cbinfo);
+		kmem_free(report, sizeof (*report));
+		return;
+	}
+#endif
+
+	mutex_enter(&spa->spa_errlist_lock);
+	report->zcr_next = zio->io_logical->io_cksum_report;
+	zio->io_logical->io_cksum_report = report;
+	mutex_exit(&spa->spa_errlist_lock);
+}
+
+void
+zfs_ereport_finish_checksum(zio_cksum_report_t *report,
+    const void *good_data, const void *bad_data, boolean_t drop_if_identical)
+{
+#ifdef _KERNEL
+	zfs_ecksum_info_t *info = NULL;
+	info = annotate_ecksum(report->zcr_ereport, report->zcr_ckinfo,
+	    good_data, bad_data, report->zcr_length, drop_if_identical);
+
+	if (info != NULL)
+		fm_ereport_post(report->zcr_ereport, EVCH_SLEEP);
+
+	fm_nvlist_destroy(report->zcr_ereport, FM_NVA_FREE);
+	fm_nvlist_destroy(report->zcr_detector, FM_NVA_FREE);
+	report->zcr_ereport = report->zcr_detector = NULL;
+
+	if (info != NULL)
+		kmem_free(info, sizeof (*info));
+#endif
+}
+
+void
+zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
+{
+#ifdef _KERNEL
+	if (rpt->zcr_ereport != NULL) {
+		fm_nvlist_destroy(rpt->zcr_ereport,
+		    FM_NVA_FREE);
+		fm_nvlist_destroy(rpt->zcr_detector,
+		    FM_NVA_FREE);
+	}
+#endif
+	rpt->zcr_free(rpt->zcr_cbdata, rpt->zcr_cbinfo);
+
+	if (rpt->zcr_ckinfo != NULL)
+		kmem_free(rpt->zcr_ckinfo, sizeof (*rpt->zcr_ckinfo));
+
+	kmem_free(rpt, sizeof (*rpt));
+}
+
+void
+zfs_ereport_send_interim_checksum(zio_cksum_report_t *report)
+{
+#ifdef _KERNEL
+	fm_ereport_post(report->zcr_ereport, EVCH_SLEEP);
+#endif
+}
+
+void
+zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
+    struct zio *zio, uint64_t offset, uint64_t length,
+    const void *good_data, const void *bad_data, zio_bad_cksum_t *zbc)
+{
+#ifdef _KERNEL
+	nvlist_t *ereport = NULL;
+	nvlist_t *detector = NULL;
+	zfs_ecksum_info_t *info;
+
+	zfs_ereport_start(&ereport, &detector,
+	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+
+	if (ereport == NULL)
+		return;
+
+	info = annotate_ecksum(ereport, zbc, good_data, bad_data, length,
+	    B_FALSE);
+
+	if (info != NULL)
+		fm_ereport_post(ereport, EVCH_SLEEP);
+
+	fm_nvlist_destroy(ereport, FM_NVA_FREE);
+	fm_nvlist_destroy(detector, FM_NVA_FREE);
+
+	if (info != NULL)
+		kmem_free(info, sizeof (*info));
 #endif
 }
 
@@ -337,6 +804,9 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 #ifdef _KERNEL
 	nvlist_t *resource;
 	char class[64];
+
+	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
+		return;
 
 	if ((resource = fm_nvlist_create(NULL)) == NULL)
 		return;
@@ -378,4 +848,16 @@ void
 zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 {
 	zfs_post_common(spa, vd, FM_RESOURCE_AUTOREPLACE);
+}
+
+/*
+ * The 'resource.fs.zfs.statechange' event is an internal signal that the
+ * given vdev has transitioned its state to DEGRADED or HEALTHY.  This will
+ * cause the retire agent to repair any outstanding fault management cases
+ * open because the device was not found (fault.fs.zfs.device).
+ */
+void
+zfs_post_state_change(spa_t *spa, vdev_t *vd)
+{
+	zfs_post_common(spa, vd, FM_RESOURCE_STATECHANGE);
 }
