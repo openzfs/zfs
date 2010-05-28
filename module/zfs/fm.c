@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -88,6 +87,8 @@ static kmutex_t zevent_lock;
 static list_t zevent_list;
 static kcondvar_t zevent_cv;
 #endif /* _KERNEL */
+
+extern void fastreboot_disable_highpil(void);
 
 /*
  * Common fault management kstats to record event generation failures
@@ -493,7 +494,7 @@ fm_zevent_insert(zevent_t *ev)
  * Post a zevent
  */
 void
-fm_zevent_post(nvlist_t *nvl, zevent_cb_t *cb)
+fm_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
 	size_t nvl_size = 0;
 	zevent_t *ev;
@@ -514,6 +515,7 @@ fm_zevent_post(nvlist_t *nvl, zevent_cb_t *cb)
 	}
 
         ev->ev_nvl = nvl;
+	ev->ev_detector = detector;
 	ev->ev_cb = cb;
 	fm_zevent_insert(ev);
 	cv_broadcast(&zevent_cv);
@@ -875,6 +877,14 @@ fm_payload_set(nvlist_t *payload, ...)
  *	detector		nvlist_t	<detector>
  *	ereport-payload		nvlist_t	<var args>
  *
+ * We don't actually add a 'version' member to the payload.  Really,
+ * the version quoted to us by our caller is that of the category 1
+ * "ereport" event class (and we require FM_EREPORT_VERS0) but
+ * the payload version of the actual leaf class event under construction
+ * may be something else.  Callers should supply a version in the varargs,
+ * or (better) we could take two version arguments - one for the
+ * ereport category 1 classification (expect FM_EREPORT_VERS0) and one
+ * for the leaf class.
  */
 void
 fm_ereport_set(nvlist_t *ereport, int version, const char *erpt_class,
@@ -1008,6 +1018,105 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 	}
 }
 
+void
+fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
+    nvlist_t *snvl, nvlist_t *bboard, int npairs, ...)
+{
+	nv_alloc_t *nva = nvlist_lookup_nv_alloc(fmri);
+	nvlist_t *pairs[HC_MAXPAIRS];
+	nvlist_t **hcl;
+	uint_t n;
+	int i, j;
+	va_list ap;
+	char *hcname, *hcid;
+
+	if (!fm_fmri_hc_set_common(fmri, version, auth))
+		return;
+
+	/*
+	 * copy the bboard nvpairs to the pairs array
+	 */
+	if (nvlist_lookup_nvlist_array(bboard, FM_FMRI_HC_LIST, &hcl, &n)
+	    != 0) {
+		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+		return;
+	}
+
+	for (i = 0; i < n; i++) {
+		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_NAME,
+		    &hcname) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_ID, &hcid) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+
+		pairs[i] = fm_nvlist_create(nva);
+		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, hcname) != 0 ||
+		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, hcid) != 0) {
+			for (j = 0; j <= i; j++) {
+				if (pairs[j] != NULL)
+					fm_nvlist_destroy(pairs[j],
+					    FM_NVA_RETAIN);
+			}
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+
+	/*
+	 * create the pairs from passed in pairs
+	 */
+	npairs = MIN(npairs, HC_MAXPAIRS);
+
+	va_start(ap, npairs);
+	for (i = n; i < npairs + n; i++) {
+		const char *name = va_arg(ap, const char *);
+		uint32_t id = va_arg(ap, uint32_t);
+		char idstr[11];
+		(void) snprintf(idstr, sizeof (idstr), "%u", id);
+		pairs[i] = fm_nvlist_create(nva);
+		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, name) != 0 ||
+		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, idstr) != 0) {
+			for (j = 0; j <= i; j++) {
+				if (pairs[j] != NULL)
+					fm_nvlist_destroy(pairs[j],
+					    FM_NVA_RETAIN);
+			}
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+	va_end(ap);
+
+	/*
+	 * Create the fmri hc list
+	 */
+	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs,
+	    npairs + n) != 0) {
+		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+		return;
+	}
+
+	for (i = 0; i < npairs + n; i++) {
+			fm_nvlist_destroy(pairs[i], FM_NVA_RETAIN);
+	}
+
+	if (snvl != NULL) {
+		if (nvlist_add_nvlist(fmri, FM_FMRI_HC_SPECIFIC, snvl) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+}
+
 /*
  * Set-up and validate the members of an dev fmri according to:
  *
@@ -1016,46 +1125,41 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
  *	version			uint8_t		0
  *	auth			nvlist_t	<auth>
  *	devpath			string		<devpath>
- *	devid			string		<devid>
+ *	[devid]			string		<devid>
+ *	[target-port-l0id]	string		<target-port-lun0-id>
  *
  * Note that auth and devid are optional members.
  */
 void
 fm_fmri_dev_set(nvlist_t *fmri_dev, int version, const nvlist_t *auth,
-    const char *devpath, const char *devid)
+    const char *devpath, const char *devid, const char *tpl0)
 {
+	int err = 0;
+
 	if (version != DEV_SCHEME_VERSION0) {
 		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
 		return;
 	}
 
-	if (nvlist_add_uint8(fmri_dev, FM_VERSION, version) != 0) {
-		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-		return;
-	}
-
-	if (nvlist_add_string(fmri_dev, FM_FMRI_SCHEME,
-	    FM_FMRI_SCHEME_DEV) != 0) {
-		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-		return;
-	}
+	err |= nvlist_add_uint8(fmri_dev, FM_VERSION, version);
+	err |= nvlist_add_string(fmri_dev, FM_FMRI_SCHEME, FM_FMRI_SCHEME_DEV);
 
 	if (auth != NULL) {
-		if (nvlist_add_nvlist(fmri_dev, FM_FMRI_AUTHORITY,
-		    (nvlist_t *)auth) != 0) {
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-		}
+		err |= nvlist_add_nvlist(fmri_dev, FM_FMRI_AUTHORITY,
+		    (nvlist_t *)auth);
 	}
 
-	if (nvlist_add_string(fmri_dev, FM_FMRI_DEV_PATH, devpath) != 0) {
-		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-	}
+	err |= nvlist_add_string(fmri_dev, FM_FMRI_DEV_PATH, devpath);
 
 	if (devid != NULL)
-		if (nvlist_add_string(fmri_dev, FM_FMRI_DEV_ID, devid) != 0)
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+		err |= nvlist_add_string(fmri_dev, FM_FMRI_DEV_ID, devid);
+
+	if (tpl0 != NULL)
+		err |= nvlist_add_string(fmri_dev, FM_FMRI_DEV_TGTPTLUN0, tpl0);
+
+	if (err)
+		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+
 }
 
 /*
