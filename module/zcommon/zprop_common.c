@@ -256,7 +256,7 @@ zprop_name_to_prop(const char *propname, zfs_type_t type)
 }
 
 int
-zprop_string_to_index(int prop, const char *string, uint64_t *idx,
+zprop_string_to_index(int prop, const char *string, uint64_t *index,
     zfs_type_t type)
 {
 	zprop_desc_t *prop_tbl;
@@ -273,7 +273,7 @@ zprop_string_to_index(int prop, const char *string, uint64_t *idx,
 
 	for (i = 0; idx_tbl[i].pi_name != NULL; i++) {
 		if (strcmp(string, idx_tbl[i].pi_name) == 0) {
-			*idx = idx_tbl[i].pi_value;
+			*index = idx_tbl[i].pi_value;
 			return (0);
 		}
 	}
@@ -282,7 +282,7 @@ zprop_string_to_index(int prop, const char *string, uint64_t *idx,
 }
 
 int
-zprop_index_to_string(int prop, uint64_t idx, const char **string,
+zprop_index_to_string(int prop, uint64_t index, const char **string,
     zfs_type_t type)
 {
 	zprop_desc_t *prop_tbl;
@@ -298,7 +298,7 @@ zprop_index_to_string(int prop, uint64_t idx, const char **string,
 		return (-1);
 
 	for (i = 0; idx_tbl[i].pi_name != NULL; i++) {
-		if (idx_tbl[i].pi_value == idx) {
+		if (idx_tbl[i].pi_value == index) {
 			*string = idx_tbl[i].pi_name;
 			return (0);
 		}
