@@ -902,28 +902,6 @@ restore_free(struct restorearg *ra, objset_t *os,
 }
 
 /*
- * Compute checksum of drr_begin record
- */
-static void
-dmu_recv_stream_cksum(dmu_recv_cookie_t *drc, struct restorearg *ra)
-{
-	dmu_replay_record_t *drr;
-
-	drr = kmem_zalloc(sizeof (dmu_replay_record_t), KM_SLEEP);
-
-	drr->drr_type = DRR_BEGIN;
-	drr->drr_u.drr_begin = *drc->drc_drrb;
-	if (ra->byteswap) {
-		fletcher_4_incremental_byteswap(drr,
-		    sizeof (dmu_replay_record_t), &(ra->cksum));
-	} else {
-		fletcher_4_incremental_native(drr,
-		    sizeof (dmu_replay_record_t), &(ra->cksum));
-	}
-	kmem_free(drr, sizeof (dmu_replay_record_t));
-}
-
-/*
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
 int
@@ -937,7 +915,22 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC))
 		ra.byteswap = TRUE;
 
-	dmu_recv_stream_cksum(drc, &ra);
+	{
+		/* compute checksum of drr_begin record */
+		dmu_replay_record_t *drr;
+		drr = kmem_zalloc(sizeof (dmu_replay_record_t), KM_SLEEP);
+
+		drr->drr_type = DRR_BEGIN;
+		drr->drr_u.drr_begin = *drc->drc_drrb;
+		if (ra.byteswap) {
+			fletcher_4_incremental_byteswap(drr,
+			    sizeof (dmu_replay_record_t), &ra.cksum);
+		} else {
+			fletcher_4_incremental_native(drr,
+			    sizeof (dmu_replay_record_t), &ra.cksum);
+		}
+		kmem_free(drr, sizeof (dmu_replay_record_t));
+	}
 
 	if (ra.byteswap) {
 		struct drr_begin *drrb = drc->drc_drrb;
