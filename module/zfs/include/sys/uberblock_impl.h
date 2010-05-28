@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef _SYS_UBERBLOCK_IMPL_H
@@ -31,11 +30,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-/*
- * For zdb use and debugging purposes only
- */
-extern uint64_t ub_max_txg;
 
 /*
  * The uberblock version is incremented whenever an incompatible on-disk
@@ -57,6 +51,9 @@ struct uberblock {
 	uint64_t	ub_guid_sum;	/* sum of all vdev guids	*/
 	uint64_t	ub_timestamp;	/* UTC time of last sync	*/
 	blkptr_t	ub_rootbp;	/* MOS objset_phys_t		*/
+
+	/* highest SPA_VERSION supported by software that wrote this txg */
+	uint64_t	ub_software_version;
 };
 
 #ifdef	__cplusplus

@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_PROP_H
@@ -49,6 +48,25 @@ typedef struct dsl_prop_cb_record {
 	void *cbr_arg;
 } dsl_prop_cb_record_t;
 
+typedef struct dsl_props_arg {
+	nvlist_t *pa_props;
+	zprop_source_t pa_source;
+} dsl_props_arg_t;
+
+typedef struct dsl_prop_set_arg {
+	const char *psa_name;
+	zprop_source_t psa_source;
+	int psa_intsz;
+	int psa_numints;
+	const void *psa_value;
+
+	/*
+	 * Used to handle the special requirements of the quota and reservation
+	 * properties.
+	 */
+	uint64_t psa_effective_value;
+} dsl_prop_setarg_t;
+
 int dsl_prop_register(struct dsl_dataset *ds, const char *propname,
     dsl_prop_changed_cb_t *callback, void *cbarg);
 int dsl_prop_unregister(struct dsl_dataset *ds, const char *propname,
@@ -59,18 +77,36 @@ int dsl_prop_get(const char *ddname, const char *propname,
     int intsz, int numints, void *buf, char *setpoint);
 int dsl_prop_get_integer(const char *ddname, const char *propname,
     uint64_t *valuep, char *setpoint);
-int dsl_prop_get_all(objset_t *os, nvlist_t **nvp, boolean_t local);
+int dsl_prop_get_all(objset_t *os, nvlist_t **nvp);
+int dsl_prop_get_received(objset_t *os, nvlist_t **nvp);
 int dsl_prop_get_ds(struct dsl_dataset *ds, const char *propname,
     int intsz, int numints, void *buf, char *setpoint);
 int dsl_prop_get_dd(struct dsl_dir *dd, const char *propname,
-    int intsz, int numints, void *buf, char *setpoint);
+    int intsz, int numints, void *buf, char *setpoint,
+    boolean_t snapshot);
 
 dsl_syncfunc_t dsl_props_set_sync;
 int dsl_prop_set(const char *ddname, const char *propname,
-    int intsz, int numints, const void *buf);
-int dsl_props_set(const char *dsname, nvlist_t *nvl);
+    zprop_source_t source, int intsz, int numints, const void *buf);
+int dsl_props_set(const char *dsname, zprop_source_t source, nvlist_t *nvl);
 void dsl_dir_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
-    cred_t *cr, dmu_tx_t *tx);
+    dmu_tx_t *tx);
+
+void dsl_prop_setarg_init_uint64(dsl_prop_setarg_t *psa, const char *propname,
+    zprop_source_t source, uint64_t *value);
+int dsl_prop_predict_sync(dsl_dir_t *dd, dsl_prop_setarg_t *psa);
+#ifdef	ZFS_DEBUG
+void dsl_prop_check_prediction(dsl_dir_t *dd, dsl_prop_setarg_t *psa);
+#define	DSL_PROP_CHECK_PREDICTION(dd, psa)	\
+	dsl_prop_check_prediction((dd), (psa))
+#else
+#define	DSL_PROP_CHECK_PREDICTION(dd, psa)	/* nothing */
+#endif
+
+/* flag first receive on or after SPA_VERSION_RECVD_PROPS */
+boolean_t dsl_prop_get_hasrecvd(objset_t *os);
+void dsl_prop_set_hasrecvd(objset_t *os);
+void dsl_prop_unset_hasrecvd(objset_t *os);
 
 void dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value);
 void dsl_prop_nvlist_add_string(nvlist_t *nv,
