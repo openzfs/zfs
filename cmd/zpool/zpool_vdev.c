@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -1004,8 +1003,8 @@ is_spare(nvlist_t *config, const char *path)
 		return (B_FALSE);
 	}
 	free(name);
-
 	(void) close(fd);
+
 	verify(nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) == 0);
 	nvlist_free(label);
 
@@ -1029,8 +1028,8 @@ is_spare(nvlist_t *config, const char *path)
  * the majority of this task.
  */
 static int
-check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
-    int isspare)
+check_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
+    boolean_t replacing, boolean_t isspare)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1051,13 +1050,14 @@ check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
 		 * hot spare within the same pool.  If so, we allow it
 		 * regardless of what libdiskmgt or zpool_in_use() says.
 		 */
-		if (isreplacing) {
+		if (replacing) {
 			if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 			    &wholedisk) == 0 && wholedisk)
 				(void) snprintf(buf, sizeof (buf), "%ss0",
 				    path);
 			else
 				(void) strlcpy(buf, path, sizeof (buf));
+
 			if (is_spare(config, buf))
 				return (0);
 		}
@@ -1073,21 +1073,21 @@ check_in_use(nvlist_t *config, nvlist_t *nv, int force, int isreplacing,
 
 	for (c = 0; c < children; c++)
 		if ((ret = check_in_use(config, child[c], force,
-		    isreplacing, B_FALSE)) != 0)
+		    replacing, B_FALSE)) != 0)
 			return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if ((ret = check_in_use(config, child[c], force,
-			    isreplacing, B_TRUE)) != 0)
+			    replacing, B_TRUE)) != 0)
 				return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
 			if ((ret = check_in_use(config, child[c], force,
-			    isreplacing, B_FALSE)) != 0)
+			    replacing, B_FALSE)) != 0)
 				return (ret);
 
 	return (0);
@@ -1360,6 +1360,52 @@ construct_spec(int argc, char **argv)
 	return (nvroot);
 }
 
+nvlist_t *
+split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
+    splitflags_t flags, int argc, char **argv)
+{
+	nvlist_t *newroot = NULL, **child;
+	uint_t c, children;
+
+	if (argc > 0) {
+		if ((newroot = construct_spec(argc, argv)) == NULL) {
+			(void) fprintf(stderr, gettext("Unable to build a "
+			    "pool from the specified devices\n"));
+			return (NULL);
+		}
+
+		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+			nvlist_free(newroot);
+			return (NULL);
+		}
+
+		/* avoid any tricks in the spec */
+		verify(nvlist_lookup_nvlist_array(newroot,
+		    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+		for (c = 0; c < children; c++) {
+			char *path;
+			const char *type;
+			int min, max;
+
+			verify(nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_PATH, &path) == 0);
+			if ((type = is_grouping(path, &min, &max)) != NULL) {
+				(void) fprintf(stderr, gettext("Cannot use "
+				    "'%s' as a device for splitting\n"), type);
+				nvlist_free(newroot);
+				return (NULL);
+			}
+		}
+	}
+
+	if (zpool_vdev_split(zhp, newname, &newroot, props, flags) != 0) {
+		if (newroot != NULL)
+			nvlist_free(newroot);
+		return (NULL);
+	}
+
+	return (newroot);
+}
 
 /*
  * Get and validate the contents of the given vdev specification.  This ensures
@@ -1373,7 +1419,7 @@ construct_spec(int argc, char **argv)
  */
 nvlist_t *
 make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
-    boolean_t isreplacing, boolean_t dryrun, int argc, char **argv)
+    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1396,8 +1442,7 @@ make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.
 	 */
-	if (check_in_use(poolconfig, newroot, force, isreplacing,
-	    B_FALSE) != 0) {
+	if (check_in_use(poolconfig, newroot, force, replacing, B_FALSE) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

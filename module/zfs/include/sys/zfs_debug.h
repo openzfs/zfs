@@ -19,14 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
 #define	_SYS_ZFS_DEBUG_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -67,6 +64,16 @@ extern void __dprintf(const char *file, const char *func,
 #endif /* ZFS_DEBUG */
 
 extern void zfs_panic_recover(const char *fmt, ...);
+
+typedef struct zfs_dbgmsg {
+	list_node_t zdm_node;
+	time_t zdm_timestamp;
+	char zdm_msg[1]; /* variable length allocation */
+} zfs_dbgmsg_t;
+
+extern void zfs_dbgmsg_init(void);
+extern void zfs_dbgmsg_fini(void);
+extern void zfs_dbgmsg(const char *fmt, ...);
 
 #ifdef	__cplusplus
 }
