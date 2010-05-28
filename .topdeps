@@ -1,7 +1,6 @@
 fix-dbuf_dirty_record_t
 fix-dnode-cons
 fix-evict-dbufs
-fix-get-configs
 fix-newlines
 fix-no-zmod
 fix-rwlocks
