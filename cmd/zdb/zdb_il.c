@@ -248,7 +248,7 @@ typedef struct zil_rec_info {
 } zil_rec_info_t;
 
 static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
-	{ NULL,						"Total              " },
+	{ NULL,			"Total              " },
 	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE          " },
 	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR           " },
 	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKXATTR         " },
