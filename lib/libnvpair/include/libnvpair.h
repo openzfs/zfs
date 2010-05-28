@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_LIBNVPAIR_H
 #define	_LIBNVPAIR_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/nvpair.h>
 #include <stdlib.h>
@@ -40,6 +38,7 @@ extern "C" {
 void nvlist_print(FILE *, nvlist_t *);
 int nvpair_value_match(nvpair_t *, int, char *, char **);
 int nvpair_value_match_regex(nvpair_t *, int, char *, regex_t *, char **);
+void dump_nvlist(nvlist_t *, int);
 
 #ifdef	__cplusplus
 }
