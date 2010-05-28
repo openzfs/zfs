@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
@@ -31,6 +30,7 @@
 #include <sys/list.h>
 #include <sys/vfs.h>
 #include <sys/zil.h>
+#include <sys/sa.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_ioctl.h>
 
@@ -39,6 +39,7 @@ extern "C" {
 #endif
 
 typedef struct zfsvfs zfsvfs_t;
+struct znode;
 
 struct zfsvfs {
 	vfs_t		*z_vfs;		/* generic fs struct */
@@ -56,7 +57,6 @@ struct zfsvfs {
 	boolean_t	z_fuid_dirty;   /* need to sync fuid table ? */
 	struct zfs_fuid_info	*z_fuid_replay; /* fuid info for replay */
 	zilog_t		*z_log;		/* intent log pointer */
-	uint_t		z_acl_mode;	/* acl chmod/mode behavior */
 	uint_t		z_acl_inherit;	/* acl inheritance behavior */
 	zfs_case_t	z_case;		/* case-sense */
 	boolean_t	z_utf8;		/* utf8-only */
@@ -73,11 +73,13 @@ struct zfsvfs {
 	boolean_t	z_vscan;	/* virus scan on/off */
 	boolean_t	z_use_fuids;	/* version allows fuids */
 	boolean_t	z_replay;	/* set during ZIL replay */
+	boolean_t	z_use_sa;	/* version allow system attributes */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	kmutex_t	z_lock;
 	uint64_t	z_userquota_obj;
 	uint64_t	z_groupquota_obj;
+	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	64
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
 };
@@ -132,19 +134,22 @@ typedef struct zfid_long {
 
 extern uint_t zfs_fsyncer_key;
 
-extern int zfs_suspend_fs(zfsvfs_t *zfsvfs, char *osname, int *mode);
-extern int zfs_resume_fs(zfsvfs_t *zfsvfs, const char *osname, int mode);
+extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
+extern int zfs_resume_fs(zfsvfs_t *zfsvfs, const char *osname);
 extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valuep);
 extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     uint64_t *cookiep, void *vbuf, uint64_t *bufsizep);
 extern int zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t quota);
-extern boolean_t zfs_usergroup_overquota(zfsvfs_t *zfsvfs,
-    boolean_t isgroup, uint64_t fuid);
+extern boolean_t zfs_owner_overquota(zfsvfs_t *zfsvfs, struct znode *,
+    boolean_t isgroup);
+extern boolean_t zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
+    uint64_t fuid);
 extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
-extern int zfsvfs_create(const char *name, int mode, zfsvfs_t **zvp);
+extern int zfsvfs_create(const char *name, zfsvfs_t **zfvp);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
+extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 
 #ifdef	__cplusplus
 }
