@@ -1999,7 +1999,7 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 static void
 arc_reclaim_thread(void)
 {
-	int64_t			growtime = 0;
+	clock_t			growtime = 0;
 	arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
 	callb_cpr_t		cpr;
 
@@ -2022,12 +2022,12 @@ arc_reclaim_thread(void)
 			}
 
 			/* reset the growth delay for every reclaim */
-			growtime = lbolt64 + (arc_grow_retry * hz);
+			growtime = lbolt + (arc_grow_retry * hz);
 
 			arc_kmem_reap_now(last_reclaim);
 			arc_warm = B_TRUE;
 
-		} else if (arc_no_grow && lbolt64 >= growtime) {
+		} else if (arc_no_grow && lbolt >= growtime) {
 			arc_no_grow = FALSE;
 		}
 
