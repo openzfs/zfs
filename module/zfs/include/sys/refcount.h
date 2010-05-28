@@ -19,14 +19,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_REFCOUNT_H
 #define	_SYS_REFCOUNT_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/inttypes.h>
 #include <sys/list.h>
@@ -91,6 +88,11 @@ typedef struct refcount {
 	atomic_add_64_nv(&(rc)->rc_count, number)
 #define	refcount_remove_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, -number)
+#define	refcount_transfer(dst, src) { \
+	uint64_t __tmp = (src)->rc_count; \
+	atomic_add_64(&(src)->rc_count, -__tmp); \
+	atomic_add_64(&(dst)->rc_count, __tmp); \
+}
 
 #define	refcount_init()
 #define	refcount_fini()

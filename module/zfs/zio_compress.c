@@ -20,11 +20,9 @@
  */
 
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/zfs_context.h>
 #include <sys/compress.h>
@@ -51,10 +49,11 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{gzip_compress,		gzip_decompress,	7,	"gzip-7"},
 	{gzip_compress,		gzip_decompress,	8,	"gzip-8"},
 	{gzip_compress,		gzip_decompress,	9,	"gzip-9"},
+	{zle_compress,		zle_decompress,		64,	"zle"},
 };
 
-uint8_t
-zio_compress_select(uint8_t child, uint8_t parent)
+enum zio_compress
+zio_compress_select(enum zio_compress child, enum zio_compress parent)
 {
 	ASSERT(child < ZIO_COMPRESS_FUNCTIONS);
 	ASSERT(parent < ZIO_COMPRESS_FUNCTIONS);
@@ -69,80 +68,65 @@ zio_compress_select(uint8_t child, uint8_t parent)
 	return (child);
 }
 
-int
-zio_compress_data(int cpfunc, void *src, uint64_t srcsize, void **destp,
-    uint64_t *destsizep, uint64_t *destbufsizep)
+size_t
+zio_compress_data(enum zio_compress c, void *src, void *dst, size_t s_len)
 {
 	uint64_t *word, *word_end;
-	uint64_t ciosize, gapsize, destbufsize;
-	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
-	char *dest;
-	uint_t allzero;
+	size_t c_len, d_len, r_len;
+	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT((uint_t)cpfunc < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT((uint_t)cpfunc == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
+	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
 
 	/*
 	 * If the data is all zeroes, we don't even need to allocate
-	 * a block for it.  We indicate this by setting *destsizep = 0.
+	 * a block for it.  We indicate this by returning zero size.
 	 */
-	allzero = 1;
-	word = src;
-	word_end = (uint64_t *)(uintptr_t)((uintptr_t)word + srcsize);
-	while (word < word_end) {
-		if (*word++ != 0) {
-			allzero = 0;
+	word_end = (uint64_t *)((char *)src + s_len);
+	for (word = src; word < word_end; word++)
+		if (*word != 0)
 			break;
-		}
-	}
-	if (allzero) {
-		*destp = NULL;
-		*destsizep = 0;
-		*destbufsizep = 0;
-		return (1);
-	}
 
-	if (cpfunc == ZIO_COMPRESS_EMPTY)
+	if (word == word_end)
 		return (0);
+
+	if (c == ZIO_COMPRESS_EMPTY)
+		return (s_len);
 
 	/* Compress at least 12.5% */
-	destbufsize = P2ALIGN(srcsize - (srcsize >> 3), SPA_MINBLOCKSIZE);
-	if (destbufsize == 0)
-		return (0);
-	dest = zio_buf_alloc(destbufsize);
+	d_len = P2ALIGN(s_len - (s_len >> 3), (size_t)SPA_MINBLOCKSIZE);
+	if (d_len == 0)
+		return (s_len);
 
-	ciosize = ci->ci_compress(src, dest, (size_t)srcsize,
-	    (size_t)destbufsize, ci->ci_level);
-	if (ciosize > destbufsize) {
-		zio_buf_free(dest, destbufsize);
-		return (0);
+	c_len = ci->ci_compress(src, dst, s_len, d_len, ci->ci_level);
+
+	if (c_len > d_len)
+		return (s_len);
+
+	/*
+	 * Cool.  We compressed at least as much as we were hoping to.
+	 * For both security and repeatability, pad out the last sector.
+	 */
+	r_len = P2ROUNDUP(c_len, (size_t)SPA_MINBLOCKSIZE);
+	if (r_len > c_len) {
+		bzero((char *)dst + c_len, r_len - c_len);
+		c_len = r_len;
 	}
 
-	/* Cool.  We compressed at least as much as we were hoping to. */
+	ASSERT3U(c_len, <=, d_len);
+	ASSERT(P2PHASE(c_len, (size_t)SPA_MINBLOCKSIZE) == 0);
 
-	/* For security, make sure we don't write random heap crap to disk */
-	gapsize = P2ROUNDUP(ciosize, SPA_MINBLOCKSIZE) - ciosize;
-	if (gapsize != 0) {
-		bzero(dest + ciosize, gapsize);
-		ciosize += gapsize;
-	}
-
-	ASSERT3U(ciosize, <=, destbufsize);
-	ASSERT(P2PHASE(ciosize, SPA_MINBLOCKSIZE) == 0);
-	*destp = dest;
-	*destsizep = ciosize;
-	*destbufsizep = destbufsize;
-
-	return (1);
+	return (c_len);
 }
 
 int
-zio_decompress_data(int cpfunc, void *src, uint64_t srcsize,
-	void *dest, uint64_t destsize)
+zio_decompress_data(enum zio_compress c, void *src, void *dst,
+    size_t s_len, size_t d_len)
 {
-	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
+	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT((uint_t)cpfunc < ZIO_COMPRESS_FUNCTIONS);
+	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
+		return (EINVAL);
 
-	return (ci->ci_decompress(src, dest, srcsize, destsize, ci->ci_level));
+	return (ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level));
 }

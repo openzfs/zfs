@@ -62,6 +62,7 @@ extern "C" {
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
 #include <sys/fm/util.h>
+#include <sys/sunddi.h>
 
 #define	CPU_SEQID	(CPU->cpu_seqid)
 
