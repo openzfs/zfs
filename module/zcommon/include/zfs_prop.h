@@ -19,14 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
 #ifndef	_ZFS_PROP_H
 #define	_ZFS_PROP_H
-
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 #include <sys/fs/zfs.h>
 #include <sys/types.h>
@@ -79,6 +77,7 @@ typedef struct {
 					/* "zfs get" help message */
 	const zprop_index_t *pd_table;	/* for index properties, a table */
 					/* defining the possible values */
+	size_t pd_table_size;		/* number of entries in pd_table[] */
 } zprop_desc_t;
 
 /*
@@ -99,16 +98,16 @@ zprop_desc_t *zpool_prop_get_table(void);
 /*
  * Common routines to initialize property tables
  */
-void register_impl(int, const char *, zprop_type_t, uint64_t,
+void zprop_register_impl(int, const char *, zprop_type_t, uint64_t,
     const char *, zprop_attr_t, int, const char *, const char *,
     boolean_t, boolean_t, const zprop_index_t *);
-void register_string(int, const char *, const char *, zprop_attr_t attr,
-    int, const char *, const char *);
-void register_number(int, const char *, uint64_t, zprop_attr_t, int,
+void zprop_register_string(int, const char *, const char *,
+    zprop_attr_t attr, int, const char *, const char *);
+void zprop_register_number(int, const char *, uint64_t, zprop_attr_t, int,
     const char *, const char *);
-void register_index(int, const char *, uint64_t, zprop_attr_t, int,
+void zprop_register_index(int, const char *, uint64_t, zprop_attr_t, int,
     const char *, const char *, const zprop_index_t *);
-void register_hidden(int, const char *, zprop_type_t, zprop_attr_t,
+void zprop_register_hidden(int, const char *, zprop_type_t, zprop_attr_t,
     int, const char *);
 
 /*
@@ -118,6 +117,7 @@ int zprop_iter_common(zprop_func, void *, boolean_t, boolean_t, zfs_type_t);
 int zprop_name_to_prop(const char *, zfs_type_t);
 int zprop_string_to_index(int, const char *, uint64_t *, zfs_type_t);
 int zprop_index_to_string(int, uint64_t, const char **, zfs_type_t);
+uint64_t zprop_random_value(int, uint64_t, zfs_type_t);
 const char *zprop_values(int, zfs_type_t);
 size_t zprop_width(int, boolean_t *, zfs_type_t);
 boolean_t zprop_valid_for_type(int, zfs_type_t);

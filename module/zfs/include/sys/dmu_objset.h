@@ -19,9 +19,10 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
+
+/* Portions Copyright 2010 Robert Milkowski */
 
 #ifndef	_SYS_DMU_OBJSET_H
 #define	_SYS_DMU_OBJSET_H
@@ -33,6 +34,7 @@
 #include <sys/dnode.h>
 #include <sys/zio.h>
 #include <sys/zil.h>
+#include <sys/sa.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -40,10 +42,12 @@ extern "C" {
 
 struct dsl_dataset;
 struct dmu_tx;
-struct objset_impl;
 
 #define	OBJSET_PHYS_SIZE 2048
 #define	OBJSET_OLD_PHYS_SIZE 1024
+
+#define	OBJSET_BUF_HAS_USERUSED(buf) \
+	(arc_buf_size(buf) > OBJSET_OLD_PHYS_SIZE)
 
 #define	OBJSET_FLAG_USERACCOUNTING_COMPLETE	(1ULL<<0)
 
@@ -59,11 +63,6 @@ typedef struct objset_phys {
 } objset_phys_t;
 
 struct objset {
-	struct objset_impl *os;
-	int os_mode;
-};
-
-typedef struct objset_impl {
 	/* Immutable: */
 	struct dsl_dataset *os_dsl_dataset;
 	spa_t *os_spa;
@@ -73,12 +72,17 @@ typedef struct objset_impl {
 	dnode_t *os_userused_dnode;
 	dnode_t *os_groupused_dnode;
 	zilog_t *os_zil;
-	objset_t os;
-	uint8_t os_checksum;	/* can change, under dsl_dir's locks */
-	uint8_t os_compress;	/* can change, under dsl_dir's locks */
-	uint8_t os_copies;	/* can change, under dsl_dir's locks */
-	uint8_t os_primary_cache;	/* can change, under dsl_dir's locks */
-	uint8_t os_secondary_cache;	/* can change, under dsl_dir's locks */
+
+	/* can change, under dsl_dir's locks: */
+	uint8_t os_checksum;
+	uint8_t os_compress;
+	uint8_t os_copies;
+	uint8_t os_dedup_checksum;
+	uint8_t os_dedup_verify;
+	uint8_t os_logbias;
+	uint8_t os_primary_cache;
+	uint8_t os_secondary_cache;
+	uint8_t os_sync;
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */
@@ -101,8 +105,12 @@ typedef struct objset_impl {
 	/* stuff we store for the user */
 	kmutex_t os_user_ptr_lock;
 	void *os_user_ptr;
-} objset_impl_t;
 
+	/* SA layout/attribute registration */
+	sa_os_t *os_sa;
+};
+
+#define	DMU_META_OBJSET		0
 #define	DMU_META_DNODE_OBJECT	0
 #define	DMU_OBJECT_IS_SPECIAL(obj) ((int64_t)(obj) <= 0)
 
@@ -111,14 +119,18 @@ typedef struct objset_impl {
 	(os)->os_secondary_cache == ZFS_CACHE_METADATA)
 
 /* called from zpl */
-int dmu_objset_open(const char *name, dmu_objset_type_t type, int mode,
-    objset_t **osp);
-void dmu_objset_close(objset_t *os);
-int dmu_objset_create(const char *name, dmu_objset_type_t type,
-    objset_t *clone_parent, uint64_t flags,
+int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
+int dmu_objset_own(const char *name, dmu_objset_type_t type,
+    boolean_t readonly, void *tag, objset_t **osp);
+void dmu_objset_rele(objset_t *os, void *tag);
+void dmu_objset_disown(objset_t *os, void *tag);
+int dmu_objset_from_ds(struct dsl_dataset *ds, objset_t **osp);
+
+int dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
     void (*func)(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx), void *arg);
+int dmu_objset_clone(const char *name, struct dsl_dataset *clone_origin,
+    uint64_t flags);
 int dmu_objset_destroy(const char *name, boolean_t defer);
-int dmu_objset_rollback(objset_t *os);
 int dmu_objset_snapshot(char *fsname, char *snapname, nvlist_t *props,
     boolean_t recursive);
 void dmu_objset_stats(objset_t *os, nvlist_t *nv);
@@ -126,23 +138,26 @@ void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
 void dmu_objset_space(objset_t *os, uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dmu_objset_fsid_guid(objset_t *os);
-int dmu_objset_find(char *name, int func(char *, void *), void *arg,
+int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
     int flags);
 int dmu_objset_find_spa(spa_t *spa, const char *name,
     int func(spa_t *, uint64_t, const char *, void *), void *arg, int flags);
-int dmu_objset_prefetch(char *name, void *arg);
+int dmu_objset_prefetch(const char *name, void *arg);
 void dmu_objset_byteswap(void *buf, size_t size);
 int dmu_objset_evict_dbufs(objset_t *os);
+timestruc_t dmu_objset_snap_cmtime(objset_t *os);
 
 /* called from dsl */
-void dmu_objset_sync(objset_impl_t *os, zio_t *zio, dmu_tx_t *tx);
-objset_impl_t *dmu_objset_create_impl(spa_t *spa, struct dsl_dataset *ds,
+void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);
+boolean_t dmu_objset_is_dirty(objset_t *os, uint64_t txg);
+objset_t *dmu_objset_create_impl(spa_t *spa, struct dsl_dataset *ds,
     blkptr_t *bp, dmu_objset_type_t type, dmu_tx_t *tx);
 int dmu_objset_open_impl(spa_t *spa, struct dsl_dataset *ds, blkptr_t *bp,
-    objset_impl_t **osip);
-void dmu_objset_evict(struct dsl_dataset *ds, void *arg);
-void dmu_objset_do_userquota_callbacks(objset_impl_t *os, dmu_tx_t *tx);
-boolean_t dmu_objset_userused_enabled(objset_impl_t *os);
+    objset_t **osp);
+void dmu_objset_evict(objset_t *os);
+void dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx);
+void dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx);
+boolean_t dmu_objset_userused_enabled(objset_t *os);
 int dmu_objset_userspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 
