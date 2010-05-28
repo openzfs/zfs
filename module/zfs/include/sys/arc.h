@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_ARC_H
@@ -48,7 +47,8 @@ arc_done_func_t arc_getbuf_func;
 struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
-	krwlock_t		b_lock;
+	kmutex_t		b_evict_lock;
+	krwlock_t		b_data_lock;
 	void			*b_data;
 	arc_evict_func_t	*b_efunc;
 	void			*b_private;
@@ -87,10 +87,13 @@ arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
     arc_buf_contents_t type);
 arc_buf_t *arc_loan_buf(spa_t *spa, int size);
 void arc_return_buf(arc_buf_t *buf, void *tag);
+void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
 void arc_buf_add_ref(arc_buf_t *buf, void *tag);
 int arc_buf_remove_ref(arc_buf_t *buf, void *tag);
 int arc_buf_size(arc_buf_t *buf);
 void arc_release(arc_buf_t *buf, void *tag);
+int arc_release_bp(arc_buf_t *buf, void *tag, blkptr_t *bp, spa_t *spa,
+    zbookmark_t *zb);
 int arc_released(arc_buf_t *buf);
 int arc_has_callback(arc_buf_t *buf);
 void arc_buf_freeze(arc_buf_t *buf);
@@ -99,28 +102,16 @@ void arc_buf_thaw(arc_buf_t *buf);
 int arc_referenced(arc_buf_t *buf);
 #endif
 
-typedef struct writeprops {
-	dmu_object_type_t wp_type;
-	uint8_t wp_level;
-	uint8_t wp_copies;
-	uint8_t wp_dncompress, wp_oscompress;
-	uint8_t wp_dnchecksum, wp_oschecksum;
-} writeprops_t;
-
-void write_policy(spa_t *spa, const writeprops_t *wp, zio_prop_t *zp);
-int arc_read(zio_t *pio, spa_t *spa, blkptr_t *bp, arc_buf_t *pbuf,
+int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, arc_buf_t *pbuf,
     arc_done_func_t *done, void *private, int priority, int zio_flags,
     uint32_t *arc_flags, const zbookmark_t *zb);
-int arc_read_nolock(zio_t *pio, spa_t *spa, blkptr_t *bp,
+int arc_read_nolock(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     arc_done_func_t *done, void *private, int priority, int flags,
     uint32_t *arc_flags, const zbookmark_t *zb);
-zio_t *arc_write(zio_t *pio, spa_t *spa, const writeprops_t *wp,
-    boolean_t l2arc, uint64_t txg, blkptr_t *bp, arc_buf_t *buf,
-    arc_done_func_t *ready, arc_done_func_t *done, void *private, int priority,
-    int zio_flags, const zbookmark_t *zb);
-int arc_free(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
-    zio_done_func_t *done, void *private, uint32_t arc_flags);
-int arc_tryread(spa_t *spa, blkptr_t *bp, void *data);
+zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
+    blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, const zio_prop_t *zp,
+    arc_done_func_t *ready, arc_done_func_t *done, void *private,
+    int priority, int zio_flags, const zbookmark_t *zb);
 
 void arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private);
 int arc_buf_evict(arc_buf_t *buf);
