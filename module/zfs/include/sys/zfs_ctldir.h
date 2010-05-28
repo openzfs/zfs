@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_ZFS_CTLDIR_H
@@ -49,6 +48,7 @@ void zfsctl_destroy(zfsvfs_t *);
 vnode_t *zfsctl_root(znode_t *);
 void zfsctl_init(void);
 void zfsctl_fini(void);
+boolean_t zfsctl_is_node(vnode_t *);
 
 int zfsctl_rename_snapshot(const char *from, const char *to);
 int zfsctl_destroy_snapshot(const char *snapname, int force);
