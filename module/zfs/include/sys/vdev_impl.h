@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -62,6 +61,8 @@ typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize);
 typedef int	vdev_io_start_func_t(zio_t *zio);
 typedef void	vdev_io_done_func_t(zio_t *zio);
 typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
+typedef void	vdev_hold_func_t(vdev_t *vd);
+typedef void	vdev_rele_func_t(vdev_t *vd);
 
 typedef struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -70,6 +71,8 @@ typedef struct vdev_ops {
 	vdev_io_start_func_t		*vdev_op_io_start;
 	vdev_io_done_func_t		*vdev_op_io_done;
 	vdev_state_change_func_t	*vdev_op_state_change;
+	vdev_hold_func_t		*vdev_op_hold;
+	vdev_rele_func_t		*vdev_op_rele;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -112,6 +115,7 @@ struct vdev {
 	uint64_t	vdev_id;	/* child number in vdev parent	*/
 	uint64_t	vdev_guid;	/* unique ID for this vdev	*/
 	uint64_t	vdev_guid_sum;	/* self guid + all child guids	*/
+	uint64_t	vdev_orig_guid;	/* orig. guid prior to remove	*/
 	uint64_t	vdev_asize;	/* allocatable device capacity	*/
 	uint64_t	vdev_min_asize;	/* min acceptable asize		*/
 	uint64_t	vdev_ashift;	/* block alignment shift	*/
@@ -120,6 +124,8 @@ struct vdev {
 	vdev_ops_t	*vdev_ops;	/* vdev operations		*/
 	spa_t		*vdev_spa;	/* spa for this vdev		*/
 	void		*vdev_tsd;	/* type-specific data		*/
+	vnode_t		*vdev_name_vp;	/* vnode for pathname		*/
+	vnode_t		*vdev_devid_vp;	/* vnode for devid		*/
 	vdev_t		*vdev_top;	/* top-level vdev		*/
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/
@@ -127,8 +133,10 @@ struct vdev {
 	space_map_t	vdev_dtl[DTL_TYPES]; /* in-core dirty time logs	*/
 	vdev_stat_t	vdev_stat;	/* virtual device statistics	*/
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
+	boolean_t	vdev_reopening;	/* reopen in progress?		*/
 	int		vdev_open_error; /* error on last open		*/
 	kthread_t	*vdev_open_thread; /* thread opening children	*/
+	uint64_t	vdev_crtxg;	/* txg when top-level was added */
 
 	/*
 	 * Top-level vdev state.
@@ -143,10 +151,12 @@ struct vdev {
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/
 	boolean_t	vdev_remove_wanted; /* async remove wanted?	*/
 	boolean_t	vdev_probe_wanted; /* async probe wanted?	*/
+	uint64_t	vdev_removing;	/* device is being removed?	*/
 	list_node_t	vdev_config_dirty_node; /* config dirty list	*/
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
+	uint64_t	vdev_ishole;	/* is a hole in the namespace 	*/
 
 	/*
 	 * Leaf vdev state.
@@ -170,6 +180,8 @@ struct vdev {
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
+	boolean_t	vdev_splitting;	/* split or repair in progress  */
+	boolean_t	vdev_delayed_close; /* delayed device close?	*/
 	uint8_t		vdev_tmpoffline; /* device taken offline temporarily? */
 	uint8_t		vdev_detached;	/* device detached?		*/
 	uint8_t		vdev_cant_read;	/* vdev is failing all reads	*/
@@ -180,6 +192,7 @@ struct vdev {
 	vdev_cache_t	vdev_cache;	/* physical block cache		*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache vdevs		*/
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
+	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
@@ -192,6 +205,8 @@ struct vdev {
 	kmutex_t	vdev_stat_lock;	/* vdev_stat			*/
 	kmutex_t	vdev_probe_lock; /* protects vdev_probe_zio	*/
 };
+
+#define	VDEV_RAIDZ_MAXPARITY	3
 
 #define	VDEV_PAD_SIZE		(8 << 10)
 /* 2 padding areas (vl_pad1 and vl_pad2) to skip */
@@ -208,8 +223,8 @@ struct vdev {
 #define	VDEV_UBERBLOCK_SIZE(vd)		(1ULL << VDEV_UBERBLOCK_SHIFT(vd))
 
 typedef struct vdev_phys {
-	char		vp_nvlist[VDEV_PHYS_SIZE - sizeof (zio_block_tail_t)];
-	zio_block_tail_t vp_zbt;
+	char		vp_nvlist[VDEV_PHYS_SIZE - sizeof (zio_eck_t)];
+	zio_eck_t	vp_zbt;
 } vdev_phys_t;
 
 typedef struct vdev_label {
@@ -244,10 +259,13 @@ typedef struct vdev_label {
 #define	VDEV_ALLOC_SPARE	2
 #define	VDEV_ALLOC_L2CACHE	3
 #define	VDEV_ALLOC_ROOTPOOL	4
+#define	VDEV_ALLOC_SPLIT	5
 
 /*
  * Allocate or free a vdev
  */
+extern vdev_t *vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid,
+    vdev_ops_t *ops);
 extern int vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *config,
     vdev_t *parent, uint_t id, int alloctype);
 extern void vdev_free(vdev_t *vd);
@@ -264,7 +282,7 @@ extern void vdev_remove_parent(vdev_t *cvd);
 /*
  * vdev sync load and sync
  */
-extern void vdev_load_log_state(vdev_t *vd, nvlist_t *nv);
+extern void vdev_load_log_state(vdev_t *nvd, vdev_t *ovd);
 extern void vdev_load(vdev_t *vd);
 extern void vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);
@@ -280,6 +298,7 @@ extern vdev_ops_t vdev_raidz_ops;
 extern vdev_ops_t vdev_disk_ops;
 extern vdev_ops_t vdev_file_ops;
 extern vdev_ops_t vdev_missing_ops;
+extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 
 /*
