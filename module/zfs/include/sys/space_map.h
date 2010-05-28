@@ -77,6 +77,7 @@ struct space_map_ops {
 	void	(*smop_claim)(space_map_t *sm, uint64_t start, uint64_t size);
 	void	(*smop_free)(space_map_t *sm, uint64_t start, uint64_t size);
 	uint64_t (*smop_max)(space_map_t *sm);
+	boolean_t (*smop_fragmented)(space_map_t *sm);
 };
 
 /*
