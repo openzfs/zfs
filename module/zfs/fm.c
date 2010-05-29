@@ -494,7 +494,7 @@ fm_zevent_insert(zevent_t *ev)
  * Post a zevent
  */
 void
-fm_zevent_post(nvlist_t *nvl, zevent_cb_t *cb)
+fm_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
 	size_t nvl_size = 0;
 	zevent_t *ev;
@@ -515,6 +515,7 @@ fm_zevent_post(nvlist_t *nvl, zevent_cb_t *cb)
 	}
 
         ev->ev_nvl = nvl;
+	ev->ev_detector = detector;
 	ev->ev_cb = cb;
 	fm_zevent_insert(ev);
 	cv_broadcast(&zevent_cv);
