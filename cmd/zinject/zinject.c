@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -42,12 +41,12 @@
  * any attempt to read from the device will return EIO, but any attempt to
  * reopen the device will also return ENXIO.
  * For label faults, the -L option must be specified. This allows faults
- * to be injected into either the nvlist or uberblock region of all the labels
- * for the specified device.
+ * to be injected into either the nvlist, uberblock, pad1, or pad2 region
+ * of all the labels for the specified device.
  *
  * This form of the command looks like:
  *
- * 	zinject -d device [-e errno] [-L <uber | nvlist>] pool
+ * 	zinject -d device [-e errno] [-L <uber | nvlist | pad1 | pad2>] pool
  *
  *
  * DATA FAULTS
@@ -70,7 +69,7 @@
  * 		mos		Any data in the MOS
  * 		mosdir		object directory
  * 		config		pool configuration
- * 		bplist		blkptr list
+ * 		bpobj		blkptr list
  * 		spacemap	spacemap
  * 		metaslab	metaslab
  * 		errlog		persistent error log
@@ -164,11 +163,13 @@ static const char *errtable[TYPE_INVAL] = {
 	"mosdir",
 	"metaslab",
 	"config",
-	"bplist",
+	"bpobj",
 	"spacemap",
 	"errlog",
 	"uber",
-	"nvlist"
+	"nvlist",
+	"pad1",
+	"pad2"
 };
 
 static err_type_t
@@ -192,8 +193,8 @@ type_to_name(uint64_t type)
 		return ("metaslab");
 	case DMU_OT_PACKED_NVLIST:
 		return ("config");
-	case DMU_OT_BPLIST:
-		return ("bplist");
+	case DMU_OT_BPOBJ:
+		return ("bpobj");
 	case DMU_OT_SPACE_MAP:
 		return ("spacemap");
 	case DMU_OT_ERROR_LOG:
@@ -222,10 +223,27 @@ usage(void)
 	    "\t\tClear the particular record (if given a numeric ID), or\n"
 	    "\t\tall records if 'all' is specificed.\n"
 	    "\n"
-	    "\tzinject -d device [-e errno] [-L <nvlist|uber>] [-F] pool\n"
+	    "\tzinject -p <function name> pool\n"
+	    "\t\tInject a panic fault at the specified function. Only \n"
+	    "\t\tfunctions which call spa_vdev_config_exit(), or \n"
+	    "\t\tspa_vdev_exit() will trigger a panic.\n"
+	    "\n"
+	    "\tzinject -d device [-e errno] [-L <nvlist|uber|pad1|pad2>] [-F]\n"
+	    "\t    [-T <read|write|free|claim|all> pool\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
-	    "\t\tlabel.  Label injection can either be 'nvlist' or 'uber'.\n"
+	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
+	    "\t\t'pad1', or 'pad2'.\n"
 	    "\t\t'errno' can either be 'nxio' (the default) or 'io'.\n"
+	    "\n"
+	    "\tzinject -d device -A <degrade|fault> pool\n"
+	    "\t\tPerform a specific action on a particular device\n"
+	    "\n"
+	    "\tzinject -I [-s <seconds> | -g <txgs>] pool\n"
+	    "\t\tCause the pool to stop writing blocks yet not\n"
+	    "\t\treport errors for a duration.  Simulates buggy hardware\n"
+	    "\t\tthat fails to honor cache flush requests.\n"
+	    "\t\tDefault duration is 30 seconds.  The machine is panicked\n"
+	    "\t\tat the end of the duration.\n"
 	    "\n"
 	    "\tzinject -b objset:object:level:blkid pool\n"
 	    "\n"
@@ -267,7 +285,7 @@ usage(void)
 	    "\t\t\ton a ZFS filesystem.\n"
 	    "\n"
 	    "\t-t <mos>\tInject errors into the MOS for objects of the given\n"
-	    "\t\t\ttype.  Valid types are: mos, mosdir, config, bplist,\n"
+	    "\t\t\ttype.  Valid types are: mos, mosdir, config, bpobj,\n"
 	    "\t\t\tspacemap, metaslab, errlog.  The only valid <object> is\n"
 	    "\t\t\tthe poolname.\n");
 }
@@ -286,6 +304,12 @@ iter_handlers(int (*func)(int, const char *, zinject_record_t *, void *),
 		    &zc.zc_inject_record, data)) != 0)
 			return (ret);
 
+	if (errno != ENOENT) {
+		(void) fprintf(stderr, "Unable to list handlers: %s\n",
+		    strerror(errno));
+		return (-1);
+	}
+
 	return (0);
 }
 
@@ -295,7 +319,7 @@ print_data_handler(int id, const char *pool, zinject_record_t *record,
 {
 	int *count = data;
 
-	if (record->zi_guid != 0)
+	if (record->zi_guid != 0 || record->zi_func[0] != '\0')
 		return (0);
 
 	if (*count == 0) {
@@ -327,7 +351,7 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 {
 	int *count = data;
 
-	if (record->zi_guid == 0)
+	if (record->zi_guid == 0 || record->zi_func[0] != '\0')
 		return (0);
 
 	if (*count == 0) {
@@ -339,6 +363,27 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 
 	(void) printf("%3d  %-15s  %llx\n", id, pool,
 	    (u_longlong_t)record->zi_guid);
+
+	return (0);
+}
+
+static int
+print_panic_handler(int id, const char *pool, zinject_record_t *record,
+    void *data)
+{
+	int *count = data;
+
+	if (record->zi_func[0] == '\0')
+		return (0);
+
+	if (*count == 0) {
+		(void) printf("%3s  %-15s  %s\n", "ID", "POOL", "FUNCTION");
+		(void) printf("---  ---------------  ----------------\n");
+	}
+
+	*count += 1;
+
+	(void) printf("%3d  %-15s  %s\n", id, pool, record->zi_func);
 
 	return (0);
 }
@@ -356,6 +401,9 @@ print_all_handlers(void)
 	(void) printf("\n");
 	count = 0;
 	(void) iter_handlers(print_data_handler, &count);
+	(void) printf("\n");
+	count = 0;
+	(void) iter_handlers(print_panic_handler, &count);
 
 	return (count);
 }
@@ -386,7 +434,8 @@ cancel_all_handlers(void)
 {
 	int ret = iter_handlers(cancel_one_handler, NULL);
 
-	(void) printf("removed all registered handlers\n");
+	if (ret == 0)
+		(void) printf("removed all registered handlers\n");
 
 	return (ret);
 }
@@ -443,6 +492,15 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 		if (record->zi_guid) {
 			(void) printf("  vdev: %llx\n",
 			    (u_longlong_t)record->zi_guid);
+		} else if (record->zi_func[0] != '\0') {
+			(void) printf("  panic function: %s\n",
+			    record->zi_func);
+		} else if (record->zi_duration > 0) {
+			(void) printf(" time: %lld seconds\n",
+			    (u_longlong_t)record->zi_duration);
+		} else if (record->zi_duration < 0) {
+			(void) printf(" txgs: %lld \n",
+			    (u_longlong_t)-record->zi_duration);
 		} else {
 			(void) printf("objset: %llu\n",
 			    (u_longlong_t)record->zi_objset);
@@ -465,6 +523,22 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 }
 
 int
+perform_action(const char *pool, zinject_record_t *record, int cmd)
+{
+	zfs_cmd_t zc;
+
+	ASSERT(cmd == VDEV_STATE_DEGRADED || cmd == VDEV_STATE_FAULTED);
+	(void) strlcpy(zc.zc_name, pool, sizeof (zc.zc_name));
+	zc.zc_guid = record->zi_guid;
+	zc.zc_cookie = cmd;
+
+	if (ioctl(zfs_fd, ZFS_IOC_VDEV_SET_STATE, &zc) == 0)
+		return (0);
+
+	return (1);
+}
+
+int
 main(int argc, char **argv)
 {
 	int c;
@@ -477,12 +551,17 @@ main(int argc, char **argv)
 	int quiet = 0;
 	int error = 0;
 	int domount = 0;
+	int io_type = ZIO_TYPES;
+	int action = VDEV_STATE_UNKNOWN;
 	err_type_t type = TYPE_INVAL;
 	err_type_t label = TYPE_INVAL;
 	zinject_record_t record = { 0 };
 	char pool[MAXNAMELEN];
 	char dataset[MAXNAMELEN];
 	zfs_handle_t *zhp;
+	int nowrites = 0;
+	int dur_txg = 0;
+	int dur_secs = 0;
 	int ret;
 	int flags = 0;
 
@@ -514,10 +593,23 @@ main(int argc, char **argv)
 		return (0);
 	}
 
-	while ((c = getopt(argc, argv, ":ab:d:f:Fqhc:t:l:mr:e:uL:")) != -1) {
+	while ((c = getopt(argc, argv,
+	    ":aA:b:d:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
+			break;
+		case 'A':
+			if (strcasecmp(optarg, "degrade") == 0) {
+				action = VDEV_STATE_DEGRADED;
+			} else if (strcasecmp(optarg, "fault") == 0) {
+				action = VDEV_STATE_FAULTED;
+			} else {
+				(void) fprintf(stderr, "invalid action '%s': "
+				    "must be 'degrade' or 'fault'\n", optarg);
+				usage();
+				return (1);
+			}
 			break;
 		case 'b':
 			raw = optarg;
@@ -554,9 +646,27 @@ main(int argc, char **argv)
 		case 'F':
 			record.zi_failfast = B_TRUE;
 			break;
+		case 'g':
+			dur_txg = 1;
+			record.zi_duration = (int)strtol(optarg, &end, 10);
+			if (record.zi_duration <= 0 || *end != '\0') {
+				(void) fprintf(stderr, "invalid duration '%s': "
+				    "must be a positive integer\n", optarg);
+				usage();
+				return (1);
+			}
+			/* store duration of txgs as its negative */
+			record.zi_duration *= -1;
+			break;
 		case 'h':
 			usage();
 			return (0);
+		case 'I':
+			/* default duration, if one hasn't yet been defined */
+			nowrites = 1;
+			if (dur_secs == 0 && dur_txg == 0)
+				record.zi_duration = 30;
+			break;
 		case 'l':
 			level = (int)strtol(optarg, &end, 10);
 			if (*end != '\0') {
@@ -569,11 +679,44 @@ main(int argc, char **argv)
 		case 'm':
 			domount = 1;
 			break;
+		case 'p':
+			(void) strlcpy(record.zi_func, optarg,
+			    sizeof (record.zi_func));
+			break;
 		case 'q':
 			quiet = 1;
 			break;
 		case 'r':
 			range = optarg;
+			break;
+		case 's':
+			dur_secs = 1;
+			record.zi_duration = (int)strtol(optarg, &end, 10);
+			if (record.zi_duration <= 0 || *end != '\0') {
+				(void) fprintf(stderr, "invalid duration '%s': "
+				    "must be a positive integer\n", optarg);
+				usage();
+				return (1);
+			}
+			break;
+		case 'T':
+			if (strcasecmp(optarg, "read") == 0) {
+				io_type = ZIO_TYPE_READ;
+			} else if (strcasecmp(optarg, "write") == 0) {
+				io_type = ZIO_TYPE_WRITE;
+			} else if (strcasecmp(optarg, "free") == 0) {
+				io_type = ZIO_TYPE_FREE;
+			} else if (strcasecmp(optarg, "claim") == 0) {
+				io_type = ZIO_TYPE_CLAIM;
+			} else if (strcasecmp(optarg, "all") == 0) {
+				io_type = ZIO_TYPES;
+			} else {
+				(void) fprintf(stderr, "invalid I/O type "
+				    "'%s': must be 'read', 'write', 'free', "
+				    "'claim' or 'all'\n", optarg);
+				usage();
+				return (1);
+			}
 			break;
 		case 't':
 			if ((type = name_to_type(optarg)) == TYPE_INVAL &&
@@ -617,7 +760,8 @@ main(int argc, char **argv)
 		 * '-c' is invalid with any other options.
 		 */
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
-		    level != 0) {
+		    level != 0 || record.zi_func[0] != '\0' ||
+		    record.zi_duration != 0) {
 			(void) fprintf(stderr, "cancel (-c) incompatible with "
 			    "any other options\n");
 			usage();
@@ -649,7 +793,8 @@ main(int argc, char **argv)
 		 * for doing injection, so handle it separately here.
 		 */
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
-		    level != 0) {
+		    level != 0 || record.zi_func[0] != '\0' ||
+		    record.zi_duration != 0) {
 			(void) fprintf(stderr, "device (-d) incompatible with "
 			    "data error injection\n");
 			usage();
@@ -672,12 +817,18 @@ main(int argc, char **argv)
 			return (1);
 		}
 
+		record.zi_iotype = io_type;
 		if (translate_device(pool, device, label, &record) != 0)
 			return (1);
 		if (!error)
 			error = ENXIO;
+
+		if (action != VDEV_STATE_UNKNOWN)
+			return (perform_action(pool, &record, action));
+
 	} else if (raw != NULL) {
-		if (range != NULL || type != TYPE_INVAL || level != 0) {
+		if (range != NULL || type != TYPE_INVAL || level != 0 ||
+		    record.zi_func[0] != '\0' || record.zi_duration != 0) {
 			(void) fprintf(stderr, "raw (-b) format with "
 			    "any other options\n");
 			usage();
@@ -704,10 +855,52 @@ main(int argc, char **argv)
 			return (1);
 		if (!error)
 			error = EIO;
+	} else if (record.zi_func[0] != '\0') {
+		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
+		    level != 0 || device != NULL || record.zi_duration != 0) {
+			(void) fprintf(stderr, "panic (-p) incompatible with "
+			    "other options\n");
+			usage();
+			return (2);
+		}
+
+		if (argc < 1 || argc > 2) {
+			(void) fprintf(stderr, "panic (-p) injection requires "
+			    "a single pool name and an optional id\n");
+			usage();
+			return (2);
+		}
+
+		(void) strcpy(pool, argv[0]);
+		if (argv[1] != NULL)
+			record.zi_type = atoi(argv[1]);
+		dataset[0] = '\0';
+	} else if (record.zi_duration != 0) {
+		if (nowrites == 0) {
+			(void) fprintf(stderr, "-s or -g meaningless "
+			    "without -I (ignore writes)\n");
+			usage();
+			return (2);
+		} else if (dur_secs && dur_txg) {
+			(void) fprintf(stderr, "choose a duration either "
+			    "in seconds (-s) or a number of txgs (-g) "
+			    "but not both\n");
+			usage();
+			return (2);
+		} else if (argc != 1) {
+			(void) fprintf(stderr, "ignore writes (-I) "
+			    "injection requires a single pool name\n");
+			usage();
+			return (2);
+		}
+
+		(void) strcpy(pool, argv[0]);
+		dataset[0] = '\0';
 	} else if (type == TYPE_INVAL) {
 		if (flags == 0) {
 			(void) fprintf(stderr, "at least one of '-b', '-d', "
-			    "'-t', '-a', or '-u' must be specified\n");
+			    "'-t', '-a', '-p', '-I' or '-u' "
+			    "must be specified\n");
 			usage();
 			return (2);
 		}
