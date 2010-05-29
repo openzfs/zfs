@@ -693,6 +693,7 @@ typedef struct ddt_histogram {
 #define ZVOL_MINOR_BITS		4
 #define ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)
 #define ZVOL_MINORS		(1 << 4)
+
 #define	ZVOL_PROP_NAME		"name"
 #define	ZVOL_DEFAULT_BLOCKSIZE	8192
 
