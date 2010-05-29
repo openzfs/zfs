@@ -976,7 +976,7 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 		if (ddi_copyout(packed, (void *)(uintptr_t)zc->zc_nvlist_dst,
 		    size, zc->zc_iflags) != 0)
 			error = EFAULT;
-		kmem_free(packed, size);
+		vmem_free(packed, size);
 	}
 
 	zc->zc_nvlist_dst_size = size;
