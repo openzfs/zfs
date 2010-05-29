@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -75,6 +75,7 @@ extern "C" {
 #include <sys/u8_textprep.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
+#include <sys/sunddi.h>
 
 /*
  * Stack
@@ -111,21 +112,27 @@ extern void vpanic(const char *, __va_list);
 
 #define	fm_panic	panic
 
+extern int aok;
+
 /* This definition is copied from assert.h. */
 #if defined(__STDC__)
 #if __STDC_VERSION__ - 0 >= 199901L
-#define	verify(EX) (void)((EX) || \
+#define	zverify(EX) (void)((EX) || (aok) || \
 	(__assert_c99(#EX, __FILE__, __LINE__, __func__), 0))
 #else
-#define	verify(EX) (void)((EX) || (__assert(#EX, __FILE__, __LINE__), 0))
+#define	zverify(EX) (void)((EX) || (aok) || \
+	(__assert(#EX, __FILE__, __LINE__), 0))
 #endif /* __STDC_VERSION__ - 0 >= 199901L */
 #else
-#define	verify(EX) (void)((EX) || (_assert("EX", __FILE__, __LINE__), 0))
+#define	zverify(EX) (void)((EX) || (aok) || \
+	(_assert("EX", __FILE__, __LINE__), 0))
 #endif	/* __STDC__ */
 
 
-#define	VERIFY	verify
-#define	ASSERT	assert
+#define	VERIFY	zverify
+#define	ASSERT	zverify
+#undef	assert
+#define	assert	zverify
 
 extern void __assert(const char *, const char *, int);
 
@@ -136,7 +143,7 @@ extern void __assert(const char *, const char *, int);
 #define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE) do { \
 	const TYPE __left = (TYPE)(LEFT); \
 	const TYPE __right = (TYPE)(RIGHT); \
-	if (!(__left OP __right)) { \
+	if (!(__left OP __right) && (!aok)) { \
 		char *__buf = alloca(256); \
 		(void) snprintf(__buf, 256, "%s %s %s (0x%llx %s 0x%llx)", \
 			#LEFT, #OP, #RIGHT, \
@@ -202,6 +209,18 @@ typedef struct kthread kthread_t;
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(func, arg)
 #define	thread_exit() thr_exit(NULL)
+#define	thread_join(t)	panic("libzpool cannot join threads")
+
+#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
+
+/* in libzpool, p0 exists only to have its address taken */
+struct proc {
+	uintptr_t	this_is_never_used_dont_dereference_it;
+};
+
+extern struct proc p0;
+
+#define	PS_NONE		-1
 
 extern kthread_t *zk_thread_create(void (*func)(), void *arg);
 
@@ -328,20 +347,27 @@ typedef void (task_func_t)(void *);
 #define	TASKQ_PREPOPULATE	0x0001
 #define	TASKQ_CPR_SAFE		0x0002	/* Use CPR safe protocol */
 #define	TASKQ_DYNAMIC		0x0004	/* Use dynamic thread scheduling */
-#define	TASKQ_THREADS_CPU_PCT	0x0008	/* Use dynamic thread scheduling */
+#define	TASKQ_THREADS_CPU_PCT	0x0008	/* Scale # threads by # cpus */
+#define	TASKQ_DC_BATCH		0x0010	/* Mark threads as batch */
 
 #define	TQ_SLEEP	KM_SLEEP	/* Can block for memory */
 #define	TQ_NOSLEEP	KM_NOSLEEP	/* cannot block for memory; may fail */
-#define	TQ_NOQUEUE	0x02	/* Do not enqueue if can't dispatch */
+#define	TQ_NOQUEUE	0x02		/* Do not enqueue if can't dispatch */
+#define	TQ_FRONT	0x08		/* Queue in front */
 
 extern taskq_t *system_taskq;
 
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
+#define	taskq_create_proc(a, b, c, d, e, p, f) \
+	    (taskq_create(a, b, c, d, e, f))
+#define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
+	    (taskq_create(a, b, maxclsyspri, d, e, f))
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
 extern int	taskq_member(taskq_t *, void *);
 extern void	system_taskq_init(void);
+extern void	system_taskq_fini(void);
 
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
@@ -355,6 +381,7 @@ typedef struct vnode {
 	char		*v_path;
 } vnode_t;
 
+#define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
 typedef struct xoptattr {
 	timestruc_t	xoa_createtime;	/* Create time of file */
@@ -370,6 +397,8 @@ typedef struct xoptattr {
 	uint8_t		xoa_opaque;
 	uint8_t		xoa_av_quarantined;
 	uint8_t		xoa_av_modified;
+	uint8_t		xoa_av_scanstamp[AV_SCANSTAMP_SZ];
+	uint8_t		xoa_reparse;
 } xoptattr_t;
 
 typedef struct vattr {
@@ -416,9 +445,11 @@ typedef struct vsecattr {
 
 #define	CRCREAT		0
 
+extern int fop_getattr(vnode_t *vp, vattr_t *vap);
+
 #define	VOP_CLOSE(vp, f, c, o, cr, ct)	0
 #define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
-#define	VOP_GETATTR(vp, vap, fl, cr, ct)  ((vap)->va_size = (vp)->v_size, 0)
+#define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
 
 #define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
 
@@ -443,13 +474,18 @@ extern vnode_t *rootdir;
 /*
  * Random stuff
  */
-#define	lbolt	(gethrtime() >> 23)
-#define	lbolt64	(gethrtime() >> 23)
+#define	ddi_get_lbolt()		(gethrtime() >> 23)
+#define	ddi_get_lbolt64()	(gethrtime() >> 23)
 #define	hz	119	/* frequency when using gethrtime() >> 23 for lbolt */
 
 extern void delay(clock_t ticks);
 
 #define	gethrestime_sec() time(NULL)
+#define	gethrestime(t) \
+	do {\
+		(t)->tv_sec = gethrestime_sec();\
+		(t)->tv_nsec = 0;\
+	} while (0);
 
 #define	max_ncpus	64
 
@@ -500,12 +536,18 @@ typedef struct callb_cpr {
 #define	zone_dataset_visible(x, y)	(1)
 #define	INGLOBALZONE(z)			(1)
 
+extern char *kmem_asprintf(const char *fmt, ...);
+#define	strfree(str) kmem_free((str), strlen(str)+1)
+
 /*
  * Hostname information
  */
 extern char hw_serial[];	/* for userland-emulated hostid access */
 extern int ddi_strtoul(const char *str, char **nptr, int base,
     unsigned long *result);
+
+extern int ddi_strtoull(const char *str, char **nptr, int base,
+    u_longlong_t *result);
 
 /* ZFS Boot Related stuff. */
 

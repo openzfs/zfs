@@ -11,7 +11,7 @@ RELEASE=$1
 PROG=update-zfs.sh
 REMOTE_DOC_FILE=man-sunosman-20090930.tar.bz2
 REMOTE_DOC=http://dlc.sun.com/osol/man/downloads/current/${REMOTE_DOC_FILE}
-REMOTE_SRC=http://dlc.sun.com/osol/on/downloads/${RELEASE}/on-src.tar.bz2
+REMOTE_SRC=ssh://anon@hg.opensolaris.org/hg/onnv/onnv-gate
 
 die() {
 	rm -Rf ${SRC}
@@ -29,10 +29,10 @@ if [ `basename $DST` != "scripts" ]; then
 fi
 
 if [ ! "$RELEASE" ]; then
-	die "Must specify ZFS release build"
+	die "Must specify ZFS release build, i.e. 'onnv_141'"
 fi
 
-SRC=`mktemp -d /tmp/os-${RELEASE}.XXXXXXXXXX`
+SRC=`mktemp -d /tmp/onnv-gate.XXXXXXXXXX`
 DST=`dirname $DST`
 
 echo "----------------------------------------------------------------"
@@ -41,28 +41,27 @@ echo "Remote Docs:   ${REMOTE_DOC}"
 echo "Local Source:  ${SRC}"
 echo "Local Dest:    ${DST}"
 echo
-echo "------------- Fetching OpenSolaris ${RELEASE} archive ----------------"
-wget -q ${REMOTE_SRC} -P ${SRC} ||
-	die "Error 'wget ${REMOTE_SRC}'"
-
+echo "------------- Fetching OpenSolaris mercurial repo ----------------"
+pushd ${SRC}
+hg clone ${REMOTE_SRC} || die "Error cloning OpenSolaris mercurial repo"
+pushd onnv-gate
+hg update -C ${RELEASE} || die "Error unknown release ${RELEASE}"
+popd
+popd
 echo "------------- Fetching OpenSolaris documentation ---------------"
 wget -q ${REMOTE_DOC} -P ${SRC} ||
 	die "Error 'wget ${REMOTE_DOC}'"
-
-echo "------------- Unpacking OpenSolaris ${RELEASE} archive ---------------"
-tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC} ||
-	die "Error 'tar -xjf ${SRC}/on-src.tar.bz2 -C ${SRC}'"
 
 echo "------------- Unpacking OpenSolaris documentation --------------"
 tar -xjf ${SRC}/${REMOTE_DOC_FILE} -C ${SRC} ||
 	die "Error 'tar -xjf ${SRC}/${REMOTE_DOC_FILE} -C ${SRC}'"
 
-SRC_LIB=${SRC}/usr/src/lib
-SRC_CMD=${SRC}/usr/src/cmd
-SRC_CM=${SRC}/usr/src/common
-SRC_UTS=${SRC}/usr/src/uts
-SRC_UCM=${SRC}/usr/src/uts/common
-SRC_ZLIB=${SRC}/usr/src/uts/common/fs/zfs
+SRC_LIB=${SRC}/onnv-gate/usr/src/lib
+SRC_CMD=${SRC}/onnv-gate/usr/src/cmd
+SRC_CM=${SRC}/onnv-gate/usr/src/common
+SRC_UTS=${SRC}/onnv-gate/usr/src/uts
+SRC_UCM=${SRC}/onnv-gate/usr/src/uts/common
+SRC_ZLIB=${SRC}/onnv-gate/usr/src/uts/common/fs/zfs
 SRC_MAN=${SRC}/man
 
 DST_MOD=${DST}/module
@@ -177,6 +176,6 @@ cp ${SRC_MAN}/man1m/zpool.1m			${DST_MAN}/man8/zpool.8
 cp ${SRC_MAN}/man1m/zdb.1m			${DST_MAN}/man8/zdb.8
 chmod -R 644 ${DST_MAN}/man8/*
 
-echo "${REMOTE_SRC}" >${DST}/ZFS.RELEASE
+echo "${REMOTE_SRC}/${RELEASE}" >${DST}/ZFS.RELEASE
 
 rm -Rf ${SRC}
