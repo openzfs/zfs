@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -54,38 +53,6 @@
 #include <sys/zap.h>
 #include <sys/zio.h>
 
-/*
- * This is a stripped-down version of strtoull, suitable only for converting
- * lowercase hexidecimal numbers that don't overflow.
- */
-#ifdef _KERNEL
-uint64_t
-strtonum(const char *str, char **nptr)
-{
-	uint64_t val = 0;
-	char c;
-	int digit;
-
-	while ((c = *str) != '\0') {
-		if (c >= '0' && c <= '9')
-			digit = c - '0';
-		else if (c >= 'a' && c <= 'f')
-			digit = 10 + c - 'a';
-		else
-			break;
-
-		val *= 16;
-		val += digit;
-
-		str++;
-	}
-
-	if (nptr)
-		*nptr = (char *)str;
-
-	return (val);
-}
-#endif
 
 /*
  * Convert a bookmark to a string.
@@ -134,7 +101,7 @@ spa_log_error(spa_t *spa, zio_t *zio)
 	 * If we are trying to import a pool, ignore any errors, as we won't be
 	 * writing to the pool any time soon.
 	 */
-	if (spa->spa_load_state == SPA_LOAD_TRYIMPORT)
+	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
 		return;
 
 	mutex_enter(&spa->spa_errlist_lock);
