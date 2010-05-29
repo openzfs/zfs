@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -48,8 +48,8 @@ vdev_missing_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 	 * VDEV_AUX_BAD_GUID_SUM.  So we pretend to succeed, knowing that we
 	 * will fail the GUID sum check before ever trying to open the pool.
 	 */
-	*psize = SPA_MINDEVSIZE;
-	*ashift = SPA_MINBLOCKSHIFT;
+	*psize = 0;
+	*ashift = 0;
 	return (0);
 }
 
@@ -80,6 +80,21 @@ vdev_ops_t vdev_missing_ops = {
 	vdev_missing_io_start,
 	vdev_missing_io_done,
 	NULL,
+	NULL,
+	NULL,
 	VDEV_TYPE_MISSING,	/* name of this vdev type */
+	B_TRUE			/* leaf vdev */
+};
+
+vdev_ops_t vdev_hole_ops = {
+	vdev_missing_open,
+	vdev_missing_close,
+	vdev_default_asize,
+	vdev_missing_io_start,
+	vdev_missing_io_done,
+	NULL,
+	NULL,
+	NULL,
+	VDEV_TYPE_HOLE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

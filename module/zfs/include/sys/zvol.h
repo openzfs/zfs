@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_ZVOL_H
@@ -44,9 +43,10 @@ extern int zvol_create_minor(const char *);
 extern int zvol_remove_minor(const char *);
 extern int zvol_set_volsize(const char *, uint64_t);
 extern int zvol_set_volblocksize(const char *, uint64_t);
+extern void zvol_remove_minors(const char *);
 
 extern int zvol_init(void);
 extern void zvol_fini(void);
-#endif /* KERNEL */
 
-#endif	/* _SYS_ZVOL_H */
+#endif /* _KERNEL */
+#endif /* _SYS_ZVOL_H */

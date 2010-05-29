@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -32,8 +32,10 @@
 #include <sys/attr.h>
 #include <sys/list.h>
 #include <sys/dmu.h>
+#include <sys/sa.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/rrwlock.h>
+#include <sys/zfs_sa.h>
 #endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
@@ -57,13 +59,16 @@ extern "C" {
 #define	ZFS_OPAQUE		0x0000010000000000ull
 #define	ZFS_AV_QUARANTINED 	0x0000020000000000ull
 #define	ZFS_AV_MODIFIED 	0x0000040000000000ull
+#define	ZFS_REPARSE		0x0000080000000000ull
 
-#define	ZFS_ATTR_SET(zp, attr, value)	\
+#define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
 	if (value) \
-		zp->z_phys->zp_flags |= attr; \
+		pflags |= attr; \
 	else \
-		zp->z_phys->zp_flags &= ~attr; \
+		pflags &= ~attr; \
+	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zp->z_zfsvfs), \
+	    &pflags, sizeof (pflags), tx)); \
 }
 
 /*
@@ -79,6 +84,27 @@ extern "C" {
 #define	ZFS_BONUS_SCANSTAMP	0x80		/* Scanstamp in bonus area */
 #define	ZFS_NO_EXECS_DENIED	0x100		/* exec was given to everyone */
 
+#define	SA_ZPL_ATIME(z)		z->z_attr_table[ZPL_ATIME]
+#define	SA_ZPL_MTIME(z)		z->z_attr_table[ZPL_MTIME]
+#define	SA_ZPL_CTIME(z)		z->z_attr_table[ZPL_CTIME]
+#define	SA_ZPL_CRTIME(z)	z->z_attr_table[ZPL_CRTIME]
+#define	SA_ZPL_GEN(z)		z->z_attr_table[ZPL_GEN]
+#define	SA_ZPL_DACL_ACES(z)	z->z_attr_table[ZPL_DACL_ACES]
+#define	SA_ZPL_XATTR(z)		z->z_attr_table[ZPL_XATTR]
+#define	SA_ZPL_SYMLINK(z)	z->z_attr_table[ZPL_SYMLINK]
+#define	SA_ZPL_RDEV(z)		z->z_attr_table[ZPL_RDEV]
+#define	SA_ZPL_SCANSTAMP(z)	z->z_attr_table[ZPL_SCANSTAMP]
+#define	SA_ZPL_UID(z)		z->z_attr_table[ZPL_UID]
+#define	SA_ZPL_GID(z)		z->z_attr_table[ZPL_GID]
+#define	SA_ZPL_PARENT(z)	z->z_attr_table[ZPL_PARENT]
+#define	SA_ZPL_LINKS(z)		z->z_attr_table[ZPL_LINKS]
+#define	SA_ZPL_MODE(z)		z->z_attr_table[ZPL_MODE]
+#define	SA_ZPL_DACL_COUNT(z)	z->z_attr_table[ZPL_DACL_COUNT]
+#define	SA_ZPL_FLAGS(z)		z->z_attr_table[ZPL_FLAGS]
+#define	SA_ZPL_SIZE(z)		z->z_attr_table[ZPL_SIZE]
+#define	SA_ZPL_ZNODE_ACL(z)	z->z_attr_table[ZPL_ZNODE_ACL]
+#define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
+
 /*
  * Is ID ephemeral?
  */
@@ -87,8 +113,10 @@ extern "C" {
 /*
  * Should we use FUIDs?
  */
-#define	USE_FUIDS(version, os)	(version >= ZPL_VERSION_FUID &&\
+#define	USE_FUIDS(version, os)	(version >= ZPL_VERSION_FUID && \
     spa_version(dmu_objset_spa(os)) >= SPA_VERSION_FUID)
+#define	USE_SA(version, os) (version >= ZPL_VERSION_SA && \
+    spa_version(dmu_objset_spa(os)) >= SPA_VERSION_SA)
 
 #define	MASTER_NODE_OBJ	1
 
@@ -103,6 +131,7 @@ extern "C" {
 #define	ZPL_VERSION_STR		"VERSION"
 #define	ZFS_FUID_TABLES		"FUID"
 #define	ZFS_SHARES_DIR		"SHARES"
+#define	ZFS_SA_ATTRS		"SA_ATTRS"
 
 #define	ZFS_MAX_BLOCKSIZE	(SPA_MAXBLOCKSIZE)
 
@@ -134,42 +163,6 @@ extern "C" {
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
 /*
- * This is the persistent portion of the znode.  It is stored
- * in the "bonus buffer" of the file.  Short symbolic links
- * are also stored in the bonus buffer.
- */
-typedef struct znode_phys {
-	uint64_t zp_atime[2];		/*  0 - last file access time */
-	uint64_t zp_mtime[2];		/* 16 - last file modification time */
-	uint64_t zp_ctime[2];		/* 32 - last file change time */
-	uint64_t zp_crtime[2];		/* 48 - creation time */
-	uint64_t zp_gen;		/* 64 - generation (txg of creation) */
-	uint64_t zp_mode;		/* 72 - file mode bits */
-	uint64_t zp_size;		/* 80 - size of file */
-	uint64_t zp_parent;		/* 88 - directory parent (`..') */
-	uint64_t zp_links;		/* 96 - number of links to file */
-	uint64_t zp_xattr;		/* 104 - DMU object for xattrs */
-	uint64_t zp_rdev;		/* 112 - dev_t for VBLK & VCHR files */
-	uint64_t zp_flags;		/* 120 - persistent flags */
-	uint64_t zp_uid;		/* 128 - file owner */
-	uint64_t zp_gid;		/* 136 - owning group */
-	uint64_t zp_zap;		/* 144 - extra attributes */
-	uint64_t zp_pad[3];		/* 152 - future */
-	zfs_acl_phys_t zp_acl;		/* 176 - 263 ACL */
-	/*
-	 * Data may pad out any remaining bytes in the znode buffer, eg:
-	 *
-	 * |<---------------------- dnode_phys (512) ------------------------>|
-	 * |<-- dnode (192) --->|<----------- "bonus" buffer (320) ---------->|
-	 *			|<---- znode (264) ---->|<---- data (56) ---->|
-	 *
-	 * At present, we use this space for the following:
-	 *  - symbolic links
-	 *  - 32-byte anti-virus scanstamp (regular files only)
-	 */
-} znode_phys_t;
-
-/*
  * Directory entry locks control access to directory entries.
  * They are used to protect creates, deletes, and renames.
  * Each directory znode has a mutex and a list of locked names.
@@ -178,6 +171,7 @@ typedef struct znode_phys {
 typedef struct zfs_dirlock {
 	char		*dl_name;	/* directory entry being locked */
 	uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
+	uint8_t		dl_namelock;	/* 1 if z_name_lock is NOT held */
 	uint16_t	dl_namesize;	/* set if dl_name was allocated */
 	kcondvar_t	dl_cv;		/* wait for entry to be unlocked */
 	struct znode	*dl_dzp;	/* directory znode */
@@ -201,16 +195,20 @@ typedef struct znode {
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
 	uint64_t	z_last_itx;	/* last ZIL itx on this znode */
-	uint64_t	z_gen;		/* generation (same as zp_gen) */
+	uint64_t	z_gen;		/* generation (cached) */
+	uint64_t	z_size;		/* file size (cached) */
+	uint64_t	z_atime[2];	/* atime (cached) */
+	uint64_t	z_links;	/* file links (cached) */
+	uint64_t	z_pflags;	/* pflags (cached) */
+	uid_t		z_uid;		/* uid mapped (cached) */
+	uid_t		z_gid;		/* gid mapped (cached) */
+	mode_t		z_mode;		/* mode (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	list_node_t	z_link_node;	/* all znodes in fs link */
-	/*
-	 * These are dmu managed fields.
-	 */
-	znode_phys_t	*z_phys;	/* pointer to persistent znode */
-	dmu_buf_t	*z_dbuf;	/* buffer containing the z_phys */
+	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
+	boolean_t	z_is_sa;	/* are we native sa? */
 } znode_t;
 
 
@@ -253,7 +251,7 @@ typedef struct znode {
 #define	ZFS_EXIT(zfsvfs) rrw_exit(&(zfsvfs)->z_teardown_lock, FTAG)
 
 #define	ZFS_VERIFY_ZP(zp) \
-	if ((zp)->z_dbuf == NULL) { \
+	if ((zp)->z_sa_hdl == NULL) { \
 		ZFS_EXIT((zp)->z_zfsvfs); \
 		return (EIO); \
 	} \
@@ -295,14 +293,14 @@ typedef struct znode {
 
 #define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
 	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
-		zfs_time_stamper(zp, ACCESSED, NULL)
+		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL, B_FALSE);
 
 extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);
 extern void	zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
     dmu_tx_t *tx);
-extern void	zfs_time_stamper(znode_t *, uint_t, dmu_tx_t *);
-extern void	zfs_time_stamper_locked(znode_t *, uint_t, dmu_tx_t *);
+extern void	zfs_tstamp_update_setup(znode_t *, uint_t, uint64_t [2],
+    uint64_t [2], boolean_t);
 extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
@@ -341,7 +339,7 @@ extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp);
 extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
-extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap);
+extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 extern int zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
