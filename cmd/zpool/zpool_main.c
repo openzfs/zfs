@@ -1785,6 +1785,7 @@ zpool_do_import(int argc, char **argv)
 			    "discover pools: permission denied\n"));
 			if (searchdirs != NULL)
 				free(searchdirs);
+
 			nvlist_free(policy);
 			return (1);
 		}
