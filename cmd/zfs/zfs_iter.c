@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <libintl.h>
@@ -107,7 +106,8 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 					zfs_prune_proplist(zhp,
 					    cb->cb_props_table);
 
-				if (zfs_expand_proplist(zhp, cb->cb_proplist)
+				if (zfs_expand_proplist(zhp, cb->cb_proplist,
+				    (cb->cb_flags & ZFS_ITER_RECVD_PROPS))
 				    != 0) {
 					free(node);
 					return (-1);
@@ -350,11 +350,8 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	avl_pool = uu_avl_pool_create("zfs_pool", sizeof (zfs_node_t),
 	    offsetof(zfs_node_t, zn_avlnode), zfs_sort, UU_DEFAULT);
 
-	if (avl_pool == NULL) {
-		(void) fprintf(stderr,
-		    gettext("internal error: out of memory\n"));
-		exit(1);
-	}
+	if (avl_pool == NULL)
+		nomem();
 
 	cb.cb_sortcol = sortcol;
 	cb.cb_flags = flags;
@@ -399,11 +396,8 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		    sizeof (cb.cb_props_table));
 	}
 
-	if ((cb.cb_avl = uu_avl_create(avl_pool, NULL, UU_DEFAULT)) == NULL) {
-		(void) fprintf(stderr,
-		    gettext("internal error: out of memory\n"));
-		exit(1);
-	}
+	if ((cb.cb_avl = uu_avl_create(avl_pool, NULL, UU_DEFAULT)) == NULL)
+		nomem();
 
 	if (argc == 0) {
 		/*
@@ -453,11 +447,8 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	/*
 	 * Finally, clean up the AVL tree.
 	 */
-	if ((walk = uu_avl_walk_start(cb.cb_avl, UU_WALK_ROBUST)) == NULL) {
-		(void) fprintf(stderr,
-		    gettext("internal error: out of memory"));
-		exit(1);
-	}
+	if ((walk = uu_avl_walk_start(cb.cb_avl, UU_WALK_ROBUST)) == NULL)
+		nomem();
 
 	while ((node = uu_avl_walk_next(walk)) != NULL) {
 		uu_avl_remove(cb.cb_avl, node);
