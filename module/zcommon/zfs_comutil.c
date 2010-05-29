@@ -19,11 +19,8 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
  */
-
-
 
 /*
  * This file is intended for functions that ought to be common between user
@@ -33,11 +30,15 @@
 
 #if defined(_KERNEL)
 #include <sys/systm.h>
+#else
+#include <string.h>
 #endif
 
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
+#include <sys/int_limits.h>
 #include <sys/nvpair.h>
+#include "zfs_comutil.h"
 
 /*
  * Are there allocatable vdevs?
@@ -63,6 +64,142 @@ zfs_allocatable_devs(nvlist_t *nv)
 	}
 	return (B_FALSE);
 }
+
+void
+zpool_get_rewind_policy(nvlist_t *nvl, zpool_rewind_policy_t *zrpp)
+{
+	nvlist_t *policy;
+	nvpair_t *elem;
+	char *nm;
+
+	/* Defaults */
+	zrpp->zrp_request = ZPOOL_NO_REWIND;
+	zrpp->zrp_maxmeta = 0;
+	zrpp->zrp_maxdata = UINT64_MAX;
+	zrpp->zrp_txg = UINT64_MAX;
+
+	if (nvl == NULL)
+		return;
+
+	elem = NULL;
+	while ((elem = nvlist_next_nvpair(nvl, elem)) != NULL) {
+		nm = nvpair_name(elem);
+		if (strcmp(nm, ZPOOL_REWIND_POLICY) == 0) {
+			if (nvpair_value_nvlist(elem, &policy) == 0)
+				zpool_get_rewind_policy(policy, zrpp);
+			return;
+		} else if (strcmp(nm, ZPOOL_REWIND_REQUEST) == 0) {
+			if (nvpair_value_uint32(elem, &zrpp->zrp_request) == 0)
+				if (zrpp->zrp_request & ~ZPOOL_REWIND_POLICIES)
+					zrpp->zrp_request = ZPOOL_NO_REWIND;
+		} else if (strcmp(nm, ZPOOL_REWIND_REQUEST_TXG) == 0) {
+			(void) nvpair_value_uint64(elem, &zrpp->zrp_txg);
+		} else if (strcmp(nm, ZPOOL_REWIND_META_THRESH) == 0) {
+			(void) nvpair_value_uint64(elem, &zrpp->zrp_maxmeta);
+		} else if (strcmp(nm, ZPOOL_REWIND_DATA_THRESH) == 0) {
+			(void) nvpair_value_uint64(elem, &zrpp->zrp_maxdata);
+		}
+	}
+	if (zrpp->zrp_request == 0)
+		zrpp->zrp_request = ZPOOL_NO_REWIND;
+}
+
+typedef struct zfs_version_spa_map {
+	int	version_zpl;
+	int	version_spa;
+} zfs_version_spa_map_t;
+
+/*
+ * Keep this table in monotonically increasing version number order.
+ */
+static zfs_version_spa_map_t zfs_version_table[] = {
+	{ZPL_VERSION_INITIAL, SPA_VERSION_INITIAL},
+	{ZPL_VERSION_DIRENT_TYPE, SPA_VERSION_INITIAL},
+	{ZPL_VERSION_FUID, SPA_VERSION_FUID},
+	{ZPL_VERSION_USERSPACE, SPA_VERSION_USERSPACE},
+	{ZPL_VERSION_SA, SPA_VERSION_SA},
+	{0, 0}
+};
+
+/*
+ * Return the max zpl version for a corresponding spa version
+ * -1 is returned if no mapping exists.
+ */
+int
+zfs_zpl_version_map(int spa_version)
+{
+	int i;
+	int version = -1;
+
+	for (i = 0; zfs_version_table[i].version_spa; i++) {
+		if (spa_version >= zfs_version_table[i].version_spa)
+			version = zfs_version_table[i].version_zpl;
+	}
+
+	return (version);
+}
+
+/*
+ * Return the min spa version for a corresponding spa version
+ * -1 is returned if no mapping exists.
+ */
+int
+zfs_spa_version_map(int zpl_version)
+{
+	int i;
+	int version = -1;
+
+	for (i = 0; zfs_version_table[i].version_zpl; i++) {
+		if (zfs_version_table[i].version_zpl >= zpl_version)
+			return (zfs_version_table[i].version_spa);
+	}
+
+	return (version);
+}
+
+const char *zfs_history_event_names[LOG_END] = {
+	"invalid event",
+	"pool create",
+	"vdev add",
+	"pool remove",
+	"pool destroy",
+	"pool export",
+	"pool import",
+	"vdev attach",
+	"vdev replace",
+	"vdev detach",
+	"vdev online",
+	"vdev offline",
+	"vdev upgrade",
+	"pool clear",
+	"pool scrub",
+	"pool property set",
+	"create",
+	"clone",
+	"destroy",
+	"destroy_begin_sync",
+	"inherit",
+	"property set",
+	"quota set",
+	"permission update",
+	"permission remove",
+	"permission who remove",
+	"promote",
+	"receive",
+	"rename",
+	"reservation set",
+	"replay_inc_sync",
+	"replay_full_sync",
+	"rollback",
+	"snapshot",
+	"filesystem version upgrade",
+	"refquota set",
+	"refreservation set",
+	"pool scrub done",
+	"user hold",
+	"user release",
+	"pool split",
+};
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(zfs_allocatable_devs);

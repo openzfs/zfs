@@ -128,6 +128,7 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>
+#include <sys/zio.h>
 #include <sys/spa.h>
 
 void

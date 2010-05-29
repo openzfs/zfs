@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_FM_PROTOCOL_H
@@ -47,6 +46,7 @@ extern "C" {
 /* FM event class values */
 #define	FM_EREPORT_CLASS		"ereport"
 #define	FM_FAULT_CLASS			"fault"
+#define	FM_DEFECT_CLASS			"defect"
 #define	FM_RSRC_CLASS			"resource"
 #define	FM_LIST_EVENT			"list"
 
@@ -84,6 +84,7 @@ extern "C" {
 #define	FM_SUSPECT_FAULT_LIST		"fault-list"
 #define	FM_SUSPECT_FAULT_SZ		"fault-list-sz"
 #define	FM_SUSPECT_FAULT_STATUS		"fault-status"
+#define	FM_SUSPECT_INJECTED		"__injected"
 #define	FM_SUSPECT_MESSAGE		"message"
 #define	FM_SUSPECT_RETIRE		"retire"
 #define	FM_SUSPECT_RESPONSE		"response"
@@ -123,6 +124,7 @@ extern "C" {
 #define	FM_RSRC_ASRU_REPAIRED		"repaired"
 #define	FM_RSRC_ASRU_REPLACED		"replaced"
 #define	FM_RSRC_ASRU_ACQUITTED		"acquitted"
+#define	FM_RSRC_ASRU_RESOLVED		"resolved"
 #define	FM_RSRC_ASRU_UNUSABLE		"unusable"
 #define	FM_RSRC_ASRU_EVENT		"event"
 
@@ -171,6 +173,7 @@ extern "C" {
 
 /* FMRI authority-type member names */
 #define	FM_FMRI_AUTH_CHASSIS		"chassis-id"
+#define	FM_FMRI_AUTH_PRODUCT_SN		"product-sn"
 #define	FM_FMRI_AUTH_PRODUCT		"product-id"
 #define	FM_FMRI_AUTH_DOMAIN		"domain-id"
 #define	FM_FMRI_AUTH_SERVER		"server-id"
@@ -244,6 +247,7 @@ extern "C" {
 
 /* dev scheme member names */
 #define	FM_FMRI_DEV_ID			"devid"
+#define	FM_FMRI_DEV_TGTPTLUN0		"target-port-l0id"
 #define	FM_FMRI_DEV_PATH		"device-path"
 
 /* pkg scheme member names */
@@ -310,12 +314,16 @@ extern int i_fm_payload_set(nvlist_t *, const char *, va_list);
 extern void fm_fmri_hc_set(nvlist_t *, int, const nvlist_t *, nvlist_t *,
     int, ...);
 extern void fm_fmri_dev_set(nvlist_t *, int, const nvlist_t *, const char *,
-    const char *);
+    const char *, const char *);
+extern void fm_fmri_de_set(nvlist_t *, int, const nvlist_t *, const char *);
 extern void fm_fmri_cpu_set(nvlist_t *, int, const nvlist_t *, uint32_t,
     uint8_t *, const char *);
 extern void fm_fmri_mem_set(nvlist_t *, int, const nvlist_t *, const char *,
     const char *, uint64_t);
 extern void fm_fmri_zfs_set(nvlist_t *, int, uint64_t, uint64_t);
+extern void fm_fmri_hc_create(nvlist_t *, int, const nvlist_t *, nvlist_t *,
+    nvlist_t *, int, ...);
+
 extern uint64_t fm_ena_increment(uint64_t);
 extern uint64_t fm_ena_generate(uint64_t, uchar_t);
 extern uint64_t fm_ena_generate_cpu(uint64_t, processorid_t, uchar_t);
