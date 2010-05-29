@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  *
  * Portions Copyright 2007 Ramprakash Jelari
@@ -117,34 +117,7 @@ changelist_prefix(prop_changelist_t *clp)
 		if (getzoneid() == GLOBAL_ZONEID && cn->cn_zoned)
 			continue;
 
-		if (ZFS_IS_VOLUME(cn->cn_handle)) {
-			switch (clp->cl_realprop) {
-			case ZFS_PROP_NAME:
-				/*
-				 * If this was a rename, unshare the zvol, and
-				 * remove the /dev/zvol links.
-				 */
-				(void) zfs_unshare_iscsi(cn->cn_handle);
-
-				if (zvol_remove_link(cn->cn_handle->zfs_hdl,
-				    cn->cn_handle->zfs_name) != 0) {
-					ret = -1;
-					cn->cn_needpost = B_FALSE;
-					(void) zfs_share_iscsi(cn->cn_handle);
-				}
-				break;
-
-			case ZFS_PROP_VOLSIZE:
-				/*
-				 * If this was a change to the volume size, we
-				 * need to unshare and reshare the volume.
-				 */
-				(void) zfs_unshare_iscsi(cn->cn_handle);
-				break;
-			default:
-				break;
-			}
-		} else {
+		if (!ZFS_IS_VOLUME(cn->cn_handle)) {
 			/*
 			 * Do the property specific processing.
 			 */
@@ -243,32 +216,8 @@ changelist_postfix(prop_changelist_t *clp)
 
 		zfs_refresh_properties(cn->cn_handle);
 
-		if (ZFS_IS_VOLUME(cn->cn_handle)) {
-			/*
-			 * If we're doing a rename, recreate the /dev/zvol
-			 * links.
-			 */
-			if (clp->cl_realprop == ZFS_PROP_NAME &&
-			    zvol_create_link(cn->cn_handle->zfs_hdl,
-			    cn->cn_handle->zfs_name) != 0) {
-				errors++;
-			} else if (cn->cn_shared ||
-			    clp->cl_prop == ZFS_PROP_SHAREISCSI) {
-				if (zfs_prop_get(cn->cn_handle,
-				    ZFS_PROP_SHAREISCSI, shareopts,
-				    sizeof (shareopts), NULL, NULL, 0,
-				    B_FALSE) == 0 &&
-				    strcmp(shareopts, "off") == 0) {
-					errors +=
-					    zfs_unshare_iscsi(cn->cn_handle);
-				} else {
-					errors +=
-					    zfs_share_iscsi(cn->cn_handle);
-				}
-			}
-
+		if (ZFS_IS_VOLUME(cn->cn_handle))
 			continue;
-		}
 
 		/*
 		 * Remount if previously mounted or mountpoint was legacy,
@@ -674,8 +623,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	if (clp->cl_prop != ZFS_PROP_MOUNTPOINT &&
 	    clp->cl_prop != ZFS_PROP_SHARENFS &&
-	    clp->cl_prop != ZFS_PROP_SHARESMB &&
-	    clp->cl_prop != ZFS_PROP_SHAREISCSI)
+	    clp->cl_prop != ZFS_PROP_SHARESMB)
 		return (clp);
 
 	/*

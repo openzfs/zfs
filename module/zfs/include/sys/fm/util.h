@@ -82,10 +82,11 @@ typedef struct erpt_dump {
 typedef void zevent_cb_t(nvlist_t *);
 
 typedef struct zevent_s {
-	nvlist_t	*ev_nvl;     /* protected by the zevent_lock */
-	list_t		ev_zpd_list; /* " */
-	list_node_t	ev_node;     /* " */
-	zevent_cb_t	*ev_cb;      /* " */
+	nvlist_t	*ev_nvl;       /* protected by the zevent_lock */
+	nvlist_t	*ev_detector;  /* " */
+	list_t		ev_zpd_list;   /* " */
+	list_node_t	ev_node;       /* " */
+	zevent_cb_t	*ev_cb;        /* " */
 } zevent_t;
 
 typedef struct zfs_private_data {

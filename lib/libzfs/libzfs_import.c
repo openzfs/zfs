@@ -19,11 +19,9 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
-
-
 
 /*
  * Pool import support functions.
@@ -41,15 +39,21 @@
  * using our derived config, and record the results.
  */
 
+#include <ctype.h>
 #include <devid.h>
 #include <dirent.h>
 #include <errno.h>
 #include <libintl.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/vtoc.h>
+#include <sys/dktp/fdisk.h>
+#include <sys/efi_partition.h>
+#include <thread_pool.h>
 
 #include <sys/vdev_impl.h>
 #ifdef HAVE_LIBBLKID
@@ -391,8 +395,6 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	}
 
 	if (err) {
-		(void) zpool_standard_error(hdl, errno,
-		    dgettext(TEXT_DOMAIN, "cannot discover pools"));
 		zcmd_free_nvlists(&zc);
 		return (NULL);
 	}
@@ -404,6 +406,23 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 
 	zcmd_free_nvlists(&zc);
 	return (nvl);
+}
+
+/*
+ * Determine if the vdev id is a hole in the namespace.
+ */
+boolean_t
+vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
+{
+	int c;
+
+	for (c = 0; c < holes; c++) {
+
+		/* Top-level is a hole */
+		if (hole_array[c] == id)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
 }
 
 /*
@@ -428,17 +447,20 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	uint64_t version, guid;
 	uint_t children = 0;
 	nvlist_t **child = NULL;
+	uint_t holes;
+	uint64_t *hole_array, max_id;
 	uint_t c;
 	boolean_t isactive;
 	uint64_t hostid;
 	nvlist_t *nvl;
 	boolean_t found_one = B_FALSE;
+	boolean_t valid_top_config = B_FALSE;
 
 	if (nvlist_alloc(&ret, 0, 0) != 0)
 		goto nomem;
 
 	for (pe = pl->pools; pe != NULL; pe = pe->pe_next) {
-		uint64_t id;
+		uint64_t id, max_txg = 0;
 
 		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0)
 			goto nomem;
@@ -463,6 +485,42 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				if (ce->ce_txg > best_txg) {
 					tmp = ce->ce_config;
 					best_txg = ce->ce_txg;
+				}
+			}
+
+			/*
+			 * We rely on the fact that the max txg for the
+			 * pool will contain the most up-to-date information
+			 * about the valid top-levels in the vdev namespace.
+			 */
+			if (best_txg > max_txg) {
+				(void) nvlist_remove(config,
+				    ZPOOL_CONFIG_VDEV_CHILDREN,
+				    DATA_TYPE_UINT64);
+				(void) nvlist_remove(config,
+				    ZPOOL_CONFIG_HOLE_ARRAY,
+				    DATA_TYPE_UINT64_ARRAY);
+
+				max_txg = best_txg;
+				hole_array = NULL;
+				holes = 0;
+				max_id = 0;
+				valid_top_config = B_FALSE;
+
+				if (nvlist_lookup_uint64(tmp,
+				    ZPOOL_CONFIG_VDEV_CHILDREN, &max_id) == 0) {
+					verify(nvlist_add_uint64(config,
+					    ZPOOL_CONFIG_VDEV_CHILDREN,
+					    max_id) == 0);
+					valid_top_config = B_TRUE;
+				}
+
+				if (nvlist_lookup_uint64_array(tmp,
+				    ZPOOL_CONFIG_HOLE_ARRAY, &hole_array,
+				    &holes) == 0) {
+					verify(nvlist_add_uint64_array(config,
+					    ZPOOL_CONFIG_HOLE_ARRAY,
+					    hole_array, holes) == 0);
 				}
 			}
 
@@ -525,6 +583,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 			    ZPOOL_CONFIG_VDEV_TREE, &nvtop) == 0);
 			verify(nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_ID,
 			    &id) == 0);
+
 			if (id >= children) {
 				nvlist_t **newchild;
 
@@ -545,8 +604,73 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 
 		}
 
+		/*
+		 * If we have information about all the top-levels then
+		 * clean up the nvlist which we've constructed. This
+		 * means removing any extraneous devices that are
+		 * beyond the valid range or adding devices to the end
+		 * of our array which appear to be missing.
+		 */
+		if (valid_top_config) {
+			if (max_id < children) {
+				for (c = max_id; c < children; c++)
+					nvlist_free(child[c]);
+				children = max_id;
+			} else if (max_id > children) {
+				nvlist_t **newchild;
+
+				newchild = zfs_alloc(hdl, (max_id) *
+				    sizeof (nvlist_t *));
+				if (newchild == NULL)
+					goto nomem;
+
+				for (c = 0; c < children; c++)
+					newchild[c] = child[c];
+
+				free(child);
+				child = newchild;
+				children = max_id;
+			}
+		}
+
 		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 		    &guid) == 0);
+
+		/*
+		 * The vdev namespace may contain holes as a result of
+		 * device removal. We must add them back into the vdev
+		 * tree before we process any missing devices.
+		 */
+		if (holes > 0) {
+			ASSERT(valid_top_config);
+
+			for (c = 0; c < children; c++) {
+				nvlist_t *holey;
+
+				if (child[c] != NULL ||
+				    !vdev_is_hole(hole_array, holes, c))
+					continue;
+
+				if (nvlist_alloc(&holey, NV_UNIQUE_NAME,
+				    0) != 0)
+					goto nomem;
+
+				/*
+				 * Holes in the namespace are treated as
+				 * "hole" top-level vdevs and have a
+				 * special flag set on them.
+				 */
+				if (nvlist_add_string(holey,
+				    ZPOOL_CONFIG_TYPE,
+				    VDEV_TYPE_HOLE) != 0 ||
+				    nvlist_add_uint64(holey,
+				    ZPOOL_CONFIG_ID, c) != 0 ||
+				    nvlist_add_uint64(holey,
+				    ZPOOL_CONFIG_GUID, 0ULL) != 0)
+					goto nomem;
+				child[c] = holey;
+			}
+		}
 
 		/*
 		 * Look for any missing top-level vdevs.  If this is the case,
@@ -555,7 +679,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 		 * certain checks to make sure the vdev IDs match their location
 		 * in the configuration.
 		 */
-		for (c = 0; c < children; c++)
+		for (c = 0; c < children; c++) {
 			if (child[c] == NULL) {
 				nvlist_t *missing;
 				if (nvlist_alloc(&missing, NV_UNIQUE_NAME,
@@ -573,6 +697,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				}
 				child[c] = missing;
 			}
+		}
 
 		/*
 		 * Put all of this pool's top-level vdevs into a root vdev.
@@ -639,8 +764,11 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 			continue;
 		}
 
-		if ((nvl = refresh_config(hdl, config)) == NULL)
-			goto error;
+		if ((nvl = refresh_config(hdl, config)) == NULL) {
+			nvlist_free(config);
+			config = NULL;
+			continue;
+		}
 
 		nvlist_free(config);
 		config = nvl;
@@ -859,14 +987,13 @@ err_blkid1:
  * to import a specific pool.
  */
 static nvlist_t *
-zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
-    boolean_t active_ok, char *poolname, uint64_t guid)
+zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 {
-	int i;
+	int i, dirs = iarg->paths;
 	DIR *dirp = NULL;
 	struct dirent64 *dp;
 	char path[MAXPATHLEN];
-	char *end;
+	char *end, **dir = iarg->path;
 	size_t pathleft;
 	struct stat64 statbuf;
 	nvlist_t *ret = NULL, *config;
@@ -877,6 +1004,9 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 	vdev_entry_t *ve, *venext;
 	config_entry_t *ce, *cenext;
 	name_entry_t *ne, *nenext;
+	avl_tree_t slice_cache;
+	rdsk_node_t *slice;
+	void *cookie;
 
 	verify(poolname == NULL || guid == 0);
 
@@ -899,15 +1029,15 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 	 * possible device, organizing the information according to pool GUID
 	 * and toplevel GUID.
 	 */
-	for (i = 0; i < argc; i++) {
+	for (i = 0; i < dirs; i++) {
+		tpool_t *t;
 		char *rdsk;
 		int dfd;
 
 		/* use realpath to normalize the path */
-		if (realpath(argv[i], path) == 0) {
+		if (realpath(dir[i], path) == 0) {
 			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
-			    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
-			    argv[i]);
+			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), dir[i]);
 			goto error;
 		}
 		end = &path[strlen(path)];
@@ -934,6 +1064,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 			goto error;
 		}
 
+		avl_create(&slice_cache, slice_cache_compare,
+		    sizeof (rdsk_node_t), offsetof(rdsk_node_t, rn_node));
 		/*
 		 * This is not MT-safe, but we have no MT consumers of libzfs
 		 */
@@ -976,20 +1108,20 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 			if (config != NULL) {
 				boolean_t matched = B_TRUE;
 
-				if (poolname != NULL) {
+				if (iarg->poolname != NULL) {
 					char *pname;
 
 					matched = nvlist_lookup_string(config,
 					    ZPOOL_CONFIG_POOL_NAME,
 					    &pname) == 0 &&
-					    strcmp(poolname, pname) == 0;
-				} else if (guid != 0) {
+					    strcmp(iarg->poolname, pname) == 0;
+				} else if (iarg->guid != 0) {
 					uint64_t this_guid;
 
 					matched = nvlist_lookup_uint64(config,
 					    ZPOOL_CONFIG_POOL_GUID,
 					    &this_guid) == 0 &&
-					    guid == this_guid;
+					    iarg->guid == this_guid;
 				}
 				if (!matched) {
 					nvlist_free(config);
@@ -997,11 +1129,14 @@ zpool_find_import_impl(libzfs_handle_t *hdl, int argc, char **argv,
 					continue;
 				}
 				/* use the non-raw path for the config */
-				(void) strlcpy(end, name, pathleft);
+				(void) strlcpy(end, slice->rn_name, pathleft);
 				if (add_config(hdl, &pools, path, config) != 0)
 					goto error;
 			}
+			free(slice->rn_name);
+			free(slice);
 		}
+		avl_destroy(&slice_cache);
 
 		(void) closedir(dirp);
 		dirp = NULL;
@@ -1044,27 +1179,12 @@ error:
 nvlist_t *
 zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv)
 {
-	return (zpool_find_import_impl(hdl, argc, argv, B_FALSE, NULL, 0));
-}
+	importargs_t iarg = { 0 };
 
-nvlist_t *
-zpool_find_import_byname(libzfs_handle_t *hdl, int argc, char **argv,
-    char *pool)
-{
-	return (zpool_find_import_impl(hdl, argc, argv, B_FALSE, pool, 0));
-}
+	iarg.paths = argc;
+	iarg.path = argv;
 
-nvlist_t *
-zpool_find_import_byguid(libzfs_handle_t *hdl, int argc, char **argv,
-    uint64_t guid)
-{
-	return (zpool_find_import_impl(hdl, argc, argv, B_FALSE, NULL, guid));
-}
-
-nvlist_t *
-zpool_find_import_activeok(libzfs_handle_t *hdl, int argc, char **argv)
-{
-	return (zpool_find_import_impl(hdl, argc, argv, B_TRUE, NULL, 0));
+	return (zpool_find_import_impl(hdl, &iarg));
 }
 
 /*
@@ -1186,6 +1306,46 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 	return (pools);
 }
 
+static int
+name_or_guid_exists(zpool_handle_t *zhp, void *data)
+{
+	importargs_t *import = data;
+	int found = 0;
+
+	if (import->poolname != NULL) {
+		char *pool_name;
+
+		verify(nvlist_lookup_string(zhp->zpool_config,
+		    ZPOOL_CONFIG_POOL_NAME, &pool_name) == 0);
+		if (strcmp(pool_name, import->poolname) == 0)
+			found = 1;
+	} else {
+		uint64_t pool_guid;
+
+		verify(nvlist_lookup_uint64(zhp->zpool_config,
+		    ZPOOL_CONFIG_POOL_GUID, &pool_guid) == 0);
+		if (pool_guid == import->guid)
+			found = 1;
+	}
+
+	zpool_close(zhp);
+	return (found);
+}
+
+nvlist_t *
+zpool_search_import(libzfs_handle_t *hdl, importargs_t *import)
+{
+	verify(import->poolname == NULL || import->guid == 0);
+
+	if (import->unique)
+		import->exists = zpool_iter(hdl, name_or_guid_exists, import);
+
+	if (import->cachefile != NULL)
+		return (zpool_find_import_cached(hdl, import->cachefile,
+		    import->poolname, import->guid));
+
+	return (zpool_find_import_impl(hdl, import));
+}
 
 boolean_t
 find_guid(nvlist_t *nv, uint64_t guid)
