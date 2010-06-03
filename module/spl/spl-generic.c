@@ -96,7 +96,8 @@ EXPORT_SYMBOL(highbit);
  * Implementation of 64 bit division for 32-bit machines.
  */
 #if BITS_PER_LONG == 32
-uint64_t __udivdi3(uint64_t dividend, uint64_t divisor)
+uint64_t
+__udivdi3(uint64_t dividend, uint64_t divisor)
 {
 #if defined(HAVE_DIV64_64) /* 2.6.22 - 2.6.25 API */
 	return div64_64(dividend, divisor);
@@ -125,9 +126,10 @@ EXPORT_SYMBOL(__udivdi3);
 /*
  * Implementation of 64 bit modulo for 32-bit machines.
  */
-uint64_t __umoddi3(uint64_t dividend, uint64_t divisor)
+uint64_t
+__umoddi3(uint64_t dividend, uint64_t divisor)
 {
-	return dividend - divisor * (dividend / divisor);
+	return (dividend - (divisor * __udivdi3(dividend, divisor)));
 }
 EXPORT_SYMBOL(__umoddi3);
 #endif /* BITS_PER_LONG */
