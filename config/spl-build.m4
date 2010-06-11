@@ -75,6 +75,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_5ARGS_PROC_HANDLER
+	SPL_AC_KVASPRINTF
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1398,4 +1399,17 @@ AC_DEFUN([SPL_AC_5ARGS_PROC_HANDLER], [
 	],[
 		AC_MSG_RESULT(no)
 	])
+])
+
+dnl #
+dnl # 2.6.x API change,
+dnl # kvasprintf() function added.
+dnl #
+AC_DEFUN([SPL_AC_KVASPRINTF], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[kvasprintf],
+		[],
+		[AC_DEFINE(HAVE_KVASPRINTF, 1,
+		[kvasprintf() is available])],
+		[])
 ])

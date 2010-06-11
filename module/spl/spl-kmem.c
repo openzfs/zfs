@@ -208,6 +208,52 @@ vmem_size(vmem_t *vmp, int typemask)
 }
 EXPORT_SYMBOL(vmem_size);
 
+int
+kmem_debugging(void)
+{
+	return 0;
+}
+EXPORT_SYMBOL(kmem_debugging);
+
+#ifndef HAVE_KVASPRINTF
+/* Simplified asprintf. */
+char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
+{
+	unsigned int len;
+	char *p;
+	va_list aq;
+
+	va_copy(aq, ap);
+	len = vsnprintf(NULL, 0, fmt, aq);
+	va_end(aq);
+
+	p = kmalloc(len+1, gfp);
+	if (!p)
+		return NULL;
+
+	vsnprintf(p, len+1, fmt, ap);
+
+	return p;
+}
+EXPORT_SYMBOL(kvasprintf);
+#endif /* HAVE_KVASPRINTF */
+
+char *
+kmem_asprintf(const char *fmt, ...)
+{
+	va_list args;
+	char *ptr;
+
+	va_start(args, fmt);
+	do {
+		ptr = kvasprintf(GFP_KERNEL, fmt, args);
+	} while (ptr == NULL);
+	va_end(args);
+
+	return ptr;
+}
+EXPORT_SYMBOL(kmem_asprintf);
+
 /*
  * Memory allocation interfaces and debugging for basic kmem_*
  * and vmem_* style memory allocation.  When DEBUG_KMEM is enabled

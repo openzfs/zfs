@@ -25,8 +25,6 @@
 #ifndef _SPL_KMEM_H
 #define	_SPL_KMEM_H
 
-#undef DEBUG_KMEM_UNIMPLEMENTED
-
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
@@ -218,14 +216,6 @@ extern void vmem_free_debug(void *ptr, size_t size);
 
 #endif /* DEBUG_KMEM */
 
-#ifdef DEBUG_KMEM_UNIMPLEMENTED
-static __inline__ void *
-kmem_alloc_tryhard(size_t size, size_t *alloc_size, int kmflags)
-{
-#error "kmem_alloc_tryhard() not implemented"
-}
-#endif /* DEBUG_KMEM_UNIMPLEMENTED */
-
 /*
  * Slab allocation interfaces
  */
@@ -256,47 +246,10 @@ enum {
 #define KMC_REAP_CHUNK			INT_MAX
 #define KMC_DEFAULT_SEEKS		1
 
-#ifdef DEBUG_KMEM_UNIMPLEMENTED
-static __inline__ void kmem_init(void) {
-#error "kmem_init() not implemented"
-}
-
-static __inline__ void kmem_thread_init(void) {
-#error "kmem_thread_init() not implemented"
-}
-
-static __inline__ void kmem_mp_init(void) {
-#error "kmem_mp_init() not implemented"
-}
-
-static __inline__ void kmem_reap_idspace(void) {
-#error "kmem_reap_idspace() not implemented"
-}
-
-static __inline__ size_t kmem_avail(void) {
-#error "kmem_avail() not implemented"
-}
-
-static __inline__ size_t kmem_maxavail(void) {
-#error "kmem_maxavail() not implemented"
-}
-
-static __inline__ uint64_t kmem_cache_stat(spl_kmem_cache_t *cache) {
-#error "kmem_cache_stat() not implemented"
-}
-#endif /* DEBUG_KMEM_UNIMPLEMENTED */
-
-/* XXX - Used by arc.c to adjust its memory footprint. We may want
- *       to use this hook in the future to adjust behavior based on
- *       debug levels.  For now it's safe to always return 0.
- */
-static __inline__ int
-kmem_debugging(void)
-{
-        return 0;
-}
-
-extern int kmem_set_warning(int flag);
+extern int kmem_debugging(void);
+extern char *kmem_asprintf(const char *fmt, ...);
+#define strfree(str)		kfree(str)
+#define strdup(str)		kstrdup(str, GFP_KERNEL)
 
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
