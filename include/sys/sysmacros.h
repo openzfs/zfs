@@ -32,27 +32,38 @@
 #include <sys/signal.h>
 
 #ifndef _KERNEL
-#define _KERNEL                         __KERNEL__
+#define _KERNEL				__KERNEL__
 #endif
 
 #define FALSE				0
 #define TRUE				1
 
-#define INT32_MAX                       INT_MAX
-#define INT32_MIN                       INT_MIN
+#define INT8_MAX			(127)
+#define INT8_MIN			(-128)
+#define UINT8_MAX			(255)
+#define UINT8_MIN			(0)
+
+#define INT16_MAX			(32767)
+#define INT16_MIN			(-32768)
+#define UINT16_MAX			(65535)
+#define UINT16_MIN			(0)
+
+#define INT32_MAX			INT_MAX
+#define INT32_MIN			INT_MIN
 #define UINT32_MAX			UINT_MAX
 #define UINT32_MIN			UINT_MIN
+
 #define INT64_MAX			LLONG_MAX
 #define INT64_MIN			LLONG_MIN
-#define UINT64_MAX                      ULLONG_MAX
+#define UINT64_MAX			ULLONG_MAX
 #define UINT64_MIN			ULLONG_MIN
 
-#define NBBY                            8
-#define ENOTSUP                         ENOTSUPP
+#define NBBY				8
+#define ENOTSUP				ENOTSUPP
 
 #define MAXMSGLEN			256
-#define MAXNAMELEN                      256
-#define MAXPATHLEN                      PATH_MAX
+#define MAXNAMELEN			256
+#define MAXPATHLEN			PATH_MAX
 
 #ifdef _LP64
 #define MAXOFFSET_T			0x7fffffffffffffffl
@@ -80,26 +91,26 @@
  *
  * Treat shim tasks as SCHED_NORMAL tasks
  */
-#define minclsyspri                     (MAX_RT_PRIO)
-#define maxclsyspri                     (MAX_PRIO-1)
+#define minclsyspri			(MAX_RT_PRIO)
+#define maxclsyspri			(MAX_PRIO-1)
 
 #define NICE_TO_PRIO(nice)		(MAX_RT_PRIO + (nice) + 20)
 #define PRIO_TO_NICE(prio)		((prio) - MAX_RT_PRIO - 20)
 
 /* Missing macros
  */
-#define PAGESIZE                        PAGE_SIZE
+#define PAGESIZE			PAGE_SIZE
 
 /* from Solaris sys/byteorder.h */
-#define BSWAP_8(x)      ((x) & 0xff)
-#define BSWAP_16(x)     ((BSWAP_8(x) << 8) | BSWAP_8((x) >> 8))
-#define BSWAP_32(x)     ((BSWAP_16(x) << 16) | BSWAP_16((x) >> 16))
-#define BSWAP_64(x)     ((BSWAP_32(x) << 32) | BSWAP_32((x) >> 32))
+#define BSWAP_8(x)	((x) & 0xff)
+#define BSWAP_16(x)	((BSWAP_8(x) << 8) | BSWAP_8((x) >> 8))
+#define BSWAP_32(x)	((BSWAP_16(x) << 16) | BSWAP_16((x) >> 16))
+#define BSWAP_64(x)	((BSWAP_32(x) << 32) | BSWAP_32((x) >> 32))
 
 /* Map some simple functions.
  */
-#define bzero(ptr,size)                 memset(ptr,0,size)
-#define bcopy(src,dest,size)            memcpy(dest,src,size)
+#define bzero(ptr,size)			memset(ptr,0,size)
+#define bcopy(src,dest,size)		memcpy(dest,src,size)
 #define bcmp(src,dest,size)		memcmp((src), (dest), (size_t)(size))
 
 /* Dtrace probes do not exist in the linux kernel */
@@ -161,15 +172,15 @@ extern void spl_cleanup(void);
 /*
  * Compatibility macros/typedefs needed for Solaris -> Linux port
  */
-#define P2ALIGN(x, align)    ((x) & -(align))
-#define P2CROSS(x, y, align) (((x) ^ (y)) > (align) - 1)
-#define P2ROUNDUP(x, align)  (-(-(x) & -(align)))
-#define P2PHASE(x, align)    ((x) & ((align) - 1))
-#define P2NPHASE(x, align)   (-(x) & ((align) - 1))
-#define ISP2(x)              (((x) & ((x) - 1)) == 0)
-#define IS_P2ALIGNED(v, a)   ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
+#define P2ALIGN(x, align)	((x) & -(align))
+#define P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
+#define P2ROUNDUP(x, align)	(-(-(x) & -(align)))
+#define P2PHASE(x, align)	((x) & ((align) - 1))
+#define P2NPHASE(x, align)	(-(x) & ((align) - 1))
+#define ISP2(x)			(((x) & ((x) - 1)) == 0)
+#define IS_P2ALIGNED(v, a)	((((uintptr_t)(v)) & ((uintptr_t)(a) - 1))==0)
 #define P2BOUNDARY(off, len, align) \
-                             (((off) ^ ((off) + (len) - 1)) > (align) - 1)
+				(((off) ^ ((off) + (len) - 1)) > (align) - 1)
 
 /*
  * Typed version of the P2* macros.  These macros should be used to ensure
@@ -178,6 +189,7 @@ extern void spl_cleanup(void);
  * type of the alignment.  For example, if (x) is of type uint64_t,
  * and we want to round it up to a page boundary using "PAGESIZE" as
  * the alignment, we can do either
+ *
  * P2ROUNDUP(x, (uint64_t)PAGESIZE)
  * or
  * P2ROUNDUP_TYPED(x, PAGESIZE, uint64_t)

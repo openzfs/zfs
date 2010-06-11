@@ -80,6 +80,7 @@ typedef ulong_t				pfn_t;
 typedef ulong_t				pgcnt_t;
 typedef long				spgcnt_t;
 typedef short				index_t;
+typedef int				id_t;
 
 extern proc_t p0;
 

@@ -26,10 +26,7 @@
 #define _SPL_SID_H
 
 typedef struct ksiddomain {
-	uint_t		kd_ref;
-	uint_t		kd_len;
 	char		*kd_name;
-	avl_node_t	kd_link;
 } ksiddomain_t;
 
 static inline ksiddomain_t *

@@ -32,6 +32,9 @@
 #define lbolt				((clock_t)jiffies)
 #define lbolt64				((int64_t)get_jiffies_64())
 
+#define ddi_get_lbolt()			((clock_t)jiffies)
+#define ddi_get_lbolt64()		((int64_t)get_jiffies_64())
+
 #define delay(ticks)			schedule_timeout((long)(ticks))
 
 #endif  /* _SPL_TIMER_H */
