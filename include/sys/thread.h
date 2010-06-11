@@ -41,11 +41,6 @@
 #define TS_RUN				TASK_RUNNING
 #define TS_ZOMB				EXIT_ZOMBIE
 #define TS_STOPPED			TASK_STOPPED
-#if 0
-#define TS_FREE				0x00	/* No clean linux mapping */
-#define TS_ONPROC			0x04	/* No clean linux mapping */
-#define TS_WAIT				0x20	/* No clean linux mapping */
-#endif
 
 typedef void (*thread_func_t)(void *);
 
@@ -53,13 +48,13 @@ typedef void (*thread_func_t)(void *);
 	__thread_create(stk, stksize, (thread_func_t)func,               \
 	                #func, arg, len, pp, state, pri)
 #define thread_exit()			__thread_exit()
+#define thread_join(t)			SBUG()
 #define curthread			get_current()
 
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
                                   thread_func_t func, const char *name,
-                                  void *args, size_t len, int *pp,
+                                  void *args, size_t len, proc_t *pp,
                                   int state, pri_t pri);
 extern void __thread_exit(void);
 
 #endif  /* _SPL_THREAD_H */
-

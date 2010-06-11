@@ -64,11 +64,12 @@
 #define DEV_BSIZE			512
 #define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
 
-#define curproc				current
 #define proc_pageout			NULL
-#define max_ncpus                       64
+#define curproc				get_current()
+#define max_ncpus			64
 #define CPU_SEQID			smp_processor_id() /* I think... */
 #define _NOTE(x)
+#define is_system_labeled()		0
 
 
 #define RLIM64_INFINITY			RLIM_INFINITY
@@ -131,7 +132,6 @@
 extern char spl_version[16];
 extern long spl_hostid;
 extern char hw_serial[11];
-extern int p0;
 
 /* Missing misc functions */
 extern int highbit(unsigned long i);

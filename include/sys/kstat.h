@@ -26,10 +26,10 @@
 #define _SPL_KSTAT_H
 
 #include <linux/module.h>
+#include <linux/proc_compat.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/kmem.h>
-#include <sys/proc.h>
 
 #define KSTAT_STRLEN            31
 

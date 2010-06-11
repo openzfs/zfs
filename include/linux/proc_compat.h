@@ -25,4 +25,23 @@
 #ifndef _SPL_PROC_H
 #define _SPL_PROC_H
 
+#include <linux/proc_fs.h>
+
+#ifdef CONFIG_SYSCTL
+#ifdef HAVE_2ARGS_REGISTER_SYSCTL
+#define spl_register_sysctl_table(t, a)	register_sysctl_table(t, a)
+#else
+#define spl_register_sysctl_table(t, a)	register_sysctl_table(t)
+#endif /* HAVE_2ARGS_REGISTER_SYSCTL */
+#define spl_unregister_sysctl_table(t)	unregister_sysctl_table(t)
+#endif /* CONFIG_SYSCTL */
+
+extern struct proc_dir_entry *proc_spl_kstat;
+struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
+					   const char *str);
+int proc_dir_entries(struct proc_dir_entry *root);
+
+int proc_init(void);
+void proc_fini(void);
+
 #endif /* SPL_PROC_H */

@@ -94,6 +94,10 @@ void spl_taskq_fini(void);
 #define taskq_wait(tq)                     __taskq_wait(tq)
 #define taskq_dispatch(tq, f, p, fl)       __taskq_dispatch(tq, f, p, fl)
 #define taskq_create(n, th, p, mi, ma, fl) __taskq_create(n, th, p, mi, ma, fl)
+#define taskq_create_proc(n, th, p, mi, ma, pr, fl)	\
+	__taskq_create(n, th, p, mi, ma, fl)
+#define taskq_create_sysdc(n, th, mi, ma, pr, dc, fl)	\
+	__taskq_create(n, th, maxclsyspri, mi, ma, fl)
 #define taskq_destroy(tq)                  __taskq_destroy(tq)
 
 #endif  /* _SPL_TASKQ_H */

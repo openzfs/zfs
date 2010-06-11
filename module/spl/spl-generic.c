@@ -38,6 +38,7 @@
 #include <sys/utsname.h>
 #include <sys/file.h>
 #include <linux/kmod.h>
+#include <linux/proc_compat.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -53,7 +54,7 @@ EXPORT_SYMBOL(spl_hostid);
 char hw_serial[HW_HOSTID_LEN] = "<none>";
 EXPORT_SYMBOL(hw_serial);
 
-int p0 = 0;
+proc_t p0 = { 0 };
 EXPORT_SYMBOL(p0);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME

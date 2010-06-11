@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/kstat.h>
+#include <linux/seq_file.h>
 
 static spinlock_t kstat_lock;
 static struct list_head kstat_list;

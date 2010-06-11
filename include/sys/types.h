@@ -39,6 +39,7 @@
 #include <linux/mutex_compat.h>
 #include <linux/module_compat.h>
 #include <linux/sysctl_compat.h>
+#include <linux/proc_compat.h>
 
 #ifndef HAVE_UINTPTR_T
 typedef unsigned long			uintptr_t;
@@ -63,6 +64,7 @@ typedef unsigned long long		rlim64_t;
 typedef long long			longlong_t;
 typedef long long			offset_t;
 typedef struct task_struct		kthread_t;
+typedef struct task_struct		proc_t;
 typedef struct vmem { }			vmem_t;
 typedef short				pri_t;
 typedef struct timespec			timestruc_t; /* definition per SVr4 */
@@ -78,5 +80,7 @@ typedef ulong_t				pfn_t;
 typedef ulong_t				pgcnt_t;
 typedef long				spgcnt_t;
 typedef short				index_t;
+
+extern proc_t p0;
 
 #endif	/* _SPL_TYPES_H */

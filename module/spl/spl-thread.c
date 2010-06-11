@@ -83,7 +83,7 @@ EXPORT_SYMBOL(__thread_exit);
  * style callers likely never check for... since it can't fail. */
 kthread_t *
 __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
-		const char *name, void *args, size_t len, int *pp,
+		const char *name, void *args, size_t len, proc_t *pp,
 		int state, pri_t pri)
 {
 	thread_priv_t *tp;

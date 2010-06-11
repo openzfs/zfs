@@ -34,8 +34,8 @@
 #include <linux/hardirq.h>
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
+#include <linux/proc_compat.h>
 #include <sys/sysmacros.h>
-#include <sys/proc.h>
 #include <sys/debug.h>
 #include <spl-ctl.h>
 
