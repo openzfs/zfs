@@ -20,6 +20,7 @@ libzfs_la_SOURCES = \
 	${top_srcdir}/lib/libzfs/libzfs_changelist.c \
 	${top_srcdir}/lib/libzfs/libzfs_config.c \
 	${top_srcdir}/lib/libzfs/libzfs_dataset.c \
+	${top_srcdir}/lib/libzfs/libzfs_fru.c \
 	${top_srcdir}/lib/libzfs/libzfs_graph.c \
 	${top_srcdir}/lib/libzfs/libzfs_import.c \
 	${top_srcdir}/lib/libzfs/libzfs_mount.c \
