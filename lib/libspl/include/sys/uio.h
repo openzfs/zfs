@@ -37,14 +37,72 @@
  * contributors.
  */
 
-#ifndef _LIBSPL_SYS_UIO_H
+#ifndef	_LIBSPL_SYS_UIO_H
 #define	_LIBSPL_SYS_UIO_H
 
-/* struct iovec is defined in glibc's sys/uio.h */
 #include_next <sys/uio.h>
 
-typedef enum uio_rw { UIO_READ, UIO_WRITE } uio_rw_t;
+typedef struct iovec iovec_t;
 
-#define UIO_SYSSPACE 1
+typedef enum uio_rw {
+	UIO_READ =      0,
+	UIO_WRITE =     1,
+} uio_rw_t;
+
+typedef enum uio_seg {
+	UIO_USERSPACE = 0,
+	UIO_SYSSPACE =  1,
+	UIO_USERISPACE= 2,
+} uio_seg_t;
+
+typedef struct uio {
+	struct iovec	*uio_iov;	/* pointer to array of iovecs */
+	int		uio_iovcnt;	/* number of iovecs */
+	offset_t	uio_loffset;	/* file offset */
+	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
+	uint16_t	uio_fmode;	/* file mode flags */
+	uint16_t	uio_extflg;	/* extended flags */
+	offset_t	uio_limit;	/* u-limit (maximum byte offset) */
+	ssize_t		uio_resid;	/* residual count */
+} uio_t;
+
+typedef enum xuio_type {
+	UIOTYPE_ASYNCIO,
+	UIOTYPE_ZEROCOPY,
+} xuio_type_t;
+
+#define	UIOA_IOV_MAX	16
+
+typedef struct uioa_page_s {		/* locked uio_iov state */
+	int	uioa_pfncnt;		/* count of pfn_t(s) in *uioa_ppp */
+	void	**uioa_ppp;		/* page_t or pfn_t arrary */
+	caddr_t	uioa_base;		/* address base */
+	size_t	uioa_len;		/* span length */
+} uioa_page_t;
+
+typedef struct xuio {
+	uio_t xu_uio;				/* embedded UIO structure */
+
+	/* Extended uio fields */
+	enum xuio_type xu_type;			/* uio type */
+	union {
+		struct {
+			uint32_t xu_a_state;	/* state of async i/o */
+			ssize_t xu_a_mbytes;	/* bytes moved */
+			uioa_page_t *xu_a_lcur;	/* uioa_locked[] pointer */
+			void **xu_a_lppp;	/* lcur->uioa_pppp[] pointer */
+			void *xu_a_hwst[4];	/* opaque hardware state */
+			uioa_page_t xu_a_locked[UIOA_IOV_MAX];
+		} xu_aio;
+
+		struct {
+			int xu_zc_rw;		/* read or write buffer */
+			void *xu_zc_priv;	/* fs specific */
+		} xu_zc;
+	} xu_ext;
+} xuio_t;
+
+#define XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
+#define XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
 #endif	/* _SYS_UIO_H */
