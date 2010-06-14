@@ -20,37 +20,11 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#ifndef _LIBSPL_SYS_TIME_H
-#define _LIBSPL_SYS_TIME_H
+#ifndef _LIBSPL_SYS_SYSTM_H
+#define _LIBSPL_SYS_SYSTM_H
 
-#include_next <sys/time.h>
-#include <sys/types.h>
-
-#ifndef SEC
-#define SEC		1
-#endif
-
-#ifndef MILLISEC
-#define MILLISEC	1000
-#endif
-
-#ifndef MICROSEC
-#define MICROSEC	1000000
-#endif
-
-#ifndef NANOSEC
-#define NANOSEC		1000000000
-#endif
-
-#ifndef NSEC_PER_USEC
-#define NSEC_PER_USEC	1000L
-#endif
-
-extern hrtime_t gethrtime(void);
-extern void gethrestime(timestruc_t *);
-
-#endif /* _LIBSPL_SYS_TIME_H */
+#endif /* _LIBSPL_SYS_SYSTM_H */
