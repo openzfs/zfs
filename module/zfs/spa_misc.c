@@ -890,10 +890,9 @@ spa_vdev_config_enter(spa_t *spa)
 void
 spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
 	int config_changed = B_FALSE;
 
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(txg > spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;

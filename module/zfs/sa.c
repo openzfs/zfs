@@ -393,6 +393,8 @@ sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 			if (error)
 				return (error);
 			break;
+		default:
+			break;
 		}
 	}
 	return (error);
@@ -637,7 +639,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	int buf_space;
 	sa_attr_type_t *attrs, *attrs_start;
 	int i, lot_count;
-	int hdrsize, spillhdrsize;
+	int hdrsize, spillhdrsize = 0;
 	int used;
 	dmu_object_type_t bonustype;
 	sa_lot_t *lot;
@@ -1020,16 +1022,16 @@ sa_tear_down(objset_t *os)
 	    sizeof (sa_attr_table_t) * sa->sa_num_attrs);
 
 	cookie = NULL;
-	while (layout = avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie)) {
+	while ((layout = avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie))){
 		sa_idx_tab_t *tab;
-		while (tab = list_head(&layout->lot_idx_tab)) {
+		while ((tab = list_head(&layout->lot_idx_tab))) {
 			ASSERT(refcount_count(&tab->sa_refcount));
 			sa_idx_tab_rele(os, tab);
 		}
 	}
 
 	cookie = NULL;
-	while (layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie)) {
+	while ((layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie))){
 		kmem_free(layout->lot_attrs,
 		    sizeof (sa_attr_type_t) * layout->lot_attr_count);
 		kmem_free(layout, sizeof (sa_lot_t));
@@ -1121,9 +1123,9 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 {
 	sa_hdr_phys_t *sa_hdr_phys = SA_GET_HDR(hdl, buftype);
 	dmu_buf_impl_t *db;
-	sa_os_t *sa = hdl->sa_os->os_sa;
 	int num_lengths = 1;
 	int i;
+	ASSERTV(sa_os_t *sa = hdl->sa_os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	if (sa_hdr_phys->sa_magic == SA_MAGIC)
@@ -1224,7 +1226,7 @@ sa_idx_tab_rele(objset_t *os, void *arg)
 static void
 sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 {
-	sa_os_t *sa = os->os_sa;
+	ASSERTV(sa_os_t *sa = os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	(void) refcount_add(&idx_tab->sa_refcount, NULL);
@@ -1260,10 +1262,10 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
     sa_handle_type_t hdl_type, sa_handle_t **handlepp)
 {
 	int error = 0;
-	dmu_object_info_t doi;
 	sa_handle_t *handle;
-
 #ifdef ZFS_DEBUG
+	dmu_object_info_t doi;
+
 	dmu_object_info_from_db(db, &doi);
 	ASSERT(doi.doi_bonus_type == DMU_OT_SA ||
 	    doi.doi_bonus_type == DMU_OT_ZNODE);
@@ -1302,7 +1304,7 @@ sa_handle_get(objset_t *objset, uint64_t objid, void *userp,
 	dmu_buf_t *db;
 	int error;
 
-	if (error = dmu_bonus_hold(objset, objid, NULL, &db))
+	if ((error = dmu_bonus_hold(objset, objid, NULL, &db)))
 		return (error);
 
 	return (sa_handle_get_from_db(objset, db, userp, hdl_type,
@@ -1402,8 +1404,8 @@ sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, void *data)
 
 	/* Verify header size is consistent with layout information */
 	ASSERT(tb);
-	ASSERT(IS_SA_BONUSTYPE(bonustype) &&
-	    SA_HDR_SIZE_MATCH_LAYOUT(hdr, tb) || !IS_SA_BONUSTYPE(bonustype) ||
+	ASSERT((IS_SA_BONUSTYPE(bonustype) &&
+	    SA_HDR_SIZE_MATCH_LAYOUT(hdr, tb)) || !IS_SA_BONUSTYPE(bonustype) ||
 	    (IS_SA_BONUSTYPE(bonustype) && hdr->sa_layout_info == 0));
 
 	/*
@@ -1541,7 +1543,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	sa_bulk_attr_t *attr_desc;
 	void *old_data[2];
 	int bonus_attr_count = 0;
-	int bonus_data_size, spill_data_size;
+	int bonus_data_size = 0, spill_data_size = 0;
 	int spill_attr_count = 0;
 	int error;
 	uint16_t length;

@@ -1935,8 +1935,8 @@ zfs_obj_to_pobj(objset_t *osp, uint64_t obj, uint64_t *pobjp, int *is_xattrdir,
 	dmu_object_info_from_db(db, &doi);
 	if ((doi.doi_bonus_type != DMU_OT_SA &&
 	    doi.doi_bonus_type != DMU_OT_ZNODE) ||
-	    doi.doi_bonus_type == DMU_OT_ZNODE &&
-	    doi.doi_bonus_size < sizeof (znode_phys_t)) {
+	    (doi.doi_bonus_type == DMU_OT_ZNODE &&
+	    doi.doi_bonus_size < sizeof (znode_phys_t))) {
 		sa_buf_rele(db, FTAG);
 		return (EINVAL);
 	}
