@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix-current
+
+In the linux kernel 'current' is defined to mean the current process
+and can never be used as a local variable in a function.  Simply
+replace all usage of 'current' with 'curr' in this function.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
