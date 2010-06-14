@@ -5647,9 +5647,12 @@ spa_event_notify(spa_t *spa, vdev_t *vd, const char *name)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* state manipulation functions */
 EXPORT_SYMBOL(spa_open);
+EXPORT_SYMBOL(spa_open_rewind);
 EXPORT_SYMBOL(spa_get_stats);
 EXPORT_SYMBOL(spa_create);
+EXPORT_SYMBOL(spa_import_rootpool);
 EXPORT_SYMBOL(spa_import);
+EXPORT_SYMBOL(spa_import_verbatim);
 EXPORT_SYMBOL(spa_tryimport);
 EXPORT_SYMBOL(spa_destroy);
 EXPORT_SYMBOL(spa_export);
@@ -5659,6 +5662,8 @@ EXPORT_SYMBOL(spa_async_suspend);
 EXPORT_SYMBOL(spa_async_resume);
 EXPORT_SYMBOL(spa_inject_addref);
 EXPORT_SYMBOL(spa_inject_delref);
+EXPORT_SYMBOL(spa_scan_stat_init);
+EXPORT_SYMBOL(spa_scan_get_stats);
 
 /* device maniion */
 EXPORT_SYMBOL(spa_vdev_add);
@@ -5666,6 +5671,8 @@ EXPORT_SYMBOL(spa_vdev_attach);
 EXPORT_SYMBOL(spa_vdev_detach);
 EXPORT_SYMBOL(spa_vdev_remove);
 EXPORT_SYMBOL(spa_vdev_setpath);
+EXPORT_SYMBOL(spa_vdev_setfru);
+EXPORT_SYMBOL(spa_vdev_split_mirror);
 
 /* spare statech is global across all pools) */
 EXPORT_SYMBOL(spa_spare_add);
@@ -5679,10 +5686,10 @@ EXPORT_SYMBOL(spa_l2cache_remove);
 EXPORT_SYMBOL(spa_l2cache_exists);
 EXPORT_SYMBOL(spa_l2cache_activate);
 EXPORT_SYMBOL(spa_l2cache_drop);
-EXPORT_SYMBOL(spa_l2cache_space_update);
 
-/* scrubbing */
-EXPORT_SYMBOL(spa_scrub);
+/* scanning */
+EXPORT_SYMBOL(spa_scan);
+EXPORT_SYMBOL(spa_scan_stop);
 
 /* spa syncing */
 EXPORT_SYMBOL(spa_sync); /* only for DMU use */
@@ -5693,8 +5700,6 @@ EXPORT_SYMBOL(spa_prop_set);
 EXPORT_SYMBOL(spa_prop_get);
 EXPORT_SYMBOL(spa_prop_clear_bootfs);
 
-#if defined(HAVE_SYSEVENT)
 /* asynchronous event notification */
 EXPORT_SYMBOL(spa_event_notify);
-#endif
 #endif

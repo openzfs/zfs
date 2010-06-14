@@ -505,5 +505,6 @@ spa_history_log_version(spa_t *spa, history_internal_events_t event)
 EXPORT_SYMBOL(spa_history_create_obj);
 EXPORT_SYMBOL(spa_history_get);
 EXPORT_SYMBOL(spa_history_log);
-EXPORT_SYMBOL(spa_history_internal_log);
+EXPORT_SYMBOL(spa_history_log_internal);
+EXPORT_SYMBOL(spa_history_log_version);
 #endif
