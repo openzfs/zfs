@@ -50,8 +50,7 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 #include <strings.h>
-#include <synch.h>
-#include <thread.h>
+#include <pthread.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
@@ -94,6 +93,8 @@ extern "C" {
 #define	CE_WARN		2	/* warning		*/
 #define	CE_PANIC	3	/* panic		*/
 #define	CE_IGNORE	4	/* print nothing	*/
+
+extern int aok;
 
 /*
  * ZFS debugging
@@ -200,27 +201,45 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-#define	curthread	((void *)(uintptr_t)thr_self())
-
-typedef struct kthread kthread_t;
-
-#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(func, arg)
-#define	thread_exit() thr_exit(NULL)
-#define	thread_join(t)	panic("libzpool cannot join threads")
-
-#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
+#define TS_RUN			0x00000002
+#define	STACK_SIZE		8192	/* Linux x86 and amd64 */
 
 /* in libzpool, p0 exists only to have its address taken */
-struct proc {
+typedef struct proc {
 	uintptr_t	this_is_never_used_dont_dereference_it;
-};
+} proc_t;
 
 extern struct proc p0;
 
-#define	PS_NONE		-1
+typedef void (*thread_func_t)(void *);
+typedef void (*thread_func_arg_t)(void *);
+typedef pthread_t kt_did_t;
 
-extern kthread_t *zk_thread_create(void (*func)(), void *arg);
+typedef struct kthread {
+	kt_did_t	t_tid;
+	thread_func_t	t_func;
+	void *		t_arg;
+} kthread_t;
+
+/* XXX tsd_create()/tsd_destroy() missing */
+#define	tsd_get(key)			pthread_getspecific(key)
+#define	tsd_set(key, val)		pthread_setspecific(key, val)
+#define	curthread			zk_thread_current()
+#define	thread_exit			zk_thread_exit
+#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
+			 len, NULL, state, pri)
+#define	thread_join(t)			zk_thread_join(t)
+#define	newproc(f,a,cid,pri,ctp,pid)	(ENOSYS)
+
+extern kthread_t *zk_thread_current(void);
+extern void zk_thread_exit(void);
+extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
+	thread_func_t func, void *arg, size_t len,
+	proc_t *pp, int state, pri_t pri);
+extern void zk_thread_join(kt_did_t tid);
+
+#define	PS_NONE		-1
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
@@ -228,53 +247,51 @@ extern kthread_t *zk_thread_create(void (*func)(), void *arg);
 /*
  * Mutexes
  */
+#define	MTX_MAGIC	0x9522f51362a6e326ull
+#define	MTX_INIT	((void *)NULL)
+#define	MTX_DEST	((void *)-1UL)
+
 typedef struct kmutex {
 	void		*m_owner;
-	boolean_t	initialized;
-	mutex_t		m_lock;
+	uint64_t	m_magic;
+	pthread_mutex_t	m_lock;
 } kmutex_t;
 
-#define	MUTEX_DEFAULT	USYNC_THREAD
-#undef MUTEX_HELD
-#define	MUTEX_HELD(m) _mutex_held(&(m)->m_lock)
+#define	MUTEX_DEFAULT	0
+#define MUTEX_HELD(m)	((m)->m_owner == curthread)
 
-/*
- * Argh -- we have to get cheesy here because the kernel and userland
- * have different signatures for the same routine.
- */
-extern int _mutex_init(mutex_t *mp, int type, void *arg);
-extern int _mutex_destroy(mutex_t *mp);
-
-#define	mutex_init(mp, b, c, d)		zmutex_init((kmutex_t *)(mp))
-#define	mutex_destroy(mp)		zmutex_destroy((kmutex_t *)(mp))
-
-extern void zmutex_init(kmutex_t *mp);
-extern void zmutex_destroy(kmutex_t *mp);
+extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
+extern void mutex_destroy(kmutex_t *mp);
 extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
 extern void *mutex_owner(kmutex_t *mp);
+extern int mutex_held(kmutex_t *mp);
 
 /*
  * RW locks
  */
+#define	RW_MAGIC	0x4d31fb123648e78aull
+#define	RW_INIT		((void *)NULL)
+#define	RW_DEST		((void *)-1UL)
+
 typedef struct krwlock {
-	void		*rw_owner;
-	boolean_t	initialized;
-	rwlock_t	rw_lock;
+	void			*rw_owner;
+	void			*rw_wr_owner;
+	uint64_t		rw_magic;
+	pthread_rwlock_t	rw_lock;
+	uint_t			rw_readers;
 } krwlock_t;
 
 typedef int krw_t;
 
 #define	RW_READER	0
 #define	RW_WRITER	1
-#define	RW_DEFAULT	USYNC_THREAD
+#define RW_DEFAULT	RW_READER
 
-#undef RW_READ_HELD
-#define	RW_READ_HELD(x)		_rw_read_held(&(x)->rw_lock)
-
-#undef RW_WRITE_HELD
-#define	RW_WRITE_HELD(x)	_rw_write_held(&(x)->rw_lock)
+#define	RW_READ_HELD(x)		((x)->rw_readers > 0)
+#define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
+#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);
 extern void rw_destroy(krwlock_t *rwlp);
@@ -292,9 +309,14 @@ extern gid_t *crgetgroups(cred_t *cr);
 /*
  * Condition variables
  */
-typedef cond_t kcondvar_t;
+#define CV_MAGIC	0xd31ea9a83b1b30c4ull
 
-#define	CV_DEFAULT	USYNC_THREAD
+typedef struct kcondvar {
+	uint64_t		cv_magic;
+	pthread_cond_t		cv;
+} kcondvar_t;
+
+#define	CV_DEFAULT	0
 
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
 extern void cv_destroy(kcondvar_t *cv);
@@ -359,7 +381,7 @@ extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
-extern int	taskq_member(taskq_t *, void *);
+extern int	taskq_member(taskq_t *, kthread_t *);
 extern void	system_taskq_init(void);
 extern void	system_taskq_fini(void);
 
@@ -486,7 +508,7 @@ extern void delay(clock_t ticks);
 #define	minclsyspri	60
 #define	maxclsyspri	99
 
-#define	CPU_SEQID	(thr_self() & (max_ncpus - 1))
+#define	CPU_SEQID	(pthread_self() & (max_ncpus - 1))
 
 #define	kcred		NULL
 #define	CRED()		NULL
