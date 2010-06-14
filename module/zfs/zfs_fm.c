@@ -235,7 +235,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	    vd != NULL ? vd->vdev_guid : 0);
 
 	fm_ereport_set(ereport, FM_EREPORT_VERSION, class, ena, detector, NULL);
-	fm_nvlist_destroy(detector, FM_NVA_FREE);
 
 	/*
 	 * Construct the per-ereport payload, depending on which parameters are
@@ -440,12 +439,13 @@ shrink_ranges(zfs_ecksum_info_t *eip)
 		uint32_t end = r[idx].zr_end;
 
 		while (idx < max - 1) {
+			uint32_t nstart, nend, gap;
+
 			idx++;
+			nstart = r[idx].zr_start;
+			nend = r[idx].zr_end;
 
-			uint32_t nstart = r[idx].zr_start;
-			uint32_t nend = r[idx].zr_end;
-
-			uint32_t gap = nstart - end;
+			gap = nstart - end;
 			if (gap < new_allowed_gap) {
 				end = nend;
 				continue;
