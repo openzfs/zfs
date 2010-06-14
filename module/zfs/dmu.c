@@ -1146,8 +1146,8 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 {
 	dmu_sync_arg_t *dsa = varg;
 	dmu_buf_t *db = dsa->dsa_zgd->zgd_db;
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
 	blkptr_t *bp = zio->io_bp;
+	ASSERTV(dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode);
 
 	if (zio->io_error == 0) {
 		if (BP_IS_HOLE(bp)) {
