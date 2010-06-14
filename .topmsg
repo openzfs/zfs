@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix kstat xuio
+
+Move xiou stat structures from a header to the dmu.c source as is
+done with all the other kstat interfaces.  This information is local
+to dmu.c registered the xuio kstat and should stay that way.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
