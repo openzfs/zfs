@@ -67,7 +67,7 @@ sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 };
 
 #ifdef _KERNEL
-
+#ifdef HAVE_ZPL
 int
 zfs_sa_readlink(znode_t *zp, uio_t *uio)
 {
@@ -309,4 +309,5 @@ zfs_sa_upgrade_txholds(dmu_tx_t *tx, znode_t *zp)
 	}
 }
 
+#endif /* HAVE_ZPL */
 #endif

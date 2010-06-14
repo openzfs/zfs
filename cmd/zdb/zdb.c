@@ -55,7 +55,6 @@
 #include <sys/arc.h>
 #include <sys/ddt.h>
 #undef ZFS_MAXNAMELEN
-#undef verify
 #include <libzfs.h>
 
 #define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ? \
