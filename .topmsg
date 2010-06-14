@@ -1,0 +1,11 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix metaslab
+
+If your only going to allow one allocator to be used and it is defined
+at compile time there is no point including the others in the build.
+This patch could/should be refined for Linux to make the metaslab
+configurable at run time.  That might be a bit tricky however since
+you would need to quiese all IO.  Short of that making it configurable
+as a module load option would be a reasonable compromise.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
