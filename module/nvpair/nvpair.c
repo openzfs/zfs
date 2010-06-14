@@ -3348,9 +3348,13 @@ EXPORT_SYMBOL(nvlist_add_int64_array);
 EXPORT_SYMBOL(nvlist_add_uint64_array);
 EXPORT_SYMBOL(nvlist_add_string_array);
 EXPORT_SYMBOL(nvlist_add_nvlist_array);
+EXPORT_SYMBOL(nvlist_next_nvpair);
+EXPORT_SYMBOL(nvlist_prev_nvpair);
+EXPORT_SYMBOL(nvlist_empty);
 EXPORT_SYMBOL(nvlist_add_hrtime);
 
 EXPORT_SYMBOL(nvlist_remove);
+EXPORT_SYMBOL(nvlist_remove_nvpair);
 EXPORT_SYMBOL(nvlist_remove_all);
 
 EXPORT_SYMBOL(nvlist_lookup_boolean);
@@ -3385,7 +3389,6 @@ EXPORT_SYMBOL(nvlist_lookup_nvpair);
 EXPORT_SYMBOL(nvlist_exists);
 
 /* processing nvpair */
-EXPORT_SYMBOL(nvlist_next_nvpair);
 EXPORT_SYMBOL(nvpair_name);
 EXPORT_SYMBOL(nvpair_type);
 EXPORT_SYMBOL(nvpair_value_boolean_value);

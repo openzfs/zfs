@@ -732,8 +732,6 @@ EXPORT_SYMBOL(txg_hold_open);
 EXPORT_SYMBOL(txg_rele_to_quiesce);
 EXPORT_SYMBOL(txg_rele_to_sync);
 EXPORT_SYMBOL(txg_register_callbacks);
-EXPORT_SYMBOL(txg_suspend);
-EXPORT_SYMBOL(txg_resume);
 EXPORT_SYMBOL(txg_delay);
 EXPORT_SYMBOL(txg_wait_synced);
 EXPORT_SYMBOL(txg_wait_open);
