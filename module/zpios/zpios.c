@@ -40,7 +40,7 @@
 
 static spl_class *zpios_class;
 static spl_device *zpios_device;
-
+static char *zpios_tag = "zpios_tag";
 
 static
 int zpios_upcall(char *path, char *phase, run_args_t *run_args, int rc)
@@ -161,17 +161,26 @@ zpios_dmu_setup(run_args_t *run_args)
 {
 	zpios_time_t *t = &(run_args->stats.cr_time);
 	objset_t *os;
+	char name[32];
 	uint64_t obj = 0ULL;
-	int i, rc = 0;
+	int i, rc = 0, rc2;
 
 	(void)zpios_upcall(run_args->pre, PHASE_PRE_CREATE, run_args, 0);
 	t->start = zpios_timespec_now();
 
-        rc = dmu_objset_open(run_args->pool, DMU_OST_ZFS, DS_MODE_USER, &os);
-        if (rc) {
-		zpios_print(run_args->file, "Error dmu_objset_open() "
-			    "failed: %d\n", rc);
+	(void)snprintf(name, 32, "%s/id_%d", run_args->pool, run_args->id);
+	rc = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL);
+	if (rc) {
+		zpios_print(run_args->file, "Error dmu_objset_create(%s, ...) "
+			    "failed: %d\n", name, rc);
 		goto out;
+	}
+
+        rc = dmu_objset_own(name, DMU_OST_OTHER, 0, zpios_tag, &os);
+        if (rc) {
+		zpios_print(run_args->file, "Error dmu_objset_own(%s, ...) "
+			    "failed: %d\n", name, rc);
+		goto out_destroy;
         }
 
 	if (!(run_args->flags & DMU_FPP)) {
@@ -180,7 +189,7 @@ zpios_dmu_setup(run_args_t *run_args)
 			rc = -EBADF;
 			zpios_print(run_args->file, "Error zpios_dmu_"
 				    "object_create() failed, %d\n", rc);
-			goto out;
+			goto out_destroy;
 		}
 	}
 
@@ -213,6 +222,13 @@ zpios_dmu_setup(run_args_t *run_args)
 	}
 
 	run_args->os = os;
+out_destroy:
+	if (rc) {
+		rc2 = dmu_objset_destroy(name, B_FALSE);
+		if (rc2)
+			zpios_print(run_args->file, "Error dmu_objset_destroy"
+				    "(%s, ...) failed: %d\n", name, rc2);
+	}
 out:
 	t->stop  = zpios_timespec_now();
 	t->delta = zpios_timespec_sub(t->stop, t->start);
@@ -340,14 +356,17 @@ zpios_get_work_item(run_args_t *run_args, dmu_obj_t *obj, __u64 *offset,
 }
 
 static void
-zpios_remove_objects(run_args_t *run_args)
+zpios_remove_objset(run_args_t *run_args)
 {
 	zpios_time_t *t = &(run_args->stats.rm_time);
 	zpios_region_t *region;
+	char name[32];
 	int rc = 0, i;
 
 	(void)zpios_upcall(run_args->pre, PHASE_PRE_REMOVE, run_args, 0);
 	t->start = zpios_timespec_now();
+
+	(void)snprintf(name, 32, "%s/id_%d", run_args->pool, run_args->id);
 
 	if (run_args->flags & DMU_REMOVE) {
 		if (run_args->flags & DMU_FPP) {
@@ -373,7 +392,14 @@ zpios_remove_objects(run_args_t *run_args)
 		}
 	}
 
-	dmu_objset_close(run_args->os);
+	dmu_objset_disown(run_args->os, zpios_tag);
+
+	if (run_args->flags & DMU_REMOVE) {
+		rc = dmu_objset_destroy(name, B_FALSE);
+		if (rc)
+			zpios_print(run_args->file, "Error dmu_objset_destroy"
+				    "(%s, ...) failed: %d\n", name, rc);
+	}
 
 	t->stop  = zpios_timespec_now();
 	t->delta = zpios_timespec_sub(t->stop, t->start);
@@ -843,7 +869,7 @@ zpios_do_one_run(struct file *file, zpios_cmd_t *kcmd,
 		return rc;
 
         rc = zpios_threads_run(run_args);
-	zpios_remove_objects(run_args);
+	zpios_remove_objset(run_args);
 	if (rc)
 		goto cleanup;
 
@@ -1009,61 +1035,71 @@ zpios_ioctl_cfg(struct file *file, unsigned long arg)
 static int
 zpios_ioctl_cmd(struct file *file, unsigned long arg)
 {
-	zpios_cmd_t kcmd;
-	int rc = -EINVAL;
+	zpios_cmd_t *kcmd;
 	void *data = NULL;
+	int rc = -EINVAL;
 
-	rc = copy_from_user(&kcmd, (zpios_cfg_t *)arg, sizeof(kcmd));
+	kcmd = kmem_alloc(sizeof(zpios_cmd_t), KM_SLEEP);
+	if (kcmd == NULL) {
+		zpios_print(file, "Unable to kmem_alloc() %ld byte for "
+			    "zpios_cmd_t\n", sizeof(zpios_cmd_t));
+		return -ENOMEM;
+	}
+
+	rc = copy_from_user(kcmd, (zpios_cfg_t *)arg, sizeof(zpios_cmd_t));
 	if (rc) {
 		zpios_print(file, "Unable to copy command structure "
 			    "from user to kernel memory, %d\n", rc);
-		return -EFAULT;
+		goto out_cmd;
 	}
 
-	if (kcmd.cmd_magic != ZPIOS_CMD_MAGIC) {
+	if (kcmd->cmd_magic != ZPIOS_CMD_MAGIC) {
 		zpios_print(file, "Bad command magic 0x%x != 0x%x\n",
-		            kcmd.cmd_magic, ZPIOS_CFG_MAGIC);
-		return -EINVAL;
+		            kcmd->cmd_magic, ZPIOS_CFG_MAGIC);
+		rc = -EINVAL;
+		goto out_cmd;
 	}
 
 	/* Allocate memory for any opaque data the caller needed to pass on */
-	if (kcmd.cmd_data_size > 0) {
-		data = (void *)vmem_alloc(kcmd.cmd_data_size, KM_SLEEP);
+	if (kcmd->cmd_data_size > 0) {
+		data = (void *)vmem_alloc(kcmd->cmd_data_size, KM_SLEEP);
 		if (data == NULL) {
 			zpios_print(file, "Unable to vmem_alloc() %ld "
 				    "bytes for data buffer\n",
-				    (long)kcmd.cmd_data_size);
-			return -ENOMEM;
+				    (long)kcmd->cmd_data_size);
+			rc = -ENOMEM;
+			goto out_cmd;
 		}
 
 		rc = copy_from_user(data, (void *)(arg + offsetof(zpios_cmd_t,
-		                    cmd_data_str)), kcmd.cmd_data_size);
+		                    cmd_data_str)), kcmd->cmd_data_size);
 		if (rc) {
 			zpios_print(file, "Unable to copy data buffer "
 				    "from user to kernel memory, %d\n", rc);
-			vmem_free(data, kcmd.cmd_data_size);
-			return -EFAULT;
+			goto out_data;
 		}
 	}
 
-	rc = zpios_do_one_run(file, &kcmd, kcmd.cmd_data_size, data);
+	rc = zpios_do_one_run(file, kcmd, kcmd->cmd_data_size, data);
 
 	if (data != NULL) {
 		/* If the test failed do not print out the stats */
 		if (rc)
-			goto cleanup;
+			goto out_data;
 
 		rc = copy_to_user((void *)(arg + offsetof(zpios_cmd_t,
-		                  cmd_data_str)), data, kcmd.cmd_data_size);
+		                  cmd_data_str)), data, kcmd->cmd_data_size);
 		if (rc) {
 			zpios_print(file, "Unable to copy data buffer "
 				    "from kernel to user memory, %d\n", rc);
 			rc = -EFAULT;
 		}
 
-cleanup:
-		vmem_free(data, kcmd.cmd_data_size);
+out_data:
+		vmem_free(data, kcmd->cmd_data_size);
 	}
+out_cmd:
+	kmem_free(kcmd, sizeof(zpios_cmd_t));
 
 	return rc;
 }
