@@ -1072,6 +1072,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
 	dsl_dataset_t *ds;
+	char *dsname;
 
 	VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
 
@@ -1081,7 +1082,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_scan_visit_rootbp(scn, ds, &ds->ds_phys->ds_bp, tx);
 
-	char *dsname = kmem_alloc(ZFS_MAXNAMELEN, KM_SLEEP);
+	dsname = kmem_alloc(ZFS_MAXNAMELEN, KM_SLEEP);
 	dsl_dataset_name(ds, dsname);
 	zfs_dbgmsg("scanned dataset %llu (%s) with min=%llu max=%llu; "
 	    "pausing=%u",
@@ -1644,9 +1645,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	size_t size = BP_GET_PSIZE(bp);
 	spa_t *spa = dp->dp_spa;
 	uint64_t phys_birth = BP_PHYSICAL_BIRTH(bp);
-	boolean_t needs_io;
+	boolean_t needs_io = B_FALSE;
 	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
-	int zio_priority;
+	int zio_priority = 0;
 	int d;
 
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
