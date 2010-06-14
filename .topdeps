@@ -13,3 +13,4 @@ fix-acl
 fix-error-handling
 fix-pthreads
 fix-current
+fix-metaslab
