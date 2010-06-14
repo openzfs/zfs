@@ -2274,7 +2274,7 @@ zfs_ioc_set_prop(zfs_cmd_t *zc)
 
 	error = zfs_set_prop_nvlist(zc->zc_name, source, nvl, &errors);
 
-	if (zc->zc_nvlist_dst != NULL && errors != NULL) {
+	if (zc->zc_nvlist_dst != 0 && errors != NULL) {
 		(void) put_nvlist(zc, errors);
 	}
 
@@ -3709,7 +3709,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		nvlist_t *policy;
 		nvlist_t *config = NULL;
 
-		if (zc->zc_nvlist_src == NULL)
+		if (zc->zc_nvlist_src == 0)
 			return (EINVAL);
 
 		if ((error = get_nvlist(zc->zc_nvlist_src,
