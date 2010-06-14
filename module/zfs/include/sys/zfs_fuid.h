@@ -33,6 +33,7 @@
 #include <sys/zfs_vfsops.h>
 #endif
 #include <sys/avl.h>
+#include <sys/list.h>
 
 #ifdef	__cplusplus
 extern "C" {

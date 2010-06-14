@@ -79,7 +79,7 @@ typedef struct erpt_dump {
 
 #define ZEVENT_SHUTDOWN	0x1
 
-typedef void zevent_cb_t(nvlist_t *);
+typedef void zevent_cb_t(nvlist_t *, nvlist_t *);
 
 typedef struct zevent_s {
 	nvlist_t	*ev_nvl;       /* protected by the zevent_lock */
@@ -100,7 +100,7 @@ extern void fm_fini(void);
 extern void fm_nvprint(nvlist_t *);
 extern void fm_zevent_init(zfs_private_data_t *);
 extern void fm_zevent_fini(zfs_private_data_t *);
-extern void fm_zevent_post(nvlist_t *, zevent_cb_t *);
+extern void fm_zevent_post(nvlist_t *, nvlist_t *, zevent_cb_t *);
 extern void fm_zevent_drain_all(int *);
 extern int fm_zevent_next(zfs_private_data_t *, zfs_cmd_t *);
 extern int fm_zevent_wait(zfs_private_data_t *);
