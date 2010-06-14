@@ -150,7 +150,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 static void
 history_str_free(char *buf)
 {
-	kmem_free(buf, HIS_MAX_RECORD_LEN);
+	vmem_free(buf, HIS_MAX_RECORD_LEN);
 }
 
 static char *
@@ -161,7 +161,7 @@ history_str_get(zfs_cmd_t *zc)
 	if (zc->zc_history == 0)
 		return (NULL);
 
-	buf = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
+	buf = vmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
 	if (copyinstr((void *)(uintptr_t)zc->zc_history,
 	    buf, HIS_MAX_RECORD_LEN, NULL) != 0) {
 		history_str_free(buf);
@@ -4533,7 +4533,7 @@ zfs_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	if (vec >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
 		return (-EINVAL);
 
-	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+	zc = vmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 
 	error = ddi_copyin((void *)arg, zc, sizeof (zfs_cmd_t), flag);
 	if (error != 0)
@@ -4582,7 +4582,7 @@ zfs_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 			zfs_log_history(zc);
 	}
 
-	kmem_free(zc, sizeof (zfs_cmd_t));
+	vmem_free(zc, sizeof (zfs_cmd_t));
 	return (-error);
 }
 
