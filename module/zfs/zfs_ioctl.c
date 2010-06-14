@@ -3198,6 +3198,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (ENOTSUP);
 		}
 		break;
+	default:
+		break;
 	}
 
 	return (zfs_secpolicy_setprop(dsname, prop, pair, CRED()));
