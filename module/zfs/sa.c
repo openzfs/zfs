@@ -393,6 +393,8 @@ sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 			if (error)
 				return (error);
 			break;
+		default:
+			break;
 		}
 	}
 	return (error);

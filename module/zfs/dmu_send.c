@@ -996,6 +996,8 @@ backup_byteswap(dmu_replay_record_t *drr)
 		DO64(drr_end.drr_checksum.zc_word[3]);
 		DO64(drr_end.drr_toguid);
 		break;
+	default:
+		break;
 	}
 #undef DO64
 #undef DO32

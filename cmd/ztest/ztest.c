@@ -1995,6 +1995,8 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 	case ZTEST_IO_SETATTR:
 		(void) ztest_setattr(zd, object);
 		break;
+	default:
+		break;
 	}
 
 	umem_free(data, blocksize);
