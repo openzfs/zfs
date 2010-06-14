@@ -3431,7 +3431,7 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp)
 int
 zpool_events_next(libzfs_handle_t *hdl, nvlist_t **nvp, int *dropped, int block)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	int error = 0;
 
 	*nvp = NULL;
@@ -3489,7 +3489,7 @@ out:
 int
 zpool_events_clear(libzfs_handle_t *hdl, int *count)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	char msg[1024];
 
 	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,

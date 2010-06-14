@@ -4038,7 +4038,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
 
-	spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE);
+	spa_event_notify(spa, vd, FM_EREPORT_ZFS_DEVICE_REMOVE);
 
 	error = spa_vdev_exit(spa, vd, txg, 0);
 
