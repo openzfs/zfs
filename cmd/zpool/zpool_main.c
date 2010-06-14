@@ -1590,7 +1590,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *	 -c	Read pool information from a cachefile instead of searching
  *		devices.
  *
- *       -d	Scan in a specific directory, other than /dev/dsk.  More than
+ *       -d	Scan in a specific directory, other than /dev/.  More than
  *		one directory can be specified using multiple '-d' options.
  *
  *       -D     Scan for previously destroyed pools or import all or only
@@ -1748,12 +1748,6 @@ zpool_do_import(int argc, char **argv)
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
 	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind_policy) != 0)
 		goto error;
-
-	if (searchdirs == NULL) {
-		searchdirs = safe_malloc(sizeof (char *));
-		searchdirs[0] = "/dev/dsk";
-		nsearch = 1;
-	}
 
 	/* check argument count */
 	if (do_all) {
