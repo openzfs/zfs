@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,37 +19,23 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ *
+ * Common routines for acquiring snapshots of kstats for
+ * iostat, mpstat, and vmstat.
  */
 
-#ifndef _LIBSPL_SYS_TIME_H
-#define _LIBSPL_SYS_TIME_H
+#ifndef	_STATCOMMON_H
+#define	_STATCOMMON_H
 
-#include_next <sys/time.h>
 #include <sys/types.h>
 
-#ifndef SEC
-#define SEC		1
-#endif
+#define	NODATE	0	/* Default:  No time stamp */
+#define	DDATE	1	/* Standard date format */
+#define	UDATE	2	/* Internal representation of Unix time */
 
-#ifndef MILLISEC
-#define MILLISEC	1000
-#endif
+/* Print a timestamp in either Unix or standard format. */
+void print_timestamp(uint_t);
 
-#ifndef MICROSEC
-#define MICROSEC	1000000
-#endif
-
-#ifndef NANOSEC
-#define NANOSEC		1000000000
-#endif
-
-#ifndef NSEC_PER_USEC
-#define NSEC_PER_USEC	1000L
-#endif
-
-extern hrtime_t gethrtime(void);
-extern void gethrestime(timestruc_t *);
-
-#endif /* _LIBSPL_SYS_TIME_H */
+#endif /* _STATCOMMON_H */
