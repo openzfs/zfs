@@ -53,7 +53,6 @@
 #include <sys/vtoc.h>
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
-#include <thread_pool.h>
 
 #include <sys/vdev_impl.h>
 #ifdef HAVE_LIBBLKID
@@ -1004,13 +1003,10 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	vdev_entry_t *ve, *venext;
 	config_entry_t *ce, *cenext;
 	name_entry_t *ne, *nenext;
-	avl_tree_t slice_cache;
-	rdsk_node_t *slice;
-	void *cookie;
 
-	verify(poolname == NULL || guid == 0);
+	verify(iarg->poolname == NULL || iarg->guid == 0);
 
-	if (argc == 0) {
+	if (dirs == 0) {
 #ifdef HAVE_LIBBLKID
 		/* Use libblkid to scan all device for their type */
 		if (zpool_find_import_blkid(hdl, &pools) == 0)
@@ -1020,8 +1016,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		    dgettext(TEXT_DOMAIN, "blkid failure falling back "
 		    "to manual probing"));
 #endif /* HAVE_LIBBLKID */
-		argc = 1;
-		argv = &default_dir;
+		dirs = 1;
+		dir = &default_dir;
 	}
 
 	/*
@@ -1030,7 +1026,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	 * and toplevel GUID.
 	 */
 	for (i = 0; i < dirs; i++) {
-		tpool_t *t;
 		char *rdsk;
 		int dfd;
 
@@ -1064,8 +1059,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			goto error;
 		}
 
-		avl_create(&slice_cache, slice_cache_compare,
-		    sizeof (rdsk_node_t), offsetof(rdsk_node_t, rn_node));
 		/*
 		 * This is not MT-safe, but we have no MT consumers of libzfs
 		 */
@@ -1076,11 +1069,23 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 				continue;
 
 			/*
-			 * Do not open /dev/watchdog to stat it because
-			 * it requires a special close or the watchdog
-			 * with be triggered and the system reset.
+			 * Skip checking devices with well known prefixes:
+			 * watchdog - A special close is required to avoid
+			 *            triggering it and resetting the system.
+			 * fuse     - Fuse control device.
+			 * ppp      - Generic PPP driver.
+			 * tty*     - Generic serial interface.
+			 * vcs*     - Virtual console memory.
+			 * parport* - Parallel port interface.
+			 * lp*      - Printer interface.
 			 */
-			if (strcmp(name, "watchdog") == 0)
+			if ((strncmp(name, "watchdog", 8) == 0) ||
+			    (strncmp(name, "fuse", 4) == 0)     ||
+			    (strncmp(name, "ppp", 3) == 0)      ||
+			    (strncmp(name, "tty", 3) == 0)      ||
+			    (strncmp(name, "vcs", 3) == 0)      ||
+			    (strncmp(name, "parport", 7) == 0)  ||
+			    (strncmp(name, "lp", 2) == 0))
 				continue;
 
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
@@ -1129,14 +1134,11 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 					continue;
 				}
 				/* use the non-raw path for the config */
-				(void) strlcpy(end, slice->rn_name, pathleft);
+				(void) strlcpy(end, name, pathleft);
 				if (add_config(hdl, &pools, path, config) != 0)
 					goto error;
 			}
-			free(slice->rn_name);
-			free(slice);
 		}
-		avl_destroy(&slice_cache);
 
 		(void) closedir(dirp);
 		dirp = NULL;
@@ -1145,7 +1147,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 #ifdef HAVE_LIBBLKID
 skip_scanning:
 #endif
-	ret = get_configs(hdl, &pools, active_ok);
+	ret = get_configs(hdl, &pools, iarg->can_be_active);
 
 error:
 	for (pe = pools.pools; pe != NULL; pe = penext) {

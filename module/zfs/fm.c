@@ -432,7 +432,7 @@ static void
 fm_event_free(zevent_t *ev)
 {
 	/* Run provided cleanup callback */
-	ev->ev_cb(ev->ev_nvl);
+	ev->ev_cb(ev->ev_nvl, ev->ev_detector);
 
 	list_destroy(&ev->ev_zpd_list);
 	kmem_free(ev, sizeof(zevent_t));
