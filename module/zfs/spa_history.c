@@ -441,11 +441,7 @@ log_internal(history_internal_events_t event, spa_t *spa,
 		return;
 
 	ha = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
-	ha->ha_history_str = kmem_alloc(vsnprintf(NULL, 0, fmt, adx) + 1,
-	    KM_SLEEP);
-
-	(void) vsprintf(ha->ha_history_str, fmt, adx);
-
+	ha->ha_history_str = kmem_asprintf(fmt, adx);
 	ha->ha_log_type = LOG_INTERNAL;
 	ha->ha_event = event;
 	ha->ha_zone = NULL;
