@@ -32,6 +32,15 @@
 /* Couldn't find this definition in OpenGrok */
 #define PRIV_SYS_CONFIG "sys_config"
 
+/*
+ * priv_op_t indicates a privilege operation type
+ */
+typedef enum priv_op {
+	PRIV_ON,
+	PRIV_OFF,
+	PRIV_SET
+} priv_op_t;
+
 static inline boolean_t priv_ineffect(const char *priv) { return B_TRUE; }
 
 #endif
