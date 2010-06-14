@@ -5349,7 +5349,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		ddt_sync(spa, txg);
 		dsl_scan_sync(dp, tx);
 
-		while (vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg)))
 			vdev_sync(vd, txg);
 
 		if (pass == 1)
