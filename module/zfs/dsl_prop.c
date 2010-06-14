@@ -413,6 +413,8 @@ dsl_prop_check_prediction(dsl_dir_t *dd, dsl_prop_setarg_t *psa)
 		case ZFS_PROP_QUOTA:
 		case ZFS_PROP_RESERVATION:
 			return;
+		default:
+			break;
 		}
 	}
 
