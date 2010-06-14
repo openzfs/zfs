@@ -92,7 +92,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int used, compressed, uncompressed;
 	int64_t delta;
 
-	used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
+	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
 	compressed = BP_GET_PSIZE(bp);
 	uncompressed = BP_GET_UCSIZE(bp);
 
@@ -136,15 +136,17 @@ int
 dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
     boolean_t async)
 {
+	int used, compressed, uncompressed;
+
 	if (BP_IS_HOLE(bp))
 		return (0);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(bp->blk_birth <= tx->tx_txg);
 
-	int used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
-	int compressed = BP_GET_PSIZE(bp);
-	int uncompressed = BP_GET_UCSIZE(bp);
+	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
+	compressed = BP_GET_PSIZE(bp);
+	uncompressed = BP_GET_UCSIZE(bp);
 
 	ASSERT(used > 0);
 	if (ds == NULL) {
@@ -1752,6 +1754,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 
 		if (dsl_dataset_is_snapshot(ds_next)) {
 			dsl_dataset_t *ds_nextnext;
+			dsl_dataset_t *hds;
 
 			/*
 			 * Update next's unique to include blocks which
@@ -1774,7 +1777,6 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 			ASSERT3P(ds_next->ds_prev, ==, NULL);
 
 			/* Collapse range in this head. */
-			dsl_dataset_t *hds;
 			VERIFY3U(0, ==, dsl_dataset_hold_obj(dp,
 			    ds->ds_dir->dd_phys->dd_head_dataset_obj,
 			    FTAG, &hds));

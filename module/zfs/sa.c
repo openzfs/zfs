@@ -1402,8 +1402,8 @@ sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, void *data)
 
 	/* Verify header size is consistent with layout information */
 	ASSERT(tb);
-	ASSERT(IS_SA_BONUSTYPE(bonustype) &&
-	    SA_HDR_SIZE_MATCH_LAYOUT(hdr, tb) || !IS_SA_BONUSTYPE(bonustype) ||
+	ASSERT((IS_SA_BONUSTYPE(bonustype) &&
+	    SA_HDR_SIZE_MATCH_LAYOUT(hdr, tb)) || !IS_SA_BONUSTYPE(bonustype) ||
 	    (IS_SA_BONUSTYPE(bonustype) && hdr->sa_layout_info == 0));
 
 	/*
