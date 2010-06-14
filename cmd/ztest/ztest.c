@@ -5373,7 +5373,7 @@ print_time(hrtime_t t, char *timebuf)
 }
 
 static nvlist_t *
-make_random_props()
+make_random_props(void)
 {
 	nvlist_t *props;
 
