@@ -1465,10 +1465,9 @@ vdev_hold(vdev_t *vd)
 void
 vdev_rele(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
 	int c;
 
-	ASSERT(spa_is_root(spa));
+	ASSERT(spa_is_root(vd->vdev_spa));
 	for (c = 0; c < vd->vdev_children; c++)
 		vdev_rele(vd->vdev_child[c]);
 
@@ -3074,10 +3073,10 @@ vdev_is_bootable(vdev_t *vd)
 void
 vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 {
-	spa_t *spa = nvd->vdev_spa;
 	int c;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3S(spa_config_held(nvd->vdev_spa, SCL_STATE_ALL, RW_WRITER), ==,
+		 SCL_STATE_ALL);
 	ASSERT3U(nvd->vdev_guid, ==, ovd->vdev_guid);
 
 	for (c = 0; c < nvd->vdev_children; c++)

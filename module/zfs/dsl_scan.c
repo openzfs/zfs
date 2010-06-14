@@ -1645,9 +1645,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	size_t size = BP_GET_PSIZE(bp);
 	spa_t *spa = dp->dp_spa;
 	uint64_t phys_birth = BP_PHYSICAL_BIRTH(bp);
-	boolean_t needs_io;
+	boolean_t needs_io = B_FALSE;
 	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
-	int zio_priority;
+	int zio_priority = 0;
 	int d;
 
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
