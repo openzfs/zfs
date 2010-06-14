@@ -868,8 +868,8 @@ dump_history(spa_t *spa)
 			(void) snprintf(internalstr,
 			    sizeof (internalstr),
 			    "[internal %s txg:%lld] %s",
-			    zfs_history_event_names[ievent], txg,
-			    intstr);
+			    zfs_history_event_names[ievent],
+			    (longlong_t)txg, intstr);
 			cmd = internalstr;
 		}
 		tsec = time;
