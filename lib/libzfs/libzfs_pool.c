@@ -1230,7 +1230,7 @@ zpool_rewind_exclaim(libzfs_handle_t *hdl, const char *name, boolean_t dryrun,
 	(void) nvlist_lookup_int64(rbi, ZPOOL_CONFIG_REWIND_TIME, &loss);
 
 	if (localtime_r((time_t *)&rewindto, &t) != NULL &&
-	    strftime(timestr, 128, 0, &t) != 0) {
+	    strftime(timestr, 128, "%c", &t) != 0) {
 		if (dryrun) {
 			(void) printf(dgettext(TEXT_DOMAIN,
 			    "Would be able to return %s "
@@ -1245,13 +1245,14 @@ zpool_rewind_exclaim(libzfs_handle_t *hdl, const char *name, boolean_t dryrun,
 			(void) printf(dgettext(TEXT_DOMAIN,
 			    "%s approximately %lld "),
 			    dryrun ? "Would discard" : "Discarded",
-			    (loss + 30) / 60);
+			    ((longlong_t)loss + 30) / 60);
 			(void) printf(dgettext(TEXT_DOMAIN,
 			    "minutes of transactions.\n"));
 		} else if (loss > 0) {
 			(void) printf(dgettext(TEXT_DOMAIN,
 			    "%s approximately %lld "),
-			    dryrun ? "Would discard" : "Discarded", loss);
+			    dryrun ? "Would discard" : "Discarded",
+			    (longlong_t)loss);
 			(void) printf(dgettext(TEXT_DOMAIN,
 			    "seconds of transactions.\n"));
 		}
@@ -1289,7 +1290,7 @@ zpool_explain_recover(libzfs_handle_t *hdl, const char *name, int reason,
 	    "Recovery is possible, but will result in some data loss.\n"));
 
 	if (localtime_r((time_t *)&rewindto, &t) != NULL &&
-	    strftime(timestr, 128, 0, &t) != 0) {
+	    strftime(timestr, 128, "%c", &t) != 0) {
 		(void) printf(dgettext(TEXT_DOMAIN,
 		    "\tReturning the pool to its state as of %s\n"
 		    "\tshould correct the problem.  "),
@@ -1303,11 +1304,13 @@ zpool_explain_recover(libzfs_handle_t *hdl, const char *name, int reason,
 	if (loss > 120) {
 		(void) printf(dgettext(TEXT_DOMAIN,
 		    "Approximately %lld minutes of data\n"
-		    "\tmust be discarded, irreversibly.  "), (loss + 30) / 60);
+		    "\tmust be discarded, irreversibly.  "),
+		    ((longlong_t)loss + 30) / 60);
 	} else if (loss > 0) {
 		(void) printf(dgettext(TEXT_DOMAIN,
 		    "Approximately %lld seconds of data\n"
-		    "\tmust be discarded, irreversibly.  "), loss);
+		    "\tmust be discarded, irreversibly.  "),
+		    (longlong_t)loss);
 	}
 	if (edata != 0 && edata != UINT64_MAX) {
 		if (edata == 1) {
