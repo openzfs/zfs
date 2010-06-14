@@ -287,6 +287,8 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	char *lrbuf, *lrp;
 	int error = 0;
 
+	bzero(&next_blk, sizeof(blkptr_t));
+
 	/*
 	 * Old logs didn't record the maximum zh_claim_lr_seq.
 	 */
@@ -308,7 +310,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
 		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
 		int reclen;
-		char *end;
+		char *end = NULL;
 
 		if (blk_seq > claim_blk_seq)
 			break;

@@ -639,7 +639,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	int buf_space;
 	sa_attr_type_t *attrs, *attrs_start;
 	int i, lot_count;
-	int hdrsize, spillhdrsize;
+	int hdrsize, spillhdrsize = 0;
 	int used;
 	dmu_object_type_t bonustype;
 	sa_lot_t *lot;
@@ -1543,7 +1543,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	sa_bulk_attr_t *attr_desc;
 	void *old_data[2];
 	int bonus_attr_count = 0;
-	int bonus_data_size, spill_data_size;
+	int bonus_data_size = 0, spill_data_size = 0;
 	int spill_attr_count = 0;
 	int error;
 	uint16_t length;

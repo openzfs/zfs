@@ -3243,7 +3243,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	 */
 	if (ps->pss_state == DSS_FINISHED) {
 		uint64_t minutes_taken = (end - start) / 60;
-		char *fmt;
+		char *fmt = NULL;
 
 		if (ps->pss_func == POOL_SCAN_SCRUB) {
 			fmt = gettext("scrub repaired %s in %lluh%um with "
