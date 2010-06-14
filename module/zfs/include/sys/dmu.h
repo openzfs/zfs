@@ -40,6 +40,7 @@
 #include <sys/param.h>
 #include <sys/cred.h>
 #include <sys/time.h>
+#include <sys/uio.h>
 #ifdef _KERNEL
 #include <sys/blkdev.h>
 #endif

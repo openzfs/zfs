@@ -30,6 +30,8 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 
+#define WITH_NDF_BLOCK_ALLOCATOR
+
 uint64_t metaslab_aliquot = 512ULL << 10;
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 
@@ -350,6 +352,9 @@ metaslab_segsize_compare(const void *x1, const void *x2)
 	return (0);
 }
 
+#if defined(WITH_FF_BLOCK_ALLOCATOR) || \
+    defined(WITH_DF_BLOCK_ALLOCATOR) || \
+    defined(WITH_CDF_BLOCK_ALLOCATOR)
 /*
  * This is a helper function that can be used by the allocator to find
  * a suitable block to allocate. This will search the specified AVL
@@ -389,6 +394,7 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 	*cursor = 0;
 	return (metaslab_block_picker(t, cursor, size, align));
 }
+#endif /* WITH_FF/DF/CDF_BLOCK_ALLOCATOR */
 
 static void
 metaslab_pp_load(space_map_t *sm)
@@ -452,6 +458,7 @@ metaslab_pp_maxsize(space_map_t *sm)
 	return (ss->ss_end - ss->ss_start);
 }
 
+#if defined(WITH_FF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
  * The first-fit block allocator
@@ -484,6 +491,10 @@ static space_map_ops_t metaslab_ff_ops = {
 	metaslab_ff_fragmented
 };
 
+space_map_ops_t *zfs_metaslab_ops = &metaslab_ff_ops;
+#endif /* WITH_FF_BLOCK_ALLOCATOR */
+
+#if defined(WITH_DF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
  * Dynamic block allocator -
@@ -543,11 +554,15 @@ static space_map_ops_t metaslab_df_ops = {
 	metaslab_df_fragmented
 };
 
+space_map_ops_t *zfs_metaslab_ops = &metaslab_df_ops;
+#endif /* WITH_DF_BLOCK_ALLOCATOR */
+
 /*
  * ==========================================================================
  * Other experimental allocators
  * ==========================================================================
  */
+#if defined(WITH_CDF_BLOCK_ALLOCATOR)
 static uint64_t
 metaslab_cdf_alloc(space_map_t *sm, uint64_t size)
 {
@@ -607,6 +622,10 @@ static space_map_ops_t metaslab_cdf_ops = {
 	metaslab_cdf_fragmented
 };
 
+space_map_ops_t *zfs_metaslab_ops = &metaslab_cdf_ops;
+#endif /* WITH_CDF_BLOCK_ALLOCATOR */
+
+#if defined(WITH_NDF_BLOCK_ALLOCATOR)
 uint64_t metaslab_ndf_clump_shift = 4;
 
 static uint64_t
@@ -672,6 +691,7 @@ static space_map_ops_t metaslab_ndf_ops = {
 };
 
 space_map_ops_t *zfs_metaslab_ops = &metaslab_ndf_ops;
+#endif /* WITH_NDF_BLOCK_ALLOCATOR */
 
 /*
  * ==========================================================================
