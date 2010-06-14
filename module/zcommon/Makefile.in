@@ -14,4 +14,5 @@ ${MODULE}-objs += zfs_prop.o
 ${MODULE}-objs += zprop_common.o
 ${MODULE}-objs += zfs_namecheck.o
 ${MODULE}-objs += zfs_comutil.o
+${MODULE}-objs += zfs_fletcher.o
 ${MODULE}-objs += zpool_prop.o
