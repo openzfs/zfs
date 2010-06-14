@@ -1965,8 +1965,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		err = dsl_dataset_set_reservation(dsname, source, intval);
 		break;
 	case ZFS_PROP_VOLSIZE:
-		err = zvol_set_volsize(dsname, ddi_driver_major(zfs_dip),
-		    intval);
+		err = zvol_set_volsize(dsname, intval);
 		break;
 	case ZFS_PROP_VERSION:
 	{
@@ -2832,9 +2831,18 @@ zfs_ioc_create(zfs_cmd_t *zc)
 	if (error == 0) {
 		error = zfs_set_prop_nvlist(zc->zc_name, ZPROP_SRC_LOCAL,
 		    nvprops, NULL);
-		if (error != 0)
+		if (error != 0) {
 			(void) dmu_objset_destroy(zc->zc_name, B_FALSE);
+			goto out;
+		}
+
+		if (type == DMU_OST_ZVOL) {
+			error = zvol_create_minor(zc->zc_name);
+			if (error != 0)
+				(void) dmu_objset_destroy(zc->zc_name, B_FALSE);
+		}
 	}
+out:
 	nvlist_free(nvprops);
 	return (error);
 }
