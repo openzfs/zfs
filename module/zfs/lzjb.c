@@ -37,7 +37,7 @@
  * compress to d_len or less.
  */
 
-#include <sys/types.h>
+#include <sys/zfs_context.h>
 
 #define	MATCH_BITS	6
 #define	MATCH_MIN	3
@@ -55,12 +55,15 @@ lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	int copymask = 1 << (NBBY - 1);
 	int mlen, offset, hash;
 	uint16_t *hp;
-	uint16_t lempel[LEMPEL_SIZE] = { 0 };
+	uint16_t *lempel;
 
+	lempel = kmem_zalloc(LEMPEL_SIZE * sizeof (uint16_t), KM_SLEEP);
 	while (src < (uchar_t *)s_start + s_len) {
 		if ((copymask <<= 1) == (1 << NBBY)) {
-			if (dst >= (uchar_t *)d_start + d_len - 1 - 2 * NBBY)
+			if (dst >= (uchar_t *)d_start + d_len - 1 - 2 * NBBY) {
+				kmem_free(lempel, LEMPEL_SIZE*sizeof(uint16_t));
 				return (s_len);
+			}
 			copymask = 1;
 			copymap = dst;
 			*dst++ = 0;
@@ -90,6 +93,8 @@ lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 			*dst++ = *src++;
 		}
 	}
+
+	kmem_free(lempel, LEMPEL_SIZE * sizeof (uint16_t));
 	return (dst - (uchar_t *)d_start);
 }
 
