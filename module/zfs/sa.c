@@ -1022,16 +1022,16 @@ sa_tear_down(objset_t *os)
 	    sizeof (sa_attr_table_t) * sa->sa_num_attrs);
 
 	cookie = NULL;
-	while (layout = avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie)) {
+	while ((layout = avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie))){
 		sa_idx_tab_t *tab;
-		while (tab = list_head(&layout->lot_idx_tab)) {
+		while ((tab = list_head(&layout->lot_idx_tab))) {
 			ASSERT(refcount_count(&tab->sa_refcount));
 			sa_idx_tab_rele(os, tab);
 		}
 	}
 
 	cookie = NULL;
-	while (layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie)) {
+	while ((layout = avl_destroy_nodes(&sa->sa_layout_num_tree, &cookie))){
 		kmem_free(layout->lot_attrs,
 		    sizeof (sa_attr_type_t) * layout->lot_attr_count);
 		kmem_free(layout, sizeof (sa_lot_t));
@@ -1304,7 +1304,7 @@ sa_handle_get(objset_t *objset, uint64_t objid, void *userp,
 	dmu_buf_t *db;
 	int error;
 
-	if (error = dmu_bonus_hold(objset, objid, NULL, &db))
+	if ((error = dmu_bonus_hold(objset, objid, NULL, &db)))
 		return (error);
 
 	return (sa_handle_get_from_db(objset, db, userp, hdl_type,

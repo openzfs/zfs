@@ -1521,8 +1521,8 @@ zfs_ioc_vdev_split(zfs_cmd_t *zc)
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &config)) {
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    zc->zc_iflags, &config))) {
 		spa_close(spa, FTAG);
 		return (error);
 	}
@@ -1637,13 +1637,13 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
  * local property values.
  */
 static int
-zfs_ioc_objset_recvd_props(zfs_cmd_t *zc)
+zfs_ioc_objset_recvd_props(struct file *filp, zfs_cmd_t *zc)
 {
 	objset_t *os = NULL;
 	int error;
 	nvlist_t *nv;
 
-	if (error = dmu_objset_hold(zc->zc_name, FTAG, &os))
+	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os)))
 		return (error);
 
 	/*
@@ -2368,8 +2368,8 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	int error;
 	nvpair_t *pair;
 
-	if (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-	    zc->zc_iflags, &props))
+	if ((error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+	    zc->zc_iflags, &props)))
 		return (error);
 
 	/*
@@ -3090,8 +3090,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 	if (prop == ZPROP_INVAL) {
 		if (zfs_prop_user(propname)) {
-			if (err = zfs_secpolicy_write_perms(dsname,
-			    ZFS_DELEG_PERM_USERPROP, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname,
+			    ZFS_DELEG_PERM_USERPROP, cr)))
 				return (err);
 			return (0);
 		}
@@ -3114,7 +3114,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (EINVAL);
 			}
 
-			if (err = zfs_secpolicy_write_perms(dsname, perm, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname, perm, cr)))
 				return (err);
 			return (0);
 		}
