@@ -532,8 +532,8 @@ int dmu_xuio_add(struct xuio *uio, struct arc_buf *abuf, offset_t off,
 int dmu_xuio_cnt(struct xuio *uio);
 struct arc_buf *dmu_xuio_arcbuf(struct xuio *uio, int i);
 void dmu_xuio_clear(struct xuio *uio, int i);
-void xuio_stat_wbuf_copied();
-void xuio_stat_wbuf_nocopy();
+void xuio_stat_wbuf_copied(void);
+void xuio_stat_wbuf_nocopy(void);
 
 extern int zfs_prefetch_disable;
 
