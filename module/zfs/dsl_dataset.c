@@ -92,7 +92,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int used, compressed, uncompressed;
 	int64_t delta;
 
-	used = bp_get_dasize(tx->tx_pool->dp_spa, bp);
+	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
 	compressed = BP_GET_PSIZE(bp);
 	uncompressed = BP_GET_UCSIZE(bp);
 
@@ -136,15 +136,17 @@ int
 dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
     boolean_t async)
 {
+	int used, compressed, uncompressed;
+
 	if (BP_IS_HOLE(bp))
 		return (0);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(bp->blk_birth <= tx->tx_txg);
 
-	int used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
-	int compressed = BP_GET_PSIZE(bp);
-	int uncompressed = BP_GET_UCSIZE(bp);
+	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
+	compressed = BP_GET_PSIZE(bp);
+	uncompressed = BP_GET_UCSIZE(bp);
 
 	ASSERT(used > 0);
 	if (ds == NULL) {
@@ -1469,8 +1471,8 @@ static void
 remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj, dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	uint64_t count;
 	int err;
+	ASSERTV(uint64_t count);
 
 	ASSERT(ds->ds_phys->ds_num_children >= 2);
 	err = zap_remove_int(mos, ds->ds_phys->ds_next_clones_obj, obj, tx);
@@ -1753,6 +1755,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 
 		if (dsl_dataset_is_snapshot(ds_next)) {
 			dsl_dataset_t *ds_nextnext;
+			dsl_dataset_t *hds;
 
 			/*
 			 * Update next's unique to include blocks which
@@ -1775,7 +1778,6 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 			ASSERT3P(ds_next->ds_prev, ==, NULL);
 
 			/* Collapse range in this head. */
-			dsl_dataset_t *hds;
 			VERIFY3U(0, ==, dsl_dataset_hold_obj(dp,
 			    ds->ds_dir->dd_phys->dd_head_dataset_obj,
 			    FTAG, &hds));
@@ -2477,7 +2479,6 @@ struct promotearg {
 };
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
-static boolean_t snaplist_unstable(list_t *l);
 
 static int
 dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
