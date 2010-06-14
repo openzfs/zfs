@@ -1469,12 +1469,12 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 
 	mutex_enter(&sa->sa_lock);
 
-	if (!sa->sa_need_attr_registration || sa->sa_master_obj == NULL) {
+	if (!sa->sa_need_attr_registration || sa->sa_master_obj == 0) {
 		mutex_exit(&sa->sa_lock);
 		return;
 	}
 
-	if (sa->sa_reg_attr_obj == NULL) {
+	if (sa->sa_reg_attr_obj == 0) {
 		int error;
 		sa->sa_reg_attr_obj = zap_create(hdl->sa_os,
 		    DMU_OT_SA_ATTR_REGISTRATION, DMU_OT_NONE, 0, tx);
