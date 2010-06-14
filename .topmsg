@@ -1,0 +1,11 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix pthreads
+
+This is a portability change which removes the dependence of the Solaris
+thread library.  All locations where Solaris thread API was used before
+have been replaced with equivilant Solaris kernel style thread calls.
+In user space the kernel style threading API is implemented in term of
+the portable pthreads library.  This includes all threads, mutexs,
+condition variables, reader/writer locks, and taskqs.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
