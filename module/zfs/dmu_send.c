@@ -996,6 +996,8 @@ backup_byteswap(dmu_replay_record_t *drr)
 		DO64(drr_end.drr_checksum.zc_word[3]);
 		DO64(drr_end.drr_toguid);
 		break;
+	default:
+		break;
 	}
 #undef DO64
 #undef DO32
@@ -1183,8 +1185,9 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 		ref_os = os;
 	}
 
-	if (err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
-	    drrwbr->drr_refoffset, FTAG, &dbp, DMU_READ_PREFETCH))
+	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
+	    drrwbr->drr_refoffset, FTAG, &dbp, DMU_READ_PREFETCH);
+	if (err)
 		return (err);
 
 	tx = dmu_tx_create(os);
@@ -1441,7 +1444,7 @@ out:
 	if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
 		void *cookie = NULL;
 
-		while (gmep = avl_destroy_nodes(&ra.guid_to_ds_map, &cookie)) {
+		while ((gmep = avl_destroy_nodes(&ra.guid_to_ds_map, &cookie))) {
 			dsl_dataset_rele(gmep->gme_ds, &ra.guid_to_ds_map);
 			kmem_free(gmep, sizeof (guid_map_entry_t));
 		}
