@@ -1401,8 +1401,8 @@ vdev_validate(vdev_t *vd)
 void
 vdev_close(vdev_t *vd)
 {
-	ASSERTV(spa_t *spa = vd->vdev_spa);
 	vdev_t *pvd = vd->vdev_parent;
+	ASSERTV(spa_t *spa = vd->vdev_spa);
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 

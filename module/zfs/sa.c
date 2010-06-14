@@ -1121,9 +1121,9 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 {
 	sa_hdr_phys_t *sa_hdr_phys = SA_GET_HDR(hdl, buftype);
 	dmu_buf_impl_t *db;
-	sa_os_t *sa = hdl->sa_os->os_sa;
 	int num_lengths = 1;
 	int i;
+	ASSERTV(sa_os_t *sa = hdl->sa_os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	if (sa_hdr_phys->sa_magic == SA_MAGIC)
@@ -1224,7 +1224,7 @@ sa_idx_tab_rele(objset_t *os, void *arg)
 static void
 sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 {
-	sa_os_t *sa = os->os_sa;
+	ASSERTV(sa_os_t *sa = os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	(void) refcount_add(&idx_tab->sa_refcount, NULL);
@@ -1260,10 +1260,10 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
     sa_handle_type_t hdl_type, sa_handle_t **handlepp)
 {
 	int error = 0;
-	dmu_object_info_t doi;
 	sa_handle_t *handle;
-
 #ifdef ZFS_DEBUG
+	dmu_object_info_t doi;
+
 	dmu_object_info_from_db(db, &doi);
 	ASSERT(doi.doi_bonus_type == DMU_OT_SA ||
 	    doi.doi_bonus_type == DMU_OT_ZNODE);

@@ -1939,12 +1939,12 @@ static void
 zio_ddt_ditto_write_done(zio_t *zio)
 {
 	int p = DDT_PHYS_DITTO;
-	zio_prop_t *zp = &zio->io_prop;
 	blkptr_t *bp = zio->io_bp;
 	ddt_t *ddt = ddt_select(zio->io_spa, bp);
 	ddt_entry_t *dde = zio->io_private;
 	ddt_phys_t *ddp = &dde->dde_phys[p];
 	ddt_key_t *ddk = &dde->dde_key;
+	ASSERTV(zio_prop_t *zp = &zio->io_prop);
 
 	ddt_enter(ddt);
 
