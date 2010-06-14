@@ -1,0 +1,9 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack lzjb
+
+Reduce kernel stack usage by lzjb_compress() by moving uint16 array
+off the stack and on to the heap.  The exact performance implications
+of this I have not measured but we absolutely need to keep stack
+usage to a minimum.  If/when this becomes and issue we optimize.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
