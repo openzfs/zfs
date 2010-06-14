@@ -1233,9 +1233,11 @@ static void
 dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 {
 	ddt_bookmark_t *ddb = &scn->scn_phys.scn_ddt_bookmark;
-	ddt_entry_t dde = { 0 };
+	ddt_entry_t dde;
 	int error;
 	uint64_t n = 0;
+
+	bzero(&dde, sizeof (ddt_entry_t));
 
 	while ((error = ddt_walk(scn->scn_dp->dp_spa, ddb, &dde)) == 0) {
 		ddt_t *ddt;
