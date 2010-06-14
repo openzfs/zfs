@@ -1075,12 +1075,13 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd)) {
-		uint64_t *good_writes = kmem_zalloc(sizeof (uint64_t),
-		    KM_SLEEP);
+		uint64_t *good_writes;
+		zio_t *vio;
 
 		ASSERT(!vd->vdev_ishole);
 
-		zio_t *vio = zio_null(zio, spa, NULL,
+		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
+		vio = zio_null(zio, spa, NULL,
 		    (vd->vdev_islog || vd->vdev_aux != NULL) ?
 		    vdev_label_sync_ignore_done : vdev_label_sync_top_done,
 		    good_writes, flags);
