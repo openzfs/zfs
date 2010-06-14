@@ -446,11 +446,15 @@ ddt_histogram_empty(const ddt_histogram_t *ddh)
 void
 ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 {
+	enum zio_checksum c;
+	enum ddt_type type;
+	enum ddt_class class;
+
 	/* Sum the statistics we cached in ddt_object_sync(). */
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (type = 0; type < DDT_TYPES; type++) {
+			for (class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_object_t *ddo =
 				    &ddt->ddt_object_stats[type][class];
@@ -474,10 +478,14 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 void
 ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 {
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	enum zio_checksum c;
+	enum ddt_type type;
+	enum ddt_class class;
+
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (type = 0; type < DDT_TYPES; type++) {
+			for (class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_histogram_add(ddh,
 				    &ddt->ddt_histogram_cache[type][class]);
@@ -650,8 +658,9 @@ ddt_alloc(const ddt_key_t *ddk)
 static void
 ddt_free(ddt_entry_t *dde)
 {
-	ASSERT(!dde->dde_loading);
 	int p;
+
+	ASSERT(!dde->dde_loading);
 
 	for (p = 0; p < DDT_PHYS_TYPES; p++)
 		ASSERT(dde->dde_lead_zio[p] == NULL);
@@ -741,6 +750,8 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 {
 	ddt_t *ddt;
 	ddt_entry_t dde;
+	enum ddt_type type;
+	enum ddt_class class;
 
 	if (!BP_GET_DEDUP(bp))
 		return;
@@ -753,8 +764,8 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 	ddt = ddt_select(spa, bp);
 	ddt_key_fill(&dde.dde_key, bp);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+	for (type = 0; type < DDT_TYPES; type++) {
+		for (class = 0; class < DDT_CLASSES; class++) {
 			ddt_object_prefetch(ddt, type, class, &dde);
 		}
 	}
@@ -812,15 +823,20 @@ ddt_table_free(ddt_t *ddt)
 void
 ddt_create(spa_t *spa)
 {
+	enum zio_checksum c;
+
 	spa->spa_dedup_checksum = ZIO_DEDUPCHECKSUM;
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++)
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++)
 		spa->spa_ddt[c] = ddt_table_alloc(spa, c);
 }
 
 int
 ddt_load(spa_t *spa)
 {
+	enum zio_checksum c;
+	enum ddt_type type;
+	enum ddt_class class;
 	int error;
 
 	ddt_create(spa);
@@ -832,10 +848,10 @@ ddt_load(spa_t *spa)
 	if (error)
 		return (error == ENOENT ? 0 : error);
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (type = 0; type < DDT_TYPES; type++) {
+			for (class = 0; class < DDT_CLASSES;
 			    class++) {
 				error = ddt_object_load(ddt, type, class);
 				if (error != 0 && error != ENOENT)
@@ -856,7 +872,9 @@ ddt_load(spa_t *spa)
 void
 ddt_unload(spa_t *spa)
 {
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	enum zio_checksum c;
+
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		if (spa->spa_ddt[c]) {
 			ddt_table_free(spa->spa_ddt[c]);
 			spa->spa_ddt[c] = NULL;
@@ -869,6 +887,8 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 {
 	ddt_t *ddt;
 	ddt_entry_t dde;
+	enum ddt_type type;
+	enum ddt_class class;
 
 	if (!BP_GET_DEDUP(bp))
 		return (B_FALSE);
@@ -880,8 +900,8 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 
 	ddt_key_fill(&dde.dde_key, bp);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++)
-		for (enum ddt_class class = 0; class <= max_class; class++)
+	for (type = 0; type < DDT_TYPES; type++)
+		for (class = 0; class <= max_class; class++)
 			if (ddt_object_lookup(ddt, type, class, &dde) == 0)
 				return (B_TRUE);
 
@@ -893,13 +913,15 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 {
 	ddt_key_t ddk;
 	ddt_entry_t *dde;
+	enum ddt_type type;
+	enum ddt_class class;
 
 	ddt_key_fill(&ddk, bp);
 
 	dde = ddt_alloc(&ddk);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+	for (type = 0; type < DDT_TYPES; type++) {
+		for (class = 0; class < DDT_CLASSES; class++) {
 			/*
 			 * We can only do repair if there are multiple copies
 			 * of the block.  For anything in the UNIQUE class,
@@ -1067,6 +1089,8 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	spa_t *spa = ddt->ddt_spa;
 	ddt_entry_t *dde;
 	void *cookie = NULL;
+	enum ddt_type type;
+	enum ddt_class class;
 
 	if (avl_numnodes(&ddt->ddt_tree) == 0)
 		return;
@@ -1086,8 +1110,8 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 		ddt_free(dde);
 	}
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+	for (type = 0; type < DDT_TYPES; type++) {
+		for (class = 0; class < DDT_CLASSES; class++) {
 			if (!ddt_object_exists(ddt, type, class))
 				continue;
 			ddt_object_sync(ddt, type, class, tx);
@@ -1106,12 +1130,13 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_t *tx;
 	zio_t *rio = zio_root(spa, NULL, NULL,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
+	enum zio_checksum c;
 
 	ASSERT(spa_syncing_txg(spa) == txg);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
 		if (ddt == NULL)
 			continue;
