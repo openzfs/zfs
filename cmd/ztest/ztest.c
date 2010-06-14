@@ -2019,7 +2019,7 @@ ztest_od_init(ztest_od_t *od, uint64_t id, char *tag, uint64_t index,
 	od->od_gen = 0;
 
 	(void) snprintf(od->od_name, sizeof (od->od_name), "%s(%lld)[%llu]",
-	    tag, (int64_t)id, index);
+	    tag, (longlong_t)id, (u_longlong_t)index);
 }
 
 /*
@@ -3919,7 +3919,7 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 		int error;
 
 		(void) snprintf(name, sizeof (name), "fzap-%llu-%llu",
-		    id, value);
+		    (u_longlong_t)id, (u_longlong_t)value);
 
 		tx = dmu_tx_create(os);
 		dmu_tx_hold_zap(tx, object, B_TRUE, name);
