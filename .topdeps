@@ -14,3 +14,4 @@ fix-error-handling
 fix-pthreads
 fix-current
 fix-metaslab
+fix-kstat-xuio
