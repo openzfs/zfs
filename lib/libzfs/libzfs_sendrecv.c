@@ -1235,7 +1235,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	if (flags.dedup) {
 		featureflags |= (DMU_BACKUP_FEATURE_DEDUP |
 		    DMU_BACKUP_FEATURE_DEDUPPROPS);
-		if (err = pipe(pipefd)) {
+		if ((err = pipe(pipefd))) {
 			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
 			return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED,
 			    errbuf));
@@ -1243,7 +1243,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		dda.outputfd = outfd;
 		dda.inputfd = pipefd[1];
 		dda.dedup_hdl = zhp->zfs_hdl;
-		if (err = pthread_create(&tid, NULL, cksummer, &dda)) {
+		if ((err = pthread_create(&tid, NULL, cksummer, &dda))) {
 			(void) close(pipefd[0]);
 			(void) close(pipefd[1]);
 			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
