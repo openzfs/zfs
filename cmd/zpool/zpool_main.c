@@ -2198,7 +2198,7 @@ get_interval_count(int *argcp, char **argv, unsigned long *iv,
     unsigned long *cnt)
 {
 	unsigned long interval = 0, count = 0;
-	int argc = *argcp, errno;
+	int argc = *argcp;
 
 	/*
 	 * Determine if the last argument is an integer or a pool name
@@ -3238,7 +3238,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	 */
 	if (ps->pss_state == DSS_FINISHED) {
 		uint64_t minutes_taken = (end - start) / 60;
-		char *fmt;
+		char *fmt = NULL;
 
 		if (ps->pss_func == POOL_SCAN_SCRUB) {
 			fmt = gettext("scrub repaired %s in %lluh%um with "

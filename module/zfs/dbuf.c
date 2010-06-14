@@ -109,9 +109,9 @@ dbuf_find(dnode_t *dn, uint8_t level, uint64_t blkid)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	objset_t *os = dn->dn_objset;
-	uint64_t obj = dn->dn_object;
-	uint64_t hv = DBUF_HASH(os, obj, level, blkid);
-	uint64_t idx = hv & h->hash_table_mask;
+	uint64_t obj;
+	uint64_t hv;
+	uint64_t idx;
 	dmu_buf_impl_t *db;
 
 	obj = dn->dn_object;
@@ -2338,7 +2338,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {
-		dnode_t *dn = db->db_dnode;
+		ASSERTV(dnode_t *dn = db->db_dnode);
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
 		ASSERT(!(BP_IS_HOLE(db->db_blkptr)) &&
 		    db->db_blkptr == &dn->dn_phys->dn_spill);
@@ -2417,7 +2417,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {
-		dnode_t *dn = db->db_dnode;
+		ASSERTV(dnode_t *dn = db->db_dnode);
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
 		ASSERT(!(BP_IS_HOLE(db->db_blkptr)) &&
 		    db->db_blkptr == &dn->dn_phys->dn_spill);
