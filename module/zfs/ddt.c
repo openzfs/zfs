@@ -499,6 +499,7 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 {
 	ddt_histogram_t *ddh_total;
 
+	/* XXX: Move to a slab */
 	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
 	ddt_get_dedup_histogram(spa, ddh_total);
 	ddt_histogram_stat(dds_total, ddh_total);
@@ -647,6 +648,7 @@ ddt_alloc(const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
+	/* XXX: Move to a slab */
 	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_SLEEP);
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
@@ -795,7 +797,8 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
 	ddt_t *ddt;
 
-	ddt = kmem_zalloc(sizeof (*ddt), KM_SLEEP);
+	/* XXX: Move to a slab */
+	ddt = kmem_zalloc(sizeof (*ddt), KM_SLEEP | KM_NODEBUG);
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&ddt->ddt_tree, ddt_entry_compare,
