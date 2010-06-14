@@ -1043,12 +1043,13 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 {
 	zap_t *zap;
 	mzap_ent_t *mze;
-	uint64_t oldval;
 	const uint64_t *intval = val;
 	zap_name_t *zn;
 	int err;
 
 #ifdef ZFS_DEBUG
+	uint64_t oldval;
+
 	/*
 	 * If there is an old value, it shouldn't change across the
 	 * lockdir (eg, due to bprewrite's xlation).

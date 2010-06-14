@@ -957,7 +957,6 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	blkptr_t *bp = zio->io_bp;
 	objset_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
-	ASSERTV(blkptr_t *bp_orig = &zio->io_bp_orig);
 
 	ASSERT(bp == os->os_rootbp);
 	ASSERT(BP_GET_TYPE(bp) == DMU_OT_OBJSET);

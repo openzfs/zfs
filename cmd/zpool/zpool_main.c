@@ -2176,7 +2176,7 @@ get_interval_count(int *argcp, char **argv, unsigned long *iv,
     unsigned long *cnt)
 {
 	unsigned long interval = 0, count = 0;
-	int argc = *argcp, errno;
+	int argc = *argcp;
 
 	/*
 	 * Determine if the last argument is an integer or a pool name

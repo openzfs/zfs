@@ -1470,8 +1470,8 @@ static void
 remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj, dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	uint64_t count;
 	int err;
+	ASSERTV(uint64_t count);
 
 	ASSERT(ds->ds_phys->ds_num_children >= 2);
 	err = zap_remove_int(mos, ds->ds_phys->ds_next_clones_obj, obj, tx);
@@ -2478,7 +2478,6 @@ struct promotearg {
 };
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
-static boolean_t snaplist_unstable(list_t *l);
 
 static int
 dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)
