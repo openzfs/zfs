@@ -1353,6 +1353,7 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 int
 sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 {
+#ifdef HAVE_ZPL
 	int error;
 	sa_bulk_attr_t bulk;
 
@@ -1371,7 +1372,9 @@ sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 	}
 	mutex_exit(&hdl->sa_lock);
 	return (error);
-
+#else
+	return ENOSYS;
+#endif /* HAVE_ZPL */
 }
 #endif
 

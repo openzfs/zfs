@@ -311,6 +311,7 @@ safe_malloc(size_t size)
 	return (data);
 }
 
+#ifdef HAVE_ZPL
 static char *
 safe_strdup(char *str)
 {
@@ -321,6 +322,7 @@ safe_strdup(char *str)
 
 	return (dupstr);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Callback routine that will print out information for each of
@@ -488,6 +490,7 @@ parse_depth(char *opt, int *flags)
 
 #define	PROGRESS_DELAY 2		/* seconds */
 
+#ifdef HAVE_ZPL
 static char *pt_reverse = "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 static time_t pt_begin;
 static char *pt_header = NULL;
@@ -539,6 +542,8 @@ finish_progress(char *done)
 	free(pt_header);
 	pt_header = NULL;
 }
+#endif /* HAVE_ZPL */
+
 /*
  * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
  *
