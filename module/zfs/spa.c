@@ -1682,7 +1682,6 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	int orig_mode = spa->spa_mode;
 	int parse;
 	uint64_t obj;
-	int c;
 
 	/*
 	 * If this is an untrusted config, access the pool in read-only mode.
@@ -2712,6 +2711,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
 	uint64_t version, obj;
+	int c;
 
 	/*
 	 * If this pool already exists, return failure.
@@ -5382,7 +5382,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		ddt_sync(spa, txg);
 		dsl_scan_sync(dp, tx);
 
-		while (vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg)))
 			vdev_sync(vd, txg);
 
 		if (pass == 1)
