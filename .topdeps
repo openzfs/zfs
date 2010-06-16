@@ -13,3 +13,4 @@ linux-kernel-device
 linux-events
 linux-debug-zerocopy
 linux-user-util
+linux-sha2
