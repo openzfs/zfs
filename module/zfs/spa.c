@@ -669,7 +669,7 @@ spa_create_zio_taskqs(spa_t *spa)
 	}
 }
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(HAVE_SPA_THREAD)
 static void
 spa_thread(void *arg)
 {
@@ -759,6 +759,7 @@ spa_activate(spa_t *spa, int mode)
 	ASSERT(spa->spa_proc == &p0);
 	spa->spa_did = 0;
 
+#ifdef HAVE_SPA_THREAD
 	/* Only create a process if we're going to be around a while. */
 	if (spa_create_process && strcmp(spa->spa_name, TRYIMPORT_NAME) != 0) {
 		if (newproc(spa_thread, (caddr_t)spa, syscid, maxclsyspri,
@@ -779,6 +780,7 @@ spa_activate(spa_t *spa, int mode)
 #endif
 		}
 	}
+#endif /* HAVE_SPA_THREAD */
 	mutex_exit(&spa->spa_proc_lock);
 
 	/* If we didn't create a process, we need to create our taskqs. */
