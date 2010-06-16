@@ -4,7 +4,6 @@ fix-evict-dbufs
 fix-newlines
 fix-no-zmod
 fix-rwlocks
-fix-stack
 fix-taskq
 fix-list
 fix-strncat
