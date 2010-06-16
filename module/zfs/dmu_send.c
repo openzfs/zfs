@@ -921,7 +921,7 @@ restore_read(struct restorearg *ra, int len)
 	return (rv);
 }
 
-noinline static void
+static void
 backup_byteswap(dmu_replay_record_t *drr)
 {
 #define	DO64(X) (drr->drr_u.X = BSWAP_64(drr->drr_u.X))
@@ -1001,7 +1001,7 @@ backup_byteswap(dmu_replay_record_t *drr)
 #undef DO32
 }
 
-noinline static int
+static int
 restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 {
 	int err;
@@ -1085,7 +1085,7 @@ restore_object(struct restorearg *ra, objset_t *os, struct drr_object *drro)
 }
 
 /* ARGSUSED */
-noinline static int
+static int
 restore_freeobjects(struct restorearg *ra, objset_t *os,
     struct drr_freeobjects *drrfo)
 {
@@ -1109,7 +1109,7 @@ restore_freeobjects(struct restorearg *ra, objset_t *os,
 	return (0);
 }
 
-noinline static int
+static int
 restore_write(struct restorearg *ra, objset_t *os,
     struct drr_write *drrw)
 {
@@ -1254,7 +1254,7 @@ restore_spill(struct restorearg *ra, objset_t *os, struct drr_spill *drrs)
 }
 
 /* ARGSUSED */
-noinline static int
+static int
 restore_free(struct restorearg *ra, objset_t *os,
     struct drr_free *drrf)
 {
