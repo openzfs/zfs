@@ -1,0 +1,9 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack noinline
+
+Certain function must never be automatically inlined by gcc because
+they are stack heavy or called recursively.  This patch flags all
+such functions I've found as 'noinline' to prevent gcc from making
+the optimization.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
