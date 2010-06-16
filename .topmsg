@@ -1,0 +1,7 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dmu_objset_snapshot
+
+Reduce stack usage by 276 bytes by moving the snaparg struct from the
+stack to the heap.  We have limited stack space we must not waste.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
