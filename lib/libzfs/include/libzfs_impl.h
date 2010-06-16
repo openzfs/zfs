@@ -37,7 +37,9 @@
 #include <libzfs.h>
 #include <libshare.h>
 
+#if defined(HAVE_LIBTOPO)
 #include <fm/libtopo.h>
+#endif /* HAVE_LIBTOPO */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -74,9 +76,11 @@ struct libzfs_handle {
 	boolean_t libzfs_mnttab_enable;
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
+#if defined(HAVE_LIBTOPO)
 	topo_hdl_t *libzfs_topo_hdl;
 	libzfs_fru_t **libzfs_fru_hash;
 	libzfs_fru_t *libzfs_fru_list;
+#endif /* HAVE_LIBTOPO */
 	char libzfs_chassis_id[256];
 };
 
