@@ -1,19 +1,13 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] zfs branch
+Subject: [PATCH] linux-sha2
 
-Merged result of all changes which are relevant to both Solaris
-and Linux builds of the ZFS code.  These are changes where there
-is a reasonable chance they will be accepted upstream.
-
-Additionally, since this is effectively the root of the linux
-ZFS tree the core linux build system is added here.  This
-includes autogen.sh, configure.ac, m4 macros, some scripts/*,
-and makefiles for all the core ZFS components.  Linux-only
-features which require tweaks to the build system should appear
-on the relevant topic branches.  All autotools products which
-result from autogen.sh are commited to the linux-configure-branch.
-
-This branch also contains the META, ChangeLog, AUTHORS, TODO,
-and README, files.
+The upstream ZFS code has correctly moved to a faster native sha2
+implementation.  Unfortunately, under Linux that's going to be a little
+problematic so we revert the code to the more portable version contained
+in earlier ZFS releases.  Using the native sha2 implementation in Linux
+is possible but the API is slightly different in kernel version user
+space depending on which libraries are used.  Ideally, we need a fast
+implementation of SHA256 which builds as part of ZFS this shouldn't be
+that hard to do but it will take some effort.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
