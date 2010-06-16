@@ -59,10 +59,7 @@ extern "C" {
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
-#include <sys/fm/util.h>
 #include <sys/sunddi.h>
-
-#define	CPU_SEQID	(CPU->cpu_seqid)
 
 #ifdef	__cplusplus
 }
