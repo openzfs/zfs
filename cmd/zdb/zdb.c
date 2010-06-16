@@ -2883,7 +2883,7 @@ find_zpool(char **target, nvlist_t **configp, int dirc, char **dirv)
 	nvlist_t *match = NULL;
 	char *name = NULL;
 	char *sepp = NULL;
-	char sep;
+	char sep = 0;
 	int count = 0;
 	importargs_t args = { 0 };
 
