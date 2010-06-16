@@ -431,14 +431,17 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	    flags & ~__GFP_ZERO);
 
 	if (dptr == NULL) {
-		CWARN("kmem_alloc(%ld, 0x%x) debug failed\n",
-		    sizeof(kmem_debug_t), flags);
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "debug "
+		    "kmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
+		    sizeof(kmem_debug_t), flags, func, line,
+		    kmem_alloc_used_read(), kmem_alloc_max);
 	} else {
 		/* Marked unlikely because we should never be doing this,
 		 * we tolerate to up 2 pages but a single page is best.   */
 		if (unlikely((size > PAGE_SIZE*2) && !(flags & KM_NODEBUG))) {
-			CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
-			    (unsigned long long) size, flags,
+			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "large "
+			    "kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
+			    (unsigned long long) size, flags, func, line,
 			    kmem_alloc_used_read(), kmem_alloc_max);
 			spl_debug_dumpstack(NULL);
 		}
@@ -449,9 +452,9 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
-			CWARN("kstrdup() failed in kmem_alloc(%llu, 0x%x) "
-			    "(%lld/%llu)\n", (unsigned long long) size, flags,
-			    kmem_alloc_used_read(), kmem_alloc_max);
+			CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
+			    func, line, kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
 		}
 
@@ -468,8 +471,9 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		if (unlikely(ptr == NULL)) {
 			kfree(dptr->kd_func);
 			kfree(dptr);
-			CWARN("kmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
-			    (unsigned long long) size, flags,
+			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "kmem_alloc"
+			    "(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
+			    (unsigned long long) size, flags, func, line,
 			    kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
 		}
@@ -491,10 +495,10 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		list_add_tail(&dptr->kd_list, &kmem_list);
 		spin_unlock_irqrestore(&kmem_lock, irq_flags);
 
-		CDEBUG_LIMIT(D_INFO, "kmem_alloc(%llu, 0x%x) = %p "
-		    "(%lld/%llu)\n", (unsigned long long) size, flags,
-		    ptr, kmem_alloc_used_read(),
-		    kmem_alloc_max);
+		CDEBUG_LIMIT(D_INFO,
+		    "kmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line, ptr,
+		    kmem_alloc_used_read(), kmem_alloc_max);
 	}
 out:
 	RETURN(ptr);
@@ -549,8 +553,10 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 	if (dptr == NULL) {
-		CWARN("vmem_alloc(%ld, 0x%x) debug failed\n",
-		    sizeof(kmem_debug_t), flags);
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "debug "
+		    "vmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
+		    sizeof(kmem_debug_t), flags, func, line,
+		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
 		/* We use kstrdup() below because the string pointed to by
 		 * __FUNCTION__ might not be available by the time we want
@@ -558,9 +564,9 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
-			CWARN("kstrdup() failed in vmem_alloc(%llu, 0x%x) "
-			    "(%lld/%llu)\n", (unsigned long long) size, flags,
-			    vmem_alloc_used_read(), vmem_alloc_max);
+			CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
+			    func, line, vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
 
@@ -570,8 +576,9 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		if (unlikely(ptr == NULL)) {
 			kfree(dptr->kd_func);
 			kfree(dptr);
-			CWARN("vmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
-			    (unsigned long long) size, flags,
+			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "vmem_alloc"
+			    "(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
+			    (unsigned long long) size, flags, func, line,
 			    vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
@@ -596,10 +603,10 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		list_add_tail(&dptr->kd_list, &vmem_list);
 		spin_unlock_irqrestore(&vmem_lock, irq_flags);
 
-		CDEBUG_LIMIT(D_INFO, "vmem_alloc(%llu, 0x%x) = %p "
-		    "(%lld/%llu)\n", (unsigned long long) size, flags,
-		    ptr, vmem_alloc_used_read(),
-		    vmem_alloc_max);
+		CDEBUG_LIMIT(D_INFO,
+		    "vmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line,
+		    ptr, vmem_alloc_used_read(), vmem_alloc_max);
 	}
 out:
 	RETURN(ptr);
@@ -652,8 +659,9 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	/* Marked unlikely because we should never be doing this,
 	 * we tolerate to up 2 pages but a single page is best.   */
 	if (unlikely((size > PAGE_SIZE * 2) && !(flags & KM_NODEBUG))) {
-		CWARN("Large kmem_alloc(%llu, 0x%x) (%lld/%llu)\n",
-		    (unsigned long long) size, flags,
+		CDEBUG(D_CONSOLE | D_WARNING,
+		    "Large kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
 		spl_debug_dumpstack(NULL);
 	}
@@ -669,16 +677,18 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	}
 
 	if (ptr == NULL) {
-		CWARN("kmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
-		    (unsigned long long) size, flags,
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		    "kmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
 	} else {
 		kmem_alloc_used_add(size);
 		if (unlikely(kmem_alloc_used_read() > kmem_alloc_max))
 			kmem_alloc_max = kmem_alloc_used_read();
 
-		CDEBUG_LIMIT(D_INFO, "kmem_alloc(%llu, 0x%x) = %p "
-		       "(%lld/%llu)\n", (unsigned long long) size, flags, ptr,
+		CDEBUG_LIMIT(D_INFO,
+		    "kmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line, ptr,
 		       kmem_alloc_used_read(), kmem_alloc_max);
 	}
 	RETURN(ptr);
@@ -716,8 +726,9 @@ vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 	ptr = __vmalloc(size, (flags | __GFP_HIGHMEM) & ~__GFP_ZERO,
 	    PAGE_KERNEL);
 	if (ptr == NULL) {
-		CWARN("vmem_alloc(%llu, 0x%x) failed (%lld/%llu)\n",
-		    (unsigned long long) size, flags,
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		    "vmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
+		    (unsigned long long) size, flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
 		if (flags & __GFP_ZERO)
@@ -2036,13 +2047,15 @@ spl_kmem_fini(void)
 	 * at that address to aid in debugging.  Performance is not
 	 * a serious concern here since it is module unload time. */
 	if (kmem_alloc_used_read() != 0)
-		CWARN("kmem leaked %ld/%ld bytes\n",
-		      kmem_alloc_used_read(), kmem_alloc_max);
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		    "kmem leaked %ld/%ld bytes\n",
+		    kmem_alloc_used_read(), kmem_alloc_max);
 
 
 	if (vmem_alloc_used_read() != 0)
-		CWARN("vmem leaked %ld/%ld bytes\n",
-		      vmem_alloc_used_read(), vmem_alloc_max);
+		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		    "vmem leaked %ld/%ld bytes\n",
+		    vmem_alloc_used_read(), vmem_alloc_max);
 
 	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
 	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);
