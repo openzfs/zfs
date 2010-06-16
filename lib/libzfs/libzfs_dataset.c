@@ -26,6 +26,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <label.h>
 #include <libintl.h>
 #include <math.h>
 #include <stdio.h>
