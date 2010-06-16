@@ -75,12 +75,6 @@ extern "C" {
 #include <sys/sunddi.h>
 
 /*
- * Stack
- */
-
-#define  noinline	__attribute__((noinline))
-
-/*
  * Debugging
  */
 
