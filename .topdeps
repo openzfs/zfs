@@ -15,3 +15,4 @@ linux-debug-zerocopy
 linux-user-util
 linux-sha2
 linux-topology
+linux-spa-thread
