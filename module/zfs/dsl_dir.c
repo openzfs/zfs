@@ -303,7 +303,7 @@ int
 dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
     dsl_dir_t **ddp, const char **tailp)
 {
-	char buf[MAXNAMELEN];
+	char *buf;
 	const char *next, *nextnext = NULL;
 	int err;
 	dsl_dir_t *dd;
@@ -313,14 +313,15 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 
 	dprintf("%s\n", name);
 
+	buf = kmem_alloc(MAXNAMELEN, KM_SLEEP);
 	err = getcomponent(name, buf, &next);
 	if (err)
-		return (err);
+		goto error;
 	if (spa == NULL) {
 		err = spa_open(buf, &spa, FTAG);
 		if (err) {
 			dprintf("spa_open(%s) failed\n", buf);
-			return (err);
+			goto error;
 		}
 		openedspa = TRUE;
 
@@ -336,7 +337,7 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 		rw_exit(&dp->dp_config_rwlock);
 		if (openedspa)
 			spa_close(spa, FTAG);
-		return (err);
+		goto error;
 	}
 
 	while (next != NULL) {
@@ -372,7 +373,7 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 		dsl_dir_close(dd, tag);
 		if (openedspa)
 			spa_close(spa, FTAG);
-		return (err);
+		goto error;
 	}
 
 	/*
@@ -391,6 +392,8 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 	if (openedspa)
 		spa_close(spa, FTAG);
 	*ddp = dd;
+error:
+	kmem_free(buf, MAXNAMELEN);
 	return (err);
 }
 
