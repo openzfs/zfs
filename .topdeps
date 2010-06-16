@@ -17,3 +17,4 @@ fix-metaslab
 fix-kstat-xuio
 fix-stack-lzjb
 fix-stack-dsl_dir_open_spa
+fix-stack-dsl_deleg_get
