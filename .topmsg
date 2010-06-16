@@ -1,0 +1,7 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dsl_dir_open_spa
+
+Reduce stack usage by 256 bytes by moving buf char array from
+the stack to the heap.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
