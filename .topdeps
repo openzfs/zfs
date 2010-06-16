@@ -16,3 +16,4 @@ fix-current
 fix-metaslab
 fix-kstat-xuio
 fix-stack-lzjb
+fix-stack-dsl_dir_open_spa
