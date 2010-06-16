@@ -296,6 +296,9 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	dsl_pool_t *dp;
 	int error;
 	objset_t *mos;
+	zap_cursor_t *basezc, *zc;
+	zap_attribute_t *baseza, *za;
+	char *source;
 
 	error = dsl_dir_open(ddname, FTAG, &startdd, NULL);
 	if (error)
@@ -304,15 +307,17 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	dp = startdd->dd_pool;
 	mos = dp->dp_meta_objset;
 
+	zc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
+	basezc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
+	baseza = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
+	source = kmem_alloc(MAXNAMELEN + strlen(MOS_DIR_NAME) + 1, KM_SLEEP);
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	for (dd = startdd; dd != NULL; dd = dd->dd_parent) {
-		zap_cursor_t basezc;
-		zap_attribute_t baseza;
 		nvlist_t *sp_nvp;
 		uint64_t n;
-		char source[MAXNAMELEN];
 
 		if (dd->dd_phys->dd_deleg_zapobj &&
 		    (zap_count(mos, dd->dd_phys->dd_deleg_zapobj,
@@ -323,38 +328,42 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 			continue;
 		}
 
-		for (zap_cursor_init(&basezc, mos,
+		for (zap_cursor_init(basezc, mos,
 		    dd->dd_phys->dd_deleg_zapobj);
-		    zap_cursor_retrieve(&basezc, &baseza) == 0;
-		    zap_cursor_advance(&basezc)) {
-			zap_cursor_t zc;
-			zap_attribute_t za;
+		    zap_cursor_retrieve(basezc, baseza) == 0;
+		    zap_cursor_advance(basezc)) {
 			nvlist_t *perms_nvp;
 
-			ASSERT(baseza.za_integer_length == 8);
-			ASSERT(baseza.za_num_integers == 1);
+			ASSERT(baseza->za_integer_length == 8);
+			ASSERT(baseza->za_num_integers == 1);
 
 			VERIFY(nvlist_alloc(&perms_nvp,
 			    NV_UNIQUE_NAME, KM_SLEEP) == 0);
-			for (zap_cursor_init(&zc, mos, baseza.za_first_integer);
-			    zap_cursor_retrieve(&zc, &za) == 0;
-			    zap_cursor_advance(&zc)) {
+			for (zap_cursor_init(zc, mos, baseza->za_first_integer);
+			    zap_cursor_retrieve(zc, za) == 0;
+			    zap_cursor_advance(zc)) {
 				VERIFY(nvlist_add_boolean(perms_nvp,
-				    za.za_name) == 0);
+				    za->za_name) == 0);
 			}
-			zap_cursor_fini(&zc);
-			VERIFY(nvlist_add_nvlist(sp_nvp, baseza.za_name,
+			zap_cursor_fini(zc);
+			VERIFY(nvlist_add_nvlist(sp_nvp, baseza->za_name,
 			    perms_nvp) == 0);
 			nvlist_free(perms_nvp);
 		}
 
-		zap_cursor_fini(&basezc);
+		zap_cursor_fini(basezc);
 
 		dsl_dir_name(dd, source);
 		VERIFY(nvlist_add_nvlist(*nvp, source, sp_nvp) == 0);
 		nvlist_free(sp_nvp);
 	}
 	rw_exit(&dp->dp_config_rwlock);
+
+	kmem_free(source, MAXNAMELEN + strlen(MOS_DIR_NAME) + 1);
+	kmem_free(baseza, sizeof(zap_attribute_t));
+	kmem_free(basezc, sizeof(zap_cursor_t));
+	kmem_free(za, sizeof(zap_attribute_t));
+	kmem_free(zc, sizeof(zap_cursor_t));
 
 	dsl_dir_close(startdd, FTAG);
 	return (0);
