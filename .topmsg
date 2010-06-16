@@ -1,0 +1,17 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dsl_deleg_get
+
+Reduce stack usage in dsl_deleg_get, gcc flagged it as consuming a
+whopping 1040 bytes or potentially 1/4 of a 4K stack.  This patch
+moves all the large structures and buffer off the stack and on to
+the heap.  This includes 2 zap_cursor_t structs each 52 bytes in
+size, 2 zap_attribute_t structs each 280 bytes in size, and 1
+256 byte char array.  The total saves on the stack is 880 bytes
+after you account for the 5 new pointers added.
+
+Also the source buffer length has been increased from MAXNAMELEN
+to MAXNAMELEN+strlen(MOS_DIR_NAME)+1 as described by the comment in
+dsl_dir_name().  A buffer overrun may have been possible with the
+slightly smaller buffer.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
