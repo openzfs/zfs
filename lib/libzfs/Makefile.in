@@ -97,9 +97,9 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libzfs_la_LIBADD =
 am_libzfs_la_OBJECTS = libzfs_changelist.lo libzfs_config.lo \
-	libzfs_dataset.lo libzfs_graph.lo libzfs_import.lo \
-	libzfs_mount.lo libzfs_pool.lo libzfs_sendrecv.lo \
-	libzfs_status.lo libzfs_util.lo
+	libzfs_dataset.lo libzfs_fru.lo libzfs_graph.lo \
+	libzfs_import.lo libzfs_mount.lo libzfs_pool.lo \
+	libzfs_sendrecv.lo libzfs_status.lo libzfs_util.lo
 libzfs_la_OBJECTS = $(am_libzfs_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -307,6 +307,7 @@ libzfs_la_SOURCES = \
 	${top_srcdir}/lib/libzfs/libzfs_changelist.c \
 	${top_srcdir}/lib/libzfs/libzfs_config.c \
 	${top_srcdir}/lib/libzfs/libzfs_dataset.c \
+	${top_srcdir}/lib/libzfs/libzfs_fru.c \
 	${top_srcdir}/lib/libzfs/libzfs_graph.c \
 	${top_srcdir}/lib/libzfs/libzfs_import.c \
 	${top_srcdir}/lib/libzfs/libzfs_mount.c \
@@ -394,6 +395,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_changelist.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_dataset.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_fru.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_graph.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_import.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libzfs_mount.Plo@am__quote@
@@ -449,6 +451,14 @@ libzfs_dataset.lo: ${top_srcdir}/lib/libzfs/libzfs_dataset.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libzfs/libzfs_dataset.c' object='libzfs_dataset.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libzfs_dataset.lo `test -f '${top_srcdir}/lib/libzfs/libzfs_dataset.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzfs/libzfs_dataset.c
+
+libzfs_fru.lo: ${top_srcdir}/lib/libzfs/libzfs_fru.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libzfs_fru.lo -MD -MP -MF $(DEPDIR)/libzfs_fru.Tpo -c -o libzfs_fru.lo `test -f '${top_srcdir}/lib/libzfs/libzfs_fru.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzfs/libzfs_fru.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libzfs_fru.Tpo $(DEPDIR)/libzfs_fru.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libzfs/libzfs_fru.c' object='libzfs_fru.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libzfs_fru.lo `test -f '${top_srcdir}/lib/libzfs/libzfs_fru.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzfs/libzfs_fru.c
 
 libzfs_graph.lo: ${top_srcdir}/lib/libzfs/libzfs_graph.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libzfs_graph.lo -MD -MP -MF $(DEPDIR)/libzfs_graph.Tpo -c -o libzfs_graph.lo `test -f '${top_srcdir}/lib/libzfs/libzfs_graph.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libzfs/libzfs_graph.c

@@ -97,8 +97,8 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libspl_la_LIBADD =
 am_libspl_la_OBJECTS = getexecname.lo gethrtime.lo gethrestime.lo \
-	getmntany.lo list.lo mkdirp.lo strlcat.lo strlcpy.lo \
-	strnlen.lo zone.lo xdr.lo atomic.lo
+	getmntany.lo list.lo ltos.lo mkdirp.lo stol.lo strlcat.lo \
+	strlcpy.lo strnlen.lo timestamp.lo zone.lo xdr.lo atomic.lo
 libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -349,10 +349,13 @@ libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/gethrestime.c \
 	${top_srcdir}/lib/libspl/getmntany.c \
 	${top_srcdir}/lib/libspl/list.c \
+	${top_srcdir}/lib/libspl/ltos.c \
 	${top_srcdir}/lib/libspl/mkdirp.c \
+	${top_srcdir}/lib/libspl/stol.c \
 	${top_srcdir}/lib/libspl/strlcat.c \
 	${top_srcdir}/lib/libspl/strlcpy.c \
 	${top_srcdir}/lib/libspl/strnlen.c \
+	${top_srcdir}/lib/libspl/timestamp.c \
 	${top_srcdir}/lib/libspl/zone.c \
 	${top_srcdir}/lib/libspl/xdr.c \
 	${top_srcdir}/lib/libspl/${TARGET_ASM_DIR}/atomic.S \
@@ -439,10 +442,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gethrtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getmntany.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ltos.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdirp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcat.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strlcpy.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strnlen.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/timestamp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xdr.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zone.Plo@am__quote@
 
@@ -542,6 +548,14 @@ list.lo: ${top_srcdir}/lib/libspl/list.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o list.lo `test -f '${top_srcdir}/lib/libspl/list.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/list.c
 
+ltos.lo: ${top_srcdir}/lib/libspl/ltos.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ltos.lo -MD -MP -MF $(DEPDIR)/ltos.Tpo -c -o ltos.lo `test -f '${top_srcdir}/lib/libspl/ltos.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/ltos.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ltos.Tpo $(DEPDIR)/ltos.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/ltos.c' object='ltos.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ltos.lo `test -f '${top_srcdir}/lib/libspl/ltos.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/ltos.c
+
 mkdirp.lo: ${top_srcdir}/lib/libspl/mkdirp.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mkdirp.lo -MD -MP -MF $(DEPDIR)/mkdirp.Tpo -c -o mkdirp.lo `test -f '${top_srcdir}/lib/libspl/mkdirp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/mkdirp.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mkdirp.Tpo $(DEPDIR)/mkdirp.Plo
@@ -549,6 +563,14 @@ mkdirp.lo: ${top_srcdir}/lib/libspl/mkdirp.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/mkdirp.c' object='mkdirp.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mkdirp.lo `test -f '${top_srcdir}/lib/libspl/mkdirp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/mkdirp.c
+
+stol.lo: ${top_srcdir}/lib/libspl/stol.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stol.lo -MD -MP -MF $(DEPDIR)/stol.Tpo -c -o stol.lo `test -f '${top_srcdir}/lib/libspl/stol.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/stol.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/stol.Tpo $(DEPDIR)/stol.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/stol.c' object='stol.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stol.lo `test -f '${top_srcdir}/lib/libspl/stol.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/stol.c
 
 strlcat.lo: ${top_srcdir}/lib/libspl/strlcat.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT strlcat.lo -MD -MP -MF $(DEPDIR)/strlcat.Tpo -c -o strlcat.lo `test -f '${top_srcdir}/lib/libspl/strlcat.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strlcat.c
@@ -573,6 +595,14 @@ strnlen.lo: ${top_srcdir}/lib/libspl/strnlen.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/strnlen.c' object='strnlen.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o strnlen.lo `test -f '${top_srcdir}/lib/libspl/strnlen.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/strnlen.c
+
+timestamp.lo: ${top_srcdir}/lib/libspl/timestamp.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT timestamp.lo -MD -MP -MF $(DEPDIR)/timestamp.Tpo -c -o timestamp.lo `test -f '${top_srcdir}/lib/libspl/timestamp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/timestamp.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/timestamp.Tpo $(DEPDIR)/timestamp.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/lib/libspl/timestamp.c' object='timestamp.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o timestamp.lo `test -f '${top_srcdir}/lib/libspl/timestamp.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/timestamp.c
 
 zone.lo: ${top_srcdir}/lib/libspl/zone.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zone.lo -MD -MP -MF $(DEPDIR)/zone.Tpo -c -o zone.lo `test -f '${top_srcdir}/lib/libspl/zone.c' || echo '$(srcdir)/'`${top_srcdir}/lib/libspl/zone.c
