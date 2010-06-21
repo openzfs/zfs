@@ -274,13 +274,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 		GOTO(out, rc = 0);
 
 	spin_lock(&t->t_lock);
-
-	/* Queue to the head instead of the tail */
-	if (flags & TQ_FRONT)
-		list_add(&t->t_list, &tq->tq_pend_list);
-	else
-		list_add_tail(&t->t_list, &tq->tq_pend_list);
-
+	list_add_tail(&t->t_list, &tq->tq_pend_list);
 	t->t_id = rc = tq->tq_next_id;
 	tq->tq_next_id++;
         t->t_func = func;
