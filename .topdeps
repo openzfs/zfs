@@ -10,8 +10,8 @@ linux-unused
 linux-ztest
 linux-have-idmap
 linux-kernel-device
+linux-kernel-module
 linux-events
-linux-debug-zerocopy
 linux-user-util
 linux-sha2
 linux-topology
