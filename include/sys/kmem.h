@@ -248,6 +248,7 @@ enum {
 #define KMC_DEFAULT_SEEKS		1
 
 extern int kmem_debugging(void);
+extern char *kmem_vasprintf(const char *fmt, va_list ap);
 extern char *kmem_asprintf(const char *fmt, ...);
 #define strfree(str)		kfree(str)
 #define strdup(str)		kstrdup(str, GFP_KERNEL)

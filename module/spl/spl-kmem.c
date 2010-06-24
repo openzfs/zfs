@@ -239,16 +239,32 @@ EXPORT_SYMBOL(kvasprintf);
 #endif /* HAVE_KVASPRINTF */
 
 char *
-kmem_asprintf(const char *fmt, ...)
+kmem_vasprintf(const char *fmt, va_list ap)
 {
-	va_list args;
+	va_list aq;
 	char *ptr;
 
-	va_start(args, fmt);
+	va_copy(aq, ap);
 	do {
-		ptr = kvasprintf(GFP_KERNEL, fmt, args);
+		ptr = kvasprintf(GFP_KERNEL, fmt, aq);
 	} while (ptr == NULL);
-	va_end(args);
+	va_end(aq);
+
+	return ptr;
+}
+EXPORT_SYMBOL(kmem_vasprintf);
+
+char *
+kmem_asprintf(const char *fmt, ...)
+{
+	va_list ap;
+	char *ptr;
+
+	va_start(ap, fmt);
+	do {
+		ptr = kvasprintf(GFP_KERNEL, fmt, ap);
+	} while (ptr == NULL);
+	va_end(ap);
 
 	return ptr;
 }
