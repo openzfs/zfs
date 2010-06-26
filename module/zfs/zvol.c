@@ -275,8 +275,6 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	zvol_state_t *zv;
 	dmu_object_info_t doi;
 	objset_t *os = NULL;
-	zvol_state_t state = { 0 };
-	uint64_t old_volsize = 0ULL;
 	uint64_t readonly;
 	int error;
 
@@ -284,23 +282,23 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 
 	zv = zvol_find_by_name(name);
 	if (zv == NULL) {
-		error = dmu_objset_hold(name, FTAG, &os);
-		if (error)
-			goto out;
-		zv = &state;
+		error = ENXIO;
+		goto out;
 	}
+
+	error = dmu_objset_hold(name, FTAG, &os);
+	if (error)
+		goto out;
+
+	if ((error = dmu_object_info(os, ZVOL_OBJ, &doi)) != 0 ||
+	    (error = zvol_check_volsize(volsize,doi.doi_data_block_size)) != 0)
+		goto out;
 
 	VERIFY(dsl_prop_get_integer(name, "readonly", &readonly, NULL) == 0);
 	if (readonly) {
 		error = EROFS;
 		goto out;
 	}
-
-	old_volsize = zv->zv_volsize;
-
-	if ((error = dmu_object_info(os, ZVOL_OBJ, &doi)) != 0 ||
-	    (error = zvol_check_volsize(volsize,doi.doi_data_block_size)) != 0)
-		goto out;
 
 	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
 		error = EROFS;
