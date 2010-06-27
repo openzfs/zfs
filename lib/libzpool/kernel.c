@@ -145,14 +145,9 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	      size_t len, proc_t *pp, int state, pri_t pri)
 {
 	kthread_t *kt;
-	pthread_t tid;
 	pthread_attr_t attr;
 	size_t stack;
 
-	/*
-	 * Due to a race when getting/setting the thread ID, currently only
-	 * detached threads are supported.
-	 */
 	ASSERT3S(state & ~TS_RUN, ==, 0);
 
 	kt = umem_zalloc(sizeof(kthread_t), UMEM_NOFAIL);
@@ -160,23 +155,23 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	kt->t_arg = arg;
 
 	/*
-	 * The Solaris kernel stack size in x86/x64 is 8K, so we reduce the
-	 * default stack size in userspace, for sanity checking.
+	 * The Solaris kernel stack size is 24k for x86/x86_64.
+	 * The Linux kernel stack size is 8k for x86/x86_64.
 	 *
-	 * PTHREAD_STACK_MIN is the stack required for a NULL procedure in
-	 * userspace.
-	 *
-	 * XXX: Stack size for other architectures is not being taken into
-	 * account.
+	 * We reduce the default stack size in userspace, to ensure
+	 * we observe stack overruns in user space as well as in
+	 * kernel space.  PTHREAD_STACK_MIN is the minimum stack
+	 * required for a NULL procedure in user space and is added
+	 * in to the stack requirements.
 	 */
 	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE);
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
-	VERIFY3S(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED),
-	    ==, 0);
+	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
 
-	VERIFY3S(pthread_create(&tid, &attr, &zk_thread_helper, kt), ==, 0);
+	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),
+	    ==, 0);
 
 	VERIFY3S(pthread_attr_destroy(&attr), ==, 0);
 

@@ -198,7 +198,11 @@ _NOTE(CONSTCOND) } while (0)
  * Threads
  */
 #define TS_RUN			0x00000002
+#ifdef _linux_
 #define	STACK_SIZE		8192	/* Linux x86 and amd64 */
+#else
+#define	STACK_SIZE		24576	/* Solaris */
+#endif
 
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
