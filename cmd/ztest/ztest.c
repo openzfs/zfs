@@ -5275,6 +5275,11 @@ ztest_run(ztest_shared_t *zs)
 	}
 
 	kernel_fini();
+
+	list_destroy(&zcl.zcl_callbacks);
+	mutex_destroy(&zcl.zcl_callbacks_lock);
+	rw_destroy(&zs->zs_name_lock);
+	mutex_destroy(&zs->zs_vdev_lock);
 }
 
 static void
@@ -5345,12 +5350,8 @@ ztest_freeze(ztest_shared_t *zs)
 	spa_close(spa, FTAG);
 	kernel_fini();
 
-	list_destroy(&zcl.zcl_callbacks);
-
-	(void) mutex_destroy(&zcl.zcl_callbacks_lock);
-
-	(void) rw_destroy(&zs->zs_name_lock);
-	(void) mutex_destroy(&zs->zs_vdev_lock);
+	rw_destroy(&zs->zs_name_lock);
+	mutex_destroy(&zs->zs_vdev_lock);
 }
 
 void
@@ -5453,6 +5454,7 @@ main(int argc, char **argv)
 
 	ztest_random_fd = open("/dev/urandom", O_RDONLY);
 
+	dprintf_setup(&argc, argv);
 	process_options(argc, argv);
 
 	/* Override location of zpool.cache */

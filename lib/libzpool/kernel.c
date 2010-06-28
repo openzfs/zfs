@@ -1120,25 +1120,27 @@ ksiddomain_rele(ksiddomain_t *ksid)
 	umem_free(ksid, sizeof (ksiddomain_t));
 }
 
-/*
- * Do not change the length of the returned string; it must be freed
- * with strfree().
- */
+char *
+kmem_vasprintf(const char *fmt, va_list adx)
+{
+	char *buf = NULL;
+	va_list adx_copy;
+
+	va_copy(adx_copy, adx);
+	VERIFY(vasprintf(&buf, fmt, adx_copy) != -1);
+	va_end(adx_copy);
+
+	return (buf);
+}
+
 char *
 kmem_asprintf(const char *fmt, ...)
 {
-	int size;
+	char *buf = NULL;
 	va_list adx;
-	char *buf;
 
 	va_start(adx, fmt);
-	size = vsnprintf(NULL, 0, fmt, adx) + 1;
-	va_end(adx);
-
-	buf = kmem_alloc(size, KM_SLEEP);
-
-	va_start(adx, fmt);
-	size = vsnprintf(buf, size, fmt, adx);
+	VERIFY(vasprintf(&buf, fmt, adx) != -1);
 	va_end(adx);
 
 	return (buf);
