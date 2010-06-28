@@ -913,7 +913,7 @@ dmu_objset_snapshot(char *fsname, char *snapname,
 		if (dst->dst_err)
 			dsl_dataset_name(ds, sn->failed);
 		zil_resume(dmu_objset_zil(os));
-		dmu_objset_rele(os, &sn);
+		dmu_objset_rele(os, sn);
 	}
 
 	if (err)
