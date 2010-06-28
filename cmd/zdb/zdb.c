@@ -2197,6 +2197,7 @@ dump_block_stats(spa_t *spa)
 	 * it's not part of any space map) is a double allocation,
 	 * reference to a freed block, or an unclaimed log block.
 	 */
+	bzero(&zcb, sizeof(zdb_cb_t));
 	zdb_leak_init(spa, &zcb);
 
 	/*
