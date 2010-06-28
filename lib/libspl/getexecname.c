@@ -48,6 +48,8 @@ getexecname(void)
 			execname[rc] = '\0';
 			ptr = execname;
 		}
+	} else {
+		ptr = execname;
 	}
 
 	pthread_mutex_unlock(&mtx);
