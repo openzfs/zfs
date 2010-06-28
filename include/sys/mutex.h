@@ -34,20 +34,29 @@ typedef enum {
         MUTEX_ADAPTIVE = 2
 } kmutex_type_t;
 
-#ifdef HAVE_MUTEX_OWNER
+#if defined(HAVE_MUTEX_OWNER) && defined(CONFIG_SMP)
 
 typedef struct mutex kmutex_t;
 
 static inline kthread_t *
 mutex_owner(kmutex_t *mp)
 {
-        if (mp->owner)
-                return (mp->owner)->task;
+	struct thread_info *owner;
+
+	owner = ACCESS_ONCE(mp->owner);
+        if (owner)
+                return owner->task;
 
         return NULL;
 }
-#define mutex_owned(mp)         (mutex_owner(mp) == current)
-#define MUTEX_HELD(mp)          mutex_owned(mp)
+
+static inline int
+mutex_owned(kmutex_t *mp)
+{
+	return (ACCESS_ONCE(mp->owner) == current_thread_info());
+}
+
+#define MUTEX_HELD(mp)                  mutex_owned(mp)
 #undef mutex_init
 #define mutex_init(mp, name, type, ibc)                                 \
 ({                                                                      \
@@ -60,13 +69,22 @@ mutex_owner(kmutex_t *mp)
 #undef mutex_destroy
 #define mutex_destroy(mp)                                               \
 ({                                                                      \
-        VERIFY(!MUTEX_HELD(mp));                                        \
+	VERIFY3P(mutex_owner(mp), ==, NULL);				\
 })
 
-#define mutex_tryenter(mp)      mutex_trylock(mp)
-#define mutex_enter(mp)         mutex_lock(mp)
-#define mutex_exit(mp)          mutex_unlock(mp)
+#define mutex_tryenter(mp)              mutex_trylock(mp)
+#define mutex_enter(mp)                 mutex_lock(mp)
 
+/* mutex->owner is not cleared when CONFIG_DEBUG_MUTEXES is set */
+#ifdef CONFIG_DEBUG_MUTEXES
+# define mutex_exit(mp)                                                 \
+({                                                                      \
+         (mp)->owner = NULL;                                            \
+	 mutex_unlock(mp);                                              \
+})
+#else
+# define mutex_exit(mp)                 mutex_unlock(mp)
+#endif /* CONFIG_DEBUG_MUTEXES */
 
 #ifdef HAVE_GPL_ONLY_SYMBOLS
 # define mutex_enter_nested(mp, sc)     mutex_lock_nested(mp, sc)
@@ -151,7 +169,7 @@ mutex_owner(kmutex_t *mp)
 #undef mutex_destroy
 #define mutex_destroy(mp)                                               \
 ({                                                                      \
-        VERIFY(!MUTEX_HELD(mp));                                        \
+	VERIFY3P(mutex_owner(mp), ==, NULL);				\
 })
 
 #define mutex_tryenter(mp)                                              \
