@@ -67,9 +67,9 @@ splat_thread_work1(void *priv)
 	spin_lock(&tp->tp_lock);
 	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
 	tp->tp_rc = 1;
+	wake_up(&tp->tp_waitq);
 	spin_unlock(&tp->tp_lock);
 
-	wake_up(&tp->tp_waitq);
 	thread_exit();
 }
 
@@ -108,18 +108,17 @@ splat_thread_work2(void *priv)
 	spin_lock(&tp->tp_lock);
 	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
 	tp->tp_rc = 1;
+	wake_up(&tp->tp_waitq);
 	spin_unlock(&tp->tp_lock);
 
-	wake_up(&tp->tp_waitq);
 	thread_exit();
 
 	/* The following code is unreachable when thread_exit() is
 	 * working properly, which is exactly what we're testing */
 	spin_lock(&tp->tp_lock);
 	tp->tp_rc = 2;
-	spin_unlock(&tp->tp_lock);
-
 	wake_up(&tp->tp_waitq);
+	spin_unlock(&tp->tp_lock);
 }
 
 static int
