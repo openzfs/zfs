@@ -443,7 +443,7 @@ zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
 {
 	struct dmu_tx *tx;
 	int rc, how = TXG_WAIT;
-	int flags = 0;
+//	int flags = 0;
 
 	if (run_args->flags & DMU_WRITE_NOWAIT)
 		how = TXG_NOWAIT;
@@ -467,10 +467,10 @@ zpios_dmu_write(run_args_t *run_args, objset_t *os, uint64_t object,
 		break;
 	}
 
-	if (run_args->flags & DMU_WRITE_ZC)
-		flags |= DMU_WRITE_ZEROCOPY;
+//	if (run_args->flags & DMU_WRITE_ZC)
+//		flags |= DMU_WRITE_ZEROCOPY;
 
-	dmu_write_impl(os, object, offset, size, buf, tx, flags);
+	dmu_write(os, object, offset, size, buf, tx);
 	dmu_tx_commit(tx);
 
 	return 0;
@@ -482,8 +482,8 @@ zpios_dmu_read(run_args_t *run_args, objset_t *os, uint64_t object,
 {
 	int flags = 0;
 
-	if (run_args->flags & DMU_READ_ZC)
-		flags |= DMU_READ_ZEROCOPY;
+//	if (run_args->flags & DMU_READ_ZC)
+//		flags |= DMU_READ_ZEROCOPY;
 
 	if (run_args->flags & DMU_READ_NOPF)
 		flags |= DMU_READ_NO_PREFETCH;
