@@ -1049,10 +1049,7 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q, boolean_t cutinline)
 {
 	spa_t *spa = zio->io_spa;
 	zio_type_t t = zio->io_type;
-	int flags;
-
-	flags  = (cutinline ? TQ_FRONT : 0);
-	flags |= ((q == ZIO_TASKQ_INTERRUPT) ? TQ_NOSLEEP : TQ_SLEEP);
+	int flags = TQ_NOSLEEP | (cutinline ? TQ_FRONT : 0);
 
 	/*
 	 * If we're a config writer or a probe, the normal issue and
