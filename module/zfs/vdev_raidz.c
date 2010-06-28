@@ -1638,8 +1638,11 @@ raidz_checksum_verify(zio_t *zio)
 {
 	zio_bad_cksum_t zbc;
 	raidz_map_t *rm = zio->io_vsd;
+	int ret;
 
-	int ret = zio_checksum_error(zio, &zbc);
+	bzero(&zbc, sizeof (zio_bad_cksum_t));
+
+	ret = zio_checksum_error(zio, &zbc);
 	if (ret != 0 && zbc.zbc_injected != 0)
 		rm->rm_ecksuminjected = 1;
 
