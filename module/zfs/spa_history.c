@@ -432,6 +432,7 @@ log_internal(history_internal_events_t event, spa_t *spa,
     dmu_tx_t *tx, const char *fmt, va_list adx)
 {
 	history_arg_t *ha;
+	va_list adx_copy;
 
 	/*
 	 * If this is part of creating a pool, not everything is
@@ -441,7 +442,9 @@ log_internal(history_internal_events_t event, spa_t *spa,
 		return;
 
 	ha = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
-	ha->ha_history_str = kmem_asprintf(fmt, adx);
+	va_copy(adx_copy, adx);
+	ha->ha_history_str = kmem_vasprintf(fmt, adx_copy);
+	va_end(adx_copy);
 	ha->ha_log_type = LOG_INTERNAL;
 	ha->ha_event = event;
 	ha->ha_zone = NULL;
