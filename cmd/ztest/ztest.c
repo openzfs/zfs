@@ -4921,21 +4921,12 @@ ztest_resume_thread(void *arg)
 	return (NULL);
 }
 
-static void *
-ztest_deadman_thread(void *arg)
+#define GRACE	300
+
+static void
+ztest_deadman_alarm(int sig)
 {
-	ztest_shared_t *zs = arg;
-	int grace = 300;
-	hrtime_t delta;
-
-	delta = (zs->zs_thread_stop - zs->zs_thread_start) / NANOSEC + grace;
-
-	(void) poll(NULL, 0, (int)(1000 * delta));
-
-	fatal(0, "failed to complete within %d seconds of deadline", grace);
-	thread_exit();
-
-	return (NULL);
+	fatal(0, "failed to complete within %d seconds of deadline", GRACE);
 }
 
 static void
@@ -5125,7 +5116,7 @@ ztest_dataset_close(ztest_shared_t *zs, int d)
 static void
 ztest_run(ztest_shared_t *zs)
 {
-	kthread_t **tid;
+	kt_did_t *tid;
 	spa_t *spa;
 	kthread_t *resume_thread;
 	uint64_t object;
@@ -5178,10 +5169,10 @@ ztest_run(ztest_shared_t *zs)
 	    spa, TS_RUN, NULL, 0, 0)), !=, NULL);
 
 	/*
-	 * Create a deadman thread to abort() if we hang.
+	 * Set a deadman alarm to abort() if we hang.
 	 */
-	VERIFY3P(thread_create(NULL, 0, ztest_deadman_thread, zs,
-	    TS_RUN, NULL, 0, 0), !=, NULL);
+	signal(SIGALRM, ztest_deadman_alarm);
+	alarm((zs->zs_thread_stop - zs->zs_thread_start) / NANOSEC + GRACE);
 
 	/*
 	 * Verify that we can safely inquire about about any object,
@@ -5207,7 +5198,7 @@ ztest_run(ztest_shared_t *zs)
 	}
 	zs->zs_enospc_count = 0;
 
-	tid = umem_zalloc(zopt_threads * sizeof (kthread_t *), UMEM_NOFAIL);
+	tid = umem_zalloc(zopt_threads * sizeof (kt_did_t), UMEM_NOFAIL);
 
 	if (zopt_verbose >= 4)
 		(void) printf("starting main threads...\n");
@@ -5216,11 +5207,14 @@ ztest_run(ztest_shared_t *zs)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (t = 0; t < zopt_threads; t++) {
+		kthread_t *thread;
+
 		if (t < zopt_datasets && ztest_dataset_open(zs, t) != 0)
 			return;
 
-		VERIFY3P(tid[t] = thread_create(NULL, 0, ztest_thread,
+		VERIFY3P(thread = thread_create(NULL, 0, ztest_thread,
 		    (void *)(uintptr_t)t, TS_RUN, NULL, 0, 0), !=, NULL);
+		tid[t] = thread->t_tid;
 	}
 
 	/*
@@ -5228,7 +5222,7 @@ ztest_run(ztest_shared_t *zs)
 	 * so we don't close datasets while threads are still using them.
 	 */
 	for (t = zopt_threads - 1; t >= 0; t--) {
-		thread_join(tid[t]->t_tid);
+		thread_join(tid[t]);
 		if (t < zopt_datasets)
 			ztest_dataset_close(zs, t);
 	}
@@ -5238,7 +5232,7 @@ ztest_run(ztest_shared_t *zs)
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
 
-	umem_free(tid, zopt_threads * sizeof (kthread_t *));
+	umem_free(tid, zopt_threads * sizeof (kt_did_t));
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
