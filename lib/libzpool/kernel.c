@@ -191,13 +191,16 @@ zk_thread_exit(void)
 	pthread_mutex_unlock(&kthread_lock);
 
 	pthread_cond_broadcast(&kthread_cond);
-	pthread_exit(NULL);
+	pthread_exit((void *)TS_MAGIC);
 }
 
 void
 zk_thread_join(kt_did_t tid)
 {
-	pthread_join((pthread_t)tid, NULL);
+	void *ret;
+
+	pthread_join((pthread_t)tid, &ret);
+	VERIFY3P(ret, ==, (void *)TS_MAGIC);
 }
 
 /*
