@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack vn_open
+
+We should not put a 4k maxpathlen buffer on the stack, instead
+locate it to the heap.  Even in user space we run ztest with 8K
+stacks to verify correctness
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
