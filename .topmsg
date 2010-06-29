@@ -1,0 +1,6 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack traverse_impl
+
+Stack use reduced from 560 bytes to 128 bytes.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
