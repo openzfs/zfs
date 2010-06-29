@@ -1034,7 +1034,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	dsl_dir_t *dd;
 	uint64_t obj;
 	struct dsl_ds_destroyarg dsda = { 0 };
-	dsl_dataset_t dummy_ds = { 0 };
+	dsl_dataset_t *dummy_ds;
 
 	dsda.ds = ds;
 
@@ -1054,8 +1054,9 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	}
 
 	dd = ds->ds_dir;
-	dummy_ds.ds_dir = dd;
-	dummy_ds.ds_object = ds->ds_object;
+	dummy_ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
+	dummy_ds->ds_dir = dd;
+	dummy_ds->ds_object = ds->ds_object;
 
 	/*
 	 * Check for errors and mark this ds as inconsistent, in
@@ -1064,11 +1065,11 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	err = dsl_sync_task_do(dd->dd_pool, dsl_dataset_destroy_begin_check,
 	    dsl_dataset_destroy_begin_sync, ds, NULL, 0);
 	if (err)
-		goto out;
+		goto out_free;
 
 	err = dmu_objset_from_ds(ds, &os);
 	if (err)
-		goto out;
+		goto out_free;
 
 	/*
 	 * remove the objects in open context, so that we won't
@@ -1105,14 +1106,14 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	}
 
 	if (err != ESRCH)
-		goto out;
+		goto out_free;
 
 	rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
 	err = dsl_dir_open_obj(dd->dd_pool, dd->dd_object, NULL, FTAG, &dd);
 	rw_exit(&dd->dd_pool->dp_config_rwlock);
 
 	if (err)
-		goto out;
+		goto out_free;
 
 	/*
 	 * Blow away the dsl_dir + head dataset.
@@ -1128,7 +1129,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 			err = dsl_dataset_origin_rm_prep(&dsda, tag);
 			if (err) {
 				dsl_dir_close(dd, FTAG);
-				goto out;
+				goto out_free;
 			}
 		}
 
@@ -1136,7 +1137,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 		dsl_sync_task_create(dstg, dsl_dataset_destroy_check,
 		    dsl_dataset_destroy_sync, &dsda, tag, 0);
 		dsl_sync_task_create(dstg, dsl_dir_destroy_check,
-		    dsl_dir_destroy_sync, &dummy_ds, FTAG, 0);
+		    dsl_dir_destroy_sync, dummy_ds, FTAG, 0);
 		err = dsl_sync_task_group_wait(dstg);
 		dsl_sync_task_group_destroy(dstg);
 
@@ -1159,6 +1160,9 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	/* if it is successful, dsl_dir_destroy_sync will close the dd */
 	if (err)
 		dsl_dir_close(dd, FTAG);
+
+out_free:
+	kmem_free(dummy_ds, sizeof (dsl_dataset_t));
 out:
 	dsl_dataset_disown(ds, tag);
 	return (err);
