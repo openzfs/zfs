@@ -288,7 +288,8 @@ AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing -Werror \
 	-D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
-	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
+	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\" \
+	-Wframe-larger-than=1024
 ztest_SOURCES = \
 	${top_srcdir}/cmd/ztest/ztest.c
 

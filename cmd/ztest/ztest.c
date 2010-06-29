@@ -4822,10 +4822,14 @@ static void
 ztest_run_zdb(char *pool)
 {
 	int status;
-	char bin[MAXPATHLEN + MAXNAMELEN + 20];
-	char zdb[MAXPATHLEN + MAXNAMELEN + 20];
-	char zbuf[1024];
+	char *bin;
+	char *zdb;
+	char *zbuf;
 	FILE *fp;
+
+	bin = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
+	zdb = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
+	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
 	/* Designed to be run exclusively in the development tree */
 	VERIFY(realpath(getexecname(), bin) != NULL);
@@ -4850,13 +4854,17 @@ ztest_run_zdb(char *pool)
 	status = pclose(fp);
 
 	if (status == 0)
-		return;
+		goto out;
 
 	ztest_dump_core = 0;
 	if (WIFEXITED(status))
 		fatal(0, "'%s' exit code %d", zdb, WEXITSTATUS(status));
 	else
 		fatal(0, "'%s' died with signal %d", zdb, WTERMSIG(status));
+out:
+	umem_free(bin, MAXPATHLEN + MAXNAMELEN + 20);
+	umem_free(zdb, MAXPATHLEN + MAXNAMELEN + 20);
+	umem_free(zbuf, 1024);
 }
 
 static void
