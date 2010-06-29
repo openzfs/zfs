@@ -191,13 +191,16 @@ zk_thread_exit(void)
 	pthread_mutex_unlock(&kthread_lock);
 
 	pthread_cond_broadcast(&kthread_cond);
-	pthread_exit(NULL);
+	pthread_exit((void *)TS_MAGIC);
 }
 
 void
 zk_thread_join(kt_did_t tid)
 {
-	pthread_join((pthread_t)tid, NULL);
+	void *ret;
+
+	pthread_join((pthread_t)tid, &ret);
+	VERIFY3P(ret, ==, (void *)TS_MAGIC);
 }
 
 /*
@@ -507,9 +510,11 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	int fd;
 	vnode_t *vp;
 	int old_umask;
-	char realpath[MAXPATHLEN];
+	char *realpath;
 	struct stat64 st;
 	int err;
+
+	realpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	/*
 	 * If we're accessing a real disk from userland, we need to use
@@ -524,11 +529,16 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	if (strncmp(path, "/dev/", 5) == 0) {
 		char *dsk;
 		fd = open64(path, O_RDONLY);
-		if (fd == -1)
-			return (errno);
+		if (fd == -1) {
+			err = errno;
+			free(realpath);
+			return (err);
+		}
 		if (fstat64(fd, &st) == -1) {
+			err = errno;
 			close(fd);
-			return (errno);
+			free(realpath);
+			return (err);
 		}
 		close(fd);
 		(void) sprintf(realpath, "%s", path);
@@ -538,8 +548,11 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 			    dsk + 1);
 	} else {
 		(void) sprintf(realpath, "%s", path);
-		if (!(flags & FCREAT) && stat64(realpath, &st) == -1)
-			return (errno);
+		if (!(flags & FCREAT) && stat64(realpath, &st) == -1) {
+			err = errno;
+			free(realpath);
+			return (err);
+		}
 	}
 
 	if (flags & FCREAT)
@@ -550,6 +563,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	 * FREAD and FWRITE to the corresponding O_RDONLY, O_WRONLY, and O_RDWR.
 	 */
 	fd = open64(realpath, flags - FREAD, mode);
+	free(realpath);
 
 	if (flags & FCREAT)
 		(void) umask(old_umask);

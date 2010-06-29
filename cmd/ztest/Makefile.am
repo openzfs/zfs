@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += -Wframe-larger-than=1024
+
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libspl/include \
 	-I${top_srcdir}/lib/libefi/include \
