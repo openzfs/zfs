@@ -1,11 +1,12 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
-Subject: [PATCH] fix pthreads
+Subject: [PATCH] fix stack ztest
 
-This is a portability change which removes the dependence of the Solaris
-thread library.  All locations where Solaris thread API was used before
-have been replaced with equivilant Solaris kernel style thread calls.
-In user space the kernel style threading API is implemented in term of
-the portable pthreads library.  This includes all threads, mutexs,
-condition variables, reader/writer locks, and taskqs.
+While ztest does run in user space we run it with the same stack
+restrictions it would have in kernel space.  This ensures that any
+stack related issues which would be hit in the kernel can be caught
+and debugged in user space instead.
+
+This patch is a first pass to limit the stack usage of every ztest
+function to 1024 bytes.  Subsequent updates can further reduce this
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
