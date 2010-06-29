@@ -1,0 +1,13 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack traverse_visitbp
+
+Due to  limited stack space recursive functions are frowned upon in
+the Linux kernel.  However, they often are the most elegant solution
+to a problem.  The following code preserves the recursive function
+traverse_visitbp() but moves the local variables AND function
+arguments to the heap to minimize the stack frame size.  Enough
+space is initially allocated on the stack for 20 levels of recursion.
+This change does ugly-up-the-code but it reduces the worst case
+usage from roughly 4160 bytes to 960 bytes on x86_64 archs.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
