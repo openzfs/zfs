@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dsl_dataset_destroy
+
+Move dsl_dataset_t local variable from the stack to the heap.
+This reduces the stack usage of this function from 2048 bytes
+to 176 bytes for x84_64 arches.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
