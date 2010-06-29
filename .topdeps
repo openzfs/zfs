@@ -10,7 +10,6 @@ fix-strncat
 fix-deadcode
 fix-acl
 fix-error-handling
-fix-pthreads
 fix-current
 fix-metaslab
 fix-kstat-xuio
@@ -23,3 +22,4 @@ fix-stack-dsl_dataset_destroy
 fix-stack-vn_open
 fix-stack-traverse_impl
 fix-stack-traverse_visitbp
+fix-stack-ztest
