@@ -19,3 +19,4 @@ fix-stack-dsl_dir_open_spa
 fix-stack-dsl_deleg_get
 fix-stack-noinline
 fix-stack-dmu_objset_snapshot
+fix-stack-dsl_dataset_destroy
