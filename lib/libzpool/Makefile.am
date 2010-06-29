@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CFLAGS += -Wframe-larger-than=1024
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 SUBDIRS = include
 DEFAULT_INCLUDES += \
