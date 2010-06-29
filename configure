@@ -17281,7 +17281,7 @@ _ACEOF
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
-		USERDEBUG="-DDEBUG"
+		USERDEBUG="-DDEBUG -fstack-check"
 	else
 		{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
