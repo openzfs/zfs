@@ -382,9 +382,10 @@ fatal(int do_perror, char *message, ...)
 {
 	va_list args;
 	int save_errno = errno;
-	char buf[FATAL_MSG_SZ];
+	char *buf;
 
 	(void) fflush(stdout);
+	buf = umem_alloc(FATAL_MSG_SZ, UMEM_NOFAIL);
 
 	va_start(args, message);
 	(void) sprintf(buf, "ztest: ");
@@ -649,9 +650,11 @@ ztest_get_ashift(void)
 static nvlist_t *
 make_vdev_file(char *path, char *aux, size_t size, uint64_t ashift)
 {
-	char pathbuf[MAXPATHLEN];
+	char *pathbuf;
 	uint64_t vdev;
 	nvlist_t *file;
+
+	pathbuf = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	if (ashift == 0)
 		ashift = ztest_get_ashift();
@@ -683,6 +686,7 @@ make_vdev_file(char *path, char *aux, size_t size, uint64_t ashift)
 	VERIFY(nvlist_add_string(file, ZPOOL_CONFIG_TYPE, VDEV_TYPE_FILE) == 0);
 	VERIFY(nvlist_add_string(file, ZPOOL_CONFIG_PATH, path) == 0);
 	VERIFY(nvlist_add_uint64(file, ZPOOL_CONFIG_ASHIFT, ashift) == 0);
+	umem_free(pathbuf, MAXPATHLEN);
 
 	return (file);
 }
@@ -825,7 +829,7 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 {
 	const char *propname = zfs_prop_to_name(prop);
 	const char *valname;
-	char setpoint[MAXPATHLEN];
+	char *setpoint;
 	uint64_t curval;
 	int error;
 
@@ -839,6 +843,7 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 	}
 	ASSERT3U(error, ==, 0);
 
+	setpoint = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	VERIFY3U(dsl_prop_get(osname, propname, sizeof (curval),
 	    1, &curval, setpoint), ==, 0);
 
@@ -847,6 +852,7 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 		(void) printf("%s %s = %s at '%s'\n",
 		    osname, propname, valname, setpoint);
 	}
+	umem_free(setpoint, MAXPATHLEN);
 
 	return (error);
 }
@@ -2230,8 +2236,11 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 	vdev_t *rvd = spa->spa_root_vdev;
 	spa_aux_vdev_t *sav;
 	char *aux;
+	char *path;
 	uint64_t guid = 0;
 	int error;
+
+	path = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	if (ztest_random(2) == 0) {
 		sav = &spa->spa_spares;
@@ -2256,7 +2265,6 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		 */
 		zs->zs_vdev_aux = 0;
 		for (;;) {
-			char path[MAXPATHLEN];
 			int c;
 			(void) sprintf(path, ztest_aux_template, zopt_dir,
 			    zopt_pool, aux, zs->zs_vdev_aux);
@@ -2298,6 +2306,8 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 	}
 
 	mutex_exit(&zs->zs_vdev_lock);
+
+	umem_free(path, MAXPATHLEN);
 }
 
 /*
@@ -2414,12 +2424,15 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	uint64_t ashift = ztest_get_ashift();
 	uint64_t oldguid, pguid;
 	size_t oldsize, newsize;
-	char oldpath[MAXPATHLEN], newpath[MAXPATHLEN];
+	char *oldpath, *newpath;
 	int replacing;
 	int oldvd_has_siblings = B_FALSE;
 	int newvd_is_spare = B_FALSE;
 	int oldvd_is_log;
 	int error, expected_error;
+
+	oldpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&zs->zs_vdev_lock);
 	leaves = MAX(zs->zs_mirrors, 1) * zopt_raidz;
@@ -2482,8 +2495,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP)
 			fatal(0, "detach (%s) returned %d", oldpath, error);
-		mutex_exit(&zs->zs_vdev_lock);
-		return;
+		goto out;
 	}
 
 	/*
@@ -2574,8 +2586,11 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		    oldpath, (longlong_t)oldsize, newpath,
 		    (longlong_t)newsize, replacing, error, expected_error);
 	}
-
+out:
 	mutex_exit(&zs->zs_vdev_lock);
+
+	umem_free(oldpath, MAXPATHLEN);
+	umem_free(newpath, MAXPATHLEN);
 }
 
 /*
@@ -2921,13 +2936,16 @@ void
 ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
 	ztest_shared_t *zs = ztest_shared;
-	ztest_ds_t zdtmp;
+	ztest_ds_t *zdtmp;
 	int iters;
 	int error;
 	objset_t *os, *os2;
-	char name[MAXNAMELEN];
+	char *name;
 	zilog_t *zilog;
 	int i;
+
+	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
+	name = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
 
 	(void) rw_enter(&zs->zs_name_lock, RW_READER);
 
@@ -2941,9 +2959,9 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	if (ztest_random(2) == 0 &&
 	    dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, FTAG, &os) == 0) {
-		ztest_zd_init(&zdtmp, os);
-		zil_replay(os, &zdtmp, ztest_replay_vector);
-		ztest_zd_fini(&zdtmp);
+		ztest_zd_init(zdtmp, os);
+		zil_replay(os, zdtmp, ztest_replay_vector);
+		ztest_zd_fini(zdtmp);
 		dmu_objset_disown(os, FTAG);
 	}
 
@@ -2967,8 +2985,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	if (error) {
 		if (error == ENOSPC) {
 			ztest_record_enospc(FTAG);
-			(void) rw_exit(&zs->zs_name_lock);
-			return;
+			goto out;
 		}
 		fatal(0, "dmu_objset_create(%s) = %d", name, error);
 	}
@@ -2976,7 +2993,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	VERIFY3U(0, ==,
 	    dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, FTAG, &os));
 
-	ztest_zd_init(&zdtmp, os);
+	ztest_zd_init(zdtmp, os);
 
 	/*
 	 * Open the intent log for it.
@@ -2989,7 +3006,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	iters = ztest_random(5);
 	for (i = 0; i < iters; i++) {
-		ztest_dmu_object_alloc_free(&zdtmp, id);
+		ztest_dmu_object_alloc_free(zdtmp, id);
 		if (ztest_random(iters) == 0)
 			(void) ztest_snapshot_create(name, i);
 	}
@@ -3014,9 +3031,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 
 	zil_close(zilog);
 	dmu_objset_disown(os, FTAG);
-	ztest_zd_fini(&zdtmp);
-
+	ztest_zd_fini(zdtmp);
+out:
 	(void) rw_exit(&zs->zs_name_lock);
+
+	umem_free(name, MAXNAMELEN);
+	umem_free(zdtmp, sizeof (ztest_ds_t));
 }
 
 /*
@@ -3039,12 +3059,18 @@ ztest_dmu_snapshot_create_destroy(ztest_ds_t *zd, uint64_t id)
 void
 ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 {
-	char snap1name[MAXNAMELEN];
-	char clone1name[MAXNAMELEN];
-	char snap2name[MAXNAMELEN];
-	char clone2name[MAXNAMELEN];
-	char snap3name[MAXNAMELEN];
+	char *snap1name;
+	char *clone1name;
+	char *snap2name;
+	char *clone2name;
+	char *snap3name;
 	int error;
+
+	snap1name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	clone1name = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	snap2name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	clone2name = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	snap3name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
 
 	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu",
 	    osname, (u_longlong_t)id);
@@ -3072,6 +3098,12 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 	error = dmu_objset_destroy(snap1name, B_FALSE);
 	if (error && error != ENOENT)
 		fatal(0, "dmu_objset_destroy(%s) = %d", snap1name, error);
+
+	umem_free(snap1name, MAXNAMELEN);
+	umem_free(clone1name, MAXNAMELEN);
+	umem_free(snap2name, MAXNAMELEN);
+	umem_free(clone2name, MAXNAMELEN);
+	umem_free(snap3name, MAXNAMELEN);
 }
 
 /*
@@ -3083,13 +3115,19 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 	ztest_shared_t *zs = ztest_shared;
 	objset_t *clone;
 	dsl_dataset_t *ds;
-	char snap1name[MAXNAMELEN];
-	char clone1name[MAXNAMELEN];
-	char snap2name[MAXNAMELEN];
-	char clone2name[MAXNAMELEN];
-	char snap3name[MAXNAMELEN];
+	char *snap1name;
+	char *clone1name;
+	char *snap2name;
+	char *clone2name;
+	char *snap3name;
 	char *osname = zd->zd_name;
 	int error;
+
+	snap1name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	clone1name = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	snap2name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	clone2name = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	snap3name  = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
 
 	(void) rw_enter(&zs->zs_name_lock, RW_READER);
 
@@ -3177,7 +3215,15 @@ out:
 	ztest_dsl_dataset_cleanup(osname, id);
 
 	(void) rw_exit(&zs->zs_name_lock);
+
+	umem_free(snap1name, MAXNAMELEN);
+	umem_free(clone1name, MAXNAMELEN);
+	umem_free(snap2name, MAXNAMELEN);
+	umem_free(clone2name, MAXNAMELEN);
+	umem_free(snap3name, MAXNAMELEN);
 }
+
+#define OD_ARRAY_SIZE	4
 
 /*
  * Verify that dmu_object_{alloc,free} work as expected.
@@ -3185,23 +3231,30 @@ out:
 void
 ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 {
-	ztest_od_t od[4];
-	int batchsize = sizeof (od) / sizeof (od[0]);
+	ztest_od_t *od;
+	int batchsize;
+	int size;
 	int b;
 
+	size = sizeof(ztest_od_t) * OD_ARRAY_SIZE;
+	od = umem_alloc(size, UMEM_NOFAIL);
+	batchsize = OD_ARRAY_SIZE;
+
 	for (b = 0; b < batchsize; b++)
-		ztest_od_init(&od[b], id, FTAG, b, DMU_OT_UINT64_OTHER, 0, 0);
+		ztest_od_init(od + b, id, FTAG, b, DMU_OT_UINT64_OTHER, 0, 0);
 
 	/*
 	 * Destroy the previous batch of objects, create a new batch,
 	 * and do some I/O on the new objects.
 	 */
-	if (ztest_object_init(zd, od, sizeof (od), B_TRUE) != 0)
+	if (ztest_object_init(zd, od, size, B_TRUE) != 0)
 		return;
 
 	while (ztest_random(4 * batchsize) != 0)
 		ztest_io(zd, od[ztest_random(batchsize)].od_object,
 		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
+
+	umem_free(od, size);
 }
 
 /*
@@ -4426,8 +4479,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	uint64_t leaves;
 	uint64_t bad = 0x1990c0ffeedecadeull;
 	uint64_t top, leaf;
-	char path0[MAXPATHLEN];
-	char pathrand[MAXPATHLEN];
+	char *path0;
+	char *pathrand;
 	size_t fsize;
 	int bshift = SPA_MAXBLOCKSHIFT + 2;	/* don't scrog all labels */
 	int iters = 1000;
@@ -4436,6 +4489,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	vdev_t *vd0 = NULL;
 	uint64_t guid0 = 0;
 	boolean_t islog = B_FALSE;
+
+	path0 = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&zs->zs_vdev_lock);
 	maxfaults = MAXFAULTS();
@@ -4503,7 +4559,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 
 		if (sav->sav_count == 0) {
 			spa_config_exit(spa, SCL_STATE, FTAG);
-			return;
+			goto out;
 		}
 		vd0 = sav->sav_vdevs[ztest_random(sav->sav_count)];
 		guid0 = vd0->vdev_guid;
@@ -4548,7 +4604,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	}
 
 	if (maxfaults == 0)
-		return;
+		goto out;
 
 	/*
 	 * We have at least single-fault tolerance, so inject data corruption.
@@ -4556,7 +4612,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	fd = open(pathrand, O_RDWR);
 
 	if (fd == -1)	/* we hit a gap in the device namespace */
-		return;
+		goto out;
 
 	fsize = lseek(fd, 0, SEEK_END);
 
@@ -4572,7 +4628,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		if (mirror_save != zs->zs_mirrors) {
 			mutex_exit(&zs->zs_vdev_lock);
 			(void) close(fd);
-			return;
+			goto out;
 		}
 
 		if (pwrite(fd, &bad, sizeof (bad), offset) != sizeof (bad))
@@ -4587,6 +4643,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	}
 
 	(void) close(fd);
+out:
+	umem_free(path0, MAXPATHLEN);
+	umem_free(pathrand, MAXPATHLEN);
 }
 
 /*
