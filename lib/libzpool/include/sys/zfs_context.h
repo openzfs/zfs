@@ -197,7 +197,8 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * Threads
  */
-#define TS_RUN			0x00000002
+#define	TS_MAGIC		0x72f158ab4261e538ull
+#define	TS_RUN			0x00000002
 #ifdef _linux_
 #define	STACK_SIZE		8192	/* Linux x86 and amd64 */
 #else
@@ -221,7 +222,6 @@ typedef struct kthread {
 	void *		t_arg;
 } kthread_t;
 
-/* XXX tsd_create()/tsd_destroy() missing */
 #define	tsd_get(key)			pthread_getspecific(key)
 #define	tsd_set(key, val)		pthread_setspecific(key, val)
 #define	curthread			zk_thread_current()
