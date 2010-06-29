@@ -77,9 +77,7 @@ struct traverse_visitbp_data {
 	int tv_lasterr;
 	int tv_i;
 	int tv_epb;
-#ifdef DEBUG
 	int tv_depth;
-#endif
 };
 
 static inline int traverse_visitbp(struct traverse_data *td, const
