@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += -Wframe-larger-than=1024
+
 SUBDIRS = include
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libzpool/include \
