@@ -24,7 +24,7 @@ if test "$zfs_ac_debug" = yes; then
 		[Define to 1 to enable debug tracing])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG "
 		HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG "
-		USERDEBUG="-DDEBUG"
+		USERDEBUG="-DDEBUG -fstack-check"
 	else
 		AC_MSG_RESULT([no])
 		AC_DEFINE([NDEBUG], [1],
