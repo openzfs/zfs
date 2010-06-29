@@ -1,6 +1,8 @@
 From: Brian Behlendorf <behlendorf1@llnl.gov>
 Subject: [PATCH] linux ztest
 
-Minor changes to ztest for this environment.
+Minor changes to ztest for this environment.  These including
+updating ztest to run in the local development tree, as well
+as relocating some local variables in this function to the heap.
 
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
