@@ -356,43 +356,54 @@ static int
 traverse_impl(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
     uint64_t txg_start, int flags, blkptr_cb_t func, void *arg)
 {
-	struct traverse_data td;
-	struct prefetch_data pd = { 0 };
-	zbookmark_t czb;
+	struct traverse_data *td;
+	struct prefetch_data *pd;
+	zbookmark_t *czb;
 	int err;
 
-	td.td_spa = spa;
-	td.td_objset = objset;
-	td.td_rootbp = rootbp;
-	td.td_min_txg = txg_start;
-	td.td_func = func;
-	td.td_arg = arg;
-	td.td_pfd = &pd;
-	td.td_flags = flags;
+	td = kmem_alloc(sizeof(struct traverse_data), KM_SLEEP);
+	pd = kmem_alloc(sizeof(struct prefetch_data), KM_SLEEP);
+	czb = kmem_alloc(sizeof(zbookmark_t), KM_SLEEP);
 
-	pd.pd_blks_max = 100;
-	pd.pd_flags = flags;
-	mutex_init(&pd.pd_mtx, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&pd.pd_cv, NULL, CV_DEFAULT, NULL);
+	td->td_spa = spa;
+	td->td_objset = objset;
+	td->td_rootbp = rootbp;
+	td->td_min_txg = txg_start;
+	td->td_func = func;
+	td->td_arg = arg;
+	td->td_pfd = pd;
+	td->td_flags = flags;
+
+	pd->pd_blks_max = 100;
+	pd->pd_blks_fetched = 0;
+	pd->pd_flags = flags;
+	pd->pd_cancel = B_FALSE;
+	pd->pd_exited = B_FALSE;
+	mutex_init(&pd->pd_mtx, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&pd->pd_cv, NULL, CV_DEFAULT, NULL);
 
 	if (!(flags & TRAVERSE_PREFETCH) ||
 	    0 == taskq_dispatch(system_taskq, traverse_prefetch_thread,
-	    &td, TQ_NOQUEUE))
-		pd.pd_exited = B_TRUE;
+	    td, TQ_NOQUEUE))
+		pd->pd_exited = B_TRUE;
 
-	SET_BOOKMARK(&czb, objset,
+	SET_BOOKMARK(czb, objset,
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
-	err = traverse_visitbp(&td, NULL, NULL, rootbp, &czb);
+	err = traverse_visitbp(td, NULL, NULL, rootbp, czb);
 
-	mutex_enter(&pd.pd_mtx);
-	pd.pd_cancel = B_TRUE;
-	cv_broadcast(&pd.pd_cv);
-	while (!pd.pd_exited)
-		cv_wait(&pd.pd_cv, &pd.pd_mtx);
-	mutex_exit(&pd.pd_mtx);
+	mutex_enter(&pd->pd_mtx);
+	pd->pd_cancel = B_TRUE;
+	cv_broadcast(&pd->pd_cv);
+	while (!pd->pd_exited)
+		cv_wait(&pd->pd_cv, &pd->pd_mtx);
+	mutex_exit(&pd->pd_mtx);
 
-	mutex_destroy(&pd.pd_mtx);
-	cv_destroy(&pd.pd_cv);
+	mutex_destroy(&pd->pd_mtx);
+	cv_destroy(&pd->pd_cv);
+
+	kmem_free(czb, sizeof(zbookmark_t));
+	kmem_free(pd, sizeof(struct prefetch_data));
+	kmem_free(td, sizeof(struct traverse_data));
 
 	return (err);
 }
