@@ -35,7 +35,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-DIST_COMMON = README $(am__configure_deps) $(noinst_HEADERS) \
+DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/zfs-modules.spec.in $(srcdir)/zfs.spec.in \
 	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/rpm.am \
@@ -69,6 +69,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
+	$(top_srcdir)/config/user-frame-larger-than.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
 	$(top_srcdir)/config/user-libshare.m4 \
@@ -176,6 +177,7 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+FRAME_LARGER_THAN = @FRAME_LARGER_THAN@
 GREP = @GREP@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
