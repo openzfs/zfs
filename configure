@@ -11542,32 +11542,35 @@ $as_echo "$kernelbuild" >&6; }
 
 	{ $as_echo "$as_me:$LINENO: checking kernel source version" >&5
 $as_echo_n "checking kernel source version... " >&6; }
-	if test -r $kernelbuild/include/linux/version.h &&
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/version.h; then
-
-		kernsrcver=`(echo "#include <linux/version.h>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
-
-	elif test -r $kernelbuild/include/linux/utsrelease.h &&
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/utsrelease.h; then
-
-		kernsrcver=`(echo "#include <linux/utsrelease.h>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
+	utsrelease1=$kernelbuild/include/linux/version.h
+	utsrelease2=$kernelbuild/include/linux/utsrelease.h
+	utsrelease3=$kernelbuild/include/generated/utsrelease.h
+	if test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1; then
+		utsrelease=linux/version.h
+	elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+		utsrelease=linux/utsrelease.h
+	elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+		utsrelease=generated/utsrelease.h
 	fi
 
-	if test -z "$kernsrcver"; then
+	if test "$utsrelease"; then
+		kernsrcver=`(echo "#include <$utsrelease>";
+		             echo "kernsrcver=UTS_RELEASE") |
+		             cpp -I $kernelbuild/include |
+		             grep "^kernsrcver=" | cut -d \" -f 2`
+
+		if test -z "$kernsrcver"; then
+			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
+$as_echo "Not found" >&6; }
+			{ { $as_echo "$as_me:$LINENO: error: *** Cannot determine kernel version." >&5
+$as_echo "$as_me: error: *** Cannot determine kernel version." >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+	else
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
-		{ { $as_echo "$as_me:$LINENO: error:
-		*** Cannot determine the version of the linux kernel source.
-		*** Please prepare the kernel before running this script" >&5
-$as_echo "$as_me: error:
-		*** Cannot determine the version of the linux kernel source.
-		*** Please prepare the kernel before running this script" >&2;}
+		{ { $as_echo "$as_me:$LINENO: error: *** Cannot find UTS_RELEASE definition." >&5
+$as_echo "$as_me: error: *** Cannot find UTS_RELEASE definition." >&2;}
    { (exit 1); exit 1; }; }
 	fi
 
@@ -14936,32 +14939,35 @@ $as_echo "$kernelbuild" >&6; }
 
 	{ $as_echo "$as_me:$LINENO: checking kernel source version" >&5
 $as_echo_n "checking kernel source version... " >&6; }
-	if test -r $kernelbuild/include/linux/version.h &&
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/version.h; then
-
-		kernsrcver=`(echo "#include <linux/version.h>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
-
-	elif test -r $kernelbuild/include/linux/utsrelease.h &&
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/utsrelease.h; then
-
-		kernsrcver=`(echo "#include <linux/utsrelease.h>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
+	utsrelease1=$kernelbuild/include/linux/version.h
+	utsrelease2=$kernelbuild/include/linux/utsrelease.h
+	utsrelease3=$kernelbuild/include/generated/utsrelease.h
+	if test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1; then
+		utsrelease=linux/version.h
+	elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+		utsrelease=linux/utsrelease.h
+	elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+		utsrelease=generated/utsrelease.h
 	fi
 
-	if test -z "$kernsrcver"; then
+	if test "$utsrelease"; then
+		kernsrcver=`(echo "#include <$utsrelease>";
+		             echo "kernsrcver=UTS_RELEASE") |
+		             cpp -I $kernelbuild/include |
+		             grep "^kernsrcver=" | cut -d \" -f 2`
+
+		if test -z "$kernsrcver"; then
+			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
+$as_echo "Not found" >&6; }
+			{ { $as_echo "$as_me:$LINENO: error: *** Cannot determine kernel version." >&5
+$as_echo "$as_me: error: *** Cannot determine kernel version." >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+	else
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
-		{ { $as_echo "$as_me:$LINENO: error:
-		*** Cannot determine the version of the linux kernel source.
-		*** Please prepare the kernel before running this script" >&5
-$as_echo "$as_me: error:
-		*** Cannot determine the version of the linux kernel source.
-		*** Please prepare the kernel before running this script" >&2;}
+		{ { $as_echo "$as_me:$LINENO: error: *** Cannot find UTS_RELEASE definition." >&5
+$as_echo "$as_me: error: *** Cannot find UTS_RELEASE definition." >&2;}
    { (exit 1); exit 1; }; }
 	fi
 

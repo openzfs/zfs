@@ -146,28 +146,30 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_MSG_RESULT([$kernelbuild])
 
 	AC_MSG_CHECKING([kernel source version])
-	if test -r $kernelbuild/include/linux/version.h && 
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/version.h; then
-
-		kernsrcver=`(echo "#include <linux/version.h>"; 
-		             echo "kernsrcver=UTS_RELEASE") | 
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
-
-	elif test -r $kernelbuild/include/linux/utsrelease.h && 
-		fgrep -q UTS_RELEASE $kernelbuild/include/linux/utsrelease.h; then
-
-		kernsrcver=`(echo "#include <linux/utsrelease.h>"; 
-		             echo "kernsrcver=UTS_RELEASE") | 
-		             cpp -I $kernelbuild/include |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
+	utsrelease1=$kernelbuild/include/linux/version.h
+	utsrelease2=$kernelbuild/include/linux/utsrelease.h
+	utsrelease3=$kernelbuild/include/generated/utsrelease.h
+	if test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1; then
+		utsrelease=linux/version.h
+	elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+		utsrelease=linux/utsrelease.h
+	elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+		utsrelease=generated/utsrelease.h
 	fi
 
-	if test -z "$kernsrcver"; then
+	if test "$utsrelease"; then
+		kernsrcver=`(echo "#include <$utsrelease>";
+		             echo "kernsrcver=UTS_RELEASE") | 
+		             cpp -I $kernelbuild/include |
+		             grep "^kernsrcver=" | cut -d \" -f 2`
+
+		if test -z "$kernsrcver"; then
+			AC_MSG_RESULT([Not found])
+			AC_MSG_ERROR([*** Cannot determine kernel version.])
+		fi
+	else
 		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([
-		*** Cannot determine the version of the linux kernel source.
-		*** Please prepare the kernel before running this script])
+		AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
 	fi
 
 	AC_MSG_RESULT([$kernsrcver])
