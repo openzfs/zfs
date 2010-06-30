@@ -45,7 +45,14 @@
 #define XVA_MAPSIZE     3
 #define XVA_MAGIC       0x78766174
 
-#define O_DSYNC		040000000
+/*
+ * Prior to linux-2.6.33 only O_DSYNC semantics were implemented and
+ * they used the O_SYNC flag.  As of linux-2.6.33 the this behavior
+ * was properly split in to O_SYNC and O_DSYNC respectively.
+ */
+#ifndef O_DSYNC
+#define O_DSYNC		O_SYNC
+#endif
 
 #define FREAD		1
 #define FWRITE		2
