@@ -52,6 +52,7 @@ static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 #endif /* DEBUG_KMEM */
 struct proc_dir_entry *proc_spl_kstat = NULL;
 
+#ifdef HAVE_CTL_NAME
 #ifdef HAVE_CTL_UNNUMBERED
 
 #define CTL_SPL			CTL_UNNUMBERED
@@ -153,6 +154,7 @@ enum {
 #endif
 };
 #endif /* HAVE_CTL_UNNUMBERED */
+#endif /* HAVE_CTL_NAME */
 
 static int
 proc_copyin_string(char *kbuffer, int kbuffer_size,
@@ -661,7 +663,7 @@ static struct file_operations proc_slab_operations = {
 
 static struct ctl_table spl_debug_table[] = {
         {
-                .ctl_name = CTL_DEBUG_SUBSYS,
+                CTL_NAME    (CTL_DEBUG_SUBSYS)
                 .procname = "subsystem",
                 .data     = &spl_debug_subsys,
                 .maxlen   = sizeof(unsigned long),
@@ -669,7 +671,7 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                .ctl_name = CTL_DEBUG_MASK,
+                CTL_NAME    (CTL_DEBUG_MASK)
                 .procname = "mask",
                 .data     = &spl_debug_mask,
                 .maxlen   = sizeof(unsigned long),
@@ -677,7 +679,7 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                .ctl_name = CTL_DEBUG_PRINTK,
+                CTL_NAME    (CTL_DEBUG_PRINTK)
                 .procname = "printk",
                 .data     = &spl_debug_printk,
                 .maxlen   = sizeof(unsigned long),
@@ -685,13 +687,13 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dobitmasks
         },
         {
-                .ctl_name = CTL_DEBUG_MB,
+                CTL_NAME    (CTL_DEBUG_MB)
                 .procname = "mb",
                 .mode     = 0644,
                 .proc_handler = &proc_debug_mb,
         },
         {
-                .ctl_name = CTL_DEBUG_BINARY,
+                CTL_NAME    (CTL_DEBUG_BINARY)
                 .procname = "binary",
                 .data     = &spl_debug_binary,
                 .maxlen   = sizeof(int),
@@ -699,7 +701,7 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_DEBUG_CATASTROPHE,
+                CTL_NAME    (CTL_DEBUG_CATASTROPHE)
                 .procname = "catastrophe",
                 .data     = &spl_debug_catastrophe,
                 .maxlen   = sizeof(int),
@@ -707,7 +709,7 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_DEBUG_PANIC_ON_BUG,
+                CTL_NAME    (CTL_DEBUG_PANIC_ON_BUG)
                 .procname = "panic_on_bug",
                 .data     = &spl_debug_panic_on_bug,
                 .maxlen   = sizeof(int),
@@ -715,7 +717,7 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec
         },
         {
-                .ctl_name = CTL_DEBUG_PATH,
+                CTL_NAME    (CTL_DEBUG_PATH)
                 .procname = "path",
                 .data     = spl_debug_file_path,
                 .maxlen   = sizeof(spl_debug_file_path),
@@ -723,18 +725,18 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dostring,
         },
         {
-                .ctl_name = CTL_DEBUG_DUMP,
+                CTL_NAME    (CTL_DEBUG_DUMP)
                 .procname = "dump",
                 .mode     = 0200,
                 .proc_handler = &proc_dump_kernel,
         },
-        {       .ctl_name = CTL_DEBUG_FORCE_BUG,
+        {       CTL_NAME    (CTL_DEBUG_FORCE_BUG)
                 .procname = "force_bug",
                 .mode     = 0200,
                 .proc_handler = &proc_force_bug,
         },
         {
-                .ctl_name = CTL_CONSOLE_RATELIMIT,
+                CTL_NAME    (CTL_CONSOLE_RATELIMIT)
                 .procname = "console_ratelimit",
                 .data     = &spl_console_ratelimit,
                 .maxlen   = sizeof(int),
@@ -742,28 +744,28 @@ static struct ctl_table spl_debug_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_CONSOLE_MAX_DELAY_CS,
+                CTL_NAME    (CTL_CONSOLE_MAX_DELAY_CS)
                 .procname = "console_max_delay_centisecs",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_max_delay_cs,
         },
         {
-                .ctl_name = CTL_CONSOLE_MIN_DELAY_CS,
+                CTL_NAME    (CTL_CONSOLE_MIN_DELAY_CS)
                 .procname = "console_min_delay_centisecs",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_min_delay_cs,
         },
         {
-                .ctl_name = CTL_CONSOLE_BACKOFF,
+                CTL_NAME    (CTL_CONSOLE_BACKOFF)
                 .procname = "console_backoff",
                 .maxlen   = sizeof(int),
                 .mode     = 0644,
                 .proc_handler = &proc_console_backoff,
         },
         {
-                .ctl_name = CTL_DEBUG_STACK_SIZE,
+                CTL_NAME    (CTL_DEBUG_STACK_SIZE)
                 .procname = "stack_max",
                 .data     = &spl_debug_stack,
                 .maxlen   = sizeof(int),
@@ -775,7 +777,7 @@ static struct ctl_table spl_debug_table[] = {
 
 static struct ctl_table spl_vm_table[] = {
         {
-                .ctl_name = CTL_VM_MINFREE,
+                CTL_NAME    (CTL_VM_MINFREE)
                 .procname = "minfree",
                 .data     = &minfree,
                 .maxlen   = sizeof(int),
@@ -783,7 +785,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_DESFREE,
+                CTL_NAME    (CTL_VM_DESFREE)
                 .procname = "desfree",
                 .data     = &desfree,
                 .maxlen   = sizeof(int),
@@ -791,7 +793,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_LOTSFREE,
+                CTL_NAME    (CTL_VM_LOTSFREE)
                 .procname = "lotsfree",
                 .data     = &lotsfree,
                 .maxlen   = sizeof(int),
@@ -799,7 +801,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_NEEDFREE,
+                CTL_NAME    (CTL_VM_NEEDFREE)
                 .procname = "needfree",
                 .data     = &needfree,
                 .maxlen   = sizeof(int),
@@ -807,7 +809,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_SWAPFS_MINFREE,
+                CTL_NAME    (CTL_VM_SWAPFS_MINFREE)
                 .procname = "swapfs_minfree",
                 .data     = &swapfs_minfree,
                 .maxlen   = sizeof(int),
@@ -815,7 +817,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_SWAPFS_RESERVE,
+                CTL_NAME    (CTL_VM_SWAPFS_RESERVE)
                 .procname = "swapfs_reserve",
                 .data     = &swapfs_reserve,
                 .maxlen   = sizeof(int),
@@ -823,13 +825,13 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dointvec,
         },
         {
-                .ctl_name = CTL_VM_AVAILRMEM,
+                CTL_NAME    (CTL_VM_AVAILRMEM)
                 .procname = "availrmem",
                 .mode     = 0444,
                 .proc_handler = &proc_doavailrmem,
         },
         {
-                .ctl_name = CTL_VM_FREEMEM,
+                CTL_NAME    (CTL_VM_FREEMEM)
                 .procname = "freemem",
                 .data     = (void *)2,
                 .maxlen   = sizeof(int),
@@ -837,7 +839,7 @@ static struct ctl_table spl_vm_table[] = {
                 .proc_handler = &proc_dofreemem,
         },
         {
-                .ctl_name = CTL_VM_PHYSMEM,
+                CTL_NAME    (CTL_VM_PHYSMEM)
                 .procname = "physmem",
                 .data     = &physmem,
                 .maxlen   = sizeof(int),
@@ -850,7 +852,7 @@ static struct ctl_table spl_vm_table[] = {
 #ifdef DEBUG_KMEM
 static struct ctl_table spl_kmem_table[] = {
         {
-                .ctl_name = CTL_KMEM_KMEMUSED,
+                CTL_NAME    (CTL_KMEM_KMEMUSED)
                 .procname = "kmem_used",
                 .data     = &kmem_alloc_used,
 # ifdef HAVE_ATOMIC64_T
@@ -862,7 +864,7 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_domemused,
         },
         {
-                .ctl_name = CTL_KMEM_KMEMMAX,
+                CTL_NAME    (CTL_KMEM_KMEMMAX)
                 .procname = "kmem_max",
                 .data     = &kmem_alloc_max,
                 .maxlen   = sizeof(unsigned long),
@@ -872,7 +874,7 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_doulongvec_minmax,
         },
         {
-                .ctl_name = CTL_KMEM_VMEMUSED,
+                CTL_NAME    (CTL_KMEM_VMEMUSED)
                 .procname = "vmem_used",
                 .data     = &vmem_alloc_used,
 # ifdef HAVE_ATOMIC64_T
@@ -884,7 +886,7 @@ static struct ctl_table spl_kmem_table[] = {
                 .proc_handler = &proc_domemused,
         },
         {
-                .ctl_name = CTL_KMEM_VMEMMAX,
+                CTL_NAME    (CTL_KMEM_VMEMMAX)
                 .procname = "vmem_max",
                 .data     = &vmem_alloc_max,
                 .maxlen   = sizeof(unsigned long),
@@ -906,7 +908,7 @@ static struct ctl_table spl_table[] = {
          * sysctl(8) prefers to go via /proc for portability.
          */
         {
-                .ctl_name = CTL_VERSION,
+                CTL_NAME    (CTL_VERSION)
                 .procname = "version",
                 .data     = spl_version,
                 .maxlen   = sizeof(spl_version),
@@ -914,7 +916,7 @@ static struct ctl_table spl_table[] = {
                 .proc_handler = &proc_dostring,
         },
         {
-                .ctl_name = CTL_HOSTID,
+                CTL_NAME    (CTL_HOSTID)
                 .procname = "hostid",
                 .data     = &spl_hostid,
                 .maxlen   = sizeof(unsigned long),
@@ -922,7 +924,7 @@ static struct ctl_table spl_table[] = {
                 .proc_handler = &proc_dohostid,
         },
         {
-                .ctl_name = CTL_HW_SERIAL,
+                CTL_NAME    (CTL_HW_SERIAL)
                 .procname = "hw_serial",
                 .data     = hw_serial,
                 .maxlen   = sizeof(hw_serial),
@@ -931,7 +933,7 @@ static struct ctl_table spl_table[] = {
         },
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
         {
-                .ctl_name = CTL_KALLSYMS,
+                CTL_NAME    (CTL_KALLSYMS)
                 .procname = "kallsyms_lookup_name",
                 .data     = &spl_kallsyms_lookup_name_fn,
                 .maxlen   = sizeof(unsigned long),
@@ -940,27 +942,27 @@ static struct ctl_table spl_table[] = {
         },
 #endif
 	{
-		.ctl_name = CTL_SPL_DEBUG,
+		CTL_NAME    (CTL_SPL_DEBUG)
 		.procname = "debug",
 		.mode     = 0555,
 		.child    = spl_debug_table,
 	},
 	{
-		.ctl_name = CTL_SPL_VM,
+		CTL_NAME    (CTL_SPL_VM)
 		.procname = "vm",
 		.mode     = 0555,
 		.child    = spl_vm_table,
 	},
 #ifdef DEBUG_KMEM
 	{
-		.ctl_name = CTL_SPL_KMEM,
+		CTL_NAME    (CTL_SPL_KMEM)
 		.procname = "kmem",
 		.mode     = 0555,
 		.child    = spl_kmem_table,
 	},
 #endif
 	{
-		.ctl_name = CTL_SPL_KSTAT,
+		CTL_NAME    (CTL_SPL_KSTAT)
 		.procname = "kstat",
 		.mode     = 0555,
 		.child    = spl_kstat_table,
@@ -970,7 +972,7 @@ static struct ctl_table spl_table[] = {
 
 static struct ctl_table spl_dir[] = {
         {
-                .ctl_name = CTL_SPL,
+                CTL_NAME    (CTL_SPL)
                 .procname = "spl",
                 .mode     = 0555,
                 .child    = spl_table,
@@ -980,7 +982,7 @@ static struct ctl_table spl_dir[] = {
 
 static struct ctl_table spl_root[] = {
 	{
-	.ctl_name = CTL_KERN,
+	CTL_NAME    (CTL_KERN)
 	.procname = "kernel",
 	.mode = 0555,
 	.child = spl_dir,

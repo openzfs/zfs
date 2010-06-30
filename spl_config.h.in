@@ -48,6 +48,9 @@
 /* struct cred exists */
 #undef HAVE_CRED_STRUCT
 
+/* struct ctl_table has ctl_name */
+#undef HAVE_CTL_NAME
+
 /* unnumbered sysctl support exists */
 #undef HAVE_CTL_UNNUMBERED
 

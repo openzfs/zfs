@@ -36,6 +36,12 @@
 #define spl_unregister_sysctl_table(t)	unregister_sysctl_table(t)
 #endif /* CONFIG_SYSCTL */
 
+#ifdef HAVE_CTL_NAME
+#define CTL_NAME(cname)                 .ctl_name = (cname),
+#else
+#define CTL_NAME(cname)
+#endif
+
 extern struct proc_dir_entry *proc_spl_kstat;
 struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
 					   const char *str);

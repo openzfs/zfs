@@ -36,6 +36,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PATH_IN_NAMEIDATA
 	SPL_AC_TASK_CURR
 	SPL_AC_CTL_UNNUMBERED
+	SPL_AC_CTL_NAME
 	SPL_AC_FLS64
 	SPL_AC_DEVICE_CREATE
 	SPL_AC_5ARGS_DEVICE_CREATE
@@ -636,6 +637,25 @@ AC_DEFUN([SPL_AC_CTL_UNNUMBERED],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CTL_UNNUMBERED, 1,
 		          [unnumbered sysctl support exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.33 API change,
+dnl # Removed .ctl_name from struct ctl_table.
+dnl #
+AC_DEFUN([SPL_AC_CTL_NAME], [
+	AC_MSG_CHECKING([whether struct ctl_table has ctl_name])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sysctl.h>
+	],[
+		struct ctl_table ctl;
+		ctl.ctl_name = 0;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_CTL_NAME, 1, [struct ctl_table has ctl_name])
 	],[
 		AC_MSG_RESULT(no)
 	])
