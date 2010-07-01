@@ -74,6 +74,7 @@ typedef struct taskq {
 	struct list_head        tq_free_list;  /* free task_t's */
 	struct list_head        tq_work_list;  /* work task_t's */
 	struct list_head        tq_pend_list;  /* pending task_t's */
+	struct list_head        tq_prio_list;  /* priority pending task_t's */
 	wait_queue_head_t       tq_work_waitq; /* new work waitq */
 	wait_queue_head_t       tq_wait_waitq; /* wait waitq */
 } taskq_t;
