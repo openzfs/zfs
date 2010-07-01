@@ -49,6 +49,10 @@
 #define SPLAT_TASKQ_TEST5_NAME		"order"
 #define SPLAT_TASKQ_TEST5_DESC		"Correct task ordering"
 
+#define SPLAT_TASKQ_TEST6_ID		0x0206
+#define SPLAT_TASKQ_TEST6_NAME		"front"
+#define SPLAT_TASKQ_TEST6_DESC		"Correct ordering with TQ_FRONT flag"
+
 #define SPLAT_TASKQ_ORDER_MAX		8
 
 typedef struct splat_taskq_arg {
@@ -386,13 +390,13 @@ out:
  * task ids which must have completed and their order.
  *
  *       +-----+       <--- taskq_wait_id(tq, 8) unblocks
- *       |     |            Required Completion Order: 1,2,4,5,3
+ *       |     |            Required Completion Order: 1,2,4,5,3,8,6,7
  * +-----+     |
  * |     |     |
  * |     |     +-----+
  * |     |     |  8  |
  * |     |     +-----+ <--- taskq_wait_id(tq, 3) unblocks
- * |     |  7  |     |      Required Completion Order: 1,2,4,5,3,8,6,7
+ * |     |  7  |     |      Required Completion Order: 1,2,4,5,3
  * |     +-----+     |
  * |  6  |     |     |
  * +-----+     |     |
@@ -432,23 +436,23 @@ splat_taskq_test5_func(void *arg)
 }
 
 static int
-splat_taskq_test5_order(splat_taskq_arg_t *tq_arg, int *order)
+splat_taskq_test_order(splat_taskq_arg_t *tq_arg, int *order)
 {
 	int i, j;
 
 	for (i = 0; i < SPLAT_TASKQ_ORDER_MAX; i++) {
 		if (tq_arg->order[i] != order[i]) {
-			splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST5_NAME,
+			splat_vprint(tq_arg->file, tq_arg->name,
 				     "Taskq '%s' incorrect completion "
 				     "order\n", tq_arg->name);
-			splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST5_NAME,
+			splat_vprint(tq_arg->file, tq_arg->name,
 				     "%s", "Expected { ");
 
 			for (j = 0; j < SPLAT_TASKQ_ORDER_MAX; j++)
 				splat_print(tq_arg->file, "%d ", order[j]);
 
 			splat_print(tq_arg->file, "%s", "}\n");
-			splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST5_NAME,
+			splat_vprint(tq_arg->file, tq_arg->name,
 				     "%s", "Got      { ");
 
 			for (j = 0; j < SPLAT_TASKQ_ORDER_MAX; j++)
@@ -460,7 +464,7 @@ splat_taskq_test5_order(splat_taskq_arg_t *tq_arg, int *order)
 		}
 	}
 
-	splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST5_NAME,
+	splat_vprint(tq_arg->file, tq_arg->name,
 		     "Taskq '%s' validated correct completion order\n",
 		     tq_arg->name);
 
@@ -519,16 +523,143 @@ splat_taskq_test5(struct file *file, void *arg)
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 3);
 	taskq_wait_id(tq, 3);
-	if ((rc = splat_taskq_test5_order(&tq_arg, order1)))
+	if ((rc = splat_taskq_test_order(&tq_arg, order1)))
 		goto out;
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 8);
 	taskq_wait_id(tq, 8);
-	rc = splat_taskq_test5_order(&tq_arg, order2);
+	rc = splat_taskq_test_order(&tq_arg, order2);
 
 out:
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME,
+		     "Taskq '%s' destroying\n", tq_arg.name);
+	taskq_destroy(tq);
+
+	return rc;
+}
+
+/*
+ * Create a single task queue with three threads.  Dispatch 8 tasks,
+ * setting TQ_FRONT on only the last three.  Sleep after
+ * dispatching tasks 1-3 to ensure they will run and hold the threads
+ * busy while we dispatch the remaining tasks.  Verify that tasks 6-8
+ * run before task 4-5.
+ *
+ * The following table shows each task id and how they will be
+ * scheduled.  Each rows represent one time unit and each column
+ * one of the three worker threads.
+ *
+ *       +-----+
+ *       |     |
+ * +-----+     |
+ * |     |  5  +-----+
+ * |     |     |     |
+ * |     +-----|     |
+ * |  4  |     |     |
+ * +-----+     |  8  |
+ * |     |     |     |
+ * |     |  7  +-----+
+ * |     |     |     |
+ * |     |-----+     |
+ * |  6  |     |     |
+ * +-----+     |     |
+ * |     |     |     |
+ * |  1  |  2  |  3  |
+ * +-----+-----+-----+
+ *
+ */
+static void
+splat_taskq_test6_func(void *arg)
+{
+	splat_taskq_id_t *tq_id = (splat_taskq_id_t *)arg;
+	splat_taskq_arg_t *tq_arg = tq_id->arg;
+	int factor;
+
+	/* Delays determined by above table */
+	switch (tq_id->id) {
+		default:		factor = 0;	break;
+		case 1:			factor = 2;	break;
+		case 2: case 4: case 5:	factor = 4;	break;
+		case 6: case 7: case 8:	factor = 5;	break;
+		case 3:			factor = 6;	break;
+	}
+
+	msleep(factor * 100);
+
+	splat_vprint(tq_arg->file, tq_arg->name,
+		     "Taskqid %d complete for taskq '%s'\n",
+		     tq_id->id, tq_arg->name);
+
+	spin_lock(&tq_arg->lock);
+	tq_arg->order[tq_arg->flag] = tq_id->id;
+	tq_arg->flag++;
+	spin_unlock(&tq_arg->lock);
+}
+
+static int
+splat_taskq_test6(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	taskqid_t id;
+	splat_taskq_id_t tq_id[SPLAT_TASKQ_ORDER_MAX];
+	splat_taskq_arg_t tq_arg;
+	int order[SPLAT_TASKQ_ORDER_MAX] = { 1,2,3,6,7,8,4,5 };
+	int i, rc = 0;
+	uint_t tflags;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME, "Taskq '%s' creating\n",
+		     SPLAT_TASKQ_TEST6_NAME);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST6_NAME, 3, maxclsyspri,
+		               50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
+		             "Taskq '%s' create failed\n",
+		             SPLAT_TASKQ_TEST6_NAME);
+		return -EINVAL;
+	}
+
+	tq_arg.flag = 0;
+	memset(&tq_arg.order, 0, sizeof(int) * SPLAT_TASKQ_ORDER_MAX);
+	spin_lock_init(&tq_arg.lock);
+	tq_arg.file = file;
+	tq_arg.name = SPLAT_TASKQ_TEST6_NAME;
+
+	for (i = 0; i < SPLAT_TASKQ_ORDER_MAX; i++) {
+		tq_id[i].id = i + 1;
+		tq_id[i].arg = &tq_arg;
+		tflags = TQ_SLEEP;
+		if (i > 4)
+			tflags |= TQ_FRONT;
+
+		if ((id = taskq_dispatch(tq, splat_taskq_test6_func,
+		                         &tq_id[i], tflags)) == 0) {
+			splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
+			        "Taskq '%s' function '%s' dispatch failed\n",
+				tq_arg.name, sym2str(splat_taskq_test6_func));
+				rc = -EINVAL;
+				goto out;
+		}
+
+		if (tq_id[i].id != id) {
+			splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
+			        "Taskq '%s' expected taskqid %d got %d\n",
+				tq_arg.name, (int)tq_id[i].id, (int)id);
+				rc = -EINVAL;
+				goto out;
+		}
+		/* Sleep to let tasks 1-3 start executing. */
+		if ( i == 2 )
+			msleep(100);
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME, "Taskq '%s' "
+		     "waiting for taskqid %d completion\n", tq_arg.name,
+		     SPLAT_TASKQ_ORDER_MAX);
+	taskq_wait_id(tq, SPLAT_TASKQ_ORDER_MAX);
+	rc = splat_taskq_test_order(&tq_arg, order);
+
+out:
+	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		     "Taskq '%s' destroying\n", tq_arg.name);
 	taskq_destroy(tq);
 
@@ -562,6 +693,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST4_ID, splat_taskq_test4);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST5_NAME, SPLAT_TASKQ_TEST5_DESC,
 	              SPLAT_TASKQ_TEST5_ID, splat_taskq_test5);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST6_NAME, SPLAT_TASKQ_TEST6_DESC,
+	              SPLAT_TASKQ_TEST6_ID, splat_taskq_test6);
 
         return sub;
 }
