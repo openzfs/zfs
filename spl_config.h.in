@@ -183,6 +183,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* user_path_dir() is available */
+#undef HAVE_USER_PATH_DIR
+
 /* Page state NR_ACTIVE is available */
 #undef HAVE_ZONE_STAT_ITEM_NR_ACTIVE
 

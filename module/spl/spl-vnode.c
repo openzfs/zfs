@@ -648,7 +648,7 @@ set_fs_pwd(struct fs_struct *fs, struct vfsmount *mnt, struct dentry *dentry)
 int
 vn_set_pwd(const char *filename)
 {
-#ifdef HAVE_2ARGS_SET_FS_PWD
+#if defined(HAVE_2ARGS_SET_FS_PWD) && defined(HAVE_USER_PATH_DIR)
         struct path path;
 #else
         struct nameidata nd;
@@ -666,6 +666,7 @@ vn_set_pwd(const char *filename)
         set_fs(get_ds());
 
 #ifdef HAVE_2ARGS_SET_FS_PWD
+# ifdef HAVE_USER_PATH_DIR
         rc = user_path_dir(filename, &path);
         if (rc)
                 GOTO(out, rc);
@@ -678,6 +679,21 @@ vn_set_pwd(const char *filename)
 
 dput_and_out:
         path_put(&path);
+# else
+        rc = __user_walk(filename,
+                         LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);
+        if (rc)
+                GOTO(out, rc);
+
+        rc = vfs_permission(&nd, MAY_EXEC);
+        if (rc)
+                GOTO(dput_and_out, rc);
+
+        set_fs_pwd(current->fs, &nd.path);
+
+dput_and_out:
+        path_put(&nd.path);
+# endif /* HAVE_USER_PATH_DIR */
 #else
         rc = __user_walk(filename,
                          LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);

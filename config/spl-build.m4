@@ -68,6 +68,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_ZONE_STAT_ITEM_INACTIVE
 	SPL_AC_ZONE_STAT_ITEM_ACTIVE
 	SPL_AC_GET_ZONE_COUNTS
+	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
 	SPL_AC_2ARGS_SET_FS_PWD
 	SPL_AC_2ARGS_VFS_UNLINK
@@ -1296,6 +1297,19 @@ AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 			[get_zone_counts() is available])],
 			[])
 	])
+])
+
+dnl #
+dnl # 2.6.27 API change,
+dnl # The user_path_dir() replaces __user_walk()
+dnl #
+AC_DEFUN([SPL_AC_USER_PATH_DIR], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[user_path_at],
+		[],
+		[AC_DEFINE(HAVE_USER_PATH_DIR, 1,
+		[user_path_dir() is available])],
+		[])
 ])
 
 dnl #
