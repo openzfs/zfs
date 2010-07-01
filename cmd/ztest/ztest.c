@@ -5422,7 +5422,8 @@ main(int argc, char **argv)
 	process_options(argc, argv);
 
 	/* Override location of zpool.cache */
-	(void) asprintf((char **)&spa_config_path, "%s/zpool.cache", zopt_dir);
+	VERIFY(asprintf((char **)&spa_config_path, "%s/zpool.cache",
+	    zopt_dir) != -1);
 
 	/*
 	 * Blow away any existing copy of zpool.cache
