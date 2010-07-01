@@ -11706,7 +11706,7 @@ fi
 
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -11820,7 +11820,7 @@ $as_echo "$have_atomic64_t" >&6; }
 $as_echo_n "checking whether kernel defines atomic64_cmpxchg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -11884,7 +11884,7 @@ fi
 $as_echo_n "checking whether kernel defines atomic64_xchg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -11948,7 +11948,7 @@ fi
 $as_echo_n "checking whether kernel defines uintptr_t... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12012,7 +12012,7 @@ fi
 $as_echo_n "checking whether INIT_WORK wants 3 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12077,7 +12077,7 @@ fi
 $as_echo_n "checking whether register_sysctl_table() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12142,7 +12142,7 @@ fi
 $as_echo_n "checking whether set_shrinker() available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12206,7 +12206,7 @@ fi
 $as_echo_n "checking whether struct path used in struct nameidata... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12314,7 +12314,7 @@ _ACEOF
 $as_echo_n "checking whether unnumbered sysctl support exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12381,7 +12381,7 @@ fi
 $as_echo_n "checking whether struct ctl_table has ctl_name... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12446,7 +12446,7 @@ fi
 $as_echo_n "checking whether fls64() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12554,7 +12554,7 @@ $as_echo_n "checking whether device_create() wants 5 args... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12702,7 +12702,7 @@ _ACEOF
 $as_echo_n "checking whether set_normalized_timespec() is an inline... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12767,7 +12767,7 @@ fi
 $as_echo_n "checking whether timespec_sub() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12833,7 +12833,7 @@ fi
 $as_echo_n "checking whether init_utsname() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12898,7 +12898,7 @@ fi
 $as_echo_n "checking whether header linux/fdtable.h exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12966,7 +12966,7 @@ fi
 $as_echo_n "checking whether files_fdtable() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13036,7 +13036,7 @@ fi
 $as_echo_n "checking whether header linux/uaccess.h exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13104,7 +13104,7 @@ fi
 $as_echo_n "checking whether kmalloc_node() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13210,7 +13210,7 @@ _ACEOF
 $as_echo_n "checking whether struct inode has i_mutex... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13277,7 +13277,7 @@ fi
 $as_echo_n "checking whether struct mutex has owner... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13343,7 +13343,7 @@ fi
 $as_echo_n "checking whether mutex_lock_nested() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13492,7 +13492,7 @@ _ACEOF
 $as_echo_n "checking whether on_each_cpu() wants 3 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13821,7 +13821,7 @@ _ACEOF
 $as_echo_n "checking whether global_page_state() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13887,7 +13887,7 @@ fi
 $as_echo_n "checking whether page state NR_FREE_PAGES is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13953,7 +13953,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14018,7 +14018,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE_ANON is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14083,7 +14083,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE_FILE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14149,7 +14149,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14214,7 +14214,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE_ANON is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14279,7 +14279,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE_FILE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14345,7 +14345,7 @@ fi
 $as_echo_n "checking whether symbol get_zone_counts is needed... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14544,7 +14544,7 @@ _ACEOF
 $as_echo_n "checking whether set_fs_pwd() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14609,7 +14609,7 @@ fi
 $as_echo_n "checking whether vfs_unlink() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14673,7 +14673,7 @@ fi
 $as_echo_n "checking whether vfs_rename() wants 4 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14738,7 +14738,7 @@ fi
 $as_echo_n "checking whether struct cred exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14886,7 +14886,7 @@ _ACEOF
 $as_echo_n "checking whether proc_handler() wants 5 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15232,7 +15232,7 @@ fi
 
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15346,7 +15346,7 @@ $as_echo "$have_atomic64_t" >&6; }
 $as_echo_n "checking whether kernel defines atomic64_cmpxchg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15410,7 +15410,7 @@ fi
 $as_echo_n "checking whether kernel defines atomic64_xchg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15474,7 +15474,7 @@ fi
 $as_echo_n "checking whether kernel defines uintptr_t... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15538,7 +15538,7 @@ fi
 $as_echo_n "checking whether INIT_WORK wants 3 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15603,7 +15603,7 @@ fi
 $as_echo_n "checking whether register_sysctl_table() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15668,7 +15668,7 @@ fi
 $as_echo_n "checking whether set_shrinker() available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15732,7 +15732,7 @@ fi
 $as_echo_n "checking whether struct path used in struct nameidata... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15840,7 +15840,7 @@ _ACEOF
 $as_echo_n "checking whether unnumbered sysctl support exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15907,7 +15907,7 @@ fi
 $as_echo_n "checking whether struct ctl_table has ctl_name... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15972,7 +15972,7 @@ fi
 $as_echo_n "checking whether fls64() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16080,7 +16080,7 @@ $as_echo_n "checking whether device_create() wants 5 args... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16228,7 +16228,7 @@ _ACEOF
 $as_echo_n "checking whether set_normalized_timespec() is an inline... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16293,7 +16293,7 @@ fi
 $as_echo_n "checking whether timespec_sub() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16359,7 +16359,7 @@ fi
 $as_echo_n "checking whether init_utsname() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16424,7 +16424,7 @@ fi
 $as_echo_n "checking whether header linux/fdtable.h exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16492,7 +16492,7 @@ fi
 $as_echo_n "checking whether files_fdtable() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16562,7 +16562,7 @@ fi
 $as_echo_n "checking whether header linux/uaccess.h exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16630,7 +16630,7 @@ fi
 $as_echo_n "checking whether kmalloc_node() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16736,7 +16736,7 @@ _ACEOF
 $as_echo_n "checking whether struct inode has i_mutex... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16803,7 +16803,7 @@ fi
 $as_echo_n "checking whether struct mutex has owner... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16869,7 +16869,7 @@ fi
 $as_echo_n "checking whether mutex_lock_nested() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17018,7 +17018,7 @@ _ACEOF
 $as_echo_n "checking whether on_each_cpu() wants 3 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17347,7 +17347,7 @@ _ACEOF
 $as_echo_n "checking whether global_page_state() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17413,7 +17413,7 @@ fi
 $as_echo_n "checking whether page state NR_FREE_PAGES is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17479,7 +17479,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17544,7 +17544,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE_ANON is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17609,7 +17609,7 @@ fi
 $as_echo_n "checking whether page state NR_INACTIVE_FILE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17675,7 +17675,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17740,7 +17740,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE_ANON is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17805,7 +17805,7 @@ fi
 $as_echo_n "checking whether page state NR_ACTIVE_FILE is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -17871,7 +17871,7 @@ fi
 $as_echo_n "checking whether symbol get_zone_counts is needed... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -18070,7 +18070,7 @@ _ACEOF
 $as_echo_n "checking whether set_fs_pwd() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -18135,7 +18135,7 @@ fi
 $as_echo_n "checking whether vfs_unlink() wants 2 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -18199,7 +18199,7 @@ fi
 $as_echo_n "checking whether vfs_rename() wants 4 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -18264,7 +18264,7 @@ fi
 $as_echo_n "checking whether struct cred exists... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -18412,7 +18412,7 @@ _ACEOF
 $as_echo_n "checking whether proc_handler() wants 5 args... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext

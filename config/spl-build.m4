@@ -319,7 +319,7 @@ dnl #
 dnl # SPL_LINUX_CONFTEST
 dnl #
 AC_DEFUN([SPL_LINUX_CONFTEST], [
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 $1
 _ACEOF
 ])
