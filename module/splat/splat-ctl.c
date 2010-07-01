@@ -70,11 +70,14 @@ splat_open(struct inode *inode, struct file *file)
 		kfree(info);
 		return -ENOMEM;
 	}
+	memset(info->info_buffer, 0, info->info_size);
 
 	info->info_head = info->info_buffer;
 	file->private_data = (void *)info;
 
-        return 0;
+	splat_print(file, "%s\n", spl_version);
+
+	return 0;
 }
 
 static int
