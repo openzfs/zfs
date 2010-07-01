@@ -3,6 +3,9 @@
 /* Atomic types use spinlocks */
 #undef ATOMIC_SPINLOCK
 
+/* Define to 1 to enable debug */
+#undef DEBUG
+
 /* Define to 1 to enable basic kmem accounting */
 #undef DEBUG_KMEM
 
@@ -207,6 +210,9 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
+
+/* Define to 1 to enable debug */
+#undef NDEBUG
 
 /* get_zone_counts() is needed */
 #undef NEED_GET_ZONE_COUNTS

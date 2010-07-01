@@ -12,7 +12,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
 	abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes -Werror"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
 
@@ -235,6 +235,7 @@ dnl # Enable if the SPL should be compiled with internal debugging enabled.
 dnl # By default this support is disabled.
 dnl #
 AC_DEFUN([SPL_AC_DEBUG], [
+	AC_MSG_CHECKING([whether debugging is enabled])
 	AC_ARG_ENABLE([debug],
 		[AS_HELP_STRING([--enable-debug],
 		[Enable generic debug support @<:@default=no@:>@])],
@@ -242,10 +243,18 @@ AC_DEFUN([SPL_AC_DEBUG], [
 		[enable_debug=no])
 
 	AS_IF([test "x$enable_debug" = xyes],
-		[KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"],
-		[KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"])
+	[
+		AC_DEFINE([DEBUG], [1], [Define to 1 to enable debug])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
+		DEBUG_CFLAGS="-DDEBUG -Werror"
+	],
+	[
+		AC_DEFINE([NDEBUG], [1], [Define to 1 to enable debug])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+		DEBUG_CFLAGS="-DNDEBUG"
+	])
 
-	AC_MSG_CHECKING([whether debugging is enabled])
+	AC_SUBST(DEBUG_CFLAGS)
 	AC_MSG_RESULT([$enable_debug])
 ])
 

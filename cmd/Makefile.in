@@ -114,6 +114,7 @@ CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
+DEBUG_CFLAGS = @DEBUG_CFLAGS@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DSYMUTIL = @DSYMUTIL@
@@ -236,8 +237,8 @@ top_srcdir = @top_srcdir@
 DEFAULT_INCLUDES = -include ${top_srcdir}/spl_config.h \
 	-I${top_srcdir}/lib
 AM_LIBTOOLFLAGS = --silent
-AM_CFLAGS = -Wall -Wstrict-prototypes -Werror -Wshadow \
-	-D__USE_LARGEFILE64
+AM_CFLAGS = -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing \
+	-D__USE_LARGEFILE64 ${DEBUG_CFLAGS}
 spl_SOURCES = spl.c
 splat_SOURCES = splat.c
 splat_LDFLAGS = $(top_builddir)/lib/libcommon.la

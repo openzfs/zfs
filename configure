@@ -791,6 +791,7 @@ CONFIG_KERNEL_FALSE
 CONFIG_KERNEL_TRUE
 CONFIG_USER_FALSE
 CONFIG_USER_TRUE
+DEBUG_CFLAGS
 KERNELCPPFLAGS
 KERNELMAKE_PARAMS
 LINUX_SYMBOLS
@@ -4759,13 +4760,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4762: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4763: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4765: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4766: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4768: output\"" >&5)
+  (eval echo "\"\$as_me:4769: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5971,7 +5972,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5974 "configure"' > conftest.$ac_ext
+  echo '#line 5975 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7824,11 +7825,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7827: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7828: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7831: \$? = $ac_status" >&5
+   echo "$as_me:7832: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8163,11 +8164,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8166: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8167: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8170: \$? = $ac_status" >&5
+   echo "$as_me:8171: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8268,11 +8269,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8271: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8272: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8275: \$? = $ac_status" >&5
+   echo "$as_me:8276: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8323,11 +8324,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8326: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8327: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8330: \$? = $ac_status" >&5
+   echo "$as_me:8331: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11126,7 +11127,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11129 "configure"
+#line 11130 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11222,7 +11223,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11225 "configure"
+#line 11226 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11605,7 +11606,7 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 			abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes -Werror"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
 
@@ -11617,6 +11618,8 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+$as_echo_n "checking whether debugging is enabled... " >&6; }
 	# Check whether --enable-debug was given.
 if test "${enable_debug+set}" = set; then
   enableval=$enable_debug;
@@ -11626,14 +11629,29 @@ fi
 
 
 	if test "x$enable_debug" = xyes; then
-  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
+		DEBUG_CFLAGS="-DDEBUG -Werror"
+
 else
-  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define NDEBUG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+		DEBUG_CFLAGS="-DNDEBUG"
+
 fi
 
 
-	{ $as_echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
-$as_echo_n "checking whether debugging is enabled... " >&6; }
+
 	{ $as_echo "$as_me:$LINENO: result: $enable_debug" >&5
 $as_echo "$enable_debug" >&6; }
 
@@ -15068,7 +15086,7 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 			abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes -Werror"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
 
@@ -15080,6 +15098,8 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
+$as_echo_n "checking whether debugging is enabled... " >&6; }
 	# Check whether --enable-debug was given.
 if test "${enable_debug+set}" = set; then
   enableval=$enable_debug;
@@ -15089,14 +15109,29 @@ fi
 
 
 	if test "x$enable_debug" = xyes; then
-  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
+		DEBUG_CFLAGS="-DDEBUG -Werror"
+
 else
-  KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define NDEBUG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
+		DEBUG_CFLAGS="-DNDEBUG"
+
 fi
 
 
-	{ $as_echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
-$as_echo_n "checking whether debugging is enabled... " >&6; }
+
 	{ $as_echo "$as_me:$LINENO: result: $enable_debug" >&5
 $as_echo "$enable_debug" >&6; }
 
