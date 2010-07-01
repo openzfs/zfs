@@ -11630,20 +11630,10 @@ fi
 
 	if test "x$enable_debug" = xyes; then
 
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG 1
-_ACEOF
-
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
 
 else
-
-
-cat >>confdefs.h <<\_ACEOF
-#define NDEBUG 1
-_ACEOF
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"
@@ -15110,20 +15100,10 @@ fi
 
 	if test "x$enable_debug" = xyes; then
 
-
-cat >>confdefs.h <<\_ACEOF
-#define DEBUG 1
-_ACEOF
-
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
 
 else
-
-
-cat >>confdefs.h <<\_ACEOF
-#define NDEBUG 1
-_ACEOF
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"

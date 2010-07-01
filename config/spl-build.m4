@@ -244,12 +244,10 @@ AC_DEFUN([SPL_AC_DEBUG], [
 
 	AS_IF([test "x$enable_debug" = xyes],
 	[
-		AC_DEFINE([DEBUG], [1], [Define to 1 to enable debug])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
 	],
 	[
-		AC_DEFINE([NDEBUG], [1], [Define to 1 to enable debug])
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"
 	])
