@@ -11504,17 +11504,19 @@ $as_echo_n "checking kernel source directory... " >&6; }
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
-		if test -e ${sourcelink}; then
+		if test -n "$sourcelink" && test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
 		else
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
-			*** Please specify the location of the kernel source
-			*** with the '--with-linux=PATH' option" >&5
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option." >&5
 $as_echo "$as_me: error:
-			*** Please specify the location of the kernel source
-			*** with the '--with-linux=PATH' option" >&2;}
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
 		fi
 	else
@@ -14974,17 +14976,19 @@ $as_echo_n "checking kernel source directory... " >&6; }
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
-		if test -e ${sourcelink}; then
+		if test -n "$sourcelink" && test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
 		else
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
-			*** Please specify the location of the kernel source
-			*** with the '--with-linux=PATH' option" >&5
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option." >&5
 $as_echo "$as_me: error:
-			*** Please specify the location of the kernel source
-			*** with the '--with-linux=PATH' option" >&2;}
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
 		fi
 	else
