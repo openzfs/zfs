@@ -338,7 +338,7 @@ EXPORT_SYMBOL(zone_get_hostid);
  * the requested address.
  */
 #define GET_KALLSYMS_ADDR_CMD						\
-	"awk '{ if ( $3 == \"kallsyms_lookup_name\") { print $1 } }' "	\
+	"gawk '{ if ( $3 == \"kallsyms_lookup_name\") { print $1 } }' "	\
 	"/proc/kallsyms >/proc/sys/kernel/spl/kallsyms_lookup_name"
 
 static int

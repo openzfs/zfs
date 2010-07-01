@@ -14988,7 +14988,20 @@ _ACEOF
 
 
  ;;
-                user)      ;;
+                user)
+				if test "x$AWK" != xgawk; then
+
+                { { $as_echo "$as_me:$LINENO: error:
+	*** Required util gawk missing.  Please install the required
+	*** gawk package for your distribution and try again." >&5
+$as_echo "$as_me: error:
+	*** Required util gawk missing.  Please install the required
+	*** gawk package for your distribution and try again." >&2;}
+   { (exit 1); exit 1; }; }
+
+fi
+
+   ;;
                 all)
 
 
@@ -18501,7 +18514,20 @@ _ACEOF
 
 
 
-                           ;;
+
+				if test "x$AWK" != xgawk; then
+
+                { { $as_echo "$as_me:$LINENO: error:
+	*** Required util gawk missing.  Please install the required
+	*** gawk package for your distribution and try again." >&5
+$as_echo "$as_me: error:
+	*** Required util gawk missing.  Please install the required
+	*** gawk package for your distribution and try again." >&2;}
+   { (exit 1); exit 1; }; }
+
+fi
+
+   ;;
 		srpm)                        ;;
                 *)
                 { $as_echo "$as_me:$LINENO: result: Error!" >&5

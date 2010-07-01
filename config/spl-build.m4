@@ -191,7 +191,16 @@ AC_DEFUN([SPL_AC_KERNEL], [
 dnl #
 dnl # Default SPL user configuration
 dnl #
-AC_DEFUN([SPL_AC_CONFIG_USER], [])
+AC_DEFUN([SPL_AC_CONFIG_USER], [
+	dnl # Explicitly check for gawk, we require it for the the usermode
+	dnl # helper.  For some reason the standard awk command does not
+	dnl # behave correctly when invoked from the usermode helper.
+	AS_IF([test "x$AWK" != xgawk], [
+                AC_MSG_ERROR([
+	*** Required util gawk missing.  Please install the required
+	*** gawk package for your distribution and try again.])
+	])
+])
 
 AC_DEFUN([SPL_AC_LICENSE], [
 	AC_MSG_CHECKING([spl license])
