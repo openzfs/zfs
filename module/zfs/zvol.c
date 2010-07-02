@@ -342,11 +342,15 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 	mutex_enter(&zvol_state_lock);
 
 	zv = zvol_find_by_name(name);
-	if (zv == NULL)
-		return (ENXIO);
+	if (zv == NULL) {
+		error = ENXIO;
+		goto out;
+	}
 
-	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY))
-		return (EROFS);
+	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
+		error = EROFS;
+		goto out;
+	}
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_hold_bonus(tx, ZVOL_OBJ);
@@ -362,6 +366,8 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		if (error == 0)
 			zv->zv_volblocksize = volblocksize;
 	}
+out:
+	mutex_exit(&zvol_state_lock);
 
 	return (error);
 }
@@ -1127,25 +1133,6 @@ out:
 	return (-error);
 }
 
-static int
-zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
-		      const char *dsname, void *arg)
-{
-	return zvol_create_minor(dsname);
-}
-
-static void
-zvol_create_minors(void)
-{
-	spa_t *spa = NULL;
-
-	mutex_enter(&spa_namespace_lock);
-	while ((spa = spa_next(spa)) != NULL)
-		(void) dmu_objset_find_spa(NULL, spa_name(spa), zvol_create_minors_cb,
-		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
-	mutex_exit(&spa_namespace_lock);
-}
-
 /*
  * Remove a block device minor node for the specified volume.
  */
@@ -1173,26 +1160,69 @@ zvol_remove_minor(const char *name)
 out:
 	mutex_exit(&zvol_state_lock);
 
-	return (-error);
+	return (error);
+}
+
+static int
+zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
+		      const char *dsname, void *arg)
+{
+	if (strchr(dsname, '/') == NULL)
+		return 0;
+
+	return zvol_create_minor(dsname);
+}
+
+static int
+zvol_remove_minors_cb(spa_t *spa, uint64_t dsobj,
+		      const char *dsname, void *arg)
+{
+	if (strchr(dsname, '/') == NULL)
+		return 0;
+
+	return zvol_remove_minor(dsname);
+}
+
+static int
+zvol_cr_minors_common(const char *pool,
+    int func(spa_t *, uint64_t, const char *, void *), void *arg)
+{
+	spa_t *spa = NULL;
+	int error = 0;
+
+	if (pool) {
+		error = dmu_objset_find_spa(NULL, pool, func, arg,
+		    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	} else {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL) {
+			error = dmu_objset_find_spa(NULL, spa_name(spa),
+			    func, arg, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+			if (error)
+				break;
+		}
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	return error;
 }
 
 /*
- * Remove all minors from the system.  This is only called from
- * zvol_fini() which means the module reference count must have
- * dropped to zero and none of the zvol devices may be open.
+ * Create minors for specified pool, or if NULL create all minors.
  */
-void
-zvol_remove_minors(const char *name)
+int
+zvol_create_minors(const char *pool)
 {
-	zvol_state_t *zv;
+	return zvol_cr_minors_common(pool, zvol_create_minors_cb, NULL);
+}
 
-	mutex_enter(&zvol_state_lock);
-	while ((zv = list_head(&zvol_state_list)) != NULL) {
-		ASSERT3U(zv->zv_open_count, ==, 0);
-		zvol_remove(zv);
-		zvol_free(zv);
-	}
-	mutex_exit(&zvol_state_lock);
+/*
+ * Remove minors for specified pool, or if NULL remove all minors.
+ */
+int
+zvol_remove_minors(const char *pool)
+{
+	return zvol_cr_minors_common(pool, zvol_remove_minors_cb, NULL);
 }
 
 int
@@ -1224,7 +1254,7 @@ zvol_init(void)
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
 	            offsetof(zvol_state_t, zv_next));
 
-	zvol_create_minors();
+	(void) zvol_create_minors(NULL);
 
 	return (0);
 }
@@ -1232,6 +1262,8 @@ zvol_init(void)
 void
 zvol_fini(void)
 {
+	(void) zvol_remove_minors(NULL);
+
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	taskq_destroy(zvol_taskq);
