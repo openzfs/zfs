@@ -342,11 +342,15 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 	mutex_enter(&zvol_state_lock);
 
 	zv = zvol_find_by_name(name);
-	if (zv == NULL)
-		return (ENXIO);
+	if (zv == NULL) {
+		error = ENXIO;
+		goto out;
+	}
 
-	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY))
-		return (EROFS);
+	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
+		error = EROFS;
+		goto out;
+	}
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_hold_bonus(tx, ZVOL_OBJ);
@@ -362,6 +366,8 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		if (error == 0)
 			zv->zv_volblocksize = volblocksize;
 	}
+out:
+	mutex_exit(&zvol_state_lock);
 
 	return (error);
 }
