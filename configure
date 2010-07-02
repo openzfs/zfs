@@ -11916,7 +11916,7 @@ $as_echo "$SPL_SYMBOLS" >&6; }
 $as_echo_n "checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12000,7 +12000,7 @@ _ACEOF
 $as_echo_n "checking block device operation prototypes... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12080,7 +12080,7 @@ fi
 $as_echo_n "checking whether kernel defines fmode_t... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12185,7 +12185,7 @@ _ACEOF
 $as_echo_n "checking whether invalidate_bdev() wants 1 arg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12251,7 +12251,7 @@ fi
 $as_echo_n "checking whether bdev_logical_block_size() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12318,7 +12318,7 @@ $as_echo_n "checking whether bio_empty_barrier() is defined... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12386,7 +12386,7 @@ $as_echo_n "checking whether bio_end_io_t wants 2 args... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12455,7 +12455,7 @@ fi
 $as_echo_n "checking whether BIO_RW_SYNCIO is defined... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12521,7 +12521,7 @@ fi
 $as_echo_n "checking whether blk_end_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12586,7 +12586,7 @@ fi
 $as_echo_n "checking whether blk_end_request() is GPL-only... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12655,7 +12655,7 @@ fi
 $as_echo_n "checking whether blk_fetch_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12721,7 +12721,7 @@ fi
 $as_echo_n "checking whether blk_requeue_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12788,7 +12788,7 @@ fi
 $as_echo_n "checking whether blk_rq_bytes() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12853,7 +12853,7 @@ fi
 $as_echo_n "checking whether blk_rq_bytes() is GPL-only... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12922,7 +12922,7 @@ fi
 $as_echo_n "checking whether blk_rq_pos() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -12988,7 +12988,7 @@ fi
 $as_echo_n "checking whether blk_rq_sectors() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13054,7 +13054,7 @@ fi
 $as_echo_n "checking whether get_disk_ro() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13120,7 +13120,7 @@ fi
 $as_echo_n "checking whether rq_is_sync() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -13186,7 +13186,7 @@ fi
 $as_echo_n "checking whether rq_for_each_segment() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14741,7 +14741,7 @@ $as_echo "$SPL_SYMBOLS" >&6; }
 $as_echo_n "checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14825,7 +14825,7 @@ _ACEOF
 $as_echo_n "checking block device operation prototypes... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -14905,7 +14905,7 @@ fi
 $as_echo_n "checking whether kernel defines fmode_t... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15010,7 +15010,7 @@ _ACEOF
 $as_echo_n "checking whether invalidate_bdev() wants 1 arg... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15076,7 +15076,7 @@ fi
 $as_echo_n "checking whether bdev_logical_block_size() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15143,7 +15143,7 @@ $as_echo_n "checking whether bio_empty_barrier() is defined... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15211,7 +15211,7 @@ $as_echo_n "checking whether bio_end_io_t wants 2 args... " >&6; }
 	EXTRA_KCFLAGS="-Werror"
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15280,7 +15280,7 @@ fi
 $as_echo_n "checking whether BIO_RW_SYNCIO is defined... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15346,7 +15346,7 @@ fi
 $as_echo_n "checking whether blk_end_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15411,7 +15411,7 @@ fi
 $as_echo_n "checking whether blk_end_request() is GPL-only... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15480,7 +15480,7 @@ fi
 $as_echo_n "checking whether blk_fetch_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15546,7 +15546,7 @@ fi
 $as_echo_n "checking whether blk_requeue_request() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15613,7 +15613,7 @@ fi
 $as_echo_n "checking whether blk_rq_bytes() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15678,7 +15678,7 @@ fi
 $as_echo_n "checking whether blk_rq_bytes() is GPL-only... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15747,7 +15747,7 @@ fi
 $as_echo_n "checking whether blk_rq_pos() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15813,7 +15813,7 @@ fi
 $as_echo_n "checking whether blk_rq_sectors() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15879,7 +15879,7 @@ fi
 $as_echo_n "checking whether get_disk_ro() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -15945,7 +15945,7 @@ fi
 $as_echo_n "checking whether rq_is_sync() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
@@ -16011,7 +16011,7 @@ fi
 $as_echo_n "checking whether rq_for_each_segment() is available... " >&6; }
 
 
-cat >conftest.c <<_ACEOF
+cat confdefs.h - <<_ACEOF >conftest.c
 /* confdefs.h.  */
 _ACEOF
 cat confdefs.h >>conftest.$ac_ext
