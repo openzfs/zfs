@@ -136,9 +136,20 @@ UNAME_RELEASE=`(uname -r) 2>/dev/null` || UNAME_RELEASE=unknown
 UNAME_SYSTEM=`(uname -s) 2>/dev/null`  || UNAME_SYSTEM=unknown
 UNAME_VERSION=`(uname -v) 2>/dev/null` || UNAME_VERSION=unknown
 
-## for Red Hat Linux
 if test -f /etc/redhat-release ; then
     VENDOR=redhat ;
+elif test -f /etc/fedora-release ; then
+    VENDOR=fedora ;
+elif test -f /etc/debian_version ; then
+    VENDOR=debian ;
+elif test -f /etc/lsb-release ; then
+    VENDOR=ubuntu ;
+elif test -f /etc/SuSE-release ; then
+    VENDOR=sles ;
+elif test -f /etc/slackware-version ; then
+    VENDOR=slackware ;
+elif test -f /etc/gentoo-release ; then
+    VENDOR=gentoo ;
 else
     VENDOR= ;
 fi
