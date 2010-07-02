@@ -161,4 +161,52 @@ EOF
 }
 zconfig_test3
 
+# zpool import/export check
+zconfig_test4() {
+	POOL_NAME=test4
+	ZVOL_NAME1=fish1
+	ZVOL_NAME2=fish2
+	FULL_NAME1=${POOL_NAME}/${ZVOL_NAME1}
+	FULL_NAME2=${POOL_NAME}/${ZVOL_NAME2}
+	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+
+	echo -n "test 4 - zpool import/export: "
+
+	# Create a pool and volume.
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
+	${ZFS} create -V 100M ${FULL_NAME1} || fail 3
+	${ZFS} create -V 100M ${FULL_NAME2} || fail 4
+
+	# Verify the devices were created
+	stat /dev/${FULL_NAME1} &>/dev/null || fail 5
+	stat /dev/${FULL_NAME2} &>/dev/null || fail 6
+
+	# Export the pool
+	${ZPOOL} export ${POOL_NAME} || fail 7
+
+	# Verify the devices were removed
+	stat /dev/${FULL_NAME1} &>/dev/null && fail 8
+	stat /dev/${FULL_NAME2} &>/dev/null && fail 9
+
+	# Import the pool
+	${ZPOOL} import ${POOL_NAME} || fail 10
+
+	# Verify the devices were created
+	stat /dev/${FULL_NAME1} &>/dev/null || fail 11
+	stat /dev/${FULL_NAME2} &>/dev/null || fail 12
+
+	# Destroy the pool and consequently the devices
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 15
+
+	# Verify the devices were removed
+	stat /dev/${FULL_NAME1} &>/dev/null && fail 16
+	stat /dev/${FULL_NAME2} &>/dev/null && fail 17
+
+	${ZFS_SH} -u || fail 18
+
+	pass
+}
+zconfig_test4
+
 exit 0
