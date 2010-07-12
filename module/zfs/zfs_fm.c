@@ -420,7 +420,7 @@ update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
  * to the new smallest gap, to prepare for our next invocation.
  */
 static void
-shrink_ranges(zfs_ecksum_info_t *eip)
+zei_shrink_ranges(zfs_ecksum_info_t *eip)
 {
 	uint32_t mingap = UINT32_MAX;
 	uint32_t new_allowed_gap = eip->zei_mingap + 1;
@@ -465,13 +465,13 @@ shrink_ranges(zfs_ecksum_info_t *eip)
 }
 
 static void
-add_range(zfs_ecksum_info_t *eip, int start, int end)
+zei_add_range(zfs_ecksum_info_t *eip, int start, int end)
 {
 	struct zei_ranges *r = eip->zei_ranges;
 	size_t count = eip->zei_range_count;
 
 	if (count >= MAX_RANGES) {
-		shrink_ranges(eip);
+		zei_shrink_ranges(eip);
 		count = eip->zei_range_count;
 	}
 	if (count == 0) {
@@ -493,7 +493,7 @@ add_range(zfs_ecksum_info_t *eip, int start, int end)
 }
 
 static size_t
-range_total_size(zfs_ecksum_info_t *eip)
+zei_range_total_size(zfs_ecksum_info_t *eip)
 {
 	struct zei_ranges *r = eip->zei_ranges;
 	size_t count = eip->zei_range_count;
@@ -570,7 +570,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 			if (start == -1)
 				continue;
 
-			add_range(eip, start, idx);
+			zei_add_range(eip, start, idx);
 			start = -1;
 		} else {
 			if (start != -1)
@@ -580,10 +580,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 		}
 	}
 	if (start != -1)
-		add_range(eip, start, idx);
+		zei_add_range(eip, start, idx);
 
 	/* See if it will fit in our inline buffers */
-	inline_size = range_total_size(eip);
+	inline_size = zei_range_total_size(eip);
 	if (inline_size > ZFM_MAX_INLINE)
 		no_inline = 1;
 
