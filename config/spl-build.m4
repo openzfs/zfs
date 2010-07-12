@@ -53,8 +53,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_INODE_I_MUTEX
 	SPL_AC_MUTEX_OWNER
 	SPL_AC_MUTEX_LOCK_NESTED
-	SPL_AC_DIV64_64
-	SPL_AC_DIV64_U64
 	SPL_AC_3ARGS_ON_EACH_CPU
 	SPL_AC_KALLSYMS_LOOKUP_NAME
 	SPL_AC_GET_VMALLOC_INFO
@@ -948,32 +946,6 @@ AC_DEFUN([SPL_AC_MUTEX_LOCK_NESTED], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-])
-
-dnl #
-dnl # 2.6.22 API change,
-dnl # First introduced 'div64_64()' in lib/div64.c
-dnl 
-AC_DEFUN([SPL_AC_DIV64_64], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[div64_64],
-		[],
-		[AC_DEFINE(HAVE_DIV64_64, 1,
-		[div64_64() is available])],
-		[])
-])
-
-dnl #
-dnl # 2.6.26 API change,
-dnl # Renamed 'div64_64()' to 'div64_u64' in lib/div64.c
-dnl #
-AC_DEFUN([SPL_AC_DIV64_U64], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[div64_u64],
-		[],
-		[AC_DEFINE(HAVE_DIV64_U64, 1,
-		[div64_u64() is available])],
-		[])
 ])
 
 dnl #

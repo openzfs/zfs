@@ -57,12 +57,6 @@
 /* device_create() is available */
 #undef HAVE_DEVICE_CREATE
 
-/* div64_64() is available */
-#undef HAVE_DIV64_64
-
-/* div64_u64() is available */
-#undef HAVE_DIV64_U64
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
