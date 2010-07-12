@@ -1042,7 +1042,7 @@ zpios_ioctl_cmd(struct file *file, unsigned long arg)
 	kcmd = kmem_alloc(sizeof(zpios_cmd_t), KM_SLEEP);
 	if (kcmd == NULL) {
 		zpios_print(file, "Unable to kmem_alloc() %ld byte for "
-			    "zpios_cmd_t\n", sizeof(zpios_cmd_t));
+			    "zpios_cmd_t\n", (long int)sizeof(zpios_cmd_t));
 		return -ENOMEM;
 	}
 
