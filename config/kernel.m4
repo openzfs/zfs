@@ -84,13 +84,14 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
-		if test -e $sourcelink; then
+		if test -n "$sourcelink" && test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
 		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
-			*** Please specify the location of the kernel source
-			*** with the '--with-linux=PATH' option])
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option.])
 		fi
 	else
 		if test "$kernelsrc" = "NONE"; then
@@ -206,8 +207,9 @@ AC_DEFUN([ZFS_AC_SPL], [
 		else
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
-			*** Please specify the location of the spl source
-			*** with the '--with-spl=PATH' option])
+	*** Please make sure the spl devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the spl source with the '--with-spl=PATH' option.])
 		fi
 	else
 		if test "$splsrc" = "NONE"; then
