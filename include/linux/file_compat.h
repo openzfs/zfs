@@ -29,5 +29,32 @@
 #include <linux/fdtable.h>
 #endif
 
+static inline struct file *
+spl_filp_open(const char *name, int flags, int mode, int *err)
+{
+        struct file *filp = NULL;
+        int rc;
+
+        filp = filp_open(name, flags, mode);
+        if (IS_ERR(filp)) {
+                rc = PTR_ERR(filp);
+                if (err)
+                        *err = rc;
+                filp = NULL;
+        }
+        return filp;
+}
+
+#define spl_filp_close(f)		filp_close(f, NULL)
+#define spl_filp_poff(f)		(&(f)->f_pos)
+#define spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
+
+#ifdef HAVE_3ARGS_FILE_FSYNC
+#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp), \
+					(fp)->f_dentry, sync)
+#else
+#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp), sync)
+#endif
+
 #endif /* SPL_FILE_COMPAT_H */
 

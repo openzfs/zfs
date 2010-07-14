@@ -76,6 +76,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
+	SPL_AC_3ARGS_FILE_FSYNC
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1437,4 +1438,23 @@ AC_DEFUN([SPL_AC_KVASPRINTF], [
 		[AC_DEFINE(HAVE_KVASPRINTF, 1,
 		[kvasprintf() is available])],
 		[])
+])
+
+dnl #
+dnl # 2.6.35 API change,
+dnl # Unused 'struct dentry *' removed from prototype.
+dnl #
+AC_DEFUN([SPL_AC_3ARGS_FILE_FSYNC], [
+	AC_MSG_CHECKING([whether file_fsync() wants 3 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/buffer_head.h>
+	],[
+		file_fsync(NULL, NULL, 0);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_3ARGS_FILE_FSYNC, 1,
+		          [file_fsync() wants 3 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])

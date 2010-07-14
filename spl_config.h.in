@@ -18,6 +18,9 @@
 /* vfs_unlink() wants 2 args */
 #undef HAVE_2ARGS_VFS_UNLINK
 
+/* file_fsync() wants 3 args */
+#undef HAVE_3ARGS_FILE_FSYNC
+
 /* INIT_WORK wants 3 args */
 #undef HAVE_3ARGS_INIT_WORK
 

@@ -473,7 +473,7 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	if (flags & FDSYNC)
 		datasync = 1;
 
-	RETURN(-file_fsync(vp->v_file, vp->v_file->f_dentry, datasync));
+	RETURN(-spl_filp_fsync(vp->v_file, datasync));
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
 

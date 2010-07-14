@@ -35,6 +35,7 @@
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/proc_compat.h>
+#include <linux/file_compat.h>
 #include <sys/sysmacros.h>
 #include <sys/debug.h>
 #include <spl-ctl.h>
@@ -902,28 +903,6 @@ put_pages_back(struct page_collection *pc)
                 put_pages_back_on_all_cpus(pc);
 }
 
-static struct file *
-trace_filp_open (const char *name, int flags, int mode, int *err)
-{
-        struct file *filp = NULL;
-        int rc;
-
-        filp = filp_open(name, flags, mode);
-        if (IS_ERR(filp)) {
-                rc = PTR_ERR(filp);
-                printk(KERN_ERR "SPL: Can't open %s file: %d\n", name, rc);
-                if (err)
-                        *err = rc;
-                filp = NULL;
-        }
-        return filp;
-}
-
-#define trace_filp_write(fp, b, s, p)  (fp)->f_op->write((fp), (b), (s), p)
-#define trace_filp_fsync(fp)           (fp)->f_op->fsync((fp),(fp)->f_dentry,1)
-#define trace_filp_close(f)            filp_close(f, NULL)
-#define trace_filp_poff(f)             (&(f)->f_pos)
-
 static int
 spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
 {
@@ -936,7 +915,7 @@ spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
 
         down_write(&trace_sem);
 
-        filp = trace_filp_open(filename, O_CREAT|O_EXCL|O_WRONLY|O_LARGEFILE,
+        filp = spl_filp_open(filename, O_CREAT|O_EXCL|O_WRONLY|O_LARGEFILE,
                                0600, &rc);
         if (filp == NULL) {
                 if (rc != -EEXIST)
@@ -958,8 +937,8 @@ spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
         list_for_each_entry_safe(tage, tmp, &pc.pc_pages, linkage) {
                 __ASSERT_TAGE_INVARIANT(tage);
 
-                rc = trace_filp_write(filp, page_address(tage->page),
-                                      tage->used, trace_filp_poff(filp));
+                rc = spl_filp_write(filp, page_address(tage->page),
+                                    tage->used, spl_filp_poff(filp));
                 if (rc != (int)tage->used) {
                         printk(KERN_WARNING "SPL: Wanted to write %u "
                                "but wrote %d\n", tage->used, rc);
@@ -973,11 +952,11 @@ spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
 
         set_fs(oldfs);
 
-        rc = trace_filp_fsync(filp);
+        rc = spl_filp_fsync(filp, 1);
         if (rc)
                 printk(KERN_ERR "SPL: Unable to sync: %d\n", rc);
  close:
-        trace_filp_close(filp);
+        spl_filp_close(filp);
  out:
         up_write(&trace_sem);
 
