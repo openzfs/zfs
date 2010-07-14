@@ -102,12 +102,12 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
 	if test -z "$kernelbuild"; then
-		if test -d ${kernelsrc}-obj/`arch`/`arch`; then
-			kernelbuild=${kernelsrc}-obj/`arch`/`arch`
-		elif test -d ${kernelsrc}-obj/`arch`/default; then
-		        kernelbuild=${kernelsrc}-obj/`arch`/default
-		elif test -d `dirname ${kernelsrc}`/build-`arch`; then
-			kernelbuild=`dirname ${kernelsrc}`/build-`arch`
+		if test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
+		elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
+		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
+		elif test -d `dirname ${kernelsrc}`/build-${target_cpu}; then
+			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
 		else
 			kernelbuild=${kernelsrc}
 		fi
