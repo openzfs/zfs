@@ -42,7 +42,7 @@
 /*
  * Memory allocation interfaces
  */
-#define KM_SLEEP                        GFP_KERNEL
+#define KM_SLEEP                        GFP_NOFS
 #define KM_NOSLEEP                      GFP_ATOMIC
 #undef  KM_PANIC                        /* No linux analog */
 #define KM_PUSHPAGE                     (KM_SLEEP | __GFP_HIGH)
