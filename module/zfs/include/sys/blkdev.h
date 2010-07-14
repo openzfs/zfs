@@ -125,7 +125,7 @@ blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
 	bool rc;
 
 	spin_lock_irq(q->queue_lock);
-	__blk_end_request_x(req, error, nr_bytes);
+	rc = __blk_end_request_x(req, error, nr_bytes);
 	spin_unlock_irq(q->queue_lock);
 
 	return rc;
