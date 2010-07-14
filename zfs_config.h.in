@@ -1,8 +1,5 @@
 /* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define to 1 to enable debug tracing */
-#undef DEBUG
-
 /* invalidate_bdev() wants 1 arg */
 #undef HAVE_1ARG_INVALIDATE_BDEV
 
@@ -120,9 +117,6 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
-
-/* Define to 1 to disable debug tracing */
-#undef NDEBUG
 
 /* Name of package */
 #undef PACKAGE
