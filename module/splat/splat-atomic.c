@@ -165,7 +165,7 @@ splat_atomic_test1(struct file *file, void *arg)
 		schedule();
 	}
 
-	wait_event_interruptible(ap.ap_waitq, splat_atomic_test1_cond(&ap, i));
+	wait_event(ap.ap_waitq, splat_atomic_test1_cond(&ap, i));
 
 	if (rc) {
 		splat_vprint(file, SPLAT_ATOMIC_TEST1_NAME, "Only started "
