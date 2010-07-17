@@ -168,8 +168,10 @@ unload_modules() {
 
 	for MOD in ${MODULES_REVERSE[*]}; do
 		local NAME=`basename ${MOD} .ko`
+		local USE_COUNT=`${LSMOD} |
+				egrep "^${NAME} "| ${AWK} '{print $3}'`
 
-		if ${LSMOD} | egrep -q "^${NAME}"; then
+		if [ "${USE_COUNT}" = 0 ] ; then
 
 			if [ "${DUMP_LOG}" -a ${NAME} = "spl" ]; then
 				spl_dump_log
