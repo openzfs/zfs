@@ -62,7 +62,7 @@ if [ ! -f ${spl_module} ] || [ ! -f ${splat_module} ]; then
 	die "Source tree must be built, run 'make'"
 fi
 
-spl_module_params="spl_debug_mask=-1 spl_debug_subsys=-1"
+spl_module_params="spl_debug_mask=0xffffffff spl_debug_subsys=0xffffffff"
 echo "Loading ${spl_module}"
 /sbin/insmod ${spl_module} ${spl_module_params} || die "Failed to load ${spl_module}"
 

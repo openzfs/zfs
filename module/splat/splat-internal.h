@@ -66,6 +66,7 @@
 #include <linux/cdev.h>
 
 #include "spl-device.h"
+#include "spl-debug.h"
 #include "splat-ctl.h"
 
 #define SPLAT_SUBSYSTEM_INIT(type)                                      \

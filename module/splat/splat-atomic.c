@@ -109,7 +109,7 @@ splat_atomic_work(void *priv)
 				atomic_sub_64_nv(&ap->ap_atomic, 5);
 				break;
 			default:
-				SBUG();
+				PANIC("Undefined op %d\n", op);
 		}
 	}
 

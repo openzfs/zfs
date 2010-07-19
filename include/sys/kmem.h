@@ -35,7 +35,6 @@
 #include <linux/ctype.h>
 #include <asm/atomic.h>
 #include <sys/types.h>
-#include <sys/debug.h>
 #include <sys/vmsystm.h>
 #include <sys/kstat.h>
 

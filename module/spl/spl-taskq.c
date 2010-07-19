@@ -26,6 +26,7 @@
 
 #include <sys/taskq.h>
 #include <sys/kmem.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -90,8 +91,8 @@ retry:
                         RETURN(NULL);
                 }
 
-                /* Unreachable, TQ_SLEEP or TQ_NOSLEEP */
-                SBUG();
+                /* Unreachable, Neither TQ_SLEEP or TQ_NOSLEEP set */
+                PANIC("Neither TQ_SLEEP or TQ_NOSLEEP set");
         }
 
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
@@ -254,11 +255,9 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	if (!(flags & (TQ_SLEEP | TQ_NOSLEEP)))
 		flags |= TQ_SLEEP;
 
-        if (unlikely(in_atomic() && (flags & TQ_SLEEP))) {
-		CERROR("May schedule while atomic: %s/0x%08x/%d\n",
-                       current->comm, preempt_count(), current->pid);
-		SBUG();
-	}
+	if (unlikely(in_atomic() && (flags & TQ_SLEEP)))
+		PANIC("May schedule while atomic: %s/0x%08x/%d\n",
+		    current->comm, preempt_count(), current->pid);
 
         spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 

@@ -37,7 +37,8 @@
 #include <linux/proc_compat.h>
 #include <linux/file_compat.h>
 #include <sys/sysmacros.h>
-#include <sys/debug.h>
+#include <spl-debug.h>
+#include <spl-trace.h>
 #include <spl-ctl.h>
 
 #ifdef DEBUG_SUBSYSTEM
@@ -48,17 +49,17 @@
 
 unsigned long spl_debug_subsys = ~0;
 EXPORT_SYMBOL(spl_debug_subsys);
-module_param(spl_debug_subsys, long, 0644);
+module_param(spl_debug_subsys, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_subsys, "Subsystem debugging level mask.");
 
 unsigned long spl_debug_mask = (D_EMERG | D_ERROR | D_WARNING | D_CONSOLE);
 EXPORT_SYMBOL(spl_debug_mask);
-module_param(spl_debug_mask, long, 0644);
+module_param(spl_debug_mask, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_mask, "Debugging level mask.");
 
 unsigned long spl_debug_printk = D_CANTMASK;
 EXPORT_SYMBOL(spl_debug_printk);
-module_param(spl_debug_printk, long, 0644);
+module_param(spl_debug_printk, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_printk, "Console printk level mask.");
 
 int spl_debug_mb = -1;
@@ -74,7 +75,7 @@ EXPORT_SYMBOL(spl_debug_catastrophe);
 
 unsigned int spl_debug_panic_on_bug = 0;
 EXPORT_SYMBOL(spl_debug_panic_on_bug);
-module_param(spl_debug_panic_on_bug, int, 0644);
+module_param(spl_debug_panic_on_bug, uint, 0644);
 MODULE_PARM_DESC(spl_debug_panic_on_bug, "Panic on BUG");
 
 static char spl_debug_file_name[PATH_MAX];
@@ -633,10 +634,10 @@ trace_get_tage(struct trace_cpu_data *tcd, unsigned long len)
 }
 
 int
-spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
-               const char *file, const char *fn, const int line,
-               const char *format1, va_list args, const char *format2, ...)
+spl_debug_msg(void *arg, int subsys, int mask, const char *file,
+    const char *fn, const int line, const char *format, ...)
 {
+	spl_debug_limit_state_t *cdls = arg;
         struct trace_cpu_data   *tcd = NULL;
         struct spl_debug_header header = { 0, };
         struct trace_page       *tage;
@@ -650,10 +651,16 @@ spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
         int                      i;
         int                      remain;
 
+	if (subsys == 0)
+		subsys = DEBUG_SUBSYSTEM;
+
+	if (mask == 0)
+		mask = D_EMERG;
+
         if (strchr(file, '/'))
                 file = strrchr(file, '/') + 1;
 
-        trace_set_debug_header(&header, subsys, mask, line, CDEBUG_STACK());
+        trace_set_debug_header(&header, subsys, mask, line, 0);
 
         tcd = trace_get_tcd();
         if (tcd == NULL)
@@ -698,19 +705,14 @@ spl_debug_vmsg(spl_debug_limit_state_t *cdls, int subsys, int mask,
                 }
 
                 needed = 0;
-                if (format1) {
-                        va_copy(ap, args);
-                        needed = vsnprintf(string_buf, max_nob, format1, ap);
-                        va_end(ap);
-                }
-
-                if (format2) {
+                if (format) {
                         remain = max_nob - needed;
                         if (remain < 0)
                                 remain = 0;
 
-                        va_start(ap, format2);
-                        needed += vsnprintf(string_buf+needed, remain, format2, ap);
+                        va_start(ap, format);
+                        needed += vsnprintf(string_buf+needed, remain,
+			    format, ap);
                         va_end(ap);
                 }
 
@@ -784,16 +786,12 @@ console:
                 string_buf = trace_get_console_buffer();
 
                 needed = 0;
-                if (format1 != NULL) {
-                        va_copy(ap, args);
-                        needed = vsnprintf(string_buf, TRACE_CONSOLE_BUFFER_SIZE, format1, ap);
-                        va_end(ap);
-                }
-                if (format2 != NULL) {
+                if (format != NULL) {
                         remain = TRACE_CONSOLE_BUFFER_SIZE - needed;
                         if (remain > 0) {
-                                va_start(ap, format2);
-                                needed += vsnprintf(string_buf+needed, remain, format2, ap);
+                                va_start(ap, format);
+                                needed += vsnprintf(string_buf+needed, remain,
+				    format, ap);
                                 va_end(ap);
                         }
                 }
@@ -819,7 +817,7 @@ console:
 
         return 0;
 }
-EXPORT_SYMBOL(spl_debug_vmsg);
+EXPORT_SYMBOL(spl_debug_msg);
 
 /* Do the collect_pages job on a single CPU: assumes that all other
  * CPUs have been stopped during a panic.  If this isn't true for
@@ -881,9 +879,6 @@ put_pages_back_on_all_cpus(struct page_collection *pc)
 
                         list_for_each_entry_safe(tage, tmp, &pc->pc_pages,
                                                  linkage) {
-
-                                __ASSERT_TAGE_INVARIANT(tage);
-
                                 if (tage->cpu != cpu || tage->type != i)
                                         continue;
 
@@ -935,8 +930,6 @@ spl_debug_dump_all_pages(dumplog_priv_t *dp, char *filename)
         set_fs(get_ds());
 
         list_for_each_entry_safe(tage, tmp, &pc.pc_pages, linkage) {
-                __ASSERT_TAGE_INVARIANT(tage);
-
                 rc = spl_filp_write(filp, page_address(tage->page),
                                     tage->used, spl_filp_poff(filp));
                 if (rc != (int)tage->used) {
@@ -979,7 +972,6 @@ spl_debug_flush_pages(void)
 
         collect_pages(&dp, &pc);
         list_for_each_entry_safe(tage, tmp, &pc.pc_pages, linkage) {
-                __ASSERT_TAGE_INVARIANT(tage);
                 list_del(&tage->linkage);
                 tage_free(tage);
         }
@@ -1077,12 +1069,10 @@ EXPORT_SYMBOL(spl_debug_dumpstack);
 void spl_debug_bug(char *file, const char *func, const int line, int flags)
 {
         spl_debug_catastrophe = 1;
-        spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SBUG\n");
+        spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SPL PANIC\n");
 
-        if (in_interrupt()) {
-                panic("SBUG in interrupt.\n");
-                /* not reached */
-        }
+        if (in_interrupt())
+                panic("SPL PANIC in interrupt.\n");
 
 	if (in_atomic() || irqs_disabled())
 		flags |= DL_NOTHREAD;
@@ -1095,7 +1085,7 @@ void spl_debug_bug(char *file, const char *func, const int line, int flags)
         spl_debug_dumplog(flags);
 
         if (spl_debug_panic_on_bug)
-                panic("SBUG");
+                panic("SPL PANIC");
 
         set_task_state(current, TASK_UNINTERRUPTIBLE);
         while (1)
@@ -1208,8 +1198,6 @@ trace_cleanup_on_all_cpus(void)
 
                         list_for_each_entry_safe(tage, tmp, &tcd->tcd_pages,
                                                  linkage) {
-                                __ASSERT_TAGE_INVARIANT(tage);
-
                                 list_del(&tage->linkage);
                                 tage_free(tage);
                         }

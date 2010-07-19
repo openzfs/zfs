@@ -156,7 +156,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
                         spl_rw_set_owner(rwp);                          \
                 break;                                                  \
         default:                                                        \
-                SBUG();                                                 \
+                VERIFY(0);                                              \
         }                                                               \
         _rc_;                                                           \
 })
@@ -172,7 +172,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
                 spl_rw_set_owner(rwp);                                  \
                 break;                                                  \
         default:                                                        \
-                SBUG();                                                 \
+                VERIFY(0);                                              \
         }                                                               \
 })
 

@@ -24,8 +24,8 @@
  *  Solaris Porting Layer (SPL) Module Implementation.
 \*****************************************************************************/
 
-#include <sys/sysmacros.h>
 #include <sys/sunddi.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM

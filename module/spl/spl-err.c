@@ -26,6 +26,7 @@
 
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -44,7 +45,7 @@ vpanic(const char *fmt, va_list ap)
 	char msg[MAXMSGLEN];
 
 	vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
-	panic("%s", msg);
+	PANIC("%s", msg);
 } /* vpanic() */
 EXPORT_SYMBOL(vpanic);
 

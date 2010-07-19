@@ -25,6 +25,8 @@
 #ifndef _SPL_SIGNAL_H
 #define _SPL_SIGNAL_H
 
+#include <linux/sched.h>
+
 #define	FORREAL		0	/* Usual side-effects */
 #define	JUSTLOOKING	1	/* Don't stop the process */
 

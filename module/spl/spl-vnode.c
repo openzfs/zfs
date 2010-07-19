@@ -24,9 +24,8 @@
  *  Solaris Porting Layer (SPL) Vnode Implementation.
 \*****************************************************************************/
 
-#include <sys/sysmacros.h>
 #include <sys/vnode.h>
-
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM

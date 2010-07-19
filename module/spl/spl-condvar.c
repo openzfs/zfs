@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/condvar.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM

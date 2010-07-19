@@ -48,7 +48,7 @@ typedef void (*thread_func_t)(void *);
 	__thread_create(stk, stksize, (thread_func_t)func,               \
 	                #func, arg, len, pp, state, pri)
 #define thread_exit()			__thread_exit()
-#define thread_join(t)			SBUG()
+#define thread_join(t)			VERIFY(0)
 #define curthread			get_current()
 
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,

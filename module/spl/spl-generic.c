@@ -39,6 +39,7 @@
 #include <sys/file.h>
 #include <linux/kmod.h>
 #include <linux/proc_compat.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -339,12 +340,12 @@ EXPORT_SYMBOL(ddi_copyout);
  * never be putting away the last reference on a task structure so this will
  * not be called.  However, we still need to define it so the module does not
  * have undefined symbol at load time.  That all said if this impossible
- * thing does somehow happen SBUG() immediately so we know about it.
+ * thing does somehow happen PANIC immediately so we know about it.
  */
 void
 __put_task_struct(struct task_struct *t)
 {
-	SBUG();
+	PANIC("Unexpectly put last reference on task %d\n", (int)t->pid);
 }
 EXPORT_SYMBOL(__put_task_struct);
 #endif /* HAVE_PUT_TASK_STRUCT */

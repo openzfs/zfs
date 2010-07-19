@@ -268,7 +268,6 @@ ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		rc = PTR_ERR(di->di_class);
 		di->di_class = NULL;
 		ddi_remove_minor_node(di, name);
-		CERROR("Error creating %s class, %d\n", name, rc);
 		return DDI_FAILURE;
 	}
 
@@ -285,7 +284,6 @@ ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	if (name) {
 		rc = __mod_mknod(di->di_name, "c", di->di_major, di->di_minor);
 		if (rc) {
-			CERROR("Error mknod %s, %d\n", di->di_name, rc);
 			ddi_remove_minor_node(di, name);
 		}
 	}

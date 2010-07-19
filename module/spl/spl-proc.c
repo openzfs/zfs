@@ -29,6 +29,7 @@
 #include <linux/kmod.h>
 #include <linux/seq_file.h>
 #include <linux/proc_compat.h>
+#include <spl-debug.h>
 
 #ifdef DEBUG_SUBSYSTEM
 #undef DEBUG_SUBSYSTEM
@@ -297,13 +298,10 @@ SPL_PROC_HANDLER(proc_force_bug)
 {
 	ENTRY;
 
-        if (write) {
-               CERROR("Crashing due to forced SBUG\n");
-               SBUG();
-	       /* Unreachable */
-        } else {
+        if (write)
+		PANIC("Crashing due to forced panic\n");
+        else
                 *lenp = 0;
-	}
 
 	RETURN(0);
 }

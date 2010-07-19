@@ -24,8 +24,9 @@
  *  Solaris Porting Layer (SPL) Kstat Implementation.
 \*****************************************************************************/
 
-#include <sys/kstat.h>
 #include <linux/seq_file.h>
+#include <sys/kstat.h>
+#include <spl-debug.h>
 
 static spinlock_t kstat_lock;
 static struct list_head kstat_list;
@@ -72,7 +73,7 @@ kstat_seq_show_headers(struct seq_file *f)
                                    "min", "max", "start", "stop");
                         break;
                 default:
-                        SBUG(); /* Unreachable */
+                        PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 }
 
@@ -135,7 +136,7 @@ kstat_seq_show_named(struct seq_file *f, kstat_named_t *knp)
                         seq_printf(f, "%s", KSTAT_NAMED_STR_PTR(knp));
                         break;
                 default:
-                        SBUG(); /* Unreachable */
+                        PANIC("Undefined kstat data type %d\n", knp->data_type);
         }
 
         seq_printf(f, "\n");
@@ -210,7 +211,7 @@ kstat_seq_show(struct seq_file *f, void *p)
                         rc = kstat_seq_show_timer(f, (kstat_timer_t *)p);
                         break;
                 default:
-                        SBUG(); /* Unreachable */
+                        PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
         return rc;
@@ -239,7 +240,7 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                         rc = ksp->ks_data + n * sizeof(kstat_timer_t);
                         break;
                 default:
-                        SBUG(); /* Unreachable */
+                        PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
         RETURN(rc);
@@ -377,7 +378,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
                         ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
                         break;
                 default:
-                        SBUG(); /* Unreachable */
+                        PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
 	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL) {

@@ -25,6 +25,7 @@
 #ifndef _SPL_FILE_COMPAT_H
 #define _SPL_FILE_COMPAT_H
 
+#include <linux/fs.h>
 #ifdef HAVE_FDTABLE_HEADER
 #include <linux/fdtable.h>
 #endif
