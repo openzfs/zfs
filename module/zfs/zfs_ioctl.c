@@ -4648,6 +4648,12 @@ uint_t zfs_fsyncer_key;
 extern uint_t rrw_tsd_key;
 #endif
 
+#ifdef DEBUG
+#define ZFS_DEBUG_STR	" (DEBUG mode)"
+#else
+#define ZFS_DEBUG_STR	""
+#endif
+
 int
 _init(void)
 {
@@ -4656,18 +4662,11 @@ _init(void)
 	spa_init(FREAD | FWRITE);
 	zfs_init();
 
-	if ((error = zvol_init()) != 0) {
-		zfs_fini();
-		spa_fini();
-		return (error);
-	}
+	if ((error = zvol_init()) != 0)
+		goto out1;
 
-	if ((error = zfs_attach()) != 0) {
-		(void)zvol_fini();
-		zfs_fini();
-		spa_fini();
-		return (error);
-	}
+	if ((error = zfs_attach()) != 0)
+		goto out2;
 
 #ifdef HAVE_ZPL
 	tsd_create(&zfs_fsyncer_key, NULL);
@@ -4676,9 +4675,20 @@ _init(void)
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
 #endif /* HAVE_ZPL */
 
-	printk(KERN_INFO "ZFS: Loaded ZFS Filesystem v%s\n", ZFS_META_VERSION);
+	printk(KERN_NOTICE "ZFS: Loaded ZFS Filesystem v%s%s\n",
+	       ZFS_META_VERSION, ZFS_DEBUG_STR);
 
 	return (0);
+
+out2:
+	(void) zvol_fini();
+out1:
+	zfs_fini();
+	spa_fini();
+	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s%s"
+	       ", rc = %d\n", ZFS_META_VERSION, ZFS_DEBUG_STR, error);
+
+	return (error);
 }
 
 int
@@ -4699,6 +4709,9 @@ _fini(void)
 	mutex_destroy(&zfs_share_lock);
 	tsd_destroy(&zfs_fsyncer_key);
 #endif /* HAVE_ZPL */
+
+	printk(KERN_NOTICE "ZFS: Unloaded ZFS Filesystem v%s%s\n",
+	       ZFS_META_VERSION, ZFS_DEBUG_STR);
 
 	return (0);
 }
