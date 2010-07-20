@@ -55,8 +55,16 @@ extern int zfs_flags;
 
 #ifdef ZFS_DEBUG
 #if defined(_KERNEL) && defined(HAVE_SPL)
-#include <sys/debug.h>
-#define dprintf(...) CDEBUG_LIMIT(D_DPRINTF, __VA_ARGS__)
+/*
+ * Log ZFS debug messages as the spl SS_USER1 subsystem.
+ */
+#include <spl-debug.h>
+
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
+#endif
+#define SS_DEBUG_SUBSYS SS_USER1
+#define dprintf(...) SDEBUG_LIMIT(SD_DPRINTF, __VA_ARGS__)
 #else
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
