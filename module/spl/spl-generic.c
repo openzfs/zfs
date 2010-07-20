@@ -41,11 +41,11 @@
 #include <linux/proc_compat.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_GENERIC
+#define SS_DEBUG_SUBSYS SS_GENERIC
 
 char spl_version[16] = "SPL v" SPL_META_VERSION;
 EXPORT_SYMBOL(spl_version);
@@ -67,10 +67,10 @@ int
 highbit(unsigned long i)
 {
         register int h = 1;
-        ENTRY;
+        SENTRY;
 
         if (i == 0)
-                RETURN(0);
+                SRETURN(0);
 #if BITS_PER_LONG == 64
         if (i & 0xffffffff00000000ul) {
                 h += 32; i >>= 32;
@@ -91,7 +91,7 @@ highbit(unsigned long i)
         if (i & 0x2) {
                 h += 1;
         }
-        RETURN(h);
+        SRETURN(h);
 }
 EXPORT_SYMBOL(highbit);
 
@@ -447,39 +447,39 @@ __init spl_init(void)
 		return rc;
 
 	if ((rc = spl_kmem_init()))
-		GOTO(out1, rc);
+		SGOTO(out1, rc);
 
 	if ((rc = spl_mutex_init()))
-		GOTO(out2, rc);
+		SGOTO(out2, rc);
 
 	if ((rc = spl_rw_init()))
-		GOTO(out3, rc);
+		SGOTO(out3, rc);
 
 	if ((rc = spl_taskq_init()))
-		GOTO(out4, rc);
+		SGOTO(out4, rc);
 
 	if ((rc = vn_init()))
-		GOTO(out5, rc);
+		SGOTO(out5, rc);
 
 	if ((rc = proc_init()))
-		GOTO(out6, rc);
+		SGOTO(out6, rc);
 
 	if ((rc = kstat_init()))
-		GOTO(out7, rc);
+		SGOTO(out7, rc);
 
 	if ((rc = set_hostid()))
-		GOTO(out8, rc = -EADDRNOTAVAIL);
+		SGOTO(out8, rc = -EADDRNOTAVAIL);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
-		GOTO(out8, rc = -EADDRNOTAVAIL);
+		SGOTO(out8, rc = -EADDRNOTAVAIL);
 #endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
-		GOTO(out8, rc);
+		SGOTO(out8, rc);
 
 	printk("SPL: Loaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
-	RETURN(rc);
+	SRETURN(rc);
 out8:
 	kstat_fini();
 out7:
@@ -505,7 +505,7 @@ out1:
 static void
 spl_fini(void)
 {
-	ENTRY;
+	SENTRY;
 
 	printk("SPL: Unloaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
 	kstat_fini();

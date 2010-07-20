@@ -27,11 +27,11 @@
 #include <sys/kmem.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-# undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_KMEM
+#define SS_DEBUG_SUBSYS SS_KMEM
 
 /*
  * The minimum amount of memory measured in pages to be free at all
@@ -416,7 +416,7 @@ kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits,
 	struct hlist_node *node;
 	struct kmem_debug *p;
 	unsigned long flags;
-	ENTRY;
+	SENTRY;
 
 	spin_lock_irqsave(lock, flags);
 
@@ -432,7 +432,7 @@ kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits,
 
 	spin_unlock_irqrestore(lock, flags);
 
-	RETURN(NULL);
+	SRETURN(NULL);
 }
 
 void *
@@ -442,13 +442,13 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	void *ptr = NULL;
 	kmem_debug_t *dptr;
 	unsigned long irq_flags;
-	ENTRY;
+	SENTRY;
 
 	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 
 	if (dptr == NULL) {
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "debug "
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "debug "
 		    "kmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    sizeof(kmem_debug_t), flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
@@ -456,7 +456,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		/* Marked unlikely because we should never be doing this,
 		 * we tolerate to up 2 pages but a single page is best.   */
 		if (unlikely((size > PAGE_SIZE*2) && !(flags & KM_NODEBUG))) {
-			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "large "
+			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "large "
 			    "kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
 			    (unsigned long long) size, flags, func, line,
 			    kmem_alloc_used_read(), kmem_alloc_max);
@@ -469,7 +469,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
-			CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
 			    func, line, kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
@@ -488,7 +488,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		if (unlikely(ptr == NULL)) {
 			kfree(dptr->kd_func);
 			kfree(dptr);
-			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "kmem_alloc"
+			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "kmem_alloc"
 			    "(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags, func, line,
 			    kmem_alloc_used_read(), kmem_alloc_max);
@@ -512,13 +512,13 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		list_add_tail(&dptr->kd_list, &kmem_list);
 		spin_unlock_irqrestore(&kmem_lock, irq_flags);
 
-		CDEBUG_LIMIT(D_INFO,
+		SDEBUG_LIMIT(SD_INFO,
 		    "kmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line, ptr,
 		    kmem_alloc_used_read(), kmem_alloc_max);
 	}
 out:
-	RETURN(ptr);
+	SRETURN(ptr);
 }
 EXPORT_SYMBOL(kmem_alloc_track);
 
@@ -526,7 +526,7 @@ void
 kmem_free_track(void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
-	ENTRY;
+	SENTRY;
 
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
@@ -541,7 +541,7 @@ kmem_free_track(void *ptr, size_t size)
 	    (unsigned long long) size, dptr->kd_func, dptr->kd_line);
 
 	kmem_alloc_used_sub(size);
-	CDEBUG_LIMIT(D_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
+	SDEBUG_LIMIT(SD_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, kmem_alloc_used_read(),
 	    kmem_alloc_max);
 
@@ -553,7 +553,7 @@ kmem_free_track(void *ptr, size_t size)
 	memset(ptr, 0x5a, size);
 	kfree(ptr);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(kmem_free_track);
 
@@ -563,14 +563,14 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 	void *ptr = NULL;
 	kmem_debug_t *dptr;
 	unsigned long irq_flags;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(flags & KM_SLEEP);
 
 	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 	if (dptr == NULL) {
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "debug "
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "debug "
 		    "vmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    sizeof(kmem_debug_t), flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
@@ -581,7 +581,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
-			CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
 			    func, line, vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
@@ -593,7 +593,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		if (unlikely(ptr == NULL)) {
 			kfree(dptr->kd_func);
 			kfree(dptr);
-			CDEBUG_LIMIT(D_CONSOLE | D_WARNING, "vmem_alloc"
+			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "vmem_alloc"
 			    "(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 			    (unsigned long long) size, flags, func, line,
 			    vmem_alloc_used_read(), vmem_alloc_max);
@@ -620,13 +620,13 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		list_add_tail(&dptr->kd_list, &vmem_list);
 		spin_unlock_irqrestore(&vmem_lock, irq_flags);
 
-		CDEBUG_LIMIT(D_INFO,
+		SDEBUG_LIMIT(SD_INFO,
 		    "vmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    ptr, vmem_alloc_used_read(), vmem_alloc_max);
 	}
 out:
-	RETURN(ptr);
+	SRETURN(ptr);
 }
 EXPORT_SYMBOL(vmem_alloc_track);
 
@@ -634,7 +634,7 @@ void
 vmem_free_track(void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
-	ENTRY;
+	SENTRY;
 
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
@@ -648,7 +648,7 @@ vmem_free_track(void *ptr, size_t size)
 	    (unsigned long long) size, dptr->kd_func, dptr->kd_line);
 
 	vmem_alloc_used_sub(size);
-	CDEBUG_LIMIT(D_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
+	SDEBUG_LIMIT(SD_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, vmem_alloc_used_read(),
 	    vmem_alloc_max);
 
@@ -660,7 +660,7 @@ vmem_free_track(void *ptr, size_t size)
 	memset(ptr, 0x5a, size);
 	vfree(ptr);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(vmem_free_track);
 
@@ -671,12 +671,12 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
     int node_alloc, int node)
 {
 	void *ptr;
-	ENTRY;
+	SENTRY;
 
 	/* Marked unlikely because we should never be doing this,
 	 * we tolerate to up 2 pages but a single page is best.   */
 	if (unlikely((size > PAGE_SIZE * 2) && !(flags & KM_NODEBUG))) {
-		CDEBUG(D_CONSOLE | D_WARNING,
+		SDEBUG(SD_CONSOLE | SD_WARNING,
 		    "Large kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
@@ -694,7 +694,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	}
 
 	if (ptr == NULL) {
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "kmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
@@ -703,32 +703,32 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 		if (unlikely(kmem_alloc_used_read() > kmem_alloc_max))
 			kmem_alloc_max = kmem_alloc_used_read();
 
-		CDEBUG_LIMIT(D_INFO,
+		SDEBUG_LIMIT(SD_INFO,
 		    "kmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line, ptr,
 		       kmem_alloc_used_read(), kmem_alloc_max);
 	}
-	RETURN(ptr);
+	SRETURN(ptr);
 }
 EXPORT_SYMBOL(kmem_alloc_debug);
 
 void
 kmem_free_debug(void *ptr, size_t size)
 {
-	ENTRY;
+	SENTRY;
 
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
 
 	kmem_alloc_used_sub(size);
-	CDEBUG_LIMIT(D_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
+	SDEBUG_LIMIT(SD_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, kmem_alloc_used_read(),
 	    kmem_alloc_max);
 
 	memset(ptr, 0x5a, size);
 	kfree(ptr);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(kmem_free_debug);
 
@@ -736,14 +736,14 @@ void *
 vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 {
 	void *ptr;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(flags & KM_SLEEP);
 
 	ptr = __vmalloc(size, (flags | __GFP_HIGHMEM) & ~__GFP_ZERO,
 	    PAGE_KERNEL);
 	if (ptr == NULL) {
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "vmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
@@ -755,32 +755,32 @@ vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 		if (unlikely(vmem_alloc_used_read() > vmem_alloc_max))
 			vmem_alloc_max = vmem_alloc_used_read();
 
-		CDEBUG_LIMIT(D_INFO, "vmem_alloc(%llu, 0x%x) = %p "
+		SDEBUG_LIMIT(SD_INFO, "vmem_alloc(%llu, 0x%x) = %p "
 		    "(%lld/%llu)\n", (unsigned long long) size, flags, ptr,
 		    vmem_alloc_used_read(), vmem_alloc_max);
 	}
 
-	RETURN(ptr);
+	SRETURN(ptr);
 }
 EXPORT_SYMBOL(vmem_alloc_debug);
 
 void
 vmem_free_debug(void *ptr, size_t size)
 {
-	ENTRY;
+	SENTRY;
 
 	ASSERTF(ptr || size > 0, "ptr: %p, size: %llu", ptr,
 	    (unsigned long long) size);
 
 	vmem_alloc_used_sub(size);
-	CDEBUG_LIMIT(D_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
+	SDEBUG_LIMIT(SD_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, vmem_alloc_used_read(),
 	    vmem_alloc_max);
 
 	memset(ptr, 0x5a, size);
 	vfree(ptr);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(vmem_free_debug);
 
@@ -901,7 +901,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 
 	base = kv_alloc(skc, skc->skc_slab_size, flags);
 	if (base == NULL)
-		RETURN(NULL);
+		SRETURN(NULL);
 
 	sks = (spl_kmem_slab_t *)base;
 	sks->sks_magic = SKS_MAGIC;
@@ -920,7 +920,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 		if (skc->skc_flags & KMC_OFFSLAB) {
 			obj = kv_alloc(skc, offslab_size, flags);
 			if (!obj)
-				GOTO(out, rc = -ENOMEM);
+				SGOTO(out, rc = -ENOMEM);
 		} else {
 			obj = base + spl_sks_size(skc) + (i * obj_size);
 		}
@@ -948,7 +948,7 @@ out:
 		sks = NULL;
 	}
 
-	RETURN(sks);
+	SRETURN(sks);
 }
 
 /*
@@ -961,7 +961,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	      struct list_head *sks_list, struct list_head *sko_list)
 {
 	spl_kmem_cache_t *skc;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
 	ASSERT(sks->sks_ref == 0);
@@ -982,7 +982,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	list_add(&sks->sks_list, sks_list);
 	list_splice_init(&sks->sks_free_list, sko_list);
 
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -1002,7 +1002,7 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	LIST_HEAD(sko_list);
 	uint32_t size = 0;
 	int i = 0;
-	ENTRY;
+	SENTRY;
 
 	/*
 	 * Move empty slabs and objects which have not been touched in
@@ -1057,7 +1057,7 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 		cond_resched();
 	}
 
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -1136,7 +1136,7 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 		for (*size = PAGE_SIZE; *size <= max_size; *size *= 2) {
 			*objs = (*size - sks_size) / obj_size;
 			if (*objs >= SPL_KMEM_CACHE_OBJ_PER_SLAB)
-				RETURN(0);
+				SRETURN(0);
 		}
 
 		/*
@@ -1147,10 +1147,10 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 		*size = max_size;
 		*objs = (*size - sks_size) / obj_size;
 		if (*objs >= SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN)
-			RETURN(0);
+			SRETURN(0);
 	}
 
-	RETURN(-ENOSPC);
+	SRETURN(-ENOSPC);
 }
 
 /*
@@ -1163,7 +1163,7 @@ spl_magazine_size(spl_kmem_cache_t *skc)
 {
 	uint32_t obj_size = spl_obj_size(skc);
 	int size;
-	ENTRY;
+	SENTRY;
 
 	/* Per-magazine sizes below assume a 4Kib page size */
 	if (obj_size > (PAGE_SIZE * 256))
@@ -1177,7 +1177,7 @@ spl_magazine_size(spl_kmem_cache_t *skc)
 	else
 		size = 256;
 
-	RETURN(size);
+	SRETURN(size);
 }
 
 /*
@@ -1189,7 +1189,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 	spl_kmem_magazine_t *skm;
 	int size = sizeof(spl_kmem_magazine_t) +
 	           sizeof(void *) * skc->skc_mag_size;
-	ENTRY;
+	SENTRY;
 
 	skm = kmem_alloc_node(size, KM_SLEEP, node);
 	if (skm) {
@@ -1202,7 +1202,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 		skm->skm_age = jiffies;
 	}
 
-	RETURN(skm);
+	SRETURN(skm);
 }
 
 /*
@@ -1214,12 +1214,12 @@ spl_magazine_free(spl_kmem_magazine_t *skm)
 	int size = sizeof(spl_kmem_magazine_t) +
 	           sizeof(void *) * skm->skm_size;
 
-	ENTRY;
+	SENTRY;
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 	ASSERT(skm->skm_avail == 0);
 
 	kmem_free(skm, size);
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -1229,7 +1229,7 @@ static int
 spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i;
-	ENTRY;
+	SENTRY;
 
 	skc->skc_mag_size = spl_magazine_size(skc);
 	skc->skc_mag_refill = (skc->skc_mag_size + 1) / 2;
@@ -1240,7 +1240,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 			for (i--; i >= 0; i--)
 				spl_magazine_free(skc->skc_mag[i]);
 
-			RETURN(-ENOMEM);
+			SRETURN(-ENOMEM);
 		}
 	}
 
@@ -1249,7 +1249,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 		schedule_delayed_work_on(i, &skc->skc_mag[i]->skm_work,
 				         skc->skc_delay / 3 * HZ);
 
-	RETURN(0);
+	SRETURN(0);
 }
 
 /*
@@ -1260,7 +1260,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
 	spl_kmem_magazine_t *skm;
 	int i;
-	ENTRY;
+	SENTRY;
 
         for_each_online_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -1268,7 +1268,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 		spl_magazine_free(skm);
         }
 
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -1300,7 +1300,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 {
         spl_kmem_cache_t *skc;
 	int rc, kmem_flags = KM_SLEEP;
-	ENTRY;
+	SENTRY;
 
 	ASSERTF(!(flags & KMC_NOMAGAZINE), "Bad KMC_NOMAGAZINE (%x)\n", flags);
 	ASSERTF(!(flags & KMC_NOHASH), "Bad KMC_NOHASH (%x)\n", flags);
@@ -1321,14 +1321,14 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc),
 	                                      kmem_flags | KM_NODEBUG);
 	if (skc == NULL)
-		RETURN(NULL);
+		SRETURN(NULL);
 
 	skc->skc_magic = SKC_MAGIC;
 	skc->skc_name_size = strlen(name) + 1;
 	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, kmem_flags);
 	if (skc->skc_name == NULL) {
 		kmem_free(skc, sizeof(*skc));
-		RETURN(NULL);
+		SRETURN(NULL);
 	}
 	strncpy(skc->skc_name, name, skc->skc_name_size);
 
@@ -1375,11 +1375,11 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 
 	rc = spl_slab_size(skc, &skc->skc_slab_objs, &skc->skc_slab_size);
 	if (rc)
-		GOTO(out, rc);
+		SGOTO(out, rc);
 
 	rc = spl_magazine_create(skc);
 	if (rc)
-		GOTO(out, rc);
+		SGOTO(out, rc);
 
 	spl_init_delayed_work(&skc->skc_work, spl_cache_age, skc);
 	schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
@@ -1388,11 +1388,11 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
 	up_write(&spl_kmem_cache_sem);
 
-	RETURN(skc);
+	SRETURN(skc);
 out:
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	kmem_free(skc, sizeof(*skc));
-	RETURN(NULL);
+	SRETURN(NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
@@ -1404,7 +1404,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
 	DECLARE_WAIT_QUEUE_HEAD(wq);
 	int i;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 
@@ -1442,7 +1442,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 
 	kmem_free(skc, sizeof(*skc));
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(spl_kmem_cache_destroy);
 
@@ -1495,7 +1495,7 @@ static spl_kmem_slab_t *
 spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	local_irq_enable();
@@ -1508,13 +1508,13 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 	 */
 	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
 		schedule();
-		GOTO(out, sks= NULL);
+		SGOTO(out, sks= NULL);
 	}
 
 	/* Allocate a new slab for the cache */
 	sks = spl_slab_alloc(skc, flags | __GFP_NORETRY | KM_NODEBUG);
 	if (sks == NULL)
-		GOTO(out, sks = NULL);
+		SGOTO(out, sks = NULL);
 
 	/* Link the new empty slab in to the end of skc_partial_list. */
 	spin_lock(&skc->skc_lock);
@@ -1525,7 +1525,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 out:
 	local_irq_disable();
 
-	RETURN(sks);
+	SRETURN(sks);
 }
 
 /*
@@ -1539,7 +1539,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 {
 	spl_kmem_slab_t *sks;
 	int rc = 0, refill;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
@@ -1554,11 +1554,11 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 
 			sks = spl_cache_grow(skc, flags);
 			if (!sks)
-				GOTO(out, rc);
+				SGOTO(out, rc);
 
 			/* Rescheduled to different CPU skm is not local */
 			if (skm != skc->skc_mag[smp_processor_id()])
-				GOTO(out, rc);
+				SGOTO(out, rc);
 
 			/* Potentially rescheduled to the same CPU but
 			 * allocations may have occured from this CPU while
@@ -1594,7 +1594,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	spin_unlock(&skc->skc_lock);
 out:
 	/* Returns the number of entries added to cache */
-	RETURN(rc);
+	SRETURN(rc);
 }
 
 /*
@@ -1605,7 +1605,7 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 {
 	spl_kmem_slab_t *sks = NULL;
 	spl_kmem_obj_t *sko = NULL;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(spin_is_locked(&skc->skc_lock));
@@ -1637,7 +1637,7 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 		skc->skc_slab_alloc--;
 	}
 
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -1651,7 +1651,7 @@ static int
 spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 {
 	int i, count = MIN(flush, skm->skm_avail);
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
@@ -1673,7 +1673,7 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 
 	spin_unlock(&skc->skc_lock);
 
-	RETURN(count);
+	SRETURN(count);
 }
 
 /*
@@ -1686,7 +1686,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	spl_kmem_magazine_t *skm;
 	unsigned long irq_flags;
 	void *obj = NULL;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
@@ -1712,7 +1712,7 @@ restart:
 		/* Per-CPU cache empty, directly allocate from
 		 * the slab and refill the per-CPU cache. */
 		(void)spl_cache_refill(skc, skm, flags);
-		GOTO(restart, obj = NULL);
+		SGOTO(restart, obj = NULL);
 	}
 
 	local_irq_restore(irq_flags);
@@ -1723,7 +1723,7 @@ restart:
 	prefetchw(obj);
 	atomic_dec(&skc->skc_ref);
 
-	RETURN(obj);
+	SRETURN(obj);
 }
 EXPORT_SYMBOL(spl_kmem_cache_alloc);
 
@@ -1738,7 +1738,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 {
 	spl_kmem_magazine_t *skm;
 	unsigned long flags;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
@@ -1762,7 +1762,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	local_irq_restore(flags);
 	atomic_dec(&skc->skc_ref);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(spl_kmem_cache_free);
 
@@ -1814,14 +1814,14 @@ spl_kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
 void
 spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
-	ENTRY;
+	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	/* Prevent concurrent cache reaping when contended */
 	if (test_and_set_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
-		EXIT;
+		SEXIT;
 		return;
 	}
 
@@ -1834,7 +1834,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
 	atomic_dec(&skc->skc_ref);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 
@@ -1894,7 +1894,7 @@ static int
 spl_kmem_init_tracking(struct list_head *list, spinlock_t *lock, int size)
 {
 	int i;
-	ENTRY;
+	SENTRY;
 
 	spin_lock_init(lock);
 	INIT_LIST_HEAD(list);
@@ -1902,7 +1902,7 @@ spl_kmem_init_tracking(struct list_head *list, spinlock_t *lock, int size)
 	for (i = 0; i < size; i++)
 		INIT_HLIST_HEAD(&kmem_table[i]);
 
-	RETURN(0);
+	SRETURN(0);
 }
 
 static void
@@ -1911,7 +1911,7 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 	unsigned long flags;
 	kmem_debug_t *kd;
 	char str[17];
-	ENTRY;
+	SENTRY;
 
 	spin_lock_irqsave(lock, flags);
 	if (!list_empty(list))
@@ -1924,7 +1924,7 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 		       kd->kd_func, kd->kd_line);
 
 	spin_unlock_irqrestore(lock, flags);
-	EXIT;
+	SEXIT;
 }
 #else /* DEBUG_KMEM && DEBUG_KMEM_TRACKING */
 #define spl_kmem_init_tracking(list, lock, size)
@@ -2031,7 +2031,7 @@ int
 spl_kmem_init(void)
 {
 	int rc = 0;
-	ENTRY;
+	SENTRY;
 
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
@@ -2040,7 +2040,7 @@ spl_kmem_init(void)
 	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
 					       spl_kmem_cache_generic_shrinker);
 	if (spl_kmem_cache_shrinker == NULL)
-		RETURN(rc = -ENOMEM);
+		SRETURN(rc = -ENOMEM);
 #else
 	register_shrinker(&spl_kmem_cache_shrinker);
 #endif
@@ -2052,7 +2052,7 @@ spl_kmem_init(void)
 	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);
 	spl_kmem_init_tracking(&vmem_list, &vmem_lock, VMEM_TABLE_SIZE);
 #endif
-	RETURN(rc);
+	SRETURN(rc);
 }
 
 void
@@ -2064,20 +2064,20 @@ spl_kmem_fini(void)
 	 * at that address to aid in debugging.  Performance is not
 	 * a serious concern here since it is module unload time. */
 	if (kmem_alloc_used_read() != 0)
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "kmem leaked %ld/%ld bytes\n",
 		    kmem_alloc_used_read(), kmem_alloc_max);
 
 
 	if (vmem_alloc_used_read() != 0)
-		CDEBUG_LIMIT(D_CONSOLE | D_WARNING,
+		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "vmem leaked %ld/%ld bytes\n",
 		    vmem_alloc_used_read(), vmem_alloc_max);
 
 	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
 	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);
 #endif /* DEBUG_KMEM */
-	ENTRY;
+	SENTRY;
 
 #ifdef HAVE_SET_SHRINKER
 	remove_shrinker(spl_kmem_cache_shrinker);
@@ -2085,5 +2085,5 @@ spl_kmem_fini(void)
 	unregister_shrinker(&spl_kmem_cache_shrinker);
 #endif
 
-	EXIT;
+	SEXIT;
 }

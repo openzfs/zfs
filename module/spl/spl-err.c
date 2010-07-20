@@ -28,11 +28,11 @@
 #include <sys/cmn_err.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_GENERIC
+#define SS_DEBUG_SUBSYS SS_GENERIC
 
 #ifndef NDEBUG
 static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
@@ -61,10 +61,10 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 		vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
 
 		if (fmt[0] == '!')
-			CDEBUG(D_INFO, "%s%s%s",
+			SDEBUG(SD_INFO, "%s%s%s",
 			       ce_prefix[ce], msg, ce_suffix[ce]);
 		else
-			CERROR("%s%s%s", ce_prefix[ce], msg, ce_suffix[ce]);
+			SERROR("%s%s%s", ce_prefix[ce], msg, ce_suffix[ce]);
 	}
 } /* vcmn_err() */
 EXPORT_SYMBOL(vcmn_err);

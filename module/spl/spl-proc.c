@@ -31,11 +31,11 @@
 #include <linux/proc_compat.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_PROC
+#define SS_DEBUG_SUBSYS SS_PROC
 
 #ifdef DEBUG_KMEM
 static unsigned long table_min = 0;
@@ -217,21 +217,21 @@ SPL_PROC_HANDLER(proc_dobitmasks)
         int is_printk = (mask == &spl_debug_printk) ? 1 : 0;
         int size = 512, rc;
         char *str;
-        ENTRY;
+        SENTRY;
 
         str = kmem_alloc(size, KM_SLEEP);
         if (str == NULL)
-                RETURN(-ENOMEM);
+                SRETURN(-ENOMEM);
 
         if (write) {
                 rc = proc_copyin_string(str, size, buffer, *lenp);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 rc = spl_debug_str2mask(mask, str, is_subsys);
                 /* Always print BUG/ASSERT to console, so keep this mask */
                 if (is_printk)
-                        *mask |= D_EMERG;
+                        *mask |= SD_EMERG;
 
                 *ppos += *lenp;
         } else {
@@ -248,19 +248,19 @@ SPL_PROC_HANDLER(proc_dobitmasks)
         }
 
         kmem_free(str, size);
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 SPL_PROC_HANDLER(proc_debug_mb)
 {
         char str[32];
         int rc, len;
-        ENTRY;
+        SENTRY;
 
         if (write) {
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 rc = spl_debug_set_mb(simple_strtoul(str, NULL, 0));
                 *ppos += *lenp;
@@ -277,12 +277,12 @@ SPL_PROC_HANDLER(proc_debug_mb)
                 }
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 SPL_PROC_HANDLER(proc_dump_kernel)
 {
-	ENTRY;
+	SENTRY;
 
         if (write) {
                spl_debug_dumplog(0);
@@ -291,19 +291,19 @@ SPL_PROC_HANDLER(proc_dump_kernel)
                 *lenp = 0;
         }
 
-        RETURN(0);
+        SRETURN(0);
 }
 
 SPL_PROC_HANDLER(proc_force_bug)
 {
-	ENTRY;
+	SENTRY;
 
         if (write)
 		PANIC("Crashing due to forced panic\n");
         else
                 *lenp = 0;
 
-	RETURN(0);
+	SRETURN(0);
 }
 
 SPL_PROC_HANDLER(proc_console_max_delay_cs)
@@ -311,7 +311,7 @@ SPL_PROC_HANDLER(proc_console_max_delay_cs)
         int rc, max_delay_cs;
         struct ctl_table dummy = *table;
         long d;
-	ENTRY;
+	SENTRY;
 
         dummy.data = &max_delay_cs;
         dummy.proc_handler = &proc_dointvec;
@@ -320,14 +320,14 @@ SPL_PROC_HANDLER(proc_console_max_delay_cs)
                 max_delay_cs = 0;
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 if (max_delay_cs <= 0)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 d = (max_delay_cs * HZ) / 100;
                 if (d == 0 || d < spl_console_min_delay)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 spl_console_max_delay = d;
         } else {
@@ -335,7 +335,7 @@ SPL_PROC_HANDLER(proc_console_max_delay_cs)
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 SPL_PROC_HANDLER(proc_console_min_delay_cs)
@@ -343,7 +343,7 @@ SPL_PROC_HANDLER(proc_console_min_delay_cs)
         int rc, min_delay_cs;
         struct ctl_table dummy = *table;
         long d;
-	ENTRY;
+	SENTRY;
 
         dummy.data = &min_delay_cs;
         dummy.proc_handler = &proc_dointvec;
@@ -352,14 +352,14 @@ SPL_PROC_HANDLER(proc_console_min_delay_cs)
                 min_delay_cs = 0;
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 if (min_delay_cs <= 0)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 d = (min_delay_cs * HZ) / 100;
                 if (d == 0 || d > spl_console_max_delay)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 spl_console_min_delay = d;
         } else {
@@ -367,14 +367,14 @@ SPL_PROC_HANDLER(proc_console_min_delay_cs)
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 SPL_PROC_HANDLER(proc_console_backoff)
 {
         int rc, backoff;
         struct ctl_table dummy = *table;
-	ENTRY;
+	SENTRY;
 
         dummy.data = &backoff;
         dummy.proc_handler = &proc_dointvec;
@@ -383,10 +383,10 @@ SPL_PROC_HANDLER(proc_console_backoff)
                 backoff = 0;
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 if (backoff <= 0)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 spl_console_backoff = backoff;
         } else {
@@ -394,7 +394,7 @@ SPL_PROC_HANDLER(proc_console_backoff)
                 rc = spl_proc_dointvec(&dummy,write,filp,buffer,lenp,ppos);
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 #ifdef DEBUG_KMEM
@@ -403,7 +403,7 @@ SPL_PROC_HANDLER(proc_domemused)
         int rc = 0;
         unsigned long min = 0, max = ~0, val;
         struct ctl_table dummy = *table;
-	ENTRY;
+	SENTRY;
 
         dummy.data = &val;
         dummy.proc_handler = &proc_dointvec;
@@ -422,7 +422,7 @@ SPL_PROC_HANDLER(proc_domemused)
                                                 buffer, lenp, ppos);
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 #endif /* DEBUG_KMEM */
 
@@ -431,7 +431,7 @@ SPL_PROC_HANDLER(proc_dohostid)
         int len, rc = 0;
         int32_t val;
         char *end, str[32];
-        ENTRY;
+        SENTRY;
 
         if (write) {
                 /* We can't use spl_proc_doulongvec_minmax() in the write
@@ -439,11 +439,11 @@ SPL_PROC_HANDLER(proc_dohostid)
                  * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 val = simple_strtol(str, &end, 16);
                 if (str == end)
-                        RETURN(-EINVAL);
+                        SRETURN(-EINVAL);
 
                 spl_hostid = (long) val;
                 (void) snprintf(hw_serial, HW_HOSTID_LEN, "%u",
@@ -463,7 +463,7 @@ SPL_PROC_HANDLER(proc_dohostid)
                 }
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
@@ -471,24 +471,24 @@ SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
 {
         int len, rc = 0;
         char *end, str[32];
-	ENTRY;
+	SENTRY;
 
         if (write) {
 		/* This may only be set once at module load time */
 		if (spl_kallsyms_lookup_name_fn != SYMBOL_POISON)
-			RETURN(-EEXIST);
+			SRETURN(-EEXIST);
 
 		/* We can't use spl_proc_doulongvec_minmax() in the write
 		 * case hear because the address while a hex value has no
 		 * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
-                        RETURN(rc);
+                        SRETURN(rc);
 
                 spl_kallsyms_lookup_name_fn =
 			(kallsyms_lookup_name_t)simple_strtoul(str, &end, 16);
 		if (str == end)
-			RETURN(-EINVAL);
+			SRETURN(-EINVAL);
 
                 *ppos += *lenp;
         } else {
@@ -505,7 +505,7 @@ SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
                 }
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 #endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
@@ -513,7 +513,7 @@ SPL_PROC_HANDLER(proc_doavailrmem)
 {
         int len, rc = 0;
 	char str[32];
-	ENTRY;
+	SENTRY;
 
         if (write) {
                 *ppos += *lenp;
@@ -531,14 +531,14 @@ SPL_PROC_HANDLER(proc_doavailrmem)
 		}
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 SPL_PROC_HANDLER(proc_dofreemem)
 {
         int len, rc = 0;
 	char str[32];
-	ENTRY;
+	SENTRY;
 
         if (write) {
                 *ppos += *lenp;
@@ -555,7 +555,7 @@ SPL_PROC_HANDLER(proc_dofreemem)
 		}
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 #ifdef DEBUG_KMEM
@@ -605,7 +605,7 @@ slab_seq_start(struct seq_file *f, loff_t *pos)
 {
         struct list_head *p;
         loff_t n = *pos;
-        ENTRY;
+        SENTRY;
 
 	down_read(&spl_kmem_cache_sem);
         if (!n)
@@ -615,20 +615,20 @@ slab_seq_start(struct seq_file *f, loff_t *pos)
         while (n--) {
                 p = p->next;
                 if (p == &spl_kmem_cache_list)
-                        RETURN(NULL);
+                        SRETURN(NULL);
         }
 
-        RETURN(list_entry(p, spl_kmem_cache_t, skc_list));
+        SRETURN(list_entry(p, spl_kmem_cache_t, skc_list));
 }
 
 static void *
 slab_seq_next(struct seq_file *f, void *p, loff_t *pos)
 {
 	spl_kmem_cache_t *skc = p;
-        ENTRY;
+        SENTRY;
 
         ++*pos;
-        RETURN((skc->skc_list.next == &spl_kmem_cache_list) ?
+        SRETURN((skc->skc_list.next == &spl_kmem_cache_list) ?
 	       NULL : list_entry(skc->skc_list.next,spl_kmem_cache_t,skc_list));
 }
 
@@ -1025,33 +1025,33 @@ int
 proc_init(void)
 {
 	int rc = 0;
-        ENTRY;
+        SENTRY;
 
 #ifdef CONFIG_SYSCTL
         spl_header = spl_register_sysctl_table(spl_root, 0);
 	if (spl_header == NULL)
-		RETURN(-EUNATCH);
+		SRETURN(-EUNATCH);
 #endif /* CONFIG_SYSCTL */
 
 	proc_spl = proc_mkdir("spl", NULL);
 	if (proc_spl == NULL)
-		GOTO(out, rc = -EUNATCH);
+		SGOTO(out, rc = -EUNATCH);
 
 #ifdef DEBUG_KMEM
         proc_spl_kmem = proc_mkdir("kmem", proc_spl);
         if (proc_spl_kmem == NULL)
-                GOTO(out, rc = -EUNATCH);
+                SGOTO(out, rc = -EUNATCH);
 
 	proc_spl_kmem_slab = create_proc_entry("slab", 0444, proc_spl_kmem);
         if (proc_spl_kmem_slab == NULL)
-		GOTO(out, rc = -EUNATCH);
+		SGOTO(out, rc = -EUNATCH);
 
         proc_spl_kmem_slab->proc_fops = &proc_slab_operations;
 #endif /* DEBUG_KMEM */
 
         proc_spl_kstat = proc_mkdir("kstat", proc_spl);
         if (proc_spl_kstat == NULL)
-                GOTO(out, rc = -EUNATCH);
+                SGOTO(out, rc = -EUNATCH);
 out:
 	if (rc) {
 		remove_proc_entry("kstat", proc_spl);
@@ -1065,13 +1065,13 @@ out:
 #endif /* CONFIG_SYSCTL */
 	}
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 void
 proc_fini(void)
 {
-        ENTRY;
+        SENTRY;
 
 	remove_proc_entry("kstat", proc_spl);
 #ifdef DEBUG_KMEM
@@ -1085,5 +1085,5 @@ proc_fini(void)
         spl_unregister_sysctl_table(spl_header);
 #endif /* CONFIG_SYSCTL */
 
-        EXIT;
+        SEXIT;
 }

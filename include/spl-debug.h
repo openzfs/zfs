@@ -26,17 +26,17 @@
  * Available debug functions.  These function should be used by any
  * package which needs to integrate with the SPL log infrastructure.
  *
- * CDEBUG()		- Log debug message with specified mask.
- * CDEBUG_LIMIT()	- Log just 1 debug message with specified mask.
- * CWARN()		- Log a warning message.
- * CERROR()		- Log an error message.
- * CEMERG()		- Log an emergency error message.
- * CONSOLE()		- Log a generic message to the console.
+ * SDEBUG()		- Log debug message with specified mask.
+ * SDEBUG_LIMIT()	- Log just 1 debug message with specified mask.
+ * SWARN()		- Log a warning message.
+ * SERROR()		- Log an error message.
+ * SEMERG()		- Log an emergency error message.
+ * SCONSOLE()		- Log a generic message to the console.
  *
- * ENTRY		- Log entry point to a function.
- * EXIT			- Log exit point from a function.
- * RETURN(x)		- Log return from a function.
- * GOTO(x, y)		- Log goto within a function.
+ * SENTRY		- Log entry point to a function.
+ * SEXIT		- Log exit point from a function.
+ * SRETURN(x)		- Log return from a function.
+ * SGOTO(x, y)		- Log goto within a function.
  */
 
 #ifndef _SPL_DEBUG_INTERNAL_H
@@ -44,95 +44,104 @@
 
 #include <linux/limits.h>
 
-#define S_UNDEFINED	0x00000001
-#define S_ATOMIC	0x00000002
-#define S_KOBJ		0x00000004
-#define S_VNODE		0x00000008
-#define S_TIME		0x00000010
-#define S_RWLOCK	0x00000020
-#define S_THREAD	0x00000040
-#define S_CONDVAR	0x00000080
-#define S_MUTEX		0x00000100
-#define S_RNG		0x00000200
-#define S_TASKQ		0x00000400
-#define S_KMEM		0x00000800
-#define S_DEBUG		0x00001000
-#define S_GENERIC	0x00002000
-#define S_PROC		0x00004000
-#define S_MODULE	0x00008000
-#define S_CRED		0x00010000
+#define SS_UNDEFINED	0x00000001
+#define SS_ATOMIC	0x00000002
+#define SS_KOBJ		0x00000004
+#define SS_VNODE	0x00000008
+#define SS_TIME		0x00000010
+#define SS_RWLOCK	0x00000020
+#define SS_THREAD	0x00000040
+#define SS_CONDVAR	0x00000080
+#define SS_MUTEX	0x00000100
+#define SS_RNG		0x00000200
+#define SS_TASKQ	0x00000400
+#define SS_KMEM		0x00000800
+#define SS_DEBUG	0x00001000
+#define SS_GENERIC	0x00002000
+#define SS_PROC		0x00004000
+#define SS_MODULE	0x00008000
+#define SS_CRED		0x00010000
+#define SS_KSTAT	0x00020000
+#define SS_XDR		0x00040000
+#define SS_USER1	0x01000000
+#define SS_USER2	0x02000000
+#define SS_USER3	0x04000000
+#define SS_USER4	0x08000000
+#define SS_USER5	0x10000000
+#define SS_USER6	0x20000000
+#define SS_USER7	0x40000000
+#define SS_USER8	0x80000000
+#define SS_DEBUG_SUBSYS	SS_UNDEFINED
 
-#define D_TRACE		0x00000001
-#define D_INFO		0x00000002
-#define D_WARNING	0x00000004
-#define D_ERROR		0x00000008
-#define D_EMERG		0x00000010
-#define D_CONSOLE	0x00000020
-#define D_IOCTL		0x00000040
-#define D_DPRINTF	0x00000080
-#define D_OTHER		0x00000100
-
-#define D_CANTMASK	(D_ERROR | D_EMERG | D_WARNING | D_CONSOLE)
-#define DEBUG_SUBSYSTEM	S_UNDEFINED
+#define SD_TRACE	0x00000001
+#define SD_INFO		0x00000002
+#define SD_WARNING	0x00000004
+#define SD_ERROR	0x00000008
+#define SD_EMERG	0x00000010
+#define SD_CONSOLE	0x00000020
+#define SD_IOCTL	0x00000040
+#define SD_DPRINTF	0x00000080
+#define SD_OTHER	0x00000100
+#define SD_CANTMASK	(SD_ERROR | SD_EMERG | SD_WARNING | SD_CONSOLE)
 
 #ifdef NDEBUG /* Debugging Disabled */
 
-#define CDEBUG(mask, fmt, a...)		((void)0)
-#define CDEBUG_LIMIT(x, y, fmt, a...)	((void)0)
-#define CWARN(fmt, a...)		((void)0)
-#define CERROR(fmt, a...)		((void)0)
-#define CEMERG(fmt, a...)		((void)0)
-#define CONSOLE(mask, fmt, a...)	((void)0)
+#define SDEBUG(mask, fmt, a...)		((void)0)
+#define SDEBUG_LIMIT(x, y, fmt, a...)	((void)0)
+#define SWARN(fmt, a...)		((void)0)
+#define SERROR(fmt, a...)		((void)0)
+#define SEMERG(fmt, a...)		((void)0)
+#define SCONSOLE(mask, fmt, a...)	((void)0)
 
-#define ENTRY				((void)0)
-#define EXIT				((void)0)
-#define RETURN(x)			return (x)
-#define GOTO(x, y)			{ ((void)(y)); goto x; }
+#define SENTRY				((void)0)
+#define SEXIT				((void)0)
+#define SRETURN(x)			return (x)
+#define SGOTO(x, y)			{ ((void)(y)); goto x; }
 
 #else /* Debugging Enabled */
 
-#define __CDEBUG(cdls, subsys, mask, format, a...)			\
+#define __SDEBUG(cdls, subsys, mask, format, a...)			\
 do {									\
-	if (((mask) & D_CANTMASK) != 0 ||				\
+	if (((mask) & SD_CANTMASK) != 0 ||				\
 	    ((spl_debug_mask & (mask)) != 0 &&				\
 	     (spl_debug_subsys & (subsys)) != 0))			\
 		spl_debug_msg(cdls, subsys, mask, __FILE__,		\
 		__FUNCTION__, __LINE__, format, ## a);			\
 } while (0)
 
-#define CDEBUG(mask, format, a...)					\
-	__CDEBUG(NULL, DEBUG_SUBSYSTEM, mask, format, ## a)
+#define SDEBUG(mask, format, a...)					\
+	__SDEBUG(NULL, SS_DEBUG_SUBSYS, mask, format, ## a)
 
-#define __CDEBUG_LIMIT(subsys, mask, format, a...)			\
+#define __SDEBUG_LIMIT(subsys, mask, format, a...)			\
 do {									\
 	static spl_debug_limit_state_t cdls;				\
 									\
-	__CDEBUG(&cdls, subsys, mask, format, ## a);			\
+	__SDEBUG(&cdls, subsys, mask, format, ## a);			\
 } while (0)
 
-#define CDEBUG_LIMIT(mask, format, a...)				\
-	__CDEBUG_LIMIT(DEBUG_SUBSYSTEM, mask, format, ## a)
+#define SDEBUG_LIMIT(mask, format, a...)				\
+	__SDEBUG_LIMIT(SS_DEBUG_SUBSYS, mask, format, ## a)
 
-#define CWARN(fmt, a...)		CDEBUG_LIMIT(D_WARNING, fmt, ## a)
-#define CERROR(fmt, a...)		CDEBUG_LIMIT(D_ERROR, fmt, ## a)
-#define CEMERG(fmt, a...)		CDEBUG_LIMIT(D_EMERG, fmt, ## a)
-#define CONSOLE(mask, fmt, a...)	CDEBUG(D_CONSOLE | (mask), fmt, ## a)
+#define SWARN(fmt, a...)		SDEBUG_LIMIT(SD_WARNING, fmt, ## a)
+#define SERROR(fmt, a...)		SDEBUG_LIMIT(SD_ERROR, fmt, ## a)
+#define SEMERG(fmt, a...)		SDEBUG_LIMIT(SD_EMERG, fmt, ## a)
+#define SCONSOLE(mask, fmt, a...)	SDEBUG(SD_CONSOLE | (mask), fmt, ## a)
 
-#define ENTRY				CDEBUG(D_TRACE, "Process entered\n")
-#define EXIT				CDEBUG(D_TRACE, "Process leaving\n")
+#define SENTRY				SDEBUG(SD_TRACE, "Process entered\n")
+#define SEXIT				SDEBUG(SD_TRACE, "Process leaving\n")
 
-#define RETURN(rc)							\
+#define SRETURN(rc)							\
 do {									\
 	typeof(rc) RETURN__ret = (rc);					\
-	CDEBUG(D_TRACE, "Process leaving (rc=%lu : %ld : %lx)\n",	\
+	SDEBUG(SD_TRACE, "Process leaving (rc=%lu : %ld : %lx)\n",	\
 	    (long)RETURN__ret, (long)RETURN__ret, (long)RETURN__ret);	\
 	return RETURN__ret;						\
 } while (0)
 
-#define GOTO(label, rc)							\
+#define SGOTO(label, rc)						\
 do {									\
 	long GOTO__ret = (long)(rc);					\
-	CDEBUG(D_TRACE,"Process leaving via %s (rc=%lu : %ld : %lx)\n",	\
+	SDEBUG(SD_TRACE,"Process leaving via %s (rc=%lu : %ld : %lx)\n",\
 	    #label, (unsigned long)GOTO__ret, (signed long)GOTO__ret,	\
 	    (signed long)GOTO__ret);					\
 	goto label;							\

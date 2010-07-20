@@ -28,6 +28,12 @@
 #include <sys/kstat.h>
 #include <spl-debug.h>
 
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
+#endif
+
+#define SS_DEBUG_SUBSYS SS_KSTAT
+
 static spinlock_t kstat_lock;
 static struct list_head kstat_list;
 static kid_t kstat_id;
@@ -221,7 +227,7 @@ static void *
 kstat_seq_data_addr(kstat_t *ksp, loff_t n)
 {
         void *rc = NULL;
-        ENTRY;
+        SENTRY;
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:
@@ -243,7 +249,7 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
 
-        RETURN(rc);
+        SRETURN(rc);
 }
 
 static void *
@@ -252,7 +258,7 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         loff_t n = *pos;
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
-        ENTRY;
+        SENTRY;
 
         spin_lock(&ksp->ks_lock);
 	ksp->ks_snaptime = gethrtime();
@@ -261,9 +267,9 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
                 kstat_seq_show_headers(f);
 
         if (n >= ksp->ks_ndata)
-                RETURN(NULL);
+                SRETURN(NULL);
 
-        RETURN(kstat_seq_data_addr(ksp, n));
+        SRETURN(kstat_seq_data_addr(ksp, n));
 }
 
 static void *
@@ -271,13 +277,13 @@ kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
 {
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
-        ENTRY;
+        SENTRY;
 
         ++*pos;
         if (*pos >= ksp->ks_ndata)
-                RETURN(NULL);
+                SRETURN(NULL);
 
-        RETURN(kstat_seq_data_addr(ksp, *pos));
+        SRETURN(kstat_seq_data_addr(ksp, *pos));
 }
 
 static void
@@ -401,7 +407,7 @@ __kstat_install(kstat_t *ksp)
 	struct proc_dir_entry *de_module, *de_name;
 	kstat_t *tmp;
 	int rc = 0;
-	ENTRY;
+	SENTRY;
 
 	spin_lock(&kstat_lock);
 
@@ -409,7 +415,7 @@ __kstat_install(kstat_t *ksp)
         list_for_each_entry(tmp, &kstat_list, ks_list) {
                 if (tmp == ksp) {
 		        spin_unlock(&kstat_lock);
-			GOTO(out, rc = -EEXIST);
+			SGOTO(out, rc = -EEXIST);
 		}
 	}
 
@@ -420,12 +426,12 @@ __kstat_install(kstat_t *ksp)
 	if (de_module == NULL) {
                 de_module = proc_mkdir(ksp->ks_module, proc_spl_kstat);
 		if (de_module == NULL)
-			GOTO(out, rc = -EUNATCH);
+			SGOTO(out, rc = -EUNATCH);
 	}
 
 	de_name = create_proc_entry(ksp->ks_name, 0444, de_module);
 	if (de_name == NULL)
-		GOTO(out, rc = -EUNATCH);
+		SGOTO(out, rc = -EUNATCH);
 
 	spin_lock(&ksp->ks_lock);
 	ksp->ks_proc = de_name;
@@ -439,7 +445,7 @@ out:
 		spin_unlock(&kstat_lock);
 	}
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__kstat_install);
 
@@ -473,18 +479,18 @@ EXPORT_SYMBOL(__kstat_delete);
 int
 kstat_init(void)
 {
-	ENTRY;
+	SENTRY;
 	spin_lock_init(&kstat_lock);
 	INIT_LIST_HEAD(&kstat_list);
         kstat_id = 0;
-	RETURN(0);
+	SRETURN(0);
 }
 
 void
 kstat_fini(void)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(list_empty(&kstat_list));
-	EXIT;
+	SEXIT;
 }
 

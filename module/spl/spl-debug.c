@@ -41,23 +41,23 @@
 #include <spl-trace.h>
 #include <spl-ctl.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_DEBUG
+#define SS_DEBUG_SUBSYS SS_DEBUG
 
 unsigned long spl_debug_subsys = ~0;
 EXPORT_SYMBOL(spl_debug_subsys);
 module_param(spl_debug_subsys, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_subsys, "Subsystem debugging level mask.");
 
-unsigned long spl_debug_mask = (D_EMERG | D_ERROR | D_WARNING | D_CONSOLE);
+unsigned long spl_debug_mask = SD_CANTMASK;
 EXPORT_SYMBOL(spl_debug_mask);
 module_param(spl_debug_mask, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_mask, "Debugging level mask.");
 
-unsigned long spl_debug_printk = D_CANTMASK;
+unsigned long spl_debug_printk = SD_CANTMASK;
 EXPORT_SYMBOL(spl_debug_printk);
 module_param(spl_debug_printk, ulong, 0644);
 MODULE_PARM_DESC(spl_debug_printk, "Console printk level mask.");
@@ -120,40 +120,60 @@ spl_debug_subsys2str(int subsys)
         switch (subsys) {
         default:
                 return NULL;
-        case S_UNDEFINED:
+        case SS_UNDEFINED:
                 return "undefined";
-        case S_ATOMIC:
+        case SS_ATOMIC:
                 return "atomic";
-        case S_KOBJ:
+        case SS_KOBJ:
                 return "kobj";
-        case S_VNODE:
+        case SS_VNODE:
                 return "vnode";
-        case S_TIME:
+        case SS_TIME:
                 return "time";
-        case S_RWLOCK:
+        case SS_RWLOCK:
                 return "rwlock";
-        case S_THREAD:
+        case SS_THREAD:
                 return "thread";
-        case S_CONDVAR:
+        case SS_CONDVAR:
                 return "condvar";
-        case S_MUTEX:
+        case SS_MUTEX:
                 return "mutex";
-        case S_RNG:
+        case SS_RNG:
                 return "rng";
-        case S_TASKQ:
+        case SS_TASKQ:
                 return "taskq";
-        case S_KMEM:
+        case SS_KMEM:
                 return "kmem";
-        case S_DEBUG:
+        case SS_DEBUG:
                 return "debug";
-        case S_GENERIC:
+        case SS_GENERIC:
                 return "generic";
-        case S_PROC:
+        case SS_PROC:
                 return "proc";
-        case S_MODULE:
+        case SS_MODULE:
                 return "module";
-	case S_CRED:
+        case SS_CRED:
                 return "cred";
+        case SS_KSTAT:
+                return "kstat";
+        case SS_XDR:
+                return "xdr";
+        case SS_USER1:
+                return "user1";
+        case SS_USER2:
+                return "user2";
+        case SS_USER3:
+                return "user3";
+        case SS_USER4:
+                return "user4";
+        case SS_USER5:
+                return "user5";
+        case SS_USER6:
+                return "user6";
+        case SS_USER7:
+                return "user7";
+        case SS_USER8:
+                return "user8";
         }
 }
 
@@ -163,23 +183,23 @@ spl_debug_dbg2str(int debug)
         switch (debug) {
         default:
                 return NULL;
-        case D_TRACE:
+        case SD_TRACE:
                 return "trace";
-        case D_INFO:
+        case SD_INFO:
                 return "info";
-        case D_WARNING:
+        case SD_WARNING:
                 return "warning";
-        case D_ERROR:
+        case SD_ERROR:
                 return "error";
-        case D_EMERG:
+        case SD_EMERG:
                 return "emerg";
-        case D_CONSOLE:
+        case SD_CONSOLE:
                 return "console";
-        case D_IOCTL:
+        case SD_IOCTL:
                 return "ioctl";
-        case D_DPRINTF:
+        case SD_DPRINTF:
                 return "dprintf";
-        case D_OTHER:
+        case SD_OTHER:
                 return "other";
         }
 }
@@ -493,21 +513,21 @@ trace_print_to_console(struct spl_debug_header *hdr, int mask, const char *buf,
 {
         char *prefix = "SPL", *ptype = NULL;
 
-        if ((mask & D_EMERG) != 0) {
+        if ((mask & SD_EMERG) != 0) {
                 prefix = "SPLError";
                 ptype = KERN_EMERG;
-        } else if ((mask & D_ERROR) != 0) {
+        } else if ((mask & SD_ERROR) != 0) {
                 prefix = "SPLError";
                 ptype = KERN_ERR;
-        } else if ((mask & D_WARNING) != 0) {
+        } else if ((mask & SD_WARNING) != 0) {
                 prefix = "SPL";
                 ptype = KERN_WARNING;
-        } else if ((mask & (D_CONSOLE | spl_debug_printk)) != 0) {
+        } else if ((mask & (SD_CONSOLE | spl_debug_printk)) != 0) {
                 prefix = "SPL";
                 ptype = KERN_INFO;
         }
 
-        if ((mask & D_CONSOLE) != 0) {
+        if ((mask & SD_CONSOLE) != 0) {
                 printk("%s%s: %.*s", ptype, prefix, len, buf);
         } else {
                 printk("%s%s: %d:%d:(%s:%d:%s()) %.*s", ptype, prefix,
@@ -652,10 +672,10 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
         int                      remain;
 
 	if (subsys == 0)
-		subsys = DEBUG_SUBSYSTEM;
+		subsys = SS_DEBUG_SUBSYS;
 
 	if (mask == 0)
-		mask = D_EMERG;
+		mask = SD_EMERG;
 
         if (strchr(file, '/'))
                 file = strrchr(file, '/') + 1;
@@ -685,7 +705,7 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
                 tage = trace_get_tage(tcd, needed + known_size + 1);
                 if (tage == NULL) {
                         if (needed + known_size > PAGE_SIZE)
-                                mask |= D_ERROR;
+                                mask |= SD_ERROR;
 
                         trace_put_tcd(tcd);
                         tcd = NULL;
@@ -698,7 +718,7 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
                 max_nob = PAGE_SIZE - tage->used - known_size;
                 if (max_nob <= 0) {
                         printk(KERN_EMERG "negative max_nob: %i\n", max_nob);
-                        mask |= D_ERROR;
+                        mask |= SD_ERROR;
                         trace_put_tcd(tcd);
                         tcd = NULL;
                         goto console;
@@ -1069,7 +1089,7 @@ EXPORT_SYMBOL(spl_debug_dumpstack);
 void spl_debug_bug(char *file, const char *func, const int line, int flags)
 {
         spl_debug_catastrophe = 1;
-        spl_debug_msg(NULL, 0, D_EMERG, file, func, line, "SPL PANIC\n");
+        spl_debug_msg(NULL, 0, SD_EMERG, file, func, line, "SPL PANIC\n");
 
         if (in_interrupt())
                 panic("SPL PANIC in interrupt.\n");
@@ -1104,9 +1124,9 @@ EXPORT_SYMBOL(spl_debug_clear_buffer);
 int
 spl_debug_mark_buffer(char *text)
 {
-        CDEBUG(D_WARNING, "*************************************\n");
-        CDEBUG(D_WARNING, "DEBUG MARKER: %s\n", text);
-        CDEBUG(D_WARNING, "*************************************\n");
+        SDEBUG(SD_WARNING, "*************************************\n");
+        SDEBUG(SD_WARNING, "DEBUG MARKER: %s\n", text);
+        SDEBUG(SD_WARNING, "*************************************\n");
 
         return 0;
 }

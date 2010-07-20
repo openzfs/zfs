@@ -28,11 +28,11 @@
 #include <sys/kmem.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_TASKQ
+#define SS_DEBUG_SUBSYS SS_TASKQ
 
 /* Global system-wide dynamic task queue available for all consumers */
 taskq_t *system_taskq;
@@ -55,7 +55,7 @@ task_alloc(taskq_t *tq, uint_t flags)
 {
         spl_task_t *t;
         int count = 0;
-        ENTRY;
+        SENTRY;
 
         ASSERT(tq);
         ASSERT(flags & (TQ_SLEEP | TQ_NOSLEEP));               /* One set */
@@ -66,17 +66,17 @@ retry:
         if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
                 t = list_entry(tq->tq_free_list.next, spl_task_t, t_list);
                 list_del_init(&t->t_list);
-                RETURN(t);
+                SRETURN(t);
         }
 
         /* Free list is empty and memory allocations are prohibited */
         if (flags & TQ_NOALLOC)
-                RETURN(NULL);
+                SRETURN(NULL);
 
         /* Hit maximum spl_task_t pool size */
         if (tq->tq_nalloc >= tq->tq_maxalloc) {
                 if (flags & TQ_NOSLEEP)
-                        RETURN(NULL);
+                        SRETURN(NULL);
 
                 /* Sleep periodically polling the free list for an available
                  * spl_task_t.  If a full second passes and we have not found
@@ -86,9 +86,9 @@ retry:
                         schedule_timeout(HZ / 100);
                         spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
                         if (count < 100)
-                                GOTO(retry, count++);
+                                SGOTO(retry, count++);
 
-                        RETURN(NULL);
+                        SRETURN(NULL);
                 }
 
                 /* Unreachable, Neither TQ_SLEEP or TQ_NOSLEEP set */
@@ -108,7 +108,7 @@ retry:
 		tq->tq_nalloc++;
 	}
 
-        RETURN(t);
+        SRETURN(t);
 }
 
 /*
@@ -118,7 +118,7 @@ retry:
 static void
 task_free(taskq_t *tq, spl_task_t *t)
 {
-        ENTRY;
+        SENTRY;
 
         ASSERT(tq);
         ASSERT(t);
@@ -128,7 +128,7 @@ task_free(taskq_t *tq, spl_task_t *t)
         kmem_free(t, sizeof(spl_task_t));
         tq->tq_nalloc--;
 
-	EXIT;
+	SEXIT;
 }
 
 /*
@@ -138,7 +138,7 @@ task_free(taskq_t *tq, spl_task_t *t)
 static void
 task_done(taskq_t *tq, spl_task_t *t)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(tq);
 	ASSERT(t);
 	ASSERT(spin_is_locked(&tq->tq_lock));
@@ -154,7 +154,7 @@ task_done(taskq_t *tq, spl_task_t *t)
 		task_free(tq, t);
 	}
 
-        EXIT;
+        SEXIT;
 }
 
 /*
@@ -190,18 +190,18 @@ taskq_wait_check(taskq_t *tq, taskqid_t id)
 	rc = (id < tq->tq_lowest_id);
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
-	RETURN(rc);
+	SRETURN(rc);
 }
 
 void
 __taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(tq);
 
 	wait_event(tq->tq_wait_waitq, taskq_wait_check(tq, id));
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__taskq_wait_id);
 
@@ -209,7 +209,7 @@ void
 __taskq_wait(taskq_t *tq)
 {
 	taskqid_t id;
-	ENTRY;
+	SENTRY;
 	ASSERT(tq);
 
 	/* Wait for the largest outstanding taskqid */
@@ -219,7 +219,7 @@ __taskq_wait(taskq_t *tq)
 
 	__taskq_wait_id(tq, id);
 
-	EXIT;
+	SEXIT;
 
 }
 EXPORT_SYMBOL(__taskq_wait);
@@ -228,16 +228,16 @@ int
 __taskq_member(taskq_t *tq, void *t)
 {
         int i;
-        ENTRY;
+        SENTRY;
 
 	ASSERT(tq);
         ASSERT(t);
 
         for (i = 0; i < tq->tq_nthreads; i++)
                 if (tq->tq_threads[i] == (struct task_struct *)t)
-                        RETURN(1);
+                        SRETURN(1);
 
-        RETURN(0);
+        SRETURN(0);
 }
 EXPORT_SYMBOL(__taskq_member);
 
@@ -246,7 +246,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
         spl_task_t *t;
 	taskqid_t rc = 0;
-        ENTRY;
+        SENTRY;
 
         ASSERT(tq);
         ASSERT(func);
@@ -263,15 +263,15 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	/* Taskq being destroyed and all tasks drained */
 	if (!(tq->tq_flags & TQ_ACTIVE))
-		GOTO(out, rc = 0);
+		SGOTO(out, rc = 0);
 
 	/* Do not queue the task unless there is idle thread for it */
 	ASSERT(tq->tq_nactive <= tq->tq_nthreads);
 	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads))
-		GOTO(out, rc = 0);
+		SGOTO(out, rc = 0);
 
         if ((t = task_alloc(tq, flags)) == NULL)
-		GOTO(out, rc = 0);
+		SGOTO(out, rc = 0);
 
 	spin_lock(&t->t_lock);
 
@@ -290,7 +290,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	wake_up(&tq->tq_work_waitq);
 out:
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-	RETURN(rc);
+	SRETURN(rc);
 }
 EXPORT_SYMBOL(__taskq_dispatch);
 
@@ -305,7 +305,7 @@ taskq_lowest_id(taskq_t *tq)
 {
 	taskqid_t lowest_id = tq->tq_next_id;
         spl_task_t *t;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(tq);
 	ASSERT(spin_is_locked(&tq->tq_lock));
@@ -325,7 +325,7 @@ taskq_lowest_id(taskq_t *tq)
 		lowest_id = MIN(lowest_id, t->t_id);
 	}
 
-	RETURN(lowest_id);
+	SRETURN(lowest_id);
 }
 
 /*
@@ -338,7 +338,7 @@ taskq_insert_in_order(taskq_t *tq, spl_task_t *t)
 	spl_task_t *w;
 	struct list_head *l;
 
-	ENTRY;
+	SENTRY;
 	ASSERT(tq);
 	ASSERT(t);
 	ASSERT(spin_is_locked(&tq->tq_lock));
@@ -353,7 +353,7 @@ taskq_insert_in_order(taskq_t *tq, spl_task_t *t)
 	if (l == &tq->tq_work_list)
 		list_add(&t->t_list, &tq->tq_work_list);
 
-	EXIT;
+	SEXIT;
 }
 
 static int
@@ -365,7 +365,7 @@ taskq_thread(void *args)
         taskq_t *tq = args;
         spl_task_t *t;
 	struct list_head *pend_list;
-	ENTRY;
+	SENTRY;
 
         ASSERT(tq);
         current->flags |= PF_NOFREEZE;
@@ -433,7 +433,7 @@ taskq_thread(void *args)
         tq->tq_nthreads--;
         spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
-	RETURN(0);
+	SRETURN(0);
 }
 
 taskq_t *
@@ -443,7 +443,7 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
         taskq_t *tq;
         struct task_struct *t;
         int rc = 0, i, j = 0;
-        ENTRY;
+        SENTRY;
 
         ASSERT(name != NULL);
         ASSERT(pri <= maxclsyspri);
@@ -462,12 +462,12 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 
         tq = kmem_alloc(sizeof(*tq), KM_SLEEP);
         if (tq == NULL)
-                RETURN(NULL);
+                SRETURN(NULL);
 
         tq->tq_threads = kmem_alloc(nthreads * sizeof(t), KM_SLEEP);
         if (tq->tq_threads == NULL) {
                 kmem_free(tq, sizeof(*tq));
-                RETURN(NULL);
+                SRETURN(NULL);
         }
 
         spin_lock_init(&tq->tq_lock);
@@ -517,7 +517,7 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
                 tq = NULL;
         }
 
-        RETURN(tq);
+        SRETURN(tq);
 }
 EXPORT_SYMBOL(__taskq_create);
 
@@ -526,7 +526,7 @@ __taskq_destroy(taskq_t *tq)
 {
 	spl_task_t *t;
 	int i, nthreads;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(tq);
 	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
@@ -560,29 +560,29 @@ __taskq_destroy(taskq_t *tq)
         kmem_free(tq->tq_threads, nthreads * sizeof(spl_task_t *));
         kmem_free(tq, sizeof(taskq_t));
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__taskq_destroy);
 
 int
 spl_taskq_init(void)
 {
-        ENTRY;
+        SENTRY;
 
 	/* Solaris creates a dynamic taskq of up to 64 threads, however in
 	 * a Linux environment 1 thread per-core is usually about right */
         system_taskq = taskq_create("spl_system_taskq", num_online_cpus(),
 				    minclsyspri, 4, 512, TASKQ_PREPOPULATE);
 	if (system_taskq == NULL)
-		RETURN(1);
+		SRETURN(1);
 
-        RETURN(0);
+        SRETURN(0);
 }
 
 void
 spl_taskq_fini(void)
 {
-        ENTRY;
+        SENTRY;
 	taskq_destroy(system_taskq);
-        EXIT;
+        SEXIT;
 }

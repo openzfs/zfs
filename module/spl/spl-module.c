@@ -27,11 +27,11 @@
 #include <sys/sunddi.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_MODULE
+#define SS_DEBUG_SUBSYS SS_MODULE
 
 static spinlock_t dev_info_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(dev_info_list);
@@ -98,7 +98,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	struct cb_ops *cb_ops;
 	struct file_operations *fops;
 	int rc;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(spec_type == S_IFCHR);
 	ASSERT(minor_num < di->di_minors);
@@ -106,12 +106,12 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	fops = kzalloc(sizeof(struct file_operations), GFP_KERNEL);
 	if (fops == NULL)
-		RETURN(DDI_FAILURE);
+		SRETURN(DDI_FAILURE);
 
 	cdev = cdev_alloc();
 	if (cdev == NULL) {
 		kfree(fops);
-		RETURN(DDI_FAILURE);
+		SRETURN(DDI_FAILURE);
 	}
 
 	cdev->ops = fops;
@@ -169,11 +169,11 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	rc = cdev_add(cdev, di->di_dev, 1);
 	if (rc) {
-		CERROR("Error adding cdev, %d\n", rc);
+		SERROR("Error adding cdev, %d\n", rc);
 		kfree(fops);
 		cdev_del(cdev);
 		mutex_exit(&di->di_lock);
-		RETURN(DDI_FAILURE);
+		SRETURN(DDI_FAILURE);
 	}
 
 	spin_lock(&dev_info_lock);
@@ -182,7 +182,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 
 	mutex_exit(&di->di_lock);
 
-	RETURN(DDI_SUCCESS);
+	SRETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__ddi_create_minor_node);
 
@@ -202,18 +202,18 @@ __ddi_remove_minor_node_locked(dev_info_t *di, char *name)
 void
 __ddi_remove_minor_node(dev_info_t *di, char *name)
 {
-	ENTRY;
+	SENTRY;
 	mutex_enter(&di->di_lock);
 	__ddi_remove_minor_node_locked(di, name);
 	mutex_exit(&di->di_lock);
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__ddi_remove_minor_node);
 
 int
 ddi_quiesce_not_needed(dev_info_t *dip)
 {
-	RETURN(DDI_SUCCESS);
+	SRETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(ddi_quiesce_not_needed);
 
@@ -280,12 +280,12 @@ __mod_install(struct modlinkage *modlp)
 	struct modldrv *drv = modlp->ml_modldrv;
 	struct dev_info *di;
 	int rc;
-	ENTRY;
+	SENTRY;
 
 	di = dev_info_alloc(modlp->ml_major, modlp->ml_minors,
 			    drv->drv_dev_ops);
 	if (di == NULL)
-		RETURN(ENOMEM);
+		SRETURN(ENOMEM);
 
 	/* XXX: Really we need to be calling devo_probe if it's available
 	 * and then calling devo_attach for each device discovered.  However
@@ -294,12 +294,12 @@ __mod_install(struct modlinkage *modlp)
 	rc = drv->drv_dev_ops->devo_attach(di, DDI_ATTACH);
 	if (rc != DDI_SUCCESS) {
 		dev_info_free(di);
-		RETURN(rc);
+		SRETURN(rc);
 	}
 
 	drv->drv_dev_info = di;
 
-	RETURN(DDI_SUCCESS);
+	SRETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__mod_install);
 
@@ -333,16 +333,16 @@ __mod_remove(struct modlinkage *modlp)
 	struct modldrv *drv = modlp->ml_modldrv;
 	struct dev_info *di = drv->drv_dev_info;
 	int rc;
-	ENTRY;
+	SENTRY;
 
 	rc = drv->drv_dev_ops->devo_detach(di, DDI_DETACH);
 	if (rc != DDI_SUCCESS)
-		RETURN(rc);
+		SRETURN(rc);
 
 	dev_info_free(di);
 	drv->drv_dev_info = NULL;
 
-	RETURN(DDI_SUCCESS);
+	SRETURN(DDI_SUCCESS);
 }
 EXPORT_SYMBOL(__mod_remove);
 
@@ -350,28 +350,28 @@ int
 ldi_ident_from_mod(struct modlinkage *modlp, ldi_ident_t *lip)
 {
 	ldi_ident_t li;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(modlp);
 	ASSERT(lip);
 
 	li = kmalloc(sizeof(struct ldi_ident), GFP_KERNEL);
 	if (li == NULL)
-		RETURN(ENOMEM);
+		SRETURN(ENOMEM);
 
 	li->li_dev = MKDEV(modlp->ml_major, 0);
 	*lip = li;
 
-	RETURN(0);
+	SRETURN(0);
 }
 EXPORT_SYMBOL(ldi_ident_from_mod);
 
 void
 ldi_ident_release(ldi_ident_t lip)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(lip);
 	kfree(lip);
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(ldi_ident_release);

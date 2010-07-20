@@ -27,18 +27,18 @@
 #include <sys/condvar.h>
 #include <spl-debug.h>
 
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
+#ifdef SS_DEBUG_SUBSYS
+#undef SS_DEBUG_SUBSYS
 #endif
 
-#define DEBUG_SUBSYSTEM S_CONDVAR
+#define SS_DEBUG_SUBSYS SS_CONDVAR
 
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
 	int flags = KM_SLEEP;
 
-	ENTRY;
+	SENTRY;
 	ASSERT(cvp);
 	ASSERT(name);
 	ASSERT(type == CV_DEFAULT);
@@ -62,14 +62,14 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 	if (cvp->cv_name)
 	        strcpy(cvp->cv_name, name);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__cv_init);
 
 void
 __cv_destroy(kcondvar_t *cvp)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 	spin_lock(&cvp->cv_lock);
@@ -81,7 +81,7 @@ __cv_destroy(kcondvar_t *cvp)
 
 	spin_unlock(&cvp->cv_lock);
 	memset(cvp, CV_POISON, sizeof(*cvp));
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__cv_destroy);
 
@@ -89,7 +89,7 @@ static void
 cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 {
 	DEFINE_WAIT(wait);
-	ENTRY;
+	SENTRY;
 
 	ASSERT(cvp);
         ASSERT(mp);
@@ -116,7 +116,7 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 
 	atomic_dec(&cvp->cv_waiters);
 	finish_wait(&cvp->cv_event, &wait);
-	EXIT;
+	SEXIT;
 }
 
 void
@@ -141,7 +141,7 @@ __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time)
 {
 	DEFINE_WAIT(wait);
 	clock_t time_left;
-	ENTRY;
+	SENTRY;
 
 	ASSERT(cvp);
         ASSERT(mp);
@@ -159,7 +159,7 @@ __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time)
 	/* XXX - Does not handle jiffie wrap properly */
 	time_left = expire_time - jiffies;
 	if (time_left <= 0)
-		RETURN(-1);
+		SRETURN(-1);
 
 	prepare_to_wait_exclusive(&cvp->cv_event, &wait,
 				  TASK_UNINTERRUPTIBLE);
@@ -175,14 +175,14 @@ __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time)
 	atomic_dec(&cvp->cv_waiters);
 	finish_wait(&cvp->cv_event, &wait);
 
-	RETURN(time_left > 0 ? time_left : -1);
+	SRETURN(time_left > 0 ? time_left : -1);
 }
 EXPORT_SYMBOL(__cv_timedwait);
 
 void
 __cv_signal(kcondvar_t *cvp)
 {
-	ENTRY;
+	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 
@@ -193,7 +193,7 @@ __cv_signal(kcondvar_t *cvp)
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up(&cvp->cv_event);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__cv_signal);
 
@@ -202,13 +202,13 @@ __cv_broadcast(kcondvar_t *cvp)
 {
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
-	ENTRY;
+	SENTRY;
 
 	/* Wake_up_all() will wake up all waiters even those which
 	 * have the WQ_FLAG_EXCLUSIVE flag set. */
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up_all(&cvp->cv_event);
 
-	EXIT;
+	SEXIT;
 }
 EXPORT_SYMBOL(__cv_broadcast);
