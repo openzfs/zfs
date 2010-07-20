@@ -245,11 +245,11 @@ kmem_vasprintf(const char *fmt, va_list ap)
 	va_list aq;
 	char *ptr;
 
-	va_copy(aq, ap);
 	do {
+		va_copy(aq, ap);
 		ptr = kvasprintf(GFP_KERNEL, fmt, aq);
+		va_end(aq);
 	} while (ptr == NULL);
-	va_end(aq);
 
 	return ptr;
 }
@@ -261,11 +261,11 @@ kmem_asprintf(const char *fmt, ...)
 	va_list ap;
 	char *ptr;
 
-	va_start(ap, fmt);
 	do {
+		va_start(ap, fmt);
 		ptr = kvasprintf(GFP_KERNEL, fmt, ap);
+		va_end(ap);
 	} while (ptr == NULL);
-	va_end(ap);
 
 	return ptr;
 }
