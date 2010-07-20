@@ -478,7 +478,8 @@ __init spl_init(void)
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
 		SGOTO(out8, rc);
 
-	printk("SPL: Loaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
+	printk(KERN_NOTICE "SPL: Loaded Solaris Porting Layer v%s%s\n",
+	       SPL_META_VERSION, SPL_DEBUG_STR);
 	SRETURN(rc);
 out8:
 	kstat_fini();
@@ -497,8 +498,8 @@ out2:
 out1:
 	debug_fini();
 
-	printk("SPL: Failed to Load Solaris Porting Layer v%s, "
-	       "rc = %d\n", SPL_META_VERSION, rc);
+	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer v%s%s"
+	       ", rc = %d\n", SPL_META_VERSION, SPL_DEBUG_STR, rc);
 	return rc;
 }
 
@@ -507,7 +508,8 @@ spl_fini(void)
 {
 	SENTRY;
 
-	printk("SPL: Unloaded Solaris Porting Layer v%s\n", SPL_META_VERSION);
+	printk(KERN_NOTICE "SPL: Unloaded Solaris Porting Layer v%s%s\n",
+	       SPL_META_VERSION, SPL_DEBUG_STR);
 	kstat_fini();
 	proc_fini();
 	vn_fini();

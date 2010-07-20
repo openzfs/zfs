@@ -46,6 +46,9 @@
 
 #ifdef NDEBUG /* Debugging Disabled */
 
+/* Define SPL_DEBUG_STR to make clear which ASSERT definitions are used */
+#define SPL_DEBUG_STR	""
+
 #define PANIC(fmt, a...)						\
 do {									\
 	printk(KERN_EMERG fmt, ## a);					\
@@ -80,6 +83,9 @@ do {									\
 #define ASSERT3P(x,y,z)	((void)0)
 
 #else /* Debugging Enabled */
+
+/* Define SPL_DEBUG_STR to make clear which ASSERT definitions are used */
+#define SPL_DEBUG_STR	" (DEBUG mode)"
 
 #define PANIC(fmt, a...)						\
 do {									\
