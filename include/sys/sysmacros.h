@@ -110,7 +110,7 @@
 /* Map some simple functions.
  */
 #define bzero(ptr,size)			memset(ptr,0,size)
-#define bcopy(src,dest,size)		memcpy(dest,src,size)
+#define bcopy(src,dest,size)		memmove(dest,src,size)
 #define bcmp(src,dest,size)		memcmp((src), (dest), (size_t)(size))
 
 /* Dtrace probes do not exist in the linux kernel */
