@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <linux/mutex.h>
+#include <linux/compiler_compat.h>
 
 typedef enum {
         MUTEX_DEFAULT  = 0,
