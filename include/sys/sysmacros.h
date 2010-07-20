@@ -26,6 +26,7 @@
 #define _SPL_SYSMACROS_H
 
 #include <linux/module.h>
+#include <linux/cpumask.h>
 #include <sys/debug.h>
 #include <sys/varargs.h>
 #include <sys/zone.h>
@@ -77,8 +78,8 @@
 
 #define proc_pageout			NULL
 #define curproc				get_current()
-#define max_ncpus			64
-#define CPU_SEQID			smp_processor_id() /* I think... */
+#define max_ncpus			num_possible_cpus()
+#define CPU_SEQID			smp_processor_id()
 #define _NOTE(x)
 #define is_system_labeled()		0
 
