@@ -496,8 +496,18 @@ fm_zevent_insert(zevent_t *ev)
 void
 fm_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
+	int64_t tv_array[2];
+	timestruc_t tv;
 	size_t nvl_size = 0;
 	zevent_t *ev;
+
+	gethrestime(&tv);
+	tv_array[0] = tv.tv_sec;
+	tv_array[1] = tv.tv_nsec;
+	if (nvlist_add_int64_array(nvl, FM_EREPORT_TIME, tv_array, 2)) {
+		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
+		return;
+	}
 
 	(void) nvlist_size(nvl, &nvl_size, NV_ENCODE_NATIVE);
 	if (nvl_size > ERPT_DATA_SZ || nvl_size == 0) {
@@ -892,8 +902,6 @@ fm_ereport_set(nvlist_t *ereport, int version, const char *erpt_class,
 {
 	char ereport_class[FM_MAX_CLASS];
 	const char *name;
-	timestruc_t tv;
-	int64_t tv_array[2];
 	va_list ap;
 	int ret;
 
@@ -925,13 +933,6 @@ fm_ereport_set(nvlist_t *ereport, int version, const char *erpt_class,
 
 	if (ret)
 		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
-
-	gethrestime(&tv);
-	tv_array[0] = tv.tv_sec;
-	tv_array[1] = tv.tv_nsec;
-	if (nvlist_add_int64_array(ereport, FM_EREPORT_TIME, tv_array, 2)) {
-		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
-	}
 }
 
 /*
