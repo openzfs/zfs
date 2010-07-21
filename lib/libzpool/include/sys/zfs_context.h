@@ -147,7 +147,7 @@ extern void vpanic(const char *, __va_list);
  */
 #define	TS_MAGIC		0x72f158ab4261e538ull
 #define	TS_RUN			0x00000002
-#ifdef _linux_
+#ifdef __linux__
 #define	STACK_SIZE		8192	/* Linux x86 and amd64 */
 #else
 #define	STACK_SIZE		24576	/* Solaris */
