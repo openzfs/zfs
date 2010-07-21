@@ -669,7 +669,6 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
         int                      max_nob;
         va_list                  ap;
         int                      i;
-        int                      remain;
 
 	if (subsys == 0)
 		subsys = SS_DEBUG_SUBSYS;
@@ -726,13 +725,8 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
 
                 needed = 0;
                 if (format) {
-                        remain = max_nob - needed;
-                        if (remain < 0)
-                                remain = 0;
-
                         va_start(ap, format);
-                        needed += vsnprintf(string_buf+needed, remain,
-			    format, ap);
+                        needed += vsnprintf(string_buf, max_nob, format, ap);
                         va_end(ap);
                 }
 
@@ -807,13 +801,10 @@ console:
 
                 needed = 0;
                 if (format != NULL) {
-                        remain = TRACE_CONSOLE_BUFFER_SIZE - needed;
-                        if (remain > 0) {
-                                va_start(ap, format);
-                                needed += vsnprintf(string_buf+needed, remain,
-				    format, ap);
-                                va_end(ap);
-                        }
+                        va_start(ap, format);
+                        needed += vsnprintf(string_buf,
+                            TRACE_CONSOLE_BUFFER_SIZE, format, ap);
+                        va_end(ap);
                 }
                 trace_print_to_console(&header, mask,
                                  string_buf, needed, file, fn);
