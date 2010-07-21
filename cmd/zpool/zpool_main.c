@@ -4423,7 +4423,7 @@ zpool_do_events_next(ev_opts_t *opts)
 	nvlist_t *nvl;
 	int ret, dropped;
 
-	(void) printf(gettext("%-27s %s\n"), "TIME", "CLASS");
+	(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");
 
 	while (1) {
 		ret = zpool_events_next(g_zfs, &nvl, &dropped, !!opts->follow);
