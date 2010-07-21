@@ -820,9 +820,12 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 	VERIFY(nvlist_add_string(resource, FM_CLASS, class) == 0);
 	VERIFY(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)) == 0);
-	if (vd)
+	if (vd) {
 		VERIFY(nvlist_add_uint64(resource,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid) == 0);
+		VERIFY(nvlist_add_uint64(resource,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, vd->vdev_state) == 0);
+	}
 
 	fm_zevent_post(resource, NULL, zfs_zevent_post_cb);
 #endif
