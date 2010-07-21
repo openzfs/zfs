@@ -67,6 +67,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH	"vdev_path"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DEVID	"vdev_devid"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU		"vdev_fru"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE	"vdev_state"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID	"parent_guid"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_TYPE	"parent_type"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_PATH	"parent_path"
