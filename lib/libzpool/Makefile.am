@@ -153,3 +153,5 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/include/sys/fm/protocol.h \
 	${top_srcdir}/module/zfs/include/sys/fm/util.h \
 	${top_srcdir}/module/zfs/include/sys/fm/fs/zfs.h
+
+libzpool_la_LDFLAGS = -pthread
