@@ -117,6 +117,9 @@ libzpool_la_OBJECTS = $(am_libzpool_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libzpool_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libzpool_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -493,6 +496,7 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/include/sys/fm/util.h \
 	${top_srcdir}/module/zfs/include/sys/fm/fs/zfs.h
 
+libzpool_la_LDFLAGS = -pthread
 all: all-recursive
 
 .SUFFIXES:
@@ -559,7 +563,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libzpool.la: $(libzpool_la_OBJECTS) $(libzpool_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libzpool_la_OBJECTS) $(libzpool_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libzpool_la_LINK) -rpath $(libdir) $(libzpool_la_OBJECTS) $(libzpool_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
