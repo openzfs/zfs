@@ -1135,9 +1135,8 @@ zfs_ioc_pool_destroy(struct file *filp, zfs_cmd_t *zc)
 {
 	int error;
 	zfs_log_history(zc);
-	error = zvol_remove_minors(zc->zc_name);
-	if (error == 0)
-		error = spa_destroy(zc->zc_name);
+	(void) zvol_remove_minors(zc->zc_name);
+	error = spa_destroy(zc->zc_name);
 	return (error);
 }
 
