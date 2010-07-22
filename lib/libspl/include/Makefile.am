@@ -4,6 +4,4 @@ nobase_pkginclude_HEADERS += rpc/*.h
 nobase_pkginclude_HEADERS += sys/*.h
 nobase_pkginclude_HEADERS += sys/dktp/*.h
 nobase_pkginclude_HEADERS += sys/sysevent/*.h
-nobase_pkginclude_HEADERS += sys/tsol/*.h
-nobase_pkginclude_HEADERS += tsol/*.h
 nobase_pkginclude_HEADERS += util/*.h
