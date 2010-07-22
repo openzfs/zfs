@@ -340,6 +340,7 @@ zfs_secpolicy_write_perms(const char *name, const char *perm, cred_t *cr)
 static int
 zfs_set_slabel_policy(const char *name, char *strval, cred_t *cr)
 {
+#ifdef HAVE_MLSLABEL
 	char		ds_hexsl[MAXNAMELEN];
 	bslabel_t	ds_sl, new_sl;
 	boolean_t	new_default = FALSE;
@@ -427,6 +428,9 @@ out_check:
 	if (needed_priv != -1)
 		return (PRIV_POLICY(cr, needed_priv, B_FALSE, EPERM, NULL));
 	return (0);
+#else
+	return ENOTSUP;
+#endif /* HAVE_MLSLABEL */
 }
 
 static int

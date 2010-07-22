@@ -903,6 +903,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 
 		case ZFS_PROP_MLSLABEL:
 		{
+#ifdef HAVE_MLSLABEL
 			/*
 			 * Verify the mlslabel string and convert to
 			 * internal hex label string.
@@ -952,7 +953,12 @@ badlabel:
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 			m_label_free(new_sl);	/* OK if null */
 			goto error;
-
+#else
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "mlslabels are unsupported"));
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+#endif /* HAVE_MLSLABEL */
 		}
 
 		case ZFS_PROP_MOUNTPOINT:
@@ -2011,6 +2017,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 	case ZFS_PROP_MLSLABEL:
 		{
+#ifdef HAVE_MLSLABEL
 			m_label_t *new_sl = NULL;
 			char *ascii = NULL;	/* human readable label */
 
@@ -2044,6 +2051,10 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 			(void) strlcpy(propbuf, ascii, proplen);
 			free(ascii);
+#else
+			(void) strlcpy(propbuf,
+			    getprop_string(zhp, prop, &source), proplen);
+#endif /* HAVE_MLSLABEL */
 		}
 		break;
 
