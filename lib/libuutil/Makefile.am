@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+
 DEFAULT_INCLUDES += \
 	-I${top_srcdir}/lib/libuutil/include \
 	-I${top_srcdir}/lib/libspl/include \
