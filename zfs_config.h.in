@@ -118,6 +118,10 @@
    */
 #undef LT_OBJDIR
 
+/* Define to 1 if NPTL threading implementation includes guard area in stack
+   allocation */
+#undef NPTL_GUARD_WITHIN_STACK
+
 /* Name of package */
 #undef PACKAGE
 
