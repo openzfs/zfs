@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+
 SUBDIRS = include $(TARGET_ASM_DIR)
 DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 
