@@ -163,8 +163,16 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	 * kernel space.  PTHREAD_STACK_MIN is the minimum stack
 	 * required for a NULL procedure in user space and is added
 	 * in to the stack requirements.
+	 *
+	 * Some buggy NPTL threading implementations include the
+	 * guard area within the stack size allocations.  In
+	 * this case we allocate an extra page to account for the
+	 * guard area since we only have two pages of usable stack
+	 * on Linux.
 	 */
-	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE);
+
+	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) +
+			EXTRA_GUARD_BYTES;
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
