@@ -271,6 +271,34 @@ kmem_asprintf(const char *fmt, ...)
 }
 EXPORT_SYMBOL(kmem_asprintf);
 
+static char *
+__strdup(const char *str, int flags)
+{
+	char *ptr;
+	int n;
+
+	n = strlen(str);
+	ptr = kmalloc_nofail(n + 1, flags);
+	if (ptr)
+		memcpy(ptr, str, n + 1);
+
+	return ptr;
+}
+
+char *
+strdup(const char *str)
+{
+	return __strdup(str, KM_SLEEP);
+}
+EXPORT_SYMBOL(strdup);
+
+void
+strfree(char *str)
+{
+	kmem_free(str, strlen(str) + 1);
+}
+EXPORT_SYMBOL(strfree);
+
 /*
  * Memory allocation interfaces and debugging for basic kmem_*
  * and vmem_* style memory allocation.  When DEBUG_KMEM is enabled
@@ -285,12 +313,12 @@ atomic64_t kmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long long kmem_alloc_max = 0;
 atomic64_t vmem_alloc_used = ATOMIC64_INIT(0);
 unsigned long long vmem_alloc_max = 0;
-# else
+# else  /* HAVE_ATOMIC64_T */
 atomic_t kmem_alloc_used = ATOMIC_INIT(0);
 unsigned long long kmem_alloc_max = 0;
 atomic_t vmem_alloc_used = ATOMIC_INIT(0);
 unsigned long long vmem_alloc_max = 0;
-# endif /* _LP64 */
+# endif /* HAVE_ATOMIC64_T */
 
 EXPORT_SYMBOL(kmem_alloc_used);
 EXPORT_SYMBOL(kmem_alloc_max);
@@ -340,77 +368,9 @@ EXPORT_SYMBOL(kmem_list);
 EXPORT_SYMBOL(vmem_lock);
 EXPORT_SYMBOL(vmem_table);
 EXPORT_SYMBOL(vmem_list);
-# endif
-#endif
-
-/*
- * Slab allocation interfaces
- *
- * While the Linux slab implementation was inspired by the Solaris
- * implemenation I cannot use it to emulate the Solaris APIs.  I
- * require two features which are not provided by the Linux slab.
- *
- * 1) Constructors AND destructors.  Recent versions of the Linux
- *    kernel have removed support for destructors.  This is a deal
- *    breaker for the SPL which contains particularly expensive
- *    initializers for mutex's, condition variables, etc.  We also
- *    require a minimal level of cleanup for these data types unlike
- *    many Linux data type which do need to be explicitly destroyed.
- *
- * 2) Virtual address space backed slab.  Callers of the Solaris slab
- *    expect it to work well for both small are very large allocations.
- *    Because of memory fragmentation the Linux slab which is backed
- *    by kmalloc'ed memory performs very badly when confronted with
- *    large numbers of large allocations.  Basing the slab on the
- *    virtual address space removes the need for contigeous pages
- *    and greatly improve performance for large allocations.
- *
- * For these reasons, the SPL has its own slab implementation with
- * the needed features.  It is not as highly optimized as either the
- * Solaris or Linux slabs, but it should get me most of what is
- * needed until it can be optimized or obsoleted by another approach.
- *
- * One serious concern I do have about this method is the relatively
- * small virtual address space on 32bit arches.  This will seriously
- * constrain the size of the slab caches and their performance.
- *
- * XXX: Improve the partial slab list by carefully maintaining a
- *      strict ordering of fullest to emptiest slabs based on
- *      the slab reference count.  This gaurentees the when freeing
- *      slabs back to the system we need only linearly traverse the
- *      last N slabs in the list to discover all the freeable slabs.
- *
- * XXX: NUMA awareness for optionally allocating memory close to a
- *      particular core.  This can be adventageous if you know the slab
- *      object will be short lived and primarily accessed from one core.
- *
- * XXX: Slab coloring may also yield performance improvements and would
- *      be desirable to implement.
- */
-
-struct list_head spl_kmem_cache_list;   /* List of caches */
-struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
-
-static int spl_cache_flush(spl_kmem_cache_t *skc,
-                           spl_kmem_magazine_t *skm, int flush);
-
-#ifdef HAVE_SET_SHRINKER
-static struct shrinker *spl_kmem_cache_shrinker;
-#else
-static int spl_kmem_cache_generic_shrinker(int nr_to_scan,
-                                           unsigned int gfp_mask);
-static struct shrinker spl_kmem_cache_shrinker = {
-	.shrink = spl_kmem_cache_generic_shrinker,
-	.seeks = KMC_DEFAULT_SEEKS,
-};
-#endif
-
-#ifdef DEBUG_KMEM
-# ifdef DEBUG_KMEM_TRACKING
 
 static kmem_debug_t *
-kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits,
-                void *addr)
+kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits, void *addr)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -444,17 +404,20 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 	unsigned long irq_flags;
 	SENTRY;
 
+	/* Function may be called with KM_NOSLEEP so failure is possible */
 	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
 
-	if (dptr == NULL) {
+	if (unlikely(dptr == NULL)) {
 		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "debug "
 		    "kmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    sizeof(kmem_debug_t), flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
 	} else {
-		/* Marked unlikely because we should never be doing this,
-		 * we tolerate to up 2 pages but a single page is best.   */
+		/*
+		 * Marked unlikely because we should never be doing this,
+		 * we tolerate to up 2 pages but a single page is best.
+		 */
 		if (unlikely((size > PAGE_SIZE*2) && !(flags & KM_NODEBUG))) {
 			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "large "
 			    "kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
@@ -463,14 +426,17 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 			spl_debug_dumpstack(NULL);
 		}
 
-		/* We use kstrdup() below because the string pointed to by
+		/*
+		 *  We use __strdup() below because the string pointed to by
 		 * __FUNCTION__ might not be available by the time we want
-		 * to print it since the module might have been unloaded. */
-		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
+		 * to print it since the module might have been unloaded.
+		 * This can only fail in the KM_NOSLEEP case.
+		 */
+		dptr->kd_func = __strdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
 			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
-			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
+			    "debug __strdup() at %s:%d failed (%lld/%llu)\n",
 			    func, line, kmem_alloc_used_read(), kmem_alloc_max);
 			goto out;
 		}
@@ -533,7 +499,8 @@ kmem_free_track(void *ptr, size_t size)
 
 	dptr = kmem_del_init(&kmem_lock, kmem_table, KMEM_HASH_BITS, ptr);
 
-	ASSERT(dptr); /* Must exist in hash due to kmem_alloc() */
+	/* Must exist in hash due to kmem_alloc() */
+	ASSERT(dptr);
 
 	/* Size must match */
 	ASSERTF(dptr->kd_size == size, "kd_size (%llu) != size (%llu), "
@@ -567,28 +534,37 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 
 	ASSERT(flags & KM_SLEEP);
 
+	/* Function may be called with KM_NOSLEEP so failure is possible */
 	dptr = (kmem_debug_t *) kmalloc_nofail(sizeof(kmem_debug_t),
 	    flags & ~__GFP_ZERO);
-	if (dptr == NULL) {
+	if (unlikely(dptr == NULL)) {
 		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING, "debug "
 		    "vmem_alloc(%ld, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    sizeof(kmem_debug_t), flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
-		/* We use kstrdup() below because the string pointed to by
+		/*
+		 * We use __strdup() below because the string pointed to by
 		 * __FUNCTION__ might not be available by the time we want
-		 * to print it, since the module might have been unloaded. */
-		dptr->kd_func = kstrdup(func, flags & ~__GFP_ZERO);
+		 * to print it, since the module might have been unloaded.
+		 * This can never fail because we have already asserted
+		 * that flags is KM_SLEEP.
+		 */
+		dptr->kd_func = __strdup(func, flags & ~__GFP_ZERO);
 		if (unlikely(dptr->kd_func == NULL)) {
 			kfree(dptr);
 			SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
-			    "debug kstrdup() at %s:%d failed (%lld/%llu)\n",
+			    "debug __strdup() at %s:%d failed (%lld/%llu)\n",
 			    func, line, vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
 
-		ptr = __vmalloc(size, (flags | __GFP_HIGHMEM) & ~__GFP_ZERO,
-		    PAGE_KERNEL);
+		/* Use the correct allocator */
+		if (flags & __GFP_ZERO) {
+			ptr = vzalloc_nofail(size, flags & ~__GFP_ZERO);
+		} else {
+			ptr = vmalloc_nofail(size, flags);
+		}
 
 		if (unlikely(ptr == NULL)) {
 			kfree(dptr->kd_func);
@@ -599,9 +575,6 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 			    vmem_alloc_used_read(), vmem_alloc_max);
 			goto out;
 		}
-
-		if (flags & __GFP_ZERO)
-			memset(ptr, 0, size);
 
 		vmem_alloc_used_add(size);
 		if (unlikely(vmem_alloc_used_read() > vmem_alloc_max))
@@ -640,7 +613,9 @@ vmem_free_track(void *ptr, size_t size)
 	    (unsigned long long) size);
 
 	dptr = kmem_del_init(&vmem_lock, vmem_table, VMEM_HASH_BITS, ptr);
-	ASSERT(dptr); /* Must exist in hash due to vmem_alloc() */
+
+	/* Must exist in hash due to vmem_alloc() */
+	ASSERT(dptr);
 
 	/* Size must match */
 	ASSERTF(dptr->kd_size == size, "kd_size (%llu) != size (%llu), "
@@ -673,11 +648,13 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 	void *ptr;
 	SENTRY;
 
-	/* Marked unlikely because we should never be doing this,
-	 * we tolerate to up 2 pages but a single page is best.   */
+	/*
+	 * Marked unlikely because we should never be doing this,
+	 * we tolerate to up 2 pages but a single page is best.
+	 */
 	if (unlikely((size > PAGE_SIZE * 2) && !(flags & KM_NODEBUG))) {
 		SDEBUG(SD_CONSOLE | SD_WARNING,
-		    "Large kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
+		    "large kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
 		spl_debug_dumpstack(NULL);
@@ -693,7 +670,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 		ptr = kmalloc_nofail(size, flags);
 	}
 
-	if (ptr == NULL) {
+	if (unlikely(ptr == NULL)) {
 		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "kmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
@@ -706,8 +683,9 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 		SDEBUG_LIMIT(SD_INFO,
 		    "kmem_alloc(%llu, 0x%x) at %s:%d = %p (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line, ptr,
-		       kmem_alloc_used_read(), kmem_alloc_max);
+		    kmem_alloc_used_read(), kmem_alloc_max);
 	}
+
 	SRETURN(ptr);
 }
 EXPORT_SYMBOL(kmem_alloc_debug);
@@ -724,8 +702,6 @@ kmem_free_debug(void *ptr, size_t size)
 	SDEBUG_LIMIT(SD_INFO, "kmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, kmem_alloc_used_read(),
 	    kmem_alloc_max);
-
-	memset(ptr, 0x5a, size);
 	kfree(ptr);
 
 	SEXIT;
@@ -740,17 +716,19 @@ vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 
 	ASSERT(flags & KM_SLEEP);
 
-	ptr = __vmalloc(size, (flags | __GFP_HIGHMEM) & ~__GFP_ZERO,
-	    PAGE_KERNEL);
-	if (ptr == NULL) {
+	/* Use the correct allocator */
+	if (flags & __GFP_ZERO) {
+		ptr = vzalloc_nofail(size, flags & (~__GFP_ZERO));
+	} else {
+		ptr = vmalloc_nofail(size, flags);
+	}
+
+	if (unlikely(ptr == NULL)) {
 		SDEBUG_LIMIT(SD_CONSOLE | SD_WARNING,
 		    "vmem_alloc(%llu, 0x%x) at %s:%d failed (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    vmem_alloc_used_read(), vmem_alloc_max);
 	} else {
-		if (flags & __GFP_ZERO)
-			memset(ptr, 0, size);
-
 		vmem_alloc_used_add(size);
 		if (unlikely(vmem_alloc_used_read() > vmem_alloc_max))
 			vmem_alloc_max = vmem_alloc_used_read();
@@ -776,8 +754,6 @@ vmem_free_debug(void *ptr, size_t size)
 	SDEBUG_LIMIT(SD_INFO, "vmem_free(%p, %llu) (%lld/%llu)\n", ptr,
 	    (unsigned long long) size, vmem_alloc_used_read(),
 	    vmem_alloc_max);
-
-	memset(ptr, 0x5a, size);
 	vfree(ptr);
 
 	SEXIT;
@@ -786,6 +762,68 @@ EXPORT_SYMBOL(vmem_free_debug);
 
 # endif /* DEBUG_KMEM_TRACKING */
 #endif /* DEBUG_KMEM */
+
+/*
+ * Slab allocation interfaces
+ *
+ * While the Linux slab implementation was inspired by the Solaris
+ * implemenation I cannot use it to emulate the Solaris APIs.  I
+ * require two features which are not provided by the Linux slab.
+ *
+ * 1) Constructors AND destructors.  Recent versions of the Linux
+ *    kernel have removed support for destructors.  This is a deal
+ *    breaker for the SPL which contains particularly expensive
+ *    initializers for mutex's, condition variables, etc.  We also
+ *    require a minimal level of cleanup for these data types unlike
+ *    many Linux data type which do need to be explicitly destroyed.
+ *
+ * 2) Virtual address space backed slab.  Callers of the Solaris slab
+ *    expect it to work well for both small are very large allocations.
+ *    Because of memory fragmentation the Linux slab which is backed
+ *    by kmalloc'ed memory performs very badly when confronted with
+ *    large numbers of large allocations.  Basing the slab on the
+ *    virtual address space removes the need for contigeous pages
+ *    and greatly improve performance for large allocations.
+ *
+ * For these reasons, the SPL has its own slab implementation with
+ * the needed features.  It is not as highly optimized as either the
+ * Solaris or Linux slabs, but it should get me most of what is
+ * needed until it can be optimized or obsoleted by another approach.
+ *
+ * One serious concern I do have about this method is the relatively
+ * small virtual address space on 32bit arches.  This will seriously
+ * constrain the size of the slab caches and their performance.
+ *
+ * XXX: Improve the partial slab list by carefully maintaining a
+ *      strict ordering of fullest to emptiest slabs based on
+ *      the slab reference count.  This gaurentees the when freeing
+ *      slabs back to the system we need only linearly traverse the
+ *      last N slabs in the list to discover all the freeable slabs.
+ *
+ * XXX: NUMA awareness for optionally allocating memory close to a
+ *      particular core.  This can be adventageous if you know the slab
+ *      object will be short lived and primarily accessed from one core.
+ *
+ * XXX: Slab coloring may also yield performance improvements and would
+ *      be desirable to implement.
+ */
+
+struct list_head spl_kmem_cache_list;   /* List of caches */
+struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
+
+static int spl_cache_flush(spl_kmem_cache_t *skc,
+                           spl_kmem_magazine_t *skm, int flush);
+
+#ifdef HAVE_SET_SHRINKER
+static struct shrinker *spl_kmem_cache_shrinker;
+#else
+static int spl_kmem_cache_generic_shrinker(int nr_to_scan,
+                                           unsigned int gfp_mask);
+static struct shrinker spl_kmem_cache_shrinker = {
+	.shrink = spl_kmem_cache_generic_shrinker,
+	.seeks = KMC_DEFAULT_SEEKS,
+};
+#endif
 
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)

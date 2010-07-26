@@ -87,10 +87,10 @@ kzalloc_nofail(size_t size, gfp_t flags)
 	return ptr;
 }
 
-#ifdef HAVE_KMALLOC_NODE
 static inline void *
 kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 {
+#ifdef HAVE_KMALLOC_NODE
 	void *ptr;
 
 	do {
@@ -98,16 +98,63 @@ kmalloc_node_nofail(size_t size, gfp_t flags, int node)
 	} while (ptr == NULL && (flags & __GFP_WAIT));
 
 	return ptr;
-}
+#else
+	return kmalloc_nofail(size, flags);
 #endif /* HAVE_KMALLOC_NODE */
+}
+
+static inline void *
+vmalloc_nofail(size_t size, gfp_t flags)
+{
+	void *ptr;
+
+	/*
+	 * Retry failed __vmalloc() allocations once every second.  The
+	 * rational for the delay is that the likely failure modes are:
+	 *
+	 * 1) The system has completely exhausted memory, in which case
+	 *    delaying 1 second for the memory reclaim to run is reasonable
+	 *    to avoid thrashing the system.
+	 * 2) The system has memory but has exhausted the small virtual
+	 *    address space available on 32-bit systems.  Retrying the
+	 *    allocation immediately will only result in spinning on the
+	 *    virtual address space lock.  It is better delay a second and
+	 *    hope that another process will free some of the address space.
+	 *    But the bottom line is there is not much we can actually do
+	 *    since we can never safely return a failure and honor the
+	 *    Solaris semantics.
+	 */
+	while (1) {
+		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+		if (unlikely((ptr == NULL) && (flags & __GFP_WAIT))) {
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule_timeout(HZ);
+		} else {
+			break;
+		}
+	}
+
+	return ptr;
+}
+
+static inline void *
+vzalloc_nofail(size_t size, gfp_t flags)
+{
+	void *ptr;
+
+	ptr = vmalloc_nofail(size, flags);
+	if (ptr)
+		memset(ptr, 0, (size));
+
+	return ptr;
+}
 
 #ifdef DEBUG_KMEM
-# ifdef HAVE_ATOMIC64_T
 
-extern atomic64_t kmem_alloc_used;
-extern unsigned long long kmem_alloc_max;
-extern atomic64_t vmem_alloc_used;
-extern unsigned long long vmem_alloc_max;
+/*
+ * Memory accounting functions to be used only when DEBUG_KMEM is set.
+ */
+# ifdef HAVE_ATOMIC64_T
 
 # define kmem_alloc_used_add(size)      atomic64_add(size, &kmem_alloc_used)
 # define kmem_alloc_used_sub(size)      atomic64_sub(size, &kmem_alloc_used)
@@ -118,12 +165,12 @@ extern unsigned long long vmem_alloc_max;
 # define vmem_alloc_used_read()         atomic64_read(&vmem_alloc_used)
 # define vmem_alloc_used_set(size)      atomic64_set(&vmem_alloc_used, size)
 
-# else
-
-extern atomic_t kmem_alloc_used;
+extern atomic64_t kmem_alloc_used;
 extern unsigned long long kmem_alloc_max;
-extern atomic_t vmem_alloc_used;
+extern atomic64_t vmem_alloc_used;
 extern unsigned long long vmem_alloc_max;
+
+# else  /* HAVE_ATOMIC64_T */
 
 # define kmem_alloc_used_add(size)      atomic_add(size, &kmem_alloc_used)
 # define kmem_alloc_used_sub(size)      atomic_sub(size, &kmem_alloc_used)
@@ -134,90 +181,107 @@ extern unsigned long long vmem_alloc_max;
 # define vmem_alloc_used_read()         atomic_read(&vmem_alloc_used)
 # define vmem_alloc_used_set(size)      atomic_set(&vmem_alloc_used, size)
 
-# endif /* _LP64 */
+extern atomic_t kmem_alloc_used;
+extern unsigned long long kmem_alloc_max;
+extern atomic_t vmem_alloc_used;
+extern unsigned long long vmem_alloc_max;
 
-# define kmem_alloc(size, flags)             __kmem_alloc((size), (flags), 0, 0)
-# define kmem_zalloc(size, flags)            __kmem_alloc((size), ((flags) |  \
-                                                 __GFP_ZERO), 0, 0)
-
-/* The node alloc functions are only used by the SPL code itself */
-# ifdef HAVE_KMALLOC_NODE
-#  define kmem_alloc_node(size, flags, node) __kmem_alloc((size), (flags), 1, \
-                                                 node)
-# else
-#  define kmem_alloc_node(size, flags, node) __kmem_alloc((size), (flags), 0, 0)
-# endif
-
-# define vmem_zalloc(size, flags)            vmem_alloc((size), ((flags) |    \
-                                                 __GFP_ZERO))
+# endif /* HAVE_ATOMIC64_T */
 
 # ifdef DEBUG_KMEM_TRACKING
+/*
+ * DEBUG_KMEM && DEBUG_KMEM_TRACKING
+ *
+ * The maximum level of memory debugging.  All memory will be accounted
+ * for and each allocation will be explicitly tracked.  Any allocation
+ * which is leaked will be reported on module unload and the exact location
+ * where that memory was allocation will be reported.  This level of memory
+ * tracking will have a significant impact on performance and should only
+ * be enabled for debugging.  This feature may be enabled by passing
+ * --enable-debug-kmem-tracking to configure.
+ */
+#  define kmem_alloc(sz, fl)            kmem_alloc_track((sz), (fl),           \
+                                             __FUNCTION__, __LINE__, 0, 0)
+#  define kmem_zalloc(sz, fl)           kmem_alloc_track((sz), (fl)|__GFP_ZERO,\
+                                             __FUNCTION__, __LINE__, 0, 0)
+#  define kmem_alloc_node(sz, fl, nd)   kmem_alloc_track((sz), (fl),           \
+                                             __FUNCTION__, __LINE__, 1, nd)
+#  define kmem_free(ptr, sz)            kmem_free_track((ptr), (sz))
 
-extern void *kmem_alloc_track(size_t size, int flags, const char *func,
-    int line, int node_alloc, int node);
-extern void kmem_free_track(void *ptr, size_t size);
-extern void *vmem_alloc_track(size_t size, int flags, const char *func,
-    int line);
-extern void vmem_free_track(void *ptr, size_t size);
+#  define vmem_alloc(sz, fl)            vmem_alloc_track((sz), (fl),           \
+                                             __FUNCTION__, __LINE__)
+#  define vmem_zalloc(sz, fl)           vmem_alloc_track((sz), (fl)|__GFP_ZERO,\
+                                             __FUNCTION__, __LINE__)
+#  define vmem_free(ptr, sz)            vmem_free_track((ptr), (sz))
 
-#  define __kmem_alloc(size, flags, na, node) kmem_alloc_track((size),        \
-                                                  (flags), __FUNCTION__,      \
-                                                  __LINE__, (na), (node))
-#  define kmem_free(ptr, size)                kmem_free_track((ptr), (size))
-#  define vmem_alloc(size, flags)             vmem_alloc_track((size),        \
-                                                  (flags),__FUNCTION__,       \
-                                                  __LINE__)
-#  define vmem_free(ptr, size)                vmem_free_track((ptr), (size))
+extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
+extern void kmem_free_track(void *, size_t);
+extern void *vmem_alloc_track(size_t, int, const char *, int);
+extern void vmem_free_track(void *, size_t);
 
 # else /* DEBUG_KMEM_TRACKING */
+/*
+ * DEBUG_KMEM && !DEBUG_KMEM_TRACKING
+ *
+ * The default build will set DEBUG_KEM.  This provides basic memory
+ * accounting with little to no impact on performance.  When the module
+ * is unloaded in any memory was leaked the total number of leaked bytes
+ * will be reported on the console.  To disable this basic accounting
+ * pass the --disable-debug-kmem option to configure.
+ */
+#  define kmem_alloc(sz, fl)            kmem_alloc_debug((sz), (fl),           \
+                                             __FUNCTION__, __LINE__, 0, 0)
+#  define kmem_zalloc(sz, fl)           kmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
+                                             __FUNCTION__, __LINE__, 0, 0)
+#  define kmem_alloc_node(sz, fl, nd)   kmem_alloc_debug((sz), (fl),           \
+                                             __FUNCTION__, __LINE__, 1, nd)
+#  define kmem_free(ptr, sz)            kmem_free_debug((ptr), (sz))
 
-extern void *kmem_alloc_debug(size_t size, int flags, const char *func,
-    int line, int node_alloc, int node);
-extern void kmem_free_debug(void *ptr, size_t size);
-extern void *vmem_alloc_debug(size_t size, int flags, const char *func,
-    int line);
-extern void vmem_free_debug(void *ptr, size_t size);
+#  define vmem_alloc(sz, fl)            vmem_alloc_debug((sz), (fl),           \
+                                             __FUNCTION__, __LINE__)
+#  define vmem_zalloc(sz, fl)           vmem_alloc_debug((sz), (fl)|__GFP_ZERO,\
+                                             __FUNCTION__, __LINE__)
+#  define vmem_free(ptr, sz)            vmem_free_debug((ptr), (sz))
 
-#  define __kmem_alloc(size, flags, na, node) kmem_alloc_debug((size),        \
-                                                  (flags), __FUNCTION__,      \
-                                                  __LINE__, (na), (node))
-#  define kmem_free(ptr, size)                kmem_free_debug((ptr), (size))
-#  define vmem_alloc(size, flags)             vmem_alloc_debug((size),        \
-                                                  (flags), __FUNCTION__,      \
-                                                  __LINE__)
-#  define vmem_free(ptr, size)                vmem_free_debug((ptr), (size))
+extern void *kmem_alloc_debug(size_t, int, const char *, int, int, int);
+extern void kmem_free_debug(void *, size_t);
+extern void *vmem_alloc_debug(size_t, int, const char *, int);
+extern void vmem_free_debug(void *, size_t);
 
 # endif /* DEBUG_KMEM_TRACKING */
-
 #else /* DEBUG_KMEM */
+/*
+ * !DEBUG_KMEM && !DEBUG_KMEM_TRACKING
+ *
+ * All debugging is disabled.  There will be no overhead even for
+ * minimal memory accounting.  To enable basic accounting pass the
+ * --enable-debug-kmem option to configure.
+ */
+# define kmem_alloc(sz, fl)             kmalloc_nofail((sz), (fl))
+# define kmem_zalloc(sz, fl)            kzalloc_nofail((sz), (fl))
+# define kmem_alloc_node(sz, fl, nd)    kmalloc_node_nofail((sz), (fl), (nd))
+# define kmem_free(ptr, sz)             ((void)(sz), kfree(ptr))
 
-# define kmem_alloc(size, flags)              kmalloc_nofail((size), (flags))
-# define kmem_zalloc(size, flags)             kzalloc_nofail((size), (flags))
-# define kmem_free(ptr, size)                 ((void)(size), kfree(ptr))
-
-# ifdef HAVE_KMALLOC_NODE
-#  define kmem_alloc_node(size, flags, node)                                  \
-          kmalloc_node_nofail((size), (flags), (node))
-# else
-#  define kmem_alloc_node(size, flags, node)                                  \
-          kmalloc_nofail((size), (flags))
-# endif
-
-# define vmem_alloc(size, flags)              __vmalloc((size), ((flags) |    \
-                                                  __GFP_HIGHMEM), PAGE_KERNEL)
-# define vmem_zalloc(size, flags)                                             \
-({                                                                            \
-        void *_ptr_ = __vmalloc((size),((flags)|__GFP_HIGHMEM),PAGE_KERNEL);  \
-        if (_ptr_)                                                            \
-                memset(_ptr_, 0, (size));                                     \
-        _ptr_;                                                                \
-})
-# define vmem_free(ptr, size)           ((void)(size), vfree(ptr))
+# define vmem_alloc(sz, fl)             vmalloc_nofail((sz), (fl))
+# define vmem_zalloc(sz, fl)            vzalloc_nofail((sz), (fl))
+# define vmem_free(ptr, sz)             ((void)(sz), vfree(ptr))
 
 #endif /* DEBUG_KMEM */
 
+extern int kmem_debugging(void);
+extern char *kmem_vasprintf(const char *fmt, va_list ap);
+extern char *kmem_asprintf(const char *fmt, ...);
+extern char *strdup(const char *str);
+extern void strfree(char *str);
+
+
 /*
- * Slab allocation interfaces
+ * Slab allocation interfaces.  The SPL slab differs from the standard
+ * Linux SLAB or SLUB primarily in that each cache may be backed by slabs
+ * allocated from the physical or virtal memory address space.  The virtual
+ * slabs allow for good behavior when allocation large objects of identical
+ * size.  This slab implementation also supports both constructors and
+ * destructions which the Linux slab does not.
  */
 enum {
 	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
@@ -245,12 +309,6 @@ enum {
 
 #define KMC_REAP_CHUNK			INT_MAX
 #define KMC_DEFAULT_SEEKS		1
-
-extern int kmem_debugging(void);
-extern char *kmem_vasprintf(const char *fmt, va_list ap);
-extern char *kmem_asprintf(const char *fmt, ...);
-#define strfree(str)		kfree(str)
-#define strdup(str)		kstrdup(str, GFP_KERNEL)
 
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
