@@ -316,14 +316,15 @@ static test_t *test_find(char *sub_str, char *test_str)
 	ListIterator si, ti;
 	subsystem_t *sub;
 	test_t *test;
-	int sub_num, test_num;
+	__u32 sub_num, test_num;
 
-	/* No error checking here because it may not be a number, it's
+	/*
+	 * No error checking here because it may not be a number, it's
 	 * perfectly OK for it to be a string.  Since we're just using
 	 * it for comparison purposes this is all very safe.
 	 */
-	sub_num = strtol(sub_str, NULL, 0);
-	test_num = strtol(test_str, NULL, 0);
+	sub_num = strtoul(sub_str, NULL, 0);
+	test_num = strtoul(test_str, NULL, 0);
 
         si = list_iterator_create(subsystems);
 

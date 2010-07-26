@@ -257,7 +257,8 @@ EXPORT_SYMBOL(vn_seek);
 static struct dentry *
 vn_lookup_hash(struct nameidata *nd)
 {
-	return lookup_one_len(nd->last.name, nd->nd_dentry, nd->last.len);
+	return lookup_one_len((const char *)nd->last.name,
+			      nd->nd_dentry, nd->last.len);
 } /* lookup_hash() */
 
 static void
