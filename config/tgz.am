@@ -1,0 +1,42 @@
+###############################################################################
+# Copyright (C) 2010 Lawrence Livermore National Security, LLC.
+# Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# Build targets for TGZ packages.
+#
+# Long term native distro specific Slackware style packaging should be added.
+# In the short term RPM packages are built and converted to TGZ packages
+# using alien.  If someone familiar with Slackware style packaging were to
+# update the build system to correctly build Slackware style packages I would
+# happily take it.  Until then we will have to make due with alien.
+#
+###############################################################################
+
+tgz-local:
+	@(if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+tgz-modules: tgz-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+tgz-utils: tgz-local rpm-utils
+	name=${PACKAGE}; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
+	$(RM) $$pkg1
+
+tgz: tgz-modules tgz-utils

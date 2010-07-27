@@ -20,7 +20,7 @@
 # Copyright (C) 2007 The Regents of the University of California.
 # Written by Brian Behlendorf <behlendorf1@llnl.gov>.
 ###############################################################################
-# Build targets for RPM.
+# Build targets for RPM packages.
 ###############################################################################
 
 VPATH = @srcdir@
@@ -127,6 +127,8 @@ GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
 ACLOCAL = @ACLOCAL@
+ALIEN = @ALIEN@
+ALIEN_VERSION = @ALIEN_VERSION@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -141,8 +143,13 @@ CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
+DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DPKG = @DPKG@
+DPKGBUILD = @DPKGBUILD@
+DPKGBUILD_VERSION = @DPKGBUILD_VERSION@
+DPKG_VERSION = @DPKG_VERSION@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -152,6 +159,11 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 GREP = @GREP@
+HAVE_ALIEN = @HAVE_ALIEN@
+HAVE_DPKG = @HAVE_DPKG@
+HAVE_DPKGBUILD = @HAVE_DPKGBUILD@
+HAVE_RPM = @HAVE_RPM@
+HAVE_RPMBUILD = @HAVE_RPMBUILD@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -189,6 +201,10 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+RPM = @RPM@
+RPMBUILD = @RPMBUILD@
+RPMBUILD_VERSION = @RPMBUILD_VERSION@
+RPM_VERSION = @RPM_VERSION@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -264,7 +280,9 @@ top_srcdir = @top_srcdir@
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module include
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh spl.spec.in config/config.awk META DISCLAIMER
+EXTRA_DIST = autogen.sh spl.spec.in spl-modules.spec.in META \
+	DISCLAIMER config/config.awk config/rpm.am config/deb.am \
+	config/tgz.am
 noinst_HEADERS = spl_config.h
 all: spl_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -772,13 +790,40 @@ uninstall-am:
 	tags tags-recursive uninstall uninstall-am
 
 
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm: rpm-modules rpm-utils
+
 rpm-local:
+	@(if test "${HAVE_RPMBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${RPMBUILD} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${RPMBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi; \
 	mkdir -p $(rpmbuild)/TMP && \
 	mkdir -p $(rpmbuild)/BUILD && \
 	mkdir -p $(rpmbuild)/RPMS && \
 	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(rpmspec) $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+	mkdir -p $(rpmbuild)/SPECS && \
+	cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && \
+	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(SPL_META_VERSION)-$(SPL_META_RELEASE).src.rpm; \
@@ -788,7 +833,7 @@ srpm-common: dist
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	$(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "build_src_rpm 1" \
@@ -805,7 +850,7 @@ rpm-common:
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	${RPMBUILD} \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "dist %{nil}" \
@@ -815,6 +860,8 @@ rpm-common:
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild
+include ${top_srcdir}/config/deb.am
+include ${top_srcdir}/config/tgz.am
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -846,25 +893,9 @@ etags:
 
 tags: ctags etags
 
-srpm-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
-
-srpm-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
-
-srpm: srpm-modules srpm-utils
-
-rpm-modules: srpm-modules
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
-
-rpm-utils: srpm-utils
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
-
-rpm-utils: srpm-utils
-
-rpm: rpm-modules rpm-utils
+pkg: @DEFAULT_PACKAGE@
+pkg-modules: @DEFAULT_PACKAGE@-modules
+pkg-utils: @DEFAULT_PACKAGE@-utils
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

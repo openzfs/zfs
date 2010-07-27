@@ -799,6 +799,22 @@ LINUX_VERSION
 LINUX_OBJ
 LINUX
 SPL_CONFIG
+DEFAULT_PACKAGE
+ALIEN_VERSION
+ALIEN
+HAVE_ALIEN
+DPKGBUILD_VERSION
+DPKGBUILD
+HAVE_DPKGBUILD
+DPKG_VERSION
+DPKG
+HAVE_DPKG
+RPMBUILD_VERSION
+RPMBUILD
+HAVE_RPMBUILD
+RPM_VERSION
+RPM
+HAVE_RPM
 LICENSE
 CPP
 OTOOL64
@@ -4760,13 +4776,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4763: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4779: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4766: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4782: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4769: output\"" >&5)
+  (eval echo "\"\$as_me:4785: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5972,7 +5988,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5975 "configure"' > conftest.$ac_ext
+  echo '#line 5991 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7825,11 +7841,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7828: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7844: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7832: \$? = $ac_status" >&5
+   echo "$as_me:7848: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8164,11 +8180,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8167: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8183: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8171: \$? = $ac_status" >&5
+   echo "$as_me:8187: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8269,11 +8285,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8272: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8288: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8276: \$? = $ac_status" >&5
+   echo "$as_me:8292: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8324,11 +8340,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8327: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8343: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8331: \$? = $ac_status" >&5
+   echo "$as_me:8347: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11127,7 +11143,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11130 "configure"
+#line 11146 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11223,7 +11239,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11226 "configure"
+#line 11242 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11458,6 +11474,149 @@ $as_echo_n "checking spl license... " >&6; }
 	{ $as_echo "$as_me:$LINENO: result: $LICENSE" >&5
 $as_echo "$LICENSE" >&6; }
 	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DHAVE_GPL_ONLY_SYMBOLS"
+
+
+
+
+	RPM=rpm
+	RPMBUILD=rpmbuild
+
+	{ $as_echo "$as_me:$LINENO: checking whether $RPM is available" >&5
+$as_echo_n "checking whether $RPM is available... " >&6; }
+	if tmp=$($RPM --version 2>/dev/null); then
+
+		RPM_VERSION=$(echo $tmp | $AWK '/RPM/ { print $3 }')
+		HAVE_RPM=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPM ($RPM_VERSION)" >&5
+$as_echo "$HAVE_RPM ($RPM_VERSION)" >&6; }
+
+else
+
+		HAVE_RPM=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPM" >&5
+$as_echo "$HAVE_RPM" >&6; }
+
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether $RPMBUILD is available" >&5
+$as_echo_n "checking whether $RPMBUILD is available... " >&6; }
+	if tmp=$($RPMBUILD --version 2>/dev/null); then
+
+		RPMBUILD_VERSION=$(echo $tmp | $AWK '/RPM/ { print $3 }')
+		HAVE_RPMBUILD=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPMBUILD ($RPMBUILD_VERSION)" >&5
+$as_echo "$HAVE_RPMBUILD ($RPMBUILD_VERSION)" >&6; }
+
+else
+
+		HAVE_RPMBUILD=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPMBUILD" >&5
+$as_echo "$HAVE_RPMBUILD" >&6; }
+
+fi
+
+
+
+
+
+
+
+
+
+
+
+	DPKG=dpkg
+	DPKGBUILD=dpkg-buildpackage
+
+	{ $as_echo "$as_me:$LINENO: checking whether $DPKG is available" >&5
+$as_echo_n "checking whether $DPKG is available... " >&6; }
+	if tmp=$($DPKG --version 2>/dev/null); then
+
+		DPKG_VERSION=$(echo $tmp | $AWK '/Debian/ { print $7 }')
+		HAVE_DPKG=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKG ($DPKG_VERSION)" >&5
+$as_echo "$HAVE_DPKG ($DPKG_VERSION)" >&6; }
+
+else
+
+		HAVE_DPKG=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKG" >&5
+$as_echo "$HAVE_DPKG" >&6; }
+
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether $DPKGBUILD is available" >&5
+$as_echo_n "checking whether $DPKGBUILD is available... " >&6; }
+	if tmp=$($DPKGBUILD --version 2>/dev/null); then
+
+		DPKGBUILD_VERSION=$(echo $tmp | \
+		    $AWK '/Debian/ { print $4 }' | cut -f-4 -d'.')
+		HAVE_DPKGBUILD=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKGBUILD ($DPKGBUILD_VERSION)" >&5
+$as_echo "$HAVE_DPKGBUILD ($DPKGBUILD_VERSION)" >&6; }
+
+else
+
+		HAVE_DPKGBUILD=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKGBUILD" >&5
+$as_echo "$HAVE_DPKGBUILD" >&6; }
+
+fi
+
+
+
+
+
+
+
+
+
+
+
+	ALIEN=alien
+
+	{ $as_echo "$as_me:$LINENO: checking whether $ALIEN is available" >&5
+$as_echo_n "checking whether $ALIEN is available... " >&6; }
+	if tmp=$($ALIEN --version 2>/dev/null); then
+
+		ALIEN_VERSION=$(echo $tmp | $AWK '{ print $3 }')
+		HAVE_ALIEN=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_ALIEN ($ALIEN_VERSION)" >&5
+$as_echo "$HAVE_ALIEN ($ALIEN_VERSION)" >&6; }
+
+else
+
+		HAVE_ALIEN=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_ALIEN" >&5
+$as_echo "$HAVE_ALIEN" >&6; }
+
+fi
+
+
+
+
+
+
+
+	VENDOR=$(echo $ac_build_alias | cut -f2 -d'-')
+
+	{ $as_echo "$as_me:$LINENO: checking default package type" >&5
+$as_echo_n "checking default package type... " >&6; }
+	case "$VENDOR" in
+		fedora)     DEFAULT_PACKAGE=rpm ;;
+		redhat)     DEFAULT_PACKAGE=rpm ;;
+		sles)       DEFAULT_PACKAGE=rpm ;;
+		ubuntu)     DEFAULT_PACKAGE=deb ;;
+		debian)     DEFAULT_PACKAGE=deb ;;
+		slackware)  DEFAULT_PACKAGE=tgz ;;
+		*)          DEFAULT_PACKAGE=rpm ;;
+	esac
+
+	{ $as_echo "$as_me:$LINENO: result: $DEFAULT_PACKAGE" >&5
+$as_echo "$DEFAULT_PACKAGE" >&6; }
+
 
 
 
@@ -14972,7 +15131,8 @@ fi
 
  ;;
                 user)
-				if test "x$AWK" != xgawk; then
+
+	if test "x$AWK" != xgawk; then
 
                 { { $as_echo "$as_me:$LINENO: error:
 	*** Required util gawk missing.  Please install the required
@@ -14983,6 +15143,7 @@ $as_echo "$as_me: error:
    { (exit 1); exit 1; }; }
 
 fi
+
 
    ;;
                 all)
@@ -18481,7 +18642,8 @@ fi
 
 
 
-				if test "x$AWK" != xgawk; then
+
+	if test "x$AWK" != xgawk; then
 
                 { { $as_echo "$as_me:$LINENO: error:
 	*** Required util gawk missing.  Please install the required
@@ -18492,6 +18654,7 @@ $as_echo "$as_me: error:
    { (exit 1); exit 1; }; }
 
 fi
+
 
    ;;
 		srpm)                        ;;

@@ -1,4 +1,6 @@
 include $(top_srcdir)/config/rpm.am
+include ${top_srcdir}/config/deb.am
+include ${top_srcdir}/config/tgz.am
 
 if CONFIG_USER
 USER_DIR = lib cmd scripts
@@ -9,7 +11,8 @@ endif
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh spl.spec.in config/config.awk META DISCLAIMER
+EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
+EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 noinst_HEADERS = spl_config.h
 
 distclean-local::
@@ -44,22 +47,6 @@ etags:
 
 tags: ctags etags
 
-srpm-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
-
-srpm-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
-
-srpm: srpm-modules srpm-utils
-
-rpm-modules: srpm-modules
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
-
-rpm-utils: srpm-utils
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
-
-rpm-utils: srpm-utils
-
-rpm: rpm-modules rpm-utils
+pkg: @DEFAULT_PACKAGE@
+pkg-modules: @DEFAULT_PACKAGE@-modules
+pkg-utils: @DEFAULT_PACKAGE@-utils
