@@ -1686,6 +1686,8 @@ dmu_objset_get_user(objset_t *os)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_objset_pool);
+EXPORT_SYMBOL(dmu_objset_name);
 EXPORT_SYMBOL(dmu_objset_hold);
 EXPORT_SYMBOL(dmu_objset_own);
 EXPORT_SYMBOL(dmu_objset_rele);
