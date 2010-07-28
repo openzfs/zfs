@@ -1,10 +1,37 @@
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm: rpm-modules rpm-utils
+
 rpm-local:
+	@(if test "${HAVE_RPMBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${RPMBUILD} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${RPMBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi; \
 	mkdir -p $(rpmbuild)/TMP && \
 	mkdir -p $(rpmbuild)/BUILD && \
 	mkdir -p $(rpmbuild)/RPMS && \
 	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(rpmspec) $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+	mkdir -p $(rpmbuild)/SPECS && \
+	cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && \
+	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
@@ -14,7 +41,7 @@ srpm-common: dist
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	$(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "build_src_rpm 1" \
@@ -31,7 +58,7 @@ rpm-common:
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	$(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "dist %{nil}" \
