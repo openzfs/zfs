@@ -17,15 +17,28 @@ clean:
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
+	# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
 		INSTALL_MOD_PATH=$(DESTDIR) \
 		INSTALL_MOD_DIR=addon/zfs $@
 	find ${DESTDIR}/lib/modules/ -name 'modules.*' | xargs ${RM}
+	sysmap=${DESTDIR}/boot/System.map-@LINUX_VERSION@; \
+	if [ -f $$sysmap ]; then \
+		depmod -ae -F $$sysmap @LINUX_VERSION@; \
+	fi
 	# Install the required headers in to the kernel source
 	destname=zfs-@ZFS_META_VERSION@/@LINUX_VERSION@; \
-	instdest=$(DESTDIR)/@prefix@/src/$$destname; \
+	instdest=$(DESTDIR)/usr/src/$$destname; \
 	(find . -mindepth 3 -name '*.h' | xargs -Ihdr sh -c \
 	 "DEST=hdr && install -D hdr $$instdest/\$${DEST#*/*/*/}") || exit 1
+
+modules_uninstall:
+	# Uninstall the kernel modules
+	$(RM) -R ${DESTDIR}/lib/modules/@LINUX_VERSION@/addon/zfs
+	# Uninstall the required headers from the kernel source
+	destname=zfs-@ZFS_META_VERSION@/@LINUX_VERSION@; \
+	instdest=$(DESTDIR)/usr/src/$$destname; \
+	$(RM) -R $$instdest
 
 distdir:
 	distfiles=`find . -name '*.c' -o -name '*.h'`; \
@@ -37,5 +50,6 @@ distdir:
 
 distclean maintainer-clean: clean
 install: modules_install
+uninstall: modules_uninstall
 all: modules
 check:
