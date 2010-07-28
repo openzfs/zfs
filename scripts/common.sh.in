@@ -36,6 +36,8 @@ sbindir=@sbindir@
 ETCDIR=${ETCDIR:-/etc}
 DEVDIR=${DEVDIR:-/dev/disk/zpool}
 ZPOOLDIR=${ZPOOLDIR:-${pkglibexecdir}/zpool-config}
+ZPIOSDIR=${ZPIOSDIR:-${pkglibexecdir}/zpios-test}
+ZPIOSPROFILEDIR=${ZPIOSPROFILEDIR:-${pkglibexecdir}/zpios-profile}
 
 ZDB=${ZDB:-${sbindir}/zdb}
 ZFS=${ZFS:-${sbindir}/zfs}
@@ -43,10 +45,13 @@ ZINJECT=${ZINJECT:-${sbindir}/zinject}
 ZPOOL=${ZPOOL:-${sbindir}/zpool}
 ZPOOL_ID=${ZPOOL_ID:-${bindir}/zpool_id}
 ZTEST=${ZTEST:-${sbindir}/ztest}
+ZPIOS=${ZPIOS:-${sbindir}/zpios}
 
 COMMON_SH=${COMMON_SH:-${pkglibexecdir}/common.sh}
 ZFS_SH=${ZFS_SH:-${pkglibexecdir}/zfs.sh}
 ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-${pkglibexecdir}/zpool-create.sh}
+ZPIOS_SH=${ZPIOS_SH:-${pkglibexecdir}/zpios.sh}
+ZPIOS_SURVEY_SH=${ZPIOS_SURVEY_SH:-${pkglibexecdir}/zpios-survey.sh}
 
 LDMOD=${LDMOD:-/sbin/modprobe}
 LSMOD=${LSMOD:-/sbin/lsmod}
