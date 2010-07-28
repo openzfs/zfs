@@ -30,7 +30,7 @@ distclean-local::
 if CONFIG_KERNEL
 install-data-local:
 	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
-	instdest=$(DESTDIR)/${prefix}/src/$$destname; \
+	instdest=$(DESTDIR)/usr/src/$$destname; \
 	echo "${SPL_META_VERSION}" >$$instdest/spl.release; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \

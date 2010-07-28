@@ -12,10 +12,19 @@ clean:
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
+	# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
 		INSTALL_MOD_PATH=$(DESTDIR) \
 		INSTALL_MOD_DIR=addon/spl $@
 	find ${DESTDIR}/lib/modules/ -name 'modules.*' | xargs ${RM}
+	sysmap=${DESTDIR}/boot/System.map-@LINUX_VERSION@; \
+	if [ -f $$sysmap ]; then \
+		depmod -ae -F $$sysmap @LINUX_VERSION@; \
+	fi
+
+modules_uninstall:
+	# Uninstall the kernel modules
+	$(RM) -R ${DESTDIR}/lib/modules/@LINUX_VERSION@/addon/spl
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \
@@ -25,5 +34,6 @@ distdir:
 
 distclean maintainer-clean: clean
 install: modules_install
+uninstall: modules_uninstall
 all: modules
 check:
