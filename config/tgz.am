@@ -1,0 +1,30 @@
+tgz-local:
+	@(if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+tgz-modules: tgz-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+tgz-utils: tgz-local rpm-utils
+	name=${PACKAGE}; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
+	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2 $$pkg3; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3
+
+tgz: tgz-modules tgz-utils
