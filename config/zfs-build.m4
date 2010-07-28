@@ -74,6 +74,7 @@ KERNEL_MODULES=(                                      \\
 
 SPL_MODULES=(                                         \\
         \${SPLBUILD}/spl/spl.ko                        \\
+        \${SPLBUILD}/splat/splat.ko                    \\
 )
 
 ZFS_MODULES=(                                         \\
