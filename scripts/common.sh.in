@@ -11,7 +11,7 @@ SCRIPT_CONFIG=.script-config
 if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
 . "${basedir}/../${SCRIPT_CONFIG}"
 else
-MODULES=(zlib_deflate spl zavl znvpair zunicode zcommon zfs)
+MODULES=(zlib_deflate spl splat zavl znvpair zunicode zcommon zfs)
 fi
 
 PROG="<define PROG>"
