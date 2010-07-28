@@ -815,6 +815,22 @@ CMDDIR
 LIBDIR
 BUILDDIR
 TOPDIR
+DEFAULT_PACKAGE
+ALIEN_VERSION
+ALIEN
+HAVE_ALIEN
+DPKGBUILD_VERSION
+DPKGBUILD
+HAVE_DPKGBUILD
+DPKG_VERSION
+DPKG
+HAVE_DPKG
+RPMBUILD_VERSION
+RPMBUILD
+HAVE_RPMBUILD
+RPM_VERSION
+RPM
+HAVE_RPM
 am__fastdepCCAS_FALSE
 am__fastdepCCAS_TRUE
 CCASDEPMODE
@@ -4806,13 +4822,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4809: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4825: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4812: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4828: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4815: output\"" >&5)
+  (eval echo "\"\$as_me:4831: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6018,7 +6034,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6021 "configure"' > conftest.$ac_ext
+  echo '#line 6037 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7871,11 +7887,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7874: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7890: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7878: \$? = $ac_status" >&5
+   echo "$as_me:7894: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8210,11 +8226,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8213: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8229: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8217: \$? = $ac_status" >&5
+   echo "$as_me:8233: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8315,11 +8331,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8318: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8334: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8322: \$? = $ac_status" >&5
+   echo "$as_me:8338: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8370,11 +8386,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8373: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8389: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8377: \$? = $ac_status" >&5
+   echo "$as_me:8393: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11173,7 +11189,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11176 "configure"
+#line 11192 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11269,7 +11285,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11272 "configure"
+#line 11288 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11639,6 +11655,149 @@ $as_echo "$ZFS_META_AUTHOR" >&6; }
 $as_echo_n "checking zfs license... " >&6; }
 	{ $as_echo "$as_me:$LINENO: result: $ZFS_META_LICENSE" >&5
 $as_echo "$ZFS_META_LICENSE" >&6; }
+
+
+
+	RPM=rpm
+	RPMBUILD=rpmbuild
+
+	{ $as_echo "$as_me:$LINENO: checking whether $RPM is available" >&5
+$as_echo_n "checking whether $RPM is available... " >&6; }
+	if tmp=$($RPM --version 2>/dev/null); then
+
+		RPM_VERSION=$(echo $tmp | $AWK '/RPM/ { print $3 }')
+		HAVE_RPM=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPM ($RPM_VERSION)" >&5
+$as_echo "$HAVE_RPM ($RPM_VERSION)" >&6; }
+
+else
+
+		HAVE_RPM=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPM" >&5
+$as_echo "$HAVE_RPM" >&6; }
+
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether $RPMBUILD is available" >&5
+$as_echo_n "checking whether $RPMBUILD is available... " >&6; }
+	if tmp=$($RPMBUILD --version 2>/dev/null); then
+
+		RPMBUILD_VERSION=$(echo $tmp | $AWK '/RPM/ { print $3 }')
+		HAVE_RPMBUILD=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPMBUILD ($RPMBUILD_VERSION)" >&5
+$as_echo "$HAVE_RPMBUILD ($RPMBUILD_VERSION)" >&6; }
+
+else
+
+		HAVE_RPMBUILD=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_RPMBUILD" >&5
+$as_echo "$HAVE_RPMBUILD" >&6; }
+
+fi
+
+
+
+
+
+
+
+
+
+
+
+	DPKG=dpkg
+	DPKGBUILD=dpkg-buildpackage
+
+	{ $as_echo "$as_me:$LINENO: checking whether $DPKG is available" >&5
+$as_echo_n "checking whether $DPKG is available... " >&6; }
+	if tmp=$($DPKG --version 2>/dev/null); then
+
+		DPKG_VERSION=$(echo $tmp | $AWK '/Debian/ { print $7 }')
+		HAVE_DPKG=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKG ($DPKG_VERSION)" >&5
+$as_echo "$HAVE_DPKG ($DPKG_VERSION)" >&6; }
+
+else
+
+		HAVE_DPKG=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKG" >&5
+$as_echo "$HAVE_DPKG" >&6; }
+
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether $DPKGBUILD is available" >&5
+$as_echo_n "checking whether $DPKGBUILD is available... " >&6; }
+	if tmp=$($DPKGBUILD --version 2>/dev/null); then
+
+		DPKGBUILD_VERSION=$(echo $tmp | \
+		    $AWK '/Debian/ { print $4 }' | cut -f-4 -d'.')
+		HAVE_DPKGBUILD=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKGBUILD ($DPKGBUILD_VERSION)" >&5
+$as_echo "$HAVE_DPKGBUILD ($DPKGBUILD_VERSION)" >&6; }
+
+else
+
+		HAVE_DPKGBUILD=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_DPKGBUILD" >&5
+$as_echo "$HAVE_DPKGBUILD" >&6; }
+
+fi
+
+
+
+
+
+
+
+
+
+
+
+	ALIEN=alien
+
+	{ $as_echo "$as_me:$LINENO: checking whether $ALIEN is available" >&5
+$as_echo_n "checking whether $ALIEN is available... " >&6; }
+	if tmp=$($ALIEN --version 2>/dev/null); then
+
+		ALIEN_VERSION=$(echo $tmp | $AWK '{ print $3 }')
+		HAVE_ALIEN=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_ALIEN ($ALIEN_VERSION)" >&5
+$as_echo "$HAVE_ALIEN ($ALIEN_VERSION)" >&6; }
+
+else
+
+		HAVE_ALIEN=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_ALIEN" >&5
+$as_echo "$HAVE_ALIEN" >&6; }
+
+fi
+
+
+
+
+
+
+
+	VENDOR=$(echo $ac_build_alias | cut -f2 -d'-')
+
+	{ $as_echo "$as_me:$LINENO: checking default package type" >&5
+$as_echo_n "checking default package type... " >&6; }
+	case "$VENDOR" in
+		fedora)     DEFAULT_PACKAGE=rpm ;;
+		redhat)     DEFAULT_PACKAGE=rpm ;;
+		sles)       DEFAULT_PACKAGE=rpm ;;
+		ubuntu)     DEFAULT_PACKAGE=deb ;;
+		debian)     DEFAULT_PACKAGE=deb ;;
+		slackware)  DEFAULT_PACKAGE=tgz ;;
+		*)          DEFAULT_PACKAGE=rpm ;;
+	esac
+
+	{ $as_echo "$as_me:$LINENO: result: $DEFAULT_PACKAGE" >&5
+$as_echo "$DEFAULT_PACKAGE" >&6; }
+
+
 
 
 	TOPDIR=`readlink -f ${srcdir}`

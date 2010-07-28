@@ -150,6 +150,8 @@ GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
 ACLOCAL = @ACLOCAL@
+ALIEN = @ALIEN@
+ALIEN_VERSION = @ALIEN_VERSION@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -170,8 +172,13 @@ CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
 DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
+DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DPKG = @DPKG@
+DPKGBUILD = @DPKGBUILD@
+DPKGBUILD_VERSION = @DPKGBUILD_VERSION@
+DPKG_VERSION = @DPKG_VERSION@
 DSYMUTIL = @DSYMUTIL@
 DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
@@ -182,6 +189,11 @@ EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FRAME_LARGER_THAN = @FRAME_LARGER_THAN@
 GREP = @GREP@
+HAVE_ALIEN = @HAVE_ALIEN@
+HAVE_DPKG = @HAVE_DPKG@
+HAVE_DPKGBUILD = @HAVE_DPKGBUILD@
+HAVE_RPM = @HAVE_RPM@
+HAVE_RPMBUILD = @HAVE_RPMBUILD@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -222,6 +234,10 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+RPM = @RPM@
+RPMBUILD = @RPMBUILD@
+RPMBUILD_VERSION = @RPMBUILD_VERSION@
+RPM_VERSION = @RPM_VERSION@
 SCRIPTDIR = @SCRIPTDIR@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -306,9 +322,10 @@ top_srcdir = @top_srcdir@
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
-EXTRA_DIST = autogen.sh config/config.awk zfs.spec.in \
-	zfs-modules.spec.in META DISCLAIMER COPYRIGHT GIT \
-	README.markdown OPENSOLARIS.LICENSE ZFS.RELEASE
+EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
+	config/config.awk config/rpm.am config/deb.am config/tgz.am \
+	META DISCLAIMER COPYRIGHT GIT README.markdown \
+	OPENSOLARIS.LICENSE ZFS.RELEASE
 noinst_HEADERS = zfs_config.h
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -823,13 +840,40 @@ uninstall-am:
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags tags-recursive uninstall uninstall-am
 
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm: rpm-modules rpm-utils
+
 rpm-local:
+	@(if test "${HAVE_RPMBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${RPMBUILD} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${RPMBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi; \
 	mkdir -p $(rpmbuild)/TMP && \
 	mkdir -p $(rpmbuild)/BUILD && \
 	mkdir -p $(rpmbuild)/RPMS && \
 	mkdir -p $(rpmbuild)/SRPMS && \
-	mkdir -p $(rpmbuild)/SPECS && cp $(rpmspec) $(rpmbuild)/SPECS && \
-	mkdir -p $(rpmbuild)/SOURCES && cp $(distdir).tar.gz $(rpmbuild)/SOURCES
+	mkdir -p $(rpmbuild)/SPECS && \
+	cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && \
+	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
@@ -839,7 +883,7 @@ srpm-common: dist
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	$(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "build_src_rpm 1" \
@@ -856,7 +900,7 @@ rpm-common:
 		rpmbuild="$$rpmbuild" \
 		rpmspec="$$rpmspec" \
 		rpm-local || exit 1; \
-	/usr/bin/rpmbuild \
+	$(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
 		--define "_topdir $$rpmbuild" \
 		--define "dist %{nil}" \
@@ -869,6 +913,8 @@ rpm-common:
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild
+include ${top_srcdir}/config/deb.am
+include ${top_srcdir}/config/tgz.am
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -901,25 +947,9 @@ etags:
 
 tags: ctags etags
 
-srpm-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
-
-srpm-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
-
-srpm: srpm-modules srpm-utils
-
-rpm-modules: srpm-modules
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
-
-rpm-utils: srpm-utils
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
-
-rpm-utils: srpm-utils
-
-rpm: rpm-modules rpm-utils
+pkg: @DEFAULT_PACKAGE@
+pkg-modules: @DEFAULT_PACKAGE@-modules
+pkg-utils: @DEFAULT_PACKAGE@-utils
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
