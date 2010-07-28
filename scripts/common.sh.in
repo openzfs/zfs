@@ -26,20 +26,27 @@ RAID10S=()
 RAIDZS=()
 RAIDZ2S=()
 
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libexecdir=@libexecdir@
+pkglibexecdir=${libexecdir}/@PACKAGE@
+bindir=@bindir@
+sbindir=@sbindir@
+
 ETCDIR=${ETCDIR:-/etc}
 DEVDIR=${DEVDIR:-/dev/disk/zpool}
-ZPOOLDIR=${ZPOOLDIR:-/usr/libexec/zfs/zpool-config}
+ZPOOLDIR=${ZPOOLDIR:-${pkglibexecdir}/zpool-config}
 
-ZDB=${ZDB:-/usr/sbin/zdb}
-ZFS=${ZFS:-/usr/sbin/zfs}
-ZINJECT=${ZINJECT:-/usr/sbin/zinject}
-ZPOOL=${ZPOOL:-/usr/sbin/zpool}
-ZPOOL_ID=${ZPOOL_ID:-/usr/bin/zpool_id}
-ZTEST=${ZTEST:-/usr/sbin/ztest}
+ZDB=${ZDB:-${sbindir}/zdb}
+ZFS=${ZFS:-${sbindir}/zfs}
+ZINJECT=${ZINJECT:-${sbindir}/zinject}
+ZPOOL=${ZPOOL:-${sbindir}/zpool}
+ZPOOL_ID=${ZPOOL_ID:-${bindir}/zpool_id}
+ZTEST=${ZTEST:-${sbindir}/ztest}
 
-COMMON_SH=${COMMON_SH:-/usr/libexec/zfs/common.sh}
-ZFS_SH=${ZFS_SH:-/usr/libexec/zfs/zfs.sh}
-ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-/usr/libexec/zfs/zpool-create.sh}
+COMMON_SH=${COMMON_SH:-${pkglibexecdir}/common.sh}
+ZFS_SH=${ZFS_SH:-${pkglibexecdir}/zfs.sh}
+ZPOOL_CREATE_SH=${ZPOOL_CREATE_SH:-${pkglibexecdir}/zpool-create.sh}
 
 LDMOD=${LDMOD:-/sbin/modprobe}
 LSMOD=${LSMOD:-/sbin/lsmod}
@@ -134,7 +141,7 @@ load_modules() {
 
 		for OPT in "$@"; do
 			OPT_NAME=`echo ${OPT} | cut -f1 -d'='`
-			
+
 			if [ ${NAME} = "${OPT_NAME}" ]; then
 				VALUE=`echo ${OPT} | cut -f2- -d'='`
 			fi
@@ -311,7 +318,7 @@ udev_raid10_setup() {
 udev_raidz_setup() {
 	local RANKS=$1
 	local CHANNELS=$2
-	
+
 	RAIDZS=()
 	for RANK in `seq 1 ${RANKS}`; do
 		RAIDZ=("raidz")
