@@ -84,6 +84,7 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	module/zpios/Makefile
 	scripts/Makefile
+	scripts/common.sh
 	zfs.spec
 	zfs-modules.spec
 ])
