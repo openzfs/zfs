@@ -435,7 +435,8 @@ zio_wait_for_children(zio_t *zio, enum zio_child child, enum zio_wait_type wait)
 	return (waiting);
 }
 
-static void
+__attribute__((always_inline))
+static inline void
 zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait)
 {
 	uint64_t *countp = &pio->io_children[zio->io_child_type][wait];
