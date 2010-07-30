@@ -2559,6 +2559,12 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				return (-1);
 			}
 		}
+		if (!flags.dryrun && zhp->zfs_type == ZFS_TYPE_VOLUME &&
+		    zvol_remove_link(hdl, zhp->zfs_name) != 0) {
+			zfs_close(zhp);
+			zcmd_free_nvlists(&zc);
+			return (-1);
+		}
 		zfs_close(zhp);
 	} else {
 		/*
@@ -2752,7 +2758,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * children of the target filesystem if we did a replication
 	 * receive (indicated by stream_avl being non-NULL).
 	 */
-#ifdef HAVE_ZPL
 	cp = strchr(zc.zc_value, '@');
 	if (cp && (ioctl_err == 0 || !newfs)) {
 		zfs_handle_t *h;
@@ -2763,6 +2768,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (h != NULL) {
 			if (h->zfs_type == ZFS_TYPE_VOLUME) {
 				*cp = '@';
+				err = zvol_create_link(hdl, h->zfs_name);
+				if (err == 0 && ioctl_err == 0)
+					err = zvol_create_link(hdl,
+					    zc.zc_value);
 			} else if (newfs || stream_avl) {
 				/*
 				 * Track the first/top of hierarchy fs,
@@ -2775,7 +2784,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 		*cp = '@';
 	}
-#endif /* HAVE_ZPL */
 
 	if (clp) {
 		err |= changelist_postfix(clp);

@@ -56,6 +56,7 @@
 #include "libzfs_impl.h"
 #include "zfs_deleg.h"
 
+static int zvol_create_link_common(libzfs_handle_t *, const char *, int);
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
     zfs_userquota_prop_t *typep, char *domain, int domainlen, uint64_t *ridp);
 
@@ -2845,6 +2846,18 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	/* create the dataset */
 	ret = zfs_ioctl(hdl, ZFS_IOC_CREATE, &zc);
 
+	if (ret == 0 && type == ZFS_TYPE_VOLUME) {
+		ret = zvol_create_link(hdl, path);
+		if (ret) {
+			(void) zfs_standard_error(hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "Volume successfully created, but device links "
+			    "were not created"));
+			zcmd_free_nvlists(&zc);
+			return (-1);
+		}
+	}
+
 	zcmd_free_nvlists(&zc);
 
 	/* check for failure */
@@ -2907,6 +2920,9 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
 	if (ZFS_IS_VOLUME(zhp)) {
+		if (zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name) != 0)
+			return (-1);
+
 		zc.zc_objset_type = DMU_OST_ZVOL;
 	} else {
 		zc.zc_objset_type = DMU_OST_ZFS;
@@ -2949,9 +2965,17 @@ zfs_check_snap_cb(zfs_handle_t *zhp, void *arg)
 		zfs_close(szhp);
 	}
 
+	if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
+		(void) zvol_remove_link(zhp->zfs_hdl, name);
+		/*
+		 * NB: this is simply a best-effort.  We don't want to
+		 * return an error, because then we wouldn't visit all
+		 * the volumes.
+		 */
+	}
+
 	dd->closezhp = B_TRUE;
-	if (!dd->gotone)
-		rv = zfs_iter_filesystems(zhp, zfs_check_snap_cb, arg);
+	rv = zfs_iter_filesystems(zhp, zfs_check_snap_cb, arg);
 	if (closezhp)
 		zfs_close(zhp);
 	return (rv);
@@ -3086,9 +3110,68 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 			return (zfs_standard_error(zhp->zfs_hdl, errno,
 			    errbuf));
 		}
+	} else if (ZFS_IS_VOLUME(zhp)) {
+		ret = zvol_create_link(zhp->zfs_hdl, target);
 	}
 
 	return (ret);
+}
+
+typedef struct promote_data {
+	char cb_mountpoint[MAXPATHLEN];
+	const char *cb_target;
+	const char *cb_errbuf;
+	uint64_t cb_pivot_txg;
+} promote_data_t;
+
+static int
+promote_snap_cb(zfs_handle_t *zhp, void *data)
+{
+	promote_data_t *pd = data;
+	zfs_handle_t *szhp;
+	char snapname[MAXPATHLEN];
+	int rv = 0;
+
+	/* We don't care about snapshots after the pivot point */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_CREATETXG) > pd->cb_pivot_txg) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/* Remove the device link if it's a zvol. */
+	if (ZFS_IS_VOLUME(zhp))
+		(void) zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name);
+
+	/* Check for conflicting names */
+	(void) strlcpy(snapname, pd->cb_target, sizeof (snapname));
+	(void) strlcat(snapname, strchr(zhp->zfs_name, '@'), sizeof (snapname));
+	szhp = make_dataset_handle(zhp->zfs_hdl, snapname);
+	if (szhp != NULL) {
+		zfs_close(szhp);
+		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+		    "snapshot name '%s' from origin \n"
+		    "conflicts with '%s' from target"),
+		    zhp->zfs_name, snapname);
+		rv = zfs_error(zhp->zfs_hdl, EZFS_EXISTS, pd->cb_errbuf);
+	}
+	zfs_close(zhp);
+	return (rv);
+}
+
+static int
+promote_snap_done_cb(zfs_handle_t *zhp, void *data)
+{
+	promote_data_t *pd = data;
+
+	/* We don't care about snapshots after the pivot point */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_CREATETXG) <= pd->cb_pivot_txg) {
+		/* Create the device link if it's a zvol. */
+		if (ZFS_IS_VOLUME(zhp))
+			(void) zvol_create_link(zhp->zfs_hdl, zhp->zfs_name);
+	}
+
+	zfs_close(zhp);
+	return (0);
 }
 
 /*
@@ -3100,7 +3183,10 @@ zfs_promote(zfs_handle_t *zhp)
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	char parent[MAXPATHLEN];
+	char *cp;
 	int ret;
+	zfs_handle_t *pzhp;
+	promote_data_t pd;
 	char errbuf[1024];
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -3118,7 +3204,29 @@ zfs_promote(zfs_handle_t *zhp)
 		    "not a cloned filesystem"));
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	}
+	cp = strchr(parent, '@');
+	*cp = '\0';
 
+	/* Walk the snapshots we will be moving */
+	pzhp = zfs_open(hdl, zhp->zfs_dmustats.dds_origin, ZFS_TYPE_SNAPSHOT);
+	if (pzhp == NULL)
+		return (-1);
+	pd.cb_pivot_txg = zfs_prop_get_int(pzhp, ZFS_PROP_CREATETXG);
+	zfs_close(pzhp);
+	pd.cb_target = zhp->zfs_name;
+	pd.cb_errbuf = errbuf;
+	pzhp = zfs_open(hdl, parent, ZFS_TYPE_DATASET);
+	if (pzhp == NULL)
+		return (-1);
+	(void) zfs_prop_get(pzhp, ZFS_PROP_MOUNTPOINT, pd.cb_mountpoint,
+	    sizeof (pd.cb_mountpoint), NULL, NULL, 0, FALSE);
+	ret = zfs_iter_snapshots(pzhp, promote_snap_cb, &pd);
+	if (ret != 0) {
+		zfs_close(pzhp);
+		return (-1);
+	}
+
+	/* issue the ioctl */
 	(void) strlcpy(zc.zc_value, zhp->zfs_dmustats.dds_origin,
 	    sizeof (zc.zc_value));
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -3127,9 +3235,16 @@ zfs_promote(zfs_handle_t *zhp)
 	if (ret != 0) {
 		int save_errno = errno;
 
+		(void) zfs_iter_snapshots(pzhp, promote_snap_done_cb, &pd);
+		zfs_close(pzhp);
+
 		switch (save_errno) {
 		case EEXIST:
-			/* There is a conflicting snapshot name. */
+			/*
+			 * There is a conflicting snapshot name.  We
+			 * should have caught this above, but they could
+			 * have renamed something in the mean time.
+			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "conflicting snapshot '%s' from parent '%s'"),
 			    zc.zc_string, parent);
@@ -3138,7 +3253,44 @@ zfs_promote(zfs_handle_t *zhp)
 		default:
 			return (zfs_standard_error(hdl, save_errno, errbuf));
 		}
+	} else {
+		(void) zfs_iter_snapshots(zhp, promote_snap_done_cb, &pd);
 	}
+
+	zfs_close(pzhp);
+	return (ret);
+}
+
+struct createdata {
+	const char *cd_snapname;
+	int cd_ifexists;
+};
+
+static int
+zfs_create_link_cb(zfs_handle_t *zhp, void *arg)
+{
+	struct createdata *cd = arg;
+	int ret;
+
+	if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
+		char name[MAXPATHLEN];
+
+		(void) strlcpy(name, zhp->zfs_name, sizeof (name));
+		(void) strlcat(name, "@", sizeof (name));
+		(void) strlcat(name, cd->cd_snapname, sizeof (name));
+		(void) zvol_create_link_common(zhp->zfs_hdl, name,
+		    cd->cd_ifexists);
+		/*
+		 * NB: this is simply a best-effort.  We don't want to
+		 * return an error, because then we wouldn't visit all
+		 * the volumes.
+		 */
+	}
+
+	ret = zfs_iter_filesystems(zhp, zfs_create_link_cb, cd);
+
+	zfs_close(zhp);
+
 	return (ret);
 }
 
@@ -3202,11 +3354,31 @@ zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
 	 * if it was recursive, the one that actually failed will be in
 	 * zc.zc_name.
 	 */
-	if (ret != 0) {
+	if (ret != 0)
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot create snapshot '%s@%s'"), zc.zc_name, zc.zc_value);
-		(void) zfs_standard_error(hdl, errno, errbuf);
+
+	if (ret == 0 && recursive) {
+		struct createdata cd;
+
+		cd.cd_snapname = delim + 1;
+		cd.cd_ifexists = B_FALSE;
+		(void) zfs_iter_filesystems(zhp, zfs_create_link_cb, &cd);
 	}
+	if (ret == 0 && zhp->zfs_type == ZFS_TYPE_VOLUME) {
+		ret = zvol_create_link(zhp->zfs_hdl, path);
+		if (ret != 0) {
+			(void) zfs_standard_error(hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "Volume successfully snapshotted, but device links "
+			    "were not created"));
+			zfs_close(zhp);
+			return (-1);
+		}
+	}
+
+	if (ret != 0)
+		(void) zfs_standard_error(hdl, errno, errbuf);
 
 	zfs_close(zhp);
 
@@ -3309,6 +3481,8 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	 */
 
 	if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
+		if (zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name) != 0)
+			return (-1);
 		if (zfs_which_resv_prop(zhp, &resv_prop) < 0)
 			return (-1);
 		old_volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
@@ -3346,6 +3520,10 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	 */
 	if ((zhp->zfs_type == ZFS_TYPE_VOLUME) &&
 	    (zhp = make_dataset_handle(zhp->zfs_hdl, zhp->zfs_name))) {
+		if ((err = zvol_create_link(zhp->zfs_hdl, zhp->zfs_name))) {
+			zfs_close(zhp);
+			return (err);
+		}
 		if (restore_resv) {
 			new_volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
 			if (old_volsize != new_volsize)
@@ -3494,6 +3672,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 	}
 
 	if (recursive) {
+		struct destroydata dd;
 
 		parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
 		if (parentname == NULL) {
@@ -3508,6 +3687,15 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 			goto error;
 		}
 
+		dd.snapname = delim + 1;
+		dd.gotone = B_FALSE;
+		dd.closezhp = B_TRUE;
+
+		/* We remove any zvol links prior to renaming them */
+		ret = zfs_iter_filesystems(zhrp, zfs_check_snap_cb, &dd);
+		if (ret) {
+			goto error;
+		}
 	} else {
 		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0)) == NULL)
 			return (-1);
@@ -3556,10 +3744,27 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 		 * On failure, we still want to remount any filesystems that
 		 * were previously mounted, so we don't alter the system state.
 		 */
-		if (!recursive)
+		if (recursive) {
+			struct createdata cd;
+
+			/* only create links for datasets that had existed */
+			cd.cd_snapname = delim + 1;
+			cd.cd_ifexists = B_TRUE;
+			(void) zfs_iter_filesystems(zhrp, zfs_create_link_cb,
+			    &cd);
+		} else {
 			(void) changelist_postfix(cl);
+		}
 	} else {
-		if (!recursive) {
+		if (recursive) {
+			struct createdata cd;
+
+			/* only create links for datasets that had existed */
+			cd.cd_snapname = strchr(target, '@') + 1;
+			cd.cd_ifexists = B_TRUE;
+			ret = zfs_iter_filesystems(zhrp, zfs_create_link_cb,
+			    &cd);
+		} else {
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
@@ -3578,19 +3783,103 @@ error:
 	return (ret);
 }
 
+/*
+ * Given a zvol dataset, issue the ioctl to create the appropriate minor node,
+ * and wait briefly for udev to create the /dev link.
+ */
+int
+zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
+{
+	return (zvol_create_link_common(hdl, dataset, B_FALSE));
+}
+
+static int
+zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
+{
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	char path[MAXPATHLEN];
+	int error;
+
+	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
+
+	/*
+	 * Issue the appropriate ioctl.
+	 */
+	if (ioctl(hdl->libzfs_fd, ZFS_IOC_CREATE_MINOR, &zc) != 0) {
+		switch (errno) {
+		case EEXIST:
+			/*
+			 * Silently ignore the case where the link already
+			 * exists.  This allows 'zfs volinit' to be run multiple
+			 * times without errors.
+			 */
+			return (0);
+
+		case ENOENT:
+			/*
+			 * Dataset does not exist in the kernel.  If we
+			 * don't care (see zfs_rename), then ignore the
+			 * error quietly.
+			 */
+			if (ifexists) {
+				return (0);
+			}
+
+			/* FALLTHROUGH */
+
+		default:
+			return (zfs_standard_error_fmt(hdl, errno,
+			    dgettext(TEXT_DOMAIN, "cannot create device links "
+			    "for '%s'"), dataset));
+		}
+	}
+
+	/*
+	 * Wait up to 10 seconds for udev to create the device.
+	 */
+	(void) snprintf(path, sizeof (path), "%s/%s", ZVOL_DIR, dataset);
+	error = zpool_label_disk_wait(path, 10000);
+	if (error)
+		(void) printf(gettext("%s may not be immediately "
+		    "available\n"), path);
+
+	return (0);
+}
+
+/*
+ * Remove a minor node for the given zvol and the associated /dev links.
+ */
+int
+zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
+{
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+
+	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
+
+	if (ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc) != 0) {
+		switch (errno) {
+		case ENXIO:
+			/*
+			 * Silently ignore the case where the link no longer
+			 * exists, so that 'zfs volfini' can be run multiple
+			 * times without errors.
+			 */
+			return (0);
+
+		default:
+			return (zfs_standard_error_fmt(hdl, errno,
+			    dgettext(TEXT_DOMAIN, "cannot remove device "
+			    "links for '%s'"), dataset));
+		}
+	}
+
+	return (0);
+}
+
 nvlist_t *
 zfs_get_user_props(zfs_handle_t *zhp)
 {
 	return (zhp->zfs_user_props);
-}
-
-nvlist_t *
-zfs_get_recvd_props(zfs_handle_t *zhp)
-{
-	if (zhp->zfs_recvd_props == NULL)
-		if (get_recvd_props_ioctl(zhp) != 0)
-			return (NULL);
-	return (zhp->zfs_recvd_props);
 }
 
 /*

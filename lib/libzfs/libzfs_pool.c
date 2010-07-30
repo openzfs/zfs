@@ -3577,7 +3577,7 @@ zpool_label_disk_check(char *path)
 		(void) close(fd);
 		return EIDRM;
 	}
-		
+
 	efi_free(vtoc);
 	(void) close(fd);
 	return 0;
