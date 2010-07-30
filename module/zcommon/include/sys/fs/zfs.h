@@ -686,13 +686,17 @@ typedef struct ddt_histogram {
 	ddt_stat_t	ddh_stat[64];	/* power-of-two histogram buckets */
 } ddt_histogram_t;
 
-#define	ZVOL_DRIVER		"zvol"
-#define	ZFS_DRIVER		"zfs"
-#define	ZFS_DEV			"/dev/zfs"
-#define ZVOL_MAJOR		230
-#define ZVOL_MINOR_BITS		4
-#define ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)
-#define ZVOL_MINORS		(1 << 4)
+#define	ZVOL_DRIVER	"zvol"
+#define	ZFS_DRIVER	"zfs"
+#define	ZFS_DEV		"/dev/zfs"
+
+/* general zvol path */
+#define	ZVOL_DIR	"/dev/zvol"
+
+#define	ZVOL_MAJOR		230
+#define	ZVOL_MINOR_BITS		4
+#define	ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)
+#define	ZVOL_MINORS		(1 << 4)
 
 #define	ZVOL_PROP_NAME		"name"
 #define	ZVOL_DEFAULT_BLOCKSIZE	8192
@@ -726,6 +730,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_DATASET_LIST_NEXT,
 	ZFS_IOC_SNAPSHOT_LIST_NEXT,
 	ZFS_IOC_SET_PROP,
+	ZFS_IOC_CREATE_MINOR,
+	ZFS_IOC_REMOVE_MINOR,
 	ZFS_IOC_CREATE,
 	ZFS_IOC_DESTROY,
 	ZFS_IOC_ROLLBACK,

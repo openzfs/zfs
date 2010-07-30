@@ -57,6 +57,7 @@ static char *zvol_tag = "zvol_tag";
  * The in-core state of each volume.
  */
 typedef struct zvol_state {
+	char			zv_name[DISK_NAME_LEN];	/* name */
 	uint64_t		zv_volsize;	/* advertised space */
 	uint64_t		zv_volblocksize;/* volume block size */
 	objset_t		*zv_objset;	/* objset handle */
@@ -130,7 +131,7 @@ zvol_find_by_name(const char *name)
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 	for (zv = list_head(&zvol_state_list); zv != NULL;
 	     zv = list_next(&zvol_state_list, zv)) {
-		if (!strncmp(zv->zv_disk->disk_name, name, DISK_NAME_LEN))
+		if (!strncmp(zv->zv_name, name, DISK_NAME_LEN))
 			return zv;
 	}
 
@@ -757,11 +758,10 @@ zvol_first_open(zvol_state_t *zv)
 	objset_t *os;
 	uint64_t volsize;
 	int error;
-	uint64_t readonly;
+	uint64_t ro;
 
 	/* lie and say we're read-only */
-	error = dmu_objset_own(zv->zv_disk->disk_name,
-	    DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
+	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
 	if (error)
 		return (-error);
 
@@ -782,9 +782,8 @@ zvol_first_open(zvol_state_t *zv)
 	zv->zv_volsize = volsize;
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 
-	VERIFY(dsl_prop_get_integer(zv->zv_disk->disk_name,
-	    "readonly", &readonly, NULL) == 0);
-	if (readonly || dmu_objset_is_snapshot(os)) {
+	VERIFY(dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL) == 0);
+	if (ro || dmu_objset_is_snapshot(os)) {
                 set_disk_ro(zv->zv_disk, 1);
 	        zv->zv_flags |= ZVOL_RDONLY;
 	} else {
@@ -1031,6 +1030,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue->queuedata = zv;
 	zv->zv_dev = dev;
 	zv->zv_open_count = 0;
+	strlcpy(zv->zv_name, name, DISK_NAME_LEN);
 
 	mutex_init(&zv->zv_znode.z_range_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&zv->zv_znode.z_range_avl, zfs_range_compare,
@@ -1043,7 +1043,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_disk->fops = &zvol_ops;
 	zv->zv_disk->private_data = zv;
 	zv->zv_disk->queue = zv->zv_queue;
-	strlcpy(zv->zv_disk->disk_name, name, DISK_NAME_LEN);
+	snprintf(zv->zv_disk->disk_name, DISK_NAME_LEN, "zvol/%s", name);
 
 	return zv;
 
@@ -1173,31 +1173,25 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
 	return zvol_create_minor(dsname);
 }
 
-static int
-zvol_remove_minors_cb(spa_t *spa, uint64_t dsobj,
-		      const char *dsname, void *arg)
-{
-	if (strchr(dsname, '/') == NULL)
-		return 0;
-
-	return zvol_remove_minor(dsname);
-}
-
-static int
-zvol_cr_minors_common(const char *pool,
-    int func(spa_t *, uint64_t, const char *, void *), void *arg)
+/*
+ * Create minors for specified pool, if pool is NULL create minors
+ * for all available pools.
+ */
+int
+zvol_create_minors(const char *pool)
 {
 	spa_t *spa = NULL;
 	int error = 0;
 
 	if (pool) {
-		error = dmu_objset_find_spa(NULL, pool, func, arg,
-		    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+		error = dmu_objset_find_spa(NULL, pool, zvol_create_minors_cb,
+		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 	} else {
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL) {
-			error = dmu_objset_find_spa(NULL, spa_name(spa),
-			    func, arg, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+			error = dmu_objset_find_spa(NULL,
+			    spa_name(spa), zvol_create_minors_cb, NULL,
+			    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 			if (error)
 				break;
 		}
@@ -1208,21 +1202,31 @@ zvol_cr_minors_common(const char *pool,
 }
 
 /*
- * Create minors for specified pool, or if NULL create all minors.
+ * Remove minors for specified pool, if pool is NULL remove all minors.
  */
-int
-zvol_create_minors(const char *pool)
-{
-	return zvol_cr_minors_common(pool, zvol_create_minors_cb, NULL);
-}
-
-/*
- * Remove minors for specified pool, or if NULL remove all minors.
- */
-int
+void
 zvol_remove_minors(const char *pool)
 {
-	return zvol_cr_minors_common(pool, zvol_remove_minors_cb, NULL);
+	zvol_state_t *zv, *zv_next;
+	char *str;
+
+	str = kmem_zalloc(DISK_NAME_LEN, KM_SLEEP);
+	if (pool) {
+		(void) strncpy(str, pool, strlen(pool));
+		(void) strcat(str, "/");
+	}
+
+	mutex_enter(&zvol_state_lock);
+	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
+		zv_next = list_next(&zvol_state_list, zv);
+
+		if (pool == NULL || !strncmp(str, zv->zv_name, strlen(str))) {
+			zvol_remove(zv);
+			zvol_free(zv);
+		}
+	}
+	mutex_exit(&zvol_state_lock);
+	kmem_free(str, DISK_NAME_LEN);
 }
 
 int
@@ -1262,12 +1266,10 @@ zvol_init(void)
 void
 zvol_fini(void)
 {
-	(void) zvol_remove_minors(NULL);
-
+	zvol_remove_minors(NULL);
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	taskq_destroy(zvol_taskq);
-
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 }

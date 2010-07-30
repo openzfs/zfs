@@ -1112,8 +1112,9 @@ zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 {
 	int error;
 	zfs_log_history(zc);
-	(void) zvol_remove_minors(zc->zc_name);
 	error = spa_destroy(zc->zc_name);
+	if (error == 0)
+		zvol_remove_minors(zc->zc_name);
 	return (error);
 }
 
@@ -1144,7 +1145,7 @@ zfs_ioc_pool_import(zfs_cmd_t *zc)
 		error = spa_import(zc->zc_name, config, props);
 
 	if (error == 0)
-		error = zvol_create_minors(zc->zc_name);
+		zvol_create_minors(zc->zc_name);
 
 	if (zc->zc_nvlist_dst != 0)
 		(void) put_nvlist(zc, config);
@@ -1165,10 +1166,9 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
 
 	zfs_log_history(zc);
-	error = zvol_remove_minors(zc->zc_name);
+	error = spa_export(zc->zc_name, NULL, force, hardforce);
 	if (error == 0)
-		error = spa_export(zc->zc_name, NULL, force, hardforce);
-
+		zvol_remove_minors(zc->zc_name);
 	return (error);
 }
 
@@ -2440,6 +2440,30 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 
 /*
  * inputs:
+ * zc_name              name of volume
+ *
+ * outputs:             none
+ */
+static int
+zfs_ioc_create_minor(struct file *filp, zfs_cmd_t *zc)
+{
+	return (zvol_create_minor(zc->zc_name));
+}
+
+/*
+ * inputs:
+ * zc_name              name of volume
+ *
+ * outputs:             none
+ */
+static int
+zfs_ioc_remove_minor(struct file *filp, zfs_cmd_t *zc)
+{
+	return (zvol_remove_minor(zc->zc_name));
+}
+
+/*
+ * inputs:
  * zc_name		name of filesystem
  * zc_nvlist_src{_size}	nvlist of delegated permissions
  * zc_perm_action	allow/unallow flag
@@ -2834,18 +2858,9 @@ zfs_ioc_create(zfs_cmd_t *zc)
 	if (error == 0) {
 		error = zfs_set_prop_nvlist(zc->zc_name, ZPROP_SRC_LOCAL,
 		    nvprops, NULL);
-		if (error != 0) {
+		if (error != 0)
 			(void) dmu_objset_destroy(zc->zc_name, B_FALSE);
-			goto out;
-		}
-
-		if (type == DMU_OST_ZVOL) {
-			error = zvol_create_minor(zc->zc_name);
-			if (error != 0)
-				(void) dmu_objset_destroy(zc->zc_name, B_FALSE);
-		}
 	}
-out:
 	nvlist_free(nvprops);
 	return (error);
 }
@@ -2968,7 +2983,7 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 
 	err = dmu_objset_destroy(zc->zc_name, zc->zc_defer_destroy);
 	if (zc->zc_objset_type == DMU_OST_ZVOL && err == 0)
-		err = zvol_remove_minor(zc->zc_name);
+		(void) zvol_remove_minor(zc->zc_name);
 	return (err);
 }
 
@@ -3068,7 +3083,6 @@ static int
 zfs_ioc_rename(zfs_cmd_t *zc)
 {
 	boolean_t recursive = zc->zc_cookie & 1;
-	int err;
 
 	zc->zc_value[sizeof (zc->zc_value) - 1] = '\0';
 	if (dataset_namecheck(zc->zc_value, NULL, NULL) != 0 ||
@@ -3082,16 +3096,12 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 	 */
 	if (!recursive && strchr(zc->zc_name, '@') != NULL &&
 	    zc->zc_objset_type == DMU_OST_ZFS) {
-		err = zfs_unmount_snap(zc->zc_name, NULL);
+		int err = zfs_unmount_snap(zc->zc_name, NULL);
 		if (err)
 			return (err);
 	}
-	if (zc->zc_objset_type == DMU_OST_ZVOL) {
-		err = zvol_remove_minor(zc->zc_name);
-		if (err)
-			return (err);
-	}
-
+	if (zc->zc_objset_type == DMU_OST_ZVOL)
+		(void) zvol_remove_minor(zc->zc_name);
 	return (dmu_objset_rename(zc->zc_name, zc->zc_value, recursive));
 }
 
@@ -4315,6 +4325,10 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	{ zfs_ioc_snapshot_list_next, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
 	    B_TRUE },
 	{ zfs_ioc_set_prop, zfs_secpolicy_none, DATASET_NAME, B_TRUE, B_TRUE },
+	{ zfs_ioc_create_minor, zfs_secpolicy_config, DATASET_NAME, B_FALSE,
+	    B_FALSE },
+	{ zfs_ioc_remove_minor, zfs_secpolicy_config, DATASET_NAME, B_FALSE,
+	    B_FALSE },
 	{ zfs_ioc_create, zfs_secpolicy_create, DATASET_NAME, B_TRUE, B_TRUE },
 	{ zfs_ioc_destroy, zfs_secpolicy_destroy, DATASET_NAME, B_TRUE,
 	    B_TRUE},

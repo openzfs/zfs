@@ -1072,12 +1072,6 @@ vdev_open_child(void *arg)
 boolean_t
 vdev_uses_zvols(vdev_t *vd)
 {
-/*
- * NOTE: Disabled because under Linux I've choosen not to put all the zvols
- * in their own directory.  This could be changed or this code can be updated
- * to perhap run an ioctl() on the vdev path to determine if it is a zvol.
- */
-#if 0
 	int c;
 
 	if (vd->vdev_path && strncmp(vd->vdev_path, ZVOL_DIR,
@@ -1086,7 +1080,6 @@ vdev_uses_zvols(vdev_t *vd)
 	for (c = 0; c < vd->vdev_children; c++)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
-#endif
 	return (B_FALSE);
 }
 
