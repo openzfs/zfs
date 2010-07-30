@@ -183,7 +183,7 @@ int
 zvol_get_stats(objset_t *os, nvlist_t *nv)
 {
 	int error;
-	dmu_object_info_t doi;
+	dmu_object_info_t *doi;
 	uint64_t val;
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &val);
@@ -191,13 +191,15 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 		return (error);
 
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_VOLSIZE, val);
-
-	error = dmu_object_info(os, ZVOL_OBJ, &doi);
+	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
+	error = dmu_object_info(os, ZVOL_OBJ, doi);
 
 	if (error == 0) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_VOLBLOCKSIZE,
-		    doi.doi_data_block_size);
+		    doi->doi_data_block_size);
 	}
+
+	kmem_free(doi, sizeof(dmu_object_info_t));
 
 	return (error);
 }
@@ -274,7 +276,7 @@ int
 zvol_set_volsize(const char *name, uint64_t volsize)
 {
 	zvol_state_t *zv;
-	dmu_object_info_t doi;
+	dmu_object_info_t *doi;
 	objset_t *os = NULL;
 	uint64_t readonly;
 	int error;
@@ -287,26 +289,30 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		goto out;
 	}
 
+	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
+
 	error = dmu_objset_hold(name, FTAG, &os);
 	if (error)
-		goto out;
+		goto out_doi;
 
-	if ((error = dmu_object_info(os, ZVOL_OBJ, &doi)) != 0 ||
-	    (error = zvol_check_volsize(volsize,doi.doi_data_block_size)) != 0)
-		goto out;
+	if ((error = dmu_object_info(os, ZVOL_OBJ, doi)) != 0 ||
+	    (error = zvol_check_volsize(volsize,doi->doi_data_block_size)) != 0)
+		goto out_doi;
 
 	VERIFY(dsl_prop_get_integer(name, "readonly", &readonly, NULL) == 0);
 	if (readonly) {
 		error = EROFS;
-		goto out;
+		goto out_doi;
 	}
 
 	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
 		error = EROFS;
-		goto out;
+		goto out_doi;
 	}
 
 	error = zvol_update_volsize(zv, volsize);
+out_doi:
+	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
 	if (os)
 		dmu_objset_rele(os, FTAG);
@@ -1076,7 +1082,7 @@ __zvol_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
-	dmu_object_info_t doi;
+	dmu_object_info_t *doi;
 	unsigned minor = 0;
 	int error = 0;
 
@@ -1088,11 +1094,13 @@ __zvol_create_minor(const char *name)
 		goto out;
 	}
 
+	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
+
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, zvol_tag, &os);
 	if (error)
-		goto out;
+		goto out_doi;
 
-	error = dmu_object_info(os, ZVOL_OBJ, &doi);
+	error = dmu_object_info(os, ZVOL_OBJ, doi);
 	if (error)
 		goto out_dmu_objset_disown;
 
@@ -1109,7 +1117,7 @@ __zvol_create_minor(const char *name)
 	if (dmu_objset_is_snapshot(os))
 		zv->zv_flags |= ZVOL_RDONLY;
 
-	zv->zv_volblocksize = doi.doi_data_block_size;
+	zv->zv_volblocksize = doi->doi_data_block_size;
 
 	if (zil_replay_disable)
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
@@ -1122,6 +1130,8 @@ __zvol_create_minor(const char *name)
 
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
+out_doi:
+	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
 	return (error);
 }
