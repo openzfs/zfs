@@ -1071,13 +1071,8 @@ zvol_free(zvol_state_t *zv)
 	kmem_free(zv, sizeof (zvol_state_t));
 }
 
-/*
- * Create a block device minor node and setup the linkage between it
- * and the specified volume.  Once this function returns the block
- * device is live and ready for use.
- */
-int
-zvol_create_minor(const char *name)
+static int
+__zvol_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1085,7 +1080,7 @@ zvol_create_minor(const char *name)
 	unsigned minor = 0;
 	int error = 0;
 
-	mutex_enter(&zvol_state_lock);
+	ASSERT(MUTEX_HELD(&zvol_state_lock));
 
 	zv = zvol_find_by_name(name);
 	if (zv) {
@@ -1128,9 +1123,44 @@ zvol_create_minor(const char *name)
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
 out:
+	return (error);
+}
+
+/*
+ * Create a block device minor node and setup the linkage between it
+ * and the specified volume.  Once this function returns the block
+ * device is live and ready for use.
+ */
+int
+zvol_create_minor(const char *name)
+{
+	int error;
+
+	mutex_enter(&zvol_state_lock);
+	error = __zvol_create_minor(name);
 	mutex_exit(&zvol_state_lock);
 
-	return (-error);
+	return (error);
+}
+
+static int
+__zvol_remove_minor(const char *name)
+{
+	zvol_state_t *zv;
+
+	ASSERT(MUTEX_HELD(&zvol_state_lock));
+
+	zv = zvol_find_by_name(name);
+	if (zv == NULL)
+		return (ENXIO);
+
+	if (zv->zv_open_count > 0)
+		return (EBUSY);
+
+	zvol_remove(zv);
+	zvol_free(zv);
+
+	return (0);
 }
 
 /*
@@ -1139,25 +1169,10 @@ out:
 int
 zvol_remove_minor(const char *name)
 {
-	zvol_state_t *zv;
-	int error = 0;
+	int error;
 
 	mutex_enter(&zvol_state_lock);
-
-	zv = zvol_find_by_name(name);
-	if (zv == NULL) {
-		error = ENXIO;
-		goto out;
-	}
-
-	if (zv->zv_open_count > 0) {
-		error = EBUSY;
-		goto out;
-	}
-
-	zvol_remove(zv);
-	zvol_free(zv);
-out:
+	error = __zvol_remove_minor(name);
 	mutex_exit(&zvol_state_lock);
 
 	return (error);
@@ -1170,7 +1185,7 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
 	if (strchr(dsname, '/') == NULL)
 		return 0;
 
-	return zvol_create_minor(dsname);
+	return __zvol_create_minor(dsname);
 }
 
 /*
@@ -1183,6 +1198,7 @@ zvol_create_minors(const char *pool)
 	spa_t *spa = NULL;
 	int error = 0;
 
+	mutex_enter(&zvol_state_lock);
 	if (pool) {
 		error = dmu_objset_find_spa(NULL, pool, zvol_create_minors_cb,
 		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
@@ -1197,6 +1213,7 @@ zvol_create_minors(const char *pool)
 		}
 		mutex_exit(&spa_namespace_lock);
 	}
+	mutex_exit(&zvol_state_lock);
 
 	return error;
 }
