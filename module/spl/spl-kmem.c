@@ -295,7 +295,7 @@ EXPORT_SYMBOL(strdup);
 void
 strfree(char *str)
 {
-	kmem_free(str, strlen(str) + 1);
+	kfree(str);
 }
 EXPORT_SYMBOL(strfree);
 
