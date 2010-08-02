@@ -1,0 +1,8 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack inline
+
+Decrease stack usage for various call paths by forcing certain
+functions to be inlined.  By inlining the functions the overhead
+of a new stack frame is removed at the cost of increased code size.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
