@@ -24,3 +24,4 @@ fix-stack-traverse_impl
 fix-stack-traverse_visitbp
 fix-stack-ztest
 fix-stack-inline
+fix-stack-vdev_cache_read
