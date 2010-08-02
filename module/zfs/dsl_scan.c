@@ -789,18 +789,21 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 {
 	dsl_pool_t *dp = scn->scn_dp;
 	arc_buf_t *buf = NULL;
-	blkptr_t bp_toread = *bp;
+	blkptr_t *bp_toread;
+
+	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
+	*bp_toread = *bp;
 
 	/* ASSERT(pbuf == NULL || arc_released(pbuf)); */
 
 	if (dsl_scan_check_pause(scn, zb))
-		return;
+		goto out;
 
 	if (dsl_scan_check_resume(scn, dnp, zb))
-		return;
+		goto out;
 
 	if (bp->blk_birth == 0)
-		return;
+		goto out;
 
 	scn->scn_visited_this_txg++;
 
@@ -811,7 +814,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	    pbuf, bp);
 
 	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
-		return;
+		goto out;
 
 	if (BP_GET_TYPE(bp) != DMU_OT_USERGROUP_USED) {
 		/*
@@ -826,12 +829,12 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 		 * it (original untranslated -> translations from
 		 * deleted snap -> now).
 		 */
-		bp_toread = *bp;
+		*bp_toread = *bp;
 	}
 
-	if (dsl_scan_recurse(scn, ds, ostype, dnp, &bp_toread, zb, tx,
+	if (dsl_scan_recurse(scn, ds, ostype, dnp, bp_toread, zb, tx,
 	    &buf) != 0)
-		return;
+		goto out;
 
 	/*
 	 * If dsl_scan_ddt() has aready visited this block, it will have
@@ -841,7 +844,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	if (ddt_class_contains(dp->dp_spa,
 	    scn->scn_phys.scn_ddt_class_max, bp)) {
 		ASSERT(buf == NULL);
-		return;
+		goto out;
 	}
 
 	/*
@@ -856,6 +859,8 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	}
 	if (buf)
 		(void) arc_buf_remove_ref(buf, &buf);
+out:
+	kmem_free(bp_toread, sizeof(blkptr_t));
 }
 
 static void
