@@ -1,0 +1,7 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack vdev_cache_read
+
+Moving the vdev_cache_entry_t struct ve_search from the stack to
+the heap saves ~100 bytes.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
