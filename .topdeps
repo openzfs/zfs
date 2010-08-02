@@ -25,3 +25,4 @@ fix-stack-traverse_visitbp
 fix-stack-ztest
 fix-stack-inline
 fix-stack-vdev_cache_read
+fix-stack-zio_done
