@@ -1670,7 +1670,8 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type,
  * Load an existing storage pool, using the pool's builtin spa_config as a
  * source of configuration information.
  */
-static int
+__attribute__((always_inline))
+static inline int
 spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
     spa_load_state_t state, spa_import_type_t type, boolean_t mosconfig,
     char **ereport)
