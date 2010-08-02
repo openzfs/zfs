@@ -120,7 +120,7 @@ zconfig_test3() {
 	TMP_FILE1=`mktemp`
 	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
-	echo -n "test 3 - ZVOL sanity: "
+	echo -n "test 3 - zvol+ext3 sanity: "
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -129,7 +129,7 @@ zconfig_test3() {
 
 	# Partition the volume, for a 400M volume there will be
 	# 812 cylinders, 16 heads, and 63 sectors per track.
-	/sbin/sfdisk -q /dev/${FULL_NAME} << EOF &>${TMP_FILE1} || fail 4
+	/sbin/sfdisk -q /dev/zvol/${FULL_NAME} << EOF &>${TMP_FILE1} || fail 4
 ,812
 ;
 ;
@@ -137,11 +137,11 @@ zconfig_test3() {
 EOF
 
 	# Format the partition with ext3.
-	/sbin/mkfs.ext3 /dev/${FULL_NAME}1 &>${TMP_FILE1} || fail 5
+	/sbin/mkfs.ext3 /dev/zvol/${FULL_NAME}1 &>${TMP_FILE1} || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
 	mkdir -p /tmp/${ZVOL_NAME} || fail 6
-	mount /dev/${FULL_NAME}1 /tmp/${ZVOL_NAME} || fail 7
+	mount /dev/zvol/${FULL_NAME}1 /tmp/${ZVOL_NAME} || fail 7
 	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME} || fail 8
 
 	# Verify the copied files match the original files.
@@ -158,5 +158,123 @@ EOF
 	pass
 }
 zconfig_test3
+
+# zpool import/export device check (1 volume, 1 snapshot, 1 clone)
+zconfig_test4() {
+	POOL_NAME=tank
+	ZVOL_NAME=volume
+	SNAP_NAME=snapshot
+	CLONE_NAME=clone
+	FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
+	FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
+	FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
+	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+
+	echo -n "test 4 - zpool import/export device: "
+
+	# Create a pool, volume, snapshot, and clone
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
+	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 4
+	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 5
+
+	# Verify the devices were created
+	stat /dev/zvol/${POOL_NAME} &>/dev/null || fail 6
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null || fail 7
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null || fail 8
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null || fail 9
+
+	# Export the pool
+	${ZPOOL} export ${POOL_NAME} || fail 10
+
+	# Verify the devices were removed
+	stat /dev/zvol/${POOL_NAME} &>/dev/null && fail 11
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null && fail 12
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null && fail 13
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null && fail 14
+
+	# Import the pool, wait 1 second for udev
+	${ZPOOL} import ${POOL_NAME} && sleep 1 || fail 15
+
+	# Verify the devices were created
+	stat /dev/zvol/${POOL_NAME} &>/dev/null || fail 16
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null || fail 17
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null || fail 18
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null || fail 19
+
+	# Destroy the pool and consequently the devices
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 20
+
+	# Verify the devices were removed
+	stat /dev/zvol/${POOL_NAME} &>/dev/null && fail 21
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null && fail 22
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null && fail 23
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null && fail 24
+
+	${ZFS_SH} -u || fail 25
+
+	pass
+}
+zconfig_test4
+
+# zpool insmod/rmmod device check (1 volume, 1 snapshot, 1 clone)
+zconfig_test5() {
+	POOL_NAME=tank
+	ZVOL_NAME=volume
+	SNAP_NAME=snapshot
+	CLONE_NAME=clone
+	FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
+	FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
+	FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
+	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+
+	echo -n "test 5 - zpool insmod/rmmod device: "
+
+	# Create a pool, volume, snapshot, and clone
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
+	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 4
+	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 5
+
+	# Verify the devices were created
+	stat /dev/zvol/${POOL_NAME} &>/dev/null || fail 6
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null || fail 7
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null || fail 8
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null || fail 9
+
+	# Unload the modules
+	${ZFS_SH} -u || fail 10
+
+	# Verify the devices were removed
+	stat /dev/zvol/${POOL_NAME} &>/dev/null && fail 11
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null && fail 12
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null && fail 13
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null && fail 14
+
+	# Load the modules, wait 1 second for udev
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" && sleep 1 || fail 15
+
+	# Verify the devices were created
+	stat /dev/zvol/${POOL_NAME} &>/dev/null || fail 16
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null || fail 17
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null || fail 18
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null || fail 19
+
+	# Destroy the pool and consequently the devices
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 20
+
+	# Verify the devices were removed
+	stat /dev/zvol/${POOL_NAME} &>/dev/null && fail 21
+	stat /dev/zvol/${FULL_ZVOL_NAME} &>/dev/null && fail 22
+	stat /dev/zvol/${FULL_SNAP_NAME} &>/dev/null && fail 23
+	stat /dev/zvol/${FULL_CLONE_NAME} &>/dev/null && fail 24
+
+	${ZFS_SH} -u || fail 25
+
+	pass
+}
+zconfig_test5
 
 exit 0
