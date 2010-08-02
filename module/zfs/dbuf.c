@@ -1513,7 +1513,8 @@ dbuf_clear(dmu_buf_impl_t *db)
 		dbuf_rele(parent, db);
 }
 
-static int
+__attribute__((always_inline))
+static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
     dmu_buf_impl_t **parentp, blkptr_t **bpp)
 {
