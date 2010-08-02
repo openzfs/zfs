@@ -114,7 +114,7 @@ const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 
 static dsl_syncfunc_t spa_sync_props;
 static boolean_t spa_has_active_shared_spare(spa_t *spa);
-static int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
+static inline int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
     spa_load_state_t state, spa_import_type_t type, boolean_t mosconfig,
     char **ereport);
 
