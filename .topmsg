@@ -1,0 +1,7 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dsl_scan_visitbp
+
+To reduce stack overhead this topic branch moves the 128 byte
+blkptr_t data strucutre in dsl_scan_visitbp() to the heap.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
