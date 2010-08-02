@@ -27,3 +27,4 @@ fix-stack-inline
 fix-stack-vdev_cache_read
 fix-stack-zio_done
 fix-stack-dsl_scan_visitbp
+fix-stack-dbuf_hold_impl
