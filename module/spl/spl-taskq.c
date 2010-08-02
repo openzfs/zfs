@@ -78,35 +78,36 @@ retry:
                 if (flags & TQ_NOSLEEP)
                         SRETURN(NULL);
 
-                /* Sleep periodically polling the free list for an available
-                 * spl_task_t.  If a full second passes and we have not found
-                 * one gives up and return a NULL to the caller. */
-                if (flags & TQ_SLEEP) {
-                        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-                        schedule_timeout(HZ / 100);
-                        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-                        if (count < 100)
-                                SGOTO(retry, count++);
-
-                        SRETURN(NULL);
-                }
-
-                /* Unreachable, Neither TQ_SLEEP or TQ_NOSLEEP set */
-                PANIC("Neither TQ_SLEEP or TQ_NOSLEEP set");
+                /*
+                 * Sleep periodically polling the free list for an available
+                 * spl_task_t. Dispatching with TQ_SLEEP should always succeed
+                 * but we cannot block forever waiting for an spl_taskq_t to
+                 * show up in the free list, otherwise a deadlock can happen.
+                 *
+                 * Therefore, we need to allocate a new task even if the number
+                 * of allocated tasks is above tq->tq_maxalloc, but we still
+                 * end up delaying the task allocation by one second, thereby
+                 * throttling the task dispatch rate.
+                 */
+                 spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+                 schedule_timeout(HZ / 100);
+                 spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+                 if (count < 100)
+                        SGOTO(retry, count++);
         }
 
-	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
         t = kmem_alloc(sizeof(spl_task_t), flags & (TQ_SLEEP | TQ_NOSLEEP));
         spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
-	if (t) {
-		spin_lock_init(&t->t_lock);
+        if (t) {
+                spin_lock_init(&t->t_lock);
                 INIT_LIST_HEAD(&t->t_list);
-		t->t_id = 0;
-		t->t_func = NULL;
-		t->t_arg = NULL;
-		tq->tq_nalloc++;
-	}
+                t->t_id = 0;
+                t->t_func = NULL;
+                t->t_arg = NULL;
+                tq->tq_nalloc++;
+        }
 
         SRETURN(t);
 }

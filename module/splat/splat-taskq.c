@@ -296,6 +296,10 @@ splat_taskq_test3(struct file *file, void *arg)
  * Then use taskq_wait() to block until all the tasks complete, then
  * cross check that all the tasks ran by checking tg_arg->count which
  * is incremented in the task function.  Finally cleanup the taskq.
+ *
+ * First we try with a large 'maxalloc' value, then we try with a small one.
+ * We should not drop tasks when TQ_SLEEP is used in taskq_dispatch(), even
+ * if the number of pending tasks is above maxalloc.
  */
 static void
 splat_taskq_test4_func(void *arg)
@@ -307,16 +311,18 @@ splat_taskq_test4_func(void *arg)
 }
 
 static int
-splat_taskq_test4(struct file *file, void *arg)
+splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
+                         int maxalloc, int nr_tasks)
 {
 	taskq_t *tq;
 	splat_taskq_arg_t tq_arg;
 	int i, j, rc = 0;
 
-	splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' creating\n",
-	             SPLAT_TASKQ_TEST4_NAME);
+	splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' creating "
+	             "(%d/%d/%d)\n", SPLAT_TASKQ_TEST4_NAME, minalloc, maxalloc,
+	             nr_tasks);
 	if ((tq = taskq_create(SPLAT_TASKQ_TEST4_NAME, 1, maxclsyspri,
-		               50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
+		               minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 		             "Taskq '%s' create failed\n",
 		             SPLAT_TASKQ_TEST4_NAME);
@@ -326,7 +332,7 @@ splat_taskq_test4(struct file *file, void *arg)
 	tq_arg.file = file;
 	tq_arg.name = SPLAT_TASKQ_TEST4_NAME;
 
-	for (i = 1; i <= 1024; i *= 2) {
+	for (i = 1; i <= nr_tasks; i *= 2) {
 		atomic_set(&tq_arg.count, 0);
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 		             "Taskq '%s' function '%s' dispatched %d times\n",
@@ -360,6 +366,19 @@ out:
 	splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' destroying\n",
 	           tq_arg.name);
 	taskq_destroy(tq);
+
+	return rc;
+}
+
+static int splat_taskq_test4(struct file *file, void *arg)
+{
+	int rc;
+
+	rc = splat_taskq_test4_common(file, arg, 50, INT_MAX, 1024);
+	if (rc)
+		return rc;
+
+	rc = splat_taskq_test4_common(file, arg, 1, 1, 32);
 
 	return rc;
 }
