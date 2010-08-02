@@ -2629,11 +2629,6 @@ zio_ready(zio_t *zio)
 static int
 zio_done(zio_t *zio)
 {
-	spa_t *spa = zio->io_spa;
-	zio_t *lio = zio->io_logical;
-	blkptr_t *bp = zio->io_bp;
-	vdev_t *vd = zio->io_vd;
-	uint64_t psize = zio->io_size;
 	zio_t *pio, *pio_next;
 
 	/*
@@ -2650,18 +2645,18 @@ zio_done(zio_t *zio)
 		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 			ASSERT(zio->io_children[c][w] == 0);
 
-	if (bp != NULL) {
-		ASSERT(bp->blk_pad[0] == 0);
-		ASSERT(bp->blk_pad[1] == 0);
-		ASSERT(bcmp(bp, &zio->io_bp_copy, sizeof (blkptr_t)) == 0 ||
-		    (bp == zio_unique_parent(zio)->io_bp));
-		if (zio->io_type == ZIO_TYPE_WRITE && !BP_IS_HOLE(bp) &&
+	if (zio->io_bp != NULL) {
+		ASSERT(zio->io_bp->blk_pad[0] == 0);
+		ASSERT(zio->io_bp->blk_pad[1] == 0);
+		ASSERT(bcmp(zio->io_bp, &zio->io_bp_copy, sizeof (blkptr_t)) == 0 ||
+		    (zio->io_bp == zio_unique_parent(zio)->io_bp));
+		if (zio->io_type == ZIO_TYPE_WRITE && !BP_IS_HOLE(zio->io_bp) &&
 		    zio->io_bp_override == NULL &&
 		    !(zio->io_flags & ZIO_FLAG_IO_REPAIR)) {
-			ASSERT(!BP_SHOULD_BYTESWAP(bp));
-			ASSERT3U(zio->io_prop.zp_copies, <=, BP_GET_NDVAS(bp));
-			ASSERT(BP_COUNT_GANG(bp) == 0 ||
-			    (BP_COUNT_GANG(bp) == BP_GET_NDVAS(bp)));
+			ASSERT(!BP_SHOULD_BYTESWAP(zio->io_bp));
+			ASSERT3U(zio->io_prop.zp_copies, <=, BP_GET_NDVAS(zio->io_bp));
+			ASSERT(BP_COUNT_GANG(zio->io_bp) == 0 ||
+			    (BP_COUNT_GANG(zio->io_bp) == BP_GET_NDVAS(zio->io_bp)));
 		}
 	}
 
@@ -2680,13 +2675,13 @@ zio_done(zio_t *zio)
 		while (zio->io_cksum_report != NULL) {
 			zio_cksum_report_t *zcr = zio->io_cksum_report;
 			uint64_t align = zcr->zcr_align;
-			uint64_t asize = P2ROUNDUP(psize, align);
+			uint64_t asize = P2ROUNDUP(zio->io_size, align);
 			char *abuf = zio->io_data;
 
-			if (asize != psize) {
+			if (asize != zio->io_size) {
 				abuf = zio_buf_alloc(asize);
-				bcopy(zio->io_data, abuf, psize);
-				bzero(abuf + psize, asize - psize);
+				bcopy(zio->io_data, abuf, zio->io_size);
+				bzero(abuf + zio->io_size, asize - zio->io_size);
 			}
 
 			zio->io_cksum_report = zcr->zcr_next;
@@ -2694,14 +2689,14 @@ zio_done(zio_t *zio)
 			zcr->zcr_finish(zcr, abuf);
 			zfs_ereport_free_checksum(zcr);
 
-			if (asize != psize)
+			if (asize != zio->io_size)
 				zio_buf_free(abuf, asize);
 		}
 	}
 
 	zio_pop_transforms(zio);	/* note: may set zio->io_error */
 
-	vdev_stat_update(zio, psize);
+	vdev_stat_update(zio, zio->io_size);
 
 	if (zio->io_error) {
 		/*
@@ -2710,28 +2705,30 @@ zio_done(zio_t *zio)
 		 * at the block level.  We ignore these errors if the
 		 * device is currently unavailable.
 		 */
-		if (zio->io_error != ECKSUM && vd != NULL && !vdev_is_dead(vd))
-			zfs_ereport_post(FM_EREPORT_ZFS_IO, spa, vd, zio, 0, 0);
+		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
+			!vdev_is_dead(zio->io_vd))
+			zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
+						zio->io_vd, zio, 0, 0);
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
 		    (ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_PROPAGATE))) &&
-		    zio == lio) {
+		    zio == zio->io_logical) {
 			/*
 			 * For logical I/O requests, tell the SPA to log the
 			 * error and generate a logical data ereport.
 			 */
-			spa_log_error(spa, zio);
-			zfs_ereport_post(FM_EREPORT_ZFS_DATA, spa, NULL, zio,
+			spa_log_error(zio->io_spa, zio);
+			zfs_ereport_post(FM_EREPORT_ZFS_DATA, zio->io_spa, NULL, zio,
 			    0, 0);
 		}
 	}
 
-	if (zio->io_error && zio == lio) {
+	if (zio->io_error && zio == zio->io_logical) {
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
 		 */
-		ASSERT(vd == NULL && bp != NULL);
+		ASSERT(zio->io_vd == NULL && zio->io_bp != NULL);
 		ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
 		if (IO_IS_ALLOCATING(zio) &&
@@ -2745,8 +2742,8 @@ zio_done(zio_t *zio)
 		if ((zio->io_type == ZIO_TYPE_READ ||
 		    zio->io_type == ZIO_TYPE_FREE) &&
 		    zio->io_error == ENXIO &&
-		    spa_load_state(spa) == SPA_LOAD_NONE &&
-		    spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)
+		    spa_load_state(zio->io_spa) == SPA_LOAD_NONE &&
+		    spa_get_failmode(zio->io_spa) != ZIO_FAILURE_MODE_CONTINUE)
 			zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
 
 		if (!(zio->io_flags & ZIO_FLAG_CANFAIL) && !zio->io_reexecute)
@@ -2772,7 +2769,7 @@ zio_done(zio_t *zio)
 	if ((zio->io_error || zio->io_reexecute) &&
 	    IO_IS_ALLOCATING(zio) && zio->io_gang_leader == zio &&
 	    !(zio->io_flags & ZIO_FLAG_IO_REWRITE))
-		zio_dva_unallocate(zio, zio->io_gang_tree, bp);
+		zio_dva_unallocate(zio, zio->io_gang_tree, zio->io_bp);
 
 	zio_gang_tree_free(&zio->io_gang_tree);
 
@@ -2837,14 +2834,14 @@ zio_done(zio_t *zio)
 			 * We'd fail again if we reexecuted now, so suspend
 			 * until conditions improve (e.g. device comes online).
 			 */
-			zio_suspend(spa, zio);
+			zio_suspend(zio->io_spa, zio);
 		} else {
 			/*
 			 * Reexecution is potentially a huge amount of work.
 			 * Hand it off to the otherwise-unused claim taskq.
 			 */
 			(void) taskq_dispatch(
-			    spa->spa_zio_taskq[ZIO_TYPE_CLAIM][ZIO_TASKQ_ISSUE],
+			    zio->io_spa->spa_zio_taskq[ZIO_TYPE_CLAIM][ZIO_TASKQ_ISSUE],
 			    (task_func_t *)zio_reexecute, zio, TQ_SLEEP);
 		}
 		return (ZIO_PIPELINE_STOP);
