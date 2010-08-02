@@ -36,6 +36,29 @@
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 
+struct dbuf_hold_impl_data {
+	/* Function arguments */
+	dnode_t *dh_dn;
+	uint8_t dh_level;
+	uint64_t dh_blkid;
+	int dh_fail_sparse;
+	void *dh_tag;
+	dmu_buf_impl_t **dh_dbp;
+	/* Local variables */
+	dmu_buf_impl_t *dh_db;
+	dmu_buf_impl_t *dh_parent;
+	blkptr_t *dh_bp;
+	int dh_err;
+	dbuf_dirty_record_t *dh_dr;
+	arc_buf_contents_t dh_type;
+	int dh_depth;
+};
+
+static void __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
+    dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
+    void *tag, dmu_buf_impl_t **dbp, int depth);
+static int __dbuf_hold_impl(struct dbuf_hold_impl_data *dh);
+
 static void dbuf_destroy(dmu_buf_impl_t *db);
 static int dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
@@ -1516,7 +1539,7 @@ dbuf_clear(dmu_buf_impl_t *db)
 __attribute__((always_inline))
 static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
-    dmu_buf_impl_t **parentp, blkptr_t **bpp)
+    dmu_buf_impl_t **parentp, blkptr_t **bpp, struct dbuf_hold_impl_data *dh)
 {
 	int nlevels, epbs;
 
@@ -1553,8 +1576,17 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		return (ENOENT);
 	} else if (level < nlevels-1) {
 		/* this block is referenced from an indirect block */
-		int err = dbuf_hold_impl(dn, level+1,
-		    blkid >> epbs, fail_sparse, NULL, parentp);
+		int err;
+		if (dh == NULL) {
+			err = dbuf_hold_impl(dn, level+1, blkid >> epbs,
+					fail_sparse, NULL, parentp);
+		}
+		else {
+			__dbuf_hold_impl_init(dh + 1, dn, dh->dh_level + 1,
+					blkid >> epbs, fail_sparse, NULL,
+					parentp, dh->dh_depth + 1);
+			err = __dbuf_hold_impl(dh + 1);
+		}
 		if (err)
 			return (err);
 		err = dbuf_read(*parentp, NULL,
@@ -1747,7 +1779,7 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 		db = NULL;
 	}
 
-	if (dbuf_findbp(dn, 0, blkid, TRUE, &db, &bp) == 0) {
+	if (dbuf_findbp(dn, 0, blkid, TRUE, &db, &bp, NULL) == 0) {
 		if (bp && !BP_IS_HOLE(bp)) {
 			int priority = dn->dn_type == DMU_OT_DDT_ZAP ?
 			    ZIO_PRIORITY_DDT_PREFETCH : ZIO_PRIORITY_ASYNC_READ;
@@ -1774,96 +1806,140 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 	}
 }
 
+#define DBUF_HOLD_IMPL_MAX_DEPTH	20
+
 /*
  * Returns with db_holds incremented, and db_mtx not held.
  * Note: dn_struct_rwlock must be held.
  */
-int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
-    void *tag, dmu_buf_impl_t **dbp)
+static int
+__dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 {
-	dmu_buf_impl_t *db, *parent = NULL;
+	ASSERT3S(dh->dh_depth, <, DBUF_HOLD_IMPL_MAX_DEPTH);
+	dh->dh_parent = NULL;
 
-	ASSERT(blkid != DMU_BONUS_BLKID);
-	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
-	ASSERT3U(dn->dn_nlevels, >, level);
+	ASSERT(dh->dh_blkid != DMU_BONUS_BLKID);
+	ASSERT(RW_LOCK_HELD(&dh->dh_dn->dn_struct_rwlock));
+	ASSERT3U(dh->dh_dn->dn_nlevels, >, dh->dh_level);
 
-	*dbp = NULL;
+	*(dh->dh_dbp) = NULL;
 top:
 	/* dbuf_find() returns with db_mtx held */
-	db = dbuf_find(dn, level, blkid);
+	dh->dh_db = dbuf_find(dh->dh_dn, dh->dh_level, dh->dh_blkid);
 
-	if (db == NULL) {
-		blkptr_t *bp = NULL;
-		int err;
+	if (dh->dh_db == NULL) {
+		dh->dh_bp = NULL;
 
-		ASSERT3P(parent, ==, NULL);
-		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
-		if (fail_sparse) {
-			if (err == 0 && bp && BP_IS_HOLE(bp))
-				err = ENOENT;
-			if (err) {
-				if (parent)
-					dbuf_rele(parent, NULL);
-				return (err);
+		ASSERT3P(dh->dh_parent, ==, NULL);
+		dh->dh_err = dbuf_findbp(dh->dh_dn, dh->dh_level, dh->dh_blkid,
+					dh->dh_fail_sparse, &dh->dh_parent,
+					&dh->dh_bp, dh);
+		if (dh->dh_fail_sparse) {
+			if (dh->dh_err == 0 && dh->dh_bp && BP_IS_HOLE(dh->dh_bp))
+				dh->dh_err = ENOENT;
+			if (dh->dh_err) {
+				if (dh->dh_parent)
+					dbuf_rele(dh->dh_parent, NULL);
+				return (dh->dh_err);
 			}
 		}
-		if (err && err != ENOENT)
-			return (err);
-		db = dbuf_create(dn, level, blkid, parent, bp);
+		if (dh->dh_err && dh->dh_err != ENOENT)
+			return (dh->dh_err);
+		dh->dh_db = dbuf_create(dh->dh_dn, dh->dh_level, dh->dh_blkid,
+					dh->dh_parent, dh->dh_bp);
 	}
 
-	if (db->db_buf && refcount_is_zero(&db->db_holds)) {
-		arc_buf_add_ref(db->db_buf, db);
-		if (db->db_buf->b_data == NULL) {
-			dbuf_clear(db);
-			if (parent) {
-				dbuf_rele(parent, NULL);
-				parent = NULL;
+	if (dh->dh_db->db_buf && refcount_is_zero(&dh->dh_db->db_holds)) {
+		arc_buf_add_ref(dh->dh_db->db_buf, dh->dh_db);
+		if (dh->dh_db->db_buf->b_data == NULL) {
+			dbuf_clear(dh->dh_db);
+			if (dh->dh_parent) {
+				dbuf_rele(dh->dh_parent, NULL);
+				dh->dh_parent = NULL;
 			}
 			goto top;
 		}
-		ASSERT3P(db->db.db_data, ==, db->db_buf->b_data);
+		ASSERT3P(dh->dh_db->db.db_data, ==, dh->dh_db->db_buf->b_data);
 	}
 
-	ASSERT(db->db_buf == NULL || arc_referenced(db->db_buf));
+	ASSERT(dh->dh_db->db_buf == NULL || arc_referenced(dh->dh_db->db_buf));
 
 	/*
 	 * If this buffer is currently syncing out, and we are are
 	 * still referencing it from db_data, we need to make a copy
 	 * of it in case we decide we want to dirty it again in this txg.
 	 */
-	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
-	    dn->dn_object != DMU_META_DNODE_OBJECT &&
-	    db->db_state == DB_CACHED && db->db_data_pending) {
-		dbuf_dirty_record_t *dr = db->db_data_pending;
+	if (dh->dh_db->db_level == 0 &&
+	    dh->dh_db->db_blkid != DMU_BONUS_BLKID &&
+	    dh->dh_dn->dn_object != DMU_META_DNODE_OBJECT &&
+	    dh->dh_db->db_state == DB_CACHED && dh->dh_db->db_data_pending) {
+		dh->dh_dr = dh->dh_db->db_data_pending;
 
-		if (dr->dt.dl.dr_data == db->db_buf) {
-			arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
+		if (dh->dh_dr->dt.dl.dr_data == dh->dh_db->db_buf) {
+			dh->dh_type = DBUF_GET_BUFC_TYPE(dh->dh_db);
 
-			dbuf_set_data(db,
-			    arc_buf_alloc(db->db_dnode->dn_objset->os_spa,
-			    db->db.db_size, db, type));
-			bcopy(dr->dt.dl.dr_data->b_data, db->db.db_data,
-			    db->db.db_size);
+			dbuf_set_data(dh->dh_db,
+			    arc_buf_alloc(dh->dh_db->db_dnode->dn_objset->os_spa,
+			    dh->dh_db->db.db_size, dh->dh_db, dh->dh_type));
+			bcopy(dh->dh_dr->dt.dl.dr_data->b_data, dh->dh_db->db.db_data,
+			    dh->dh_db->db.db_size);
 		}
 	}
 
-	(void) refcount_add(&db->db_holds, tag);
-	dbuf_update_data(db);
-	DBUF_VERIFY(db);
-	mutex_exit(&db->db_mtx);
+	(void) refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
+	dbuf_update_data(dh->dh_db);
+	DBUF_VERIFY(dh->dh_db);
+	mutex_exit(&dh->dh_db->db_mtx);
 
 	/* NOTE: we can't rele the parent until after we drop the db_mtx */
-	if (parent)
-		dbuf_rele(parent, NULL);
+	if (dh->dh_parent)
+		dbuf_rele(dh->dh_parent, NULL);
 
-	ASSERT3P(db->db_dnode, ==, dn);
-	ASSERT3U(db->db_blkid, ==, blkid);
-	ASSERT3U(db->db_level, ==, level);
-	*dbp = db;
+	ASSERT3P(dh->dh_db->db_dnode, ==, dh->dh_dn);
+	ASSERT3U(dh->dh_db->db_blkid, ==, dh->dh_blkid);
+	ASSERT3U(dh->dh_db->db_level, ==, dh->dh_level);
+	*(dh->dh_dbp) = dh->dh_db;
 
 	return (0);
+}
+
+/*
+ * The following code preserves the recursive function dbuf_hold_impl()
+ * but moves the local variables AND function arguments to the heap to
+ * minimize the stack frame size.  Enough space is initially allocated
+ * on the stack for 20 levels of recursion.
+ */
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
+    void *tag, dmu_buf_impl_t **dbp)
+{
+	struct dbuf_hold_impl_data *dh;
+	int error;
+
+	dh = kmem_zalloc(sizeof(struct dbuf_hold_impl_data) *
+	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
+	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse, tag, dbp, 0);
+
+	error = __dbuf_hold_impl(dh);
+
+	kmem_free(dh, sizeof(struct dbuf_hold_impl_data) *
+	    DBUF_HOLD_IMPL_MAX_DEPTH);
+
+	return (error);
+}
+
+static void
+__dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
+    dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
+    void *tag, dmu_buf_impl_t **dbp, int depth)
+{
+	dh->dh_dn = dn;
+	dh->dh_level = level;
+	dh->dh_blkid = blkid;
+	dh->dh_fail_sparse = fail_sparse;
+	dh->dh_tag = tag;
+	dh->dh_dbp = dbp;
+	dh->dh_depth = depth;
 }
 
 dmu_buf_impl_t *
