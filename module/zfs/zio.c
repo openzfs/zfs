@@ -1120,8 +1120,7 @@ zio_interrupt(zio_t *zio)
  */
 static zio_pipe_stage_t *zio_pipeline[];
 
-__attribute__((always_inline))
-inline void
+void
 zio_execute(zio_t *zio)
 {
 	zio->io_executor = curthread;
