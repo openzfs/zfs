@@ -1,0 +1,9 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack zio_done
+
+Eliminated local variables pointing to members of the zio struct.
+Just refer to the struct members directly.  This saved about 32 bytes per
+call, but this function can be called recurisvely up to 19 levels deep,
+so we potentially save up to 608 bytes.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
