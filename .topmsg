@@ -1,0 +1,11 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix stack dbuf_hold_impl
+
+This commit preserves the recursive function dbuf_hold_impl() but moves
+the local variables and function arguments to the heap to minimize
+the stack frame size.  Enough space is initially allocated on the
+stack for 20 levels of recursion.  This technique was based on commit
+34229a2f2ac07363f64ddd63e014964fff2f0671 which reduced stack usage of
+traverse_visitbp().
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
