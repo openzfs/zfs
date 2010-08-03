@@ -140,6 +140,7 @@ bpobj_close(bpobj_t *bpo)
 	bpo->bpo_dbuf = NULL;
 	bpo->bpo_phys = NULL;
 	bpo->bpo_cached_dbuf = NULL;
+	bpo->bpo_object = 0;
 
 	mutex_destroy(&bpo->bpo_lock);
 }
