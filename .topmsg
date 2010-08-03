@@ -1,0 +1,10 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix bpobj_close
+
+During spa_load the spl->spa_deferred_bpobj maybe be opened and closed
+multiple times.  It's critical that when the object is closed the
+bpo->bpo_object is set to zero to indicate the object is closed.
+If it's not during spl_load_retry the spl->spa_deferred_bpobj can
+be closes twice resulting in a NULL deref.
+
+This appears to have been fixed upstream the same way.
