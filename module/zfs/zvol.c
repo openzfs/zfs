@@ -1118,6 +1118,7 @@ __zvol_create_minor(const char *name)
 		zv->zv_flags |= ZVOL_RDONLY;
 
 	zv->zv_volblocksize = doi->doi_data_block_size;
+	zv->zv_objset = os;
 
 	if (zil_replay_disable)
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
@@ -1130,6 +1131,7 @@ __zvol_create_minor(const char *name)
 
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
+	zv->zv_objset = NULL;
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
