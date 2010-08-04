@@ -815,9 +815,19 @@ static int
 zvol_open(struct block_device *bdev, fmode_t flag)
 {
 	zvol_state_t *zv = bdev->bd_disk->private_data;
-	int error = 0;
+	int error = 0, drop_mutex = 0;
 
-	mutex_enter(&zvol_state_lock);
+	/*
+	 * If the caller is already holding the mutex do not take it
+	 * again, this will happen as part of zvol_create_minor().
+	 * Once add_disk() is called the device is live and the kernel
+	 * will attempt to open it to read the partition information.
+	 */
+	if (!mutex_owned(&zvol_state_lock)) {
+		mutex_enter(&zvol_state_lock);
+		drop_mutex = 1;
+	}
+
 	ASSERT3P(zv, !=, NULL);
 
 	if (zv->zv_open_count == 0) {
@@ -839,7 +849,8 @@ out_open_count:
 		zvol_last_close(zv);
 
 out_mutex:
-	mutex_exit(&zvol_state_lock);
+	if (drop_mutex)
+		mutex_exit(&zvol_state_lock);
 
 	check_disk_change(bdev);
 
@@ -850,15 +861,21 @@ static int
 zvol_release(struct gendisk *disk, fmode_t mode)
 {
 	zvol_state_t *zv = disk->private_data;
+	int drop_mutex = 0;
 
-	mutex_enter(&zvol_state_lock);
+	if (!mutex_owned(&zvol_state_lock)) {
+		mutex_enter(&zvol_state_lock);
+		drop_mutex = 1;
+	}
+
 	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
 	zv->zv_open_count--;
 	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
 
-	mutex_exit(&zvol_state_lock);
+	if (drop_mutex)
+		mutex_exit(&zvol_state_lock);
 
 	return (0);
 }
@@ -1083,6 +1100,7 @@ __zvol_create_minor(const char *name)
 	zvol_state_t *zv;
 	objset_t *os;
 	dmu_object_info_t *doi;
+	uint64_t volsize;
 	unsigned minor = 0;
 	int error = 0;
 
@@ -1104,6 +1122,10 @@ __zvol_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
+	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
+	if (error)
+		goto out_dmu_objset_disown;
+
 	error = zvol_find_minor(&minor);
 	if (error)
 		goto out_dmu_objset_disown;
@@ -1118,16 +1140,15 @@ __zvol_create_minor(const char *name)
 		zv->zv_flags |= ZVOL_RDONLY;
 
 	zv->zv_volblocksize = doi->doi_data_block_size;
+	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
+
+	set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
 
 	if (zil_replay_disable)
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
 	else
 		zil_replay(os, zv, zvol_replay_vector);
-
-	zvol_insert(zv);
-	add_disk(zv->zv_disk);
-	error = 0;
 
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
@@ -1135,6 +1156,12 @@ out_dmu_objset_disown:
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
+
+	if (error == 0) {
+		zvol_insert(zv);
+		add_disk(zv->zv_disk);
+	}
+
 	return (error);
 }
 
