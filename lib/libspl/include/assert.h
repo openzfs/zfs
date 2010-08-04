@@ -69,7 +69,8 @@ extern void __assert(const char *, const char *, int);
 		char *__buf = alloca(256); \
 		(void) snprintf(__buf, 256, "%s %s %s (0x%llx %s 0x%llx)", \
 			#LEFT, #OP, #RIGHT, \
-			(u_longlong_t)(LEFT), #OP, (u_longlong_t)(RIGHT)); \
+			(u_longlong_t)((TYPE)(LEFT)), #OP, \
+			(u_longlong_t)((TYPE)(RIGHT))); \
 		__assert(__buf, __FILE__, __LINE__); \
 	} \
 } while (0)
