@@ -15,6 +15,7 @@ MODULES=(zlib_deflate spl splat zavl znvpair zunicode zcommon zfs)
 fi
 
 PROG="<define PROG>"
+CLEANUP=
 VERBOSE=
 VERBOSE_FLAG=
 FORCE=
@@ -205,6 +206,24 @@ unused_loop_device() {
 	done
 
 	die "Error: Unable to find unused loopback device"
+}
+
+#
+# This can be slightly dangerous because the loop devices we are
+# cleanup up may not be ours.  However, if the devices are currently
+# in use we will not be able to remove them, and we only remove
+# devices which include 'zpool' in the name.  So any damage we might
+# do should be limited to other zfs related testing.
+#
+cleanup_loop_devices() {
+	local TMP_FILE=`mktemp`
+
+	${LOSETUP} -a | tr -d '()' >${TMP_FILE}
+	${AWK} -F":" -v losetup="$LOSETUP" \
+	    '/zpool/ { system("losetup -d "$1) }' ${TMP_FILE}
+	${AWK} -F" " '/zpool/ { system("rm -f "$3) }' ${TMP_FILE}
+
+	rm -f ${TMP_FILE}
 }
 
 #
