@@ -16,7 +16,7 @@ PROG=zconfig.sh
 usage() {
 cat << EOF
 USAGE:
-$0 [hv]
+$0 [hvc]
 
 DESCRIPTION:
 	ZFS/ZPOOL configuration tests
@@ -24,11 +24,12 @@ DESCRIPTION:
 OPTIONS:
 	-h      Show this message
 	-v      Verbose
+	-c      Cleanup lo+file devices at start
 
 EOF
 }
 
-while getopts 'hv' OPTION; do
+while getopts 'hvc?' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -36,6 +37,9 @@ while getopts 'hv' OPTION; do
 		;;
 	v)
 		VERBOSE=1
+		;;
+	c)
+		CLEANUP=1
 		;;
 	?)
 		usage
@@ -46,6 +50,12 @@ done
 
 if [ $(id -u) != 0 ]; then
 	die "Must run as root"
+fi
+
+# Perform pre-cleanup is requested
+if [ ${CLEANUP} ]; then
+	cleanup_loop_devices
+	rm -f /tmp/zpool.cache.*
 fi
 
 zconfig_partition() {
