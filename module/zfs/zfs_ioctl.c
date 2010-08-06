@@ -1611,9 +1611,10 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
 		 */
 		if (!zc->zc_objset_stats.dds_inconsistent) {
 			if (dmu_objset_type(os) == DMU_OST_ZVOL)
-				VERIFY(zvol_get_stats(os, nv) == 0);
+				error = zvol_get_stats(os, nv);
 		}
-		error = put_nvlist(zc, nv);
+		if (error == 0)
+			error = put_nvlist(zc, nv);
 		nvlist_free(nv);
 	}
 
