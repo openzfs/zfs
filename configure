@@ -11988,6 +11988,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <asm/atomic.h>
+		#include <asm/system.h>
 
 int
 main (void)
@@ -15499,6 +15500,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <asm/atomic.h>
+		#include <asm/system.h>
 
 int
 main (void)

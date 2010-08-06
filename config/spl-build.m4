@@ -639,6 +639,7 @@ AC_DEFUN([SPL_AC_TYPE_ATOMIC64_CMPXCHG],
 	[AC_MSG_CHECKING([whether kernel defines atomic64_cmpxchg])
 	SPL_LINUX_TRY_COMPILE([
 		#include <asm/atomic.h>
+		#include <asm/system.h>
 	],[
 		atomic64_cmpxchg((atomic64_t *)NULL, 0, 0);
 	],[
