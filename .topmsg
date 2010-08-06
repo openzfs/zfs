@@ -1,0 +1,12 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Subject: [PATCH] fix zfs_ioc_objset_stats
+
+Interestingly this looks like an upstream bug as well.  If for some
+reason we are unable to get a zvols statistics, because perhaps the
+zpool is hopelessly corrupt, we would trigger the VERIFY.  This
+commit adds the proper error handling just to propagate the error
+back to user space.  Now the user space tools still must handle this
+properly but in the worst case the tool will crash or perhaps have
+some missing output.  That's far far better than crashing the host.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
