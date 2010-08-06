@@ -161,7 +161,7 @@ history_str_get(zfs_cmd_t *zc)
 	if (zc->zc_history == 0)
 		return (NULL);
 
-	buf = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP);
+	buf = kmem_alloc(HIS_MAX_RECORD_LEN, KM_SLEEP | KM_NODEBUG);
 	if (copyinstr((void *)(uintptr_t)zc->zc_history,
 	    buf, HIS_MAX_RECORD_LEN, NULL) != 0) {
 		history_str_free(buf);
@@ -974,7 +974,7 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 	if (size > zc->zc_nvlist_dst_size) {
 		error = ENOMEM;
 	} else {
-		packed = kmem_alloc(size, KM_SLEEP);
+		packed = kmem_alloc(size, KM_SLEEP | KM_NODEBUG);
 		VERIFY(nvlist_pack(nvl, &packed, &size, NV_ENCODE_NATIVE,
 		    KM_SLEEP) == 0);
 		if (ddi_copyout(packed, (void *)(uintptr_t)zc->zc_nvlist_dst,
@@ -4556,7 +4556,7 @@ zfs_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	if (vec >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
 		return (-EINVAL);
 
-	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP | KM_NODEBUG);
 
 	error = ddi_copyin((void *)arg, zc, sizeof (zfs_cmd_t), flag);
 	if (error != 0)
