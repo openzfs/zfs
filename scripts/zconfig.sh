@@ -154,14 +154,14 @@ zconfig_test3() {
 
 	# Partition the volume, for a 400M volume there will be
 	# 812 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/zvol/${FULL_NAME} 0 812
+	zconfig_partition /dev/${FULL_NAME} 0 812
 
 	# Format the partition with ext3.
-	/sbin/mkfs.ext3 -q /dev/zvol/${FULL_NAME}1 || fail 5
+	/sbin/mkfs.ext3 -q /dev/${FULL_NAME}1 || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
 	mkdir -p /tmp/${ZVOL_NAME} || fail 6
-	mount /dev/zvol/${FULL_NAME}1 /tmp/${ZVOL_NAME} || fail 7
+	mount /dev/${FULL_NAME}1 /tmp/${ZVOL_NAME} || fail 7
 	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME} || fail 8
 
 	# Verify the copied files match the original files.
@@ -180,11 +180,14 @@ zconfig_test3
 
 zconfig_zvol_device_stat() {
 	local EXPECT=$1
-	local POOL_NAME=/dev/zvol/$2
-	local ZVOL_NAME=/dev/zvol/$3
-	local SNAP_NAME=/dev/zvol/$4
-	local CLONE_NAME=/dev/zvol/$5
+	local POOL_NAME=/dev/$2
+	local ZVOL_NAME=/dev/$3
+	local SNAP_NAME=/dev/$4
+	local CLONE_NAME=/dev/$5
 	local COUNT=0
+
+	# Briefly delay for udev
+	sleep 1
 
 	# Pool exists
 	stat ${POOL_NAME} &>/dev/null   && let COUNT=$COUNT+1
@@ -216,7 +219,7 @@ zconfig_zvol_device_stat() {
 zconfig_test4() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=volume
-	local SNAP_NAME=snapshot
+	local SNAP_NAME=snap
 	local CLONE_NAME=clone
 	local FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
@@ -229,7 +232,7 @@ zconfig_test4() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
+	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 64 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -245,7 +248,7 @@ zconfig_test4() {
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 9
 
 	# Import the pool, wait 1 second for udev
-	${ZPOOL} import ${POOL_NAME} && sleep 1 || fail 10
+	${ZPOOL} import ${POOL_NAME} || fail 10
 
 	# Verify the devices were created
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
@@ -268,7 +271,7 @@ zconfig_test4
 zconfig_test5() {
 	POOL_NAME=tank
 	ZVOL_NAME=volume
-	SNAP_NAME=snapshot
+	SNAP_NAME=snap
 	CLONE_NAME=clone
 	FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
@@ -281,7 +284,7 @@ zconfig_test5() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
+	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 64 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -297,7 +300,7 @@ zconfig_test5() {
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 9
 
 	# Load the modules, wait 1 second for udev
-	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" && sleep 1 || fail 10
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 10
 
 	# Verify the devices were created
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
