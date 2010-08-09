@@ -186,6 +186,9 @@ zconfig_zvol_device_stat() {
 	local CLONE_NAME=/dev/$5
 	local COUNT=0
 
+	# Briefly delay for udev
+	sleep 1
+
 	# Pool exists
 	stat ${POOL_NAME} &>/dev/null   && let COUNT=$COUNT+1
 
@@ -245,7 +248,7 @@ zconfig_test4() {
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 9
 
 	# Import the pool, wait 1 second for udev
-	${ZPOOL} import ${POOL_NAME} && sleep 1 || fail 10
+	${ZPOOL} import ${POOL_NAME} || fail 10
 
 	# Verify the devices were created
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
@@ -297,7 +300,7 @@ zconfig_test5() {
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 9
 
 	# Load the modules, wait 1 second for udev
-	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" && sleep 1 || fail 10
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 10
 
 	# Verify the devices were created
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
