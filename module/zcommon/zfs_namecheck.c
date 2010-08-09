@@ -142,9 +142,22 @@ dataset_namecheck(const char *path, namecheck_err_t *why, char *what)
 	 * which is the same as MAXNAMELEN used in the kernel.
 	 * If ZFS_MAXNAMELEN value is changed, make sure to cleanup all
 	 * places using MAXNAMELEN.
+	 *
+	 * When HAVE_KOBJ_NAME_LEN is defined the maximum safe kobject name
+	 * length is 20 bytes.  This 20 bytes is broken down as follows to
+	 * provide a maximum safe <pool>/<dataset>[@snapshot] length of only
+	 * 18 bytes.  To ensure bytes are left for <dataset>[@snapshot] the
+	 * <pool> portition is futher limited to 9 bytes.  For 2.6.27 and
+	 * newer kernels this limit is set to MAXNAMELEN.
+	 *
+	 *   <pool>/<dataset> + <partition> + <newline>
+	 *   (18)             + (1)         + (1)
 	 */
-
+#ifdef HAVE_KOBJ_NAME_LEN
+	if (strlen(path) > 18) {
+#else
 	if (strlen(path) >= MAXNAMELEN) {
+#endif /* HAVE_KOBJ_NAME_LEN */
 		if (why)
 			*why = NAME_ERR_TOOLONG;
 		return (-1);
@@ -303,8 +316,22 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	 * which is the same as MAXNAMELEN used in the kernel.
 	 * If ZPOOL_MAXNAMELEN value is changed, make sure to cleanup all
 	 * places using MAXNAMELEN.
+	 *
+	 * When HAVE_KOBJ_NAME_LEN is defined the maximum safe kobject name
+	 * length is 20 bytes.  This 20 bytes is broken down as follows to
+	 * provide a maximum safe <pool>/<dataset>[@snapshot] length of only
+	 * 18 bytes.  To ensure bytes are left for <dataset>[@snapshot] the
+	 * <pool> portition is futher limited to 8 bytes.  For 2.6.27 and
+	 * newer kernels this limit is set to MAXNAMELEN.
+	 *
+	 *   <pool>/<dataset> + <partition> + <newline>
+	 *   (18)             + (1)         + (1)
 	 */
+#ifdef HAVE_KOBJ_NAME_LEN
+	if (strlen(pool) > 8) {
+#else
 	if (strlen(pool) >= MAXNAMELEN) {
+#endif /* HAVE_KOBJ_NAME_LEN */
 		if (why)
 			*why = NAME_ERR_TOOLONG;
 		return (-1);
