@@ -691,7 +691,7 @@ typedef struct ddt_histogram {
 #define	ZFS_DEV		"/dev/zfs"
 
 /* general zvol path */
-#define	ZVOL_DIR	"/dev/zvol"
+#define	ZVOL_DIR	"/dev"
 
 #define	ZVOL_MAJOR		230
 #define	ZVOL_MINOR_BITS		4

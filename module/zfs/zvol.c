@@ -1066,7 +1066,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_disk->fops = &zvol_ops;
 	zv->zv_disk->private_data = zv;
 	zv->zv_disk->queue = zv->zv_queue;
-	snprintf(zv->zv_disk->disk_name, DISK_NAME_LEN, "zvol/%s", name);
+	snprintf(zv->zv_disk->disk_name, DISK_NAME_LEN, "%s", name);
 
 	return zv;
 
