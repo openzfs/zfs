@@ -77,6 +77,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
 	SPL_AC_3ARGS_FILE_FSYNC
+	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1597,4 +1598,20 @@ AC_DEFUN([SPL_AC_3ARGS_FILE_FSYNC], [
 	],[
 		AC_MSG_RESULT(no)
 	])
+])
+
+dnl #
+dnl # 2.6.33 API change. Also backported in RHEL5 as of 2.6.18-190.el5.
+dnl # Earlier versions of rwsem_is_locked() were inline and had a race
+dnl # condition.  The fixed version is exported as a symbol.  The race
+dnl # condition is fixed by acquiring sem->wait_lock, so we must not
+dnl # call that version while holding sem->wait_lock.
+dnl #
+AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[rwsem_is_locked],
+		[lib/rwsem-spinlock.c],
+		[AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
+		[rwsem_is_locked() acquires sem->wait_lock])],
+		[])
 ])

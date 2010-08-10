@@ -229,6 +229,9 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* rwsem_is_locked() acquires sem->wait_lock */
+#undef RWSEM_IS_LOCKED_TAKES_WAIT_LOCK
+
 /* Define the project alias string. */
 #undef SPL_META_ALIAS
 

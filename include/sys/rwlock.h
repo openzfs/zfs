@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <linux/rwsem.h>
+#include <linux/rwsem_compat.h>
 
 typedef enum {
         RW_DRIVER  = 2,
@@ -45,12 +46,6 @@ typedef struct {
 } krwlock_t;
 
 #define SEM(rwp)                        ((struct rw_semaphore *)(rwp))
-
-static inline kthread_t *
-spl_rw_get_owner(krwlock_t *rwp)
-{
-        return rwp->rw_owner;
-}
 
 static inline void
 spl_rw_set_owner(krwlock_t *rwp)
@@ -79,7 +74,7 @@ rw_owner(krwlock_t *rwp)
         kthread_t *owner;
 
         spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        owner = spl_rw_get_owner(rwp);
+        owner = rwp->rw_owner;
         spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 
         return owner;
@@ -88,40 +83,21 @@ rw_owner(krwlock_t *rwp)
 static inline int
 RW_READ_HELD(krwlock_t *rwp)
 {
-        unsigned long flags;
-        int rc;
-
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = (rwsem_is_locked(SEM(rwp)) && spl_rw_get_owner(rwp) == NULL);
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
-
-        return rc;
+	return (spl_rwsem_is_locked(SEM(rwp)) &&
+		rw_owner(rwp) == NULL);
 }
 
 static inline int
 RW_WRITE_HELD(krwlock_t *rwp)
 {
-        unsigned long flags;
-        int rc;
-
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = (rwsem_is_locked(SEM(rwp)) && spl_rw_get_owner(rwp) == current);
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
-
-        return rc;
+	return (spl_rwsem_is_locked(SEM(rwp)) &&
+		rw_owner(rwp) == current);
 }
 
 static inline int
 RW_LOCK_HELD(krwlock_t *rwp)
 {
-        unsigned long flags;
-        int rc;
-
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
-        rc = rwsem_is_locked(SEM(rwp));
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
-
-        return rc;
+	return spl_rwsem_is_locked(SEM(rwp));
 }
 
 /*
