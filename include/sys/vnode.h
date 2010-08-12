@@ -180,6 +180,7 @@ typedef struct vnode {
 	struct stdata	*v_stream;	/* associated stream */
 	enum vtype	v_type;		/* vnode type */
 	dev_t		v_rdev;		/* device (VCHR, VBLK) */
+	gfp_t		v_gfp_mask;	/* original mapping gfp mask */
 } vnode_t;
 
 typedef struct vn_file {

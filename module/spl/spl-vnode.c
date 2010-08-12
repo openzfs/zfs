@@ -104,6 +104,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	struct file *fp;
 	struct kstat stat;
 	int rc, saved_umask = 0;
+	gfp_t saved_gfp;
 	vnode_t *vp;
 	SENTRY;
 
@@ -145,9 +146,13 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		SRETURN(ENOMEM);
 	}
 
+	saved_gfp = mapping_gfp_mask(fp->f_mapping);
+	mapping_set_gfp_mask(fp->f_mapping, saved_gfp & ~(__GFP_IO|__GFP_FS));
+
 	mutex_enter(&vp->v_lock);
 	vp->v_type = vn_get_sol_type(stat.mode);
 	vp->v_file = fp;
+	vp->v_gfp_mask = saved_gfp;
 	*vpp = vp;
 	mutex_exit(&vp->v_lock);
 
@@ -237,6 +242,7 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 	ASSERT(vp);
 	ASSERT(vp->v_file);
 
+	mapping_set_gfp_mask(vp->v_file->f_mapping, vp->v_gfp_mask);
 	rc = filp_close(vp->v_file, 0);
 	vn_free(vp);
 
