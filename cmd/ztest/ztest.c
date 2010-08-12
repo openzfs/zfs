@@ -344,6 +344,22 @@ static boolean_t ztest_exiting;
 
 /* Global commit callback list */
 static ztest_cb_list_t zcl;
+/* Commit cb delay */
+static uint64_t zc_min_txg_delay = UINT64_MAX;
+static int zc_cb_counter = 0;
+
+/*
+ * Minimum number of commit callbacks that need to be registered for us to check
+ * whether the minimum txg delay is acceptable.
+ */
+#define	ZTEST_COMMIT_CB_MIN_REG	100
+
+/*
+ * If a number of txgs equal to this threshold have been created after a commit
+ * callback has been registered but not called, then we assume there is an
+ * implementation bug.
+ */
+#define	ZTEST_COMMIT_CB_THRESH	(TXG_CONCURRENT_STATES + 1000)
 
 extern uint64_t metaslab_gang_bang;
 extern uint64_t metaslab_df_alloc_threshold;
@@ -4166,18 +4182,20 @@ ztest_commit_callback(void *arg, int error)
 		return;
 	}
 
-	/* Was this callback added to the global callback list? */
-	if (!data->zcd_added)
-		goto out;
-
+	ASSERT(data->zcd_added);
 	ASSERT3U(data->zcd_txg, !=, 0);
 
-	/* Remove our callback from the list */
 	(void) mutex_enter(&zcl.zcl_callbacks_lock);
+
+	/* See if this cb was called more quickly */
+	if ((synced_txg - data->zcd_txg) < zc_min_txg_delay)
+		zc_min_txg_delay = synced_txg - data->zcd_txg;
+
+	/* Remove our callback from the list */
 	list_remove(&zcl.zcl_callbacks, data);
+
 	(void) mutex_exit(&zcl.zcl_callbacks_lock);
 
-out:
 	umem_free(data, sizeof (ztest_cb_data_t));
 }
 
@@ -4197,13 +4215,6 @@ ztest_create_cb_data(objset_t *os, uint64_t txg)
 }
 
 /*
- * If a number of txgs equal to this threshold have been created after a commit
- * callback has been registered but not called, then we assume there is an
- * implementation bug.
- */
-#define	ZTEST_COMMIT_CALLBACK_THRESH	(TXG_CONCURRENT_STATES + 2)
-
-/*
  * Commit callback test.
  */
 void
@@ -4214,7 +4225,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_t *tx;
 	ztest_cb_data_t *cb_data[3], *tmp_cb;
 	uint64_t old_txg, txg;
-	int i, error;
+	int i, error = 0;
 
 	od = umem_alloc(sizeof(ztest_od_t), UMEM_NOFAIL);
 	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0);
@@ -4298,7 +4309,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	 */
 	tmp_cb = list_head(&zcl.zcl_callbacks);
 	if (tmp_cb != NULL &&
-	    tmp_cb->zcd_txg > txg - ZTEST_COMMIT_CALLBACK_THRESH) {
+	    tmp_cb->zcd_txg + ZTEST_COMMIT_CB_THRESH < txg) {
 		fatal(0, "Commit callback threshold exceeded, oldest txg: %"
 		    PRIu64 ", open txg: %" PRIu64 "\n", tmp_cb->zcd_txg, txg);
 	}
@@ -4328,6 +4339,8 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 
 		tmp_cb = cb_data[i];
 	}
+
+	zc_cb_counter += 3;
 
 	(void) mutex_exit(&zcl.zcl_callbacks_lock);
 
@@ -5343,6 +5356,10 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	for (object = 1; object < 50; object++)
 		dmu_prefetch(spa->spa_meta_objset, object, 0, 1ULL << 20);
+
+	/* Verify that at least one commit cb was called in a timely fashion */
+	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG)
+		VERIFY3U(zc_min_txg_delay, ==, 0);
 
 	spa_close(spa, FTAG);
 
