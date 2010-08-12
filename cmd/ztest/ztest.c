@@ -4903,12 +4903,16 @@ ztest_run_zdb(char *pool)
 	zdb = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	/* Designed to be run exclusively in the development tree */
 	VERIFY(realpath(getexecname(), bin) != NULL);
-	strstr(bin, "/ztest/")[0] = '\0';
+	if (strncmp(bin, "/usr/sbin/ztest", 14) == 0) {
+		strcpy(bin, "/usr/sbin/zdb"); /* Installed */
+	} else {
+		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
+		strcat(bin, "/zdb/zdb");
+	}
 
 	(void) sprintf(zdb,
-	    "%s/zdb/zdb -bcc%s%s -U /tmp/zpool.cache %s",
+	    "%s -bcc%s%s -U %s %s",
 	    bin,
 	    zopt_verbose >= 3 ? "s" : "",
 	    zopt_verbose >= 4 ? "v" : "",
