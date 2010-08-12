@@ -30,3 +30,4 @@ fix-stack-dsl_scan_visitbp
 fix-stack-dbuf_hold_impl
 fix-bpobj_close
 fix-zfs_ioc_objset_stats
+fix-commit-callback
