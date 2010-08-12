@@ -1078,6 +1078,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			 * vcs*     - Virtual console memory.
 			 * parport* - Parallel port interface.
 			 * lp*      - Printer interface.
+			 * fd*      - Floppy interface.
 			 */
 			if ((strncmp(name, "watchdog", 8) == 0) ||
 			    (strncmp(name, "fuse", 4) == 0)     ||
@@ -1085,7 +1086,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			    (strncmp(name, "tty", 3) == 0)      ||
 			    (strncmp(name, "vcs", 3) == 0)      ||
 			    (strncmp(name, "parport", 7) == 0)  ||
-			    (strncmp(name, "lp", 2) == 0))
+			    (strncmp(name, "lp", 2) == 0)       ||
+			    (strncmp(name, "fd", 2) == 0))
 				continue;
 
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
