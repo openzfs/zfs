@@ -893,7 +893,7 @@ get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
 	if (size == 0)
 		return (EINVAL);
 
-	packed = kmem_alloc(size, KM_SLEEP);
+	packed = kmem_alloc(size, KM_SLEEP | KM_NODEBUG);
 
 	if ((error = ddi_copyin((void *)(uintptr_t)nvl, packed, size,
 	    iflag)) != 0) {
