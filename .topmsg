@@ -1,0 +1,22 @@
+From: Ricardo M. Correia <ricardo.correia@oracle.com>
+Subject: [PATCH] fix commit callback
+
+The upstream commit cb code had a few bugs:
+
+1) The arguments of the list_move_tail() call in txg_dispatch_callbacks()
+were reversed by mistake. This caused the commit callbacks to not be
+called at all.
+
+2) ztest had a bug in ztest_dmu_commit_callbacks() where "error" was not
+initialized correctly. This seems to have caused the test to always take
+the simulated error code path, which made ztest unable to detect whether
+commit cbs were being called for transactions that successfuly complete.
+
+3) ztest had another bug in ztest_dmu_commit_callbacks() where the commit
+cb threshold was not being compared correctly.
+
+4) The commit cb taskq was using 'max_ncpus * 2' as the maxalloc argument
+of taskq_create(), which could have caused unnecessary delays in the txg
+sync thread.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
