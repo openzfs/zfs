@@ -1079,7 +1079,7 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q, boolean_t cutinline)
 	ASSERT3U(q, <, ZIO_TASKQ_TYPES);
 
 	while (taskq_dispatch(spa->spa_zio_taskq[t][q],
-	    (task_func_t *)zio_execute, zio, flags) == 0); /* do nothing */
+	    (task_func_t *)__zio_execute, zio, flags) == 0); /* do nothing */
 }
 
 static boolean_t
