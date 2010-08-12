@@ -1,0 +1,10 @@
+From: Ned Bass <bass6@llnl.gov>
+Subject: [PATCH] fix stack zio_execute
+
+Implement zio_execute() as a wrapper around the static function
+__zio_execute() so that we can force  __zio_execute() to be inlined.
+This reduces stack overhead which is important because __zio_execute()
+is called recursively in several zio code paths.  zio_execute() itself
+cannot be inlined because it is externally visible.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
