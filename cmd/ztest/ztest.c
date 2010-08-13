@@ -4917,6 +4917,7 @@ ztest_run_zdb(char *pool)
 	    isa,
 	    zopt_verbose >= 3 ? "s" : "",
 	    zopt_verbose >= 4 ? "v" : "",
+	    spa_config_path,
 	    pool);
 	free(isa);
 
