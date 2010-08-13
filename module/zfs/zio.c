@@ -93,6 +93,8 @@ int zio_buf_debug_limit = 16384;
 int zio_buf_debug_limit = 0;
 #endif
 
+static inline void __zio_execute(zio_t *zio);
+
 void
 zio_init(void)
 {
@@ -450,7 +452,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait)
 	if (--*countp == 0 && pio->io_stall == countp) {
 		pio->io_stall = NULL;
 		mutex_exit(&pio->io_lock);
-		zio_execute(pio);
+		__zio_execute(pio);
 	} else {
 		mutex_exit(&pio->io_lock);
 	}
@@ -1120,8 +1122,23 @@ zio_interrupt(zio_t *zio)
  */
 static zio_pipe_stage_t *zio_pipeline[];
 
+/*
+ * zio_execute() is a wrapper around the static function
+ * __zio_execute() so that we can force  __zio_execute() to be
+ * inlined.  This reduces stack overhead which is important
+ * because __zio_execute() is called recursively in several zio
+ * code paths.  zio_execute() itself cannot be inlined because
+ * it is externally visible.
+ */
 void
 zio_execute(zio_t *zio)
+{
+	__zio_execute(zio);
+}
+
+__attribute__((always_inline))
+static inline void
+__zio_execute(zio_t *zio)
 {
 	zio->io_executor = curthread;
 
@@ -1167,6 +1184,7 @@ zio_execute(zio_t *zio)
 	}
 }
 
+
 /*
  * ==========================================================================
  * Initiate I/O, either sync or async
@@ -1182,7 +1200,7 @@ zio_wait(zio_t *zio)
 
 	zio->io_waiter = curthread;
 
-	zio_execute(zio);
+	__zio_execute(zio);
 
 	mutex_enter(&zio->io_lock);
 	while (zio->io_executor != NULL)
@@ -1212,7 +1230,7 @@ zio_nowait(zio_t *zio)
 		zio_add_child(spa->spa_async_zio_root, zio);
 	}
 
-	zio_execute(zio);
+	__zio_execute(zio);
 }
 
 /*
@@ -1266,7 +1284,7 @@ zio_reexecute(zio_t *pio)
 	 * responsibility of the caller to wait on him.
 	 */
 	if (!(pio->io_flags & ZIO_FLAG_GODFATHER))
-		zio_execute(pio);
+		__zio_execute(pio);
 }
 
 void
