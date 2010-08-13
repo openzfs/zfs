@@ -1067,7 +1067,6 @@ ztest_pattern_set(void *buf, uint64_t size, uint64_t value)
 		*ip++ = value;
 }
 
-#ifndef NDEBUG
 static boolean_t
 ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
 {
@@ -1080,7 +1079,6 @@ ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
 
 	return (diff == 0);
 }
-#endif
 
 static void
 ztest_bt_generate(ztest_block_tag_t *bt, objset_t *os, uint64_t object,
@@ -4916,6 +4914,7 @@ ztest_run_zdb(char *pool)
 	    bin,
 	    zopt_verbose >= 3 ? "s" : "",
 	    zopt_verbose >= 4 ? "v" : "",
+	    spa_config_path,
 	    pool);
 
 	if (zopt_verbose >= 5)
