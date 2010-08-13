@@ -1,3 +1,10 @@
+2010-08-13 Brian Behlendorf <behlendorf1@llnl.gov>
+
+	* : Tag zfs-0.5.0
+
+	* : The ChangeLog is being retired.  Please use the git commit
+	logs for a full records of changes: 'git log --no-merges'
+
 2010-05-21 Brian Behlendorf <behlendorf1@llnl.gov>
 
 	* : Tag zfs-0.4.9 - Use 'git log --no-merges' for full change log.
