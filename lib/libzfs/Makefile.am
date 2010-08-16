@@ -16,6 +16,12 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzfs.la
 
+libzfs_la_LDFLAGS = -lm
+
+libzfs_la_LIBADD = \
+	${top_srcdir}/lib/libefi/libefi.la \
+	${top_srcdir}/lib/libuutil/libuutil.la
+
 libzfs_la_SOURCES = \
 	${top_srcdir}/lib/libzfs/libzfs_changelist.c \
 	${top_srcdir}/lib/libzfs/libzfs_config.c \
