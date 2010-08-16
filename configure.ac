@@ -79,6 +79,7 @@ AC_CONFIG_FILES([
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
 	cmd/zpool_id/Makefile
+	cmd/zpool_layout/Makefile
 	cmd/ztest/Makefile
 	cmd/zpios/Makefile
 	module/Makefile
