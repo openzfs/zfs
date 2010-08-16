@@ -15,6 +15,11 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzpool.la
 
+libzpool_la_LIBADD = \
+	${top_srcdir}/lib/libunicode/libunicode.la \
+	${top_srcdir}/lib/libavl/libavl.la \
+	${top_srcdir}/lib/libspl/libspl.la
+
 libzpool_la_SOURCES = \
 	${top_srcdir}/lib/libzpool/kernel.c \
 	${top_srcdir}/lib/libzpool/taskq.c \
