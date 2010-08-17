@@ -357,14 +357,11 @@ check_device(const char *path, boolean_t force,
  * it isn't.
  */
 static boolean_t
-is_whole_disk(const char *arg)
+is_whole_disk(const char *path)
 {
 	struct dk_gpt *label;
 	int	fd;
-	char	path[MAXPATHLEN];
 
-	(void) snprintf(path, sizeof (path), "%s%s%s",
-	    RDISK_ROOT, strrchr(arg, '/'), BACKUP_SLICE);
 	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0)
 		return (B_FALSE);
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
@@ -377,13 +374,51 @@ is_whole_disk(const char *arg)
 }
 
 /*
+ * This may be a shorthand device path or it could be total gibberish.
+ * Check to see if it's a known device in /dev/, /dev/disk/by-id,
+ * /dev/disk/by-label, /dev/disk/by-path, /dev/disk/by-uuid, or
+ * /dev/disk/zpool/.  As part of this check, see if we've been given
+ * an entire disk (minus the slice number).
+ */
+static int
+is_shorthand_path(const char *arg, char *path,
+                  struct stat64 *statbuf, boolean_t *wholedisk)
+{
+	char dirs[5][8] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
+	int i, err;
+
+	/* /dev/<name> */
+	(void) snprintf(path, MAXPATHLEN, "%s/%s", DISK_ROOT, arg);
+	*wholedisk = is_whole_disk(path);
+	err = stat64(path, statbuf);
+	if (*wholedisk || err == 0)
+		return (0);
+
+	/* /dev/disk/<dirs>/<name> */
+	for (i = 0; i < 5; i++) {
+		(void) snprintf(path, MAXPATHLEN, "%s/%s/%s",
+		    UDISK_ROOT, dirs[i], arg);
+		*wholedisk = is_whole_disk(path);
+		err = stat64(path, statbuf);
+		if (*wholedisk || err == 0)
+			return (0);
+	}
+
+	strlcpy(path, arg, sizeof(path));
+	memset(statbuf, 0, sizeof(*statbuf));
+	*wholedisk = B_FALSE;
+
+	return (ENOENT);
+}
+
+/*
  * Create a leaf vdev.  Determine if this is a file or a device.  If it's a
  * device, fill in the device id to make a complete nvlist.  Valid forms for a
  * leaf vdev are:
  *
- * 	/dev/dsk/xxx	Complete disk path
+ * 	/dev/xxx	Complete disk path
  * 	/xxx		Full path to file
- * 	xxx		Shorthand for /dev/dsk/xxx
+ * 	xxx		Shorthand for /dev/disk/yyy/xxx
  */
 static nvlist_t *
 make_leaf_vdev(const char *arg, uint64_t is_log)
@@ -393,6 +428,7 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 	nvlist_t *vdev = NULL;
 	char *type = NULL;
 	boolean_t wholedisk = B_FALSE;
+	int err;
 
 	/*
 	 * Determine what type of vdev this is, and put the full path into
@@ -425,16 +461,8 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 		/* After is_whole_disk() check restore original passed path */
 		strlcpy(path, arg, MAXPATHLEN);
 	} else {
-		/*
-		 * This may be a short path for a device, or it could be total
-		 * gibberish.  Check to see if it's a known device in
-		 * /dev/dsk/.  As part of this check, see if we've been given a
-		 * an entire disk (minus the slice number).
-		 */
-		(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT,
-		    arg);
-		wholedisk = is_whole_disk(path);
-		if (!wholedisk && (stat64(path, &statbuf) != 0)) {
+		err = is_shorthand_path(arg, path, &statbuf, &wholedisk);
+		if (err != 0) {
 			/*
 			 * If we got ENOENT, then the user gave us
 			 * gibberish, so try to direct them with a
@@ -442,7 +470,7 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 			 * regurgitate strerror() since it's the best we
 			 * can do.
 			 */
-			if (errno == ENOENT) {
+			if (err == ENOENT) {
 				(void) fprintf(stderr,
 				    gettext("cannot open '%s': no such "
 				    "device in %s\n"), arg, DISK_ROOT);
