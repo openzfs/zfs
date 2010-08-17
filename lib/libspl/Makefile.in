@@ -106,6 +106,9 @@ libspl_la_OBJECTS = $(am_libspl_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libspl_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libspl_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -365,6 +368,7 @@ AM_CCASFLAGS = \
 	-I${top_srcdir}/lib/libspl/include
 
 lib_LTLIBRARIES = libspl.la
+libspl_la_LDFLAGS = -lrt
 libspl_la_SOURCES = \
 	${top_srcdir}/lib/libspl/getexecname.c \
 	${top_srcdir}/lib/libspl/gethrtime.c \
@@ -448,7 +452,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libspl.la: $(libspl_la_OBJECTS) $(libspl_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libspl_la_OBJECTS) $(libspl_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libspl_la_LINK) -rpath $(libdir) $(libspl_la_OBJECTS) $(libspl_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

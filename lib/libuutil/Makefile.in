@@ -98,7 +98,7 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libuutil_la_LIBADD =
+libuutil_la_DEPENDENCIES = ${top_srcdir}/lib/libavl/libavl.la
 am_libuutil_la_OBJECTS = uu_alloc.lo uu_avl.lo uu_dprintf.lo \
 	uu_ident.lo uu_list.lo uu_misc.lo uu_open.lo uu_pname.lo \
 	uu_strtoint.lo
@@ -316,6 +316,7 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\" \
 	$(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
 lib_LTLIBRARIES = libuutil.la
+libuutil_la_LIBADD = ${top_srcdir}/lib/libavl/libavl.la
 libuutil_la_SOURCES = \
 	${top_srcdir}/lib/libuutil/uu_alloc.c \
 	${top_srcdir}/lib/libuutil/uu_avl.c \

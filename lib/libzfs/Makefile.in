@@ -98,7 +98,8 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libzfs_la_LIBADD =
+libzfs_la_DEPENDENCIES = ${top_srcdir}/lib/libefi/libefi.la \
+	${top_srcdir}/lib/libuutil/libuutil.la
 am_libzfs_la_OBJECTS = libzfs_changelist.lo libzfs_config.lo \
 	libzfs_dataset.lo libzfs_fru.lo libzfs_graph.lo \
 	libzfs_import.lo libzfs_mount.lo libzfs_pool.lo \
@@ -107,6 +108,9 @@ libzfs_la_OBJECTS = $(am_libzfs_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libzfs_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libzfs_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -324,6 +328,11 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 lib_LTLIBRARIES = libzfs.la
+libzfs_la_LDFLAGS = -lm
+libzfs_la_LIBADD = \
+	${top_srcdir}/lib/libefi/libefi.la \
+	${top_srcdir}/lib/libuutil/libuutil.la
+
 libzfs_la_SOURCES = \
 	${top_srcdir}/lib/libzfs/libzfs_changelist.c \
 	${top_srcdir}/lib/libzfs/libzfs_config.c \
@@ -405,7 +414,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libzfs.la: $(libzfs_la_OBJECTS) $(libzfs_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libzfs_la_OBJECTS) $(libzfs_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libzfs_la_LINK) -rpath $(libdir) $(libzfs_la_OBJECTS) $(libzfs_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
