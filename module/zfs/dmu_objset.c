@@ -1713,6 +1713,7 @@ EXPORT_SYMBOL(dmu_objset_is_dirty);
 EXPORT_SYMBOL(dmu_objset_create_impl);
 EXPORT_SYMBOL(dmu_objset_open_impl);
 EXPORT_SYMBOL(dmu_objset_evict);
+EXPORT_SYMBOL(dmu_objset_register_type);
 EXPORT_SYMBOL(dmu_objset_do_userquota_updates);
 EXPORT_SYMBOL(dmu_objset_userquota_get_ids);
 EXPORT_SYMBOL(dmu_objset_userused_enabled);
