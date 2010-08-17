@@ -5,6 +5,13 @@
 # current script enumerates each port on a bus before moving on to
 # enumerate the next bus.
 #
+# Every distribution, version of udev, and type of attached storage
+# seems to result in slightly different formatting of the by-path
+# name.   For this reason you may need to adjust the parsing below
+# to suit your needs.  This is one of the reasons to use a custom
+# /etc/zfs/zdev.conf file, it allows the by-path naming convertion
+# to change and still keep the simple <channel><rank> naming.
+#
 CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
 BUSES=( 01 02 03 )
 PORTS=( 4 0 )
@@ -84,7 +91,7 @@ for (( i=0, k=0; i<${#BUSES[*]}; i++ )); do
 	for (( j=0; j<${#PORTS[*]}; j++, k++ )); do
 		printf "# %-9s" ${CHANNELS[$k]}
 		ls *:${BUSES[$i]}:*:${PORTS[$j]}* 2>/dev/null | \
-			cut -f7 -d'-' | sort -n | tr '\n' ','
+			cut -f7 -d'-' | sort -u -n | tr '\n' ','
 		echo
 	done
 done
@@ -96,8 +103,8 @@ AWK=${AWK:-/bin/awk}
 
 for (( i=0, k=0; i<${#BUSES[*]}; i++ )); do
 	for (( j=0; j<${#PORTS[*]}; j++, k++ )); do
-		ls *:${BUSES[$i]}:*:${PORTS[$j]}* 2>/dev/null | \
-			sort -n -k7 -t'-'>${TMP_FILE}
+		ls *:${BUSES[$i]}:*:${PORTS[$j]}*  2>/dev/null | \
+			grep -v part | sort -n -k7 -t'-'>${TMP_FILE}
 
 		echo
 		echo -n "# Channel ${CHANNELS[$k]}, "
