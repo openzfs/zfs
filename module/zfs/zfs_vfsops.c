@@ -1476,7 +1476,7 @@ EXPORT_SYMBOL(zfs_suspend_fs);
 int
 zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 {
-	int err, err2;
+	int err;
 
 	ASSERT(RRW_WRITE_HELD(&zsb->z_teardown_lock));
 	ASSERT(RW_WRITE_HELD(&zsb->z_teardown_inactive_lock));
@@ -1488,18 +1488,33 @@ zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 		znode_t *zp;
 		uint64_t sa_obj = 0;
 
-		err2 = zap_lookup(zsb->z_os, MASTER_NODE_OBJ,
-		    ZFS_SA_ATTRS, 8, 1, &sa_obj);
+		/*
+		 * Make sure version hasn't changed
+		 */
 
-		if ((err || err2) && zsb->z_version >= ZPL_VERSION_SA)
+		err = zfs_get_zplprop(zsb->z_os, ZFS_PROP_VERSION,
+		    &zsb->z_version);
+
+		if (err)
 			goto bail;
 
+		err = zap_lookup(zsb->z_os, MASTER_NODE_OBJ,
+		    ZFS_SA_ATTRS, 8, 1, &sa_obj);
+
+		if (err && zsb->z_version >= ZPL_VERSION_SA)
+			goto bail;
 
 		if ((err = sa_setup(zsb->z_os, sa_obj,
 		    zfs_attr_table,  ZPL_END, &zsb->z_attr_table)) != 0)
 			goto bail;
 
+		if (zsb->z_version >= ZPL_VERSION_SA)
+			sa_register_update_callback(zsb->z_os,
+			    zfs_sa_upgrade);
+
 		VERIFY(zfs_sb_setup(zsb, B_FALSE) == 0);
+
+		zfs_set_fuid_feature(zsb);
 		zsb->z_rollback_time = jiffies;
 
 		/*
@@ -1530,8 +1545,8 @@ bail:
 
 	if (err) {
 		/*
-		 * Since we couldn't reopen zfs_sb_t or, setup the
-		 * sa framework, force unmount this file system.
+		 * Since we couldn't reopen zfs_sb_t or, or
+		 * setup the sa framework force unmount this file system.
 		 */
 		if (zsb->z_os)
 			(void) zfs_umount(zsb->z_sb);
@@ -1601,8 +1616,7 @@ zfs_set_version(zfs_sb_t *zsb, uint64_t newvers)
 
 	zsb->z_version = newvers;
 
-	if (zsb->z_version >= ZPL_VERSION_FUID)
-		zfs_set_fuid_feature(zsb);
+	zfs_set_fuid_feature(zsb);
 
 	return (0);
 }
