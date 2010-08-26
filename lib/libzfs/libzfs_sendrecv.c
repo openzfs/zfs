@@ -34,6 +34,11 @@
 #include <stddef.h>
 #include <fcntl.h>
 #include <sys/mount.h>
+#include <sys/mntent.h>
+#include <sys/mnttab.h>
+#include <sys/avl.h>
+#include <sys/debug.h>
+#include <stddef.h>
 #include <pthread.h>
 #include <umem.h>
 

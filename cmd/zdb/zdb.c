@@ -3036,8 +3036,8 @@ main(int argc, char **argv)
 	}
 
 	kernel_init(FREAD);
-	g_zfs = libzfs_init();
-	ASSERT(g_zfs != NULL);
+	if ((g_zfs = libzfs_init()) == NULL)
+		return (1);
 
 	if (dump_all)
 		verbose = MAX(verbose, 1);
