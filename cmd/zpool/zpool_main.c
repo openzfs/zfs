@@ -716,7 +716,9 @@ zpool_do_create(int argc, char **argv)
 	    (strcmp(mountpoint, ZFS_MOUNTPOINT_LEGACY) != 0 &&
 	    strcmp(mountpoint, ZFS_MOUNTPOINT_NONE) != 0)) {
 		char buf[MAXPATHLEN];
+#ifdef HAVE_ZPL
 		DIR *dirp;
+#endif
 
 		if (mountpoint && mountpoint[0] != '/') {
 			(void) fprintf(stderr, gettext("invalid mountpoint "
@@ -741,6 +743,7 @@ zpool_do_create(int argc, char **argv)
 				    mountpoint);
 		}
 
+#ifdef HAVE_ZPL
 		if ((dirp = opendir(buf)) == NULL && errno != ENOENT) {
 			(void) fprintf(stderr, gettext("mountpoint '%s' : "
 			    "%s\n"), buf, strerror(errno));
@@ -763,6 +766,7 @@ zpool_do_create(int argc, char **argv)
 				goto errout;
 			}
 		}
+#endif /* HAVE_ZPL */
 	}
 
 	if (dryrun) {
@@ -793,8 +797,12 @@ zpool_do_create(int argc, char **argv)
 					    zfs_prop_to_name(
 					    ZFS_PROP_MOUNTPOINT),
 					    mountpoint) == 0);
+#ifdef HAVE_ZPL
 				if (zfs_mount(pool, NULL, 0) == 0)
 					ret = zfs_shareall(pool);
+#else
+				ret = 0;
+#endif /* HAVE_ZPL */
 				zfs_close(pool);
 			}
 		} else if (libzfs_errno(g_zfs) == EZFS_INVALIDNAME) {
@@ -1571,12 +1579,14 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	if ((zhp = zpool_open_canfail(g_zfs, name)) == NULL)
 		return (1);
 
+#if HAVE_ZPL
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}
+#endif /* HAVE_ZPL */
 
 	zpool_close(zhp);
 	return (0);
@@ -1592,7 +1602,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *	 -c	Read pool information from a cachefile instead of searching
  *		devices.
  *
- *       -d	Scan in a specific directory, other than /dev/dsk.  More than
+ *       -d	Scan in a specific directory, other than /dev/.  More than
  *		one directory can be specified using multiple '-d' options.
  *
  *       -D     Scan for previously destroyed pools or import all or only
@@ -1773,12 +1783,6 @@ zpool_do_import(int argc, char **argv)
 	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind_policy) != 0)
 		goto error;
 
-	if (searchdirs == NULL) {
-		searchdirs = safe_malloc(sizeof (char *));
-		searchdirs[0] = "/dev/dsk";
-		nsearch = 1;
-	}
-
 	/* check argument count */
 	if (do_all) {
 		if (argc != 0) {
@@ -1799,7 +1803,9 @@ zpool_do_import(int argc, char **argv)
 		if (argc == 0 && !priv_ineffect(PRIV_SYS_CONFIG)) {
 			(void) fprintf(stderr, gettext("cannot "
 			    "discover pools: permission denied\n"));
-			free(searchdirs);
+			if (searchdirs != NULL)
+				free(searchdirs);
+
 			nvlist_free(policy);
 			return (1);
 		}
@@ -1867,7 +1873,8 @@ zpool_do_import(int argc, char **argv)
 	}
 
 	if (err == 1) {
-		free(searchdirs);
+		if (searchdirs != NULL)
+			free(searchdirs);
 		nvlist_free(policy);
 		return (1);
 	}
@@ -1968,7 +1975,8 @@ error:
 	nvlist_free(props);
 	nvlist_free(pools);
 	nvlist_free(policy);
-	free(searchdirs);
+	if (searchdirs != NULL)
+		free(searchdirs);
 
 	return (err ? 1 : 0);
 }

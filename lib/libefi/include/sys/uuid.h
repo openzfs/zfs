@@ -74,11 +74,7 @@ struct uuid {
 	uint8_t		node_addr[6];
 };
 
-#define	UUID_LEN	16
-
 #define	UUID_PRINTABLE_STRING_LENGTH 37
-
-typedef uchar_t		uuid_t[UUID_LEN];
 
 /*
  * Convert a uuid to/from little-endian format

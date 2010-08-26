@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <math.h>
+#include <sys/stat.h>
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
@@ -648,7 +649,9 @@ libzfs_fini(libzfs_handle_t *hdl)
 #endif
 	if (hdl->libzfs_sharetab)
 		(void) fclose(hdl->libzfs_sharetab);
+#ifdef HAVE_ZPL
 	zfs_uninit_libshare(hdl);
+#endif
 	if (hdl->libzfs_log_str)
 		(void) free(hdl->libzfs_log_str);
 	zpool_free_handles(hdl);

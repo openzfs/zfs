@@ -318,6 +318,7 @@ safe_malloc(size_t size)
 	return (data);
 }
 
+#ifdef HAVE_ZPL
 static char *
 safe_strdup(char *str)
 {
@@ -328,6 +329,7 @@ safe_strdup(char *str)
 
 	return (dupstr);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Callback routine that will print out information for each of
@@ -495,6 +497,7 @@ parse_depth(char *opt, int *flags)
 
 #define	PROGRESS_DELAY 2		/* seconds */
 
+#ifdef HAVE_ZPL
 static char *pt_reverse = "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 static time_t pt_begin;
 static char *pt_header = NULL;
@@ -546,6 +549,8 @@ finish_progress(char *done)
 	free(pt_header);
 	pt_header = NULL;
 }
+#endif /* HAVE_ZPL */
+
 /*
  * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
  *
@@ -626,6 +631,7 @@ zfs_do_clone(int argc, char **argv)
 	ret = zfs_clone(zhp, argv[1], props);
 
 	/* create the mountpoint if necessary */
+#ifdef HAVE_ZPL
 	if (ret == 0) {
 		zfs_handle_t *clone;
 
@@ -637,6 +643,7 @@ zfs_do_clone(int argc, char **argv)
 			zfs_close(clone);
 		}
 	}
+#endif /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	nvlist_free(props);
@@ -824,6 +831,7 @@ zfs_do_create(int argc, char **argv)
 	 * verbose error message to let the user know that their filesystem was
 	 * in fact created, even if we failed to mount or share it.
 	 */
+#ifdef HAVE_ZPL
 	if (canmount == ZFS_CANMOUNT_ON) {
 		if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
@@ -835,6 +843,7 @@ zfs_do_create(int argc, char **argv)
 			ret = 1;
 		}
 	}
+#endif /* HAVE_ZPL */
 
 error:
 	if (zhp)
@@ -2940,6 +2949,7 @@ zfs_do_release(int argc, char **argv)
 #define	SPINNER_TIME 3		/* seconds */
 #define	MOUNT_TIME 5		/* seconds */
 
+#ifdef HAVE_ZPL
 static int
 get_one_dataset(zfs_handle_t *zhp, void *data)
 {
@@ -3387,6 +3397,7 @@ share_mount(int op, int argc, char **argv)
 
 	return (ret);
 }
+#endif  /* HAVE_ZPL */
 
 /*
  * zfs mount -a [nfs]
@@ -3397,7 +3408,11 @@ share_mount(int op, int argc, char **argv)
 static int
 zfs_do_mount(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
+#else
+	return ENOSYS;
+#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3409,9 +3424,14 @@ zfs_do_mount(int argc, char **argv)
 static int
 zfs_do_share(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
+#else
+	return ENOSYS;
+#endif  /* HAVE_ZPL */
 }
 
+#ifdef HAVE_ZPL
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
 	char		*un_mountp;
@@ -3795,6 +3815,7 @@ unshare_unmount(int op, int argc, char **argv)
 
 	return (ret);
 }
+#endif  /* HAVE_ZPL */
 
 /*
  * zfs unmount -a
@@ -3805,7 +3826,11 @@ unshare_unmount(int op, int argc, char **argv)
 static int
 zfs_do_unmount(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
+#else
+	return ENOSYS;
+#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3817,7 +3842,11 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
+#else
+	return ENOSYS;
+#endif  /* HAVE_ZPL */
 }
 
 /* ARGSUSED */
@@ -3833,6 +3862,7 @@ zfs_do_python(int argc, char **argv)
  * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
  * 'legacy'.  Otherwise, complain that use should be using 'zfs mount'.
  */
+#ifdef HAVE_ZPL
 static int
 manual_mount(int argc, char **argv)
 {
@@ -3963,6 +3993,7 @@ manual_unmount(int argc, char **argv)
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
+#endif /* HAVE_ZPL */
 
 static int
 find_command_idx(char *command, int *idx)
@@ -4061,7 +4092,9 @@ main(int argc, char **argv)
 {
 	int ret;
 	int i = 0;
+#ifdef HAVE_ZPL
 	char *progname;
+#endif
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
@@ -4086,6 +4119,7 @@ main(int argc, char **argv)
 		return (1);
 	}
 
+#ifdef HAVE_ZPL
 	/*
 	 * This command also doubles as the /etc/fs mount and unmount program.
 	 * Determine if we should take this behavior based on argv[0].
@@ -4096,6 +4130,9 @@ main(int argc, char **argv)
 	} else if (strcmp(progname, "umount") == 0) {
 		ret = manual_unmount(argc, argv);
 	} else {
+#else
+	{
+#endif /* HAVE_ZPL */
 		/*
 		 * Make sure the user has specified some command.
 		 */

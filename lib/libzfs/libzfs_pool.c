@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <zone.h>
+#include <sys/stat.h>
 #include <sys/efi_partition.h>
 #include <sys/vtoc.h>
 #include <sys/zfs_ioctl.h>
@@ -43,10 +45,6 @@
 #include "zfs_comutil.h"
 
 static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
-
-#define	DISK_ROOT	"/dev/dsk"
-#define	RDISK_ROOT	"/dev/rdsk"
-#define	BACKUP_SLICE	"s2"
 
 typedef struct prop_flags {
 	int create:1;	/* Validate property on creation */
@@ -651,9 +649,12 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
 
 /*
  * Don't start the slice at the default block of 34; many storage
- * devices will use a stripe width of 128k, so start there instead.
+ * devices will use a stripe width of 128k, other vendors prefer a 1m
+ * alignment.  It is best to play it safe and ensure a 1m alignment
+ * give 512b blocks.  When the block size is larger by a power of 2
+ * we will still be 1m aligned.
  */
-#define	NEW_START_BLOCK	256
+#define	NEW_START_BLOCK	2048
 
 /*
  * Validate the given pool name, optionally putting an extended error message in
@@ -948,10 +949,12 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 * This can happen if the user has specified the same
 			 * device multiple times.  We can't reliably detect this
 			 * until we try to add it and see we already have a
-			 * label.
+			 * label.  This can also happen under if the device is
+			 * part of an active md or lvm device.
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "one or more vdevs refer to the same device"));
+			    "one or more vdevs refer to the same device, or one of\n"
+			    "the devices is part of an active md or lvm device"));
 			return (zfs_error(hdl, EZFS_BADDEV, msg));
 
 		case EOVERFLOW:
@@ -1928,7 +1931,7 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	} else if (zpool_vdev_is_interior(path)) {
 		verify(nvlist_add_string(search, ZPOOL_CONFIG_TYPE, path) == 0);
 	} else if (path[0] != '/') {
-		(void) snprintf(buf, sizeof (buf), "%s%s", "/dev/dsk/", path);
+		(void) snprintf(buf, sizeof (buf), "%s/%s", DISK_ROOT, path);
 		verify(nvlist_add_string(search, ZPOOL_CONFIG_PATH, buf) == 0);
 	} else {
 		verify(nvlist_add_string(search, ZPOOL_CONFIG_PATH, path) == 0);
@@ -2101,22 +2104,14 @@ zpool_get_physpath(zpool_handle_t *zhp, char *physpath, size_t phypath_size)
  * the disk to use the new unallocated space.
  */
 static int
-zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
+zpool_relabel_disk(libzfs_handle_t *hdl, const char *path)
 {
-	char path[MAXPATHLEN];
 	char errbuf[1024];
 	int fd, error;
-	int (*_efi_use_whole_disk)(int);
 
-	if ((_efi_use_whole_disk = (int (*)(int))dlsym(RTLD_DEFAULT,
-	    "efi_use_whole_disk")) == NULL)
-		return (-1);
-
-	(void) snprintf(path, sizeof (path), "%s/%s", RDISK_ROOT, name);
-
-	if ((fd = open(path, O_RDWR | O_NDELAY)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "relabel '%s': unable to open device"), name);
+		    "relabel '%s': unable to open device"), path);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -2125,11 +2120,11 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *name)
 	 * does not have any unallocated space left. If so, we simply
 	 * ignore that error and continue on.
 	 */
-	error = _efi_use_whole_disk(fd);
+	error = efi_use_whole_disk(fd);
 	(void) close(fd);
 	if (error && error != VT_ENOSPC) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "relabel '%s': unable to read disk capacity"), name);
+		    "relabel '%s': unable to read disk capacity"), path);
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 	return (0);
@@ -3071,7 +3066,7 @@ char *
 zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
     boolean_t verbose)
 {
-	char *path, *devid;
+	char *path, *devid, *type;
 	uint64_t value;
 	char buf[64];
 	vdev_stat_t *vs;
@@ -3085,7 +3080,6 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    (u_longlong_t)value);
 		path = buf;
 	} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
-
 		/*
 		 * If the device is dead (faulted, offline, etc) then don't
 		 * bother opening it.  Otherwise we may be forcing the user to
@@ -3124,9 +3118,19 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 				devid_str_free(newdevid);
 		}
 
-		if (strncmp(path, "/dev/dsk/", 9) == 0)
-			path += 9;
+		/*
+		 * For a block device only use the name.
+		 */
+		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+		if (strcmp(type, VDEV_TYPE_DISK) == 0) {
+			path = strrchr(path, '/');
+			path++;
+		}
 
+#if defined(__sun__) || defined(__sun)
+		/*
+		 * The following code strips the slice from the device path.
+		 */
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &value) == 0 && value) {
 			int pathlen = strlen(path);
@@ -3148,6 +3152,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			}
 			return (tmp);
 		}
+#endif
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
 
@@ -3629,7 +3634,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 
 	(void) snprintf(diskname, sizeof (diskname), "%s%s", RDISK_ROOT,
 	    strrchr(path, '/'));
-	if ((fd = open(diskname, O_RDONLY|O_NDELAY)) >= 0) {
+	if ((fd = open(diskname, O_RDWR|O_DIRECT)) >= 0) {
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
@@ -3675,6 +3680,54 @@ find_start_block(nvlist_t *config)
 	return (MAXOFFSET_T);
 }
 
+int
+zpool_label_disk_wait(char *path, int timeout)
+{
+	struct stat64 statbuf;
+	int i;
+
+	/*
+	 * Wait timeout miliseconds for a newly created device to be available
+	 * from the given path.  There is a small window when a /dev/ device
+	 * will exist and the udev link will not, so we must wait for the
+	 * symlink.  Depending on the udev rules this may take a few seconds.
+	 */
+	for (i = 0; i < timeout; i++) {
+		usleep(1000);
+
+		errno = 0;
+		if ((stat64(path, &statbuf) == 0) && (errno == 0))
+			return (0);
+	}
+
+	return (ENOENT);
+}
+
+int
+zpool_label_disk_check(char *path)
+{
+	struct dk_gpt *vtoc;
+	int fd, err;
+
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0)
+		return errno;
+
+	if ((err = efi_alloc_and_read(fd, &vtoc)) != 0) {
+		(void) close(fd);
+		return err;
+	}
+
+	if (vtoc->efi_flags & EFI_GPT_PRIMARY_CORRUPT) {
+		efi_free(vtoc);
+		(void) close(fd);
+		return EIDRM;
+	}
+
+	efi_free(vtoc);
+	(void) close(fd);
+	return 0;
+}
+
 /*
  * Label an individual disk.  The name provided is the short name,
  * stripped of any leading /dev path.
@@ -3684,7 +3737,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 {
 	char path[MAXPATHLEN];
 	struct dk_gpt *vtoc;
-	int fd;
+	int rval, fd;
 	size_t resv = EFI_MIN_RESV_SIZE;
 	uint64_t slice_size;
 	diskaddr_t start_block;
@@ -3720,13 +3773,13 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	(void) snprintf(path, sizeof (path), "%s/%s%s", RDISK_ROOT, name,
 	    BACKUP_SLICE);
 
-	if ((fd = open(path, O_RDWR | O_NDELAY)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		/*
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.
 		 */
-		zfs_error_aux(hdl,
-		    dgettext(TEXT_DOMAIN, "unable to open device"));
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "unable to open device '%s': %d"), path, errno);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -3769,7 +3822,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	vtoc->efi_parts[8].p_size = resv;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
-	if (efi_write(fd, vtoc) != 0) {
+	if ((rval = efi_write(fd, vtoc)) != 0) {
 		/*
 		 * Some block drivers (like pcata) may not support EFI
 		 * GPT labels.  Print out a helpful error message dir-
@@ -3779,123 +3832,34 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		(void) close(fd);
 		efi_free(vtoc);
 
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "try using fdisk(1M) and then provide a specific slice"));
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "try using "
+		    "parted(8) and then provide a specific slice: %d"), rval);
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 
 	(void) close(fd);
 	efi_free(vtoc);
-	return (0);
-}
 
-static boolean_t
-supported_dump_vdev_type(libzfs_handle_t *hdl, nvlist_t *config, char *errbuf)
-{
-	char *type;
-	nvlist_t **child;
-	uint_t children, c;
-
-	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_TYPE, &type) == 0);
-	if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
-	    strcmp(type, VDEV_TYPE_FILE) == 0 ||
-	    strcmp(type, VDEV_TYPE_LOG) == 0 ||
-	    strcmp(type, VDEV_TYPE_HOLE) == 0 ||
-	    strcmp(type, VDEV_TYPE_MISSING) == 0) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "vdev type '%s' is not supported"), type);
-		(void) zfs_error(hdl, EZFS_VDEVNOTSUP, errbuf);
-		return (B_FALSE);
-	}
-	if (nvlist_lookup_nvlist_array(config, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) == 0) {
-		for (c = 0; c < children; c++) {
-			if (!supported_dump_vdev_type(hdl, child[c], errbuf))
-				return (B_FALSE);
-		}
-	}
-	return (B_TRUE);
-}
-
-/*
- * check if this zvol is allowable for use as a dump device; zero if
- * it is, > 0 if it isn't, < 0 if it isn't a zvol
- */
-int
-zvol_check_dump_config(char *arg)
-{
-	zpool_handle_t *zhp = NULL;
-	nvlist_t *config, *nvroot;
-	char *p, *volname;
-	nvlist_t **top;
-	uint_t toplevels;
-	libzfs_handle_t *hdl;
-	char errbuf[1024];
-	char poolname[ZPOOL_MAXNAMELEN];
-	int pathlen = strlen(ZVOL_FULL_DEV_DIR);
-	int ret = 1;
-
-	if (strncmp(arg, ZVOL_FULL_DEV_DIR, pathlen)) {
-		return (-1);
+	/* Wait for the first expected slice to appear. */
+	(void) snprintf(path, sizeof (path), "%s/%s%s%s", DISK_ROOT, name,
+	    isdigit(name[strlen(name)-1]) ? "p" : "", FIRST_SLICE);
+	rval = zpool_label_disk_wait(path, 3000);
+	if (rval) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "failed to "
+		    "detect device partitions on '%s': %d"), path, rval);
+		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 
-	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "dump is not supported on device '%s'"), arg);
-
-	if ((hdl = libzfs_init()) == NULL)
-		return (1);
-	libzfs_print_on_error(hdl, B_TRUE);
-
-	volname = arg + pathlen;
-
-	/* check the configuration of the pool */
-	if ((p = strchr(volname, '/')) == NULL) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "malformed dataset name"));
-		(void) zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
-		return (1);
-	} else if (p - volname >= ZFS_MAXNAMELEN) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "dataset name is too long"));
-		(void) zfs_error(hdl, EZFS_NAMETOOLONG, errbuf);
-		return (1);
-	} else {
-		(void) strncpy(poolname, volname, p - volname);
-		poolname[p - volname] = '\0';
+	/* We can't be to paranoid.  Read the label back and verify it. */
+	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	rval = zpool_label_disk_check(path);
+	if (rval) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "freshly written "
+		    "EFI label on '%s' is damaged.  Ensure\nthis device "
+		    "is not in in use, and is functioning properly: %d"),
+		    path, rval);
+		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 
-	if ((zhp = zpool_open(hdl, poolname)) == NULL) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "could not open pool '%s'"), poolname);
-		(void) zfs_error(hdl, EZFS_OPENFAILED, errbuf);
-		goto out;
-	}
-	config = zpool_get_config(zhp, NULL);
-	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) != 0) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "could not obtain vdev configuration for  '%s'"), poolname);
-		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
-		goto out;
-	}
-
-	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    &top, &toplevels) == 0);
-	if (toplevels != 1) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "'%s' has multiple top level vdevs"), poolname);
-		(void) zfs_error(hdl, EZFS_DEVOVERFLOW, errbuf);
-		goto out;
-	}
-
-	if (!supported_dump_vdev_type(hdl, top[0], errbuf)) {
-		goto out;
-	}
-	ret = 0;
-
-out:
-	if (zhp)
-		zpool_close(zhp);
-	libzfs_fini(hdl);
-	return (ret);
+	return 0;
 }
