@@ -398,7 +398,7 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_recvlock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
-		rw_init(&ds->ds_rwlock, 0, 0, 0);
+		rw_init(&ds->ds_rwlock, NULL, RW_DEFAULT, NULL);
 		cv_init(&ds->ds_exclusive_cv, NULL, CV_DEFAULT, NULL);
 
 		bplist_create(&ds->ds_pending_deadlist);
