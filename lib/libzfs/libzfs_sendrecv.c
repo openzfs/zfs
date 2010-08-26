@@ -43,7 +43,6 @@
 #include "zfs_prop.h"
 #include "zfs_fletcher.h"
 #include "libzfs_impl.h"
-#include <sha2.h>
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
 
@@ -336,12 +335,11 @@ cksummer(void *arg)
 			if (ZIO_CHECKSUM_EQUAL(drrw->drr_key.ddk_cksum,
 			    zero_cksum) ||
 			    !DRR_IS_DEDUP_CAPABLE(drrw->drr_checksumflags)) {
-				SHA256_CTX	ctx;
-				zio_cksum_t	tmpsha256;
+				zio_cksum_t tmpsha256;
 
-				SHA256Init(&ctx);
-				SHA256Update(&ctx, buf, drrw->drr_length);
-				SHA256Final(&tmpsha256, &ctx);
+				zio_checksum_SHA256(buf,
+				    drrw->drr_length, &tmpsha256);
+
 				drrw->drr_key.ddk_cksum.zc_word[0] =
 				    BE_64(tmpsha256.zc_word[0]);
 				drrw->drr_key.ddk_cksum.zc_word[1] =
