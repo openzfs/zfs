@@ -794,6 +794,8 @@ hdr_cons(void *vbuf, void *unused, int kmflag)
 	refcount_create(&buf->b_refcnt);
 	cv_init(&buf->b_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&buf->b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_link_init(&buf->b_arc_node);
+	list_link_init(&buf->b_l2node);
 	arc_space_consume(sizeof (arc_buf_hdr_t), ARC_SPACE_HDRS);
 
 	return (0);
@@ -4537,6 +4539,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev->l2ad_evict = adddev->l2ad_start;
 	adddev->l2ad_first = B_TRUE;
 	adddev->l2ad_writing = B_FALSE;
+	list_link_init(&adddev->l2ad_node);
 	ASSERT3U(adddev->l2ad_write, >, 0);
 
 	/*
