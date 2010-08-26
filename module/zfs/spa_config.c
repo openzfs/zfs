@@ -96,7 +96,7 @@ spa_config_load(void)
 	if (kobj_get_filesize(file, &fsize) != 0)
 		goto out;
 
-	buf = kmem_alloc(fsize, KM_SLEEP);
+	buf = kmem_alloc(fsize, KM_SLEEP | KM_NODEBUG);
 
 	/*
 	 * Read the nvlist from the file.
@@ -159,7 +159,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
 
-	buf = kmem_alloc(buflen, KM_SLEEP);
+	buf = kmem_alloc(buflen, KM_SLEEP | KM_NODEBUG);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,

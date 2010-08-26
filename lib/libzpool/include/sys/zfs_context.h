@@ -349,10 +349,14 @@ extern void kstat_delete(kstat_t *);
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
+#define	KM_NODEBUG		0x0
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
+#define	vmem_alloc(_s, _f)	kmem_alloc(_s, _f)
+#define	vmem_zalloc(_s, _f)	kmem_zalloc(_s, _f)
+#define	vmem_free(_b, _s)	kmem_free(_b, _s)
 #define	kmem_cache_create(_a, _b, _c, _d, _e, _f, _g, _h, _i) \
 	umem_cache_create(_a, _b, _c, _d, _e, _f, _g, _h, _i)
 #define	kmem_cache_destroy(_c)	umem_cache_destroy(_c)
@@ -575,6 +579,7 @@ typedef struct callb_cpr {
 #define	zone_dataset_visible(x, y)	(1)
 #define	INGLOBALZONE(z)			(1)
 
+extern char *kmem_vasprintf(const char *fmt, va_list adx);
 extern char *kmem_asprintf(const char *fmt, ...);
 #define	strfree(str) kmem_free((str), strlen(str)+1)
 

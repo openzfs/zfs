@@ -1337,7 +1337,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	ra.vp = vp;
 	ra.voff = *voffp;
 	ra.bufsize = 1<<20;
-	ra.buf = kmem_alloc(ra.bufsize, KM_SLEEP);
+	ra.buf = vmem_alloc(ra.bufsize, KM_SLEEP);
 
 	/* these were verified in dmu_recv_begin */
 	ASSERT(DMU_GET_STREAM_HDRTYPE(drc->drc_drrb->drr_versioninfo) ==
@@ -1486,7 +1486,7 @@ out:
 		}
 	}
 
-	kmem_free(ra.buf, ra.bufsize);
+	vmem_free(ra.buf, ra.bufsize);
 	*voffp = ra.voff;
 	return (ra.err);
 }
