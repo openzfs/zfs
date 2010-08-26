@@ -160,18 +160,22 @@ print_what(FILE *fp, mode_t what)
 	case S_IFDIR:
 		symbol = '/';
 		break;
+#ifdef S_IFDOOR
 	case S_IFDOOR:
 		symbol = '>';
 		break;
+#endif
 	case S_IFIFO:
 		symbol = '|';
 		break;
 	case S_IFLNK:
 		symbol = '@';
 		break;
+#ifdef S_IFPORT
 	case S_IFPORT:
 		symbol = 'P';
 		break;
+#endif
 	case S_IFSOCK:
 		symbol = '=';
 		break;
