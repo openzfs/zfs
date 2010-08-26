@@ -1668,7 +1668,7 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 {
 	time_t timestamp = ub->ub_timestamp;
 
-	(void) printf(header ? header : "");
+	(void) printf("%s", header ? header : "");
 	(void) printf("\tmagic = %016llx\n", (u_longlong_t)ub->ub_magic);
 	(void) printf("\tversion = %llu\n", (u_longlong_t)ub->ub_version);
 	(void) printf("\ttxg = %llu\n", (u_longlong_t)ub->ub_txg);
@@ -1680,7 +1680,7 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 		sprintf_blkptr(blkbuf, &ub->ub_rootbp);
 		(void) printf("\trootbp = %s\n", blkbuf);
 	}
-	(void) printf(footer ? footer : "");
+	(void) printf("%s", footer ? footer : "");
 }
 
 static void
@@ -2554,7 +2554,7 @@ zdb_dump_block_raw(void *buf, uint64_t size, int flags)
 {
 	if (flags & ZDB_FLAG_BSWAP)
 		byteswap_uint64_array(buf, size);
-	(void) write(1, buf, size);
+	VERIFY(write(fileno(stdout), buf, size) == size);
 }
 
 static void

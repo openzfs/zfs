@@ -2592,7 +2592,7 @@ grow_vdev(vdev_t *vd, void *arg)
 		return (vd);
 
 	fsize = lseek(fd, 0, SEEK_END);
-	(void) ftruncate(fd, *newsize);
+	VERIFY(ftruncate(fd, *newsize) == 0);
 
 	if (zopt_verbose >= 6) {
 		(void) printf("%s grew from %lu to %lu bytes\n",
@@ -5459,7 +5459,8 @@ main(int argc, char **argv)
 	process_options(argc, argv);
 
 	/* Override location of zpool.cache */
-	(void) asprintf((char **)&spa_config_path, "%s/zpool.cache", zopt_dir);
+	VERIFY(asprintf((char **)&spa_config_path, "%s/zpool.cache",
+	    zopt_dir) != -1);
 
 	/*
 	 * Blow away any existing copy of zpool.cache
