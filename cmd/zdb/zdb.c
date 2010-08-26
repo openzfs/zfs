@@ -645,8 +645,9 @@ dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
 	char *types[4] = { "ditto", "single", "double", "triple" };
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
+	int p;
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
@@ -733,13 +734,19 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 static void
 dump_all_ddts(spa_t *spa)
 {
-	ddt_histogram_t ddh_total = { 0 };
-	ddt_stat_t dds_total = { 0 };
+	ddt_histogram_t ddh_total;
+	ddt_stat_t dds_total;
+	enum zio_checksum c;
+	enum ddt_type type;
+	enum ddt_class class;
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+	bzero(&ddh_total, sizeof (ddt_histogram_t));
+	bzero(&dds_total, sizeof (ddt_stat_t));
+
+	for (c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (type = 0; type < DDT_TYPES; type++) {
+			for (class = 0; class < DDT_CLASSES;
 			    class++) {
 				dump_ddt(ddt, type, class);
 			}
@@ -783,6 +790,7 @@ dump_dtl(vdev_t *vd, int indent)
 	boolean_t required;
 	char *name[DTL_TYPES] = { "missing", "partial", "scrub", "outage" };
 	char prefix[256];
+	int c, t;
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 	required = vdev_dtl_required(vd);
@@ -796,7 +804,7 @@ dump_dtl(vdev_t *vd, int indent)
 	    vd->vdev_parent ? vd->vdev_ops->vdev_op_type : spa_name(spa),
 	    required ? "DTL-required" : "DTL-expendable");
 
-	for (int t = 0; t < DTL_TYPES; t++) {
+	for (t = 0; t < DTL_TYPES; t++) {
 		space_map_t *sm = &vd->vdev_dtl[t];
 		if (sm->sm_space == 0)
 			continue;
@@ -810,7 +818,7 @@ dump_dtl(vdev_t *vd, int indent)
 			    &vd->vdev_dtl_smo, sm);
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		dump_dtl(vd->vdev_child[c], indent + 4);
 }
 
@@ -826,6 +834,7 @@ dump_history(spa_t *spa)
 	struct tm t;
 	char tbuf[30];
 	char internalstr[MAXPATHLEN];
+	int i;
 
 	do {
 		len = sizeof (buf);
@@ -843,7 +852,7 @@ dump_history(spa_t *spa)
 	} while (len != 0);
 
 	(void) printf("\nHistory:\n");
-	for (int i = 0; i < num; i++) {
+	for (i = 0; i < num; i++) {
 		uint64_t time, txg, ievent;
 		char *cmd, *intstr;
 
@@ -904,6 +913,7 @@ sprintf_blkptr_compact(char *blkbuf, const blkptr_t *bp)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = dump_opt['d'] > 5 ? BP_GET_NDVAS(bp) : 1;
+	int i;
 
 	if (dump_opt['b'] >= 5) {
 		sprintf_blkptr(blkbuf, bp);
@@ -912,7 +922,7 @@ sprintf_blkptr_compact(char *blkbuf, const blkptr_t *bp)
 
 	blkbuf[0] = '\0';
 
-	for (int i = 0; i < ndvas; i++)
+	for (i = 0; i < ndvas; i++)
 		(void) sprintf(blkbuf + strlen(blkbuf), "%llu:%llx:%llx ",
 		    (u_longlong_t)DVA_GET_VDEV(&dva[i]),
 		    (u_longlong_t)DVA_GET_OFFSET(&dva[i]),
@@ -1751,11 +1761,12 @@ dump_label_uberblocks(vdev_label_t *lbl, uint64_t ashift)
 	vdev_t vd;
 	vdev_t *vdp = &vd;
 	char header[ZDB_MAX_UB_HEADER_SIZE];
+	int i;
 
 	vd.vdev_ashift = ashift;
 	vdp->vdev_top = vdp;
 
-	for (int i = 0; i < VDEV_UBERBLOCK_COUNT(vdp); i++) {
+	for (i = 0; i < VDEV_UBERBLOCK_COUNT(vdp); i++) {
 		uint64_t uoff = VDEV_UBERBLOCK_OFFSET(vdp, i);
 		uberblock_t *ub = (void *)((char *)lbl + uoff);
 
@@ -1777,6 +1788,7 @@ dump_label(const char *dev)
 	struct stat64 statbuf;
 	uint64_t psize, ashift;
 	int len = strlen(dev) + 1;
+	int l;
 
 	if (strncmp(dev, "/dev/dsk/", 9) == 0) {
 		len++;
@@ -1811,7 +1823,7 @@ dump_label(const char *dev)
 	psize = statbuf.st_size;
 	psize = P2ALIGN(psize, (uint64_t)sizeof (vdev_label_t));
 
-	for (int l = 0; l < VDEV_LABELS; l++) {
+	for (l = 0; l < VDEV_LABELS; l++) {
 		nvlist_t *config = NULL;
 
 		(void) printf("--------------------------------------------\n");
@@ -1905,13 +1917,14 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
     dmu_object_type_t type)
 {
 	uint64_t refcnt = 0;
+	int i;
 
 	ASSERT(type < ZDB_OT_TOTAL);
 
 	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
 		return;
 
-	for (int i = 0; i < 4; i++) {
+	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : ZDB_OT_TOTAL;
 		zdb_blkstats_t *zb = &zcb->zcb_type[l][t];
@@ -2063,6 +2076,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	ddt_bookmark_t ddb = { 0 };
 	ddt_entry_t dde;
 	int error;
+	int p;
 
 	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
 		blkptr_t blk;
@@ -2073,7 +2087,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 
 		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
 
-		for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 			if (ddp->ddp_phys_birth == 0)
 				continue;
 			ddt_bp_create(ddb.ddb_checksum,
@@ -2101,12 +2115,13 @@ static void
 zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	zcb->zcb_spa = spa;
+	int c, m;
 
 	if (!dump_opt['L']) {
 		vdev_t *rvd = spa->spa_root_vdev;
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
-			for (int m = 0; m < vd->vdev_ms_count; m++) {
+			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				mutex_enter(&msp->ms_lock);
 				space_map_unload(&msp->ms_map);
@@ -2129,11 +2144,13 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 static void
 zdb_leak_fini(spa_t *spa)
 {
+	int c, m;
+
 	if (!dump_opt['L']) {
 		vdev_t *rvd = spa->spa_root_vdev;
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
-			for (int m = 0; m < vd->vdev_ms_count; m++) {
+			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				mutex_enter(&msp->ms_lock);
 				space_map_unload(&msp->ms_map);
@@ -2167,6 +2184,7 @@ dump_block_stats(spa_t *spa)
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD;
 	int leaks = 0;
+	int e;
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
@@ -2201,7 +2219,7 @@ dump_block_stats(spa_t *spa)
 	if (zcb.zcb_haderrors) {
 		(void) printf("\nError counts:\n\n");
 		(void) printf("\t%5s  %s\n", "errno", "count");
-		for (int e = 0; e < 256; e++) {
+		for (e = 0; e < 256; e++) {
 			if (zcb.zcb_errors[e] != 0) {
 				(void) printf("\t%5d  %llu\n",
 				    e, (u_longlong_t)zcb.zcb_errors[e]);

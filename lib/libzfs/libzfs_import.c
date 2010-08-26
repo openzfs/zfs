@@ -410,7 +410,9 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 boolean_t
 vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
 {
-	for (int c = 0; c < holes; c++) {
+	int c;
+
+	for (c = 0; c < holes; c++) {
 
 		/* Top-level is a hole */
 		if (hole_array[c] == id)

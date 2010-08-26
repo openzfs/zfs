@@ -1611,6 +1611,7 @@ void
 dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 {
 	dnode_phys_t *dnp;
+	int i;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	mutex_enter(&dn->dn_mtx);
@@ -1629,7 +1630,7 @@ dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_physical_blocks_512 = (DN_USED_BYTES(dnp) + 256) >> 9;
 	doi->doi_max_offset = (dnp->dn_maxblkid + 1) * dn->dn_datablksz;
 	doi->doi_fill_count = 0;
-	for (int i = 0; i < dnp->dn_nblkptr; i++)
+	for (i = 0; i < dnp->dn_nblkptr; i++)
 		doi->doi_fill_count += dnp->dn_blkptr[i].blk_fill;
 
 	mutex_exit(&dn->dn_mtx);

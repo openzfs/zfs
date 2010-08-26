@@ -437,6 +437,7 @@ vdev_label_read_config(vdev_t *vd)
 	zio_t *zio;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
+	int l;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
@@ -446,7 +447,7 @@ vdev_label_read_config(vdev_t *vd)
 	vp = zio_buf_alloc(sizeof (vdev_phys_t));
 
 retry:
-	for (int l = 0; l < VDEV_LABELS; l++) {
+	for (l = 0; l < VDEV_LABELS; l++) {
 
 		zio = zio_root(spa, NULL, NULL, flags);
 
@@ -611,10 +612,12 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	int error;
 	uint64_t spare_guid, l2cache_guid;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
+	int c, l;
+	vdev_t *pvd;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		if ((error = vdev_label_init(vd->vdev_child[c],
 		    crtxg, reason)) != 0)
 			return (error);
@@ -650,7 +653,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 
 		vd->vdev_guid += guid_delta;
 
-		for (vdev_t *pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
+		for (pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
 			pvd->vdev_guid_sum += guid_delta;
 
 		/*
@@ -670,7 +673,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 
 		vd->vdev_guid += guid_delta;
 
-		for (vdev_t *pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
+		for (pvd = vd; pvd != NULL; pvd = pvd->vdev_parent)
 			pvd->vdev_guid_sum += guid_delta;
 
 		/*
@@ -770,7 +773,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 retry:
 	zio = zio_root(spa, NULL, NULL, flags);
 
-	for (int l = 0; l < VDEV_LABELS; l++) {
+	for (l = 0; l < VDEV_LABELS; l++) {
 
 		vdev_label_write(zio, vd, l, vp,
 		    offsetof(vdev_label_t, vl_vdev_phys),
@@ -881,6 +884,7 @@ vdev_uberblock_load(zio_t *zio, vdev_t *vd, uberblock_t *ubbest)
 	vdev_t *rvd = spa->spa_root_vdev;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
+	int c, l, n;
 
 	if (vd == rvd) {
 		ASSERT(zio == NULL);
@@ -891,12 +895,12 @@ vdev_uberblock_load(zio_t *zio, vdev_t *vd, uberblock_t *ubbest)
 
 	ASSERT(zio != NULL);
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_uberblock_load(zio, vd->vdev_child[c], ubbest);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
-		for (int l = 0; l < VDEV_LABELS; l++) {
-			for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
+		for (l = 0; l < VDEV_LABELS; l++) {
+			for (n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 				vdev_label_read(zio, vd, l,
 				    zio_buf_alloc(VDEV_UBERBLOCK_SIZE(vd)),
 				    VDEV_UBERBLOCK_OFFSET(vd, n),
@@ -932,9 +936,9 @@ static void
 vdev_uberblock_sync(zio_t *zio, uberblock_t *ub, vdev_t *vd, int flags)
 {
 	uberblock_t *ubbuf;
-	int n;
+	int c, l, n;
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_uberblock_sync(zio, ub, vd->vdev_child[c], flags);
 
 	if (!vd->vdev_ops->vdev_op_leaf)
@@ -949,7 +953,7 @@ vdev_uberblock_sync(zio_t *zio, uberblock_t *ub, vdev_t *vd, int flags)
 	bzero(ubbuf, VDEV_UBERBLOCK_SIZE(vd));
 	*ubbuf = *ub;
 
-	for (int l = 0; l < VDEV_LABELS; l++)
+	for (l = 0; l < VDEV_LABELS; l++)
 		vdev_label_write(zio, vd, l, ubbuf,
 		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
 		    vdev_uberblock_sync_done, zio->io_private,
@@ -964,10 +968,11 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	spa_t *spa = svd[0]->vdev_spa;
 	zio_t *zio;
 	uint64_t good_writes = 0;
+	int v;
 
 	zio = zio_root(spa, NULL, &good_writes, flags);
 
-	for (int v = 0; v < svdcount; v++)
+	for (v = 0; v < svdcount; v++)
 		vdev_uberblock_sync(zio, ub, svd[v], flags);
 
 	(void) zio_wait(zio);
@@ -979,7 +984,7 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	 */
 	zio = zio_root(spa, NULL, NULL, flags);
 
-	for (int v = 0; v < svdcount; v++)
+	for (v = 0; v < svdcount; v++)
 		zio_flush(zio, svd[v]);
 
 	(void) zio_wait(zio);
@@ -1032,8 +1037,9 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	vdev_phys_t *vp;
 	char *buf;
 	size_t buflen;
+	int c;
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		vdev_label_sync(zio, vd->vdev_child[c], l, txg, flags);
 
 	if (!vd->vdev_ops->vdev_op_leaf)
@@ -1081,12 +1087,13 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd)) {
-		uint64_t *good_writes = kmem_zalloc(sizeof (uint64_t),
-		    KM_SLEEP);
+		uint64_t *good_writes;
+		zio_t *vio;
 
 		ASSERT(!vd->vdev_ishole);
 
-		zio_t *vio = zio_null(zio, spa, NULL,
+		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
+		vio = zio_null(zio, spa, NULL,
 		    (vd->vdev_islog || vd->vdev_aux != NULL) ?
 		    vdev_label_sync_ignore_done : vdev_label_sync_top_done,
 		    good_writes, flags);

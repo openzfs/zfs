@@ -692,8 +692,9 @@ upgrade_dir_clones_cb(spa_t *spa, uint64_t dsobj, const char *dsname, void *arg)
 void
 dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 {
-	ASSERT(dmu_tx_is_syncing(tx));
 	uint64_t obj;
+
+	ASSERT(dmu_tx_is_syncing(tx));
 
 	(void) dsl_dir_create_sync(dp, dp->dp_root_dir, FREE_DIR_NAME, tx);
 	VERIFY(0 == dsl_pool_open_special_dir(dp,

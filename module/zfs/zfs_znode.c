@@ -1919,8 +1919,8 @@ zfs_grab_sa_handle(objset_t *osp, uint64_t obj, sa_handle_t **hdlp,
 	dmu_object_info_from_db(*db, &doi);
 	if ((doi.doi_bonus_type != DMU_OT_SA &&
 	    doi.doi_bonus_type != DMU_OT_ZNODE) ||
-	    doi.doi_bonus_type == DMU_OT_ZNODE &&
-	    doi.doi_bonus_size < sizeof (znode_phys_t)) {
+	    (doi.doi_bonus_type == DMU_OT_ZNODE &&
+	    doi.doi_bonus_size < sizeof (znode_phys_t))) {
 		sa_buf_rele(*db, FTAG);
 		return (ENOTSUP);
 	}

@@ -1426,10 +1426,11 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
 static void
 arc_hdr_destroy(arc_buf_hdr_t *hdr)
 {
+	l2arc_buf_hdr_t *l2hdr = hdr->b_l2hdr;
+
 	ASSERT(refcount_is_zero(&hdr->b_refcnt));
 	ASSERT3P(hdr->b_state, ==, arc_anon);
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
-	l2arc_buf_hdr_t *l2hdr = hdr->b_l2hdr;
 
 	if (l2hdr != NULL) {
 		boolean_t buflist_held = MUTEX_HELD(&l2arc_buflist_mtx);
@@ -4235,6 +4236,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
 	uint64_t guid = spa_guid(spa);
+	int try;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
@@ -4248,7 +4250,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	 * Copy buffers for L2ARC writing.
 	 */
 	mutex_enter(&l2arc_buflist_mtx);
-	for (int try = 0; try <= 3; try++) {
+	for (try = 0; try <= 3; try++) {
 		list = l2arc_list_locked(try, &list_lock);
 		passed_sz = 0;
 

@@ -1620,6 +1620,7 @@ zilog_t *
 zil_alloc(objset_t *os, zil_header_t *zh_phys)
 {
 	zilog_t *zilog;
+	int i;
 
 	zilog = kmem_zalloc(sizeof (zilog_t), KM_SLEEP);
 
@@ -1634,7 +1635,7 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	for (int i = 0; i < TXG_SIZE; i++) {
+	for (i = 0; i < TXG_SIZE; i++) {
 		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
 		    MUTEX_DEFAULT, NULL);
 	}
@@ -1662,6 +1663,7 @@ void
 zil_free(zilog_t *zilog)
 {
 	lwb_t *head_lwb;
+	int i;
 
 	zilog->zl_stop_sync = 1;
 
@@ -1683,7 +1685,7 @@ zil_free(zilog_t *zilog)
 	ASSERT(list_is_empty(&zilog->zl_itx_commit_list));
 	list_destroy(&zilog->zl_itx_commit_list);
 
-	for (int i = 0; i < TXG_SIZE; i++) {
+	for (i = 0; i < TXG_SIZE; i++) {
 		/*
 		 * It's possible for an itx to be generated that doesn't dirty
 		 * a txg (e.g. ztest TX_TRUNCATE). So there's no zil_clean()

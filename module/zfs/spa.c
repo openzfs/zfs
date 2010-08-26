@@ -653,8 +653,10 @@ spa_taskq_create(spa_t *spa, const char *name, enum zti_modes mode,
 static void
 spa_create_zio_taskqs(spa_t *spa)
 {
-	for (int t = 0; t < ZIO_TYPES; t++) {
-		for (int q = 0; q < ZIO_TASKQ_TYPES; q++) {
+	int t, q;
+
+	for (t = 0; t < ZIO_TYPES; t++) {
+		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
 			const zio_taskq_info_t *ztip = &zio_taskqs[t][q];
 			enum zti_modes mode = ztip->zti_mode;
 			uint_t value = ztip->zti_value;
@@ -808,6 +810,8 @@ spa_activate(spa_t *spa, int mode)
 static void
 spa_deactivate(spa_t *spa)
 {
+	int t, q;
+
 	ASSERT(spa->spa_sync_on == B_FALSE);
 	ASSERT(spa->spa_dsl_pool == NULL);
 	ASSERT(spa->spa_root_vdev == NULL);
@@ -819,8 +823,8 @@ spa_deactivate(spa_t *spa)
 	list_destroy(&spa->spa_config_dirty_list);
 	list_destroy(&spa->spa_state_dirty_list);
 
-	for (int t = 0; t < ZIO_TYPES; t++) {
-		for (int q = 0; q < ZIO_TASKQ_TYPES; q++) {
+	for (t = 0; t < ZIO_TYPES; t++) {
+		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
 			if (spa->spa_zio_taskq[t][q] != NULL)
 				taskq_destroy(spa->spa_zio_taskq[t][q]);
 			spa->spa_zio_taskq[t][q] = NULL;
@@ -883,6 +887,7 @@ spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
 	nvlist_t **child;
 	uint_t children;
 	int error;
+	int c;
 
 	if ((error = vdev_alloc(spa, vdp, nv, parent, id, atype)) != 0)
 		return (error);
@@ -902,7 +907,7 @@ spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
 		return (EINVAL);
 	}
 
-	for (int c = 0; c < children; c++) {
+	for (c = 0; c < children; c++) {
 		vdev_t *vd;
 		if ((error = spa_config_parse(spa, &vd, child[c], *vdp, c,
 		    atype)) != 0) {
@@ -1279,7 +1284,9 @@ load_nvlist(spa_t *spa, uint64_t obj, nvlist_t **value)
 static void
 spa_check_removed(vdev_t *vd)
 {
-	for (int c = 0; c < vd->vdev_children; c++)
+	int c;
+
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_check_removed(vd->vdev_child[c]);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd)) {
@@ -1296,6 +1303,7 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 {
 	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
 	nvlist_t *nv;
+	int c, i;
 
 	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nv) == 0);
 
@@ -1317,7 +1325,7 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 		    KM_SLEEP);
 		VERIFY(nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *tvd = rvd->vdev_child[c];
 			vdev_t *mtvd  = mrvd->vdev_child[c];
 
@@ -1334,7 +1342,7 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 			VERIFY(nvlist_add_nvlist(spa->spa_load_info,
 			    ZPOOL_CONFIG_MISSING_DEVICES, nv) == 0);
 
-			for (int i = 0; i < idx; i++)
+			for (i = 0; i < idx; i++)
 				nvlist_free(child[i]);
 		}
 		nvlist_free(nv);
@@ -1346,7 +1354,7 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 	 * from the MOS config (mrvd). Check each top-level vdev
 	 * with the corresponding MOS config top-level (mtvd).
 	 */
-	for (int c = 0; c < rvd->vdev_children; c++) {
+	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		vdev_t *mtvd  = mrvd->vdev_child[c];
 
@@ -1435,13 +1443,14 @@ spa_passivate_log(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	boolean_t slog_found = B_FALSE;
+	int c;
 
 	ASSERT(spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
 	if (!spa_has_slogs(spa))
 		return (B_FALSE);
 
-	for (int c = 0; c < rvd->vdev_children; c++) {
+	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
 
@@ -1458,10 +1467,11 @@ static void
 spa_activate_log(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
+	int c;
 
 	ASSERT(spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
-	for (int c = 0; c < rvd->vdev_children; c++) {
+	for (c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
 
@@ -1491,7 +1501,9 @@ spa_offline_log(spa_t *spa)
 static void
 spa_aux_check_removed(spa_aux_vdev_t *sav)
 {
-	for (int i = 0; i < sav->sav_count; i++)
+	int i;
+
+	for (i = 0; i < sav->sav_count; i++)
 		spa_check_removed(sav->sav_vdevs[i]);
 }
 
@@ -2163,6 +2175,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	    spa->spa_load_max_txg == UINT64_MAX)) {
 		dmu_tx_t *tx;
 		int need_update = B_FALSE;
+		int c;
 
 		ASSERT(state != SPA_LOAD_TRYIMPORT);
 
@@ -2209,7 +2222,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		    (spa->spa_import_flags & ZFS_IMPORT_VERBATIM))
 			need_update = B_TRUE;
 
-		for (int c = 0; c < rvd->vdev_children; c++)
+		for (c = 0; c < rvd->vdev_children; c++)
 			if (rvd->vdev_child[c]->vdev_ms_array == 0)
 				need_update = B_TRUE;
 
@@ -2845,6 +2858,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
 	uint64_t version, obj;
+	int c;
 
 	/*
 	 * If this pool already exists, return failure.
@@ -2903,7 +2917,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
 	    (error = spa_validate_aux(spa, nvroot, txg,
 	    VDEV_ALLOC_ADD)) == 0) {
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (c = 0; c < rvd->vdev_children; c++) {
 			vdev_metaslab_set_size(rvd->vdev_child[c]);
 			vdev_expand(rvd->vdev_child[c], txg);
 		}
@@ -3103,7 +3117,9 @@ spa_generate_rootconf(char *devpath, char *devid, uint64_t *guid)
 static void
 spa_alt_rootvdev(vdev_t *vd, vdev_t **avd, uint64_t *txg)
 {
-	for (int c = 0; c < vd->vdev_children; c++)
+	int c;
+
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_alt_rootvdev(vd->vdev_child[c], avd, txg);
 
 	if (vd->vdev_ops->vdev_op_leaf) {
@@ -3687,6 +3703,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	vdev_t *vd, *tvd;
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
+	int c;
 
 	ASSERT(spa_writeable(spa));
 
@@ -3723,7 +3740,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	/*
 	 * Transfer each new top-level vdev from vd to rvd.
 	 */
-	for (int c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 
 		/*
 		 * Set the vdev id to the first hole, if one exists.
@@ -3999,6 +4016,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid;
 	char *vdpath;
+	int c, t;
 
 	ASSERT(spa_writeable(spa));
 
@@ -4066,7 +4084,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	    vd->vdev_path != NULL) {
 		size_t len = strlen(vd->vdev_path);
 
-		for (int c = 0; c < pvd->vdev_children; c++) {
+		for (c = 0; c < pvd->vdev_children; c++) {
 			cvd = pvd->vdev_child[c];
 
 			if (cvd == vd || cvd->vdev_path == NULL)
@@ -4174,7 +4192,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * prevent vd from being accessed after it's freed.
 	 */
 	vdpath = spa_strdup(vd->vdev_path);
-	for (int t = 0; t < TXG_SIZE; t++)
+	for (t = 0; t < TXG_SIZE; t++)
 		(void) txg_list_remove_this(&tvd->vdev_dtl_list, vd, t);
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
@@ -4509,7 +4527,9 @@ out:
 static nvlist_t *
 spa_nvlist_lookup_by_guid(nvlist_t **nvpp, int count, uint64_t target_guid)
 {
-	for (int i = 0; i < count; i++) {
+	int i;
+
+	for (i = 0; i < count; i++) {
 		uint64_t guid;
 
 		VERIFY(nvlist_lookup_uint64(nvpp[i], ZPOOL_CONFIG_GUID,
@@ -4527,11 +4547,12 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	nvlist_t *dev_to_remove)
 {
 	nvlist_t **newdev = NULL;
+	int i, j;
 
 	if (count > 1)
 		newdev = kmem_alloc((count - 1) * sizeof (void *), KM_SLEEP);
 
-	for (int i = 0, j = 0; i < count; i++) {
+	for (i = 0, j = 0; i < count; i++) {
 		if (dev[i] == dev_to_remove)
 			continue;
 		VERIFY(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP) == 0);
@@ -4540,7 +4561,7 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
 	VERIFY(nvlist_add_nvlist_array(config, name, newdev, count - 1) == 0);
 
-	for (int i = 0; i < count - 1; i++)
+	for (i = 0; i < count - 1; i++)
 		nvlist_free(newdev[i]);
 
 	if (count > 1)
@@ -4761,8 +4782,9 @@ static vdev_t *
 spa_vdev_resilver_done_hunt(vdev_t *vd)
 {
 	vdev_t *newvd, *oldvd;
+	int c;
 
-	for (int c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		oldvd = spa_vdev_resilver_done_hunt(vd->vdev_child[c]);
 		if (oldvd != NULL)
 			return (oldvd);
@@ -4965,6 +4987,8 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 static void
 spa_async_remove(spa_t *spa, vdev_t *vd)
 {
+	int c;
+
 	if (vd->vdev_remove_wanted) {
 		vd->vdev_remove_wanted = B_FALSE;
 		vd->vdev_delayed_close = B_FALSE;
@@ -4983,19 +5007,21 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 		vdev_state_dirty(vd->vdev_top);
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_async_remove(spa, vd->vdev_child[c]);
 }
 
 static void
 spa_async_probe(spa_t *spa, vdev_t *vd)
 {
+	int c;
+
 	if (vd->vdev_probe_wanted) {
 		vd->vdev_probe_wanted = B_FALSE;
 		vdev_reopen(vd);	/* vdev_open() does the actual probe */
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		spa_async_probe(spa, vd->vdev_child[c]);
 }
 
@@ -5005,11 +5031,12 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	sysevent_id_t eid;
 	nvlist_t *attr;
 	char *physpath;
+	int c;
 
 	if (!spa->spa_autoexpand)
 		return;
 
-	for (int c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 		spa_async_autoexpand(spa, cvd);
 	}
@@ -5033,7 +5060,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 static void
 spa_async_thread(spa_t *spa)
 {
-	int tasks;
+	int tasks, i;
 
 	ASSERT(spa->spa_sync_on);
 
@@ -5072,9 +5099,9 @@ spa_async_thread(spa_t *spa)
 	if (tasks & SPA_ASYNC_REMOVE) {
 		spa_vdev_state_enter(spa, SCL_NONE);
 		spa_async_remove(spa, spa->spa_root_vdev);
-		for (int i = 0; i < spa->spa_l2cache.sav_count; i++)
+		for (i = 0; i < spa->spa_l2cache.sav_count; i++)
 			spa_async_remove(spa, spa->spa_l2cache.sav_vdevs[i]);
-		for (int i = 0; i < spa->spa_spares.sav_count; i++)
+		for (i = 0; i < spa->spa_spares.sav_count; i++)
 			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i]);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}
@@ -5460,6 +5487,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	vdev_t *vd;
 	dmu_tx_t *tx;
 	int error;
+	int c;
 
 	VERIFY(spa_writeable(spa));
 
@@ -5593,7 +5621,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 			int children = rvd->vdev_children;
 			int c0 = spa_get_random(children);
 
-			for (int c = 0; c < children; c++) {
+			for (c = 0; c < children; c++) {
 				vd = rvd->vdev_child[(c0 + c) % children];
 				if (vd->vdev_ms_array == 0 || vd->vdev_islog)
 					continue;

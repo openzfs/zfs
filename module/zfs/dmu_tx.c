@@ -216,6 +216,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	uint64_t start, end, i;
 	int min_bs, max_bs, min_ibs, max_ibs, epbs, bits;
 	int err = 0;
+	int l;
 
 	if (len == 0)
 		return;
@@ -303,7 +304,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		 * we need to account for overwrites/unref.
 		 */
 		if (start <= dn->dn_maxblkid) {
-			for (int l = 0; l < DN_MAX_LEVELS; l++)
+			for (l = 0; l < DN_MAX_LEVELS; l++)
 				history[l] = -1ULL;
 		}
 		while (start <= dn->dn_maxblkid) {

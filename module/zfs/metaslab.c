@@ -730,6 +730,7 @@ void
 metaslab_fini(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
+	int t;
 
 	vdev_space_update(mg->mg_vd,
 	    -msp->ms_smo.smo_alloc, 0, -msp->ms_map.sm_size);
@@ -741,12 +742,12 @@ metaslab_fini(metaslab_t *msp)
 	space_map_unload(&msp->ms_map);
 	space_map_destroy(&msp->ms_map);
 
-	for (int t = 0; t < TXG_SIZE; t++) {
+	for (t = 0; t < TXG_SIZE; t++) {
 		space_map_destroy(&msp->ms_allocmap[t]);
 		space_map_destroy(&msp->ms_freemap[t]);
 	}
 
-	for (int t = 0; t < TXG_DEFER_SIZE; t++)
+	for (t = 0; t < TXG_DEFER_SIZE; t++)
 		space_map_destroy(&msp->ms_defermap[t]);
 
 	ASSERT3S(msp->ms_deferspace, ==, 0);
@@ -849,6 +850,7 @@ metaslab_activate(metaslab_t *msp, uint64_t activation_weight, uint64_t size)
 	metaslab_group_t *mg = msp->ms_group;
 	space_map_t *sm = &msp->ms_map;
 	space_map_ops_t *sm_ops = msp->ms_group->mg_class->mc_ops;
+	int t;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -862,7 +864,7 @@ metaslab_activate(metaslab_t *msp, uint64_t activation_weight, uint64_t size)
 				metaslab_group_sort(msp->ms_group, msp, 0);
 				return (error);
 			}
-			for (int t = 0; t < TXG_DEFER_SIZE; t++)
+			for (t = 0; t < TXG_DEFER_SIZE; t++)
 				space_map_walk(&msp->ms_defermap[t],
 				    space_map_claim, sm);
 
@@ -922,6 +924,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	space_map_obj_t *smo = &msp->ms_smo_syncing;
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
+	int t;
 
 	ASSERT(!vd->vdev_ishole);
 
@@ -977,11 +980,11 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		space_map_walk(sm, space_map_remove, allocmap);
 		space_map_walk(freed_map, space_map_remove, allocmap);
 
-		for (int t = 0; t < TXG_DEFER_SIZE; t++)
+		for (t = 0; t < TXG_DEFER_SIZE; t++)
 			space_map_walk(&msp->ms_defermap[t],
 			    space_map_remove, allocmap);
 
-		for (int t = 1; t < TXG_CONCURRENT_STATES; t++)
+		for (t = 1; t < TXG_CONCURRENT_STATES; t++)
 			space_map_walk(&msp->ms_allocmap[(txg + t) & TXG_MASK],
 			    space_map_remove, allocmap);
 
@@ -1019,6 +1022,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
 	int64_t alloc_delta, defer_delta;
+	int t;
 
 	ASSERT(!vd->vdev_ishole);
 
@@ -1029,14 +1033,14 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * allocmaps and freemaps and add its capacity to the vdev.
 	 */
 	if (freed_map->sm_size == 0) {
-		for (int t = 0; t < TXG_SIZE; t++) {
+		for (t = 0; t < TXG_SIZE; t++) {
 			space_map_create(&msp->ms_allocmap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 			space_map_create(&msp->ms_freemap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 		}
 
-		for (int t = 0; t < TXG_DEFER_SIZE; t++)
+		for (t = 0; t < TXG_DEFER_SIZE; t++)
 			space_map_create(&msp->ms_defermap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 
@@ -1082,7 +1086,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	if (sm->sm_loaded && (msp->ms_weight & METASLAB_ACTIVE_MASK) == 0) {
 		int evictable = 1;
 
-		for (int t = 1; t < TXG_CONCURRENT_STATES; t++)
+		for (t = 1; t < TXG_CONCURRENT_STATES; t++)
 			if (msp->ms_allocmap[(txg + t) & TXG_MASK].sm_space)
 				evictable = 0;
 
@@ -1099,12 +1103,13 @@ void
 metaslab_sync_reassess(metaslab_group_t *mg)
 {
 	vdev_t *vd = mg->mg_vd;
+	int m;
 
 	/*
 	 * Re-evaluate all metaslabs which have lower offsets than the
 	 * bonus area.
 	 */
-	for (int m = 0; m < vd->vdev_ms_count; m++) {
+	for (m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
 
 		if (msp->ms_map.sm_start > mg->mg_bonus_area)
@@ -1517,7 +1522,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = hintbp->blk_dva;
-	int error = 0;
+	int d, error = 0;
 
 	ASSERT(bp->blk_birth == 0);
 	ASSERT(BP_PHYSICAL_BIRTH(bp) == 0);
@@ -1533,7 +1538,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	ASSERT(BP_GET_NDVAS(bp) == 0);
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 
-	for (int d = 0; d < ndvas; d++) {
+	for (d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
 		    txg, flags);
 		if (error) {
@@ -1559,14 +1564,14 @@ void
 metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 {
 	const dva_t *dva = bp->blk_dva;
-	int ndvas = BP_GET_NDVAS(bp);
+	int d, ndvas = BP_GET_NDVAS(bp);
 
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(!now || bp->blk_birth >= spa_syncing_txg(spa));
 
 	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
 
-	for (int d = 0; d < ndvas; d++)
+	for (d = 0; d < ndvas; d++)
 		metaslab_free_dva(spa, &dva[d], txg, now);
 
 	spa_config_exit(spa, SCL_FREE, FTAG);
@@ -1577,7 +1582,7 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = BP_GET_NDVAS(bp);
-	int error = 0;
+	int d, error = 0;
 
 	ASSERT(!BP_IS_HOLE(bp));
 
@@ -1592,7 +1597,7 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
-	for (int d = 0; d < ndvas; d++)
+	for (d = 0; d < ndvas; d++)
 		if ((error = metaslab_claim_dva(spa, &dva[d], txg)) != 0)
 			break;
 

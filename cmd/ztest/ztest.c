@@ -979,25 +979,28 @@ ztest_zd_init(ztest_ds_t *zd, objset_t *os)
 	zd->zd_zilog = dmu_objset_zil(os);
 	zd->zd_seq = 0;
 	dmu_objset_name(os, zd->zd_name);
+	int l;
 
 	VERIFY(_mutex_init(&zd->zd_dirobj_lock, USYNC_THREAD, NULL) == 0);
 
-	for (int l = 0; l < ZTEST_OBJECT_LOCKS; l++)
+	for (l = 0; l < ZTEST_OBJECT_LOCKS; l++)
 		ztest_rll_init(&zd->zd_object_lock[l]);
 
-	for (int l = 0; l < ZTEST_RANGE_LOCKS; l++)
+	for (l = 0; l < ZTEST_RANGE_LOCKS; l++)
 		ztest_rll_init(&zd->zd_range_lock[l]);
 }
 
 static void
 ztest_zd_fini(ztest_ds_t *zd)
 {
+	int l;
+
 	VERIFY(_mutex_destroy(&zd->zd_dirobj_lock) == 0);
 
-	for (int l = 0; l < ZTEST_OBJECT_LOCKS; l++)
+	for (l = 0; l < ZTEST_OBJECT_LOCKS; l++)
 		ztest_rll_destroy(&zd->zd_object_lock[l]);
 
-	for (int l = 0; l < ZTEST_RANGE_LOCKS; l++)
+	for (l = 0; l < ZTEST_RANGE_LOCKS; l++)
 		ztest_rll_destroy(&zd->zd_range_lock[l]);
 }
 
@@ -1731,10 +1734,11 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 {
 	int missing = 0;
 	int error;
+	int i;
 
 	ASSERT(_mutex_held(&zd->zd_dirobj_lock));
 
-	for (int i = 0; i < count; i++, od++) {
+	for (i = 0; i < count; i++, od++) {
 		od->od_object = 0;
 		error = zap_lookup(zd->zd_os, od->od_dir, od->od_name,
 		    sizeof (uint64_t), 1, &od->od_object);
@@ -1771,10 +1775,11 @@ static int
 ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 {
 	int missing = 0;
+	int i;
 
 	ASSERT(_mutex_held(&zd->zd_dirobj_lock));
 
-	for (int i = 0; i < count; i++, od++) {
+	for (i = 0; i < count; i++, od++) {
 		if (missing) {
 			od->od_object = 0;
 			missing++;
@@ -1816,12 +1821,13 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 {
 	int missing = 0;
 	int error;
+	int i;
 
 	ASSERT(_mutex_held(&zd->zd_dirobj_lock));
 
 	od += count - 1;
 
-	for (int i = count - 1; i >= 0; i--, od--) {
+	for (i = count - 1; i >= 0; i--, od--) {
 		if (missing) {
 			missing++;
 			continue;
@@ -2108,11 +2114,12 @@ static vdev_t *
 vdev_lookup_by_path(vdev_t *vd, const char *path)
 {
 	vdev_t *mvd;
+	int c;
 
 	if (vd->vdev_path != NULL && strcmp(path, vd->vdev_path) == 0)
 		return (vd);
 
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (c = 0; c < vd->vdev_children; c++)
 		if ((mvd = vdev_lookup_by_path(vd->vdev_child[c], path)) !=
 		    NULL)
 			return (mvd);
@@ -2662,6 +2669,8 @@ online_vdev(vdev_t *vd, void *arg)
 vdev_t *
 vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 {
+	uint_t c;
+
 	if (vd->vdev_ops->vdev_op_leaf) {
 		if (func == NULL)
 			return (vd);
@@ -2669,7 +2678,7 @@ vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 			return (func(vd, arg));
 	}
 
-	for (uint_t c = 0; c < vd->vdev_children; c++) {
+	for (c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 		if ((cvd = vdev_walk_tree(cvd, func, arg)) != NULL)
 			return (cvd);
@@ -2914,6 +2923,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	objset_t *os, *os2;
 	char name[MAXNAMELEN];
 	zilog_t *zilog;
+	int i;
 
 	(void) rw_rdlock(&zs->zs_name_lock);
 
@@ -2974,7 +2984,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 * and randomly take a couple of snapshots along the way.
 	 */
 	iters = ztest_random(5);
-	for (int i = 0; i < iters; i++) {
+	for (i = 0; i < iters; i++) {
 		ztest_dmu_object_alloc_free(&zdtmp, id);
 		if (ztest_random(iters) == 0)
 			(void) ztest_snapshot_create(name, i);
@@ -3163,8 +3173,9 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 {
 	ztest_od_t od[4];
 	int batchsize = sizeof (od) / sizeof (od[0]);
+	int b;
 
-	for (int b = 0; b < batchsize; b++)
+	for (b = 0; b < batchsize; b++)
 		ztest_od_init(&od[b], id, FTAG, b, DMU_OT_UINT64_OTHER, 0, 0);
 
 	/*
@@ -3880,6 +3891,7 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	ztest_od_t od[1];
 	uint64_t object, txg;
+	int i;
 
 	ztest_od_init(&od[0], id, FTAG, 0, DMU_OT_ZAP_OTHER, 0, 0);
 
@@ -3893,7 +3905,7 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 	 * and gets upgraded to a fatzap. Also, since we are adding
 	 * 2050 entries we should see ptrtbl growth and leaf-block split.
 	 */
-	for (int i = 0; i < 2050; i++) {
+	for (i = 0; i < 2050; i++) {
 		char name[MAXNAMELEN];
 		uint64_t value = i;
 		dmu_tx_t *tx;
@@ -4240,10 +4252,11 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 		ZFS_PROP_DEDUP
 	};
 	ztest_shared_t *zs = ztest_shared;
+	int p;
 
 	(void) rw_rdlock(&zs->zs_name_lock);
 
-	for (int p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++)
+	for (p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++)
 		(void) ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
 		    ztest_random_dsl_prop(proplist[p]), (int)ztest_random(2));
 
@@ -4580,6 +4593,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	void *buf;
 	blkptr_t blk;
 	int copies = 2 * ZIO_DEDUPDITTO_MIN;
+	int i;
 
 	blocksize = ztest_random_blocksize();
 	blocksize = MIN(blocksize, 2048);	/* because we write so many */
@@ -4620,7 +4634,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Write all the copies of our block.
 	 */
-	for (int i = 0; i < copies; i++) {
+	for (i = 0; i < copies; i++) {
 		uint64_t offset = i * blocksize;
 		VERIFY(dmu_buf_hold(os, object, offset, FTAG, &db,
 		    DMU_READ_NO_PREFETCH) == 0);
@@ -4924,8 +4938,9 @@ ztest_execute(ztest_info_t *zi, uint64_t id)
 	ztest_shared_t *zs = ztest_shared;
 	ztest_ds_t *zd = &zs->zs_zd[id % zopt_datasets];
 	hrtime_t functime = gethrtime();
+	int i;
 
-	for (int i = 0; i < zi->zi_iters; i++)
+	for (i = 0; i < zi->zi_iters; i++)
 		zi->zi_func(zd, id);
 
 	functime = gethrtime() - functime;
@@ -4988,6 +5003,7 @@ static void
 ztest_dataset_destroy(ztest_shared_t *zs, int d)
 {
 	char name[MAXNAMELEN];
+	int t;
 
 	ztest_dataset_name(name, zs->zs_pool, d);
 
@@ -4999,7 +5015,7 @@ ztest_dataset_destroy(ztest_shared_t *zs, int d)
 	 * ztest thread t operates on dataset (t % zopt_datasets),
 	 * so there may be more than one thing to clean up.
 	 */
-	for (int t = d; t < zopt_threads; t += zopt_datasets)
+	for (t = d; t < zopt_threads; t += zopt_datasets)
 		ztest_dsl_dataset_cleanup(name, t);
 
 	(void) dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
@@ -5105,6 +5121,7 @@ ztest_run(ztest_shared_t *zs)
 	spa_t *spa;
 	thread_t resume_tid;
 	int error;
+	int t, d;
 
 	ztest_exiting = B_FALSE;
 
@@ -5163,8 +5180,8 @@ ztest_run(ztest_shared_t *zs)
 	 * we probe a 5-wide window around each power of two.
 	 * This hits all edge cases, including zero and the max.
 	 */
-	for (int t = 0; t < 64; t++) {
-		for (int d = -5; d <= 5; d++) {
+	for (t = 0; t < 64; t++) {
+		for (d = -5; d <= 5; d++) {
 			error = dmu_object_info(spa->spa_meta_objset,
 			    (1ULL << t) + d, NULL);
 			ASSERT(error == 0 || error == ENOENT ||
@@ -5189,7 +5206,7 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Kick off all the tests that run in parallel.
 	 */
-	for (int t = 0; t < zopt_threads; t++) {
+	for (t = 0; t < zopt_threads; t++) {
 		if (t < zopt_datasets && ztest_dataset_open(zs, t) != 0)
 			return;
 		VERIFY(thr_create(0, 0, ztest_thread, (void *)(uintptr_t)t,
@@ -5200,7 +5217,7 @@ ztest_run(ztest_shared_t *zs)
 	 * Wait for all of the tests to complete.  We go in reverse order
 	 * so we don't close datasets while threads are still using them.
 	 */
-	for (int t = zopt_threads - 1; t >= 0; t--) {
+	for (t = zopt_threads - 1; t >= 0; t--) {
 		VERIFY(thr_join(tid[t], NULL, NULL) == 0);
 		if (t < zopt_datasets)
 			ztest_dataset_close(zs, t);
@@ -5423,6 +5440,7 @@ main(int argc, char **argv)
 	char timebuf[100];
 	char numbuf[6];
 	spa_t *spa;
+	int i, f;
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
@@ -5455,7 +5473,7 @@ main(int argc, char **argv)
 	/*
 	 * Create and initialize our storage pool.
 	 */
-	for (int i = 1; i <= zopt_init; i++) {
+	for (i = 1; i <= zopt_init; i++) {
 		bzero(zs, sizeof (ztest_shared_t));
 		if (zopt_verbose >= 3 && zopt_init != 1)
 			(void) printf("ztest_init(), pass %d\n", i);
@@ -5467,7 +5485,7 @@ main(int argc, char **argv)
 	zs->zs_proc_start = gethrtime();
 	zs->zs_proc_stop = zs->zs_proc_start + zopt_time * NANOSEC;
 
-	for (int f = 0; f < ZTEST_FUNCS; f++) {
+	for (f = 0; f < ZTEST_FUNCS; f++) {
 		zi = &zs->zs_info[f];
 		*zi = ztest_info[f];
 		if (zs->zs_proc_start + zi->zi_interval[0] > zs->zs_proc_stop)
@@ -5489,7 +5507,7 @@ main(int argc, char **argv)
 		/*
 		 * Initialize the workload counters for each function.
 		 */
-		for (int f = 0; f < ZTEST_FUNCS; f++) {
+		for (f = 0; f < ZTEST_FUNCS; f++) {
 			zi = &zs->zs_info[f];
 			zi->zi_call_count = 0;
 			zi->zi_call_time = 0;
@@ -5561,7 +5579,7 @@ main(int argc, char **argv)
 			    "Calls", "Time", "Function");
 			(void) printf("%7s %9s   %s\n",
 			    "-----", "----", "--------");
-			for (int f = 0; f < ZTEST_FUNCS; f++) {
+			for (f = 0; f < ZTEST_FUNCS; f++) {
 				Dl_info dli;
 
 				zi = &zs->zs_info[f];

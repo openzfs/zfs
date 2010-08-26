@@ -163,9 +163,11 @@ zrl_exit(zrlock_t *zrl)
 int
 zrl_refcount(zrlock_t *zrl)
 {
+	int n;
+
 	ASSERT(zrl->zr_refcount > ZRL_DESTROYED);
 
-	int n = (int)zrl->zr_refcount;
+	n = (int)zrl->zr_refcount;
 	return (n <= 0 ? 0 : n);
 }
 

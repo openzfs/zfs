@@ -528,8 +528,9 @@ void
 dmu_objset_evict(objset_t *os)
 {
 	dsl_dataset_t *ds = os->os_dsl_dataset;
+	int t;
 
-	for (int t = 0; t < TXG_SIZE; t++)
+	for (t = 0; t < TXG_SIZE; t++)
 		ASSERT(!dmu_objset_is_dirty(os, t));
 
 	if (ds) {
@@ -1041,6 +1042,8 @@ dmu_objset_sync_dnodes(list_t *list, list_t *newlist, dmu_tx_t *tx)
 static void
 dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
+	int i;
+
 	blkptr_t *bp = zio->io_bp;
 	objset_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
@@ -1056,7 +1059,7 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 * dnode and user/group accounting objects).
 	 */
 	bp->blk_fill = 0;
-	for (int i = 0; i < dnp->dn_nblkptr; i++)
+	for (i = 0; i < dnp->dn_nblkptr; i++)
 		bp->blk_fill += dnp->dn_blkptr[i].blk_fill;
 }
 
@@ -1178,7 +1181,9 @@ dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 boolean_t
 dmu_objset_is_dirty_anywhere(objset_t *os)
 {
-	for (int t = 0; t < TXG_SIZE; t++)
+	int t;
+
+	for (t = 0; t < TXG_SIZE; t++)
 		if (dmu_objset_is_dirty(os, t))
 			return (B_TRUE);
 	return (B_FALSE);

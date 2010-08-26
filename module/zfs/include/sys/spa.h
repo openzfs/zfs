@@ -350,13 +350,14 @@ typedef struct blkptr {
 	int size = BP_SPRINTF_LEN;					\
 	int len = 0;							\
 	int copies = 0;							\
+	int d;								\
 									\
 	if (bp == NULL) {						\
 		len = func(buf + len, size - len, "<NULL>");		\
 	} else if (BP_IS_HOLE(bp)) {					\
 		len = func(buf + len, size - len, "<hole>");		\
 	} else {							\
-		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {		\
+		for (d = 0; d < BP_GET_NDVAS(bp); d++) {		\
 			const dva_t *dva = &bp->blk_dva[d];		\
 			if (DVA_IS_VALID(dva))				\
 				copies++;				\
