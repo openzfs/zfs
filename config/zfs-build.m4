@@ -53,6 +53,8 @@ SCRIPTDIR=${SCRIPTDIR}
 ETCDIR=\${TOPDIR}/etc
 DEVDIR=\${TOPDIR}/dev
 ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
+ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
+ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
 
 ZDB=\${CMDDIR}/zdb/zdb
 ZFS=\${CMDDIR}/zfs/zfs
@@ -60,10 +62,13 @@ ZINJECT=\${CMDDIR}/zinject/zinject
 ZPOOL=\${CMDDIR}/zpool/zpool
 ZPOOL_ID=\${CMDDIR}/zpool_id/zpool_id
 ZTEST=\${CMDDIR}/ztest/ztest
+ZPIOS=\${CMDDIR}/zpios/zpios
 
 COMMON_SH=\${SCRIPTDIR}/common.sh
 ZFS_SH=\${SCRIPTDIR}/zfs.sh
 ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
+ZPIOS_SH=\${SCRIPTDIR}/zpios.sh
+ZPIOS_SURVEY_SH=\${SCRIPTDIR}/zpios-survey.sh
 
 INTREE=1
 LDMOD=/sbin/insmod
@@ -83,6 +88,10 @@ ZFS_MODULES=(                                         \\
         \${MODDIR}/unicode/zunicode.ko                 \\
         \${MODDIR}/zcommon/zcommon.ko                  \\
         \${MODDIR}/zfs/zfs.ko                          \\
+)
+
+ZPIOS_MODULES=(                                       \\
+        \${MODDIR}/zpios/zpios.ko                      \\
 )
 
 MODULES=(                                             \\
