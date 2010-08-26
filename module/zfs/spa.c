@@ -471,6 +471,9 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			    intval != 0 && intval < ZIO_DEDUPDITTO_MIN)
 				error = EINVAL;
 			break;
+
+		default:
+			break;
 		}
 
 		if (error)
@@ -1425,6 +1428,8 @@ static int
 spa_check_logs(spa_t *spa)
 {
 	switch (spa->spa_log_state) {
+	default:
+		break;
 	case SPA_LOG_MISSING:
 		/* need to recheck in case slog has been restored */
 	case SPA_LOG_UNKNOWN:

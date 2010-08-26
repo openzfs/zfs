@@ -233,6 +233,8 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	}
 
 	switch (type) {
+	default:
+		break;
 	case TYPE_DATA:
 		break;
 
@@ -347,6 +349,8 @@ translate_record(err_type_t type, const char *object, const char *range,
 		 * MOS objects are treated specially.
 		 */
 		switch (type) {
+		default:
+			break;
 		case TYPE_MOS:
 			record->zi_type = 0;
 			break;
@@ -473,6 +477,8 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 	}
 
 	switch (label_type) {
+	default:
+		break;
 	case TYPE_LABEL_UBERBLOCK:
 		record->zi_start = offsetof(vdev_label_t, vl_uberblock[0]);
 		record->zi_end = record->zi_start + VDEV_UBERBLOCK_RING - 1;

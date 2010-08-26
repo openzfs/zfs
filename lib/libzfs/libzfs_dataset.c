@@ -72,6 +72,8 @@ zfs_type_to_name(zfs_type_t type)
 		return (dgettext(TEXT_DOMAIN, "snapshot"));
 	case ZFS_TYPE_VOLUME:
 		return (dgettext(TEXT_DOMAIN, "volume"));
+	default:
+		break;
 	}
 
 	return (NULL);
@@ -179,6 +181,8 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 			case NAME_ERR_DISKLIKE:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "reserved disk name"));
+				break;
+			default:
 				break;
 			}
 		}
@@ -1015,6 +1019,8 @@ badlabel:
 					    "component of '%s' is too long"),
 					    propname);
 					break;
+				default:
+					break;
 				}
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
@@ -1139,6 +1145,8 @@ badlabel:
 		case ZFS_PROP_NORMALIZE:
 			chosen_normal = (int)intval;
 			break;
+		default:
+			break;
 		}
 
 		/*
@@ -1186,6 +1194,8 @@ badlabel:
 					    errbuf);
 					goto error;
 				}
+				break;
+			default:
 				break;
 			}
 		}
@@ -1673,6 +1683,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_NBMAND:
 		mntopt_on = MNTOPT_NBMAND;
 		mntopt_off = MNTOPT_NONBMAND;
+		break;
+	default:
 		break;
 	}
 

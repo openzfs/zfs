@@ -483,6 +483,8 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 	 * Check permissions for special properties.
 	 */
 	switch (prop) {
+	default:
+		break;
 	case ZFS_PROP_ZONED:
 		/*
 		 * Disallow setting of 'zoned' from within a local zone.
@@ -3379,6 +3381,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    SPA_VERSION_PASSTHROUGH_X))
 				return (ENOTSUP);
 		}
+		break;
+	default:
 		break;
 	}
 

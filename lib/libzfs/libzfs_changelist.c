@@ -131,6 +131,8 @@ changelist_prefix(prop_changelist_t *clp)
 			case ZFS_PROP_SHARESMB:
 				(void) zfs_unshare_smb(cn->cn_handle, NULL);
 				break;
+			default:
+				break;
 			}
 		}
 	}

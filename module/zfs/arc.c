@@ -1143,6 +1143,8 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	ASSERT(type >= 0 && type < ARC_SPACE_NUMTYPES);
 
 	switch (type) {
+	default:
+		break;
 	case ARC_SPACE_DATA:
 		ARCSTAT_INCR(arcstat_data_size, space);
 		break;
@@ -1167,6 +1169,8 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	ASSERT(type >= 0 && type < ARC_SPACE_NUMTYPES);
 
 	switch (type) {
+	default:
+		break;
 	case ARC_SPACE_DATA:
 		ARCSTAT_INCR(arcstat_data_size, -space);
 		break;
