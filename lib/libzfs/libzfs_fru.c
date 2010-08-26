@@ -34,6 +34,8 @@
 
 #include <libzfs.h>
 
+#if defined(HAVE_LIBTOPO)
+
 #include <fm/libtopo.h>
 #include <sys/fm/protocol.h>
 #include <sys/systeminfo.h>
@@ -450,3 +452,18 @@ libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
 		    ZFS_FRU_HASH_SIZE * sizeof (void *));
 	}
 }
+
+#else /* HAVE_LIBTOPO */
+
+/*
+ * Clear memory associated with the FRU hash.
+ */
+void
+libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
+{
+	return;
+}
+
+#endif /* HAVE_LIBTOPO */
+
+
