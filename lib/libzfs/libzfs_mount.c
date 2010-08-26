@@ -518,8 +518,12 @@ static void (*_sa_update_sharetab_ts)(sa_handle_t);
  * values to be used later. This is triggered by the runtime loader.
  * Make sure the correct ISA version is loaded.
  */
-
+#ifdef __GNUC__
+static void
+_zfs_init_libshare(void) __attribute__((constructor));
+#else
 #pragma init(_zfs_init_libshare)
+#endif
 static void
 _zfs_init_libshare(void)
 {
