@@ -1121,8 +1121,7 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 	 */
 	if (ds->ds_phys->ds_bp.blk_fill == 0 &&
 	    dmu_objset_userused_enabled(os)) {
-		uint64_t count;
-
+		ASSERTV(uint64_t count);
 		ASSERT(zap_count(os, DMU_USERUSED_OBJECT, &count) != 0 ||
 		    count == 0);
 		ASSERT(zap_count(os, DMU_GROUPUSED_OBJECT, &count) != 0 ||
@@ -1495,8 +1494,8 @@ static void
 remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj, dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	uint64_t count;
 	int err;
+	ASSERTV(uint64_t count);
 
 	ASSERT(ds->ds_phys->ds_num_children >= 2);
 	err = zap_remove_int(mos, ds->ds_phys->ds_next_clones_obj, obj, tx);
@@ -1921,7 +1920,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 	    "dataset = %llu", ds->ds_object);
 
 	if (ds->ds_phys->ds_next_clones_obj != 0) {
-		uint64_t count;
+		ASSERTV(uint64_t count);
 		ASSERT(0 == zap_count(mos,
 		    ds->ds_phys->ds_next_clones_obj, &count) && count == 0);
 		VERIFY(0 == dmu_object_free(mos,
@@ -2251,7 +2250,7 @@ dsl_dataset_space(dsl_dataset_t *ds,
 boolean_t
 dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 {
-	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
 
 	ASSERT(RW_LOCK_HELD(&dp->dp_config_rwlock) ||
 	    dsl_pool_sync_context(dp));
@@ -2522,7 +2521,6 @@ struct promotearg {
 };
 
 static int snaplist_space(list_t *l, uint64_t mintxg, uint64_t *spacep);
-static boolean_t snaplist_unstable(list_t *l);
 
 static int
 dsl_dataset_promote_check(void *arg1, void *arg2, dmu_tx_t *tx)

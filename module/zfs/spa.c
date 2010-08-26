@@ -3816,7 +3816,7 @@ int
 spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 {
 	uint64_t txg, dtl_max_txg;
-	vdev_t *rvd = spa->spa_root_vdev;
+	ASSERTV(vdev_t *rvd = spa->spa_root_vdev;)
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
@@ -4016,7 +4016,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 {
 	uint64_t txg;
 	int error;
-	vdev_t *rvd = spa->spa_root_vdev;
+	ASSERTV(vdev_t *rvd = spa->spa_root_vdev;)
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid;

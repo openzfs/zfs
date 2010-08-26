@@ -1042,6 +1042,7 @@ ztest_pattern_set(void *buf, uint64_t size, uint64_t value)
 		*ip++ = value;
 }
 
+#ifndef NDEBUG
 static boolean_t
 ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
 {
@@ -1054,6 +1055,7 @@ ztest_pattern_match(void *buf, uint64_t size, uint64_t value)
 
 	return (diff == 0);
 }
+#endif
 
 static void
 ztest_bt_generate(ztest_block_tag_t *bt, objset_t *os, uint64_t object,
@@ -2582,7 +2584,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 vdev_t *
 grow_vdev(vdev_t *vd, void *arg)
 {
-	spa_t *spa = vd->vdev_spa;
+	ASSERTV(spa_t *spa = vd->vdev_spa);
 	size_t *newsize = arg;
 	size_t fsize;
 	int fd;

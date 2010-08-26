@@ -373,7 +373,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 				    &dn->dn_phys->dn_blkptr[db->db_blkid]);
 		} else {
 			/* db is pointed to by an indirect block */
-			int epb = db->db_parent->db.db_size >> SPA_BLKPTRSHIFT;
+			ASSERTV(int epb = db->db_parent->db.db_size >>
+				SPA_BLKPTRSHIFT);
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
@@ -399,7 +400,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * data when we evict this buffer.
 		 */
 		if (db->db_dirtycnt == 0) {
-			uint64_t *buf = db->db.db_data;
+			ASSERTV(uint64_t *buf = db->db.db_data);
 			int i;
 
 			for (i = 0; i < db->db.db_size >> 3; i++) {
@@ -1999,8 +2000,7 @@ dbuf_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	int64_t holds = refcount_add(&db->db_holds, tag);
-	ASSERT(holds > 1);
+	VERIFY(refcount_add(&db->db_holds, tag) > 1);
 }
 
 /*
@@ -2564,8 +2564,8 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
 		ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
 		if (!BP_IS_HOLE(db->db_blkptr)) {
-			int epbs =
-			    dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+			ASSERTV(int epbs = dn->dn_phys->dn_indblkshift -
+			    SPA_BLKPTRSHIFT);
 			ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
 			    db->db.db_size);
 			ASSERT3U(dn->dn_phys->dn_maxblkid

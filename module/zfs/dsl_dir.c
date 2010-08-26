@@ -47,7 +47,7 @@ static void
 dsl_dir_evict(dmu_buf_t *db, void *arg)
 {
 	dsl_dir_t *dd = arg;
-	dsl_pool_t *dp = dd->dd_pool;
+	ASSERTV(dsl_pool_t *dp = dd->dd_pool;)
 	int t;
 
 	for (t = 0; t < TXG_SIZE; t++) {

@@ -937,7 +937,7 @@ mzap_addent(zap_name_t *zn, uint64_t value)
 
 #ifdef ZFS_DEBUG
 	for (i = 0; i < zap->zap_m.zap_num_chunks; i++) {
-		mzap_ent_phys_t *mze = &zap->zap_m.zap_phys->mz_chunk[i];
+		ASSERTV(mzap_ent_phys_t *mze=&zap->zap_m.zap_phys->mz_chunk[i]);
 		ASSERT(strcmp(zn->zn_key_orig, mze->mze_name) != 0);
 	}
 #endif
@@ -1043,12 +1043,13 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 {
 	zap_t *zap;
 	mzap_ent_t *mze;
-	uint64_t oldval;
 	const uint64_t *intval = val;
 	zap_name_t *zn;
 	int err;
 
 #ifdef ZFS_DEBUG
+	uint64_t oldval;
+
 	/*
 	 * If there is an old value, it shouldn't change across the
 	 * lockdir (eg, due to bprewrite's xlation).

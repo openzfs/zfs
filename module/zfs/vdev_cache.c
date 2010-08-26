@@ -246,7 +246,7 @@ vdev_cache_read(zio_t *zio)
 	vdev_cache_t *vc = &zio->io_vd->vdev_cache;
 	vdev_cache_entry_t *ve, ve_search;
 	uint64_t cache_offset = P2ALIGN(zio->io_offset, VCBS);
-	uint64_t cache_phase = P2PHASE(zio->io_offset, VCBS);
+	ASSERTV(uint64_t cache_phase = P2PHASE(zio->io_offset, VCBS);)
 	zio_t *fio;
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);

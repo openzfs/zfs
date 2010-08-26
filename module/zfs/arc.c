@@ -1989,9 +1989,8 @@ arc_shrink(void)
 static int
 arc_reclaim_needed(void)
 {
-	uint64_t extra;
-
 #ifdef _KERNEL
+	uint64_t extra;
 
 	if (needfree)
 		return (1);

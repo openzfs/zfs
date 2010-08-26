@@ -52,7 +52,7 @@ static kmem_cache_t *dnode_cache;
 #define	DNODE_STAT_ADD(stat)			/* nothing */
 #endif	/* DNODE_STATS */
 
-static dnode_phys_t dnode_phys_zero;
+ASSERTV(static dnode_phys_t dnode_phys_zero);
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;

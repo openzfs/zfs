@@ -1412,8 +1412,8 @@ vdev_validate(vdev_t *vd)
 void
 vdev_close(vdev_t *vd)
 {
-	spa_t *spa = vd->vdev_spa;
 	vdev_t *pvd = vd->vdev_parent;
+	ASSERTV(spa_t *spa = vd->vdev_spa);
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
@@ -1795,8 +1795,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 
 	if (vd->vdev_detached) {
 		if (smo->smo_object != 0) {
-			int err = dmu_object_free(mos, smo->smo_object, tx);
-			ASSERT3U(err, ==, 0);
+			VERIFY(0 == dmu_object_free(mos, smo->smo_object, tx));
 			smo->smo_object = 0;
 		}
 		dmu_tx_commit(tx);
@@ -3084,7 +3083,8 @@ vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 	int c;
 
 	ASSERT(nvd->vdev_top->vdev_islog);
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT(spa_config_held(nvd->vdev_spa,
+	    SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 	ASSERT3U(nvd->vdev_guid, ==, ovd->vdev_guid);
 
 	for (c = 0; c < nvd->vdev_children; c++)
