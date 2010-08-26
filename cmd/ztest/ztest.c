@@ -4399,7 +4399,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	int fd;
 	uint64_t offset;
 	uint64_t leaves;
-	uint64_t bad = 0x1990c0ffeedecade;
+	uint64_t bad = 0x1990c0ffeedecadeull;
 	uint64_t top, leaf;
 	char path0[MAXPATHLEN];
 	char pathrand[MAXPATHLEN];
