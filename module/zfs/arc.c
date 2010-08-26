@@ -1710,7 +1710,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 	mutex_exit(&state->arcs_mtx);
 
 	if (bytes_evicted < bytes)
-		dprintf("only evicted %lld bytes from %x",
+		dprintf("only evicted %lld bytes from %x\n",
 		    (longlong_t)bytes_evicted, state);
 
 	if (skipped)
@@ -1826,7 +1826,7 @@ top:
 	}
 
 	if (bytes_deleted < bytes)
-		dprintf("only deleted %lld bytes from %p",
+		dprintf("only deleted %lld bytes from %p\n",
 		    (longlong_t)bytes_deleted, state);
 }
 
