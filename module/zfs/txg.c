@@ -335,15 +335,15 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			 * Commit callback taskq hasn't been created yet.
 			 */
 			tx->tx_commit_cb_taskq = taskq_create("tx_commit_cb",
-			    max_ncpus, minclsyspri, max_ncpus, max_ncpus * 2,
-			    TASKQ_PREPOPULATE);
+			    100, minclsyspri, max_ncpus, INT_MAX,
+			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
 		}
 
 		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
 		list_create(cb_list, sizeof (dmu_tx_callback_t),
 		    offsetof(dmu_tx_callback_t, dcb_node));
 
-		list_move_tail(&tc->tc_callbacks[g], cb_list);
+		list_move_tail(cb_list, &tc->tc_callbacks[g]);
 
 		(void) taskq_dispatch(tx->tx_commit_cb_taskq, (task_func_t *)
 		    txg_do_callbacks, cb_list, TQ_SLEEP);
