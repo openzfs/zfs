@@ -27,7 +27,7 @@
 #ifndef	_NVPAIR_IMPL_H
 #define	_NVPAIR_IMPL_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #ifdef __cplusplus
 extern "C" {

@@ -27,7 +27,7 @@
 #ifndef	_LIBUUTIL_COMMON_H
 #define	_LIBUUTIL_COMMON_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <libuutil.h>
 #include <libuutil_impl.h>

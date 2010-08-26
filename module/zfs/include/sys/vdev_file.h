@@ -27,7 +27,7 @@
 #ifndef _SYS_VDEV_FILE_H
 #define	_SYS_VDEV_FILE_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
 
 #include <sys/vdev.h>
 
