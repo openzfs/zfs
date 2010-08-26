@@ -1,0 +1,190 @@
+/* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* invalidate_bdev() wants 1 arg */
+#undef HAVE_1ARG_INVALIDATE_BDEV
+
+/* bio_end_io_t wants 2 args */
+#undef HAVE_2ARGS_BIO_END_IO_T
+
+/* struct block_device_operations use bdevs */
+#undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
+
+/* bdev_logical_block_size() is available */
+#undef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+
+/* bio_empy_barrier() is defined */
+#undef HAVE_BIO_EMPTY_BARRIER
+
+/* BIO_RW_SYNCIO is defined */
+#undef HAVE_BIO_RW_SYNCIO
+
+/* blk_end_request() is available */
+#undef HAVE_BLK_END_REQUEST
+
+/* blk_end_request() is GPL-only */
+#undef HAVE_BLK_END_REQUEST_GPL_ONLY
+
+/* blk_fetch_request() is available */
+#undef HAVE_BLK_FETCH_REQUEST
+
+/* blk_requeue_request() is available */
+#undef HAVE_BLK_REQUEUE_REQUEST
+
+/* blk_rq_bytes() is available */
+#undef HAVE_BLK_RQ_BYTES
+
+/* blk_rq_bytes() is GPL-only */
+#undef HAVE_BLK_RQ_BYTES_GPL_ONLY
+
+/* blk_rq_pos() is available */
+#undef HAVE_BLK_RQ_POS
+
+/* blk_rq_sectors() is available */
+#undef HAVE_BLK_RQ_SECTORS
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* kernel defines fmode_t */
+#undef HAVE_FMODE_T
+
+/* blk_disk_ro() is available */
+#undef HAVE_GET_DISK_RO
+
+/* Define to 1 if licensed under the GPL */
+#undef HAVE_GPL_ONLY_SYMBOLS
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* result=stropts.h Define to 1 if ioctl() defined in <stropts.h> */
+#undef HAVE_IOCTL_IN_STROPTS_H
+
+/* Define to 1 if ioctl() defined in <sys/ioctl.h> */
+#undef HAVE_IOCTL_IN_SYS_IOCTL_H
+
+/* Define to 1 if ioctl() defined in <unistd.h> */
+#undef HAVE_IOCTL_IN_UNISTD_H
+
+/* kernel defines KOBJ_NAME_LEN */
+#undef HAVE_KOBJ_NAME_LEN
+
+/* Define if you have libblkid */
+#undef HAVE_LIBBLKID
+
+/* Define to 1 if 'libshare' library available */
+#undef HAVE_LIBSHARE
+
+/* Define if you have libuuid */
+#undef HAVE_LIBUUID
+
+/* Define to 1 if you have the `z' library (-lz). */
+#undef HAVE_LIBZ
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* open_bdev_exclusive() is available */
+#undef HAVE_OPEN_BDEV_EXCLUSIVE
+
+/* rq_for_each_segment() is available */
+#undef HAVE_RQ_FOR_EACH_SEGMENT
+
+/* rq_is_sync() is available */
+#undef HAVE_RQ_IS_SYNC
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define if you have zlib */
+#undef HAVE_ZLIB
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
+/* Define to 1 if NPTL threading implementation includes guard area in stack
+   allocation */
+#undef NPTL_GUARD_WITHIN_STACK
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
+
+/* Define the project alias string. */
+#undef ZFS_META_ALIAS
+
+/* Define the project author. */
+#undef ZFS_META_AUTHOR
+
+/* Define the project release date. */
+#undef ZFS_META_DATA
+
+/* Define the project license. */
+#undef ZFS_META_LICENSE
+
+/* Define the libtool library 'age' version information. */
+#undef ZFS_META_LT_AGE
+
+/* Define the libtool library 'current' version information. */
+#undef ZFS_META_LT_CURRENT
+
+/* Define the libtool library 'revision' version information. */
+#undef ZFS_META_LT_REVISION
+
+/* Define the project name. */
+#undef ZFS_META_NAME
+
+/* Define the project release. */
+#undef ZFS_META_RELEASE
+
+/* Define the project version. */
+#undef ZFS_META_VERSION
+
+
+#undef PACKAGE
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef STDC_HEADERS
+#undef VERSION

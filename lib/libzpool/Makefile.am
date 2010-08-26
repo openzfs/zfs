@@ -96,7 +96,6 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/zfs_debug.c \
 	${top_srcdir}/module/zfs/zfs_fm.c \
 	${top_srcdir}/module/zfs/zfs_fuid.c \
-	${top_srcdir}/module/zfs/zfs_onexit.c \
 	${top_srcdir}/module/zfs/zfs_sa.c \
 	${top_srcdir}/module/zfs/zfs_znode.c \
 	${top_srcdir}/module/zfs/zil.c \
