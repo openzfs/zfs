@@ -41,9 +41,11 @@
 #include <grp.h>
 #include <stddef.h>
 #include <ucred.h>
+#ifdef HAVE_IDMAP
 #include <idmap.h>
 #include <aclutils.h>
 #include <directory.h>
+#endif /* HAVE_IDMAP */
 
 #include <sys/dnode.h>
 #include <sys/spa.h>
@@ -2166,6 +2168,7 @@ zfs_prop_get_numeric(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t *value,
 	return (0);
 }
 
+#ifdef HAVE_IDMAP
 static int
 idmap_id_to_numeric_domain_rid(uid_t id, boolean_t isuser,
     char **domainp, idmap_rid_t *ridp)
@@ -2195,6 +2198,7 @@ out:
 		idmap_get_destroy(get_hdl);
 	return (err);
 }
+#endif /* HAVE_IDMAP */
 
 /*
  * convert the propname into parameters needed by kernel
@@ -2228,6 +2232,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	cp = strchr(propname, '@') + 1;
 
 	if (strchr(cp, '@')) {
+#ifdef HAVE_IDMAP
 		/*
 		 * It's a SID name (eg "user@domain") that needs to be
 		 * turned into S-1-domainID-RID.
@@ -2250,6 +2255,9 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 			return (ENOENT);
 		cp = numericsid;
 		/* will be further decoded below */
+#else
+		return (ENOSYS);
+#endif /* HAVE_IDMAP */
 	}
 
 	if (strncmp(cp, "S-1-", 4) == 0) {
@@ -2288,6 +2296,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 			*ridp = gr->gr_gid;
 		}
 	} else {
+#ifdef HAVE_IDMAP
 		/* It's a user/group ID (eg "12345"). */
 		uid_t id = strtoul(cp, &end, 10);
 		idmap_rid_t rid;
@@ -2305,6 +2314,9 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		} else {
 			*ridp = id;
 		}
+#else
+		return (ENOSYS);
+#endif /* HAVE_IDMAP */
 	}
 
 	ASSERT3P(numericsid, ==, NULL);
