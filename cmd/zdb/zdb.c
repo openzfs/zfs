@@ -87,7 +87,7 @@ libzfs_handle_t *g_zfs;
  * debugging facilities.
  */
 const char *
-_umem_debug_init()
+_umem_debug_init(void)
 {
 	return ("default,verbose"); /* $UMEM_DEBUG setting */
 }
@@ -1221,7 +1221,7 @@ static boolean_t sa_loaded;
 sa_attr_type_t *sa_attr_table;
 
 static void
-fuid_table_destroy()
+fuid_table_destroy(void)
 {
 	if (fuid_table_loaded) {
 		zfs_fuid_table_destroy(&idx_tree, &domain_tree);

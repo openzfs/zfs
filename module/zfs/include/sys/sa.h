@@ -147,8 +147,8 @@ int sa_replace_all_by_template(sa_handle_t *, sa_bulk_attr_t *,
 int sa_replace_all_by_template_locked(sa_handle_t *, sa_bulk_attr_t *,
     int, dmu_tx_t *);
 boolean_t sa_enabled(objset_t *);
-void sa_cache_init();
-void sa_cache_fini();
+void sa_cache_init(void);
+void sa_cache_fini(void);
 int sa_set_sa_object(objset_t *, uint64_t);
 int sa_hdrsize(void *);
 void sa_handle_lock(sa_handle_t *);
