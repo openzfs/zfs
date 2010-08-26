@@ -1,0 +1,79 @@
+%define name             @PACKAGE@
+%define version          @VERSION@
+%define release          @ZFS_META_RELEASE@
+%define debug_package    %{nil}
+
+Summary:         ZFS Library and Utils
+Group:           Utilities/System
+Name:            %{name}
+Version:         %{version}
+Release:         %{release}
+License:         CDDL
+URL:             git://eris.llnl.gov/zfs.git
+BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
+Source:          %{name}-%{version}.tar.gz
+Requires:        zlib e2fsprogs
+BuildRequires:   zlib-devel e2fsprogs-devel
+
+%description
+The %{name} package contains the libzfs library and support utilities
+for the zfs file system.
+
+%package devel
+Summary:         ZFS File System User Headers
+Group:           Development/Libraries
+%if %{defined ch5} || %{defined el6} || %{defined fc12}
+Requires:        zlib libuuid libblkid
+BuildRequires:   zlib-devel libuuid-devel libblkid-devel
+%else
+Requires:        zlib e2fsprogs
+BuildRequires:   zlib-devel e2fsprogs-devel
+%endif
+
+%description devel
+The %{name}-devel package contains the header files needed for building
+additional applications against the %{name} libraries.
+
+%package test
+Summary:         ZFS File System Test Infrastructure
+Group:           Utilities/System
+
+%description test
+The %{name}-test package contains a test infrastructure for zpios which
+can be used to simplfy the benchmarking of various hardware and software
+configurations.  The test infrastructure additionally integrates with
+various system profiling tools to facilitate an in depth analysis.
+
+%prep
+%setup
+%build
+%configure --with-config=user --without-blkid
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-, root, root)
+%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
+%doc GIT OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
+%{_sbindir}/*
+%{_bindir}/*
+%{_libdir}/*
+%{_mandir}/man8/*
+%{_sysconfdir}/*
+
+%files devel
+%defattr(-,root,root)
+%{_includedir}/*
+
+%files test
+%defattr(-,root,root)
+%{_libexecdir}/@PACKAGE@/*
+
+%post
+%postun

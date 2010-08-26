@@ -1,0 +1,127 @@
+#!/bin/bash
+#
+# Set BUSES and PORTS to match the topology of your system.  As each
+# port is enumerated it will be assigned the next channel name.  The
+# current script enumerates each port on a bus before moving on to
+# enumerate the next bus.
+#
+# Every distribution, version of udev, and type of attached storage
+# seems to result in slightly different formatting of the by-path
+# name.   For this reason you may need to adjust the parsing below
+# to suit your needs.  This is one of the reasons to use a custom
+# /etc/zfs/zdev.conf file, it allows the by-path naming convertion
+# to change and still keep the simple <channel><rank> naming.
+#
+CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
+BUSES=( 01 02 03 )
+PORTS=( 4 0 )
+CHANNELS=( A B C D E F G H I J K L M N O P Q R S T U V W X Y Z )
+TRIGGER=
+
+usage() {
+	cat << EOF
+Usage: zpool_layout [-th] [-c file] [-b buses] [-p ports] [-n channels]
+  -c    Alternate config file [default=/etc/zfs/zdev.conf]
+  -b    Enumerate buses [default="01 02 03"]
+  -p    Enumerate ports [default="4 0"]
+  -n    Channel names [default="A..Z"]
+  -t    Trigger and wait for udev to settle [default=no]
+  -h    Show this message
+EOF
+	exit 0
+}
+
+while getopts 'c:b:p:n:th' OPTION; do
+	case ${OPTION} in
+	c)
+		CONFIG=${OPTARG}
+		;;
+	b)
+		BUSES=(${OPTARG})
+		;;
+	p)
+		PORTS=(${OPTARG})
+		;;
+	n)
+		CHANNELS=(${OPTARG})
+		;;
+	t)
+		TRIGGER=1
+		;;
+	h)
+		usage
+		;;
+	esac
+done
+
+# Save stdout as fd #8, then redirect stdout to the config file.
+exec 8>&1
+exec >${CONFIG}
+pushd /dev/disk/by-path >/dev/null
+
+# Generate comment header.
+echo "#"
+echo "# Custom /dev/disk/by-path to /dev/disk/zpool mapping, "
+echo "# based of the following physical cable layout."
+echo "#"
+
+# Generate host port layout table for comment header.
+echo "# ------------------ Host Port Layout ---------------------"
+echo -n "#          "
+for (( i=0; i<${#BUSES[*]}; i++ )); do
+	printf "%-8d" ${BUSES[$i]}
+done
+echo
+
+for (( i=0, k=0; i<${#PORTS[*]}; i++ )); do
+	printf "# Port %-2d  " ${PORTS[$i]}
+
+	for (( j=0; j<${#BUSES[*]}; j++, k++ )); do
+		let k=$j*${#PORTS[*]}+$i
+		printf "%-8s" ${CHANNELS[$k]}
+	done
+	echo
+done
+echo "#"
+
+# Generate channel/disk layout table for comment header.
+echo "# ----------------- Channel/Disk Layout -------------------"
+echo "# Channel  Disks"
+for (( i=0, k=0; i<${#BUSES[*]}; i++ )); do
+	for (( j=0; j<${#PORTS[*]}; j++, k++ )); do
+		printf "# %-9s" ${CHANNELS[$k]}
+		ls *:${BUSES[$i]}:*:${PORTS[$j]}* 2>/dev/null | \
+			cut -f7 -d'-' | sort -u -n | tr '\n' ','
+		echo
+	done
+done
+echo "#"
+
+# Generate mapping from <channel><rank> to by-path name.
+TMP_FILE=`mktemp`
+AWK=${AWK:-/bin/awk}
+
+for (( i=0, k=0; i<${#BUSES[*]}; i++ )); do
+	for (( j=0; j<${#PORTS[*]}; j++, k++ )); do
+		ls *:${BUSES[$i]}:*:${PORTS[$j]}*  2>/dev/null | \
+			grep -v part | sort -n -k7 -t'-'>${TMP_FILE}
+
+		echo
+		echo -n "# Channel ${CHANNELS[$k]}, "
+		echo "Bus ${BUSES[$i]}, Port ${PORTS[$j]}"
+		${AWK} -F '-' -v ch="${CHANNELS[$k]}" \
+			'{print ch$7 "\t" $0 }' ${TMP_FILE}
+	done
+done
+
+# Restore stdout from fd #8 and close fd #8.
+exec 1>&8 8>&-
+rm -f ${TMP_FILE}
+popd >/dev/null
+
+if [ ${TRIGGER} ]; then
+	udevadm trigger
+	udevadm settle
+fi
+
+exit 0

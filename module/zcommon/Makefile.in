@@ -1,0 +1,18 @@
+MODULE := zcommon
+
+EXTRA_CFLAGS  = -I@MODDIR@/avl/include
+EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
+EXTRA_CFLAGS += -I@MODDIR@/unicode/include
+EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
+EXTRA_CFLAGS += -I@MODDIR@/zfs/include
+EXTRA_CFLAGS += @KERNELCPPFLAGS@
+
+obj-m := ${MODULE}.o
+
+${MODULE}-objs += zfs_deleg.o
+${MODULE}-objs += zfs_prop.o
+${MODULE}-objs += zprop_common.o
+${MODULE}-objs += zfs_namecheck.o
+${MODULE}-objs += zfs_comutil.o
+${MODULE}-objs += zfs_fletcher.o
+${MODULE}-objs += zpool_prop.o

@@ -1,0 +1,8 @@
+MODULE := zavl
+
+EXTRA_CFLAGS  = -I@MODDIR@/avl/include
+EXTRA_CFLAGS += @KERNELCPPFLAGS@
+
+obj-m := ${MODULE}.o
+
+${MODULE}-objs += avl.o

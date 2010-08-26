@@ -1,0 +1,73 @@
+srpm-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+
+srpm-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+
+srpm: srpm-modules srpm-utils
+
+rpm-modules: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+
+rpm-utils: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
+
+rpm-modules: srpm-modules
+
+rpm: rpm-modules rpm-utils
+
+rpm-local:
+	@(if test "${HAVE_RPMBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${RPMBUILD} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${RPMBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi; \
+	mkdir -p $(rpmbuild)/TMP && \
+	mkdir -p $(rpmbuild)/BUILD && \
+	mkdir -p $(rpmbuild)/RPMS && \
+	mkdir -p $(rpmbuild)/SRPMS && \
+	mkdir -p $(rpmbuild)/SPECS && \
+	cp $(rpmspec) $(rpmbuild)/SPECS && \
+	mkdir -p $(rpmbuild)/SOURCES && \
+	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
+
+srpm-common: dist
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	$(RPMBUILD) \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "build_src_rpm 1" \
+		--define "dist %{nil}" \
+		--nodeps -bs $$rpmbuild/SPECS/$$rpmspec || exit 1; \
+	cp $$rpmbuild/SRPMS/$$rpmpkg . || exit 1; \
+	$(RM) -R $$rpmbuild
+
+rpm-common: 
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	$(RPMBUILD) \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "require_kdir $(LINUX)" \
+		--define "require_kobj $(LINUX_OBJ)" \
+		--define "require_kver $(LINUX_VERSION)" \
+		--define "require_spldir $(SPL)" \
+		--define "require_splobj $(SPL_OBJ)" \
+		--define "require_splver $(SPL_VERSION)" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/*/* . || exit 1; \
+	$(RM) -R $$rpmbuild
