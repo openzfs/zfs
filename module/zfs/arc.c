@@ -1745,13 +1745,14 @@ static void
 arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes)
 {
 	arc_buf_hdr_t *ab, *ab_prev;
-	arc_buf_hdr_t marker = { 0 };
+	arc_buf_hdr_t marker;
 	list_t *list = &state->arcs_list[ARC_BUFC_DATA];
 	kmutex_t *hash_lock;
 	uint64_t bytes_deleted = 0;
 	uint64_t bufs_skipped = 0;
 
 	ASSERT(GHOST_STATE(state));
+	bzero(&marker, sizeof(marker));
 top:
 	mutex_enter(&state->arcs_mtx);
 	for (ab = list_tail(list); ab; ab = ab_prev) {

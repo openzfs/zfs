@@ -2179,7 +2179,7 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 static int
 dump_block_stats(spa_t *spa)
 {
-	zdb_cb_t zcb = { 0 };
+	zdb_cb_t zcb;
 	zdb_blkstats_t *zb, *tzb;
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_HARD;
@@ -2201,6 +2201,7 @@ dump_block_stats(spa_t *spa)
 	 * it's not part of any space map) is a double allocation,
 	 * reference to a freed block, or an unclaimed log block.
 	 */
+	bzero(&zcb, sizeof(zdb_cb_t));
 	zdb_leak_init(spa, &zcb);
 
 	/*
@@ -2413,8 +2414,11 @@ dump_simulated_ddt(spa_t *spa)
 	avl_tree_t t;
 	void *cookie = NULL;
 	zdb_ddt_entry_t *zdde;
-	ddt_histogram_t ddh_total = { 0 };
-	ddt_stat_t dds_total = { 0 };
+	ddt_histogram_t ddh_total;
+	ddt_stat_t dds_total;
+
+	bzero(&ddh_total, sizeof (ddt_histogram_t));
+	bzero(&dds_total, sizeof (ddt_stat_t));
 
 	avl_create(&t, ddt_entry_compare,
 	    sizeof (zdb_ddt_entry_t), offsetof(zdb_ddt_entry_t, zdde_node));
