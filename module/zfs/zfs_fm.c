@@ -99,6 +99,16 @@
  */
 #ifdef _KERNEL
 static void
+zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
+{
+	if (nvl)
+		fm_nvlist_destroy(nvl, FM_NVA_FREE);
+
+	if (detector)
+		fm_nvlist_destroy(detector, FM_NVA_FREE);
+}
+
+static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
     const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
     uint64_t stateoroffset, uint64_t size)
@@ -410,7 +420,7 @@ update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
  * to the new smallest gap, to prepare for our next invocation.
  */
 static void
-shrink_ranges(zfs_ecksum_info_t *eip)
+zei_shrink_ranges(zfs_ecksum_info_t *eip)
 {
 	uint32_t mingap = UINT32_MAX;
 	uint32_t new_allowed_gap = eip->zei_mingap + 1;
@@ -429,12 +439,13 @@ shrink_ranges(zfs_ecksum_info_t *eip)
 		uint32_t end = r[idx].zr_end;
 
 		while (idx < max - 1) {
+			uint32_t nstart, nend, gap;
+
 			idx++;
+			nstart = r[idx].zr_start;
+			nend = r[idx].zr_end;
 
-			uint32_t nstart = r[idx].zr_start;
-			uint32_t nend = r[idx].zr_end;
-
-			uint32_t gap = nstart - end;
+			gap = nstart - end;
 			if (gap < new_allowed_gap) {
 				end = nend;
 				continue;
@@ -454,13 +465,13 @@ shrink_ranges(zfs_ecksum_info_t *eip)
 }
 
 static void
-add_range(zfs_ecksum_info_t *eip, int start, int end)
+zei_add_range(zfs_ecksum_info_t *eip, int start, int end)
 {
 	struct zei_ranges *r = eip->zei_ranges;
 	size_t count = eip->zei_range_count;
 
 	if (count >= MAX_RANGES) {
-		shrink_ranges(eip);
+		zei_shrink_ranges(eip);
 		count = eip->zei_range_count;
 	}
 	if (count == 0) {
@@ -482,7 +493,7 @@ add_range(zfs_ecksum_info_t *eip, int start, int end)
 }
 
 static size_t
-range_total_size(zfs_ecksum_info_t *eip)
+zei_range_total_size(zfs_ecksum_info_t *eip)
 {
 	struct zei_ranges *r = eip->zei_ranges;
 	size_t count = eip->zei_range_count;
@@ -559,7 +570,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 			if (start == -1)
 				continue;
 
-			add_range(eip, start, idx);
+			zei_add_range(eip, start, idx);
 			start = -1;
 		} else {
 			if (start != -1)
@@ -569,10 +580,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 		}
 	}
 	if (start != -1)
-		add_range(eip, start, idx);
+		zei_add_range(eip, start, idx);
 
 	/* See if it will fit in our inline buffers */
-	inline_size = range_total_size(eip);
+	inline_size = zei_range_total_size(eip);
 	if (inline_size > ZFM_MAX_INLINE)
 		no_inline = 1;
 
@@ -675,10 +686,8 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	if (ereport == NULL)
 		return;
 
-	fm_ereport_post(ereport, EVCH_SLEEP);
-
-	fm_nvlist_destroy(ereport, FM_NVA_FREE);
-	fm_nvlist_destroy(detector, FM_NVA_FREE);
+	/* Cleanup is handled by the callback function */
+	zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
 #endif
 }
 
@@ -730,12 +739,10 @@ zfs_ereport_finish_checksum(zio_cksum_report_t *report,
 	    good_data, bad_data, report->zcr_length, drop_if_identical);
 
 	if (info != NULL)
-		fm_ereport_post(report->zcr_ereport, EVCH_SLEEP);
+		zfs_zevent_post(report->zcr_ereport,
+		    report->zcr_detector, zfs_zevent_post_cb);
 
-	fm_nvlist_destroy(report->zcr_ereport, FM_NVA_FREE);
-	fm_nvlist_destroy(report->zcr_detector, FM_NVA_FREE);
 	report->zcr_ereport = report->zcr_detector = NULL;
-
 	if (info != NULL)
 		kmem_free(info, sizeof (*info));
 #endif
@@ -764,7 +771,7 @@ void
 zfs_ereport_send_interim_checksum(zio_cksum_report_t *report)
 {
 #ifdef _KERNEL
-	fm_ereport_post(report->zcr_ereport, EVCH_SLEEP);
+	zfs_zevent_post(report->zcr_ereport, report->zcr_detector, NULL);
 #endif
 }
 
@@ -787,14 +794,10 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 	info = annotate_ecksum(ereport, zbc, good_data, bad_data, length,
 	    B_FALSE);
 
-	if (info != NULL)
-		fm_ereport_post(ereport, EVCH_SLEEP);
-
-	fm_nvlist_destroy(ereport, FM_NVA_FREE);
-	fm_nvlist_destroy(detector, FM_NVA_FREE);
-
-	if (info != NULL)
+	if (info != NULL) {
+		zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
 		kmem_free(info, sizeof (*info));
+	}
 #endif
 }
 
@@ -817,13 +820,14 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 	VERIFY(nvlist_add_string(resource, FM_CLASS, class) == 0);
 	VERIFY(nvlist_add_uint64(resource,
 	    FM_EREPORT_PAYLOAD_ZFS_POOL_GUID, spa_guid(spa)) == 0);
-	if (vd)
+	if (vd) {
 		VERIFY(nvlist_add_uint64(resource,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, vd->vdev_guid) == 0);
+		VERIFY(nvlist_add_uint64(resource,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, vd->vdev_state) == 0);
+	}
 
-	fm_ereport_post(resource, EVCH_SLEEP);
-
-	fm_nvlist_destroy(resource, FM_NVA_FREE);
+	zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
 #endif
 }
 
@@ -836,7 +840,7 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *name)
 void
 zfs_post_remove(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_RESOURCE_REMOVED);
+	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_REMOVED);
 }
 
 /*
@@ -847,7 +851,7 @@ zfs_post_remove(spa_t *spa, vdev_t *vd)
 void
 zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_RESOURCE_AUTOREPLACE);
+	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_AUTOREPLACE);
 }
 
 /*
@@ -859,5 +863,13 @@ zfs_post_autoreplace(spa_t *spa, vdev_t *vd)
 void
 zfs_post_state_change(spa_t *spa, vdev_t *vd)
 {
-	zfs_post_common(spa, vd, FM_RESOURCE_STATECHANGE);
+	zfs_post_common(spa, vd, FM_EREPORT_RESOURCE_STATECHANGE);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_ereport_post);
+EXPORT_SYMBOL(zfs_ereport_post_checksum);
+EXPORT_SYMBOL(zfs_post_remove);
+EXPORT_SYMBOL(zfs_post_autoreplace);
+EXPORT_SYMBOL(zfs_post_state_change);
+#endif /* _KERNEL */

@@ -53,51 +53,46 @@
 
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/sysevent.h>
-#include <sys/sysevent_impl.h>
+#include <sys/list.h>
 #include <sys/nvpair.h>
 #include <sys/cmn_err.h>
-#include <sys/cpuvar.h>
 #include <sys/sysmacros.h>
-#include <sys/systm.h>
-#include <sys/ddifm.h>
-#include <sys/ddifm_impl.h>
-#include <sys/spl.h>
-#include <sys/dumphdr.h>
 #include <sys/compress.h>
-#include <sys/cpuvar.h>
-#include <sys/console.h>
-#include <sys/panic.h>
-#include <sys/kobj.h>
 #include <sys/sunddi.h>
 #include <sys/systeminfo.h>
-#include <sys/sysevent/eventdefs.h>
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
+#include <sys/kstat.h>
+#include <sys/zfs_context.h>
+#ifdef _KERNEL
+#include <sys/atomic.h>
+#include <sys/condvar.h>
+#include <sys/cpuvar.h>
+#include <sys/systm.h>
+#include <sys/dumphdr.h>
+#include <sys/cpuvar.h>
+#include <sys/console.h>
+#include <sys/kobj.h>
+#include <sys/time.h>
+#include <sys/zfs_ioctl.h>
 
-/*
- * URL and SUNW-MSG-ID value to display for fm_panic(), defined below.  These
- * values must be kept in sync with the FMA source code in usr/src/cmd/fm.
- */
-static const char *fm_url = "http://www.sun.com/msg";
-static const char *fm_msgid = "SUNOS-8000-0G";
-static char *volatile fm_panicstr = NULL;
+int zevent_len_max = 0;
+int zevent_cols = 80;
+int zevent_console = 0;
 
-errorq_t *ereport_errorq;
-void *ereport_dumpbuf;
-size_t ereport_dumplen;
+static int zevent_len_cur = 0;
+static int zevent_waiters = 0;
+static int zevent_flags = 0;
 
-static uint_t ereport_chanlen = ERPT_EVCH_MAX;
-static evchan_t *ereport_chan = NULL;
-static ulong_t ereport_qlen = 0;
-static size_t ereport_size = 0;
-static int ereport_cols = 80;
+static kmutex_t zevent_lock;
+static list_t zevent_list;
+static kcondvar_t zevent_cv;
+#endif /* _KERNEL */
 
 extern void fastreboot_disable_highpil(void);
 
 /*
- * Common fault management kstats to record ereport generation
- * failures
+ * Common fault management kstats to record event generation failures
  */
 
 struct erpt_kstat {
@@ -114,57 +109,9 @@ static struct erpt_kstat erpt_kstat_data = {
 	{ "payload-set-failed", KSTAT_DATA_UINT64 }
 };
 
-/*ARGSUSED*/
-static void
-fm_drain(void *private, void *data, errorq_elem_t *eep)
-{
-	nvlist_t *nvl = errorq_elem_nvl(ereport_errorq, eep);
+kstat_t *fm_ksp;
 
-	if (!panicstr)
-		(void) fm_ereport_post(nvl, EVCH_TRYHARD);
-	else
-		fm_nvprint(nvl);
-}
-
-void
-fm_init(void)
-{
-	kstat_t *ksp;
-
-	(void) sysevent_evc_bind(FM_ERROR_CHAN,
-	    &ereport_chan, EVCH_CREAT | EVCH_HOLD_PEND);
-
-	(void) sysevent_evc_control(ereport_chan,
-	    EVCH_SET_CHAN_LEN, &ereport_chanlen);
-
-	if (ereport_qlen == 0)
-		ereport_qlen = ERPT_MAX_ERRS * MAX(max_ncpus, 4);
-
-	if (ereport_size == 0)
-		ereport_size = ERPT_DATA_SZ;
-
-	ereport_errorq = errorq_nvcreate("fm_ereport_queue",
-	    (errorq_func_t)fm_drain, NULL, ereport_qlen, ereport_size,
-	    FM_ERR_PIL, ERRORQ_VITAL);
-	if (ereport_errorq == NULL)
-		panic("failed to create required ereport error queue");
-
-	ereport_dumpbuf = kmem_alloc(ereport_size, KM_SLEEP);
-	ereport_dumplen = ereport_size;
-
-	/* Initialize ereport allocation and generation kstats */
-	ksp = kstat_create("unix", 0, "fm", "misc", KSTAT_TYPE_NAMED,
-	    sizeof (struct erpt_kstat) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
-
-	if (ksp != NULL) {
-		ksp->ks_data = &erpt_kstat_data;
-		kstat_install(ksp);
-	} else {
-		cmn_err(CE_NOTE, "failed to create fm/misc kstat\n");
-
-	}
-}
+#ifdef _KERNEL
 
 /*
  * Formatting utility function for fm_nvprintr.  We attempt to wrap chunks of
@@ -183,7 +130,7 @@ fm_printf(int depth, int c, int cols, const char *format, ...)
 	va_end(ap);
 
 	if (c + width >= cols) {
-		console_printf("\n\r");
+		console_printf("\n");
 		c = 0;
 		if (format[0] != ' ' && depth > 0) {
 			console_printf(" ");
@@ -245,54 +192,54 @@ fm_nvprintr(nvlist_t *nvl, int d, int c, int cols)
 
 		case DATA_TYPE_BYTE:
 			(void) nvpair_value_byte(nvp, &i8);
-			c = fm_printf(d + 1, c, cols, "%x", i8);
+			c = fm_printf(d + 1, c, cols, "0x%x", i8);
 			break;
 
 		case DATA_TYPE_INT8:
 			(void) nvpair_value_int8(nvp, (void *)&i8);
-			c = fm_printf(d + 1, c, cols, "%x", i8);
+			c = fm_printf(d + 1, c, cols, "0x%x", i8);
 			break;
 
 		case DATA_TYPE_UINT8:
 			(void) nvpair_value_uint8(nvp, &i8);
-			c = fm_printf(d + 1, c, cols, "%x", i8);
+			c = fm_printf(d + 1, c, cols, "0x%x", i8);
 			break;
 
 		case DATA_TYPE_INT16:
 			(void) nvpair_value_int16(nvp, (void *)&i16);
-			c = fm_printf(d + 1, c, cols, "%x", i16);
+			c = fm_printf(d + 1, c, cols, "0x%x", i16);
 			break;
 
 		case DATA_TYPE_UINT16:
 			(void) nvpair_value_uint16(nvp, &i16);
-			c = fm_printf(d + 1, c, cols, "%x", i16);
+			c = fm_printf(d + 1, c, cols, "0x%x", i16);
 			break;
 
 		case DATA_TYPE_INT32:
 			(void) nvpair_value_int32(nvp, (void *)&i32);
-			c = fm_printf(d + 1, c, cols, "%x", i32);
+			c = fm_printf(d + 1, c, cols, "0x%x", i32);
 			break;
 
 		case DATA_TYPE_UINT32:
 			(void) nvpair_value_uint32(nvp, &i32);
-			c = fm_printf(d + 1, c, cols, "%x", i32);
+			c = fm_printf(d + 1, c, cols, "0x%x", i32);
 			break;
 
 		case DATA_TYPE_INT64:
 			(void) nvpair_value_int64(nvp, (void *)&i64);
-			c = fm_printf(d + 1, c, cols, "%llx",
+			c = fm_printf(d + 1, c, cols, "0x%llx",
 			    (u_longlong_t)i64);
 			break;
 
 		case DATA_TYPE_UINT64:
 			(void) nvpair_value_uint64(nvp, &i64);
-			c = fm_printf(d + 1, c, cols, "%llx",
+			c = fm_printf(d + 1, c, cols, "0x%llx",
 			    (u_longlong_t)i64);
 			break;
 
 		case DATA_TYPE_HRTIME:
 			(void) nvpair_value_hrtime(nvp, (void *)&i64);
-			c = fm_printf(d + 1, c, cols, "%llx",
+			c = fm_printf(d + 1, c, cols, "0x%llx",
 			    (u_longlong_t)i64);
 			break;
 
@@ -322,19 +269,124 @@ fm_nvprintr(nvlist_t *nvl, int d, int c, int cols)
 			}
 			break;
 
+		case DATA_TYPE_INT8_ARRAY: {
+			int8_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_int8_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_UINT8_ARRAY: {
+			uint8_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_uint8_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_INT16_ARRAY: {
+			int16_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_int16_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_UINT16_ARRAY: {
+			uint16_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_uint16_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_INT32_ARRAY: {
+			int32_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_int32_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_UINT32_ARRAY: {
+			uint32_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_uint32_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_INT64_ARRAY: {
+			int64_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_int64_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_UINT64_ARRAY: {
+			uint64_t *val;
+			uint_t i, nelem;
+
+			c = fm_printf(d + 1, c, cols, "[ ");
+			(void) nvpair_value_uint64_array(nvp, &val, &nelem);
+			for (i = 0; i < nelem; i++)
+			        c = fm_printf(d + 1, c, cols, "0x%llx ",
+					      (u_longlong_t)val[i]);
+
+			c = fm_printf(d + 1, c, cols, "]");
+			break;
+			}
+
+		case DATA_TYPE_STRING_ARRAY:
 		case DATA_TYPE_BOOLEAN_ARRAY:
 		case DATA_TYPE_BYTE_ARRAY:
-		case DATA_TYPE_INT8_ARRAY:
-		case DATA_TYPE_UINT8_ARRAY:
-		case DATA_TYPE_INT16_ARRAY:
-		case DATA_TYPE_UINT16_ARRAY:
-		case DATA_TYPE_INT32_ARRAY:
-		case DATA_TYPE_UINT32_ARRAY:
-		case DATA_TYPE_INT64_ARRAY:
-		case DATA_TYPE_UINT64_ARRAY:
-		case DATA_TYPE_STRING_ARRAY:
 			c = fm_printf(d + 1, c, cols, "[...]");
 			break;
+
 		case DATA_TYPE_UNKNOWN:
 			c = fm_printf(d + 1, c, cols, "<unknown>");
 			break;
@@ -350,191 +402,255 @@ fm_nvprint(nvlist_t *nvl)
 	char *class;
 	int c = 0;
 
-	console_printf("\r");
+	console_printf("\n");
 
 	if (nvlist_lookup_string(nvl, FM_CLASS, &class) == 0)
-		c = fm_printf(0, c, ereport_cols, "%s", class);
+		c = fm_printf(0, c, zevent_cols, "%s", class);
 
-	if (fm_nvprintr(nvl, 0, c, ereport_cols) != 0)
+	if (fm_nvprintr(nvl, 0, c, zevent_cols) != 0)
 		console_printf("\n");
 
 	console_printf("\n");
 }
 
-/*
- * Wrapper for panic() that first produces an FMA-style message for admins.
- * Normally such messages are generated by fmd(1M)'s syslog-msgs agent: this
- * is the one exception to that rule and the only error that gets messaged.
- * This function is intended for use by subsystems that have detected a fatal
- * error and enqueued appropriate ereports and wish to then force a panic.
- */
-/*PRINTFLIKE1*/
-void
-fm_panic(const char *format, ...)
+static zevent_t *
+zfs_zevent_alloc(void)
 {
-	va_list ap;
+	zevent_t *ev;
 
-	(void) casptr((void *)&fm_panicstr, NULL, (void *)format);
-#if defined(__i386) || defined(__amd64)
-	fastreboot_disable_highpil();
-#endif /* __i386 || __amd64 */
-	va_start(ap, format);
-	vpanic(format, ap);
-	va_end(ap);
+	ev = kmem_zalloc(sizeof(zevent_t), KM_SLEEP);
+	if (ev == NULL)
+		return NULL;
+
+	list_create(&ev->ev_ze_list, sizeof(zfs_zevent_t),
+		    offsetof(zfs_zevent_t, ze_node));
+	list_link_init(&ev->ev_node);
+
+	return ev;
+}
+
+static void
+zfs_zevent_free(zevent_t *ev)
+{
+	/* Run provided cleanup callback */
+	ev->ev_cb(ev->ev_nvl, ev->ev_detector);
+
+	list_destroy(&ev->ev_ze_list);
+	kmem_free(ev, sizeof(zevent_t));
+}
+
+static void
+zfs_zevent_drain(zevent_t *ev)
+{
+	zfs_zevent_t *ze;
+
+	ASSERT(MUTEX_HELD(&zevent_lock));
+	list_remove(&zevent_list, ev);
+
+	/* Remove references to this event in all private file data */
+	while ((ze = list_head(&ev->ev_ze_list)) != NULL) {
+		list_remove(&ev->ev_ze_list, ze);
+		ze->ze_zevent = NULL;
+		ze->ze_dropped++;
+	}
+
+	zfs_zevent_free(ev);
+}
+
+void
+zfs_zevent_drain_all(int *count)
+{
+	zevent_t *ev;
+
+	mutex_enter(&zevent_lock);
+	while ((ev = list_head(&zevent_list)) != NULL)
+		zfs_zevent_drain(ev);
+
+	*count = zevent_len_cur;
+	zevent_len_cur = 0;
+	mutex_exit(&zevent_lock);
 }
 
 /*
- * Simply tell the caller if fm_panicstr is set, ie. an fma event has
- * caused the panic. If so, something other than the default panic
- * diagnosis method will diagnose the cause of the panic.
+ * New zevents are inserted at the head.  If the maximum queue
+ * length is exceeded a zevent will be drained from the tail.
+ * As part of this any user space processes which currently have
+ * a reference to this zevent_t in their private data will have
+ * this reference set to NULL.
  */
-int
-is_fm_panic()
+static void
+zfs_zevent_insert(zevent_t *ev)
 {
-	if (fm_panicstr)
-		return (1);
+	mutex_enter(&zevent_lock);
+	list_insert_head(&zevent_list, ev);
+	if (zevent_len_cur >= zevent_len_max)
+		zfs_zevent_drain(list_tail(&zevent_list));
 	else
-		return (0);
+		zevent_len_cur++;
+
+	mutex_exit(&zevent_lock);
 }
 
 /*
- * Print any appropriate FMA banner message before the panic message.  This
- * function is called by panicsys() and prints the message for fm_panic().
- * We print the message here so that it comes after the system is quiesced.
- * A one-line summary is recorded in the log only (cmn_err(9F) with "!" prefix).
- * The rest of the message is for the console only and not needed in the log,
- * so it is printed using console_printf().  We break it up into multiple
- * chunks so as to avoid overflowing any small legacy prom_printf() buffers.
+ * Post a zevent
  */
 void
-fm_banner(void)
+zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
-	timespec_t tod;
-	hrtime_t now;
-
-	if (!fm_panicstr)
-		return; /* panic was not initiated by fm_panic(); do nothing */
-
-	if (panicstr) {
-		tod = panic_hrestime;
-		now = panic_hrtime;
-	} else {
-		gethrestime(&tod);
-		now = gethrtime_waitfree();
-	}
-
-	cmn_err(CE_NOTE, "!SUNW-MSG-ID: %s, "
-	    "TYPE: Error, VER: 1, SEVERITY: Major\n", fm_msgid);
-
-	console_printf(
-"\n\rSUNW-MSG-ID: %s, TYPE: Error, VER: 1, SEVERITY: Major\n"
-"EVENT-TIME: 0x%lx.0x%lx (0x%llx)\n",
-	    fm_msgid, tod.tv_sec, tod.tv_nsec, (u_longlong_t)now);
-
-	console_printf(
-"PLATFORM: %s, CSN: -, HOSTNAME: %s\n"
-"SOURCE: %s, REV: %s %s\n",
-	    platform, utsname.nodename, utsname.sysname,
-	    utsname.release, utsname.version);
-
-	console_printf(
-"DESC: Errors have been detected that require a reboot to ensure system\n"
-"integrity.  See %s/%s for more information.\n",
-	    fm_url, fm_msgid);
-
-	console_printf(
-"AUTO-RESPONSE: Solaris will attempt to save and diagnose the error telemetry\n"
-"IMPACT: The system will sync files, save a crash dump if needed, and reboot\n"
-"REC-ACTION: Save the error summary below in case telemetry cannot be saved\n");
-
-	console_printf("\n");
-}
-
-/*
- * Utility function to write all of the pending ereports to the dump device.
- * This function is called at either normal reboot or panic time, and simply
- * iterates over the in-transit messages in the ereport sysevent channel.
- */
-void
-fm_ereport_dump(void)
-{
-	evchanq_t *chq;
-	sysevent_t *sep;
-	erpt_dump_t ed;
-
-	timespec_t tod;
-	hrtime_t now;
-	char *buf;
-	size_t len;
-
-	if (panicstr) {
-		tod = panic_hrestime;
-		now = panic_hrtime;
-	} else {
-		if (ereport_errorq != NULL)
-			errorq_drain(ereport_errorq);
-		gethrestime(&tod);
-		now = gethrtime_waitfree();
-	}
-
-	/*
-	 * In the panic case, sysevent_evc_walk_init() will return NULL.
-	 */
-	if ((chq = sysevent_evc_walk_init(ereport_chan, NULL)) == NULL &&
-	    !panicstr)
-		return; /* event channel isn't initialized yet */
-
-	while ((sep = sysevent_evc_walk_step(chq)) != NULL) {
-		if ((buf = sysevent_evc_event_attr(sep, &len)) == NULL)
-			break;
-
-		ed.ed_magic = ERPT_MAGIC;
-		ed.ed_chksum = checksum32(buf, len);
-		ed.ed_size = (uint32_t)len;
-		ed.ed_pad = 0;
-		ed.ed_hrt_nsec = SE_TIME(sep);
-		ed.ed_hrt_base = now;
-		ed.ed_tod_base.sec = tod.tv_sec;
-		ed.ed_tod_base.nsec = tod.tv_nsec;
-
-		dumpvp_write(&ed, sizeof (ed));
-		dumpvp_write(buf, len);
-	}
-
-	sysevent_evc_walk_fini(chq);
-}
-
-/*
- * Post an error report (ereport) to the sysevent error channel.  The error
- * channel must be established with a prior call to sysevent_evc_create()
- * before publication may occur.
- */
-void
-fm_ereport_post(nvlist_t *ereport, int evc_flag)
-{
+	int64_t tv_array[2];
+	timestruc_t tv;
 	size_t nvl_size = 0;
-	evchan_t *error_chan;
+	zevent_t *ev;
 
-	(void) nvlist_size(ereport, &nvl_size, NV_ENCODE_NATIVE);
+	gethrestime(&tv);
+	tv_array[0] = tv.tv_sec;
+	tv_array[1] = tv.tv_nsec;
+	if (nvlist_add_int64_array(nvl, FM_EREPORT_TIME, tv_array, 2)) {
+		atomic_add_64(&erpt_kstat_data.erpt_set_failed.value.ui64, 1);
+		return;
+	}
+
+	(void) nvlist_size(nvl, &nvl_size, NV_ENCODE_NATIVE);
 	if (nvl_size > ERPT_DATA_SZ || nvl_size == 0) {
 		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
 		return;
 	}
 
-	if (sysevent_evc_bind(FM_ERROR_CHAN, &error_chan,
-	    EVCH_CREAT|EVCH_HOLD_PEND) != 0) {
+	if (zevent_console)
+		fm_nvprint(nvl);
+
+	ev = zfs_zevent_alloc();
+	if (ev == NULL) {
 		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
 		return;
 	}
 
-	if (sysevent_evc_publish(error_chan, EC_FM, ESC_FM_ERROR,
-	    SUNW_VENDOR, FM_PUB, ereport, evc_flag) != 0) {
-		atomic_add_64(&erpt_kstat_data.erpt_dropped.value.ui64, 1);
-		(void) sysevent_evc_unbind(error_chan);
-		return;
-	}
-	(void) sysevent_evc_unbind(error_chan);
+        ev->ev_nvl = nvl;
+	ev->ev_detector = detector;
+	ev->ev_cb = cb;
+	zfs_zevent_insert(ev);
+	cv_broadcast(&zevent_cv);
 }
+
+static int
+zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
+{
+	*ze = zfsdev_get_state(minor, ZST_ZEVENT);
+	if (*ze == NULL)
+		return (EBADF);
+
+	return (0);
+}
+
+int
+zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
+{
+	file_t *fp;
+	int error;
+
+        fp = getf(fd);
+        if (fp == NULL)
+                return (EBADF);
+
+        *minorp = zfsdev_getminor(fp->f_file);
+        error = zfs_zevent_minor_to_state(*minorp, ze);
+
+	if (error)
+		zfs_zevent_fd_rele(fd);
+
+	return (error);
+}
+
+void
+zfs_zevent_fd_rele(int fd)
+{
+	releasef(fd);
+}
+
+/*
+ * Get the next zevent in the stream and place a copy in 'event'.
+ */
+int
+zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *dropped)
+{
+	zevent_t *ev;
+	int error;
+
+	mutex_enter(&zevent_lock);
+	if (ze->ze_zevent == NULL) {
+		/* New stream start at the beginning/tail */
+		ev = list_tail(&zevent_list);
+		if (ev == NULL) {
+			error = ENOENT;
+			goto out;
+		}
+	} else {
+		/* Existing stream continue with the next element and remove
+		 * ourselves from the wait queue for the previous element */
+		ev = list_prev(&zevent_list, ze->ze_zevent);
+		if (ev == NULL) {
+			error = ENOENT;
+			goto out;
+		}
+
+		list_remove(&ze->ze_zevent->ev_ze_list, ze);
+	}
+
+	ze->ze_zevent = ev;
+	list_insert_head(&ev->ev_ze_list, ze);
+	nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
+	*dropped = ze->ze_dropped;
+	ze->ze_dropped = 0;
+out:
+	mutex_exit(&zevent_lock);
+
+	return error;
+}
+
+int
+zfs_zevent_wait(zfs_zevent_t *ze)
+{
+	int error = 0;
+
+	mutex_enter(&zevent_lock);
+
+	if (zevent_flags & ZEVENT_SHUTDOWN) {
+		error = ESHUTDOWN;
+		goto out;
+	}
+
+	zevent_waiters++;
+	cv_wait_interruptible(&zevent_cv, &zevent_lock);
+	if (issig(JUSTLOOKING))
+		error = EINTR;
+
+	zevent_waiters--;
+out:
+	mutex_exit(&zevent_lock);
+
+	return error;
+}
+
+void
+zfs_zevent_init(zfs_zevent_t **zep)
+{
+	zfs_zevent_t *ze;
+
+	ze = *zep = kmem_zalloc(sizeof (zfs_zevent_t), KM_SLEEP);
+	list_link_init(&ze->ze_node);
+}
+
+void
+zfs_zevent_destroy(zfs_zevent_t *ze)
+{
+	mutex_enter(&zevent_lock);
+	if (ze->ze_zevent)
+		list_remove(&ze->ze_zevent->ev_ze_list, ze);
+	mutex_exit(&zevent_lock);
+
+	kmem_free(ze, sizeof (zfs_zevent_t));
+}
+#endif /* _KERNEL */
 
 /*
  * Wrapppers for FM nvlist allocators
@@ -938,6 +1054,105 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 	}
 }
 
+void
+fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
+    nvlist_t *snvl, nvlist_t *bboard, int npairs, ...)
+{
+	nv_alloc_t *nva = nvlist_lookup_nv_alloc(fmri);
+	nvlist_t *pairs[HC_MAXPAIRS];
+	nvlist_t **hcl;
+	uint_t n;
+	int i, j;
+	va_list ap;
+	char *hcname, *hcid;
+
+	if (!fm_fmri_hc_set_common(fmri, version, auth))
+		return;
+
+	/*
+	 * copy the bboard nvpairs to the pairs array
+	 */
+	if (nvlist_lookup_nvlist_array(bboard, FM_FMRI_HC_LIST, &hcl, &n)
+	    != 0) {
+		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+		return;
+	}
+
+	for (i = 0; i < n; i++) {
+		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_NAME,
+		    &hcname) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_ID, &hcid) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+
+		pairs[i] = fm_nvlist_create(nva);
+		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, hcname) != 0 ||
+		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, hcid) != 0) {
+			for (j = 0; j <= i; j++) {
+				if (pairs[j] != NULL)
+					fm_nvlist_destroy(pairs[j],
+					    FM_NVA_RETAIN);
+			}
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+
+	/*
+	 * create the pairs from passed in pairs
+	 */
+	npairs = MIN(npairs, HC_MAXPAIRS);
+
+	va_start(ap, npairs);
+	for (i = n; i < npairs + n; i++) {
+		const char *name = va_arg(ap, const char *);
+		uint32_t id = va_arg(ap, uint32_t);
+		char idstr[11];
+		(void) snprintf(idstr, sizeof (idstr), "%u", id);
+		pairs[i] = fm_nvlist_create(nva);
+		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, name) != 0 ||
+		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, idstr) != 0) {
+			for (j = 0; j <= i; j++) {
+				if (pairs[j] != NULL)
+					fm_nvlist_destroy(pairs[j],
+					    FM_NVA_RETAIN);
+			}
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+	va_end(ap);
+
+	/*
+	 * Create the fmri hc list
+	 */
+	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs,
+	    npairs + n) != 0) {
+		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+		return;
+	}
+
+	for (i = 0; i < npairs + n; i++) {
+			fm_nvlist_destroy(pairs[i], FM_NVA_RETAIN);
+	}
+
+	if (snvl != NULL) {
+		if (nvlist_add_nvlist(fmri, FM_FMRI_HC_SPECIFIC, snvl) != 0) {
+			atomic_add_64(
+			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
+			return;
+		}
+	}
+}
+
 /*
  * Set-up and validate the members of an dev fmri according to:
  *
@@ -1167,7 +1382,7 @@ fm_ena_generate_cpu(uint64_t timestamp, processorid_t cpuid, uchar_t format)
 			ena = (uint64_t)((format & ENA_FORMAT_MASK) |
 			    ((cpuid << ENA_FMT1_CPUID_SHFT) &
 			    ENA_FMT1_CPUID_MASK) |
-			    ((gethrtime_waitfree() << ENA_FMT1_TIME_SHFT) &
+			    ((gethrtime() << ENA_FMT1_TIME_SHFT) &
 			    ENA_FMT1_TIME_MASK));
 		}
 		break;
@@ -1185,7 +1400,7 @@ fm_ena_generate_cpu(uint64_t timestamp, processorid_t cpuid, uchar_t format)
 uint64_t
 fm_ena_generate(uint64_t timestamp, uchar_t format)
 {
-	return (fm_ena_generate_cpu(timestamp, CPU->cpu_id, format));
+	return (fm_ena_generate_cpu(timestamp, getcpuid(), format));
 }
 
 uint64_t
@@ -1253,134 +1468,67 @@ fm_ena_time_get(uint64_t ena)
 	return (time);
 }
 
-/*
- * Convert a getpcstack() trace to symbolic name+offset, and add the resulting
- * string array to a Fault Management ereport as FM_EREPORT_PAYLOAD_NAME_STACK.
- */
+#ifdef _KERNEL
 void
-fm_payload_stack_add(nvlist_t *payload, const pc_t *stack, int depth)
+fm_init(void)
 {
-	int i;
-	char *sym;
-	ulong_t off;
-	char *stkpp[FM_STK_DEPTH];
-	char buf[FM_STK_DEPTH * FM_SYM_SZ];
-	char *stkp = buf;
+	zevent_len_cur = 0;
+	zevent_flags = 0;
 
-	for (i = 0; i < depth && i != FM_STK_DEPTH; i++, stkp += FM_SYM_SZ) {
-		if ((sym = kobj_getsymname(stack[i], &off)) != NULL)
-			(void) snprintf(stkp, FM_SYM_SZ, "%s+%lx", sym, off);
-		else
-			(void) snprintf(stkp, FM_SYM_SZ, "%lx", (long)stack[i]);
-		stkpp[i] = stkp;
+	if (zevent_len_max == 0)
+		zevent_len_max = ERPT_MAX_ERRS * MAX(max_ncpus, 4);
+
+	/* Initialize zevent allocation and generation kstats */
+	fm_ksp = kstat_create("zfs", 0, "fm", "misc", KSTAT_TYPE_NAMED,
+	    sizeof (struct erpt_kstat) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	if (fm_ksp != NULL) {
+		fm_ksp->ks_data = &erpt_kstat_data;
+		kstat_install(fm_ksp);
+	} else {
+		cmn_err(CE_NOTE, "failed to create fm/misc kstat\n");
 	}
 
-	fm_payload_set(payload, FM_EREPORT_PAYLOAD_NAME_STACK,
-	    DATA_TYPE_STRING_ARRAY, depth, stkpp, NULL);
+	mutex_init(&zevent_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&zevent_list, sizeof(zevent_t), offsetof(zevent_t, ev_node));
+	cv_init(&zevent_cv, NULL, CV_DEFAULT, NULL);
 }
 
 void
-print_msg_hwerr(ctid_t ct_id, proc_t *p)
+fm_fini(void)
 {
-	uprintf("Killed process %d (%s) in contract id %d "
-	    "due to hardware error\n", p->p_pid, p->p_user.u_comm, ct_id);
+	int count;
+
+	zfs_zevent_drain_all(&count);
+	cv_broadcast(&zevent_cv);
+
+	mutex_enter(&zevent_lock);
+	zevent_flags |= ZEVENT_SHUTDOWN;
+	while (zevent_waiters > 0) {
+		mutex_exit(&zevent_lock);
+		schedule();
+		mutex_enter(&zevent_lock);
+	}
+	mutex_exit(&zevent_lock);
+
+	cv_destroy(&zevent_cv);
+	list_destroy(&zevent_list);
+	mutex_destroy(&zevent_lock);
+
+	if (fm_ksp != NULL) {
+		kstat_delete(fm_ksp);
+		fm_ksp = NULL;
+	}
 }
 
-void
-fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
-    nvlist_t *snvl, nvlist_t *bboard, int npairs, ...)
-{
-	nv_alloc_t *nva = nvlist_lookup_nv_alloc(fmri);
-	nvlist_t *pairs[HC_MAXPAIRS];
-	nvlist_t **hcl;
-	uint_t n;
-	int i, j;
-	va_list ap;
-	char *hcname, *hcid;
+module_param(zevent_len_max, int, 0644);
+MODULE_PARM_DESC(zevent_len_max, "Maximum event queue length");
 
-	if (!fm_fmri_hc_set_common(fmri, version, auth))
-		return;
+module_param(zevent_cols, int, 0644);
+MODULE_PARM_DESC(zevent_cols, "Maximum event column width");
 
-	/*
-	 * copy the bboard nvpairs to the pairs array
-	 */
-	if (nvlist_lookup_nvlist_array(bboard, FM_FMRI_HC_LIST, &hcl, &n)
-	    != 0) {
-		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-		return;
-	}
+module_param(zevent_console, int, 0644);
+MODULE_PARM_DESC(zevent_console, "Log events to the console");
 
-	for (i = 0; i < n; i++) {
-		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_NAME,
-		    &hcname) != 0) {
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-			return;
-		}
-		if (nvlist_lookup_string(hcl[i], FM_FMRI_HC_ID, &hcid) != 0) {
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-			return;
-		}
-
-		pairs[i] = fm_nvlist_create(nva);
-		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, hcname) != 0 ||
-		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, hcid) != 0) {
-			for (j = 0; j <= i; j++) {
-				if (pairs[j] != NULL)
-					fm_nvlist_destroy(pairs[j],
-					    FM_NVA_RETAIN);
-			}
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-			return;
-		}
-	}
-
-	/*
-	 * create the pairs from passed in pairs
-	 */
-	npairs = MIN(npairs, HC_MAXPAIRS);
-
-	va_start(ap, npairs);
-	for (i = n; i < npairs + n; i++) {
-		const char *name = va_arg(ap, const char *);
-		uint32_t id = va_arg(ap, uint32_t);
-		char idstr[11];
-		(void) snprintf(idstr, sizeof (idstr), "%u", id);
-		pairs[i] = fm_nvlist_create(nva);
-		if (nvlist_add_string(pairs[i], FM_FMRI_HC_NAME, name) != 0 ||
-		    nvlist_add_string(pairs[i], FM_FMRI_HC_ID, idstr) != 0) {
-			for (j = 0; j <= i; j++) {
-				if (pairs[j] != NULL)
-					fm_nvlist_destroy(pairs[j],
-					    FM_NVA_RETAIN);
-			}
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-			return;
-		}
-	}
-	va_end(ap);
-
-	/*
-	 * Create the fmri hc list
-	 */
-	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs,
-	    npairs + n) != 0) {
-		atomic_add_64(&erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-		return;
-	}
-
-	for (i = 0; i < npairs + n; i++) {
-			fm_nvlist_destroy(pairs[i], FM_NVA_RETAIN);
-	}
-
-	if (snvl != NULL) {
-		if (nvlist_add_nvlist(fmri, FM_FMRI_HC_SPECIFIC, snvl) != 0) {
-			atomic_add_64(
-			    &erpt_kstat_data.fmri_set_failed.value.ui64, 1);
-			return;
-		}
-	}
-}
+#endif /* _KERNEL */

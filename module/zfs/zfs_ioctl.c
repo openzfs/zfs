@@ -1798,7 +1798,7 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
  * local property values.
  */
 static int
-zfs_ioc_objset_recvd_props(struct file *filp, zfs_cmd_t *zc)
+zfs_ioc_objset_recvd_props(zfs_cmd_t *zc)
 {
 	objset_t *os = NULL;
 	int error;
@@ -4627,6 +4627,67 @@ zfs_ioc_get_holds(zfs_cmd_t *zc)
 }
 
 /*
+ * inputs:
+ * zc_guid		flags (ZEVENT_NONBLOCK)
+ *
+ * outputs:
+ * zc_nvlist_dst	next nvlist event
+ * zc_cookie		dropped events since last get
+ * zc_cleanup_fd	cleanup-on-exit file descriptor
+ */
+static int
+zfs_ioc_events_next(zfs_cmd_t *zc)
+{
+	zfs_zevent_t *ze;
+	nvlist_t *event = NULL;
+	minor_t minor;
+	uint64_t dropped = 0;
+	int error;
+
+	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	if (error != 0)
+		return (error);
+
+	do {
+		error = zfs_zevent_next(ze, &event, &dropped);
+		if (event != NULL) {
+			zc->zc_cookie = dropped;
+			error = put_nvlist(zc, event);
+		        nvlist_free(event);
+		}
+
+		if (zc->zc_guid & ZEVENT_NONBLOCK)
+			break;
+
+		if ((error == 0) || (error != ENOENT))
+			break;
+
+		error = zfs_zevent_wait(ze);
+		if (error)
+			break;
+	} while (1);
+
+	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+
+	return (error);
+}
+
+/*
+ * outputs:
+ * zc_cookie		cleared events count
+ */
+static int
+zfs_ioc_events_clear(zfs_cmd_t *zc)
+{
+	int count;
+
+	zfs_zevent_drain_all(&count);
+	zc->zc_cookie = count;
+
+	return 0;
+}
+
+/*
  * pool create, destroy, and export don't log the history as part of
  * zfsdev_ioctl, but rather zfs_ioc_pool_create, and zfs_ioc_pool_export
  * do the logging of those commands.
@@ -4747,7 +4808,11 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	{ zfs_ioc_tmp_snapshot, zfs_secpolicy_tmp_snapshot, DATASET_NAME,
 	    B_FALSE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_obj_to_stats, zfs_secpolicy_diff, DATASET_NAME, B_FALSE,
-	    POOL_CHECK_SUSPENDED }
+	    POOL_CHECK_SUSPENDED },
+	{ zfs_ioc_events_next, zfs_secpolicy_config, NO_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
+	{ zfs_ioc_events_clear, zfs_secpolicy_config, NO_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
 };
 
 int

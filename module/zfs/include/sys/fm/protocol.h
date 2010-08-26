@@ -69,6 +69,7 @@ extern "C" {
 /* ereport payload member names */
 #define	FM_EREPORT_DETECTOR		"detector"
 #define	FM_EREPORT_ENA			"ena"
+#define	FM_EREPORT_TIME			"time"
 
 /* list.* event payload member names */
 #define	FM_LIST_EVENT_SIZE		"list-sz"
@@ -327,16 +328,13 @@ extern "C" {
 #define	FM_FMRI_SW_CTXT_ZONE			"zone"
 #define	FM_FMRI_SW_CTXT_CTID			"ctid"
 #define	FM_FMRI_SW_CTXT_STACK			"stack"
+#define	FM_NVA_FREE		0	/* free allocator on nvlist_destroy */
+#define	FM_NVA_RETAIN		1	/* keep allocator on nvlist_destroy */
 
 extern nv_alloc_t *fm_nva_xcreate(char *, size_t);
 extern void fm_nva_xdestroy(nv_alloc_t *);
-
 extern nvlist_t *fm_nvlist_create(nv_alloc_t *);
 extern void fm_nvlist_destroy(nvlist_t *, int);
-
-#define	FM_NVA_FREE	0		/* free allocator on nvlist_destroy */
-#define	FM_NVA_RETAIN	1		/* keep allocator on nvlist_destroy */
-
 extern void fm_ereport_set(nvlist_t *, int, const char *, uint64_t,
     const nvlist_t *, ...);
 extern void fm_payload_set(nvlist_t *, ...);
@@ -350,8 +348,6 @@ extern void fm_fmri_cpu_set(nvlist_t *, int, const nvlist_t *, uint32_t,
     uint8_t *, const char *);
 extern void fm_fmri_mem_set(nvlist_t *, int, const nvlist_t *, const char *,
     const char *, uint64_t);
-extern void fm_authority_set(nvlist_t *, int, const char *, const char *,
-    const char *, const char *);
 extern void fm_fmri_zfs_set(nvlist_t *, int, uint64_t, uint64_t);
 extern void fm_fmri_hc_create(nvlist_t *, int, const nvlist_t *, nvlist_t *,
     nvlist_t *, int, ...);

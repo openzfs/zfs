@@ -40,6 +40,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_prop.h>
+#include <sys/fm/util.h>
 #include <sys/dsl_scan.h>
 #include <sys/fs/zfs.h>
 #include <sys/metaslab_impl.h>
@@ -1540,6 +1541,7 @@ spa_init(int mode)
 
 	spa_mode_global = mode;
 
+	fm_init();
 	refcount_init();
 	unique_init();
 	zio_init();
@@ -1565,6 +1567,7 @@ spa_fini(void)
 	zio_fini();
 	unique_fini();
 	refcount_fini();
+	fm_fini();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
