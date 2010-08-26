@@ -2162,3 +2162,8 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	zfs_release_sa_handle(hdl, db);
 	return (error);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_create_fs);
+EXPORT_SYMBOL(zfs_obj_to_path);
+#endif

@@ -401,3 +401,14 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 
 	mutex_exit(&spa->spa_errlog_lock);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* error handling */
+EXPORT_SYMBOL(spa_log_error);
+EXPORT_SYMBOL(spa_get_errlog_size);
+EXPORT_SYMBOL(spa_get_errlog);
+EXPORT_SYMBOL(spa_errlog_rotate);
+EXPORT_SYMBOL(spa_errlog_drain);
+EXPORT_SYMBOL(spa_errlog_sync);
+EXPORT_SYMBOL(spa_get_errlists);
+#endif

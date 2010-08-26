@@ -370,3 +370,9 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(snapshot_namecheck);
+EXPORT_SYMBOL(pool_namecheck);
+EXPORT_SYMBOL(dataset_namecheck);
+#endif

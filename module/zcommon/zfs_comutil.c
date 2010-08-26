@@ -200,3 +200,11 @@ const char *zfs_history_event_names[LOG_END] = {
 	"user release",
 	"pool split",
 };
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfs_allocatable_devs);
+EXPORT_SYMBOL(zpool_get_rewind_policy);
+EXPORT_SYMBOL(zfs_zpl_version_map);
+EXPORT_SYMBOL(zfs_spa_version_map);
+EXPORT_SYMBOL(zfs_history_event_names);
+#endif

@@ -2364,13 +2364,16 @@ dsl_snapshot_rename_one(const char *name, void *arg)
 	 * For recursive snapshot renames the parent won't be changing
 	 * so we just pass name for both the to/from argument.
 	 */
+#ifdef HAVE_ZPL
 	err = zfs_secpolicy_rename_perms(snapname, snapname, CRED());
 	if (err != 0) {
 		strfree(snapname);
 		return (err == ENOENT ? 0 : err);
 	}
+#endif
 
-#ifdef _KERNEL
+/* XXX: Ignore for SPL version until mounting the FS is supported */
+#if defined(_KERNEL) && !defined(HAVE_SPL)
 	/*
 	 * For all filesystems undergoing rename, we'll need to unmount it.
 	 */
@@ -4036,3 +4039,51 @@ dsl_destroy_inconsistent(const char *dsname, void *arg)
 	}
 	return (0);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_dataset_hold);
+EXPORT_SYMBOL(dsl_dataset_hold_obj);
+EXPORT_SYMBOL(dsl_dataset_own);
+EXPORT_SYMBOL(dsl_dataset_own_obj);
+EXPORT_SYMBOL(dsl_dataset_name);
+EXPORT_SYMBOL(dsl_dataset_rele);
+EXPORT_SYMBOL(dsl_dataset_disown);
+EXPORT_SYMBOL(dsl_dataset_drop_ref);
+EXPORT_SYMBOL(dsl_dataset_tryown);
+EXPORT_SYMBOL(dsl_dataset_make_exclusive);
+EXPORT_SYMBOL(dsl_dataset_create_sync);
+EXPORT_SYMBOL(dsl_dataset_create_sync_dd);
+EXPORT_SYMBOL(dsl_dataset_destroy);
+EXPORT_SYMBOL(dsl_snapshots_destroy);
+EXPORT_SYMBOL(dsl_dataset_destroy_check);
+EXPORT_SYMBOL(dsl_dataset_destroy_sync);
+EXPORT_SYMBOL(dsl_dataset_snapshot_check);
+EXPORT_SYMBOL(dsl_dataset_snapshot_sync);
+EXPORT_SYMBOL(dsl_dataset_rename);
+EXPORT_SYMBOL(dsl_dataset_promote);
+EXPORT_SYMBOL(dsl_dataset_clone_swap);
+EXPORT_SYMBOL(dsl_dataset_user_hold);
+EXPORT_SYMBOL(dsl_dataset_user_release);
+EXPORT_SYMBOL(dsl_dataset_user_release_tmp);
+EXPORT_SYMBOL(dsl_dataset_get_holds);
+EXPORT_SYMBOL(dsl_dataset_get_blkptr);
+EXPORT_SYMBOL(dsl_dataset_set_blkptr);
+EXPORT_SYMBOL(dsl_dataset_get_spa);
+EXPORT_SYMBOL(dsl_dataset_modified_since_lastsnap);
+EXPORT_SYMBOL(dsl_dataset_sync);
+EXPORT_SYMBOL(dsl_dataset_block_born);
+EXPORT_SYMBOL(dsl_dataset_block_kill);
+EXPORT_SYMBOL(dsl_dataset_block_freeable);
+EXPORT_SYMBOL(dsl_dataset_prev_snap_txg);
+EXPORT_SYMBOL(dsl_dataset_dirty);
+EXPORT_SYMBOL(dsl_dataset_stats);
+EXPORT_SYMBOL(dsl_dataset_fast_stat);
+EXPORT_SYMBOL(dsl_dataset_space);
+EXPORT_SYMBOL(dsl_dataset_fsid_guid);
+EXPORT_SYMBOL(dsl_dsobj_to_dsname);
+EXPORT_SYMBOL(dsl_dataset_check_quota);
+EXPORT_SYMBOL(dsl_dataset_set_quota);
+EXPORT_SYMBOL(dsl_dataset_set_quota_sync);
+EXPORT_SYMBOL(dsl_dataset_set_reservation);
+EXPORT_SYMBOL(dsl_destroy_inconsistent);
+#endif

@@ -23,6 +23,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/arc.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
@@ -2816,3 +2817,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 	}
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_buf_rele);
+EXPORT_SYMBOL(dmu_buf_will_dirty);
+#endif

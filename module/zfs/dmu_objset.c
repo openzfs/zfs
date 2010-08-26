@@ -910,8 +910,10 @@ dmu_objset_snapshot_one(const char *name, void *arg)
 	 * permission checks for the starting dataset have already been
 	 * performed in zfs_secpolicy_snapshot()
 	 */
+#ifdef HAVE_ZPL
 	if (sn->recursive && (err = zfs_secpolicy_snapshot_perms(name, CRED())))
 		return (err);
+#endif
 
 	err = dmu_objset_hold(name, sn, &os);
 	if (err != 0)
@@ -1796,3 +1798,39 @@ dmu_objset_get_user(objset_t *os)
 	ASSERT(MUTEX_HELD(&os->os_user_ptr_lock));
 	return (os->os_user_ptr);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_objset_pool);
+EXPORT_SYMBOL(dmu_objset_name);
+EXPORT_SYMBOL(dmu_objset_hold);
+EXPORT_SYMBOL(dmu_objset_own);
+EXPORT_SYMBOL(dmu_objset_rele);
+EXPORT_SYMBOL(dmu_objset_disown);
+EXPORT_SYMBOL(dmu_objset_from_ds);
+EXPORT_SYMBOL(dmu_objset_create);
+EXPORT_SYMBOL(dmu_objset_clone);
+EXPORT_SYMBOL(dmu_objset_destroy);
+EXPORT_SYMBOL(dmu_objset_snapshot);
+EXPORT_SYMBOL(dmu_objset_stats);
+EXPORT_SYMBOL(dmu_objset_fast_stat);
+EXPORT_SYMBOL(dmu_objset_space);
+EXPORT_SYMBOL(dmu_objset_fsid_guid);
+EXPORT_SYMBOL(dmu_objset_find);
+EXPORT_SYMBOL(dmu_objset_find_spa);
+EXPORT_SYMBOL(dmu_objset_prefetch);
+EXPORT_SYMBOL(dmu_objset_byteswap);
+EXPORT_SYMBOL(dmu_objset_evict_dbufs);
+EXPORT_SYMBOL(dmu_objset_snap_cmtime);
+
+EXPORT_SYMBOL(dmu_objset_sync);
+EXPORT_SYMBOL(dmu_objset_is_dirty);
+EXPORT_SYMBOL(dmu_objset_create_impl);
+EXPORT_SYMBOL(dmu_objset_open_impl);
+EXPORT_SYMBOL(dmu_objset_evict);
+EXPORT_SYMBOL(dmu_objset_register_type);
+EXPORT_SYMBOL(dmu_objset_do_userquota_updates);
+EXPORT_SYMBOL(dmu_objset_userquota_get_ids);
+EXPORT_SYMBOL(dmu_objset_userused_enabled);
+EXPORT_SYMBOL(dmu_objset_userspace_upgrade);
+EXPORT_SYMBOL(dmu_objset_userspace_present);
+#endif

@@ -1419,3 +1419,10 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd)
 	dd->dd_snap_cmtime = t;
 	mutex_exit(&dd->dd_lock);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_dir_set_quota);
+EXPORT_SYMBOL(dsl_dir_set_reservation);
+EXPORT_SYMBOL(dsl_dir_open);
+EXPORT_SYMBOL(dsl_dir_close);
+#endif

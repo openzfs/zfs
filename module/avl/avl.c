@@ -1028,3 +1028,30 @@ done:
 
 	return (AVL_NODE2DATA(node, off));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+
+static int avl_init(void) { return 0; }
+static int avl_fini(void) { return 0; }
+
+spl_module_init(avl_init);
+spl_module_exit(avl_fini);
+
+MODULE_DESCRIPTION("Generic AVL tree implementation");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
+
+EXPORT_SYMBOL(avl_create);
+EXPORT_SYMBOL(avl_find);
+EXPORT_SYMBOL(avl_insert);
+EXPORT_SYMBOL(avl_insert_here);
+EXPORT_SYMBOL(avl_walk);
+EXPORT_SYMBOL(avl_first);
+EXPORT_SYMBOL(avl_last);
+EXPORT_SYMBOL(avl_nearest);
+EXPORT_SYMBOL(avl_add);
+EXPORT_SYMBOL(avl_remove);
+EXPORT_SYMBOL(avl_numnodes);
+EXPORT_SYMBOL(avl_destroy_nodes);
+EXPORT_SYMBOL(avl_destroy);
+#endif

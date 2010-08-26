@@ -74,6 +74,7 @@ kmem_cache_t *zio_cache;
 kmem_cache_t *zio_link_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
+int zio_bulk_flags = 0;
 
 #ifdef _KERNEL
 extern vmem_t *zio_alloc_arena;
@@ -136,12 +137,14 @@ zio_init(void)
 			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL, NULL,
-			    size > zio_buf_debug_limit ? KMC_NODEBUG : 0);
+			    (size > zio_buf_debug_limit ? KMC_NODEBUG : 0) |
+			    zio_bulk_flags);
 
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL, data_alloc_arena,
-			    size > zio_buf_debug_limit ? KMC_NODEBUG : 0);
+			    (size > zio_buf_debug_limit ? KMC_NODEBUG : 0) |
+			    zio_bulk_flags);
 		}
 	}
 
@@ -2975,3 +2978,19 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_checksum_verify,
 	zio_done
 };
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* Fault injection */
+EXPORT_SYMBOL(zio_injection_enabled);
+EXPORT_SYMBOL(zio_inject_fault);
+EXPORT_SYMBOL(zio_inject_list_next);
+EXPORT_SYMBOL(zio_clear_fault);
+EXPORT_SYMBOL(zio_handle_fault_injection);
+EXPORT_SYMBOL(zio_handle_device_injection);
+EXPORT_SYMBOL(zio_handle_label_injection);
+EXPORT_SYMBOL(zio_priority_table);
+EXPORT_SYMBOL(zio_type_name);
+
+module_param(zio_bulk_flags, int, 0644);
+MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
+#endif

@@ -3167,3 +3167,11 @@ vdev_split(vdev_t *vd)
 	}
 	vdev_propagate_state(cvd);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(vdev_fault);
+EXPORT_SYMBOL(vdev_degrade);
+EXPORT_SYMBOL(vdev_online);
+EXPORT_SYMBOL(vdev_offline);
+EXPORT_SYMBOL(vdev_clear);
+#endif

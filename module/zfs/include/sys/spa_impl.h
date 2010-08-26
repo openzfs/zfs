@@ -226,7 +226,7 @@ struct spa {
 	refcount_t	spa_refcount;		/* number of opens */
 };
 
-extern const char *spa_config_path;
+extern char *spa_config_path;
 
 #ifdef	__cplusplus
 }

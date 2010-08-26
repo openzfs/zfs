@@ -593,3 +593,38 @@ zfs_prop_align_right(zfs_prop_t prop)
 }
 
 #endif
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+
+static int zcommon_init(void) { return 0; }
+static int zcommon_fini(void) { return 0; }
+
+spl_module_init(zcommon_init);
+spl_module_exit(zcommon_fini);
+
+MODULE_DESCRIPTION("Generic ZFS support");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE(ZFS_META_LICENSE);
+
+/* zfs dataset property functions */
+EXPORT_SYMBOL(zfs_userquota_prop_prefixes);
+EXPORT_SYMBOL(zfs_prop_init);
+EXPORT_SYMBOL(zfs_prop_get_type);
+EXPORT_SYMBOL(zfs_prop_get_table);
+EXPORT_SYMBOL(zfs_prop_delegatable);
+
+/* Dataset property functions shared between libzfs and kernel. */
+EXPORT_SYMBOL(zfs_prop_default_string);
+EXPORT_SYMBOL(zfs_prop_default_numeric);
+EXPORT_SYMBOL(zfs_prop_readonly);
+EXPORT_SYMBOL(zfs_prop_inheritable);
+EXPORT_SYMBOL(zfs_prop_setonce);
+EXPORT_SYMBOL(zfs_prop_to_name);
+EXPORT_SYMBOL(zfs_name_to_prop);
+EXPORT_SYMBOL(zfs_prop_user);
+EXPORT_SYMBOL(zfs_prop_userquota);
+EXPORT_SYMBOL(zfs_prop_index_to_string);
+EXPORT_SYMBOL(zfs_prop_string_to_index);
+EXPORT_SYMBOL(zfs_prop_valid_for_type);
+
+#endif
