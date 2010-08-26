@@ -1682,7 +1682,7 @@ upgrade_set_callback(zfs_handle_t *zhp, void *data)
 	if (version < cb->cb_version) {
 		char verstr[16];
 		(void) snprintf(verstr, sizeof (verstr),
-		    "%llu", cb->cb_version);
+		    "%llu", (u_longlong_t)cb->cb_version);
 		if (cb->cb_lastfs[0] && !same_pool(zhp, cb->cb_lastfs)) {
 			/*
 			 * If they did "zfs upgrade -a", then we could
@@ -1720,7 +1720,7 @@ zfs_do_upgrade(int argc, char **argv)
 	boolean_t showversions = B_FALSE;
 	int ret;
 	upgrade_cbdata_t cb = { 0 };
-	char c;
+	signed char c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
@@ -1789,11 +1789,11 @@ zfs_do_upgrade(int argc, char **argv)
 		ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_FILESYSTEM,
 		    NULL, NULL, 0, upgrade_set_callback, &cb);
 		(void) printf(gettext("%llu filesystems upgraded\n"),
-		    cb.cb_numupgraded);
+		    (u_longlong_t)cb.cb_numupgraded);
 		if (cb.cb_numsamegraded) {
 			(void) printf(gettext("%llu filesystems already at "
 			    "this version\n"),
-			    cb.cb_numsamegraded);
+			    (u_longlong_t)cb.cb_numsamegraded);
 		}
 		if (cb.cb_numfailed != 0)
 			ret = 1;
@@ -1957,9 +1957,9 @@ print_header(zprop_list_t *pl)
 		if (pl->pl_next == NULL && !right_justify)
 			(void) printf("%s", header);
 		else if (right_justify)
-			(void) printf("%*s", pl->pl_width, header);
+			(void) printf("%*s", (int)pl->pl_width, header);
 		else
-			(void) printf("%-*s", pl->pl_width, header);
+			(void) printf("%-*s", (int)pl->pl_width, header);
 	}
 
 	(void) printf("\n");
@@ -2550,7 +2550,7 @@ zfs_do_set(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = zfs_for_each(argc - 2, argv + 2, NULL,
+	ret = zfs_for_each(argc - 2, argv + 2, 0,
 	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, &cb);
 
 	return (ret);
@@ -2567,7 +2567,7 @@ zfs_do_snapshot(int argc, char **argv)
 {
 	boolean_t recursive = B_FALSE;
 	int ret;
-	char c;
+	signed char c;
 	nvlist_t *props;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)

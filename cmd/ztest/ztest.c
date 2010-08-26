@@ -2022,7 +2022,7 @@ ztest_od_init(ztest_od_t *od, uint64_t id, char *tag, uint64_t index,
 	od->od_gen = 0;
 
 	(void) snprintf(od->od_name, sizeof (od->od_name), "%s(%lld)[%llu]",
-	    tag, (int64_t)id, index);
+	    tag, (longlong_t)id, (u_longlong_t)index);
 }
 
 /*
@@ -3042,11 +3042,16 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 	char snap3name[MAXNAMELEN];
 	int error;
 
-	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu", osname, id);
-	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu", osname, id);
-	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu", clone1name, id);
-	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu", osname, id);
-	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu", clone1name, id);
+	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu",
+	    clone1name, (u_longlong_t)id);
+	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu",
+	    clone1name, (u_longlong_t)id);
 
 	error = dmu_objset_destroy(clone2name, B_FALSE);
 	if (error && error != ENOENT)
@@ -3086,11 +3091,16 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 
 	ztest_dsl_dataset_cleanup(osname, id);
 
-	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu", osname, id);
-	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu", osname, id);
-	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu", clone1name, id);
-	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu", osname, id);
-	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu", clone1name, id);
+	(void) snprintf(snap1name, MAXNAMELEN, "%s@s1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(clone1name, MAXNAMELEN, "%s/c1_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap2name, MAXNAMELEN, "%s@s2_%llu",
+	    clone1name, (u_longlong_t)id);
+	(void) snprintf(clone2name, MAXNAMELEN, "%s/c2_%llu",
+	    osname, (u_longlong_t)id);
+	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu",
+	    clone1name, (u_longlong_t)id);
 
 	error = dmu_objset_snapshot(osname, strchr(snap1name, '@')+1,
 	    NULL, NULL, B_FALSE, B_FALSE, -1);
@@ -3912,7 +3922,7 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 		int error;
 
 		(void) snprintf(name, sizeof (name), "fzap-%llu-%llu",
-		    id, value);
+		    (u_longlong_t)id, (u_longlong_t)value);
 
 		tx = dmu_tx_create(os);
 		dmu_tx_hold_zap(tx, object, B_TRUE, name);
