@@ -60,6 +60,11 @@ AC_CONFIG_FILES([
 	man/Makefile
 	man/man8/Makefile
 	lib/Makefile
+	lib/libspl/Makefile
+	lib/libspl/asm-generic/Makefile
+	lib/libspl/asm-i386/Makefile
+	lib/libspl/asm-x86_64/Makefile
+	lib/libspl/include/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
 	lib/libnvpair/Makefile
