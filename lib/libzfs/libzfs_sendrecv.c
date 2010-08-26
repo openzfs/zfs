@@ -1413,7 +1413,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);
-		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
+		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR);
 		if (sdd.cleanup_fd < 0) {
 			err = errno;
 			goto stderr_out;
@@ -2988,7 +2988,7 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, recvflags_t flags,
 	int cleanup_fd;
 	uint64_t action_handle = 0;
 
-	cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
+	cleanup_fd = open(ZFS_DEV, O_RDWR);
 	VERIFY(cleanup_fd >= 0);
 
 	err = zfs_receive_impl(hdl, tosnap, flags, infd, NULL, NULL,

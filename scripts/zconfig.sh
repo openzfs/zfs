@@ -29,7 +29,7 @@ OPTIONS:
 EOF
 }
 
-while getopts 'hvc?' OPTION; do
+while getopts 'hvct:s:?' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -40,6 +40,12 @@ while getopts 'hvc?' OPTION; do
 		;;
 	c)
 		CLEANUP=1
+		;;
+	t)
+		TESTS_RUN=($OPTARG)
+		;;
+	s)
+		TESTS_SKIP=($OPTARG)
 		;;
 	?)
 		usage
@@ -75,13 +81,11 @@ EOF
 }
 
 # Validate persistent zpool.cache configuration.
-zconfig_test1() {
+test_1() {
 	local POOL_NAME=test1
 	local TMP_FILE1=`mktemp`
 	local TMP_FILE2=`mktemp`
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 1 - persistent zpool.cache: "
 
 	# Create a pool save its status for comparison.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -101,16 +105,14 @@ zconfig_test1() {
 
 	pass
 }
-zconfig_test1
+run_test 1 "persistent zpool.cache"
 
 # Validate ZFS disk scanning and import w/out zpool.cache configuration.
-zconfig_test2() {
+test_2() {
 	local POOL_NAME=test2
 	local TMP_FILE1=`mktemp`
 	local TMP_FILE2=`mktemp`
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 2 - scan disks for pools to import: "
 
 	# Create a pool save its status for comparison.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -135,7 +137,7 @@ zconfig_test2() {
 
 	pass
 }
-zconfig_test2
+run_test 2 "scan disks for pools to import"
 
 zconfig_zvol_device_stat() {
 	local EXPECT=$1
@@ -175,7 +177,7 @@ zconfig_zvol_device_stat() {
 
 # zpool import/export device check
 # (1 volume, 2 partitions, 1 snapshot, 1 clone)
-zconfig_test3() {
+test_3() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=volume
 	local SNAP_NAME=snap
@@ -184,8 +186,6 @@ zconfig_test3() {
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
 	local FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 3 - zpool import/export device: "
 
 	# Create a pool, volume, partition, snapshot, and clone.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -225,10 +225,10 @@ zconfig_test3() {
 
 	pass
 }
-zconfig_test3
+run_test 3 "zpool import/export device"
 
 # zpool insmod/rmmod device check (1 volume, 1 snapshot, 1 clone)
-zconfig_test4() {
+test_4() {
 	POOL_NAME=tank
 	ZVOL_NAME=volume
 	SNAP_NAME=snap
@@ -237,8 +237,6 @@ zconfig_test4() {
 	FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
 	FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
 	TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 4 - zpool insmod/rmmod device: "
 
 	# Create a pool, volume, snapshot, and clone
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -278,17 +276,15 @@ zconfig_test4() {
 
 	pass
 }
-zconfig_test4
+run_test 4 "zpool insmod/rmmod device"
 
 # ZVOL volume sanity check
-zconfig_test5() {
+test_5() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=fish
 	local FULL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 5 - zvol+ext3 volume: "
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -323,10 +319,10 @@ zconfig_test5() {
 
 	pass
 }
-zconfig_test5
+run_test 5 "zvol+ext3 volume"
 
 # ZVOL snapshot sanity check
-zconfig_test6() {
+test_6() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=fish
 	local SNAP_NAME=pristine
@@ -334,8 +330,6 @@ zconfig_test6() {
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
 	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 6 - zvol+ext2 snapshot: "
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -382,10 +376,10 @@ zconfig_test6() {
 
 	pass
 }
-zconfig_test6
+run_test 6 "zvol+ext2 snapshot"
 
 # ZVOL clone sanity check
-zconfig_test7() {
+test_7() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=fish
 	local SNAP_NAME=pristine
@@ -395,8 +389,6 @@ zconfig_test7() {
 	local FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
 	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
-
-	echo -n "test 7 - zvol+ext2 clone: "
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
@@ -464,7 +456,7 @@ zconfig_test7() {
 
 	pass
 }
-zconfig_test7
+run_test 7 "zvol+ext2 clone"
 
 # Send/Receive sanity check
 test_8() {

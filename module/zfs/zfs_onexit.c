@@ -42,9 +42,10 @@
  *
  * These cleanup callbacks are intended to allow for the accumulation
  * of kernel state across multiple ioctls.  User processes participate
- * by opening ZFS_DEV with O_EXCL. This causes the ZFS driver to do a
- * clone-open, generating a unique minor number. The process then passes
- * along that file descriptor to each ioctl that might have a cleanup operation.
+ * simply by opening ZFS_DEV. This causes the ZFS driver to do create
+ * some private data for the file descriptor and generating a unique
+ * minor number. The process then passes along that file descriptor to
+ * each ioctl that might have a cleanup operation.
  *
  * Consumers of the onexit routines should call zfs_onexit_fd_hold() early
  * on to validate the given fd and add a reference to its file table entry.
@@ -106,7 +107,7 @@ zfs_onexit_destroy(zfs_onexit_t *zo)
 static int
 zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
 {
-	*zo = zfsdev_get_soft_state(minor, ZSST_CTLDEV);
+	*zo = zfsdev_get_state(minor, ZST_ONEXIT);
 	if (*zo == NULL)
 		return (EBADF);
 
@@ -129,7 +130,7 @@ zfs_onexit_fd_hold(int fd, minor_t *minorp)
 	if (fp == NULL)
 		return (EBADF);
 
-	*minorp = getminor(fp->f_vnode->v_rdev);
+	*minorp = zfsdev_getminor(fp->f_file);
 	return (zfs_onexit_minor_to_state(*minorp, &zo));
 }
 

@@ -312,8 +312,6 @@ typedef struct zfs_creat {
 	nvlist_t	*zct_props;
 } zfs_creat_t;
 
-extern dev_info_t *zfs_dip;
-
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from,
     const char *to, cred_t *cr);
@@ -321,27 +319,23 @@ extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
 extern int zfs_busy(void);
 extern int zfs_unmount_snap(const char *, void *);
 
-/*
- * ZFS minor numbers can refer to either a control device instance or
- * a zvol. Depending on the value of zss_type, zss_data points to either
- * a zvol_state_t or a zfs_onexit_t.
- */
-enum zfs_soft_state_type {
-	ZSST_ZVOL,
-	ZSST_CTLDEV
+enum zfsdev_state_type {
+	ZST_ONEXIT,
+	ZST_ZEVENT,
+	ZST_ALL,
 };
 
-typedef struct zfs_soft_state {
-	enum zfs_soft_state_type zss_type;
-	void *zss_data;
-} zfs_soft_state_t;
+typedef struct zfsdev_state {
+        list_node_t             zs_next;        /* next zfsdev_state_t link */
+	struct file		*zs_file;	/* associated file struct */
+	minor_t			zs_minor;	/* made up minor number */
+	void			*zs_onexit;	/* onexit data */
+	void			*zs_zevent;	/* zevent data */
+} zfsdev_state_t;
 
-extern void *zfsdev_get_soft_state(minor_t minor,
-    enum zfs_soft_state_type which);
+extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
+extern minor_t zfsdev_getminor(struct file *filp);
 extern minor_t zfsdev_minor_alloc(void);
-
-extern void *zfsdev_state;
-extern kmutex_t zfsdev_state_lock;
 
 #endif	/* _KERNEL */
 
