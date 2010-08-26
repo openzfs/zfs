@@ -1049,7 +1049,7 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q, boolean_t cutinline)
 {
 	spa_t *spa = zio->io_spa;
 	zio_type_t t = zio->io_type;
-	int flags = TQ_SLEEP | (cutinline ? TQ_FRONT : 0);
+	int flags = TQ_NOSLEEP | (cutinline ? TQ_FRONT : 0);
 
 	/*
 	 * If we're a config writer or a probe, the normal issue and
@@ -1073,8 +1073,9 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q, boolean_t cutinline)
 		q++;
 
 	ASSERT3U(q, <, ZIO_TASKQ_TYPES);
-	(void) taskq_dispatch(spa->spa_zio_taskq[t][q],
-	    (task_func_t *)zio_execute, zio, flags);
+
+	while (taskq_dispatch(spa->spa_zio_taskq[t][q],
+	    (task_func_t *)zio_execute, zio, flags) == 0); /* do nothing */
 }
 
 static boolean_t
