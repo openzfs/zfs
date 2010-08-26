@@ -3269,7 +3269,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	 */
 	if (ps->pss_state == DSS_FINISHED) {
 		uint64_t minutes_taken = (end - start) / 60;
-		char *fmt;
+		char *fmt = NULL;
 
 		if (ps->pss_func == POOL_SCAN_SCRUB) {
 			fmt = gettext("scrub repaired %s in %lluh%um with "
@@ -4392,7 +4392,7 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	int i;
+	int i = 0;
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
@@ -4450,6 +4450,7 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, gettext("unrecognized "
 		    "command '%s'\n"), cmdname);
 		usage(B_FALSE);
+		ret = 1;
 	}
 
 	libzfs_fini(g_zfs);

@@ -1362,7 +1362,7 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 	zfs_prop_t prop;
 	boolean_t do_prefix;
 	uint64_t idx;
-	int added_resv;
+	int added_resv = 0;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot set property for '%s'"),
@@ -2791,7 +2791,7 @@ zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 {
 	int prefix;
 	char *path_copy;
-	int rc;
+	int rc = 0;
 
 	if (check_parents(hdl, path, NULL, B_TRUE, &prefix) != 0)
 		return (-1);
@@ -3348,8 +3348,8 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	int err;
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	boolean_t restore_resv = 0;
-	uint64_t old_volsize, new_volsize;
-	zfs_prop_t resv_prop;
+	uint64_t old_volsize = 0, new_volsize;
+	zfs_prop_t resv_prop = { 0 };
 
 	assert(zhp->zfs_type == ZFS_TYPE_FILESYSTEM ||
 	    zhp->zfs_type == ZFS_TYPE_VOLUME);
@@ -3579,6 +3579,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 			    "child dataset with inherited mountpoint is used "
 			    "in a non-global zone"));
 			(void) zfs_error(hdl, EZFS_ZONED, errbuf);
+			ret = -1;
 			goto error;
 		}
 

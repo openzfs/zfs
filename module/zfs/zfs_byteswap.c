@@ -51,7 +51,7 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 {
 	caddr_t end;
 	caddr_t ptr;
-	zfs_ace_t *zacep;
+	zfs_ace_t *zacep = NULL;
 	ace_t *acep;
 	uint16_t entry_type;
 	size_t entry_size;

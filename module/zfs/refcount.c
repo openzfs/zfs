@@ -110,7 +110,7 @@ refcount_count(refcount_t *rc)
 int64_t
 refcount_add_many(refcount_t *rc, uint64_t number, void *holder)
 {
-	reference_t *ref;
+	reference_t *ref = NULL;
 	int64_t count;
 
 	if (reference_tracking_enable) {

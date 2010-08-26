@@ -2678,7 +2678,7 @@ arc_read_nolock(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     uint32_t *arc_flags, const zbookmark_t *zb)
 {
 	arc_buf_hdr_t *hdr;
-	arc_buf_t *buf;
+	arc_buf_t *buf = NULL;
 	kmutex_t *hash_lock;
 	zio_t *rzio;
 	uint64_t guid = spa_guid(spa);
@@ -2760,7 +2760,7 @@ top:
 		uint64_t size = BP_GET_LSIZE(bp);
 		arc_callback_t	*acb;
 		vdev_t *vd = NULL;
-		uint64_t addr;
+		daddr_t addr = -1;
 		boolean_t devw = B_FALSE;
 
 		if (hdr == NULL) {
@@ -3038,7 +3038,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	arc_buf_hdr_t *hdr;
 	kmutex_t *hash_lock = NULL;
 	l2arc_buf_hdr_t *l2hdr;
-	uint64_t buf_size;
+	uint64_t buf_size = 0;
 
 	/*
 	 * It would be nice to assert that if it's DMU metadata (level >
@@ -4062,7 +4062,7 @@ l2arc_read_done(zio_t *zio)
 static list_t *
 l2arc_list_locked(int list_num, kmutex_t **lock)
 {
-	list_t *list;
+	list_t *list = NULL;
 
 	ASSERT(list_num >= 0 && list_num <= 3);
 
@@ -4235,7 +4235,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	list_t *list;
 	uint64_t passed_sz, write_sz, buf_sz, headroom;
 	void *buf_data;
-	kmutex_t *hash_lock, *list_lock;
+	kmutex_t *hash_lock, *list_lock = NULL;
 	boolean_t have_lock, full;
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;

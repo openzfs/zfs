@@ -1189,7 +1189,7 @@ vdev_raidz_matrix_reconstruct(raidz_map_t *rm, int n, int nmissing,
 	uint64_t ccount;
 	uint8_t *dst[VDEV_RAIDZ_MAXPARITY];
 	uint64_t dcount[VDEV_RAIDZ_MAXPARITY];
-	uint8_t log, val;
+	uint8_t log = 0, val;
 	int ll;
 	uint8_t *invlog[VDEV_RAIDZ_MAXPARITY];
 	uint8_t *p, *pp;
@@ -1638,8 +1638,11 @@ raidz_checksum_verify(zio_t *zio)
 {
 	zio_bad_cksum_t zbc;
 	raidz_map_t *rm = zio->io_vsd;
+	int ret;
 
-	int ret = zio_checksum_error(zio, &zbc);
+	bzero(&zbc, sizeof (zio_bad_cksum_t));
+
+	ret = zio_checksum_error(zio, &zbc);
 	if (ret != 0 && zbc.zbc_injected != 0)
 		rm->rm_ecksuminjected = 1;
 
@@ -1862,7 +1865,7 @@ vdev_raidz_io_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *cvd;
 	raidz_map_t *rm = zio->io_vsd;
-	raidz_col_t *rc;
+	raidz_col_t *rc = NULL;
 	int unexpected_errors = 0;
 	int parity_errors = 0;
 	int parity_untried = 0;

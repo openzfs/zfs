@@ -956,7 +956,7 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
     const char *source, const char *recvd_value)
 {
 	int i;
-	const char *str;
+	const char *str = NULL;
 	char buf[128];
 
 	/*

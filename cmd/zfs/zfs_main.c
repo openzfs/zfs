@@ -671,7 +671,7 @@ zfs_do_create(int argc, char **argv)
 {
 	zfs_type_t type = ZFS_TYPE_FILESYSTEM;
 	zfs_handle_t *zhp = NULL;
-	uint64_t volsize;
+	uint64_t volsize = 0;
 	int c;
 	boolean_t noreserve = B_FALSE;
 	boolean_t bflag = B_FALSE;
@@ -4060,7 +4060,7 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	int i;
+	int i = 0;
 	char *progname;
 	char *cmdname;
 
@@ -4139,6 +4139,7 @@ main(int argc, char **argv)
 			(void) fprintf(stderr, gettext("unrecognized "
 			    "command '%s'\n"), cmdname);
 			usage(B_FALSE);
+			ret = 1;
 		}
 		libzfs_mnttab_cache(g_zfs, B_FALSE);
 	}
