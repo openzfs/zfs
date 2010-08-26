@@ -1164,8 +1164,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *zplprops = NULL;
 	char *buf;
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &config))
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    zc->zc_iflags, &config)))
 		return (error);
 
 	if (zc->zc_nvlist_src_size != 0 && (error =
@@ -1454,7 +1454,7 @@ zfs_ioc_dsobj_to_dsname(zfs_cmd_t *zc)
 {
 	int error;
 
-	if (error = dsl_dsobj_to_dsname(zc->zc_name, zc->zc_obj, zc->zc_value))
+	if ((error = dsl_dsobj_to_dsname(zc->zc_name,zc->zc_obj,zc->zc_value)))
 		return (error);
 
 	return (0);
@@ -1670,8 +1670,8 @@ zfs_ioc_vdev_split(zfs_cmd_t *zc)
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &config)) {
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    zc->zc_iflags, &config))) {
 		spa_close(spa, FTAG);
 		return (error);
 	}
@@ -1773,7 +1773,7 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
 	objset_t *os = NULL;
 	int error;
 
-	if (error = dmu_objset_hold(zc->zc_name, FTAG, &os))
+	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os)))
 		return (error);
 
 	error = zfs_ioc_objset_stats_impl(zc, os);
@@ -1797,13 +1797,13 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
  * local property values.
  */
 static int
-zfs_ioc_objset_recvd_props(zfs_cmd_t *zc)
+zfs_ioc_objset_recvd_props(struct file *filp, zfs_cmd_t *zc)
 {
 	objset_t *os = NULL;
 	int error;
 	nvlist_t *nv;
 
-	if (error = dmu_objset_hold(zc->zc_name, FTAG, &os))
+	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os)))
 		return (error);
 
 	/*
@@ -1858,7 +1858,7 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	int err;
 
 	/* XXX reading without owning */
-	if (err = dmu_objset_hold(zc->zc_name, FTAG, &os))
+	if ((err = dmu_objset_hold(zc->zc_name, FTAG, &os)))
 		return (err);
 
 	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
@@ -1926,7 +1926,7 @@ zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
 	size_t orig_len = strlen(zc->zc_name);
 
 top:
-	if (error = dmu_objset_hold(zc->zc_name, FTAG, &os)) {
+	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os))) {
 		if (error == ENOENT)
 			error = ESRCH;
 		return (error);
@@ -2368,8 +2368,8 @@ zfs_check_userprops(char *fsname, nvlist_t *nvl)
 		    nvpair_type(pair) != DATA_TYPE_STRING)
 			return (EINVAL);
 
-		if (error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_USERPROP, CRED()))
+		if ((error = zfs_secpolicy_write_perms(fsname,
+		    ZFS_DELEG_PERM_USERPROP, CRED())))
 			return (error);
 
 		if (strlen(propname) >= ZAP_MAXNAMELEN)
@@ -2552,8 +2552,8 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	int error;
 	nvpair_t *pair;
 
-	if (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-	    zc->zc_iflags, &props))
+	if ((error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+	    zc->zc_iflags, &props)))
 		return (error);
 
 	/*
@@ -3274,8 +3274,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 	if (prop == ZPROP_INVAL) {
 		if (zfs_prop_user(propname)) {
-			if (err = zfs_secpolicy_write_perms(dsname,
-			    ZFS_DELEG_PERM_USERPROP, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname,
+			    ZFS_DELEG_PERM_USERPROP, cr)))
 				return (err);
 			return (0);
 		}
@@ -3298,7 +3298,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (EINVAL);
 			}
 
-			if (err = zfs_secpolicy_write_perms(dsname, perm, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname, perm, cr)))
 				return (err);
 			return (0);
 		}

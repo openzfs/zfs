@@ -1016,7 +1016,7 @@ dmu_objset_sync_dnodes(list_t *list, list_t *newlist, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 
-	while (dn = list_head(list)) {
+	while ((dn = list_head(list))) {
 		ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
 		ASSERT(dn->dn_dbuf->db_data_pending);
 		/*
@@ -1157,7 +1157,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	dmu_objset_sync_dnodes(&os->os_dirty_dnodes[txgoff], newlist, tx);
 
 	list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list)) != NULL) {
 		ASSERT(dr->dr_dbuf->db_level == 0);
 		list_remove(list, dr);
 		if (dr->dr_zio)
@@ -1228,7 +1228,7 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 
 	ASSERT(list_head(list) == NULL || dmu_objset_userused_enabled(os));
 
-	while (dn = list_head(list)) {
+	while ((dn = list_head(list)) != NULL) {
 		int flags;
 		ASSERT(!DMU_OBJECT_IS_SPECIAL(dn->dn_object));
 		ASSERT(dn->dn_phys->dn_type == DMU_OT_NONE ||

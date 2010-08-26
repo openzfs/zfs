@@ -1421,7 +1421,7 @@ zil_commit_writer(zilog_t *zilog)
 	}
 
 	DTRACE_PROBE1(zil__cw1, zilog_t *, zilog);
-	while (itx = list_head(&zilog->zl_itx_commit_list)) {
+	while ((itx = list_head(&zilog->zl_itx_commit_list))) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT(txg);
 

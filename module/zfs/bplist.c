@@ -58,7 +58,7 @@ bplist_iterate(bplist_t *bpl, bplist_itor_t *func, void *arg, dmu_tx_t *tx)
 	bplist_entry_t *bpe;
 
 	mutex_enter(&bpl->bpl_lock);
-	while (bpe = list_head(&bpl->bpl_list)) {
+	while ((bpe = list_head(&bpl->bpl_list))) {
 		list_remove(&bpl->bpl_list, bpe);
 		mutex_exit(&bpl->bpl_lock);
 		func(arg, &bpe->bpe_blk, tx);

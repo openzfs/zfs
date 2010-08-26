@@ -1201,8 +1201,9 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 		ref_os = os;
 	}
 
-	if (err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
-	    drrwbr->drr_refoffset, FTAG, &dbp, DMU_READ_PREFETCH))
+	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
+	    drrwbr->drr_refoffset, FTAG, &dbp, DMU_READ_PREFETCH);
+	if (err)
 		return (err);
 
 	tx = dmu_tx_create(os);

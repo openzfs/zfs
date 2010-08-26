@@ -271,8 +271,8 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 
 				dp = spa_get_dsl(spa);
 				rw_enter(&dp->dp_config_rwlock, RW_READER);
-				if (err = dsl_dataset_hold_obj(dp,
-				    za.za_first_integer, FTAG, &ds)) {
+				if ((err = dsl_dataset_hold_obj(dp,
+				    za.za_first_integer, FTAG, &ds))) {
 					rw_exit(&dp->dp_config_rwlock);
 					break;
 				}
@@ -398,7 +398,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if (error = dmu_objset_hold(strval, FTAG, &os))
+				if ((error = dmu_objset_hold(strval,FTAG,&os)))
 					break;
 
 				/* Must be ZPL and not gzip compressed. */
@@ -2171,7 +2171,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * to start pushing transactions.
 	 */
 	if (state != SPA_LOAD_TRYIMPORT) {
-		if (error = spa_load_verify(spa))
+		if ((error = spa_load_verify(spa)))
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA,
 			    error));
 	}
@@ -5596,7 +5596,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		ddt_sync(spa, txg);
 		dsl_scan_sync(dp, tx);
 
-		while (vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg)))
 			vdev_sync(vd, txg);
 
 		if (pass == 1)
@@ -5678,7 +5678,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	/*
 	 * Update usable space statistics.
 	 */
-	while (vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)))
+	while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg))))
 		vdev_sync_done(vd, txg);
 
 	spa_update_dspace(spa);

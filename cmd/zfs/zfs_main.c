@@ -764,7 +764,7 @@ zfs_do_create(int argc, char **argv)
 		zfs_prop_t resv_prop;
 		char *strval;
 
-		if (p = strchr(argv[0], '/'))
+		if ((p = strchr(argv[0], '/')))
 			*p = '\0';
 		zpool_handle = zpool_open(g_zfs, argv[0]);
 		if (p != NULL)
@@ -4035,7 +4035,7 @@ zfs_do_diff(int argc, char **argv)
 	if (copy == NULL)
 		usage(B_FALSE);
 
-	if (atp = strchr(copy, '@'))
+	if ((atp = strchr(copy, '@')))
 		*atp = '\0';
 
 	if ((zhp = zfs_open(g_zfs, copy, ZFS_TYPE_FILESYSTEM)) == NULL)

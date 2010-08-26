@@ -1810,7 +1810,7 @@ dbuf_prefetch(dnode_t *dn, uint64_t blkid)
 		return;
 
 	/* dbuf_find() returns with db_mtx held */
-	if (db = dbuf_find(dn, 0, blkid)) {
+	if ((db = dbuf_find(dn, 0, blkid))) {
 		/*
 		 * This dbuf is already in the cache.  We assume that
 		 * it is already CACHED, or else about to be either
@@ -2395,7 +2395,7 @@ dbuf_sync_list(list_t *list, dmu_tx_t *tx)
 {
 	dbuf_dirty_record_t *dr;
 
-	while (dr = list_head(list)) {
+	while ((dr = list_head(list))) {
 		if (dr->dr_zio != NULL) {
 			/*
 			 * If we find an already initialized zio then we

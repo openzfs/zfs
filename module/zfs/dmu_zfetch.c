@@ -665,7 +665,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t offset, uint64_t size, int prefetched)
 		ZFETCHSTAT_BUMP(zfetchstat_hits);
 	} else {
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
-		if (fetched = dmu_zfetch_colinear(zf, &zst)) {
+		if ((fetched = dmu_zfetch_colinear(zf, &zst))) {
 			ZFETCHSTAT_BUMP(zfetchstat_colinear_hits);
 		} else {
 			ZFETCHSTAT_BUMP(zfetchstat_colinear_misses);

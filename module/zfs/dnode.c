@@ -1079,8 +1079,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag,
 			zrl_init(&dnh[i].dnh_zrlock);
 			dnh[i].dnh_dnode = NULL;
 		}
-		if (winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
-		    dnode_buf_pageout)) {
+		if ((winner = dmu_buf_set_user(&db->db, children_dnodes, NULL,
+		    dnode_buf_pageout))) {
 			kmem_free(children_dnodes, sizeof (dnode_children_t) +
 			    (epb - 1) * sizeof (dnode_handle_t));
 			children_dnodes = winner;
@@ -1625,7 +1625,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		int shift = epbs + dn->dn_datablkshift;
 
 		first = blkid >> epbs;
-		if (db = dbuf_hold_level(dn, 1, first, FTAG)) {
+		if ((db = dbuf_hold_level(dn, 1, first, FTAG))) {
 			dbuf_will_dirty(db, tx);
 			dbuf_rele(db, FTAG);
 		}

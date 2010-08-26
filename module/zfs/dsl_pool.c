@@ -322,7 +322,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	start = gethrtime();
 
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while (ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
 		/*
 		 * We must not sync any non-MOS datasets twice, because
 		 * we may have taken a snapshot of them.  However, we
@@ -350,7 +350,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * whose ds_bp will be rewritten when we do this 2nd sync.
 	 */
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	while (ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) {
+	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg))) {
 		ASSERT(list_link_active(&ds->ds_synced_link));
 		dmu_buf_rele(ds->ds_dbuf, ds);
 		dsl_dataset_sync(ds, zio, tx);
@@ -367,7 +367,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		    deadlist_enqueue_cb, &ds->ds_deadlist, tx);
 	}
 
-	while (dstg = txg_list_remove(&dp->dp_sync_tasks, txg)) {
+	while ((dstg = txg_list_remove(&dp->dp_sync_tasks, txg))) {
 		/*
 		 * No more sync tasks should have been added while we
 		 * were syncing.
@@ -378,7 +378,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	DTRACE_PROBE(pool_sync__3task);
 
 	start = gethrtime();
-	while (dd = txg_list_remove(&dp->dp_dirty_dirs, txg))
+	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)))
 		dsl_dir_sync(dd, tx);
 	write_time += gethrtime() - start;
 
@@ -448,7 +448,7 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 	dsl_dataset_t *ds;
 	objset_t *os;
 
-	while (ds = list_head(&dp->dp_synced_datasets)) {
+	while ((ds = list_head(&dp->dp_synced_datasets))) {
 		list_remove(&dp->dp_synced_datasets, ds);
 		os = ds->ds_objset;
 		zil_clean(os->os_zil, txg);
