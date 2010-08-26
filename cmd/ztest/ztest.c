@@ -4900,32 +4900,30 @@ static void
 ztest_run_zdb(char *pool)
 {
 	int status;
-	char zdb[MAXPATHLEN + MAXNAMELEN + 20];
-	char zbuf[1024];
 	char *bin;
-	char *ztest;
-	char *isa;
-	int isalen;
+	char *zdb;
+	char *zbuf;
 	FILE *fp;
 
-	(void) realpath(getexecname(), zdb);
+	bin = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
+	zdb = umem_alloc(MAXPATHLEN + MAXNAMELEN + 20, UMEM_NOFAIL);
+	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	/* zdb lives in /usr/sbin, while ztest lives in /usr/bin */
-	bin = strstr(zdb, "/usr/bin/");
-	ztest = strstr(bin, "/ztest");
-	isa = bin + 8;
-	isalen = ztest - isa;
-	isa = strdup(isa);
-	/* LINTED */
-	(void) sprintf(bin,
-	    "/usr/sbin%.*s/zdb -bcc%s%s -U %s %s",
-	    isalen,
-	    isa,
+	VERIFY(realpath(getexecname(), bin) != NULL);
+	if (strncmp(bin, "/usr/sbin/ztest", 14) == 0) {
+		strcpy(bin, "/usr/sbin/zdb"); /* Installed */
+	} else {
+		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
+		strcat(bin, "/zdb/zdb");
+	}
+
+	(void) sprintf(zdb,
+	    "%s -bcc%s%s -U %s %s",
+	    bin,
 	    zopt_verbose >= 3 ? "s" : "",
 	    zopt_verbose >= 4 ? "v" : "",
 	    spa_config_path,
 	    pool);
-	free(isa);
 
 	if (zopt_verbose >= 5)
 		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
@@ -4939,13 +4937,17 @@ ztest_run_zdb(char *pool)
 	status = pclose(fp);
 
 	if (status == 0)
-		return;
+		goto out;
 
 	ztest_dump_core = 0;
 	if (WIFEXITED(status))
 		fatal(0, "'%s' exit code %d", zdb, WEXITSTATUS(status));
 	else
 		fatal(0, "'%s' died with signal %d", zdb, WTERMSIG(status));
+out:
+	umem_free(bin, MAXPATHLEN + MAXNAMELEN + 20);
+	umem_free(zdb, MAXPATHLEN + MAXNAMELEN + 20);
+	umem_free(zbuf, 1024);
 }
 
 static void
@@ -5423,11 +5425,9 @@ ztest_run(ztest_shared_t *zs)
 	kernel_fini();
 
 	list_destroy(&zcl.zcl_callbacks);
-
-	(void) _mutex_destroy(&zcl.zcl_callbacks_lock);
-
-	(void) rwlock_destroy(&zs->zs_name_lock);
-	(void) _mutex_destroy(&zs->zs_vdev_lock);
+	mutex_destroy(&zcl.zcl_callbacks_lock);
+	rw_destroy(&zs->zs_name_lock);
+	mutex_destroy(&zs->zs_vdev_lock);
 }
 
 static void
@@ -5602,6 +5602,7 @@ main(int argc, char **argv)
 
 	ztest_random_fd = open("/dev/urandom", O_RDONLY);
 
+	dprintf_setup(&argc, argv);
 	process_options(argc, argv);
 
 	/* Override location of zpool.cache */
