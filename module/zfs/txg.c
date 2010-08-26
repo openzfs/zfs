@@ -37,7 +37,7 @@
 static void txg_sync_thread(dsl_pool_t *dp);
 static void txg_quiesce_thread(dsl_pool_t *dp);
 
-int zfs_txg_timeout = 30;	/* max seconds worth of delta per txg */
+int zfs_txg_timeout = 5;	/* max seconds worth of delta per txg */
 
 /*
  * Prepare the txg subsystem.

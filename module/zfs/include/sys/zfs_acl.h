@@ -185,10 +185,6 @@ typedef struct zfs_acl_ids {
 	struct zfs_fuid_info 	*z_fuidp;	/* for tracking fuids for log */
 } zfs_acl_ids_t;
 
-#define	ZFS_EXTERNAL_ACL(zp) \
-	(zp->z_is_sa ? 0 : zfs_external_acl(zp))
-#define	ZNODE_ACL_VERSION(zp) \
-	(zp->z_is_sa ? ZFS_ACL_VERSION_FUID : zfs_znode_acl_version(zp))
 /*
  * Property values for acl_mode and acl_inherit.
  *
@@ -222,7 +218,7 @@ int zfs_fastaccesschk_execute(struct znode *, cred_t *);
 extern int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *);
 extern int zfs_zaccess_unix(struct znode *, mode_t, cred_t *);
 extern int zfs_acl_access(struct znode *, int, cred_t *);
-int zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
+void zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
 int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
     struct znode *, struct znode *, cred_t *cr);

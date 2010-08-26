@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_NVPAIR_H
@@ -157,6 +156,8 @@ int nvlist_pack(nvlist_t *, char **, size_t *, int, int);
 int nvlist_unpack(char *, size_t, nvlist_t **, int);
 int nvlist_dup(nvlist_t *, nvlist_t **, int);
 int nvlist_merge(nvlist_t *, nvlist_t *, int);
+
+uint_t nvlist_nvflag(nvlist_t *);
 
 int nvlist_xalloc(nvlist_t **, uint_t, nv_alloc_t *);
 int nvlist_xpack(nvlist_t *, char **, size_t *, int, nv_alloc_t *);

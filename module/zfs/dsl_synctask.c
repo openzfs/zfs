@@ -213,6 +213,8 @@ dsl_sync_task_do(dsl_pool_t *dp,
 	dsl_sync_task_group_t *dstg;
 	int err;
 
+	ASSERT(spa_writeable(dp->dp_spa));
+
 	dstg = dsl_sync_task_group_create(dp);
 	dsl_sync_task_create(dstg, checkfunc, syncfunc,
 	    arg1, arg2, blocks_modified);
@@ -227,6 +229,9 @@ dsl_sync_task_do_nowait(dsl_pool_t *dp,
     void *arg1, void *arg2, int blocks_modified, dmu_tx_t *tx)
 {
 	dsl_sync_task_group_t *dstg;
+
+	if (!spa_writeable(dp->dp_spa))
+		return;
 
 	dstg = dsl_sync_task_group_create(dp);
 	dsl_sync_task_create(dstg, checkfunc, syncfunc,

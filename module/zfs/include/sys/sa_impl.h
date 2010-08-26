@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_SA_IMPL_H
@@ -232,7 +231,7 @@ struct sa_handle {
 	((a == DMU_OT_SA) ? B_TRUE : B_FALSE)
 
 #define	SA_BONUSTYPE_FROM_DB(db) \
-	(((dmu_buf_impl_t *)db)->db_dnode->dn_bonustype)
+	(dmu_get_bonustype((dmu_buf_t *)db))
 
 #define	SA_BLKPTR_SPACE	(DN_MAX_BONUSLEN - sizeof (blkptr_t))
 

@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <unistd.h>
@@ -28,6 +27,8 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/inttypes.h>
+#include <stdarg.h>
+#include <note.h>
 #include "libnvpair.h"
 
 /*
@@ -38,21 +39,531 @@
  *	between kernel and userland, and possibly saving onto disk files.
  */
 
+/*
+ * Print control structure.
+ */
+
+#define	DEFINEOP(opname, vtype) \
+	struct { \
+		int (*op)(struct nvlist_prtctl *, void *, nvlist_t *, \
+		    const char *, vtype); \
+		void *arg; \
+	} opname
+
+#define	DEFINEARROP(opname, vtype) \
+	struct { \
+		int (*op)(struct nvlist_prtctl *, void *, nvlist_t *, \
+		    const char *, vtype, uint_t); \
+		void *arg; \
+	} opname
+
+struct nvlist_printops {
+	DEFINEOP(print_boolean, int);
+	DEFINEOP(print_boolean_value, boolean_t);
+	DEFINEOP(print_byte, uchar_t);
+	DEFINEOP(print_int8, int8_t);
+	DEFINEOP(print_uint8, uint8_t);
+	DEFINEOP(print_int16, int16_t);
+	DEFINEOP(print_uint16, uint16_t);
+	DEFINEOP(print_int32, int32_t);
+	DEFINEOP(print_uint32, uint32_t);
+	DEFINEOP(print_int64, int64_t);
+	DEFINEOP(print_uint64, uint64_t);
+	DEFINEOP(print_double, double);
+	DEFINEOP(print_string, char *);
+	DEFINEOP(print_hrtime, hrtime_t);
+	DEFINEOP(print_nvlist, nvlist_t *);
+	DEFINEARROP(print_boolean_array, boolean_t *);
+	DEFINEARROP(print_byte_array, uchar_t *);
+	DEFINEARROP(print_int8_array, int8_t *);
+	DEFINEARROP(print_uint8_array, uint8_t *);
+	DEFINEARROP(print_int16_array, int16_t *);
+	DEFINEARROP(print_uint16_array, uint16_t *);
+	DEFINEARROP(print_int32_array, int32_t *);
+	DEFINEARROP(print_uint32_array, uint32_t *);
+	DEFINEARROP(print_int64_array, int64_t *);
+	DEFINEARROP(print_uint64_array, uint64_t *);
+	DEFINEARROP(print_string_array, char **);
+	DEFINEARROP(print_nvlist_array, nvlist_t **);
+};
+
+struct nvlist_prtctl {
+	FILE *nvprt_fp;			/* output destination */
+	enum nvlist_indent_mode nvprt_indent_mode; /* see above */
+	int nvprt_indent;		/* absolute indent, or tab depth */
+	int nvprt_indentinc;		/* indent or tab increment */
+	const char *nvprt_nmfmt;	/* member name format, max one %s */
+	const char *nvprt_eomfmt;	/* after member format, e.g. "\n" */
+	const char *nvprt_btwnarrfmt;	/* between array members */
+	int nvprt_btwnarrfmt_nl;	/* nvprt_eoamfmt includes newline? */
+	struct nvlist_printops *nvprt_dfltops;
+	struct nvlist_printops *nvprt_custops;
+};
+
+#define	DFLTPRTOP(pctl, type) \
+	((pctl)->nvprt_dfltops->print_##type.op)
+
+#define	DFLTPRTOPARG(pctl, type) \
+	((pctl)->nvprt_dfltops->print_##type.arg)
+
+#define	CUSTPRTOP(pctl, type) \
+	((pctl)->nvprt_custops->print_##type.op)
+
+#define	CUSTPRTOPARG(pctl, type) \
+	((pctl)->nvprt_custops->print_##type.arg)
+
+#define	RENDER(pctl, type, nvl, name, val) \
+	{ \
+		int done = 0; \
+		if ((pctl)->nvprt_custops && CUSTPRTOP(pctl, type)) { \
+			done = CUSTPRTOP(pctl, type)(pctl, \
+			    CUSTPRTOPARG(pctl, type), nvl, name, val); \
+		} \
+		if (!done) { \
+			(void) DFLTPRTOP(pctl, type)(pctl, \
+			    DFLTPRTOPARG(pctl, type), nvl, name, val); \
+		} \
+		(void) fprintf(pctl->nvprt_fp, pctl->nvprt_eomfmt); \
+	}
+
+#define	ARENDER(pctl, type, nvl, name, arrp, count) \
+	{ \
+		int done = 0; \
+		if ((pctl)->nvprt_custops && CUSTPRTOP(pctl, type)) { \
+			done = CUSTPRTOP(pctl, type)(pctl, \
+			    CUSTPRTOPARG(pctl, type), nvl, name, arrp, count); \
+		} \
+		if (!done) { \
+			(void) DFLTPRTOP(pctl, type)(pctl, \
+			    DFLTPRTOPARG(pctl, type), nvl, name, arrp, count); \
+		} \
+		(void) fprintf(pctl->nvprt_fp, pctl->nvprt_eomfmt); \
+	}
+
+static void nvlist_print_with_indent(nvlist_t *, nvlist_prtctl_t);
+
+/*
+ * ======================================================================
+ * |									|
+ * | Indentation							|
+ * |									|
+ * ======================================================================
+ */
+
 static void
-indent(FILE *fp, int depth)
+indent(nvlist_prtctl_t pctl, int onemore)
 {
-	while (depth-- > 0)
-		(void) fprintf(fp, "\t");
+	int depth;
+
+	switch (pctl->nvprt_indent_mode) {
+	case NVLIST_INDENT_ABS:
+		(void) fprintf(pctl->nvprt_fp, "%*s",
+		    pctl->nvprt_indent + onemore * pctl->nvprt_indentinc, "");
+		break;
+
+	case NVLIST_INDENT_TABBED:
+		depth = pctl->nvprt_indent + onemore;
+		while (depth-- > 0)
+			(void) fprintf(pctl->nvprt_fp, "\t");
+	}
 }
+
+/*
+ * ======================================================================
+ * |									|
+ * | Default nvlist member rendering functions.				|
+ * |									|
+ * ======================================================================
+ */
+
+/*
+ * Generate functions to print single-valued nvlist members.
+ *
+ * type_and_variant - suffix to form function name
+ * vtype - C type for the member value
+ * ptype - C type to cast value to for printing
+ * vfmt - format string for pair value, e.g "%d" or "0x%llx"
+ */
+
+#define	NVLIST_PRTFUNC(type_and_variant, vtype, ptype, vfmt) \
+static int \
+nvprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
+    nvlist_t *nvl, const char *name, vtype value) \
+{ \
+	FILE *fp = pctl->nvprt_fp; \
+	NOTE(ARGUNUSED(private)) \
+	NOTE(ARGUNUSED(nvl)) \
+	indent(pctl, 1); \
+	(void) fprintf(fp, pctl->nvprt_nmfmt, name); \
+	(void) fprintf(fp, vfmt, (ptype)value); \
+	return (1); \
+}
+
+NVLIST_PRTFUNC(boolean, int, int, "%d")
+NVLIST_PRTFUNC(boolean_value, boolean_t, int, "%d")
+NVLIST_PRTFUNC(byte, uchar_t, uchar_t, "0x%2.2x")
+NVLIST_PRTFUNC(int8, int8_t, int, "%d")
+NVLIST_PRTFUNC(uint8, uint8_t, uint8_t, "0x%x")
+NVLIST_PRTFUNC(int16, int16_t, int16_t, "%d")
+NVLIST_PRTFUNC(uint16, uint16_t, uint16_t, "0x%x")
+NVLIST_PRTFUNC(int32, int32_t, int32_t, "%d")
+NVLIST_PRTFUNC(uint32, uint32_t, uint32_t, "0x%x")
+NVLIST_PRTFUNC(int64, int64_t, longlong_t, "%lld")
+NVLIST_PRTFUNC(uint64, uint64_t, u_longlong_t, "0x%llx")
+NVLIST_PRTFUNC(double, double, double, "0x%llf")
+NVLIST_PRTFUNC(string, char *, char *, "%s")
+NVLIST_PRTFUNC(hrtime, hrtime_t, hrtime_t, "0x%llx")
+
+/*
+ * Generate functions to print array-valued nvlist members.
+ */
+
+#define	NVLIST_ARRPRTFUNC(type_and_variant, vtype, ptype, vfmt) \
+static int \
+nvaprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
+    nvlist_t *nvl, const char *name, vtype *valuep, uint_t count) \
+{ \
+	FILE *fp = pctl->nvprt_fp; \
+	uint_t i; \
+	NOTE(ARGUNUSED(private)) \
+	NOTE(ARGUNUSED(nvl)) \
+	for (i = 0; i < count; i++) { \
+		if (i == 0 || pctl->nvprt_btwnarrfmt_nl) { \
+			indent(pctl, 1); \
+			(void) fprintf(fp, pctl->nvprt_nmfmt, name); \
+			if (pctl->nvprt_btwnarrfmt_nl) \
+				(void) fprintf(fp, "[%d]: ", i); \
+		} \
+		if (i != 0) \
+			(void) fprintf(fp, pctl->nvprt_btwnarrfmt); \
+		(void) fprintf(fp, vfmt, (ptype)valuep[i]); \
+	} \
+	return (1); \
+}
+
+NVLIST_ARRPRTFUNC(boolean_array, boolean_t, boolean_t, "%d")
+NVLIST_ARRPRTFUNC(byte_array, uchar_t, uchar_t, "0x%2.2x")
+NVLIST_ARRPRTFUNC(int8_array, int8_t, int8_t, "%d")
+NVLIST_ARRPRTFUNC(uint8_array, uint8_t, uint8_t, "0x%x")
+NVLIST_ARRPRTFUNC(int16_array, int16_t, int16_t, "%d")
+NVLIST_ARRPRTFUNC(uint16_array, uint16_t, uint16_t, "0x%x")
+NVLIST_ARRPRTFUNC(int32_array, int32_t, int32_t, "%d")
+NVLIST_ARRPRTFUNC(uint32_array, uint32_t, uint32_t, "0x%x")
+NVLIST_ARRPRTFUNC(int64_array, int64_t, longlong_t, "%lld")
+NVLIST_ARRPRTFUNC(uint64_array, uint64_t, u_longlong_t, "0x%llx")
+NVLIST_ARRPRTFUNC(string_array, char *, char *, "%s")
+
+/*ARGSUSED*/
+static int
+nvprint_nvlist(nvlist_prtctl_t pctl, void *private,
+    nvlist_t *nvl, const char *name, nvlist_t *value)
+{
+	FILE *fp = pctl->nvprt_fp;
+
+	indent(pctl, 1);
+	(void) fprintf(fp, "%s = (embedded nvlist)\n", name);
+
+	pctl->nvprt_indent += pctl->nvprt_indentinc;
+	nvlist_print_with_indent(value, pctl);
+	pctl->nvprt_indent -= pctl->nvprt_indentinc;
+
+	indent(pctl, 1);
+	(void) fprintf(fp, "(end %s)\n", name);
+
+	return (1);
+}
+
+/*ARGSUSED*/
+static int
+nvaprint_nvlist_array(nvlist_prtctl_t pctl, void *private,
+    nvlist_t *nvl, const char *name, nvlist_t **valuep, uint_t count)
+{
+	FILE *fp = pctl->nvprt_fp;
+	uint_t i;
+
+	indent(pctl, 1);
+	(void) fprintf(fp, "%s = (array of embedded nvlists)\n", name);
+
+	for (i = 0; i < count; i++) {
+		indent(pctl, 1);
+		(void) fprintf(fp, "(start %s[%d])\n", name, i);
+
+		pctl->nvprt_indent += pctl->nvprt_indentinc;
+		nvlist_print_with_indent(valuep[i], pctl);
+		pctl->nvprt_indent -= pctl->nvprt_indentinc;
+
+		indent(pctl, 1);
+		(void) fprintf(fp, "(end %s[%d])\n", name, i);
+	}
+
+	return (1);
+}
+
+/*
+ * ======================================================================
+ * |									|
+ * | Interfaces that allow control over formatting.			|
+ * |									|
+ * ======================================================================
+ */
+
+void
+nvlist_prtctl_setdest(nvlist_prtctl_t pctl, FILE *fp)
+{
+	pctl->nvprt_fp = fp;
+}
+
+FILE *
+nvlist_prtctl_getdest(nvlist_prtctl_t pctl)
+{
+	return (pctl->nvprt_fp);
+}
+
+
+void
+nvlist_prtctl_setindent(nvlist_prtctl_t pctl, enum nvlist_indent_mode mode,
+    int start, int inc)
+{
+	if (mode < NVLIST_INDENT_ABS || mode > NVLIST_INDENT_TABBED)
+		mode = NVLIST_INDENT_TABBED;
+
+	if (start < 0)
+		start = 0;
+
+	if (inc < 0)
+		inc = 1;
+
+	pctl->nvprt_indent_mode = mode;
+	pctl->nvprt_indent = start;
+	pctl->nvprt_indentinc = inc;
+}
+
+void
+nvlist_prtctl_doindent(nvlist_prtctl_t pctl, int onemore)
+{
+	indent(pctl, onemore);
+}
+
+
+void
+nvlist_prtctl_setfmt(nvlist_prtctl_t pctl, enum nvlist_prtctl_fmt which,
+    const char *fmt)
+{
+	switch (which) {
+	case NVLIST_FMT_MEMBER_NAME:
+		if (fmt == NULL)
+			fmt = "%s = ";
+		pctl->nvprt_nmfmt = fmt;
+		break;
+
+	case NVLIST_FMT_MEMBER_POSTAMBLE:
+		if (fmt == NULL)
+			fmt = "\n";
+		pctl->nvprt_eomfmt = fmt;
+		break;
+
+	case NVLIST_FMT_BTWN_ARRAY:
+		if (fmt == NULL) {
+			pctl->nvprt_btwnarrfmt = " ";
+			pctl->nvprt_btwnarrfmt_nl = 0;
+		} else {
+			pctl->nvprt_btwnarrfmt = fmt;
+			pctl->nvprt_btwnarrfmt_nl = (strstr(fmt, "\n") != NULL);
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+
+void
+nvlist_prtctl_dofmt(nvlist_prtctl_t pctl, enum nvlist_prtctl_fmt which, ...)
+{
+	FILE *fp = pctl->nvprt_fp;
+	va_list ap;
+	char *name;
+
+	va_start(ap, which);
+
+	switch (which) {
+	case NVLIST_FMT_MEMBER_NAME:
+		name = va_arg(ap, char *);
+		(void) fprintf(fp, pctl->nvprt_nmfmt, name);
+		break;
+
+	case NVLIST_FMT_MEMBER_POSTAMBLE:
+		(void) fprintf(fp, pctl->nvprt_eomfmt);
+		break;
+
+	case NVLIST_FMT_BTWN_ARRAY:
+		(void) fprintf(fp, pctl->nvprt_btwnarrfmt); \
+		break;
+
+	default:
+		break;
+	}
+
+	va_end(ap);
+}
+
+/*
+ * ======================================================================
+ * |									|
+ * | Interfaces to allow appointment of replacement rendering functions.|
+ * |									|
+ * ======================================================================
+ */
+
+#define	NVLIST_PRINTCTL_REPLACE(type, vtype) \
+void \
+nvlist_prtctlop_##type(nvlist_prtctl_t pctl, \
+    int (*func)(nvlist_prtctl_t, void *, nvlist_t *, const char *, vtype), \
+    void *private) \
+{ \
+	CUSTPRTOP(pctl, type) = func; \
+	CUSTPRTOPARG(pctl, type) = private; \
+}
+
+NVLIST_PRINTCTL_REPLACE(boolean, int)
+NVLIST_PRINTCTL_REPLACE(boolean_value, boolean_t)
+NVLIST_PRINTCTL_REPLACE(byte, uchar_t)
+NVLIST_PRINTCTL_REPLACE(int8, int8_t)
+NVLIST_PRINTCTL_REPLACE(uint8, uint8_t)
+NVLIST_PRINTCTL_REPLACE(int16, int16_t)
+NVLIST_PRINTCTL_REPLACE(uint16, uint16_t)
+NVLIST_PRINTCTL_REPLACE(int32, int32_t)
+NVLIST_PRINTCTL_REPLACE(uint32, uint32_t)
+NVLIST_PRINTCTL_REPLACE(int64, int64_t)
+NVLIST_PRINTCTL_REPLACE(uint64, uint64_t)
+NVLIST_PRINTCTL_REPLACE(double, double)
+NVLIST_PRINTCTL_REPLACE(string, char *)
+NVLIST_PRINTCTL_REPLACE(hrtime, hrtime_t)
+NVLIST_PRINTCTL_REPLACE(nvlist, nvlist_t *)
+
+#define	NVLIST_PRINTCTL_AREPLACE(type, vtype) \
+void \
+nvlist_prtctlop_##type(nvlist_prtctl_t pctl, \
+    int (*func)(nvlist_prtctl_t, void *, nvlist_t *, const char *, vtype, \
+    uint_t), void *private) \
+{ \
+	CUSTPRTOP(pctl, type) = func; \
+	CUSTPRTOPARG(pctl, type) = private; \
+}
+
+NVLIST_PRINTCTL_AREPLACE(boolean_array, boolean_t *)
+NVLIST_PRINTCTL_AREPLACE(byte_array, uchar_t *)
+NVLIST_PRINTCTL_AREPLACE(int8_array, int8_t *)
+NVLIST_PRINTCTL_AREPLACE(uint8_array, uint8_t *)
+NVLIST_PRINTCTL_AREPLACE(int16_array, int16_t *)
+NVLIST_PRINTCTL_AREPLACE(uint16_array, uint16_t *)
+NVLIST_PRINTCTL_AREPLACE(int32_array, int32_t *)
+NVLIST_PRINTCTL_AREPLACE(uint32_array, uint32_t *)
+NVLIST_PRINTCTL_AREPLACE(int64_array, int64_t *)
+NVLIST_PRINTCTL_AREPLACE(uint64_array, uint64_t *)
+NVLIST_PRINTCTL_AREPLACE(string_array, char **)
+NVLIST_PRINTCTL_AREPLACE(nvlist_array, nvlist_t **)
+
+/*
+ * ======================================================================
+ * |									|
+ * | Interfaces to manage nvlist_prtctl_t cookies.			|
+ * |									|
+ * ======================================================================
+ */
+
+
+static const struct nvlist_printops defprtops = {
+	{ nvprint_boolean, NULL },
+	{ nvprint_boolean_value, NULL },
+	{ nvprint_byte, NULL },
+	{ nvprint_int8, NULL },
+	{ nvprint_uint8, NULL },
+	{ nvprint_int16, NULL },
+	{ nvprint_uint16, NULL },
+	{ nvprint_int32, NULL },
+	{ nvprint_uint32, NULL },
+	{ nvprint_int64, NULL },
+	{ nvprint_uint64, NULL },
+	{ nvprint_double, NULL },
+	{ nvprint_string, NULL },
+	{ nvprint_hrtime, NULL },
+	{ nvprint_nvlist, NULL },
+	{ nvaprint_boolean_array, NULL },
+	{ nvaprint_byte_array, NULL },
+	{ nvaprint_int8_array, NULL },
+	{ nvaprint_uint8_array, NULL },
+	{ nvaprint_int16_array, NULL },
+	{ nvaprint_uint16_array, NULL },
+	{ nvaprint_int32_array, NULL },
+	{ nvaprint_uint32_array, NULL },
+	{ nvaprint_int64_array, NULL },
+	{ nvaprint_uint64_array, NULL },
+	{ nvaprint_string_array, NULL },
+	{ nvaprint_nvlist_array, NULL },
+};
+
+static void
+prtctl_defaults(FILE *fp, struct nvlist_prtctl *pctl,
+    struct nvlist_printops *ops)
+{
+	pctl->nvprt_fp = fp;
+	pctl->nvprt_indent_mode = NVLIST_INDENT_TABBED;
+	pctl->nvprt_indent = 0;
+	pctl->nvprt_indentinc = 1;
+	pctl->nvprt_nmfmt = "%s = ";
+	pctl->nvprt_eomfmt = "\n";
+	pctl->nvprt_btwnarrfmt = " ";
+	pctl->nvprt_btwnarrfmt_nl = 0;
+
+	pctl->nvprt_dfltops = (struct nvlist_printops *)&defprtops;
+	pctl->nvprt_custops = ops;
+}
+
+nvlist_prtctl_t
+nvlist_prtctl_alloc(void)
+{
+	struct nvlist_prtctl *pctl;
+	struct nvlist_printops *ops;
+
+	if ((pctl = malloc(sizeof (*pctl))) == NULL)
+		return (NULL);
+
+	if ((ops = calloc(1, sizeof (*ops))) == NULL) {
+		free(pctl);
+		return (NULL);
+	}
+
+	prtctl_defaults(stdout, pctl, ops);
+
+	return (pctl);
+}
+
+void
+nvlist_prtctl_free(nvlist_prtctl_t pctl)
+{
+	if (pctl != NULL) {
+		free(pctl->nvprt_custops);
+		free(pctl);
+	}
+}
+
+/*
+ * ======================================================================
+ * |									|
+ * | Top-level print request interfaces.				|
+ * |									|
+ * ======================================================================
+ */
 
 /*
  * nvlist_print - Prints elements in an event buffer
  */
-static
-void
-nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
+static void
+nvlist_print_with_indent(nvlist_t *nvl, nvlist_prtctl_t pctl)
 {
-	int i;
+	FILE *fp = pctl->nvprt_fp;
 	char *name;
 	uint_t nelem;
 	nvpair_t *nvp;
@@ -60,7 +571,7 @@ nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
 	if (nvl == NULL)
 		return;
 
-	indent(fp, depth);
+	indent(pctl, 0);
 	(void) fprintf(fp, "nvlist version: %d\n", NVL_VERSION(nvl));
 
 	nvp = nvlist_next_nvpair(nvl, NULL);
@@ -68,199 +579,174 @@ nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
 	while (nvp) {
 		data_type_t type = nvpair_type(nvp);
 
-		indent(fp, depth);
 		name = nvpair_name(nvp);
-		(void) fprintf(fp, "\t%s =", name);
 		nelem = 0;
+
 		switch (type) {
 		case DATA_TYPE_BOOLEAN: {
-			(void) fprintf(fp, " 1");
+			RENDER(pctl, boolean, nvl, name, 1);
 			break;
 		}
 		case DATA_TYPE_BOOLEAN_VALUE: {
 			boolean_t val;
 			(void) nvpair_value_boolean_value(nvp, &val);
-			(void) fprintf(fp, " %d", val);
+			RENDER(pctl, boolean_value, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_BYTE: {
 			uchar_t val;
 			(void) nvpair_value_byte(nvp, &val);
-			(void) fprintf(fp, " 0x%2.2x", val);
+			RENDER(pctl, byte, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_INT8: {
 			int8_t val;
 			(void) nvpair_value_int8(nvp, &val);
-			(void) fprintf(fp, " %d", val);
+			RENDER(pctl, int8, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_UINT8: {
 			uint8_t val;
 			(void) nvpair_value_uint8(nvp, &val);
-			(void) fprintf(fp, " 0x%x", val);
+			RENDER(pctl, uint8, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_INT16: {
 			int16_t val;
 			(void) nvpair_value_int16(nvp, &val);
-			(void) fprintf(fp, " %d", val);
+			RENDER(pctl, int16, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_UINT16: {
 			uint16_t val;
 			(void) nvpair_value_uint16(nvp, &val);
-			(void) fprintf(fp, " 0x%x", val);
+			RENDER(pctl, uint16, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_INT32: {
 			int32_t val;
 			(void) nvpair_value_int32(nvp, &val);
-			(void) fprintf(fp, " %d", val);
+			RENDER(pctl, int32, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_UINT32: {
 			uint32_t val;
 			(void) nvpair_value_uint32(nvp, &val);
-			(void) fprintf(fp, " 0x%x", val);
+			RENDER(pctl, uint32, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_INT64: {
 			int64_t val;
 			(void) nvpair_value_int64(nvp, &val);
-			(void) fprintf(fp, " %lld", (longlong_t)val);
+			RENDER(pctl, int64, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_UINT64: {
 			uint64_t val;
 			(void) nvpair_value_uint64(nvp, &val);
-			(void) fprintf(fp, " 0x%llx", (u_longlong_t)val);
+			RENDER(pctl, uint64, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_DOUBLE: {
 			double val;
 			(void) nvpair_value_double(nvp, &val);
-			(void) fprintf(fp, " 0x%llf", val);
+			RENDER(pctl, double, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_STRING: {
 			char *val;
 			(void) nvpair_value_string(nvp, &val);
-			(void) fprintf(fp, " %s", val);
+			RENDER(pctl, string, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_BOOLEAN_ARRAY: {
 			boolean_t *val;
 			(void) nvpair_value_boolean_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %d", val[i]);
+			ARENDER(pctl, boolean_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_BYTE_ARRAY: {
 			uchar_t *val;
 			(void) nvpair_value_byte_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " 0x%2.2x", val[i]);
+			ARENDER(pctl, byte_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_INT8_ARRAY: {
 			int8_t *val;
 			(void) nvpair_value_int8_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %d", val[i]);
+			ARENDER(pctl, int8_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_UINT8_ARRAY: {
 			uint8_t *val;
 			(void) nvpair_value_uint8_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " 0x%x", val[i]);
+			ARENDER(pctl, uint8_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_INT16_ARRAY: {
 			int16_t *val;
 			(void) nvpair_value_int16_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %d", val[i]);
+			ARENDER(pctl, int16_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_UINT16_ARRAY: {
 			uint16_t *val;
 			(void) nvpair_value_uint16_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " 0x%x", val[i]);
+			ARENDER(pctl, uint16_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_INT32_ARRAY: {
 			int32_t *val;
 			(void) nvpair_value_int32_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %d", val[i]);
+			ARENDER(pctl, int32_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_UINT32_ARRAY: {
 			uint32_t *val;
 			(void) nvpair_value_uint32_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " 0x%x", val[i]);
+			ARENDER(pctl, uint32_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_INT64_ARRAY: {
 			int64_t *val;
 			(void) nvpair_value_int64_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %lld", (longlong_t)val[i]);
+			ARENDER(pctl, int64_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_UINT64_ARRAY: {
 			uint64_t *val;
 			(void) nvpair_value_uint64_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " 0x%llx",
-				    (u_longlong_t)val[i]);
+			ARENDER(pctl, uint64_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_STRING_ARRAY: {
 			char **val;
 			(void) nvpair_value_string_array(nvp, &val, &nelem);
-			for (i = 0; i < nelem; i++)
-				(void) fprintf(fp, " %s", val[i]);
+			ARENDER(pctl, string_array, nvl, name, val, nelem);
 			break;
 		}
 		case DATA_TYPE_HRTIME: {
 			hrtime_t val;
 			(void) nvpair_value_hrtime(nvp, &val);
-			(void) fprintf(fp, " 0x%llx", val);
+			RENDER(pctl, hrtime, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_NVLIST: {
 			nvlist_t *val;
 			(void) nvpair_value_nvlist(nvp, &val);
-			(void) fprintf(fp, " (embedded nvlist)\n");
-			nvlist_print_with_indent(fp, val, depth + 1);
-			indent(fp, depth + 1);
-			(void) fprintf(fp, "(end %s)\n", name);
+			RENDER(pctl, nvlist, nvl, name, val);
 			break;
 		}
 		case DATA_TYPE_NVLIST_ARRAY: {
 			nvlist_t **val;
 			(void) nvpair_value_nvlist_array(nvp, &val, &nelem);
-			(void) fprintf(fp, " (array of embedded nvlists)\n");
-			for (i = 0; i < nelem; i++) {
-				indent(fp, depth + 1);
-				(void) fprintf(fp,
-				    "(start %s[%d])\n", name, i);
-				nvlist_print_with_indent(fp, val[i], depth + 1);
-				indent(fp, depth + 1);
-				(void) fprintf(fp, "(end %s[%d])\n", name, i);
-			}
+			ARENDER(pctl, nvlist_array, nvl, name, val, nelem);
 			break;
 		}
 		default:
 			(void) fprintf(fp, " unknown data type (%d)", type);
 			break;
 		}
-		(void) fprintf(fp, "\n");
 		nvp = nvlist_next_nvpair(nvl, nvp);
 	}
 }
@@ -268,9 +754,17 @@ nvlist_print_with_indent(FILE *fp, nvlist_t *nvl, int depth)
 void
 nvlist_print(FILE *fp, nvlist_t *nvl)
 {
-	nvlist_print_with_indent(fp, nvl, 0);
+	struct nvlist_prtctl pc;
+
+	prtctl_defaults(fp, &pc, NULL);
+	nvlist_print_with_indent(nvl, &pc);
 }
 
+void
+nvlist_prt(nvlist_t *nvl, nvlist_prtctl_t pctl)
+{
+	nvlist_print_with_indent(nvl, pctl);
+}
 
 #define	NVP(elem, type, vtype, ptype, format) { \
 	vtype	value; \
@@ -420,6 +914,14 @@ dump_nvlist(nvlist_t *list, int indent)
 		}
 	}
 }
+
+/*
+ * ======================================================================
+ * |									|
+ * | Misc private interface.						|
+ * |									|
+ * ======================================================================
+ */
 
 /*
  * Determine if string 'value' matches 'nvp' value.  The 'value' string is

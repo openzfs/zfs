@@ -34,7 +34,7 @@
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_dataset.h>
-#include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 
@@ -78,11 +78,20 @@ boolean_t zfs_nocacheflush = B_FALSE;
 
 static kmem_cache_t *zil_lwb_cache;
 
-static boolean_t zil_empty(zilog_t *zilog);
+static void zil_async_to_sync(zilog_t *zilog, uint64_t foid);
 
 #define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
     sizeof (zil_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
 
+
+/*
+ * ziltest is by and large an ugly hack, but very useful in
+ * checking replay without tedious work.
+ * When running ziltest we want to keep all itx's and so maintain
+ * a single list in the zl_itxg[] that uses a high txg: ZILTEST_TXG
+ * We subtract TXG_CONCURRENT_STATES to allow for common code.
+ */
+#define	ZILTEST_TXG (UINT64_MAX - TXG_CONCURRENT_STATES)
 
 static int
 zil_bp_compare(const void *x1, const void *x2)
@@ -631,6 +640,7 @@ zil_check_log_chain(const char *osname, void *tx)
 {
 	zilog_t *zilog;
 	objset_t *os;
+	blkptr_t *bp;
 	int error;
 
 	ASSERT(tx == NULL);
@@ -642,6 +652,29 @@ zil_check_log_chain(const char *osname, void *tx)
 	}
 
 	zilog = dmu_objset_zil(os);
+	bp = (blkptr_t *)&zilog->zl_header->zh_log;
+
+	/*
+	 * Check the first block and determine if it's on a log device
+	 * which may have been removed or faulted prior to loading this
+	 * pool.  If so, there's no point in checking the rest of the log
+	 * as its content should have already been synced to the pool.
+	 */
+	if (!BP_IS_HOLE(bp)) {
+		vdev_t *vd;
+		boolean_t valid = B_TRUE;
+
+		spa_config_enter(os->os_spa, SCL_STATE, FTAG, RW_READER);
+		vd = vdev_lookup_top(os->os_spa, DVA_GET_VDEV(&bp->blk_dva[0]));
+		if (vd->vdev_islog && vdev_is_dead(vd))
+			valid = vdev_log_state_valid(vd);
+		spa_config_exit(os->os_spa, SCL_STATE, FTAG);
+
+		if (!valid) {
+			dmu_objset_rele(os, FTAG);
+			return (0);
+		}
+	}
 
 	/*
 	 * Because tx == NULL, zil_claim_log_block() will not actually claim
@@ -661,8 +694,8 @@ zil_check_log_chain(const char *osname, void *tx)
 static int
 zil_vdev_compare(const void *x1, const void *x2)
 {
-	uint64_t v1 = ((zil_vdev_node_t *)x1)->zv_vdev;
-	uint64_t v2 = ((zil_vdev_node_t *)x2)->zv_vdev;
+	const uint64_t v1 = ((zil_vdev_node_t *)x1)->zv_vdev;
+	const uint64_t v2 = ((zil_vdev_node_t *)x2)->zv_vdev;
 
 	if (v1 < v2)
 		return (-1);
@@ -703,7 +736,7 @@ zil_add_block(zilog_t *zilog, const blkptr_t *bp)
 	mutex_exit(&zilog->zl_vdev_lock);
 }
 
-void
+static void
 zil_flush_vdevs(zilog_t *zilog)
 {
 	spa_t *spa = zilog->zl_spa;
@@ -1045,6 +1078,7 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 	itx->itx_lr.lrc_reclen = lrsize;
 	itx->itx_sod = lrsize; /* if write & WR_NEED_COPY will be increased */
 	itx->itx_lr.lrc_seq = 0;	/* defensive */
+	itx->itx_sync = B_TRUE;		/* default is synchronous */
 
 	return (itx);
 }
@@ -1055,64 +1089,183 @@ zil_itx_destroy(itx_t *itx)
 	kmem_free(itx, offsetof(itx_t, itx_lr) + itx->itx_lr.lrc_reclen);
 }
 
-uint64_t
-zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
+/*
+ * Free up the sync and async itxs. The itxs_t has already been detached
+ * so no locks are needed.
+ */
+static void
+zil_itxg_clean(itxs_t *itxs)
 {
-	uint64_t seq;
+	itx_t *itx;
+	list_t *list;
+	avl_tree_t *t;
+	void *cookie;
+	itx_async_node_t *ian;
 
-	ASSERT(itx->itx_lr.lrc_seq == 0);
-	ASSERT(!zilog->zl_replay);
+	list = &itxs->i_sync_list;
+	while ((itx = list_head(list)) != NULL) {
+		list_remove(list, itx);
+		kmem_free(itx, offsetof(itx_t, itx_lr) +
+		    itx->itx_lr.lrc_reclen);
+	}
 
-	mutex_enter(&zilog->zl_lock);
-	list_insert_tail(&zilog->zl_itx_list, itx);
-	zilog->zl_itx_list_sz += itx->itx_sod;
-	itx->itx_lr.lrc_txg = dmu_tx_get_txg(tx);
-	itx->itx_lr.lrc_seq = seq = ++zilog->zl_itx_seq;
-	mutex_exit(&zilog->zl_lock);
+	cookie = NULL;
+	t = &itxs->i_async_tree;
+	while ((ian = avl_destroy_nodes(t, &cookie)) != NULL) {
+		list = &ian->ia_list;
+		while ((itx = list_head(list)) != NULL) {
+			list_remove(list, itx);
+			kmem_free(itx, offsetof(itx_t, itx_lr) +
+			    itx->itx_lr.lrc_reclen);
+		}
+		list_destroy(list);
+		kmem_free(ian, sizeof (itx_async_node_t));
+	}
+	avl_destroy(t);
 
-	return (seq);
+	kmem_free(itxs, sizeof (itxs_t));
+}
+
+static int
+zil_aitx_compare(const void *x1, const void *x2)
+{
+	const uint64_t o1 = ((itx_async_node_t *)x1)->ia_foid;
+	const uint64_t o2 = ((itx_async_node_t *)x2)->ia_foid;
+
+	if (o1 < o2)
+		return (-1);
+	if (o1 > o2)
+		return (1);
+
+	return (0);
 }
 
 /*
- * Free up all in-memory intent log transactions that have now been synced.
+ * Remove all async itx with the given oid.
  */
 static void
-zil_itx_clean(zilog_t *zilog)
+zil_remove_async(zilog_t *zilog, uint64_t oid)
 {
-	uint64_t synced_txg = spa_last_synced_txg(zilog->zl_spa);
-	uint64_t freeze_txg = spa_freeze_txg(zilog->zl_spa);
+	uint64_t otxg, txg;
+	itx_async_node_t *ian;
+	avl_tree_t *t;
+	avl_index_t where;
 	list_t clean_list;
 	itx_t *itx;
 
+	ASSERT(oid != 0);
 	list_create(&clean_list, sizeof (itx_t), offsetof(itx_t, itx_node));
 
-	mutex_enter(&zilog->zl_lock);
-	/* wait for a log writer to finish walking list */
-	while (zilog->zl_writer) {
-		cv_wait(&zilog->zl_cv_writer, &zilog->zl_lock);
-	}
+	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
+		otxg = ZILTEST_TXG;
+	else
+		otxg = spa_last_synced_txg(zilog->zl_spa) + 1;
 
-	/*
-	 * Move the sync'd log transactions to a separate list so we can call
-	 * kmem_free without holding the zl_lock.
-	 *
-	 * There is no need to set zl_writer as we don't drop zl_lock here
-	 */
-	while ((itx = list_head(&zilog->zl_itx_list)) != NULL &&
-	    itx->itx_lr.lrc_txg <= MIN(synced_txg, freeze_txg)) {
-		list_remove(&zilog->zl_itx_list, itx);
-		zilog->zl_itx_list_sz -= itx->itx_sod;
-		list_insert_tail(&clean_list, itx);
-	}
-	cv_broadcast(&zilog->zl_cv_writer);
-	mutex_exit(&zilog->zl_lock);
+	for (txg = otxg; txg < (otxg + TXG_CONCURRENT_STATES); txg++) {
+		itxg_t *itxg = &zilog->zl_itxg[txg & TXG_MASK];
 
-	/* destroy sync'd log transactions */
+		mutex_enter(&itxg->itxg_lock);
+		if (itxg->itxg_txg != txg) {
+			mutex_exit(&itxg->itxg_lock);
+			continue;
+		}
+
+		/*
+		 * Locate the object node and append its list.
+		 */
+		t = &itxg->itxg_itxs->i_async_tree;
+		ian = avl_find(t, &oid, &where);
+		if (ian != NULL)
+			list_move_tail(&clean_list, &ian->ia_list);
+		mutex_exit(&itxg->itxg_lock);
+	}
 	while ((itx = list_head(&clean_list)) != NULL) {
 		list_remove(&clean_list, itx);
-		zil_itx_destroy(itx);
+		kmem_free(itx, offsetof(itx_t, itx_lr) +
+		    itx->itx_lr.lrc_reclen);
 	}
 	list_destroy(&clean_list);
+}
+
+void
+zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
+{
+	uint64_t txg;
+	itxg_t *itxg;
+	itxs_t *itxs, *clean = NULL;
+
+	/*
+	 * Object ids can be re-instantiated in the next txg so
+	 * remove any async transactions to avoid future leaks.
+	 * This can happen if a fsync occurs on the re-instantiated
+	 * object for a WR_INDIRECT or WR_NEED_COPY write, which gets
+	 * the new file data and flushes a write record for the old object.
+	 */
+	if ((itx->itx_lr.lrc_txtype & ~TX_CI) == TX_REMOVE)
+		zil_remove_async(zilog, itx->itx_oid);
+
+	/*
+	 * Ensure the data of a renamed file is committed before the rename.
+	 */
+	if ((itx->itx_lr.lrc_txtype & ~TX_CI) == TX_RENAME)
+		zil_async_to_sync(zilog, itx->itx_oid);
+
+	if (spa_freeze_txg(zilog->zl_spa) !=  UINT64_MAX)
+		txg = ZILTEST_TXG;
+	else
+		txg = dmu_tx_get_txg(tx);
+
+	itxg = &zilog->zl_itxg[txg & TXG_MASK];
+	mutex_enter(&itxg->itxg_lock);
+	itxs = itxg->itxg_itxs;
+	if (itxg->itxg_txg != txg) {
+		if (itxs != NULL) {
+			/*
+			 * The zil_clean callback hasn't got around to cleaning
+			 * this itxg. Save the itxs for release below.
+			 * This should be rare.
+			 */
+			atomic_add_64(&zilog->zl_itx_list_sz, -itxg->itxg_sod);
+			itxg->itxg_sod = 0;
+			clean = itxg->itxg_itxs;
+		}
+		ASSERT(itxg->itxg_sod == 0);
+		itxg->itxg_txg = txg;
+		itxs = itxg->itxg_itxs = kmem_zalloc(sizeof (itxs_t), KM_SLEEP);
+
+		list_create(&itxs->i_sync_list, sizeof (itx_t),
+		    offsetof(itx_t, itx_node));
+		avl_create(&itxs->i_async_tree, zil_aitx_compare,
+		    sizeof (itx_async_node_t),
+		    offsetof(itx_async_node_t, ia_node));
+	}
+	if (itx->itx_sync) {
+		list_insert_tail(&itxs->i_sync_list, itx);
+		atomic_add_64(&zilog->zl_itx_list_sz, itx->itx_sod);
+		itxg->itxg_sod += itx->itx_sod;
+	} else {
+		avl_tree_t *t = &itxs->i_async_tree;
+		uint64_t foid = ((lr_ooo_t *)&itx->itx_lr)->lr_foid;
+		itx_async_node_t *ian;
+		avl_index_t where;
+
+		ian = avl_find(t, &foid, &where);
+		if (ian == NULL) {
+			ian = kmem_alloc(sizeof (itx_async_node_t), KM_SLEEP);
+			list_create(&ian->ia_list, sizeof (itx_t),
+			    offsetof(itx_t, itx_node));
+			ian->ia_foid = foid;
+			avl_insert(t, ian, where);
+		}
+		list_insert_tail(&ian->ia_list, itx);
+	}
+
+	itx->itx_lr.lrc_txg = dmu_tx_get_txg(tx);
+	mutex_exit(&itxg->itxg_lock);
+
+	/* Release the old itxs now we've dropped the lock */
+	if (clean != NULL)
+		zil_itxg_clean(clean);
 }
 
 /*
@@ -1120,125 +1273,178 @@ zil_itx_clean(zilog_t *zilog)
  * synced then start up a taskq to free them.
  */
 void
-zil_clean(zilog_t *zilog)
+zil_clean(zilog_t *zilog, uint64_t synced_txg)
 {
-	itx_t *itx;
+	itxg_t *itxg = &zilog->zl_itxg[synced_txg & TXG_MASK];
+	itxs_t *clean_me;
 
-	mutex_enter(&zilog->zl_lock);
-	itx = list_head(&zilog->zl_itx_list);
-	if ((itx != NULL) &&
-	    (itx->itx_lr.lrc_txg <= spa_last_synced_txg(zilog->zl_spa))) {
-		(void) taskq_dispatch(zilog->zl_clean_taskq,
-		    (task_func_t *)zil_itx_clean, zilog, TQ_NOSLEEP);
+	mutex_enter(&itxg->itxg_lock);
+	if (itxg->itxg_itxs == NULL || itxg->itxg_txg == ZILTEST_TXG) {
+		mutex_exit(&itxg->itxg_lock);
+		return;
 	}
-	mutex_exit(&zilog->zl_lock);
+	ASSERT3U(itxg->itxg_txg, <=, synced_txg);
+	ASSERT(itxg->itxg_txg != 0);
+	ASSERT(zilog->zl_clean_taskq != NULL);
+	atomic_add_64(&zilog->zl_itx_list_sz, -itxg->itxg_sod);
+	itxg->itxg_sod = 0;
+	clean_me = itxg->itxg_itxs;
+	itxg->itxg_itxs = NULL;
+	itxg->itxg_txg = 0;
+	mutex_exit(&itxg->itxg_lock);
+	/*
+	 * Preferably start a task queue to free up the old itxs but
+	 * if taskq_dispatch can't allocate resources to do that then
+	 * free it in-line. This should be rare. Note, using TQ_SLEEP
+	 * created a bad performance problem.
+	 */
+	if (taskq_dispatch(zilog->zl_clean_taskq,
+	    (void (*)(void *))zil_itxg_clean, clean_me, TQ_NOSLEEP) == NULL)
+		zil_itxg_clean(clean_me);
+}
+
+/*
+ * Get the list of itxs to commit into zl_itx_commit_list.
+ */
+static void
+zil_get_commit_list(zilog_t *zilog)
+{
+	uint64_t otxg, txg;
+	list_t *commit_list = &zilog->zl_itx_commit_list;
+	uint64_t push_sod = 0;
+
+	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
+		otxg = ZILTEST_TXG;
+	else
+		otxg = spa_last_synced_txg(zilog->zl_spa) + 1;
+
+	for (txg = otxg; txg < (otxg + TXG_CONCURRENT_STATES); txg++) {
+		itxg_t *itxg = &zilog->zl_itxg[txg & TXG_MASK];
+
+		mutex_enter(&itxg->itxg_lock);
+		if (itxg->itxg_txg != txg) {
+			mutex_exit(&itxg->itxg_lock);
+			continue;
+		}
+
+		list_move_tail(commit_list, &itxg->itxg_itxs->i_sync_list);
+		push_sod += itxg->itxg_sod;
+		itxg->itxg_sod = 0;
+
+		mutex_exit(&itxg->itxg_lock);
+	}
+	atomic_add_64(&zilog->zl_itx_list_sz, -push_sod);
+}
+
+/*
+ * Move the async itxs for a specified object to commit into sync lists.
+ */
+static void
+zil_async_to_sync(zilog_t *zilog, uint64_t foid)
+{
+	uint64_t otxg, txg;
+	itx_async_node_t *ian;
+	avl_tree_t *t;
+	avl_index_t where;
+
+	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
+		otxg = ZILTEST_TXG;
+	else
+		otxg = spa_last_synced_txg(zilog->zl_spa) + 1;
+
+	for (txg = otxg; txg < (otxg + TXG_CONCURRENT_STATES); txg++) {
+		itxg_t *itxg = &zilog->zl_itxg[txg & TXG_MASK];
+
+		mutex_enter(&itxg->itxg_lock);
+		if (itxg->itxg_txg != txg) {
+			mutex_exit(&itxg->itxg_lock);
+			continue;
+		}
+
+		/*
+		 * If a foid is specified then find that node and append its
+		 * list. Otherwise walk the tree appending all the lists
+		 * to the sync list. We add to the end rather than the
+		 * beginning to ensure the create has happened.
+		 */
+		t = &itxg->itxg_itxs->i_async_tree;
+		if (foid != 0) {
+			ian = avl_find(t, &foid, &where);
+			if (ian != NULL) {
+				list_move_tail(&itxg->itxg_itxs->i_sync_list,
+				    &ian->ia_list);
+			}
+		} else {
+			void *cookie = NULL;
+
+			while ((ian = avl_destroy_nodes(t, &cookie)) != NULL) {
+				list_move_tail(&itxg->itxg_itxs->i_sync_list,
+				    &ian->ia_list);
+				list_destroy(&ian->ia_list);
+				kmem_free(ian, sizeof (itx_async_node_t));
+			}
+		}
+		mutex_exit(&itxg->itxg_lock);
+	}
 }
 
 static void
-zil_commit_writer(zilog_t *zilog, uint64_t seq, uint64_t foid)
+zil_commit_writer(zilog_t *zilog)
 {
 	uint64_t txg;
-	uint64_t commit_seq = 0;
-	itx_t *itx, *itx_next;
+	itx_t *itx;
 	lwb_t *lwb;
-	spa_t *spa;
+	spa_t *spa = zilog->zl_spa;
 	int error = 0;
 
-	zilog->zl_writer = B_TRUE;
 	ASSERT(zilog->zl_root_zio == NULL);
-	spa = zilog->zl_spa;
+
+	mutex_exit(&zilog->zl_lock);
+
+	zil_get_commit_list(zilog);
+
+	/*
+	 * Return if there's nothing to commit before we dirty the fs by
+	 * calling zil_create().
+	 */
+	if (list_head(&zilog->zl_itx_commit_list) == NULL) {
+		mutex_enter(&zilog->zl_lock);
+		return;
+	}
 
 	if (zilog->zl_suspend) {
 		lwb = NULL;
 	} else {
 		lwb = list_tail(&zilog->zl_lwb_list);
-		if (lwb == NULL) {
-			/*
-			 * Return if there's nothing to flush before we
-			 * dirty the fs by calling zil_create()
-			 */
-			if (list_is_empty(&zilog->zl_itx_list)) {
-				zilog->zl_writer = B_FALSE;
-				return;
-			}
-			mutex_exit(&zilog->zl_lock);
+		if (lwb == NULL)
 			lwb = zil_create(zilog);
-			mutex_enter(&zilog->zl_lock);
-		}
 	}
-	ASSERT(lwb == NULL || lwb->lwb_zio == NULL);
 
-	/* Loop through in-memory log transactions filling log blocks. */
 	DTRACE_PROBE1(zil__cw1, zilog_t *, zilog);
-
-	for (itx = list_head(&zilog->zl_itx_list); itx; itx = itx_next) {
-		/*
-		 * Save the next pointer.  Even though we drop zl_lock below,
-		 * all threads that can remove itx list entries (other writers
-		 * and zil_itx_clean()) can't do so until they have zl_writer.
-		 */
-		itx_next = list_next(&zilog->zl_itx_list, itx);
-
-		/*
-		 * Determine whether to push this itx.
-		 * Push all transactions related to specified foid and
-		 * all other transactions except those that can be logged
-		 * out of order (TX_WRITE, TX_TRUNCATE, TX_SETATTR, TX_ACL)
-		 * for all other files.
-		 *
-		 * If foid == 0 (meaning "push all foids") or
-		 * itx->itx_sync is set (meaning O_[D]SYNC), push regardless.
-		 */
-		if (foid != 0 && !itx->itx_sync &&
-		    TX_OOO(itx->itx_lr.lrc_txtype) &&
-		    ((lr_ooo_t *)&itx->itx_lr)->lr_foid != foid)
-			continue; /* skip this record */
-
-		if ((itx->itx_lr.lrc_seq > seq) &&
-		    ((lwb == NULL) || (LWB_EMPTY(lwb)) ||
-		    (lwb->lwb_nused + itx->itx_sod > lwb->lwb_sz)))
-			break;
-
-		list_remove(&zilog->zl_itx_list, itx);
-		zilog->zl_itx_list_sz -= itx->itx_sod;
-
-		mutex_exit(&zilog->zl_lock);
-
+	while (itx = list_head(&zilog->zl_itx_commit_list)) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT(txg);
 
-		if (txg > spa_last_synced_txg(spa) ||
-		    txg > spa_freeze_txg(spa))
+		if (txg > spa_last_synced_txg(spa) || txg > spa_freeze_txg(spa))
 			lwb = zil_lwb_commit(zilog, itx, lwb);
-
-		zil_itx_destroy(itx);
-
-		mutex_enter(&zilog->zl_lock);
+		list_remove(&zilog->zl_itx_commit_list, itx);
+		kmem_free(itx, offsetof(itx_t, itx_lr)
+		    + itx->itx_lr.lrc_reclen);
 	}
 	DTRACE_PROBE1(zil__cw2, zilog_t *, zilog);
-	/* determine commit sequence number */
-	itx = list_head(&zilog->zl_itx_list);
-	if (itx)
-		commit_seq = itx->itx_lr.lrc_seq - 1;
-	else
-		commit_seq = zilog->zl_itx_seq;
-	mutex_exit(&zilog->zl_lock);
 
 	/* write the last block out */
 	if (lwb != NULL && lwb->lwb_zio != NULL)
 		lwb = zil_lwb_write_start(zilog, lwb);
 
-	zilog->zl_prev_used = zilog->zl_cur_used;
 	zilog->zl_cur_used = 0;
 
 	/*
 	 * Wait if necessary for the log blocks to be on stable storage.
 	 */
 	if (zilog->zl_root_zio) {
-		DTRACE_PROBE1(zil__cw3, zilog_t *, zilog);
 		error = zio_wait(zilog->zl_root_zio);
 		zilog->zl_root_zio = NULL;
-		DTRACE_PROBE1(zil__cw4, zilog_t *, zilog);
 		zil_flush_vdevs(zilog);
 	}
 
@@ -1246,10 +1452,6 @@ zil_commit_writer(zilog_t *zilog, uint64_t seq, uint64_t foid)
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 
 	mutex_enter(&zilog->zl_lock);
-	zilog->zl_writer = B_FALSE;
-
-	ASSERT3U(commit_seq, >=, zilog->zl_commit_seq);
-	zilog->zl_commit_seq = commit_seq;
 
 	/*
 	 * Remember the highest committed log sequence number for ztest.
@@ -1261,58 +1463,61 @@ zil_commit_writer(zilog_t *zilog, uint64_t seq, uint64_t foid)
 }
 
 /*
- * Push zfs transactions to stable storage up to the supplied sequence number.
+ * Commit zfs transactions to stable storage.
  * If foid is 0 push out all transactions, otherwise push only those
- * for that file or might have been used to create that file.
+ * for that object or might reference that object.
+ *
+ * itxs are committed in batches. In a heavily stressed zil there will be
+ * a commit writer thread who is writing out a bunch of itxs to the log
+ * for a set of committing threads (cthreads) in the same batch as the writer.
+ * Those cthreads are all waiting on the same cv for that batch.
+ *
+ * There will also be a different and growing batch of threads that are
+ * waiting to commit (qthreads). When the committing batch completes
+ * a transition occurs such that the cthreads exit and the qthreads become
+ * cthreads. One of the new cthreads becomes the writer thread for the
+ * batch. Any new threads arriving become new qthreads.
+ *
+ * Only 2 condition variables are needed and there's no transition
+ * between the two cvs needed. They just flip-flop between qthreads
+ * and cthreads.
+ *
+ * Using this scheme we can efficiently wakeup up only those threads
+ * that have been committed.
  */
 void
-zil_commit(zilog_t *zilog, uint64_t seq, uint64_t foid)
+zil_commit(zilog_t *zilog, uint64_t foid)
 {
-	if (zilog->zl_sync == ZFS_SYNC_DISABLED || seq == 0)
+	uint64_t mybatch;
+
+	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
 		return;
 
+	/* move the async itxs for the foid to the sync queues */
+	zil_async_to_sync(zilog, foid);
+
 	mutex_enter(&zilog->zl_lock);
-
-	seq = MIN(seq, zilog->zl_itx_seq);	/* cap seq at largest itx seq */
-
+	mybatch = zilog->zl_next_batch;
 	while (zilog->zl_writer) {
-		cv_wait(&zilog->zl_cv_writer, &zilog->zl_lock);
-		if (seq <= zilog->zl_commit_seq) {
+		cv_wait(&zilog->zl_cv_batch[mybatch & 1], &zilog->zl_lock);
+		if (mybatch <= zilog->zl_com_batch) {
 			mutex_exit(&zilog->zl_lock);
 			return;
 		}
 	}
-	zil_commit_writer(zilog, seq, foid); /* drops zl_lock */
-	/* wake up others waiting on the commit */
-	cv_broadcast(&zilog->zl_cv_writer);
+
+	zilog->zl_next_batch++;
+	zilog->zl_writer = B_TRUE;
+	zil_commit_writer(zilog);
+	zilog->zl_com_batch = mybatch;
+	zilog->zl_writer = B_FALSE;
 	mutex_exit(&zilog->zl_lock);
-}
 
-/*
- * Report whether all transactions are committed.
- */
-static boolean_t
-zil_is_committed(zilog_t *zilog)
-{
-	lwb_t *lwb;
-	boolean_t committed;
+	/* wake up one thread to become the next writer */
+	cv_signal(&zilog->zl_cv_batch[(mybatch+1) & 1]);
 
-	mutex_enter(&zilog->zl_lock);
-
-	while (zilog->zl_writer)
-		cv_wait(&zilog->zl_cv_writer, &zilog->zl_lock);
-
-	if (!list_is_empty(&zilog->zl_itx_list))
-		committed = B_FALSE;		/* unpushed transactions */
-	else if ((lwb = list_head(&zilog->zl_lwb_list)) == NULL)
-		committed = B_TRUE;		/* intent log never used */
-	else if (list_next(&zilog->zl_lwb_list, lwb) != NULL)
-		committed = B_FALSE;		/* zil_sync() not done yet */
-	else
-		committed = B_TRUE;		/* everything synced */
-
-	mutex_exit(&zilog->zl_lock);
-	return (committed);
+	/* wake up all threads waiting for this batch to be committed */
+	cv_broadcast(&zilog->zl_cv_batch[mybatch & 1]);
 }
 
 /*
@@ -1425,14 +1630,20 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog->zl_destroy_txg = TXG_INITIAL - 1;
 	zilog->zl_logbias = dmu_objset_logbias(os);
 	zilog->zl_sync = dmu_objset_syncprop(os);
+	zilog->zl_next_batch = 1;
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	list_create(&zilog->zl_itx_list, sizeof (itx_t),
-	    offsetof(itx_t, itx_node));
+	for (int i = 0; i < TXG_SIZE; i++) {
+		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
+		    MUTEX_DEFAULT, NULL);
+	}
 
 	list_create(&zilog->zl_lwb_list, sizeof (lwb_t),
 	    offsetof(lwb_t, lwb_node));
+
+	list_create(&zilog->zl_itx_commit_list, sizeof (itx_t),
+	    offsetof(itx_t, itx_node));
 
 	mutex_init(&zilog->zl_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 
@@ -1441,6 +1652,8 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 
 	cv_init(&zilog->zl_cv_writer, NULL, CV_DEFAULT, NULL);
 	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
+	cv_init(&zilog->zl_cv_batch[0], NULL, CV_DEFAULT, NULL);
+	cv_init(&zilog->zl_cv_batch[1], NULL, CV_DEFAULT, NULL);
 
 	return (zilog);
 }
@@ -1448,27 +1661,47 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 void
 zil_free(zilog_t *zilog)
 {
-	lwb_t *lwb;
+	lwb_t *head_lwb;
 
 	zilog->zl_stop_sync = 1;
 
-	while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
-		list_remove(&zilog->zl_lwb_list, lwb);
-		if (lwb->lwb_buf != NULL)
-			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
-		kmem_cache_free(zil_lwb_cache, lwb);
+	/*
+	 * After zil_close() there should only be one lwb with a buffer.
+	 */
+	head_lwb = list_head(&zilog->zl_lwb_list);
+	if (head_lwb) {
+		ASSERT(head_lwb == list_tail(&zilog->zl_lwb_list));
+		list_remove(&zilog->zl_lwb_list, head_lwb);
+		zio_buf_free(head_lwb->lwb_buf, head_lwb->lwb_sz);
+		kmem_cache_free(zil_lwb_cache, head_lwb);
 	}
 	list_destroy(&zilog->zl_lwb_list);
 
 	avl_destroy(&zilog->zl_vdev_tree);
 	mutex_destroy(&zilog->zl_vdev_lock);
 
-	ASSERT(list_head(&zilog->zl_itx_list) == NULL);
-	list_destroy(&zilog->zl_itx_list);
+	ASSERT(list_is_empty(&zilog->zl_itx_commit_list));
+	list_destroy(&zilog->zl_itx_commit_list);
+
+	for (int i = 0; i < TXG_SIZE; i++) {
+		/*
+		 * It's possible for an itx to be generated that doesn't dirty
+		 * a txg (e.g. ztest TX_TRUNCATE). So there's no zil_clean()
+		 * callback to remove the entry. We remove those here.
+		 *
+		 * Also free up the ziltest itxs.
+		 */
+		if (zilog->zl_itxg[i].itxg_itxs)
+			zil_itxg_clean(zilog->zl_itxg[i].itxg_itxs);
+		mutex_destroy(&zilog->zl_itxg[i].itxg_lock);
+	}
+
 	mutex_destroy(&zilog->zl_lock);
 
 	cv_destroy(&zilog->zl_cv_writer);
 	cv_destroy(&zilog->zl_cv_suspend);
+	cv_destroy(&zilog->zl_cv_batch[0]);
+	cv_destroy(&zilog->zl_cv_batch[1]);
 
 	kmem_free(zilog, sizeof (zilog_t));
 }
@@ -1494,26 +1727,28 @@ zil_open(objset_t *os, zil_get_data_t *get_data)
 void
 zil_close(zilog_t *zilog)
 {
+	lwb_t *tail_lwb;
+	uint64_t txg = 0;
+
+	zil_commit(zilog, 0); /* commit all itx */
+
 	/*
-	 * If the log isn't already committed, mark the objset dirty
-	 * (so zil_sync() will be called) and wait for that txg to sync.
+	 * The lwb_max_txg for the stubby lwb will reflect the last activity
+	 * for the zil.  After a txg_wait_synced() on the txg we know all the
+	 * callbacks have occurred that may clean the zil.  Only then can we
+	 * destroy the zl_clean_taskq.
 	 */
-	if (!zil_is_committed(zilog)) {
-		uint64_t txg;
-		dmu_tx_t *tx = dmu_tx_create(zilog->zl_os);
-		VERIFY(dmu_tx_assign(tx, TXG_WAIT) == 0);
-		dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
-		txg = dmu_tx_get_txg(tx);
-		dmu_tx_commit(tx);
+	mutex_enter(&zilog->zl_lock);
+	tail_lwb = list_tail(&zilog->zl_lwb_list);
+	if (tail_lwb != NULL)
+		txg = tail_lwb->lwb_max_txg;
+	mutex_exit(&zilog->zl_lock);
+	if (txg)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
-	}
 
 	taskq_destroy(zilog->zl_clean_taskq);
 	zilog->zl_clean_taskq = NULL;
 	zilog->zl_get_data = NULL;
-
-	zil_itx_clean(zilog);
-	ASSERT(list_head(&zilog->zl_itx_list) == NULL);
 }
 
 /*
@@ -1545,15 +1780,7 @@ zil_suspend(zilog_t *zilog)
 	zilog->zl_suspending = B_TRUE;
 	mutex_exit(&zilog->zl_lock);
 
-	zil_commit(zilog, UINT64_MAX, 0);
-
-	/*
-	 * Wait for any in-flight log writes to complete.
-	 */
-	mutex_enter(&zilog->zl_lock);
-	while (zilog->zl_writer)
-		cv_wait(&zilog->zl_cv_writer, &zilog->zl_lock);
-	mutex_exit(&zilog->zl_lock);
+	zil_commit(zilog, 0);
 
 	zil_destroy(zilog, B_FALSE);
 

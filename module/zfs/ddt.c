@@ -36,6 +36,11 @@
 #include <sys/zio_compress.h>
 #include <sys/dsl_scan.h>
 
+/*
+ * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
+ */
+int zfs_dedup_prefetch = 1;
+
 static const ddt_ops_t *ddt_ops[DDT_TYPES] = {
 	&ddt_zap_ops,
 };
@@ -456,9 +461,6 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 	if (ddo_total->ddo_count != 0) {
 		ddo_total->ddo_dspace /= ddo_total->ddo_count;
 		ddo_total->ddo_mspace /= ddo_total->ddo_count;
-	} else {
-		ASSERT(ddo_total->ddo_dspace == 0);
-		ASSERT(ddo_total->ddo_mspace == 0);
 	}
 }
 
@@ -730,13 +732,13 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 	ddt_t *ddt;
 	ddt_entry_t dde;
 
-	if (!BP_GET_DEDUP(bp))
+	if (!zfs_dedup_prefetch || bp == NULL || !BP_GET_DEDUP(bp))
 		return;
 
 	/*
-	 * We remove the DDT once it's empty and only prefetch dedup blocks
-	 * when there are entries in the DDT.  Thus no locking is required
-	 * as the DDT can't disappear on us.
+	 * We only remove the DDT once all tables are empty and only
+	 * prefetch dedup blocks when there are entries in the DDT.
+	 * Thus no locking is required as the DDT can't disappear on us.
 	 */
 	ddt = ddt_select(spa, bp);
 	ddt_key_fill(&dde.dde_key, bp);
@@ -1072,11 +1074,15 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	}
 
 	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
+		uint64_t count = 0;
 		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
-			if (!ddt_object_exists(ddt, type, class))
-				continue;
-			ddt_object_sync(ddt, type, class, tx);
-			if (ddt_object_count(ddt, type, class) == 0)
+			if (ddt_object_exists(ddt, type, class)) {
+				ddt_object_sync(ddt, type, class, tx);
+				count += ddt_object_count(ddt, type, class);
+			}
+		}
+		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+			if (count == 0 && ddt_object_exists(ddt, type, class))
 				ddt_object_destroy(ddt, type, class, tx);
 		}
 	}

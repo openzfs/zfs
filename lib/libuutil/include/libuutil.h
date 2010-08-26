@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_LIBUUTIL_H
@@ -28,6 +27,7 @@
 
 #include <sys/types.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -142,11 +142,20 @@ extern int uu_open_tmp(const char *dir, uint_t uflags);
 /*
  * Convenience functions.
  */
+#define	UU_NELEM(a)	(sizeof (a) / sizeof ((a)[0]))
+
 /*PRINTFLIKE1*/
 extern char *uu_msprintf(const char *format, ...);
 extern void *uu_zalloc(size_t);
 extern char *uu_strdup(const char *);
 extern void uu_free(void *);
+
+extern boolean_t uu_strcaseeq(const char *a, const char *b);
+extern boolean_t uu_streq(const char *a, const char *b);
+extern char *uu_strndup(const char *s, size_t n);
+extern boolean_t uu_strbw(const char *a, const char *b);
+extern void *uu_memdup(const void *buf, size_t sz);
+extern void uu_dump(FILE *out, const char *prefix, const void *buf, size_t len);
 
 /*
  * Comparison function type definition.

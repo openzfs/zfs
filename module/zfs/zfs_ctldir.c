@@ -590,7 +590,7 @@ zfsctl_rename_snap(zfsctl_snapdir_t *sdp, zfs_snapentry_t *sep, const char *nm)
 	ASSERT3U(strlen(newpath) + strlen(nm), <, sizeof (newpath));
 	(void) strcat(newpath, nm);
 	refstr_rele(pathref);
-	vfs_setmntpoint(vfsp, newpath);
+	vfs_setmntpoint(vfsp, newpath, 0);
 
 	pathref = vfs_getresource(vfsp);
 	(void) strncpy(newpath, refstr_value(pathref), sizeof (newpath));
@@ -599,7 +599,7 @@ zfsctl_rename_snap(zfsctl_snapdir_t *sdp, zfs_snapentry_t *sep, const char *nm)
 	ASSERT3U(strlen(newpath) + strlen(nm), <, sizeof (newpath));
 	(void) strcat(newpath, nm);
 	refstr_rele(pathref);
-	vfs_setresource(vfsp, newpath);
+	vfs_setresource(vfsp, newpath, 0);
 
 	vfs_unlock(vfsp);
 }
@@ -749,7 +749,8 @@ zfsctl_snapdir_mkdir(vnode_t *dvp, char *dirname, vattr_t *vap, vnode_t  **vpp,
 		return (err);
 
 	if (err == 0) {
-		err = dmu_objset_snapshot(name, dirname, NULL, B_FALSE);
+		err = dmu_objset_snapshot(name, dirname, NULL, NULL,
+		    B_FALSE, B_FALSE, -1);
 		if (err)
 			return (err);
 		err = lookupnameat(dirname, seg, follow, NULL, vpp, dvp);

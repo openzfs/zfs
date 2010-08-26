@@ -160,6 +160,7 @@ typedef enum {
 	ZPOOL_PROP_DEDUPRATIO,
 	ZPOOL_PROP_FREE,
 	ZPOOL_PROP_ALLOCATED,
+	ZPOOL_PROP_READONLY,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -335,14 +336,17 @@ typedef enum {
 #define	SPA_VERSION_24			24ULL
 #define	SPA_VERSION_25			25ULL
 #define	SPA_VERSION_26			26ULL
+#define	SPA_VERSION_27			27ULL
+#define	SPA_VERSION_28			28ULL
+
 /*
  * When bumping up SPA_VERSION, make sure GRUB ZFS understands the on-disk
  * format change. Go to usr/src/grub/grub-0.97/stage2/{zfs-include/, fsys_zfs*},
  * and do the appropriate changes.  Also bump the version number in
  * usr/src/grub/capability.
  */
-#define	SPA_VERSION			SPA_VERSION_26
-#define	SPA_VERSION_STRING		"26"
+#define	SPA_VERSION			SPA_VERSION_28
+#define	SPA_VERSION_STRING		"28"
 
 /*
  * Symbolic names for the changes that caused a SPA_VERSION switch.
@@ -391,6 +395,8 @@ typedef enum {
 #define	SPA_VERSION_SCAN		SPA_VERSION_25
 #define	SPA_VERSION_DIR_CLONES		SPA_VERSION_26
 #define	SPA_VERSION_DEADLISTS		SPA_VERSION_26
+#define	SPA_VERSION_FAST_SNAP		SPA_VERSION_27
+#define	SPA_VERSION_MULTI_REPLACE	SPA_VERSION_28
 
 /*
  * ZPL version - rev'd whenever an incompatible on-disk format change
@@ -465,6 +471,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_NPARITY		"nparity"
 #define	ZPOOL_CONFIG_HOSTID		"hostid"
 #define	ZPOOL_CONFIG_HOSTNAME		"hostname"
+#define	ZPOOL_CONFIG_LOADED_TIME	"initial_load_time"
 #define	ZPOOL_CONFIG_UNSPARE		"unspare"
 #define	ZPOOL_CONFIG_PHYS_PATH		"phys_path"
 #define	ZPOOL_CONFIG_IS_LOG		"is_log"
@@ -480,9 +487,12 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_SPLIT_GUID		"split_guid"
 #define	ZPOOL_CONFIG_SPLIT_LIST		"guid_list"
 #define	ZPOOL_CONFIG_REMOVING		"removing"
+#define	ZPOOL_CONFIG_RESILVERING	"resilvering"
 #define	ZPOOL_CONFIG_SUSPENDED		"suspended"	/* not stored on disk */
 #define	ZPOOL_CONFIG_TIMESTAMP		"timestamp"	/* not stored on disk */
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
+#define	ZPOOL_CONFIG_MISSING_DEVICES	"missing_vdevs"	/* not stored on disk */
+#define	ZPOOL_CONFIG_LOAD_INFO		"load_info"	/* not stored on disk */
 /*
  * The persistent vdev state is stored as separate values rather than a single
  * 'vdev_state' entry.  This is because a device can be in multiple states, such
@@ -760,7 +770,11 @@ typedef enum zfs_ioc {
 	ZFS_IOC_RELEASE,
 	ZFS_IOC_GET_HOLDS,
 	ZFS_IOC_OBJSET_RECVD_PROPS,
-	ZFS_IOC_VDEV_SPLIT
+	ZFS_IOC_VDEV_SPLIT,
+	ZFS_IOC_NEXT_OBJ,
+	ZFS_IOC_DIFF,
+	ZFS_IOC_TMP_SNAPSHOT,
+	ZFS_IOC_OBJ_TO_STATS
 } zfs_ioc_t;
 
 /*
@@ -806,6 +820,15 @@ typedef enum {
 #define	ZFS_ONLINE_FORCEFAULT	0x4
 #define	ZFS_ONLINE_EXPAND	0x8
 #define	ZFS_OFFLINE_TEMPORARY	0x1
+
+/*
+ * Flags for ZFS_IOC_POOL_IMPORT
+ */
+#define	ZFS_IMPORT_NORMAL	0x0
+#define	ZFS_IMPORT_VERBATIM	0x1
+#define	ZFS_IMPORT_ANY_HOST	0x2
+#define	ZFS_IMPORT_MISSING_LOG	0x4
+#define	ZFS_IMPORT_ONLY		0x8
 
 /*
  * Sysevent payload members.  ZFS will generate the following sysevents with the

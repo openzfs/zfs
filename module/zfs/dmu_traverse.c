@@ -36,7 +36,9 @@
 #include <sys/sa_impl.h>
 #include <sys/callb.h>
 
-struct prefetch_data {
+int zfs_pd_blks_max = 100;
+
+typedef struct prefetch_data {
 	kmutex_t pd_mtx;
 	kcondvar_t pd_cv;
 	int pd_blks_max;
@@ -44,27 +46,26 @@ struct prefetch_data {
 	int pd_flags;
 	boolean_t pd_cancel;
 	boolean_t pd_exited;
-};
+} prefetch_data_t;
 
-struct traverse_data {
+typedef struct traverse_data {
 	spa_t *td_spa;
 	uint64_t td_objset;
 	blkptr_t *td_rootbp;
 	uint64_t td_min_txg;
 	int td_flags;
-	struct prefetch_data *td_pfd;
+	prefetch_data_t *td_pfd;
 	blkptr_cb_t *td_func;
 	void *td_arg;
-};
+} traverse_data_t;
 
-static int traverse_dnode(struct traverse_data *td, const dnode_phys_t *dnp,
+static int traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *buf, uint64_t objset, uint64_t object);
 
-/* ARGSUSED */
 static int
 traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 {
-	struct traverse_data *td = arg;
+	traverse_data_t *td = arg;
 	zbookmark_t zb;
 
 	if (bp->blk_birth == 0)
@@ -81,11 +82,10 @@ traverse_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 {
-	struct traverse_data *td = arg;
+	traverse_data_t *td = arg;
 
 	if (lrc->lrc_txtype == TX_WRITE) {
 		lr_write_t *lr = (lr_write_t *)lrc;
@@ -98,8 +98,8 @@ traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 		if (claim_txg == 0 || bp->blk_birth < claim_txg)
 			return (0);
 
-		SET_BOOKMARK(&zb, td->td_objset, lr->lr_foid, ZB_ZIL_LEVEL,
-		    lr->lr_offset / BP_GET_LSIZE(bp));
+		SET_BOOKMARK(&zb, td->td_objset, lr->lr_foid,
+		    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
 
 		(void) td->td_func(td->td_spa, zilog, bp, NULL, &zb, NULL,
 		    td->td_arg);
@@ -108,7 +108,7 @@ traverse_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 }
 
 static void
-traverse_zil(struct traverse_data *td, zil_header_t *zh)
+traverse_zil(traverse_data_t *td, zil_header_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
 	zilog_t *zilog;
@@ -129,13 +129,13 @@ traverse_zil(struct traverse_data *td, zil_header_t *zh)
 }
 
 static int
-traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
+traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *pbuf, blkptr_t *bp, const zbookmark_t *zb)
 {
 	zbookmark_t czb;
 	int err = 0, lasterr = 0;
 	arc_buf_t *buf = NULL;
-	struct prefetch_data *pd = td->td_pfd;
+	prefetch_data_t *pd = td->td_pfd;
 	boolean_t hard = td->td_flags & TRAVERSE_HARD;
 
 	if (bp->blk_birth == 0) {
@@ -162,6 +162,8 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 	if (td->td_flags & TRAVERSE_PRE) {
 		err = td->td_func(td->td_spa, NULL, bp, pbuf, zb, dnp,
 		    td->td_arg);
+		if (err == TRAVERSE_VISIT_NO_CHILDREN)
+			return (0);
 		if (err)
 			return (err);
 	}
@@ -225,8 +227,6 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 			return (err);
 
 		osp = buf->b_data;
-		traverse_zil(td, &osp->os_zil_header);
-
 		dnp = &osp->os_meta_dnode;
 		err = traverse_dnode(td, dnp, buf, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
@@ -262,7 +262,7 @@ traverse_visitbp(struct traverse_data *td, const dnode_phys_t *dnp,
 }
 
 static int
-traverse_dnode(struct traverse_data *td, const dnode_phys_t *dnp,
+traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *buf, uint64_t objset, uint64_t object)
 {
 	int j, err = 0, lasterr = 0;
@@ -300,7 +300,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     arc_buf_t *pbuf, const zbookmark_t *zb, const dnode_phys_t *dnp,
     void *arg)
 {
-	struct prefetch_data *pfd = arg;
+	prefetch_data_t *pfd = arg;
 	uint32_t aflags = ARC_NOWAIT | ARC_PREFETCH;
 
 	ASSERT(pfd->pd_blks_fetched >= 0);
@@ -330,8 +330,8 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 static void
 traverse_prefetch_thread(void *arg)
 {
-	struct traverse_data *td_main = arg;
-	struct traverse_data td = *td_main;
+	traverse_data_t *td_main = arg;
+	traverse_data_t td = *td_main;
 	zbookmark_t czb;
 
 	td.td_func = traverse_prefetcher;
@@ -353,16 +353,16 @@ traverse_prefetch_thread(void *arg)
  * in syncing context).
  */
 static int
-traverse_impl(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
+traverse_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *rootbp,
     uint64_t txg_start, int flags, blkptr_cb_t func, void *arg)
 {
-	struct traverse_data td;
-	struct prefetch_data pd = { 0 };
+	traverse_data_t td;
+	prefetch_data_t pd = { 0 };
 	zbookmark_t czb;
 	int err;
 
 	td.td_spa = spa;
-	td.td_objset = objset;
+	td.td_objset = ds ? ds->ds_object : 0;
 	td.td_rootbp = rootbp;
 	td.td_min_txg = txg_start;
 	td.td_func = func;
@@ -370,17 +370,28 @@ traverse_impl(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
 	td.td_pfd = &pd;
 	td.td_flags = flags;
 
-	pd.pd_blks_max = 100;
+	pd.pd_blks_max = zfs_pd_blks_max;
 	pd.pd_flags = flags;
 	mutex_init(&pd.pd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&pd.pd_cv, NULL, CV_DEFAULT, NULL);
+
+	/* See comment on ZIL traversal in dsl_scan_visitds. */
+	if (ds != NULL && !dsl_dataset_is_snapshot(ds)) {
+		objset_t *os;
+
+		err = dmu_objset_from_ds(ds, &os);
+		if (err)
+			return (err);
+
+		traverse_zil(&td, &os->os_zil_header);
+	}
 
 	if (!(flags & TRAVERSE_PREFETCH) ||
 	    0 == taskq_dispatch(system_taskq, traverse_prefetch_thread,
 	    &td, TQ_NOQUEUE))
 		pd.pd_exited = B_TRUE;
 
-	SET_BOOKMARK(&czb, objset,
+	SET_BOOKMARK(&czb, td.td_objset,
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 	err = traverse_visitbp(&td, NULL, NULL, rootbp, &czb);
 
@@ -405,7 +416,7 @@ int
 traverse_dataset(dsl_dataset_t *ds, uint64_t txg_start, int flags,
     blkptr_cb_t func, void *arg)
 {
-	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds->ds_object,
+	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds,
 	    &ds->ds_phys->ds_bp, txg_start, flags, func, arg));
 }
 
@@ -423,7 +434,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	boolean_t hard = (flags & TRAVERSE_HARD);
 
 	/* visit the MOS */
-	err = traverse_impl(spa, 0, spa_get_rootblkptr(spa),
+	err = traverse_impl(spa, NULL, spa_get_rootblkptr(spa),
 	    txg_start, flags, func, arg);
 	if (err)
 		return (err);

@@ -103,7 +103,6 @@ enum {
 	EZFS_BADPERM,		/* invalid permission */
 	EZFS_BADPERMSET,	/* invalid permission set name */
 	EZFS_NODELEGATION,	/* delegated administration is disabled */
-	EZFS_PERMRDONLY,	/* pemissions are readonly */
 	EZFS_UNSHARESMBFAILED,	/* failed to unshare over smb */
 	EZFS_SHARESMBFAILED,	/* failed to share over smb */
 	EZFS_BADCACHE,		/* bad cache file */
@@ -120,6 +119,9 @@ enum {
 	EZFS_POSTSPLIT_ONLINE,	/* onlining a disk after splitting it */
 	EZFS_SCRUBBING,		/* currently scrubbing */
 	EZFS_NO_SCRUB,		/* no active scrub */
+	EZFS_DIFF,		/* general failure of zfs diff */
+	EZFS_DIFFDATA,		/* bad zfs diff data */
+	EZFS_POOLREADONLY,	/* pool is in read-only mode */
 	EZFS_UNKNOWN
 };
 
@@ -326,7 +328,7 @@ extern int zpool_export_force(zpool_handle_t *);
 extern int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 extern int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
-    nvlist_t *, boolean_t);
+    nvlist_t *, int);
 
 /*
  * Search for pools to import
@@ -492,6 +494,17 @@ extern int zfs_iter_filesystems(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_snapshots(zfs_handle_t *, zfs_iter_f, void *);
 extern int zfs_iter_snapshots_sorted(zfs_handle_t *, zfs_iter_f, void *);
 
+typedef struct get_all_cb {
+	zfs_handle_t	**cb_handles;
+	size_t		cb_alloc;
+	size_t		cb_used;
+	boolean_t	cb_verbose;
+	int		(*cb_getone)(zfs_handle_t *, void *);
+} get_all_cb_t;
+
+void libzfs_add_handle(get_all_cb_t *, zfs_handle_t *);
+int libzfs_dataset_cmp(const void *, const void *);
+
 /*
  * Functions to create and destroy datasets.
  */
@@ -533,12 +546,8 @@ extern int zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 extern int zfs_promote(zfs_handle_t *);
 extern int zfs_hold(zfs_handle_t *, const char *, const char *, boolean_t,
-    boolean_t, boolean_t);
-extern int zfs_hold_range(zfs_handle_t *, const char *, const char *,
-    const char *, boolean_t, boolean_t, snapfilter_cb_t, void *);
+    boolean_t, boolean_t, int, uint64_t, uint64_t);
 extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t);
-extern int zfs_release_range(zfs_handle_t *, const char *, const char *,
-    const char *, boolean_t);
 extern uint64_t zvol_volsize_to_reservation(uint64_t, nvlist_t *);
 
 typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
@@ -578,6 +587,15 @@ typedef struct recvflags {
 
 extern int zfs_receive(libzfs_handle_t *, const char *, recvflags_t,
     int, avl_tree_t *);
+
+typedef enum diff_flags {
+	ZFS_DIFF_PARSEABLE = 0x1,
+	ZFS_DIFF_TIMESTAMP = 0x2,
+	ZFS_DIFF_CLASSIFY = 0x4
+} diff_flags_t;
+
+extern int zfs_show_diffs(zfs_handle_t *, int, const char *, const char *,
+    int);
 
 /*
  * Miscellaneous functions.

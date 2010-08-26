@@ -388,26 +388,8 @@ zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 void
 zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 {
-	uint64_t fuid, fgid;
-	sa_bulk_attr_t bulk[2];
-	int count = 0;
-
-	if (IS_EPHEMERAL(zp->z_uid) || IS_EPHEMERAL(zp->z_gid)) {
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zp->z_zfsvfs),
-		    NULL, &fuid, 8);
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zp->z_zfsvfs),
-		    NULL, &fgid, 8);
-		VERIFY(0 == sa_bulk_lookup(zp->z_sa_hdl, bulk, count));
-	}
-	if (IS_EPHEMERAL(zp->z_uid))
-		*uidp = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
-	else
-		*uidp = zp->z_uid;
-	if (IS_EPHEMERAL(zp->z_gid))
-		*gidp = zfs_fuid_map_id(zp->z_zfsvfs,
-		    zp->z_gid, cr, ZFS_GROUP);
-	else
-		*gidp = zp->z_gid;
+	*uidp = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
+	*gidp = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_gid, cr, ZFS_GROUP);
 }
 
 uid_t

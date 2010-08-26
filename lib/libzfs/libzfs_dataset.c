@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <ctype.h>
@@ -126,7 +125,7 @@ path_to_str(const char *path, int types)
  * provide a more meaningful error message.  We call zfs_error_aux() to
  * explain exactly why the name was not valid.
  */
-static int
+int
 zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
     boolean_t modifying)
 {
@@ -1212,39 +1211,46 @@ badlabel:
 		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		goto error;
 	}
-
-	/*
-	 * If this is an existing volume, and someone is setting the volsize,
-	 * make sure that it matches the reservation, or add it if necessary.
-	 */
-	if (zhp != NULL && type == ZFS_TYPE_VOLUME &&
-	    nvlist_lookup_uint64(ret, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
-	    &intval) == 0) {
-		uint64_t old_volsize = zfs_prop_get_int(zhp,
-		    ZFS_PROP_VOLSIZE);
-		uint64_t old_reservation;
-		uint64_t new_reservation;
-		zfs_prop_t resv_prop;
-
-		if (zfs_which_resv_prop(zhp, &resv_prop) < 0)
-			goto error;
-		old_reservation = zfs_prop_get_int(zhp, resv_prop);
-
-		if (old_volsize == old_reservation &&
-		    nvlist_lookup_uint64(ret, zfs_prop_to_name(resv_prop),
-		    &new_reservation) != 0) {
-			if (nvlist_add_uint64(ret,
-			    zfs_prop_to_name(resv_prop), intval) != 0) {
-				(void) no_memory(hdl);
-				goto error;
-			}
-		}
-	}
 	return (ret);
 
 error:
 	nvlist_free(ret);
 	return (NULL);
+}
+
+int
+zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
+{
+	uint64_t old_volsize;
+	uint64_t new_volsize;
+	uint64_t old_reservation;
+	uint64_t new_reservation;
+	zfs_prop_t resv_prop;
+
+	/*
+	 * If this is an existing volume, and someone is setting the volsize,
+	 * make sure that it matches the reservation, or add it if necessary.
+	 */
+	old_volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
+	if (zfs_which_resv_prop(zhp, &resv_prop) < 0)
+		return (-1);
+	old_reservation = zfs_prop_get_int(zhp, resv_prop);
+	if ((zvol_volsize_to_reservation(old_volsize, zhp->zfs_props) !=
+	    old_reservation) || nvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(resv_prop), &new_reservation) != ENOENT) {
+		return (0);
+	}
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
+	    &new_volsize) != 0)
+		return (-1);
+	new_reservation = zvol_volsize_to_reservation(new_volsize,
+	    zhp->zfs_props);
+	if (nvlist_add_uint64(nvl, zfs_prop_to_name(resv_prop),
+	    new_reservation) != 0) {
+		(void) no_memory(zhp->zfs_hdl);
+		return (-1);
+	}
+	return (1);
 }
 
 void
@@ -1346,6 +1352,7 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 	zfs_prop_t prop;
 	boolean_t do_prefix;
 	uint64_t idx;
+	int added_resv;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot set property for '%s'"),
@@ -1365,6 +1372,11 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 	nvl = realprops;
 
 	prop = zfs_name_to_prop(propname);
+
+	if (prop == ZFS_PROP_VOLSIZE) {
+		if ((added_resv = zfs_add_synthetic_resv(zhp, nvl)) == -1)
+			goto error;
+	}
 
 	if ((cl = changelist_gather(zhp, prop, 0, 0)) == NULL)
 		goto error;
@@ -1400,6 +1412,22 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 
 	if (ret != 0) {
 		zfs_setprop_error(hdl, prop, errno, errbuf);
+		if (added_resv && errno == ENOSPC) {
+			/* clean up the volsize property we tried to set */
+			uint64_t old_volsize = zfs_prop_get_int(zhp,
+			    ZFS_PROP_VOLSIZE);
+			nvlist_free(nvl);
+			zcmd_free_nvlists(&zc);
+			if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
+				goto error;
+			if (nvlist_add_uint64(nvl,
+			    zfs_prop_to_name(ZFS_PROP_VOLSIZE),
+			    old_volsize) != 0)
+				goto error;
+			if (zcmd_write_src_nvlist(hdl, &zc, nvl) != 0)
+				goto error;
+			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+		}
 	} else {
 		if (do_prefix)
 			ret = changelist_postfix(cl);
@@ -1474,7 +1502,7 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		return (zfs_error(hdl, EZFS_PROPTYPE, errbuf));
 
 	/*
-	 * Normalize the name, to get rid of shorthand abbrevations.
+	 * Normalize the name, to get rid of shorthand abbreviations.
 	 */
 	propname = zfs_prop_to_name(prop);
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -2173,14 +2201,11 @@ static int
 idmap_id_to_numeric_domain_rid(uid_t id, boolean_t isuser,
     char **domainp, idmap_rid_t *ridp)
 {
-	idmap_handle_t *idmap_hdl = NULL;
 	idmap_get_handle_t *get_hdl = NULL;
 	idmap_stat status;
 	int err = EINVAL;
 
-	if (idmap_init(&idmap_hdl) != IDMAP_SUCCESS)
-		goto out;
-	if (idmap_get_create(idmap_hdl, &get_hdl) != IDMAP_SUCCESS)
+	if (idmap_get_create(&get_hdl) != IDMAP_SUCCESS)
 		goto out;
 
 	if (isuser) {
@@ -2199,8 +2224,6 @@ idmap_id_to_numeric_domain_rid(uid_t id, boolean_t isuser,
 out:
 	if (get_hdl)
 		idmap_get_destroy(get_hdl);
-	if (idmap_hdl)
-		(void) idmap_fini(idmap_hdl);
 	return (err);
 }
 
@@ -3898,10 +3921,13 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 
 int
 zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
-    boolean_t recursive, boolean_t temphold, boolean_t enoent_ok)
+    boolean_t recursive, boolean_t temphold, boolean_t enoent_ok,
+    int cleanup_fd, uint64_t dsobj, uint64_t createtxg)
 {
 	zfs_cmd_t zc = { 0 };
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+
+	ASSERT(!recursive || dsobj == 0);
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
@@ -3910,6 +3936,9 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 		return (zfs_error(hdl, EZFS_TAGTOOLONG, tag));
 	zc.zc_cookie = recursive;
 	zc.zc_temphold = temphold;
+	zc.zc_cleanup_fd = cleanup_fd;
+	zc.zc_sendobj = dsobj;
+	zc.zc_createtxg = createtxg;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_HOLD, &zc) != 0) {
 		char errbuf[ZFS_MAXNAMELEN+32];
@@ -3939,7 +3968,7 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 			return (zfs_error(hdl, EZFS_REFTAG_HOLD, errbuf));
 		case ENOENT:
 			if (enoent_ok)
-				return (0);
+				return (ENOENT);
 			/* FALLTHROUGH */
 		default:
 			return (zfs_standard_error_fmt(hdl, errno, errbuf));
@@ -3947,102 +3976,6 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	}
 
 	return (0);
-}
-
-struct hold_range_arg {
-	zfs_handle_t	*origin;
-	const char	*fromsnap;
-	const char	*tosnap;
-	char		lastsnapheld[ZFS_MAXNAMELEN];
-	const char	*tag;
-	boolean_t	temphold;
-	boolean_t	seento;
-	boolean_t	seenfrom;
-	boolean_t	holding;
-	boolean_t	recursive;
-	snapfilter_cb_t	*filter_cb;
-	void		*filter_cb_arg;
-};
-
-static int
-zfs_hold_range_one(zfs_handle_t *zhp, void *arg)
-{
-	struct hold_range_arg *hra = arg;
-	const char *thissnap;
-	int error;
-
-	thissnap = strchr(zfs_get_name(zhp), '@') + 1;
-
-	if (hra->fromsnap && !hra->seenfrom &&
-	    strcmp(hra->fromsnap, thissnap) == 0)
-		hra->seenfrom = B_TRUE;
-
-	/* snap is older or newer than the desired range, ignore it */
-	if (hra->seento || !hra->seenfrom) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	if (!hra->seento && strcmp(hra->tosnap, thissnap) == 0)
-		hra->seento = B_TRUE;
-
-	if (hra->filter_cb != NULL &&
-	    hra->filter_cb(zhp, hra->filter_cb_arg) == B_FALSE) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	if (hra->holding) {
-		/* We could be racing with destroy, so ignore ENOENT. */
-		error = zfs_hold(hra->origin, thissnap, hra->tag,
-		    hra->recursive, hra->temphold, B_TRUE);
-		if (error == 0) {
-			(void) strlcpy(hra->lastsnapheld, zfs_get_name(zhp),
-			    sizeof (hra->lastsnapheld));
-		}
-	} else {
-		error = zfs_release(hra->origin, thissnap, hra->tag,
-		    hra->recursive);
-	}
-
-	zfs_close(zhp);
-	return (error);
-}
-
-/*
- * Add a user hold on the set of snapshots starting with fromsnap up to
- * and including tosnap. If we're unable to to acquire a particular hold,
- * undo any holds up to that point.
- */
-int
-zfs_hold_range(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
-    const char *tag, boolean_t recursive, boolean_t temphold,
-    snapfilter_cb_t filter_cb, void *cbarg)
-{
-	struct hold_range_arg arg = { 0 };
-	int error;
-
-	arg.origin = zhp;
-	arg.fromsnap = fromsnap;
-	arg.tosnap = tosnap;
-	arg.tag = tag;
-	arg.temphold = temphold;
-	arg.holding = B_TRUE;
-	arg.recursive = recursive;
-	arg.seenfrom = (fromsnap == NULL);
-	arg.filter_cb = filter_cb;
-	arg.filter_cb_arg = cbarg;
-
-	error = zfs_iter_snapshots_sorted(zhp, zfs_hold_range_one, &arg);
-
-	/*
-	 * Make sure we either hold the entire range or none.
-	 */
-	if (error && arg.lastsnapheld[0] != '\0') {
-		(void) zfs_release_range(zhp, fromsnap,
-		    (const char *)arg.lastsnapheld, tag, recursive);
-	}
-	return (error);
 }
 
 int
@@ -4084,26 +4017,6 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	}
 
 	return (0);
-}
-
-/*
- * Release a user hold from the set of snapshots starting with fromsnap
- * up to and including tosnap.
- */
-int
-zfs_release_range(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
-    const char *tag, boolean_t recursive)
-{
-	struct hold_range_arg arg = { 0 };
-
-	arg.origin = zhp;
-	arg.fromsnap = fromsnap;
-	arg.tosnap = tosnap;
-	arg.tag = tag;
-	arg.recursive = recursive;
-	arg.seenfrom = (fromsnap == NULL);
-
-	return (zfs_iter_snapshots_sorted(zhp, zfs_hold_range_one, &arg));
 }
 
 uint64_t

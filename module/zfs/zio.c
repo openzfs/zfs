@@ -2247,6 +2247,26 @@ zio_vdev_io_start(zio_t *zio)
 		return (vdev_mirror_ops.vdev_op_io_start(zio));
 	}
 
+	/*
+	 * We keep track of time-sensitive I/Os so that the scan thread
+	 * can quickly react to certain workloads.  In particular, we care
+	 * about non-scrubbing, top-level reads and writes with the following
+	 * characteristics:
+	 * 	- synchronous writes of user data to non-slog devices
+	 *	- any reads of user data
+	 * When these conditions are met, adjust the timestamp of spa_last_io
+	 * which allows the scan thread to adjust its workload accordingly.
+	 */
+	if (!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) && zio->io_bp != NULL &&
+	    vd == vd->vdev_top && !vd->vdev_islog &&
+	    zio->io_bookmark.zb_objset != DMU_META_OBJSET &&
+	    zio->io_txg != spa_syncing_txg(spa)) {
+		uint64_t old = spa->spa_last_io;
+		uint64_t new = ddi_get_lbolt64();
+		if (old != new)
+			(void) atomic_cas_64(&spa->spa_last_io, old, new);
+	}
+
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 
 	if (P2PHASE(zio->io_size, align) != 0) {
@@ -2262,7 +2282,7 @@ zio_vdev_io_start(zio_t *zio)
 
 	ASSERT(P2PHASE(zio->io_offset, align) == 0);
 	ASSERT(P2PHASE(zio->io_size, align) == 0);
-	ASSERT(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
+	VERIFY(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
 
 	/*
 	 * If this is a repair I/O, and there's no self-healing involved --
@@ -2744,6 +2764,7 @@ zio_done(zio_t *zio)
 
 		if ((zio->io_type == ZIO_TYPE_READ ||
 		    zio->io_type == ZIO_TYPE_FREE) &&
+		    !(zio->io_flags & ZIO_FLAG_SCAN_THREAD) &&
 		    zio->io_error == ENXIO &&
 		    spa_load_state(spa) == SPA_LOAD_NONE &&
 		    spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)

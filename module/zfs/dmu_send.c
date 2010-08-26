@@ -42,6 +42,7 @@
 #include <zfs_fletcher.h>
 #include <sys/avl.h>
 #include <sys/ddt.h>
+#include <sys/zfs_onexit.h>
 
 static char *dmu_recv_tag = "dmu_recv_tag";
 
@@ -573,6 +574,14 @@ recv_existing_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (!rbsa->force && dsl_dataset_modified_since_lastsnap(ds))
 		return (ETXTBSY);
 
+	/* new snapshot name must not exist */
+	err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
+	    ds->ds_phys->ds_snapnames_zapobj, rbsa->tosnap, 8, 1, &val);
+	if (err == 0)
+		return (EEXIST);
+	if (err != ENOENT)
+		return (err);
+
 	if (rbsa->fromguid) {
 		/* if incremental, most recent snapshot must match fromguid */
 		if (ds->ds_prev == NULL)
@@ -620,13 +629,6 @@ recv_existing_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (err != ENOENT)
 		return (err);
 
-	/* new snapshot name must not exist */
-	err = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
-	    ds->ds_phys->ds_snapnames_zapobj, rbsa->tosnap, 8, 1, &val);
-	if (err == 0)
-		return (EEXIST);
-	if (err != ENOENT)
-		return (err);
 	return (0);
 }
 
@@ -660,7 +662,6 @@ recv_existing_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	spa_history_log_internal(LOG_DS_REPLAY_INC_SYNC,
 	    dp->dp_spa, tx, "dataset = %lld", dsobj);
 }
-
 
 static boolean_t
 dmu_recv_verify_features(dsl_dataset_t *ds, struct drr_begin *drrb)
@@ -786,7 +787,7 @@ dmu_recv_begin(char *tofs, char *tosnap, char *top_ds, struct drr_begin *drrb,
 			return (err);
 
 		if (dmu_recv_verify_features(ds, drrb)) {
-			dsl_dataset_rele(ds, dmu_recv_tag);
+			dsl_dataset_rele(ds, FTAG);
 			return (ENOTSUP);
 		}
 
@@ -810,7 +811,7 @@ struct restorearg {
 	uint64_t voff;
 	int bufsize; /* amount of memory allocated for buf */
 	zio_cksum_t cksum;
-	avl_tree_t guid_to_ds_map;
+	avl_tree_t *guid_to_ds_map;
 };
 
 typedef struct guid_map_entry {
@@ -885,6 +886,21 @@ find_ds_by_guid(const char *name, void *arg)
 	dsl_dataset_rele(ds, FTAG);
 
 	return (0);
+}
+
+static void
+free_guid_map_onexit(void *arg)
+{
+	avl_tree_t *ca = arg;
+	void *cookie = NULL;
+	guid_map_entry_t *gmep;
+
+	while ((gmep = avl_destroy_nodes(ca, &cookie)) != NULL) {
+		dsl_dataset_rele(gmep->gme_ds, ca);
+		kmem_free(gmep, sizeof (guid_map_entry_t));
+	}
+	avl_destroy(ca);
+	kmem_free(ca, sizeof (avl_tree_t));
 }
 
 static void *
@@ -1173,7 +1189,7 @@ restore_write_byref(struct restorearg *ra, objset_t *os,
 	 */
 	if (drrwbr->drr_toguid != drrwbr->drr_refguid) {
 		gmesrch.guid = drrwbr->drr_refguid;
-		if ((gmep = avl_find(&ra->guid_to_ds_map, &gmesrch,
+		if ((gmep = avl_find(ra->guid_to_ds_map, &gmesrch,
 		    &where)) == NULL) {
 			return (EINVAL);
 		}
@@ -1276,13 +1292,13 @@ restore_free(struct restorearg *ra, objset_t *os,
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
 int
-dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
+dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
+    int cleanup_fd, uint64_t *action_handlep)
 {
 	struct restorearg ra = { 0 };
 	dmu_replay_record_t *drr;
 	objset_t *os;
 	zio_cksum_t pcksum;
-	guid_map_entry_t *gmep;
 	int featureflags;
 
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC))
@@ -1336,12 +1352,38 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 
 	/* if this stream is dedup'ed, set up the avl tree for guid mapping */
 	if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
-		avl_create(&ra.guid_to_ds_map, guid_compare,
-		    sizeof (guid_map_entry_t),
-		    offsetof(guid_map_entry_t, avlnode));
-		(void) dmu_objset_find(drc->drc_top_ds, find_ds_by_guid,
-		    (void *)&ra.guid_to_ds_map,
-		    DS_FIND_CHILDREN);
+		minor_t minor;
+
+		if (cleanup_fd == -1) {
+			ra.err = EBADF;
+			goto out;
+		}
+		ra.err = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		if (ra.err) {
+			cleanup_fd = -1;
+			goto out;
+		}
+
+		if (*action_handlep == 0) {
+			ra.guid_to_ds_map =
+			    kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
+			avl_create(ra.guid_to_ds_map, guid_compare,
+			    sizeof (guid_map_entry_t),
+			    offsetof(guid_map_entry_t, avlnode));
+			(void) dmu_objset_find(drc->drc_top_ds, find_ds_by_guid,
+			    (void *)ra.guid_to_ds_map,
+			    DS_FIND_CHILDREN);
+			ra.err = zfs_onexit_add_cb(minor,
+			    free_guid_map_onexit, ra.guid_to_ds_map,
+			    action_handlep);
+			if (ra.err)
+				goto out;
+		} else {
+			ra.err = zfs_onexit_cb_data(minor, *action_handlep,
+			    (void **)&ra.guid_to_ds_map);
+			if (ra.err)
+				goto out;
+		}
 	}
 
 	/*
@@ -1423,6 +1465,9 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 	ASSERT(ra.err != 0);
 
 out:
+	if ((featureflags & DMU_BACKUP_FEATURE_DEDUP) && (cleanup_fd != -1))
+		zfs_onexit_fd_rele(cleanup_fd);
+
 	if (ra.err != 0) {
 		/*
 		 * destroy what we created, so we don't leave it in the
@@ -1436,16 +1481,6 @@ out:
 			mutex_exit(&drc->drc_logical_ds->ds_recvlock);
 			dsl_dataset_rele(drc->drc_logical_ds, dmu_recv_tag);
 		}
-	}
-
-	if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
-		void *cookie = NULL;
-
-		while (gmep = avl_destroy_nodes(&ra.guid_to_ds_map, &cookie)) {
-			dsl_dataset_rele(gmep->gme_ds, &ra.guid_to_ds_map);
-			kmem_free(gmep, sizeof (guid_map_entry_t));
-		}
-		avl_destroy(&ra.guid_to_ds_map);
 	}
 
 	kmem_free(ra.buf, ra.bufsize);

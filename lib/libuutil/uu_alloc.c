@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include "libuutil_common.h"
@@ -65,6 +64,44 @@ uu_strdup(const char *str)
 			(void) memcpy(buf, str, sz);
 	}
 	return (buf);
+}
+
+/*
+ * Duplicate up to n bytes of a string.  Kind of sort of like
+ * strdup(strlcpy(s, n)).
+ */
+char *
+uu_strndup(const char *s, size_t n)
+{
+	size_t len;
+	char *p;
+
+	len = strnlen(s, n);
+	p = uu_zalloc(len + 1);
+	if (p == NULL)
+		return (NULL);
+
+	if (len > 0)
+		(void) memcpy(p, s, len);
+	p[len] = '\0';
+
+	return (p);
+}
+
+/*
+ * Duplicate a block of memory.  Combines malloc with memcpy, much as
+ * strdup combines malloc, strlen, and strcpy.
+ */
+void *
+uu_memdup(const void *buf, size_t sz)
+{
+	void *p;
+
+	p = uu_zalloc(sz);
+	if (p == NULL)
+		return (NULL);
+	(void) memcpy(p, buf, sz);
+	return (p);
 }
 
 char *

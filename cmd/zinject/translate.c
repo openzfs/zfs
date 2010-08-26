@@ -267,7 +267,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	}
 
 	if (record->zi_object == 0) {
-		dn = os->os_meta_dnode;
+		dn = DMU_META_DNODE(os);
 	} else {
 		err = dnode_hold(os, record->zi_object, FTAG, &dn);
 		if (err != 0) {
@@ -318,7 +318,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	ret = 0;
 out:
 	if (dn) {
-		if (dn != os->os_meta_dnode)
+		if (dn != DMU_META_DNODE(os))
 			dnode_rele(dn, FTAG);
 	}
 	if (os)

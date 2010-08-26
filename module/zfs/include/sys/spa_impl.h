@@ -114,13 +114,14 @@ struct spa {
 	nvlist_t	*spa_config;		/* last synced config */
 	nvlist_t	*spa_config_syncing;	/* currently syncing config */
 	nvlist_t	*spa_config_splitting;	/* config for splitting */
+	nvlist_t	*spa_load_info;		/* info and errors from load */
 	uint64_t	spa_config_txg;		/* txg of last config change */
 	int		spa_sync_pass;		/* iterate-to-convergence */
 	pool_state_t	spa_state;		/* pool state */
 	int		spa_inject_ref;		/* injection references */
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
-	boolean_t	spa_load_verbatim;	/* load the given config? */
+	uint64_t	spa_import_flags;	/* import specific flags */
 	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
 	metaslab_class_t *spa_normal_class;	/* normal data class */
@@ -130,6 +131,7 @@ struct spa {
 	uint64_t	spa_freeze_txg;		/* freeze pool at this txg */
 	uint64_t	spa_load_max_txg;	/* best initial ub_txg */
 	uint64_t	spa_claim_max_txg;	/* highest claimed birth txg */
+	timespec_t	spa_loaded_ts;		/* 1st successful open time */
 	objset_t	*spa_meta_objset;	/* copy of dp->dp_meta_objset */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
@@ -146,9 +148,9 @@ struct spa {
 	uberblock_t	spa_ubsync;		/* last synced uberblock */
 	uberblock_t	spa_uberblock;		/* current uberblock */
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
+	uint64_t	spa_last_io;		/* lbolt of last non-scan I/O */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub I/Os */
-	uint64_t	spa_scrub_maxinflight;	/* max in-flight scrub I/Os */
 	kcondvar_t	spa_scrub_io_cv;	/* scrub I/O completion */
 	uint8_t		spa_scrub_active;	/* active or suspended? */
 	uint8_t		spa_scrub_type;		/* type of scrub we're doing */

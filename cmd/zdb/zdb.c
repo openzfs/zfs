@@ -695,11 +695,11 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 		return;
 	ASSERT(error == 0);
 
-	count = ddt_object_count(ddt, type, class);
+	if ((count = ddt_object_count(ddt, type, class)) == 0)
+		return;
+
 	dspace = doi.doi_physical_blocks_512 << 9;
 	mspace = doi.doi_fill_count * doi.doi_data_block_size;
-
-	ASSERT(count != 0);	/* we should have destroyed it */
 
 	ddt_object_name(ddt, type, class, name);
 
@@ -1290,8 +1290,12 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 			VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_SA_ATTRS,
 			    8, 1, &sa_attrs) == 0);
 		}
-		sa_attr_table = sa_setup(os, sa_attrs,
-		    zfs_attr_table, ZPL_END);
+		if ((error = sa_setup(os, sa_attrs, zfs_attr_table,
+		    ZPL_END, &sa_attr_table)) != 0) {
+			(void) printf("sa_setup failed errno %d, can't "
+			    "display znode contents\n", error);
+			return;
+		}
 		sa_loaded = B_TRUE;
 	}
 
@@ -1455,7 +1459,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 	}
 
 	if (object == 0) {
-		dn = os->os_meta_dnode;
+		dn = DMU_META_DNODE(os);
 	} else {
 		error = dmu_bonus_hold(os, object, FTAG, &db);
 		if (error)
@@ -1463,7 +1467,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header)
 			    object, error);
 		bonus = db->db_data;
 		bsize = db->db_size;
-		dn = ((dmu_buf_impl_t *)db)->db_dnode;
+		dn = DB_DNODE((dmu_buf_impl_t *)db);
 	}
 	dmu_object_info_from_dnode(dn, &doi);
 
@@ -1627,8 +1631,8 @@ dump_dir(objset_t *os)
 
 	dump_object(os, 0, verbosity, &print_header);
 	object_count = 0;
-	if (os->os_userused_dnode &&
-	    os->os_userused_dnode->dn_type != 0) {
+	if (DMU_USERUSED_DNODE(os) != NULL &&
+	    DMU_USERUSED_DNODE(os)->dn_type != 0) {
 		dump_object(os, DMU_USERUSED_OBJECT, verbosity, &print_header);
 		dump_object(os, DMU_GROUPUSED_OBJECT, verbosity, &print_header);
 	}
@@ -3072,8 +3076,11 @@ main(int argc, char **argv)
 				fatal("can't open '%s': %s",
 				    target, strerror(ENOMEM));
 			}
-			if ((error = spa_import(name, cfg, NULL)) != 0)
-				error = spa_import_verbatim(name, cfg, NULL);
+			if ((error = spa_import(name, cfg, NULL,
+			    ZFS_IMPORT_MISSING_LOG)) != 0) {
+				error = spa_import(name, cfg, NULL,
+				    ZFS_IMPORT_VERBATIM);
+			}
 		}
 	}
 

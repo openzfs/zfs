@@ -125,6 +125,7 @@ zfs_sa_get_scanstamp(znode_t *zp, xvattr_t *xvap)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	xoptattr_t *xoap;
 
+	ASSERT(MUTEX_HELD(&zp->z_lock));
 	VERIFY((xoap = xva_getxoptattr(xvap)) != NULL);
 	if (zp->z_is_sa) {
 		if (sa_lookup(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
@@ -158,6 +159,7 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	xoptattr_t *xoap;
 
+	ASSERT(MUTEX_HELD(&zp->z_lock));
 	VERIFY((xoap = xva_getxoptattr(xvap)) != NULL);
 	if (zp->z_is_sa)
 		VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
@@ -204,6 +206,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	uint64_t crtime[2], mtime[2], ctime[2];
 	zfs_acl_phys_t znode_acl;
 	char scanstamp[AV_SCANSTAMP_SZ];
+	boolean_t drop_lock = B_FALSE;
 
 	/*
 	 * No upgrade if ACL isn't cached
@@ -213,6 +216,22 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 */
 	if (zp->z_acl_cached == NULL || ZTOV(zp)->v_type == VLNK)
 		return;
+
+	/*
+	 * If the z_lock is held and we aren't the owner
+	 * the just return since we don't want to deadlock
+	 * trying to update the status of z_is_sa.  This
+	 * file can then be upgraded at a later time.
+	 *
+	 * Otherwise, we know we are doing the
+	 * sa_update() that caused us to enter this function.
+	 */
+	if (mutex_owner(&zp->z_lock) != curthread) {
+		if (mutex_tryenter(&zp->z_lock) == 0)
+			return;
+		else
+			drop_lock = B_TRUE;
+	}
 
 	/* First do a bulk query of the attributes that aren't cached */
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
@@ -228,7 +247,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &znode_acl, 88);
 
 	if (sa_bulk_lookup_locked(hdl, bulk, count) != 0)
-		return;
+		goto done;
 
 
 	/*
@@ -269,9 +288,10 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	locate.cb_aclp = zp->z_acl_cached;
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_DACL_ACES(zfsvfs),
 	    zfs_acl_data_locator, &locate, zp->z_acl_cached->z_acl_bytes);
+
 	if (xattr)
-		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zfsvfs),
-		    NULL, &rdev, 8);
+		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_XATTR(zfsvfs),
+		    NULL, &xattr, 8);
 
 	/* if scanstamp then add scanstamp */
 
@@ -291,6 +311,9 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		    znode_acl.z_acl_extern_obj, tx));
 
 	zp->z_is_sa = B_TRUE;
+done:
+	if (drop_lock)
+		mutex_exit(&zp->z_lock);
 }
 
 void
@@ -299,12 +322,11 @@ zfs_sa_upgrade_txholds(dmu_tx_t *tx, znode_t *zp)
 	if (!zp->z_zfsvfs->z_use_sa || zp->z_is_sa)
 		return;
 
-	ASSERT(!zp->z_is_sa);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 
-	if (ZFS_EXTERNAL_ACL(zp)) {
-		dmu_tx_hold_free(tx, ZFS_EXTERNAL_ACL(zp), 0,
+	if (zfs_external_acl(zp)) {
+		dmu_tx_hold_free(tx, zfs_external_acl(zp), 0,
 		    DMU_OBJECT_END);
 	}
 }

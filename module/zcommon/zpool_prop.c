@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -105,6 +104,8 @@ zpool_prop_init(void)
 	    boolean_table);
 	zprop_register_index(ZPOOL_PROP_AUTOEXPAND, "autoexpand", 0,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "EXPAND", boolean_table);
+	zprop_register_index(ZPOOL_PROP_READONLY, "readonly", 0,
+	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "RDONLY", boolean_table);
 
 	/* default index properties */
 	zprop_register_index(ZPOOL_PROP_FAILUREMODE, "failmode",

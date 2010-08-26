@@ -304,24 +304,6 @@ spa_config_set(spa_t *spa, nvlist_t *config)
 	mutex_exit(&spa->spa_props_lock);
 }
 
-/* Add discovered rewind info, if any to the provided nvlist */
-void
-spa_rewind_data_to_nvlist(spa_t *spa, nvlist_t *tonvl)
-{
-	int64_t loss = 0;
-
-	if (tonvl == NULL || spa->spa_load_txg == 0)
-		return;
-
-	VERIFY(nvlist_add_uint64(tonvl, ZPOOL_CONFIG_LOAD_TIME,
-	    spa->spa_load_txg_ts) == 0);
-	if (spa->spa_last_ubsync_txg)
-		loss = spa->spa_last_ubsync_txg_ts - spa->spa_load_txg_ts;
-	VERIFY(nvlist_add_int64(tonvl, ZPOOL_CONFIG_REWIND_TIME, loss) == 0);
-	VERIFY(nvlist_add_uint64(tonvl, ZPOOL_CONFIG_LOAD_DATA_ERRORS,
-	    spa->spa_load_data_errors) == 0);
-}
-
 /*
  * Generate the pool's configuration based on the current in-core state.
  * We infer whether to generate a complete config or just one top-level config
@@ -403,8 +385,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 
 	/*
 	 * Add the top-level config.  We even add this on pools which
-	 * don't support holes in the namespace as older pools will
-	 * just ignore it.
+	 * don't support holes in the namespace.
 	 */
 	vdev_top_config_generate(spa, config);
 
@@ -448,8 +429,6 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		    (uint64_t *)dds, sizeof (*dds) / sizeof (uint64_t)) == 0);
 		kmem_free(dds, sizeof (ddt_stat_t));
 	}
-
-	spa_rewind_data_to_nvlist(spa, config);
 
 	if (locked)
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);

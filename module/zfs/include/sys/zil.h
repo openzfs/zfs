@@ -169,18 +169,14 @@ typedef enum zil_create {
 	(txtype) == TX_ACL ||		\
 	(txtype) == TX_WRITE2)
 
-
 /*
  * Format of log records.
  * The fields are carefully defined to allow them to be aligned
  * and sized the same on sparc & intel architectures.
  * Each log record has a common structure at the beginning.
  *
- * Note, lrc_seq holds two different sequence numbers. Whilst in memory
- * it contains the transaction sequence number.  The log record on
- * disk holds the sequence number of all log records which is used to
- * ensure we don't replay the same record.  The two sequence numbers are
- * different because the transactions can now be pushed out of order.
+ * The log record on disk (lrc_seq) holds the sequence number of all log
+ * records which is used to ensure we don't replay the same record.
  */
 typedef struct {			/* common log record header */
 	uint64_t	lrc_txtype;	/* intent log transaction type */
@@ -371,6 +367,7 @@ typedef struct itx {
 	itx_wr_state_t	itx_wr_state;	/* write state */
 	uint8_t		itx_sync;	/* synchronous transaction */
 	uint64_t	itx_sod;	/* record size on disk */
+	uint64_t	itx_oid;	/* object id */
 	lr_t		itx_lr;		/* common part of log record */
 	/* followed by type-specific part of lr_xx_t and its immediate data */
 } itx_t;
@@ -402,15 +399,15 @@ extern void	zil_rollback_destroy(zilog_t *zilog, dmu_tx_t *tx);
 
 extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
 extern void	zil_itx_destroy(itx_t *itx);
-extern uint64_t zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
+extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
-extern void	zil_commit(zilog_t *zilog, uint64_t seq, uint64_t oid);
+extern void	zil_commit(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_vdev_offline(const char *osname, void *txarg);
 extern int	zil_claim(const char *osname, void *txarg);
 extern int	zil_check_log_chain(const char *osname, void *txarg);
 extern void	zil_sync(zilog_t *zilog, dmu_tx_t *tx);
-extern void	zil_clean(zilog_t *zilog);
+extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 
 extern int	zil_suspend(zilog_t *zilog);
 extern void	zil_resume(zilog_t *zilog);

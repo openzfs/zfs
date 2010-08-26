@@ -32,6 +32,7 @@
 #include <sys/zio.h>
 #include <sys/refcount.h>
 #include <sys/dmu_zfetch.h>
+#include <sys/zrlock.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -156,6 +157,7 @@ typedef struct dnode {
 	struct objset *dn_objset;
 	uint64_t dn_object;
 	struct dmu_buf_impl *dn_dbuf;
+	struct dnode_handle *dn_handle;
 	dnode_phys_t *dn_phys; /* pointer into dn->dn_dbuf->db.db_data */
 
 	/*
@@ -172,6 +174,7 @@ typedef struct dnode {
 	uint8_t dn_nlevels;
 	uint8_t dn_indblkshift;
 	uint8_t dn_datablkshift;	/* zero if blksz not power of 2! */
+	uint8_t dn_moved;		/* Has this dnode been moved? */
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
@@ -182,6 +185,9 @@ typedef struct dnode {
 	uint8_t dn_rm_spillblk[TXG_SIZE];	/* for removing spill blk */
 	uint16_t dn_next_bonuslen[TXG_SIZE];
 	uint32_t dn_next_blksz[TXG_SIZE];	/* next block size in bytes */
+
+	/* protected by dn_dbufs_mtx; declared here to fill 32-bit hole */
+	uint32_t dn_dbufs_count;	/* count of dn_dbufs */
 
 	/* protected by os_lock: */
 	list_node_t dn_dirty_link[TXG_SIZE];	/* next on dataset's dirty */
@@ -202,8 +208,11 @@ typedef struct dnode {
 	refcount_t dn_holds;
 
 	kmutex_t dn_dbufs_mtx;
-	list_t dn_dbufs;		/* linked list of descendent dbuf_t's */
+	list_t dn_dbufs;		/* descendent dbufs */
+
+	/* protected by dn_struct_rwlock */
 	struct dmu_buf_impl *dn_bonus;	/* bonus buffer dbuf */
+
 	boolean_t dn_have_spill;	/* have spill or are spilling */
 
 	/* parent IO for current sync write */
@@ -220,6 +229,22 @@ typedef struct dnode {
 	struct zfetch	dn_zfetch;
 } dnode_t;
 
+/*
+ * Adds a level of indirection between the dbuf and the dnode to avoid
+ * iterating descendent dbufs in dnode_move(). Handles are not allocated
+ * individually, but as an array of child dnodes in dnode_hold_impl().
+ */
+typedef struct dnode_handle {
+	/* Protects dnh_dnode from modification by dnode_move(). */
+	zrlock_t dnh_zrlock;
+	dnode_t *dnh_dnode;
+} dnode_handle_t;
+
+typedef struct dnode_children {
+	size_t dnc_count;		/* number of children */
+	dnode_handle_t dnc_children[1];	/* sized dynamically */
+} dnode_children_t;
+
 typedef struct free_range {
 	avl_node_t fr_node;
 	uint64_t fr_blkid;
@@ -227,8 +252,8 @@ typedef struct free_range {
 } free_range_t;
 
 dnode_t *dnode_special_open(struct objset *dd, dnode_phys_t *dnp,
-    uint64_t object);
-void dnode_special_close(dnode_t *dn);
+    uint64_t object, dnode_handle_t *dnh);
+void dnode_special_close(dnode_handle_t *dnh);
 
 void dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx);
 void dnode_setbonus_type(dnode_t *dn, dmu_object_type_t, dmu_tx_t *tx);

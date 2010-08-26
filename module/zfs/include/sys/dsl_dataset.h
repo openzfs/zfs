@@ -162,6 +162,22 @@ struct dsl_ds_destroyarg {
 	boolean_t need_prep;		/* do we need to retry due to EBUSY? */
 };
 
+/*
+ * The max length of a temporary tag prefix is the number of hex digits
+ * required to express UINT64_MAX plus one for the hyphen.
+ */
+#define	MAX_TAG_PREFIX_LEN	17
+
+struct dsl_ds_holdarg {
+	dsl_sync_task_group_t *dstg;
+	char *htag;
+	char *snapname;
+	boolean_t recursive;
+	boolean_t gotone;
+	boolean_t temphold;
+	char failed[MAXPATHLEN];
+};
+
 #define	dsl_dataset_is_snapshot(ds) \
 	((ds)->ds_phys->ds_num_children != 0)
 
@@ -182,6 +198,8 @@ void dsl_dataset_drop_ref(dsl_dataset_t *ds, void *tag);
 boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, boolean_t inconsistentok,
     void *tag);
 void dsl_dataset_make_exclusive(dsl_dataset_t *ds, void *tag);
+void dsl_register_onexit_hold_cleanup(dsl_dataset_t *ds, const char *htag,
+    minor_t minor);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *, dmu_tx_t *);
 uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
@@ -192,16 +210,19 @@ dsl_checkfunc_t dsl_dataset_destroy_check;
 dsl_syncfunc_t dsl_dataset_destroy_sync;
 dsl_checkfunc_t dsl_dataset_snapshot_check;
 dsl_syncfunc_t dsl_dataset_snapshot_sync;
+dsl_syncfunc_t dsl_dataset_user_hold_sync;
 int dsl_dataset_rename(char *name, const char *newname, boolean_t recursive);
 int dsl_dataset_promote(const char *name, char *conflsnap);
 int dsl_dataset_clone_swap(dsl_dataset_t *clone, dsl_dataset_t *origin_head,
     boolean_t force);
 int dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
-    boolean_t recursive, boolean_t temphold);
+    boolean_t recursive, boolean_t temphold, int cleanup_fd);
+int dsl_dataset_user_hold_for_send(dsl_dataset_t *ds, char *htag,
+    boolean_t temphold);
 int dsl_dataset_user_release(char *dsname, char *snapname, char *htag,
     boolean_t recursive);
 int dsl_dataset_user_release_tmp(struct dsl_pool *dp, uint64_t dsobj,
-    char *htag);
+    char *htag, boolean_t retry);
 int dsl_dataset_get_holds(const char *dsname, nvlist_t **nvp);
 
 blkptr_t *dsl_dataset_get_blkptr(dsl_dataset_t *ds);

@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DELEG_H
@@ -55,6 +54,7 @@ extern "C" {
 #define	ZFS_DELEG_PERM_GROUPUSED	"groupused"
 #define	ZFS_DELEG_PERM_HOLD		"hold"
 #define	ZFS_DELEG_PERM_RELEASE		"release"
+#define	ZFS_DELEG_PERM_DIFF		"diff"
 
 /*
  * Note: the names of properties that are marked delegatable are also
@@ -64,6 +64,7 @@ extern "C" {
 int dsl_deleg_get(const char *ddname, nvlist_t **nvp);
 int dsl_deleg_set(const char *ddname, nvlist_t *nvp, boolean_t unset);
 int dsl_deleg_access(const char *ddname, const char *perm, cred_t *cr);
+int dsl_deleg_access_impl(struct dsl_dataset *ds, const char *perm, cred_t *cr);
 void dsl_deleg_set_create_perms(dsl_dir_t *dd, dmu_tx_t *tx, cred_t *cr);
 int dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr);
 int dsl_deleg_can_unallow(char *ddname, nvlist_t *nvp, cred_t *cr);

@@ -56,6 +56,11 @@ static scan_cb_t dsl_scan_remove_cb;
 static dsl_syncfunc_t dsl_scan_cancel_sync;
 static void dsl_scan_sync_state(dsl_scan_t *, dmu_tx_t *tx);
 
+int zfs_top_maxinflight = 32;		/* maximum I/Os per top-level */
+int zfs_resilver_delay = 2;		/* number of ticks to delay resilver */
+int zfs_scrub_delay = 4;		/* number of ticks to delay scrub */
+int zfs_scan_idle = 50;			/* idle window in clock ticks */
+
 int zfs_scan_min_time_ms = 1000; /* min millisecs to scrub per txg */
 int zfs_free_min_time_ms = 1000; /* min millisecs to free per txg */
 int zfs_resilver_min_time_ms = 3000; /* min millisecs to resilver per txg */
@@ -601,8 +606,8 @@ dsl_scan_prefetch(dsl_scan_t *scn, arc_buf_t *buf, blkptr_t *bp,
 	 * done before setting xlateall (similar to dsl_read())
 	 */
 	(void) arc_read(scn->scn_zio_root, scn->scn_dp->dp_spa, bp,
-	    buf, NULL, NULL, ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-	    &flags, &czb);
+	    buf, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD, &flags, &czb);
 }
 
 static boolean_t
@@ -650,6 +655,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
     const zbookmark_t *zb, dmu_tx_t *tx, arc_buf_t **bufp)
 {
 	dsl_pool_t *dp = scn->scn_dp;
+	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD;
 	int err;
 
 	if (BP_GET_LEVEL(bp) > 0) {
@@ -660,7 +666,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		err = arc_read_nolock(NULL, dp->dp_spa, bp,
 		    arc_getbuf_func, bufp,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -683,7 +689,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		err = arc_read_nolock(NULL, dp->dp_spa, bp,
 		    arc_getbuf_func, bufp,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -696,7 +702,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		err = arc_read_nolock(NULL, dp->dp_spa, bp,
 		    arc_getbuf_func, bufp,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -719,16 +725,13 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		err = arc_read_nolock(NULL, dp->dp_spa, bp,
 		    arc_getbuf_func, bufp,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
 
 		osp = (*bufp)->b_data;
-
-		if (DSL_SCAN_IS_SCRUB_RESILVER(scn))
-			dsl_scan_zil(dp, &osp->os_zil_header);
 
 		dsl_scan_visitdnode(scn, ds, osp->os_type,
 		    &osp->os_meta_dnode, *bufp, DMU_META_DNODE_OBJECT, tx);
@@ -1072,8 +1075,22 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
 	dsl_dataset_t *ds;
+	objset_t *os;
 
 	VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
+
+	if (dmu_objset_from_ds(ds, &os))
+		goto out;
+
+	/*
+	 * Only the ZIL in the head (non-snapshot) is valid.  Even though
+	 * snapshots can have ZIL block pointers (which may be the same
+	 * BP as in the head), they must be ignored.  So we traverse the
+	 * ZIL here, rather than in scan_recurse(), because the regular
+	 * snapshot block-sharing rules don't apply to it.
+	 */
+	if (DSL_SCAN_IS_SCRUB_RESILVER(scn) && !dsl_dataset_is_snapshot(ds))
+		dsl_scan_zil(dp, &os->os_zil_header);
 
 	/*
 	 * Iterate over the bps in this ds.
@@ -1446,7 +1463,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		dsl_scan_setup_sync(scn, &func, tx);
 	}
 
-
 	if (!dsl_scan_active(scn) ||
 	    spa_sync_pass(dp->dp_spa) > 1)
 		return;
@@ -1488,7 +1504,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
 		return;
-
 
 	if (scn->scn_phys.scn_ddt_bookmark.ddb_class <=
 	    scn->scn_phys.scn_ddt_class_max) {
@@ -1644,8 +1659,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	spa_t *spa = dp->dp_spa;
 	uint64_t phys_birth = BP_PHYSICAL_BIRTH(bp);
 	boolean_t needs_io;
-	int zio_flags = ZIO_FLAG_SCRUB_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
+	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
 	int zio_priority;
+	int scan_delay = 0;
 
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
 	    phys_birth >= scn->scn_phys.scn_max_txg)
@@ -1658,10 +1674,12 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		zio_flags |= ZIO_FLAG_SCRUB;
 		zio_priority = ZIO_PRIORITY_SCRUB;
 		needs_io = B_TRUE;
+		scan_delay = zfs_scrub_delay;
 	} else if (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) {
 		zio_flags |= ZIO_FLAG_RESILVER;
 		zio_priority = ZIO_PRIORITY_RESILVER;
 		needs_io = B_FALSE;
+		scan_delay = zfs_resilver_delay;
 	}
 
 	/* If it's an intent log block, failure is expected. */
@@ -1699,13 +1717,22 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	}
 
 	if (needs_io && !zfs_no_scrub_io) {
+		vdev_t *rvd = spa->spa_root_vdev;
+		uint64_t maxinflight = rvd->vdev_children * zfs_top_maxinflight;
 		void *data = zio_data_buf_alloc(size);
 
 		mutex_enter(&spa->spa_scrub_lock);
-		while (spa->spa_scrub_inflight >= spa->spa_scrub_maxinflight)
+		while (spa->spa_scrub_inflight >= maxinflight)
 			cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
 		spa->spa_scrub_inflight++;
 		mutex_exit(&spa->spa_scrub_lock);
+
+		/*
+		 * If we're seeing recent (zfs_scan_idle) "important" I/Os
+		 * then throttle our workload to limit the impact of a scan.
+		 */
+		if (ddi_get_lbolt64() - spa->spa_last_io <= zfs_scan_idle)
+			delay(scan_delay);
 
 		zio_nowait(zio_read(NULL, spa, bp, data, size,
 		    dsl_scan_scrub_done, NULL, zio_priority,

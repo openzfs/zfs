@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #if defined(_KERNEL)
@@ -69,6 +68,7 @@ zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_GROUPUSED, ZFS_DELEG_NOTE_GROUPUSED },
 	{ZFS_DELEG_PERM_HOLD, ZFS_DELEG_NOTE_HOLD },
 	{ZFS_DELEG_PERM_RELEASE, ZFS_DELEG_NOTE_RELEASE },
+	{ZFS_DELEG_PERM_DIFF, ZFS_DELEG_NOTE_DIFF},
 	{NULL, ZFS_DELEG_NOTE_NONE }
 };
 

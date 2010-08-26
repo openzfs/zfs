@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -528,9 +528,8 @@ dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
  * Check if user has requested permission.
  */
 int
-dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
+dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 {
-	dsl_dataset_t *ds;
 	dsl_dir_t *dd;
 	dsl_pool_t *dp;
 	void *cookie;
@@ -540,23 +539,15 @@ dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
 	avl_tree_t permsets;
 	perm_set_t *setnode;
 
-	error = dsl_dataset_hold(dsname, FTAG, &ds);
-	if (error)
-		return (error);
-
 	dp = ds->ds_dir->dd_pool;
 	mos = dp->dp_meta_objset;
 
-	if (dsl_delegation_on(mos) == B_FALSE) {
-		dsl_dataset_rele(ds, FTAG);
+	if (dsl_delegation_on(mos) == B_FALSE)
 		return (ECANCELED);
-	}
 
 	if (spa_version(dmu_objset_spa(dp->dp_meta_objset)) <
-	    SPA_VERSION_DELEGATED_PERMS) {
-		dsl_dataset_rele(ds, FTAG);
+	    SPA_VERSION_DELEGATED_PERMS)
 		return (EPERM);
-	}
 
 	if (dsl_dataset_is_snapshot(ds)) {
 		/*
@@ -633,11 +624,26 @@ again:
 	error = EPERM;
 success:
 	rw_exit(&dp->dp_config_rwlock);
-	dsl_dataset_rele(ds, FTAG);
 
 	cookie = NULL;
 	while ((setnode = avl_destroy_nodes(&permsets, &cookie)) != NULL)
 		kmem_free(setnode, sizeof (perm_set_t));
+
+	return (error);
+}
+
+int
+dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
+{
+	dsl_dataset_t *ds;
+	int error;
+
+	error = dsl_dataset_hold(dsname, FTAG, &ds);
+	if (error)
+		return (error);
+
+	error = dsl_deleg_access_impl(ds, perm, cr);
+	dsl_dataset_rele(ds, FTAG);
 
 	return (error);
 }

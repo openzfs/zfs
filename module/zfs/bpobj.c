@@ -113,16 +113,15 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ);
 	ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_BPOBJ_HDR);
 
+	err = dmu_bonus_hold(os, object, bpo, &bpo->bpo_dbuf);
+	if (err)
+		return (err);
+
 	bpo->bpo_os = os;
 	bpo->bpo_object = object;
 	bpo->bpo_epb = doi.doi_data_block_size >> SPA_BLKPTRSHIFT;
 	bpo->bpo_havecomp = (doi.doi_bonus_size > BPOBJ_SIZE_V0);
 	bpo->bpo_havesubobj = (doi.doi_bonus_size > BPOBJ_SIZE_V1);
-
-	err = dmu_bonus_hold(bpo->bpo_os,
-	    bpo->bpo_object, bpo, &bpo->bpo_dbuf);
-	if (err)
-		return (err);
 	bpo->bpo_phys = bpo->bpo_dbuf->db_data;
 	return (0);
 }
@@ -140,6 +139,7 @@ bpobj_close(bpobj_t *bpo)
 	bpo->bpo_dbuf = NULL;
 	bpo->bpo_phys = NULL;
 	bpo->bpo_cached_dbuf = NULL;
+	bpo->bpo_object = 0;
 
 	mutex_destroy(&bpo->bpo_lock);
 }
@@ -210,8 +210,10 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 
 	ASSERT(bpo->bpo_havecomp);
 	err = dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi);
-	if (err)
+	if (err) {
+		mutex_exit(&bpo->bpo_lock);
 		return (err);
+	}
 	epb = doi.doi_data_block_size / sizeof (uint64_t);
 
 	for (i = bpo->bpo_phys->bpo_num_subobjs - 1; i >= 0; i--) {
@@ -252,7 +254,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 			    &used_after, &comp_after, &uncomp_after));
 			bpo->bpo_phys->bpo_bytes -= used_before - used_after;
 			ASSERT3S(bpo->bpo_phys->bpo_bytes, >=, 0);
-			bpo->bpo_phys->bpo_comp -= comp_before - used_after;
+			bpo->bpo_phys->bpo_comp -= comp_before - comp_after;
 			bpo->bpo_phys->bpo_uncomp -=
 			    uncomp_before - uncomp_after;
 		}
@@ -312,17 +314,17 @@ void
 bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 {
 	bpobj_t subbpo;
-	uint64_t used, comp, uncomp;
+	uint64_t used, comp, uncomp, subsubobjs;
 
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
 
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
 	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
-	bpobj_close(&subbpo);
 
 	if (used == 0) {
 		/* No point in having an empty subobj. */
+		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
 		return;
 	}
@@ -338,10 +340,41 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
 	    sizeof (subobj), &subobj, tx);
 	bpo->bpo_phys->bpo_num_subobjs++;
+
+	/*
+	 * If subobj has only one block of subobjs, then move subobj's
+	 * subobjs to bpo's subobj list directly.  This reduces
+	 * recursion in bpobj_iterate due to nested subobjs.
+	 */
+	subsubobjs = subbpo.bpo_phys->bpo_subobjs;
+	if (subsubobjs != 0) {
+		dmu_object_info_t doi;
+
+		VERIFY3U(0, ==, dmu_object_info(bpo->bpo_os, subsubobjs, &doi));
+		if (doi.doi_max_offset == doi.doi_data_block_size) {
+			dmu_buf_t *subdb;
+			uint64_t numsubsub = subbpo.bpo_phys->bpo_num_subobjs;
+
+			VERIFY3U(0, ==, dmu_buf_hold(bpo->bpo_os, subsubobjs,
+			    0, FTAG, &subdb, 0));
+			dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+			    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
+			    numsubsub * sizeof (subobj), subdb->db_data, tx);
+			dmu_buf_rele(subdb, FTAG);
+			bpo->bpo_phys->bpo_num_subobjs += numsubsub;
+
+			dmu_buf_will_dirty(subbpo.bpo_dbuf, tx);
+			subbpo.bpo_phys->bpo_subobjs = 0;
+			VERIFY3U(0, ==, dmu_object_free(bpo->bpo_os,
+			    subsubobjs, tx));
+		}
+	}
 	bpo->bpo_phys->bpo_bytes += used;
 	bpo->bpo_phys->bpo_comp += comp;
 	bpo->bpo_phys->bpo_uncomp += uncomp;
 	mutex_exit(&bpo->bpo_lock);
+
+	bpobj_close(&subbpo);
 }
 
 void

@@ -169,6 +169,7 @@ struct vdev {
 	uint64_t	vdev_faulted;	/* persistent faulted state	*/
 	uint64_t	vdev_degraded;	/* persistent degraded state	*/
 	uint64_t	vdev_removed;	/* persistent removed state	*/
+	uint64_t	vdev_resilvering; /* persistent resilvering state */
 	uint64_t	vdev_nparity;	/* number of parity devices for raidz */
 	char		*vdev_path;	/* vdev path (if any)		*/
 	char		*vdev_devid;	/* vdev devid (if any)		*/
@@ -283,6 +284,7 @@ extern void vdev_remove_parent(vdev_t *cvd);
  * vdev sync load and sync
  */
 extern void vdev_load_log_state(vdev_t *nvd, vdev_t *ovd);
+extern boolean_t vdev_log_state_valid(vdev_t *vd);
 extern void vdev_load(vdev_t *vd);
 extern void vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);

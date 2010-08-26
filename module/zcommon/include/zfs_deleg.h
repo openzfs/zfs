@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_ZFS_DELEG_H
@@ -63,6 +62,7 @@ typedef enum {
 	ZFS_DELEG_NOTE_GROUPUSED,
 	ZFS_DELEG_NOTE_HOLD,
 	ZFS_DELEG_NOTE_RELEASE,
+	ZFS_DELEG_NOTE_DIFF,
 	ZFS_DELEG_NOTE_NONE
 } zfs_deleg_note_t;
 

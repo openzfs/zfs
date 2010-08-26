@@ -42,7 +42,7 @@
 
 int zfs_no_write_throttle = 0;
 int zfs_write_limit_shift = 3;			/* 1/8th of physical memory */
-int zfs_txg_synctime_ms = 5000;		/* target millisecs to sync a txg */
+int zfs_txg_synctime_ms = 1000;		/* target millisecs to sync a txg */
 
 uint64_t zfs_write_limit_min = 32 << 20;	/* min write limit is 32MB */
 uint64_t zfs_write_limit_max = 0;		/* max data payload per txg */
@@ -451,7 +451,7 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 	while (ds = list_head(&dp->dp_synced_datasets)) {
 		list_remove(&dp->dp_synced_datasets, ds);
 		os = ds->ds_objset;
-		zil_clean(os->os_zil);
+		zil_clean(os->os_zil, txg);
 		ASSERT(!dmu_objset_is_dirty(os, txg));
 		dmu_buf_rele(ds->ds_dbuf, ds);
 	}
@@ -768,7 +768,7 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 		*htag = '\0';
 		++htag;
 		dsobj = strtonum(za.za_name, NULL);
-		(void) dsl_dataset_user_release_tmp(dp, dsobj, htag);
+		(void) dsl_dataset_user_release_tmp(dp, dsobj, htag, B_FALSE);
 	}
 	zap_cursor_fini(&zc);
 }

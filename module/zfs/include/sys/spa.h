@@ -418,8 +418,8 @@ extern int spa_get_stats(const char *pool, nvlist_t **config,
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     const char *history_str, nvlist_t *zplprops);
 extern int spa_import_rootpool(char *devpath, char *devid);
-extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props);
-extern int spa_import_verbatim(const char *, nvlist_t *, nvlist_t *);
+extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props,
+    uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
 extern int spa_destroy(char *pool);
 extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
@@ -602,6 +602,7 @@ extern objset_t *spa_meta_objset(spa_t *spa);
 
 /* Miscellaneous support routines */
 extern int spa_rename(const char *oldname, const char *newname);
+extern spa_t *spa_by_guid(uint64_t pool_guid, uint64_t device_guid);
 extern boolean_t spa_guid_exists(uint64_t pool_guid, uint64_t device_guid);
 extern char *spa_strdup(const char *);
 extern void spa_strfree(char *);
@@ -620,7 +621,6 @@ extern uint64_t bp_get_dsize(spa_t *spa, const blkptr_t *bp);
 extern boolean_t spa_has_slogs(spa_t *spa);
 extern boolean_t spa_is_root(spa_t *spa);
 extern boolean_t spa_writeable(spa_t *spa);
-extern void spa_rewind_data_to_nvlist(spa_t *spa, nvlist_t *to);
 
 extern int spa_mode(spa_t *spa);
 extern uint64_t strtonum(const char *str, char **nptr);

@@ -630,7 +630,7 @@ zfs_rmnode(znode_t *zp)
 		ASSERT(error == 0);
 	}
 
-	acl_obj = ZFS_EXTERNAL_ACL(zp);
+	acl_obj = zfs_external_acl(zp);
 
 	/*
 	 * Set up the final transaction.
@@ -1067,6 +1067,9 @@ int
 zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 {
 	uid_t  		uid;
+	uid_t		downer;
+	uid_t		fowner;
+	zfsvfs_t	*zfsvfs = zdp->z_zfsvfs;
 
 	if (zdp->z_zfsvfs->z_replay)
 		return (0);
@@ -1074,7 +1077,10 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	if ((zdp->z_mode & S_ISVTX) == 0)
 		return (0);
 
-	if ((uid = crgetuid(cr)) == zdp->z_uid || uid == zp->z_uid ||
+	downer = zfs_fuid_map_id(zfsvfs, zdp->z_uid, cr, ZFS_OWNER);
+	fowner = zfs_fuid_map_id(zfsvfs, zp->z_uid, cr, ZFS_OWNER);
+
+	if ((uid = crgetuid(cr)) == downer || uid == fowner ||
 	    (ZTOV(zp)->v_type == VREG &&
 	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr) == 0))
 		return (0);

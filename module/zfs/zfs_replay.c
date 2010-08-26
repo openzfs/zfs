@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -129,6 +128,10 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 		bcopy(scanstamp, xoap->xoa_av_scanstamp, AV_SCANSTAMP_SZ);
 	if (XVA_ISSET_REQ(xvap, XAT_REPARSE))
 		xoap->xoa_reparse = ((*attrs & XAT0_REPARSE) != 0);
+	if (XVA_ISSET_REQ(xvap, XAT_OFFLINE))
+		xoap->xoa_offline = ((*attrs & XAT0_OFFLINE) != 0);
+	if (XVA_ISSET_REQ(xvap, XAT_SPARSE))
+		xoap->xoa_sparse = ((*attrs & XAT0_SPARSE) != 0);
 }
 
 static int
@@ -625,7 +628,7 @@ zfs_replay_write(zfsvfs_t *zfsvfs, lr_write_t *lr, boolean_t byteswap)
 	znode_t	*zp;
 	int error;
 	ssize_t resid;
-	uint64_t orig_eof, eod, offset, length;
+	uint64_t eod, offset, length;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -643,9 +646,20 @@ zfs_replay_write(zfsvfs_t *zfsvfs, lr_write_t *lr, boolean_t byteswap)
 
 	offset = lr->lr_offset;
 	length = lr->lr_length;
-	eod = offset + length;		/* end of data for this write */
+	eod = offset + length;	/* end of data for this write */
 
-	orig_eof = zp->z_size;
+	/*
+	 * This may be a write from a dmu_sync() for a whole block,
+	 * and may extend beyond the current end of the file.
+	 * We can't just replay what was written for this TX_WRITE as
+	 * a future TX_WRITE2 may extend the eof and the data for that
+	 * write needs to be there. So we write the whole block and
+	 * reduce the eof. This needs to be done within the single dmu
+	 * transaction created within vn_rdwr -> zfs_write. So a possible
+	 * new end of file is passed through in zfsvfs->z_replay_eof
+	 */
+
+	zfsvfs->z_replay_eof = 0; /* 0 means don't change end of file */
 
 	/* If it's a dmu_sync() block, write the whole block */
 	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
@@ -654,23 +668,15 @@ zfs_replay_write(zfsvfs_t *zfsvfs, lr_write_t *lr, boolean_t byteswap)
 			offset -= offset % blocksize;
 			length = blocksize;
 		}
+		if (zp->z_size < eod)
+			zfsvfs->z_replay_eof = eod;
 	}
 
 	error = vn_rdwr(UIO_WRITE, ZTOV(zp), data, length, offset,
 	    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, &resid);
 
-	/*
-	 * This may be a write from a dmu_sync() for a whole block,
-	 * and may extend beyond the current end of the file.
-	 * We can't just replay what was written for this TX_WRITE as
-	 * a future TX_WRITE2 may extend the eof and the data for that
-	 * write needs to be there. So we write the whole block and
-	 * reduce the eof.
-	 */
-	if (orig_eof < zp->z_size) /* file length grew ? */
-		zp->z_size = eod;
-
 	VN_RELE(ZTOV(zp));
+	zfsvfs->z_replay_eof = 0;	/* safety */
 
 	return (error);
 }
@@ -694,10 +700,31 @@ zfs_replay_write2(zfsvfs_t *zfsvfs, lr_write_t *lr, boolean_t byteswap)
 	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
 		return (error);
 
+top:
 	end = lr->lr_offset + lr->lr_length;
 	if (end > zp->z_size) {
-		ASSERT3U(end - zp->z_size, <, zp->z_blksz);
+		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
+
 		zp->z_size = end;
+		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error) {
+			VN_RELE(ZTOV(zp));
+			if (error == ERESTART) {
+				dmu_tx_wait(tx);
+				dmu_tx_abort(tx);
+				goto top;
+			}
+			dmu_tx_abort(tx);
+			return (error);
+		}
+		(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
+		    (void *)&zp->z_size, sizeof (uint64_t), tx);
+
+		/* Ensure the replayed seq is updated */
+		(void) zil_replaying(zfsvfs->z_log, tx);
+
+		dmu_tx_commit(tx);
 	}
 
 	VN_RELE(ZTOV(zp));

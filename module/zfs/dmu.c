@@ -133,7 +133,7 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 	}
 
 	dnode_rele(dn, FTAG);
-	*dbp = &db->db;
+	*dbp = &db->db; /* NULL db plus first field offset is NULL */
 	return (err);
 }
 
@@ -144,31 +144,64 @@ dmu_bonus_max(void)
 }
 
 int
-dmu_set_bonus(dmu_buf_t *db, int newsize, dmu_tx_t *tx)
+dmu_set_bonus(dmu_buf_t *db_fake, int newsize, dmu_tx_t *tx)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+	int error;
 
-	if (dn->dn_bonus != (dmu_buf_impl_t *)db)
-		return (EINVAL);
-	if (newsize < 0 || newsize > db->db_size)
-		return (EINVAL);
-	dnode_setbonuslen(dn, newsize, tx);
-	return (0);
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+
+	if (dn->dn_bonus != db) {
+		error = EINVAL;
+	} else if (newsize < 0 || newsize > db_fake->db_size) {
+		error = EINVAL;
+	} else {
+		dnode_setbonuslen(dn, newsize, tx);
+		error = 0;
+	}
+
+	DB_DNODE_EXIT(db);
+	return (error);
 }
 
 int
-dmu_set_bonustype(dmu_buf_t *db, dmu_object_type_t type, dmu_tx_t *tx)
+dmu_set_bonustype(dmu_buf_t *db_fake, dmu_object_type_t type, dmu_tx_t *tx)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+	int error;
 
-	if (type > DMU_OT_NUMTYPES)
-		return (EINVAL);
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
 
-	if (dn->dn_bonus != (dmu_buf_impl_t *)db)
-		return (EINVAL);
+	if (type > DMU_OT_NUMTYPES) {
+		error = EINVAL;
+	} else if (dn->dn_bonus != db) {
+		error = EINVAL;
+	} else {
+		dnode_setbonus_type(dn, type, tx);
+		error = 0;
+	}
 
-	dnode_setbonus_type(dn, type, tx);
-	return (0);
+	DB_DNODE_EXIT(db);
+	return (error);
+}
+
+dmu_object_type_t
+dmu_get_bonustype(dmu_buf_t *db_fake)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+	dmu_object_type_t type;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	type = dn->dn_bonustype;
+	DB_DNODE_EXIT(db);
+
+	return (type);
 }
 
 int
@@ -208,11 +241,19 @@ dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
 			dbuf_create_bonus(dn);
 	}
 	db = dn->dn_bonus;
-	rw_exit(&dn->dn_struct_rwlock);
 
 	/* as long as the bonus buf is held, the dnode will be held */
-	if (refcount_add(&db->db_holds, tag) == 1)
+	if (refcount_add(&db->db_holds, tag) == 1) {
 		VERIFY(dnode_add_ref(dn, db));
+		(void) atomic_inc_32_nv(&dn->dn_dbufs_count);
+	}
+
+	/*
+	 * Wait to drop dn_struct_rwlock until after adding the bonus dbuf's
+	 * hold and incrementing the dbuf count to ensure that dnode_move() sees
+	 * a dnode hold for every dbuf.
+	 */
+	rw_exit(&dn->dn_struct_rwlock);
 
 	dnode_rele(dn, FTAG);
 
@@ -246,35 +287,56 @@ dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, void *tag, dmu_buf_t **dbp)
 		rw_exit(&dn->dn_struct_rwlock);
 
 	ASSERT(db != NULL);
-	err = dbuf_read(db, NULL, DB_RF_MUST_SUCCEED | flags);
-	*dbp = &db->db;
+	err = dbuf_read(db, NULL, flags);
+	if (err == 0)
+		*dbp = &db->db;
+	else
+		dbuf_rele(db, tag);
 	return (err);
 }
 
 int
 dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)bonus)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)bonus;
+	dnode_t *dn;
 	int err;
 
-	if (spa_version(dn->dn_objset->os_spa) < SPA_VERSION_SA)
-		return (EINVAL);
-	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
 
-	if (!dn->dn_have_spill) {
+	if (spa_version(dn->dn_objset->os_spa) < SPA_VERSION_SA) {
+		err = EINVAL;
+	} else {
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+
+		if (!dn->dn_have_spill) {
+			err = ENOENT;
+		} else {
+			err = dmu_spill_hold_by_dnode(dn,
+			    DB_RF_HAVESTRUCT | DB_RF_CANFAIL, tag, dbp);
+		}
+
 		rw_exit(&dn->dn_struct_rwlock);
-		return (ENOENT);
 	}
-	err = dmu_spill_hold_by_dnode(dn, DB_RF_HAVESTRUCT, tag, dbp);
-	rw_exit(&dn->dn_struct_rwlock);
+
+	DB_DNODE_EXIT(db);
 	return (err);
 }
 
 int
 dmu_spill_hold_by_bonus(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp)
 {
-	return (dmu_spill_hold_by_dnode(((dmu_buf_impl_t *)bonus)->db_dnode,
-	    0, tag, dbp));
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)bonus;
+	dnode_t *dn;
+	int err;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	err = dmu_spill_hold_by_dnode(dn, DB_RF_CANFAIL, tag, dbp);
+	DB_DNODE_EXIT(db);
+
+	return (err);
 }
 
 /*
@@ -396,14 +458,18 @@ dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
 }
 
 int
-dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
+dmu_buf_hold_array_by_bonus(dmu_buf_t *db_fake, uint64_t offset,
     uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
 	int err;
 
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
 	err = dmu_buf_hold_array_by_dnode(dn, offset, length, read, tag,
 	    numbufsp, dbpp, DMU_READ_PREFETCH);
+	DB_DNODE_EXIT(db);
 
 	return (err);
 }
@@ -436,7 +502,7 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 		return;
 
 	if (len == 0) {  /* they're interested in the bonus buffer */
-		dn = os->os_meta_dnode;
+		dn = DMU_META_DNODE(os);
 
 		if (object == 0 || object >= DN_MAX_OBJECT)
 			return;
@@ -997,11 +1063,19 @@ int
 dmu_write_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size,
     dmu_tx_t *tx)
 {
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
+	dnode_t *dn;
+	int err;
+
 	if (size == 0)
 		return (0);
 
-	return (dmu_write_uio_dnode(((dmu_buf_impl_t *)zdb)->db_dnode,
-	    uio, size, tx));
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	err = dmu_write_uio_dnode(dn, uio, size, tx);
+	DB_DNODE_EXIT(db);
+
+	return (err);
 }
 
 int
@@ -1087,9 +1161,11 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 arc_buf_t *
 dmu_request_arcbuf(dmu_buf_t *handle, int size)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)handle)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
+	spa_t *spa;
 
-	return (arc_loan_buf(dn->dn_objset->os_spa, size));
+	DB_GET_SPA(&spa, db);
+	return (arc_loan_buf(spa, size));
 }
 
 /*
@@ -1111,23 +1187,35 @@ void
 dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)handle)->db_dnode;
+	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
+	dnode_t *dn;
 	dmu_buf_impl_t *db;
 	uint32_t blksz = (uint32_t)arc_buf_size(buf);
 	uint64_t blkid;
 
+	DB_DNODE_ENTER(dbuf);
+	dn = DB_DNODE(dbuf);
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	blkid = dbuf_whichblock(dn, offset);
 	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
 	rw_exit(&dn->dn_struct_rwlock);
+	DB_DNODE_EXIT(dbuf);
 
 	if (offset == db->db.db_offset && blksz == db->db.db_size) {
 		dbuf_assign_arcbuf(db, buf, tx);
 		dbuf_rele(db, FTAG);
 	} else {
+		objset_t *os;
+		uint64_t object;
+
+		DB_DNODE_ENTER(dbuf);
+		dn = DB_DNODE(dbuf);
+		os = dn->dn_objset;
+		object = dn->dn_object;
+		DB_DNODE_EXIT(dbuf);
+
 		dbuf_rele(db, FTAG);
-		dmu_write(dn->dn_objset, dn->dn_object, offset, blksz,
-		    buf->b_data, tx);
+		dmu_write(os, object, offset, blksz, buf->b_data, tx);
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
@@ -1146,7 +1234,6 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 {
 	dmu_sync_arg_t *dsa = varg;
 	dmu_buf_t *db = dsa->dsa_zgd->zgd_db;
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
 	blkptr_t *bp = zio->io_bp;
 
 	if (zio->io_error == 0) {
@@ -1157,7 +1244,6 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			 */
 			BP_SET_LSIZE(bp, db->db_size);
 		} else {
-			ASSERT(BP_GET_TYPE(bp) == dn->dn_type);
 			ASSERT(BP_GET_LEVEL(bp) == 0);
 			bp->blk_fill = 1;
 		}
@@ -1280,6 +1366,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dmu_sync_arg_t *dsa;
 	zbookmark_t zb;
 	zio_prop_t zp;
+	dnode_t *dn;
 
 	ASSERT(pio != NULL);
 	ASSERT(BP_IS_HOLE(bp));
@@ -1288,7 +1375,10 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	SET_BOOKMARK(&zb, ds->ds_object,
 	    db->db.db_object, db->db_level, db->db_blkid);
 
-	dmu_write_policy(os, db->db_dnode, db->db_level, WP_DMU_SYNC, &zp);
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	dmu_write_policy(os, dn, db->db_level, WP_DMU_SYNC, &zp);
+	DB_DNODE_EXIT(db);
 
 	/*
 	 * If we're frozen (running ziltest), we always need to generate a bp.
@@ -1413,7 +1503,8 @@ void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
 	dmu_object_type_t type = dn ? dn->dn_type : DMU_OT_OBJSET;
-	boolean_t ismd = (level > 0 || dmu_ot[type].ot_metadata);
+	boolean_t ismd = (level > 0 || dmu_ot[type].ot_metadata ||
+	    (wp & WP_SPILL));
 	enum zio_checksum checksum = os->os_checksum;
 	enum zio_compress compress = os->os_compress;
 	enum zio_checksum dedup_checksum = os->os_dedup_checksum;
@@ -1569,9 +1660,13 @@ dmu_object_info(objset_t *os, uint64_t object, dmu_object_info_t *doi)
  * As above, but faster; can be used when you have a held dbuf in hand.
  */
 void
-dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi)
+dmu_object_info_from_db(dmu_buf_t *db_fake, dmu_object_info_t *doi)
 {
-	dmu_object_info_from_dnode(((dmu_buf_impl_t *)db)->db_dnode, doi);
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	DB_DNODE_ENTER(db);
+	dmu_object_info_from_dnode(DB_DNODE(db), doi);
+	DB_DNODE_EXIT(db);
 }
 
 /*
@@ -1579,14 +1674,20 @@ dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi)
  * This is specifically optimized for zfs_getattr().
  */
 void
-dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize, u_longlong_t *nblk512)
+dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
+    u_longlong_t *nblk512)
 {
-	dnode_t *dn = ((dmu_buf_impl_t *)db)->db_dnode;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
 
 	*blksize = dn->dn_datablksz;
 	/* add 1 for dnode space */
 	*nblk512 = ((DN_USED_BYTES(dn->dn_phys) + SPA_MINBLOCKSIZE/2) >>
 	    SPA_MINBLOCKSHIFT) + 1;
+	DB_DNODE_EXIT(db);
 }
 
 void
@@ -1638,23 +1739,25 @@ void
 dmu_init(void)
 {
 	zfs_dbgmsg_init();
-	dbuf_init();
+	sa_cache_init();
+	xuio_stat_init();
+	dmu_objset_init();
 	dnode_init();
+	dbuf_init();
 	zfetch_init();
 	arc_init();
 	l2arc_init();
-	xuio_stat_init();
-	sa_cache_init();
 }
 
 void
 dmu_fini(void)
 {
+	l2arc_fini();
 	arc_fini();
 	zfetch_fini();
-	dnode_fini();
 	dbuf_fini();
-	l2arc_fini();
+	dnode_fini();
+	dmu_objset_fini();
 	xuio_stat_fini();
 	sa_cache_fini();
 	zfs_dbgmsg_fini();

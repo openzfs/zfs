@@ -202,12 +202,14 @@ get_usage(zpool_help_t idx) {
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
 		return (gettext("\timport [-d dir] [-D]\n"
-		    "\timport [-d dir | -c cachefile] [-n] -F <pool | id>\n"
+		    "\timport [-d dir | -c cachefile] [-F [-n]] <pool | id>\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-f] [-R root] -a\n"
+		    "\t    [-d dir | -c cachefile] [-D] [-f] [-m] [-N] "
+		    "[-R root] [-F [-n]] -a\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-f] [-R root] "
-		    "<pool | id> [newpool]\n"));
+		    "\t    [-d dir | -c cachefile] [-D] [-f] [-m] [-N] "
+		    "[-R root] [-F [-n]]\n"
+		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [-v] [-T d|u] [pool] ... [interval "
 		    "[count]]\n"));
@@ -1499,7 +1501,7 @@ show_import(nvlist_t *config)
  */
 static int
 do_import(nvlist_t *config, const char *newname, const char *mntopts,
-    int force, nvlist_t *props, boolean_t do_verbatim)
+    nvlist_t *props, int flags)
 {
 	zpool_handle_t *zhp;
 	char *name;
@@ -1517,7 +1519,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		(void) fprintf(stderr, gettext("cannot import '%s': pool "
 		    "is formatted using a newer ZFS version\n"), name);
 		return (1);
-	} else if (state != POOL_STATE_EXPORTED && !force) {
+	} else if (state != POOL_STATE_EXPORTED &&
+	    !(flags & ZFS_IMPORT_ANY_HOST)) {
 		uint64_t hostid;
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID,
@@ -1551,7 +1554,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		}
 	}
 
-	if (zpool_import_props(g_zfs, config, newname, props, do_verbatim) != 0)
+	if (zpool_import_props(g_zfs, config, newname, props, flags) != 0)
 		return (1);
 
 	if (newname != NULL)
@@ -1561,6 +1564,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		return (1);
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
+	    !(flags & ZFS_IMPORT_ONLY) &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
 		return (1);
@@ -1602,6 +1606,11 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
  *
  *       -n     See if rewind would work, but don't actually rewind.
  *
+ *       -N     Import the pool but don't mount datasets.
+ *
+ *       -T     Specify a starting txg to use for import. This option is
+ *       	intentionally undocumented option for testing purposes.
+ *
  *       -a	Import all pools found.
  *
  *       -o	Set property=value and/or temporary mount options (without '=').
@@ -1620,7 +1629,6 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_all = B_FALSE;
 	boolean_t do_destroyed = B_FALSE;
 	char *mntopts = NULL;
-	boolean_t do_force = B_FALSE;
 	nvpair_t *elem;
 	nvlist_t *config;
 	uint64_t searchguid = 0;
@@ -1630,17 +1638,18 @@ zpool_do_import(int argc, char **argv)
 	nvlist_t *policy = NULL;
 	nvlist_t *props = NULL;
 	boolean_t first;
-	boolean_t do_verbatim = B_FALSE;
+	int flags = ZFS_IMPORT_NORMAL;
 	uint32_t rewind_policy = ZPOOL_NO_REWIND;
 	boolean_t dryrun = B_FALSE;
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
-	uint64_t pool_state;
+	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
+	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFno:rR:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:rR:T:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -1665,13 +1674,19 @@ zpool_do_import(int argc, char **argv)
 			do_destroyed = B_TRUE;
 			break;
 		case 'f':
-			do_force = B_TRUE;
+			flags |= ZFS_IMPORT_ANY_HOST;
 			break;
 		case 'F':
 			do_rewind = B_TRUE;
 			break;
+		case 'm':
+			flags |= ZFS_IMPORT_MISSING_LOG;
+			break;
 		case 'n':
 			dryrun = B_TRUE;
+			break;
+		case 'N':
+			flags |= ZFS_IMPORT_ONLY;
 			break;
 		case 'o':
 			if ((propval = strchr(optarg, '=')) != NULL) {
@@ -1696,8 +1711,18 @@ zpool_do_import(int argc, char **argv)
 			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
 				goto error;
 			break;
+		case 'T':
+			errno = 0;
+			txg = strtoull(optarg, &endptr, 10);
+			if (errno != 0 || *endptr != '\0') {
+				(void) fprintf(stderr,
+				    gettext("invalid txg value\n"));
+				usage(B_FALSE);
+			}
+			rewind_policy = ZPOOL_DO_REWIND | ZPOOL_EXTREME_REWIND;
+			break;
 		case 'V':
-			do_verbatim = B_TRUE;
+			flags |= ZFS_IMPORT_VERBATIM;
 			break;
 		case 'X':
 			xtreme_rewind = B_TRUE;
@@ -1736,6 +1761,7 @@ zpool_do_import(int argc, char **argv)
 
 	/* In the future, we can capture further policy and include it here */
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
+	    nvlist_add_uint64(policy, ZPOOL_REWIND_REQUEST_TXG, txg) != 0 ||
 	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind_policy) != 0)
 		goto error;
 
@@ -1869,7 +1895,7 @@ zpool_do_import(int argc, char **argv)
 
 			if (do_all) {
 				err |= do_import(config, NULL, mntopts,
-				    do_force, props, do_verbatim);
+				    props, flags);
 			} else {
 				show_import(config);
 			}
@@ -1918,7 +1944,7 @@ zpool_do_import(int argc, char **argv)
 			err = B_TRUE;
 		} else {
 			err |= do_import(found_config, argc == 1 ? NULL :
-			    argv[1], mntopts, do_force, props, do_verbatim);
+			    argv[1], mntopts, props, flags);
 		}
 	}
 
@@ -3217,7 +3243,7 @@ void
 print_scan_status(pool_scan_stat_t *ps)
 {
 	time_t start, end;
-	uint64_t elapsed, mins_left;
+	uint64_t elapsed, mins_left, hours_left;
 	uint64_t pass_exam, examined, total;
 	uint_t rate;
 	double fraction_done;
@@ -3294,15 +3320,24 @@ print_scan_status(pool_scan_stat_t *ps)
 	rate = pass_exam / elapsed;
 	rate = rate ? rate : 1;
 	mins_left = ((total - examined) / rate) / 60;
+	hours_left = mins_left / 60;
 
 	zfs_nicenum(examined, examined_buf, sizeof (examined_buf));
 	zfs_nicenum(total, total_buf, sizeof (total_buf));
 	zfs_nicenum(rate, rate_buf, sizeof (rate_buf));
 
-	(void) printf(gettext("    %s scanned out of %s at "
-	    "%s/s, %lluh%um to go\n"), examined_buf, total_buf, rate_buf,
-	    (u_longlong_t)(mins_left / 60),
-	    (uint_t)(mins_left % 60));
+	/*
+	 * do not print estimated time if hours_left is more than 30 days
+	 */
+	(void) printf(gettext("    %s scanned out of %s at %s/s"),
+	    examined_buf, total_buf, rate_buf);
+	if (hours_left < (30 * 24)) {
+		(void) printf(gettext(", %lluh%um to go\n"),
+		    (u_longlong_t)hours_left, (uint_t)(mins_left % 60));
+	} else {
+		(void) printf(gettext(
+		    ", (scan is slow, no estimated time)\n"));
+	}
 
 	if (ps->pss_func == POOL_SCAN_RESILVER) {
 		(void) printf(gettext("    %s resilvered, %.2f%% done\n"),
@@ -4009,6 +4044,9 @@ zpool_do_upgrade(int argc, char **argv)
 		(void) printf(gettext(" 25  Improved scrub stats\n"));
 		(void) printf(gettext(" 26  Improved snapshot deletion "
 		    "performance\n"));
+		(void) printf(gettext(" 27  Improved snapshot creation "
+		    "performance\n"));
+		(void) printf(gettext(" 28  Multiple vdev replacements\n"));
 		(void) printf(gettext("\nFor more information on a particular "
 		    "version, including supported releases,\n"));
 		(void) printf(gettext("see the ZFS Administration Guide.\n\n"));

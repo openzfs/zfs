@@ -186,7 +186,7 @@ dmu_tx_count_twig(dmu_tx_hold_t *txh, dnode_t *dn, dmu_buf_impl_t *db,
 		ASSERT(level != 0);
 		db = NULL;
 	} else {
-		ASSERT(db->db_dnode == dn);
+		ASSERT(DB_DNODE(db) == dn);
 		ASSERT(db->db_level == level);
 		ASSERT(db->db.db_size == space);
 		ASSERT(db->db_blkid == blkid);
@@ -384,7 +384,7 @@ static void
 dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 {
 	dnode_t *dn = txh->txh_dnode;
-	dnode_t *mdn = txh->txh_tx->tx_objset->os_meta_dnode;
+	dnode_t *mdn = DMU_META_DNODE(txh->txh_tx->tx_objset);
 	uint64_t space = mdn->dn_datablksz +
 	    ((mdn->dn_nlevels-1) << mdn->dn_indblkshift);
 
@@ -787,18 +787,24 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 {
 	dmu_tx_hold_t *txh;
 	int match_object = FALSE, match_offset = FALSE;
-	dnode_t *dn = db->db_dnode;
+	dnode_t *dn;
 
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(tx->tx_objset == NULL || dn->dn_objset == tx->tx_objset);
 	ASSERT3U(dn->dn_object, ==, db->db.db_object);
 
-	if (tx->tx_anyobj)
+	if (tx->tx_anyobj) {
+		DB_DNODE_EXIT(db);
 		return;
+	}
 
 	/* XXX No checking on the meta dnode for now */
-	if (db->db.db_object == DMU_META_DNODE_OBJECT)
+	if (db->db.db_object == DMU_META_DNODE_OBJECT) {
+		DB_DNODE_EXIT(db);
 		return;
+	}
 
 	for (txh = list_head(&tx->tx_holds); txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
@@ -870,9 +876,12 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 				ASSERT(!"bad txh_type");
 			}
 		}
-		if (match_object && match_offset)
+		if (match_object && match_offset) {
+			DB_DNODE_EXIT(db);
 			return;
+		}
 	}
+	DB_DNODE_EXIT(db);
 	panic("dirtying dbuf obj=%llx lvl=%u blkid=%llx but not tx_held\n",
 	    (u_longlong_t)db->db.db_object, db->db_level,
 	    (u_longlong_t)db->db_blkid);
@@ -1355,9 +1364,19 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 	if (may_grow && tx->tx_objset->os_sa->sa_layout_attr_obj)
 		dmu_tx_hold_zap(tx, sa->sa_layout_attr_obj, B_TRUE, NULL);
 
-	if (sa->sa_force_spill || may_grow || hdl->sa_spill ||
-	    ((dmu_buf_impl_t *)hdl->sa_bonus)->db_dnode->dn_have_spill) {
+	if (sa->sa_force_spill || may_grow || hdl->sa_spill) {
 		ASSERT(tx->tx_txg == 0);
 		dmu_tx_hold_spill(tx, object);
+	} else {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
+		dnode_t *dn;
+
+		DB_DNODE_ENTER(db);
+		dn = DB_DNODE(db);
+		if (dn->dn_have_spill) {
+			ASSERT(tx->tx_txg == 0);
+			dmu_tx_hold_spill(tx, object);
+		}
+		DB_DNODE_EXIT(db);
 	}
 }

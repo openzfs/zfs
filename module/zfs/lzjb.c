@@ -20,12 +20,11 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
- * We keep our own copy of this algorithm for 2 main reasons:
+ * We keep our own copy of this algorithm for 3 main reasons:
  *	1. If we didn't, anyone modifying common/os/compress.c would
  *         directly break our on disk format
  *	2. Our version of lzjb does not have a number of checks that the
@@ -33,8 +32,8 @@
  *	3. We initialize the lempel to ensure deterministic results,
  *	   so that identical blocks can always be deduplicated.
  * In particular, we are adding the "feature" that compress() can
- * take a destination buffer size and return -1 if the data will not
- * compress to d_len or less.
+ * take a destination buffer size and returns the compressed length, or the
+ * source length if compression would overflow the destination buffer.
  */
 
 #include <sys/types.h>

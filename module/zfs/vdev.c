@@ -207,9 +207,6 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	 */
 	for (; pvd != NULL; pvd = pvd->vdev_parent)
 		pvd->vdev_guid_sum += cvd->vdev_guid_sum;
-
-	if (cvd->vdev_ops->vdev_op_leaf)
-		cvd->vdev_spa->spa_scrub_maxinflight += zfs_scrub_limit;
 }
 
 void
@@ -244,9 +241,6 @@ vdev_remove_child(vdev_t *pvd, vdev_t *cvd)
 	 */
 	for (; pvd != NULL; pvd = pvd->vdev_parent)
 		pvd->vdev_guid_sum -= cvd->vdev_guid_sum;
-
-	if (cvd->vdev_ops->vdev_op_leaf)
-		cvd->vdev_spa->spa_scrub_maxinflight -= zfs_scrub_limit;
 }
 
 /*
@@ -523,6 +517,9 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_OFFLINE,
 		    &vd->vdev_offline);
+
+		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RESILVERING,
+		    &vd->vdev_resilvering);
 
 		/*
 		 * When importing a pool, we want to ignore the persistent fault
@@ -1375,10 +1372,10 @@ vdev_validate(vdev_t *vd)
 		nvlist_free(label);
 
 		/*
-		 * If spa->spa_load_verbatim is true, no need to check the
+		 * If this is a verbatim import, no need to check the
 		 * state of the pool.
 		 */
-		if (!spa->spa_load_verbatim &&
+		if (!(spa->spa_import_flags & ZFS_IMPORT_VERBATIM) &&
 		    spa_load_state(spa) == SPA_LOAD_OPEN &&
 		    state != POOL_STATE_ACTIVE)
 			return (EBADF);
@@ -1544,6 +1541,7 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 	ASSERT(vd == vd->vdev_top);
 	ASSERT(!vd->vdev_ishole);
 	ASSERT(ISP2(flags));
+	ASSERT(spa_writeable(vd->vdev_spa));
 
 	if (flags & VDD_METASLAB)
 		(void) txg_list_add(&vd->vdev_ms_list, arg, txg);
@@ -1599,6 +1597,7 @@ vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 
 	ASSERT(t < DTL_TYPES);
 	ASSERT(vd != vd->vdev_spa->spa_root_vdev);
+	ASSERT(spa_writeable(vd->vdev_spa));
 
 	mutex_enter(sm->sm_lock);
 	if (!space_map_contains(sm, txg, size))
@@ -1855,6 +1854,9 @@ vdev_dtl_required(vdev_t *vd)
 	vd->vdev_cant_read = cant_read;
 	vdev_dtl_reassess(tvd, 0, 0, B_FALSE);
 
+	if (!required && zio_injection_enabled)
+		required = !!zio_handle_device_injection(vd, NULL, ECHILD);
+
 	return (required);
 }
 
@@ -2070,7 +2072,7 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 int
 vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 {
-	vdev_t *vd;
+	vdev_t *vd, *tvd;
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -2079,6 +2081,8 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return (spa_vdev_state_exit(spa, NULL, ENOTSUP));
+
+	tvd = vd->vdev_top;
 
 	/*
 	 * We don't directly use the aux state here, but if we do a
@@ -2099,7 +2103,7 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 	 * If this device has the only valid copy of the data, then
 	 * back off and simply mark the vdev as degraded instead.
 	 */
-	if (!vd->vdev_islog && vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
+	if (!tvd->vdev_islog && vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
 		vd->vdev_degraded = 1ULL;
 		vd->vdev_faulted = 0ULL;
 
@@ -2107,7 +2111,7 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 		 * If we reopen the device and it's not dead, only then do we
 		 * mark it degraded.
 		 */
-		vdev_reopen(vd);
+		vdev_reopen(tvd);
 
 		if (vdev_readable(vd))
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_DEGRADED, aux);
@@ -2349,15 +2353,15 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		 */
 		vd->vdev_forcefault = B_TRUE;
 
-		vd->vdev_faulted = vd->vdev_degraded = 0;
+		vd->vdev_faulted = vd->vdev_degraded = 0ULL;
 		vd->vdev_cant_read = B_FALSE;
 		vd->vdev_cant_write = B_FALSE;
 
-		vdev_reopen(vd);
+		vdev_reopen(vd == rvd ? rvd : vd->vdev_top);
 
 		vd->vdev_forcefault = B_FALSE;
 
-		if (vd != rvd)
+		if (vd != rvd && vdev_writeable(vd->vdev_top))
 			vdev_state_dirty(vd->vdev_top);
 
 		if (vd->vdev_aux == NULL && !vdev_is_dead(vd))
@@ -2541,7 +2545,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		mutex_enter(&vd->vdev_stat_lock);
 
 		if (flags & ZIO_FLAG_IO_REPAIR) {
-			if (flags & ZIO_FLAG_SCRUB_THREAD) {
+			if (flags & ZIO_FLAG_SCAN_THREAD) {
 				dsl_scan_phys_t *scn_phys =
 				    &spa->spa_dsl_pool->dp_scan->scn_phys;
 				uint64_t *processed = &scn_phys->scn_processed;
@@ -2597,7 +2601,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 	if (type == ZIO_TYPE_WRITE && txg != 0 &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
-	    (flags & ZIO_FLAG_SCRUB_THREAD) ||
+	    (flags & ZIO_FLAG_SCAN_THREAD) ||
 	    spa->spa_claiming)) {
 		/*
 		 * This is either a normal write (not a repair), or it's
@@ -2616,7 +2620,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		 */
 		if (vd->vdev_ops->vdev_op_leaf) {
 			uint64_t commit_txg = txg;
-			if (flags & ZIO_FLAG_SCRUB_THREAD) {
+			if (flags & ZIO_FLAG_SCAN_THREAD) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				ASSERT(spa_sync_pass(spa) == 1);
 				vdev_dtl_dirty(vd, DTL_SCRUB, txg, 1);
@@ -2698,6 +2702,8 @@ vdev_config_dirty(vdev_t *vd)
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 	int c;
+
+	ASSERT(spa_writeable(spa));
 
 	/*
 	 * If this is an aux vdev (as with l2cache and spare devices), then we
@@ -2787,6 +2793,7 @@ vdev_state_dirty(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
+	ASSERT(spa_writeable(spa));
 	ASSERT(vd == vd->vdev_top);
 
 	/*
@@ -2944,12 +2951,13 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 		vd->vdev_removed = B_TRUE;
 	} else if (state == VDEV_STATE_CANT_OPEN) {
 		/*
-		 * If we fail to open a vdev during an import, we mark it as
-		 * "not available", which signifies that it was never there to
-		 * begin with.  Failure to open such a device is not considered
-		 * an error.
+		 * If we fail to open a vdev during an import or recovery, we
+		 * mark it as "not available", which signifies that it was
+		 * never there to begin with.  Failure to open such a device
+		 * is not considered an error.
 		 */
-		if (spa_load_state(spa) == SPA_LOAD_IMPORT &&
+		if ((spa_load_state(spa) == SPA_LOAD_IMPORT ||
+		    spa_load_state(spa) == SPA_LOAD_RECOVER) &&
 		    vd->vdev_ops->vdev_op_leaf)
 			vd->vdev_not_present = 1;
 
@@ -3042,29 +3050,49 @@ vdev_is_bootable(vdev_t *vd)
 /*
  * Load the state from the original vdev tree (ovd) which
  * we've retrieved from the MOS config object. If the original
- * vdev was offline then we transfer that state to the device
- * in the current vdev tree (nvd).
+ * vdev was offline or faulted then we transfer that state to the
+ * device in the current vdev tree (nvd).
  */
 void
 vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 {
 	spa_t *spa = nvd->vdev_spa;
 
+	ASSERT(nvd->vdev_top->vdev_islog);
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 	ASSERT3U(nvd->vdev_guid, ==, ovd->vdev_guid);
 
 	for (int c = 0; c < nvd->vdev_children; c++)
 		vdev_load_log_state(nvd->vdev_child[c], ovd->vdev_child[c]);
 
-	if (nvd->vdev_ops->vdev_op_leaf && ovd->vdev_offline) {
+	if (nvd->vdev_ops->vdev_op_leaf) {
 		/*
-		 * It would be nice to call vdev_offline()
-		 * directly but the pool isn't fully loaded and
-		 * the txg threads have not been started yet.
+		 * Restore the persistent vdev state
 		 */
 		nvd->vdev_offline = ovd->vdev_offline;
-		vdev_reopen(nvd->vdev_top);
+		nvd->vdev_faulted = ovd->vdev_faulted;
+		nvd->vdev_degraded = ovd->vdev_degraded;
+		nvd->vdev_removed = ovd->vdev_removed;
 	}
+}
+
+/*
+ * Determine if a log device has valid content.  If the vdev was
+ * removed or faulted in the MOS config then we know that
+ * the content on the log device has already been written to the pool.
+ */
+boolean_t
+vdev_log_state_valid(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_leaf && !vd->vdev_faulted &&
+	    !vd->vdev_removed)
+		return (B_TRUE);
+
+	for (int c = 0; c < vd->vdev_children; c++)
+		if (vdev_log_state_valid(vd->vdev_child[c]))
+			return (B_TRUE);
+
+	return (B_FALSE);
 }
 
 /*

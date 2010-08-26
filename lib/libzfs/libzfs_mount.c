@@ -270,6 +270,12 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	else
 		(void) strlcpy(mntopts, options, sizeof (mntopts));
 
+	/*
+	 * If the pool is imported read-only then all mounts must be read-only
+	 */
+	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
+		flags |= MS_RDONLY;
+
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
 
@@ -437,18 +443,14 @@ zfs_is_shared(zfs_handle_t *zhp)
 int
 zfs_share(zfs_handle_t *zhp)
 {
-	if (ZFS_IS_VOLUME(zhp))
-		return (0);
-
+	assert(!ZFS_IS_VOLUME(zhp));
 	return (zfs_share_proto(zhp, share_all_proto));
 }
 
 int
 zfs_unshare(zfs_handle_t *zhp)
 {
-	if (ZFS_IS_VOLUME(zhp))
-		return (0);
-
+	assert(!ZFS_IS_VOLUME(zhp));
 	return (zfs_unshareall(zhp));
 }
 
@@ -979,18 +981,29 @@ remove_mountpoint(zfs_handle_t *zhp)
 	}
 }
 
-typedef struct mount_cbdata {
-	zfs_handle_t	**cb_datasets;
-	int 		cb_used;
-	int		cb_alloc;
-} mount_cbdata_t;
+void
+libzfs_add_handle(get_all_cb_t *cbp, zfs_handle_t *zhp)
+{
+	if (cbp->cb_alloc == cbp->cb_used) {
+		size_t newsz;
+		void *ptr;
+
+		newsz = cbp->cb_alloc ? cbp->cb_alloc * 2 : 64;
+		ptr = zfs_realloc(zhp->zfs_hdl,
+		    cbp->cb_handles, cbp->cb_alloc * sizeof (void *),
+		    newsz * sizeof (void *));
+		cbp->cb_handles = ptr;
+		cbp->cb_alloc = newsz;
+	}
+	cbp->cb_handles[cbp->cb_used++] = zhp;
+}
 
 static int
 mount_cb(zfs_handle_t *zhp, void *data)
 {
-	mount_cbdata_t *cbp = data;
+	get_all_cb_t *cbp = data;
 
-	if (!(zfs_get_type(zhp) & (ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME))) {
+	if (!(zfs_get_type(zhp) & ZFS_TYPE_FILESYSTEM)) {
 		zfs_close(zhp);
 		return (0);
 	}
@@ -1000,25 +1013,16 @@ mount_cb(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
-	if (cbp->cb_alloc == cbp->cb_used) {
-		void *ptr;
-
-		if ((ptr = zfs_realloc(zhp->zfs_hdl,
-		    cbp->cb_datasets, cbp->cb_alloc * sizeof (void *),
-		    cbp->cb_alloc * 2 * sizeof (void *))) == NULL)
-			return (-1);
-		cbp->cb_datasets = ptr;
-
-		cbp->cb_alloc *= 2;
+	libzfs_add_handle(cbp, zhp);
+	if (zfs_iter_filesystems(zhp, mount_cb, cbp) != 0) {
+		zfs_close(zhp);
+		return (-1);
 	}
-
-	cbp->cb_datasets[cbp->cb_used++] = zhp;
-
-	return (zfs_iter_filesystems(zhp, mount_cb, cbp));
+	return (0);
 }
 
-static int
-dataset_cmp(const void *a, const void *b)
+int
+libzfs_dataset_cmp(const void *a, const void *b)
 {
 	zfs_handle_t **za = (zfs_handle_t **)a;
 	zfs_handle_t **zb = (zfs_handle_t **)b;
@@ -1056,7 +1060,7 @@ dataset_cmp(const void *a, const void *b)
 int
 zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 {
-	mount_cbdata_t cb = { 0 };
+	get_all_cb_t cb = { 0 };
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	zfs_handle_t *zfsp;
 	int i, ret = -1;
@@ -1065,23 +1069,17 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	/*
 	 * Gather all non-snap datasets within the pool.
 	 */
-	if ((cb.cb_datasets = zfs_alloc(hdl, 4 * sizeof (void *))) == NULL)
-		return (-1);
-	cb.cb_alloc = 4;
-
 	if ((zfsp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_DATASET)) == NULL)
 		goto out;
 
-	cb.cb_datasets[0] = zfsp;
-	cb.cb_used = 1;
-
+	libzfs_add_handle(&cb, zfsp);
 	if (zfs_iter_filesystems(zfsp, mount_cb, &cb) != 0)
 		goto out;
-
 	/*
 	 * Sort the datasets by mountpoint.
 	 */
-	qsort(cb.cb_datasets, cb.cb_used, sizeof (void *), dataset_cmp);
+	qsort(cb.cb_handles, cb.cb_used, sizeof (void *),
+	    libzfs_dataset_cmp);
 
 	/*
 	 * And mount all the datasets, keeping track of which ones
@@ -1093,7 +1091,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 
 	ret = 0;
 	for (i = 0; i < cb.cb_used; i++) {
-		if (zfs_mount(cb.cb_datasets[i], mntopts, flags) != 0)
+		if (zfs_mount(cb.cb_handles[i], mntopts, flags) != 0)
 			ret = -1;
 		else
 			good[i] = 1;
@@ -1106,7 +1104,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	 * zfs_alloc is supposed to exit if memory isn't available.
 	 */
 	for (i = 0; i < cb.cb_used; i++) {
-		if (good[i] && zfs_share(cb.cb_datasets[i]) != 0)
+		if (good[i] && zfs_share(cb.cb_handles[i]) != 0)
 			ret = -1;
 	}
 
@@ -1114,8 +1112,8 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 
 out:
 	for (i = 0; i < cb.cb_used; i++)
-		zfs_close(cb.cb_datasets[i]);
-	free(cb.cb_datasets);
+		zfs_close(cb.cb_handles[i]);
+	free(cb.cb_handles);
 
 	return (ret);
 }

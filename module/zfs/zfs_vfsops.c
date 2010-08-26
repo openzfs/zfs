@@ -166,7 +166,7 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 		}
 
 		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, UINT64_MAX, 0);
+			zil_commit(zfsvfs->z_log, 0);
 
 		ZFS_EXIT(zfsvfs);
 	} else {
@@ -417,7 +417,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	 * of mount options, we stash away the current values and
 	 * restore them after we register the callbacks.
 	 */
-	if (vfs_optionisset(vfsp, MNTOPT_RO, NULL)) {
+	if (vfs_optionisset(vfsp, MNTOPT_RO, NULL) ||
+	    !spa_writeable(dmu_objset_spa(os))) {
 		readonly = B_TRUE;
 		do_readonly = B_TRUE;
 	} else if (vfs_optionisset(vfsp, MNTOPT_RW, NULL)) {
@@ -821,22 +822,13 @@ zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
 {
 	uint64_t fuid;
 	uint64_t quotaobj;
-	uid_t id;
 
 	quotaobj = isgroup ? zfsvfs->z_groupquota_obj : zfsvfs->z_userquota_obj;
 
-	id = isgroup ? zp->z_gid : zp->z_uid;
+	fuid = isgroup ? zp->z_gid : zp->z_uid;
 
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
-
-	if (IS_EPHEMERAL(id)) {
-		VERIFY(0 == sa_lookup(zp->z_sa_hdl,
-		    isgroup ? SA_ZPL_GID(zfsvfs) : SA_ZPL_UID(zfsvfs),
-		    &fuid, sizeof (fuid)));
-	} else {
-		fuid = (uint64_t)id;
-	}
 
 	return (zfs_fuid_overquota(zfsvfs, isgroup, fuid));
 }
@@ -922,7 +914,10 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 		sa_obj = 0;
 	}
 
-	zfsvfs->z_attr_table = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END);
+	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
+	    &zfsvfs->z_attr_table);
+	if (error)
+		goto out;
 
 	if (zfsvfs->z_version >= ZPL_VERSION_SA)
 		sa_register_update_callback(os, zfs_sa_upgrade);
@@ -1043,12 +1038,15 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		 * allocated and in the unlinked set, and there is an
 		 * intent log record saying to allocate it.
 		 */
-		if (zil_replay_disable) {
-			zil_destroy(zfsvfs->z_log, B_FALSE);
-		} else {
-			zfsvfs->z_replay = B_TRUE;
-			zil_replay(zfsvfs->z_os, zfsvfs, zfs_replay_vector);
-			zfsvfs->z_replay = B_FALSE;
+		if (spa_writeable(dmu_objset_spa(zfsvfs->z_os))) {
+			if (zil_replay_disable) {
+				zil_destroy(zfsvfs->z_log, B_FALSE);
+			} else {
+				zfsvfs->z_replay = B_TRUE;
+				zil_replay(zfsvfs->z_os, zfsvfs,
+				    zfs_replay_vector);
+				zfsvfs->z_replay = B_FALSE;
+			}
 		}
 		zfsvfs->z_vfs->vfs_flag |= readonly; /* restore readonly bit */
 	}
@@ -1172,6 +1170,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 			goto out;
 		xattr_changed_cb(zfsvfs, pval);
 		zfsvfs->z_issnap = B_TRUE;
+		zfsvfs->z_os->os_sync = ZFS_SYNC_DISABLED;
 
 		mutex_enter(&zfsvfs->z_os->os_user_ptr_lock);
 		dmu_objset_set_user(zfsvfs->z_os, zfsvfs);
@@ -1808,10 +1807,10 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	/*
 	 * Evict cached data
 	 */
-	if (dmu_objset_evict_dbufs(zfsvfs->z_os)) {
-		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
-		(void) dmu_objset_evict_dbufs(zfsvfs->z_os);
-	}
+	if (dmu_objset_is_dirty_anywhere(zfsvfs->z_os))
+		if (!(zfsvfs->z_vfs->vfs_flag & VFS_RDONLY))
+			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+	(void) dmu_objset_evict_dbufs(zfsvfs->z_os);
 
 	return (0);
 }
@@ -2031,8 +2030,9 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, const char *osname)
 			goto bail;
 
 
-		zfsvfs->z_attr_table = sa_setup(zfsvfs->z_os, sa_obj,
-		    zfs_attr_table,  ZPL_END);
+		if ((err = sa_setup(zfsvfs->z_os, sa_obj,
+		    zfs_attr_table,  ZPL_END, &zfsvfs->z_attr_table)) != 0)
+			goto bail;
 
 		VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
 
@@ -2272,7 +2272,7 @@ static vfsdef_t vfw = {
 	MNTTYPE_ZFS,
 	zfs_vfsinit,
 	VSW_HASPROTO|VSW_CANRWRO|VSW_CANREMOUNT|VSW_VOLATILEDEV|VSW_STATS|
-	    VSW_XID,
+	    VSW_XID|VSW_ZMOUNT,
 	&zfs_mntopts
 };
 

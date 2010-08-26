@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 /*
@@ -1559,6 +1558,17 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 
 	switch (stateval) {
 	case POOL_STATE_EXPORTED:
+		/*
+		 * A pool with an exported state may in fact be imported
+		 * read-only, so check the in-core state to see if it's
+		 * active and imported read-only.  If it is, set
+		 * its state to active.
+		 */
+		if (pool_active(hdl, name, guid, &isactive) == 0 && isactive &&
+		    (zhp = zpool_open_canfail(hdl, name)) != NULL &&
+		    zpool_get_prop_int(zhp, ZPOOL_PROP_READONLY, NULL))
+			stateval = POOL_STATE_ACTIVE;
+
 		ret = B_TRUE;
 		break;
 

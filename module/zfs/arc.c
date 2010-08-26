@@ -952,11 +952,6 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 void
 arc_buf_thaw(arc_buf_t *buf)
 {
-	kmutex_t *hash_lock;
-
-	hash_lock = HDR_LOCK(buf->b_hdr);
-	mutex_enter(hash_lock);
-
 	if (zfs_flags & ZFS_DEBUG_MODIFY) {
 		if (buf->b_hdr->b_state != arc_anon)
 			panic("modifying non-anon buffer!");
@@ -978,7 +973,6 @@ arc_buf_thaw(arc_buf_t *buf)
 	}
 
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
-	mutex_exit(hash_lock);
 }
 
 void
@@ -1750,6 +1744,7 @@ static void
 arc_evict_ghost(arc_state_t *state, uint64_t spa, int64_t bytes)
 {
 	arc_buf_hdr_t *ab, *ab_prev;
+	arc_buf_hdr_t marker = { 0 };
 	list_t *list = &state->arcs_list[ARC_BUFC_DATA];
 	kmutex_t *hash_lock;
 	uint64_t bytes_deleted = 0;
@@ -1762,6 +1757,11 @@ top:
 		ab_prev = list_prev(list, ab);
 		if (spa && ab->b_spa != spa)
 			continue;
+
+		/* ignore markers */
+		if (ab->b_spa == 0)
+			continue;
+
 		hash_lock = HDR_LOCK(ab);
 		/* caller may be trying to modify this buffer, skip it */
 		if (MUTEX_HELD(hash_lock))
@@ -1788,15 +1788,21 @@ top:
 			DTRACE_PROBE1(arc__delete, arc_buf_hdr_t *, ab);
 			if (bytes >= 0 && bytes_deleted >= bytes)
 				break;
-		} else {
-			if (bytes < 0) {
-				mutex_exit(&state->arcs_mtx);
-				mutex_enter(hash_lock);
-				mutex_exit(hash_lock);
-				goto top;
-			}
+		} else if (bytes < 0) {
+			/*
+			 * Insert a list marker and then wait for the
+			 * hash lock to become available. Once its
+			 * available, restart from where we left off.
+			 */
+			list_insert_after(list, ab, &marker);
+			mutex_exit(&state->arcs_mtx);
+			mutex_enter(hash_lock);
+			mutex_exit(hash_lock);
+			mutex_enter(&state->arcs_mtx);
+			ab_prev = list_prev(list, &marker);
+			list_remove(list, &marker);
+		} else
 			bufs_skipped += 1;
-		}
 	}
 	mutex_exit(&state->arcs_mtx);
 
@@ -1825,8 +1831,9 @@ arc_adjust(void)
 	 * Adjust MRU size
 	 */
 
-	adjustment = MIN(arc_size - arc_c,
-	    arc_anon->arcs_size + arc_mru->arcs_size + arc_meta_used - arc_p);
+	adjustment = MIN((int64_t)(arc_size - arc_c),
+	    (int64_t)(arc_anon->arcs_size + arc_mru->arcs_size + arc_meta_used -
+	    arc_p));
 
 	if (adjustment > 0 && arc_mru->arcs_lsize[ARC_BUFC_DATA] > 0) {
 		delta = MIN(arc_mru->arcs_lsize[ARC_BUFC_DATA], adjustment);
@@ -2113,9 +2120,7 @@ arc_reclaim_thread(void)
 			arc_no_grow = FALSE;
 		}
 
-		if (2 * arc_c < arc_size +
-		    arc_mru_ghost->arcs_size + arc_mfu_ghost->arcs_size)
-			arc_adjust();
+		arc_adjust();
 
 		if (arc_eviction_list != NULL)
 			arc_do_user_evicts();
@@ -2159,6 +2164,7 @@ arc_adapt(int bytes, arc_state_t *state)
 	if (state == arc_mru_ghost) {
 		mult = ((arc_mru_ghost->arcs_size >= arc_mfu_ghost->arcs_size) ?
 		    1 : (arc_mfu_ghost->arcs_size/arc_mru_ghost->arcs_size));
+		mult = MIN(mult, 10); /* avoid wild arc_p adjustment */
 
 		arc_p = MIN(arc_c - arc_p_min, arc_p + bytes * mult);
 	} else if (state == arc_mfu_ghost) {
@@ -2166,6 +2172,7 @@ arc_adapt(int bytes, arc_state_t *state)
 
 		mult = ((arc_mfu_ghost->arcs_size >= arc_mru_ghost->arcs_size) ?
 		    1 : (arc_mru_ghost->arcs_size/arc_mfu_ghost->arcs_size));
+		mult = MIN(mult, 10);
 
 		delta = MIN(bytes * mult, arc_p);
 		arc_p = MAX(arc_p_min, arc_p - delta);
@@ -4436,6 +4443,16 @@ l2arc_feed_thread(void)
 
 		spa = dev->l2ad_spa;
 		ASSERT(spa != NULL);
+
+		/*
+		 * If the pool is read-only then force the feed thread to
+		 * sleep a little longer.
+		 */
+		if (!spa_writeable(spa)) {
+			next = ddi_get_lbolt() + 5 * l2arc_feed_secs * hz;
+			spa_config_exit(spa, SCL_L2ARC, dev);
+			continue;
+		}
 
 		/*
 		 * Avoid contributing to memory pressure.

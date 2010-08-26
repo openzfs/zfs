@@ -233,7 +233,7 @@ usage(void)
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
 	    "\t\t'pad1', or 'pad2'.\n"
-	    "\t\t'errno' can either be 'nxio' (the default) or 'io'.\n"
+	    "\t\t'errno' can be 'nxio' (the default), 'io', or 'dtl'.\n"
 	    "\n"
 	    "\tzinject -d device -A <degrade|fault> pool\n"
 	    "\t\tPerform a specific action on a particular device\n"
@@ -395,17 +395,25 @@ print_panic_handler(int id, const char *pool, zinject_record_t *record,
 static int
 print_all_handlers(void)
 {
-	int count = 0;
+	int count = 0, total = 0;
 
 	(void) iter_handlers(print_device_handler, &count);
-	(void) printf("\n");
-	count = 0;
+	if (count > 0) {
+		total += count;
+		(void) printf("\n");
+		count = 0;
+	}
+
 	(void) iter_handlers(print_data_handler, &count);
-	(void) printf("\n");
-	count = 0;
+	if (count > 0) {
+		total += count;
+		(void) printf("\n");
+		count = 0;
+	}
+
 	(void) iter_handlers(print_panic_handler, &count);
 
-	return (count);
+	return (count + total);
 }
 
 /* ARGSUSED */
@@ -627,6 +635,8 @@ main(int argc, char **argv)
 				error = ECKSUM;
 			} else if (strcasecmp(optarg, "nxio") == 0) {
 				error = ENXIO;
+			} else if (strcasecmp(optarg, "dtl") == 0) {
+				error = ECHILD;
 			} else {
 				(void) fprintf(stderr, "invalid error type "
 				    "'%s': must be 'io', 'checksum' or "

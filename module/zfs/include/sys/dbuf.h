@@ -32,6 +32,7 @@
 #include <sys/arc.h>
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
+#include <sys/zrlock.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -81,9 +82,6 @@ struct dmu_tx;
  * level = 1 means the single indirect block
  * etc.
  */
-
-#define	LIST_LINK_INACTIVE(link) \
-	((link)->list_next == NULL && (link)->list_prev == NULL)
 
 struct dmu_buf_impl;
 
@@ -149,15 +147,17 @@ typedef struct dmu_buf_impl {
 	struct objset *db_objset;
 
 	/*
-	 * the dnode we belong to (NULL when evicted)
+	 * handle to safely access the dnode we belong to (NULL when evicted)
 	 */
-	struct dnode *db_dnode;
+	struct dnode_handle *db_dnode_handle;
 
 	/*
 	 * our parent buffer; if the dnode points to us directly,
-	 * db_parent == db_dnode->dn_dbuf
+	 * db_parent == db_dnode_handle->dnh_dnode->dn_dbuf
 	 * only accessed by sync thread ???
 	 * (NULL when evicted)
+	 * May change from NULL to non-NULL under the protection of db_mtx
+	 * (see dbuf_check_blkptr())
 	 */
 	struct dmu_buf_impl *db_parent;
 
@@ -284,24 +284,46 @@ void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
 
 void dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx);
 
+#define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)
+#define	DB_DNODE_LOCK(_db)	((_db)->db_dnode_handle->dnh_zrlock)
+#define	DB_DNODE_ENTER(_db)	(zrl_add(&DB_DNODE_LOCK(_db)))
+#define	DB_DNODE_EXIT(_db)	(zrl_remove(&DB_DNODE_LOCK(_db)))
+#define	DB_DNODE_HELD(_db)	(!zrl_is_zero(&DB_DNODE_LOCK(_db)))
+#define	DB_GET_SPA(_spa_p, _db) {		\
+	dnode_t *__dn;				\
+	DB_DNODE_ENTER(_db);			\
+	__dn = DB_DNODE(_db);			\
+	*(_spa_p) = __dn->dn_objset->os_spa;	\
+	DB_DNODE_EXIT(_db);			\
+}
+#define	DB_GET_OBJSET(_os_p, _db) {		\
+	dnode_t *__dn;				\
+	DB_DNODE_ENTER(_db);			\
+	__dn = DB_DNODE(_db);			\
+	*(_os_p) = __dn->dn_objset;		\
+	DB_DNODE_EXIT(_db);			\
+}
+
 void dbuf_init(void);
 void dbuf_fini(void);
 
-#define	DBUF_IS_METADATA(db)	\
-	((db)->db_level > 0 || dmu_ot[(db)->db_dnode->dn_type].ot_metadata)
+boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 
-#define	DBUF_GET_BUFC_TYPE(db)	\
-	(DBUF_IS_METADATA(db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
+#define	DBUF_IS_METADATA(_db)	\
+	(dbuf_is_metadata(_db))
 
-#define	DBUF_IS_CACHEABLE(db)						\
-	((db)->db_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
-	(DBUF_IS_METADATA(db) &&					\
-	((db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA)))
+#define	DBUF_GET_BUFC_TYPE(_db)	\
+	(DBUF_IS_METADATA(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
-#define	DBUF_IS_L2CACHEABLE(db)						\
-	((db)->db_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
-	(DBUF_IS_METADATA(db) &&					\
-	((db)->db_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
+#define	DBUF_IS_CACHEABLE(_db)						\
+	((_db)->db_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
+	(DBUF_IS_METADATA(_db) &&					\
+	((_db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA)))
+
+#define	DBUF_IS_L2CACHEABLE(_db)					\
+	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
+	(DBUF_IS_METADATA(_db) &&					\
+	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
 
 #ifdef ZFS_DEBUG
 
@@ -332,7 +354,7 @@ _NOTE(CONSTCOND) } while (0)
 	sprintf_blkptr(__blkbuf, bp);				\
 	dprintf_dbuf(db, fmt " %s\n", __VA_ARGS__, __blkbuf);	\
 	kmem_free(__blkbuf, BP_SPRINTF_LEN);			\
-	} 							\
+	}							\
 _NOTE(CONSTCOND) } while (0)
 
 #define	DBUF_VERIFY(db)	dbuf_verify(db)

@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <sys/stropts.h>
@@ -255,6 +254,12 @@ nvlist_init(nvlist_t *nvl, uint32_t nvflag, nvpriv_t *priv)
 	nvl->nvl_priv = (uint64_t)(uintptr_t)priv;
 	nvl->nvl_flag = 0;
 	nvl->nvl_pad = 0;
+}
+
+uint_t
+nvlist_nvflag(nvlist_t *nvl)
+{
+	return (nvl->nvl_nvflag);
 }
 
 /*

@@ -43,12 +43,13 @@ extern "C" {
 #define	FM_CLASS			"class"
 #define	FM_VERSION			"version"
 
-/* FM event class values */
+/* FM protocol category 1 class names */
 #define	FM_EREPORT_CLASS		"ereport"
 #define	FM_FAULT_CLASS			"fault"
 #define	FM_DEFECT_CLASS			"defect"
 #define	FM_RSRC_CLASS			"resource"
 #define	FM_LIST_EVENT			"list"
+#define	FM_IREPORT_CLASS		"ireport"
 
 /* FM list.* event class values */
 #define	FM_LIST_SUSPECT_CLASS		FM_LIST_EVENT ".suspect"
@@ -71,6 +72,12 @@ extern "C" {
 
 /* list.* event payload member names */
 #define	FM_LIST_EVENT_SIZE		"list-sz"
+
+/* ireport.* event payload member names */
+#define	FM_IREPORT_DETECTOR		"detector"
+#define	FM_IREPORT_UUID			"uuid"
+#define	FM_IREPORT_PRIORITY		"pri"
+#define	FM_IREPORT_ATTRIBUTES		"attr"
 
 /*
  * list.suspect, isolated, updated, repaired and resolved
@@ -192,6 +199,7 @@ extern "C" {
 #define	FM_FMRI_SCHEME_PKG		"pkg"
 #define	FM_FMRI_SCHEME_LEGACY		"legacy-hc"
 #define	FM_FMRI_SCHEME_ZFS		"zfs"
+#define	FM_FMRI_SCHEME_SW		"sw"
 
 /* Scheme versions */
 #define	FMD_SCHEME_VERSION0		0
@@ -215,6 +223,8 @@ extern "C" {
 #define	FM_SVC_SCHEME_VERSION		SVC_SCHEME_VERSION0
 #define	ZFS_SCHEME_VERSION0		0
 #define	FM_ZFS_SCHEME_VERSION		ZFS_SCHEME_VERSION0
+#define	SW_SCHEME_VERSION0		0
+#define	FM_SW_SCHEME_VERSION		SW_SCHEME_VERSION0
 
 /* hc scheme member names */
 #define	FM_FMRI_HC_SERIAL_ID		"serial"
@@ -298,6 +308,25 @@ extern "C" {
 /* zfs scheme member names */
 #define	FM_FMRI_ZFS_POOL		"pool"
 #define	FM_FMRI_ZFS_VDEV		"vdev"
+
+/* sw scheme member names - extra indentation for members of an nvlist */
+#define	FM_FMRI_SW_OBJ			"object"
+#define	FM_FMRI_SW_OBJ_PATH			"path"
+#define	FM_FMRI_SW_OBJ_ROOT			"root"
+#define	FM_FMRI_SW_OBJ_PKG			"pkg"
+#define	FM_FMRI_SW_SITE			"site"
+#define	FM_FMRI_SW_SITE_TOKEN			"token"
+#define	FM_FMRI_SW_SITE_MODULE			"module"
+#define	FM_FMRI_SW_SITE_FILE			"file"
+#define	FM_FMRI_SW_SITE_LINE			"line"
+#define	FM_FMRI_SW_SITE_FUNC			"func"
+#define	FM_FMRI_SW_CTXT			"context"
+#define	FM_FMRI_SW_CTXT_ORIGIN			"origin"
+#define	FM_FMRI_SW_CTXT_EXECNAME		"execname"
+#define	FM_FMRI_SW_CTXT_PID			"pid"
+#define	FM_FMRI_SW_CTXT_ZONE			"zone"
+#define	FM_FMRI_SW_CTXT_CTID			"ctid"
+#define	FM_FMRI_SW_CTXT_STACK			"stack"
 
 extern nv_alloc_t *fm_nva_xcreate(char *, size_t);
 extern void fm_nva_xdestroy(nv_alloc_t *);

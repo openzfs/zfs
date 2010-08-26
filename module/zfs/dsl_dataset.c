@@ -37,14 +37,10 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/spa.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
 #include <sys/dsl_deadlist.h>
-
-/*
- * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
- */
-int zfs_dedup_prefetch = 1;
 
 static char *dsl_reaper = "the grim reaper";
 
@@ -253,8 +249,7 @@ dsl_dataset_block_freeable(dsl_dataset_t *ds, const blkptr_t *bp,
 	if (blk_birth <= dsl_dataset_prev_snap_txg(ds))
 		return (B_FALSE);
 
-	if (zfs_dedup_prefetch && bp && BP_GET_DEDUP(bp))
-		ddt_prefetch(dsl_dataset_get_spa(ds), bp);
+	ddt_prefetch(dsl_dataset_get_spa(ds), bp);
 
 	return (B_TRUE);
 }
@@ -372,6 +367,7 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 	dmu_buf_t *dbuf;
 	dsl_dataset_t *ds;
 	int err;
+	dmu_object_info_t doi;
 
 	ASSERT(RW_LOCK_HELD(&dp->dp_config_rwlock) ||
 	    dsl_pool_sync_context(dp));
@@ -379,6 +375,12 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 	err = dmu_bonus_hold(mos, dsobj, tag, &dbuf);
 	if (err)
 		return (err);
+
+	/* Make sure dsobj has the correct object type. */
+	dmu_object_info_from_db(dbuf, &doi);
+	if (doi.doi_type != DMU_OT_DSL_DATASET)
+		return (EINVAL);
+
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
 		dsl_dataset_t *winner;
@@ -881,6 +883,21 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 
 	dsl_dir_close(dd, FTAG);
 
+	/*
+	 * If we are creating a clone, make sure we zero out any stale
+	 * data from the origin snapshots zil header.
+	 */
+	if (origin != NULL) {
+		dsl_dataset_t *ds;
+		objset_t *os;
+
+		VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
+		VERIFY3U(0, ==, dmu_objset_from_ds(ds, &os));
+		bzero(&os->os_zil_header, sizeof (os->os_zil_header));
+		dsl_dataset_dirty(ds, tx);
+		dsl_dataset_rele(ds, FTAG);
+	}
+
 	return (dsobj);
 }
 
@@ -1081,11 +1098,16 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 		 */
 		(void) dmu_free_object(os, obj);
 	}
+	if (err != ESRCH)
+		goto out;
 
 	/*
-	 * We need to sync out all in-flight IO before we try to evict
-	 * (the dataset evict func is trying to clear the cached entries
-	 * for this dataset in the ARC).
+	 * Only the ZIL knows how to free log blocks.
+	 */
+	zil_destroy(dmu_objset_zil(os), B_FALSE);
+
+	/*
+	 * Sync out all in-flight IO.
 	 */
 	txg_wait_synced(dd->dd_pool, 0);
 
@@ -1102,9 +1124,6 @@ dsl_dataset_destroy(dsl_dataset_t *ds, void *tag, boolean_t defer)
 		ASSERT(zap_count(os, DMU_GROUPUSED_OBJECT, &count) != 0 ||
 		    count == 0);
 	}
-
-	if (err != ESRCH)
-		goto out;
 
 	rw_enter(&dd->dd_pool->dp_config_rwlock, RW_READER);
 	err = dsl_dir_open_obj(dd->dd_pool, dd->dd_object, NULL, FTAG, &dd);
@@ -1356,6 +1375,11 @@ dsl_dataset_origin_check(struct dsl_ds_destroyarg *dsda, void *tag,
 	return (0);
 }
 
+/*
+ * If you add new checks here, you may need to add
+ * additional checks to the "temporary" case in
+ * snapshot_check() in dmu_objset.c.
+ */
 /* ARGSUSED */
 int
 dsl_dataset_destroy_check(void *arg1, void *arg2, dmu_tx_t *tx)
@@ -1597,21 +1621,23 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	dsl_dataset_t *ds_prev = NULL;
+	boolean_t wont_destroy;
 	uint64_t obj;
 
-	ASSERT(ds->ds_owner);
+	wont_destroy = (dsda->defer &&
+	    (ds->ds_userrefs > 0 || ds->ds_phys->ds_num_children > 1));
+
+	ASSERT(ds->ds_owner || wont_destroy);
 	ASSERT(dsda->defer || ds->ds_phys->ds_num_children <= 1);
 	ASSERT(ds->ds_prev == NULL ||
 	    ds->ds_prev->ds_phys->ds_next_snap_obj != ds->ds_object);
 	ASSERT3U(ds->ds_phys->ds_bp.blk_birth, <=, tx->tx_txg);
 
-	if (dsda->defer) {
+	if (wont_destroy) {
 		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
-		if (ds->ds_userrefs > 0 || ds->ds_phys->ds_num_children > 1) {
-			dmu_buf_will_dirty(ds->ds_dbuf, tx);
-			ds->ds_phys->ds_flags |= DS_FLAG_DEFER_DESTROY;
-			return;
-		}
+		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		ds->ds_phys->ds_flags |= DS_FLAG_DEFER_DESTROY;
+		return;
 	}
 
 	/* signal any waiters that this dataset is going away */
@@ -1619,11 +1645,6 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 	ds->ds_owner = dsl_reaper;
 	cv_broadcast(&ds->ds_exclusive_cv);
 	mutex_exit(&ds->ds_lock);
-
-	if (ds->ds_objset) {
-		dmu_objset_evict(ds->ds_objset);
-		ds->ds_objset = NULL;
-	}
 
 	/* Remove our reservation */
 	if (ds->ds_reserved != 0) {
@@ -1850,6 +1871,15 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 		}
 	}
 
+	/*
+	 * This must be done after the dsl_traverse(), because it will
+	 * re-open the objset.
+	 */
+	if (ds->ds_objset) {
+		dmu_objset_evict(ds->ds_objset);
+		ds->ds_objset = NULL;
+	}
+
 	if (ds->ds_dir->dd_phys->dd_head_dataset_obj == ds->ds_object) {
 		/* Erase the link in the dir */
 		dmu_buf_will_dirty(ds->ds_dir->dd_dbuf, tx);
@@ -1928,7 +1958,7 @@ dsl_dataset_snapshot_reserve_space(dsl_dataset_t *ds, dmu_tx_t *tx)
 	 */
 	ASSERT(ds->ds_reserved == 0 || DS_UNIQUE_IS_ACCURATE(ds));
 	asize = MIN(ds->ds_phys->ds_unique_bytes, ds->ds_reserved);
-	if (asize > dsl_dir_space_available(ds->ds_dir, NULL, 0, FALSE))
+	if (asize > dsl_dir_space_available(ds->ds_dir, NULL, 0, TRUE))
 		return (ENOSPC);
 
 	/*
@@ -2224,8 +2254,21 @@ dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 	if (ds->ds_prev == NULL)
 		return (B_FALSE);
 	if (ds->ds_phys->ds_bp.blk_birth >
-	    ds->ds_prev->ds_phys->ds_creation_txg)
-		return (B_TRUE);
+	    ds->ds_prev->ds_phys->ds_creation_txg) {
+		objset_t *os, *os_prev;
+		/*
+		 * It may be that only the ZIL differs, because it was
+		 * reset in the head.  Don't count that as being
+		 * modified.
+		 */
+		if (dmu_objset_from_ds(ds, &os) != 0)
+			return (B_TRUE);
+		if (dmu_objset_from_ds(ds->ds_prev, &os_prev) != 0)
+			return (B_TRUE);
+		return (bcmp(&os->os_phys->os_meta_dnode,
+		    &os_prev->os_phys->os_meta_dnode,
+		    sizeof (os->os_phys->os_meta_dnode)) != 0);
+	}
 	return (B_FALSE);
 }
 
@@ -3144,9 +3187,14 @@ dsl_dataset_clone_swap(dsl_dataset_t *clone, dsl_dataset_t *origin_head,
 	ASSERT(clone->ds_owner);
 	ASSERT(origin_head->ds_owner);
 retry:
-	/* Need exclusive access for the swap */
-	rw_enter(&clone->ds_rwlock, RW_WRITER);
-	if (!rw_tryenter(&origin_head->ds_rwlock, RW_WRITER)) {
+	/*
+	 * Need exclusive access for the swap. If we're swapping these
+	 * datasets back after an error, we already hold the locks.
+	 */
+	if (!RW_WRITE_HELD(&clone->ds_rwlock))
+		rw_enter(&clone->ds_rwlock, RW_WRITER);
+	if (!RW_WRITE_HELD(&origin_head->ds_rwlock) &&
+	    !rw_tryenter(&origin_head->ds_rwlock, RW_WRITER)) {
 		rw_exit(&clone->ds_rwlock);
 		rw_enter(&origin_head->ds_rwlock, RW_WRITER);
 		if (!rw_tryenter(&clone->ds_rwlock, RW_WRITER)) {
@@ -3411,22 +3459,41 @@ dsl_dataset_set_reservation(const char *dsname, zprop_source_t source,
 	return (err);
 }
 
-struct dsl_ds_holdarg {
-	dsl_sync_task_group_t *dstg;
-	char *htag;
-	char *snapname;
-	boolean_t recursive;
-	boolean_t gotone;
-	boolean_t temphold;
-	char failed[MAXPATHLEN];
-};
+typedef struct zfs_hold_cleanup_arg {
+	dsl_pool_t *dp;
+	uint64_t dsobj;
+	char htag[MAXNAMELEN];
+} zfs_hold_cleanup_arg_t;
+
+static void
+dsl_dataset_user_release_onexit(void *arg)
+{
+	zfs_hold_cleanup_arg_t *ca = arg;
+
+	(void) dsl_dataset_user_release_tmp(ca->dp, ca->dsobj, ca->htag,
+	    B_TRUE);
+	kmem_free(ca, sizeof (zfs_hold_cleanup_arg_t));
+}
+
+void
+dsl_register_onexit_hold_cleanup(dsl_dataset_t *ds, const char *htag,
+    minor_t minor)
+{
+	zfs_hold_cleanup_arg_t *ca;
+
+	ca = kmem_alloc(sizeof (zfs_hold_cleanup_arg_t), KM_SLEEP);
+	ca->dp = ds->ds_dir->dd_pool;
+	ca->dsobj = ds->ds_object;
+	(void) strlcpy(ca->htag, htag, sizeof (ca->htag));
+	VERIFY3U(0, ==, zfs_onexit_add_cb(minor,
+	    dsl_dataset_user_release_onexit, ca, NULL));
+}
 
 /*
- * The max length of a temporary tag prefix is the number of hex digits
- * required to express UINT64_MAX plus one for the hyphen.
+ * If you add new checks here, you may need to add
+ * additional checks to the "temporary" case in
+ * snapshot_check() in dmu_objset.c.
  */
-#define	MAX_TAG_PREFIX_LEN	17
-
 static int
 dsl_dataset_user_hold_check(void *arg1, void *arg2, dmu_tx_t *tx)
 {
@@ -3461,7 +3528,7 @@ dsl_dataset_user_hold_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	return (error);
 }
 
-static void
+void
 dsl_dataset_user_hold_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 {
 	dsl_dataset_t *ds = arg1;
@@ -3524,13 +3591,41 @@ dsl_dataset_user_hold_one(const char *dsname, void *arg)
 }
 
 int
+dsl_dataset_user_hold_for_send(dsl_dataset_t *ds, char *htag,
+    boolean_t temphold)
+{
+	struct dsl_ds_holdarg *ha;
+	int error;
+
+	ha = kmem_zalloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
+	ha->htag = htag;
+	ha->temphold = temphold;
+	error = dsl_sync_task_do(ds->ds_dir->dd_pool,
+	    dsl_dataset_user_hold_check, dsl_dataset_user_hold_sync,
+	    ds, ha, 0);
+	kmem_free(ha, sizeof (struct dsl_ds_holdarg));
+
+	return (error);
+}
+
+int
 dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
-    boolean_t recursive, boolean_t temphold)
+    boolean_t recursive, boolean_t temphold, int cleanup_fd)
 {
 	struct dsl_ds_holdarg *ha;
 	dsl_sync_task_t *dst;
 	spa_t *spa;
 	int error;
+	minor_t minor = 0;
+
+	if (cleanup_fd != -1) {
+		/* Currently we only support cleanup-on-exit of tempholds. */
+		if (!temphold)
+			return (EINVAL);
+		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		if (error)
+			return (error);
+	}
 
 	ha = kmem_zalloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
 
@@ -3539,6 +3634,8 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 	error = spa_open(dsname, &spa, FTAG);
 	if (error) {
 		kmem_free(ha, sizeof (struct dsl_ds_holdarg));
+		if (cleanup_fd != -1)
+			zfs_onexit_fd_rele(cleanup_fd);
 		return (error);
 	}
 
@@ -3547,6 +3644,7 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 	ha->snapname = snapname;
 	ha->recursive = recursive;
 	ha->temphold = temphold;
+
 	if (recursive) {
 		error = dmu_objset_find(dsname, dsl_dataset_user_hold_one,
 		    ha, DS_FIND_CHILDREN);
@@ -3563,6 +3661,12 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 		if (dst->dst_err) {
 			dsl_dataset_name(ds, ha->failed);
 			*strchr(ha->failed, '@') = '\0';
+		} else if (error == 0 && minor != 0 && temphold) {
+			/*
+			 * If this hold is to be released upon process exit,
+			 * register that action now.
+			 */
+			dsl_register_onexit_hold_cleanup(ds, htag, minor);
 		}
 		dsl_dataset_rele(ds, ha->dstg);
 	}
@@ -3574,8 +3678,11 @@ dsl_dataset_user_hold(char *dsname, char *snapname, char *htag,
 		(void) strlcpy(dsname, ha->failed, sizeof (ha->failed));
 
 	dsl_sync_task_group_destroy(ha->dstg);
+
 	kmem_free(ha, sizeof (struct dsl_ds_holdarg));
 	spa_close(spa, FTAG);
+	if (cleanup_fd != -1)
+		zfs_onexit_fd_rele(cleanup_fd);
 	return (error);
 }
 
@@ -3666,11 +3773,6 @@ dsl_dataset_user_release_sync(void *arg1, void *tag, dmu_tx_t *tx)
 	uint64_t dsobj = ds->ds_object;
 	uint64_t refs;
 	int error;
-
-	if (ds->ds_objset) {
-		dmu_objset_evict(ds->ds_objset);
-		ds->ds_objset = NULL;
-	}
 
 	mutex_enter(&ds->ds_lock);
 	ds->ds_userrefs--;
@@ -3831,10 +3933,12 @@ top:
 }
 
 /*
- * Called at spa_load time to release a stale temporary user hold.
+ * Called at spa_load time (with retry == B_FALSE) to release a stale
+ * temporary user hold. Also called by the onexit code (with retry == B_TRUE).
  */
 int
-dsl_dataset_user_release_tmp(dsl_pool_t *dp, uint64_t dsobj, char *htag)
+dsl_dataset_user_release_tmp(dsl_pool_t *dp, uint64_t dsobj, char *htag,
+    boolean_t retry)
 {
 	dsl_dataset_t *ds;
 	char *snap;
@@ -3842,20 +3946,36 @@ dsl_dataset_user_release_tmp(dsl_pool_t *dp, uint64_t dsobj, char *htag)
 	int namelen;
 	int error;
 
-	rw_enter(&dp->dp_config_rwlock, RW_READER);
-	error = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
-	rw_exit(&dp->dp_config_rwlock);
-	if (error)
-		return (error);
-	namelen = dsl_dataset_namelen(ds)+1;
-	name = kmem_alloc(namelen, KM_SLEEP);
-	dsl_dataset_name(ds, name);
-	dsl_dataset_rele(ds, FTAG);
+	do {
+		rw_enter(&dp->dp_config_rwlock, RW_READER);
+		error = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+		rw_exit(&dp->dp_config_rwlock);
+		if (error)
+			return (error);
+		namelen = dsl_dataset_namelen(ds)+1;
+		name = kmem_alloc(namelen, KM_SLEEP);
+		dsl_dataset_name(ds, name);
+		dsl_dataset_rele(ds, FTAG);
 
-	snap = strchr(name, '@');
-	*snap = '\0';
-	++snap;
-	return (dsl_dataset_user_release(name, snap, htag, B_FALSE));
+		snap = strchr(name, '@');
+		*snap = '\0';
+		++snap;
+		error = dsl_dataset_user_release(name, snap, htag, B_FALSE);
+		kmem_free(name, namelen);
+
+		/*
+		 * The object can't have been destroyed because we have a hold,
+		 * but it might have been renamed, resulting in ENOENT.  Retry
+		 * if we've been requested to do so.
+		 *
+		 * It would be nice if we could use the dsobj all the way
+		 * through and avoid ENOENT entirely.  But we might need to
+		 * unmount the snapshot, and there's currently no way to lookup
+		 * a vfsp using a ZFS object id.
+		 */
+	} while ((error == ENOENT) && retry);
+
+	return (error);
 }
 
 int

@@ -353,6 +353,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		if (vd->vdev_offline && !vd->vdev_tmpoffline)
 			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_OFFLINE,
 			    B_TRUE) == 0);
+		if (vd->vdev_resilvering)
+			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_RESILVERING,
+			    B_TRUE) == 0);
 		if (vd->vdev_faulted)
 			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_FAULTED,
 			    B_TRUE) == 0);
@@ -569,6 +572,15 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	 */
 	if (spa_l2cache_exists(device_guid, NULL))
 		return (B_TRUE);
+
+	/*
+	 * We can't rely on a pool's state if it's been imported
+	 * read-only.  Instead we look to see if the pools is marked
+	 * read-only in the namespace and set the state to active.
+	 */
+	if ((spa = spa_by_guid(pool_guid, device_guid)) != NULL &&
+	    spa_mode(spa) == FREAD)
+		state = POOL_STATE_ACTIVE;
 
 	/*
 	 * If the device is marked ACTIVE, then this device is in use by another

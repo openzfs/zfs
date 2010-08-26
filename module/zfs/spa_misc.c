@@ -478,6 +478,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	dp->scd_path = altroot ? NULL : spa_strdup(spa_config_path);
 	list_insert_head(&spa->spa_config_list, dp);
 
+	VERIFY(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME,
+	    KM_SLEEP) == 0);
+
 	if (config != NULL)
 		VERIFY(nvlist_dup(config, &spa->spa_config, 0) == 0);
 
@@ -516,6 +519,7 @@ spa_remove(spa_t *spa)
 
 	list_destroy(&spa->spa_config_list);
 
+	nvlist_free(spa->spa_load_info);
 	spa_config_set(spa, NULL);
 
 	refcount_destroy(&spa->spa_refcount);
@@ -886,10 +890,6 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	 */
 	vdev_dtl_reassess(spa->spa_root_vdev, 0, 0, B_FALSE);
 
-	/*
-	 * If the config changed, notify the scrub that it must restart.
-	 * This will initiate a resilver if needed.
-	 */
 	if (error == 0 && !list_is_empty(&spa->spa_config_dirty_list)) {
 		config_changed = B_TRUE;
 		spa->spa_config_generation++;
@@ -1078,12 +1078,12 @@ spa_rename(const char *name, const char *newname)
 }
 
 /*
- * Determine whether a pool with given pool_guid exists.  If device_guid is
- * non-zero, determine whether the pool exists *and* contains a device with the
- * specified device_guid.
+ * Return the spa_t associated with given pool_guid, if it exists.  If
+ * device_guid is non-zero, determine whether the pool exists *and* contains
+ * a device with the specified device_guid.
  */
-boolean_t
-spa_guid_exists(uint64_t pool_guid, uint64_t device_guid)
+spa_t *
+spa_by_guid(uint64_t pool_guid, uint64_t device_guid)
 {
 	spa_t *spa;
 	avl_tree_t *t = &spa_namespace_avl;
@@ -1114,7 +1114,16 @@ spa_guid_exists(uint64_t pool_guid, uint64_t device_guid)
 		}
 	}
 
-	return (spa != NULL);
+	return (spa);
+}
+
+/*
+ * Determine whether a pool with the given pool_guid exists.
+ */
+boolean_t
+spa_guid_exists(uint64_t pool_guid, uint64_t device_guid)
+{
+	return (spa_by_guid(pool_guid, device_guid) != NULL);
 }
 
 char *

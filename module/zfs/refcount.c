@@ -25,7 +25,7 @@
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 
-#if defined(DEBUG) || !defined(_KERNEL)
+#ifdef	ZFS_DEBUG
 
 #ifdef _KERNEL
 int reference_tracking_enable = FALSE; /* runs out of memory too easily */
@@ -189,4 +189,35 @@ refcount_remove(refcount_t *rc, void *holder)
 	return (refcount_remove_many(rc, 1, holder));
 }
 
-#endif
+void
+refcount_transfer(refcount_t *dst, refcount_t *src)
+{
+	int64_t count, removed_count;
+	list_t list, removed;
+
+	list_create(&list, sizeof (reference_t),
+	    offsetof(reference_t, ref_link));
+	list_create(&removed, sizeof (reference_t),
+	    offsetof(reference_t, ref_link));
+
+	mutex_enter(&src->rc_mtx);
+	count = src->rc_count;
+	removed_count = src->rc_removed_count;
+	src->rc_count = 0;
+	src->rc_removed_count = 0;
+	list_move_tail(&list, &src->rc_list);
+	list_move_tail(&removed, &src->rc_removed);
+	mutex_exit(&src->rc_mtx);
+
+	mutex_enter(&dst->rc_mtx);
+	dst->rc_count += count;
+	dst->rc_removed_count += removed_count;
+	list_move_tail(&dst->rc_list, &list);
+	list_move_tail(&dst->rc_removed, &removed);
+	mutex_exit(&dst->rc_mtx);
+
+	list_destroy(&list);
+	list_destroy(&removed);
+}
+
+#endif	/* ZFS_DEBUG */

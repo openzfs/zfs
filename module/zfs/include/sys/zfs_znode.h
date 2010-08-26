@@ -19,8 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #ifndef	_SYS_FS_ZFS_ZNODE_H
@@ -36,6 +35,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_sa.h>
+#include <sys/zfs_stat.h>
 #endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
@@ -60,6 +60,8 @@ extern "C" {
 #define	ZFS_AV_QUARANTINED 	0x0000020000000000
 #define	ZFS_AV_MODIFIED 	0x0000040000000000
 #define	ZFS_REPARSE		0x0000080000000000
+#define	ZFS_OFFLINE		0x0000100000000000
+#define	ZFS_SPARSE		0x0000200000000000
 
 #define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
@@ -188,17 +190,17 @@ typedef struct znode {
 	uint8_t		z_unlinked;	/* file has been unlinked */
 	uint8_t		z_atime_dirty;	/* atime needs to be synced */
 	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
+	uint8_t		z_moved;	/* Has this znode been moved? */
 	uint_t		z_blksz;	/* block size in bytes */
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
-	uint64_t	z_last_itx;	/* last ZIL itx on this znode */
 	uint64_t	z_gen;		/* generation (cached) */
 	uint64_t	z_size;		/* file size (cached) */
 	uint64_t	z_atime[2];	/* atime (cached) */
 	uint64_t	z_links;	/* file links (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
-	uid_t		z_uid;		/* uid mapped (cached) */
-	uid_t		z_gid;		/* gid mapped (cached) */
+	uint64_t	z_uid;		/* uid fuid (cached) */
+	uint64_t	z_gid;		/* gid fuid (cached) */
 	mode_t		z_mode;		/* mode (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
@@ -321,7 +323,8 @@ extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 extern int zfs_log_create_txtype(zil_create_t, vsecattr_t *vsecp,
     vattr_t *vap);
 extern void zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, char *name);
+    znode_t *dzp, char *name, uint64_t foid);
+#define	ZFS_NO_OBJECT	0	/* no object id */
 extern void zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, char *name);
 extern void zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,

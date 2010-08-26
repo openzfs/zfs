@@ -192,8 +192,8 @@ int dmu_objset_clone(const char *name, struct dsl_dataset *clone_origin,
     uint64_t flags);
 int dmu_objset_destroy(const char *name, boolean_t defer);
 int dmu_snapshots_destroy(char *fsname, char *snapname, boolean_t defer);
-int dmu_objset_snapshot(char *fsname, char *snapname, struct nvlist *props,
-    boolean_t recursive);
+int dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
+    struct nvlist *props, boolean_t recursive, boolean_t temporary, int fd);
 int dmu_objset_rename(const char *name, const char *newname,
     boolean_t recursive);
 int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
@@ -335,6 +335,7 @@ int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
 int dmu_bonus_max(void);
 int dmu_set_bonus(dmu_buf_t *, int, dmu_tx_t *);
 int dmu_set_bonustype(dmu_buf_t *, dmu_object_type_t, dmu_tx_t *);
+dmu_object_type_t dmu_get_bonustype(dmu_buf_t *);
 int dmu_rm_spill(objset_t *, uint64_t, dmu_tx_t *);
 
 /*
@@ -721,8 +722,12 @@ typedef struct dmu_recv_cookie {
 
 int dmu_recv_begin(char *tofs, char *tosnap, char *topds, struct drr_begin *,
     boolean_t force, objset_t *origin, dmu_recv_cookie_t *);
-int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp);
+int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp,
+    int cleanup_fd, uint64_t *action_handlep);
 int dmu_recv_end(dmu_recv_cookie_t *drc);
+
+int dmu_diff(objset_t *tosnap, objset_t *fromsnap, struct vnode *vp,
+    offset_t *off);
 
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */

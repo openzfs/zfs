@@ -20,8 +20,7 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
 #include <stdio.h>
@@ -58,8 +57,8 @@ static struct uuid_to_ptag {
 	{ EFI_RESERVED },
 	{ EFI_SYSTEM },
 	{ EFI_LEGACY_MBR },
-	{ EFI_RESV3 },
-	{ EFI_RESV4 },
+	{ EFI_SYMC_PUB },
+	{ EFI_SYMC_CDS },
 	{ EFI_MSFT_RESV },
 	{ EFI_DELL_BASIC },
 	{ EFI_DELL_RAID },

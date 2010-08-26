@@ -476,7 +476,6 @@ int
 zio_clear_fault(int id)
 {
 	inject_handler_t *handler;
-	int ret;
 
 	rw_enter(&inject_lock, RW_WRITER);
 
@@ -486,18 +485,18 @@ zio_clear_fault(int id)
 			break;
 
 	if (handler == NULL) {
-		ret = ENOENT;
-	} else {
-		list_remove(&inject_handlers, handler);
-		spa_inject_delref(handler->zi_spa);
-		kmem_free(handler, sizeof (inject_handler_t));
-		atomic_add_32(&zio_injection_enabled, -1);
-		ret = 0;
+		rw_exit(&inject_lock);
+		return (ENOENT);
 	}
 
+	list_remove(&inject_handlers, handler);
 	rw_exit(&inject_lock);
 
-	return (ret);
+	spa_inject_delref(handler->zi_spa);
+	kmem_free(handler, sizeof (inject_handler_t));
+	atomic_add_32(&zio_injection_enabled, -1);
+
+	return (0);
 }
 
 void
