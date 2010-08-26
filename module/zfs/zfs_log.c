@@ -22,6 +22,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
+#ifdef HAVE_ZPL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -674,3 +676,5 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
 }
+
+#endif /* HAVE_ZPL */

@@ -63,6 +63,8 @@
  * so that it cannot be freed until all snapshots have been unmounted.
  */
 
+#ifdef HAVE_ZPL
+
 #include <fs/fs_subr.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_ioctl.h>
@@ -1347,3 +1349,4 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 
 	return (error);
 }
+#endif /* HAVE_ZPL */

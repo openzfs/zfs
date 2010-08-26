@@ -1292,6 +1292,9 @@ zfs_ioc_pool_import(zfs_cmd_t *zc)
 			error = err;
 	}
 
+	if (error == 0)
+		zvol_create_minors(zc->zc_name);
+
 	nvlist_free(config);
 
 	if (props)
@@ -2179,8 +2182,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		err = dsl_dataset_set_reservation(dsname, source, intval);
 		break;
 	case ZFS_PROP_VOLSIZE:
-		err = zvol_set_volsize(dsname, ddi_driver_major(zfs_dip),
-		    intval);
+		err = zvol_set_volsize(dsname, intval);
 		break;
 	case ZFS_PROP_VERSION:
 	{
@@ -2650,6 +2652,30 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 
 	nvlist_free(nvp);
 	return (error);
+}
+
+/*
+ * inputs:
+ * zc_name              name of volume
+ *
+ * outputs:             none
+ */
+static int
+zfs_ioc_create_minor(zfs_cmd_t *zc)
+{
+	return (zvol_create_minor(zc->zc_name));
+}
+
+/*
+ * inputs:
+ * zc_name              name of volume
+ *
+ * outputs:             none
+ */
+static int
+zfs_ioc_remove_minor(zfs_cmd_t *zc)
+{
+	return (zvol_remove_minor(zc->zc_name));
 }
 
 /*
@@ -4805,6 +4831,10 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    POOL_CHECK_SUSPENDED },
 	{ zfs_ioc_set_prop, zfs_secpolicy_none, DATASET_NAME, B_TRUE,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
+	{ zfs_ioc_create_minor, zfs_secpolicy_config, DATASET_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
+	{ zfs_ioc_remove_minor, zfs_secpolicy_config, DATASET_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
 	{ zfs_ioc_create, zfs_secpolicy_create, DATASET_NAME, B_TRUE,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_destroy, zfs_secpolicy_destroy, DATASET_NAME, B_TRUE,

@@ -22,6 +22,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
+#ifdef HAVE_ZPL
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -929,3 +931,4 @@ zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 	zfs_replay_write2,	/* TX_WRITE2 */
 };
+#endif /* HAVE_ZPL */

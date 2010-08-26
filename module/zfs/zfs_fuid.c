@@ -192,6 +192,7 @@ zfs_fuid_idx_domain(avl_tree_t *idx_tree, uint32_t idx)
 }
 
 #ifdef _KERNEL
+#ifdef HAVE_ZPL
 /*
  * Load the fuid table(s) into memory.
  */
@@ -753,4 +754,5 @@ zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		    FUID_SIZE_ESTIMATE(zfsvfs));
 	}
 }
+#endif /* HAVE_ZPL */
 #endif
