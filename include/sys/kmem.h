@@ -296,6 +296,15 @@ enum {
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
 };
 
+/* kmem move callback return values */
+typedef enum kmem_cbrc {
+	KMEM_CBRC_YES		= 0,	/* Object moved */
+	KMEM_CBRC_NO		= 1,	/* Object not moved */
+	KMEM_CBRC_LATER		= 2,	/* Object not moved, try again later */
+	KMEM_CBRC_DONT_NEED	= 3,	/* Neither object is needed */
+	KMEM_CBRC_DONT_KNOW	= 4,	/* Object unknown */
+} kmem_cbrc_t;
+
 #define KMC_NOTOUCH		(1 << KMC_BIT_NOTOUCH)
 #define KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
 #define KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
@@ -323,6 +332,9 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB	32	/* Target objects per slab */
 #define SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	8	/* Minimum objects per slab */
 #define SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
+
+#define POINTER_IS_VALID(p)		0	/* Unimplemented */
+#define POINTER_INVALIDATE(pp)			/* Unimplemented */
 
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
@@ -393,11 +405,11 @@ typedef struct spl_kmem_cache {
 } spl_kmem_cache_t;
 #define kmem_cache_t		spl_kmem_cache_t
 
-extern spl_kmem_cache_t *
-spl_kmem_cache_create(char *name, size_t size, size_t align,
-        spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, spl_kmem_reclaim_t reclaim,
-        void *priv, void *vmp, int flags);
-
+extern spl_kmem_cache_t *spl_kmem_cache_create(char *name, size_t size,
+	size_t align, spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor,
+	spl_kmem_reclaim_t reclaim, void *priv, void *vmp, int flags);
+extern void spl_kmem_cache_set_move(kmem_cache_t *,
+	kmem_cbrc_t (*)(void *, void *, size_t, void *));
 extern void spl_kmem_cache_destroy(spl_kmem_cache_t *skc);
 extern void *spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags);
 extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
@@ -410,6 +422,7 @@ void spl_kmem_fini(void);
 
 #define kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags) \
         spl_kmem_cache_create(name,size,align,ctor,dtor,rclm,priv,vmp,flags)
+#define kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
 #define kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
 #define kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
 #define kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)

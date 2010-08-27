@@ -1435,6 +1435,18 @@ out:
 EXPORT_SYMBOL(spl_kmem_cache_create);
 
 /*
+ * Register a move callback to for cache defragmentation.
+ * XXX: Unimplemented but harmless to stub out for now.
+ */
+void
+spl_kmem_cache_set_move(kmem_cache_t *skc,
+    kmem_cbrc_t (move)(void *, void *, size_t, void *))
+{
+        ASSERT(move != NULL);
+}
+EXPORT_SYMBOL(spl_kmem_cache_set_move);
+
+/*
  * Destroy a cache and all objects assoicated with the cache.
  */
 void
