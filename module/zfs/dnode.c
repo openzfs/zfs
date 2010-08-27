@@ -57,7 +57,9 @@ ASSERTV(static dnode_phys_t dnode_phys_zero);
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
 
+#ifdef	_KERNEL
 static kmem_cbrc_t dnode_move(void *, void *, size_t, void *);
+#endif /* _KERNEL */
 
 /* ARGSUSED */
 static int
@@ -625,6 +627,7 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	mutex_exit(&dn->dn_mtx);
 }
 
+#ifdef	_KERNEL
 #ifdef	DNODE_STATS
 static struct {
 	uint64_t dms_dnode_invalid;
@@ -775,7 +778,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_moved = (uint8_t)-1;
 }
 
-#ifdef	_KERNEL
 /*ARGSUSED*/
 static kmem_cbrc_t
 dnode_move(void *buf, void *newbuf, size_t size, void *arg)
