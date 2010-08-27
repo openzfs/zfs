@@ -91,6 +91,26 @@ atomic_sub_32(volatile uint32_t *target, int32_t delta)
 }
 
 static __inline__ uint32_t
+atomic_inc_32_nv(volatile uint32_t *target)
+{
+	spin_lock(&atomic32_lock);
+	(*target)++;
+	spin_unlock(&atomic32_lock);
+
+	return *target;
+}
+
+static __inline__ uint32_t
+atomic_dec_32_nv(volatile uint32_t *target)
+{
+	spin_lock(&atomic32_lock);
+	(*target)--;
+	spin_unlock(&atomic32_lock);
+
+	return *target;
+}
+
+static __inline__ uint32_t
 atomic_add_32_nv(volatile uint32_t *target, uint32_t delta)
 {
 	spin_lock(&atomic32_lock);
@@ -159,6 +179,26 @@ atomic_sub_64(volatile uint64_t *target, uint64_t delta)
 }
 
 static __inline__ uint64_t
+atomic_inc_64_nv(volatile uint64_t *target)
+{
+	spin_lock(&atomic64_lock);
+	(*target)++;
+	spin_unlock(&atomic64_lock);
+
+	return *target;
+}
+
+static __inline__ uint64_t
+atomic_dec_64_nv(volatile uint64_t *target)
+{
+	spin_lock(&atomic64_lock);
+	(*target)--;
+	spin_unlock(&atomic64_lock);
+
+	return *target;
+}
+
+static __inline__ uint64_t
 atomic_add_64_nv(volatile uint64_t *target, uint64_t delta)
 {
 	spin_lock(&atomic64_lock);
@@ -200,6 +240,8 @@ atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
 #define atomic_dec_32(v)	atomic_dec((atomic_t *)(v))
 #define atomic_add_32(v, i)	atomic_add((i), (atomic_t *)(v))
 #define atomic_sub_32(v, i)	atomic_sub((i), (atomic_t *)(v))
+#define atomic_inc_32_nv(v)	atomic_inc_return((atomic_t *)(v))
+#define atomic_dec_32_nv(v)	atomic_dec_return((atomic_t *)(v))
 #define atomic_add_32_nv(v, i)	atomic_add_return((i), (atomic_t *)(v))
 #define atomic_sub_32_nv(v, i)	atomic_sub_return((i), (atomic_t *)(v))
 #define atomic_cas_32(v, x, y)	atomic_cmpxchg((atomic_t *)(v), x, y)
@@ -207,6 +249,8 @@ atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
 #define atomic_dec_64(v)	atomic64_dec((atomic64_t *)(v))
 #define atomic_add_64(v, i)	atomic64_add((i), (atomic64_t *)(v))
 #define atomic_sub_64(v, i)	atomic64_sub((i), (atomic64_t *)(v))
+#define atomic_inc_64_nv(v)	atomic64_inc_return((atomic64_t *)(v))
+#define atomic_dec_64_nv(v)	atomic64_dec_return((atomic64_t *)(v))
 #define atomic_add_64_nv(v, i)	atomic64_add_return((i), (atomic64_t *)(v))
 #define atomic_sub_64_nv(v, i)	atomic64_sub_return((i), (atomic64_t *)(v))
 #define atomic_cas_64(v, x, y)	atomic64_cmpxchg((atomic64_t *)(v), x, y)
