@@ -203,4 +203,17 @@ spl_list_move_tail(list_t *dst, list_t *src)
 
 #define list_move_tail(dst, src)	spl_list_move_tail(dst, src)
 
+static inline void
+list_link_replace(list_node_t *old_node, list_node_t *new_node)
+{
+	ASSERT(list_link_active(old_node));
+	ASSERT(!list_link_active(new_node));
+
+	new_node->next = old_node->next;
+	new_node->prev = old_node->prev;
+	old_node->prev->next = new_node;
+	old_node->next->prev = new_node;
+	list_link_init(old_node);
+}
+
 #endif /* SPL_LIST_H */
