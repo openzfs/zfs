@@ -57,7 +57,8 @@ mutex_owned(kmutex_t *mp)
 	return (ACCESS_ONCE(mp->owner) == current_thread_info());
 }
 
-#define MUTEX_HELD(mp)                  mutex_owned(mp)
+#define MUTEX_HELD(mp)          mutex_owned(mp)
+#define MUTEX_NOT_HELD(mp)      (!MUTEX_HELD(mp))
 #undef mutex_init
 #define mutex_init(mp, name, type, ibc)                                 \
 ({                                                                      \
@@ -150,6 +151,7 @@ mutex_owner(kmutex_t *mp)
 
 #define mutex_owned(mp)         (mutex_owner(mp) == current)
 #define MUTEX_HELD(mp)          mutex_owned(mp)
+#define MUTEX_NOT_HELD(mp)      (!MUTEX_HELD(mp))
 
 /*
  * The following functions must be a #define and not static inline.
