@@ -6,5 +6,10 @@ upstream Solaris development closely and don’t want the overhead of
 maintaining a large patch which converts Solaris primitives to Linux
 primitives.
 
-Documentation for building, configuring, and using the SPL can be
-found at: <http://wiki.github.com/behlendorf/spl/>
+To build packages for your distribution:
+
+$ ./configure
+$ make pkg
+
+Full documentation for building, configuring, and using the SPL can
+be found at: <http://wiki.github.com/behlendorf/spl/>
