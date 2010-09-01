@@ -5141,7 +5141,7 @@ zfsdev_compat_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
         return zfsdev_ioctl(filp, cmd, arg);
 }
 #else
-#define zfs_compat_ioctl   NULL
+#define zfsdev_compat_ioctl   NULL
 #endif
 
 static const struct file_operations zfsdev_fops = {
