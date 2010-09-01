@@ -13,7 +13,7 @@ SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign dist-zip
 EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += META DISCLAIMER COPYRIGHT GIT README.markdown
+EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
 
 noinst_HEADERS = zfs_config.h
@@ -24,11 +24,10 @@ distclean-local::
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-		-o -name '.*.rej' -o -name 'aclocal.m4' -o -size 0 \
+		-o -name '.*.rej' -o -name '.script-config' -o -size 0 \
 		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
 		-o -name 'Makefile' -o -name 'Module.symvers' \
-		-o -name '*.order' -o -name '*.markers' \
-		-o -name '.script-config' \) \
+		-o -name '*.order' -o -name '*.markers' \) \
 		-type f -print | xargs $(RM)
 
 if CONFIG_KERNEL

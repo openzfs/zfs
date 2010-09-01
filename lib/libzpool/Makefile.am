@@ -152,13 +152,13 @@ libzpool_la_SOURCES = \
 	${top_srcdir}/module/zfs/include/sys/zfs_stat.h \
 	${top_srcdir}/module/zfs/include/sys/zfs_vfsops.h \
 	${top_srcdir}/module/zfs/include/sys/zfs_znode.h \
-	${top_srcdir}/module/zfs/include/sys/zfs_zrlock.h \
 	${top_srcdir}/module/zfs/include/sys/zil.h \
 	${top_srcdir}/module/zfs/include/sys/zil_impl.h \
 	${top_srcdir}/module/zfs/include/sys/zio_checksum.h \
 	${top_srcdir}/module/zfs/include/sys/zio_compress.h \
 	${top_srcdir}/module/zfs/include/sys/zio.h \
 	${top_srcdir}/module/zfs/include/sys/zio_impl.h \
+	${top_srcdir}/module/zfs/include/sys/zrlock.h \
 	${top_srcdir}/module/zfs/include/sys/zvol.h \
 	${top_srcdir}/module/zfs/include/sys/fm/protocol.h \
 	${top_srcdir}/module/zfs/include/sys/fm/util.h \
