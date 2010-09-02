@@ -9,18 +9,12 @@
 AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL
 
-	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
-	dnl # compiler options are added by the kernel build system.
-	abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
-
 	if test "${LINUX_OBJ}" != "${LINUX}"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
 	fi
-
 	AC_SUBST(KERNELMAKE_PARAMS)
+
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 	AC_SUBST(KERNELCPPFLAGS)
 
 	SPL_AC_DEBUG

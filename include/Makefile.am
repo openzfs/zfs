@@ -2,17 +2,17 @@
 # noinst_HEADERS because they are not installed in the usual include
 # location.  We do not want to be using $includedir for this.
 # Installation is handled by the custom install-data-local rule.
-noinst_HEADERS  = *.h
-noinst_HEADERS += fs/*.h
-noinst_HEADERS += linux/*.h
-noinst_HEADERS += rpc/*.h
-noinst_HEADERS += sharefs/*.h
-noinst_HEADERS += sys/fm/*.h
-noinst_HEADERS += sys/fs/*.h
-noinst_HEADERS += sys/sysevent/*.h
-noinst_HEADERS += sys/*.h
-noinst_HEADERS += util/*.h
-noinst_HEADERS += vm/*.h
+noinst_HEADERS  = $(top_srcdir)/include/*.h
+noinst_HEADERS += $(top_srcdir)/include/fs/*.h
+noinst_HEADERS += $(top_srcdir)/include/linux/*.h
+noinst_HEADERS += $(top_srcdir)/include/rpc/*.h
+noinst_HEADERS += $(top_srcdir)/include/sharefs/*.h
+noinst_HEADERS += $(top_srcdir)/include/sys/fm/*.h
+noinst_HEADERS += $(top_srcdir)/include/sys/fs/*.h
+noinst_HEADERS += $(top_srcdir)/include/sys/sysevent/*.h
+noinst_HEADERS += $(top_srcdir)/include/sys/*.h
+noinst_HEADERS += $(top_srcdir)/include/util/*.h
+noinst_HEADERS += $(top_srcdir)/include/vm/*.h
 
 install-data-local:
 	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \

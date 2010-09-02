@@ -243,7 +243,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-DEFAULT_INCLUDES = -include ${top_srcdir}/spl_config.h
+DEFAULT_INCLUDES = -include ${top_builddir}/spl_config.h
 AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing \
 	-D__USE_LARGEFILE64 ${DEBUG_CFLAGS}

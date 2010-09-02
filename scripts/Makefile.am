@@ -1,4 +1,4 @@
 EXTRA_DIST = check.sh
 
 check:
-	./check.sh
+	$(top_srcdir)/scripts/check.sh

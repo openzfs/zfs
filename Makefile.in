@@ -23,6 +23,34 @@
 # Build targets for RPM packages.
 ###############################################################################
 
+###############################################################################
+# Copyright (C) 2010 Lawrence Livermore National Security, LLC.
+# Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# Build targets for DEB packages.
+#
+# Long term native distro specific Debian style packaging should be added.
+# In the short term RPM packages are built and converted to DEB packages
+# using alien.  If someone familiar with Debian style packaging were to
+# update the build system to correctly build Debian style packages I would
+# happily take it.  Until then we will have to make due with alien.
+#
+###############################################################################
+
+###############################################################################
+# Copyright (C) 2010 Lawrence Livermore National Security, LLC.
+# Written by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# Build targets for TGZ packages.
+#
+# Long term native distro specific Slackware style packaging should be added.
+# In the short term RPM packages are built and converted to TGZ packages
+# using alien.  If someone familiar with Slackware style packaging were to
+# update the build system to correctly build Slackware style packages I would
+# happily take it.  Until then we will have to make due with alien.
+#
+###############################################################################
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -46,7 +74,8 @@ target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.spec.in \
-	$(srcdir)/spl_config.h.in $(top_srcdir)/config/rpm.am \
+	$(srcdir)/spl_config.h.in $(top_srcdir)/config/deb.am \
+	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
 	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/spl/Makefile.in \
 	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
@@ -291,7 +320,7 @@ all: spl_config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -860,8 +889,71 @@ rpm-common:
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild
-include ${top_srcdir}/config/deb.am
-include ${top_srcdir}/config/tgz.am
+
+deb-local:
+	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${DPKGBUILD} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${DPKGBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi; \
+	if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+deb-modules: deb-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+deb-utils: deb-local rpm-utils
+	name=${PACKAGE}; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+	$(RM) $$pkg1
+
+deb: deb-modules deb-utils
+
+tgz-local:
+	@(if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+tgz-modules: tgz-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+tgz-utils: tgz-local rpm-utils
+	name=${PACKAGE}; \
+	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
+	$(RM) $$pkg1
+
+tgz: tgz-modules tgz-utils
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -878,7 +970,7 @@ distclean-local::
 @CONFIG_KERNEL_TRUE@install-data-local:
 @CONFIG_KERNEL_TRUE@	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
 @CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/$$destname; \
-@CONFIG_KERNEL_TRUE@	echo "${SPL_META_VERSION}" >$$instdest/spl.release; \
+@CONFIG_KERNEL_TRUE@	echo "$(SPL_META_VERSION)" >$$instdest/spl.release; \
 @CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 @CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 @CONFIG_KERNEL_TRUE@	done

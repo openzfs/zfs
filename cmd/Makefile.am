@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += \
-	-I${top_srcdir}/lib
+	-I$(top_srcdir)/lib
 
 sbin_PROGRAMS = spl splat
 

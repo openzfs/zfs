@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/rpm.am
-include ${top_srcdir}/config/deb.am
-include ${top_srcdir}/config/tgz.am
+include $(top_srcdir)/config/deb.am
+include $(top_srcdir)/config/tgz.am
 
 if CONFIG_USER
 USER_DIR = lib cmd scripts
@@ -31,7 +31,7 @@ if CONFIG_KERNEL
 install-data-local:
 	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
 	instdest=$(DESTDIR)/usr/src/$$destname; \
-	echo "${SPL_META_VERSION}" >$$instdest/spl.release; \
+	echo "$(SPL_META_VERSION)" >$$instdest/spl.release; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done

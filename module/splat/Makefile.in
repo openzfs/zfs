@@ -2,22 +2,24 @@
 
 MODULES := splat
 EXTRA_CFLAGS = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -I@abs_top_srcdir@/include
+EXTRA_CFLAGS += -include @abs_top_builddir@/spl_config.h
 
 # Solaris Porting LAyer Tests
 obj-m := splat.o
 
-splat-objs += splat-ctl.o
-splat-objs += splat-kmem.o
-splat-objs += splat-taskq.o
-splat-objs += splat-random.o
-splat-objs += splat-mutex.o
-splat-objs += splat-condvar.o
-splat-objs += splat-thread.o
-splat-objs += splat-rwlock.o
-splat-objs += splat-time.o
-splat-objs += splat-vnode.o
-splat-objs += splat-kobj.o
-splat-objs += splat-atomic.o
-splat-objs += splat-list.o
-splat-objs += splat-generic.o
-splat-objs += splat-cred.o
+splat-objs += @top_srcdir@/module/splat/splat-ctl.o
+splat-objs += @top_srcdir@/module/splat/splat-kmem.o
+splat-objs += @top_srcdir@/module/splat/splat-taskq.o
+splat-objs += @top_srcdir@/module/splat/splat-random.o
+splat-objs += @top_srcdir@/module/splat/splat-mutex.o
+splat-objs += @top_srcdir@/module/splat/splat-condvar.o
+splat-objs += @top_srcdir@/module/splat/splat-thread.o
+splat-objs += @top_srcdir@/module/splat/splat-rwlock.o
+splat-objs += @top_srcdir@/module/splat/splat-time.o
+splat-objs += @top_srcdir@/module/splat/splat-vnode.o
+splat-objs += @top_srcdir@/module/splat/splat-kobj.o
+splat-objs += @top_srcdir@/module/splat/splat-atomic.o
+splat-objs += @top_srcdir@/module/splat/splat-list.o
+splat-objs += @top_srcdir@/module/splat/splat-generic.o
+splat-objs += @top_srcdir@/module/splat/splat-cred.o

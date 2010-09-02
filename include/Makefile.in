@@ -215,8 +215,15 @@ top_srcdir = @top_srcdir@
 # noinst_HEADERS because they are not installed in the usual include
 # location.  We do not want to be using $includedir for this.
 # Installation is handled by the custom install-data-local rule.
-noinst_HEADERS = *.h fs/*.h linux/*.h rpc/*.h sharefs/*.h sys/fm/*.h \
-	sys/fs/*.h sys/sysevent/*.h sys/*.h util/*.h vm/*.h
+noinst_HEADERS = $(top_srcdir)/include/*.h \
+	$(top_srcdir)/include/fs/*.h $(top_srcdir)/include/linux/*.h \
+	$(top_srcdir)/include/rpc/*.h \
+	$(top_srcdir)/include/sharefs/*.h \
+	$(top_srcdir)/include/sys/fm/*.h \
+	$(top_srcdir)/include/sys/fs/*.h \
+	$(top_srcdir)/include/sys/sysevent/*.h \
+	$(top_srcdir)/include/sys/*.h $(top_srcdir)/include/util/*.h \
+	$(top_srcdir)/include/vm/*.h
 all: all-am
 
 .SUFFIXES:

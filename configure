@@ -11788,16 +11788,12 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 
-			abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
-
 	if test "${LINUX_OBJ}" != "${LINUX}"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
 	fi
 
 
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 
 
 
@@ -15341,16 +15337,12 @@ $as_echo "$LINUX_SYMBOLS" >&6; }
 
 
 
-			abs_srcdir=`readlink -f ${srcdir}`
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I${abs_srcdir}/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include ${abs_srcdir}/spl_config.h"
-
 	if test "${LINUX_OBJ}" != "${LINUX}"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
 	fi
 
 
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wstrict-prototypes"
 
 
 
@@ -20369,7 +20361,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
   case $ac_file$ac_mode in
     "spl_config.h":H)
 	(mv spl_config.h spl_config.h.tmp &&
-	awk -f config/config.awk spl_config.h.tmp >spl_config.h &&
+	awk -f ${ac_srcdir}/config/config.awk spl_config.h.tmp >spl_config.h &&
 	rm spl_config.h.tmp) || exit 1 ;;
     "depfiles":C) test x"$AMDEP_TRUE" != x"" || {
   # Autoconf 2.62 quotes --file arguments for eval, but not when files

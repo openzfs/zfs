@@ -34,7 +34,7 @@ AM_SILENT_RULES
 AM_INIT_AUTOMAKE([$SPL_META_NAME], [$SPL_META_VERSION])
 AC_CONFIG_HEADERS([spl_config.h], [
 	(mv spl_config.h spl_config.h.tmp &&
-	awk -f config/config.awk spl_config.h.tmp >spl_config.h &&
+	awk -f ${ac_srcdir}/config/config.awk spl_config.h.tmp >spl_config.h &&
 	rm spl_config.h.tmp) || exit 1])
 
 AC_PROG_INSTALL
