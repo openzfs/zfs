@@ -185,6 +185,7 @@ SPL_META_NAME = @SPL_META_NAME@
 SPL_META_RELEASE = @SPL_META_RELEASE@
 SPL_META_VERSION = @SPL_META_VERSION@
 STRIP = @STRIP@
+VENDOR = @VENDOR@
 VERSION = @VERSION@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@

@@ -314,7 +314,26 @@ dnl # Using the VENDOR tag from config.guess set the default
 dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
 AC_DEFUN([SPL_AC_DEFAULT_PACKAGE], [
-	VENDOR=$(echo $ac_build_alias | cut -f2 -d'-')
+	AC_MSG_CHECKING([linux distribution])
+	if test -f /etc/redhat-release ; then
+		VENDOR=redhat ;
+	elif test -f /etc/fedora-release ; then
+		VENDOR=fedora ;
+	elif test -f /etc/lsb-release ; then
+		VENDOR=ubuntu ;
+	elif test -f /etc/debian_version ; then
+		VENDOR=debian ;
+	elif test -f /etc/SuSE-release ; then
+		VENDOR=sles ;
+	elif test -f /etc/slackware-version ; then
+		VENDOR=slackware ;
+	elif test -f /etc/gentoo-release ; then
+		VENDOR=gentoo ;
+	else
+		VENDOR= ;
+	fi
+	AC_MSG_RESULT([$VENDOR])
+	AC_SUBST(VENDOR)
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
