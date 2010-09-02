@@ -10,7 +10,7 @@ KERNEL_DIR = module
 endif
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
-AUTOMAKE_OPTIONS = foreign dist-zip
+AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown

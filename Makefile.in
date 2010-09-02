@@ -146,7 +146,7 @@ am__relativize = \
     dir1=`echo "$$dir1" | sed -e "$$sed_rest"`; \
   done; \
   reldir="$$dir2"
-DIST_ARCHIVES = $(distdir).tar.gz $(distdir).zip
+DIST_ARCHIVES = $(distdir).tar.gz
 GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
@@ -323,7 +323,7 @@ top_srcdir = @top_srcdir@
 @CONFIG_USER_TRUE@USER_DIR = config etc man scripts lib cmd
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
-AUTOMAKE_OPTIONS = foreign dist-zip
+AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
 	config/config.awk config/rpm.am config/deb.am config/tgz.am \
 	META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE \
@@ -635,6 +635,7 @@ dist-tarZ: distdir
 dist-shar: distdir
 	shar $(distdir) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).shar.gz
 	$(am__remove_distdir)
+
 dist-zip: distdir
 	-rm -f $(distdir).zip
 	zip -rq $(distdir).zip $(distdir)
@@ -642,8 +643,6 @@ dist-zip: distdir
 
 dist dist-all: distdir
 	tardir=$(distdir) && $(am__tar) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).tar.gz
-	-rm -f $(distdir).zip
-	zip -rq $(distdir).zip $(distdir)
 	$(am__remove_distdir)
 
 # This target untars the dist file and tries a VPATH configuration.  Then
