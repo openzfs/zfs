@@ -231,12 +231,12 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_RESULT([$splbuild])
 
 	AC_MSG_CHECKING([spl source version])
-	if test -r $splsrc/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splsrc/spl_config.h; then
+	if test -r $splbuild/spl_config.h &&
+		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
-		            cpp -I $splsrc |
+		            cpp -I $splbuild |
 		            grep "^splsrcver=" | cut -d \" -f 2`
 	fi
 

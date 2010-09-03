@@ -12047,12 +12047,12 @@ $as_echo "$splbuild" >&6; }
 
 	{ $as_echo "$as_me:$LINENO: checking spl source version" >&5
 $as_echo_n "checking spl source version... " >&6; }
-	if test -r $splsrc/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splsrc/spl_config.h; then
+	if test -r $splbuild/spl_config.h &&
+		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
-		            cpp -I $splsrc |
+		            cpp -I $splbuild |
 		            grep "^splsrcver=" | cut -d \" -f 2`
 	fi
 
@@ -15053,12 +15053,12 @@ $as_echo "$splbuild" >&6; }
 
 	{ $as_echo "$as_me:$LINENO: checking spl source version" >&5
 $as_echo_n "checking spl source version... " >&6; }
-	if test -r $splsrc/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splsrc/spl_config.h; then
+	if test -r $splbuild/spl_config.h &&
+		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
-		            cpp -I $splsrc |
+		            cpp -I $splbuild |
 		            grep "^splsrcver=" | cut -d \" -f 2`
 	fi
 
