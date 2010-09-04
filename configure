@@ -809,12 +809,6 @@ LINUX_OBJ
 LINUX
 ZFS_CONFIG
 TARGET_ASM_DIR
-SCRIPTDIR
-MODDIR
-CMDDIR
-LIBDIR
-BUILDDIR
-TOPDIR
 DEFAULT_PACKAGE
 VENDOR
 ALIEN_VERSION
@@ -4823,13 +4817,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4826: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4820: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4829: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4823: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4832: output\"" >&5)
+  (eval echo "\"\$as_me:4826: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6035,7 +6029,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6038 "configure"' > conftest.$ac_ext
+  echo '#line 6032 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7888,11 +7882,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7891: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7885: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7895: \$? = $ac_status" >&5
+   echo "$as_me:7889: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8227,11 +8221,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8230: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8224: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8234: \$? = $ac_status" >&5
+   echo "$as_me:8228: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8332,11 +8326,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8335: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8329: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8339: \$? = $ac_status" >&5
+   echo "$as_me:8333: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8387,11 +8381,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8390: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8384: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8394: \$? = $ac_status" >&5
+   echo "$as_me:8388: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11190,7 +11184,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11193 "configure"
+#line 11187 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11286,7 +11280,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11289 "configure"
+#line 11283 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11787,10 +11781,10 @@ $as_echo_n "checking linux distribution... " >&6; }
 		VENDOR=redhat ;
 	elif test -f /etc/fedora-release ; then
 		VENDOR=fedora ;
-	elif test -f /etc/debian_version ; then
-		VENDOR=debian ;
 	elif test -f /etc/lsb-release ; then
 		VENDOR=ubuntu ;
+	elif test -f /etc/debian_version ; then
+		VENDOR=debian ;
 	elif test -f /etc/SuSE-release ; then
 		VENDOR=sles ;
 	elif test -f /etc/slackware-version ; then
@@ -11822,20 +11816,7 @@ $as_echo "$DEFAULT_PACKAGE" >&6; }
 
 
 
-	TOPDIR=`readlink -f ${srcdir}`
-	BUILDDIR=$TOPDIR
-	LIBDIR=$TOPDIR/lib
-	CMDDIR=$TOPDIR/cmd
-	MODDIR=$TOPDIR/module
-	SCRIPTDIR=$TOPDIR/scripts
 	TARGET_ASM_DIR=asm-generic
-
-
-
-
-
-
-
 
 
 	ZFS_CONFIG=all
@@ -12036,11 +12017,7 @@ $as_echo "$splsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl build directory" >&5
 $as_echo_n "checking spl build directory... " >&6; }
 	if test -z "$splbuild"; then
-		if test -d ${splsrc}/module; then
-			splbuild=${splsrc}/module
-		else
-			splbuild=${splsrc}
-		fi
+		splbuild=${splsrc}
 	fi
 	{ $as_echo "$as_me:$LINENO: result: $splbuild" >&5
 $as_echo "$splbuild" >&6; }
@@ -12085,6 +12062,10 @@ $as_echo_n "checking spl file name for module symbols... " >&6; }
 	if test -r $SPL_OBJ/Module.symvers; then
 		SPL_SYMBOLS=Module.symvers
 	elif test -r $SPL_OBJ/Modules.symvers; then
+		SPL_SYMBOLS=Modules.symvers
+	elif test -r $SPL_OBJ/module/Module.symvers; then
+		SPL_SYMBOLS=Module.symvers
+	elif test -r $SPL_OBJ/module/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
 		SPL_SYMBOLS=$LINUX_SYMBOLS
@@ -13502,17 +13483,14 @@ fi
 
 
 
-			KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $SPL/spl_config.h"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $TOPDIR/zfs_config.h"
-
 	if test "$LINUX_OBJ" != "$LINUX"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
 	fi
 
+
+
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
 
 
  ;;
@@ -15042,11 +15020,7 @@ $as_echo "$splsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl build directory" >&5
 $as_echo_n "checking spl build directory... " >&6; }
 	if test -z "$splbuild"; then
-		if test -d ${splsrc}/module; then
-			splbuild=${splsrc}/module
-		else
-			splbuild=${splsrc}
-		fi
+		splbuild=${splsrc}
 	fi
 	{ $as_echo "$as_me:$LINENO: result: $splbuild" >&5
 $as_echo "$splbuild" >&6; }
@@ -15091,6 +15065,10 @@ $as_echo_n "checking spl file name for module symbols... " >&6; }
 	if test -r $SPL_OBJ/Module.symvers; then
 		SPL_SYMBOLS=Module.symvers
 	elif test -r $SPL_OBJ/Modules.symvers; then
+		SPL_SYMBOLS=Modules.symvers
+	elif test -r $SPL_OBJ/module/Module.symvers; then
+		SPL_SYMBOLS=Module.symvers
+	elif test -r $SPL_OBJ/module/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
 	else
 		SPL_SYMBOLS=$LINUX_SYMBOLS
@@ -16508,17 +16486,14 @@ fi
 
 
 
-			KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $SPL/spl_config.h"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $TOPDIR/zfs_config.h"
-
 	if test "$LINUX_OBJ" != "$LINUX"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
 	fi
 
+
+
+			KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
 
 
 
@@ -17896,75 +17871,6 @@ fi
 
 
 
-	cat >.script-config <<EOF
-KERNELSRC=${LINUX}
-KERNELBUILD=${LINUX_OBJ}
-KERNELSRCVER=${LINUX_VERSION}
-KERNELMOD=/lib/modules/\${KERNELSRCVER}/kernel
-
-SPLSRC=${SPL}
-SPLBUILD=${SPL_OBJ}
-SPLSRCVER=${SPL_VERSION}
-
-TOPDIR=${TOPDIR}
-BUILDDIR=${BUILDDIR}
-LIBDIR=${LIBDIR}
-CMDDIR=${CMDDIR}
-MODDIR=${MODDIR}
-SCRIPTDIR=${SCRIPTDIR}
-ETCDIR=\${TOPDIR}/etc
-DEVDIR=\${TOPDIR}/dev
-ZPOOLDIR=\${TOPDIR}/scripts/zpool-config
-ZPIOSDIR=\${TOPDIR}/scripts/zpios-test
-ZPIOSPROFILEDIR=\${TOPDIR}/scripts/zpios-profile
-
-ZDB=\${CMDDIR}/zdb/zdb
-ZFS=\${CMDDIR}/zfs/zfs
-ZINJECT=\${CMDDIR}/zinject/zinject
-ZPOOL=\${CMDDIR}/zpool/zpool
-ZPOOL_ID=\${CMDDIR}/zpool_id/zpool_id
-ZTEST=\${CMDDIR}/ztest/ztest
-ZPIOS=\${CMDDIR}/zpios/zpios
-
-COMMON_SH=\${SCRIPTDIR}/common.sh
-ZFS_SH=\${SCRIPTDIR}/zfs.sh
-ZPOOL_CREATE_SH=\${SCRIPTDIR}/zpool-create.sh
-ZPIOS_SH=\${SCRIPTDIR}/zpios.sh
-ZPIOS_SURVEY_SH=\${SCRIPTDIR}/zpios-survey.sh
-
-INTREE=1
-LDMOD=/sbin/insmod
-
-KERNEL_MODULES=(                                      \\
-        \${KERNELMOD}/lib/zlib_deflate/zlib_deflate.ko \\
-)
-
-SPL_MODULES=(                                         \\
-        \${SPLBUILD}/spl/spl.ko                        \\
-        \${SPLBUILD}/splat/splat.ko                    \\
-)
-
-ZFS_MODULES=(                                         \\
-        \${MODDIR}/avl/zavl.ko                         \\
-        \${MODDIR}/nvpair/znvpair.ko                   \\
-        \${MODDIR}/unicode/zunicode.ko                 \\
-        \${MODDIR}/zcommon/zcommon.ko                  \\
-        \${MODDIR}/zfs/zfs.ko                          \\
-)
-
-ZPIOS_MODULES=(                                       \\
-        \${MODDIR}/zpios/zpios.ko                      \\
-)
-
-MODULES=(                                             \\
-        \${KERNEL_MODULES[*]}                          \\
-        \${SPL_MODULES[*]}                             \\
-        \${ZFS_MODULES[*]}                             \\
-)
-EOF
-
-
-
 	{ $as_echo "$as_me:$LINENO: checking whether debugging is enabled" >&5
 $as_echo_n "checking whether debugging is enabled... " >&6; }
 	# Check whether --enable-debug was given.
@@ -17998,7 +17904,7 @@ fi
 $as_echo "$enable_debug" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile config/Makefile etc/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzpool/include/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/zpool_id/Makefile cmd/zpool_layout/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile scripts/Makefile scripts/common.sh zfs.spec zfs-modules.spec"
+ac_config_files="$ac_config_files Makefile etc/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/zpool_id/Makefile cmd/zpool_layout/Makefile cmd/ztest/Makefile cmd/zpios/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
 
 
 cat >confcache <<\_ACEOF
@@ -18915,7 +18821,6 @@ do
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "config/Makefile") CONFIG_FILES="$CONFIG_FILES config/Makefile" ;;
     "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
     "man/man8/Makefile") CONFIG_FILES="$CONFIG_FILES man/man8/Makefile" ;;
@@ -18925,13 +18830,19 @@ do
     "lib/libspl/asm-i386/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-i386/Makefile" ;;
     "lib/libspl/asm-x86_64/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/asm-x86_64/Makefile" ;;
     "lib/libspl/include/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/Makefile" ;;
+    "lib/libspl/include/ia32/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/ia32/Makefile" ;;
+    "lib/libspl/include/ia32/sys/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/ia32/sys/Makefile" ;;
+    "lib/libspl/include/rpc/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/rpc/Makefile" ;;
+    "lib/libspl/include/sys/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/sys/Makefile" ;;
+    "lib/libspl/include/sys/sysevent/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/sys/sysevent/Makefile" ;;
+    "lib/libspl/include/sys/dktp/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/sys/dktp/Makefile" ;;
+    "lib/libspl/include/util/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/include/util/Makefile" ;;
     "lib/libavl/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libavl/Makefile" ;;
     "lib/libefi/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libefi/Makefile" ;;
     "lib/libnvpair/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libnvpair/Makefile" ;;
     "lib/libunicode/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libunicode/Makefile" ;;
     "lib/libuutil/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libuutil/Makefile" ;;
     "lib/libzpool/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libzpool/Makefile" ;;
-    "lib/libzpool/include/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libzpool/include/Makefile" ;;
     "lib/libzfs/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libzfs/Makefile" ;;
     "cmd/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/Makefile" ;;
     "cmd/zdb/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/zdb/Makefile" ;;
@@ -18949,10 +18860,19 @@ do
     "module/zcommon/Makefile") CONFIG_FILES="$CONFIG_FILES module/zcommon/Makefile" ;;
     "module/zfs/Makefile") CONFIG_FILES="$CONFIG_FILES module/zfs/Makefile" ;;
     "module/zpios/Makefile") CONFIG_FILES="$CONFIG_FILES module/zpios/Makefile" ;;
+    "include/Makefile") CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
+    "include/sys/Makefile") CONFIG_FILES="$CONFIG_FILES include/sys/Makefile" ;;
+    "include/sys/fs/Makefile") CONFIG_FILES="$CONFIG_FILES include/sys/fs/Makefile" ;;
+    "include/sys/fm/Makefile") CONFIG_FILES="$CONFIG_FILES include/sys/fm/Makefile" ;;
+    "include/sys/fm/fs/Makefile") CONFIG_FILES="$CONFIG_FILES include/sys/fm/fs/Makefile" ;;
     "scripts/Makefile") CONFIG_FILES="$CONFIG_FILES scripts/Makefile" ;;
+    "scripts/zpios-profile/Makefile") CONFIG_FILES="$CONFIG_FILES scripts/zpios-profile/Makefile" ;;
+    "scripts/zpios-test/Makefile") CONFIG_FILES="$CONFIG_FILES scripts/zpios-test/Makefile" ;;
+    "scripts/zpool-config/Makefile") CONFIG_FILES="$CONFIG_FILES scripts/zpool-config/Makefile" ;;
     "scripts/common.sh") CONFIG_FILES="$CONFIG_FILES scripts/common.sh" ;;
     "zfs.spec") CONFIG_FILES="$CONFIG_FILES zfs.spec" ;;
     "zfs-modules.spec") CONFIG_FILES="$CONFIG_FILES zfs-modules.spec" ;;
+    "zfs-script-config.sh") CONFIG_FILES="$CONFIG_FILES zfs-script-config.sh" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 $as_echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
@@ -19609,7 +19529,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
   case $ac_file$ac_mode in
     "zfs_config.h":H)
 	(mv zfs_config.h zfs_config.h.tmp &&
-	awk -f config/config.awk zfs_config.h.tmp >zfs_config.h &&
+	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
 	rm zfs_config.h.tmp) || exit 1 ;;
     "depfiles":C) test x"$AMDEP_TRUE" != x"" || {
   # Autoconf 2.62 quotes --file arguments for eval, but not when files

@@ -134,14 +134,12 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-BUILDDIR = @BUILDDIR@
 CC = @CC@
 CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-CMDDIR = @CMDDIR@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
@@ -179,7 +177,6 @@ KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
-LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -194,7 +191,6 @@ LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
-MODDIR = @MODDIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJDUMP = @OBJDUMP@
@@ -213,7 +209,6 @@ RPM = @RPM@
 RPMBUILD = @RPMBUILD@
 RPMBUILD_VERSION = @RPMBUILD_VERSION@
 RPM_VERSION = @RPM_VERSION@
-SCRIPTDIR = @SCRIPTDIR@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -223,7 +218,6 @@ SPL_SYMBOLS = @SPL_SYMBOLS@
 SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ASM_DIR = @TARGET_ASM_DIR@
-TOPDIR = @TOPDIR@
 VENDOR = @VENDOR@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
@@ -294,26 +288,18 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-DEFAULT_INCLUDES = -include ${top_srcdir}/zfs_config.h \
-	-I${top_srcdir}/lib/libspl/include \
-	-I${top_srcdir}/lib/libefi/include \
-	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/lib/libzfs/include \
-	-I${top_srcdir}/lib/libnvpair/include \
-	-I${top_srcdir}/module/zcommon/include \
-	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/module/avl/include \
-	-I${top_srcdir}/module/unicode/include
+DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
 AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	${DEBUG_CFLAGS} -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 zfs_SOURCES = \
-	${top_srcdir}/cmd/zfs/zfs_iter.c \
-	${top_srcdir}/cmd/zfs/zfs_iter.h \
-	${top_srcdir}/cmd/zfs/zfs_main.c \
-	${top_srcdir}/cmd/zfs/zfs_util.h
+	$(top_srcdir)/cmd/zfs/zfs_iter.c \
+	$(top_srcdir)/cmd/zfs/zfs_iter.h \
+	$(top_srcdir)/cmd/zfs/zfs_main.c \
+	$(top_srcdir)/cmd/zfs/zfs_util.h
 
 zfs_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
@@ -440,37 +426,37 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-zfs_iter.o: ${top_srcdir}/cmd/zfs/zfs_iter.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_iter.o -MD -MP -MF $(DEPDIR)/zfs_iter.Tpo -c -o zfs_iter.o `test -f '${top_srcdir}/cmd/zfs/zfs_iter.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zfs/zfs_iter.c
+zfs_iter.o: $(top_srcdir)/cmd/zfs/zfs_iter.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_iter.o -MD -MP -MF $(DEPDIR)/zfs_iter.Tpo -c -o zfs_iter.o `test -f '$(top_srcdir)/cmd/zfs/zfs_iter.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zfs/zfs_iter.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zfs_iter.Tpo $(DEPDIR)/zfs_iter.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zfs/zfs_iter.c' object='zfs_iter.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zfs/zfs_iter.c' object='zfs_iter.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_iter.o `test -f '${top_srcdir}/cmd/zfs/zfs_iter.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zfs/zfs_iter.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_iter.o `test -f '$(top_srcdir)/cmd/zfs/zfs_iter.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zfs/zfs_iter.c
 
-zfs_iter.obj: ${top_srcdir}/cmd/zfs/zfs_iter.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_iter.obj -MD -MP -MF $(DEPDIR)/zfs_iter.Tpo -c -o zfs_iter.obj `if test -f '${top_srcdir}/cmd/zfs/zfs_iter.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zfs/zfs_iter.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zfs/zfs_iter.c'; fi`
+zfs_iter.obj: $(top_srcdir)/cmd/zfs/zfs_iter.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_iter.obj -MD -MP -MF $(DEPDIR)/zfs_iter.Tpo -c -o zfs_iter.obj `if test -f '$(top_srcdir)/cmd/zfs/zfs_iter.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zfs/zfs_iter.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zfs/zfs_iter.c'; fi`
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zfs_iter.Tpo $(DEPDIR)/zfs_iter.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zfs/zfs_iter.c' object='zfs_iter.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zfs/zfs_iter.c' object='zfs_iter.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_iter.obj `if test -f '${top_srcdir}/cmd/zfs/zfs_iter.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zfs/zfs_iter.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zfs/zfs_iter.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_iter.obj `if test -f '$(top_srcdir)/cmd/zfs/zfs_iter.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zfs/zfs_iter.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zfs/zfs_iter.c'; fi`
 
-zfs_main.o: ${top_srcdir}/cmd/zfs/zfs_main.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_main.o -MD -MP -MF $(DEPDIR)/zfs_main.Tpo -c -o zfs_main.o `test -f '${top_srcdir}/cmd/zfs/zfs_main.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zfs/zfs_main.c
+zfs_main.o: $(top_srcdir)/cmd/zfs/zfs_main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_main.o -MD -MP -MF $(DEPDIR)/zfs_main.Tpo -c -o zfs_main.o `test -f '$(top_srcdir)/cmd/zfs/zfs_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zfs/zfs_main.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zfs_main.Tpo $(DEPDIR)/zfs_main.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zfs/zfs_main.c' object='zfs_main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zfs/zfs_main.c' object='zfs_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_main.o `test -f '${top_srcdir}/cmd/zfs/zfs_main.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zfs/zfs_main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_main.o `test -f '$(top_srcdir)/cmd/zfs/zfs_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zfs/zfs_main.c
 
-zfs_main.obj: ${top_srcdir}/cmd/zfs/zfs_main.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_main.obj -MD -MP -MF $(DEPDIR)/zfs_main.Tpo -c -o zfs_main.obj `if test -f '${top_srcdir}/cmd/zfs/zfs_main.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zfs/zfs_main.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zfs/zfs_main.c'; fi`
+zfs_main.obj: $(top_srcdir)/cmd/zfs/zfs_main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_main.obj -MD -MP -MF $(DEPDIR)/zfs_main.Tpo -c -o zfs_main.obj `if test -f '$(top_srcdir)/cmd/zfs/zfs_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zfs/zfs_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zfs/zfs_main.c'; fi`
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zfs_main.Tpo $(DEPDIR)/zfs_main.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zfs/zfs_main.c' object='zfs_main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zfs/zfs_main.c' object='zfs_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_main.obj `if test -f '${top_srcdir}/cmd/zfs/zfs_main.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zfs/zfs_main.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zfs/zfs_main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_main.obj `if test -f '$(top_srcdir)/cmd/zfs/zfs_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zfs/zfs_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zfs/zfs_main.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

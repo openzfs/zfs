@@ -24,20 +24,17 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_RQ_IS_SYNC
 	ZFS_AC_KERNEL_RQ_FOR_EACH_SEGMENT
 
+	if test "$LINUX_OBJ" != "$LINUX"; then
+		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
+	fi
+	AC_SUBST(KERNELMAKE_PARAMS)
+
+
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -I$SPL/include"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $SPL/spl_config.h"
-	KERNELCPPFLAGS="$KERNELCPPFLAGS -include $TOPDIR/zfs_config.h"
 
-	if test "$LINUX_OBJ" != "$LINUX"; then
-		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
-	fi
-
-	AC_SUBST(KERNELMAKE_PARAMS)
 	AC_SUBST(KERNELCPPFLAGS)
 ])
 
@@ -171,6 +168,10 @@ AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
 		SPL_SYMBOLS=Module.symvers
 	elif test -r $SPL_OBJ/Modules.symvers; then
 		SPL_SYMBOLS=Modules.symvers
+	elif test -r $SPL_OBJ/module/Module.symvers; then
+		SPL_SYMBOLS=Module.symvers
+	elif test -r $SPL_OBJ/module/Modules.symvers; then
+		SPL_SYMBOLS=Modules.symvers
 	else
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 	fi
@@ -222,11 +223,7 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_MSG_RESULT([$splsrc])
 	AC_MSG_CHECKING([spl build directory])
 	if test -z "$splbuild"; then
-		if test -d ${splsrc}/module; then
-			splbuild=${splsrc}/module
-		else
-			splbuild=${splsrc}
-		fi
+		splbuild=${splsrc}
 	fi
 	AC_MSG_RESULT([$splbuild])
 

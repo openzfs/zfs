@@ -37,8 +37,10 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/zfs-modules.spec.in $(srcdir)/zfs.spec.in \
-	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/rpm.am \
+	$(srcdir)/zfs-modules.spec.in \
+	$(srcdir)/zfs-script-config.sh.in $(srcdir)/zfs.spec.in \
+	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/deb.am \
+	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
 	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
 	$(top_srcdir)/module/nvpair/Makefile.in \
@@ -46,7 +48,8 @@ DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(top_srcdir)/module/zcommon/Makefile.in \
 	$(top_srcdir)/module/zfs/Makefile.in \
 	$(top_srcdir)/module/zpios/Makefile.in AUTHORS COPYING \
-	ChangeLog
+	ChangeLog config/config.guess config/config.sub config/depcomp \
+	config/install-sh config/ltmain.sh config/missing
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -88,7 +91,8 @@ CONFIG_HEADER = zfs_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/nvpair/Makefile module/unicode/Makefile \
 	module/zcommon/Makefile module/zfs/Makefile \
-	module/zpios/Makefile zfs.spec zfs-modules.spec
+	module/zpios/Makefile zfs.spec zfs-modules.spec \
+	zfs-script-config.sh
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -113,7 +117,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir dist dist-all distcheck
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = config etc man scripts lib cmd module
+DIST_SUBDIRS = etc man scripts lib cmd module include
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -160,14 +164,12 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-BUILDDIR = @BUILDDIR@
 CC = @CC@
 CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-CMDDIR = @CMDDIR@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
@@ -205,7 +207,6 @@ KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
-LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -220,7 +221,6 @@ LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
-MODDIR = @MODDIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJDUMP = @OBJDUMP@
@@ -239,7 +239,6 @@ RPM = @RPM@
 RPMBUILD = @RPMBUILD@
 RPMBUILD_VERSION = @RPMBUILD_VERSION@
 RPM_VERSION = @RPM_VERSION@
-SCRIPTDIR = @SCRIPTDIR@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -249,7 +248,6 @@ SPL_SYMBOLS = @SPL_SYMBOLS@
 SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ASM_DIR = @TARGET_ASM_DIR@
-TOPDIR = @TOPDIR@
 VENDOR = @VENDOR@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
@@ -320,9 +318,9 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@CONFIG_USER_TRUE@USER_DIR = config etc man scripts lib cmd
+@CONFIG_USER_TRUE@USER_DIR = etc man scripts lib cmd
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
-SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
+SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
 	config/config.awk config/rpm.am config/deb.am config/tgz.am \
@@ -335,7 +333,7 @@ all: zfs_config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -401,6 +399,8 @@ module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/
 zfs.spec: $(top_builddir)/config.status $(srcdir)/zfs.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs-modules.spec: $(top_builddir)/config.status $(srcdir)/zfs-modules.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+zfs-script-config.sh: $(top_builddir)/config.status $(srcdir)/zfs-script-config.sh.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -914,8 +914,73 @@ rpm-common:
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild
-include ${top_srcdir}/config/deb.am
-include ${top_srcdir}/config/tgz.am
+deb-local:
+	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${DPKGBUILD} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${DPKGBUILD},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi; \
+	if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+deb-modules: deb-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+deb-utils: deb-local rpm-utils
+	name=${PACKAGE}; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
+	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3
+
+deb: deb-modules deb-utils
+tgz-local:
+	@(if test "${HAVE_ALIEN}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${ALIEN} missing.  Please install the\n" \
+        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** re-run configure, and try again.\n"; \
+                exit 1; \
+	fi)
+
+tgz-modules: tgz-local rpm-modules
+	name=${PACKAGE}-modules; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+	$(RM) $$pkg1 $$pkg2
+
+tgz-utils: tgz-local rpm-utils
+	name=${PACKAGE}; \
+	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	pkg1=$${name}-$${version}.$${arch}.rpm; \
+	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
+	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2 $$pkg3; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3
+
+tgz: tgz-modules tgz-utils
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -932,7 +997,7 @@ distclean-local::
 @CONFIG_KERNEL_TRUE@install-data-local:
 @CONFIG_KERNEL_TRUE@	destname=zfs-$(ZFS_META_VERSION)/$(LINUX_VERSION); \
 @CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/$$destname; \
-@CONFIG_KERNEL_TRUE@	echo "${ZFS_META_VERSION}" >$$instdest/zfs.release; \
+@CONFIG_KERNEL_TRUE@	echo "$(ZFS_META_VERSION)" >$$instdest/zfs.release; \
 @CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 @CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 @CONFIG_KERNEL_TRUE@	done

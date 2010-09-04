@@ -1,20 +1,37 @@
-pkglibexecdir = $(libexecdir)/@PACKAGE@
-nobase_pkglibexec_SCRIPTS  = common.sh
-nobase_pkglibexec_SCRIPTS += zconfig.sh
-nobase_pkglibexec_SCRIPTS += zfs.sh
-nobase_pkglibexec_SCRIPTS += zpool-create.sh
-nobase_pkglibexec_SCRIPTS += zpool-config/*
-nobase_pkglibexec_SCRIPTS += zpios.sh
-nobase_pkglibexec_SCRIPTS += zpios-sanity.sh
-nobase_pkglibexec_SCRIPTS += zpios-survey.sh
-nobase_pkglibexec_SCRIPTS += zpios-test/*
-nobase_pkglibexec_SCRIPTS += zpios-profile/*
-EXTRA_DIST = zfs-update.sh $(nobase_pkglibexec_SCRIPTS)
+SUBDIRS = zpool-config zpios-test zpios-profile
 
-ZFS=${top_srcdir}/scripts/zfs.sh
-ZCONFIG=${top_srcdir}/scripts/zconfig.sh
-ZTEST=${top_builddir}/cmd/ztest/ztest
-ZPIOS_SANITY=${top_srcdir}/scripts/zpios-sanity.sh
+pkglibexecdir = $(libexecdir)/@PACKAGE@
+dist_pkglibexec_SCRIPTS = \
+	$(top_builddir)/scripts/common.sh \
+	$(top_srcdir)/scripts/zconfig.sh \
+	$(top_srcdir)/scripts/zfs.sh \
+	$(top_srcdir)/scripts/zpool-create.sh \
+	$(top_srcdir)/scripts/zpios.sh \
+	$(top_srcdir)/scripts/zpios-sanity.sh \
+	$(top_srcdir)/scripts/zpios-survey.sh
+
+ZFS=$(top_builddir)/scripts/zfs.sh
+ZCONFIG=$(top_builddir)/scripts/zconfig.sh
+ZTEST=$(top_builddir)/cmd/ztest/ztest
+ZPIOS_SANITY=$(top_builddir)/scripts/zpios-sanity.sh
+
+all:
+	@list='$(dist_pkglibexec_SCRIPTS)'; \
+	for file in $$list; do \
+		link=$$(basename $$file); \
+		if [ ! -e $$link ]; then \
+			$(LN_S) $$file $$link; \
+		fi \
+	done
+
+clean:
+	@list='$(dist_pkglibexec_SCRIPTS)'; \
+	for file in $$list; do \
+		link=$$(basename $$file); \
+		if [ -L $$link ]; then \
+			$(RM) $$link; \
+		fi \
+	done
 
 check:
 	@echo

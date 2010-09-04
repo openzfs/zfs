@@ -1,25 +1,17 @@
 include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += \
-	-I${top_srcdir}/lib/libspl/include \
-	-I${top_srcdir}/lib/libefi/include \
-	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/lib/libzfs/include \
-	-I${top_srcdir}/lib/libnvpair/include \
-	-I${top_srcdir}/module/zcommon/include \
-	-I${top_srcdir}/module/zfs/include \
-	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/module/avl/include \
-	-I${top_srcdir}/module/unicode/include
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/lib/libspl/include
 
 sbin_PROGRAMS = zpool
 
 zpool_SOURCES = \
-	${top_srcdir}/cmd/zpool/zpool_iter.c \
-	${top_srcdir}/cmd/zpool/zpool_main.c \
-	${top_srcdir}/cmd/zpool/zpool_util.c \
-	${top_srcdir}/cmd/zpool/zpool_util.h \
-	${top_srcdir}/cmd/zpool/zpool_vdev.c
+	$(top_srcdir)/cmd/zpool/zpool_iter.c \
+	$(top_srcdir)/cmd/zpool/zpool_main.c \
+	$(top_srcdir)/cmd/zpool/zpool_util.c \
+	$(top_srcdir)/cmd/zpool/zpool_util.h \
+	$(top_srcdir)/cmd/zpool/zpool_vdev.c
 
 zpool_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \

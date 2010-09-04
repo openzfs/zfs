@@ -1,23 +1,16 @@
 include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += \
-	-I${top_srcdir}/lib/libspl/include \
-	-I${top_srcdir}/lib/libefi/include \
-	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/lib/libzfs/include \
-	-I${top_srcdir}/lib/libnvpair/include \
-	-I${top_srcdir}/module/zcommon/include \
-	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/module/avl/include \
-	-I${top_srcdir}/module/unicode/include
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/lib/libspl/include
 
 sbin_PROGRAMS = zfs
 
 zfs_SOURCES = \
-	${top_srcdir}/cmd/zfs/zfs_iter.c \
-	${top_srcdir}/cmd/zfs/zfs_iter.h \
-	${top_srcdir}/cmd/zfs/zfs_main.c \
-	${top_srcdir}/cmd/zfs/zfs_util.h
+	$(top_srcdir)/cmd/zfs/zfs_iter.c \
+	$(top_srcdir)/cmd/zfs/zfs_iter.h \
+	$(top_srcdir)/cmd/zfs/zfs_main.c \
+	$(top_srcdir)/cmd/zfs/zfs_util.h
 
 zfs_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \

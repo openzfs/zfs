@@ -1,18 +1,16 @@
 MODULE := zcommon
 
-EXTRA_CFLAGS  = -I@MODDIR@/avl/include
-EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
-EXTRA_CFLAGS += -I@MODDIR@/unicode/include
-EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
-EXTRA_CFLAGS += -I@MODDIR@/zfs/include
-EXTRA_CFLAGS += @KERNELCPPFLAGS@
+EXTRA_CFLAGS  = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -include @SPL_OBJ@/spl_config.h
+EXTRA_CFLAGS += -include @abs_top_builddir@/zfs_config.h
+EXTRA_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
 
-obj-m := ${MODULE}.o
+obj-m := $(MODULE).o
 
-${MODULE}-objs += zfs_deleg.o
-${MODULE}-objs += zfs_prop.o
-${MODULE}-objs += zprop_common.o
-${MODULE}-objs += zfs_namecheck.o
-${MODULE}-objs += zfs_comutil.o
-${MODULE}-objs += zfs_fletcher.o
-${MODULE}-objs += zpool_prop.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zfs_deleg.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zfs_prop.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zprop_common.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zfs_namecheck.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zfs_comutil.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zfs_fletcher.o
+$(MODULE)-objs += @top_srcdir@/module/zcommon/zpool_prop.o

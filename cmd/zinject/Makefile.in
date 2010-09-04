@@ -134,14 +134,12 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-BUILDDIR = @BUILDDIR@
 CC = @CC@
 CCAS = @CCAS@
 CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-CMDDIR = @CMDDIR@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
@@ -179,7 +177,6 @@ KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
-LIBDIR = @LIBDIR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -194,7 +191,6 @@ LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
-MODDIR = @MODDIR@
 NM = @NM@
 NMEDIT = @NMEDIT@
 OBJDUMP = @OBJDUMP@
@@ -213,7 +209,6 @@ RPM = @RPM@
 RPMBUILD = @RPMBUILD@
 RPMBUILD_VERSION = @RPMBUILD_VERSION@
 RPM_VERSION = @RPM_VERSION@
-SCRIPTDIR = @SCRIPTDIR@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -223,7 +218,6 @@ SPL_SYMBOLS = @SPL_SYMBOLS@
 SPL_VERSION = @SPL_VERSION@
 STRIP = @STRIP@
 TARGET_ASM_DIR = @TARGET_ASM_DIR@
-TOPDIR = @TOPDIR@
 VENDOR = @VENDOR@
 VERSION = @VERSION@
 ZFS_CONFIG = @ZFS_CONFIG@
@@ -294,27 +288,17 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-DEFAULT_INCLUDES = -include ${top_srcdir}/zfs_config.h \
-	-I${top_srcdir}/lib/libspl/include \
-	-I${top_srcdir}/lib/libefi/include \
-	-I${top_srcdir}/lib/libzpool/include \
-	-I${top_srcdir}/lib/libuutil/include \
-	-I${top_srcdir}/lib/libzfs/include \
-	-I${top_srcdir}/lib/libnvpair/include \
-	-I${top_srcdir}/module/zfs -I${top_srcdir}/module/zfs/include \
-	-I${top_srcdir}/module/zcommon/include \
-	-I${top_srcdir}/module/nvpair/include \
-	-I${top_srcdir}/module/avl/include \
-	-I${top_srcdir}/module/unicode/include
+DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
 AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	${DEBUG_CFLAGS} -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
 	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
 	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
 zinject_SOURCES = \
-	${top_srcdir}/cmd/zinject/translate.c \
-	${top_srcdir}/cmd/zinject/zinject.c \
-	${top_srcdir}/cmd/zinject/zinject.h
+	$(top_srcdir)/cmd/zinject/translate.c \
+	$(top_srcdir)/cmd/zinject/zinject.c \
+	$(top_srcdir)/cmd/zinject/zinject.h
 
 zinject_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
@@ -441,37 +425,37 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-translate.o: ${top_srcdir}/cmd/zinject/translate.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.o -MD -MP -MF $(DEPDIR)/translate.Tpo -c -o translate.o `test -f '${top_srcdir}/cmd/zinject/translate.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/translate.c
+translate.o: $(top_srcdir)/cmd/zinject/translate.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.o -MD -MP -MF $(DEPDIR)/translate.Tpo -c -o translate.o `test -f '$(top_srcdir)/cmd/zinject/translate.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zinject/translate.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/translate.Tpo $(DEPDIR)/translate.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/translate.c' object='translate.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zinject/translate.c' object='translate.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.o `test -f '${top_srcdir}/cmd/zinject/translate.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/translate.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.o `test -f '$(top_srcdir)/cmd/zinject/translate.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zinject/translate.c
 
-translate.obj: ${top_srcdir}/cmd/zinject/translate.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.obj -MD -MP -MF $(DEPDIR)/translate.Tpo -c -o translate.obj `if test -f '${top_srcdir}/cmd/zinject/translate.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/translate.c'; fi`
+translate.obj: $(top_srcdir)/cmd/zinject/translate.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT translate.obj -MD -MP -MF $(DEPDIR)/translate.Tpo -c -o translate.obj `if test -f '$(top_srcdir)/cmd/zinject/translate.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zinject/translate.c'; fi`
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/translate.Tpo $(DEPDIR)/translate.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/translate.c' object='translate.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zinject/translate.c' object='translate.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.obj `if test -f '${top_srcdir}/cmd/zinject/translate.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/translate.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o translate.obj `if test -f '$(top_srcdir)/cmd/zinject/translate.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zinject/translate.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zinject/translate.c'; fi`
 
-zinject.o: ${top_srcdir}/cmd/zinject/zinject.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.o -MD -MP -MF $(DEPDIR)/zinject.Tpo -c -o zinject.o `test -f '${top_srcdir}/cmd/zinject/zinject.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/zinject.c
+zinject.o: $(top_srcdir)/cmd/zinject/zinject.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.o -MD -MP -MF $(DEPDIR)/zinject.Tpo -c -o zinject.o `test -f '$(top_srcdir)/cmd/zinject/zinject.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zinject/zinject.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zinject.Tpo $(DEPDIR)/zinject.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/zinject.c' object='zinject.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zinject/zinject.c' object='zinject.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.o `test -f '${top_srcdir}/cmd/zinject/zinject.c' || echo '$(srcdir)/'`${top_srcdir}/cmd/zinject/zinject.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.o `test -f '$(top_srcdir)/cmd/zinject/zinject.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zinject/zinject.c
 
-zinject.obj: ${top_srcdir}/cmd/zinject/zinject.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.obj -MD -MP -MF $(DEPDIR)/zinject.Tpo -c -o zinject.obj `if test -f '${top_srcdir}/cmd/zinject/zinject.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/zinject.c'; fi`
+zinject.obj: $(top_srcdir)/cmd/zinject/zinject.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zinject.obj -MD -MP -MF $(DEPDIR)/zinject.Tpo -c -o zinject.obj `if test -f '$(top_srcdir)/cmd/zinject/zinject.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zinject/zinject.c'; fi`
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zinject.Tpo $(DEPDIR)/zinject.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='${top_srcdir}/cmd/zinject/zinject.c' object='zinject.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zinject/zinject.c' object='zinject.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.obj `if test -f '${top_srcdir}/cmd/zinject/zinject.c'; then $(CYGPATH_W) '${top_srcdir}/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/${top_srcdir}/cmd/zinject/zinject.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zinject.obj `if test -f '$(top_srcdir)/cmd/zinject/zinject.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zinject/zinject.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zinject/zinject.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

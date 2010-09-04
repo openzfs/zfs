@@ -65,7 +65,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/*
 %{_libdir}/*
 %{_mandir}/man8/*
-%{_sysconfdir}/*
+/etc/*
 
 %files devel
 %defattr(-,root,root)

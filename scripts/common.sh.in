@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Common support functions for testing scripts.  If a .script-config
+# Common support functions for testing scripts.  If a script-config
 # files is available it will be sourced so in-tree kernel modules and
-# utilities will be used.  If no .script-config can be found then the
+# utilities will be used.  If no script-config can be found then the
 # installed kernel modules and utilities will be used.
 
 basedir="$(dirname $0)"
 
-SCRIPT_CONFIG=.script-config
+SCRIPT_CONFIG=zfs-script-config.sh
 if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
 . "${basedir}/../${SCRIPT_CONFIG}"
 else

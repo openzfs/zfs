@@ -40,7 +40,7 @@ AM_SILENT_RULES
 AM_INIT_AUTOMAKE([$ZFS_META_NAME], [$ZFS_META_VERSION])
 AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
-	awk -f config/config.awk zfs_config.h.tmp >zfs_config.h &&
+	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
 	rm zfs_config.h.tmp) || exit 1])
 
 AC_PROG_INSTALL
@@ -55,7 +55,6 @@ ZFS_AC_DEBUG
 
 AC_CONFIG_FILES([ 
 	Makefile
-	config/Makefile
 	etc/Makefile
 	man/Makefile
 	man/man8/Makefile
@@ -65,13 +64,19 @@ AC_CONFIG_FILES([
 	lib/libspl/asm-i386/Makefile
 	lib/libspl/asm-x86_64/Makefile
 	lib/libspl/include/Makefile
+	lib/libspl/include/ia32/Makefile
+	lib/libspl/include/ia32/sys/Makefile
+	lib/libspl/include/rpc/Makefile
+	lib/libspl/include/sys/Makefile
+	lib/libspl/include/sys/sysevent/Makefile
+	lib/libspl/include/sys/dktp/Makefile
+	lib/libspl/include/util/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
 	lib/libnvpair/Makefile
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
 	lib/libzpool/Makefile
-	lib/libzpool/include/Makefile
 	lib/libzfs/Makefile
 	cmd/Makefile
 	cmd/zdb/Makefile
@@ -89,10 +94,19 @@ AC_CONFIG_FILES([
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/zpios/Makefile
+	include/Makefile
+	include/sys/Makefile
+	include/sys/fs/Makefile
+	include/sys/fm/Makefile
+	include/sys/fm/fs/Makefile
 	scripts/Makefile
+	scripts/zpios-profile/Makefile
+	scripts/zpios-test/Makefile
+	scripts/zpool-config/Makefile
 	scripts/common.sh
 	zfs.spec
 	zfs-modules.spec
+	zfs-script-config.sh
 ])
 
 AC_OUTPUT

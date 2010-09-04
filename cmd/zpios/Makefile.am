@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += \
-	-I${top_srcdir}/module/zpios/include
+	-I$(top_srcdir)/include
 
 sbin_PROGRAMS = zpios
 

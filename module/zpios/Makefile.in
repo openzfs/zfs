@@ -1,11 +1,10 @@
 MODULE := zpios
 
-EXTRA_CFLAGS  = -I@MODDIR@/zfs/include
-EXTRA_CFLAGS += -I@MODDIR@/zcommon/include
-EXTRA_CFLAGS += -I@MODDIR@/avl/include
-EXTRA_CFLAGS += -I@MODDIR@/nvpair/include
-EXTRA_CFLAGS += -I@MODDIR@/unicode/include
-EXTRA_CFLAGS += -I@MODDIR@/zpios/include
-EXTRA_CFLAGS += @KERNELCPPFLAGS@
+EXTRA_CFLAGS  = @KERNELCPPFLAGS@
+EXTRA_CFLAGS += -include @SPL_OBJ@/spl_config.h
+EXTRA_CFLAGS += -include @abs_top_builddir@/zfs_config.h
+EXTRA_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
 
-obj-m := ${MODULE}.o
+obj-m := $(MODULE).o
+
+$(MODULE)-objs += @top_srcdir@/module/zpios/pios.o
