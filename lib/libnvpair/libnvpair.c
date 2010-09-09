@@ -123,7 +123,7 @@ struct nvlist_prtctl {
 			(void) DFLTPRTOP(pctl, type)(pctl, \
 			    DFLTPRTOPARG(pctl, type), nvl, name, val); \
 		} \
-		(void) fprintf(pctl->nvprt_fp, pctl->nvprt_eomfmt); \
+		(void) fprintf(pctl->nvprt_fp, "%s", pctl->nvprt_eomfmt); \
 	}
 
 #define	ARENDER(pctl, type, nvl, name, arrp, count) \
@@ -137,7 +137,7 @@ struct nvlist_prtctl {
 			(void) DFLTPRTOP(pctl, type)(pctl, \
 			    DFLTPRTOPARG(pctl, type), nvl, name, arrp, count); \
 		} \
-		(void) fprintf(pctl->nvprt_fp, pctl->nvprt_eomfmt); \
+		(void) fprintf(pctl->nvprt_fp, "%s", pctl->nvprt_eomfmt); \
 	}
 
 static void nvlist_print_with_indent(nvlist_t *, nvlist_prtctl_t);
@@ -235,7 +235,7 @@ nvaprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
 				(void) fprintf(fp, "[%d]: ", i); \
 		} \
 		if (i != 0) \
-			(void) fprintf(fp, pctl->nvprt_btwnarrfmt); \
+			(void) fprintf(fp, "%s", pctl->nvprt_btwnarrfmt); \
 		(void) fprintf(fp, vfmt, (ptype)valuep[i]); \
 	} \
 	return (1); \
@@ -394,11 +394,11 @@ nvlist_prtctl_dofmt(nvlist_prtctl_t pctl, enum nvlist_prtctl_fmt which, ...)
 		break;
 
 	case NVLIST_FMT_MEMBER_POSTAMBLE:
-		(void) fprintf(fp, pctl->nvprt_eomfmt);
+		(void) fprintf(fp, "%s", pctl->nvprt_eomfmt);
 		break;
 
 	case NVLIST_FMT_BTWN_ARRAY:
-		(void) fprintf(fp, pctl->nvprt_btwnarrfmt); \
+		(void) fprintf(fp, "%s", pctl->nvprt_btwnarrfmt);
 		break;
 
 	default:
