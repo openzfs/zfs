@@ -175,7 +175,7 @@
  %define spldir %{_usrsrc}/spl-%{splver}/%{kver}
 %endif
 %if %{undefined splobj}
- %define splobj          %{spldir}/module
+ %define splobj          %{spldir}
 %endif
 
 
