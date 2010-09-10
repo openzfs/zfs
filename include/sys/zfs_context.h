@@ -26,7 +26,7 @@
 #ifndef _SYS_ZFS_CONTEXT_H
 #define	_SYS_ZFS_CONTEXT_H
 
-#ifdef _KERNEL
+#ifdef __KERNEL__
 
 #include <sys/note.h>
 #include <sys/types.h>
