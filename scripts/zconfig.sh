@@ -393,11 +393,11 @@ test_7() {
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
-	${ZFS} create -V 400M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} create -V 300M ${FULL_ZVOL_NAME} || fail 3
 
-	# Partition the volume, for a 400M volume there will be
-	# 812 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 812
+	# Partition the volume, for a 300M volume there will be
+	# 609 cylinders, 16 heads, and 63 sectors per track.
+	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 609
 
 	# Format the partition with ext2 (no journal).
 	/sbin/mkfs.ext2 -q /dev/${FULL_ZVOL_NAME}1 || fail 5
@@ -475,11 +475,11 @@ test_8() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME1} -c lo-raidz2 || fail 2
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME2} -c lo-raidz2 || fail 3
-	${ZFS} create -V 400M ${FULL_ZVOL_NAME1} || fail 4
+	${ZFS} create -V 300M ${FULL_ZVOL_NAME1} || fail 4
 
-	# Partition the volume, for a 400M volume there will be
-	# 812 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_ZVOL_NAME1} 0 812
+	# Partition the volume, for a 300M volume there will be
+	# 609 cylinders, 16 heads, and 63 sectors per track.
+	zconfig_partition /dev/${FULL_ZVOL_NAME1} 0 609
 
 	# Format the partition with ext2.
 	/sbin/mkfs.ext2 -q /dev/${FULL_ZVOL_NAME1}1 || fail 5
@@ -537,7 +537,7 @@ test_9() {
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
-	${ZFS} create -V 400M ${FULL_NAME} || fail 3
+	${ZFS} create -V 300M ${FULL_NAME} || fail 3
 
 	# Dump the events, there should be at least 5 lines.
 	${ZPOOL} events >${TMP_EVENTS} || fail 4
