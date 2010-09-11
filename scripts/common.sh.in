@@ -441,3 +441,20 @@ run_test() {
 		skip_one_test ${TEST_NUM} "${TEST_NAME}"
 	fi
 }
+
+wait_udev() {
+	local DEVICE=$1
+	local DELAY=$2
+	local COUNT=0
+
+	while [ ! -e ${DEVICE} ]; do
+		if [ ${COUNT} -gt ${DELAY} ]; then
+			return 1
+		fi
+
+		let COUNT=${COUNT}+1
+	        sleep 1
+	done
+
+	return 0
+}

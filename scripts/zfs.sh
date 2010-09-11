@@ -69,6 +69,7 @@ if [ ${UNLOAD} ]; then
 else
 	check_modules || die "${ERROR}"
 	load_modules "$@"
+	wait_udev /dev/zfs 30
 fi
 
 exit 0

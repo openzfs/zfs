@@ -148,7 +148,7 @@ zconfig_zvol_device_stat() {
 	local COUNT=0
 
 	# Briefly delay for udev
-	sleep 1
+	sleep 3
 
 	# Pool exists
 	stat ${POOL_NAME} &>/dev/null   && let COUNT=$COUNT+1
@@ -348,7 +348,8 @@ test_6() {
 	mount /dev/${FULL_ZVOL_NAME}1 /tmp/${ZVOL_NAME}1 || fail 7
 
 	# Snapshot the pristine ext2 filesystem and mount it read-only.
-	${ZFS} snapshot ${FULL_SNAP_NAME} && sleep 1 || fail 8
+	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 8
+	wait_udev /dev/${FULL_SNAP_NAME}1 30 || fail 8
 	mkdir -p /tmp/${SNAP_NAME}1 || fail 9
 	mount /dev/${FULL_SNAP_NAME}1 /tmp/${SNAP_NAME}1 &>/dev/null || fail 10
 
@@ -407,7 +408,8 @@ test_7() {
 	mount /dev/${FULL_ZVOL_NAME}1 /tmp/${ZVOL_NAME}1 || fail 7
 
 	# Snapshot the pristine ext2 filesystem and mount it read-only.
-	${ZFS} snapshot ${FULL_SNAP_NAME} && sleep 1 || fail 8
+	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 8
+	wait_udev /dev/${FULL_SNAP_NAME}1 30 || fail 8
 	mkdir -p /tmp/${SNAP_NAME}1 || fail 9
 	mount /dev/${FULL_SNAP_NAME}1 /tmp/${SNAP_NAME}1 &>/dev/null || fail 10
 
@@ -421,7 +423,8 @@ test_7() {
 	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}1${SRC_DIR} &>/dev/null && fail 13
 
 	# Clone from the original pristine snapshot
-	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} && sleep 1 || fail 14
+	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 14
+	wait_udev /dev/${FULL_CLONE_NAME}1 30 || fail 14
 	mkdir -p /tmp/${CLONE_NAME}1 || fail 15
 	mount /dev/${FULL_CLONE_NAME}1 /tmp/${CLONE_NAME}1 || fail 16
 
@@ -491,11 +494,13 @@ test_8() {
 	sync || fail 9
 
 	# Snapshot the ext3 filesystem so it may be sent.
-	${ZFS} snapshot ${FULL_SNAP_NAME1} && sleep 1 || fail 11
+	${ZFS} snapshot ${FULL_SNAP_NAME1} || fail 11
+	wait_udev /dev/${FULL_SNAP_NAME1} 30 || fail 11
 
 	# Send/receive the snapshot from POOL_NAME1 to POOL_NAME2
 	(${ZFS} send ${FULL_SNAP_NAME1} | \
-	${ZFS} receive ${FULL_ZVOL_NAME2}) && sleep 1 || fail 12
+	${ZFS} receive ${FULL_ZVOL_NAME2}) || fail 12
+	wait_udev /dev/${FULL_ZVOL_NAME2}1 30 || fail 12
 
 	# Mount the sent ext3 filesystem.
 	mkdir -p /tmp/${FULL_ZVOL_NAME2}1 || fail 13
