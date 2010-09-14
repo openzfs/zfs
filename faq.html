@@ -1,0 +1,138 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux" />
+<meta name="description" content="ZFS on Linux FAQ." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+</center>
+<h2>Table of Contents</h2>
+<ul>
+	<li><a href="#WhatAboutTheLicensingIssue">
+	1.1 What about the licensing issue?</a></li>
+	<li><a href="#WhyDoesntItBuild">
+	1.2 Why doesn&#8217;t it build?</a></li>
+	<li><a href="#HowDoIMountTheFileSystem">
+	1.3 How do I mount the file system?</a></li>
+	<li><a href="#IsThisUsefulWithoutTheZFSPosixLayer">
+	1.4 Is this useful without the ZFS posix layer?</a></li>
+	<li><a href="#WhyShouldIUseA64BitSystem">
+	1.5 Why should I use a 64-bit system?</li></a>
+	<li><a href="#HowCanIHelp">
+	1.6 How can I help?</li></a>
+</ul>
+
+<a name="WhatAboutTheLicensingIssue">
+<h3>1.1 What about the licensing issue?</h3></a>
+
+<p>In a nutshell, the issue is that the Linux kernel which is licensed under the 
+<a href="http://www.gnu.org/licenses/gpl.html">GNU General Public License</a> is
+<a href="http://www.gnu.org/licenses/license-list.html#CDDL">incompatible</a>
+with ZFS which is licensed under the Sun <a
+href="http://hub.opensolaris.org/bin/view/Main/opensolaris_license">CDDL</a>.
+While both the GPL and CDDL are open source licenses their terms are such that
+it is impossible to simultaneously satisfy both licenses.  This means that a
+single <em>derived work</em> of the Linux kernel and ZFS cannot be legally
+<em>distributed</em>.</p>
+
+<p>One way to resolve this issue is to implement
+<a href="http://zfs-fuse.net/">ZFS in user space with FUSE</a> where it is not
+considered a <em>derived work</em> of the kernel.  This approach resolves the
+licensing issues but it has some technical drawbacks.  There is another option
+though.  The CDDL does not restrict modification and release of the ZFS source
+code which is <a href="http://dlc.sun.com/osol/on/downloads/current/">publicly
+available</a> as part of OpenSolaris.  The ZFS code can be modified to build
+as a CDDL licensed kernel module which is <em>not distributed</em> as part of
+the Linux kernel.  This makes a Native ZFS on Linux implementation possible if
+you are willing to
+<a href="http://github.com/behlendorf/zfs/downloads">download</a> and
+<a href="zfs-building-rpm.html">build it</a> yourself.</p>
+
+<a name="WhyDoesntItBuild">
+<h3>1.2 Why doesn&#8217;t it build?</h3></a>
+
+<p>Building a kernel module against an arbitrary kernel version is a
+complicated thing to do.  Every distro has their own idea of how this should
+be done.  It depends on the base kernel version, any distro specific patches,
+and exactly how the kernel was configured and built.  If you run in to
+problems here are few thing to check.  If none of these things explain your
+problem please open up a new
+<a href="http://github.com/behlendorf/spl/issues">SPL issue</a> or a new
+<a href="http://github.com/behlendorf/zfs/issues">ZFS issue</a> as
+appropriate.</p>
+
+<ul>
+	<li>The kernel API changes frequently and kernels newer than
+2.6.34 are not yet supported.</li>
+	<li>Check for known <a
+href="http://github.com/behlendorf/spl/issues/labels/Build%20Issue">SPL</a> and
+<a href="http://github.com/behlendorf/zfs/issues/labels/Build%20Issue">ZFS</a>
+build issues.</li>
+	<li>There is also a list of
+<a href="platforms-0.5.1.html">tested platforms you might find helpful.</li>
+</ul>
+
+<a name="HowDoIMountTheFileSystem">
+<h3>1.3 How do I mount the file system?</h3></a>
+
+<p>You can&#8217;t&#8230; at least not today.  While we have ported
+the majority of the ZFS code to the Linux kernel that does not yet include the
+<a href="example-zpl.html">ZFS posix layer</a>.  The only interface currently
+available from user space is the <a href="example-zvol.html">ZVOL virtual
+block device</a>.</p>
+
+<a name="IsThisUsefulWithoutTheZFSPosixLayer">
+<h3>1.4 Is this useful without the ZFS posix layer?</h3></a>
+
+<p>Absolutely.  While having the ZFS posix layer is ideal even without
+it you can take advantage of many ZFS features.  For example, our focus is on
+integrating <a href="example-lustre.html">ZFS and Lustre</a> so we can take
+advantage of ZFS&#8217;s advanced features to build a scalable multi-petabyte
+distributed file system with <a href="http://www.lustre.org">Lustre</a>.</p>
+
+<ul>
+	<li>Flexible pooled storage and volume manager.</li>
+	<li>Copy-on-write</li>
+	<li>Data integrity (raidz).</li>
+	<li>Online repair.</li>
+	<li>Fast snapshots.</li>
+	<li>Virtual block devices.
+</ul>
+
+<a name="WhyShouldIUseA64BitSystem">
+<h3>1.5 Why should I use a 64-bit system?</h3></a>
+
+<p>In the Solaris kernel it is common practice to make heavy use of the
+virtual address space because it is designed to work well. However, in
+the Linux kernel most memory is addressed with a physical address and use of
+the virtual address space is strongly discouraged. This is particularly true
+on 32-bit arches where the virtual address space is limited to roughly 100MiB
+by default. Using the virtual address space on 64-bit Linux kernels is also
+discouraged.  But in this case the address space is so much larger than
+physical memory it is not as much of an issue.</p>
+
+<p>If you are bumping up against the virtual memory limit you will see
+this message in your system logs.  You can increase the virtual address size
+with the boot option <em>vmalloc=512M</em>.</p>
+
+<pre>
+vmap allocation for size 4198400 failed: use vmalloc=&lt;size&gt; to increase
+size.
+</pre>
+
+<a name="HowCanIHelp">
+<h3>1.6 How can I help?</h3></a>
+
+<p>The most helpful thing you can do is to try ZFS on your Linux
+system and report any
+<a href="http://github.com/behlendorf/zfs/issues">issues</a>.  If you 
+like what you see and would like to contribute to the project please send
+<a href="http://github.com/behlendorf">me</a> an email.  There are quite a few
+open issues on the <a href="http://github.com/behlendorf/zfs/issues">issue
+tracker</a> which need attention or if you have an idea of your own that is
+fine too.</p>
+ </body>
+</html>

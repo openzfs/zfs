@@ -1,0 +1,151 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building SPL DEB Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+</center>
+
+<p>The spl uses an autoconf style build system which is designed to
+allow it to build against multiple versions of the Linux kernel.  Simply build
+it as you would any other autoconf style project.  The build system will make
+an educated guess as to which kernel you wish to build against.  If it guesses
+wrong simply specify your kernel devel headers using the <em>--with-linux</em>
+configure option.  You may also need the <em>--with-linux-obj</em>
+configure option if the kernel build objects are installed in a different
+directory.
+
+<pre>
+$ ./configure
+$ make deb
+</pre>
+
+<p>The result of this will be two source rpm packages...  Yes, source rpm
+packages.  Currently, deb style packages are built by first creating rpm
+packages and then converting them to deb packages using alien.  Long term
+we would like to directly create deb packages but it has not been a priority.
+If anyone familiar with debian style packaging would like to help with this
+please feel free to contact us.</p>
+
+<ul>
+	<li><em>spl-w.x.y-z.src.rpm</em>: Source for the spl utilities.</li>
+	<li><em>spl-modules-w.x.y-z.src.rpm</em>: Source for the kernel
+	modules.<li>
+</ul>
+
+<p>And three binary deb packages for your platform.</p>
+
+<ul>
+	<li><em>spl-w.x.y-z_arch.deb</em>: The spl utilities.</li>
+	<li><em>spl-modules-w.x.y-z_kernel_arch.deb</em>:
+	The spl module for your kernel verison.</li>
+	<li><em>spl-modules-devel-w.x.y-z_kernel_arch.deb</em>:
+	The spl development headers and symbols for building dependent
+	kernel modules.
+</ul>
+
+<p>Next go ahead and install the packages,</p>
+
+<pre>
+$ dpkg -i *_amd64.deb
+
+Selecting previously deselected package spl.
+(Reading database ... 225178 files and directories currently installed.)
+Unpacking spl (from spl_0.5.1-2_x86_64.deb) ...
+Selecting previously deselected package spl-modules.
+Unpacking spl-modules (from spl-modules_0.5.1-2_x86_64.deb) ...
+Selecting previously deselected package spl-modules-devel.
+Unpacking spl-modules-devel (from spl-modules-devel_0.5.1-2_x86_64.deb) ...
+Setting up spl (0.5.1-2) ...
+Setting up spl-modules (0.5.1-2) ...
+Setting up spl-modules-devel (0.5.1-2) ...
+</pre>
+
+<p>At this point you&#8217;re all set.  You can now move on to the next step
+and <a href="zfs-building-deb.html">build the zfs packages</a>.  However,
+I&#8217;d advise running the regression suite to verify all the spl interfaces
+are working properly.  Keep in mind however this is a regression test suite
+which is designed to stress your system and expose problems.  You can run the
+test suite by loading the <em>splat</em> regression test module and launching
+the tests as follows.  This will need to be done as root since you are loading
+a kernel module.  If you do observe a failure please re-run the regression
+suite in verbose mode, <em>-v</em>, and open a <a
+href="http://github.com/behlendorf/spl/issues">issue</a> so we can fix it.
+
+<pre>
+$ sudo /sbin/modprobe splat
+$ sudo /usr/sbin/splat
+
+------------------------------ Running SPLAT Tests ------------------------------
+                kmem:kmem_alloc           <font color="green">Pass</font>
+                kmem:kmem_zalloc          <font color="green">Pass</font>
+                kmem:vmem_alloc           <font color="green">Pass</font>
+                kmem:vmem_zalloc          <font color="green">Pass</font>
+                kmem:slab_small           <font color="green">Pass</font>
+                kmem:slab_large           <font color="green">Pass</font>
+                kmem:slab_align           <font color="green">Pass</font>
+                kmem:slab_reap            <font color="green">Pass</font>
+                kmem:slab_age             <font color="green">Pass</font>
+                kmem:slab_lock            <font color="green">Pass</font>
+                kmem:slab_overcommit      <font color="green">Pass</font>
+                kmem:vmem_size            <font color="green">Pass</font>
+               taskq:single               <font color="green">Pass</font>
+               taskq:multiple             <font color="green">Pass</font>
+               taskq:system               <font color="green">Pass</font>
+               taskq:wait                 <font color="green">Pass</font>
+               taskq:order                <font color="green">Pass</font>
+               taskq:front                <font color="green">Pass</font>
+                krng:freq                 <font color="green">Pass</font>
+               mutex:tryenter             <font color="green">Pass</font>
+               mutex:race                 <font color="green">Pass</font>
+               mutex:owned                <font color="green">Pass</font>
+               mutex:owner                <font color="green">Pass</font>
+             condvar:signal1              <font color="green">Pass</font>
+             condvar:broadcast1           <font color="green">Pass</font>
+             condvar:signal2              <font color="green">Pass</font>
+             condvar:broadcast2           <font color="green">Pass</font>
+             condvar:timeout              <font color="green">Pass</font>
+              thread:create               <font color="green">Pass</font>
+              thread:exit                 <font color="green">Pass</font>
+              rwlock:N-rd/1-wr            <font color="green">Pass</font>
+              rwlock:0-rd/N-wr            <font color="green">Pass</font>
+              rwlock:held                 <font color="green">Pass</font>
+              rwlock:tryenter             <font color="green">Pass</font>
+              rwlock:rw_downgrade         <font color="green">Pass</font>
+              rwlock:rw_tryupgrade        <font color="green">Pass</font>
+                time:time1                <font color="green">Pass</font>
+                time:time2                <font color="green">Pass</font>
+               vnode:vn_open              <font color="green">Pass</font>
+               vnode:vn_openat            <font color="green">Pass</font>
+               vnode:vn_rdwr              <font color="green">Pass</font>
+               vnode:vn_rename            <font color="green">Pass</font>
+               vnode:vn_getattr           <font color="green">Pass</font>
+               vnode:vn_sync              <font color="green">Pass</font>
+               vnode:vn_getf              <font color="green">Pass</font>
+                kobj:open                 <font color="green">Pass</font>
+                kobj:size/read            <font color="green">Pass</font>
+              atomic:64-bit               <font color="green">Pass</font>
+                list:create/destroy       <font color="green">Pass</font>
+                list:ins/rm head          <font color="green">Pass</font>
+                list:ins/rm tail          <font color="green">Pass</font>
+                list:insert_after         <font color="green">Pass</font>
+                list:insert_before        <font color="green">Pass</font>
+                list:remove               <font color="green">Pass</font>
+                list:active               <font color="green">Pass</font>
+             generic:ddi_strtoul          <font color="green">Pass</font>
+             generic:ddi_strtol           <font color="green">Pass</font>
+             generic:ddi_strtoull         <font color="green">Pass</font>
+             generic:ddi_strtoll          <font color="green">Pass</font>
+             generic:udivdi3              <font color="green">Pass</font>
+             generic:divdi3               <font color="green">Pass</font>
+                cred:cred                 <font color="green">Pass</font>
+                cred:kcred                <font color="green">Pass</font>
+                cred:groupmember          <font color="green">Pass</font>
+</pre>
+
+</body>
+</html>

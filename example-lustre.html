@@ -1,0 +1,94 @@
+<html>
+<head>
+<title>Lustre Example</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="ZFS Lustre Example." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width="80%">
+	<tr>
+		<td>
+<p>The focus of this project at
+<a href="https://computing.llnl.gov/">Livermore</a> has been to port the
+ZFS DMU to the Linux kernel as a replacement back-end for ldiskfs.  Oracle
+is also keenly aware of
+<a href="http://wiki.lustre.org/index.php/ZFS_and_Lustre">
+ldiskfs&#8217;s limitations</a> and has been working to integrate ZFS with
+Lustre on Solaris.  For very large systems there is a recognition that a ZFS
+based back-end is required to meet the scaling and performance demands of
+large production clusters.  We would love to see the
+<a href="example-zpl.html">ZFS posix layer finished</a> as well but it is
+not a critical part of our plans in the near term.</p>
+
+<p>In particular, ZFS&#8217;s advanced architecture addresses two of our
+key performance concerns: random I/O, and small I/O.  In a large cluster
+environment a Lustre I/O server (OSS) can be expected to generate a random
+I/O workload.  There will be 100&#8217;s of threads concurrently accessing
+different files in the back-end file system.  For writes ZFS&#8217;s
+copy-on-write transaction model converts this random workload in to a
+streaming workload which is critical when using SATA disks.  For small I/O,
+Lustre can leverage a ZIL placed on separate SSD devices to maximize
+performance.</p>
+
+<p>Our intention is to deploy a 50 petabyte production Lustre file system
+based on this Linux ZFS port.  With that much hardware on the floor
+failures of all parts of the system occur on a regular basis.  For this
+reason, ZFS&#8217;s ability to detect and repair data corruption online is a
+critical feature for us.  This includes cleanly handling many different
+failure modes without the need for an offline file system check.</p>
+
+<p>To prove we can successfully deploy a Lustre file system of this size
+based on a Linux port of ZFS, we have purchased a full storage scalable
+unit (SSU) of our target hardware for development and testing.  An SSU is our
+fundamental building block when designing a Lustre file system.  The idea is
+to add as many SSUs as needed to reach the design target for the system.  Our
+Lustre ZFS SSU looks like this, and this hardware is being used to stabilize
+this code base for production use.</p>
+		</td>
+	</tr>
+	<tr>
+		<td>
+<img src="images/zfs-hardware.png" align="right">
+<br \><p><b>ZFS SSU Hardware Specifications:</b></p>
+<ul>
+	<li>8
+<a href="http://www.supermicro.com/products/motherboard/QPI/5500/X8DTH-6F.cfm">
+Supermicro X8DTH-6F OSSs</a>
+	<ul>
+		<li>Nahelm dual-socket quad-core 2.5Ghz cpus</li>
+		<li>24GB of memory</li>
+	</ul></li>
+	<li>10 dual attached 60-bay SAS enclosures
+	<li>40 dual-port SAS2 adapters
+	<ul>
+		<li>5 per OSS, one connection to each enclosure</li>
+	</ul></li>
+	<li>560 2TB SATA Drives
+	<ul>
+		<li>70 per OSS, 7 striped groups of 8+2 raidz2</li>
+		<li>Dual attached for fail-over</li>
+		<li>~900TB of usable space</li>
+	</ul></li>
+	<li>40 SSDs
+	<ul>
+		<li>2 per OSS, mirrored ZIL</li>
+		<li>3 per OSS, striped meta data only L2ARC</li>
+		<li>Dual attached for failover</li>
+	</ul></li>
+	<li>8 QDR Infiniband and 8 dual-port 10GigE adapters
+	<ul>
+		<li>1 QDR Infiniband per OSS</li>
+		<li>2 10GigE per OSS</li>
+	</ul></li>
+</ul>
+		</td>
+	</tr>
+</table>
+ 
+</center>
+</body>
+</html>

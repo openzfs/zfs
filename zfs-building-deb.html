@@ -1,0 +1,139 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building ZFS DEB Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+</center>
+
+<p>Once the <a href="spl-building-deb.html">spl packages are built
+and installed</a> you can build the zfs packages using the standard
+autoconf style build system.  The zfs build system is designed to detect
+and build against your kernel and the spl module.  Simply build it as
+you would any other autoconf style project.  The build system will make an
+educated guess as to which kernel and version of the spl you wish to build
+against.  If it guesses wrong simply specify your kernel devel headers using
+the <em>--with-linux</em> configure option.  You may also need the
+<em>--with-linux-obj</em> configure option if the kernel build objects
+are installed in a different directory.  You can also specify an alternate
+version of the spl using the <em>--with-spl</em> and <em>--with-spl-obj</em>
+
+<pre>
+$ ./configure
+$ make pkg
+</pre>
+
+<p>The result of this will be two source rpm packages...  Yes, source rpm
+packages.  Currently, deb style packages are built by first creating rpm
+packages and then converting them to deb packages using alien.  Long term
+we would like to directly create deb packages but it has not been a priority.
+If anyone familiar with debian style packaging would like to help with this
+please feel free to contact us.</p>
+
+<ul>
+	<li><em>zfs-w.x.y-z.src.rpm</em>: Source for the zfs utilities,
+	libraries, and test infrastructure.</li>
+	<li><em>zfs-modules-w.x.y-z.src.rpm</em>: Source for the zfs
+	kernel module stack.
+	</li>
+</ul>
+
+<p>And five binary deb packages for your platform.</p>
+
+<ul>
+	<li><em>zfs-w.x.y-z_arch.deb</em>: The zfs utilities
+	and libraries.</li>
+	<li><em>zfs-devel-w.x.y-z_arch.deb</em>: The zfs
+	development headers.</li>
+	<li><em>zfs-test-w.x.y-z_arch.deb</em>: The zfs
+	regression test scripts and infrastructure.</li>
+	<li><em>zfs-modules-w.x.y-z_kernel_arch.deb</em>: The
+	zfs kernel module stack for your kernel version.</li>
+	<li><em>zfs-modules-devel-w.x.y-z_kernel_arch.deb</em>:
+	The zfs development headers and symbols for building dependent
+	kernel modules.</li>
+</ul>
+
+<p>Next go ahead and install the packages.</p>
+
+<pre>
+$ dpkg -i *_amd64.deb
+
+Selecting previously deselected package zfs.
+(Reading database ... 225344 files and directories currently installed.)
+Unpacking zfs (from zfs_0.5.0-2_amd64.deb) ...
+Selecting previously deselected package zfs-devel.
+Unpacking zfs-devel (from zfs-devel_0.5.0-2_amd64.deb) ...
+Selecting previously deselected package zfs-modules.
+Unpacking zfs-modules (from zfs-modules_0.5.0-2_amd64.deb) ...
+Selecting previously deselected package zfs-modules-devel.
+Unpacking zfs-modules-devel (from zfs-modules-devel_0.5.0-2_amd64.deb) ...
+Selecting previously deselected package zfs-test.
+Unpacking zfs-test (from zfs-test_0.5.0-2_amd64.deb) ...
+Setting up zfs (0.5.0-2) ...
+Setting up zfs-devel (0.5.0-2) ...
+Setting up zfs-modules (0.5.0-2) ...
+Setting up zfs-modules-devel (0.5.0-2) ...
+Setting up zfs-test (0.5.0-2) ...
+Processing triggers for man-db ...
+Processing triggers for libc-bin ...
+ldconfig deferred processing now taking place
+</pre>
+
+<p>At this point you&#8217;re all set!  You should be able to use the
+zfs tools just like you would under Solaris.  If your unfamiliar with
+ZFS I would suggest looking over the
+<a href="http://hub.opensolaris.org/bin/view/Community+Group+zfs/docs">
+official documentation</a> or going through one the many tutorials
+available online .  There are also several examples available
+<a href="index.html">here</a>.</p>
+
+<p>However, I&#8217;d advise you first to take a few minutes to run a couple
+sanity regression tests to make sure everything is working properly.
+These tests will require at least 1GiB of space in /tmp/ for loopback
+devices and files.</p>
+
+<p>The first test you&#8217;ll want to run is called zconfig.sh which
+validates that the zfs utilities are working properly.  Once that passes you
+will want to run zpios-sanity.sh which will create several zpool
+configurations and verify IO is working properly.  Both of these tests will
+configure zfs to use file and loopback devices so none of your real system
+data is at risk.  These tests will need to be run as root since you are
+loading several kernel modules.  If you do observe a failure please record as
+much debug information as possible and open an <a
+href="http://github.com/behlendorf/zfs/issues">issue</a> so I can fix it.</p>
+
+<pre>
+$ sudo /sbin/modprobe zfs
+$ sudo /usr/libexec/zfs/zconfig.sh -c
+
+1    persistent zpool.cache               <font color="green">Pass</font>
+2    scan disks for pools to import       <font color="green">Pass</font>
+3    zpool import/export device           <font color="green">Pass</font>
+4    zpool insmod/rmmod device            <font color="green">Pass</font>
+5    zvol+ext3 volume                     <font color="green">Pass</font>
+6    zvol+ext2 snapshot                   <font color="green">Pass</font>
+7    zvol+ext2 clone                      <font color="green">Pass</font>
+8    zfs send/receive                     <font color="green">Pass</font>
+9    zpool events                         <font color="green">Pass</font>
+
+$ sudo /usr/libexec/zfs/zpios-sanity.sh
+
+status    name        id        wr-data wr-ch   wr-bw   rd-data rd-ch   rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0        64m     64      593.35m 64m     64      3.68g
+PASS:     file-raid10  0        64m     64      310.89m 64m     64      1.16g
+PASS:     file-raidz   0        64m     64      503.97m 64m     64      3.68g
+PASS:     file-raidz2  0        64m     64      230.22m 64m     64      3.13g
+PASS:     lo-raid0     0        64m     64      11.25m  64m     64      3.11g
+PASS:     lo-raid10    0        64m     64      7.78m   64m     64      1.12g
+PASS:     lo-raidz     0        64m     64      10.48m  64m     64      1.25g
+PASS:     lo-raidz2    0        64m     64      7.43m   64m     64      1.18g
+</pre>
+
+</body>
+</html>

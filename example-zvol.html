@@ -1,0 +1,112 @@
+<html>
+<head>
+<title>ZVOL Example</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="ZFS ZVOL Example." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+
+<p>Currently in the ZFS for Linux port the only interface available
+from user space is the zvol.  The zvol allows you to create a virtual block
+device dataset in a zfs storage pool.  While this may not immediately seem
+like a big deal it does open up some interesting possibilities.  For example,
+your virtual block device is now backed by whatever level of zfs data
+replication you like (<em>mirror</em>, <em>raidz</em>,  <em>raidz2</em>,
+<em>etc</em>) all with online scrubbing.  Your virtual block device also has
+fast snapshots due to zfs&#8217;s copy on write transaction model.  This
+allows you do some interesting things like format an ext2 file system which
+uses a zvol based block device and mount it on your system.  Here&#8217;s an
+example how:</p>
+
+<p>Create the <em>tank</em> zpool containing a raidz vdev spread over
+4 devices.</p>
+
+<pre>
+$ zpool create tank raidz /dev/sdb /dev/sdc /dev/sdd /dev/sde
+$ zpool list
+
+NAME   SIZE   USED  AVAIL    CAP  HEALTH  ALTROOT
+tank  1.81T   132K  1.81T     0%  ONLINE  -
+</pre>
+
+<p>Create a 100G block device named <em>fish</em> in the <em>tank</em>
+zpool.</p>
+
+<pre>
+$ zfs create -V 100G tank/fish
+$ zfs list
+
+NAME        USED  AVAIL  REFER  MOUNTPOINT
+tank        100G  1.24T  26.9K  /tank
+tank/fish   100G  1.33T  23.9K  -
+</pre>
+
+<p>Partition <em>tank/fish</em> as if it were a normal block device.</p>
+
+<pre>
+$ sfdisk /dev/tank/fish &lt;&lt; EOF
+0,
+EOF
+$ sfdisk -l /dev/tank/fish
+
+Disk /dev/tank/fish: 208050 cylinders, 16 heads, 63 sectors/track
+Units = cylinders of 516096 bytes, blocks of 1024 bytes, counting from 0
+
+   Device Boot Start     End   #cyls    #blocks   Id  System
+/dev/tank/fish1          0+ 208049  208050- 104857199+  83  Linux
+/dev/tank/fish2          0       -       0          0    0  Empty
+/dev/tank/fish3          0       -       0          0    0  Empty
+/dev/tank/fish4          0       -       0          0    0  Empty
+</pre>
+
+<p>Format the new /dev/tank/fish1 partition with ext2 and mount it.</p>
+
+<pre>
+$ mkfs.ext2 -q /dev/tank/fish1
+$ mkdir -p /mnt/tank/fish1
+$ mount /dev/tank/fish1 /mnt/tank/fish1
+$ ls /mnt/tank/fish1
+
+lost+found
+</pre>
+
+<p>Take a snapshot of the pristine ext2 filesystem and mount it read-only.</p>
+
+<pre>
+$ zfs snapshot tank/fish@pristine1
+$ mkdir /mnt/tank/fish@pristine1
+$ mount /dev/tank/fish@pristine1 /mnt/tank/fish@pristine1
+$ ls /mnt/tank/fish\@pristine1
+
+lost+found
+</pre>
+
+<p>Changes made to tank/fish1 do not appear in tank/fish@pristine1</p>
+
+<pre>
+$ touch /mnt/tank/fish1/foo
+$ ls /mnt/tank/fish1/
+
+foo  lost+found
+
+$ ls /mnt/tank/fish\@pristine1
+
+lost+found
+</pre>
+
+<p>Enjoy the possibilities!</p>
+
+		</td>
+	</tr>
+</table>
+ 
+</center>
+</body>
+</html>
