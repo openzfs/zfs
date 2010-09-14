@@ -12,4 +12,4 @@ $ ./configure
 $ make pkg
 
 Full documentation for building, configuring, and using the SPL can
-be found at: <http://wiki.github.com/behlendorf/spl/>
+be found at: <http://zfsonlinux.org>
