@@ -8,8 +8,8 @@ primitives.
 
 To build packages for your distribution:
 
-$ ./configure
-$ make pkg
+    $ ./configure
+    $ make pkg
 
 Full documentation for building, configuring, and using the SPL can
 be found at: <http://zfsonlinux.org>
