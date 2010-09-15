@@ -103,6 +103,7 @@ AC_CONFIG_FILES([
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile
 	scripts/zpool-config/Makefile
+	scripts/zpool-layout/Makefile
 	scripts/common.sh
 	zfs.spec
 	zfs-modules.spec
