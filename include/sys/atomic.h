@@ -93,41 +93,51 @@ atomic_sub_32(volatile uint32_t *target, int32_t delta)
 static __inline__ uint32_t
 atomic_inc_32_nv(volatile uint32_t *target)
 {
+	uint32_t nv;
+
 	spin_lock(&atomic32_lock);
-	(*target)++;
+	nv = ++(*target);
 	spin_unlock(&atomic32_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint32_t
 atomic_dec_32_nv(volatile uint32_t *target)
 {
+	uint32_t nv;
+
 	spin_lock(&atomic32_lock);
-	(*target)--;
+	nv = --(*target);
 	spin_unlock(&atomic32_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint32_t
 atomic_add_32_nv(volatile uint32_t *target, uint32_t delta)
 {
+	uint32_t nv;
+
 	spin_lock(&atomic32_lock);
 	*target += delta;
+	nv = *target;
 	spin_unlock(&atomic32_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint32_t
 atomic_sub_32_nv(volatile uint32_t *target, uint32_t delta)
 {
+	uint32_t nv;
+
 	spin_lock(&atomic32_lock);
 	*target -= delta;
+	nv = *target;
 	spin_unlock(&atomic32_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint32_t
@@ -181,41 +191,51 @@ atomic_sub_64(volatile uint64_t *target, uint64_t delta)
 static __inline__ uint64_t
 atomic_inc_64_nv(volatile uint64_t *target)
 {
+	uint64_t nv;
+
 	spin_lock(&atomic64_lock);
-	(*target)++;
+	nv = ++(*target);
 	spin_unlock(&atomic64_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint64_t
 atomic_dec_64_nv(volatile uint64_t *target)
 {
+	uint64_t nv;
+
 	spin_lock(&atomic64_lock);
-	(*target)--;
+	nv = --(*target);
 	spin_unlock(&atomic64_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint64_t
 atomic_add_64_nv(volatile uint64_t *target, uint64_t delta)
 {
+	uint64_t nv;
+
 	spin_lock(&atomic64_lock);
 	*target += delta;
+	nv = *target;
 	spin_unlock(&atomic64_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint64_t
 atomic_sub_64_nv(volatile uint64_t *target, uint64_t delta)
 {
+	uint64_t nv;
+
 	spin_lock(&atomic64_lock);
 	*target -= delta;
+	nv = *target;
 	spin_unlock(&atomic64_lock);
 
-	return *target;
+	return nv;
 }
 
 static __inline__ uint64_t
