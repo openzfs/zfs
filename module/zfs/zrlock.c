@@ -194,3 +194,14 @@ zrl_owner(zrlock_t *zrl)
 	return (zrl->zr_owner);
 }
 #endif
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+
+#ifdef ZFS_DEBUG
+EXPORT_SYMBOL(zrl_add_debug);
+#else
+EXPORT_SYMBOL(zrl_add);
+#endif
+EXPORT_SYMBOL(zrl_remove);
+
+#endif
