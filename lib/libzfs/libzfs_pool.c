@@ -3047,6 +3047,8 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 	(void) ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_VDEV_SETPATH, &zc);
 }
 
+#define	PATH_BUF_LEN	64
+
 /*
  * Given a vdev, return the name to display in iostat.  If the vdev has a path,
  * we use that, stripping off any leading "/dev/dsk/"; if not, we use the type.
@@ -3068,7 +3070,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 {
 	char *path, *devid, *type;
 	uint64_t value;
-	char buf[64];
+	char buf[PATH_BUF_LEN];
 	vdev_stat_t *vs;
 	uint_t vsc;
 
@@ -3160,11 +3162,13 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a raidz device, we need to stick in the parity level.
 		 */
 		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
+			char tmpbuf[PATH_BUF_LEN];
+
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 			    &value) == 0);
-			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
+			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s%llu", path,
 			    (u_longlong_t)value);
-			path = buf;
+			path = tmpbuf;
 		}
 
 		/*
