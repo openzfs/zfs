@@ -211,8 +211,8 @@ dsl_scan_setup_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	/* back to the generic stuff */
 
 	if (dp->dp_blkstats == NULL) {
-		dp->dp_blkstats =
-		    kmem_alloc(sizeof (zfs_all_blkstats_t), KM_SLEEP);
+		dp->dp_blkstats = kmem_alloc(sizeof (zfs_all_blkstats_t),
+		    KM_SLEEP | KM_NODEBUG);
 	}
 	bzero(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 
