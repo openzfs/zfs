@@ -91,6 +91,17 @@ bdev_capacity(struct block_device *bdev)
 	return get_capacity(bdev->bd_disk);
 }
 
+static void
+vdev_disk_error(zio_t *zio)
+{
+#ifdef ZFS_DEBUG
+	printk("ZFS: zio error=%d type=%d offset=%llu "
+	    "size=%llu flags=%x\n", zio->io_error, zio->io_type,
+	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
+	    zio->io_flags);
+#endif
+}
+
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 {
@@ -232,6 +243,9 @@ vdev_disk_dio_put(dio_request_t *dr)
 
 		if (zio) {
 			zio->io_error = error;
+			ASSERT3S(zio->io_error, >=, 0);
+			if (zio->io_error)
+				vdev_disk_error(zio);
 			zio_interrupt(zio);
 		}
 	}
@@ -259,10 +273,10 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
 	if (error == 0 && !test_bit(BIO_UPTODATE, &bio->bi_flags))
-		error = EIO;
+		error = -EIO;
 
 	if (dr->dr_error == 0)
-		dr->dr_error = error;
+		dr->dr_error = -error;
 
 	/* Drop reference aquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
@@ -434,6 +448,9 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 		zio->io_vd->vdev_nowritecache = B_TRUE;
 
 	bio_put(bio);
+	ASSERT3S(zio->io_error, >=, 0);
+	if (zio->io_error)
+		vdev_disk_error(zio);
 	zio_interrupt(zio);
 
 	BIO_END_IO_RETURN(0);
