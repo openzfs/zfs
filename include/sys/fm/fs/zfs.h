@@ -80,6 +80,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_ERR		"zio_err"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_OFFSET	"zio_offset"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_SIZE		"zio_size"
+#define	FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS	"zio_flags"
 #define	FM_EREPORT_PAYLOAD_ZFS_PREV_STATE	"prev_state"
 #define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_EXPECTED	"cksum_expected"
 #define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_ACTUAL	"cksum_actual"

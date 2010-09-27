@@ -144,22 +144,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    zio->io_type != ZIO_TYPE_WRITE)
 			return;
 
-		/*
-		 * Ignore any errors from speculative I/Os, as failure is an
-		 * expected result.
-		 */
-		if (zio->io_flags & ZIO_FLAG_SPECULATIVE)
-			return;
-
-		/*
-		 * If this I/O is not a retry I/O, don't post an ereport.
-		 * Otherwise, we risk making bad diagnoses based on B_FAILFAST
-		 * I/Os.
-		 */
-		if (zio->io_error == EIO &&
-		    !(zio->io_flags & ZIO_FLAG_IO_RETRY))
-			return;
-
 		if (vd != NULL) {
 			/*
 			 * If the vdev has already been marked as failing due
@@ -304,6 +288,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		 */
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_ERR,
 		    DATA_TYPE_INT32, zio->io_error, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS,
+		    DATA_TYPE_INT32, zio->io_flags, NULL);
 
 		/*
 		 * If the 'size' parameter is non-zero, it indicates this is a
