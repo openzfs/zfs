@@ -241,7 +241,7 @@ get_usage(zpool_help_t idx) {
 		    "\tupgrade -v\n"
 		    "\tupgrade [-V version] <-a | pool ...>\n"));
 	case HELP_EVENTS:
-		return (gettext("\tevents [-vfc]\n"));
+		return (gettext("\tevents [-vHfc]\n"));
 	case HELP_GET:
 		return (gettext("\tget <\"all\" | property[,...]> "
 		    "<pool> ...\n"));
@@ -4228,6 +4228,7 @@ zpool_do_history(int argc, char **argv)
 
 typedef struct ev_opts {
 	int verbose;
+	int scripted;
 	int follow;
 	int clear;
 } ev_opts_t;
@@ -4342,7 +4343,7 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 			printf(gettext("(embedded nvlist)\n"));
 			(void) nvpair_value_nvlist(nvp, &cnv);
 			zpool_do_events_nvprint(cnv, depth + 8);
-			printf(gettext("%*s(end %s)\n"), depth, "", name);
+			printf(gettext("%*s(end %s)"), depth, "", name);
 			break;
 
 		case DATA_TYPE_NVLIST_ARRAY: {
@@ -4472,7 +4473,8 @@ zpool_do_events_next(ev_opts_t *opts)
         cleanup_fd = open(ZFS_DEV, O_RDWR);
         VERIFY(cleanup_fd >= 0);
 
-	(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");
+	if (!opts->scripted)
+		(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");
 
 	while (1) {
 		ret = zpool_events_next(g_zfs, &nvl, &dropped,
@@ -4523,10 +4525,13 @@ zpool_do_events(int argc, char **argv)
 	int c;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "vfc")) != -1) {
+	while ((c = getopt(argc, argv, "vHfc")) != -1) {
 		switch (c) {
 		case 'v':
 			opts.verbose = 1;
+			break;
+		case 'H':
+			opts.scripted = 1;
 			break;
 		case 'f':
 			opts.follow = 1;
