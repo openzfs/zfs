@@ -4,6 +4,7 @@ pkglibexecdir = $(libexecdir)/@PACKAGE@
 dist_pkglibexec_SCRIPTS = \
 	$(top_builddir)/scripts/common.sh \
 	$(top_srcdir)/scripts/zconfig.sh \
+	$(top_srcdir)/scripts/zfault.sh \
 	$(top_srcdir)/scripts/zfs.sh \
 	$(top_srcdir)/scripts/zpool-create.sh \
 	$(top_srcdir)/scripts/zpios.sh \
@@ -12,6 +13,7 @@ dist_pkglibexec_SCRIPTS = \
 
 ZFS=$(top_builddir)/scripts/zfs.sh
 ZCONFIG=$(top_builddir)/scripts/zconfig.sh
+ZFAULT=$(top_builddir)/scripts/zfault.sh
 ZTEST=$(top_builddir)/cmd/ztest/ztest
 ZPIOS_SANITY=$(top_builddir)/scripts/zpios-sanity.sh
 
@@ -48,7 +50,13 @@ check:
 	@echo -n " ZCONFIG "
 	@echo    "==================================="
 	@echo
-	@$(ZCONFIG)
+	@$(ZCONFIG) -c
+	@echo
+	@echo -n "==================================="
+	@echo -n " ZFAULT "
+	@echo    "==================================="
+	@echo
+	@$(ZFAULT) -c
 	@echo
 	@echo -n "===================================="
 	@echo -n " ZPIOS "

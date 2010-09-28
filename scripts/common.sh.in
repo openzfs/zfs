@@ -61,6 +61,11 @@ LSMOD=${LSMOD:-/sbin/lsmod}
 RMMOD=${RMMOD:-/sbin/rmmod}
 INFOMOD=${INFOMOD:-/sbin/modinfo}
 LOSETUP=${LOSETUP:-/sbin/losetup}
+MDADM=${MDADM:-/sbin/mdadm}
+PARTED=${PARTED:-/sbin/parted}
+BLOCKDEV=${BLOCKDEV:-/sbin/blockdev}
+LSSCSI=${LSSCSI:-/usr/bin/lsscsi}
+SCSIRESCAN=${SCSIRESCAN:-/usr/bin/scsi-rescan}
 SYSCTL=${SYSCTL:-/sbin/sysctl}
 UDEVADM=${UDEVADM:-/sbin/udevadm}
 AWK=${AWK:-/usr/bin/awk}
@@ -225,8 +230,19 @@ unload_modules() {
 	return 0
 }
 
+#
+# Check that the mdadm utilities are installed.
+#
+check_loop_utils() {
+        test -f ${LOSETUP} || die "${LOSETUP} utility must be installed"
+}
+
+
+#
+# Find and return an unused loopback device.
+#
 unused_loop_device() {
-	for DEVICE in `ls -1 /dev/loop*`; do
+	for DEVICE in `ls -1 /dev/loop* 2>/dev/null`; do
 		${LOSETUP} ${DEVICE} &>/dev/null
 		if [ $? -ne 0 ]; then
 			echo ${DEVICE}
@@ -239,7 +255,7 @@ unused_loop_device() {
 
 #
 # This can be slightly dangerous because the loop devices we are
-# cleanup up may not be ours.  However, if the devices are currently
+# cleaning up may not be ours.  However, if the devices are currently
 # in use we will not be able to remove them, and we only remove
 # devices which include 'zpool' in the name.  So any damage we might
 # do should be limited to other zfs related testing.
@@ -253,6 +269,168 @@ cleanup_loop_devices() {
 	${AWK} -F" " '/zpool/ { system("rm -f "$3) }' ${TMP_FILE}
 
 	rm -f ${TMP_FILE}
+}
+
+#
+# Destroy the passed loopback devices, this is used when you know
+# the names of the loopback devices.
+#
+destroy_loop_devices() {
+	local LODEVICES="$1"
+
+	msg "Destroying ${LODEVICES}"
+	 ${LOSETUP} -d ${LODEVICES} || \
+		die "Error $? destroying ${FILE} -> ${DEVICE} loopback"
+
+	rm -f ${FILES}
+	return 0
+}
+
+#
+# Check that the mdadm utilities are installed.
+#
+check_md_utils() {
+        test -f ${MDADM} || die "${MDADM} utility must be installed"
+	test -f ${PARTED} || die "${PARTED} utility must be installed"
+}
+
+check_md_partitionable() {
+	local LOFILE=`mktemp -p /tmp zpool-lo.XXXXXXXX`
+	local LODEVICE=`unused_loop_device`
+	local MDDEVICE=`unused_md_device`
+	local RESULT=1
+
+	check_md_utils
+
+	rm -f ${LOFILE}
+	dd if=/dev/zero of=${LOFILE} bs=1M count=0 seek=16 \
+		&>/dev/null || return ${RESULT}
+
+	msg "Creating ${LODEVICE} using ${LOFILE}"
+	${LOSETUP} ${LODEVICE} ${LOFILE}
+	if [ $? -ne 0 ]; then
+		rm -f ${LOFILE}
+		return ${RESULT}
+	fi
+
+	msg "Creating ${MDDEVICE} using ${LODEVICE}"
+	${MDADM} --build ${MDDEVICE} --level=faulty \
+		--raid-devices=1 ${LODEVICE} &>/dev/null
+	if [ $? -ne 0 ]; then
+		destroy_loop_devices ${LODEVICE}
+		rm -f ${LOFILE}
+		return ${RESULT}
+	fi
+	wait_udev ${MDDEVICE} 30
+
+	${BLOCKDEV} --rereadpt ${MDDEVICE} 2>/dev/null
+	RESULT=$?
+
+	destroy_md_devices ${MDDEVICE}
+	destroy_loop_devices ${LODEVICE}
+	rm -f ${LOFILE}
+
+	return ${RESULT}
+}
+
+#
+# Find and return an unused md device.
+#
+unused_md_device() {
+	for (( i=0; i<32; i++ )); do
+		MDDEVICE=md${i}
+
+		# Skip active devicesudo in /proc/mdstat.
+		grep -q "${MDDEVICE} " /proc/mdstat && continue
+
+		# Device doesn't exist, use it.
+		if [ ! -e $/dev/{MDDEVICE} ]; then
+			echo /dev/${MDDEVICE}
+			return
+		fi
+
+		# Device exists but may not be in use.
+		if [ -b /dev/${MDDEVICE} ]; then
+			${MDADM} --detail /dev/${MDDEVICE} &>/dev/null
+			if [ $? -eq 1 ]; then
+				echo /dev/${MDDEVICE}
+				return
+			fi
+		fi
+        done
+
+        die "Error: Unable to find unused md device"
+}
+
+#
+# This can be slightly dangerous because it is possible the md devices
+# we are cleaning up may not be ours.  However, if the devices are
+# currently in use we will not be able to remove them, and even if
+# we remove devices which were not out we do not zero the super block
+# so you should be able to reconstruct them.
+#
+cleanup_md_devices() {
+	destroy_md_devices "`ls /dev/md* 2>/dev/null | grep -v p`"
+	udev_trigger
+}
+
+#
+# Destroy the passed md devices, this is used when you know
+# the names of the md devices.
+#
+destroy_md_devices() {
+	local MDDEVICES="$1"
+
+	msg "Destroying ${MDDEVICES}"
+	for MDDEVICE in ${MDDEVICES}; do
+		${MDADM} --stop ${MDDEVICE} &>/dev/null
+		${MDADM} --remove ${MDDEVICE} &>/dev/null
+		${MDADM} --detail ${MDDEVICE} &>/dev/null
+	done
+
+	return 0
+}
+
+#
+# Check that the scsi utilities are installed.
+#
+check_sd_utils() {
+	${INFOMOD} scsi_debug &>/dev/null || die "scsi_debug module required"
+	test -f ${LSSCSI} || die "${LSSCSI} utility must be installed"
+}
+
+#
+# Rescan the scsi bus for scsi_debug devices.  It is preferable to use the
+# scsi-rescan tool if it is installed, but if it's not we can fall back to
+# removing and readding the device manually.  This rescan will only effect
+# the first scsi_debug device if scsi-rescan is missing.
+#
+scsi_rescan() {
+	local AWK_SCRIPT="/scsi_debug/ { print \$1; exit }"
+
+	if [ -f ${SCSIRESCAN} ]; then
+		${SCSIRESCAN} --forcerescan --remove &>/dev/null
+	else
+		local SCSIID=`${LSSCSI} | ${AWK} "${AWK_SCRIPT}" | tr -d '[]'`
+		local SCSIHOST=`echo ${SCSIID} | cut -f1 -d':'`
+		echo 1 >"/sys/class/scsi_device/${SCSIID}/device/delete"
+		udev_trigger
+		echo "- - -" >/sys/class/scsi_host/host${SCSIHOST}/scan
+		udev_trigger
+	fi
+}
+
+#
+# Trigger udev and wait for it to settle.
+#
+udev_trigger() {
+	if [ -f ${UDEVADM} ]; then
+		${UDEVADM} trigger
+		${UDEVADM} settle
+	else
+		/sbin/udevtrigger
+		/sbin/udevsettle
+	fi
 }
 
 #
@@ -292,14 +470,7 @@ udev_setup() {
 		fi
 
 		cp ${SRC_PATH} ${DST_PATH}
-
-		if [ -f ${UDEVADM} ]; then
-			${UDEVADM} trigger
-			${UDEVADM} settle
-		else
-			/sbin/udevtrigger
-			/sbin/udevsettle
-		fi
+		udev_trigger
 	fi
 
 	return 0
@@ -405,7 +576,7 @@ run_one_test() {
 	local TEST_NUM=$1
 	local TEST_NAME=$2
 
-	printf "%-4d %-36s " ${TEST_NUM} "${TEST_NAME}"
+	printf "%-4d %-34s " ${TEST_NUM} "${TEST_NAME}"
 	test_${TEST_NUM}
 }
 
@@ -413,7 +584,7 @@ skip_one_test() {
 	local TEST_NUM=$1
 	local TEST_NAME=$2
 
-	printf "%-4d %-36s " ${TEST_NUM} "${TEST_NAME}"
+	printf "%-4d %-34s " ${TEST_NUM} "${TEST_NAME}"
 	skip
 }
 
@@ -447,6 +618,7 @@ wait_udev() {
 	local DELAY=$2
 	local COUNT=0
 
+	udev_trigger
 	while [ ! -e ${DEVICE} ]; do
 		if [ ${COUNT} -gt ${DELAY} ]; then
 			return 1

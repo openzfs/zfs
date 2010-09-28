@@ -60,6 +60,7 @@ fi
 
 # Perform pre-cleanup is requested
 if [ ${CLEANUP} ]; then
+	cleanup_md_devices
 	cleanup_loop_devices
 	rm -f /tmp/zpool.cache.*
 fi

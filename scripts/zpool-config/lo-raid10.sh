@@ -12,6 +12,8 @@ DEVICES_M1=""
 DEVICES_M2=""
 
 zpool_create() {
+	check_loop_utils
+
 	for FILE in ${FILES_M1}; do
 		DEVICE=`unused_loop_device`
 		msg "Creating ${FILE} using loopback device ${DEVICE}"

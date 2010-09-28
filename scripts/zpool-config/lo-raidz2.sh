@@ -10,6 +10,8 @@ FILES="/tmp/zpool-vdev0  \
 DEVICES=""
 
 zpool_create() {
+	check_loop_utils
+
 	for FILE in ${FILES}; do
 		DEVICE=`unused_loop_device`
 		msg "Creating ${FILE} using loopback device ${DEVICE}"
