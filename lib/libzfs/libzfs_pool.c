@@ -3047,6 +3047,35 @@ set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 	(void) ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_VDEV_SETPATH, &zc);
 }
 
+/*
+ * Remove partition suffix from a vdev path.  Partition suffixes may take three
+ * forms: "-partX", "pX", or "X", where X is a string of digits.  The second
+ * case only occurs when the suffix is preceded by a digit, i.e. "md0p0" The
+ * third case only occurs when preceded by a string matching the regular
+ * expression "^[hs]d[a-z]+", i.e. a scsi or ide disk.
+ */
+static char *
+strip_partition(libzfs_handle_t *hdl, char *path)
+{
+	char *tmp = zfs_strdup(hdl, path);
+	char *part = NULL, *d = NULL;
+
+	if ((part = strstr(tmp, "-part")) && part != tmp) {
+		d = part + 5;
+	} else if ((part = strrchr(tmp, 'p')) &&
+	    part > tmp + 1 && isdigit(*(part-1))) {
+		d = part + 1;
+	} else if ((tmp[0] == 'h' || tmp[0] == 's') && tmp[1] == 'd') {
+		for (d = &tmp[2]; isalpha(*d); part = ++d);
+	}
+	if (part && d && *d != '\0') {
+		for (; isdigit(*d); d++);
+		if (*d == '\0')
+			*part = '\0';
+	}
+	return (tmp);
+}
+
 #define	PATH_BUF_LEN	64
 
 /*
@@ -3129,32 +3158,13 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			path++;
 		}
 
-#if defined(__sun__) || defined(__sun)
 		/*
-		 * The following code strips the slice from the device path.
+		 * Remove the partition from the path it this is a whole disk.
 		 */
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &value) == 0 && value) {
-			int pathlen = strlen(path);
-			char *tmp = zfs_strdup(hdl, path);
-
-			/*
-			 * If it starts with c#, and ends with "s0", chop
-			 * the "s0" off, or if it ends with "s0/old", remove
-			 * the "s0" from the middle.
-			 */
-			if (CTD_CHECK(tmp)) {
-				if (strcmp(&tmp[pathlen - 2], "s0") == 0) {
-					tmp[pathlen - 2] = '\0';
-				} else if (pathlen > 6 &&
-				    strcmp(&tmp[pathlen - 6], "s0/old") == 0) {
-					(void) strcpy(&tmp[pathlen - 6],
-					    "/old");
-				}
-			}
-			return (tmp);
+			return strip_partition(hdl, path);
 		}
-#endif
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
 
