@@ -342,14 +342,12 @@ retry:
 	if (dr == NULL)
 		return ENOMEM;
 
+	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
+			bio_set_flags_failfast(bdev, &flags);
+
 	dr->dr_zio = zio;
 	dr->dr_rw = flags;
 	block_size = vdev_bdev_block_size(bdev);
-
-#ifdef BIO_RW_FAILFAST
-	if (flags & (1 << BIO_RW_FAILFAST))
-		dr->dr_rw |= 1 << BIO_RW_FAILFAST;
-#endif /* BIO_RW_FAILFAST */
 
 	/*
 	 * When the IO size exceeds the maximum bio size for the request
@@ -434,6 +432,7 @@ int
 vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
 		 size_t size, uint64_t offset, int flags)
 {
+	bio_set_flags_failfast(bdev, &flags);
 	return __vdev_disk_physio(bdev, NULL, kbuf, size, offset, flags);
 }
 
@@ -539,11 +538,6 @@ vdev_disk_io_start(zio_t *zio)
 		zio->io_error = ENOTSUP;
 		return ZIO_PIPELINE_CONTINUE;
 	}
-
-#ifdef BIO_RW_FAILFAST
-	if (zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD))
-		flags |= (1 << BIO_RW_FAILFAST);
-#endif /* BIO_RW_FAILFAST */
 
 	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
 		                   zio->io_size, zio->io_offset, flags);

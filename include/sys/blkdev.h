@@ -202,6 +202,38 @@ struct req_iterator {
 		bio_for_each_segment(bvl, _iter.bio, _iter.i)
 #endif /* HAVE_RQ_FOR_EACH_SEGMENT */
 
+static inline void
+bio_set_flags_failfast(struct block_device *bdev, int *flags)
+{
+#ifdef HAVE_BIO_RW_FAILFAST
+	/*
+	 * Disable BIO_RW_FAILFAST_* for loopback devices because of
+	 * the following incorrect BUG_ON() in loop_make_request().
+	 * This support is also disabled for md devices because the
+	 * test suite layers md devices on top of loopback devices.
+	 * This may be removed when the loopback driver is fixed.
+	 *
+	 *   BUG_ON(!lo || (rw != READ && rw != WRITE));
+	 */
+#ifdef CONFIG_BUG
+	if ((MAJOR(bdev->bd_dev) == LOOP_MAJOR) ||
+	    (MAJOR(bdev->bd_dev) == MD_MAJOR))
+		return;
+
+#ifdef BLOCK_EXT_MAJOR
+	if (MAJOR(bdev->bd_dev) == BLOCK_EXT_MAJOR)
+		return;
+#endif /* BLOCK_EXT_MAJOR */
+#endif /* CONFIG_BUG */
+	*flags |=
+	    ((1 << BIO_RW_FAILFAST_DEV) |
+	     (1 << BIO_RW_FAILFAST_TRANSPORT) |
+	     (1 << BIO_RW_FAILFAST_DRIVER));
+#else /* !HAVE_BIO_RW_FAILFAST */
+	*flags |= (1 << BIO_RW_FAILFAST);
+#endif /* HAVE_BIO_RW_FAILFAST */
+}
+
 #ifndef DISK_NAME_LEN
 #define DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */

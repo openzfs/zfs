@@ -15,6 +15,9 @@
 /* bio_empy_barrier() is defined */
 #undef HAVE_BIO_EMPTY_BARRIER
 
+/* BIO_RW_FAILFAST_* are defined */
+#undef HAVE_BIO_RW_FAILFAST
+
 /* BIO_RW_SYNCIO is defined */
 #undef HAVE_BIO_RW_SYNCIO
 
