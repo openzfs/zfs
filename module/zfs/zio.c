@@ -75,6 +75,7 @@ kmem_cache_t *zio_link_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
+int zio_delay_max = ZIO_DELAY_MAX;
 
 #ifdef _KERNEL
 extern vmem_t *zio_alloc_arena;
@@ -2754,6 +2755,17 @@ zio_done(zio_t *zio)
 
 	vdev_stat_update(zio, zio->io_size);
 
+	/*
+	 * If this I/O is attached to a particular vdev is slow, exeeding
+	 * 30 seconds to complete, post an error described the I/O delay.
+	 * We ignore these errors if the device is currently unavailable.
+	 */
+	if (zio->io_delay >= zio_delay_max) {
+		if (zio->io_vd != NULL && !vdev_is_dead(zio->io_vd))
+			zfs_ereport_post(FM_EREPORT_ZFS_DELAY, zio->io_spa,
+                                         zio->io_vd, zio, 0, 0);
+	}
+
 	if (zio->io_error) {
 		/*
 		 * If this I/O is attached to a particular vdev,
@@ -2993,4 +3005,7 @@ EXPORT_SYMBOL(zio_type_name);
 
 module_param(zio_bulk_flags, int, 0644);
 MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
+
+module_param(zio_delay_max, int, 0644);
+MODULE_PARM_DESC(zio_delay_max, "Max zio delay before posting an event (ms)");
 #endif

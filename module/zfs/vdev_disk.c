@@ -95,10 +95,10 @@ static void
 vdev_disk_error(zio_t *zio)
 {
 #ifdef ZFS_DEBUG
-	printk("ZFS: zio error=%d type=%d offset=%llu "
-	    "size=%llu flags=%x\n", zio->io_error, zio->io_type,
+	printk("ZFS: zio error=%d type=%d offset=%llu size=%llu "
+	    "flags=%x delay=%llu\n", zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
-	    zio->io_flags);
+	    zio->io_flags, (u_longlong_t)zio->io_delay);
 #endif
 }
 
@@ -242,6 +242,8 @@ vdev_disk_dio_put(dio_request_t *dr)
 		vdev_disk_dio_free(dr);
 
 		if (zio) {
+			zio->io_delay = jiffies_to_msecs(
+			    jiffies_64 - zio->io_delay);
 			zio->io_error = error;
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
@@ -403,6 +405,8 @@ retry:
 
 	/* Extra reference to protect dio_request during submit_bio */
 	vdev_disk_dio_get(dr);
+	if (zio)
+		zio->io_delay = jiffies_64;
 
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
@@ -442,6 +446,7 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 {
 	zio_t *zio = bio->bi_private;
 
+	zio->io_delay = jiffies_to_msecs(jiffies_64 - zio->io_delay);
 	zio->io_error = -rc;
 	if (rc && (rc == -EOPNOTSUPP))
 		zio->io_vd->vdev_nowritecache = B_TRUE;
@@ -472,6 +477,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
 	bio->bi_bdev = bdev;
+	zio->io_delay = jiffies_64;
 	submit_bio(WRITE_BARRIER, bio);
 
 	return 0;

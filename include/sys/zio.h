@@ -116,6 +116,11 @@ enum zio_compress {
 	ZIO_COMPRESS_ON_VALUE == ZIO_COMPRESS_LZJB) ||	\
 	(compress) == ZIO_COMPRESS_OFF)
 
+/*
+ * Default Linux timeout for a sd device.
+ */
+#define ZIO_DELAY_MAX			(30 * MILLISEC)
+
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1
 #define	ZIO_FAILURE_MODE_PANIC		2
@@ -401,6 +406,7 @@ struct zio {
 	enum zio_flag	io_orig_flags;
 	enum zio_stage	io_orig_stage;
 	enum zio_stage	io_orig_pipeline;
+	uint64_t	io_delay;
 	int		io_error;
 	int		io_child_error[ZIO_CHILD_TYPES];
 	uint64_t	io_children[ZIO_CHILD_TYPES][ZIO_WAIT_TYPES];
