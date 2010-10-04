@@ -561,6 +561,7 @@ unregister:
 	return (error);
 
 }
+#endif /* HAVE_ZPL */
 
 static int
 zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
@@ -611,6 +612,7 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 	return (error);
 }
 
+#ifdef HAVE_ZPL
 static void
 fuidstr_to_sid(zfsvfs_t *zfsvfs, const char *fuidstr,
     char *domainbuf, int buflen, uid_t *ridp)
@@ -2143,9 +2145,9 @@ zfs_init(void)
 	 * Initialize znode cache, vnode ops, etc...
 	 */
 	zfs_znode_init();
+#endif /* HAVE_ZPL */
 
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
-#endif /* HAVE_ZPL */
 }
 
 void
