@@ -133,9 +133,19 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	vd->vd_bdev = bdev;
 	block_size =  vdev_bdev_block_size(bdev);
 
-	/* Check if this is a whole device.  When bdev->bd_contains ==
-	 * bdev we have a whole device and not simply a partition. */
-	v->vdev_wholedisk = !!(bdev->bd_contains == bdev);
+	/* We think the wholedisk property should always be set when this
+	 * function is called.  ASSERT here so if any legitimate cases exist
+	 * where it's not set, we'll find them during debugging.  If we never
+	 * hit the ASSERT, this and the following conditional statement can be
+	 * removed. */
+	ASSERT3S(v->vdev_wholedisk, !=, -1ULL);
+
+	/* The wholedisk property was initialized to -1 in vdev_alloc() if it
+	 * was unspecified.  In that case, check if this is a whole device.
+	 * When bdev->bd_contains == bdev we have a whole device and not simply
+	 * a partition. */
+	if (v->vdev_wholedisk == -1ULL)
+		v->vdev_wholedisk = (bdev->bd_contains == bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
