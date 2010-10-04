@@ -568,13 +568,18 @@ zfs_zevent_fd_rele(int fd)
 }
 
 /*
- * Get the next zevent in the stream and place a copy in 'event'.
+ * Get the next zevent in the stream and place a copy in 'event'.  This
+ * may fail with ENOMEM if the encoded nvlist size exceeds the passed
+ * 'event_size'.  In this case the stream pointer is not advanced and
+ * and 'event_size' is set to the minimum required buffer size.
  */
 int
-zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *dropped)
+zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
+                uint64_t *dropped)
 {
 	zevent_t *ev;
-	int error;
+	size_t size;
+	int error = 0;
 
 	mutex_enter(&zevent_lock);
 	if (ze->ze_zevent == NULL) {
@@ -592,9 +597,17 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *dropped)
 			error = ENOENT;
 			goto out;
 		}
-
-		list_remove(&ze->ze_zevent->ev_ze_list, ze);
 	}
+
+	VERIFY(nvlist_size(ev->ev_nvl, &size, NV_ENCODE_NATIVE) == 0);
+	if (size > *event_size) {
+		*event_size = size;
+		error = ENOMEM;
+		goto out;
+	}
+
+	if (ze->ze_zevent)
+		list_remove(&ze->ze_zevent->ev_ze_list, ze);
 
 	ze->ze_zevent = ev;
 	list_insert_head(&ev->ev_ze_list, ze);
