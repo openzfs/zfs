@@ -40,6 +40,7 @@
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
+#include <wait.h>
 
 #include <libzfs.h>
 
@@ -604,10 +605,79 @@ libzfs_print_on_error(libzfs_handle_t *hdl, boolean_t printerr)
 	hdl->libzfs_printerr = printerr;
 }
 
+static int
+libzfs_module_loaded(const char *module)
+{
+	FILE *f;
+	int result = 0;
+	char name[256];
+
+	f = fopen("/proc/modules", "r");
+	if (f == NULL)
+		return -1;
+
+	while (fgets(name, sizeof(name), f)) {
+		char *c = strchr(name, ' ');
+		if (!c)
+			continue;
+		*c = 0;
+		if (strcmp(module, name) == 0) {
+			result = 1;
+			break;
+		}
+	}
+	fclose(f);
+
+	return result;
+}
+
+static int
+libzfs_run_process(const char *path, char *argv[])
+{
+	pid_t pid;
+	int rc;
+
+	pid = vfork();
+	if (pid == 0) {
+		close(1);
+		close(2);
+		(void) execvp(path, argv);
+		_exit(-1);
+	} else if (pid > 0) {
+		int status;
+
+		while ((rc = waitpid(pid, &status, 0)) == -1 &&
+			errno == EINTR);
+		if (rc < 0 || !WIFEXITED(status))
+			return -1;
+
+		return WEXITSTATUS(status);
+	}
+
+	return -1;
+}
+
+static int
+libzfs_load_module(const char *module)
+{
+	char *argv[4] = {"/sbin/modprobe", "-q", (char *)module, (char *)0};
+
+	if (libzfs_module_loaded(module))
+		return 0;
+	return libzfs_run_process("modprobe", argv);
+}
+
 libzfs_handle_t *
 libzfs_init(void)
 {
 	libzfs_handle_t *hdl;
+
+	if (libzfs_load_module("zfs") != 0) {
+		(void) fprintf(stderr, gettext("Failed to load ZFS module "
+			       "stack.\nLoad the module manually by running "
+			       "'insmod <location>/zfs.ko' as root.\n"));
+		return (NULL);
+	}
 
 	if ((hdl = calloc(1, sizeof (libzfs_handle_t))) == NULL) {
 		return (NULL);
