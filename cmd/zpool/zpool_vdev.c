@@ -384,7 +384,7 @@ static int
 is_shorthand_path(const char *arg, char *path,
                   struct stat64 *statbuf, boolean_t *wholedisk)
 {
-	char dirs[5][8] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
+	char dirs[5][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
 	int i, err;
 
 	/* /dev/<name> */
