@@ -802,6 +802,46 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 }
 
 /*
+ * Given a shorthand device name, check if a file by that name exists in a list
+ * of directories under /dev.  If one is found, store its full path in the
+ * buffer pointed to by the path argument and return 0, else return -1.  The
+ * path buffer must be allocated by the caller.
+ */
+int
+zfs_resolve_shortname(const char *name, char *path, size_t pathlen)
+{
+	int i, err;
+	char dirs[5][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
+
+	(void) snprintf(path, pathlen, "%s/%s", DISK_ROOT, name);
+	err = access(path, F_OK);
+	for (i = 0; i < 5 && err < 0; i++) {
+		(void) snprintf(path, pathlen, "%s/%s/%s",
+		    UDISK_ROOT, dirs[i], name);
+		err = access(path, F_OK);
+	}
+	return err;
+}
+
+/*
+ * Append partition suffix to a device path.  This should be used to generate
+ * the name of a whole disk as it is stored in the vdev label.  The
+ * user-visible names of whole disks do not contain the partition information.
+ * Modifies buf which must be allocated by the caller.
+ */
+void
+zfs_append_partition(const char *path, char *buf, size_t buflen)
+{
+	if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0)
+		(void) snprintf(buf, buflen, "%s%s%s", path, "-part",
+			FIRST_SLICE);
+	else
+		(void) snprintf(buf, buflen, "%s%s%s", path,
+			isdigit(path[strlen(path)-1]) ?  "p" : "",
+			FIRST_SLICE);
+}
+
+/*
  * Initialize the zc_nvlist_dst member to prepare for receiving an nvlist from
  * an ioctl().
  */

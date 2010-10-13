@@ -384,23 +384,9 @@ static int
 is_shorthand_path(const char *arg, char *path,
                   struct stat64 *statbuf, boolean_t *wholedisk)
 {
-	char dirs[5][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
-	int i, err;
-
-	/* /dev/<name> */
-	(void) snprintf(path, MAXPATHLEN, "%s/%s", DISK_ROOT, arg);
-	*wholedisk = is_whole_disk(path);
-	err = stat64(path, statbuf);
-	if (*wholedisk || err == 0)
-		return (0);
-
-	/* /dev/disk/<dirs>/<name> */
-	for (i = 0; i < 5; i++) {
-		(void) snprintf(path, MAXPATHLEN, "%s/%s/%s",
-		    UDISK_ROOT, dirs[i], arg);
+	if (zfs_resolve_shortname(arg, path, MAXPATHLEN) == 0) {
 		*wholedisk = is_whole_disk(path);
-		err = stat64(path, statbuf);
-		if (*wholedisk || err == 0)
+		if (*wholedisk || (stat64(path, statbuf) == 0))
 			return (0);
 	}
 
@@ -1009,13 +995,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * for *-part# to be created.  Otherwise just use the normal
 		 * syntax for devices in /dev.
 		 */
-		if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0)
-			(void) snprintf(buf, sizeof (buf),
-			    "%s%s%s", path, "-part", FIRST_SLICE);
-		else
-			(void) snprintf(buf, sizeof (buf),
-			    "%s%s%s", path, isdigit(path[strlen(path)-1]) ?
-			    "p" : "", FIRST_SLICE);
+		zfs_append_partition(path, buf, sizeof (buf));
 
 		if ((ret = zpool_label_disk_wait(buf, 1000)) != 0) {
 			(void) fprintf(stderr,

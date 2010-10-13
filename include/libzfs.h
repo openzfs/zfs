@@ -630,6 +630,8 @@ extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
 extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
 extern int zfs_spa_version(zfs_handle_t *, int *);
+extern void zfs_append_partition(const char *path, char *buf, size_t buflen);
+extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 
 /*
  * Mount support functions.
