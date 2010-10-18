@@ -65,6 +65,16 @@ if [ ${CLEANUP} ]; then
 	rm -f /tmp/zpool.cache.*
 fi
 
+# Check if we need to skip the tests that require scsi_debug and lsscsi.
+SCSI_DEBUG=0
+${INFOMOD} scsi_debug &>/dev/null && SCSI_DEBUG=1
+HAVE_LSSCSI=0
+test -f ${LSSCSI} && HAVE_LSSCSI=1
+if [ ${SCSI_DEBUG} -eq 0 ] || [ ${HAVE_LSSCSI} -eq 0 ]; then
+	echo "Skipping test 10 which requires the scsi_debug " \
+		"module and the ${LSSCSI} utility"
+fi
+
 zconfig_partition() {
 	local DEVICE=$1
 	local START=$2
@@ -565,6 +575,97 @@ test_9() {
 	pass
 }
 run_test 9 "zpool events"
+
+zconfig_add_vdev() {
+	local POOL_NAME=$1
+	local TYPE=$2
+	local DEVICE=$3
+	local TMP_FILE1=`mktemp`
+	local TMP_FILE2=`mktemp`
+	local TMP_FILE3=`mktemp`
+
+	BASE_DEVICE=`basename ${DEVICE}`
+
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE1}
+	${ZPOOL} add -f ${POOL_NAME} ${TYPE} ${DEVICE} 2>/dev/null || return 1
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2}
+	diff ${TMP_FILE1} ${TMP_FILE2} > ${TMP_FILE3}
+
+	[ `wc -l ${TMP_FILE3}|${AWK} '{print $1}'` -eq 3 ] || return 1
+
+	PARENT_VDEV=`tail -2 ${TMP_FILE3} | head -1 | ${AWK} '{print $NF}'`
+	case $TYPE in
+	cache)
+		[ "${PARENT_VDEV}" = "${TYPE}" ] || return 1
+		;;
+	log)
+		[ "${PARENT_VDEV}" = "logs" ] || return 1
+		;;
+	esac
+
+	if ! tail -1 ${TMP_FILE3} |
+	    egrep -q "^>[[:space:]]+${BASE_DEVICE}[[:space:]]+ONLINE" ; then
+		return 1
+	fi
+	rm -f ${TMP_FILE1} ${TMP_FILE2} ${TMP_FILE3}
+
+	return 0
+}
+
+# zpool add and remove sanity check
+test_10() {
+	local POOL_NAME=tank
+	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+	local TMP_FILE1=`mktemp`
+	local TMP_FILE2=`mktemp`
+
+	if [ ${SCSI_DEBUG} -eq 0 ] || [ ${HAVE_LSSCSI} -eq 0 ] ; then
+		skip
+		return
+	fi
+
+	test `${LSMOD} | grep -c scsi_debug` -gt 0 && \
+		(${RMMOD} scsi_debug || exit 1)
+
+	/sbin/modprobe scsi_debug dev_size_mb=128 ||
+		die "Error $? creating scsi_debug device"
+	udev_trigger
+
+	SDDEVICE=`${LSSCSI}|${AWK} '/scsi_debug/ { print $6; exit }'`
+	BASE_SDDEVICE=`basename $SDDEVICE`
+
+	# Create a pool
+	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE1} || fail 3
+
+	# Add and remove a cache vdev by full path
+	zconfig_add_vdev ${POOL_NAME} cache ${SDDEVICE} || fail 4
+	${ZPOOL} remove ${POOL_NAME} ${SDDEVICE} || fail 5
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 6
+	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 7
+
+	# Add and remove a cache vdev by shorthand path
+	zconfig_add_vdev ${POOL_NAME} cache ${BASE_SDDEVICE} || fail 8
+	${ZPOOL} remove ${POOL_NAME} ${BASE_SDDEVICE} || fail 9
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 10
+	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 11
+
+	# Add and remove a log vdev
+	zconfig_add_vdev ${POOL_NAME} log ${BASE_SDDEVICE} || fail 12
+	${ZPOOL} remove ${POOL_NAME} ${BASE_SDDEVICE} || fail 13
+	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 14
+	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 15
+
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 16
+	${ZFS_SH} -u || fail 17
+	${RMMOD} scsi_debug || fail 18
+
+	rm -f ${TMP_FILE1} ${TMP_FILE2} ${TMP_CACHE} || fail 19
+
+	pass
+}
+run_test 10 "zpool add/remove vdev"
 
 exit 0
 
