@@ -499,43 +499,6 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
 
-#if defined(__sun__) || defined(__sun)
-	/*
-	 * For a whole disk, defer getting its devid until after labeling it.
-	 */
-	if (S_ISBLK(statbuf.st_mode) && !wholedisk) {
-		/*
-		 * Get the devid for the device.
-		 */
-		int fd;
-		ddi_devid_t devid;
-		char *minor = NULL, *devid_str = NULL;
-
-		if ((fd = open(path, O_RDONLY|O_EXCL)) < 0) {
-			(void) fprintf(stderr, gettext("cannot open '%s': "
-			    "%s\n"), path, strerror(errno));
-			nvlist_free(vdev);
-			return (NULL);
-		}
-
-		if (devid_get(fd, &devid) == 0) {
-			if (devid_get_minor_name(fd, &minor) == 0 &&
-			    (devid_str = devid_str_encode(devid, minor)) !=
-			    NULL) {
-				verify(nvlist_add_string(vdev,
-				    ZPOOL_CONFIG_DEVID, devid_str) == 0);
-			}
-			if (devid_str != NULL)
-				devid_str_free(devid_str);
-			if (minor != NULL)
-				devid_str_free(minor);
-			devid_free(devid);
-		}
-
-		(void) close(fd);
-	}
-#endif
-
 	return (vdev);
 }
 
