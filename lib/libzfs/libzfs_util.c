@@ -664,7 +664,7 @@ libzfs_load_module(const char *module)
 
 	if (libzfs_module_loaded(module))
 		return 0;
-	return libzfs_run_process("modprobe", argv);
+	return libzfs_run_process("/sbin/modprobe", argv);
 }
 
 libzfs_handle_t *
