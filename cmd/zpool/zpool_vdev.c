@@ -909,8 +909,10 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	nvlist_t **child;
 	uint_t c, children;
 	char *type, *path, *diskname;
-	char buf[MAXPATHLEN];
+	char devpath[MAXPATHLEN];
+	char udevpath[MAXPATHLEN];
 	uint64_t wholedisk;
+	struct stat64 statbuf;
 	int ret;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
@@ -937,32 +939,42 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			return (ret);
 		}
 
-		if (realpath(path, buf) == NULL) {
+		if (realpath(path, devpath) == NULL) {
 			ret = errno;
 			(void) fprintf(stderr,
 			    gettext("cannot resolve path '%s'\n"), path);
 			return (ret);
 		}
 
-		diskname = strrchr(buf, '/');
+		/*
+		 * Remove any previously existing symlink from a udev path to
+		 * the device before labeling the disk.  This makes
+		 * zpool_label_disk_wait() truly wait for the new link to show
+		 * up instead of returning if it finds an old link still in
+		 * place.  Otherwise there is a window between when udev
+		 * deletes and recreates the link during which access attempts
+		 * will fail with ENOENT.
+		 */
+		zfs_append_partition(path, udevpath, sizeof (udevpath));
+		if ((strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) &&
+		    (lstat64(udevpath, &statbuf) == 0) &&
+		    S_ISLNK(statbuf.st_mode))
+			(void) unlink(udevpath);
+
+		diskname = strrchr(devpath, '/');
 		assert(diskname != NULL);
 		diskname++;
 		if (zpool_label_disk(g_zfs, zhp, diskname) == -1)
 			return (-1);
 
 		/*
-		 * Now the we've labeled the disk and the partitions have
-		 * been created.  We still need to wait for udev to create
-		 * the symlinks to those partitions.  If we are accessing
-		 * the devices via a udev disk path, /dev/disk, then wait
-		 * for *-part# to be created.  Otherwise just use the normal
-		 * syntax for devices in /dev.
+		 * Now we've labeled the disk and the partitions have been
+		 * created.  We still need to wait for udev to create the
+		 * symlinks to those partitions.
 		 */
-		zfs_append_partition(path, buf, sizeof (buf));
-
-		if ((ret = zpool_label_disk_wait(buf, 1000)) != 0) {
+		if ((ret = zpool_label_disk_wait(udevpath, 1000)) != 0) {
 			(void) fprintf(stderr,
-			    gettext( "cannot resolve path '%s'\n"), buf);
+			    gettext( "cannot resolve path '%s'\n"), udevpath);
 			return (-1);
 		}
 
@@ -972,10 +984,10 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * chop off the slice number when displaying the device in
 		 * future output.
 		 */
-		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, buf) == 0);
+		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, udevpath) == 0);
 
 		/* Just in case this partition already existed. */
-		(void) zero_label(buf);
+		(void) zero_label(udevpath);
 
 		return (0);
 	}
