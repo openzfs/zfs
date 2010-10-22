@@ -817,13 +817,18 @@ static int spl_cache_flush(spl_kmem_cache_t *skc,
 #ifdef HAVE_SET_SHRINKER
 static struct shrinker *spl_kmem_cache_shrinker;
 #else
-static int spl_kmem_cache_generic_shrinker(int nr_to_scan,
-                                           unsigned int gfp_mask);
+# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+static int spl_kmem_cache_generic_shrinker(struct shrinker *shrinker_cb,
+    int nr_to_scan, unsigned int gfp_mask);
+# else
+static int spl_kmem_cache_generic_shrinker(
+    int nr_to_scan, unsigned int gfp_mask);
+# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 static struct shrinker spl_kmem_cache_shrinker = {
 	.shrink = spl_kmem_cache_generic_shrinker,
 	.seeks = KMC_DEFAULT_SEEKS,
 };
-#endif
+#endif /* HAVE_SET_SHRINKER */
 
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
@@ -1829,8 +1834,14 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * objects should be freed, because Solaris semantics are to free
  * all available objects we may free more objects than requested.
  */
+#ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+static int
+spl_kmem_cache_generic_shrinker(struct shrinker *shrinker_cb,
+				int nr_to_scan, unsigned int gfp_mask)
+#else
 static int
 spl_kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
+#endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 {
 	spl_kmem_cache_t *skc;
 	int unused = 0;
@@ -1894,7 +1905,11 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 void
 spl_kmem_reap(void)
 {
+#ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+	spl_kmem_cache_generic_shrinker(NULL, KMC_REAP_CHUNK, GFP_KERNEL);
+#else
 	spl_kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
+#endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 

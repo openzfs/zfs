@@ -27,6 +27,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_3ARGS_INIT_WORK
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SET_SHRINKER
+	SPL_AC_3ARGS_SHRINKER_CALLBACK
 	SPL_AC_PATH_IN_NAMEIDATA
 	SPL_AC_TASK_CURR
 	SPL_AC_CTL_UNNUMBERED
@@ -759,6 +760,34 @@ AC_DEFUN([SPL_AC_SET_SHRINKER], [
 	],[
 		AC_MSG_RESULT([no])
 	])
+])
+
+dnl #
+dnl # 2.6.35 API change,
+dnl # Add context to shrinker callback
+dnl #
+AC_DEFUN([SPL_AC_3ARGS_SHRINKER_CALLBACK],
+	[AC_MSG_CHECKING([whether shrinker callback wants 3 args])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+
+		int shrinker_cb(struct shrinker *, int, unsigned int);
+	],[
+		struct shrinker cache_shrinker = {
+			.shrink = shrinker_cb,
+			.seeks = DEFAULT_SEEKS,
+		};
+		register_shrinker(&cache_shrinker);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_3ARGS_SHRINKER_CALLBACK, 1,
+		          [shrinker callback wants 3 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #
