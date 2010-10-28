@@ -95,7 +95,7 @@ typedef struct zio_taskq_info {
 } zio_taskq_info_t;
 
 static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
-	"issue", "issue_high", "intr", "intr_high"
+	"iss", "iss_h", "int", "int_h"
 };
 
 /*

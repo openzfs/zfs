@@ -61,8 +61,7 @@ uint8_t zio_priority_table[ZIO_PRIORITY_TABLE_SIZE] = {
  * ==========================================================================
  */
 char *zio_type_name[ZIO_TYPES] = {
-	"zio_null", "zio_read", "zio_write", "zio_free", "zio_claim",
-	"zio_ioctl"
+	"z_null", "z_rd", "z_wr", "z_fr", "z_cl", "z_ioctl"
 };
 
 /*
