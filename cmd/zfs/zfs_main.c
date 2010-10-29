@@ -2340,6 +2340,7 @@ typedef struct rollback_cbdata {
  * 'cb_dependent' is set, then this is a dependent and we should report it
  * without checking the transaction group.
  */
+#ifdef HAVE_ZPL
 static int
 rollback_check(zfs_handle_t *zhp, void *data)
 {
@@ -2399,10 +2400,12 @@ rollback_check(zfs_handle_t *zhp, void *data)
 	zfs_close(zhp);
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 static int
 zfs_do_rollback(int argc, char **argv)
 {
+#ifdef HAVE_ZPL
 	int ret;
 	int c;
 	boolean_t force = B_FALSE;
@@ -2484,6 +2487,9 @@ out:
 		return (0);
 	else
 		return (1);
+#else
+	return ENOSYS;
+#endif /*HAVE_ZPL*/
 }
 
 /*
