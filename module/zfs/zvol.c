@@ -1002,6 +1002,8 @@ static int
 zvol_ioctl_by_inode(struct inode *inode, struct file *file,
                     unsigned int cmd, unsigned long arg)
 {
+	if (file == NULL || inode == NULL)
+		return -EINVAL;
 	return zvol_ioctl(inode->i_bdev, file->f_mode, cmd, arg);
 }
 
@@ -1010,6 +1012,8 @@ static long
 zvol_compat_ioctl_by_inode(struct file *file,
                            unsigned int cmd, unsigned long arg)
 {
+	if (file == NULL)
+		return -EINVAL;
 	return zvol_compat_ioctl(file->f_dentry->d_inode->i_bdev,
 	                         file->f_mode, cmd, arg);
 }
