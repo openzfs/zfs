@@ -81,8 +81,8 @@ mutex_owned(kmutex_t *mp)
 #ifdef CONFIG_DEBUG_MUTEXES
 # define mutex_exit(mp)                                                 \
 ({                                                                      \
-         (mp)->owner = NULL;                                            \
-	 mutex_unlock(mp);                                              \
+        mutex_unlock(mp);                                               \
+        (mp)->owner = NULL;                                             \
 })
 #else
 # define mutex_exit(mp)                 mutex_unlock(mp)
