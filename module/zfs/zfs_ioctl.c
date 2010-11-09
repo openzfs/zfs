@@ -3291,7 +3291,7 @@ out:
 		dsl_dataset_rele(ds, FTAG);
 	return (error);
 #else
-	return (EOPNOTSUPP);
+	return (ENOTSUP);
 #endif /* HAVE_ZPL */
 }
 
