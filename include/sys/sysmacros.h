@@ -60,7 +60,7 @@
 #define UINT64_MIN			ULLONG_MIN
 
 #define NBBY				8
-#define ENOTSUP				ENOTSUPP
+#define ENOTSUP				EOPNOTSUPP
 
 #define MAXMSGLEN			256
 #define MAXNAMELEN			256
