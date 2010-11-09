@@ -66,6 +66,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_SET_FS_PWD
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
+	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_CRED_STRUCT
 	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
@@ -1542,6 +1543,28 @@ AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_4ARGS_VFS_RENAME, 1,
 		          [vfs_rename() wants 4 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.36 API change,
+dnl # The 'struct fs_struct->lock' was changed from a rwlock_t to
+dnl # a spinlock_t to improve the fastpath performance.
+dnl #
+AC_DEFUN([SPL_AC_FS_STRUCT_SPINLOCK], [
+	AC_MSG_CHECKING([whether struct fs_struct uses spinlock_t])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+		#include <linux/fs_struct.h>
+	],[
+		struct fs_struct fs;
+		spin_lock_init(&fs.lock);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FS_STRUCT_SPINLOCK, 1,
+		          [struct fs_struct uses spinlock_t])
 	],[
 		AC_MSG_RESULT(no)
 	])

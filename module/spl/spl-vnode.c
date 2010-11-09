@@ -617,16 +617,24 @@ EXPORT_SYMBOL(releasef);
 void
 set_fs_pwd(struct fs_struct *fs, struct path *path)
 {
-        struct path old_pwd;
+	struct path old_pwd;
 
-        write_lock(&fs->lock);
-        old_pwd = fs->pwd;
-        fs->pwd = *path;
-        path_get(path);
-        write_unlock(&fs->lock);
+#  ifdef HAVE_FS_STRUCT_SPINLOCK
+	spin_lock(&fs->lock);
+	old_pwd = fs->pwd;
+	fs->pwd = *path;
+	path_get(path);
+	spin_unlock(&fs->lock);
+#  else
+	write_lock(&fs->lock);
+	old_pwd = fs->pwd;
+	fs->pwd = *path;
+	path_get(path);
+	write_unlock(&fs->lock);
+#  endif /* HAVE_FS_STRUCT_SPINLOCK */
 
-        if (old_pwd.dentry)
-                path_put(&old_pwd);
+	if (old_pwd.dentry)
+		path_put(&old_pwd);
 }
 # else
 /* Used from 2.6.11 - 2.6.24 */
