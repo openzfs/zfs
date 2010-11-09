@@ -83,8 +83,9 @@
 #define _NOTE(x)
 #define is_system_labeled()		0
 
-
-#define RLIM64_INFINITY			RLIM_INFINITY
+#ifndef RLIM64_INFINITY
+#define RLIM64_INFINITY			(~0ULL)
+#endif
 
 /* 0..MAX_PRIO-1:		Process priority
  * 0..MAX_RT_PRIO-1:		RT priority tasks
