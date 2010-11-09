@@ -73,7 +73,7 @@ typedef struct rw_priv {
 	int rw_waiters;
 	int rw_release;
 	int rw_rc;
-	krw_type_t rw_type;
+	krw_t rw_type;
 } rw_priv_t;
 
 typedef struct rw_thr {
