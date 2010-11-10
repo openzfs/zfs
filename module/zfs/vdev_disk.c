@@ -360,6 +360,8 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	int bio_size, bio_count = 16;
 	int i = 0, error = 0, block_size;
 
+	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
+
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
 	if (dr == NULL)

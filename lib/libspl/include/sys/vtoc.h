@@ -97,10 +97,10 @@ extern "C" {
 #define	VT_EOVERFLOW	(-7)		/* VTOC op. data struct limited */
 
 struct partition	{
-	ushort_t p_tag;			/* ID tag of partition */
-	ushort_t p_flag;		/* permission flags */
-	daddr_t	p_start;		/* start sector no of partition */
-	long	p_size;			/* # of blocks in partition */
+	ushort_t 	p_tag;		/* ID tag of partition */
+	ushort_t 	p_flag;		/* permission flags */
+	uint64_t	p_start;	/* start sector no of partition */
+	long		p_size;		/* # of blocks in partition */
 };
 
 struct vtoc {
@@ -121,7 +121,7 @@ struct extpartition {
 	ushort_t p_flag;		/* permission flags */
 	ushort_t p_pad[2];
 	diskaddr_t p_start;		/* start sector no of partition */
-	diskaddr_t p_size;			/* # of blocks in partition */
+	diskaddr_t p_size;		/* # of blocks in partition */
 };
 
 
@@ -156,7 +156,7 @@ struct extvtoc {
 	for (i = 0; i < V_NUMPAR; i++) {				\
 		v.v_part[i].p_tag = extv.v_part[i].p_tag;		\
 		v.v_part[i].p_flag = extv.v_part[i].p_flag;		\
-		v.v_part[i].p_start = (daddr_t)extv.v_part[i].p_start;	\
+		v.v_part[i].p_start = (uint64_t)extv.v_part[i].p_start;	\
 		v.v_part[i].p_size = (long)extv.v_part[i].p_size;	\
 		v.timestamp[i] = (time_t)extv.timestamp[i];		\
 	}								\

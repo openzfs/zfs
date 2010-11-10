@@ -81,8 +81,8 @@ extern "C" {
  * Returned in struct dk_allmap by ioctl DKIOC[SG]APART (dkio(7I))
  */
 struct dk_map {
-	daddr_t	dkl_cylno;		/* starting cylinder */
-	daddr_t	dkl_nblk;		/* number of blocks;  if == 0, */
+	uint64_t	dkl_cylno;	/* starting cylinder */
+	uint64_t	dkl_nblk;	/* number of blocks;  if == 0, */
 					/* partition is undefined */
 };
 

@@ -258,13 +258,13 @@ struct defect_header {
  */
 #ifdef _SYSCALL32
 struct part_info32 {
-	daddr32_t	p_start;
+	uint32_t	p_start;
 	int		p_length;
 };
 #endif /* _SYSCALL32 */
 
 struct part_info {
-	daddr_t		p_start;
+	uint64_t	p_start;
 	int		p_length;
 };
 
