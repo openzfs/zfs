@@ -53,10 +53,11 @@ out:
 	return di;
 }
 
-static int
-mod_generic_ioctl(struct inode *ino, struct file *file,
-		  unsigned int cmd, unsigned long arg)
+static long
+mod_generic_unlocked_ioctl(struct file *file,
+			   unsigned int cmd, unsigned long arg)
 {
+	struct inode *ino = file->f_dentry->d_inode;
 	struct dev_info *di;
 	int rc, flags = 0, rvalp = 0;
 	cred_t *cr = NULL;
@@ -84,7 +85,7 @@ static long
 mod_generic_compat_ioctl(struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
-	return mod_generic_ioctl(file->f_dentry->d_inode, file, cmd, arg);
+	return mod_generic_unlocked_ioctl(file, cmd, arg);
 }
 #endif /* CONFIG_COMPAT */
 
@@ -125,7 +126,7 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	/* Setup the fops to cb_ops mapping */
 	fops->owner = mod;
 	if (cb_ops->cb_ioctl) {
-		fops->ioctl = mod_generic_ioctl;
+		fops->unlocked_ioctl = mod_generic_unlocked_ioctl;
 #ifdef CONFIG_COMPAT
 		fops->compat_ioctl = mod_generic_compat_ioctl;
 #endif

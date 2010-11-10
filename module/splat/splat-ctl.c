@@ -445,9 +445,8 @@ splat_ioctl_cmd(struct file *file, unsigned int cmd, unsigned long arg)
 	return rc;
 }
 
-static int
-splat_ioctl(struct inode *inode, struct file *file,
-	    unsigned int cmd, unsigned long arg)
+static long
+splat_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
         unsigned int minor = iminor(file->f_dentry->d_inode);
 	int rc = 0;
@@ -480,7 +479,7 @@ splat_ioctl(struct inode *inode, struct file *file,
 static long
 splat_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	return splat_ioctl(NULL, file, cmd, arg);
+	return splat_unlocked_ioctl(file, cmd, arg);
 }
 #endif /* CONFIG_COMPAT */
 
@@ -601,7 +600,7 @@ static struct file_operations splat_fops = {
 	.owner		= THIS_MODULE,
 	.open		= splat_open,
 	.release	= splat_release,
-	.ioctl		= splat_ioctl,
+	.unlocked_ioctl	= splat_unlocked_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= splat_compat_ioctl,
 #endif
