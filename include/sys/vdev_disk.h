@@ -58,13 +58,6 @@ extern int vdev_disk_read_rootlabel(char *, char *, nvlist_t **);
 # define BIO_END_IO_RETURN(rc)		return rc
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
-/* 2.6.29 API change */
-#ifdef HAVE_BIO_RW_SYNCIO
-# define DIO_RW_SYNCIO			BIO_RW_SYNCIO
-#else
-# define DIO_RW_SYNCIO			BIO_RW_SYNC
-#endif /* HAVE_BIO_RW_SYNCIO */
-
 /* 2.6.28 API change */
 #ifdef HAVE_OPEN_BDEV_EXCLUSIVE
 # define vdev_bdev_open(path, md, hld)	open_bdev_exclusive(path, md, hld)

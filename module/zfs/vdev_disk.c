@@ -220,6 +220,27 @@ vdev_disk_dio_free(dio_request_t *dr)
 	          sizeof(struct bio *) * dr->dr_bio_count);
 }
 
+static int
+vdev_disk_dio_is_sync(dio_request_t *dr)
+{
+#ifdef HAVE_BIO_RW_SYNC
+	/* BIO_RW_SYNC preferred interface from 2.6.12-2.6.29 */
+        return (dr->dr_rw & (1 << BIO_RW_SYNC));
+#else
+# ifdef HAVE_BIO_RW_SYNCIO
+	/* BIO_RW_SYNCIO preferred interface from 2.6.30-2.6.35 */
+        return (dr->dr_rw & (1 << BIO_RW_SYNCIO));
+# else
+#  ifdef HAVE_REQ_SYNC
+	/* REQ_SYNC preferred interface from 2.6.36-2.6.xx */
+        return (dr->dr_rw & REQ_SYNC);
+#  else
+#   error "Unable to determine bio sync flag"
+#  endif /* HAVE_REQ_SYNC */
+# endif /* HAVE_BIO_RW_SYNC */
+#endif /* HAVE_BIO_RW_SYNCIO */
+}
+
 static void
 vdev_disk_dio_get(dio_request_t *dr)
 {
@@ -284,7 +305,7 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, size, error)
 	rc = vdev_disk_dio_put(dr);
 
 	/* Wake up synchronous waiter this is the last outstanding bio */
-	if ((rc == 1) && (dr->dr_rw & (1 << DIO_RW_SYNCIO)))
+	if ((rc == 1) && vdev_disk_dio_is_sync(dr))
 		complete(&dr->dr_comp);
 
 	BIO_END_IO_RETURN(0);
@@ -421,7 +442,7 @@ retry:
 	 * only synchronous consumer is vdev_disk_read_rootlabel() all other
 	 * IO originating from vdev_disk_io_start() is asynchronous.
 	 */
-	if (dr->dr_rw & (1 << DIO_RW_SYNCIO)) {
+	if (vdev_disk_dio_is_sync(dr)) {
 		wait_for_completion(&dr->dr_comp);
 		error = dr->dr_error;
 		ASSERT3S(atomic_read(&dr->dr_ref), ==, 1);
