@@ -205,17 +205,16 @@ struct req_iterator {
 static inline void
 bio_set_flags_failfast(struct block_device *bdev, int *flags)
 {
-#ifdef HAVE_BIO_RW_FAILFAST
+#ifdef CONFIG_BUG
 	/*
-	 * Disable BIO_RW_FAILFAST_* for loopback devices because of
-	 * the following incorrect BUG_ON() in loop_make_request().
+	 * Disable FAILFAST for loopback devices because of the
+	 * following incorrect BUG_ON() in loop_make_request().
 	 * This support is also disabled for md devices because the
 	 * test suite layers md devices on top of loopback devices.
 	 * This may be removed when the loopback driver is fixed.
 	 *
 	 *   BUG_ON(!lo || (rw != READ && rw != WRITE));
 	 */
-#ifdef CONFIG_BUG
 	if ((MAJOR(bdev->bd_dev) == LOOP_MAJOR) ||
 	    (MAJOR(bdev->bd_dev) == MD_MAJOR))
 		return;
@@ -225,13 +224,25 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 		return;
 #endif /* BLOCK_EXT_MAJOR */
 #endif /* CONFIG_BUG */
+
+#ifdef HAVE_BIO_RW_FAILFAST_DTD
+	/* BIO_RW_FAILFAST_* preferred interface from 2.6.28 - 2.6.35 */
 	*flags |=
 	    ((1 << BIO_RW_FAILFAST_DEV) |
 	     (1 << BIO_RW_FAILFAST_TRANSPORT) |
 	     (1 << BIO_RW_FAILFAST_DRIVER));
-#else /* !HAVE_BIO_RW_FAILFAST */
+#else
+# ifdef HAVE_BIO_RW_FAILFAST
+	/* BIO_RW_FAILFAST preferred interface from 2.6.12 - 2.6.27 */
 	*flags |= (1 << BIO_RW_FAILFAST);
-#endif /* HAVE_BIO_RW_FAILFAST */
+# else
+#  ifdef HAVE_REQ_FAILFAST_MASK
+	/* REQ_FAILFAST_* preferred interface from 2.6.36 - 2.6.xx,
+	 * the BIO_* and REQ_* flags were unified under REQ_* flags. */
+	*flags |= REQ_FAILFAST_MASK;
+#  endif /* HAVE_REQ_FAILFAST_MASK */
+# endif /* HAVE_BIO_RW_FAILFAST */
+#endif /* HAVE_BIO_RW_FAILFAST_DTD */
 }
 
 #ifndef DISK_NAME_LEN
