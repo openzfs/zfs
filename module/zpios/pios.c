@@ -1104,11 +1104,10 @@ out_cmd:
 	return rc;
 }
 
-static int
-zpios_ioctl(struct inode *inode, struct file *file,
-            unsigned int cmd, unsigned long arg)
+static long
+zpios_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-        unsigned int minor = iminor(inode);
+        unsigned int minor = iminor(file->f_dentry->d_inode);
 	int rc = 0;
 
 	/* Ignore tty ioctls */
@@ -1139,7 +1138,7 @@ zpios_ioctl(struct inode *inode, struct file *file,
 static long
 zpios_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	return zpios_ioctl(file->f_dentry->d_inode, file, cmd, arg);
+	return zpios_unlocked_ioctl(file, cmd, arg);
 }
 #endif /* CONFIG_COMPAT */
 
@@ -1262,7 +1261,7 @@ static struct file_operations zpios_fops = {
 	.owner		= THIS_MODULE,
 	.open		= zpios_open,
 	.release	= zpios_release,
-	.ioctl		= zpios_ioctl,
+	.unlocked_ioctl	= zpios_unlocked_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpios_compat_ioctl,
 #endif
