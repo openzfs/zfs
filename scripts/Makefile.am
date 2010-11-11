@@ -36,6 +36,7 @@ clean:
 	done
 
 check:
+	@$(ZFS) -u
 	@echo
 	@echo -n "===================================="
 	@echo -n " ZTEST "
