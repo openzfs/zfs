@@ -163,6 +163,16 @@ __blk_rq_bytes(struct request *req)
 }
 #endif /* !HAVE_BLK_RQ_BYTES || HAVE_BLK_RQ_BYTES_GPL_ONLY */
 
+/*
+ * Most of the blk_* macros were removed in 2.6.36.  Ostensibly this was
+ * done to improve readability and allow easier grepping.  However, from
+ * a portability stand point the macros are helpful.  Therefore the needed
+ * macros are redefined here if they are missing from the kernel.
+ */
+#ifndef blk_fs_request
+#define blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
+#endif
+
 #ifndef HAVE_GET_DISK_RO
 static inline int
 get_disk_ro(struct gendisk *disk)
