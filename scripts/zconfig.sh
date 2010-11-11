@@ -16,7 +16,7 @@ PROG=zconfig.sh
 usage() {
 cat << EOF
 USAGE:
-$0 [hvc]
+$0 [hvcts]
 
 DESCRIPTION:
 	ZFS/ZPOOL configuration tests
@@ -25,6 +25,8 @@ OPTIONS:
 	-h      Show this message
 	-v      Verbose
 	-c      Cleanup lo+file devices at start
+	-t <#>  Run listed tests
+	-s <#>  Skip listed tests
 
 EOF
 }

@@ -42,7 +42,7 @@ PROG=zfault.sh
 usage() {
 cat << EOF
 USAGE:
-$0 [hvc]
+$0 [hvcts]
 
 DESCRIPTION:
 	ZPOOL fault verification tests
