@@ -11,7 +11,8 @@ SCRIPT_CONFIG=zfs-script-config.sh
 if [ -f "${basedir}/../${SCRIPT_CONFIG}" ]; then
 . "${basedir}/../${SCRIPT_CONFIG}"
 else
-MODULES=(zlib_deflate spl splat zavl znvpair zunicode zcommon zfs)
+KERNEL_MODULES=(zlib_deflate zlib_inflate)
+MODULES=(spl splat zavl znvpair zunicode zcommon zfs)
 fi
 
 PROG="<define PROG>"
@@ -162,13 +163,17 @@ load_module() {
 		echo "Loading ${NAME} ($@)"
 	fi
 
-	${LDMOD} $* || ERROR="Failed to load $1" return 1
+	${LDMOD} $* &>/dev/null || ERROR="Failed to load $1" return 1
 
 	return 0
 }
 
 load_modules() {
 	mkdir -p /etc/zfs
+
+	for MOD in ${KERNEL_MODULES[*]}; do
+		load_module ${MOD}
+	done
 
 	for MOD in ${MODULES[*]}; do
 		local NAME=`basename ${MOD} .ko`

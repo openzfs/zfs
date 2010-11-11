@@ -39,6 +39,7 @@ LDMOD=/sbin/insmod
 
 KERNEL_MODULES=(                                      \
         ${KERNELMOD}/lib/zlib_deflate/zlib_deflate.ko \
+        ${KERNELMOD}/lib/zlib_inflate/zlib_inflate.ko \
 )
 
 SPL_MODULES=(                                         \
@@ -59,7 +60,6 @@ ZPIOS_MODULES=(                                       \
 )
 
 MODULES=(                                             \
-        ${KERNEL_MODULES[*]}                          \
         ${SPL_MODULES[*]}                             \
         ${ZFS_MODULES[*]}                             \
 )
