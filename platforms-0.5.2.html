@@ -1,0 +1,247 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Tested ZFS Platforms." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+Native ZFS for Linux has been sanity tested using the ztest,
+zconfig, and zpios regression tests on the following platforms.
+While the packages build on all these platforms the x86 platform
+is not as well tested and you may encounter
+<a href="faq.html#WhyShouldIUseA64BitSystem">issues</a>.  We
+<em>strongly</em> suggest you stick with a x86_64 based platform
+for now.
+		</td>
+	</tr>
+</table>
+<br \>
+
+<table width=80%>
+	<tr bgcolor="#aaaaaa">
+		<th colspan="8">
+		<a href="http://github.com/downloads/behlendorf/spl/spl-0.5.2.tar.gz">spl-0.5.2</a>
+		</th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th> Distro </th>
+		<th> Kernel </th>
+		<th> Splat </th>
+		<th> </th>
+		<th> </th>
+		<th> Splat </th>
+		<th> </th>
+		<th> </th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th colspan="2"></th>
+		<th colspan="3">x86_64 </th>
+		<th colspan="3">x86 </th>
+	</tr>
+	<tr align="center">
+		<td> <a href="https://computing.llnl.gov/linux/projects.html">CHAOS5</a></td>
+		<td> 2.6.32-12chaos </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.redhat.com/rhel/">RHEL5.5</a> </td>
+		<td> 2.6.18-194 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.redhat.com/rhel/">RHEL6.0</a> </td>
+		<td> 2.6.32-71 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://fedoraproject.org/">Fedora 13 </a> </td>
+		<td> 2.6.34.7-61 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://fedoraproject.org/">Fedora 14 </a> </td>
+		<td> 2.6.35.6-48 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.ubuntu.com/">ubuntu 10.04 </a> </td>
+		<td> 2.6.32-25-generic </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.ubuntu.com/">ubuntu 10.10 </a> </td>
+		<td> 2.6.35-22-generic </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.debian.org/">Debian Lenny </a> </td>
+		<td> 2.6.26-2-amd64 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> </td>
+		<td> </td>
+	</tr>
+	<tr bgcolor="#aaaaaa">
+		<th colspan="8">
+		<a href="http://github.com/downloads/behlendorf/zfs/zfs-0.5.2.tar.gz">zfs-0.5.2</a>
+		</th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th>Distro </th>
+		<th>Kernel </th>
+		<th>Ztest </th>
+		<th>Zconfig </th>
+		<th>Zpios </th>
+		<th>Ztest </th>
+		<th>Zconfig </th>
+		<th>Zpios </th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th colspan="2"></th>
+		<th colspan="3">x86_64 </th>
+		<th colspan="3">x86 </th>
+	</tr>
+	<tr align="center">
+		<td> <a href="https://computing.llnl.gov/linux/projects.html">CHAOS5</a></td>
+		<td> 2.6.32-12chaos </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.redhat.com/rhel/">RHEL5.5</a> </td>
+		<td> 2.6.18-194 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.redhat.com/rhel/">RHEL6.0</a> </td>
+		<td> 2.6.32-71 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://fedoraproject.org/">Fedora 13 </a> </td>
+		<td> 2.6.34.7-61 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://fedoraproject.org/">Fedora 14 </a> </td>
+		<td> 2.6.35.6-48 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.ubuntu.com/">Ubuntu 10.04 </a> </td>
+		<td> 2.6.32-25-generic </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.ubuntu.com/">Ubuntu 10.10 </a> </td>
+		<td> 2.6.35-22-generic </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+	<tr align="center">
+		<td> <a href="http://www.debian.org/">Debian Lenny </a> </td>
+		<td> 2.6.26-2-amd64 </td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/check.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+		<td> <img src="images/question.png" height="25" width="25"></td>
+	</tr>
+</table>
+<br />
+
+<table>
+	<tr>
+		<td> <img src="images/check.png" height="25" width="25"> </td>
+		<td> All Tests Pass </td>
+		<td width="5%"> </td>
+		<td> <img src="images/naught.png" height="25" width="25"> </td>
+		<td> At least One Test Fails </td>
+		<td width="5%"> </td>
+		<td> <img src="images/question.png" height="25" width="25"> </td>
+		<td> Untested </td>
+	</tr>
+</table>
+
+</center>
+
+</body>
+</html>

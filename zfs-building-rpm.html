@@ -8,8 +8,10 @@
 <body>
 <center>
 <img src="images/zfs-linux.png">
-</center>
 
+<table width=80%>
+	<tr>
+		<td>
 <p>Once the <a href="spl-building-rpm.html">spl packages are built
 and installed</a> you can build the zfs packages using the standard
 autoconf style build system.  The zfs build system is designed to detect
@@ -23,8 +25,9 @@ are installed in a different directory.  You can also specify an alternate
 version of the spl using the <em>--with-spl</em> and <em>--with-spl-obj</em>
 
 <pre>
+$ sudo yum install zlib-devel libuuid-devel libblkid-devel lsscsi
 $ ./configure
-$ make pkg
+$ make rpm
 </pre>
 
 <p>The result of this will be two source rpm packages.</p>
@@ -56,7 +59,7 @@ $ make pkg
 <p>Next go ahead and install the packages.</p>
 
 <pre>
-$ rpm -Uvh *.x86_64.rpm  
+$ sudo rpm -Uvh *.x86_64.rpm  
 
 Preparing...                ########################################### [100%]
    1:zfs                    ########################################### [ 20%]
@@ -66,56 +69,19 @@ Preparing...                ########################################### [100%]
    5:zfs-devel              ########################################### [100%]
 </pre>    
 
-<p>At this point you&#8217;re all set!  You should be able to use the
-zfs tools just like you would under Solaris.  If your unfamiliar with
-ZFS I would suggest looking over the
-<a href="http://hub.opensolaris.org/bin/view/Community+Group+zfs/docs">
+<p>That&#8217;s it!  You should be able to use the zfs tools just like you
+would under Solaris.  If your unfamiliar with ZFS I would suggest looking over
+the <a href="http://hub.opensolaris.org/bin/view/Community+Group+zfs/docs">
 official documentation</a> or going through one the many tutorials
 available online .  There are also several examples available
 <a href="index.html">here</a>.</p>
 
-<p>However, I&#8217;d advise you first to take a few minutes to run a couple
-sanity regression tests to make sure everything is working properly.
-These tests will require at least 1GiB of space in /tmp/ for loopback
-devices and files.</p>
+If you would like to verify the packages you just built you can run the
+included <a href="zfs-regression-suite.html">regression test suites</a>.
+		</td>
+	</tr>
+</table>
 
-<p>The first test you&#8217;ll want to run is called zconfig.sh which
-validates that the zfs utilities are working properly.  Once that passes you
-will want to run zpios-sanity.sh which will create several zpool
-configurations and verify IO is working properly.  Both of these tests will
-configure zfs to use file and loopback devices so none of your real system
-data is at risk.  These tests will need to be run as root since you are
-loading several kernel modules.  If you do observe a failure please record as
-much debug information as possible and open an <a
-href="http://github.com/behlendorf/zfs/issues">issue</a> so I can fix it.</p>
-
-<pre>
-$ sudo /sbin/modprobe zfs
-$ sudo /usr/libexec/zfs/zconfig.sh -c
-
-1    persistent zpool.cache               <font color="green">Pass</font>
-2    scan disks for pools to import       <font color="green">Pass</font>
-3    zpool import/export device           <font color="green">Pass</font>
-4    zpool insmod/rmmod device            <font color="green">Pass</font>
-5    zvol+ext3 volume                     <font color="green">Pass</font>
-6    zvol+ext2 snapshot                   <font color="green">Pass</font>
-7    zvol+ext2 clone                      <font color="green">Pass</font>
-8    zfs send/receive                     <font color="green">Pass</font>
-9    zpool events                         <font color="green">Pass</font>
-
-$ sudo /usr/libexec/zfs/zpios-sanity.sh
-
-status    name        id        wr-data wr-ch   wr-bw   rd-data rd-ch   rd-bw
--------------------------------------------------------------------------------
-PASS:     file-raid0   0        64m     64      593.35m 64m     64      3.68g
-PASS:     file-raid10  0        64m     64      310.89m 64m     64      1.16g
-PASS:     file-raidz   0        64m     64      503.97m 64m     64      3.68g
-PASS:     file-raidz2  0        64m     64      230.22m 64m     64      3.13g
-PASS:     lo-raid0     0        64m     64      11.25m  64m     64      3.11g
-PASS:     lo-raid10    0        64m     64      7.78m   64m     64      1.12g
-PASS:     lo-raidz     0        64m     64      10.48m  64m     64      1.25g
-PASS:     lo-raidz2    0        64m     64      7.43m   64m     64      1.18g
-</pre>
-
+</center>
 </body>
 </html>

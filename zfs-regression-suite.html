@@ -1,0 +1,91 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building ZFS RPM Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>The zfs regression test suite is broken in to several smaller groups
+of tests.  Some of these scripts run relatively quickly such as
+<em>zconfig.sh</em> others such as <em>zfault.sh</em> can take
+considerably more time.  These tests are only to validate the
+correctness of the packages you just built.
+
+<p>The first test you&#8217;ll want to run is called <em>zconfig.sh</em>
+which validates that the zfs utilities are working properly.  Once that
+passes you will want to run <em>zpios-sanity.sh</em> which will create
+several zpool configurations and verify IO is working properly.  Finally,
+there is the much longer running <em>zfault.sh</em> which simulates
+various common failure modes and ensures they are handled correctly.
+For the moment I would advise skipping the zfault.sh regression tests.
+The test suite still contains several known false positives, these are
+flaws in the tests and not in zfs.  Additionally, you may not be able
+to run zfault.sh on older kernels because it relies on certainly newer
+kernel features to simulate the failures.</p>
+
+<p>All of these test suites use loopback devices or files in /tmp/ to back
+the zpool so none of your real system data is at risk.  This does mean the
+regression test suite requires roughly 1GiB of free space in /tmp/.  These
+tests will need to be run as root since you are loading several kernel
+modules.  If you do observe a failure please record as much debug
+information as possible and open an
+<a href="http://github.com/behlendorf/zfs/issues">issue</a> so it can be
+fixed.</p>
+
+<pre>
+$ sudo /sbin/modprobe zfs
+$ sudo /usr/libexec/zfs/zconfig.sh -c
+
+1    persistent zpool.cache               <font color="green">Pass</font>
+2    scan disks for pools to import       <font color="green">Pass</font>
+3    zpool import/export device           <font color="green">Pass</font>
+4    zpool insmod/rmmod device            <font color="green">Pass</font>
+5    zvol+ext3 volume                     <font color="green">Pass</font>
+6    zvol+ext2 snapshot                   <font color="green">Pass</font>
+7    zvol+ext2 clone                      <font color="green">Pass</font>
+8    zfs send/receive                     <font color="green">Pass</font>
+9    zpool events                         <font color="green">Pass</font>
+10   zpool add/remove vdev                <font color="green">Pass</font>
+
+
+$ sudo /usr/libexec/zfs/zpios-sanity.sh -c
+
+status    name        id        wr-data wr-ch   wr-bw   rd-data rd-ch   rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0        64m     64      593.35m 64m     64      3.68g
+PASS:     file-raid10  0        64m     64      310.89m 64m     64      1.16g
+PASS:     file-raidz   0        64m     64      503.97m 64m     64      3.68g
+PASS:     file-raidz2  0        64m     64      230.22m 64m     64      3.13g
+PASS:     lo-raid0     0        64m     64      11.25m  64m     64      3.11g
+PASS:     lo-raid10    0        64m     64      7.78m   64m     64      1.12g
+PASS:     lo-raidz     0        64m     64      10.48m  64m     64      1.25g
+PASS:     lo-raidz2    0        64m     64      7.43m   64m     64      1.18g
+
+
+$ sudo /usr/libexec/zfs/zfault.sh -c
+
+                                        raid0	raid10	raidz	raidz2	raidz3
+1    soft write error                   <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+2    hard write error                   <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+3    all write errors                   <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+4    soft read error                    <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+5    hard read error                    <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+6    fixable read error                 <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+7    silent data corruption             <font color="green">Pass	Pass	Pass	Pass	Pass</font>
+8    soft write timeout                 <font color="green">Pass	Pass	Pass	Pass	Pass</font> 
+9    hard write timeout                 <font color="orange">Skip</font>	<font color="green">Pass	Pass	Pass	Pass</font>
+</pre>
+		</td>
+	</tr>
+</table>
+
+</center>
+</body>
+</html>
