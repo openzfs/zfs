@@ -1086,7 +1086,8 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			    (strncmp(name, "vcs", 3) == 0)      ||
 			    (strncmp(name, "parport", 7) == 0)  ||
 			    (strncmp(name, "lp", 2) == 0)       ||
-			    (strncmp(name, "fd", 2) == 0))
+			    (strncmp(name, "fd", 2) == 0)       ||
+			    (strncmp(name, "hpet", 4) == 0))
 				continue;
 
 			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
