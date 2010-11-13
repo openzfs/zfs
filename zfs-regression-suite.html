@@ -24,11 +24,11 @@ passes you will want to run <em>zpios-sanity.sh</em> which will create
 several zpool configurations and verify IO is working properly.  Finally,
 there is the much longer running <em>zfault.sh</em> which simulates
 various common failure modes and ensures they are handled correctly.
-For the moment I would advise skipping the zfault.sh regression tests.
-The test suite still contains several known false positives, these are
-flaws in the tests and not in zfs.  Additionally, you may not be able
-to run zfault.sh on older kernels because it relies on certainly newer
-kernel features to simulate the failures.</p>
+For the moment I would advise skipping the <em>zfault.sh</em> regression
+tests.  The test suite still contains several known false positives, these
+are flaws in the tests, not in zfs.  Additionally, you may not be able
+to run <em>zfault.sh</em> on older kernels because it relies on certainly
+newer kernel features to simulate the failures.</p>
 
 <p>All of these test suites use loopback devices or files in /tmp/ to back
 the zpool so none of your real system data is at risk.  This does mean the
