@@ -37,14 +37,20 @@ typedef enum {
 
 #if defined(HAVE_MUTEX_OWNER) && defined(CONFIG_SMP)
 
-typedef struct mutex kmutex_t;
+/*
+ * We define a 1-field struct rather than a straight typedef to enforce type
+ * safety.
+ */
+typedef struct {
+        struct mutex m;
+} kmutex_t;
 
 static inline kthread_t *
 mutex_owner(kmutex_t *mp)
 {
-	struct thread_info *owner;
+        struct thread_info *owner;
 
-	owner = ACCESS_ONCE(mp->owner);
+        owner = ACCESS_ONCE(mp->m.owner);
         if (owner)
                 return owner->task;
 
@@ -54,7 +60,7 @@ mutex_owner(kmutex_t *mp)
 static inline int
 mutex_owned(kmutex_t *mp)
 {
-	return (ACCESS_ONCE(mp->owner) == current_thread_info());
+        return (ACCESS_ONCE(mp->m.owner) == current_thread_info());
 }
 
 #define MUTEX_HELD(mp)          mutex_owned(mp)
@@ -65,31 +71,31 @@ mutex_owned(kmutex_t *mp)
         static struct lock_class_key __key;                             \
         ASSERT(type == MUTEX_DEFAULT);                                  \
                                                                         \
-        __mutex_init((mp), #mp, &__key);                                \
+        __mutex_init(&(mp)->m, #mp, &__key);                            \
 })
 
 #undef mutex_destroy
 #define mutex_destroy(mp)                                               \
 ({                                                                      \
-	VERIFY3P(mutex_owner(mp), ==, NULL);				\
+        VERIFY3P(mutex_owner(mp), ==, NULL);                            \
 })
 
-#define mutex_tryenter(mp)              mutex_trylock(mp)
-#define mutex_enter(mp)                 mutex_lock(mp)
+#define mutex_tryenter(mp)              mutex_trylock(&(mp)->m)
+#define mutex_enter(mp)                 mutex_lock(&(mp)->m)
 
 /* mutex->owner is not cleared when CONFIG_DEBUG_MUTEXES is set */
 #ifdef CONFIG_DEBUG_MUTEXES
 # define mutex_exit(mp)                                                 \
 ({                                                                      \
-        mutex_unlock(mp);                                               \
-        (mp)->owner = NULL;                                             \
+        mutex_unlock(&(mp)->m);                                         \
+        (mp)->m.owner = NULL;                                           \
 })
 #else
-# define mutex_exit(mp)                 mutex_unlock(mp)
+# define mutex_exit(mp)                 mutex_unlock(&(mp)->m)
 #endif /* CONFIG_DEBUG_MUTEXES */
 
 #ifdef HAVE_GPL_ONLY_SYMBOLS
-# define mutex_enter_nested(mp, sc)     mutex_lock_nested(mp, sc)
+# define mutex_enter_nested(mp, sc)     mutex_lock_nested(&(mp)->m, sc)
 #else
 # define mutex_enter_nested(mp, sc)     mutex_enter(mp)
 #endif /* HAVE_GPL_ONLY_SYMBOLS */
@@ -172,7 +178,7 @@ mutex_owner(kmutex_t *mp)
 #undef mutex_destroy
 #define mutex_destroy(mp)                                               \
 ({                                                                      \
-	VERIFY3P(mutex_owner(mp), ==, NULL);				\
+        VERIFY3P(mutex_owner(mp), ==, NULL);                            \
 })
 
 #define mutex_tryenter(mp)                                              \
