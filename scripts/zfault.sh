@@ -916,7 +916,7 @@ test_write_timeout_hard() {
 	# resilvered without error and we should see minimally the zfs.io,
 	# zfs.statechange (VDEV_STATE_HEALTHY (0x7)), and zfs.resilver.*
 	# events posted.
-	${ZPOOL} online ${POOL_NAME} ${VDEV_FAULTY}1 || fail 51
+	${ZPOOL} online ${POOL_NAME} ${VDEV_FAULTY} || fail 51
 	sleep 3
 	test `zpool_event "zfs.io" "zio_err"` = "0x5" || fail 52
 	test `zpool_event "zfs.statechange" "vdev_state"` = "0x7" || fail 53
