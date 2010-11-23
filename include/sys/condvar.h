@@ -44,7 +44,6 @@ typedef struct {
 	wait_queue_head_t cv_event;
 	atomic_t cv_waiters;
 	kmutex_t *cv_mutex;
-	spinlock_t cv_lock;
 } kcondvar_t;
 
 typedef enum { CV_DEFAULT=0, CV_DRIVER } kcv_type_t;
