@@ -26,6 +26,7 @@
 
 #include <sys/thread.h>
 #include <sys/kmem.h>
+#include <sys/tsd.h>
 #include <spl-debug.h>
 
 #ifdef SS_DEBUG_SUBSYS
@@ -74,6 +75,7 @@ __thread_exit(void)
 {
 	SENTRY;
 	SEXIT;
+	tsd_exit();
 	complete_and_exit(NULL, 0);
 	/* Unreachable */
 }

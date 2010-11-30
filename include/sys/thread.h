@@ -31,6 +31,7 @@
 #include <linux/kthread.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
+#include <sys/tsd.h>
 
 /*
  * Thread interfaces

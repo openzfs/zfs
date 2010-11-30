@@ -158,6 +158,8 @@ spl_debug_subsys2str(int subsys)
                 return "kstat";
         case SS_XDR:
                 return "xdr";
+        case SS_TSD:
+                return "tsd";
         case SS_USER1:
                 return "user1";
         case SS_USER2:
