@@ -37,14 +37,23 @@
 #define SPLAT_THREAD_TEST2_NAME		"exit"
 #define SPLAT_THREAD_TEST2_DESC		"Validate thread exit"
 
+#define SPLAT_THREAD_TEST3_ID		0x6003
+#define SPLAT_THREAD_TEST3_NAME		"tsd"
+#define SPLAT_THREAD_TEST3_DESC		"Validate thread specific data"
+
 #define SPLAT_THREAD_TEST_MAGIC		0x4488CC00UL
+#define SPLAT_THREAD_TEST_KEYS		32
+#define SPLAT_THREAD_TEST_THREADS	16
 
 typedef struct thread_priv {
         unsigned long tp_magic;
         struct file *tp_file;
         spinlock_t tp_lock;
         wait_queue_head_t tp_waitq;
+	uint_t tp_keys[SPLAT_THREAD_TEST_KEYS];
 	int tp_rc;
+	int tp_count;
+	int tp_dtor_count;
 } thread_priv_t;
 
 static int
@@ -54,6 +63,18 @@ splat_thread_rc(thread_priv_t *tp, int rc)
 
 	spin_lock(&tp->tp_lock);
 	ret = (tp->tp_rc == rc);
+	spin_unlock(&tp->tp_lock);
+
+	return ret;
+}
+
+static int
+splat_thread_count(thread_priv_t *tp, int count)
+{
+	int ret;
+
+	spin_lock(&tp->tp_lock);
+	ret = (tp->tp_count == count);
 	spin_unlock(&tp->tp_lock);
 
 	return ret;
@@ -139,7 +160,7 @@ splat_thread_test2(struct file *file, void *arg)
 	/* Must never fail under Solaris, but we check anyway since this
 	 * can happen in the linux SPL, we may want to change this behavior */
 	if (thr == NULL)
-		return  -ESRCH;
+		return -ESRCH;
 
 	/* Sleep until the thread sets tp.tp_rc == 1 */
 	wait_event(tp.tp_waitq, splat_thread_rc(&tp, 1));
@@ -155,6 +176,165 @@ splat_thread_test2(struct file *file, void *arg)
 	} else {
 	        splat_vprint(file, SPLAT_THREAD_TEST2_NAME, "%s",
 		           "Thread successfully exited at thread_exit()\n");
+	}
+
+	return rc;
+}
+
+static void
+splat_thread_work3_common(thread_priv_t *tp)
+{
+	ulong_t rnd;
+	int i, rc = 0;
+
+	/* set a unique value for each key using a random value */
+	get_random_bytes((void *)&rnd, 4);
+	for (i = 0; i < SPLAT_THREAD_TEST_KEYS; i++)
+		tsd_set(tp->tp_keys[i], (void *)(i + rnd));
+
+	/* verify the unique value for each key */
+	for (i = 0; i < SPLAT_THREAD_TEST_KEYS; i++)
+		if (tsd_get(tp->tp_keys[i]) !=  (void *)(i + rnd))
+			rc = -EINVAL;
+
+	/* set the value to thread_priv_t for use by the destructor */
+	for (i = 0; i < SPLAT_THREAD_TEST_KEYS; i++)
+		tsd_set(tp->tp_keys[i], (void *)tp);
+
+	spin_lock(&tp->tp_lock);
+	if (rc && !tp->tp_rc)
+		tp->tp_rc = rc;
+
+	tp->tp_count++;
+	wake_up_all(&tp->tp_waitq);
+	spin_unlock(&tp->tp_lock);
+}
+
+static void
+splat_thread_work3_wait(void *priv)
+{
+	thread_priv_t *tp = (thread_priv_t *)priv;
+
+	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
+	splat_thread_work3_common(tp);
+	wait_event(tp->tp_waitq, splat_thread_count(tp, 0));
+	thread_exit();
+}
+
+static void
+splat_thread_work3_exit(void *priv)
+{
+	thread_priv_t *tp = (thread_priv_t *)priv;
+
+	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
+	splat_thread_work3_common(tp);
+	thread_exit();
+}
+
+static void
+splat_thread_dtor3(void *priv)
+{
+	thread_priv_t *tp = (thread_priv_t *)priv;
+
+	ASSERT(tp->tp_magic == SPLAT_THREAD_TEST_MAGIC);
+	spin_lock(&tp->tp_lock);
+	tp->tp_dtor_count++;
+	spin_unlock(&tp->tp_lock);
+}
+
+/*
+ * Create threads which set and verify SPLAT_THREAD_TEST_KEYS number of
+ * keys.  These threads may then exit by calling thread_exit() which calls
+ * tsd_exit() resulting in all their thread specific data being reclaimed.
+ * Alternately, the thread may block in which case the thread specific
+ * data will be reclaimed as part of tsd_destroy().  In either case all
+ * thread specific data must be reclaimed, this is verified by ensuring
+ * the registered destructor is called the correct number of times.
+ */
+static int
+splat_thread_test3(struct file *file, void *arg)
+{
+	int i, rc = 0, expected, wait_count = 0, exit_count = 0;
+	thread_priv_t tp;
+
+	tp.tp_magic = SPLAT_THREAD_TEST_MAGIC;
+	tp.tp_file = file;
+        spin_lock_init(&tp.tp_lock);
+	init_waitqueue_head(&tp.tp_waitq);
+	tp.tp_rc = 0;
+	tp.tp_count = 0;
+	tp.tp_dtor_count = 0;
+
+	for (i = 0; i < SPLAT_THREAD_TEST_KEYS; i++) {
+		tp.tp_keys[i] = 0;
+		tsd_create(&tp.tp_keys[i], splat_thread_dtor3);
+	}
+
+	/* Start tsd wait threads */
+	for (i = 0; i < SPLAT_THREAD_TEST_THREADS; i++) {
+		if (thread_create(NULL, 0, splat_thread_work3_wait,
+				  &tp, 0, &p0, TS_RUN, minclsyspri))
+			wait_count++;
+	}
+
+	/* All wait threads have setup their tsd and are blocking. */
+	wait_event(tp.tp_waitq, splat_thread_count(&tp, wait_count));
+
+	if (tp.tp_dtor_count != 0) {
+	        splat_vprint(file, SPLAT_THREAD_TEST3_NAME,
+		    "Prematurely ran %d tsd destructors\n", tp.tp_dtor_count);
+		if (!rc)
+			rc = -ERANGE;
+	}
+
+	/* Start tsd exit threads */
+	for (i = 0; i < SPLAT_THREAD_TEST_THREADS; i++) {
+		if (thread_create(NULL, 0, splat_thread_work3_exit,
+				  &tp, 0, &p0, TS_RUN, minclsyspri))
+			exit_count++;
+	}
+
+	/* All exit threads verified tsd and are in the process of exiting */
+	wait_event(tp.tp_waitq,splat_thread_count(&tp, wait_count+exit_count));
+	msleep(500);
+
+	expected = (SPLAT_THREAD_TEST_KEYS * exit_count);
+	if (tp.tp_dtor_count != expected) {
+	        splat_vprint(file, SPLAT_THREAD_TEST3_NAME,
+		    "Expected %d exit tsd destructors but saw %d\n",
+		    expected, tp.tp_dtor_count);
+		if (!rc)
+			rc = -ERANGE;
+	}
+
+	/* Destroy all keys and associated tsd in blocked threads */
+	for (i = 0; i < SPLAT_THREAD_TEST_KEYS; i++)
+		tsd_destroy(&tp.tp_keys[i]);
+
+	expected = (SPLAT_THREAD_TEST_KEYS * (exit_count + wait_count));
+	if (tp.tp_dtor_count != expected) {
+	        splat_vprint(file, SPLAT_THREAD_TEST3_NAME,
+		    "Expected %d wait+exit tsd destructors but saw %d\n",
+		    expected, tp.tp_dtor_count);
+		if (!rc)
+			rc = -ERANGE;
+	}
+
+	/* Release the remaining wait threads, sleep briefly while they exit */
+	spin_lock(&tp.tp_lock);
+	tp.tp_count = 0;
+	wake_up_all(&tp.tp_waitq);
+	spin_unlock(&tp.tp_lock);
+	msleep(500);
+
+	if (tp.tp_rc) {
+	        splat_vprint(file, SPLAT_THREAD_TEST3_NAME,
+		    "Thread tsd_get()/tsd_set() error %d\n", tp.tp_rc);
+		if (!rc)
+			rc = tp.tp_rc;
+	} else if (!rc) {
+	        splat_vprint(file, SPLAT_THREAD_TEST3_NAME, "%s",
+		    "Thread specific data verified\n");
 	}
 
 	return rc;
@@ -181,6 +361,8 @@ splat_thread_init(void)
                       SPLAT_THREAD_TEST1_ID, splat_thread_test1);
         SPLAT_TEST_INIT(sub, SPLAT_THREAD_TEST2_NAME, SPLAT_THREAD_TEST2_DESC,
                       SPLAT_THREAD_TEST2_ID, splat_thread_test2);
+        SPLAT_TEST_INIT(sub, SPLAT_THREAD_TEST3_NAME, SPLAT_THREAD_TEST3_DESC,
+                      SPLAT_THREAD_TEST3_ID, splat_thread_test3);
 
         return sub;
 }
@@ -189,6 +371,7 @@ void
 splat_thread_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+        SPLAT_TEST_FINI(sub, SPLAT_THREAD_TEST3_ID);
         SPLAT_TEST_FINI(sub, SPLAT_THREAD_TEST2_ID);
         SPLAT_TEST_FINI(sub, SPLAT_THREAD_TEST1_ID);
 
