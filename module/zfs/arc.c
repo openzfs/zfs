@@ -2149,7 +2149,7 @@ arc_reclaim_thread(void)
 
 		/* block until needed, or one second, whichever is shorter */
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait(&arc_reclaim_thr_cv,
+		(void) cv_timedwait_interruptible(&arc_reclaim_thr_cv,
 		    &arc_reclaim_thr_lock, (ddi_get_lbolt() + hz));
 		CALLB_CPR_SAFE_END(&cpr, &arc_reclaim_thr_lock);
 	}
@@ -4435,8 +4435,8 @@ l2arc_feed_thread(void)
 
 	while (l2arc_thread_exit == 0) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait(&l2arc_feed_thr_cv, &l2arc_feed_thr_lock,
-		    next);
+		(void) cv_timedwait_interruptible(&l2arc_feed_thr_cv,
+		    &l2arc_feed_thr_lock, next);
 		CALLB_CPR_SAFE_END(&cpr, &l2arc_feed_thr_lock);
 		next = ddi_get_lbolt() + hz;
 
