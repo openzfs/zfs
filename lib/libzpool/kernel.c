@@ -36,7 +36,6 @@
 #include <sys/zfs_context.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
-#include <sys/mount.h> /* for BLKGETSIZE64 */
 #include <sys/systeminfo.h>
 
 /*
@@ -592,22 +591,12 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 	if (fd == -1)
 		return (errno);
 
-	if (fstat64(fd, &st) == -1) {
+	if (fstat64_blk(fd, &st) == -1) {
 		err = errno;
 		close(fd);
 		return (err);
 	}
 
-#ifdef __linux__
-	/* In Linux, use an ioctl to get the size of a block device. */
-	if (S_ISBLK(st.st_mode)) {
-		if (ioctl(fd, BLKGETSIZE64, &st.st_size) != 0) {
-			err = errno;
-			close(fd);
-			return (err);
-		}
-	}
-#endif
 	(void) fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 	*vpp = vp = umem_zalloc(sizeof (vnode_t), UMEM_NOFAIL);
@@ -699,10 +688,12 @@ int
 fop_getattr(vnode_t *vp, vattr_t *vap)
 {
 	struct stat64 st;
+	int err;
 
-	if (fstat64(vp->v_fd, &st) == -1) {
+	if (fstat64_blk(vp->v_fd, &st) == -1) {
+		err = errno;
 		close(vp->v_fd);
-		return (errno);
+		return (err);
 	}
 
 	vap->va_size = st.st_size;

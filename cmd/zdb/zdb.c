@@ -1803,17 +1803,9 @@ dump_label(const char *dev)
 		exit(1);
 	}
 
-	if (fstat64(fd, &statbuf) != 0) {
+	if (fstat64_blk(fd, &statbuf) != 0) {
 		(void) printf("failed to stat '%s': %s\n", path,
 		    strerror(errno));
-		free(path);
-		(void) close(fd);
-		exit(1);
-	}
-
-	if (S_ISBLK(statbuf.st_mode)) {
-		(void) printf("cannot use '%s': character device required\n",
-		    path);
 		free(path);
 		(void) close(fd);
 		exit(1);
