@@ -4083,85 +4083,149 @@ manual_mount(int argc, char **argv)
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 		(void) fprintf(stderr, "usage: mount <dataset> <mountpoint>\n");
-		return (2);
+		return (MOUNT_USAGE);
 	}
 
 	dataset = argv[0];
-	path = argv[1];
+	mntpoint = argv[1];
 
-	/* try to open the dataset */
-	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM)) == NULL)
-		return (1);
-
-	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE);
-
-	/* check for legacy mountpoint and complain appropriately */
-	ret = 0;
-	if (strcmp(mountpoint, ZFS_MOUNTPOINT_LEGACY) == 0) {
-		if (mount(dataset, path, MS_OPTIONSTR | flags, MNTTYPE_ZFS,
-		    NULL, 0, mntopts, sizeof (mntopts)) != 0) {
-			(void) fprintf(stderr, gettext("mount failed: %s\n"),
-			    strerror(errno));
-			ret = 1;
-		}
-	} else {
+	/* try to open the dataset to access the mount point */
+	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM)) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted using 'mount -F zfs'\n"), dataset);
-		(void) fprintf(stderr, gettext("Use 'zfs set mountpoint=%s' "
-		    "instead.\n"), path);
-		(void) fprintf(stderr, gettext("If you must use 'mount -F zfs' "
-		    "or /etc/vfstab, use 'zfs set mountpoint=legacy'.\n"));
-		(void) fprintf(stderr, gettext("See zfs(1M) for more "
-		    "information.\n"));
-		ret = 1;
+		    "mounted, unable to open the dataset\n"), dataset);
+		return (MOUNT_USAGE);
 	}
 
-	return (ret);
+	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, legacy,
+	    sizeof (legacy), NULL, NULL, 0, B_FALSE);
+
+	zfs_close(zhp);
+
+	/* check for legacy mountpoint or util mount option */
+	if ((!strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) == 0) &&
+	    (strstr(mntopts, MNTOPT_ZFSUTIL) == NULL)) {
+		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
+		    "mounted using 'mount -a -t zfs'\n"), dataset);
+		(void) fprintf(stderr, gettext("Use 'zfs set mountpoint=%s' "
+		    "instead.\n"), mntpoint);
+		(void) fprintf(stderr, gettext("If you must use 'mount -a -t "
+		    "zfs' or /etc/fstab, use 'zfs set mountpoint=legacy'.\n"));
+		(void) fprintf(stderr, gettext("See zfs(8) for more "
+		    "information.\n"));
+		return (MOUNT_USAGE);
+	}
+
+	/* validate mount options and set mntflags */
+	rc = parse_options(mntopts, &mntflags, sloppy, badopt);
+	if (rc) {
+		switch (rc) {
+		case ENOMEM:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted due to a memory allocation "
+			    "failure\n"), dataset);
+			return (MOUNT_SYSERR);
+		case EINVAL:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted of due to the invalid option "
+			    "'%s'\n"), dataset, badopt);
+			(void) fprintf(stderr, gettext("Use the '-s' option "
+			    "to ignore the bad mount option.\n"));
+			return (MOUNT_USAGE);
+		default:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted due to internal error %d\n"),
+			    dataset, rc);
+			return (MOUNT_SOFTWARE);
+		}
+	}
+
+	if (verbose > 2)
+		printf("mount.zfs: dataset: \"%s\", mountpoint: \"%s\" "
+		    "mountflags: 0x%lx, mountopts: \"%s\"\n", dataset,
+		    mntpoint, mntflags, mntopts);
+
+	/* load the zfs posix layer module (zpl) */
+	if (libzfs_load_module("zpl")) {
+		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
+		    "mounted without the zpl kernel module\n"), dataset);
+		(void) fprintf(stderr, gettext("Use 'dmesg' to determine why "
+		    "the module could not be loaded.\n"));
+		return (MOUNT_SYSERR);
+	}
+
+	if (!fake) {
+		rc = mount(dataset, mntpoint, MNTTYPE_ZFS, mntflags, mntopts);
+		if (rc) {
+			(void) fprintf(stderr, gettext("filesystem '%s' can"
+			    "not be mounted due to error %d\n"), dataset, rc);
+			return (MOUNT_USAGE);
+		}
+	}
+
+	return (MOUNT_SUCCESS);
 }
 
+#ifdef HAVE_UNMOUNT_HELPER
 /*
- * Called when invoked as /etc/fs/zfs/umount.  Unlike a manual mount, we allow
- * unmounts of non-legacy filesystems, as this is the dominant administrative
- * interface.
+ * Called when invoked as /sbin/umount.zfs, mount helper for mount(8).
+ * Unlike a manual mount, we allow unmounts of non-legacy filesystems,
+ * as this is the dominant administrative interface.
  */
 static int
 manual_unmount(int argc, char **argv)
 {
-	int flags = 0;
+	int verbose = 0, flags = 0;
 	int c;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "nlfvrh?")) != -1) {
 		switch (c) {
+		case 'n':
+			/* Ignored, handled by mount(8) */
+			break;
+		case 'l':
+			flags = MS_DETACH;
+			break;
 		case 'f':
 			flags = MS_FORCE;
 			break;
+		case 'v':
+			verbose++;
+			break;
+		case 'r':
+			/* Remount read-only on umount failure, unsupported */
+			(void) fprintf(stderr, gettext("Unsupported option "
+			    "'%c'\n"), optopt);
+			return (MOUNT_USAGE);
+		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
 			    optopt);
-			(void) fprintf(stderr, gettext("usage: unmount [-f] "
-			    "<path>\n"));
-			return (2);
+			(void) fprintf(stderr, gettext("Usage: umount.zfs "
+			    "[-nlfvr] <mountpoint>\n"));
+			return (MOUNT_USAGE);
 		}
 	}
 
 	argc -= optind;
 	argv += optind;
 
-	/* check arguments */
+	/* check that we only have one argument */
 	if (argc != 1) {
 		if (argc == 0)
-			(void) fprintf(stderr, gettext("missing path "
+			(void) fprintf(stderr, gettext("missing mountpoint "
 			    "argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
-		(void) fprintf(stderr, gettext("usage: unmount [-f] <path>\n"));
-		return (2);
+
+		(void) fprintf(stderr, gettext("Usage: umount.zfs [-nlfvr] "
+		    "<mountpoint>\n"));
+		return (MOUNT_USAGE);
 	}
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
+#endif /* HAVE_UNMOUNT_HELPER */
 
 static int
 find_command_idx(char *command, int *idx)
@@ -4281,8 +4345,10 @@ main(int argc, char **argv)
 	progname = basename(argv[0]);
 	if (strcmp(progname, "mount.zfs") == 0) {
 		ret = manual_mount(argc, argv);
+#ifdef HAVE_UNMOUNT_HELPER
 	} else if (strcmp(progname, "umount.zfs") == 0) {
 		ret = manual_unmount(argc, argv);
+#endif /* HAVE_UNMOUNT_HELPER */
 	} else {
 		/*
 		 * Make sure the user has specified some command.
