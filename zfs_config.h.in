@@ -87,9 +87,6 @@
 /* Define if you have selinux */
 #undef HAVE_LIBSELINUX
 
-/* Define to 1 if 'libshare' library available */
-#undef HAVE_LIBSHARE
-
 /* Define if you have libuuid */
 #undef HAVE_LIBUUID
 
