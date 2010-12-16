@@ -3153,11 +3153,11 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		shared_nfs = zfs_is_shared_nfs(zhp, NULL);
 		shared_smb = zfs_is_shared_smb(zhp, NULL);
 
-		if (shared_nfs && shared_smb ||
-		    (shared_nfs && strcmp(shareopts, "on") == 0 &&
-		    strcmp(smbshareopts, "off") == 0) ||
-		    (shared_smb && strcmp(smbshareopts, "on") == 0 &&
-		    strcmp(shareopts, "off") == 0)) {
+		if ((shared_nfs && shared_smb) ||
+		    ((shared_nfs && strcmp(shareopts, "on") == 0) &&
+		    (strcmp(smbshareopts, "off") == 0)) ||
+		    ((shared_smb && strcmp(smbshareopts, "on") == 0) &&
+		    (strcmp(shareopts, "off") == 0))) {
 			if (!explicit)
 				return (0);
 
@@ -3622,7 +3622,7 @@ unshare_unmount(int op, int argc, char **argv)
 		 */
 		struct mnttab entry;
 		uu_avl_pool_t *pool;
-		uu_avl_t *tree;
+		uu_avl_t *tree = NULL;
 		unshare_unmount_node_t *node;
 		uu_avl_index_t idx;
 		uu_avl_walk_t *walk;

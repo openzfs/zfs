@@ -450,7 +450,7 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	objset_t	*os;
 	ssize_t		n, nbytes;
-	int		error;
+	int		error = 0;
 	rl_t		*rl;
 	xuio_t		*xuio = NULL;
 
@@ -763,8 +763,8 @@ again:
 			    max_blksz);
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == max_blksz);
-			if (error = uiocopy(abuf->b_data, max_blksz,
-			    UIO_WRITE, uio, &cbytes)) {
+			if ((error = uiocopy(abuf->b_data, max_blksz,
+			    UIO_WRITE, uio, &cbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
 			}
@@ -1223,7 +1223,7 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 			return (EINVAL);
 		}
 
-		if (error = zfs_get_xattrdir(VTOZ(dvp), vpp, cr, flags)) {
+		if ((error = zfs_get_xattrdir(VTOZ(dvp), vpp, cr, flags))) {
 			ZFS_EXIT(zfsvfs);
 			return (error);
 		}
@@ -1232,8 +1232,8 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 		 * Do we have permission to get into attribute directory?
 		 */
 
-		if (error = zfs_zaccess(VTOZ(*vpp), ACE_EXECUTE, 0,
-		    B_FALSE, cr)) {
+		if ((error = zfs_zaccess(VTOZ(*vpp), ACE_EXECUTE, 0,
+		    B_FALSE, cr))) {
 			VN_RELE(*vpp);
 			*vpp = NULL;
 		}
@@ -1251,7 +1251,7 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 	 * Check accessibility of directory.
 	 */
 
-	if (error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr)) {
+	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -1310,7 +1310,7 @@ zfs_create(vnode_t *dvp, char *name, vattr_t *vap, vcexcl_t excl,
 	int		error;
 	ksid_t		*ksid;
 	uid_t		uid;
-	gid_t		gid = crgetgid(cr);
+	gid_t		gid;
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 	boolean_t	have_acl = B_FALSE;
@@ -1320,6 +1320,7 @@ zfs_create(vnode_t *dvp, char *name, vattr_t *vap, vcexcl_t excl,
 	 * make sure file system is at proper version
 	 */
 
+	gid = crgetgid(cr);
 	ksid = crgetsid(cr, KSID_OWNER);
 	if (ksid)
 		uid = ksid_getid(ksid);
@@ -1389,7 +1390,7 @@ top:
 		 * Create a new file object and update the directory
 		 * to reference it.
 		 */
-		if (error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr)) {
+		if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
 			if (have_acl)
 				zfs_acl_ids_free(&acl_ids);
 			goto out;
@@ -1587,8 +1588,8 @@ top:
 	/*
 	 * Attempt to lock directory; fail if entry doesn't exist.
 	 */
-	if (error = zfs_dirent_lock(&dl, dzp, name, &zp, zflg,
-	    NULL, realnmp)) {
+	if ((error = zfs_dirent_lock(&dl, dzp, name, &zp, zflg,
+	    NULL, realnmp))) {
 		if (realnmp)
 			pn_free(realnmp);
 		ZFS_EXIT(zfsvfs);
@@ -1597,7 +1598,7 @@ top:
 
 	vp = ZTOV(zp);
 
-	if (error = zfs_zaccess_delete(dzp, zp, cr)) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
 		goto out;
 	}
 
@@ -1617,7 +1618,7 @@ top:
 		dnlc_remove(dvp, name);
 
 	mutex_enter(&vp->v_lock);
-	may_delete_now = vp->v_count == 1 && !vn_has_cached_data(vp);
+	may_delete_now = ((vp->v_count == 1) && (!vn_has_cached_data(vp)));
 	mutex_exit(&vp->v_lock);
 
 	/*
@@ -1856,14 +1857,14 @@ zfs_mkdir(vnode_t *dvp, char *dirname, vattr_t *vap, vnode_t **vpp, cred_t *cr,
 top:
 	*vpp = NULL;
 
-	if (error = zfs_dirent_lock(&dl, dzp, dirname, &zp, zf,
-	    NULL, NULL)) {
+	if ((error = zfs_dirent_lock(&dl, dzp, dirname, &zp, zf,
+	    NULL, NULL))) {
 		zfs_acl_ids_free(&acl_ids);
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
 
-	if (error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr)) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		ZFS_EXIT(zfsvfs);
@@ -1987,15 +1988,15 @@ top:
 	/*
 	 * Attempt to lock directory; fail if entry doesn't exist.
 	 */
-	if (error = zfs_dirent_lock(&dl, dzp, name, &zp, zflg,
-	    NULL, NULL)) {
+	if ((error = zfs_dirent_lock(&dl, dzp, name, &zp, zflg,
+	    NULL, NULL))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
 
 	vp = ZTOV(zp);
 
-	if (error = zfs_zaccess_delete(dzp, zp, cr)) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
 		goto out;
 	}
 
@@ -2442,8 +2443,8 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 	 */
 	if (!(zp->z_pflags & ZFS_ACL_TRIVIAL) &&
 	    (vap->va_uid != crgetuid(cr))) {
-		if (error = zfs_zaccess(zp, ACE_READ_ATTRIBUTES, 0,
-		    skipaclchk, cr)) {
+		if ((error = zfs_zaccess(zp, ACE_READ_ATTRIBUTES, 0,
+		    skipaclchk, cr))) {
 			ZFS_EXIT(zfsvfs);
 			return (error);
 		}
@@ -3520,7 +3521,7 @@ top:
 	 * done in a single check.
 	 */
 
-	if (error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr))
+	if ((error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr)))
 		goto out;
 
 	if (ZTOV(szp)->v_type == VDIR) {
@@ -3528,7 +3529,7 @@ top:
 		 * Check to make sure rename is valid.
 		 * Can't do a move like this: /usr/a/b to /usr/a/b/c/d
 		 */
-		if (error = zfs_rename_lock(szp, tdzp, sdzp, &zl))
+		if ((error = zfs_rename_lock(szp, tdzp, sdzp, &zl)))
 			goto out;
 	}
 
@@ -3746,7 +3747,7 @@ top:
 		return (error);
 	}
 
-	if (error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr)) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		ZFS_EXIT(zfsvfs);
@@ -3969,7 +3970,7 @@ zfs_link(vnode_t *tdvp, vnode_t *svp, char *name, cred_t *cr,
 		return (EPERM);
 	}
 
-	if (error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr)) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -4727,7 +4728,7 @@ zfs_space(vnode_t *vp, int cmd, flock64_t *bfp, int flag,
 		return (EINVAL);
 	}
 
-	if (error = convoff(vp, bfp, 0, offset)) {
+	if ((error = convoff(vp, bfp, 0, offset))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}

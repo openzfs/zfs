@@ -1000,7 +1000,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
 		err = zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx);
-		ASSERT3P(err, ==, 0);
+		ASSERT3S(err, ==, 0);
 	}
 	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj);
 }

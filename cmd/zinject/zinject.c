@@ -566,7 +566,7 @@ main(int argc, char **argv)
 	zinject_record_t record = { 0 };
 	char pool[MAXNAMELEN];
 	char dataset[MAXNAMELEN];
-	zfs_handle_t *zhp;
+	zfs_handle_t *zhp = NULL;
 	int nowrites = 0;
 	int dur_txg = 0;
 	int dur_secs = 0;

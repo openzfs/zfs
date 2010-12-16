@@ -494,7 +494,7 @@ zfs_acl_release_nodes(zfs_acl_t *aclp)
 {
 	zfs_acl_node_t *aclnode;
 
-	while (aclnode = list_head(&aclp->z_acl)) {
+	while ((aclnode = list_head(&aclp->z_acl))) {
 		list_remove(&aclp->z_acl, aclnode);
 		zfs_acl_node_free(aclnode);
 	}
@@ -732,8 +732,8 @@ zfs_copy_fuid_2_ace(zfsvfs_t *zfsvfs, zfs_acl_t *aclp, cred_t *cr,
 	size_t ace_size;
 	uint16_t entry_type;
 
-	while (zacep = zfs_acl_next_ace(aclp, zacep,
-	    &who, &access_mask, &iflags, &type)) {
+	while ((zacep = zfs_acl_next_ace(aclp, zacep,
+	    &who, &access_mask, &iflags, &type))) {
 
 		switch (type) {
 		case ACE_ACCESS_ALLOWED_OBJECT_ACE_TYPE:
@@ -823,8 +823,8 @@ zfs_acl_xform(znode_t *zp, zfs_acl_t *aclp, cred_t *cr)
 	oldaclp = kmem_alloc(sizeof (zfs_oldace_t) * aclp->z_acl_count,
 	    KM_SLEEP);
 	i = 0;
-	while (cookie = zfs_acl_next_ace(aclp, cookie, &who,
-	    &access_mask, &iflags, &type)) {
+	while ((cookie = zfs_acl_next_ace(aclp, cookie, &who,
+	    &access_mask, &iflags, &type))) {
 		oldaclp[i].z_flags = iflags;
 		oldaclp[i].z_type = type;
 		oldaclp[i].z_fuid = who;
@@ -904,8 +904,8 @@ zfs_mode_compute(uint64_t fmode, zfs_acl_t *aclp,
 
 	mode = (fmode & (S_IFMT | S_ISUID | S_ISGID | S_ISVTX));
 
-	while (acep = zfs_acl_next_ace(aclp, acep, &who,
-	    &access_mask, &iflags, &type)) {
+	while ((acep = zfs_acl_next_ace(aclp, acep, &who,
+	    &access_mask, &iflags, &type))) {
 
 		if (!zfs_acl_valid_ace_type(type, iflags))
 			continue;
@@ -1441,8 +1441,8 @@ zfs_acl_chmod(zfsvfs_t *zfsvfs, uint64_t mode, zfs_acl_t *aclp)
 		new_bytes += abstract_size;
 	}
 
-	while (acep = zfs_acl_next_ace(aclp, acep, &who, &access_mask,
-	    &iflags, &type)) {
+	while ((acep = zfs_acl_next_ace(aclp, acep, &who, &access_mask,
+	    &iflags, &type))) {
 		uint16_t inherit_flags;
 
 		entry_type = (iflags & ACE_TYPE_FLAGS);
@@ -1584,8 +1584,8 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, vtype_t vtype, zfs_acl_t *paclp,
 	aclp = zfs_acl_alloc(paclp->z_version);
 	if (zfsvfs->z_acl_inherit == ZFS_ACL_DISCARD || vtype == VLNK)
 		return (aclp);
-	while (pacep = zfs_acl_next_ace(paclp, pacep, &who,
-	    &access_mask, &iflags, &type)) {
+	while ((pacep = zfs_acl_next_ace(paclp, pacep, &who,
+	    &access_mask, &iflags, &type))) {
 
 		/*
 		 * don't inherit bogus ACEs
@@ -1837,7 +1837,7 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (mask == 0)
 		return (ENOSYS);
 
-	if (error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr))
+	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr)))
 		return (error);
 
 	mutex_enter(&zp->z_acl_lock);
@@ -1857,8 +1857,8 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 		uint32_t access_mask;
 		uint16_t type, iflags;
 
-		while (zacep = zfs_acl_next_ace(aclp, zacep,
-		    &who, &access_mask, &iflags, &type)) {
+		while ((zacep = zfs_acl_next_ace(aclp, zacep,
+		    &who, &access_mask, &iflags, &type))) {
 			switch (type) {
 			case ACE_ACCESS_ALLOWED_OBJECT_ACE_TYPE:
 			case ACE_ACCESS_DENIED_OBJECT_ACE_TYPE:
@@ -1996,7 +1996,7 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (zp->z_pflags & ZFS_IMMUTABLE)
 		return (EPERM);
 
-	if (error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr))
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr)))
 		return (error);
 
 	error = zfs_vsec_2_aclp(zfsvfs, ZTOV(zp)->v_type, vsecp, cr, &fuidp,
@@ -2173,8 +2173,8 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 
 	ASSERT(zp->z_acl_cached);
 
-	while (acep = zfs_acl_next_ace(aclp, acep, &who, &access_mask,
-	    &iflags, &type)) {
+	while ((acep = zfs_acl_next_ace(aclp, acep, &who, &access_mask,
+	    &iflags, &type))) {
 		uint32_t mask_matched;
 
 		if (!zfs_acl_valid_ace_type(type, iflags))
@@ -2730,14 +2730,14 @@ zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
 	 * If that succeeds then check for add_file/add_subdir permissions
 	 */
 
-	if (error = zfs_zaccess_delete(sdzp, szp, cr))
+	if ((error = zfs_zaccess_delete(sdzp, szp, cr)))
 		return (error);
 
 	/*
 	 * If we have a tzp, see if we can delete it?
 	 */
 	if (tzp) {
-		if (error = zfs_zaccess_delete(tdzp, tzp, cr))
+		if ((error = zfs_zaccess_delete(tdzp, tzp, cr)))
 			return (error);
 	}
 

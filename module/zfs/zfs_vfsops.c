@@ -485,8 +485,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 		char osname[MAXNAMELEN];
 
 		dmu_objset_name(os, osname);
-		if (error = dsl_prop_get_integer(osname, "nbmand", &nbmand,
-		    NULL)) {
+		if ((error = dsl_prop_get_integer(osname, "nbmand", &nbmand,
+		    NULL))) {
 			return (error);
 		}
 	}
@@ -642,6 +642,8 @@ zfs_userquota_prop_to_obj(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
 		return (zfsvfs->z_userquota_obj);
 	case ZFS_PROP_GROUPQUOTA:
 		return (zfsvfs->z_groupquota_obj);
+	default:
+		return (ENOTSUP);
 	}
 	return (0);
 }
@@ -873,7 +875,7 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 		goto out;
 	} else if (zfsvfs->z_version >
 	    zfs_zpl_version_map(spa_version(dmu_objset_spa(os)))) {
-		(void) printf("Can't mount a version %lld file system "
+		(void) printk("Can't mount a version %lld file system "
 		    "on a version %lld pool\n. Pool must be upgraded to mount "
 		    "this file system.", (u_longlong_t)zfsvfs->z_version,
 		    (u_longlong_t)spa_version(dmu_objset_spa(os)));
@@ -1126,8 +1128,8 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	}
 	ASSERT(vfs_devismounted(mount_dev) == 0);
 
-	if (error = dsl_prop_get_integer(osname, "recordsize", &recordsize,
-	    NULL))
+	if ((error = dsl_prop_get_integer(osname, "recordsize",
+	    &recordsize, NULL)))
 		goto out;
 
 	vfsp->vfs_dev = mount_dev;
@@ -1169,7 +1171,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 
 		atime_changed_cb(zfsvfs, B_FALSE);
 		readonly_changed_cb(zfsvfs, B_TRUE);
-		if (error = dsl_prop_get_integer(osname, "xattr", &pval, NULL))
+		if ((error = dsl_prop_get_integer(osname,"xattr",&pval,NULL)))
 			goto out;
 		xattr_changed_cb(zfsvfs, pval);
 		zfsvfs->z_issnap = B_TRUE;
@@ -1565,7 +1567,7 @@ zfs_mount(vfs_t *vfsp, vnode_t *mvp, struct mounta *uap, cred_t *cr)
 	/*
 	 * Get the objset name (the "special" mount argument).
 	 */
-	if (error = pn_get(uap->spec, fromspace, &spn))
+	if ((error = pn_get(uap->spec, fromspace, &spn)))
 		return (error);
 
 	osname = spn.pn_path;
@@ -1968,7 +1970,7 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 	gen_mask = -1ULL >> (64 - 8 * i);
 
 	dprintf("getting %llu [%u mask %llx]\n", object, fid_gen, gen_mask);
-	if (err = zfs_zget(zfsvfs, object, &zp)) {
+	if ((err = zfs_zget(zfsvfs, object, &zp))) {
 		ZFS_EXIT(zfsvfs);
 		return (err);
 	}
