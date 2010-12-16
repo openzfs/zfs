@@ -794,6 +794,7 @@ CONFIG_KERNEL_TRUE
 CONFIG_USER_FALSE
 CONFIG_USER_TRUE
 FRAME_LARGER_THAN
+LIBSELINUX
 LIBBLKID
 LIBUUID
 ZLIB
@@ -972,6 +973,7 @@ with_linux_obj
 with_spl
 with_spl_obj
 with_blkid
+with_selinux
 enable_debug
 '
       ac_precious_vars='build_alias
@@ -1639,6 +1641,7 @@ Optional Packages:
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
   --with-blkid            support blkid caching [default=check]
+  --with-selinux          support selinux [default=check]
 
 Some influential environment variables:
   CC          C compiler command
@@ -4817,13 +4820,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4820: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4823: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4823: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4826: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4826: output\"" >&5)
+  (eval echo "\"\$as_me:4829: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6029,7 +6032,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6032 "configure"' > conftest.$ac_ext
+  echo '#line 6035 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7882,11 +7885,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7885: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7888: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7889: \$? = $ac_status" >&5
+   echo "$as_me:7892: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8221,11 +8224,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8224: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8227: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8228: \$? = $ac_status" >&5
+   echo "$as_me:8231: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8326,11 +8329,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8329: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8332: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8333: \$? = $ac_status" >&5
+   echo "$as_me:8336: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8381,11 +8384,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8384: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8387: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8388: \$? = $ac_status" >&5
+   echo "$as_me:8391: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11184,7 +11187,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11187 "configure"
+#line 11190 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11280,7 +11283,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11283 "configure"
+#line 11286 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14979,6 +14982,268 @@ fi
 
 
 
+
+# Check whether --with-selinux was given.
+if test "${with_selinux+set}" = set; then
+  withval=$with_selinux;
+else
+  with_selinux=check
+fi
+
+
+	LIBSELINUX=
+	if test "x$with_selinux" != xno; then
+
+		if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  { $as_echo "$as_me:$LINENO: checking for selinux/selinux.h" >&5
+$as_echo_n "checking for selinux/selinux.h... " >&6; }
+if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_selinux_selinux_h" >&5
+$as_echo "$ac_cv_header_selinux_selinux_h" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking selinux/selinux.h usability" >&5
+$as_echo_n "checking selinux/selinux.h usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <selinux/selinux.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking selinux/selinux.h presence" >&5
+$as_echo_n "checking selinux/selinux.h presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <selinux/selinux.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for selinux/selinux.h" >&5
+$as_echo_n "checking for selinux/selinux.h... " >&6; }
+if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_header_selinux_selinux_h=$ac_header_preproc
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_selinux_selinux_h" >&5
+$as_echo "$ac_cv_header_selinux_selinux_h" >&6; }
+
+fi
+if test "x$ac_cv_header_selinux_selinux_h" = x""yes; then
+
+			{ $as_echo "$as_me:$LINENO: checking for is_selinux_enabled in -lselinux" >&5
+$as_echo_n "checking for is_selinux_enabled in -lselinux... " >&6; }
+if test "${ac_cv_lib_selinux_is_selinux_enabled+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lselinux  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char is_selinux_enabled ();
+int
+main ()
+{
+return is_selinux_enabled ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_selinux_is_selinux_enabled=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_selinux_is_selinux_enabled=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_selinux_is_selinux_enabled" >&5
+$as_echo "$ac_cv_lib_selinux_is_selinux_enabled" >&6; }
+if test "x$ac_cv_lib_selinux_is_selinux_enabled" = x""yes; then
+
+				LIBSELINUX="-lselinux"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSELINUX 1
+_ACEOF
+
+
+else
+
+				if test "x$with_selinux" != xcheck; then
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+
+fi
+
+
+else
+
+			if test "x$with_selinux" != xcheck; then
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+
+fi
+
+
+
+else
+
+		{ $as_echo "$as_me:$LINENO: checking for selinux support" >&5
+$as_echo_n "checking for selinux support... " >&6; }
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+fi
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking for -Wframe-larger-than=<size> support" >&5
 $as_echo_n "checking for -Wframe-larger-than=<size> support... " >&6; }
 
@@ -18309,6 +18574,268 @@ fi
 
 fi
 
+
+fi
+
+
+
+
+# Check whether --with-selinux was given.
+if test "${with_selinux+set}" = set; then
+  withval=$with_selinux;
+else
+  with_selinux=check
+fi
+
+
+	LIBSELINUX=
+	if test "x$with_selinux" != xno; then
+
+		if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  { $as_echo "$as_me:$LINENO: checking for selinux/selinux.h" >&5
+$as_echo_n "checking for selinux/selinux.h... " >&6; }
+if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_selinux_selinux_h" >&5
+$as_echo "$ac_cv_header_selinux_selinux_h" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking selinux/selinux.h usability" >&5
+$as_echo_n "checking selinux/selinux.h usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <selinux/selinux.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking selinux/selinux.h presence" >&5
+$as_echo_n "checking selinux/selinux.h presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <selinux/selinux.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: selinux/selinux.h: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: selinux/selinux.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for selinux/selinux.h" >&5
+$as_echo_n "checking for selinux/selinux.h... " >&6; }
+if test "${ac_cv_header_selinux_selinux_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_header_selinux_selinux_h=$ac_header_preproc
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_selinux_selinux_h" >&5
+$as_echo "$ac_cv_header_selinux_selinux_h" >&6; }
+
+fi
+if test "x$ac_cv_header_selinux_selinux_h" = x""yes; then
+
+			{ $as_echo "$as_me:$LINENO: checking for is_selinux_enabled in -lselinux" >&5
+$as_echo_n "checking for is_selinux_enabled in -lselinux... " >&6; }
+if test "${ac_cv_lib_selinux_is_selinux_enabled+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lselinux  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char is_selinux_enabled ();
+int
+main ()
+{
+return is_selinux_enabled ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_selinux_is_selinux_enabled=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_selinux_is_selinux_enabled=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_selinux_is_selinux_enabled" >&5
+$as_echo "$ac_cv_lib_selinux_is_selinux_enabled" >&6; }
+if test "x$ac_cv_lib_selinux_is_selinux_enabled" = x""yes; then
+
+				LIBSELINUX="-lselinux"
+
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_LIBSELINUX 1
+_ACEOF
+
+
+else
+
+				if test "x$with_selinux" != xcheck; then
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+
+fi
+
+
+else
+
+			if test "x$with_selinux" != xcheck; then
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: --with-selinux given but unavailable
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+
+fi
+
+
+
+else
+
+		{ $as_echo "$as_me:$LINENO: checking for selinux support" >&5
+$as_echo_n "checking for selinux support... " >&6; }
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
 
 fi
 

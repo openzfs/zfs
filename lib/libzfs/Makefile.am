@@ -6,7 +6,7 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzfs.la
 
-libzfs_la_LDFLAGS = -lm
+libzfs_la_LDFLAGS = -lm $(LIBSELINUX)
 
 libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libefi/libefi.la \

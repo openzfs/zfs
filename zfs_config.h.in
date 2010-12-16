@@ -84,6 +84,9 @@
 /* Define if you have libblkid */
 #undef HAVE_LIBBLKID
 
+/* Define if you have selinux */
+#undef HAVE_LIBSELINUX
+
 /* Define to 1 if 'libshare' library available */
 #undef HAVE_LIBSHARE
 
