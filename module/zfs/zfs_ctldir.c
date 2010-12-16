@@ -31,7 +31,7 @@
  * does not actually exist on disk.
  *
  * For 'snapshot', we don't want to have all snapshots always mounted, because
- * this would take up a huge amount of space in /etc/mnttab.  We have three
+ * this would take up a huge amount of space in /etc/mtab.  We have three
  * types of objects:
  *
  * 	ctldir ------> snapshotdir -------> snapshot

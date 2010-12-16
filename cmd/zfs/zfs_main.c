@@ -3365,7 +3365,7 @@ share_mount(int op, int argc, char **argv)
 		}
 
 		/*
-		 * When mount is given no arguments, go through /etc/mnttab and
+		 * When mount is given no arguments, go through /etc/mtab and
 		 * display any active ZFS mounts.  We hide any snapshots, since
 		 * they are controlled automatically.
 		 */
@@ -3453,7 +3453,7 @@ unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 
 /*
  * Convenience routine used by zfs_do_umount() and manual_unmount().  Given an
- * absolute path, find the entry /etc/mnttab, verify that its a ZFS filesystem,
+ * absolute path, find the entry /etc/mtab, verify that its a ZFS filesystem,
  * and unmount it appropriately.
  */
 static int
@@ -3467,7 +3467,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	ino_t path_inode;
 
 	/*
-	 * Search for the path in /etc/mnttab.  Rather than looking for the
+	 * Search for the path in /etc/mtab.  Rather than looking for the
 	 * specific path, which can be fooled by non-standard paths (i.e. ".."
 	 * or "//"), we stat() the path and search for the corresponding
 	 * (major,minor) device pair.
@@ -3494,7 +3494,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			    "currently mounted\n"), cmdname, path);
 			return (1);
 		}
-		(void) fprintf(stderr, gettext("warning: %s not in mnttab\n"),
+		(void) fprintf(stderr, gettext("warning: %s not in mtab\n"),
 		    path);
 		if ((ret = umount2(path, flags)) != 0)
 			(void) fprintf(stderr, gettext("%s: %s\n"), path,
@@ -3536,8 +3536,8 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		    strcmp(smbshare_prop, "off") == 0) {
 			(void) fprintf(stderr, gettext("cannot unshare "
 			    "'%s': legacy share\n"), path);
-			(void) fprintf(stderr, gettext("use "
-			    "unshare(1M) to unshare this filesystem\n"));
+			(void) fprintf(stderr, gettext("use exportfs(8) "
+			    "or smbcontrol(1) to unshare this filesystem\n"));
 		} else if (!zfs_is_shared(zhp)) {
 			(void) fprintf(stderr, gettext("cannot unshare '%s': "
 			    "not currently shared\n"), path);
@@ -3556,7 +3556,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			(void) fprintf(stderr, gettext("cannot unmount "
 			    "'%s': legacy mountpoint\n"),
 			    zfs_get_name(zhp));
-			(void) fprintf(stderr, gettext("use umount(1M) "
+			(void) fprintf(stderr, gettext("use umount(8) "
 			    "to unmount this filesystem\n"));
 		} else {
 			ret = zfs_unmountall(zhp, flags);
@@ -3606,8 +3606,8 @@ unshare_unmount(int op, int argc, char **argv)
 		/*
 		 * We could make use of zfs_for_each() to walk all datasets in
 		 * the system, but this would be very inefficient, especially
-		 * since we would have to linearly search /etc/mnttab for each
-		 * one.  Instead, do one pass through /etc/mnttab looking for
+		 * since we would have to linearly search /etc/mtab for each
+		 * one.  Instead, do one pass through /etc/mtab looking for
 		 * zfs entries and call zfs_unmount() for each one.
 		 *
 		 * Things get a little tricky if the administrator has created

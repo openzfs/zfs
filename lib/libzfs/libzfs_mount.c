@@ -1212,7 +1212,7 @@ mountpoint_compare(const void *a, const void *b)
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,
  * because this may be expensive (if not all of them are mounted), and can fail
- * arbitrarily (on I/O error, for example).  Instead, we walk /etc/mnttab and
+ * arbitrarily (on I/O error, for example).  Instead, we walk /etc/mtab and
  * gather all the filesystems that are currently mounted.
  */
 int

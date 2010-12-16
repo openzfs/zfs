@@ -1600,7 +1600,7 @@ zfs_unset_recvd_props_mode(zfs_handle_t *zhp, uint64_t *cookie)
  * zfs_prop_get_int() are built using this interface.
  *
  * Certain properties can be overridden using 'mount -o'.  In this case, scan
- * the contents of the /etc/mnttab entry, searching for the appropriate options.
+ * the contents of the /etc/mtab entry, searching for the appropriate options.
  * If they differ from the on-disk values, report the current values and mark
  * the source "temporary".
  */
@@ -1658,7 +1658,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 
 	/*
 	 * Because looking up the mount options is potentially expensive
-	 * (iterating over all of /etc/mnttab), we defer its calculation until
+	 * (iterating over all of /etc/mtab), we defer its calculation until
 	 * we're looking up a property which requires its presence.
 	 */
 	if (!zhp->zfs_mntcheck &&
