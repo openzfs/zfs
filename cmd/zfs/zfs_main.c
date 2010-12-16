@@ -318,7 +318,6 @@ safe_malloc(size_t size)
 	return (data);
 }
 
-#ifdef HAVE_ZPL
 static char *
 safe_strdup(char *str)
 {
@@ -329,7 +328,6 @@ safe_strdup(char *str)
 
 	return (dupstr);
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Callback routine that will print out information for each of
@@ -497,7 +495,6 @@ parse_depth(char *opt, int *flags)
 
 #define	PROGRESS_DELAY 2		/* seconds */
 
-#ifdef HAVE_ZPL
 static char *pt_reverse = "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 static time_t pt_begin;
 static char *pt_header = NULL;
@@ -549,7 +546,6 @@ finish_progress(char *done)
 	free(pt_header);
 	pt_header = NULL;
 }
-#endif /* HAVE_ZPL */
 
 /*
  * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
@@ -631,7 +627,6 @@ zfs_do_clone(int argc, char **argv)
 	ret = zfs_clone(zhp, argv[1], props);
 
 	/* create the mountpoint if necessary */
-#ifdef HAVE_ZPL
 	if (ret == 0) {
 		zfs_handle_t *clone;
 
@@ -643,7 +638,6 @@ zfs_do_clone(int argc, char **argv)
 			zfs_close(clone);
 		}
 	}
-#endif /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	nvlist_free(props);
@@ -831,7 +825,6 @@ zfs_do_create(int argc, char **argv)
 	 * verbose error message to let the user know that their filesystem was
 	 * in fact created, even if we failed to mount or share it.
 	 */
-#ifdef HAVE_ZPL
 	if (canmount == ZFS_CANMOUNT_ON) {
 		if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
@@ -843,7 +836,6 @@ zfs_do_create(int argc, char **argv)
 			ret = 1;
 		}
 	}
-#endif /* HAVE_ZPL */
 
 error:
 	if (zhp)
@@ -2340,7 +2332,6 @@ typedef struct rollback_cbdata {
  * 'cb_dependent' is set, then this is a dependent and we should report it
  * without checking the transaction group.
  */
-#ifdef HAVE_ZPL
 static int
 rollback_check(zfs_handle_t *zhp, void *data)
 {
@@ -2400,12 +2391,10 @@ rollback_check(zfs_handle_t *zhp, void *data)
 	zfs_close(zhp);
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 static int
 zfs_do_rollback(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	int ret;
 	int c;
 	boolean_t force = B_FALSE;
@@ -2487,9 +2476,6 @@ out:
 		return (0);
 	else
 		return (1);
-#else
-	return ENOSYS;
-#endif /*HAVE_ZPL*/
 }
 
 /*
@@ -2955,7 +2941,6 @@ zfs_do_release(int argc, char **argv)
 #define	SPINNER_TIME 3		/* seconds */
 #define	MOUNT_TIME 5		/* seconds */
 
-#ifdef HAVE_ZPL
 static int
 get_one_dataset(zfs_handle_t *zhp, void *data)
 {
@@ -3400,7 +3385,6 @@ share_mount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs mount -a [nfs]
@@ -3411,11 +3395,7 @@ share_mount(int op, int argc, char **argv)
 static int
 zfs_do_mount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3427,14 +3407,9 @@ zfs_do_mount(int argc, char **argv)
 static int
 zfs_do_share(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
-#ifdef HAVE_ZPL
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
 	char		*un_mountp;
@@ -3818,7 +3793,6 @@ unshare_unmount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs unmount -a
@@ -3829,11 +3803,7 @@ unshare_unmount(int op, int argc, char **argv)
 static int
 zfs_do_unmount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3845,11 +3815,7 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /* ARGSUSED */

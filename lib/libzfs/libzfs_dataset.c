@@ -995,7 +995,6 @@ badlabel:
 
 			/*FALLTHRU*/
 
-#ifdef HAVE_ZPL
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:
 			/*
@@ -1106,7 +1105,6 @@ badlabel:
 			}
 
 			break;
-#endif /* HAVE_ZPL */
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
@@ -2745,7 +2743,6 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			goto ancestorerr;
 		}
 
-#ifdef HAVE_ZPL
 		if (zfs_mount(h, NULL, 0) != 0) {
 			opname = dgettext(TEXT_DOMAIN, "mount");
 			goto ancestorerr;
@@ -2755,7 +2752,6 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			opname = dgettext(TEXT_DOMAIN, "share");
 			goto ancestorerr;
 		}
-#endif /* HAVE_ZPL */
 
 		zfs_close(h);
 	}
@@ -4036,28 +4032,6 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received)
 
 	return (0);
 }
-
-#ifdef HAVE_ZPL
-int
-zfs_deleg_share_nfs(libzfs_handle_t *hdl, char *dataset, char *path,
-    char *resource, void *export, void *sharetab,
-    int sharemax, zfs_share_op_t operation)
-{
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
-	int error;
-
-	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, path, sizeof (zc.zc_value));
-	if (resource)
-		(void) strlcpy(zc.zc_string, resource, sizeof (zc.zc_string));
-	zc.zc_share.z_sharedata = (uint64_t)(uintptr_t)sharetab;
-	zc.zc_share.z_exportdata = (uint64_t)(uintptr_t)export;
-	zc.zc_share.z_sharetype = operation;
-	zc.zc_share.z_sharemax = sharemax;
-	error = ioctl(hdl->libzfs_fd, ZFS_IOC_SHARE, &zc);
-	return (error);
-}
-#endif /* HAVE_ZPL */
 
 void
 zfs_prune_proplist(zfs_handle_t *zhp, uint8_t *props)
