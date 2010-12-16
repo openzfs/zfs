@@ -673,6 +673,12 @@ extern void zfs_nicenum(uint64_t, char *, size_t);
 extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 
 /*
+ * Utility functions to run an external process.
+ */
+int libzfs_run_process(const char *, char **);
+int libzfs_load_module(const char *);
+
+/*
  * Given a device or file, determine if it is part of a pool.
  */
 extern int zpool_in_use(libzfs_handle_t *, int, pool_state_t *, char **,

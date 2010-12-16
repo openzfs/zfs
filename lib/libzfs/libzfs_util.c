@@ -631,7 +631,7 @@ libzfs_module_loaded(const char *module)
 	return result;
 }
 
-static int
+int
 libzfs_run_process(const char *path, char *argv[])
 {
 	pid_t pid;
@@ -657,13 +657,14 @@ libzfs_run_process(const char *path, char *argv[])
 	return -1;
 }
 
-static int
+int
 libzfs_load_module(const char *module)
 {
 	char *argv[4] = {"/sbin/modprobe", "-q", (char *)module, (char *)0};
 
 	if (libzfs_module_loaded(module))
 		return 0;
+
 	return libzfs_run_process("/sbin/modprobe", argv);
 }
 
