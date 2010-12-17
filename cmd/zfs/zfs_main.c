@@ -3275,7 +3275,7 @@ share_mount(int op, int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":avo:O" : "a"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":avo:" : "a"))
 	    != -1) {
 		switch (c) {
 		case 'a':
@@ -3298,9 +3298,6 @@ share_mount(int op, int argc, char **argv)
 			append_options(options, optarg);
 			break;
 
-		case 'O':
-			flags |= MS_OVERLAY;
-			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
 			    "'%c' option\n"), optopt);

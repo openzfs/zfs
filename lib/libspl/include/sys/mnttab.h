@@ -36,14 +36,14 @@
 
 #ifdef MNTTAB
 #undef MNTTAB
-#endif
+#endif /* MNTTAB */
 
-#define MNTTAB "/proc/mounts"
-#define MNT_LINE_MAX 1024
+#define	MNTTAB		"/etc/mtab"
+#define	MNT_LINE_MAX	1024
 
-#define MNT_TOOLONG 1    /* entry exceeds MNT_LINE_MAX */
-#define MNT_TOOMANY 2    /* too many fields in line */
-#define MNT_TOOFEW  3    /* too few fields in line */
+#define	MNT_TOOLONG	1	/* entry exceeds MNT_LINE_MAX */
+#define	MNT_TOOMANY	2	/* too many fields in line */
+#define	MNT_TOOFEW	3	/* too few fields in line */
 
 struct mnttab {
 	char *mnt_special;

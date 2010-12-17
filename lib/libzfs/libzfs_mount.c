@@ -259,6 +259,82 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 }
 
 /*
+ * The filesystem is mounted by invoking the system mount utility rather
+ * than by the system call mount(2).  This ensures that the /etc/mtab
+ * file is correctly locked for the update.  Performing our own locking
+ * and /etc/mtab update requires making an unsafe assumption about how
+ * the mount utility performs its locking.  Unfortunately, this also means
+ * in the case of a mount failure we do not have the exact errno.  We must
+ * make due with return value from the mount process.
+ *
+ * In the long term a shared library called libmount is under development
+ * which provides a common API to address the locking and errno issues.
+ * Once the standard mount utility has been updated to use this library
+ * we can add an autoconf check to conditionally use it.
+ *
+ * http://www.kernel.org/pub/linux/utils/util-linux/libmount-docs/index.html
+ */
+
+static int
+do_mount(const char *src, const char *mntpt, char *opts)
+{
+	char *argv[8] = {
+	    "/bin/mount",
+	    "-t", MNTTYPE_ZFS,
+	    "-o", opts,
+	    (char *)src,
+            (char *)mntpt,
+	    (char *)NULL };
+	int rc;
+
+	/* Return only the most critical mount error */
+	rc = libzfs_run_process(argv[0], argv);
+	if (rc) {
+		if (rc & MOUNT_FILEIO)
+			return EIO;
+		if (rc & MOUNT_USER)
+			return EINTR;
+		if (rc & MOUNT_SOFTWARE)
+			return EPIPE;
+		if (rc & MOUNT_SYSERR)
+			return EAGAIN;
+		if (rc & MOUNT_USAGE)
+			return EINVAL;
+
+		return ENXIO; /* Generic error */
+	}
+
+	return 0;
+}
+
+static int
+do_unmount(const char *mntpt, int flags)
+{
+	char force_opt[] = "-f";
+	char lazy_opt[] = "-l";
+	char *argv[7] = {
+	    "/bin/umount",
+	    "-t", MNTTYPE_ZFS,
+	    NULL, NULL, NULL, NULL };
+	int rc, count = 3;
+
+	if (flags & MS_FORCE) {
+		argv[count] = force_opt;
+		count++;
+	}
+
+	if (flags & MS_DETACH) {
+		argv[count] = lazy_opt;
+		count++;
+	}
+
+	argv[count] = (char *)mntpt;
+	rc = libzfs_run_process(argv[0], argv);
+
+	return (rc ? EINVAL : 0);
+}
+
+/*
  * Mount the given filesystem.
  */
 int
@@ -268,9 +344,10 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	char mountpoint[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	int rc;
 
 	if (options == NULL)
-		mntopts[0] = '\0';
+		(void) strlcpy(mntopts, MNTOPT_DEFAULTS, sizeof (mntopts));
 	else
 		(void) strlcpy(mntopts, options, sizeof (mntopts));
 
@@ -278,7 +355,12 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 * If the pool is imported read-only then all mounts must be read-only
 	 */
 	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
-		flags |= MS_RDONLY;
+		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
+
+	/*
+	 * Append zfsutil option so the mount helper allow the mount
+	 */
+	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
 
 #ifdef HAVE_LIBSELINUX
 	if (is_selinux_enabled())
@@ -302,12 +384,9 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 
 	/*
 	 * Determine if the mountpoint is empty.  If so, refuse to perform the
-	 * mount.  We don't perform this check if MS_OVERLAY is specified, which
-	 * would defeat the point.  We also avoid this check if 'remount' is
-	 * specified.
+	 * mount.  We don't perform this check if 'remount' is specified.
 	 */
-	if ((flags & MS_OVERLAY) == 0 &&
-	    strstr(mntopts, MNTOPT_REMOUNT) == NULL &&
+	if (strstr(mntopts, MNTOPT_REMOUNT) == NULL &&
 	    !dir_is_empty(mountpoint)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "directory is not empty"));
@@ -316,20 +395,20 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	}
 
 	/* perform the mount */
-	if (mount(zfs_get_name(zhp), mountpoint, MS_OPTIONSTR | flags,
-	    MNTTYPE_ZFS, NULL, 0, mntopts, sizeof (mntopts)) != 0) {
+	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts);
+	if (rc) {
 		/*
 		 * Generic errors are nasty, but there are just way too many
 		 * from mount(), and they're well-understood.  We pick a few
 		 * common ones to improve upon.
 		 */
-		if (errno == EBUSY) {
+		if (rc == EBUSY) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "mountpoint or dataset is busy"));
-		} else if (errno == EPERM) {
+		} else if (rc == EPERM) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Insufficient privileges"));
-		} else if (errno == ENOTSUP) {
+		} else if (rc == ENOTSUP) {
 			char buf[256];
 			int spa_version;
 
@@ -342,7 +421,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 			    ZFS_PROP_VERSION), spa_version);
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
 		} else {
-			zfs_error_aux(hdl, strerror(errno));
+			zfs_error_aux(hdl, strerror(rc));
 		}
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
@@ -350,8 +429,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	}
 
 	/* add the mounted entry into our cache */
-	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint,
-	    mntopts);
+	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);
 	return (0);
 }
 
@@ -361,7 +439,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 static int
 unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 {
-	if (umount2(mountpoint, flags) != 0) {
+	if (do_unmount(mountpoint, flags) != 0) {
 		zfs_error_aux(hdl, strerror(errno));
 		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
