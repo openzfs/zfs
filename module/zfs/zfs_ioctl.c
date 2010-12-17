@@ -5196,10 +5196,8 @@ zfs_detach(void)
 	list_destroy(&zfsdev_state_list);
 }
 
-#ifdef HAVE_ZPL
 uint_t zfs_fsyncer_key;
 extern uint_t rrw_tsd_key;
-#endif
 
 #ifdef DEBUG
 #define ZFS_DEBUG_STR	" (DEBUG mode)"
@@ -5262,6 +5260,7 @@ _fini(void)
 	mutex_destroy(&zfs_share_lock);
 #endif /* HAVE_SHARE */
 	tsd_destroy(&zfs_fsyncer_key);
+	tsd_destroy(&rrw_tsd_key);
 
 	printk(KERN_NOTICE "ZFS: Unloaded ZFS Filesystem v%s%s\n",
 	       ZFS_META_VERSION, ZFS_DEBUG_STR);
