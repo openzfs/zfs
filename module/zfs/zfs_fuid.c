@@ -192,7 +192,6 @@ zfs_fuid_idx_domain(avl_tree_t *idx_tree, uint32_t idx)
 }
 
 #ifdef _KERNEL
-#ifdef HAVE_ZPL
 /*
  * Load the fuid table(s) into memory.
  */
@@ -397,6 +396,7 @@ uid_t
 zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
     cred_t *cr, zfs_fuid_type_t type)
 {
+#ifdef HAVE_KSID
 	uint32_t index = FUID_INDEX(fuid);
 	const char *domain;
 	uid_t id;
@@ -415,6 +415,12 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 		    FUID_RID(fuid), &id);
 	}
 	return (id);
+#else
+	if(type == ZFS_OWNER || type == ZFS_ACE_USER)
+		return (crgetuid(cr));
+	else
+		return (crgetgid(cr));
+#endif /* HAVE_KSID */
 }
 
 /*
@@ -483,6 +489,7 @@ zfs_fuid_node_add(zfs_fuid_info_t **fuidpp, const char *domain, uint32_t rid,
 	}
 }
 
+#ifdef HAVE_KSID
 /*
  * Create a file system FUID, based on information in the users cred
  *
@@ -535,6 +542,7 @@ zfs_fuid_create_cred(zfsvfs_t *zfsvfs, zfs_fuid_type_t type,
 
 	return (FUID_ENCODE(idx, rid));
 }
+#endif /* HAVE_KSID */
 
 /*
  * Create a file system FUID for an ACL ace
@@ -552,6 +560,7 @@ uint64_t
 zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
     zfs_fuid_type_t type, zfs_fuid_info_t **fuidpp)
 {
+#ifdef HAVE_KSID
 	const char *domain;
 	char *kdomain;
 	uint32_t fuid_idx = FUID_INDEX(id);
@@ -630,6 +639,12 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 		kmem_free(zfuid, sizeof (zfs_fuid_t));
 	}
 	return (FUID_ENCODE(idx, rid));
+#else
+	if (type == ZFS_OWNER)
+		return crgetuid(cr);
+	else
+		return crgetgid(cr);
+#endif
 }
 
 void
@@ -697,6 +712,7 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 boolean_t
 zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 {
+#ifdef HAVE_KSID
 	ksid_t		*ksid = crgetsid(cr, KSID_GROUP);
 	ksidlist_t	*ksidlist = crgetsidlist(cr);
 	uid_t		gid;
@@ -738,6 +754,9 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 	 */
 	gid = zfs_fuid_map_id(zfsvfs, id, cr, ZFS_GROUP);
 	return (groupmember(gid, cr));
+#else
+	return (B_TRUE);
+#endif
 }
 
 void
@@ -754,5 +773,4 @@ zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		    FUID_SIZE_ESTIMATE(zfsvfs));
 	}
 }
-#endif /* HAVE_ZPL */
 #endif

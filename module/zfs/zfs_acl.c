@@ -22,7 +22,6 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#ifdef HAVE_ZPL
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -1726,7 +1725,9 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 	int		error;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	zfs_acl_t	*paclp;
+#ifdef HAVE_KSID
 	gid_t		gid;
+#endif /* HAVE_KSID */
 	boolean_t	need_chmod = B_TRUE;
 	boolean_t	inherited = B_FALSE;
 
@@ -1737,6 +1738,10 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		if ((error = zfs_vsec_2_aclp(zfsvfs, vap->va_type, vsecp, cr,
 		    &acl_ids->z_fuidp, &acl_ids->z_aclp)) != 0)
 			return (error);
+
+	acl_ids->z_fuid = vap->va_uid;
+	acl_ids->z_fgid = vap->va_gid;
+#ifdef HAVE_KSID
 	/*
 	 * Determine uid and gid.
 	 */
@@ -1790,6 +1795,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 			}
 		}
 	}
+#endif /* HAVE_KSID */
 
 	/*
 	 * If we're creating a directory, and the parent directory has the
@@ -2793,5 +2799,3 @@ zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
 
 	return (error);
 }
-
-#endif /* HAVE_ZPL */
