@@ -74,6 +74,7 @@
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_sa.h>
+#include <sys/zfs_vnops.h>
 #include <sys/dnlc.h>
 #include <sys/zfs_rlock.h>
 #include <sys/extdirent.h>
@@ -443,7 +444,7 @@ offset_t zfs_read_chunk_size = 1024 * 1024; /* Tunable */
  *	vp - atime updated if byte count > 0
  */
 /* ARGSUSED */
-static int
+int
 zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 {
 	znode_t		*zp = VTOZ(vp);
@@ -566,6 +567,7 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_read);
 
 /*
  * Write the bytes to a file.
@@ -587,7 +589,7 @@ out:
  */
 
 /* ARGSUSED */
-static int
+int
 zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 {
 	znode_t		*zp = VTOZ(vp);
@@ -939,6 +941,7 @@ again:
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_write);
 
 void
 zfs_get_done(zgd_t *zgd, int error)
@@ -1152,7 +1155,7 @@ specvp_check(vnode_t **vpp, cred_t *cr)
  *	NA
  */
 /* ARGSUSED */
-static int
+int
 zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
     int flags, vnode_t *rdir, cred_t *cr,  caller_context_t *ct,
     int *direntflags, pathname_t *realpnp)
@@ -1269,6 +1272,7 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_lookup);
 
 /*
  * Attempt to create a new entry in a directory.  If the entry
@@ -1296,8 +1300,8 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
  */
 
 /* ARGSUSED */
-static int
-zfs_create(vnode_t *dvp, char *name, vattr_t *vap, vcexcl_t excl,
+int
+zfs_create(vnode_t *dvp, char *name, vattr_t *vap, int excl,
     int mode, vnode_t **vpp, cred_t *cr, int flag, caller_context_t *ct,
     vsecattr_t *vsecp)
 {
@@ -1529,6 +1533,7 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_create);
 
 /*
  * Remove an entry from a directory.
@@ -1550,7 +1555,7 @@ out:
 uint64_t null_xattr = 0;
 
 /*ARGSUSED*/
-static int
+int
 zfs_remove(vnode_t *dvp, char *name, cred_t *cr, caller_context_t *ct,
     int flags)
 {
@@ -1760,6 +1765,7 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_remove);
 
 /*
  * Create a new directory and insert it into dvp using the name
@@ -1782,7 +1788,7 @@ out:
  *	 vp - ctime|mtime|atime updated
  */
 /*ARGSUSED*/
-static int
+int
 zfs_mkdir(vnode_t *dvp, char *dirname, vattr_t *vap, vnode_t **vpp, cred_t *cr,
     caller_context_t *ct, int flags, vsecattr_t *vsecp)
 {
@@ -1942,6 +1948,7 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_mkdir);
 
 /*
  * Remove a directory subdir entry.  If the current working
@@ -1962,7 +1969,7 @@ top:
  *	dvp - ctime|mtime updated
  */
 /*ARGSUSED*/
-static int
+int
 zfs_rmdir(vnode_t *dvp, char *name, vnode_t *cwd, cred_t *cr,
     caller_context_t *ct, int flags)
 {
@@ -2070,6 +2077,7 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_rmdir);
 
 /*
  * Read as many directory entries as will fit into the provided
@@ -2364,7 +2372,7 @@ update:
 
 ulong_t zfs_fsync_sync_cnt = 4;
 
-static int
+int
 zfs_fsync(vnode_t *vp, int syncflag, cred_t *cr, caller_context_t *ct)
 {
 	znode_t	*zp = VTOZ(vp);
@@ -2390,6 +2398,7 @@ zfs_fsync(vnode_t *vp, int syncflag, cred_t *cr, caller_context_t *ct)
 	}
 	return (0);
 }
+EXPORT_SYMBOL(zfs_fsync);
 
 
 /*
@@ -2408,7 +2417,7 @@ zfs_fsync(vnode_t *vp, int syncflag, cred_t *cr, caller_context_t *ct)
  *	RETURN:	0 (always succeeds)
  */
 /* ARGSUSED */
-static int
+int
 zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
     caller_context_t *ct)
 {
@@ -2594,6 +2603,7 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_getattr);
 
 /*
  * Set the file attributes to the values contained in the
@@ -2614,7 +2624,7 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
  *	vp - ctime updated, mtime updated if size changed.
  */
 /* ARGSUSED */
-static int
+int
 zfs_setattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 	caller_context_t *ct)
 {
@@ -3226,6 +3236,7 @@ out2:
 	ZFS_EXIT(zfsvfs);
 	return (err);
 }
+EXPORT_SYMBOL(zfs_setattr);
 
 typedef struct zfs_zlock {
 	krwlock_t	*zl_rwlock;	/* lock we acquired */
@@ -3343,7 +3354,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *	sdvp,tdvp - ctime|mtime updated
  */
 /*ARGSUSED*/
-static int
+int
 zfs_rename(vnode_t *sdvp, char *snm, vnode_t *tdvp, char *tnm, cred_t *cr,
     caller_context_t *ct, int flags)
 {
@@ -3677,6 +3688,7 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_rename);
 
 /*
  * Insert the indicated symbolic reference entry into the directory.
@@ -3696,7 +3708,7 @@ out:
  *	dvp - ctime|mtime updated
  */
 /*ARGSUSED*/
-static int
+int
 zfs_symlink(vnode_t *dvp, char *name, vattr_t *vap, char *link, cred_t *cr,
     caller_context_t *ct, int flags)
 {
@@ -3830,6 +3842,7 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_symlink);
 
 /*
  * Return, in the buffer contained in the provided uio structure,
@@ -3849,7 +3862,7 @@ top:
  *	vp - atime updated
  */
 /* ARGSUSED */
-static int
+int
 zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr, caller_context_t *ct)
 {
 	znode_t		*zp = VTOZ(vp);
@@ -3872,6 +3885,7 @@ zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr, caller_context_t *ct)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_readlink);
 
 /*
  * Insert a new entry into directory tdvp referencing svp.
@@ -3890,7 +3904,7 @@ zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr, caller_context_t *ct)
  *	 svp - ctime updated
  */
 /* ARGSUSED */
-static int
+int
 zfs_link(vnode_t *tdvp, vnode_t *svp, char *name, cred_t *cr,
     caller_context_t *ct, int flags)
 {
@@ -4026,6 +4040,7 @@ top:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_link);
 
 /*
  * zfs_null_putapage() is used when the file system has been force
@@ -4323,6 +4338,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 	zfs_zinactive(zp);
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 }
+EXPORT_SYMBOL(zfs_inactive);
 
 /*
  * Bounds-check the seek operation.
@@ -4711,7 +4727,7 @@ zfs_delmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
  *	vp - ctime|mtime updated
  */
 /* ARGSUSED */
-static int
+int
 zfs_space(vnode_t *vp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr, caller_context_t *ct)
 {
@@ -4746,9 +4762,10 @@ zfs_space(vnode_t *vp, int cmd, flock64_t *bfp, int flag,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_space);
 
 /*ARGSUSED*/
-static int
+int
 zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 {
 	znode_t		*zp = VTOZ(vp);
@@ -4807,6 +4824,7 @@ zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_fid);
 
 static int
 zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
@@ -4879,7 +4897,7 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 }
 
 /*ARGSUSED*/
-static int
+int
 zfs_getsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
     caller_context_t *ct)
 {
@@ -4895,9 +4913,10 @@ zfs_getsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
 
 	return (error);
 }
+EXPORT_SYMBOL(zfs_getsecattr);
 
 /*ARGSUSED*/
-static int
+int
 zfs_setsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
     caller_context_t *ct)
 {
@@ -4918,6 +4937,7 @@ zfs_setsecattr(vnode_t *vp, vsecattr_t *vsecp, int flag, cred_t *cr,
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_setsecattr);
 
 /*
  * Tunable, both must be a power of 2.

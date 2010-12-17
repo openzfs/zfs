@@ -152,6 +152,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -246,6 +247,7 @@ am__libzfs_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -516,6 +518,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \

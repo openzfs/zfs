@@ -75,11 +75,7 @@ static kmutex_t	zfs_dev_mtx;
 extern int sys_shutdown;
 
 static int zfs_mount(vfs_t *vfsp, vnode_t *mvp, struct mounta *uap, cred_t *cr);
-static int zfs_umount(vfs_t *vfsp, int fflag, cred_t *cr);
 static int zfs_mountroot(vfs_t *vfsp, enum whymountroot);
-static int zfs_root(vfs_t *vfsp, vnode_t **vpp);
-static int zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp);
-static int zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp);
 static void zfs_freevfs(vfs_t *vfsp);
 
 static const fs_operation_def_t zfs_vfsops_template[] = {
@@ -181,6 +177,7 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_sync);
 
 static int
 zfs_create_unique_device(dev_t *dev)
@@ -392,7 +389,7 @@ acl_inherit_changed_cb(void *arg, uint64_t newval)
 	zfsvfs->z_acl_inherit = newval;
 }
 
-static int
+int
 zfs_register_callbacks(vfs_t *vfsp)
 {
 	struct dsl_dataset *ds = NULL;
@@ -561,6 +558,7 @@ unregister:
 	return (error);
 
 }
+EXPORT_SYMBOL(zfs_register_callbacks);
 #endif /* HAVE_ZPL */
 
 static int
@@ -689,6 +687,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	zap_cursor_fini(&zc);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_userspace_many);
 
 /*
  * buf must be big enough (eg, 32 bytes)
@@ -736,6 +735,7 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		err = 0;
 	return (err);
 }
+EXPORT_SYMBOL(zfs_userspace_one);
 
 int
 zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
@@ -797,6 +797,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	dmu_tx_commit(tx);
 	return (err);
 }
+EXPORT_SYMBOL(zfs_set_userquota);
 
 boolean_t
 zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
@@ -821,6 +822,7 @@ zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
 		return (B_FALSE);
 	return (used >= quota);
 }
+EXPORT_SYMBOL(zfs_fuid_overquota);
 
 boolean_t
 zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
@@ -837,6 +839,7 @@ zfs_owner_overquota(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t isgroup)
 
 	return (zfs_fuid_overquota(zfsvfs, isgroup, fuid));
 }
+EXPORT_SYMBOL(zfs_owner_overquota);
 
 int
 zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
@@ -1102,7 +1105,7 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
 }
 
-static int
+int
 zfs_domount(vfs_t *vfsp, char *osname)
 {
 	dev_t mount_dev;
@@ -1196,6 +1199,7 @@ out:
 
 	return (error);
 }
+EXPORT_SYMBOL(zfs_domount);
 
 void
 zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
@@ -1239,6 +1243,7 @@ zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 		    vscan_changed_cb, zfsvfs) == 0);
 	}
 }
+EXPORT_SYMBOL(zfs_unregister_callbacks);
 
 /*
  * Convert a decimal digit string to a uint64_t integer.
@@ -1643,7 +1648,7 @@ out:
 	return (error);
 }
 
-static int
+int
 zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
@@ -1706,8 +1711,9 @@ zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_statvfs);
 
-static int
+int
 zfs_root(vfs_t *vfsp, vnode_t **vpp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
@@ -1723,6 +1729,7 @@ zfs_root(vfs_t *vfsp, vnode_t **vpp)
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+EXPORT_SYMBOL(zfs_root);
 
 /*
  * Teardown the zfsvfs::z_os.
@@ -1821,7 +1828,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 }
 
 /*ARGSUSED*/
-static int
+int
 zfs_umount(vfs_t *vfsp, int fflag, cred_t *cr)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
@@ -1904,8 +1911,9 @@ zfs_umount(vfs_t *vfsp, int fflag, cred_t *cr)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_umount);
 
-static int
+int
 zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 {
 	zfsvfs_t	*zfsvfs = vfsp->vfs_data;
@@ -1990,6 +1998,7 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
+EXPORT_SYMBOL(zfs_vget);
 
 /*
  * Block out VOPs and close zfsvfs_t::z_os
@@ -2008,6 +2017,7 @@ zfs_suspend_fs(zfsvfs_t *zfsvfs)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_suspend_fs);
 
 /*
  * Reopen zfsvfs_t::z_os and release VOPs.
@@ -2071,6 +2081,7 @@ bail:
 	}
 	return (err);
 }
+EXPORT_SYMBOL(zfs_resume_fs);
 
 static void
 zfs_freevfs(vfs_t *vfsp)
@@ -2229,6 +2240,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_set_version);
 #endif /* HAVE_ZPL */
 
 /*

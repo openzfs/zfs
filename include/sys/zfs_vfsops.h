@@ -152,6 +152,14 @@ extern int zfsvfs_create(const char *name, zfsvfs_t **zfvp);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 
+extern int zfs_register_callbacks(vfs_t *vfsp);
+extern void zfs_unregister_callbacks(zfsvfs_t *zfsvfs);
+extern int zfs_domount(vfs_t *vfsp, char *osname);
+extern int zfs_umount(vfs_t *vfsp, int fflag, cred_t *cr);
+extern int zfs_root(vfs_t *vfsp, vnode_t **vpp);
+extern int zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp);
+extern int zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp);
+
 #ifdef	__cplusplus
 }
 #endif
