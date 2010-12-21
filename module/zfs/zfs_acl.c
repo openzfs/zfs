@@ -644,13 +644,6 @@ zfs_ace_walk(void *datap, uint64_t cookie, int aclcnt,
 	return ((uint64_t)(uintptr_t)acep);
 }
 
-static zfs_acl_node_t *
-zfs_acl_curr_node(zfs_acl_t *aclp)
-{
-	ASSERT(aclp->z_curr_node);
-	return (aclp->z_curr_node);
-}
-
 /*
  * Copy ACE to internal ZFS format.
  * While processing the ACL each ACE will be validated for correctness.
@@ -1332,73 +1325,6 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	return (sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 }
 
-/*
- * Update access mask for prepended ACE
- *
- * This applies the "groupmask" value for aclmode property.
- */
-static void
-zfs_acl_prepend_fixup(zfs_acl_t *aclp, void  *acep, void  *origacep,
-    mode_t mode, uint64_t owner)
-{
-	int	rmask, wmask, xmask;
-	int	user_ace;
-	uint16_t aceflags;
-	uint32_t origmask, acepmask;
-	uint64_t fuid;
-
-	aceflags = aclp->z_ops.ace_flags_get(acep);
-	fuid = aclp->z_ops.ace_who_get(acep);
-	origmask = aclp->z_ops.ace_mask_get(origacep);
-	acepmask = aclp->z_ops.ace_mask_get(acep);
-
-	user_ace = (!(aceflags &
-	    (ACE_OWNER|ACE_GROUP|ACE_IDENTIFIER_GROUP)));
-
-	if (user_ace && (fuid == owner)) {
-		rmask = S_IRUSR;
-		wmask = S_IWUSR;
-		xmask = S_IXUSR;
-	} else {
-		rmask = S_IRGRP;
-		wmask = S_IWGRP;
-		xmask = S_IXGRP;
-	}
-
-	if (origmask & ACE_READ_DATA) {
-		if (mode & rmask) {
-			acepmask &= ~ACE_READ_DATA;
-		} else {
-			acepmask |= ACE_READ_DATA;
-		}
-	}
-
-	if (origmask & ACE_WRITE_DATA) {
-		if (mode & wmask) {
-			acepmask &= ~ACE_WRITE_DATA;
-		} else {
-			acepmask |= ACE_WRITE_DATA;
-		}
-	}
-
-	if (origmask & ACE_APPEND_DATA) {
-		if (mode & wmask) {
-			acepmask &= ~ACE_APPEND_DATA;
-		} else {
-			acepmask |= ACE_APPEND_DATA;
-		}
-	}
-
-	if (origmask & ACE_EXECUTE) {
-		if (mode & xmask) {
-			acepmask &= ~ACE_EXECUTE;
-		} else {
-			acepmask |= ACE_EXECUTE;
-		}
-	}
-	aclp->z_ops.ace_mask_set(acep, acepmask);
-}
-
 static void
 zfs_acl_chmod(zfsvfs_t *zfsvfs, uint64_t mode, zfs_acl_t *aclp)
 {
@@ -2072,7 +1998,7 @@ top:
 	if (fuidp)
 		zfs_fuid_info_free(fuidp);
 	dmu_tx_commit(tx);
-done:
+
 	mutex_exit(&zp->z_lock);
 	mutex_exit(&zp->z_acl_lock);
 
