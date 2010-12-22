@@ -88,7 +88,6 @@
  * (such as VFS logic) that will not compile easily in userland.
  */
 #ifdef _KERNEL
-#ifdef HAVE_ZPL
 /*
  * Needed to close a small window in zfs_znode_move() that allows the zfsvfs to
  * be freed before it can be safely accessed.
@@ -96,17 +95,6 @@
 krwlock_t zfsvfs_lock;
 
 static kmem_cache_t *znode_cache = NULL;
-
-/*ARGSUSED*/
-static void
-znode_evict_error(dmu_buf_t *dbuf, void *user_ptr)
-{
-	/*
-	 * We should never drop all dbuf refs without first clearing
-	 * the eviction callback.
-	 */
-	panic("evicting znode %p\n", user_ptr);
-}
 
 /*ARGSUSED*/
 static int
@@ -179,7 +167,9 @@ zfs_znode_fini(void)
 	/*
 	 * Cleanup vfs & vnode ops
 	 */
+#ifdef HAVE_ZPL
 	zfs_remove_op_tables();
+#endif /* HAVE_ZPL */
 
 	/*
 	 * Cleanup zcache
@@ -190,6 +180,7 @@ zfs_znode_fini(void)
 	rw_destroy(&zfsvfs_lock);
 }
 
+#ifdef HAVE_ZPL
 struct vnodeops *zfs_dvnodeops;
 struct vnodeops *zfs_fvnodeops;
 struct vnodeops *zfs_symvnodeops;
@@ -346,6 +337,8 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 #define	MAXMIN64	0xffffffffUL
 #endif
 
+#endif /* HAVE_ZPL */
+
 /*
  * Create special expldev for ZFS private use.
  * Can't use standard expldev since it doesn't do
@@ -443,11 +436,13 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
     dmu_object_type_t obj_type, sa_handle_t *hdl)
 {
 	znode_t	*zp;
+#ifdef HAVE_ZPL
 	vnode_t *vp;
 	uint64_t mode;
 	uint64_t parent;
 	sa_bulk_attr_t bulk[9];
 	int count = 0;
+#endif /* HAVE_ZPL */
 
 	zp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 
@@ -468,6 +463,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
 
+#ifdef HAVE_ZPL
 	vp = ZTOV(zp);
 	vn_reinit(vp);
 
@@ -542,7 +538,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 		vn_setops(vp, zfs_evnodeops);
 		break;
 	}
-
+#endif /* HAVE_ZPL */
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	membar_producer();
@@ -835,6 +831,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 void
 zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 {
+#ifdef HAVE_XVATTR
 	xoptattr_t *xoap;
 
 	xoap = xva_getxoptattr(xvap);
@@ -921,6 +918,7 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_SPARSE);
 	}
+#endif /* HAVE_XVATTR */
 }
 
 int
@@ -1249,6 +1247,7 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &zp->z_blksz, &dummy);
 }
 
+#ifdef HAVE_ZPL
 /*
  * This is a dummy interface used when pvn_vplist_dirty() should *not*
  * be calling back into the fs for a putpage().  E.g.: when truncating
@@ -1262,6 +1261,7 @@ zfs_no_putpage(vnode_t *vp, page_t *pp, u_offset_t *offp, size_t *lenp,
 	ASSERT(0);
 	return (0);
 }
+#endif /* HAVE_ZPL */
 
 /*
  * Increase the file length
@@ -1393,7 +1393,9 @@ static int
 zfs_trunc(znode_t *zp, uint64_t end)
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+#ifdef HAVE_ZPL
 	vnode_t *vp = ZTOV(zp);
+#endif /* HAVE_ZPL */
 	dmu_tx_t *tx;
 	rl_t *rl;
 	int error;
@@ -1447,6 +1449,7 @@ top:
 
 	dmu_tx_commit(tx);
 
+#ifdef HAVE_ZPL
 	/*
 	 * Clear any mapped pages in the truncated region.  This has to
 	 * happen outside of the transaction to avoid the possibility of
@@ -1470,6 +1473,7 @@ top:
 		    B_INVAL | B_TRUNC, NULL);
 		ASSERT(error == 0);
 	}
+#endif /* HAVE_ZPL */
 
 	zfs_range_unlock(rl);
 
@@ -1491,7 +1495,9 @@ top:
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
+#ifdef HAVE_ZPL
 	vnode_t *vp = ZTOV(zp);
+#endif /* HAVE_ZPL */
 	dmu_tx_t *tx;
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	zilog_t *zilog = zfsvfs->z_log;
@@ -1513,6 +1519,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			return (error);
 	}
 
+#ifdef HAVE_ZPL
 	/*
 	 * Check for any locks in the region to be freed.
 	 */
@@ -1522,6 +1529,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 		if (error = chklock(vp, FWRITE, off, length, flag, NULL))
 			return (error);
 	}
+#endif /* HAVE_ZPL */
 
 	if (len == 0) {
 		error = zfs_trunc(zp, off);
@@ -1560,7 +1568,6 @@ log:
 	dmu_tx_commit(tx);
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 void
 zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
