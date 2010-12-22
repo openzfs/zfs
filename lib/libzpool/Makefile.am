@@ -22,6 +22,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zfs_fletcher.c \
 	$(top_srcdir)/module/zcommon/zfs_namecheck.c \
 	$(top_srcdir)/module/zcommon/zfs_prop.c \
+	$(top_srcdir)/module/zcommon/zfs_uio.c \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
 	$(top_srcdir)/module/zfs/arc.c \

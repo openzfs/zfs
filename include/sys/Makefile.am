@@ -42,6 +42,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uberblock.h \
 	$(top_srcdir)/include/sys/uberblock_impl.h \
+	$(top_srcdir)/include/sys/uio_impl.h \
 	$(top_srcdir)/include/sys/unique.h \
 	$(top_srcdir)/include/sys/uuid.h \
 	$(top_srcdir)/include/sys/vdev_disk.h \
