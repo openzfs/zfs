@@ -1,6 +1,5 @@
 /*****************************************************************************\
- *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
- *  Copyright (C) 2007 The Regents of the University of California.
+ *  Copyright (C) 2010 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
  *  UCRL-CODE-235197
@@ -22,9 +21,19 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
 \*****************************************************************************/
 
-#ifndef _SPL_KIDMAP_H
-#define _SPL_KIDMAP_H
+#ifndef _SPL_FCNTL_H
+#define _SPL_FCNTL_H
 
-#include <sys/idmap.h>
+#include <asm/fcntl.h>
 
-#endif /* SPL_KIDMAP_H */
+#define F_FREESP 11
+
+typedef struct flock64 {
+	short   l_type;
+	short   l_whence;
+	loff_t  l_start;
+	loff_t  l_len;
+	pid_t   l_pid;
+} flock64_t;
+
+#endif /* _SPL_FCNTL_H */
