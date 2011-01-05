@@ -564,6 +564,7 @@ out:
 	zfs_range_unlock(rl);
 
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
+	zfs_inode_update(zp);
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
@@ -938,6 +939,7 @@ again:
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
 
+	zfs_inode_update(zp);
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
@@ -1266,8 +1268,12 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct pathname *pnp,
 	}
 
 	error = zfs_dirlook(zdp, nm, vpp, flags, direntflags, realpnp);
-	if (error == 0)
+	if (error == 0) {
+		if (*vpp)
+			zfs_inode_update(VTOZ(*vpp));
+
 		error = specvp_check(vpp, cr);
+	}
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -1523,6 +1529,8 @@ out:
 		if (zp)
 			VN_RELE(ZTOV(zp));
 	} else {
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
 		*vpp = ZTOV(zp);
 		error = specvp_check(vpp, cr);
 	}
@@ -1753,6 +1761,10 @@ out:
 		pn_free(realnmp);
 
 	zfs_dirent_unlock(dl);
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
+	if (xzp)
+		zfs_inode_update(xzp);
 
 	if (!delete_now)
 		VN_RELE(vp);
@@ -1945,6 +1957,8 @@ top:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }
@@ -2074,6 +2088,8 @@ out:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
@@ -3227,6 +3243,7 @@ out:
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
+		 zfs_inode_update(zp);
 	}
 
 out2:
@@ -3674,13 +3691,19 @@ out:
 	zfs_dirent_unlock(sdl);
 	zfs_dirent_unlock(tdl);
 
+	zfs_inode_update(sdzp);
 	if (sdzp == tdzp)
 		rw_exit(&sdzp->z_name_lock);
 
+	if (sdzp != tdzp)
+		zfs_inode_update(tdzp);
 
+	zfs_inode_update(szp);
 	VN_RELE(ZTOV(szp));
-	if (tzp)
+	if (tzp) {
+		zfs_inode_update(tzp);
 		VN_RELE(ZTOV(tzp));
+	}
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
@@ -3828,6 +3851,9 @@ top:
 		txtype |= TX_CI;
 	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
+
 	zfs_acl_ids_free(&acl_ids);
 
 	dmu_tx_commit(tx);
@@ -3882,6 +3908,7 @@ zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr, caller_context_t *ct)
 
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 
+	zfs_inode_update(zp);
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
@@ -4037,6 +4064,8 @@ top:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(szp);
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }

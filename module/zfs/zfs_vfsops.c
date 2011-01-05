@@ -1942,6 +1942,9 @@ zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp)
 	}
 
 	*vpp = ZTOV(zp);
+	if (*vpp)
+		zfs_inode_update(VTOZ(*vpp));
+
 	ZFS_EXIT(zfsvfs);
 	return (0);
 }

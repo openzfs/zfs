@@ -521,6 +521,47 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	return (zp);
 }
 
+/*
+ * Update the embedded inode given the znode.  We should work toward
+ * eliminating this function as soon as possible by removing values
+ * which are duplicated between the znode and inode.  If the generic
+ * inode has the correct field it should be used, and the ZFS code
+ * updated to access the inode.  This can be done incrementally.
+ */
+void
+zfs_inode_update(znode_t *zp)
+{
+	zfsvfs_t	*zfsvfs;
+	struct inode	*inode;
+	uint32_t	blksize;
+	uint64_t	atime[2], mtime[2], ctime[2];
+
+	ASSERT(zp != NULL);
+	zfsvfs = zp->z_zfsvfs;
+	inode = ZTOI(zp);
+
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs), &atime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zfsvfs), &mtime, 16);
+	sa_lookup(zp->z_sa_hdl, SA_ZPL_CTIME(zfsvfs), &ctime, 16);
+
+	spin_lock(&inode->i_lock);
+	inode->i_generation = zp->z_gen;
+	inode->i_uid = zp->z_uid;
+	inode->i_gid = zp->z_gid;
+	inode->i_nlink = zp->z_links;
+	inode->i_mode = zp->z_mode;
+	inode->i_blkbits = SPA_MINBLOCKSHIFT;
+	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
+	    (u_longlong_t *)&inode->i_blocks);
+
+	ZFS_TIME_DECODE(&inode->i_atime, atime);
+	ZFS_TIME_DECODE(&inode->i_mtime, mtime);
+	ZFS_TIME_DECODE(&inode->i_ctime, ctime);
+
+	i_size_write(inode, zp->z_size);
+	spin_unlock(&inode->i_lock);
+}
+
 static uint64_t empty_xattr;
 static uint64_t pad[4];
 static zfs_acl_phys_t acl_phys;
@@ -1534,6 +1575,7 @@ log:
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
 
 	dmu_tx_commit(tx);
+	zfs_inode_update(zp);
 	return (0);
 }
 
