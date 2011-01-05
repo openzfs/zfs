@@ -128,15 +128,6 @@ static vnode_t *zfsctl_mknode_shares(vnode_t *);
 static vnode_t *zfsctl_snapshot_mknode(vnode_t *, uint64_t objset);
 static int zfsctl_unmount_snap(zfs_snapentry_t *, int, cred_t *);
 
-static gfs_opsvec_t zfsctl_opsvec[] = {
-	{ ".zfs", zfsctl_tops_root, &zfsctl_ops_root },
-	{ ".zfs/snapshot", zfsctl_tops_snapdir, &zfsctl_ops_snapdir },
-	{ ".zfs/snapshot/vnode", zfsctl_tops_snapshot, &zfsctl_ops_snapshot },
-	{ ".zfs/shares", zfsctl_tops_shares, &zfsctl_ops_shares_dir },
-	{ ".zfs/shares/vnode", zfsctl_tops_shares, &zfsctl_ops_shares },
-	{ NULL }
-};
-
 /*
  * Root directory elements.  We only have two entries
  * snapshot and shares.
@@ -160,7 +151,6 @@ static gfs_dirent_t zfsctl_root_entries[] = {
 void
 zfsctl_init(void)
 {
-	VERIFY(gfs_make_opsvec(zfsctl_opsvec) == 0);
 }
 
 void

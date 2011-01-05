@@ -165,13 +165,6 @@ void
 zfs_znode_fini(void)
 {
 	/*
-	 * Cleanup vfs & vnode ops
-	 */
-#ifdef HAVE_ZPL
-	zfs_remove_op_tables();
-#endif /* HAVE_ZPL */
-
-	/*
 	 * Cleanup zcache
 	 */
 	if (znode_cache)
@@ -181,98 +174,6 @@ zfs_znode_fini(void)
 }
 
 #ifdef HAVE_ZPL
-struct vnodeops *zfs_dvnodeops;
-struct vnodeops *zfs_fvnodeops;
-struct vnodeops *zfs_symvnodeops;
-struct vnodeops *zfs_xdvnodeops;
-struct vnodeops *zfs_evnodeops;
-struct vnodeops *zfs_sharevnodeops;
-
-void
-zfs_remove_op_tables()
-{
-	/*
-	 * Remove vfs ops
-	 */
-	ASSERT(zfsfstype);
-	(void) vfs_freevfsops_by_type(zfsfstype);
-	zfsfstype = 0;
-
-	/*
-	 * Remove vnode ops
-	 */
-	if (zfs_dvnodeops)
-		vn_freevnodeops(zfs_dvnodeops);
-	if (zfs_fvnodeops)
-		vn_freevnodeops(zfs_fvnodeops);
-	if (zfs_symvnodeops)
-		vn_freevnodeops(zfs_symvnodeops);
-	if (zfs_xdvnodeops)
-		vn_freevnodeops(zfs_xdvnodeops);
-	if (zfs_evnodeops)
-		vn_freevnodeops(zfs_evnodeops);
-	if (zfs_sharevnodeops)
-		vn_freevnodeops(zfs_sharevnodeops);
-
-	zfs_dvnodeops = NULL;
-	zfs_fvnodeops = NULL;
-	zfs_symvnodeops = NULL;
-	zfs_xdvnodeops = NULL;
-	zfs_evnodeops = NULL;
-	zfs_sharevnodeops = NULL;
-}
-
-extern const fs_operation_def_t zfs_dvnodeops_template[];
-extern const fs_operation_def_t zfs_fvnodeops_template[];
-extern const fs_operation_def_t zfs_xdvnodeops_template[];
-extern const fs_operation_def_t zfs_symvnodeops_template[];
-extern const fs_operation_def_t zfs_evnodeops_template[];
-extern const fs_operation_def_t zfs_sharevnodeops_template[];
-
-int
-zfs_create_op_tables()
-{
-	int error;
-
-	/*
-	 * zfs_dvnodeops can be set if mod_remove() calls mod_installfs()
-	 * due to a failure to remove the the 2nd modlinkage (zfs_modldrv).
-	 * In this case we just return as the ops vectors are already set up.
-	 */
-	if (zfs_dvnodeops)
-		return (0);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_dvnodeops_template,
-	    &zfs_dvnodeops);
-	if (error)
-		return (error);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_fvnodeops_template,
-	    &zfs_fvnodeops);
-	if (error)
-		return (error);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_symvnodeops_template,
-	    &zfs_symvnodeops);
-	if (error)
-		return (error);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_xdvnodeops_template,
-	    &zfs_xdvnodeops);
-	if (error)
-		return (error);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_evnodeops_template,
-	    &zfs_evnodeops);
-	if (error)
-		return (error);
-
-	error = vn_make_ops(MNTTYPE_ZFS, zfs_sharevnodeops_template,
-	    &zfs_sharevnodeops);
-
-	return (error);
-}
-
 int
 zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 {
