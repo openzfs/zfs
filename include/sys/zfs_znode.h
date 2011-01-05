@@ -211,6 +211,8 @@ typedef struct znode {
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
+	void (*z_set_ops_inode) (struct inode *); /* set inode ops */
+	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
 
@@ -231,13 +233,18 @@ typedef struct znode {
  */
 
 /*
- * Convert between znode pointers and vnode pointers
+ * Convert between znode pointers and inode pointers
  */
+#define	ZTOI(ZP)	(&((ZP)->z_inode))
+#define	ITOZ(IP)	(container_of((IP), znode_t, z_inode))
+
+/* XXX - REMOVE ME ONCE THE OTHER BUILD ISSUES ARE RESOLVED */
 #define	ZTOV(ZP)	((ZP)->z_vnode)
 #define	VTOZ(VP)	((znode_t *)(VP)->v_data)
 
+
 /*
- * ZFS_ENTER() is called on entry to each ZFS vnode and vfs operation.
+ * ZFS_ENTER() is called on entry to each ZFS inode and vfs operation.
  * ZFS_EXIT() must be called before exitting the vop.
  * ZFS_VERIFY_ZP() verifies the znode is valid.
  */
