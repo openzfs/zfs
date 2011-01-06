@@ -79,15 +79,6 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 	if (panicstr)
 		return (0);
 
-	/*
-	 * SYNC_ATTR is used by fsflush() to force old filesystems like UFS
-	 * to sync metadata, which they would otherwise cache indefinitely.
-	 * Semantically, the only requirement is that the sync be initiated.
-	 * The DMU syncs out txgs frequently, so there's nothing to do.
-	 */
-	if (flag & SYNC_ATTR)
-		return (0);
-
 	if (vfsp != NULL) {
 		/*
 		 * Sync a specific filesystem.
