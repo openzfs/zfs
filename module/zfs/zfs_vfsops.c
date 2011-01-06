@@ -978,6 +978,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 }
 
+#ifdef HAVE_FUID_FEATURES
 static void
 zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 {
@@ -992,6 +993,7 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 	}
 	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
 }
+#endif /* HAVE_FUID_FEATURES */
 
 int
 zfs_domount(vfs_t *vfsp, char *osname)
@@ -1033,6 +1035,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	vfsp->vfs_fsid.val[0] = fsid_guid;
 	vfsp->vfs_fsid.val[1] = ((fsid_guid>>32) << 8);
 
+#ifdef HAVE_FUID_FEATURES
 	/*
 	 * Set features for file system.
 	 */
@@ -1046,6 +1049,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 		vfs_set_feature(vfsp, VFSFT_CASEINSENSITIVE);
 	}
 	vfs_set_feature(vfsp, VFSFT_ZEROCOPY_SUPPORTED);
+#endif /* HAVE_FUID_FEATURES */
 
 	if (dmu_objset_is_snapshot(zfsvfs->z_os)) {
 		uint64_t pval;
@@ -1677,8 +1681,10 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	zfsvfs->z_version = newvers;
 
+#ifdef HAVE_FUID_FEATURES
 	if (zfsvfs->z_version >= ZPL_VERSION_FUID)
 		zfs_set_fuid_feature(zfsvfs);
+#endif /* HAVE_FUID_FEATURES */
 
 	return (0);
 }
