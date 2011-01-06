@@ -68,13 +68,6 @@
 #ifdef HAVE_ZPL
 extern int sys_shutdown;
 
-/*
- * We need to keep a count of active fs's.
- * This is necessary to prevent our module
- * from being unloaded after a umount -f
- */
-static uint32_t	zfs_active_fs_count = 0;
-
 static char *noatime_cancel[] = { MNTOPT_ATIME, NULL };
 static char *atime_cancel[] = { MNTOPT_NOATIME, NULL };
 static char *noxattr_cancel[] = { MNTOPT_XATTR, NULL };
@@ -1104,8 +1097,6 @@ out:
 	if (error) {
 		dmu_objset_disown(zfsvfs->z_os, zfsvfs);
 		zfsvfs_free(zfsvfs);
-	} else {
-		atomic_add_32(&zfs_active_fs_count, 1);
 	}
 
 	return (error);
@@ -1630,8 +1621,6 @@ zfs_freevfs(vfs_t *vfsp)
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 
 	zfsvfs_free(zfsvfs);
-
-	atomic_add_32(&zfs_active_fs_count, -1);
 }
 #endif /* HAVE_ZPL */
 
