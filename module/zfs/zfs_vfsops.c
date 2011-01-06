@@ -75,7 +75,7 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 	 * Data integrity is job one.  We don't want a compromised kernel
 	 * writing to the storage pool, so we never sync during panic.
 	 */
-	if (panicstr)
+	if (unlikely(oops_in_progress))
 		return (0);
 
 	if (vfsp != NULL) {
