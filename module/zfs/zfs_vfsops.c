@@ -68,27 +68,6 @@
 #ifdef HAVE_ZPL
 extern int sys_shutdown;
 
-static char *noatime_cancel[] = { MNTOPT_ATIME, NULL };
-static char *atime_cancel[] = { MNTOPT_NOATIME, NULL };
-static char *noxattr_cancel[] = { MNTOPT_XATTR, NULL };
-static char *xattr_cancel[] = { MNTOPT_NOXATTR, NULL };
-
-/*
- * MO_DEFAULT is not used since the default value is determined
- * by the equivalent property.
- */
-static mntopt_t mntopts[] = {
-	{ MNTOPT_NOXATTR, noxattr_cancel, NULL, 0, NULL },
-	{ MNTOPT_XATTR, xattr_cancel, NULL, 0, NULL },
-	{ MNTOPT_NOATIME, noatime_cancel, NULL, 0, NULL },
-	{ MNTOPT_ATIME, atime_cancel, NULL, 0, NULL }
-};
-
-static mntopts_t zfs_mntopts = {
-	sizeof (mntopts) / sizeof (mntopt_t),
-	mntopts
-};
-
 /*ARGSUSED*/
 int
 zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
