@@ -66,7 +66,6 @@
 #include "zfs_comutil.h"
 
 #ifdef HAVE_ZPL
-extern int sys_shutdown;
 
 /*ARGSUSED*/
 int
@@ -89,14 +88,19 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 		ZFS_ENTER(zfsvfs);
 		dp = dmu_objset_pool(zfsvfs->z_os);
 
+#ifdef HAVE_SHUTDOWN
 		/*
 		 * If the system is shutting down, then skip any
 		 * filesystems which may exist on a suspended pool.
+		 *
+		 * XXX: This can be implemented using the Linux reboot
+		 *      notifiers: {un}register_reboot_notifier().
 		 */
 		if (sys_shutdown && spa_suspended(dp->dp_spa)) {
 			ZFS_EXIT(zfsvfs);
 			return (0);
 		}
+#endif /* HAVE_SHUTDOWN */
 
 		if (zfsvfs->z_log != NULL)
 			zil_commit(zfsvfs->z_log, 0);
