@@ -66,11 +66,6 @@
 #include "zfs_comutil.h"
 
 #ifdef HAVE_ZPL
-int zfsfstype;
-static major_t zfs_major;
-static minor_t zfs_minor;
-static kmutex_t	zfs_dev_mtx;
-
 extern int sys_shutdown;
 
 static int zfs_mount(vfs_t *vfsp, vnode_t *mvp, struct mounta *uap, cred_t *cr);
@@ -160,58 +155,6 @@ zfs_sync(vfs_t *vfsp, short flag, cred_t *cr)
 	return (0);
 }
 EXPORT_SYMBOL(zfs_sync);
-
-static int
-zfs_create_unique_device(dev_t *dev)
-{
-	major_t new_major;
-
-	do {
-		ASSERT3U(zfs_minor, <=, MAXMIN32);
-		minor_t start = zfs_minor;
-		do {
-			mutex_enter(&zfs_dev_mtx);
-			if (zfs_minor >= MAXMIN32) {
-				/*
-				 * If we're still using the real major
-				 * keep out of /dev/zfs and /dev/zvol minor
-				 * number space.  If we're using a getudev()'ed
-				 * major number, we can use all of its minors.
-				 */
-				if (zfs_major == ddi_name_to_major(ZFS_DRIVER))
-					zfs_minor = ZFS_MIN_MINOR;
-				else
-					zfs_minor = 0;
-			} else {
-				zfs_minor++;
-			}
-			*dev = makedevice(zfs_major, zfs_minor);
-			mutex_exit(&zfs_dev_mtx);
-		} while (vfs_devismounted(*dev) && zfs_minor != start);
-		if (zfs_minor == start) {
-			/*
-			 * We are using all ~262,000 minor numbers for the
-			 * current major number.  Create a new major number.
-			 */
-			if ((new_major = getudev()) == (major_t)-1) {
-				cmn_err(CE_WARN,
-				    "zfs_mount: Can't get unique major "
-				    "device number.");
-				return (-1);
-			}
-			mutex_enter(&zfs_dev_mtx);
-			zfs_major = new_major;
-			zfs_minor = 0;
-
-			mutex_exit(&zfs_dev_mtx);
-		} else {
-			break;
-		}
-		/* CONSTANTCONDITION */
-	} while (1);
-
-	return (0);
-}
 
 static void
 atime_changed_cb(void *arg, uint64_t newval)
@@ -1090,7 +1033,6 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 int
 zfs_domount(vfs_t *vfsp, char *osname)
 {
-	dev_t mount_dev;
 	uint64_t recordsize, fsid_guid;
 	int error = 0;
 	zfsvfs_t *zfsvfs;
@@ -1107,18 +1049,10 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	vfsp->vfs_bcount = 0;
 	vfsp->vfs_data = NULL;
 
-	if (zfs_create_unique_device(&mount_dev) == -1) {
-		error = ENODEV;
-		goto out;
-	}
-	ASSERT(vfs_devismounted(mount_dev) == 0);
-
 	if ((error = dsl_prop_get_integer(osname, "recordsize",
 	    &recordsize, NULL)))
 		goto out;
 
-	vfsp->vfs_dev = mount_dev;
-	vfsp->vfs_fstype = zfsfstype;
 	vfsp->vfs_bsize = recordsize;
 	vfsp->vfs_flag |= VFS_NOTRUNC;
 	vfsp->vfs_data = zfsvfs;
@@ -1134,8 +1068,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	fsid_guid = dmu_objset_fsid_guid(zfsvfs->z_os);
 	ASSERT((fsid_guid & ~((1ULL<<56)-1)) == 0);
 	vfsp->vfs_fsid.val[0] = fsid_guid;
-	vfsp->vfs_fsid.val[1] = ((fsid_guid>>32) << 8) |
-	    zfsfstype & 0xFF;
+	vfsp->vfs_fsid.val[1] = ((fsid_guid>>32) << 8);
 
 	/*
 	 * Set features for file system.
@@ -1625,7 +1558,7 @@ zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp)
 	/*
 	 * We're a zfs filesystem.
 	 */
-	(void) strcpy(statp->f_basetype, vfssw[vfsp->vfs_fstype].vsw_name);
+	(void) strcpy(statp->f_basetype, MNTTYPE_ZFS);
 
 	statp->f_flag = vf_to_stf(vfsp->vfs_flag);
 
@@ -2033,47 +1966,13 @@ zfs_freevfs(vfs_t *vfsp)
 
 	atomic_add_32(&zfs_active_fs_count, -1);
 }
-
-/*
- * VFS_INIT() initialization.  Note that there is no VFS_FINI(),
- * so we can't safely do any non-idempotent initialization here.
- * Leave that to zfs_init() and zfs_fini(), which are called
- * from the module's _init() and _fini() entry points.
- */
-/*ARGSUSED*/
-static int
-zfs_vfsinit(int fstype, char *name)
-{
-	int error;
-
-	zfsfstype = fstype;
-	mutex_init(&zfs_dev_mtx, NULL, MUTEX_DEFAULT, NULL);
-
-	/*
-	 * Unique major number for all zfs mounts.
-	 * If we run out of 32-bit minors, we'll getudev() another major.
-	 */
-	zfs_major = ddi_name_to_major(ZFS_DRIVER);
-	zfs_minor = ZFS_MIN_MINOR;
-
-	return (0);
-}
 #endif /* HAVE_ZPL */
 
 void
 zfs_init(void)
 {
-#ifdef HAVE_ZPL
-	/*
-	 * Initialize .zfs directory structures
-	 */
 	zfsctl_init();
-
-	/*
-	 * Initialize znode cache, vnode ops, etc...
-	 */
 	zfs_znode_init();
-#endif /* HAVE_ZPL */
 
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 }
@@ -2081,10 +1980,8 @@ zfs_init(void)
 void
 zfs_fini(void)
 {
-#ifdef HAVE_ZPL
 	zfsctl_fini();
 	zfs_znode_fini();
-#endif /* HAVE_ZPL */
 }
 
 #ifdef HAVE_ZPL
