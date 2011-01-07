@@ -285,6 +285,7 @@ zfs_create_op_tables()
 int
 zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 {
+#ifdef HAVE_SHARE
 	zfs_acl_ids_t acl_ids;
 	vattr_t vattr;
 	znode_t *sharezp;
@@ -326,6 +327,9 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	kmem_cache_free(znode_cache, sharezp);
 
 	return (error);
+#else
+	return (0);
+#endif /* HAVE_SHARE */
 }
 
 /*

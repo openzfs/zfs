@@ -592,7 +592,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, cred_t *cr)
 	return (error);
 }
 
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 static int
 zfs_secpolicy_deleg_share(zfs_cmd_t *zc, cred_t *cr)
 {
@@ -616,12 +616,12 @@ zfs_secpolicy_deleg_share(zfs_cmd_t *zc, cred_t *cr)
 	return (dsl_deleg_access(zc->zc_name,
 	    ZFS_DELEG_PERM_SHARE, cr));
 }
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 {
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -632,13 +632,13 @@ zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 	}
 #else
 	return (ENOTSUP);
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 }
 
 int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, cred_t *cr)
 {
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -649,7 +649,7 @@ zfs_secpolicy_smb_acl(zfs_cmd_t *zc, cred_t *cr)
 	}
 #else
 	return (ENOTSUP);
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 }
 
 static int
@@ -4205,7 +4205,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
  * the first file system is shared.
  * Neither sharefs, nfs or smbsrv are unloadable modules.
  */
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 int (*znfsexport_fs)(void *arg);
 int (*zshare_fs)(enum sharefs_sys_op, share_t *, uint32_t);
 int (*zsmbexport_fs)(void *arg, boolean_t add_share);
@@ -4237,12 +4237,12 @@ zfs_init_sharefs()
 	}
 	return (0);
 }
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 
 static int
 zfs_ioc_share(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 	int error;
 	int opcode;
 
@@ -4334,7 +4334,7 @@ zfs_ioc_share(zfs_cmd_t *zc)
 	return (error);
 #else
 	return (ENOTSUP);
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 }
 
 ace_t full_access[] = {
@@ -4451,7 +4451,7 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 /*
  * Remove all ACL files in shares dir
  */
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 static int
 zfs_smb_acl_purge(znode_t *dzp)
 {
@@ -4470,12 +4470,12 @@ zfs_smb_acl_purge(znode_t *dzp)
 	zap_cursor_fini(&zc);
 	return (error);
 }
-#endif /* HAVE ZPL */
+#endif /* HAVE SHARE */
 
 static int
 zfs_ioc_smb_acl(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 	vnode_t *vp;
 	znode_t *dzp;
 	vnode_t *resourcevp = NULL;
@@ -4600,7 +4600,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 	return (error);
 #else
 	return (ENOTSUP);
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 }
 
 /*
@@ -5221,12 +5221,12 @@ _init(void)
 	if ((error = zfs_attach()) != 0)
 		goto out2;
 
-#ifdef HAVE_ZPL
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
+#ifdef HAVE_SHARE
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SHARE */
 
 	printk(KERN_NOTICE "ZFS: Loaded ZFS Filesystem v%s%s\n",
 	       ZFS_META_VERSION, ZFS_DEBUG_STR);
@@ -5251,7 +5251,7 @@ _fini(void)
 	zvol_fini();
 	zfs_fini();
 	spa_fini();
-#ifdef HAVE_ZPL
+#ifdef HAVE_SHARE
 	if (zfs_nfsshare_inited)
 		(void) ddi_modclose(nfs_mod);
 	if (zfs_smbshare_inited)
@@ -5260,8 +5260,8 @@ _fini(void)
 		(void) ddi_modclose(sharefs_mod);
 
 	mutex_destroy(&zfs_share_lock);
+#endif /* HAVE_SHARE */
 	tsd_destroy(&zfs_fsyncer_key);
-#endif /* HAVE_ZPL */
 
 	printk(KERN_NOTICE "ZFS: Unloaded ZFS Filesystem v%s%s\n",
 	       ZFS_META_VERSION, ZFS_DEBUG_STR);
