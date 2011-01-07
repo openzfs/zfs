@@ -1245,61 +1245,6 @@ zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 }
 EXPORT_SYMBOL(zfs_unregister_callbacks);
 
-/*
- * Convert a decimal digit string to a uint64_t integer.
- */
-static int
-str_to_uint64(char *str, uint64_t *objnum)
-{
-	uint64_t num = 0;
-
-	while (*str) {
-		if (*str < '0' || *str > '9')
-			return (EINVAL);
-
-		num = num*10 + *str++ - '0';
-	}
-
-	*objnum = num;
-	return (0);
-}
-
-/*
- * The boot path passed from the boot loader is in the form of
- * "rootpool-name/root-filesystem-object-number'. Convert this
- * string to a dataset name: "rootpool-name/root-filesystem-name".
- */
-static int
-zfs_parse_bootfs(char *bpath, char *outpath)
-{
-	char *slashp;
-	uint64_t objnum;
-	int error;
-
-	if (*bpath == 0 || *bpath == '/')
-		return (EINVAL);
-
-	(void) strcpy(outpath, bpath);
-
-	slashp = strchr(bpath, '/');
-
-	/* if no '/', just return the pool name */
-	if (slashp == NULL) {
-		return (0);
-	}
-
-	/* if not a number, just return the root dataset name */
-	if (str_to_uint64(slashp+1, &objnum)) {
-		return (0);
-	}
-
-	*slashp = '\0';
-	error = dsl_dsobj_to_dsname(bpath, objnum, outpath);
-	*slashp = '/';
-
-	return (error);
-}
-
 #ifdef HAVE_MLSLABEL
 /*
  * zfs_check_global_label:
