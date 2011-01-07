@@ -1300,6 +1300,7 @@ zfs_parse_bootfs(char *bpath, char *outpath)
 	return (error);
 }
 
+#ifdef HAVE_MLSLABEL
 /*
  * zfs_check_global_label:
  *	Check that the hex label string is appropriate for the dataset
@@ -1327,6 +1328,7 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 	}
 	return (EACCES);
 }
+#endif /* HAVE_MLSLABEL */
 
 /*
  * zfs_mount_label_policy:
