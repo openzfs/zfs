@@ -51,11 +51,21 @@ spl_filp_open(const char *name, int flags, int mode, int *err)
 #define spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
 
 #ifdef HAVE_3ARGS_FILE_FSYNC
-#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp), \
+#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp),               \
 					(fp)->f_dentry, sync)
 #else
 #define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp), sync)
 #endif
+
+#ifdef HAVE_INODE_I_MUTEX
+#define spl_inode_lock(ip)		(mutex_lock(&(ip)->i_mutex))
+#define spl_inode_lock_nested(ip, type)	(mutex_lock_nested((&(ip)->i_mutex),  \
+					(type)))
+#define spl_inode_unlock(ip)		(mutex_unlock(&(ip)->i_mutex))
+#else
+#define spl_inode_lock(ip)		(down(&(ip)->i_sem))
+#define spl_inode_unlock(ip)		(up(&(ip)->i_sem))
+#endif /* HAVE_INODE_I_MUTEX */
 
 #endif /* SPL_FILE_COMPAT_H */
 

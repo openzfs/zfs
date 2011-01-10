@@ -295,11 +295,7 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
         if (nd.last_type != LAST_NORM)
                 SGOTO(exit1, rc);
 
-#ifdef HAVE_INODE_I_MUTEX
-        mutex_lock_nested(&nd.nd_dentry->d_inode->i_mutex, I_MUTEX_PARENT);
-#else
-        down(&nd.nd_dentry->d_inode->i_sem);
-#endif /* HAVE_INODE_I_MUTEX */
+        spl_inode_lock_nested(nd.nd_dentry->d_inode, I_MUTEX_PARENT);
         dentry = vn_lookup_hash(&nd);
         rc = PTR_ERR(dentry);
         if (!IS_ERR(dentry)) {
@@ -318,11 +314,8 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
 exit2:
                 dput(dentry);
         }
-#ifdef HAVE_INODE_I_MUTEX
-        mutex_unlock(&nd.nd_dentry->d_inode->i_mutex);
-#else
-        up(&nd.nd_dentry->d_inode->i_sem);
-#endif /* HAVE_INODE_I_MUTEX */
+
+        spl_inode_unlock(nd.nd_dentry->d_inode);
         if (inode)
                 iput(inode);    /* truncate the inode here */
 exit1:
