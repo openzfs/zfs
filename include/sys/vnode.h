@@ -121,18 +121,18 @@ typedef struct vattr {
 	enum vtype	va_type;	/* vnode type */
 	u_int		va_mask;	/* attribute bit-mask */
 	u_short		va_mode;	/* acc mode */
-	short		va_uid;		/* owner uid */
-	short		va_gid;		/* owner gid */
+	uid_t		va_uid;		/* owner uid */
+	gid_t		va_gid;		/* owner gid */
 	long		va_fsid;	/* fs id */
 	long		va_nodeid;	/* node # */
-	short		va_nlink;	/* # links */
-	u_long		va_size;	/* file size */
-	long		va_blocksize;	/* block size */
-	struct timeval va_atime;	/* last acc */
-	struct timeval va_mtime;	/* last mod */
-	struct timeval va_ctime;	/* last chg */
+	uint32_t	va_nlink;	/* # links */
+	uint64_t	va_size;	/* file size */
+	uint32_t	va_blocksize;	/* block size */
+	uint64_t	va_nblocks;	/* space used */
+	struct timespec	va_atime;	/* last acc */
+	struct timespec	va_mtime;	/* last mod */
+	struct timespec	va_ctime;	/* last chg */
 	dev_t		va_rdev;	/* dev */
-	long		va_blocks;	/* space used */
 } vattr_t;
 
 typedef struct xoptattr {
@@ -168,6 +168,7 @@ typedef struct vsecattr {
 	int		vsa_dfaclcnt;	/* default ACL entry count */
 	void		*vsa_dfaclentp;	/* pointer to default ACL entries */
 	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
+	uint_t		vsa_aclflags;	/* ACE ACL flags */
 } vsecattr_t;
 
 typedef struct vnode {

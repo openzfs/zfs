@@ -454,7 +454,7 @@ int
 vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 {
 	struct file *fp;
-        struct kstat stat;
+	struct kstat stat;
 	int rc;
 	SENTRY;
 
@@ -477,16 +477,13 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	vap->va_nlink         = stat.nlink;
         vap->va_size          = stat.size;
 	vap->va_blocksize     = stat.blksize;
-	vap->va_atime.tv_sec  = stat.atime.tv_sec;
-	vap->va_atime.tv_usec = stat.atime.tv_nsec / NSEC_PER_USEC;
-	vap->va_mtime.tv_sec  = stat.mtime.tv_sec;
-	vap->va_mtime.tv_usec = stat.mtime.tv_nsec / NSEC_PER_USEC;
-	vap->va_ctime.tv_sec  = stat.ctime.tv_sec;
-	vap->va_ctime.tv_usec = stat.ctime.tv_nsec / NSEC_PER_USEC;
+	vap->va_atime         = stat.atime;
+	vap->va_mtime         = stat.mtime;
+	vap->va_ctime         = stat.ctime;
 	vap->va_rdev          = stat.rdev;
-	vap->va_blocks        = stat.blocks;
+	vap->va_nblocks       = stat.blocks;
 
-        SRETURN(0);
+	SRETURN(0);
 }
 EXPORT_SYMBOL(vn_getattr);
 
