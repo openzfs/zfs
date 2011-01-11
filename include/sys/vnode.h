@@ -94,6 +94,14 @@
 #define B_INVAL		0x01
 #define B_TRUNC		0x02
 
+#define V_ACE_MASK	0x0001
+#define V_APPEND	0x0002
+
+#define LOOKUP_DIR		0x01
+#define LOOKUP_XATTR		0x02
+#define CREATE_XATTR_DIR	0x04
+#define ATTR_NOACLCHECK		0x20
+
 #ifdef HAVE_PATH_IN_NAMEIDATA
 # define nd_dentry	path.dentry
 # define nd_mnt		path.mnt
