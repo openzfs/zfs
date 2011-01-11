@@ -234,24 +234,11 @@ extern int vn_set_pwd(const char *filename);
 int vn_init(void);
 void vn_fini(void);
 
-static __inline__ int
-vn_rele(vnode_t *vp)
-{
-	return 0;
-} /* vn_rele() */
-
-static __inline__ int
-vn_putpage(vnode_t *vp, offset_t off, ssize_t size,
-	   int flags, void *x1, void *x2) {
-	return 0;
-} /* vn_putpage() */
-
 #define VOP_CLOSE				vn_close
 #define VOP_SEEK				vn_seek
-#define VN_RELE					vn_rele
 #define VOP_GETATTR				vn_getattr
 #define VOP_FSYNC				vn_fsync
-#define VOP_PUTPAGE				vn_putpage
+#define VOP_PUTPAGE(vp, o, s, f, x1, x2)	((void)0)
 #define vn_is_readonly(vp)			0
 #define getf					vn_getf
 #define releasef				vn_releasef

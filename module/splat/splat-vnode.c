@@ -124,7 +124,6 @@ splat_vnode_test1(struct file *file, void *arg)
 	}
 
         rc = VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 
 	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST1_NAME,
@@ -154,7 +153,6 @@ splat_vnode_test2(struct file *file, void *arg)
 	}
 
         rc = VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 
 	if (rc) {
 		splat_vprint(file, SPLAT_VNODE_TEST2_NAME,
@@ -224,7 +222,6 @@ splat_vnode_test3(struct file *file, void *arg)
 
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return -rc;
@@ -259,7 +256,6 @@ splat_vnode_test4(struct file *file, void *arg)
 	}
 
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 
 	rc = vn_rename(SPLAT_VNODE_TEST_FILE_RW1,SPLAT_VNODE_TEST_FILE_RW2,0);
 	if (rc) {
@@ -305,7 +301,6 @@ splat_vnode_test4(struct file *file, void *arg)
 		     SPLAT_VNODE_TEST_FILE_RW1, SPLAT_VNODE_TEST_FILE_RW2);
 out2:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 out:
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE, RMFILE);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW2, UIO_SYSSPACE, RMFILE);
@@ -350,7 +345,6 @@ splat_vnode_test5(struct file *file, void *arg)
 
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 
         return -rc;
 } /* splat_vnode_test5() */
@@ -395,7 +389,6 @@ splat_vnode_test6(struct file *file, void *arg)
 		     "fsync'ed test file %s\n", SPLAT_VNODE_TEST_FILE_RW);
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-        VN_RELE(vp);
 	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return -rc;

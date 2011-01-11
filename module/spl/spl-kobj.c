@@ -61,7 +61,6 @@ kobj_close_file(struct _buf *file)
 {
 	SENTRY;
 	VOP_CLOSE(file->vp, 0, 0, 0, 0, 0);
-	VN_RELE(file->vp);
         kfree(file);
         SEXIT;
 } /* kobj_close_file() */
