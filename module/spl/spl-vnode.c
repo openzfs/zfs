@@ -42,8 +42,8 @@ static spl_kmem_cache_t *vn_file_cache;
 static spinlock_t vn_file_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(vn_file_list);
 
-static vtype_t
-vn_get_sol_type(umode_t mode)
+vtype_t
+vn_mode_to_vtype(mode_t mode)
 {
 	if (S_ISREG(mode))
 		return VREG;
@@ -70,7 +70,36 @@ vn_get_sol_type(umode_t mode)
 		return VCHR;
 
 	return VNON;
-} /* vn_get_sol_type() */
+} /* vn_mode_to_vtype() */
+EXPORT_SYMBOL(vn_mode_to_vtype);
+
+mode_t
+vn_vtype_to_mode(vtype_t vtype)
+{
+	if (vtype == VREG)
+		return S_IFREG;
+
+	if (vtype == VDIR)
+		return S_IFDIR;
+
+	if (vtype == VCHR)
+		return S_IFCHR;
+
+	if (vtype == VBLK)
+		return S_IFBLK;
+
+	if (vtype == VFIFO)
+		return S_IFIFO;
+
+	if (vtype == VLNK)
+		return S_IFLNK;
+
+	if (vtype == VSOCK)
+		return S_IFSOCK;
+
+	return VNON;
+} /* vn_vtype_to_mode() */
+EXPORT_SYMBOL(vn_vtype_to_mode);
 
 vnode_t *
 vn_alloc(int flag)
@@ -150,7 +179,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	mapping_set_gfp_mask(fp->f_mapping, saved_gfp & ~(__GFP_IO|__GFP_FS));
 
 	mutex_enter(&vp->v_lock);
-	vp->v_type = vn_get_sol_type(stat.mode);
+	vp->v_type = vn_mode_to_vtype(stat.mode);
 	vp->v_file = fp;
 	vp->v_gfp_mask = saved_gfp;
 	*vpp = vp;
@@ -439,7 +468,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	if (rc)
 		SRETURN(-rc);
 
-	vap->va_type          = vn_get_sol_type(stat.mode);
+	vap->va_type          = vn_mode_to_vtype(stat.mode);
 	vap->va_mode          = stat.mode;
 	vap->va_uid           = stat.uid;
 	vap->va_gid           = stat.gid;
@@ -539,7 +568,7 @@ vn_getf(int fd)
 		SGOTO(out_vnode, rc);
 
 	mutex_enter(&vp->v_lock);
-	vp->v_type = vn_get_sol_type(stat.mode);
+	vp->v_type = vn_mode_to_vtype(stat.mode);
 	vp->v_file = lfp;
 	mutex_exit(&vp->v_lock);
 

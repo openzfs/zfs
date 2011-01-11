@@ -202,6 +202,8 @@ typedef struct caller_context {
 
 extern vnode_t *vn_alloc(int flag);
 void vn_free(vnode_t *vp);
+extern vtype_t vn_mode_to_vtype(mode_t);
+extern mode_t vn_vtype_to_mode(vtype_t);
 extern int vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 		   vnode_t **vpp, int x1, void *x2);
 extern int vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
