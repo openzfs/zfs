@@ -29,6 +29,15 @@ typedef struct ksiddomain {
 	char		*kd_name;
 } ksiddomain_t;
 
+typedef enum ksid_index {
+	KSID_USER,
+	KSID_GROUP,
+	KSID_OWNER,
+	KSID_COUNT
+} ksid_index_t;
+
+typedef int ksid_t;
+
 static inline ksiddomain_t *
 ksid_lookupdomain(const char *dom)
 {
