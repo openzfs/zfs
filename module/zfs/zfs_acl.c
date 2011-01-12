@@ -53,7 +53,6 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include "fs/fs_subr.h"
-#include <acl/acl_common.h>
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
 #define	DENY	ACE_ACCESS_DENIED_ACE_TYPE
@@ -1164,6 +1163,126 @@ zfs_acl_chown_setattr(znode_t *zp)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
 		    &zp->z_pflags, zp->z_uid, zp->z_gid);
 	return (error);
+}
+
+static void
+acl_trivial_access_masks(mode_t mode, uint32_t *allow0, uint32_t *deny1,
+    uint32_t *deny2, uint32_t *owner, uint32_t *group, uint32_t *everyone)
+{
+	*deny1 = *deny2 = *allow0 = *group = 0;
+
+	if (!(mode & S_IRUSR) && (mode & (S_IRGRP|S_IROTH)))
+		*deny1 |= ACE_READ_DATA;
+	if (!(mode & S_IWUSR) && (mode & (S_IWGRP|S_IWOTH)))
+		*deny1 |= ACE_WRITE_DATA;
+	if (!(mode & S_IXUSR) && (mode & (S_IXGRP|S_IXOTH)))
+		*deny1 |= ACE_EXECUTE;
+
+	if (!(mode & S_IRGRP) && (mode & S_IROTH))
+		*deny2 = ACE_READ_DATA;
+	if (!(mode & S_IWGRP) && (mode & S_IWOTH))
+		*deny2 |= ACE_WRITE_DATA;
+	if (!(mode & S_IXGRP) && (mode & S_IXOTH))
+		*deny2 |= ACE_EXECUTE;
+
+	if ((mode & S_IRUSR) && (!(mode & S_IRGRP) && (mode & S_IROTH)))
+		*allow0 |= ACE_READ_DATA;
+	if ((mode & S_IWUSR) && (!(mode & S_IWGRP) && (mode & S_IWOTH)))
+		*allow0 |= ACE_WRITE_DATA;
+	if ((mode & S_IXUSR) && (!(mode & S_IXGRP) && (mode & S_IXOTH)))
+		*allow0 |= ACE_EXECUTE;
+
+	*owner = ACE_WRITE_ATTRIBUTES|ACE_WRITE_OWNER|ACE_WRITE_ACL|
+	    ACE_WRITE_NAMED_ATTRS|ACE_READ_ACL|ACE_READ_ATTRIBUTES|
+	    ACE_READ_NAMED_ATTRS|ACE_SYNCHRONIZE;
+	if (mode & S_IRUSR)
+		*owner |= ACE_READ_DATA;
+	if (mode & S_IWUSR)
+		*owner |= ACE_WRITE_DATA|ACE_APPEND_DATA;
+	if (mode & S_IXUSR)
+		*owner |= ACE_EXECUTE;
+
+	*group = ACE_READ_ACL|ACE_READ_ATTRIBUTES| ACE_READ_NAMED_ATTRS|
+	    ACE_SYNCHRONIZE;
+	if (mode & S_IRGRP)
+		*group |= ACE_READ_DATA;
+	if (mode & S_IWGRP)
+		*group |= ACE_WRITE_DATA|ACE_APPEND_DATA;
+	if (mode & S_IXGRP)
+		*group |= ACE_EXECUTE;
+
+	*everyone = ACE_READ_ACL|ACE_READ_ATTRIBUTES| ACE_READ_NAMED_ATTRS|
+	    ACE_SYNCHRONIZE;
+	if (mode & S_IROTH)
+		*everyone |= ACE_READ_DATA;
+	if (mode & S_IWOTH)
+		*everyone |= ACE_WRITE_DATA|ACE_APPEND_DATA;
+	if (mode & S_IXOTH)
+		*everyone |= ACE_EXECUTE;
+}
+
+/*
+ * ace_trivial:
+ * determine whether an ace_t acl is trivial
+ *
+ * Trivialness implies that the acl is composed of only
+ * owner, group, everyone entries.  ACL can't
+ * have read_acl denied, and write_owner/write_acl/write_attributes
+ * can only be owner@ entry.
+ */
+static int
+ace_trivial_common(void *acep, int aclcnt,
+    uint64_t (*walk)(void *, uint64_t, int aclcnt,
+    uint16_t *, uint16_t *, uint32_t *))
+{
+	uint16_t flags;
+	uint32_t mask;
+	uint16_t type;
+	uint64_t cookie = 0;
+
+	while ((cookie = walk(acep, cookie, aclcnt, &flags, &type, &mask))) {
+		switch (flags & ACE_TYPE_FLAGS) {
+		case ACE_OWNER:
+		case ACE_GROUP|ACE_IDENTIFIER_GROUP:
+		case ACE_EVERYONE:
+			break;
+		default:
+			return (1);
+		}
+
+		if (flags & (ACE_FILE_INHERIT_ACE|
+		    ACE_DIRECTORY_INHERIT_ACE|ACE_NO_PROPAGATE_INHERIT_ACE|
+		    ACE_INHERIT_ONLY_ACE))
+			return (1);
+
+		/*
+		 * Special check for some special bits
+		 *
+		 * Don't allow anybody to deny reading basic
+		 * attributes or a files ACL.
+		 */
+		if ((mask & (ACE_READ_ACL|ACE_READ_ATTRIBUTES)) &&
+		    (type == ACE_ACCESS_DENIED_ACE_TYPE))
+			return (1);
+
+		/*
+		 * Delete permissions are never set by default
+		 */
+		if (mask & (ACE_DELETE|ACE_DELETE_CHILD))
+			return (1);
+		/*
+		 * only allow owner@ to have
+		 * write_acl/write_owner/write_attributes/write_xattr/
+		 */
+		if (type == ACE_ACCESS_ALLOWED_ACE_TYPE &&
+		    (!(flags & ACE_OWNER) && (mask &
+		    (ACE_WRITE_OWNER|ACE_WRITE_ACL| ACE_WRITE_ATTRIBUTES|
+		    ACE_WRITE_NAMED_ATTRS))))
+			return (1);
+
+	}
+
+	return (0);
 }
 
 /*
