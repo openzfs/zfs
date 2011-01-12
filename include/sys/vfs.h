@@ -25,11 +25,14 @@
 #ifndef _SPL_ZFS_H
 #define _SPL_ZFS_H
 
-typedef struct vfs {
-	int foo;
-} vfs_t;
+#include <linux/mount.h>
+#include <linux/fs.h>
+#include <linux/dcache.h>
+#include <linux/statfs.h>
+#include <linux/xattr.h>
+#include <linux/security.h>
 
-#define MAXFIDSZ	64
+#define	MAXFIDSZ	64
 
 typedef struct fid {
 	union {
@@ -40,5 +43,8 @@ typedef struct fid {
 		} _fid;
 	} un;
 } fid_t;
+
+#define	fid_len		un._fid.len
+#define	fid_data	un._fid.data
 
 #endif /* SPL_ZFS_H */
