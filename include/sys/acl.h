@@ -43,6 +43,8 @@ typedef struct ace_object {
         uint8_t         a_inherit_obj_type[16];  /* inherit obj */
 } ace_object_t;
 
+#define MAX_ACL_ENTRIES					1024
+
 #define ACE_READ_DATA                                   0x00000001
 #define ACE_LIST_DIRECTORY                              0x00000001
 #define ACE_WRITE_DATA                                  0x00000002
@@ -106,5 +108,10 @@ typedef struct ace_object {
      ACE_WRITE_NAMED_ATTRS|ACE_EXECUTE|ACE_DELETE_CHILD|ACE_READ_ATTRIBUTES| \
      ACE_WRITE_ATTRIBUTES|ACE_DELETE|ACE_READ_ACL|ACE_WRITE_ACL| \
      ACE_WRITE_OWNER|ACE_SYNCHRONIZE)
+
+#define VSA_ACE                                         0x0010
+#define VSA_ACECNT                                      0x0020
+#define VSA_ACE_ALLTYPES                                0x0040
+#define VSA_ACE_ACLFLAGS                                0x0080
 
 #endif /* _SPL_ACL_H */
