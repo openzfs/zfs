@@ -31,4 +31,6 @@
 #define ptob(pages)			(pages << PAGE_SHIFT)
 #define btop(bytes)			(bytes >> PAGE_SHIFT)
 
+#define MAXUID				2147483647
+
 #endif /* SPL_PARAM_H */
