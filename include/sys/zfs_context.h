@@ -57,6 +57,7 @@
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <linux/dcache_compat.h>
 
 #else /* _KERNEL */
 
