@@ -1813,6 +1813,7 @@ EXPORT_SYMBOL(dmu_objset_destroy);
 EXPORT_SYMBOL(dmu_objset_snapshot);
 EXPORT_SYMBOL(dmu_objset_stats);
 EXPORT_SYMBOL(dmu_objset_fast_stat);
+EXPORT_SYMBOL(dmu_objset_spa);
 EXPORT_SYMBOL(dmu_objset_space);
 EXPORT_SYMBOL(dmu_objset_fsid_guid);
 EXPORT_SYMBOL(dmu_objset_find);

@@ -350,6 +350,20 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 	}
 }
 
+/*
+ * Wait for pending commit callbacks of already-synced transactions to finish
+ * processing.
+ * Calling this function from within a commit callback will deadlock.
+ */
+void
+txg_wait_callbacks(dsl_pool_t *dp)
+{
+	tx_state_t *tx = &dp->dp_tx;
+
+	if (tx->tx_commit_cb_taskq != NULL)
+		taskq_wait(tx->tx_commit_cb_taskq);
+}
+
 static void
 txg_sync_thread(dsl_pool_t *dp)
 {
@@ -735,6 +749,7 @@ EXPORT_SYMBOL(txg_register_callbacks);
 EXPORT_SYMBOL(txg_delay);
 EXPORT_SYMBOL(txg_wait_synced);
 EXPORT_SYMBOL(txg_wait_open);
+EXPORT_SYMBOL(txg_wait_callbacks);
 EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
 #endif

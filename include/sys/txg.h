@@ -108,6 +108,12 @@ extern boolean_t txg_stalled(struct dsl_pool *dp);
 extern boolean_t txg_sync_waiting(struct dsl_pool *dp);
 
 /*
+ * Wait for pending commit callbacks of already-synced transactions to finish
+ * processing.
+ */
+extern void txg_wait_callbacks(struct dsl_pool *dp);
+
+/*
  * Per-txg object lists.
  */
 
