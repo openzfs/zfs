@@ -12,16 +12,24 @@
 <table width="80%">
 	<tr>
 		<td>
-<img src="images/zfs-components.png" align="left">
+<img src="images/zfs-components2.png" align="left" width=60%>
 
 <p>Sorry, the ZFS Posix Layer (ZPL) which allows you to mount the
-file system is still a work in progress.  There is a working beta
-available <a href="http://zfs.kqinfotech.com/">here</a> which is
-being produced by <a href="http://kqinfotech.com/">KQInfotech</a>.
-This port is currently based on the older spl/zfs-0.4.7 tags which
-means it does not yet support features such as deduplication.
-We do plan to integrate it in to the latest SPL/ZFS code base
-over the coming months.</p>
+file system is still a
+<a href=http://groups.google.com/a/zfsonlinux.org/group/zfs-discuss/browse_thread/thread/96c8b21d9d416907#">
+work in progress</a>.  This code is being actively
+developed and our expectation is to start merging these changes in
+to master branch in early 2011.  As always we would love help from
+the community.  If you'd like to help please drop me an
+<a href="mailto:behlendorf1@llnl.gov">email</a>.</p>
+
+</p>If you absolutely need to have ZFS on Linux today an implementation
+of the ZPL was produced by <a href="http://kqinfotech.com/">
+KQ Infotech</a>.  You can download their implementation from
+<a href=http://kqstor.com>kqstor.com</a>.  Their port is based
+of the spl/zfs-0.5.2 version so it does include features such
+as deduplication.  We are in the process of reviewing, refining,
+and integrating their proposed changes.</p>
 
 <p>We would also love to see a FUSE based implementation.
 Currently all the zfs code in this project builds cleanly in the
@@ -30,9 +38,7 @@ ztest.  Getting this code base working with zfs-fuse should mainly
 be a matter of adding the needed FUSE bits which the
 <a href="http://zfs-fuse.net/">ZFS-FUSE folks</a> clearly showed
 us can be done!  It would be very nice from a development standpoint
-if these two projects could share a common code base.  If any
-zfs-fuse developers are interested in pursuing this with us please
-drop us an <a href="mailto:behlendorf1@llnl.gov">email</a>.</p>
+if these two projects could share a common code base.</p>
 		</td>
 	</tr>
 </table>
