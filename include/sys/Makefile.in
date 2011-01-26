@@ -163,6 +163,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
+	${top_srcdir}/include/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
@@ -531,6 +532,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
+	${top_srcdir}/include/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 
 USER_H = 
