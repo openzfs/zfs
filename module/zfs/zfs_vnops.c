@@ -68,10 +68,9 @@
 #include <sys/dirent.h>
 #include <sys/policy.h>
 #include <sys/sunddi.h>
-#include <sys/filio.h>
 #include <sys/sid.h>
+#include <sys/mode.h>
 #include "fs/fs_subr.h"
-#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>

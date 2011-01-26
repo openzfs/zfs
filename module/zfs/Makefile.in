@@ -64,7 +64,6 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/zap_leaf.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zap_micro.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zfs_acl.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zfs_byteswap.o
-$(MODULE)-objs += @top_srcdir@/module/zfs/zfs_ctldir.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zfs_debug.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zfs_dir.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zfs_fm.o

@@ -58,7 +58,6 @@
 #include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>

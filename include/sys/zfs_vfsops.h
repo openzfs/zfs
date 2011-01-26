@@ -67,7 +67,7 @@ struct zfsvfs {
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all vnodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
-	vnode_t		*z_ctldir;	/* .zfs directory pointer */
+	struct inode	*z_ctldir;	/* .zfs directory inode */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */
@@ -83,7 +83,34 @@ struct zfsvfs {
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	64
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
-};
+} zfs_sb_t;
+
+#define	ZFS_SUPER_MAGIC	0x2fc12fc1
+
+
+/*
+ * Minimal snapshot helpers, the bulk of the Linux snapshot implementation
+ * lives in the zpl_snap.c file which is part of the zpl source.
+ */
+#define	ZFS_CTLDIR_NAME		".zfs"
+
+#define	zfs_has_ctldir(zdp)	\
+	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
+	(ZTOZSB(zdp)->z_ctldir != NULL))
+#define	zfs_show_ctldir(zdp)	\
+	(zfs_has_ctldir(zdp) &&	\
+	(ZTOZSB(zdp)->z_show_ctldir))
+
+#define	ZFSCTL_INO_ROOT		0x1
+#define	ZFSCTL_INO_SNAPDIR	0x2
+#define	ZFSCTL_INO_SHARES	0x3
+
+/*
+ * Allow a maximum number of links.  While ZFS does not internally limit
+ * this most Linux filesystems do.  It's probably a good idea to limit
+ * this to a large value until it is validated that this is safe.
+ */
+#define ZFS_LINK_MAX		65536
 
 /*
  * Normal filesystems (those not under .zfs/snapshot) have a total

@@ -55,7 +55,6 @@
 #include <sys/modctl.h>
 #include <sys/refstr.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/bootconf.h>
 #include <sys/sunddi.h>

@@ -51,7 +51,6 @@
 #include <sys/zap.h>
 #include <sys/dmu.h>
 #include <sys/atomic.h>
-#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
