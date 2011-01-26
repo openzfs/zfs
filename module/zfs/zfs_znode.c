@@ -1484,23 +1484,12 @@ void
 zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 {
 	uint64_t	moid, obj, sa_obj, version;
-	uint64_t	sense = ZFS_CASE_SENSITIVE;
 	uint64_t	norm = 0;
 	nvpair_t	*elem;
 	int		error;
-#ifdef HAVE_ZPL
-	zfsvfs_t	zfsvfs;
-	int		i;
-	znode_t		*rootzp = NULL;
-	vnode_t		*vp;
-	vattr_t		vattr;
-	znode_t		*zp;
-	zfs_acl_ids_t	acl_ids;
-#else
 	timestruc_t	now;
 	dmu_buf_t	*db;
 	znode_phys_t	*pzp;
-#endif /* HAVE_ZPL */
 
 	/*
 	 * First attempt to create master node.
@@ -1536,8 +1525,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 		ASSERT(error == 0);
 		if (strcmp(name, zfs_prop_to_name(ZFS_PROP_NORMALIZE)) == 0)
 			norm = val;
-		else if (strcmp(name, zfs_prop_to_name(ZFS_PROP_CASE)) == 0)
-			sense = val;
 	}
 	ASSERT(version != 0);
 	error = zap_update(os, moid, ZPL_VERSION_STR, 8, 1, &version, tx);
@@ -1562,79 +1549,11 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	error = zap_add(os, moid, ZFS_UNLINKED_SET, 8, 1, &obj, tx);
 	ASSERT(error == 0);
 
-#ifdef HAVE_ZPL
 	/*
-	 * Create root znode.  Create minimal znode/vnode/zfsvfs
-	 * to allow zfs_mknode to work.
-	 */
-	vattr.va_mask = AT_MODE|AT_UID|AT_GID|AT_TYPE;
-	vattr.va_type = VDIR;
-	vattr.va_mode = S_IFDIR|0755;
-	vattr.va_uid = crgetuid(cr);
-	vattr.va_gid = crgetgid(cr);
-
-	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(rootzp->z_zfsvfs));
-	rootzp->z_moved = 0;
-	rootzp->z_unlinked = 0;
-	rootzp->z_atime_dirty = 0;
-	rootzp->z_is_sa = USE_SA(version, os);
-
-	vp = ZTOV(rootzp);
-	vn_reinit(vp);
-	vp->v_type = VDIR;
-
-	bzero(&zfsvfs, sizeof (zfsvfs_t));
-
-	zfsvfs.z_os = os;
-	zfsvfs.z_parent = &zfsvfs;
-	zfsvfs.z_version = version;
-	zfsvfs.z_use_fuids = USE_FUIDS(version, os);
-	zfsvfs.z_use_sa = USE_SA(version, os);
-	zfsvfs.z_norm = norm;
-
-	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
-	    &zfsvfs.z_attr_table);
-
-	ASSERT(error == 0);
-
-	/*
-	 * Fold case on file systems that are always or sometimes case
-	 * insensitive.
-	 */
-	if (sense == ZFS_CASE_INSENSITIVE || sense == ZFS_CASE_MIXED)
-		zfsvfs.z_norm |= U8_TEXTPREP_TOUPPER;
-
-	/* XXX - This must be destroyed but I'm not quite sure yet so
-	 * I'm just annotating that fact when it's an issue.  -Brian */
-	mutex_init(&zfsvfs.z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&zfsvfs.z_all_znodes, sizeof (znode_t),
-	    offsetof(znode_t, z_link_node));
-
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
-		mutex_init(&zfsvfs.z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
-
-	rootzp->z_zfsvfs = &zfsvfs;
-	VERIFY(0 == zfs_acl_ids_create(rootzp, IS_ROOT_NODE, &vattr,
-	    cr, NULL, &acl_ids));
-	zfs_mknode(rootzp, &vattr, tx, cr, IS_ROOT_NODE, &zp, &acl_ids);
-	ASSERT3P(zp, ==, rootzp);
-	ASSERT(!vn_in_dnlc(ZTOV(rootzp))); /* not valid to move */
-	error = zap_add(os, moid, ZFS_ROOT_OBJ, 8, 1, &rootzp->z_id, tx);
-	ASSERT(error == 0);
-	zfs_acl_ids_free(&acl_ids);
-	POINTER_INVALIDATE(&rootzp->z_zfsvfs);
-
-	ZTOV(rootzp)->v_count = 0;
-	sa_handle_destroy(rootzp->z_sa_hdl);
-	kmem_cache_free(znode_cache, rootzp);
-	error = zfs_create_share_dir(&zfsvfs, tx);
-
-	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
-		mutex_destroy(&zfsvfs.z_hold_mtx[i]);
-#else
-	/*
-	 * Create root znode with code free of VFS dependencies
+	 * Create root znode with code free of VFS dependencies.  This
+	 * is important because without a registered filesystem and super
+	 * block all the required VFS hooks will be missing.  The critical
+	 * thing is to just crete the required root znode.
 	 */
 	obj = zap_create_norm(os, norm, DMU_OT_DIRECTORY_CONTENTS,
 	                      DMU_OT_ZNODE, sizeof (znode_phys_t), tx);
