@@ -210,6 +210,7 @@ typedef struct znode {
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
 	boolean_t	z_is_zvol;	/* are we used by the zvol */
+	boolean_t	z_is_mapped;	/* are we mmap'ed */
 	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 

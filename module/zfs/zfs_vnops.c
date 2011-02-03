@@ -163,32 +163,7 @@
  *	return (error);			// done, report error
  */
 
-#if defined(_KERNEL) && defined(HAVE_MMAP)
-/*
- * Utility functions to map and unmap a single physical page.  These
- * are used to manage the mappable copies of ZFS file data, and therefore
- * do not update ref/mod bits.
- */
-caddr_t
-zfs_map_page(page_t *pp, enum seg_rw rw)
-{
-	if (kpm_enable)
-		return (hat_kpm_mapin(pp, 0));
-	ASSERT(rw == S_READ || rw == S_WRITE);
-	return (ppmapin(pp, PROT_READ | ((rw == S_WRITE) ? PROT_WRITE : 0),
-	    (caddr_t)-1));
-}
-
-void
-zfs_unmap_page(page_t *pp, caddr_t addr)
-{
-	if (kpm_enable) {
-		hat_kpm_mapout(pp, 0, addr);
-	} else {
-		ppmapout(addr);
-	}
-}
-
+#if defined(_KERNEL)
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
  * between the DMU cache and the memory mapped pages.  What this means:
@@ -197,25 +172,39 @@ zfs_unmap_page(page_t *pp, caddr_t addr)
  *		the page and the dmu buffer.
  */
 static void
-update_pages(struct inode *ip, int64_t start, int len, objset_t *os,
-    uint64_t oid)
+update_pages(struct inode *ip, int64_t start, int len,
+    objset_t *os, uint64_t oid)
 {
+	struct address_space *mp = ip->i_mapping;
+	struct page *pp;
+	uint64_t nbytes;
 	int64_t	off;
+	void *pb;
 
-	off = start & PAGEOFFSET;
-	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
-		page_t *pp;
-		uint64_t nbytes = MIN(PAGESIZE - off, len);
+	off = start & (PAGE_CACHE_SIZE-1);
+	for (start &= PAGE_CACHE_MASK; len > 0; start += PAGE_CACHE_SIZE) {
+		nbytes = MIN(PAGE_CACHE_SIZE - off, len);
 
-		if (pp = page_lookup(ip, start, SE_SHARED)) {
-			caddr_t va;
+		pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+		if (pp) {
+			if (mapping_writably_mapped(mp))
+				flush_dcache_page(pp);
 
-			va = zfs_map_page(pp, S_WRITE);
-			(void) dmu_read(os, oid, start+off, nbytes, va+off,
+			pb = kmap(pp);
+			(void) dmu_read(os, oid, start+off, nbytes, pb+off,
 			    DMU_READ_PREFETCH);
-			zfs_unmap_page(pp, va);
-			page_unlock(pp);
+			kunmap(pp);
+
+			if (mapping_writably_mapped(mp))
+				flush_dcache_page(pp);
+
+			mark_page_accessed(pp);
+			SetPageUptodate(pp);
+			ClearPageError(pp);
+			unlock_page(pp);
+			page_cache_release(pp);
 		}
+
 		len -= nbytes;
 		off = 0;
 	}
@@ -234,28 +223,39 @@ update_pages(struct inode *ip, int64_t start, int len, objset_t *os,
 static int
 mappedread(struct inode *ip, int nbytes, uio_t *uio)
 {
+	struct address_space *mp = ip->i_mapping;
+	struct page *pp;
 	znode_t *zp = ITOZ(ip);
 	objset_t *os = ITOZSB(ip)->z_os;
 	int64_t	start, off;
+	uint64_t bytes;
 	int len = nbytes;
 	int error = 0;
+	void *pb;
 
 	start = uio->uio_loffset;
-	off = start & PAGEOFFSET;
-	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
-		page_t *pp;
-		uint64_t bytes = MIN(PAGESIZE - off, len);
+	off = start & (PAGE_CACHE_SIZE-1);
+	for (start &= PAGE_CACHE_MASK; len > 0; start += PAGE_CACHE_SIZE) {
+		bytes = MIN(PAGE_CACHE_SIZE - off, len);
 
-		if (pp = page_lookup(ip, start, SE_SHARED)) {
-			caddr_t va;
+		pp = find_lock_page(mp, start >> PAGE_CACHE_SHIFT);
+		if (pp) {
+			ASSERT(PageUptodate(pp));
 
-			va = zfs_map_page(pp, S_READ);
-			error = uiomove(va + off, bytes, UIO_READ, uio);
-			zfs_unmap_page(pp, va);
-			page_unlock(pp);
+			pb = kmap(pp);
+			error = uiomove(pb + off, bytes, UIO_READ, uio);
+			kunmap(pp);
+
+			if (mapping_writably_mapped(mp))
+				flush_dcache_page(pp);
+
+			mark_page_accessed(pp);
+			unlock_page(pp);
+			page_cache_release(pp);
 		} else {
 			error = dmu_read_uio(os, zp->z_id, uio, bytes);
 		}
+
 		len -= bytes;
 		off = 0;
 		if (error)
@@ -263,7 +263,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 	}
 	return (error);
 }
-#endif /* _KERNEL && HAVE_MMAP */
+#endif /* _KERNEL */
 
 offset_t zfs_read_chunk_size = 1024 * 1024; /* Tunable */
 
@@ -273,7 +273,8 @@ offset_t zfs_read_chunk_size = 1024 * 1024; /* Tunable */
  *	IN:	ip	- inode of file to be read from.
  *		uio	- structure supplying read location, range info,
  *			  and return buffer.
- *		ioflag	- SYNC flags; used to provide FRSYNC semantics.
+ *		ioflag	- FSYNC flags; used to provide FRSYNC semantics.
+ *			  O_DIRECT flag; used to bypass page cache.
  *		cr	- credentials of caller.
  *
  *	OUT:	uio	- updated offset and range, buffer filled.
@@ -394,15 +395,11 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		nbytes = MIN(n, zfs_read_chunk_size -
 		    P2PHASE(uio->uio_loffset, zfs_read_chunk_size));
 
-/* XXX: Drop this, ARC update handled by zpl layer */
-#ifdef HAVE_MMAP
-		if (vn_has_cached_data(ip))
+		if (zp->z_is_mapped && !(ioflag & O_DIRECT))
 			error = mappedread(ip, nbytes, uio);
 		else
 			error = dmu_read_uio(os, zp->z_id, uio, nbytes);
-#else
-		error = dmu_read_uio(os, zp->z_id, uio, nbytes);
-#endif /* HAVE_MMAP */
+
 		if (error) {
 			/* convert checksum errors into IO errors */
 			if (error == ECKSUM)
@@ -429,6 +426,7 @@ EXPORT_SYMBOL(zfs_read);
  *		uio	- structure supplying write location, range info,
  *			  and data buffer.
  *		ioflag	- FAPPEND flag set if in append mode.
+ *			  O_DIRECT flag; used to bypass page cache.
  *		cr	- credentials of caller.
  *
  *	OUT:	uio	- updated offset and range.
@@ -700,13 +698,9 @@ again:
 			ASSERT(tx_bytes <= uio->uio_resid);
 			uioskip(uio, tx_bytes);
 		}
-/* XXX: Drop this, ARC update handled by zpl layer */
-#ifdef HAVE_MMAP
-		if (tx_bytes && vn_has_cached_data(ip)) {
-			update_pages(ip, woff,
-			    tx_bytes, zsb->z_os, zp->z_id);
-		}
-#endif /* HAVE_MMAP */
+
+		if (tx_bytes && zp->z_is_mapped && !(ioflag & O_DIRECT))
+			update_pages(ip, woff, tx_bytes, zsb->z_os, zp->z_id);
 
 		/*
 		 * If we made no progress, we're done.  If we made even
@@ -3392,6 +3386,7 @@ top:
 }
 EXPORT_SYMBOL(zfs_link);
 
+#ifdef HAVE_MMAP
 /*
  * zfs_null_putapage() is used when the file system has been force
  * unmounted. It just drops the pages.
@@ -3627,48 +3622,30 @@ out:
 	ZFS_EXIT(zfsvfs);
 	return (error);
 }
+#endif /* HAVE_MMAP */
 
 /*ARGSUSED*/
 void
-zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
+zfs_inactive(struct inode *ip)
 {
-	znode_t	*zp = VTOZ(vp);
-	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+	znode_t	*zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
 	int error;
 
-	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
-	if (zp->z_sa_hdl == NULL) {
-		/*
-		 * The fs has been unmounted, or we did a
-		 * suspend/resume and this file no longer exists.
-		 */
-		if (vn_has_cached_data(vp)) {
-			(void) pvn_vplist_dirty(vp, 0, zfs_null_putapage,
-			    B_INVAL, cr);
-		}
+	truncate_inode_pages(&ip->i_data, 0);
 
-		mutex_enter(&zp->z_lock);
-		mutex_enter(&vp->v_lock);
-		ASSERT(vp->v_count == 1);
-		vp->v_count = 0;
-		mutex_exit(&vp->v_lock);
-		mutex_exit(&zp->z_lock);
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
-		zfs_znode_free(zp);
+#ifdef HAVE_SNAPSHOT
+	/* Early return for snapshot inode? */
+#endif /* HAVE_SNAPSHOT */
+
+	rw_enter(&zsb->z_teardown_inactive_lock, RW_READER);
+	if (zp->z_sa_hdl == NULL) {
+		rw_exit(&zsb->z_teardown_inactive_lock);
 		return;
 	}
 
-	/*
-	 * Attempt to push any data in the page cache.  If this fails
-	 * we will get kicked out later in zfs_zinactive().
-	 */
-	if (vn_has_cached_data(vp)) {
-		(void) pvn_vplist_dirty(vp, 0, zfs_putapage, B_INVAL|B_ASYNC,
-		    cr);
-	}
-
 	if (zp->z_atime_dirty && zp->z_unlinked == 0) {
-		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
+		dmu_tx_t *tx = dmu_tx_create(zsb->z_os);
 
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 		zfs_sa_upgrade_txholds(tx, zp);
@@ -3712,6 +3689,7 @@ zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp,
 }
 EXPORT_SYMBOL(zfs_seek);
 
+#ifdef HAVE_MMAP
 /*
  * Pre-filter the generic locking function to trap attempts to place
  * a mandatory lock on a memory mapped file.
@@ -4056,6 +4034,7 @@ zfs_delmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
 
 	return (0);
 }
+#endif /* HAVE_MMAP */
 
 /*
  * convoff - converts the given data (start, whence) to the
