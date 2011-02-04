@@ -453,6 +453,20 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 	return (new);
 }
 
+static void
+zfs_range_free(void *arg)
+{
+	rl_t *rl = arg;
+
+	if (rl->r_write_wanted)
+		cv_destroy(&rl->r_wr_cv);
+
+	if (rl->r_read_wanted)
+		cv_destroy(&rl->r_rd_cv);
+
+	kmem_free(rl, sizeof (rl_t));
+}
+
 /*
  * Unlock a reader lock
  */
@@ -472,14 +486,14 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 	 */
 	if (remove->r_cnt == 1) {
 		avl_remove(tree, remove);
-		if (remove->r_write_wanted) {
+		mutex_exit(&zp->z_range_lock);
+		if (remove->r_write_wanted)
 			cv_broadcast(&remove->r_wr_cv);
-			cv_destroy(&remove->r_wr_cv);
-		}
-		if (remove->r_read_wanted) {
+
+		if (remove->r_read_wanted)
 			cv_broadcast(&remove->r_rd_cv);
-			cv_destroy(&remove->r_rd_cv);
-		}
+
+		taskq_dispatch(system_taskq, zfs_range_free, remove, 0);
 	} else {
 		ASSERT3U(remove->r_cnt, ==, 0);
 		ASSERT3U(remove->r_write_wanted, ==, 0);
@@ -505,19 +519,21 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 			rl->r_cnt--;
 			if (rl->r_cnt == 0) {
 				avl_remove(tree, rl);
-				if (rl->r_write_wanted) {
+
+				if (rl->r_write_wanted)
 					cv_broadcast(&rl->r_wr_cv);
-					cv_destroy(&rl->r_wr_cv);
-				}
-				if (rl->r_read_wanted) {
+
+				if (rl->r_read_wanted)
 					cv_broadcast(&rl->r_rd_cv);
-					cv_destroy(&rl->r_rd_cv);
-				}
-				kmem_free(rl, sizeof (rl_t));
+
+				taskq_dispatch(system_taskq,
+				    zfs_range_free, rl, 0);
 			}
 		}
+
+		mutex_exit(&zp->z_range_lock);
+		kmem_free(remove, sizeof (rl_t));
 	}
-	kmem_free(remove, sizeof (rl_t));
 }
 
 /*
@@ -537,22 +553,19 @@ zfs_range_unlock(rl_t *rl)
 		/* writer locks can't be shared or split */
 		avl_remove(&zp->z_range_avl, rl);
 		mutex_exit(&zp->z_range_lock);
-		if (rl->r_write_wanted) {
+		if (rl->r_write_wanted)
 			cv_broadcast(&rl->r_wr_cv);
-			cv_destroy(&rl->r_wr_cv);
-		}
-		if (rl->r_read_wanted) {
+
+		if (rl->r_read_wanted)
 			cv_broadcast(&rl->r_rd_cv);
-			cv_destroy(&rl->r_rd_cv);
-		}
-		kmem_free(rl, sizeof (rl_t));
+
+		taskq_dispatch(system_taskq, zfs_range_free, rl, 0);
 	} else {
 		/*
 		 * lock may be shared, let zfs_range_unlock_reader()
-		 * release the lock and free the rl_t
+		 * release the zp->z_range_lock lock and free the rl_t
 		 */
 		zfs_range_unlock_reader(zp, rl);
-		mutex_exit(&zp->z_range_lock);
 	}
 }
 
