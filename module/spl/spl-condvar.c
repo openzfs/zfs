@@ -46,6 +46,7 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 
 	cvp->cv_magic = CV_MAGIC;
 	init_waitqueue_head(&cvp->cv_event);
+	init_waitqueue_head(&cvp->cv_destroy);
 	atomic_set(&cvp->cv_waiters, 0);
 	cvp->cv_mutex = NULL;
 	cvp->cv_name = NULL;
@@ -65,12 +66,27 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 }
 EXPORT_SYMBOL(__cv_init);
 
+static int
+cv_destroy_wakeup(kcondvar_t *cvp)
+{
+	if ((waitqueue_active(&cvp->cv_event)) ||
+	    (atomic_read(&cvp->cv_waiters) > 0))
+		return 0;
+
+	return 1;
+}
+
 void
 __cv_destroy(kcondvar_t *cvp)
 {
 	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
+
+	/* Block until all waiters have woken */
+	while (cv_destroy_wakeup(cvp) == 0)
+		wait_event_timeout(cvp->cv_destroy, cv_destroy_wakeup(cvp), 1);
+
 	ASSERT(cvp->cv_mutex == NULL);
 	ASSERT(atomic_read(&cvp->cv_waiters) == 0);
 	ASSERT(!waitqueue_active(&cvp->cv_event));
@@ -78,7 +94,6 @@ __cv_destroy(kcondvar_t *cvp)
 	if (cvp->cv_name)
 		kmem_free(cvp->cv_name, cvp->cv_name_size);
 
-	ASSERT3P(memset(cvp, CV_POISON, sizeof(*cvp)), ==, cvp);
 	SEXIT;
 }
 EXPORT_SYMBOL(__cv_destroy);
@@ -111,10 +126,13 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
-	if (atomic_dec_and_test(&cvp->cv_waiters))
+	if (atomic_dec_and_test(&cvp->cv_waiters)) {
 		cvp->cv_mutex = NULL;
+		wake_up(&cvp->cv_destroy);
+	}
 
 	finish_wait(&cvp->cv_event, &wait);
+
 	SEXIT;
 }
 
@@ -170,8 +188,10 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
-	if (atomic_dec_and_test(&cvp->cv_waiters))
+	if (atomic_dec_and_test(&cvp->cv_waiters)) {
 		cvp->cv_mutex = NULL;
+		wake_up(&cvp->cv_destroy);
+	}
 
 	finish_wait(&cvp->cv_event, &wait);
 

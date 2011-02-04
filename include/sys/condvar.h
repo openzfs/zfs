@@ -42,6 +42,7 @@ typedef struct {
 	char *cv_name;
 	int cv_name_size;
 	wait_queue_head_t cv_event;
+	wait_queue_head_t cv_destroy;
 	atomic_t cv_waiters;
 	kmutex_t *cv_mutex;
 } kcondvar_t;
