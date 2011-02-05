@@ -269,19 +269,12 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	struct uuid	uuid;
 	struct dk_cinfo	dki_info;
 
-	if (read_disk_info(fd, &capacity, &lbsize) != 0) {
-		if (efi_debug)
-			(void) fprintf(stderr,
-			    "couldn't read disk information\n");
+	if (read_disk_info(fd, &capacity, &lbsize) != 0)
 		return (-1);
-	}
+
 #if defined(__linux__)
-	if (efi_get_info(fd, &dki_info) != 0) {
-		if (efi_debug)
-			(void) fprintf(stderr,
-			    "couldn't read disk information\n");
+	if (efi_get_info(fd, &dki_info) != 0)
 		return (-1);
-	}
 
 	if (dki_info.dki_partition != 0)
 		return (-1);
