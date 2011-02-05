@@ -1071,17 +1071,17 @@ zfsvfs_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 
 	rrw_enter(&zsb->z_teardown_lock, RW_WRITER, FTAG);
 
-#ifdef HAVE_DNLC
 	if (!unmounting) {
 		/*
-		 * We purge the parent filesystem's vfsp as the parent
-		 * filesystem and all of its snapshots have their vnode's
-		 * v_vfsp set to the parent's filesystem's vfsp.  Note,
-		 * 'z_parent' is self referential for non-snapshots.
+		 * We purge the parent filesystem's super block as the
+		 * parent filesystem and all of its snapshots have their
+		 * inode's super block set to the parent's filesystem's
+		 * super block.  Note,  'z_parent' is self referential
+		 * for non-snapshots.
 		 */
-		(void) dnlc_purge_vfsp(zsb->z_parent->z_vfs, 0);
+		shrink_dcache_sb(zsb->z_parent->z_sb);
+		invalidate_inodes(zsb->z_parent->z_sb);
 	}
-#endif /* HAVE_DNLC */
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
