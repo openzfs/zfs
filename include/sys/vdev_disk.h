@@ -81,6 +81,9 @@ extern int vdev_disk_read_rootlabel(char *, char *, nvlist_t **);
 # define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
 #endif
 
+/* Default Linux IO Scheduler */
+#define	VDEV_SCHEDULER			"noop"
+
 #endif /* _KERNEL */
 
 #ifdef	__cplusplus
