@@ -381,7 +381,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		}
 		nblks = 1;
 	}
-	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_SLEEP);
+	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_SLEEP | KM_NODEBUG);
 
 	if (dn->dn_objset->os_dsl_dataset)
 		dp = dn->dn_objset->os_dsl_dataset->ds_dir->dd_pool;
