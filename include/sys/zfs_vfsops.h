@@ -38,13 +38,15 @@
 extern "C" {
 #endif
 
-typedef struct zfsvfs zfsvfs_t;
+struct zfs_sb;
 struct znode;
 
-struct zfsvfs {
-	vfs_t		*z_vfs;		/* generic fs struct */
-	zfsvfs_t	*z_parent;	/* parent fs */
+typedef struct zfs_sb {
+	struct vfsmount	*z_vfs;		/* generic vfs struct */
+	struct super_block *z_sb;	/* generic super_block */
+	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
+	uint64_t	z_flags;	/* super_block flags */
 	uint64_t	z_root;		/* id of root znode */
 	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
 	uint64_t	z_max_blksz;	/* maximum block size for files */
@@ -86,6 +88,8 @@ struct zfsvfs {
 } zfs_sb_t;
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
+
+#define	ZSB_XATTR_USER	0x0001		/* Enable user xattrs */
 
 
 /*
@@ -162,30 +166,30 @@ typedef struct zfid_long {
 
 extern uint_t zfs_fsyncer_key;
 
-extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
-extern int zfs_resume_fs(zfsvfs_t *zfsvfs, const char *osname);
-extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_suspend_fs(zfs_sb_t *zsb);
+extern int zfs_resume_fs(zfs_sb_t *zsb, const char *osname);
+extern int zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valuep);
-extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     uint64_t *cookiep, void *vbuf, uint64_t *bufsizep);
-extern int zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_set_userquota(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t quota);
-extern boolean_t zfs_owner_overquota(zfsvfs_t *zfsvfs, struct znode *,
+extern boolean_t zfs_owner_overquota(zfs_sb_t *zsb, struct znode *,
     boolean_t isgroup);
-extern boolean_t zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
+extern boolean_t zfs_fuid_overquota(zfs_sb_t *zsb, boolean_t isgroup,
     uint64_t fuid);
-extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
-extern int zfsvfs_create(const char *name, zfsvfs_t **zfvp);
-extern void zfsvfs_free(zfsvfs_t *zfsvfs);
+extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
+extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
+extern void zfs_sb_free(zfs_sb_t *zsb);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 
-extern int zfs_register_callbacks(vfs_t *vfsp);
-extern void zfs_unregister_callbacks(zfsvfs_t *zfsvfs);
-extern int zfs_domount(vfs_t *vfsp, char *osname);
-extern int zfs_umount(vfs_t *vfsp, int fflag, cred_t *cr);
-extern int zfs_root(vfs_t *vfsp, vnode_t **vpp);
-extern int zfs_statvfs(vfs_t *vfsp, struct statvfs64 *statp);
-extern int zfs_vget(vfs_t *vfsp, vnode_t **vpp, fid_t *fidp);
+extern int zfs_register_callbacks(zfs_sb_t *zsb);
+extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
+extern int zfs_domount(struct super_block *sb, void *data, int silent);
+extern int zfs_umount(struct super_block *sb);
+extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);
+extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
+extern int zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp);
 
 #ifdef	__cplusplus
 }

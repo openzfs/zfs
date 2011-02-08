@@ -22,7 +22,6 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#ifdef HAVE_ZPL
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -411,9 +410,9 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr->lr_uid = zp->z_uid;
 	lr->lr_gid = zp->z_gid;
 	lr->lr_mode = zp->z_mode;
-	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zp->z_zfsvfs), &lr->lr_gen,
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &lr->lr_gen,
 	    sizeof (uint64_t));
-	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_CRTIME(zp->z_zfsvfs),
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_CRTIME(ZTOZSB(zp)),
 	    lr->lr_crtime, sizeof (uint64_t) * 2);
 	bcopy(name, (char *)(lr + 1), namesize);
 	bcopy(link, (char *)(lr + 1) + namesize, linksize);
@@ -496,7 +495,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		itx = zil_itx_create(txtype, sizeof (*lr) +
 		    (write_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
-		if (write_state == WR_COPIED && dmu_read(zp->z_zfsvfs->z_os,
+		if (write_state == WR_COPIED && dmu_read(ZTOZSB(zp)->z_os,
 		    zp->z_id, off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(txtype, sizeof (*lr));
@@ -513,7 +512,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		lr->lr_blkoff = 0;
 		BP_ZERO(&lr->lr_blkptr);
 
-		itx->itx_private = zp->z_zfsvfs;
+		itx->itx_private = ZTOZSB(zp);
 
 		if (!(ioflag & (FSYNC | FDSYNC)) && (zp->z_sync_cnt == 0) &&
 		    (fsync_cnt == 0))
@@ -629,7 +628,7 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	if (zil_replaying(zilog, tx) || zp->z_unlinked)
 		return;
 
-	txtype = (zp->z_zfsvfs->z_version < ZPL_VERSION_FUID) ?
+	txtype = (ZTOZSB(zp)->z_version < ZPL_VERSION_FUID) ?
 	    TX_ACL_V0 : TX_ACL;
 
 	if (txtype == TX_ACL)
@@ -667,14 +666,14 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 
 		start = (caddr_t)start + ZIL_ACE_LENGTH(aclbytes);
 
+#ifdef HAVE_XVATTR
 		if (fuidp) {
 			start = zfs_log_fuid_ids(fuidp, start);
 			(void) zfs_log_fuid_domains(fuidp, start);
 		}
+#endif /* HAVE_XVATTR */
 	}
 
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
 }
-
-#endif /* HAVE_ZPL */

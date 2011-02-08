@@ -910,10 +910,8 @@ dmu_objset_snapshot_one(const char *name, void *arg)
 	 * permission checks for the starting dataset have already been
 	 * performed in zfs_secpolicy_snapshot()
 	 */
-#ifdef HAVE_ZPL
 	if (sn->recursive && (err = zfs_secpolicy_snapshot_perms(name, CRED())))
 		return (err);
-#endif
 
 	err = dmu_objset_hold(name, sn, &os);
 	if (err != 0)

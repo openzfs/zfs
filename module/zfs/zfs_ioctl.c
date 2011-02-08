@@ -432,7 +432,7 @@ zfs_set_slabel_policy(const char *name, char *strval, cred_t *cr)
 	/*
 	 * If the existing dataset label is nondefault, check if the
 	 * dataset is mounted (label cannot be changed while mounted).
-	 * Get the zfsvfs; if there isn't one, then the dataset isn't
+	 * Get the zfs_sb_t; if there isn't one, then the dataset isn't
 	 * mounted (or isn't a dataset, doesn't exist, ...).
 	 */
 	if (strcasecmp(ds_hexsl, ZFS_MLSLABEL_DEFAULT) != 0) {
@@ -849,20 +849,6 @@ zfs_secpolicy_create(zfs_cmd_t *zc, cred_t *cr)
 	return (error);
 }
 
-#ifdef HAVE_ZPL
-static int
-zfs_secpolicy_umount(zfs_cmd_t *zc, cred_t *cr)
-{
-	int error;
-
-	error = secpolicy_fs_unmount(cr, NULL);
-	if (error) {
-		error = dsl_deleg_access(zc->zc_name, ZFS_DELEG_PERM_MOUNT, cr);
-	}
-	return (error);
-}
-#endif /* HAVE_ZPL */
-
 /*
  * Policy for pool operations - create/destroy pools, add vdevs, etc.  Requires
  * SYS_CONFIG privilege, which is not available in a local zone.
@@ -1105,9 +1091,8 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 	return (error);
 }
 
-#ifdef HAVE_ZPL
 static int
-getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
+get_zfs_sb(const char *dsname, zfs_sb_t **zsbp)
 {
 	objset_t *os;
 	int error;
@@ -1121,9 +1106,9 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
 	}
 
 	mutex_enter(&os->os_user_ptr_lock);
-	*zfvp = dmu_objset_get_user(os);
-	if (*zfvp) {
-		VFS_HOLD((*zfvp)->z_vfs);
+	*zsbp = dmu_objset_get_user(os);
+	if (*zsbp) {
+		mntget((*zsbp)->z_vfs);
 	} else {
 		error = ESRCH;
 	}
@@ -1131,52 +1116,45 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
 	dmu_objset_rele(os, FTAG);
 	return (error);
 }
-#endif
 
 /*
- * Find a zfsvfs_t for a mounted filesystem, or create our own, in which
+ * Find a zfs_sb_t for a mounted filesystem, or create our own, in which
  * case its z_vfs will be NULL, and it will be opened as the owner.
  */
 static int
-zfsvfs_hold(const char *name, void *tag, zfsvfs_t **zfvp, boolean_t writer)
+zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 {
-#ifdef HAVE_ZPL
 	int error = 0;
 
-	if (getzfsvfs(name, zfvp) != 0)
-		error = zfsvfs_create(name, zfvp);
+	if (get_zfs_sb(name, zsbp) != 0)
+		error = zfs_sb_create(name, zsbp);
 	if (error == 0) {
-		rrw_enter(&(*zfvp)->z_teardown_lock, (writer) ? RW_WRITER :
+		rrw_enter(&(*zsbp)->z_teardown_lock, (writer) ? RW_WRITER :
 		    RW_READER, tag);
-		if ((*zfvp)->z_unmounted) {
+		if ((*zsbp)->z_unmounted) {
 			/*
 			 * XXX we could probably try again, since the unmounting
 			 * thread should be just about to disassociate the
 			 * objset from the zfsvfs.
 			 */
-			rrw_exit(&(*zfvp)->z_teardown_lock, tag);
+			rrw_exit(&(*zsbp)->z_teardown_lock, tag);
 			return (EBUSY);
 		}
 	}
 	return (error);
-#else
-	return ENOTSUP;
-#endif
 }
 
 static void
-zfsvfs_rele(zfsvfs_t *zfsvfs, void *tag)
+zfs_sb_rele(zfs_sb_t *zsb, void *tag)
 {
-#ifdef HAVE_ZPL
-	rrw_exit(&zfsvfs->z_teardown_lock, tag);
+	rrw_exit(&zsb->z_teardown_lock, tag);
 
-	if (zfsvfs->z_vfs) {
-		VFS_RELE(zfsvfs->z_vfs);
+	if (zsb->z_vfs) {
+		mntput(zsb->z_vfs);
 	} else {
-		dmu_objset_disown(zfsvfs->z_os, zfsvfs);
-		zfsvfs_free(zfsvfs);
+		dmu_objset_disown(zsb->z_os, zsb);
+		zfs_sb_free(zsb);
 	}
-#endif
 }
 
 static int
@@ -2086,7 +2064,6 @@ top:
 static int
 zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 {
-#ifdef HAVE_ZPL
 	const char *propname = nvpair_name(pair);
 	uint64_t *valary;
 	unsigned int vallen;
@@ -2095,7 +2072,7 @@ zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 	zfs_userquota_prop_t type;
 	uint64_t rid;
 	uint64_t quota;
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 	int err;
 
 	if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
@@ -2120,16 +2097,13 @@ zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 	rid = valary[1];
 	quota = valary[2];
 
-	err = zfsvfs_hold(dsname, FTAG, &zfsvfs, B_FALSE);
+	err = zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE);
 	if (err == 0) {
-		err = zfs_set_userquota(zfsvfs, type, domain, rid, quota);
-		zfsvfs_rele(zfsvfs, FTAG);
+		err = zfs_set_userquota(zsb, type, domain, rid, quota);
+		zfs_sb_rele(zsb, FTAG);
 	}
 
 	return (err);
-#else
-	return ENOTSUP;
-#endif
 }
 
 /*
@@ -2185,15 +2159,13 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		break;
 	case ZFS_PROP_VERSION:
 	{
-		zfsvfs_t *zfsvfs;
+		zfs_sb_t *zsb;
 
-		if ((err = zfsvfs_hold(dsname, FTAG, &zfsvfs, B_TRUE)) != 0)
+		if ((err = zfs_sb_hold(dsname, FTAG, &zsb, B_TRUE)) != 0)
 			break;
 
-#ifdef HAVE_ZPL
-		err = zfs_set_version(zfsvfs, intval);
-#endif
-		zfsvfs_rele(zfsvfs, FTAG);
+		err = zfs_set_version(zsb, intval);
+		zfs_sb_rele(zsb, FTAG);
 
 		if (err == 0 && intval >= ZPL_VERSION_USERSPACE) {
 			zfs_cmd_t *zc;
@@ -2748,7 +2720,7 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 	return (error);
 }
 
-#ifdef HAVE_ZPL
+#ifdef HAVE_SNAPSHOT
 /*
  * Search the vfs list for a specified resource.  Returns a pointer to it
  * or NULL if no suitable entry is found. The caller of this routine
@@ -2764,7 +2736,7 @@ zfs_get_vfs(const char *resource)
 	vfsp = rootvfs;
 	do {
 		if (strcmp(refstr_value(vfsp->vfs_resource), resource) == 0) {
-			VFS_HOLD(vfsp);
+			mntget(vfsp);
 			vfs_found = vfsp;
 			break;
 		}
@@ -2773,7 +2745,7 @@ zfs_get_vfs(const char *resource)
 	vfs_list_unlock();
 	return (vfs_found);
 }
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SNAPSHOT */
 
 /* ARGSUSED */
 static void
@@ -3128,7 +3100,7 @@ out:
 int
 zfs_unmount_snap(const char *name, void *arg)
 {
-#ifdef HAVE_ZPL
+#ifdef HAVE_SNAPSHOT
 	vfs_t *vfsp = NULL;
 
 	if (arg) {
@@ -3148,14 +3120,14 @@ zfs_unmount_snap(const char *name, void *arg)
 		int err;
 
 		if ((err = vn_vfswlock(vfsp->vfs_vnodecovered)) != 0) {
-			VFS_RELE(vfsp);
+			mntput(vfsp);
 			return (err);
 		}
-		VFS_RELE(vfsp);
+		mntput(vfsp);
 		if ((err = dounmount(vfsp, flag, kcred)) != 0)
 			return (err);
 	}
-#endif /* HAVE_ZPL */
+#endif /* HAVE_SNAPSHOT */
 	return (0);
 }
 
@@ -3215,10 +3187,9 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 static int
 zfs_ioc_rollback(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
 	dsl_dataset_t *ds, *clone;
 	int error;
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 	char *clone_name;
 
 	error = dsl_dataset_hold(zc->zc_name, FTAG, &ds);
@@ -3252,8 +3223,8 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 	/*
 	 * Do clone swap.
 	 */
-	if (getzfsvfs(zc->zc_name, &zfsvfs) == 0) {
-		error = zfs_suspend_fs(zfsvfs);
+	if (get_zfs_sb(zc->zc_name, &zsb) == 0) {
+		error = zfs_suspend_fs(zsb);
 		if (error == 0) {
 			int resume_err;
 
@@ -3265,10 +3236,10 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 			} else {
 				error = EBUSY;
 			}
-			resume_err = zfs_resume_fs(zfsvfs, zc->zc_name);
+			resume_err = zfs_resume_fs(zsb, zc->zc_name);
 			error = error ? error : resume_err;
 		}
-		VFS_RELE(zfsvfs->z_vfs);
+		mntput(zsb->z_vfs);
 	} else {
 		if (dsl_dataset_tryown(ds, B_FALSE, FTAG)) {
 			error = dsl_dataset_clone_swap(clone, ds, B_TRUE);
@@ -3289,9 +3260,6 @@ out:
 	if (ds)
 		dsl_dataset_rele(ds, FTAG);
 	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
 }
 
 /*
@@ -3741,29 +3709,25 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	    &zc->zc_action_handle);
 
 	if (error == 0) {
-#ifdef HAVE_ZPL
-		zfsvfs_t *zfsvfs = NULL;
+		zfs_sb_t *zsb = NULL;
 
-		if (getzfsvfs(tofs, &zfsvfs) == 0) {
+		if (get_zfs_sb(tofs, &zsb) == 0) {
 			/* online recv */
 			int end_err;
 
-			error = zfs_suspend_fs(zfsvfs);
+			error = zfs_suspend_fs(zsb);
 			/*
 			 * If the suspend fails, then the recv_end will
 			 * likely also fail, and clean up after itself.
 			 */
 			end_err = dmu_recv_end(&drc);
 			if (error == 0)
-				error = zfs_resume_fs(zfsvfs, tofs);
+				error = zfs_resume_fs(zsb, tofs);
 			error = error ? error : end_err;
-			VFS_RELE(zfsvfs->z_vfs);
+			mntput(zsb->z_vfs);
 		} else {
 			error = dmu_recv_end(&drc);
 		}
-#else
-		error = dmu_recv_end(&drc);
-#endif /* HAVE_ZPL */
 	}
 
 	zc->zc_cookie = off - fp->f_offset;
@@ -4087,25 +4051,21 @@ zfs_ioc_promote(zfs_cmd_t *zc)
 static int
 zfs_ioc_userspace_one(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 	int error;
 
 	if (zc->zc_objset_type >= ZFS_NUM_USERQUOTA_PROPS)
 		return (EINVAL);
 
-	error = zfsvfs_hold(zc->zc_name, FTAG, &zfsvfs, B_FALSE);
+	error = zfs_sb_hold(zc->zc_name, FTAG, &zsb, B_FALSE);
 	if (error)
 		return (error);
 
-	error = zfs_userspace_one(zfsvfs,
+	error = zfs_userspace_one(zsb,
 	    zc->zc_objset_type, zc->zc_value, zc->zc_guid, &zc->zc_cookie);
-	zfsvfs_rele(zfsvfs, FTAG);
+	zfs_sb_rele(zsb, FTAG);
 
 	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
 }
 
 /*
@@ -4122,20 +4082,21 @@ zfs_ioc_userspace_one(zfs_cmd_t *zc)
 static int
 zfs_ioc_userspace_many(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 	int bufsize = zc->zc_nvlist_dst_size;
+	int error;
+	void *buf;
 
 	if (bufsize <= 0)
 		return (ENOMEM);
 
-	int error = zfsvfs_hold(zc->zc_name, FTAG, &zfsvfs, B_FALSE);
+	error = zfs_sb_hold(zc->zc_name, FTAG, &zsb, B_FALSE);
 	if (error)
 		return (error);
 
-	void *buf = kmem_alloc(bufsize, KM_SLEEP);
+	buf = kmem_alloc(bufsize, KM_SLEEP);
 
-	error = zfs_userspace_many(zfsvfs, zc->zc_objset_type, &zc->zc_cookie,
+	error = zfs_userspace_many(zsb, zc->zc_objset_type, &zc->zc_cookie,
 	    buf, &zc->zc_nvlist_dst_size);
 
 	if (error == 0) {
@@ -4144,12 +4105,9 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 		    zc->zc_nvlist_dst_size);
 	}
 	kmem_free(buf, bufsize);
-	zfsvfs_rele(zfsvfs, FTAG);
+	zfs_sb_rele(zsb, FTAG);
 
 	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
 }
 
 /*
@@ -4162,25 +4120,24 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 static int
 zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 {
-#ifdef HAVE_ZPL
 	objset_t *os;
 	int error = 0;
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 
-	if (getzfsvfs(zc->zc_name, &zfsvfs) == 0) {
-		if (!dmu_objset_userused_enabled(zfsvfs->z_os)) {
+	if (get_zfs_sb(zc->zc_name, &zsb) == 0) {
+		if (!dmu_objset_userused_enabled(zsb->z_os)) {
 			/*
 			 * If userused is not enabled, it may be because the
 			 * objset needs to be closed & reopened (to grow the
 			 * objset_phys_t).  Suspend/resume the fs will do that.
 			 */
-			error = zfs_suspend_fs(zfsvfs);
+			error = zfs_suspend_fs(zsb);
 			if (error == 0)
-				error = zfs_resume_fs(zfsvfs, zc->zc_name);
+				error = zfs_resume_fs(zsb, zc->zc_name);
 		}
 		if (error == 0)
-			error = dmu_objset_userspace_upgrade(zfsvfs->z_os);
-		VFS_RELE(zfsvfs->z_vfs);
+			error = dmu_objset_userspace_upgrade(zsb->z_os);
+		mntput(zsb->z_vfs);
 	} else {
 		/* XXX kind of reading contents without owning */
 		error = dmu_objset_hold(zc->zc_name, FTAG, &os);
@@ -4192,9 +4149,6 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 	}
 
 	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE_ZPL */
 }
 
 /*
@@ -4456,10 +4410,10 @@ zfs_smb_acl_purge(znode_t *dzp)
 {
 	zap_cursor_t	zc;
 	zap_attribute_t	zap;
-	zfsvfs_t *zfsvfs = dzp->z_zfsvfs;
+	zfs_sb_t *zsb = ZTOZSB(dzp);
 	int error;
 
-	for (zap_cursor_init(&zc, zfsvfs->z_os, dzp->z_id);
+	for (zap_cursor_init(&zc, zsb->z_os, dzp->z_id);
 	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((error = VOP_REMOVE(ZTOV(dzp), zap.za_name, kcred,
@@ -4479,7 +4433,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 	znode_t *dzp;
 	vnode_t *resourcevp = NULL;
 	znode_t *sharedir;
-	zfsvfs_t *zfsvfs;
+	zfs_sb_t *zsb;
 	nvlist_t *nvlist;
 	char *src, *target;
 	vattr_t vattr;
@@ -4500,17 +4454,17 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 	}
 
 	dzp = VTOZ(vp);
-	zfsvfs = dzp->z_zfsvfs;
-	ZFS_ENTER(zfsvfs);
+	zsb = ZTOZSB(dzp);
+	ZFS_ENTER(zsb);
 
 	/*
 	 * Create share dir if its missing.
 	 */
-	mutex_enter(&zfsvfs->z_lock);
-	if (zfsvfs->z_shares_dir == 0) {
+	mutex_enter(&zsb->z_lock);
+	if (zsb->z_shares_dir == 0) {
 		dmu_tx_t *tx;
 
-		tx = dmu_tx_create(zfsvfs->z_os);
+		tx = dmu_tx_create(zsb->z_os);
 		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, TRUE,
 		    ZFS_SHARES_DIR);
 		dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, FALSE, NULL);
@@ -4518,29 +4472,28 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 		if (error) {
 			dmu_tx_abort(tx);
 		} else {
-			error = zfs_create_share_dir(zfsvfs, tx);
+			error = zfs_create_share_dir(zsb, tx);
 			dmu_tx_commit(tx);
 		}
 		if (error) {
-			mutex_exit(&zfsvfs->z_lock);
+			mutex_exit(&zsb->z_lock);
 			VN_RELE(vp);
-			ZFS_EXIT(zfsvfs);
+			ZFS_EXIT(zsb);
 			return (error);
 		}
 	}
-	mutex_exit(&zfsvfs->z_lock);
+	mutex_exit(&zsb->z_lock);
 
-	ASSERT(zfsvfs->z_shares_dir);
-	if ((error = zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &sharedir)) != 0) {
+	ASSERT(zsb->z_shares_dir);
+	if ((error = zfs_zget(zsb, zsb->z_shares_dir, &sharedir)) != 0) {
 		VN_RELE(vp);
-		ZFS_EXIT(zfsvfs);
+		ZFS_EXIT(zsb);
 		return (error);
 	}
 
 	switch (zc->zc_cookie) {
 	case ZFS_SMB_ACL_ADD:
 		vattr.va_mask = AT_MODE|AT_UID|AT_GID|AT_TYPE;
-		vattr.va_type = VREG;
 		vattr.va_mode = S_IFREG|0777;
 		vattr.va_uid = 0;
 		vattr.va_gid = 0;
@@ -4565,7 +4518,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 		if ((error = get_nvlist(zc->zc_nvlist_src,
 		    zc->zc_nvlist_src_size, zc->zc_iflags, &nvlist)) != 0) {
 			VN_RELE(vp);
-			ZFS_EXIT(zfsvfs);
+			ZFS_EXIT(zsb);
 			return (error);
 		}
 		if (nvlist_lookup_string(nvlist, ZFS_SMB_ACL_SRC, &src) ||
@@ -4573,7 +4526,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 		    &target)) {
 			VN_RELE(vp);
 			VN_RELE(ZTOV(sharedir));
-			ZFS_EXIT(zfsvfs);
+			ZFS_EXIT(zsb);
 			nvlist_free(nvlist);
 			return (error);
 		}
@@ -4594,7 +4547,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 	VN_RELE(vp);
 	VN_RELE(ZTOV(sharedir));
 
-	ZFS_EXIT(zfsvfs);
+	ZFS_EXIT(zsb);
 
 	return (error);
 #else
