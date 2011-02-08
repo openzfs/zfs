@@ -1062,6 +1062,8 @@ zvol_alloc(dev_t dev, const char *name)
 	mutex_init(&zv->zv_znode.z_range_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&zv->zv_znode.z_range_avl, zfs_range_compare,
 	    sizeof (rl_t), offsetof(rl_t, r_node));
+	zv->zv_znode.z_is_zvol = TRUE;
+
 	spin_lock_init(&zv->zv_lock);
 	list_link_init(&zv->zv_next);
 

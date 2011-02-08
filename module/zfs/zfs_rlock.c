@@ -112,14 +112,14 @@ zfs_range_lock_writer(znode_t *zp, rl_t *new)
 		 * Range locking is also used by zvol and uses a
 		 * dummied up znode. However, for zvol, we don't need to
 		 * append or grow blocksize, and besides we don't have
-		 * a "sa" data or z_zfsvfs - so skip that processing.
+		 * a "sa" data or zfs_sb_t - so skip that processing.
 		 *
 		 * Yes, this is ugly, and would be solved by not handling
 		 * grow or append in range lock code. If that was done then
 		 * we could make the range locking code generically available
 		 * to other non-zfs consumers.
 		 */
-		if (zp->z_vnode) { /* caller is ZPL */
+		if (!zp->z_is_zvol) { /* caller is ZPL */
 			/*
 			 * If in append mode pick up the current end of file.
 			 * This is done under z_range_lock to avoid races.

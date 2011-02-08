@@ -209,7 +209,7 @@ typedef struct znode {
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
-	void (*z_set_ops_inode) (struct inode *); /* set inode ops */
+	boolean_t	z_is_zvol;	/* are we used by the zvol */
 	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
