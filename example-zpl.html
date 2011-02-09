@@ -12,24 +12,48 @@
 <table width="80%">
 	<tr>
 		<td>
-<img src="images/zfs-components2.png" align="left" width=60%>
+<p><b>A development version of the ZFS Posix Layer (ZPL) is
+now available!</b></p>
 
-<p>Sorry, the ZFS Posix Layer (ZPL) which allows you to mount the
-file system is still a
-<a href=http://groups.google.com/a/zfsonlinux.org/group/zfs-discuss/browse_thread/thread/96c8b21d9d416907#">
-work in progress</a>.  This code is being actively
-developed and our expectation is to start merging these changes in
-to master branch in early 2011.  As always we would love help from
-the community.  If you'd like to help please drop me an
-<a href="mailto:behlendorf1@llnl.gov">email</a>.</p>
+<p>This is the functionality you need to be able to mount ZFS
+like a normal Linux filesystem.  All the core functionality is
+in place but several of the advanced features still need to be
+implemented.  My hope is that by making this code available before
+it is 100% feature complete the Linux ZFS community can contribute
+to finishing the missing features.  You can download the development
+source with ZPL support here:</p>
 
-</p>If you absolutely need to have ZFS on Linux today an implementation
-of the ZPL was produced by <a href="http://kqinfotech.com/">
-KQ Infotech</a>.  You can download their implementation from
+<ul>
+  <li><a href="http://github.com/behlendorf/spl/tarball/master">master</a>
+  - SPL Master Branch<br></li>
+  <li><a href="http://github.com/behlendorf/zfs/tarball/zpl">zpl</a>
+  - ZPL Development Branch</a></li>
+</ul>
+
+<p>Before downloading the source you should be aware of two things.</p>
+<ol>
+  <li> This branch currently <i>only</i> supports 2.6.32 based Linux
+kernels.  Support for newer kernels is a high priority item on the
+official list of <a href="zfs-development-items.html">
+zfs development items</a>.</li>
+  <li> This is a development and not production branch.  That means
+there still are rough edges which could for example crash your system.
+I've intentionally released this code as soon as it was reasonable to
+do so, because my hope is that the community can help stabilize the
+branch.</li>
+</ol>
+
+<img src="images/zfs-components2.png" align="right" width=60%>
+
+<p>If your not a developer and you absolutely need to have ZFS on
+Linux today.  There is an alternate implementation of the ZPL which
+was produced by <a href="http://kqinfotech.com/"> KQ Infotech</a>.
+You can download their implementation from
 <a href=http://kqstor.com>kqstor.com</a>.  Their port is based
 of the spl/zfs-0.5.2 version so it does include features such
 as deduplication.  We are in the process of reviewing, refining,
-and integrating their proposed changes.</p>
+and integrating their proposed changes in to afore mentioned
+development branch.</p>
 
 <p>We would also love to see a FUSE based implementation.
 Currently all the zfs code in this project builds cleanly in the

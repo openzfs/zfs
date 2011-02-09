@@ -21,10 +21,24 @@ on the way!  Please see our <a href="faq.html">FAQ</a> and example
 pages for details.</p>
 
 <p>To get started with ZFS on Linux simply download the latest
-release from the link below.  Then follow either the 
-<a href="spl-building-rpm.html">rpm</a> or
+<font color="#40ff00">stable release</font>.  Then follow either
+the <a href="spl-building-rpm.html">rpm</a> or
 <a href="spl-building-deb.html">deb</a> package instructions to
-build and install packages for your system.
+build and install packages for your system.  If your not already
+familiar with ZFS you may want to check out the examples below.
+Please keep in mind the current 0.5.2 stable release does not
+yet support a mountable filesystem.  This functionality is being
+worked on in the zpl development branch.
+
+<p>If your a developer or bleeding edge user check out the latest
+<font color="#22ccff">development branch</font>.  New features will
+be integrated here before a new official stable release is tagged.
+This release always needs more testing so please report any issues
+you encounter.  If you would like to contribute to the development
+there is a list of pending <a href="zfs-development-items.html">
+development items</a>, if you have a different idea feel free to
+start a discussion on the <a href="lists.html">zfs-devel</a> 
+mailing list.
 		</td>
 	</tr>
 </table>
@@ -70,6 +84,18 @@ build and install packages for your system.
 		<th colspan="2"> SPL Packages </th>
 		<th colspan="2"> ZFS Packages </th>
 		<th> Tested Platforms </th>
+	</tr>
+	<tr align="center" bgcolor="#66ccff">
+		<td> <a href="http://github.com/behlendorf/spl/tarball/master">master</a></td>
+		<td> <a href="http://github.com/behlendorf/zfs/tarball/zpl">zpl</a></td>
+		<td> 147 </td>
+		<td> 28 </td>
+		<td> 5 </td>
+		<td> <a href="spl-building-rpm.html">rpm</a></td>
+		<td> <a href="spl-building-deb.html">deb</a></td>
+		<td> <a href="zfs-building-rpm.html">rpm</a></td>
+		<td> <a href="zfs-building-deb.html">deb</a></td>
+		<td> <a href="platforms-zpl.html">spl / zfs</a></td>
 	</tr>
 	<tr align="center" bgcolor="#80ff00">
 		<td> <a href="http://github.com/downloads/behlendorf/spl/spl-0.5.2.tar.gz">spl-0.5.2</a></td>
@@ -128,7 +154,7 @@ build and install packages for your system.
 	</tr>
 	<tr>
 		<td width=50%> <a href="example-zpl.html">ZFS example</a></td>
-		<td width=50%> Simple ZFS example <i> (Work in Progress)</i> </td>
+		<td width=50%> Simple ZFS example <i> (Development Branch Available)</i> </td>
 	</tr>
 	<tr>
 		<td> <a href="example-zvol.html">ZVOL example</a></td>
