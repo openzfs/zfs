@@ -78,8 +78,11 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	if test -z "$kernelsrc"; then
-		headersdir="/lib/modules/$(uname -r)/build"
-		if test -e "$headersdir"; then
+		if test -e "/lib/modules/$(uname -r)/source"; then
+			headersdir="/lib/modules/$(uname -r)/source"
+			sourcelink=$(readlink -f "$headersdir")
+		elif test -e "/lib/modules/$(uname -r)/build"; then
+			headersdir="/lib/modules/$(uname -r)/build"
 			sourcelink=$(readlink -f "$headersdir")
 		else
 			sourcelink=$(ls -1d /usr/src/kernels/* \
@@ -105,7 +108,9 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_MSG_RESULT([$kernelsrc])
 	AC_MSG_CHECKING([kernel build directory])
 	if test -z "$kernelbuild"; then
-		if test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+		if test -e "/lib/modules/$(uname -r)/build"; then
+			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
+		elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
 		elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
 		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
