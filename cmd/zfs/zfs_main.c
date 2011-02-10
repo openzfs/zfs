@@ -3875,7 +3875,9 @@ static const option_map_t option_map[] = {
 #endif
 	/* Valid options not found in mount(8) */
 	{ MNTOPT_BIND,		MS_BIND		},
+#ifdef MS_REC
 	{ MNTOPT_RBIND,		MS_BIND|MS_REC	},
+#endif
 	{ MNTOPT_COMMENT,	MS_COMMENT	},
 	{ MNTOPT_BOOTWAIT,	MS_COMMENT	},
 	{ MNTOPT_NOBOOTWAIT,	MS_COMMENT	},

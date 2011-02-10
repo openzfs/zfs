@@ -42,6 +42,15 @@
 #define BLKGETSIZE64		_IOR(0x12, 114, size_t)
 #endif
 
+/*
+ * Some old glibc headers don't correctly define MS_DIRSYNC and
+ * instead use the enum name S_WRITE.  When using these older
+ * headers define MS_DIRSYNC to be S_WRITE.
+ */
+#if !defined(MS_DIRSYNC)
+#define MS_DIRSYNC		S_WRITE
+#endif
+
 #define	MS_USERS	0x40000000
 #define	MS_OWNER	0x10000000
 #define	MS_GROUP	0x08000000
