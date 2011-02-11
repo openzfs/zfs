@@ -3632,8 +3632,6 @@ zfs_inactive(struct inode *ip)
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int error;
 
-	truncate_inode_pages(&ip->i_data, 0);
-
 #ifdef HAVE_SNAPSHOT
 	/* Early return for snapshot inode? */
 #endif /* HAVE_SNAPSHOT */

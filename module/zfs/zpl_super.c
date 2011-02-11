@@ -47,21 +47,53 @@ zpl_inode_destroy(struct inode *ip)
 	zfs_inode_destroy(ip);
 }
 
-static void
-zpl_inode_delete(struct inode *ip)
-{
-	loff_t oldsize = i_size_read(ip);
-
-	i_size_write(ip, 0);
-	truncate_pagecache(ip, oldsize, 0);
-	clear_inode(ip);
-}
-
+/*
+ * When ->drop_inode() is called its return value indicates if the
+ * inode should be evicted from the inode cache.  If the inode is
+ * unhashed and has no links the default policy is to evict it
+ * immediately.
+ *
+ * Prior to 2.6.36 this eviction was accomplished by the vfs calling
+ * ->delete_inode().  It was ->delete_inode()'s responsibility to
+ * truncate the inode pages and call clear_inode().  The call to
+ * clear_inode() synchronously invalidates all the buffers and
+ * calls ->clear_inode().  It was ->clear_inode()'s responsibility
+ * to cleanup and filesystem specific data before freeing the inode.
+ *
+ * This elaborate mechanism was replaced by ->evict_inode() which
+ * does the job of both ->delete_inode() and ->clear_inode().  It
+ * will be called exactly once, and when it returns the inode must
+ * be in a state where it can simply be freed.  The ->evict_inode()
+ * callback must minimally truncate the inode pages, and call
+ * end_writeback() to complete all outstanding writeback for the
+ * inode.  After this is complete evict inode can cleanup any
+ * remaining filesystem specific data.
+ */
+#ifdef HAVE_EVICT_INODE
 static void
 zpl_evict_inode(struct inode *ip)
 {
+	truncate_inode_pages(&ip->i_data, 0);
+	end_writeback(ip);
 	zfs_inactive(ip);
 }
+
+#else
+
+static void
+zpl_clear_inode(struct inode *ip)
+{
+	zfs_inactive(ip);
+}
+
+static void
+zpl_inode_delete(struct inode *ip)
+{
+	truncate_inode_pages(&ip->i_data, 0);
+	clear_inode(ip);
+}
+
+#endif /* HAVE_EVICT_INODE */
 
 static void
 zpl_put_super(struct super_block *sb)
@@ -136,11 +168,15 @@ zpl_kill_sb(struct super_block *sb)
 const struct super_operations zpl_super_operations = {
 	.alloc_inode	= zpl_inode_alloc,
 	.destroy_inode	= zpl_inode_destroy,
-	.delete_inode	= zpl_inode_delete,
 	.dirty_inode	= NULL,
 	.write_inode	= NULL,
 	.drop_inode	= NULL,
-	.clear_inode	= zpl_evict_inode,
+#ifdef HAVE_EVICT_INODE
+	.evict_inode	= zpl_evict_inode,
+#else
+	.clear_inode	= zpl_clear_inode,
+	.delete_inode	= zpl_inode_delete,
+#endif /* HAVE_EVICT_INODE */
 	.put_super	= zpl_put_super,
 	.write_super	= NULL,
 	.sync_fs	= NULL,
