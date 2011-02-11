@@ -59,6 +59,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
@@ -562,6 +563,7 @@ uninstall-am: uninstall-kernelHEADERS uninstall-libzfsHEADERS
 	ps ps-am tags uninstall uninstall-am uninstall-kernelHEADERS \
 	uninstall-libzfsHEADERS
 
+	$(top_srcdir)/include/linux/xattr_compat.h
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

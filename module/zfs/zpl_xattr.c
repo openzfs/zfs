@@ -305,7 +305,7 @@ zpl_xattr_user_set(struct inode *ip, const char *name,
 	return (error);
 }
 
-struct xattr_handler zpl_xattr_user_handler = {
+xattr_handler_t zpl_xattr_user_handler = {
 	.prefix	= XATTR_USER_PREFIX,
 	.get	= zpl_xattr_user_get,
 	.set	= zpl_xattr_user_set,
@@ -351,7 +351,7 @@ zpl_xattr_trusted_set(struct inode *ip, const char *name,
 	return (error);
 }
 
-struct xattr_handler zpl_xattr_trusted_handler = {
+xattr_handler_t zpl_xattr_trusted_handler = {
 	.prefix	= XATTR_TRUSTED_PREFIX,
 	.get	= zpl_xattr_trusted_get,
 	.set	= zpl_xattr_trusted_set,
@@ -415,13 +415,13 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip)
         return (error);
 }
 
-struct xattr_handler zpl_xattr_security_handler = {
+xattr_handler_t zpl_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,
 	.get	= zpl_xattr_security_get,
 	.set	= zpl_xattr_security_set,
 };
 
-struct xattr_handler *zpl_xattr_handlers[] = {
+xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_security_handler,
 	&zpl_xattr_trusted_handler,
 	&zpl_xattr_user_handler,

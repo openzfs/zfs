@@ -26,6 +26,7 @@
 #define	_SYS_ZPL_H
 
 #include <sys/vfs.h>
+#include <linux/xattr_compat.h>
 
 /* zpl_inode.c */
 extern const struct inode_operations zpl_inode_operations;
@@ -58,6 +59,6 @@ extern struct file_system_type zpl_fs_type;
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip);
 
-extern struct xattr_handler *zpl_xattr_handlers[];
+extern xattr_handler_t *zpl_xattr_handlers[];
 
 #endif	/* _SYS_ZPL_H */
