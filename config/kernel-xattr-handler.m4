@@ -30,3 +30,52 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER],
 		AC_MSG_RESULT([no])
 	])
 ])
+
+dnl #
+dnl # 2.6.33 API change,
+dnl # The xattr_hander->get() callback was changed to take a dentry
+dnl # instead of an inode, and a handler_flags argument was added.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
+	AC_MSG_CHECKING([whether xattr_handler->get() wants dentry])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/xattr.h>
+	],[
+		int (*get)(struct dentry *dentry, const char *name,
+		    void *buffer, size_t size, int handler_flags) = NULL;
+		struct xattr_handler xops;
+
+		xops.get = get;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DENTRY_XATTR_GET, 1,
+		    [xattr_handler->get() wants dentry])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.33 API change,
+dnl # The xattr_hander->set() callback was changed to take a dentry
+dnl # instead of an inode, and a handler_flags argument was added.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
+	AC_MSG_CHECKING([whether xattr_handler->set() wants dentry])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/xattr.h>
+	],[
+		int (*set)(struct dentry *dentry, const char *name,
+		    const void *buffer, size_t size, int flags,
+		    int handler_flags) = NULL;
+		struct xattr_handler xops;
+
+		xops.set = set;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DENTRY_XATTR_SET, 1,
+		    [xattr_handler->set() wants dentry])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])

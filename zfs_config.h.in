@@ -60,6 +60,12 @@
 /* super_block uses const struct xattr_hander */
 #undef HAVE_CONST_XATTR_HANDLER
 
+/* xattr_handler->get() wants dentry */
+#undef HAVE_DENTRY_XATTR_GET
+
+/* xattr_handler->set() wants dentry */
+#undef HAVE_DENTRY_XATTR_SET
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 

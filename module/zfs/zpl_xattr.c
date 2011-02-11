@@ -266,7 +266,7 @@ out:
 }
 
 static int
-zpl_xattr_user_get(struct inode *ip, const char *name,
+__zpl_xattr_user_get(struct inode *ip, const char *name,
     void *buffer, size_t size)
 {
 	char *xattr_name;
@@ -284,9 +284,10 @@ zpl_xattr_user_get(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_user_get);
 
 static int
-zpl_xattr_user_set(struct inode *ip, const char *name,
+__zpl_xattr_user_set(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
 	char *xattr_name;
@@ -304,6 +305,7 @@ zpl_xattr_user_set(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);
 
 xattr_handler_t zpl_xattr_user_handler = {
 	.prefix	= XATTR_USER_PREFIX,
@@ -312,7 +314,7 @@ xattr_handler_t zpl_xattr_user_handler = {
 };
 
 static int
-zpl_xattr_trusted_get(struct inode *ip, const char *name,
+__zpl_xattr_trusted_get(struct inode *ip, const char *name,
     void *buffer, size_t size)
 {
 	char *xattr_name;
@@ -330,9 +332,10 @@ zpl_xattr_trusted_get(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_trusted_get);
 
 static int
-zpl_xattr_trusted_set(struct inode *ip, const char *name,
+__zpl_xattr_trusted_set(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
 	char *xattr_name;
@@ -350,6 +353,7 @@ zpl_xattr_trusted_set(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_trusted_set);
 
 xattr_handler_t zpl_xattr_trusted_handler = {
 	.prefix	= XATTR_TRUSTED_PREFIX,
@@ -358,7 +362,7 @@ xattr_handler_t zpl_xattr_trusted_handler = {
 };
 
 static int
-zpl_xattr_security_get(struct inode *ip, const char *name,
+__zpl_xattr_security_get(struct inode *ip, const char *name,
     void *buffer, size_t size)
 {
 	char *xattr_name;
@@ -373,9 +377,10 @@ zpl_xattr_security_get(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_security_get);
 
 static int
-zpl_xattr_security_set(struct inode *ip, const char *name,
+__zpl_xattr_security_set(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
 	char *xattr_name;
@@ -390,6 +395,7 @@ zpl_xattr_security_set(struct inode *ip, const char *name,
 
 	return (error);
 }
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_security_set);
 
 int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip)
@@ -407,7 +413,7 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip)
                 return (error);
         }
 
-	error = zpl_xattr_security_set(ip, name, value, len, 0);
+	error = __zpl_xattr_security_set(ip, name, value, len, 0);
 
         kfree(name);
         kfree(value);
