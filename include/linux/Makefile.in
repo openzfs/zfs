@@ -53,6 +53,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
+	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
@@ -85,7 +86,9 @@ am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
 am__v_at_0 = @
 SOURCES =
 DIST_SOURCES =
-am__kernel_HEADERS_DIST = $(top_srcdir)/include/linux/dcache_compat.h
+am__kernel_HEADERS_DIST = $(top_srcdir)/include/linux/dcache_compat.h \
+	$(top_srcdir)/include/linux/xattr_compat.h \
+	$(top_srcdir)/include/linux/vfs_compat.h
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -279,7 +282,9 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 COMMON_H = 
 KERNEL_H = \
-	$(top_srcdir)/include/linux/dcache_compat.h
+	$(top_srcdir)/include/linux/dcache_compat.h \
+	$(top_srcdir)/include/linux/xattr_compat.h \
+	$(top_srcdir)/include/linux/vfs_compat.h
 
 USER_H = 
 EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
@@ -563,7 +568,6 @@ uninstall-am: uninstall-kernelHEADERS uninstall-libzfsHEADERS
 	ps ps-am tags uninstall uninstall-am uninstall-kernelHEADERS \
 	uninstall-libzfsHEADERS
 
-	$(top_srcdir)/include/linux/xattr_compat.h
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

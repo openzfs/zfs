@@ -26,6 +26,7 @@
 #define	_SYS_ZPL_H
 
 #include <sys/vfs.h>
+#include <linux/vfs_compat.h>
 #include <linux/xattr_compat.h>
 
 /* zpl_inode.c */

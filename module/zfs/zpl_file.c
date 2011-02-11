@@ -45,8 +45,7 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	return (error);
 }
 
-static int
-zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
+ZPL_FSYNC_PROTO(zpl_fsync, filp, unused_dentry, datasync)
 {
 	cred_t *cr;
 	int error;
