@@ -288,7 +288,6 @@ out:
 }
 
 const struct inode_operations zpl_inode_operations = {
-	.check_acl	= NULL,
 	.create		= zpl_create,
 	.link		= zpl_link,
 	.unlink		= zpl_unlink,
@@ -306,7 +305,6 @@ const struct inode_operations zpl_inode_operations = {
 };
 
 const struct inode_operations zpl_dir_inode_operations = {
-	.check_acl	= NULL,
 	.create		= zpl_create,
 	.lookup		= zpl_lookup,
 	.link		= zpl_link,
@@ -317,15 +315,24 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mknod		= zpl_mknod,
 	.rename		= zpl_rename,
 	.setattr	= zpl_setattr,
+	.getattr	= zpl_getattr,
+	.setxattr	= generic_setxattr,
+	.getxattr	= generic_getxattr,
+	.removexattr	= generic_removexattr,
+	.listxattr	= zpl_xattr_list,
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
-	.check_acl	= NULL,
 	.readlink	= generic_readlink,
 	.follow_link	= zpl_follow_link,
 	.put_link	= zpl_put_link,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
-	.check_acl	= NULL,
+	.setattr	= zpl_setattr,
+	.getattr	= zpl_getattr,
+	.setxattr	= generic_setxattr,
+	.getxattr	= generic_getxattr,
+	.removexattr	= generic_removexattr,
+	.listxattr	= zpl_xattr_list,
 };
