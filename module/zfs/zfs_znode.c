@@ -586,7 +586,8 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		size = links = 0;
 	}
 
-	if (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))
+	if (S_ISBLK(vap->va_mode)  || S_ISCHR(vap->va_mode) ||
+	    S_ISFIFO(vap->va_mode) || S_ISSOCK(vap->va_mode))
 		rdev = zfs_expldev(vap->va_rdev);
 
 	parent = dzp->z_id;
@@ -677,10 +678,10 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		    &empty_xattr, 8);
 	}
 	if (obj_type == DMU_OT_ZNODE ||
-	    (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))) {
+	    (S_ISBLK(vap->va_mode)  || S_ISCHR(vap->va_mode) ||
+	     S_ISFIFO(vap->va_mode) || S_ISSOCK(vap->va_mode))) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_RDEV(zsb),
 		    NULL, &rdev, 8);
-
 	}
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_FLAGS(zsb),
