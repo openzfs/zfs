@@ -1230,7 +1230,8 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
 	if (strchr(dsname, '/') == NULL)
 		return 0;
 
-	return __zvol_create_minor(dsname);
+	(void) __zvol_create_minor(dsname);
+	return (0);
 }
 
 /*
