@@ -3183,8 +3183,9 @@ EXPORT_SYMBOL(zfs_symlink);
  * Return, in the buffer contained in the provided uio structure,
  * the symbolic path referred to by ip.
  *
- *	IN:	dentry	- dentry of symbolic link.
- *		nd	- namedata for symlink
+ *	IN:	ip	- inode of symbolic link
+ *		uio	- structure to contain the link path.
+ *		cr	- credentials of caller.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -3194,47 +3195,29 @@ EXPORT_SYMBOL(zfs_symlink);
  */
 /* ARGSUSED */
 int
-zfs_follow_link(struct dentry *dentry, struct nameidata *nd)
+zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
 {
-	struct inode	*ip = dentry->d_inode;
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
-	struct iovec	iov;
-	uio_t		uio;
 	int		error;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
-	iov.iov_len = MAXPATHLEN + 1;
-	iov.iov_base = kmem_zalloc(iov.iov_len, KM_SLEEP);
-
-	uio.uio_iov = &iov;
-	uio.uio_iovcnt = 1;
-	uio.uio_resid = iov.iov_len;
-	uio.uio_segflg = UIO_SYSSPACE;
-
 	mutex_enter(&zp->z_lock);
 	if (zp->z_is_sa)
-		error = sa_lookup_uio(zp->z_sa_hdl, SA_ZPL_SYMLINK(zsb), &uio);
+		error = sa_lookup_uio(zp->z_sa_hdl,
+		    SA_ZPL_SYMLINK(zsb), uio);
 	else
-		error = zfs_sa_readlink(zp, &uio);
+		error = zfs_sa_readlink(zp, uio);
 	mutex_exit(&zp->z_lock);
 
 	ZFS_ACCESSTIME_STAMP(zsb, zp);
 	zfs_inode_update(zp);
-
-	if (error) {
-		kmem_free(iov.iov_base, iov.iov_len);
-		nd_set_link(nd, ERR_PTR(error));
-	} else {
-		nd_set_link(nd, iov.iov_base);
-	}
-
 	ZFS_EXIT(zsb);
 	return (error);
 }
-EXPORT_SYMBOL(zfs_follow_link);
+EXPORT_SYMBOL(zfs_readlink);
 
 /*
  * Insert a new entry into directory tdip referencing sip.

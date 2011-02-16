@@ -245,8 +245,33 @@ out:
 static void *
 zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
-	(void) zfs_follow_link(dentry, nd);
-	return NULL;
+	struct inode *ip = dentry->d_inode;
+	struct iovec iov;
+	uio_t uio;
+	char *link;
+	cred_t *cr;
+	int error;
+
+	cr = (cred_t *)get_current_cred();
+
+	iov.iov_len = MAXPATHLEN;
+	iov.iov_base = link = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
+
+	uio.uio_iov = &iov;
+	uio.uio_iovcnt = 1;
+	uio.uio_resid = (MAXPATHLEN - 1);
+	uio.uio_segflg = UIO_SYSSPACE;
+
+	error = zfs_readlink(ip, &uio, cr);
+	if (error) {
+		kmem_free(link, MAXPATHLEN);
+		nd_set_link(nd, ERR_PTR(error));
+	} else {
+		nd_set_link(nd, link);
+	}
+
+	put_cred(cr);
+	return (NULL);
 }
 
 static void
@@ -256,7 +281,7 @@ zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
 
 	link = nd_get_link(nd);
 	if (!IS_ERR(link))
-		kmem_free(link, MAXPATHLEN + 1);
+		kmem_free(link, MAXPATHLEN);
 }
 
 static int
