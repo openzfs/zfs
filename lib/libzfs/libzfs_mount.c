@@ -797,8 +797,9 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
 		    zfs_get_name(zhp), _sa_errorstr != NULL ?
 		    _sa_errorstr(ret) : "");
-#endif /* HAVE_SHARE */
 		return (-1);
+#endif /* HAVE_SHARE */
+		return (0);
 	}
 
 	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
