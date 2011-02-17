@@ -3169,7 +3169,6 @@ top:
 	zfs_dirent_unlock(dl);
 
 	*ipp = ZTOI(zp);
-	iput(ZTOI(zp));
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
