@@ -262,7 +262,7 @@ zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 	uio.uio_resid = (MAXPATHLEN - 1);
 	uio.uio_segflg = UIO_SYSSPACE;
 
-	error = zfs_readlink(ip, &uio, cr);
+	error = -zfs_readlink(ip, &uio, cr);
 	if (error) {
 		kmem_free(link, MAXPATHLEN);
 		nd_set_link(nd, ERR_PTR(error));
