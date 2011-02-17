@@ -639,10 +639,10 @@ zfs_fuid_create(zfs_sb_t *zsb, uint64_t id, cred_t *cr,
 	}
 	return (FUID_ENCODE(idx, rid));
 #else
-	if (type == ZFS_OWNER)
-		return crgetuid(cr);
-	else
-		return crgetgid(cr);
+	/*
+	 * The Linux port only supports POSIX IDs, use the passed id.
+	 */
+	return (id);
 #endif
 }
 

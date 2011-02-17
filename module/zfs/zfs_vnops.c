@@ -2575,7 +2575,7 @@ out:
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
-		 zfs_inode_update(zp);
+		zfs_inode_update(zp);
 	}
 
 out2:
