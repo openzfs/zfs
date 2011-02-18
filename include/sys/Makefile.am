@@ -42,6 +42,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uberblock.h \
 	$(top_srcdir)/include/sys/uberblock_impl.h \
+	$(top_srcdir)/include/sys/uio_impl.h \
 	$(top_srcdir)/include/sys/unique.h \
 	$(top_srcdir)/include/sys/uuid.h \
 	$(top_srcdir)/include/sys/vdev_disk.h \
@@ -53,7 +54,6 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
-	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -62,6 +62,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -74,6 +75,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
+	${top_srcdir}/include/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 
 USER_H =

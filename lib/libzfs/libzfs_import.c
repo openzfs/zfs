@@ -1078,6 +1078,10 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			 * parport* - Parallel port interface.
 			 * lp*      - Printer interface.
 			 * fd*      - Floppy interface.
+			 * hpet     - High Precision Event Timer, crashes qemu
+			 *            when accessed from a virtual machine.
+			 * core     - Symlink to /proc/kcore, causes a crash
+			 *            when access from Xen dom0.
 			 */
 			if ((strncmp(name, "watchdog", 8) == 0) ||
 			    (strncmp(name, "fuse", 4) == 0)     ||
@@ -1087,22 +1091,21 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 			    (strncmp(name, "parport", 7) == 0)  ||
 			    (strncmp(name, "lp", 2) == 0)       ||
 			    (strncmp(name, "fd", 2) == 0)       ||
-			    (strncmp(name, "hpet", 4) == 0))
-				continue;
-
-			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
+			    (strncmp(name, "hpet", 4) == 0)     ||
+			    (strncmp(name, "core", 4) == 0))
 				continue;
 
 			/*
 			 * Ignore failed stats.  We only want regular
-			 * files and block devs.
+			 * files and block devices.
 			 */
-			if (fstat64(fd, &statbuf) != 0 ||
+			if ((fstatat64(dfd, name, &statbuf, 0) != 0) ||
 			    (!S_ISREG(statbuf.st_mode) &&
-			    !S_ISBLK(statbuf.st_mode))) {
-				(void) close(fd);
+			    !S_ISBLK(statbuf.st_mode)))
 				continue;
-			}
+
+			if ((fd = openat64(dfd, name, O_RDONLY)) < 0)
+				continue;
 
 			if ((zpool_read_label(fd, &config)) != 0) {
 				(void) close(fd);

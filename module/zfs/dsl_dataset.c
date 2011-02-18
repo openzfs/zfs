@@ -2364,13 +2364,11 @@ dsl_snapshot_rename_one(const char *name, void *arg)
 	 * For recursive snapshot renames the parent won't be changing
 	 * so we just pass name for both the to/from argument.
 	 */
-#ifdef HAVE_ZPL
 	err = zfs_secpolicy_rename_perms(snapname, snapname, CRED());
 	if (err != 0) {
 		strfree(snapname);
 		return (err == ENOENT ? 0 : err);
 	}
-#endif
 
 /* XXX: Ignore for SPL version until mounting the FS is supported */
 #if defined(_KERNEL) && !defined(HAVE_SPL)

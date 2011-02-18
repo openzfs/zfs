@@ -112,14 +112,14 @@ zfs_range_lock_writer(znode_t *zp, rl_t *new)
 		 * Range locking is also used by zvol and uses a
 		 * dummied up znode. However, for zvol, we don't need to
 		 * append or grow blocksize, and besides we don't have
-		 * a "sa" data or z_zfsvfs - so skip that processing.
+		 * a "sa" data or zfs_sb_t - so skip that processing.
 		 *
 		 * Yes, this is ugly, and would be solved by not handling
 		 * grow or append in range lock code. If that was done then
 		 * we could make the range locking code generically available
 		 * to other non-zfs consumers.
 		 */
-		if (zp->z_vnode) { /* caller is ZPL */
+		if (!zp->z_is_zvol) { /* caller is ZPL */
 			/*
 			 * If in append mode pick up the current end of file.
 			 * This is done under z_range_lock to avoid races.
@@ -134,7 +134,7 @@ zfs_range_lock_writer(znode_t *zp, rl_t *new)
 			 */
 			end_size = MAX(zp->z_size, new->r_off + len);
 			if (end_size > zp->z_blksz && (!ISP2(zp->z_blksz) ||
-			    zp->z_blksz < zp->z_zfsvfs->z_max_blksz)) {
+			    zp->z_blksz < ZTOZSB(zp)->z_max_blksz)) {
 				new->r_off = 0;
 				new->r_len = UINT64_MAX;
 			}
@@ -453,6 +453,20 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 	return (new);
 }
 
+static void
+zfs_range_free(void *arg)
+{
+	rl_t *rl = arg;
+
+	if (rl->r_write_wanted)
+		cv_destroy(&rl->r_wr_cv);
+
+	if (rl->r_read_wanted)
+		cv_destroy(&rl->r_rd_cv);
+
+	kmem_free(rl, sizeof (rl_t));
+}
+
 /*
  * Unlock a reader lock
  */
@@ -472,14 +486,14 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 	 */
 	if (remove->r_cnt == 1) {
 		avl_remove(tree, remove);
-		if (remove->r_write_wanted) {
+		mutex_exit(&zp->z_range_lock);
+		if (remove->r_write_wanted)
 			cv_broadcast(&remove->r_wr_cv);
-			cv_destroy(&remove->r_wr_cv);
-		}
-		if (remove->r_read_wanted) {
+
+		if (remove->r_read_wanted)
 			cv_broadcast(&remove->r_rd_cv);
-			cv_destroy(&remove->r_rd_cv);
-		}
+
+		taskq_dispatch(system_taskq, zfs_range_free, remove, 0);
 	} else {
 		ASSERT3U(remove->r_cnt, ==, 0);
 		ASSERT3U(remove->r_write_wanted, ==, 0);
@@ -505,19 +519,21 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 			rl->r_cnt--;
 			if (rl->r_cnt == 0) {
 				avl_remove(tree, rl);
-				if (rl->r_write_wanted) {
+
+				if (rl->r_write_wanted)
 					cv_broadcast(&rl->r_wr_cv);
-					cv_destroy(&rl->r_wr_cv);
-				}
-				if (rl->r_read_wanted) {
+
+				if (rl->r_read_wanted)
 					cv_broadcast(&rl->r_rd_cv);
-					cv_destroy(&rl->r_rd_cv);
-				}
-				kmem_free(rl, sizeof (rl_t));
+
+				taskq_dispatch(system_taskq,
+				    zfs_range_free, rl, 0);
 			}
 		}
+
+		mutex_exit(&zp->z_range_lock);
+		kmem_free(remove, sizeof (rl_t));
 	}
-	kmem_free(remove, sizeof (rl_t));
 }
 
 /*
@@ -537,22 +553,19 @@ zfs_range_unlock(rl_t *rl)
 		/* writer locks can't be shared or split */
 		avl_remove(&zp->z_range_avl, rl);
 		mutex_exit(&zp->z_range_lock);
-		if (rl->r_write_wanted) {
+		if (rl->r_write_wanted)
 			cv_broadcast(&rl->r_wr_cv);
-			cv_destroy(&rl->r_wr_cv);
-		}
-		if (rl->r_read_wanted) {
+
+		if (rl->r_read_wanted)
 			cv_broadcast(&rl->r_rd_cv);
-			cv_destroy(&rl->r_rd_cv);
-		}
-		kmem_free(rl, sizeof (rl_t));
+
+		taskq_dispatch(system_taskq, zfs_range_free, rl, 0);
 	} else {
 		/*
 		 * lock may be shared, let zfs_range_unlock_reader()
-		 * release the lock and free the rl_t
+		 * release the zp->z_range_lock lock and free the rl_t
 		 */
 		zfs_range_unlock_reader(zp, rl);
-		mutex_exit(&zp->z_range_lock);
 	}
 }
 

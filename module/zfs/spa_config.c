@@ -179,7 +179,6 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 			(void) vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
 		}
 		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
-		VN_RELE(vp);
 	}
 
 	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);

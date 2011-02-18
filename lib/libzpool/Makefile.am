@@ -22,6 +22,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zfs_fletcher.c \
 	$(top_srcdir)/module/zcommon/zfs_namecheck.c \
 	$(top_srcdir)/module/zcommon/zfs_prop.c \
+	$(top_srcdir)/module/zcommon/zfs_uio.c \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
 	$(top_srcdir)/module/zfs/arc.c \
@@ -97,7 +98,6 @@ libzpool_la_LDFLAGS = -pthread
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
-	$(top_srcdir)/module/zfs/zfs_ctldir.c \
 	$(top_srcdir)/module/zfs/zfs_dir.c \
 	$(top_srcdir)/module/zfs/zfs_ioctl.c \
 	$(top_srcdir)/module/zfs/zfs_log.c \
@@ -106,5 +106,9 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_file.c \
+	$(top_srcdir)/module/zfs/zpl_inode.c \
+	$(top_srcdir)/module/zfs/zpl_super.c \
+	$(top_srcdir)/module/zfs/zpl_xattr.c \
 	$(top_srcdir)/module/zfs/zvol.c \
 	$(top_srcdir)/module/zpios/pios.c

@@ -38,13 +38,15 @@
 extern "C" {
 #endif
 
-typedef struct zfsvfs zfsvfs_t;
+struct zfs_sb;
 struct znode;
 
-struct zfsvfs {
-	vfs_t		*z_vfs;		/* generic fs struct */
-	zfsvfs_t	*z_parent;	/* parent fs */
+typedef struct zfs_sb {
+	struct vfsmount	*z_vfs;		/* generic vfs struct */
+	struct super_block *z_sb;	/* generic super_block */
+	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
+	uint64_t	z_flags;	/* super_block flags */
 	uint64_t	z_root;		/* id of root znode */
 	uint64_t	z_unlinkedobj;	/* id of unlinked zapobj */
 	uint64_t	z_max_blksz;	/* maximum block size for files */
@@ -67,7 +69,7 @@ struct zfsvfs {
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all vnodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
-	vnode_t		*z_ctldir;	/* .zfs directory pointer */
+	struct inode	*z_ctldir;	/* .zfs directory inode */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */
@@ -83,7 +85,36 @@ struct zfsvfs {
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	64
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
-};
+} zfs_sb_t;
+
+#define	ZFS_SUPER_MAGIC	0x2fc12fc1
+
+#define	ZSB_XATTR_USER	0x0001		/* Enable user xattrs */
+
+
+/*
+ * Minimal snapshot helpers, the bulk of the Linux snapshot implementation
+ * lives in the zpl_snap.c file which is part of the zpl source.
+ */
+#define	ZFS_CTLDIR_NAME		".zfs"
+
+#define	zfs_has_ctldir(zdp)	\
+	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
+	(ZTOZSB(zdp)->z_ctldir != NULL))
+#define	zfs_show_ctldir(zdp)	\
+	(zfs_has_ctldir(zdp) &&	\
+	(ZTOZSB(zdp)->z_show_ctldir))
+
+#define	ZFSCTL_INO_ROOT		0x1
+#define	ZFSCTL_INO_SNAPDIR	0x2
+#define	ZFSCTL_INO_SHARES	0x3
+
+/*
+ * Allow a maximum number of links.  While ZFS does not internally limit
+ * this most Linux filesystems do.  It's probably a good idea to limit
+ * this to a large value until it is validated that this is safe.
+ */
+#define ZFS_LINK_MAX		65536
 
 /*
  * Normal filesystems (those not under .zfs/snapshot) have a total
@@ -135,22 +166,30 @@ typedef struct zfid_long {
 
 extern uint_t zfs_fsyncer_key;
 
-extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
-extern int zfs_resume_fs(zfsvfs_t *zfsvfs, const char *osname);
-extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_suspend_fs(zfs_sb_t *zsb);
+extern int zfs_resume_fs(zfs_sb_t *zsb, const char *osname);
+extern int zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valuep);
-extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_userspace_many(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     uint64_t *cookiep, void *vbuf, uint64_t *bufsizep);
-extern int zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+extern int zfs_set_userquota(zfs_sb_t *zsb, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t quota);
-extern boolean_t zfs_owner_overquota(zfsvfs_t *zfsvfs, struct znode *,
+extern boolean_t zfs_owner_overquota(zfs_sb_t *zsb, struct znode *,
     boolean_t isgroup);
-extern boolean_t zfs_fuid_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup,
+extern boolean_t zfs_fuid_overquota(zfs_sb_t *zsb, boolean_t isgroup,
     uint64_t fuid);
-extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
-extern int zfsvfs_create(const char *name, zfsvfs_t **zfvp);
-extern void zfsvfs_free(zfsvfs_t *zfsvfs);
+extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
+extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
+extern void zfs_sb_free(zfs_sb_t *zsb);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
+
+extern int zfs_register_callbacks(zfs_sb_t *zsb);
+extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
+extern int zfs_domount(struct super_block *sb, void *data, int silent);
+extern int zfs_umount(struct super_block *sb);
+extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);
+extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
+extern int zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp);
 
 #ifdef	__cplusplus
 }

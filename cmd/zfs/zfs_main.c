@@ -318,7 +318,6 @@ safe_malloc(size_t size)
 	return (data);
 }
 
-#ifdef HAVE_ZPL
 static char *
 safe_strdup(char *str)
 {
@@ -329,7 +328,6 @@ safe_strdup(char *str)
 
 	return (dupstr);
 }
-#endif /* HAVE_ZPL */
 
 /*
  * Callback routine that will print out information for each of
@@ -497,7 +495,6 @@ parse_depth(char *opt, int *flags)
 
 #define	PROGRESS_DELAY 2		/* seconds */
 
-#ifdef HAVE_ZPL
 static char *pt_reverse = "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 static time_t pt_begin;
 static char *pt_header = NULL;
@@ -549,7 +546,6 @@ finish_progress(char *done)
 	free(pt_header);
 	pt_header = NULL;
 }
-#endif /* HAVE_ZPL */
 
 /*
  * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
@@ -631,7 +627,6 @@ zfs_do_clone(int argc, char **argv)
 	ret = zfs_clone(zhp, argv[1], props);
 
 	/* create the mountpoint if necessary */
-#ifdef HAVE_ZPL
 	if (ret == 0) {
 		zfs_handle_t *clone;
 
@@ -643,7 +638,6 @@ zfs_do_clone(int argc, char **argv)
 			zfs_close(clone);
 		}
 	}
-#endif /* HAVE_ZPL */
 
 	zfs_close(zhp);
 	nvlist_free(props);
@@ -831,7 +825,6 @@ zfs_do_create(int argc, char **argv)
 	 * verbose error message to let the user know that their filesystem was
 	 * in fact created, even if we failed to mount or share it.
 	 */
-#ifdef HAVE_ZPL
 	if (canmount == ZFS_CANMOUNT_ON) {
 		if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
@@ -843,7 +836,6 @@ zfs_do_create(int argc, char **argv)
 			ret = 1;
 		}
 	}
-#endif /* HAVE_ZPL */
 
 error:
 	if (zhp)
@@ -2340,7 +2332,6 @@ typedef struct rollback_cbdata {
  * 'cb_dependent' is set, then this is a dependent and we should report it
  * without checking the transaction group.
  */
-#ifdef HAVE_ZPL
 static int
 rollback_check(zfs_handle_t *zhp, void *data)
 {
@@ -2400,12 +2391,10 @@ rollback_check(zfs_handle_t *zhp, void *data)
 	zfs_close(zhp);
 	return (0);
 }
-#endif /* HAVE_ZPL */
 
 static int
 zfs_do_rollback(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	int ret;
 	int c;
 	boolean_t force = B_FALSE;
@@ -2487,9 +2476,6 @@ out:
 		return (0);
 	else
 		return (1);
-#else
-	return ENOSYS;
-#endif /*HAVE_ZPL*/
 }
 
 /*
@@ -2955,7 +2941,6 @@ zfs_do_release(int argc, char **argv)
 #define	SPINNER_TIME 3		/* seconds */
 #define	MOUNT_TIME 5		/* seconds */
 
-#ifdef HAVE_ZPL
 static int
 get_one_dataset(zfs_handle_t *zhp, void *data)
 {
@@ -3153,11 +3138,11 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		shared_nfs = zfs_is_shared_nfs(zhp, NULL);
 		shared_smb = zfs_is_shared_smb(zhp, NULL);
 
-		if (shared_nfs && shared_smb ||
-		    (shared_nfs && strcmp(shareopts, "on") == 0 &&
-		    strcmp(smbshareopts, "off") == 0) ||
-		    (shared_smb && strcmp(smbshareopts, "on") == 0 &&
-		    strcmp(shareopts, "off") == 0)) {
+		if ((shared_nfs && shared_smb) ||
+		    ((shared_nfs && strcmp(shareopts, "on") == 0) &&
+		    (strcmp(smbshareopts, "off") == 0)) ||
+		    ((shared_smb && strcmp(smbshareopts, "on") == 0) &&
+		    (strcmp(shareopts, "off") == 0))) {
 			if (!explicit)
 				return (0);
 
@@ -3275,7 +3260,7 @@ share_mount(int op, int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":avo:O" : "a"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":avo:" : "a"))
 	    != -1) {
 		switch (c) {
 		case 'a':
@@ -3298,9 +3283,6 @@ share_mount(int op, int argc, char **argv)
 			append_options(options, optarg);
 			break;
 
-		case 'O':
-			flags |= MS_OVERLAY;
-			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
 			    "'%c' option\n"), optopt);
@@ -3368,7 +3350,7 @@ share_mount(int op, int argc, char **argv)
 		}
 
 		/*
-		 * When mount is given no arguments, go through /etc/mnttab and
+		 * When mount is given no arguments, go through /etc/mtab and
 		 * display any active ZFS mounts.  We hide any snapshots, since
 		 * they are controlled automatically.
 		 */
@@ -3403,7 +3385,6 @@ share_mount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs mount -a [nfs]
@@ -3414,11 +3395,7 @@ share_mount(int op, int argc, char **argv)
 static int
 zfs_do_mount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3430,14 +3407,9 @@ zfs_do_mount(int argc, char **argv)
 static int
 zfs_do_share(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (share_mount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
-#ifdef HAVE_ZPL
 typedef struct unshare_unmount_node {
 	zfs_handle_t	*un_zhp;
 	char		*un_mountp;
@@ -3456,7 +3428,7 @@ unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 
 /*
  * Convenience routine used by zfs_do_umount() and manual_unmount().  Given an
- * absolute path, find the entry /etc/mnttab, verify that its a ZFS filesystem,
+ * absolute path, find the entry /etc/mtab, verify that its a ZFS filesystem,
  * and unmount it appropriately.
  */
 static int
@@ -3470,7 +3442,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	ino_t path_inode;
 
 	/*
-	 * Search for the path in /etc/mnttab.  Rather than looking for the
+	 * Search for the path in /etc/mtab.  Rather than looking for the
 	 * specific path, which can be fooled by non-standard paths (i.e. ".."
 	 * or "//"), we stat() the path and search for the corresponding
 	 * (major,minor) device pair.
@@ -3497,7 +3469,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			    "currently mounted\n"), cmdname, path);
 			return (1);
 		}
-		(void) fprintf(stderr, gettext("warning: %s not in mnttab\n"),
+		(void) fprintf(stderr, gettext("warning: %s not in mtab\n"),
 		    path);
 		if ((ret = umount2(path, flags)) != 0)
 			(void) fprintf(stderr, gettext("%s: %s\n"), path,
@@ -3539,8 +3511,8 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		    strcmp(smbshare_prop, "off") == 0) {
 			(void) fprintf(stderr, gettext("cannot unshare "
 			    "'%s': legacy share\n"), path);
-			(void) fprintf(stderr, gettext("use "
-			    "unshare(1M) to unshare this filesystem\n"));
+			(void) fprintf(stderr, gettext("use exportfs(8) "
+			    "or smbcontrol(1) to unshare this filesystem\n"));
 		} else if (!zfs_is_shared(zhp)) {
 			(void) fprintf(stderr, gettext("cannot unshare '%s': "
 			    "not currently shared\n"), path);
@@ -3559,7 +3531,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			(void) fprintf(stderr, gettext("cannot unmount "
 			    "'%s': legacy mountpoint\n"),
 			    zfs_get_name(zhp));
-			(void) fprintf(stderr, gettext("use umount(1M) "
+			(void) fprintf(stderr, gettext("use umount(8) "
 			    "to unmount this filesystem\n"));
 		} else {
 			ret = zfs_unmountall(zhp, flags);
@@ -3609,8 +3581,8 @@ unshare_unmount(int op, int argc, char **argv)
 		/*
 		 * We could make use of zfs_for_each() to walk all datasets in
 		 * the system, but this would be very inefficient, especially
-		 * since we would have to linearly search /etc/mnttab for each
-		 * one.  Instead, do one pass through /etc/mnttab looking for
+		 * since we would have to linearly search /etc/mtab for each
+		 * one.  Instead, do one pass through /etc/mtab looking for
 		 * zfs entries and call zfs_unmount() for each one.
 		 *
 		 * Things get a little tricky if the administrator has created
@@ -3622,7 +3594,7 @@ unshare_unmount(int op, int argc, char **argv)
 		 */
 		struct mnttab entry;
 		uu_avl_pool_t *pool;
-		uu_avl_t *tree;
+		uu_avl_t *tree = NULL;
 		unshare_unmount_node_t *node;
 		uu_avl_index_t idx;
 		uu_avl_walk_t *walk;
@@ -3821,7 +3793,6 @@ unshare_unmount(int op, int argc, char **argv)
 
 	return (ret);
 }
-#endif  /* HAVE_ZPL */
 
 /*
  * zfs unmount -a
@@ -3832,11 +3803,7 @@ unshare_unmount(int op, int argc, char **argv)
 static int
 zfs_do_unmount(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_MOUNT, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /*
@@ -3848,11 +3815,7 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
-#ifdef HAVE_ZPL
 	return (unshare_unmount(OP_SHARE, argc, argv));
-#else
-	return ENOSYS;
-#endif  /* HAVE_ZPL */
 }
 
 /* ARGSUSED */
@@ -3864,45 +3827,210 @@ zfs_do_python(int argc, char **argv)
 	return (-1);
 }
 
+typedef struct option_map {
+	const char *name;
+	int mask;
+} option_map_t;
+
+static const option_map_t option_map[] = {
+	/* Canonicalized filesystem independent options from mount(8) */
+	{ MNTOPT_NOAUTO,	MS_COMMENT	},
+	{ MNTOPT_DEFAULTS,	MS_COMMENT	},
+	{ MNTOPT_NODEVICES,	MS_NODEV	},
+	{ MNTOPT_DIRSYNC,	MS_DIRSYNC	},
+	{ MNTOPT_NOEXEC,	MS_NOEXEC	},
+	{ MNTOPT_GROUP,		MS_GROUP	},
+	{ MNTOPT_NETDEV,	MS_COMMENT	},
+	{ MNTOPT_NOFAIL,	MS_COMMENT	},
+	{ MNTOPT_NOSUID,	MS_NOSUID	},
+	{ MNTOPT_OWNER,		MS_OWNER	},
+	{ MNTOPT_REMOUNT,	MS_REMOUNT	},
+	{ MNTOPT_RO,		MS_RDONLY	},
+	{ MNTOPT_SYNC,		MS_SYNCHRONOUS	},
+	{ MNTOPT_USER,		MS_USERS	},
+	{ MNTOPT_USERS,		MS_USERS	},
+#ifdef MS_NOATIME
+	{ MNTOPT_NOATIME,	MS_NOATIME	},
+#endif
+#ifdef MS_NODIRATIME
+	{ MNTOPT_NODIRATIME,	MS_NODIRATIME	},
+#endif
+#ifdef MS_RELATIME
+	{ MNTOPT_RELATIME,	MS_RELATIME	},
+#endif
+#ifdef MS_STRICTATIME
+	{ MNTOPT_DFRATIME,	MS_STRICTATIME	},
+#endif
+#ifdef HAVE_SELINUX
+	{ MNTOPT_CONTEXT,	MS_COMMENT	},
+	{ MNTOPT_FSCONTEXT,	MS_COMMENT	},
+	{ MNTOPT_DEFCONTEXT,	MS_COMMENT	},
+	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT	},
+#endif
+#ifdef MS_I_VERSION
+	{ MNTOPT_IVERSION,	MS_I_VERSION	},
+#endif
+#ifdef MS_MANDLOCK
+	{ MNTOPT_NBMAND,	MS_MANDLOCK	},
+#endif
+	/* Valid options not found in mount(8) */
+	{ MNTOPT_BIND,		MS_BIND		},
+#ifdef MS_REC
+	{ MNTOPT_RBIND,		MS_BIND|MS_REC	},
+#endif
+	{ MNTOPT_COMMENT,	MS_COMMENT	},
+	{ MNTOPT_BOOTWAIT,	MS_COMMENT	},
+	{ MNTOPT_NOBOOTWAIT,	MS_COMMENT	},
+	{ MNTOPT_OPTIONAL,	MS_COMMENT	},
+	{ MNTOPT_SHOWTHROUGH,	MS_COMMENT	},
+#ifdef MS_NOSUB
+	{ MNTOPT_NOSUB,		MS_NOSUB	},
+#endif
+#ifdef MS_SILENT
+	{ MNTOPT_QUIET,		MS_SILENT	},
+#endif
+	/* Custom zfs options */
+	{ MNTOPT_NOXATTR,	MS_COMMENT	},
+	{ NULL,			0		} };
+
 /*
- * Called when invoked as /etc/fs/zfs/mount.  Do the mount if the mountpoint is
- * 'legacy'.  Otherwise, complain that use should be using 'zfs mount'.
+ * Break the mount option in to a name/value pair.  The name is
+ * validated against the option map and mount flags set accordingly.
  */
-#ifdef HAVE_ZPL
+static int
+parse_option(char *mntopt, unsigned long *mntflags, int sloppy)
+{
+	const option_map_t *opt;
+	char *ptr, *name, *value = NULL;
+	int rc;
+
+	name = strdup(mntopt);
+	if (name == NULL)
+		return (ENOMEM);
+
+	for (ptr = name; ptr && *ptr; ptr++) {
+		if (*ptr == '=') {
+			*ptr = '\0';
+			value = ptr+1;
+			break;
+		}
+	}
+
+	for (opt = option_map; opt->name != NULL; opt++) {
+		if (strncmp(name, opt->name, strlen(name)) == 0) {
+			*mntflags |= opt->mask;
+
+			/* MS_USERS implies default user options */
+			if (opt->mask & (MS_USERS))
+				*mntflags |= (MS_NOEXEC|MS_NOSUID|MS_NODEV);
+
+			/* MS_OWNER|MS_GROUP imply default owner options */
+			if (opt->mask & (MS_OWNER | MS_GROUP))
+				*mntflags |= (MS_NOSUID|MS_NODEV);
+
+			rc = 0;
+			goto out;
+		}
+	}
+
+	if (!sloppy)
+		rc = ENOENT;
+out:
+	/* If required further process on the value may be done here */
+	free(name);
+	return (rc);
+}
+
+/*
+ * Translate the mount option string in to MS_* mount flags for the
+ * kernel vfs.  When sloppy is non-zero unknown options will be ignored
+ * otherwise they are considered fatal are copied in to badopt.
+ */
+static int
+parse_options(char *mntopts, unsigned long *mntflags, int sloppy, char *badopt)
+{
+	int rc = 0, quote = 0;
+	char *ptr, *opt, *opts;
+
+	opts = strdup(mntopts);
+	if (opts == NULL)
+		return (ENOMEM);
+
+	*mntflags = 0;
+	opt = NULL;
+
+	/*
+	 * Scan through all mount options which must be comma delimited.
+	 * We must be careful to notice regions which are double quoted
+	 * and skip commas in these regions.  Each option is then checked
+	 * to determine if it is a known option.
+	 */
+	for (ptr = opts; ptr && *ptr; ptr++) {
+		if (opt == NULL)
+			opt = ptr;
+
+		if (*ptr == '"')
+			quote = !quote;
+
+		if (quote)
+			continue;
+
+		if ((*ptr == ',') || (*ptr == '\0')) {
+			*ptr = '\0';
+			rc = parse_option(opt, mntflags, sloppy);
+			if (rc) {
+				strcpy(badopt, opt);
+				goto out;
+			}
+
+			opt = NULL;
+		}
+	}
+out:
+	free(opts);
+	return (rc);
+}
+
+/*
+ * Called when invoked as /sbin/mount.zfs, mount helper for mount(8).
+ */
 static int
 manual_mount(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
-	char mountpoint[ZFS_MAXPROPLEN];
+	char legacy[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX] = { '\0' };
-	int ret;
-	int c;
-	int flags = 0;
-	char *dataset, *path;
+	char badopt[MNT_LINE_MAX] = { '\0' };
+	char *dataset, *mntpoint;
+	unsigned long mntflags;
+	int sloppy = 0, fake = 0, verbose = 0;
+	int rc, c;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":mo:O")) != -1) {
+	while ((c = getopt(argc, argv, "sfnvo:h?")) != -1) {
 		switch (c) {
+		case 's':
+			sloppy = 1;
+			break;
+		case 'f':
+			fake = 1;
+			break;
+		case 'n':
+			/* Ignored, handled by mount(8) */
+			break;
+		case 'v':
+			verbose++;
+			break;
 		case 'o':
 			(void) strlcpy(mntopts, optarg, sizeof (mntopts));
 			break;
-		case 'O':
-			flags |= MS_OVERLAY;
-			break;
-		case 'm':
-			flags |= MS_NOMNTTAB;
-			break;
-		case ':':
-			(void) fprintf(stderr, gettext("missing argument for "
-			    "'%c' option\n"), optopt);
-			usage(B_FALSE);
-			break;
+		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
 			    optopt);
-			(void) fprintf(stderr, gettext("usage: mount [-o opts] "
-			    "<path>\n"));
-			return (2);
+			(void) fprintf(stderr, gettext("Usage: mount.zfs "
+			    "[-sfnv] [-o options] <dataset> <mountpoint>\n"));
+			return (MOUNT_USAGE);
 		}
 	}
 
@@ -3920,86 +4048,149 @@ manual_mount(int argc, char **argv)
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 		(void) fprintf(stderr, "usage: mount <dataset> <mountpoint>\n");
-		return (2);
+		return (MOUNT_USAGE);
 	}
 
 	dataset = argv[0];
-	path = argv[1];
+	mntpoint = argv[1];
 
-	/* try to open the dataset */
-	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM)) == NULL)
-		return (1);
-
-	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE);
-
-	/* check for legacy mountpoint and complain appropriately */
-	ret = 0;
-	if (strcmp(mountpoint, ZFS_MOUNTPOINT_LEGACY) == 0) {
-		if (mount(dataset, path, MS_OPTIONSTR | flags, MNTTYPE_ZFS,
-		    NULL, 0, mntopts, sizeof (mntopts)) != 0) {
-			(void) fprintf(stderr, gettext("mount failed: %s\n"),
-			    strerror(errno));
-			ret = 1;
-		}
-	} else {
+	/* try to open the dataset to access the mount point */
+	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM)) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted using 'mount -F zfs'\n"), dataset);
-		(void) fprintf(stderr, gettext("Use 'zfs set mountpoint=%s' "
-		    "instead.\n"), path);
-		(void) fprintf(stderr, gettext("If you must use 'mount -F zfs' "
-		    "or /etc/vfstab, use 'zfs set mountpoint=legacy'.\n"));
-		(void) fprintf(stderr, gettext("See zfs(1M) for more "
-		    "information.\n"));
-		ret = 1;
+		    "mounted, unable to open the dataset\n"), dataset);
+		return (MOUNT_USAGE);
 	}
 
-	return (ret);
+	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, legacy,
+	    sizeof (legacy), NULL, NULL, 0, B_FALSE);
+
+	zfs_close(zhp);
+
+	/* check for legacy mountpoint or util mount option */
+	if ((!strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) == 0) &&
+	    (strstr(mntopts, MNTOPT_ZFSUTIL) == NULL)) {
+		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
+		    "mounted using 'mount -a -t zfs'\n"), dataset);
+		(void) fprintf(stderr, gettext("Use 'zfs set mountpoint=%s' "
+		    "instead.\n"), mntpoint);
+		(void) fprintf(stderr, gettext("If you must use 'mount -a -t "
+		    "zfs' or /etc/fstab, use 'zfs set mountpoint=legacy'.\n"));
+		(void) fprintf(stderr, gettext("See zfs(8) for more "
+		    "information.\n"));
+		return (MOUNT_USAGE);
+	}
+
+	/* validate mount options and set mntflags */
+	rc = parse_options(mntopts, &mntflags, sloppy, badopt);
+	if (rc) {
+		switch (rc) {
+		case ENOMEM:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted due to a memory allocation "
+			    "failure\n"), dataset);
+			return (MOUNT_SYSERR);
+		case EINVAL:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted of due to the invalid option "
+			    "'%s'\n"), dataset, badopt);
+			(void) fprintf(stderr, gettext("Use the '-s' option "
+			    "to ignore the bad mount option.\n"));
+			return (MOUNT_USAGE);
+		default:
+			(void) fprintf(stderr, gettext("filesystem '%s' "
+			    "cannot be mounted due to internal error %d\n"),
+			    dataset, rc);
+			return (MOUNT_SOFTWARE);
+		}
+	}
+
+	if (verbose > 2)
+		printf("mount.zfs: dataset: \"%s\", mountpoint: \"%s\" "
+		    "mountflags: 0x%lx, mountopts: \"%s\"\n", dataset,
+		    mntpoint, mntflags, mntopts);
+
+	/* load the zfs posix layer module (zpl) */
+	if (libzfs_load_module("zpl")) {
+		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
+		    "mounted without the zpl kernel module\n"), dataset);
+		(void) fprintf(stderr, gettext("Use 'dmesg' to determine why "
+		    "the module could not be loaded.\n"));
+		return (MOUNT_SYSERR);
+	}
+
+	if (!fake) {
+		rc = mount(dataset, mntpoint, MNTTYPE_ZFS, mntflags, mntopts);
+		if (rc) {
+			(void) fprintf(stderr, gettext("filesystem '%s' can"
+			    "not be mounted due to error %d\n"), dataset, rc);
+			return (MOUNT_USAGE);
+		}
+	}
+
+	return (MOUNT_SUCCESS);
 }
 
+#ifdef HAVE_UNMOUNT_HELPER
 /*
- * Called when invoked as /etc/fs/zfs/umount.  Unlike a manual mount, we allow
- * unmounts of non-legacy filesystems, as this is the dominant administrative
- * interface.
+ * Called when invoked as /sbin/umount.zfs, mount helper for mount(8).
+ * Unlike a manual mount, we allow unmounts of non-legacy filesystems,
+ * as this is the dominant administrative interface.
  */
 static int
 manual_unmount(int argc, char **argv)
 {
-	int flags = 0;
+	int verbose = 0, flags = 0;
 	int c;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "nlfvrh?")) != -1) {
 		switch (c) {
+		case 'n':
+			/* Ignored, handled by mount(8) */
+			break;
+		case 'l':
+			flags = MS_DETACH;
+			break;
 		case 'f':
 			flags = MS_FORCE;
 			break;
+		case 'v':
+			verbose++;
+			break;
+		case 'r':
+			/* Remount read-only on umount failure, unsupported */
+			(void) fprintf(stderr, gettext("Unsupported option "
+			    "'%c'\n"), optopt);
+			return (MOUNT_USAGE);
+		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
 			    optopt);
-			(void) fprintf(stderr, gettext("usage: unmount [-f] "
-			    "<path>\n"));
-			return (2);
+			(void) fprintf(stderr, gettext("Usage: umount.zfs "
+			    "[-nlfvr] <mountpoint>\n"));
+			return (MOUNT_USAGE);
 		}
 	}
 
 	argc -= optind;
 	argv += optind;
 
-	/* check arguments */
+	/* check that we only have one argument */
 	if (argc != 1) {
 		if (argc == 0)
-			(void) fprintf(stderr, gettext("missing path "
+			(void) fprintf(stderr, gettext("missing mountpoint "
 			    "argument\n"));
 		else
 			(void) fprintf(stderr, gettext("too many arguments\n"));
-		(void) fprintf(stderr, gettext("usage: unmount [-f] <path>\n"));
-		return (2);
+
+		(void) fprintf(stderr, gettext("Usage: umount.zfs [-nlfvr] "
+		    "<mountpoint>\n"));
+		return (MOUNT_USAGE);
 	}
 
 	return (unshare_unmount_path(OP_MOUNT, argv[0], flags, B_TRUE));
 }
-#endif /* HAVE_ZPL */
+#endif /* HAVE_UNMOUNT_HELPER */
 
 static int
 find_command_idx(char *command, int *idx)
@@ -4098,9 +4289,7 @@ main(int argc, char **argv)
 {
 	int ret;
 	int i = 0;
-#ifdef HAVE_ZPL
 	char *progname;
-#endif
 	char *cmdname;
 
 	(void) setlocale(LC_ALL, "");
@@ -4114,20 +4303,18 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-#ifdef HAVE_ZPL
 	/*
 	 * This command also doubles as the /etc/fs mount and unmount program.
 	 * Determine if we should take this behavior based on argv[0].
 	 */
 	progname = basename(argv[0]);
-	if (strcmp(progname, "mount") == 0) {
+	if (strcmp(progname, "mount.zfs") == 0) {
 		ret = manual_mount(argc, argv);
-	} else if (strcmp(progname, "umount") == 0) {
+#ifdef HAVE_UNMOUNT_HELPER
+	} else if (strcmp(progname, "umount.zfs") == 0) {
 		ret = manual_unmount(argc, argv);
+#endif /* HAVE_UNMOUNT_HELPER */
 	} else {
-#else
-	{
-#endif /* HAVE_ZPL */
 		/*
 		 * Make sure the user has specified some command.
 		 */

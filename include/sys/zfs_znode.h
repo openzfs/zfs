@@ -69,7 +69,7 @@ extern "C" {
 		pflags |= attr; \
 	else \
 		pflags &= ~attr; \
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zp->z_zfsvfs), \
+	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zp->z_sb), \
 	    &pflags, sizeof (pflags), tx)); \
 }
 
@@ -181,8 +181,6 @@ typedef struct zfs_dirlock {
 } zfs_dirlock_t;
 
 typedef struct znode {
-	struct zfsvfs	*z_zfsvfs;
-	vnode_t		*z_vnode;
 	uint64_t	z_id;		/* object ID for this znode */
 	kmutex_t	z_lock;		/* znode modification lock */
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
@@ -211,6 +209,9 @@ typedef struct znode {
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
+	boolean_t	z_is_zvol;	/* are we used by the zvol */
+	boolean_t	z_is_mapped;	/* are we mmap'ed */
+	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
 
@@ -231,45 +232,54 @@ typedef struct znode {
  */
 
 /*
- * Convert between znode pointers and vnode pointers
+ * Convert between znode pointers and inode pointers
  */
-#define	ZTOV(ZP)	((ZP)->z_vnode)
-#define	VTOZ(VP)	((znode_t *)(VP)->v_data)
+#define	ZTOI(znode)	(&((znode)->z_inode))
+#define	ITOZ(inode)	(container_of((inode), znode_t, z_inode))
+#define VTOZSB(vfs)	((zfs_sb_t *)((vfs)->mnt_sb->s_fs_info))
+#define ZTOZSB(znode)	((zfs_sb_t *)(ZTOI(znode)->i_sb->s_fs_info))
+#define ITOZSB(inode)	((zfs_sb_t *)((inode)->i_sb->s_fs_info))
+
+#define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
 
 /*
- * ZFS_ENTER() is called on entry to each ZFS vnode and vfs operation.
+ * ZFS_ENTER() is called on entry to each ZFS inode and vfs operation.
  * ZFS_EXIT() must be called before exitting the vop.
  * ZFS_VERIFY_ZP() verifies the znode is valid.
  */
-#define	ZFS_ENTER(zfsvfs) \
+#define	ZFS_ENTER(zsb) \
 	{ \
-		rrw_enter(&(zfsvfs)->z_teardown_lock, RW_READER, FTAG); \
-		if ((zfsvfs)->z_unmounted) { \
-			ZFS_EXIT(zfsvfs); \
+		rrw_enter(&(zsb)->z_teardown_lock, RW_READER, FTAG); \
+		if ((zsb)->z_unmounted) { \
+			ZFS_EXIT(zsb); \
 			return (EIO); \
 		} \
 	}
 
-#define	ZFS_EXIT(zfsvfs) rrw_exit(&(zfsvfs)->z_teardown_lock, FTAG)
+#define	ZFS_EXIT(zsb) \
+	{ \
+		rrw_exit(&(zsb)->z_teardown_lock, FTAG); \
+		tsd_exit(); \
+	}
 
 #define	ZFS_VERIFY_ZP(zp) \
 	if ((zp)->z_sa_hdl == NULL) { \
-		ZFS_EXIT((zp)->z_zfsvfs); \
+		ZFS_EXIT(ZTOZSB(zp)); \
 		return (EIO); \
-	} \
+	}
 
 /*
  * Macros for dealing with dmu_buf_hold
  */
 #define	ZFS_OBJ_HASH(obj_num)	((obj_num) & (ZFS_OBJ_MTX_SZ - 1))
-#define	ZFS_OBJ_MUTEX(zfsvfs, obj_num)	\
-	(&(zfsvfs)->z_hold_mtx[ZFS_OBJ_HASH(obj_num)])
-#define	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj_num) \
-	mutex_enter(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
-#define	ZFS_OBJ_HOLD_TRYENTER(zfsvfs, obj_num) \
-	mutex_tryenter(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
-#define	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj_num) \
-	mutex_exit(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
+#define	ZFS_OBJ_MUTEX(zsb, obj_num)	\
+	(&(zsb)->z_hold_mtx[ZFS_OBJ_HASH(obj_num)])
+#define	ZFS_OBJ_HOLD_ENTER(zsb, obj_num) \
+	mutex_enter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
+#define	ZFS_OBJ_HOLD_TRYENTER(zsb, obj_num) \
+	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
+#define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
+	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 
 /*
  * Macros to encode/decode ZFS stored time values from/to struct timespec
@@ -289,15 +299,15 @@ typedef struct znode {
 /*
  * Timestamp defines
  */
-#define	ACCESSED		(AT_ATIME)
-#define	STATE_CHANGED		(AT_CTIME)
-#define	CONTENT_MODIFIED	(AT_MTIME | AT_CTIME)
+#define	ACCESSED		(ATTR_ATIME)
+#define	STATE_CHANGED		(ATTR_CTIME)
+#define	CONTENT_MODIFIED	(ATTR_MTIME | ATTR_CTIME)
 
-#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
-	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
+#define	ZFS_ACCESSTIME_STAMP(zsb, zp) \
+	if ((zsb)->z_atime && !((zsb)->z_vfs->mnt_flags & MNT_READONLY)) \
 		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL, B_FALSE);
 
-extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
+extern int	zfs_init_fs(zfs_sb_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);
 extern void	zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
     dmu_tx_t *tx);
@@ -307,18 +317,20 @@ extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
-extern int	zfs_zget(zfsvfs_t *, uint64_t, znode_t **);
+extern int	zfs_zget(zfs_sb_t *, uint64_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
-extern void	zfs_znode_free(znode_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
-extern int	zfs_sync(vfs_t *vfsp, short flag, cred_t *cr);
+extern int	zfs_sync(zfs_sb_t *, short, cred_t *);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern void	zfs_znode_dmu_fini(znode_t *);
+extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
+extern void	zfs_inode_destroy(struct inode *);
+extern void	zfs_inode_update(znode_t *);
 
 extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, char *name, vsecattr_t *, zfs_fuid_info_t *,
@@ -339,12 +351,13 @@ extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp);
+    znode_t *zp, struct iattr *attr, uint_t mask_applied,
+    zfs_fuid_info_t *fuidp);
 extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
-extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
-extern int zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
+extern void zfs_upgrade(zfs_sb_t *zsb, dmu_tx_t *tx);
+extern int zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx);
 
 #if defined(HAVE_UIO_RW)
 extern caddr_t zfs_map_page(page_t *, enum seg_rw);

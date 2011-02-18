@@ -1,4 +1,34 @@
-Brian Behlendorf <behlendorf1@llnl.gov>,
-Herb Wartens <wartens2@llnl.gov>,
-Jim Garlick <garlick@llnl.gov>,
-Ricardo M. Correia <Ricardo.M.Correia@sun.com>
+Brian Behlendorf is the principle developer of the ZFS on Linux port.
+He works full time as a computer scientist at Lawrence Livermore
+National Laboratory on the ZFS and Lustre filesystems.  However,
+this port would not have been possible without the help of many
+others who have contributed their time, effort, and insight.
+
+  Brian Behlendorf <behlendorf1@llnl.gov>
+
+First and foremost the hard working ZFS developers at Sun/Oracle.
+They are responsible for the bulk of the code in this project and
+without their efforts there never would have been a ZFS filesystem.
+
+  The ZFS Development Team at Sun/Oracle
+
+Next all the developers at KQ Infotech who implemented a working
+ZFS Posix Layer (ZPL) for this port.  Their implementation provided
+an excellent reference for adding the missing ZPL functionality.
+
+  Anand Mitra <mitra@kqinfotech.com>
+  Anurag Agarwal <anurag@kqinfotech.com>
+  Neependra Khare <neependra@kqinfotech.com>
+  Prasad Joshi <prasad@kqinfotech.com>
+  Rohan Puri <rohan@kqinfotech.com>
+  Sandip Divekar <sandipd@kqinfotech.com>
+  Shoaib <shoaib@kqinfotech.com>
+  Shrirang <shrirang@kqinfotech.com>
+
+Additionally the following individuals have all made contributions
+to the project and deserve to be acknowledged.
+
+  Ricardo M. Correia <Ricardo.M.Correia@sun.com>
+  Ned Bass <bass6@llnl.gov>
+  Herb Wartens <wartens2@llnl.gov>
+  Jim Garlick <garlick@llnl.gov>

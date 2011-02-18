@@ -52,21 +52,24 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-bytes.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
+	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
+	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
-	$(top_srcdir)/config/user-libshare.m4 \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+	$(top_srcdir)/config/user-selinux.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -167,6 +170,7 @@ LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
+LIBSELINUX = @LIBSELINUX@
 LIBTOOL = @LIBTOOL@
 LIBUUID = @LIBUUID@
 LINUX = @LINUX@

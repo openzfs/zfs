@@ -52,21 +52,24 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-bytes.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
+	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
+	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
-	$(top_srcdir)/config/user-libshare.m4 \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+	$(top_srcdir)/config/user-selinux.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -132,6 +135,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uberblock.h \
 	$(top_srcdir)/include/sys/uberblock_impl.h \
+	$(top_srcdir)/include/sys/uio_impl.h \
 	$(top_srcdir)/include/sys/unique.h \
 	$(top_srcdir)/include/sys/uuid.h \
 	$(top_srcdir)/include/sys/vdev_disk.h \
@@ -143,7 +147,6 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
-	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -152,6 +155,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -162,6 +166,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
+	${top_srcdir}/include/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
@@ -226,6 +231,7 @@ am__libzfs_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uberblock.h \
 	$(top_srcdir)/include/sys/uberblock_impl.h \
+	$(top_srcdir)/include/sys/uio_impl.h \
 	$(top_srcdir)/include/sys/unique.h \
 	$(top_srcdir)/include/sys/uuid.h \
 	$(top_srcdir)/include/sys/vdev_disk.h \
@@ -237,7 +243,6 @@ am__libzfs_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
-	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -246,6 +251,7 @@ am__libzfs_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -343,6 +349,7 @@ LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
+LIBSELINUX = @LIBSELINUX@
 LIBTOOL = @LIBTOOL@
 LIBUUID = @LIBUUID@
 LINUX = @LINUX@
@@ -495,6 +502,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/u8_textprep.h \
 	$(top_srcdir)/include/sys/uberblock.h \
 	$(top_srcdir)/include/sys/uberblock_impl.h \
+	$(top_srcdir)/include/sys/uio_impl.h \
 	$(top_srcdir)/include/sys/unique.h \
 	$(top_srcdir)/include/sys/uuid.h \
 	$(top_srcdir)/include/sys/vdev_disk.h \
@@ -506,7 +514,6 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
-	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -515,6 +522,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -527,6 +535,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
+	${top_srcdir}/include/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 
 USER_H = 

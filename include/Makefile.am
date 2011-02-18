@@ -1,4 +1,4 @@
-SUBDIRS = sys
+SUBDIRS = linux sys
 
 COMMON_H = \
 	$(top_srcdir)/include/zfs_comutil.h \

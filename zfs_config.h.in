@@ -6,6 +6,9 @@
 /* bio_end_io_t wants 2 args */
 #undef HAVE_2ARGS_BIO_END_IO_T
 
+/* fops->fsync() want 2 args */
+#undef HAVE_2ARGS_FSYNC
+
 /* struct block_device_operations use bdevs */
 #undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
 
@@ -54,8 +57,20 @@
 /* blk_rq_sectors() is available */
 #undef HAVE_BLK_RQ_SECTORS
 
+/* super_block uses const struct xattr_hander */
+#undef HAVE_CONST_XATTR_HANDLER
+
+/* xattr_handler->get() wants dentry */
+#undef HAVE_DENTRY_XATTR_GET
+
+/* xattr_handler->set() wants dentry */
+#undef HAVE_DENTRY_XATTR_SET
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
+
+/* sops->evict_inode() exists */
+#undef HAVE_EVICT_INODE
 
 /* kernel defines fmode_t */
 #undef HAVE_FMODE_T
@@ -84,8 +99,8 @@
 /* Define if you have libblkid */
 #undef HAVE_LIBBLKID
 
-/* Define to 1 if 'libshare' library available */
-#undef HAVE_LIBSHARE
+/* Define if you have selinux */
+#undef HAVE_LIBSELINUX
 
 /* Define if you have libuuid */
 #undef HAVE_LIBUUID

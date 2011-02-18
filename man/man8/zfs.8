@@ -302,19 +302,19 @@ The clone parent-child dependency relationship can be reversed by using the \fBp
 .SS "Mount Points"
 .sp
 .LP
-Creating a \fBZFS\fR file system is a simple operation, so the number of file systems per system is likely to be numerous. To cope with this, \fBZFS\fR automatically manages mounting and unmounting file systems without the need to edit the \fB/etc/vfstab\fR file. All automatically managed file systems are mounted by \fBZFS\fR at boot time.
+Creating a \fBZFS\fR file system is a simple operation, so the number of file systems per system is likely to be numerous. To cope with this, \fBZFS\fR automatically manages mounting and unmounting file systems without the need to edit the \fB/etc/fstab\fR file. All automatically managed file systems are mounted by \fBZFS\fR at boot time.
 .sp
 .LP
 By default, file systems are mounted under \fB/\fIpath\fR\fR, where \fIpath\fR is the name of the file system in the \fBZFS\fR namespace. Directories are created and destroyed as needed.
 .sp
 .LP
-A file system can also have a mount point set in the \fBmountpoint\fR property. This directory is created as needed, and \fBZFS\fR automatically mounts the file system when the \fBzfs mount -a\fR command is invoked (without editing \fB/etc/vfstab\fR). The \fBmountpoint\fR property can be inherited, so if \fBpool/home\fR has a mount point of \fB/export/stuff\fR, then \fBpool/home/user\fR automatically inherits a mount point of \fB/export/stuff/user\fR.
+A file system can also have a mount point set in the \fBmountpoint\fR property. This directory is created as needed, and \fBZFS\fR automatically mounts the file system when the \fBzfs mount -a\fR command is invoked (without editing \fB/etc/fstab\fR). The \fBmountpoint\fR property can be inherited, so if \fBpool/home\fR has a mount point of \fB/export/stuff\fR, then \fBpool/home/user\fR automatically inherits a mount point of \fB/export/stuff/user\fR.
 .sp
 .LP
 A file system \fBmountpoint\fR property of \fBnone\fR prevents the file system from being mounted.
 .sp
 .LP
-If needed, \fBZFS\fR file systems can also be managed with traditional tools (\fBmount\fR, \fBumount\fR, \fB/etc/vfstab\fR). If a file system's mount point is set to \fBlegacy\fR, \fBZFS\fR makes no attempt to manage the file system, and the administrator is responsible for mounting and unmounting the file system.
+If needed, \fBZFS\fR file systems can also be managed with traditional tools (\fBmount\fR, \fBumount\fR, \fB/etc/fstab\fR). If a file system's mount point is set to \fBlegacy\fR, \fBZFS\fR makes no attempt to manage the file system, and the administrator is responsible for mounting and unmounting the file system.
 .SS "Zones"
 .sp
 .LP

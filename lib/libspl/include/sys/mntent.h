@@ -29,114 +29,74 @@
 #ifndef _SYS_MNTENT_H
 #define	_SYS_MNTENT_H
 
+#define	MNTTYPE_ZFS	"zfs"		/* ZFS file system */
 
-
-#ifdef	__cplusplus
-extern "C" {
-#endif
-
-#define	MNTTAB		"/proc/mounts"
-#define	VFSTAB		"/etc/vfstab"
+#define	FSTAB		"/etc/fstab"
 #define	MNTMAXSTR	128
 
-#define	MNTTYPE_ZFS	"zfs"		/* ZFS file system */
-#define	MNTTYPE_UFS	"ufs"		/* Unix file system */
-#define	MNTTYPE_SMBFS	"smbfs"		/* SMBFS file system */
-#define	MNTTYPE_NFS	"nfs"		/* NFS file system */
-#define	MNTTYPE_NFS3	"nfs3"		/* NFS Version 3 file system */
-#define	MNTTYPE_NFS4	"nfs4"		/* NFS Version 4 file system */
-#define	MNTTYPE_CACHEFS	"cachefs"	/* Cache File System */
-#define	MNTTYPE_PCFS	"pcfs"		/* PC (MSDOS) file system */
-#define	MNTTYPE_PC	MNTTYPE_PCFS	/* Deprecated name; use MNTTYPE_PCFS */
-#define	MNTTYPE_LOFS	"lofs"		/* Loop back file system */
-#define	MNTTYPE_LO	MNTTYPE_LOFS	/* Deprecated name; use MNTTYPE_LOFS */
-#define	MNTTYPE_HSFS	"hsfs"		/* High Sierra (9660) file system */
-#define	MNTTYPE_SWAP	"swap"		/* Swap file system */
-#define	MNTTYPE_TMPFS	"tmpfs"		/* Tmp volatile file system */
-#define	MNTTYPE_AUTOFS	"autofs"	/* Automounter ``file'' system */
-#define	MNTTYPE_MNTFS	"mntfs"		/* In-kernel mnttab */
-#define	MNTTYPE_DEV	"dev"		/* /dev file system */
-#define	MNTTYPE_CTFS	"ctfs"		/* Contract file system */
-#define	MNTTYPE_OBJFS	"objfs"		/* Kernel object file system */
-#define	MNTTYPE_SHAREFS	"sharefs"	/* Kernel sharetab file system */
+#define	MOUNT_SUCCESS	0x00		/* Success */
+#define	MOUNT_USAGE	0x01		/* Invalid invocation or permissions */
+#define	MOUNT_SYSERR	0x02		/* System error (ENOMEM, etc) */
+#define	MOUNT_SOFTWARE	0x04		/* Internal mount bug */
+#define	MOUNT_USER	0x08		/* Interrupted by user (EINTR) */
+#define	MOUNT_FILEIO	0x10		/* Error updating/locking /etc/mtab */
+#define	MOUNT_FAIL	0x20		/* Mount failed */
+#define	MOUNT_SOMEOK	0x40		/* At least on mount succeeded */
 
-
-#define	MNTOPT_RO	"ro"		/* Read only */
-#define	MNTOPT_RW	"rw"		/* Read/write */
-#define	MNTOPT_RQ	"rq"		/* Read/write with quotas */
-#define	MNTOPT_QUOTA	"quota"		/* Check quotas */
-#define	MNTOPT_NOQUOTA	"noquota"	/* Don't check quotas */
-#define	MNTOPT_ONERROR	"onerror"	/* action to taken on error */
-#define	MNTOPT_SOFT	"soft"		/* Soft mount */
-#define	MNTOPT_SEMISOFT	"semisoft"	/* partial soft, uncommited interface */
-#define	MNTOPT_HARD	"hard"		/* Hard mount */
-#define	MNTOPT_SUID	"suid"		/* Both setuid and devices allowed */
-#define	MNTOPT_NOSUID	"nosuid"	/* Neither setuid nor devices allowed */
-#define	MNTOPT_DEVICES	"devices"	/* Device-special allowed */
-#define	MNTOPT_NODEVICES	"nodevices"	/* Device-special disallowed */
-#define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
-#define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
-#define	MNTOPT_GRPID	"grpid"		/* SysV-compatible gid on create */
-#define	MNTOPT_REMOUNT	"remount"	/* Change mount options */
-#define	MNTOPT_NOSUB	"nosub"		/* Disallow mounts on subdirs */
-#define	MNTOPT_MULTI	"multi"		/* Do multi-component lookup */
-#define	MNTOPT_INTR	"intr"		/* Allow NFS ops to be interrupted */
-#define	MNTOPT_NOINTR	"nointr"	/* Don't allow interrupted ops */
-#define	MNTOPT_PORT	"port"		/* NFS server IP port number */
-#define	MNTOPT_SECURE	"secure"	/* Secure (AUTH_DES) mounting */
-#define	MNTOPT_RSIZE	"rsize"		/* Max NFS read size (bytes) */
-#define	MNTOPT_WSIZE	"wsize"		/* Max NFS write size (bytes) */
-#define	MNTOPT_TIMEO	"timeo"		/* NFS timeout (1/10 sec) */
-#define	MNTOPT_RETRANS	"retrans"	/* Max retransmissions (soft mnts) */
-#define	MNTOPT_ACTIMEO	"actimeo"	/* Attr cache timeout (sec) */
-#define	MNTOPT_ACREGMIN	"acregmin"	/* Min attr cache timeout (files) */
-#define	MNTOPT_ACREGMAX	"acregmax"	/* Max attr cache timeout (files) */
-#define	MNTOPT_ACDIRMIN	"acdirmin"	/* Min attr cache timeout (dirs) */
-#define	MNTOPT_ACDIRMAX	"acdirmax"	/* Max attr cache timeout (dirs) */
-#define	MNTOPT_NOAC	"noac"		/* Don't cache attributes at all */
-#define	MNTOPT_NOCTO	"nocto"		/* No close-to-open consistency */
-#define	MNTOPT_BG	"bg"		/* Do mount retries in background */
-#define	MNTOPT_FG	"fg"		/* Do mount retries in foreground */
-#define	MNTOPT_RETRY	"retry"		/* Number of mount retries */
-#define	MNTOPT_DEV	"dev"		/* Device id of mounted fs */
-#define	MNTOPT_POSIX	"posix"		/* Get static pathconf for mount */
-#define	MNTOPT_MAP	"map"		/* Automount map */
-#define	MNTOPT_DIRECT	"direct"	/* Automount   direct map mount */
-#define	MNTOPT_INDIRECT	"indirect"	/* Automount indirect map mount */
-#define	MNTOPT_LLOCK	"llock"		/* Local locking (no lock manager) */
-#define	MNTOPT_IGNORE	"ignore"	/* Ignore this entry */
-#define	MNTOPT_VERS	"vers"		/* protocol version number indicator */
-#define	MNTOPT_PROTO	"proto"		/* protocol network_id indicator */
-#define	MNTOPT_SEC	"sec"		/* Security flavor indicator */
-#define	MNTOPT_SYNCDIR	"syncdir"	/* Synchronous local directory ops */
-#define	MNTOPT_NOSETSEC	"nosec"		/* Do no allow setting sec attrs */
-#define	MNTOPT_NOPRINT	"noprint"	/* Do not print messages */
-#define	MNTOPT_LARGEFILES "largefiles"	/* allow large files */
-#define	MNTOPT_NOLARGEFILES "nolargefiles" /* don't allow large files */
-#define	MNTOPT_FORCEDIRECTIO "forcedirectio" /* Force DirectIO on all files */
-#define	MNTOPT_NOFORCEDIRECTIO "noforcedirectio" /* No Force DirectIO */
-#define	MNTOPT_DISABLEDIRECTIO "disabledirectio" /* Disable DirectIO ioctls */
-#define	MNTOPT_PUBLIC	"public"	/* Use NFS public file handlee */
-#define	MNTOPT_LOGGING "logging" 	/* enable logging */
-#define	MNTOPT_NOLOGGING "nologging" 	/* disable logging */
+#define	MNTOPT_ASYNC	"async"		/* all I/O is asynchronous */
 #define	MNTOPT_ATIME	"atime"		/* update atime for files */
-#define	MNTOPT_NOATIME  "noatime"	/* do not update atime for files */
-#define	MNTOPT_GLOBAL	"global"	/* Cluster-wide global mount */
-#define	MNTOPT_NOGLOBAL	"noglobal"	/* Mount local to single node */
-#define	MNTOPT_DFRATIME	"dfratime"	/* Deferred access time updates */
-#define	MNTOPT_NODFRATIME "nodfratime"	/* No Deferred access time updates */
-#define	MNTOPT_NBMAND	"nbmand"	/* allow non-blocking mandatory locks */
-#define	MNTOPT_NONBMAND	"nonbmand"	/* deny non-blocking mandatory locks */
-#define	MNTOPT_XATTR	"xattr"		/* enable extended attributes */
-#define	MNTOPT_NOXATTR	"noxattr"	/* disable extended attributes */
+#define	MNTOPT_NOATIME	"noatime"	/* do not update atime for files */
+#define	MNTOPT_AUTO	"auto"		/* automount */
+#define	MNTOPT_NOAUTO	"noauto"	/* do not automount */
+#define	MNTOPT_CONTEXT	"context"	/* selinux context */
+#define	MNTOPT_FSCONTEXT "fscontext"	/* selinux fscontext */
+#define	MNTOPT_DEFCONTEXT "defcontext"	/* selinux defcontext */
+#define	MNTOPT_ROOTCONTEXT "rootcontext" /* selinux rootcontext */
+#define	MNTOPT_DEFAULTS	"defaults"	/* defaults */
+#define	MNTOPT_DEVICES	"dev"		/* device-special allowed */
+#define	MNTOPT_NODEVICES "nodev"	/* device-special disallowed */
+#define	MNTOPT_DIRATIME	"diratime"	/* update atime for dirs */
+#define	MNTOPT_NODIRATIME "nodiratime"	/* do not update atime for dirs */
+#define	MNTOPT_DIRSYNC	"dirsync"	/* do dir updates synchronously */
 #define	MNTOPT_EXEC	"exec"		/* enable executables */
 #define	MNTOPT_NOEXEC	"noexec"	/* disable executables */
-#define	MNTOPT_RESTRICT	"restrict"	/* restricted autofs mount */
-#define	MNTOPT_BROWSE	"browse"	/* browsable autofs mount */
-#define	MNTOPT_NOBROWSE	"nobrowse"	/* non-browsable autofs mount */
-
-#ifdef	__cplusplus
-}
-#endif
+#define	MNTOPT_GROUP	"group"		/* allow group mount */
+#define	MNTOPT_NOGROUP	"nogroup"	/* do not allow group mount */
+#define	MNTOPT_IVERSION	"iversion"	/* update inode version */
+#define	MNTOPT_NOIVERSION "noiversion"	/* do not update inode version */
+#define	MNTOPT_NBMAND	"mand"		/* allow non-blocking mandatory locks */
+#define	MNTOPT_NONBMAND	"nomand"	/* deny non-blocking mandatory locks */
+#define	MNTOPT_NETDEV	"_netdev"	/* network device */
+#define	MNTOPT_NOFAIL	"nofail"	/* no failure */
+#define	MNTOPT_RELATIME	"relatime"	/* allow relative time updates */
+#define	MNTOPT_NORELATIME "norelatime"	/* do not allow relative time updates */
+#define	MNTOPT_DFRATIME	"strictatime"	/* Deferred access time updates */
+#define	MNTOPT_NODFRATIME "nostrictatime" /* No Deferred access time updates */
+#define	MNTOPT_SETUID	"suid"		/* Both setuid and devices allowed */
+#define	MNTOPT_NOSETUID	"nosuid"	/* Neither setuid nor devices allowed */
+#define	MNTOPT_OWNER	"owner"		/* allow owner mount */
+#define	MNTOPT_NOOWNER	"noowner"	/* do not allow owner mount */
+#define	MNTOPT_REMOUNT	"remount"	/* change mount options */
+#define	MNTOPT_RO	"ro"		/* read only */
+#define	MNTOPT_RW	"rw"		/* read/write */
+#define	MNTOPT_SYNC	"sync"		/* all I/O is synchronous */
+#define	MNTOPT_USER	"user"		/* allow user mount */
+#define	MNTOPT_NOUSER	"nouser"	/* do not allow user mount */
+#define	MNTOPT_USERS	"users"		/* allow user mount */
+#define	MNTOPT_NOUSERS	"nousers"	/* do not allow user mount */
+#define	MNTOPT_SUB	"sub"		/* allow mounts on subdirs */
+#define	MNTOPT_NOSUB	"nosub"		/* do not allow mounts on subdirs */
+#define	MNTOPT_QUIET	"quiet"		/* quiet mount */
+#define	MNTOPT_LOUD	"loud"		/* verbose mount */
+#define	MNTOPT_BIND	"bind"		/* remount part of a tree */
+#define	MNTOPT_RBIND	"rbind"		/* include subtrees */
+#define	MNTOPT_XATTR	"user_xattr"	/* enable extended attributes */
+#define	MNTOPT_NOXATTR	"nouser_xattr"	/* disable extended attributes */
+#define	MNTOPT_COMMENT	"comment"	/* comment */
+#define	MNTOPT_BOOTWAIT	"bootwait"
+#define	MNTOPT_NOBOOTWAIT "nobootwait"
+#define	MNTOPT_OPTIONAL	"optional"
+#define	MNTOPT_SHOWTHROUGH "showthrough"
+#define	MNTOPT_ZFSUTIL	"zfsutil"	/* called by zfs utility */
 
 #endif	/* _SYS_MNTENT_H */

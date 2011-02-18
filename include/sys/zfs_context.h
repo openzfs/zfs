@@ -49,15 +49,15 @@
 #include <sys/byteorder.h>
 #include <sys/systm.h>
 #include <sys/list.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/dirent.h>
 #include <sys/time.h>
 #include <vm/seg_kmem.h>
 #include <sys/zone.h>
-#include <sys/uio.h>
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <linux/dcache_compat.h>
 
 #else /* _KERNEL */
 
@@ -310,6 +310,7 @@ extern void cv_wait(kcondvar_t *cv, kmutex_t *mp);
 extern clock_t cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
 extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
+#define cv_timedwait_interruptible(cv, mp, at)	cv_timedwait(cv, mp, at);
 
 /*
  * kstat creation, installation and deletion

@@ -52,21 +52,24 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-bytes.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
+	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
+	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
-	$(top_srcdir)/config/user-libshare.m4 \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+	$(top_srcdir)/config/user-selinux.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -105,10 +108,10 @@ libzpool_la_DEPENDENCIES =  \
 	$(top_builddir)/lib/libspl/libspl.la
 am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	zfs_deleg.lo zfs_fletcher.lo zfs_namecheck.lo zfs_prop.lo \
-	zpool_prop.lo zprop_common.lo arc.lo bplist.lo bpobj.lo \
-	dbuf.lo ddt.lo ddt_zap.lo dmu.lo dmu_diff.lo dmu_object.lo \
-	dmu_objset.lo dmu_send.lo dmu_traverse.lo dmu_tx.lo \
-	dmu_zfetch.lo dnode.lo dnode_sync.lo dsl_dataset.lo \
+	zfs_uio.lo zpool_prop.lo zprop_common.lo arc.lo bplist.lo \
+	bpobj.lo dbuf.lo ddt.lo ddt_zap.lo dmu.lo dmu_diff.lo \
+	dmu_object.lo dmu_objset.lo dmu_send.lo dmu_traverse.lo \
+	dmu_tx.lo dmu_zfetch.lo dnode.lo dnode_sync.lo dsl_dataset.lo \
 	dsl_deadlist.lo dsl_deleg.lo dsl_dir.lo dsl_pool.lo \
 	dsl_prop.lo dsl_scan.lo dsl_synctask.lo fm.lo gzip.lo lzjb.lo \
 	metaslab.lo refcount.lo rrwlock.lo sa.lo sha256.lo spa.lo \
@@ -211,6 +214,7 @@ LDFLAGS = @LDFLAGS@
 LIBBLKID = @LIBBLKID@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
+LIBSELINUX = @LIBSELINUX@
 LIBTOOL = @LIBTOOL@
 LIBUUID = @LIBUUID@
 LINUX = @LINUX@
@@ -343,6 +347,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zcommon/zfs_fletcher.c \
 	$(top_srcdir)/module/zcommon/zfs_namecheck.c \
 	$(top_srcdir)/module/zcommon/zfs_prop.c \
+	$(top_srcdir)/module/zcommon/zfs_uio.c \
 	$(top_srcdir)/module/zcommon/zpool_prop.c \
 	$(top_srcdir)/module/zcommon/zprop_common.c \
 	$(top_srcdir)/module/zfs/arc.c \
@@ -417,7 +422,6 @@ libzpool_la_LDFLAGS = -pthread
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
-	$(top_srcdir)/module/zfs/zfs_ctldir.c \
 	$(top_srcdir)/module/zfs/zfs_dir.c \
 	$(top_srcdir)/module/zfs/zfs_ioctl.c \
 	$(top_srcdir)/module/zfs/zfs_log.c \
@@ -426,6 +430,10 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_file.c \
+	$(top_srcdir)/module/zfs/zpl_inode.c \
+	$(top_srcdir)/module/zfs/zpl_super.c \
+	$(top_srcdir)/module/zfs/zpl_xattr.c \
 	$(top_srcdir)/module/zfs/zvol.c \
 	$(top_srcdir)/module/zpios/pios.c
 
@@ -570,6 +578,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_namecheck.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_prop.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_sa.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_uio.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zfs_znode.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zil.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zio.Plo@am__quote@
@@ -668,6 +677,14 @@ zfs_prop.lo: $(top_srcdir)/module/zcommon/zfs_prop.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/module/zcommon/zfs_prop.c' object='zfs_prop.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_prop.lo `test -f '$(top_srcdir)/module/zcommon/zfs_prop.c' || echo '$(srcdir)/'`$(top_srcdir)/module/zcommon/zfs_prop.c
+
+zfs_uio.lo: $(top_srcdir)/module/zcommon/zfs_uio.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zfs_uio.lo -MD -MP -MF $(DEPDIR)/zfs_uio.Tpo -c -o zfs_uio.lo `test -f '$(top_srcdir)/module/zcommon/zfs_uio.c' || echo '$(srcdir)/'`$(top_srcdir)/module/zcommon/zfs_uio.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zfs_uio.Tpo $(DEPDIR)/zfs_uio.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/module/zcommon/zfs_uio.c' object='zfs_uio.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zfs_uio.lo `test -f '$(top_srcdir)/module/zcommon/zfs_uio.c' || echo '$(srcdir)/'`$(top_srcdir)/module/zcommon/zfs_uio.c
 
 zpool_prop.lo: $(top_srcdir)/module/zcommon/zpool_prop.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zpool_prop.lo -MD -MP -MF $(DEPDIR)/zpool_prop.Tpo -c -o zpool_prop.lo `test -f '$(top_srcdir)/module/zcommon/zpool_prop.c' || echo '$(srcdir)/'`$(top_srcdir)/module/zcommon/zpool_prop.c

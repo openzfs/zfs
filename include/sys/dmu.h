@@ -515,11 +515,13 @@ void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
 #ifdef _KERNEL
 int dmu_read_req(objset_t *os, uint64_t object, struct request *req);
-int dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx);
-#endif
-#ifdef HAVE_ZPL
-int dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t size, struct page *pp, dmu_tx_t *tx);
+int dmu_write_req(objset_t *os, uint64_t object, struct request *req,
+	dmu_tx_t *tx);
+int dmu_read_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size);
+int dmu_write_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size,
+	dmu_tx_t *tx);
+int dmu_write_uio_dbuf(dmu_buf_t *zdb, struct uio *uio, uint64_t size,
+	dmu_tx_t *tx);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);

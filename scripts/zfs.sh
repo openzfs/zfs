@@ -65,6 +65,7 @@ if [ $(id -u) != 0 ]; then
 fi
 
 if [ ${UNLOAD} ]; then
+	umount -t zfs -a
 	unload_modules
 else
 	check_modules || die "${ERROR}"
