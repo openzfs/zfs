@@ -66,44 +66,27 @@ appropriate.</p>
 
 <ul>
 	<li>The kernel API changes frequently and kernels newer than
-2.6.34 are not yet supported.</li>
+2.6.36 are not yet supported.</li>
 	<li>Check for known <a
 href="http://github.com/behlendorf/spl/issues/labels/Build%20Issue">SPL</a> and
 <a href="http://github.com/behlendorf/zfs/issues/labels/Build%20Issue">ZFS</a>
 build issues.</li>
 	<li>There is also a list of
-<a href="platforms-0.5.1.html">tested platforms you might find helpful.</li>
+<a href="platforms-0.6.0-rc1.html">tested platforms you might find helpful.</li>
+	<li>Make sure CONFIG_PREEMPT is disabled in your kernel
+(<a href="http://github.com/behlendorf/zfs/issues/#issue/83">issue 83</a>).</li>
 </ul>
 
 <a name="HowDoIMountTheFileSystem">
 <h3>1.3 How do I mount the file system?</h3></a>
 
-<p>You can&#8217;t&#8230; at least not today.  While we have ported
-the majority of the ZFS code to the Linux kernel that does not yet include the
-<a href="example-zpl.html">ZFS posix layer</a>.  The only interface currently
-available from user space is the <a href="example-zvol.html">ZVOL virtual
-block device</a>.</p>
-
-<a name="IsThisUsefulWithoutTheZFSPosixLayer">
-<h3>1.4 Is this useful without the ZFS posix layer?</h3></a>
-
-<p>Absolutely.  While having the ZFS posix layer is ideal even without
-it you can take advantage of many ZFS features.  For example, our focus is on
-integrating <a href="example-lustre.html">ZFS and Lustre</a> so we can take
-advantage of ZFS&#8217;s advanced features to build a scalable multi-petabyte
-distributed file system with <a href="http://www.lustre.org">Lustre</a>.</p>
-
-<ul>
-	<li>Flexible pooled storage and volume manager.</li>
-	<li>Copy-on-write</li>
-	<li>Data integrity (raidz).</li>
-	<li>Online repair.</li>
-	<li>Fast snapshots.</li>
-	<li>Virtual block devices.
-</ul>
+<p>The <a href="example-zpl.html">ZFS posix layer</a> is now available as of
+spl/zfs-0.6.0-rc1!  A mountable dataset will be created and mounted when you
+first create the pool with <i>zpool create</i>.  Additional datasets can be
+created with <i>zfs create</i> and they will be automatically mounted.</p>
 
 <a name="WhyShouldIUseA64BitSystem">
-<h3>1.5 Why should I use a 64-bit system?</h3></a>
+<h3>1.4 Why should I use a 64-bit system?</h3></a>
 
 <p>In the Solaris kernel it is common practice to make heavy use of the
 virtual address space because it is designed to work well. However, in
@@ -124,7 +107,7 @@ size.
 </pre>
 
 <a name="HowCanIHelp">
-<h3>1.6 How can I help?</h3></a>
+<h3>1.5 How can I help?</h3></a>
 
 <p>The most helpful thing you can do is to try ZFS on your Linux
 system and report any
