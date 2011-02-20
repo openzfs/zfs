@@ -28,12 +28,10 @@
 
 #define F_FREESP 11
 
-typedef struct flock64 {
-	short   l_type;
-	short   l_whence;
-	loff_t  l_start;
-	loff_t  l_len;
-	pid_t   l_pid;
-} flock64_t;
+#ifdef CONFIG_64BIT
+typedef struct flock flock64_t;
+#else
+typedef struct flock64 flock64_t;
+#endif /* CONFIG_64BIT */
 
 #endif /* _SPL_FCNTL_H */
