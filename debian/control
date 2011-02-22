@@ -4,8 +4,8 @@ Priority: extra
 Maintainer: Darik Horn <dajhorn@vanadac.com>
 Build-Depends: autotools-dev, debhelper (>= 7.4), dkms, gawk, linux-headers-generic, uuid-dev, zlib1g-dev
 Standards-Version: 3.8.4
-Vcs-Git: http://github.com/dajhorn/zfs-linux.git
-Vcs-Browser: http://github.com/dajhorn/zfs-linux
+Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
+Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
 Package: zfs-dkms
 Architecture: all
