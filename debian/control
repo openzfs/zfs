@@ -1,0 +1,27 @@
+Source: zfs-linux
+Section: kernel
+Priority: extra
+Maintainer: Darik Horn <dajhorn@vanadac.com>
+Build-Depends: autotools-dev, debhelper (>= 7.4), dkms, gawk, linux-headers-generic, uuid-dev, zlib1g-dev
+Standards-Version: 3.8.4
+Vcs-Git: http://github.com/dajhorn/zfs-linux.git
+Vcs-Browser: http://github.com/dajhorn/zfs-linux
+
+Package: zfs-dkms
+Architecture: all
+Depends: ${misc:Depends}, dkms, spl-dkms
+Replaces: lzfs, lzfs-dkms
+Provides: lzfs, lzfs-dkms
+Conflicts: lzfs, lzfs-dkms
+Description: Native ZFS filesystem kernel module for Linux
+
+Package: zfs-lib
+Architecture: any
+Depends: ${misc:Depends}
+Description: Native ZFS filesystem libraries for Linux
+
+Package: zfs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: zfs-dkms
+Description: Native ZFS filesystem utilities for Linux

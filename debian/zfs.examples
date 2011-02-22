@@ -1,0 +1,3 @@
+etc/zfs/zdev.conf.x4550.example
+etc/zfs/zdev.conf.supermicro.example
+etc/zfs/zdev.conf.dragon.example

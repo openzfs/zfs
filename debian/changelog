@@ -1,0 +1,44 @@
+zfs-linux (0.6.0.1rc-1~maverick.3) maverick; urgency=low
+
+  * Move the zfsload init script from the zfs-dkms package
+    to the zfs package.
+  * Disable non-zero returns in the zfsload script because
+    `zfs umount -a` is unreliable and init errors cause dpkg
+    to block package updates and removals.
+  * Create zfs.examples for dh_installexamples and change the
+    install manifest for etc/zfs/*.example accordingly.
+  * Split zfs into zfs-lib to satisfy the dpkg-shlibdeps warnings.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 21 Feb 2011 11:27:11 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.2) lucid; urgency=low
+
+  * Reduce the dpkg scripts to #DEBHELPER# because dh_dkms
+    is automatically and correctly filling template.
+  * Set a versioned debhelper dependency to satisfy the
+    lintian warning.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 21 Feb 2011 10:27:29 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.1) lucid; urgency=low
+
+  * New upstream zfs-0.6.0-rc1.tar.gz release.
+  * Kludge the "rc1" version for the packaging convenience.
+  * Move the zfsload script to this package.
+  * Supercede the lzfs-dkms package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 18 Feb 2011 19:46:36 -0600
+
+zfs-linux (0.5.2-1~lucid.6) lucid; urgency=low
+
+  * Do uupdate on kqzfs_0.5.2 tag.
+  * Remove disable-check_stack_overflow patch.
+  * Add kernel-bio-failfast.patch for `make distdir`.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 18 Feb 2011 12:52:07 -0600
+
+zfs-linux (0.5.1-1~lucid.5) lucid; urgency=low
+
+  * Initial DKMS packaging for Debian and Ubuntu.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 16 Feb 2011 12:26:49 -0600

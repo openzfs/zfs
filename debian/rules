@@ -1,0 +1,44 @@
+#!/usr/bin/make -f
+
+NAME := $(shell awk '/^Name:/{print $$2}' META)
+VERSION := $(shell awk '/^Version:/{print $$2}' META)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Build the userland, but don't build the kernel modules.
+	./configure --prefix=/usr --with-config=user
+	
+override_dh_auto_test:
+	# `make check` cannot run in an unprivileged build environment.
+
+override_dh_auto_install:
+	# Install the utilities.
+	make install DESTDIR='$(CURDIR)/debian/tmp'
+
+	# Get a bare copy of the source code. This creates the $(CURDIR)/$(NAME)-$(VERSION)/ tree.
+	make distdir
+
+	# This shunt allows DKMS to delete header files that are peculiar to each
+	# module instance through the POST_REMOVE directive in the dkms.conf file.
+	echo '#!/bin/sh'  >'$(CURDIR)/$(NAME)-$(VERSION)/rm'
+	echo 'rm "$$@"'  >>'$(CURDIR)/$(NAME)-$(VERSION)/rm'
+	chmod 755 '$(CURDIR)/$(NAME)-$(VERSION)/rm'
+
+	# Install the DKMS source.
+	mkdir -p '$(CURDIR)/debian/tmp/usr/src/'
+	mv '$(CURDIR)/$(NAME)-$(VERSION)' '$(CURDIR)/debian/tmp/usr/src/'
+
+	# Install the dkms.conf file.
+	dh_dkms -V $(VERSION)
+
+	# Install the init.d file.
+	dh_installinit --name=zfsload
+
+	# @FIXME: `make distclean` fails when --with-config=user is set.
+	# Kludge by creating dummy makefiles.
+	echo 'distclean:'         >$(CURDIR)/include/Makefile
+	echo '	-rm -f Makefile' >>$(CURDIR)/include/Makefile
+	echo 'distclean:'         >$(CURDIR)/module/Makefile
+	echo '	-rm -f Makefile' >>$(CURDIR)/module/Makefile

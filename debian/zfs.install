@@ -1,0 +1,6 @@
+etc/udev
+etc/zfs/zdev.conf
+usr/bin
+usr/libexec
+usr/sbin
+usr/share

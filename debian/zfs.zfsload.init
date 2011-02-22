@@ -1,0 +1,153 @@
+#!/bin/sh
+
+# description:loads all modules required for zfs
+### BEGIN INIT INFO
+# Provides:          zfsload
+# Required-Start:    $local_fs 
+# Required-Stop:     $local_fs 
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start daemon at boot time	
+# Description:       Enable service provided by zfs.
+### END INIT INFO
+
+
+# Source function library.
+
+. /lib/lsb/init-functions
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/
+RETVAL=0
+exec=/usr/sbin/zfsload
+prog=zfsload
+config=/etc/zfsload/zfsload.conf
+lockfile=/var/lock/subsys/$prog
+
+RES_COL=60
+# Command to move out to the configured column number
+MOVE_TO_COL="echo -n \\033[${RES_COL}G"
+# Command to set the color to SUCCESS (Green)
+SETCOLOR_SUCCESS="echo -n \\033[1;32m"
+# Command to set the color to FAILED (Red)
+SETCOLOR_FAILURE="echo -n \\033[1;31m"
+# Command to set the color back to normal
+SETCOLOR_NORMAL="echo -n \\033[0;39m"
+
+# Function to print the SUCCESS status
+echo_success() {
+        $MOVE_TO_COL
+        echo -n "["
+        $SETCOLOR_SUCCESS
+        echo -n "  OK  "
+        $SETCOLOR_NORMAL
+        echo -n "]"
+        echo -n "\r"
+        return 0
+}
+
+# Function to print the FAILED status message
+echo_failure() {
+
+        $MOVE_TO_COL
+        echo -n "["
+        $SETCOLOR_FAILURE
+        echo -n "FAILED"
+        $SETCOLOR_NORMAL
+        echo -n "]"
+        echo -n "\r"
+        # return 1
+}
+
+start () {
+        modprobe zfs
+        zfs mount -a
+	
+	RETVAL=$?
+        if [ $RETVAL -eq 0 ]
+        then
+                echo -n "loading zfs modules "
+                echo_success
+        else
+                echo -n "failed load zfs modules"
+                echo_failure
+        fi
+        echo
+	#return $RETVAL
+	return 0
+}
+
+stop () {
+	zfs umount -a
+	modprobe -r zfs
+	modprobe -r zcommon
+	modprobe -r zunicode
+	modprobe -r znvpair
+	modprobe -r zavl
+	modprobe -r spl
+
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]
+        then
+                echo -n "unloading zfs modules "
+                echo_success
+        else
+                echo -n "failed to unload zfs modules"
+                echo_failure
+        fi
+        echo
+        [ $RETVAL = 0 ] && rm -f $lockfile
+        return 0
+}
+
+restart() {
+        stop
+        start
+}
+
+case $1 in
+        start)
+                start
+        ;;
+        stop)
+                stop
+        ;;
+        restart)
+                restart
+        ;;
+        condrestart|try-restart)
+                [ -f $lockfile ] && restart || :
+        ;;
+        reload)
+                echo -n $"Reloading $prog: "
+                killproc $prog -HUP
+                RETVAL=$?
+                echo
+        ;;
+        force-reload)
+                echo -n $"Reloading $prog: "
+                if ! killproc $prog -HUP; then
+                        restart
+                fi
+                echo
+        ;;
+	status)
+		status=`lsmod | grep zfs | cut -d ' ' -f1 | head -n 1 2>  /dev/null`
+                if [ "$status" = "zfs" ]
+                then
+                        echo "* zfs service is running"
+                else
+                        echo "* zfs service is stopped"
+                fi
+        ;;
+        restartlog)
+                stop
+                cat /dev/null >/var/log/zfsload/error_log
+                start
+        ;;
+        *)
+
+        echo $"Usage: $prog {start|stop|restart|condrestart|try-restart|reload|force-reload|status}"
+        exit 2
+esac
+
+exit $RETVAL
