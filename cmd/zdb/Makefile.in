@@ -53,6 +53,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-bytes.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
+	$(top_srcdir)/config/kernel-blkdev-get-by-path.m4 \
 	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
 	$(top_srcdir)/config/kernel-fsync.m4 \

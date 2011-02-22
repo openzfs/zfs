@@ -280,16 +280,31 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_2ARGS_BIO_END_IO_T */
 
 /*
- * 2.6.28 API change
+ * 2.6.38 - 2.6.x API,
+ *   blkdev_get_by_path()
+ *   blkdev_put()
+ *
+ * 2.6.28 - 2.6.37 API,
+ *   open_bdev_exclusive()
+ *   close_bdev_exclusive()
+ *
+ * 2.6.12 - 2.6.27 API,
+ *   open_bdev_excl()
+ *   close_bdev_excl()
+ *
  * Used to exclusively open a block device from within the kernel.
  */
-#ifdef HAVE_OPEN_BDEV_EXCLUSIVE
+#if defined(HAVE_BLKDEV_GET_BY_PATH)
+# define vdev_bdev_open(path, md, hld)	blkdev_get_by_path(path, \
+					    (md) | FMODE_EXCL, hld)
+# define vdev_bdev_close(bdev, md)	blkdev_put(bdev, (md) | FMODE_EXCL)
+#elif defined(HAVE_OPEN_BDEV_EXCLUSIVE)
 # define vdev_bdev_open(path, md, hld)	open_bdev_exclusive(path, md, hld)
 # define vdev_bdev_close(bdev, md)	close_bdev_exclusive(bdev, md)
 #else
 # define vdev_bdev_open(path, md, hld)	open_bdev_excl(path, md, hld)
 # define vdev_bdev_close(bdev, md)	close_bdev_excl(bdev)
-#endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
+#endif /* HAVE_BLKDEV_GET_BY_PATH | HAVE_OPEN_BDEV_EXCLUSIVE */
 
 /*
  * 2.6.22 API change
