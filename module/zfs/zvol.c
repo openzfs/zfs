@@ -58,7 +58,7 @@ static char *zvol_tag = "zvol_tag";
  * The in-core state of each volume.
  */
 typedef struct zvol_state {
-	char			zv_name[DISK_NAME_LEN];	/* name */
+	char			zv_name[MAXNAMELEN];	/* name */
 	uint64_t		zv_volsize;	/* advertised space */
 	uint64_t		zv_volblocksize;/* volume block size */
 	objset_t		*zv_objset;	/* objset handle */
@@ -132,7 +132,7 @@ zvol_find_by_name(const char *name)
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 	for (zv = list_head(&zvol_state_list); zv != NULL;
 	     zv = list_next(&zvol_state_list, zv)) {
-		if (!strncmp(zv->zv_name, name, DISK_NAME_LEN))
+		if (!strncmp(zv->zv_name, name, MAXNAMELEN))
 			return zv;
 	}
 
@@ -895,6 +895,9 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 	case BLKFLSBUF:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 		break;
+	case BLKZNAME:
+		error = copy_to_user((void *)arg, zv->zv_name, MAXNAMELEN);
+		break;
 
 	default:
 		error = -ENOTTY;
@@ -1058,7 +1061,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue->queuedata = zv;
 	zv->zv_dev = dev;
 	zv->zv_open_count = 0;
-	strlcpy(zv->zv_name, name, DISK_NAME_LEN);
+	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
 	mutex_init(&zv->zv_znode.z_range_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&zv->zv_znode.z_range_avl, zfs_range_compare,
@@ -1073,7 +1076,8 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_disk->fops = &zvol_ops;
 	zv->zv_disk->private_data = zv;
 	zv->zv_disk->queue = zv->zv_queue;
-	snprintf(zv->zv_disk->disk_name, DISK_NAME_LEN, "%s", name);
+	snprintf(zv->zv_disk->disk_name, DISK_NAME_LEN, "%s%d",
+	    ZVOL_DEV_NAME, (dev & MINORMASK));
 
 	return zv;
 
@@ -1274,7 +1278,7 @@ zvol_remove_minors(const char *pool)
 	zvol_state_t *zv, *zv_next;
 	char *str;
 
-	str = kmem_zalloc(DISK_NAME_LEN, KM_SLEEP);
+	str = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
 	if (pool) {
 		(void) strncpy(str, pool, strlen(pool));
 		(void) strcat(str, "/");
@@ -1290,7 +1294,7 @@ zvol_remove_minors(const char *pool)
 		}
 	}
 	mutex_exit(&zvol_state_lock);
-	kmem_free(str, DISK_NAME_LEN);
+	kmem_free(str, MAXNAMELEN);
 }
 
 int

@@ -707,6 +707,7 @@ typedef struct ddt_histogram {
 #define	ZVOL_MINOR_BITS		4
 #define	ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)
 #define	ZVOL_MINORS		(1 << 4)
+#define	ZVOL_DEV_NAME		"zd"
 
 #define	ZVOL_PROP_NAME		"name"
 #define	ZVOL_DEFAULT_BLOCKSIZE	8192
@@ -780,6 +781,11 @@ typedef enum zfs_ioc {
 	ZFS_IOC_EVENTS_NEXT,
 	ZFS_IOC_EVENTS_CLEAR,
 } zfs_ioc_t;
+
+/*
+ * zvol ioctl to get dataset name
+ */
+#define BLKZNAME		_IO(0x12,125)
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.
