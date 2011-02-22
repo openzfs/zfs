@@ -72,7 +72,6 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zrlock.h
 
 KERNEL_H = \
-	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
 	${top_srcdir}/include/sys/zpl.h \

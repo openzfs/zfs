@@ -18,17 +18,16 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright (C) 2008-2010 Lawrence Livermore National Security, LLC.
+ * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Written by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  */
 
-#ifndef	_SYS_BLKDEV_H
-#define	_SYS_BLKDEV_H
-
-#ifdef _KERNEL
+#ifndef _ZFS_BLKDEV_H
+#define _ZFS_BLKDEV_H
 
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
@@ -212,6 +211,10 @@ struct req_iterator {
 		bio_for_each_segment(bvl, _iter.bio, _iter.i)
 #endif /* HAVE_RQ_FOR_EACH_SEGMENT */
 
+/*
+ * Portable helper for correctly setting the FAILFAST flags.  The
+ * correct usage has changed 3 times from 2.6.12 to 2.6.38.
+ */
 static inline void
 bio_set_flags_failfast(struct block_device *bdev, int *flags)
 {
@@ -255,10 +258,66 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_BIO_RW_FAILFAST_DTD */
 }
 
+/*
+ * Maximum disk label length, it may be undefined for some kernels.
+ */
 #ifndef DISK_NAME_LEN
 #define DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */
 
-#endif /* KERNEL */
+/*
+ * 2.6.24 API change,
+ * The bio_end_io() prototype changed slightly.  These are helper
+ * macro's to ensure the prototype and return value are handled.
+ */
+#ifdef HAVE_2ARGS_BIO_END_IO_T
+# define BIO_END_IO_PROTO(fn, x, y, z)	static void fn(struct bio *x, int z)
+# define BIO_END_IO_RETURN(rc)		return
+#else
+# define BIO_END_IO_PROTO(fn, x, y, z)	static int fn(struct bio *x, \
+					              unsigned int y, int z)
+# define BIO_END_IO_RETURN(rc)		return rc
+#endif /* HAVE_2ARGS_BIO_END_IO_T */
 
-#endif	/* _SYS_BLKDEV_H */
+/*
+ * 2.6.28 API change
+ * Used to exclusively open a block device from within the kernel.
+ */
+#ifdef HAVE_OPEN_BDEV_EXCLUSIVE
+# define vdev_bdev_open(path, md, hld)	open_bdev_exclusive(path, md, hld)
+# define vdev_bdev_close(bdev, md)	close_bdev_exclusive(bdev, md)
+#else
+# define vdev_bdev_open(path, md, hld)	open_bdev_excl(path, md, hld)
+# define vdev_bdev_close(bdev, md)	close_bdev_excl(bdev)
+#endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
+
+/*
+ * 2.6.22 API change
+ * The function invalidate_bdev() lost it's second argument because
+ * it was unused.
+ */
+#ifdef HAVE_1ARG_INVALIDATE_BDEV
+# define vdev_bdev_invalidate(bdev)	invalidate_bdev(bdev)
+#else
+# define vdev_bdev_invalidate(bdev)	invalidate_bdev(bdev, 1)
+#endif /* HAVE_1ARG_INVALIDATE_BDEV */
+
+/*
+ * 2.6.30 API change
+ * Change to make it explicit there this is the logical block size.
+ */
+#ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+# define vdev_bdev_block_size(bdev)	bdev_logical_block_size(bdev)
+#else
+# define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
+#endif
+
+/*
+ * Default Linux IO Scheduler,
+ * Setting the scheduler to noop will allow the Linux IO scheduler to
+ * still perform front and back merging, while leaving the request
+ * ordering and prioritization to the ZFS IO scheduler.
+ */
+#define	VDEV_SCHEDULER			"noop"
+
+#endif /* _ZFS_BLKDEV_H */

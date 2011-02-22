@@ -163,7 +163,6 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zio.h \
 	$(top_srcdir)/include/sys/zio_impl.h \
 	$(top_srcdir)/include/sys/zrlock.h \
-	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
 	${top_srcdir}/include/sys/zpl.h \
@@ -532,7 +531,6 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zrlock.h
 
 KERNEL_H = \
-	$(top_srcdir)/include/sys/blkdev.h \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
 	${top_srcdir}/include/sys/zpl.h \
