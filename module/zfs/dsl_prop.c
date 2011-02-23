@@ -355,7 +355,7 @@ dsl_prop_predict_sync(dsl_dir_t *dd, dsl_prop_setarg_t *psa)
 			source = ZPROP_SRC_LOCAL;
 	}
 
-	switch (source) {
+	switch ((int)source) {
 	case ZPROP_SRC_NONE:
 		/* Revert to the received value, if any. */
 		err = zap_lookup(mos, zapobj, recvdstr, 8, 1,
@@ -594,7 +594,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	inheritstr = kmem_asprintf("%s%s", propname, ZPROP_INHERIT_SUFFIX);
 	recvdstr = kmem_asprintf("%s%s", propname, ZPROP_RECVD_SUFFIX);
 
-	switch (source) {
+	switch ((int)source) {
 	case ZPROP_SRC_NONE:
 		/*
 		 * revert to received value, if any (inherit -S)
