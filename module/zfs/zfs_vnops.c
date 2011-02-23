@@ -2274,7 +2274,7 @@ top:
 				/*
 				 * Remove setuid/setgid for non-privileged users
 				 */
-				secpolicy_setid_clear(attr, cr);
+				(void) secpolicy_setid_clear(attr, cr);
 				trim_mask = (mask & (ATTR_UID|ATTR_GID));
 			} else {
 				need_policy =  TRUE;
