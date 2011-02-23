@@ -55,7 +55,7 @@ echo_failure() {
         $SETCOLOR_NORMAL
         echo -n "]"
         echo -n "\r"
-        # return 1
+        return 0
 }
 
 start () {
@@ -72,7 +72,6 @@ start () {
                 echo_failure
         fi
         echo
-	#return $RETVAL
 	return 0
 }
 

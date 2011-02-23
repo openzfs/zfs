@@ -1,4 +1,12 @@
-zfs-linux (0.6.0.1rc-1~maverick.3) maverick; urgency=low
+zfs-linux (0.6.0.1rc-1~lucid.4) lucid; urgency=low
+
+  * Force all zfsload returns to 0.
+  * Initial master branch for git-buildpackage.
+  * Update Vcs-Git and Vcs-Browser fields in the control file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Feb 2011 11:23:31 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.3) lucid; urgency=low
 
   * Move the zfsload init script from the zfs-dkms package
     to the zfs package.
