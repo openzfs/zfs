@@ -102,6 +102,9 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* invalidate_inodes() is available */
+#undef HAVE_INVALIDATE_INODES
+
 /* kallsyms_lookup_name() is available */
 #undef HAVE_KALLSYMS_LOOKUP_NAME
 

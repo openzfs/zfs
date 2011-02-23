@@ -26,6 +26,7 @@
 #define _SPL_MM_COMPAT_H
 
 #include <linux/mm.h>
+#include <linux/fs.h>
 
 /*
  * Linux 2.6.31 API Change.
@@ -42,5 +43,17 @@
 #ifndef high_wmark_pages
 #define high_wmark_pages(z)	(z->pages_high)
 #endif
+
+/*
+ * 2.6.37 API compat,
+ * The function invalidate_inodes() is no longer exported by the kernel.
+ * The prototype however is still available which means it is safe
+ * to acquire the symbol's address using spl_kallsyms_lookup_name().
+ */
+#ifndef HAVE_INVALIDATE_INODES
+typedef int (*invalidate_inodes_t)(struct super_block *sb);
+extern invalidate_inodes_t invalidate_inodes_fn;
+#define invalidate_inodes(sb)	invalidate_inodes_fn(sb)
+#endif /* HAVE_INVALIDATE_INODES */
 
 #endif /* SPL_MM_COMPAT_H */

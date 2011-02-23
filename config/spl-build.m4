@@ -74,6 +74,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KVASPRINTF
 	SPL_AC_3ARGS_FILE_FSYNC
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
+	SPL_AC_KERNEL_INVALIDATE_INODES
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1683,5 +1684,20 @@ AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED], [
 		[lib/rwsem-spinlock.c],
 		[AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
 		[rwsem_is_locked() acquires sem->wait_lock])],
+		[])
+])
+
+dnl #
+dnl # 2.6.37 API compat,
+dnl # The function invalidate_inodes() is no longer exported by the kernel.
+dnl # The prototype however is still available which means it is safe
+dnl # to acquire the symbol's address using spl_kallsyms_lookup_name().
+dnl #
+AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[invalidate_inodes],
+		[],
+		[AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
+		[invalidate_inodes() is available])],
 		[])
 ])

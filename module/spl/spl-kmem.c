@@ -180,6 +180,11 @@ spl_global_page_state(spl_zone_stat_item_t item)
 #endif /* NEED_GET_ZONE_COUNTS */
 EXPORT_SYMBOL(spl_global_page_state);
 
+#ifndef HAVE_INVALIDATE_INODES
+invalidate_inodes_t invalidate_inodes_fn = SYMBOL_POISON;
+EXPORT_SYMBOL(invalidate_inodes_fn);
+#endif /* HAVE_INVALIDATE_INODES */
+
 pgcnt_t
 spl_kmem_availrmem(void)
 {
@@ -2088,6 +2093,15 @@ spl_kmem_init_kallsyms_lookup(void)
 	 * depends on the *_pgdat symbols which are now available.
 	 */
 	spl_kmem_init_globals();
+
+#ifndef HAVE_INVALIDATE_INODES
+	invalidate_inodes_fn = (invalidate_inodes_t)
+	spl_kallsyms_lookup_name("invalidate_inodes");
+	if (!invalidate_inodes_fn) {
+		printk(KERN_ERR "Error: Unknown symbol invalidate_inodes\n");
+		return -EFAULT;
+	}
+#endif /* HAVE_INVALIDATE_INODES */
 
 	return 0;
 }
