@@ -33,8 +33,6 @@
 
 #ifdef _KERNEL
 
-#include <sys/blkdev.h>
-
 extern int zvol_check_volsize(uint64_t volsize, uint64_t blocksize);
 extern int zvol_check_volblocksize(uint64_t volblocksize);
 extern int zvol_get_stats(objset_t *os, nvlist_t *nv);

@@ -2274,7 +2274,7 @@ top:
 				/*
 				 * Remove setuid/setgid for non-privileged users
 				 */
-				secpolicy_setid_clear(attr, cr);
+				(void) secpolicy_setid_clear(attr, cr);
 				trim_mask = (mask & (ATTR_UID|ATTR_GID));
 			} else {
 				need_policy =  TRUE;
@@ -2488,7 +2488,7 @@ top:
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zsb), NULL,
 		    &new_mode, sizeof (new_mode));
 		zp->z_mode = new_mode;
-		ASSERT3U((uintptr_t)aclp, !=, NULL);
+		ASSERT3P(aclp, !=, NULL);
 		err = zfs_aclset_common(zp, aclp, cr, tx);
 		ASSERT3U(err, ==, 0);
 		if (zp->z_acl_cached)

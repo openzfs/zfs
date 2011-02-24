@@ -997,11 +997,15 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	    &refdbytes, &availbytes, &usedobjs, &availobjs);
 
 	/*
-	 * The underlying storage pool actually uses multiple block sizes.
-	 * We report the fragsize as the smallest block size we support,
-	 * and we report our blocksize as the filesystem's maximum blocksize.
+	 * The underlying storage pool actually uses multiple block
+	 * size.  Under Solaris frsize (fragment size) is reported as
+	 * the smallest block size we support, and bsize (block size)
+	 * as the filesystem's maximum block size.  Unfortunately,
+	 * under Linux the fragment size and block size are often used
+	 * interchangeably.  Thus we are forced to report both of them
+	 * as the filesystem's maximum block size.
 	 */
-	statp->f_frsize = 1UL << SPA_MINBLOCKSHIFT;
+	statp->f_frsize = zsb->z_max_blksz;
 	statp->f_bsize = zsb->z_max_blksz;
 	bshift = fls(statp->f_bsize) - 1;
 

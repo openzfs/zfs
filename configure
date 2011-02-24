@@ -12382,6 +12382,46 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether symbol blkdev_get_by_path is exported" >&5
+$as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
+	grep -q -E '[[:space:]]blkdev_get_by_path[[:space:]]' \
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in fs/block_dev.c; do
+			grep -q -E "EXPORT_SYMBOL.*(blkdev_get_by_path)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else
+			{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLKDEV_GET_BY_PATH 1
+_ACEOF
+
+		fi
+	else
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLKDEV_GET_BY_PATH 1
+_ACEOF
+
+	fi
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking whether symbol open_bdev_exclusive is exported" >&5
 $as_echo_n "checking whether symbol open_bdev_exclusive is exported... " >&6; }
 	grep -q -E '[[:space:]]open_bdev_exclusive[[:space:]]' \
@@ -16258,6 +16298,46 @@ fi
 
 	rm -Rf build
 
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether symbol blkdev_get_by_path is exported" >&5
+$as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
+	grep -q -E '[[:space:]]blkdev_get_by_path[[:space:]]' \
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+		export=0
+		for file in fs/block_dev.c; do
+			grep -q -E "EXPORT_SYMBOL.*(blkdev_get_by_path)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+		        if test $rc -eq 0; then
+		                export=1
+		                break;
+		        fi
+		done
+		if test $export -eq 0; then
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else
+			{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLKDEV_GET_BY_PATH 1
+_ACEOF
+
+		fi
+	else
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_BLKDEV_GET_BY_PATH 1
+_ACEOF
+
+	fi
 
 
 

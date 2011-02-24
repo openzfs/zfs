@@ -33,6 +33,9 @@
 /* BIO_RW_SYNCIO is defined */
 #undef HAVE_BIO_RW_SYNCIO
 
+/* blkdev_get_by_path() is available */
+#undef HAVE_BLKDEV_GET_BY_PATH
+
 /* blk_end_request() is available */
 #undef HAVE_BLK_END_REQUEST
 

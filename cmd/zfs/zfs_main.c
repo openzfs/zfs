@@ -3902,7 +3902,7 @@ parse_option(char *mntopt, unsigned long *mntflags, int sloppy)
 {
 	const option_map_t *opt;
 	char *ptr, *name, *value = NULL;
-	int rc;
+	int rc = 0;
 
 	name = strdup(mntopt);
 	if (name == NULL)

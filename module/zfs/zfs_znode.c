@@ -206,40 +206,6 @@ zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx)
 #endif /* HAVE_SHARE */
 }
 
-/*
- * define a couple of values we need available
- * for both 64 and 32 bit environments.
- */
-#ifndef NBITSMINOR64
-#define	NBITSMINOR64	32
-#endif
-#ifndef MAXMAJ64
-#define	MAXMAJ64	0xffffffffUL
-#endif
-#ifndef	MAXMIN64
-#define	MAXMIN64	0xffffffffUL
-#endif
-
-/*
- * Create special expldev for ZFS private use.
- * Can't use standard expldev since it doesn't do
- * what we want.  The standard expldev() takes a
- * dev32_t in LP64 and expands it to a long dev_t.
- * We need an interface that takes a dev32_t in ILP32
- * and expands it to a long dev_t.
- */
-static uint64_t
-zfs_expldev(dev_t dev)
-{
-#ifndef _LP64
-	major_t major = (major_t)dev >> NBITSMINOR32 & MAXMAJ32;
-	return (((uint64_t)major << NBITSMINOR64) |
-	    ((minor_t)dev & MAXMIN32));
-#else
-	return (dev);
-#endif
-}
-
 static void
 zfs_znode_sa_init(zfs_sb_t *zsb, znode_t *zp,
     dmu_buf_t *db, dmu_object_type_t obj_type, sa_handle_t *sa_hdl)
@@ -588,7 +554,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (S_ISBLK(vap->va_mode)  || S_ISCHR(vap->va_mode) ||
 	    S_ISFIFO(vap->va_mode) || S_ISSOCK(vap->va_mode))
-		rdev = zfs_expldev(vap->va_rdev);
+		rdev = vap->va_rdev;
 
 	parent = dzp->z_id;
 	mode = acl_ids->z_mode;

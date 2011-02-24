@@ -44,6 +44,7 @@
 #include <sys/zfs_rlock.h>
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
+#include <linux/blkdev_compat.h>
 
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_threads = 0;
