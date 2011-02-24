@@ -16,6 +16,8 @@
 
 . /lib/lsb/init-functions
 
+[ -r /etc/default/zfsload ] && . /etc/default/zfsload
+
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/
 RETVAL=0
 exec=/usr/sbin/zfsload
@@ -55,7 +57,7 @@ echo_failure() {
         $SETCOLOR_NORMAL
         echo -n "]"
         echo -n "\r"
-        return 0
+        return 1
 }
 
 start () {
@@ -72,7 +74,7 @@ start () {
                 echo_failure
         fi
         echo
-	return 0
+	return $RETVAL
 }
 
 stop () {
@@ -105,9 +107,11 @@ restart() {
 
 case $1 in
         start)
+		[ -z "$ZFS_MOUNT" ] && exit 0
                 start
         ;;
         stop)
+		[ -z "$ZFS_UNMOUNT" ] && exit 0
                 stop
         ;;
         restart)

@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu1) unstable; urgency=low
+
+  * Merge behlendorf/linux-compat for Linux 2.6.38 compatibility.
+  * Add /etc/default/zfsload for the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 24 Feb 2011 10:30:13 -0600
+
 zfs-linux (0.6.0.1rc-1~lucid.4) lucid; urgency=low
 
   * Force all zfsload returns to 0.
