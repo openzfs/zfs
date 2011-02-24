@@ -2,6 +2,8 @@ zfs-linux (0.6.0.1rc.1-0ubuntu1) unstable; urgency=low
 
   * Merge behlendorf/linux-compat for Linux 2.6.38 compatibility.
   * Add /etc/default/zfsload for the init script.
+  * Add dist-blkdev_compat.patch so that the new block device
+    compatibility header is included by the dist rules.
 
  -- Darik Horn <dajhorn@vanadac.com>  Thu, 24 Feb 2011 10:30:13 -0600
 
