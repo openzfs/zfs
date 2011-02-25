@@ -27,3 +27,4 @@ spl-objs += @top_srcdir@/module/spl/spl-condvar.o
 spl-objs += @top_srcdir@/module/spl/spl-xdr.o
 spl-objs += @top_srcdir@/module/spl/spl-cred.o
 spl-objs += @top_srcdir@/module/spl/spl-tsd.o
+spl-objs += @top_srcdir@/module/spl/spl-zlib.o

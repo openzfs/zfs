@@ -33,6 +33,7 @@
 #include <sys/rwlock.h>
 #include <sys/taskq.h>
 #include <sys/tsd.h>
+#include <sys/zmod.h>
 #include <sys/debug.h>
 #include <sys/proc.h>
 #include <sys/kstat.h>
@@ -471,20 +472,25 @@ __init spl_init(void)
 	if ((rc = tsd_init()))
 		SGOTO(out8, rc);
 
+	if ((rc = zlib_init()))
+		SGOTO(out9, rc);
+
 	if ((rc = set_hostid()))
-		SGOTO(out9, rc = -EADDRNOTAVAIL);
+		SGOTO(out10, rc = -EADDRNOTAVAIL);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
-		SGOTO(out9, rc = -EADDRNOTAVAIL);
+		SGOTO(out10, rc = -EADDRNOTAVAIL);
 #endif /* HAVE_KALLSYMS_LOOKUP_NAME */
 
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
-		SGOTO(out9, rc);
+		SGOTO(out10, rc);
 
 	printk(KERN_NOTICE "SPL: Loaded Solaris Porting Layer v%s%s\n",
 	       SPL_META_VERSION, SPL_DEBUG_STR);
 	SRETURN(rc);
+out10:
+	zlib_fini();
 out9:
 	tsd_fini();
 out8:
@@ -516,6 +522,7 @@ spl_fini(void)
 
 	printk(KERN_NOTICE "SPL: Unloaded Solaris Porting Layer v%s%s\n",
 	       SPL_META_VERSION, SPL_DEBUG_STR);
+	zlib_fini();
 	tsd_fini();
 	kstat_fini();
 	proc_fini();
