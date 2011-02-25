@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu2) unstable; urgency=low
+
+  * Add udev-zvol.patch for udev to create zvol links.
+    (Commit: 4c0d8e50b99b4f3b4a9b7bc67ac7fc4e406f5755)
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 25 Feb 2011 15:20:41 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu1) unstable; urgency=low
 
   * Merge behlendorf/linux-compat for Linux 2.6.38 compatibility.
