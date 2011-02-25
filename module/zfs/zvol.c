@@ -228,7 +228,7 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
  * Ensure the zap is flushed then inform the VFS of the capacity change.
  */
 static int
-zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
+zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 {
 	struct block_device *bdev;
 	dmu_tx_t *tx;
@@ -236,7 +236,7 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 
-	tx = dmu_tx_create(zv->zv_objset);
+	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, ZVOL_ZAP_OBJ, TRUE, NULL);
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
@@ -244,27 +244,35 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 		return (error);
 	}
 
-	error = zap_update(zv->zv_objset, ZVOL_ZAP_OBJ, "size", 8, 1,
+	error = zap_update(os, ZVOL_ZAP_OBJ, "size", 8, 1,
 	    &volsize, tx);
 	dmu_tx_commit(tx);
 
 	if (error)
 		return (error);
 
-	error = dmu_free_long_range(zv->zv_objset,
+	error = dmu_free_long_range(os,
 	    ZVOL_OBJ, volsize, DMU_OBJECT_END);
 	if (error)
 		return (error);
 
-	zv->zv_volsize = volsize;
-	zv->zv_changed = 1;
-
 	bdev = bdget_disk(zv->zv_disk, 0);
 	if (!bdev)
-		return EIO;
+		return (EIO);
+/*
+ * 2.6.28 API change
+ * Added check_disk_size_change() helper function.
+ */
+#ifdef HAVE_CHECK_DISK_SIZE_CHANGE
+	set_capacity(zv->zv_disk, volsize >> 9);
+	zv->zv_volsize = volsize;
+	check_disk_size_change(zv->zv_disk, bdev);
+#else
+	zv->zv_volsize = volsize;
+	zv->zv_changed = 1;
+	(void) check_disk_change(bdev);
+#endif /* HAVE_CHECK_DISK_SIZE_CHANGE */
 
-	error = check_disk_change(bdev);
-	ASSERT3U(error, !=, 0);
 	bdput(bdev);
 
 	return (0);
@@ -311,7 +319,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		goto out_doi;
 	}
 
-	error = zvol_update_volsize(zv, volsize);
+	error = zvol_update_volsize(zv, volsize, os);
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:

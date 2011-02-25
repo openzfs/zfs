@@ -60,6 +60,9 @@
 /* blk_rq_sectors() is available */
 #undef HAVE_BLK_RQ_SECTORS
 
+/* check_disk_size_change() is available */
+#undef HAVE_CHECK_DISK_SIZE_CHANGE
+
 /* super_block uses const struct xattr_hander */
 #undef HAVE_CONST_XATTR_HANDLER
 
