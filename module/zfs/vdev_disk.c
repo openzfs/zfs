@@ -119,24 +119,42 @@ vdev_disk_error(zio_t *zio)
  * open time from the kernel.
  */
 static int
-vdev_elevator_switch(vdev_t *v, char *elevator, char *device)
+vdev_elevator_switch(vdev_t *v, char *elevator)
 {
+	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev = vd->vd_bdev;
+	struct request_queue *q = bdev_get_queue(bdev);
+	char *device = bdev->bd_disk->disk_name;
 	char sh_path[] = "/bin/sh";
 	char sh_cmd[128];
 	char *argv[] = { sh_path, "-c", sh_cmd };
 	char *envp[] = { NULL };
-	int error;
+	int count = 0, error;
 
+	/* Skip devices without schedulers (loop, ram, dm, etc) */
+	if (!q->elevator || !blk_queue_stackable(q))
+		return (0);
+
+	/* Leave existing scheduler when set to "none" */
 	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
 		return (0);
 
+	/*
+	 * Set the desired scheduler with a three attempt retry for
+	 * -EFAULT which has been observed to occur spuriously.
+	 */
 	sprintf(sh_cmd, "%s \"%s\" >/sys/block/%s/queue/scheduler",
 	    "/bin/echo", elevator, device);
 
-	error = call_usermodehelper(sh_path, argv, envp, 1);
+	while (++count <= 3) {
+		error = call_usermodehelper(sh_path, argv, envp, 1);
+		if ((error == 0) || (error != -EFAULT))
+		       break;
+	}
+
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
-		    elevator, v->vdev_path, device, error);
+		       elevator, v->vdev_path, device, error);
 
 	return (error);
 }
@@ -207,8 +225,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
 
 	/* Try to set the io scheduler elevator algorithm */
-	(void) vdev_elevator_switch(v, zfs_vdev_scheduler,
-	    bdev->bd_disk->disk_name);
+	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
 
 	return 0;
 }
