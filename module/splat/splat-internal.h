@@ -63,6 +63,7 @@
 #include <sys/atomic.h>
 #include <sys/list.h>
 #include <sys/sunddi.h>
+#include <sys/zmod.h>
 #include <linux/cdev.h>
 
 #include "spl-device.h"
@@ -218,6 +219,7 @@ splat_subsystem_t *splat_atomic_init(void);
 splat_subsystem_t *splat_list_init(void);
 splat_subsystem_t *splat_generic_init(void);
 splat_subsystem_t *splat_cred_init(void);
+splat_subsystem_t *splat_zlib_init(void);
 
 void splat_condvar_fini(splat_subsystem_t *);
 void splat_kmem_fini(splat_subsystem_t *);
@@ -233,6 +235,7 @@ void splat_atomic_fini(splat_subsystem_t *);
 void splat_list_fini(splat_subsystem_t *);
 void splat_generic_fini(splat_subsystem_t *);
 void splat_cred_fini(splat_subsystem_t *);
+void splat_zlib_fini(splat_subsystem_t *);
 
 int splat_condvar_id(void);
 int splat_kmem_id(void);
@@ -248,5 +251,6 @@ int splat_atomic_id(void);
 int splat_list_id(void);
 int splat_generic_id(void);
 int splat_cred_id(void);
+int splat_zlib_id(void);
 
 #endif /* _SPLAT_INTERNAL_H */

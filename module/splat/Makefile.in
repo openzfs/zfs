@@ -23,3 +23,4 @@ splat-objs += @top_srcdir@/module/splat/splat-atomic.o
 splat-objs += @top_srcdir@/module/splat/splat-list.o
 splat-objs += @top_srcdir@/module/splat/splat-generic.o
 splat-objs += @top_srcdir@/module/splat/splat-cred.o
+splat-objs += @top_srcdir@/module/splat/splat-zlib.o
