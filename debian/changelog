@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu3) unstable; urgency=low
+
+  * Add fix-set-block-scheduler-warnings.patch.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 25 Feb 2011 20:59:26 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu2) unstable; urgency=low
 
   * Add udev-zvol.patch for udev to create zvol links.
