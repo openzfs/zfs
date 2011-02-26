@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu4) unstable; urgency=low
+
+  * Add version numbers to the dkms dependencies.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 26 Feb 2011 01:13:40 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu3) unstable; urgency=low
 
   * Add fix-set-block-scheduler-warnings.patch.
