@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu5) unstable; urgency=low
+
+  * Remove the build dependency on linux-headers because it is unnecessary
+    for Ubuntu and prevents building on Debian Squeeze and Debian Sid.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Feb 2011 13:20:03 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu4) unstable; urgency=low
 
   * Add version numbers to the dkms dependencies.
