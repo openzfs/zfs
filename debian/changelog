@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.1rc.1-0ubuntu6) unstable; urgency=low
+
+  * Check for a Debian host in PRE_BUILD and configure for split headers.
+    See https://github.com/behlendorf/spl/issues/closed/#issue/10
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Feb 2011 17:51:17 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu5) unstable; urgency=low
 
   * Remove the build dependency on linux-headers because it is unnecessary
