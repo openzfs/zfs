@@ -5178,8 +5178,10 @@ _init(void)
 	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
 #endif /* HAVE_SHARE */
 
-	printk(KERN_NOTICE "ZFS: Loaded ZFS Filesystem v%s%s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR);
+	printk(KERN_NOTICE "ZFS: Loaded module v%s%s, "
+	       "ZFS pool version %s, ZFS filesystem version %s\n",
+	       ZFS_META_VERSION, ZFS_DEBUG_STR,
+	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
 
 	return (0);
 
@@ -5214,7 +5216,7 @@ _fini(void)
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 
-	printk(KERN_NOTICE "ZFS: Unloaded ZFS Filesystem v%s%s\n",
+	printk(KERN_NOTICE "ZFS: Unloaded module v%s%s\n",
 	       ZFS_META_VERSION, ZFS_DEBUG_STR);
 
 	return (0);
