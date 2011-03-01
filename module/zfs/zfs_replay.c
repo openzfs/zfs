@@ -37,15 +37,16 @@
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_fuid.h>
+#include <sys/zfs_vnops.h>
 #include <sys/spa.h>
 #include <sys/zil.h>
-#include <sys/zfs_vnops.h>
 #include <sys/byteorder.h>
 #include <sys/stat.h>
 #include <sys/mode.h>
 #include <sys/acl.h>
 #include <sys/atomic.h>
 #include <sys/cred.h>
+#include <sys/zpl.h>
 
 /*
  * Functions to replay ZFS intent log (ZIL) records
@@ -54,14 +55,17 @@
  */
 
 static void
-zfs_init_iattr(struct iattr *attr, uint64_t mask, uint64_t mode,
-	uint64_t uid, uint64_t gid)
+zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
+	uint64_t uid, uint64_t gid, uint64_t rdev, uint64_t nodeid)
 {
-	memset(attr, 0, sizeof(*attr));
-	attr->ia_valid = (uint_t)mask;
-	attr->ia_mode = mode;
-	attr->ia_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
-	attr->ia_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
+	bzero(vap, sizeof (*vap));
+	vap->va_mask = (uint_t)mask;
+	vap->va_type = IFTOVT(mode);
+	vap->va_mode = mode;
+	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
+	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
+	vap->va_rdev = rdev;
+	vap->va_nodeid = nodeid;
 }
 
 /* ARGSUSED */
@@ -71,7 +75,6 @@ zfs_replay_error(zfs_sb_t *zsb, lr_t *lr, boolean_t byteswap)
 	return (ENOTSUP);
 }
 
-#ifdef HAVE_XVATTR
 static void
 zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 {
@@ -82,9 +85,9 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	void *scanstamp;
 	int i;
 
-	xvap->xva_vattr.va_mask |= AT_XVATTR;
+	xvap->xva_vattr.va_mask |= ATTR_XVATTR;
 	if ((xoap = xva_getxoptattr(xvap)) == NULL) {
-		xvap->xva_vattr.va_mask &= ~AT_XVATTR; /* shouldn't happen */
+		xvap->xva_vattr.va_mask &= ~ATTR_XVATTR; /* shouldn't happen */
 		return;
 	}
 
@@ -132,7 +135,6 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_SPARSE))
 		xoap->xoa_sparse = ((*attrs & XAT0_SPARSE) != 0);
 }
-#endif /* HAVE_XVATTR */
 
 static int
 zfs_replay_domain_cnt(uint64_t uid, uint64_t gid)
@@ -267,11 +269,9 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 	lr_create_t *lr = (lr_create_t *)lracl;
 	znode_t *dzp;
 	struct inode *ip = NULL;
-#ifdef HAVE_XVATTR
 	xvattr_t xva;
-	vsecattr_t vsec = { 0 };
-#endif /* HAVE_XVATTR */
 	int vflg = 0;
+	vsecattr_t vsec = { 0 };
 	lr_attr_t *lrattr;
 	void *aclstart;
 	void *fuidstart;
@@ -302,10 +302,9 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 	if ((error = zfs_zget(zsb, lr->lr_doid, &dzp)) != 0)
 		return (error);
 
-#ifdef HAVE_XVATTR
 	xva_init(&xva);
-	zfs_init_iattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
-	    lr->lr_mode, lr->lr_uid, lr->lr_gid, /*lr->lr_rdev, lr->lr_foid*/);
+	zfs_init_vattr(&xva.xva_vattr, AT_MODE | AT_UID | AT_GID,
+	    lr->lr_mode, lr->lr_uid, lr->lr_gid, lr->lr_rdev, lr->lr_foid);
 
 	/*
 	 * All forms of zfs create (create, mkdir, mkxattrdir, symlink)
@@ -316,7 +315,6 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 	 */
 	ZFS_TIME_DECODE(&xva.xva_vattr.va_ctime, lr->lr_crtime);
 	xva.xva_vattr.va_nblocks = lr->lr_gen;
-#endif /* HAVE_XVATTR */
 
 	error = dmu_object_info(zsb->z_os, lr->lr_foid, NULL);
 	if (error != ENOENT)
@@ -334,11 +332,10 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 		    lr->lr_uid, lr->lr_gid);
 		/*FALLTHROUGH*/
 	case TX_CREATE_ACL_ATTR:
-#ifdef HAVE_XVATTR
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
 			xvatlen = ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
-			xva.xva_vattr.va_mask |= AT_XVATTR;
+			xva.xva_vattr.va_mask |= ATTR_XVATTR;
 			zfs_replay_xvattr(lrattr, &xva);
 		}
 		vsec.vsa_mask = VSA_ACE | VSA_ACE_ACLFLAGS;
@@ -356,8 +353,7 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 		}
 
 		error = zfs_create(ZTOI(dzp), name, &xva.xva_vattr,
-		    0, 0, &ip, kcred, vflg, NULL, &vsec);
-#endif /* HAVE_XVATTR */
+		    0, 0, &ip, kcred, vflg, &vsec);
 		break;
 	case TX_MKDIR_ACL:
 		aclstart = (caddr_t)(lracl + 1);
@@ -368,7 +364,6 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 		    lr->lr_uid, lr->lr_gid);
 		/*FALLTHROUGH*/
 	case TX_MKDIR_ACL_ATTR:
-#ifdef HAVE_XVATTR
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
 			xvatlen = ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
@@ -388,8 +383,7 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 			    lr->lr_uid, lr->lr_gid);
 		}
 		error = zfs_mkdir(ZTOI(dzp), name, &xva.xva_vattr,
-		    &ip, kcred, NULL, vflg, &vsec);
-#endif /* HAVE_XVATTR */
+		    &ip, kcred, vflg, &vsec);
 		break;
 	default:
 		error = ENOTSUP;
@@ -417,12 +411,10 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 	struct inode *ip = NULL;
 	xvattr_t xva;
 	int vflg = 0;
-#ifdef HAVE_XVATTR
 	size_t lrsize = sizeof (lr_create_t);
 	lr_attr_t *lrattr;
-	size_t xvatlen;
-#endif /* HAVE_XVATTR */
 	void *start;
+	size_t xvatlen;
 	uint64_t txtype;
 	int error;
 
@@ -437,10 +429,9 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 	if ((error = zfs_zget(zsb, lr->lr_doid, &dzp)) != 0)
 		return (error);
 
-#ifdef HAVE_XVATTR
 	xva_init(&xva);
-	zfs_init_iattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
-	    lr->lr_mode, lr->lr_uid, lr->lr_gid, /*lr->lr_rdev, lr->lr_foid*/);
+	zfs_init_vattr(&xva.xva_vattr, AT_MODE | AT_UID | AT_GID,
+	    lr->lr_mode, lr->lr_uid, lr->lr_gid, lr->lr_rdev, lr->lr_foid);
 
 	/*
 	 * All forms of zfs create (create, mkdir, mkxattrdir, symlink)
@@ -451,7 +442,6 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 	 */
 	ZFS_TIME_DECODE(&xva.xva_vattr.va_ctime, lr->lr_crtime);
 	xva.xva_vattr.va_nblocks = lr->lr_gen;
-#endif /* HAVE_XVATTR */
 
 	error = dmu_object_info(zsb->z_os, lr->lr_foid, NULL);
 	if (error != ENOENT)
@@ -477,7 +467,6 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 
 	switch (txtype) {
 	case TX_CREATE_ATTR:
-#ifdef HAVE_XVATTR
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
 		xvatlen = ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
 		zfs_replay_xvattr((lr_attr_t *)((caddr_t)lr + lrsize), &xva);
@@ -486,7 +475,6 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
-#endif /* HAVE_XVATTR */
 
 		/*FALLTHROUGH*/
 	case TX_CREATE:
@@ -497,7 +485,6 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 		    0, 0, &ip, kcred, vflg, NULL);
 		break;
 	case TX_MKDIR_ATTR:
-#ifdef HAVE_XVATTR
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
 		xvatlen = ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
 		zfs_replay_xvattr((lr_attr_t *)((caddr_t)lr + lrsize), &xva);
@@ -506,7 +493,6 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
-#endif /* HAVE_XVATTR */
 
 		/*FALLTHROUGH*/
 	case TX_MKDIR:
@@ -555,10 +541,8 @@ zfs_replay_remove(zfs_sb_t *zsb, lr_remove_t *lr, boolean_t byteswap)
 	if ((error = zfs_zget(zsb, lr->lr_doid, &dzp)) != 0)
 		return (error);
 
-#ifdef HAVE_PN_UTILS
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
-#endif
 
 	switch ((int)lr->lr_common.lrc_txtype) {
 	case TX_REMOVE:
@@ -582,6 +566,7 @@ zfs_replay_link(zfs_sb_t *zsb, lr_link_t *lr, boolean_t byteswap)
 	char *name = (char *)(lr + 1);	/* name follows lr_link_t */
 	znode_t *dzp, *zp;
 	int error;
+	int vflg = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -594,10 +579,8 @@ zfs_replay_link(zfs_sb_t *zsb, lr_link_t *lr, boolean_t byteswap)
 		return (error);
 	}
 
-#ifdef HAVE_PN_UTILS
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
-#endif
 
 	error = zfs_link(ZTOI(dzp), ZTOI(zp), name, kcred);
 
@@ -641,9 +624,7 @@ zfs_replay_rename(zfs_sb_t *zsb, lr_rename_t *lr, boolean_t byteswap)
 static int
 zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 {
-#if 0
 	char *data = (char *)(lr + 1);	/* data follows lr_write_t */
-#endif
 	znode_t	*zp;
 	int error;
 	uint64_t eod, offset, length;
@@ -690,13 +671,14 @@ zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 			zsb->z_replay_eof = eod;
 	}
 
-	/*
-	 * XXX: Use zfs_write() once uio types are removed
-	 */
-#if 0
-	 error = vn_rdwr(UIO_WRITE, ZTOI(zp), data, length, offset,
-	    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, &resid);
-#endif
+	error = zpl_write_common(ZTOI(zp), data, length, offset,
+	    UIO_SYSSPACE, 0, kcred);
+	if (error) {
+		if (error < 0)
+			error = -error;
+		else
+			error = EIO; /* Short write */
+	}
 
 	iput(ZTOI(zp));
 	zsb->z_replay_eof = 0;	/* safety */
@@ -786,53 +768,46 @@ static int
 zfs_replay_setattr(zfs_sb_t *zsb, lr_setattr_t *lr, boolean_t byteswap)
 {
 	znode_t *zp;
-#ifdef HAVE_XVATTR
 	xvattr_t xva;
-#endif /* HAVE_XATTR */
-	struct iattr attr;
+	vattr_t *vap = &xva.xva_vattr;
 	int error;
 	void *start;
 
-#ifdef HAVE_XVATTR
 	xva_init(&xva);
-#endif /* HAVE_XVATTR */
 	if (byteswap) {
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-#ifdef HAVE_XVATTR
-		if ((lr->lr_mask & AT_XVATTR) &&
+		if ((lr->lr_mask & ATTR_XVATTR) &&
 		    zsb->z_version >= ZPL_VERSION_INITIAL)
 			zfs_replay_swap_attrs((lr_attr_t *)(lr + 1));
-#endif /* HAVE_XVATTR */
 	}
 
 	if ((error = zfs_zget(zsb, lr->lr_foid, &zp)) != 0)
 		return (error);
 
-	zfs_init_iattr(&attr, lr->lr_mask, lr->lr_mode, lr->lr_uid, lr->lr_gid);
+	zfs_init_vattr(vap, lr->lr_mask, lr->lr_mode,
+	    lr->lr_uid, lr->lr_gid, 0, lr->lr_foid);
 
-	attr.ia_size = lr->lr_size;
-	ZFS_TIME_DECODE(&attr.ia_atime, lr->lr_atime);
-	ZFS_TIME_DECODE(&attr.ia_mtime, lr->lr_mtime);
+	vap->va_size = lr->lr_size;
+	ZFS_TIME_DECODE(&vap->va_atime, lr->lr_atime);
+	ZFS_TIME_DECODE(&vap->va_mtime, lr->lr_mtime);
 
 	/*
 	 * Fill in xvattr_t portions if necessary.
 	 */
 
 	start = (lr_setattr_t *)(lr + 1);
-#ifdef HAVE_XVATTR
-	if (iattr->ia_mask & AT_XVATTR) {
+	if (vap->va_mask & ATTR_XVATTR) {
 		zfs_replay_xvattr((lr_attr_t *)start, &xva);
 		start = (caddr_t)start +
 		    ZIL_XVAT_SIZE(((lr_attr_t *)start)->lr_attr_masksize);
 	} else
-		xva.xva_vattr.va_mask &= ~AT_XVATTR;
-#endif /* HAVE_XVATTR */
+		xva.xva_vattr.va_mask &= ~ATTR_XVATTR;
 
 	zsb->z_fuid_replay = zfs_replay_fuid_domain(start, &start,
 	    lr->lr_uid, lr->lr_gid);
 
-	error = zfs_setattr(ZTOI(zp), &attr, 0, kcred);
+	error = zfs_setattr(ZTOI(zp), vap, 0, kcred);
 
 	zfs_fuid_info_free(zsb->z_fuid_replay);
 	zsb->z_fuid_replay = NULL;

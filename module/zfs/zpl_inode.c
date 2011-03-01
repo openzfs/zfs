@@ -171,10 +171,33 @@ static int
 zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
 	cred_t *cr;
+	vattr_t *vap;
+	struct inode *ip;
 	int error;
 
+	ip = dentry->d_inode;
 	cr = (cred_t *)get_current_cred();
-	error = -zfs_getattr(dentry->d_inode, stat, 0, cr);
+	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+
+	error = -zfs_getattr(ip, vap, 0, cr);
+	if (error)
+		goto out;
+
+	stat->ino = ip->i_ino;
+	stat->dev = 0;
+	stat->mode = vap->va_mode;
+	stat->nlink = vap->va_nlink;
+	stat->uid = vap->va_uid;
+	stat->gid = vap->va_gid;
+	stat->rdev = vap->va_rdev;
+	stat->size = vap->va_size;
+	stat->atime = vap->va_atime;
+	stat->mtime = vap->va_mtime;
+	stat->ctime = vap->va_ctime;
+	stat->blksize = vap->va_blksize;
+	stat->blocks = vap->va_nblocks;
+out:
+	kmem_free(vap, sizeof(vattr_t));
 	put_cred(cr);
 	ASSERT3S(error, <=, 0);
 
@@ -182,21 +205,34 @@ zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 }
 
 static int
-zpl_setattr(struct dentry *dentry, struct iattr *attr)
+zpl_setattr(struct dentry *dentry, struct iattr *ia)
 {
 	cred_t *cr;
+	vattr_t *vap;
 	int error;
 
-	error = inode_change_ok(dentry->d_inode, attr);
+	error = inode_change_ok(dentry->d_inode, ia);
 	if (error)
 		return (error);
 
 	cr = (cred_t *)get_current_cred();
-	error = -zfs_setattr(dentry->d_inode, attr, 0, cr);
+	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
+	vap->va_mask = ia->ia_valid & ATTR_IATTR_MASK;
+	vap->va_mode = ia->ia_mode;
+	vap->va_uid = ia->ia_uid;
+	vap->va_gid = ia->ia_gid;
+	vap->va_size = ia->ia_size;
+	vap->va_atime = ia->ia_atime;
+	vap->va_mtime = ia->ia_mtime;
+	vap->va_ctime = ia->ia_ctime;
+
+	error = -zfs_setattr(dentry->d_inode, vap, 0, cr);
+
+	kmem_free(vap, sizeof(vattr_t));
 	put_cred(cr);
 	ASSERT3S(error, <=, 0);
 
-	return (-error);
+	return (error);
 }
 
 static int

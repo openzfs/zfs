@@ -69,11 +69,7 @@
 int
 zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 {
-#ifdef HAVE_XVATTR
-	int isxvattr = (vap->va_mask & AT_XVATTR);
-#else
-	int isxvattr = 0;
-#endif /* HAVE_XVATTR */
+	int isxvattr = (vap->va_mask & ATTR_XVATTR);
 	switch (type) {
 	case Z_FILE:
 		if (vsecp == NULL && !isxvattr)
@@ -101,7 +97,6 @@ zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 	return (TX_MAX_TYPE);
 }
 
-#ifdef HAVE_XVATTR
 /*
  * build up the log data necessary for logging xvattr_t
  * First lr_attr_t is initialized.  following the lr_attr_t
@@ -215,7 +210,6 @@ zfs_log_fuid_domains(zfs_fuid_info_t *fuidp, void *start)
 	}
 	return (start);
 }
-#endif /* HAVE_XVATTR */
 
 /*
  * zfs_log_create() is used to handle TX_CREATE, TX_CREATE_ATTR, TX_MKDIR,
@@ -244,11 +238,9 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 {
 	itx_t *itx;
 	lr_create_t *lr;
-#ifdef HAVE_XVATTR
 	lr_acl_create_t *lracl;
 	xvattr_t *xvap = (xvattr_t *)vap;
-#endif /* HAVE_XVATTR */
-	size_t aclsize;
+	size_t aclsize = 0;
 	size_t xvatsize = 0;
 	size_t txsize;
 	void *end;
@@ -268,10 +260,8 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 		fuidsz += fuidp->z_fuid_cnt * sizeof (uint64_t);
 	}
 
-#ifdef HAVE_XVATTR
-	if (vap->va_mask & AT_XVATTR)
+	if (vap->va_mask & ATTR_XVATTR)
 		xvatsize = ZIL_XVAT_SIZE(xvap->xva_mapsize);
-#endif /* HAVE_XVATTR */
 
 	if ((int)txtype == TX_CREATE_ATTR || (int)txtype == TX_MKDIR_ATTR ||
 	    (int)txtype == TX_CREATE || (int)txtype == TX_MKDIR ||
@@ -314,8 +304,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	/*
 	 * Fill in xvattr info if any
 	 */
-#ifdef HAVE_XVATTR
-	if (vap->va_mask & AT_XVATTR) {
+	if (vap->va_mask & ATTR_XVATTR) {
 		zfs_log_xvattr((lr_attr_t *)((caddr_t)lr + lrsize), xvap);
 		end = (caddr_t)lr + lrsize + xvatsize;
 	} else {
@@ -344,9 +333,6 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 		end = zfs_log_fuid_ids(fuidp, end);
 		end = zfs_log_fuid_domains(fuidp, end);
 	}
-#else
-	end = (caddr_t)lr + lrsize;
-#endif /* HAVE_XVATTR */
 	/*
 	 * Now place file name in log record
 	 */
@@ -566,14 +552,12 @@ zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
  * zfs_log_setattr() handles TX_SETATTR transactions.
  */
 void
-zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
-    struct iattr *attr, uint_t mask_applied, zfs_fuid_info_t *fuidp)
+zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp)
 {
 	itx_t		*itx;
 	lr_setattr_t	*lr;
-#ifdef HAVE_XVATTR
 	xvattr_t	*xvap = (xvattr_t *)vap;
-#endif /* HAVEXVATTR */
 	size_t		recsize = sizeof (lr_setattr_t);
 	void		*start;
 
@@ -585,35 +569,32 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 	 * for lr_attr_t + xvattr mask, mapsize and create time
 	 * plus actual attribute values
 	 */
-#ifdef HAVE_XVATTR
-	if (attr->ia_valid & AT_XVATTR)
+	if (vap->va_mask & ATTR_XVATTR)
 		recsize = sizeof (*lr) + ZIL_XVAT_SIZE(xvap->xva_mapsize);
 
 	if (fuidp)
 		recsize += fuidp->z_domain_str_sz;
-#endif /* HAVE_XVATTR */
 
 	itx = zil_itx_create(txtype, recsize);
 	lr = (lr_setattr_t *)&itx->itx_lr;
 	lr->lr_foid = zp->z_id;
 	lr->lr_mask = (uint64_t)mask_applied;
-	lr->lr_mode = (uint64_t)attr->ia_mode;
-	if ((mask_applied & ATTR_UID) && IS_EPHEMERAL(attr->ia_uid))
+	lr->lr_mode = (uint64_t)vap->va_mode;
+	if ((mask_applied & ATTR_UID) && IS_EPHEMERAL(vap->va_uid))
 		lr->lr_uid = fuidp->z_fuid_owner;
 	else
-		lr->lr_uid = (uint64_t)attr->ia_uid;
+		lr->lr_uid = (uint64_t)vap->va_uid;
 
-	if ((mask_applied & ATTR_GID) && IS_EPHEMERAL(attr->ia_gid))
+	if ((mask_applied & ATTR_GID) && IS_EPHEMERAL(vap->va_gid))
 		lr->lr_gid = fuidp->z_fuid_group;
 	else
-		lr->lr_gid = (uint64_t)attr->ia_gid;
+		lr->lr_gid = (uint64_t)vap->va_gid;
 
-	lr->lr_size = (uint64_t)attr->ia_size;
-	ZFS_TIME_ENCODE(&attr->ia_atime, lr->lr_atime);
-	ZFS_TIME_ENCODE(&attr->ia_mtime, lr->lr_mtime);
+	lr->lr_size = (uint64_t)vap->va_size;
+	ZFS_TIME_ENCODE(&vap->va_atime, lr->lr_atime);
+	ZFS_TIME_ENCODE(&vap->va_mtime, lr->lr_mtime);
 	start = (lr_setattr_t *)(lr + 1);
-#ifdef HAVE_XVATTR
-	if (attr->ia_valid & ATTR_XVATTR) {
+	if (vap->va_mask & ATTR_XVATTR) {
 		zfs_log_xvattr((lr_attr_t *)start, xvap);
 		start = (caddr_t)start + ZIL_XVAT_SIZE(xvap->xva_mapsize);
 	}
@@ -624,7 +605,6 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 
 	if (fuidp)
 		(void) zfs_log_fuid_domains(fuidp, start);
-#endif /* HAVE_XVATTR */
 
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
@@ -686,12 +666,10 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 
 		start = (caddr_t)start + ZIL_ACE_LENGTH(aclbytes);
 
-#ifdef HAVE_XVATTR
 		if (fuidp) {
 			start = zfs_log_fuid_ids(fuidp, start);
 			(void) zfs_log_fuid_domains(fuidp, start);
 		}
-#endif /* HAVE_XVATTR */
 	}
 
 	itx->itx_sync = (zp->z_sync_cnt != 0);

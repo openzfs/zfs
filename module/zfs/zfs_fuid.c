@@ -415,10 +415,10 @@ zfs_fuid_map_id(zfs_sb_t *zsb, uint64_t fuid,
 	}
 	return (id);
 #else
-	if(type == ZFS_OWNER || type == ZFS_ACE_USER)
-		return (crgetuid(cr));
-	else
-		return (crgetgid(cr));
+	/*
+	 * The Linux port only supports POSIX IDs, use the passed id.
+	 */
+	return (fuid);
 #endif /* HAVE_KSID */
 }
 

@@ -57,8 +57,8 @@ extern "C" {
 #define	ZFS_APPENDONLY		0x0000004000000000ull
 #define	ZFS_NODUMP		0x0000008000000000ull
 #define	ZFS_OPAQUE		0x0000010000000000ull
-#define	ZFS_AV_QUARANTINED 	0x0000020000000000ull
-#define	ZFS_AV_MODIFIED 	0x0000040000000000ull
+#define	ZFS_AV_QUARANTINED	0x0000020000000000ull
+#define	ZFS_AV_MODIFIED		0x0000040000000000ull
 #define	ZFS_REPARSE		0x0000080000000000ull
 #define	ZFS_OFFLINE		0x0000100000000000ull
 #define	ZFS_SPARSE		0x0000200000000000ull
@@ -69,7 +69,7 @@ extern "C" {
 		pflags |= attr; \
 	else \
 		pflags &= ~attr; \
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zp->z_sb), \
+	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
 	    &pflags, sizeof (pflags), tx)); \
 }
 
@@ -78,8 +78,8 @@ extern "C" {
  */
 #define	ZFS_XATTR		0x1		/* is an extended attribute */
 #define	ZFS_INHERIT_ACE		0x2		/* ace has inheritable ACEs */
-#define	ZFS_ACL_TRIVIAL 	0x4		/* files ACL is trivial */
-#define	ZFS_ACL_OBJ_ACE 	0x8		/* ACL has CMPLX Object ACE */
+#define	ZFS_ACL_TRIVIAL		0x4		/* files ACL is trivial */
+#define	ZFS_ACL_OBJ_ACE		0x8		/* ACL has CMPLX Object ACE */
 #define	ZFS_ACL_PROTECTED	0x10		/* ACL protected */
 #define	ZFS_ACL_DEFAULTED	0x20		/* ACL should be defaulted */
 #define	ZFS_ACL_AUTO_INHERIT	0x40		/* ACL should be inherited */
@@ -351,8 +351,7 @@ extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, struct iattr *attr, uint_t mask_applied,
-    zfs_fuid_info_t *fuidp);
+    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp);
 extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
