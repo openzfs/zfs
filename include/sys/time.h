@@ -82,4 +82,7 @@ gethrestime_sec(void)
         return now.tv_sec;
 }
 
+#define TIMESPEC_OVERFLOW(ts)		\
+	((ts)->tv_sec < TIME32_MIN || (ts)->tv_sec > TIME32_MAX)
+
 #endif  /* _SPL_TIME_H */
