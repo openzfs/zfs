@@ -42,9 +42,6 @@
 #include <sys/uio.h>
 #include <sys/sunldi.h>
 
-#define XVA_MAPSIZE     3
-#define XVA_MAGIC       0x78766174
-
 /*
  * Prior to linux-2.6.33 only O_DSYNC semantics were implemented and
  * they used the O_SYNC flag.  As of linux-2.6.33 the this behavior
@@ -69,33 +66,34 @@
 #define FNODSYNC	0x10000 /* fsync pseudo flag */
 #define FNOFOLLOW	0x20000 /* don't follow symlinks */
 
-#define AT_TYPE		0x00001
-#define AT_MODE		0x00002
-#undef  AT_UID		/* Conflicts with linux/auxvec.h */
-#define AT_UID          0x00004
-#undef  AT_GID		/* Conflicts with linux/auxvec.h */
-#define AT_GID          0x00008
-#define AT_FSID		0x00010
-#define AT_NODEID	0x00020
-#define AT_NLINK	0x00040
-#define AT_SIZE		0x00080
-#define AT_ATIME	0x00100
-#define AT_MTIME	0x00200
-#define AT_CTIME	0x00400
-#define AT_RDEV		0x00800
-#define AT_BLKSIZE	0x01000
-#define AT_NBLOCKS	0x02000
-#define AT_SEQ		0x08000
-#define AT_XVATTR	0x10000
+/*
+ * The vnode AT_ flags are mapped to the Linux ATTR_* flags.
+ * This allows them to be used safely with an iattr structure.
+ * The AT_XVATTR flag has been added and mapped to the upper
+ * bit range to avoid conflicting with the standard Linux set.
+ */
+#undef AT_UID
+#undef AT_GID
+
+#define AT_MODE		ATTR_MODE
+#define AT_UID		ATTR_UID
+#define AT_GID		ATTR_GID
+#define AT_SIZE		ATTR_SIZE
+#define AT_ATIME	ATTR_ATIME
+#define AT_MTIME	ATTR_MTIME
+#define AT_CTIME	ATTR_CTIME
+
+#define ATTR_XVATTR	(1 << 31)
+#define AT_XVATTR	ATTR_XVATTR
+
+#define ATTR_IATTR_MASK	(ATTR_MODE | ATTR_UID | ATTR_GID | ATTR_SIZE | \
+			ATTR_ATIME | ATTR_MTIME | ATTR_CTIME | ATTR_FILE)
 
 #define CRCREAT		0x01
 #define RMFILE		0x02
 
 #define B_INVAL		0x01
 #define B_TRUNC		0x02
-
-#define V_ACE_MASK	0x0001
-#define V_APPEND	0x0002
 
 #define LOOKUP_DIR		0x01
 #define LOOKUP_XATTR		0x02
@@ -135,49 +133,14 @@ typedef struct vattr {
 	long		va_nodeid;	/* node # */
 	uint32_t	va_nlink;	/* # links */
 	uint64_t	va_size;	/* file size */
-	uint32_t	va_blocksize;	/* block size */
-	uint64_t	va_nblocks;	/* space used */
 	struct timespec	va_atime;	/* last acc */
 	struct timespec	va_mtime;	/* last mod */
 	struct timespec	va_ctime;	/* last chg */
 	dev_t		va_rdev;	/* dev */
+	uint64_t	va_nblocks;	/* space used */
+	uint32_t	va_blksize;	/* block size */
+	uint32_t	va_seq;		/* sequence */
 } vattr_t;
-
-typedef struct xoptattr {
-	timestruc_t	xoa_createtime;	/* Create time of file */
-	uint8_t		xoa_archive;
-	uint8_t		xoa_system;
-	uint8_t		xoa_readonly;
-	uint8_t		xoa_hidden;
-	uint8_t		xoa_nounlink;
-	uint8_t		xoa_immutable;
-	uint8_t		xoa_appendonly;
-	uint8_t		xoa_nodump;
-	uint8_t		xoa_settable;
-	uint8_t		xoa_opaque;
-	uint8_t		xoa_av_quarantined;
-	uint8_t		xoa_av_modified;
-} xoptattr_t;
-
-typedef struct xvattr {
-	vattr_t		xva_vattr;	/* Embedded vattr structure */
-	uint32_t	xva_magic;	/* Magic Number */
-	uint32_t	xva_mapsize;	/* Size of attr bitmap (32-bit words) */
-	uint32_t	*xva_rtnattrmapp;	/* Ptr to xva_rtnattrmap[] */
-	uint32_t	xva_reqattrmap[XVA_MAPSIZE];	/* Requested attrs */
-	uint32_t	xva_rtnattrmap[XVA_MAPSIZE];	/* Returned attrs */
-	xoptattr_t	xva_xoptattrs;	/* Optional attributes */
-} xvattr_t;
-
-typedef struct vsecattr {
-	uint_t		vsa_mask;	/* See below */
-	int		vsa_aclcnt;	/* ACL entry count */
-	void		*vsa_aclentp;	/* pointer to ACL entries */
-	int		vsa_dfaclcnt;	/* default ACL entry count */
-	void		*vsa_dfaclentp;	/* pointer to default ACL entries */
-	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
-	uint_t		vsa_aclflags;	/* ACE ACL flags */
-} vsecattr_t;
 
 typedef struct vnode {
 	struct file	*v_file;
@@ -202,13 +165,6 @@ typedef struct vn_file {
 	struct list_head f_list;	/* list referenced file_t's */
 } file_t;
 
-typedef struct caller_context {
-	pid_t		cc_pid;		/* Process ID of the caller */
-	int		cc_sysid;	/* System ID, used for remote calls */
-	u_longlong_t	cc_caller_id;	/* Identifier for (set of) caller(s) */
-	ulong_t		cc_flags;
-} caller_context_t;
-
 extern vnode_t *vn_alloc(int flag);
 void vn_free(vnode_t *vp);
 extern vtype_t vn_mode_to_vtype(mode_t);
@@ -221,7 +177,7 @@ extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 		   offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
 		   void *x3, ssize_t *residp);
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
-extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, caller_context_t *ct);
+extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, void *ct);
 
 extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);

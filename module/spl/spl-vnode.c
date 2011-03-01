@@ -283,7 +283,7 @@ EXPORT_SYMBOL(vn_close);
  * proposed seek.  We perform minimal checking and allow vn_rdwr() to catch
  * anything more serious. */
 int
-vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, caller_context_t *ct)
+vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, void *ct)
 {
 	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
 }
@@ -476,7 +476,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	vap->va_nodeid        = stat.ino;
 	vap->va_nlink         = stat.nlink;
         vap->va_size          = stat.size;
-	vap->va_blocksize     = stat.blksize;
+	vap->va_blksize       = stat.blksize;
 	vap->va_atime         = stat.atime;
 	vap->va_mtime         = stat.mtime;
 	vap->va_ctime         = stat.ctime;
