@@ -3524,8 +3524,7 @@ out:
  */
 /*ARGSUSED*/
 static int
-zfs_putpage(vnode_t *vp, offset_t off, size_t len, int flags, cred_t *cr,
-    caller_context_t *ct)
+zfs_putpage(vnode_t *vp, offset_t off, size_t len, int flags, cred_t *cr)
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
@@ -3660,8 +3659,7 @@ EXPORT_SYMBOL(zfs_inactive);
  */
 /* ARGSUSED */
 int
-zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp,
-    caller_context_t *ct)
+zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp)
 {
 	if (S_ISDIR(ip->i_mode))
 		return (0);
@@ -3676,7 +3674,7 @@ EXPORT_SYMBOL(zfs_seek);
  */
 static int
 zfs_frlock(vnode_t *vp, int cmd, flock64_t *bfp, int flag, offset_t offset,
-    flk_callback_t *flk_cbp, cred_t *cr, caller_context_t *ct)
+    flk_callback_t *flk_cbp, cred_t *cr)
 {
 	znode_t *zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
@@ -3804,7 +3802,7 @@ zfs_fillpage(vnode_t *vp, u_offset_t off, struct seg *seg,
 static int
 zfs_getpage(vnode_t *vp, offset_t off, size_t len, uint_t *protp,
 	page_t *pl[], size_t plsz, struct seg *seg, caddr_t addr,
-	enum seg_rw rw, cred_t *cr, caller_context_t *ct)
+	enum seg_rw rw, cred_t *cr)
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
@@ -3892,8 +3890,7 @@ out:
 /*ARGSUSED*/
 static int
 zfs_map(vnode_t *vp, offset_t off, struct as *as, caddr_t *addrp,
-    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr,
-    caller_context_t *ct)
+    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr)
 {
 	znode_t *zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
@@ -3967,8 +3964,7 @@ zfs_map(vnode_t *vp, offset_t off, struct as *as, caddr_t *addrp,
 /* ARGSUSED */
 static int
 zfs_addmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
-    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr,
-    caller_context_t *ct)
+    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr)
 {
 	uint64_t pages = btopr(len);
 
@@ -4000,8 +3996,7 @@ zfs_addmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
 /* ARGSUSED */
 static int
 zfs_delmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
-    size_t len, uint_t prot, uint_t maxprot, uint_t flags, cred_t *cr,
-    caller_context_t *ct)
+    size_t len, uint_t prot, uint_t maxprot, uint_t flags, cred_t *cr)
 {
 	uint64_t pages = btopr(len);
 
