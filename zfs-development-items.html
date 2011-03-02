@@ -11,7 +11,7 @@
 
 <table width="80%" cellpadding=3>
 	<tr>
-		<td colspan=4>
+		<td colspan=5>
 <p>The following is a list of ZFS on Linux development items.  The
 items vary in complexity but they are all available to be worked on
 by members of the ZFS on Linux community.  If you are a developer
@@ -27,12 +27,14 @@ merging your changes in to the official code.</p><br>
 		</td>
 	</tr>
 	<tr align=center bgcolor="#aaaaaa">
+		<th>Status</th>
 		<th>Owner</th>
 		<th>Difficulty</th>
 		<th>Name</th>
 		<th>Description</th>
 	</tr>
 	<tr bgcolor="#dddddd">
+		<td>2.6.32-2.6.38 Supported</td>
 		<td>Behlendorf</td>
 		<td>Medium</td>
 		<td>Kernel Compatibility</td>
@@ -54,7 +56,8 @@ feature like ZFS is reasonable.
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>NFS ACLs</td>
 		<td>
@@ -71,7 +74,8 @@ a vsecattr_t to and from a lineal stream of bytes for the xattr.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>Posix ACLs</td>
 		<td>
@@ -82,7 +86,8 @@ and Rich ACLs (NFS/ZFS).</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>NFS Integration</td>
 		<td>
@@ -94,7 +99,8 @@ putting a few fid hooks in place on the kernel side.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>SMB Integration</td>
 		<td>
@@ -105,13 +111,14 @@ not yet scoped exactly what needs to be done to do this correctly.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Hard</td>
 		<td>Snapshot Directory (.zfs)</td>
 		<td>
 <p>While snapshots do work the .zfs snapshot directory has not yet been
 implemented.  Snapshots can be manually mounted as needed with the
-mount command, <i>mount -t zfs tank/snap /mnt/snap</i>.  To implement
+mount command, <i>mount -t zfs dataset@snap /mnt/snap</i>.  To implement
 the .zfs snapshot directory a special .zfs inode must be created.
 This inode will have custom hooks which allow it list available
 snapshots as part of readdir(), and when a list is traversed the
@@ -121,7 +128,8 @@ thus keeping all the config files properly updated.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>SELinux Integration</td>
 		<td>
@@ -141,7 +149,10 @@ and will make it quick to access the selinux context.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td>
+<a href="https://github.com/behlendorf/fstest">fstest</a> basic sanity tests
+		</td>
+		<td></td>
 		<td>Medium</td>
 		<td>ZFS Test Suite</td>
 		<td>
@@ -159,7 +170,8 @@ system.  It would be even better to automate it.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Easy</td>
 		<td>Quotas</td>
 		<td>
@@ -170,7 +182,8 @@ doesn't work on Linux needs to be explored.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>Mandatory Locking</td>
 		<td>
@@ -180,7 +193,8 @@ determine how to best leverage that support.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Hard</td>
 		<td>Async IO</td>
 		<td>
@@ -193,7 +207,8 @@ async hooks and then block resulting in a synchronous version.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Hard</td>
 		<td>Direct IO</td>
 		<td>
@@ -205,7 +220,8 @@ leverage for direct IO support.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Hard</td>
 		<td>mmap</td>
 		<td>
@@ -230,7 +246,8 @@ synchronize the caches.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Hard</td>
 		<td>Fuse Implementation</td>
 		<td>
@@ -255,7 +272,8 @@ if your running the kernel and fuse version concurrently?</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>Remove Solaris VFS types</td>
 		<td>
@@ -285,7 +303,8 @@ vattr_t type still needs to be phased out.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td>Done</td>
+		<td>Behlendorf</td>
 		<td>Easy</td>
 		<td>zvol.c/vdev_disk.c compatibility code</td>
 		<td>
@@ -298,7 +317,8 @@ header files for consistency.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Medium</td>
 		<td>Inode/Znode Refactoring</td>
 		<td>
@@ -311,7 +331,8 @@ value should be dropped and the inode updated directly.</p>
 		</td>
 	</tr>
 	<tr>
-		<td>Available</td>
+		<td></td>
+		<td></td>
 		<td>Easy</td>
 		<td>FWRITE/FREAD</td>
 		<td>
@@ -323,7 +344,10 @@ it make the most sense to use their Linux names.</p>
 		</td>
 	</tr>
 	<tr bgcolor="#dddddd">
-		<td>Available</td>
+		<td>
+<a href="https://launchpad.net/~dajhorn/+archive/zfs">Packages available</a>
+		</td>
+		<td>Darik Horn</td>
 		<td>Easy</td>
 		<td>Debian Packaging</td>
 		<td>
@@ -331,6 +355,40 @@ it make the most sense to use their Linux names.</p>
 be relatively straight forward for someone familiar with the Debian
 packaging guidelines, and the existing rpm spec files to use as a
 reference.</p>
+		</td>
+	</tr>
+	<tr>
+		<td></td>
+		<td></td>
+		<td>Hard</td>
+		<td>Security Policy</td>
+		<td>
+<p>Currently the Solaris secpolicy_* hooks are all disabled.  This isn't
+as bad as it sounds through because almost all of the standard enforcement
+is handled for us automatically by the Linux VFS.  However, there are still
+a couple places, such as file attributes, where we need this code to be in
+place and working.  We should be able to pull over the policy source from
+OpenSolaris and use that with some modification.  However, there are bound
+to be some got'chas which will take time to resolve..</p>
+		</td>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<td></td>
+		<td></td>
+		<td>Medium</td>
+		<td>File attributes</td>
+		<td>
+<p>Internally ZFS already has all the code in place to correctly handle the
+file attributes (immutable/read-only/etc).  They should even be enforced if
+you import a pool from a different platform with these attributes set.
+What's missing are the needed interfaces to userspace to manipulate them.
+Under Linux this is typically done with the <i>lsattr/chattr</i> utilities.
+However, the file attributes supported by these tools only partly overlap
+with the set of Solaris file attributes.  That means we either need to
+write our own tool to manipulate them on Linux, or we need to port the
+Solaris utility.  A prerequisite for this work will be to get the security
+policy handlers working to ensure only authorized users can manipulate
+the file attributes.</p>
 		</td>
 	</tr>
 </table>
