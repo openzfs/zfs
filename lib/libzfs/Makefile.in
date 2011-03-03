@@ -103,8 +103,10 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libzfs_la_DEPENDENCIES = $(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+libzfs_la_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libefi/libefi.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
 am_libzfs_la_OBJECTS = libzfs_changelist.lo libzfs_config.lo \
 	libzfs_dataset.lo libzfs_diff.lo libzfs_fru.lo libzfs_graph.lo \
 	libzfs_import.lo libzfs_mount.lo libzfs_pool.lo \
@@ -321,8 +323,10 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 lib_LTLIBRARIES = libzfs.la
 libzfs_la_LDFLAGS = -lm -ldl $(LIBSELINUX)
 libzfs_la_LIBADD = \
+	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
 
 libzfs_la_SOURCES = \
 	$(top_srcdir)/lib/libzfs/libzfs_changelist.c \
