@@ -303,7 +303,7 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 		return (error);
 
 	xva_init(&xva);
-	zfs_init_vattr(&xva.xva_vattr, AT_MODE | AT_UID | AT_GID,
+	zfs_init_vattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
 	    lr->lr_mode, lr->lr_uid, lr->lr_gid, lr->lr_rdev, lr->lr_foid);
 
 	/*
@@ -430,7 +430,7 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 		return (error);
 
 	xva_init(&xva);
-	zfs_init_vattr(&xva.xva_vattr, AT_MODE | AT_UID | AT_GID,
+	zfs_init_vattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
 	    lr->lr_mode, lr->lr_uid, lr->lr_gid, lr->lr_rdev, lr->lr_foid);
 
 	/*
