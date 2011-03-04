@@ -72,9 +72,6 @@
 #include <sys/mntent.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#ifdef HAVE_LIBSELINUX
-#include <selinux/selinux.h>
-#endif /* HAVE_LIBSELINUX */
 
 #include <libzfs.h>
 
@@ -345,12 +342,6 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 * Append zfsutil option so the mount helper allow the mount
 	 */
 	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
-
-#ifdef HAVE_LIBSELINUX
-	if (is_selinux_enabled())
-		(void) strlcat(mntopts, ",context=\"system_u:"
-		    "object_r:file_t:s0\"", sizeof (mntopts));
-#endif /* HAVE_LIBSELINUX */
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
