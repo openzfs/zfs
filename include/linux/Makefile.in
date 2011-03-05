@@ -90,7 +90,8 @@ SOURCES =
 DIST_SOURCES =
 am__kernel_HEADERS_DIST = $(top_srcdir)/include/linux/dcache_compat.h \
 	$(top_srcdir)/include/linux/xattr_compat.h \
-	$(top_srcdir)/include/linux/vfs_compat.h
+	$(top_srcdir)/include/linux/vfs_compat.h \
+	$(top_srcdir)/include/linux/blkdev_compat.h
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -286,7 +287,8 @@ COMMON_H =
 KERNEL_H = \
 	$(top_srcdir)/include/linux/dcache_compat.h \
 	$(top_srcdir)/include/linux/xattr_compat.h \
-	$(top_srcdir)/include/linux/vfs_compat.h
+	$(top_srcdir)/include/linux/vfs_compat.h \
+	$(top_srcdir)/include/linux/blkdev_compat.h
 
 USER_H = 
 EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)

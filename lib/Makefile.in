@@ -292,7 +292,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = libspl libavl libefi libnvpair libunicode libuutil libzfs libzpool
+SUBDIRS = libspl libavl libefi libnvpair libunicode libuutil libzpool libzfs
 all: all-recursive
 
 .SUFFIXES:

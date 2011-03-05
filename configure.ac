@@ -87,6 +87,7 @@ AC_CONFIG_FILES([
 	cmd/zpool_layout/Makefile
 	cmd/ztest/Makefile
 	cmd/zpios/Makefile
+	cmd/zvol_id/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
