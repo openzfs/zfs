@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.2-0ubuntu1) unstable; urgency=low
+
+  * Merge the behlendorf/master branch for the xvattr changes
+    and tag it as 0.6.0.2 upstream.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 04 Mar 2011 19:24:42 -0600
+
 zfs-linux (0.6.0.1rc.1-0ubuntu6) unstable; urgency=low
 
   * Check for a Debian host in PRE_BUILD and configure for split headers.
