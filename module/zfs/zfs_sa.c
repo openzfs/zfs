@@ -118,7 +118,6 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 	}
 }
 
-#ifdef HAVE_SCANSTAMP
 void
 zfs_sa_get_scanstamp(znode_t *zp, xvattr_t *xvap)
 {
@@ -183,7 +182,6 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    &zp->z_pflags, sizeof (uint64_t), tx));
 	}
 }
-#endif /* HAVE_SCANSTAMP */
 
 /*
  * I'm not convinced we should do any of this upgrade.
@@ -205,9 +203,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	uint64_t uid, gid, mode, rdev, xattr, parent;
 	uint64_t crtime[2], mtime[2], ctime[2];
 	zfs_acl_phys_t znode_acl;
-#ifdef HAVE_SCANSTAMP
 	char scanstamp[AV_SCANSTAMP_SZ];
-#endif /* HAVE_SCANSTAMP */
 	boolean_t drop_lock = B_FALSE;
 
 	/*
@@ -298,7 +294,6 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_XATTR(zsb),
 		    NULL, &xattr, 8);
 
-#ifdef HAVE_SCANSTAMP
 	/* if scanstamp then add scanstamp */
 
 	if (zp->z_pflags & ZFS_BONUS_SCANSTAMP) {
@@ -308,7 +303,6 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		    NULL, scanstamp, AV_SCANSTAMP_SZ);
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
-#endif /* HAVE_SCANSTAMP */
 
 	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
 	VERIFY(sa_replace_all_by_template_locked(hdl, sa_attrs,

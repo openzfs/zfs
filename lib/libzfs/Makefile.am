@@ -9,8 +9,10 @@ lib_LTLIBRARIES = libzfs.la
 libzfs_la_LDFLAGS = -lm -ldl $(LIBSELINUX)
 
 libzfs_la_LIBADD = \
+	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
 
 libzfs_la_SOURCES = \
 	$(top_srcdir)/lib/libzfs/libzfs_changelist.c \
