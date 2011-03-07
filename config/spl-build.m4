@@ -87,6 +87,14 @@ AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
 		else
 			LINUX_SYMBOLS=Module.symvers
 		fi
+
+		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+			AC_MSG_ERROR([
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source.])
+		fi
 	else
 		LINUX_SYMBOLS=NONE
 	fi
