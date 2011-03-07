@@ -269,7 +269,7 @@ do_mount(const char *src, const char *mntpt, char *opts)
 	int rc;
 
 	/* Return only the most critical mount error */
-	rc = libzfs_run_process(argv[0], argv);
+	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 	if (rc) {
 		if (rc & MOUNT_FILEIO)
 			return EIO;
@@ -310,7 +310,7 @@ do_unmount(const char *mntpt, int flags)
 	}
 
 	argv[count] = (char *)mntpt;
-	rc = libzfs_run_process(argv[0], argv);
+	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 
 	return (rc ? EINVAL : 0);
 }
@@ -414,8 +414,10 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 static int
 unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 {
-	if (do_unmount(mountpoint, flags) != 0) {
-		zfs_error_aux(hdl, strerror(errno));
+	int error;
+
+	error = do_unmount(mountpoint, flags);
+	if (error != 0) {
 		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
