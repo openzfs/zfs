@@ -31,6 +31,7 @@
 #include <linux/statfs.h>
 #include <linux/xattr.h>
 #include <linux/security.h>
+#include <linux/seq_file.h>
 
 #define	MAXFIDSZ	64
 
