@@ -2084,7 +2084,7 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	mutex_enter(&zp->z_lock);
 	vap->va_type = vn_mode_to_vtype(zp->z_mode);
 	vap->va_mode = zp->z_mode;
-	vap->va_fsid = 0;
+	vap->va_fsid = ZTOI(zp)->i_sb->s_dev;
 	vap->va_nodeid = zp->z_id;
 	if ((zp->z_id == zsb->z_root) && zfs_show_ctldir(zp))
 		links = zp->z_links + 1;
