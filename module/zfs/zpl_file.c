@@ -30,6 +30,37 @@
 
 
 static int
+zpl_open(struct inode *ip, struct file *filp)
+{
+	cred_t *cr;
+	int error;
+
+	cr = (cred_t *)get_current_cred();
+	error = -zfs_open(ip, filp->f_mode, filp->f_flags, cr);
+	put_cred(cr);
+	ASSERT3S(error, <=, 0);
+
+	if (error)
+		return (error);
+
+	return generic_file_open(ip, filp);
+}
+
+static int
+zpl_release(struct inode *ip, struct file *filp)
+{
+	cred_t *cr;
+	int error;
+
+	cr = (cred_t *)get_current_cred();
+	error = -zfs_close(ip, filp->f_flags, cr);
+	put_cred(cr);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
 zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct dentry *dentry = filp->f_path.dentry;
@@ -316,7 +347,8 @@ const struct address_space_operations zpl_address_space_operations = {
 };
 
 const struct file_operations zpl_file_operations = {
-	.open		= generic_file_open,
+	.open		= zpl_open,
+	.release	= zpl_release,
 	.llseek		= generic_file_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
