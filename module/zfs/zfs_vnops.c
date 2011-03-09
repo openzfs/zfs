@@ -2335,7 +2335,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	zfs_acl_t	*aclp;
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	boolean_t	fuid_dirtied = B_FALSE;
-	sa_bulk_attr_t	bulk[7], xattr_bulk[7];
+	sa_bulk_attr_t	*bulk, *xattr_bulk;
 	int		count = 0, xattr_count = 0;
 
 	if (mask == 0)
@@ -2377,6 +2377,9 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 
 	tmpxvattr = kmem_alloc(sizeof(xvattr_t), KM_SLEEP);
 	xva_init(tmpxvattr);
+
+	bulk = kmem_alloc(sizeof(sa_bulk_attr_t) * 7, KM_SLEEP);
+	xattr_bulk = kmem_alloc(sizeof(sa_bulk_attr_t) * 7, KM_SLEEP);
 
 	/*
 	 * Immutable files can only alter immutable bit and atime
@@ -2918,6 +2921,8 @@ out2:
 		zil_commit(zilog, 0);
 
 out3:
+	kmem_free(xattr_bulk, sizeof(sa_bulk_attr_t) * 7);
+	kmem_free(bulk, sizeof(sa_bulk_attr_t) * 7);
 	kmem_free(tmpxvattr, sizeof(xvattr_t));
 	ZFS_EXIT(zsb);
 	return (err);
