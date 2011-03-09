@@ -1029,7 +1029,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 */
 	statp->f_ffree = MIN(availobjs, statp->f_bfree);
 	statp->f_files = statp->f_ffree + usedobjs;
-	statp->f_fsid.val[0] = 0; /* XXX: Map up some unique ID */
+	statp->f_fsid.val[0] = dentry->d_sb->s_dev;
 	statp->f_fsid.val[1] = 0;
 	statp->f_type = ZFS_SUPER_MAGIC;
 	statp->f_namelen = ZFS_MAXNAMELEN;

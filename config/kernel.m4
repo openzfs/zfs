@@ -61,6 +61,14 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 		else
 			LINUX_SYMBOLS=Module.symvers
 		fi
+
+		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+			AC_MSG_ERROR([
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source.])
+		fi
 	else
 		LINUX_SYMBOLS=NONE
 	fi
@@ -274,6 +282,12 @@ AC_DEFUN([ZFS_AC_SPL], [
 ])
 
 dnl #
+dnl # Certain kernel build options are not supported.  These must be
+dnl # detected at configure time and cause a build failure.  Otherwise
+dnl # modules may be successfully built that behave incorrectly.
+dnl #
+dnl # CONFIG_PREEMPT - Preempt kernels require special handling.
+dnl #
 dnl # There are certain kernel build options which when enabled are
 dnl # completely incompatible with non GPL kernel modules.  It is best
 dnl # to detect these at configure time and fail with a clear error
@@ -282,6 +296,11 @@ dnl #
 dnl # CONFIG_DEBUG_LOCK_ALLOC - Maps mutex_lock() to mutex_lock_nested()
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
+
+	ZFS_LINUX_CONFIG([PREEMPT],
+		AC_MSG_ERROR([
+		*** Kernel built with CONFIG_PREEMPT which is not supported.
+		** You must rebuild your kernel without this option.]), [])
 
 	if test "$ZFS_META_LICENSE" = CDDL; then
 		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],

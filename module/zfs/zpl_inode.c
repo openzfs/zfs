@@ -184,7 +184,7 @@ zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 		goto out;
 
 	stat->ino = ip->i_ino;
-	stat->dev = 0;
+	stat->dev = ip->i_sb->s_dev;
 	stat->mode = vap->va_mode;
 	stat->nlink = vap->va_nlink;
 	stat->uid = vap->va_uid;

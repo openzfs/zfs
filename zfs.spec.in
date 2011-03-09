@@ -66,6 +66,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/*
 %{_mandir}/man8/*
 /etc/*
+/sbin/*
 
 %files devel
 %defattr(-,root,root)
