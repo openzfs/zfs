@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.3+git-0ubuntu1) unstable; urgency=low
+
+  * Begin using the +git upstream naming convention.
+  * Merge the behlendorf/mount and behlendorf/master branches.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 10:09:24 -0600
+
 zfs-linux (0.6.0.2-0ubuntu1) unstable; urgency=low
 
   * Merge the behlendorf/master branch for the xvattr changes
