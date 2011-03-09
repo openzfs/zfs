@@ -11964,6 +11964,20 @@ $as_echo_n "checking kernel file name for module symbols... " >&6; }
 		else
 			LINUX_SYMBOLS=Module.symvers
 		fi
+
+		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+			{ { $as_echo "$as_me:$LINENO: error:
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source." >&5
+$as_echo "$as_me: error:
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source." >&2;}
+   { (exit 1); exit 1; }; }
+		fi
 	else
 		LINUX_SYMBOLS=NONE
 	fi
@@ -15954,6 +15968,20 @@ $as_echo_n "checking kernel file name for module symbols... " >&6; }
 			LINUX_SYMBOLS=Modules.symvers
 		else
 			LINUX_SYMBOLS=Module.symvers
+		fi
+
+		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+			{ { $as_echo "$as_me:$LINENO: error:
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source." >&5
+$as_echo "$as_me: error:
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed.  If your building with a custom kernel make sure the
+	*** kernel is configured, built, and the '--with-linux=PATH' configure
+	*** option refers to the location of the kernel source." >&2;}
+   { (exit 1); exit 1; }; }
 		fi
 	else
 		LINUX_SYMBOLS=NONE

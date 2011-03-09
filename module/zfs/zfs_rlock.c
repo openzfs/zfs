@@ -471,7 +471,7 @@ zfs_range_free(void *arg)
  * Unlock a reader lock
  */
 static void
-zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
+zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 {
 	avl_tree_t *tree = &zp->z_range_avl;
 	rl_t *rl, *next = NULL;
@@ -493,7 +493,7 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 		if (remove->r_read_wanted)
 			cv_broadcast(&remove->r_rd_cv);
 
-		taskq_dispatch(system_taskq, zfs_range_free, remove, 0);
+		list_insert_tail(free_list, remove);
 	} else {
 		ASSERT3U(remove->r_cnt, ==, 0);
 		ASSERT3U(remove->r_write_wanted, ==, 0);
@@ -526,8 +526,7 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove)
 				if (rl->r_read_wanted)
 					cv_broadcast(&rl->r_rd_cv);
 
-				taskq_dispatch(system_taskq,
-				    zfs_range_free, rl, 0);
+				list_insert_tail(free_list, rl);
 			}
 		}
 
@@ -543,10 +542,13 @@ void
 zfs_range_unlock(rl_t *rl)
 {
 	znode_t *zp = rl->r_zp;
+	list_t free_list;
+	rl_t *free_rl;
 
 	ASSERT(rl->r_type == RL_WRITER || rl->r_type == RL_READER);
 	ASSERT(rl->r_cnt == 1 || rl->r_cnt == 0);
 	ASSERT(!rl->r_proxy);
+	list_create(&free_list, sizeof(rl_t), offsetof(rl_t, rl_node));
 
 	mutex_enter(&zp->z_range_lock);
 	if (rl->r_type == RL_WRITER) {
@@ -559,14 +561,21 @@ zfs_range_unlock(rl_t *rl)
 		if (rl->r_read_wanted)
 			cv_broadcast(&rl->r_rd_cv);
 
-		taskq_dispatch(system_taskq, zfs_range_free, rl, 0);
+		list_insert_tail(&free_list, rl);
 	} else {
 		/*
 		 * lock may be shared, let zfs_range_unlock_reader()
 		 * release the zp->z_range_lock lock and free the rl_t
 		 */
-		zfs_range_unlock_reader(zp, rl);
+		zfs_range_unlock_reader(zp, rl, &free_list);
 	}
+
+	while ((free_rl = list_head(&free_list)) != NULL) {
+		list_remove(&free_list, free_rl);
+		zfs_range_free(free_rl);
+	}
+
+	list_destroy(&free_list);
 }
 
 /*

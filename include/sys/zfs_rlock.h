@@ -54,6 +54,7 @@ typedef struct rl {
 	uint8_t r_proxy;	/* acting for original range */
 	uint8_t r_write_wanted;	/* writer wants to lock this range */
 	uint8_t r_read_wanted;	/* reader wants to lock this range */
+	list_node_t rl_node;	/* used for deferred release */
 } rl_t;
 
 /*

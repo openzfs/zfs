@@ -163,6 +163,76 @@
  *	return (error);			// done, report error
  */
 
+/*
+ * Virus scanning is unsupported.  It would be possible to add a hook
+ * here to performance the required virus scan.  This could be done
+ * entirely in the kernel or potentially as an update to invoke a
+ * scanning utility.
+ */
+static int
+zfs_vscan(struct inode *ip, cred_t *cr, int async)
+{
+	return (0);
+}
+
+/* ARGSUSED */
+int
+zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
+{
+	znode_t	*zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	/* Honor ZFS_APPENDONLY file attribute */
+	if ((mode & FMODE_WRITE) && (zp->z_pflags & ZFS_APPENDONLY) &&
+	    ((flag & O_APPEND) == 0)) {
+		ZFS_EXIT(zsb);
+		return (EPERM);
+	}
+
+	/* Virus scan eligible files on open */
+	if (!zfs_has_ctldir(zp) && zsb->z_vscan && S_ISREG(ip->i_mode) &&
+	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0) {
+		if (zfs_vscan(ip, cr, 0) != 0) {
+			ZFS_EXIT(zsb);
+			return (EACCES);
+		}
+	}
+
+	/* Keep a count of the synchronous opens in the znode */
+	if (flag & O_SYNC)
+		atomic_inc_32(&zp->z_sync_cnt);
+
+	ZFS_EXIT(zsb);
+	return (0);
+}
+EXPORT_SYMBOL(zfs_open);
+
+/* ARGSUSED */
+int
+zfs_close(struct inode *ip, int flag, cred_t *cr)
+{
+	znode_t	*zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	/* Decrement the synchronous opens in the znode */
+	if (flag & O_SYNC)
+		zp->z_sync_cnt = 0;
+
+	if (!zfs_has_ctldir(zp) && zsb->z_vscan && S_ISREG(ip->i_mode) &&
+	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
+		VERIFY(zfs_vscan(ip, cr, 1) == 0);
+
+	ZFS_EXIT(zsb);
+	return (0);
+}
+EXPORT_SYMBOL(zfs_close);
+
 #if defined(_KERNEL)
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
@@ -2084,7 +2154,7 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	mutex_enter(&zp->z_lock);
 	vap->va_type = vn_mode_to_vtype(zp->z_mode);
 	vap->va_mode = zp->z_mode;
-	vap->va_fsid = 0;
+	vap->va_fsid = ZTOI(zp)->i_sb->s_dev;
 	vap->va_nodeid = zp->z_id;
 	if ((zp->z_id == zsb->z_root) && zfs_show_ctldir(zp))
 		links = zp->z_links + 1;

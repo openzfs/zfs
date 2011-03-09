@@ -36,6 +36,8 @@
 extern "C" {
 #endif
 
+extern int zfs_open(struct inode *ip, int mode, int flag, cred_t *cr);
+extern int zfs_close(struct inode *ip, int flag, cred_t *cr);
 extern int zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
 extern int zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
 extern int zfs_access(struct inode *ip, int mode, int flag, cred_t *cr);
