@@ -9,7 +9,8 @@ Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
 Package: zfs-dkms
 Architecture: all
-Depends: ${misc:Depends}, dkms (>> 2.1.1.2-5ubuntu1), spl-dkms
+Pre-Depends: spl-dkms
+Depends: ${misc:Depends}, dkms (>> 2.1.1.2-5ubuntu1)
 Replaces: lzfs, lzfs-dkms
 Provides: lzfs, lzfs-dkms
 Conflicts: lzfs, lzfs-dkms

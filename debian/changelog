@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.3+git-0ubuntu2) unstable; urgency=low
+
+  * Change spl-dkms to a pre-dependency in the control file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 10:54:07 -0600
+
 zfs-linux (0.6.0.3+git-0ubuntu1) unstable; urgency=low
 
   * Begin using the +git upstream naming convention.
