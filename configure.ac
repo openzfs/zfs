@@ -83,11 +83,12 @@ AC_CONFIG_FILES([
 	cmd/zfs/Makefile
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
-	cmd/zpool_id/Makefile
-	cmd/zpool_layout/Makefile
 	cmd/ztest/Makefile
 	cmd/zpios/Makefile
+	cmd/mount_zfs/Makefile
+	cmd/zpool_layout/Makefile
 	cmd/zvol_id/Makefile
+	cmd/zpool_id/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile

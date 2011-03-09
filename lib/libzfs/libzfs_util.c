@@ -632,15 +632,19 @@ libzfs_module_loaded(const char *module)
 }
 
 int
-libzfs_run_process(const char *path, char *argv[])
+libzfs_run_process(const char *path, char *argv[], int flags)
 {
 	pid_t pid;
 	int rc;
 
 	pid = vfork();
 	if (pid == 0) {
-		close(1);
-		close(2);
+		if (!(flags & STDOUT_VERBOSE))
+			close(STDOUT_FILENO);
+
+		if (!(flags & STDERR_VERBOSE))
+			close(STDERR_FILENO);
+
 		(void) execvp(path, argv);
 		_exit(-1);
 	} else if (pid > 0) {
@@ -665,7 +669,7 @@ libzfs_load_module(const char *module)
 	if (libzfs_module_loaded(module))
 		return 0;
 
-	return libzfs_run_process("/sbin/modprobe", argv);
+	return libzfs_run_process("/sbin/modprobe", argv, 0);
 }
 
 libzfs_handle_t *

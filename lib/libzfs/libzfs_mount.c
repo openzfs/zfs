@@ -72,9 +72,6 @@
 #include <sys/mntent.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#ifdef HAVE_LIBSELINUX
-#include <selinux/selinux.h>
-#endif /* HAVE_LIBSELINUX */
 
 #include <libzfs.h>
 
@@ -272,7 +269,7 @@ do_mount(const char *src, const char *mntpt, char *opts)
 	int rc;
 
 	/* Return only the most critical mount error */
-	rc = libzfs_run_process(argv[0], argv);
+	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 	if (rc) {
 		if (rc & MOUNT_FILEIO)
 			return EIO;
@@ -313,7 +310,7 @@ do_unmount(const char *mntpt, int flags)
 	}
 
 	argv[count] = (char *)mntpt;
-	rc = libzfs_run_process(argv[0], argv);
+	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 
 	return (rc ? EINVAL : 0);
 }
@@ -345,12 +342,6 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 * Append zfsutil option so the mount helper allow the mount
 	 */
 	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
-
-#ifdef HAVE_LIBSELINUX
-	if (is_selinux_enabled())
-		(void) strlcat(mntopts, ",context=\"system_u:"
-		    "object_r:file_t:s0\"", sizeof (mntopts));
-#endif /* HAVE_LIBSELINUX */
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
@@ -423,8 +414,10 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 static int
 unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 {
-	if (do_unmount(mountpoint, flags) != 0) {
-		zfs_error_aux(hdl, strerror(errno));
+	int error;
+
+	error = do_unmount(mountpoint, flags);
+	if (error != 0) {
 		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
