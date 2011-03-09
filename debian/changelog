@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.3.git-0ubuntu1) unstable; urgency=low
+
+  * Revert the '+' in the upstream version because it is not recognized by DKMS.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 12:24:41 -0600
+
 zfs-linux (0.6.0.3+git-0ubuntu2) unstable; urgency=low
 
   * Change spl-dkms to a pre-dependency in the control file.
