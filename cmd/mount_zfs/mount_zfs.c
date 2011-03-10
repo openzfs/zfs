@@ -218,10 +218,14 @@ static char *
 parse_dataset(char *dataset)
 {
 	char cwd[PATH_MAX];
+	int len;
 
 	(void) getcwd(cwd, PATH_MAX);
-	if (!strncmp(cwd, dataset, strlen(cwd)))
-		return (dataset + strlen(cwd) + 1);
+	len = strlen(cwd);
+
+	/* Do not add one when cwd already ends in a trailing '/' */
+	if (!strncmp(cwd, dataset, len))
+		return (dataset + len + (cwd[len-1] != '/'));
 
 	return (dataset);
 }
