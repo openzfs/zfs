@@ -1,13 +1,13 @@
-Index: zfs-linux-0.6.0.1rc/META
+Index: pkg-zfs/META
 ===================================================================
---- zfs-linux-0.6.0.1rc.orig/META	2011-02-18 11:32:41.000000000 -0600
-+++ zfs-linux-0.6.0.1rc/META	2011-02-18 19:50:09.902179002 -0600
+--- pkg-zfs.orig/META	2011-03-10 09:34:20.000000000 -0600
++++ pkg-zfs/META	2011-03-10 09:34:42.071270273 -0600
 @@ -1,7 +1,7 @@
  Meta:         1
  Name:         zfs
  Branch:       1.0
 -Version:      0.6.0
-+Version:      0.6.0.3.git
- Release:      rc1
++Version:      0.6.0.4.rc2
+ Release:      rc2
  Release-Tags: relext
  License:      CDDL
