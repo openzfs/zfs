@@ -347,6 +347,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
+	zp->z_is_zvol = 0;
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
