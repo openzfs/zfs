@@ -25,4 +25,5 @@ Package: zfs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: zfs-dkms
+Conflicts: zfs-fuse
 Description: Native ZFS filesystem utilities for Linux
