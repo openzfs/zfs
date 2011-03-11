@@ -1,0 +1,9 @@
+#!/bin/bash
+
+instmods zfs
+instmods zcommon
+instmods znvpair
+instmods zavl
+instmods zunicode
+instmods spl
+instmods zlib_deflate

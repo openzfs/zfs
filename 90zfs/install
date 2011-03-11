@@ -1,0 +1,15 @@
+#!/bin/bash
+
+inst_rules "$moddir/90-zfs.rules"
+dracut_install zpool
+dracut_install zpool_id
+dracut_install zpool_layout
+dracut_install zvol_id
+dracut_install zfs
+dracut_install spl
+dracut_install hostid
+inst /etc/hostid
+inst /etc/zfs/zdev.conf
+inst_hook cmdline 95 "$moddir/parse-zfs.sh"
+inst_hook mount 98 "$moddir/mount-zfs.sh"
+inst_hook pre-udev 29 "$moddir/zfs-genrules.sh"
