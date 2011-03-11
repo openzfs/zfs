@@ -1,0 +1,19 @@
+put this on your /usr/share/dracut/modules.d
+
+TODO
+
+1. make it so only the pool containing the root filesystem is imported.
+because it can take a looong time to import all pools
+a) some magic needed in genrules.sh to figure it out from the $root variable
+b) remove zpool import -a from 90-zfs.rules after that
+
+2. make it so the import of said root pool does not cause the filesystems to be automatically mounted
+speed up the boot process
+
+3. make it so the root filesystem needs not to be exactly specified (but works if it is specified)
+a) essentially autodetect what filesystem of the known and importable pools is to be mounted on /
+b) set the root variable up to point to that filesystem
+
+4. initscript to run after mountall or mountotherfilesystems that will cause
+the other auto filesystems to be mounted, and the legacy ones specified in fstab
+
