@@ -30,3 +30,6 @@ TODO
 3. initscript to run after mountall or mountotherfilesystems that will cause
    the other not imported pools to be imported, and all filesystems to be mounted
    along with the legacy ones specified in fstab
+
+4. remove hardcoded arc parameters from zfs-rules.udev, and rely on modprobe.d files
+   that get added to the dracut initrd
