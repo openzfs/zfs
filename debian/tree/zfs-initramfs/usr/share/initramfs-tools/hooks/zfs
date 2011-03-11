@@ -1,0 +1,87 @@
+#!/bin/sh
+#
+# Add ZFS filesystem capabilities to an initrd through update-initramfs.
+#
+
+
+# This module depends on these initramfs-tools modules.
+PREREQ="udev"
+ 
+# ZFS on Linux uses udev for device node creation.
+PREREQ_UDEV_RULES="60-zpool.rules 60-zvol.rules"
+
+# These prerequisites are provided by the zfs package. The zdb utility is not
+# strictly required, but it can be useful at the initramfs recovery prompt.
+COPY_EXEC_LIST=" \
+  /usr/bin/zvol_id \
+  /usr/bin/zpool_layout \
+  /usr/bin/zpool_id \
+  /usr/sbin/zdb \
+  /usr/sbin/zpool \
+  /usr/sbin/zfs \
+  "
+
+# These prerequisites are provides by other packages.
+COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/gawk /usr/bin/hostid"
+
+# Explicitly specify all modules because dependency resolution is unreliable here.
+MANUAL_ADD_MODULES_LIST="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
+
+
+case $1 in
+prereqs)
+	echo "$PREREQ"
+	exit 0
+	;;
+esac
+
+for ii in $COPY_EXEC_LIST
+do
+	[ -x "$ii" ] || exit 0
+done
+
+. /usr/share/initramfs-tools/hook-functions
+
+mkdir -p "$DESTDIR/etc/"
+mkdir -p "$DESTDIR/lib/udev/rules.d/"
+
+for ii in $PREREQ_UDEV_RULES
+do
+	if [ -e "/etc/udev/rules.d/$ii" ]
+	then
+		cp -p "/etc/udev/rules.d/$ii" "$DESTDIR/lib/udev/rules.d/"
+	elif [ -e "/lib/udev/rules.d/$ii" ]
+	then
+		cp -p "/lib/udev/rules.d/$ii" "$DESTDIR/lib/udev/rules.d/"
+	else
+		echo "Error: Missing udev rule: $ii"
+		echo "       This file must be in the /etc/udev/rules.d or /lib/udev/rules.d directory."
+		exit 1
+	fi
+done
+
+for ii in $COPY_EXEC_LIST
+do
+	copy_exec "$ii"
+done
+
+for ii in $MANUAL_ADD_MODULES_LIST
+do
+	manual_add_modules "$ii"
+done
+
+if [ -f "/etc/hostname" ]
+then
+	cp -p "/etc/hostname" "$DESTDIR/etc/"
+else
+	hostname >"$DESTDIR/etc/hostname"
+fi
+
+# The spl package ensures that the /etc/hostid file exists.
+# NB: Commentary in the spl.postinst script.
+cp -p "/etc/hostid" "$DESTDIR/etc/hostid"
+
+if [ -e "/etc/zfs/" ]
+then
+	cp -a "/etc/zfs/" "$DESTDIR/etc/"
+fi

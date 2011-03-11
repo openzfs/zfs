@@ -1,0 +1,98 @@
+#!/bin/sh
+#
+# ZFS boot stub for initramfs-tools.
+#
+# In the initramfs environment, the /init script sources this stub to
+# override the default functions in the /scripts/local script.
+#
+# Enable this by passing boot=zfs on the kernel command line.
+#
+
+
+pre_mountroot()
+{
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-top"
+	run_scripts /scripts/local-top
+	[ "$quiet" != "y" ] && log_end_msg
+}
+
+
+mountroot()
+{
+	pre_mountroot
+
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-premount"
+	run_scripts /scripts/local-premount
+	[ "$quiet" != "y" ] && log_end_msg
+
+	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+	wait_for_udev
+
+	# @TODO: Handle the "-B zfs_bootfs=%s/%u" parameter syntax.
+	# On all other platforms that can have a ZFS root filesystem, GRUB
+	# gets the bootfs property and sets -B on the kernel command line.
+
+	# Check the kernel command line for overrides.
+	ZFS_RPOOL="$rpool"
+	ZFS_BOOTFS="$bootfs"
+
+	# Use "rpool" as the default, like on most Solaris systems.
+	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
+
+	# Import the root pool, but don't mount it.
+	[ "$quiet" != "y" ] && log_begin_msg "Importing ZFS root pool $ZFS_RPOOL"
+	zpool import -N "$ZFS_RPOOL"
+	ZFS_ERROR=$?
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if [ "$ZFS_ERROR" -ne 0 ]
+	then
+		echo ""
+		echo "Command: zpool import -N $ZFS_RPOOL"
+		echo "Error: $ZFS_ERROR"
+		echo ""
+		echo "Manually import the root pool at the command prompt and then exit."
+		echo "Hint: Try:  zpool import -N -f $ZFS_RPOOL"
+		/bin/sh
+	fi
+
+	if [ -z "$ZFS_BOOTFS" ]
+	then
+		[ "$quiet" != "y" ] && log_begin_msg "Getting ZFS bootfs property"
+		ZFS_BOOTFS=$(zpool list -H -o bootfs "$ZFS_RPOOL")
+		ZFS_ERROR=$?
+		[ "$quiet" != "y" ] && log_end_msg
+	fi
+
+	if [ -z "$ZFS_BOOTFS" ]
+	then
+		echo ""
+		echo "Command: zpool list -H -o bootfs $ZFS_RPOOL"
+		echo "Error: $ZFS_ERROR, unable to get the bootfs property."
+		echo ""
+		echo "Manually mount the root filesystem on $rootmnt and then exit."
+		echo "Hint: Try: mount -t zfs $ZFS_RPOOL/ROOT/MySystem $rootmnt"
+		/bin/sh	
+	fi
+
+	# Mount the root filesystem through the helper. Remember that `zfs mount`
+	# sets a soft MOUNTPOINT= property that is incorrect for Linux hosts.
+	[ "$quiet" != "y" ] && log_begin_msg "Mounting ZFS filesystem $ZFS_BOOTFS"
+	mount -t zfs "$ZFS_BOOTFS" ${rootmnt}
+	ZFS_ERROR=$?
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if [ "$ZFS_ERROR" -ne 0 ]
+	then
+		echo ""
+		echo "Command: mount -t zfs $ZFS_BOOTFS $rootmnt"
+		echo "Error: $ZFS_ERROR"
+		echo ""
+		echo "Manually mount the root filesystem on $rootmnt and then exit."
+		/bin/sh	
+	fi
+
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-bottom"
+	run_scripts /scripts/local-bottom
+	[ "$quiet" != "y" ] && log_end_msg
+}

@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.4.rc2-0ubuntu2) unstable; urgency=low
+
+  * Initial zfs-initramfs packaging for root filesystem support.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 11 Mar 2011 15:39:37 -0600
+
 zfs-linux (0.6.0.4.rc2-0ubuntu1) unstable; urgency=low
 
    * Upstream spl-0.6.0-rc2 release.

@@ -16,6 +16,11 @@ Provides: lzfs, lzfs-dkms
 Conflicts: lzfs, lzfs-dkms
 Description: Native ZFS filesystem kernel module for Linux
 
+Package: zfs-initramfs
+Architecture: any
+Depends: ${misc:Depends}, zfs
+Description: Native ZFS filesystem initramfs capabilities for Linux
+
 Package: zfs-lib
 Architecture: any
 Depends: ${misc:Depends}
@@ -25,5 +30,6 @@ Package: zfs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: zfs-dkms
+Suggests: zfs-initramfs
 Conflicts: zfs-fuse
 Description: Native ZFS filesystem utilities for Linux
