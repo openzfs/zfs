@@ -1,10 +1,15 @@
 put the 90zfs directory in /usr/share/dracut/modules.d (or symlink it)
 
-put kernel cmdline in grub.conf / menu.lst:
-   kernel ... root=ZFS=root/dataset/in/question
+set bootfs property in your pool
+   zpool set bootfs=root/dataset/in/question
+
+(alternatively, put kernel cmdline in grub.conf / menu.lst:
+   kernel ... root=ZFS=root/dataset/in/question )
 
 then:
    zfs set mountpoint=/ root/dataset/in/question
+or:
+   zfs set mountpoint=legacy root/dataset/in/question
 
 if you want to limit ARC size on boot, put in /etc/modprobe.d/zfs.conf:
    options zfs zfs_arc_max=268435456 zfs_arc_min=0
@@ -18,8 +23,12 @@ TODO
 
 1. autodetect the root filesystem if zfs is available and not specified in cmdline
 
+   a) via scanning bootfs zpool property in pools (first one found wins)
+   -> this list item is DONE
+
    a) if a dataset was specified as root=ZFS=dataset/in/question cmdline
       only import the needed pool in that case
+   -> this list item is DONE
 
    a) if a dataset type zfs was specified in /etc/fstab as /, use that
       only import the needed pool in that case
