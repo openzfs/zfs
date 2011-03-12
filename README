@@ -1,4 +1,4 @@
-put the 90zfs directory in /usr/share/dracut/modules.d
+put the 90zfs directory in /usr/share/dracut/modules.d (or symlink it)
 
 put kernel cmdline in grub.conf / menu.lst:
    kernel ... root=ZFS=root/dataset/in/question
