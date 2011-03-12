@@ -25,13 +25,13 @@
 # Description:		mount / unmount the ZFS filesystems upon boot / shutdown
 ### END INIT INFO
 
-ZPOOL=/sbin/zpool
-ZFS=/sbin/zfs
+export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
+
+ZPOOL=zpool
+ZFS=zfs
 servicename=mountzfs
 
 # Sanity checks
-[ -x $ZPOOL ] || exit 1
-[ -x $ZFS ] || exit 1
 [ -e /dev/zfs ] || exit 1
 
 # Source function library & LSB routines

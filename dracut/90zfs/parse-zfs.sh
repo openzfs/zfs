@@ -12,12 +12,12 @@ case "$root" in
 esac
 
 if [ "$rootok" != "1" ] ; then
-	/sbin/zpool import -aN
-	zfsbootfs=`/sbin/zpool list -H -o bootfs | grep -v ^-$ -m 1`
+	zpool import -aN
+	zfsbootfs=`zpool list -H -o bootfs | grep -v ^-$ -m 1`
 	if [ -n "$zfsbootfs" ] ; then
 		root="zfs:$zfsbootfs"
 		rootfs="zfs"
 		rootok=1
 	fi
-	/sbin/zpool list -H | while read fs rest ; do /sbin/zpool export "$fs" ; done
+	zpool list -H | while read fs rest ; do zpool export "$fs" ; done
 fi
