@@ -1,7 +1,18 @@
-put this on your /usr/share/dracut/modules.d
+put the 90zfs directory in /usr/share/dracut/modules.d
 
-kernel cmdline:
-.....blah blah blah root=ZFS=dataset/in/question
+put kernel cmdline in grub.conf / menu.lst:
+   kernel ... root=ZFS=root/dataset/in/question
+
+then:
+   zfs set mountpoint=/ root/dataset/in/question
+
+if you want to limit ARC size on boot, put in /etc/modprobe.d/zfs.conf:
+   options zfs zfs_arc_max=268435456 zfs_arc_min=0
+
+finally:
+   dracut --force /path/to/initrdfile kernel_version
+
+------------------------------------
 
 TODO
 
