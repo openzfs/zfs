@@ -1,4 +1,4 @@
-put the 90zfs directory in /usr/share/dracut/modules.d (or symlink it)
+put the dracut/90zfs directory in /usr/share/dracut/modules.d (or symlink it)
 
 set bootfs property in your pool
    zpool set bootfs=root/dataset/in/question
@@ -14,8 +14,8 @@ or:
 if you want to limit ARC size on boot, put in /etc/modprobe.d/zfs.conf:
    options zfs zfs_arc_max=268435456 zfs_arc_min=0
 
-install initscript mountzfs to /etc/rc.d/init.d
-   cp mountzfs /etc/rc.d/init.d
+install initscript etc/init.d/mountzfs to /etc/rc.d/init.d
+   cp etc/init.d/mountzfs /etc/rc.d/init.d
    chkconfig --add mountzfs
 
 finally:
