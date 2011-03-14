@@ -18,7 +18,7 @@ Description: Native ZFS filesystem kernel module for Linux
 
 Package: zfs-initramfs
 Architecture: any
-Depends: ${misc:Depends}, zfs
+Depends: ${misc:Depends}, gawk, zfs
 Description: Native ZFS filesystem initramfs capabilities for Linux
 
 Package: zfs-lib
