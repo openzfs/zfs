@@ -1,0 +1,36 @@
+Index: b/cmd/mount_zfs/mount_zfs.c
+===================================================================
+--- a/cmd/mount_zfs/mount_zfs.c
++++ b/cmd/mount_zfs/mount_zfs.c
+@@ -218,10 +218,14 @@
+ parse_dataset(char *dataset)
+ {
+ 	char cwd[PATH_MAX];
++	int len;
+ 
+ 	(void) getcwd(cwd, PATH_MAX);
+-	if (!strncmp(cwd, dataset, strlen(cwd)))
+-		return (dataset + strlen(cwd) + 1);
++	len = strlen(cwd);
++
++	/* Do not add one when cwd already ends in a trailing '/' */
++	if (!strncmp(cwd, dataset, len))
++		return (dataset + len + (cwd[len-1] != '/'));
+ 
+ 	return (dataset);
+ }
+Index: b/module/zfs/vdev_disk.c
+===================================================================
+--- a/module/zfs/vdev_disk.c
++++ b/module/zfs/vdev_disk.c
+@@ -131,6 +131,10 @@
+ 	char *envp[] = { NULL };
+ 	int count = 0, error;
+ 
++	/* Skip devices which are not whole disks (partitions) */
++	if (!v->vdev_wholedisk)
++		return (0);
++
+ 	/* Skip devices without schedulers (loop, ram, dm, etc) */
+ 	if (!q->elevator || !blk_queue_stackable(q))
+ 		return (0);

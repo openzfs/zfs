@@ -1,3 +1,11 @@
+zfs-linux (0.6.0.4.rc2-0ubuntu3) natty; urgency=low
+
+  * Add patches from behlendorf/master:
+    * check-for-trailing-slash-in-mount.patch
+    * do-not-set-io-scheduler-for-partitions.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 13 Mar 2011 21:32:32 -0500
+
 zfs-linux (0.6.0.4.rc2-0ubuntu2) unstable; urgency=low
 
   * Initial zfs-initramfs packaging for root filesystem support.

@@ -1,0 +1,15 @@
+Index: b/module/zfs/vdev_disk.c
+===================================================================
+--- a/module/zfs/vdev_disk.c
++++ b/module/zfs/vdev_disk.c
+@@ -135,6 +135,10 @@
+ 	if (!v->vdev_wholedisk)
+ 		return (0);
+ 
++	/* Skip devices which are not whole disks (partitions) */
++	if (!v->vdev_wholedisk)
++		return (0);
++
+ 	/* Skip devices without schedulers (loop, ram, dm, etc) */
+ 	if (!q->elevator || !blk_queue_stackable(q))
+ 		return (0);
