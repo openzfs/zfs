@@ -130,6 +130,16 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 }
 
 static int
+zpl_remount_fs(struct super_block *sb, int *flags, char *data)
+{
+	int error;
+	error = -zfs_remount(sb, flags, data);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
 zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
 {
 	struct super_block *sb = vfsp->mnt_sb;
@@ -197,7 +207,7 @@ const struct super_operations zpl_super_operations = {
 	.freeze_fs	= NULL,
 	.unfreeze_fs	= NULL,
 	.statfs		= zpl_statfs,
-	.remount_fs	= NULL,
+	.remount_fs	= zpl_remount_fs,
 	.show_options	= zpl_show_options,
 	.show_stats	= NULL,
 };
