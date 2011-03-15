@@ -1292,6 +1292,46 @@ zfs_umount(struct super_block *sb)
 EXPORT_SYMBOL(zfs_umount);
 
 int
+zfs_remount(struct super_block *sb, int *flags, char *data)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	boolean_t readonly = B_FALSE;
+	boolean_t setuid = B_TRUE;
+	boolean_t exec = B_TRUE;
+	boolean_t devices = B_TRUE;
+	boolean_t atime = B_TRUE;
+
+	if (*flags & MS_RDONLY)
+		readonly = B_TRUE;
+
+	if (*flags & MS_NOSUID) {
+		devices = B_FALSE;
+		setuid = B_FALSE;
+	} else {
+		if (*flags & MS_NODEV)
+			devices = B_FALSE;
+	}
+
+	if (*flags & MS_NOEXEC)
+		exec = B_FALSE;
+
+	if (*flags & MS_NOATIME)
+		atime = B_FALSE;
+
+	/*
+	 * Invoke our callbacks to set required flags.
+	 */
+	readonly_changed_cb(zsb, readonly);
+	setuid_changed_cb(zsb, setuid);
+	exec_changed_cb(zsb, exec);
+	devices_changed_cb(zsb, devices);
+	atime_changed_cb(zsb, atime);
+
+	return (0);
+}
+EXPORT_SYMBOL(zfs_remount);
+
+int
 zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp)
 {
 	zfs_sb_t	*zsb = VTOZSB(vfsp);
