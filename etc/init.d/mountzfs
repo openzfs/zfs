@@ -56,8 +56,8 @@ start()
 	mtabzfs=`cat /etc/mtab             | awk ' $3 == "zfs" { print $0 } '`
 	mtabnozfs=`cat /etc/mtab           | awk ' $3 != "zfs" { print $0 } '`
 
-	mountedinkernel=`echo "$mountszfs" | awk ' { print $1" "$2" "$3 } ' | sort | uniq`
-	mountedinmtab=`echo "$mtabzfs"     | awk ' { print $1" "$2" "$3 } ' | sort | uniq`
+	mountedinkernel=`echo "$mountszfs" | awk ' { print $1" "$2" "$3 } ' | sort | sort -uc`
+	mountedinmtab=`echo "$mtabzfs"     | awk ' { print $1" "$2" "$3 } ' | sort | sort -uc`
 
 	if [ "$mountedinkernel" != "$mountedinmtab" ] ; then
 
