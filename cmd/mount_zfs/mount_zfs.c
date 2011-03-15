@@ -298,7 +298,7 @@ main(int argc, char **argv)
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char *dataset, *mntpoint;
-	unsigned long mntflags = 0, zfsflags = 0;
+	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
 
@@ -402,7 +402,10 @@ main(int argc, char **argv)
 	if (mntflags & MS_REMOUNT)
 		nomtab = 1;
 
-	if (zfsflags * ZS_ZFSUTIL)
+	if ((mntflags & MS_REMOUNT) && (mntflags & MS_RDONLY))
+		remount_ro = 1;
+
+	if (zfsflags & ZS_ZFSUTIL)
 		zfsutil = 1;
 
 	if ((g_zfs = libzfs_init()) == NULL)
@@ -427,6 +430,10 @@ main(int argc, char **argv)
 	 * 'zfs mount'.  However, since 'zfs mount' actually invokes 'mount'
 	 * we differentiate the two cases using the 'zfsutil' mount option.
 	 * This mount option should only be supplied by the 'zfs mount' util.
+	 *
+	 * The only exception to the above rule is '-o remount,ro'.  This is
+	 * always allowed for non-legacy datasets for rc.sysinit/umountroot
+	 * to safely remount the root filesystem and flush its cache.
 	 */
 	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
 		(void) fprintf(stderr, gettext(
@@ -437,7 +444,7 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) && !remount_ro) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"
