@@ -69,13 +69,22 @@
 
 /*ARGSUSED*/
 int
-zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
+zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
+	zfs_sb_t *zsb = sb->s_fs_info;
+
 	/*
 	 * Data integrity is job one.  We don't want a compromised kernel
 	 * writing to the storage pool, so we never sync during panic.
 	 */
 	if (unlikely(oops_in_progress))
+		return (0);
+
+	/*
+	 * Semantically, the only requirement is that the sync be initiated.
+	 * The DMU syncs out txgs frequently, so there's nothing to do.
+	 */
+	if (!wait)
 		return (0);
 
 	if (zsb != NULL) {
@@ -87,19 +96,14 @@ zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
 		ZFS_ENTER(zsb);
 		dp = dmu_objset_pool(zsb->z_os);
 
-#ifdef HAVE_SHUTDOWN
 		/*
 		 * If the system is shutting down, then skip any
 		 * filesystems which may exist on a suspended pool.
-		 *
-		 * XXX: This can be implemented using the Linux reboot
-		 *      notifiers: {un}register_reboot_notifier().
 		 */
-		if (sys_shutdown && spa_suspended(dp->dp_spa)) {
+		if (spa_suspended(dp->dp_spa)) {
 			ZFS_EXIT(zsb);
 			return (0);
 		}
-#endif /* HAVE_SHUTDOWN */
 
 		if (zsb->z_log != NULL)
 			zil_commit(zsb->z_log, 0);
