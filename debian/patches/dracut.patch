@@ -1,0 +1,334 @@
+diff --git a/cmd/mount_zfs/mount_zfs.c b/cmd/mount_zfs/mount_zfs.c
+index fbb954a..204f9fa 100644
+--- a/cmd/mount_zfs/mount_zfs.c
++++ b/cmd/mount_zfs/mount_zfs.c
+@@ -72,13 +72,11 @@ static const option_map_t option_map[] = {
+ #ifdef MS_STRICTATIME
+ 	{ MNTOPT_DFRATIME,	MS_STRICTATIME,	ZS_COMMENT	},
+ #endif
+-#ifdef HAVE_SELINUX
+ 	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+ 	{ MNTOPT_NOCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+ 	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+ 	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+ 	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
+-#endif
+ #ifdef MS_I_VERSION
+ 	{ MNTOPT_IVERSION,	MS_I_VERSION,	ZS_COMMENT	},
+ #endif
+@@ -158,10 +156,10 @@ out:
+  * otherwise they are considered fatal are copied in to badopt.
+  */
+ static int
+-parse_options(char *mntopts, unsigned long *mntflags,
+-    unsigned long *zfsflags, int sloppy, char *badopt)
++parse_options(char *mntopts, unsigned long *mntflags, unsigned long *zfsflags,
++    int sloppy, char *badopt, char *mtabopt)
+ {
+-	int error = 0, quote = 0, flag = 0;
++	int error = 0, quote = 0, flag = 0, count = 0;
+ 	char *ptr, *opt, *opts;
+ 
+ 	opts = strdup(mntopts);
+@@ -197,6 +195,16 @@ parse_options(char *mntopts, unsigned long *mntflags,
+ 			if (error) {
+ 				strcpy(badopt, opt);
+ 				goto out;
++
++			}
++
++			if (!(*mntflags & MS_REMOUNT) &&
++			    !(*zfsflags & ZS_ZFSUTIL)) {
++				if (count > 0)
++					strlcat(mtabopt, ",", MNT_LINE_MAX);
++
++				strlcat(mtabopt, opt, MNT_LINE_MAX);
++				count++;
+ 			}
+ 
+ 			opt = NULL;
+@@ -297,8 +305,9 @@ main(int argc, char **argv)
+ 	char legacy[ZFS_MAXPROPLEN];
+ 	char mntopts[MNT_LINE_MAX] = { '\0' };
+ 	char badopt[MNT_LINE_MAX] = { '\0' };
++	char mtabopt[MNT_LINE_MAX] = { '\0' };
+ 	char *dataset, *mntpoint;
+-	unsigned long mntflags = 0, zfsflags = 0;
++	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0;
+ 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
+ 	int error, c;
+ 
+@@ -356,24 +365,25 @@ main(int argc, char **argv)
+ 	mntpoint = argv[1];
+ 
+ 	/* validate mount options and set mntflags */
+-	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy, badopt);
++	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy,
++	    badopt, mtabopt);
+ 	if (error) {
+ 		switch (error) {
+ 		case ENOMEM:
+ 			(void) fprintf(stderr, gettext("filesystem '%s' "
+ 			    "cannot be mounted due to a memory allocation "
+-			    "failure\n"), dataset);
++			    "failure.\n"), dataset);
+ 			return (MOUNT_SYSERR);
+-		case EINVAL:
++		case ENOENT:
+ 			(void) fprintf(stderr, gettext("filesystem '%s' "
+-			    "cannot be mounted of due to the invalid option "
+-			    "'%s'\n"), dataset, badopt);
++			    "cannot be mounted of due invalid option "
++			    "'%s'.\n"), dataset, badopt);
+ 			(void) fprintf(stderr, gettext("Use the '-s' option "
+ 			    "to ignore the bad mount option.\n"));
+ 			return (MOUNT_USAGE);
+ 		default:
+ 			(void) fprintf(stderr, gettext("filesystem '%s' "
+-			    "cannot be mounted due to internal error %d\n"),
++			    "cannot be mounted due to internal error %d.\n"),
+ 			    dataset, error);
+ 			return (MOUNT_SOFTWARE);
+ 		}
+@@ -386,9 +396,12 @@ main(int argc, char **argv)
+ 	 * done until zfs is added to the default selinux policy configuration
+ 	 * as a known filesystem type which supports xattrs.
+ 	 */
+-        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT))
++        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
+                 (void) strlcat(mntopts, ",context=\"system_u:"
+                     "object_r:file_t:s0\"", sizeof (mntopts));
++                (void) strlcat(mtabopt, ",context=\"system_u:"
++                    "object_r:file_t:s0\"", sizeof (mtabopt));
++	}
+ #endif /* HAVE_LIBSELINUX */
+ 
+ 
+@@ -396,13 +409,16 @@ main(int argc, char **argv)
+ 		(void) fprintf(stdout, gettext("mount.zfs:\n"
+ 		    "  dataset:    \"%s\"\n  mountpoint: \"%s\"\n"
+ 		    "  mountflags: 0x%lx\n  zfsflags:   0x%lx\n"
+-		    "  mountopts:  \"%s\"\n\n"),
+-		    dataset, mntpoint, mntflags, zfsflags, mntopts);
++		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n"),
++		    dataset, mntpoint, mntflags, zfsflags, mntopts, mtabopt);
+ 
+ 	if (mntflags & MS_REMOUNT)
+ 		nomtab = 1;
+ 
+-	if (zfsflags * ZS_ZFSUTIL)
++	if ((mntflags & MS_REMOUNT) && (mntflags & MS_RDONLY))
++		remount_ro = 1;
++
++	if (zfsflags & ZS_ZFSUTIL)
+ 		zfsutil = 1;
+ 
+ 	if ((g_zfs = libzfs_init()) == NULL)
+@@ -427,6 +443,10 @@ main(int argc, char **argv)
+ 	 * 'zfs mount'.  However, since 'zfs mount' actually invokes 'mount'
+ 	 * we differentiate the two cases using the 'zfsutil' mount option.
+ 	 * This mount option should only be supplied by the 'zfs mount' util.
++	 *
++	 * The only exception to the above rule is '-o remount,ro'.  This is
++	 * always allowed for non-legacy datasets for rc.sysinit/umountroot
++	 * to safely remount the root filesystem and flush its cache.
+ 	 */
+ 	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+ 		(void) fprintf(stderr, gettext(
+@@ -437,7 +457,7 @@ main(int argc, char **argv)
+ 		return (MOUNT_USAGE);
+ 	}
+ 
+-	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
++	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) && !remount_ro) {
+ 		(void) fprintf(stderr, gettext(
+ 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
+ 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"
+@@ -465,7 +485,7 @@ main(int argc, char **argv)
+ 	}
+ 
+ 	if (!nomtab && mtab_is_writeable()) {
+-		error = mtab_update(dataset, mntpoint, MNTTYPE_ZFS, mntopts);
++		error = mtab_update(dataset, mntpoint, MNTTYPE_ZFS, mtabopt);
+ 		if (error)
+ 			return (error);
+ 	}
+diff --git a/include/sys/zfs_vfsops.h b/include/sys/zfs_vfsops.h
+index a2f00ac..7622f03 100644
+--- a/include/sys/zfs_vfsops.h
++++ b/include/sys/zfs_vfsops.h
+@@ -187,6 +187,7 @@ extern int zfs_register_callbacks(zfs_sb_t *zsb);
+ extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
+ extern int zfs_domount(struct super_block *sb, void *data, int silent);
+ extern int zfs_umount(struct super_block *sb);
++extern int zfs_remount(struct super_block *sb, int *flags, char *data);
+ extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);
+ extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
+ extern int zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp);
+diff --git a/include/sys/zfs_znode.h b/include/sys/zfs_znode.h
+index 4e0b611..b028e2e 100644
+--- a/include/sys/zfs_znode.h
++++ b/include/sys/zfs_znode.h
+@@ -323,7 +323,7 @@ extern void	zfs_zinactive(znode_t *);
+ extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
+ extern void	zfs_remove_op_tables(void);
+ extern int	zfs_create_op_tables(void);
+-extern int	zfs_sync(zfs_sb_t *, short, cred_t *);
++extern int	zfs_sync(struct super_block *, int, cred_t *);
+ extern dev_t	zfs_cmpldev(uint64_t);
+ extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
+ extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
+diff --git a/module/zfs/zfs_vfsops.c b/module/zfs/zfs_vfsops.c
+index ea7e9ce..8036074 100644
+--- a/module/zfs/zfs_vfsops.c
++++ b/module/zfs/zfs_vfsops.c
+@@ -69,8 +69,10 @@
+ 
+ /*ARGSUSED*/
+ int
+-zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
++zfs_sync(struct super_block *sb, int wait, cred_t *cr)
+ {
++	zfs_sb_t *zsb = sb->s_fs_info;
++
+ 	/*
+ 	 * Data integrity is job one.  We don't want a compromised kernel
+ 	 * writing to the storage pool, so we never sync during panic.
+@@ -78,6 +80,13 @@ zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
+ 	if (unlikely(oops_in_progress))
+ 		return (0);
+ 
++	/*
++	 * Semantically, the only requirement is that the sync be initiated.
++	 * The DMU syncs out txgs frequently, so there's nothing to do.
++	 */
++	if (!wait)
++		return (0);
++
+ 	if (zsb != NULL) {
+ 		/*
+ 		 * Sync a specific filesystem.
+@@ -87,19 +96,14 @@ zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
+ 		ZFS_ENTER(zsb);
+ 		dp = dmu_objset_pool(zsb->z_os);
+ 
+-#ifdef HAVE_SHUTDOWN
+ 		/*
+ 		 * If the system is shutting down, then skip any
+ 		 * filesystems which may exist on a suspended pool.
+-		 *
+-		 * XXX: This can be implemented using the Linux reboot
+-		 *      notifiers: {un}register_reboot_notifier().
+ 		 */
+-		if (sys_shutdown && spa_suspended(dp->dp_spa)) {
++		if (spa_suspended(dp->dp_spa)) {
+ 			ZFS_EXIT(zsb);
+ 			return (0);
+ 		}
+-#endif /* HAVE_SHUTDOWN */
+ 
+ 		if (zsb->z_log != NULL)
+ 			zil_commit(zsb->z_log, 0);
+@@ -1288,6 +1292,46 @@ zfs_umount(struct super_block *sb)
+ EXPORT_SYMBOL(zfs_umount);
+ 
+ int
++zfs_remount(struct super_block *sb, int *flags, char *data)
++{
++	zfs_sb_t *zsb = sb->s_fs_info;
++	boolean_t readonly = B_FALSE;
++	boolean_t setuid = B_TRUE;
++	boolean_t exec = B_TRUE;
++	boolean_t devices = B_TRUE;
++	boolean_t atime = B_TRUE;
++
++	if (*flags & MS_RDONLY)
++		readonly = B_TRUE;
++
++	if (*flags & MS_NOSUID) {
++		devices = B_FALSE;
++		setuid = B_FALSE;
++	} else {
++		if (*flags & MS_NODEV)
++			devices = B_FALSE;
++	}
++
++	if (*flags & MS_NOEXEC)
++		exec = B_FALSE;
++
++	if (*flags & MS_NOATIME)
++		atime = B_FALSE;
++
++	/*
++	 * Invoke our callbacks to set required flags.
++	 */
++	readonly_changed_cb(zsb, readonly);
++	setuid_changed_cb(zsb, setuid);
++	exec_changed_cb(zsb, exec);
++	devices_changed_cb(zsb, devices);
++	atime_changed_cb(zsb, atime);
++
++	return (0);
++}
++EXPORT_SYMBOL(zfs_remount);
++
++int
+ zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp)
+ {
+ 	zfs_sb_t	*zsb = VTOZSB(vfsp);
+diff --git a/module/zfs/zpl_super.c b/module/zfs/zpl_super.c
+index 0417ce2..6524a65 100644
+--- a/module/zfs/zpl_super.c
++++ b/module/zfs/zpl_super.c
+@@ -105,6 +105,20 @@ zpl_put_super(struct super_block *sb)
+ }
+ 
+ static int
++zpl_sync_fs(struct super_block *sb, int wait)
++{
++	cred_t *cr;
++	int error;
++
++	cr = (cred_t *)get_current_cred();
++	error = -zfs_sync(sb, wait, cr);
++	put_cred(cr);
++	ASSERT3S(error, <=, 0);
++
++	return (error);
++}
++
++static int
+ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
+ {
+ 	int error;
+@@ -116,6 +130,16 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
+ }
+ 
+ static int
++zpl_remount_fs(struct super_block *sb, int *flags, char *data)
++{
++	int error;
++	error = -zfs_remount(sb, flags, data);
++	ASSERT3S(error, <=, 0);
++
++	return (error);
++}
++
++static int
+ zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
+ {
+ 	struct super_block *sb = vfsp->mnt_sb;
+@@ -179,11 +203,11 @@ const struct super_operations zpl_super_operations = {
+ #endif /* HAVE_EVICT_INODE */
+ 	.put_super	= zpl_put_super,
+ 	.write_super	= NULL,
+-	.sync_fs	= NULL,
++	.sync_fs	= zpl_sync_fs,
+ 	.freeze_fs	= NULL,
+ 	.unfreeze_fs	= NULL,
+ 	.statfs		= zpl_statfs,
+-	.remount_fs	= NULL,
++	.remount_fs	= zpl_remount_fs,
+ 	.show_options	= zpl_show_options,
+ 	.show_stats	= NULL,
+ };

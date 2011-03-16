@@ -1,4 +1,10 @@
-zfs-linux (0.6.0.4.rc2-0ubuntu3) natty; urgency=low
+zfs-linux (0.6.0.4.rc2-0ubuntu4) unstable; urgency=low
+
+  * Add behlendorf/dracut patch for better dismount handling at shutdown.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 16 Mar 2011 09:16:00 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu3) unstable; urgency=low
 
   * Add patches from behlendorf/master:
     * check-for-trailing-slash-in-mount.patch
