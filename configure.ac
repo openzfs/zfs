@@ -56,6 +56,10 @@ ZFS_AC_DEBUG
 AC_CONFIG_FILES([ 
 	Makefile
 	etc/Makefile
+	etc/udev/Makefile
+	etc/udev/rules.d/Makefile
+	etc/init.d/Makefile
+	etc/zfs/Makefile
 	man/Makefile
 	man/man8/Makefile
 	lib/Makefile

@@ -14,11 +14,11 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
+pkglibexecdir = $(libexecdir)/@PACKAGE@
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 install_sh_DATA = $(install_sh) -c -m 644
 install_sh_PROGRAM = $(install_sh) -c
@@ -34,9 +34,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-subdir = scripts/zpool-config
-DIST_COMMON = $(dist_pkglibexec_SCRIPTS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in
+subdir = etc/init.d
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
@@ -79,29 +78,6 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/zfs_config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
-am__install_max = 40
-am__nobase_strip_setup = \
-  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
-am__nobase_strip = \
-  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
-am__nobase_list = $(am__nobase_strip_setup); \
-  for p in $$list; do echo "$$p $$p"; done | \
-  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
-  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
-    if (++n[$$2] == $(am__install_max)) \
-      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
-    END { for (dir in files) print dir, files[dir] }'
-am__base_list = \
-  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
-  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__installdirs = "$(DESTDIR)$(pkglibexecdir)"
-SCRIPTS = $(dist_pkglibexec_SCRIPTS)
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
@@ -111,7 +87,6 @@ am__v_at_0 = @
 SOURCES =
 DIST_SOURCES =
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-pkglibexecdir = $(libexecdir)/@PACKAGE@/zpool-config
 ACLOCAL = @ACLOCAL@
 ALIEN = @ALIEN@
 ALIEN_VERSION = @ALIEN_VERSION@
@@ -278,36 +253,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-dist_pkglibexec_SCRIPTS = \
-	$(top_srcdir)/scripts/zpool-config/dm0-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/file-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/file-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/file-raidz2.sh \
-	$(top_srcdir)/scripts/zpool-config/file-raidz.sh \
-	$(top_srcdir)/scripts/zpool-config/hda-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-raidz2.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-raidz.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-faulty-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-faulty-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-faulty-raidz.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-faulty-raidz2.sh \
-	$(top_srcdir)/scripts/zpool-config/lo-faulty-raidz3.sh \
-	$(top_srcdir)/scripts/zpool-config/md0-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/md0-raid5.sh \
-	$(top_srcdir)/scripts/zpool-config/ram0-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-noraid.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-raidz.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-raidz2.sh \
-	$(top_srcdir)/scripts/zpool-config/scsi_debug-raidz3.sh \
-	$(top_srcdir)/scripts/zpool-config/sda-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/zpool-raid0.sh \
-	$(top_srcdir)/scripts/zpool-config/zpool-raid10.sh \
-	$(top_srcdir)/scripts/zpool-config/zpool-raidz.sh
-
+EXTRA_DIST = zfs.fedora zfs.lsb
 all: all-am
 
 .SUFFIXES:
@@ -320,9 +266,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu scripts/zpool-config/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu etc/init.d/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu scripts/zpool-config/Makefile
+	  $(AUTOMAKE) --gnu etc/init.d/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -341,40 +287,6 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-dist_pkglibexecSCRIPTS: $(dist_pkglibexec_SCRIPTS)
-	@$(NORMAL_INSTALL)
-	test -z "$(pkglibexecdir)" || $(MKDIR_P) "$(DESTDIR)$(pkglibexecdir)"
-	@list='$(dist_pkglibexec_SCRIPTS)'; test -n "$(pkglibexecdir)" || list=; \
-	for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  if test -f "$$d$$p"; then echo "$$d$$p"; echo "$$p"; else :; fi; \
-	done | \
-	sed -e 'p;s,.*/,,;n' \
-	    -e 'h;s|.*|.|' \
-	    -e 'p;x;s,.*/,,;$(transform)' | sed 'N;N;N;s,\n, ,g' | \
-	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1; } \
-	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
-	    if ($$2 == $$4) { files[d] = files[d] " " $$1; \
-	      if (++n[d] == $(am__install_max)) { \
-		print "f", d, files[d]; n[d] = 0; files[d] = "" } } \
-	    else { print "f", d "/" $$4, $$1 } } \
-	  END { for (d in files) print "f", d, files[d] }' | \
-	while read type dir files; do \
-	     if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
-	     test -z "$$files" || { \
-	       echo " $(INSTALL_SCRIPT) $$files '$(DESTDIR)$(pkglibexecdir)$$dir'"; \
-	       $(INSTALL_SCRIPT) $$files "$(DESTDIR)$(pkglibexecdir)$$dir" || exit $$?; \
-	     } \
-	; done
-
-uninstall-dist_pkglibexecSCRIPTS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(dist_pkglibexec_SCRIPTS)'; test -n "$(pkglibexecdir)" || exit 0; \
-	files=`for p in $$list; do echo "$$p"; done | \
-	       sed -e 's,.*/,,;$(transform)'`; \
-	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(pkglibexecdir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(pkglibexecdir)" && rm -f $$files
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -420,11 +332,8 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(SCRIPTS)
+all-am: Makefile
 installdirs:
-	for dir in "$(DESTDIR)$(pkglibexecdir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -450,6 +359,8 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+clean: clean-am
+
 clean-am: clean-generic clean-libtool mostlyclean-am
 
 distclean: distclean-am
@@ -468,13 +379,13 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-data-local
 
 install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-dist_pkglibexecSCRIPTS
+install-exec-am:
 
 install-html: install-html-am
 
@@ -512,41 +423,26 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-dist_pkglibexecSCRIPTS
+uninstall-am:
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
 	distclean distclean-generic distclean-libtool distdir dvi \
 	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dist_pkglibexecSCRIPTS \
-	install-dvi install-dvi-am install-exec install-exec-am \
-	install-html install-html-am install-info install-info-am \
-	install-man install-pdf install-pdf-am install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am uninstall uninstall-am \
-	uninstall-dist_pkglibexecSCRIPTS
+	install-data install-data-am install-data-local install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	uninstall uninstall-am
 
 
-all:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ ! -e $$link ]; then \
-			$(LN_S) $$file $$link; \
-		fi \
-	done
-
-clean:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ -L $$link ]; then \
-			$(RM) $$link; \
-		fi \
-	done
+install-data-local:
+	@instdest=$(DESTDIR)/$(sysconfdir)/init.d/zfs; \
+	$(INSTALL) -TD zfs.$(DEFAULT_INIT_SCRIPT) $$instdest
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
