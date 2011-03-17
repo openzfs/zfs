@@ -65,7 +65,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/*
 %{_libdir}/*
 %{_mandir}/man8/*
-/etc/*
+%{_sysconfdir}/init.d/*
+%{_sysconfdir}/udev/rules.d/*
+%{_sysconfdir}/zfs/*
 /sbin/*
 
 %files devel
@@ -77,4 +79,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_libexecdir}/@PACKAGE@/*
 
 %post
-%postun
+[ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+exit 0
+
+%preun
+[ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
+exit 0
