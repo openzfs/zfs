@@ -174,7 +174,7 @@ zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx)
 	vattr.va_uid = crgetuid(kcred);
 	vattr.va_gid = crgetgid(kcred);
 
-	sharezp = kmem_cache_alloc(znode_cache, KM_SLEEP);
+	sharezp = kmem_cache_alloc(znode_cache, KM_PUSHPAGE);
 	sharezp->z_moved = 0;
 	sharezp->z_unlinked = 0;
 	sharezp->z_atime_dirty = 0;
@@ -248,7 +248,7 @@ zfs_inode_alloc(struct super_block *sb, struct inode **ip)
 {
 	znode_t *zp;
 
-	zp = kmem_cache_alloc(znode_cache, KM_SLEEP);
+	zp = kmem_cache_alloc(znode_cache, KM_PUSHPAGE);
 	*ip = ZTOI(zp);
 
 	return (0);
