@@ -41,13 +41,12 @@
 /*
  * Memory allocation interfaces
  */
-#define KM_SLEEP                        GFP_NOFS
-#define KM_NOSLEEP                      GFP_ATOMIC
-#undef  KM_PANIC                        /* No linux analog */
-#define KM_PUSHPAGE                     (KM_SLEEP | __GFP_HIGH)
-#define KM_VMFLAGS                      GFP_LEVEL_MASK
-#define KM_FLAGS                        __GFP_BITS_MASK
-#define KM_NODEBUG                      __GFP_NOWARN
+#define KM_SLEEP	GFP_KERNEL	/* Can sleep, never fails */
+#define KM_NOSLEEP	GFP_ATOMIC	/* Can not sleep, may fail */
+#define KM_PUSHPAGE	(GFP_NOFS | __GFP_HIGH)	/* Use reserved memory */
+#define KM_NODEBUG	__GFP_NOWARN	/* Suppress warnings */
+#define KM_FLAGS	__GFP_BITS_MASK
+#define KM_VMFLAGS	GFP_LEVEL_MASK
 
 /*
  * Used internally, the kernel does not need to support this flag
