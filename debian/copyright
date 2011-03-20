@@ -1,9 +1,3 @@
-This work was packaged for Debian by:
-
-    KQ Infotech <zfs@kqinfotech.com> on Mon, 10 Jan 2011 11:16:05 +0530
-
-    It was downloaded from git@github.com:zfs-linux/zfs.git
-
 Upstream Author(s):
 
     Brian Behlendorf <behlendorf1@llnl.gov>,
@@ -12,7 +6,9 @@ Upstream Author(s):
     Ricardo M. Correia <Ricardo.M.Correia@sun.com>
     KQ Infotech <zfs@kqinfotech.com>
 
+
 Copyright:
+
     The majority of the code in the ZFS on Linux port comes from OpenSolaris
     which has been released under the terms of the CDDL open source license.
     This includes the core ZFS code, libavl, libnvpair, libefi, libunicode,
@@ -53,8 +49,13 @@ License:
     Exceptions are noted within the associated source files.  See the file
     OPENSOLARIS.LICENSE for more information.
 
+
 The Debian packaging is:
+
+    Copy 2011 Darik Horn <dajhorn@vanadac.com>
+    Available at git://github.com/dajhorn/pkg-zfs.git
+
     Copyright (c) 2010 Knowledge Quest Infotech Pvt. Ltd. 
     Produced at Knowledge Quest Infotech Pvt. Ltd. 
-    Written by: Knowledge Quest Infotech Pvt. Ltd. 
-                zfs@kqinfotech.com
+    Written by: Knowledge Quest Infotech Pvt. Ltd. <zfs@kqinfotech.com>
+    Available at git://github.com/zfs-linux/zfs.git
