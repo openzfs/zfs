@@ -842,10 +842,30 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 
 	ASSERT(ISP2(size));
 
-	if (skc->skc_flags & KMC_KMEM)
+	if (skc->skc_flags & KMC_KMEM) {
 		ptr = (void *)__get_free_pages(flags, get_order(size));
-	else
+	} else {
+		/*
+		 * As part of vmalloc() an __pte_alloc_kernel() allocation
+		 * may occur.  This internal allocation does not honor the
+		 * gfp flags passed to vmalloc().  This means even when
+		 * vmalloc(GFP_NOFS) is called it is possible synchronous
+		 * reclaim will occur.  This reclaim can trigger file IO
+		 * which can result in a deadlock.  This issue can be avoided
+		 * by explicitly setting PF_MEMALLOC on the process to
+		 * subvert synchronous reclaim.  The following bug has
+		 * been filed at kernel.org to track the issue.
+		 *
+		 * https://bugzilla.kernel.org/show_bug.cgi?id=30702
+		 */
+		if (!(flags & __GFP_FS))
+			current->flags |= PF_MEMALLOC;
+
 		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+
+		if (!(flags & __GFP_FS))
+			current->flags &= ~PF_MEMALLOC;
+	}
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
