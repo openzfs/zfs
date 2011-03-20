@@ -1,0 +1,40 @@
+From ec49a5f0ec020fa1b0d3e915e2ffb10bbed97599 Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Fri, 18 Mar 2011 13:54:27 -0700
+Subject: [PATCH] Fix getcwd() warning
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+New versions glibc declare getcwd() with the warn_unused_result attribute.
+This results in a warning because the updated mount helper was not
+checking this return value.  This issue was fixed by checking the return
+type and in the case of an error simply returning the passed dataset.
+One possible, but unlikely, error would be having your cwd directory
+unlinked while the mount command was running.
+
+  cmd/mount_zfs/mount_zfs.c: In function ‘parse_dataset’:
+  cmd/mount_zfs/mount_zfs.c:223:2: error: ignoring return value of
+      ‘getcwd’, declared with attribute warn_unused_result
+---
+ cmd/mount_zfs/mount_zfs.c |    4 +++-
+ 1 files changed, 3 insertions(+), 1 deletions(-)
+
+diff --git a/cmd/mount_zfs/mount_zfs.c b/cmd/mount_zfs/mount_zfs.c
+index fbb954a..090c915 100644
+--- a/cmd/mount_zfs/mount_zfs.c
++++ b/cmd/mount_zfs/mount_zfs.c
+@@ -220,7 +220,9 @@ parse_dataset(char *dataset)
+ 	char cwd[PATH_MAX];
+ 	int len;
+ 
+-	(void) getcwd(cwd, PATH_MAX);
++	if (getcwd(cwd, PATH_MAX) == NULL)
++		return (dataset);
++
+ 	len = strlen(cwd);
+ 
+ 	/* Do not add one when cwd already ends in a trailing '/' */
+-- 
+1.7.4.1
+
