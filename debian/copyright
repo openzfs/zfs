@@ -52,7 +52,7 @@ License:
 
 The Debian packaging is:
 
-    Copy 2011 Darik Horn <dajhorn@vanadac.com>
+    Copyright 2011 Darik Horn <dajhorn@vanadac.com>
     Available at git://github.com/dajhorn/pkg-zfs.git
 
     Copyright (c) 2010 Knowledge Quest Infotech Pvt. Ltd. 
