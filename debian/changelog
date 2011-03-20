@@ -1,3 +1,12 @@
+zfs-linux (0.6.0.4.rc2-0ubuntu5) unstable; urgency=low
+
+  * Add the debuild-ppa.sh script for Launchpad PPA build convenience.
+  * Add fix-getcwd-warning.patch from behlendorf/master.
+  * Add fix-gentoo-ldflags.patch from behlendorf/master.
+  * Add the pkg-zfs repository to the debian/copyright file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 20 Mar 2011 15:27:49 -0500
+
 zfs-linux (0.6.0.4.rc2-0ubuntu4) unstable; urgency=low
 
   * Add behlendorf/dracut patch for better dismount handling at shutdown.
