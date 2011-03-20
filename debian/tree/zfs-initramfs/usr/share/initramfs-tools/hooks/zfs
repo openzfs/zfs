@@ -13,6 +13,7 @@ PREREQ_UDEV_RULES="60-zpool.rules 60-zvol.rules"
 # These prerequisites are provided by the zfs package. The zdb utility is not
 # strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST=" \
+  /bin/hostname \
   /usr/bin/zvol_id \
   /usr/bin/zpool_layout \
   /usr/bin/zpool_id \
