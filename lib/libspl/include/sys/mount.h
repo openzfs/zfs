@@ -55,7 +55,22 @@
 #define	MS_OWNER	0x10000000
 #define	MS_GROUP	0x08000000
 #define	MS_COMMENT	0x02000000
-#define	MS_FORCE	MNT_FORCE
-#define	MS_DETACH	MNT_DETACH
+
+/*
+ * Older glibc <sys/mount.h> headers did not define all the available
+ * umount2(2) flags.  Both MNT_FORCE and MNT_DETACH are supported in the
+ * kernel back to 2.4.11 so we define them correctly if they are missing.
+ */
+#ifdef MNT_FORCE
+# define MS_FORCE	MNT_FORCE
+#else
+# define MS_FORCE	0x00000001
+#endif /* MNT_FORCE */
+
+#ifdef MNT_DETACH
+# define MS_DETACH	MNT_DETACH
+#else
+# define MS_DETACH	0x00000002
+#endif /* MNT_DETACH */
 
 #endif /* _LIBSPL_SYS_MOUNT_H */
