@@ -280,6 +280,8 @@ typedef struct znode {
 	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 #define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
 	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
+#define	ZFS_OBJ_HOLD_OWNED(zsb, obj_num) \
+	mutex_owned(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 
 /*
  * Macros to encode/decode ZFS stored time values from/to struct timespec
