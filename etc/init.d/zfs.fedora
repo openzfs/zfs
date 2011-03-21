@@ -95,6 +95,7 @@ start()
 	savepwd="$PWD"
 	mount | grep " type zfs " | sed 's/.*on //' | sed 's/ type zfs.*$//' | while read line ; do
 		cd "$line" > /dev/null 2>&1
+		ls > /dev/null
 	done
 	cd "$savepwd"
 	
