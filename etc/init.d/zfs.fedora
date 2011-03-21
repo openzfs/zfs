@@ -1,94 +1,136 @@
 #!/bin/bash
 #
-# zfs           This script will mount/umount the zfs filesystems.
+# Mount / unmount the ZFS filesystems
 #
-# chkconfig:    2345 01 99
-# description:  This script will mount/umount the zfs filesystems during
-#               system boot/shutdown.  Configuration of which filesystems
-#               should be mounted is handled by the zfs 'mountpoint' and
-#               'canmount' properties.  See the zfs(8) man page for details.
-#               It is also responsible for all userspace zfs services.
+# Copyright Manuel Amador (Rudd-O) <rudd-o@rudd-o.com>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License
+# as published by the Free Software Foundation.
+# 
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# mountzfs	ZFS filesystem management
+# chkconfig:	2345 01 99
+# description:	Mount / unmount the ZFS filesystems upon boot / shutdown.
 #
 ### BEGIN INIT INFO
-# Provides: zfs
-# Required-Start: $local_fs
-# Required-Stop: $local_fs
-# Should-Start:
-# Should-Stop:
-# Default-Start: 2 3 4 5
-# Default-Stop: 1
-# Short-Description: Mount/umount the zfs filesystems
-# Description: ZFS is an advanced filesystem designed to simplify managing
-#              and protecting your data.  This service mounts the ZFS
-#              filesystems and starts all related zfs services.
+# Provides:		zfs
+# Required-Start:	$local_fs
+# Required-Stop:	$local_fs
+# Should-Stop:		
+# Short-Description:	mount / unmount the ZFS filesystems upon boot / shutdown
+# Description:		mount / unmount the ZFS filesystems upon boot / shutdown
 ### END INIT INFO
 
-# Source function library.
+export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
+
+# Source function library & LSB routines
 . /etc/rc.d/init.d/functions
 
-# Source zfs configuration.
-[ -f /etc/sysconfig/zfs ] &&  . /etc/sysconfig/zfs
-
+# script variables
 RETVAL=0
+ZPOOL=zpool
+ZFS=zfs
+servicename=mountzfs
+LOCKFILE=/var/lock/subsys/$servicename
 
-LOCKFILE=/var/lock/subsys/zfs
-CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/usr/sbin/zpool
-ZFS=/usr/sbin/zfs
-
-[ -x $ZPOOL ] || exit 1
-[ -x $ZFS ] || exit 2
+# Sanity checks
+modinfo zfs > /dev/null 2>&1 || exit 1
+$ZPOOL  > /dev/null 2>&1
+[ $? == 127 ] && exit 1
+$ZFS    > /dev/null 2>&1
+[ $? == 127 ] && exit 1
 
 start()
 {
-	[ -f $LOCKFILE ] && return 3
+	if [ -f "$LOCKFILE" ] ; then return 0 ; fi
 
-	# Requires selinux policy which has not been written.
-	if [ -r "/selinux/enforce" ] &&
-	   [ "$(cat /selinux/enforce)" = "1" ]; then
-		action "SELinux ZFS policy required: " /bin/false
-		return 4
+        # Requires selinux policy which has not been written.
+        if [ -r "/selinux/enforce" ] &&
+           [ "$(cat /selinux/enforce)" = "1" ]; then
+                action "SELinux ZFS policy required: " /bin/false || return 4
+        fi
+
+	if ! grep -q zfs /proc/modules ; then
+		action $"Loading kernel ZFS infrastructure: " modprobe zfs || return 5
 	fi
 
-	# Load the zfs module stack
-	/sbin/modprobe zfs
+	mountszfs=`cat /proc/mounts        | awk ' $3 == "zfs" { print $0 } '`
+	mtabzfs=`cat /etc/mtab             | awk ' $3 == "zfs" { print $0 } '`
+	mtabnozfs=`cat /etc/mtab           | awk ' $3 != "zfs" { print $0 } '`
 
-	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
-	# This should be handled by rc.sysinit but lets be paranoid.
-	awk '$2 == "/" { exit 1 }' /etc/mtab
-	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
-		/bin/mount -f /
+	mountedinkernel=`echo "$mountszfs" | awk ' { print $1" "$2" "$3 } ' | sort | sort -u`
+	mountedinmtab=`echo "$mtabzfs"     | awk ' { print $1" "$2" "$3 } ' | sort | sort -u`
+
+	if [ "$mountedinkernel" != "$mountedinmtab" ] ; then
+
+		echo -n $"Registering already-mounted ZFS filesystems: "
+		addzfsutil=`echo "$mountszfs" | awk ' { print $1" "$2" "$3" "$4",zfsutil "$5" "$6 } ' | sed 's/zfsutil,zfsutil/zfsutil/g'`
+		mtab=`echo "$addzfsutil" ; echo "$mtabnozfs"`
+		echo "$mtab" > /etc/mtab
+		success "Registering already-mounted ZFS filesystems: "
+
 	fi
 
-	# Import all pools described by the cache file, and then mount
-	# all filesystem based on their properties.
-        if [ -f $CACHEFILE ] ; then
-		action $"Importing ZFS pools: " \
-			$ZPOOL import -c $CACHEFILE -aN 2>/dev/null
-		action $"Mounting ZFS filesystems: " \
-			$ZFS mount -a
+        if [ -f /etc/zfs/zpool.cache ] ; then
+	
+		echo -n $"Importing ZFS pools not yet imported: "
+		$ZPOOL import -c /etc/zfs/zpool.cache -aN || true # stupid zpool will fail if all pools are already imported
+		RETVAL=$?
+		if [ $RETVAL -ne 0 ]; then
+			failure "Importing ZFS pools not yet imported: "
+			return 6
+		fi
+		success "Importing ZFS pools not yet imported: "
+	
 	fi
 	
-	touch $LOCKFILE
+	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 7
+
+	# hack to read mounted file systems because otherwise
+	# zfs returns EPERM when a non-root user reads a mounted filesystem before root did
+	savepwd="$PWD"
+	mount | grep " type zfs " | sed 's/.*on //' | sed 's/ type zfs.*$//' | while read line ; do
+		cd "$line" > /dev/null 2>&1
+	done
+	cd "$savepwd"
+	
+	touch "$LOCKFILE"
 }
 
 stop()
 {
-	[ ! -f $LOCKFILE ] && return 3
+	if [ ! -f "$LOCKFILE" ] ; then return 0 ; fi
 
-	action $"Unmounting ZFS filesystems: " $ZFS umount -a
+	# the poweroff of the system takes care of this
+	# but it never unmounts the root filesystem itself
+	# shit
 
-	rm -f $LOCKFILE
+	action $"Syncing ZFS filesystems: " sync
+	     # about the only thing we can do, and then we
+	     # hope that the umount process will succeed
+	     # unfortunately the umount process does not dismount
+	     # the root file system, there ought to be some way
+	     # we can tell zfs to just flush anything in memory
+	     # when a request to remount,ro comes in
+
+	#echo -n $"Unmounting ZFS filesystems: "
+	#$ZFS umount -a
+	#RETVAL=$?
+	#if [ $RETVAL -ne 0 ]; then
+	#	failure
+
+	#	return 8
+	#fi
+	#success
+	
+	rm -f "$LOCKFILE"
 }
 
-status()
-{
-	[ ! -f $LOCKFILE ] && return 3
-
-	$ZPOOL status && echo && $ZPOOL list
-}
-
+# See how we are called
 case "$1" in
 	start)
 		start
@@ -99,7 +141,7 @@ case "$1" in
 		RETVAL=$?
 		;;
 	status)
-		status
+		$ZPOOL status && echo && $ZFS list
 		RETVAL=$?
 		;;
 	restart)
@@ -107,7 +149,7 @@ case "$1" in
 		start
 		;;
 	condrestart)
-		if [ -f $LOCKFILE ]; then
+		if [ -f "$LOCKFILE" ] ; then
 			stop
 			start
 		fi
