@@ -62,6 +62,7 @@ if [ ! -f ${spl_module} ] || [ ! -f ${splat_module} ]; then
 	die "Source tree must be built, run 'make'"
 fi
 
+/sbin/modprobe zlib_inflate &>/dev/null
 /sbin/modprobe zlib_deflate &>/dev/null
 
 spl_module_params="spl_debug_mask=0xffffffff spl_debug_subsys=0xffffffff"
