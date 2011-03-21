@@ -220,7 +220,9 @@ parse_dataset(char *dataset)
 	char cwd[PATH_MAX];
 	int len;
 
-	(void) getcwd(cwd, PATH_MAX);
+	if (getcwd(cwd, PATH_MAX) == NULL)
+		return (dataset);
+
 	len = strlen(cwd);
 
 	/* Do not add one when cwd already ends in a trailing '/' */
