@@ -1,3 +1,13 @@
+zfs-linux (0.6.0.4.rc2-0ubuntu6) unstable; urgency=low
+
+  * Trivial typo correction in the debian/copyright file.
+  * Remove the init-top/hostname script and force BUSYBOX=y instead.
+  * Correct typos in the debian/debuild-ppa.sh helper.
+  * Add a debian/source/options file that disable the
+    implied --single-debian-patch build option.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 20 Mar 2011 19:11:12 -0500
+
 zfs-linux (0.6.0.4.rc2-0ubuntu5) unstable; urgency=low
 
   * Add the debuild-ppa.sh script for Launchpad PPA build convenience.
