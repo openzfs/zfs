@@ -69,13 +69,22 @@
 
 /*ARGSUSED*/
 int
-zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
+zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
+	zfs_sb_t *zsb = sb->s_fs_info;
+
 	/*
 	 * Data integrity is job one.  We don't want a compromised kernel
 	 * writing to the storage pool, so we never sync during panic.
 	 */
 	if (unlikely(oops_in_progress))
+		return (0);
+
+	/*
+	 * Semantically, the only requirement is that the sync be initiated.
+	 * The DMU syncs out txgs frequently, so there's nothing to do.
+	 */
+	if (!wait)
 		return (0);
 
 	if (zsb != NULL) {
@@ -87,19 +96,14 @@ zfs_sync(zfs_sb_t *zsb, short flag, cred_t *cr)
 		ZFS_ENTER(zsb);
 		dp = dmu_objset_pool(zsb->z_os);
 
-#ifdef HAVE_SHUTDOWN
 		/*
 		 * If the system is shutting down, then skip any
 		 * filesystems which may exist on a suspended pool.
-		 *
-		 * XXX: This can be implemented using the Linux reboot
-		 *      notifiers: {un}register_reboot_notifier().
 		 */
-		if (sys_shutdown && spa_suspended(dp->dp_spa)) {
+		if (spa_suspended(dp->dp_spa)) {
 			ZFS_EXIT(zsb);
 			return (0);
 		}
-#endif /* HAVE_SHUTDOWN */
 
 		if (zsb->z_log != NULL)
 			zil_commit(zsb->z_log, 0);
@@ -1286,6 +1290,46 @@ zfs_umount(struct super_block *sb)
 	return (0);
 }
 EXPORT_SYMBOL(zfs_umount);
+
+int
+zfs_remount(struct super_block *sb, int *flags, char *data)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	boolean_t readonly = B_FALSE;
+	boolean_t setuid = B_TRUE;
+	boolean_t exec = B_TRUE;
+	boolean_t devices = B_TRUE;
+	boolean_t atime = B_TRUE;
+
+	if (*flags & MS_RDONLY)
+		readonly = B_TRUE;
+
+	if (*flags & MS_NOSUID) {
+		devices = B_FALSE;
+		setuid = B_FALSE;
+	} else {
+		if (*flags & MS_NODEV)
+			devices = B_FALSE;
+	}
+
+	if (*flags & MS_NOEXEC)
+		exec = B_FALSE;
+
+	if (*flags & MS_NOATIME)
+		atime = B_FALSE;
+
+	/*
+	 * Invoke our callbacks to set required flags.
+	 */
+	readonly_changed_cb(zsb, readonly);
+	setuid_changed_cb(zsb, setuid);
+	exec_changed_cb(zsb, exec);
+	devices_changed_cb(zsb, devices);
+	atime_changed_cb(zsb, atime);
+
+	return (0);
+}
+EXPORT_SYMBOL(zfs_remount);
 
 int
 zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp)

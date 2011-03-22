@@ -2720,7 +2720,7 @@ top:
 				arc_callback_t	*acb = NULL;
 
 				acb = kmem_zalloc(sizeof (arc_callback_t),
-				    KM_SLEEP);
+				    KM_PUSHPAGE);
 				acb->acb_done = done;
 				acb->acb_private = private;
 				if (pio != NULL)
@@ -2836,7 +2836,7 @@ top:
 
 		ASSERT(!GHOST_STATE(hdr->b_state));
 
-		acb = kmem_zalloc(sizeof (arc_callback_t), KM_SLEEP);
+		acb = kmem_zalloc(sizeof (arc_callback_t), KM_PUSHPAGE);
 		acb->acb_done = done;
 		acb->acb_private = private;
 
@@ -2885,7 +2885,7 @@ top:
 				ARCSTAT_BUMP(arcstat_l2_hits);
 
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
-				    KM_SLEEP);
+				    KM_PUSHPAGE);
 				cb->l2rcb_buf = buf;
 				cb->l2rcb_spa = spa;
 				cb->l2rcb_bp = *bp;

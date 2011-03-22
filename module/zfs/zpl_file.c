@@ -32,12 +32,12 @@
 static int
 zpl_open(struct inode *ip, struct file *filp)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_open(ip, filp->f_mode, filp->f_flags, cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	if (error)
@@ -49,12 +49,12 @@ zpl_open(struct inode *ip, struct file *filp)
 static int
 zpl_release(struct inode *ip, struct file *filp)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_close(ip, filp->f_flags, cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -64,13 +64,13 @@ static int
 zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct dentry *dentry = filp->f_path.dentry;
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_readdir(dentry->d_inode, dirent, filldir,
 	    &filp->f_pos, cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -78,12 +78,12 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 ZPL_FSYNC_PROTO(zpl_fsync, filp, unused_dentry, datasync)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_fsync(filp->f_path.dentry->d_inode, datasync, cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -117,13 +117,13 @@ zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 static ssize_t
 zpl_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	ssize_t read;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	read = zpl_read_common(filp->f_mapping->host, buf, len, *ppos,
 	    UIO_USERSPACE, filp->f_flags, cr);
-	put_cred(cr);
+	crfree(cr);
 
 	if (read < 0)
 		return (read);
@@ -160,13 +160,13 @@ zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
 static ssize_t
 zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	ssize_t wrote;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	wrote = zpl_write_common(filp->f_mapping->host, buf, len, *ppos,
 	    UIO_USERSPACE, filp->f_flags, cr);
-	put_cred(cr);
+	crfree(cr);
 
 	if (wrote < 0)
 		return (wrote);
@@ -250,7 +250,7 @@ zpl_readpage(struct file *filp, struct page *pp)
 	struct inode *ip;
 	loff_t off, i_size;
 	size_t len, wrote;
-	cred_t *cr;
+	cred_t *cr = CRED();
 	void *pb;
 	int error = 0;
 
@@ -260,7 +260,7 @@ zpl_readpage(struct file *filp, struct page *pp)
 	i_size = i_size_read(ip);
 	ASSERT3S(off, <, i_size);
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	len = MIN(PAGE_CACHE_SIZE, i_size - off);
 
 	pb = kmap(pp);
@@ -274,7 +274,7 @@ zpl_readpage(struct file *filp, struct page *pp)
 		memset(pb + len, 0, PAGE_CACHE_SIZE - len);
 
 	kunmap(pp);
-	put_cred(cr);
+	crfree(cr);
 
 	if (error) {
 		SetPageError(pp);
@@ -306,7 +306,7 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	struct inode *ip;
 	loff_t off, i_size;
 	size_t len, read;
-	cred_t *cr;
+	cred_t *cr = CRED();
 	void *pb;
 	int error = 0;
 
@@ -315,7 +315,7 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	off = page_offset(pp);
 	i_size = i_size_read(ip);
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	len = MIN(PAGE_CACHE_SIZE, i_size - off);
 
 	pb = kmap(pp);
@@ -326,7 +326,7 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 		error = -EIO;
 
 	kunmap(pp);
-	put_cred(cr);
+	crfree(cr);
 
 	if (error) {
 		SetPageError(pp);

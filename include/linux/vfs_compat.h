@@ -37,6 +37,21 @@
 #else
 #define ZPL_FSYNC_PROTO(fn, x, y, z)	static int fn(struct file *x, \
 						      struct dentry *y, int z)
-#endif
+#endif /* HAVE_2ARGS_FSYNC */
+
+/*
+ * 2.6.28 API change,
+ * Added insert_inode_locked() helper function, prior to this most callers
+ * used insert_inode_hash().  The older method doesn't check for collisions
+ * in the inode_hashtable but it still acceptible for use.
+ */
+#ifndef HAVE_INSERT_INODE_LOCKED
+static inline int
+insert_inode_locked(struct inode *ip)
+{
+	insert_inode_hash(ip);
+	return (0);
+}
+#endif /* HAVE_INSERT_INODE_LOCKED */
 
 #endif /* _ZFS_VFS_H */

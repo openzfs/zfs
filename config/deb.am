@@ -31,7 +31,8 @@ deb-utils: deb-local rpm-utils
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
 	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3; \
-	$(RM) $$pkg1 $$pkg2 $$pkg3
+	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 
 deb: deb-modules deb-utils

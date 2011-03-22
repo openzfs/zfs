@@ -110,11 +110,11 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 	struct inode *ip = dentry->d_inode;
 	struct inode *dxip = NULL;
 	loff_t pos = 3;  /* skip '.', '..', and '.zfs' entries. */
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 	xattr_filldir_t xf = { buffer_size, 0, buffer, ip };
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 
 	/* Lookup the xattr directory */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
@@ -135,7 +135,7 @@ out:
 	if (dxip)
 		iput(dxip);
 
-	put_cred(cr);
+	crfree(cr);
 
 	return (error);
 }
@@ -145,10 +145,10 @@ zpl_xattr_get(struct inode *ip, const char *name, void *buf, size_t size)
 {
 	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 
 	/* Lookup the xattr directory */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
@@ -173,7 +173,7 @@ out:
 	if (dxip)
 		iput(dxip);
 
-	put_cred(cr);
+	crfree(cr);
 
 	if (error == -ENOENT)
 		error = -ENODATA;
@@ -188,11 +188,11 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
 	vattr_t *vap = NULL;
-	cred_t *cr;
+	cred_t *cr = CRED();
 	ssize_t wrote;
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 
 	/* Lookup the xattr directory and create it if required. */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR | CREATE_XATTR_DIR,
@@ -232,8 +232,8 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 		vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 		vap->va_mode = S_IFREG | 0644;
 		vap->va_mask = ATTR_MODE;
-		vap->va_uid = current_fsuid();
-		vap->va_gid = current_fsgid();
+		vap->va_uid = crgetfsuid(cr);
+		vap->va_gid = crgetfsgid(cr);
 
 		error = -zfs_create(dxip, (char *)name, vap, 0, 0644, &xip,
 		    cr, 0, NULL);
@@ -256,7 +256,7 @@ out:
 	if (dxip)
 		iput(dxip);
 
-	put_cred(cr);
+	crfree(cr);
 	if (error == -ENOENT)
 		error = -ENODATA;
 

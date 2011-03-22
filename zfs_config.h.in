@@ -84,6 +84,9 @@
 /* Define to 1 if licensed under the GPL */
 #undef HAVE_GPL_ONLY_SYMBOLS
 
+/* insert_inode_locked() is available */
+#undef HAVE_INSERT_INODE_LOCKED
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 

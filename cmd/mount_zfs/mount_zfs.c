@@ -72,13 +72,11 @@ static const option_map_t option_map[] = {
 #ifdef MS_STRICTATIME
 	{ MNTOPT_DFRATIME,	MS_STRICTATIME,	ZS_COMMENT	},
 #endif
-#ifdef HAVE_SELINUX
 	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
 	{ MNTOPT_NOCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
 	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
 	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
 	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_NOCONTEXT	},
-#endif
 #ifdef MS_I_VERSION
 	{ MNTOPT_IVERSION,	MS_I_VERSION,	ZS_COMMENT	},
 #endif
@@ -158,10 +156,10 @@ out:
  * otherwise they are considered fatal are copied in to badopt.
  */
 static int
-parse_options(char *mntopts, unsigned long *mntflags,
-    unsigned long *zfsflags, int sloppy, char *badopt)
+parse_options(char *mntopts, unsigned long *mntflags, unsigned long *zfsflags,
+    int sloppy, char *badopt, char *mtabopt)
 {
-	int error = 0, quote = 0, flag = 0;
+	int error = 0, quote = 0, flag = 0, count = 0;
 	char *ptr, *opt, *opts;
 
 	opts = strdup(mntopts);
@@ -197,6 +195,16 @@ parse_options(char *mntopts, unsigned long *mntflags,
 			if (error) {
 				strcpy(badopt, opt);
 				goto out;
+
+			}
+
+			if (!(*mntflags & MS_REMOUNT) &&
+			    !(*zfsflags & ZS_ZFSUTIL)) {
+				if (count > 0)
+					strlcat(mtabopt, ",", MNT_LINE_MAX);
+
+				strlcat(mtabopt, opt, MNT_LINE_MAX);
+				count++;
 			}
 
 			opt = NULL;
@@ -218,10 +226,16 @@ static char *
 parse_dataset(char *dataset)
 {
 	char cwd[PATH_MAX];
+	int len;
 
-	(void) getcwd(cwd, PATH_MAX);
-	if (!strncmp(cwd, dataset, strlen(cwd)))
-		return (dataset + strlen(cwd) + 1);
+	if (getcwd(cwd, PATH_MAX) == NULL)
+		return (dataset);
+
+	len = strlen(cwd);
+
+	/* Do not add one when cwd already ends in a trailing '/' */
+	if (!strncmp(cwd, dataset, len))
+		return (dataset + len + (cwd[len-1] != '/'));
 
 	return (dataset);
 }
@@ -293,8 +307,9 @@ main(int argc, char **argv)
 	char legacy[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
+	char mtabopt[MNT_LINE_MAX] = { '\0' };
 	char *dataset, *mntpoint;
-	unsigned long mntflags = 0, zfsflags = 0;
+	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
 
@@ -352,24 +367,25 @@ main(int argc, char **argv)
 	mntpoint = argv[1];
 
 	/* validate mount options and set mntflags */
-	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy, badopt);
+	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy,
+	    badopt, mtabopt);
 	if (error) {
 		switch (error) {
 		case ENOMEM:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
 			    "cannot be mounted due to a memory allocation "
-			    "failure\n"), dataset);
+			    "failure.\n"), dataset);
 			return (MOUNT_SYSERR);
-		case EINVAL:
+		case ENOENT:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted of due to the invalid option "
-			    "'%s'\n"), dataset, badopt);
+			    "cannot be mounted of due invalid option "
+			    "'%s'.\n"), dataset, badopt);
 			(void) fprintf(stderr, gettext("Use the '-s' option "
 			    "to ignore the bad mount option.\n"));
 			return (MOUNT_USAGE);
 		default:
 			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted due to internal error %d\n"),
+			    "cannot be mounted due to internal error %d.\n"),
 			    dataset, error);
 			return (MOUNT_SOFTWARE);
 		}
@@ -382,9 +398,12 @@ main(int argc, char **argv)
 	 * done until zfs is added to the default selinux policy configuration
 	 * as a known filesystem type which supports xattrs.
 	 */
-        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT))
+        if (is_selinux_enabled() && !(zfsflags & ZS_NOCONTEXT)) {
                 (void) strlcat(mntopts, ",context=\"system_u:"
                     "object_r:file_t:s0\"", sizeof (mntopts));
+                (void) strlcat(mtabopt, ",context=\"system_u:"
+                    "object_r:file_t:s0\"", sizeof (mtabopt));
+	}
 #endif /* HAVE_LIBSELINUX */
 
 
@@ -392,13 +411,16 @@ main(int argc, char **argv)
 		(void) fprintf(stdout, gettext("mount.zfs:\n"
 		    "  dataset:    \"%s\"\n  mountpoint: \"%s\"\n"
 		    "  mountflags: 0x%lx\n  zfsflags:   0x%lx\n"
-		    "  mountopts:  \"%s\"\n\n"),
-		    dataset, mntpoint, mntflags, zfsflags, mntopts);
+		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n"),
+		    dataset, mntpoint, mntflags, zfsflags, mntopts, mtabopt);
 
 	if (mntflags & MS_REMOUNT)
 		nomtab = 1;
 
-	if (zfsflags * ZS_ZFSUTIL)
+	if ((mntflags & MS_REMOUNT) && (mntflags & MS_RDONLY))
+		remount_ro = 1;
+
+	if (zfsflags & ZS_ZFSUTIL)
 		zfsutil = 1;
 
 	if ((g_zfs = libzfs_init()) == NULL)
@@ -423,6 +445,10 @@ main(int argc, char **argv)
 	 * 'zfs mount'.  However, since 'zfs mount' actually invokes 'mount'
 	 * we differentiate the two cases using the 'zfsutil' mount option.
 	 * This mount option should only be supplied by the 'zfs mount' util.
+	 *
+	 * The only exception to the above rule is '-o remount,ro'.  This is
+	 * always allowed for non-legacy datasets for rc.sysinit/umountroot
+	 * to safely remount the root filesystem and flush its cache.
 	 */
 	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
 		(void) fprintf(stderr, gettext(
@@ -433,7 +459,7 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
+	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) && !remount_ro) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"
@@ -461,7 +487,7 @@ main(int argc, char **argv)
 	}
 
 	if (!nomtab && mtab_is_writeable()) {
-		error = mtab_update(dataset, mntpoint, MNTTYPE_ZFS, mntopts);
+		error = mtab_update(dataset, mntpoint, MNTTYPE_ZFS, mtabopt);
 		if (error)
 			return (error);
 	}
