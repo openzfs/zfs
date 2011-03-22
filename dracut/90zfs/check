@@ -3,8 +3,7 @@
 # We depend on udev-rules being loaded
 [ "$1" = "-d" ] && exit 0
 
-# if we don't have btrfs (btrfsctl) installed on the host system,
-# no point in trying to support it in the initramfs.
+# Verify the zfs tool chain
 which zpool >/dev/null 2>&1 || exit 1
 which zfs >/dev/null 2>&1 || exit 1
 

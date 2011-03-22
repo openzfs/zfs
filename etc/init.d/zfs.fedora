@@ -1,28 +1,26 @@
 #!/bin/bash
 #
-# Mount / unmount the ZFS filesystems
+# zfs           This script will mount/umount the zfs filesystems.
 #
-# Copyright Manuel Amador (Rudd-O) <rudd-o@rudd-o.com>
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of version 2.1 of the GNU Lesser General Public License
-# as published by the Free Software Foundation.
-# 
-# This program is distributed in the hope that it would be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-#
-# mountzfs	ZFS filesystem management
-# chkconfig:	2345 01 99
-# description:	Mount / unmount the ZFS filesystems upon boot / shutdown.
+# chkconfig:    2345 01 99
+# description:  This script will mount/umount the zfs filesystems during
+#               system boot/shutdown.  Configuration of which filesystems
+#               should be mounted is handled by the zfs 'mountpoint' and
+#               'canmount' properties.  See the zfs(8) man page for details.
+#               It is also responsible for all userspace zfs services.
 #
 ### BEGIN INIT INFO
-# Provides:		zfs
-# Required-Start:	$local_fs
-# Required-Stop:	$local_fs
-# Should-Stop:		
-# Short-Description:	mount / unmount the ZFS filesystems upon boot / shutdown
-# Description:		mount / unmount the ZFS filesystems upon boot / shutdown
+# Provides: zfs
+# Required-Start: $local_fs
+# Required-Stop: $local_fs
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 1
+# Short-Description: Mount/umount the zfs filesystems
+# Description: ZFS is an advanced filesystem designed to simplify managing
+#              and protecting your data.  This service mounts the ZFS
+#              filesystems and starts all related zfs services.
 ### END INIT INFO
 
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
@@ -34,7 +32,7 @@ export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
 RETVAL=0
 ZPOOL=zpool
 ZFS=zfs
-servicename=mountzfs
+servicename=zfs
 LOCKFILE=/var/lock/subsys/$servicename
 
 # Sanity checks

@@ -7,3 +7,4 @@ instmods zavl
 instmods zunicode
 instmods spl
 instmods zlib_deflate
+instmods zlib_inflate
