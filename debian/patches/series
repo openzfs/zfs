@@ -1,1 +1,2 @@
 volatile-version.patch
+revert-ae26d046-dracut.patch
