@@ -1,8 +1,8 @@
-diff --git a/Makefile.in b/Makefile.in
-index 5198660..26ed819 100644
+Index: b/Makefile.in
+===================================================================
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -180,7 +180,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -181,7 +181,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -10,11 +10,11 @@ index 5198660..26ed819 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/Makefile.in b/cmd/Makefile.in
-index 615148c..91200b4 100644
+Index: b/cmd/Makefile.in
+===================================================================
 --- a/cmd/Makefile.in
 +++ b/cmd/Makefile.in
-@@ -148,7 +148,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -149,7 +149,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -22,11 +22,11 @@ index 615148c..91200b4 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/mount_zfs/Makefile.in b/cmd/mount_zfs/Makefile.in
-index dee3dcf..18d3c6e 100644
+Index: b/cmd/mount_zfs/Makefile.in
+===================================================================
 --- a/cmd/mount_zfs/Makefile.in
 +++ b/cmd/mount_zfs/Makefile.in
-@@ -150,7 +150,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -150,7 +150,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -34,11 +34,11 @@ index dee3dcf..18d3c6e 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zdb/Makefile.in b/cmd/zdb/Makefile.in
-index 8d424db..dec3e3a 100644
+Index: b/cmd/zdb/Makefile.in
+===================================================================
 --- a/cmd/zdb/Makefile.in
 +++ b/cmd/zdb/Makefile.in
-@@ -150,7 +150,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -151,7 +151,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -46,11 +46,11 @@ index 8d424db..dec3e3a 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zfs/Makefile.in b/cmd/zfs/Makefile.in
-index 54e4a69..19f6f8f 100644
+Index: b/cmd/zfs/Makefile.in
+===================================================================
 --- a/cmd/zfs/Makefile.in
 +++ b/cmd/zfs/Makefile.in
-@@ -150,7 +150,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -151,7 +151,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -58,11 +58,11 @@ index 54e4a69..19f6f8f 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zinject/Makefile.in b/cmd/zinject/Makefile.in
-index 2920b2b..4181ec9 100644
+Index: b/cmd/zinject/Makefile.in
+===================================================================
 --- a/cmd/zinject/Makefile.in
 +++ b/cmd/zinject/Makefile.in
-@@ -150,7 +150,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -151,7 +151,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -70,11 +70,11 @@ index 2920b2b..4181ec9 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zpios/Makefile.in b/cmd/zpios/Makefile.in
-index 52f04f4..a10ef6a 100644
+Index: b/cmd/zpios/Makefile.in
+===================================================================
 --- a/cmd/zpios/Makefile.in
 +++ b/cmd/zpios/Makefile.in
-@@ -140,7 +140,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -141,7 +141,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -82,11 +82,11 @@ index 52f04f4..a10ef6a 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zpool/Makefile.in b/cmd/zpool/Makefile.in
-index 8eb642a..a3c892d 100644
+Index: b/cmd/zpool/Makefile.in
+===================================================================
 --- a/cmd/zpool/Makefile.in
 +++ b/cmd/zpool/Makefile.in
-@@ -151,7 +151,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -152,7 +152,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -94,11 +94,11 @@ index 8eb642a..a3c892d 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zpool_id/Makefile.in b/cmd/zpool_id/Makefile.in
-index ee7c569..1a52546 100644
+Index: b/cmd/zpool_id/Makefile.in
+===================================================================
 --- a/cmd/zpool_id/Makefile.in
 +++ b/cmd/zpool_id/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -106,11 +106,11 @@ index ee7c569..1a52546 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zpool_layout/Makefile.in b/cmd/zpool_layout/Makefile.in
-index 813fa5d..5d6e8f5 100644
+Index: b/cmd/zpool_layout/Makefile.in
+===================================================================
 --- a/cmd/zpool_layout/Makefile.in
 +++ b/cmd/zpool_layout/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -118,11 +118,11 @@ index 813fa5d..5d6e8f5 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/ztest/Makefile.in b/cmd/ztest/Makefile.in
-index 88becc5..a81b68e 100644
+Index: b/cmd/ztest/Makefile.in
+===================================================================
 --- a/cmd/ztest/Makefile.in
 +++ b/cmd/ztest/Makefile.in
-@@ -150,7 +150,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -151,7 +151,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -130,11 +130,11 @@ index 88becc5..a81b68e 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/cmd/zvol_id/Makefile.in b/cmd/zvol_id/Makefile.in
-index b4249ec..7346070 100644
+Index: b/cmd/zvol_id/Makefile.in
+===================================================================
 --- a/cmd/zvol_id/Makefile.in
 +++ b/cmd/zvol_id/Makefile.in
-@@ -140,7 +140,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -141,7 +141,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -142,11 +142,11 @@ index b4249ec..7346070 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/config/zfs-build.m4 b/config/zfs-build.m4
-index 3ea77ab..083f9ea 100644
+Index: b/config/zfs-build.m4
+===================================================================
 --- a/config/zfs-build.m4
 +++ b/config/zfs-build.m4
-@@ -207,20 +207,6 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
+@@ -207,20 +207,6 @@
  
  	AC_MSG_RESULT([$DEFAULT_PACKAGE])
  	AC_SUBST(DEFAULT_PACKAGE)
@@ -167,11 +167,11 @@ index 3ea77ab..083f9ea 100644
  ])
  
  dnl #
-diff --git a/configure b/configure
-index 668ae01..10caf65 100755
+Index: b/configure
+===================================================================
 --- a/configure
 +++ b/configure
-@@ -810,7 +810,6 @@ LINUX_OBJ
+@@ -810,7 +810,6 @@
  LINUX
  ZFS_CONFIG
  TARGET_ASM_DIR
@@ -179,7 +179,7 @@ index 668ae01..10caf65 100755
  DEFAULT_PACKAGE
  VENDOR
  ALIEN_VERSION
-@@ -4821,13 +4820,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
+@@ -4821,13 +4820,13 @@
  else
    lt_cv_nm_interface="BSD nm"
    echo "int some_variable = 0;" > conftest.$ac_ext
@@ -196,7 +196,7 @@ index 668ae01..10caf65 100755
    cat conftest.out >&5
    if $GREP 'External.*some_variable' conftest.out > /dev/null; then
      lt_cv_nm_interface="MS dumpbin"
-@@ -6033,7 +6032,7 @@ ia64-*-hpux*)
+@@ -6033,7 +6032,7 @@
    ;;
  *-*-irix6*)
    # Find out which ABI we are using.
@@ -205,7 +205,7 @@ index 668ae01..10caf65 100755
    if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
    (eval $ac_compile) 2>&5
    ac_status=$?
-@@ -7886,11 +7885,11 @@ else
+@@ -7886,11 +7885,11 @@
     -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
     -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
     -e 's:$: $lt_compiler_flag:'`
@@ -219,7 +219,7 @@ index 668ae01..10caf65 100755
     if (exit $ac_status) && test -s "$ac_outfile"; then
       # The compiler can only warn and ignore the option if not recognized
       # So say no if there are warnings other than the usual output.
-@@ -8225,11 +8224,11 @@ else
+@@ -8225,11 +8224,11 @@
     -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
     -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
     -e 's:$: $lt_compiler_flag:'`
@@ -233,7 +233,7 @@ index 668ae01..10caf65 100755
     if (exit $ac_status) && test -s "$ac_outfile"; then
       # The compiler can only warn and ignore the option if not recognized
       # So say no if there are warnings other than the usual output.
-@@ -8330,11 +8329,11 @@ else
+@@ -8330,11 +8329,11 @@
     -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
     -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
     -e 's:$: $lt_compiler_flag:'`
@@ -247,7 +247,7 @@ index 668ae01..10caf65 100755
     if (exit $ac_status) && test -s out/conftest2.$ac_objext
     then
       # The compiler can only warn and ignore the option if not recognized
-@@ -8385,11 +8384,11 @@ else
+@@ -8385,11 +8384,11 @@
     -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
     -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
     -e 's:$: $lt_compiler_flag:'`
@@ -261,7 +261,7 @@ index 668ae01..10caf65 100755
     if (exit $ac_status) && test -s out/conftest2.$ac_objext
     then
       # The compiler can only warn and ignore the option if not recognized
-@@ -11188,7 +11187,7 @@ else
+@@ -11188,7 +11187,7 @@
    lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
    lt_status=$lt_dlunknown
    cat > conftest.$ac_ext <<_LT_EOF
@@ -270,7 +270,7 @@ index 668ae01..10caf65 100755
  #include "confdefs.h"
  
  #if HAVE_DLFCN_H
-@@ -11284,7 +11283,7 @@ else
+@@ -11284,7 +11283,7 @@
    lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
    lt_status=$lt_dlunknown
    cat > conftest.$ac_ext <<_LT_EOF
@@ -279,7 +279,7 @@ index 668ae01..10caf65 100755
  #include "confdefs.h"
  
  #if HAVE_DLFCN_H
-@@ -11818,22 +11817,6 @@ $as_echo_n "checking default package type... " >&6; }
+@@ -11818,22 +11817,6 @@
  $as_echo "$DEFAULT_PACKAGE" >&6; }
  
  
@@ -302,7 +302,7 @@ index 668ae01..10caf65 100755
  
  
  	TARGET_ASM_DIR=asm-generic
-@@ -19928,7 +19911,7 @@ fi
+@@ -20008,7 +19991,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -311,7 +311,7 @@ index 668ae01..10caf65 100755
  
  
  cat >confcache <<\_ACEOF
-@@ -20846,10 +20829,6 @@ do
+@@ -20926,10 +20909,6 @@
      "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
      "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
      "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
@@ -322,11 +322,11 @@ index 668ae01..10caf65 100755
      "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
      "man/man8/Makefile") CONFIG_FILES="$CONFIG_FILES man/man8/Makefile" ;;
      "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
-diff --git a/configure.ac b/configure.ac
-index 456a83b..a572782 100644
+Index: b/configure.ac
+===================================================================
 --- a/configure.ac
 +++ b/configure.ac
-@@ -56,10 +56,6 @@ ZFS_AC_DEBUG
+@@ -56,10 +56,6 @@
  AC_CONFIG_FILES([ 
  	Makefile
  	etc/Makefile
@@ -337,8 +337,8 @@ index 456a83b..a572782 100644
  	man/Makefile
  	man/man8/Makefile
  	lib/Makefile
-diff --git a/etc/Makefile.am b/etc/Makefile.am
-index 1a8c656..87349f5 100644
+Index: b/etc/Makefile.am
+===================================================================
 --- a/etc/Makefile.am
 +++ b/etc/Makefile.am
 @@ -1 +1,3 @@
@@ -346,8 +346,8 @@ index 1a8c656..87349f5 100644
 +sysconfdir = /etc
 +nobase_dist_sysconf_DATA  = $(top_srcdir)/etc/zfs/*
 +nobase_dist_sysconf_DATA += $(top_srcdir)/etc/udev/rules.d/*
-diff --git a/etc/Makefile.in b/etc/Makefile.in
-index c0dffc3..e129b33 100644
+Index: b/etc/Makefile.in
+===================================================================
 --- a/etc/Makefile.in
 +++ b/etc/Makefile.in
 @@ -14,6 +14,7 @@
@@ -358,7 +358,7 @@ index c0dffc3..e129b33 100644
  VPATH = @srcdir@
  pkgdatadir = $(datadir)/@PACKAGE@
  pkgincludedir = $(includedir)/@PACKAGE@
-@@ -35,7 +36,8 @@ build_triplet = @build@
+@@ -35,7 +36,8 @@
  host_triplet = @host@
  target_triplet = @target@
  subdir = etc
@@ -368,7 +368,7 @@ index c0dffc3..e129b33 100644
  ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
  am__aclocal_m4_deps =  \
  	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
-@@ -86,47 +88,30 @@ am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+@@ -87,47 +89,30 @@
  am__v_at_0 = @
  SOURCES =
  DIST_SOURCES =
@@ -439,7 +439,7 @@ index c0dffc3..e129b33 100644
  ACLOCAL = @ACLOCAL@
  ALIEN = @ALIEN@
  ALIEN_VERSION = @ALIEN_VERSION@
-@@ -148,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -149,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -447,7 +447,7 @@ index c0dffc3..e129b33 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-@@ -284,7 +268,7 @@ psdir = @psdir@
+@@ -285,7 +269,7 @@
  sbindir = @sbindir@
  sharedstatedir = @sharedstatedir@
  srcdir = @srcdir@
@@ -456,7 +456,7 @@ index c0dffc3..e129b33 100644
  target = @target@
  target_alias = @target_alias@
  target_cpu = @target_cpu@
-@@ -293,8 +277,9 @@ target_vendor = @target_vendor@
+@@ -294,8 +278,9 @@
  top_build_prefix = @top_build_prefix@
  top_builddir = @top_builddir@
  top_srcdir = @top_srcdir@
@@ -468,7 +468,7 @@ index c0dffc3..e129b33 100644
  
  .SUFFIXES:
  $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
-@@ -333,141 +318,35 @@ mostlyclean-libtool:
+@@ -334,141 +319,35 @@
  
  clean-libtool:
  	-rm -rf .libs _libs
@@ -626,15 +626,14 @@ index c0dffc3..e129b33 100644
 -	here=`$(am__cd) $(top_builddir) && pwd` \
 -	  && $(am__cd) $(top_srcdir) \
 -	  && gtags -i $(GTAGS_ARGS) "$$here"
--
++CTAGS:
+ 
 -distclean-tags:
 -	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
-+CTAGS:
-+
  
  distdir: $(DISTFILES)
  	@srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
-@@ -499,48 +378,22 @@ distdir: $(DISTFILES)
+@@ -500,48 +379,22 @@
  	    || exit 1; \
  	  fi; \
  	done
@@ -694,7 +693,7 @@ index c0dffc3..e129b33 100644
  install-strip:
  	$(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
  	  install_sh_PROGRAM="$(INSTALL_STRIP_PROGRAM)" INSTALL_STRIP_FLAG=-s \
-@@ -557,88 +410,86 @@ distclean-generic:
+@@ -558,88 +411,86 @@
  maintainer-clean-generic:
  	@echo "This command is intended for maintainers to use"
  	@echo "it deletes files that may require special tools to rebuild."
@@ -811,9 +810,8 @@ index c0dffc3..e129b33 100644
  
  
  # Tell versions [3.59,3.63) of GNU make to not export all variables.
-diff --git a/etc/init.d/Makefile.am b/etc/init.d/Makefile.am
-deleted file mode 100644
-index 094681e..0000000
+Index: b/etc/init.d/Makefile.am
+===================================================================
 --- a/etc/init.d/Makefile.am
 +++ /dev/null
 @@ -1,5 +0,0 @@
@@ -822,9 +820,8 @@ index 094681e..0000000
 -install-data-local:
 -	@instdest=$(DESTDIR)/$(sysconfdir)/init.d/zfs; \
 -	$(INSTALL) -TD zfs.$(DEFAULT_INIT_SCRIPT) $$instdest
-diff --git a/etc/init.d/Makefile.in b/etc/init.d/Makefile.in
-deleted file mode 100644
-index f711f9d..0000000
+Index: b/etc/init.d/Makefile.in
+===================================================================
 --- a/etc/init.d/Makefile.in
 +++ /dev/null
 @@ -1,449 +0,0 @@
@@ -1277,9 +1274,8 @@ index f711f9d..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/etc/init.d/zfs.fedora b/etc/init.d/zfs.fedora
-deleted file mode 100644
-index 2751603..0000000
+Index: b/etc/init.d/zfs.fedora
+===================================================================
 --- a/etc/init.d/zfs.fedora
 +++ /dev/null
 @@ -1,120 +0,0 @@
@@ -1403,9 +1399,8 @@ index 2751603..0000000
 -esac
 -
 -exit $RETVAL
-diff --git a/etc/init.d/zfs.lsb b/etc/init.d/zfs.lsb
-deleted file mode 100644
-index 4e8f0cc..0000000
+Index: b/etc/init.d/zfs.lsb
+===================================================================
 --- a/etc/init.d/zfs.lsb
 +++ /dev/null
 @@ -1,123 +0,0 @@
@@ -1532,16 +1527,14 @@ index 4e8f0cc..0000000
 -esac
 -
 -exit $RETVAL
-diff --git a/etc/udev/Makefile.am b/etc/udev/Makefile.am
-deleted file mode 100644
-index f930941..0000000
+Index: b/etc/udev/Makefile.am
+===================================================================
 --- a/etc/udev/Makefile.am
 +++ /dev/null
 @@ -1 +0,0 @@
 -SUBDIRS = rules.d
-diff --git a/etc/udev/Makefile.in b/etc/udev/Makefile.in
-deleted file mode 100644
-index 96d5d64..0000000
+Index: b/etc/udev/Makefile.in
+===================================================================
 --- a/etc/udev/Makefile.in
 +++ /dev/null
 @@ -1,646 +0,0 @@
@@ -2191,9 +2184,8 @@ index 96d5d64..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/etc/udev/rules.d/Makefile.am b/etc/udev/rules.d/Makefile.am
-deleted file mode 100644
-index 0453600..0000000
+Index: b/etc/udev/rules.d/Makefile.am
+===================================================================
 --- a/etc/udev/rules.d/Makefile.am
 +++ /dev/null
 @@ -1,7 +0,0 @@
@@ -2204,9 +2196,8 @@ index 0453600..0000000
 -	60-zvol.rules
 -
 -EXTRA_DIST = $(pkgsysconf_DATA)
-diff --git a/etc/udev/rules.d/Makefile.in b/etc/udev/rules.d/Makefile.in
-deleted file mode 100644
-index 5cc5b35..0000000
+Index: b/etc/udev/rules.d/Makefile.in
+===================================================================
 --- a/etc/udev/rules.d/Makefile.in
 +++ /dev/null
 @@ -1,497 +0,0 @@
@@ -2707,9 +2698,8 @@ index 5cc5b35..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/etc/zfs/Makefile.am b/etc/zfs/Makefile.am
-deleted file mode 100644
-index 027c397..0000000
+Index: b/etc/zfs/Makefile.am
+===================================================================
 --- a/etc/zfs/Makefile.am
 +++ /dev/null
 @@ -1,9 +0,0 @@
@@ -2722,9 +2712,8 @@ index 027c397..0000000
 -	zdev.conf.x4550.example
 -
 -EXTRA_DIST = $(pkgsysconf_DATA)
-diff --git a/etc/zfs/Makefile.in b/etc/zfs/Makefile.in
-deleted file mode 100644
-index a2edc2c..0000000
+Index: b/etc/zfs/Makefile.in
+===================================================================
 --- a/etc/zfs/Makefile.in
 +++ /dev/null
 @@ -1,499 +0,0 @@
@@ -3227,11 +3216,11 @@ index a2edc2c..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/include/Makefile.in b/include/Makefile.in
-index 70c577b..c137bab 100644
+Index: b/include/Makefile.in
+===================================================================
 --- a/include/Makefile.in
 +++ b/include/Makefile.in
-@@ -192,7 +192,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -193,7 +193,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3239,11 +3228,11 @@ index 70c577b..c137bab 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/include/linux/Makefile.in b/include/linux/Makefile.in
-index 741a35a..e0ac172 100644
+Index: b/include/linux/Makefile.in
+===================================================================
 --- a/include/linux/Makefile.in
 +++ b/include/linux/Makefile.in
-@@ -139,7 +139,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -140,7 +140,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3251,11 +3240,11 @@ index 741a35a..e0ac172 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/include/sys/Makefile.in b/include/sys/Makefile.in
-index 9123b64..e55057d 100644
+Index: b/include/sys/Makefile.in
+===================================================================
 --- a/include/sys/Makefile.in
 +++ b/include/sys/Makefile.in
-@@ -317,7 +317,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -318,7 +318,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3263,11 +3252,11 @@ index 9123b64..e55057d 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/include/sys/fm/Makefile.in b/include/sys/fm/Makefile.in
-index adbb31b..ba9cda2 100644
+Index: b/include/sys/fm/Makefile.in
+===================================================================
 --- a/include/sys/fm/Makefile.in
 +++ b/include/sys/fm/Makefile.in
-@@ -177,7 +177,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -178,7 +178,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3275,11 +3264,11 @@ index adbb31b..ba9cda2 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/include/sys/fm/fs/Makefile.in b/include/sys/fm/fs/Makefile.in
-index 69ca1f3..66dea01 100644
+Index: b/include/sys/fm/fs/Makefile.in
+===================================================================
 --- a/include/sys/fm/fs/Makefile.in
 +++ b/include/sys/fm/fs/Makefile.in
-@@ -137,7 +137,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -138,7 +138,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3287,11 +3276,11 @@ index 69ca1f3..66dea01 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/include/sys/fs/Makefile.in b/include/sys/fs/Makefile.in
-index da8c57e..67ba4c6 100644
+Index: b/include/sys/fs/Makefile.in
+===================================================================
 --- a/include/sys/fs/Makefile.in
 +++ b/include/sys/fs/Makefile.in
-@@ -137,7 +137,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -138,7 +138,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3299,11 +3288,11 @@ index da8c57e..67ba4c6 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/Makefile.in b/lib/Makefile.in
-index d7b6652..357c74a 100644
+Index: b/lib/Makefile.in
+===================================================================
 --- a/lib/Makefile.in
 +++ b/lib/Makefile.in
-@@ -148,7 +148,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -149,7 +149,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3311,11 +3300,11 @@ index d7b6652..357c74a 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libavl/Makefile.in b/lib/libavl/Makefile.in
-index 9e89bbe..e78d325 100644
+Index: b/lib/libavl/Makefile.in
+===================================================================
 --- a/lib/libavl/Makefile.in
 +++ b/lib/libavl/Makefile.in
-@@ -160,7 +160,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -161,7 +161,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3323,11 +3312,11 @@ index 9e89bbe..e78d325 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libefi/Makefile.in b/lib/libefi/Makefile.in
-index ed27f76..d7dc9a3 100644
+Index: b/lib/libefi/Makefile.in
+===================================================================
 --- a/lib/libefi/Makefile.in
 +++ b/lib/libefi/Makefile.in
-@@ -160,7 +160,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -161,7 +161,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3335,11 +3324,11 @@ index ed27f76..d7dc9a3 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libnvpair/Makefile.in b/lib/libnvpair/Makefile.in
-index 5e5012a..8feb5cb 100644
+Index: b/lib/libnvpair/Makefile.in
+===================================================================
 --- a/lib/libnvpair/Makefile.in
 +++ b/lib/libnvpair/Makefile.in
-@@ -161,7 +161,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -162,7 +162,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3347,11 +3336,11 @@ index 5e5012a..8feb5cb 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/Makefile.in b/lib/libspl/Makefile.in
-index a132c91..e88eb67 100644
+Index: b/lib/libspl/Makefile.in
+===================================================================
 --- a/lib/libspl/Makefile.in
 +++ b/lib/libspl/Makefile.in
-@@ -211,7 +211,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -212,7 +212,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3359,11 +3348,11 @@ index a132c91..e88eb67 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/asm-generic/Makefile.in b/lib/libspl/asm-generic/Makefile.in
-index eb332bd..d822b50 100644
+Index: b/lib/libspl/asm-generic/Makefile.in
+===================================================================
 --- a/lib/libspl/asm-generic/Makefile.in
 +++ b/lib/libspl/asm-generic/Makefile.in
-@@ -109,7 +109,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -110,7 +110,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3371,11 +3360,11 @@ index eb332bd..d822b50 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/asm-i386/Makefile.in b/lib/libspl/asm-i386/Makefile.in
-index 53ae4ee..663d542 100644
+Index: b/lib/libspl/asm-i386/Makefile.in
+===================================================================
 --- a/lib/libspl/asm-i386/Makefile.in
 +++ b/lib/libspl/asm-i386/Makefile.in
-@@ -113,7 +113,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -114,7 +114,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3383,11 +3372,11 @@ index 53ae4ee..663d542 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/asm-x86_64/Makefile.in b/lib/libspl/asm-x86_64/Makefile.in
-index b8d95f3..1208d62 100644
+Index: b/lib/libspl/asm-x86_64/Makefile.in
+===================================================================
 --- a/lib/libspl/asm-x86_64/Makefile.in
 +++ b/lib/libspl/asm-x86_64/Makefile.in
-@@ -113,7 +113,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -114,7 +114,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3395,11 +3384,11 @@ index b8d95f3..1208d62 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/Makefile.in b/lib/libspl/include/Makefile.in
-index 04f7d6e..e2b4aa5 100644
+Index: b/lib/libspl/include/Makefile.in
+===================================================================
 --- a/lib/libspl/include/Makefile.in
 +++ b/lib/libspl/include/Makefile.in
-@@ -173,7 +173,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -174,7 +174,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3407,11 +3396,11 @@ index 04f7d6e..e2b4aa5 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/ia32/Makefile.in b/lib/libspl/include/ia32/Makefile.in
-index b67ce11..7fe6413 100644
+Index: b/lib/libspl/include/ia32/Makefile.in
+===================================================================
 --- a/lib/libspl/include/ia32/Makefile.in
 +++ b/lib/libspl/include/ia32/Makefile.in
-@@ -148,7 +148,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -149,7 +149,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3419,11 +3408,11 @@ index b67ce11..7fe6413 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/ia32/sys/Makefile.in b/lib/libspl/include/ia32/sys/Makefile.in
-index d6599af..593934b 100644
+Index: b/lib/libspl/include/ia32/sys/Makefile.in
+===================================================================
 --- a/lib/libspl/include/ia32/sys/Makefile.in
 +++ b/lib/libspl/include/ia32/sys/Makefile.in
-@@ -135,7 +135,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -136,7 +136,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3431,11 +3420,11 @@ index d6599af..593934b 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/rpc/Makefile.in b/lib/libspl/include/rpc/Makefile.in
-index 499c183..906440c 100644
+Index: b/lib/libspl/include/rpc/Makefile.in
+===================================================================
 --- a/lib/libspl/include/rpc/Makefile.in
 +++ b/lib/libspl/include/rpc/Makefile.in
-@@ -135,7 +135,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -136,7 +136,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3443,11 +3432,11 @@ index 499c183..906440c 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/sys/Makefile.in b/lib/libspl/include/sys/Makefile.in
-index a3a28fc..af21c13 100644
+Index: b/lib/libspl/include/sys/Makefile.in
+===================================================================
 --- a/lib/libspl/include/sys/Makefile.in
 +++ b/lib/libspl/include/sys/Makefile.in
-@@ -173,7 +173,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -174,7 +174,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3455,11 +3444,11 @@ index a3a28fc..af21c13 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/sys/dktp/Makefile.in b/lib/libspl/include/sys/dktp/Makefile.in
-index 22e7e22..3ae681f 100644
+Index: b/lib/libspl/include/sys/dktp/Makefile.in
+===================================================================
 --- a/lib/libspl/include/sys/dktp/Makefile.in
 +++ b/lib/libspl/include/sys/dktp/Makefile.in
-@@ -135,7 +135,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -136,7 +136,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3467,11 +3456,11 @@ index 22e7e22..3ae681f 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/sys/sysevent/Makefile.in b/lib/libspl/include/sys/sysevent/Makefile.in
-index 31a319e..95057be 100644
+Index: b/lib/libspl/include/sys/sysevent/Makefile.in
+===================================================================
 --- a/lib/libspl/include/sys/sysevent/Makefile.in
 +++ b/lib/libspl/include/sys/sysevent/Makefile.in
-@@ -135,7 +135,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -136,7 +136,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3479,11 +3468,11 @@ index 31a319e..95057be 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libspl/include/util/Makefile.in b/lib/libspl/include/util/Makefile.in
-index 42a140e..47b1406 100644
+Index: b/lib/libspl/include/util/Makefile.in
+===================================================================
 --- a/lib/libspl/include/util/Makefile.in
 +++ b/lib/libspl/include/util/Makefile.in
-@@ -135,7 +135,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -136,7 +136,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3491,11 +3480,11 @@ index 42a140e..47b1406 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libunicode/Makefile.in b/lib/libunicode/Makefile.in
-index c653c5e..8123c17 100644
+Index: b/lib/libunicode/Makefile.in
+===================================================================
 --- a/lib/libunicode/Makefile.in
 +++ b/lib/libunicode/Makefile.in
-@@ -160,7 +160,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -161,7 +161,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3503,11 +3492,11 @@ index c653c5e..8123c17 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libuutil/Makefile.in b/lib/libuutil/Makefile.in
-index e18de7d..27375fd 100644
+Index: b/lib/libuutil/Makefile.in
+===================================================================
 --- a/lib/libuutil/Makefile.in
 +++ b/lib/libuutil/Makefile.in
-@@ -162,7 +162,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -163,7 +163,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3515,11 +3504,11 @@ index e18de7d..27375fd 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libzfs/Makefile.in b/lib/libzfs/Makefile.in
-index 6657f71..3bab388 100644
+Index: b/lib/libzfs/Makefile.in
+===================================================================
 --- a/lib/libzfs/Makefile.in
 +++ b/lib/libzfs/Makefile.in
-@@ -169,7 +169,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -171,7 +171,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3527,11 +3516,11 @@ index 6657f71..3bab388 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/lib/libzpool/Makefile.in b/lib/libzpool/Makefile.in
-index cc05483..a45a726 100644
+Index: b/lib/libzpool/Makefile.in
+===================================================================
 --- a/lib/libzpool/Makefile.in
 +++ b/lib/libzpool/Makefile.in
-@@ -181,7 +181,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -182,7 +182,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3539,11 +3528,11 @@ index cc05483..a45a726 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/man/Makefile.in b/man/Makefile.in
-index 6b39261..1ccac2b 100644
+Index: b/man/Makefile.in
+===================================================================
 --- a/man/Makefile.in
 +++ b/man/Makefile.in
-@@ -148,7 +148,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -149,7 +149,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3551,11 +3540,11 @@ index 6b39261..1ccac2b 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/man/man8/Makefile.in b/man/man8/Makefile.in
-index e877b08..6dfceda 100644
+Index: b/man/man8/Makefile.in
+===================================================================
 --- a/man/man8/Makefile.in
 +++ b/man/man8/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3563,11 +3552,11 @@ index e877b08..6dfceda 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/scripts/Makefile.in b/scripts/Makefile.in
-index bfb2ef6..011e28b 100644
+Index: b/scripts/Makefile.in
+===================================================================
 --- a/scripts/Makefile.in
 +++ b/scripts/Makefile.in
-@@ -173,7 +173,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -174,7 +174,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3575,11 +3564,11 @@ index bfb2ef6..011e28b 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/scripts/zpios-profile/Makefile.in b/scripts/zpios-profile/Makefile.in
-index 61b5a76..ec50f35 100644
+Index: b/scripts/zpios-profile/Makefile.in
+===================================================================
 --- a/scripts/zpios-profile/Makefile.in
 +++ b/scripts/zpios-profile/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3587,11 +3576,11 @@ index 61b5a76..ec50f35 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/scripts/zpios-test/Makefile.in b/scripts/zpios-test/Makefile.in
-index 880b1d0..24c9a5e 100644
+Index: b/scripts/zpios-test/Makefile.in
+===================================================================
 --- a/scripts/zpios-test/Makefile.in
 +++ b/scripts/zpios-test/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3599,11 +3588,11 @@ index 880b1d0..24c9a5e 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/scripts/zpool-config/Makefile.in b/scripts/zpool-config/Makefile.in
-index 12db825..939ab8f 100644
+Index: b/scripts/zpool-config/Makefile.in
+===================================================================
 --- a/scripts/zpool-config/Makefile.in
 +++ b/scripts/zpool-config/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3611,11 +3600,11 @@ index 12db825..939ab8f 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/scripts/zpool-layout/Makefile.in b/scripts/zpool-layout/Makefile.in
-index 36f3827..c8c5520 100644
+Index: b/scripts/zpool-layout/Makefile.in
+===================================================================
 --- a/scripts/zpool-layout/Makefile.in
 +++ b/scripts/zpool-layout/Makefile.in
-@@ -133,7 +133,6 @@ CPPFLAGS = @CPPFLAGS@
+@@ -134,7 +134,6 @@
  CYGPATH_W = @CYGPATH_W@
  DEBUG_CFLAGS = @DEBUG_CFLAGS@
  DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
@@ -3623,11 +3612,11 @@ index 36f3827..c8c5520 100644
  DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
  DEFS = @DEFS@
  DEPDIR = @DEPDIR@
-diff --git a/zfs.spec.in b/zfs.spec.in
-index 08ea483..9df76a8 100644
+Index: b/zfs.spec.in
+===================================================================
 --- a/zfs.spec.in
 +++ b/zfs.spec.in
-@@ -65,9 +65,7 @@ rm -rf $RPM_BUILD_ROOT
+@@ -65,9 +65,7 @@
  %{_bindir}/*
  %{_libdir}/*
  %{_mandir}/man8/*
@@ -3638,7 +3627,7 @@ index 08ea483..9df76a8 100644
  /sbin/*
  
  %files devel
-@@ -79,9 +77,4 @@ rm -rf $RPM_BUILD_ROOT
+@@ -79,9 +77,4 @@
  %{_libexecdir}/@PACKAGE@/*
  
  %post

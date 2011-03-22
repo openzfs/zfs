@@ -1,17 +1,17 @@
-diff --git a/AUTHORS b/AUTHORS
-index 54fbf3d..e2c474f 100644
+Index: b/AUTHORS
+===================================================================
 --- a/AUTHORS
 +++ b/AUTHORS
-@@ -32,4 +32,3 @@ to the project and deserve to be acknowledged.
+@@ -32,4 +32,3 @@
    Ned Bass <bass6@llnl.gov>
    Herb Wartens <wartens2@llnl.gov>
    Jim Garlick <garlick@llnl.gov>
 -  Manuel Amador (Rudd-O) <rudd-o@rudd-o.com>
-diff --git a/Makefile.am b/Makefile.am
-index c6ed200..5a03f1e 100644
+Index: b/Makefile.am
+===================================================================
 --- a/Makefile.am
 +++ b/Makefile.am
-@@ -3,7 +3,7 @@ include $(top_srcdir)/config/deb.am
+@@ -3,7 +3,7 @@
  include $(top_srcdir)/config/tgz.am
  
  if CONFIG_USER
@@ -20,11 +20,11 @@ index c6ed200..5a03f1e 100644
  endif
  if CONFIG_KERNEL
  KERNEL_DIR = module
-diff --git a/Makefile.in b/Makefile.in
-index 606b84e..5198660 100644
+Index: b/Makefile.in
+===================================================================
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -122,7 +122,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
+@@ -123,7 +123,7 @@
  	distdir dist dist-all distcheck
  ETAGS = etags
  CTAGS = ctags
@@ -33,7 +33,7 @@ index 606b84e..5198660 100644
  DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
  distdir = $(PACKAGE)-$(VERSION)
  top_distdir = $(distdir)
-@@ -325,7 +325,7 @@ target_vendor = @target_vendor@
+@@ -326,7 +326,7 @@
  top_build_prefix = @top_build_prefix@
  top_builddir = @top_builddir@
  top_srcdir = @top_srcdir@
@@ -42,7 +42,7 @@ index 606b84e..5198660 100644
  @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
  SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
  AUTOMAKE_OPTIONS = foreign
-@@ -954,9 +954,8 @@ deb-utils: deb-local rpm-utils
+@@ -955,9 +955,8 @@
  	pkg1=$${name}-$${version}.$${arch}.rpm; \
  	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
  	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
@@ -54,11 +54,11 @@ index 606b84e..5198660 100644
  
  deb: deb-modules deb-utils
  tgz-local:
-diff --git a/config/deb.am b/config/deb.am
-index 5a165ca..f836a3c 100644
+Index: b/config/deb.am
+===================================================================
 --- a/config/deb.am
 +++ b/config/deb.am
-@@ -31,8 +31,7 @@ deb-utils: deb-local rpm-utils
+@@ -31,8 +31,7 @@
  	pkg1=$${name}-$${version}.$${arch}.rpm; \
  	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
  	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
@@ -69,11 +69,11 @@ index 5a165ca..f836a3c 100644
 +	$(RM) $$pkg1 $$pkg2 $$pkg3
  
  deb: deb-modules deb-utils
-diff --git a/configure b/configure
-index 3e8097c..668ae01 100755
+Index: b/configure
+===================================================================
 --- a/configure
 +++ b/configure
-@@ -19928,7 +19928,7 @@ fi
+@@ -20008,7 +20008,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -82,7 +82,7 @@ index 3e8097c..668ae01 100755
  
  
  cat >confcache <<\_ACEOF
-@@ -20845,8 +20845,6 @@ do
+@@ -20925,8 +20925,6 @@
      "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
      "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
      "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
@@ -91,11 +91,11 @@ index 3e8097c..668ae01 100755
      "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
      "etc/udev/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/Makefile" ;;
      "etc/udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/Makefile" ;;
-diff --git a/configure.ac b/configure.ac
-index a188fa7..456a83b 100644
+Index: b/configure.ac
+===================================================================
 --- a/configure.ac
 +++ b/configure.ac
-@@ -55,8 +55,6 @@ ZFS_AC_DEBUG
+@@ -55,8 +55,6 @@
  
  AC_CONFIG_FILES([ 
  	Makefile
@@ -104,9 +104,8 @@ index a188fa7..456a83b 100644
  	etc/Makefile
  	etc/udev/Makefile
  	etc/udev/rules.d/Makefile
-diff --git a/dracut/90zfs/90-zfs.rules b/dracut/90zfs/90-zfs.rules
-deleted file mode 100644
-index 918d726..0000000
+Index: b/dracut/90zfs/90-zfs.rules
+===================================================================
 --- a/dracut/90zfs/90-zfs.rules
 +++ /dev/null
 @@ -1,7 +0,0 @@
@@ -117,9 +116,8 @@ index 918d726..0000000
 -ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs"
 -
 -LABEL="zfs_end"
-diff --git a/dracut/90zfs/Makefile.am b/dracut/90zfs/Makefile.am
-deleted file mode 100644
-index cea78c5..0000000
+Index: b/dracut/90zfs/Makefile.am
+===================================================================
 --- a/dracut/90zfs/Makefile.am
 +++ /dev/null
 @@ -1,27 +0,0 @@
@@ -150,9 +148,8 @@ index cea78c5..0000000
 -			$(RM) $$link; \
 -		fi \
 -	done
-diff --git a/dracut/90zfs/Makefile.in b/dracut/90zfs/Makefile.in
-deleted file mode 100644
-index dd1e37e..0000000
+Index: b/dracut/90zfs/Makefile.in
+===================================================================
 --- a/dracut/90zfs/Makefile.in
 +++ /dev/null
 @@ -1,533 +0,0 @@
@@ -689,9 +686,8 @@ index dd1e37e..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/dracut/90zfs/check b/dracut/90zfs/check
-deleted file mode 100755
-index ac4006b..0000000
+Index: b/dracut/90zfs/check
+===================================================================
 --- a/dracut/90zfs/check
 +++ /dev/null
 @@ -1,10 +0,0 @@
@@ -705,9 +701,8 @@ index ac4006b..0000000
 -which zfs >/dev/null 2>&1 || exit 1
 -
 -exit 0
-diff --git a/dracut/90zfs/install b/dracut/90zfs/install
-deleted file mode 100755
-index 5be9768..0000000
+Index: b/dracut/90zfs/install
+===================================================================
 --- a/dracut/90zfs/install
 +++ /dev/null
 @@ -1,17 +0,0 @@
@@ -728,9 +723,8 @@ index 5be9768..0000000
 -inst_hook cmdline 95 "$moddir/parse-zfs.sh"
 -inst_hook mount 98 "$moddir/mount-zfs.sh"
 -inst_hook pre-udev 29 "$moddir/zfs-genrules.sh"
-diff --git a/dracut/90zfs/installkernel b/dracut/90zfs/installkernel
-deleted file mode 100755
-index c3fa7de..0000000
+Index: b/dracut/90zfs/installkernel
+===================================================================
 --- a/dracut/90zfs/installkernel
 +++ /dev/null
 @@ -1,10 +0,0 @@
@@ -744,9 +738,8 @@ index c3fa7de..0000000
 -instmods spl
 -instmods zlib_deflate
 -instmods zlib_inflate
-diff --git a/dracut/90zfs/mount-zfs.sh b/dracut/90zfs/mount-zfs.sh
-deleted file mode 100755
-index 6b742e3..0000000
+Index: b/dracut/90zfs/mount-zfs.sh
+===================================================================
 --- a/dracut/90zfs/mount-zfs.sh
 +++ /dev/null
 @@ -1,10 +0,0 @@
@@ -760,9 +753,8 @@ index 6b742e3..0000000
 -    zpool import -N "$zfspool"
 -    mount -o zfsutil -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes 
 -fi
-diff --git a/dracut/90zfs/parse-zfs.sh b/dracut/90zfs/parse-zfs.sh
-deleted file mode 100755
-index ef3d058..0000000
+Index: b/dracut/90zfs/parse-zfs.sh
+===================================================================
 --- a/dracut/90zfs/parse-zfs.sh
 +++ /dev/null
 @@ -1,23 +0,0 @@
@@ -789,9 +781,8 @@ index ef3d058..0000000
 -	fi
 -	zpool list -H | while read fs rest ; do zpool export "$fs" ; done
 -fi
-diff --git a/dracut/90zfs/zfs-genrules.sh b/dracut/90zfs/zfs-genrules.sh
-deleted file mode 100755
-index ffbd51f..0000000
+Index: b/dracut/90zfs/zfs-genrules.sh
+===================================================================
 --- a/dracut/90zfs/zfs-genrules.sh
 +++ /dev/null
 @@ -1,12 +0,0 @@
@@ -807,18 +798,16 @@ index ffbd51f..0000000
 -
 -    echo '[ -e /dev/root ]' > /initqueue-finished/zfs.sh
 -fi
-diff --git a/dracut/Makefile.am b/dracut/Makefile.am
-deleted file mode 100644
-index 35b88c3..0000000
+Index: b/dracut/Makefile.am
+===================================================================
 --- a/dracut/Makefile.am
 +++ /dev/null
 @@ -1,3 +0,0 @@
 -SUBDIRS = 90zfs
 -
 -EXTRA_DIST = README.dracut.markdown
-diff --git a/dracut/Makefile.in b/dracut/Makefile.in
-deleted file mode 100644
-index dd142d5..0000000
+Index: b/dracut/Makefile.in
+===================================================================
 --- a/dracut/Makefile.in
 +++ /dev/null
 @@ -1,647 +0,0 @@
@@ -1469,9 +1458,8 @@ index dd142d5..0000000
 -# Tell versions [3.59,3.63) of GNU make to not export all variables.
 -# Otherwise a system limit (for SysV at least) may be exceeded.
 -.NOEXPORT:
-diff --git a/dracut/README.dracut.markdown b/dracut/README.dracut.markdown
-deleted file mode 100644
-index 8ec28e4..0000000
+Index: b/dracut/README.dracut.markdown
+===================================================================
 --- a/dracut/README.dracut.markdown
 +++ /dev/null
 @@ -1,28 +0,0 @@
@@ -1503,11 +1491,11 @@ index 8ec28e4..0000000
 -4) Finally, create your new initramfs by running dracut.
 -
 -    $ dracut --force /path/to/initramfs kernel_version
-diff --git a/zfs.spec.in b/zfs.spec.in
-index fe56a2f..08ea483 100644
+Index: b/zfs.spec.in
+===================================================================
 --- a/zfs.spec.in
 +++ b/zfs.spec.in
-@@ -44,15 +44,6 @@ can be used to simplfy the benchmarking of various hardware and software
+@@ -44,15 +44,6 @@
  configurations.  The test infrastructure additionally integrates with
  various system profiling tools to facilitate an in depth analysis.
  
@@ -1523,7 +1511,7 @@ index fe56a2f..08ea483 100644
  %prep
  %setup
  %build
-@@ -87,10 +78,6 @@ rm -rf $RPM_BUILD_ROOT
+@@ -87,10 +78,6 @@
  %defattr(-,root,root)
  %{_libexecdir}/@PACKAGE@/*
  
