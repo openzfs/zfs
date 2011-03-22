@@ -44,6 +44,29 @@ $ZPOOL  > /dev/null 2>&1
 $ZFS    > /dev/null 2>&1
 [ $? == 127 ] && exit 1
 
+# functions
+reregister_mounts() {
+	cat /etc/mtab | while read -r fs mntpnt fstype rest ; do
+		fs=`printf '%b\n' "$fs"`
+		mntpnt=`printf '%b\n' "$mntpnt"`
+		if [ "$fstype" == "zfs" ] ; then
+			if [ "$mntpnt" == "/" ] ; then
+				mount -f -o zfsutil -t zfs --move / /removethismountpointhoweverpossible
+				umount --fake /removethismountpointhoweverpossible
+			else
+				umount --fake "$mntpnt"
+			fi
+		fi
+	done
+	cat /proc/mounts | while read -r fs mntpnt fstype rest ; do
+		fs=`printf '%b\n' "$fs"`
+		mntpnt=`printf '%b\n' "$mntpnt"`
+		if [ "$fstype" == "zfs" ] ; then
+			mount -f -t zfs -o zfsutil "$fs" "$mntpnt"
+		fi
+	done
+}
+
 start()
 {
 	if [ -f "$LOCKFILE" ] ; then return 0 ; fi
@@ -54,25 +77,14 @@ start()
                 action "SELinux ZFS policy required: " /bin/false || return 4
         fi
 
+	# load kernel module infrastructure
 	if ! grep -q zfs /proc/modules ; then
 		action $"Loading kernel ZFS infrastructure: " modprobe zfs || return 5
 	fi
 
-	mountszfs=`cat /proc/mounts        | awk ' $3 == "zfs" { print $0 } '`
-	mtabzfs=`cat /etc/mtab             | awk ' $3 == "zfs" { print $0 } '`
-	mtabnozfs=`cat /etc/mtab           | awk ' $3 != "zfs" { print $0 } '`
-
-	mountedinkernel=`echo "$mountszfs" | awk ' { print $1" "$2" "$3 } ' | sort | sort -u`
-	mountedinmtab=`echo "$mtabzfs"     | awk ' { print $1" "$2" "$3 } ' | sort | sort -u`
-
-	if [ "$mountedinkernel" != "$mountedinmtab" ] ; then
-
-		echo -n $"Registering already-mounted ZFS filesystems: "
-		addzfsutil=`echo "$mountszfs" | awk ' { print $1" "$2" "$3" "$4",zfsutil "$5" "$6 } ' | sed 's/zfsutil,zfsutil/zfsutil/g'`
-		mtab=`echo "$addzfsutil" ; echo "$mtabnozfs"`
-		echo "$mtab" > /etc/mtab
-		success "Registering already-mounted ZFS filesystems: "
-
+	# fix mtab to include already-mounted fs filesystems, in case there are any
+	if grep -q " zfs " /proc/mounts ; then
+		action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 9
 	fi
 
         if [ -f /etc/zfs/zpool.cache ] ; then
