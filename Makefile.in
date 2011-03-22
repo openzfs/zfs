@@ -122,7 +122,7 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir dist dist-all distcheck
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = etc man scripts lib cmd module include
+DIST_SUBDIRS = dracut etc man scripts lib cmd module include
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -180,6 +180,7 @@ CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
 DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
+DEFAULT_INIT_SCRIPT = @DEFAULT_INIT_SCRIPT@
 DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -324,7 +325,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@CONFIG_USER_TRUE@USER_DIR = etc man scripts lib cmd
+@CONFIG_USER_TRUE@USER_DIR = dracut etc man scripts lib cmd
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
 AUTOMAKE_OPTIONS = foreign
@@ -953,8 +954,9 @@ deb-utils: deb-local rpm-utils
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
 	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3; \
-	$(RM) $$pkg1 $$pkg2 $$pkg3
+	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 
 deb: deb-modules deb-utils
 tgz-local:

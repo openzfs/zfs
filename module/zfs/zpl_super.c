@@ -105,11 +105,35 @@ zpl_put_super(struct super_block *sb)
 }
 
 static int
+zpl_sync_fs(struct super_block *sb, int wait)
+{
+	cred_t *cr;
+	int error;
+
+	cr = (cred_t *)get_current_cred();
+	error = -zfs_sync(sb, wait, cr);
+	put_cred(cr);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
 zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 {
 	int error;
 
 	error = -zfs_statvfs(dentry, statp);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
+zpl_remount_fs(struct super_block *sb, int *flags, char *data)
+{
+	int error;
+	error = -zfs_remount(sb, flags, data);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -179,11 +203,11 @@ const struct super_operations zpl_super_operations = {
 #endif /* HAVE_EVICT_INODE */
 	.put_super	= zpl_put_super,
 	.write_super	= NULL,
-	.sync_fs	= NULL,
+	.sync_fs	= zpl_sync_fs,
 	.freeze_fs	= NULL,
 	.unfreeze_fs	= NULL,
 	.statfs		= zpl_statfs,
-	.remount_fs	= NULL,
+	.remount_fs	= zpl_remount_fs,
 	.show_options	= zpl_show_options,
 	.show_stats	= NULL,
 };
