@@ -56,6 +56,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
 	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
+	$(top_srcdir)/config/kernel-insert-inode-locked.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
