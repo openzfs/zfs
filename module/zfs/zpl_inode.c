@@ -32,14 +32,14 @@
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 {
+	cred_t *cr = CRED();
 	struct inode *ip;
-	cred_t *cr;
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_lookup(dir, dname(dentry), &ip, 0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
-	put_cred(cr);
+	crfree(cr);
 
 	if (error) {
 		if (error == -ENOENT)
@@ -55,27 +55,27 @@ static int
 zpl_create(struct inode *dir, struct dentry *dentry, int mode,
     struct nameidata *nd)
 {
-	const struct cred *cred;
+	cred_t *cr = CRED();
 	struct inode *ip;
 	vattr_t *vap;
 	int error;
 
-	cred = get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mode = mode;
 	vap->va_mask = ATTR_MODE;
-	vap->va_uid = current_fsuid();
-	vap->va_gid = current_fsgid();
+	vap->va_uid = crgetfsuid(cr);
+	vap->va_gid = crgetfsgid(cr);
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
-	    vap, 0, mode, &ip, (struct cred *)cred, 0, NULL);
+	    vap, 0, mode, &ip, cr, 0, NULL);
 	if (error)
 		goto out;
 
 	d_instantiate(dentry, ip);
 out:
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cred);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -84,28 +84,28 @@ out:
 static int
 zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 {
-        const struct cred *cred;
+	cred_t *cr = CRED();
 	struct inode *ip;
 	vattr_t *vap;
 	int error;
 
-	cred = get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mode = mode;
 	vap->va_mask = ATTR_MODE;
 	vap->va_rdev = rdev;
-	vap->va_uid = current_fsuid();
-	vap->va_gid = current_fsgid();
+	vap->va_uid = crgetfsuid(cr);
+	vap->va_gid = crgetfsgid(cr);
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
-	    vap, 0, mode, &ip, (struct cred *)cred, 0, NULL);
+	    vap, 0, mode, &ip, cr, 0, NULL);
 	if (error)
 		goto out;
 
 	d_instantiate(dentry, ip);
 out:
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cred);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (-error);
@@ -114,12 +114,12 @@ out:
 static int
 zpl_unlink(struct inode *dir, struct dentry *dentry)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_remove(dir, dname(dentry), cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -128,17 +128,17 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 static int
 zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	vattr_t *vap;
 	struct inode *ip;
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mode = S_IFDIR | mode;
 	vap->va_mask = ATTR_MODE;
-	vap->va_uid = current_fsuid();
-	vap->va_gid = current_fsgid();
+	vap->va_uid = crgetfsuid(cr);
+	vap->va_gid = crgetfsgid(cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	if (error)
@@ -147,7 +147,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	d_instantiate(dentry, ip);
 out:
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -156,12 +156,12 @@ out:
 static int
 zpl_rmdir(struct inode * dir, struct dentry *dentry)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_rmdir(dir, dname(dentry), NULL, cr, 0);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -170,13 +170,13 @@ zpl_rmdir(struct inode * dir, struct dentry *dentry)
 static int
 zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	vattr_t *vap;
 	struct inode *ip;
 	int error;
 
 	ip = dentry->d_inode;
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 
 	error = -zfs_getattr(ip, vap, 0, cr);
@@ -198,7 +198,7 @@ zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 	stat->blocks = vap->va_nblocks;
 out:
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -207,7 +207,7 @@ out:
 static int
 zpl_setattr(struct dentry *dentry, struct iattr *ia)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	vattr_t *vap;
 	int error;
 
@@ -215,7 +215,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	if (error)
 		return (error);
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mask = ia->ia_valid & ATTR_IATTR_MASK;
 	vap->va_mode = ia->ia_mode;
@@ -229,7 +229,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	error = -zfs_setattr(dentry->d_inode, vap, 0, cr);
 
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -239,12 +239,12 @@ static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_rename(sdip, dname(sdentry), tdip, dname(tdentry), cr, 0);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -253,17 +253,17 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 static int
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	vattr_t *vap;
 	struct inode *ip;
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mode = S_IFLNK | S_IRWXUGO;
 	vap->va_mask = ATTR_MODE;
-	vap->va_uid = current_fsuid();
-	vap->va_gid = current_fsgid();
+	vap->va_uid = crgetfsuid(cr);
+	vap->va_gid = crgetfsgid(cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
 	if (error)
@@ -272,7 +272,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	d_instantiate(dentry, ip);
 out:
 	kmem_free(vap, sizeof(vattr_t));
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -281,14 +281,14 @@ out:
 static void *
 zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
+	cred_t *cr = CRED();
 	struct inode *ip = dentry->d_inode;
 	struct iovec iov;
 	uio_t uio;
 	char *link;
-	cred_t *cr;
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 
 	iov.iov_len = MAXPATHLEN;
 	iov.iov_base = link = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
@@ -306,7 +306,7 @@ zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 		nd_set_link(nd, link);
 	}
 
-	put_cred(cr);
+	crfree(cr);
 	return (NULL);
 }
 
@@ -323,14 +323,14 @@ zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
 static int
 zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 {
+	cred_t *cr = CRED();
 	struct inode *ip = old_dentry->d_inode;
-	cred_t *cr;
 	int error;
 
 	if (ip->i_nlink >= ZFS_LINK_MAX)
 		return -EMLINK;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	ip->i_ctime = CURRENT_TIME_SEC;
 	igrab(ip); /* Use ihold() if available */
 
@@ -342,7 +342,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 
 	d_instantiate(dentry, ip);
 out:
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);

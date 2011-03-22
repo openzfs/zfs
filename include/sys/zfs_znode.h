@@ -280,6 +280,8 @@ typedef struct znode {
 	mutex_tryenter(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 #define	ZFS_OBJ_HOLD_EXIT(zsb, obj_num) \
 	mutex_exit(ZFS_OBJ_MUTEX((zsb), (obj_num)))
+#define	ZFS_OBJ_HOLD_OWNED(zsb, obj_num) \
+	mutex_owned(ZFS_OBJ_MUTEX((zsb), (obj_num)))
 
 /*
  * Macros to encode/decode ZFS stored time values from/to struct timespec
@@ -323,7 +325,7 @@ extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
-extern int	zfs_sync(zfs_sb_t *, short, cred_t *);
+extern int	zfs_sync(struct super_block *, int, cred_t *);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);

@@ -131,6 +131,10 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	char *envp[] = { NULL };
 	int count = 0, error;
 
+	/* Skip devices which are not whole disks (partitions) */
+	if (!v->vdev_wholedisk)
+		return (0);
+
 	/* Skip devices without schedulers (loop, ram, dm, etc) */
 	if (!q->elevator || !blk_queue_stackable(q))
 		return (0);

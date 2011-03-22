@@ -255,7 +255,7 @@ static void
 zio_push_transform(zio_t *zio, void *data, uint64_t size, uint64_t bufsize,
 	zio_transform_func_t *transform)
 {
-	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_SLEEP);
+	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_PUSHPAGE);
 
 	zt->zt_orig_data = zio->io_data;
 	zt->zt_orig_size = zio->io_size;
@@ -370,7 +370,7 @@ zio_unique_parent(zio_t *cio)
 void
 zio_add_child(zio_t *pio, zio_t *cio)
 {
-	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
+	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_PUSHPAGE);
 	int w;
 
 	/*
@@ -491,7 +491,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT(!bp || !(flags & ZIO_FLAG_CONFIG_WRITER));
 	ASSERT(vd || stage == ZIO_STAGE_OPEN);
 
-	zio = kmem_cache_alloc(zio_cache, KM_SLEEP);
+	zio = kmem_cache_alloc(zio_cache, KM_PUSHPAGE);
 	bzero(zio, sizeof (zio_t));
 
 	mutex_init(&zio->io_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1503,7 +1503,7 @@ zio_gang_node_alloc(zio_gang_node_t **gnpp)
 
 	ASSERT(*gnpp == NULL);
 
-	gn = kmem_zalloc(sizeof (*gn), KM_SLEEP);
+	gn = kmem_zalloc(sizeof (*gn), KM_PUSHPAGE);
 	gn->gn_gbh = zio_buf_alloc(SPA_GANGBLOCKSIZE);
 	*gnpp = gn;
 

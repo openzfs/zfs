@@ -207,6 +207,20 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
+
+	AC_MSG_CHECKING([default init script type])
+	case "$VENDOR" in
+		fedora)     DEFAULT_INIT_SCRIPT=fedora ;;
+		redhat)     DEFAULT_INIT_SCRIPT=fedora ;;
+		sles)       DEFAULT_INIT_SCRIPT=lsb ;;
+		ubuntu)     DEFAULT_INIT_SCRIPT=lsb ;;
+		debian)     DEFAULT_INIT_SCRIPT=lsb ;;
+		slackware)  DEFAULT_INIT_SCRIPT=lsb ;;
+		*)          DEFAULT_INIT_SCRIPT=lsb ;;
+	esac
+
+	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
+	AC_SUBST(DEFAULT_INIT_SCRIPT)
 ])
 
 dnl #
