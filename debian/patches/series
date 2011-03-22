@@ -1,6 +1,1 @@
 volatile-version.patch
-check-for-trailing-slash-in-mount.patch
-do-not-set-io-scheduler-for-partitions.patch
-dracut.patch
-fix-getcwd-warning.patch
-fix-gentoo-ldflags.patch
