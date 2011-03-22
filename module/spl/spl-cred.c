@@ -84,48 +84,6 @@ crfree(cred_t *cr)
 	put_cred((const cred_t *)cr);
 }
 
-/* Return the effective user id */
-uid_t
-crgetuid(const cred_t *cr)
-{
-	return cr->euid;
-}
-
-/* Return the real user id */
-uid_t
-crgetruid(const cred_t *cr)
-{
-	return cr->uid;
-}
-
-/* Return the saved user id */
-uid_t
-crgetsuid(const cred_t *cr)
-{
-	return cr->suid;
-}
-
-/* Return the effective group id */
-gid_t
-crgetgid(const cred_t *cr)
-{
-	return cr->egid;
-}
-
-/* Return the real group id */
-gid_t
-crgetrgid(const cred_t *cr)
-{
-	return cr->gid;
-}
-
-/* Return the saved group id */
-gid_t
-crgetsgid(const cred_t *cr)
-{
-	return cr->sgid;
-}
-
 /* Return the number of supplemental groups */
 int
 crgetngroups(const cred_t *cr)
@@ -185,42 +143,6 @@ void crhold(cred_t *cr) { }
 
 /* Free a reference on the credential and group info */
 void crfree(cred_t *cr) { }
-
-/* Return the effective user id */
-uid_t
-crgetuid(const cred_t *cr) {
-	return cr->euid;
-}
-
-/* Return the effective real id */
-uid_t
-crgetruid(const cred_t *cr) {
-	return cr->uid;
-}
-
-/* Return the effective saved id */
-uid_t
-crgetsuid(const cred_t *cr) {
-	return cr->suid;
-}
-
-/* Return the effective group id */
-gid_t
-crgetgid(const cred_t *cr) {
-	return cr->egid;
-}
-
-/* Return the real group id */
-gid_t
-crgetrgid(const cred_t *cr) {
-	return cr->gid;
-}
-
-/* Return the saved group id */
-gid_t
-crgetsgid(const cred_t *cr) {
-	return cr->sgid;
-}
 
 /* Return the number of supplemental groups */
 int
@@ -289,14 +211,72 @@ groupmember(gid_t gid, const cred_t *cr)
 
 #endif /* HAVE_CRED_STRUCT */
 
+/* Return the effective user id */
+uid_t
+crgetuid(const cred_t *cr)
+{
+	return cr->euid;
+}
+
+/* Return the real user id */
+uid_t
+crgetruid(const cred_t *cr)
+{
+	return cr->uid;
+}
+
+/* Return the saved user id */
+uid_t
+crgetsuid(const cred_t *cr)
+{
+	return cr->suid;
+}
+
+/* Return the filesystem user id */
+uid_t
+crgetfsuid(const cred_t *cr)
+{
+	return cr->fsuid;
+}
+
+/* Return the effective group id */
+gid_t
+crgetgid(const cred_t *cr)
+{
+	return cr->egid;
+}
+
+/* Return the real group id */
+gid_t
+crgetrgid(const cred_t *cr)
+{
+	return cr->gid;
+}
+
+/* Return the saved group id */
+gid_t
+crgetsgid(const cred_t *cr)
+{
+	return cr->sgid;
+}
+
+/* Return the filesystem group id */
+gid_t
+crgetfsgid(const cred_t *cr)
+{
+	return cr->fsgid;
+}
+
 EXPORT_SYMBOL(crhold);
 EXPORT_SYMBOL(crfree);
 EXPORT_SYMBOL(crgetuid);
 EXPORT_SYMBOL(crgetruid);
 EXPORT_SYMBOL(crgetsuid);
+EXPORT_SYMBOL(crgetfsuid);
 EXPORT_SYMBOL(crgetgid);
 EXPORT_SYMBOL(crgetrgid);
 EXPORT_SYMBOL(crgetsgid);
+EXPORT_SYMBOL(crgetfsgid);
 EXPORT_SYMBOL(crgetngroups);
 EXPORT_SYMBOL(crgetgroups);
 EXPORT_SYMBOL(groupmember);
