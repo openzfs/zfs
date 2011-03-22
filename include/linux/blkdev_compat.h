@@ -172,6 +172,17 @@ __blk_rq_bytes(struct request *req)
 #define blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
 #endif
 
+/*
+ * 2.6.27 API change,
+ * The blk_queue_stackable() queue flag was added in 2.6.27 to handle dm
+ * stacking drivers.  Prior to this request stacking drivers were detected
+ * by checking (q->request_fn == NULL), for earlier kernels we revert to
+ * this legacy behavior.
+ */
+#ifndef blk_queue_stackable
+#define blk_queue_stackable(q)	((q)->request_fn == NULL)
+#endif
+
 #ifndef HAVE_GET_DISK_RO
 static inline int
 get_disk_ro(struct gendisk *disk)
