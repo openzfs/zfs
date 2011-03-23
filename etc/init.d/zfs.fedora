@@ -89,8 +89,12 @@ start()
 	fi
 
 	# fix mtab to include already-mounted fs filesystems, in case there are any
-	if grep -q " zfs " /proc/mounts ; then
-		action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 150
+	# we ONLY do this if mtab does not point to /proc/mounts
+	# which is the case in some systems (systemd may bring that soon)
+	if [ `readlink /etc/mtab` != "/proc/mounts" ] ; then
+		if grep -q " zfs " /proc/mounts ; then
+			action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 150
+		fi
 	fi
 
         if [ -f /etc/zfs/zpool.cache ] ; then
