@@ -1,3 +1,33 @@
+zfs-linux (0.6.0.5-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Check for trailing '/' in mount.zfs
+  * Don't set I/O Scheduler for Partitions
+  * Always allow '-o remount,ro'
+  * Strip 'zfsutil,remount' from /etc/mtab
+  * Register .sync_fs handler
+  * Register .remount_fs handler
+  * Add init scripts
+  * Fix getcwd() warning
+  * Fix 'LDFLAGS=-Wl,--as-needed' build error
+  * Use KM_PUSHPAGE instead of KM_SLEEP
+  * Fix evict() deadlock
+  * Linux compat, umount2(2) flags
+  * Linux 2.6.27 compat, blk_queue_stackable()
+  * Linux 2.6.28 compat, insert_inode_locked()
+  * Linux 2.6.29 compat, credentials
+  * Linux 2.6.29 compat, .freeze_fs/.unfreeze_fs
+
+  [ Darik Horn ]
+  * Full upstream merge. Use zfs-0.6.0.5 as the unofficial upstream version.
+  * Revert the dracut commit in debian/patches.
+  * Revert the init script commit in debian/patches.
+  * Quilt refresh.
+  * Properly strip the bootfs= and rpool= kernel command line parameters.
+  * Remove the whack-bang and execute bit from the initramfs boot script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Mar 2011 23:07:49 -0500
+
 zfs-linux (0.6.0.4.rc2-0ubuntu6) unstable; urgency=low
 
   * Trivial typo correction in the debian/copyright file.
