@@ -56,4 +56,50 @@ extern invalidate_inodes_t invalidate_inodes_fn;
 #define invalidate_inodes(sb)	invalidate_inodes_fn(sb)
 #endif /* HAVE_INVALIDATE_INODES */
 
+#ifdef HAVE_SET_SHRINKER
+typedef struct spl_shrinker {
+	struct shrinker *shrinker;
+	shrinker_t fn;
+	int seeks;
+} spl_shrinker_t;
+
+static inline void
+spl_register_shrinker(spl_shrinker_t *ss)
+{
+	ss->shrinker = set_shrinker(ss->seeks, ss->fn);
+}
+
+static inline void
+spl_unregister_shrinker(spl_shrinker_t *ss)
+{
+	remove_shrinker(ss->shrinker);
+}
+
+# define SPL_SHRINKER_DECLARE(s, x, y) \
+	static spl_shrinker_t s = { .shrinker = NULL, .fn = x, .seeks = y }
+# define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
+	static int fn(int y, unsigned int z)
+# define spl_exec_shrinker(ss, nr, gfp) \
+	((spl_shrinker_t *)ss)->fn(nr, gfp)
+
+#else /* HAVE_SET_SHRINKER */
+
+# define spl_register_shrinker(x)	register_shrinker(x)
+# define spl_unregister_shrinker(x)	unregister_shrinker(x)
+# define SPL_SHRINKER_DECLARE(s, x, y) \
+	static struct shrinker s = { .shrink = x, .seeks = y }
+
+# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+#  define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
+	static int fn(struct shrinker *x, int y, unsigned int z)
+#  define spl_exec_shrinker(ss, nr, gfp) \
+	((struct shrinker *)ss)->shrink(NULL, nr, gfp)
+# else /* HAVE_3ARGS_SHRINKER_CALLBACK */
+#  define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
+	static int fn(int y, unsigned int z)
+#  define spl_exec_shrinker(ss, nr, gfp) \
+	((struct shrinker *)ss)->shrink(nr, gfp)
+# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
+#endif /* HAVE_SET_SHRINKER */
+
 #endif /* SPL_MM_COMPAT_H */

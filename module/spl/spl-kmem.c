@@ -819,21 +819,10 @@ struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
 static int spl_cache_flush(spl_kmem_cache_t *skc,
                            spl_kmem_magazine_t *skm, int flush);
 
-#ifdef HAVE_SET_SHRINKER
-static struct shrinker *spl_kmem_cache_shrinker;
-#else
-# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
-static int spl_kmem_cache_generic_shrinker(struct shrinker *shrinker_cb,
-    int nr_to_scan, unsigned int gfp_mask);
-# else
-static int spl_kmem_cache_generic_shrinker(
-    int nr_to_scan, unsigned int gfp_mask);
-# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
-static struct shrinker spl_kmem_cache_shrinker = {
-	.shrink = spl_kmem_cache_generic_shrinker,
-	.seeks = KMC_DEFAULT_SEEKS,
-};
-#endif /* HAVE_SET_SHRINKER */
+SPL_SHRINKER_CALLBACK_PROTO(spl_kmem_cache_generic_shrinker,
+	shrinker_cb, nr_to_scan, gfp_mask);
+SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
+	spl_kmem_cache_generic_shrinker, KMC_DEFAULT_SEEKS);
 
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
@@ -1859,14 +1848,8 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * objects should be freed, because Solaris semantics are to free
  * all available objects we may free more objects than requested.
  */
-#ifdef HAVE_3ARGS_SHRINKER_CALLBACK
-static int
-spl_kmem_cache_generic_shrinker(struct shrinker *shrinker_cb,
-				int nr_to_scan, unsigned int gfp_mask)
-#else
-static int
-spl_kmem_cache_generic_shrinker(int nr_to_scan, unsigned int gfp_mask)
-#endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
+SPL_SHRINKER_CALLBACK_PROTO(spl_kmem_cache_generic_shrinker,
+    shrinker_cb, nr_to_scan, gfp_mask)
 {
 	spl_kmem_cache_t *skc;
 	int unused = 0;
@@ -1930,11 +1913,7 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 void
 spl_kmem_reap(void)
 {
-#ifdef HAVE_3ARGS_SHRINKER_CALLBACK
-	spl_kmem_cache_generic_shrinker(NULL, KMC_REAP_CHUNK, GFP_KERNEL);
-#else
-	spl_kmem_cache_generic_shrinker(KMC_REAP_CHUNK, GFP_KERNEL);
-#endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
+	spl_exec_shrinker(&spl_kmem_cache_shrinker, KMC_REAP_CHUNK, GFP_KERNEL);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 
@@ -2135,14 +2114,7 @@ spl_kmem_init(void)
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
 
-#ifdef HAVE_SET_SHRINKER
-	spl_kmem_cache_shrinker = set_shrinker(KMC_DEFAULT_SEEKS,
-					       spl_kmem_cache_generic_shrinker);
-	if (spl_kmem_cache_shrinker == NULL)
-		SRETURN(rc = -ENOMEM);
-#else
-	register_shrinker(&spl_kmem_cache_shrinker);
-#endif
+	spl_register_shrinker(&spl_kmem_cache_shrinker);
 
 #ifdef DEBUG_KMEM
 	kmem_alloc_used_set(0);
@@ -2178,11 +2150,7 @@ spl_kmem_fini(void)
 #endif /* DEBUG_KMEM */
 	SENTRY;
 
-#ifdef HAVE_SET_SHRINKER
-	remove_shrinker(spl_kmem_cache_shrinker);
-#else
-	unregister_shrinker(&spl_kmem_cache_shrinker);
-#endif
+	spl_unregister_shrinker(&spl_kmem_cache_shrinker);
 
 	SEXIT;
 }
