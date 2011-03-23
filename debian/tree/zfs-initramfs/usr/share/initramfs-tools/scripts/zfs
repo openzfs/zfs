@@ -1,5 +1,3 @@
-#!/bin/sh
-#
 # ZFS boot stub for initramfs-tools.
 #
 # In the initramfs environment, the /init script sources this stub to
