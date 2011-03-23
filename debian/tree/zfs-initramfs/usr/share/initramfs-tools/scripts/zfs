@@ -33,8 +33,8 @@ mountroot()
 	# gets the bootfs property and sets -B on the kernel command line.
 
 	# Check the kernel command line for overrides.
-	ZFS_RPOOL="$rpool"
-	ZFS_BOOTFS="$bootfs"
+	ZFS_RPOOL="${rpool#rpool=}"
+	ZFS_BOOTFS="${bootfs#bootfs=}"
 
 	# Use "rpool" as the default, like on most Solaris systems.
 	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
