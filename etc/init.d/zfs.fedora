@@ -35,14 +35,16 @@ ZFS=zfs
 servicename=zfs
 LOCKFILE=/var/lock/subsys/$servicename
 
-# Sanity checks
-modinfo zfs > /dev/null 2>&1 || exit 1
-$ZPOOL  > /dev/null 2>&1
-[ $? == 127 ] && exit 1
-$ZFS    > /dev/null 2>&1
-[ $? == 127 ] && exit 1
-
 # functions
+zfs_installed() {
+	modinfo zfs > /dev/null 2>&1 || return 5
+	$ZPOOL  > /dev/null 2>&1
+	[ $? == 127 ] && return 5
+	$ZFS    > /dev/null 2>&1
+	[ $? == 127 ] && return 5
+	return 0
+}
+
 reregister_mounts() {
 	cat /etc/mtab | while read -r fs mntpnt fstype rest ; do
 		fs=`printf '%b\n' "$fs"`
@@ -69,10 +71,16 @@ start()
 {
 	if [ -f "$LOCKFILE" ] ; then return 0 ; fi
 
+	# check if ZFS is installed.  If not, comply to FC standards and bail
+	zfs_installed || {
+		action $"Checking if ZFS is installed: not installed" /bin/false
+		return 5
+	}
+
         # Requires selinux policy which has not been written.
         if [ -r "/selinux/enforce" ] &&
            [ "$(cat /selinux/enforce)" = "1" ]; then
-                action "SELinux ZFS policy required: " /bin/false || return 6
+                action $"SELinux ZFS policy required: " /bin/false || return 6
         fi
 
 	# load kernel module infrastructure
@@ -115,6 +123,12 @@ start()
 stop()
 {
 	if [ ! -f "$LOCKFILE" ] ; then return 0 ; fi
+
+	# check if ZFS is installed.  If not, comply to FC standards and bail
+	zfs_installed || {
+		action $"Checking if ZFS is installed: not installed" /bin/false
+		return 5
+	}
 
 	# the poweroff of the system takes care of this
 	# but it never unmounts the root filesystem itself
