@@ -23,7 +23,7 @@
 #              filesystems and starts all related zfs services.
 ### END INIT INFO
 
-export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
+export PATH=/usr/local/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 
 # Source function library & LSB routines
 . /etc/rc.d/init.d/functions
@@ -72,7 +72,7 @@ start()
         # Requires selinux policy which has not been written.
         if [ -r "/selinux/enforce" ] &&
            [ "$(cat /selinux/enforce)" = "1" ]; then
-                action "SELinux ZFS policy required: " /bin/false || return 4
+                action "SELinux ZFS policy required: " /bin/false || return 6
         fi
 
 	# load kernel module infrastructure
@@ -82,7 +82,7 @@ start()
 
 	# fix mtab to include already-mounted fs filesystems, in case there are any
 	if grep -q " zfs " /proc/mounts ; then
-		action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 9
+		action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 150
 	fi
 
         if [ -f /etc/zfs/zpool.cache ] ; then
@@ -92,13 +92,13 @@ start()
 		RETVAL=$?
 		if [ $RETVAL -ne 0 ]; then
 			failure "Importing ZFS pools not yet imported: "
-			return 6
+			return 151
 		fi
 		success "Importing ZFS pools not yet imported: "
 	
 	fi
 	
-	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 7
+	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 152
 
 	# hack to read mounted file systems because otherwise
 	# zfs returns EPERM when a non-root user reads a mounted filesystem before root did
@@ -152,8 +152,10 @@ case "$1" in
 		RETVAL=$?
 		;;
 	status)
-		$ZPOOL status && echo && $ZFS list
-		RETVAL=$?
+		lsmod | grep -q zfs || RETVAL=3
+		$ZPOOL status && echo && $ZFS list || {
+			[ -f "$LOCKFILE" ] && RETVAL=2 || RETVAL=4
+		}
 		;;
 	restart)
 		stop
@@ -167,6 +169,7 @@ case "$1" in
 		;;
 	*)
 		echo $"Usage: $0 {start|stop|status|restart|condrestart}"
+		RETVAL=3
 		;;
 esac
 
