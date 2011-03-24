@@ -42,6 +42,7 @@ Description: OpenSolaris userland utility library for Linux
 Package: libzfs0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: Native ZFS filesystem library for Linux
 
 Package: libzpool0
@@ -69,4 +70,5 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: zfs-dkms
 Suggests: zfs-initramfs
 Conflicts: zfs-fuse
+Replaces: zfs
 Description: Native ZFS management utilities for Linux
