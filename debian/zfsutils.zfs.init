@@ -26,9 +26,9 @@ do_start() {
 		exit $RET
 	fi
 
-	# Enable swap on ZVOLs with property org.freebsd:swap=on.
+	# Enable swap on ZVOLs with property org.linux:swap=on.
 	log_progress_msg "swap"
-	zfs list -H -o org.freebsd:swap,name -t volume | \
+	zfs list -H -o org.linux:swap,name -t volume | \
 	while read state name; do
 		case "${state}" in
 		[oO][nN])
@@ -57,9 +57,9 @@ do_start() {
 do_stop() {
 	log_begin_msg "Stopping ZFS subsystem..."
 
-	# Disable swap on ZVOLs with property org.freebsd:swap=on.
+	# Disable swap on ZVOLs with property org.linux:swap=on.
 	log_progress_msg "zvol"
-	zfs list -H -o org.freebsd:swap,name -t volume | \
+	zfs list -H -o org.linux:swap,name -t volume | \
 	while read state name; do
 		case "${state}" in
 		[oO][nN])
