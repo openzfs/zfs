@@ -136,7 +136,7 @@ start()
 	# which is the case in some systems (systemd may bring that soon)
 	if [ "`readlink /etc/mtab`" != "/proc/mounts" ] ; then
 		if grep -qE "(^/dev/zd| zfs )" /proc/mounts ; then
-			action $"Registering already-mounted ZFS filesystems: " reregister_mounts || return 150
+			action $"Registering already-mounted ZFS filesystems and volumes: " reregister_mounts || return 150
 		fi
 	fi
 
