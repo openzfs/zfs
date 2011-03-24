@@ -1,2 +1,1 @@
-usr/include
-usr/lib
+usr/lib/libzfs.so*
