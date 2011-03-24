@@ -39,6 +39,15 @@ Architecture: linux-any
 Depends: ${misc:Depends}
 Description: OpenSolaris userland utility library for Linux
 
+Package: libzfs-dev
+Architecture: linux-any
+Depends: ${misc:Depends}, libzfs0 (= ${binary:Version})
+Provides: libnvpair-dev, libuutil-dev
+Replaces: zfs-lib
+Description: Native ZFS filesystem development files for Linux
+ Header files and static libraries for compiling software
+ against libzfs.
+
 Package: libzfs0
 Architecture: linux-any
 Depends: ${misc:Depends}
