@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.5-0ubuntu2) unstable; urgency=low
+
+  * Include /sbin/mount.zfs in the zfs package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 24 Mar 2011 12:37:40 -0500
+
 zfs-linux (0.6.0.5-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
