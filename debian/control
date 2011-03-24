@@ -21,7 +21,7 @@ Architecture: any
 Depends: ${misc:Depends}, gawk, zfs
 Description: Native ZFS filesystem initramfs capabilities for Linux
 
-Package: zfs-lib
+Package: libzfs0
 Architecture: any
 Depends: ${misc:Depends}
 Description: Native ZFS filesystem libraries for Linux
