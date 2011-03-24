@@ -1,0 +1,5 @@
+# Automatically run `zfs mount -a` at system startup if set non-empty.
+ZFS_MOUNT=''
+
+# Automatically run `zfs unmount -a` at system shutdown if set non-empty.
+ZFS_UNMOUNT=''

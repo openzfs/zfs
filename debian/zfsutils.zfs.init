@@ -1,0 +1,122 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          zvol zfs
+# Required-Start:
+# Required-Stop: 
+# Default-Start:     S
+# Default-Stop:      0 6
+# Short-Description: Start/stop ZFS subsystem.
+# Description:
+### END INIT INFO
+
+PATH=/sbin:/bin
+
+. /lib/lsb/init-functions
+. /lib/init/vars.sh
+
+do_start() {
+	log_begin_msg "Starting ZFS subsystem..."
+
+	# zvol
+	log_progress_msg "zvol"
+	zfs volinit
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+
+	# Enable swap on ZVOLs with property org.freebsd:swap=on.
+	log_progress_msg "swap"
+	zfs list -H -o org.freebsd:swap,name -t volume | \
+	while read state name; do
+		case "${state}" in
+		[oO][nN])
+			swapon /dev/zvol/${name}
+			RET=$?
+			if [ $RET != 0 ] ; then
+				log_end_msg $RET
+				exit $RET
+			fi
+		esac
+	done
+
+	# filesystems
+	log_progress_msg "filesystems"
+	zfs mount -a
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+
+	# end
+	log_end_msg 0
+}
+
+do_stop() {
+	log_begin_msg "Stopping ZFS subsystem..."
+
+	# Disable swap on ZVOLs with property org.freebsd:swap=on.
+	log_progress_msg "zvol"
+	zfs list -H -o org.freebsd:swap,name -t volume | \
+	while read state name; do
+		case "${state}" in
+		[oO][nN])
+			swapoff /dev/zvol/${name}
+			RET=$?
+			if [ $RET != 0 ] ; then
+				log_end_msg $RET
+				exit $RET
+			fi
+			;;
+		esac
+	done
+
+	# zvol
+	log_progress_msg "zvol"
+	zfs volfini
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+
+	# filesystems
+	log_progress_msg "filesystems"
+	zfs unshare -a
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+	zfs umount -a
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+
+	# end
+	log_end_msg 0
+}
+
+
+case "$1" in
+  start|"")
+	do_start
+	;;
+  restart|reload|force-reload)
+	echo "Error: argument '$1' not supported" >&2
+	exit 3
+	;;
+  stop)
+	do_stop
+	;;
+  *)
+	echo "Usage: zfs [start|stop]" >&2
+	exit 3
+	;;
+esac
+
+:

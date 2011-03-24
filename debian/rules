@@ -33,6 +33,9 @@ override_dh_auto_install:
 	# Install the dkms.conf file.
 	dh_dkms -V $(VERSION)
 
+        # Install the init.d file.
+        dh_installinit --name=zfs
+
 	# @FIXME: `make distclean` fails when --with-config=user is set.
 	# Kludge by creating dummy makefiles.
 	echo 'distclean:'         >$(CURDIR)/include/Makefile
