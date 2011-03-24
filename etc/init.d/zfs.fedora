@@ -71,7 +71,7 @@ reregister_mounts() {
 		if [ "$fstype" == "zfs" ] ; then
 			mount -f -t zfs -o zfsutil "$fs" "$mntpnt"
 		elif echo "$fs" | grep -q "^/dev/zd" ; then
-			mount -f -t "fstype" -o "$opts" "$fs" "$mntpnt"
+			mount -f -t "$fstype" -o "$opts" "$fs" "$mntpnt"
 		fi
 	done
 }
