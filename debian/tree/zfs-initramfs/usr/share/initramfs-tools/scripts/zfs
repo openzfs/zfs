@@ -39,18 +39,18 @@ mountroot()
 
 	# Import the root pool, but don't mount it.
 	[ "$quiet" != "y" ] && log_begin_msg "Importing ZFS root pool $ZFS_RPOOL"
-	zpool import -N "$ZFS_RPOOL"
+	zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
 		echo ""
-		echo "Command: zpool import -N $ZFS_RPOOL"
+		echo "Command: zpool import -R $rootmnt -N $ZFS_RPOOL"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually import the root pool at the command prompt and then exit."
-		echo "Hint: Try:  zpool import -N -f $ZFS_RPOOL"
+		echo "Hint: Try:  zpool import -f -R $rootmnt -N $ZFS_RPOOL"
 		/bin/sh
 	fi
 
@@ -69,21 +69,20 @@ mountroot()
 		echo "Error: $ZFS_ERROR, unable to get the bootfs property."
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
-		echo "Hint: Try: mount -t zfs $ZFS_RPOOL/ROOT/MySystem $rootmnt"
 		/bin/sh	
 	fi
 
-	# Mount the root filesystem through the helper. Remember that `zfs mount`
-	# sets a soft MOUNTPOINT= property that is incorrect for Linux hosts.
+	# Force the mountpoint to the only correct value for a root filesystem.
+	# Recall that the mountpoint is relative to the -R import parameter.
 	[ "$quiet" != "y" ] && log_begin_msg "Mounting ZFS filesystem $ZFS_BOOTFS"
-	mount -t zfs "$ZFS_BOOTFS" ${rootmnt}
+	zfs mount -o mountpoint=/ "$ZFS_BOOTFS"
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
 		echo ""
-		echo "Command: mount -t zfs $ZFS_BOOTFS $rootmnt"
+		echo "Command: zfs mount -o mountpoint=/ $ZFS_BOOTFS"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."

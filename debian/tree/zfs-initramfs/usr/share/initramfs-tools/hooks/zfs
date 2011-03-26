@@ -20,6 +20,7 @@ COPY_EXEC_LIST=" \
   /usr/sbin/zdb \
   /usr/sbin/zpool \
   /usr/sbin/zfs \
+  /sbin/mount.zfs \
   "
 
 # These prerequisites are provides by other packages.
