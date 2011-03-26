@@ -26,13 +26,30 @@ mountroot()
 	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
 	wait_for_udev
 
-	# @TODO: Handle the "-B zfs_bootfs=%s/%u" parameter syntax.
-	# On all other platforms that can have a ZFS root filesystem, GRUB
-	# gets the bootfs property and sets -B on the kernel command line.
-
 	# Check the kernel command line for overrides.
 	ZFS_RPOOL="${rpool#rpool=}"
 	ZFS_BOOTFS="${bootfs#bootfs=}"
+
+	if [ -z "$ZFS_RPOOL" ]
+	then
+		# Check for the `-B zfs-bootfs=%s/%u,...` kind of parameter.
+		#
+		# The ${zfs-bootfs} variable is set at the kernel commmand
+		# line, usually by GRUB, but it cannot be referenced here
+		# directly because bourne variable names cannot contain a
+		# hyphen.
+		#
+		# Reassign the variable by dumping the environment and
+		# stripping the zfs-bootfs= prefix.  Let the shell handle
+		# quoting through the eval command.
+		eval ZFS_RPOOL=$(set | sed -n -e 's,^zfs-bootfs=,,p')
+
+		# Only the pool name is relevant because the ZFS filesystem on Linux is
+		# extrinsic and the userland cannot resolve a ZFS object number.
+		#
+		# Strip everything after the first slash character.
+		ZFS_RPOOL=$(echo "$ZFS_RPOOL" | sed -e 's,/.*,,')
+	fi
 
 	# Use "rpool" as the default, like on most Solaris systems.
 	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
