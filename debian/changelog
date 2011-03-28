@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.5-0ubuntu3) unstable; urgency=low
+
+  * Use /sbin/mount.zfs for the root mount in the initramfs.
+  * Handle the GRUB zfs-bootfs parameter in the initramfs.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Mar 2011 22:14:21 -0500
+
 zfs-linux (0.6.0.5-0ubuntu2) unstable; urgency=low
 
   * Include /sbin/mount.zfs in the zfs package.
