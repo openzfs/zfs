@@ -85,6 +85,6 @@ Architecture: linux-any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: zfs-dkms
 Suggests: zfs-initramfs
-Conflicts: zfs-fuse
+Conflicts: zfs, zfs-fuse
 Replaces: zfs
 Description: Native ZFS management utilities for Linux
