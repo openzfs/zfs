@@ -18,13 +18,13 @@ do_start() {
 	log_begin_msg "Starting ZFS subsystem..."
 
 	# zvol
-	log_progress_msg "zvol"
-	zfs volinit
-	RET=$?
-	if [ $RET != 0 ] ; then
-		log_end_msg $RET
-		exit $RET
-	fi
+	#log_progress_msg "zvol"
+	#zfs volinit
+	#RET=$?
+	#if [ $RET != 0 ] ; then
+	#	log_end_msg $RET
+	#	exit $RET
+	#fi
 
 	# Enable swap on ZVOLs with property org.linux:swap=on.
 	log_progress_msg "swap"
@@ -74,13 +74,13 @@ do_stop() {
 	done
 
 	# zvol
-	log_progress_msg "zvol"
-	zfs volfini
-	RET=$?
-	if [ $RET != 0 ] ; then
-		log_end_msg $RET
-		exit $RET
-	fi
+	#log_progress_msg "zvol"
+	#zfs volfini
+	#RET=$?
+	#if [ $RET != 0 ] ; then
+	#	log_end_msg $RET
+	#	exit $RET
+	#fi
 
 	# filesystems
 	log_progress_msg "filesystems"
