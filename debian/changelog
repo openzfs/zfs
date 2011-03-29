@@ -7,7 +7,7 @@ zfs-linux (0.6.0.5-1ubuntu2~natty) natty; urgency=low
   * Remove the KQ init script that was imported from zfs-linux/lzfs.
   * Import the zfsutils init script from Debian kFreeBSD.
   * Check zvols for Linux swap areas instead of FreeBSD swap areas.
-  * Replace zfs-lib by libzfs0 and zfs by zfsutils in the debian/control file.
+  * Replace zfs by zfsutils in the debian/control file.
   * Add libzfs-dev to the debian/control file.
   * Change usr/lib/include to usr/include in the libzfs-dev.install file.
   * Add a zfs-lib replacement to each constituent library.
