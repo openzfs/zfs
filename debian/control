@@ -11,32 +11,38 @@ Package: libavl0
 Architecture: linux-any
 Depends: ${misc:Depends}
 Conflicts: libavl1
+Replaces: zfs-lib
 Description: OpenSolaris AVL tree manipulation library for Linux
 
 Package: libefi0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: OpenSolaris EFI library for Linux
 
 Package: libnvpair0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: OpenSolaris name-value library for Linux
 
 Package: libspl0
 Architecture: linux-any
 Depends: ${misc:Depends}
 Conflicts: spl-dev
+Replaces: zfs-lib
 Description: Solaris Portability Layer library for Linux
 
 Package: libunicode0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: OpenSolaris unicode library for Linux
 
 Package: libuutil0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: OpenSolaris userland utility library for Linux
 
 Package: libzfs-dev
@@ -57,6 +63,7 @@ Description: Native ZFS filesystem library for Linux
 Package: libzpool0
 Architecture: linux-any
 Depends: ${misc:Depends}
+Replaces: zfs-lib
 Description: Native ZFS pool library for Linux
 
 Package: zfs-dkms
