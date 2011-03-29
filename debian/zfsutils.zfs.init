@@ -84,12 +84,13 @@ do_stop() {
 
 	# filesystems
 	log_progress_msg "filesystems"
-	zfs unshare -a
-	RET=$?
-	if [ $RET != 0 ] ; then
-		log_end_msg $RET
-		exit $RET
-	fi
+	# @FIXME: Unimplemented on Linux.
+	#zfs unshare -a
+	#RET=$?
+	#if [ $RET != 0 ] ; then
+	#	log_end_msg $RET
+	#	exit $RET
+	#fi
 	zfs umount -a
 	RET=$?
 	if [ $RET != 0 ] ; then
