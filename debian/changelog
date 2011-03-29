@@ -1,3 +1,18 @@
+zfs-linux (0.6.0.5-1ubuntu1) unstable; urgency=low
+
+  * Rename the zfs package to zfsutils.
+  * Rename the zfs-lib package to libzfs0.
+  * Decompose the zfs-lib package.
+  * Restrict the package architecture to linux-any.
+  * Remove the KQ init script that was imported from zfs-linux/lzfs.
+  * Import the zfsutils init script from Debian kFreeBSD.
+  * Check zvols for Linux swap areas instead of FreeBSD swap areas.
+  * Replace zfs-lib by libzfs0 and zfs by zfsutils in the debian/control file.
+  * Add libzfs-dev to the debian/control file.
+  * Change usr/lib/include to usr/include in the libzfs-dev.install file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 29 Mar 2011 09:17:38 -0500
+
 zfs-linux (0.6.0.5-0ubuntu2) unstable; urgency=low
 
   * Include /sbin/mount.zfs in the zfs package.
