@@ -1,4 +1,4 @@
-zfs-linux (0.6.0.5-1ubuntu1) unstable; urgency=low
+zfs-linux (0.6.0.5-1ubuntu2~natty) natty; urgency=low
 
   * Rename the zfs package to zfsutils.
   * Rename the zfs-lib package to libzfs0.
@@ -10,6 +10,7 @@ zfs-linux (0.6.0.5-1ubuntu1) unstable; urgency=low
   * Replace zfs-lib by libzfs0 and zfs by zfsutils in the debian/control file.
   * Add libzfs-dev to the debian/control file.
   * Change usr/lib/include to usr/include in the libzfs-dev.install file.
+  * Add a zfs-lib replacement to each constituent library.
 
  -- Darik Horn <dajhorn@vanadac.com>  Tue, 29 Mar 2011 09:17:38 -0500
 
