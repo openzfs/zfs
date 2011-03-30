@@ -1,4 +1,4 @@
-zfs-linux (0.6.0.5-1ubuntu5) unstable; urgency=low
+zfs-linux (0.6.0.5-1ubuntu5~natty) natty; urgency=low
 
   * Use /sbin/mount.zfs for the root mount in the initramfs.
   * Handle the GRUB zfs-bootfs parameter in the initramfs.
