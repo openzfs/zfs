@@ -1,4 +1,11 @@
-zfs-linux (0.6.0.5-1ubuntu5~natty) natty; urgency=low
+zfs-linux (0.6.0.5-1ubuntu6) unstable; urgency=low
+
+  * Link /proc/mounts to /etc/mtab.
+  * Add the /etc/default/zfs import to the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 16:12:41 -0500
+
+zfs-linux (0.6.0.5-1ubuntu5) unstable; urgency=low
 
   * Use /sbin/mount.zfs for the root mount in the initramfs.
   * Handle the GRUB zfs-bootfs parameter in the initramfs.
