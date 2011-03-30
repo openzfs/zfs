@@ -140,6 +140,7 @@ typedef struct vattr {
 	uint64_t	va_nblocks;	/* space used */
 	uint32_t	va_blksize;	/* block size */
 	uint32_t	va_seq;		/* sequence */
+	struct dentry	*va_dentry;	/* dentry to wire */
 } vattr_t;
 
 typedef struct vnode {
