@@ -1,4 +1,11 @@
-zfs-linux (0.6.0.5-1ubuntu2~natty) natty; urgency=low
+zfs-linux (0.6.0.5-1ubuntu5) unstable; urgency=low
+
+  * Use /sbin/mount.zfs for the root mount in the initramfs.
+  * Handle the GRUB zfs-bootfs parameter in the initramfs.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 12:22:12 -0500
+
+zfs-linux (0.6.0.5-1ubuntu2) unstable; urgency=low
 
   * Rename the zfs package to zfsutils.
   * Rename the zfs-lib package to libzfs0.

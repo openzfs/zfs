@@ -26,31 +26,49 @@ mountroot()
 	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
 	wait_for_udev
 
-	# @TODO: Handle the "-B zfs_bootfs=%s/%u" parameter syntax.
-	# On all other platforms that can have a ZFS root filesystem, GRUB
-	# gets the bootfs property and sets -B on the kernel command line.
-
 	# Check the kernel command line for overrides.
 	ZFS_RPOOL="${rpool#rpool=}"
 	ZFS_BOOTFS="${bootfs#bootfs=}"
 
+	if [ -z "$ZFS_RPOOL" ]
+	then
+		# Check for the `-B zfs-bootfs=%s/%u,...` kind of parameter.
+		#
+		# The ${zfs-bootfs} variable is set at the kernel commmand
+		# line, usually by GRUB, but it cannot be referenced here
+		# directly because bourne variable names cannot contain a
+		# hyphen.
+		#
+		# Reassign the variable by dumping the environment and
+		# stripping the zfs-bootfs= prefix.  Let the shell handle
+		# quoting through the eval command.
+		eval ZFS_RPOOL=$(set | sed -n -e 's,^zfs-bootfs=,,p')
+
+		# Only the pool name is relevant because the ZFS filesystem on Linux is
+		# extrinsic and the userland cannot resolve a ZFS object number.
+		#
+		# Strip everything after the first slash character.
+		ZFS_RPOOL=$(echo "$ZFS_RPOOL" | sed -e 's,/.*,,')
+	fi
+
 	# Use "rpool" as the default, like on most Solaris systems.
 	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
 
-	# Import the root pool, but don't mount it.
+	# Import the root pool, but don't mount it.  Doing `-R /` instead of
+	# `-R $rootmnt` keeps the namespace sensible after the pivot.
 	[ "$quiet" != "y" ] && log_begin_msg "Importing ZFS root pool $ZFS_RPOOL"
-	zpool import -N "$ZFS_RPOOL"
+	ZFS_STDERR=$(zpool import -R / -N "$ZFS_RPOOL" 2>&1)
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
-		echo ""
-		echo "Command: zpool import -N $ZFS_RPOOL"
+		echo "Command: zpool import -R / -N $ZFS_RPOOL"
+		echo "Message: $ZFS_STDERR"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually import the root pool at the command prompt and then exit."
-		echo "Hint: Try:  zpool import -N -f $ZFS_RPOOL"
+		echo "Hint: Try:  zpool import -f -R / -N $ZFS_RPOOL"
 		/bin/sh
 	fi
 
@@ -64,26 +82,38 @@ mountroot()
 
 	if [ -z "$ZFS_BOOTFS" ]
 	then
-		echo ""
 		echo "Command: zpool list -H -o bootfs $ZFS_RPOOL"
 		echo "Error: $ZFS_ERROR, unable to get the bootfs property."
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
-		echo "Hint: Try: mount -t zfs $ZFS_RPOOL/ROOT/MySystem $rootmnt"
+		echo "Hint: Try:  mount -t zfs -o zfsutil $ZFS_RPOOL/ROOT/system $rootmnt"
 		/bin/sh	
 	fi
 
-	# Mount the root filesystem through the helper. Remember that `zfs mount`
-	# sets a soft MOUNTPOINT= property that is incorrect for Linux hosts.
+	# Force the mountpoint to the only correct value for a root filesystem.
+	[ "$quiet" != "y" ] && log_begin_msg "Setting mountpoint=/ on ZFS filesystem $ZFS_BOOTFS"
+	ZFS_STDERR=$(zfs set -o mountpoint=/ "$ZFS_BOOTFS" 2>&1)
+	[ "$quiet" != "y" ] && log_end_msg
+
+	# Ideally, the root filesystem would be mounted like this:
+	#
+	#   zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
+	#   zfs mount -o mountpoint=/ "$ZFS_BOOTFS"
+	#
+	# but the MOUNTPOINT prefix is preserved on descendent filesystem after
+	# the pivot into the regular root, which later breaks things like
+	# `zfs mount -a` and the /etc/mtab refresh.
+
 	[ "$quiet" != "y" ] && log_begin_msg "Mounting ZFS filesystem $ZFS_BOOTFS"
-	mount -t zfs "$ZFS_BOOTFS" ${rootmnt}
+	ZFS_STDERR=$(mount -t zfs -o zfsutil "$ZFS_BOOTFS" "$rootmnt" 2>&1)
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
 		echo ""
-		echo "Command: mount -t zfs $ZFS_BOOTFS $rootmnt"
+		echo "Command: mount -t zfs -o zfsutil $ZFS_BOOTFS $rootmnt"
+		echo "Message: $ZFS_STDERR"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
