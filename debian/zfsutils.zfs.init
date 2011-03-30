@@ -14,6 +14,8 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 . /lib/lsb/init-functions
 . /lib/init/vars.sh
 
+[ -f /etc/default/zfs ] && . /etc/default/zfs
+
 do_start() {
 	log_begin_msg "Starting ZFS subsystem..."
 
@@ -105,6 +107,7 @@ do_stop() {
 
 case "$1" in
   start|"")
+	[ -z "$ZFS_MOUNT" ] && exit 0
 	do_start
 	;;
   restart|reload|force-reload)
@@ -112,6 +115,7 @@ case "$1" in
 	exit 3
 	;;
   stop)
+	[ -z "$ZFS_UNMOUNT" ] && exit 0
 	do_stop
 	;;
   *)
