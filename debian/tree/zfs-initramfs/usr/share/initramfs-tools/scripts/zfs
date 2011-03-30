@@ -54,20 +54,21 @@ mountroot()
 	# Use "rpool" as the default, like on most Solaris systems.
 	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
 
-	# Import the root pool, but don't mount it.
+	# Import the root pool, but don't mount it.  Doing `-R /` instead of
+	# `-R $rootmnt` keeps the namespace sensible after the pivot.
 	[ "$quiet" != "y" ] && log_begin_msg "Importing ZFS root pool $ZFS_RPOOL"
-	zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
+	zpool import -R / -N "$ZFS_RPOOL"
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
 		echo ""
-		echo "Command: zpool import -R $rootmnt -N $ZFS_RPOOL"
+		echo "Command: zpool import -R / -N $ZFS_RPOOL"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually import the root pool at the command prompt and then exit."
-		echo "Hint: Try:  zpool import -f -R $rootmnt -N $ZFS_RPOOL"
+		echo "Hint: Try:  zpool import -f -R / -N $ZFS_RPOOL"
 		/bin/sh
 	fi
 
@@ -90,16 +91,28 @@ mountroot()
 	fi
 
 	# Force the mountpoint to the only correct value for a root filesystem.
-	# Recall that the mountpoint is relative to the -R import parameter.
+	[ "$quiet" != "y" ] && log_begin_msg "Setting mountpoint=/ on ZFS filesystem $ZFS_BOOTFS"
+	zfs set -o mountpoint=/ "$ZFS_BOOTFS"
+	[ "$quiet" != "y" ] && log_end_msg
+
+	# Ideally, the root filesystem would be mounted like this:
+	#
+	#   zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
+	#   zfs mount -o mountpoint=/ "$ZFS_BOOTFS"
+	#
+	# but the MOUNTPOINT prefix is preserved on descendent filesystem after
+	# the pivot into the regular root, which later breaks things like
+	# `zfs mount -a` and the /etc/mtab refresh.
+
 	[ "$quiet" != "y" ] && log_begin_msg "Mounting ZFS filesystem $ZFS_BOOTFS"
-	zfs mount -o mountpoint=/ "$ZFS_BOOTFS"
+	mount -t zfs -o zfsutil "$ZFS_BOOTFS" "$rootmnt"
 	ZFS_ERROR=$?
 	[ "$quiet" != "y" ] && log_end_msg
 
 	if [ "$ZFS_ERROR" -ne 0 ]
 	then
 		echo ""
-		echo "Command: zfs mount -o mountpoint=/ $ZFS_BOOTFS"
+		echo "Command: mount -t zfs -o zfsutil $ZFS_BOOTFS $rootmnt"
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
