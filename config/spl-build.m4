@@ -76,6 +76,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_3ARGS_FILE_FSYNC
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_INVALIDATE_INODES
+	SPL_AC_SHRINK_DCACHE_MEMORY
+	SPL_AC_SHRINK_ICACHE_MEMORY
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1715,5 +1717,35 @@ AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
 		[],
 		[AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
 		[invalidate_inodes() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.xx API compat,
+dnl # There currently exists no exposed API to partially shrink the dcache.
+dnl # The expected mechanism to shrink the cache is a registered shrinker
+dnl # which is called during memory pressure.
+dnl #
+AC_DEFUN([SPL_AC_SHRINK_DCACHE_MEMORY], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[shrink_dcache_memory],
+		[fs/dcache.c],
+		[AC_DEFINE(HAVE_SHRINK_DCACHE_MEMORY, 1,
+		[shrink_dcache_memory() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.xx API compat,
+dnl # There currently exists no exposed API to partially shrink the icache.
+dnl # The expected mechanism to shrink the cache is a registered shrinker
+dnl # which is called during memory pressure.
+dnl #
+AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[shrink_icache_memory],
+		[fs/inode.c],
+		[AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
+		[shrink_icache_memory() is available])],
 		[])
 ])

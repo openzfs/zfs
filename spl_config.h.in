@@ -156,6 +156,12 @@
 /* set_shrinker() available */
 #undef HAVE_SET_SHRINKER
 
+/* shrink_dcache_memory() is available */
+#undef HAVE_SHRINK_DCACHE_MEMORY
+
+/* shrink_icache_memory() is available */
+#undef HAVE_SHRINK_ICACHE_MEMORY
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 
