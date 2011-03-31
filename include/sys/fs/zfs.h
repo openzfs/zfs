@@ -785,7 +785,7 @@ typedef enum zfs_ioc {
 /*
  * zvol ioctl to get dataset name
  */
-#define BLKZNAME		_IO(0x12,125)
+#define BLKZNAME		_IOR(0x12,125,char[ZFS_MAXNAMELEN])
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.

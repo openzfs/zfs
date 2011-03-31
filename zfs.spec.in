@@ -89,7 +89,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files dracut
 %defattr(-,root,root)
-%{_datarootdir}/dracut/*
+%{_datadir}/dracut/*
 
 %post
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs

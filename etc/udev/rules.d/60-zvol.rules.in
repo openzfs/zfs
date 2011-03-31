@@ -3,4 +3,4 @@
 # persistent disk links: /dev/zvol/dataset_name
 # also creates compatibilty symlink of /dev/dataset_name
 
-KERNEL=="zd*" SUBSYSTEM=="block" ACTION=="add" PROGRAM="/usr/bin/zvol_id $tempnode" SYMLINK+="zvol/%c %c"
+KERNEL=="zd*" SUBSYSTEM=="block" ACTION=="add|change" PROGRAM="@prefix@/bin/zvol_id $tempnode" SYMLINK+="zvol/%c %c"
