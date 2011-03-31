@@ -66,8 +66,8 @@
  %endif
 %else
 
-# CHAOS 4.x/5.x:
-%if %{defined ch4} || %{defined ch5}
+# CHAOS 4.x:
+%if %{defined ch4}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
   %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
@@ -85,8 +85,8 @@
  %endif
 %else
 
-# RHEL 5.x/6.x:
-%if %{defined el5} || %{defined el6}
+# RHEL 5.x/6.x, CHAOS 5.x:
+%if %{defined el5} || %{defined el6} || %{defined ch5}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
   %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
