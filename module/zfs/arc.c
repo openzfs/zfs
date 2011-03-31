@@ -180,6 +180,7 @@ unsigned long zfs_arc_meta_limit = 0;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
+int zfs_arc_reduce_dnlc_percent = 0;
 
 /*
  * Note that buffers can be in one of 6 states:
@@ -2084,14 +2085,16 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 	kmem_cache_t		*prev_data_cache = NULL;
 	extern kmem_cache_t	*zio_buf_cache[];
 	extern kmem_cache_t	*zio_data_buf_cache[];
-
 #ifdef _KERNEL
-	if (arc_meta_used >= arc_meta_limit) {
+	int			retry = 0;
+
+	while ((arc_meta_used >= arc_meta_limit) && (retry < 10)) {
 		/*
 		 * We are exceeding our meta-data cache limit.
 		 * Purge some DNLC entries to release holds on meta-data.
 		 */
 		dnlc_reduce_cache((void *)(uintptr_t)arc_reduce_dnlc_percent);
+		retry++;
 	}
 #if defined(__i386)
 	/*
@@ -2156,6 +2159,10 @@ arc_reclaim_thread(void)
 		} else if (arc_no_grow && ddi_get_lbolt() >= growtime) {
 			arc_no_grow = FALSE;
 		}
+
+		/* Keep meta data usage within limits */
+		if (arc_meta_used >= arc_meta_limit)
+			arc_kmem_reap_now(ARC_RECLAIM_CONS);
 
 		arc_adjust();
 
@@ -3583,6 +3590,9 @@ arc_init(void)
 	if (zfs_arc_p_min_shift > 0)
 		arc_p_min_shift = zfs_arc_p_min_shift;
 
+	if (zfs_arc_reduce_dnlc_percent > 0)
+		arc_reduce_dnlc_percent = zfs_arc_reduce_dnlc_percent;
+
 	/* if kmem_flags are set, lets try to use less memory */
 	if (kmem_debugging())
 		arc_c = arc_c / 2;
@@ -4765,4 +4775,7 @@ MODULE_PARM_DESC(zfs_arc_max, "Maximum arc size");
 
 module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
+
+module_param(arc_reduce_dnlc_percent, uint, 0644);
+MODULE_PARM_DESC(arc_reduce_dnlc_percent, "Meta reclaim percentage");
 #endif
