@@ -430,7 +430,7 @@ scsi_rescan() {
 #
 udev_trigger() {
 	if [ -f ${UDEVADM} ]; then
-		${UDEVADM} trigger
+		${UDEVADM} trigger --action=change --subsystem-match=block
 		${UDEVADM} settle
 	else
 		/sbin/udevtrigger

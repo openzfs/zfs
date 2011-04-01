@@ -153,7 +153,7 @@ exec 1>&8 8>&-
 popd >/dev/null
 
 if [ ${TRIGGER} = "yes" ]; then
-	udevadm trigger
+	udevadm trigger --action=change --subsystem-match=block
 	udevadm settle
 fi
 
