@@ -1,0 +1,167 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Single node Lustre configuration." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>To get familiar with configuring a zfs based Lustre filesystem it is
+helpful to setup a small single node filesystem.  This exact configuration
+is useful if your a developer but is primarily designed as an example.
+ If your not already familiar with configuring a traditional ldiskfs
+based Lustre filesystem you should familiarize yourself with the
+<a href="http://wiki.lustre.org/index.php/Lustre_Documentation">
+Lustre documentation</a>.
+
+<p>The filesystem will be named <em>lustre</em> and it will consist of:</p>
+
+<ul>
+	<li>1 MGS: 128 MiB ldiskfs loopback</li>
+	<li>1 MDT: 256 MiB zfs file-backed</li>
+	<li>2 OSTs: 1 GiB zfs file-backed</li>
+</ul>
+
+<p>The first thing which you should do is ensure SELinux is disabled.
+The filesystem types <em>ldiskfs</em>, <em>zfs</em>, and <em>lustre</em>
+are not part of the default SELinux policy.  This can cause mount
+failures because SELinux is unaware that these filesystem support xattrs.
+To disable SELinux edit <em>/etc/selinux/config</em> and change the
+SELINUX line to SELINUX=disabled.   Then reboot your system to remove
+the existing policy.
+
+<pre>
+$ cat /etc/selinux/config
+# This file controls the state of SELinux on the system.
+# SELINUX= can take one of these three values:
+#     enforcing - SELinux security policy is enforced.
+#     permissive - SELinux prints warnings instead of enforcing.
+#     disabled - No SELinux policy is loaded.
+<b>SELINUX=disabled</b>
+# SELINUXTYPE= can take one of these two values:
+#     targeted - Targeted processes are protected,
+#     mls - Multi Level Security protection.
+SELINUXTYPE=targeted
+</pre>
+
+<p>Next configure the required Lustre services.  This process will be
+slightly different than that described in the official
+<a href="http://wiki.lustre.org/index.php/Lustre_Documentation">
+Lustre documentation</a>.  Aside from the zfs specific changes these
+packages contain Livermore's init scripts.  There are used to provide
+a traditional interface for starting/stopping services.  Additionally,
+they are integrated with the Linux
+<a href="http://www.linux-ha.org/wiki/Heartbeat">Heartbeat package</a>
+to provide automatic Lustre failover.   While you do not have to use
+the init scripts, this example does.</p>
+
+<p>Configure the MGS.  For the purposes of this example we create
+a 128 MiB loopback device and format it with an ldiskfs filesystem.</p>
+
+<pre>
+$ dd if=/dev/zero of=/tmp/lustre-mgs bs=1M count=1 seek=127
+$ sudo losetup /dev/loop0 /tmp/lustre-mgs
+$ sudo mkfs.lustre --mgs --backfstype=ldiskfs /dev/loop0
+</pre>
+
+<p>Configure the MDT using a zfs backend.  Because zfs can run on
+top of normal files (or block devices) we create a sparse /tmp/lustre-mdt
+file.  This avoids the need to setup additional loopback devices.</p>
+
+<pre>
+$ dd if=/dev/zero of=/tmp/lustre-mdt bs=1M count=1 seek=255
+$ sudo mkfs.lustre --mdt --mgsnode=192.168.1.100@tcp --backfstype=zfs lustre-mdt/mdt /tmp/lustre-mdt
+</pre>
+
+<p>Configure the two OSTs using a zfs backend.  We will create a separate
+pool for each OST, however they could be configured to use the same pool.
+Be aware that when OSTs share a pool Lustre will over report free space
+just like normal zfs filesystems.</p>
+
+<pre>
+$ dd if=/dev/zero of=/tmp/lustre-ost0 bs=1M count=1 seek=1023
+$ sudo mkfs.lustre --ost --mgsnode=192.168.1.100@tcp --backfstype=zfs lustre-ost0/ost0 /tmp/lustre-ost0
+
+$ dd if=/dev/zero of=/tmp/lustre-ost1 bs=1M count=1 seek=1023
+$ sudo mkfs.lustre --ost --mgsnode=192.168.1.100@tcp --backfstype=zfs lustre-ost1/ost1 /tmp/lustre-ost1
+
+$ sudo zfs list
+NAME               USED  AVAIL  REFER  MOUNTPOINT
+lustre-mdt         128K   218M    21K  /lustre-mdt
+lustre-mdt/mdt      21K   218M    21K  /lustre-mdt/mdt
+lustre-ost0        122K   984M    21K  /lustre-ost0
+lustre-ost0/ost0    21K   984M    21K  /lustre-ost0/ost0
+lustre-ost1        122K   984M    21K  /lustre-ost1
+lustre-ost1/ost1    21K   984M    21K  /lustre-ost1/ost1
+</pre>
+
+<p>Finally create a file called <em>/etc/ldev.conf</em>.  It is used by
+the init scripts and the failover infrastructure to control the Lustre
+services.  Minimally this file must contain the hostname where the service
+should run, the service label, and the ldiskfs block device or zfs dataset
+name.  Make sure you update this file with <em>your</em> hostname.  Once
+the file is in place you can use <em>ldev --local</em> to list the local
+Lustre services.</p>
+
+<pre>
+$ cat /etc/ldev.conf
+# example /etc/ldev.conf
+#
+# local  foreign/-  label       [md|zfs:]device-path     [journal-path]
+#
+toss-2-0-amd64 - mgs     /dev/loop0
+toss-2-0-amd64 - mdt     zfs:lustre-mdt/mdt
+toss-2-0-amd64 - ost0    zfs:lustre-ost0/ost0
+toss-2-0-amd64 - ost1    zfs:lustre-ost1/ost1
+
+$ ldev --local
+mgs
+mdt
+ost0
+ost1
+</pre>
+
+<p>Everything is now in place to start the Lustre services.  You should
+start the MGS, then MDT, and lastly the OSTs.  Once everything is running
+the Lustre filesystem can be mounted.  A word of caution before starting
+the services.  There current Lustre kdmu code is not polished and is not
+tolerant of user error.  If there is a flaw in your configuration it is
+entirely possible your system will panic.  The Lustre kdmu source should
+still be considered a development branch.</p>
+
+<pre>
+$ sudo service lustre start mgs
+Mounting /dev/loop0 on /mnt/lustre/local/mgs
+
+$ sudo service lustre start mdt
+Mounting lustre-mdt/mdt on /mnt/lustre/local/mdt
+
+$ sudo service lustre start ost0
+Mounting lustre-ost0/ost0 on /mnt/lustre/local/ost0
+
+$ sudo service lustre start ost1
+Mounting lustre-ost1/ost1 on /mnt/lustre/local/ost1
+
+$ mkdir -p /mnt/lustre
+$ sudo mount -t lustre 192.168.1.100:/lustre /mnt/lustre/
+
+$ df -h /mnt/lustre/
+Filesystem            Size  Used Avail Use% Mounted on
+192.168.122.151:/lustre
+                      1.9G   75M  1.8G   5% /mnt/lustre
+</pre>
+
+	
+		</td>
+	</td>
+</table>
+
+</center>
+</body>
+</html>

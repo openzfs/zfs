@@ -1,0 +1,101 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Lustre KDMU Summary." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>The <a href="http://wiki.lustre.org/index.php/Main_Page">Lustre</a> KDMU
+development branch is a version of the code which has been architected to
+support multiple backend filesystems.  This work was originally started at
+Sun, continued at <a href="http://www.oracle.com/us/products/servers-storage/
+storage/storage-software/031855.htm">Oracle</a>, and now has been taken over
+by <a href="http://whamcloud.com/">Whamcloud</a>.  Dispite these disruptions
+<a href="https://computing.llnl.gov/">Livermore</a> has remained involved
+in the development and committed to deploying a <a href="llnl-zfs-lustre.html">
+ZFS based Lustre solution</a> for our large Linux clusters.</p>
+
+<p>The focus of the work at <a href="https://computing.llnl.gov/">
+Livermore</a> has been to port ZFS to the Linux kernel so it may be used
+as an advanced backend filesystem for Lustre.  While ldiskfs has served
+Lustre well there is growing acceptence that ldiskfs will soon no longer
+be a viable solution for the largest Lustre filesystems.  The
+<a href="http://wiki.lustre.org/index.php/ZFS_and_Lustre">limitations of
+ldiskfs</a> are well known and allowing alternate backend filesystems,
+like ZFS, is clearly a step in the right direction.</p>
+
+<p>Supporting multiple backend filesystem was accomplished by developing a
+common interface used by Lustre to communicate with the backend filesystem.
+This interface cleanly abstracts away any filesystem specific details from
+the higher layers of Lustre.  Lustre then provides a small filesystem specific
+layer called the OBD which contains the need filesystem specific code.
+The ldiskfs-obd was added first and it was soon followed by the zfs-obd.
+There is considerable interest in adding a btrfs-obd but this work has
+not yet begun.</p>
+
+<p>The lustre KDMU branch is not yet complete and is still under heavy
+development.  It is not currently suitable for production use but it is
+available for testing.  The current development is being done under RHEL6
+and for the moment you are <em>strongly</em> encouraged to use RHEL6.
+Alternately, you could use a recent Fedora release with a 2.6.32 based
+kernel.  Other Linux distributions/kernels are unlikely to work at the
+current time.</p>
+		</td>
+	</tr>
+</table><br />
+
+<table width=80%>
+	<tr bgcolor="#aaaaaa">
+		<th colspan="6">
+		Lustre Releases with zfs+ldiskfs Support</th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th> Lustre Release </th>
+		<th> SPL Release </th>
+		<th> ZFS Release </th>
+		<th> ldiskfs Release </th>
+		<th> ldiskfsprogs Release </th>
+		<th> Building Packages </th>
+	</tr>
+	<tr align="center" bgcolor="#66ccff">
+		<td> <a href="http://github.com/downloads/behlendorf/
+		lustre-kdmu/lustre-2.0.58.2-1chaos.tar.gz">
+		lustre-2.0.58.2-1chaos</a></td>
+		<td> <a href="http://github.com/downloads/behlendorf/spl/
+		spl-0.6.0-rc3.tar.gz">spl-0.6.0-rc3</a></td>
+		<td> <a href="http://github.com/downloads/behlendorf/zfs/
+		zfs-0.6.0-rc3.tar.gz">zfs-0.6.0-rc3</a></td>
+		<td> <a href="http://github.com/downloads/behlendorf/
+		lustre-ldiskfs/lustre-ldiskfs-3.1.4-2.tar.gz">
+		lustre-ldiskfs-3.1.4-2</a></td>
+		<td> <a href="http://github.com/downloads/behlendorf/
+		ldiskfsprogs/ldiskfsprogs-1.41.14-1chaos.tar.gz">
+		ldiskfsprogs-1.41.14-1chaos</a></td>
+		<td> <a href="lustre-building.html">rpm</a></td>
+	</tr>
+</table><br />
+
+<table width=80%>
+	<tr bgcolor="#aaaaaa">
+		<th colspan="7">Lustre zfs+ldiskfs Example Configurations</th>
+	</tr>
+	<tr>
+		<td colspan="1">
+		<a href="lustre-configure-single.html"> Single Node </a></td>
+		<td colspan="6">
+		Single Node Lustre Filesystem
+		(MGS uses ldiskfs, MDT and OSTs use ZFS)</a></td>
+	</tr>
+</table>
+<br />
+
+</center>
+</body>
+</html>

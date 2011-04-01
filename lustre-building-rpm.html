@@ -1,0 +1,72 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building Lustre RPM Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>With the patched kernel and the backend filesystems built and installed
+your ready to build Lustre.  Because the Lustre KDMU branch is under heavy
+development certain features are not yet functional and must be disabled.
+You must pass the <em>--disable-quota</em> and <em>--disable-liblustre</em>
+options at configure time.  You will also want <em>--with-ldiskfsprogs</em>
+which directs Lustre to use the ldiskfsprogs utilities.  More on that
+shortly.</p>
+
+<p>Finally, you may need to specify full paths to your kernel, ldiskfs,
+spl, and zfs devel headers if they are not automatically detected.  You
+can accomplish this using the <em>--with-linux</em>, <em>--with-ldiskfs</em>,
+<em>--with-spl</em> and <em>--with-zfs</em> configure options.  Your
+configure command should look something like this.</p>
+
+<pre>
+$ ./configure --disable-quota --disable-liblustre --with-ldiskfsprogs
+$ make rpms
+</pre>
+
+<p>The resulting source and binary rpm packages will be written to the
+<em>/home/user/rpmbuild/RPMS/arch/*</em> directory.  There will be five
+binary rpm packages for your platform.</p>
+
+<ul>
+	<li><em>lustre-w.x.y-z.arch.rpm</em>: The Lustre utilities.</li>
+	<li><em>lustre-modules-w.x.y-z_kernel.arch.rpm</em>:
+	The Lustre modules for your kernel version.</li>
+	<li><em>lustre-source-w.x.y-z_kernel.arch.rpm</em>:
+	Full Lustre source</li>
+	<li><em>lustre-tests-w.x.y-z_kernel.arch.rpm</em>:
+	The Lustre test suite.</li>
+	<li><em>lustre-debuginfo-w.x.y-z_kernel.arch.rpm</em>:
+	The debuginfo package for the Lustre utilities.</li>
+</ul>
+
+<p>Next go ahead and install the packages.</p>
+
+<pre>
+$ sudo rpm -Uvh /home/`whoami`/rpmbuild/RPMS/x86_64/lustre-*.x86_64.rpm
+
+Preparing...                ########################################### [100%]
+   1:lustre-modules         ########################################### [ 20%]
+   2:lustre                 ########################################### [ 40%]
+   3:lustre-tests           ########################################### [ 60%]
+   4:lustre-source          ########################################### [ 80%]
+   5:lustre-debuginfo       ########################################### [100%]
+</pre>
+
+<p>With Lustre installed there is one last package which needs to be
+built, <a href="ldiskfsprogs-building-rpm.html">ldiskfsprogs</a>.  The
+updated ldiskfs utilities are Lustre aware so they must be built last.</p>
+		</td>
+	</td>
+</table>
+
+</center>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building ldiskfsprogs RPM Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>In addition the building the ldiskfs kernel module, you should build
+the ldiskfsprogs user space utilities.  While it is possible to use the
+e2fsprogs utilities for the ldiskfs filesystem, it's best to use the
+ldiskfs utilities.  This avoids the need to replace your distribution
+provided e2fsprogs packages with a custom patched and rebuilt version.</p>
+
+<p>The ldiskfsprogs package will be built statically to avoid conflicting
+with e2fsprogs. You just need to pass the <em>--with-ldiskfsprogs</em> option
+to configure to get the alternate *.ldiskfs utility names.  This package
+should also be built after the Lustre packages are installed because
+the <em>lfsck</em> utility depends on Lustre.</p>
+
+<pre>
+$ ./configure --with-ldiskfsprogs
+$ make rpm
+</pre>
+
+<p>The resulting source and binary rpm packages will be written to the
+<em>/home/user/rpmbuild/RPMS/arch/*</em> directory.  There will be two
+binary rpm packages for your platform.</p>
+
+<ul>
+	<li><em>ldiskfsprogs-w.x.y-z.arch.rpm</em>:
+	The ldiskfsprogs utilities.</li>
+	<li><em>ldiskfsprogs-debuginfo-w.x.y-z.arch.rpm</em>:
+	The ldiskfsprogs utilities debug info.</li>
+</ul>
+
+<p>Install both of these packages</p>
+
+<pre>
+$ sudo rpm -Uvh /home/`whoami`/rpmbuild/RPMS/x86_64/ldiskfsprogs-*.x86_64.rpm
+
+Preparing...                ########################################### [100%]
+   1:ldiskfsprogs           ########################################### [ 50%]
+   2:ldiskfsprogs-debuginfo ########################################### [100%]
+</pre>
+
+<p>You've now built and installed all the packages required to configure
+a ZFS/Lustre filesystem.  To help explain the configuration process there
+is an example <a href="lustre-configure-single.html">single node</a>
+configuration which describes the process.</p>
+		</td>
+	</td>
+</table>
+
+</center>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building Lustre RPM Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>To build Lustre you must start by patching and rebuilding your kernel.
+The <a href="https://github.com/behlendorf/lustre-kdmu/tree/b_chaos/lustre/
+kernel_patches">Lustre patch stack</a> contains an example kernel config,
+<a href="https://github.com/behlendorf/lustre-kdmu/blob/b_chaos/lustre/kernel_patches/kernel_configs/kernel-2.6.32-2.6-rhel6-x86_64.config">
+kernel-2.6.32-2.6-rhel6-x86_64.config</a>, and the needed patches for RHEL6.
+You should apply the patches listed in the <a href="https://github.com/
+behlendorf/lustre-kdmu/blob/b_chaos/lustre/kernel_patches/series/
+2.6-rhel6.series">series/2.6-rhel6.series</a> file from the
+<a href="https://github.com/behlendorf/lustre-kdmu/tree/b_chaos/lustre/
+kernel_patches/patches">patches/</a> directory.  If your using Fedora
+with a 2.6.32 kernel you may need to slightly modify the patches for
+context.  If your unfamiliar with rebuilding the kernel the Fedora project
+has some nice documentation describing <a href="http://fedoraproject.org/
+wiki/Docs/CustomKernel">how to build a custom kernel</a>.</p>
+
+<p>Once you've built a Lustre patched kernel you can then build the backend
+ldiskfs and ZFS filesystems against your new kernel.  The Lustre build
+system has been extended to use the development headers provided by these
+packages.  If you haven't done it already <a href="lustre-source.html">
+download the source</a> for the following packages.  Then in the order
+listed below build and install the resulting packages.</p>
+
+<ul>
+	<li><a href="ldiskfs-building-rpm.html">
+	Build+Install ldiskfs packages</a></li>
+	<li><a href="spl-building-rpm.html">
+	Build+Install SPL packages</a></li>
+	<li><a href="zfs-building-rpm.html">
+	Build+Install ZFS packages</a></li>
+	<li><a href="lustre-building-rpm.html">
+	Build+Install Lustre packages</a></li>
+	<li><a href="ldiskfsprogs-building-rpm.html">
+	Build+Install ldiskfsprogs packages</a></li>
+</ul>
+
+		</td>
+	</tr>
+</table>
+
+</center>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<html>
+<head>
+<title>ZFS on Linux</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="Building LDISKFS RPM Packages." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width=80%>
+	<tr>
+		<td>
+<p>The lustre-ldiskfs package is basically a modified version of ext4.  It
+has been repackaged outside the kernel tree using an autoconf style build
+system.  This allows ldiskfs to be built against multiple kernels and
+it only requires the kernel devel headers.  The build system will make
+an educated guess as to which kernel you wish to build against.  If it
+guesses wrong simply specify your kernel devel headers using the
+<em>--with-linux</em> configure option.  You may also need the
+<em>--with-linux-obj</em> configure option if the kernel built objects
+are installed in a different directory.
+
+<pre>
+$ sudo yum groupinstall "Development Tools" 
+$ ./configure
+$ make rpm
+</pre>
+
+<p>The result of this will be one source rpm package.</p>
+<ul>
+	<li><em>lustre-ldiskfs-w.x.y-z.src.rpm</em>: Source for the kernel
+	modules.</li>
+</ul>
+
+<p>And two binary rpm packages for your platform.</p>
+
+<ul>
+	<li><em>lustre-ldiskfs-w.x.y-z_kernel.arch.rpm</em>:
+	The ldiskfs module for your kernel version.</li>
+	<li><em>lustre-ldiskfs-devel-w.x.y-z_kernel.arch.rpm</em>:
+	The ldiskfs development headers and symbols.</li>
+</ul>
+
+<p>Next go ahead and install the packages.</p>
+
+<pre>
+$ sudo rpm -Uvh *.x86_64.rpm
+
+Preparing...                ########################################### [100%]
+   1:lustre-ldiskfs-devel   ########################################### [ 50%]
+   2:lustre-ldiskfs         ########################################### [100%]
+</pre>
+
+<p>Next you will want to <a href="spl-building-rpm.html">build the spl 
+packages</a> which are a required zfs dependency.</p>
+		</td>
+	</td>
+</table>
+
+</center>
+</body>
+</html>
