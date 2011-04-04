@@ -10,45 +10,43 @@ modules:
 	@# They may be in the root of SPL_OBJ when building against
 	@# installed devel headers, or they may be in the module
 	@# subdirectory when building against the spl source tree.
-@CONFIG_KERNEL_TRUE@	@if [ -f @SPL_OBJ@/@SPL_SYMBOLS@ ]; then \
-@CONFIG_KERNEL_TRUE@		/bin/cp @SPL_OBJ@/@SPL_SYMBOLS@ .; \
-@CONFIG_KERNEL_TRUE@	elif [ -f @SPL_OBJ@/module/@SPL_SYMBOLS@ ]; then \
-@CONFIG_KERNEL_TRUE@		/bin/cp @SPL_OBJ@/module/@SPL_SYMBOLS@ .; \
-@CONFIG_KERNEL_TRUE@	else \
-@CONFIG_KERNEL_TRUE@		echo -e "\n" \
-@CONFIG_KERNEL_TRUE@		"*** Missing spl symbols ensure you have built the spl:\n" \
-@CONFIG_KERNEL_TRUE@		"*** - @SPL_OBJ@/@SPL_SYMBOLS@, or\n" \
-@CONFIG_KERNEL_TRUE@		"*** - @SPL_OBJ@/module/@SPL_SYMBOLS@\n"; \
-@CONFIG_KERNEL_TRUE@		exit 1; \
-@CONFIG_KERNEL_TRUE@	fi
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	@if [ -f @SPL_OBJ@/@SPL_SYMBOLS@ ]; then \
+		/bin/cp @SPL_OBJ@/@SPL_SYMBOLS@ .; \
+	elif [ -f @SPL_OBJ@/module/@SPL_SYMBOLS@ ]; then \
+		/bin/cp @SPL_OBJ@/module/@SPL_SYMBOLS@ .; \
+	else \
+		echo -e "\n" \
+		"*** Missing spl symbols ensure you have built the spl:\n" \
+		"*** - @SPL_OBJ@/@SPL_SYMBOLS@, or\n" \
+		"*** - @SPL_OBJ@/module/@SPL_SYMBOLS@\n"; \
+		exit 1; \
+	fi
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 clean:
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
-@CONFIG_KERNEL_TRUE@	if [ -f @SPL_SYMBOLS@ ]; then $(RM) @SPL_SYMBOLS@; fi
-@CONFIG_KERNEL_TRUE@	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
-@CONFIG_KERNEL_TRUE@	if [ -f Module.markers ]; then $(RM) Module.markers; fi
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	if [ -f @SPL_SYMBOLS@ ]; then $(RM) @SPL_SYMBOLS@; fi
+	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
+	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
-@CONFIG_KERNEL_TRUE@	@# Install the kernel modules
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
-@CONFIG_KERNEL_TRUE@		INSTALL_MOD_PATH=$(DESTDIR) \
-@CONFIG_KERNEL_TRUE@		INSTALL_MOD_DIR=addon/zfs $@
-@CONFIG_KERNEL_TRUE@	find $(DESTDIR)/lib/modules/ -name 'modules.*' | xargs $(RM)
-@CONFIG_KERNEL_TRUE@	sysmap=$(DESTDIR)/boot/System.map-@LINUX_VERSION@; \
-@CONFIG_KERNEL_TRUE@	if [ -f $$sysmap ]; then \
-@CONFIG_KERNEL_TRUE@		depmod -ae -F $$sysmap @LINUX_VERSION@; \
-@CONFIG_KERNEL_TRUE@	fi
+	@# Install the kernel modules
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
+		INSTALL_MOD_PATH=$(DESTDIR) \
+		INSTALL_MOD_DIR=addon/zfs $@
+	find $(DESTDIR)/lib/modules/ -name 'modules.*' | xargs $(RM)
+	sysmap=$(DESTDIR)/boot/System.map-@LINUX_VERSION@; \
+	if [ -f $$sysmap ]; then \
+		depmod -ae -F $$sysmap @LINUX_VERSION@; \
+	fi
 
 modules_uninstall:
-@CONFIG_KERNEL_TRUE@	@# Uninstall the kernel modules
-@CONFIG_KERNEL_TRUE@	$(RM) -R $(DESTDIR)/lib/modules/@LINUX_VERSION@/addon/zfs
+	@# Uninstall the kernel modules
+	$(RM) -R $(DESTDIR)/lib/modules/@LINUX_VERSION@/addon/zfs
 
 distdir:
 
 distclean maintainer-clean: clean
-@CONFIG_KERNEL_FALSE@	-rm -f Makefile */Makefile
-
 install: modules_install
 uninstall: modules_uninstall
 all: modules
