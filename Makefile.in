@@ -460,10 +460,7 @@ $(RECURSIVE_CLEAN_TARGETS):
 	  esac; \
 	done; \
 	dot_seen=no; \
-	case "$@" in \
-	  distclean-* | maintainer-clean-*) list='$(DIST_SUBDIRS)' ;; \
-	  *) list='$(SUBDIRS)' ;; \
-	esac; \
+	list='$(SUBDIRS)'; \
 	rev=''; for subdir in $$list; do \
 	  if test "$$subdir" = "."; then :; else \
 	    rev="$$subdir $$rev"; \
