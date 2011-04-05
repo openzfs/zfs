@@ -2,7 +2,7 @@
 # /etc/udev/rules.d/99-zpool.rules
 #
 
-ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/bin/zpool_id -d %p"
+ENV{DEVTYPE}=="disk", IMPORT{program}="@prefix@/bin/zpool_id -d %p"
 
 KERNEL=="*[!0-9]", ENV{SUBSYSTEM}=="block", ENV{ID_ZPOOL}=="?*", SYMLINK+="$env{ID_ZPOOL_PATH}"
 KERNEL=="*[0-9]", ENV{SUBSYSTEM}=="block", ENV{ID_ZPOOL}=="?*", SYMLINK+="$env{ID_ZPOOL_PATH}-part%n"
