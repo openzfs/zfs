@@ -11,8 +11,8 @@
 #
 ### BEGIN INIT INFO
 # Provides: zfs
-# Required-Start: $local_fs
-# Required-Stop: $local_fs
+# Required-Start:
+# Required-Stop:
 # Should-Start:
 # Should-Stop:
 # Default-Start: 2 3 4 5
