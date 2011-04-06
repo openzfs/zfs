@@ -1,3 +1,30 @@
+zfs-linux (0.6.0.6-0ubuntu1) unstable; urgency=low
+
+  [ Fajar A. Nugraha ]
+  * Fixes to enable zvol symlink creation
+  * Spec file compat, %{datadir}
+
+  [ Brian Behlendorf ]
+  * Set cmd paths in udev rules using --prefix
+  * Fix inflated load average
+  * Fix libzpool cv_* build error
+  * Update CHAOS 5 Packaging
+  * Fix `make distclean` for `./configure --with-config=user
+
+  [ Ned Bass ]
+  * Call udevadm trigger more safely
+
+  [ Darik Horn ]
+  * Remove `make distclean` kludge.
+  * Ignore `zfs unmount -a` errors in the init script.
+  * Rename /etc/default/zfsload during upgrades.
+  * Disable dracut instead of reverting it.
+  * Move udev rules from /etc to /lib.
+  * Add ${shlibs:Depends} to each control stanza.
+  * Remove volume and swap handling from the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 05 Apr 2011 22:08:06 -0500
+
 zfs-linux (0.6.0.5-1ubuntu7) unstable; urgency=low
 
   * Force the dkms.conf file into the zfs-dkms package.
