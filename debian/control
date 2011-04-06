@@ -9,39 +9,39 @@ Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
 Package: libavl0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: libavl1
 Replaces: zfs-lib
 Description: OpenSolaris AVL tree manipulation library for Linux
 
 Package: libefi0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris EFI library for Linux
 
 Package: libnvpair0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris name-value library for Linux
 
 Package: libspl0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: spl-dev
 Replaces: zfs-lib
 Description: Solaris Portability Layer library for Linux
 
 Package: libunicode0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris unicode library for Linux
 
 Package: libuutil0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris userland utility library for Linux
 
@@ -56,13 +56,13 @@ Description: Native ZFS filesystem development files for Linux
 
 Package: libzfs0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: Native ZFS filesystem library for Linux
 
 Package: libzpool0
 Architecture: linux-any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: Native ZFS pool library for Linux
 
@@ -82,7 +82,7 @@ Description: Native ZFS root filesystem capabilities for Linux
 
 Package: zfsutils
 Architecture: linux-any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: zfs-dkms
 Suggests: zfs-initramfs
 Conflicts: zfs, zfs-fuse
