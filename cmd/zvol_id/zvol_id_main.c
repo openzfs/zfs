@@ -40,7 +40,6 @@ int ioctl_get_msg(char *var, int fd)
 
 	error = ioctl(fd, BLKZNAME, msg);
 	if (error < 0) {
-		printf("ioctl_get_msg failed:%d\n", error);
 		return (error);
 	}
 
@@ -77,7 +76,11 @@ int main(int argc, char **argv)
 		return (errno);
 	}
 
-	ioctl_get_msg(zvol_name, fd);
+	error = ioctl_get_msg(zvol_name, fd);
+	if (error < 0) {
+		printf("ioctl_get_msg failed:%s\n", strerror(errno));
+		return (errno);
+	}
 	if (dev_part > 0)
 		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s-part%d", zvol_name,
 		    dev_part);
