@@ -1,0 +1,20 @@
+Index: b/etc/Makefile.am
+===================================================================
+--- a/etc/Makefile.am
++++ b/etc/Makefile.am
+@@ -1 +1 @@
+-SUBDIRS = init.d udev zfs
++SUBDIRS = udev zfs
+Index: b/etc/Makefile.in
+===================================================================
+--- a/etc/Makefile.in
++++ b/etc/Makefile.in
+@@ -294,7 +294,7 @@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-SUBDIRS = init.d udev zfs
++SUBDIRS = udev zfs
+ all: all-recursive
+ 
+ .SUFFIXES:

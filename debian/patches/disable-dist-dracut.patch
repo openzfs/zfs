@@ -1,0 +1,35 @@
+Index: b/Makefile.am
+===================================================================
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -3,7 +3,7 @@
+ include $(top_srcdir)/config/tgz.am
+ 
+ if CONFIG_USER
+-USER_DIR = dracut etc man scripts lib cmd
++USER_DIR = etc man scripts lib cmd
+ endif
+ if CONFIG_KERNEL
+ KERNEL_DIR = module
+Index: b/Makefile.in
+===================================================================
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -123,7 +123,7 @@
+ 	distdir dist dist-all distcheck
+ ETAGS = etags
+ CTAGS = ctags
+-DIST_SUBDIRS = dracut etc man scripts lib cmd module include
++DIST_SUBDIRS = etc man scripts lib cmd module include
+ DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ distdir = $(PACKAGE)-$(VERSION)
+ top_distdir = $(distdir)
+@@ -326,7 +326,7 @@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-@CONFIG_USER_TRUE@USER_DIR = dracut etc man scripts lib cmd
++@CONFIG_USER_TRUE@USER_DIR = etc man scripts lib cmd
+ @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
+ SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
+ AUTOMAKE_OPTIONS = foreign
