@@ -93,7 +93,7 @@ do_stop() {
 	#	log_end_msg $RET
 	#	exit $RET
 	#fi
-	zfs umount -a
+	zfs umount -a || true
 	RET=$?
 	if [ $RET != 0 ] ; then
 		log_end_msg $RET
