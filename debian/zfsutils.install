@@ -1,4 +1,4 @@
-etc/udev
+etc/udev/rules.d/*.rules lib/udev/rules.d/
 etc/zfs/zdev.conf
 usr/bin
 usr/libexec
