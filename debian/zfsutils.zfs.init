@@ -18,32 +18,6 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
 do_start() {
 	log_begin_msg "Starting ZFS subsystem..."
-
-	# zvol
-	#log_progress_msg "zvol"
-	#zfs volinit
-	#RET=$?
-	#if [ $RET != 0 ] ; then
-	#	log_end_msg $RET
-	#	exit $RET
-	#fi
-
-	# Enable swap on ZVOLs with property org.linux:swap=on.
-	log_progress_msg "swap"
-	zfs list -H -o org.linux:swap,name -t volume | \
-	while read state name; do
-		case "${state}" in
-		[oO][nN])
-			swapon /dev/zvol/${name}
-			RET=$?
-			if [ $RET != 0 ] ; then
-				log_end_msg $RET
-				exit $RET
-			fi
-		esac
-	done
-
-	# filesystems
 	log_progress_msg "filesystems"
 	zfs mount -a
 	RET=$?
@@ -51,56 +25,17 @@ do_start() {
 		log_end_msg $RET
 		exit $RET
 	fi
-
-	# end
 	log_end_msg 0
 }
 
 do_stop() {
 	log_begin_msg "Stopping ZFS subsystem..."
-
-	# Disable swap on ZVOLs with property org.linux:swap=on.
-	log_progress_msg "zvol"
-	zfs list -H -o org.linux:swap,name -t volume | \
-	while read state name; do
-		case "${state}" in
-		[oO][nN])
-			swapoff /dev/zvol/${name}
-			RET=$?
-			if [ $RET != 0 ] ; then
-				log_end_msg $RET
-				exit $RET
-			fi
-			;;
-		esac
-	done
-
-	# zvol
-	#log_progress_msg "zvol"
-	#zfs volfini
-	#RET=$?
-	#if [ $RET != 0 ] ; then
-	#	log_end_msg $RET
-	#	exit $RET
-	#fi
-
-	# filesystems
 	log_progress_msg "filesystems"
-	# @FIXME: Unimplemented on Linux.
-	#zfs unshare -a
-	#RET=$?
-	#if [ $RET != 0 ] ; then
-	#	log_end_msg $RET
-	#	exit $RET
-	#fi
-	zfs umount -a || true
+	zfs umount -a
 	RET=$?
 	if [ $RET != 0 ] ; then
 		log_end_msg $RET
-		exit $RET
 	fi
-
-	# end
 	log_end_msg 0
 }
 
