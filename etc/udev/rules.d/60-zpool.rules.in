@@ -1,5 +1,5 @@
 #
-# /etc/udev/rules.d/99-zpool.rules
+# /etc/udev/rules.d/60-zpool.rules
 #
 
 ENV{DEVTYPE}=="disk", IMPORT{program}="@prefix@/bin/zpool_id -d %p"
