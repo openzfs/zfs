@@ -322,7 +322,8 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
  */
 static znode_t *
 zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
-    dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl)
+    dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl,
+    struct dentry *dentry)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -378,6 +379,9 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	if (insert_inode_locked(ip))
 		goto error;
+
+	if (dentry)
+		d_instantiate(dentry, ip);
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
@@ -675,7 +679,8 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	VERIFY(sa_replace_all_by_template(sa_hdl, sa_attrs, cnt, tx) == 0);
 
 	if (!(flag & IS_ROOT_NODE)) {
-		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl);
+		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl,
+		    vap->va_dentry);
 		ASSERT(*zpp != NULL);
 		ASSERT(dzp != NULL);
 		err = zpl_xattr_security_init(ZTOI(*zpp), ZTOI(dzp));
@@ -866,7 +871,7 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 	 * bonus buffer.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, obj_num, NULL);
+	    doi.doi_bonus_type, obj_num, NULL, NULL);
 	if (zp == NULL) {
 		err = ENOENT;
 	} else {

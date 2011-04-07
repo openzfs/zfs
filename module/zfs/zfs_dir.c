@@ -774,10 +774,6 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	    8, 1, &value, tx);
 	ASSERT(error == 0);
 
-#ifdef HAVE_DNLC
-	dnlc_update(ZTOI(dzp), dl->dl_name, vp);
-#endif /* HAVE_DNLC */
-
 	return (0);
 }
 
