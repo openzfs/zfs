@@ -77,7 +77,7 @@ Description: Native ZFS filesystem kernel modules for Linux
 
 Package: zfs-initramfs
 Architecture: linux-any
-Depends: ${misc:Depends}, mountall (>= 2.18), gawk, zfsutils
+Depends: ${misc:Depends}, mountall (>= 2.18), gawk, zfsutils, zfs-grub
 Description: Native ZFS root filesystem capabilities for Linux
 
 Package: zfsutils

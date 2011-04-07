@@ -14,6 +14,7 @@ zfs-linux (0.6.0.7-0ubuntu1) unstable; urgency=low
 
   [ Darik Horn ]
   * Upstream zfs-0.6.0-rc3 tag. Use 0.6.0.7 instead.
+  * Add a zfs-grub dependency to zfs-initramfs.
 
  -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 13:51:23 -0500
 
