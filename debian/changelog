@@ -1,3 +1,22 @@
+zfs-linux (0.6.0.7-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Call d_instantiate before unlocking inode
+  * Add missing arcstats
+  * Add direct+indirect ARC reclaim
+  * Fix ASSERTION(!dsl_pool_sync_context(tx->tx_pool))
+  * Prep zfs-0.6.0-rc3 tag
+
+  [ Manuel Amador (Rudd-O) ]
+  * Added .gitignore for mount.zfs and zvol_id
+  * Permit both mountpoint=legacy and mountpoint=/ in initrd
+  * Update zfs.fedora init script
+
+  [ Darik Horn ]
+  * Upstream zfs-0.6.0-rc3 tag. Use 0.6.0.7 instead.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 13:51:23 -0500
+
 zfs-linux (0.6.0.6-0ubuntu2) unstable; urgency=low
 
   * Partial autogen updates to fix PPA builds.
