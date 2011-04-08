@@ -12,5 +12,5 @@ if [ "$rootfs" = "zfs" ]; then
         ROOTFS_MOUNTED=yes
     else
         mount -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
-   fi
+    fi
 fi
