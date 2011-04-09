@@ -3,7 +3,7 @@
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License.
 .\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.  See the License for the specific language governing permissions and limitations under the License.
 .\" When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zdb 8 "8 Apr 2011" "SunOS 5.11" "System Administration Commands"
+.TH zdb 8 "8 Apr 2011" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zdb \- ZFS debugger
 .SH SYNOPSIS
@@ -21,7 +21,7 @@ The \fBzdb\fR command is used by support engineers to diagnose failures and gath
 If no arguments are specified, \fBzdb\fR, performs basic consistency checks on the pool and associated datasets, and report any problems detected.
 .sp
 .LP
-Any options supported by this command are internal to Sun and subject to change at any time.
+Any options supported by this command are subject to change at any time.
 .SH EXIT STATUS
 .sp
 .LP
@@ -59,26 +59,7 @@ An error was detected.
 Invalid command line options were specified.
 .RE
 
-.SH ATTRIBUTES
-.sp
-.LP
-See \fBattributes\fR(5) for descriptions of the following attributes:
-.sp
-
-.sp
-.TS
-tab() box;
-cw(2.75i) |cw(2.75i) 
-lw(2.75i) |lw(2.75i) 
-.
-ATTRIBUTE TYPEATTRIBUTE VALUE
-_
-AvailabilitySUNWzfsu
-_
-Interface StabilityUnstable
-.TE
-
 .SH SEE ALSO
 .sp
 .LP
-\fBzfs\fR(8), \fBzpool\fR(8), \fBattributes\fR(5)
+\fBzfs\fR(8), \fBzpool\fR(8)
