@@ -380,7 +380,7 @@ If a device is removed and later re-attached to the system, \fBZFS\fR attempts t
 
 .sp
 .LP
-Spares can be shared across multiple pools, and can be added with the "\fBzpool add\fR" command and removed with the "\fBzpool remove\fR" command. Once a spare replacement is initiated, a new "spare" \fBvdev\fR is created within the configuration that will remain there until the original device is replaced. At this point, the hot spare becomes available again if another device fails.
+Spares can be shared across multiple pools, and can be added with the "\fBzpool add\fR" command and removed with the "\fBzpool remove\fR" command. Once a spare replacement is initiated, a new "spare" \fBvdev\fR is created within the configuration that will remain there until the original device is replaced. At this point, the hot spare becomes available again.
 .sp
 .LP
 If a pool has a shared spare that is currently being used, the pool can not be exported since other pools may use this shared spare, which may lead to potential data corruption.
@@ -1640,7 +1640,7 @@ If one of the disks were to fail, the pool would be reduced to the degraded stat
 
 .sp
 .LP
-Once the data has been resilvered, the spare is automatically removed and is made available should another device fails. The hot spare can be permanently removed from the pool using the following command:
+Once the data has been resilvered, the spare is automatically removed and is made available for use should another device fails. The hot spare can be permanently removed from the pool using the following command:
 
 .sp
 .in +2
