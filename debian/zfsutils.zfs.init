@@ -1,0 +1,62 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          zvol zfs
+# Required-Start:
+# Required-Stop: 
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start/stop ZFS subsystem.
+# Description:
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+. /lib/lsb/init-functions
+. /lib/init/vars.sh
+
+[ -f /etc/default/zfs ] && . /etc/default/zfs
+
+do_start() {
+	log_begin_msg "Starting ZFS subsystem..."
+	log_progress_msg "filesystems"
+	zfs mount -a
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+	log_end_msg 0
+}
+
+do_stop() {
+	log_begin_msg "Stopping ZFS subsystem..."
+	log_progress_msg "filesystems"
+	zfs umount -a
+	RET=$?
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+	fi
+	log_end_msg 0
+}
+
+
+case "$1" in
+  start|"")
+	[ -z "$ZFS_MOUNT" ] && exit 0
+	do_start
+	;;
+  restart|reload|force-reload)
+	echo "Error: argument '$1' not supported" >&2
+	exit 3
+	;;
+  stop)
+	[ -z "$ZFS_UNMOUNT" ] && exit 0
+	do_stop
+	;;
+  *)
+	echo "Usage: zfs [start|stop]" >&2
+	exit 3
+	;;
+esac
+
+:

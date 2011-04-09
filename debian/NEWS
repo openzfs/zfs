@@ -1,0 +1,12 @@
+zfs-linux (0.6.0.7-0ubuntu2) unstable; urgency=medium
+
+  NOTE:  The removal of the zfs or zfs-lib package by this
+         upgrade, either now or later, is expected and safe.
+
+  Please ensure that the ubuntu-zfs package is installed so
+  that the upgrade happens automatically.
+
+  This is happening so that the ZFS packages for Linux are
+  more like the packages already in Debian kFreeBSD.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 13:51:23 -0500

@@ -282,6 +282,14 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_size;
 	kstat_named_t arcstat_l2_hdr_size;
 	kstat_named_t arcstat_memory_throttle_count;
+	kstat_named_t arcstat_memory_direct_count;
+	kstat_named_t arcstat_memory_indirect_count;
+	kstat_named_t arcstat_no_grow;
+	kstat_named_t arcstat_tempreserve;
+	kstat_named_t arcstat_loaned_bytes;
+	kstat_named_t arcstat_meta_used;
+	kstat_named_t arcstat_meta_limit;
+	kstat_named_t arcstat_meta_max;
 } arc_stats_t;
 
 static arc_stats_t arc_stats = {
@@ -337,7 +345,15 @@ static arc_stats_t arc_stats = {
 	{ "l2_io_error",		KSTAT_DATA_UINT64 },
 	{ "l2_size",			KSTAT_DATA_UINT64 },
 	{ "l2_hdr_size",		KSTAT_DATA_UINT64 },
-	{ "memory_throttle_count",	KSTAT_DATA_UINT64 }
+	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
+	{ "memory_direct_count",	KSTAT_DATA_UINT64 },
+	{ "memory_indirect_count",	KSTAT_DATA_UINT64 },
+	{ "arc_no_grow",		KSTAT_DATA_UINT64 },
+	{ "arc_tempreserve",		KSTAT_DATA_UINT64 },
+	{ "arc_loaned_bytes",		KSTAT_DATA_UINT64 },
+	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
+	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
+	{ "arc_meta_max",		KSTAT_DATA_UINT64 },
 };
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
@@ -399,13 +415,12 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
 #define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
-
-static int		arc_no_grow;	/* Don't try to grow cache size */
-static uint64_t		arc_tempreserve;
-static uint64_t		arc_loaned_bytes;
-static uint64_t		arc_meta_used;
-static uint64_t		arc_meta_limit;
-static uint64_t		arc_meta_max = 0;
+#define	arc_no_grow	ARCSTAT(arcstat_no_grow)
+#define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
+#define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
+#define	arc_meta_used	ARCSTAT(arcstat_meta_used)
+#define	arc_meta_limit	ARCSTAT(arcstat_meta_limit)
+#define	arc_meta_max	ARCSTAT(arcstat_meta_max)
 
 typedef struct l2arc_buf_hdr l2arc_buf_hdr_t;
 
@@ -2160,6 +2175,51 @@ arc_reclaim_thread(void)
 	thread_exit();
 }
 
+#ifdef _KERNEL
+/*
+ * Under Linux the arc shrinker may be called for synchronous (direct)
+ * reclaim, or asynchronous (indirect) reclaim.  When called by kswapd
+ * for indirect reclaim we take a conservative approach and just reap
+ * free slabs from the ARC caches.  If this proves to be insufficient
+ * direct reclaim will be trigger.  In direct reclaim a more aggressive
+ * strategy is used, data is evicted from the ARC and free slabs reaped.
+ */
+SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
+{
+	arc_reclaim_strategy_t strategy;
+	int arc_reclaim;
+
+	/* Not allowed to perform filesystem reclaim */
+	if (!(gfp_mask & __GFP_FS))
+		return (-1);
+
+	/* Return number of reclaimable pages based on arc_shrink_shift */
+	arc_reclaim = btop((arc_size - arc_c_min)) >> arc_shrink_shift;
+	if (nr_to_scan == 0)
+		return (arc_reclaim);
+
+	/* Reclaim in progress */
+	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
+		return (-1);
+
+	if (current_is_kswapd()) {
+		strategy = ARC_RECLAIM_CONS;
+		ARCSTAT_INCR(arcstat_memory_indirect_count, 1);
+	} else {
+		strategy = ARC_RECLAIM_AGGR;
+		ARCSTAT_INCR(arcstat_memory_direct_count, 1);
+	}
+
+	arc_kmem_reap_now(strategy);
+	arc_reclaim = btop((arc_size - arc_c_min)) >> arc_shrink_shift;
+	mutex_exit(&arc_reclaim_thr_lock);
+
+	return (arc_reclaim);
+}
+
+SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+#endif /* _KERNEL */
+
 /*
  * Adapt arc info given the number of bytes we are trying to add and
  * the state that we are comming from.  This function is only called
@@ -3474,6 +3534,12 @@ arc_init(void)
 	 * need to limit the cache to 1/8 of VM size.
 	 */
 	arc_c = MIN(arc_c, vmem_size(heap_arena, VMEM_ALLOC | VMEM_FREE) / 8);
+	/*
+	 * Register a shrinker to support synchronous (direct) memory
+	 * reclaim from the arc.  This is done to prevent kswapd from
+	 * swapping out pages when it is preferable to shrink the arc.
+	 */
+	spl_register_shrinker(&arc_shrinker);
 #endif
 
 	/* set min cache to 1/32 of all memory, or 64MB, whichever is more */
@@ -3499,6 +3565,7 @@ arc_init(void)
 
 	/* limit meta-data to 1/4 of the arc capacity */
 	arc_meta_limit = arc_c_max / 4;
+	arc_meta_max = 0;
 
 	/* Allow the tunable to override if it is reasonable */
 	if (zfs_arc_meta_limit > 0 && zfs_arc_meta_limit <= arc_c_max)
@@ -3590,6 +3657,10 @@ void
 arc_fini(void)
 {
 	mutex_enter(&arc_reclaim_thr_lock);
+#ifdef _KERNEL
+	spl_unregister_shrinker(&arc_shrinker);
+#endif /* _KERNEL */
+
 	arc_thread_exit = 1;
 	while (arc_thread_exit != 0)
 		cv_wait(&arc_reclaim_thr_cv, &arc_reclaim_thr_lock);

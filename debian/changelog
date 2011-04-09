@@ -1,9 +1,92 @@
-zfs-linux (0.6.0.5-0ubuntu3) unstable; urgency=low
+zfs-linux (0.6.0.7-0ubuntu2) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Call d_instantiate before unlocking inode
+  * Add missing arcstats
+  * Add direct+indirect ARC reclaim
+  * Fix ASSERTION(!dsl_pool_sync_context(tx->tx_pool))
+  * Prep zfs-0.6.0-rc3 tag
+
+  [ Manuel Amador (Rudd-O) ]
+  * Added .gitignore for mount.zfs and zvol_id
+  * Permit both mountpoint=legacy and mountpoint=/ in initrd
+  * Update zfs.fedora init script
+
+  [ Darik Horn ]
+  * Upstream zfs-0.6.0-rc3 tag. Use 0.6.0.7 instead.
+  * Add a zfs-grub dependency to zfs-initramfs.
+  * Add a NEWS entry for the decomposition and rename.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 13:51:23 -0500
+
+zfs-linux (0.6.0.6-0ubuntu2) unstable; urgency=low
+
+  * Partial autogen updates to fix PPA builds.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 10:52:30 -0500
+
+zfs-linux (0.6.0.6-0ubuntu1) unstable; urgency=low
+
+  [ Fajar A. Nugraha ]
+  * Fixes to enable zvol symlink creation
+  * Spec file compat, %{datadir}
+
+  [ Brian Behlendorf ]
+  * Set cmd paths in udev rules using --prefix
+  * Fix inflated load average
+  * Fix libzpool cv_* build error
+  * Update CHAOS 5 Packaging
+  * Fix `make distclean` for `./configure --with-config=user
+
+  [ Ned Bass ]
+  * Call udevadm trigger more safely
+
+  [ Darik Horn ]
+  * Remove `make distclean` kludge.
+  * Ignore `zfs unmount -a` errors in the init script.
+  * Rename /etc/default/zfsload during upgrades.
+  * Disable dracut instead of reverting it.
+  * Move udev rules from /etc to /lib.
+  * Add ${shlibs:Depends} to each control stanza.
+  * Remove volume and swap handling from the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 05 Apr 2011 22:08:06 -0500
+
+zfs-linux (0.6.0.5-1ubuntu7) unstable; urgency=low
+
+  * Force the dkms.conf file into the zfs-dkms package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 31 Mar 2011 11:03:56 -0500
+
+zfs-linux (0.6.0.5-1ubuntu6) unstable; urgency=low
+
+  * Link /proc/mounts to /etc/mtab.
+  * Add the /etc/default/zfs import to the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 16:12:41 -0500
+
+zfs-linux (0.6.0.5-1ubuntu5) unstable; urgency=low
 
   * Use /sbin/mount.zfs for the root mount in the initramfs.
   * Handle the GRUB zfs-bootfs parameter in the initramfs.
 
- -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Mar 2011 22:14:21 -0500
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 12:22:12 -0500
+
+zfs-linux (0.6.0.5-1ubuntu2) unstable; urgency=low
+
+  * Rename the zfs package to zfsutils.
+  * Rename the zfs-lib package to libzfs0.
+  * Decompose the zfs-lib package.
+  * Restrict the package architecture to linux-any.
+  * Remove the KQ init script that was imported from zfs-linux/lzfs.
+  * Import the zfsutils init script from Debian kFreeBSD.
+  * Check zvols for Linux swap areas instead of FreeBSD swap areas.
+  * Replace zfs by zfsutils in the debian/control file.
+  * Add libzfs-dev to the debian/control file.
+  * Change usr/lib/include to usr/include in the libzfs-dev.install file.
+  * Add a zfs-lib replacement to each constituent library.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 29 Mar 2011 09:17:38 -0500
 
 zfs-linux (0.6.0.5-0ubuntu2) unstable; urgency=low
 
