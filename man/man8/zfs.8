@@ -1169,7 +1169,7 @@ Sets the specified property as if the command \fBzfs set\fR \fIproperty\fR=\fIva
 .ad
 .sp .6
 .RS 4n
-Creates a volume of the given size. The volume is exported as a block device in \fB/dev/zvol/{dsk,rdsk}/\fR\fIpath\fR, where \fIpath\fR is the name of the volume in the \fBZFS\fR namespace. The size represents the logical size as exported by the device. By default, a reservation of equal size is created.
+Creates a volume of the given size. The volume is exported as a block device in \fB/dev/zvol/\fR\fIpath\fR, where \fIpath\fR is the name of the volume in the \fBZFS\fR namespace. The size represents the logical size as exported by the device. By default, a reservation of equal size is created.
 .sp
 \fIsize\fR is automatically rounded up to the nearest 128 Kbytes to ensure that the volume has an integral number of blocks regardless of \fIblocksize\fR.
 .sp
