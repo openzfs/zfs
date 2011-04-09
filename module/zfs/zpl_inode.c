@@ -66,14 +66,10 @@ zpl_create(struct inode *dir, struct dentry *dentry, int mode,
 	vap->va_mask = ATTR_MODE;
 	vap->va_uid = crgetfsuid(cr);
 	vap->va_gid = crgetfsgid(cr);
+	vap->va_dentry = dentry;
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
 	    vap, 0, mode, &ip, cr, 0, NULL);
-	if (error)
-		goto out;
-
-	d_instantiate(dentry, ip);
-out:
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -96,14 +92,10 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 	vap->va_rdev = rdev;
 	vap->va_uid = crgetfsuid(cr);
 	vap->va_gid = crgetfsgid(cr);
+	vap->va_dentry = dentry;
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
 	    vap, 0, mode, &ip, cr, 0, NULL);
-	if (error)
-		goto out;
-
-	d_instantiate(dentry, ip);
-out:
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -139,13 +131,9 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	vap->va_mask = ATTR_MODE;
 	vap->va_uid = crgetfsuid(cr);
 	vap->va_gid = crgetfsgid(cr);
+	vap->va_dentry = dentry;
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
-	if (error)
-		goto out;
-
-	d_instantiate(dentry, ip);
-out:
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -264,13 +252,9 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	vap->va_mask = ATTR_MODE;
 	vap->va_uid = crgetfsuid(cr);
 	vap->va_gid = crgetfsgid(cr);
+	vap->va_dentry = dentry;
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
-	if (error)
-		goto out;
-
-	d_instantiate(dentry, ip);
-out:
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);

@@ -9,8 +9,8 @@ if [ "$rootfs" = "zfs" ]; then
     mount -o zfsutil -t "$rootfs" "$zfsrootfs" "$NEWROOT"
     if [ "$?" = "0" ]
     then
-	ROOTFS_MOUNTED=yes
+        ROOTFS_MOUNTED=yes
     else
         mount -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
-   fi
+    fi
 fi

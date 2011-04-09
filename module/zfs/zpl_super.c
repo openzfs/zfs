@@ -107,12 +107,12 @@ zpl_put_super(struct super_block *sb)
 static int
 zpl_sync_fs(struct super_block *sb, int wait)
 {
-	cred_t *cr;
+	cred_t *cr = CRED();
 	int error;
 
-	cr = (cred_t *)get_current_cred();
+	crhold(cr);
 	error = -zfs_sync(sb, wait, cr);
-	put_cred(cr);
+	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
