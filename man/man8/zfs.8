@@ -404,7 +404,7 @@ The time this dataset was created.
 .ad
 .sp .6
 .RS 4n
-This property is \fBon\fR if the snapshot has been marked for deferred destroy by using the \fBzfs destroy\fR \fB-d\fR command. Otherwise, the property is \fBoff\fR.
+This property is \fBon\fR if the snapshot has been marked for deferred destruction by using the \fBzfs destroy\fR \fB-d\fR command. Otherwise, the property is \fBoff\fR.
 .RE
 
 .sp
@@ -1273,7 +1273,7 @@ Extreme care should be taken when applying either the \fB-r\fR or the \fB-f\fR o
 .RS 4n
 The given snapshot is destroyed immediately if and only if the \fBzfs destroy\fR command without the \fB-d\fR option would have destroyed it. Such immediate destruction would occur, for example, if the snapshot had no clones and the user-initiated reference count were zero.
 .sp
-If the snapshot does not qualify for immediate destruction, it is marked for deferred deletion. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
+If the snapshot does not qualify for immediate destruction, it is marked for deferred destruction. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
 .sp
 .ne 2
 .mk
@@ -1293,7 +1293,7 @@ Defer snapshot deletion.
 .ad
 .sp .6
 .RS 4n
-Destroy (or mark for deferred deletion) all snapshots with this name in descendent file systems.
+Destroy (or mark for deferred destruction) all snapshots with this name in descendent file systems.
 .RE
 
 .sp
