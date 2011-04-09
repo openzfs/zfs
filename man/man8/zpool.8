@@ -154,7 +154,7 @@ A "virtual device" describes a single device or a collection of devices organize
 .ad
 .RS 10n
 .rt  
-A block device, typically located under \fB/dev/dsk\fR. \fBZFS\fR can use individual slices or partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev/dsk"). A whole disk can be specified by omitting the slice or partition designation. For example, "c0t0d0" is equivalent to "/dev/dsk/c0t0d0s2". When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
+A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual slices or partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). A whole disk can be specified by omitting the slice or partition designation. For example, "c0t0d0" is equivalent to "/dev/c0t0d0s2". When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
 .RE
 
 .sp
@@ -939,7 +939,7 @@ Displays log records in long format, which in addition to standard format includ
 .ad
 .sp .6
 .RS 4n
-Lists pools available to import. If the \fB-d\fR option is not specified, this command searches for devices in "/dev/dsk". The \fB-d\fR option can be specified multiple times, and all directories are searched. If the device appears to be part of an exported pool, this command displays a summary of the pool with the name of the pool, a numeric identifier, as well as the \fIvdev\fR layout and current health of the device for each device or file. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, are not listed unless the \fB-D\fR option is specified. 
+Lists pools available to import. If the \fB-d\fR option is not specified, this command searches for devices in "/dev". The \fB-d\fR option can be specified multiple times, and all directories are searched. If the device appears to be part of an exported pool, this command displays a summary of the pool with the name of the pool, a numeric identifier, as well as the \fIvdev\fR layout and current health of the device for each device or file. Destroyed pools, pools that were previously destroyed with the "\fBzpool destroy\fR" command, are not listed unless the \fB-D\fR option is specified. 
 .sp
 The numeric identifier is unique, and can be used instead of the pool name when multiple exported pools of the same name are available.
 .sp
@@ -1305,7 +1305,7 @@ Replaces \fIold_device\fR with \fInew_device\fR. This is equivalent to attaching
 .sp
 The size of \fInew_device\fR must be greater than or equal to the minimum size of all the devices in a mirror or \fBraidz\fR configuration.
 .sp
-\fInew_device\fR is required if the pool is not redundant. If \fInew_device\fR is not specified, it defaults to \fIold_device\fR. This form of replacement is useful after an existing disk has failed and has been physically replaced. In this case, the new disk may have the same \fB/dev/dsk\fR path as the old device, even though it is actually a different disk. \fBZFS\fR recognizes this.
+\fInew_device\fR is required if the pool is not redundant. If \fInew_device\fR is not specified, it defaults to \fIold_device\fR. This form of replacement is useful after an existing disk has failed and has been physically replaced. In this case, the new disk may have the same \fB/dev\fR path as the old device, even though it is actually a different disk. \fBZFS\fR recognizes this.
 .sp
 .ne 2
 .mk
@@ -1484,7 +1484,7 @@ The following command creates an unmirrored pool using two disk slices.
 .sp
 .in +2
 .nf
-# \fBzpool create tank /dev/dsk/c0t0d0s1 c0t1d0s4\fR
+# \fBzpool create tank /dev/c0t0d0s1 c0t1d0s4\fR
 .fi
 .in -2
 .sp
