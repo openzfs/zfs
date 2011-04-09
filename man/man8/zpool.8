@@ -3,7 +3,7 @@
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
 .\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zpool 1M "21 Sep 2009" "SunOS 5.11" "System Administration Commands"
+.TH zpool 8 "8 Apr 2011" "SunOS 5.11" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -141,7 +141,7 @@ zpool \- configures ZFS storage pools
 The \fBzpool\fR command configures \fBZFS\fR storage pools. A storage pool is a collection of devices that provides physical storage and data replication for \fBZFS\fR datasets.
 .sp
 .LP
-All datasets within a storage pool share the same space. See \fBzfs\fR(1M) for information on managing datasets.
+All datasets within a storage pool share the same space. See \fBzfs\fR(8) for information on managing datasets.
 .SS "Virtual Devices (\fBvdev\fRs)"
 .sp
 .LP
@@ -501,7 +501,7 @@ Amount of storage space used within the pool.
 
 .sp
 .LP
-These space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(1M) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
+These space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(8) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
 .sp
 .LP
 The following property can be set at creation time and import time:
@@ -573,7 +573,7 @@ Multiple pools can share the same cache file. Because the kernel destroys and re
 .ad
 .sp .6
 .RS 4n
-Controls whether a non-privileged user is granted access based on the dataset permissions defined on the dataset. See \fBzfs\fR(1M) for more information on \fBZFS\fR delegated administration.
+Controls whether a non-privileged user is granted access based on the dataset permissions defined on the dataset. See \fBzfs\fR(8) for more information on \fBZFS\fR delegated administration.
 .RE
 
 .sp
@@ -787,7 +787,7 @@ Sets the given pool properties. See the "Properties" section for a list of valid
 .ad
 .sp .6
 .RS 4n
-Sets the given file system properties in the root file system of the pool. See the "Properties" section of \fBzfs\fR(1M) for a list of valid properties that can be set.
+Sets the given file system properties in the root file system of the pool. See the "Properties" section of \fBzfs\fR(8) for a list of valid properties that can be set.
 .RE
 
 .sp
@@ -809,7 +809,7 @@ Equivalent to "-o cachefile=none,altroot=\fIroot\fR"
 .ad
 .sp .6
 .RS 4n
-Sets the mount point for the root dataset. The default mount point is "/\fIpool\fR" or "\fBaltroot\fR/\fIpool\fR" if \fBaltroot\fR is specified. The mount point must be an absolute path, "\fBlegacy\fR", or "\fBnone\fR". For more information on dataset mount points, see \fBzfs\fR(1M).
+Sets the mount point for the root dataset. The default mount point is "/\fIpool\fR" or "\fBaltroot\fR/\fIpool\fR" if \fBaltroot\fR is specified. The mount point must be an absolute path, "\fBlegacy\fR", or "\fBnone\fR". For more information on dataset mount points, see \fBzfs\fR(8).
 .RE
 
 .RE
@@ -994,7 +994,7 @@ Imports all pools found in the search directories. Identical to the previous com
 .ad
 .RS 21n
 .rt  
-Comma-separated list of mount options to use when mounting datasets within the pool. See \fBzfs\fR(1M) for a description of dataset properties and mount options.
+Comma-separated list of mount options to use when mounting datasets within the pool. See \fBzfs\fR(8) for a description of dataset properties and mount options.
 .RE
 
 .sp
@@ -1095,7 +1095,7 @@ If a device is removed from a system without running "\fBzpool export\fR" first,
 .ad
 .sp .6
 .RS 4n
-Comma-separated list of mount options to use when mounting datasets within the pool. See \fBzfs\fR(1M) for a description of dataset properties and mount options.
+Comma-separated list of mount options to use when mounting datasets within the pool. See \fBzfs\fR(8) for a description of dataset properties and mount options.
 .RE
 
 .sp
@@ -1796,4 +1796,4 @@ Interface StabilityEvolving
 .SH SEE ALSO
 .sp
 .LP
-\fBzfs\fR(1M), \fBattributes\fR(5)
+\fBzfs\fR(8), \fBattributes\fR(5)
