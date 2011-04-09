@@ -154,7 +154,7 @@ A "virtual device" describes a single device or a collection of devices organize
 .ad
 .RS 10n
 .rt  
-A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual slices or partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). For example, "c0t0d0" is equivalent to "/dev/c0t0d0". A whole disk can be specified by omitting the slice or partition designation. When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
+A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual slices or partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). For example, "sda" is equivalent to "/dev/sda". A whole disk can be specified by omitting the slice or partition designation. When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
 .RE
 
 .sp
@@ -251,7 +251,7 @@ Virtual devices are specified one at a time on the command line, separated by wh
 .sp
 .in +2
 .nf
-# \fBzpool create mypool mirror c0t0d0 c0t1d0 mirror c1t0d0 c1t1d0\fR
+# \fBzpool create mypool mirror sda sdb mirror sdc sdd\fR
 .fi
 .in -2
 .sp
@@ -373,7 +373,7 @@ If a device is removed and later re-attached to the system, \fBZFS\fR attempts t
 .sp
 .in +2
 .nf
-# zpool create pool mirror c0d0 c1d0 spare c2d0 c3d0
+# zpool create pool mirror sda sdb spare sdc sdd
 .fi
 .in -2
 .sp
@@ -397,7 +397,7 @@ The \fBZFS\fR Intent Log (\fBZIL\fR) satisfies \fBPOSIX\fR requirements for sync
 .sp
 .in +2
 .nf
-\fB# zpool create pool c0d0 c1d0 log c2d0\fR
+\fB# zpool create pool sda sdb log sdc\fR
 .fi
 .in -2
 .sp
@@ -418,7 +418,7 @@ To create a pool with cache devices, specify a "cache" \fBvdev\fR with any numbe
 .sp
 .in +2
 .nf
-\fB# zpool create pool c0d0 c1d0 cache c2d0 c3d0\fR
+\fB# zpool create pool sda sdb cache sdc sdd\fR
 .fi
 .in -2
 .sp
@@ -1456,7 +1456,7 @@ The following command creates a pool with a single \fBraidz\fR root \fIvdev\fR t
 .sp
 .in +2
 .nf
-# \fBzpool create tank raidz c0t0d0 c0t1d0 c0t2d0 c0t3d0 c0t4d0 c0t5d0\fR
+# \fBzpool create tank raidz sda sdb sdc sdd sde sdf\fR
 .fi
 .in -2
 .sp
@@ -1470,21 +1470,21 @@ The following command creates a pool with two mirrors, where each mirror contain
 .sp
 .in +2
 .nf
-# \fBzpool create tank mirror c0t0d0 c0t1d0 mirror c0t2d0 c0t3d0\fR
+# \fBzpool create tank mirror sda sdb mirror sdc sdd\fR
 .fi
 .in -2
 .sp
 
 .LP
-\fBExample 3 \fRCreating a ZFS Storage Pool by Using Slices
+\fBExample 3 \fRCreating a ZFS Storage Pool by Using Partitions
 .sp
 .LP
-The following command creates an unmirrored pool using two disk slices.
+The following command creates an unmirrored pool using two disk partitions.
 
 .sp
 .in +2
 .nf
-# \fBzpool create tank /dev/c0t0d0s1 c0t1d0s4\fR
+# \fBzpool create tank sda1 sdb2\fR
 .fi
 .in -2
 .sp
@@ -1512,7 +1512,7 @@ The following command adds two mirrored disks to the pool "\fItank\fR", assuming
 .sp
 .in +2
 .nf
-# \fBzpool add tank mirror c1t0d0 c1t1d0\fR
+# \fBzpool add tank mirror sda sdb\fR
 .fi
 .in -2
 .sp
@@ -1589,8 +1589,8 @@ config:
 
         tank        ONLINE
           mirror    ONLINE
-            c1t2d0  ONLINE
-            c1t3d0  ONLINE
+            sda     ONLINE
+            sdb     ONLINE
 
 # \fBzpool import tank\fR
 .fi
@@ -1621,7 +1621,7 @@ The following command creates a new pool with an available hot spare:
 .sp
 .in +2
 .nf
-# \fBzpool create tank mirror c0t0d0 c0t1d0 spare c0t2d0\fR
+# \fBzpool create tank mirror sda sdb spare sdc\fR
 .fi
 .in -2
 .sp
@@ -1633,7 +1633,7 @@ If one of the disks were to fail, the pool would be reduced to the degraded stat
 .sp
 .in +2
 .nf
-# \fBzpool replace tank c0t0d0 c0t3d0\fR
+# \fBzpool replace tank sda sdd\fR
 .fi
 .in -2
 .sp
@@ -1645,7 +1645,7 @@ Once the data has been resilvered, the spare is automatically removed and is mad
 .sp
 .in +2
 .nf
-# \fBzpool remove tank c0t2d0\fR
+# \fBzpool remove tank sdc\fR
 .fi
 .in -2
 .sp
@@ -1659,8 +1659,8 @@ The following command creates a ZFS storage pool consisting of two, two-way mirr
 .sp
 .in +2
 .nf
-# \fBzpool create pool mirror c0d0 c1d0 mirror c2d0 c3d0 log mirror \e
-   c4d0 c5d0\fR
+# \fBzpool create pool mirror sda sdb mirror sdc sdd log mirror \e
+   sde sdf\fR
 .fi
 .in -2
 .sp
@@ -1674,7 +1674,7 @@ The following command adds two disks for use as cache devices to a ZFS storage p
 .sp
 .in +2
 .nf
-# \fBzpool add pool cache c2d0 c3d0\fR
+# \fBzpool add pool cache sdc sdd\fR
 .fi
 .in -2
 .sp
@@ -1712,15 +1712,15 @@ config:
          NAME        STATE     READ WRITE CKSUM
          tank        ONLINE       0     0     0
            mirror-0  ONLINE       0     0     0
-             c6t0d0  ONLINE       0     0     0
-             c6t1d0  ONLINE       0     0     0
+             sda     ONLINE       0     0     0
+             sdb     ONLINE       0     0     0
            mirror-1  ONLINE       0     0     0
-             c6t2d0  ONLINE       0     0     0
-             c6t3d0  ONLINE       0     0     0
+             sdc     ONLINE       0     0     0
+             sdd     ONLINE       0     0     0
          logs
            mirror-2  ONLINE       0     0     0
-             c4t0d0  ONLINE       0     0     0
-             c4t1d0  ONLINE       0     0     0
+             sde     ONLINE       0     0     0
+             sdf     ONLINE       0     0     0
 .fi
 .in -2
 .sp
