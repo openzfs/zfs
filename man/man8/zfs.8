@@ -6,7 +6,7 @@
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
 .\" the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zfs 1M "24 Sep 2009" "SunOS 5.11" "System Administration Commands"
+.TH zfs 8 "8 Apr 2011" "SunOS 5.11" "System Administration Commands"
 .SH NAME
 zfs \- configures ZFS file systems
 .SH SYNOPSIS
@@ -221,7 +221,7 @@ zfs \- configures ZFS file systems
 .SH DESCRIPTION
 .sp
 .LP
-The \fBzfs\fR command configures \fBZFS\fR datasets within a \fBZFS\fR storage pool, as described in \fBzpool\fR(1M). A dataset is identified by a unique path within the \fBZFS\fR namespace. For example:
+The \fBzfs\fR command configures \fBZFS\fR datasets within a \fBZFS\fR storage pool, as described in \fBzpool\fR(8). A dataset is identified by a unique path within the \fBZFS\fR namespace. For example:
 .sp
 .in +2
 .nf
@@ -275,10 +275,10 @@ A read-only version of a file system or volume at a given point in time. It is s
 A \fBZFS\fR storage pool is a logical collection of devices that provide space for datasets. A storage pool is also the root of the \fBZFS\fR file system hierarchy.
 .sp
 .LP
-The root of the pool can be accessed as a file system, such as mounting and unmounting, taking snapshots, and setting properties. The physical storage characteristics, however, are managed by the \fBzpool\fR(1M) command.
+The root of the pool can be accessed as a file system, such as mounting and unmounting, taking snapshots, and setting properties. The physical storage characteristics, however, are managed by the \fBzpool\fR(8) command.
 .sp
 .LP
-See \fBzpool\fR(1M) for more information on creating and administering pools.
+See \fBzpool\fR(8) for more information on creating and administering pools.
 .SS "Snapshots"
 .sp
 .LP
@@ -465,7 +465,7 @@ The amount of space consumed by this dataset and all its descendents. This is th
 .sp
 When snapshots (see the "Snapshots" section) are created, their space is initially shared between the snapshot and the file system, and possibly with previous snapshots. As the file system changes, space that was previously shared becomes unique to the snapshot, and counted in the snapshot's space used. Additionally, deleting snapshots can increase the amount of space unique to (and used by) other snapshots.
 .sp
-The amount of space used, available, or referenced does not take into account pending changes. Pending changes are generally accounted for within a few seconds. Committing a change to a disk using \fBfsync\fR(3c) or \fBO_SYNC\fR does not necessarily guarantee that the space usage information is updated immediately.
+The amount of space used, available, or referenced does not take into account pending changes. Pending changes are generally accounted for within a few seconds. Committing a change to a disk using \fBfsync\fR(2) or \fBO_SYNC\fR does not necessarily guarantee that the space usage information is updated immediately.
 .RE
 
 .sp
@@ -734,7 +734,7 @@ When the \fBmountpoint\fR property is changed for a file system, the file system
 .ad
 .sp .6
 .RS 4n
-Controls whether the file system should be mounted with \fBnbmand\fR (Non Blocking mandatory locks). This is used for \fBCIFS\fR clients. Changes to this property only take effect when the file system is umounted and remounted. See \fBmount\fR(1M) for more information on \fBnbmand\fR mounts.
+Controls whether the file system should be mounted with \fBnbmand\fR (Non Blocking mandatory locks). This is used for \fBCIFS\fR clients. Changes to this property only take effect when the file system is umounted and remounted. See \fBmount\fR(8) for more information on \fBnbmand\fR mounts.
 .RE
 
 .sp
@@ -1076,7 +1076,7 @@ The \fBcasesensitivity\fR, \fBnormalization\fR, and \fButf8only\fR properties ar
 .SS "Temporary Mount Point Properties"
 .sp
 .LP
-When a file system is mounted, either through \fBmount\fR(1M) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
+When a file system is mounted, either through \fBmount\fR(8) for legacy mounts or the \fBzfs mount\fR command for normal file systems, its mount options are set according to its properties. The correlation between properties and mount options is as follows:
 .sp
 .in +2
 .nf
@@ -1759,7 +1759,7 @@ Displays a list of file systems that are not the most recent version.
 .RS 4n
 Upgrades file systems to a new on-disk version. Once this is done, the file systems will no longer be accessible on systems running older versions of the software. \fBzfs send\fR streams generated from new snapshots of these file systems cannot be accessed on systems running older versions of the software.
 .sp
-In general, the file system version is independent of the pool version. See \fBzpool\fR(1M) for information on the \fBzpool upgrade\fR command. 
+In general, the file system version is independent of the pool version. See \fBzpool\fR(8) for information on the \fBzpool upgrade\fR command. 
 .sp
 In some cases, the file system version and the pool version are interrelated and the pool version must be upgraded before the file system version can be upgraded.
 .sp
@@ -1969,7 +1969,7 @@ An optional, comma-separated list of mount options to use temporarily for the du
 .ad
 .sp .6
 .RS 4n
-Perform an overlay mount. See \fBmount\fR(1M) for more information.
+Perform an overlay mount. See \fBmount\fR(8) for more information.
 .RE
 
 .sp
@@ -2587,7 +2587,7 @@ The following command disables the \fBcompression\fR property for all file syste
 \fBExample 5 \fRListing ZFS Datasets
 .sp
 .LP
-The following command lists all active file systems and volumes in the system. Snapshots are displayed if the \fBlistsnaps\fR property is \fBon\fR. The default is \fBoff\fR. See \fBzpool\fR(1M) for more information on pool properties.
+The following command lists all active file systems and volumes in the system. Snapshots are displayed if the \fBlistsnaps\fR property is \fBon\fR. The default is \fBoff\fR. See \fBzpool\fR(8) for more information on pool properties.
 
 .sp
 .in +2
@@ -3056,7 +3056,7 @@ Interface StabilityCommitted
 .SH SEE ALSO
 .sp
 .LP
-\fBssh\fR(1), \fBiscsitadm\fR(1M), \fBmount\fR(1M), \fBshare\fR(1M), \fBsharemgr\fR(1M), \fBunshare\fR(1M), \fBzonecfg\fR(1M), \fBzpool\fR(1M), \fBchmod\fR(2), \fBstat\fR(2), \fBwrite\fR(2), \fBfsync\fR(3C), \fBdfstab\fR(4), \fBattributes\fR(5)
+\fBssh\fR(1), \fBiscsitadm\fR(1M), \fBmount\fR(8), \fBshare\fR(1M), \fBsharemgr\fR(1M), \fBunshare\fR(1M), \fBzonecfg\fR(1M), \fBzpool\fR(8), \fBchmod\fR(2), \fBstat\fR(2), \fBwrite\fR(2), \fBfsync\fR(2), \fBdfstab\fR(4), \fBattributes\fR(5)
 .sp
 .LP
 See the \fBgzip\fR(1) man page, which is not part of the SunOS man page collection.
