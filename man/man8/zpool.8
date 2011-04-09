@@ -154,7 +154,7 @@ A "virtual device" describes a single device or a collection of devices organize
 .ad
 .RS 10n
 .rt  
-A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual slices or partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). For example, "sda" is equivalent to "/dev/sda". A whole disk can be specified by omitting the slice or partition designation. When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
+A block device, typically located under \fB/dev\fR. \fBZFS\fR can use individual partitions, though the recommended mode of operation is to use whole disks. A disk can be specified by a full path, or it can be a shorthand name (the relative portion of the path under "/dev"). For example, "sda" is equivalent to "/dev/sda". A whole disk can be specified by omitting the partition designation. When given a whole disk, \fBZFS\fR automatically labels the disk, if necessary.
 .RE
 
 .sp
@@ -859,7 +859,7 @@ Exports the given pools from the system. All devices are marked as exported, but
 .sp
 Before exporting the pool, all datasets within the pool are unmounted. A pool can not be exported if it has a shared spare that is currently being used.
 .sp
-For pools to be portable, you must give the \fBzpool\fR command whole disks, not just slices, so that \fBZFS\fR can label the disks with portable \fBEFI\fR labels. Otherwise, disk drivers on platforms of different endianness will not recognize the disks.
+For pools to be portable, you must give the \fBzpool\fR command whole disks, not just partitions, so that \fBZFS\fR can label the disks with portable \fBEFI\fR labels. Otherwise, disk drivers on platforms of different endianness will not recognize the disks.
 .sp
 .ne 2
 .mk
