@@ -14,9 +14,9 @@
 		<td>
 <p>To get familiar with configuring a zfs based Lustre filesystem it is
 helpful to setup a small single node filesystem.  This exact configuration
-is useful if your a developer but is primarily designed as an example.
- If your not already familiar with configuring a traditional ldiskfs
-based Lustre filesystem you should familiarize yourself with the
+is useful if you're a developer but is primarily designed as an example.
+If you're not already familiar with configuring a traditional ldiskfs
+based Lustre filesystem you should review the
 <a href="http://wiki.lustre.org/index.php/Lustre_Documentation">
 Lustre documentation</a>.
 
@@ -31,7 +31,7 @@ Lustre documentation</a>.
 <p>The first thing which you should do is ensure SELinux is disabled.
 The filesystem types <em>ldiskfs</em>, <em>zfs</em>, and <em>lustre</em>
 are not part of the default SELinux policy.  This can cause mount
-failures because SELinux is unaware that these filesystem support xattrs.
+failures because SELinux is unaware that these filesystems support xattrs.
 To disable SELinux edit <em>/etc/selinux/config</em> and change the
 SELINUX line to SELINUX=disabled.   Then reboot your system to remove
 the existing policy.
@@ -72,7 +72,8 @@ $ sudo mkfs.lustre --mgs --backfstype=ldiskfs /dev/loop0
 
 <p>Configure the MDT using a zfs backend.  Because zfs can run on
 top of normal files (or block devices) we create a sparse /tmp/lustre-mdt
-file.  This avoids the need to setup additional loopback devices.</p>
+file.  This avoids the need to setup additional loopback devices.
+Remember to use your hosts mgs nid in the --mgsnode option.</p>
 
 <pre>
 $ dd if=/dev/zero of=/tmp/lustre-mdt bs=1M count=1 seek=255
@@ -130,7 +131,7 @@ ost1
 <p>Everything is now in place to start the Lustre services.  You should
 start the MGS, then MDT, and lastly the OSTs.  Once everything is running
 the Lustre filesystem can be mounted.  A word of caution before starting
-the services.  There current Lustre kdmu code is not polished and is not
+the services: the current Lustre kdmu code is not polished and is not
 tolerant of user error.  If there is a flaw in your configuration it is
 entirely possible your system will panic.  The Lustre kdmu source should
 still be considered a development branch.</p>
@@ -148,13 +149,13 @@ Mounting lustre-ost0/ost0 on /mnt/lustre/local/ost0
 $ sudo service lustre start ost1
 Mounting lustre-ost1/ost1 on /mnt/lustre/local/ost1
 
-$ mkdir -p /mnt/lustre
-$ sudo mount -t lustre 192.168.1.100:/lustre /mnt/lustre/
+$ mkdir -p /mnt/lustre/client
+$ sudo mount -t lustre 192.168.1.100:/lustre /mnt/lustre/client
 
-$ df -h /mnt/lustre/
+$ df -h /mnt/lustre/client
 Filesystem            Size  Used Avail Use% Mounted on
-192.168.122.151:/lustre
-                      1.9G   75M  1.8G   5% /mnt/lustre
+192.168.1.100:/lustre
+                      1.9G   75M  1.8G   5% /mnt/lustre/client
 </pre>
 
 	
