@@ -489,7 +489,7 @@ zpool_do_add(int argc, char **argv)
 
 	/* pass off to get_vdev_spec for processing */
 	nvroot = make_root_vdev(zhp, force, !force, B_FALSE, dryrun,
-	    argc, argv);
+	    argc, argv, 0);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -599,6 +599,7 @@ zpool_do_create(int argc, char **argv)
 	nvlist_t *fsprops = NULL;
 	nvlist_t *props = NULL;
 	char *propval;
+	uint64_t ashift = 0;
 
 	/* check options */
 	while ((c = getopt(argc, argv, ":fnR:m:o:O:")) != -1) {
@@ -634,7 +635,37 @@ zpool_do_create(int argc, char **argv)
 			*propval = '\0';
 			propval++;
 
-			if (add_prop_list(optarg, propval, &props, B_TRUE))
+			if (strcmp(optarg, "sectorsize") == 0)
+			{
+				uint64_t sectorsize;
+
+				if (ashift != 0) {
+					(void) fprintf(stderr, gettext(
+					    "property '%s' specified multiple "
+					    "times\n"), "sectorsize");
+					goto errout;
+				}
+			        if (zfs_nicestrtonum(NULL, propval,
+				    &sectorsize) != 0) {
+					(void) fprintf(stderr, gettext(
+					    "bad numeric value '%s'"),
+					    propval);
+					(void) fprintf(stderr, "\n");
+					goto errout;
+				}
+			        for (; sectorsize >= 2 && !(sectorsize & 1);
+				     ashift++) {
+			                sectorsize = sectorsize >> 1;
+			        }
+			        if (sectorsize != 1)
+			        {
+			                (void) fprintf(stderr, gettext(
+					    "property '%s' must be a power of "
+					    "two\n"), "sectorsize");
+			                goto errout;
+			        }
+			} else if (add_prop_list(optarg, propval, &props,
+			    B_TRUE))
 				goto errout;
 			break;
 		case 'O':
@@ -689,7 +720,7 @@ zpool_do_create(int argc, char **argv)
 
 	/* pass off to get_vdev_spec for bulk processing */
 	nvroot = make_root_vdev(NULL, force, !force, B_FALSE, dryrun,
-	    argc - 1, argv + 1);
+	    argc - 1, argv + 1, ashift);
 	if (nvroot == NULL)
 		goto errout;
 
@@ -2682,7 +2713,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	}
 
 	nvroot = make_root_vdev(zhp, force, B_FALSE, replacing, B_FALSE,
-	    argc, argv);
+	    argc, argv, 0);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
