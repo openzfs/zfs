@@ -487,7 +487,6 @@ SPL_PROC_HANDLER(proc_doslab)
 SPL_PROC_HANDLER(proc_dohostid)
 {
         int len, rc = 0;
-        int32_t val;
         char *end, str[32];
         SENTRY;
 
@@ -499,17 +498,15 @@ SPL_PROC_HANDLER(proc_dohostid)
                 if (rc < 0)
                         SRETURN(rc);
 
-                val = simple_strtol(str, &end, 16);
+                spl_hostid = simple_strtoul(str, &end, 16);
                 if (str == end)
                         SRETURN(-EINVAL);
 
-                spl_hostid = (long) val;
-                (void) snprintf(hw_serial, HW_HOSTID_LEN, "%u",
-                               (val >= 0) ? val : -val);
+                (void) snprintf(hw_serial, HW_HOSTID_LEN, "%lu", spl_hostid);
                 hw_serial[HW_HOSTID_LEN - 1] = '\0';
                 *ppos += *lenp;
         } else {
-                len = snprintf(str, sizeof(str), "%lx", spl_hostid);
+                len = snprintf(str, sizeof(str), "%lux", spl_hostid);
                 if (*ppos >= len)
                         rc = 0;
                 else

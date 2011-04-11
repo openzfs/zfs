@@ -52,8 +52,10 @@
 char spl_version[16] = "SPL v" SPL_META_VERSION;
 EXPORT_SYMBOL(spl_version);
 
-long spl_hostid = 0;
+unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
+module_param(spl_hostid, ulong, 0644);
+MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 
 char hw_serial[HW_HOSTID_LEN] = "<none>";
 EXPORT_SYMBOL(hw_serial);
@@ -362,13 +364,18 @@ struct new_utsname *__utsname(void)
 }
 EXPORT_SYMBOL(__utsname);
 
+#define GET_HOSTID_CMD \
+	"exec 0</dev/null " \
+	"     1>/proc/sys/kernel/spl/hostid " \
+	"     2>/dev/null; " \
+	"hostid"
+
 static int
 set_hostid(void)
 {
-	char sh_path[] = "/bin/sh";
-	char *argv[] = { sh_path,
+	char *argv[] = { "/bin/sh",
 	                 "-c",
-	                 "/usr/bin/hostid >/proc/sys/kernel/spl/hostid",
+	                 GET_HOSTID_CMD,
 	                 NULL };
 	char *envp[] = { "HOME=/",
 	                 "TERM=linux",
@@ -382,7 +389,7 @@ set_hostid(void)
 	 * '/usr/bin/hostid' and redirect the result to /proc/sys/spl/hostid
 	 * for us to use.  It's a horrific solution but it will do for now.
 	 */
-	rc = call_usermodehelper(sh_path, argv, envp, 1);
+	rc = call_usermodehelper(argv[0], argv, envp, 1);
 	if (rc)
 		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
 		       argv[0], argv[1], argv[2], rc);
@@ -475,7 +482,8 @@ __init spl_init(void)
 	if ((rc = zlib_init()))
 		SGOTO(out9, rc);
 
-	if ((rc = set_hostid()))
+	/* Get the hostid if it was not passed as a module parameter. */
+	if (spl_hostid == 0 && (rc = set_hostid()))
 		SGOTO(out10, rc = -EADDRNOTAVAIL);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME

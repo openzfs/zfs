@@ -143,7 +143,7 @@
 
 /* Missing globals */
 extern char spl_version[16];
-extern long spl_hostid;
+extern unsigned long spl_hostid;
 extern char hw_serial[11];
 
 /* Missing misc functions */
