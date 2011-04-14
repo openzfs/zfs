@@ -414,21 +414,25 @@ EXPORT_SYMBOL(zone_get_hostid);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
 /*
- * Because kallsyms_lookup_name() is no longer exported in the
- * mainline kernel we are forced to resort to somewhat drastic
- * measures.  This function replaces the functionality by performing
- * an upcall to user space where /proc/kallsyms is consulted for
- * the requested address.
+ * The kallsyms_lookup_name() kernel function is not an exported symbol in
+ * Linux 2.6.19 through 2.6.32 inclusive.
+ *
+ * This function replaces the functionality by performing an upcall to user
+ * space where /proc/kallsyms is consulted for the requested address.
+ *
  */
-#define GET_KALLSYMS_ADDR_CMD						\
-	"gawk '{ if ( $3 == \"kallsyms_lookup_name\") { print $1 } }' "	\
-	"/proc/kallsyms >/proc/sys/kernel/spl/kallsyms_lookup_name"
+
+#define GET_KALLSYMS_ADDR_CMD \
+	"exec 0</dev/null " \
+	"     1>/proc/sys/kernel/spl/kallsyms_lookup_name " \
+	"     2>/dev/null; " \
+	"awk  '{ if ( $3 == \"kallsyms_lookup_name\" ) { print $1 } }' " \
+	"     /proc/kallsyms "
 
 static int
 set_kallsyms_lookup_name(void)
 {
-	char sh_path[] = "/bin/sh";
-	char *argv[] = { sh_path,
+	char *argv[] = { "/bin/sh",
 	                 "-c",
 			 GET_KALLSYMS_ADDR_CMD,
 	                 NULL };
@@ -438,7 +442,7 @@ set_kallsyms_lookup_name(void)
 	                 NULL };
 	int rc;
 
-	rc = call_usermodehelper(sh_path, argv, envp, 1);
+	rc = call_usermodehelper(argv[0], argv, envp, 1);
 	if (rc)
 		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
 		       argv[0], argv[1], argv[2], rc);
