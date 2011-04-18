@@ -2105,7 +2105,7 @@ spl_kmem_init_kallsyms_lookup(void)
 
 #ifndef HAVE_INVALIDATE_INODES
 	invalidate_inodes_fn = (invalidate_inodes_t)
-	spl_kallsyms_lookup_name("invalidate_inodes");
+		spl_kallsyms_lookup_name("invalidate_inodes");
 	if (!invalidate_inodes_fn) {
 		printk(KERN_ERR "Error: Unknown symbol invalidate_inodes\n");
 		return -EFAULT;
