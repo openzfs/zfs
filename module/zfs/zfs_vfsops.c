@@ -1088,7 +1088,7 @@ zfsvfs_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 * for non-snapshots.
 		 */
 		shrink_dcache_sb(zsb->z_parent->z_sb);
-		invalidate_inodes(zsb->z_parent->z_sb);
+		(void) spl_invalidate_inodes(zsb->z_parent->z_sb, 0);
 	}
 
 	/*
