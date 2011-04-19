@@ -92,6 +92,7 @@ ${START},${END}
 EOF
 
 	rm ${TMP_FILE}
+	udev_trigger
 }
 
 # Validate persistent zpool.cache configuration.
@@ -155,32 +156,32 @@ run_test 2 "scan disks for pools to import"
 
 zconfig_zvol_device_stat() {
 	local EXPECT=$1
-	local POOL_NAME=/dev/$2
-	local ZVOL_NAME=/dev/$3
-	local SNAP_NAME=/dev/$4
-	local CLONE_NAME=/dev/$5
+	local POOL_NAME=/dev/zvol/$2
+	local ZVOL_NAME=/dev/zvol/$3
+	local SNAP_NAME=/dev/zvol/$4
+	local CLONE_NAME=/dev/zvol/$5
 	local COUNT=0
 
 	# Briefly delay for udev
-	sleep 3
+	udev_trigger
 
 	# Pool exists
 	stat ${POOL_NAME} &>/dev/null   && let COUNT=$COUNT+1
 
 	# Volume and partitions
 	stat ${ZVOL_NAME}  &>/dev/null  && let COUNT=$COUNT+1
-	stat ${ZVOL_NAME}1 &>/dev/null  && let COUNT=$COUNT+1
-	stat ${ZVOL_NAME}2 &>/dev/null  && let COUNT=$COUNT+1
+	stat ${ZVOL_NAME}-part1 &>/dev/null  && let COUNT=$COUNT+1
+	stat ${ZVOL_NAME}-part2 &>/dev/null  && let COUNT=$COUNT+1
 
 	# Snapshot with partitions
 	stat ${SNAP_NAME}  &>/dev/null  && let COUNT=$COUNT+1
-	stat ${SNAP_NAME}1 &>/dev/null  && let COUNT=$COUNT+1
-	stat ${SNAP_NAME}2 &>/dev/null  && let COUNT=$COUNT+1
+	stat ${SNAP_NAME}-part1 &>/dev/null  && let COUNT=$COUNT+1
+	stat ${SNAP_NAME}-part2 &>/dev/null  && let COUNT=$COUNT+1
 
 	# Clone with partitions
 	stat ${CLONE_NAME}  &>/dev/null && let COUNT=$COUNT+1
-	stat ${CLONE_NAME}1 &>/dev/null && let COUNT=$COUNT+1
-	stat ${CLONE_NAME}2 &>/dev/null && let COUNT=$COUNT+1
+	stat ${CLONE_NAME}-part1 &>/dev/null && let COUNT=$COUNT+1
+	stat ${CLONE_NAME}-part2 &>/dev/null && let COUNT=$COUNT+1
 
 	if [ $EXPECT -ne $COUNT ]; then
 		return 1
@@ -205,7 +206,7 @@ test_3() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 64 || fail 4
+	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -256,7 +257,7 @@ test_4() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 64 || fail 4
+	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -302,29 +303,30 @@ test_5() {
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
-	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
-	${ZFS} create -V 400M ${FULL_NAME} || fail 3
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
+	${ZFS} create -V 800M ${FULL_NAME} || fail 3
 
-	# Partition the volume, for a 400M volume there will be
-	# 812 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_NAME} 0 812
+	# Partition the volume, for a 800M volume there will be
+	# 1624 cylinders, 16 heads, and 63 sectors per track.
+	zconfig_partition /dev/zvol/${FULL_NAME} 0 1624
 
 	# Format the partition with ext3.
-	/sbin/mkfs.ext3 -q /dev/${FULL_NAME}1 || fail 5
+	/sbin/mkfs.ext3 -q /dev/zvol/${FULL_NAME}-part1 || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
-	mkdir -p /tmp/${ZVOL_NAME}1 || fail 6
-	mount /dev/${FULL_NAME}1 /tmp/${ZVOL_NAME}1 || fail 7
-	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}1 || fail 8
+	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
+	mount /dev/zvol/${FULL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 || fail 7
+	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}-part1 || fail 8
 	sync
 
 	# Verify the copied files match the original files.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}1${SRC_DIR} &>/dev/null || fail 9
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+		&>/dev/null || fail 9
 
 	# Remove the files, umount, destroy the volume and pool.
-	rm -Rf /tmp/${ZVOL_NAME}1${SRC_DIR}* || fail 10
-	umount /tmp/${ZVOL_NAME}1 || fail 11
-	rmdir /tmp/${ZVOL_NAME}1 || fail 12
+	rm -Rf /tmp/${ZVOL_NAME}-part1${SRC_DIR}* || fail 10
+	umount /tmp/${ZVOL_NAME}-part1 || fail 11
+	rmdir /tmp/${ZVOL_NAME}-part1 || fail 12
 
 	${ZFS} destroy ${FULL_NAME} || fail 13
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 14
@@ -347,42 +349,46 @@ test_6() {
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
-	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
-	${ZFS} create -V 400M ${FULL_ZVOL_NAME} || fail 3
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
+	${ZFS} create -V 800M ${FULL_ZVOL_NAME} || fail 3
 
-	# Partition the volume, for a 400M volume there will be
-	# 812 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 812
+	# Partition the volume, for a 800M volume there will be
+	# 1624 cylinders, 16 heads, and 63 sectors per track.
+	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 1624
 
 	# Format the partition with ext2 (no journal).
-	/sbin/mkfs.ext2 -q /dev/${FULL_ZVOL_NAME}1 || fail 5
+	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME}-part1 || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
-	mkdir -p /tmp/${ZVOL_NAME}1 || fail 6
-	mount /dev/${FULL_ZVOL_NAME}1 /tmp/${ZVOL_NAME}1 || fail 7
+	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
+	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 \
+		|| fail 7
 
 	# Snapshot the pristine ext2 filesystem and mount it read-only.
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 8
-	wait_udev /dev/${FULL_SNAP_NAME}1 30 || fail 8
-	mkdir -p /tmp/${SNAP_NAME}1 || fail 9
-	mount /dev/${FULL_SNAP_NAME}1 /tmp/${SNAP_NAME}1 &>/dev/null || fail 10
+	wait_udev /dev/zvol/${FULL_SNAP_NAME}-part1 30 || fail 8
+	mkdir -p /tmp/${SNAP_NAME}-part1 || fail 9
+	mount /dev/zvol/${FULL_SNAP_NAME}-part1 /tmp/${SNAP_NAME}-part1 \
+		&>/dev/null || fail 10
 
 	# Copy to original volume
-	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}1 || fail 11
+	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}-part1 || fail 11
 	sync
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}1${SRC_DIR} &>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}1${SRC_DIR} &>/dev/null && fail 13
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+		&>/dev/null || fail 12
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+		&>/dev/null && fail 13
 
 	# umount, destroy the snapshot, volume, and pool.
-	umount /tmp/${SNAP_NAME}1 || fail 14
-	rmdir /tmp/${SNAP_NAME}1 || fail 15
+	umount /tmp/${SNAP_NAME}-part1 || fail 14
+	rmdir /tmp/${SNAP_NAME}-part1 || fail 15
 	${ZFS} destroy ${FULL_SNAP_NAME} || fail 16
 
-	umount /tmp/${ZVOL_NAME}1 || fail 17
-	rmdir /tmp/${ZVOL_NAME}1 || fail 18
+	umount /tmp/${ZVOL_NAME}-part1 || fail 17
+	rmdir /tmp/${ZVOL_NAME}-part1 || fail 18
 	${ZFS} destroy ${FULL_ZVOL_NAME} || fail 19
 
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 20
@@ -412,59 +418,67 @@ test_7() {
 
 	# Partition the volume, for a 300M volume there will be
 	# 609 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_ZVOL_NAME} 0 609
+	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 609
 
 	# Format the partition with ext2 (no journal).
-	/sbin/mkfs.ext2 -q /dev/${FULL_ZVOL_NAME}1 || fail 5
+	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME}-part1 || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
-	mkdir -p /tmp/${ZVOL_NAME}1 || fail 6
-	mount /dev/${FULL_ZVOL_NAME}1 /tmp/${ZVOL_NAME}1 || fail 7
+	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
+	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 \
+		|| fail 7
 
 	# Snapshot the pristine ext2 filesystem and mount it read-only.
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 8
-	wait_udev /dev/${FULL_SNAP_NAME}1 30 || fail 8
-	mkdir -p /tmp/${SNAP_NAME}1 || fail 9
-	mount /dev/${FULL_SNAP_NAME}1 /tmp/${SNAP_NAME}1 &>/dev/null || fail 10
+	wait_udev /dev/zvol/${FULL_SNAP_NAME}-part1 30 || fail 8
+	mkdir -p /tmp/${SNAP_NAME}-part1 || fail 9
+	mount /dev/zvol/${FULL_SNAP_NAME}-part1 \
+		/tmp/${SNAP_NAME}-part1 &>/dev/null || fail 10
 
 	# Copy to original volume.
-	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}1 || fail 11
+	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}-part1 || fail 11
 	sync
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}1${SRC_DIR} &>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}1${SRC_DIR} &>/dev/null && fail 13
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+		&>/dev/null || fail 12
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+		&>/dev/null && fail 13
 
 	# Clone from the original pristine snapshot
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 14
-	wait_udev /dev/${FULL_CLONE_NAME}1 30 || fail 14
-	mkdir -p /tmp/${CLONE_NAME}1 || fail 15
-	mount /dev/${FULL_CLONE_NAME}1 /tmp/${CLONE_NAME}1 || fail 16
+	wait_udev /dev/zvol/${FULL_CLONE_NAME}-part1 30 || fail 14
+	mkdir -p /tmp/${CLONE_NAME}-part1 || fail 15
+	mount /dev/zvol/${FULL_CLONE_NAME}-part1 \
+		/tmp/${CLONE_NAME}-part1 || fail 16
 
 	# Verify the clone matches the pristine snapshot,
 	# and the files copied to the original volume are NOT there.
-	diff -ur /tmp/${SNAP_NAME}1 /tmp/${CLONE_NAME}1 &>/dev/null || fail 17
-	diff -ur /tmp/${ZVOL_NAME}1 /tmp/${CLONE_NAME}1 &>/dev/null && fail 18
+	diff -ur /tmp/${SNAP_NAME}-part1 /tmp/${CLONE_NAME}-part1 \
+		&>/dev/null || fail 17
+	diff -ur /tmp/${ZVOL_NAME}-part1 /tmp/${CLONE_NAME}-part1 \
+		&>/dev/null && fail 18
 
 	# Copy to cloned volume.
-	cp -RL ${SRC_DIR} /tmp/${CLONE_NAME}1 || fail 19
+	cp -RL ${SRC_DIR} /tmp/${CLONE_NAME}-part1 || fail 19
 	sync
 
 	# Verify the clone matches the modified original volume.
-	diff -ur /tmp/${ZVOL_NAME}1 /tmp/${CLONE_NAME}1 &>/dev/null || fail 20
+	diff -ur /tmp/${ZVOL_NAME}-part1 /tmp/${CLONE_NAME}-part1 \
+		&>/dev/null || fail 20
 
 	# umount, destroy the snapshot, volume, and pool.
-	umount /tmp/${CLONE_NAME}1 || fail 21
-	rmdir /tmp/${CLONE_NAME}1 || fail 22
+	umount /tmp/${CLONE_NAME}-part1 || fail 21
+	rmdir /tmp/${CLONE_NAME}-part1 || fail 22
 	${ZFS} destroy ${FULL_CLONE_NAME} || fail 23
 
-	umount /tmp/${SNAP_NAME}1 || fail 24
-	rmdir /tmp/${SNAP_NAME}1 || fail 25
+	umount /tmp/${SNAP_NAME}-part1 || fail 24
+	rmdir /tmp/${SNAP_NAME}-part1 || fail 25
 	${ZFS} destroy ${FULL_SNAP_NAME} || fail 26
 
-	umount /tmp/${ZVOL_NAME}1 || fail 27
-	rmdir /tmp/${ZVOL_NAME}1 || fail 28
+	umount /tmp/${ZVOL_NAME}-part1 || fail 27
+	rmdir /tmp/${ZVOL_NAME}-part1 || fail 28
 	${ZFS} destroy ${FULL_ZVOL_NAME} || fail 29
 
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 -d || fail 30
@@ -496,39 +510,41 @@ test_8() {
 
 	# Partition the volume, for a 300M volume there will be
 	# 609 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/${FULL_ZVOL_NAME1} 0 609
+	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME1} 0 609
 
 	# Format the partition with ext2.
-	/sbin/mkfs.ext2 -q /dev/${FULL_ZVOL_NAME1}1 || fail 5
+	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME1}-part1 || fail 5
 
 	# Mount the ext3 filesystem and copy some data to it.
-	mkdir -p /tmp/${FULL_ZVOL_NAME1}1 || fail 6
-	mount /dev/${FULL_ZVOL_NAME1}1 /tmp/${FULL_ZVOL_NAME1}1 || fail 7
-	cp -RL ${SRC_DIR} /tmp/${FULL_ZVOL_NAME1}1 || fail 8
+	mkdir -p /tmp/${FULL_ZVOL_NAME1}-part1 || fail 6
+	mount /dev/zvol/${FULL_ZVOL_NAME1}-part1 \
+		/tmp/${FULL_ZVOL_NAME1}-part1 || fail 7
+	cp -RL ${SRC_DIR} /tmp/${FULL_ZVOL_NAME1}-part1 || fail 8
 	sync || fail 9
 
 	# Snapshot the ext3 filesystem so it may be sent.
 	${ZFS} snapshot ${FULL_SNAP_NAME1} || fail 11
-	wait_udev /dev/${FULL_SNAP_NAME1} 30 || fail 11
+	wait_udev /dev/zvol/${FULL_SNAP_NAME1} 30 || fail 11
 
 	# Send/receive the snapshot from POOL_NAME1 to POOL_NAME2
 	(${ZFS} send ${FULL_SNAP_NAME1} | \
 	${ZFS} receive ${FULL_ZVOL_NAME2}) || fail 12
-	wait_udev /dev/${FULL_ZVOL_NAME2}1 30 || fail 12
+	wait_udev /dev/zvol/${FULL_ZVOL_NAME2}-part1 30 || fail 12
 
 	# Mount the sent ext3 filesystem.
-	mkdir -p /tmp/${FULL_ZVOL_NAME2}1 || fail 13
-	mount /dev/${FULL_ZVOL_NAME2}1 /tmp/${FULL_ZVOL_NAME2}1 || fail 14
+	mkdir -p /tmp/${FULL_ZVOL_NAME2}-part1 || fail 13
+	mount /dev/zvol/${FULL_ZVOL_NAME2}-part1 \
+		/tmp/${FULL_ZVOL_NAME2}-part1 || fail 14
 
 	# Verify the contents of the volumes match
-	diff -ur /tmp/${FULL_ZVOL_NAME1}1 /tmp/${FULL_ZVOL_NAME2}1 \
+	diff -ur /tmp/${FULL_ZVOL_NAME1}-part1 /tmp/${FULL_ZVOL_NAME2}-part1 \
 	    &>/dev/null || fail 15
 
 	# Umount, destroy the volume and pool.
-	umount /tmp/${FULL_ZVOL_NAME1}1 || fail 16
-	umount /tmp/${FULL_ZVOL_NAME2}1 || fail 17
-	rmdir /tmp/${FULL_ZVOL_NAME1}1 || fail 18
-	rmdir /tmp/${FULL_ZVOL_NAME2}1 || fail 19
+	umount /tmp/${FULL_ZVOL_NAME1}-part1 || fail 16
+	umount /tmp/${FULL_ZVOL_NAME2}-part1 || fail 17
+	rmdir /tmp/${FULL_ZVOL_NAME1}-part1 || fail 18
+	rmdir /tmp/${FULL_ZVOL_NAME2}-part1 || fail 19
 	rmdir /tmp/${POOL_NAME1} || fail 20
 	rmdir /tmp/${POOL_NAME2} || fail 21
 
@@ -647,12 +663,14 @@ test_10() {
 	${ZPOOL} remove ${POOL_NAME} ${SDDEVICE} || fail 5
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 6
 	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 7
+	sleep 1
 
 	# Add and remove a cache vdev by shorthand path
 	zconfig_add_vdev ${POOL_NAME} cache ${BASE_SDDEVICE} || fail 8
 	${ZPOOL} remove ${POOL_NAME} ${BASE_SDDEVICE} || fail 9
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 10
 	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 11
+	sleep 1
 
 	# Add and remove a log vdev
 	zconfig_add_vdev ${POOL_NAME} log ${BASE_SDDEVICE} || fail 12
@@ -671,4 +689,3 @@ test_10() {
 run_test 10 "zpool add/remove vdev"
 
 exit 0
-
