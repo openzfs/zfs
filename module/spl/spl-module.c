@@ -95,7 +95,6 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 		        int flags, struct module *mod)
 {
 	struct cdev *cdev;
-	struct dev_ops *dev_ops;
 	struct cb_ops *cb_ops;
 	struct file_operations *fops;
 	int rc;
@@ -118,8 +117,6 @@ __ddi_create_minor_node(dev_info_t *di, char *name, int spec_type,
 	cdev->ops = fops;
 
 	mutex_enter(&di->di_lock);
-	dev_ops = di->di_ops;
-	ASSERT(dev_ops);
 	cb_ops = di->di_ops->devo_cb_ops;
 	ASSERT(cb_ops);
 
