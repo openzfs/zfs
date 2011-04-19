@@ -37,6 +37,7 @@ additional applications against the %{name} libraries.
 %package test
 Summary:         ZFS File System Test Infrastructure
 Group:           Utilities/System
+Requires:        parted lsscsi
 
 %description test
 The %{name}-test package contains a test infrastructure for zpios which
