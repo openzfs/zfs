@@ -12372,7 +12372,7 @@ int
 main (void)
 {
 
-		fmode_t *ptr;
+		fmode_t *ptr __attribute__ ((unused));
 
   ;
   return 0;
@@ -12437,7 +12437,7 @@ int
 main (void)
 {
 
-		int val;
+		int val __attribute__ ((unused));
 		val = KOBJ_NAME_LEN;
 
   ;
@@ -12583,7 +12583,7 @@ int
 main (void)
 {
 
-		struct block_device *bdev;
+		struct block_device *bdev = NULL;
 		invalidate_bdev(bdev);
 
   ;
@@ -12782,7 +12782,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = (1 << BIO_RW_FAILFAST);
 
   ;
@@ -12848,7 +12848,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = ((1 << BIO_RW_FAILFAST_DEV) |
 			 (1 << BIO_RW_FAILFAST_TRANSPORT) |
 			 (1 << BIO_RW_FAILFAST_DRIVER));
@@ -12916,7 +12916,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_FAILFAST_MASK;
 
   ;
@@ -12985,7 +12985,7 @@ main (void)
 {
 
 		void (*wanted_end_io)(struct bio *, int) = NULL;
-		bio_end_io_t *local_end_io;
+		bio_end_io_t *local_end_io __attribute__ ((unused));
 
 		local_end_io = wanted_end_io;
 
@@ -13053,7 +13053,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNC;
 
   ;
@@ -13119,7 +13119,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNCIO;
 
   ;
@@ -13185,7 +13185,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_SYNC;
 
   ;
@@ -13994,7 +13994,7 @@ int
 main (void)
 {
 
-		struct super_block sb;
+		struct super_block sb __attribute__ ((unused));
 
 		sb.s_xattr = xattr_handlers;
 
@@ -14063,7 +14063,7 @@ main (void)
 
 		int (*get)(struct dentry *dentry, const char *name,
 		    void *buffer, size_t size, int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.get = get;
 
@@ -14133,7 +14133,7 @@ main (void)
 		int (*set)(struct dentry *dentry, const char *name,
 		    const void *buffer, size_t size, int flags,
 		    int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.set = set;
 
@@ -14201,7 +14201,7 @@ main (void)
 {
 
 		int (*fsync) (struct file *, int datasync) = NULL;
-		struct file_operations fops;
+		struct file_operations fops __attribute__ ((unused));
 
 		fops.fsync = fsync;
 
@@ -14269,7 +14269,7 @@ main (void)
 {
 
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops;
+		struct super_operations sops __attribute__ ((unused));
 
 		sops.evict_inode = evict_inode;
 
@@ -16417,7 +16417,7 @@ int
 main (void)
 {
 
-		fmode_t *ptr;
+		fmode_t *ptr __attribute__ ((unused));
 
   ;
   return 0;
@@ -16482,7 +16482,7 @@ int
 main (void)
 {
 
-		int val;
+		int val __attribute__ ((unused));
 		val = KOBJ_NAME_LEN;
 
   ;
@@ -16628,7 +16628,7 @@ int
 main (void)
 {
 
-		struct block_device *bdev;
+		struct block_device *bdev = NULL;
 		invalidate_bdev(bdev);
 
   ;
@@ -16827,7 +16827,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = (1 << BIO_RW_FAILFAST);
 
   ;
@@ -16893,7 +16893,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = ((1 << BIO_RW_FAILFAST_DEV) |
 			 (1 << BIO_RW_FAILFAST_TRANSPORT) |
 			 (1 << BIO_RW_FAILFAST_DRIVER));
@@ -16961,7 +16961,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_FAILFAST_MASK;
 
   ;
@@ -17030,7 +17030,7 @@ main (void)
 {
 
 		void (*wanted_end_io)(struct bio *, int) = NULL;
-		bio_end_io_t *local_end_io;
+		bio_end_io_t *local_end_io __attribute__ ((unused));
 
 		local_end_io = wanted_end_io;
 
@@ -17098,7 +17098,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNC;
 
   ;
@@ -17164,7 +17164,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNCIO;
 
   ;
@@ -17230,7 +17230,7 @@ int
 main (void)
 {
 
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_SYNC;
 
   ;
@@ -18039,7 +18039,7 @@ int
 main (void)
 {
 
-		struct super_block sb;
+		struct super_block sb __attribute__ ((unused));
 
 		sb.s_xattr = xattr_handlers;
 
@@ -18108,7 +18108,7 @@ main (void)
 
 		int (*get)(struct dentry *dentry, const char *name,
 		    void *buffer, size_t size, int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.get = get;
 
@@ -18178,7 +18178,7 @@ main (void)
 		int (*set)(struct dentry *dentry, const char *name,
 		    const void *buffer, size_t size, int flags,
 		    int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.set = set;
 
@@ -18246,7 +18246,7 @@ main (void)
 {
 
 		int (*fsync) (struct file *, int datasync) = NULL;
-		struct file_operations fops;
+		struct file_operations fops __attribute__ ((unused));
 
 		fops.fsync = fsync;
 
@@ -18314,7 +18314,7 @@ main (void)
 {
 
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops;
+		struct super_operations sops __attribute__ ((unused));
 
 		sops.evict_inode = evict_inode;
 

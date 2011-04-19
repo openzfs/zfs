@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_INVALIDATE_BDEV_ARGS], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/buffer_head.h>
 	],[
-		struct block_device *bdev;
+		struct block_device *bdev = NULL;
 		invalidate_bdev(bdev);
 	],[
 		AC_MSG_RESULT(yes)

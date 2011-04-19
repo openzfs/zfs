@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_KOBJ_NAME_LEN], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/kobject.h>
 	],[
-		int val;
+		int val __attribute__ ((unused));
 		val = KOBJ_NAME_LEN;
 	],[
 		AC_MSG_RESULT([yes])
