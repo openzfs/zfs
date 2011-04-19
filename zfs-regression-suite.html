@@ -16,7 +16,23 @@
 of tests.  Some of these scripts run relatively quickly such as
 <em>zconfig.sh</em> others such as <em>zfault.sh</em> can take
 considerably more time.  These tests are only to validate the
-correctness of the packages you just built.
+correctness of the packages you just built.  The scripts are part of
+the zfs-test package which is optional to install.  If you do install
+the zfs-test package you will also need to install the parted and lsscsi
+packages.  Finally, make sure the scsi_debug module has been built for
+your kernel and is available.
+
+<pre>
+$ sudo apt-get install parted lsscsi
+$ modinfo scsi_debug
+</pre>
+
+or
+
+<pre>
+$ sudo yum install parted lsscsi
+$ modinfo scsi_debug
+</pre>
 
 <p>The first test you&#8217;ll want to run is called <em>zconfig.sh</em>
 which validates that the zfs utilities are working properly.  Once that
