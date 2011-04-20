@@ -1,3 +1,47 @@
+zfs-linux (0.6.0.8-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Linux 2.6.29 compat, credentials
+  * Fix rebuildable RPMs for el6/ch5
+  * Autogen refresh for kernel-insert-inode-locked.m4
+  * Linux 2.6.39 compat, invalidate_inodes()
+  * Fix gcc compiler warning, dsl_pool_create()
+  * Fix gcc compiler warning, parse_option()
+  * Fix gcc configure warnings
+  * Set -Wno-unused-but-set-variable globally
+  * Add Gunnar Beutner to AUTHORS for his contributions
+  * Add parted and lsscsi dependencies to zfs-test
+
+  [ Richard Laager ]
+  * Fix a couple comments
+  * Correct man page section numbers for Linux
+  * Change /dev/dsk -> /dev in the man pages
+  * More and correct an example in zpool.8
+  * Use Linux disk names in zpool.8
+  * Linux has "partitions", not "slices"
+  * Remove a stray tab
+  * Improve some quoting consistency
+  * Improve the wording about hot spares
+  * Normalize the deferred destruction language
+  * Update the version in the zpool upgrade example
+  * Cleanup various Sun/Solaris-isms
+  * Support IEC base-2 prefixes
+
+  [ Ned Bass ]
+  * Use consistent indentation in mount-zfs.sh
+  * Align closing fi in mount-zfs.sh
+
+  [ Gunnar Beutner ]
+  * Added missing initialization for va.va_dentry in zfs_get_xattrdir.
+  * Truncate the xattr znode when updating existing attributes.
+
+  [ Darik Horn ]
+  * Refresh debian/patches.
+  * Use zfs-0.6.0.8 as the unofficial upstream version.
+  * Set a version on the spl-dkms dependency.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 20 Apr 2011 08:21:51 -0500
+
 zfs-linux (0.6.0.7-0ubuntu2) unstable; urgency=low
 
   [ Brian Behlendorf ]
