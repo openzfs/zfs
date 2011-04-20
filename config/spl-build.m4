@@ -80,6 +80,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
 	SPL_AC_KERN_PATH_PARENT
+	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1801,4 +1802,26 @@ AC_DEFUN([SPL_AC_KERN_PATH_PARENT], [
 		[AC_DEFINE(HAVE_KERN_PATH_PARENT, 1,
 		[kern_path_parent() is available])],
 		[])
+])
+
+dnl #
+dnl # 2.6.39 API compat,
+dnl # The function zlib_deflate_workspacesize() now take 2 arguments.
+dnl # This was done to avoid always having to allocate the maximum size
+dnl # workspace (268K).  The caller can now specific the windowBits and
+dnl # memLevel compression parameters to get a smaller workspace.
+dnl #
+AC_DEFUN([SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE],
+	[AC_MSG_CHECKING([whether zlib_deflate_workspacesize() wants 2 args])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/zlib.h>
+	],[
+		return zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE, 1,
+		          [zlib_deflate_workspacesize() wants 2 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])

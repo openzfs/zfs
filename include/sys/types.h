@@ -41,6 +41,7 @@
 #include <linux/sysctl_compat.h>
 #include <linux/proc_compat.h>
 #include <linux/math64_compat.h>
+#include <linux/zlib_compat.h>
 
 #ifndef HAVE_UINTPTR_T
 typedef unsigned long			uintptr_t;

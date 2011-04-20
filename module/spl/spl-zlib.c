@@ -198,10 +198,14 @@ EXPORT_SYMBOL(z_uncompress);
 
 int zlib_init(void)
 {
+	int size;
         SENTRY;
+
+	size = MAX(spl_zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL),
+	    zlib_inflate_workspacesize());
+
 	zlib_workspace_cache = kmem_cache_create("spl_zlib_workspace_cache",
-	    max(zlib_deflate_workspacesize(), zlib_inflate_workspacesize()),
-	    0, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
+	    size, 0, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
         if (!zlib_workspace_cache)
 		SRETURN(1);
 
