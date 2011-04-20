@@ -67,5 +67,11 @@ spl_filp_open(const char *name, int flags, int mode, int *err)
 #define spl_inode_unlock(ip)		(up(&(ip)->i_sem))
 #endif /* HAVE_INODE_I_MUTEX */
 
+#ifdef HAVE_KERN_PATH_PARENT
+#define spl_kern_path_parent(path, nd)	kern_path_parent(path, nd)
+#else
+#define spl_kern_path_parent(path, nd)	path_lookup(path, LOOKUP_PARENT, nd)
+#endif /* HAVE_KERN_PATH_PARENT */
+
 #endif /* SPL_FILE_COMPAT_H */
 

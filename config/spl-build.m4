@@ -79,6 +79,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
+	SPL_AC_KERN_PATH_PARENT
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1783,5 +1784,21 @@ AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY], [
 		[fs/inode.c],
 		[AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
 		[shrink_icache_memory() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.39 API compat,
+dnl # The path_lookup() function has been renamed to kern_path_parent()
+dnl # and the flags argument has been removed.  The only behavior now
+dnl # offered is that of LOOKUP_PARENT.  The spl already always passed
+dnl # this flag so dropping the flag does not impact us.
+dnl #
+AC_DEFUN([SPL_AC_KERN_PATH_PARENT], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[kern_path_parent],
+		[fs/namei.c],
+		[AC_DEFINE(HAVE_KERN_PATH_PARENT, 1,
+		[kern_path_parent() is available])],
 		[])
 ])
