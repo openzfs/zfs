@@ -13,6 +13,8 @@
 # Provides: zfs
 # Required-Start: $local_fs
 # Required-Stop: $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
 # Should-Stop:
 # Short-Description: Mount/umount the zfs filesystems
 # Description: ZFS is an advanced filesystem designed to simplify managing
