@@ -50,7 +50,7 @@ Index: b/configure
 ===================================================================
 --- a/configure
 +++ b/configure
-@@ -20008,7 +20008,7 @@
+@@ -20010,7 +20010,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -59,7 +59,7 @@ Index: b/configure
  
  
  cat >confcache <<\_ACEOF
-@@ -20925,8 +20925,6 @@
+@@ -20927,8 +20927,6 @@
      "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
      "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
      "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;

@@ -34,7 +34,7 @@ Index: b/configure
 ===================================================================
 --- a/configure
 +++ b/configure
-@@ -20008,7 +20008,7 @@
+@@ -20010,7 +20010,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -43,7 +43,7 @@ Index: b/configure
  
  
  cat >confcache <<\_ACEOF
-@@ -20932,7 +20932,6 @@
+@@ -20934,7 +20934,6 @@
      "etc/udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/Makefile" ;;
      "etc/udev/rules.d/60-zpool.rules") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/60-zpool.rules" ;;
      "etc/udev/rules.d/60-zvol.rules") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/60-zvol.rules" ;;
