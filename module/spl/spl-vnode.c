@@ -39,7 +39,7 @@ EXPORT_SYMBOL(rootdir);
 static spl_kmem_cache_t *vn_cache;
 static spl_kmem_cache_t *vn_file_cache;
 
-static spinlock_t vn_file_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(vn_file_lock);
 static LIST_HEAD(vn_file_list);
 
 vtype_t

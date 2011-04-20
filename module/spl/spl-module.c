@@ -33,7 +33,7 @@
 
 #define SS_DEBUG_SUBSYS SS_MODULE
 
-static spinlock_t dev_info_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(dev_info_lock);
 static LIST_HEAD(dev_info_list);
 
 static struct dev_info *
