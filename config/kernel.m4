@@ -44,6 +44,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
 	dnl # compiler options are added by the kernel build system.
+	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unused-but-set-variable"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
 

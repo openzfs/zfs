@@ -8,7 +8,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FSYNC_2ARGS], [
 		#include <linux/fs.h>
 	],[
 		int (*fsync) (struct file *, int datasync) = NULL;
-		struct file_operations fops;
+		struct file_operations fops __attribute__ ((unused));
 
 		fops.fsync = fsync;
 	],[

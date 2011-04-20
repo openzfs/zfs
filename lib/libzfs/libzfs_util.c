@@ -1186,11 +1186,14 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 	}
 
 	/*
-	 * We want to allow trailing 'b' characters for 'GB' or 'Mb'.  But don't
-	 * allow 'BB' - that's just weird.
+	 * Allow 'G' = 'GB' = 'GiB', case-insensitively.
+	 * However, 'BB' and 'BiB' are disallowed.
 	 */
-	if (buf[1] == '\0' || (toupper(buf[1]) == 'B' && buf[2] == '\0' &&
-	    toupper(buf[0]) != 'B'))
+	if (buf[1] == '\0' ||
+	    (toupper(buf[0]) != 'B' &&
+	     ((toupper(buf[1]) == 'B' && buf[2] == '\0') ||
+	      (toupper(buf[1]) == 'I' && toupper(buf[2]) == 'B' &&
+	       buf[3] == '\0'))))
 		return (10*i);
 
 	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

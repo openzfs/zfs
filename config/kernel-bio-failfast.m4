@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_FAILFAST], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = (1 << BIO_RW_FAILFAST);
 	],[
 		AC_MSG_RESULT(yes)
@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_FAILFAST_DTD], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = ((1 << BIO_RW_FAILFAST_DEV) |
 			 (1 << BIO_RW_FAILFAST_TRANSPORT) |
 			 (1 << BIO_RW_FAILFAST_DRIVER));
@@ -43,7 +43,7 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_FAILFAST_MASK], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_FAILFAST_MASK;
 	],[
 		AC_MSG_RESULT(yes)

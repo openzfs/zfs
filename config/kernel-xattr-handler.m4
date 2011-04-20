@@ -19,7 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER],
 			&xattr_test_handler,
 		};
 	],[
-		struct super_block sb;
+		struct super_block sb __attribute__ ((unused));
 
 		sb.s_xattr = xattr_handlers;
 	],[
@@ -43,7 +43,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 	],[
 		int (*get)(struct dentry *dentry, const char *name,
 		    void *buffer, size_t size, int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.get = get;
 	],[
@@ -68,7 +68,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 		int (*set)(struct dentry *dentry, const char *name,
 		    const void *buffer, size_t size, int flags,
 		    int handler_flags) = NULL;
-		struct xattr_handler xops;
+		struct xattr_handler xops __attribute__ ((unused));
 
 		xops.set = set;
 	],[

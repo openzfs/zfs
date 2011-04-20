@@ -191,6 +191,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	cred_t *cr = CRED();
 	ssize_t wrote;
 	int error;
+	const int xattr_mode = S_IFREG | 0644;
 
 	crhold(cr);
 
@@ -230,7 +231,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	/* Lookup failed create a new xattr. */
 	if (xip == NULL) {
 		vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-		vap->va_mode = S_IFREG | 0644;
+		vap->va_mode = xattr_mode;
 		vap->va_mask = ATTR_MODE;
 		vap->va_uid = crgetfsuid(cr);
 		vap->va_gid = crgetfsgid(cr);
@@ -242,6 +243,11 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	}
 
 	ASSERT(xip != NULL);
+
+	error = -zfs_freesp(ITOZ(xip), 0, 0, xattr_mode, TRUE);
+	if (error)
+		goto out;
+
 	wrote = zpl_write_common(xip, value, size, 0, UIO_SYSSPACE, 0, cr);
 	if (wrote < 0)
 		error = wrote;
