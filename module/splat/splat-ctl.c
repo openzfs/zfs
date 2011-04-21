@@ -663,8 +663,8 @@ splat_init(void)
 					 MKDEV(SPLAT_MAJOR, 0),
 					 NULL, SPLAT_NAME);
 
-	printk(KERN_INFO "SPLAT: Loaded Solaris Porting LAyer "
-	       "Tests v%s\n", SPL_META_VERSION);
+	printk(KERN_INFO "SPLAT: Loaded module v%s%s\n",
+	       SPL_META_VERSION, SPL_DEBUG_STR);
 	return 0;
 error:
 	printk(KERN_ERR "SPLAT: Error registering splat device, %d\n", rc);
@@ -698,8 +698,8 @@ splat_fini(void)
 	SPLAT_SUBSYSTEM_FINI(kmem);
 
 	ASSERT(list_empty(&splat_module_list));
-	printk(KERN_INFO "SPLAT: Unloaded Solaris Porting LAyer "
-	       "Tests v%s\n", SPL_META_VERSION);
+	printk(KERN_INFO "SPLAT: Unloaded module v%s%s\n",
+	       SPL_META_VERSION, SPL_DEBUG_STR);
 
 	return 0;
 }

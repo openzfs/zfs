@@ -498,8 +498,8 @@ __init spl_init(void)
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
 		SGOTO(out10, rc);
 
-	printk(KERN_NOTICE "SPL: Loaded Solaris Porting Layer v%s%s\n",
-	       SPL_META_VERSION, SPL_DEBUG_STR);
+	printk(KERN_NOTICE "SPL: Loaded module v%s%s, using hostid 0x%08x\n",
+	       SPL_META_VERSION, SPL_DEBUG_STR, (unsigned int) spl_hostid);
 	SRETURN(rc);
 out10:
 	zlib_fini();
@@ -532,7 +532,7 @@ spl_fini(void)
 {
 	SENTRY;
 
-	printk(KERN_NOTICE "SPL: Unloaded Solaris Porting Layer v%s%s\n",
+	printk(KERN_NOTICE "SPL: Unloaded module v%s%s\n",
 	       SPL_META_VERSION, SPL_DEBUG_STR);
 	zlib_fini();
 	tsd_fini();
