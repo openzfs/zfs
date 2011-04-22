@@ -3455,7 +3455,7 @@ zfs_check_clearable(char *dataset, nvlist_t *props, nvlist_t **errlist)
 
 	VERIFY(nvlist_alloc(&errors, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-	zc = kmem_alloc(sizeof (zfs_cmd_t), KM_SLEEP);
+	zc = kmem_alloc(sizeof (zfs_cmd_t), KM_SLEEP | KM_NODEBUG);
 	(void) strcpy(zc->zc_name, dataset);
 	pair = nvlist_next_nvpair(props, NULL);
 	while (pair != NULL) {

@@ -120,6 +120,7 @@ parse_option(char *mntopt, unsigned long *mntflags,
 		if (*ptr == '=') {
 			*ptr = '\0';
 			value = ptr+1;
+			VERIFY3P(value, !=, NULL);
 			break;
 		}
 	}

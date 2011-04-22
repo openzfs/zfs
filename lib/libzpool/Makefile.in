@@ -331,10 +331,11 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
 AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
-	${DEBUG_CFLAGS} -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT \
-	-D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64 \
-	-D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\" \
-	$(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+	$(FRAME_LARGER_THAN)
 lib_LTLIBRARIES = libzpool.la
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \

@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_RW_SYNC], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNC;
 	],[
 		AC_MSG_RESULT(yes)
@@ -24,7 +24,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_RW_SYNCIO], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = BIO_RW_SYNCIO;
 	],[
 		AC_MSG_RESULT(yes)
@@ -39,7 +39,7 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_SYNC], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
-		int flags;
+		int flags __attribute__ ((unused));
 		flags = REQ_SYNC;
 	],[
 		AC_MSG_RESULT(yes)

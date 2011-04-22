@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_EVICT_INODE], [
 		#include <linux/fs.h>
 	],[
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops;
+		struct super_operations sops __attribute__ ((unused));
 
 		sops.evict_inode = evict_inode;
 	],[

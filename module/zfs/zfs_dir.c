@@ -1038,6 +1038,7 @@ top:
 	va.va_mode = S_IFDIR | S_ISVTX | 0777;
 	zfs_fuid_map_ids(zp, cr, &va.va_uid, &va.va_gid);
 
+	va.va_dentry = NULL;
 	error = zfs_make_xattrdir(zp, &va, xipp, cr);
 	zfs_dirent_unlock(dl);
 

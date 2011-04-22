@@ -15,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_END_IO_T_ARGS], [
 		#include <linux/bio.h>
 	],[
 		void (*wanted_end_io)(struct bio *, int) = NULL;
-		bio_end_io_t *local_end_io;
+		bio_end_io_t *local_end_io __attribute__ ((unused));
 
 		local_end_io = wanted_end_io;
 	],[
