@@ -1,3 +1,24 @@
+zfs-linux (0.6.0.9-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Update zconfig.sh to use new zvol names
+  * Suppress 'zfs receive' memory warning
+  * Enforce ARC meta-data limits
+  * Fix spurious -EFAULT when setting I/O scheduler
+  * Fix 32-bit MAXOFFSET_T definition
+
+  [ Aniruddha Shankar ]
+  * Added required runlevel info for init on Debian
+
+  [ Gunnar Beutner ]
+  * Fixed a use-after-free bug in zfs_zget().
+
+  [ Darik Horn ]
+  * Use 0.6.0.9 as the unofficial version.
+  * Remove the gawk packaging dependency.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 23 Apr 2011 11:21:36 -0500
+
 zfs-linux (0.6.0.8-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
