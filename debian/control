@@ -2,7 +2,7 @@ Source: zfs-linux
 Section: kernel
 Priority: extra
 Maintainer: Darik Horn <dajhorn@vanadac.com>
-Build-Depends: autotools-dev, debhelper (>= 7.4), dkms (>> 2.1.1.2-5ubuntu1), gawk, uuid-dev, zlib1g-dev
+Build-Depends: autotools-dev, debhelper (>= 7.4), dkms (>> 2.1.1.2-5ubuntu1), uuid-dev, zlib1g-dev
 Standards-Version: 3.8.4
 Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
 Vcs-Browser: http://github.com/dajhorn/pkg-zfs
@@ -77,7 +77,7 @@ Description: Native ZFS filesystem kernel modules for Linux
 
 Package: zfs-initramfs
 Architecture: linux-any
-Depends: ${misc:Depends}, mountall (>= 2.18), gawk, zfsutils, zfs-grub
+Depends: ${misc:Depends}, mountall (>= 2.18), zfsutils, zfs-grub
 Description: Native ZFS root filesystem capabilities for Linux
 
 Package: zfsutils

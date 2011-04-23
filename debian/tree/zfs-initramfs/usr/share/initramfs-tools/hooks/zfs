@@ -24,7 +24,7 @@ COPY_EXEC_LIST=" \
   "
 
 # These prerequisites are provides by other packages.
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/gawk /usr/bin/hostid"
+COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/hostid"
 
 # Explicitly specify all modules because dependency resolution is unreliable here.
 MANUAL_ADD_MODULES_LIST="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
