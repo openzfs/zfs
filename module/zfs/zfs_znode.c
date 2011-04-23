@@ -811,14 +811,19 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 	znode_t		*zp;
 	int err;
 	sa_handle_t	*hdl;
+	struct inode	*ip;
 
 	*zpp = NULL;
+
+again:
+	ip = ilookup(zsb->z_sb, obj_num);
 
 	ZFS_OBJ_HOLD_ENTER(zsb, obj_num);
 
 	err = sa_buf_hold(zsb->z_os, obj_num, NULL, &db);
 	if (err) {
 		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		iput(ip);
 		return (err);
 	}
 
@@ -829,13 +834,27 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 	    doi.doi_bonus_size < sizeof (znode_phys_t)))) {
 		sa_buf_rele(db, NULL);
 		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		iput(ip);
 		return (EINVAL);
 	}
 
 	hdl = dmu_buf_get_user(db);
 	if (hdl != NULL) {
-		zp  = sa_get_userdata(hdl);
+		if (ip == NULL) {
+			/*
+			 * ilookup returned NULL, which means
+			 * the znode is dying - but the SA handle isn't
+			 * quite dead yet, we need to drop any locks
+			 * we're holding, re-schedule the task and try again.
+			 */
+			sa_buf_rele(db, NULL);
+			ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
 
+			schedule();
+			goto again;
+		}
+
+		zp = sa_get_userdata(hdl);
 
 		/*
 		 * Since "SA" does immediate eviction we
@@ -857,8 +876,11 @@ zfs_zget(zfs_sb_t *zsb, uint64_t obj_num, znode_t **zpp)
 		sa_buf_rele(db, NULL);
 		mutex_exit(&zp->z_lock);
 		ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
+		iput(ip);
 		return (err);
 	}
+
+	ASSERT3P(ip, ==, NULL);
 
 	/*
 	 * Not found create new znode/vnode but only if file exists.
