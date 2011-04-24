@@ -35,7 +35,7 @@
 
 #define	MAXFIDSZ	64
 
-typedef struct fid {
+typedef struct spl_fid {
 	union {
 		long fid_pad;
 		struct {
