@@ -492,7 +492,7 @@ SPL_PROC_HANDLER(proc_dohostid)
 
         if (write) {
                 /* We can't use spl_proc_doulongvec_minmax() in the write
-                 * case hear because hostid while a hex value has no
+                 * case here because hostid while a hex value has no
                  * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
@@ -506,7 +506,7 @@ SPL_PROC_HANDLER(proc_dohostid)
                 hw_serial[HW_HOSTID_LEN - 1] = '\0';
                 *ppos += *lenp;
         } else {
-                len = snprintf(str, sizeof(str), "%lux", spl_hostid);
+                len = snprintf(str, sizeof(str), "%lx", spl_hostid);
                 if (*ppos >= len)
                         rc = 0;
                 else
@@ -534,7 +534,7 @@ SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
 			SRETURN(-EEXIST);
 
 		/* We can't use spl_proc_doulongvec_minmax() in the write
-		 * case hear because the address while a hex value has no
+		 * case here because the address while a hex value has no
 		 * leading 0x which confuses the helper function. */
                 rc = proc_copyin_string(str, sizeof(str), buffer, *lenp);
                 if (rc < 0)
