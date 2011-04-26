@@ -44,14 +44,4 @@
 # define issetugid() (geteuid() == 0 || getegid() == 0)
 #endif
 
-#if !defined(__sun__) && !defined(__sun)
-/* It seems Solaris only returns positive host ids */
-static inline long fake_gethostid(void)
-{
-	long id = gethostid();
-	return id >= 0 ? id : -id;
-}
-#define gethostid() fake_gethostid()
-#endif
-
 #endif /* _LIBSPL_UNISTD_H */

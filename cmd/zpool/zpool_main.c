@@ -1533,7 +1533,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID,
 		    &hostid) == 0) {
-			if ((unsigned long)hostid != gethostid()) {
+			unsigned long system_hostid = gethostid() & 0xffffffff;
+
+			if ((unsigned long)hostid != system_hostid) {
 				char *hostname;
 				uint64_t timestamp;
 				time_t t;
