@@ -809,11 +809,18 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 
 	scn->scn_visited_this_txg++;
 
-	dprintf_bp(bp,
-	    "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx buf=%p bp=%p",
-	    ds, ds ? ds->ds_object : 0,
-	    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
-	    pbuf, bp);
+	/*
+	 * This debugging is commented out to conserve stack space.  This
+	 * function is called recursively and the debugging addes several
+	 * bytes to the stack for each call.  It can be commented back in
+	 * if required to debug an issue in dsl_scan_visitbp().
+	 *
+	 * dprintf_bp(bp,
+	 *    "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx buf=%p bp=%p",
+	 *    ds, ds ? ds->ds_object : 0,
+	 *    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
+	 *    pbuf, bp);
+	 */
 
 	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 		goto out;
