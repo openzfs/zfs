@@ -1,3 +1,18 @@
+zfs-linux (0.6.0.10-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix zvol deadlock
+  * Conserve stack in dsl_scan_visitbp()
+  * Conserve stack in dsl_scan_visitbp()
+  * Conserve stack in dsl_scan_visit()
+
+  [ Darik Horn ]
+  * Use gethostid in the Linux convention.
+  * Use 0.6.0.10 as the unofficial version.
+  * Use substvars versions in the debian/control.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 27 Apr 2011 11:23:52 -0500
+
 zfs-linux (0.6.0.9-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
