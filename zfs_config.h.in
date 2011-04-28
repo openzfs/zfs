@@ -72,6 +72,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* d_obtain_alias() is available */
+#undef HAVE_D_OBTAIN_ALIAS
+
 /* sops->evict_inode() exists */
 #undef HAVE_EVICT_INODE
 

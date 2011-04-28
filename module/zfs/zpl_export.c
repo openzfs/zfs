@@ -1,0 +1,121 @@
+/*
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright (c) 2011 Gunnar Beutner
+ */
+
+
+#include <sys/zfs_vnops.h>
+#include <sys/zfs_znode.h>
+#include <sys/zpl.h>
+
+
+static int
+zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
+{
+	fid_t *fid = (fid_t *)fh;
+	struct inode *ip = dentry->d_inode;
+	int len_bytes, rc;
+
+	len_bytes = *max_len * sizeof (__u32);
+
+	if (len_bytes < offsetof(fid_t, fid_data))
+		return 255;
+
+	fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
+
+	rc = zfs_fid(ip, fid);
+
+	len_bytes = offsetof(fid_t, fid_data) + fid->fid_len;
+	*max_len = roundup(len_bytes, sizeof (__u32)) / sizeof (__u32);
+
+	return (rc == 0 ? FILEID_INO32_GEN : 255);
+}
+
+static struct dentry *
+zpl_dentry_obtain_alias(struct inode *ip)
+{
+	struct dentry *result;
+
+#ifdef HAVE_D_OBTAIN_ALIAS
+	result = d_obtain_alias(ip);
+#else
+	result = d_alloc_anon(ip);
+
+	if (result == NULL) {
+		iput(ip);
+		result = ERR_PTR(-ENOMEM);
+	}
+#endif /* HAVE_D_OBTAIN_ALIAS */
+
+	return result;
+}
+
+static struct dentry *
+zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
+    int fh_len, int fh_type)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	struct vfsmount *vfs = zsb->z_vfs;
+	fid_t *fid = (fid_t *)fh;
+	struct inode *ip;
+	int len_bytes, rc;
+
+	len_bytes = fh_len * sizeof (__u32);
+
+	if (fh_type != FILEID_INO32_GEN ||
+	    len_bytes < offsetof(fid_t, fid_data) ||
+	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
+		return ERR_PTR(-EINVAL);
+
+	rc = zfs_vget(vfs, &ip, fid);
+
+	if (rc != 0)
+		return ERR_PTR(-rc);
+
+	ASSERT((ip != NULL) && !IS_ERR(ip));
+
+	return zpl_dentry_obtain_alias(ip);
+}
+
+static struct dentry *
+zpl_get_parent(struct dentry *child)
+{
+	cred_t *cr = CRED();
+	struct inode *ip;
+	int error;
+
+	crhold(cr);
+	error = -zfs_lookup(child->d_inode, "..", &ip, 0, cr, NULL, NULL);
+	crfree(cr);
+	ASSERT3S(error, <=, 0);
+
+	if (error)
+		return ERR_PTR(error);
+
+	return zpl_dentry_obtain_alias(ip);
+}
+
+const struct export_operations zpl_export_operations = {
+	.encode_fh	= zpl_encode_fh,
+	.fh_to_dentry	= zpl_fh_to_dentry,
+	.get_parent	= zpl_get_parent
+};
