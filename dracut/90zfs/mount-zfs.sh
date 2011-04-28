@@ -5,12 +5,12 @@
 if [ "$rootfs" = "zfs" ]; then
     zfsrootfs=`echo "$root" | sed 's|^zfs:||'`
     zfspool=`echo "$zfsrootfs" | sed 's|/.*||g'`
+    echo "Importing ZFS pool $zfspool for root filesystem"
     zpool import -N "$zfspool"
-    mount -o zfsutil -t "$rootfs" "$zfsrootfs" "$NEWROOT"
-    if [ "$?" = "0" ]
-    then
-        ROOTFS_MOUNTED=yes
-    else
+    echo "Mounting ZFS root filesystem $zfsrootfs"
+    if zfs get mountpoint laptop | grep -q legacy ; then
         mount -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
+    else
+        mount -o zfsutil -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
     fi
 fi
