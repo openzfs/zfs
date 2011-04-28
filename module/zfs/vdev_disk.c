@@ -118,6 +118,12 @@ vdev_disk_error(zio_t *zio)
  * automatically imported on module load so we must do this at device
  * open time from the kernel.
  */
+#define SET_SCHEDULER_CMD \
+	"exec 0</dev/null " \
+	"     1>/sys/block/%s/queue/scheduler " \
+	"     2>/dev/null; " \
+	"echo %s"
+
 static int
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
@@ -125,11 +131,9 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	struct block_device *bdev = vd->vd_bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	char *device = bdev->bd_disk->disk_name;
-	char sh_path[] = "/bin/sh";
-	char sh_cmd[128];
-	char *argv[] = { sh_path, "-c", sh_cmd };
+	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
-	int count = 0, error;
+	int error;
 
 	/* Skip devices which are not whole disks (partitions) */
 	if (!v->vdev_wholedisk)
@@ -143,22 +147,13 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
 		return (0);
 
-	/*
-	 * Set the desired scheduler with a three attempt retry for
-	 * -EFAULT which has been observed to occur spuriously.
-	 */
-	sprintf(sh_cmd, "%s \"%s\" >/sys/block/%s/queue/scheduler",
-	    "/bin/echo", elevator, device);
-
-	while (++count <= 3) {
-		error = call_usermodehelper(sh_path, argv, envp, 1);
-		if ((error == 0) || (error != -EFAULT))
-		       break;
-	}
-
+	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+	error = call_usermodehelper(argv[0], argv, envp, 1);
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		       elevator, v->vdev_path, device, error);
+
+	strfree(argv[2]);
 
 	return (error);
 }

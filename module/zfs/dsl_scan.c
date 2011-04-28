@@ -648,7 +648,7 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
  * Return nonzero on i/o error.
  * Return new buf to write out in *bufp.
  */
-static int
+__attribute__((always_inline)) static int
 dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
     dnode_phys_t *dnp, const blkptr_t *bp,
     const zbookmark_t *zb, dmu_tx_t *tx, arc_buf_t **bufp)
@@ -754,7 +754,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	return (0);
 }
 
-static void
+__attribute__((always_inline)) static void
 dsl_scan_visitdnode(dsl_scan_t *scn, dsl_dataset_t *ds,
     dmu_objset_type_t ostype, dnode_phys_t *dnp, arc_buf_t *buf,
     uint64_t object, dmu_tx_t *tx)
@@ -809,11 +809,18 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 
 	scn->scn_visited_this_txg++;
 
-	dprintf_bp(bp,
-	    "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx buf=%p bp=%p",
-	    ds, ds ? ds->ds_object : 0,
-	    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
-	    pbuf, bp);
+	/*
+	 * This debugging is commented out to conserve stack space.  This
+	 * function is called recursively and the debugging addes several
+	 * bytes to the stack for each call.  It can be commented back in
+	 * if required to debug an issue in dsl_scan_visitbp().
+	 *
+	 * dprintf_bp(bp,
+	 *    "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx buf=%p bp=%p",
+	 *    ds, ds ? ds->ds_object : 0,
+	 *    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
+	 *    pbuf, bp);
+	 */
 
 	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 		goto out;
@@ -1321,8 +1328,8 @@ static void
 dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
-	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
 
 	if (scn->scn_phys.scn_ddt_bookmark.ddb_class <=
 	    scn->scn_phys.scn_ddt_class_max) {
@@ -1370,24 +1377,26 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 	 * bookmark so we don't think that we're still trying to resume.
 	 */
 	bzero(&scn->scn_phys.scn_bookmark, sizeof (zbookmark_t));
+	zc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
 
 	/* keep pulling things out of the zap-object-as-queue */
-	while (zap_cursor_init(&zc, dp->dp_meta_objset,
+	while (zap_cursor_init(zc, dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj),
-	    zap_cursor_retrieve(&zc, &za) == 0) {
+	    zap_cursor_retrieve(zc, za) == 0) {
 		dsl_dataset_t *ds;
 		uint64_t dsobj;
 
-		dsobj = strtonum(za.za_name, NULL);
+		dsobj = strtonum(za->za_name, NULL);
 		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, dsobj, tx));
 
 		/* Set up min/max txg */
 		VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
-		if (za.za_first_integer != 0) {
+		if (za->za_first_integer != 0) {
 			scn->scn_phys.scn_cur_min_txg =
 			    MAX(scn->scn_phys.scn_min_txg,
-			    za.za_first_integer);
+			    za->za_first_integer);
 		} else {
 			scn->scn_phys.scn_cur_min_txg =
 			    MAX(scn->scn_phys.scn_min_txg,
@@ -1397,11 +1406,14 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 		dsl_dataset_rele(ds, FTAG);
 
 		dsl_scan_visitds(scn, dsobj, tx);
-		zap_cursor_fini(&zc);
+		zap_cursor_fini(zc);
 		if (scn->scn_pausing)
-			return;
+			goto out;
 	}
-	zap_cursor_fini(&zc);
+	zap_cursor_fini(zc);
+out:
+	kmem_free(za, sizeof(zap_attribute_t));
+	kmem_free(zc, sizeof(zap_cursor_t));
 }
 
 static int

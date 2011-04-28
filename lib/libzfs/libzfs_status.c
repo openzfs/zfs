@@ -179,6 +179,7 @@ check_status(nvlist_t *config, boolean_t isimport)
 	uint64_t stateval;
 	uint64_t suspended;
 	uint64_t hostid = 0;
+	unsigned long system_hostid = gethostid() & 0xffffffff;
 
 	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
 	    &version) == 0);
@@ -202,7 +203,7 @@ check_status(nvlist_t *config, boolean_t isimport)
 	 * Pool last accessed by another system.
 	 */
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
-	if (hostid != 0 && (unsigned long)hostid != gethostid() &&
+	if (hostid != 0 && (unsigned long)hostid != system_hostid &&
 	    stateval == POOL_STATE_ACTIVE)
 		return (ZPOOL_STATUS_HOSTID_MISMATCH);
 
