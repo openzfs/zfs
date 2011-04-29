@@ -54,7 +54,7 @@
 #define GID_NOBODY      UID_NOBODY
 #define UID_NOACCESS    60002   /* user ID no access */
 
-#define MAXUID          2147483647      /* max user id */
+#define MAXUID          UINT32_MAX      /* max user id */
 #define MAXPROJID       MAXUID          /* max project id */
 
 #define PAGESIZE (sysconf(_SC_PAGESIZE))
