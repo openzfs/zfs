@@ -435,6 +435,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_export.c \
 	$(top_srcdir)/module/zfs/zpl_file.c \
 	$(top_srcdir)/module/zfs/zpl_inode.c \
 	$(top_srcdir)/module/zfs/zpl_super.c \
