@@ -1,3 +1,19 @@
+zfs-linux (0.6.0.11-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Suppress 'vdev_metaslab_init' memory warning
+  * Fix 'zfs set volsize=N pool/dataset'
+  * Fully update inode when created
+  * Correct MAXUID
+
+  [ Gunnar Beutner ]
+  * Implemented NFS export_operations.
+
+  [ Alejandro R. Sedeño ]
+  * Add zpl_export.c to the list of targets.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 02 May 2011 19:07:36 -0500
+
 zfs-linux (0.6.0.10-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
