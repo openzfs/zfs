@@ -373,8 +373,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	}
 
 	ip->i_ino = obj;
-	ip->i_mode = zp->z_mode;
-	ip->i_mtime = ip->i_atime = ip->i_ctime = CURRENT_TIME_SEC;
+	zfs_inode_update(zp);
 	zfs_inode_set_ops(zsb, ip);
 
 	if (insert_inode_locked(ip))

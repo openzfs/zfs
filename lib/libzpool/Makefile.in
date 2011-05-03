@@ -53,6 +53,8 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
 	$(top_srcdir)/config/kernel-blkdev-get-by-path.m4 \
+	$(top_srcdir)/config/kernel-check-disk-size-change.m4 \
+	$(top_srcdir)/config/kernel-d-obtain-alias.m4 \
 	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
 	$(top_srcdir)/config/kernel-fsync.m4 \
@@ -434,6 +436,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_export.c \
 	$(top_srcdir)/module/zfs/zpl_file.c \
 	$(top_srcdir)/module/zfs/zpl_inode.c \
 	$(top_srcdir)/module/zfs/zpl_super.c \

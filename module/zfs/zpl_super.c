@@ -210,14 +210,6 @@ const struct super_operations zpl_super_operations = {
 	.show_stats	= NULL,
 };
 
-#if 0
-const struct export_operations zpl_export_operations = {
-	.fh_to_dentry	= NULL,
-	.fh_to_parent	= NULL,
-	.get_parent	= NULL,
-};
-#endif
-
 struct file_system_type zpl_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= ZFS_DRIVER,
