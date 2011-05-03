@@ -76,9 +76,9 @@
 #include <sys/time.h>
 #include <sys/zfs_ioctl.h>
 
-int zevent_len_max = 0;
-int zevent_cols = 80;
-int zevent_console = 0;
+int zfs_zevent_len_max = 0;
+int zfs_zevent_cols = 80;
+int zfs_zevent_console = 0;
 
 static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
@@ -405,9 +405,9 @@ fm_nvprint(nvlist_t *nvl)
 	console_printf("\n");
 
 	if (nvlist_lookup_string(nvl, FM_CLASS, &class) == 0)
-		c = fm_printf(0, c, zevent_cols, "%s", class);
+		c = fm_printf(0, c, zfs_zevent_cols, "%s", class);
 
-	if (fm_nvprintr(nvl, 0, c, zevent_cols) != 0)
+	if (fm_nvprintr(nvl, 0, c, zfs_zevent_cols) != 0)
 		console_printf("\n");
 
 	console_printf("\n");
@@ -483,7 +483,7 @@ zfs_zevent_insert(zevent_t *ev)
 {
 	mutex_enter(&zevent_lock);
 	list_insert_head(&zevent_list, ev);
-	if (zevent_len_cur >= zevent_len_max)
+	if (zevent_len_cur >= zfs_zevent_len_max)
 		zfs_zevent_drain(list_tail(&zevent_list));
 	else
 		zevent_len_cur++;
@@ -516,7 +516,7 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 		return;
 	}
 
-	if (zevent_console)
+	if (zfs_zevent_console)
 		fm_nvprint(nvl);
 
 	ev = zfs_zevent_alloc();
@@ -1488,8 +1488,8 @@ fm_init(void)
 	zevent_len_cur = 0;
 	zevent_flags = 0;
 
-	if (zevent_len_max == 0)
-		zevent_len_max = ERPT_MAX_ERRS * MAX(max_ncpus, 4);
+	if (zfs_zevent_len_max == 0)
+		zfs_zevent_len_max = ERPT_MAX_ERRS * MAX(max_ncpus, 4);
 
 	/* Initialize zevent allocation and generation kstats */
 	fm_ksp = kstat_create("zfs", 0, "fm", "misc", KSTAT_TYPE_NAMED,
@@ -1535,13 +1535,13 @@ fm_fini(void)
 	}
 }
 
-module_param(zevent_len_max, int, 0644);
-MODULE_PARM_DESC(zevent_len_max, "Maximum event queue length");
+module_param(zfs_zevent_len_max, int, 0644);
+MODULE_PARM_DESC(zfs_zevent_len_max, "Max event queue length");
 
-module_param(zevent_cols, int, 0644);
-MODULE_PARM_DESC(zevent_cols, "Maximum event column width");
+module_param(zfs_zevent_cols, int, 0644);
+MODULE_PARM_DESC(zfs_zevent_cols, "Max event column width");
 
-module_param(zevent_console, int, 0644);
-MODULE_PARM_DESC(zevent_console, "Log events to the console");
+module_param(zfs_zevent_console, int, 0644);
+MODULE_PARM_DESC(zfs_zevent_console, "Log events to the console");
 
 #endif /* _KERNEL */

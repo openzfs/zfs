@@ -44,10 +44,10 @@ int zfs_no_write_throttle = 0;
 int zfs_write_limit_shift = 3;			/* 1/8th of physical memory */
 int zfs_txg_synctime_ms = 1000;		/* target millisecs to sync a txg */
 
-uint64_t zfs_write_limit_min = 32 << 20;	/* min write limit is 32MB */
-uint64_t zfs_write_limit_max = 0;		/* max data payload per txg */
-uint64_t zfs_write_limit_inflated = 0;
-uint64_t zfs_write_limit_override = 0;
+unsigned long zfs_write_limit_min = 32 << 20;	/* min write limit is 32MB */
+unsigned long zfs_write_limit_max = 0;		/* max data payload per txg */
+unsigned long zfs_write_limit_inflated = 0;
+unsigned long zfs_write_limit_override = 0;
 
 kmutex_t zfs_write_limit_lock;
 
@@ -847,3 +847,26 @@ dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj, const char *tag,
 	return (dsl_pool_user_hold_rele_impl(dp, dsobj, tag, NULL,
 	    tx, B_FALSE));
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_no_write_throttle, int, 0644);
+MODULE_PARM_DESC(zfs_no_write_throttle, "Disable write throttling");
+
+module_param(zfs_write_limit_shift, int, 0444);
+MODULE_PARM_DESC(zfs_write_limit_shift, "log2(fraction of memory) per txg");
+
+module_param(zfs_txg_synctime_ms, int, 0644);
+MODULE_PARM_DESC(zfs_txg_synctime_ms, "Target milliseconds between tgx sync");
+
+module_param(zfs_write_limit_min, ulong, 0444);
+MODULE_PARM_DESC(zfs_write_limit_min, "Min tgx write limit");
+
+module_param(zfs_write_limit_max, ulong, 0444);
+MODULE_PARM_DESC(zfs_write_limit_max, "Max tgx write limit");
+
+module_param(zfs_write_limit_inflated, ulong, 0444);
+MODULE_PARM_DESC(zfs_write_limit_inflated, "Inflated tgx write limit");
+
+module_param(zfs_write_limit_override, ulong, 0444);
+MODULE_PARM_DESC(zfs_write_limit_override, "Override tgx write limit");
+#endif

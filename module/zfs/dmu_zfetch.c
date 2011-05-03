@@ -39,13 +39,13 @@
 int zfs_prefetch_disable = 0;
 
 /* max # of streams per zfetch */
-uint32_t	zfetch_max_streams = 8;
+unsigned int	zfetch_max_streams = 8;
 /* min time before stream reclaim */
-uint32_t	zfetch_min_sec_reap = 2;
+unsigned int	zfetch_min_sec_reap = 2;
 /* max number of blocks to fetch at a time */
-uint32_t	zfetch_block_cap = 256;
+unsigned int	zfetch_block_cap = 256;
 /* number of bytes in a array_read at which we stop prefetching (1Mb) */
-uint64_t	zfetch_array_rd_sz = 1024 * 1024;
+unsigned long	zfetch_array_rd_sz = 1024 * 1024;
 
 /* forward decls for static routines */
 static int		dmu_zfetch_colinear(zfetch_t *, zstream_t *);
@@ -726,5 +726,17 @@ dmu_zfetch(zfetch_t *zf, uint64_t offset, uint64_t size, int prefetched)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_prefetch_disable, int, 0644);
 MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
+
+module_param(zfetch_max_streams, uint, 0644);
+MODULE_PARM_DESC(zfetch_max_streams, "Max number of streams per zfetch");
+
+module_param(zfetch_min_sec_reap, uint, 0644);
+MODULE_PARM_DESC(zfetch_min_sec_reap, "Min time before stream reclaim");
+
+module_param(zfetch_block_cap, uint, 0644);
+MODULE_PARM_DESC(zfetch_block_cap, "Max number of blocks to fetch at a time");
+
+module_param(zfetch_array_rd_sz, ulong, 0644);
+MODULE_PARM_DESC(zfetch_array_rd_sz, "Number of bytes in a array_read");
 #endif
 

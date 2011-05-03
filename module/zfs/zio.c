@@ -86,7 +86,7 @@ extern vmem_t *zio_alloc_arena;
  */
 #define	IO_IS_ALLOCATING(zio) ((zio)->io_orig_pipeline & ZIO_STAGE_DVA_ALLOCATE)
 
-boolean_t	zio_requeue_io_start_cut_in_line = B_TRUE;
+int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
 int zio_buf_debug_limit = 16384;
@@ -3006,5 +3006,8 @@ module_param(zio_bulk_flags, int, 0644);
 MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
 
 module_param(zio_delay_max, int, 0644);
-MODULE_PARM_DESC(zio_delay_max, "Max zio delay before posting an event (ms)");
+MODULE_PARM_DESC(zio_delay_max, "Max zio millisec delay before posting event");
+
+module_param(zio_requeue_io_start_cut_in_line, int, 0644);
+MODULE_PARM_DESC(zio_requeue_io_start_cut_in_line, "Prioritize requeued I/O");
 #endif

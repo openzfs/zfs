@@ -571,4 +571,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(traverse_dataset);
 EXPORT_SYMBOL(traverse_pool);
+
+module_param(zfs_pd_blks_max, int, 0644);
+MODULE_PARM_DESC(zfs_pd_blks_max, "Max number of blocks to prefetch");
 #endif
