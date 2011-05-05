@@ -256,7 +256,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-EXTRA_DIST = zfs.fedora zfs.lsb
+EXTRA_DIST = zfs.fedora zfs.gentoo zfs.lsb zfs.lunar zfs.redhat
 all: all-am
 
 .SUFFIXES:
