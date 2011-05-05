@@ -6,3 +6,5 @@
 
 # This depends on mountall 2.18, which recognizes the link.
 ln -sf /proc/mounts /etc/mtab
+
+#DEBHELPER#
