@@ -1,0 +1,23 @@
+Index: b/scripts/Makefile.am
+===================================================================
+--- a/scripts/Makefile.am
++++ b/scripts/Makefile.am
+@@ -1,4 +1,4 @@
+-SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
++SUBDIRS = zpool-config zpios-test zpios-profile
+ 
+ pkglibexecdir = $(libexecdir)/@PACKAGE@
+ dist_pkglibexec_SCRIPTS = \
+Index: b/scripts/Makefile.in
+===================================================================
+--- a/scripts/Makefile.in
++++ b/scripts/Makefile.in
+@@ -321,7 +321,7 @@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
++SUBDIRS = zpool-config zpios-test zpios-profile
+ dist_pkglibexec_SCRIPTS = \
+ 	$(top_builddir)/scripts/common.sh \
+ 	$(top_srcdir)/scripts/zconfig.sh \
