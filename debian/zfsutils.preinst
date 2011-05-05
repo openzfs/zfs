@@ -4,3 +4,5 @@ if [ -f /etc/default/zfsload ]
 then
 	mv /etc/default/zfsload /etc/default/zfs
 fi
+
+#DEBHELPER#
