@@ -13,18 +13,23 @@ Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: libavl1
 Replaces: zfs-lib
 Description: OpenSolaris AVL tree manipulation library for Linux
+ Adelson-Velskii Landis balanced binary tree manipulation library.
 
 Package: libefi0
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris EFI library for Linux
+ Extensible Firmware Interface library for GUID disk partitioning.
 
 Package: libnvpair0
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris name-value library for Linux
+ This library provides routines for packing and unpacking nv pairs for
+ transporting data across process boundaries, transporting between
+ kernel and userland, and possibly saving onto disk files.
 
 Package: libspl0
 Architecture: linux-any
@@ -32,18 +37,24 @@ Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: spl-dev
 Replaces: zfs-lib
 Description: Solaris Portability Layer library for Linux
+ The Solaris Porting Layer (SPL) library provides APIs that make it
+ possible to run Solaris user code in a Linux environment with
+ relatively minimal modification.
 
 Package: libunicode0
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris unicode library for Linux
+ This library provides UTF-8 text preparation functions and
+ conversion functions for UTF-8, UTF-16, and UTF-32.
 
 Package: libuutil0
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: OpenSolaris userland utility library for Linux
+ Solaris glue functions for ZFS.
 
 Package: libzfs-dev
 Architecture: linux-any
@@ -59,12 +70,14 @@ Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: Native ZFS filesystem library for Linux
+ The zfs management library.
 
 Package: libzpool0
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: zfs-lib
 Description: Native ZFS pool library for Linux
+ The zpool management library.
 
 Package: zfs-dkms
 Architecture: linux-any
@@ -74,11 +87,14 @@ Replaces: lzfs, lzfs-dkms
 Provides: lzfs, lzfs-dkms
 Conflicts: lzfs, lzfs-dkms
 Description: Native ZFS filesystem kernel modules for Linux
+ An advanced integrated volume manager and filesystem.
+ Includes the SPA, DMU, ZVOL, and ZPL components of ZFS.
 
 Package: zfs-initramfs
 Architecture: linux-any
 Depends: ${misc:Depends}, mountall (>= 2.18), zfsutils, zfs-grub
 Description: Native ZFS root filesystem capabilities for Linux
+ This package adds ZFS to the system initramfs.
 
 Package: zfsutils
 Architecture: linux-any
@@ -88,3 +104,5 @@ Suggests: zfs-initramfs
 Conflicts: zfs, zfs-fuse
 Replaces: zfs
 Description: Native ZFS management utilities for Linux
+ This package provides the zpool and zfs commands that are used to
+ manage ZFS filesystems.
