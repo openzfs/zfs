@@ -428,15 +428,20 @@ main(int argc, char **argv)
 		return (MOUNT_SYSERR);
 
 	/* try to open the dataset to access the mount point */
-	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM)) == NULL) {
+	if ((zhp = zfs_open(g_zfs, dataset,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
 		    "mounted, unable to open the dataset\n"), dataset);
 		libzfs_fini(g_zfs);
 		return (MOUNT_USAGE);
 	}
 
-	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, legacy,
-	    sizeof (legacy), NULL, NULL, 0, B_FALSE);
+	/* treat all snapshots as legacy mount points */
+	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
+		(void) strlcpy(legacy, ZFS_MOUNTPOINT_LEGACY, ZFS_MAXPROPLEN);
+	else
+		(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, legacy,
+		    sizeof (legacy), NULL, NULL, 0, B_FALSE);
 
 	zfs_close(zhp);
 	libzfs_fini(g_zfs);
