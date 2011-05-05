@@ -1,3 +1,15 @@
+zfs-linux (0.6.0.12.rc4-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add Gentoo/Lunar/Redhat Init Scripts
+  * Prep zfs-0.6.0-rc4 tag
+
+  [ Darik Horn ]
+  * Use 0.6.0.12.rc4 as the unofficial version.
+  * Quilt refresh.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 05 May 2011 10:18:40 -0500
+
 zfs-linux (0.6.0.11-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
