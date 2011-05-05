@@ -1,5 +1,5 @@
 volatile-version.patch
 disable-dist-init.patch
 disable-dist-dracut.patch
-disable-zpool-layout.patch
+disable-dist-scripts.patch
 lintian-COPYING.patch
