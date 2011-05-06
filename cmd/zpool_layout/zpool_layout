@@ -12,7 +12,7 @@
 # /etc/zfs/zdev.conf file, it allows the by-path naming convertion
 # to change and still keep the simple <channel><rank> naming.
 #
-AWK=${AWK:-/bin/awk}
+AWK=${AWK:-/usr/bin/awk}
 CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
 BUSES=( 01 02 03 )
 PORTS=( 4 0 )

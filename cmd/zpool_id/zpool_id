@@ -2,7 +2,7 @@
 
 CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
 PATH_ID=${PATH_ID:-/lib/udev/path_id}
-AWK=${AWK:-/bin/awk}
+AWK=${AWK:-/usr/bin/awk}
 
 die() {
 	echo "Error: $*"
@@ -47,8 +47,9 @@ eval `${PATH_ID} ${DEVICE}`
 # configuration file which is of the format <device id> <key>.
 # Lines starting with #'s are treated as comments and ignored.
 # Exact matches are required, wild cards are not supported,
-# and only the first match is returned.
-ID_ZPOOL=`${AWK} "/${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" ${CONFIG}`
+# and only the first match is returned.  Also note the following
+# regex pattern only appears to work with gawk, not mawk or awk.
+ID_ZPOOL=`${AWK} "/\<${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" ${CONFIG}`
 [ -z ${ID_ZPOOL} ] && die "Missing ID_ZPOOL for ID_PATH: ${ID_PATH}"
 
 if [ ${ID_ZPOOL} ]; then
