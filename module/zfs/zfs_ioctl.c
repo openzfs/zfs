@@ -1441,7 +1441,7 @@ zfs_ioc_pool_get_history(zfs_cmd_t *zc)
 		return (ENOTSUP);
 	}
 
-	hist_buf = kmem_alloc(size, KM_SLEEP);
+	hist_buf = vmem_alloc(size, KM_SLEEP);
 	if ((error = spa_history_get(spa, &zc->zc_history_offset,
 	    &zc->zc_history_len, hist_buf)) == 0) {
 		error = ddi_copyout(hist_buf,
@@ -1450,7 +1450,7 @@ zfs_ioc_pool_get_history(zfs_cmd_t *zc)
 	}
 
 	spa_close(spa, FTAG);
-	kmem_free(hist_buf, size);
+	vmem_free(hist_buf, size);
 	return (error);
 }
 
