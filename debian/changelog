@@ -1,3 +1,25 @@
+zfs-linux (0.6.0.12.rc4-0ubuntu2) unstable; urgency=low
+
+  * Add the debhelper token to zfs-initramfs.preinst
+  * Add the debehelper token to zfsutils.preinst
+  * Add extended package descriptions.
+  * Disable zpool-layout distribution.
+  * Add -e switch to the zfsutils.preinst whackbang.
+  * Add docs file for each package.
+  * Package libexec scripts as examples.
+  * Add -e switch to the zfs-initramfs.preinst whackbang.
+  * Flag autogen.sh as executable.
+  * Add -e switch to the zfs-dkms.postinst whackbang.
+  * Disable scripts distribution.
+  * Add whackbang to the ltmain.sh script.
+  * Remove unused zfs-dkms.preinst script.
+  * Add -e switch to the zfs-dkms.prerm whackbang.
+  * Remove unused zfs-dkms.postrm script.
+  * Specify a distro section for each package.
+  * Add snapshot-mount.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 05 May 2011 19:51:35 -0500
+
 zfs-linux (0.6.0.12.rc4-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
