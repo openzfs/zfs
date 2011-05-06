@@ -40,6 +40,7 @@
 #define TASKQ_DYNAMIC           0x00000004
 #define TASKQ_THREADS_CPU_PCT   0x00000008
 #define TASKQ_DC_BATCH          0x00000010
+#define TASKQ_NORECLAIM         0x00000020
 
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);

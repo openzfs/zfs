@@ -371,6 +371,10 @@ taskq_thread(void *args)
         ASSERT(tq);
         current->flags |= PF_NOFREEZE;
 
+	/* Disable the direct memory reclaim path */
+	if (tq->tq_flags & TASKQ_NORECLAIM)
+		current->flags |= PF_MEMALLOC;
+
         sigfillset(&blocked);
         sigprocmask(SIG_BLOCK, &blocked, NULL);
         flush_signals(current);
