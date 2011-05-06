@@ -408,11 +408,23 @@ vdev_queue_io_done(zio_t *zio)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_vdev_max_pending, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_max_pending, "Maximum pending VDEV IO");
+MODULE_PARM_DESC(zfs_vdev_max_pending, "Max pending per-vdev I/Os");
 
 module_param(zfs_vdev_min_pending, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_min_pending, "Minimum pending VDEV IO");
+MODULE_PARM_DESC(zfs_vdev_min_pending, "Min pending per-vdev I/Os");
 
 module_param(zfs_vdev_aggregation_limit, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_aggregation_limit, "Maximum VDEV IO aggregation");
+MODULE_PARM_DESC(zfs_vdev_aggregation_limit, "Max vdev I/O aggregation size");
+
+module_param(zfs_vdev_time_shift, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_time_shift, "Deadline time shift for vdev I/O");
+
+module_param(zfs_vdev_ramp_rate, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_ramp_rate, "Exponential I/O issue ramp-up rate");
+
+module_param(zfs_vdev_read_gap_limit, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_read_gap_limit, "Aggregate read I/O over gap");
+
+module_param(zfs_vdev_write_gap_limit, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_write_gap_limit, "Aggregate write I/O over gap");
 #endif

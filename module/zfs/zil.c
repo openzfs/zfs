@@ -74,7 +74,7 @@ int zil_replay_disable = 0;    /* disable intent logging replay */
  * zfs_nocacheflush will cause corruption on power loss if a volatile
  * out-of-order write cache is enabled.
  */
-boolean_t zfs_nocacheflush = B_FALSE;
+int zfs_nocacheflush = 0;
 
 static kmem_cache_t *zil_lwb_cache;
 
@@ -1995,3 +1995,11 @@ zil_vdev_offline(const char *osname, void *arg)
 	dmu_objset_rele(os, FTAG);
 	return (error);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zil_replay_disable, int, 0644);
+MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
+
+module_param(zfs_nocacheflush, int, 0644);
+MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
+#endif

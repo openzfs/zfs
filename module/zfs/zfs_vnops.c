@@ -335,7 +335,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 }
 #endif /* _KERNEL */
 
-offset_t zfs_read_chunk_size = 1024 * 1024; /* Tunable */
+unsigned long zfs_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
  * Read bytes from specified file into supplied buffer.
@@ -4716,3 +4716,8 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 	return (0);
 }
 #endif /* HAVE_UIO_ZEROCOPY */
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_read_chunk_size, long, 0644);
+MODULE_PARM_DESC(zfs_read_chunk_size, "Bytes to read per chunk");
+#endif

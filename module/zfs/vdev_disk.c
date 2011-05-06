@@ -763,4 +763,4 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 }
 
 module_param(zfs_vdev_scheduler, charp, 0644);
-MODULE_PARM_DESC(zfs_vdev_scheduler, "IO Scheduler (noop)");
+MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
