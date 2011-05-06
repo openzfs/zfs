@@ -76,13 +76,32 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	return (error);
 }
 
-ZPL_FSYNC_PROTO(zpl_fsync, filp, unused_dentry, datasync)
+/*
+ * 2.6.35 API change,
+ * As of 2.6.35 the dentry argument to the .fsync() vfs hook was deemed
+ * redundant.  The dentry is still accessible via filp->f_path.dentry,
+ * and we are guaranteed that filp will never be NULL.
+ *
+ * 2.6.34 API change,
+ * Prior to 2.6.34 the nfsd kernel server would pass a NULL file struct *
+ * to the .fsync() hook.  For this reason, we must be careful not to use
+ * filp unconditionally in the 3 argument case.
+ */
+#ifdef HAVE_2ARGS_FSYNC
+static int
+zpl_fsync(struct file *filp, int datasync)
 {
+	struct dentry *dentry = filp->f_path.dentry;
+#else
+static int
+zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
+{
+#endif /* HAVE_2ARGS_FSYNC */
 	cred_t *cr = CRED();
 	int error;
 
 	crhold(cr);
-	error = -zfs_fsync(filp->f_path.dentry->d_inode, datasync, cr);
+	error = -zfs_fsync(dentry->d_inode, datasync, cr);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 

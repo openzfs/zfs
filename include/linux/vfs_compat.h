@@ -27,19 +27,6 @@
 #define _ZFS_VFS_H
 
 /*
- * 2.6.35 API change,
- * The dentry argument to the .fsync() vfs hook was deemed unused by
- * all filesystem consumers and dropped.  Add a compatibility prototype
- * to ensure correct usage when defining this callback.
- */
-#ifdef HAVE_2ARGS_FSYNC
-#define ZPL_FSYNC_PROTO(fn, x, y, z)	static int fn(struct file *x, int z)
-#else
-#define ZPL_FSYNC_PROTO(fn, x, y, z)	static int fn(struct file *x, \
-						      struct dentry *y, int z)
-#endif /* HAVE_2ARGS_FSYNC */
-
-/*
  * 2.6.28 API change,
  * Added insert_inode_locked() helper function, prior to this most callers
  * used insert_inode_hash().  The older method doesn't check for collisions
