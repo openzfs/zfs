@@ -278,7 +278,7 @@ zfs_inode_destroy(struct inode *ip)
 static void
 zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 {
-	uint64_t rdev;
+	uint64_t rdev = 0;
 
 	switch (ip->i_mode & S_IFMT) {
 	case S_IFREG:
@@ -297,12 +297,16 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 		ip->i_op = &zpl_symlink_inode_operations;
 		break;
 
+	/*
+	 * rdev is only stored in a SA only for device files.
+	 */
 	case S_IFCHR:
 	case S_IFBLK:
-	case S_IFIFO:
-	case S_IFSOCK:
 		VERIFY(sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zsb),
 		    &rdev, sizeof (rdev)) == 0);
+		/*FALLTHROUGH*/
+	case S_IFIFO:
+	case S_IFSOCK:
 		init_special_inode(ip, ip->i_mode, rdev);
 		ip->i_op = &zpl_special_inode_operations;
 		break;
@@ -556,8 +560,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		size = links = 0;
 	}
 
-	if (S_ISBLK(vap->va_mode)  || S_ISCHR(vap->va_mode) ||
-	    S_ISFIFO(vap->va_mode) || S_ISSOCK(vap->va_mode))
+	if (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))
 		rdev = vap->va_rdev;
 
 	parent = dzp->z_id;
@@ -648,8 +651,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		    &empty_xattr, 8);
 	}
 	if (obj_type == DMU_OT_ZNODE ||
-	    (S_ISBLK(vap->va_mode)  || S_ISCHR(vap->va_mode) ||
-	     S_ISFIFO(vap->va_mode) || S_ISSOCK(vap->va_mode))) {
+	    (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_RDEV(zsb),
 		    NULL, &rdev, 8);
 	}
