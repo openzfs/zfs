@@ -21,7 +21,7 @@ checksystem() {
 		return 0
 	else
 		einfo "Checking if ZFS modules present"
-		if [ -e  $(modprobe -l  $ZFS_MODULE | grep -q  $ZFS_MODULE) ]; then
+		if [ "x$(modprobe -l  $ZFS_MODULE | grep $ZFS_MODULE)" == "x" ]; then
 			eerror "$ZFS_MODULE not found. Is the ZFS package installed?"
 			return 1
 		fi
@@ -94,6 +94,7 @@ stop()
 {
 	ebegin "Unmounting ZFS filesystems"
 	$ZFS umount -a
+	rv=$?
 	if [ $rv -ne 0 ]; then
 		eerror "Failed to umount ZFS filesystems."
 	fi
