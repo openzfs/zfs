@@ -7,85 +7,59 @@ depend()
 {
 	before net
 	after udev
+	keyword -lxc -openvz -prefix -vserver
 }
 
 CACHEFILE=/etc/zfs/zpool.cache
 ZPOOL=/usr/sbin/zpool
 ZFS=/usr/sbin/zfs
 ZFS_MODULE=zfs
-LOCKFILE=/var/lock/zfs/zfs_lockfile
 
-checksystem()
-{
-	/sbin/modinfo $ZFS_MODULE &>/dev/null
-	if [[ $? -ne 0 ]]
-	then
-		eerror "$ZFS_MODULE not found. Is the ZFS package installed?"
-		return 1
+checksystem() {
+	if [ -c /dev/zfs ]; then
+		einfo "ZFS modules already loaded"
+		return 0
+	else
+		einfo "Checking if ZFS modules present"
+		if [ -e  $(modprobe -l  $ZFS_MODULE | grep -q  $ZFS_MODULE) ]; then
+			eerror "$ZFS_MODULE not found. Is the ZFS package installed?"
+			return 1
+		fi
 	fi
-	if [[ ! -x $ZPOOL ]]
-	then
-		eerror "$ZPOOL binary not found."
-		return 1
-	fi
-	if [[ ! -x $ZFS ]]
-	then
-		eerror "$ZFS binary not found."
-		return 1
-	fi
-
-	# create the lockdir if not there
-	lockdir=$(dirname ${LOCKFILE})
-	if [[ ! -d ${lockdir} ]]
-	then
-		mkdir -p ${lockdir} &>/dev/null
-	fi
+	einfo "Checking if zfs userspace tools present"
+		if [ ! -x $ZPOOL ]; then
+			eerror "$ZPOOL binary not found."
+			return 1
+		fi
+		if [ ! -x $ZFS ]; then
+			eerror "$ZFS binary not found."
+			return 1
+		fi
 	return 0
 }
 
-start()
-{
-	if [[ -f $LOCKFILE ]]
-	then
-		einfo "ZFS already running, please stop it first. Delete $LOCKFILE if its not so."
-		eend 3
-		return 3
-	fi
+start() {
 	ebegin "Starting ZFS"
 	checksystem || return 1
-	if ! grep -q $ZFS_MODULE /proc/modules
-	then
-		/sbin/modprobe $ZFS_MODULE &>/dev/null
+	if [ ! -c /dev/zfs ]; then
+		modprobe $ZFS_MODULE
 		rv=$?
-		if [[ $rv -ne 0 ]]
-		then
+		if [ $rv -ne 0 ]; then
 			eerror "Failed to load the $ZFS_MODULE module, check 'dmesg|tail'."
 			eend $rv
 			return $rv
 		fi
 	fi
 
-	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
-	# This should be handled by rc.sysinit but lets be paranoid.
-	awk '$2 == "/" { exit 1 }' /etc/mtab
-	RETVAL=$?
-	if [[ $RETVAL -eq 0 ]]
-	then
-		/bin/mount -f /
-	fi
-
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [[ -f $CACHEFILE ]]
-	then
+	if [ -f $CACHEFILE ]; then
 		einfo "Importing ZFS pools"
-
 		# as per fedora script, import can fail if all pools are already imported
 		# The check for $rv makes no sense...but someday, it will work right.
 		$ZPOOL import -c $CACHEFILE -aN 2>/dev/null || true
 		rv=$?
-		if [[ $rv -ne 0 ]]
-		then
+		if [ $rv -ne 0 ]; then
 			eerror "Failed to import not-yet imported pools."
 			eend $rv
 			return $rv
@@ -95,8 +69,7 @@ start()
 	einfo "Mounting ZFS filesystems"
 	$ZFS mount -a
 	rv=$?
-	if [[ $rv -ne 0 ]]
-	then
+	if [ $rv -ne 0 ]; then
 		eerror "Failed to mount ZFS filesystems."
 		eend $rv
 		return $rv
@@ -113,39 +86,23 @@ start()
 	done
 	cd "$savepwd"
 
-	touch $LOCKFILE
 	eend 0
 	return 0
 }
 
 stop()
 {
-	if [[ ! -f $LOCKFILE ]]
-	then
-		einfo "ZFS is not started, remove $LOCKFILE if its not so."
-		eend 3
-		return 3
-	fi
 	ebegin "Unmounting ZFS filesystems"
-	sync
 	$ZFS umount -a
-	if [[ $rv -ne 0 ]]
-	then
+	if [ $rv -ne 0 ]; then
 		eerror "Failed to umount ZFS filesystems."
 	fi
-	rm -f $LOCKFILE
+
 	eend $rv
 }
 
 status()
 {
-	if [[ ! -f $LOCKFILE ]]
-	then
-		einfo "ZFS is not started, remove $LOCKFILE if its not so."
-		eend 3
-		return 3
-	fi
-
 	# show pool status and list
 	$ZPOOL status && echo && $ZPOOL list
 }
