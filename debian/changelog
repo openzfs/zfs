@@ -1,3 +1,16 @@
+zfs-linux (0.6.0.14-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use vmem_alloc() for zfs_ioc_pool_get_history()
+  * Fix awk usage
+  * Handle NULL in nfsd .fsync() hook
+  * Disable direct reclaim for z_wr_* threads
+
+  [ Ned A. Bass ]
+  * Don't store rdev in SA for FIFOs and sockets
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 11 May 2011 20:28:21 -0500
+
 zfs-linux (0.6.0.13.rc4-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
