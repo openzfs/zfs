@@ -75,17 +75,6 @@ start() {
 		return $rv
 	fi
 
-	# hack to read mounted file systems because otherwise
-	# zfs returns EPERM when a non-root user reads a mounted filesystem before root did
-	savepwd="$PWD"
-	mount | grep " type zfs " | sed 's/.*on //' | sed 's/ type zfs.*$//' | \
-	while read line
-	do
-		cd "$line" &> /dev/null
-		ls &> /dev/null
-	done
-	cd "$savepwd"
-
 	eend 0
 	return 0
 }
