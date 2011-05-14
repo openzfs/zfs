@@ -178,16 +178,16 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		VENDOR=redhat ;
 	elif test -f /etc/fedora-release ; then
 		VENDOR=fedora ;
-	elif test -f /etc/lsb-release ; then
-		VENDOR=ubuntu ;
+	elif test -f /etc/gentoo-release ; then
+		VENDOR=gentoo ;
 	elif test -f /etc/debian_version ; then
 		VENDOR=debian ;
 	elif test -f /etc/SuSE-release ; then
 		VENDOR=sles ;
 	elif test -f /etc/slackware-version ; then
 		VENDOR=slackware ;
-	elif test -f /etc/gentoo-release ; then
-		VENDOR=gentoo ;
+	elif test -f /etc/lsb-release ; then
+		VENDOR=ubuntu ;
 	elif test -f /etc/lunar.release ; then
 		VENDOR=lunar ;
 	else
