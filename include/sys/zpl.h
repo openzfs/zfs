@@ -51,7 +51,6 @@ extern const struct file_operations zpl_dir_file_operations;
 typedef struct zpl_mount_data {
 	const char *z_osname;	/* Dataset name */
 	void *z_data;		/* Mount options string */
-	struct vfsmount *z_vfs;	/* VFS mount point */
 } zpl_mount_data_t;
 
 extern const struct super_operations zpl_super_operations;

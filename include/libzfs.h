@@ -436,6 +436,7 @@ extern int zfs_prop_get_userquota_int(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue);
 extern int zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
     char *propbuf, int proplen, boolean_t literal);
+extern uint64_t getprop_uint64(zfs_handle_t *, zfs_prop_t, char **);
 extern uint64_t zfs_prop_get_int(zfs_handle_t *, zfs_prop_t);
 extern int zfs_prop_inherit(zfs_handle_t *, const char *, boolean_t);
 extern const char *zfs_prop_values(zfs_prop_t);

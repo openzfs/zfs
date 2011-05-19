@@ -1122,7 +1122,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 		/*
 		 * If the xattr property is off, refuse the lookup request.
 		 */
-		if (!(zsb->z_flags & ZSB_XATTR_USER)) {
+		if (!(zsb->z_flags & ZSB_XATTR)) {
 			ZFS_EXIT(zsb);
 			return (EINVAL);
 		}
@@ -2420,7 +2420,7 @@ top:
 	aclp = NULL;
 
 	/* Can this be moved to before the top label? */
-	if (zsb->z_vfs->mnt_flags & MNT_READONLY) {
+	if (zfs_is_readonly(zsb)) {
 		err = EROFS;
 		goto out3;
 	}

@@ -96,6 +96,7 @@ static const option_map_t option_map[] = {
 	{ MNTOPT_QUIET,		MS_SILENT,	ZS_COMMENT	},
 #endif
 	/* Custom zfs options */
+	{ MNTOPT_XATTR,		MS_COMMENT,	ZS_COMMENT	},
 	{ MNTOPT_NOXATTR,	MS_COMMENT,	ZS_COMMENT	},
 	{ MNTOPT_ZFSUTIL,	MS_COMMENT,	ZS_ZFSUTIL	},
 	{ NULL,			0,		0		} };

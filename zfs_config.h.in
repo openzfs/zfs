@@ -126,6 +126,9 @@
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
+/* mount_nodev() is available */
+#undef HAVE_MOUNT_NODEV
+
 /* open_bdev_exclusive() is available */
 #undef HAVE_OPEN_BDEV_EXCLUSIVE
 

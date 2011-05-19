@@ -315,6 +315,52 @@ do_unmount(const char *mntpt, int flags)
 	return (rc ? EINVAL : 0);
 }
 
+static int
+zfs_add_option(zfs_handle_t *zhp, char *options, int len,
+    zfs_prop_t prop, char *on, char *off)
+{
+	char *source;
+	uint64_t value;
+
+	/* Skip adding duplicate default options */
+	if ((strstr(options, on) != NULL) || (strstr(options, off) != NULL))
+		return (0);
+
+	/*
+	 * zfs_prop_get_int() to not used to ensure our mount options
+	 * are not influenced by the current /etc/mtab contents.
+	 */
+	value = getprop_uint64(zhp, prop, &source);
+
+	(void) strlcat(options, ",", len);
+	(void) strlcat(options, value ? on : off, len);
+
+	return (0);
+}
+
+static int
+zfs_add_options(zfs_handle_t *zhp, char *options, int len)
+{
+	int error = 0;
+
+	error = zfs_add_option(zhp, options, len,
+	    ZFS_PROP_ATIME, MNTOPT_ATIME, MNTOPT_NOATIME);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_DEVICES, MNTOPT_DEVICES, MNTOPT_NODEVICES);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_EXEC, MNTOPT_EXEC, MNTOPT_NOEXEC);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_READONLY, MNTOPT_RO, MNTOPT_RW);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_SETUID, MNTOPT_SETUID, MNTOPT_NOSETUID);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_XATTR, MNTOPT_XATTR, MNTOPT_NOXATTR);
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_NBMAND, MNTOPT_NBMAND, MNTOPT_NONBMAND);
+
+	return (error);
+}
+
 /*
  * Mount the given filesystem.
  */
@@ -325,18 +371,38 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	char mountpoint[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	int rc;
+	int remount = 0, rc;
 
-	if (options == NULL)
+	if (options == NULL) {
 		(void) strlcpy(mntopts, MNTOPT_DEFAULTS, sizeof (mntopts));
-	else
+	} else {
 		(void) strlcpy(mntopts, options, sizeof (mntopts));
+	}
+
+	if (strstr(mntopts, MNTOPT_REMOUNT) != NULL)
+		remount = 1;
 
 	/*
 	 * If the pool is imported read-only then all mounts must be read-only
 	 */
 	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
 		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
+
+	/*
+	 * Append default mount options which apply to the mount point.
+	 * This is done because under Linux (unlike Solaris) multiple mount
+	 * points may reference a single super block.  This means that just
+	 * given a super block there is no back reference to update the per
+	 * mount point options.
+	 */
+	rc = zfs_add_options(zhp, mntopts, sizeof (mntopts));
+	if (rc) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "default options unavailable"));
+		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+		    mountpoint));
+	}
 
 	/*
 	 * Append zfsutil option so the mount helper allow the mount
@@ -361,8 +427,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	 * Determine if the mountpoint is empty.  If so, refuse to perform the
 	 * mount.  We don't perform this check if 'remount' is specified.
 	 */
-	if (strstr(mntopts, MNTOPT_REMOUNT) == NULL &&
-	    !dir_is_empty(mountpoint)) {
+	if (!remount && !dir_is_empty(mountpoint)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "directory is not empty"));
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
@@ -402,6 +467,10 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 		    zhp->zfs_name));
 	}
+
+	/* remove the mounted entry before re-adding on remount */
+	if (remount)
+		libzfs_mnttab_remove(hdl, zhp->zfs_name);
 
 	/* add the mounted entry into our cache */
 	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);

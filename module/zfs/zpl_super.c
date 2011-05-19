@@ -150,8 +150,7 @@ zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
 	 * MNT_NOSUID, MNT_NODEV, MNT_NOEXEC, MNT_NOATIME, MNT_READONLY
 	 */
 
-	if (zsb->z_flags & ZSB_XATTR_USER)
-		seq_printf(seq, ",%s", "xattr");
+	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
 
 	return (0);
 }
@@ -167,14 +166,25 @@ zpl_fill_super(struct super_block *sb, void *data, int silent)
 	return (error);
 }
 
+#ifdef HAVE_MOUNT_NODEV
+static struct dentry *
+zpl_mount(struct file_system_type *fs_type, int flags,
+    const char *osname, void *data)
+{
+	zpl_mount_data_t zmd = { osname, data };
+
+	return mount_nodev(fs_type, flags, &zmd, zpl_fill_super);
+}
+#else
 static int
 zpl_get_sb(struct file_system_type *fs_type, int flags,
     const char *osname, void *data, struct vfsmount *mnt)
 {
-	zpl_mount_data_t zmd = { osname, data, mnt };
+	zpl_mount_data_t zmd = { osname, data };
 
 	return get_sb_nodev(fs_type, flags, &zmd, zpl_fill_super, mnt);
 }
+#endif /* HAVE_MOUNT_NODEV */
 
 static void
 zpl_kill_sb(struct super_block *sb)
@@ -213,6 +223,10 @@ const struct super_operations zpl_super_operations = {
 struct file_system_type zpl_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= ZFS_DRIVER,
+#ifdef HAVE_MOUNT_NODEV
+	.mount		= zpl_mount,
+#else
 	.get_sb		= zpl_get_sb,
+#endif /* HAVE_MOUNT_NODEV */
 	.kill_sb	= zpl_kill_sb,
 };

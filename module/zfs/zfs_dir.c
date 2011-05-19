@@ -1045,7 +1045,7 @@ top:
 		return (ENOENT);
 	}
 
-	if (zsb->z_vfs->mnt_flags & MNT_READONLY) {
+	if (zfs_is_readonly(zsb)) {
 		zfs_dirent_unlock(dl);
 		return (EROFS);
 	}
