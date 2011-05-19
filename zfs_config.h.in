@@ -9,6 +9,9 @@
 /* fops->fsync() want 2 args */
 #undef HAVE_2ARGS_FSYNC
 
+/* security_inode_init_security wants 6 args */
+#undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
+
 /* struct block_device_operations use bdevs */
 #undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
 

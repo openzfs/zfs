@@ -404,14 +404,16 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_security_set);
 
 int
-zpl_xattr_security_init(struct inode *ip, struct inode *dip)
+zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr)
 {
         int error;
         size_t len;
         void *value;
         char *name;
 
-        error = security_inode_init_security(ip, dip, &name, &value, &len);
+        error = zpl_security_inode_init_security(ip, dip, qstr,
+	    &name, &value, &len);
         if (error) {
                 if (error == -EOPNOTSUPP)
                         return 0;

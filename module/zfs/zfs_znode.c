@@ -327,7 +327,7 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 static znode_t *
 zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
     dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl,
-    struct dentry *dentry)
+    struct dentry *dentry, struct inode *dip)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -383,8 +383,12 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	if (insert_inode_locked(ip))
 		goto error;
 
-	if (dentry)
+	if (dentry) {
+		if (zpl_xattr_security_init(ip, dip, &dentry->d_name))
+			goto error;
+
 		d_instantiate(dentry, ip);
+	}
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
@@ -681,11 +685,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (!(flag & IS_ROOT_NODE)) {
 		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl,
-		    vap->va_dentry);
+		    vap->va_dentry, ZTOI(dzp));
 		ASSERT(*zpp != NULL);
 		ASSERT(dzp != NULL);
-		err = zpl_xattr_security_init(ZTOI(*zpp), ZTOI(dzp));
-		ASSERT3S(err, ==, 0);
 	} else {
 		/*
 		 * If we are creating the root node, the "parent" we
@@ -894,7 +896,7 @@ again:
 	 * bonus buffer.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, obj_num, NULL, NULL);
+	    doi.doi_bonus_type, obj_num, NULL, NULL, NULL);
 	if (zp == NULL) {
 		err = ENOENT;
 	} else {

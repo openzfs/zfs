@@ -60,7 +60,8 @@ extern struct file_system_type zpl_fs_type;
 
 /* zpl_xattr.c */
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
-extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip);
+extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr);
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 
