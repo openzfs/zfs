@@ -5047,7 +5047,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		error = EFAULT;
 
 	if ((error == 0) && !(flag & FKIOCTL))
-		error = zfs_ioc_vec[vec].zvec_secpolicy(zc, NULL);
+		error = zfs_ioc_vec[vec].zvec_secpolicy(zc, CRED());
 
 	/*
 	 * Ensure that all pool/dataset names are valid before we pass down to
