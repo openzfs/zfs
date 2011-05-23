@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.15-0ubuntu1) unstable; urgency=low
+
+  [ Alexey Shvetsov ]
+  * Make zfs.gentoo init script more gentoo style.
+  * Fix zfs.gentoo init script logic
+  * Remove root 'ls' after mount workaround
+  * Fix distribution detection for gentoo
+
+  [ Brian Behlendorf ]
+  * Update synchronous open zfs_close() comment
+  * Fix 'negative objects to delete' warning
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 23 May 2011 09:18:38 -0500
+
 zfs-linux (0.6.0.14-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
