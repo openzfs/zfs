@@ -155,15 +155,6 @@ start()
 	
 	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 152
 
-	# hack to read mounted file systems because otherwise
-	# zfs returns EPERM when a non-root user reads a mounted filesystem before root did
-	savepwd="$PWD"
-	mount | grep " type zfs " | sed 's/.*on //' | sed 's/ type zfs.*$//' | while read line ; do
-		cd "$line" > /dev/null 2>&1
-		ls > /dev/null
-	done
-	cd "$savepwd"
-
 	read_mtab  "^/dev/zd"
 	read_fstab "^/dev/zd"
 
