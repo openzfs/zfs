@@ -273,14 +273,13 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	struct vfsmount *vfsp = zsb->z_vfs;
 	struct dsl_dataset *ds = NULL;
 	objset_t *os = zsb->z_os;
-	uint64_t nbmand;
+	uint64_t nbmand = FALSE;
 	boolean_t readonly = B_FALSE;
 	boolean_t setuid = B_TRUE;
 	boolean_t exec = B_TRUE;
 	boolean_t devices = B_TRUE;
 	boolean_t xattr = B_TRUE;
 	boolean_t atime = B_TRUE;
-	char osname[MAXNAMELEN];
 	int error = 0;
 
 	/*
@@ -318,11 +317,8 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	 *   case: sensitive|insensitive|mixed
 	 *   zerocopy: on|off
 	 */
-
-	dmu_objset_name(os, osname);
-	if ((error = dsl_prop_get_integer(osname, "nbmand", &nbmand, NULL)))
-		return (error);
-
+	if(zsb->z_sb->s_flags & MS_MANDLOCK)
+		nbmand = TRUE;
 	/*
 	 * Register property callbacks.
 	 *
