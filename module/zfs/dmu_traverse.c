@@ -59,31 +59,6 @@ typedef struct traverse_data {
 	void *td_arg;
 } traverse_data_t;
 
-typedef struct traverse_visitbp_data {
-	/* Function arguments */
-	traverse_data_t *tv_td;
-	const dnode_phys_t *tv_dnp;
-	arc_buf_t *tv_pbuf;
-	blkptr_t *tv_bp;
-	const zbookmark_t *tv_zb;
-	/* Local variables */
-	prefetch_data_t *tv_pd;
-	zbookmark_t tv_czb;
-	arc_buf_t *tv_buf;
-	boolean_t tv_hard;
-	objset_phys_t *tv_osp;
-	dnode_phys_t *tv_ldnp;
-	blkptr_t *tv_cbp;
-	uint32_t tv_flags;
-	int tv_err;
-	int tv_lasterr;
-	int tv_i;
-	int tv_epb;
-	int tv_depth;
-} traverse_visitbp_data_t;
-
-static inline int traverse_visitbp(traverse_data_t *td, const
-    dnode_phys_t *dnp, arc_buf_t *pbuf, blkptr_t *bp, const zbookmark_t *zb);
 static int traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *buf, uint64_t objset, uint64_t object);
 
@@ -153,191 +128,137 @@ traverse_zil(traverse_data_t *td, zil_header_t *zh)
 	zil_free(zilog);
 }
 
-#define TRAVERSE_VISITBP_MAX_DEPTH	20
-
-static void
-__traverse_visitbp_init(traverse_visitbp_data_t *tv,
-    traverse_data_t *td, const dnode_phys_t *dnp,
-    arc_buf_t *pbuf, blkptr_t *bp, const zbookmark_t *zb, int depth)
-{
-	tv->tv_td = td;
-	tv->tv_dnp = dnp;
-	tv->tv_pbuf = pbuf;
-	tv->tv_bp = bp;
-	tv->tv_zb = zb;
-	tv->tv_err = 0;
-	tv->tv_lasterr = 0;
-	tv->tv_buf = NULL;
-	tv->tv_pd = td->td_pfd;
-	tv->tv_hard = td->td_flags & TRAVERSE_HARD;
-	tv->tv_flags = ARC_WAIT;
-	tv->tv_depth = depth;
-}
-
-static noinline int
-__traverse_visitbp(traverse_visitbp_data_t *tv)
-{
-	ASSERT3S(tv->tv_depth, <, TRAVERSE_VISITBP_MAX_DEPTH);
-
-	if (tv->tv_bp->blk_birth == 0) {
-		tv->tv_err = tv->tv_td->td_func(tv->tv_td->td_spa, NULL, NULL,
-		    tv->tv_pbuf, tv->tv_zb, tv->tv_dnp, tv->tv_td->td_arg);
-		return (tv->tv_err);
-	}
-
-	if (tv->tv_bp->blk_birth <= tv->tv_td->td_min_txg)
-		return (0);
-
-	if (tv->tv_pd && !tv->tv_pd->pd_exited &&
-	    ((tv->tv_pd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
-	    BP_GET_TYPE(tv->tv_bp) == DMU_OT_DNODE ||
-	    BP_GET_LEVEL(tv->tv_bp) > 0)) {
-		mutex_enter(&tv->tv_pd->pd_mtx);
-		ASSERT(tv->tv_pd->pd_blks_fetched >= 0);
-		while (tv->tv_pd->pd_blks_fetched == 0 && !tv->tv_pd->pd_exited)
-			cv_wait(&tv->tv_pd->pd_cv, &tv->tv_pd->pd_mtx);
-		tv->tv_pd->pd_blks_fetched--;
-		cv_broadcast(&tv->tv_pd->pd_cv);
-		mutex_exit(&tv->tv_pd->pd_mtx);
-	}
-
-	if (tv->tv_td->td_flags & TRAVERSE_PRE) {
-		tv->tv_err = tv->tv_td->td_func(tv->tv_td->td_spa, NULL,
-		    tv->tv_bp, tv->tv_pbuf, tv->tv_zb, tv->tv_dnp,
-		    tv->tv_td->td_arg);
-		if (tv->tv_err == TRAVERSE_VISIT_NO_CHILDREN)
-			return (0);
-		if (tv->tv_err)
-			return (tv->tv_err);
-	}
-
-	if (BP_GET_LEVEL(tv->tv_bp) > 0) {
-		tv->tv_epb = BP_GET_LSIZE(tv->tv_bp) >> SPA_BLKPTRSHIFT;
-
-		tv->tv_err = dsl_read(NULL, tv->tv_td->td_spa, tv->tv_bp,
-		    tv->tv_pbuf, arc_getbuf_func, &tv->tv_buf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-		    &tv->tv_flags, tv->tv_zb);
-		if (tv->tv_err)
-			return (tv->tv_err);
-
-		/* recursively visitbp() blocks below this */
-		tv->tv_cbp = tv->tv_buf->b_data;
-		for (tv->tv_i = 0; tv->tv_i < tv->tv_epb;
-		     tv->tv_i++, tv->tv_cbp++) {
-			SET_BOOKMARK(&tv->tv_czb, tv->tv_zb->zb_objset,
-			    tv->tv_zb->zb_object, tv->tv_zb->zb_level - 1,
-			    tv->tv_zb->zb_blkid * tv->tv_epb + tv->tv_i);
-			__traverse_visitbp_init(tv + 1, tv->tv_td,
-			    tv->tv_dnp, tv->tv_buf, tv->tv_cbp,
-			    &tv->tv_czb, tv->tv_depth + 1);
-			tv->tv_err = __traverse_visitbp(tv + 1);
-			if (tv->tv_err) {
-				if (!tv->tv_hard)
-					break;
-				tv->tv_lasterr = tv->tv_err;
-			}
-		}
-	} else if (BP_GET_TYPE(tv->tv_bp) == DMU_OT_DNODE) {
-		tv->tv_epb = BP_GET_LSIZE(tv->tv_bp) >> DNODE_SHIFT;
-
-		tv->tv_err = dsl_read(NULL, tv->tv_td->td_spa, tv->tv_bp,
-		    tv->tv_pbuf, arc_getbuf_func, &tv->tv_buf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-		    &tv->tv_flags, tv->tv_zb);
-		if (tv->tv_err)
-			return (tv->tv_err);
-
-		/* recursively visitbp() blocks below this */
-		tv->tv_dnp = tv->tv_buf->b_data;
-		for (tv->tv_i = 0; tv->tv_i < tv->tv_epb;
-		     tv->tv_i++, tv->tv_dnp++) {
-			tv->tv_err = traverse_dnode(tv->tv_td, tv->tv_dnp,
-			    tv->tv_buf, tv->tv_zb->zb_objset,
-			    tv->tv_zb->zb_blkid * tv->tv_epb + tv->tv_i);
-			if (tv->tv_err) {
-				if (!tv->tv_hard)
-					break;
-				tv->tv_lasterr = tv->tv_err;
-			}
-		}
-	} else if (BP_GET_TYPE(tv->tv_bp) == DMU_OT_OBJSET) {
-
-		tv->tv_err = dsl_read_nolock(NULL, tv->tv_td->td_spa,
-		    tv->tv_bp, arc_getbuf_func, &tv->tv_buf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-		    &tv->tv_flags, tv->tv_zb);
-		if (tv->tv_err)
-			return (tv->tv_err);
-
-		tv->tv_osp = tv->tv_buf->b_data;
-		tv->tv_ldnp = &tv->tv_osp->os_meta_dnode;
-		tv->tv_err = traverse_dnode(tv->tv_td, tv->tv_ldnp, tv->tv_buf,
-		    tv->tv_zb->zb_objset, DMU_META_DNODE_OBJECT);
-		if (tv->tv_err && tv->tv_hard) {
-			tv->tv_lasterr = tv->tv_err;
-			tv->tv_err = 0;
-		}
-		if (tv->tv_err == 0 &&
-		    arc_buf_size(tv->tv_buf) >= sizeof (objset_phys_t)) {
-			tv->tv_ldnp = &tv->tv_osp->os_userused_dnode;
-			tv->tv_err = traverse_dnode(tv->tv_td, tv->tv_ldnp,
-			    tv->tv_buf, tv->tv_zb->zb_objset,
-			    DMU_USERUSED_OBJECT);
-		}
-		if (tv->tv_err && tv->tv_hard) {
-			tv->tv_lasterr = tv->tv_err;
-			tv->tv_err = 0;
-		}
-		if (tv->tv_err == 0 &&
-		    arc_buf_size(tv->tv_buf) >= sizeof (objset_phys_t)) {
-			tv->tv_ldnp = &tv->tv_osp->os_groupused_dnode;
-			tv->tv_err = traverse_dnode(tv->tv_td, tv->tv_ldnp,
-			    tv->tv_buf, tv->tv_zb->zb_objset,
-			    DMU_GROUPUSED_OBJECT);
-		}
-	}
-
-	if (tv->tv_buf)
-		(void) arc_buf_remove_ref(tv->tv_buf, &tv->tv_buf);
-
-	if (tv->tv_err == 0 && tv->tv_lasterr == 0 &&
-	    (tv->tv_td->td_flags & TRAVERSE_POST)) {
-		tv->tv_err = tv->tv_td->td_func(tv->tv_td->td_spa, NULL,
-		    tv->tv_bp, tv->tv_pbuf, tv->tv_zb, tv->tv_dnp,
-		    tv->tv_td->td_arg);
-	}
-
-	return (tv->tv_err != 0 ? tv->tv_err : tv->tv_lasterr);
-}
-
-/*
- * Due to  limited stack space recursive functions are frowned upon in
- * the Linux kernel.  However, they often are the most elegant solution
- * to a problem.  The following code preserves the recursive function
- * traverse_visitbp() but moves the local variables AND function
- * arguments to the heap to minimize the stack frame size.  Enough
- * space is initially allocated on the stack for 16 levels of recursion.
- * This change does ugly-up-the-code but it reduces the worst case
- * usage from roughly 2496 bytes to 576 bytes on x86_64 archs.
- */
 static int
 traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *pbuf, blkptr_t *bp, const zbookmark_t *zb)
 {
-	traverse_visitbp_data_t *tv;
-	int error;
+	zbookmark_t czb;
+	int err = 0, lasterr = 0;
+	arc_buf_t *buf = NULL;
+	prefetch_data_t *pd = td->td_pfd;
+	boolean_t hard = td->td_flags & TRAVERSE_HARD;
 
-	tv = kmem_zalloc(sizeof(traverse_visitbp_data_t) *
-	    TRAVERSE_VISITBP_MAX_DEPTH, KM_SLEEP);
-	__traverse_visitbp_init(tv, td, dnp, pbuf, bp, zb, 0);
+	if (bp->blk_birth == 0) {
+		err = td->td_func(td->td_spa, NULL, NULL, pbuf, zb, dnp,
+		    td->td_arg);
+		return (err);
+	}
 
-	error = __traverse_visitbp(tv);
+	if (bp->blk_birth <= td->td_min_txg)
+		return (0);
 
-	kmem_free(tv, sizeof(traverse_visitbp_data_t) *
-	    TRAVERSE_VISITBP_MAX_DEPTH);
+	if (pd && !pd->pd_exited &&
+	    ((pd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
+	    BP_GET_TYPE(bp) == DMU_OT_DNODE || BP_GET_LEVEL(bp) > 0)) {
+		mutex_enter(&pd->pd_mtx);
+		ASSERT(pd->pd_blks_fetched >= 0);
+		while (pd->pd_blks_fetched == 0 && !pd->pd_exited)
+			cv_wait(&pd->pd_cv, &pd->pd_mtx);
+		pd->pd_blks_fetched--;
+		cv_broadcast(&pd->pd_cv);
+		mutex_exit(&pd->pd_mtx);
+	}
 
-	return (error);
+	if (td->td_flags & TRAVERSE_PRE) {
+		err = td->td_func(td->td_spa, NULL, bp, pbuf, zb, dnp,
+		    td->td_arg);
+		if (err == TRAVERSE_VISIT_NO_CHILDREN)
+			return (0);
+		if (err)
+			return (err);
+	}
+
+	if (BP_GET_LEVEL(bp) > 0) {
+		uint32_t flags = ARC_WAIT;
+		int i;
+		blkptr_t *cbp;
+		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
+
+		err = dsl_read(NULL, td->td_spa, bp, pbuf,
+		    arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		if (err)
+			return (err);
+
+		/* recursively visitbp() blocks below this */
+		cbp = buf->b_data;
+		for (i = 0; i < epb; i++, cbp++) {
+			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
+			    zb->zb_level - 1,
+			    zb->zb_blkid * epb + i);
+			err = traverse_visitbp(td, dnp, buf, cbp, &czb);
+			if (err) {
+				if (!hard)
+					break;
+				lasterr = err;
+			}
+		}
+	} else if (BP_GET_TYPE(bp) == DMU_OT_DNODE) {
+		uint32_t flags = ARC_WAIT;
+		int i;
+		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
+
+		err = dsl_read(NULL, td->td_spa, bp, pbuf,
+		    arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		if (err)
+			return (err);
+
+		/* recursively visitbp() blocks below this */
+		dnp = buf->b_data;
+		for (i = 0; i < epb; i++, dnp++) {
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    zb->zb_blkid * epb + i);
+			if (err) {
+				if (!hard)
+					break;
+				lasterr = err;
+			}
+		}
+	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
+		uint32_t flags = ARC_WAIT;
+		objset_phys_t *osp;
+		dnode_phys_t *dnp;
+
+		err = dsl_read_nolock(NULL, td->td_spa, bp,
+		    arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
+		if (err)
+			return (err);
+
+		osp = buf->b_data;
+		dnp = &osp->os_meta_dnode;
+		err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+		    DMU_META_DNODE_OBJECT);
+		if (err && hard) {
+			lasterr = err;
+			err = 0;
+		}
+		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+			dnp = &osp->os_userused_dnode;
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    DMU_USERUSED_OBJECT);
+		}
+		if (err && hard) {
+			lasterr = err;
+			err = 0;
+		}
+		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+			dnp = &osp->os_groupused_dnode;
+			err = traverse_dnode(td, dnp, buf, zb->zb_objset,
+			    DMU_GROUPUSED_OBJECT);
+		}
+	}
+
+	if (buf)
+		(void) arc_buf_remove_ref(buf, &buf);
+
+	if (err == 0 && lasterr == 0 && (td->td_flags & TRAVERSE_POST)) {
+		err = td->td_func(td->td_spa, NULL, bp, pbuf, zb, dnp,
+		    td->td_arg);
+	}
+
+	return (err != 0 ? err : lasterr);
 }
 
 static int
