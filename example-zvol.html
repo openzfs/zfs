@@ -13,66 +13,94 @@
 	<tr>
 		<td>
 
-<p>Currently in the ZFS for Linux port the only interface available
-from user space is the zvol.  The zvol allows you to create a virtual block
-device dataset in a zfs storage pool.  While this may not immediately seem
-like a big deal it does open up some interesting possibilities.  For example,
-your virtual block device is now backed by whatever level of zfs data
-replication you like (<em>mirror</em>, <em>raidz</em>,  <em>raidz2</em>,
-<em>etc</em>) all with online scrubbing.  Your virtual block device also has
-fast snapshots due to zfs&#8217;s copy on write transaction model.  This
-allows you do some interesting things like format an ext2 file system which
-uses a zvol based block device and mount it on your system.  Here&#8217;s an
-example how:</p>
+<p>One of the interface layers available in the ZFS on Linux port
+is the ZVOL.  The ZVOL layer allows you to create a virtual block 
+device in a ZFS storage pool.  While this may not immediately
+seem like a big deal it does open up some interesting possibilities.
+For example, your virtual block device is now backed by whatever
+level of ZFS data replication you like (<em>mirror</em>, <em>raidz</em>,
+<em>raidz2</em>, <em>etc</em>) all with online scrubbing.  Your
+virtual block device also has fast snapshots due to ZFS&#8217;s
+copy on write transaction model.  This allows you do some interesting
+things like format an ext2 file system which uses a ZVOL based block
+device and mount it on your system.  Here&#8217;s an example how.</p>
 
-<p>Create the <em>tank</em> zpool containing a raidz vdev spread over
-4 devices.</p>
+<p>Create the <em>tank</em> zpool containing a raidz vdev spread
+over 3 devices.  It is recommended that you use the persistent
+/dev/disk/by-id/* device names when creating your pool to avoid
+any device reordering issues latter.  Your device names will of
+course be different.</p>
 
 <pre>
-$ zpool create tank raidz /dev/sdb /dev/sdc /dev/sdd /dev/sde
-$ zpool list
+$ sudo zpool create tank raidz scsi-SATA_Maxtor_7Y250M0_Y638RXME
+  scsi-SATA_Maxtor_7Y250M0_Y638S56E scsi-SATA_Maxtor_7Y250M0_Y638TJFE
+$ sudo zpool status tank
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
 
-NAME   SIZE   USED  AVAIL    CAP  HEALTH  ALTROOT
-tank  1.81T   132K  1.81T     0%  ONLINE  -
+        NAME                                   STATE     READ WRITE CKSUM
+        tank                                   ONLINE       0     0     0
+          raidz1-0                             ONLINE       0     0     0
+            scsi-SATA_Maxtor_7Y250M0_Y638RXME  ONLINE       0     0     0
+            scsi-SATA_Maxtor_7Y250M0_Y638S56E  ONLINE       0     0     0
+            scsi-SATA_Maxtor_7Y250M0_Y638TJFE  ONLINE       0     0     0
+
+errors: No known data errors
 </pre>
 
 <p>Create a 100G block device named <em>fish</em> in the <em>tank</em>
 zpool.</p>
 
 <pre>
-$ zfs create -V 100G tank/fish
-$ zfs list
+$ sudo zfs create -V 100G tank/fish
+$ sudo zfs list
 
-NAME        USED  AVAIL  REFER  MOUNTPOINT
-tank        100G  1.24T  26.9K  /tank
-tank/fish   100G  1.33T  23.9K  -
+NAME          USED  AVAIL  REFER  MOUNTPOINT
+tank          103G   356G  38.6K  /tank
+tank/fish     103G   459G  21.3K  -
 </pre>
 
-<p>Partition <em>tank/fish</em> as if it were a normal block device.</p>
+<p>Each ZVOL block device will appear as a zd device in /dev/, a
+symlink with the pool and dataset name will be automatically created
+under /dev/zvol/.  This behavior should be familiar because the
+standard Linux /dev/disk/ symlinks are managed in fundamentally the
+same way.  Next we can partition the new <em>/dev/zvol/tank/fish</em>
+block device.</p>
 
 <pre>
-$ sfdisk /dev/tank/fish &lt;&lt; EOF
+$ sudo sfdisk -q /dev/zvol/tank/fish << EOF
 0,
 EOF
-$ sfdisk -l /dev/tank/fish
 
-Disk /dev/tank/fish: 208050 cylinders, 16 heads, 63 sectors/track
+Disk /dev/zvol/tank/fish: 208050 cylinders, 16 heads, 63 sectors/track
+
+sfdisk: ERROR: sector 0 does not have an msdos signature
+ /dev/zvol/tank/fish: unrecognized partition table type
+Old situation:
+No partitions found
+New situation:
 Units = cylinders of 516096 bytes, blocks of 1024 bytes, counting from 0
 
    Device Boot Start     End   #cyls    #blocks   Id  System
-/dev/tank/fish1          0+ 208049  208050- 104857199+  83  Linux
-/dev/tank/fish2          0       -       0          0    0  Empty
-/dev/tank/fish3          0       -       0          0    0  Empty
-/dev/tank/fish4          0       -       0          0    0  Empty
+/dev/zvol/tank/fish1          0+ 208049  208050- 104857199+  83  Linux
+/dev/zvol/tank/fish2          0       -       0          0    0  Empty
+/dev/zvol/tank/fish3          0       -       0          0    0  Empty
+/dev/zvol/tank/fish4          0       -       0          0    0  Empty
+Successfully wrote the new partition table
+
+Re-reading the partition table ...
 </pre>
 
-<p>Format the new /dev/tank/fish1 partition with ext2 and mount it.</p>
+<p>Format the <em>/dev/zvol/tank/fish-part1</em> partition with ext2 and
+mount it under <em>/mnt/tank/fish-part1</em>.</p>
 
 <pre>
-$ mkfs.ext2 -q /dev/tank/fish1
-$ mkdir -p /mnt/tank/fish1
-$ mount /dev/tank/fish1 /mnt/tank/fish1
-$ ls /mnt/tank/fish1
+$ sudo mkfs.ext2 -q /dev/zvol/tank/fish-part1
+$ sudo mkdir -p /mnt/tank/fish-part1
+$ sudo mount /dev/zvol/tank/fish-part1 /mnt/tank/fish-part1
+$ ls /mnt/tank/fish-part1
 
 lost+found
 </pre>
@@ -80,29 +108,27 @@ lost+found
 <p>Take a snapshot of the pristine ext2 filesystem and mount it read-only.</p>
 
 <pre>
-$ zfs snapshot tank/fish@pristine1
-$ mkdir /mnt/tank/fish@pristine1
-$ mount /dev/tank/fish@pristine1 /mnt/tank/fish@pristine1
-$ ls /mnt/tank/fish\@pristine1
+$ sudo zfs snapshot tank/fish@pristine
+$ sudo mkdir /mnt/tank/fish@pristine-part1
+$ sudo mount /dev/zvol/tank/fish\@pristine-part1 /mnt/tank/fish\@pristine-part1
+$ ls /mnt/tank/fish\@pristine-part1
 
 lost+found
 </pre>
 
-<p>Changes made to tank/fish1 do not appear in tank/fish@pristine1</p>
+<p>Changes made to <em>tank/fish-part1</em> do not appear in the pristine
+snapshot <em>tank/fish@pristine-part1</em></p>
 
 <pre>
-$ touch /mnt/tank/fish1/foo
-$ ls /mnt/tank/fish1/
+$ sudo touch /mnt/tank/fish-part1/foo
+$ ls /mnt/tank/fish-part1/
 
 foo  lost+found
 
-$ ls /mnt/tank/fish\@pristine1
+$ ls /mnt/tank/fish\@pristine-part1
 
 lost+found
 </pre>
-
-<p>Enjoy the possibilities!</p>
-
 		</td>
 	</tr>
 </table>
