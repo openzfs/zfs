@@ -1,0 +1,71 @@
+<html>
+<head>
+<title>ZPIOS Example</title>
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="ZPIOS DMU Benchmark Example." />
+<meta name="robots" content="all" />
+</head>
+<body>
+<center>
+<img src="images/zfs-linux.png">
+
+<table width="80%">
+	<tr>
+		<td>
+<p>ZPIOS is benchmark designed to exercise the the ZFS Transaction
+Object Layer.  It interfaces directly with the DMU just like the
+ZPL, ZVOL, or Lustre interface layers.  Its purpose is to allow direct
+measurement of DMU performance without the overhead, bottlenecks,
+or other limitations which might exist in an one of the existing
+interface layers.</p>
+
+<img src="images/zfs-components2.png" align="right" width=60%>
+
+<p>The ZPIOS benchmark is packaged with the ZFS sources and is
+built as part of the normal build process.  It consists of a kernel
+module called <em>zpios.ko</em> and a command line utility called
+<em>zpios</em>.  After the kernel module is loaded the <em>zpios</em>
+command line utility is used to pass the test parameters to the
+kernel module.  The test is then run entirely in the kernel and
+the results reported back via the command line utility.</p>
+
+<p>In addition, several wrapper scripts are provided to simplify
+running a ZPIOS test.  The test script called <em>zpios.sh</em> takes
+a prebuilt pool configuration and test description.  It then sets
+up the pool launches the described test case and reports the results.
+This provides a convenient way to survey multiple configurations and
+workloads.</p>
+
+<p>There are several sample pool configurations provided in the
+<em>/usr/libexec/zfs/zpool-config/</em> directory.  There are also
+several test workloads provided in the <em>/usr/libexec/zfs/zpios-test/</em>
+directory.  To add you own configuration or test workload you should
+use one of the samples as a template.  First copy it to a new file in
+the proper directory and update it according to your requirements.</p>
+
+<p>As an example, the following <em>zpios.sh</em> command will use the
+<em>lo-raidz2</em> configuration to create a raidz2 pool using four
+loopback devices.  It will then run the <em>tiny</em> test case and
+report the read/write performance results.</p>
+
+<pre>
+$ sudo /usr/libexec/zfs/zpios.sh -c lo-raidz2 -t tiny 
+status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     lo-raidz2    0	64m	64	203.09m	64m	64	1.25g
+</pre>
+
+<p><b>Be careful</b> about running a sample pool configuration without
+looking at the script to see what it does.  Many of the configurations
+use loopback devices, scsi_debug devices, or temporarily files for the
+pool.  These are all very safe to run.  However others operate by
+default on real block devices, you must ensure these devices are not
+in use on your system or they will be overwritten.</p>
+
+		</td>
+	</tr>
+</table>
+
+</center>
+</body>
+</html>
