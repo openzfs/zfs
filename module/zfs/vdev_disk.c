@@ -87,10 +87,10 @@ bdev_capacity(struct block_device *bdev)
 
 	/* The partition capacity referenced by the block device */
 	if (part)
-	       return part->nr_sects;
+		return (part->nr_sects << 9);
 
 	/* Otherwise assume the full device capacity */
-	return get_capacity(bdev->bd_disk);
+	return (get_capacity(bdev->bd_disk) << 9);
 }
 
 static void
@@ -218,7 +218,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(bdev) * block_size;
+	*psize = bdev_capacity(bdev);
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
@@ -417,7 +417,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
-	int i = 0, error = 0, block_size;
+	int i = 0, error = 0;
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
 
@@ -431,7 +431,6 @@ retry:
 
 	dr->dr_zio = zio;
 	dr->dr_rw = flags;
-	block_size = vdev_bdev_block_size(bdev);
 
 	/*
 	 * When the IO size exceeds the maximum bio size for the request
@@ -472,7 +471,7 @@ retry:
 		vdev_disk_dio_get(dr);
 
 		dr->dr_bio[i]->bi_bdev = bdev;
-		dr->dr_bio[i]->bi_sector = bio_offset / block_size;
+		dr->dr_bio[i]->bi_sector = bio_offset >> 9;
 		dr->dr_bio[i]->bi_rw = dr->dr_rw;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
@@ -715,7 +714,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 
-	s = bdev_capacity(bdev) * vdev_bdev_block_size(bdev);
+	s = bdev_capacity(bdev);
 	if (s == 0) {
 		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
 		return EIO;
