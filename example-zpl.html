@@ -40,24 +40,53 @@ was reasonable to do so.  My hope is that it will help foster more
 community involvement.</li>
 </ol>
 
-<img src="images/zfs-components2.png" align="right" width=60%>
+<p>There is a lot of very good ZFS documentation already out there.
+Almost all of it should be applicable to this implementation because
+we have tried to conform to the Solaris behavior as much as possible.
+Here's a simple example to get you started.</p>
 
-<p>If you're not comfortable running a release candidate and you absolutely
-need to have ZFS on Linux today.  There is an alternate implementation
-of the ZPL which was produced by <a href="http://kqinfotech.com/">
-KQ Infotech</a>.  You can download their implementation from
-<a href=http://kqstor.com>kqstor.com</a>.  Their port is based
-of the spl/zfs-0.5.2 version so it <i>does</i> include features such
-as deduplication.</p>
+<p>Create the <em>tank</em> zpool containing a raidz vdev spread
+over 3 devices.  It is recommended that you use the persistent
+/dev/disk/by-id/* device names when creating your pool to avoid
+any device reordering issues latter.  Your device names will of
+course be different.</p>
 
-<p>We would also love to see a FUSE based implementation.
-Currently all the zfs code in this project builds cleanly in the
-kernel as a module and in user space as a dynamic library used by
-ztest.  Getting this code base working with zfs-fuse should mainly
-be a matter of adding the needed FUSE bits which the
-<a href="http://zfs-fuse.net/">ZFS-FUSE folks</a> clearly showed
-us can be done!  It would be very nice from a development standpoint
-if these two projects could share a common code base.</p>
+<pre>
+$ sudo zpool create tank raidz scsi-SATA_Maxtor_7Y250M0_Y638RXME
+  scsi-SATA_Maxtor_7Y250M0_Y638S56E scsi-SATA_Maxtor_7Y250M0_Y638TJFE
+$ sudo zpool status tank
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
+
+	NAME                                   STATE     READ WRITE CKSUM
+	tank                                   ONLINE       0     0     0
+	  raidz1-0                             ONLINE       0     0     0
+	    scsi-SATA_Maxtor_7Y250M0_Y638RXME  ONLINE       0     0     0
+	    scsi-SATA_Maxtor_7Y250M0_Y638S56E  ONLINE       0     0     0
+	    scsi-SATA_Maxtor_7Y250M0_Y638TJFE  ONLINE       0     0     0
+
+errors: No known data errors
+</pre>
+
+<p>Your <em>tank</em> pool will automatically contain a filesystem
+which is mounted under your root directory.  You can create additional
+filesystems with the <em>zfs create</em> command.  They will also be
+automatically mounted.</p>
+
+<pre>
+$ sudo zfs create tank/fish
+$ df -h -t zfs
+Filesystem            Size  Used Avail Use% Mounted on
+tank                  459G  128K  459G   1% /tank
+tank/fish             459G  128K  459G   1% /tank/fish
+</pre>
+
+<p>Some other useful <em>zfs</em> subcommands are <em>mount</em>,
+<em>unmount</em>, <em>destroy</em>, and <em>snapshot</em>.  These
+are all fully described in the zfs man page and should be enough
+to get your started.</em>
 		</td>
 	</tr>
 </table>
