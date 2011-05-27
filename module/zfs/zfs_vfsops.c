@@ -317,7 +317,7 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	 *   case: sensitive|insensitive|mixed
 	 *   zerocopy: on|off
 	 */
-	if(zsb->z_sb->s_flags & MS_MANDLOCK)
+	if (zsb->z_sb->s_flags & MS_MANDLOCK)
 		nbmand = TRUE;
 	/*
 	 * Register property callbacks.

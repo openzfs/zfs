@@ -1366,12 +1366,9 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 
 	if (unlikely(ip->i_flock && mandatory_lock(ip))) {
 		uint64_t length = (len ? len : zp->z_size - off);
-	/*
-		if (error = chklock(ip, FWRITE, off, length, flag, NULL))
-			return (error);
-	*/
-		if(!lock_may_write(ip, off, length))
+		if (!lock_may_write(ip, off, length)) {
 			return EAGAIN;
+		}
 	}
 
 	if (len == 0) {
