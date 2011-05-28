@@ -47,6 +47,12 @@ zpl_inode_destroy(struct inode *ip)
 	zfs_inode_destroy(ip);
 }
 
+static void
+zpl_free_pagecache(struct inode *ip)
+{
+	zfs_truncate_setsize(ip, 0);
+}
+
 /*
  * When ->drop_inode() is called its return value indicates if the
  * inode should be evicted from the inode cache.  If the inode is
@@ -73,7 +79,7 @@ zpl_inode_destroy(struct inode *ip)
 static void
 zpl_evict_inode(struct inode *ip)
 {
-	truncate_inode_pages(&ip->i_data, 0);
+	zpl_free_pagecache(ip);
 	end_writeback(ip);
 	zfs_inactive(ip);
 }
@@ -89,7 +95,7 @@ zpl_clear_inode(struct inode *ip)
 static void
 zpl_inode_delete(struct inode *ip)
 {
-	truncate_inode_pages(&ip->i_data, 0);
+	zpl_free_pagecache(ip);
 	clear_inode(ip);
 }
 

@@ -55,6 +55,7 @@ extern int zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 extern int zfs_fsync(struct inode *ip, int syncflag, cred_t *cr);
 extern int zfs_getattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_setattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
+extern void zfs_truncate_setsize(struct inode *ip, loff_t new);
 extern int zfs_rename(struct inode *sdip, char *snm, struct inode *tdip,
     char *tnm, cred_t *cr, int flags);
 extern int zfs_symlink(struct inode *dip, char *name, vattr_t *vap,
@@ -71,7 +72,10 @@ extern int zfs_getsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
     cred_t *cr);
 extern int zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
     cred_t *cr);
-
+extern int zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages,
+    cred_t *cr);
+extern int zfs_putpage(struct page *page, struct writeback_control *wbc,
+    void *data);
 #ifdef	__cplusplus
 }
 #endif
