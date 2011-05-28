@@ -1,3 +1,13 @@
+zfs-linux (0.6.0.16-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Pass caller's credential in zfsdev_ioctl()
+  * Default to internal 'zfs userspace' implementation
+  * Use vmem_alloc() for zfs_ioc_userspace_many()
+  * Fix 4K sector support
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 28 May 2011 15:47:15 -0500
+
 zfs-linux (0.6.0.15-0ubuntu1) unstable; urgency=low
 
   [ Alexey Shvetsov ]
