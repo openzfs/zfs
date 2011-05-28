@@ -2297,6 +2297,26 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 EXPORT_SYMBOL(zfs_getattr);
 
 /*
+ * Truncate the inode and pages associated with the inode. The pages are
+ * unmapped and removed from cache.
+ *
+ *	IN:	ip	- inode of file to be modified.
+ *		new	- new size of the inode
+ */
+void
+zfs_truncate_setsize(struct inode *ip, loff_t new)
+{
+	struct address_space *mapping = ip->i_mapping;
+
+	i_size_write(ip, new);
+
+	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
+	truncate_inode_pages(mapping, new);
+	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
+}
+EXPORT_SYMBOL(zfs_truncate_setsize);
+
+/*
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
@@ -2444,10 +2464,7 @@ top:
 		if (err)
 			goto out3;
 
-		/* Careful negative Linux return code here */
-		err = -vmtruncate(ip, vap->va_size);
-		if (err)
-			goto out3;
+		zfs_truncate_setsize(ip, vap->va_size);
 	}
 
 	if (mask & (ATTR_ATIME|ATTR_MTIME) ||
