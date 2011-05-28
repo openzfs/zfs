@@ -71,6 +71,9 @@ extern int zfs_getsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
     cred_t *cr);
 extern int zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
     cred_t *cr);
+extern int zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages);
+extern int zfs_putpage(struct page *page, struct writeback_control *wbc,
+    void *data);
 
 #ifdef	__cplusplus
 }

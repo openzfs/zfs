@@ -254,6 +254,60 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	return (error);
 }
 
+static struct page **
+pages_vector_from_list(struct list_head *pages, unsigned nr_pages)
+{
+	struct page **pl;
+	struct page *t;
+	unsigned page_idx;
+
+	pl = kmalloc(sizeof(*pl) * nr_pages, GFP_NOFS);
+	if (!pl)
+		return ERR_PTR(-ENOMEM);
+
+	page_idx = 0;
+	list_for_each_entry_reverse(t, pages, lru) {
+		pl[page_idx] = t;
+		page_idx++;
+	}
+
+	return pl;
+}
+
+static int
+zpl_readpages(struct file *file, struct address_space *mapping,
+	struct list_head *pages, unsigned nr_pages)
+{
+	struct inode *ip;
+	struct page  **pl;
+	struct page  *p, *n;
+	int          error;
+
+	ip = mapping->host;
+
+	pl = pages_vector_from_list(pages, nr_pages);
+	if (IS_ERR(pl))
+		return PTR_ERR(pl);
+
+	error = -zfs_getpage(ip, pl, nr_pages);
+	if (error)
+		goto error;
+
+	list_for_each_entry_safe_reverse(p, n, pages, lru) {
+
+		list_del(&p->lru);
+
+		flush_dcache_page(p);
+		SetPageUptodate(p);
+		unlock_page(p);
+		page_cache_release(p);
+	}
+
+error:
+	kfree(pl);
+	return error;
+}
+
 /*
  * Populate a page with data for the Linux page cache.  This function is
  * only used to support mmap(2).  There will be an identical copy of the
@@ -267,33 +321,14 @@ static int
 zpl_readpage(struct file *filp, struct page *pp)
 {
 	struct inode *ip;
-	loff_t off, i_size;
-	size_t len, wrote;
-	cred_t *cr = CRED();
-	void *pb;
+	struct page *pl[1];
 	int error = 0;
 
 	ASSERT(PageLocked(pp));
 	ip = pp->mapping->host;
-	off = page_offset(pp);
-	i_size = i_size_read(ip);
-	ASSERT3S(off, <, i_size);
+	pl[0] = pp;
 
-	crhold(cr);
-	len = MIN(PAGE_CACHE_SIZE, i_size - off);
-
-	pb = kmap(pp);
-
-	/* O_DIRECT is passed to bypass the page cache and avoid deadlock. */
-	wrote = zpl_read_common(ip, pb, len, off, UIO_SYSSPACE, O_DIRECT, cr);
-	if (wrote != len)
-		error = -EIO;
-
-	if (!error && (len < PAGE_CACHE_SIZE))
-		memset(pb + len, 0, PAGE_CACHE_SIZE - len);
-
-	kunmap(pp);
-	crfree(cr);
+	error = -zfs_getpage(ip, pl, 1);
 
 	if (error) {
 		SetPageError(pp);
@@ -305,47 +340,15 @@ zpl_readpage(struct file *filp, struct page *pp)
 	}
 
 	unlock_page(pp);
-
-	return (error);
+	return error;
 }
 
-/*
- * Write out dirty pages to the ARC, this function is only required to
- * support mmap(2).  Mapped pages may be dirtied by memory operations
- * which never call .write().  These dirty pages are kept in sync with
- * the ARC buffers via this hook.
- *
- * Currently this function relies on zpl_write_common() and the O_DIRECT
- * flag to push out the page.  This works but the more correct way is
- * to update zfs_putapage() to be Linux friendly and use that interface.
- */
-static int
-zpl_writepage(struct page *pp, struct writeback_control *wbc)
+int
+zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
-	struct inode *ip;
-	loff_t off, i_size;
-	size_t len, read;
-	cred_t *cr = CRED();
-	void *pb;
-	int error = 0;
+	int error;
 
-	ASSERT(PageLocked(pp));
-	ip = pp->mapping->host;
-	off = page_offset(pp);
-	i_size = i_size_read(ip);
-
-	crhold(cr);
-	len = MIN(PAGE_CACHE_SIZE, i_size - off);
-
-	pb = kmap(pp);
-
-	/* O_DIRECT is passed to bypass the page cache and avoid deadlock. */
-	read = zpl_write_common(ip, pb, len, off, UIO_SYSSPACE, O_DIRECT, cr);
-	if (read != len)
-		error = -EIO;
-
-	kunmap(pp);
-	crfree(cr);
+	error = -zfs_putpage(pp, wbc, data);
 
 	if (error) {
 		SetPageError(pp);
@@ -353,16 +356,36 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	} else {
 		ClearPageError(pp);
 		SetPageUptodate(pp);
+		flush_dcache_page(pp);
 	}
 
 	unlock_page(pp);
+	return error;
+}
 
-	return (error);
+static int
+zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
+{
+	return write_cache_pages(mapping, wbc, zpl_putpage, mapping);
+}
+
+/*
+ * Write out dirty pages to the ARC, this function is only required to
+ * support mmap(2).  Mapped pages may be dirtied by memory operations
+ * which never call .write().  These dirty pages are kept in sync with
+ * the ARC buffers via this hook.
+ */
+static int
+zpl_writepage(struct page *pp, struct writeback_control *wbc)
+{
+	return zpl_putpage(pp, wbc, pp->mapping);
 }
 
 const struct address_space_operations zpl_address_space_operations = {
+	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
+	.writepages     = zpl_writepages,
 };
 
 const struct file_operations zpl_file_operations = {
