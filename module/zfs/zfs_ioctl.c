@@ -4094,7 +4094,7 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 	if (error)
 		return (error);
 
-	buf = kmem_alloc(bufsize, KM_SLEEP);
+	buf = vmem_alloc(bufsize, KM_SLEEP);
 
 	error = zfs_userspace_many(zsb, zc->zc_objset_type, &zc->zc_cookie,
 	    buf, &zc->zc_nvlist_dst_size);
@@ -4104,7 +4104,7 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 		    (void *)(uintptr_t)zc->zc_nvlist_dst,
 		    zc->zc_nvlist_dst_size);
 	}
-	kmem_free(buf, bufsize);
+	vmem_free(buf, bufsize);
 	zfs_sb_rele(zsb, FTAG);
 
 	return (error);
@@ -5047,7 +5047,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		error = EFAULT;
 
 	if ((error == 0) && !(flag & FKIOCTL))
-		error = zfs_ioc_vec[vec].zvec_secpolicy(zc, NULL);
+		error = zfs_ioc_vec[vec].zvec_secpolicy(zc, CRED());
 
 	/*
 	 * Ensure that all pool/dataset names are valid before we pass down to

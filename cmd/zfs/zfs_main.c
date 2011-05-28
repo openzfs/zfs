@@ -1879,16 +1879,6 @@ zfs_do_userspace(int argc, char **argv)
 	zfs_userquota_prop_t p;
 	int error;
 
-	/*
-	 * Try the python version.  If the execv fails, we'll continue
-	 * and do a simplistic implementation.
-	 */
-	(void) execv(pypath, argv-1);
-
-	(void) printf("internal error: %s not found\n"
-	    "falling back on built-in implementation, "
-	    "some features will not work\n", pypath);
-
 	if ((zhp = zfs_open(g_zfs, argv[argc-1], ZFS_TYPE_DATASET)) == NULL)
 		return (1);
 
