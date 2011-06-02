@@ -13,6 +13,7 @@ fi
 
 PROG=zpios-sanity.sh
 HEADER=
+FAILS=0
 
 usage() {
 cat << EOF
@@ -74,6 +75,8 @@ zpios_test() {
 
 	${ZPIOS_SH} -f -c ${CONFIG} -t ${TEST} &>${LOG}
 	if [ $? -ne 0 ]; then
+		FAILS=1
+
 		if [ ${VERBOSE} ]; then
 			printf "FAIL:     %-13s\n" ${CONFIG}
 			cat ${LOG}
@@ -155,4 +158,4 @@ if [ ${DANGEROUS} ]; then
 	done
 fi
 
-exit 0
+exit $FAILS
