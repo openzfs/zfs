@@ -64,6 +64,8 @@ fi
 
 # Perform pre-cleanup is requested
 if [ ${CLEANUP} ]; then
+	${ZFS_SH} -u
+	cleanup_md_devices
 	cleanup_loop_devices
 	rm -f /tmp/zpool.cache.*
 fi
@@ -148,6 +150,9 @@ DANGEROUS_CONFIGS=(					\
 	dm0-raid0					\
 )
 
+TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
+${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || die "Unable to load modules"
+
 for CONFIG in ${SAFE_CONFIGS[*]}; do
 	zpios_test $CONFIG tiny
 done
@@ -157,5 +162,7 @@ if [ ${DANGEROUS} ]; then
 		zpios_test $CONFIG tiny
 	done
 fi
+
+${ZFS_SH} -u
 
 exit $FAILS
