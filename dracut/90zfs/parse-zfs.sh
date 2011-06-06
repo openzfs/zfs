@@ -15,7 +15,11 @@ if [ "$rootok" != "1" ] ; then
 	echo "Auto-discovering available ZFS pools for root filesystem"
 	zpool import -aN
 	zfsbootfs=`zpool list -H -o bootfs | grep -v ^-$ -m 1`
-	if [ -n "$zfsbootfs" ] ; then
+	if [ -n "$root" ] && zfs list "$root" > /dev/null 2>&1 ; then
+		root="zfs:$root"
+		rootfs="zfs"
+		rootok=1
+	elif [ -n "$zfsbootfs" ] ; then
 		root="zfs:$zfsbootfs"
 		rootfs="zfs"
 		rootok=1
