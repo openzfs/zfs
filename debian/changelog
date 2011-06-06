@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.17-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Make tgx_sync_thread zio's async
+  * Revert "Fix stack traverse_visitbp()"
+  * Fix stack ddt_zap_lookup()
+  * Fix stack ddt_class_contains()
+  * Fix zpios-sanity.sh return code
+  * Always unload zpios.ko on exit
+  * Delay before destroying loopback devices
+  * Sanatize zpios-sanity.sh environment
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 05 Jun 2011 20:32:51 -0500
+
 zfs-linux (0.6.0.16-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
