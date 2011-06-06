@@ -2196,14 +2196,19 @@ SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
 	arc_reclaim_strategy_t strategy;
 	int arc_reclaim;
 
+	/* Return number of reclaimable pages based on arc_shrink_shift */
+	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
+	    >> arc_shrink_shift, 0);
+	if (nr_to_scan == 0)
+		return (arc_reclaim);
+
+	/* Prevent reclaim below arc_c_min */
+	if (arc_reclaim <= 0)
+		return (-1);
+
 	/* Not allowed to perform filesystem reclaim */
 	if (!(gfp_mask & __GFP_FS))
 		return (-1);
-
-	/* Return number of reclaimable pages based on arc_shrink_shift */
-	arc_reclaim = btop((arc_size - arc_c_min)) >> arc_shrink_shift;
-	if (nr_to_scan == 0)
-		return (arc_reclaim);
 
 	/* Reclaim in progress */
 	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
@@ -2218,7 +2223,8 @@ SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
 	}
 
 	arc_kmem_reap_now(strategy);
-	arc_reclaim = btop((arc_size - arc_c_min)) >> arc_shrink_shift;
+	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
+	    >> arc_shrink_shift, 0);
 	mutex_exit(&arc_reclaim_thr_lock);
 
 	return (arc_reclaim);
@@ -4767,15 +4773,25 @@ EXPORT_SYMBOL(arc_read);
 EXPORT_SYMBOL(arc_buf_remove_ref);
 EXPORT_SYMBOL(arc_getbuf_func);
 
-module_param(zfs_arc_min, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_min, "Minimum arc size");
+module_param(zfs_arc_min, ulong, 0444);
+MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 
-module_param(zfs_arc_max, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_max, "Maximum arc size");
+module_param(zfs_arc_max, ulong, 0444);
+MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 
-module_param(zfs_arc_meta_limit, ulong, 0644);
+module_param(zfs_arc_meta_limit, ulong, 0444);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
-module_param(arc_reduce_dnlc_percent, uint, 0644);
-MODULE_PARM_DESC(arc_reduce_dnlc_percent, "Meta reclaim percentage");
+module_param(zfs_arc_reduce_dnlc_percent, int, 0444);
+MODULE_PARM_DESC(zfs_arc_reduce_dnlc_percent, "Meta reclaim percentage");
+
+module_param(zfs_arc_grow_retry, int, 0444);
+MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
+
+module_param(zfs_arc_shrink_shift, int, 0444);
+MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
+
+module_param(zfs_arc_p_min_shift, int, 0444);
+MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
+
 #endif

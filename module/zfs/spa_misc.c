@@ -1758,4 +1758,7 @@ EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);
 
 EXPORT_SYMBOL(spa_namespace_lock);
+
+module_param(zfs_recover, int, 0644);
+MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
 #endif

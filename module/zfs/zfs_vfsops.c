@@ -1206,9 +1206,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	/* Set callback operations for the file system. */
 	sb->s_op = &zpl_super_operations;
 	sb->s_xattr = zpl_xattr_handlers;
-#ifdef HAVE_EXPORTS
-        sb->s_export_op = &zpl_export_operations;
-#endif /* HAVE_EXPORTS */
+	sb->s_export_op = &zpl_export_operations;
 
 	/* Set features for file system. */
 	zfs_set_fuid_feature(zsb);

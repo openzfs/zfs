@@ -45,74 +45,24 @@ zfs_installed() {
 	return 0
 }
 
-reregister_mounts() {
-	cat /etc/mtab | while read -r fs mntpnt fstype opts rest ; do
-		fs=`printf '%b\n' "$fs"`
-		mntpnt=`printf '%b\n' "$mntpnt"`
-		if [ "$fstype" == "zfs" ] ; then
-			if [ "$mntpnt" == "/" ] ; then
-				mount -f -o zfsutil -t zfs --move / /removethismountpointhoweverpossible
-				umount --fake /removethismountpointhoweverpossible
-			else
-				umount --fake "$mntpnt"
-			fi
-		elif echo "$fs" | grep -q "^/dev/zd" ; then
-			if [ "$mntpnt" == "/" ] ; then
-				mount -f -t "$fstype" --move / /removethismountpointhoweverpossible
-				umount --fake /removethismountpointhoweverpossible
-			else
-				umount --fake "$mntpnt"
-			fi
-		fi
-	done
-	cat /proc/mounts | while read -r fs mntpnt fstype opts rest ; do
-		fs=`printf '%b\n' "$fs"`
-		mntpnt=`printf '%b\n' "$mntpnt"`
-		if [ "$fstype" == "zfs" ] ; then
-			mount -f -t zfs -o zfsutil "$fs" "$mntpnt"
-		elif echo "$fs" | grep -q "^/dev/zd" ; then
-			mount -f -t "$fstype" -o "$opts" "$fs" "$mntpnt"
-		fi
-	done
-}
-
 # i need a bash guru to simplify this, since this is copy and paste, but donno how
 # to correctly dereference variable names in bash, or how to do this right
 
-declare -A MTAB
-declare -A FSTAB
-
-# first parameter is a regular expression that filters mtab
-read_mtab() {
-        for fs in "${!MTAB[@]}" ; do unset MTAB["$fs"] ; done
-        while read -r fs mntpnt fstype opts blah ; do
-                fs=`printf '%b\n' "$fs"`
-                MTAB["$fs"]=$mntpnt
-        done < <(grep "$1" /etc/mtab)
-}
-
-in_mtab() {
-        [ "${MTAB[$1]}" != "" ]
-        return $?
-}
-
 # first parameter is a regular expression that filters fstab
 read_fstab() {
-        for fs in "${!FSTAB[@]}" ; do unset FSTAB["$fs"] ; done
+        unset FSTAB
+	n=0
         while read -r fs mntpnt fstype opts blah ; do
                 fs=`printf '%b\n' "$fs"`
-                FSTAB["$fs"]=$mntpnt
-        done < <(grep "$1" /etc/fstab)
-}
-
-in_fstab() {
-        [ "${FSTAB[$1]}" != "" ]
-        return $?
+                FSTAB[$n]=$fs
+		let n++
+        done < <(egrep "$1" /etc/fstab)
 }
 
 start()
 {
-	if [ -f "$LOCKFILE" ] ; then return 0 ; fi
+	# Disable lockfile check
+	# if [ -f "$LOCKFILE" ] ; then return 0 ; fi
 
 	# check if ZFS is installed.  If not, comply to FC standards and bail
 	zfs_installed || {
@@ -130,47 +80,25 @@ start()
 	if ! grep -q zfs /proc/modules ; then
 		action $"Loading kernel ZFS infrastructure: " modprobe zfs || return 5
 	fi
+	sleep 1
 
-	# fix mtab to include already-mounted fs filesystems, in case there are any
-	# we ONLY do this if mtab does not point to /proc/mounts
-	# which is the case in some systems (systemd may bring that soon)
-	if ! readlink /etc/mtab | grep -q /proc ; then
-		if grep -qE "(^/dev/zd| zfs )" /proc/mounts ; then
-			action $"Registering already-mounted ZFS filesystems and volumes: " reregister_mounts || return 150
-		fi
-	fi
+	action $"Mounting automounted ZFS filesystems: " $ZFS mount -a || return 152
 
-        if [ -f /etc/zfs/zpool.cache ] ; then
-	
-		echo -n $"Importing ZFS pools not yet imported: "
-		$ZPOOL import -c /etc/zfs/zpool.cache -aN || true # stupid zpool will fail if all pools are already imported
-		RETVAL=$?
-		if [ $RETVAL -ne 0 ]; then
-			failure "Importing ZFS pools not yet imported: "
-			return 151
-		fi
-		success "Importing ZFS pools not yet imported: "
-	
-	fi
-	
-	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 152
-
-	read_mtab  "^/dev/zd"
-	read_fstab "^/dev/zd"
-
+	# Read fstab, try to mount zvols ignoring error
+	read_fstab "^/dev/(zd|zvol)"
 	template=$"Mounting volume %s registered in fstab: "
-	for volume in "${!FSTAB[@]}" ; do
-		if in_mtab "$volume" ; then continue ; fi
+	for volume in "${FSTAB[@]}" ; do
 		string=`printf "$template" "$volume"`
-		action "$string" mount "$volume"
+		action "$string" mount "$volume" 2>/dev/null || /bin/true
 	done
-	
-	touch "$LOCKFILE"
+
+	# touch "$LOCKFILE"
 }
 
 stop()
 {
-	if [ ! -f "$LOCKFILE" ] ; then return 0 ; fi
+	# Disable lockfile check
+	# if [ ! -f "$LOCKFILE" ] ; then return 0 ; fi
 
 	# check if ZFS is installed.  If not, comply to FC standards and bail
 	zfs_installed || {
@@ -199,7 +127,7 @@ stop()
 	#	return 8
 	#fi
 	#success
-	
+
 	rm -f "$LOCKFILE"
 }
 

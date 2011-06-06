@@ -416,3 +416,14 @@ vdev_cache_stat_fini(void)
 		vdc_ksp = NULL;
 	}
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_vdev_cache_max, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_cache_max, "Inflate reads small than max");
+
+module_param(zfs_vdev_cache_size, int, 0444);
+MODULE_PARM_DESC(zfs_vdev_cache_size, "Total size of the per-disk cache");
+
+module_param(zfs_vdev_cache_bshift, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_cache_bshift, "Shift size to inflate reads too");
+#endif

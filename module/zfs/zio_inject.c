@@ -46,7 +46,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/fs/zfs.h>
 
-uint32_t zio_injection_enabled;
+uint32_t zio_injection_enabled = 0;
 
 typedef struct inject_handler {
 	int			zi_id;
@@ -513,3 +513,8 @@ zio_inject_fini(void)
 	list_destroy(&inject_handlers);
 	rw_destroy(&inject_lock);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zio_injection_enabled, int, 0644);
+MODULE_PARM_DESC(zio_injection_enabled, "Enable fault injection");
+#endif

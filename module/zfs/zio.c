@@ -86,7 +86,7 @@ extern vmem_t *zio_alloc_arena;
  */
 #define	IO_IS_ALLOCATING(zio) ((zio)->io_orig_pipeline & ZIO_STAGE_DVA_ALLOCATE)
 
-boolean_t	zio_requeue_io_start_cut_in_line = B_TRUE;
+int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
 int zio_buf_debug_limit = 16384;
@@ -1150,6 +1150,8 @@ __zio_execute(zio_t *zio)
 	while (zio->io_stage < ZIO_STAGE_DONE) {
 		enum zio_stage pipeline = zio->io_pipeline;
 		enum zio_stage stage = zio->io_stage;
+		dsl_pool_t *dsl;
+		boolean_t cut;
 		int rv;
 
 		ASSERT(!MUTEX_HELD(&zio->io_lock));
@@ -1162,19 +1164,26 @@ __zio_execute(zio_t *zio)
 
 		ASSERT(stage <= ZIO_STAGE_DONE);
 
+		dsl = spa_get_dsl(zio->io_spa);
+		cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+		    zio_requeue_io_start_cut_in_line : B_FALSE;
+
 		/*
 		 * If we are in interrupt context and this pipeline stage
 		 * will grab a config lock that is held across I/O,
 		 * or may wait for an I/O that needs an interrupt thread
 		 * to complete, issue async to avoid deadlock.
 		 *
+		 * If we are in the txg_sync_thread or being called
+		 * during pool init issue async to minimize stack depth.
+		 * Both of these call paths may be recursively called.
+		 *
 		 * For VDEV_IO_START, we cut in line so that the io will
 		 * be sent to disk promptly.
 		 */
-		if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
-		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
-			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
-			    zio_requeue_io_start_cut_in_line : B_FALSE;
+		if (((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
+		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) ||
+		    (dsl != NULL && dsl_pool_sync_context(dsl))) {
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
 		}
@@ -3006,5 +3015,8 @@ module_param(zio_bulk_flags, int, 0644);
 MODULE_PARM_DESC(zio_bulk_flags, "Additional flags to pass to bulk buffers");
 
 module_param(zio_delay_max, int, 0644);
-MODULE_PARM_DESC(zio_delay_max, "Max zio delay before posting an event (ms)");
+MODULE_PARM_DESC(zio_delay_max, "Max zio millisec delay before posting event");
+
+module_param(zio_requeue_io_start_cut_in_line, int, 0644);
+MODULE_PARM_DESC(zio_requeue_io_start_cut_in_line, "Prioritize requeued I/O");
 #endif

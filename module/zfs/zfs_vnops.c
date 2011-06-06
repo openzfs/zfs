@@ -220,7 +220,11 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
-	/* Decrement the synchronous opens in the znode */
+	/*
+	 * Zero the synchronous opens in the znode.  Under Linux the
+	 * zfs_close() hook is not symmetric with zfs_open(), it is
+	 * only called once when the last reference is dropped.
+	 */
 	if (flag & O_SYNC)
 		zp->z_sync_cnt = 0;
 
@@ -335,7 +339,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 }
 #endif /* _KERNEL */
 
-offset_t zfs_read_chunk_size = 1024 * 1024; /* Tunable */
+unsigned long zfs_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
  * Read bytes from specified file into supplied buffer.
@@ -4716,3 +4720,8 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 	return (0);
 }
 #endif /* HAVE_UIO_ZEROCOPY */
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_read_chunk_size, long, 0644);
+MODULE_PARM_DESC(zfs_read_chunk_size, "Bytes to read per chunk");
+#endif

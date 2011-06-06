@@ -85,6 +85,13 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 	vattr_t *vap;
 	int error;
 
+	/*
+	 * We currently expect Linux to supply rdev=0 for all sockets
+	 * and fifos, but we want to know if this behavior ever changes.
+	 */
+	if (S_ISSOCK(mode) || S_ISFIFO(mode))
+		ASSERT(rdev == 0);
+
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mode = mode;
