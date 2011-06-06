@@ -42,6 +42,15 @@ OPTIONS:
 EOF
 }
 
+unload_die() {
+	unload_modules
+	while [ -c /dev/zpios ]; do
+		sleep 1
+	done
+
+	exit 1
+}
+
 print_header() {
 	echo --------------------- ZPIOS RESULTS ----------------------------
 	echo -n "Date: "; date
@@ -242,7 +251,7 @@ fi
 # Create the zpool configuration
 ${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
 	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} \
-	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || exit 1
+	-l "${ZPOOL_OPTIONS}" -s "${ZFS_OPTIONS}" || unload_die
 
 if [ ${PROFILE} ]; then
 	zpios_profile_start
@@ -261,7 +270,7 @@ fi
 
 # Destroy the zpool configuration
 ${ZPOOL_CREATE_SH} ${VERBOSE_FLAG} ${FORCE_FLAG} \
-	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || exit 1
+	-p ${ZPOOL_NAME} -c ${ZPOOL_CONFIG} -d || unload_die
 
 # Unload the test module stack and wait for device removal
 unload_modules

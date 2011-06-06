@@ -31,6 +31,9 @@ zpool_destroy() {
 	msg ${ZPOOL} destroy ${ZPOOL_NAME}
 	${ZPOOL} destroy ${ZPOOL_NAME}
 
+	# Delay to ensure device is closed before removing loop device
+	sleep 1
+
 	for FILE in ${FILES}; do
 		DEVICE=`${LOSETUP} -a | grep ${FILE} | head -n1|cut -f1 -d:`
 		msg "Removing ${FILE} using loopback device ${DEVICE}"
