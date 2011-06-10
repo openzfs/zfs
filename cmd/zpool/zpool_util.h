@@ -44,7 +44,8 @@ uint_t num_logs(nvlist_t *nv);
  */
 
 nvlist_t *make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv);
+    boolean_t replacing, boolean_t dryrun, int argc, char **argv,
+    uint64_t ashift);
 nvlist_t *split_mirror_vdev(zpool_handle_t *zhp, char *newname,
     nvlist_t *props, splitflags_t flags, int argc, char **argv);
 
