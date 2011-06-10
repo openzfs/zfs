@@ -1,0 +1,199 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 15 (Lovelock) Desktop - AMD64/builds/0/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Fri, 10 Jun 2011 23:37:34 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">starting git operation
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.016015
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.005460
+/usr/bin/git init
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'init']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Initialized empty Git repository in /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build/.git/
+</span><span class="header">elapsedTime=0.244710
+/usr/bin/git reset --hard da88a7fbe8876437c25f1006f91ca5595659b8d2
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', 'da88a7fbe8876437c25f1006f91ca5595659b8d2']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stderr">fatal: Could not parse object 'da88a7fbe8876437c25f1006f91ca5595659b8d2'.
+</span><span class="header">elapsedTime=0.009507
+fetching branch master from git://eris.llnl.gov/zfs.git
+/usr/bin/git fetch -t git://eris.llnl.gov/zfs.git +master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'fetch', '-t', 'git://eris.llnl.gov/zfs.git', '+master']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stderr">From git://eris.llnl.gov/zfs
+ * branch            master     -&gt; FETCH_HEAD
+ * [new tag]         zfs-0.4.0  -&gt; zfs-0.4.0
+ * [new tag]         zfs-0.4.1  -&gt; zfs-0.4.1
+ * [new tag]         zfs-0.4.2  -&gt; zfs-0.4.2
+ * [new tag]         zfs-0.4.3  -&gt; zfs-0.4.3
+ * [new tag]         zfs-0.4.4  -&gt; zfs-0.4.4
+ * [new tag]         zfs-0.4.5  -&gt; zfs-0.4.5
+ * [new tag]         zfs-0.4.6  -&gt; zfs-0.4.6
+ * [new tag]         zfs-0.4.7  -&gt; zfs-0.4.7
+ * [new tag]         zfs-0.4.8  -&gt; zfs-0.4.8
+ * [new tag]         zfs-0.4.9  -&gt; zfs-0.4.9
+ * [new tag]         zfs-0.5.0  -&gt; zfs-0.5.0
+ * [new tag]         zfs-0.5.1  -&gt; zfs-0.5.1
+ * [new tag]         zfs-0.5.2  -&gt; zfs-0.5.2
+ * [new tag]         zfs-0.6.0-rc1 -&gt; zfs-0.6.0-rc1
+ * [new tag]         zfs-0.6.0-rc2 -&gt; zfs-0.6.0-rc2
+ * [new tag]         zfs-0.6.0-rc3 -&gt; zfs-0.6.0-rc3
+ * [new tag]         zfs-0.6.0-rc4 -&gt; zfs-0.6.0-rc4
+</span><span class="header">elapsedTime=7.618104
+/usr/bin/git reset --hard da88a7fbe8876437c25f1006f91ca5595659b8d2
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', 'da88a7fbe8876437c25f1006f91ca5595659b8d2']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">HEAD is now at da88a7f Pass -f option for import
+</span><span class="header">elapsedTime=0.102247
+/usr/bin/git branch -M master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'branch', '-M', 'master']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.008126
+/usr/bin/git rev-parse HEAD
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'rev-parse', 'HEAD']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">da88a7fbe8876437c25f1006f91ca5595659b8d2
+</span><span class="header">elapsedTime=0.005147
+/usr/bin/patch -p1 --remove-empty-files --force --forward
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/patch', '-p1', '--remove-empty-files', '--force', '--forward']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.062967
+program finished with exit code 0
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 15 (Lovelock) Desktop - AMD64/builds/0/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Fri, 10 Jun 2011 23:37:35 GMT -->
+</html>

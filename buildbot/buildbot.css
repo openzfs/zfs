@@ -1,0 +1,130 @@
+body { 
+	margin-left: 30px; 
+	margin-right: 30px; 
+	margin-top: 20px;
+	padding: 0;
+	background: url(bg_gradient.jpg) repeat-x;
+	font: 12px/18px "Lucida Grande", "Lucida Sans Unicode", Arial, Verdana, sans-serif;
+	background-color: #fff; 
+	color: #333;
+}
+
+a:link,a:visited,a:active {
+	color: #444;
+}
+
+table {
+	border-spacing: 1px 1px;
+}
+
+table td {
+	padding: 3px 0px 3px 0px;
+	text-align: center;
+}
+
+.Project {
+	width: 100px;
+}
+
+.LastBuild, .Activity {
+	width: 230px;
+	padding: 0 0 0 4px;
+}
+
+td.Time {
+	color: #000;
+	border-bottom: 1px solid #aaa;
+	background-color: #eee;
+}
+
+td.Activity, td.Change, td.Builder {
+	color: #333333;
+	background-color: #CCCCCC;
+}
+
+td.Change {
+	border-radius: 5px;
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+}
+td.Event {
+	color: #777;
+	background-color: #ddd;
+	border-radius: 5px;
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+}
+
+td.Activity {
+	border-top-left-radius: 10px;
+	-webkit-border-top-left-radius: 10px;
+	-moz-border-radius-topleft: 10px;
+	min-height: 20px;
+	padding: 8px 0 8px 0;
+}
+
+td.idle, td.waiting, td.offline, td.building {
+	border-top-left-radius: 0px;
+	-webkit-border-top-left-radius: 0px;
+	-moz-border-radius-topleft: 0px;
+}
+
+td.builder {
+	width: 150px;
+        color: #333333;
+        background-color: #CCCCCC;
+}
+
+td.sourcestamp {
+	width: 80px;
+	vertical-align: middle;
+}
+
+.LastBuild {
+	border-top-left-radius: 5px;
+	-webkit-border-top-left-radius: 5px;
+	-moz-border-radius-topleft: 5px;
+	border-top-right-radius: 5px;	
+	-webkit-border-top-right-radius: 5px;	
+	-moz-border-radius-topright: 5px;
+}
+
+/* LastBuild, BuildStep states */
+.success {
+	color: #FFFFFF;
+	background-color: #8fdf5f;
+}
+
+.failure {
+	color: #FFFFFF;
+	background-color: #e98080;
+}
+
+.warnings {
+	color: #FFFFFF;
+	background-color: #ffc343;
+}
+
+.exception, td.offline {
+	color: #FFFFFF;
+	background-color: #e0b0ff;
+}
+
+.start,.running, td.building {
+	color: #666666;
+	background-color: #fffc6c;
+}
+
+.start {
+	border-bottom-left-radius: 10px;
+	-webkit-border-bottom-left-radius: 10px;
+	-moz-border-radius-bottomleft: 10px;
+	border-bottom-right-radius: 10px;
+	-webkit-border-bottom-right-radius: 10px;
+	-moz-border-radius-bottomright: 10px;
+}
+
+td.Project a:hover, td.start a:hover {
+	color: #000;
+}
+
