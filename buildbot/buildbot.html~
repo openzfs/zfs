@@ -1,0 +1,61 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-15">
+<meta name="keyword" content="zfs, linux"/>
+<meta name="description" content="ZFS on Linux Mailing Lists." />
+<meta name="robots" content="NOFOLLOW" />
+<title>ZFS on Linux Buildbot</title>
+</head>
+
+<body>
+<center>
+<img src="zfs-linux.png">
+
+<table width=80%>
+	<tr bgcolor="#aaaaaa">
+		<th colspan="2">Buildbot</th>
+	</tr>
+	<tr bgcolor="#dddddd">
+		<th> Name </th>
+		<th> Description </th>
+	</tr>
+	<tr>
+		<td width="20%">
+		<a href="one_box_per_builder">Latest Build Display</a> </td>
+		<td> This will give you the latest build results for
+	        each builder. </td>
+	</tr>
+	<tr>
+		<td width="20%">
+		<a href="waterfall">Waterfall Display</a> </td>
+		<td> This will give you a time-oriented summary of
+		recent buildbot activity. </td>
+	</tr>
+	<tr>
+		<td width="20%">
+		 <a href="grid">Grid Display</a> </td>
+		<td> This will give you a developer-oriented summary
+		of recent buildbot activity. </td>
+	</tr>
+	<tr>
+		<td width="20%">
+		<a href="tgrid">Transposed Grid Display</a> </td>
+		<td> This presents the same information as the grid,
+		but lists the revisions down the side. </td>
+	</tr>
+	<tr>
+		<td width="20%">
+		<a href="buildslaves">Buildslave Display</a> </td>
+		<td> Summary information for all build slaves. </td>
+	</tr>
+	<tr>
+		<td width="20%">
+		<a href="about">About Buildbot</a> </td>
+		<td> Information about the Buildbot project </td>
+	</tr>
+</table>
+
+</center>
+</body>
+</html>
