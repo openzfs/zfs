@@ -635,3 +635,29 @@ wait_udev() {
 
 	return 0
 }
+
+stack_clear() {
+	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
+	local STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
+
+	if [ -e $STACK_MAX_SIZE ]; then
+		echo 1 >$STACK_TRACER_ENABLED
+		echo 0 >$STACK_MAX_SIZE
+	fi
+}
+
+stack_check() {
+	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
+	local STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
+	local STACK_LIMIT=7000
+
+	if [ -e $STACK_MAX_SIZE ]; then
+		STACK_SIZE=`cat $STACK_MAX_SIZE`
+
+		if [ $STACK_SIZE -ge $STACK_LIMIT ]; then
+			echo
+			echo "Warning: max stack size $STACK_SIZE bytes"
+			cat $STACK_TRACE
+		fi
+	fi
+}

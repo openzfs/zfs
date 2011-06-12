@@ -66,8 +66,10 @@ fi
 
 if [ ${UNLOAD} ]; then
 	umount -t zfs -a
+	stack_check
 	unload_modules
 else
+	stack_clear
 	check_modules || die "${ERROR}"
 	load_modules "$@"
 	wait_udev /dev/zfs 30
