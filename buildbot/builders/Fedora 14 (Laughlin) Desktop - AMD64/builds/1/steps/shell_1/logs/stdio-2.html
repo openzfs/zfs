@@ -1,0 +1,102 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:22 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c yum update -y &amp;&amp; yum clean all
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'yum update -y &amp;&amp; yum clean all']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Loaded plugins: langpacks, presto, refresh-packagekit
+</span><span class="stderr">ftp://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/updates/14/x86_64/repodata/repomd.xml: [Errno 14] FTP Error 227 : ftp://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/updates/14/x86_64/repodata/repomd.xml 
+Trying other mirror.
+</span><span class="stdout">Setting up Update Process
+Resolving Dependencies
+--&gt; Running transaction check
+---&gt; Package bind-libs.x86_64 32:9.7.4-0.2.b1.fc14 set to be updated
+---&gt; Package bind-utils.x86_64 32:9.7.4-0.2.b1.fc14 set to be updated
+---&gt; Package file.x86_64 0:5.04-17.fc14 set to be updated
+---&gt; Package file-libs.x86_64 0:5.04-17.fc14 set to be updated
+--&gt; Finished Dependency Resolution
+
+Dependencies Resolved
+
+================================================================================
+ Package          Arch         Version                      Repository     Size
+================================================================================
+Updating:
+ bind-libs        x86_64       32:9.7.4-0.2.b1.fc14         updates       844 k
+ bind-utils       x86_64       32:9.7.4-0.2.b1.fc14         updates       178 k
+ file             x86_64       5.04-17.fc14                 updates        46 k
+ file-libs        x86_64       5.04-17.fc14                 updates       320 k
+
+Transaction Summary
+================================================================================
+Upgrade       4 Package(s)
+
+Total download size: 1.4 M
+Downloading Packages:
+Setting up and reading Presto delta metadata
+Processing delta metadata
+Download delta size: 278 k
+Presto reduced the update size by 80% (from 1.4 M to 278 k).
+Running rpm_check_debug
+Running Transaction Test
+Transaction Test Succeeded
+Running Transaction
+</span><span class="stderr">Warning: RPMDB altered outside of yum.
+</span><span class="stdout">  Updating       : file-libs-5.04-17.fc14.x86_64                            1/8 
+  Updating       : 32:bind-libs-9.7.4-0.2.b1.fc14.x86_64                    2/8 
+  Updating       : 32:bind-utils-9.7.4-0.2.b1.fc14.x86_64                   3/8 
+  Updating       : file-5.04-17.fc14.x86_64                                 4/8 
+  Cleanup        : 32:bind-utils-9.7.4-0.1.b1.fc14.x86_64                   5/8 
+  Cleanup        : file-5.04-16.fc14.x86_64                                 6/8 
+  Cleanup        : file-libs-5.04-16.fc14.x86_64                            7/8 
+  Cleanup        : 32:bind-libs-9.7.4-0.1.b1.fc14.x86_64                    8/8 
+
+Updated:
+  bind-libs.x86_64 32:9.7.4-0.2.b1.fc14  bind-utils.x86_64 32:9.7.4-0.2.b1.fc14 
+  file.x86_64 0:5.04-17.fc14             file-libs.x86_64 0:5.04-17.fc14        
+
+Complete!
+Loaded plugins: langpacks, presto, refresh-packagekit
+Cleaning repos: fedora updates
+Cleaning up Everything
+0 delta-package files removed, by presto
+</span><span class="header">program finished with exit code 0
+elapsedTime=182.272361
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:24 GMT -->
+</html>

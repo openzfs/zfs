@@ -1,0 +1,137 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html
+ xmlns="http://www.w3.org/1999/xhtml"
+ lang="en"
+ xml:lang="en">
+
+<!-- Mirrored from pip.chaos:8010/builders/openSUSE 11.4 (Celadon) Desktop - AMD64/builds/1 by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:42:54 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8"><!-- /Added by HTTrack -->
+<head>
+ <title>Buildbot: openSUSE 11.4 (Celadon) Desktop - AMD64 Build #1</title>
+ <link href="../../../buildbot.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body vlink="#800080">
+<div class="title"><a href="../../../index-2.html">ZFS on Linux</a></div>
+<h1><a href="../../openSUSE%2011.html">Builder openSUSE 11.4 (Celadon) Desktop - AMD64</a>: Build #1</h1>
+<h2>Results:</h2>
+<span class="failure">failed configure</span>
+<h2>SourceStamp:</h2>
+ <ul>
+  <li>Branch: master</li>
+  <li>Revision: da88a7fbe8876437c25f1006f91ca5595659b8d2</li>
+  <li>Patch: YES</li>
+  <li>Got Revision: 372c2572336468cbf60272aa7e735b7ca0c3807c</li>
+ </ul>
+<h2>Buildslave:</h2>
+ <a href="../../../buildslaves/opensuse-11-4-amd64-builder.html">opensuse-11-4-amd64-builder</a>
+<h2>Reason:</h2>
+'try' job from user behlendo
+<h2>Steps and Logfiles:</h2>
+<ol>
+ <li><span class="success"><a href="1/steps/shell-2.html">shell</a> [buildbot update] [1 seconds]</span>
+  <ol>
+   <li><a href="1/steps/shell/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+ <li><span class="success"><a href="1/steps/shell_1-2.html">shell_1</a> [system update] [3 seconds]</span>
+  <ol>
+   <li><a href="1/steps/shell_1/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+ <li><span class="success"><a href="1/steps/shell_2-2.html">shell_2</a> [depend] [5 seconds]</span>
+  <ol>
+   <li><a href="1/steps/shell_2/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+ <li><span class="success"><a href="1/steps/git-2.html">git</a> [export] [3 seconds]</span>
+  <ol>
+   <li><a href="1/steps/git/logs/patch-2.html">patch</a></li>
+   <li><a href="1/steps/git/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+ <li><span class="failure"><a href="1/steps/configure-2.html">configure</a> [spl configure failed] [3 seconds]</span>
+  <ol>
+   <li><a href="1/steps/configure/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/compile-2.html">compile</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/shell_3-2.html">shell_3</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/git_1-2.html">git_1</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/configure_1-2.html">configure_1</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/compile_1-2.html">compile_1</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/shell_4-2.html">shell_4</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/test-2.html">test</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/test_1-2.html">test_1</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class=""><a href="1/steps/test_2-2.html">test_2</a> [] [0 seconds]</span>
+  <ol>
+</ol>
+ </li>
+ <li><span class="success"><a href="1/steps/shell_5-2.html">shell_5</a> [uninstall] [0 seconds]</span>
+  <ol>
+   <li><a href="1/steps/shell_5/logs/stdio-2.html">stdio</a></li>
+</ol>
+ </li>
+</ol>
+<h2>Build Properties:</h2>
+<table><tr><th valign="left">Name</th><th valign="left">Value</th><th valign="left">Source</th></tr>
+<tr><td>branch</td><td>master</td><td>Build</td></tr>
+<tr><td>buildername</td><td>openSUSE 11.4 (Celadon) Desktop - AMD64</td><td>Build</td></tr>
+<tr><td>buildnumber</td><td>1</td><td>Build</td></tr>
+<tr><td>got_revision</td><td>372c2572336468cbf60272aa7e735b7ca0c3807c</td><td>Source</td></tr>
+<tr><td>package_arch</td><td>x86_64</td><td>BuildSlave</td></tr>
+<tr><td>package_deps</td><td>zypper --non-interactive install -t pattern devel_C_C++ &amp;&amp; zypper --non-interactive install kernel-devel zlib-devel libuuid-devel libblkid-devel libselinux-devel gawk parted mdadm lsscsi</td><td>BuildSlave</td></tr>
+<tr><td>package_erase</td><td>rpm --erase</td><td>BuildSlave</td></tr>
+<tr><td>package_install</td><td>rpm -Uvh</td><td>BuildSlave</td></tr>
+<tr><td>package_type</td><td>rpm</td><td>BuildSlave</td></tr>
+<tr><td>package_update</td><td>zypper --non-interactive update</td><td>BuildSlave</td></tr>
+<tr><td>revision</td><td>da88a7fbe8876437c25f1006f91ca5595659b8d2</td><td>Build</td></tr>
+<tr><td>scheduler</td><td>zfs-try</td><td>Scheduler</td></tr>
+<tr><td>slavename</td><td>opensuse-11-4-amd64-builder</td><td>BuildSlave</td></tr>
+</table><h2>Blamelist:</h2>
+<div>no responsible users</div>
+<h2>Timing</h2>
+<table>
+<tr><td>Start</td><td>Mon Jun 13 13:51:57 2011</td></tr>
+<tr><td>End</td><td>Mon Jun 13 13:52:14 2011</td></tr>
+<tr><td>Elapsed</td><td>16 secs</td></tr>
+</table>
+<hr /><div class="footer">
+[<a href="../../../index-3.html">welcome</a>]
+<br />
+<a href="http://buildbot.sourceforge.net/">Buildbot</a>-0.7.12 working for the <a href="http://zfsonlinux.org/">ZFS on Linux</a> project.<br />
+Page built: Mon 13 Jun 2011 16:13:56
+</div>
+</body>
+
+
+<!-- Mirrored from pip.chaos:8010/builders/openSUSE 11.4 (Celadon) Desktop - AMD64/builds/1 by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:43:00 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8"><!-- /Added by HTTrack -->
+</html>

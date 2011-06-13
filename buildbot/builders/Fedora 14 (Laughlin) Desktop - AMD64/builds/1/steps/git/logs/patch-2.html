@@ -1,0 +1,78 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/git/logs/patch by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:25 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="patch/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="stdout">diff --git a/scripts/common.sh.in b/scripts/common.sh.in
+index cf55859..51671eb 100644
+--- a/scripts/common.sh.in
++++ b/scripts/common.sh.in
+@@ -635,3 +635,29 @@ wait_udev() {
+ 
+ 	return 0
+ }
++
++stack_clear() {
++	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
++	local STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
++
++	if [ -e $STACK_MAX_SIZE ]; then
++		echo 1 &gt;$STACK_TRACER_ENABLED
++		echo 0 &gt;$STACK_MAX_SIZE
++	fi
++}
++
++stack_check() {
++	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
++	local STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
++	local STACK_LIMIT=7000
++
++	if [ -e $STACK_MAX_SIZE ]; then
++		STACK_SIZE=`cat $STACK_MAX_SIZE`
++
++		if [ $STACK_SIZE -ge $STACK_LIMIT ]; then
++			echo
++			echo &quot;Warning: max stack size $STACK_SIZE bytes&quot;
++			cat $STACK_TRACE
++		fi
++	fi
++}
+diff --git a/scripts/zfs.sh b/scripts/zfs.sh
+index 4a707fa..f44053e 100755
+--- a/scripts/zfs.sh
++++ b/scripts/zfs.sh
+@@ -66,8 +66,10 @@ fi
+ 
+ if [ ${UNLOAD} ]; then
+ 	umount -t zfs -a
++	stack_check
+ 	unload_modules
+ else
++	stack_clear
+ 	check_modules || die &quot;${ERROR}&quot;
+ 	load_modules &quot;$@&quot;
+ 	wait_udev /dev/zfs 30
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/git/logs/patch by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:25 GMT -->
+</html>

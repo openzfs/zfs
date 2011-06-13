@@ -1,0 +1,113 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/test/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:48 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c /sbin/modprobe splat &amp;&amp; /usr/sbin/splat -a --nocolor
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', '/sbin/modprobe splat &amp;&amp; /usr/sbin/splat -a --nocolor']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">------------------------------ Running SPLAT Tests ------------------------------
+                kmem:kmem_alloc           Pass  
+                kmem:kmem_zalloc          Pass  
+                kmem:vmem_alloc           Pass  
+                kmem:vmem_zalloc          Pass  
+                kmem:slab_small           Pass  
+                kmem:slab_large           Pass  
+                kmem:slab_align           Pass  
+                kmem:slab_reap            Pass  
+                kmem:slab_age             Pass  
+                kmem:slab_lock            Pass  
+                kmem:slab_overcommit      Pass  
+                kmem:vmem_size            Pass  
+               taskq:single               Pass  
+               taskq:multiple             Pass  
+               taskq:system               Pass  
+               taskq:wait                 Pass  
+               taskq:order                Pass  
+               taskq:front                Pass  
+                krng:freq                 Pass  
+               mutex:tryenter             Pass  
+               mutex:race                 Pass  
+               mutex:owned                Pass  
+               mutex:owner                Pass  
+             condvar:signal1              Pass  
+             condvar:broadcast1           Pass  
+             condvar:signal2              Pass  
+             condvar:broadcast2           Pass  
+             condvar:timeout              Pass  
+              thread:create               Pass  
+              thread:exit                 Pass  
+              thread:tsd                  Pass  
+              rwlock:N-rd/1-wr            Pass  
+              rwlock:0-rd/N-wr            Pass  
+              rwlock:held                 Pass  
+              rwlock:tryenter             Pass  
+              rwlock:rw_downgrade         Pass  
+              rwlock:rw_tryupgrade        Pass  
+                time:time1                Pass  
+                time:time2                Pass  
+               vnode:vn_open              Pass  
+               vnode:vn_openat            Pass  
+               vnode:vn_rdwr              Pass  
+               vnode:vn_rename            Pass  
+               vnode:vn_getattr           Pass  
+               vnode:vn_sync              Pass  
+               vnode:vn_getf              Pass  
+                kobj:open                 Pass  
+                kobj:size/read            Pass  
+              atomic:64-bit               Pass  
+                list:create/destroy       Pass  
+                list:ins/rm head          Pass  
+                list:ins/rm tail          Pass  
+                list:insert_after         Pass  
+                list:insert_before        Pass  
+                list:remove               Pass  
+                list:active               Pass  
+             generic:ddi_strtoul          Pass  
+             generic:ddi_strtol           Pass  
+             generic:ddi_strtoull         Pass  
+             generic:ddi_strtoll          Pass  
+             generic:udivdi3              Pass  
+             generic:divdi3               Pass  
+                cred:cred                 Pass  
+                cred:kcred                Pass  
+                cred:groupmember          Pass  
+                zlib:compress/uncompress  Pass  
+</span><span class="header">program finished with exit code 0
+elapsedTime=95.386268
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 14 (Laughlin) Desktop - AMD64/builds/1/steps/test/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:48 GMT -->
+</html>

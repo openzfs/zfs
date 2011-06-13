@@ -1,0 +1,117 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 10.10 (Maverick) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:52:04 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-maverick-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-maverick-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=e9244a2518cd58d56bcec6a700000002-1307997481.603041-43164597
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Get:1 http://extras.ubuntu.com maverick Release.gpg [72B]
+Ign http://extras.ubuntu.com/ubuntu/ maverick/main Translation-en
+Hit http://us.archive.ubuntu.com maverick Release.gpg
+Get:2 http://security.ubuntu.com maverick-security Release.gpg [198B]
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/main Translation-en
+Ign http://extras.ubuntu.com/ubuntu/ maverick/main Translation-en_US
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/main Translation-en_US
+Hit http://extras.ubuntu.com maverick Release
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/multiverse Translation-en
+Hit http://extras.ubuntu.com maverick/main Sources
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/main Translation-en
+Hit http://extras.ubuntu.com maverick/main amd64 Packages
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/restricted Translation-en
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/restricted Translation-en_US
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/universe Translation-en
+Ign http://security.ubuntu.com/ubuntu/ maverick-security/universe Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/main Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/multiverse Translation-en
+Get:3 http://security.ubuntu.com maverick-security Release [31.4kB]
+Get:4 http://security.ubuntu.com maverick-security/main Sources [43.1kB]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/restricted Translation-en
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/restricted Translation-en_US
+Get:5 http://security.ubuntu.com maverick-security/restricted Sources [14B]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/universe Translation-en
+Get:6 http://security.ubuntu.com maverick-security/universe Sources [16.2kB]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick/universe Translation-en_US
+Get:7 http://us.archive.ubuntu.com maverick-updates Release.gpg [198B]
+Get:8 http://security.ubuntu.com maverick-security/multiverse Sources [1,758B]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/main Translation-en
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/main Translation-en_US
+Get:9 http://security.ubuntu.com maverick-security/main amd64 Packages [146kB]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/multiverse Translation-en
+Get:10 http://security.ubuntu.com maverick-security/restricted amd64 Packages [14B]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/restricted Translation-en
+Get:11 http://security.ubuntu.com maverick-security/universe amd64 Packages [65.7kB]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/universe Translation-en
+Get:12 http://security.ubuntu.com maverick-security/multiverse amd64 Packages [3,634B]
+Ign http://us.archive.ubuntu.com/ubuntu/ maverick-updates/universe Translation-en_US
+Hit http://us.archive.ubuntu.com maverick Release
+Get:13 http://us.archive.ubuntu.com maverick-updates Release [31.4kB]
+Hit http://us.archive.ubuntu.com maverick/main Sources
+Hit http://us.archive.ubuntu.com maverick/restricted Sources
+Hit http://us.archive.ubuntu.com maverick/universe Sources
+Hit http://us.archive.ubuntu.com maverick/multiverse Sources
+Hit http://us.archive.ubuntu.com maverick/main amd64 Packages
+Hit http://us.archive.ubuntu.com maverick/restricted amd64 Packages
+Hit http://us.archive.ubuntu.com maverick/universe amd64 Packages
+Hit http://us.archive.ubuntu.com maverick/multiverse amd64 Packages
+Get:14 http://us.archive.ubuntu.com maverick-updates/main Sources [131kB]
+Get:15 http://us.archive.ubuntu.com maverick-updates/restricted Sources [778B]
+Get:16 http://us.archive.ubuntu.com maverick-updates/universe Sources [43.2kB]
+Get:17 http://us.archive.ubuntu.com maverick-updates/multiverse Sources [2,508B]
+Get:18 http://us.archive.ubuntu.com maverick-updates/main amd64 Packages [367kB]
+Get:19 http://us.archive.ubuntu.com maverick-updates/restricted amd64 Packages [1,802B]
+Get:20 http://us.archive.ubuntu.com maverick-updates/universe amd64 Packages [139kB]
+Get:21 http://us.archive.ubuntu.com maverick-updates/multiverse amd64 Packages [5,085B]
+Fetched 1,030kB in 16s (61.7kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+</span><span class="header">program finished with exit code 0
+elapsedTime=45.231408
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 10.10 (Maverick) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:52:05 GMT -->
+</html>

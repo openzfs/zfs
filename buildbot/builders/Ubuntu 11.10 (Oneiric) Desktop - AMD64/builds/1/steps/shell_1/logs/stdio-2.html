@@ -1,0 +1,202 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:54:25 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean'
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=6f37e38e3004c055690abe4100000002-1307998219.156563-637896685
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Ign http://archive.canonical.com oneiric InRelease
+Ign http://extras.ubuntu.com oneiric InRelease
+Ign http://us.archive.ubuntu.com oneiric InRelease
+Ign http://security.ubuntu.com oneiric-security InRelease
+Hit http://archive.canonical.com oneiric Release.gpg
+Hit http://extras.ubuntu.com oneiric Release.gpg
+Ign http://us.archive.ubuntu.com oneiric-updates InRelease
+Hit http://security.ubuntu.com oneiric-security Release.gpg
+Hit http://extras.ubuntu.com oneiric Release
+Hit http://archive.canonical.com oneiric Release
+Hit http://security.ubuntu.com oneiric-security Release
+Get:1 http://us.archive.ubuntu.com oneiric Release.gpg [198 B]
+Hit http://us.archive.ubuntu.com oneiric-updates Release.gpg
+Hit http://security.ubuntu.com oneiric-security/main Sources
+Hit http://archive.canonical.com oneiric/partner Sources
+Hit http://extras.ubuntu.com oneiric/main Sources
+Hit http://security.ubuntu.com oneiric-security/restricted Sources
+Hit http://archive.canonical.com oneiric/partner amd64 Packages
+Hit http://extras.ubuntu.com oneiric/main amd64 Packages
+Hit http://security.ubuntu.com oneiric-security/universe Sources
+Get:2 http://us.archive.ubuntu.com oneiric Release [39.8 kB]
+Hit http://security.ubuntu.com oneiric-security/multiverse Sources
+Ign http://archive.canonical.com oneiric/partner TranslationIndex
+Ign http://extras.ubuntu.com oneiric/main TranslationIndex
+Get:3 http://security.ubuntu.com oneiric-security/main amd64 Packages [14 B]
+Hit http://us.archive.ubuntu.com oneiric-updates Release
+Get:4 http://us.archive.ubuntu.com oneiric/main Sources [878 kB]
+Get:5 http://security.ubuntu.com oneiric-security/restricted amd64 Packages [14 B]
+Get:6 http://security.ubuntu.com oneiric-security/universe amd64 Packages [14 B]
+Ign http://archive.canonical.com oneiric/partner Translation-en_US
+Get:7 http://security.ubuntu.com oneiric-security/multiverse amd64 Packages [14 B]
+Ign http://archive.canonical.com oneiric/partner Translation-en
+Ign http://security.ubuntu.com oneiric-security/main TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/multiverse TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/restricted TranslationIndex
+Get:8 http://us.archive.ubuntu.com oneiric/restricted Sources [3,646 B]
+Ign http://security.ubuntu.com oneiric-security/universe TranslationIndex
+Ign http://extras.ubuntu.com oneiric/main Translation-en_US
+Get:9 http://us.archive.ubuntu.com oneiric/universe Sources [4,625 kB]
+Ign http://extras.ubuntu.com oneiric/main Translation-en
+Ign http://security.ubuntu.com oneiric-security/main Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/main Translation-en
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en
+Get:10 http://us.archive.ubuntu.com oneiric/multiverse Sources [153 kB]
+Get:11 http://us.archive.ubuntu.com oneiric/main amd64 Packages [1,617 kB]
+Get:12 http://us.archive.ubuntu.com oneiric/restricted amd64 Packages [8,352 B]
+Get:13 http://us.archive.ubuntu.com oneiric/universe amd64 Packages [6,244 kB]
+Get:14 http://us.archive.ubuntu.com oneiric/multiverse amd64 Packages [178 kB]
+Ign http://us.archive.ubuntu.com oneiric/main TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/restricted TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/universe TranslationIndex
+Hit http://us.archive.ubuntu.com oneiric-updates/main Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/universe Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/universe amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse amd64 Packages
+Ign http://us.archive.ubuntu.com oneiric-updates/main TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/universe TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en
+Fetched 13.7 MB in 1min 2s (222 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages will be upgraded:
+  cpp-4.6 g++-4.6 gcc-4.6 gcc-4.6-base libgcc1 libgomp1 libquadmath0
+  libstdc++6 libstdc++6-4.6-dev
+9 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Need to get 19.6 MB of archives.
+After this operation, 2,216 kB disk space will be freed.
+Get:1 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libgomp1 amd64 4.6.0-13ubuntu1 [25.4 kB]
+Get:2 http://us.archive.ubuntu.com/ubuntu/ oneiric/main gcc-4.6-base amd64 4.6.0-13ubuntu1 [14.3 kB]
+Get:3 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libstdc++6 amd64 4.6.0-13ubuntu1 [329 kB]
+Get:4 http://us.archive.ubuntu.com/ubuntu/ oneiric/main cpp-4.6 amd64 4.6.0-13ubuntu1 [4,775 kB]
+Get:5 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libquadmath0 amd64 4.6.0-13ubuntu1 [126 kB]
+Get:6 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libstdc++6-4.6-dev amd64 4.6.0-13ubuntu1 [1,624 kB]
+Get:7 http://us.archive.ubuntu.com/ubuntu/ oneiric/main g++-4.6 amd64 4.6.0-13ubuntu1 [5,190 kB]
+Get:8 http://us.archive.ubuntu.com/ubuntu/ oneiric/main gcc-4.6 amd64 4.6.0-13ubuntu1 [7,518 kB]
+Get:9 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libgcc1 amd64 1:4.6.0-13ubuntu1 [42.5 kB]
+</span><span class="stderr">dpkg-preconfigure: unable to re-open stdin: 
+</span><span class="stdout">Fetched 19.6 MB in 53s (367 kB/s)
+(Reading database ... 140832 files and directories currently installed.)
+Preparing to replace libgomp1 4.6.0-11ubuntu2 (using .../libgomp1_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement libgomp1 ...
+Preparing to replace gcc-4.6-base 4.6.0-11ubuntu2 (using .../gcc-4.6-base_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement gcc-4.6-base ...
+Setting up gcc-4.6-base (4.6.0-13ubuntu1) ...
+(Reading database ... 140832 files and directories currently installed.)
+Preparing to replace libstdc++6 4.6.0-11ubuntu2 (using .../libstdc++6_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement libstdc++6 ...
+Setting up libstdc++6 (4.6.0-13ubuntu1) ...
+Processing triggers for libc-bin ...
+ldconfig deferred processing now taking place
+(Reading database ... 140832 files and directories currently installed.)
+Preparing to replace cpp-4.6 4.6.0-11ubuntu2 (using .../cpp-4.6_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement cpp-4.6 ...
+Preparing to replace libquadmath0 4.6.0-11ubuntu2 (using .../libquadmath0_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement libquadmath0 ...
+Preparing to replace libstdc++6-4.6-dev 4.6.0-11ubuntu2 (using .../libstdc++6-4.6-dev_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement libstdc++6-4.6-dev ...
+Preparing to replace g++-4.6 4.6.0-11ubuntu2 (using .../g++-4.6_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement g++-4.6 ...
+Preparing to replace gcc-4.6 4.6.0-11ubuntu2 (using .../gcc-4.6_4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement gcc-4.6 ...
+Preparing to replace libgcc1 1:4.6.0-11ubuntu2 (using .../libgcc1_1%3a4.6.0-13ubuntu1_amd64.deb) ...
+Unpacking replacement libgcc1 ...
+Processing triggers for man-db ...
+Setting up libgcc1 (1:4.6.0-13ubuntu1) ...
+Setting up libgomp1 (4.6.0-13ubuntu1) ...
+Setting up cpp-4.6 (4.6.0-13ubuntu1) ...
+Setting up libquadmath0 (4.6.0-13ubuntu1) ...
+Setting up gcc-4.6 (4.6.0-13ubuntu1) ...
+Setting up libstdc++6-4.6-dev (4.6.0-13ubuntu1) ...
+Setting up g++-4.6 (4.6.0-13ubuntu1) ...
+Processing triggers for libc-bin ...
+ldconfig deferred processing now taking place
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Del libgcc1 1:4.6.0-11ubuntu2 [42.5 kB]
+Del libstdc++6-4.6-dev 4.6.0-11ubuntu2 [1,608 kB]
+Del cpp-4.6 4.6.0-11ubuntu2 [4,775 kB]
+Del g++-4.6 4.6.0-11ubuntu2 [6,925 kB]
+Del libstdc++6 4.6.0-11ubuntu2 [329 kB]
+Del gcc-4.6 4.6.0-11ubuntu2 [7,518 kB]
+Del gcc-4.6-base 4.6.0-11ubuntu2 [14.5 kB]
+Del libgomp1 4.6.0-11ubuntu2 [25.4 kB]
+Del libquadmath0 4.6.0-11ubuntu2 [126 kB]
+</span><span class="header">program finished with exit code 0
+elapsedTime=131.342264
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/1/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:54:27 GMT -->
+</html>

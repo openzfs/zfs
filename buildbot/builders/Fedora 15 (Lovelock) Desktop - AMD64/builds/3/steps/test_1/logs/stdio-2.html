@@ -1,0 +1,56 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 15 (Lovelock) Desktop - AMD64/builds/3/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:48:26 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">filesystem 'zpios' was mounted, but /etc/mtab could not be updated due to error 22
+cannot mount 'zpios': Input/output error
+FAIL:     file-raid0   cannot mount 'zpios': Input/output error
+FAIL:     file-raid10  cannot create 'zpios': pool already exists
+FAIL:     file-raidz   cannot create 'zpios': pool already exists
+FAIL:     file-raidz2  cannot create 'zpios': pool already exists
+FAIL:     lo-raid0     cannot create 'zpios': pool already exists
+PASS:     lo-raid10    0	64m	64	581.82m	64m	64	4.81g
+FAIL:     lo-raidz     cannot mount 'zpios': Input/output error
+FAIL:     lo-raidz2    zpool-create.sh: Error 1 creating /tmp/zpool-vdev0 -&gt;  loopback
+</span><span class="header">program finished with exit code 1
+elapsedTime=22.623632
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 15 (Lovelock) Desktop - AMD64/builds/3/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:48:27 GMT -->
+</html>

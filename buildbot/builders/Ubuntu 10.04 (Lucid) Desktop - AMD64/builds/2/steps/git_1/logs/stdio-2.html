@@ -1,0 +1,207 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 10.04 (Lucid) Desktop - AMD64/builds/2/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:51:17 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">starting git operation
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+elapsedTime=0.018483
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+elapsedTime=0.006571
+/usr/bin/git init
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'init']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Initialized empty Git repository in /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build/.git/
+</span><span class="header">elapsedTime=0.742298
+/usr/bin/git reset --hard 10715a018760e1d862b8348e31dc505e832a0904
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', '10715a018760e1d862b8348e31dc505e832a0904']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+</span><span class="stderr">fatal: Could not parse object '10715a018760e1d862b8348e31dc505e832a0904'.
+</span><span class="header">elapsedTime=0.007270
+fetching branch master from git://eris.llnl.gov/zfs.git
+/usr/bin/git fetch -t git://eris.llnl.gov/zfs.git +master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'fetch', '-t', 'git://eris.llnl.gov/zfs.git', '+master']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+</span><span class="stderr">From git://eris.llnl.gov/zfs
+ * branch            master     -&gt; FETCH_HEAD
+ * [new tag]         zfs-0.4.0  -&gt; zfs-0.4.0
+ * [new tag]         zfs-0.4.1  -&gt; zfs-0.4.1
+ * [new tag]         zfs-0.4.2  -&gt; zfs-0.4.2
+ * [new tag]         zfs-0.4.3  -&gt; zfs-0.4.3
+ * [new tag]         zfs-0.4.4  -&gt; zfs-0.4.4
+ * [new tag]         zfs-0.4.5  -&gt; zfs-0.4.5
+ * [new tag]         zfs-0.4.6  -&gt; zfs-0.4.6
+ * [new tag]         zfs-0.4.7  -&gt; zfs-0.4.7
+ * [new tag]         zfs-0.4.8  -&gt; zfs-0.4.8
+ * [new tag]         zfs-0.4.9  -&gt; zfs-0.4.9
+ * [new tag]         zfs-0.5.0  -&gt; zfs-0.5.0
+ * [new tag]         zfs-0.5.1  -&gt; zfs-0.5.1
+ * [new tag]         zfs-0.5.2  -&gt; zfs-0.5.2
+ * [new tag]         zfs-0.6.0-rc1 -&gt; zfs-0.6.0-rc1
+ * [new tag]         zfs-0.6.0-rc2 -&gt; zfs-0.6.0-rc2
+ * [new tag]         zfs-0.6.0-rc3 -&gt; zfs-0.6.0-rc3
+ * [new tag]         zfs-0.6.0-rc4 -&gt; zfs-0.6.0-rc4
+</span><span class="header">elapsedTime=7.170155
+/usr/bin/git reset --hard 10715a018760e1d862b8348e31dc505e832a0904
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', '10715a018760e1d862b8348e31dc505e832a0904']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+</span><span class="stdout">HEAD is now at 10715a0 Add default stack checking
+</span><span class="header">elapsedTime=0.091827
+/usr/bin/git branch -M master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'branch', '-M', 'master']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+elapsedTime=0.007806
+/usr/bin/git rev-parse HEAD
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'rev-parse', 'HEAD']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-lucid-amd64/build
+  SHELL=/bin/sh
+  SPEECHD_PORT=7561
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=9e7776c7bb8db2ddc79b24694cc1f637-1307997482.317629-2141722670
+ closing stdin
+ using PTY: False
+</span><span class="stdout">10715a018760e1d862b8348e31dc505e832a0904
+</span><span class="header">elapsedTime=0.006332
+program finished with exit code 0
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 10.04 (Lucid) Desktop - AMD64/builds/2/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:51:19 GMT -->
+</html>

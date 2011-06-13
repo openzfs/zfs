@@ -1,0 +1,10 @@
+filesystem 'zpios' was mounted, but /etc/mtab could not be updated due to error 22
+cannot mount 'zpios': Input/output error
+FAIL:     file-raid0   cannot mount 'zpios': Input/output error
+FAIL:     file-raid10  cannot create 'zpios': pool already exists
+FAIL:     file-raidz   cannot create 'zpios': pool already exists
+FAIL:     file-raidz2  cannot create 'zpios': pool already exists
+FAIL:     lo-raid0     cannot create 'zpios': pool already exists
+PASS:     lo-raid10    0	64m	64	581.82m	64m	64	4.81g
+FAIL:     lo-raidz     cannot mount 'zpios': Input/output error
+FAIL:     lo-raidz2    zpool-create.sh: Error 1 creating /tmp/zpool-vdev0 ->  loopback

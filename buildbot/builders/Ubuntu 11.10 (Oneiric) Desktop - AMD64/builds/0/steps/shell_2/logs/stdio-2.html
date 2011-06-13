@@ -1,0 +1,121 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/0/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:54:18 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c 'apt-get install -y build-essential fakeroot alien linux-headers-$(uname -r) zlib1g-dev uuid-dev libblkid-dev libselinux-dev gawk parted mdadm lsscsi'
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get install -y build-essential fakeroot alien linux-headers-$(uname -r) zlib1g-dev uuid-dev libblkid-dev libselinux-dev gawk parted mdadm lsscsi']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=6f37e38e3004c055690abe4100000002-1307998219.156563-637896685
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Reading package lists...
+Building dependency tree...
+Reading state information...
+alien is already the newest version.
+build-essential is already the newest version.
+fakeroot is already the newest version.
+gawk is already the newest version.
+libblkid-dev is already the newest version.
+libselinux1-dev is already the newest version.
+linux-headers-3.0-0-generic is already the newest version.
+lsscsi is already the newest version.
+parted is already the newest version.
+uuid-dev is already the newest version.
+zlib1g-dev is already the newest version.
+The following extra packages will be installed:
+  postfix
+Suggested packages:
+  procmail postfix-mysql postfix-pgsql postfix-ldap postfix-pcre sasl2-bin
+  dovecot-common resolvconf postfix-cdb
+Recommended packages:
+  default-mta mail-transport-agent
+The following NEW packages will be installed:
+  mdadm postfix
+0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+Need to get 1,576 kB of archives.
+After this operation, 4,657 kB of additional disk space will be used.
+Get:1 http://us.archive.ubuntu.com/ubuntu/ oneiric/main mdadm amd64 3.1.4-1+8efb9d1ubuntu5 [304 kB]
+Get:2 http://us.archive.ubuntu.com/ubuntu/ oneiric/main postfix amd64 2.8.3-1 [1,272 kB]
+</span><span class="stderr">dpkg-preconfigure: unable to re-open stdin: 
+</span><span class="stdout">Fetched 1,576 kB in 5s (302 kB/s)
+Selecting previously deselected package mdadm.
+(Reading database ... 140498 files and directories currently installed.)
+Unpacking mdadm (from .../mdadm_3.1.4-1+8efb9d1ubuntu5_amd64.deb) ...
+Selecting previously deselected package postfix.
+Unpacking postfix (from .../postfix_2.8.3-1_amd64.deb) ...
+[1;24r[4l[0;10m[37m[40m[1;24r[H[J[1;1H[35m[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K[1;1H[33m[42mPackage configuration[2;3H[34m[40m┌────────────────────────┤ [31mPostfix Configuration[34m ├────────────────────────┐[3;3H│[33m                                                                         [34m│[32m [4;3H[34m│[33m [36m[42mPlease select the mail server configuration type that best meets your    [32m[40m [5;3H[34m│[33m [36m[42mneeds.                                                                   [32m[40m [6;3H[34m│[33m [36m[42m                                                                         [32m[40m [7;3H[34m│[33m [36m[42m No configuration:                                                       [32m[40m [8;3H[34m│[33m [36m[42m  Should be chosen to leave the current configuration unchanged.         [32m[40m [9;3H[34m│[33m [36m[42m Internet site:                                                          [32m[40m [10;3H[34m│[33m [36m[42m  Mail is sent and received directly using SMTP.                         [32m[40m [11;3H[34m│[33m [36m[42m Internet with smarthost:                                                [32m[40m [12;3H[34m│[33m [36m[42m  Mail is received directly using SMTP or by running a utility such      [32m[40m [13;3H[34m│[33m [36m[42m  as fetchmail. Outgoing mail is sent using a smarthost.                 [32m[40m [14;3H[34m│[33m [36m[42m Satellite system:                                                       [32m[40m [15;3H[34m│[33m [36m[42m  All mail is sent to another machine, called a 'smarthost', for         [32m[40m [16;3H[34m│[33m [36m[42mdelivery.                                                                [32m[40m [17;3H[34m│[33m [36m[42m Local only:                                                             [32m[40m [18;3H[34m│[33m [36m[42m  The only delivered mail is the mail for local users. There is no       [32m[40m [19;3H[34m│[33m                                                                          [32m [20;3H[34m│[33m                                 [36m[43m&lt;Ok&gt;[33m[40m                                     [32m [21;3H[34m│[33m                                                                         [34m│[32m [22;3H[34m└─────────────────────────────────────────────────────────────────────────┘[32m [23;4H                                                                           [4;5H</span><span class="stderr">Failed to open terminal.debconf: whiptail output the above errors, giving up!
+Use of uninitialized value $ret in scalar chomp at /usr/share/perl5/Debconf/Client/ConfModule.pm line 132, &lt;STDIN&gt; line 5.
+Use of uninitialized value $ret in split at /usr/share/perl5/Debconf/Client/ConfModule.pm line 133, &lt;STDIN&gt; line 5.
+Use of uninitialized value $ret[0] in string eq at /usr/share/perl5/Debconf/Client/ConfModule.pm line 134, &lt;STDIN&gt; line 5.
+dpkg: error processing /var/cache/apt/archives/postfix_2.8.3-1_amd64.deb (--unpack):
+ subprocess new pre-installation script returned error exit status 255
+</span><span class="stdout">Processing triggers for ureadahead ...
+ureadahead will be reprofiled on next reboot
+Processing triggers for doc-base ...
+Processing 6 added doc-base files...
+Registering documents with scrollkeeper...
+Processing triggers for man-db ...
+</span><span class="stderr">Errors were encountered while processing:
+ /var/cache/apt/archives/postfix_2.8.3-1_amd64.deb
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+</span><span class="header">program finished with exit code 100
+elapsedTime=8.524800
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/0/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:54:20 GMT -->
+</html>

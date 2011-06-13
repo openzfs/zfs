@@ -1,0 +1,56 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 13 (Goddard) Desktop - AMD64/builds/3/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:20 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0	64m	64	582.24m	64m	64	4.72g
+PASS:     file-raid10  0	64m	64	309.18m	64m	64	850.51m
+PASS:     file-raidz   0	64m	64	444.46m	64m	64	14.60m
+PASS:     file-raidz2  0	64m	64	237.26m	64m	64	864.90m
+PASS:     lo-raid0     0	64m	64	8.82m	64m	64	780.60m
+PASS:     lo-raid10    0	64m	64	2.35m	64m	64	3.48g
+PASS:     lo-raidz     0	64m	64	4.54m	64m	64	14.66m
+PASS:     lo-raidz2    0	64m	64	1.33m	64m	64	3.62g
+</span><span class="header">program finished with exit code 0
+elapsedTime=156.363142
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 13 (Goddard) Desktop - AMD64/builds/3/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Mon, 13 Jun 2011 23:46:21 GMT -->
+</html>
