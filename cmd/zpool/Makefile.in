@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
 	$(top_srcdir)/config/user-libuuid.m4 \
+	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
 	$(top_srcdir)/config/user-selinux.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
@@ -204,6 +205,7 @@ MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OTOOL = @OTOOL@
@@ -303,7 +305,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
 AM_LIBTOOLFLAGS = --silent
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
 	-DTEXT_DOMAIN=\"zfs-linux-user\"
