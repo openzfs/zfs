@@ -115,6 +115,10 @@ zpool_prop_init(void)
 	/* hidden properties */
 	zprop_register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,
 	    PROP_READONLY, ZFS_TYPE_POOL, "NAME");
+	    
+        /* zfsonlinux custom properties */
+	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0,
+	    PROP_ONETIME, ZFS_TYPE_POOL, "<ashift, 9-17, or 0=default>", "ASHIFT");
 }
 
 /*

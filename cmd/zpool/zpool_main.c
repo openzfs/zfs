@@ -403,7 +403,7 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 			normnm = propname;
 		}
 	}
-
+	
 	if (nvlist_lookup_string(proplist, normnm, &strval) == 0 &&
 	    prop != ZPOOL_PROP_CACHEFILE) {
 		(void) fprintf(stderr, gettext("property '%s' "
@@ -416,7 +416,7 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 		    "error: out of memory\n"));
 		return (1);
 	}
-
+        
 	return (0);
 }
 
@@ -488,7 +488,7 @@ zpool_do_add(int argc, char **argv)
 	}
 
 	/* pass off to get_vdev_spec for processing */
-	nvroot = make_root_vdev(zhp, force, !force, B_FALSE, dryrun,
+	nvroot = make_root_vdev(zhp, NULL, force, !force, B_FALSE, dryrun,
 	    argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
@@ -688,7 +688,7 @@ zpool_do_create(int argc, char **argv)
 	}
 
 	/* pass off to get_vdev_spec for bulk processing */
-	nvroot = make_root_vdev(NULL, force, !force, B_FALSE, dryrun,
+	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
 	    argc - 1, argv + 1);
 	if (nvroot == NULL)
 		goto errout;
@@ -2683,7 +2683,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		return (1);
 	}
 
-	nvroot = make_root_vdev(zhp, force, B_FALSE, replacing, B_FALSE,
+	nvroot = make_root_vdev(zhp, NULL, force, B_FALSE, replacing, B_FALSE,
 	    argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
