@@ -1,0 +1,1565 @@
+diff --git a/Makefile.in b/Makefile.in
+index 9e54718..951f44a 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -85,6 +85,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -233,6 +234,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/cmd/Makefile.in b/cmd/Makefile.in
+index 1d09639..7d1492e 100644
+--- a/cmd/Makefile.in
++++ b/cmd/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/cmd/mount_zfs/Makefile.in b/cmd/mount_zfs/Makefile.in
+index cec6e93..afdaf39 100644
+--- a/cmd/mount_zfs/Makefile.in
++++ b/cmd/mount_zfs/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -202,6 +203,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -306,7 +308,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zdb/Makefile.in b/cmd/zdb/Makefile.in
+index a531ab1..f6229c3 100644
+--- a/cmd/zdb/Makefile.in
++++ b/cmd/zdb/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -203,6 +204,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -302,7 +304,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zfs/Makefile.in b/cmd/zfs/Makefile.in
+index 2698dd4..144cd38 100644
+--- a/cmd/zfs/Makefile.in
++++ b/cmd/zfs/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -203,6 +204,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -302,7 +304,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zinject/Makefile.in b/cmd/zinject/Makefile.in
+index a338c48..e034a9f 100644
+--- a/cmd/zinject/Makefile.in
++++ b/cmd/zinject/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -203,6 +204,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -302,7 +304,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zpios/Makefile.in b/cmd/zpios/Makefile.in
+index 14ea872..7fd1d36 100644
+--- a/cmd/zpios/Makefile.in
++++ b/cmd/zpios/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -193,6 +194,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -292,7 +294,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zpool/Makefile.in b/cmd/zpool/Makefile.in
+index 4f2b528..bd77c30 100644
+--- a/cmd/zpool/Makefile.in
++++ b/cmd/zpool/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -204,6 +205,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -303,7 +305,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/cmd/zpool_id/Makefile.in b/cmd/zpool_id/Makefile.in
+index 2264d4f..ac804d5 100644
+--- a/cmd/zpool_id/Makefile.in
++++ b/cmd/zpool_id/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/cmd/zpool_layout/Makefile.in b/cmd/zpool_layout/Makefile.in
+index 43172fe..6d2e04f 100644
+--- a/cmd/zpool_layout/Makefile.in
++++ b/cmd/zpool_layout/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/cmd/ztest/Makefile.in b/cmd/ztest/Makefile.in
+index e8c2484..26ae11d 100644
+--- a/cmd/ztest/Makefile.in
++++ b/cmd/ztest/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -203,6 +204,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -302,7 +304,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/cmd/zvol_id/Makefile.in b/cmd/zvol_id/Makefile.in
+index 50c5fcb..1d90d9b 100644
+--- a/cmd/zvol_id/Makefile.in
++++ b/cmd/zvol_id/Makefile.in
+@@ -73,6 +73,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -193,6 +194,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -292,7 +294,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/config/Rules.am b/config/Rules.am
+index 2abafcd..bd4f0ea 100644
+--- a/config/Rules.am
++++ b/config/Rules.am
+@@ -2,7 +2,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h
+ 
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS  = -Wall -Wstrict-prototypes
+-AM_CFLAGS += -fno-strict-aliasing -Wno-unused-but-set-variable ${DEBUG_CFLAGS}
++AM_CFLAGS += -fno-strict-aliasing ${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS}
+ AM_CFLAGS += -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT
+ AM_CFLAGS += -D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64
+ AM_CFLAGS += -D_LARGEFILE64_SOURCE -DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/config/kernel.m4 b/config/kernel.m4
+index 015192b..0ccae33 100644
+--- a/config/kernel.m4
++++ b/config/kernel.m4
+@@ -46,7 +46,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
+ 
+ 	dnl # -Wall -fno-strict-aliasing -Wstrict-prototypes and other
+ 	dnl # compiler options are added by the kernel build system.
+-	KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unused-but-set-variable"
++	KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_UNUSED_BUT_SET_VARIABLE"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+ 
+diff --git a/config/user-no-unused-but-set-variable.m4 b/config/user-no-unused-but-set-variable.m4
+new file mode 100644
+index 0000000..02e3a52
+--- /dev/null
++++ b/config/user-no-unused-but-set-variable.m4
+@@ -0,0 +1,27 @@
++dnl #
++dnl # Check if gcc supports -Wno-unused-but-set-variable option.
++dnl #
++dnl # We actually invoke gcc with the -Wunused-but-set-variable option
++dnl # and infer the 'no-' version does or doesn't exist based upon
++dnl # the results.  This is required because when checking any of
++dnl # no- prefixed options gcc always returns success.
++dnl #
++AC_DEFUN([ZFS_AC_CONFIG_USER_NO_UNUSED_BUT_SET_VARIABLE], [
++	AC_MSG_CHECKING([for -Wno-unused-but-set-variable support])
++
++	saved_flags="$CFLAGS"
++	CFLAGS="$CFLAGS -Wunused-but-set-variable"
++
++	AC_RUN_IFELSE(AC_LANG_PROGRAM( [], []),
++	[
++		NO_UNUSED_BUT_SET_VARIABLE=-Wno-unused-but-set-variable
++		AC_MSG_RESULT([yes])
++	],
++	[
++		NO_UNUSED_BUT_SET_VARIABLE=
++		AC_MSG_RESULT([no])
++	])
++
++	CFLAGS="$saved_flags"
++        AC_SUBST([NO_UNUSED_BUT_SET_VARIABLE])
++])
+diff --git a/config/user.m4 b/config/user.m4
+index a79deef..d12633f 100644
+--- a/config/user.m4
++++ b/config/user.m4
+@@ -9,5 +9,6 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
+ 	ZFS_AC_CONFIG_USER_LIBBLKID
+ 	ZFS_AC_CONFIG_USER_LIBSELINUX
+ 	ZFS_AC_CONFIG_USER_FRAME_LARGER_THAN
++	ZFS_AC_CONFIG_USER_NO_UNUSED_BUT_SET_VARIABLE
+ 	ZFS_AC_CONFIG_USER_STACK_GUARD
+ ])
+diff --git a/configure b/configure
+index c636d53..e2702af 100755
+--- a/configure
++++ b/configure
+@@ -793,6 +793,7 @@ CONFIG_KERNEL_FALSE
+ CONFIG_KERNEL_TRUE
+ CONFIG_USER_FALSE
+ CONFIG_USER_TRUE
++NO_UNUSED_BUT_SET_VARIABLE
+ FRAME_LARGER_THAN
+ LIBSELINUX
+ LIBBLKID
+@@ -4821,13 +4822,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
+ else
+   lt_cv_nm_interface="BSD nm"
+   echo "int some_variable = 0;" > conftest.$ac_ext
+-  (eval echo "\"\$as_me:4824: $ac_compile\"" >&5)
++  (eval echo "\"\$as_me:4825: $ac_compile\"" >&5)
+   (eval "$ac_compile" 2>conftest.err)
+   cat conftest.err >&5
+-  (eval echo "\"\$as_me:4827: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
++  (eval echo "\"\$as_me:4828: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
+   cat conftest.err >&5
+-  (eval echo "\"\$as_me:4830: output\"" >&5)
++  (eval echo "\"\$as_me:4831: output\"" >&5)
+   cat conftest.out >&5
+   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
+     lt_cv_nm_interface="MS dumpbin"
+@@ -6033,7 +6034,7 @@ ia64-*-hpux*)
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 6036 "configure"' > conftest.$ac_ext
++  echo '#line 6037 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+@@ -7886,11 +7887,11 @@ else
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7889: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:7890: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:7893: \$? = $ac_status" >&5
++   echo "$as_me:7894: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+@@ -8225,11 +8226,11 @@ else
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8228: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8229: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:8232: \$? = $ac_status" >&5
++   echo "$as_me:8233: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+@@ -8330,11 +8331,11 @@ else
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8333: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8334: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:8337: \$? = $ac_status" >&5
++   echo "$as_me:8338: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+@@ -8385,11 +8386,11 @@ else
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8388: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8389: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:8392: \$? = $ac_status" >&5
++   echo "$as_me:8393: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+@@ -11188,7 +11189,7 @@ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<_LT_EOF
+-#line 11191 "configure"
++#line 11192 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+@@ -11284,7 +11285,7 @@ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<_LT_EOF
+-#line 11287 "configure"
++#line 11288 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+@@ -14450,7 +14451,7 @@ _ACEOF
+ 
+ 
+ 
+-			KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unused-but-set-variable"
++			KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_UNUSED_BUT_SET_VARIABLE"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+ 
+@@ -15875,6 +15876,85 @@ fi
+ 
+ 
+ 
++	{ $as_echo "$as_me:$LINENO: checking for -Wno-unused-but-set-variable support" >&5
++$as_echo_n "checking for -Wno-unused-but-set-variable support... " >&6; }
++
++	saved_flags="$CFLAGS"
++	CFLAGS="$CFLAGS -Wunused-but-set-variable"
++
++	if test "$cross_compiling" = yes; then
++  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
++$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
++{ { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
++See \`config.log' for more details." >&5
++$as_echo "$as_me: error: cannot run test program while cross compiling
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }; }
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest$ac_exeext
++if { (ac_try="$ac_link"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
++$as_echo "$ac_try_echo") >&5
++  (eval "$ac_link") 2>&5
++  ac_status=$?
++  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
++  { (case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
++$as_echo "$ac_try_echo") >&5
++  (eval "$ac_try") 2>&5
++  ac_status=$?
++  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++
++		NO_UNUSED_BUT_SET_VARIABLE=-Wno-unused-but-set-variable
++		{ $as_echo "$as_me:$LINENO: result: yes" >&5
++$as_echo "yes" >&6; }
++
++else
++  $as_echo "$as_me: program exited with status $ac_status" >&5
++$as_echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++( exit $ac_status )
++
++		NO_UNUSED_BUT_SET_VARIABLE=
++		{ $as_echo "$as_me:$LINENO: result: no" >&5
++$as_echo "no" >&6; }
++
++fi
++rm -rf conftest.dSYM
++rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
++fi
++
++
++
++	CFLAGS="$saved_flags"
++
++
++
+ 
+ 	{ $as_echo "$as_me:$LINENO: checking whether pthread stack includes guard" >&5
+ $as_echo_n "checking whether pthread stack includes guard... " >&6; }
+@@ -18576,7 +18656,7 @@ _ACEOF
+ 
+ 
+ 
+-			KERNELCPPFLAGS="$KERNELCPPFLAGS -Wno-unused-but-set-variable"
++			KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_UNUSED_BUT_SET_VARIABLE"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
+ 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+ 
+@@ -20001,6 +20081,85 @@ fi
+ 
+ 
+ 
++	{ $as_echo "$as_me:$LINENO: checking for -Wno-unused-but-set-variable support" >&5
++$as_echo_n "checking for -Wno-unused-but-set-variable support... " >&6; }
++
++	saved_flags="$CFLAGS"
++	CFLAGS="$CFLAGS -Wunused-but-set-variable"
++
++	if test "$cross_compiling" = yes; then
++  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
++$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
++{ { $as_echo "$as_me:$LINENO: error: cannot run test program while cross compiling
++See \`config.log' for more details." >&5
++$as_echo "$as_me: error: cannot run test program while cross compiling
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }; }
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest$ac_exeext
++if { (ac_try="$ac_link"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
++$as_echo "$ac_try_echo") >&5
++  (eval "$ac_link") 2>&5
++  ac_status=$?
++  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && { ac_try='./conftest$ac_exeext'
++  { (case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
++$as_echo "$ac_try_echo") >&5
++  (eval "$ac_try") 2>&5
++  ac_status=$?
++  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++
++		NO_UNUSED_BUT_SET_VARIABLE=-Wno-unused-but-set-variable
++		{ $as_echo "$as_me:$LINENO: result: yes" >&5
++$as_echo "yes" >&6; }
++
++else
++  $as_echo "$as_me: program exited with status $ac_status" >&5
++$as_echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++( exit $ac_status )
++
++		NO_UNUSED_BUT_SET_VARIABLE=
++		{ $as_echo "$as_me:$LINENO: result: no" >&5
++$as_echo "no" >&6; }
++
++fi
++rm -rf conftest.dSYM
++rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext conftest.$ac_objext conftest.$ac_ext
++fi
++
++
++
++	CFLAGS="$saved_flags"
++
++
++
+ 
+ 	{ $as_echo "$as_me:$LINENO: checking whether pthread stack includes guard" >&5
+ $as_echo_n "checking whether pthread stack includes guard... " >&6; }
+diff --git a/dracut/90zfs/Makefile.in b/dracut/90zfs/Makefile.in
+index 16d7bfb..36e01f3 100644
+--- a/dracut/90zfs/Makefile.in
++++ b/dracut/90zfs/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/dracut/Makefile.in b/dracut/Makefile.in
+index c4c747e..7ba5fdc 100644
+--- a/dracut/Makefile.in
++++ b/dracut/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/etc/Makefile.in b/etc/Makefile.in
+index 3fb4955..8ce1412 100644
+--- a/etc/Makefile.in
++++ b/etc/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/etc/init.d/Makefile.in b/etc/init.d/Makefile.in
+index 63012dc..7f6ee84 100644
+--- a/etc/init.d/Makefile.in
++++ b/etc/init.d/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -161,6 +162,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/etc/udev/Makefile.in b/etc/udev/Makefile.in
+index 3962c4d..8b79c87 100644
+--- a/etc/udev/Makefile.in
++++ b/etc/udev/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/etc/udev/rules.d/Makefile.in b/etc/udev/rules.d/Makefile.in
+index 34c97ec..cb48013 100644
+--- a/etc/udev/rules.d/Makefile.in
++++ b/etc/udev/rules.d/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/etc/zfs/Makefile.in b/etc/zfs/Makefile.in
+index 955f3a7..2786c5b 100644
+--- a/etc/zfs/Makefile.in
++++ b/etc/zfs/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -185,6 +186,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/Makefile.in b/include/Makefile.in
+index 8aac16b..3466d84 100644
+--- a/include/Makefile.in
++++ b/include/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -245,6 +246,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/linux/Makefile.in b/include/linux/Makefile.in
+index f9ea526..56679ef 100644
+--- a/include/linux/Makefile.in
++++ b/include/linux/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -192,6 +193,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/sys/Makefile.in b/include/sys/Makefile.in
+index d023cf5..d06a114 100644
+--- a/include/sys/Makefile.in
++++ b/include/sys/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -370,6 +371,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/sys/fm/Makefile.in b/include/sys/fm/Makefile.in
+index ea0a191..da9948d 100644
+--- a/include/sys/fm/Makefile.in
++++ b/include/sys/fm/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -230,6 +231,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/sys/fm/fs/Makefile.in b/include/sys/fm/fs/Makefile.in
+index a97e85e..a17ae33 100644
+--- a/include/sys/fm/fs/Makefile.in
++++ b/include/sys/fm/fs/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -190,6 +191,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/include/sys/fs/Makefile.in b/include/sys/fs/Makefile.in
+index e5a529a..73e084b 100644
+--- a/include/sys/fs/Makefile.in
++++ b/include/sys/fs/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -190,6 +191,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/Makefile.in b/lib/Makefile.in
+index 9b80725..2524789 100644
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libavl/Makefile.in b/lib/libavl/Makefile.in
+index eef898b..25c2588 100644
+--- a/lib/libavl/Makefile.in
++++ b/lib/libavl/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -213,6 +214,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -312,7 +314,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libefi/Makefile.in b/lib/libefi/Makefile.in
+index 3f712bc..d5635d6 100644
+--- a/lib/libefi/Makefile.in
++++ b/lib/libefi/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -213,6 +214,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -312,7 +314,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libnvpair/Makefile.in b/lib/libnvpair/Makefile.in
+index 51fafc9..277225c 100644
+--- a/lib/libnvpair/Makefile.in
++++ b/lib/libnvpair/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -214,6 +215,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -313,7 +315,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libspl/Makefile.in b/lib/libspl/Makefile.in
+index 6316389..4c9767d 100644
+--- a/lib/libspl/Makefile.in
++++ b/lib/libspl/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -264,6 +265,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -363,7 +365,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libspl/asm-generic/Makefile.in b/lib/libspl/asm-generic/Makefile.in
+index 60f5f4b..1de9513 100644
+--- a/lib/libspl/asm-generic/Makefile.in
++++ b/lib/libspl/asm-generic/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -162,6 +163,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -261,7 +263,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/lib/libspl/asm-i386/Makefile.in b/lib/libspl/asm-i386/Makefile.in
+index c063f09..60f83d4 100644
+--- a/lib/libspl/asm-i386/Makefile.in
++++ b/lib/libspl/asm-i386/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -166,6 +167,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/asm-x86_64/Makefile.in b/lib/libspl/asm-x86_64/Makefile.in
+index e6cb982..223bbd7 100644
+--- a/lib/libspl/asm-x86_64/Makefile.in
++++ b/lib/libspl/asm-x86_64/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -166,6 +167,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/Makefile.in b/lib/libspl/include/Makefile.in
+index 1f3c99b..0489224 100644
+--- a/lib/libspl/include/Makefile.in
++++ b/lib/libspl/include/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -226,6 +227,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/ia32/Makefile.in b/lib/libspl/include/ia32/Makefile.in
+index c464661..08b86be 100644
+--- a/lib/libspl/include/ia32/Makefile.in
++++ b/lib/libspl/include/ia32/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/ia32/sys/Makefile.in b/lib/libspl/include/ia32/sys/Makefile.in
+index c8ec864..58a7d89 100644
+--- a/lib/libspl/include/ia32/sys/Makefile.in
++++ b/lib/libspl/include/ia32/sys/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -188,6 +189,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/rpc/Makefile.in b/lib/libspl/include/rpc/Makefile.in
+index 9ceb73f..4378982 100644
+--- a/lib/libspl/include/rpc/Makefile.in
++++ b/lib/libspl/include/rpc/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -188,6 +189,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/sys/Makefile.in b/lib/libspl/include/sys/Makefile.in
+index a65b937..eff3720 100644
+--- a/lib/libspl/include/sys/Makefile.in
++++ b/lib/libspl/include/sys/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -226,6 +227,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/sys/dktp/Makefile.in b/lib/libspl/include/sys/dktp/Makefile.in
+index c90dbff..ceab063 100644
+--- a/lib/libspl/include/sys/dktp/Makefile.in
++++ b/lib/libspl/include/sys/dktp/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -188,6 +189,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/sys/sysevent/Makefile.in b/lib/libspl/include/sys/sysevent/Makefile.in
+index e176934..10e7c1f 100644
+--- a/lib/libspl/include/sys/sysevent/Makefile.in
++++ b/lib/libspl/include/sys/sysevent/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -188,6 +189,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libspl/include/util/Makefile.in b/lib/libspl/include/util/Makefile.in
+index 16db23b..274d90c 100644
+--- a/lib/libspl/include/util/Makefile.in
++++ b/lib/libspl/include/util/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -188,6 +189,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/lib/libunicode/Makefile.in b/lib/libunicode/Makefile.in
+index a8c054d..9560673 100644
+--- a/lib/libunicode/Makefile.in
++++ b/lib/libunicode/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -213,6 +214,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -312,7 +314,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libuutil/Makefile.in b/lib/libuutil/Makefile.in
+index 0fbfdff..304a268 100644
+--- a/lib/libuutil/Makefile.in
++++ b/lib/libuutil/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -215,6 +216,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -314,7 +316,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/lib/libzfs/Makefile.in b/lib/libzfs/Makefile.in
+index 245a77e..aad4c8c 100644
+--- a/lib/libzfs/Makefile.in
++++ b/lib/libzfs/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -223,6 +224,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -322,7 +324,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\"
+diff --git a/lib/libzpool/Makefile.in b/lib/libzpool/Makefile.in
+index be18e0b..7c2b372 100644
+--- a/lib/libzpool/Makefile.in
++++ b/lib/libzpool/Makefile.in
+@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -234,6 +235,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+@@ -333,7 +335,7 @@ DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
+ 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
+ AM_LIBTOOLFLAGS = --silent
+ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
+-	-Wno-unused-but-set-variable ${DEBUG_CFLAGS} -D_GNU_SOURCE \
++	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
+ 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
+ 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
+ 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
+diff --git a/man/Makefile.in b/man/Makefile.in
+index 4eb3f3c..35712b2 100644
+--- a/man/Makefile.in
++++ b/man/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -201,6 +202,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/man/man8/Makefile.in b/man/man8/Makefile.in
+index 56a9732..1a088c0 100644
+--- a/man/man8/Makefile.in
++++ b/man/man8/Makefile.in
+@@ -70,6 +70,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/scripts/Makefile.in b/scripts/Makefile.in
+index 7b74ff3..c5446e3 100644
+--- a/scripts/Makefile.in
++++ b/scripts/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -226,6 +227,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/scripts/zpios-profile/Makefile.in b/scripts/zpios-profile/Makefile.in
+index 67c7d6b..f254101 100644
+--- a/scripts/zpios-profile/Makefile.in
++++ b/scripts/zpios-profile/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/scripts/zpios-test/Makefile.in b/scripts/zpios-test/Makefile.in
+index 1dc020d..663a45f 100644
+--- a/scripts/zpios-test/Makefile.in
++++ b/scripts/zpios-test/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/scripts/zpool-config/Makefile.in b/scripts/zpool-config/Makefile.in
+index 141a58c..f56a986 100644
+--- a/scripts/zpool-config/Makefile.in
++++ b/scripts/zpool-config/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@
+diff --git a/scripts/zpool-layout/Makefile.in b/scripts/zpool-layout/Makefile.in
+index b1e940d..e7b0217 100644
+--- a/scripts/zpool-layout/Makefile.in
++++ b/scripts/zpool-layout/Makefile.in
+@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
+ 	$(top_srcdir)/config/user-ioctl.m4 \
+ 	$(top_srcdir)/config/user-libblkid.m4 \
+ 	$(top_srcdir)/config/user-libuuid.m4 \
++	$(top_srcdir)/config/user-no-unused-but-set-variable.m4 \
+ 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
+ 	$(top_srcdir)/config/user-selinux.m4 \
+ 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
+@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
+ MKDIR_P = @MKDIR_P@
+ NM = @NM@
+ NMEDIT = @NMEDIT@
++NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
+ OBJDUMP = @OBJDUMP@
+ OBJEXT = @OBJEXT@
+ OTOOL = @OTOOL@

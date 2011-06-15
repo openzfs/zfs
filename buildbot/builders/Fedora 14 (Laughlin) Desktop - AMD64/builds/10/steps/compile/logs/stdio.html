@@ -1,0 +1,1261 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2014%20(Laughlin)%20Desktop%20-%20AMD64/builds/10/steps/compile/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:16:34 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">make rpm
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['make', 'rpm']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">make  pkg=&quot;spl-modules&quot; srpm-common
+make[1]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+CDPATH=&quot;${ZSH_VERSION+.}:&quot; &amp;&amp; cd . &amp;&amp; /bin/sh /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/config/missing --run aclocal-1.11 
+{ test ! -d &quot;spl-0.6.0&quot; || { find &quot;spl-0.6.0&quot; -type d ! -perm -200 -exec chmod u+w {} ';' &amp;&amp; rm -fr &quot;spl-0.6.0&quot;; }; }
+test -d &quot;spl-0.6.0&quot; || mkdir &quot;spl-0.6.0&quot;
+ (cd lib &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/lib \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/lib'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/lib'
+ (cd cmd &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/cmd \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/cmd'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/cmd'
+ (cd scripts &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/scripts \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/scripts'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/scripts'
+ (cd module &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/module \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/module'
+list='spl splat'; for subdir in $list; do \
+	(find ../module/$subdir -name '*.c' -o -name '*.h' |\
+	 xargs /bin/cp -t $distdir/$subdir); \
+done
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/module'
+ (cd include &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/include \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/include'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/include'
+test -n &quot;&quot; \
+|| find &quot;spl-0.6.0&quot; -type d ! -perm -755 \
+	-exec chmod u+rwx,go+rx {} \; -o \
+  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
+  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
+  ! -type d ! -perm -444 -exec /bin/sh /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/config/install-sh -c -m a+r {} {} \; \
+|| chmod -R a+r &quot;spl-0.6.0&quot;
+tardir=spl-0.6.0 &amp;&amp; /bin/sh /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/config/missing --run tar chof - &quot;$tardir&quot; | GZIP=--best gzip -c &gt;spl-0.6.0.tar.gz
+{ test ! -d &quot;spl-0.6.0&quot; || { find &quot;spl-0.6.0&quot; -type d ! -perm -200 -exec chmod u+w {} ';' &amp;&amp; rm -fr &quot;spl-0.6.0&quot;; }; }
+rpmpkg=spl-modules-0.6.0-rc4.src.rpm; \
+rpmspec=spl-modules.spec; \
+rpmbuild=`mktemp -t -d spl-build-$USER-XXXXXXXX`; \
+make  \
+	rpmbuild=&quot;$rpmbuild&quot; \
+	rpmspec=&quot;$rpmspec&quot; \
+	rpm-local || exit 1; \
+rpmbuild \
+	--define &quot;_tmppath $rpmbuild/TMP&quot; \
+	--define &quot;_topdir $rpmbuild&quot; \
+	--define &quot;build_src_rpm 1&quot; \
+	--define &quot;dist %{nil}&quot; \
+	--nodeps -bs $rpmbuild/SPECS/$rpmspec || exit 1; \
+cp $rpmbuild/SRPMS/$rpmpkg . || exit 1; \
+rm -f -R $rpmbuild
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+Wrote: /tmp/spl-build-buildbot-UctBxBRQ/SRPMS/spl-modules-0.6.0-rc4.src.rpm
+make[1]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make  pkg=&quot;spl-modules&quot; rpm-common
+make[1]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+rpmpkg=spl-modules-0.6.0-rc4.src.rpm; \
+rpmspec=spl-modules.spec; \
+rpmbuild=`mktemp -t -d spl-build-$USER-XXXXXXXX`; \
+make  \
+	rpmbuild=&quot;$rpmbuild&quot; \
+	rpmspec=&quot;$rpmspec&quot; \
+	rpm-local || exit 1; \
+rpmbuild \
+	--define &quot;_tmppath $rpmbuild/TMP&quot; \
+	--define &quot;_topdir $rpmbuild&quot; \
+	--define &quot;dist %{nil}&quot; \
+	--define &quot;require_kdir /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--define &quot;require_kobj /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--define &quot;require_kver 2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--nodeps --rebuild $rpmpkg || exit 1; \
+cp $rpmbuild/RPMS/*/* . || exit 1; \
+rm -f -R $rpmbuild
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+Installing spl-modules-0.6.0-rc4.src.rpm
+Executing(%prep): /bin/sh -e /tmp/spl-build-buildbot-PLdt4Ods/TMP/rpm-tmp.11zw4n
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ LANG=C
++ export LANG
++ unset DISPLAY
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ rm -rf spl-0.6.0
++ /bin/tar -xvvf -
++ /usr/bin/gzip -dc /tmp/spl-build-buildbot-PLdt4Ods/SOURCES/spl-0.6.0.tar.gz
+</span><span class="stdout">drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/module/
+-rw-r--r-- 501/501        1055 2011-06-15 12:12 spl-0.6.0/module/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/module/spl/
+-rw-r--r-- 501/501       13200 2011-06-15 12:13 spl-0.6.0/module/spl/spl-xdr.c
+-rw-r--r-- 501/501        1674 2011-06-15 12:13 spl-0.6.0/module/spl/spl-atomic.c
+-rw-r--r-- 501/501        6454 2011-06-15 12:13 spl-0.6.0/module/spl/spl-condvar.c
+-rw-r--r-- 501/501        4038 2011-06-15 12:13 spl-0.6.0/module/spl/spl-thread.c
+-rw-r--r-- 501/501        2592 2011-06-15 12:13 spl-0.6.0/module/spl/spl-kobj.c
+-rw-r--r-- 501/501       35976 2011-06-15 12:13 spl-0.6.0/module/spl/spl-debug.c
+-rw-r--r-- 501/501        6151 2011-06-15 12:13 spl-0.6.0/module/spl/spl-cred.c
+-rw-r--r-- 501/501       62159 2011-06-15 12:13 spl-0.6.0/module/spl/spl-kmem.c
+-rw-r--r-- 501/501        3014 2011-06-15 12:13 spl-0.6.0/module/spl/spl-rwlock.c
+-rw-r--r-- 501/501        8941 2011-06-15 12:13 spl-0.6.0/module/spl/spl-module.c
+-rw-r--r-- 501/501        1189 2011-06-15 12:12 spl-0.6.0/module/spl/Makefile.in
+-rw-r--r-- 501/501       17659 2011-06-15 12:13 spl-0.6.0/module/spl/spl-tsd.c
+-rw-r--r-- 501/501       36358 2011-06-15 12:13 spl-0.6.0/module/spl/spl-proc.c
+-rw-r--r-- 501/501       17105 2011-06-15 12:13 spl-0.6.0/module/spl/spl-taskq.c
+-rw-r--r-- 501/501        2387 2011-06-15 12:13 spl-0.6.0/module/spl/spl-err.c
+-rw-r--r-- 501/501        3139 2011-06-15 12:13 spl-0.6.0/module/spl/spl-mutex.c
+-rw-r--r-- 501/501       14846 2011-06-15 12:13 spl-0.6.0/module/spl/spl-generic.c
+-rw-r--r-- 501/501       15172 2011-06-15 12:13 spl-0.6.0/module/spl/spl-kstat.c
+-rw-r--r-- 501/501       18681 2011-06-15 12:13 spl-0.6.0/module/spl/spl-vnode.c
+-rw-r--r-- 501/501        7403 2011-06-15 12:13 spl-0.6.0/module/spl/spl-zlib.c
+-rw-r--r-- 501/501        2977 2011-06-15 12:13 spl-0.6.0/module/spl/spl-time.c
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/module/splat/
+-rw-r--r-- 501/501       18658 2011-06-15 12:13 spl-0.6.0/module/splat/splat-ctl.c
+-rw-r--r-- 501/501        4396 2011-06-15 12:13 spl-0.6.0/module/splat/splat-zlib.c
+-rw-r--r-- 501/501        7387 2011-06-15 12:13 spl-0.6.0/module/splat/splat-cred.c
+-rw-r--r-- 501/501       15411 2011-06-15 12:13 spl-0.6.0/module/splat/splat-mutex.c
+-rw-r--r-- 501/501       22641 2011-06-15 12:13 spl-0.6.0/module/splat/splat-taskq.c
+-rw-r--r-- 501/501       17294 2011-06-15 12:13 spl-0.6.0/module/splat/splat-vnode.c
+-rw-r--r-- 501/501        1101 2011-06-15 12:12 spl-0.6.0/module/splat/Makefile.in
+-rw-r--r-- 501/501        3651 2011-06-15 12:13 spl-0.6.0/module/splat/splat-time.c
+-rw-r--r-- 501/501       15014 2011-06-15 12:13 spl-0.6.0/module/splat/splat-condvar.c
+-rw-r--r-- 501/501       33081 2011-06-15 12:13 spl-0.6.0/module/splat/splat-kmem.c
+-rw-r--r-- 501/501       19631 2011-06-15 12:13 spl-0.6.0/module/splat/splat-rwlock.c
+-rw-r--r-- 501/501       12382 2011-06-15 12:13 spl-0.6.0/module/splat/splat-generic.c
+-rw-r--r-- 501/501       14701 2011-06-15 12:13 spl-0.6.0/module/splat/splat-list.c
+-rw-r--r-- 501/501       11015 2011-06-15 12:13 spl-0.6.0/module/splat/splat-thread.c
+-rw-r--r-- 501/501        5128 2011-06-15 12:13 spl-0.6.0/module/splat/splat-kobj.c
+-rw-r--r-- 501/501        3820 2011-06-15 12:13 spl-0.6.0/module/splat/splat-random.c
+-rw-r--r-- 501/501        6463 2011-06-15 12:13 spl-0.6.0/module/splat/splat-atomic.c
+-rw-r--r-- 501/501        9704 2011-06-15 12:13 spl-0.6.0/module/splat/splat-internal.h
+-rw-r--r-- 501/501        6794 2011-06-15 12:12 spl-0.6.0/spl_config.h.in
+-rw-r--r-- 501/501        1614 2011-06-15 12:12 spl-0.6.0/Makefile.am
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/cmd/
+-rw-r--r-- 501/501         226 2011-06-15 12:12 spl-0.6.0/cmd/Makefile.am
+-rw-r--r-- 501/501        2572 2011-06-15 12:12 spl-0.6.0/cmd/splat.h
+-rw-r--r-- 501/501       18961 2011-06-15 12:12 spl-0.6.0/cmd/Makefile.in
+-rw-r--r-- 501/501       18850 2011-06-15 12:12 spl-0.6.0/cmd/splat.c
+-rw-r--r-- 501/501        7853 2011-06-15 12:12 spl-0.6.0/cmd/spl.c
+-rw-r--r-- 501/501        6837 2011-06-15 12:12 spl-0.6.0/spl-modules.spec.in
+-rw-r--r-- 501/501         241 2011-06-15 12:12 spl-0.6.0/AUTHORS
+-rw-r--r-- 501/501        1919 2011-06-15 12:12 spl-0.6.0/configure.ac
+-rwxr--r-- 501/501         156 2011-06-15 12:12 spl-0.6.0/autogen.sh
+-rw-r--r-- 501/501         824 2011-06-15 12:12 spl-0.6.0/spl.spec.in
+-rw-r--r-- 501/501        1376 2011-06-15 12:12 spl-0.6.0/DISCLAIMER
+-rw-r--r-- 501/501       33111 2011-06-15 12:12 spl-0.6.0/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/scripts/
+-rwxr--r-- 501/501        2826 2011-06-15 12:12 spl-0.6.0/scripts/check.sh
+-rw-r--r-- 501/501          62 2011-06-15 12:12 spl-0.6.0/scripts/Makefile.am
+-rw-r--r-- 501/501       10869 2011-06-15 12:12 spl-0.6.0/scripts/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/config/
+-rw-r--r-- 501/501         334 2011-06-15 12:12 spl-0.6.0/config/config.awk
+-rw-r--r-- 501/501        1782 2011-06-15 12:12 spl-0.6.0/config/tgz.am
+-rwxr--r-- 501/501       44941 2011-06-15 12:12 spl-0.6.0/config/config.guess
+-rw-r--r-- 501/501         675 2011-06-15 12:12 spl-0.6.0/config/Rules.am
+-rwxr--r-- 501/501       13663 2011-06-15 12:12 spl-0.6.0/config/install-sh
+-rwxr--r-- 501/501       18615 2011-06-15 12:12 spl-0.6.0/config/depcomp
+-rwxr--r-- 501/501       34423 2011-06-15 12:12 spl-0.6.0/config/config.sub
+-rwxr--r-- 501/501      243248 2011-06-15 12:12 spl-0.6.0/config/ltmain.sh
+-rw-r--r-- 501/501       48067 2011-06-15 12:12 spl-0.6.0/config/spl-build.m4
+-rw-r--r-- 501/501        2555 2011-06-15 12:12 spl-0.6.0/config/rpm.am
+-rwxr--r-- 501/501       11419 2011-06-15 12:12 spl-0.6.0/config/missing
+-rw-r--r-- 501/501        2056 2011-06-15 12:12 spl-0.6.0/config/deb.am
+-rw-r--r-- 501/501        3526 2011-06-15 12:12 spl-0.6.0/config/spl-meta.m4
+-rw-r--r-- 501/501       18092 2011-06-15 12:12 spl-0.6.0/COPYING
+-rwxr--r-- 501/501      587444 2011-06-15 12:12 spl-0.6.0/configure
+-rw-r--r-- 501/501      323528 2011-06-15 12:13 spl-0.6.0/aclocal.m4
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/
+-rw-r--r-- 501/501        1199 2011-06-15 12:12 spl-0.6.0/include/Makefile.am
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/rpc/
+-rw-r--r-- 501/501        1313 2011-06-15 12:12 spl-0.6.0/include/rpc/types.h
+-rw-r--r-- 501/501        4466 2011-06-15 12:12 spl-0.6.0/include/rpc/xdr.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/linux/
+-rw-r--r-- 501/501        1517 2011-06-15 12:12 spl-0.6.0/include/linux/zlib_compat.h
+-rw-r--r-- 501/501        1402 2011-06-15 12:12 spl-0.6.0/include/linux/uaccess_compat.h
+-rw-r--r-- 501/501        1504 2011-06-15 12:12 spl-0.6.0/include/linux/mutex_compat.h
+-rw-r--r-- 501/501        4830 2011-06-15 12:12 spl-0.6.0/include/linux/sysctl_compat.h
+-rw-r--r-- 501/501        1513 2011-06-15 12:12 spl-0.6.0/include/linux/bitops_compat.h
+-rw-r--r-- 501/501        1903 2011-06-15 12:12 spl-0.6.0/include/linux/workqueue_compat.h
+-rw-r--r-- 501/501        2714 2011-06-15 12:12 spl-0.6.0/include/linux/file_compat.h
+-rw-r--r-- 501/501        1389 2011-06-15 12:12 spl-0.6.0/include/linux/math64_compat.h
+-rw-r--r-- 501/501        1754 2011-06-15 12:12 spl-0.6.0/include/linux/time_compat.h
+-rw-r--r-- 501/501        3147 2011-06-15 12:12 spl-0.6.0/include/linux/module_compat.h
+-rw-r--r-- 501/501        5709 2011-06-15 12:12 spl-0.6.0/include/linux/mm_compat.h
+-rw-r--r-- 501/501        2075 2011-06-15 12:12 spl-0.6.0/include/linux/compiler_compat.h
+-rw-r--r-- 501/501        2278 2011-06-15 12:12 spl-0.6.0/include/linux/rwsem_compat.h
+-rw-r--r-- 501/501        2130 2011-06-15 12:12 spl-0.6.0/include/linux/list_compat.h
+-rw-r--r-- 501/501        1993 2011-06-15 12:12 spl-0.6.0/include/linux/proc_compat.h
+-rw-r--r-- 501/501        1726 2011-06-15 12:12 spl-0.6.0/include/linux/kallsyms_compat.h
+-rw-r--r-- 501/501        1535 2011-06-15 12:12 spl-0.6.0/include/linux/smp_compat.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/sys/
+-rw-r--r-- 501/501        5714 2011-06-15 12:12 spl-0.6.0/include/sys/acl.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/crc32.h
+-rw-r--r-- 501/501        1876 2011-06-15 12:12 spl-0.6.0/include/sys/sunldi.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/sys/fm/
+-rw-r--r-- 501/501        1299 2011-06-15 12:12 spl-0.6.0/include/sys/fm/protocol.h
+-rw-r--r-- 501/501        1287 2011-06-15 12:12 spl-0.6.0/include/sys/fm/util.h
+-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/sdt.h
+-rw-r--r-- 501/501        1513 2011-06-15 12:12 spl-0.6.0/include/sys/byteorder.h
+-rw-r--r-- 501/501        1588 2011-06-15 12:12 spl-0.6.0/include/sys/random.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/open.h
+-rw-r--r-- 501/501        1372 2011-06-15 12:12 spl-0.6.0/include/sys/fcntl.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/bootconf.h
+-rw-r--r-- 501/501        1884 2011-06-15 12:12 spl-0.6.0/include/sys/dnlc.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/stropts.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/va_list.h
+-rw-r--r-- 501/501        2937 2011-06-15 12:12 spl-0.6.0/include/sys/types.h
+-rw-r--r-- 501/501        5612 2011-06-15 12:12 spl-0.6.0/include/sys/list.h
+-rw-r--r-- 501/501        1287 2011-06-15 12:12 spl-0.6.0/include/sys/dklabel.h
+-rw-r--r-- 501/501        5271 2011-06-15 12:12 spl-0.6.0/include/sys/debug.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/errno.h
+-rw-r--r-- 501/501        2893 2011-06-15 12:12 spl-0.6.0/include/sys/time.h
+-rw-r--r-- 501/501        1298 2011-06-15 12:12 spl-0.6.0/include/sys/u8_textprep.h
+-rw-r--r-- 501/501        1360 2011-06-15 12:12 spl-0.6.0/include/sys/processor.h
+-rw-r--r-- 501/501 </span><span class="stdout">       1725 2011-06-15 12:12 spl-0.6.0/include/sys/vfs.h
+</span><span class="stdout">-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/ddi.h
+-rw-r--r-- 501/501        1379 2011-06-15 12:12 spl-0.6.0/include/sys/t_lock.h
+-rw-r--r-- 501/501        1304 2011-06-15 12:12 spl-0.6.0/include/sys/efi_partition.h
+-rw-r--r-- 501/501        1337 2011-06-15 12:12 spl-0.6.0/include/sys/file.h
+-rw-r--r-- 501/501        1306 2011-06-15 12:12 spl-0.6.0/include/sys/ctype.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/mkdev.h
+-rw-r--r-- 501/501        1319 2011-06-15 12:12 spl-0.6.0/include/sys/int_types.h
+-rw-r--r-- 501/501        1775 2011-06-15 12:12 spl-0.6.0/include/sys/cmn_err.h
+-rw-r--r-- 501/501        1318 2011-06-15 12:12 spl-0.6.0/include/sys/resource.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/inttypes.h
+-rw-r--r-- 501/501        1255 2011-06-15 12:12 spl-0.6.0/include/sys/idmap.h
+-rw-r--r-- 501/501        1426 2011-06-15 12:12 spl-0.6.0/include/sys/zone.h
+-rw-r--r-- 501/501        6653 2011-06-15 12:12 spl-0.6.0/include/sys/sysmacros.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/sys/fs/
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/fs/swapnode.h
+-rw-r--r-- 501/501        7386 2011-06-15 12:12 spl-0.6.0/include/sys/kstat.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/disp.h
+-rw-r--r-- 501/501        2010 2011-06-15 12:12 spl-0.6.0/include/sys/callb.h
+-rw-r--r-- 501/501        9792 2011-06-15 12:12 spl-0.6.0/include/sys/mutex.h
+-rw-r--r-- 501/501        1290 2011-06-15 12:12 spl-0.6.0/include/sys/acl_impl.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/attr.h
+-rw-r--r-- 501/501        2655 2011-06-15 12:12 spl-0.6.0/include/sys/isa_defs.h
+-rw-r--r-- 501/501        1480 2011-06-15 12:12 spl-0.6.0/include/sys/systeminfo.h
+-rw-r--r-- 501/501        1292 2011-06-15 12:12 spl-0.6.0/include/sys/bootprops.h
+-rw-r--r-- 501/501        1307 2011-06-15 12:12 spl-0.6.0/include/sys/kidmap.h
+-rw-r--r-- 501/501        3081 2011-06-15 12:12 spl-0.6.0/include/sys/zmod.h
+-rw-r--r-- 501/501        6342 2011-06-15 12:12 spl-0.6.0/include/sys/vnode.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/proc.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/compress.h
+-rw-r--r-- 501/501        1496 2011-06-15 12:12 spl-0.6.0/include/sys/pset.h
+-rw-r--r-- 501/501        2294 2011-06-15 12:12 spl-0.6.0/include/sys/thread.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/modctl.h
+-rw-r--r-- 501/501        1290 2011-06-15 12:12 spl-0.6.0/include/sys/sysevent.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/dirent.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/dumphdr.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/cpuvar.h
+-rw-r--r-- 501/501        1460 2011-06-15 12:12 spl-0.6.0/include/sys/dkio.h
+-rw-r--r-- 501/501        1601 2011-06-15 12:12 spl-0.6.0/include/sys/timer.h
+-rw-r--r-- 501/501        1293 2011-06-15 12:12 spl-0.6.0/include/sys/priv_impl.h
+-rw-r--r-- 501/501        1335 2011-06-15 12:12 spl-0.6.0/include/sys/varargs.h
+-rw-r--r-- 501/501        5905 2011-06-15 12:12 spl-0.6.0/include/sys/vmsystm.h
+-rw-r--r-- 501/501        1505 2011-06-15 12:12 spl-0.6.0/include/sys/pathname.h
+-rw-r--r-- 501/501        1393 2011-06-15 12:12 spl-0.6.0/include/sys/utsname.h
+-rw-r--r-- 501/501        1300 2011-06-15 12:12 spl-0.6.0/include/sys/pool.h
+-rw-r--r-- 501/501       17211 2011-06-15 12:12 spl-0.6.0/include/sys/kmem.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/cpupart.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/sys/sysevent/
+-rw-r--r-- 501/501        1320 2011-06-15 12:12 spl-0.6.0/include/sys/sysevent/eventdefs.h
+-rw-r--r-- 501/501        2184 2011-06-15 12:12 spl-0.6.0/include/sys/cred.h
+-rw-r--r-- 501/501        1295 2011-06-15 12:12 spl-0.6.0/include/sys/int_limits.h
+-rw-r--r-- 501/501        9542 2011-06-15 12:12 spl-0.6.0/include/sys/sunddi.h
+-rw-r--r-- 501/501        8920 2011-06-15 12:12 spl-0.6.0/include/sys/rwlock.h
+-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/buf.h
+-rw-r--r-- 501/501        2500 2011-06-15 12:12 spl-0.6.0/include/sys/uio.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/note.h
+-rw-r--r-- 501/501        1330 2011-06-15 12:12 spl-0.6.0/include/sys/systm.h
+-rw-r--r-- 501/501        1898 2011-06-15 12:12 spl-0.6.0/include/sys/sid.h
+-rw-r--r-- 501/501        1634 2011-06-15 12:12 spl-0.6.0/include/sys/kobj.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/mntent.h
+-rw-r--r-- 501/501        4696 2011-06-15 12:12 spl-0.6.0/include/sys/taskq.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/unistd.h
+-rw-r--r-- 501/501        1449 2011-06-15 12:12 spl-0.6.0/include/sys/types32.h
+-rw-r--r-- 501/501        1452 2011-06-15 12:12 spl-0.6.0/include/sys/param.h
+-rw-r--r-- 501/501        1251 2011-06-15 12:12 spl-0.6.0/include/sys/extdirent.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/conf.h
+-rw-r--r-- 501/501        1302 2011-06-15 12:12 spl-0.6.0/include/sys/stat.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/vfs_opreg.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/bitmap.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/sysdc.h
+-rw-r--r-- 501/501        2064 2011-06-15 12:12 spl-0.6.0/include/sys/policy.h
+-rw-r--r-- 501/501        1529 2011-06-15 12:12 spl-0.6.0/include/sys/console.h
+-rw-r--r-- 501/501        1904 2011-06-15 12:12 spl-0.6.0/include/sys/signal.h
+-rw-r--r-- 501/501        1422 2011-06-15 12:12 spl-0.6.0/include/sys/mode.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/mount.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/refstr.h
+-rw-r--r-- 501/501        7549 2011-06-15 12:12 spl-0.6.0/include/sys/atomic.h
+-rw-r--r-- 501/501        1624 2011-06-15 12:12 spl-0.6.0/include/sys/tsd.h
+-rw-r--r-- 501/501        3214 2011-06-15 12:12 spl-0.6.0/include/sys/condvar.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/util/
+-rw-r--r-- 501/501        1297 2011-06-15 12:12 spl-0.6.0/include/util/sscanf.h
+-rw-r--r-- 501/501        1375 2011-06-15 12:12 spl-0.6.0/include/util/qsort.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/fs/
+-rw-r--r-- 501/501        1295 2011-06-15 12:12 spl-0.6.0/include/fs/fs_subr.h
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/sharefs/
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sharefs/share.h
+-rw-r--r-- 501/501        3940 2011-06-15 12:12 spl-0.6.0/include/splat-ctl.h
+-rw-r--r-- 501/501       13768 2011-06-15 12:12 spl-0.6.0/include/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/include/vm/
+-rw-r--r-- 501/501        1315 2011-06-15 12:12 spl-0.6.0/include/vm/seg_kmem.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/vm/anon.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/vm/pvn.h
+-rw-r--r-- 501/501        4740 2011-06-15 12:12 spl-0.6.0/include/spl-trace.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/strings.h
+-rw-r--r-- 501/501        1673 2011-06-15 12:12 spl-0.6.0/include/spl-ctl.h
+-rw-r--r-- 501/501        3214 2011-06-15 12:12 spl-0.6.0/include/spl-device.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/unistd.h
+-rw-r--r-- 501/501        6565 2011-06-15 12:12 spl-0.6.0/include/spl-debug.h
+-rw-r--r-- 501/501         111 2011-06-15 12:12 spl-0.6.0/META
+-rw-r--r-- 501/501        6697 2011-06-15 12:13 spl-0.6.0/spl_config.h
+-rw-r--r-- 501/501       22670 2011-06-15 12:12 spl-0.6.0/ChangeLog
+-rw-r--r-- 501/501       11410 2011-06-15 12:12 spl-0.6.0/INSTALL
+drwxr-xr-x 501/501           0 2011-06-15 12:13 spl-0.6.0/lib/
+-rw-r--r-- 501/501         124 2011-06-15 12:12 spl-0.6.0/lib/Makefile.am
+-rw-r--r-- 501/501        9029 2011-06-15 12:12 spl-0.6.0/lib/list.h
+-rw-r--r-- 501/501       20884 2011-06-15 12:12 spl-0.6.0/lib/list.c
+-rw-r--r-- 501/501       16653 2011-06-15 12:12 spl-0.6.0/lib/Makefile.in
+</span><span class="stderr">+ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd spl-0.6.0
++ /bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+</span><span class="stdout">Executing(%build): /bin/sh -e /tmp/spl-build-buildbot-PLdt4Ods/TMP/rpm-tmp.HjLvzy
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ cd spl-0.6.0
++ LANG=C
++ export LANG
++ unset DISPLAY
++ CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic'
++ export CFLAGS
++ CXXFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic'
++ export CXXFLAGS
++ FFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -I/usr/lib64/gfortran/modules'
++ export FFLAGS
++ ./configure --build=x86_64-unknown-linux-gnu --host=x86_64-unknown-linux-gnu --program-prefix= --disable-dependency-tracking --prefix=/usr --exec-prefix=/usr --bindir=/usr/bin --sbindir=/usr/sbin --sysconfdir=/etc --datadir=/usr/share --includedir=/usr/include --libdir=/usr/lib64 --libexecdir=/usr/libexec --localstatedir=/var --sharedstatedir=/var/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-linux=/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64 --with-linux-obj=/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64 --with-config=kernel
+</span><span class="stdout">checking metadata... yes
+checking build system type... x86_64-unknown-linux-gnu
+checking host system type... x86_64-unknown-linux-gnu
+checking target system type... x86_64-unknown-linux-gnu
+checking whether to enable maintainer-specific portions of Makefiles... no
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether build environment is sane... yes
+checking for a thread-safe mkdir -p... /bin/mkdir -p
+checking for gawk... gawk
+checking whether make sets $(MAKE)... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking for x86_64-unknown-linux-gnu-gcc... no
+checking for gcc... gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... no
+checking for suffix of executables... 
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking for style of include used by make... GNU
+checking dependency style of gcc... none
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for fgrep... /bin/grep -F
+checking for ld used by gcc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... /usr/bin/nm -B
+checking the name lister (/usr/bin/nm -B) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1572864
+checking whether the shell understands some XSI constructs... yes
+checking whether the shell understands &quot;+=&quot;... yes
+checking for /usr/bin/ld option to reload object files... -r
+checking for x86_64-unknown-linux-gnu-objdump... no
+checking for objdump... objdump
+checking how to recognize dependent libraries... pass_all
+checking for x86_64-unknown-linux-gnu-ar... no
+checking for ar... ar
+checking for x86_64-unknown-linux-gnu-strip... no
+checking for strip... strip
+checking for x86_64-unknown-linux-gnu-ranlib... no
+checking for ranlib... ranlib
+checking command to parse /usr/bin/nm -B output from gcc object... ok
+checking how to run the C preprocessor... gcc -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if gcc supports -fno-rtti -fno-exceptions... no
+checking for gcc option to produce PIC... -fPIC -DPIC
+checking if gcc PIC flag -fPIC -DPIC works... yes
+checking if gcc static flag -static works... no
+checking if gcc supports -c -o file.o... yes
+checking if gcc supports -c -o file.o... (cached) yes
+checking whether the gcc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+checking spl license... GPL
+checking whether rpm is available... yes (4.8.1)
+checking whether rpmbuild is available... yes (4.8.1)
+checking whether dpkg is available... no
+checking whether dpkg-buildpackage is available... no
+checking whether alien is available... no
+checking linux distribution... redhat
+checking default package type... rpm
+checking spl config... kernel
+checking kernel source directory... /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64
+checking kernel build directory... /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64
+checking kernel source version... 2.6.35.13-92.16kstacks.fc14.x86_64
+checking kernel file name for module symbols... Module.symvers
+checking whether Linux was built with CONFIG_PREEMPT... no
+checking whether debugging is enabled... no
+checking whether basic kmem accounting is enabled... yes
+checking whether detailed kmem tracking is enabled... no
+checking whether atomic types use spinlocks... no
+checking whether kernel defines atomic64_t... yes
+checking whether kernel defines atomic64_cmpxchg... yes
+checking whether kernel defines atomic64_xchg... yes
+checking whether kernel defines uintptr_t... yes
+checking whether INIT_WORK wants 3 args... no
+checking whether register_sysctl_table() wants 2 args... no
+checking whether set_shrinker() available... no
+checking whether shrinker callback wants 3 args... yes
+checking whether struct path used in struct nameidata... yes
+checking whether symbol task_curr is exported... no
+checking whether unnumbered sysctl support exists... no
+checking whether struct ctl_table has ctl_name... no
+checking whether fls64() is available... yes
+checking whether symbol device_create is exported... yes
+checking whether device_create() wants 5 args... yes
+checking whether symbol class_device_create is exported... no
+checking whether symbol set_normalized_timespec is exported... yes
+checking whether set_normalized_timespec() is an inline... yes
+checking whether timespec_sub() is available... yes
+checking whether init_utsname() is available... yes
+checking whether header linux/fdtable.h exists... yes
+checking whether files_fdtable() is available... yes
+checking whether header linux/uaccess.h exists... yes
+checking whether kmalloc_node() is available... yes
+checking whether symbol monotonic_clock is exported... no
+checking whether struct inode has i_mutex... yes
+checking whether struct mutex has owner... yes
+checking whether mutex_lock_nested() is available... yes
+checking whether on_each_cpu() wants 3 args... yes
+checking whether symbol kallsyms_lookup_name is exported... yes
+checking whether symbol get_vmalloc_info is exported... no
+checking whether symbol *_pgdat exist... yes
+checking whether symbol first_online_pgdat is exported... no
+checking whether symbol next_online_pgdat is exported... no
+checking whether symbol next_zone is exported... no
+checking whether symbol pgdat_list is exported... no
+checking whether global_page_state() is available... yes
+checking whether page state NR_FREE_PAGES is available... yes
+checking whether page state NR_INACTIVE is available... no
+checking whether page state NR_INACTIVE_ANON is available... yes
+checking whether page state NR_INACTIVE_FILE is available... yes
+checking whether page state NR_ACTIVE is available... no
+checking whether page state NR_ACTIVE_ANON is available... yes
+checking whether page state NR_ACTIVE_FILE is available... yes
+checking whether symbol get_zone_counts is needed... no
+checking whether symbol user_path_at is exported... yes
+checking whether symbol set_fs_pwd is exported... no
+checking whether set_fs_pwd() wants 2 args... yes
+checking whether vfs_unlink() wants 2 args... yes
+checking whether vfs_rename() wants 4 args... yes
+checking whether struct fs_struct uses spinlock_t... no
+checking whether struct cred exists... yes
+checking whether symbol groups_search is exported... no
+checking whether symbol __put_task_struct is exported... no
+checking whether proc_handler() wants 5 args... yes
+checking whether symbol kvasprintf is exported... yes
+checking whether file_fsync() wants 3 args... no
+checking whether symbol rwsem_is_locked is exported... no
+checking whether symbol invalidate_inodes is exported... yes
+checking whether invalidate_inodes() wants 2 args... no
+checking whether symbol shrink_dcache_memory is exported... no
+checking whether symbol shrink_icache_memory is exported... no
+checking whether symbol kern_path_parent is exported... no
+checking whether zlib_deflate_workspacesize() wants 2 args... no
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating lib/Makefile
+config.status: creating cmd/Makefile
+config.status: creating module/Makefile
+config.status: creating module/spl/Makefile
+config.status: creating module/splat/Makefile
+config.status: creating include/Makefile
+config.status: creating scripts/Makefile
+config.status: creating spl.spec
+config.status: creating spl-modules.spec
+config.status: creating spl_config.h
+config.status: executing depfiles commands
+config.status: executing libtool commands
+</span><span class="stderr">+ make
+</span><span class="stdout">make[2]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make  all-recursive
+make[3]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+Making all in module
+make[4]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module'
+make -C /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64 SUBDIRS=`pwd`  modules
+make[5]: Entering directory `/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64'
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-debug.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-proc.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-kmem.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-thread.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-taskq.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-rwlock.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-vnode.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-err.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-time.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-kobj.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-module.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-generic.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-atomic.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-mutex.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-kstat.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-condvar.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-xdr.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-cred.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-tsd.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/../../module/spl/spl-zlib.o
+  LD [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/spl.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-ctl.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-kmem.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-taskq.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-random.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-mutex.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-condvar.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-thread.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-rwlock.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-time.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-vnode.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-kobj.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-atomic.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-list.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-generic.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-cred.o
+  CC [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/../../module/splat/splat-zlib.o
+  LD [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/splat.o
+  Building modules, stage 2.
+  MODPOST 2 modules
+  CC      /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/spl.mod.o
+  LD [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/spl.ko
+  CC      /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/splat.mod.o
+  LD [M]  /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/splat.ko
+make[5]: Leaving directory `/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64'
+make[4]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module'
+Making all in include
+make[4]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[4]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[4]: Nothing to be done for `all-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[2]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+</span><span class="stderr">+ exit 0
+</span><span class="stdout">Executing(%install): /bin/sh -e /tmp/spl-build-buildbot-PLdt4Ods/TMP/rpm-tmp.CkN8eP
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ '[' /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64 '!=' / ']'
++ rm -rf /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
+++ dirname /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
++ mkdir -p /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT
++ mkdir /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
++ cd spl-0.6.0
++ LANG=C
++ export LANG
++ unset DISPLAY
++ rm -rf /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
++ make DESTDIR=/tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64 install
+</span><span class="stdout">make[2]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+Making install in module
+make[3]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module'
+make -C /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64 SUBDIRS=`pwd` \
+	INSTALL_MOD_PATH=/tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64 \
+	INSTALL_MOD_DIR=addon/spl modules_install
+make[4]: Entering directory `/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64'
+  INSTALL /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/spl/spl.ko
+  INSTALL /tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module/splat/splat.ko
+  DEPMOD  2.6.35.13-92.16kstacks.fc14.x86_64
+</span><span class="stderr">WARNING: /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/lib/modules/2.6.35.13-92.16kstacks.fc14.x86_64/addon/spl/spl/spl.ko needs unknown symbol zlib_deflateEnd
+WARNING: /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/lib/modules/2.6.35.13-92.16kstacks.fc14.x86_64/addon/spl/spl/spl.ko needs unknown symbol zlib_deflate
+WARNING: /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/lib/modules/2.6.35.13-92.16kstacks.fc14.x86_64/addon/spl/spl/spl.ko needs unknown symbol zlib_deflate_workspacesize
+WARNING: /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/lib/modules/2.6.35.13-92.16kstacks.fc14.x86_64/addon/spl/spl/spl.ko needs unknown symbol zlib_deflateInit2
+</span><span class="stdout">make[4]: Leaving directory `/usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64'
+find /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/lib/modules/ -name 'modules.*' | xargs rm -f
+sysmap=/tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/boot/System.map-2.6.35.13-92.16kstacks.fc14.x86_64; \
+if [ -f $sysmap ]; then \
+	depmod -ae -F $sysmap 2.6.35.13-92.16kstacks.fc14.x86_64; \
+fi
+make[3]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/module'
+Making install in include
+make[3]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[4]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[4]: Nothing to be done for `install-exec-am'.
+destname=spl-0.6.0/2.6.35.13-92.16kstacks.fc14.x86_64; \
+instdest=/tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/usr/src/$destname; \
+instfiles=`find . -name '*.h'`; \
+        for instfile in $instfiles; do \
+	/usr/bin/install -c -D $instfile $instdest/$instfile; \
+        done
+make[4]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0/include'
+make[3]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[4]: Entering directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[4]: Nothing to be done for `install-exec-am'.
+destname=spl-0.6.0/2.6.35.13-92.16kstacks.fc14.x86_64; \
+instdest=/tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64/usr/src/$destname; \
+echo &quot;0.6.0&quot; &gt;$instdest/spl.release; \
+for instfile in spl_config.h module/Module.symvers; do \
+	/usr/bin/install -c -D $instfile $instdest/$instfile; \
+done
+make[4]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+make[2]: Leaving directory `/tmp/spl-build-buildbot-PLdt4Ods/BUILD/spl-0.6.0'
+</span><span class="stderr">+ /usr/lib/rpm/check-buildroot
++ /usr/lib/rpm/redhat/brp-compress
++ /usr/lib/rpm/redhat/brp-strip /usr/bin/strip
++ /usr/lib/rpm/redhat/brp-strip-comment-note /usr/bin/strip /usr/bin/objdump
++ /usr/lib/rpm/redhat/brp-strip-static-archive /usr/bin/strip
++ /usr/lib/rpm/brp-python-bytecompile /usr/bin/python 1
++ /usr/lib/rpm/redhat/brp-python-hardlink
++ /usr/lib/rpm/redhat/brp-java-repack-jars
+</span><span class="stdout">Processing files: spl-modules-0.6.0-rc4_2.6.35.13_92.16kstacks.fc14.x86_64
+Requires(interp): /bin/sh /bin/sh
+Requires(rpmlib): rpmlib(CompressedFileNames) &lt;= 3.0.4-1 rpmlib(FileDigests) &lt;= 4.6.0-1 rpmlib(PayloadFilesHavePrefix) &lt;= 4.0-1
+Requires(post): /bin/sh
+Requires(postun): /bin/sh
+Processing files: spl-modules-devel-0.6.0-rc4_2.6.35.13_92.16kstacks.fc14.x86_64
+Requires(rpmlib): rpmlib(CompressedFileNames) &lt;= 3.0.4-1 rpmlib(FileDigests) &lt;= 4.6.0-1 rpmlib(PayloadFilesHavePrefix) &lt;= 4.0-1
+Checking for unpackaged file(s): /usr/lib/rpm/check-files /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
+Wrote: /tmp/spl-build-buildbot-PLdt4Ods/RPMS/x86_64/spl-modules-0.6.0-rc4_2.6.35.13_92.16kstacks.fc14.x86_64.rpm
+Wrote: /tmp/spl-build-buildbot-PLdt4Ods/RPMS/x86_64/spl-modules-devel-0.6.0-rc4_2.6.35.13_92.16kstacks.fc14.x86_64.rpm
+Executing(%clean): /bin/sh -e /tmp/spl-build-buildbot-PLdt4Ods/TMP/rpm-tmp.OFfLR2
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ cd spl-0.6.0
++ rm -rf /tmp/spl-build-buildbot-PLdt4Ods/BUILDROOT/spl-modules-0.6.0-rc4.x86_64
++ exit 0
+</span><span class="stdout">Executing(--clean): /bin/sh -e /tmp/spl-build-buildbot-PLdt4Ods/TMP/rpm-tmp.UzMoPs
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-PLdt4Ods/BUILD
++ rm -rf spl-0.6.0
++ exit 0
+</span><span class="stdout">make[1]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make  pkg=&quot;spl&quot; srpm-common
+make[1]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+{ test ! -d &quot;spl-0.6.0&quot; || { find &quot;spl-0.6.0&quot; -type d ! -perm -200 -exec chmod u+w {} ';' &amp;&amp; rm -fr &quot;spl-0.6.0&quot;; }; }
+test -d &quot;spl-0.6.0&quot; || mkdir &quot;spl-0.6.0&quot;
+ (cd lib &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/lib \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/lib'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/lib'
+ (cd cmd &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/cmd \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/cmd'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/cmd'
+ (cd scripts &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/scripts \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/scripts'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/scripts'
+ (cd module &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/module \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/module'
+list='spl splat'; for subdir in $list; do \
+	(find ../module/$subdir -name '*.c' -o -name '*.h' |\
+	 xargs /bin/cp -t $distdir/$subdir); \
+done
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/module'
+ (cd include &amp;&amp; make  top_distdir=../spl-0.6.0 distdir=../spl-0.6.0/include \
+     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/include'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/include'
+test -n &quot;&quot; \
+|| find &quot;spl-0.6.0&quot; -type d ! -perm -755 \
+	-exec chmod u+rwx,go+rx {} \; -o \
+  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
+  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
+  ! -type d ! -perm -444 -exec /bin/sh /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/config/install-sh -c -m a+r {} {} \; \
+|| chmod -R a+r &quot;spl-0.6.0&quot;
+tardir=spl-0.6.0 &amp;&amp; /bin/sh /var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build/config/missing --run tar chof - &quot;$tardir&quot; | GZIP=--best gzip -c &gt;spl-0.6.0.tar.gz
+{ test ! -d &quot;spl-0.6.0&quot; || { find &quot;spl-0.6.0&quot; -type d ! -perm -200 -exec chmod u+w {} ';' &amp;&amp; rm -fr &quot;spl-0.6.0&quot;; }; }
+rpmpkg=spl-0.6.0-rc4.src.rpm; \
+rpmspec=spl.spec; \
+rpmbuild=`mktemp -t -d spl-build-$USER-XXXXXXXX`; \
+make  \
+	rpmbuild=&quot;$rpmbuild&quot; \
+	rpmspec=&quot;$rpmspec&quot; \
+	rpm-local || exit 1; \
+rpmbuild \
+	--define &quot;_tmppath $rpmbuild/TMP&quot; \
+	--define &quot;_topdir $rpmbuild&quot; \
+	--define &quot;build_src_rpm 1&quot; \
+	--define &quot;dist %{nil}&quot; \
+	--nodeps -bs $rpmbuild/SPECS/$rpmspec || exit 1; \
+cp $rpmbuild/SRPMS/$rpmpkg . || exit 1; \
+rm -f -R $rpmbuild
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+Wrote: /tmp/spl-build-buildbot-l66IiDe0/SRPMS/spl-0.6.0-rc4.src.rpm
+make[1]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make  pkg=&quot;spl&quot; rpm-common
+make[1]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+rpmpkg=spl-0.6.0-rc4.src.rpm; \
+rpmspec=spl.spec; \
+rpmbuild=`mktemp -t -d spl-build-$USER-XXXXXXXX`; \
+make  \
+	rpmbuild=&quot;$rpmbuild&quot; \
+	rpmspec=&quot;$rpmspec&quot; \
+	rpm-local || exit 1; \
+rpmbuild \
+	--define &quot;_tmppath $rpmbuild/TMP&quot; \
+	--define &quot;_topdir $rpmbuild&quot; \
+	--define &quot;dist %{nil}&quot; \
+	--define &quot;require_kdir /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--define &quot;require_kobj /usr/src/kernels/2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--define &quot;require_kver 2.6.35.13-92.16kstacks.fc14.x86_64&quot; \
+	--nodeps --rebuild $rpmpkg || exit 1; \
+cp $rpmbuild/RPMS/*/* . || exit 1; \
+rm -f -R $rpmbuild
+make[2]: Entering directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+make[2]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+Installing spl-0.6.0-rc4.src.rpm
+Executing(%prep): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.VXHXfN
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ LANG=C
++ export LANG
++ unset DISPLAY
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ rm -rf spl-0.6.0
++ /usr/bin/gzip -dc /tmp/spl-build-buildbot-xwVnFCjF/SOURCES/spl-0.6.0.tar.gz
++ /bin/tar -xvvf -
+</span><span class="stdout">drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/module/
+-rw-r--r-- 501/501        1055 2011-06-15 12:12 spl-0.6.0/module/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/module/spl/
+-rw-r--r-- 501/501       13200 2011-06-15 12:14 spl-0.6.0/module/spl/spl-xdr.c
+-rw-r--r-- 501/501        1674 2011-06-15 12:14 spl-0.6.0/module/spl/spl-atomic.c
+-rw-r--r-- 501/501        6454 2011-06-15 12:14 spl-0.6.0/module/spl/spl-condvar.c
+-rw-r--r-- 501/501        4038 2011-06-15 12:14 spl-0.6.0/module/spl/spl-thread.c
+-rw-r--r-- 501/501        2592 2011-06-15 12:14 spl-0.6.0/module/spl/spl-kobj.c
+-rw-r--r-- 501/501       35976 2011-06-15 12:14 spl-0.6.0/module/spl/spl-debug.c
+-rw-r--r-- 501/501        6151 2011-06-15 12:14 spl-0.6.0/module/spl/spl-cred.c
+-rw-r--r-- 501/501       62159 2011-06-15 12:14 spl-0.6.0/module/spl/spl-kmem.c
+-rw-r--r-- 501/501        3014 2011-06-15 12:14 spl-0.6.0/module/spl/spl-rwlock.c
+-rw-r--r-- 501/501        8941 2011-06-15 12:14 spl-0.6.0/module/spl/spl-module.c
+-rw-r--r-- 501/501        1189 2011-06-15 12:12 spl-0.6.0/module/spl/Makefile.in
+-rw-r--r-- 501/501       17659 2011-06-15 12:14 spl-0.6.0/module/spl/spl-tsd.c
+-rw-r--r-- 501/501       36358 2011-06-15 12:14 spl-0.6.0/module/spl/spl-proc.c
+-rw-r--r-- 501/501       17105 2011-06-15 12:14 spl-0.6.0/module/spl/spl-taskq.c
+-rw-r--r-- 501/501        2387 2011-06-15 12:14 spl-0.6.0/module/spl/spl-err.c
+-rw-r--r-- 501/501        3139 2011-06-15 12:14 spl-0.6.0/module/spl/spl-mutex.c
+-rw-r--r-- 501/501       14846 2011-06-15 12:14 spl-0.6.0/module/spl/spl-generic.c
+-rw-r--r-- 501/501       15172 2011-06-15 12:14 spl-0.6.0/module/spl/spl-kstat.c
+-rw-r--r-- 501/501       18681 2011-06-15 12:14 spl-0.6.0/module/spl/spl-vnode.c
+-rw-r--r-- 501/501        7403 2011-06-15 12:14 spl-0.6.0/module/spl/spl-zlib.c
+-rw-r--r-- 501/501        2977 2011-06-15 12:14 spl-0.6.0/module/spl/spl-time.c
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/module/splat/
+-rw-r--r-- 501/501       18658 2011-06-15 12:14 spl-0.6.0/module/splat/splat-ctl.c
+-rw-r--r-- 501/501        4396 2011-06-15 12:14 spl-0.6.0/module/splat/splat-zlib.c
+-rw-r--r-- 501/501        7387 2011-06-15 12:14 spl-0.6.0/module/splat/splat-cred.c
+-rw-r--r-- 501/501       15411 2011-06-15 12:14 spl-0.6.0/module/splat/splat-mutex.c
+-rw-r--r-- 501/501       22641 2011-06-15 12:14 spl-0.6.0/module/splat/splat-taskq.c
+-rw-r--r-- 501/501       17294 2011-06-15 12:14 spl-0.6.0/module/splat/splat-vnode.c
+-rw-r--r-- 501/501        1101 2011-06-15 12:12 spl-0.6.0/module/splat/Makefile.in
+-rw-r--r-- 501/501        3651 2011-06-15 12:14 spl-0.6.0/module/splat/splat-time.c
+-rw-r--r-- 501/501       15014 2011-06-15 12:14 spl-0.6.0/module/splat/splat-condvar.c
+-rw-r--r-- 501/501       33081 2011-06-15 12:14 spl-0.6.0/module/splat/splat-kmem.c
+-rw-r--r-- 501/501       19631 2011-06-15 12:14 spl-0.6.0/module/splat/splat-rwlock.c
+-rw-r--r-- 501/501       12382 2011-06-15 12:14 spl-0.6.0/module/splat/splat-generic.c
+-rw-r--r-- 501/501       14701 2011-06-15 12:14 spl-0.6.0/module/splat/splat-list.c
+-rw-r--r-- 501/501       11015 2011-06-15 12:14 spl-0.6.0/module/splat/splat-thread.c
+-rw-r--r-- 501/501        5128 2011-06-15 12:14 spl-0.6.0/module/splat/splat-kobj.c
+-rw-r--r-- 501/501        3820 2011-06-15 12:14 spl-0.6.0/module/splat/splat-random.c
+-rw-r--r-- 501/501        6463 2011-06-15 12:14 spl-0.6.0/module/splat/splat-atomic.c
+-rw-r--r-- 501/501        9704 2011-06-15 12:14 spl-0.6.0/module/splat/splat-internal.h
+-rw-r--r-- 501/501        6794 2011-06-15 12:12 spl-0.6.0/spl_config.h.in
+-rw-r--r-- 501/501        1614 2011-06-15 12:12 spl-0.6.0/Makefile.am
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/cmd/
+-rw-r--r-- 501/501         226 2011-06-15 12:12 spl-0.6.0/cmd/Makefile.am
+-rw-r--r-- 501/501        2572 2011-06-15 12:12 spl-0.6.0/cmd/splat.h
+-rw-r--r-- 501/501       18961 2011-06-15 12:12 spl-0.6.0/cmd/Makefile.in
+-rw-r--r-- 501/501       18850 2011-06-15 12:12 spl-0.6.0/cmd/splat.c
+-rw-r--r-- 501/501        7853 2011-06-15 12:12 spl-0.6.0/cmd/spl.c
+-rw-r--r-- 501/501        6837 2011-06-15 12:12 spl-0.6.0/spl-modules.spec.in
+-rw-r--r-- 501/501         241 2011-06-15 12:12 spl-0.6.0/AUTHORS
+-rw-r--r-- 501/501        1919 2011-06-15 12:12 spl-0.6.0/configure.ac
+-rwxr--r-- 501/501         156 2011-06-15 12:12 spl-0.6.0/autogen.sh
+-rw-r--r-- 501/501         824 2011-06-15 12:12 spl-0.6.0/spl.spec.in
+-rw-r--r-- 501/501        1376 2011-06-15 12:12 spl-0.6.0/DISCLAIMER
+-rw-r--r-- 501/501       33111 2011-06-15 12:12 spl-0.6.0/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/scripts/
+-rwxr--r-- 501/501        2826 2011-06-15 12:12 spl-0.6.0/scripts/check.sh
+-rw-r--r-- 501/501          62 2011-06-15 12:12 spl-0.6.0/scripts/Makefile.am
+-rw-r--r-- 501/501       10869 2011-06-15 12:12 spl-0.6.0/scripts/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/config/
+-rw-r--r-- 501/501         334 2011-06-15 12:12 spl-0.6.0/config/config.awk
+-rw-r--r-- 501/501        1782 2011-06-15 12:12 spl-0.6.0/config/tgz.am
+-rwxr--r-- 501/501       44941 2011-06-15 12:12 spl-0.6.0/config/config.guess
+-rw-r--r-- 501/501         675 2011-06-15 12:12 spl-0.6.0/config/Rules.am
+-rwxr--r-- 501/501       13663 2011-06-15 12:12 spl-0.6.0/config/install-sh
+-rwxr--r-- 501/501       18615 2011-06-15 12:12 spl-0.6.0/config/depcomp
+-rwxr--r-- 501/501       34423 2011-06-15 12:12 spl-0.6.0/config/config.sub
+-rwxr--r-- 501/501      243248 2011-06-15 12:12 spl-0.6.0/config/ltmain.sh
+-rw-r--r-- 501/501       48067 2011-06-15 12:12 spl-0.6.0/config/spl-build.m4
+-rw-r--r-- 501/501        2555 2011-06-15 12:12 spl-0.6.0/config/rpm.am
+-rwxr--r-- 501/501       11419 2011-06-15 12:12 spl-0.6.0/config/missing
+-rw-r--r-- 501/501        2056 2011-06-15 12:12 spl-0.6.0/config/deb.am
+-rw-r--r-- 501/501        3526 2011-06-15 12:12 spl-0.6.0/config/spl-meta.m4
+-rw-r--r-- 501/501       18092 2011-06-15 12:12 spl-0.6.0/COPYING
+-rwxr--r-- 501/501      587444 2011-06-15 12:12 spl-0.6.0/configure
+-rw-r--r-- 501/501      323528 2011-06-15 12:13 spl-0.6.0/aclocal.m4
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/
+-rw-r--r-- 501/501        1199 2011-06-15 12:12 spl-0.6.0/include/Makefile.am
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/rpc/
+-rw-r--r-- 501/501        1313 2011-06-15 12:12 spl-0.6.0/include/rpc/types.h
+-rw-r--r-- 501/501        4466 2011-06-15 12:12 spl-0.6.0/include/rpc/xdr.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/linux/
+-rw-r--r-- 501/501        1517 2011-06-15 12:12 spl-0.6.0/include/linux/zlib_compat.h
+-rw-r--r-- 501/501        1402 2011-06-15 12:12 spl-0.6.0/include/linux/uaccess_compat.h
+-rw-r--r-- 501/501        1504 2011-06-15 12:12 spl-0.6.0/include/linux/mutex_compat.h
+-rw-r--r-- 501/501        4830 2011-06-15 12:12 spl-0.6.0/include/linux/sysctl_compat.h
+-rw-r--r-- 501/501        1513 2011-06-15 12:12 spl-0.6.0/include/linux/bitops_compat.h
+-rw-r--r-- 501/501        1903 2011-06-15 12:12 spl-0.6.0/include/linux/workqueue_compat.h
+-rw-r--r-- 501/501        2714 2011-06-15 12:12 spl-0.6.0/include/linux/file_compat.h
+-rw-r--r-- 501/501        1389 2011-06-15 12:12 spl-0.6.0/include/linux/math64_compat.h
+-rw-r--r-- 501/501        1754 2011-06-15 12:12 spl-0.6.0/include/linux/time_compat.h
+-rw-r--r-- 501/501        3147 2011-06-15 12:12 spl-0.6.0/include/linux/module_compat.h
+-rw-r--r-- 501/501        5709 2011-06-15 12:12 spl-0.6.0/include/linux/mm_compat.h
+-rw-r--r-- 501/501        2075 2011-06-15 12:12 spl-0.6.0/include/linux/compiler_compat.h
+-rw-r--r-- 501/501        2278 2011-06-15 12:12 spl-0.6.0/include/linux/rwsem_compat.h
+-rw-r--r-- 501/501        2130 2011-06-15 12:12 spl-0.6.0/include/linux/list_compat.h
+-rw-r--r-- 501/501        1993 2011-06-15 12:12 spl-0.6.0/include/linux/proc_compat.h
+-rw-r--r-- 501/501        1726 2011-06-15 12:12 spl-0.6.0/include/linux/kallsyms_compat.h
+-rw-r--r-- 501/501        1535 2011-06-15 12:12 spl-0.6.0/include/linux/smp_compat.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/sys/
+-rw-r--r-- 501/501        5714 2011-06-15 12:12 spl-0.6.0/include/sys/acl.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/crc32.h
+-rw-r--r-- 501/501        1876 2011-06-15 12:12 spl-0.6.0/include/sys/sunldi.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/sys/fm/
+-rw-r--r-- 501/501        1299 2011-06-15 12:12 spl-0.6.0/include/sys/fm/protocol.h
+-rw-r--r-- 501/501        1287 2011-06-15 12:12 spl-0.6.0/include/sys/fm/util.h
+-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/sdt.h
+-rw-r--r-- 501/501        1513 2011-06-15 12:12 spl-0.6.0/include/sys/byteorder.h
+-rw-r--r-- 501/501        1588 2011-06-15 12:12 spl-0.6.0/include/sys/random.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/open.h
+-rw-r--r-- 501/501        1372 2011-06-15 12:12 spl-0.6.0/include/sys/fcntl.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/bootconf.h
+-rw-r--r-- 501/501        1884 2011-06-15 12:12 spl-0.6.0/include/sys/dnlc.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/stropts.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/va_list.h
+-rw-r--r-- 501/501        2937 2011-06-15 12:12 spl-0.6.0/include/sys/types.h
+-rw-r--r-- 501/501        5612 2011-06-15 12:12 spl-0.6.0/include/sys/list.h
+-rw-r--r-- 501/501        1287 2011-06-15 12:12 spl-0.6.0/include/sys/dklabel.h
+-rw-r--r-- 501/501        5271 2011-06-15 12:12 spl-0.6.0/include/sys/debug.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/errno.h
+-rw-r--r-- 501/501        2893 2011-06-15 12:12 spl-0.6.0/include/sys/time.h
+-rw-r--r-- 501/501        1298 2011-06-15 12:12 spl-0.6.0/include/sys/u8_textprep.h
+-rw-r--r-- 501/501        1360 2011-06-15 12:12 spl-0.6.0/include/sys/processor.h
+-rw-r--r-- 501/501 </span><span class="stdout">       1725 2011-06-15 12:12 spl-0.6.0/include/sys/vfs.h
+</span><span class="stdout">-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/ddi.h
+-rw-r--r-- 501/501        1379 2011-06-15 12:12 spl-0.6.0/include/sys/t_lock.h
+-rw-r--r-- 501/501        1304 2011-06-15 12:12 spl-0.6.0/include/sys/efi_partition.h
+-rw-r--r-- 501/501        1337 2011-06-15 12:12 spl-0.6.0/include/sys/file.h
+-rw-r--r-- 501/501        1306 2011-06-15 12:12 spl-0.6.0/include/sys/ctype.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/mkdev.h
+-rw-r--r-- 501/501        1319 2011-06-15 12:12 spl-0.6.0/include/sys/int_types.h
+-rw-r--r-- 501/501        1775 2011-06-15 12:12 spl-0.6.0/include/sys/cmn_err.h
+-rw-r--r-- 501/501        1318 2011-06-15 12:12 spl-0.6.0/include/sys/resource.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/inttypes.h
+-rw-r--r-- 501/501        1255 2011-06-15 12:12 spl-0.6.0/include/sys/idmap.h
+-rw-r--r-- 501/501        1426 2011-06-15 12:12 spl-0.6.0/include/sys/zone.h
+-rw-r--r-- 501/501        6653 2011-06-15 12:12 spl-0.6.0/include/sys/sysmacros.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/sys/fs/
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/fs/swapnode.h
+-rw-r--r-- 501/501        7386 2011-06-15 12:12 spl-0.6.0/include/sys/kstat.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/disp.h
+-rw-r--r-- 501/501        2010 2011-06-15 12:12 spl-0.6.0/include/sys/callb.h
+-rw-r--r-- 501/501        9792 2011-06-15 12:12 spl-0.6.0/include/sys/mutex.h
+-rw-r--r-- 501/501        1290 2011-06-15 12:12 spl-0.6.0/include/sys/acl_impl.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/attr.h
+-rw-r--r-- 501/501        2655 2011-06-15 12:12 spl-0.6.0/include/sys/isa_defs.h
+-rw-r--r-- 501/501        1480 2011-06-15 12:12 spl-0.6.0/include/sys/systeminfo.h
+-rw-r--r-- 501/501        1292 2011-06-15 12:12 spl-0.6.0/include/sys/bootprops.h
+-rw-r--r-- 501/501        1307 2011-06-15 12:12 spl-0.6.0/include/sys/kidmap.h
+-rw-r--r-- 501/501        3081 2011-06-15 12:12 spl-0.6.0/include/sys/zmod.h
+-rw-r--r-- 501/501        6342 2011-06-15 12:12 spl-0.6.0/include/sys/vnode.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/proc.h
+-rw-r--r-- 501/501        1289 2011-06-15 12:12 spl-0.6.0/include/sys/compress.h
+-rw-r--r-- 501/501        1496 2011-06-15 12:12 spl-0.6.0/include/sys/pset.h
+-rw-r--r-- 501/501        2294 2011-06-15 12:12 spl-0.6.0/include/sys/thread.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/modctl.h
+-rw-r--r-- 501/501        1290 2011-06-15 12:12 spl-0.6.0/include/sys/sysevent.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/dirent.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/dumphdr.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/cpuvar.h
+-rw-r--r-- 501/501        1460 2011-06-15 12:12 spl-0.6.0/include/sys/dkio.h
+-rw-r--r-- 501/501        1601 2011-06-15 12:12 spl-0.6.0/include/sys/timer.h
+-rw-r--r-- 501/501        1293 2011-06-15 12:12 spl-0.6.0/include/sys/priv_impl.h
+-rw-r--r-- 501/501        1335 2011-06-15 12:12 spl-0.6.0/include/sys/varargs.h
+-rw-r--r-- 501/501        5905 2011-06-15 12:12 spl-0.6.0/include/sys/vmsystm.h
+-rw-r--r-- 501/501        1505 2011-06-15 12:12 spl-0.6.0/include/sys/pathname.h
+-rw-r--r-- 501/501        1393 2011-06-15 12:12 spl-0.6.0/include/sys/utsname.h
+-rw-r--r-- 501/501        1300 2011-06-15 12:12 spl-0.6.0/include/sys/pool.h
+-rw-r--r-- 501/501       17211 2011-06-15 12:12 spl-0.6.0/include/sys/kmem.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/sys/cpupart.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/sys/sysevent/
+-rw-r--r-- 501/501        1320 2011-06-15 12:12 spl-0.6.0/include/sys/sysevent/eventdefs.h
+-rw-r--r-- 501/501        2184 2011-06-15 12:12 spl-0.6.0/include/sys/cred.h
+-rw-r--r-- 501/501        1295 2011-06-15 12:12 spl-0.6.0/include/sys/int_limits.h
+-rw-r--r-- 501/501        9542 2011-06-15 12:12 spl-0.6.0/include/sys/sunddi.h
+-rw-r--r-- 501/501        8920 2011-06-15 12:12 spl-0.6.0/include/sys/rwlock.h
+-rw-r--r-- 501/501        1274 2011-06-15 12:12 spl-0.6.0/include/sys/buf.h
+-rw-r--r-- 501/501        2500 2011-06-15 12:12 spl-0.6.0/include/sys/uio.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/note.h
+-rw-r--r-- 501/501        1330 2011-06-15 12:12 spl-0.6.0/include/sys/systm.h
+-rw-r--r-- 501/501        1898 2011-06-15 12:12 spl-0.6.0/include/sys/sid.h
+-rw-r--r-- 501/501        1634 2011-06-15 12:12 spl-0.6.0/include/sys/kobj.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/mntent.h
+-rw-r--r-- 501/501        4696 2011-06-15 12:12 spl-0.6.0/include/sys/taskq.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/unistd.h
+-rw-r--r-- 501/501        1449 2011-06-15 12:12 spl-0.6.0/include/sys/types32.h
+-rw-r--r-- 501/501        1452 2011-06-15 12:12 spl-0.6.0/include/sys/param.h
+-rw-r--r-- 501/501        1251 2011-06-15 12:12 spl-0.6.0/include/sys/extdirent.h
+-rw-r--r-- 501/501        1277 2011-06-15 12:12 spl-0.6.0/include/sys/conf.h
+-rw-r--r-- 501/501        1302 2011-06-15 12:12 spl-0.6.0/include/sys/stat.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/vfs_opreg.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/bitmap.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/sysdc.h
+-rw-r--r-- 501/501        2064 2011-06-15 12:12 spl-0.6.0/include/sys/policy.h
+-rw-r--r-- 501/501        1529 2011-06-15 12:12 spl-0.6.0/include/sys/console.h
+-rw-r--r-- 501/501        1904 2011-06-15 12:12 spl-0.6.0/include/sys/signal.h
+-rw-r--r-- 501/501        1422 2011-06-15 12:12 spl-0.6.0/include/sys/mode.h
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sys/mount.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/sys/refstr.h
+-rw-r--r-- 501/501        7549 2011-06-15 12:12 spl-0.6.0/include/sys/atomic.h
+-rw-r--r-- 501/501        1624 2011-06-15 12:12 spl-0.6.0/include/sys/tsd.h
+-rw-r--r-- 501/501        3214 2011-06-15 12:12 spl-0.6.0/include/sys/condvar.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/util/
+-rw-r--r-- 501/501        1297 2011-06-15 12:12 spl-0.6.0/include/util/sscanf.h
+-rw-r--r-- 501/501        1375 2011-06-15 12:12 spl-0.6.0/include/util/qsort.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/fs/
+-rw-r--r-- 501/501        1295 2011-06-15 12:12 spl-0.6.0/include/fs/fs_subr.h
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/sharefs/
+-rw-r--r-- 501/501        1280 2011-06-15 12:12 spl-0.6.0/include/sharefs/share.h
+-rw-r--r-- 501/501        3940 2011-06-15 12:12 spl-0.6.0/include/splat-ctl.h
+-rw-r--r-- 501/501       13768 2011-06-15 12:12 spl-0.6.0/include/Makefile.in
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/include/vm/
+-rw-r--r-- 501/501        1315 2011-06-15 12:12 spl-0.6.0/include/vm/seg_kmem.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/vm/anon.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/vm/pvn.h
+-rw-r--r-- 501/501        4740 2011-06-15 12:12 spl-0.6.0/include/spl-trace.h
+-rw-r--r-- 501/501        1286 2011-06-15 12:12 spl-0.6.0/include/strings.h
+-rw-r--r-- 501/501        1673 2011-06-15 12:12 spl-0.6.0/include/spl-ctl.h
+-rw-r--r-- 501/501        3214 2011-06-15 12:12 spl-0.6.0/include/spl-device.h
+-rw-r--r-- 501/501        1283 2011-06-15 12:12 spl-0.6.0/include/unistd.h
+-rw-r--r-- 501/501        6565 2011-06-15 12:12 spl-0.6.0/include/spl-debug.h
+-rw-r--r-- 501/501         111 2011-06-15 12:12 spl-0.6.0/META
+-rw-r--r-- 501/501        6697 2011-06-15 12:13 spl-0.6.0/spl_config.h
+-rw-r--r-- 501/501       22670 2011-06-15 12:12 spl-0.6.0/ChangeLog
+-rw-r--r-- 501/501       11410 2011-06-15 12:12 spl-0.6.0/INSTALL
+drwxr-xr-x 501/501           0 2011-06-15 12:14 spl-0.6.0/lib/
+-rw-r--r-- 501/501         124 2011-06-15 12:12 spl-0.6.0/lib/Makefile.am
+-rw-r--r-- 501/501        9029 2011-06-15 12:12 spl-0.6.0/lib/list.h
+-rw-r--r-- 501/501       20884 2011-06-15 12:12 spl-0.6.0/lib/list.c
+-rw-r--r-- 501/501       16653 2011-06-15 12:12 spl-0.6.0/lib/Makefile.in
+</span><span class="stderr">+ STATUS=0
++ '[' 0 -ne 0 ']'
++ cd spl-0.6.0
++ /bin/chmod -Rf a+rX,u+w,g-w,o-w .
++ exit 0
+</span><span class="stdout">Executing(%build): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.yB2pfg
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ cd spl-0.6.0
++ LANG=C
++ export LANG
++ unset DISPLAY
++ CFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic'
++ export CFLAGS
++ CXXFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic'
++ export CXXFLAGS
++ FFLAGS='-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -I/usr/lib64/gfortran/modules'
++ export FFLAGS
++ ./configure --build=x86_64-unknown-linux-gnu --host=x86_64-unknown-linux-gnu --program-prefix= --disable-dependency-tracking --prefix=/usr --exec-prefix=/usr --bindir=/usr/bin --sbindir=/usr/sbin --sysconfdir=/etc --datadir=/usr/share --includedir=/usr/include --libdir=/usr/lib64 --libexecdir=/usr/libexec --localstatedir=/var --sharedstatedir=/var/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-config=user
+</span><span class="stdout">checking metadata... yes
+checking build system type... x86_64-unknown-linux-gnu
+checking host system type... x86_64-unknown-linux-gnu
+checking target system type... x86_64-unknown-linux-gnu
+checking whether to enable maintainer-specific portions of Makefiles... no
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether build environment is sane... yes
+checking for a thread-safe mkdir -p... /bin/mkdir -p
+checking for gawk... gawk
+checking whether make sets $(MAKE)... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking for x86_64-unknown-linux-gnu-gcc... no
+checking for gcc... gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... no
+checking for suffix of executables... 
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking for style of include used by make... GNU
+checking dependency style of gcc... none
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for fgrep... /bin/grep -F
+checking for ld used by gcc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... /usr/bin/nm -B
+checking the name lister (/usr/bin/nm -B) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1572864
+checking whether the shell understands some XSI constructs... yes
+checking whether the shell understands &quot;+=&quot;... yes
+checking for /usr/bin/ld option to reload object files... -r
+checking for x86_64-unknown-linux-gnu-objdump... no
+checking for objdump... objdump
+checking how to recognize dependent libraries... pass_all
+checking for x86_64-unknown-linux-gnu-ar... no
+checking for ar... ar
+checking for x86_64-unknown-linux-gnu-strip... no
+checking for strip... strip
+checking for x86_64-unknown-linux-gnu-ranlib... no
+checking for ranlib... ranlib
+checking command to parse /usr/bin/nm -B output from gcc object... ok
+checking how to run the C preprocessor... gcc -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if gcc supports -fno-rtti -fno-exceptions... no
+checking for gcc option to produce PIC... -fPIC -DPIC
+checking if gcc PIC flag -fPIC -DPIC works... yes
+checking if gcc static flag -static works... no
+checking if gcc supports -c -o file.o... yes
+checking if gcc supports -c -o file.o... (cached) yes
+checking whether the gcc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+checking spl license... GPL
+checking whether rpm is available... yes (4.8.1)
+checking whether rpmbuild is available... yes (4.8.1)
+checking whether dpkg is available... no
+checking whether dpkg-buildpackage is available... no
+checking whether alien is available... no
+checking linux distribution... redhat
+checking default package type... rpm
+checking spl config... user
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating lib/Makefile
+config.status: creating cmd/Makefile
+config.status: creating module/Makefile
+config.status: creating module/spl/Makefile
+config.status: creating module/splat/Makefile
+config.status: creating include/Makefile
+config.status: creating scripts/Makefile
+config.status: creating spl.spec
+config.status: creating spl-modules.spec
+config.status: creating spl_config.h
+config.status: executing depfiles commands
+config.status: executing libtool commands
+</span><span class="stderr">+ make
+</span><span class="stdout">make[2]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make  all-recursive
+make[3]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+Making all in lib
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+\
+#	source='list.c' object='list.lo' libtool=yes 
+/bin/sh ../libtool  --tag=CC --silent  --mode=compile gcc -DHAVE_CONFIG_H -include ../spl_config.h    -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -c -o list.lo list.c
+/bin/sh ../libtool  --tag=CC --silent  --mode=link gcc -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic   -o libcommon.la  list.lo  
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+Making all in cmd
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+\
+#	source='spl.c' object='spl.o' libtool=no 
+gcc -DHAVE_CONFIG_H -include ../spl_config.h -I../lib    -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -c spl.c
+/bin/sh ../libtool  --tag=CC --silent  --mode=link gcc -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic   -o spl spl.o  
+\
+#	source='splat.c' object='splat.o' libtool=no 
+gcc -DHAVE_CONFIG_H -include ../spl_config.h -I../lib    -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -c splat.c
+/bin/sh ../libtool  --tag=CC --silent  --mode=link gcc -Wall -Wshadow -Wstrict-prototypes -fno-strict-aliasing -D__USE_LARGEFILE64  -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic ../lib/libcommon.la  -o splat splat.o  
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+Making all in scripts
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[4]: Nothing to be done for `all-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[2]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+</span><span class="stderr">+ exit 0
+</span><span class="stdout">Executing(%install): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.kWkkJX
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ '[' /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64 '!=' / ']'
++ rm -rf /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
+++ dirname /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
++ mkdir -p /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT
++ mkdir /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
++ cd spl-0.6.0
++ LANG=C
++ export LANG
++ unset DISPLAY
++ rm -rf /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
++ make DESTDIR=/tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64 install
+</span><span class="stdout">make[2]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+Making install in lib
+make[3]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+make[4]: Nothing to be done for `install-exec-am'.
+make[4]: Nothing to be done for `install-data-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/lib'
+Making install in cmd
+make[3]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+test -z &quot;/usr/sbin&quot; || /bin/mkdir -p &quot;/tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/sbin&quot;
+  /bin/sh ../libtool --silent  --mode=install /usr/bin/install -c spl splat '/tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/sbin'
+make[4]: Nothing to be done for `install-data-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/cmd'
+Making install in scripts
+make[3]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[4]: Nothing to be done for `install-exec-am'.
+make[4]: Nothing to be done for `install-data-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0/scripts'
+make[3]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[4]: Entering directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[4]: Nothing to be done for `install-exec-am'.
+make[4]: Nothing to be done for `install-data-am'.
+make[4]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[3]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+make[2]: Leaving directory `/tmp/spl-build-buildbot-xwVnFCjF/BUILD/spl-0.6.0'
+</span><span class="stderr">+ /usr/lib/rpm/check-buildroot
++ /usr/lib/rpm/redhat/brp-compress
++ /usr/lib/rpm/redhat/brp-strip /usr/bin/strip
++ /usr/lib/rpm/redhat/brp-strip-comment-note /usr/bin/strip /usr/bin/objdump
++ /usr/lib/rpm/redhat/brp-strip-static-archive /usr/bin/strip
++ /usr/lib/rpm/brp-python-bytecompile /usr/bin/python 1
++ /usr/lib/rpm/redhat/brp-python-hardlink
++ /usr/lib/rpm/redhat/brp-java-repack-jars
+</span><span class="stdout">Processing files: spl-0.6.0-rc4.x86_64
+Executing(%doc): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.KIUaRF
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ cd spl-0.6.0
++ DOCDIR=/tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/share/doc/spl-0.6.0
++ export DOCDIR
++ rm -rf /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/share/doc/spl-0.6.0
++ /bin/mkdir -p /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/share/doc/spl-0.6.0
++ cp -pr AUTHORS ChangeLog COPYING DISCLAIMER INSTALL /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64/usr/share/doc/spl-0.6.0
++ exit 0
+</span><span class="stdout">Requires(interp): /bin/sh /bin/sh
+Requires(rpmlib): rpmlib(CompressedFileNames) &lt;= 3.0.4-1 rpmlib(FileDigests) &lt;= 4.6.0-1 rpmlib(PayloadFilesHavePrefix) &lt;= 4.0-1
+Requires(post): /bin/sh
+Requires(postun): /bin/sh
+Requires: libc.so.6()(64bit) libc.so.6(GLIBC_2.2.5)(64bit) libc.so.6(GLIBC_2.3.4)(64bit) libc.so.6(GLIBC_2.4)(64bit) libc.so.6(GLIBC_2.7)(64bit) rtld(GNU_HASH)
+Checking for unpackaged file(s): /usr/lib/rpm/check-files /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
+Wrote: /tmp/spl-build-buildbot-xwVnFCjF/RPMS/x86_64/spl-0.6.0-rc4.x86_64.rpm
+Executing(%clean): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.hKbZp6
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ cd spl-0.6.0
++ rm -rf /tmp/spl-build-buildbot-xwVnFCjF/BUILDROOT/spl-0.6.0-rc4.x86_64
++ exit 0
+</span><span class="stdout">Executing(--clean): /bin/sh -e /tmp/spl-build-buildbot-xwVnFCjF/TMP/rpm-tmp.9zJziP
+</span><span class="stderr">+ umask 022
++ cd /tmp/spl-build-buildbot-xwVnFCjF/BUILD
++ rm -rf spl-0.6.0
++ exit 0
+</span><span class="stdout">make[1]: Leaving directory `/var/lib/buildbot/ci/zfs-slave/zfs-fedora-14-amd64/build'
+</span><span class="header">program finished with exit code 0
+elapsedTime=58.380335
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2014%20(Laughlin)%20Desktop%20-%20AMD64/builds/10/steps/compile/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:16:42 GMT -->
+</html>

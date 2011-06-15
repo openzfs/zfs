@@ -1,0 +1,58 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu%2010.04%20(Lucid)%20Desktop%20-%20AMD64/builds/9/steps/git/logs/patch by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:17:55 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="patch/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="stdout">diff --git a/module/zfs/zfs_znode.c b/module/zfs/zfs_znode.c
+index faf1161..145586c 100644
+--- a/module/zfs/zfs_znode.c
++++ b/module/zfs/zfs_znode.c
+@@ -1031,14 +1031,23 @@ zfs_zinactive(znode_t *zp)
+ 	/*
+ 	 * If this was the last reference to a file with no links,
+ 	 * remove the file from the file system.
++	 *
++	 * The zfs_rmnode() call must be deferred to avoid a deadlock.
++	 * The prune_icache caller will be holding a lock on the
++	 * inode thus preventing the subsequent zfs_zget() call from
++	 * successfully acquiring it.
+ 	 */
+ 	if (zp-&gt;z_unlinked) {
++		taskq_t *taskq;
++
+ 		mutex_exit(&amp;zp-&gt;z_lock);
+ 
+ 		if (drop_mutex)
+ 			ZFS_OBJ_HOLD_EXIT(zsb, z_id);
+ 
+-		zfs_rmnode(zp);
++		taskq = dsl_pool_iput_taskq(dmu_objset_pool(zsb-&gt;z_os));
++		taskq_dispatch(taskq, (task_func_t *)zfs_rmnode, zp, TQ_SLEEP);
++
+ 		return;
+ 	}
+ 
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu%2010.04%20(Lucid)%20Desktop%20-%20AMD64/builds/9/steps/git/logs/patch by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:17:55 GMT -->
+</html>

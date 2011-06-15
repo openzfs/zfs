@@ -1,0 +1,56 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/TOSS%202.0%20Desktop%20-%20AMD64/builds/5/steps/test_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:17:30 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zconfig.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-toss-2-0-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zconfig.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-toss-2-0-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">1    persistent zpool.cache             [0;32mPass[0m
+2    scan disks for pools to import     [0;32mPass[0m
+3    zpool import/export device         [0;32mPass[0m
+4    zpool insmod/rmmod device          [0;32mPass[0m
+5    zvol+ext3 volume                   [0;32mPass[0m
+6    zvol+ext2 snapshot                 [0;32mPass[0m
+7    zvol+ext2 clone                    [0;32mPass[0m
+8    zfs send/receive                   [0;32mPass[0m
+9    zpool events                       [0;32mPass[0m
+10   zpool add/remove vdev              [0;32mPass[0m
+</span><span class="header">program finished with exit code 0
+elapsedTime=228.978776
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/TOSS%202.0%20Desktop%20-%20AMD64/builds/5/steps/test_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:17:30 GMT -->
+</html>

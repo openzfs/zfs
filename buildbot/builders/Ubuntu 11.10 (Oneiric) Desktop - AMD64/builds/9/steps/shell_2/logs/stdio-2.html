@@ -1,0 +1,161 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/9/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:42:04 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean'
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=6f37e38e3004c055690abe4100000002-1308086097.448794-653438397
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Ign http://archive.canonical.com oneiric InRelease
+Ign http://security.ubuntu.com oneiric-security InRelease
+Ign http://extras.ubuntu.com oneiric InRelease
+Hit http://archive.canonical.com oneiric Release.gpg
+Ign http://us.archive.ubuntu.com oneiric InRelease
+Get:1 http://security.ubuntu.com oneiric-security Release.gpg [198 B]
+Hit http://extras.ubuntu.com oneiric Release.gpg
+Hit http://archive.canonical.com oneiric Release
+Ign http://us.archive.ubuntu.com oneiric-updates InRelease
+Hit http://extras.ubuntu.com oneiric Release
+Hit http://archive.canonical.com oneiric/partner Sources
+Get:2 http://us.archive.ubuntu.com oneiric Release.gpg [198 B]
+Hit http://extras.ubuntu.com oneiric/main Sources
+Hit http://archive.canonical.com oneiric/partner amd64 Packages
+Get:3 http://security.ubuntu.com oneiric-security Release [23.2 kB]
+Hit http://extras.ubuntu.com oneiric/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates Release.gpg
+Get:4 http://security.ubuntu.com oneiric-security/main Sources [14 B]
+Ign http://extras.ubuntu.com oneiric/main TranslationIndex
+Ign http://archive.canonical.com oneiric/partner TranslationIndex
+Get:5 http://us.archive.ubuntu.com oneiric Release [39.8 kB]
+Get:6 http://security.ubuntu.com oneiric-security/restricted Sources [14 B]
+Hit http://us.archive.ubuntu.com oneiric-updates Release
+Get:7 http://security.ubuntu.com oneiric-security/universe Sources [14 B]
+Get:8 http://us.archive.ubuntu.com oneiric/main Sources [879 kB]
+Ign http://archive.canonical.com oneiric/partner Translation-en_US
+Ign http://extras.ubuntu.com oneiric/main Translation-en_US
+Ign http://archive.canonical.com oneiric/partner Translation-en
+Ign http://extras.ubuntu.com oneiric/main Translation-en
+Hit http://security.ubuntu.com oneiric-security/multiverse Sources
+Hit http://security.ubuntu.com oneiric-security/main amd64 Packages
+Hit http://security.ubuntu.com oneiric-security/restricted amd64 Packages
+Get:9 http://security.ubuntu.com oneiric-security/universe amd64 Packages [14 B]
+Get:10 http://security.ubuntu.com oneiric-security/multiverse amd64 Packages [14 B]
+Ign http://security.ubuntu.com oneiric-security/main TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/multiverse TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/restricted TranslationIndex
+Get:11 http://us.archive.ubuntu.com oneiric/restricted Sources [3,644 B]
+Ign http://security.ubuntu.com oneiric-security/universe TranslationIndex
+Get:12 http://us.archive.ubuntu.com oneiric/universe Sources [4,634 kB]
+Ign http://security.ubuntu.com oneiric-security/main Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/main Translation-en
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en
+Get:13 http://us.archive.ubuntu.com oneiric/multiverse Sources [153 kB]
+Get:14 http://us.archive.ubuntu.com oneiric/main amd64 Packages [1,615 kB]
+Get:15 http://us.archive.ubuntu.com oneiric/restricted amd64 Packages [7,295 B]
+Get:16 http://us.archive.ubuntu.com oneiric/universe amd64 Packages [6,252 kB]
+Get:17 http://us.archive.ubuntu.com oneiric/multiverse amd64 Packages [178 kB]
+Ign http://us.archive.ubuntu.com oneiric/main TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/restricted TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/universe TranslationIndex
+Hit http://us.archive.ubuntu.com oneiric-updates/main Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/universe Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/universe amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse amd64 Packages
+Ign http://us.archive.ubuntu.com oneiric-updates/main TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/universe TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en
+Fetched 13.8 MB in 60s (228 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages will be upgraded:
+  libnih-dbus1 libnih1
+2 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Need to get 70.4 kB of archives.
+After this operation, 8,192 B of additional disk space will be used.
+Get:1 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libnih-dbus1 amd64 1.0.3-4ubuntu2 [15.7 kB]
+Get:2 http://us.archive.ubuntu.com/ubuntu/ oneiric/main libnih1 amd64 1.0.3-4ubuntu2 [54.7 kB]
+</span><span class="stderr">dpkg-preconfigure: unable to re-open stdin: 
+</span><span class="stdout">Fetched 70.4 kB in 1s (56.0 kB/s)
+(Reading database ... 140809 files and directories currently installed.)
+Preparing to replace libnih-dbus1 1.0.3-4ubuntu1 (using .../libnih-dbus1_1.0.3-4ubuntu2_amd64.deb) ...
+Unpacking replacement libnih-dbus1 ...
+Preparing to replace libnih1 1.0.3-4ubuntu1 (using .../libnih1_1.0.3-4ubuntu2_amd64.deb) ...
+Unpacking replacement libnih1 ...
+Setting up libnih1 (1.0.3-4ubuntu2) ...
+Setting up libnih-dbus1 (1.0.3-4ubuntu2) ...
+Processing triggers for libc-bin ...
+ldconfig deferred processing now taking place
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Del libnih1 1.0.3-4ubuntu1 [52.5 kB]
+Del libnih-dbus1 1.0.3-4ubuntu1 [14.8 kB]
+</span><span class="header">program finished with exit code 0
+elapsedTime=67.063309
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.10 (Oneiric) Desktop - AMD64/builds/9/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:42:05 GMT -->
+</html>

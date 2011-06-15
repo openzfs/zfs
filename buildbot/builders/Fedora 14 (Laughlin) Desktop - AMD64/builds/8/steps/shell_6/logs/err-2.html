@@ -1,0 +1,48 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2014%20(Laughlin)%20Desktop%20-%20AMD64/builds/8/steps/shell_6/logs/err.text by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:22:57 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="err.text/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="stdout">Traceback (most recent call last):
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/steps/shell.py&quot;, line 215, in start
+    self.startCommand(cmd, warnings)
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 1027, in startCommand
+    d = self.runCommand(cmd) # might raise ConnectionLost
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 960, in runCommand
+    d = c.run(self, self.remote)
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 76, in run
+    d = defer.maybeDeferred(self.start)
+--- &lt;exception caught here&gt; ---
+  File &quot;/usr/lib/python2.7/dist-packages/twisted/internet/defer.py&quot;, line 133, in maybeDeferred
+    result = f(*args, **kw)
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 528, in start
+    return LoggedRemoteCommand.start(self)
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 310, in start
+    return RemoteCommand.start(self)
+  File &quot;/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py&quot;, line 110, in start
+    d = self.remote.callRemote(&quot;startCommand&quot;, self, self.commandID,
+exceptions.AttributeError: 'NoneType' object has no attribute 'callRemote'
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2014%20(Laughlin)%20Desktop%20-%20AMD64/builds/8/steps/shell_6/logs/err.text by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:22:57 GMT -->
+</html>

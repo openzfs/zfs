@@ -1,0 +1,132 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html
+ xmlns="http://www.w3.org/1999/xhtml"
+ lang="en"
+ xml:lang="en">
+
+<!-- Mirrored from pip.chaos:8010/waterfall/help?last_time=1307859043&show=Fedora%2013%20%28Goddard%29%20Desktop%20-%20AMD64 by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:57:01 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8"><!-- /Added by HTTrack -->
+<head>
+ <title>Waterfall Help</title>
+ <link href="../buildbot.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body vlink="#800080">
+
+<form action="http://pip.chaos:8010/waterfall" method="GET">
+
+<h1>The Waterfall Display</h1>
+
+<p>The Waterfall display can be controlled by adding query arguments to the
+URL. For example, if your Waterfall is accessed via the URL
+<tt>http://buildbot.example.org:8080</tt>, then you could add a
+<tt>branch=</tt> argument (described below) by going to
+<tt>http://buildbot.example.org:8080?branch=beta4</tt> instead. Remember that
+query arguments are separated from each other with ampersands, but they are
+separated from the main URL with a question mark, so to add a
+<tt>branch=</tt> and two <tt>builder=</tt> arguments, you would use
+<tt>http://buildbot.example.org:8080?branch=beta4&amp;builder=unix&amp;builder=macos</tt>.</p>
+
+<h2>Limiting the Displayed Interval</h2>
+
+<p>The <tt>last_time=</tt> argument is a unix timestamp (seconds since the
+start of 1970) that will be used as an upper bound on the interval of events
+displayed: nothing will be shown that is more recent than the given time.
+When no argument is provided, all events up to and including the most recent
+steps are included.</p>
+
+<p>The <tt>first_time=</tt> argument provides the lower bound. No events will
+be displayed that occurred <b>before</b> this timestamp. Instead of providing
+<tt>first_time=</tt>, you can provide <tt>show_time=</tt>: in this case,
+<tt>first_time</tt> will be set equal to <tt>last_time</tt> minus
+<tt>show_time</tt>. <tt>show_time</tt> overrides <tt>first_time</tt>.</p>
+
+<p>The display normally shows the latest 200 events that occurred in the
+given interval, where each timestamp on the left hand edge counts as a single
+event. You can add a <tt>num_events=</tt> argument to override this this.</p>
+
+<h2>Showing non-Build events</h2>
+
+<p>By passing <tt>show_events=true</tt>, you can add the "buildslave
+attached", "buildslave detached", and "builder reconfigured" events that
+appear in-between the actual builds.</p>
+
+<p><input type="checkbox" name="show_events" value="true" >Show non-Build events</p>
+
+
+<h2>Showing only the Builders with failures</h2>
+
+<p>By adding the <tt>failures_only=true</tt> argument, the display will be limited
+to showing builders that are currently failing. A builder is considered
+failing if the last finished build was not successful, a step in the current
+build(s) failed, or if the builder is offline.
+
+<p><input type="checkbox" name="failures_only" value="true" >Show failures only</p>
+
+
+<h2>Showing only Certain Branches</h2>
+
+<p>If you provide one or more <tt>branch=</tt> arguments, the display will be
+limited to builds that used one of the given branches. If no <tt>branch=</tt>
+arguments are given, builds from all branches will be displayed.</p>
+
+Erase the text from these "Show Branch:" boxes to remove that branch filter.
+
+<table>
+<tr><td>Show Branch: <input type="text" name="branch" value=""></td></tr>
+</table>
+
+
+<h2>Limiting the Builders that are Displayed</h2>
+
+<p>By adding one or more <tt>builder=</tt> arguments, the display will be
+limited to showing builds that ran on the given builders. This serves to
+limit the display to the specific named columns. If no <tt>builder=</tt>
+arguments are provided, all Builders will be displayed.</p>
+
+<p>To view a Waterfall page with only a subset of Builders displayed, select
+the Builders you are interested in here.</p>
+
+<table>
+<tr><td><input type="checkbox" name="builder" value="RHEL 6.0 (Santiago) Desktop - AMD64" ></td> <td>RHEL 6.0 (Santiago) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="TOSS 2.0 Desktop - AMD64" ></td> <td>TOSS 2.0 Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Fedora 13 (Goddard) Desktop - AMD64" checked="checked"></td> <td>Fedora 13 (Goddard) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Fedora 14 (Laughlin) Desktop - AMD64" ></td> <td>Fedora 14 (Laughlin) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Fedora 15 (Lovelock) Desktop - AMD64" ></td> <td>Fedora 15 (Lovelock) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Ubuntu 10.04 (Lucid) Desktop - AMD64" ></td> <td>Ubuntu 10.04 (Lucid) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Ubuntu 10.10 (Maverick) Desktop - AMD64" ></td> <td>Ubuntu 10.10 (Maverick) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Ubuntu 11.04 (Natty) Desktop - AMD64" ></td> <td>Ubuntu 11.04 (Natty) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Ubuntu 11.10 (Oneiric) Desktop - AMD64" ></td> <td>Ubuntu 11.10 (Oneiric) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Debian 5.0 (Lenny) Desktop - AMD64" ></td> <td>Debian 5.0 (Lenny) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="Debian 6.0 (Squeeze) Desktop - AMD64" ></td> <td>Debian 6.0 (Squeeze) Desktop - AMD64</td></tr>
+<tr><td><input type="checkbox" name="builder" value="openSUSE 11.4 (Celadon) Desktop - AMD64" ></td> <td>openSUSE 11.4 (Celadon) Desktop - AMD64</td></tr>
+</table>
+
+
+
+<h2>Auto-reloading the Page</h2>
+
+<p>Adding a <tt>reload=</tt> argument will cause the page to automatically
+reload itself after that many seconds.</p>
+
+<table>
+<tr><td><input type="radio" name="reload" value="none" checked="checked"></td> <td>None</td></tr>
+<tr><td><input type="radio" name="reload" value="60" ></td> <td>60 seconds</td></tr>
+<tr><td><input type="radio" name="reload" value="300" ></td> <td>5 minutes</td></tr>
+<tr><td><input type="radio" name="reload" value="600" ></td> <td>10 minutes</td></tr>
+</table>
+
+
+<h2>Reload Waterfall Page</h2>
+
+<input type="submit" value="View Waterfall" />
+</form>
+</body>
+
+
+<!-- Mirrored from pip.chaos:8010/waterfall/help?last_time=1307859043&show=Fedora%2013%20%28Goddard%29%20Desktop%20-%20AMD64 by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:57:01 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8"><!-- /Added by HTTrack -->
+</html>

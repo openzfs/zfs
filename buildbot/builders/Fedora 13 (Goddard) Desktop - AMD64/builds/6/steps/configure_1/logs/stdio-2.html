@@ -1,0 +1,262 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 13 (Goddard) Desktop - AMD64/builds/6/steps/configure_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:29:41 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">./configure
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['./configure']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">checking metadata... yes
+checking build system type... x86_64-unknown-linux-gnu
+checking host system type... x86_64-unknown-linux-gnu
+checking target system type... x86_64-unknown-linux-gnu
+checking whether to enable maintainer-specific portions of Makefiles... no
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether build environment is sane... yes
+checking for a thread-safe mkdir -p... /bin/mkdir -p
+checking for gawk... gawk
+checking whether make sets $(MAKE)... yes
+checking for a BSD-compatible install... /usr/bin/install -c
+checking for gcc... gcc
+checking for C compiler default output file name... a.out
+checking whether the C compiler works... yes
+checking whether we are cross compiling... no
+checking for suffix of executables... 
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking for style of include used by make... GNU
+checking dependency style of gcc... gcc3
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for fgrep... /bin/grep -F
+checking for ld used by gcc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... /usr/bin/nm -B
+checking the name lister (/usr/bin/nm -B) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1966080
+checking whether the shell understands some XSI constructs... yes
+checking whether the shell understands &quot;+=&quot;... yes
+checking for /usr/bin/ld option to reload object files... -r
+checking for objdump... objdump
+checking how to recognize dependent libraries... pass_all
+checking for ar... ar
+checking for strip... strip
+checking for ranlib... ranlib
+checking command to parse /usr/bin/nm -B output from gcc object... ok
+checking how to run the C preprocessor... gcc -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if gcc supports -fno-rtti -fno-exceptions... no
+checking for gcc option to produce PIC... -fPIC -DPIC
+checking if gcc PIC flag -fPIC -DPIC works... yes
+checking if gcc static flag -static works... no
+checking if gcc supports -c -o file.o... yes
+checking if gcc supports -c -o file.o... (cached) yes
+checking whether the gcc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+checking dependency style of gcc... gcc3
+checking zfs author... Sun Microsystems/Oracle, Lawrence Livermore National Laboratory
+checking zfs license... CDDL
+checking whether rpm is available... yes (4.8.1)
+checking whether rpmbuild is available... yes (4.8.1)
+checking whether dpkg is available... no
+checking whether dpkg-buildpackage is available... no
+checking whether alien is available... no
+checking linux distribution... redhat
+checking default package type... rpm
+checking default init script type... redhat
+checking zfs config... all
+checking kernel source directory... /usr/src/kernels/2.6.34.8-68.16kstacks.fc13.x86_64
+checking kernel build directory... /usr/src/kernels/2.6.34.8-68.16kstacks.fc13.x86_64
+checking kernel source version... 2.6.34.8-68.16kstacks.fc13.x86_64
+checking kernel file name for module symbols... Module.symvers
+checking spl source directory... /usr/src/spl-0.6.0/2.6.34.8-68.16kstacks.fc13.x86_64
+checking spl build directory... /usr/src/spl-0.6.0/2.6.34.8-68.16kstacks.fc13.x86_64
+checking spl source version... 0.6.0
+checking spl file name for module symbols... Module.symvers
+checking whether Linux was built with CONFIG_PREEMPT... no
+checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC... no
+checking block device operation prototypes... struct block_device
+checking whether kernel defines fmode_t... yes
+checking whether kernel defines KOBJ_NAME_LEN... no
+checking whether symbol blkdev_get_by_path is exported... no
+checking whether symbol open_bdev_exclusive is exported... yes
+checking whether invalidate_bdev() wants 1 arg... yes
+checking whether bdev_logical_block_size() is available... yes
+checking whether bio_empty_barrier() is defined... yes
+checking whether BIO_RW_FAILFAST is defined... no
+checking whether BIO_RW_FAILFAST_* are defined... yes
+checking whether REQ_FAILFAST_MASK is defined... no
+checking whether bio_end_io_t wants 2 args... yes
+checking whether BIO_RW_SYNC is defined... no
+checking whether BIO_RW_SYNCIO is defined... yes
+checking whether REQ_SYNC is defined... no
+checking whether blk_end_request() is available... yes
+checking whether blk_end_request() is GPL-only... no
+checking whether blk_fetch_request() is available... yes
+checking whether blk_requeue_request() is available... yes
+checking whether blk_rq_bytes() is available... yes
+checking whether blk_rq_bytes() is GPL-only... no
+checking whether blk_rq_pos() is available... yes
+checking whether blk_rq_sectors() is available... yes
+checking whether get_disk_ro() is available... yes
+checking whether rq_is_sync() is available... yes
+checking whether rq_for_each_segment() is available... yes
+checking whether super_block uses const struct xattr_hander... no
+checking whether xattr_handler-&gt;get() wants dentry... yes
+checking whether xattr_handler-&gt;set() wants dentry... yes
+checking whether fops-&gt;fsync() wants 2 args... no
+checking whether sops-&gt;evict_inode() exists... no
+checking whether symbol insert_inode_locked is exported... yes
+checking whether symbol d_obtain_alias is exported... yes
+checking whether symbol check_disk_size_change is exported... yes
+checking for target asm dir... asm-x86_64
+checking for ioctl()... yes
+checking zlib.h usability... yes
+checking zlib.h presence... yes
+checking for zlib.h... yes
+checking for compress2 in -lz... yes
+checking for uncompress in -lz... yes
+checking for crc32 in -lz... yes
+checking uuid/uuid.h usability... yes
+checking uuid/uuid.h presence... yes
+checking for uuid/uuid.h... yes
+checking for uuid_generate in -luuid... yes
+checking for uuid_is_null in -luuid... yes
+checking for blkid_get_cache in -lblkid... yes
+checking for blkid zfs support... no
+checking selinux/selinux.h usability... yes
+checking selinux/selinux.h presence... yes
+checking for selinux/selinux.h... yes
+checking for is_selinux_enabled in -lselinux... yes
+checking for -Wframe-larger-than=&lt;size&gt; support... yes
+checking whether pthread stack includes guard... yes
+checking for -Wno-unused-but-set-variable support... yes
+checking whether debugging is enabled... no
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating dracut/Makefile
+config.status: creating dracut/90zfs/Makefile
+config.status: creating etc/Makefile
+config.status: creating etc/udev/Makefile
+config.status: creating etc/udev/rules.d/Makefile
+config.status: creating etc/udev/rules.d/60-zpool.rules
+config.status: creating etc/udev/rules.d/60-zvol.rules
+config.status: creating etc/init.d/Makefile
+config.status: creating etc/zfs/Makefile
+config.status: creating man/Makefile
+config.status: creating man/man8/Makefile
+config.status: creating lib/Makefile
+config.status: creating lib/libspl/Makefile
+config.status: creating lib/libspl/asm-generic/Makefile
+config.status: creating lib/libspl/asm-i386/Makefile
+config.status: creating lib/libspl/asm-x86_64/Makefile
+config.status: creating lib/libspl/include/Makefile
+config.status: creating lib/libspl/include/ia32/Makefile
+config.status: creating lib/libspl/include/ia32/sys/Makefile
+config.status: creating lib/libspl/include/rpc/Makefile
+config.status: creating lib/libspl/include/sys/Makefile
+config.status: creating lib/libspl/include/sys/sysevent/Makefile
+config.status: creating lib/libspl/include/sys/dktp/Makefile
+config.status: creating lib/libspl/include/util/Makefile
+config.status: creating lib/libavl/Makefile
+config.status: creating lib/libefi/Makefile
+config.status: creating lib/libnvpair/Makefile
+config.status: creating lib/libunicode/Makefile
+config.status: creating lib/libuutil/Makefile
+config.status: creating lib/libzpool/Makefile
+config.status: creating lib/libzfs/Makefile
+config.status: creating cmd/Makefile
+config.status: creating cmd/zdb/Makefile
+config.status: creating cmd/zfs/Makefile
+config.status: creating cmd/zinject/Makefile
+config.status: creating cmd/zpool/Makefile
+config.status: creating cmd/ztest/Makefile
+config.status: creating cmd/zpios/Makefile
+config.status: creating cmd/mount_zfs/Makefile
+config.status: creating cmd/zpool_layout/Makefile
+config.status: creating cmd/zvol_id/Makefile
+config.status: creating cmd/zpool_id/Makefile
+config.status: creating module/Makefile
+config.status: creating module/avl/Makefile
+config.status: creating module/nvpair/Makefile
+config.status: creating module/unicode/Makefile
+config.status: creating module/zcommon/Makefile
+config.status: creating module/zfs/Makefile
+config.status: creating module/zpios/Makefile
+config.status: creating include/Makefile
+config.status: creating include/linux/Makefile
+config.status: creating include/sys/Makefile
+config.status: creating include/sys/fs/Makefile
+config.status: creating include/sys/fm/Makefile
+config.status: creating include/sys/fm/fs/Makefile
+config.status: creating scripts/Makefile
+config.status: creating scripts/zpios-profile/Make</span><span class="stdout">file
+</span><span class="stdout">config.status: creating scripts/zpios-test/Makefile
+config.status: creating scripts/zpool-config/Makefile
+config.status: creating scripts/zpool-layout/Makefile
+config.status: creating scripts/common.sh
+config.status: creating zfs.spec
+config.status: creating zfs-modules.spec
+config.status: creating zfs-script-config.sh
+config.status: creating zfs_config.h
+config.status: executing depfiles commands
+config.status: executing libtool commands
+</span><span class="header">program finished with exit code 0
+elapsedTime=39.578781
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora 13 (Goddard) Desktop - AMD64/builds/6/steps/configure_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:29:43 GMT -->
+</html>

@@ -1,0 +1,57 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.04 (Natty) Desktop - AMD64/builds/9/steps/shell_6/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:42:03 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c dpkg --purge zfs-modules zfs-modules-devel zfszfs-devel zfs-test zfs-dracutspl-modules spl-modules-devel spl
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-natty-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'dpkg --purge zfs-modules zfs-modules-devel zfszfs-devel zfs-test zfs-dracutspl-modules spl-modules-devel spl']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-natty-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=e678aad54ca1a487a79dece800000003-1308096068.307732-1151046651
+ closing stdin
+ using PTY: False
+</span><span class="stderr">dpkg: warning: there's no installed package matching zfszfs-devel
+dpkg: warning: there's no installed package matching zfs-dracutspl-modules
+</span><span class="stdout">(Reading database ... 161102 files and directories currently installed.)
+Removing zfs-modules ...
+Purging configuration files for zfs-modules ...
+Removing zfs-modules-devel ...
+Removing zfs-test ...
+Removing spl-modules-devel ...
+Removing spl ...
+</span><span class="header">program finished with exit code 0
+elapsedTime=25.505909
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu 11.04 (Natty) Desktop - AMD64/builds/9/steps/shell_6/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:42:04 GMT -->
+</html>

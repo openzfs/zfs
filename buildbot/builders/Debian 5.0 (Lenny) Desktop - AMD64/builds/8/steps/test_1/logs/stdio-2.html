@@ -1,0 +1,59 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Debian 5.0 (Lenny) Desktop - AMD64/builds/8/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:27:54 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml-2.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0	64m	64	3.31m	64m	64	3.90g
+PASS:     file-raid10  0	64m	64	942.75k	64m	64	2.23g
+PASS:     file-raidz   0	64m	64	1.45m	64m	64	3.18g
+PASS:     file-raidz2  0	64m	64	859.84k	64m	64	4.84g
+PASS:     lo-raid0     0	64m	64	340.41m	64m	64	3.91g
+PASS:     lo-raid10    0	64m	64	132.23m	64m	64	800.04m
+PASS:     lo-raidz     0	64m	64	173.92m	64m	64	1.56g
+PASS:     lo-raidz2    0	64m	64	100.79m	64m	64	842.10m
+</span><span class="header">program finished with exit code 0
+elapsedTime=388.876215
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Debian 5.0 (Lenny) Desktop - AMD64/builds/8/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:27:55 GMT -->
+</html>

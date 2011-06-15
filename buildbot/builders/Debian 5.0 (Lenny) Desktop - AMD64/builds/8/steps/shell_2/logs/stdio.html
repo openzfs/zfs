@@ -1,0 +1,79 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/8/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:22:02 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Hit http://ftp.us.debian.org lenny Release.gpg
+Get:1 http://security.debian.org lenny/updates Release.gpg [836B]
+Ign http://ftp.us.debian.org lenny/main Translation-en_US
+Hit http://ftp.us.debian.org lenny Release
+Ign http://security.debian.org lenny/updates/main Translation-en_US
+Get:2 http://security.debian.org lenny/updates Release [40.8kB]
+Hit http://volatile.debian.org lenny/volatile Release.gpg
+Ign http://ftp.us.debian.org lenny/main Packages/DiffIndex
+Ign http://ftp.us.debian.org lenny/main Sources/DiffIndex
+Hit http://ftp.us.debian.org lenny/main Packages
+Hit http://ftp.us.debian.org lenny/main Sources
+Ign http://security.debian.org lenny/updates/main Packages/DiffIndex
+Ign http://security.debian.org lenny/updates/main Sources/DiffIndex
+Get:3 http://security.debian.org lenny/updates/main Packages [337kB]
+Ign http://volatile.debian.org lenny/volatile/main Translation-en_US
+Hit http://volatile.debian.org lenny/volatile Release
+Get:4 http://security.debian.org lenny/updates/main Sources [114kB]
+Ign http://volatile.debian.org lenny/volatile/main Packages/DiffIndex
+Ign http://volatile.debian.org lenny/volatile/main Sources/DiffIndex
+Hit http://volatile.debian.org lenny/volatile/main Packages
+Hit http://volatile.debian.org lenny/volatile/main Sources
+Fetched 493kB in 1s (325kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+</span><span class="header">program finished with exit code 0
+elapsedTime=24.407744
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/8/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:22:03 GMT -->
+</html>

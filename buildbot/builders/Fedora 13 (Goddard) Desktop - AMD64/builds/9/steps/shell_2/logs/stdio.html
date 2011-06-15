@@ -1,0 +1,114 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2013%20(Goddard)%20Desktop%20-%20AMD64/builds/9/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:21:08 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c yum update -y &amp;&amp; yum clean all
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'yum update -y &amp;&amp; yum clean all']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Loaded plugins: presto, refresh-packagekit
+</span><span class="stderr">ftp://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/updates/13/x86_64/repodata/repomd.xml: [Errno 14] PYCURL ERROR 56 - &quot;&quot;
+Trying other mirror.
+</span><span class="stdout">Setting up Update Process
+Resolving Dependencies
+--&gt; Running transaction check
+---&gt; Package iproute.x86_64 0:2.6.33-9.fc13 set to be updated
+---&gt; Package java-1.6.0-openjdk.x86_64 1:1.6.0.0-51.1.8.8.fc13 set to be updated
+---&gt; Package java-1.6.0-openjdk-plugin.x86_64 1:1.6.0.0-51.1.8.8.fc13 set to be updated
+---&gt; Package mutt.x86_64 5:1.5.21-5.fc13 set to be updated
+---&gt; Package setroubleshoot.x86_64 0:3.0.35-1.fc13 set to be updated
+---&gt; Package setroubleshoot-server.x86_64 0:3.0.35-1.fc13 set to be updated
+--&gt; Finished Dependency Resolution
+
+Dependencies Resolved
+
+================================================================================
+ Package                     Arch     Version                   Repository
+                                                                           Size
+================================================================================
+Updating:
+ iproute                     x86_64   2.6.33-9.fc13             updates   336 k
+ java-1.6.0-openjdk          x86_64   1:1.6.0.0-51.1.8.8.fc13   updates    25 M
+ java-1.6.0-openjdk-plugin   x86_64   1:1.6.0.0-51.1.8.8.fc13   updates   105 k
+ mutt                        x86_64   5:1.5.21-5.fc13           updates   1.3 M
+ setroubleshoot              x86_64   3.0.35-1.fc13             updates   132 k
+ setroubleshoot-server       x86_64   3.0.35-1.fc13             updates   1.3 M
+
+Transaction Summary
+================================================================================
+Upgrade       6 Package(s)
+
+Total download size: 28 M
+Downloading Packages:
+Setting up and reading Presto delta metadata
+Processing delta metadata
+Download delta size: 1.2 M
+Presto reduced the update size by 96% (from 28 M to 1.2 M).
+Running rpm_check_debug
+Running Transaction Test
+Transaction Test Succeeded
+Running Transaction
+  Updating       : setroubleshoot-server-3.0.35-1.fc13.x86_64              1/12 
+  Updating       : 1:java-1.6.0-openjdk-1.6.0.0-51.1.8.8.fc13.x86_64       2/12 
+  Updating       : 1:java-1.6.0-openjdk-plugin-1.6.0.0-51.1.8.8.fc13.x8    3/12 
+  Updating       : setroubleshoot-3.0.35-1.fc13.x86_64                     4/12 
+  Updating       : iproute-2.6.33-9.fc13.x86_64                            5/12 
+  Updating       : 5:mutt-1.5.21-5.fc13.x86_64                             6/12 
+  Cleanup        : 1:java-1.6.0-openjdk-plugin-1.6.0.0-50.1.8.7.fc13.x8    7/12 
+  Cleanup        : setroubleshoot-3.0.31-1.fc13.x86_64                     8/12 
+  Cleanup        : setroubleshoot-server-3.0.31-1.fc13.x86_64              9/12 
+  Cleanup        : 1:java-1.6.0-openjdk-1.6.0.0-50.1.8.7.fc13.x86_64      10/12 
+  Cleanup        : iproute-2.6.33-8.fc13.x86_64                           11/12 
+  Cleanup        : 5:mutt-1.5.21-1.fc13.x86_64                            12/12 
+
+Updated:
+  iproute.x86_64 0:2.6.33-9.fc13                                                
+  java-1.6.0-openjdk.x86_64 1:1.6.0.0-51.1.8.8.fc13                             
+  java-1.6.0-openjdk-plugin.x86_64 1:1.6.0.0-51.1.8.8.fc13                      
+  mutt.x86_64 5:1.5.21-5.fc13                                                   
+  setroubleshoot.x86_64 0:3.0.35-1.fc13                                         
+  setroubleshoot-server.x86_64 0:3.0.35-1.fc13                                  
+
+Complete!
+Loaded plugins: presto, refresh-packagekit
+Cleaning repos: fedora updates
+Cleaning up Everything
+0 delta-package files removed, by presto
+</span><span class="header">program finished with exit code 0
+elapsedTime=390.774028
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2013%20(Goddard)%20Desktop%20-%20AMD64/builds/9/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:21:09 GMT -->
+</html>

@@ -1,0 +1,59 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/6/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:13:05 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0	64m	64	3.33m	64m	64	3.89g
+PASS:     file-raid10  0	64m	64	759.89k	64m	64	14.66m
+PASS:     file-raidz   0	64m	64	908.53k	64m	64	1.26g
+PASS:     file-raidz2  0	64m	64	805.90k	64m	64	2.60g
+PASS:     lo-raid0     0	64m	64	340.43m	64m	64	5.20g
+PASS:     lo-raid10    0	64m	64	153.84m	64m	64	889.03m
+PASS:     lo-raidz     0	64m	64	258.08m	64m	64	1.18g
+PASS:     lo-raidz2    0	64m	64	107.36m	64m	64	5.26g
+</span><span class="header">program finished with exit code 0
+elapsedTime=466.449157
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/6/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:13:05 GMT -->
+</html>

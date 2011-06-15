@@ -1,0 +1,55 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2013%20(Goddard)%20Desktop%20-%20AMD64/builds/7/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:12:59 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-13-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stderr">error: package zfs-modules is not installed
+error: package zfs-modules-devel is not installed
+error: package zfs is not installed
+error: package zfs-devel is not installed
+error: package zfs-test is not installed
+error: package zfs-dracut is not installed
+error: package spl-modules is not installed
+error: package spl-modules-devel is not installed
+error: package spl is not installed
+</span><span class="header">program finished with exit code 0
+elapsedTime=0.185502
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2013%20(Goddard)%20Desktop%20-%20AMD64/builds/7/steps/shell_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:13:00 GMT -->
+</html>

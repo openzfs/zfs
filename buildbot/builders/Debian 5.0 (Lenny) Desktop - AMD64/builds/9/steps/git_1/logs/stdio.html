@@ -1,0 +1,228 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/9/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:17:16 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">starting git operation
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.012110
+rm -rf /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64 (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['rm', '-rf', '/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.005118
+/usr/bin/git init
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'init']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Initialized empty Git repository in /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build/.git/
+</span><span class="header">elapsedTime=0.009911
+/usr/bin/git reset --hard e130330a874f4dec6628c094455180d4113c6aa1
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', 'e130330a874f4dec6628c094455180d4113c6aa1']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stderr">fatal: Could not parse object 'e130330a874f4dec6628c094455180d4113c6aa1'.
+</span><span class="header">elapsedTime=0.007247
+fetching branch master from git://eris.llnl.gov/zfs.git
+/usr/bin/git fetch -t git://eris.llnl.gov/zfs.git +master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'fetch', '-t', 'git://eris.llnl.gov/zfs.git', '+master']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stderr">From git://eris.llnl.gov/zfs
+ * branch            master     -&gt; FETCH_HEAD
+ * [new tag]         zfs-0.4.0  -&gt; zfs-0.4.0
+ * [new tag]         zfs-0.4.1  -&gt; zfs-0.4.1
+ * [new tag]         zfs-0.4.2  -&gt; zfs-0.4.2
+ * [new tag]         zfs-0.4.3  -&gt; zfs-0.4.3
+ * [new tag]         zfs-0.4.4  -&gt; zfs-0.4.4
+ * [new tag]         zfs-0.4.5  -&gt; zfs-0.4.5
+ * [new tag]         zfs-0.4.6  -&gt; zfs-0.4.6
+ * [new tag]         zfs-0.4.7  -&gt; zfs-0.4.7
+ * [new tag]         zfs-0.4.8  -&gt; zfs-0.4.8
+ * [new tag]         zfs-0.4.9  -&gt; zfs-0.4.9
+ * [new tag]         zfs-0.5.0  -&gt; zfs-0.5.0
+ * [new tag]         zfs-0.5.1  -&gt; zfs-0.5.1
+ * [new tag]         zfs-0.5.2  -&gt; zfs-0.5.2
+ * [new tag]         zfs-0.6.0-rc1 -&gt; zfs-0.6.0-rc1
+ * [new tag]         zfs-0.6.0-rc2 -&gt; zfs-0.6.0-rc2
+ * [new tag]         zfs-0.6.0-rc3 -&gt; zfs-0.6.0-rc3
+ * [new tag]         zfs-0.6.0-rc4 -&gt; zfs-0.6.0-rc4
+</span><span class="header">elapsedTime=24.212199
+/usr/bin/git reset --hard e130330a874f4dec6628c094455180d4113c6aa1
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'reset', '--hard', 'e130330a874f4dec6628c094455180d4113c6aa1']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">HEAD is now at e130330 Handle /etc/mtab -&gt; /proc/mounts symlink
+</span><span class="header">elapsedTime=0.090569
+/usr/bin/git branch -M master
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'branch', '-M', 'master']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+elapsedTime=0.009217
+/usr/bin/git rev-parse HEAD
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/git', 'rev-parse', 'HEAD']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">e130330a874f4dec6628c094455180d4113c6aa1
+</span><span class="header">elapsedTime=0.006817
+/usr/bin/patch -p1 --remove-empty-files --force --forward
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['/usr/bin/patch', '-p1', '--remove-empty-files', '--force', '--forward']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-debian-lenny-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  TERM=linux
+  USER=buildbot
+  _=/usr/bin/buildbot
+ writing 834 bytes to stdin
+ closing stdin
+ using PTY: False
+</span><span class="stdout">patching file module/zfs/zfs_znode.c
+</span><span class="header">elapsedTime=0.006451
+program finished with exit code 0
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Debian%205.0%20(Lenny)%20Desktop%20-%20AMD64/builds/9/steps/git_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:17:18 GMT -->
+</html>

@@ -1,0 +1,56 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2015%20(Lovelock)%20Desktop%20-%20AMD64/builds/10/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:13:52 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0	64m	64	14.48m	64m	64	4.81g
+PASS:     file-raid10  0	64m	64	329.90m	64m	64	3.91g
+PASS:     file-raidz   0	64m	64	547.01m	64m	64	2.16g
+PASS:     file-raidz2  0	64m	64	13.90m	64m	64	2.98g
+PASS:     lo-raid0     0	64m	64	633.66m	64m	64	4.17g
+PASS:     lo-raid10    0	64m	64	284.44m	64m	64	3.68g
+PASS:     lo-raidz     0	64m	64	477.61m	64m	64	2.40g
+PASS:     lo-raidz2    0	64m	64	235.29m	64m	64	3.47g
+</span><span class="header">program finished with exit code 0
+elapsedTime=17.684129
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2015%20(Lovelock)%20Desktop%20-%20AMD64/builds/10/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:13:52 GMT -->
+</html>

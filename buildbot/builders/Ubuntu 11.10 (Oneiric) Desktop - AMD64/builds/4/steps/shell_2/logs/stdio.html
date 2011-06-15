@@ -1,0 +1,142 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu%2011.10%20(Oneiric)%20Desktop%20-%20AMD64/builds/4/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:21:41 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo sh -c 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean'
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', 'sh', '-c', 'apt-get update &amp;&amp; apt-get upgrade -y &amp;&amp; apt-get autoclean']
+ environment:
+  HOME=/home/buildbot
+  LANG=en_US.UTF-8
+  LOGNAME=buildbot
+  MAIL=/var/mail/buildbot
+  PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-ubuntu-oneiric-amd64/build
+  SHELL=/bin/sh
+  TERM=linux
+  USER=buildbot
+  XDG_SESSION_COOKIE=6f37e38e3004c055690abe4100000002-1308086097.448794-653438397
+ closing stdin
+ using PTY: False
+</span><span class="stdout">Ign http://us.archive.ubuntu.com oneiric InRelease
+Ign http://extras.ubuntu.com oneiric InRelease
+Ign http://archive.canonical.com oneiric InRelease
+Ign http://us.archive.ubuntu.com oneiric-updates InRelease
+Hit http://extras.ubuntu.com oneiric Release.gpg
+Hit http://archive.canonical.com oneiric Release.gpg
+Ign http://security.ubuntu.com oneiric-security InRelease
+Hit http://us.archive.ubuntu.com oneiric Release.gpg
+Hit http://archive.canonical.com oneiric Release
+Hit http://extras.ubuntu.com oneiric Release
+Hit http://security.ubuntu.com oneiric-security Release.gpg
+Hit http://archive.canonical.com oneiric/partner Sources
+Hit http://extras.ubuntu.com oneiric/main Sources
+Hit http://us.archive.ubuntu.com oneiric-updates Release.gpg
+Hit http://security.ubuntu.com oneiric-security Release
+Hit http://archive.canonical.com oneiric/partner amd64 Packages
+Hit http://extras.ubuntu.com oneiric/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric Release
+Hit http://security.ubuntu.com oneiric-security/main Sources
+Ign http://extras.ubuntu.com oneiric/main TranslationIndex
+Hit http://us.archive.ubuntu.com oneiric-updates Release
+Hit http://security.ubuntu.com oneiric-security/restricted Sources
+Hit http://us.archive.ubuntu.com oneiric/main Sources
+Hit http://security.ubuntu.com oneiric-security/universe Sources
+Ign http://archive.canonical.com oneiric/partner TranslationIndex
+Hit http://us.archive.ubuntu.com oneiric/restricted Sources
+Get:1 http://security.ubuntu.com oneiric-security/multiverse Sources [14 B]
+Hit http://us.archive.ubuntu.com oneiric/universe Sources
+Get:2 http://security.ubuntu.com oneiric-security/main amd64 Packages [14 B]
+Hit http://us.archive.ubuntu.com oneiric/multiverse Sources
+Hit http://us.archive.ubuntu.com oneiric/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric/restricted amd64 Packages
+Get:3 http://security.ubuntu.com oneiric-security/restricted amd64 Packages [14 B]
+Hit http://security.ubuntu.com oneiric-security/universe amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric/universe amd64 Packages
+Hit http://security.ubuntu.com oneiric-security/multiverse amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric/multiverse amd64 Packages
+Ign http://extras.ubuntu.com oneiric/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/main TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/main TranslationIndex
+Ign http://extras.ubuntu.com oneiric/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric/multiverse TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric/restricted TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/restricted TranslationIndex
+Ign http://archive.canonical.com oneiric/partner Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/universe TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/universe TranslationIndex
+Ign http://archive.canonical.com oneiric/partner Translation-en
+Hit http://us.archive.ubuntu.com oneiric-updates/main Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/universe Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse Sources
+Hit http://us.archive.ubuntu.com oneiric-updates/main amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/restricted amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/universe amd64 Packages
+Hit http://us.archive.ubuntu.com oneiric-updates/multiverse amd64 Packages
+Ign http://us.archive.ubuntu.com oneiric-updates/main TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted TranslationIndex
+Ign http://us.archive.ubuntu.com oneiric-updates/universe TranslationIndex
+Ign http://security.ubuntu.com oneiric-security/main Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/main Translation-en
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/multiverse Translation-en
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/restricted Translation-en
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en_US
+Ign http://security.ubuntu.com oneiric-security/universe Translation-en
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric/universe Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/main Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/multiverse Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/restricted Translation-en
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en_US
+Ign http://us.archive.ubuntu.com oneiric-updates/universe Translation-en
+Fetched 42 B in 26s (2 B/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+</span><span class="header">program finished with exit code 0
+elapsedTime=27.594953
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Ubuntu%2011.10%20(Oneiric)%20Desktop%20-%20AMD64/builds/4/steps/shell_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:21:42 GMT -->
+</html>

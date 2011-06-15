@@ -1,0 +1,56 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/TOSS%202.0%20Desktop%20-%20AMD64/builds/8/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:25:01 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zpios-sanity.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-toss-2-0-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zpios-sanity.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-toss-2-0-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">status    name        id	wr-data	wr-ch	wr-bw	rd-data	rd-ch	rd-bw
+-------------------------------------------------------------------------------
+PASS:     file-raid0   0	64m	64	797.48m	64m	64	5.20g
+PASS:     file-raid10  0	64m	64	447.53m	64m	64	876.79m
+PASS:     file-raidz   0	64m	64	711.09m	64m	64	750.75m
+PASS:     file-raidz2  0	64m	64	365.71m	64m	64	850.51m
+PASS:     lo-raid0     0	64m	64	759.62m	64m	64	864.88m
+PASS:     lo-raid10    0	64m	64	460.41m	64m	64	828.55m
+PASS:     lo-raidz     0	64m	64	828.44m	64m	64	876.72m
+PASS:     lo-raidz2    0	64m	64	367.29m	64m	64	844.90m
+</span><span class="header">program finished with exit code 0
+elapsedTime=18.897687
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/TOSS%202.0%20Desktop%20-%20AMD64/builds/8/steps/test_1/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 22:25:01 GMT -->
+</html>

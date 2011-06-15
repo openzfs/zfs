@@ -1,0 +1,49 @@
+<html>
+
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2015%20(Lovelock)%20Desktop%20-%20AMD64/builds/6/steps/test_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:13:08 GMT -->
+<head><title>Log File contents</title>
+
+<style type="text/css">
+ div.data {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stdout {
+  font-family: "Courier New", courier, monotype;
+ }
+ span.stderr {
+  font-family: "Courier New", courier, monotype;
+  color: red;
+ }
+ span.header {
+  font-family: "Courier New", courier, monotype;
+  color: blue;
+ }
+</style>
+</head>
+<body vlink="#800080">
+<a href="stdio/texthtml.html">(view as text)</a><br />
+<pre>
+<span class="header">sudo /usr/libexec/zfs/zconfig.sh -c
+ in dir /var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build (timeout 1200 secs)
+ watching logfiles {}
+ argv: ['sudo', '/usr/libexec/zfs/zconfig.sh', '-c']
+ environment:
+  HOME=/home/buildbot
+  LOGNAME=buildbot
+  PATH=/usr/bin:/bin
+  PWD=/var/lib/buildbot/ci/zfs-slave/zfs-fedora-15-amd64/build
+  SHELL=/bin/sh
+  SHLVL=1
+  USER=buildbot
+  _=/usr/bin/buildbot
+ closing stdin
+ using PTY: False
+</span><span class="stdout">1    persistent zpool.cache             </span><span class="stderr">filesystem 'test1' was mounted, but /etc/mtab could not be updated due to error 22
+cannot mount 'test1': Input/output error
+</span><span class="stdout">[0;31mFail[0m (2)
+</span><span class="header">program finished with exit code 2
+elapsedTime=4.184530
+</span></pre>
+</body>
+<!-- Mirrored from pip.chaos:8010/builders/Fedora%2015%20(Lovelock)%20Desktop%20-%20AMD64/builds/6/steps/test_2/logs/stdio by HTTrack Website Copier/3.x [XR&CO'2010], Wed, 15 Jun 2011 23:13:08 GMT -->
+</html>

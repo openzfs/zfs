@@ -1,0 +1,188 @@
+
+<style type="text/css">
+    p.error {
+      color: red;
+      font-family: Verdana, Arial, helvetica, sans-serif;
+      font-weight: bold;
+    }
+
+    div {
+      font-family: Verdana, Arial, helvetica, sans-serif;
+    }
+
+    div.stackTrace {
+    }
+
+    div.frame {
+      padding: 1em;
+      background: white;
+      border-bottom: thin black dashed;
+    }
+
+    div.firstFrame {
+      padding: 1em;
+      background: white;
+      border-top: thin black dashed;
+      border-bottom: thin black dashed;
+    }
+
+    div.location {
+    }
+
+    div.snippet {
+      margin-bottom: 0.5em;
+      margin-left: 1em;
+      background: #FFFFDD;
+    }
+
+    div.snippetHighlightLine {
+      color: red;
+    }
+
+    span.code {
+      font-family: "Courier New", courier, monotype;
+    }
+
+    span.function {
+      font-weight: bold;
+      font-family: "Courier New", courier, monotype;
+    }
+
+    table.variables {
+      border-collapse: collapse;
+      margin-left: 1em;
+    }
+
+    td.varName {
+      vertical-align: top;
+      font-weight: bold;
+      padding-left: 0.5em;
+      padding-right: 0.5em;
+    }
+
+    td.varValue {
+      padding-left: 0.5em;
+      padding-right: 0.5em;
+    }
+
+    div.variables {
+      margin-bottom: 0.5em;
+    }
+
+    span.heading {
+      font-weight: bold;
+    }
+
+    div.dict {
+      background: #cccc99;
+      padding: 2px;
+      float: left;
+    }
+
+    td.dictKey {
+      background: #ffff99;
+      font-weight: bold;
+    }
+
+    td.dictValue {
+      background: #ffff99;
+    }
+
+    div.list {
+      background: #7777cc;
+      padding: 2px;
+      float: left;
+    }
+
+    div.listItem {
+      background: #9999ff;
+    }
+
+    div.instance {
+      background: #cc7777;
+      padding: 2px;
+      float: left;
+    }
+
+    span.instanceName {
+      font-weight: bold;
+      display: block;
+    }
+
+    span.instanceRepr {
+      background: #ff9999;
+      font-family: "Courier New", courier, monotype;
+    }
+
+    div.function {
+      background: orange;
+      font-weight: bold;
+      float: left;
+    }
+</style>
+<a href="#tbend">
+<p class="error">&lt;type 'exceptions.AttributeError'&gt;: 'NoneType' object has no attribute 'callRemote'</p>
+</a><div class="stackTrace"><div class="firstFrame">
+<div class="location">/usr/lib/python2.7/dist-packages/twisted/internet/defer.py, line 133 in <span class="function">maybeDeferred</span></div>
+<div class="snippet">
+<div class="snippetLine"><span class="lineno">131</span><span class="code">&nbsp;&nbsp;&quot;&quot;&quot;</span></div>
+
+<div class="snippetLine"><span class="lineno">132</span><span class="code">&nbsp;&nbsp;try:</span></div>
+
+<div class="snippetHighlightLine"><span class="lineno">133</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;result = f(*args, **kw)</span></div>
+
+<div class="snippetLine"><span class="lineno">134</span><span class="code">&nbsp;&nbsp;except:</span></div>
+</div><div class="variables"><b>Locals</b><table class="variables">
+<tr class="varRow"><td class="varName">args</td><td class="varValue">'()'</td></tr>
+
+<tr class="varRow"><td class="varName">kw</td><td class="varValue">'{}'</td></tr>
+
+<tr class="varRow"><td class="varName">f</td><td class="varValue">&quot;&lt;bound method RemoteShellCommand.start of &lt;RemoteShellCommand '['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true']'&gt;&gt;&quot;</td></tr>
+</table></div></div><div class="frame">
+<div class="location">/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py, line 528 in <span class="function">start</span></div>
+<div class="snippet">
+<div class="snippetLine"><span class="lineno">526</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; self.args['workdir'])</span></div>
+
+<div class="snippetLine"><span class="lineno">527</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;log.msg(what)</span></div>
+
+<div class="snippetHighlightLine"><span class="lineno">528</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;return LoggedRemoteCommand.start(self)</span></div>
+
+<div class="snippetLine"><span class="lineno">529</span><span class="code"></span></div>
+</div><div class="variables"><b>Locals</b><table class="variables">
+<tr class="varRow"><td class="varName">what</td><td class="varValue">'&quot;command \'[\'sudo\', \'sh\', \'-c\', \'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true\']\' in dir \'build\'&quot;'</td></tr>
+
+<tr class="varRow"><td class="varName">self</td><td class="varValue">&quot;&lt;RemoteShellCommand '['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true']'&gt;&quot;</td></tr>
+</table></div><div class="variables"><b>Globals</b><table class="variables">
+<tr class="varRow"><td class="varName">LoggedRemoteCommand</td><td class="varValue">'&lt;class buildbot.process.buildstep.LoggedRemoteCommand at 0x2392050&gt;'</td></tr>
+
+<tr class="varRow"><td class="varName">log</td><td class="varValue">&quot;&lt;module 'twisted.python.log' from '/usr/lib/python2.7/dist-packages/twisted/python/log.pyc'&gt;&quot;</td></tr>
+</table></div></div><div class="frame">
+<div class="location">/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py, line 310 in <span class="function">start</span></div>
+<div class="snippet">
+<div class="snippetLine"><span class="lineno">308</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;% self)</span></div>
+
+<div class="snippetLine"><span class="lineno">309</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;self.updates = {}</span></div>
+
+<div class="snippetHighlightLine"><span class="lineno">310</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;return RemoteCommand.start(self)</span></div>
+
+<div class="snippetLine"><span class="lineno">311</span><span class="code"></span></div>
+</div><div class="variables"><b>Locals</b><table class="variables">
+<tr class="varRow"><td class="varName">self</td><td class="varValue">&quot;&lt;RemoteShellCommand '['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true']'&gt;&quot;</td></tr>
+</table></div><div class="variables"><b>Globals</b><table class="variables">
+<tr class="varRow"><td class="varName">RemoteCommand</td><td class="varValue">'&lt;class buildbot.process.buildstep.RemoteCommand at 0x232da78&gt;'</td></tr>
+</table></div></div><div class="frame">
+<div class="location">/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py, line 110 in <span class="function">start</span></div>
+<div class="snippet">
+<div class="snippetLine"><span class="lineno">108</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;# We will get a single remote_complete when it finishes.</span></div>
+
+<div class="snippetLine"><span class="lineno">109</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;# We should fire self.deferred when the command is done.</span></div>
+
+<div class="snippetHighlightLine"><span class="lineno">110</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;d = self.remote.callRemote(&quot;startCommand&quot;, self, self.commandID,</span></div>
+
+<div class="snippetLine"><span class="lineno">111</span><span class="code">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; self.remote_command, cmd_args)</span></div>
+</div><div class="variables"><b>Locals</b><table class="variables">
+<tr class="varRow"><td class="varName">self</td><td class="varValue">&quot;&lt;RemoteShellCommand '['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true']'&gt;&quot;</td></tr>
+
+<tr class="varRow"><td class="varName">cmd_args</td><td class="varValue">&quot;{'workdir': 'build', 'env': None, 'want_stderr': 1, 'logEnviron': True, 'logfiles': {}, 'command': ['sudo', 'sh', '-c', 'rpm --erase zfs-modules; rpm --erase zfs-modules-devel; rpm --erase zfs; rpm --erase zfs-devel; rpm --erase zfs-test; rpm --erase zfs-dracut; rpm --erase spl-modules; rpm --erase spl-modules-devel; rpm --erase spl; /bin/true'], 'timeout': 1200, 'want_stdout': 1, 'usePTY': 'slave-config', 'maxTime': None, 'dir': 'build'}&quot;</td></tr>
+</table></div></div></div><a name="tbend"> </a>
+<p class="error">&lt;type 'exceptions.AttributeError'&gt;: 'NoneType' object has no attribute 'callRemote'</p>

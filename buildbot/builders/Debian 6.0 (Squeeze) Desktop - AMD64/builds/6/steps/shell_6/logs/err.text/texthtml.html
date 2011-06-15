@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/usr/lib/python2.7/dist-packages/buildbot/steps/shell.py", line 215, in start
+    self.startCommand(cmd, warnings)
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 1027, in startCommand
+    d = self.runCommand(cmd) # might raise ConnectionLost
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 960, in runCommand
+    d = c.run(self, self.remote)
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 76, in run
+    d = defer.maybeDeferred(self.start)
+--- <exception caught here> ---
+  File "/usr/lib/python2.7/dist-packages/twisted/internet/defer.py", line 133, in maybeDeferred
+    result = f(*args, **kw)
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 528, in start
+    return LoggedRemoteCommand.start(self)
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 310, in start
+    return RemoteCommand.start(self)
+  File "/usr/lib/python2.7/dist-packages/buildbot/process/buildstep.py", line 110, in start
+    d = self.remote.callRemote("startCommand", self, self.commandID,
+exceptions.AttributeError: 'NoneType' object has no attribute 'callRemote'
