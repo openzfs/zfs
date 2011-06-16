@@ -1,3 +1,15 @@
+zfs-linux (0.6.0.18-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix 'zfs send -D' segfault
+  * Pass -f option for import
+  * Add default stack checking
+  * Check for -Wno-unused-but-set-variable gcc support
+  * Always check -Wno-unused-but-set-variable gcc support
+  * Handle /etc/mtab -> /proc/mounts symlink
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 16 Jun 2011 09:39:30 -0500
+
 zfs-linux (0.6.0.17-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
