@@ -270,6 +270,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 		case ZPOOL_PROP_SIZE:
 		case ZPOOL_PROP_ALLOCATED:
 		case ZPOOL_PROP_FREE:
+		case ZPOOL_PROP_ASHIFT:
 			(void) zfs_nicenum(intval, buf, len);
 			break;
 
@@ -432,6 +433,27 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 			break;
+
+        case ZPOOL_PROP_ASHIFT:
+            if (!flags.create) {
+                zfs_error_aux(
+                    hdl,
+                    dgettext(TEXT_DOMAIN,
+                        "property '%s' can only be set at creation "
+                            "time"), propname);
+                (void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+                goto error;
+            }
+
+            if (intval != 0 && (intval < 9 || intval > 17)) {
+                zfs_error_aux(
+                    hdl,
+                    dgettext(TEXT_DOMAIN, "property '%s' number %d is invalid."),
+                    propname, intval);
+                (void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+                goto error;
+            }
+            break;
 
 		case ZPOOL_PROP_BOOTFS:
 			if (flags.create || flags.import) {
