@@ -559,7 +559,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_private = zio;
 	bio->bi_bdev = bdev;
 	zio->io_delay = jiffies_64;
-	submit_bio(WRITE_BARRIER, bio);
+	submit_bio(WRITE_FLUSH_FUA, bio);
 
 	return 0;
 }
