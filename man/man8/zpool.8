@@ -502,6 +502,23 @@ Amount of storage space used within the pool.
 .sp
 .LP
 These space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(8) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
+
+.sp
+.LP
+The following property can be set at creation time:
+.sp
+.ne 2
+.mk
+.na
+\fB\fBashift\fR\fR
+.ad
+.sp .6
+.RS 4n
+Pool sector size exponent, to the power of 2 (internally referred to as "ashift"). I/O operations will be aligned to the specified size boundaries. Additionally, the minimum (disk) write size will be set to the specified size, so this represents a space vs. performance trade-off. The typical case for setting this property is when performance is important and the underlying disks use 4KiB sectors but report 512B sectors to the OS (for compatibility reasons); in that case, set \fBashift=12\fR (which is 1<<12 = 4096).
+.LP
+For optimal performance, the pool sector size should be greater than or equal to the sector size of the underlying disks. Since the property cannot be changed after pool creation, if in a given pool, you \fIever\fR want to use drives that \fIreport\fR 4KiB sectors, you must set \fBashift=12\fR at pool creation time.
+.RE
+
 .sp
 .LP
 The following property can be set at creation time and import time:
