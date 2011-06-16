@@ -165,6 +165,9 @@
 /* set_shrinker() available */
 #undef HAVE_SET_SHRINKER
 
+/* struct shrink_control exists */
+#undef HAVE_SHRINK_CONTROL_STRUCT
+
 /* shrink_dcache_memory() is available */
 #undef HAVE_SHRINK_DCACHE_MEMORY
 

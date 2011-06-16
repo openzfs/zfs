@@ -72,6 +72,13 @@ extern invalidate_inodes_t invalidate_inodes_fn;
 # endif /* HAVE_2ARGS_INVALIDATE_INODES */
 #endif /* HAVE_INVALIDATE_INODES */
 
+#if !defined(HAVE_SHRINK_CONTROL_STRUCT)
+struct shrink_control {
+	gfp_t gfp_mask;
+	unsigned long nr_to_scan;
+};
+#endif /* HAVE_SHRINK_CONTROL_STRUCT */
+
 /*
  * 2.6.xx API compat,
  * There currently exists no exposed API to partially shrink the dcache.
@@ -79,7 +86,16 @@ extern invalidate_inodes_t invalidate_inodes_fn;
  * which is called during memory pressure.
  */
 #ifndef HAVE_SHRINK_DCACHE_MEMORY
-# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+# if defined(HAVE_SHRINK_CONTROL_STRUCT)
+typedef int (*shrink_dcache_memory_t)(struct shrinker *,
+    struct shrink_control *);
+extern shrink_dcache_memory_t shrink_dcache_memory_fn;
+#  define shrink_dcache_memory(nr, gfp)                                      \
+({                                                                           \
+	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
+	shrink_dcache_memory_fn(NULL, &sc);                                  \
+})
+# elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
 typedef int (*shrink_dcache_memory_t)(struct shrinker *, int, gfp_t);
 extern shrink_dcache_memory_t shrink_dcache_memory_fn;
 #  define shrink_dcache_memory(nr, gfp)	shrink_dcache_memory_fn(NULL, nr, gfp)
@@ -97,7 +113,16 @@ extern shrink_dcache_memory_t shrink_dcache_memory_fn;
  * which is called during memory pressure.
  */
 #ifndef HAVE_SHRINK_ICACHE_MEMORY
-# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
+# if defined(HAVE_SHRINK_CONTROL_STRUCT)
+typedef int (*shrink_icache_memory_t)(struct shrinker *,
+    struct shrink_control *);
+extern shrink_icache_memory_t shrink_icache_memory_fn;
+#  define shrink_icache_memory(nr, gfp)                                      \
+({                                                                           \
+	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
+	shrink_icache_memory_fn(NULL, &sc);                                  \
+})
+# elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
 typedef int (*shrink_icache_memory_t)(struct shrinker *, int, gfp_t);
 extern shrink_icache_memory_t shrink_icache_memory_fn;
 #  define shrink_icache_memory(nr, gfp)	shrink_icache_memory_fn(NULL, nr, gfp)
@@ -108,6 +133,9 @@ extern shrink_icache_memory_t shrink_icache_memory_fn;
 # endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 #endif /* HAVE_SHRINK_ICACHE_MEMORY */
 
+/*
+ * Linux 2.6. - 2.6. Shrinker API Compatibility.
+ */
 #ifdef HAVE_SET_SHRINKER
 typedef struct spl_shrinker {
 	struct shrinker *shrinker;
@@ -127,31 +155,86 @@ spl_unregister_shrinker(spl_shrinker_t *ss)
 	remove_shrinker(ss->shrinker);
 }
 
-# define SPL_SHRINKER_DECLARE(s, x, y) \
-	static spl_shrinker_t s = { .shrinker = NULL, .fn = x, .seeks = y }
-# define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
-	static int fn(int y, unsigned int z)
-# define spl_exec_shrinker(ss, nr, gfp) \
-	((spl_shrinker_t *)ss)->fn(nr, gfp)
+# define SPL_SHRINKER_DECLARE(s, x, y)                                 \
+	static spl_shrinker_t s = {                                    \
+		.shrinker = NULL,                                      \
+		.fn = x,                                               \
+		.seeks = y                                             \
+	}
 
-#else /* HAVE_SET_SHRINKER */
+# define SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)                         \
+	static int fn(int, unsigned int)
+# define SPL_SHRINKER_CALLBACK_WRAPPER(fn)                             \
+static int                                                             \
+fn(int nr_to_scan, unsigned int gfp_mask)                              \
+{                                                                      \
+	struct shrink_control sc;                                      \
+                                                                       \
+        sc.nr_to_scan = nr_to_scan;                                    \
+        sc.gfp_mask = gfp_mask;                                        \
+                                                                       \
+	return __ ## fn(NULL, &sc);                                    \
+}
+
+#else
 
 # define spl_register_shrinker(x)	register_shrinker(x)
 # define spl_unregister_shrinker(x)	unregister_shrinker(x)
-# define SPL_SHRINKER_DECLARE(s, x, y) \
-	static struct shrinker s = { .shrink = x, .seeks = y }
+# define SPL_SHRINKER_DECLARE(s, x, y)                                 \
+	static struct shrinker s = {                                   \
+		.shrink = x,                                           \
+		.seeks = y                                             \
+	}
 
-# ifdef HAVE_3ARGS_SHRINKER_CALLBACK
-#  define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
-	static int fn(struct shrinker *x, int y, unsigned int z)
-#  define spl_exec_shrinker(ss, nr, gfp) \
-	((struct shrinker *)ss)->shrink(NULL, nr, gfp)
-# else /* HAVE_3ARGS_SHRINKER_CALLBACK */
-#  define SPL_SHRINKER_CALLBACK_PROTO(fn, x, y, z) \
-	static int fn(int y, unsigned int z)
-#  define spl_exec_shrinker(ss, nr, gfp) \
-	((struct shrinker *)ss)->shrink(nr, gfp)
-# endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
+/*
+ * Linux 2.6. - 2.6. Shrinker API Compatibility.
+ */
+# if defined(HAVE_SHRINK_CONTROL_STRUCT)
+#  define SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)                        \
+	static int fn(struct shrinker *, struct shrink_control *)
+#  define SPL_SHRINKER_CALLBACK_WRAPPER(fn)                            \
+static int                                                             \
+fn(struct shrinker *shrink, struct shrink_control *sc) {               \
+	return __ ## fn(shrink, sc);                                   \
+}
+
+/*
+ * Linux 2.6. - 2.6. Shrinker API Compatibility.
+ */
+# elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
+#  define SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)                       \
+	static int fn(struct shrinker *, int, unsigned int)
+#  define SPL_SHRINKER_CALLBACK_WRAPPER(fn)                           \
+static int                                                            \
+fn(struct shrinker *shrink, int nr_to_scan, unsigned int gfp_mask)    \
+{                                                                     \
+	struct shrink_control sc;                                     \
+                                                                      \
+        sc.nr_to_scan = nr_to_scan;                                   \
+        sc.gfp_mask = gfp_mask;                                       \
+                                                                      \
+	return __ ## fn(shrink, &sc);                                 \
+}
+
+/*
+ * Linux 2.6. - 2.6. Shrinker API Compatibility.
+ */
+# else
+#  define SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)                       \
+	static int fn(int, unsigned int)
+#  define SPL_SHRINKER_CALLBACK_WRAPPER(fn)                           \
+static int                                                            \
+fn(int nr_to_scan, unsigned int gfp_mask)                             \
+{                                                                     \
+	struct shrink_control sc;                                     \
+                                                                      \
+        sc.nr_to_scan = nr_to_scan;                                   \
+        sc.gfp_mask = gfp_mask;                                       \
+                                                                      \
+	return __ ## fn(NULL, &sc);                                   \
+}
+
+# endif
 #endif /* HAVE_SET_SHRINKER */
 
 #endif /* SPL_MM_COMPAT_H */

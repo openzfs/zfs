@@ -829,8 +829,7 @@ struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
 static int spl_cache_flush(spl_kmem_cache_t *skc,
                            spl_kmem_magazine_t *skm, int flush);
 
-SPL_SHRINKER_CALLBACK_PROTO(spl_kmem_cache_generic_shrinker,
-	shrinker_cb, nr_to_scan, gfp_mask);
+SPL_SHRINKER_CALLBACK_FWD_DECLARE(spl_kmem_cache_generic_shrinker);
 SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
 	spl_kmem_cache_generic_shrinker, KMC_DEFAULT_SEEKS);
 
@@ -1858,15 +1857,16 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * objects should be freed, because Solaris semantics are to free
  * all available objects we may free more objects than requested.
  */
-SPL_SHRINKER_CALLBACK_PROTO(spl_kmem_cache_generic_shrinker,
-    shrinker_cb, nr_to_scan, gfp_mask)
+static int
+__spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
+    struct shrink_control *sc)
 {
 	spl_kmem_cache_t *skc;
 	int unused = 0;
 
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
-		if (nr_to_scan)
+		if (sc->nr_to_scan)
 			spl_kmem_cache_reap_now(skc);
 
 		/*
@@ -1881,6 +1881,8 @@ SPL_SHRINKER_CALLBACK_PROTO(spl_kmem_cache_generic_shrinker,
 
 	return (unused * sysctl_vfs_cache_pressure) / 100;
 }
+
+SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
 
 /*
  * Call the registered reclaim function for a cache.  Depending on how
@@ -1923,7 +1925,12 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 void
 spl_kmem_reap(void)
 {
-	spl_exec_shrinker(&spl_kmem_cache_shrinker, KMC_REAP_CHUNK, GFP_KERNEL);
+	struct shrink_control sc;
+
+	sc.nr_to_scan = KMC_REAP_CHUNK;
+	sc.gfp_mask = GFP_KERNEL;
+
+	__spl_kmem_cache_generic_shrinker(NULL, &sc);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 

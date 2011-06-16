@@ -81,6 +81,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SHRINK_ICACHE_MEMORY
 	SPL_AC_KERN_PATH_PARENT
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
+	SPL_AC_SHRINK_CONTROL_STRUCT
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1806,6 +1807,28 @@ AC_DEFUN([SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE, 1,
 		          [zlib_deflate_workspacesize() wants 2 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 2.6.39 API change,
+dnl # Shrinker adjust to use common shrink_control structure.
+dnl #
+AC_DEFUN([SPL_AC_SHRINK_CONTROL_STRUCT], [
+	AC_MSG_CHECKING([whether struct shrink_control exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/mm.h>
+	],[
+		struct shrink_control sc __attribute__ ((unused));
+
+		sc.nr_to_scan = 0;
+		sc.gfp_mask = GFP_KERNEL;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SHRINK_CONTROL_STRUCT, 1,
+			[struct shrink_control exists])
 	],[
 		AC_MSG_RESULT(no)
 	])
