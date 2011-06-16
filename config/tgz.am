@@ -25,7 +25,7 @@ tgz-modules: tgz-local rpm-modules
 	name=${PACKAGE}-modules; \
 	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
 	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
 	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
@@ -34,7 +34,7 @@ tgz-modules: tgz-local rpm-modules
 tgz-utils: tgz-local rpm-utils
 	name=${PACKAGE}; \
 	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch}`; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
 	$(RM) $$pkg1
