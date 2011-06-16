@@ -614,7 +614,6 @@ zfs_rmnode(znode_t *zp)
 			 * Leave it in the unlinked set.
 			 */
 			zfs_znode_dmu_fini(zp);
-			zfs_inode_destroy(ZTOI(zp));
 
 			return;
 		}
@@ -629,7 +628,6 @@ zfs_rmnode(znode_t *zp)
 		 * Not enough space.  Leave the file in the unlinked set.
 		 */
 		zfs_znode_dmu_fini(zp);
-		zfs_inode_destroy(ZTOI(zp));
 		return;
 	}
 
@@ -669,7 +667,6 @@ zfs_rmnode(znode_t *zp)
 		 */
 		dmu_tx_abort(tx);
 		zfs_znode_dmu_fini(zp);
-		zfs_inode_destroy(ZTOI(zp));
 		goto out;
 	}
 
