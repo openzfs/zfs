@@ -10238,13 +10238,10 @@ rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
   # before this can be enabled.
   hardcode_into_libs=yes
 
-  # Add ABI-specific directories to the system library path.
-  sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /lib /usr/lib"
-
   # Append ld.so.conf contents to the search path
   if test -f /etc/ld.so.conf; then
     lt_ld_extra=`awk '/^include / { system(sprintf("cd /etc; cat %s 2>/dev/null", \$2)); skip = 1; } { if (!skip) print \$0; skip = 0; }' < /etc/ld.so.conf | $SED -e 's/#.*//;/^[	 ]*hwcap[	 ]/d;s/[:,	]/ /g;s/=[^=]*$//;s/=[^= ]* / /g;/^$/d' | tr '\n' ' '`
-    sys_lib_dlsearch_path_spec="$sys_lib_dlsearch_path_spec $lt_ld_extra"
+    sys_lib_dlsearch_path_spec="/lib /usr/lib $lt_ld_extra"
   fi
 
   # We used to test for /lib/ld.so.1 and disable shared libraries on
@@ -11189,7 +11186,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11192 "configure"
+#line 11189 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11285,7 +11282,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11288 "configure"
+#line 11285 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -20259,7 +20256,7 @@ fi
 $as_echo "$enable_debug" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile etc/Makefile etc/udev/Makefile etc/udev/rules.d/Makefile etc/udev/rules.d/60-zpool.rules etc/udev/rules.d/60-zvol.rules etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
+ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile etc/Makefile etc/udev/Makefile etc/udev/rules.d/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
 
 
 cat >confcache <<\_ACEOF
@@ -21181,8 +21178,6 @@ do
     "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
     "etc/udev/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/Makefile" ;;
     "etc/udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/Makefile" ;;
-    "etc/udev/rules.d/60-zpool.rules") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/60-zpool.rules" ;;
-    "etc/udev/rules.d/60-zvol.rules") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/60-zvol.rules" ;;
     "etc/init.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/init.d/Makefile" ;;
     "etc/zfs/Makefile") CONFIG_FILES="$CONFIG_FILES etc/zfs/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
