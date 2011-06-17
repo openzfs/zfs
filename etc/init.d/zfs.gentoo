@@ -83,10 +83,12 @@ stop()
 	$ZFS umount -a
 	rv=$?
 	if [ $rv -ne 0 ]; then
-		eerror "Failed to umount ZFS filesystems."
+		einfo "Some ZFS filesystems not unmounted"
 	fi
 
-	eend $rv
+  # Don't fail if we couldn't umount everything.  /usr might be in use.
+	eend 0
+	return 0
 }
 
 status()
