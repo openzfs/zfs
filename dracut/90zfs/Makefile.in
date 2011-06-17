@@ -283,7 +283,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-pkgdracutdir = $(datarootdir)/dracut/modules.d/90zfs
+pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
 dist_pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/90-zfs.rules \
 	$(top_srcdir)/dracut/90zfs/check \
