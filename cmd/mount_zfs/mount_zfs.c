@@ -252,7 +252,7 @@ mtab_is_writeable(void)
 	struct stat st;
 	int error, fd;
 
-	error = stat(MNTTAB, &st);
+	error = lstat(MNTTAB, &st);
 	if (error || S_ISLNK(st.st_mode))
 		return (0);
 

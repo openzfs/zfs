@@ -141,7 +141,7 @@ test_2() {
 	rm -f ${TMP_CACHE} || fail 5
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 6
 	${ZPOOL} import | grep ${POOL_NAME} >/dev/null || fail 7
-	${ZPOOL} import ${POOL_NAME} || fail 8
+	${ZPOOL} import -f ${POOL_NAME} || fail 8
 	${ZPOOL} status ${POOL_NAME} >${TMP_FILE2} || fail 9
 	cmp ${TMP_FILE1} ${TMP_FILE2} || fail 10
 
