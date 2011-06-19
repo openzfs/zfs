@@ -1,3 +1,20 @@
+zfs-linux (0.6.0.19-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use datadir not datarootdir for dracut
+  * Update rpm/deb packages to be FHS compliant
+  * Linux 2.6.37 compat, WRITE_FLUSH_FUA
+
+  [ Christian Kohlschütter ]
+  * Add "ashift" property to zpool create
+
+  [ Darik Horn ]
+  * Fix autoconf variable substitution in udev rules.
+  * Autogen refresh.
+  * Refresh patches.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 19 Jun 2011 13:06:43 -0500
+
 zfs-linux (0.6.0.18-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
