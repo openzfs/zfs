@@ -30,4 +30,8 @@
 						/* to hold a decimal or hex */
 						/* hostid string */
 
+/* Supplemental definitions for Linux. */
+#define HW_HOSTID_PATH		"/etc/hostid"   /* binary configuration file */
+#define HW_HOSTID_MASK		0xFFFFFFFF 	/* significant hostid bits */
+
 #endif /* SPL_SYSTEMINFO_H */

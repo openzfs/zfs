@@ -27,7 +27,7 @@
 #include <sys/sysmacros.h>
 #include <sys/systeminfo.h>
 #include <sys/vmsystm.h>
-#include <sys/vnode.h>
+#include <sys/kobj.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
@@ -52,7 +52,7 @@
 char spl_version[16] = "SPL v" SPL_META_VERSION;
 EXPORT_SYMBOL(spl_version);
 
-unsigned long spl_hostid = 0;
+unsigned long spl_hostid = HW_INVALID_HOSTID;
 EXPORT_SYMBOL(spl_hostid);
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
@@ -364,6 +364,100 @@ struct new_utsname *__utsname(void)
 }
 EXPORT_SYMBOL(__utsname);
 
+
+/*
+ * Read the unique system identifier from the /etc/hostid file.
+ *
+ * The behavior of /usr/bin/hostid on Linux systems with the
+ * regular eglibc and coreutils is:
+ *
+ *   1. Generate the value if the /etc/hostid file does not exist
+ *      or if the /etc/hostid file is less than four bytes in size.
+ *
+ *   2. If the /etc/hostid file is at least 4 bytes, then return
+ *      the first four bytes [0..3] in native endian order.
+ *
+ *   3. Always ignore bytes [4..] if they exist in the file.
+ *
+ * Only the first four bytes are significant, even on systems that
+ * have a 64-bit word size.
+ *
+ * See:
+ *
+ *   eglibc: sysdeps/unix/sysv/linux/gethostid.c
+ *   coreutils: src/hostid.c
+ *
+ * Notes:
+ *
+ * The /etc/hostid file on Solaris is a text file that often reads:
+ *
+ *   # DO NOT EDIT
+ *   "0123456789"
+ *
+ * Directly copying this file to Linux results in a constant
+ * hostid of 4f442023 because the default comment constitutes
+ * the first four bytes of the file.
+ *
+ */
+
+char *spl_hostid_path = HW_HOSTID_PATH;
+module_param(spl_hostid_path, charp, 0444);
+MODULE_PARM_DESC(spl_hostid_path, "The system hostid file (/etc/hostid)");
+
+static int
+hostid_read(void)
+{
+	int result;
+	uint64_t size;
+	struct _buf *file;
+	unsigned long hostid = 0;
+
+	file = kobj_open_file(spl_hostid_path);
+
+	if (file == (struct _buf *)-1) {
+		printk(KERN_WARNING
+		       "SPL: The %s file is not found.\n",
+		       spl_hostid_path);
+		return -1;
+	}
+
+	result = kobj_get_filesize(file, &size);
+
+	if (result != 0) {
+		printk(KERN_WARNING
+		       "SPL: kobj_get_filesize returned %i on %s\n",
+		       result, spl_hostid_path);
+		kobj_close_file(file);
+		return -2;
+	}
+
+	if (size < sizeof(HW_HOSTID_MASK)) {
+		printk(KERN_WARNING
+		       "SPL: Ignoring the %s file because it is %llu bytes; "
+		       "expecting %lu bytes instead.\n",
+		       spl_hostid_path, size, sizeof(HW_HOSTID_MASK));
+		kobj_close_file(file);
+		return -3;
+	}
+
+	/* Read directly into the variable like eglibc does. */
+	/* Short reads are okay; native behavior is preserved. */
+	result = kobj_read_file(file, (char *)&hostid, sizeof(hostid), 0);
+
+	if (result < 0) {
+		printk(KERN_WARNING
+		       "SPL: kobj_read_file returned %i on %s\n",
+		       result, spl_hostid_path);
+		kobj_close_file(file);
+		return -4;
+	}
+
+	/* Mask down to 32 bits like coreutils does. */
+	spl_hostid = hostid & HW_HOSTID_MASK;
+	kobj_close_file(file);
+	return 0;
+}
+
 #define GET_HOSTID_CMD \
 	"exec 0</dev/null " \
 	"     1>/proc/sys/kernel/spl/hostid " \
@@ -371,7 +465,7 @@ EXPORT_SYMBOL(__utsname);
 	"hostid"
 
 static int
-set_hostid(void)
+hostid_exec(void)
 {
 	char *argv[] = { "/bin/sh",
 	                 "-c",
@@ -486,8 +580,14 @@ __init spl_init(void)
 	if ((rc = zlib_init()))
 		SGOTO(out9, rc);
 
-	/* Get the hostid if it was not passed as a module parameter. */
-	if (spl_hostid == 0 && (rc = set_hostid()))
+	/*
+	 * Get the hostid if it was not passed as a module parameter. Try
+	 * reading the /etc/hostid file directly, and then fall back to calling
+	 * the /usr/bin/hostid utility.
+	 */
+
+	if (spl_hostid == HW_INVALID_HOSTID
+	  && (rc = hostid_read()) && (rc = hostid_exec()))
 		SGOTO(out10, rc = -EADDRNOTAVAIL);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
