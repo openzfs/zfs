@@ -299,7 +299,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = zfs zpool zdb zinject ztest zpios mount_zfs zpool_layout \
-	zvol_id zpool_id
+	zvol_id zpool_id sas_switch_id
 all: all-recursive
 
 .SUFFIXES:
