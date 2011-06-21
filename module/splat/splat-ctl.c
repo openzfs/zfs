@@ -633,6 +633,7 @@ splat_init(void)
 	SPLAT_SUBSYSTEM_INIT(generic);
 	SPLAT_SUBSYSTEM_INIT(cred);
 	SPLAT_SUBSYSTEM_INIT(zlib);
+	SPLAT_SUBSYSTEM_INIT(linux);
 
 	dev = MKDEV(SPLAT_MAJOR, 0);
         if ((rc = register_chrdev_region(dev, SPLAT_MINORS, SPLAT_NAME)))
@@ -681,6 +682,7 @@ splat_fini(void)
         cdev_del(&splat_cdev);
         unregister_chrdev_region(dev, SPLAT_MINORS);
 
+	SPLAT_SUBSYSTEM_FINI(linux);
 	SPLAT_SUBSYSTEM_FINI(zlib);
 	SPLAT_SUBSYSTEM_FINI(cred);
 	SPLAT_SUBSYSTEM_FINI(generic);

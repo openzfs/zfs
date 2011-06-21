@@ -105,6 +105,7 @@ typedef struct splat_cmd {
 #define SPLAT_SUBSYSTEM_GENERIC		0x0d00
 #define SPLAT_SUBSYSTEM_CRED		0x0e00
 #define SPLAT_SUBSYSTEM_ZLIB		0x0f00
+#define SPLAT_SUBSYSTEM_LINUX		0x1000
 #define SPLAT_SUBSYSTEM_UNKNOWN		0xff00
 
 #endif /* _SPLAT_CTL_H */
