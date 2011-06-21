@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+# sas_switch_id
+#
+# Callout script for multipathd to obtain disk UUIDs.  Combine the UUID
+# from the scsi_id program with the SAS switch port number and enclosure
+# bay number, if available.  This naming convention enables easier
+# identification of the physical drive location when multiple disk
+# enclosures are accessed via a SAS switch.  For other storage
+# topologies just return the undecorated UUID of the drive.
+
+PHYS_PER_PORT=4
+DEV=
+
+usage() {
+        cat << EOF
+Usage: sas_switch_id [-d disk] [-p phys_per_port]
+  -d    Basename of the disk device [default=none]
+  -p    Number of PHYs per switch port [default=${PHYS_PER_PORT}]
+  -h    Show this message
+EOF
+        exit 0
+}
+
+while getopts 'd:p:h' OPTION; do
+        case ${OPTION} in
+        d)
+                DEV=${OPTARG}
+                ;;
+        p)
+                PHYS_PER_PORT=${OPTARG}
+                ;;
+        h)
+                usage
+                ;;
+        esac
+done
+
+if [ -z "$DEV" ] ; then
+	echo "Error: missing required option -d"
+	exit 1
+fi
+
+UUID=`/lib/udev/scsi_id --whitelisted --device=/dev/$DEV`
+if [ $? != 0 -o -z "$UUID" ] ; then
+	exit 1
+fi
+sys_path=`udevadm info -q path -p /sys/block/$DEV`
+dirs=(`echo "$sys_path" | tr / ' '`)
+switch_port_dir="/sys"
+
+# Get path up to /sys/.../hostX
+for (( i=0; i<${#dirs[*]}; i++ )); do
+	d=${dirs[$i]}
+	switch_port_dir=$switch_port_dir/$d
+	echo $d | egrep -q -e '^host[0-9]+$' && break
+done
+
+if [ $i = ${#dirs[*]} ] ; then
+	echo $UUID
+	exit 0
+fi
+
+# The directory three levels beneath /sys/.../hostX contains
+# symlinks to phy devices that reveal the switch port number.
+# Lowest phy number is $PHYS_PER_PORT*switch_port_number.
+for (( j=(($i+1)) ; j<(($i+4)); j++ )); do
+	switch_port_dir=$switch_port_dir/${dirs[$j]}
+done
+pushd $switch_port_dir > /dev/null
+PHY=`ls -d phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
+PORT=$(( $PHY / $PHYS_PER_PORT ))
+popd > /dev/null
+if [ -z "$PHY" ] ; then
+	echo $UUID
+	exit 0
+fi
+
+# Look in /sys/.../sas_device/end_device-X for the bay_identifier
+# attribute.
+end_device_dir=$switch_port_dir
+for (( k=$j ; k<${#dirs[*]} ; k++ )); do
+	d=${dirs[$k]}
+	end_device_dir=$end_device_dir/$d
+	if echo $d | egrep -q -e '^end_device' ; then
+		end_device_dir=$end_device_dir/sas_device/$d
+		break
+	fi
+done
+SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+if [ -z "$SLOT" ] ; then
+	echo $UUID
+	exit 0
+fi
+
+echo "$UUID-switch-port:$PORT-slot:$SLOT"
