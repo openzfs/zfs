@@ -95,6 +95,7 @@ AC_CONFIG_FILES([
 	cmd/zpool_layout/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zpool_id/Makefile
+	cmd/sas_switch_id/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
