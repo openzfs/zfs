@@ -233,6 +233,17 @@ rm -rf $RPM_BUILD_ROOT
 %{_prefix}/src/*
 
 %post
+# The /sbin/genhostid utility writes a random value to the /etc/hostid
+# file, which means that using it here will break upgrades on systems
+# that already have spl installed.
+if [ ! -f /etc/hostid ]; then
+	HOSTID=$(hostid)
+	AA=$(echo $HOSTID | cut -b 1,2)
+	BB=$(echo $HOSTID | cut -b 3,4)
+	CC=$(echo $HOSTID | cut -b 5,6)
+	DD=$(echo $HOSTID | cut -b 7,8)
+	"$(which printf)" "\x$DD\x$CC\x$BB\x$AA" >"/etc/hostid"
+fi
 if [ -f /boot/System.map-%{kver} ]; then
 	depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
 else
