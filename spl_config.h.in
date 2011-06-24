@@ -135,6 +135,9 @@
 /* struct mutex has owner */
 #undef HAVE_MUTEX_OWNER
 
+/* struct mutex owner is a task_struct */
+#undef HAVE_MUTEX_OWNER_TASK_STRUCT
+
 /* next_online_pgdat() is available */
 #undef HAVE_NEXT_ONLINE_PGDAT
 

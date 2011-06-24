@@ -48,21 +48,18 @@ typedef struct {
 static inline kthread_t *
 mutex_owner(kmutex_t *mp)
 {
-        struct thread_info *owner;
+#if defined(HAVE_MUTEX_OWNER_TASK_STRUCT)
+	return ACCESS_ONCE(mp->m.owner);
+#else
+	struct thread_info *owner = ACCESS_ONCE(mp->m.owner);
+	if (owner)
+		return owner->task;
 
-        owner = ACCESS_ONCE(mp->m.owner);
-        if (owner)
-                return owner->task;
-
-        return NULL;
+	return NULL;
+#endif
 }
 
-static inline int
-mutex_owned(kmutex_t *mp)
-{
-        return (ACCESS_ONCE(mp->m.owner) == current_thread_info());
-}
-
+#define mutex_owned(mp)         (mutex_owner(mp) == current)
 #define MUTEX_HELD(mp)          mutex_owned(mp)
 #define MUTEX_NOT_HELD(mp)      (!MUTEX_HELD(mp))
 #undef mutex_init
