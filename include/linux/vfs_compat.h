@@ -41,4 +41,25 @@ insert_inode_locked(struct inode *ip)
 }
 #endif /* HAVE_INSERT_INODE_LOCKED */
 
+/*
+ * 2.6.35 API change,
+ * Add truncate_setsize() if it is not exported by the Linux kernel.
+ *
+ * Truncate the inode and pages associated with the inode. The pages are
+ * unmapped and removed from cache.
+ */
+#ifndef HAVE_TRUNCATE_SETSIZE
+static inline void
+truncate_setsize(struct inode *ip, loff_t new)
+{
+	struct address_space *mapping = ip->i_mapping;
+
+	i_size_write(ip, new);
+
+	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
+	truncate_inode_pages(mapping, new);
+	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
+}
+#endif /* HAVE_TRUNCATE_SETSIZE */
+
 #endif /* _ZFS_VFS_H */
