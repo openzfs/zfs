@@ -73,7 +73,7 @@ zpl_inode_destroy(struct inode *ip)
 static void
 zpl_evict_inode(struct inode *ip)
 {
-	truncate_inode_pages(&ip->i_data, 0);
+	truncate_setsize(ip, 0);
 	end_writeback(ip);
 	zfs_inactive(ip);
 }
@@ -89,7 +89,7 @@ zpl_clear_inode(struct inode *ip)
 static void
 zpl_inode_delete(struct inode *ip)
 {
-	truncate_inode_pages(&ip->i_data, 0);
+	truncate_setsize(ip, 0);
 	clear_inode(ip);
 }
 
