@@ -72,6 +72,7 @@
 #include <sys/kidmap.h>
 #include <sys/cred.h>
 #include <sys/attr.h>
+#include <sys/zpl.h>
 
 /*
  * Programming rules.
@@ -2433,6 +2434,8 @@ top:
 		if (err)
 			goto out3;
 
+		truncate_setsize(ip, vap->va_size);
+
 		/*
 		 * XXX - Note, we are not providing any open
 		 * mode flags here (like FNDELAY), so we may
@@ -2441,11 +2444,6 @@ top:
 		 */
 		/* XXX - would it be OK to generate a log record here? */
 		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
-		if (err)
-			goto out3;
-
-		/* Careful negative Linux return code here */
-		err = -vmtruncate(ip, vap->va_size);
 		if (err)
 			goto out3;
 	}
