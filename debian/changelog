@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.20-0ubuntu1) unstable; urgency=low
+
+  [ Gunnar Beutner ]
+  * Removed erroneous zfs_inode_destroy() calls from zfs_rmnode().
+  * Fix unlink/xattr deadlock
+
+  [ Brian Behlendorf ]
+  * Linux 3.0 compat, shrinker compatibility
+
+  [ Ned A. Bass ]
+  * Multipath device manageability improvements
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 25 Jun 2011 22:14:26 -0500
+
 zfs-linux (0.6.0.19-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
