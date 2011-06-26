@@ -339,6 +339,20 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif
 
 /*
+ * 2.6.37 API change
+ * The WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags have been
+ * introduced as a replacement for WRITE_BARRIER.  This was done to
+ * allow richer semantics to be expressed to the block layer.  It is
+ * the block layers responsibility to choose the correct way to
+ * implement these semantics.
+ */
+#ifdef WRITE_FLUSH_FUA
+# define VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
+#else
+# define VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+#endif
+
+/*
  * Default Linux IO Scheduler,
  * Setting the scheduler to noop will allow the Linux IO scheduler to
  * still perform front and back merging, while leaving the request

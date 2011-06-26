@@ -40,6 +40,7 @@ DIST_COMMON = $(dist_pkgdracut_SCRIPTS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
+	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
 	$(top_srcdir)/config/kernel-bio-empty-barrier.m4 \
@@ -186,6 +187,7 @@ MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NO_UNUSED_BUT_SET_VARIABLE = @NO_UNUSED_BUT_SET_VARIABLE@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OTOOL = @OTOOL@
@@ -281,7 +283,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-pkgdracutdir = $(datarootdir)/dracut/modules.d/90zfs
+pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
 dist_pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/90-zfs.rules \
 	$(top_srcdir)/dracut/90zfs/check \
