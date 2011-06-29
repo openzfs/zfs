@@ -1324,9 +1324,7 @@ top:
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
-#ifdef HAVE_MANDLOCKS
 	struct inode *ip = ZTOI(zp);
-#endif /* HAVE_MANDLOCKS */
 	dmu_tx_t *tx;
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	zilog_t *zilog = zsb->z_log;
@@ -1348,17 +1346,14 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			return (error);
 	}
 
-#ifdef HAVE_MANDLOCKS
 	/*
 	 * Check for any locks in the region to be freed.
 	 */
-
-	if (MANDLOCK(ip, (mode_t)mode)) {
+	if (ip->i_flock && mandatory_lock(ip)) {
 		uint64_t length = (len ? len : zp->z_size - off);
-		if (error = chklock(ip, FWRITE, off, length, flag, NULL))
-			return (error);
+		if (!lock_may_write(ip, off, length))
+			return (EAGAIN);
 	}
-#endif /* HAVE_MANDLOCKS */
 
 	if (len == 0) {
 		error = zfs_trunc(zp, off);
