@@ -7,6 +7,7 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/attr.h \
 	$(top_srcdir)/lib/libspl/include/devid.h \
 	$(top_srcdir)/lib/libspl/include/libdevinfo.h \
+	$(top_srcdir)/lib/libspl/include/libgen.h \
 	$(top_srcdir)/lib/libspl/include/libshare.h \
 	$(top_srcdir)/lib/libspl/include/limits.h \
 	$(top_srcdir)/lib/libspl/include/locale.h \
