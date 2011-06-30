@@ -1113,14 +1113,6 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 
 	if (flags & LOOKUP_XATTR) {
 		/*
-		 * If the xattr property is off, refuse the lookup request.
-		 */
-		if (!(zsb->z_flags & ZSB_XATTR)) {
-			ZFS_EXIT(zsb);
-			return (EINVAL);
-		}
-
-		/*
 		 * We don't allow recursive attributes..
 		 * Maybe someday we will.
 		 */
