@@ -407,7 +407,7 @@ is_shorthand_path(const char *arg, char *path,
  * 	xxx		Shorthand for /dev/disk/yyy/xxx
  */
 static nvlist_t *
-make_leaf_vdev(const char *arg, uint64_t is_log)
+make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 {
 	char path[MAXPATHLEN];
 	struct stat64 statbuf;
@@ -498,6 +498,19 @@ make_leaf_vdev(const char *arg, uint64_t is_log)
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
+
+	if (props != NULL) {
+		uint64_t ashift = 0;
+		char *value = NULL;
+
+		if (nvlist_lookup_string(props,
+		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0)
+			zfs_nicestrtonum(NULL, value, &ashift);
+
+		if (ashift > 0)
+			verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_ASHIFT,
+			    ashift) == 0);
+	}
 
 	return (vdev);
 }
@@ -1195,7 +1208,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
  * because the program is just going to exit anyway.
  */
 nvlist_t *
-construct_spec(int argc, char **argv)
+construct_spec(nvlist_t *props, int argc, char **argv)
 {
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
@@ -1284,7 +1297,7 @@ construct_spec(int argc, char **argv)
 				    children * sizeof (nvlist_t *));
 				if (child == NULL)
 					zpool_no_memory();
-				if ((nv = make_leaf_vdev(argv[c], B_FALSE))
+				if ((nv = make_leaf_vdev(props, argv[c], B_FALSE))
 				    == NULL)
 					return (NULL);
 				child[children - 1] = nv;
@@ -1340,7 +1353,7 @@ construct_spec(int argc, char **argv)
 			 * We have a device.  Pass off to make_leaf_vdev() to
 			 * construct the appropriate nvlist describing the vdev.
 			 */
-			if ((nv = make_leaf_vdev(argv[0], is_log)) == NULL)
+			if ((nv = make_leaf_vdev(props, argv[0], is_log)) == NULL)
 				return (NULL);
 			if (is_log)
 				nlogs++;
@@ -1406,7 +1419,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 	uint_t c, children;
 
 	if (argc > 0) {
-		if ((newroot = construct_spec(argc, argv)) == NULL) {
+		if ((newroot = construct_spec(props, argc, argv)) == NULL) {
 			(void) fprintf(stderr, gettext("Unable to build a "
 			    "pool from the specified devices\n"));
 			return (NULL);
@@ -1456,7 +1469,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
  * added, even if they appear in use.
  */
 nvlist_t *
-make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
+make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
     boolean_t replacing, boolean_t dryrun, int argc, char **argv)
 {
 	nvlist_t *newroot;
@@ -1468,7 +1481,7 @@ make_root_vdev(zpool_handle_t *zhp, int force, int check_rep,
 	 * that we have a valid specification, and that all devices can be
 	 * opened.
 	 */
-	if ((newroot = construct_spec(argc, argv)) == NULL)
+	if ((newroot = construct_spec(props, argc, argv)) == NULL)
 		return (NULL);
 
 	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL))

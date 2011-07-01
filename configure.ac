@@ -60,8 +60,6 @@ AC_CONFIG_FILES([
 	etc/Makefile
 	etc/udev/Makefile
 	etc/udev/rules.d/Makefile
-	etc/udev/rules.d/60-zpool.rules
-	etc/udev/rules.d/60-zvol.rules
 	etc/init.d/Makefile
 	etc/zfs/Makefile
 	man/Makefile
@@ -97,6 +95,7 @@ AC_CONFIG_FILES([
 	cmd/zpool_layout/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zpool_id/Makefile
+	cmd/sas_switch_id/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile

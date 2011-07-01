@@ -2191,7 +2191,8 @@ arc_reclaim_thread(void)
  * direct reclaim will be trigger.  In direct reclaim a more aggressive
  * strategy is used, data is evicted from the ARC and free slabs reaped.
  */
-SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
+static int
+__arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
 	arc_reclaim_strategy_t strategy;
 	int arc_reclaim;
@@ -2199,7 +2200,7 @@ SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
 	/* Return number of reclaimable pages based on arc_shrink_shift */
 	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
 	    >> arc_shrink_shift, 0);
-	if (nr_to_scan == 0)
+	if (sc->nr_to_scan == 0)
 		return (arc_reclaim);
 
 	/* Prevent reclaim below arc_c_min */
@@ -2207,7 +2208,7 @@ SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
 		return (-1);
 
 	/* Not allowed to perform filesystem reclaim */
-	if (!(gfp_mask & __GFP_FS))
+	if (!(sc->gfp_mask & __GFP_FS))
 		return (-1);
 
 	/* Reclaim in progress */
@@ -2229,6 +2230,7 @@ SPL_SHRINKER_CALLBACK_PROTO(arc_shrinker_func, cb, nr_to_scan, gfp_mask)
 
 	return (arc_reclaim);
 }
+SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
 SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
 #endif /* _KERNEL */

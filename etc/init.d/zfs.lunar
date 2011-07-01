@@ -13,6 +13,9 @@
 case $1 in
   start)  echo "$1ing ZFS filesystems"
 
+    # Delay until all required block devices are present.
+    udevadm settle
+
     if ! grep "zfs" /proc/modules > /dev/null; then
       echo "ZFS kernel module not loaded yet; loading...";
       if ! modprobe zfs; then

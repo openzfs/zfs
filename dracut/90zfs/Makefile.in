@@ -66,6 +66,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
@@ -283,7 +284,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-pkgdracutdir = $(datarootdir)/dracut/modules.d/90zfs
+pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
 dist_pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/90-zfs.rules \
 	$(top_srcdir)/dracut/90zfs/check \

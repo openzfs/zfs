@@ -2,6 +2,10 @@
 %define version          @VERSION@
 %define release          @ZFS_META_RELEASE@
 %define debug_package    %{nil}
+%define _prefix          /
+%define _bindir          /lib/udev
+%define _libexecdir      /usr/libexec
+%define _datadir         /usr/share
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
@@ -78,7 +82,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_sysconfdir}/init.d/*
 %{_sysconfdir}/udev/rules.d/*
 %{_sysconfdir}/zfs/*
-/sbin/*
 
 %files devel
 %defattr(-,root,root)

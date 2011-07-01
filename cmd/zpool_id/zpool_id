@@ -39,9 +39,17 @@ done
 # Check for the existence of a configuration file
 [ ! -f ${CONFIG} ] && die "Missing config file: ${CONFIG}"
 
-# Use udev's path_id to generate a unique persistent key
-eval `${PATH_ID} ${DEVICE}`
-[ -z ${ID_PATH} ] && die "Missing ID_PATH for ${DEVICE}"
+# If we are handling a multipath device then $DM_UUID will be
+# exported and we'll use its value (prefixed with dm-uuid per
+# multipathd's naming convention) as our unique persistent key.
+# For traditional devices we'll obtain the key from udev's
+# path_id.
+if [ -n "${DM_UUID}" ] && echo ${DM_UUID} | egrep -q -e '^mpath' ; then
+	ID_PATH="dm-uuid-${DM_UUID}"
+else
+	eval `${PATH_ID} ${DEVICE}`
+	[ -z ${ID_PATH} ] && die "Missing ID_PATH for ${DEVICE}"
+fi
 
 # Use the persistent key to lookup the zpool device id in the
 # configuration file which is of the format <device id> <key>.
