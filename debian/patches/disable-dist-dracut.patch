@@ -15,7 +15,7 @@ Index: b/Makefile.in
 ===================================================================
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -126,7 +126,7 @@
+@@ -127,7 +127,7 @@
  	distdir dist dist-all distcheck
  ETAGS = etags
  CTAGS = ctags
@@ -24,7 +24,7 @@ Index: b/Makefile.in
  DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
  distdir = $(PACKAGE)-$(VERSION)
  top_distdir = $(distdir)
-@@ -330,7 +330,7 @@
+@@ -331,7 +331,7 @@
  top_build_prefix = @top_build_prefix@
  top_builddir = @top_builddir@
  top_srcdir = @top_srcdir@
@@ -50,7 +50,7 @@ Index: b/configure
 ===================================================================
 --- a/configure
 +++ b/configure
-@@ -20259,7 +20259,7 @@
+@@ -20339,7 +20339,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -59,7 +59,7 @@ Index: b/configure
  
  
  cat >confcache <<\_ACEOF
-@@ -21176,8 +21176,6 @@
+@@ -21256,8 +21256,6 @@
      "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
      "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
      "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;

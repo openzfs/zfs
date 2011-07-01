@@ -9,7 +9,7 @@ Index: b/etc/Makefile.in
 ===================================================================
 --- a/etc/Makefile.in
 +++ b/etc/Makefile.in
-@@ -298,7 +298,7 @@
+@@ -299,7 +299,7 @@
  top_build_prefix = @top_build_prefix@
  top_builddir = @top_builddir@
  top_srcdir = @top_srcdir@
@@ -34,7 +34,7 @@ Index: b/configure
 ===================================================================
 --- a/configure
 +++ b/configure
-@@ -20259,7 +20259,7 @@
+@@ -20339,7 +20339,7 @@
  $as_echo "$enable_debug" >&6; }
  
  
@@ -43,7 +43,7 @@ Index: b/configure
  
  
  cat >confcache <<\_ACEOF
-@@ -21181,7 +21181,6 @@
+@@ -21261,7 +21261,6 @@
      "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
      "etc/udev/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/Makefile" ;;
      "etc/udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/Makefile" ;;
