@@ -126,6 +126,9 @@ start()
                 action $"SELinux ZFS policy required: " /bin/false || return 6
         fi
 
+	# Delay until all required block devices are present.
+	udevadm settle
+
 	# load kernel module infrastructure
 	if ! grep -q zfs /proc/modules ; then
 		action $"Loading kernel ZFS infrastructure: " modprobe zfs || return 5

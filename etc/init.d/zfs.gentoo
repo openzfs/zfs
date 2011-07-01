@@ -41,6 +41,10 @@ checksystem() {
 start() {
 	ebegin "Starting ZFS"
 	checksystem || return 1
+
+	# Delay until all required block devices are present.
+	udevadm settle
+
 	if [ ! -c /dev/zfs ]; then
 		modprobe $ZFS_MODULE
 		rv=$?

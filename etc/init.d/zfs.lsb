@@ -50,6 +50,9 @@ start()
 		return 4
 	fi
 
+	# Delay until all required block devices are present.
+	udevadm settle
+
 	# Load the zfs module stack
 	/sbin/modprobe zfs
 
