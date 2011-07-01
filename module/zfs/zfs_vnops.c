@@ -3712,21 +3712,6 @@ top:
 }
 EXPORT_SYMBOL(zfs_link);
 
-#ifdef HAVE_MMAP
-/*
- * zfs_null_putapage() is used when the file system has been force
- * unmounted. It just drops the pages.
- */
-/* ARGSUSED */
-static int
-zfs_null_putapage(vnode_t *vp, page_t *pp, u_offset_t *offp,
-		size_t *lenp, int flags, cred_t *cr)
-{
-	pvn_write_done(pp, B_INVAL|B_FORCE|B_ERROR);
-	return (0);
-}
-#endif /* HAVE_MMAP */
-
 /*
  * Push a page out to disk
  *
@@ -3924,36 +3909,6 @@ zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp)
 	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
 }
 EXPORT_SYMBOL(zfs_seek);
-
-#ifdef HAVE_MMAP
-/*
- * Pre-filter the generic locking function to trap attempts to place
- * a mandatory lock on a memory mapped file.
- */
-static int
-zfs_frlock(vnode_t *vp, int cmd, flock64_t *bfp, int flag, offset_t offset,
-    flk_callback_t *flk_cbp, cred_t *cr)
-{
-	znode_t *zp = VTOZ(vp);
-	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-
-	/*
-	 * We are following the UFS semantics with respect to mapcnt
-	 * here: If we see that the file is mapped already, then we will
-	 * return an error, but we don't worry about races between this
-	 * function and zfs_map().
-	 */
-	if (zp->z_mapcnt > 0 && MANDMODE(zp->z_mode)) {
-		ZFS_EXIT(zfsvfs);
-		return (EAGAIN);
-	}
-	ZFS_EXIT(zfsvfs);
-	return (fs_frlock(vp, cmd, bfp, flag, offset, flk_cbp, cr, ct));
-}
-#endif /* HAVE_MMAP */
 
 /*
  * Fill pages with data from the disk.
