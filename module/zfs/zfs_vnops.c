@@ -3995,144 +3995,50 @@ zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages)
 }
 EXPORT_SYMBOL(zfs_getpage);
 
-#ifdef HAVE_MMAP
 /*
- * Request a memory map for a section of a file.  This code interacts
- * with common code and the VM system as follows:
+ * Check ZFS specific permissions to memory map a section of a file.
  *
- *	common code calls mmap(), which ends up in smmap_common()
+ *	IN:	ip	- inode of the file to mmap
+ *		off	- file offset
+ *		addrp	- start address in memory region
+ *		len	- length of memory region
+ *		vm_flags- address flags
  *
- *	this calls VOP_MAP(), which takes you into (say) zfs
- *
- *	zfs_map() calls as_map(), passing segvn_create() as the callback
- *
- *	segvn_create() creates the new segment and calls VOP_ADDMAP()
- *
- *	zfs_addmap() updates z_mapcnt
+ *	RETURN:	0 if success
+ *		error code if failure
  */
 /*ARGSUSED*/
-static int
-zfs_map(vnode_t *vp, offset_t off, struct as *as, caddr_t *addrp,
-    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr)
+int
+zfs_map(struct inode *ip, offset_t off, caddr_t *addrp, size_t len,
+    unsigned long vm_flags)
 {
-	znode_t *zp = VTOZ(vp);
-	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	segvn_crargs_t	vn_a;
-	int		error;
+	znode_t  *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
 
-	ZFS_ENTER(zfsvfs);
+	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
-	if ((prot & PROT_WRITE) && (zp->z_pflags &
+	if ((vm_flags & VM_WRITE) && (zp->z_pflags &
 	    (ZFS_IMMUTABLE | ZFS_READONLY | ZFS_APPENDONLY))) {
-		ZFS_EXIT(zfsvfs);
+		ZFS_EXIT(zsb);
 		return (EPERM);
 	}
 
-	if ((prot & (PROT_READ | PROT_EXEC)) &&
+	if ((vm_flags & (VM_READ | VM_EXEC)) &&
 	    (zp->z_pflags & ZFS_AV_QUARANTINED)) {
-		ZFS_EXIT(zfsvfs);
+		ZFS_EXIT(zsb);
 		return (EACCES);
 	}
 
-	if (vp->v_flag & VNOMAP) {
-		ZFS_EXIT(zfsvfs);
-		return (ENOSYS);
-	}
-
 	if (off < 0 || len > MAXOFFSET_T - off) {
-		ZFS_EXIT(zfsvfs);
+		ZFS_EXIT(zsb);
 		return (ENXIO);
 	}
 
-	if (vp->v_type != VREG) {
-		ZFS_EXIT(zfsvfs);
-		return (ENODEV);
-	}
-
-	/*
-	 * If file is locked, disallow mapping.
-	 */
-	if (MANDMODE(zp->z_mode) && vn_has_flocks(vp)) {
-		ZFS_EXIT(zfsvfs);
-		return (EAGAIN);
-	}
-
-	as_rangelock(as);
-	error = choose_addr(as, addrp, len, off, ADDR_VACALIGN, flags);
-	if (error != 0) {
-		as_rangeunlock(as);
-		ZFS_EXIT(zfsvfs);
-		return (error);
-	}
-
-	vn_a.vp = vp;
-	vn_a.offset = (u_offset_t)off;
-	vn_a.type = flags & MAP_TYPE;
-	vn_a.prot = prot;
-	vn_a.maxprot = maxprot;
-	vn_a.cred = cr;
-	vn_a.amp = NULL;
-	vn_a.flags = flags & ~MAP_TYPE;
-	vn_a.szc = 0;
-	vn_a.lgrp_mem_policy_flags = 0;
-
-	error = as_map(as, *addrp, len, segvn_create, &vn_a);
-
-	as_rangeunlock(as);
-	ZFS_EXIT(zfsvfs);
-	return (error);
-}
-
-/* ARGSUSED */
-static int
-zfs_addmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
-    size_t len, uchar_t prot, uchar_t maxprot, uint_t flags, cred_t *cr)
-{
-	uint64_t pages = btopr(len);
-
-	atomic_add_64(&VTOZ(vp)->z_mapcnt, pages);
+	ZFS_EXIT(zsb);
 	return (0);
 }
-
-/*
- * The reason we push dirty pages as part of zfs_delmap() is so that we get a
- * more accurate mtime for the associated file.  Since we don't have a way of
- * detecting when the data was actually modified, we have to resort to
- * heuristics.  If an explicit msync() is done, then we mark the mtime when the
- * last page is pushed.  The problem occurs when the msync() call is omitted,
- * which by far the most common case:
- *
- * 	open()
- * 	mmap()
- * 	<modify memory>
- * 	munmap()
- * 	close()
- * 	<time lapse>
- * 	putpage() via fsflush
- *
- * If we wait until fsflush to come along, we can have a modification time that
- * is some arbitrary point in the future.  In order to prevent this in the
- * common case, we flush pages whenever a (MAP_SHARED, PROT_WRITE) mapping is
- * torn down.
- */
-/* ARGSUSED */
-static int
-zfs_delmap(vnode_t *vp, offset_t off, struct as *as, caddr_t addr,
-    size_t len, uint_t prot, uint_t maxprot, uint_t flags, cred_t *cr)
-{
-	uint64_t pages = btopr(len);
-
-	ASSERT3U(VTOZ(vp)->z_mapcnt, >=, pages);
-	atomic_add_64(&VTOZ(vp)->z_mapcnt, -pages);
-
-	if ((flags & MAP_SHARED) && (prot & PROT_WRITE) &&
-	    vn_has_cached_data(vp))
-		(void) VOP_PUTPAGE(vp, off, len, B_ASYNC, cr, ct);
-
-	return (0);
-}
-#endif /* HAVE_MMAP */
+EXPORT_SYMBOL(zfs_map);
 
 /*
  * convoff - converts the given data (start, whence) to the

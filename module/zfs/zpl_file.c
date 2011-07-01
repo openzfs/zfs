@@ -240,8 +240,14 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 static int
 zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 {
-	znode_t *zp = ITOZ(filp->f_mapping->host);
+	struct inode *ip = filp->f_mapping->host;
+	znode_t *zp = ITOZ(ip);
 	int error;
+
+	error = -zfs_map(ip, vma->vm_pgoff, (caddr_t *)vma->vm_start,
+	    (size_t)(vma->vm_end - vma->vm_start), vma->vm_flags);
+	if (error)
+		return (error);
 
 	error = generic_file_mmap(filp, vma);
 	if (error)
