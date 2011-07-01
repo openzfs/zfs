@@ -446,6 +446,25 @@ error:
 	return (NULL);
 }
 
+void
+zfs_set_inode_flags(znode_t *zp, struct inode *ip)
+{
+	/*
+	 * Linux and Solaris have different sets of file attributes, so we
+	 * restrict this conversion to the intersection of the two.
+	 */
+
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		ip->i_flags |= S_IMMUTABLE;
+	else
+		ip->i_flags &= ~S_IMMUTABLE;
+
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		ip->i_flags |= S_APPEND;
+	else
+		ip->i_flags &= ~S_APPEND;
+}
+
 /*
  * Update the embedded inode given the znode.  We should work toward
  * eliminating this function as soon as possible by removing values
@@ -479,6 +498,7 @@ zfs_inode_update(znode_t *zp)
 	ip->i_gid = SGID_TO_KGID(zp->z_gid);
 	set_nlink(ip, zp->z_links);
 	ip->i_mode = zp->z_mode;
+	zfs_set_inode_flags(zp, ip);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
 	    (u_longlong_t *)&ip->i_blocks);

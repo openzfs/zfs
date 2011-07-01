@@ -520,13 +520,104 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_FILE_FALLOCATE */
 
+/*
+ * Map zfs file z_pflags (xvattr_t) to linux file attributes. Only file
+ * attributes common to both Linux and Solaris are mapped.
+ */
+static int
+zpl_ioctl_getflags(struct file *filp, void __user *arg)
+{
+	struct inode *ip = filp->f_dentry->d_inode;
+	unsigned int ioctl_flags = 0;
+	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
+	int error;
+
+	if (zfs_flags & ZFS_IMMUTABLE)
+		ioctl_flags |= FS_IMMUTABLE_FL;
+
+	if (zfs_flags & ZFS_APPENDONLY)
+		ioctl_flags |= FS_APPEND_FL;
+
+	if (zfs_flags & ZFS_NODUMP)
+		ioctl_flags |= FS_NODUMP_FL;
+
+	ioctl_flags &= FS_FL_USER_VISIBLE;
+
+	error = copy_to_user(arg, &ioctl_flags, sizeof (ioctl_flags));
+
+	return (error);
+}
+
+/*
+ * fchange() is a helper macro to detect if we have been asked to change a
+ * flag. This is ugly, but the requirement that we do this is a consequence of
+ * how the Linux file attribute interface was designed. Another consequence is
+ * that concurrent modification of files suffers from a TOCTOU race. Neither
+ * are things we can fix without modifying the kernel-userland interface, which
+ * is outside of our jurisdiction.
+ */
+
+#define	fchange(f0, f1, b0, b1) ((((f0) & (b0)) == (b0)) != \
+	(((b1) & (f1)) == (f1)))
+
+static int
+zpl_ioctl_setflags(struct file *filp, void __user *arg)
+{
+	struct inode	*ip = filp->f_dentry->d_inode;
+	uint64_t	zfs_flags = ITOZ(ip)->z_pflags;
+	unsigned int	ioctl_flags;
+	cred_t		*cr = CRED();
+	xvattr_t	xva;
+	xoptattr_t	*xoap;
+	int		error;
+
+	if (copy_from_user(&ioctl_flags, arg, sizeof (ioctl_flags)))
+		return (-EFAULT);
+
+	if ((ioctl_flags & ~(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL)))
+		return (-EOPNOTSUPP);
+
+	if ((ioctl_flags & ~(FS_FL_USER_MODIFIABLE)))
+		return (-EACCES);
+
+	if ((fchange(ioctl_flags, zfs_flags, FS_IMMUTABLE_FL, ZFS_IMMUTABLE) ||
+	    fchange(ioctl_flags, zfs_flags, FS_APPEND_FL, ZFS_APPENDONLY)) &&
+	    !capable(CAP_LINUX_IMMUTABLE))
+		return (-EACCES);
+
+	if (!zpl_inode_owner_or_capable(ip))
+		return (-EACCES);
+
+	xva_init(&xva);
+	xoap = xva_getxoptattr(&xva);
+
+	XVA_SET_REQ(&xva, XAT_IMMUTABLE);
+	if (ioctl_flags & FS_IMMUTABLE_FL)
+		xoap->xoa_immutable = B_TRUE;
+
+	XVA_SET_REQ(&xva, XAT_APPENDONLY);
+	if (ioctl_flags & FS_APPEND_FL)
+		xoap->xoa_appendonly = B_TRUE;
+
+	XVA_SET_REQ(&xva, XAT_NODUMP);
+	if (ioctl_flags & FS_NODUMP_FL)
+		xoap->xoa_nodump = B_TRUE;
+
+	crhold(cr);
+	error = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
+	crfree(cr);
+
+	return (error);
+}
+
 static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
-	case ZFS_IOC_GETFLAGS:
-	case ZFS_IOC_SETFLAGS:
-		return (-EOPNOTSUPP);
+	case FS_IOC_GETFLAGS:
+		return (zpl_ioctl_getflags(filp, (void *)arg));
+	case FS_IOC_SETFLAGS:
+		return (zpl_ioctl_setflags(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}
