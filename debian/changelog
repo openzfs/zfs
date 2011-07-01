@@ -1,3 +1,14 @@
+zfs-linux (0.6.0.21-0ubuntu1) unstable; urgency=low
+
+  [ Prasad Joshi ]
+  * Tear down and flush the mmap region
+  * Use truncate_setsize in zfs_setattr
+
+  [ Brian Behlendorf ]
+  * Ensure all block devices are available
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 01 Jul 2011 11:41:40 -0500
+
 zfs-linux (0.6.0.20-0ubuntu1) unstable; urgency=low
 
   [ Gunnar Beutner ]
