@@ -4152,143 +4152,10 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 	return (error);
 }
 
-/*
- * We don't want to have a hard dependency
- * against some special symbols in sharefs
- * nfs, and smbsrv.  Determine them if needed when
- * the first file system is shared.
- * Neither sharefs, nfs or smbsrv are unloadable modules.
- */
-#ifdef HAVE_SHARE
-int (*znfsexport_fs)(void *arg);
-int (*zshare_fs)(enum sharefs_sys_op, share_t *, uint32_t);
-int (*zsmbexport_fs)(void *arg, boolean_t add_share);
-
-int zfs_nfsshare_inited;
-int zfs_smbshare_inited;
-
-ddi_modhandle_t nfs_mod;
-ddi_modhandle_t sharefs_mod;
-ddi_modhandle_t smbsrv_mod;
-kmutex_t zfs_share_lock;
-
-static int
-zfs_init_sharefs()
-{
-	int error;
-
-	ASSERT(MUTEX_HELD(&zfs_share_lock));
-	/* Both NFS and SMB shares also require sharetab support. */
-	if (sharefs_mod == NULL && ((sharefs_mod =
-	    ddi_modopen("fs/sharefs",
-	    KRTLD_MODE_FIRST, &error)) == NULL)) {
-		return (ENOSYS);
-	}
-	if (zshare_fs == NULL && ((zshare_fs =
-	    (int (*)(enum sharefs_sys_op, share_t *, uint32_t))
-	    ddi_modsym(sharefs_mod, "sharefs_impl", &error)) == NULL)) {
-		return (ENOSYS);
-	}
-	return (0);
-}
-#endif /* HAVE_SHARE */
-
 static int
 zfs_ioc_share(zfs_cmd_t *zc)
 {
-#ifdef HAVE_SHARE
-	int error;
-	int opcode;
-
-	switch (zc->zc_share.z_sharetype) {
-	case ZFS_SHARE_NFS:
-	case ZFS_UNSHARE_NFS:
-		if (zfs_nfsshare_inited == 0) {
-			mutex_enter(&zfs_share_lock);
-			if (nfs_mod == NULL && ((nfs_mod = ddi_modopen("fs/nfs",
-			    KRTLD_MODE_FIRST, &error)) == NULL)) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			if (znfsexport_fs == NULL &&
-			    ((znfsexport_fs = (int (*)(void *))
-			    ddi_modsym(nfs_mod,
-			    "nfs_export", &error)) == NULL)) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			error = zfs_init_sharefs();
-			if (error) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			zfs_nfsshare_inited = 1;
-			mutex_exit(&zfs_share_lock);
-		}
-		break;
-	case ZFS_SHARE_SMB:
-	case ZFS_UNSHARE_SMB:
-		if (zfs_smbshare_inited == 0) {
-			mutex_enter(&zfs_share_lock);
-			if (smbsrv_mod == NULL && ((smbsrv_mod =
-			    ddi_modopen("drv/smbsrv",
-			    KRTLD_MODE_FIRST, &error)) == NULL)) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			if (zsmbexport_fs == NULL && ((zsmbexport_fs =
-			    (int (*)(void *, boolean_t))ddi_modsym(smbsrv_mod,
-			    "smb_server_share", &error)) == NULL)) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			error = zfs_init_sharefs();
-			if (error) {
-				mutex_exit(&zfs_share_lock);
-				return (ENOSYS);
-			}
-			zfs_smbshare_inited = 1;
-			mutex_exit(&zfs_share_lock);
-		}
-		break;
-	default:
-		return (EINVAL);
-	}
-
-	switch (zc->zc_share.z_sharetype) {
-	case ZFS_SHARE_NFS:
-	case ZFS_UNSHARE_NFS:
-		if (error =
-		    znfsexport_fs((void *)
-		    (uintptr_t)zc->zc_share.z_exportdata))
-			return (error);
-		break;
-	case ZFS_SHARE_SMB:
-	case ZFS_UNSHARE_SMB:
-		if (error = zsmbexport_fs((void *)
-		    (uintptr_t)zc->zc_share.z_exportdata,
-		    zc->zc_share.z_sharetype == ZFS_SHARE_SMB ?
-		    B_TRUE: B_FALSE)) {
-			return (error);
-		}
-		break;
-	}
-
-	opcode = (zc->zc_share.z_sharetype == ZFS_SHARE_NFS ||
-	    zc->zc_share.z_sharetype == ZFS_SHARE_SMB) ?
-	    SHAREFS_ADD : SHAREFS_REMOVE;
-
-	/*
-	 * Add or remove share from sharetab
-	 */
-	error = zshare_fs(opcode,
-	    (void *)(uintptr_t)zc->zc_share.z_sharedata,
-	    zc->zc_share.z_sharemax);
-
-	return (error);
-#else
-	return (ENOTSUP);
-#endif /* HAVE_SHARE */
+	return (ENOSYS);
 }
 
 ace_t full_access[] = {
@@ -5175,10 +5042,6 @@ _init(void)
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
-#ifdef HAVE_SHARE
-	mutex_init(&zfs_share_lock, NULL, MUTEX_DEFAULT, NULL);
-#endif /* HAVE_SHARE */
-
 	printk(KERN_NOTICE "ZFS: Loaded module v%s%s, "
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
 	       ZFS_META_VERSION, ZFS_DEBUG_STR,
@@ -5204,16 +5067,7 @@ _fini(void)
 	zvol_fini();
 	zfs_fini();
 	spa_fini();
-#ifdef HAVE_SHARE
-	if (zfs_nfsshare_inited)
-		(void) ddi_modclose(nfs_mod);
-	if (zfs_smbshare_inited)
-		(void) ddi_modclose(smbsrv_mod);
-	if (zfs_nfsshare_inited || zfs_smbshare_inited)
-		(void) ddi_modclose(sharefs_mod);
 
-	mutex_destroy(&zfs_share_lock);
-#endif /* HAVE_SHARE */
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 

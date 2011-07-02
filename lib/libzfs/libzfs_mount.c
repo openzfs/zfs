@@ -117,21 +117,20 @@ zfs_share_proto_t share_all_proto[] = {
 };
 
 /*
- * Search for NFS and SMB exports for the given mountpoint and protocol, returning
+ * Search the sharetab for the given mountpoint and protocol, returning
  * a zfs_share_type_t value.
  */
 static zfs_share_type_t
 is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 {
 	char buf[MAXPATHLEN], *tab;
+	char *ptr;
 
 	if (hdl->libzfs_sharetab == NULL)
 		return (SHARED_NOT_SHARED);
 
 	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
 
-	/* Search /etc/exports for NFS exports */
-	/* FIXME: Assumes the file is tab delimited. */
 	while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
 
 		/* the mountpoint is the first entry on each line */
@@ -140,14 +139,30 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 
 		*tab = '\0';
 		if (strcmp(buf, mountpoint) == 0) {
-			if (proto == PROTO_NFS)
-				return (SHARED_NFS);
-			else
-				return (SHARED_NOT_SHARED);
+			/*
+			 * the protocol field is the third field
+			 * skip over second field
+			 */
+			ptr = ++tab;
+			if ((tab = strchr(ptr, '\t')) == NULL)
+				continue;
+			ptr = ++tab;
+			if ((tab = strchr(ptr, '\t')) == NULL)
+				continue;
+			*tab = '\0';
+			if (strcmp(ptr,
+			    proto_table[proto].p_name) == 0) {
+				switch (proto) {
+				case PROTO_NFS:
+					return (SHARED_NFS);
+				case PROTO_SMB:
+					return (SHARED_SMB);
+				default:
+					return (0);
+				}
+			}
 		}
 	}
-
-	/* XXX: Search /etc/samba/smb.conf for SMB exports, return SHARED_SMB */
 
 	return (SHARED_NOT_SHARED);
 }
@@ -665,12 +680,12 @@ _zfs_init_libshare(void)
 	char path[MAXPATHLEN];
 	char isa[MAXISALEN];
 
-#if defined(_LP64)
+/*#if defined(_LP64)
 	if (sysinfo(SI_ARCHITECTURE_64, isa, MAXISALEN) == -1)
 		isa[0] = '\0';
-#else
+#else*/
 	isa[0] = '\0';
-#endif
+/*#endif*/
 	(void) snprintf(path, MAXPATHLEN,
 	    "/usr/lib/%s/libshare.so.1", isa);
 
@@ -854,14 +869,11 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		return (0);
 
 	if ((ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
-#ifdef HAVE_SHARE
 		(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
 		    zfs_get_name(zhp), _sa_errorstr != NULL ?
 		    _sa_errorstr(ret) : "");
 		return (-1);
-#endif /* HAVE_SHARE */
-		return (0);
 	}
 
 	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
