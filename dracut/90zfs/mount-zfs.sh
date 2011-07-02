@@ -3,14 +3,11 @@
 . /lib/dracut-lib.sh
 
 if [ "$rootfs" = "zfs" ]; then
-    zfsrootfs=`echo "$root" | sed 's|^zfs:||'`
-    zfspool=`echo "$zfsrootfs" | sed 's|/.*||g'`
-    zpool import -N "$zfspool"
-    mount -o zfsutil -t "$rootfs" "$zfsrootfs" "$NEWROOT"
-    if [ "$?" = "0" ]
-    then
+    # parse-zfs.sh should have left our rpool imported and rpool/fs in $root.
+    mount -o zfsutil -t "$rootfs" "$root" "$NEWROOT"
+    if [ "$?" = "0" ] ; then
         ROOTFS_MOUNTED=yes
     else
-        mount -t "$rootfs" "$zfsrootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
+        mount -t "$rootfs" "$root" "$NEWROOT" && ROOTFS_MOUNTED=yes
     fi
 fi
