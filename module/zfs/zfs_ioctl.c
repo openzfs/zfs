@@ -591,7 +591,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, cred_t *cr)
 	return (error);
 }
 
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 static int
 zfs_secpolicy_deleg_share(zfs_cmd_t *zc, cred_t *cr)
 {
@@ -615,12 +615,12 @@ zfs_secpolicy_deleg_share(zfs_cmd_t *zc, cred_t *cr)
 	return (dsl_deleg_access(zc->zc_name,
 	    ZFS_DELEG_PERM_SHARE, cr));
 }
-#endif /* HAVE_SHARE */
+#endif /* HAVE_SMB_SHARE */
 
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 {
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -631,13 +631,13 @@ zfs_secpolicy_share(zfs_cmd_t *zc, cred_t *cr)
 	}
 #else
 	return (ENOTSUP);
-#endif /* HAVE_SHARE */
+#endif /* HAVE_SMB_SHARE */
 }
 
 int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, cred_t *cr)
 {
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 	if (!INGLOBALZONE(curproc))
 		return (EPERM);
 
@@ -648,7 +648,7 @@ zfs_secpolicy_smb_acl(zfs_cmd_t *zc, cred_t *cr)
 	}
 #else
 	return (ENOTSUP);
-#endif /* HAVE_SHARE */
+#endif /* HAVE_SMB_SHARE */
 }
 
 static int
@@ -4272,7 +4272,7 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 /*
  * Remove all ACL files in shares dir
  */
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 static int
 zfs_smb_acl_purge(znode_t *dzp)
 {
@@ -4291,12 +4291,12 @@ zfs_smb_acl_purge(znode_t *dzp)
 	zap_cursor_fini(&zc);
 	return (error);
 }
-#endif /* HAVE SHARE */
+#endif /* HAVE_SMB_SHARE */
 
 static int
 zfs_ioc_smb_acl(zfs_cmd_t *zc)
 {
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 	vnode_t *vp;
 	znode_t *dzp;
 	vnode_t *resourcevp = NULL;
@@ -4420,7 +4420,7 @@ zfs_ioc_smb_acl(zfs_cmd_t *zc)
 	return (error);
 #else
 	return (ENOTSUP);
-#endif /* HAVE_SHARE */
+#endif /* HAVE_SMB_SHARE */
 }
 
 /*
