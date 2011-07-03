@@ -19,8 +19,6 @@ case "$root" in
     # No root set, so we want to read the bootfs attribute.  We can't do that until udev settles,
     # so we'll set dummy values and hope for the best later on.
     root="zfs:AUTO"
-    
-    rootfs="zfs"
     rootok=1
 
     info "ZFS: Enabling autodetection of bootfs after udev settles."
@@ -38,8 +36,6 @@ case "$root" in
     root="${root#zfs:}"
     root="${root#FILESYSTEM=}"
     root="zfs:${root#ZFS=}"
-    
-    rootfs="zfs"
     rootok=1
     
     info "ZFS: Set ${root} as bootfs."
