@@ -47,8 +47,6 @@ if [ "$rootfs" = "zfs" ]; then
           zpool export "$fs"
         fi
       done
-
-      return 0
     fi
   else
     # Should have an explicit pool set, so just import it and we're done.
@@ -65,14 +63,8 @@ if [ "$rootfs" = "zfs" ]; then
 
         return 1
       fi
-
-      # We're good!
-      return 0
     else
       info "ZFS: Pool ${pool} imported by module."
-
-      # We're good!
-      return 0
     fi
   fi
   
