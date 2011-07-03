@@ -32,8 +32,7 @@ case "$root" in
 
         return 1
       else
-        root="zfs:$zfsbootfs"
-        pool="${root%%/*}"
+        pool="${zfsbootfs%%/*}"
 
         info "ZFS: Using ${zfsbootfs} as root."
 
@@ -42,14 +41,14 @@ case "$root" in
         # in by the kernel module should stay imported.
         zpool list -H | while read fs rest ; do
           if [ "$pool" != "$fs" ] ; then
-            zpool export "$fs"
+            zpool export "$fs" || true
           fi
         done
       fi
     else
       # Should have an explicit pool set, so just import it and we're done.
-      zfsboot="${root#zfs:}"
-      pool="${zfsboot%%/*}"
+      zfsbootfs="${root#zfs:}"
+      pool="${zfsbootfs%%/*}"
       if zpool list -H $pool > /dev/null ; then
         # pool wasn't imported automatically by the kernel module, so try it manually.
         info "ZFS: Importing pool ${pool}..."
@@ -65,12 +64,10 @@ case "$root" in
     fi
   
     # Above should have left our rpool imported and rpool/fs in $root.
-    zfsboot="${root#zfs:}"
-    mount -o zfsutil -t zfs "$zfsboot" "$NEWROOT"
-    if [ "$?" = "0" ] ; then
-        ROOTFS_MOUNTED=yes
+    if mount -o zfsutil -t zfs "$zfsbootfs" "$NEWROOT" ; then
+      ROOTFS_MOUNTED=yes
     else
-        mount -t zfs "$zfsboot" "$NEWROOT" && ROOTFS_MOUNTED=yes
+      mount -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
     fi
     ;;
 esac

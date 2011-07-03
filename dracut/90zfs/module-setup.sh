@@ -43,5 +43,4 @@ install() {
   dracut_install hostid
   inst_hook cmdline 95 "$moddir/parse-zfs.sh"
   inst_hook mount 98 "$moddir/mount-zfs.sh"
-  inst_hook initqueue 50 "$moddir/zfs-link-root.sh"
 }

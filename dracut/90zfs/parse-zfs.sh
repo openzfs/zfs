@@ -41,3 +41,7 @@ case "$root" in
     info "ZFS: Set ${root} as bootfs."
     ;;
 esac
+
+# Finished script is work-around for Dracut bug.  Dracut locks if there are no finished scripts.
+ln -s /dev/null /dev/root 2>/dev/null
+echo '[ -e /dev/zfs ]' > $hookdir/initqueue/finished/zfs.sh
