@@ -4,7 +4,7 @@
 
 # Rather than wait for settled, let's just keep checking for /dev/zfs before we start.
 if [ ! -c /dev/zfs ] ; then
-  info "ZFS: Still waiting for /dev/zfs..."
+  info "ZFS: Waiting for /dev/zfs..."
   return 1
 fi
 
@@ -59,10 +59,10 @@ else
   # Should have an explicit pool set, so just import it and we're done.
   zfsboot="${root#zfs:}"
   pool="${zfsboot%%/*}"
-  if ! zpool list -H $pool > /dev/null ; then
+  if zpool list -H $pool > /dev/null ; then
     # pool wasn't imported automatically by the kernel module, so try it manually.
     info "ZFS: Importing pool ${pool}..."
-    if ! zpool import -N $pool ; then 
+    if zpool import -N $pool ; then 
       warn "ZFS: Unable to import pool ${pool}."
       
       rootfs=""
