@@ -35,7 +35,7 @@ case $1 in
     while IFS= read -r -d $'\n' dev; do
       mdev=$(echo "$dev" | awk '{ print $1; }')
       echo -n "mounting $mdev..."
-      if `zfs mount $mdev`; then
+      if zfs mount $mdev; then
         echo -e "done";
       else
         echo -e "failed";
@@ -52,7 +52,7 @@ case $1 in
       while IFS= read -r -d $'\n' dev; do
         mdev=$(echo "$dev" | awk '{ print $1 }');
         echo -n "umounting $mdev...";
-        if `zfs umount $mdev`; then
+        if zfs umount $mdev; then
           echo -e "done";
         else
           echo -e "failed";
