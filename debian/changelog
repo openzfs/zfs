@@ -1,3 +1,23 @@
+zfs-linux (0.6.0.22.rc5-0ubuntu1) unstable; urgency=low
+
+  [ Prasad Joshi ]
+  * MMAP Optimization
+
+  [ Brian Behlendorf ]
+  * Remove unused MMAP functions
+  * Add ZFS specific mmap() checks
+  * Avoid 'rpm -q' bug for 'make pkg'
+  * Linux compat 2.6.39: security_inode_init_security()
+  * Linux compat 2.6.39: mount_nodev()
+  * Fix implicit declaration of 'mkdirp'
+  * Always allow non-user xattrs
+  * Prep zfs-0.6.0-rc5 tag
+
+  [ Rohan Puri ]
+  * Support mandatory locks (nbmand)
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 03 Jul 2011 13:06:48 -0500
+
 zfs-linux (0.6.0.21-0ubuntu1) unstable; urgency=low
 
   [ Prasad Joshi ]
