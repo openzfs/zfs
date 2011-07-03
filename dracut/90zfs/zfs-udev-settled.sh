@@ -8,6 +8,8 @@ if [ ! -c /dev/zfs ] ; then
   return 1
 fi
 
+info "ZFS: Detecting & importing pool for ${root}"
+
 # We have ZFS modules loaded, so we're able to import pools now.
 if [ "$root" = "zfs:AUTO" ] ; then
   # Need to parse bootfs attribute
