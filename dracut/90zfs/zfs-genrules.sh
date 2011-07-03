@@ -10,10 +10,10 @@ if [ "${root%%:*}" = "zfs" ]; then
     # Not sure this is the right way to add these scripts?  Calling initqueue seems 
     # like the 'right' way.  In any case, a race condition means these dir's aren't 
     # always present in time.
-    mkdir -p /initqueue-settled /initqueue-finished
+    mkdir -p $hookdir/initqueue-settled $hookdir/initqueue-finished
     
     printf '[ -e "%s" ] && { ln -s "%s" /dev/root 2>/dev/null; rm "$job"; }\n' \
-	"/dev/null" "/dev/null" >> /initqueue-settled/zfssymlink.sh
+	"/dev/null" "/dev/null" >> $hookdir/initqueue-settled/zfssymlink.sh
 
-    echo '[ -e /dev/root ]' > /initqueue-finished/zfs.sh
+    echo '[ -e /dev/root ]' > $hookdir/initqueue-finished/zfs.sh
 fi

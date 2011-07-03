@@ -45,6 +45,3 @@ case "$root" in
     info "ZFS: Set ${root} as bootfs."
     ;;
 esac
-
-# Call back later to import the pools and possible parse bootfs
-/sbin/initqueue --unique /sbin/zfs-udev-settled.sh
