@@ -4,8 +4,6 @@
 
 case "$root" in
   zfs:*)
-    info "ZFS: Detecting & importing pool for ${root}"
-
     # We have ZFS modules loaded, so we're able to import pools now.
     if [ "$root" = "zfs:AUTO" ] ; then
       # Need to parse bootfs attribute
@@ -64,6 +62,8 @@ case "$root" in
     fi
   
     # Above should have left our rpool imported and rpool/fs in $root.
+    # We need zfsutil for non-legacy mounts, so we'll try that first.  If that fails,
+    # try mounting normally to support a legacy mountpoint.
     if mount -o zfsutil -t zfs "$zfsbootfs" "$NEWROOT" ; then
       ROOTFS_MOUNTED=yes
     else
