@@ -31,16 +31,16 @@ case $1 in
       # do, thus i'm not breaking here.
     fi
 
-     # mount the filesystems
-     while IFS= read -r -d $'\n' dev; do
-       mdev=$(echo "$dev" | awk '{ print $1; }')
-       echo -n "mounting $mdev..."
-       if `zfs mount $mdev`; then
-         echo -e "done";
-       else
-         echo -e "failed";
-       fi
-     done < <(zfs list -H);
+    # mount the filesystems
+    while IFS= read -r -d $'\n' dev; do
+      mdev=$(echo "$dev" | awk '{ print $1; }')
+      echo -n "mounting $mdev..."
+      if `zfs mount $mdev`; then
+        echo -e "done";
+      else
+        echo -e "failed";
+      fi
+    done < <(zfs list -H);
 
 
   ;;
