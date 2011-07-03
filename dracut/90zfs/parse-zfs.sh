@@ -30,12 +30,12 @@ case "$root" in
     echo "ZFS: Attempting to detect root from imported ZFS pools."
 
     # Might be imported by the kernel module, so try searching before we import anything.
-    zfsbootfs=`zpool list -H -o bootfs | grep -v ^-$ -m 1`
+    zfsbootfs=`zpool list -H -o bootfs | sed 'q'`
     if [ "x$zfsbootfs" = 'x' ] ; then
       # Not there, so we need to import everything.
       echo "ZFS: Attempting to import additional pools."
       zpool import -N -a
-      zfsbootfs=`zpool list -H -o bootfs | grep -v ^-$ -m 1`
+      zfsbootfs=`zpool list -H -o bootfs | sed 'q'`
     fi
     if [ "x$zfsbootfs" = 'x' ] ; then
       pool=""
