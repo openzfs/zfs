@@ -9,7 +9,7 @@ if [ ! -c /dev/zfs ] ; then
 fi
 
 # We have ZFS modules loaded, so we're able to import pools now.
-if [ "$root" = "-auto-" ] ; then
+if [ "$root" = "zfs:AUTO" ] ; then
   # Need to parse bootfs attribute
   info "ZFS: Attempting to detect root from imported ZFS pools."
 
@@ -37,7 +37,7 @@ if [ "$root" = "-auto-" ] ; then
   else
     rootfs="zfs"
     rootok=1
-    root="$zfsbootfs"
+    root="zfs:$zfsbootfs"
     pool="${root%%/*}"
     
     info "ZFS: Using ${zfsbootfs} as root."
@@ -55,7 +55,8 @@ if [ "$root" = "-auto-" ] ; then
   fi
 else
   # Should have an explicit pool set, so just import it and we're done.
-  pool="${root%%/*}"
+  zfsboot="${root#zfs:}"
+  pool="${zfsboot%%/*}"
   if ! zpool list -H $pool > /dev/null ; then
     # pool wasn't imported automatically by the kernel module, so try it manually.
     info "ZFS: Importing pool ${pool}..."

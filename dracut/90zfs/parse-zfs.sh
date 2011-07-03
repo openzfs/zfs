@@ -18,7 +18,7 @@ case "$root" in
     # We'll take root unset, root=zfs, or root=zfs:
     # No root set, so we want to read the bootfs attribute.  We can't do that until udev settles,
     # so we'll set dummy values and hope for the best later on.
-    root="-auto-"
+    root="zfs:AUTO"
     
     rootfs="zfs"
     rootok=1
@@ -37,7 +37,7 @@ case "$root" in
     # Strip down to just the pool/fs
     root="${root#zfs:}"
     root="${root#FILESYSTEM=}"
-    root="${root#ZFS=}"
+    root="zfs:${root#ZFS=}"
     
     rootfs="zfs"
     rootok=1
