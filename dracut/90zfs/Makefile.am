@@ -6,7 +6,8 @@ dist_pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/installkernel \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
 	$(top_srcdir)/dracut/90zfs/zfs-genrules.sh \
-	$(top_srcdir)/dracut/90zfs/parse-zfs.sh
+	$(top_srcdir)/dracut/90zfs/parse-zfs.sh \
+	$(top_srcdir)/dracut/90zfs/zfs-udev-settled.sh
 
 all:
 	@list='$(dist_pkgdracut_SCRIPTS)'; \
