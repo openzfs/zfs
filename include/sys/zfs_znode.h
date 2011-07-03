@@ -236,9 +236,8 @@ typedef struct znode {
  */
 #define	ZTOI(znode)	(&((znode)->z_inode))
 #define	ITOZ(inode)	(container_of((inode), znode_t, z_inode))
-#define VTOZSB(vfs)	((zfs_sb_t *)((vfs)->mnt_sb->s_fs_info))
-#define ZTOZSB(znode)	((zfs_sb_t *)(ZTOI(znode)->i_sb->s_fs_info))
-#define ITOZSB(inode)	((zfs_sb_t *)((inode)->i_sb->s_fs_info))
+#define	ZTOZSB(znode)	((zfs_sb_t *)(ZTOI(znode)->i_sb->s_fs_info))
+#define	ITOZSB(inode)	((zfs_sb_t *)((inode)->i_sb->s_fs_info))
 
 #define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
 
@@ -306,7 +305,7 @@ typedef struct znode {
 #define	CONTENT_MODIFIED	(ATTR_MTIME | ATTR_CTIME)
 
 #define	ZFS_ACCESSTIME_STAMP(zsb, zp) \
-	if ((zsb)->z_atime && !((zsb)->z_vfs->mnt_flags & MNT_READONLY)) \
+	if ((zsb)->z_atime && !(zfs_is_readonly(zsb))) \
 		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL, B_FALSE);
 
 extern int	zfs_init_fs(zfs_sb_t *, znode_t **);

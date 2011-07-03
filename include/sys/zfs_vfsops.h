@@ -42,7 +42,6 @@ struct zfs_sb;
 struct znode;
 
 typedef struct zfs_sb {
-	struct vfsmount	*z_vfs;		/* generic vfs struct */
 	struct super_block *z_sb;	/* generic super_block */
 	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
@@ -89,7 +88,7 @@ typedef struct zfs_sb {
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
 
-#define	ZSB_XATTR_USER	0x0001		/* Enable user xattrs */
+#define	ZSB_XATTR	0x0001		/* Enable user xattrs */
 
 
 /*
@@ -182,6 +181,7 @@ extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
 extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
 extern void zfs_sb_free(zfs_sb_t *zsb);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
+extern boolean_t zfs_is_readonly(zfs_sb_t *zsb);
 
 extern int zfs_register_callbacks(zfs_sb_t *zsb);
 extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
@@ -190,7 +190,7 @@ extern int zfs_umount(struct super_block *sb);
 extern int zfs_remount(struct super_block *sb, int *flags, char *data);
 extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);
 extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
-extern int zfs_vget(struct vfsmount *vfsp, struct inode **ipp, fid_t *fidp);
+extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 
 #ifdef	__cplusplus
 }
