@@ -74,6 +74,10 @@ start()
 		log_begin_msg "Mounting ZFS filesystems"
 		$ZFS mount -a
 		log_end_msg $?
+
+		log_begin_msg "Exporting ZFS filesystems"
+		$ZFS share -a
+		log_end_msg $?
 	fi
 	
 	touch $LOCKFILE

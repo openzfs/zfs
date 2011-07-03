@@ -42,6 +42,14 @@ case $1 in
       fi
     done < <(zfs list -H);
 
+    # export the filesystems
+    echo -n "exporting ZFS filesystems..."
+    if zfs share -a; then
+      echo -e "done";
+    else
+      echo -e "failed";
+    fi
+
 
   ;;
 
