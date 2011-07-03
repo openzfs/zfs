@@ -34,7 +34,6 @@ install() {
   inst /etc/zfs/zdev.conf
   inst /etc/zfs/zpool.cache
   inst /etc/hostid
-  inst_script "$moddir/zfs-udev-settled.sh" /sbin/zfs-udev-settled.sh
   dracut_install zfs
   dracut_install zpool
   dracut_install zpool_layout
@@ -44,5 +43,5 @@ install() {
   dracut_install hostid
   inst_hook cmdline 95 "$moddir/parse-zfs.sh"
   inst_hook mount 98 "$moddir/mount-zfs.sh"
-  inst_hook pre-udev 29 "$moddir/zfs-genrules.sh"
+  inst_hook initqueue 50 "$moddir/zfs-link-root.sh"
 }
