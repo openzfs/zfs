@@ -1,5 +1,23 @@
 #!/bin/sh
 
+# This seems to not be ready in time for some reason...
+ZFS_DEV=/dev/zfs
+if [ ! -c ${ZFS_DEV} ]; then
+  modprobe zfs
+  
+  COUNT=0
+  DELAY=5
+  while [ ! -e ${ZFS_DEV} ]; do
+		if [ ${COUNT} -gt ${DELAY} ]; then
+		  echo "ZFS: Module didn't create /dev/zfs.  This isn't likely to end well..."
+			break
+		fi
+
+		let COUNT=${COUNT}+1
+	  sleep 1
+	done
+fi
+
 case "$root" in
   ZFS\=*|zfs:*|zfs:FILESYSTEM\=*|FILESYSTEM\=*)
     # root is explicit ZFS root. Try to import the pool.

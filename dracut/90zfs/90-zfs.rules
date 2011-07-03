@@ -3,6 +3,5 @@ ACTION!="add|change", GOTO="zfs_end"
 
 ENV{ID_FS_TYPE}=="zfs", RUN+="/sbin/modprobe zfs"
 ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs"
-ENV{ID_FS_TYPE}=="", RUN+="/sbin/modprobe zfs"
 
 LABEL="zfs_end"
