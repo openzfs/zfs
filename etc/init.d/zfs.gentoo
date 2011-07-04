@@ -6,7 +6,7 @@
 depend()
 {
 	before net
-	after udev
+	after udev localmount
 	keyword -lxc -openvz -prefix -vserver
 }
 
