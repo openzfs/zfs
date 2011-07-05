@@ -116,6 +116,9 @@ libunicode_la_OBJECTS = $(am_libunicode_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libunicode_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libunicode_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -327,6 +330,7 @@ libunicode_la_SOURCES = \
 	$(top_srcdir)/module/unicode/u8_textprep.c \
 	$(top_srcdir)/module/unicode/uconv.c
 
+libunicode_la_LDFLAGS = -version-info 1:0:0
 all: all-am
 
 .SUFFIXES:
@@ -393,7 +397,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libunicode.la: $(libunicode_la_OBJECTS) $(libunicode_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libunicode_la_OBJECTS) $(libunicode_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libunicode_la_LINK) -rpath $(libdir) $(libunicode_la_OBJECTS) $(libunicode_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

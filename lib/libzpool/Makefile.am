@@ -93,7 +93,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zle.c \
 	$(top_srcdir)/module/zfs/zrlock.c
 
-libzpool_la_LDFLAGS = -pthread
+libzpool_la_LDFLAGS = -pthread -version-info 1:0:0
 
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \

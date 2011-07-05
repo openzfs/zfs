@@ -10,3 +10,5 @@ lib_LTLIBRARIES = libavl.la
 
 libavl_la_SOURCES = \
 	$(top_srcdir)/module/avl/avl.c
+
+libavl_la_LDFLAGS = -version-info 1:0:0
