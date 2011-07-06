@@ -6,7 +6,7 @@ if [ "${root%%:*}" = "zfs" ]; then
     } >> /dev/.udev/rules.d/99-zfs.rules
     
     printf '[ -e "%s" ] && { ln -s "%s" /dev/root 2>/dev/null; rm "$job"; }\n' \
-	"/dev/null" "/dev/null" >> /initqueue-settled/zfssymlink.sh
+	"/dev/null" "/dev/null" >> $hookdir/initqueue/settled/zfssymlink.sh
 
-    echo '[ -e /dev/root ]' > /initqueue-finished/zfs.sh
+    echo '[ -e /dev/root ]' > $hookdir/initqueue/finished/zfs.sh
 fi

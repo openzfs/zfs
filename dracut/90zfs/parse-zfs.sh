@@ -13,7 +13,7 @@ esac
 
 if [ "$rootok" != "1" ] ; then
 	echo "Auto-discovering available ZFS pools for root filesystem"
-	zpool import -aN
+	zpool import -afN
 	zfsbootfs=`zpool list -H -o bootfs | grep -v ^-$ -m 1`
 	if [ -n "$root" ] && zfs list "$root" > /dev/null 2>&1 ; then
 		root="zfs:$root"
