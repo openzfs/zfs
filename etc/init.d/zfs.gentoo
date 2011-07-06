@@ -11,8 +11,8 @@ depend()
 }
 
 CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/usr/sbin/zpool
-ZFS=/usr/sbin/zfs
+ZPOOL=/sbin/zpool
+ZFS=/sbin/zfs
 ZFS_MODULE=zfs
 
 checksystem() {

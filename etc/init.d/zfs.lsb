@@ -32,8 +32,8 @@ RETVAL=0
 
 LOCKFILE=/var/lock/zfs
 CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/usr/sbin/zpool
-ZFS=/usr/sbin/zfs
+ZPOOL=/sbin/zpool
+ZFS=/sbin/zfs
 
 [ -x $ZPOOL ] || exit 1
 [ -x $ZFS ] || exit 2
