@@ -83,7 +83,7 @@ zpl_xattr_filldir(void *arg, const char *name, int name_len,
 	xattr_filldir_t *xf = arg;
 
 	if (!strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN))
-		if (!(ITOZSB(xf->inode)->z_flags & ZSB_XATTR_USER))
+		if (!(ITOZSB(xf->inode)->z_flags & ZSB_XATTR))
 			return (0);
 
 	if (!strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN))
@@ -281,7 +281,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 	if (strcmp(name, "") == 0)
 		return -EINVAL;
 
-	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR_USER))
+	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
 		return -EOPNOTSUPP;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
@@ -302,7 +302,7 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 	if (strcmp(name, "") == 0)
 		return -EINVAL;
 
-	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR_USER))
+	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
 		return -EOPNOTSUPP;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
@@ -404,14 +404,16 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_security_set);
 
 int
-zpl_xattr_security_init(struct inode *ip, struct inode *dip)
+zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr)
 {
         int error;
         size_t len;
         void *value;
         char *name;
 
-        error = security_inode_init_security(ip, dip, &name, &value, &len);
+        error = zpl_security_inode_init_security(ip, dip, qstr,
+	    &name, &value, &len);
         if (error) {
                 if (error == -EOPNOTSUPP)
                         return 0;

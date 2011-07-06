@@ -2358,42 +2358,48 @@ zpool_do_iostat(int argc, char **argv)
 		pool_list_update(list);
 
 		if ((npools = pool_list_count(list)) == 0)
-			break;
+			(void) printf(gettext("no pools available\n"));
+		else {
+			/*
+			 * Refresh all statistics.  This is done as an
+			 * explicit step before calculating the maximum name
+			 * width, so that any * configuration changes are
+			 * properly accounted for.
+			 */
+			(void) pool_list_iter(list, B_FALSE, refresh_iostat,
+				&cb);
 
-		/*
-		 * Refresh all statistics.  This is done as an explicit step
-		 * before calculating the maximum name width, so that any
-		 * configuration changes are properly accounted for.
-		 */
-		(void) pool_list_iter(list, B_FALSE, refresh_iostat, &cb);
+			/*
+			 * Iterate over all pools to determine the maximum width
+			 * for the pool / device name column across all pools.
+			 */
+			cb.cb_namewidth = 0;
+			(void) pool_list_iter(list, B_FALSE, get_namewidth,
+				&cb);
 
-		/*
-		 * Iterate over all pools to determine the maximum width
-		 * for the pool / device name column across all pools.
-		 */
-		cb.cb_namewidth = 0;
-		(void) pool_list_iter(list, B_FALSE, get_namewidth, &cb);
+			if (timestamp_fmt != NODATE)
+				print_timestamp(timestamp_fmt);
 
-		if (timestamp_fmt != NODATE)
-			print_timestamp(timestamp_fmt);
+			/*
+			 * If it's the first time, or verbose mode, print the
+			 * header.
+			 */
+			if (++cb.cb_iteration == 1 || verbose)
+				print_iostat_header(&cb);
 
-		/*
-		 * If it's the first time, or verbose mode, print the header.
-		 */
-		if (++cb.cb_iteration == 1 || verbose)
-			print_iostat_header(&cb);
+			(void) pool_list_iter(list, B_FALSE, print_iostat, &cb);
 
-		(void) pool_list_iter(list, B_FALSE, print_iostat, &cb);
+			/*
+			 * If there's more than one pool, and we're not in
+			 * verbose mode (which prints a separator for us),
+			 * then print a separator.
+			 */
+			if (npools > 1 && !verbose)
+				print_iostat_separator(&cb);
 
-		/*
-		 * If there's more than one pool, and we're not in verbose mode
-		 * (which prints a separator for us), then print a separator.
-		 */
-		if (npools > 1 && !verbose)
-			print_iostat_separator(&cb);
-
-		if (verbose)
-			(void) printf("\n");
+			if (verbose)
+				(void) printf("\n");
+		}
 
 		/*
 		 * Flush the output so that redirection to a file isn't buffered
@@ -2592,10 +2598,12 @@ zpool_do_list(int argc, char **argv)
 		ret = for_each_pool(argc, argv, B_TRUE, &cb.cb_proplist,
 		    list_callback, &cb);
 
-		if (argc == 0 && cb.cb_first && !cb.cb_scripted) {
+		if (argc == 0 && cb.cb_first)
 			(void) printf(gettext("no pools available\n"));
+		else if (argc && cb.cb_first) {
+			/* cannot open the given pool */
 			zprop_free_list(cb.cb_proplist);
-			return (0);
+			return (1);
 		}
 
 		if (interval == 0)

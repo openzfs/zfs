@@ -327,7 +327,7 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 static znode_t *
 zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
     dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl,
-    struct dentry *dentry)
+    struct dentry *dentry, struct inode *dip)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -383,8 +383,12 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	if (insert_inode_locked(ip))
 		goto error;
 
-	if (dentry)
+	if (dentry) {
+		if (zpl_xattr_security_init(ip, dip, &dentry->d_name))
+			goto error;
+
 		d_instantiate(dentry, ip);
+	}
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
@@ -681,11 +685,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (!(flag & IS_ROOT_NODE)) {
 		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl,
-		    vap->va_dentry);
+		    vap->va_dentry, ZTOI(dzp));
 		ASSERT(*zpp != NULL);
 		ASSERT(dzp != NULL);
-		err = zpl_xattr_security_init(ZTOI(*zpp), ZTOI(dzp));
-		ASSERT3S(err, ==, 0);
 	} else {
 		/*
 		 * If we are creating the root node, the "parent" we
@@ -894,7 +896,7 @@ again:
 	 * bonus buffer.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, obj_num, NULL, NULL);
+	    doi.doi_bonus_type, obj_num, NULL, NULL, NULL);
 	if (zp == NULL) {
 		err = ENOENT;
 	} else {
@@ -1119,22 +1121,6 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &zp->z_blksz, &dummy);
 }
 
-#ifdef HAVE_MMAP
-/*
- * This is a dummy interface used when pvn_vplist_dirty() should *not*
- * be calling back into the fs for a putpage().  E.g.: when truncating
- * a file, the pages being "thrown away* don't need to be written out.
- */
-/* ARGSUSED */
-static int
-zfs_no_putpage(vnode_t *vp, page_t *pp, u_offset_t *offp, size_t *lenp,
-    int flags, cred_t *cr)
-{
-	ASSERT(0);
-	return (0);
-}
-#endif /* HAVE_MMAP */
-
 /*
  * Increase the file length
  *
@@ -1338,9 +1324,7 @@ top:
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
-#ifdef HAVE_MANDLOCKS
 	struct inode *ip = ZTOI(zp);
-#endif /* HAVE_MANDLOCKS */
 	dmu_tx_t *tx;
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	zilog_t *zilog = zsb->z_log;
@@ -1362,17 +1346,14 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			return (error);
 	}
 
-#ifdef HAVE_MANDLOCKS
 	/*
 	 * Check for any locks in the region to be freed.
 	 */
-
-	if (MANDLOCK(ip, (mode_t)mode)) {
+	if (ip->i_flock && mandatory_lock(ip)) {
 		uint64_t length = (len ? len : zp->z_size - off);
-		if (error = chklock(ip, FWRITE, off, length, flag, NULL))
-			return (error);
+		if (!lock_may_write(ip, off, length))
+			return (EAGAIN);
 	}
-#endif /* HAVE_MANDLOCKS */
 
 	if (len == 0) {
 		error = zfs_trunc(zp, off);

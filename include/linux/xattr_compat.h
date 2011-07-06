@@ -84,4 +84,12 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 }
 #endif /* HAVE_DENTRY_XATTR_SET */
 
+#ifdef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
+#define zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
+	security_inode_init_security(ip, dip, qstr, nm, val, len)
+#else
+#define zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
+	security_inode_init_security(ip, dip, nm, val, len)
+#endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
+
 #endif /* _ZFS_XATTR_H */

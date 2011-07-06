@@ -1313,6 +1313,25 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 	}
 }
 
+static boolean_t
+zfs_is_namespace_prop(zfs_prop_t prop)
+{
+	switch (prop) {
+
+	case ZFS_PROP_ATIME:
+	case ZFS_PROP_DEVICES:
+	case ZFS_PROP_EXEC:
+	case ZFS_PROP_SETUID:
+	case ZFS_PROP_READONLY:
+	case ZFS_PROP_XATTR:
+	case ZFS_PROP_NBMAND:
+		return (B_TRUE);
+
+	default:
+		return (B_FALSE);
+	}
+}
+
 /*
  * Given a property name and value, set the property for the given dataset.
  */
@@ -1408,12 +1427,22 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 		if (do_prefix)
 			ret = changelist_postfix(cl);
 
-		/*
-		 * Refresh the statistics so the new property value
-		 * is reflected.
-		 */
-		if (ret == 0)
+		if (ret == 0) {
+			/*
+			 * Refresh the statistics so the new property
+			 * value is reflected.
+			 */
 			(void) get_stats(zhp);
+
+			/*
+			 * Remount the filesystem to propagate the change
+			 * if one of the options handled by the generic
+			 * Linux namespace layer has been modified.
+			 */
+			if (zfs_is_namespace_prop(prop) &&
+			    zfs_is_mounted(zhp, NULL))
+				ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
+		}
 	}
 
 error:
@@ -1530,7 +1559,7 @@ error:
  * True DSL properties are stored in an nvlist.  The following two functions
  * extract them appropriately.
  */
-static uint64_t
+uint64_t
 getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 {
 	nvlist_t *nv;

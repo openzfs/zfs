@@ -1107,8 +1107,9 @@ get_zfs_sb(const char *dsname, zfs_sb_t **zsbp)
 
 	mutex_enter(&os->os_user_ptr_lock);
 	*zsbp = dmu_objset_get_user(os);
-	if (*zsbp) {
-		mntget((*zsbp)->z_vfs);
+	if (*zsbp && (*zsbp)->z_sb) {
+		if (atomic_inc_not_zero(&((*zsbp)->z_sb->s_active)))
+			error = ESRCH;
 	} else {
 		error = ESRCH;
 	}
@@ -1119,7 +1120,7 @@ get_zfs_sb(const char *dsname, zfs_sb_t **zsbp)
 
 /*
  * Find a zfs_sb_t for a mounted filesystem, or create our own, in which
- * case its z_vfs will be NULL, and it will be opened as the owner.
+ * case its z_sb will be NULL, and it will be opened as the owner.
  */
 static int
 zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
@@ -1149,8 +1150,8 @@ zfs_sb_rele(zfs_sb_t *zsb, void *tag)
 {
 	rrw_exit(&zsb->z_teardown_lock, tag);
 
-	if (zsb->z_vfs) {
-		mntput(zsb->z_vfs);
+	if (zsb->z_sb) {
+		deactivate_super(zsb->z_sb);
 	} else {
 		dmu_objset_disown(zsb->z_os, zsb);
 		zfs_sb_free(zsb);
@@ -3239,7 +3240,7 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 			resume_err = zfs_resume_fs(zsb, zc->zc_name);
 			error = error ? error : resume_err;
 		}
-		mntput(zsb->z_vfs);
+		deactivate_super(zsb->z_sb);
 	} else {
 		if (dsl_dataset_tryown(ds, B_FALSE, FTAG)) {
 			error = dsl_dataset_clone_swap(clone, ds, B_TRUE);
@@ -3724,7 +3725,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 			if (error == 0)
 				error = zfs_resume_fs(zsb, tofs);
 			error = error ? error : end_err;
-			mntput(zsb->z_vfs);
+			deactivate_super(zsb->z_sb);
 		} else {
 			error = dmu_recv_end(&drc);
 		}
@@ -4137,7 +4138,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 		}
 		if (error == 0)
 			error = dmu_objset_userspace_upgrade(zsb->z_os);
-		mntput(zsb->z_vfs);
+		deactivate_super(zsb->z_sb);
 	} else {
 		/* XXX kind of reading contents without owning */
 		error = dmu_objset_hold(zc->zc_name, FTAG, &os);

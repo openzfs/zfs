@@ -63,9 +63,12 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-insert-inode-locked.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
+	$(top_srcdir)/config/kernel-mount-nodev.m4 \
 	$(top_srcdir)/config/kernel-open-bdev-exclusive.m4 \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
+	$(top_srcdir)/config/kernel-security-inode-init.m4 \
+	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
@@ -331,6 +334,7 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/attr.h \
 	$(top_srcdir)/lib/libspl/include/devid.h \
 	$(top_srcdir)/lib/libspl/include/libdevinfo.h \
+	$(top_srcdir)/lib/libspl/include/libgen.h \
 	$(top_srcdir)/lib/libspl/include/libshare.h \
 	$(top_srcdir)/lib/libspl/include/limits.h \
 	$(top_srcdir)/lib/libspl/include/locale.h \

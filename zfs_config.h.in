@@ -9,6 +9,9 @@
 /* fops->fsync() want 2 args */
 #undef HAVE_2ARGS_FSYNC
 
+/* security_inode_init_security wants 6 args */
+#undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
+
 /* struct block_device_operations use bdevs */
 #undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
 
@@ -123,6 +126,9 @@
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
+/* mount_nodev() is available */
+#undef HAVE_MOUNT_NODEV
+
 /* open_bdev_exclusive() is available */
 #undef HAVE_OPEN_BDEV_EXCLUSIVE
 
@@ -152,6 +158,9 @@
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
+
+/* truncate_setsize() is available */
+#undef HAVE_TRUNCATE_SETSIZE
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H

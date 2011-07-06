@@ -73,8 +73,6 @@ static struct dentry *
 zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
     int fh_len, int fh_type)
 {
-	zfs_sb_t *zsb = sb->s_fs_info;
-	struct vfsmount *vfs = zsb->z_vfs;
 	fid_t *fid = (fid_t *)fh;
 	struct inode *ip;
 	int len_bytes, rc;
@@ -86,7 +84,7 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
 		return ERR_PTR(-EINVAL);
 
-	rc = zfs_vget(vfs, &ip, fid);
+	rc = zfs_vget(sb, &ip, fid);
 
 	if (rc != 0)
 		return ERR_PTR(-rc);

@@ -88,8 +88,8 @@
 #define	MNTOPT_LOUD	"loud"		/* verbose mount */
 #define	MNTOPT_BIND	"bind"		/* remount part of a tree */
 #define	MNTOPT_RBIND	"rbind"		/* include subtrees */
-#define	MNTOPT_XATTR	"user_xattr"	/* enable extended attributes */
-#define	MNTOPT_NOXATTR	"nouser_xattr"	/* disable extended attributes */
+#define	MNTOPT_XATTR	"xattr"		/* enable extended attributes */
+#define	MNTOPT_NOXATTR	"noxattr"	/* disable extended attributes */
 #define	MNTOPT_COMMENT	"comment"	/* comment */
 #define	MNTOPT_ZFSUTIL	"zfsutil"	/* called by zfs utility */
 

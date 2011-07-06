@@ -29,6 +29,7 @@
 #include <linux/vfs_compat.h>
 #include <linux/xattr_compat.h>
 #include <linux/exportfs.h>
+#include <linux/writeback.h>
 
 /* zpl_inode.c */
 extern const struct inode_operations zpl_inode_operations;
@@ -50,7 +51,6 @@ extern const struct file_operations zpl_dir_file_operations;
 typedef struct zpl_mount_data {
 	const char *z_osname;	/* Dataset name */
 	void *z_data;		/* Mount options string */
-	struct vfsmount *z_vfs;	/* VFS mount point */
 } zpl_mount_data_t;
 
 extern const struct super_operations zpl_super_operations;
@@ -59,7 +59,8 @@ extern struct file_system_type zpl_fs_type;
 
 /* zpl_xattr.c */
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
-extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip);
+extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr);
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 
