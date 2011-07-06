@@ -4910,8 +4910,10 @@ ztest_run_zdb(char *pool)
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
 	VERIFY(realpath(getexecname(), bin) != NULL);
-	if (strncmp(bin, "/usr/sbin/ztest", 14) == 0) {
+	if (strncmp(bin, "/usr/sbin/ztest", 15) == 0) {
 		strcpy(bin, "/usr/sbin/zdb"); /* Installed */
+	} else if (strncmp(bin, "/sbin/ztest", 11) == 0) {
+		strcpy(bin, "/sbin/zdb"); /* Installed */
 	} else {
 		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
 		strcat(bin, "/zdb/zdb");
