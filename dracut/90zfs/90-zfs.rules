@@ -4,4 +4,7 @@ ACTION!="add|change", GOTO="zfs_end"
 ENV{ID_FS_TYPE}=="zfs", RUN+="/sbin/modprobe zfs"
 ENV{ID_FS_TYPE}=="zfs_member", RUN+="/sbin/modprobe zfs"
 
+KERNEL=="null", SYMLINK+="root"
+SYMLINK=="null", SYMLINK+="root"
+
 LABEL="zfs_end"
