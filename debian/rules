@@ -8,7 +8,13 @@ VERSION := $(shell awk '/^Version:/{print $$2}' META)
 
 override_dh_auto_configure:
 	# Build the userland, but don't build the kernel modules.
-	./configure --prefix=/usr --with-config=user
+	./configure \
+	  --prefix=/ \
+	  --bindir=/lib/udev \
+	  --libexecdir=/usr/libexec \
+	  --includedir=/usr/include \
+	  --datarootdir=/usr/share \
+	  --with-config=user \
 	
 override_dh_auto_test:
 	# `make check` cannot run in an unprivileged build environment.

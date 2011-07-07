@@ -1,6 +1,5 @@
 etc/udev/rules.d/*.rules lib/udev/rules.d/
 etc/zfs/zdev.conf
-usr/bin
-usr/sbin
-usr/share
 sbin
+lib/udev
+usr/share
