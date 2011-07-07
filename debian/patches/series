@@ -1,5 +1,5 @@
 volatile-version.patch
-disable-dist-init.patch
+#disable-dist-init.patch
 disable-dist-scripts.patch
 lintian-COPYING.patch
 lintian-ltmain.patch
