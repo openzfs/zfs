@@ -32,8 +32,8 @@ RETVAL=0
 
 LOCKFILE=/var/lock/zfs
 CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/usr/sbin/zpool
-ZFS=/usr/sbin/zfs
+ZPOOL=/sbin/zpool
+ZFS=/sbin/zfs
 
 [ -x $ZPOOL ] || exit 1
 [ -x $ZFS ] || exit 2
@@ -73,6 +73,10 @@ start()
 
 		log_begin_msg "Mounting ZFS filesystems"
 		$ZFS mount -a
+		log_end_msg $?
+
+		log_begin_msg "Exporting ZFS filesystems"
+		$ZFS share -a
 		log_end_msg $?
 	fi
 	

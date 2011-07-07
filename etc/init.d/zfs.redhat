@@ -87,6 +87,8 @@ start()
 
 	action $"Mounting automounted ZFS filesystems: " $ZFS mount -a || return 152
 
+	action $"Exporting ZFS filesystems: " $ZFS share -a || return 153
+
 	# Read fstab, try to mount zvols ignoring error
 	read_fstab "^/dev/(zd|zvol)"
 	template=$"Mounting volume %s registered in fstab: "

@@ -118,6 +118,9 @@ libuutil_la_OBJECTS = $(am_libuutil_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libuutil_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libuutil_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -338,6 +341,7 @@ libuutil_la_SOURCES = \
 	$(top_srcdir)/lib/libuutil/uu_string.c \
 	$(top_srcdir)/lib/libuutil/uu_strtoint.c
 
+libuutil_la_LDFLAGS = -version-info 1:0:0
 all: all-am
 
 .SUFFIXES:
@@ -404,7 +408,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libuutil.la: $(libuutil_la_OBJECTS) $(libuutil_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libuutil_la_OBJECTS) $(libuutil_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libuutil_la_LINK) -rpath $(libdir) $(libuutil_la_OBJECTS) $(libuutil_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

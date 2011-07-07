@@ -5,21 +5,19 @@
 
 depend()
 {
-	before net
-	after udev
+	# bootmisc will log to /var which may be a different zfs than root.
+	before net bootmisc
+	after udev localmount
 	keyword -lxc -openvz -prefix -vserver
 }
 
 CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/usr/sbin/zpool
-ZFS=/usr/sbin/zfs
+ZPOOL=/sbin/zpool
+ZFS=/sbin/zfs
 ZFS_MODULE=zfs
 
 checksystem() {
-	if [ -c /dev/zfs ]; then
-		einfo "ZFS modules already loaded"
-		return 0
-	else
+	if [ ! -c /dev/zfs ]; then
 		einfo "Checking if ZFS modules present"
 		if [ "x$(modprobe -l  $ZFS_MODULE | grep $ZFS_MODULE)" == "x" ]; then
 			eerror "$ZFS_MODULE not found. Is the ZFS package installed?"
@@ -79,6 +77,15 @@ start() {
 		return $rv
 	fi
 
+	einfo "Exporting ZFS filesystems"
+	$ZFS share -a
+	rv=$?
+	if [ $rv -ne 0 ]; then
+		eerror "Failed to export ZFS filesystems."
+		eend $rv
+		return $rv
+	fi
+
 	eend 0
 	return 0
 }
@@ -89,10 +96,12 @@ stop()
 	$ZFS umount -a
 	rv=$?
 	if [ $rv -ne 0 ]; then
-		eerror "Failed to umount ZFS filesystems."
+		einfo "Some ZFS filesystems not unmounted"
 	fi
 
-	eend $rv
+	# Don't fail if we couldn't umount everything.  /usr might be in use.
+	eend 0
+	return 0
 }
 
 status()

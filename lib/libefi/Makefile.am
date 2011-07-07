@@ -10,3 +10,5 @@ lib_LTLIBRARIES = libefi.la
 
 libefi_la_SOURCES = \
 	$(top_srcdir)/lib/libefi/rdwr_efi.c
+
+libefi_la_LDFLAGS = -version-info 1:0:0

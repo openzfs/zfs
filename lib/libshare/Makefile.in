@@ -37,7 +37,7 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/config/Rules.am
-subdir = lib/libavl
+subdir = lib/libshare
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
@@ -110,15 +110,15 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libavl_la_LIBADD =
-am_libavl_la_OBJECTS = avl.lo
-libavl_la_OBJECTS = $(am_libavl_la_OBJECTS)
+libshare_la_LIBADD =
+am_libshare_la_OBJECTS = libshare.lo nfs.lo
+libshare_la_OBJECTS = $(am_libshare_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
-libavl_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+libshare_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(libavl_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(libshare_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -144,8 +144,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(libavl_la_SOURCES)
-DIST_SOURCES = $(libavl_la_SOURCES)
+SOURCES = $(libshare_la_SOURCES)
+DIST_SOURCES = $(libshare_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -323,13 +323,15 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
-	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
-	$(FRAME_LARGER_THAN)
-lib_LTLIBRARIES = libavl.la
-libavl_la_SOURCES = \
-	$(top_srcdir)/module/avl/avl.c
+	-DTEXT_DOMAIN=\"zfs-linux-user\"
+lib_LTLIBRARIES = libshare.la
+libshare_la_SOURCES = \
+	$(top_srcdir)/lib/libshare/libshare.c \
+	$(top_srcdir)/lib/libshare/nfs.c \
+	$(top_srcdir)/lib/libshare/libshare_impl.h \
+	$(top_srcdir)/lib/libshare/nfs.h
 
-libavl_la_LDFLAGS = -version-info 1:0:0
+libshare_la_LDFLAGS = -version-info 1:0:0
 all: all-am
 
 .SUFFIXES:
@@ -343,9 +345,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu lib/libavl/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu lib/libshare/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu lib/libavl/Makefile
+	  $(AUTOMAKE) --gnu lib/libshare/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -395,8 +397,8 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libavl.la: $(libavl_la_OBJECTS) $(libavl_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(libavl_la_LINK) -rpath $(libdir) $(libavl_la_OBJECTS) $(libavl_la_LIBADD) $(LIBS)
+libshare.la: $(libshare_la_OBJECTS) $(libshare_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libshare_la_LINK) -rpath $(libdir) $(libshare_la_OBJECTS) $(libshare_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -404,7 +406,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/avl.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libshare.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -430,13 +433,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-avl.lo: $(top_srcdir)/module/avl/avl.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT avl.lo -MD -MP -MF $(DEPDIR)/avl.Tpo -c -o avl.lo `test -f '$(top_srcdir)/module/avl/avl.c' || echo '$(srcdir)/'`$(top_srcdir)/module/avl/avl.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/avl.Tpo $(DEPDIR)/avl.Plo
+libshare.lo: $(top_srcdir)/lib/libshare/libshare.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libshare.lo -MD -MP -MF $(DEPDIR)/libshare.Tpo -c -o libshare.lo `test -f '$(top_srcdir)/lib/libshare/libshare.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/libshare.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libshare.Tpo $(DEPDIR)/libshare.Plo
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/module/avl/avl.c' object='avl.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/libshare.c' object='libshare.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o avl.lo `test -f '$(top_srcdir)/module/avl/avl.c' || echo '$(srcdir)/'`$(top_srcdir)/module/avl/avl.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libshare.lo `test -f '$(top_srcdir)/lib/libshare/libshare.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/libshare.c
+
+nfs.lo: $(top_srcdir)/lib/libshare/nfs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT nfs.lo -MD -MP -MF $(DEPDIR)/nfs.Tpo -c -o nfs.lo `test -f '$(top_srcdir)/lib/libshare/nfs.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/nfs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/nfs.Tpo $(DEPDIR)/nfs.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/nfs.c' object='nfs.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nfs.lo `test -f '$(top_srcdir)/lib/libshare/nfs.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/nfs.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

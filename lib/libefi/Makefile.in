@@ -116,6 +116,9 @@ libefi_la_OBJECTS = $(am_libefi_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+libefi_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libefi_la_LDFLAGS) $(LDFLAGS) -o $@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -326,6 +329,7 @@ lib_LTLIBRARIES = libefi.la
 libefi_la_SOURCES = \
 	$(top_srcdir)/lib/libefi/rdwr_efi.c
 
+libefi_la_LDFLAGS = -version-info 1:0:0
 all: all-am
 
 .SUFFIXES:
@@ -392,7 +396,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libefi.la: $(libefi_la_OBJECTS) $(libefi_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libefi_la_OBJECTS) $(libefi_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(libefi_la_LINK) -rpath $(libdir) $(libefi_la_OBJECTS) $(libefi_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

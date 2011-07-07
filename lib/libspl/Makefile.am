@@ -13,8 +13,6 @@ AM_CCASFLAGS = \
 
 lib_LTLIBRARIES = libspl.la
 
-libspl_la_LDFLAGS = -lrt
-
 libspl_la_SOURCES = \
 	$(top_srcdir)/lib/libspl/getexecname.c \
 	$(top_srcdir)/lib/libspl/gethrtime.c \
@@ -31,3 +29,5 @@ libspl_la_SOURCES = \
 	$(top_srcdir)/lib/libspl/$(TARGET_ASM_DIR)/atomic.S \
 	$(top_srcdir)/lib/libspl/include/sys/list.h \
 	$(top_srcdir)/lib/libspl/include/sys/list_impl.h
+
+libspl_la_LDFLAGS = -lrt -version-info 1:0:0
