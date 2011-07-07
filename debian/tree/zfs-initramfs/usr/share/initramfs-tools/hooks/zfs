@@ -13,7 +13,6 @@ PREREQ_UDEV_RULES="60-zpool.rules 60-zvol.rules"
 # These prerequisites are provided by the zfs package. The zdb utility is not
 # strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST=" \
-  /bin/hostname \
   /lib/udev/zvol_id \
   /lib/udev/zpool_layout \
   /lib/udev/zpool_id \
@@ -24,7 +23,7 @@ COPY_EXEC_LIST=" \
   "
 
 # These prerequisites are provides by other packages.
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/hostid"
+COPY_EXEC_LIST="$COPY_EXEC_LIST /bin/hostname"
 
 # Explicitly specify all modules because dependency resolution is unreliable here.
 MANUAL_ADD_MODULES_LIST="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
