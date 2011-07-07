@@ -100,12 +100,21 @@ Description: Native ZFS filesystem kernel modules for Linux
  An advanced integrated volume manager and filesystem.
  Includes the SPA, DMU, ZVOL, and ZPL components of ZFS.
 
+Package: zfs-dracut
+Section: kernel
+Architecture: linux-any
+Depends: ${misc:Depends}, dracut, zfsutils
+Description: Native ZFS root filesystem capabilities for Linux
+ This package adds ZFS to the system initramfs with a hook
+ for the dracut infrastructure.
+
 Package: zfs-initramfs
 Section: kernel
 Architecture: linux-any
 Depends: ${misc:Depends}, mountall (>= 2.18), zfsutils, zfs-grub
 Description: Native ZFS root filesystem capabilities for Linux
- This package adds ZFS to the system initramfs.
+ This package adds ZFS to the system initramfs with a hook
+ for the initramfs-tools infrastructure.
 
 Package: zfsutils
 Section: admin
