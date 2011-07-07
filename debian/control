@@ -34,6 +34,14 @@ Description: OpenSolaris name-value library for Linux
  transporting data across process boundaries, transporting between
  kernel and userland, and possibly saving onto disk files.
 
+Package: libshare0
+Section: libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Solaris network sharing library for Linux
+ This library provides NFS and SMB service integration for
+ ZFS filesystems.
+
 Package: libspl0
 Section: libs
 Architecture: linux-any
