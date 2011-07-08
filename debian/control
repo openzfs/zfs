@@ -129,7 +129,7 @@ Section: admin
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: zfs-dkms
-Suggests: zfs-initramfs
+Suggests: nfs-kernel-server, zfs-initramfs
 Conflicts: zfs, zfs-fuse
 Replaces: zfs
 Description: Native ZFS management utilities for Linux
