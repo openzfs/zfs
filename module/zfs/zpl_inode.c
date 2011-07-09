@@ -165,35 +165,9 @@ zpl_rmdir(struct inode * dir, struct dentry *dentry)
 static int
 zpl_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
-	cred_t *cr = CRED();
-	vattr_t *vap;
-	struct inode *ip;
 	int error;
 
-	ip = dentry->d_inode;
-	crhold(cr);
-	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-
-	error = -zfs_getattr(ip, vap, 0, cr);
-	if (error)
-		goto out;
-
-	stat->ino = ip->i_ino;
-	stat->dev = ip->i_sb->s_dev;
-	stat->mode = vap->va_mode;
-	stat->nlink = vap->va_nlink;
-	stat->uid = vap->va_uid;
-	stat->gid = vap->va_gid;
-	stat->rdev = vap->va_rdev;
-	stat->size = vap->va_size;
-	stat->atime = vap->va_atime;
-	stat->mtime = vap->va_mtime;
-	stat->ctime = vap->va_ctime;
-	stat->blksize = vap->va_blksize;
-	stat->blocks = vap->va_nblocks;
-out:
-	kmem_free(vap, sizeof(vattr_t));
-	crfree(cr);
+	error = -zfs_getattr_fast(dentry->d_inode, stat);
 	ASSERT3S(error, <=, 0);
 
 	return (error);

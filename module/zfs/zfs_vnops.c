@@ -2283,6 +2283,44 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 EXPORT_SYMBOL(zfs_getattr);
 
 /*
+ * Get the basic file attributes and place them in the provided kstat
+ * structure.  The inode is assumed to be the authoritative source
+ * for most of the attributes.  However, the znode currently has the
+ * authoritative atime, blksize, and block count.
+ *
+ *	IN:	ip	- inode of file.
+ *
+ *	OUT:	sp	- kstat values.
+ *
+ *	RETURN:	0 (always succeeds)
+ */
+/* ARGSUSED */
+int
+zfs_getattr_fast(struct inode *ip, struct kstat *sp)
+{
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	mutex_enter(&zp->z_lock);
+
+	generic_fillattr(ip, sp);
+	ZFS_TIME_DECODE(&sp->atime, zp->z_atime);
+
+	sa_object_size(zp->z_sa_hdl, (uint32_t *)&sp->blksize, &sp->blocks);
+	if (unlikely(zp->z_blksz == 0)) {
+		/*
+		 * Block size hasn't been set; suggest maximal I/O transfers.
+		 */
+		sp->blksize = zsb->z_max_blksz;
+	}
+
+	mutex_exit(&zp->z_lock);
+
+	return (0);
+}
+EXPORT_SYMBOL(zfs_getattr_fast);
+
+/*
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
