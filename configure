@@ -812,6 +812,7 @@ NO_UNUSED_BUT_SET_VARIABLE
 ZFS_CONFIG
 TARGET_ASM_DIR
 DEFAULT_INIT_SCRIPT
+DEFAULT_INIT_DIR
 DEFAULT_PACKAGE
 VENDOR
 ALIEN_VERSION
@@ -4822,13 +4823,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4825: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4826: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4828: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4829: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4831: output\"" >&5)
+  (eval echo "\"\$as_me:4832: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6034,7 +6035,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6037 "configure"' > conftest.$ac_ext
+  echo '#line 6038 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7887,11 +7888,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7890: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7891: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7894: \$? = $ac_status" >&5
+   echo "$as_me:7895: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8226,11 +8227,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8229: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8230: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8233: \$? = $ac_status" >&5
+   echo "$as_me:8234: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8331,11 +8332,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8334: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8335: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8338: \$? = $ac_status" >&5
+   echo "$as_me:8339: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8386,11 +8387,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8389: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8390: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8393: \$? = $ac_status" >&5
+   echo "$as_me:8394: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11189,7 +11190,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11192 "configure"
+#line 11193 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11285,7 +11286,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11288 "configure"
+#line 11289 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11798,6 +11799,8 @@ $as_echo_n "checking linux distribution... " >&6; }
 		VENDOR=ubuntu ;
 	elif test -f /etc/lunar.release ; then
 		VENDOR=lunar ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
 	else
 		VENDOR= ;
 	fi
@@ -11823,6 +11826,17 @@ $as_echo_n "checking default package type... " >&6; }
 $as_echo "$DEFAULT_PACKAGE" >&6; }
 
 
+	{ $as_echo "$as_me:$LINENO: checking default init directory" >&5
+$as_echo_n "checking default init directory... " >&6; }
+	case "$VENDOR" in
+		arch)       DEFAULT_INIT_DIR=$sysconfdir/rc.d ;;
+		*)          DEFAULT_INIT_DIR=$sysconfdir/init.d ;;
+	esac
+
+	{ $as_echo "$as_me:$LINENO: result: $DEFAULT_INIT_DIR" >&5
+$as_echo "$DEFAULT_INIT_DIR" >&6; }
+
+
 	{ $as_echo "$as_me:$LINENO: checking default init script type" >&5
 $as_echo_n "checking default init script type... " >&6; }
 	case "$VENDOR" in
@@ -11834,6 +11848,7 @@ $as_echo_n "checking default init script type... " >&6; }
 		slackware)  DEFAULT_INIT_SCRIPT=lsb ;;
 		gentoo)     DEFAULT_INIT_SCRIPT=gentoo ;;
 		lunar)      DEFAULT_INIT_SCRIPT=lunar ;;
+		arch)       DEFAULT_INIT_SCRIPT=arch ;;
 		*)          DEFAULT_INIT_SCRIPT=lsb ;;
 	esac
 
