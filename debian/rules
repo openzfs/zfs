@@ -12,6 +12,7 @@ override_dh_auto_configure:
 	  --prefix=/ \
 	  --bindir=/lib/udev \
 	  --libexecdir=/usr/libexec \
+	  --libdir=/lib \
 	  --includedir=/usr/include \
 	  --datarootdir=/usr/share \
 	  --with-config=user \
