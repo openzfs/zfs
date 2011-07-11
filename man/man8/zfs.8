@@ -143,7 +143,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-vR\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-vRDp\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .fi
 
 .LP
@@ -2096,7 +2096,7 @@ Unshare the specified filesystem. The command can also be given a path to a \fBZ
 .ne 2
 .mk
 .na
-\fB\fBzfs send\fR [\fB-vR\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR\fR
+\fB\fBzfs send\fR [\fB-vRDp\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -2129,6 +2129,17 @@ Generate a stream package that sends all intermediary snapshots from the first s
 .ne 2
 .mk
 .na
+\fB\fB-v\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print verbose information about the stream package generated.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fB-R\fR\fR
 .ad
 .sp .6
@@ -2142,11 +2153,24 @@ If the \fB-i\fR or \fB-I\fR flags are used in conjunction with the \fB-R\fR flag
 .ne 2
 .mk
 .na
-\fB\fB-v\fR\fR
+\fB\fB-D\fR\fR
 .ad
 .sp .6
 .RS 4n
-Print verbose information about the stream package generated.
+This option will cause dedup processing to be performed on the data being written to a send stream.  Dedup processing is optional because it isn't always appropriate (some kinds of data have very little duplication) and it has significant costs:  the checksumming required to detect duplicate blocks is CPU-intensive and the data that must be maintained while the stream is being processed can occupy a very large amount of memory.
+.sp
+Duplicate blocks are detected by calculating a cryptographically strong checksum on each data block.  Blocks that have the same checksum are presumed to be identical.  The checksum type used at this time is SHA256.  However, the stream format contains a field which identifies the checksum type, permitting other checksums to be used in the future.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-p\fR\fR
+.ad
+.sp .6
+.RS 4n
+Include properties in the send stream without the -R option.
 .RE
 
 The format of the stream is committed. You will be able to receive your streams on future versions of \fBZFS\fR.

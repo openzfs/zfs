@@ -77,7 +77,11 @@ start()
         fi
 
 	# Delay until all required block devices are present.
-	udevadm settle
+	if [ -x /sbin/udevadm ]; then
+		/sbin/udevadm settle
+	elif [ -x /sbin/udevsettle ]; then
+		/sbin/udevsettle
+	fi
 
 	# load kernel module infrastructure
 	if ! grep -q zfs /proc/modules ; then

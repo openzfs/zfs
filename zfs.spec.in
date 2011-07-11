@@ -100,5 +100,5 @@ rm -rf $RPM_BUILD_ROOT
 exit 0
 
 %preun
-[ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
+[ "$1" = 0 ] && [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
 exit 0
