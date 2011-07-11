@@ -7,92 +7,93 @@ Standards-Version: 3.8.4
 Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
 Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
-Package: libavl0
+Package: libavl1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: libavl1
-Replaces: zfs-lib
+Replaces: libavl0, zfs-lib
 Description: OpenSolaris AVL tree manipulation library for Linux
  Adelson-Velskii Landis balanced binary tree manipulation library.
 
-Package: libefi0
+Package: libefi1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libefi0, zfs-lib
 Description: OpenSolaris EFI library for Linux
  Extensible Firmware Interface library for GUID disk partitioning.
 
-Package: libnvpair0
+Package: libnvpair1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libnvpair0, zfs-lib
 Description: OpenSolaris name-value library for Linux
  This library provides routines for packing and unpacking nv pairs for
  transporting data across process boundaries, transporting between
  kernel and userland, and possibly saving onto disk files.
 
-Package: libshare0
+Package: libshare1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
+Replaces: libshare0
 Description: Solaris network sharing library for Linux
  This library provides NFS and SMB service integration for
  ZFS filesystems.
 
-Package: libspl0
+Package: libspl1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Conflicts: spl-dev
-Replaces: zfs-lib
+Replaces: libspl0, zfs-lib
 Description: Solaris Portability Layer library for Linux
  The Solaris Porting Layer (SPL) library provides APIs that make it
  possible to run Solaris user code in a Linux environment with
  relatively minimal modification.
 
-Package: libunicode0
+Package: libunicode1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libunicode0, zfs-lib
 Description: OpenSolaris unicode library for Linux
  This library provides UTF-8 text preparation functions and
  conversion functions for UTF-8, UTF-16, and UTF-32.
 
-Package: libuutil0
+Package: libuutil1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libuutil0, zfs-lib
 Description: OpenSolaris userland utility library for Linux
  Solaris glue functions for ZFS.
 
 Package: libzfs-dev
 Section: libdevel
 Architecture: linux-any
-Depends: ${misc:Depends}, libzfs0 (= ${binary:Version})
+Depends: ${misc:Depends}, libzfs1 (= ${binary:Version})
 Provides: libnvpair-dev, libuutil-dev
 Replaces: zfs-lib
 Description: Native ZFS filesystem development files for Linux
  Header files and static libraries for compiling software
  against libzfs.
 
-Package: libzfs0
+Package: libzfs1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libzfs0, zfs-lib
 Description: Native ZFS filesystem library for Linux
  The zfs management library.
 
-Package: libzpool0
+Package: libzpool1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: zfs-lib
+Replaces: libzpool0, zfs-lib
 Description: Native ZFS pool library for Linux
  The zpool management library.
 
