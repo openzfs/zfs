@@ -7,7 +7,7 @@ Standards-Version: 3.8.4
 Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
 Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
-Package: libavl1
+Package: libzavl1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
