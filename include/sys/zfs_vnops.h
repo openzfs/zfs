@@ -54,6 +54,7 @@ extern int zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
     loff_t *pos, cred_t *cr);
 extern int zfs_fsync(struct inode *ip, int syncflag, cred_t *cr);
 extern int zfs_getattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
+extern int zfs_getattr_fast(struct inode *ip, struct kstat *sp);
 extern int zfs_setattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_rename(struct inode *sdip, char *snm, struct inode *tdip,
     char *tnm, cred_t *cr, int flags);
