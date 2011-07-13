@@ -1,3 +1,53 @@
+zfs-linux (0.6.0.25.rc5-0ubuntu1) unstable; urgency=low
+
+  [ Andrew Tselischev ]
+  * Fix 'rc_parallel="YES"' error
+
+  [ Prasad Joshi ]
+  * Use consistent error message in zpool sub-command
+
+  [ Gunnar Beutner ]
+  * Fixed indentation in the zfs.lunar init script.
+  * Removed erroneous backticks in the zfs.lunar init script.
+  * Implemented sharing datasets via NFS using libshare.
+  * Link libshare directly to libzfs
+  * Renamed HAVE_SHARE ifdefs to HAVE_SMB_SHARE.
+  * Updated init scripts to enable automatic sharing of ZFS datasets.
+
+  [ Zachary Bedell ]
+  * Update zfs.gentoo/zfs.lsb init script
+  * Update for Dracut-010
+  * Document initramfs process
+
+  [ Brian Behlendorf ]
+  * Add proper library versioning
+  * Update ztest paths
+  * Update 'zfs send' documentation
+  * Add L2ARC tunables
+  * Improve fstat(2) performance
+
+  [ Darik Horn ]
+  * Refresh patches.
+  * Set the configuration prefix to root.
+  * Remove /usr/bin/hostid from the initramfs image.
+  * Add zfs-dracut package.
+  * Add libshare0 package.
+  * Disable disable-dist-init.patch
+  * Add nfs-kernel-server suggestion.
+  * Demote spl-dkms to a regular dependency.
+  * lintian: package-name-doesnt-match-sonames
+  * lintian: incorrect-libdir-in-la-file
+  * Rename libavl1 to libzavl1.
+
+  [ Fajar A. Nugraha ]
+  * Check for "udevadm settle" vs "udevsettle"
+  * Remove zfs service only on uninstall, not on upgrade
+
+  [ Kyle Fuller ]
+  * Provide a rc.d script for archlinux
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 12 Jul 2011 19:49:02 -0500
+
 zfs-linux (0.6.0.22.rc5-0ubuntu1) unstable; urgency=low
 
   [ Prasad Joshi ]

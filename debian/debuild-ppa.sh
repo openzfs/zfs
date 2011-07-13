@@ -4,8 +4,9 @@
 #
 
 PPA_USER=${PPA_USER:-$(whoami)}
-PPA_NAME=zfs
-PPA_DISTRIBUTION_LIST='lucid maverick natty'
+PPA_NAME='zfs'
+PPA_DISTRIBUTION_LIST='lucid maverick natty oneiric'
+PPA_GENCHANGES='-sa'
 
 if [ ! -d debian/ ]
 then
@@ -21,6 +22,9 @@ do
 	debchange --local="~$ii" --distribution="$ii" dummy
 	sed -i -e '2,8d' debian/changelog
 
-	debuild -S -sd
+	debuild -S "$PPA_GENCHANGES"
 	git checkout debian/changelog
+
+	# Only do a full upload on the first build.
+	PPA_GENCHANGES='-sd'
 done
