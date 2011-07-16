@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.25.rc5-0ubuntu4) unstable; urgency=low
+
+  * Add fix-issue-319 patch.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 15 Jul 2011 20:09:22 -0500
+
 zfs-linux (0.6.0.25.rc5-0ubuntu3) unstable; urgency=low
 
   * Stub the Makefile.in files in scripts/.
