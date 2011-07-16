@@ -1,0 +1,43 @@
+commit 61f218b0900194edfb2e67739221e49c46fc5ee0
+Author: Brian Behlendorf <behlendorf1@llnl.gov>
+Date:   Fri Jul 15 16:15:27 2011 -0700
+
+    Fix send/recv 'dataset is busy' errors
+    
+    This commit fixes a regression which was accidentally introduced by
+    the Linux 2.6.39 compatibility chanages.  As part of these changes
+    instead of holding an active reference on the namepsace (which is
+    no longer posible) a reference is taken on the super block.  This
+    reference ensures the super block remains valid while it is in use.
+    
+    To handle the unlikely race condition of the filesystem being
+    unmounted concurrently with the start of a 'zfs send/recv' the
+    code was updated to only take the super block reference when there
+    was an existing reference.  This indicates that the filesystem is
+    active and in use.
+    
+    Unfortunately, in the 'zfs recv' case this is not the case.  The
+    newly created dataset will not have a super block without an
+    active reference which results in the 'dataset is busy' error.
+    
+    The most straight forward fix for this is to simply update the
+    code to always take the reference even when it's zero.  This
+    may expose us to very very unlikely concurrent umount/send/recv
+    case but the consequences of that are minor.
+    
+    Closes #319
+
+Index: b/module/zfs/zfs_ioctl.c
+===================================================================
+--- a/module/zfs/zfs_ioctl.c
++++ b/module/zfs/zfs_ioctl.c
+@@ -1108,8 +1108,7 @@
+ 	mutex_enter(&os->os_user_ptr_lock);
+ 	*zsbp = dmu_objset_get_user(os);
+ 	if (*zsbp && (*zsbp)->z_sb) {
+-		if (atomic_inc_not_zero(&((*zsbp)->z_sb->s_active)))
+-			error = ESRCH;
++		atomic_inc(&((*zsbp)->z_sb->s_active));
+ 	} else {
+ 		error = ESRCH;
+ 	}
