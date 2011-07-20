@@ -11,3 +11,5 @@ lib_LTLIBRARIES = libunicode.la
 libunicode_la_SOURCES = \
 	$(top_srcdir)/module/unicode/u8_textprep.c \
 	$(top_srcdir)/module/unicode/uconv.c
+
+libunicode_la_LDFLAGS = -version-info 1:0:0

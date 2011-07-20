@@ -21,3 +21,5 @@ libuutil_la_SOURCES = \
 	$(top_srcdir)/lib/libuutil/uu_pname.c \
 	$(top_srcdir)/lib/libuutil/uu_string.c \
 	$(top_srcdir)/lib/libuutil/uu_strtoint.c
+
+libuutil_la_LDFLAGS = -version-info 1:0:0

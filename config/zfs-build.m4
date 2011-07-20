@@ -196,6 +196,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		VENDOR=ubuntu ;
 	elif test -f /etc/lunar.release ; then
 		VENDOR=lunar ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
 	else
 		VENDOR= ;
 	fi
@@ -218,6 +220,15 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
 
+	AC_MSG_CHECKING([default init directory])
+	case "$VENDOR" in
+		arch)       DEFAULT_INIT_DIR=$sysconfdir/rc.d ;;
+		*)          DEFAULT_INIT_DIR=$sysconfdir/init.d ;;
+	esac
+
+	AC_MSG_RESULT([$DEFAULT_INIT_DIR])
+	AC_SUBST(DEFAULT_INIT_DIR)
+
 	AC_MSG_CHECKING([default init script type])
 	case "$VENDOR" in
 		redhat)     DEFAULT_INIT_SCRIPT=redhat ;;
@@ -228,6 +239,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		slackware)  DEFAULT_INIT_SCRIPT=lsb ;;
 		gentoo)     DEFAULT_INIT_SCRIPT=gentoo ;;
 		lunar)      DEFAULT_INIT_SCRIPT=lunar ;;
+		arch)       DEFAULT_INIT_SCRIPT=arch ;;
 		*)          DEFAULT_INIT_SCRIPT=lsb ;;
 	esac
 

@@ -84,6 +84,7 @@ AC_CONFIG_FILES([
 	lib/libuutil/Makefile
 	lib/libzpool/Makefile
 	lib/libzfs/Makefile
+	lib/libshare/Makefile
 	cmd/Makefile
 	cmd/zdb/Makefile
 	cmd/zfs/Makefile

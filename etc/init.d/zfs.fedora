@@ -158,6 +158,8 @@ start()
 	
 	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 152
 
+	action $"Exporting ZFS filesystems: " $ZFS share -a || return 153
+
 	read_mtab  "^/dev/zd"
 	read_fstab "^/dev/zd"
 

@@ -77,6 +77,15 @@ start() {
 		return $rv
 	fi
 
+	einfo "Exporting ZFS filesystems"
+	$ZFS share -a
+	rv=$?
+	if [ $rv -ne 0 ]; then
+		eerror "Failed to export ZFS filesystems."
+		eend $rv
+		return $rv
+	fi
+
 	eend 0
 	return 0
 }

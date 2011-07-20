@@ -77,7 +77,11 @@ start()
         fi
 
 	# Delay until all required block devices are present.
-	udevadm settle
+	if [ -x /sbin/udevadm ]; then
+		/sbin/udevadm settle
+	elif [ -x /sbin/udevsettle ]; then
+		/sbin/udevsettle
+	fi
 
 	# load kernel module infrastructure
 	if ! grep -q zfs /proc/modules ; then
@@ -86,6 +90,8 @@ start()
 	sleep 1
 
 	action $"Mounting automounted ZFS filesystems: " $ZFS mount -a || return 152
+
+	action $"Exporting ZFS filesystems: " $ZFS share -a || return 153
 
 	# Read fstab, try to mount zvols ignoring error
 	read_fstab "^/dev/(zd|zvol)"

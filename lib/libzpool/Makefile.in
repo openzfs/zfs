@@ -188,6 +188,7 @@ CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
 DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
+DEFAULT_INIT_DIR = @DEFAULT_INIT_DIR@
 DEFAULT_INIT_SCRIPT = @DEFAULT_INIT_SCRIPT@
 DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
@@ -429,7 +430,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zle.c \
 	$(top_srcdir)/module/zfs/zrlock.c
 
-libzpool_la_LDFLAGS = -pthread
+libzpool_la_LDFLAGS = -pthread -version-info 1:0:0
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \

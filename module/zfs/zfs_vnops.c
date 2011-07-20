@@ -2283,6 +2283,44 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 EXPORT_SYMBOL(zfs_getattr);
 
 /*
+ * Get the basic file attributes and place them in the provided kstat
+ * structure.  The inode is assumed to be the authoritative source
+ * for most of the attributes.  However, the znode currently has the
+ * authoritative atime, blksize, and block count.
+ *
+ *	IN:	ip	- inode of file.
+ *
+ *	OUT:	sp	- kstat values.
+ *
+ *	RETURN:	0 (always succeeds)
+ */
+/* ARGSUSED */
+int
+zfs_getattr_fast(struct inode *ip, struct kstat *sp)
+{
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ITOZSB(ip);
+
+	mutex_enter(&zp->z_lock);
+
+	generic_fillattr(ip, sp);
+	ZFS_TIME_DECODE(&sp->atime, zp->z_atime);
+
+	sa_object_size(zp->z_sa_hdl, (uint32_t *)&sp->blksize, &sp->blocks);
+	if (unlikely(zp->z_blksz == 0)) {
+		/*
+		 * Block size hasn't been set; suggest maximal I/O transfers.
+		 */
+		sp->blksize = zsb->z_max_blksz;
+	}
+
+	mutex_exit(&zp->z_lock);
+
+	return (0);
+}
+EXPORT_SYMBOL(zfs_getattr_fast);
+
+/*
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
@@ -3800,7 +3838,6 @@ zfs_putpage(struct page *page, struct writeback_control *wbc, void *data)
 	struct inode         *ip      = mapping->host;
 	znode_t              *zp      = ITOZ(ip);
 	zfs_sb_t             *zsb     = ITOZSB(ip);
-	rl_t		     *rl;
 	u_offset_t	     io_off;
 	size_t		     io_len;
 	size_t		     len;
@@ -3812,11 +3849,8 @@ zfs_putpage(struct page *page, struct writeback_control *wbc, void *data)
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
 
-	rl = zfs_range_lock(zp, io_off, io_len, RL_WRITER);
-
 	if (io_off > zp->z_size) {
 		/* past end of file */
-		zfs_range_unlock(rl);
 		ZFS_EXIT(zsb);
 		return (0);
 	}
@@ -3824,7 +3858,6 @@ zfs_putpage(struct page *page, struct writeback_control *wbc, void *data)
 	len = MIN(io_len, P2ROUNDUP(zp->z_size, PAGESIZE) - io_off);
 
 	error = zfs_putapage(ip, page, io_off, len);
-	zfs_range_unlock(rl);
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zsb->z_log, zp->z_id);

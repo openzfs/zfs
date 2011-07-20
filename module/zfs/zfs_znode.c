@@ -161,7 +161,7 @@ zfs_znode_fini(void)
 int
 zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx)
 {
-#ifdef HAVE_SHARE
+#ifdef HAVE_SMB_SHARE
 	zfs_acl_ids_t acl_ids;
 	vattr_t vattr;
 	znode_t *sharezp;
@@ -203,7 +203,7 @@ zfs_create_share_dir(zfs_sb_t *zsb, dmu_tx_t *tx)
 	return (error);
 #else
 	return (0);
-#endif /* HAVE_SHARE */
+#endif /* HAVE_SMB_SHARE */
 }
 
 static void

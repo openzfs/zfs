@@ -50,7 +50,7 @@ system when the initramfs is built which effectively ties the ramdisk to the
 host which builds it.  If a different hostid is desired, one may be set in
 this attribute and will override any file present in the ramdisk.  The
 format should be hex exactly as found in the `/etc/hostid` file, IE
-`spl_hostid=00bab10c`.
+`spl_hostid=0x00bab10c`.
 
 Note that changing the hostid between boots will most likely lead to an
 un-importable pool since the last importing hostid won't match.  In order

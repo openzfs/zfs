@@ -115,6 +115,7 @@ CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
 DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
+DEFAULT_INIT_DIR = @DEFAULT_INIT_DIR@
 DEFAULT_INIT_SCRIPT = @DEFAULT_INIT_SCRIPT@
 DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
@@ -261,7 +262,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-EXTRA_DIST = zfs.fedora zfs.gentoo zfs.lsb zfs.lunar zfs.redhat
+EXTRA_DIST = zfs.fedora zfs.gentoo zfs.lsb zfs.lunar zfs.redhat zfs.arch
 all: all-am
 
 .SUFFIXES:
@@ -449,7 +450,7 @@ uninstall-am:
 
 
 install-data-local:
-	@instdest=$(DESTDIR)/$(sysconfdir)/init.d/zfs; \
+	@instdest=$(DESTDIR)$(DEFAULT_INIT_DIR)/zfs; \
 	$(INSTALL) -TD zfs.$(DEFAULT_INIT_SCRIPT) $$instdest
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
