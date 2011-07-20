@@ -1108,8 +1108,7 @@ get_zfs_sb(const char *dsname, zfs_sb_t **zsbp)
 	mutex_enter(&os->os_user_ptr_lock);
 	*zsbp = dmu_objset_get_user(os);
 	if (*zsbp && (*zsbp)->z_sb) {
-		if (atomic_inc_not_zero(&((*zsbp)->z_sb->s_active)))
-			error = ESRCH;
+		atomic_inc(&((*zsbp)->z_sb->s_active));
 	} else {
 		error = ESRCH;
 	}

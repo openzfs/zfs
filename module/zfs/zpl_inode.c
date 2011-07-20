@@ -51,6 +51,24 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	return d_splice_alias(ip, dentry);
 }
 
+static void
+zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
+    mode_t mode, cred_t *cr)
+{
+	vap->va_mask = ATTR_MODE;
+	vap->va_mode = mode;
+	vap->va_dentry = dentry;
+	vap->va_uid = crgetfsuid(cr);
+
+	if (dir && dir->i_mode & S_ISGID) {
+		vap->va_gid = dir->i_gid;
+		if (S_ISDIR(mode))
+			vap->va_mode |= S_ISGID;
+	} else {
+		vap->va_gid = crgetfsgid(cr);
+	}
+}
+
 static int
 zpl_create(struct inode *dir, struct dentry *dentry, int mode,
     struct nameidata *nd)
@@ -62,11 +80,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, int mode,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	vap->va_mode = mode;
-	vap->va_mask = ATTR_MODE;
-	vap->va_uid = crgetfsuid(cr);
-	vap->va_gid = crgetfsgid(cr);
-	vap->va_dentry = dentry;
+	zpl_vap_init(vap, dir, dentry, mode, cr);
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
 	    vap, 0, mode, &ip, cr, 0, NULL);
@@ -94,12 +108,8 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	vap->va_mode = mode;
-	vap->va_mask = ATTR_MODE;
+	zpl_vap_init(vap, dir, dentry, mode, cr);
 	vap->va_rdev = rdev;
-	vap->va_uid = crgetfsuid(cr);
-	vap->va_gid = crgetfsgid(cr);
-	vap->va_dentry = dentry;
 
 	error = -zfs_create(dir, (char *)dentry->d_name.name,
 	    vap, 0, mode, &ip, cr, 0, NULL);
@@ -134,11 +144,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	vap->va_mode = S_IFDIR | mode;
-	vap->va_mask = ATTR_MODE;
-	vap->va_uid = crgetfsuid(cr);
-	vap->va_gid = crgetfsgid(cr);
-	vap->va_dentry = dentry;
+	zpl_vap_init(vap, dir, dentry, mode | S_IFDIR, cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
 	kmem_free(vap, sizeof(vattr_t));
@@ -229,11 +235,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	vap->va_mode = S_IFLNK | S_IRWXUGO;
-	vap->va_mask = ATTR_MODE;
-	vap->va_uid = crgetfsuid(cr);
-	vap->va_gid = crgetfsgid(cr);
-	vap->va_dentry = dentry;
+	zpl_vap_init(vap, dir, dentry, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
 	kmem_free(vap, sizeof(vattr_t));
