@@ -1095,7 +1095,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		dn->dn_dirtyctx =
 		    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN);
 		ASSERT(dn->dn_dirtyctx_firstset == NULL);
-		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_SLEEP);
+		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_PUSHPAGE);
 	}
 	mutex_exit(&dn->dn_mtx);
 
@@ -1172,7 +1172,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * to make a copy of it so that the changes we make in this
 	 * transaction group won't leak out when we sync the older txg.
 	 */
-	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_SLEEP);
+	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_PUSHPAGE);
 	list_link_init(&dr->dr_dirty_node);
 	if (db->db_level == 0) {
 		void *data_old = db->db_buf;
