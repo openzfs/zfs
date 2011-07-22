@@ -540,9 +540,7 @@ dnl #
 AC_DEFUN([SPL_LINUX_CONFIG],
 	[AC_MSG_CHECKING([whether Linux was built with CONFIG_$1])
 	SPL_LINUX_TRY_COMPILE([
-		#ifndef AUTOCONF_INCLUDED
-		#include <linux/config.h>
-		#endif
+		#include <linux/module.h>
 	],[
 		#ifndef CONFIG_$1
 		#error CONFIG_$1 not #defined
