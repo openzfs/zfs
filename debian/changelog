@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.27-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use zfs_mknode() to create dataset root
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 22 Jul 2011 14:39:22 -0500
+
 zfs-linux (0.6.0.26-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
