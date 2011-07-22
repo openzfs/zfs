@@ -8,7 +8,7 @@ create an initramfs which is zfs aware.
 2) Set the bootfs property for the bootable dataset in the pool.  Then set
 the dataset mountpoint property to '/'.
 
-    $ zpool set bootfs=pool/dataset
+    $ zpool set bootfs=pool/dataset pool
     $ zfs set mountpoint=/ pool/dataset
 
 Alternately, legacy mountpoints can be used by setting the 'root=' option
