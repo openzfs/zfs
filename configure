@@ -12233,9 +12233,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#ifndef AUTOCONF_INCLUDED
-		#include <linux/config.h>
-		#endif
+		#include <linux/module.h>
 
 int
 main (void)
@@ -12306,9 +12304,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#ifndef AUTOCONF_INCLUDED
-		#include <linux/config.h>
-		#endif
+		#include <linux/module.h>
 
 int
 main (void)
@@ -16507,9 +16503,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#ifndef AUTOCONF_INCLUDED
-		#include <linux/config.h>
-		#endif
+		#include <linux/module.h>
 
 int
 main (void)
@@ -16580,9 +16574,7 @@ cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
 
-		#ifndef AUTOCONF_INCLUDED
-		#include <linux/config.h>
-		#endif
+		#include <linux/module.h>
 
 int
 main (void)
