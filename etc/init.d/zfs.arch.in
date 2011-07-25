@@ -3,6 +3,10 @@
 . /etc/rc.conf
 . /etc/rc.d/functions
 
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
 case "$1" in
   start)
     stat_busy "Starting zfs"
@@ -16,8 +20,8 @@ case "$1" in
     fi
 
     # Import ZFS pools (via cache file)
-    if [ -f /etc/zfs/zpool.cache ]; then
-      /usr/sbin/zpool import -c /etc/zfs/zpool.cache -aN 2>/dev/null
+    if [ -f $ZPOOL_CACHE ]; then
+      $ZPOOL import -c $ZPOOL_CACHE -aN 2>/dev/null
       if [ $? -ne 0 ]; then
         stat_fail
         exit 1
@@ -25,14 +29,14 @@ case "$1" in
     fi
 
     # Mount ZFS filesystems
-    /usr/sbin/zfs mount -a
+    $ZFS mount -a
     if [ $? -ne 0 ]; then
         stat_fail
         exit 1
     fi
 
     # Export ZFS flesystems
-    /usr/sbin/zfs share -a
+    $ZFS share -a
     if [ $? -ne 0 ]; then
         stat_fail
         exit 1
@@ -43,7 +47,7 @@ case "$1" in
     ;;
   stop)
     stat_busy "Stopping zfs"
-    zfs umount -a
+    $ZFS umount -a
     rm_daemon zfs
     stat_done
     ;;
