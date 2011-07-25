@@ -35,7 +35,10 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = etc/init.d
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/zfs.arch.in $(srcdir)/zfs.fedora.in \
+	$(srcdir)/zfs.gentoo.in $(srcdir)/zfs.lsb.in \
+	$(srcdir)/zfs.lunar.in $(srcdir)/zfs.redhat.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
@@ -83,7 +86,8 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/zfs_config.h
-CONFIG_CLEAN_FILES =
+CONFIG_CLEAN_FILES = zfs.arch zfs.gentoo zfs.lunar zfs.fedora zfs.lsb \
+	zfs.redhat
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -296,6 +300,18 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
+zfs.arch: $(top_builddir)/config.status $(srcdir)/zfs.arch.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+zfs.gentoo: $(top_builddir)/config.status $(srcdir)/zfs.gentoo.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+zfs.lunar: $(top_builddir)/config.status $(srcdir)/zfs.lunar.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+zfs.fedora: $(top_builddir)/config.status $(srcdir)/zfs.fedora.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+zfs.lsb: $(top_builddir)/config.status $(srcdir)/zfs.lsb.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+zfs.redhat: $(top_builddir)/config.status $(srcdir)/zfs.redhat.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 
 mostlyclean-libtool:
 	-rm -f *.lo
