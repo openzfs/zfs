@@ -1,3 +1,9 @@
+zfs-linux (0.6.0.28-0ubuntu2) unstable; urgency=low
+
+  * Update replacement controls for libzfs-dev.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 26 Jul 2011 00:03:19 -0500
+
 zfs-linux (0.6.0.28-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
