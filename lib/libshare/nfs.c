@@ -36,14 +36,10 @@
 static sa_fstype_t *nfs_fstype;
 static boolean_t nfs_available;
 
-/* nfs_exportfs_tempfile holds a copy of exportfs -v
- * This copy is updated every time nfs_check_exportfs() is called.
- * There should be a libshare_nfs_fini() function to clear up
- * file descriptors.
+/* nfs_exportfs_temp_fd refers to a temporary copy of the output 
+ * from exportfs -v.
  */
-
-static char nfs_exportfs_tempfile[] = "/tmp/exportfs.XXXXXX";
-static int nfs_exportfs_temp_fd = 0;
+static int nfs_exportfs_temp_fd = -1;
 
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
@@ -502,75 +498,62 @@ nfs_validate_shareopts(const char *shareopts)
 	return SA_OK;
 }
 
-/*
- * TODO: Rather than invoking "exportfs -v" once for each share we should only
- * call it once for all shares.
- */
 static boolean_t
 is_share_active(sa_share_impl_t impl_share)
 {
 	char line[512];
 	char *tab, *cur;
-	boolean_t share_active = B_FALSE;
 
-	FILE *nfs_exportfs_temp_fp = NULL;
+	FILE *nfs_exportfs_temp_fp;
 
-	if (!nfs_exportfs_temp_fd)
+	if (nfs_exportfs_temp_fd < 0)
 		return B_FALSE;
 
 	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "r");
 
-	if (!nfs_exportfs_temp_fp || -1==fseek(nfs_exportfs_temp_fp,0,SEEK_SET))
-	{
+	if (!nfs_exportfs_temp_fp || -1==fseek(nfs_exportfs_temp_fp, 0, SEEK_SET)) {
 		fclose(nfs_exportfs_temp_fp);
 		return B_FALSE;
 	}
 
-	{
-		share_active = B_FALSE;
+	while (fgets(line, sizeof(line), nfs_exportfs_temp_fp) != NULL) {
+		/*
+		 * exportfs uses separate lines for the share path
+		 * and the export options when the share path is longer
+		 * than a certain amount of characters; this ignores
+		 * the option lines
+		 */
+		if (line[0] == '\t')
+			continue;
 
-		while (fgets(line, sizeof(line), nfs_exportfs_temp_fp) != NULL) {
-			if (share_active)
-				continue;
+		tab = strchr(line, '\t');
 
+		if (tab != NULL) {
+			*tab = '\0';
+			cur = tab - 1;
+		} else {
 			/*
-			 * exportfs uses separate lines for the share path
-			 * and the export options when the share path is longer
-			 * than a certain amount of characters; this ignores
-			 * the option lines
+			 * there's no tab character, which means the
+			 * NFS options are on a separate line; we just
+			 * need to remove the new-line character
+			 * at the end of the line
 			 */
-			if (line[0] == '\t')
-				continue;
-
-			tab = strchr(line, '\t');
-
-			if (tab != NULL) {
-				*tab = '\0';
-				cur = tab - 1;
-			} else {
-				/*
-				 * there's no tab character, which means the
-				 * NFS options are on a separate line; we just
-				 * need to remove the new-line character
-				 * at the end of the line
-				 */
-				cur = line + strlen(line) - 1;
-			}
-
-			/* remove trailing spaces and new-line characters */
-			while (cur >= line &&
-			    (*cur == ' ' || *cur == '\n'))
-				*cur-- = '\0';
-
-			if (strcmp(line, impl_share->sharepath) == 0) {
-				share_active = B_TRUE;
-				break;
-			}
+			cur = line + strlen(line) - 1;
 		}
 
-		fclose(nfs_exportfs_temp_fp);
-		return share_active;
+		/* remove trailing spaces and new-line characters */
+		while (cur >= line &&
+		    (*cur == ' ' || *cur == '\n'))
+			*cur-- = '\0';
+
+		if (strcmp(line, impl_share->sharepath) == 0) {
+			fclose(nfs_exportfs_temp_fp);
+			return B_TRUE;
+		}
 	}
+
+	fclose(nfs_exportfs_temp_fp);
+	return B_FALSE;
 }
 
 static int
@@ -627,25 +610,34 @@ static const sa_share_ops_t nfs_shareops = {
 	.clear_shareopts = nfs_clear_shareopts,
 };
 
+/* nfs_check_exportfs() checks that the exportfs command runs
+ * and also maintains a temporary copy of the output from
+ * exportfs -v.
+ * To update this temporary copy simply call this function again.
+ *
+ * TODO : Use /var/lib/nfs/etab instead of our private copy.
+ *        But must implement locking to prevent concurrent access.
+ *
+ * TODO : The temporary file descriptor is never closed since 
+ *        there is no libshare_nfs_fini() function.
+ */
 static int
 nfs_check_exportfs(void)
 {
 	pid_t pid;
-	int rc,rc2, status;
+	int rc, rc2, status;
 	int pipes[2];
 	FILE *exportfs_stdout;
 	char line[512];
+	static char nfs_exportfs_tempfile[] = "/tmp/exportfs.XXXXXX";
+	FILE *nfs_exportfs_temp_fp;
 
-	/* Close any existing temporary copies of exportfs.
-	 * We have already called unlink() so file will be
-	 * deleted.
+	/* Close any existing temporary copies of output from exportfs.
+	 * We have already called unlink() so file will be deleted.
 	 */
-	FILE *nfs_exportfs_temp_fp = NULL;
-
-	if (nfs_exportfs_temp_fd)
-	{
+	if (nfs_exportfs_temp_fd >= 0) {
 		close(nfs_exportfs_temp_fd);
-		nfs_exportfs_temp_fd=0;
+		nfs_exportfs_temp_fd = -1; 
 	}
 
 	nfs_exportfs_temp_fd = mkstemp(nfs_exportfs_tempfile);
@@ -680,7 +672,7 @@ nfs_check_exportfs(void)
 			rc2 = fputs(line,nfs_exportfs_temp_fp);
 		}
 
-		if (rc2>=0)
+		if (rc2 >= 0)
 			rc2 = fclose(nfs_exportfs_temp_fp);
 		else
 			fclose(nfs_exportfs_temp_fp);
@@ -690,7 +682,7 @@ nfs_check_exportfs(void)
 		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
 			; /* empty loop body */
 
-		if (rc <= 0 || rc2<0 )
+		if (rc <= 0 || rc2 < 0 )
 			return SA_SYSTEM_ERR;
 
 		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
