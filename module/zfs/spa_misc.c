@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1678,6 +1679,12 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_pass_exam = spa->spa_scan_pass_exam;
 
 	return (0);
+}
+
+boolean_t
+spa_debug_enabled(spa_t *spa)
+{
+	return (spa->spa_debug);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

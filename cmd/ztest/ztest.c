@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 /*
@@ -5300,6 +5301,7 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	kernel_init(FREAD | FWRITE);
 	VERIFY(spa_open(zs->zs_pool, &spa, FTAG) == 0);
+	spa->spa_debug = B_TRUE;
 	zs->zs_spa = spa;
 
 	spa->spa_dedup_ditto = 2 * ZIO_DEDUPDITTO_MIN;
