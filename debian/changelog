@@ -1,3 +1,23 @@
+zfs-linux (0.6.0.28-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix the configure CONFIG_* option detection
+  * Add missing <pool> option
+  * Fix txg_sync_thread deadlock
+
+  [ Zachary Bedell ]
+  * Soft to hard tabs
+  * Catch return errors from zpool commands
+
+  [ Darik Horn ]
+  * Force root pool imports in the initramfs script.
+  * lintian: non-dev-pkg-with-shlib-symlink
+  * Override lintian extra-license-file warnings.
+  * Update the project Github link.
+  * Override dh_shlibdeps warnings.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 25 Jul 2011 23:39:10 -0500
+
 zfs-linux (0.6.0.27-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
