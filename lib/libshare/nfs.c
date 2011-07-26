@@ -36,6 +36,15 @@
 static sa_fstype_t *nfs_fstype;
 static boolean_t nfs_available;
 
+/* nfs_exportfs_tempfile holds a copy of exportfs -v
+ * This copy is updated every time nfs_check_exportfs() is called.
+ * There should be a libshare_nfs_fini() function to clear up
+ * file descriptors.
+ */
+
+static char nfs_exportfs_tempfile[] = "/tmp/exportfs.XXXXXX";
+static int nfs_exportfs_temp_fd = 0;
+
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
 
@@ -500,29 +509,27 @@ nfs_validate_shareopts(const char *shareopts)
 static boolean_t
 is_share_active(sa_share_impl_t impl_share)
 {
-	pid_t pid;
-	int rc, status;
-	int pipes[2];
-	FILE *exportfs_stdout;
 	char line[512];
 	char *tab, *cur;
 	boolean_t share_active = B_FALSE;
 
-	if (pipe(pipes) < 0)
+	FILE *nfs_exportfs_temp_fp = NULL;
+
+	if (!nfs_exportfs_temp_fd)
 		return B_FALSE;
 
-	pid = fork();
+	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "r");
 
-	if (pid < 0)
+	if (!nfs_exportfs_temp_fp || -1==fseek(nfs_exportfs_temp_fp,0,SEEK_SET))
+	{
+		fclose(nfs_exportfs_temp_fp);
 		return B_FALSE;
+	}
 
-	if (pid > 0) {
+	{
 		share_active = B_FALSE;
 
-		exportfs_stdout = fdopen(pipes[0], "r");
-		close(pipes[1]);
-
-		while (fgets(line, sizeof(line), exportfs_stdout) != NULL) {
+		while (fgets(line, sizeof(line), nfs_exportfs_temp_fp) != NULL) {
 			if (share_active)
 				continue;
 
@@ -557,47 +564,13 @@ is_share_active(sa_share_impl_t impl_share)
 
 			if (strcmp(line, impl_share->sharepath) == 0) {
 				share_active = B_TRUE;
-
-				/*
-				 * We can't break here just yet, otherwise
-				 * exportfs might die due to write() failing
-				 * with EPIPE once we've closed the pipe file
-				 * descriptor - we need to read until EOF
-				 * occurs on the stdout pipe.
-				 */
+				break;
 			}
 		}
 
-		fclose(exportfs_stdout);
-
-		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
-			; /* empty loop body */
-
-		if (rc <= 0)
-			return B_FALSE;
-
-		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-			return B_FALSE;
-
+		fclose(nfs_exportfs_temp_fp);
 		return share_active;
 	}
-
-	/* child */
-
-	/* exportfs -v */
-
-	close(pipes[0]);
-
-	if (dup2(pipes[1], STDOUT_FILENO) < 0)
-		exit(1);
-
-	rc = execlp("/usr/sbin/exportfs", "exportfs", "-v", NULL);
-
-	if (rc < 0) {
-		exit(1);
-	}
-
-	exit(0);
 }
 
 static int
@@ -658,7 +631,39 @@ static int
 nfs_check_exportfs(void)
 {
 	pid_t pid;
-	int rc, status, null_fd;
+	int rc,rc2, status;
+	int pipes[2];
+	FILE *exportfs_stdout;
+	char line[512];
+
+	/* Close any existing temporary copies of exportfs.
+	 * We have already called unlink() so file will be
+	 * deleted.
+	 */
+	FILE *nfs_exportfs_temp_fp = NULL;
+
+	if (nfs_exportfs_temp_fd)
+	{
+		close(nfs_exportfs_temp_fd);
+		nfs_exportfs_temp_fd=0;
+	}
+
+	nfs_exportfs_temp_fd = mkstemp(nfs_exportfs_tempfile);
+
+	if (nfs_exportfs_temp_fd < 0)
+		return SA_SYSTEM_ERR;
+
+	unlink(nfs_exportfs_tempfile);
+
+	fcntl(nfs_exportfs_temp_fd, F_SETFD, FD_CLOEXEC);
+
+	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "w");
+
+	if (nfs_exportfs_temp_fp == NULL)
+		return SA_SYSTEM_ERR;
+
+	if (pipe(pipes) < 0)
+		return SA_SYSTEM_ERR;
 
 	pid = fork();
 
@@ -666,10 +671,26 @@ nfs_check_exportfs(void)
 		return SA_SYSTEM_ERR;
 
 	if (pid > 0) {
+		exportfs_stdout = fdopen(pipes[0], "r");
+		close(pipes[1]);
+
+		rc2 = 0;
+
+		while (fgets(line, sizeof(line), exportfs_stdout) != NULL) {
+			rc2 = fputs(line,nfs_exportfs_temp_fp);
+		}
+
+		if (rc2>=0)
+			rc2 = fclose(nfs_exportfs_temp_fp);
+		else
+			fclose(nfs_exportfs_temp_fp);
+
+		fclose(exportfs_stdout);
+
 		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
 			; /* empty loop body */
 
-		if (rc <= 0)
+		if (rc <= 0 || rc2<0 )
 			return SA_SYSTEM_ERR;
 
 		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
@@ -680,14 +701,14 @@ nfs_check_exportfs(void)
 
 	/* child */
 
-	null_fd = open("/dev/null", O_RDONLY);
+	/* exportfs -v */
 
-	if (null_fd < 0 || dup2(null_fd, 1) < 0 || dup2(null_fd, 2) < 0)
+	close(pipes[0]);
+
+	if (dup2(pipes[1], STDOUT_FILENO) < 0)
 		exit(1);
 
-	close(null_fd);
-
-	rc = execlp("/usr/sbin/exportfs", "exportfs", NULL);
+	rc = execlp("/usr/sbin/exportfs", "exportfs", "-v", NULL);
 
 	if (rc < 0) {
 		exit(1);
