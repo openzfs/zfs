@@ -210,30 +210,10 @@ static int
 nfs_enable_share_one(const char *sharepath, const char *host,
     const char *security, const char *access, void *pcookie)
 {
-	pid_t pid;
-	int rc, status;
+	int rc;
 	char *linuxhost, *hostpath, *opts;
 	const char *linux_opts = (const char *)pcookie;
-
-	pid = fork();
-
-	if (pid < 0)
-		return SA_SYSTEM_ERR;
-
-	if (pid > 0) {
-		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
-			; /* empty loop body */
-
-		if (rc <= 0)
-			return SA_SYSTEM_ERR;
-
-		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-			return SA_CONFIG_ERR;
-
-		return SA_OK;
-	}
-
-	/* child */
+	char *argv[6];
 
 	/* exportfs -i -o sec=XX,rX,<opts> <host>:<sharepath> */
 
@@ -268,16 +248,22 @@ nfs_enable_share_one(const char *sharepath, const char *host,
 	fprintf(stderr, "sharing %s with opts %s\n", hostpath, opts);
 #endif
 
-	rc = execlp("/usr/sbin/exportfs", "exportfs", "-i", \
-	    "-o", opts, hostpath, NULL);
+	argv[0] = "/usr/sbin/exportfs";
+	argv[1] = "-i";
+	argv[2] = "-o";
+	argv[3] = opts;
+	argv[4] = hostpath;
+	argv[5] = NULL;
 
-	if (rc < 0) {
-		free(hostpath);
-		free(opts);
-		exit(1);
-	}
+	rc = libzfs_run_process(argv[0], argv, 0);
 
-	exit(0);
+	free(hostpath);
+	free(opts);
+
+	if (rc < 0)
+		return SA_SYSTEM_ERR;
+	else
+		return SA_OK;
 }
 
 static int
@@ -414,29 +400,9 @@ static int
 nfs_disable_share_one(const char *sharepath, const char *host,
     const char *security, const char *access, void *cookie)
 {
-	pid_t pid;
-	int rc, status;
+	int rc;
 	char *linuxhost, *hostpath;
-
-	pid = fork();
-
-	if (pid < 0)
-		return SA_SYSTEM_ERR;
-
-	if (pid > 0) {
-		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
-			; /* empty loop body */
-
-		if (rc <= 0)
-			return SA_SYSTEM_ERR;
-
-		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-			return SA_CONFIG_ERR;
-
-		return SA_OK;
-	}
-
-	/* child */
+	char *argv[4];
 
 	rc = get_linux_hostspec(host, &linuxhost);
 
@@ -458,15 +424,19 @@ nfs_disable_share_one(const char *sharepath, const char *host,
 	fprintf(stderr, "unsharing %s\n", hostpath);
 #endif
 
-	rc = execlp("/usr/sbin/exportfs", "exportfs", "-u", \
-	    hostpath, NULL);
+	argv[0] = "/usr/sbin/exportfs";
+	argv[1] = "-u";
+	argv[2] = hostpath;
+	argv[3] = NULL;
 
-	if (rc < 0) {
-		free(hostpath);
-		exit(1);
-	}
+	rc = libzfs_run_process(argv[0], argv, 0);
 
-	exit(0);
+	free(hostpath);
+
+	if (rc < 0)
+		return SA_SYSTEM_ERR;
+	else
+		return SA_OK;
 }
 
 static int
