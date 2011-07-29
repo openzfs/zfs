@@ -635,15 +635,22 @@ int
 libzfs_run_process(const char *path, char *argv[], int flags)
 {
 	pid_t pid;
-	int rc;
+	int rc, devnull_fd;
 
 	pid = vfork();
 	if (pid == 0) {
+		devnull_fd = open("/dev/null", O_WRONLY);
+
+		if (devnull_fd < 0)
+			_exit(-1);
+
 		if (!(flags & STDOUT_VERBOSE))
-			close(STDOUT_FILENO);
+			(void) dup2(devnull_fd, STDOUT_FILENO);
 
 		if (!(flags & STDERR_VERBOSE))
-			close(STDERR_FILENO);
+			(void) dup2(devnull_fd, STDERR_FILENO);
+
+		close(devnull_fd);
 
 		(void) execvp(path, argv);
 		_exit(-1);
