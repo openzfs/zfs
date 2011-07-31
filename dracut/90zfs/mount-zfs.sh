@@ -19,12 +19,14 @@ case "$root" in
 			# Might be imported by the kernel module, so try searching before
 			# we import anything.
 			zfsbootfs=`zpool list -H -o bootfs | sed 'q'`
-			if [ "$?" != "0" ] || [ "$zfsbootfs" = "" ] || [ "$zfsbootfs" = "no pools available" ] ; then
+			if [ "$?" != "0" ] || [ "$zfsbootfs" = "" ] || \
+				[ "$zfsbootfs" = "no pools available" ] ; then
 				# Not there, so we need to import everything.
 				info "ZFS: Attempting to import additional pools."
 				zpool import -N -a ${ZPOOL_FORCE}
 				zfsbootfs=`zpool list -H -o bootfs | sed 'q'`
-				if [ "$?" != "0" ] || [ "$zfsbootfs" = "" ] || [ "$zfsbootfs" = "no pools available" ] ; then
+				if [ "$?" != "0" ] || [ "$zfsbootfs" = "" ] || \
+					[ "$zfsbootfs" = "no pools available" ] ; then
 					rootok=0
 					pool=""
 

@@ -10,7 +10,8 @@ if [ "${spl_hostid}" != "" ] ; then
 elif [ -f /etc/hostid ] ; then
 	info "ZFS: Using hostid from /etc/hostid: `cat /etc/hostid`"
 else
-	warn "ZFS: No hostid found on kernel command line or /etc/hostid.  ZFS pools may not import correctly."
+	warn "ZFS: No hostid found on kernel command line or /etc/hostid.  "
+	warn "ZFS: Pools may not import correctly."
 fi
 
 case "$root" in
