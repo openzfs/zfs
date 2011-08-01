@@ -360,7 +360,7 @@ This property can also be referred to by its shortened column name, \fBavail\fR.
 .ad
 .sp .6
 .RS 4n
-The compression ratio achieved for this dataset, expressed as a multiplier. Compression can be turned on by running: \fBzfs set compression=on \fIdataset\fR\fR. The default value is \fBoff\fR.
+For non-snapshots, the compression ratio achieved for the \fBused\fR space of this dataset, expressed as a multiplier.  The \fBused\fR property includes descendant datasets, and, for clones, does not include the space shared with the origin snapshot.  For snapshots, the \fBcompressratio\fR is the same as the \fBrefcompressratio\fR property.  Compression can be turned on by running: \fBzfs set compression=on \fIdataset\fR\fR. The default value is \fBoff\fR.
 .RE
 
 .sp
@@ -418,6 +418,19 @@ For cloned file systems or volumes, the snapshot from which the clone was create
 The amount of data that is accessible by this dataset, which may or may not be shared with other datasets in the pool. When a snapshot or clone is created, it initially references the same amount of space as the file system or snapshot it was created from, since its contents are identical.
 .sp
 This property can also be referred to by its shortened column name, \fBrefer\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBrefcompressratio\fR\fR
+.ad
+.sp .6
+.RS 4n
+The compression ratio achieved for the \fBreferenced\fR space of this
+dataset, expressed as a multiplier.  See also the \fBcompressratio\fR
+property.
 .RE
 
 .sp
@@ -1235,7 +1248,7 @@ Recursively destroy all dependents, including cloned file systems outside the ta
 Force an unmount of any file systems using the \fBunmount -f\fR command. This option has no effect on non-file systems or unmounted file systems.
 .RE
 
-Extreme care should be taken when applying either the \fB-r\fR or the \fB-f\fR options, as they can destroy large portions of a pool and cause unexpected behavior for mounted file systems in use. 
+Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR options, as they can destroy large portions of a pool and cause unexpected behavior for mounted file systems in use.
 .RE
 
 .sp

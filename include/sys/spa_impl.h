@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -196,6 +197,7 @@ struct spa {
 	kcondvar_t	spa_suspend_cv;		/* notification of resume */
 	uint8_t		spa_suspended;		/* pool is suspended */
 	uint8_t		spa_claiming;		/* pool is doing zil_claim() */
+	boolean_t	spa_debug;		/* debug enabled? */
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
 	int		spa_mode;		/* FREAD | FWRITE */

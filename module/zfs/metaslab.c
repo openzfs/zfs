@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -30,10 +31,29 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 
-#define WITH_NDF_BLOCK_ALLOCATOR
+#define WITH_DF_BLOCK_ALLOCATOR
+
+/*
+ * Allow allocations to switch to gang blocks quickly. We do this to
+ * avoid having to load lots of space_maps in a given txg. There are,
+ * however, some cases where we want to avoid "fast" ganging and instead
+ * we want to do an exhaustive search of all metaslabs on this device.
+ * Currently we don't allow any gang or dump device related allocations
+ * to "fast" gang.
+ */
+#define	CAN_FASTGANG(flags) \
+	(!((flags) & (METASLAB_GANG_CHILD | METASLAB_GANG_HEADER | \
+	METASLAB_GANG_AVOID)))
 
 uint64_t metaslab_aliquot = 512ULL << 10;
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
+
+/*
+ * This value defines the number of allowed allocation failures per vdev.
+ * If a device reaches this threshold in a given txg then we consider skipping
+ * allocations on that device.
+ */
+int zfs_mg_alloc_failures;
 
 /*
  * Metaslab debugging: when set, keeps all space maps in core to verify frees.
@@ -865,7 +885,7 @@ metaslab_prefetch(metaslab_group_t *mg)
 }
 
 static int
-metaslab_activate(metaslab_t *msp, uint64_t activation_weight, uint64_t size)
+metaslab_activate(metaslab_t *msp, uint64_t activation_weight)
 {
 	metaslab_group_t *mg = msp->ms_group;
 	space_map_t *sm = &msp->ms_map;
@@ -898,13 +918,6 @@ metaslab_activate(metaslab_t *msp, uint64_t activation_weight, uint64_t size)
 			mg->mg_bonus_area = sm->sm_start;
 			mutex_exit(&mg->mg_lock);
 		}
-
-		/*
-		 * If we were able to load the map then make sure
-		 * that this map is still able to satisfy our request.
-		 */
-		if (msp->ms_weight < size)
-			return (ENOSPC);
 
 		metaslab_group_sort(msp->ms_group, msp,
 		    msp->ms_weight | activation_weight);
@@ -1123,6 +1136,7 @@ void
 metaslab_sync_reassess(metaslab_group_t *mg)
 {
 	vdev_t *vd = mg->mg_vd;
+	int64_t failures = mg->mg_alloc_failures;
 	int m;
 
 	/*
@@ -1139,6 +1153,8 @@ metaslab_sync_reassess(metaslab_group_t *mg)
 		metaslab_group_sort(mg, msp, metaslab_weight(msp));
 		mutex_exit(&msp->ms_lock);
 	}
+
+	atomic_add_64(&mg->mg_alloc_failures, -failures);
 
 	/*
 	 * Prefetch the next potential metaslabs
@@ -1164,9 +1180,10 @@ metaslab_distance(metaslab_t *msp, dva_t *dva)
 }
 
 static uint64_t
-metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
-    uint64_t min_distance, dva_t *dva, int d)
+metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
+    uint64_t txg, uint64_t min_distance, dva_t *dva, int d, int flags)
 {
+	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_t *msp = NULL;
 	uint64_t offset = -1ULL;
 	avl_tree_t *t = &mg->mg_metaslab_tree;
@@ -1187,11 +1204,17 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
 
 		mutex_enter(&mg->mg_lock);
 		for (msp = avl_first(t); msp; msp = AVL_NEXT(t, msp)) {
-			if (msp->ms_weight < size) {
+			if (msp->ms_weight < asize) {
+				spa_dbgmsg(spa, "%s: failed to meet weight "
+				    "requirement: vdev %llu, txg %llu, mg %p, "
+				    "msp %p, psize %llu, asize %llu, "
+				    "failures %llu, weight %llu",
+				    spa_name(spa), mg->mg_vd->vdev_id, txg,
+				    mg, msp, psize, asize,
+				    mg->mg_alloc_failures, msp->ms_weight);
 				mutex_exit(&mg->mg_lock);
 				return (-1ULL);
 			}
-
 			was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
 			if (activation_weight == METASLAB_WEIGHT_PRIMARY)
 				break;
@@ -1210,6 +1233,25 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
 		if (msp == NULL)
 			return (-1ULL);
 
+		/*
+		 * If we've already reached the allowable number of failed
+		 * allocation attempts on this metaslab group then we
+		 * consider skipping it. We skip it only if we're allowed
+		 * to "fast" gang, the physical size is larger than
+		 * a gang block, and we're attempting to allocate from
+		 * the primary metaslab.
+		 */
+		if (mg->mg_alloc_failures > zfs_mg_alloc_failures &&
+		    CAN_FASTGANG(flags) && psize > SPA_GANGBLOCKSIZE &&
+		    activation_weight == METASLAB_WEIGHT_PRIMARY) {
+			spa_dbgmsg(spa, "%s: skipping metaslab group: "
+			    "vdev %llu, txg %llu, mg %p, psize %llu, "
+			    "asize %llu, failures %llu", spa_name(spa),
+			    mg->mg_vd->vdev_id, txg, mg, psize, asize,
+			    mg->mg_alloc_failures);
+			return (-1ULL);
+		}
+
 		mutex_enter(&msp->ms_lock);
 
 		/*
@@ -1218,7 +1260,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
 		 * another thread may have changed the weight while we
 		 * were blocked on the metaslab lock.
 		 */
-		if (msp->ms_weight < size || (was_active &&
+		if (msp->ms_weight < asize || (was_active &&
 		    !(msp->ms_weight & METASLAB_ACTIVE_MASK) &&
 		    activation_weight == METASLAB_WEIGHT_PRIMARY)) {
 			mutex_exit(&msp->ms_lock);
@@ -1233,13 +1275,15 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
 			continue;
 		}
 
-		if (metaslab_activate(msp, activation_weight, size) != 0) {
+		if (metaslab_activate(msp, activation_weight) != 0) {
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
 
-		if ((offset = space_map_alloc(&msp->ms_map, size)) != -1ULL)
+		if ((offset = space_map_alloc(&msp->ms_map, asize)) != -1ULL)
 			break;
+
+		atomic_inc_64(&mg->mg_alloc_failures);
 
 		metaslab_passivate(msp, space_map_maxsize(&msp->ms_map));
 
@@ -1249,7 +1293,7 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t size, uint64_t txg,
 	if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
 		vdev_dirty(mg->mg_vd, VDD_METASLAB, msp, txg);
 
-	space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, size);
+	space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, asize);
 
 	mutex_exit(&msp->ms_lock);
 
@@ -1376,7 +1420,8 @@ top:
 		asize = vdev_psize_to_asize(vd, psize);
 		ASSERT(P2PHASE(asize, 1ULL << vd->vdev_ashift) == 0);
 
-		offset = metaslab_group_alloc(mg, asize, txg, distance, dva, d);
+		offset = metaslab_group_alloc(mg, psize, asize, txg, distance,
+		    dva, d, flags);
 		if (offset != -1ULL) {
 			/*
 			 * If we've just selected this metaslab group,
@@ -1388,18 +1433,24 @@ top:
 				vdev_stat_t *vs = &vd->vdev_stat;
 				int64_t vu, cu;
 
-				/*
-				 * Determine percent used in units of 0..1024.
-				 * (This is just to avoid floating point.)
-				 */
-				vu = (vs->vs_alloc << 10) / (vs->vs_space + 1);
-				cu = (mc->mc_alloc << 10) / (mc->mc_space + 1);
+				vu = (vs->vs_alloc * 100) / (vs->vs_space + 1);
+				cu = (mc->mc_alloc * 100) / (mc->mc_space + 1);
 
 				/*
-				 * Bias by at most +/- 25% of the aliquot.
+				 * Calculate how much more or less we should
+				 * try to allocate from this device during
+				 * this iteration around the rotor.
+				 * For example, if a device is 80% full
+				 * and the pool is 20% full then we should
+				 * reduce allocations by 60% on this device.
+				 *
+				 * mg_bias = (20 - 80) * 512K / 100 = -307K
+				 *
+				 * This reduces allocations by 307K for this
+				 * iteration.
 				 */
 				mg->mg_bias = ((cu - vu) *
-				    (int64_t)mg->mg_aliquot) / (1024 * 4);
+				    (int64_t)mg->mg_aliquot) / 100;
 			}
 
 			if (atomic_add_64_nv(&mc->mc_aliquot, asize) >=
@@ -1513,7 +1564,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	mutex_enter(&msp->ms_lock);
 
 	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_map.sm_loaded)
-		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY, 0);
+		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
 
 	if (error == 0 && !space_map_contains(&msp->ms_map, offset, size))
 		error = ENOENT;

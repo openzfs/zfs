@@ -71,9 +71,16 @@
  * 1<<zfs_vdev_cache_bshift byte reads by the vdev_cache (aka software
  * track buffer).  At most zfs_vdev_cache_size bytes will be kept in each
  * vdev's vdev_cache.
+ *
+ * TODO: Note that with the current ZFS code, it turns out that the
+ * vdev cache is not helpful, and in some cases actually harmful.  It
+ * is better if we disable this.  Once some time has passed, we should
+ * actually remove this to simplify the code.  For now we just disable
+ * it by setting the zfs_vdev_cache_size to zero.  Note that Solaris 11
+ * has made these same changes.
  */
 int zfs_vdev_cache_max = 1<<14;			/* 16KB */
-int zfs_vdev_cache_size = 10ULL << 20;		/* 10MB */
+int zfs_vdev_cache_size = 0;
 int zfs_vdev_cache_bshift = 16;
 
 #define	VCBS (1 << zfs_vdev_cache_bshift)	/* 64KB */
