@@ -506,7 +506,7 @@ void
 txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	int timeout = ddi_get_lbolt() + ticks;
+	clock_t timeout = ddi_get_lbolt() + ticks;
 
 	/* don't delay if this txg could transition to quiesing immediately */
 	if (tx->tx_open_txg > txg ||
