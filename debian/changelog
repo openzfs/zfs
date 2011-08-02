@@ -1,3 +1,52 @@
+zfs-linux (0.6.0.29-0ubuntu1) unstable; urgency=low
+
+  [ Kyle Fuller ]
+  * Make autogen.sh executable
+  * Turn the init.d scripts into autoconf config files
+
+  [ Zachary Bedell ]
+  * Wrap dracut scripts to 79 chars
+
+  [ Brian Behlendorf ]
+  * Add .gitignore for zfs.<distro> init scripts
+
+  [ Tim Haley ]
+  * Illumos #xxx: zdb -vvv broken after zfs diff integration
+
+  [ Gordon Ross ]
+  * Illumos #764: panic in zfs:dbuf_sync_list
+
+  [ Garrett D'Amore ]
+  * Illumos #175: zfs vdev cache consumes excessive memory
+
+  [ Shampavman ]
+  * Illumos #510: 'zfs get' enhancement - mountpoint as an argument
+
+  [ George Wilson ]
+  * Illumos #1051: zfs should handle imbalanced luns
+
+  [ Matt Ahrens ]
+  * Illumos #1092: zfs refratio property
+
+  [ Eric Schrock ]
+  * Illumos #883: ZIL reuse during remount corruption
+
+  [ Martin Matuska ]
+  * Illumos #1043: Recursive zfs snapshot destroy fails
+  * Illumos #1313: Integer overflow in txg_delay()
+
+  [ Alexander Stetsenko ]
+  * Illumos #278: get rid zfs of python and pyzfs dependencies
+
+  [ James H ]
+  * Call exportfs -v once for NFS shares.
+
+  [ Gunnar Beutner ]
+  * Use /dev/null for stdout/stderr in libzfs_run_process().
+  * Use libzfs_run_process() in libshare.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 02 Aug 2011 10:18:10 -0500
+
 zfs-linux (0.6.0.28-0ubuntu2) unstable; urgency=low
 
   * Update replacement controls for libzfs-dev.
