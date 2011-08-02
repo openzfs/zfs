@@ -352,7 +352,10 @@ zpl_readpage(struct file *filp, struct page *pp)
 int
 zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
-	int error;
+	struct address_space *mapping = data;
+
+	ASSERT(PageLocked(pp));
+	ASSERT(!PageWriteback(pp));
 
 	/*
 	 * Disable the normal reclaim path for zpl_putpage().  This
@@ -362,20 +365,10 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	 * zpl_putpage() again resulting in a deadlock.
 	 */
 	current->flags |= PF_MEMALLOC;
-	error = -zfs_putpage(pp, wbc, data);
+	(void) zfs_putpage(mapping->host, pp, wbc);
 	current->flags &= ~PF_MEMALLOC;
 
-	if (error) {
-		SetPageError(pp);
-		ClearPageUptodate(pp);
-	} else {
-		ClearPageError(pp);
-		SetPageUptodate(pp);
-		flush_dcache_page(pp);
-	}
-
-	unlock_page(pp);
-	return error;
+	return (0);
 }
 
 static int
