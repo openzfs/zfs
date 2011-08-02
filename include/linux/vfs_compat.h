@@ -62,4 +62,23 @@ truncate_setsize(struct inode *ip, loff_t new)
 }
 #endif /* HAVE_TRUNCATE_SETSIZE */
 
+/*
+ * 2.6.32 API change,
+ * Added backing_device_info (bdi) per super block interfaces.  When
+ * available a bdi must be configured when using a non-device backed
+ * filesystem for proper writeback.  It's safe to leave this code
+ * dormant for kernels which only support pdflush and not bdi.
+ */
+#ifdef HAVE_BDI
+#define	bdi_get_sb(sb)				(sb->s_bdi)
+#define	bdi_put_sb(sb, bdi)			(sb->s_bdi = bdi)
+#else
+#define	bdi_init(bdi)				(0)
+#define	bdi_destroy(bdi)			(0)
+#define	bdi_register(bdi, parent, fmt, args)	(0)
+#define	bdi_unregister(bdi)			(0)
+#define	bdi_get_sb(sb)				(0)
+#define	bdi_put_sb(sb, bdi)			(0)
+#endif /* HAVE_BDI */
+
 #endif /* _ZFS_VFS_H */

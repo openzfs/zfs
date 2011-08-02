@@ -43,6 +43,7 @@ struct znode;
 
 typedef struct zfs_sb {
 	struct super_block *z_sb;	/* generic super_block */
+	struct backing_dev_info z_bdi;	/* generic backing dev info */
 	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
 	uint64_t	z_flags;	/* super_block flags */

@@ -18,6 +18,9 @@
 /* bdev_logical_block_size() is available */
 #undef HAVE_BDEV_LOGICAL_BLOCK_SIZE
 
+/* struct super_block has s_bdi */
+#undef HAVE_BDI
+
 /* bio_empy_barrier() is defined */
 #undef HAVE_BIO_EMPTY_BARRIER
 
