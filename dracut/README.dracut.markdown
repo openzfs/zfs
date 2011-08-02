@@ -33,16 +33,17 @@ Kernel Command Line
 The initramfs' behavior is influenced by the following kernel command line
 parameters passed in from the boot loader:
 
-* `root=...`: If not set, importable pools are searched for a bootfs attribute.
-If an explicitly set root is desired, you may use `root=ZFS:pool/dataset`
+* `root=...`: If not set, importable pools are searched for a bootfs
+attribute.  If an explicitly set root is desired, you may use
+`root=ZFS:pool/dataset`
 
 * `zfs_force=0`: If set to 1, the initramfs will run `zpool import -f` when
 attempting to import pools if the required pool isn't automatically imported
-by the zfs module.  This can save you a trip to a bootcd if hostid has changed,
-but is dangerous and can lead to zpool corruption, particularly in cases where
-storage is on a shared fabric such as iSCSI where multiple hosts can access
-storage devices concurrently.  _Please understand the implications of
-force-importing a pool before enabling this option!_
+by the zfs module.  This can save you a trip to a bootcd if hostid has
+changed, but is dangerous and can lead to zpool corruption, particularly in
+cases where storage is on a shared fabric such as iSCSI where multiple hosts
+can access storage devices concurrently.  _Please understand the implications
+of force-importing a pool before enabling this option!_
 
 * `spl_hostid`: By default, the hostid used by the SPL module is read from
 /etc/hostid inside the initramfs.  This file is placed there from the host

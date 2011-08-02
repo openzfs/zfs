@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -311,6 +312,9 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_COMPRESSRATIO, "compressratio", 0,
 	    PROP_READONLY, ZFS_TYPE_DATASET,
 	    "<1.00x or higher if compressed>", "RATIO");
+	zprop_register_number(ZFS_PROP_REFRATIO, "refcompressratio", 0,
+	    PROP_READONLY, ZFS_TYPE_DATASET,
+	    "<1.00x or higher if compressed>", "REFRATIO");
 	zprop_register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize",
 	    ZVOL_DEFAULT_BLOCKSIZE, PROP_ONETIME,
 	    ZFS_TYPE_VOLUME, "512 to 128k, power of 2",	"VOLBLOCK");

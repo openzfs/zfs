@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 /*
@@ -205,6 +206,7 @@ typedef struct ztest_od {
  */
 typedef struct ztest_ds {
 	objset_t	*zd_os;
+	krwlock_t	zd_zilog_lock;
 	zilog_t		*zd_zilog;
 	uint64_t	zd_seq;
 	ztest_od_t	*zd_od;		/* debugging aid */
@@ -238,6 +240,7 @@ ztest_func_t ztest_dmu_commit_callbacks;
 ztest_func_t ztest_zap;
 ztest_func_t ztest_zap_parallel;
 ztest_func_t ztest_zil_commit;
+ztest_func_t ztest_zil_remount;
 ztest_func_t ztest_dmu_read_write_zcopy;
 ztest_func_t ztest_dmu_objset_create_destroy;
 ztest_func_t ztest_dmu_prealloc;
@@ -273,6 +276,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_zap_parallel,			100,	&zopt_always	},
 	{ ztest_split_pool,			1,	&zopt_always	},
 	{ ztest_zil_commit,			1,	&zopt_incessant	},
+	{ ztest_zil_remount,			1,	&zopt_sometimes	},
 	{ ztest_dmu_read_write_zcopy,		1,	&zopt_often	},
 	{ ztest_dmu_objset_create_destroy,	1,	&zopt_often	},
 	{ ztest_dsl_prop_get_set,		1,	&zopt_often	},
@@ -1006,6 +1010,7 @@ ztest_zd_init(ztest_ds_t *zd, objset_t *os)
 	dmu_objset_name(os, zd->zd_name);
 	int l;
 
+	rw_init(&zd->zd_zilog_lock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&zd->zd_dirobj_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	for (l = 0; l < ZTEST_OBJECT_LOCKS; l++)
@@ -1021,6 +1026,7 @@ ztest_zd_fini(ztest_ds_t *zd)
 	int l;
 
 	mutex_destroy(&zd->zd_dirobj_lock);
+	rw_destroy(&zd->zd_zilog_lock);
 
 	for (l = 0; l < ZTEST_OBJECT_LOCKS; l++)
 		ztest_rll_destroy(&zd->zd_object_lock[l]);
@@ -1992,6 +1998,8 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 	if (ztest_random(2) == 0)
 		io_type = ZTEST_IO_WRITE_TAG;
 
+	(void) rw_enter(&zd->zd_zilog_lock, RW_READER);
+
 	switch (io_type) {
 
 	case ZTEST_IO_WRITE_TAG:
@@ -2028,6 +2036,8 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 	default:
 		break;
 	}
+
+	(void) rw_exit(&zd->zd_zilog_lock);
 
 	umem_free(data, blocksize);
 }
@@ -2083,6 +2093,8 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 {
 	zilog_t *zilog = zd->zd_zilog;
 
+	(void) rw_enter(&zd->zd_zilog_lock, RW_READER);
+
 	zil_commit(zilog, ztest_random(ZTEST_OBJECTS));
 
 	/*
@@ -2094,6 +2106,31 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 	ASSERT(zd->zd_seq <= zilog->zl_commit_lr_seq);
 	zd->zd_seq = zilog->zl_commit_lr_seq;
 	mutex_exit(&zilog->zl_lock);
+
+	(void) rw_exit(&zd->zd_zilog_lock);
+}
+
+/*
+ * This function is designed to simulate the operations that occur during a
+ * mount/unmount operation.  We hold the dataset across these operations in an
+ * attempt to expose any implicit assumptions about ZIL management.
+ */
+/* ARGSUSED */
+void
+ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
+{
+	objset_t *os = zd->zd_os;
+
+	(void) rw_enter(&zd->zd_zilog_lock, RW_WRITER);
+
+	/* zfsvfs_teardown() */
+	zil_close(zd->zd_zilog);
+
+	/* zfsvfs_setup() */
+	VERIFY(zil_open(os, ztest_get_data) == zd->zd_zilog);
+	zil_replay(os, zd, ztest_replay_vector);
+
+	(void) rw_exit(&zd->zd_zilog_lock);
 }
 
 /*
@@ -5300,6 +5337,7 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	kernel_init(FREAD | FWRITE);
 	VERIFY(spa_open(zs->zs_pool, &spa, FTAG) == 0);
+	spa->spa_debug = B_TRUE;
 	zs->zs_spa = spa;
 
 	spa->spa_dedup_ditto = 2 * ZIO_DEDUPDITTO_MIN;

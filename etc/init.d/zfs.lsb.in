@@ -31,9 +31,9 @@
 RETVAL=0
 
 LOCKFILE=/var/lock/zfs
-CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/sbin/zpool
-ZFS=/sbin/zfs
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 
 [ -x $ZPOOL ] || exit 1
 [ -x $ZFS ] || exit 2
@@ -66,9 +66,9 @@ start()
 
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [ -f $CACHEFILE ] ; then
+	if [ -f $ZPOOL_CACHE ] ; then
 		log_begin_msg "Importing ZFS pools"
-		$ZPOOL import -c $CACHEFILE -aN 2>/dev/null
+		$ZPOOL import -c $ZPOOL_CACHE -aN 2>/dev/null
 		log_end_msg $?
 
 		log_begin_msg "Mounting ZFS filesystems"
@@ -79,7 +79,7 @@ start()
 		$ZFS share -a
 		log_end_msg $?
 	fi
-	
+
 	touch $LOCKFILE
 }
 
