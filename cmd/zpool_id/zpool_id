@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
 PATH_ID=${PATH_ID:-/lib/udev/path_id}
