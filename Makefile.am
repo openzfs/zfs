@@ -4,6 +4,9 @@ include $(top_srcdir)/config/tgz.am
 
 if CONFIG_USER
 USER_DIR = dracut udev etc man scripts lib cmd
+if SUPPORT_INITCPIO
+USER_DIR += initcpio
+endif
 endif
 if CONFIG_KERNEL
 KERNEL_DIR = module

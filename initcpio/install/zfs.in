@@ -1,0 +1,41 @@
+build() {
+    MODULES=" zfs zcommon znvpair zavl zunicode spl zlib_deflate" # zlib_inflate
+    BINARIES=""
+    FILES=""
+    SCRIPT="zfs"
+    add_file "@udevruledir@/60-zpool.rules"
+    add_file "@udevruledir@/60-zvol.rules"
+    add_file "@udevruledir@/90-zfs.rules"
+    add_file "@sysconfdir@/zfs/zdev.conf"
+    add_file "@sysconfdir@/zfs/zpool.cache"
+    [ -f "@sysconfdir@/hostid" ] && add_file "@sysconfdir@/hostid"
+    add_binary "@sbindir@/zfs"
+    add_binary "@sbindir@/zpool"
+    add_binary "@bindir@/zpool_layout"
+    add_binary "@udevdir@/zpool_id"
+    add_binary "@udevdir@/zvol_id"
+    add_binary "@sbindir@/mount.zfs"
+    add_binary "@bindir@/hostid"
+}
+
+help() {
+cat<<HELPEOF
+  This hook allows you to use zfs as your root filesystem.
+
+  Command Line Setup:
+  - for pool
+    zfs=<pool>/<dataset>
+  - for bootfs
+    zfs=bootfs, zfs=auto, or root=zfs
+  - zfs_force=1
+    If set to 1, this will use "zpool import -f" when attempting to import pools.
+  - spl_hostid=0x00bab10c
+    By default the hostid will be used from @sysconfdir@/hostid, you can use spl_hostid to override this config file.
+
+  Examples:
+  - zfs=bootfs
+    This will use bootfs on your pool.
+  - zfs=tank/root
+    This will setup your root using tank/root zfs pool.
+HELPEOF
+}

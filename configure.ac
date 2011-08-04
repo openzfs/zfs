@@ -59,6 +59,9 @@ AC_CONFIG_FILES([
 	dracut/90zfs/Makefile
 	udev/Makefile
 	udev/rules.d/Makefile
+	initcpio/Makefile
+	initcpio/install/Makefile
+	initcpio/hook/Makefile
 	etc/Makefile
 	etc/init.d/Makefile
 	etc/zfs/Makefile
