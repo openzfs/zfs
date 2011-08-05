@@ -14375,9 +14375,9 @@ main (void)
 {
 
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
-
-		sops.evict_inode = evict_inode;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.evict_inode = evict_inode,
+		};
 
   ;
   return 0;
@@ -18733,9 +18733,9 @@ main (void)
 {
 
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
-
-		sops.evict_inode = evict_inode;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.evict_inode = evict_inode,
+		};
 
   ;
   return 0;
