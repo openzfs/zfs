@@ -28,7 +28,7 @@ installkernel() {
 }
 
 install() {
-	inst_rules "$moddir/90-zfs.rules"
+	inst_rules /lib/udev/rules.d/90-zfs.rules
 	inst_rules /lib/udev/rules.d/60-zpool.rules
 	inst_rules /lib/udev/rules.d/60-zvol.rules
 	inst /etc/zfs/zdev.conf

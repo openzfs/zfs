@@ -1,6 +1,5 @@
 pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
 dist_pkgdracut_SCRIPTS = \
-	$(top_srcdir)/dracut/90zfs/90-zfs.rules \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
 	$(top_srcdir)/dracut/90zfs/parse-zfs.sh
