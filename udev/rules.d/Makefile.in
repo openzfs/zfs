@@ -35,7 +35,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-subdir = etc/udev/rules.d
+subdir = udev/rules.d
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -78,6 +78,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
 	$(top_srcdir)/config/user-selinux.m4 \
+	$(top_srcdir)/config/user-udev.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
 	$(top_srcdir)/config/zfs-meta.m4 $(top_srcdir)/configure.ac
@@ -116,8 +117,8 @@ am__nobase_list = $(am__nobase_strip_setup); \
 am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__installdirs = "$(DESTDIR)$(pkgsysconfdir)"
-DATA = $(pkgsysconf_DATA)
+am__installdirs = "$(DESTDIR)$(udevruledir)"
+DATA = $(udevrule_DATA)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 ALIEN = @ALIEN@
@@ -287,8 +288,9 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-pkgsysconfdir = $(sysconfdir)/udev/rules.d
-pkgsysconf_DATA = \
+udevdir = @udevdir@
+udevruledir = @udevruledir@
+udevrule_DATA = \
 	60-zpool.rules \
 	60-zvol.rules
 
@@ -308,9 +310,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu etc/udev/rules.d/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu udev/rules.d/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu etc/udev/rules.d/Makefile
+	  $(AUTOMAKE) --gnu udev/rules.d/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -335,26 +337,26 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
-install-pkgsysconfDATA: $(pkgsysconf_DATA)
+install-udevruleDATA: $(udevrule_DATA)
 	@$(NORMAL_INSTALL)
-	test -z "$(pkgsysconfdir)" || $(MKDIR_P) "$(DESTDIR)$(pkgsysconfdir)"
-	@list='$(pkgsysconf_DATA)'; test -n "$(pkgsysconfdir)" || list=; \
+	test -z "$(udevruledir)" || $(MKDIR_P) "$(DESTDIR)$(udevruledir)"
+	@list='$(udevrule_DATA)'; test -n "$(udevruledir)" || list=; \
 	for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  echo "$$d$$p"; \
 	done | $(am__base_list) | \
 	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(pkgsysconfdir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(pkgsysconfdir)" || exit $$?; \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(udevruledir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(udevruledir)" || exit $$?; \
 	done
 
-uninstall-pkgsysconfDATA:
+uninstall-udevruleDATA:
 	@$(NORMAL_UNINSTALL)
-	@list='$(pkgsysconf_DATA)'; test -n "$(pkgsysconfdir)" || list=; \
+	@list='$(udevrule_DATA)'; test -n "$(udevruledir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	test -n "$$files" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(pkgsysconfdir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(pkgsysconfdir)" && rm -f $$files
+	echo " ( cd '$(DESTDIR)$(udevruledir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(udevruledir)" && rm -f $$files
 tags: TAGS
 TAGS:
 
@@ -396,7 +398,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(pkgsysconfdir)"; do \
+	for dir in "$(DESTDIR)$(udevruledir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -444,7 +446,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-pkgsysconfDATA
+install-data-am: install-udevruleDATA
 
 install-dvi: install-dvi-am
 
@@ -488,7 +490,7 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-pkgsysconfDATA
+uninstall-am: uninstall-udevruleDATA
 
 .MAKE: install-am install-strip
 
@@ -498,18 +500,19 @@ uninstall-am: uninstall-pkgsysconfDATA
 	install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-pkgsysconfDATA install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am uninstall uninstall-am uninstall-pkgsysconfDATA
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip install-udevruleDATA installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am uninstall uninstall-am \
+	uninstall-udevruleDATA
 
 
-$(pkgsysconf_DATA):
-	-$(SED) -e 's,@bindir\@,$(bindir),g' '$@.in' >'$@'
+$(udevrule_DATA):
+	-$(SED) -e 's,@udevdir\@,$(udevdir),g' '$@.in' >'$@'
 
 distclean-local::
-	-$(RM) $(pkgsysconf_DATA)
+	-$(RM) $(udevrule_DATA)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

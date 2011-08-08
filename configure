@@ -798,6 +798,8 @@ LIBSELINUX
 LIBBLKID
 LIBUUID
 ZLIB
+udevruledir
+udevdir
 KERNELCPPFLAGS
 KERNELMAKE_PARAMS
 SPL_SYMBOLS
@@ -975,6 +977,8 @@ with_linux
 with_linux_obj
 with_spl
 with_spl_obj
+with_udevdir
+with_udevruledir
 with_blkid
 with_selinux
 enable_debug
@@ -1643,6 +1647,8 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-udevdir=DIR      install udev helpers [EPREFIX/lib/udev]
+  --with-udevruledir=DIR  install udev rules [UDEVDIR/rules.d]
   --with-blkid            support blkid caching [default=check]
   --with-selinux          support selinux [default=check]
 
@@ -4823,13 +4829,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4826: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4832: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4829: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4835: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4832: output\"" >&5)
+  (eval echo "\"\$as_me:4838: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6035,7 +6041,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6038 "configure"' > conftest.$ac_ext
+  echo '#line 6044 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7888,11 +7894,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7891: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7897: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7895: \$? = $ac_status" >&5
+   echo "$as_me:7901: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8227,11 +8233,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8230: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8236: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8234: \$? = $ac_status" >&5
+   echo "$as_me:8240: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8332,11 +8338,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8335: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8341: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8339: \$? = $ac_status" >&5
+   echo "$as_me:8345: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8387,11 +8393,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8390: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8396: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8394: \$? = $ac_status" >&5
+   echo "$as_me:8400: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11190,7 +11196,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11193 "configure"
+#line 11199 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11286,7 +11292,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11289 "configure"
+#line 11295 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14765,6 +14771,28 @@ fi
 
  ;;
 		user)
+
+
+# Check whether --with-udevdir was given.
+if test "${with_udevdir+set}" = set; then
+  withval=$with_udevdir; udevdir=$withval
+else
+  udevdir='${exec_prefix}/lib/udev'
+fi
+
+
+
+# Check whether --with-udevruledir was given.
+if test "${with_udevruledir+set}" = set; then
+  withval=$with_udevruledir; udevruledir=$withval
+else
+  udevruledir='${udevdir}/rules.d'
+fi
+
+
+
+
+
 
 	{ $as_echo "$as_me:$LINENO: checking for target asm dir" >&5
 $as_echo_n "checking for target asm dir... " >&6; }
@@ -19102,6 +19130,28 @@ fi
 
 
 
+
+# Check whether --with-udevdir was given.
+if test "${with_udevdir+set}" = set; then
+  withval=$with_udevdir; udevdir=$withval
+else
+  udevdir='${exec_prefix}/lib/udev'
+fi
+
+
+
+# Check whether --with-udevruledir was given.
+if test "${with_udevruledir+set}" = set; then
+  withval=$with_udevruledir; udevruledir=$withval
+else
+  udevruledir='${udevdir}/rules.d'
+fi
+
+
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking for target asm dir" >&5
 $as_echo_n "checking for target asm dir... " >&6; }
 	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
@@ -20694,7 +20744,7 @@ fi
 $as_echo "$enable_debug" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile etc/Makefile etc/udev/Makefile etc/udev/rules.d/Makefile etc/init.d/Makefile etc/init.d/zfs.arch etc/init.d/zfs.gentoo etc/init.d/zfs.lunar etc/init.d/zfs.fedora etc/init.d/zfs.lsb etc/init.d/zfs.redhat etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
+ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/init.d/zfs.arch etc/init.d/zfs.gentoo etc/init.d/zfs.lunar etc/init.d/zfs.fedora etc/init.d/zfs.lsb etc/init.d/zfs.redhat etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
 
 
 cat >confcache <<\_ACEOF
@@ -21613,9 +21663,9 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "dracut/Makefile") CONFIG_FILES="$CONFIG_FILES dracut/Makefile" ;;
     "dracut/90zfs/Makefile") CONFIG_FILES="$CONFIG_FILES dracut/90zfs/Makefile" ;;
+    "udev/Makefile") CONFIG_FILES="$CONFIG_FILES udev/Makefile" ;;
+    "udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES udev/rules.d/Makefile" ;;
     "etc/Makefile") CONFIG_FILES="$CONFIG_FILES etc/Makefile" ;;
-    "etc/udev/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/Makefile" ;;
-    "etc/udev/rules.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/udev/rules.d/Makefile" ;;
     "etc/init.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/init.d/Makefile" ;;
     "etc/init.d/zfs.arch") CONFIG_FILES="$CONFIG_FILES etc/init.d/zfs.arch" ;;
     "etc/init.d/zfs.gentoo") CONFIG_FILES="$CONFIG_FILES etc/init.d/zfs.gentoo" ;;
