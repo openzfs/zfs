@@ -14,7 +14,6 @@ PREREQ_UDEV_RULES="60-zpool.rules 60-zvol.rules"
 # strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST=" \
   /lib/udev/zvol_id \
-  /lib/udev/zpool_layout \
   /lib/udev/zpool_id \
   /sbin/zdb \
   /sbin/zpool \
