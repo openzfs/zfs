@@ -27,6 +27,8 @@ COPY_EXEC_LIST="$COPY_EXEC_LIST /bin/hostname"
 # Explicitly specify all modules because dependency resolution is unreliable here.
 MANUAL_ADD_MODULES_LIST="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
 
+# Generic result code.
+RC=0
 
 case $1 in
 prereqs)
@@ -37,8 +39,17 @@ esac
 
 for ii in $COPY_EXEC_LIST
 do
-	[ -x "$ii" ] || exit 0
+	if [ ! -x "$ii" ]
+	then
+		echo "Error: $ii is not executable."
+		RC=2
+	fi
 done
+
+if [ "$RC" -ne 0 ]
+then
+	exit "$RC"
+fi
 
 . /usr/share/initramfs-tools/hook-functions
 
