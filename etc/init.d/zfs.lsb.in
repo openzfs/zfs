@@ -30,6 +30,9 @@
 
 RETVAL=0
 
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
 LOCKFILE=/var/lock/zfs
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"

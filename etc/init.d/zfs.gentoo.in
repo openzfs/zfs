@@ -11,6 +11,9 @@ depend()
 	keyword -lxc -openvz -prefix -vserver
 }
 
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
