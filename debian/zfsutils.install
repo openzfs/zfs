@@ -1,4 +1,3 @@
-etc/udev/rules.d/*.rules lib/udev/rules.d/
 etc/zfs/zdev.conf
 sbin
 lib/udev

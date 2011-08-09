@@ -9,8 +9,7 @@ VERSION := $(shell awk '/^Version:/{print $$2}' META)
 override_dh_auto_configure:
 	# Build the userland, but don't build the kernel modules.
 	./configure \
-	  --prefix=/ \
-	  --bindir=/lib/udev \
+	  --prefix='' \
 	  --libexecdir=/usr/libexec \
 	  --libdir=/lib \
 	  --includedir=/usr/include \
