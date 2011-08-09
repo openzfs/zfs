@@ -1,3 +1,20 @@
+zfs-linux (0.6.0.30-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Cleanup mmap(2) writes
+  * Add backing_device_info per-filesystem
+  * Correctly lock pages for .readpages()
+  * Autogen refresh for udev changes
+  * Improve HAVE_EVICT_INODE check
+
+  [ Kyle Fuller ]
+  * Move udev rules from /etc/udev to /lib/udev
+
+  [ Darik Horn ]
+  * Accomodate udev autotools changes in packaging.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 09 Aug 2011 01:17:20 -0500
+
 zfs-linux (0.6.0.29-0ubuntu1) unstable; urgency=low
 
   [ Kyle Fuller ]
