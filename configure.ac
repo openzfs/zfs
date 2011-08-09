@@ -57,9 +57,9 @@ AC_CONFIG_FILES([
 	Makefile
 	dracut/Makefile
 	dracut/90zfs/Makefile
+	udev/Makefile
+	udev/rules.d/Makefile
 	etc/Makefile
-	etc/udev/Makefile
-	etc/udev/rules.d/Makefile
 	etc/init.d/Makefile
 	etc/init.d/zfs.arch
 	etc/init.d/zfs.gentoo

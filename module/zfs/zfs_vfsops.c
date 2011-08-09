@@ -600,6 +600,12 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	zsb->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
 	zsb->z_os = os;
 
+	error = -bdi_init(&zsb->z_bdi);
+	if (error) {
+		kmem_free(zsb, sizeof (zfs_sb_t));
+		return (error);
+	}
+
 	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zsb->z_version);
 	if (error) {
 		goto out;
@@ -799,6 +805,7 @@ zfs_sb_free(zfs_sb_t *zsb)
 
 	zfs_fuid_destroy(zsb);
 
+	bdi_destroy(&zsb->z_bdi);
 	mutex_destroy(&zsb->z_znodes_lock);
 	mutex_destroy(&zsb->z_lock);
 	list_destroy(&zsb->z_all_znodes);
@@ -1077,6 +1084,10 @@ zfsvfs_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	return (0);
 }
 
+#ifdef HAVE_BDI
+static atomic_long_t bdi_seq = ATOMIC_LONG_INIT(0);
+#endif /* HAVE_BDI */
+
 int
 zfs_domount(struct super_block *sb, void *data, int silent)
 {
@@ -1102,6 +1113,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
+	bdi_put_sb(sb, NULL);
 
 	/* Set callback operations for the file system. */
 	sb->s_op = &zpl_super_operations;
@@ -1126,6 +1138,16 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		dmu_objset_set_user(zsb->z_os, zsb);
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
+		/* Disable Linux read-ahead handled by lower layers */
+		zsb->z_bdi.ra_pages = 0;
+
+		error = -bdi_register(&zsb->z_bdi, NULL, "zfs-%d",
+		    atomic_long_inc_return(&bdi_seq));
+		if (error)
+			goto out;
+
+		bdi_put_sb(sb, &zsb->z_bdi);
+
 		error = zfs_sb_setup(zsb, B_TRUE);
 #ifdef HAVE_SNAPSHOT
 		(void) zfs_snap_create(zsb);
@@ -1165,6 +1187,11 @@ zfs_umount(struct super_block *sb)
 
 	VERIFY(zfsvfs_teardown(zsb, B_TRUE) == 0);
 	os = zsb->z_os;
+
+	if (bdi_get_sb(sb)) {
+		bdi_unregister(bdi_get_sb(sb));
+		bdi_put_sb(sb, NULL);
+	}
 
 	/*
 	 * z_os will be NULL if there was an error in

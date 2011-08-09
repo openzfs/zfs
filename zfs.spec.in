@@ -3,9 +3,9 @@
 %define release          @ZFS_META_RELEASE@
 %define debug_package    %{nil}
 %define _prefix          /
-%define _bindir          /lib/udev
 %define _libexecdir      /usr/libexec
 %define _datadir         /usr/share
+%define _udevdir         /lib/udev
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
@@ -61,7 +61,7 @@ which are ZFS aware.
 %prep
 %setup
 %build
-%configure --with-config=user --without-blkid
+%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir}
 make
 
 %install
@@ -80,8 +80,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/*
 %{_mandir}/man8/*
 %{_sysconfdir}/init.d/*
-%{_sysconfdir}/udev/rules.d/*
 %{_sysconfdir}/zfs/*
+%{_udevdir}/*
+%{_udevdir}/rules.d/*
 
 %files devel
 %defattr(-,root,root)
