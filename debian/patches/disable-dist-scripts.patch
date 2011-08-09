@@ -8,19 +8,6 @@ Index: b/scripts/Makefile.am
  
  pkglibexecdir = $(libexecdir)/@PACKAGE@
  dist_pkglibexec_SCRIPTS = \
-Index: b/scripts/Makefile.in
-===================================================================
---- a/scripts/Makefile.in
-+++ b/scripts/Makefile.in
-@@ -327,7 +327,7 @@
- top_build_prefix = @top_build_prefix@
- top_builddir = @top_builddir@
- top_srcdir = @top_srcdir@
--SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
-+SUBDIRS = zpool-config zpios-test zpios-profile
- dist_pkglibexec_SCRIPTS = \
- 	$(top_builddir)/scripts/common.sh \
- 	$(top_srcdir)/scripts/zconfig.sh \
 Index: b/Makefile.am
 ===================================================================
 --- a/Makefile.am
@@ -29,8 +16,8 @@ Index: b/Makefile.am
  include $(top_srcdir)/config/tgz.am
  
  if CONFIG_USER
--USER_DIR = dracut etc man scripts lib cmd
-+USER_DIR = dracut etc man lib cmd
+-USER_DIR = dracut udev etc man scripts lib cmd
++USER_DIR = dracut udev etc man lib cmd
  endif
  if CONFIG_KERNEL
  KERNEL_DIR = module
@@ -38,21 +25,34 @@ Index: b/Makefile.in
 ===================================================================
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -129,7 +129,7 @@
+@@ -131,7 +131,7 @@
  	distdir dist dist-all distcheck
  ETAGS = etags
  CTAGS = ctags
--DIST_SUBDIRS = dracut etc man scripts lib cmd module include
-+DIST_SUBDIRS = dracut etc man lib cmd module include
+-DIST_SUBDIRS = dracut udev etc man scripts lib cmd module include
++DIST_SUBDIRS = dracut udev etc man lib cmd module include
  DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
  distdir = $(PACKAGE)-$(VERSION)
  top_distdir = $(distdir)
-@@ -334,7 +334,7 @@
- top_build_prefix = @top_build_prefix@
- top_builddir = @top_builddir@
+@@ -338,7 +338,7 @@
  top_srcdir = @top_srcdir@
--@CONFIG_USER_TRUE@USER_DIR = dracut etc man scripts lib cmd
-+@CONFIG_USER_TRUE@USER_DIR = dracut etc man lib cmd
+ udevdir = @udevdir@
+ udevruledir = @udevruledir@
+-@CONFIG_USER_TRUE@USER_DIR = dracut udev etc man scripts lib cmd
++@CONFIG_USER_TRUE@USER_DIR = dracut udev etc man lib cmd
  @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
  SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
  AUTOMAKE_OPTIONS = foreign
+Index: b/scripts/Makefile.in
+===================================================================
+--- a/scripts/Makefile.in
++++ b/scripts/Makefile.in
+@@ -331,7 +331,7 @@
+ top_srcdir = @top_srcdir@
+ udevdir = @udevdir@
+ udevruledir = @udevruledir@
+-SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
++SUBDIRS = zpool-config zpios-test zpios-profile
+ dist_pkglibexec_SCRIPTS = \
+ 	$(top_builddir)/scripts/common.sh \
+ 	$(top_srcdir)/scripts/zconfig.sh \
