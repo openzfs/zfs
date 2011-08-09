@@ -1,23 +1,21 @@
 pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
-dist_pkgdracut_SCRIPTS = \
+pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
 	$(top_srcdir)/dracut/90zfs/parse-zfs.sh
 
-all:
-	@list='$(dist_pkgdracut_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ ! -e $$link ]; then \
-			$(LN_S) $$file $$link; \
-		fi \
-	done
+EXTRA_DIST = \
+	$(top_srcdir)/dracut/90zfs/module-setup.sh.in \
+	$(top_srcdir)/dracut/90zfs/mount-zfs.sh.in \
+	$(top_srcdir)/dracut/90zfs/parse-zfs.sh.in
 
-clean:
-	@list='$(dist_pkgdracut_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ -L $$link ]; then \
-			$(RM) $$link; \
-		fi \
-	done
+$(pkgdracut_SCRIPTS):
+	-$(SED) -e 's,@bindir\@,$(bindir),g' \
+		-e 's,@sbindir\@,$(sbindir),g' \
+		-e 's,@udevdir\@,$(udevdir),g' \
+		-e 's,@udevruledir\@,$(udevruledir),g' \
+		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+		'$@.in' >'$@'
+
+distclean-local::
+	-$(RM) $(pkgdracut_SCRIPTS)

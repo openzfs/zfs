@@ -36,8 +36,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = dracut/90zfs
-DIST_COMMON = $(dist_pkgdracut_SCRIPTS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
@@ -111,7 +110,7 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(pkgdracutdir)"
-SCRIPTS = $(dist_pkgdracut_SCRIPTS)
+SCRIPTS = $(pkgdracut_SCRIPTS)
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
@@ -292,10 +291,15 @@ top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
 pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
-dist_pkgdracut_SCRIPTS = \
+pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
 	$(top_srcdir)/dracut/90zfs/parse-zfs.sh
+
+EXTRA_DIST = \
+	$(top_srcdir)/dracut/90zfs/module-setup.sh.in \
+	$(top_srcdir)/dracut/90zfs/mount-zfs.sh.in \
+	$(top_srcdir)/dracut/90zfs/parse-zfs.sh.in
 
 all: all-am
 
@@ -330,10 +334,10 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-dist_pkgdracutSCRIPTS: $(dist_pkgdracut_SCRIPTS)
+install-pkgdracutSCRIPTS: $(pkgdracut_SCRIPTS)
 	@$(NORMAL_INSTALL)
 	test -z "$(pkgdracutdir)" || $(MKDIR_P) "$(DESTDIR)$(pkgdracutdir)"
-	@list='$(dist_pkgdracut_SCRIPTS)'; test -n "$(pkgdracutdir)" || list=; \
+	@list='$(pkgdracut_SCRIPTS)'; test -n "$(pkgdracutdir)" || list=; \
 	for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  if test -f "$$d$$p"; then echo "$$d$$p"; echo "$$p"; else :; fi; \
@@ -356,9 +360,9 @@ install-dist_pkgdracutSCRIPTS: $(dist_pkgdracut_SCRIPTS)
 	     } \
 	; done
 
-uninstall-dist_pkgdracutSCRIPTS:
+uninstall-pkgdracutSCRIPTS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(dist_pkgdracut_SCRIPTS)'; test -n "$(pkgdracutdir)" || exit 0; \
+	@list='$(pkgdracut_SCRIPTS)'; test -n "$(pkgdracutdir)" || exit 0; \
 	files=`for p in $$list; do echo "$$p"; done | \
 	       sed -e 's,.*/,,;$(transform)'`; \
 	test -n "$$list" || exit 0; \
@@ -439,11 +443,13 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+clean: clean-am
+
 clean-am: clean-generic clean-libtool mostlyclean-am
 
 distclean: distclean-am
 	-rm -f Makefile
-distclean-am: clean-am distclean-generic
+distclean-am: clean-am distclean-generic distclean-local
 
 dvi: dvi-am
 
@@ -457,7 +463,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-dist_pkgdracutSCRIPTS
+install-data-am: install-pkgdracutSCRIPTS
 
 install-dvi: install-dvi-am
 
@@ -501,41 +507,33 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-dist_pkgdracutSCRIPTS
+uninstall-am: uninstall-pkgdracutSCRIPTS
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
-	distclean distclean-generic distclean-libtool distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dist_pkgdracutSCRIPTS \
-	install-dvi install-dvi-am install-exec install-exec-am \
-	install-html install-html-am install-info install-info-am \
-	install-man install-pdf install-pdf-am install-ps \
+	distclean distclean-generic distclean-libtool distclean-local \
+	distdir dvi dvi-am html html-am info info-am install \
+	install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-pkgdracutSCRIPTS install-ps \
 	install-ps-am install-strip installcheck installcheck-am \
 	installdirs maintainer-clean maintainer-clean-generic \
 	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am uninstall uninstall-am \
-	uninstall-dist_pkgdracutSCRIPTS
+	ps ps-am uninstall uninstall-am uninstall-pkgdracutSCRIPTS
 
 
-all:
-	@list='$(dist_pkgdracut_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ ! -e $$link ]; then \
-			$(LN_S) $$file $$link; \
-		fi \
-	done
+$(pkgdracut_SCRIPTS):
+	-$(SED) -e 's,@bindir\@,$(bindir),g' \
+		-e 's,@sbindir\@,$(sbindir),g' \
+		-e 's,@udevdir\@,$(udevdir),g' \
+		-e 's,@udevruledir\@,$(udevruledir),g' \
+		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+		'$@.in' >'$@'
 
-clean:
-	@list='$(dist_pkgdracut_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ -L $$link ]; then \
-			$(RM) $$link; \
-		fi \
-	done
+distclean-local::
+	-$(RM) $(pkgdracut_SCRIPTS)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
