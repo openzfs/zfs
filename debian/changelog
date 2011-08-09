@@ -1,3 +1,10 @@
+zfs-linux (0.6.0.30-0ubuntu2) unstable; urgency=low
+
+  * Remove zpool_layout from the initramfs manifest.
+  * Let mkinitramfs fail if the utilities are missing.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 09 Aug 2011 16:52:01 -0500
+
 zfs-linux (0.6.0.30-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
