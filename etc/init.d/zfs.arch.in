@@ -5,7 +5,7 @@
 
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
-ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+ZPOOL_CACHE="@initdir@/zpool.cache"
 
 case "$1" in
   start)

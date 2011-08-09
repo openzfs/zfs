@@ -32,7 +32,7 @@ export PATH=/usr/local/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 RETVAL=0
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
-ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+ZPOOL_CACHE="@initdir@/zpool.cache"
 servicename=zfs
 LOCKFILE=/var/lock/subsys/$servicename
 
