@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1095,7 +1096,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		dn->dn_dirtyctx =
 		    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN);
 		ASSERT(dn->dn_dirtyctx_firstset == NULL);
-		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_SLEEP);
+		dn->dn_dirtyctx_firstset = kmem_alloc(1, KM_PUSHPAGE);
 	}
 	mutex_exit(&dn->dn_mtx);
 
@@ -1172,7 +1173,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * to make a copy of it so that the changes we make in this
 	 * transaction group won't leak out when we sync the older txg.
 	 */
-	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_SLEEP);
+	dr = kmem_zalloc(sizeof (dbuf_dirty_record_t), KM_PUSHPAGE);
 	list_link_init(&dr->dr_dirty_node);
 	if (db->db_level == 0) {
 		void *data_old = db->db_buf;
@@ -1347,13 +1348,17 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * it, since one of the current holders may be in the
 	 * middle of an update.  Note that users of dbuf_undirty()
 	 * should not place a hold on the dbuf before the call.
+	 * Also note: we can get here with a spill block, so
+	 * test for that similar to how dbuf_dirty does.
 	 */
 	if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		mutex_exit(&db->db_mtx);
 		/* Make sure we don't toss this buffer at sync phase */
-		mutex_enter(&dn->dn_mtx);
-		dnode_clear_range(dn, db->db_blkid, 1, tx);
-		mutex_exit(&dn->dn_mtx);
+		if (db->db_blkid != DMU_SPILL_BLKID) {
+			mutex_enter(&dn->dn_mtx);
+			dnode_clear_range(dn, db->db_blkid, 1, tx);
+			mutex_exit(&dn->dn_mtx);
+		}
 		DB_DNODE_EXIT(db);
 		return (0);
 	}
@@ -1366,11 +1371,18 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	*drp = dr->dr_next;
 
+	/*
+	 * Note that there are three places in dbuf_dirty()
+	 * where this dirty record may be put on a list.
+	 * Make sure to do a list_remove corresponding to
+	 * every one of those list_insert calls.
+	 */
 	if (dr->dr_parent) {
 		mutex_enter(&dr->dr_parent->dt.di.dr_mtx);
 		list_remove(&dr->dr_parent->dt.di.dr_children, dr);
 		mutex_exit(&dr->dr_parent->dt.di.dr_mtx);
-	} else if (db->db_level+1 == dn->dn_nlevels) {
+	} else if (db->db_blkid == DMU_SPILL_BLKID ||
+	    db->db_level+1 == dn->dn_nlevels) {
 		ASSERT(db->db_blkptr == NULL || db->db_parent == dn->dn_dbuf);
 		mutex_enter(&dn->dn_mtx);
 		list_remove(&dn->dn_dirty_records[txg & TXG_MASK], dr);

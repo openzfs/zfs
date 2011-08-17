@@ -9,9 +9,9 @@ AC_DEFUN([ZFS_AC_KERNEL_EVICT_INODE], [
 		#include <linux/fs.h>
 	],[
 		void (*evict_inode) (struct inode *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
-
-		sops.evict_inode = evict_inode;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.evict_inode = evict_inode,
+		};
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_EVICT_INODE, 1, [sops->evict_inode() exists])

@@ -3,7 +3,7 @@ include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 
 if CONFIG_USER
-USER_DIR = dracut etc man scripts lib cmd
+USER_DIR = dracut udev etc man scripts lib cmd
 endif
 if CONFIG_KERNEL
 KERNEL_DIR = module

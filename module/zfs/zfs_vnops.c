@@ -3735,136 +3735,123 @@ top:
 }
 EXPORT_SYMBOL(zfs_link);
 
-/*
- * Push a page out to disk
- *
- *	IN:	vp	- file to push page to.
- *		pp	- page to push.
- *		off	- start of range pushed.
- *		len	- len of range pushed.
- *
- *
- *	RETURN:	0 if success
- *		error code if failure
- *
- * NOTE: callers must have locked the page to be pushed.
- */
-/* ARGSUSED */
-static int
-zfs_putapage(struct inode *ip, struct page *pp, u_offset_t off, size_t len)
+static void
+zfs_putpage_commit_cb(void *arg, int error)
 {
-	znode_t    *zp  = ITOZ(ip);
-	zfs_sb_t   *zsb = ITOZSB(ip);
-	dmu_tx_t   *tx;
-	caddr_t	   va;
-	int        err;
+	struct page *pp = arg;
 
-	/*
-	 * Can't push pages past end-of-file.
-	 */
-	if (off >= zp->z_size) {
-		/* ignore all pages */
-		err = 0;
-		goto out;
-	} else if (off + len > zp->z_size)
-		len = zp->z_size - off;
+	if (error) {
+		__set_page_dirty_nobuffers(pp);
 
-	if (zfs_owner_overquota(zsb, zp, B_FALSE) ||
-	    zfs_owner_overquota(zsb, zp, B_TRUE)) {
-		err = EDQUOT;
-		goto out;
-	}
-top:
-	tx = dmu_tx_create(zsb->z_os);
-	dmu_tx_hold_write(tx, zp->z_id, off, len);
-
-	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
-	zfs_sa_upgrade_txholds(tx, zp);
-	err = dmu_tx_assign(tx, TXG_NOWAIT);
-	if (err != 0) {
-		if (err == ERESTART) {
-			dmu_tx_wait(tx);
-			dmu_tx_abort(tx);
-			goto top;
-		}
-		dmu_tx_abort(tx);
-		goto out;
+		if (error != ECANCELED)
+			SetPageError(pp);
+	} else {
+		ClearPageError(pp);
 	}
 
-	va = kmap(pp);
-	ASSERT3U(len, <=, PAGESIZE);
-	dmu_write(zsb->z_os, zp->z_id, off, len, va, tx);
-	kunmap(pp);
-
-	if (err == 0) {
-		uint64_t mtime[2], ctime[2];
-		sa_bulk_attr_t bulk[3];
-		int count = 0;
-
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zsb), NULL,
-		    &mtime, 16);
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zsb), NULL,
-		    &ctime, 16);
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zsb), NULL,
-		    &zp->z_pflags, 8);
-		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime,
-		    B_TRUE);
-		zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, off, len, 0);
-	}
-	dmu_tx_commit(tx);
-
-out:
-	return (err);
+	end_page_writeback(pp);
 }
 
 /*
- * Copy the portion of the file indicated from page into the file.
+ * Push a page out to disk, once the page is on stable storage the
+ * registered commit callback will be run as notification of completion.
  *
- *	IN:	ip	- inode of file to push page data to.
- *		wbc	- Unused parameter
- *		data	- pointer to address_space
+ *	IN:	ip	- page mapped for inode.
+ *		pp	- page to push (page is locked)
+ *		wbc	- writeback control data
  *
  *	RETURN:	0 if success
  *		error code if failure
  *
  * Timestamps:
- *	vp - ctime|mtime updated
+ *	ip - ctime|mtime updated
  */
-/*ARGSUSED*/
+/* ARGSUSED */
 int
-zfs_putpage(struct page *page, struct writeback_control *wbc, void *data)
+zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 {
-	struct address_space *mapping = data;
-	struct inode         *ip      = mapping->host;
-	znode_t              *zp      = ITOZ(ip);
-	zfs_sb_t             *zsb     = ITOZSB(ip);
-	u_offset_t	     io_off;
-	size_t		     io_len;
-	size_t		     len;
-	int		     error;
+	znode_t		*zp = ITOZ(ip);
+	zfs_sb_t	*zsb = ITOZSB(ip);
+	loff_t		offset;
+	loff_t		pgoff;
+        unsigned int	pglen;
+	dmu_tx_t	*tx;
+	caddr_t		va;
+	int		err = 0;
+	uint64_t	mtime[2], ctime[2];
+	sa_bulk_attr_t	bulk[3];
+	int		cnt = 0;
 
-	io_off = page_offset(page);
-	io_len = PAGESIZE;
 
-	ZFS_ENTER(zsb);
-	ZFS_VERIFY_ZP(zp);
+	ASSERT(PageLocked(pp));
 
-	if (io_off > zp->z_size) {
-		/* past end of file */
-		ZFS_EXIT(zsb);
+	pgoff = page_offset(pp);     /* Page byte-offset in file */
+	offset = i_size_read(ip);    /* File length in bytes */
+	pglen = MIN(PAGE_CACHE_SIZE, /* Page length in bytes */
+	    P2ROUNDUP(offset, PAGE_CACHE_SIZE)-pgoff);
+
+	/* Page is beyond end of file */
+	if (pgoff >= offset) {
+		unlock_page(pp);
 		return (0);
 	}
 
-	len = MIN(io_len, P2ROUNDUP(zp->z_size, PAGESIZE) - io_off);
+	/* Truncate page length to end of file */
+	if (pgoff + pglen > offset)
+		pglen = offset - pgoff;
 
-	error = zfs_putapage(ip, page, io_off, len);
+#if 0
+	/*
+	 * FIXME: Allow mmap writes past its quota.  The correct fix
+	 * is to register a page_mkwrite() handler to count the page
+	 * against its quota when it is about to be dirtied.
+	 */
+	if (zfs_owner_overquota(zsb, zp, B_FALSE) ||
+	    zfs_owner_overquota(zsb, zp, B_TRUE)) {
+		err = EDQUOT;
+	}
+#endif
 
-	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	set_page_writeback(pp);
+	unlock_page(pp);
+
+	tx = dmu_tx_create(zsb->z_os);
+
+	dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
+
+	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
+
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	zfs_sa_upgrade_txholds(tx, zp);
+	err = dmu_tx_assign(tx, TXG_NOWAIT);
+	if (err != 0) {
+		if (err == ERESTART)
+			dmu_tx_wait(tx);
+
+		dmu_tx_abort(tx);
+		return (err);
+	}
+
+	va = kmap(pp);
+	ASSERT3U(pglen, <=, PAGE_CACHE_SIZE);
+	dmu_write(zsb->z_os, zp->z_id, pgoff, pglen, va, tx);
+	kunmap(pp);
+
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_FLAGS(zsb), NULL, &zp->z_pflags, 8);
+	zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0);
+
+	dmu_tx_commit(tx);
+	ASSERT3S(err, ==, 0);
+
+	if ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
+	    (wbc->sync_mode == WB_SYNC_ALL))
 		zil_commit(zsb->z_log, zp->z_id);
-	ZFS_EXIT(zsb);
-	return (error);
+
+	return (err);
 }
-EXPORT_SYMBOL(zfs_putpage);
 
 /*ARGSUSED*/
 void

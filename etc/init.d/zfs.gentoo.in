@@ -11,9 +11,9 @@ depend()
 	keyword -lxc -openvz -prefix -vserver
 }
 
-CACHEFILE=/etc/zfs/zpool.cache
-ZPOOL=/sbin/zpool
-ZFS=/sbin/zfs
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 ZFS_MODULE=zfs
 
 checksystem() {
@@ -55,11 +55,11 @@ start() {
 
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [ -f $CACHEFILE ]; then
+	if [ -f $ZPOOL_CACHE ]; then
 		einfo "Importing ZFS pools"
 		# as per fedora script, import can fail if all pools are already imported
 		# The check for $rv makes no sense...but someday, it will work right.
-		$ZPOOL import -c $CACHEFILE -aN 2>/dev/null || true
+		$ZPOOL import -c $ZPOOL_CACHE -aN 2>/dev/null || true
 		rv=$?
 		if [ $rv -ne 0 ]; then
 			eerror "Failed to import not-yet imported pools."

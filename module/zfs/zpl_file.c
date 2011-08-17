@@ -260,60 +260,6 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	return (error);
 }
 
-static struct page **
-pages_vector_from_list(struct list_head *pages, unsigned nr_pages)
-{
-	struct page **pl;
-	struct page *t;
-	unsigned page_idx;
-
-	pl = kmalloc(sizeof(*pl) * nr_pages, GFP_NOFS);
-	if (!pl)
-		return ERR_PTR(-ENOMEM);
-
-	page_idx = 0;
-	list_for_each_entry_reverse(t, pages, lru) {
-		pl[page_idx] = t;
-		page_idx++;
-	}
-
-	return pl;
-}
-
-static int
-zpl_readpages(struct file *file, struct address_space *mapping,
-	struct list_head *pages, unsigned nr_pages)
-{
-	struct inode *ip;
-	struct page  **pl;
-	struct page  *p, *n;
-	int          error;
-
-	ip = mapping->host;
-
-	pl = pages_vector_from_list(pages, nr_pages);
-	if (IS_ERR(pl))
-		return PTR_ERR(pl);
-
-	error = -zfs_getpage(ip, pl, nr_pages);
-	if (error)
-		goto error;
-
-	list_for_each_entry_safe_reverse(p, n, pages, lru) {
-
-		list_del(&p->lru);
-
-		flush_dcache_page(p);
-		SetPageUptodate(p);
-		unlock_page(p);
-		page_cache_release(p);
-	}
-
-error:
-	kfree(pl);
-	return error;
-}
-
 /*
  * Populate a page with data for the Linux page cache.  This function is
  * only used to support mmap(2).  There will be an identical copy of the
@@ -349,10 +295,26 @@ zpl_readpage(struct file *filp, struct page *pp)
 	return error;
 }
 
+/*
+ * Populate a set of pages with data for the Linux page cache.  This
+ * function will only be called for read ahead and never for demand
+ * paging.  For simplicity, the code relies on read_cache_pages() to
+ * correctly lock each page for IO and call zpl_readpage().
+ */
+static int
+zpl_readpages(struct file *filp, struct address_space *mapping,
+	struct list_head *pages, unsigned nr_pages)
+{
+	return (read_cache_pages(mapping, pages, zpl_readpage, filp));
+}
+
 int
 zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
-	int error;
+	struct address_space *mapping = data;
+
+	ASSERT(PageLocked(pp));
+	ASSERT(!PageWriteback(pp));
 
 	/*
 	 * Disable the normal reclaim path for zpl_putpage().  This
@@ -362,20 +324,10 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	 * zpl_putpage() again resulting in a deadlock.
 	 */
 	current->flags |= PF_MEMALLOC;
-	error = -zfs_putpage(pp, wbc, data);
+	(void) zfs_putpage(mapping->host, pp, wbc);
 	current->flags &= ~PF_MEMALLOC;
 
-	if (error) {
-		SetPageError(pp);
-		ClearPageUptodate(pp);
-	} else {
-		ClearPageError(pp);
-		SetPageUptodate(pp);
-		flush_dcache_page(pp);
-	}
-
-	unlock_page(pp);
-	return error;
+	return (0);
 }
 
 static int

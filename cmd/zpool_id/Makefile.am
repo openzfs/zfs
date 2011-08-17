@@ -1,1 +1,1 @@
-dist_bin_SCRIPTS = zpool_id
+dist_udev_SCRIPTS = zpool_id

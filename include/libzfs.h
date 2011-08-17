@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2010 Nexenta Systems, Inc. All rights reserved.
  */
 
 #ifndef	_LIBZFS_H
@@ -572,13 +573,17 @@ extern int zfs_promote(zfs_handle_t *);
 extern int zfs_hold(zfs_handle_t *, const char *, const char *, boolean_t,
     boolean_t, boolean_t, int, uint64_t, uint64_t);
 extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t);
+extern int zfs_get_holds(zfs_handle_t *, nvlist_t **);
 extern uint64_t zvol_volsize_to_reservation(uint64_t, nvlist_t *);
 
 typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
     uid_t rid, uint64_t space);
 
-extern int zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
-    zfs_userspace_cb_t func, void *arg);
+extern int zfs_userspace(zfs_handle_t *, zfs_userquota_prop_t,
+    zfs_userspace_cb_t, void *);
+
+extern int zfs_get_fsacl(zfs_handle_t *, nvlist_t **);
+extern int zfs_set_fsacl(zfs_handle_t *, boolean_t, nvlist_t *);
 
 typedef struct recvflags {
 	/* print informational messages (ie, -v was specified) */

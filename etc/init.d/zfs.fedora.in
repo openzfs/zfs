@@ -30,8 +30,9 @@ export PATH=/usr/local/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 
 # script variables
 RETVAL=0
-ZPOOL=zpool
-ZFS=zfs
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 servicename=zfs
 LOCKFILE=/var/lock/subsys/$servicename
 
@@ -143,19 +144,19 @@ start()
 		fi
 	fi
 
-        if [ -f /etc/zfs/zpool.cache ] ; then
-	
+        if [ -f $ZPOOL_CACHE ] ; then
+
 		echo -n $"Importing ZFS pools not yet imported: "
-		$ZPOOL import -c /etc/zfs/zpool.cache -aN || true # stupid zpool will fail if all pools are already imported
+		$ZPOOL import -c $ZPOOL_CACHE -aN || true # stupid zpool will fail if all pools are already imported
 		RETVAL=$?
 		if [ $RETVAL -ne 0 ]; then
 			failure "Importing ZFS pools not yet imported: "
 			return 151
 		fi
 		success "Importing ZFS pools not yet imported: "
-	
+
 	fi
-	
+
 	action $"Mounting ZFS filesystems not yet mounted: " $ZFS mount -a || return 152
 
 	action $"Exporting ZFS filesystems: " $ZFS share -a || return 153
@@ -169,7 +170,7 @@ start()
 		string=`printf "$template" "$volume"`
 		action "$string" mount "$volume"
 	done
-	
+
 	touch "$LOCKFILE"
 }
 
@@ -204,7 +205,7 @@ stop()
 	#	return 8
 	#fi
 	#success
-	
+
 	rm -f "$LOCKFILE"
 }
 

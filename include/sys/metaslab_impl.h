@@ -21,6 +21,7 @@
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -52,6 +53,7 @@ struct metaslab_group {
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
 	uint64_t		mg_bonus_area;
+	uint64_t		mg_alloc_failures;
 	int64_t			mg_bias;
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
