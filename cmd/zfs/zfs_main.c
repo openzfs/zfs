@@ -4562,7 +4562,7 @@ print_set_creat_perms(uu_avl_t *who_avl)
 		deleg_perm_node_t *deleg_node;
 
 		if (prev_weight != weight) {
-			(void) printf(*title_ptr++);
+			(void) printf("%s", *title_ptr++);
 			prev_weight = weight;
 		}
 
@@ -4617,7 +4617,7 @@ print_uge_deleg_perms(uu_avl_t *who_avl, boolean_t local, boolean_t descend,
 				const char *who = NULL;
 				if (prt_title) {
 					prt_title = B_FALSE;
-					(void) printf(title);
+					(void) printf("%s", title);
 				}
 
 				switch (who_type) {
@@ -4676,7 +4676,7 @@ print_fs_perms(fs_perm_set_t *fspset)
 		(void) snprintf(buf, ZFS_MAXNAMELEN+32,
 		    gettext("---- Permissions on %s "),
 		    node->fspn_fsperm.fsp_name);
-		(void) printf(dsname);
+		(void) printf("%s", dsname);
 		left = 70 - strlen(buf);
 		while (left-- > 0)
 			(void) printf("-");
