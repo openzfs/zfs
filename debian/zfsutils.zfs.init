@@ -48,7 +48,7 @@ do_stop() {
 
 
 case "$1" in
-  start|"")
+  start)
 	[ -z "$ZFS_MOUNT" ] && exit 0
 	do_start
 	;;
@@ -65,5 +65,3 @@ case "$1" in
 	exit 3
 	;;
 esac
-
-:
