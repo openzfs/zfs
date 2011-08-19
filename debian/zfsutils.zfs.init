@@ -1,12 +1,19 @@
-#! /bin/sh
+#!/bin/sh
+#
+# chkconfig: 2345 01 99
+#
 ### BEGIN INIT INFO
-# Provides:          zvol zfs
+# Provides: zvol zfs
+# Required-Start: $local_fs
+# Required-Stop: $local_fs
 # Required-Start:
 # Required-Stop: 
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
 # Short-Description: Start/stop ZFS subsystem.
-# Description:
+# Description: ZFS is an advanced filesystem designed to simplify managing
+#              and protecting your data.  This service mounts the ZFS
+#              filesystems and starts all related zfs services.
 ### END INIT INFO
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
