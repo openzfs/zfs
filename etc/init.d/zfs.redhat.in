@@ -29,6 +29,9 @@ export PATH=/usr/local/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 . /etc/rc.d/init.d/functions
 
 # script variables
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
 RETVAL=0
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"

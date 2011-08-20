@@ -1,6 +1,7 @@
 udevrule_DATA = \
 	60-zpool.rules \
-	60-zvol.rules
+	60-zvol.rules \
+	90-zfs.rules
 
 EXTRA_DIST = \
 	60-zpool.rules.in \

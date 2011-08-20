@@ -57,6 +57,7 @@ AC_CONFIG_FILES([
 	Makefile
 	dracut/Makefile
 	dracut/90zfs/Makefile
+    dracut/90zfs/module-setup.sh
 	udev/Makefile
 	udev/rules.d/Makefile
 	etc/Makefile
