@@ -33,6 +33,10 @@ do_start() {
 		exit $RET
 	fi
 	log_end_msg 0
+
+	log_begin_msg "Exporting ZFS filesystems"
+	$ZFS share -a
+	log_end_msg $?
 }
 
 do_stop() {
