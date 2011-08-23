@@ -46,22 +46,28 @@ do_stop() {
 	log_end_msg 0
 }
 
+do_status() {
+	zpool status
+	echo ''
+	zpool list
+	true
+}
 
 case "$1" in
   start)
 	[ -z "$ZFS_MOUNT" ] && exit 0
 	do_start
 	;;
-  restart|reload|force-reload)
-	echo "Error: argument '$1' not supported" >&2
-	exit 3
-	;;
   stop)
 	[ -z "$ZFS_UNMOUNT" ] && exit 0
 	do_stop
 	;;
+  status)
+	do_status
+	;;
   *)
-	echo "Usage: zfs [start|stop]" >&2
+	[ -n "$1" ] && echo "Error: Unknown command $1."
+	echo "Usage: $0 {start|stop|status}"
 	exit 3
 	;;
 esac
