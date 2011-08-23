@@ -24,7 +24,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 [ -f /etc/default/zfs ] && . /etc/default/zfs
 
 do_start() {
-	log_begin_msg "Starting ZFS subsystem..."
+	log_begin_msg "Starting ZFS subsystem"
 	log_progress_msg "filesystems"
 	zfs mount -a
 	RET=$?
@@ -40,7 +40,7 @@ do_start() {
 }
 
 do_stop() {
-	log_begin_msg "Stopping ZFS subsystem..."
+	log_begin_msg "Stopping ZFS subsystem"
 	log_progress_msg "filesystems"
 	zfs umount -a
 	RET=$?
