@@ -1,3 +1,27 @@
+zfs-linux (0.6.0.31-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Disable zfs /etc/mtab updates
+  * Fix incompatible pointer type warning
+  * Fix missing format arguments
+  * Fixed uninitialized variable
+  * Buildbot suppression rules
+  * Fix autoconf variable substitution in init scripts.
+  * Fix incorrect zpool_cache substitution
+
+  [ Kyle Fuller ]
+  * Move 90-zfs udev rule from dracut to udev/rules.d
+  * Make dracut module-setup.sh an autoconf config file
+
+  [ Darik Horn ]
+  * Add chkconfig and description lines to zfs init.
+  * Disable default start action in the init script.
+  * Implement the status command in the init script.
+  * Share filesystems in the init script.
+  * Remove ellipses from log lines in the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 22 Aug 2011 21:26:25 -0500
+
 zfs-linux (0.6.0.30-0ubuntu2) unstable; urgency=low
 
   * Remove zpool_layout from the initramfs manifest.
