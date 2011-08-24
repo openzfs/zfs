@@ -12186,11 +12186,11 @@ $as_echo_n "checking spl source version... " >&6; }
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Cannot determine the version of the spl source.
-		*** Please prepare the spl source before running this script" >&5
+	*** Cannot determine the version of the spl source.
+	*** Please prepare the spl source before running this script" >&5
 $as_echo "$as_me: error:
-		*** Cannot determine the version of the spl source.
-		*** Please prepare the spl source before running this script" >&2;}
+	*** Cannot determine the version of the spl source.
+	*** Please prepare the spl source before running this script" >&2;}
    { (exit 1); exit 1; }; }
 	fi
 
@@ -12273,11 +12273,11 @@ _ACEOF
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option." >&5
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option." >&5
 $as_echo "$as_me: error:
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option." >&2;}
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option." >&2;}
    { (exit 1); exit 1; }; }
 
 else
@@ -12344,13 +12344,13 @@ _ACEOF
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-		*** incompatible with the CDDL license.  You must rebuild
-		*** your kernel without this option." >&5
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+	*** incompatible with the CDDL license.  You must rebuild
+	*** your kernel without this option." >&5
 $as_echo "$as_me: error:
-		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-		*** incompatible with the CDDL license.  You must rebuild
-		*** your kernel without this option." >&2;}
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+	*** incompatible with the CDDL license.  You must rebuild
+	*** your kernel without this option." >&2;}
    { (exit 1); exit 1; }; }
 
 else
@@ -16544,11 +16544,11 @@ $as_echo_n "checking spl source version... " >&6; }
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Cannot determine the version of the spl source.
-		*** Please prepare the spl source before running this script" >&5
+	*** Cannot determine the version of the spl source.
+	*** Please prepare the spl source before running this script" >&5
 $as_echo "$as_me: error:
-		*** Cannot determine the version of the spl source.
-		*** Please prepare the spl source before running this script" >&2;}
+	*** Cannot determine the version of the spl source.
+	*** Please prepare the spl source before running this script" >&2;}
    { (exit 1); exit 1; }; }
 	fi
 
@@ -16631,11 +16631,11 @@ _ACEOF
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option." >&5
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option." >&5
 $as_echo "$as_me: error:
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option." >&2;}
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option." >&2;}
    { (exit 1); exit 1; }; }
 
 else
@@ -16702,13 +16702,13 @@ _ACEOF
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
-		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-		*** incompatible with the CDDL license.  You must rebuild
-		*** your kernel without this option." >&5
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+	*** incompatible with the CDDL license.  You must rebuild
+	*** your kernel without this option." >&5
 $as_echo "$as_me: error:
-		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-		*** incompatible with the CDDL license.  You must rebuild
-		*** your kernel without this option." >&2;}
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+	*** incompatible with the CDDL license.  You must rebuild
+	*** your kernel without this option." >&2;}
    { (exit 1); exit 1; }; }
 
 else
