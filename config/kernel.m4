@@ -272,8 +272,8 @@ AC_DEFUN([ZFS_AC_SPL], [
 	if test -z "$splsrcver"; then
 		AC_MSG_RESULT([Not found])
 		AC_MSG_ERROR([
-		*** Cannot determine the version of the spl source.
-		*** Please prepare the spl source before running this script])
+	*** Cannot determine the version of the spl source.
+	*** Please prepare the spl source before running this script])
 	fi
 
 	AC_MSG_RESULT([$splsrcver])
@@ -307,15 +307,15 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 
 	ZFS_LINUX_CONFIG([PREEMPT],
 		AC_MSG_ERROR([
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option.]), [])
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option.]), [])
 
 	if test "$ZFS_META_LICENSE" = CDDL; then
 		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],
 		AC_MSG_ERROR([
-		*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-		*** incompatible with the CDDL license.  You must rebuild
-		*** your kernel without this option.]), [])
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
+	*** incompatible with the CDDL license.  You must rebuild
+	*** your kernel without this option.]), [])
 	fi
 
 	if test "$ZFS_META_LICENSE" = GPL; then
