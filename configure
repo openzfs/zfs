@@ -11983,21 +11983,32 @@ fi
 	{ $as_echo "$as_me:$LINENO: checking kernel source directory" >&5
 $as_echo_n "checking kernel source directory... " >&6; }
 	if test -z "$kernelsrc"; then
+
 		if test -e "/lib/modules/$(uname -r)/source"; then
+
 			headersdir="/lib/modules/$(uname -r)/source"
 			sourcelink=$(readlink -f "$headersdir")
-		elif test -e "/lib/modules/$(uname -r)/build"; then
+
+elif test -e "/lib/modules/$(uname -r)/build"; then
+
 			headersdir="/lib/modules/$(uname -r)/build"
 			sourcelink=$(readlink -f "$headersdir")
-		else
+
+else
+
 			sourcelink=$(ls -1d /usr/src/kernels/* \
-				     /usr/src/linux-* \
+			             /usr/src/linux-* \
 			             2>/dev/null | grep -v obj | tail -1)
-		fi
+
+fi
+
 
 		if test -n "$sourcelink" && test -e ${sourcelink}; then
+
 			kernelsrc=`readlink -f ${sourcelink}`
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
@@ -12009,30 +12020,53 @@ $as_echo "$as_me: error:
 	*** is installed then try again.  If that fails you can specify the
 	*** location of the kernel source with the '--with-linux=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		if test "$kernelsrc" = "NONE"; then
+
 			kernsrcver=NONE
-		fi
-	fi
+
+fi
+
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $kernelsrc" >&5
 $as_echo "$kernelsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking kernel build directory" >&5
 $as_echo_n "checking kernel build directory... " >&6; }
 	if test -z "$kernelbuild"; then
+
 		if test -e "/lib/modules/$(uname -r)/build"; then
+
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
-		elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+
+elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
-		elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
+
+elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
+
 		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
-		elif test -d `dirname ${kernelsrc}`/build-${target_cpu}; then
+
+elif test -d `dirname ${kernelsrc}`/build-${target_cpu}; then
+
 			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
-		else
+
+else
+
 			kernelbuild=${kernelsrc}
-		fi
-	fi
+
+fi
+
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $kernelbuild" >&5
 $as_echo "$kernelbuild" >&6; }
 
@@ -12042,33 +12076,48 @@ $as_echo_n "checking kernel source version... " >&6; }
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h
 	if test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1; then
+
 		utsrelease=linux/version.h
-	elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+
+elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+
 		utsrelease=linux/utsrelease.h
-	elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+
+elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+
 		utsrelease=generated/utsrelease.h
-	fi
+
+fi
+
 
 	if test "$utsrelease"; then
+
 		kernsrcver=`(echo "#include <$utsrelease>";
 		             echo "kernsrcver=UTS_RELEASE") |
 		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 		if test -z "$kernsrcver"; then
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error: *** Cannot determine kernel version." >&5
 $as_echo "$as_me: error: *** Cannot determine kernel version." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error: *** Cannot find UTS_RELEASE definition." >&5
 $as_echo "$as_me: error: *** Cannot find UTS_RELEASE definition." >&2;}
    { (exit 1); exit 1; }; }
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $kernsrcver" >&5
 $as_echo "$kernsrcver" >&6; }
@@ -12086,13 +12135,20 @@ $as_echo "$kernsrcver" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
 $as_echo_n "checking kernel file name for module symbols... " >&6; }
 	if test -f "$modpost"; then
-		if grep -q Modules.symvers $modpost; then
-			LINUX_SYMBOLS=Modules.symvers
-		else
-			LINUX_SYMBOLS=Module.symvers
-		fi
 
-		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+		if grep -q Modules.symvers $modpost; then
+
+			LINUX_SYMBOLS=Modules.symvers
+
+else
+
+			LINUX_SYMBOLS=Module.symvers
+
+fi
+
+
+		if test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+
 			{ { $as_echo "$as_me:$LINENO: error:
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed.  If your building with a custom kernel make sure the
@@ -12104,10 +12160,16 @@ $as_echo "$as_me: error:
 	*** kernel is configured, built, and the '--with-linux=PATH' configure
 	*** option refers to the location of the kernel source." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		LINUX_SYMBOLS=NONE
-	fi
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
 $as_echo "$LINUX_SYMBOLS" >&6; }
 
@@ -12132,16 +12194,23 @@ fi
 	{ $as_echo "$as_me:$LINENO: checking spl source directory" >&5
 $as_echo_n "checking spl source directory... " >&6; }
 	if test -z "$splsrc"; then
+
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
 		if test -z "$sourcelink" || test ! -e $sourcelink; then
+
 			sourcelink=../spl
-		fi
+
+fi
+
 
 		if test -e $sourcelink; then
+
 			splsrc=`readlink -f ${sourcelink}`
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
@@ -12153,21 +12222,33 @@ $as_echo "$as_me: error:
 	*** is installed then try again.  If that fails you can specify the
 	*** location of the spl source with the '--with-spl=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		if test "$splsrc" = "NONE"; then
+
 			splbuild=NONE
 			splsrcver=NONE
-		fi
-	fi
+
+fi
+
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $splsrc" >&5
 $as_echo "$splsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl build directory" >&5
 $as_echo_n "checking spl build directory... " >&6; }
 	if test -z "$splbuild"; then
+
 		splbuild=${splsrc}
-	fi
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $splbuild" >&5
 $as_echo "$splbuild" >&6; }
 
@@ -12176,13 +12257,17 @@ $as_echo_n "checking spl source version... " >&6; }
 	if test -r $splbuild/spl_config.h &&
 		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
+
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
 		            cpp -I $splbuild |
 		            grep "^splsrcver=" | cut -d \" -f 2`
-	fi
+
+fi
+
 
 	if test -z "$splsrcver"; then
+
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
@@ -12192,7 +12277,9 @@ $as_echo "$as_me: error:
 	*** Cannot determine the version of the spl source.
 	*** Please prepare the spl source before running this script" >&2;}
    { (exit 1); exit 1; }; }
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $splsrcver" >&5
 $as_echo "$splsrcver" >&6; }
@@ -12209,16 +12296,27 @@ $as_echo "$splsrcver" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
 	if test -r $SPL_OBJ/Module.symvers; then
+
 		SPL_SYMBOLS=Module.symvers
-	elif test -r $SPL_OBJ/Modules.symvers; then
+
+elif test -r $SPL_OBJ/Modules.symvers; then
+
 		SPL_SYMBOLS=Modules.symvers
-	elif test -r $SPL_OBJ/module/Module.symvers; then
+
+elif test -r $SPL_OBJ/module/Module.symvers; then
+
 		SPL_SYMBOLS=Module.symvers
-	elif test -r $SPL_OBJ/module/Modules.symvers; then
+
+elif test -r $SPL_OBJ/module/Modules.symvers; then
+
 		SPL_SYMBOLS=Modules.symvers
-	else
+
+else
+
 		SPL_SYMBOLS=$LINUX_SYMBOLS
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
 $as_echo "$SPL_SYMBOLS" >&6; }
@@ -12298,6 +12396,7 @@ fi
 
 
 	if test "$ZFS_META_LICENSE" = CDDL; then
+
 		{ $as_echo "$as_me:$LINENO: checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC" >&5
 $as_echo_n "checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC... " >&6; }
 
@@ -12369,15 +12468,20 @@ fi
 
 
 
-	fi
+
+fi
+
 
 	if test "$ZFS_META_LICENSE" = GPL; then
+
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GPL_ONLY_SYMBOLS 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking block device operation prototypes" >&5
@@ -12597,20 +12701,27 @@ $as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(blkdev_get_by_path)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -12618,8 +12729,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_BLKDEV_GET_BY_PATH 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -12627,7 +12742,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_BLKDEV_GET_BY_PATH 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -12637,20 +12754,27 @@ $as_echo_n "checking whether symbol open_bdev_exclusive is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(open_bdev_exclusive)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -12658,8 +12782,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_OPEN_BDEV_EXCLUSIVE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -12667,7 +12795,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_OPEN_BDEV_EXCLUSIVE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14430,20 +14560,27 @@ $as_echo_n "checking whether symbol insert_inode_locked is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/inode.c; do
 			grep -q -E "EXPORT_SYMBOL.*(insert_inode_locked)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14451,8 +14588,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INSERT_INODE_LOCKED 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14460,7 +14601,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INSERT_INODE_LOCKED 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14470,20 +14613,27 @@ $as_echo_n "checking whether symbol d_obtain_alias is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/dcache.c; do
 			grep -q -E "EXPORT_SYMBOL.*(d_obtain_alias)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14491,8 +14641,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_D_OBTAIN_ALIAS 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14500,7 +14654,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_D_OBTAIN_ALIAS 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14510,20 +14666,27 @@ $as_echo_n "checking whether symbol check_disk_size_change is exported... " >&6;
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(check_disk_size_change)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14531,8 +14694,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CHECK_DISK_SIZE_CHANGE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14540,7 +14707,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CHECK_DISK_SIZE_CHANGE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14550,20 +14719,27 @@ $as_echo_n "checking whether symbol truncate_setsize is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in mm/truncate.c; do
 			grep -q -E "EXPORT_SYMBOL.*(truncate_setsize)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14571,8 +14747,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TRUNCATE_SETSIZE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14580,7 +14760,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TRUNCATE_SETSIZE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14658,20 +14840,27 @@ $as_echo_n "checking whether symbol mount_nodev is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/super.c; do
 			grep -q -E "EXPORT_SYMBOL.*(mount_nodev)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14679,8 +14868,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MOUNT_NODEV 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14688,7 +14881,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MOUNT_NODEV 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -14759,8 +14954,11 @@ fi
 
 
 	if test "$LINUX_OBJ" != "$LINUX"; then
+
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
-	fi
+
+fi
+
 
 
 
@@ -16341,21 +16539,32 @@ fi
 	{ $as_echo "$as_me:$LINENO: checking kernel source directory" >&5
 $as_echo_n "checking kernel source directory... " >&6; }
 	if test -z "$kernelsrc"; then
+
 		if test -e "/lib/modules/$(uname -r)/source"; then
+
 			headersdir="/lib/modules/$(uname -r)/source"
 			sourcelink=$(readlink -f "$headersdir")
-		elif test -e "/lib/modules/$(uname -r)/build"; then
+
+elif test -e "/lib/modules/$(uname -r)/build"; then
+
 			headersdir="/lib/modules/$(uname -r)/build"
 			sourcelink=$(readlink -f "$headersdir")
-		else
+
+else
+
 			sourcelink=$(ls -1d /usr/src/kernels/* \
-				     /usr/src/linux-* \
+			             /usr/src/linux-* \
 			             2>/dev/null | grep -v obj | tail -1)
-		fi
+
+fi
+
 
 		if test -n "$sourcelink" && test -e ${sourcelink}; then
+
 			kernelsrc=`readlink -f ${sourcelink}`
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
@@ -16367,30 +16576,53 @@ $as_echo "$as_me: error:
 	*** is installed then try again.  If that fails you can specify the
 	*** location of the kernel source with the '--with-linux=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		if test "$kernelsrc" = "NONE"; then
+
 			kernsrcver=NONE
-		fi
-	fi
+
+fi
+
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $kernelsrc" >&5
 $as_echo "$kernelsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking kernel build directory" >&5
 $as_echo_n "checking kernel build directory... " >&6; }
 	if test -z "$kernelbuild"; then
+
 		if test -e "/lib/modules/$(uname -r)/build"; then
+
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
-		elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+
+elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
+
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
-		elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
+
+elif test -d ${kernelsrc}-obj/${target_cpu}/default; then
+
 		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
-		elif test -d `dirname ${kernelsrc}`/build-${target_cpu}; then
+
+elif test -d `dirname ${kernelsrc}`/build-${target_cpu}; then
+
 			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
-		else
+
+else
+
 			kernelbuild=${kernelsrc}
-		fi
-	fi
+
+fi
+
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $kernelbuild" >&5
 $as_echo "$kernelbuild" >&6; }
 
@@ -16400,33 +16632,48 @@ $as_echo_n "checking kernel source version... " >&6; }
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h
 	if test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1; then
+
 		utsrelease=linux/version.h
-	elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+
+elif test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2; then
+
 		utsrelease=linux/utsrelease.h
-	elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+
+elif test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3; then
+
 		utsrelease=generated/utsrelease.h
-	fi
+
+fi
+
 
 	if test "$utsrelease"; then
+
 		kernsrcver=`(echo "#include <$utsrelease>";
 		             echo "kernsrcver=UTS_RELEASE") |
 		             cpp -I $kernelbuild/include |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 		if test -z "$kernsrcver"; then
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error: *** Cannot determine kernel version." >&5
 $as_echo "$as_me: error: *** Cannot determine kernel version." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error: *** Cannot find UTS_RELEASE definition." >&5
 $as_echo "$as_me: error: *** Cannot find UTS_RELEASE definition." >&2;}
    { (exit 1); exit 1; }; }
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $kernsrcver" >&5
 $as_echo "$kernsrcver" >&6; }
@@ -16444,13 +16691,20 @@ $as_echo "$kernsrcver" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking kernel file name for module symbols" >&5
 $as_echo_n "checking kernel file name for module symbols... " >&6; }
 	if test -f "$modpost"; then
-		if grep -q Modules.symvers $modpost; then
-			LINUX_SYMBOLS=Modules.symvers
-		else
-			LINUX_SYMBOLS=Module.symvers
-		fi
 
-		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+		if grep -q Modules.symvers $modpost; then
+
+			LINUX_SYMBOLS=Modules.symvers
+
+else
+
+			LINUX_SYMBOLS=Module.symvers
+
+fi
+
+
+		if test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
+
 			{ { $as_echo "$as_me:$LINENO: error:
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed.  If your building with a custom kernel make sure the
@@ -16462,10 +16716,16 @@ $as_echo "$as_me: error:
 	*** kernel is configured, built, and the '--with-linux=PATH' configure
 	*** option refers to the location of the kernel source." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		LINUX_SYMBOLS=NONE
-	fi
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $LINUX_SYMBOLS" >&5
 $as_echo "$LINUX_SYMBOLS" >&6; }
 
@@ -16490,16 +16750,23 @@ fi
 	{ $as_echo "$as_me:$LINENO: checking spl source directory" >&5
 $as_echo_n "checking spl source directory... " >&6; }
 	if test -z "$splsrc"; then
+
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
 		if test -z "$sourcelink" || test ! -e $sourcelink; then
+
 			sourcelink=../spl
-		fi
+
+fi
+
 
 		if test -e $sourcelink; then
+
 			splsrc=`readlink -f ${sourcelink}`
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
@@ -16511,21 +16778,33 @@ $as_echo "$as_me: error:
 	*** is installed then try again.  If that fails you can specify the
 	*** location of the spl source with the '--with-spl=PATH' option." >&2;}
    { (exit 1); exit 1; }; }
-		fi
-	else
+
+fi
+
+
+else
+
 		if test "$splsrc" = "NONE"; then
+
 			splbuild=NONE
 			splsrcver=NONE
-		fi
-	fi
+
+fi
+
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $splsrc" >&5
 $as_echo "$splsrc" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl build directory" >&5
 $as_echo_n "checking spl build directory... " >&6; }
 	if test -z "$splbuild"; then
+
 		splbuild=${splsrc}
-	fi
+
+fi
+
 	{ $as_echo "$as_me:$LINENO: result: $splbuild" >&5
 $as_echo "$splbuild" >&6; }
 
@@ -16534,13 +16813,17 @@ $as_echo_n "checking spl source version... " >&6; }
 	if test -r $splbuild/spl_config.h &&
 		fgrep -q SPL_META_VERSION $splbuild/spl_config.h; then
 
+
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION") |
 		            cpp -I $splbuild |
 		            grep "^splsrcver=" | cut -d \" -f 2`
-	fi
+
+fi
+
 
 	if test -z "$splsrcver"; then
+
 		{ $as_echo "$as_me:$LINENO: result: Not found" >&5
 $as_echo "Not found" >&6; }
 		{ { $as_echo "$as_me:$LINENO: error:
@@ -16550,7 +16833,9 @@ $as_echo "$as_me: error:
 	*** Cannot determine the version of the spl source.
 	*** Please prepare the spl source before running this script" >&2;}
    { (exit 1); exit 1; }; }
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $splsrcver" >&5
 $as_echo "$splsrcver" >&6; }
@@ -16567,16 +16852,27 @@ $as_echo "$splsrcver" >&6; }
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
 	if test -r $SPL_OBJ/Module.symvers; then
+
 		SPL_SYMBOLS=Module.symvers
-	elif test -r $SPL_OBJ/Modules.symvers; then
+
+elif test -r $SPL_OBJ/Modules.symvers; then
+
 		SPL_SYMBOLS=Modules.symvers
-	elif test -r $SPL_OBJ/module/Module.symvers; then
+
+elif test -r $SPL_OBJ/module/Module.symvers; then
+
 		SPL_SYMBOLS=Module.symvers
-	elif test -r $SPL_OBJ/module/Modules.symvers; then
+
+elif test -r $SPL_OBJ/module/Modules.symvers; then
+
 		SPL_SYMBOLS=Modules.symvers
-	else
+
+else
+
 		SPL_SYMBOLS=$LINUX_SYMBOLS
-	fi
+
+fi
+
 
 	{ $as_echo "$as_me:$LINENO: result: $SPL_SYMBOLS" >&5
 $as_echo "$SPL_SYMBOLS" >&6; }
@@ -16656,6 +16952,7 @@ fi
 
 
 	if test "$ZFS_META_LICENSE" = CDDL; then
+
 		{ $as_echo "$as_me:$LINENO: checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC" >&5
 $as_echo_n "checking whether Linux was built with CONFIG_DEBUG_LOCK_ALLOC... " >&6; }
 
@@ -16727,15 +17024,20 @@ fi
 
 
 
-	fi
+
+fi
+
 
 	if test "$ZFS_META_LICENSE" = GPL; then
+
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GPL_ONLY_SYMBOLS 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking block device operation prototypes" >&5
@@ -16955,20 +17257,27 @@ $as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(blkdev_get_by_path)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -16976,8 +17285,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_BLKDEV_GET_BY_PATH 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -16985,7 +17298,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_BLKDEV_GET_BY_PATH 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -16995,20 +17310,27 @@ $as_echo_n "checking whether symbol open_bdev_exclusive is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(open_bdev_exclusive)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -17016,8 +17338,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_OPEN_BDEV_EXCLUSIVE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -17025,7 +17351,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_OPEN_BDEV_EXCLUSIVE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -18788,20 +19116,27 @@ $as_echo_n "checking whether symbol insert_inode_locked is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/inode.c; do
 			grep -q -E "EXPORT_SYMBOL.*(insert_inode_locked)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18809,8 +19144,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INSERT_INODE_LOCKED 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18818,7 +19157,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INSERT_INODE_LOCKED 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -18828,20 +19169,27 @@ $as_echo_n "checking whether symbol d_obtain_alias is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/dcache.c; do
 			grep -q -E "EXPORT_SYMBOL.*(d_obtain_alias)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18849,8 +19197,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_D_OBTAIN_ALIAS 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18858,7 +19210,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_D_OBTAIN_ALIAS 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -18868,20 +19222,27 @@ $as_echo_n "checking whether symbol check_disk_size_change is exported... " >&6;
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/block_dev.c; do
 			grep -q -E "EXPORT_SYMBOL.*(check_disk_size_change)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18889,8 +19250,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CHECK_DISK_SIZE_CHANGE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18898,7 +19263,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CHECK_DISK_SIZE_CHANGE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -18908,20 +19275,27 @@ $as_echo_n "checking whether symbol truncate_setsize is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in mm/truncate.c; do
 			grep -q -E "EXPORT_SYMBOL.*(truncate_setsize)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18929,8 +19303,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TRUNCATE_SETSIZE 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18938,7 +19316,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TRUNCATE_SETSIZE 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -19016,20 +19396,27 @@ $as_echo_n "checking whether symbol mount_nodev is exported... " >&6; }
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
 	if test $rc -ne 0; then
+
 		export=0
 		for file in fs/super.c; do
 			grep -q -E "EXPORT_SYMBOL.*(mount_nodev)" "$LINUX/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
 		done
 		if test $export -eq 0; then
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+
+else
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19037,8 +19424,12 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MOUNT_NODEV 1
 _ACEOF
 
-		fi
-	else
+
+fi
+
+
+else
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19046,7 +19437,9 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MOUNT_NODEV 1
 _ACEOF
 
-	fi
+
+fi
+
 
 
 
@@ -19117,8 +19510,11 @@ fi
 
 
 	if test "$LINUX_OBJ" != "$LINUX"; then
+
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
-	fi
+
+fi
+
 
 
 
