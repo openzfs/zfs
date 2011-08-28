@@ -4457,7 +4457,7 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 
 		while (curr < end) {
 			const char *who;
-			zfs_deleg_who_type_t who_type;
+			zfs_deleg_who_type_t who_type = ZFS_DELEG_WHO_UNKNOWN;
 			char *endch;
 			char *delim = strchr(curr, ',');
 			char errbuf[256];
@@ -4562,7 +4562,7 @@ print_set_creat_perms(uu_avl_t *who_avl)
 		deleg_perm_node_t *deleg_node;
 
 		if (prev_weight != weight) {
-			(void) printf(*title_ptr++);
+			(void) printf("%s", *title_ptr++);
 			prev_weight = weight;
 		}
 
@@ -4617,7 +4617,7 @@ print_uge_deleg_perms(uu_avl_t *who_avl, boolean_t local, boolean_t descend,
 				const char *who = NULL;
 				if (prt_title) {
 					prt_title = B_FALSE;
-					(void) printf(title);
+					(void) printf("%s", title);
 				}
 
 				switch (who_type) {
@@ -4676,7 +4676,7 @@ print_fs_perms(fs_perm_set_t *fspset)
 		(void) snprintf(buf, ZFS_MAXNAMELEN+32,
 		    gettext("---- Permissions on %s "),
 		    node->fspn_fsperm.fsp_name);
-		(void) printf(dsname);
+		(void) printf("%s", dsname);
 		left = 70 - strlen(buf);
 		while (left-- > 0)
 			(void) printf("-");
@@ -6177,7 +6177,7 @@ main(int argc, char **argv)
 	/*
 	 * Run the appropriate command.
 	 */
-	libzfs_mnttab_cache(g_zfs, B_TRUE);
+	libzfs_mnttab_cache(g_zfs, B_FALSE);
 	if (find_command_idx(cmdname, &i) == 0) {
 		current_command = &command_table[i];
 		ret = command_table[i].func(argc - 1, argv + 1);
@@ -6191,7 +6191,6 @@ main(int argc, char **argv)
 		usage(B_FALSE);
 		ret = 1;
 	}
-	libzfs_mnttab_cache(g_zfs, B_FALSE);
 	libzfs_fini(g_zfs);
 
 	(void) fclose(mnttab_file);

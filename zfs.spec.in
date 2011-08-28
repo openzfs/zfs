@@ -82,7 +82,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_sysconfdir}/init.d/*
 %{_sysconfdir}/zfs/*
 %{_udevdir}/*
-%{_udevdir}/rules.d/*
 
 %files devel
 %defattr(-,root,root)
