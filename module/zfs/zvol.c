@@ -555,7 +555,7 @@ zvol_write(void *arg)
 	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
 
-	if (rq_is_sync(req))
+	if (rq_is_sync(req) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	blk_end_request(req, -error, size);
