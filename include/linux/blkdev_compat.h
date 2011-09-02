@@ -425,6 +425,14 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif
 
 /*
+ * 2.6.32 API change
+ * Use the normal I/O patch for discards.
+ */
+#ifdef REQ_DISCARD
+# define VDEV_REQ_DISCARD		REQ_DISCARD
+#endif
+
+/*
  * Default Linux IO Scheduler,
  * Setting the scheduler to noop will allow the Linux IO scheduler to
  * still perform front and back merging, while leaving the request

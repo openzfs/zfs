@@ -51,6 +51,9 @@
 /* blk_fetch_request() is available */
 #undef HAVE_BLK_FETCH_REQUEST
 
+/* blk_queue_discard() is available */
+#undef HAVE_BLK_QUEUE_DISCARD
+
 /* blk_queue_flush() is available */
 #undef HAVE_BLK_QUEUE_FLUSH
 
