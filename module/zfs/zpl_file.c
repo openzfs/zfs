@@ -349,6 +349,39 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	return zpl_putpage(pp, wbc, pp->mapping);
 }
 
+static long
+zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
+{
+	struct dentry *dentry = filp->f_path.dentry;
+	cred_t *cr = CRED();
+	flock64_t bf;
+	int error;
+
+	crhold(cr);
+
+	/*
+	 * The only flag combination which matches the behavior of
+	 * zfs_space() is (FALLOC_FL_PUNCH_HOLE). Any other flag
+	 * combination is currently unsupported.
+	 */
+	if (mode & FALLOC_FL_KEEP_SIZE)
+		return (EOPNOTSUPP);
+	if (!(mode & FALLOC_FL_PUNCH_HOLE))
+		return (EOPNOTSUPP);
+
+	bf.l_type = F_WRLCK;
+	bf.l_whence = 0;
+	bf.l_start = offset;
+	bf.l_len = len;
+	bf.l_pid = 0;
+	error = -zfs_space(dentry->d_inode, F_FREESP, &bf, FWRITE, offset, cr);
+
+	crfree(cr);
+	
+	ASSERT3S(error, <=, 0);
+	return (error);
+}
+
 const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
@@ -365,6 +398,7 @@ const struct file_operations zpl_file_operations = {
 	.readdir	= zpl_readdir,
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
+	.fallocate      = zpl_fallocate,
 };
 
 const struct file_operations zpl_dir_file_operations = {
