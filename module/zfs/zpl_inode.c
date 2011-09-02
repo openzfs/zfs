@@ -342,6 +342,15 @@ zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
 	crfree(cr);
 }
 
+#ifdef HAVE_INODE_FALLOCATE
+static long
+zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
+{
+	return zpl_fallocate_common(ip, mode, offset, len);
+}
+#endif /* HAVE_INODE_FALLOCATE */
+
+
 const struct inode_operations zpl_inode_operations = {
 	.create		= zpl_create,
 	.link		= zpl_link,
@@ -358,6 +367,9 @@ const struct inode_operations zpl_inode_operations = {
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
 	.truncate_range = zpl_truncate_range,
+#ifdef HAVE_INODE_FALLOCATE
+	.fallocate	= zpl_fallocate,
+#endif /* HAVE_INODE_FALLOCATE */
 };
 
 const struct inode_operations zpl_dir_inode_operations = {

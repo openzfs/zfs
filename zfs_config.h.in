@@ -111,6 +111,9 @@
 /* sops->evict_inode() exists */
 #undef HAVE_EVICT_INODE
 
+/* fops->fallocate() exists */
+#undef HAVE_FILE_FALLOCATE
+
 /* kernel defines fmode_t */
 #undef HAVE_FMODE_T
 
@@ -131,6 +134,9 @@
 
 /* Define to 1 if licensed under the GPL */
 #undef HAVE_GPL_ONLY_SYMBOLS
+
+/* fops->fallocate() exists */
+#undef HAVE_INODE_FALLOCATE
 
 /* insert_inode_locked() is available */
 #undef HAVE_INSERT_INODE_LOCKED

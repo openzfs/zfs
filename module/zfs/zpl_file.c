@@ -394,6 +394,50 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	return zpl_putpage(pp, wbc, pp->mapping);
 }
 
+/*
+ * The only flag combination which matches the behavior of zfs_space()
+ * is FALLOC_FL_PUNCH_HOLE.  This flag was introduced in the 2.6.38 kernel.
+ */
+long
+zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
+{
+	cred_t *cr = CRED();
+	int error = -EOPNOTSUPP;
+
+	if (mode & FALLOC_FL_KEEP_SIZE)
+		return (-EOPNOTSUPP);
+
+	crhold(cr);
+
+#ifdef FALLOC_FL_PUNCH_HOLE
+	if (mode & FALLOC_FL_PUNCH_HOLE) {
+		flock64_t bf;
+
+		bf.l_type = F_WRLCK;
+		bf.l_whence = 0;
+		bf.l_start = offset;
+		bf.l_len = len;
+		bf.l_pid = 0;
+
+		error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
+	}
+#endif /* FALLOC_FL_PUNCH_HOLE */
+
+	crfree(cr);
+
+	ASSERT3S(error, <=, 0);
+	return (error);
+}
+
+#ifdef HAVE_FILE_FALLOCATE
+static long
+zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
+{
+	return zpl_fallocate_common(filp->f_path.dentry->d_inode,
+	    mode, offset, len);
+}
+#endif /* HAVE_FILE_FALLOCATE */
+
 const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
@@ -410,6 +454,9 @@ const struct file_operations zpl_file_operations = {
 	.readdir	= zpl_readdir,
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
+#ifdef HAVE_FILE_FALLOCATE
+	.fallocate      = zpl_fallocate,
+#endif /* HAVE_FILE_FALLOCATE */
 };
 
 const struct file_operations zpl_dir_file_operations = {
