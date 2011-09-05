@@ -132,6 +132,23 @@ blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
 # endif /* HAVE_BLK_END_REQUEST_GPL_ONLY */
 #endif /* HAVE_BLK_END_REQUEST */
 
+/*
+ * 2.6.36 API change,
+ * The blk_queue_flush() interface has replaced blk_queue_ordered()
+ * interface.  However, while the old interface was available to all the
+ * new one is GPL-only.   Thus if the GPL-only version is detected we
+ * implement our own trivial helper compatibility funcion.   The hope is
+ * that long term this function will be opened up.
+ */
+#if defined(HAVE_BLK_QUEUE_FLUSH) && defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
+#define blk_queue_flush __blk_queue_flush
+static inline void
+__blk_queue_flush(struct request_queue *q, unsigned int flags)
+{
+	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
+}
+#endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
+
 #ifndef HAVE_BLK_RQ_POS
 static inline sector_t
 blk_rq_pos(struct request *req)
@@ -345,11 +362,19 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * allow richer semantics to be expressed to the block layer.  It is
  * the block layers responsibility to choose the correct way to
  * implement these semantics.
+ *
+ * The existence of these flags implies that REQ_FLUSH an REQ_FUA are
+ * defined.  Thus we can safely define VDEV_REQ_FLUSH and VDEV_REQ_FUA
+ * compatibility macros.
  */
 #ifdef WRITE_FLUSH_FUA
 # define VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
+# define VDEV_REQ_FLUSH			REQ_FLUSH
+# define VDEV_REQ_FUA			REQ_FUA
 #else
 # define VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+# define VDEV_REQ_FLUSH			REQ_HARDBARRIER
+# define VDEV_REQ_FUA			REQ_HARDBARRIER
 #endif
 
 /*
