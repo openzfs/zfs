@@ -534,6 +534,17 @@ zvol_write(void *arg)
 	dmu_tx_t *tx;
 	rl_t *rl;
 
+	if (req->cmd_flags & REQ_FLUSH)
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	/*
+	 * Some requests are just for flush and nothing else.
+	 */
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
+
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
 
 	tx = dmu_tx_create(zv->zv_objset);
@@ -550,12 +561,12 @@ zvol_write(void *arg)
 
 	error = dmu_write_req(zv->zv_objset, ZVOL_OBJ, req, tx);
 	if (error == 0)
-		zvol_log_write(zv, tx, offset, size, rq_is_sync(req));
+		zvol_log_write(zv, tx, offset, size, req->cmd_flags & REQ_FUA);
 
 	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
 
-	if (rq_is_sync(req))
+	if (req->cmd_flags & REQ_FUA)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	blk_end_request(req, -error, size);
@@ -577,6 +588,11 @@ zvol_read(void *arg)
 	uint64_t size = blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
+
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
@@ -627,7 +643,7 @@ zvol_request(struct request_queue *q)
 	while ((req = blk_fetch_request(q)) != NULL) {
 		size = blk_rq_bytes(req);
 
-		if (blk_rq_pos(req) + blk_rq_sectors(req) >
+		if (size != 0 && blk_rq_pos(req) + blk_rq_sectors(req) >
 		    get_capacity(zv->zv_disk)) {
 			printk(KERN_INFO
 			       "%s: bad access: block=%llu, count=%lu\n",
@@ -1061,6 +1077,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
+	zv->zv_queue->flush_flags = REQ_FLUSH | REQ_FUA;
 
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
