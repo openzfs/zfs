@@ -1164,6 +1164,13 @@ __zvol_create_minor(const char *name)
 
 	set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
 
+	blk_queue_max_hw_sectors(zv->zv_queue, UINT_MAX);
+	blk_queue_max_segments(zv->zv_queue, USHRT_MAX);
+	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
+	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
+	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
+	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
+	
 	if (zil_replay_disable)
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
 	else
