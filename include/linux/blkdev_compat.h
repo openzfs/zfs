@@ -200,6 +200,53 @@ __blk_rq_bytes(struct request *req)
 #define blk_queue_stackable(q)	((q)->request_fn == NULL)
 #endif
 
+/*
+ * 2.6.34 API change,
+ * The blk_queue_max_hw_sectors() function replaces blk_queue_max_sectors().
+ */
+#ifndef HAVE_BLK_QUEUE_MAX_HW_SECTORS
+#define blk_queue_max_hw_sectors __blk_queue_max_hw_sectors
+static inline void
+__blk_queue_max_hw_sectors(struct request_queue *q, unsigned int max_hw_sectors)
+{
+	blk_queue_max_sectors(q, max_hw_sectors);
+}
+#endif
+
+/*
+ * 2.6.34 API change,
+ * The blk_queue_max_segments() function consolidates
+ * blk_queue_max_hw_segments() and blk_queue_max_phys_segments().
+ */
+#ifndef HAVE_BLK_QUEUE_MAX_SEGMENTS
+#define blk_queue_max_segments __blk_queue_max_segments
+static inline void
+__blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
+{
+	blk_queue_max_phys_segments(q, max_segments);
+	blk_queue_max_hw_segments(q, max_segments);
+}
+#endif
+
+/*
+ * 2.6.30 API change,
+ * The blk_queue_physical_block_size() function was introduced to
+ * indicate the smallest I/O the device can write without incurring
+ * a read-modify-write penalty.  For older kernels this is a no-op.
+ */
+#ifndef HAVE_BLK_QUEUE_PHYSICAL_BLOCK_SIZE
+#define blk_queue_physical_block_size(q, x)	((void)(0))
+#endif
+
+/*
+ * 2.6.30 API change,
+ * The blk_queue_io_opt() function was added to indicate the optimal
+ * I/O size for the device.  For older kernels this is a no-op.
+ */
+#ifndef HAVE_BLK_QUEUE_IO_OPT
+#define blk_queue_io_opt(q, x)			((void)(0))
+#endif
+
 #ifndef HAVE_GET_DISK_RO
 static inline int
 get_disk_ro(struct gendisk *disk)
