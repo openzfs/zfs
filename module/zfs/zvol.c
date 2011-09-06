@@ -1118,12 +1118,9 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
-<<<<<<< HEAD
+	zv->zv_queue->flush_flags = REQ_FLUSH | REQ_FUA;
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
 	blk_queue_max_discard_sectors(zv->zv_queue, UINT_MAX);
-=======
-	zv->zv_queue->flush_flags = REQ_FLUSH | REQ_FUA;
->>>>>>> zvolblksync
 
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
