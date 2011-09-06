@@ -690,11 +690,8 @@ zvol_request(struct request_queue *q)
 				break;
 			}
 		
-			if (req->cmd_flags & REQ_DISCARD) {
-				printk(KERN_INFO "%s: DISCARD received (size %u)\n",
-					req->rq_disk->disk_name, size);
+			if (req->cmd_flags & REQ_DISCARD)
 				zvol_dispatch(zvol_discard, req);
-			}
 			else
 				zvol_dispatch(zvol_write, req);
 			break;
