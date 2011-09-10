@@ -1,3 +1,19 @@
+zfs-linux (0.6.0.32-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Fix minor autoconf error message inconsistencies
+  * Convert 'if' statements to AS_IF in kernel.m4
+  * Fix package URLs to use the github repository
+  * Fix zfs.spec.in to use @LICENSE@ variable
+
+  [ Jeremy Gill ]
+  * Ensure FC15 boots when zfs isn't used for boot partition
+
+  [ Brian Behlendorf ]
+  * Fix usage of zsb after free
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 09 Sep 2011 20:27:34 -0500
+
 zfs-linux (0.6.0.31-0ubuntu2) unstable; urgency=low
 
   * Change $ZFS to `zfs` in the init script.
