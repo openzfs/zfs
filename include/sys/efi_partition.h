@@ -35,6 +35,7 @@ extern "C" {
  * GUID Partition Table Header
  */
 
+#define	EFI_MIN_LABEL_SIZE 92
 #define	EFI_LABEL_SIZE	512
 #define	LEN_EFI_PAD	(EFI_LABEL_SIZE - \
 			    ((5 * sizeof (diskaddr_t)) + \
