@@ -15069,6 +15069,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether struct fs_struct uses spinlock_t" >&5
 $as_echo_n "checking whether struct fs_struct uses spinlock_t... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -15132,6 +15134,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether struct cred exists" >&5
@@ -19267,6 +19270,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether struct fs_struct uses spinlock_t" >&5
 $as_echo_n "checking whether struct fs_struct uses spinlock_t... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -19330,6 +19335,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether struct cred exists" >&5
