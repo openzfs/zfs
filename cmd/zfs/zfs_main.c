@@ -2374,7 +2374,7 @@ zfs_do_userspace(int argc, char **argv)
 	boolean_t prtnum = B_FALSE;
 	boolean_t parseable = B_FALSE;
 	boolean_t sid2posix = B_FALSE;
-	int error;
+	int error = 0;
 	int c;
 	zfs_sort_column_t *default_sortcol = NULL;
 	zfs_sort_column_t *sortcol = NULL;
