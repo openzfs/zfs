@@ -1,3 +1,26 @@
+zfs-linux (0.6.0.33-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Automatically set REMAKE_INITRD in the dkms.conf
+
+  [ Brian Behlendorf ]
+  * Install zfs-devel headers in /usr/include
+  * Suppress kmem_alloc() warning in zfs_prop_set_special()
+  * Export symbols for the full ZAP API
+  * Fix uninitialized varible in zfs_do_userspace()
+
+  [ Ned Bass ]
+  * Use automatic variable in Makefile
+
+  [ Zachary Bedell ]
+  * Fix boot failure in Dracut scripts.
+  * Make libefi-created GPT compatible with gptfdisk
+
+  [ Andreas Dilger ]
+  * zpl: Fix "df -i" to have better free inodes value
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 28 Sep 2011 22:38:56 -0500
+
 zfs-linux (0.6.0.32-0ubuntu1) unstable; urgency=low
 
   [ Prakash Surya ]
