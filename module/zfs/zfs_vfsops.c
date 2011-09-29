@@ -944,7 +944,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * For f_ffree, report the smaller of the number of object available
 	 * and the number of blocks (each object will take at least a block).
 	 */
-	statp->f_ffree = MIN(availobjs, statp->f_bfree);
+	statp->f_ffree = MIN(availobjs, availbytes >> DNODE_SHIFT);
 	statp->f_files = statp->f_ffree + usedobjs;
 	statp->f_fsid.val[0] = dentry->d_sb->s_dev;
 	statp->f_fsid.val[1] = 0;
