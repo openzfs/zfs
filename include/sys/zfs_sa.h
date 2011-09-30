@@ -128,11 +128,9 @@ typedef struct znode_phys {
 #ifdef _KERNEL
 int zfs_sa_readlink(struct znode *, uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
-void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);
-void zfs_sa_uprade_pre(struct sa_handle *, void *, dmu_tx_t *);
-void zfs_sa_upgrade_post(struct sa_handle *, void *, dmu_tx_t *);
+void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);
 #endif
 
