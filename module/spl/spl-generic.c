@@ -414,12 +414,8 @@ hostid_read(void)
 
 	file = kobj_open_file(spl_hostid_path);
 
-	if (file == (struct _buf *)-1) {
-		printk(KERN_WARNING
-		       "SPL: The %s file is not found.\n",
-		       spl_hostid_path);
+	if (file == (struct _buf *)-1)
 		return -1;
-	}
 
 	result = kobj_get_filesize(file, &size);
 
