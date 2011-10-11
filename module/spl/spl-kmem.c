@@ -36,7 +36,7 @@
 /*
  * The minimum amount of memory measured in pages to be free at all
  * times on the system.  This is similar to Linux's zone->pages_min
- * multipled by the number of zones and is sized based on that.
+ * multiplied by the number of zones and is sized based on that.
  */
 pgcnt_t minfree = 0;
 EXPORT_SYMBOL(minfree);
@@ -44,9 +44,9 @@ EXPORT_SYMBOL(minfree);
 /*
  * The desired amount of memory measured in pages to be free at all
  * times on the system.  This is similar to Linux's zone->pages_low
- * multipled by the number of zones and is sized based on that.
+ * multiplied by the number of zones and is sized based on that.
  * Assuming all zones are being used roughly equally, when we drop
- * below this threshold async page reclamation is triggered.
+ * below this threshold asynchronous page reclamation is triggered.
  */
 pgcnt_t desfree = 0;
 EXPORT_SYMBOL(desfree);
@@ -54,9 +54,9 @@ EXPORT_SYMBOL(desfree);
 /*
  * When above this amount of memory measures in pages the system is
  * determined to have enough free memory.  This is similar to Linux's
- * zone->pages_high multipled by the number of zones and is sized based
+ * zone->pages_high multiplied by the number of zones and is sized based
  * on that.  Assuming all zones are being used roughly equally, when
- * async page reclamation reaches this threshold it stops.
+ * asynchronous page reclamation reaches this threshold it stops.
  */
 pgcnt_t lotsfree = 0;
 EXPORT_SYMBOL(lotsfree);
@@ -782,7 +782,7 @@ EXPORT_SYMBOL(vmem_free_debug);
  * Slab allocation interfaces
  *
  * While the Linux slab implementation was inspired by the Solaris
- * implemenation I cannot use it to emulate the Solaris APIs.  I
+ * implementation I cannot use it to emulate the Solaris APIs.  I
  * require two features which are not provided by the Linux slab.
  *
  * 1) Constructors AND destructors.  Recent versions of the Linux
@@ -797,7 +797,7 @@ EXPORT_SYMBOL(vmem_free_debug);
  *    Because of memory fragmentation the Linux slab which is backed
  *    by kmalloc'ed memory performs very badly when confronted with
  *    large numbers of large allocations.  Basing the slab on the
- *    virtual address space removes the need for contigeous pages
+ *    virtual address space removes the need for contiguous pages
  *    and greatly improve performance for large allocations.
  *
  * For these reasons, the SPL has its own slab implementation with
@@ -811,12 +811,12 @@ EXPORT_SYMBOL(vmem_free_debug);
  *
  * XXX: Improve the partial slab list by carefully maintaining a
  *      strict ordering of fullest to emptiest slabs based on
- *      the slab reference count.  This gaurentees the when freeing
+ *      the slab reference count.  This guarantees the when freeing
  *      slabs back to the system we need only linearly traverse the
  *      last N slabs in the list to discover all the freeable slabs.
  *
  * XXX: NUMA awareness for optionally allocating memory close to a
- *      particular core.  This can be adventageous if you know the slab
+ *      particular core.  This can be advantageous if you know the slab
  *      object will be short lived and primarily accessed from one core.
  *
  * XXX: Slab coloring may also yield performance improvements and would
@@ -935,12 +935,12 @@ spl_offslab_size(spl_kmem_cache_t *skc)
  * For small objects we use kmem_alloc() because as long as you are
  * only requesting a small number of pages (ideally just one) its cheap.
  * However, when you start requesting multiple pages with kmem_alloc()
- * it gets increasingly expensive since it requires contigeous pages.
+ * it gets increasingly expensive since it requires contiguous pages.
  * For this reason we shift to vmem_alloc() for slabs of large objects
- * which removes the need for contigeous pages.  We do not use
+ * which removes the need for contiguous pages.  We do not use
  * vmem_alloc() in all cases because there is significant locking
  * overhead in __get_vm_area_node().  This function takes a single
- * global lock when aquiring an available virtual address range which
+ * global lock when acquiring an available virtual address range which
  * serializes all vmem_alloc()'s for all slab caches.  Using slightly
  * different allocation functions for small and large objects should
  * give us the best of both worlds.
@@ -1082,7 +1082,7 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 		 * All empty slabs are at the end of skc->skc_partial_list,
 		 * therefore once a non-empty slab is found we can stop
 		 * scanning.  Additionally, stop when reaching the target
-		 * reclaim 'count' if a non-zero threshhold is given.
+		 * reclaim 'count' if a non-zero threshold is given.
 		 */
 		if ((sks->sks_ref > 0) || (count && i > count))
 			break;
@@ -1157,7 +1157,7 @@ spl_magazine_age(void *data)
 /*
  * Called regularly to keep a downward pressure on the size of idle
  * magazines and to release free slabs from the cache.  This function
- * never calls the registered reclaim function, that only occures
+ * never calls the registered reclaim function, that only occurs
  * under memory pressure or with a direct call to spl_kmem_reap().
  */
 static void
@@ -1247,7 +1247,7 @@ spl_magazine_size(spl_kmem_cache_t *skc)
 }
 
 /*
- * Allocate a per-cpu magazine to assoicate with a specific core.
+ * Allocate a per-cpu magazine to associate with a specific core.
  */
 static spl_kmem_magazine_t *
 spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
@@ -1272,7 +1272,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 }
 
 /*
- * Free a per-cpu magazine assoicated with a specific core.
+ * Free a per-cpu magazine associated with a specific core.
  */
 static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
@@ -1379,7 +1379,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	if (current_thread_info()->preempt_count || irqs_disabled())
 		kmem_flags = KM_NOSLEEP;
 
-	/* Allocate memry for a new cache an initialize it.  Unfortunately,
+	/* Allocate memory for a new cache an initialize it.  Unfortunately,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
 	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
@@ -1475,7 +1475,7 @@ spl_kmem_cache_set_move(kmem_cache_t *skc,
 EXPORT_SYMBOL(spl_kmem_cache_set_move);
 
 /*
- * Destroy a cache and all objects assoicated with the cache.
+ * Destroy a cache and all objects associated with the cache.
  */
 void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
@@ -1564,9 +1564,9 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 }
 
 /*
- * No available objects on any slabsi, create a new slab.  Since this
- * is an expensive operation we do it without holding the spinlock and
- * only briefly aquire it when we link in the fully allocated and
+ * No available objects on any slabs, create a new slab.  Since this
+ * is an expensive operation we do it without holding the spin lock and
+ * only briefly acquire it when we link in the fully allocated and
  * constructed slab.
  */
 static spl_kmem_slab_t *
@@ -1639,7 +1639,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 				SGOTO(out, rc);
 
 			/* Potentially rescheduled to the same CPU but
-			 * allocations may have occured from this CPU while
+			 * allocations may have occurred from this CPU while
 			 * we were sleeping so recalculate max refill. */
 			refill = MIN(refill, skm->skm_size - skm->skm_avail);
 
@@ -1707,7 +1707,7 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 		list_add(&sks->sks_list, &skc->skc_partial_list);
 	}
 
-	/* Move emply slabs to the end of the partial list so
+	/* Move empty slabs to the end of the partial list so
 	 * they can be easily found and freed during reclamation. */
 	if (sks->sks_ref == 0) {
 		list_del(&sks->sks_list);
@@ -1774,7 +1774,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 
 restart:
 	/* Safe to update per-cpu structure without lock, but
-	 * in the restart case we must be careful to reaquire
+	 * in the restart case we must be careful to reacquire
 	 * the local magazine since this may have changed
 	 * when we need to grow the cache. */
 	skm = skc->skc_mag[smp_processor_id()];
@@ -1845,9 +1845,9 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 EXPORT_SYMBOL(spl_kmem_cache_free);
 
 /*
- * The generic shrinker function for all caches.  Under linux a shrinker
- * may not be tightly coupled with a slab cache.  In fact linux always
- * systematically trys calling all registered shrinker callbacks which
+ * The generic shrinker function for all caches.  Under Linux a shrinker
+ * may not be tightly coupled with a slab cache.  In fact Linux always
+ * systematically tries calling all registered shrinker callbacks which
  * report that they contain unused objects.  Because of this we only
  * register one shrinker function in the shim layer for all slab caches.
  * We always attempt to shrink all caches when this generic shrinker
