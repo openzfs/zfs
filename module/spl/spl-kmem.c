@@ -979,7 +979,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 	sks->sks_ref = 0;
 	obj_size = spl_obj_size(skc);
 
-	if (skc->skc_flags * KMC_OFFSLAB)
+	if (skc->skc_flags & KMC_OFFSLAB)
 		offslab_size = spl_offslab_size(skc);
 
 	for (i = 0; i < sks->sks_objs; i++) {
