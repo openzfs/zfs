@@ -158,6 +158,7 @@ typedef struct vnode {
 
 typedef struct vn_file {
 	int		f_fd;		/* linux fd for lookup */
+	struct task_struct *f_task;	/* linux task this fd belongs to */
 	struct file	*f_file;	/* linux file struct */
 	atomic_t	f_ref;		/* ref count */
 	kmutex_t	f_lock;		/* struct lock */

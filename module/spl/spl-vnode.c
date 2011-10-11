@@ -511,7 +511,7 @@ file_find(int fd)
 	ASSERT(spin_is_locked(&vn_file_lock));
 
         list_for_each_entry(fp, &vn_file_list,  f_list) {
-		if (fd == fp->f_fd) {
+		if (fd == fp->f_fd && fp->f_task == current) {
 			ASSERT(atomic_read(&fp->f_ref) != 0);
                         return fp;
 		}
@@ -550,6 +550,7 @@ vn_getf(int fd)
 	mutex_enter(&fp->f_lock);
 
 	fp->f_fd = fd;
+	fp->f_task = current;
 	fp->f_offset = 0;
 	atomic_inc(&fp->f_ref);
 
