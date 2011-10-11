@@ -1491,10 +1491,10 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	up_write(&spl_kmem_cache_sem);
 
 	/* Cancel any and wait for any pending delayed work */
-	ASSERT(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
-	cancel_delayed_work(&skc->skc_work);
+	VERIFY(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	cancel_delayed_work_sync(&skc->skc_work);
 	for_each_online_cpu(i)
-		cancel_delayed_work(&skc->skc_mag[i]->skm_work);
+		cancel_delayed_work_sync(&skc->skc_mag[i]->skm_work);
 
 	flush_scheduled_work();
 
