@@ -1,3 +1,24 @@
+zfs-linux (0.6.0.34-0ubuntu1) unstable; urgency=low
+
+  [ Oleg Stepura ]
+  * Fix 'unexpected operator' bashism
+
+  [ Brian Behlendorf ]
+  * Synchronize initramfs and system hostid
+  * Export symbols for the full SA API
+  * Prep zfs-0.6.0-rc6 tag
+  * Add provides lustre-backend-fs to rpm
+  * Export symbols for the VFS API
+  * Disable 90-zfs.rules for test suite
+
+  [ Darik Horn ]
+  * Add "activate update-initramfs" dpkg trigger.
+  * Add news item: The PPA for ZFS is moving.
+  * Add patch: Use /bin/bash to invoke dracut scripts.
+  * Add provides lustre-backend-fs to deb
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 11 Oct 2011 21:16:47 -0500
+
 zfs-linux (0.6.0.33-0ubuntu1) unstable; urgency=low
 
   [ Darik Horn ]
