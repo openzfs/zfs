@@ -1,0 +1,49 @@
+From 4d7340ec9c3fa9f8918a50349887d212441ada26 Mon Sep 17 00:00:00 2001
+From: Darik Horn <dajhorn@vanadac.com>
+Date: Tue, 11 Oct 2011 19:45:40 -0500
+Subject: [PATCH] Use /bin/bash to invoke dracut scripts.
+
+The system shell on most Debian and Ubuntu systems is dash, so change
+the whack-bang in the Dracut scripts from /bin/sh to /bin/bash.
+
+The `printf "\x$DD\x$CC\x$BB\x$AA" >$TMP` line is problematic because
+dash builtin does not implement the hex format.
+---
+ dracut/90zfs/module-setup.sh.in |    2 +-
+ dracut/90zfs/mount-zfs.sh.in    |    2 +-
+ dracut/90zfs/parse-zfs.sh.in    |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/dracut/90zfs/module-setup.sh.in b/dracut/90zfs/module-setup.sh.in
+index c01915e..a940cd9 100755
+--- a/dracut/90zfs/module-setup.sh.in
++++ b/dracut/90zfs/module-setup.sh.in
+@@ -1,4 +1,4 @@
+-#!/bin/sh
++#!/bin/bash
+ 
+ check() {
+ 	# We depend on udev-rules being loaded
+diff --git a/dracut/90zfs/mount-zfs.sh.in b/dracut/90zfs/mount-zfs.sh.in
+index 2d2afd8..8bbc6c2 100755
+--- a/dracut/90zfs/mount-zfs.sh.in
++++ b/dracut/90zfs/mount-zfs.sh.in
+@@ -1,4 +1,4 @@
+-#!/bin/sh
++#!/bin/bash
+ 
+ . /lib/dracut-lib.sh
+ 
+diff --git a/dracut/90zfs/parse-zfs.sh.in b/dracut/90zfs/parse-zfs.sh.in
+index 571d263..5bfb472 100755
+--- a/dracut/90zfs/parse-zfs.sh.in
++++ b/dracut/90zfs/parse-zfs.sh.in
+@@ -1,4 +1,4 @@
+-#!/bin/sh
++#!/bin/bash
+ 
+ . /lib/dracut-lib.sh
+ 
+-- 
+1.7.5.4
+
