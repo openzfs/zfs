@@ -224,6 +224,7 @@ BuildRequires:   %{kdevpkg}
 %endif
 Requires:        %{splrequires}
 BuildRequires:   %{spldevpkg}
+Provides:        lustre-backend-fs
 
 %description
 The %{name} package contains kernel modules and support utilities for
