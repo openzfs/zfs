@@ -1,3 +1,15 @@
+zfs-linux (0.6.0.34-0ubuntu1) oneiric; urgency=low
+
+  * The PPA for ZFS is moving.
+ 
+  The ppa:dajhorn/zfs archive is deprecated because the ZFS project
+  now has a team account at Launchpad. Use the ppa:zfs-native/stable
+  archive instead.
+
+  Please visit: https://launchpad.net/~zfs-native/
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 11 Oct 2011 19:23:58 -0500
+
 zfs-linux (0.6.0.7-0ubuntu2) unstable; urgency=medium
 
   NOTE:  The removal of the zfs or zfs-lib package by this
