@@ -102,7 +102,7 @@ Section: kernel
 Architecture: linux-any
 Depends: ${misc:Depends}, dkms (>> 2.1.1.2-5ubuntu1), spl-dkms (>= ${source:Upstream-Version})
 Replaces: lzfs, lzfs-dkms
-Provides: lzfs, lzfs-dkms
+Provides: lustre-backend-fs, lzfs, lzfs-dkms
 Conflicts: lzfs, lzfs-dkms
 Description: Native ZFS filesystem kernel modules for Linux
  An advanced integrated volume manager and filesystem.
