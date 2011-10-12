@@ -247,6 +247,7 @@ vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len, offset_t off,
 		rc = vfs_read(fp, addr, len, &offset);
 
 	set_fs(saved_fs);
+	fp->f_pos = offset;
 
 	if (rc < 0)
 		SRETURN(-rc);
