@@ -180,7 +180,7 @@ Name:            %{name}
 Version:         %{version}
 Release:         %{release}
 License:         @LICENSE@
-URL:             git://eris.llnl.gov/spl.git
+URL:             git://github.com/zfsonlinux/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          @PACKAGE@-%{version}.tar.gz
 %if %{defined krequires}
