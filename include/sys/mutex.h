@@ -103,45 +103,19 @@ extern int spl_mutex_spin_max(void);
 
 #define MUTEX(mp)               ((struct mutex *)(mp))
 
-static inline kthread_t *
-spl_mutex_get_owner(kmutex_t *mp)
-{
-        return mp->m_owner;
-}
-
 static inline void
 spl_mutex_set_owner(kmutex_t *mp)
 {
-        unsigned long flags;
-
-        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
         mp->m_owner = current;
-        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
 }
 
 static inline void
 spl_mutex_clear_owner(kmutex_t *mp)
 {
-        unsigned long flags;
-
-        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
         mp->m_owner = NULL;
-        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
 }
 
-static inline kthread_t *
-mutex_owner(kmutex_t *mp)
-{
-        unsigned long flags;
-        kthread_t *owner;
-
-        spin_lock_irqsave(&MUTEX(mp)->wait_lock, flags);
-        owner = spl_mutex_get_owner(mp);
-        spin_unlock_irqrestore(&MUTEX(mp)->wait_lock, flags);
-
-        return owner;
-}
-
+#define mutex_owner(mp)         (ACCESS_ONCE((mp)->m_owner))
 #define mutex_owned(mp)         (mutex_owner(mp) == current)
 #define MUTEX_HELD(mp)          mutex_owned(mp)
 #define MUTEX_NOT_HELD(mp)      (!MUTEX_HELD(mp))
