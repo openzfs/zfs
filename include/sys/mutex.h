@@ -35,7 +35,7 @@ typedef enum {
         MUTEX_ADAPTIVE = 2
 } kmutex_type_t;
 
-#if defined(HAVE_MUTEX_OWNER) && defined(CONFIG_SMP)
+#if defined(HAVE_MUTEX_OWNER) && defined(CONFIG_SMP) && !defined(CONFIG_DEBUG_MUTEXES)
 
 /*
  * We define a 1-field struct rather than a straight typedef to enforce type
@@ -79,17 +79,7 @@ mutex_owner(kmutex_t *mp)
 
 #define mutex_tryenter(mp)              mutex_trylock(&(mp)->m)
 #define mutex_enter(mp)                 mutex_lock(&(mp)->m)
-
-/* mutex->owner is not cleared when CONFIG_DEBUG_MUTEXES is set */
-#ifdef CONFIG_DEBUG_MUTEXES
-# define mutex_exit(mp)                                                 \
-({                                                                      \
-        mutex_unlock(&(mp)->m);                                         \
-        (mp)->m.owner = NULL;                                           \
-})
-#else
-# define mutex_exit(mp)                 mutex_unlock(&(mp)->m)
-#endif /* CONFIG_DEBUG_MUTEXES */
+#define mutex_exit(mp)                 mutex_unlock(&(mp)->m)
 
 #ifdef HAVE_GPL_ONLY_SYMBOLS
 # define mutex_enter_nested(mp, sc)     mutex_lock_nested(&(mp)->m, sc)
