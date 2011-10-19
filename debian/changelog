@@ -1,3 +1,16 @@
+zfs-linux (0.6.0.35-0ubuntu1) unstable; urgency=low
+
+  [ Ned Bass ]
+  * Use @ZFS_META LICENSE@ in spec.in files
+
+  [ Alexander Stetsenko ]
+  * Illumos #755: dmu_recv_stream builds incomplete guid_to_ds_map
+
+  [ Brian Behlendorf ]
+  * Set mtime on symbolic links
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 19 Oct 2011 15:26:00 -0500
+
 zfs-linux (0.6.0.34-0ubuntu1) unstable; urgency=low
 
   [ Oleg Stepura ]
