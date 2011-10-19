@@ -178,7 +178,7 @@ Summary:         Solaris Porting Layer Modules
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}
+Release:         %{release}%{?dist}
 License:         @LICENSE@
 URL:             git://github.com/zfsonlinux/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
