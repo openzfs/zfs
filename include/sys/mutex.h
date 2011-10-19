@@ -101,7 +101,7 @@ extern int spl_mutex_spin_max(void);
 # define spl_mutex_spin_max()   0
 #endif /* HAVE_TASK_CURR */
 
-#define MUTEX(mp)               ((struct mutex *)(mp))
+#define MUTEX(mp)               (&((mp)->m_mutex))
 
 static inline void
 spl_mutex_set_owner(kmutex_t *mp)
