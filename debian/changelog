@@ -1,4 +1,4 @@
-zfs-linux (0.6.0.35-0ubuntu1) unstable; urgency=low
+zfs-linux (0.6.0.35-0ubuntu2) unstable; urgency=low
 
   [ Ned Bass ]
   * Use @ZFS_META LICENSE@ in spec.in files
