@@ -309,6 +309,11 @@ typedef enum {
 	ZFS_SYNC_DISABLED = 2
 } zfs_sync_type_t;
 
+typedef enum {
+	ZFS_XATTR_OFF = 0,
+	ZFS_XATTR_DIR = 1,
+	ZFS_XATTR_SA = 2
+} zfs_xattr_type_t;
 
 /*
  * On-disk version number.

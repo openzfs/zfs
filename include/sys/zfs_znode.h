@@ -105,6 +105,7 @@ extern "C" {
 #define	SA_ZPL_FLAGS(z)		z->z_attr_table[ZPL_FLAGS]
 #define	SA_ZPL_SIZE(z)		z->z_attr_table[ZPL_SIZE]
 #define	SA_ZPL_ZNODE_ACL(z)	z->z_attr_table[ZPL_ZNODE_ACL]
+#define	SA_ZPL_DXATTR(z)	z->z_attr_table[ZPL_DXATTR]
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
 
 /*
@@ -206,6 +207,8 @@ typedef struct znode {
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
+	krwlock_t	z_xattr_lock;	/* xattr data lock */
+	nvlist_t	*z_xattr_cached;/* cached xattrs */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */

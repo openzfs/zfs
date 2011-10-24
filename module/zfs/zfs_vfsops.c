@@ -140,10 +140,16 @@ xattr_changed_cb(void *arg, uint64_t newval)
 {
 	zfs_sb_t *zsb = arg;
 
-	if (newval == TRUE)
-		zsb->z_flags |= ZSB_XATTR;
-	else
+	if (newval == ZFS_XATTR_OFF) {
 		zsb->z_flags &= ~ZSB_XATTR;
+	} else {
+		zsb->z_flags |= ZSB_XATTR;
+
+		if (newval == ZFS_XATTR_SA)
+			zsb->z_xattr_sa = B_TRUE;
+		else
+			zsb->z_xattr_sa = B_FALSE;
+	}
 }
 
 static void
@@ -641,6 +647,10 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 		    &sa_obj);
 		if (error)
 			goto out;
+
+		error = zfs_get_zplprop(os, ZFS_PROP_XATTR, &zval);
+		if ((error == 0) && (zval == ZFS_XATTR_SA))
+			zsb->z_xattr_sa = B_TRUE;
 	} else {
 		/*
 		 * Pre SA versions file systems should never touch

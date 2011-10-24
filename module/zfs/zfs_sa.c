@@ -63,6 +63,7 @@ sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_SYMLINK", 0, SA_UINT8_ARRAY, 0},
 	{"ZPL_SCANSTAMP", 32, SA_UINT8_ARRAY, 0},
 	{"ZPL_DACL_ACES", 0, SA_ACL, 0},
+	{"ZPL_DXATTR", 0, SA_UINT8_ARRAY, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -181,6 +182,83 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zsb),
 		    &zp->z_pflags, sizeof (uint64_t), tx));
 	}
+}
+
+int
+zfs_sa_get_xattr(znode_t *zp)
+{
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	char *obj;
+	int size;
+	int error;
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+	ASSERT(!zp->z_xattr_cached);
+	ASSERT(zp->z_is_sa);
+
+	error = sa_size(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), &size);
+	if (error) {
+		if (error == ENOENT)
+			return nvlist_alloc(&zp->z_xattr_cached,
+			    NV_UNIQUE_NAME, KM_SLEEP);
+		else
+			return (error);
+	}
+
+	obj = sa_spill_alloc(KM_SLEEP);
+
+	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), obj, size);
+	if (error == 0)
+		error = nvlist_unpack(obj, size, &zp->z_xattr_cached, KM_SLEEP);
+
+	sa_spill_free(obj);
+
+	return (error);
+}
+
+int
+zfs_sa_set_xattr(znode_t *zp)
+{
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	dmu_tx_t *tx;
+	char *obj;
+	size_t size;
+	int error;
+
+	ASSERT(RW_WRITE_HELD(&zp->z_xattr_lock));
+	ASSERT(zp->z_xattr_cached);
+	ASSERT(zp->z_is_sa);
+
+	error = nvlist_size(zp->z_xattr_cached, &size, NV_ENCODE_XDR);
+	if (error)
+		goto out;
+
+	obj = sa_spill_alloc(KM_SLEEP);
+
+	error = nvlist_pack(zp->z_xattr_cached, &obj, &size,
+	    NV_ENCODE_XDR, KM_SLEEP);
+	if (error)
+		goto out_free;
+
+	tx = dmu_tx_create(zsb->z_os);
+	dmu_tx_hold_sa_create(tx, size);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+	} else {
+		error = sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+		    obj, size, tx);
+		if (error)
+			dmu_tx_abort(tx);
+		else
+			dmu_tx_commit(tx);
+	}
+out_free:
+	sa_spill_free(obj);
+out:
+	return (error);
 }
 
 /*
@@ -338,6 +416,8 @@ EXPORT_SYMBOL(zfs_sa_readlink);
 EXPORT_SYMBOL(zfs_sa_symlink);
 EXPORT_SYMBOL(zfs_sa_get_scanstamp);
 EXPORT_SYMBOL(zfs_sa_set_scanstamp);
+EXPORT_SYMBOL(zfs_sa_get_xattr);
+EXPORT_SYMBOL(zfs_sa_set_xattr);
 EXPORT_SYMBOL(zfs_sa_upgrade);
 EXPORT_SYMBOL(zfs_sa_upgrade_txholds);
 
