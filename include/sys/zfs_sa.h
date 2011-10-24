@@ -73,6 +73,7 @@ typedef enum zpl_attr {
 	ZPL_SYMLINK,
 	ZPL_SCANSTAMP,
 	ZPL_DACL_ACES,
+	ZPL_DXATTR,
 	ZPL_END
 } zpl_attr_t;
 
@@ -126,12 +127,20 @@ typedef struct znode_phys {
 } znode_phys_t;
 
 #ifdef _KERNEL
+
+#define DXATTR_MAX_ENTRY_SIZE   (32768)
+#define DXATTR_MAX_SA_SIZE      (SPA_MAXBLOCKSIZE >> 1)
+
 int zfs_sa_readlink(struct znode *, uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
 void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);
+int zfs_sa_get_xattr(struct znode *);
+int zfs_sa_set_xattr(struct znode *);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);
+void zfs_sa_init(void);
+void zfs_sa_fini(void);
 #endif
 
 #ifdef	__cplusplus

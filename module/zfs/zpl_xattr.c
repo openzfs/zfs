@@ -29,39 +29,53 @@
  * as practically no size limit on the file, and the extended
  * attributes permissions may differ from those of the parent file.
  * This interface is really quite clever, but it's also completely
- * different than what is supported on Linux.
+ * different than what is supported on Linux.  It also comes with a
+ * steep performance penalty when accessing small xattrs because they
+ * are not stored with the parent file.
  *
  * Under Linux extended attributes are manipulated by the system
  * calls getxattr(2), setxattr(2), and listxattr(2).  They consider
  * extended attributes to be name/value pairs where the name is a
  * NULL terminated string.  The name must also include one of the
- * following name space prefixes:
+ * following namespace prefixes:
  *
  *   user     - No restrictions and is available to user applications.
  *   trusted  - Restricted to kernel and root (CAP_SYS_ADMIN) use.
  *   system   - Used for access control lists (system.nfs4_acl, etc).
  *   security - Used by SELinux to store a files security context.
  *
- * This Linux interface is implemented internally using the more
- * flexible Solaris style extended attributes.  Every extended
- * attribute is store as a file in a hidden directory associated
- * with the parent file.  This ensures on disk compatibility with
- * zfs implementations on other platforms (Solaris, FreeBSD, MacOS).
+ * The value under Linux to limited to 65536 bytes of binary data.
+ * In practice, individual xattrs tend to be much smaller than this
+ * and are typically less than 100 bytes.  A good example of this
+ * are the security.selinux xattrs which are less than 100 bytes and
+ * exist for every file when xattr labeling is enabled.
  *
- * One consequence of this implementation is that when an extended
- * attribute is manipulated an inode is created.  This inode will
- * exist in the Linux inode cache but there will be no associated
- * entry in the dentry cache which references it.  This is safe
- * but it may result in some confusion.
+ * The Linux xattr implemenation has been written to take advantage of
+ * this typical usage.  When the dataset property 'xattr=sa' is set,
+ * then xattrs will be preferentially stored as System Attributes (SA).
+ * This allows tiny xattrs (~100 bytes) to be stored with the dnode and
+ * up to 64k of xattrs to be stored in the spill block.  If additional
+ * xattr space is required, which is unlikely under Linux, they will
+ * be stored using the traditional directory approach.
  *
- * Longer term I would like to see the 'security.selinux' extended
- * attribute moved to a SA.  This should significantly improve
- * performance on a SELinux enabled system by minimizing the
- * number of seeks required to access a file.  However, for now
- * this xattr is still stored in a file because I'm pretty sure
- * adding a new SA will break on-disk compatibility.
+ * This optimization results in roughly a 3x performance improvement
+ * when accessing xattrs because it avoids the need to perform a seek
+ * for every xattr value.  When multiple xattrs are stored per-file
+ * the performance improvements are even greater because all of the
+ * xattrs stored in the spill block will be cached.
+ *
+ * However, by default SA based xattrs are disabled in the Linux port
+ * to maximize compatibility with other implementations.  If you do
+ * enable SA based xattrs then they will not be visible on platforms
+ * which do not support this feature.
+ *
+ * NOTE: One additional consequence of the xattr directory implementation
+ * is that when an extended attribute is manipulated an inode is created.
+ * This inode will exist in the Linux inode cache but there will be no
+ * associated entry in the dentry cache which references it.  This is
+ * safe but it may result in some confusion.  Enabling SA based xattrs
+ * largely avoids the issue except in the overflow case.
  */
-
 
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
@@ -104,17 +118,13 @@ zpl_xattr_filldir(void *arg, const char *name, int name_len,
 	return (0);
 }
 
-ssize_t
-zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
+static ssize_t
+zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 {
-	struct inode *ip = dentry->d_inode;
+	struct inode *ip = xf->inode;
 	struct inode *dxip = NULL;
 	loff_t pos = 3;  /* skip '.', '..', and '.zfs' entries. */
-	cred_t *cr = CRED();
 	int error;
-	xattr_filldir_t xf = { buffer_size, 0, buffer, ip };
-
-	crhold(cr);
 
 	/* Lookup the xattr directory */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
@@ -122,33 +132,83 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 		if (error == -ENOENT)
 			error = 0;
 
-		goto out;
+		return (error);
 	}
 
 	/* Fill provided buffer via zpl_zattr_filldir helper */
-	error = -zfs_readdir(dxip, (void *)&xf, zpl_xattr_filldir, &pos, cr);
+	error = -zfs_readdir(dxip, (void *)xf, zpl_xattr_filldir, &pos, cr);
+	iput(dxip);
+
+	return (error);
+}
+
+static ssize_t
+zpl_xattr_list_sa(xattr_filldir_t *xf)
+{
+	znode_t *zp = ITOZ(xf->inode);
+	nvpair_t *nvp = NULL;
+	int error = 0;
+
+	mutex_enter(&zp->z_lock);
+	if (zp->z_xattr_cached == NULL)
+		error = -zfs_sa_get_xattr(zp);
+	mutex_exit(&zp->z_lock);
+
+	if (error)
+		return (error);
+
+	ASSERT(zp->z_xattr_cached);
+
+	while ((nvp = nvlist_next_nvpair(zp->z_xattr_cached, nvp)) != NULL) {
+		ASSERT3U(nvpair_type(nvp), ==, DATA_TYPE_BYTE_ARRAY);
+
+		error = zpl_xattr_filldir((void *)xf, nvpair_name(nvp),
+		     strlen(nvpair_name(nvp)), 0, 0, 0);
+		if (error)
+			return (error);
+	}
+
+	return (0);
+}
+
+ssize_t
+zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
+{
+	znode_t *zp = ITOZ(dentry->d_inode);
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	xattr_filldir_t xf = { buffer_size, 0, buffer, dentry->d_inode };
+	cred_t *cr = CRED();
+	int error = 0;
+
+	crhold(cr);
+	rw_enter(&zp->z_xattr_lock, RW_READER);
+
+	if (zsb->z_use_sa && zp->z_is_sa) {
+		error = zpl_xattr_list_sa(&xf);
+		if (error)
+			goto out;
+	}
+
+	error = zpl_xattr_list_dir(&xf, cr);
 	if (error)
 		goto out;
 
 	error = xf.offset;
 out:
-	if (dxip)
-		iput(dxip);
 
+	rw_exit(&zp->z_xattr_lock);
 	crfree(cr);
 
 	return (error);
 }
 
 static int
-zpl_xattr_get(struct inode *ip, const char *name, void *buf, size_t size)
+zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
+    size_t size, cred_t *cr)
 {
 	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
-	cred_t *cr = CRED();
 	int error;
-
-	crhold(cr);
 
 	/* Lookup the xattr directory */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
@@ -165,7 +225,7 @@ zpl_xattr_get(struct inode *ip, const char *name, void *buf, size_t size)
 		goto out;
 	}
 
-	error = zpl_read_common(xip, buf, size, 0, UIO_SYSSPACE, 0, cr);
+	error = zpl_read_common(xip, value, size, 0, UIO_SYSSPACE, 0, cr);
 out:
 	if (xip)
 		iput(xip);
@@ -173,8 +233,59 @@ out:
 	if (dxip)
 		iput(dxip);
 
-	crfree(cr);
+	return (error);
+}
 
+static int
+zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
+{
+	znode_t *zp = ITOZ(ip);
+	uchar_t *nv_value;
+	uint_t nv_size;
+	int error = 0;
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+
+	mutex_enter(&zp->z_lock);
+	if (zp->z_xattr_cached == NULL)
+		error = -zfs_sa_get_xattr(zp);
+	mutex_exit(&zp->z_lock);
+
+	if (error)
+		return (error);
+
+	ASSERT(zp->z_xattr_cached);
+	error = -nvlist_lookup_byte_array(zp->z_xattr_cached, name,
+	    &nv_value, &nv_size);
+	if (error)
+		return (error);
+
+	if (!size)
+		return (nv_size);
+
+	memcpy(value, nv_value, MIN(size, nv_size));
+
+	return (MIN(size, nv_size));
+}
+
+static int
+__zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size,
+    cred_t *cr)
+{
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	int error;
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+
+	if (zsb->z_use_sa && zp->z_is_sa) {
+		error = zpl_xattr_get_sa(ip, name, value, size);
+		if (error >= 0)
+			goto out;
+	}
+
+	error = zpl_xattr_get_dir(ip, name, value, size, cr);
+out:
 	if (error == -ENOENT)
 		error = -ENODATA;
 
@@ -182,18 +293,31 @@ out:
 }
 
 static int
-zpl_xattr_set(struct inode *ip, const char *name, const void *value,
-    size_t size, int flags)
+zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size)
+{
+	znode_t *zp = ITOZ(ip);
+	cred_t *cr = CRED();
+	int error;
+
+	crhold(cr);
+	rw_enter(&zp->z_xattr_lock, RW_READER);
+	error = __zpl_xattr_get(ip, name, value, size, cr);
+	rw_exit(&zp->z_xattr_lock);
+	crfree(cr);
+
+	return (error);
+}
+
+static int
+zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
+    size_t size, int flags, cred_t *cr)
 {
 	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
 	vattr_t *vap = NULL;
-	cred_t *cr = CRED();
 	ssize_t wrote;
 	int error;
 	const int xattr_mode = S_IFREG | 0644;
-
-	crhold(cr);
 
 	/* Lookup the xattr directory and create it if required. */
 	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR | CREATE_XATTR_DIR,
@@ -201,23 +325,11 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	if (error)
 		goto out;
 
-	/*
-	 * Lookup a specific xattr name in the directory, two failure modes:
-	 *   XATTR_CREATE: fail if xattr already exists
-	 *   XATTR_REMOVE: fail if xattr does not exist
-	 */
+	/* Lookup a specific xattr name in the directory */
 	error = -zfs_lookup(dxip, (char *)name, &xip, 0, cr, NULL, NULL);
-	if (error) {
-		if (error != -ENOENT)
-			goto out;
+	if (error && (error != -ENOENT))
+		goto out;
 
-		if ((error == -ENOENT) && (flags & XATTR_REPLACE))
-			goto out;
-	} else {
-		error = -EEXIST;
-		if (flags & XATTR_CREATE)
-			goto out;
-	}
 	error = 0;
 
 	/* Remove a specific name xattr when value is set to NULL. */
@@ -262,7 +374,6 @@ out:
 	if (dxip)
 		iput(dxip);
 
-	crfree(cr);
 	if (error == -ENOENT)
 		error = -ENODATA;
 
@@ -272,8 +383,100 @@ out:
 }
 
 static int
+zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
+    size_t size, int flags, cred_t *cr)
+{
+	znode_t *zp = ITOZ(ip);
+	nvlist_t *nvl;
+	size_t sa_size;
+	int error;
+
+	ASSERT(zp->z_xattr_cached);
+	nvl = zp->z_xattr_cached;
+
+	if (value == NULL) {
+		error = -nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
+		if (error == -ENOENT)
+			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
+	} else {
+		/* Limited to 32k to keep nvpair memory allocations small */
+		if (size > DXATTR_MAX_ENTRY_SIZE)
+			return (-EFBIG);
+
+		/* Prevent the DXATTR SA from consuming the entire SA region */
+		error = -nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
+		if (error)
+			return (error);
+
+		if (sa_size > DXATTR_MAX_SA_SIZE)
+			return (-EFBIG);
+
+		error = -nvlist_add_byte_array(nvl, name,
+		    (uchar_t *)value, size);
+		if (error)
+			return (error);
+	}
+
+	/* Update the SA for additions, modifications, and removals. */
+	if (!error)
+		error = -zfs_sa_set_xattr(zp);
+
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
+zpl_xattr_set(struct inode *ip, const char *name, const void *value,
+    size_t size, int flags)
+{
+	znode_t *zp = ITOZ(ip);
+	zfs_sb_t *zsb = ZTOZSB(zp);
+	cred_t *cr = CRED();
+	int error;
+
+	crhold(cr);
+	rw_enter(&ITOZ(ip)->z_xattr_lock, RW_WRITER);
+
+	/*
+	 * Before setting the xattr check to see if it already exists.
+	 * This is done to ensure the following optional flags are honored.
+	 *
+	 *   XATTR_CREATE: fail if xattr already exists
+	 *   XATTR_REPLACE: fail if xattr does not exist
+	 */
+	error = __zpl_xattr_get(ip, name, NULL, 0, cr);
+	if (error < 0) {
+		if (error != -ENODATA)
+			goto out;
+
+		if ((error == -ENODATA) && (flags & XATTR_REPLACE))
+			goto out;
+	} else {
+		error = -EEXIST;
+		if (flags & XATTR_CREATE)
+			goto out;
+	}
+
+	/* Preferentially store the xattr as a SA for better performance */
+	if (zsb->z_use_sa && zsb->z_xattr_sa && zp->z_is_sa) {
+		error = zpl_xattr_set_sa(ip, name, value, size, flags, cr);
+		if (error == 0)
+			goto out;
+	}
+
+	error = zpl_xattr_set_dir(ip, name, value, size, flags, cr);
+out:
+	rw_exit(&ITOZ(ip)->z_xattr_lock);
+	crfree(cr);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+static int
 __zpl_xattr_user_get(struct inode *ip, const char *name,
-    void *buffer, size_t size)
+    void *value, size_t size)
 {
 	char *xattr_name;
 	int error;
@@ -285,7 +488,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 		return -EOPNOTSUPP;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
-	error = zpl_xattr_get(ip, xattr_name, buffer, size);
+	error = zpl_xattr_get(ip, xattr_name, value, size);
 	strfree(xattr_name);
 
 	return (error);
@@ -321,7 +524,7 @@ xattr_handler_t zpl_xattr_user_handler = {
 
 static int
 __zpl_xattr_trusted_get(struct inode *ip, const char *name,
-    void *buffer, size_t size)
+    void *value, size_t size)
 {
 	char *xattr_name;
 	int error;
@@ -333,7 +536,7 @@ __zpl_xattr_trusted_get(struct inode *ip, const char *name,
 		return -EINVAL;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
-	error = zpl_xattr_get(ip, xattr_name, buffer, size);
+	error = zpl_xattr_get(ip, xattr_name, value, size);
 	strfree(xattr_name);
 
 	return (error);
@@ -369,7 +572,7 @@ xattr_handler_t zpl_xattr_trusted_handler = {
 
 static int
 __zpl_xattr_security_get(struct inode *ip, const char *name,
-    void *buffer, size_t size)
+    void *value, size_t size)
 {
 	char *xattr_name;
 	int error;
@@ -378,7 +581,7 @@ __zpl_xattr_security_get(struct inode *ip, const char *name,
 		return -EINVAL;
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
-	error = zpl_xattr_get(ip, xattr_name, buffer, size);
+	error = zpl_xattr_get(ip, xattr_name, value, size);
 	strfree(xattr_name);
 
 	return (error);
