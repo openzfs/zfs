@@ -211,8 +211,8 @@ Summary:         ZFS File System
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}
-License:         @LICENSE@
+Release:         %{release}%{?dist}
+License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          @PACKAGE@-%{version}.tar.gz
@@ -224,6 +224,7 @@ BuildRequires:   %{kdevpkg}
 %endif
 Requires:        %{splrequires}
 BuildRequires:   %{spldevpkg}
+Provides:        lustre-backend-fs
 
 %description
 The %{name} package contains kernel modules and support utilities for

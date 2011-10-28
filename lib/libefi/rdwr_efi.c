@@ -541,16 +541,22 @@ check_label(int fd, dk_efi_t *dk_ioc)
 	 */
 	crc = efi->efi_gpt_HeaderCRC32;
 	efi->efi_gpt_HeaderCRC32 = 0;
+	len_t headerSize = (len_t)LE_32(efi->efi_gpt_HeaderSize);
 
-	if (((len_t)LE_32(efi->efi_gpt_HeaderSize) > dk_ioc->dki_length) ||
-	    crc != LE_32(efi_crc32((unsigned char *)efi,
-	    LE_32(efi->efi_gpt_HeaderSize)))) {
+	if(headerSize < EFI_MIN_LABEL_SIZE || headerSize > EFI_LABEL_SIZE) {
+		if (efi_debug)
+			(void) fprintf(stderr,
+				"Invalid EFI HeaderSize %llu.  Assuming %d.\n",
+				headerSize, EFI_MIN_LABEL_SIZE);
+	}
+
+	if ((headerSize > dk_ioc->dki_length) ||
+	    crc != LE_32(efi_crc32((unsigned char *)efi, headerSize))) {
 		if (efi_debug)
 			(void) fprintf(stderr,
 			    "Bad EFI CRC: 0x%x != 0x%x\n",
-			    crc,
-			    LE_32(efi_crc32((unsigned char *)efi,
-			    sizeof (struct efi_gpt))));
+			    crc, LE_32(efi_crc32((unsigned char *)efi,
+			    headerSize)));
 		return (VT_EINVAL);
 	}
 
@@ -1152,7 +1158,7 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	/* stuff user's input into EFI struct */
 	efi->efi_gpt_Signature = LE_64(EFI_SIGNATURE);
 	efi->efi_gpt_Revision = LE_32(vtoc->efi_version); /* 0x02000100 */
-	efi->efi_gpt_HeaderSize = LE_32(sizeof (struct efi_gpt));
+	efi->efi_gpt_HeaderSize = LE_32(sizeof (struct efi_gpt) - LEN_EFI_PAD);
 	efi->efi_gpt_Reserved1 = 0;
 	efi->efi_gpt_MyLBA = LE_64(1ULL);
 	efi->efi_gpt_AlternateLBA = LE_64(lba_backup_gpt_hdr);
@@ -1221,7 +1227,8 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	    LE_32(efi_crc32((unsigned char *)efi_parts,
 	    vtoc->efi_nparts * (int)sizeof (struct efi_gpe)));
 	efi->efi_gpt_HeaderCRC32 =
-	    LE_32(efi_crc32((unsigned char *)efi, sizeof (struct efi_gpt)));
+	    LE_32(efi_crc32((unsigned char *)efi,
+	    LE_32(efi->efi_gpt_HeaderSize)));
 
 	if (efi_ioctl(fd, DKIOCSETEFI, &dk_ioc) == -1) {
 		free(dk_ioc.dki_data);
@@ -1274,7 +1281,7 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	efi->efi_gpt_HeaderCRC32 = 0;
 	efi->efi_gpt_HeaderCRC32 =
 	    LE_32(efi_crc32((unsigned char *)dk_ioc.dki_data,
-	    sizeof (struct efi_gpt)));
+	    LE_32(efi->efi_gpt_HeaderSize)));
 
 	if (efi_ioctl(fd, DKIOCSETEFI, &dk_ioc) == -1) {
 		if (efi_debug) {

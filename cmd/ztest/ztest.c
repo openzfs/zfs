@@ -2123,7 +2123,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 
 	(void) rw_enter(&zd->zd_zilog_lock, RW_WRITER);
 
-	/* zfsvfs_teardown() */
+	/* zfs_sb_teardown() */
 	zil_close(zd->zd_zilog);
 
 	/* zfsvfs_setup() */

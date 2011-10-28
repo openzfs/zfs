@@ -179,8 +179,12 @@ extern boolean_t zfs_owner_overquota(zfs_sb_t *zsb, struct znode *,
 extern boolean_t zfs_fuid_overquota(zfs_sb_t *zsb, boolean_t isgroup,
     uint64_t fuid);
 extern int zfs_set_version(zfs_sb_t *zsb, uint64_t newvers);
+extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop,
+    uint64_t *value);
 extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
+extern int zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting);
 extern void zfs_sb_free(zfs_sb_t *zsb);
+extern int zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 extern boolean_t zfs_is_readonly(zfs_sb_t *zsb);
 

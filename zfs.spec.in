@@ -5,14 +5,15 @@
 %define _prefix          /
 %define _libexecdir      /usr/libexec
 %define _datadir         /usr/share
+%define _includedir      /usr/include
 %define _udevdir         /lib/udev
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}
-License:         @LICENSE@
+Release:         %{release}%{?dist}
+License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          %{name}-%{version}.tar.gz

@@ -607,14 +607,14 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		 * and spill buffer.
 		 */
 		if (buftype == SA_BONUS && *index == -1 &&
-		    P2ROUNDUP(*total + hdrsize, 8) >
+		    (*total + P2ROUNDUP(hdrsize, 8)) >
 		    (full_space - sizeof (blkptr_t))) {
 			*index = i;
 			done = B_TRUE;
 		}
 
 next:
-		if (P2ROUNDUP(*total + hdrsize, 8) > full_space &&
+		if ((*total + P2ROUNDUP(hdrsize, 8)) > full_space &&
 		    buftype == SA_BONUS)
 			*will_spill = B_TRUE;
 	}
@@ -1969,3 +1969,38 @@ sa_handle_unlock(sa_handle_t *hdl)
 	ASSERT(hdl);
 	mutex_exit(&hdl->sa_lock);
 }
+
+#ifdef _KERNEL
+EXPORT_SYMBOL(sa_handle_get);
+EXPORT_SYMBOL(sa_handle_get_from_db);
+EXPORT_SYMBOL(sa_handle_destroy);
+EXPORT_SYMBOL(sa_buf_hold);
+EXPORT_SYMBOL(sa_buf_rele);
+EXPORT_SYMBOL(sa_lookup);
+EXPORT_SYMBOL(sa_update);
+EXPORT_SYMBOL(sa_remove);
+EXPORT_SYMBOL(sa_bulk_lookup);
+EXPORT_SYMBOL(sa_bulk_lookup_locked);
+EXPORT_SYMBOL(sa_bulk_update);
+EXPORT_SYMBOL(sa_size);
+EXPORT_SYMBOL(sa_update_from_cb);
+EXPORT_SYMBOL(sa_object_info);
+EXPORT_SYMBOL(sa_object_size);
+EXPORT_SYMBOL(sa_update_user);
+EXPORT_SYMBOL(sa_get_userdata);
+EXPORT_SYMBOL(sa_set_userp);
+EXPORT_SYMBOL(sa_get_db);
+EXPORT_SYMBOL(sa_handle_object);
+EXPORT_SYMBOL(sa_register_update_callback);
+EXPORT_SYMBOL(sa_setup);
+EXPORT_SYMBOL(sa_replace_all_by_template);
+EXPORT_SYMBOL(sa_replace_all_by_template_locked);
+EXPORT_SYMBOL(sa_enabled);
+EXPORT_SYMBOL(sa_cache_init);
+EXPORT_SYMBOL(sa_cache_fini);
+EXPORT_SYMBOL(sa_set_sa_object);
+EXPORT_SYMBOL(sa_hdrsize);
+EXPORT_SYMBOL(sa_handle_lock);
+EXPORT_SYMBOL(sa_handle_unlock);
+EXPORT_SYMBOL(sa_lookup_uio);
+#endif /* _KERNEL */
