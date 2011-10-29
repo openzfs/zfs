@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.36-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Include distribution in release
+
+  [ Darik Horn ]
+  * Change sun.com URLs to zfsonlinux.org
+  * Depend on udev that provides stand-alone path_id.
+
+  [ Xin Li ]
+  * Illumos #1661: Fix flaw in sa_find_sizes() calculation
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 28 Oct 2011 19:38:49 -0500
+
 zfs-linux (0.6.0.35-0ubuntu2) unstable; urgency=low
 
   [ Ned Bass ]
