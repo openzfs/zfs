@@ -211,7 +211,7 @@ Summary:         ZFS File System
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}
+Release:         %{release}%{?dist}
 License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)

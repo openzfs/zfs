@@ -607,14 +607,14 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		 * and spill buffer.
 		 */
 		if (buftype == SA_BONUS && *index == -1 &&
-		    P2ROUNDUP(*total + hdrsize, 8) >
+		    (*total + P2ROUNDUP(hdrsize, 8)) >
 		    (full_space - sizeof (blkptr_t))) {
 			*index = i;
 			done = B_TRUE;
 		}
 
 next:
-		if (P2ROUNDUP(*total + hdrsize, 8) > full_space &&
+		if ((*total + P2ROUNDUP(hdrsize, 8)) > full_space &&
 		    buftype == SA_BONUS)
 			*will_spill = B_TRUE;
 	}
