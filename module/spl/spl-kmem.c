@@ -855,14 +855,17 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		 * been filed at kernel.org to track the issue.
 		 *
 		 * https://bugzilla.kernel.org/show_bug.cgi?id=30702
+		 *
+		 * NOTE: Only set PF_MEMALLOC if it's not already set, and
+		 * then only clear it when we were the one who set it.
 		 */
-		if (!(flags & __GFP_FS))
+		if (!(flags & __GFP_FS) && !(current->flags & PF_MEMALLOC)) {
 			current->flags |= PF_MEMALLOC;
-
-		ptr = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
-
-		if (!(flags & __GFP_FS))
+			ptr = __vmalloc(size, flags|__GFP_HIGHMEM, PAGE_KERNEL);
 			current->flags &= ~PF_MEMALLOC;
+		} else {
+			ptr = __vmalloc(size, flags|__GFP_HIGHMEM, PAGE_KERNEL);
+		}
 	}
 
 	/* Resulting allocated memory will be page aligned */
