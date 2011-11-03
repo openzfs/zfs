@@ -2301,6 +2301,9 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
 
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
 	mutex_enter(&zp->z_lock);
 
 	generic_fillattr(ip, sp);
@@ -2315,6 +2318,8 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	}
 
 	mutex_exit(&zp->z_lock);
+
+	ZFS_EXIT(zsb);
 
 	return (0);
 }
