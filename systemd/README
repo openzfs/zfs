@@ -22,7 +22,7 @@ How to use:
 
 TODO:
 
-- dynamic regeneration of units every time a zfs create / zfs destroy is done
+- dynamic regeneration of units every time a zfs create / zfs rename / zfs destroy is done
 - redirect mounting of file systems when `zfs mount` or `zfs create`  happens, shunting it
   to `systemctl start`
 - redirect unmounting of a file system to `systemctl stop`
