@@ -43,5 +43,12 @@ TODO:
   at boot up
   (potential to speed boot up even more)
 - support zfs share / unshare
+- respect the noauto property (do not create symlink for that file system
+  in local-fs.target.wants, skip it from the Requires list of all other
+  ZFS file system units)
+- parse all existing file system units to get more file system dependencies
+  at the moment we only parse fstab
+- register ALL available zvols as device units
+  (maybe this is done automatically by udev?)
 
 But, all in all, this works.
