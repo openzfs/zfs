@@ -1,0 +1,47 @@
+This is a very basic ZFS unit generator, with support for boot-time generation of ZFS units
+of all available zpools mounted at boot time.
+
+What happens here is quite simple:
+
+- systemd starts up
+- systemd runs /lib/systemd/system-generators/*
+- systemd picks up new files in /run/systemd/generator
+- our systemd-zfs-generator simply creates unit files for each filesystem that has a
+  mountpoint, canmount=yes, and is not /sysroot or /
+- systemd loads these files as units, just as it would have loaded from /etc/systemd/system
+- in the process of starting local-fs.target, it pulls in the units for ZFS file systems
+  created by our generator
+- finally, the initscript is overridden with a dummy unit so as to not cause any conflicts
+
+How to use:
+
+1. compile c program here
+2. deploy to /lib/systemd/systemd-escaper
+3. deploy systemd-zfs-generator to /lib/systemd/system-generators
+4. reboot
+
+TODO:
+
+- dynamic regeneration of units every time a zfs create / zfs destroy is done
+- redirect mounting of file systems when `zfs mount` or `zfs create`  happens, shunting it
+  to `systemctl start`
+- redirect unmounting of a file system to `systemctl stop`
+- properly parse escaped mountpoints in /etc/fstab
+- properly regenerate/reload units (and their dependencies) when zpools are imported / exported
+  (doable with systemctl daemon-reload, worth doing it that way?)
+- properly import zpools when they are detected (right now it only works with
+  whatever pools are available at VERY EARLY boot time, possibly even before all
+  block devices are set up)
+- properly regen/reload units when mountpoint / canmount properties are changed
+  - systemctl stop involved mountpoints
+  - change properties
+  - regenerate units
+  - systemctl start involved mountpoints
+- properly handle two file systems that have the same mountpoint property
+  (probably they are on different pools)
+- use automount units to make ZFS mount file systems on demand, rather than
+  at boot up
+  (potential to speed boot up even more)
+- support zfs share / unshare
+
+But, all in all, this works.

@@ -1,0 +1,107 @@
+#!/bin/bash
+
+set -e
+
+gendir=/run/systemd/generator
+nodir=false
+
+mkdir -p $gendir
+
+function escaping() {
+
+	dirn=`dirname "$0"`
+	escaper="$dirn"/../systemd-escaper
+	"$escaper" --escape "$1"
+
+}
+
+function getdeps() {
+
+	mountpoint=`dirname "$1"`
+	while true ; do
+		if [ "$mountpoint" == "/" ] ; then break ; fi
+		if grep -Fxq "$mountpoint" $gendir/mountpoints ; then
+			echo -n `escaping "$mountpoint"`.mount
+			echo -n " "
+		fi
+		mountpoint=`dirname "$mountpoint"`
+	done
+
+}
+
+# preparations
+rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
+
+zfs list -H -o name,mountpoint,canmount > $gendir/listing
+
+# we read the output of fstab
+# add to the list of our known filesystems
+# FIXME, \040 escaping done properly
+while read -r ignore mountpoint rest ; do
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$ignore" == "#" ] ; then continue ; fi
+	if [ "$mountpoint" == "" ] ; then continue ; fi
+	if [ "$mountpoint" == "/" ] ; then continue ; fi
+
+	echo -E "$mountpoint" >> $gendir/mountpoints
+done < /etc/fstab
+
+OLDIFS="$IFS"
+IFS="	"
+
+# we read the output of zfs list
+# add to the list of our known filesystems
+while read -r name mountpoint canmount ; do
+	if [ $canmount != on ] ; then continue ; fi
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
+	if [ "$mountpoint" == "none" ] ; then continue ; fi
+	
+	echo -E "$mountpoint" >> $gendir/mountpoints
+done < $gendir/listing
+
+# we go through the output of zfs list
+# and generate all the units 
+while read -r name mountpoint canmount ; do
+	if [ $canmount != on ] ; then continue ; fi
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
+	if [ "$mountpoint" == "none" ] ; then continue ; fi
+
+	unitname=`escaping "$mountpoint"`.mount
+	deps=`getdeps "$mountpoint"`
+	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
+
+	echo -E "[Unit]
+Description=$mountpoint (ZFS)
+Requires=$deps
+Conflicts=umount.target
+Before=local-fs.target umount.target$extrabefore
+After=systemd-logger.socket $deps
+DefaultDependencies=no
+
+[Mount]
+What=$name
+Where=$mountpoint
+Options=zfsutil
+Type=zfs
+" > "$gendir/$unitname"
+
+	mkdir -p "$gendir/local-fs.target.wants"
+	[ -L "$gendir/local-fs.target.wants/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.wants"
+
+	# end of escaped loop
+done < $gendir/listing
+
+IFS="$OLDIFS"
+
+# I am done, so now nuke them temp files
+rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
+
+echo "[Unit]
+Description=ZFS service (dummy)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+" > $gendir/zfs.service
