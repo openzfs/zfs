@@ -60,6 +60,9 @@ if [ $(id -u) != 0 ]; then
 	die "Must run as root"
 fi
 
+# Initialize the test suite
+init
+
 # Perform pre-cleanup is requested
 if [ ${CLEANUP} ]; then
 	${ZFS_SH} -u

@@ -1527,20 +1527,19 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 
 	atomic_set(&ZTOI(rootzp)->i_count, 0);
 	sa_handle_destroy(rootzp->z_sa_hdl);
-	kmem_free(sb, sizeof (struct super_block));
-	kmem_free(zsb, sizeof (zfs_sb_t));
 	kmem_cache_free(znode_cache, rootzp);
 
 	/*
 	 * Create shares directory
 	 */
-
 	error = zfs_create_share_dir(zsb, tx);
-
 	ASSERT(error == 0);
 
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
+
+	kmem_free(sb, sizeof (struct super_block));
+	kmem_free(zsb, sizeof (zfs_sb_t));
 }
 #endif /* _KERNEL */
 

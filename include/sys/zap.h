@@ -304,8 +304,6 @@ int zap_lookup_int_key(objset_t *os, uint64_t obj,
  * They name is a stringified version of key; increment its value by
  * delta.  Zero values will be zap_remove()-ed.
  */
-int zap_increment_int(objset_t *os, uint64_t obj, uint64_t key, int64_t delta,
-    dmu_tx_t *tx);
 int zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
     dmu_tx_t *tx);
 
