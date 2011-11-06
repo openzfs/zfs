@@ -721,6 +721,7 @@ typedef struct dmu_recv_cookie {
 	char *drc_top_ds;
 	boolean_t drc_newfs;
 	boolean_t drc_force;
+	struct avl_tree *drc_guid_to_ds_map;
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap, char *topds, struct drr_begin *,

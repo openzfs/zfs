@@ -324,9 +324,13 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	 * the VM might try to write out additional pages by calling
 	 * zpl_putpage() again resulting in a deadlock.
 	 */
-	current->flags |= PF_MEMALLOC;
-	(void) zfs_putpage(mapping->host, pp, wbc);
-	current->flags &= ~PF_MEMALLOC;
+	if (current->flags & PF_MEMALLOC) {
+		(void) zfs_putpage(mapping->host, pp, wbc);
+	} else {
+		current->flags |= PF_MEMALLOC;
+		(void) zfs_putpage(mapping->host, pp, wbc);
+		current->flags &= ~PF_MEMALLOC;
+	}
 
 	return (0);
 }

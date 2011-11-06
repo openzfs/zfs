@@ -715,8 +715,9 @@ out:
 	kmem_free(zsb, sizeof (zfs_sb_t));
 	return (error);
 }
+EXPORT_SYMBOL(zfs_sb_create);
 
-static int
+int
 zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting)
 {
 	int error;
@@ -797,6 +798,7 @@ zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_sb_setup);
 
 void
 zfs_sb_free(zfs_sb_t *zsb)
@@ -816,6 +818,7 @@ zfs_sb_free(zfs_sb_t *zsb)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
+EXPORT_SYMBOL(zfs_sb_free);
 
 static void
 zfs_set_fuid_feature(zfs_sb_t *zsb)
@@ -899,6 +902,7 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 	}
 	return (EACCES);
 }
+EXPORT_SYMBOL(zfs_check_global_label);
 #endif /* HAVE_MLSLABEL */
 
 int
@@ -944,7 +948,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * For f_ffree, report the smaller of the number of object available
 	 * and the number of blocks (each object will take at least a block).
 	 */
-	statp->f_ffree = MIN(availobjs, statp->f_bfree);
+	statp->f_ffree = MIN(availobjs, availbytes >> DNODE_SHIFT);
 	statp->f_files = statp->f_ffree + usedobjs;
 	statp->f_fsid.val[0] = dentry->d_sb->s_dev;
 	statp->f_fsid.val[1] = 0;
@@ -986,7 +990,7 @@ EXPORT_SYMBOL(zfs_root);
  * and 'z_teardown_inactive_lock' held.
  */
 int
-zfsvfs_teardown(zfs_sb_t *zsb, boolean_t unmounting)
+zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 {
 	znode_t	*zp;
 
@@ -1083,6 +1087,7 @@ zfsvfs_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 
 	return (0);
 }
+EXPORT_SYMBOL(zfs_sb_teardown);
 
 #ifdef HAVE_BDI
 static atomic_long_t bdi_seq = ATOMIC_LONG_INIT(0);
@@ -1185,7 +1190,7 @@ zfs_umount(struct super_block *sb)
 	zfs_sb_t *zsb = sb->s_fs_info;
 	objset_t *os;
 
-	VERIFY(zfsvfs_teardown(zsb, B_TRUE) == 0);
+	VERIFY(zfs_sb_teardown(zsb, B_TRUE) == 0);
 	os = zsb->z_os;
 
 	if (bdi_get_sb(sb)) {
@@ -1332,7 +1337,7 @@ zfs_suspend_fs(zfs_sb_t *zsb)
 {
 	int error;
 
-	if ((error = zfsvfs_teardown(zsb, B_FALSE)) != 0)
+	if ((error = zfs_sb_teardown(zsb, B_FALSE)) != 0)
 		return (error);
 	dmu_objset_disown(zsb->z_os, zsb);
 
@@ -1512,6 +1517,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	}
 	return (error);
 }
+EXPORT_SYMBOL(zfs_get_zplprop);
 
 void
 zfs_init(void)

@@ -1976,7 +1976,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 				cmn_err(CE_WARN, "pool '%s' could not be "
 				    "loaded as it was last accessed by "
 				    "another system (host: %s hostid: 0x%lx). "
-				    "See: http://www.sun.com/msg/ZFS-8000-EY",
+				    "See: http://zfsonlinux.org/msg/ZFS-8000-EY",
 				    spa_name(spa), hostname,
 				    (unsigned long)hostid);
 				return (EBADF);
