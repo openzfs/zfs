@@ -171,9 +171,8 @@ void
 dnode_init(void)
 {
 	ASSERT(dnode_cache == NULL);
-	dnode_cache = kmem_cache_create("dnode_t",
-	    sizeof (dnode_t),
-	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, 0);
+	dnode_cache = kmem_cache_create("dnode_t", sizeof (dnode_t),
+	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, KMC_KMEM);
 	kmem_cache_set_move(dnode_cache, dnode_move);
 }
 
