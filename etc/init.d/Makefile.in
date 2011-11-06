@@ -531,7 +531,7 @@ $(init_SCRIPTS):
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		-e 's,@initdir\@,$(initdir),g' \
-		'zfs.$(DEFAULT_INIT_SCRIPT).in' >'$@'
+		'$@.$(DEFAULT_INIT_SCRIPT).in' >'$@'
 
 distclean-local::
 	-$(RM) $(init_SCRIPTS)

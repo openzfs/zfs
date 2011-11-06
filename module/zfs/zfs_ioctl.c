@@ -2175,7 +2175,8 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		if (err == 0 && intval >= ZPL_VERSION_USERSPACE) {
 			zfs_cmd_t *zc;
 
-			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+			zc = kmem_zalloc(sizeof (zfs_cmd_t),
+			    KM_SLEEP | KM_NODEBUG);
 			(void) strcpy(zc->zc_name, dsname);
 			(void) zfs_ioc_userspace_upgrade(zc);
 			kmem_free(zc, sizeof (zfs_cmd_t));

@@ -354,6 +354,8 @@ const struct inode_operations zpl_symlink_inode_operations = {
 	.readlink	= generic_readlink,
 	.follow_link	= zpl_follow_link,
 	.put_link	= zpl_put_link,
+	.setattr	= zpl_setattr,
+	.getattr	= zpl_getattr,
 };
 
 const struct inode_operations zpl_special_inode_operations = {

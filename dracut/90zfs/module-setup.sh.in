@@ -33,7 +33,6 @@ install() {
 	inst_rules @udevruledir@/60-zvol.rules
 	inst @sysconfdir@/zfs/zdev.conf
 	inst @sysconfdir@/zfs/zpool.cache
-	inst @sysconfdir@/hostid
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
 	dracut_install @bindir@/zpool_layout
@@ -43,4 +42,14 @@ install() {
 	dracut_install hostid
 	inst_hook cmdline 95 "$moddir/parse-zfs.sh"
 	inst_hook mount 98 "$moddir/mount-zfs.sh"
+
+	# Synchronize initramfs and system hostid
+	TMP=`mktemp`
+	AA=`hostid | cut -b 1,2`
+	BB=`hostid | cut -b 3,4`
+	CC=`hostid | cut -b 5,6`
+	DD=`hostid | cut -b 7,8`
+	printf "\x$DD\x$CC\x$BB\x$AA" >$TMP
+	inst_simple "$TMP" /etc/hostid
+	rm "$TMP"
 }

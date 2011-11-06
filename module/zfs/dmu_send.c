@@ -21,6 +21,9 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
+/*
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ */
 
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
@@ -833,61 +836,6 @@ guid_compare(const void *arg1, const void *arg2)
 	return (0);
 }
 
-/*
- * This function is a callback used by dmu_objset_find() (which
- * enumerates the object sets) to build an avl tree that maps guids
- * to datasets.  The resulting table is used when processing DRR_WRITE_BYREF
- * send stream records.  These records, which are used in dedup'ed
- * streams, do not contain data themselves, but refer to a copy
- * of the data block that has already been written because it was
- * earlier in the stream.  That previous copy is identified by the
- * guid of the dataset with the referenced data.
- */
-int
-find_ds_by_guid(const char *name, void *arg)
-{
-	avl_tree_t *guid_map = arg;
-	dsl_dataset_t *ds, *snapds;
-	guid_map_entry_t *gmep;
-	dsl_pool_t *dp;
-	int err;
-	uint64_t lastobj, firstobj;
-
-	if (dsl_dataset_hold(name, FTAG, &ds) != 0)
-		return (0);
-
-	dp = ds->ds_dir->dd_pool;
-	rw_enter(&dp->dp_config_rwlock, RW_READER);
-	firstobj = ds->ds_dir->dd_phys->dd_origin_obj;
-	lastobj = ds->ds_phys->ds_prev_snap_obj;
-
-	while (lastobj != firstobj) {
-		err = dsl_dataset_hold_obj(dp, lastobj, guid_map, &snapds);
-		if (err) {
-			/*
-			 * Skip this snapshot and move on. It's not
-			 * clear why this would ever happen, but the
-			 * remainder of the snapshot streadm can be
-			 * processed.
-			 */
-			rw_exit(&dp->dp_config_rwlock);
-			dsl_dataset_rele(ds, FTAG);
-			return (0);
-		}
-
-		gmep = kmem_alloc(sizeof (guid_map_entry_t), KM_SLEEP);
-		gmep->guid = snapds->ds_phys->ds_guid;
-		gmep->gme_ds = snapds;
-		avl_add(guid_map, gmep);
-		lastobj = snapds->ds_phys->ds_prev_snap_obj;
-	}
-
-	rw_exit(&dp->dp_config_rwlock);
-	dsl_dataset_rele(ds, FTAG);
-
-	return (0);
-}
-
 static void
 free_guid_map_onexit(void *arg)
 {
@@ -1373,9 +1321,6 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			avl_create(ra.guid_to_ds_map, guid_compare,
 			    sizeof (guid_map_entry_t),
 			    offsetof(guid_map_entry_t, avlnode));
-			(void) dmu_objset_find(drc->drc_top_ds, find_ds_by_guid,
-			    (void *)ra.guid_to_ds_map,
-			    DS_FIND_CHILDREN);
 			ra.err = zfs_onexit_add_cb(minor,
 			    free_guid_map_onexit, ra.guid_to_ds_map,
 			    action_handlep);
@@ -1387,6 +1332,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			if (ra.err)
 				goto out;
 		}
+
+		drc->drc_guid_to_ds_map = ra.guid_to_ds_map;
 	}
 
 	/*
@@ -1525,6 +1472,30 @@ recv_end_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 }
 
 static int
+add_ds_to_guidmap(avl_tree_t *guid_map, dsl_dataset_t *ds)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	uint64_t snapobj = ds->ds_phys->ds_prev_snap_obj;
+	dsl_dataset_t *snapds;
+	guid_map_entry_t *gmep;
+	int err;
+
+	ASSERT(guid_map != NULL);
+
+	rw_enter(&dp->dp_config_rwlock, RW_READER);
+	err = dsl_dataset_hold_obj(dp, snapobj, guid_map, &snapds);
+	if (err == 0) {
+		gmep = kmem_alloc(sizeof (guid_map_entry_t), KM_SLEEP);
+		gmep->guid = snapds->ds_phys->ds_guid;
+		gmep->gme_ds = snapds;
+		avl_add(guid_map, gmep);
+	}
+
+	rw_exit(&dp->dp_config_rwlock);
+	return (err);
+}
+
+static int
 dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 {
 	struct recvendsyncarg resa;
@@ -1564,6 +1535,8 @@ dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 
 out:
 	mutex_exit(&ds->ds_recvlock);
+	if (err == 0 && drc->drc_guid_to_ds_map != NULL)
+		(void) add_ds_to_guidmap(drc->drc_guid_to_ds_map, ds);
 	dsl_dataset_disown(ds, dmu_recv_tag);
 	(void) dsl_dataset_destroy(drc->drc_real_ds, dmu_recv_tag, B_FALSE);
 	return (err);
@@ -1593,6 +1566,8 @@ dmu_recv_new_end(dmu_recv_cookie_t *drc)
 		/* clean up the fs we just recv'd into */
 		(void) dsl_dataset_destroy(ds, dmu_recv_tag, B_FALSE);
 	} else {
+		if (drc->drc_guid_to_ds_map != NULL)
+			(void) add_ds_to_guidmap(drc->drc_guid_to_ds_map, ds);
 		/* release the hold from dmu_recv_begin */
 		dsl_dataset_disown(ds, dmu_recv_tag);
 	}
