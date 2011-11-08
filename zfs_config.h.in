@@ -21,6 +21,9 @@
 /* struct super_block has s_bdi */
 #undef HAVE_BDI
 
+/* bdi_setup_and_register() is available */
+#undef HAVE_BDI_SETUP_AND_REGISTER
+
 /* bio_empy_barrier() is defined */
 #undef HAVE_BIO_EMPTY_BARRIER
 
