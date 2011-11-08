@@ -646,7 +646,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_SA_ATTRS, 8, 1,
 		    &sa_obj);
 		if (error)
-			return (error);
+			goto out;
 	} else {
 		/*
 		 * Pre SA versions file systems should never touch
