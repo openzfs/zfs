@@ -42,6 +42,13 @@ static spl_kmem_cache_t *vn_file_cache;
 static DEFINE_SPINLOCK(vn_file_lock);
 static LIST_HEAD(vn_file_list);
 
+#ifdef HAVE_KERN_PATH_PARENT_HEADER
+#ifndef HAVE_KERN_PATH_PARENT_SYMBOL
+kern_path_parent_t kern_path_parent_fn = SYMBOL_POISON;
+EXPORT_SYMBOL(kern_path_parent_fn);
+#endif /* HAVE_KERN_PATH_PARENT_SYMBOL */
+#endif /* HAVE_KERN_PATH_PARENT_HEADER */
+
 vtype_t
 vn_mode_to_vtype(mode_t mode)
 {
@@ -789,8 +796,24 @@ vn_file_cache_destructor(void *buf, void *cdrarg)
 	mutex_destroy(&fp->f_lock);
 } /* vn_file_cache_destructor() */
 
+int spl_vn_init_kallsyms_lookup(void)
+{
+#ifdef HAVE_KERN_PATH_PARENT_HEADER
+#ifndef HAVE_KERN_PATH_PARENT_SYMBOL
+	kern_path_parent_fn = (kern_path_parent_t)
+		spl_kallsyms_lookup_name("kern_path_parent");
+	if (!kern_path_parent_fn) {
+		printk(KERN_ERR "Error: Unknown symbol kern_path_parent\n");
+		return -EFAULT;
+	}
+#endif /* HAVE_KERN_PATH_PARENT_SYMBOL */
+#endif /* HAVE_KERN_PATH_PARENT_HEADER */
+
+	return (0);
+}
+
 int
-vn_init(void)
+spl_vn_init(void)
 {
 	SENTRY;
 	vn_cache = kmem_cache_create("spl_vn_cache",
@@ -808,7 +831,7 @@ vn_init(void)
 } /* vn_init() */
 
 void
-vn_fini(void)
+spl_vn_fini(void)
 {
         file_t *fp, *next_fp;
 	int leaked = 0;

@@ -561,7 +561,7 @@ __init spl_init(void)
 	if ((rc = spl_taskq_init()))
 		SGOTO(out4, rc);
 
-	if ((rc = vn_init()))
+	if ((rc = spl_vn_init()))
 		SGOTO(out5, rc);
 
 	if ((rc = proc_init()))
@@ -594,6 +594,9 @@ __init spl_init(void)
 	if ((rc = spl_kmem_init_kallsyms_lookup()))
 		SGOTO(out10, rc);
 
+	if ((rc = spl_vn_init_kallsyms_lookup()))
+		SGOTO(out10, rc);
+
 	printk(KERN_NOTICE "SPL: Loaded module v%s%s, using hostid 0x%08x\n",
 	       SPL_META_VERSION, SPL_DEBUG_STR, (unsigned int) spl_hostid);
 	SRETURN(rc);
@@ -606,7 +609,7 @@ out8:
 out7:
 	proc_fini();
 out6:
-	vn_fini();
+	spl_vn_fini();
 out5:
 	spl_taskq_fini();
 out4:
@@ -634,7 +637,7 @@ spl_fini(void)
 	tsd_fini();
 	kstat_fini();
 	proc_fini();
-	vn_fini();
+	spl_vn_fini();
 	spl_taskq_fini();
 	spl_rw_fini();
 	spl_mutex_fini();

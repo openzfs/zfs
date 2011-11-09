@@ -189,8 +189,9 @@ extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
 extern int vn_set_pwd(const char *filename);
 
-int vn_init(void);
-void vn_fini(void);
+int spl_vn_init_kallsyms_lookup(void);
+int spl_vn_init(void);
+void spl_vn_fini(void);
 
 #define VOP_CLOSE				vn_close
 #define VOP_SEEK				vn_seek

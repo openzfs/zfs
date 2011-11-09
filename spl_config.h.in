@@ -115,7 +115,10 @@
 #undef HAVE_KALLSYMS_LOOKUP_NAME
 
 /* kern_path_parent() is available */
-#undef HAVE_KERN_PATH_PARENT
+#undef HAVE_KERN_PATH_PARENT_HEADER
+
+/* kern_path_parent() is available */
+#undef HAVE_KERN_PATH_PARENT_SYMBOL
 
 /* kmalloc_node() is available */
 #undef HAVE_KMALLOC_NODE

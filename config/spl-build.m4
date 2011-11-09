@@ -80,7 +80,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
-	SPL_AC_KERN_PATH_PARENT
+	SPL_AC_KERN_PATH_PARENT_HEADER
+	SPL_AC_KERN_PATH_PARENT_SYMBOL
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 	SPL_AC_SHRINK_CONTROL_STRUCT
 ])
@@ -584,6 +585,30 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 	else
 		AC_MSG_RESULT([yes])
 		$3
+	fi
+])
+
+dnl #
+dnl # SPL_CHECK_SYMBOL_HEADER
+dnl # check if a symbol prototype is defined in listed headers.
+dnl #
+AC_DEFUN([SPL_CHECK_SYMBOL_HEADER], [
+	AC_MSG_CHECKING([whether symbol $1 exists in header])
+	header=0
+	for file in $3; do
+		grep -q "$2" "$LINUX/$file" 2>/dev/null
+		rc=$?
+	        if test $rc -eq 0; then
+	                header=1
+	                break;
+	        fi
+	done
+	if test $header -eq 0; then
+		AC_MSG_RESULT([no])
+		$5
+	else
+		AC_MSG_RESULT([yes])
+		$4
 	fi
 ])
 
@@ -1809,11 +1834,27 @@ dnl # and the flags argument has been removed.  The only behavior now
 dnl # offered is that of LOOKUP_PARENT.  The spl already always passed
 dnl # this flag so dropping the flag does not impact us.
 dnl #
-AC_DEFUN([SPL_AC_KERN_PATH_PARENT], [
+AC_DEFUN([SPL_AC_KERN_PATH_PARENT_HEADER], [
+	SPL_CHECK_SYMBOL_HEADER(
+		[kern_path_parent],
+		[int kern_path_parent(const char \*, struct nameidata \*)],
+		[include/linux/namei.h],
+		[AC_DEFINE(HAVE_KERN_PATH_PARENT_HEADER, 1,
+		[kern_path_parent() is available])],
+		[])
+])
+
+dnl #
+dnl # 3.1 API compat,
+dnl # The kern_path_parent() symbol is no longer exported by the kernel.
+dnl # However, it remains the prefered interface and since we still have
+dnl # access to the prototype we dynamically lookup the required address.
+dnl #
+AC_DEFUN([SPL_AC_KERN_PATH_PARENT_SYMBOL], [
 	SPL_CHECK_SYMBOL_EXPORT(
 		[kern_path_parent],
 		[fs/namei.c],
-		[AC_DEFINE(HAVE_KERN_PATH_PARENT, 1,
+		[AC_DEFINE(HAVE_KERN_PATH_PARENT_SYMBOL, 1,
 		[kern_path_parent() is available])],
 		[])
 ])
