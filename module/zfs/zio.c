@@ -1104,7 +1104,11 @@ zio_taskq_dispatch(zio_t *zio, enum zio_taskq_type q, boolean_t cutinline)
 	 * to a single taskq at a time.  It would be a grievous error
 	 * to dispatch the zio to another taskq at the same time.
 	 */
+#ifdef _KERNEL
+	ASSERT(list_empty(&zio->io_tqent.t_list));
+#else
 	ASSERT(zio->io_tqent.tqent_next == NULL);
+#endif
 	taskq_dispatch_ent(spa->spa_zio_taskq[t][q],
 	    (task_func_t *)zio_execute, zio, flags, &zio->io_tqent);
 }
@@ -2954,7 +2958,11 @@ zio_done(zio_t *zio)
 			 * Reexecution is potentially a huge amount of work.
 			 * Hand it off to the otherwise-unused claim taskq.
 			 */
+#ifdef _KERNEL
+			ASSERT(list_empty(&zio->io_tqent.t_list));
+#else
 			ASSERT(zio->io_tqent.tqent_next == NULL);
+#endif
 			(void) taskq_dispatch_ent(
 			    zio->io_spa->spa_zio_taskq[ZIO_TYPE_CLAIM][ZIO_TASKQ_ISSUE],
 			    (task_func_t *)zio_reexecute, zio, 0,
