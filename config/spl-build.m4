@@ -68,13 +68,14 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_SET_FS_PWD
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
+	SPL_AC_VFS_FSYNC
+	SPL_AC_2ARGS_VFS_FSYNC
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_CRED_STRUCT
 	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
-	SPL_AC_3ARGS_FILE_FSYNC
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_INVALIDATE_INODES
 	SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES
@@ -1718,19 +1719,30 @@ AC_DEFUN([SPL_AC_KVASPRINTF], [
 ])
 
 dnl #
-dnl # 2.6.35 API change,
-dnl # Unused 'struct dentry *' removed from prototype.
+dnl # 2.6.29 API change,
+dnl # vfs_fsync() funcation added, prior to this use file_fsync().
 dnl #
-AC_DEFUN([SPL_AC_3ARGS_FILE_FSYNC], [
-	AC_MSG_CHECKING([whether file_fsync() wants 3 args])
+AC_DEFUN([SPL_AC_VFS_FSYNC], [
+	SPL_CHECK_SYMBOL_EXPORT(
+		[vfs_fsync],
+		[fs/sync.c],
+		[AC_DEFINE(HAVE_VFS_FSYNC, 1, [vfs_fsync() is available])],
+		[])
+])
+
+dnl #
+dnl # 2.6.35 API change,
+dnl # Unused 'struct dentry *' removed from vfs_fsync() prototype.
+dnl #
+AC_DEFUN([SPL_AC_2ARGS_VFS_FSYNC], [
+	AC_MSG_CHECKING([whether vfs_fsync() wants 2 args])
 	SPL_LINUX_TRY_COMPILE([
-		#include <linux/buffer_head.h>
+		#include <linux/fs.h>
 	],[
-		file_fsync(NULL, NULL, 0);
+		vfs_fsync(NULL, 0);
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_3ARGS_FILE_FSYNC, 1,
-		          [file_fsync() wants 3 args])
+		AC_DEFINE(HAVE_2ARGS_VFS_FSYNC, 1, [vfs_fsync() wants 2 args])
 	],[
 		AC_MSG_RESULT(no)
 	])

@@ -50,12 +50,16 @@ spl_filp_open(const char *name, int flags, int mode, int *err)
 #define spl_filp_poff(f)		(&(f)->f_pos)
 #define spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
 
-#ifdef HAVE_3ARGS_FILE_FSYNC
-#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp),               \
-					(fp)->f_dentry, sync)
+#ifdef HAVE_VFS_FSYNC
+# ifdef HAVE_2ARGS_VFS_FSYNC
+#  define spl_filp_fsync(fp, sync)	vfs_fsync(fp, sync)
+# else
+#  define spl_filp_fsync(fp, sync)	vfs_fsync(fp, (fp)->f_dentry, sync)
+# endif /* HAVE_2ARGS_VFS_FSYNC */
 #else
-#define spl_filp_fsync(fp, sync)	(fp)->f_op->fsync((fp), sync)
-#endif
+# include <linux/buffer_head.h>
+# define spl_filp_fsync(fp, sync)	file_fsync(fp, (fp)->f_dentry, sync)
+#endif /* HAVE_VFS_FSYNC */
 
 #ifdef HAVE_INODE_I_MUTEX
 #define spl_inode_lock(ip)		(mutex_lock(&(ip)->i_mutex))
