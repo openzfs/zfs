@@ -93,16 +93,37 @@ extern shrink_dcache_memory_t shrink_dcache_memory_fn;
 #  define shrink_dcache_memory(nr, gfp)                                      \
 ({                                                                           \
 	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
-	shrink_dcache_memory_fn(NULL, &sc);                                  \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_dcache_memory_fn)                                         \
+		__ret__ = shrink_dcache_memory_fn(NULL, &sc);                \
+                                                                             \
+	__ret__;                                                             \
 })
 # elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
 typedef int (*shrink_dcache_memory_t)(struct shrinker *, int, gfp_t);
 extern shrink_dcache_memory_t shrink_dcache_memory_fn;
-#  define shrink_dcache_memory(nr, gfp)	shrink_dcache_memory_fn(NULL, nr, gfp)
+#  define shrink_dcache_memory(nr, gfp)                                      \
+({                                                                           \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_dcache_memory_fn)                                         \
+		__ret__ = shrink_dcache_memory_fn(NULL, nr, gfp);            \
+                                                                             \
+	__ret__;                                                             \
+})
 # else
 typedef int (*shrink_dcache_memory_t)(int, gfp_t);
 extern shrink_dcache_memory_t shrink_dcache_memory_fn;
-#  define shrink_dcache_memory(nr, gfp)	shrink_dcache_memory_fn(nr, gfp)
+#  define shrink_dcache_memory(nr, gfp)                                      \
+({                                                                           \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_dcache_memory_fn)                                         \
+		__ret__ = shrink_dcache_memory_fn(nr, gfp);                  \
+                                                                             \
+	__ret__;                                                             \
+})
 # endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 #endif /* HAVE_SHRINK_DCACHE_MEMORY */
 
@@ -120,16 +141,37 @@ extern shrink_icache_memory_t shrink_icache_memory_fn;
 #  define shrink_icache_memory(nr, gfp)                                      \
 ({                                                                           \
 	struct shrink_control sc = { .nr_to_scan = nr, .gfp_mask = gfp };    \
-	shrink_icache_memory_fn(NULL, &sc);                                  \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_icache_memory_fn)                                         \
+		__ret__ = shrink_icache_memory_fn(NULL, &sc);                \
+                                                                             \
+	__ret__;                                                             \
 })
 # elif defined(HAVE_3ARGS_SHRINKER_CALLBACK)
 typedef int (*shrink_icache_memory_t)(struct shrinker *, int, gfp_t);
 extern shrink_icache_memory_t shrink_icache_memory_fn;
-#  define shrink_icache_memory(nr, gfp)	shrink_icache_memory_fn(NULL, nr, gfp)
+#  define shrink_icache_memory(nr, gfp)                                      \
+({                                                                           \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_icache_memory_fn)                                         \
+		__ret__ = shrink_icache_memory_fn(NULL, nr, gfp);            \
+                                                                             \
+	__ret__;                                                             \
+})
 # else
 typedef int (*shrink_icache_memory_t)(int, gfp_t);
 extern shrink_icache_memory_t shrink_icache_memory_fn;
-#  define shrink_icache_memory(nr, gfp)	shrink_icache_memory_fn(nr, gfp)
+#  define shrink_icache_memory(nr, gfp)                                      \
+({                                                                           \
+	int __ret__ = 0;                                                     \
+                                                                             \
+	if (shrink_icache_memory_fn)                                         \
+		__ret__ = shrink_icache_memory_fn(nr, gfp);                  \
+                                                                             \
+	__ret__;                                                             \
+})
 # endif /* HAVE_3ARGS_SHRINKER_CALLBACK */
 #endif /* HAVE_SHRINK_ICACHE_MEMORY */
 

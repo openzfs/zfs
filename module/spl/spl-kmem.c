@@ -2123,21 +2123,15 @@ spl_kmem_init_kallsyms_lookup(void)
 #endif /* HAVE_INVALIDATE_INODES */
 
 #ifndef HAVE_SHRINK_DCACHE_MEMORY
+	/* When shrink_dcache_memory_fn == NULL support is disabled */
 	shrink_dcache_memory_fn = (shrink_dcache_memory_t)
-	spl_kallsyms_lookup_name("shrink_dcache_memory");
-	if (!shrink_dcache_memory_fn) {
-		printk(KERN_ERR "Error: Unknown symbol shrink_dcache_memory\n");
-		return -EFAULT;
-	}
+		spl_kallsyms_lookup_name("shrink_dcache_memory");
 #endif /* HAVE_SHRINK_DCACHE_MEMORY */
 
 #ifndef HAVE_SHRINK_ICACHE_MEMORY
+	/* When shrink_icache_memory_fn == NULL support is disabled */
 	shrink_icache_memory_fn = (shrink_icache_memory_t)
-	spl_kallsyms_lookup_name("shrink_icache_memory");
-	if (!shrink_icache_memory_fn) {
-		printk(KERN_ERR "Error: Unknown symbol shrink_icache_memory\n");
-		return -EFAULT;
-	}
+		spl_kallsyms_lookup_name("shrink_icache_memory");
 #endif /* HAVE_SHRINK_ICACHE_MEMORY */
 
 	return 0;
