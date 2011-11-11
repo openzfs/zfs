@@ -272,14 +272,14 @@ rm -rf $RPM_BUILD_ROOT
 
 %post
 if [ -f /boot/System.map-%{kver} ]; then
-	depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+	/sbin/depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
 else
-	depmod -ae %{kver} || exit 0
+	/sbin/depmod -a || exit 0
 fi
 
 %postun
 if [ -f /boot/System.map-%{kver} ]; then
-	depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+	/sbin/depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
 else
-	depmod -ae %{kver} || exit 0
+	/sbin/depmod -a || exit 0
 fi

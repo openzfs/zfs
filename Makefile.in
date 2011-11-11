@@ -56,6 +56,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
+	$(top_srcdir)/config/kernel-bdi-setup-and-register.m4 \
 	$(top_srcdir)/config/kernel-bdi.m4 \
 	$(top_srcdir)/config/kernel-bio-empty-barrier.m4 \
 	$(top_srcdir)/config/kernel-bio-end-io-t-args.m4 \
