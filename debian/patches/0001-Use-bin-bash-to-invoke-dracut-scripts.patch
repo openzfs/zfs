@@ -14,8 +14,8 @@ dash builtin does not implement the hex format.
  dracut/90zfs/parse-zfs.sh.in    |    2 +-
  3 files changed, 3 insertions(+), 3 deletions(-)
 
-diff --git a/dracut/90zfs/module-setup.sh.in b/dracut/90zfs/module-setup.sh.in
-index c01915e..a940cd9 100755
+Index: b/dracut/90zfs/module-setup.sh.in
+===================================================================
 --- a/dracut/90zfs/module-setup.sh.in
 +++ b/dracut/90zfs/module-setup.sh.in
 @@ -1,4 +1,4 @@
@@ -24,8 +24,8 @@ index c01915e..a940cd9 100755
  
  check() {
  	# We depend on udev-rules being loaded
-diff --git a/dracut/90zfs/mount-zfs.sh.in b/dracut/90zfs/mount-zfs.sh.in
-index 2d2afd8..8bbc6c2 100755
+Index: b/dracut/90zfs/mount-zfs.sh.in
+===================================================================
 --- a/dracut/90zfs/mount-zfs.sh.in
 +++ b/dracut/90zfs/mount-zfs.sh.in
 @@ -1,4 +1,4 @@
@@ -34,8 +34,8 @@ index 2d2afd8..8bbc6c2 100755
  
  . /lib/dracut-lib.sh
  
-diff --git a/dracut/90zfs/parse-zfs.sh.in b/dracut/90zfs/parse-zfs.sh.in
-index 571d263..5bfb472 100755
+Index: b/dracut/90zfs/parse-zfs.sh.in
+===================================================================
 --- a/dracut/90zfs/parse-zfs.sh.in
 +++ b/dracut/90zfs/parse-zfs.sh.in
 @@ -1,4 +1,4 @@
@@ -44,6 +44,3 @@ index 571d263..5bfb472 100755
  
  . /lib/dracut-lib.sh
  
--- 
-1.7.5.4
-

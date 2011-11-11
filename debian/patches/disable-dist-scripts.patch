@@ -25,7 +25,7 @@ Index: b/Makefile.in
 ===================================================================
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -131,7 +131,7 @@
+@@ -132,7 +132,7 @@
  	distdir dist dist-all distcheck
  ETAGS = etags
  CTAGS = ctags
@@ -34,7 +34,7 @@ Index: b/Makefile.in
  DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
  distdir = $(PACKAGE)-$(VERSION)
  top_distdir = $(distdir)
-@@ -338,7 +338,7 @@
+@@ -339,7 +339,7 @@
  top_srcdir = @top_srcdir@
  udevdir = @udevdir@
  udevruledir = @udevruledir@
@@ -47,7 +47,7 @@ Index: b/scripts/Makefile.in
 ===================================================================
 --- a/scripts/Makefile.in
 +++ b/scripts/Makefile.in
-@@ -331,7 +331,7 @@
+@@ -332,7 +332,7 @@
  top_srcdir = @top_srcdir@
  udevdir = @udevdir@
  udevruledir = @udevruledir@
