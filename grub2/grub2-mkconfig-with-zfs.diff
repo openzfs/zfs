@@ -12,7 +12,7 @@
  # Device containing our /boot partition.  Usually the same as GRUB_DEVICE.
 -GRUB_DEVICE_BOOT="`${grub_probe} --target=device /boot`"
 -GRUB_DEVICE_BOOT_UUID="`${grub_probe} --device ${GRUB_DEVICE_BOOT} --target=fs_uuid 2> /dev/null`" || true
-+GRUB_DEVICE_BOOT="/dev/sda1"
++GRUB_DEVICE_BOOT="zfs"
 +GRUB_DEVICE_BOOT_UUID=""
  
  # Filesystem for the device containing our userland.  Used for stuff like
