@@ -86,8 +86,11 @@ again:	if ((t = tq->tq_freelist) != NULL && tq->tq_nalloc >= tq->tq_minalloc) {
 		t = kmem_alloc(sizeof (taskq_ent_t), tqflags);
 
 		mutex_enter(&tq->tq_lock);
-		if (t != NULL)
+		if (t != NULL) {
+			/* Make sure we start without any flags */
+			t->tqent_flags = 0;
 			tq->tq_nalloc++;
+		}
 	}
 	return (t);
 }
