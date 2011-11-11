@@ -525,7 +525,7 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 	* snapshots)
 	*/
 
-	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) ||
+	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM ||
 		zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) &&
 	    libzfs_mnttab_find(hdl, zhp->zfs_name, &entry) == 0)) {
 		/*

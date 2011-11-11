@@ -306,13 +306,8 @@ zfs_snap_linux_iget(struct super_block *sb, unsigned long ino)
 		return inode;
 
 	inode->i_mode = (S_IFDIR | S_IRWXU);
-#ifdef HAVE_CRED_STRUCT
-	inode->i_uid = current->cred->uid;
-	inode->i_gid = current->cred->gid;
-#else
-	inode->i_uid = current->uid;
-	inode->i_gid = current->gid;
-#endif
+	inode->i_uid = crgetuid(current->cred);
+	inode->i_gid = crgetgid(current->cred);
 	inode->i_sb = sb;
 	inode->i_private = inode;
        
