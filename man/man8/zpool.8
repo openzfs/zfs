@@ -3,7 +3,8 @@
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
 .\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zpool 8 "8 Apr 2011" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+.TH zpool 8 "10 July 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -93,6 +94,11 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool online\fR \fIpool\fR \fIdevice\fR ...
+.fi
+
+.LP
+.nf
+\fBzpool reguid\fR \fIpool\fR
 .fi
 
 .LP
@@ -1375,6 +1381,17 @@ Expand the device to use all available space. If the device is part of a mirror 
 .sp
 .ne 2
 .mk
+.na
+\fB\fBzpool reguid\fR \fIpool\fR
+.ad
+.sp .6
+.RS 4n
+Generates a new unique identifier for the pool.  You must ensure that all devices in this pool are online and
+healthy before performing this action.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBzpool remove\fR \fIpool\fR \fIdevice\fR ...\fR
 .ad

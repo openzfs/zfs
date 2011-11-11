@@ -24,6 +24,10 @@
  * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
+/*
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
+ */
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -1424,6 +1428,20 @@ zfs_ioc_pool_get_history(zfs_cmd_t *zc)
 
 	spa_close(spa, FTAG);
 	vmem_free(hist_buf, size);
+	return (error);
+}
+
+static int
+zfs_ioc_pool_reguid(zfs_cmd_t *zc)
+{
+	spa_t *spa;
+	int error;
+
+	error = spa_open(zc->zc_name, &spa, FTAG);
+	if (error == 0) {
+		error = spa_change_guid(spa);
+		spa_close(spa, FTAG);
+	}
 	return (error);
 }
 
@@ -4698,10 +4716,12 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    B_FALSE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_obj_to_stats, zfs_secpolicy_diff, DATASET_NAME, B_FALSE,
 	    POOL_CHECK_SUSPENDED },
+        { zfs_ioc_pool_reguid, zfs_secpolicy_config, POOL_NAME, B_TRUE,
+            POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_events_next, zfs_secpolicy_config, NO_NAME, B_FALSE,
 	    POOL_CHECK_NONE },
 	{ zfs_ioc_events_clear, zfs_secpolicy_config, NO_NAME, B_FALSE,
-	    POOL_CHECK_NONE },
+	    POOL_CHECK_NONE }
 };
 
 int

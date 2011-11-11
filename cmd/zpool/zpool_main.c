@@ -69,6 +69,8 @@ static int zpool_do_online(int, char **);
 static int zpool_do_offline(int, char **);
 static int zpool_do_clear(int, char **);
 
+static int zpool_do_reguid(int, char **);
+
 static int zpool_do_attach(int, char **);
 static int zpool_do_detach(int, char **);
 static int zpool_do_replace(int, char **);
@@ -128,7 +130,8 @@ typedef enum {
 	HELP_EVENTS,
 	HELP_GET,
 	HELP_SET,
-	HELP_SPLIT
+	HELP_SPLIT,
+	HELP_REGUID
 } zpool_help_t;
 
 
@@ -172,6 +175,7 @@ static zpool_command_t command_table[] = {
 	{ "import",	zpool_do_import,	HELP_IMPORT		},
 	{ "export",	zpool_do_export,	HELP_EXPORT		},
 	{ "upgrade",	zpool_do_upgrade,	HELP_UPGRADE		},
+	{ "reguid",	zpool_do_reguid,	HELP_REGUID		},
 	{ NULL },
 	{ "history",	zpool_do_history,	HELP_HISTORY		},
 	{ "events",	zpool_do_events,	HELP_EVENTS		},
@@ -254,6 +258,8 @@ get_usage(zpool_help_t idx) {
 		return (gettext("\tsplit [-n] [-R altroot] [-o mntopts]\n"
 		    "\t    [-o property=value] <pool> <newpool> "
 		    "[<device> ...]\n"));
+	case HELP_REGUID:
+		return (gettext("\treguid <pool>\n"));
 	}
 
 	abort();
@@ -3205,6 +3211,52 @@ zpool_do_clear(int argc, char **argv)
 
 	return (ret);
 }
+
+/*
+ * zpool reguid <pool>
+ */
+int
+zpool_do_reguid(int argc, char **argv)
+{
+	int c;
+	char *poolname;
+	zpool_handle_t *zhp;
+	int ret = 0;
+
+	/* check options */
+	while ((c = getopt(argc, argv, "")) != -1) {
+		switch (c) {
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	/* get pool name and check number of arguments */
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool name\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	poolname = argv[0];
+	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+		return (1);
+
+	ret = zpool_reguid(zhp);
+
+	zpool_close(zhp);
+	return (ret);
+}
+
 
 typedef struct scrub_cbdata {
 	int	cb_type;
