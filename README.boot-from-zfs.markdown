@@ -1,4 +1,4 @@
-###How to get your Fedora 16 system on a ZFS root pool, and to boot from it normally
+#How to get your Fedora 16 system on a ZFS root pool, and to boot from it normally
 
 
 ##Requisites
@@ -8,7 +8,7 @@
 
 ##Procedure
 
-#Preparation of the bootstrap system
+###Preparation of the bootstrap system
 
 - Connect the disk where you will be creating the ZFS pool and file systems.
 
@@ -22,7 +22,7 @@
 
     yum install -y kernel-devel libuuid-devel zlib-devel
 
-#Installation of ZFS on the bootstrap system    
+###Installation of ZFS on the bootstrap system    
     
 - Download the sources of spl and zfs to the /root directory:
 
@@ -47,7 +47,7 @@
 
     zpool
 
-#Creation of file systems on the target device
+###Creation of file systems on the target device
 
 - Find the block device where you will be installing your new Fedora system -- we will assume `/dev/sda`:
 
@@ -101,11 +101,11 @@
     zfs create syspool/RPOOL/fedora-16/usr
     zfs create syspool/RPOOL/fedora-16/sharedhome
 
-# Installation of the new system
+###Installation of the new system
 
-- Install your operating system to `/newroot`, using whatever facilities you desire -- for example, rsync from another machine, the Fedora installer, or a yum bootstrapper.  I leave it unspecified because I restored my earlier system from another machine.
+- Install your operating system to `/newroot`, using whatever facilities you desire -- for example, rsync from backups, use the Fedora installer, or use a yum bootstrapper.  I leave it unspecified because I restored my earlier system from another machine.
 
-# Post-install preparation of the new system
+###Post-install preparation of the new system
 
 - Get and write down the UUIDs of `/dev/sda1` and `/dev/sda2`:
 
@@ -138,7 +138,7 @@
     mount -t proc proc /proc
     mount -t sysfs sysfs /sys
 
-#Installation of ZFS in the chroot
+###Installation of ZFS in the chroot
 
 - Install the requisite packages from inside the chroot:
 
@@ -179,7 +179,7 @@
 
     lsinitrd /boot/initramfs-`uname -r` | grep -E '(zpool.cache|zfs|hostid)'
 
-#ZFS-enabled boot setup
+###ZFS-enabled boot setup
 
 - Edit `/etc/fstab` to add the file systems:
 
@@ -197,7 +197,7 @@
 
 - Check that the GRUB configuration file includes ZFS support (`zfs.mod` and `zfsinfo.mod`), and that the `root=zfs` parameter is present in the Linux kernel command lines.
 
-#Final cleanup
+###Final cleanup
 
 - Exit the chroot jail, making sure no processes started from the chroot are still open:
 
@@ -211,7 +211,7 @@
     umount /newroot/sys
     zfs umount -a
 
-#Reboot
+###Reboot
 
 - Sync:
 
@@ -224,5 +224,7 @@
 Now your system should boot up, read the kernel and initramfs from ZFS, then proceed with dracut boot inside the initramfs.  Dracut boot should detect your pool, inspect its `bootfs` property, import your pool without mounting any file systems, then mount the `syspool/RPOOL/fedora-16` file system onto /sysroot, then pivot-root, then start systemd.  Systemd should detect all the other file systems in that pool, generate unit files for all the file systems and then mount them in the right locations and order.
 
 Your Fedora 16 system is ready.  YOU ARE DONE.
+
+##Note about yum and kernel upgrades
 
 Watch out for kernel upgrades.  Every time there is a kernel upgrade, you will need to reconfigure spl and zfs with the parameters --with-linux=/usr/src/kernels/... and --with-linux-obj=/usr/src/kernels... then install again, then regenerate the dracut initrd, every time you upgrade the kernel, 
