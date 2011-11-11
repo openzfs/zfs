@@ -89,7 +89,7 @@ zpool_prop_init(void)
 
 	/* readonly onetime number properties */
 	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0, PROP_ONETIME,
-	    ZFS_TYPE_POOL, "<ashift, 9-17, or 0=default>", "ASHIFT");
+	    ZFS_TYPE_POOL, "<ashift, 9-12, or 0=default>", "ASHIFT");
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
