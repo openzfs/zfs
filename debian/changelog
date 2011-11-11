@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.38-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Disown dataset in zfs_sb_create()
+  * Simplify BDI integration
+  * Suppress packaging warning
+  * Linux 3.1 compat, fops->fsync()
+  * Fix depmod warning
+
+  [ Darik Horn ]
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 11 Nov 2011 09:05:40 -0600
+
 zfs-linux (0.6.0.37-0ubuntu1) unstable; urgency=low
 
   [ Gunnar Beutner ]
