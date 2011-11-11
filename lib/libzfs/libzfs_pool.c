@@ -21,6 +21,8 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <ctype.h>
@@ -2943,6 +2945,26 @@ zpool_vdev_clear(zpool_handle_t *zhp, uint64_t guid)
 	zc.zc_cookie = ZPOOL_NO_REWIND;
 
 	if (ioctl(hdl->libzfs_fd, ZFS_IOC_CLEAR, &zc) == 0)
+		return (0);
+
+	return (zpool_standard_error(hdl, errno, msg));
+}
+
+/*
+ * Change the GUID for a pool.
+ */
+int
+zpool_reguid(zpool_handle_t *zhp)
+{
+	char msg[1024];
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+
+	(void) snprintf(msg, sizeof (msg),
+	    dgettext(TEXT_DOMAIN, "cannot reguid '%s'"), zhp->zpool_name);
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	if (zfs_ioctl(hdl, ZFS_IOC_POOL_REGUID, &zc) == 0)
 		return (0);
 
 	return (zpool_standard_error(hdl, errno, msg));
