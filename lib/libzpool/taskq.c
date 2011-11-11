@@ -58,6 +58,7 @@ task_alloc(taskq_t *tq, int tqflags)
 	int rv;
 
 again:	if ((t = tq->tq_freelist) != NULL && tq->tq_nalloc >= tq->tq_minalloc) {
+		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 		tq->tq_freelist = t->tqent_next;
 	} else {
 		if (tq->tq_nalloc >= tq->tq_maxalloc) {
@@ -139,6 +140,9 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 	t->tqent_prev->tqent_next = t;
 	t->tqent_func = func;
 	t->tqent_arg = arg;
+
+	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+
 	cv_signal(&tq->tq_dispatch_cv);
 	mutex_exit(&tq->tq_lock);
 	return (1);
