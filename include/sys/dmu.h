@@ -632,6 +632,7 @@ timestruc_t dmu_objset_snap_cmtime(objset_t *os);
 
 int dmu_objset_is_snapshot(objset_t *os);
 
+extern uint64_t dmu_snapname_to_id(objset_t *os, const char *snapname);
 extern struct spa *dmu_objset_spa(objset_t *os);
 extern struct zilog *dmu_objset_zil(objset_t *os);
 extern struct dsl_pool *dmu_objset_pool(objset_t *os);

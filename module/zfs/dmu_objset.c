@@ -1584,6 +1584,37 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 	return (0);
 }
 
+/*
+ * returns obj id for the snapshot name given as arg.
+ * id is used to compute the inode no
+ */
+
+uint64_t
+dmu_snapname_to_id(objset_t *os, const char *snapname)
+{
+	dsl_dataset_t *ds = os->os_dsl_dataset;
+	zap_cursor_t cursor;
+	zap_attribute_t attr;
+	uint64_t ret = 0;
+
+	if (ds->ds_phys->ds_snapnames_zapobj == 0) {
+		return 0;
+	}
+	zap_cursor_init(&cursor, ds->ds_dir->dd_pool->dp_meta_objset,
+		ds->ds_phys->ds_snapnames_zapobj);
+	if(!(zap_cursor_move_to_key(&cursor, snapname, MT_EXACT))) {
+		if(zap_cursor_retrieve(&cursor, &attr) == 0)
+		ret = attr.za_first_integer;
+	}
+
+	/*
+	* We return zero if snapshot is not present or there was an
+	* error reading it.
+	*/
+	zap_cursor_fini(&cursor);
+	return ret;
+}
+
 int
 dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp)
@@ -1806,6 +1837,7 @@ EXPORT_SYMBOL(dmu_objset_rele);
 EXPORT_SYMBOL(dmu_objset_disown);
 EXPORT_SYMBOL(dmu_objset_from_ds);
 EXPORT_SYMBOL(dmu_objset_create);
+EXPORT_SYMBOL(dmu_snapname_to_id);
 EXPORT_SYMBOL(dmu_objset_clone);
 EXPORT_SYMBOL(dmu_objset_destroy);
 EXPORT_SYMBOL(dmu_objset_snapshot);

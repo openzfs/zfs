@@ -3866,9 +3866,10 @@ zfs_inactive(struct inode *ip)
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int error;
 
-#ifdef HAVE_SNAPSHOT
-	/* Early return for snapshot inode? */
-#endif /* HAVE_SNAPSHOT */
+	/* for snapshot inode */
+	if(ip->i_ino == ZFSCTL_INO_ROOT || 
+		ip->i_ino == ZFSCTL_INO_SNAPDIR || ip->i_private)
+		return;
 
 	rw_enter(&zsb->z_teardown_inactive_lock, RW_READER);
 	if (zp->z_sa_hdl == NULL) {
