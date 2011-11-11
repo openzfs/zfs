@@ -618,7 +618,8 @@ tsd_exit(void)
 }
 EXPORT_SYMBOL(tsd_exit);
 
-int tsd_init(void)
+int
+spl_tsd_init(void)
 {
 	SENTRY;
 
@@ -629,7 +630,8 @@ int tsd_init(void)
 	SRETURN(0);
 }
 
-void tsd_fini(void)
+void
+spl_tsd_fini(void)
 {
 	SENTRY;
 	tsd_hash_table_fini(tsd_hash_table);

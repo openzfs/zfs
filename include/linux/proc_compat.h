@@ -47,7 +47,7 @@ struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
 					   const char *str);
 int proc_dir_entries(struct proc_dir_entry *root);
 
-int proc_init(void);
-void proc_fini(void);
+int spl_proc_init(void);
+void spl_proc_fini(void);
 
 #endif /* SPL_PROC_H */

@@ -1139,7 +1139,7 @@ proc_dir_entries(struct proc_dir_entry *root)
 }
 
 int
-proc_init(void)
+spl_proc_init(void)
 {
 	int rc = 0;
         SENTRY;
@@ -1186,7 +1186,7 @@ out:
 }
 
 void
-proc_fini(void)
+spl_proc_fini(void)
 {
         SENTRY;
 

@@ -146,8 +146,8 @@ typedef struct kstat_timer {
         hrtime_t     stop_time;            /* previous event stop time */
 } kstat_timer_t;
 
-int kstat_init(void);
-void kstat_fini(void);
+int spl_kstat_init(void);
+void spl_kstat_fini(void);
 
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
 			     const char *ks_name, const char *ks_class,

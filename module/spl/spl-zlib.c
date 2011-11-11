@@ -196,7 +196,8 @@ z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 }
 EXPORT_SYMBOL(z_uncompress);
 
-int zlib_init(void)
+int
+spl_zlib_init(void)
 {
 	int size;
         SENTRY;
@@ -212,7 +213,8 @@ int zlib_init(void)
         SRETURN(0);
 }
 
-void zlib_fini(void)
+void
+spl_zlib_fini(void)
 {
         SENTRY;
 	kmem_cache_destroy(zlib_workspace_cache);

@@ -63,7 +63,7 @@ extern int z_compress_level(void *dest, size_t *destLen, const void *source,
 extern int z_uncompress(void *dest, size_t *destLen, const void *source,
     size_t sourceLen);
 
-int zlib_init(void);
-void zlib_fini(void);
+int spl_zlib_init(void);
+void spl_zlib_fini(void);
 
 #endif /* SPL_ZMOD_H */

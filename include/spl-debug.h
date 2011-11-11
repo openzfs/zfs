@@ -186,7 +186,7 @@ extern void spl_debug_dumpstack(struct task_struct *tsk);
 extern int spl_debug_clear_buffer(void);
 extern int spl_debug_mark_buffer(char *text);
 
-int debug_init(void);
-void debug_fini(void);
+int spl_debug_init(void);
+void spl_debug_fini(void);
 
 #endif /* SPL_DEBUG_INTERNAL_H */

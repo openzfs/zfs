@@ -546,7 +546,7 @@ __init spl_init(void)
 {
 	int rc = 0;
 
-	if ((rc = debug_init()))
+	if ((rc = spl_debug_init()))
 		return rc;
 
 	if ((rc = spl_kmem_init()))
@@ -564,16 +564,16 @@ __init spl_init(void)
 	if ((rc = spl_vn_init()))
 		SGOTO(out5, rc);
 
-	if ((rc = proc_init()))
+	if ((rc = spl_proc_init()))
 		SGOTO(out6, rc);
 
-	if ((rc = kstat_init()))
+	if ((rc = spl_kstat_init()))
 		SGOTO(out7, rc);
 
-	if ((rc = tsd_init()))
+	if ((rc = spl_tsd_init()))
 		SGOTO(out8, rc);
 
-	if ((rc = zlib_init()))
+	if ((rc = spl_zlib_init()))
 		SGOTO(out9, rc);
 
 	/*
@@ -601,13 +601,13 @@ __init spl_init(void)
 	       SPL_META_VERSION, SPL_DEBUG_STR, (unsigned int) spl_hostid);
 	SRETURN(rc);
 out10:
-	zlib_fini();
+	spl_zlib_fini();
 out9:
-	tsd_fini();
+	spl_tsd_fini();
 out8:
-	kstat_fini();
+	spl_kstat_fini();
 out7:
-	proc_fini();
+	spl_proc_fini();
 out6:
 	spl_vn_fini();
 out5:
@@ -619,7 +619,7 @@ out3:
 out2:
 	spl_kmem_fini();
 out1:
-	debug_fini();
+	spl_debug_fini();
 
 	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer v%s%s"
 	       ", rc = %d\n", SPL_META_VERSION, SPL_DEBUG_STR, rc);
@@ -633,16 +633,16 @@ spl_fini(void)
 
 	printk(KERN_NOTICE "SPL: Unloaded module v%s%s\n",
 	       SPL_META_VERSION, SPL_DEBUG_STR);
-	zlib_fini();
-	tsd_fini();
-	kstat_fini();
-	proc_fini();
+	spl_zlib_fini();
+	spl_tsd_fini();
+	spl_kstat_fini();
+	spl_proc_fini();
 	spl_vn_fini();
 	spl_taskq_fini();
 	spl_rw_fini();
 	spl_mutex_fini();
 	spl_kmem_fini();
-	debug_fini();
+	spl_debug_fini();
 }
 
 /* Called when a dependent module is loaded */

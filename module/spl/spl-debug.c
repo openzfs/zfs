@@ -1176,7 +1176,7 @@ out:
 }
 
 int
-debug_init(void)
+spl_debug_init(void)
 {
         int rc, max = spl_debug_mb;
 
@@ -1244,7 +1244,7 @@ trace_fini(void)
 }
 
 void
-debug_fini(void)
+spl_debug_fini(void)
 {
         trace_fini();
 }

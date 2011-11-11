@@ -477,7 +477,7 @@ __kstat_delete(kstat_t *ksp)
 EXPORT_SYMBOL(__kstat_delete);
 
 int
-kstat_init(void)
+spl_kstat_init(void)
 {
 	SENTRY;
 	spin_lock_init(&kstat_lock);
@@ -487,7 +487,7 @@ kstat_init(void)
 }
 
 void
-kstat_fini(void)
+spl_kstat_fini(void)
 {
 	SENTRY;
 	ASSERT(list_empty(&kstat_list));

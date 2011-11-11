@@ -39,7 +39,7 @@ extern void tsd_create(uint_t *, dtor_func_t);
 extern void tsd_destroy(uint_t *);
 extern void tsd_exit(void);
 
-int tsd_init(void);
-void tsd_fini(void);
+int spl_tsd_init(void);
+void spl_tsd_fini(void);
 
 #endif /* _SPL_TSD_H */
