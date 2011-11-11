@@ -28,7 +28,7 @@
 #include <sys/zpl.h>
 #include <sys/dmu.h>
 #include <linux/version.h>
-
+#include <linux/snapshots_automount.h>
 
 struct inode *
 zfs_snap_linux_iget(struct super_block *sb, unsigned long ino);
@@ -49,7 +49,7 @@ zfs_do_automount(struct dentry *mntpt)
 	snapname = strncpy(snapname, zfs_fs_name, strlen(zfs_fs_name) + 1);
 	snapname = strcat(snapname, "@");
 	snapname = strcat(snapname, mntpt->d_name.name);
-	mnt = vfs_kern_mount(&zpl_fs_type, 0, snapname, NULL);
+	mnt = linux_kern_mount(&zpl_fs_type, 0, snapname, NULL);
 	kfree(zfs_fs_name);
 	kfree(snapname);
 	return mnt;
@@ -88,13 +88,8 @@ zfs_snapshots_dir_mountpoint_follow_link(struct dentry *dentry,
 	}
 	mnt->mnt_mountpoint = dentry;
 	ASSERT(nd);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,27)
-	rc = do_add_mount(mnt, nd,
+	rc = linux_add_mount(mnt, nd,
 			nd->path.mnt->mnt_flags | MNT_READONLY, NULL);
-#else
-	rc = do_add_mount(mnt, &nd->path,
-			nd->path.mnt->mnt_flags | MNT_READONLY, NULL);
-#endif
 	switch (rc) {
 	case 0:
 		path_put(&nd->path);
