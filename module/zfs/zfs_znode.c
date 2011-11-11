@@ -52,6 +52,7 @@
 #include <sys/zfs_rlock.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/dnode.h>
 #include <sys/fs/zfs.h>
 #include <sys/kidmap.h>
@@ -267,6 +268,9 @@ zfs_inode_destroy(struct inode *ip)
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
 
+	if (zfsctl_is_node(ip))
+		zfsctl_inode_destroy(ip);
+
 	mutex_enter(&zsb->z_znodes_lock);
 	list_remove(&zsb->z_all_znodes, zp);
 	mutex_exit(&zsb->z_znodes_lock);
@@ -362,6 +366,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
 	zp->z_is_zvol = 0;
+	zp->z_is_ctldir = 0;
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
@@ -431,6 +436,10 @@ zfs_inode_update(znode_t *zp)
 	ASSERT(zp != NULL);
 	zsb = ZTOZSB(zp);
 	ip = ZTOI(zp);
+
+	/* Skip .zfs control nodes which do not exist on disk. */
+	if (zfsctl_is_node(ip))
+		return;
 
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_ATIME(zsb), &atime, 16);
 	sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zsb), &mtime, 16);
