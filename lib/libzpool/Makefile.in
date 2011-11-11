@@ -41,6 +41,7 @@ subdir = lib/libzpool
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
+	$(top_srcdir)/config/kernel-automount.m4 \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
 	$(top_srcdir)/config/kernel-bdi-setup-and-register.m4 \
@@ -455,6 +456,7 @@ libzpool_la_LDFLAGS = -pthread -version-info 1:1:0
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
+	$(top_srcdir)/module/zfs/zfs_ctldir.c \
 	$(top_srcdir)/module/zfs/zfs_dir.c \
 	$(top_srcdir)/module/zfs/zfs_ioctl.c \
 	$(top_srcdir)/module/zfs/zfs_log.c \
@@ -463,6 +465,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_ctldir.c \
 	$(top_srcdir)/module/zfs/zpl_export.c \
 	$(top_srcdir)/module/zfs/zpl_file.c \
 	$(top_srcdir)/module/zfs/zpl_inode.c \

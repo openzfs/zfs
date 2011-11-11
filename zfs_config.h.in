@@ -9,6 +9,9 @@
 /* security_inode_init_security wants 6 args */
 #undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
 
+/* dops->automount() exists */
+#undef HAVE_AUTOMOUNT
+
 /* struct block_device_operations use bdevs */
 #undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
 

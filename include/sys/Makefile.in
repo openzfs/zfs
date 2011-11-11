@@ -41,6 +41,7 @@ DIST_COMMON = $(am__kernel_HEADERS_DIST) $(am__libzfs_HEADERS_DIST) \
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
+	$(top_srcdir)/config/kernel-automount.m4 \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
 	$(top_srcdir)/config/kernel-bdi-setup-and-register.m4 \
@@ -170,6 +171,7 @@ am__kernel_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
+	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -266,6 +268,7 @@ am__libzfs_HEADERS_DIST = $(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
+	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
@@ -550,6 +553,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zap_leaf.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
+	$(top_srcdir)/include/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \

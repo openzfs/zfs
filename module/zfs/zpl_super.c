@@ -26,6 +26,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
 
 
@@ -139,6 +140,20 @@ zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 	return (error);
 }
 
+static void
+zpl_umount_begin(struct super_block *sb)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	int count;
+
+	/*
+	 * Best effort to unmount snapshots in .zfs/snapshot/.  Normally this
+	 * isn't required because snapshots have the MNT_SHRINKABLE flag set.
+	 */
+	if (zsb->z_ctldir)
+		(void) zfsctl_unmount_snapshots(zsb, MNT_FORCE, &count);
+}
+
 /*
  * The Linux VFS automatically handles the following flags:
  * MNT_NOSUID, MNT_NODEV, MNT_NOEXEC, MNT_NOATIME, MNT_READONLY
@@ -199,13 +214,7 @@ zpl_get_sb(struct file_system_type *fs_type, int flags,
 static void
 zpl_kill_sb(struct super_block *sb)
 {
-#ifdef HAVE_SNAPSHOT
-	zfs_sb_t *zsb = sb->s_fs_info;
-
-	if (zsb && dmu_objset_is_snapshot(zsb->z_os))
-		zfs_snap_destroy(zsb);
-#endif /* HAVE_SNAPSHOT */
-
+	zfs_preumount(sb);
 	kill_anon_super(sb);
 }
 
@@ -306,6 +315,7 @@ const struct super_operations zpl_super_operations = {
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
+	.umount_begin		= zpl_umount_begin,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
 #ifdef HAVE_NR_CACHED_OBJECTS
