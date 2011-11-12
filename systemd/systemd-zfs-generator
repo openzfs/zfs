@@ -72,6 +72,8 @@ while read -r name mountpoint canmount ; do
 	deps=`getdeps "$mountpoint"`
 	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
 
+	echo -E "generator: discovered mountable ZFS file system $mountpoint, adding to list"
+
 	echo -E "[Unit]
 Description=ZFS file system $name
 Requires=$deps
@@ -107,4 +109,27 @@ rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
 #ExecStart=/bin/true
 #" > $gendir/zfs.service
 
+
+# if the root filesystem is on zfs, we need to disable remount-rootfs.service
+
+if cat /proc/self/mounts | grep -q ' / zfs ' ; then
+
+	echo -E "generator: ZFS file system on root, disabling remount-rootfs.service"
+
+	echo "[Unit]
+Description=Remount Root FS (no-op due to ZFS)
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-readahead-collect.service systemd-readahead-replay.service fsck-root.service
+Before=local-fs-pre.target local-fs.target shutdown.target
+Wants=local-fs-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+StandardOutput=syslog
+" > $gendir/remount-rootfs.service
+
+fi
 
