@@ -146,5 +146,5 @@ ExecStart=/bin/true
 StandardOutput=syslog
 " > $gendir/remount-rootfs.service
 
+	[ -L "$gendir/local-fs.target.wants/remount-rootfs.service" ] || ln -s "$gendir/remount-rootfs.service" "$gendir/local-fs.target.wants"
 fi
-
