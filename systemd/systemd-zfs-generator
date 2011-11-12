@@ -2,6 +2,17 @@
 
 set -e
 
+zpool --help >/dev/null 2>&1 || {
+	exit 0
+}
+
+echo "generator: ZFS support available"
+
+if [ -f /etc/zfs/zpool.cache ] ; then
+	echo "generator: importing all pools that were imported before last reboot"
+	zpool import -aN -c /etc/zfs/zpool.cache
+fi
+
 gendir=/run/systemd/generator
 nodir=false
 
@@ -32,6 +43,7 @@ function getdeps() {
 # preparations
 rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
 
+echo "generator: discovering early available ZFS file systems"
 zfs list -H -o name,mountpoint,canmount > $gendir/listing
 
 # we read the output of fstab
