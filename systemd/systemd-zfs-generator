@@ -95,7 +95,7 @@ Description=ZFS file system $name
 Requires=$deps
 Conflicts=umount.target
 Before=local-fs.target umount.target$extrabefore
-After=systemd-logger.socket $deps
+After=local-fs-pre.target $deps
 DefaultDependencies=no
 
 [Mount]
