@@ -6,11 +6,15 @@ zpool --help >/dev/null 2>&1 || {
 	exit 0
 }
 
-echo "generator: ZFS support available"
+scriptname=`basename "$0"`
+
+echo "$scriptname: ZFS support available"
 
 if [ -f /etc/zfs/zpool.cache ] ; then
-	echo "generator: importing all pools that were imported before last reboot"
-	zpool import -aN -c /etc/zfs/zpool.cache
+	echo "$scriptname: importing all pools that were imported before last reboot"
+	output=`zpool import -aN -c /etc/zfs/zpool.cache 2>&1`
+	if [ -z "$output" ] ; then output=successful ; fi
+	echo -E "$scriptname: $output"
 fi
 
 gendir=/run/systemd/generator
@@ -43,7 +47,7 @@ function getdeps() {
 # preparations
 rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
 
-echo "generator: discovering early available ZFS file systems"
+echo "$scriptname: discovering early available ZFS file systems"
 zfs list -H -o name,mountpoint,canmount > $gendir/listing
 
 # we read the output of fstab
@@ -84,7 +88,7 @@ while read -r name mountpoint canmount ; do
 	deps=`getdeps "$mountpoint"`
 	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
 
-	echo -E "generator: discovered mountable ZFS file system $mountpoint, adding to list"
+	echo -E "$scriptname: discovered mountable ZFS file system $mountpoint, adding to list"
 
 	echo -E "[Unit]
 Description=ZFS file system $name
@@ -126,7 +130,7 @@ rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
 
 if cat /proc/self/mounts | grep -q ' / zfs ' ; then
 
-	echo -E "generator: ZFS file system on root, disabling remount-rootfs.service"
+	echo -E "$scriptname: ZFS file system on root, disabling remount-rootfs.service"
 
 	echo "[Unit]
 Description=Remount Root FS (no-op due to ZFS)
