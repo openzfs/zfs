@@ -73,7 +73,7 @@ while read -r name mountpoint canmount ; do
 	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
 
 	echo -E "[Unit]
-Description=$mountpoint (ZFS)
+Description=ZFS file system $name
 Requires=$deps
 Conflicts=umount.target
 Before=local-fs.target umount.target$extrabefore
@@ -98,10 +98,13 @@ IFS="$OLDIFS"
 # I am done, so now nuke them temp files
 rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
 
-echo "[Unit]
-Description=ZFS service (dummy)
+# temporarily disabled until we find a full replacement for late-discovered mounts and zfs share based on systemd
+#echo "[Unit]
+#Description=ZFS service (dummy)
+#
+#[Service]
+#Type=oneshot
+#ExecStart=/bin/true
+#" > $gendir/zfs.service
 
-[Service]
-Type=oneshot
-ExecStart=/bin/true
-" > $gendir/zfs.service
+
