@@ -22,17 +22,21 @@ How to use:
 
 TODO:
 
+- support remount-rootfs.service (/bin/mount / -o remount,rw)
 - dynamic regeneration of units every time a zfs create / zfs rename / zfs destroy is done
 - redirect mounting of file systems when `zfs mount` or `zfs create`  happens, shunting it
   to `systemctl start`
+  this item may not be necessary, if we ascertain that systemd automatically updates
+  the status of units based on zfs umount
 - redirect unmounting of a file system to `systemctl stop`
+  this item nay not be necessary (see list item above this one)
 - properly parse escaped mountpoints in /etc/fstab
 - properly regenerate/reload units (and their dependencies) when zpools are imported / exported
   (doable with systemctl daemon-reload, worth doing it that way?)
-- properly import zpools when they are detected (right now it only works with
-  whatever pools are available at VERY EARLY boot time, possibly even before all
-  block devices are set up)
-- properly regen/reload units when mountpoint / canmount properties are changed
+- properly import zpools when they are detected late and mount all its filesystems
+  right now it only works with whatever pools are available at VERY EARLY boot time, possibly
+  even before all block devices are set up)
+- properly regen/reload units when mountpoint and canmount properties are changed
   - systemctl stop involved mountpoints
   - change properties
   - regenerate units
@@ -50,5 +54,6 @@ TODO:
   at the moment we only parse fstab
 - register ALL available zvols as device units
   (maybe this is done automatically by udev?)
+- maybe: find a way to export pools at shutdown (probably involves pivot_root)
 
 But, all in all, this works.
