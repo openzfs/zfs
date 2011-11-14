@@ -40,7 +40,7 @@ zpl_do_automount(struct dentry *mntpt)
 	char *snapname = NULL;
 	char *zfs_fs_name = NULL;
 	zfs_sb_t *zsb = ITOZSB(mntpt->d_inode);
-       
+
 	ASSERT(mntpt->d_parent);
 	zfs_fs_name = kzalloc(MAXNAMELEN, KM_SLEEP);
 	dmu_objset_name(zsb->z_os, zfs_fs_name);
@@ -76,7 +76,7 @@ const struct dentry_operations zpl_dentry_ops = {
 #else
 
 static void*
-zpl_snapshots_dir_mountpoint_follow_link(struct dentry *dentry, 
+zpl_snapshots_dir_mountpoint_follow_link(struct dentry *dentry,
 					struct nameidata *nd)
 {
 	struct vfsmount *mnt = ERR_PTR(-ENOENT);
@@ -101,7 +101,7 @@ zpl_snapshots_dir_mountpoint_follow_link(struct dentry *dentry,
 
 	/* someone else made a mount here whilst we were busy */
 
-#ifdef HAVE_2ARGS_FOLLOW_DOWN           /* for kernel version < 2.6.31 */               
+#ifdef HAVE_2ARGS_FOLLOW_DOWN           /* for kernel version < 2.6.31 */
 		    while (d_mountpoint(nd->path.dentry) &&
 			follow_down(&mnt, &nd->path.dentry)) {
 			;
@@ -121,7 +121,7 @@ zpl_snapshots_dir_mountpoint_follow_link(struct dentry *dentry,
 out_err:
 	path_put(&nd->path);
 
-out:        
+out:
 	return ERR_PTR(rc);
 }
 
@@ -176,7 +176,7 @@ done:
 }
 
 static struct dentry *
-zpl_snap_dir_lookup(struct inode *dir,struct dentry *dentry, 
+zpl_snap_dir_lookup(struct inode *dir,struct dentry *dentry,
 			struct nameidata *nd)
 {
 	struct inode *ip = NULL;
@@ -187,7 +187,7 @@ zpl_snap_dir_lookup(struct inode *dir,struct dentry *dentry,
 	if (dentry->d_name.len >= MAXNAMELEN) {
 		return ERR_PTR(-ENAMETOOLONG);
 	}
-      
+
 	 if (!(id = dmu_snapname_to_id(zsb->z_os, dentry->d_name.name))) {
 		d_add(dentry, NULL);
 		return NULL;
@@ -229,7 +229,7 @@ zpl_zfsctl_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	struct dentry *dentry = filp->f_path.dentry;
 	u64 ino;
 	int i = filp->f_pos;
-	
+
 	switch (i) {
 	case 0:
 		ino = dentry->d_inode->i_ino;
@@ -257,7 +257,7 @@ zpl_zfsctl_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
  */
 
 static struct dentry *
-zpl_zfsctl_dir_lookup(struct inode *dir,struct dentry *dentry, 
+zpl_zfsctl_dir_lookup(struct inode *dir,struct dentry *dentry,
                        struct nameidata *nd)
 {
 	struct inode *inode = NULL;
@@ -301,7 +301,7 @@ zpl_snap_linux_iget(struct super_block *sb, unsigned long ino)
 	inode = iget_locked(sb, ino);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
-       
+
 	if (!(inode->i_state & I_NEW))
 		return inode;
 
@@ -310,7 +310,7 @@ zpl_snap_linux_iget(struct super_block *sb, unsigned long ino)
 	inode->i_gid = crgetgid(current->cred);
 	inode->i_sb = sb;
 	inode->i_private = inode;
-       
+
 	if(inode->i_ino == ZFSCTL_INO_ROOT) {
 		inode->i_op = &zpl_zfsctl_dir_inode_operations;
 		inode->i_fop = &zpl_zfsctl_dir_file_operations;
@@ -319,8 +319,8 @@ zpl_snap_linux_iget(struct super_block *sb, unsigned long ino)
 		inode->i_op = &zpl_snap_dir_inode_operations;
 		inode->i_fop = &zpl_snap_dir_file_operations;
 	}
-	else { 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)                
+	else {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 		inode->i_op = &zpl_snapshots_dir_inode_operations;
 #else
 		inode->i_flags |= S_AUTOMOUNT;
@@ -340,13 +340,13 @@ zpl_snap_create(zfs_sb_t *zsb)
 	struct dentry *dentry_snap_dir = NULL;
 
 	ip_ctl_dir = zpl_snap_linux_iget(zsb->z_sb, ZFSCTL_INO_ROOT);
-       
+
 	ASSERT(!IS_ERR(ip_ctl_dir));
-       
+
 	/* for .zfs dir, root dentry is the parent one */
 	ASSERT(zsb->z_sb->s_root);
 	dentry_ctl_dir = d_alloc_name(zsb->z_sb->s_root, ZFS_CTLDIR_NAME);
-       
+
 	/* If failed, indicates ENOMEM error */
 	ASSERT(dentry_ctl_dir);
 	d_add(dentry_ctl_dir, ip_ctl_dir);
@@ -355,18 +355,18 @@ zpl_snap_create(zfs_sb_t *zsb)
 	zsb->z_snap_linux.zsl_ctldir_ip = ip_ctl_dir;
 
 	ip_snap_dir = zpl_snap_linux_iget(zsb->z_sb, ZFSCTL_INO_SNAPDIR);
-        
+
 	/* If failed, indicates ENOMEM error */
 	ASSERT(!IS_ERR(ip_ctl_dir));
 	zsb->z_snap_linux.zsl_snapdir_ip = ip_snap_dir;
-        
+
 	/* for .zfs/snapshot dir, .zfs dentry is the parent one */
 	dentry_snap_dir = d_alloc_name(dentry_ctl_dir, ZFS_CTLDIR_NAME);
-       
+
 	/* If failed, indicates ENOMEM error */
 	ASSERT(dentry_snap_dir);
 	d_add(dentry_snap_dir, ip_snap_dir);
-       
+
 	zsb->z_snap_linux.zsl_snapdir_dentry = dentry_snap_dir;
 }
 void
