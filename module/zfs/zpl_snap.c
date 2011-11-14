@@ -44,11 +44,7 @@ zpl_do_automount(struct dentry *mntpt)
 	ASSERT(mntpt->d_parent);
 	zfs_fs_name = kzalloc(MAXNAMELEN, KM_SLEEP);
 	dmu_objset_name(zsb->z_os, zfs_fs_name);
-	snapname = kzalloc(strlen(zfs_fs_name) +
-				strlen(mntpt->d_name.name) + 2, KM_SLEEP);
-	snapname = strncpy(snapname, zfs_fs_name, strlen(zfs_fs_name) + 1);
-	snapname = strcat(snapname, "@");
-	snapname = strcat(snapname, mntpt->d_name.name);
+	snapname = kmem_asprintf("%s@%s", zfs_fs_name, mntpt->d_name.name);
 	mnt = linux_kern_mount(&zpl_fs_type, 0, snapname, NULL);
 	kfree(zfs_fs_name);
 	kfree(snapname);
