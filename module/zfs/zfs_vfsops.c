@@ -1169,7 +1169,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
 		error = zfs_sb_setup(zsb, B_TRUE);
-		(void) zfs_snap_create(zsb);
+		(void) zpl_snap_create(zsb);
 	}
 
 out:

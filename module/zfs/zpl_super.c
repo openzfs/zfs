@@ -192,7 +192,7 @@ zpl_kill_sb(struct super_block *sb)
 	zfs_sb_t *zsb = sb->s_fs_info;
 
 	if (zsb && !dmu_objset_is_snapshot(zsb->z_os))
-		zfs_snap_destroy(zsb);
+		zpl_snap_destroy(zsb);
 
 	kill_anon_super(sb);
 }
