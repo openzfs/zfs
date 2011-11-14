@@ -80,7 +80,7 @@ zpl_snapshots_dir_mountpoint_follow_link(struct dentry *dentry,
 					struct nameidata *nd)
 {
 	struct vfsmount *mnt = ERR_PTR(-ENOENT);
-	mnt = zfs_do_automount(dentry);
+	mnt = zpl_do_automount(dentry);
 	mntget(mnt);
 	rc = PTR_ERR(mnt);
 	if (IS_ERR(mnt)) {
