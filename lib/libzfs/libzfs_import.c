@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 /*
@@ -441,7 +443,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 	uint_t i, nspares, nl2cache;
 	boolean_t config_seen;
 	uint64_t best_txg;
-	char *name, *hostname;
+	char *name, *hostname, *comment;
 	uint64_t version, guid;
 	uint_t children = 0;
 	nvlist_t **child = NULL;
@@ -530,6 +532,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				 *	version
 				 * 	pool guid
 				 * 	name
+				 *	comment (if available)
 				 * 	pool state
 				 *	hostid (if available)
 				 *	hostname (if available)
@@ -551,11 +554,24 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				if (nvlist_add_string(config,
 				    ZPOOL_CONFIG_POOL_NAME, name) != 0)
 					goto nomem;
+
+				/*
+				 * COMMENT is optional, don't bail if it's not
+				 * there, instead, set it to NULL.
+				 */
+				if (nvlist_lookup_string(tmp,
+				    ZPOOL_CONFIG_COMMENT, &comment) != 0)
+					comment = NULL;
+				else if (nvlist_add_string(config,
+				    ZPOOL_CONFIG_COMMENT, comment) != 0)
+					goto nomem;
+
 				verify(nvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_POOL_STATE, &state) == 0);
 				if (nvlist_add_uint64(config,
 				    ZPOOL_CONFIG_POOL_STATE, state) != 0)
 					goto nomem;
+
 				hostid = 0;
 				if (nvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_HOSTID, &hostid) == 0) {
