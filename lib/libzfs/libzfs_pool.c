@@ -235,6 +235,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 
 		case ZPOOL_PROP_ALTROOT:
 		case ZPOOL_PROP_CACHEFILE:
+		case ZPOOL_PROP_COMMENT:
 			if (zhp->zpool_props != NULL ||
 			    zpool_get_all_props(zhp) == 0) {
 				(void) strlcpy(buf,
@@ -385,7 +386,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 	zpool_prop_t prop;
 	char *strval;
 	uint64_t intval;
-	char *slash;
+	char *slash, *check;
 	struct stat64 statbuf;
 	zpool_handle_t *zhp;
 	nvlist_t *nvroot;
@@ -566,6 +567,26 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			*slash = '/';
 			break;
 
+		case ZPOOL_PROP_COMMENT:
+			for (check = strval; *check != '\0'; check++) {
+				if (!isprint(*check)) {
+					zfs_error_aux(hdl,
+					    dgettext(TEXT_DOMAIN,
+					    "comment may only have printable "
+					    "characters"));
+					(void) zfs_error(hdl, EZFS_BADPROP,
+					    errbuf);
+					goto error;
+				}
+			}
+			if (strlen(strval) > ZPROP_MAX_COMMENT) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "comment must not exceed %d characters"),
+				    ZPROP_MAX_COMMENT);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
 		case ZPOOL_PROP_READONLY:
 			if (!flags.import) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

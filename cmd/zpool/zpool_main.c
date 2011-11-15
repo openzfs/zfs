@@ -1343,6 +1343,7 @@ show_import(nvlist_t *config)
 	const char *health;
 	uint_t vsc;
 	int namewidth;
+	char *comment;
 
 	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
 	    &name) == 0);
@@ -1359,9 +1360,9 @@ show_import(nvlist_t *config)
 
 	reason = zpool_import_status(config, &msgid);
 
-	(void) printf(gettext("  pool: %s\n"), name);
-	(void) printf(gettext("    id: %llu\n"), (u_longlong_t)guid);
-	(void) printf(gettext(" state: %s"), health);
+	(void) printf(gettext("   pool: %s\n"), name);
+	(void) printf(gettext("     id: %llu\n"), (u_longlong_t)guid);
+	(void) printf(gettext("  state: %s"), health);
 	if (pool_state == POOL_STATE_DESTROYED)
 		(void) printf(gettext(" (DESTROYED)"));
 	(void) printf("\n");
@@ -1370,58 +1371,59 @@ show_import(nvlist_t *config)
 	case ZPOOL_STATUS_MISSING_DEV_R:
 	case ZPOOL_STATUS_MISSING_DEV_NR:
 	case ZPOOL_STATUS_BAD_GUID_SUM:
-		(void) printf(gettext("status: One or more devices are missing "
-		    "from the system.\n"));
+		(void) printf(gettext(" status: One or more devices are "
+		    "missing from the system.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_R:
 	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
-		(void) printf(gettext("status: One or more devices contains "
+		(void) printf(gettext(" status: One or more devices contains "
 		    "corrupted data.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_DATA:
-		(void) printf(gettext("status: The pool data is corrupted.\n"));
+		(void) printf(
+		    gettext(" status: The pool data is corrupted.\n"));
 		break;
 
 	case ZPOOL_STATUS_OFFLINE_DEV:
-		(void) printf(gettext("status: One or more devices "
+		(void) printf(gettext(" status: One or more devices "
 		    "are offlined.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_POOL:
-		(void) printf(gettext("status: The pool metadata is "
+		(void) printf(gettext(" status: The pool metadata is "
 		    "corrupted.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_OLDER:
-		(void) printf(gettext("status: The pool is formatted using an "
+		(void) printf(gettext(" status: The pool is formatted using an "
 		    "older on-disk version.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_NEWER:
-		(void) printf(gettext("status: The pool is formatted using an "
+		(void) printf(gettext(" status: The pool is formatted using an "
 		    "incompatible version.\n"));
 		break;
 
 	case ZPOOL_STATUS_HOSTID_MISMATCH:
-		(void) printf(gettext("status: The pool was last accessed by "
+		(void) printf(gettext(" status: The pool was last accessed by "
 		    "another system.\n"));
 		break;
 
 	case ZPOOL_STATUS_FAULTED_DEV_R:
 	case ZPOOL_STATUS_FAULTED_DEV_NR:
-		(void) printf(gettext("status: One or more devices are "
+		(void) printf(gettext(" status: One or more devices are "
 		    "faulted.\n"));
 		break;
 
 	case ZPOOL_STATUS_BAD_LOG:
-		(void) printf(gettext("status: An intent log record cannot be "
+		(void) printf(gettext(" status: An intent log record cannot be "
 		    "read.\n"));
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
-		(void) printf(gettext("status: One or more devices were being "
+		(void) printf(gettext(" status: One or more devices were being "
 		    "resilvered.\n"));
 		break;
 
@@ -1437,26 +1439,26 @@ show_import(nvlist_t *config)
 	 */
 	if (vs->vs_state == VDEV_STATE_HEALTHY) {
 		if (reason == ZPOOL_STATUS_VERSION_OLDER)
-			(void) printf(gettext("action: The pool can be "
+			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric identifier, "
 			    "though\n\tsome features will not be available "
 			    "without an explicit 'zpool upgrade'.\n"));
 		else if (reason == ZPOOL_STATUS_HOSTID_MISMATCH)
-			(void) printf(gettext("action: The pool can be "
+			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric "
 			    "identifier and\n\tthe '-f' flag.\n"));
 		else
-			(void) printf(gettext("action: The pool can be "
+			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric "
 			    "identifier.\n"));
 	} else if (vs->vs_state == VDEV_STATE_DEGRADED) {
-		(void) printf(gettext("action: The pool can be imported "
+		(void) printf(gettext(" action: The pool can be imported "
 		    "despite missing or damaged devices.  The\n\tfault "
 		    "tolerance of the pool may be compromised if imported.\n"));
 	} else {
 		switch (reason) {
 		case ZPOOL_STATUS_VERSION_NEWER:
-			(void) printf(gettext("action: The pool cannot be "
+			(void) printf(gettext(" action: The pool cannot be "
 			    "imported.  Access the pool on a system running "
 			    "newer\n\tsoftware, or recreate the pool from "
 			    "backup.\n"));
@@ -1464,15 +1466,19 @@ show_import(nvlist_t *config)
 		case ZPOOL_STATUS_MISSING_DEV_R:
 		case ZPOOL_STATUS_MISSING_DEV_NR:
 		case ZPOOL_STATUS_BAD_GUID_SUM:
-			(void) printf(gettext("action: The pool cannot be "
+			(void) printf(gettext(" action: The pool cannot be "
 			    "imported. Attach the missing\n\tdevices and try "
 			    "again.\n"));
 			break;
 		default:
-			(void) printf(gettext("action: The pool cannot be "
+			(void) printf(gettext(" action: The pool cannot be "
 			    "imported due to damaged devices or data.\n"));
 		}
 	}
+
+	/* Print the comment attached to the pool. */
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
+		(void) printf(gettext("comment: %s\n"), comment);
 
 	/*
 	 * If the state is "closed" or "can't open", and the aux state
@@ -1494,7 +1500,7 @@ show_import(nvlist_t *config)
 		(void) printf(gettext("   see: http://zfsonlinux.org/msg/%s\n"),
 		    msgid);
 
-	(void) printf(gettext("config:\n\n"));
+	(void) printf(gettext(" config:\n\n"));
 
 	namewidth = max_width(NULL, nvroot, 0, 0);
 	if (namewidth < 10)

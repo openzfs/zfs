@@ -60,6 +60,7 @@
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <sys/ctype.h>
 #include <linux/dcache_compat.h>
 
 #else /* _KERNEL */
@@ -92,6 +93,7 @@
 #include <atomic.h>
 #include <dirent.h>
 #include <time.h>
+#include <ctype.h>
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>

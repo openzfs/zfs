@@ -21,6 +21,8 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -344,6 +346,10 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	    txg) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 	    spa_guid(spa)) == 0);
+	VERIFY(spa->spa_comment == NULL || nvlist_add_string(config,
+	    ZPOOL_CONFIG_COMMENT, spa->spa_comment) == 0);
+
+
 #ifdef	_KERNEL
 	hostid = zone_get_hostid(NULL);
 #else	/* _KERNEL */

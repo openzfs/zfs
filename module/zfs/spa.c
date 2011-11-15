@@ -206,6 +206,11 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 
 	spa_prop_add_list(*nvp, ZPOOL_PROP_GUID, NULL, spa_guid(spa), src);
 
+	if (spa->spa_comment != NULL) {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_COMMENT, spa->spa_comment,
+		    0, ZPROP_SRC_LOCAL);
+	}
+
 	if (spa->spa_root != NULL)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALTROOT, spa->spa_root,
 		    0, ZPROP_SRC_LOCAL);
@@ -347,7 +352,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		char *propname, *strval;
 		uint64_t intval;
 		objset_t *os;
-		char *slash;
+		char *slash, *check;
 
 		propname = nvpair_name(elem);
 
@@ -465,6 +470,20 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (slash[1] == '\0' || strcmp(slash, "/.") == 0 ||
 			    strcmp(slash, "/..") == 0)
 				error = EINVAL;
+			break;
+
+		case ZPOOL_PROP_COMMENT:
+			if ((error = nvpair_value_string(elem, &strval)) != 0)
+				break;
+			for (check = strval; *check != '\0'; check++) {
+				if (!isprint(*check)) {
+					error = EINVAL;
+					break;
+				}
+				check++;
+			}
+			if (strlen(strval) > ZPROP_MAX_COMMENT)
+				error = E2BIG;
 			break;
 
 		case ZPOOL_PROP_DEDUPDITTO:
@@ -1059,6 +1078,11 @@ spa_unload(spa_t *spa)
 	spa->spa_l2cache.sav_count = 0;
 
 	spa->spa_async_suspended = 0;
+
+	if (spa->spa_comment != NULL) {
+		spa_strfree(spa->spa_comment);
+		spa->spa_comment = NULL;
+	}
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 }
@@ -1787,12 +1811,17 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type,
 {
 	nvlist_t *config = spa->spa_config;
 	char *ereport = FM_EREPORT_ZFS_POOL;
+	char *comment;
 	int error;
 	uint64_t pool_guid;
 	nvlist_t *nvl;
 
 	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &pool_guid))
 		return (EINVAL);
+
+	ASSERT(spa->spa_comment == NULL);
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
+		spa->spa_comment = spa_strdup(comment);
 
 	/*
 	 * Versioning wasn't explicitly added to the label until later, so if
@@ -5400,6 +5429,20 @@ spa_sync_props(void *arg1, void *arg2, dmu_tx_t *tx)
 			 * 'readonly' and 'cachefile' are also non-persisitent
 			 * properties.
 			 */
+			break;
+		case ZPOOL_PROP_COMMENT:
+			VERIFY(nvpair_value_string(elem, &strval) == 0);
+			if (spa->spa_comment != NULL)
+				spa_strfree(spa->spa_comment);
+			spa->spa_comment = spa_strdup(strval);
+			/*
+			 * We need to dirty the configuration on all the vdevs
+			 * so that their labels get updated.  It's unnecessary
+			 * to do this for pool creation since the vdev's
+			 * configuratoin has already been dirtied.
+			 */
+			if (tx->tx_txg != TXG_INITIAL)
+				vdev_config_dirty(spa->spa_root_vdev);
 			break;
 		default:
 			/*

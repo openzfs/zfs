@@ -1,10 +1,10 @@
 '\" te
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
 .\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
-.TH zpool 8 "10 July 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zpool 8 "2 August 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -459,6 +459,17 @@ Amount of storage available within the pool. This property can also be referred 
 .RS 20n
 .rt  
 Percentage of pool space used. This property can also be referred to by its shortened column name, "cap".
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBcomment\fR\fR
+.ad
+.RS 20n
+.rt
+A text string consisting of printable ASCII characters that will be stored such that it is available even if the pool becomes faulted.  An administrator can provide additional information about a pool using this property.
 .RE
 
 .sp
