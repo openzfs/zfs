@@ -1,12 +1,10 @@
 '\" te
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2011 by Delphix. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
 .\" the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
-.\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
-.\" the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zfs 8 "8 Apr 2011" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zfs 8 "10 Jul 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zfs \- configures ZFS file systems
 .SH SYNOPSIS
@@ -27,12 +25,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBdestroy\fR [\fB-rRf\fR] \fIfilesystem\fR|\fIvolume\fR
+\fBzfs\fR \fBdestroy\fR [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBdestroy\fR [\fB-rRd\fR] \fIsnapshot\fR
+\fBzfs\fR \fBdestroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
 .fi
 
 .LP
@@ -107,13 +105,13 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBuserspace\fR [\fB-niHp\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-sS\fR \fIfield\fR] ...
-     [\fB-t\fR \fItype\fR [,...]] \fIfilesystem\fR|\fIsnapshot\fR
+     [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
 \fBzfs\fR \fBgroupspace\fR [\fB-niHp\fR] [\fB-o\fR \fIfield\fR[,...]] [\fB-sS\fR \fIfield\fR] ...
-     [\fB-t\fR \fItype\fR [,...]] \fIfilesystem\fR|\fIsnapshot\fR
+     [\fB-t\fR \fItype\fR[,...]] \fIfilesystem\fR|\fIsnapshot\fR
 .fi
 
 .LP
@@ -143,7 +141,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsend\fR [\fB-vRDp\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
+\fBzfs\fR \fBsend\fR [\fB-DnPpRrv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .fi
 
 .LP
@@ -378,6 +376,19 @@ The time this dataset was created.
 .ne 2
 .mk
 .na
+\fB\fBclones\fR\fR
+.ad
+.sp .6
+.RS 4n
+For snapshots, this property is a comma-separated list of filesystems or
+volumes which are clones of this snapshot.  The clones' \fBorigin\fR property
+is this snapshot.  If the \fBclones\fR property is not empty, then this
+snapshot can not be destroyed (even with the \fB-r\fR or \fB-f\fR options).
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBdefer_destroy\fR\fR
 .ad
 .sp .6
@@ -404,7 +415,7 @@ For file systems, indicates whether the file system is currently mounted. This p
 .ad
 .sp .6
 .RS 4n
-For cloned file systems or volumes, the snapshot from which the clone was created. The origin cannot be destroyed (even with the \fB-r\fR or \fB-f\fR options) so long as a clone exists.
+For cloned file systems or volumes, the snapshot from which the clone was created. See also the \fBclones\fR property.
 .RE
 
 .sp
@@ -588,6 +599,36 @@ Unprivileged users can only access their own groups' space usage. The root user,
 For volumes, specifies the block size of the volume. The \fBblocksize\fR cannot be changed once the volume has been written, so it should be set at volume creation time. The default \fBblocksize\fR for volumes is 8 Kbytes. Any power of 2 from 512 bytes to 128 Kbytes is valid.
 .sp
 This property can also be referred to by its shortened column name, \fBvolblock\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBwritten\fR\fR
+.ad
+.sp .6
+.RS 4n
+The amount of \fBreferenced\fR space written to this dataset since the
+previous snapshot.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBwritten@\fR\fIsnapshot\fR\fR
+.ad
+.sp .6
+.RS 4n
+The amount of \fBreferenced\fR space written to this dataset since the
+specified snapshot.  This is the space that is referenced by this dataset
+but was not referenced by the specified snapshot.
+.sp
+The \fIsnapshot\fR may be specified as a short snapshot name (just the part
+after the \fB@\fR), in which case it will be interpreted as a snapshot in
+the same filesystem as this dataset.
+The \fIsnapshot\fR be a full snapshot name (\fIfilesystem\fR@\fIsnapshot\fR),
+which for clones may be a snapshot in the origin's filesystem (or the origin
+of the origin's filesystem, etc).
 .RE
 
 .sp
@@ -972,6 +1013,26 @@ Controls whether the \fB\&.zfs\fR directory is hidden or visible in the root of 
 .ne 2
 .mk
 .na
+\fB\fBsync\fR=\fBdefault\fR | \fBalways\fR | \fBdisabled\fR\fR
+.ad
+.sp .6
+.RS 4n
+Controls the behavior of synchronous requests (e.g. fsync, O_DSYNC).
+\fBdefault\fR is the POSIX specified behavior of ensuring all synchronous
+requests are written to stable storage and all devices are flushed to ensure
+data is not cached by device controllers (this is the default). \fBalways\fR
+causes every file system transaction to be written and flushed before its
+system call returns. This has a large performance penalty. \fBdisabled\fR
+disables synchronous requests. File system transactions are only committed to
+stable storage periodically. This option will give the highest performance.
+However, it is very dangerous as ZFS would be ignoring the synchronous
+transaction demands of applications such as databases or NFS.  Administrators
+should only use this option when the risks are understood.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBversion\fR=\fB1\fR | \fB2\fR | \fBcurrent\fR\fR
 .ad
 .sp .6
@@ -1214,7 +1275,7 @@ Equivalent to \fB-o\fR \fBvolblocksize\fR=\fIblocksize\fR. If this option is spe
 .ne 2
 .mk
 .na
-\fB\fBzfs destroy\fR [\fB-rRf\fR] \fIfilesystem\fR|\fIvolume\fR\fR
+\fBzfs destroy\fR [\fB-fnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR
 .ad
 .sp .6
 .RS 4n
@@ -1252,6 +1313,39 @@ Recursively destroy all dependents, including cloned file systems outside the ta
 Force an unmount of any file systems using the \fBunmount -f\fR command. This option has no effect on non-file systems or unmounted file systems.
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fB-n\fR\fR
+.ad
+.sp .6
+.RS 4n
+Do a dry-run ("No-op") deletion.  No data will be deleted.  This is
+useful in conjunction with the \fB-v\fR or \fB-p\fR flags to determine what
+data would be deleted.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print machine-parsable verbose information about the deleted data.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-v\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print verbose information about the deleted data.
+.RE
+.sp
+
 Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR options, as they can destroy large portions of a pool and cause unexpected behavior for mounted file systems in use.
 .RE
 
@@ -1259,13 +1353,25 @@ Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR o
 .ne 2
 .mk
 .na
-\fB\fBzfs destroy\fR [\fB-rRd\fR] \fIsnapshot\fR\fR
+\fBzfs destroy\fR [\fB-dnpRrv\fR] \fIfilesystem\fR|\fIvolume\fR@\fIsnap\fR[%\fIsnap\fR][,...]
 .ad
 .sp .6
 .RS 4n
-The given snapshot is destroyed immediately if and only if the \fBzfs destroy\fR command without the \fB-d\fR option would have destroyed it. Such immediate destruction would occur, for example, if the snapshot had no clones and the user-initiated reference count were zero.
+The given snapshots are destroyed immediately if and only if the \fBzfs destroy\fR command without the \fB-d\fR option would have destroyed it. Such immediate destruction would occur, for example, if the snapshot had no clones and the user-initiated reference count were zero.
 .sp
-If the snapshot does not qualify for immediate destruction, it is marked for deferred destruction. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
+If a snapshot does not qualify for immediate destruction, it is marked for deferred destruction. In this state, it exists as a usable, visible snapshot until both of the preconditions listed above are met, at which point it is destroyed.
+.sp
+An inclusive range of snapshots may be specified by separating the
+first and last snapshots with a percent sign.
+The first and/or last snapshots may be left blank, in which case the
+filesystem's oldest or newest snapshot will be implied.
+.sp
+Multiple snapshots
+(or ranges of snapshots) of the same filesystem or volume may be specified
+in a comma-separated list of snapshots.
+Only the snapshot's short name (the
+part after the \fB@\fR) should be specified when using a range or
+comma-separated list to identify multiple snapshots.
 .sp
 .ne 2
 .mk
@@ -1297,6 +1403,44 @@ Destroy (or mark for deferred destruction) all snapshots with this name in desce
 .sp .6
 .RS 4n
 Recursively destroy all dependents.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-n\fR\fR
+.ad
+.sp .6
+.RS 4n
+Do a dry-run ("No-op") deletion.  No data will be deleted.  This is
+useful in conjunction with the \fB-v\fR or \fB-p\fR flags to determine what
+data would be deleted.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print machine-parsable verbose information about the deleted data.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-v\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print verbose information about the deleted data.
+.RE
+
+.sp
+Extreme care should be taken when applying either the \fB-r\fR or the \fB-f\fR
+options, as they can destroy large portions of a pool and cause unexpected
+behavior for mounted file systems in use.
 .RE
 
 .RE
@@ -2113,7 +2257,7 @@ Unshare the specified filesystem. The command can also be given a path to a \fBZ
 .ne 2
 .mk
 .na
-\fB\fBzfs send\fR [\fB-vRDp\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR\fR
+\fBzfs send\fR [\fB-DnPpRrv\fR] [\fB-\fR[\fBiI\fR] \fIsnapshot\fR] \fIsnapshot\fR
 .ad
 .sp .6
 .RS 4n
@@ -2239,6 +2383,66 @@ File system that is associated with the received stream is not mounted.
 .sp
 .ne 2
 .mk
+.na
+\fB\fB-D\fR\fR
+.ad
+.sp .6
+.RS 4n
+Generate a deduplicated stream.  Blocks which would have been sent multiple
+times in the send stream will only be sent once.  The receiving system must
+also support this feature to recieve a deduplicated stream.  This flag can
+be used regardless of the dataset's \fBdedup\fR property, but performance
+will be much better if the filesystem uses a dedup-capable checksum (eg.
+\fBsha256\fR).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-r\fR\fR
+.ad
+.sp .6
+.RS 4n
+Recursively send all descendant snapshots.  This is similar to the \fB-R\fR
+flag, but information about deleted and renamed datasets is not included, and
+property information is only included if the \fB-p\fR flag is specified.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\fR
+.ad
+.sp .6
+.RS 4n
+Include the dataset's properties in the stream.  This flag is implicit when
+\fB-R\fR is specified.  The receiving system must also support this feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-n\fR\fR
+.ad
+.sp .6
+.RS 4n
+Do a dry-run ("No-op") send.  Do not generate any actual send data.  This is
+useful in conjunction with the \fB-v\fR or \fB-P\fR flags to determine what
+data will be sent.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-P\fR\fR
+.ad
+.sp .6
+.RS 4n
+Print machine-parsable verbose information about the stream package generated.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fB-v\fR\fR
 .ad

@@ -264,7 +264,7 @@ zfs_prop_init(void)
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "1 | 2 | 3 | 4 | current", "VERSION", version_table);
+	    "1 | 2 | 3 | 4 | 5 | current", "VERSION", version_table);
 	zprop_register_index(ZFS_PROP_CANMOUNT, "canmount", ZFS_CANMOUNT_ON,
 	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM, "on | off | noauto",
 	    "CANMOUNT", canmount_table);
@@ -294,6 +294,8 @@ zfs_prop_init(void)
 	/* string properties */
 	zprop_register_string(ZFS_PROP_ORIGIN, "origin", NULL, PROP_READONLY,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<snapshot>", "ORIGIN");
+	zprop_register_string(ZFS_PROP_CLONES, "clones", NULL, PROP_READONLY,
+	    ZFS_TYPE_SNAPSHOT, "<dataset>[,...]", "CLONES");
 	zprop_register_string(ZFS_PROP_MOUNTPOINT, "mountpoint", "/",
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "<path> | legacy | none",
 	    "MOUNTPOINT");
@@ -339,6 +341,8 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>", "USEDREFRESERV");
 	zprop_register_number(ZFS_PROP_USERREFS, "userrefs", 0, PROP_READONLY,
 	    ZFS_TYPE_SNAPSHOT, "<count>", "USERREFS");
+	zprop_register_number(ZFS_PROP_WRITTEN, "written", 0, PROP_READONLY,
+	    ZFS_TYPE_DATASET, "<size>", "WRITTEN");
 
 	/* default number properties */
 	zprop_register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
@@ -469,6 +473,18 @@ zfs_prop_userquota(const char *name)
 	}
 
 	return (B_FALSE);
+}
+
+/*
+ * Returns true if this is a valid written@ property.
+ * Note that after the @, any character is valid (eg, another @, for
+ * written@pool/fs@origin).
+ */
+boolean_t
+zfs_prop_written(const char *name)
+{
+	static const char *prefix = "written@";
+	return (strncmp(name, prefix, strlen(prefix)) == 0);
 }
 
 /*
