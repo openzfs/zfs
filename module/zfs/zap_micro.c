@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -1404,7 +1405,7 @@ zap_count_write(objset_t *os, uint64_t zapobj, const char *name, int add,
 	}
 
 	/*
-	 * We lock the zap with adding ==  FALSE. Because, if we pass
+	 * We lock the zap with adding == FALSE. Because, if we pass
 	 * the actual value of add, it could trigger a mzap_upgrade().
 	 * At present we are just evaluating the possibility of this operation
 	 * and hence we donot want to trigger an upgrade.
