@@ -2258,6 +2258,8 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	char *cp, *end;
 	char *numericsid = NULL;
 	boolean_t isuser;
+    struct passwd *pw;
+    struct group *gr;
 
 	domain[0] = '\0';
 
@@ -2303,43 +2305,29 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 #else
 		return (ENOSYS);
 #endif /* HAVE_IDMAP */
-	}
+	} else if (isuser && (pw = getpwnam(cp)) != NULL) {
+      if (zoned && getzoneid() == GLOBAL_ZONEID)
+        return (ENOENT);
+      *ridp = pw->pw_uid;
+    } else if ((gr = getgrnam(cp)) != NULL) {
+      if (zoned && getzoneid() == GLOBAL_ZONEID)
+        return (ENOENT);
+      *ridp = gr->gr_gid;
+    } else if (strncmp(cp, "S-1-", 4) == 0) {
+      /* It's a numeric SID (eg "S-1-234-567-89") */
+      (void) strlcpy(domain, cp, domainlen);
+      cp = strrchr(domain, '-');
+      *cp = '\0';
+      cp++;
 
-	if (strncmp(cp, "S-1-", 4) == 0) {
-		/* It's a numeric SID (eg "S-1-234-567-89") */
-		(void) strlcpy(domain, cp, domainlen);
-		cp = strrchr(domain, '-');
-		*cp = '\0';
-		cp++;
-
-		errno = 0;
-		*ridp = strtoull(cp, &end, 10);
-		if (numericsid) {
-			free(numericsid);
-			numericsid = NULL;
-		}
-		if (errno != 0 || *end != '\0')
-			return (EINVAL);
-	} else if (!isdigit(*cp)) {
-		/*
-		 * It's a user/group name (eg "user") that needs to be
-		 * turned into a uid/gid
-		 */
-		if (zoned && getzoneid() == GLOBAL_ZONEID)
-			return (ENOENT);
-		if (isuser) {
-			struct passwd *pw;
-			pw = getpwnam(cp);
-			if (pw == NULL)
-				return (ENOENT);
-			*ridp = pw->pw_uid;
-		} else {
-			struct group *gr;
-			gr = getgrnam(cp);
-			if (gr == NULL)
-				return (ENOENT);
-			*ridp = gr->gr_gid;
-		}
+      errno = 0;
+      *ridp = strtoull(cp, &end, 10);
+      if (numericsid) {
+        free(numericsid);
+        numericsid = NULL;
+      }
+      if (errno != 0 || *end != '\0')
+        return (EINVAL);
 	} else {
 #ifdef HAVE_IDMAP
 		/* It's a user/group ID (eg "12345"). */
