@@ -6,9 +6,6 @@
 /* bio_end_io_t wants 2 args */
 #undef HAVE_2ARGS_BIO_END_IO_T
 
-/* fops->fsync() want 2 args */
-#undef HAVE_2ARGS_FSYNC
-
 /* security_inode_init_security wants 6 args */
 #undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
 
@@ -20,6 +17,9 @@
 
 /* struct super_block has s_bdi */
 #undef HAVE_BDI
+
+/* bdi_setup_and_register() is available */
+#undef HAVE_BDI_SETUP_AND_REGISTER
 
 /* bio_empy_barrier() is defined */
 #undef HAVE_BIO_EMPTY_BARRIER
@@ -89,6 +89,15 @@
 
 /* kernel defines fmode_t */
 #undef HAVE_FMODE_T
+
+/* fops->fsync() with range */
+#undef HAVE_FSYNC_RANGE
+
+/* fops->fsync() without dentry */
+#undef HAVE_FSYNC_WITHOUT_DENTRY
+
+/* fops->fsync() with dentry */
+#undef HAVE_FSYNC_WITH_DENTRY
 
 /* blk_disk_ro() is available */
 #undef HAVE_GET_DISK_RO

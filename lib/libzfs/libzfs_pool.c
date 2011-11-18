@@ -443,7 +443,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
-			if (intval != 0 && (intval < 9 || intval > 17)) {
+			if (intval != 0 && (intval < 9 || intval > 12)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "property '%s' number %d is invalid."),
 				    propname, intval);
