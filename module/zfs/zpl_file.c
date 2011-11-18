@@ -76,27 +76,16 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	return (error);
 }
 
+#if defined(HAVE_FSYNC_WITH_DENTRY)
 /*
- * 2.6.35 API change,
- * As of 2.6.35 the dentry argument to the .fsync() vfs hook was deemed
- * redundant.  The dentry is still accessible via filp->f_path.dentry,
- * and we are guaranteed that filp will never be NULL.
- *
- * 2.6.34 API change,
- * Prior to 2.6.34 the nfsd kernel server would pass a NULL file struct *
- * to the .fsync() hook.  For this reason, we must be careful not to use
- * filp unconditionally in the 3 argument case.
+ * Linux 2.6.x - 2.6.34 API,
+ * Through 2.6.34 the nfsd kernel server would pass a NULL 'file struct *'
+ * to the fops->fsync() hook.  For this reason, we must be careful not to
+ * use filp unconditionally.
  */
-#ifdef HAVE_2ARGS_FSYNC
-static int
-zpl_fsync(struct file *filp, int datasync)
-{
-	struct dentry *dentry = filp->f_path.dentry;
-#else
 static int
 zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
 {
-#endif /* HAVE_2ARGS_FSYNC */
 	cred_t *cr = CRED();
 	int error;
 
@@ -107,6 +96,58 @@ zpl_fsync(struct file *filp, struct dentry *dentry, int datasync)
 
 	return (error);
 }
+
+#elif defined(HAVE_FSYNC_WITHOUT_DENTRY)
+/*
+ * Linux 2.6.35 - 3.0 API,
+ * As of 2.6.35 the dentry argument to the fops->fsync() hook was deemed
+ * redundant.  The dentry is still accessible via filp->f_path.dentry,
+ * and we are guaranteed that filp will never be NULL.
+ */
+static int
+zpl_fsync(struct file *filp, int datasync)
+{
+	struct inode *inode = filp->f_mapping->host;
+	cred_t *cr = CRED();
+	int error;
+
+	crhold(cr);
+	error = -zfs_fsync(inode, datasync, cr);
+	crfree(cr);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+
+#elif defined(HAVE_FSYNC_RANGE)
+/*
+ * Linux 3.1 - 3.x API,
+ * As of 3.1 the responsibility to call filemap_write_and_wait_range() has
+ * been pushed down in to the .fsync() vfs hook.  Additionally, the i_mutex
+ * lock is no longer held by the caller, for zfs we don't require the lock
+ * to be held so we don't acquire it.
+ */
+static int
+zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
+{
+	struct inode *inode = filp->f_mapping->host;
+	cred_t *cr = CRED();
+	int error;
+
+	error = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	if (error)
+		return (error);
+
+	crhold(cr);
+	error = -zfs_fsync(inode, datasync, cr);
+	crfree(cr);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
+}
+#else
+#error "Unsupported fops->fsync() implementation"
+#endif
 
 ssize_t
 zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t pos,
