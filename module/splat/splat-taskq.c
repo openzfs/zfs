@@ -344,7 +344,7 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 				splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 				        "Taskq '%s' function '%s' dispatch "
 					"%d failed\n", tq_arg.name,
-					sym2str(splat_taskq_test13_func), j);
+					sym2str(splat_taskq_test4_func), j);
 					rc = -EINVAL;
 					goto out;
 			}
