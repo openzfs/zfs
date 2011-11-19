@@ -2249,6 +2249,8 @@ out:
  * convert the propname into parameters needed by kernel
  * Eg: userquota@ahrens -> ZFS_PROP_USERQUOTA, "", 126829
  * Eg: userused@matt@domain -> ZFS_PROP_USERUSED, "S-1-123-456", 789
+ * Eg: groupquota@staff -> ZFS_PROP_GROUPQUOTA, "", 1234
+ * Eg: groupused@staff -> ZFS_PROP_GROUPUSED, "", 1234
  */
 static int
 userquota_propname_decode(const char *propname, boolean_t zoned,
@@ -2258,6 +2260,9 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	char *cp, *end;
 	char *numericsid = NULL;
 	boolean_t isuser;
+	boolean_t isgroup;
+	struct passwd *pw;
+	struct group *gr;
 
 	domain[0] = '\0';
 
@@ -2273,10 +2278,20 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 
 	isuser = (type == ZFS_PROP_USERQUOTA ||
 	    type == ZFS_PROP_USERUSED);
+	isgroup = (type == ZFS_PROP_GROUPQUOTA || type ==
+	    ZFS_PROP_GROUPUSED);
 
 	cp = strchr(propname, '@') + 1;
 
-	if (strchr(cp, '@')) {
+	if (isuser && (pw = getpwnam(cp)) != NULL) {
+		if (zoned && getzoneid() == GLOBAL_ZONEID)
+			return (ENOENT);
+		*ridp = pw->pw_uid;
+	} else if (isgroup && (gr = getgrnam(cp)) != NULL) {
+		if (zoned && getzoneid() == GLOBAL_ZONEID)
+			return (ENOENT);
+		*ridp = gr->gr_gid;
+	} else if (strchr(cp, '@')) {
 #ifdef HAVE_IDMAP
 		/*
 		 * It's a SID name (eg "user@domain") that needs to be
@@ -2299,14 +2314,6 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		if (numericsid == NULL)
 			return (ENOENT);
 		cp = numericsid;
-		/* will be further decoded below */
-#else
-		return (ENOSYS);
-#endif /* HAVE_IDMAP */
-	}
-
-	if (strncmp(cp, "S-1-", 4) == 0) {
-		/* It's a numeric SID (eg "S-1-234-567-89") */
 		(void) strlcpy(domain, cp, domainlen);
 		cp = strrchr(domain, '-');
 		*cp = '\0';
@@ -2314,32 +2321,14 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 
 		errno = 0;
 		*ridp = strtoull(cp, &end, 10);
-		if (numericsid) {
-			free(numericsid);
-			numericsid = NULL;
-		}
+		free(numericsid);
+		numericsid = NULL;
+
 		if (errno != 0 || *end != '\0')
 			return (EINVAL);
-	} else if (!isdigit(*cp)) {
-		/*
-		 * It's a user/group name (eg "user") that needs to be
-		 * turned into a uid/gid
-		 */
-		if (zoned && getzoneid() == GLOBAL_ZONEID)
-			return (ENOENT);
-		if (isuser) {
-			struct passwd *pw;
-			pw = getpwnam(cp);
-			if (pw == NULL)
-				return (ENOENT);
-			*ridp = pw->pw_uid;
-		} else {
-			struct group *gr;
-			gr = getgrnam(cp);
-			if (gr == NULL)
-				return (ENOENT);
-			*ridp = gr->gr_gid;
-		}
+#else
+		return (ENOSYS);
+#endif /* HAVE_IDMAP */
 	} else {
 #ifdef HAVE_IDMAP
 		/* It's a user/group ID (eg "12345"). */
