@@ -1,3 +1,13 @@
+zfs-linux (0.6.0.39-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Limit maximum ashift value to 12
+
+  [ Suman Chakravartula ]
+  * Allow leading digits in userquota/groupquota names
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Nov 2011 08:35:47 -0600
+
 zfs-linux (0.6.0.38-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
