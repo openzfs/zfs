@@ -12,7 +12,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_STACK_GUARD], [
 	saved_LDFLAGS="$LDFLAGS"
 	LDFLAGS="-lpthread"
 
-	AC_RUN_IFELSE(AC_LANG_PROGRAM(
+	AC_RUN_IFELSE([AC_LANG_PROGRAM(
 	[
 		#include <pthread.h>
 		#include <sys/resource.h>
@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_STACK_GUARD], [
 
 		void * func(void *arg)
 		{
-			char buf[[[BUFSIZE]]];
+			char buf[[BUFSIZE]];
 		}
 	],
 	[
@@ -41,7 +41,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_STACK_GUARD], [
 		pthread_attr_setguardsize(&attr, PAGESIZE);
 		pthread_create(&tid, &attr, func, NULL);
 		pthread_join(tid, NULL);
-	]),
+	])],
 	[
 		AC_MSG_RESULT([no])
 	],
