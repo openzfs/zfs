@@ -39,7 +39,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 			saved_LDFLAGS="$LDFLAGS"
 			LDFLAGS="-lblkid"
 
-			AC_RUN_IFELSE(AC_LANG_PROGRAM(
+			AC_RUN_IFELSE([AC_LANG_PROGRAM(
 			[
 				#include <stdio.h>
 				#include <blkid/blkid.h>
@@ -66,7 +66,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 
 				free(value);
 				blkid_put_cache(cache);
-			]),
+			])],
 			[
 				rm -f $ZFS_DEV
 				AC_MSG_RESULT([yes])
