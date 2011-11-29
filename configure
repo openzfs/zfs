@@ -12486,6 +12486,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking block device operation prototypes" >&5
 $as_echo_n "checking block device operation prototypes... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -12563,6 +12565,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 	{ $as_echo "$as_me:$LINENO: checking whether kernel defines fmode_t" >&5
 $as_echo_n "checking whether kernel defines fmode_t... " >&6; }
@@ -12869,6 +12872,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether bdev_logical_block_size() is available" >&5
 $as_echo_n "checking whether bdev_logical_block_size() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -12931,6 +12936,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
@@ -13471,6 +13477,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_end_request() is available" >&5
 $as_echo_n "checking whether blk_end_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -13601,10 +13609,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_fetch_request() is available" >&5
 $as_echo_n "checking whether blk_fetch_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -13667,10 +13678,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_requeue_request() is available" >&5
 $as_echo_n "checking whether blk_requeue_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -13734,10 +13748,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_bytes() is available" >&5
 $as_echo_n "checking whether blk_rq_bytes() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -13868,10 +13885,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_pos() is available" >&5
 $as_echo_n "checking whether blk_rq_pos() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -13934,10 +13954,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_sectors() is available" >&5
 $as_echo_n "checking whether blk_rq_sectors() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -14000,10 +14023,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether get_disk_ro() is available" >&5
 $as_echo_n "checking whether get_disk_ro() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -14066,10 +14092,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
 $as_echo_n "checking whether rq_is_sync() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -14132,10 +14161,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_for_each_segment() is available" >&5
 $as_echo_n "checking whether rq_for_each_segment() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -14200,6 +14232,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 	{ $as_echo "$as_me:$LINENO: checking whether super_block uses const struct xattr_hander" >&5
 $as_echo_n "checking whether super_block uses const struct xattr_hander... " >&6; }
@@ -17223,6 +17256,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking block device operation prototypes" >&5
 $as_echo_n "checking block device operation prototypes... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -17300,6 +17335,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 	{ $as_echo "$as_me:$LINENO: checking whether kernel defines fmode_t" >&5
 $as_echo_n "checking whether kernel defines fmode_t... " >&6; }
@@ -17606,6 +17642,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether bdev_logical_block_size() is available" >&5
 $as_echo_n "checking whether bdev_logical_block_size() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -17668,6 +17706,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether bio_empty_barrier() is defined" >&5
@@ -18208,6 +18247,8 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_end_request() is available" >&5
 $as_echo_n "checking whether blk_end_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18338,10 +18379,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_fetch_request() is available" >&5
 $as_echo_n "checking whether blk_fetch_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18404,10 +18448,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_requeue_request() is available" >&5
 $as_echo_n "checking whether blk_requeue_request() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18471,10 +18518,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_bytes() is available" >&5
 $as_echo_n "checking whether blk_rq_bytes() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18605,10 +18655,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_pos() is available" >&5
 $as_echo_n "checking whether blk_rq_pos() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18671,10 +18724,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether blk_rq_sectors() is available" >&5
 $as_echo_n "checking whether blk_rq_sectors() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18737,10 +18793,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether get_disk_ro() is available" >&5
 $as_echo_n "checking whether get_disk_ro() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18803,10 +18862,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
 $as_echo_n "checking whether rq_is_sync() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18869,10 +18931,13 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_for_each_segment() is available" >&5
 $as_echo_n "checking whether rq_for_each_segment() is available... " >&6; }
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 
 
 cat confdefs.h - <<_ACEOF >conftest.c
@@ -18937,6 +19002,7 @@ fi
 	rm -Rf build
 
 
+	EXTRA_KCFLAGS="$tmp_flags"
 
 	{ $as_echo "$as_me:$LINENO: checking whether super_block uses const struct xattr_hander" >&5
 $as_echo_n "checking whether super_block uses const struct xattr_hander... " >&6; }
