@@ -356,6 +356,10 @@ const struct inode_operations zpl_symlink_inode_operations = {
 	.put_link	= zpl_put_link,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
+	.setxattr	= generic_setxattr,
+	.getxattr	= generic_getxattr,
+	.removexattr	= generic_removexattr,
+	.listxattr	= zpl_xattr_list,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
