@@ -722,6 +722,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST6_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST5_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST4_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST3_ID);
