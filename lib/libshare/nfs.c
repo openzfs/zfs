@@ -48,6 +48,10 @@ typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
 typedef int (*nfs_host_callback_t)(const char *sharepath, const char *host,
     const char *security, const char *access, void *cookie);
 
+/**
+ * Invokes the specified callback function for each Solaris share option
+ * listed in the specified string.
+ */
 static int
 foreach_nfs_shareopt(const char *shareopts,
     nfs_shareopt_callback_t callback, void *cookie)
@@ -111,6 +115,11 @@ typedef struct nfs_host_cookie_s {
 	const char *security;
 } nfs_host_cookie_t;
 
+/**
+ * Helper function for foreach_nfs_host. This function checks whether the
+ * current share option is a host specification and invokes a callback
+ * function with information about the host.
+ */
 static int
 foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 {
@@ -164,6 +173,9 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 	return SA_OK;
 }
 
+/**
+ * Invokes a callback function for all NFS hosts that are set for a share.
+ */
 static int
 foreach_nfs_host(sa_share_impl_t impl_share, nfs_host_callback_t callback,
     void *cookie)
@@ -182,6 +194,9 @@ foreach_nfs_host(sa_share_impl_t impl_share, nfs_host_callback_t callback,
 	    &udata);
 }
 
+/**
+ * Converts a Solaris NFS host specification to its Linux equivalent.
+ */
 static int
 get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 {
@@ -206,6 +221,9 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 	return SA_OK;
 }
 
+/**
+ * Used internally by nfs_enable_share to enable sharing for a single host.
+ */
 static int
 nfs_enable_share_one(const char *sharepath, const char *host,
     const char *security, const char *access, void *pcookie)
@@ -266,6 +284,9 @@ nfs_enable_share_one(const char *sharepath, const char *host,
 		return SA_OK;
 }
 
+/**
+ * Adds a Linux share option to an array of NFS options.
+ */
 static int
 add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 {
@@ -298,6 +319,10 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 	return SA_OK;
 }
 
+/**
+ * Validates and converts a single Solaris share option to its Linux
+ * equivalent.
+ */
 static int
 get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 {
@@ -345,6 +370,10 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 	return SA_OK;
 }
 
+/**
+ * Takes a string containing Solaris share options (e.g. "sync,no_acl") and
+ * converts them to a NULL-terminated array of Linux NFS options.
+ */
 static int
 get_linux_shareopts(const char *shareopts, char **plinux_opts)
 {
@@ -369,6 +398,9 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
 	return rc;
 }
 
+/**
+ * Enables NFS sharing for the specified share.
+ */
 static int
 nfs_enable_share(sa_share_impl_t impl_share)
 {
@@ -396,6 +428,9 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	return rc;
 }
 
+/**
+ * Used internally by nfs_disable_share to disable sharing for a single host.
+ */
 static int
 nfs_disable_share_one(const char *sharepath, const char *host,
     const char *security, const char *access, void *cookie)
@@ -439,6 +474,9 @@ nfs_disable_share_one(const char *sharepath, const char *host,
 		return SA_OK;
 }
 
+/**
+ * Disables NFS sharing for the specified share.
+ */
 static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
@@ -453,6 +491,9 @@ nfs_disable_share(sa_share_impl_t impl_share)
 	return foreach_nfs_host(impl_share, nfs_disable_share_one, NULL);
 }
 
+/**
+ * Checks whether the specified NFS share options are syntactically correct.
+ */
 static int
 nfs_validate_shareopts(const char *shareopts)
 {
@@ -469,6 +510,9 @@ nfs_validate_shareopts(const char *shareopts)
 	return SA_OK;
 }
 
+/**
+ * Checks whether a share is currently active.
+ */
 static boolean_t
 is_share_active(sa_share_impl_t impl_share)
 {
@@ -527,6 +571,12 @@ is_share_active(sa_share_impl_t impl_share)
 	return B_FALSE;
 }
 
+/**
+ * Called to update a share's options. A share's options might be out of
+ * date if the share was loaded from disk (i.e. /etc/dfs/sharetab) and the
+ * "sharenfs" dataset property has changed in the meantime. This function
+ * also takes care of re-enabling the share if necessary.
+ */
 static int
 nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
     const char *shareopts)
@@ -564,7 +614,10 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	return SA_OK;
 }
 
-
+/**
+ * Clears a share's NFS options. Used by libshare to
+ * clean up shares that are about to be free()'d.
+ */
 static void
 nfs_clear_shareopts(sa_share_impl_t impl_share)
 {
@@ -650,6 +703,9 @@ nfs_check_exportfs(void)
 	exit(0);
 }
 
+/**
+ * Initializes the NFS functionality of libshare.
+ */
 void
 libshare_nfs_init(void)
 {
