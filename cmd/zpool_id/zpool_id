@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
-AWK=${AWK:-/usr/bin/awk}
+CONFIG="${CONFIG:-/etc/zfs/zdev.conf}"
+AWK="${AWK:-/usr/bin/awk}"
 
 if [ -z "${PATH_ID}" ]; then
 	# The path_id helper became a builtin command in udev 174.
@@ -19,7 +19,7 @@ die() {
 
 usage() {
 	cat << EOF
-Usage: zpool_id [h] [-c configfile] <devpath>
+Usage: zpool_id [-h] [-c configfile] <devpath>
   -c    Alternate config file [default /etc/zfs/zdev.conf]
   -d    Use path_id from device as the mapping key
   -h    Show this message
@@ -30,10 +30,10 @@ EOF
 while getopts 'c:d:h' OPTION; do
 	case ${OPTION} in
 	c)
-		CONFIG=${OPTARG}
+		CONFIG="${OPTARG}"
 		;;
 	d)
-		DEVICE=${OPTARG}
+		DEVICE="${OPTARG}"
 		;;
 	h)
 		usage
@@ -42,21 +42,21 @@ while getopts 'c:d:h' OPTION; do
 done
 
 # Check that a device was requested
-[ -z ${DEVICE} ] && usage
+[ -z "${DEVICE}" ] && usage
 
 # Check for the existence of a configuration file
-[ ! -f ${CONFIG} ] && die "Missing config file: ${CONFIG}"
+[ ! -f "${CONFIG}" ] && die "Missing config file: ${CONFIG}"
 
 # If we are handling a multipath device then $DM_UUID will be
 # exported and we'll use its value (prefixed with dm-uuid per
 # multipathd's naming convention) as our unique persistent key.
 # For traditional devices we'll obtain the key from udev's
 # path_id.
-if [ -n "${DM_UUID}" ] && echo ${DM_UUID} | egrep -q -e '^mpath' ; then
+if [ -n "${DM_UUID}" ] && echo "${DM_UUID}" | egrep -q -e '^mpath' ; then
 	ID_PATH="dm-uuid-${DM_UUID}"
 else
 	eval `${PATH_ID} ${DEVICE}`
-	[ -z ${ID_PATH} ] && die "Missing ID_PATH for ${DEVICE}"
+	[ -z "${ID_PATH}" ] && die "Missing ID_PATH for ${DEVICE}"
 fi
 
 # Use the persistent key to lookup the zpool device id in the
@@ -65,10 +65,10 @@ fi
 # Exact matches are required, wild cards are not supported,
 # and only the first match is returned.  Also note the following
 # regex pattern only appears to work with gawk, not mawk or awk.
-ID_ZPOOL=`${AWK} "/\<${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" ${CONFIG}`
-[ -z ${ID_ZPOOL} ] && die "Missing ID_ZPOOL for ID_PATH: ${ID_PATH}"
+ID_ZPOOL=`${AWK} "/\<${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" "${CONFIG}"`
+[ -z "${ID_ZPOOL}" ] && die "Missing ID_ZPOOL for ID_PATH: ${ID_PATH}"
 
-if [ ${ID_ZPOOL} ]; then
+if [ -n "${ID_ZPOOL}" ]; then
 	echo "ID_PATH=${ID_PATH}"
 	echo "ID_ZPOOL=${ID_ZPOOL}"
 	echo "ID_ZPOOL_PATH=disk/zpool/${ID_ZPOOL}"
