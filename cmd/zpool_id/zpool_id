@@ -1,8 +1,16 @@
 #!/bin/bash
 
 CONFIG=${CONFIG:-/etc/zfs/zdev.conf}
-PATH_ID=${PATH_ID:-/lib/udev/path_id}
 AWK=${AWK:-/usr/bin/awk}
+
+if [ -z "${PATH_ID}" ]; then
+	# The path_id helper became a builtin command in udev 174.
+	if [ -x '/lib/udev/path_id' ]; then
+		PATH_ID='/lib/udev/path_id'
+	else
+		PATH_ID='udevadm test-builtin path_id'
+	fi
+fi
 
 die() {
 	echo "Error: $*"
