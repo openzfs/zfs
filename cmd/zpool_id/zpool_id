@@ -52,7 +52,7 @@ done
 # multipathd's naming convention) as our unique persistent key.
 # For traditional devices we'll obtain the key from udev's
 # path_id.
-if [ -n "${DM_UUID}" ] && echo "${DM_UUID}" | egrep -q -e '^mpath' ; then
+if [ -n "${DM_UUID}" ] && echo "${DM_UUID}" | grep -q -e '^mpath' ; then
 	ID_PATH="dm-uuid-${DM_UUID}"
 else
 	eval `${PATH_ID} ${DEVICE}`
