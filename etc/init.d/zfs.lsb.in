@@ -25,15 +25,13 @@
 # Source function library.
 . /lib/lsb/init-functions
 
-# Source zfs configuration.
-[ -f /etc/defaults/zfs ] &&  . /etc/defaults/zfs
-
-RETVAL=0
-
 LOCKFILE=/var/lock/zfs
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
+# Source zfs configuration.
+[ -r /etc/default/zfs ] &&  . /etc/default/zfs
 
 [ -x $ZPOOL ] || exit 1
 [ -x $ZFS ] || exit 2
