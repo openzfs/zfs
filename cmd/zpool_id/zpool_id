@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 CONFIG="${CONFIG:-/etc/zfs/zdev.conf}"
 AWK="${AWK:-/usr/bin/awk}"
