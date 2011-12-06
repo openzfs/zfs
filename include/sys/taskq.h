@@ -45,6 +45,14 @@
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
 
+typedef struct taskq_ent {
+        spinlock_t              tqent_lock;
+        struct list_head        tqent_list;
+        taskqid_t               tqent_id;
+        task_func_t             *tqent_func;
+        void                    *tqent_arg;
+} taskq_ent_t;
+
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
  * KM_SLEEP/KM_NOSLEEP.  TQ_NOQUEUE/TQ_NOALLOC are set particularly
@@ -61,8 +69,9 @@ typedef void (task_func_t)(void *);
 typedef struct taskq {
         spinlock_t              tq_lock;       /* protects taskq_t */
         unsigned long           tq_lock_flags; /* interrupt state */
-        struct task_struct      **tq_threads;  /* thread pointers */
 	const char              *tq_name;      /* taskq name */
+        struct list_head        tq_thread_list;/* list of all threads */
+	struct list_head        tq_active_list;/* list of active threads */
         int                     tq_nactive;    /* # of active threads */
         int                     tq_nthreads;   /* # of total threads */
 	int                     tq_pri;        /* priority */
@@ -73,12 +82,19 @@ typedef struct taskq {
 	taskqid_t               tq_next_id;    /* next pend/work id */
 	taskqid_t               tq_lowest_id;  /* lowest pend/work id */
 	struct list_head        tq_free_list;  /* free task_t's */
-	struct list_head        tq_work_list;  /* work task_t's */
 	struct list_head        tq_pend_list;  /* pending task_t's */
 	struct list_head        tq_prio_list;  /* priority pending task_t's */
 	wait_queue_head_t       tq_work_waitq; /* new work waitq */
 	wait_queue_head_t       tq_wait_waitq; /* wait waitq */
 } taskq_t;
+
+typedef struct taskq_thread {
+	struct list_head       tqt_thread_list;
+	struct list_head       tqt_active_list;
+	struct task_struct     *tqt_thread;
+	taskq_t                *tqt_tq;
+	taskq_ent_t            *tqt_ent;
+} taskq_thread_t;
 
 /* Global system-wide dynamic task queue available for all consumers */
 extern taskq_t *system_taskq;
