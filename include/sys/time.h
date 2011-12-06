@@ -34,8 +34,13 @@
 #include <sys/types.h>
 #include <sys/timer.h>
 
-#define TIME32_MAX			INT32_MAX
-#define TIME32_MIN			INT32_MIN
+#if defined(CONFIG_64BIT)
+#define TIME_MAX			INT64_MAX
+#define TIME_MIN			INT64_MIN
+#else
+#define TIME_MAX			INT32_MAX
+#define TIME_MIN			INT32_MIN
+#endif
 
 #define SEC				1
 #define MILLISEC			1000
@@ -83,6 +88,6 @@ gethrestime_sec(void)
 }
 
 #define TIMESPEC_OVERFLOW(ts)		\
-	((ts)->tv_sec < TIME32_MIN || (ts)->tv_sec > TIME32_MAX)
+	((ts)->tv_sec < TIME_MIN || (ts)->tv_sec > TIME_MAX)
 
 #endif  /* _SPL_TIME_H */
