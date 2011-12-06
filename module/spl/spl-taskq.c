@@ -57,6 +57,9 @@ retry:
         /* Acquire taskq_ent_t's from free list if available */
         if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
                 t = list_entry(tq->tq_free_list.next, taskq_ent_t, tqent_list);
+
+                ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+
                 list_del_init(&t->tqent_list);
                 SRETURN(t);
         }
@@ -93,11 +96,7 @@ retry:
         spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
         if (t) {
-                spin_lock_init(&t->tqent_lock);
-                INIT_LIST_HEAD(&t->tqent_list);
-                t->tqent_id = 0;
-                t->tqent_func = NULL;
-                t->tqent_arg = NULL;
+                taskq_init_ent(t);
                 tq->tq_nalloc++;
         }
 
@@ -136,12 +135,18 @@ task_done(taskq_t *tq, taskq_ent_t *t)
 	ASSERT(t);
 	ASSERT(spin_is_locked(&tq->tq_lock));
 
+	/* For prealloc'd tasks, we don't free anything. */
+	if ((!(tq->tq_flags & TASKQ_DYNAMIC)) &&
+	    (t->tqent_flags & TQENT_FLAG_PREALLOC))
+		return;
+
 	list_del_init(&t->tqent_list);
 
         if (tq->tq_nalloc <= tq->tq_minalloc) {
 		t->tqent_id = 0;
 		t->tqent_func = NULL;
 		t->tqent_arg = NULL;
+		t->tqent_flags = 0;
                 list_add_tail(&t->tqent_list, &tq->tq_free_list);
 	} else {
 		task_free(tq, t);
@@ -281,6 +286,9 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	tq->tq_next_id++;
         t->tqent_func = func;
         t->tqent_arg = arg;
+
+	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+
 	spin_unlock(&t->tqent_lock);
 
 	wake_up(&tq->tq_work_waitq);
@@ -289,6 +297,72 @@ out:
 	SRETURN(rc);
 }
 EXPORT_SYMBOL(__taskq_dispatch);
+
+void
+__taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+   taskq_ent_t *t)
+{
+	SENTRY;
+
+	ASSERT(tq);
+	ASSERT(func);
+	ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+
+	/* Taskq being destroyed and all tasks drained */
+	if (!(tq->tq_flags & TQ_ACTIVE)) {
+		t->tqent_id = 0;
+		goto out;
+	}
+
+	spin_lock(&t->tqent_lock);
+
+	/*
+	 * Mark it as a prealloc'd task.  This is important
+	 * to ensure that we don't free it later.
+	 */
+	t->tqent_flags |= TQENT_FLAG_PREALLOC;
+
+	/* Queue to the priority list instead of the pending list */
+	if (flags & TQ_FRONT)
+		list_add_tail(&t->tqent_list, &tq->tq_prio_list);
+	else
+		list_add_tail(&t->tqent_list, &tq->tq_pend_list);
+
+	t->tqent_id = tq->tq_next_id;
+	tq->tq_next_id++;
+	t->tqent_func = func;
+	t->tqent_arg = arg;
+
+	spin_unlock(&t->tqent_lock);
+
+	wake_up(&tq->tq_work_waitq);
+out:
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+	SEXIT;
+}
+EXPORT_SYMBOL(__taskq_dispatch_ent);
+
+int
+__taskq_empty_ent(taskq_ent_t *t)
+{
+	return list_empty(&t->tqent_list);
+}
+EXPORT_SYMBOL(__taskq_empty_ent);
+
+void
+__taskq_init_ent(taskq_ent_t *t)
+{
+	spin_lock_init(&t->tqent_lock);
+	INIT_LIST_HEAD(&t->tqent_list);
+	t->tqent_id = 0;
+	t->tqent_func = NULL;
+	t->tqent_arg = NULL;
+	t->tqent_flags = 0;
+}
+EXPORT_SYMBOL(__taskq_init_ent);
+
 /*
  * Returns the lowest incomplete taskqid_t.  The taskqid_t may
  * be queued on the pending list, on the priority list,  or on
@@ -407,6 +481,10 @@ taskq_thread(void *args)
 		if (pend_list) {
                         t = list_entry(pend_list->next, taskq_ent_t, tqent_list);
                         list_del_init(&t->tqent_list);
+			/* In order to support recursively dispatching a
+			 * preallocated taskq_ent_t, tqent_id must be
+			 * stored prior to executing tqent_func. */
+			id = t->tqent_id;
 			tqt->tqt_ent = t;
 			taskq_insert_in_order(tq, tqt);
                         tq->tq_nactive++;
@@ -419,7 +497,6 @@ taskq_thread(void *args)
                         tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
 			tqt->tqt_ent = NULL;
-			id = t->tqent_id;
                         task_done(tq, t);
 
 			/* When the current lowest outstanding taskqid is
@@ -570,6 +647,9 @@ __taskq_destroy(taskq_t *tq)
 
         while (!list_empty(&tq->tq_free_list)) {
 		t = list_entry(tq->tq_free_list.next, taskq_ent_t, tqent_list);
+
+		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+
 	        list_del_init(&t->tqent_list);
                 task_free(tq, t);
         }

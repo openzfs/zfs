@@ -51,7 +51,10 @@ typedef struct taskq_ent {
         taskqid_t               tqent_id;
         task_func_t             *tqent_func;
         void                    *tqent_arg;
+        uintptr_t               tqent_flags;
 } taskq_ent_t;
+
+#define TQENT_FLAG_PREALLOC     0x1
 
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
@@ -100,6 +103,9 @@ typedef struct taskq_thread {
 extern taskq_t *system_taskq;
 
 extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
+extern void __taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t, taskq_ent_t *);
+extern int __taskq_empty_ent(taskq_ent_t *);
+extern void __taskq_init_ent(taskq_ent_t *);
 extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void __taskq_destroy(taskq_t *);
 extern void __taskq_wait_id(taskq_t *, taskqid_t);
@@ -113,6 +119,9 @@ void spl_taskq_fini(void);
 #define taskq_wait_id(tq, id)              __taskq_wait_id(tq, id)
 #define taskq_wait(tq)                     __taskq_wait(tq)
 #define taskq_dispatch(tq, f, p, fl)       __taskq_dispatch(tq, f, p, fl)
+#define taskq_dispatch_ent(tq, f, p, fl, t) __taskq_dispatch_ent(tq, f, p, fl, t)
+#define taskq_empty_ent(t)                 __taskq_empty_ent(t)
+#define taskq_init_ent(t)                  __taskq_init_ent(t)
 #define taskq_create(n, th, p, mi, ma, fl) __taskq_create(n, th, p, mi, ma, fl)
 #define taskq_create_proc(n, th, p, mi, ma, pr, fl)	\
 	__taskq_create(n, th, p, mi, ma, fl)
