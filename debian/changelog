@@ -1,3 +1,28 @@
+zfs-linux (0.6.0.40-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * In autoconf v2.68, AC_LANG_PROGRAM must be quoted
+  * Fix configure tests to play nice with GCC 4.6
+
+  [ Brian Behlendorf ]
+  * Implement SA based xattrs
+  * Allow xattrs on symlinks
+  * Update default ARC memory limits
+
+  [ Gunnar Beutner ]
+  * Added comments for libshare's NFS functions.
+
+  [ Darik Horn ]
+  * Support path_id changes in udev 174.
+  * Quote variables in the zpool_id script.
+  * Demote egrep to grep in the zpool_id script.
+  * Demote the whackbang in the zpool_id script.
+  * Source /etc/default/zfs after setting defaults.
+  * Quote variables in the zfs.lsb script.
+  * Revert "Depend on udev that provides stand-alone path_id."
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 05 Dec 2011 20:13:57 -0600
+
 zfs-linux (0.6.0.39-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
