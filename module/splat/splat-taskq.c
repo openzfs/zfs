@@ -53,13 +53,20 @@
 #define SPLAT_TASKQ_TEST6_NAME		"front"
 #define SPLAT_TASKQ_TEST6_DESC		"Correct ordering with TQ_FRONT flag"
 
+#define SPLAT_TASKQ_TEST7_ID		0x0207
+#define SPLAT_TASKQ_TEST7_NAME		"recurse"
+#define SPLAT_TASKQ_TEST7_DESC		"Single task queue, recursive dispatch"
+
 #define SPLAT_TASKQ_ORDER_MAX		8
+#define SPLAT_TASKQ_DEPTH_MAX		16
 
 typedef struct splat_taskq_arg {
 	int flag;
 	int id;
 	atomic_t count;
 	int order[SPLAT_TASKQ_ORDER_MAX];
+	unsigned int depth;
+	taskq_t *tq;
 	spinlock_t lock;
 	struct file *file;
 	const char *name;
@@ -685,6 +692,73 @@ out:
 	return rc;
 }
 
+static void
+splat_taskq_test7_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	taskqid_t id;
+
+	ASSERT(tq_arg);
+
+	if (tq_arg->depth >= SPLAT_TASKQ_DEPTH_MAX)
+		return;
+
+	tq_arg->depth++;
+
+	splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST7_NAME,
+	             "Taskq '%s' function '%s' dispatching (depth = %u)\n",
+	             tq_arg->name, sym2str(splat_taskq_test7_func),
+	             tq_arg->depth);
+
+	if ((id = taskq_dispatch(tq_arg->tq, splat_taskq_test7_func,
+	                         tq_arg, TQ_SLEEP)) == 0) {
+		splat_vprint(tq_arg->file, SPLAT_TASKQ_TEST7_NAME,
+		             "Taskq '%s' function '%s' dispatch failed "
+		             "(depth = %u)\n", tq_arg->name,
+		             sym2str(splat_taskq_test7_func), tq_arg->depth);
+		tq_arg->flag = -EINVAL;
+		return;
+	}
+}
+
+static int
+splat_taskq_test7(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	splat_taskq_arg_t tq_arg;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
+	             "Taskq '%s' creating\n", SPLAT_TASKQ_TEST7_NAME);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST7_NAME, 1, maxclsyspri,
+	                       50, INT_MAX, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
+		             "Taskq '%s' create failed\n",
+		             SPLAT_TASKQ_TEST7_NAME);
+		return -EINVAL;
+	}
+
+	tq_arg.depth = 0;
+	tq_arg.flag  = 0;
+	tq_arg.id    = 0;
+	tq_arg.file  = file;
+	tq_arg.name  = SPLAT_TASKQ_TEST7_NAME;
+	tq_arg.tq    = tq;
+
+	splat_taskq_test7_func(&tq_arg);
+
+	if (tq_arg.flag == 0) {
+		splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
+		             "Taskq '%s' waiting\n", tq_arg.name);
+		taskq_wait_id(tq, SPLAT_TASKQ_DEPTH_MAX);
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
+	              "Taskq '%s' destroying\n", tq_arg.name);
+	taskq_destroy(tq);
+
+	return tq_arg.depth == SPLAT_TASKQ_DEPTH_MAX ? 0 : -EINVAL;
+}
+
 splat_subsystem_t *
 splat_taskq_init(void)
 {
@@ -714,6 +788,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST5_ID, splat_taskq_test5);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST6_NAME, SPLAT_TASKQ_TEST6_DESC,
 	              SPLAT_TASKQ_TEST6_ID, splat_taskq_test6);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST7_NAME, SPLAT_TASKQ_TEST7_DESC,
+	              SPLAT_TASKQ_TEST7_ID, splat_taskq_test7);
 
         return sub;
 }
@@ -722,6 +798,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST7_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST6_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST5_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST4_ID);
