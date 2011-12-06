@@ -127,7 +127,7 @@ Description: Native ZFS root filesystem capabilities for Linux
 Package: zfsutils
 Section: admin
 Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}, udev (<< 174)
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Recommends: zfs-dkms
 Suggests: nfs-kernel-server, zfs-initramfs
 Conflicts: zfs, zfs-fuse
