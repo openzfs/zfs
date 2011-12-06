@@ -30,7 +30,7 @@
 static void *
 nv_alloc_sleep_spl(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_alloc(size, KM_SLEEP));
+	return (kmem_alloc(size, KM_SLEEP | KM_NODEBUG));
 }
 
 static void *

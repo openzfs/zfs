@@ -6,6 +6,8 @@ dnl # blk_requeue_request() function.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BLK_REQUEUE_REQUEST], [
 	AC_MSG_CHECKING([whether blk_requeue_request() is available])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blkdev.h>
 	],[
@@ -19,4 +21,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_REQUEUE_REQUEST], [
 	],[
 		AC_MSG_RESULT(no)
 	])
+	EXTRA_KCFLAGS="$tmp_flags"
 ])

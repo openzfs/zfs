@@ -6,6 +6,8 @@ dnl blk_rq_bytes() helper was changed to a static inline which we can use.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BLK_RQ_BYTES], [
 	AC_MSG_CHECKING([whether blk_rq_bytes() is available])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blkdev.h>
 	],[
@@ -35,4 +37,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_RQ_BYTES], [
 		AC_DEFINE(HAVE_BLK_RQ_BYTES_GPL_ONLY, 1,
 		          [blk_rq_bytes() is GPL-only])
 	])
+	EXTRA_KCFLAGS="$tmp_flags"
 ])

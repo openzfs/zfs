@@ -5,6 +5,8 @@ dnl # changed in 2.6.31 so it may be used by non-GPL modules.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BLK_END_REQUEST], [
 	AC_MSG_CHECKING([whether blk_end_request() is available])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blkdev.h>
 	],[
@@ -34,4 +36,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_END_REQUEST], [
 		AC_DEFINE(HAVE_BLK_END_REQUEST_GPL_ONLY, 1,
 		          [blk_end_request() is GPL-only])
 	])
+	EXTRA_KCFLAGS="$tmp_flags"
 ])

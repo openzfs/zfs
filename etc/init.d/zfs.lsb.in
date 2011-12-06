@@ -25,22 +25,20 @@
 # Source function library.
 . /lib/lsb/init-functions
 
-# Source zfs configuration.
-[ -f /etc/defaults/zfs ] &&  . /etc/defaults/zfs
-
-RETVAL=0
-
 LOCKFILE=/var/lock/zfs
 ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 
-[ -x $ZPOOL ] || exit 1
-[ -x $ZFS ] || exit 2
+# Source zfs configuration.
+[ -r '/etc/default/zfs' ] &&  . /etc/default/zfs
+
+[ -x "$ZPOOL" ] || exit 1
+[ -x "$ZFS" ] || exit 2
 
 start()
 {
-	[ -f $LOCKFILE ] && return 3
+	[ -f "$LOCKFILE" ] && return 3
 
 	# Requires selinux policy which has not been written.
 	if [ -r "/selinux/enforce" ] &&
@@ -60,45 +58,45 @@ start()
 	# This should be handled by rc.sysinit but lets be paranoid.
 	awk '$2 == "/" { exit 1 }' /etc/mtab
 	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
+	if [ "$RETVAL" -eq 0 ]; then
 		/bin/mount -f /
 	fi
 
 	# Import all pools described by the cache file, and then mount
 	# all filesystem based on their properties.
-	if [ -f $ZPOOL_CACHE ] ; then
+	if [ -f "$ZPOOL_CACHE" ] ; then
 		log_begin_msg "Importing ZFS pools"
-		$ZPOOL import -c $ZPOOL_CACHE -aN 2>/dev/null
+		"$ZPOOL" import -c "$ZPOOL_CACHE" -aN 2>/dev/null
 		log_end_msg $?
 
 		log_begin_msg "Mounting ZFS filesystems"
-		$ZFS mount -a
+		"$ZFS" mount -a
 		log_end_msg $?
 
 		log_begin_msg "Exporting ZFS filesystems"
-		$ZFS share -a
+		"$ZFS" share -a
 		log_end_msg $?
 	fi
 
-	touch $LOCKFILE
+	touch "$LOCKFILE"
 }
 
 stop()
 {
-	[ ! -f $LOCKFILE ] && return 3
+	[ ! -f "$LOCKFILE" ] && return 3
 
 	log_begin_msg "Unmounting ZFS filesystems"
-	$ZFS umount -a
+	"$ZFS" umount -a
 	log_end_msg $?
 
-	rm -f $LOCKFILE
+	rm -f "$LOCKFILE"
 }
 
 status()
 {
-	[ ! -f $LOCKFILE ] && return 3
+	[ ! -f "$LOCKFILE" ] && return 3
 
-	$ZPOOL status && echo && $ZPOOL list
+	"$ZPOOL" status && echo "" && "$ZPOOL" list
 }
 
 case "$1" in
@@ -119,7 +117,7 @@ case "$1" in
 		start
 		;;
 	condrestart)
-		if [ -f $LOCKFILE ]; then
+		if [ -f "$LOCKFILE" ]; then
 			stop
 			start
 		fi
