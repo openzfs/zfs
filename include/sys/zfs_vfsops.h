@@ -41,8 +41,25 @@ extern "C" {
 struct zfs_sb;
 struct znode;
 
+/*
+ * This structure contains the references of the linux data structures
+ * which are required for snapshot automounting cleanup. The cleanup 
+ * happens during the pool or snapshot destroy, which triggers 
+ * unmounting of the snapshots, where we need to decrease the ref count
+ * of these pseudo inodes and dentries.
+ */
+
+typedef struct zfs_snap_linux {
+	struct inode    *zsl_ctldir_ip;         /* .zfs directory inode */
+	struct inode    *zsl_snapdir_ip;        /* .zfs/snapshot directory inode */
+	struct dentry   *zsl_ctldir_dentry;     /* .zfs directory dentry */
+	struct dentry   *zsl_snapdir_dentry;    /* .zfs/snapshot dentry */
+} zfs_snap_linux_t;
+
+
 typedef struct zfs_sb {
 	struct super_block *z_sb;	/* generic super_block */
+	zfs_snap_linux_t z_snap_linux;
 	struct backing_dev_info z_bdi;	/* generic backing dev info */
 	struct zfs_sb	*z_parent;	/* parent fs */
 	objset_t	*z_os;		/* objset reference */
@@ -101,14 +118,14 @@ typedef struct zfs_sb {
 
 #define	zfs_has_ctldir(zdp)	\
 	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
-	(ZTOZSB(zdp)->z_ctldir != NULL))
+	(ZTOZSB(zdp)->z_snap_linux.zsl_ctldir_ip != NULL))
 #define	zfs_show_ctldir(zdp)	\
 	(zfs_has_ctldir(zdp) &&	\
 	(ZTOZSB(zdp)->z_show_ctldir))
 
-#define	ZFSCTL_INO_ROOT		0x1
-#define	ZFSCTL_INO_SNAPDIR	0x2
-#define	ZFSCTL_INO_SHARES	0x3
+#define	ZFSCTL_INO_ROOT		0xFFFFFFFFFFFFFFFF
+#define	ZFSCTL_INO_SNAPDIR	0xFFFFFFFFFFFFFFFE
+#define	ZFSCTL_INO_SHARES	0xFFFFFFFFFFFFFFFD
 
 /*
  * Allow a maximum number of links.  While ZFS does not internally limit

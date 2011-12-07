@@ -64,4 +64,15 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 
+/* zpl_snap.c */
+#define ZFS_CTLDIR_NAME     ".zfs"
+#define ZFS_SNAPDIR_NAME    "snapshot"
+#define ZFS_SHAREDIR_NAME   "shares"
+
+void zpl_snap_create(zfs_sb_t *zsb);
+void zpl_snap_destroy(zfs_sb_t *zsb);
+
+/* Functions related to dir entries, required for snapshot automounting */
+extern const struct dentry_operations zfs_dentry_ops;
+
 #endif	/* _SYS_ZPL_H */

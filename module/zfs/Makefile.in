@@ -88,5 +88,6 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/zpl_file.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zpl_inode.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zpl_super.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zpl_xattr.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/zpl_snap.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zrlock.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/zvol.o

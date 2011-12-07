@@ -520,8 +520,13 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 	struct mnttab entry;
 	char *mntpt = NULL;
 
-	/* check to see if we need to unmount the filesystem */
-	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
+	/* check to see if we need to unmount the filesystem & also the 
+	* snapshot iff its mounted (required to unmount in-kernel mounted
+	* snapshots)
+	*/
+
+	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM ||
+		zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) &&
 	    libzfs_mnttab_find(hdl, zhp->zfs_name, &entry) == 0)) {
 		/*
 		 * mountpoint may have come from a call to
@@ -1178,6 +1183,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		if (entry.mnt_mountp == NULL ||
 		    strncmp(entry.mnt_special, zhp->zpool_name, namelen) != 0 ||
 		    (entry.mnt_special[namelen] != '/' &&
+		    entry.mnt_special[namelen] != '@' &&
 		    entry.mnt_special[namelen] != '\0'))
 			continue;
 

@@ -6131,9 +6131,9 @@ main(int argc, char **argv)
 
 	opterr = 0;
 
-	if ((mnttab_file = fopen(MNTTAB, "r")) == NULL) {
+	if ((mnttab_file = fopen(PROC_MOUNTS, "r")) == NULL) {
 		(void) fprintf(stderr, gettext("internal error: unable to "
-		    "open %s\n"), MNTTAB);
+		    "open %s\n"), PROC_MOUNTS);
 		return (1);
 	}
 

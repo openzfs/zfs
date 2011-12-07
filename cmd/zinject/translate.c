@@ -114,8 +114,8 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		return (-1);
 	}
 
-	if ((fp = fopen(MNTTAB, "r")) == NULL) {
-		(void) fprintf(stderr, "cannot open /etc/mtab\n");
+	if ((fp = fopen(PROC_MOUNTS, "r")) == NULL) {
+		(void) fprintf(stderr, "cannot open /proc/mounts\n");
 		return (-1);
 	}
 

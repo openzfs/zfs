@@ -64,6 +64,7 @@
 #include <sys/spa_boot.h>
 #include <sys/sa.h>
 #include <sys/zpl.h>
+#include <linux/version.h>
 #include "zfs_comutil.h"
 
 
@@ -1146,6 +1147,21 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 
 	/* Set features for file system. */
 	zfs_set_fuid_feature(zsb);
+	
+	/* Allocate a root inode for the filesystem. */
+	error = zfs_root(zsb, &root_inode);
+	if (error) {
+		(void) zfs_umount(sb);
+		goto out;
+	}
+
+	/* Allocate a root dentry for the filesystem */
+	sb->s_root = d_alloc_root(root_inode);
+	if (sb->s_root == NULL) {
+		(void) zfs_umount(sb);
+		error = ENOMEM;
+		goto out;
+	}
 
 	if (dmu_objset_is_snapshot(zsb->z_os)) {
 		uint64_t pval;
@@ -1163,25 +1179,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
 		error = zfs_sb_setup(zsb, B_TRUE);
-#ifdef HAVE_SNAPSHOT
-		(void) zfs_snap_create(zsb);
-#endif /* HAVE_SNAPSHOT */
+		(void) zpl_snap_create(zsb);
 	}
 
-	/* Allocate a root inode for the filesystem. */
-	error = zfs_root(zsb, &root_inode);
-	if (error) {
-		(void) zfs_umount(sb);
-		goto out;
-	}
-
-	/* Allocate a root dentry for the filesystem */
-	sb->s_root = d_alloc_root(root_inode);
-	if (sb->s_root == NULL) {
-		(void) zfs_umount(sb);
-		error = ENOMEM;
-		goto out;
-	}
 out:
 	if (error) {
 		dmu_objset_disown(zsb->z_os, zsb);

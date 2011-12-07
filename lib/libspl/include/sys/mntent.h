@@ -30,6 +30,10 @@
 #define	_SYS_MNTENT_H
 
 #define	MNTTYPE_ZFS	"zfs"		/* ZFS file system */
+#define PROC_MOUNTS    "/proc/mounts"	/* in-kernel mounts of snapshots are */
+					/* listed in /proc/mounts & not in */
+					/* /etc/mtab */  
+
 
 #define	MOUNT_SUCCESS	0x00		/* Success */
 #define	MOUNT_USAGE	0x01		/* Invalid invocation or permissions */

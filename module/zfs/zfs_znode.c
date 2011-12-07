@@ -267,10 +267,15 @@ zfs_inode_destroy(struct inode *ip)
 	znode_t *zp = ITOZ(ip);
 	zfs_sb_t *zsb = ZTOZSB(zp);
 
+	if(ip->i_ino == ZFSCTL_INO_ROOT ||
+		ip->i_ino == ZFSCTL_INO_SNAPDIR || ip->i_private)
+		goto out;
+
 	mutex_enter(&zsb->z_znodes_lock);
 	list_remove(&zsb->z_all_znodes, zp);
 	mutex_exit(&zsb->z_znodes_lock);
 
+out:
 	if (zp->z_acl_cached) {
 		zfs_acl_free(zp->z_acl_cached);
 		zp->z_acl_cached = NULL;

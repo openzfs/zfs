@@ -189,12 +189,10 @@ zpl_get_sb(struct file_system_type *fs_type, int flags,
 static void
 zpl_kill_sb(struct super_block *sb)
 {
-#ifdef HAVE_SNAPSHOT
 	zfs_sb_t *zsb = sb->s_fs_info;
 
-	if (zsb && dmu_objset_is_snapshot(zsb->z_os))
-		zfs_snap_destroy(zsb);
-#endif /* HAVE_SNAPSHOT */
+	if (zsb && !dmu_objset_is_snapshot(zsb->z_os))
+		zpl_snap_destroy(zsb);
 
 	kill_anon_super(sb);
 }
