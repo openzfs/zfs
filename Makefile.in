@@ -51,6 +51,12 @@
 #
 ###############################################################################
 
+###############################################################################
+# Written by Prakash Surya <surya1@llnl.gov>
+###############################################################################
+# Build targets for RPM packages.
+###############################################################################
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -73,10 +79,12 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/PKGBUILD-spl-modules.in $(srcdir)/PKGBUILD-spl.in \
 	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.spec.in \
-	$(srcdir)/spl_config.h.in $(top_srcdir)/config/deb.am \
-	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
-	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+	$(srcdir)/spl_config.h.in $(top_srcdir)/config/arch.am \
+	$(top_srcdir)/config/deb.am $(top_srcdir)/config/rpm.am \
+	$(top_srcdir)/config/tgz.am $(top_srcdir)/configure \
+	$(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/spl/Makefile.in \
 	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
 	ChangeLog INSTALL config/config.guess config/config.sub \
@@ -93,7 +101,8 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = spl_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/spl/Makefile \
-	module/splat/Makefile spl.spec spl-modules.spec
+	module/splat/Makefile spl.spec spl-modules.spec PKGBUILD-spl \
+	PKGBUILD-spl-modules
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -191,6 +200,8 @@ GREP = @GREP@
 HAVE_ALIEN = @HAVE_ALIEN@
 HAVE_DPKG = @HAVE_DPKG@
 HAVE_DPKGBUILD = @HAVE_DPKGBUILD@
+HAVE_MAKEPKG = @HAVE_MAKEPKG@
+HAVE_PACMAN = @HAVE_PACMAN@
 HAVE_RPM = @HAVE_RPM@
 HAVE_RPMBUILD = @HAVE_RPMBUILD@
 INSTALL = @INSTALL@
@@ -215,6 +226,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
+MAKEPKG = @MAKEPKG@
+MAKEPKG_VERSION = @MAKEPKG_VERSION@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -228,6 +241,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PACMAN = @PACMAN@
+PACMAN_VERSION = @PACMAN_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
 RPM = @RPM@
@@ -320,7 +335,7 @@ all: spl_config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(top_srcdir)/config/arch.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -378,6 +393,10 @@ module/splat/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/splat/
 spl.spec: $(top_builddir)/config.status $(srcdir)/spl.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 spl-modules.spec: $(top_builddir)/config.status $(srcdir)/spl-modules.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+PKGBUILD-spl: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+PKGBUILD-spl-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl-modules.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -954,6 +973,41 @@ tgz-utils: tgz-local rpm-utils
 	$(RM) $$pkg1
 
 tgz: tgz-modules tgz-utils
+
+sarch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" sarch-common
+
+sarch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" sarch-common
+
+sarch: sarch-modules sarch-utils
+
+arch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+
+arch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+
+arch: arch-modules arch-utils
+
+arch-local:
+	@(if test "${HAVE_MAKEPKG}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${MAKEPKG} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${MAKEPKG},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi;)
+
+sarch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --allsource --skipinteg --nodeps -p $$pkgbuild || exit 1;
+
+arch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --skipinteg -p $$pkgbuild || exit 1;
 
 distclean-local::
 	-$(RM) -R autom4te*.cache

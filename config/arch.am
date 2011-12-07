@@ -1,0 +1,40 @@
+###############################################################################
+# Written by Prakash Surya <surya1@llnl.gov>
+###############################################################################
+# Build targets for RPM packages.
+###############################################################################
+
+sarch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" sarch-common
+
+sarch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" sarch-common
+
+sarch: sarch-modules sarch-utils
+
+arch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+
+arch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+
+arch: arch-modules arch-utils
+
+arch-local:
+	@(if test "${HAVE_MAKEPKG}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${MAKEPKG} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${MAKEPKG},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi;)
+
+sarch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --allsource --skipinteg --nodeps -p $$pkgbuild || exit 1;
+
+arch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --skipinteg -p $$pkgbuild || exit 1;

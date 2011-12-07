@@ -1,0 +1,23 @@
+# Maintainer: Prakash Surya <surya1@llnl.gov>
+pkgname=@SPL_META_NAME@
+pkgver=@SPL_META_VERSION@
+pkgrel=@SPL_META_RELEASE@
+pkgdesc="Contains the support utilities for the spl."
+arch=(x86_64)
+url="git://github.com/zfsonlinux/spl.git"
+license=(@LICENSE@)
+source=(@SPL_META_NAME@-@SPL_META_VERSION@.tar.gz)
+
+build() {
+	cd $srcdir/@SPL_META_NAME@-@SPL_META_VERSION@
+	./configure --with-config=user \
+	            --prefix=/usr \
+	            --sysconfdir=/etc \
+	            --libexecdir=/usr/lib
+	make
+}
+
+package() {
+	cd $srcdir/@SPL_META_NAME@-@SPL_META_VERSION@
+	make DESTDIR=$pkgdir install
+}

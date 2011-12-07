@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
+include $(top_srcdir)/config/arch.am
 
 if CONFIG_USER
 USER_DIR = lib cmd scripts
