@@ -195,7 +195,7 @@ spl_mutex_clear_owner(kmutex_t *mp)
 #ifdef HAVE_GPL_ONLY_SYMBOLS
 # define mutex_enter_nested(mp, sc)                                     \
 ({                                                                      \
-        mutex_lock_nested(MUTEX(mp, sc));                               \
+        mutex_lock_nested(MUTEX(mp), sc);                               \
         spl_mutex_set_owner(mp);                                        \
 })
 #else
