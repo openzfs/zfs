@@ -254,6 +254,8 @@ extern int mutex_tryenter(kmutex_t *mp);
 extern void *mutex_owner(kmutex_t *mp);
 extern int mutex_held(kmutex_t *mp);
 
+#define mutex_enter_nested(mp, sc) mutex_enter(mp)
+
 /*
  * RW locks
  */

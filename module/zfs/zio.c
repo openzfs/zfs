@@ -67,6 +67,17 @@ char *zio_type_name[ZIO_TYPES] = {
 
 /*
  * ==========================================================================
+ * I/O mutex subclasses
+ * ==========================================================================
+ */
+enum zio_mutex_subclass
+{
+	ZIO_MUTEX_SUBCLASS_PARENT,
+	ZIO_MUTEX_SUBCLASS_CHILD
+};
+
+/*
+ * ==========================================================================
  * I/O kmem caches
  * ==========================================================================
  */
@@ -402,8 +413,8 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	zl->zl_parent = pio;
 	zl->zl_child = cio;
 
-	mutex_enter(&cio->io_lock);
-	mutex_enter(&pio->io_lock);
+	mutex_enter_nested(&cio->io_lock, ZIO_MUTEX_SUBCLASS_CHILD);
+	mutex_enter_nested(&pio->io_lock, ZIO_MUTEX_SUBCLASS_PARENT);
 
 	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
 
@@ -426,8 +437,8 @@ zio_remove_child(zio_t *pio, zio_t *cio, zio_link_t *zl)
 	ASSERT(zl->zl_parent == pio);
 	ASSERT(zl->zl_child == cio);
 
-	mutex_enter(&cio->io_lock);
-	mutex_enter(&pio->io_lock);
+	mutex_enter_nested(&cio->io_lock, ZIO_MUTEX_SUBCLASS_CHILD);
+	mutex_enter_nested(&pio->io_lock, ZIO_MUTEX_SUBCLASS_PARENT);
 
 	list_remove(&pio->io_child_list, zl);
 	list_remove(&cio->io_parent_list, zl);
