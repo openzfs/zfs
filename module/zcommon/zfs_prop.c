@@ -308,6 +308,9 @@ zfs_prop_init(void)
 	zprop_register_string(ZFS_PROP_MLSLABEL, "mlslabel",
 	    ZFS_MLSLABEL_DEFAULT, PROP_INHERIT, ZFS_TYPE_DATASET,
 	    "<sensitivity label>", "MLSLABEL");
+	zprop_register_string(ZFS_PROP_SHAREISCSI, "shareiscsi", "off",
+	    PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off | ietadm(8M) options",
+	    "SHAREISCSI");
 
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,

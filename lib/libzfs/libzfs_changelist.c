@@ -72,7 +72,7 @@ typedef struct prop_changenode {
 struct prop_changelist {
 	zfs_prop_t		cl_prop;
 	zfs_prop_t		cl_realprop;
-	zfs_prop_t		cl_shareprop;  /* used with sharenfs/sharesmb */
+	zfs_prop_t		cl_shareprop;  /* used with sharenfs/sharesmb/shareiscsi */
 	uu_list_pool_t		*cl_pool;
 	uu_list_t		*cl_list;
 	boolean_t		cl_waslegacy;
@@ -86,7 +86,7 @@ struct prop_changelist {
 
 /*
  * If the property is 'mountpoint', go through and unmount filesystems as
- * necessary.  We don't do the same for 'sharenfs', because we can just re-share
+ * necessary.  We don't do the same for 'sharenfs'/'shareiscsi', because we can just re-share
  * with different options without interrupting service. We do handle 'sharesmb'
  * since there may be old resource names that need to be removed.
  */
@@ -195,6 +195,7 @@ changelist_postfix(prop_changelist_t *clp)
 
 		boolean_t sharenfs;
 		boolean_t sharesmb;
+		boolean_t shareiscsi;
 		boolean_t mounted;
 
 		/*
@@ -226,10 +227,14 @@ changelist_postfix(prop_changelist_t *clp)
 		    shareopts, sizeof (shareopts), NULL, NULL, 0,
 		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
 
+		shareiscsi = ((zfs_prop_get(cn->cn_handle, ZFS_PROP_SHAREISCSI,
+		    shareopts, sizeof (shareopts), NULL, NULL, 0,
+		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
+
 		mounted = zfs_is_mounted(cn->cn_handle, NULL);
 
 		if (!mounted && (cn->cn_mounted ||
-		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
+		    ((sharenfs || sharesmb || shareiscsi || clp->cl_waslegacy) &&
 		    (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {
 
@@ -252,6 +257,10 @@ changelist_postfix(prop_changelist_t *clp)
 			errors += zfs_share_smb(cn->cn_handle);
 		else if (cn->cn_shared || clp->cl_waslegacy)
 			errors += zfs_unshare_smb(cn->cn_handle, NULL);
+		if (shareiscsi && mounted)
+			errors += zfs_share_iscsi(cn->cn_handle);
+		else if (cn->cn_shared || clp->cl_waslegacy)
+			errors += zfs_unshare_iscsi(cn->cn_handle, NULL);
 	}
 
 	return (errors ? -1 : 0);
@@ -321,7 +330,8 @@ changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 	int ret = 0;
 
 	if (clp->cl_prop != ZFS_PROP_SHARENFS &&
-	    clp->cl_prop != ZFS_PROP_SHARESMB)
+	    clp->cl_prop != ZFS_PROP_SHARESMB &&
+	    clp->cl_prop != ZFS_PROP_SHAREISCSI)
 		return (0);
 
 	for (cn = uu_list_first(clp->cl_list); cn != NULL;
@@ -417,7 +427,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	}
 
 	/*
-	 * If we are "watching" sharenfs or sharesmb
+	 * If we are "watching" sharenfs, sharesmb or shareiscsi
 	 * then check out the companion property which is tracked
 	 * in cl_shareprop
 	 */
@@ -547,7 +557,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 */
 	if (prop == ZFS_PROP_NAME || prop == ZFS_PROP_ZONED ||
 	    prop == ZFS_PROP_MOUNTPOINT || prop == ZFS_PROP_SHARENFS ||
-	    prop == ZFS_PROP_SHARESMB) {
+	    prop == ZFS_PROP_SHARESMB || prop == ZFS_PROP_SHAREISCSI) {
 
 		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT,
 		    property, sizeof (property),
@@ -611,13 +621,15 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 
 	if (clp->cl_prop != ZFS_PROP_MOUNTPOINT &&
 	    clp->cl_prop != ZFS_PROP_SHARENFS &&
-	    clp->cl_prop != ZFS_PROP_SHARESMB)
+	    clp->cl_prop != ZFS_PROP_SHARESMB &&
+	    clp->cl_prop != ZFS_PROP_SHAREISCSI)
 		return (clp);
 
 	/*
-	 * If watching SHARENFS or SHARESMB then
+	 * If watching SHARENFS, SHARESMB then
 	 * also watch its companion property.
 	 */
+	/* TODO: add SHAREISCSI ? */
 	if (clp->cl_prop == ZFS_PROP_SHARENFS)
 		clp->cl_shareprop = ZFS_PROP_SHARESMB;
 	else if (clp->cl_prop == ZFS_PROP_SHARESMB)
