@@ -175,6 +175,48 @@ AC_DEFUN([ZFS_AC_ALIEN], [
 ])
 
 dnl #
+dnl # Check for pacman+makepkg to build Arch Linux packages.  If these
+dnl # tools are missing it is non-fatal but you will not be able to
+dnl # build Arch Linux packages and will be warned if you try too.
+dnl #
+AC_DEFUN([ZFS_AC_PACMAN], [
+	PACMAN=pacman
+	MAKEPKG=makepkg
+
+	AC_MSG_CHECKING([whether $PACMAN is available])
+	tmp=$($PACMAN --version 2>/dev/null)
+	AS_IF([test -n "$tmp"], [
+		PACMAN_VERSION=$(echo $tmp |
+		                 $AWK '/Pacman/ { print $[3] }' |
+		                 $SED 's/^v//')
+		HAVE_PACMAN=yes
+		AC_MSG_RESULT([$HAVE_PACMAN ($PACMAN_VERSION)])
+	],[
+		HAVE_PACMAN=no
+		AC_MSG_RESULT([$HAVE_PACMAN])
+	])
+
+	AC_MSG_CHECKING([whether $MAKEPKG is available])
+	tmp=$($MAKEPKG --version 2>/dev/null)
+	AS_IF([test -n "$tmp"], [
+		MAKEPKG_VERSION=$(echo $tmp | $AWK '/makepkg/ { print $[3] }')
+		HAVE_MAKEPKG=yes
+		AC_MSG_RESULT([$HAVE_MAKEPKG ($MAKEPKG_VERSION)])
+	],[
+		HAVE_MAKEPKG=no
+		AC_MSG_RESULT([$HAVE_MAKEPKG])
+	])
+
+	AC_SUBST(HAVE_PACMAN)
+	AC_SUBST(PACMAN)
+	AC_SUBST(PACMAN_VERSION)
+
+	AC_SUBST(HAVE_MAKEPKG)
+	AC_SUBST(MAKEPKG)
+	AC_SUBST(MAKEPKG_VERSION)
+])
+
+dnl #
 dnl # Using the VENDOR tag from config.guess set the default
 dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
@@ -214,6 +256,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		slackware)  DEFAULT_PACKAGE=tgz ;;
 		gentoo)     DEFAULT_PACKAGE=tgz ;;
 		lunar)      DEFAULT_PACKAGE=tgz ;;
+		arch)       DEFAULT_PACKAGE=arch;;
 		*)          DEFAULT_PACKAGE=rpm ;;
 	esac
 
@@ -254,5 +297,6 @@ AC_DEFUN([ZFS_AC_PACKAGE], [
 	ZFS_AC_RPM
 	ZFS_AC_DPKG
 	ZFS_AC_ALIEN
+	ZFS_AC_PACMAN
 	ZFS_AC_DEFAULT_PACKAGE
 ])
