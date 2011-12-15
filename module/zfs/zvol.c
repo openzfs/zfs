@@ -1350,8 +1350,8 @@ zvol_fini(void)
 	list_destroy(&zvol_state_list);
 }
 
-module_param(zvol_major, uint, 0);
+module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
-module_param(zvol_threads, uint, 0);
+module_param(zvol_threads, uint, 0444);
 MODULE_PARM_DESC(zvol_threads, "Number of threads for zvol device");
