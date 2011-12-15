@@ -42,24 +42,112 @@
 static sa_fstype_t *smb_fstype;
 boolean_t smb_available;
 
-int
-smb_enable_share_one(void)
+int smb_retrieve_shares(void);
+
+/*
+ * By Jerome Bettis
+ * http://ubuntuforums.org/showthread.php?t=141670
+ */
+static void
+strrep(char *str, char old, char new)
 {
-fprintf(stderr, "smb_enable_share_one()\n");
+	char *pos;
+
+	if (new == old)
+		return;
+
+	pos = strchr(str, old);
+	while (pos != NULL)  {
+		*pos = new;
+		pos = strchr(pos + 1, old);
+	}
+}
+
+int
+smb_enable_share_one(const char *sharename, const char *sharepath)
+{
+	char *argv[10], name_path[255], name[255];
+	int rc;
+
+// DEBUG
+fprintf(stderr, "    smb_enable_share_one(%s, %s)\n",
+	sharename, sharepath);
+
+	/* Remove the slash(es) in the share name */
+	strncpy(name, sharename, sizeof(name));
+	strrep(name, '/', '_');
+
+	/*
+	 * CMD: net -U root -S 127.0.0.1 share add Test1=/share/Test1
+	 */
+
+	snprintf(name_path, sizeof(name_path), "%s=%s", name, sharepath);
+
+	argv[0] = "/usr/bin/net";
+	argv[1] = "-U";
+	argv[2] = "root";
+	argv[3] = "-S";
+	argv[4] = "127.0.0.1";
+	argv[5] = "share";
+	argv[6] = "add";
+	argv[7] = name_path;
+	argv[8] = NULL;
+
+	int i;
+	fprintf(stderr, "CMD: ");
+	for (i=0; i < 8; i++) {
+		fprintf(stderr, "%s ", argv[i]);
+	}
+	fprintf(stderr, "\n");
+
+	rc = libzfs_run_process(argv[0], argv, 0);
+	if (rc < 0)
+		return SA_SYSTEM_ERR;
+
+	/* Reload the share file */
+	smb_retrieve_shares();
+
 	return 0;
 }
 
 int
 smb_enable_share(sa_share_impl_t impl_share)
 {
-fprintf(stderr, "smb_enable_share()\n");
-	return 0;
+	char *shareopts;
+
+// DEBUG
+fprintf(stderr, "smb_enable_share(): dataset=%s\n", impl_share->dataset);
+
+	if (!smb_available) {
+// DEBUG
+fprintf(stderr, "  smb_enable_share(): -> !smb_available\n");
+		return SA_SYSTEM_ERR;
+	}
+
+	shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
+	if (shareopts == NULL) { /* on/off */
+// DEBUG
+fprintf(stderr, "  smb_enable_share(): -> SA_SYSTEM_ERR\n");
+		return SA_SYSTEM_ERR;
+	}
+
+	if (strcmp(shareopts, "off") == 0) {
+// DEBUG
+fprintf(stderr, "  smb_enable_share(): -> off (0)\n");
+		return (0);
+	}
+
+	/* Magic: Enable (i.e., 'create new') share */
+	return smb_enable_share_one(impl_share->dataset,
+		impl_share->sharepath);
 }
 
 int
 smb_disable_share_one(void)
 {
 fprintf(stderr, "smb_disable_share_one()\n");
+	/* CMD: net -U root -S 127.0.0.1 share delete Test1 */
+
 	return 0;
 }
 
@@ -74,7 +162,7 @@ static boolean_t
 smb_is_share_active(sa_share_impl_t impl_share)
 {
 fprintf(stderr, "smb_is_share_active()\n");
-	return 0;
+	return B_FALSE;
 }
 
 static int
@@ -139,8 +227,13 @@ static const sa_share_ops_t smb_shareops = {
 int
 smb_retrieve_shares(void)
 {
+	int rc = SA_OK;
+
 fprintf(stderr, "  smb_retrieve_shares()\n");
-	return 1;
+
+	/* CMD: net share list */
+
+	return rc;
 }
 
 void
