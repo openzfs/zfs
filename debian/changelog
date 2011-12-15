@@ -1,3 +1,13 @@
+zfs-linux (0.6.0.41-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Set zvol_major/zvol_threads permissions
+
+  [ Garrett D'Amore ]
+  * Illumos #734: Use taskq_dispatch_ent() interface
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 15 Dec 2011 10:11:54 -0600
+
 zfs-linux (0.6.0.40-0ubuntu1) unstable; urgency=low
 
   [ Prakash Surya ]
