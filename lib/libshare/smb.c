@@ -66,7 +66,7 @@ strrep(char *str, char old, char new)
 int
 smb_enable_share_one(const char *sharename, const char *sharepath)
 {
-	char *argv[10], name_path[255], name[255];
+	char *argv[12], name[255], comment[255];
 	int rc;
 
 // DEBUG
@@ -78,27 +78,23 @@ fprintf(stderr, "    smb_enable_share_one(%s, %s)\n",
 	strrep(name, '/', '_');
 
 	/*
-	 * CMD: net -U root -S 127.0.0.1 share add Test1=/share/Test1
+	 * CMD: net -U root -S 127.0.0.1 usershare add Test1 /share/Test1 "Comment" "Everyone:F"
 	 */
 
-	snprintf(name_path, sizeof(name_path), "%s=%s", name, sharepath);
+	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
-	argv[0] = "/usr/bin/net";
-	argv[1] = "-U";
-	argv[2] = "root";
-	argv[3] = "-S";
-	argv[4] = "127.0.0.1";
-	argv[5] = "share";
-	argv[6] = "add";
-	argv[7] = name_path;
-	argv[8] = NULL;
-
-	int i;
-	fprintf(stderr, "CMD: ");
-	for (i=0; i < 8; i++) {
-		fprintf(stderr, "%s ", argv[i]);
-	}
-	fprintf(stderr, "\n");
+	argv[0]  = "/usr/bin/net";
+	argv[1]  = "-U";
+	argv[2]  = "root";
+	argv[3]  = "-S";
+	argv[4]  = "127.0.0.1";
+	argv[5]  = "usershare";
+	argv[6]  = "add";
+	argv[7]  = name;
+	argv[8]  = strdup(sharepath);
+	argv[9]  = comment;
+	argv[10] = "Everyone:F";
+	argv[11] = NULL;
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
@@ -143,10 +139,15 @@ fprintf(stderr, "  smb_enable_share(): -> off (0)\n");
 }
 
 int
-smb_disable_share_one(void)
+smb_disable_share_one(int sid)
 {
+	int rc;
+	char *argv[6];
+
+// DEBUG
 fprintf(stderr, "smb_disable_share_one()\n");
-	/* CMD: net -U root -S 127.0.0.1 share delete Test1 */
+
+	/* CMD: net -U root -S 127.0.0.1 usershare delete Test1 */
 
 	return 0;
 }
@@ -179,6 +180,7 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	char *shareopts_dup;
 	boolean_t needs_reshare = B_FALSE;
 	char *old_shareopts;
+// DEBUG
 fprintf(stderr, "smb_update_shareopts()\n");
 
 	FSINFO(impl_share, smb_fstype)->active = smb_is_share_active(impl_share);
@@ -210,6 +212,7 @@ fprintf(stderr, "smb_update_shareopts()\n");
 static void
 smb_clear_shareopts(sa_share_impl_t impl_share)
 {
+// DEBUG
 fprintf(stderr, "smb_clear_shareopts()\n");
 	free(FSINFO(impl_share, smb_fstype)->shareopts);
 	FSINFO(impl_share, smb_fstype)->shareopts = NULL;
@@ -228,10 +231,10 @@ int
 smb_retrieve_shares(void)
 {
 	int rc = SA_OK;
-
+// DEBUG
 fprintf(stderr, "  smb_retrieve_shares()\n");
 
-	/* CMD: net share list */
+	/* CMD: net usershare list -l */
 
 	return rc;
 }
@@ -239,6 +242,7 @@ fprintf(stderr, "  smb_retrieve_shares()\n");
 void
 libshare_smb_init(void)
 {
+// DEBUG
 fprintf(stderr, "libshare_smb_init()\n");
 	smb_available = (smb_retrieve_shares() == SA_OK);
 
