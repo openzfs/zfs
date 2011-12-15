@@ -36,6 +36,7 @@
 #include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
+#include "smb.h"
 
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
@@ -103,6 +104,7 @@ __attribute__((constructor)) static void
 libshare_init(void)
 {
 	libshare_nfs_init();
+	libshare_smb_init();
 
 	/*
 	 * This bit causes /etc/dfs/sharetab to be updated before libzfs gets a
