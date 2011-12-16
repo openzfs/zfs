@@ -440,7 +440,7 @@ zfs_inode_update(znode_t *zp)
 	ip->i_generation = zp->z_gen;
 	ip->i_uid = zp->z_uid;
 	ip->i_gid = zp->z_gid;
-	ip->i_nlink = zp->z_links;
+	set_nlink(ip, zp->z_links);
 	ip->i_mode = zp->z_mode;
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize,
