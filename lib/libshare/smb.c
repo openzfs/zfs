@@ -90,7 +90,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	/* CMD: net -U root -S 127.0.0.1 usershare add Test1 /share/Test1 "Comment" "Everyone:F" */
 	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
-	if (file_exists(NET_CMD_PATH))
+	if (file_is_executable(NET_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0]  = NET_CMD_PATH;
 	argv[1]  = "-U";
@@ -172,7 +172,7 @@ smb_disable_share_one(const char *sharename)
 #endif
 
 	/* CMD: net -U root -S 127.0.0.1 usershare delete Test1 */
-	if (file_exists(NET_CMD_PATH))
+	if (file_is_executable(NET_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0] = NET_CMD_PATH;
 	argv[1] = "usershare";

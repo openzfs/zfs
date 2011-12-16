@@ -57,7 +57,7 @@ static int fstypes_count;
 static sa_fstype_t *fstypes;
 
 int
-file_exists(char *file_name)
+file_is_executable(char *file_name)
 {
 	if ((access(file_name, X_OK)) == 0)
 		/* File found */
