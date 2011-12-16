@@ -752,7 +752,7 @@ Clears device errors in a pool. If no arguments are specified, all device errors
 .ad
 .sp .6
 .RS 4n
-Creates a new storage pool containing the virtual devices specified on the command line. The pool name must begin with a letter, and can only contain alphanumeric characters as well as underscore ("_"), dash ("-"), and period ("."). The pool names "mirror", "raidz", "spare" and "log" are reserved, as are names beginning with the pattern "c[0-9]". The \fBvdev\fR specification is described in the "Virtual Devices" section.
+Creates a new storage pool containing the virtual devices specified on the command line. The pool name must begin with a letter, and can only contain alphanumeric characters as well as underscore ("_"), dash ("-"), period ("."), colon (":"), and space (" "). The pool names "mirror", "raidz", "spare" and "log" are reserved, as are names beginning with the pattern "c[0-9]". The \fBvdev\fR specification is described in the "Virtual Devices" section.
 .sp
 The command verifies that each device specified is accessible and not currently in use by another subsystem. There are some uses, such as being currently mounted, or specified as the dedicated dump device, that prevents a device from ever being used by \fBZFS\fR. Other uses, such as having a preexisting \fBUFS\fR file system, can be overridden with the \fB-f\fR option.
 .sp
