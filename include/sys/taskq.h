@@ -96,7 +96,7 @@ typedef struct taskq_thread {
 	struct list_head       tqt_active_list;
 	struct task_struct     *tqt_thread;
 	taskq_t                *tqt_tq;
-	taskq_ent_t            *tqt_ent;
+	taskqid_t              tqt_id;
 } taskq_thread_t;
 
 /* Global system-wide dynamic task queue available for all consumers */

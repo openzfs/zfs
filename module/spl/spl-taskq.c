@@ -393,8 +393,8 @@ taskq_lowest_id(taskq_t *tq)
 	if (!list_empty(&tq->tq_active_list)) {
 		tqt = list_entry(tq->tq_active_list.next, taskq_thread_t,
 		                 tqt_active_list);
-		ASSERT(tqt->tqt_ent != NULL);
-		lowest_id = MIN(lowest_id, tqt->tqt_ent->tqent_id);
+		ASSERT(tqt->tqt_id != 0);
+		lowest_id = MIN(lowest_id, tqt->tqt_id);
 	}
 
 	SRETURN(lowest_id);
@@ -417,7 +417,7 @@ taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
 
 	list_for_each_prev(l, &tq->tq_active_list) {
 		w = list_entry(l, taskq_thread_t, tqt_active_list);
-		if (w->tqt_ent->tqent_id < tqt->tqt_ent->tqent_id) {
+		if (w->tqt_id < tqt->tqt_id) {
 			list_add(&tqt->tqt_active_list, l);
 			break;
 		}
@@ -433,7 +433,6 @@ taskq_thread(void *args)
 {
         DECLARE_WAITQUEUE(wait, current);
         sigset_t blocked;
-	taskqid_t id;
 	taskq_thread_t *tqt = args;
         taskq_t *tq;
         taskq_ent_t *t;
@@ -484,8 +483,7 @@ taskq_thread(void *args)
 			/* In order to support recursively dispatching a
 			 * preallocated taskq_ent_t, tqent_id must be
 			 * stored prior to executing tqent_func. */
-			id = t->tqent_id;
-			tqt->tqt_ent = t;
+			tqt->tqt_id = t->tqent_id;
 			taskq_insert_in_order(tq, tqt);
                         tq->tq_nactive++;
 			spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
@@ -496,16 +494,16 @@ taskq_thread(void *args)
 			spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
                         tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
-			tqt->tqt_ent = NULL;
                         task_done(tq, t);
 
 			/* When the current lowest outstanding taskqid is
 			 * done calculate the new lowest outstanding id */
-			if (tq->tq_lowest_id == id) {
+			if (tq->tq_lowest_id == tqt->tqt_id) {
 				tq->tq_lowest_id = taskq_lowest_id(tq);
-				ASSERT(tq->tq_lowest_id > id);
+				ASSERT3S(tq->tq_lowest_id, >, tqt->tqt_id);
 			}
 
+			tqt->tqt_id = 0;
                         wake_up_all(&tq->tq_wait_waitq);
 		}
 
@@ -582,7 +580,7 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 		INIT_LIST_HEAD(&tqt->tqt_thread_list);
 		INIT_LIST_HEAD(&tqt->tqt_active_list);
 		tqt->tqt_tq = tq;
-		tqt->tqt_ent = NULL;
+		tqt->tqt_id = 0;
 
 		tqt->tqt_thread = kthread_create(taskq_thread, tqt,
 		                                 "%s/%d", name, i);
