@@ -74,7 +74,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 
 	char *pos = name;
 	if( pos == NULL )
-		return;
+		return SA_SYSTEM_ERR;
 
 	while( *pos != '\0' ) {
 		switch( *pos ) {
@@ -105,7 +105,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	argv[10] = "Everyone:F";
 	argv[11] = NULL;
 
-#endif
+#ifdef DEBUG
 	int i;
 	fprintf(stderr, "  CMD: ");
 	for (i=0; argv[i] != NULL; i++) {
