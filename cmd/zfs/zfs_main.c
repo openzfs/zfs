@@ -5438,9 +5438,6 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			if (!explicit)
 				return (0);
 
-#ifdef DEBUG
-			(void) fprintf(stderr, "share_mount_one(): zfs_is_shared()\n");
-#endif
 			(void) fprintf(stderr, gettext("cannot share "
 			    "'%s': volume already shared\n"),
 			    zfs_get_name(zhp));
@@ -5783,9 +5780,6 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			(void) fprintf(stderr, gettext("use exportfs(8), "
 			    "smbcontrol(1) or ietadm(8) to unshare this filesystem\n"));
 		} else if (!zfs_is_shared(zhp)) {
-#ifdef DEBUG
-			(void) fprintf(stderr, "unshare_unmount_path(): !zfs_is_shared()\n");
-#endif
 			(void) fprintf(stderr, gettext("cannot unshare '%s': "
 			    "not currently shared\n"), path);
 		} else {
@@ -5885,15 +5879,9 @@ unshare_unmount(int op, int argc, char **argv)
 
 		rewind(mnttab_file);
 		while (getmntent(mnttab_file, &entry) == 0) {
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): mountp=%s, mntopts=%s, fstype=%s\n",
-	entry.mnt_mountp, entry.mnt_mntopts, entry.mnt_fstype);
 			/* ignore non-ZFS entries */
-			if ((strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)) {
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): fstype=MNTTYPE_ZFS (%s)\n", MNTTYPE_ZFS);
+			if ((strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0))
 				continue;
-			}
 
 			/* ignore snapshots */
 			if (strchr(entry.mnt_special, '@') != NULL)
@@ -5901,17 +5889,12 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): fstype=MNTTYPE_ZFS (%s)\n
 
 			if ((zhp = zfs_open(g_zfs, entry.mnt_special,
 			    ZFS_TYPE_FILESYSTEM)) == NULL) {
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): zfs_open(g_zfs, %ss, ZFS_TYPE_FILESYSTEM) => NULL\n",
-	entry.mnt_special);
 				ret = 1;
 				continue;
 			}
 
 			switch (op) {
 			case OP_SHARE:
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_SHARE - verify(zfs_prop_get())\n");
 				verify(zfs_prop_get(zhp, ZFS_PROP_SHARENFS,
 				    nfsiscsi_mnt_prop,
 				    sizeof (nfsiscsi_mnt_prop),
@@ -5932,8 +5915,6 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_SHARE - verify(zf
 					continue;
 				break;
 			case OP_MOUNT:
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_MOUNT - verify(zfs_prop_get())\n");
 				/* Ignore legacy mounts */
 				verify(zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT,
 				    nfsiscsi_mnt_prop,
@@ -5946,8 +5927,6 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_MOUNT - verify(zf
 				    ZFS_CANMOUNT_NOAUTO)
 					continue;
 			default:
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case default\n");
 				break;
 			}
 
@@ -5979,23 +5958,15 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case default\n");
 
 			switch (op) {
 			case OP_SHARE:
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_SHARE - Calling zfs_unshareall_bypath(..., %s)\n", node->un_mountp);
 				if (zfs_unshareall_bypath(node->un_zhp,
 				    node->un_mountp) != 0)
 					ret = 1;
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_SHARE - zfs_unshareall_bypath() != 0. Returning 1\n");
 				break;
 
 			case OP_MOUNT:
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_MOUNT - Calling zfs_unshareall_bypath(..., %s)\n", node->un_mountp);
 				if (zfs_unmount(node->un_zhp,
 				    node->un_mountp, flags) != 0)
 					ret = 1;
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_MOUNT - zfs_unshareall_bypath() != 0. Returning 1\n");
 				break;
 			}
 
@@ -6035,13 +6006,8 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(do_all): case OP_MOUNT - zfs_unsha
 		if (op == OP_SHARE)
 			types |= ZFS_TYPE_VOLUME;
 
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(): Calling zfs_open()\n");
-		if ((zhp = zfs_open(g_zfs, argv[0], types)) == NULL) {
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(): return(1)\n");
+		if ((zhp = zfs_open(g_zfs, argv[0], types)) == NULL)
 			return (1);
-		}
 
 		if (zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) {
 		verify(zfs_prop_get(zhp, op == OP_SHARE ?
@@ -6105,8 +6071,6 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(): return(1)\n");
 			    nfsiscsi_mnt_prop, sizeof (nfsiscsi_mnt_prop),
 			    NULL, NULL, 0, B_FALSE) == 0);
 
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(): nfsiscsi_mnt_prop=%s\n", nfsiscsi_mnt_prop);
 			if (strcmp(nfsiscsi_mnt_prop, "off") == 0) {
 				(void) fprintf(stderr, gettext("cannot unshare "
 				    "'%s': 'shareiscsi' property not set\n"),
@@ -6116,26 +6080,18 @@ fprintf(stderr, "  zfs_main.c:unshare_unmount(): nfsiscsi_mnt_prop=%s\n", nfsisc
 				    "iscsitadm(1M) to share this volume\n"));
 				ret = 1;
 			} else if (!zfs_is_shared_iscsi(zhp, NULL)) {
-// DEBUG
-fprintf(stderr, "zfs_main.c:unshare_unmount(): !zfs_is_shared_iscsi(zhp, NULL)\n");
 				(void) fprintf(stderr, gettext("cannot "
 				    "unshare '%s': not currently shared\n"),
 				    zfs_get_name(zhp));
 				ret = 1;
 			} else if (zfs_unshare_iscsi(zhp, NULL) != 0) {
-// DEBUG
-fprintf(stderr, "zfs_main.c:unshare_unmount(): zfs_unshare_iscsi(zhp, NULL) != 0 -> returning 1\n");
 				ret = 1;
 			}
 		}
 
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(): Calling zfs_close()\n");
 		zfs_close(zhp);
 	}
 
-// DEBUG
-fprintf(stderr, "  zfs_main.c:unshare_unmount(): Returning %d\n", ret);
 	return (ret);
 }
 
@@ -6160,8 +6116,6 @@ zfs_do_unmount(int argc, char **argv)
 static int
 zfs_do_unshare(int argc, char **argv)
 {
-// DEBUG
-fprintf(stderr, "zfs_main.c:zfs_do_unshare(): Call unshare_unmount(OP_SHARE)\n");
 	return(unshare_unmount(OP_SHARE, argc, argv)); // Unmount/unshare all NFS/SMB FS
 }
 

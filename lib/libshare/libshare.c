@@ -56,6 +56,15 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 static int fstypes_count;
 static sa_fstype_t *fstypes;
 
+int
+file_is_executable(char *file_name)
+{
+	if ((access(file_name, X_OK)) == 0)
+		/* File found */
+		return SA_OK;
+	return SA_NO_SUCH_PATH;
+}
+
 sa_fstype_t *
 register_fstype(const char *name, const sa_share_ops_t *ops)
 {
@@ -466,8 +475,6 @@ sa_fini(sa_handle_t handle)
 			/* remove item from the linked list */
 			*pcurr = next;
 
-// DEBUG
-fprintf(stderr, "libshare.c:sa_fini(): Calling sa_disable_share(%s:%s)\n",
 	impl_share->dataset, impl_share->sharepath);
 			sa_disable_share(impl_share, NULL);
 
@@ -567,8 +574,6 @@ sa_disable_share(sa_share_t share, char *protocol)
 	fstype = fstypes;
 	while (fstype != NULL) {
 		if (protocol == NULL || strcmp(fstype->name, protocol) == 0) {
-// DEBUG
-fprintf(stderr, "  libshare.c:sa_disable_share(): calling fstype->ops->disable_share() (%s:%s)\n",
 	impl_share->dataset, impl_share->sharepath);
 			rc = fstype->ops->disable_share(impl_share);
 

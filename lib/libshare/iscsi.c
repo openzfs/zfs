@@ -52,24 +52,7 @@ boolean_t iscsi_available;
 #define PROC_IET_VOLUME "/proc/net/iet/volume"
 #endif
 
-/*
- * By Jerome Bettis
- * http://ubuntuforums.org/showthread.php?t=141670
- */
-static void
-strrep(char *str, char old, char new)
-{
-	char *pos;
-
-	if (new == old)
-		return;
-
-	pos = strchr(str, old);
-	while (pos != NULL)  {
-		*pos = new;
-		pos = strchr(pos + 1, old);
-	}
-}
+#define IETM_CMD_PATH "/usr/sbin/ietadm"
 
 /*
  * Generate a target name using the current year and month,
@@ -128,7 +111,19 @@ iscsi_generate_target(const char *path, char *iqn, size_t iqn_len)
 
 	/* Take the dataset name, replace / with . */
 	strncpy(name, path, sizeof(name));
-	strrep(name, '/', '.');
+	char *pos = str;
+	if( pos == NULL )
+	  return SA_SYSTEM_ERR;
+	while( *pos != '\0' ) {
+		switch( *pos ) {
+		case '/':
+		case '-':
+		case ':':
+		case ' ':
+			*pos = '.';
+		}
+		++pos;
+	}
 
 	/* Put the whole thing togheter */
 	snprintf(iqn, iqn_len, "iqn.%s.%s:%s", tsbuf, revname, name);
@@ -160,8 +155,9 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
 	snprintf(tid_s, sizeof(tid_s), "%d", tid);
-
-	argv[0] = "/usr/sbin/ietadm";
+	if (file_exists(IETM_CMD_PATH))
+		return SA_SYSTEM_ERR;
+	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "new";
 	argv[3] = "--tid";
@@ -202,9 +198,6 @@ iscsi_enable_share(sa_share_impl_t impl_share)
 	int tid = 0;
 	iscsi_target_t *target = iscsi_targets;
 
-// DEBUG
-fprintf(stderr, "iscsi_enable_share(): dataset=%s\n", impl_share->dataset);
-
 	if (!iscsi_available)
 		return SA_SYSTEM_ERR;
 
@@ -221,14 +214,9 @@ fprintf(stderr, "iscsi_enable_share(): dataset=%s\n", impl_share->dataset);
 	/* Go through list of targets, take next avail. */
 	while (target != NULL) {
 		tid = target->tid;
-// DEBUG
-fprintf(stderr, "iscsi_enable_share(): tid=%d (%s)\n", target->tid, target->name);
-
 		target = target->next;
 	}
 	tid++; /* Next TID is/should be availible */
-// DEBUG
-fprintf(stderr, "iscsi_enable_share(): next tid=%d\n", tid);
 
 	/* Magic: Enable (i.e., 'create new') share */
 	return iscsi_enable_share_one(tid, iqn,
@@ -248,8 +236,9 @@ iscsi_disable_share_one(int tid)
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
 	snprintf(tid_s, sizeof (tid_s), "%d", tid);
-
-	argv[0] = "/usr/sbin/ietadm";
+	if (file_exists(IETM_CMD_PATH))
+		return SA_SYSTEM_ERR;
+	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "delete";
 	argv[3] = "--tid";

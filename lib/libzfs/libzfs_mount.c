@@ -141,12 +141,8 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 	switch (proto) {
 	case PROTO_ISCSI:
 		while (target != NULL) {
-			if (strcmp(mountpoint, target->path) == 0) {
-// DEBUG
-fprintf(stderr, "        libzfs_mount.c:is_shared(PROTO_ISCSI): mountpoint=%s (%d:%s)\n",
-	mountpoint, target->tid, target->path);
+			if (strcmp(mountpoint, target->path) == 0)
 				return (SHARED_ISCSI);
-			}
 
 			target = target->next;
 		}
@@ -636,28 +632,19 @@ zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 
 	if (ZFS_IS_VOLUME(zhp)) {
 		/* TODO: check whether this is sane */
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_is_shared_proto(ZFS_IS_VOLUME()): name=%s\n", zfs_get_name(zhp));
 		if (asprintf(&mountpoint, "/dev/zvol/%s",
-		    zfs_get_name(zhp)) < 0) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_is_shared_proto(): asprintf() < 0 => returning SHARED_NOT_SHARED\n");
+		    zfs_get_name(zhp)) < 0)
 			return (SHARED_NOT_SHARED);
-		}
 	} else if (!zfs_is_mounted(zhp, &mountpoint))
 		return (SHARED_NOT_SHARED);
 
 	if ((rc = is_shared(zhp->zfs_hdl, mountpoint, proto))) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_is_shared_proto():  is_shared() returned %d (mountpoint=%s)\n", rc, mountpoint);
 		if (where != NULL)
 			*where = mountpoint;
 		else
 			free(mountpoint);
 		return (rc);
 	} else {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_is_shared_proto(): !is_shared() => SHARED_NOT_SHARED (mountpoint=%s)\n", mountpoint);
 		free(mountpoint);
 		return (SHARED_NOT_SHARED);
 	}
@@ -680,8 +667,6 @@ zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
 boolean_t
 zfs_is_shared_iscsi(zfs_handle_t *zhp, char **where)
 {
-// DEBUG
-fprintf(stderr, "    libzfs_mount.c:zfs_is_shared_iscsi(): Calling zfs_is_shared_proto()\n");
 	return (zfs_is_shared_proto(zhp, where,
 	    PROTO_ISCSI) != SHARED_NOT_SHARED);
 }
@@ -891,8 +876,6 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 	 * value.
 	 */
 	mntpt = zfs_strdup(hdl, mountpoint);
-// DEBUG
-fprintf(stderr, "unshare_one(hdl, %s, %s, proto): mntpt=%s\n", name, mountpoint, mntpt);
 
 	/* make sure libshare initialized */
 	if ((err = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
@@ -906,25 +889,18 @@ fprintf(stderr, "unshare_one(hdl, %s, %s, proto): mntpt=%s\n", name, mountpoint,
 	free(mntpt);	/* don't need the copy anymore */
 
 	if (share != NULL) {
-// DEBUG
-fprintf(stderr, "unshare_one(): share != NULL, calling sa_disable_share()\n");
 		err = sa_disable_share(share, proto_table[proto].p_name);
 		if (err != SA_OK) {
-// DEBUG
-fprintf(stderr, "unshare_one(): sa_disable_share() didn't return SA_OK\n");
 			return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
 			    name, sa_errorstr(err)));
 		}
 	} else {
-// DEBUG
-fprintf(stderr, "unshare_one(): share == NULL\n");
 		return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': not found"),
 		    name));
 	}
-// DEBUG
-fprintf(stderr, "unshare_one(): done, returning 0\n");
+
 	return (0);
 }
 
@@ -940,34 +916,20 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 	char *mntpt = NULL, *mnt = NULL;
 	iscsi_target_t *target = iscsi_targets;
 
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(zhp, %s, proto), name=%s\n",
 	mountpoint, zfs_get_name(zhp));
 	switch (*proto) {
 	case PROTO_ISCSI:
 		if (mountpoint == NULL) {
 			/* TODO: check whether this is sane */
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(PROTO_ISCSI)): name=%s\n", zfs_get_name(zhp));
-			if (asprintf(&mnt, "/dev/zvol/%s", zfs_get_name(zhp)) < 0) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(PROTO_ISCSI): asprintf() < 0 => returning -1\n");
+			if (asprintf(&mnt, "/dev/zvol/%s", zfs_get_name(zhp)) < 0)
 				return (-1);
-			}
 
 			mountpoint = strdup(mnt);
 		}
 
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(PROTO_ISCSI)): name=%s, path=%s\n",
-	zfs_get_name(zhp), mountpoint);
 		while (target != NULL) {
-			if (strcmp(mountpoint, target->path) == 0) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(PROTO_ISCSI): name=%s, path=%s (%d:%s)\n",
-	zfs_get_name(zhp), mountpoint, target->tid, target->path);
+			if (strcmp(mountpoint, target->path) == 0)
 				iscsi_disable_share_one(target->tid);
-			}
 
 			target = target->next;
 		}
@@ -980,8 +942,6 @@ fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(PROTO_ISCSI): name=%s, p
 
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
 	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(zhp, %s, proto) - inside big if()\n", mountpoint);
 		zfs_share_proto_t *curr_proto;
 
 		if (mountpoint == NULL)
@@ -990,15 +950,9 @@ fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(zhp, %s, proto) - inside
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(zhp, %s, proto) - inside big if()/Calling is_shared(hdl, %s, curr_proto)\n",
-	mountpoint, mntpt);
 			if (is_shared(hdl, mntpt, *curr_proto) &&
 			    unshare_one(hdl, zhp->zfs_name,
 			    mntpt, *curr_proto) != 0) {
-// DEBUG
-fprintf(stderr, "      libzfs_mount.c:zfs_unshare_proto(zhp, %s, proto) - inside big if()/is_shared()+unshare_one(hdl, %s)\n",
-	mountpoint, zhp->zfs_name);
 				if (mntpt != NULL)
 					free(mntpt);
 				return (-1);
@@ -1027,8 +981,6 @@ zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
 int
 zfs_unshare_iscsi(zfs_handle_t *zhp, const char *mountpoint)
 {
-// DEBUG
-fprintf(stderr, "    libzfs_mount.c:zfs_unshare_iscsi(): Calling zfs_unshare_proto(zhp, %s)\n", mountpoint);
 	return (zfs_unshare_proto(zhp, mountpoint, iscsi_only));
 }
 
