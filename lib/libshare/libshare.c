@@ -56,6 +56,15 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 static int fstypes_count;
 static sa_fstype_t *fstypes;
 
+int
+file_exists(char *file_name)
+{
+	if ((access(file_name, X_OK)) == 0)
+		/* File found */
+		return SA_OK;
+	return SA_NO_SUCH_PATH;
+}
+
 sa_fstype_t *
 register_fstype(const char *name, const sa_share_ops_t *ops)
 {

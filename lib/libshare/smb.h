@@ -20,7 +20,6 @@
  */
 
 /*
- * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Turbo Fredriksson <turbo@bayour.com>.
  */
 
