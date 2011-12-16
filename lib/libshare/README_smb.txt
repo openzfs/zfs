@@ -14,6 +14,15 @@ REQUIRENMENTS
 3. Some configuration settings in samba:
 
 	usershare max shares = 100
+	usershare owner only = False
+
+   First one is not strictly necessary if you don't have more than
+   100 volumes you'd like to share.
+
+   Second one is if you want to allow non-root users to share
+   volumes they do NOT own. For a non-user to be able to share
+   a volume, he/she will have to have write access to the /dev/zfs
+   device node.
 
 4. A ZFS filesystem or more to export.
 

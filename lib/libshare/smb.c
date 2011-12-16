@@ -61,7 +61,7 @@ int smb_retrieve_shares(void);
 int
 smb_enable_share_one(const char *sharename, const char *sharepath)
 {
-	char *argv[12], name[255], comment[255];
+	char *argv[10], name[255], comment[255];
 	int rc;
 
 #ifdef DEBUG
@@ -87,23 +87,21 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	  ++pos;
 	}
 
-	/* CMD: net -U root -S 127.0.0.1 usershare add Test1 /share/Test1 "Comment" "Everyone:F" */
+	/* CMD: net -S 127.0.0.1 usershare add Test1 /share/Test1 "Comment" "Everyone:F" */
 	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
 	if (file_is_executable(NET_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0]  = NET_CMD_PATH;
-	argv[1]  = "-U";
-	argv[2]  = "root";
-	argv[3]  = "-S";
-	argv[4]  = "127.0.0.1";
-	argv[5]  = "usershare";
-	argv[6]  = "add";
-	argv[7]  = name;
-	argv[8]  = strdup(sharepath);
-	argv[9]  = comment;
-	argv[10] = "Everyone:F";
-	argv[11] = NULL;
+	argv[1]  = "-S";
+	argv[2]  = "127.0.0.1";
+	argv[3]  = "usershare";
+	argv[4]  = "add";
+	argv[5]  = name;
+	argv[6]  = strdup(sharepath);
+	argv[7]  = comment;
+	argv[8] = "Everyone:F";
+	argv[9] = NULL;
 
 #ifdef DEBUG
 	int i;
@@ -171,7 +169,7 @@ smb_disable_share_one(const char *sharename)
 	fprintf(stderr, "    smb_disable_share_one()\n");
 #endif
 
-	/* CMD: net -U root -S 127.0.0.1 usershare delete Test1 */
+	/* CMD: net -S 127.0.0.1 usershare delete Test1 */
 	if (file_is_executable(NET_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0] = NET_CMD_PATH;
