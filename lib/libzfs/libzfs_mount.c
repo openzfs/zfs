@@ -916,7 +916,6 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 	char *mntpt = NULL, *mnt = NULL;
 	iscsi_target_t *target = iscsi_targets;
 
-	mountpoint, zfs_get_name(zhp));
 	switch (*proto) {
 	case PROTO_ISCSI:
 		if (mountpoint == NULL) {

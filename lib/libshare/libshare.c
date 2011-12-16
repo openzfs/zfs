@@ -475,7 +475,6 @@ sa_fini(sa_handle_t handle)
 			/* remove item from the linked list */
 			*pcurr = next;
 
-	impl_share->dataset, impl_share->sharepath);
 			sa_disable_share(impl_share, NULL);
 
 			free_share(impl_share);
@@ -574,7 +573,6 @@ sa_disable_share(sa_share_t share, char *protocol)
 	fstype = fstypes;
 	while (fstype != NULL) {
 		if (protocol == NULL || strcmp(fstype->name, protocol) == 0) {
-	impl_share->dataset, impl_share->sharepath);
 			rc = fstype->ops->disable_share(impl_share);
 
 			if (rc == SA_OK) {

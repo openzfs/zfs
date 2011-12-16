@@ -111,9 +111,9 @@ iscsi_generate_target(const char *path, char *iqn, size_t iqn_len)
 
 	/* Take the dataset name, replace / with . */
 	strncpy(name, path, sizeof(name));
-	char *pos = str;
-	if( pos == NULL )
-	  return SA_SYSTEM_ERR;
+	char *pos = name;
+	if (pos == NULL)
+		return SA_SYSTEM_ERR;
 	while( *pos != '\0' ) {
 		switch( *pos ) {
 		case '/':
@@ -155,7 +155,7 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
 	snprintf(tid_s, sizeof(tid_s), "%d", tid);
-	if (file_exists(IETM_CMD_PATH))
+	if (file_is_executable(IETM_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
@@ -236,7 +236,7 @@ iscsi_disable_share_one(int tid)
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
 	snprintf(tid_s, sizeof (tid_s), "%d", tid);
-	if (file_exists(IETM_CMD_PATH))
+	if (file_is_executable(IETM_CMD_PATH))
 		return SA_SYSTEM_ERR;
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
