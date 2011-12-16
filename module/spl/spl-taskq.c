@@ -135,11 +135,6 @@ task_done(taskq_t *tq, taskq_ent_t *t)
 	ASSERT(t);
 	ASSERT(spin_is_locked(&tq->tq_lock));
 
-	/* For prealloc'd tasks, we don't free anything. */
-	if ((!(tq->tq_flags & TASKQ_DYNAMIC)) &&
-	    (t->tqent_flags & TQENT_FLAG_PREALLOC))
-		return;
-
 	list_del_init(&t->tqent_list);
 
         if (tq->tq_nalloc <= tq->tq_minalloc) {
@@ -147,6 +142,7 @@ task_done(taskq_t *tq, taskq_ent_t *t)
 		t->tqent_func = NULL;
 		t->tqent_arg = NULL;
 		t->tqent_flags = 0;
+
                 list_add_tail(&t->tqent_list, &tq->tq_free_list);
 	} else {
 		task_free(tq, t);
@@ -480,10 +476,19 @@ taskq_thread(void *args)
 		if (pend_list) {
                         t = list_entry(pend_list->next, taskq_ent_t, tqent_list);
                         list_del_init(&t->tqent_list);
+
 			/* In order to support recursively dispatching a
 			 * preallocated taskq_ent_t, tqent_id must be
 			 * stored prior to executing tqent_func. */
 			tqt->tqt_id = t->tqent_id;
+
+			/* We must store a copy of the flags prior to
+			 * servicing the task (servicing a prealloc'd task
+			 * returns the ownership of the tqent back to
+			 * the caller of taskq_dispatch). Thus,
+			 * tqent_flags _may_ change within the call. */
+			tqt->tqt_flags = t->tqent_flags;
+
 			taskq_insert_in_order(tq, tqt);
                         tq->tq_nactive++;
 			spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
@@ -494,7 +499,11 @@ taskq_thread(void *args)
 			spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
                         tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
-                        task_done(tq, t);
+
+			/* For prealloc'd tasks, we don't free anything. */
+			if ((tq->tq_flags & TASKQ_DYNAMIC) ||
+			    !(tqt->tqt_flags & TQENT_FLAG_PREALLOC))
+				task_done(tq, t);
 
 			/* When the current lowest outstanding taskqid is
 			 * done calculate the new lowest outstanding id */
@@ -504,6 +513,7 @@ taskq_thread(void *args)
 			}
 
 			tqt->tqt_id = 0;
+			tqt->tqt_flags = 0;
                         wake_up_all(&tq->tq_wait_waitq);
 		}
 
