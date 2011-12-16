@@ -817,6 +817,12 @@ DEFAULT_INIT_SCRIPT
 DEFAULT_INIT_DIR
 DEFAULT_PACKAGE
 VENDOR
+MAKEPKG_VERSION
+MAKEPKG
+HAVE_MAKEPKG
+PACMAN_VERSION
+PACMAN
+HAVE_PACMAN
 ALIEN_VERSION
 ALIEN
 HAVE_ALIEN
@@ -4829,13 +4835,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4832: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4838: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4835: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4841: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4838: output\"" >&5)
+  (eval echo "\"\$as_me:4844: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6041,7 +6047,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6044 "configure"' > conftest.$ac_ext
+  echo '#line 6050 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7894,11 +7900,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7897: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7903: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7901: \$? = $ac_status" >&5
+   echo "$as_me:7907: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8233,11 +8239,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8236: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8242: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8240: \$? = $ac_status" >&5
+   echo "$as_me:8246: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8338,11 +8344,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8341: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8347: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8345: \$? = $ac_status" >&5
+   echo "$as_me:8351: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8393,11 +8399,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8396: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8402: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8400: \$? = $ac_status" >&5
+   echo "$as_me:8406: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11196,7 +11202,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11199 "configure"
+#line 11205 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11292,7 +11298,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11295 "configure"
+#line 11301 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11787,6 +11793,58 @@ fi
 
 
 
+	PACMAN=pacman
+	MAKEPKG=makepkg
+
+	{ $as_echo "$as_me:$LINENO: checking whether $PACMAN is available" >&5
+$as_echo_n "checking whether $PACMAN is available... " >&6; }
+	tmp=$($PACMAN --version 2>/dev/null)
+	if test -n "$tmp"; then
+
+		PACMAN_VERSION=$(echo $tmp |
+		                 $AWK '/Pacman/ { print $3 }' |
+		                 $SED 's/^v//')
+		HAVE_PACMAN=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_PACMAN ($PACMAN_VERSION)" >&5
+$as_echo "$HAVE_PACMAN ($PACMAN_VERSION)" >&6; }
+
+else
+
+		HAVE_PACMAN=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_PACMAN" >&5
+$as_echo "$HAVE_PACMAN" >&6; }
+
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether $MAKEPKG is available" >&5
+$as_echo_n "checking whether $MAKEPKG is available... " >&6; }
+	tmp=$($MAKEPKG --version 2>/dev/null)
+	if test -n "$tmp"; then
+
+		MAKEPKG_VERSION=$(echo $tmp | $AWK '/makepkg/ { print $3 }')
+		HAVE_MAKEPKG=yes
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_MAKEPKG ($MAKEPKG_VERSION)" >&5
+$as_echo "$HAVE_MAKEPKG ($MAKEPKG_VERSION)" >&6; }
+
+else
+
+		HAVE_MAKEPKG=no
+		{ $as_echo "$as_me:$LINENO: result: $HAVE_MAKEPKG" >&5
+$as_echo "$HAVE_MAKEPKG" >&6; }
+
+fi
+
+
+
+
+
+
+
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking linux distribution" >&5
 $as_echo_n "checking linux distribution... " >&6; }
 	if test -f /etc/redhat-release ; then
@@ -11825,6 +11883,7 @@ $as_echo_n "checking default package type... " >&6; }
 		slackware)  DEFAULT_PACKAGE=tgz ;;
 		gentoo)     DEFAULT_PACKAGE=tgz ;;
 		lunar)      DEFAULT_PACKAGE=tgz ;;
+		arch)       DEFAULT_PACKAGE=arch;;
 		*)          DEFAULT_PACKAGE=rpm ;;
 	esac
 
@@ -21568,7 +21627,7 @@ fi
 $as_echo "$enable_debug" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec zfs-script-config.sh"
+ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh"
 
 
 cat >confcache <<\_ACEOF
@@ -22548,6 +22607,8 @@ do
     "scripts/common.sh") CONFIG_FILES="$CONFIG_FILES scripts/common.sh" ;;
     "zfs.spec") CONFIG_FILES="$CONFIG_FILES zfs.spec" ;;
     "zfs-modules.spec") CONFIG_FILES="$CONFIG_FILES zfs-modules.spec" ;;
+    "PKGBUILD-zfs") CONFIG_FILES="$CONFIG_FILES PKGBUILD-zfs" ;;
+    "PKGBUILD-zfs-modules") CONFIG_FILES="$CONFIG_FILES PKGBUILD-zfs-modules" ;;
     "zfs-script-config.sh") CONFIG_FILES="$CONFIG_FILES zfs-script-config.sh" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5

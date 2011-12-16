@@ -15,6 +15,12 @@
 
 @SET_MAKE@
 
+###############################################################################
+# Written by Prakash Surya <surya1@llnl.gov>
+###############################################################################
+# Build targets for RPM packages.
+###############################################################################
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -37,11 +43,13 @@ host_triplet = @host@
 target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/PKGBUILD-zfs-modules.in $(srcdir)/PKGBUILD-zfs.in \
 	$(srcdir)/zfs-modules.spec.in \
 	$(srcdir)/zfs-script-config.sh.in $(srcdir)/zfs.spec.in \
-	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/deb.am \
-	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
-	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/arch.am \
+	$(top_srcdir)/config/deb.am $(top_srcdir)/config/rpm.am \
+	$(top_srcdir)/config/tgz.am $(top_srcdir)/configure \
+	$(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
 	$(top_srcdir)/module/nvpair/Makefile.in \
 	$(top_srcdir)/module/unicode/Makefile.in \
@@ -106,8 +114,8 @@ CONFIG_HEADER = zfs_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/nvpair/Makefile module/unicode/Makefile \
 	module/zcommon/Makefile module/zfs/Makefile \
-	module/zpios/Makefile zfs.spec zfs-modules.spec \
-	zfs-script-config.sh
+	module/zpios/Makefile zfs.spec zfs-modules.spec PKGBUILD-zfs \
+	PKGBUILD-zfs-modules zfs-script-config.sh
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -212,6 +220,8 @@ GREP = @GREP@
 HAVE_ALIEN = @HAVE_ALIEN@
 HAVE_DPKG = @HAVE_DPKG@
 HAVE_DPKGBUILD = @HAVE_DPKGBUILD@
+HAVE_MAKEPKG = @HAVE_MAKEPKG@
+HAVE_PACMAN = @HAVE_PACMAN@
 HAVE_RPM = @HAVE_RPM@
 HAVE_RPMBUILD = @HAVE_RPMBUILD@
 INSTALL = @INSTALL@
@@ -238,6 +248,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
+MAKEPKG = @MAKEPKG@
+MAKEPKG_VERSION = @MAKEPKG_VERSION@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -252,6 +264,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PACMAN = @PACMAN@
+PACMAN_VERSION = @PACMAN_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
 RPM = @RPM@
@@ -354,7 +368,7 @@ all: zfs_config.h
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/rpm.am $(top_srcdir)/config/deb.am $(top_srcdir)/config/tgz.am $(top_srcdir)/config/arch.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -420,6 +434,10 @@ module/zpios/Makefile: $(top_builddir)/config.status $(top_srcdir)/module/zpios/
 zfs.spec: $(top_builddir)/config.status $(srcdir)/zfs.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs-modules.spec: $(top_builddir)/config.status $(srcdir)/zfs-modules.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+PKGBUILD-zfs: $(top_builddir)/config.status $(srcdir)/PKGBUILD-zfs.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+PKGBUILD-zfs-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-zfs-modules.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs-script-config.sh: $(top_builddir)/config.status $(srcdir)/zfs-script-config.sh.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
@@ -1003,6 +1021,41 @@ tgz-utils: tgz-local rpm-utils
 	$(RM) $$pkg1 $$pkg2 $$pkg3
 
 tgz: tgz-modules tgz-utils
+
+sarch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" sarch-common
+
+sarch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" sarch-common
+
+sarch: sarch-modules sarch-utils
+
+arch-modules:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+
+arch-utils:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+
+arch: arch-modules arch-utils
+
+arch-local:
+	@(if test "${HAVE_MAKEPKG}" = "no"; then \
+		echo -e "\n" \
+	"*** Required util ${MAKEPKG} missing.  Please install the\n" \
+	"*** package for your distribution which provides ${MAKEPKG},\n" \
+	"*** re-run configure, and try again.\n"; \
+		exit 1; \
+	fi;)
+
+sarch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --allsource --skipinteg --nodeps -p $$pkgbuild || exit 1;
+
+arch-common: dist
+	pkgbuild=PKGBUILD-$(pkg); \
+	$(MAKE) $(AM_MAKEFLAGS) arch-local || exit 1; \
+	$(MAKEPKG) --skipinteg -p $$pkgbuild || exit 1;
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
