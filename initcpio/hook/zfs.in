@@ -1,0 +1,72 @@
+ZPOOL_FORCE=""
+
+zfs_get_bootfs () {
+    ZFS_DATASET=`@sbindir@/zpool list -H -o bootfs | sed 'q'`
+    if [ "$?" != "0" ] || [ "$ZFS_DATASET" = "" ] || [ "$ZFS_DATASET" = "no pools available" ] ; then
+        return 1
+    fi
+}
+
+zfs_mount_handler () {
+    local node=$1
+    if [ "$ZFS_DATASET" = "bootfs" ] ; then
+        if ! zfs_get_bootfs ; then
+            # Lets import everything and try again
+            @sbindir@/zpool import -N -a $ZPOOL_FORCE
+            if ! zfs_get_bootfs ; then
+                echo "ZFS: Cannot find bootfs."
+                return 1
+            fi
+        fi
+    fi
+
+    local pool="${ZFS_DATASET%%/*}"
+    if ! "@sbindir@/zpool" list -H $pool > /dev/null ; then
+        echo "ZFS: Importing pool $pool."
+
+        if ! "@sbindir@/zpool" import -N $pool $ZPOOL_FORCE ; then
+            echo "ZFS: Unable to import pool $pool."
+            return 1
+        fi
+    fi
+
+    local mountpoint=$("@sbindir@/zfs" get -H -o value mountpoint $ZFS_DATASET)
+    if [ "$mountpoint" = "legacy" ] ; then
+        mount -t zfs "$ZFS_DATASET" "$node"
+    else
+        mount -o zfsutil -t zfs "$ZFS_DATASET" "$node"
+    fi
+}
+
+run_hook ()
+{
+    input="$(cat /proc/cmdline)"
+    for i in $input; do
+        case $i in
+            spl_hostid=*)
+                echo "${i#spl_hostid=}" > "@sysconfdir@/hostid"
+                ;;
+            zfs_force=1|zfs_force=yes|zfs_force=on)
+                ZPOOL_FORCE="-f"
+                ;;
+            root=zfs)
+                ZFS_DATASET="bootfs"
+                mount_handler="zfs_mount_handler"
+                ;;
+            # bootfs
+            zfs=auto|zfs=bootfs)
+                ZFS_DATASET="bootfs"
+                mount_handler="zfs_mount_handler"
+                ;;
+            # zfs dataset
+            zfs=*)
+                ZFS_DATASET="${i#zfs=}"
+                mount_handler="zfs_mount_handler"
+                ;;
+        esac
+    done
+
+    if [ ! -f "@sysconfdir@/hostid" ] ; then
+        echo "ZFS: No hostid found on kernel command line or @sysconfdir@/hostid. ZFS pools may not import correctly."
+    fi
+}

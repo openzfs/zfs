@@ -708,13 +708,16 @@ libzfs_init(void)
 	}
 
 #ifdef HAVE_SETMNTENT
-	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r") == NULL) {
+		if ((hdl->libzfs_mnttab = setmntent("/proc/mounts", "r") == NULL) {
 #else
 	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
+		if ((hdl->libzfs_mnttab = fopen("/proc/mounts", "r")) == NULL) {
 #endif
-		(void) close(hdl->libzfs_fd);
-		free(hdl);
-		return (NULL);
+			(void) close(hdl->libzfs_fd);
+			free(hdl);
+			return (NULL);
+		}
 	}
 
 	hdl->libzfs_sharetab = fopen("/etc/dfs/sharetab", "r");
