@@ -373,6 +373,8 @@ AC_DEFUN([SPL_AC_DEFAULT_PACKAGE], [
 		VENDOR=redhat ;
 	elif test -f /etc/fedora-release ; then
 		VENDOR=fedora ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
 	elif test -f /etc/lsb-release ; then
 		VENDOR=ubuntu ;
 	elif test -f /etc/debian_version ; then
@@ -383,8 +385,6 @@ AC_DEFUN([SPL_AC_DEFAULT_PACKAGE], [
 		VENDOR=slackware ;
 	elif test -f /etc/gentoo-release ; then
 		VENDOR=gentoo ;
-	elif test -f /etc/arch-release ; then
-		VENDOR=arch ;
 	else
 		VENDOR= ;
 	fi
