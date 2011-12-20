@@ -1,0 +1,28 @@
+# Maintainer: Prakash Surya <surya1@llnl.gov>
+pkgname=@ZFS_META_NAME@
+pkgver=@ZFS_META_VERSION@
+pkgrel=@ZFS_META_RELEASE@
+pkgdesc="Contains the libzfs library and support utilities for the zfs file system."
+arch=(x86_64)
+url="git://github.com/zfsonlinux/zfs.git"
+license=(@ZFS_META_LICENSE@)
+depends=('spl' 'zlib' 'e2fsprogs')
+backup=('etc/zfs/zdev.conf')
+source=(@ZFS_META_NAME@-@ZFS_META_VERSION@.tar.gz)
+
+build() {
+	cd $srcdir/@ZFS_META_NAME@-@ZFS_META_VERSION@
+	./configure --with-config=user \
+	            --prefix=/ \
+	            --sysconfdir=/etc \
+	            --libexecdir=/usr/libexec \
+	            --datadir=/usr/share \
+	            --includedir=/usr/include \
+	            --with-udevdir=/lib/udev
+	make
+}
+
+package() {
+	cd $srcdir/@ZFS_META_NAME@-@ZFS_META_VERSION@
+	make DESTDIR=$pkgdir install
+}
