@@ -234,12 +234,12 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		VENDOR=sles ;
 	elif test -f /etc/slackware-version ; then
 		VENDOR=slackware ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
 	elif test -f /etc/lsb-release ; then
 		VENDOR=ubuntu ;
 	elif test -f /etc/lunar.release ; then
 		VENDOR=lunar ;
-	elif test -f /etc/arch-release ; then
-		VENDOR=arch ;
 	else
 		VENDOR= ;
 	fi
