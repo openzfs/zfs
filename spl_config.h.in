@@ -111,6 +111,9 @@
 /* invalidate_inodes() is available */
 #undef HAVE_INVALIDATE_INODES
 
+/* invalidate_inodes_check() is available */
+#undef HAVE_INVALIDATE_INODES_CHECK
+
 /* kallsyms_lookup_name() is available */
 #undef HAVE_KALLSYMS_LOOKUP_NAME
 

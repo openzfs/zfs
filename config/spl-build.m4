@@ -1816,12 +1816,25 @@ dnl # The function invalidate_inodes() is no longer exported by the kernel.
 dnl # The prototype however is still available which means it is safe
 dnl # to acquire the symbol's address using spl_kallsyms_lookup_name().
 dnl #
+dnl # The Proxmox VE kernel contains a patch which renames the function
+dnl # invalidate_inodes() to invalidate_inodes_check().  In the process
+dnl # it adds a 'check' argument and a '#define invalidate_inodes(x)'
+dnl # compatibility wrapper for legacy callers.  Therefore, if either
+dnl # of these functions are exported invalidate_inodes() can be
+dnl # safely used.
+dnl #
 AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
 	SPL_CHECK_SYMBOL_EXPORT(
 		[invalidate_inodes],
 		[],
 		[AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
 		[invalidate_inodes() is available])],
+		[])
+	SPL_CHECK_SYMBOL_EXPORT(
+		[invalidate_inodes_check],
+		[],
+		[AC_DEFINE(HAVE_INVALIDATE_INODES_CHECK, 1,
+		[invalidate_inodes_check() is available])],
 		[])
 ])
 
