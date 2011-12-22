@@ -199,34 +199,120 @@ zpl_kill_sb(struct super_block *sb)
 	kill_anon_super(sb);
 }
 
-const struct super_operations zpl_super_operations = {
-	.alloc_inode	= zpl_inode_alloc,
-	.destroy_inode	= zpl_inode_destroy,
-	.dirty_inode	= NULL,
-	.write_inode	= NULL,
-	.drop_inode	= NULL,
-#ifdef HAVE_EVICT_INODE
-	.evict_inode	= zpl_evict_inode,
+#ifdef HAVE_SHRINK
+/*
+ * Linux 3.1 - 3.x API
+ *
+ * The Linux 3.1 API introduced per-sb cache shrinkers to replace the
+ * global ones.  This allows us a mechanism to cleanly target a specific
+ * zfs file system when the dnode and inode caches grow too large.
+ *
+ * In addition, the 3.0 kernel added the iterate_supers_type() helper
+ * function which is used to safely walk all of the zfs file systems.
+ */
+static void
+zpl_prune_sb(struct super_block *sb, void *arg)
+{
+	int objects = 0;
+	int error;
+
+	error = -zfs_sb_prune(sb, *(unsigned long *)arg, &objects);
+	ASSERT3S(error, <=, 0);
+
+	return;
+}
+
+void
+zpl_prune_sbs(int64_t bytes_to_scan, void *private)
+{
+	unsigned long nr_to_scan = (bytes_to_scan / sizeof(znode_t));
+
+	iterate_supers_type(&zpl_fs_type, zpl_prune_sb, &nr_to_scan);
+	kmem_reap();
+}
 #else
-	.clear_inode	= zpl_clear_inode,
-	.delete_inode	= zpl_inode_delete,
+/*
+ * Linux 2.6.x - 3.0 API
+ *
+ * These are best effort interfaces are provided by the SPL to induce
+ * the Linux VM subsystem to reclaim a fraction of the both dnode and
+ * inode caches.  Ideally, we want to just target the zfs file systems
+ * however our only option is to reclaim from them all.
+ */
+void
+zpl_prune_sbs(int64_t bytes_to_scan, void *private)
+{
+	unsigned long nr_to_scan = (bytes_to_scan / sizeof(znode_t));
+
+        shrink_dcache_memory(nr_to_scan, GFP_KERNEL);
+        shrink_icache_memory(nr_to_scan, GFP_KERNEL);
+        kmem_reap();
+}
+#endif /* HAVE_SHRINK */
+
+#ifdef HAVE_NR_CACHED_OBJECTS
+static int
+zpl_nr_cached_objects(struct super_block *sb)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	int nr;
+
+	mutex_enter(&zsb->z_znodes_lock);
+	nr = zsb->z_nr_znodes;
+	mutex_exit(&zsb->z_znodes_lock);
+
+	return (nr);
+}
+#endif /* HAVE_NR_CACHED_OBJECTS */
+
+#ifdef HAVE_FREE_CACHED_OBJECTS
+/*
+ * Attempt to evict some meta data from the cache.  The ARC operates in
+ * terms of bytes while the Linux VFS uses objects.  Now because this is
+ * just a best effort eviction and the exact values aren't critical so we
+ * extrapolate from an object count to a byte size using the znode_t size.
+ */
+static void
+zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
+{
+	arc_adjust_meta(nr_to_scan * sizeof(znode_t), B_FALSE);
+}
+#endif /* HAVE_FREE_CACHED_OBJECTS */
+
+const struct super_operations zpl_super_operations = {
+	.alloc_inode		= zpl_inode_alloc,
+	.destroy_inode		= zpl_inode_destroy,
+	.dirty_inode		= NULL,
+	.write_inode		= NULL,
+	.drop_inode		= NULL,
+#ifdef HAVE_EVICT_INODE
+	.evict_inode		= zpl_evict_inode,
+#else
+	.clear_inode		= zpl_clear_inode,
+	.delete_inode		= zpl_inode_delete,
 #endif /* HAVE_EVICT_INODE */
-	.put_super	= zpl_put_super,
-	.write_super	= NULL,
-	.sync_fs	= zpl_sync_fs,
-	.statfs		= zpl_statfs,
-	.remount_fs	= zpl_remount_fs,
-	.show_options	= zpl_show_options,
-	.show_stats	= NULL,
+	.put_super		= zpl_put_super,
+	.write_super		= NULL,
+	.sync_fs		= zpl_sync_fs,
+	.statfs			= zpl_statfs,
+	.remount_fs		= zpl_remount_fs,
+	.show_options		= zpl_show_options,
+	.show_stats		= NULL,
+#ifdef HAVE_NR_CACHED_OBJECTS
+	.nr_cached_objects	= zpl_nr_cached_objects,
+#endif /* HAVE_NR_CACHED_OBJECTS */
+#ifdef HAVE_FREE_CACHED_OBJECTS
+	.free_cached_objects	= zpl_free_cached_objects,
+#endif /* HAVE_FREE_CACHED_OBJECTS */
 };
 
 struct file_system_type zpl_fs_type = {
-	.owner		= THIS_MODULE,
-	.name		= ZFS_DRIVER,
+	.owner			= THIS_MODULE,
+	.name			= ZFS_DRIVER,
 #ifdef HAVE_MOUNT_NODEV
-	.mount		= zpl_mount,
+	.mount			= zpl_mount,
 #else
-	.get_sb		= zpl_get_sb,
+	.get_sb			= zpl_get_sb,
 #endif /* HAVE_MOUNT_NODEV */
-	.kill_sb	= zpl_kill_sb,
+	.kill_sb		= zpl_kill_sb,
 };

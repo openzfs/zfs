@@ -67,7 +67,8 @@ typedef struct zfs_sb {
 	boolean_t	z_unmounted;	/* unmounted */
 	rrwlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
-	list_t		z_all_znodes;	/* all vnodes in the fs */
+	list_t		z_all_znodes;	/* all znodes in the fs */
+	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
@@ -185,6 +186,8 @@ extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop,
 extern int zfs_sb_create(const char *name, zfs_sb_t **zsbp);
 extern int zfs_sb_setup(zfs_sb_t *zsb, boolean_t mounting);
 extern void zfs_sb_free(zfs_sb_t *zsb);
+extern int zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan,
+    int *objects);
 extern int zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 extern boolean_t zfs_is_readonly(zfs_sb_t *zsb);

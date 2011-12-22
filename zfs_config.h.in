@@ -90,6 +90,9 @@
 /* kernel defines fmode_t */
 #undef HAVE_FMODE_T
 
+/* sops->free_cached_objects() exists */
+#undef HAVE_FREE_CACHED_OBJECTS
+
 /* fops->fsync() with range */
 #undef HAVE_FSYNC_RANGE
 
@@ -141,6 +144,9 @@
 /* mount_nodev() is available */
 #undef HAVE_MOUNT_NODEV
 
+/* sops->nr_cached_objects() exists */
+#undef HAVE_NR_CACHED_OBJECTS
+
 /* open_bdev_exclusive() is available */
 #undef HAVE_OPEN_BDEV_EXCLUSIVE
 
@@ -155,6 +161,9 @@
 
 /* set_nlink() is available */
 #undef HAVE_SET_NLINK
+
+/* struct super_block has s_shrink */
+#undef HAVE_SHRINK
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
