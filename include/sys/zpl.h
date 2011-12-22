@@ -48,6 +48,8 @@ extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
+extern void zpl_prune_sbs(int64_t bytes_to_scan, void *private);
+
 typedef struct zpl_mount_data {
 	const char *z_osname;	/* Dataset name */
 	void *z_data;		/* Mount options string */

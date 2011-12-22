@@ -14774,6 +14774,144 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether sops->nr_cached_objects() exists" >&5
+$as_echo_n "checking whether sops->nr_cached_objects() exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		int (*nr_cached_objects)(struct super_block *)
+			__attribute__ ((unused)) = NULL;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.nr_cached_objects = nr_cached_objects,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NR_CACHED_OBJECTS 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether sops->free_cached_objects() exists" >&5
+$as_echo_n "checking whether sops->free_cached_objects() exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		void (*free_cached_objects)(struct super_block *, int)
+			__attribute__ ((unused)) = NULL;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.free_cached_objects = free_cached_objects,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_FREE_CACHED_OBJECTS 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking whether symbol insert_inode_locked is exported" >&5
 $as_echo_n "checking whether symbol insert_inode_locked is exported... " >&6; }
 	grep -q -E '[[:space:]]insert_inode_locked[[:space:]]' \
@@ -15103,6 +15241,78 @@ _ACEOF
 
 
 fi
+
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether super_block has s_shrink" >&5
+$as_echo_n "checking whether super_block has s_shrink... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		int (*shrink)(struct shrinker *, struct shrink_control *sc)
+			__attribute__ ((unused)) = NULL;
+		struct super_block sb __attribute__ ((unused)) = {
+			.s_shrink.shrink = shrink,
+			.s_shrink.seeks = DEFAULT_SEEKS,
+			.s_shrink.batch = 0,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SHRINK 1
+_ACEOF
+
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
 
 
 
@@ -19611,6 +19821,144 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether sops->nr_cached_objects() exists" >&5
+$as_echo_n "checking whether sops->nr_cached_objects() exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		int (*nr_cached_objects)(struct super_block *)
+			__attribute__ ((unused)) = NULL;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.nr_cached_objects = nr_cached_objects,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_NR_CACHED_OBJECTS 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether sops->free_cached_objects() exists" >&5
+$as_echo_n "checking whether sops->free_cached_objects() exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		void (*free_cached_objects)(struct super_block *, int)
+			__attribute__ ((unused)) = NULL;
+		struct super_operations sops __attribute__ ((unused)) = {
+			.free_cached_objects = free_cached_objects,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_FREE_CACHED_OBJECTS 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking whether symbol insert_inode_locked is exported" >&5
 $as_echo_n "checking whether symbol insert_inode_locked is exported... " >&6; }
 	grep -q -E '[[:space:]]insert_inode_locked[[:space:]]' \
@@ -19940,6 +20288,78 @@ _ACEOF
 
 
 fi
+
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether super_block has s_shrink" >&5
+$as_echo_n "checking whether super_block has s_shrink... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		int (*shrink)(struct shrinker *, struct shrink_control *sc)
+			__attribute__ ((unused)) = NULL;
+		struct super_block sb __attribute__ ((unused)) = {
+			.s_shrink.shrink = shrink,
+			.s_shrink.seeks = DEFAULT_SEEKS,
+			.s_shrink.batch = 0,
+		};
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SHRINK 1
+_ACEOF
+
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
 
 
 

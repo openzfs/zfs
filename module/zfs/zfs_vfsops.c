@@ -986,6 +986,26 @@ zfs_root(zfs_sb_t *zsb, struct inode **ipp)
 }
 EXPORT_SYMBOL(zfs_root);
 
+#ifdef HAVE_SHRINK
+int
+zfs_sb_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+	struct shrinker *shrinker = &sb->s_shrink;
+	struct shrink_control sc = {
+		.nr_to_scan = nr_to_scan,
+		.gfp_mask = GFP_KERNEL,
+	};
+
+	ZFS_ENTER(zsb);
+	*objects = (*shrinker->shrink)(shrinker, &sc);
+	ZFS_EXIT(zsb);
+
+	return (0);
+}
+EXPORT_SYMBOL(zfs_sb_prune);
+#endif /* HAVE_SHRINK */
+
 /*
  * Teardown the zfs_sb_t::z_os.
  *
@@ -1533,6 +1553,7 @@ zfs_init(void)
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 	register_filesystem(&zpl_fs_type);
+	(void) arc_add_prune_callback(zpl_prune_sbs, NULL);
 }
 
 void
