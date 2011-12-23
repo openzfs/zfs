@@ -94,4 +94,19 @@ bdi_setup_and_register(struct backing_dev_info *bdi,char *name,unsigned int cap)
 }
 #endif /* HAVE_BDI && !HAVE_BDI_SETUP_AND_REGISTER */
 
+/*
+ * 3.2-rc1 API change,
+ * Add set_nlink() if it is not exported by the Linux kernel.
+ *
+ * i_nlink is read-only in Linux 3.2, but it can be set directly in
+ * earlier kernels.
+ */
+#ifndef HAVE_SET_NLINK
+static inline void
+set_nlink(struct inode *inode, unsigned int nlink)
+{
+	inode->i_nlink = nlink;
+}
+#endif /* HAVE_SET_NLINK */
+
 #endif /* _ZFS_VFS_H */

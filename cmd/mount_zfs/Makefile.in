@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-for-each_segment.m4 \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel-security-inode-init.m4 \
+	$(top_srcdir)/config/kernel-set-nlink.m4 \
 	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
@@ -181,6 +182,8 @@ GREP = @GREP@
 HAVE_ALIEN = @HAVE_ALIEN@
 HAVE_DPKG = @HAVE_DPKG@
 HAVE_DPKGBUILD = @HAVE_DPKGBUILD@
+HAVE_MAKEPKG = @HAVE_MAKEPKG@
+HAVE_PACMAN = @HAVE_PACMAN@
 HAVE_RPM = @HAVE_RPM@
 HAVE_RPMBUILD = @HAVE_RPMBUILD@
 INSTALL = @INSTALL@
@@ -207,6 +210,8 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
+MAKEPKG = @MAKEPKG@
+MAKEPKG_VERSION = @MAKEPKG_VERSION@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -221,6 +226,8 @@ PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
+PACMAN = @PACMAN@
+PACMAN_VERSION = @PACMAN_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
 RPM = @RPM@
@@ -334,7 +341,7 @@ mount_zfs_LDADD = \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
 mount_zfs_LDFLAGS = \
-	-pthread -lm $(ZLIB) -lrt -ldl $(LIBUUID) $(LIBBLKID)
+	-pthread -lm $(ZLIB) -lrt -ldl $(LIBUUID) $(LIBBLKID) $(LIBSELINUX)
 
 all: all-am
 
