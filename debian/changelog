@@ -1,3 +1,18 @@
+zfs-linux (0.6.0.42-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Add make rule for building Arch Linux packages
+  * Move Arch Linux's VENDOR check above Ubuntu's
+
+  [ Darik Horn ]
+  * Update the character class in the zpool man page. (Closes: #438)
+  * Linux 3.2 compat: set_nlink() (Closes: #462)
+  * Add LIBSELINUX to mount_zfs_LDFLAGS.
+  * Refresh debian/patches after upstream merge.
+  * PPA 0.6.0.42-0ubuntu1 release.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 23 Dec 2011 09:09:59 -0600
+
 zfs-linux (0.6.0.41-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
