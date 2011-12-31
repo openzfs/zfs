@@ -11,7 +11,7 @@ DEFAULT_INCLUDES += \
 AM_CCASFLAGS = \
 	-I$(top_srcdir)/lib/libspl/include
 
-lib_LTLIBRARIES = libspl.la
+noinst_LTLIBRARIES = libspl.la
 
 libspl_la_SOURCES = \
 	$(top_srcdir)/lib/libspl/getexecname.c \
@@ -30,4 +30,4 @@ libspl_la_SOURCES = \
 	$(top_srcdir)/lib/libspl/include/sys/list.h \
 	$(top_srcdir)/lib/libspl/include/sys/list_impl.h
 
-libspl_la_LDFLAGS = -lrt -version-info 1:0:0
+libspl_la_LDFLAGS = -lrt

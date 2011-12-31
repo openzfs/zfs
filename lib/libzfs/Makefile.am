@@ -6,14 +6,6 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzfs.la
 
-libzfs_la_LIBADD = \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libshare/libshare.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la
-
 libzfs_la_SOURCES = \
 	$(top_srcdir)/lib/libzfs/libzfs_changelist.c \
 	$(top_srcdir)/lib/libzfs/libzfs_config.c \
@@ -28,4 +20,9 @@ libzfs_la_SOURCES = \
 	$(top_srcdir)/lib/libzfs/libzfs_status.c \
 	$(top_srcdir)/lib/libzfs/libzfs_util.c
 
-libzfs_la_LDFLAGS = -lm -ldl $(LIBSELINUX) -version-info 1:0:0
+libzfs_la_LIBADD = \
+	$(top_builddir)/lib/libshare/libshare.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
+
+libzfs_la_LDFLAGS = -lm -ldl -version-info 1:1:0 $(LIBSELINUX)
