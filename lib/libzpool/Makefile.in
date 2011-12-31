@@ -117,8 +117,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libzpool_la_DEPENDENCIES =  \
 	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la
+	$(top_builddir)/lib/libuutil/libuutil.la
 am_libzpool_la_OBJECTS = kernel.lo taskq.lo util.lo zfs_comutil.lo \
 	zfs_deleg.lo zfs_fletcher.lo zfs_namecheck.lo zfs_prop.lo \
 	zfs_uio.lo zpool_prop.lo zprop_common.lo arc.lo bplist.lo \
@@ -358,11 +357,6 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
 	$(FRAME_LARGER_THAN)
 lib_LTLIBRARIES = libzpool.la
-libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la
-
 libzpool_la_SOURCES = \
 	$(top_srcdir)/lib/libzpool/kernel.c \
 	$(top_srcdir)/lib/libzpool/taskq.c \
@@ -443,7 +437,11 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zle.c \
 	$(top_srcdir)/module/zfs/zrlock.c
 
-libzpool_la_LDFLAGS = -pthread -version-info 1:0:0
+libzpool_la_LIBADD = \
+	$(top_builddir)/lib/libunicode/libunicode.la \
+	$(top_builddir)/lib/libuutil/libuutil.la
+
+libzpool_la_LDFLAGS = -pthread -version-info 1:1:0
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
