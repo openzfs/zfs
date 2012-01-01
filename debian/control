@@ -16,23 +16,6 @@ Standards-Version: 3.8.4
 Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
 Vcs-Browser: http://github.com/dajhorn/pkg-zfs
 
-Package: libzavl1
-Section: libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Conflicts: libavl1
-Replaces: libavl0
-Description: OpenSolaris AVL tree manipulation library for Linux
- Adelson-Velskii Landis balanced binary tree manipulation library.
-
-Package: libefi1
-Section: libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: libefi0
-Description: OpenSolaris EFI library for Linux
- Extensible Firmware Interface library for GUID disk partitioning.
-
 Package: libnvpair1
 Section: libs
 Architecture: linux-any
@@ -43,42 +26,19 @@ Description: OpenSolaris name-value library for Linux
  transporting data across process boundaries, transporting between
  kernel and userland, and possibly saving onto disk files.
 
-Package: libshare1
-Section: libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: libshare0
-Description: Solaris network sharing library for Linux
- This library provides NFS and SMB service integration for
- ZFS filesystems.
-
-Package: libspl1
-Section: libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Conflicts: spl-dev
-Replaces: libspl0
-Description: Solaris Portability Layer library for Linux
- The Solaris Porting Layer (SPL) library provides APIs that make it
- possible to run Solaris user code in a Linux environment with
- relatively minimal modification.
-
-Package: libunicode1
-Section: libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: libunicode0
-Description: OpenSolaris unicode library for Linux
- This library provides UTF-8 text preparation functions and
- conversion functions for UTF-8, UTF-16, and UTF-32.
-
 Package: libuutil1
 Section: libs
 Architecture: linux-any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: libuutil0
 Description: OpenSolaris userland utility library for Linux
- Solaris glue functions for ZFS.
+ This library provides a variety of glue functions for ZFS on Linux:
+ * libspl: The Solaris Porting Layer library, which provides APIs that make it
+   possible to run Solaris user code in a Linux environment with relatively
+   minimal modification.
+ * libavl: The Adelson-Velskii Landis balanced binary tree manipulation library.
+ * libefi: The Extensible Firmware Interface library for GUID disk partitioning.
+ * libshare: NFS and SMB service integration for ZFS.
 
 Package: libzfs-dev
 Section: libdevel
@@ -122,7 +82,10 @@ Replaces: lzfs, lzfs-dkms
 Provides: lustre-backend-fs, lzfs, lzfs-dkms
 Conflicts: lzfs, lzfs-dkms
 Description: Native ZFS filesystem kernel modules for Linux
- An advanced integrated volume manager and filesystem.
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features..
+ .
  Includes the SPA, DMU, ZVOL, and ZPL components of ZFS.
 
 #Package: zfs-dracut
