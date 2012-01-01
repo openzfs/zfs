@@ -2,7 +2,11 @@ Source: zfs-linux
 Section: kernel
 Priority: extra
 Maintainer: Darik Horn <dajhorn@vanadac.com>
-Build-Depends: autotools-dev, debhelper (>= 7.4), dkms (>> 2.1.1.2-5ubuntu1), uuid-dev, zlib1g-dev
+Build-Depends: autotools-dev,
+ debhelper (>= 7.4),
+ dkms (>> 2.1.1.2-5ubuntu1),
+ uuid-dev,
+ zlib1g-dev,
 Standards-Version: 3.8.4
 Vcs-Git: git://github.com/dajhorn/pkg-zfs.git
 Vcs-Browser: http://github.com/dajhorn/pkg-zfs
@@ -76,7 +80,15 @@ Section: libdevel
 Architecture: linux-any
 Depends: ${misc:Depends}, libzfs1 (= ${binary:Version})
 Provides: libnvpair-dev, libuutil-dev
-Replaces: libefi1, libnvpair1, libshare1, libspl1, libunicode1, libuutil1, libzavl1, libzfs1, libzpool1
+Replaces: libefi1,
+ libnvpair1,
+ libshare1,
+ libspl1,
+ libunicode1,
+ libuutil1,
+ libzavl1,
+ libzfs1,
+ libzpool1,
 Description: Native ZFS filesystem development files for Linux
  Header files and static libraries for compiling software
  against libzfs.
