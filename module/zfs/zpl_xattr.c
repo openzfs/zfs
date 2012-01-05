@@ -622,7 +622,7 @@ __zpl_xattr_security_init(struct inode *ip, const struct xattr *xattrs,
 			break;
 	}
 
-        return (error);
+	return (error);
 }
 
 int
@@ -638,26 +638,25 @@ int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr)
 {
-        int error;
-        size_t len;
-        void *value;
-        char *name;
+	int error;
+	size_t len;
+	void *value;
+	char *name;
 
-        error = zpl_security_inode_init_security(ip, dip, qstr,
-	    &name, &value, &len);
-        if (error) {
-                if (error == -EOPNOTSUPP)
-                        return 0;
-
-                return (error);
-        }
+	error = zpl_security_inode_init_security(ip, dip, qstr,
+	  &name, &value, &len);
+	if (error) {
+		if (error == -EOPNOTSUPP)
+			return 0;
+		return (error);
+	}
 
 	error = __zpl_xattr_security_set(ip, name, value, len, 0);
 
-        kfree(name);
-        kfree(value);
+	kfree(name);
+	kfree(value);
 
-        return (error);
+	return (error);
 }
 #endif /* HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY */
 
@@ -673,6 +672,6 @@ xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_user_handler,
 #ifdef HAVE_POSIX_ACLS
 	&zpl_xattr_acl_access_handler,
-        &zpl_xattr_acl_default_handler,
+	&zpl_xattr_acl_default_handler,
 #endif /* HAVE_POSIX_ACLS */
 };
