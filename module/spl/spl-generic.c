@@ -49,7 +49,7 @@
 
 #define SS_DEBUG_SUBSYS SS_GENERIC
 
-char spl_version[32] = "SPL v" SPL_META_VERSION "-" SPL_META_RELEASE;
+char spl_version[32] = "SPL v" ZFS_META_VERSION "-" ZFS_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
 
 unsigned long spl_hostid = HW_INVALID_HOSTID;
@@ -680,8 +680,8 @@ __init spl_init(void)
 	if ((rc = spl_vn_init_kallsyms_lookup()))
 		SGOTO(out10, rc);
 
-	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
-	       SPL_META_RELEASE, SPL_DEBUG_STR);
+	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", ZFS_META_VERSION,
+	       ZFS_META_RELEASE, SPL_DEBUG_STR);
 	SRETURN(rc);
 out10:
 	spl_zlib_fini();
@@ -705,7 +705,7 @@ out1:
 	spl_debug_fini();
 
 	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer "
-	       "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
+	       "v%s-%s%s, rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
 	       SPL_DEBUG_STR, rc);
 	return rc;
 }
@@ -716,7 +716,7 @@ spl_fini(void)
 	SENTRY;
 
 	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
+	       ZFS_META_VERSION, ZFS_META_RELEASE, SPL_DEBUG_STR);
 	spl_zlib_fini();
 	spl_tsd_fini();
 	spl_kstat_fini();

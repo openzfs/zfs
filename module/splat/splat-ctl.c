@@ -674,7 +674,7 @@ splat_init(void)
 					 NULL, SPLAT_NAME);
 
 	printk(KERN_INFO "SPLAT: Loaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
+	       ZFS_META_VERSION, ZFS_META_RELEASE, SPL_DEBUG_STR);
 	return 0;
 error:
 	printk(KERN_ERR "SPLAT: Error registering splat device, %d\n", rc);
@@ -710,7 +710,7 @@ splat_fini(void)
 
 	ASSERT(list_empty(&splat_module_list));
 	printk(KERN_INFO "SPLAT: Unloaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
+	       ZFS_META_VERSION, ZFS_META_RELEASE, SPL_DEBUG_STR);
 
 	return 0;
 }

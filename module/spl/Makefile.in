@@ -1,10 +1,10 @@
 # Makefile.in for spl kernel module
 
 MODULE := spl
-EXTRA_CFLAGS = $(SPL_MODULE_CFLAGS) @KERNELCPPFLAGS@
+EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 # Solaris porting layer module
-obj-$(CONFIG_SPL) := $(MODULE).o
+obj-$(CONFIG_ZFS) := $(MODULE).o
 
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-debug.o
 $(MODULE)-objs += @top_srcdir@/module/spl/spl-proc.o
