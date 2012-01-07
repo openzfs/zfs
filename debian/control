@@ -132,7 +132,7 @@ Description: Native ZFS root filesystem capabilities for Linux
 Package: zfs-initramfs
 Section: kernel
 Architecture: linux-any
-Depends: ${misc:Depends}, mountall (>= 2.18), zfsutils, zfs-grub
+Depends: ${misc:Depends}, zfsutils, zfs-grub
 Description: Native ZFS root filesystem capabilities for Linux
  This package adds ZFS to the system initramfs with a hook
  for the initramfs-tools infrastructure.
