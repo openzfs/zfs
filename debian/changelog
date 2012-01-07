@@ -1,3 +1,17 @@
+zfs-linux (0.6.0.43-0ubuntu1) unstable; urgency=low
+
+  [ Seth Heeren ]
+  * added contrib/zfs_completion.bash
+
+  [ Darik Horn ]
+  * Wrap long lines in the debian/control file.
+  * Add libselinux1-dev to build-depends.
+  * Add bash command completion to zfsutils.
+  * Add security_inode_init_security.patch
+  * Add precise to the PPA build list.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 07 Jan 2012 11:05:03 -0600
+
 zfs-linux (0.6.0.42-0ubuntu1) unstable; urgency=low
 
   [ Prakash Surya ]
