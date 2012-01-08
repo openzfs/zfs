@@ -22,7 +22,10 @@ COPY_EXEC_LIST=" \
   "
 
 # These prerequisites are provides by other packages.
-COPY_EXEC_LIST="$COPY_EXEC_LIST /bin/hostname"
+COPY_EXEC_LIST="$COPY_EXEC_LIST \
+  /bin/hostname \
+  /sbin/blkid \
+  "
 
 # Explicitly specify all modules because dependency resolution is unreliable here.
 MANUAL_ADD_MODULES_LIST="zlib_deflate spl zavl zcommon znvpair zunicode zfs"
