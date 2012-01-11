@@ -271,6 +271,9 @@
 /* rwsem_is_locked() acquires sem->wait_lock */
 #undef RWSEM_IS_LOCKED_TAKES_WAIT_LOCK
 
+/* struct rw_semaphore member wait_lock is raw_spinlock_t */
+#undef RWSEM_SPINLOCK_IS_RAW
+
 /* Define the project alias string. */
 #undef SPL_META_ALIAS
 

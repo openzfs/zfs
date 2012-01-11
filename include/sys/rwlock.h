@@ -52,9 +52,9 @@ spl_rw_set_owner(krwlock_t *rwp)
 {
         unsigned long flags;
 
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
         rwp->rw_owner = current;
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 }
 
 static inline void
@@ -62,9 +62,9 @@ spl_rw_clear_owner(krwlock_t *rwp)
 {
         unsigned long flags;
 
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
         rwp->rw_owner = NULL;
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 }
 
 static inline kthread_t *
@@ -73,9 +73,9 @@ rw_owner(krwlock_t *rwp)
         unsigned long flags;
         kthread_t *owner;
 
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, flags);
         owner = rwp->rw_owner;
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
+        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, flags);
 
         return owner;
 }
@@ -187,14 +187,14 @@ extern int __down_write_trylock_locked(struct rw_semaphore *);
         unsigned long _flags_;                                          \
         int _rc_ = 0;                                                   \
                                                                         \
-        spin_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);               \
+        spl_rwsem_lock_irqsave(&SEM(rwp)->wait_lock, _flags_);           \
         if ((list_empty(&SEM(rwp)->wait_list)) &&                       \
             (SEM(rwp)->activity == 1)) {                                \
                 __up_read_locked(SEM(rwp));                             \
                 VERIFY(_rc_ = __down_write_trylock_locked(SEM(rwp)));   \
                 (rwp)->rw_owner = current;                              \
         }                                                               \
-        spin_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);          \
+        spl_rwsem_unlock_irqrestore(&SEM(rwp)->wait_lock, _flags_);      \
         _rc_;                                                           \
 })
 #else

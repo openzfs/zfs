@@ -27,6 +27,26 @@
 
 #include <linux/rwsem.h>
 
+#ifdef RWSEM_SPINLOCK_IS_RAW
+#define spl_rwsem_lock_irqsave(lock, flags)       \
+({                                                \
+	raw_spin_lock_irqsave(lock, flags);       \
+})
+#define spl_rwsem_unlock_irqrestore(lock, flags)  \
+({                                                \
+	raw_spin_unlock_irqrestore(lock, flags);  \
+})
+#else
+#define spl_rwsem_lock_irqsave(lock, flags)       \
+({                                                \
+	spin_lock_irqsave(lock, flags);           \
+})
+#define spl_rwsem_unlock_irqrestore(lock, flags)  \
+({                                                \
+	spin_unlock_irqrestore(lock, flags);      \
+})
+#endif /* RWSEM_SPINLOCK_IS_RAW */
+
 #ifdef RWSEM_IS_LOCKED_TAKES_WAIT_LOCK
 /*
  * A race condition in rwsem_is_locked() was fixed in Linux 2.6.33 and the fix
@@ -48,14 +68,14 @@
 
 #else
 
-#define spl_rwsem_is_locked(rwsem)					\
-({									\
-	unsigned long _flags_;						\
-	int _rc_;							\
-	spin_lock_irqsave(&rwsem->wait_lock, _flags_);			\
-	_rc_ = rwsem_is_locked(rwsem);					\
-	spin_unlock_irqrestore(&rwsem->wait_lock, _flags_);		\
-	_rc_;								\
+#define spl_rwsem_is_locked(rwsem)                                \
+({                                                                \
+	unsigned long _flags_;                                    \
+	int _rc_;                                                 \
+	spl_rwsem_lock_irqsave(&rwsem->wait_lock, _flags_);       \
+	_rc_ = rwsem_is_locked(rwsem);                            \
+	spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, _flags_);  \
+	_rc_;                                                     \
 })
 
 #endif /* RWSEM_IS_LOCKED_TAKES_WAIT_LOCK */
