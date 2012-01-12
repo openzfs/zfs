@@ -440,9 +440,11 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 
 	/*
 	 * Determine if the mountpoint is empty.  If so, refuse to perform the
-	 * mount.  We don't perform this check if 'remount' is specified.
+	 * mount.  We don't perform this check if 'remount' is
+	 * specified or if overlay option(-O) is given
 	 */
-	if (!remount && !dir_is_empty(mountpoint)) {
+	if ((flags & MS_OVERLAY) == 0 && !remount &&
+	    !dir_is_empty(mountpoint)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "directory is not empty"));
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
