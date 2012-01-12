@@ -606,6 +606,34 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_security_set);
 
+#ifdef HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY
+static int
+__zpl_xattr_security_init(struct inode *ip, const struct xattr *xattrs,
+    void *fs_info)
+{
+	const struct xattr *xattr;
+	int error = 0;
+
+	for (xattr = xattrs; xattr->name != NULL; xattr++) {
+		error = __zpl_xattr_security_set(ip,
+		    xattr->name, xattr->value, xattr->value_len, 0);
+
+		if (error < 0)
+			break;
+	}
+
+        return (error);
+}
+
+int
+zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr)
+{
+	return security_inode_init_security(ip, dip, qstr,
+	    &__zpl_xattr_security_init, NULL);
+}
+
+#else
 int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr)
@@ -631,6 +659,7 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 
         return (error);
 }
+#endif /* HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY */
 
 xattr_handler_t zpl_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,

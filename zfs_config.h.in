@@ -66,6 +66,9 @@
 /* blk_rq_sectors() is available */
 #undef HAVE_BLK_RQ_SECTORS
 
+/* security_inode_init_security wants callback */
+#undef HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY
+
 /* check_disk_size_change() is available */
 #undef HAVE_CHECK_DISK_SIZE_CHANGE
 
