@@ -412,11 +412,12 @@ dnl #
 dnl # Default SPL user configuration
 dnl #
 AC_DEFUN([SPL_AC_PACKAGE], [
+	SPL_AC_DEFAULT_PACKAGE
 	SPL_AC_RPM
 	SPL_AC_DPKG
 	SPL_AC_ALIEN
-	SPL_AC_PACMAN
-	SPL_AC_DEFAULT_PACKAGE
+
+	AS_IF([test "$VENDOR" = "arch"], [SPL_AC_PACMAN])
 ])
 
 AC_DEFUN([SPL_AC_LICENSE], [

@@ -799,8 +799,6 @@ LINUX_VERSION
 LINUX_OBJ
 LINUX
 SPL_CONFIG
-DEFAULT_PACKAGE
-VENDOR
 MAKEPKG_VERSION
 MAKEPKG
 HAVE_MAKEPKG
@@ -822,6 +820,8 @@ HAVE_RPMBUILD
 RPM_VERSION
 RPM
 HAVE_RPM
+DEFAULT_PACKAGE
+VENDOR
 LICENSE
 CPP
 OTOOL64
@@ -11485,6 +11485,49 @@ $as_echo "$LICENSE" >&6; }
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking linux distribution" >&5
+$as_echo_n "checking linux distribution... " >&6; }
+	if test -f /etc/redhat-release ; then
+		VENDOR=redhat ;
+	elif test -f /etc/fedora-release ; then
+		VENDOR=fedora ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
+	elif test -f /etc/lsb-release ; then
+		VENDOR=ubuntu ;
+	elif test -f /etc/debian_version ; then
+		VENDOR=debian ;
+	elif test -f /etc/SuSE-release ; then
+		VENDOR=sles ;
+	elif test -f /etc/slackware-version ; then
+		VENDOR=slackware ;
+	elif test -f /etc/gentoo-release ; then
+		VENDOR=gentoo ;
+	else
+		VENDOR= ;
+	fi
+	{ $as_echo "$as_me:$LINENO: result: $VENDOR" >&5
+$as_echo "$VENDOR" >&6; }
+
+
+	{ $as_echo "$as_me:$LINENO: checking default package type" >&5
+$as_echo_n "checking default package type... " >&6; }
+	case "$VENDOR" in
+		fedora)     DEFAULT_PACKAGE=rpm ;;
+		redhat)     DEFAULT_PACKAGE=rpm ;;
+		sles)       DEFAULT_PACKAGE=rpm ;;
+		ubuntu)     DEFAULT_PACKAGE=deb ;;
+		debian)     DEFAULT_PACKAGE=deb ;;
+		slackware)  DEFAULT_PACKAGE=tgz ;;
+		arch)       DEFAULT_PACKAGE=arch;;
+		*)          DEFAULT_PACKAGE=rpm ;;
+	esac
+
+	{ $as_echo "$as_me:$LINENO: result: $DEFAULT_PACKAGE" >&5
+$as_echo "$DEFAULT_PACKAGE" >&6; }
+
+
+
 	RPM=rpm
 	RPMBUILD=rpmbuild
 
@@ -11607,6 +11650,8 @@ fi
 
 
 
+	if test "$VENDOR" = "arch"; then
+
 	PACMAN=pacman
 	MAKEPKG=makepkg
 
@@ -11658,48 +11703,7 @@ fi
 
 
 
-
-	{ $as_echo "$as_me:$LINENO: checking linux distribution" >&5
-$as_echo_n "checking linux distribution... " >&6; }
-	if test -f /etc/redhat-release ; then
-		VENDOR=redhat ;
-	elif test -f /etc/fedora-release ; then
-		VENDOR=fedora ;
-	elif test -f /etc/arch-release ; then
-		VENDOR=arch ;
-	elif test -f /etc/lsb-release ; then
-		VENDOR=ubuntu ;
-	elif test -f /etc/debian_version ; then
-		VENDOR=debian ;
-	elif test -f /etc/SuSE-release ; then
-		VENDOR=sles ;
-	elif test -f /etc/slackware-version ; then
-		VENDOR=slackware ;
-	elif test -f /etc/gentoo-release ; then
-		VENDOR=gentoo ;
-	else
-		VENDOR= ;
-	fi
-	{ $as_echo "$as_me:$LINENO: result: $VENDOR" >&5
-$as_echo "$VENDOR" >&6; }
-
-
-	{ $as_echo "$as_me:$LINENO: checking default package type" >&5
-$as_echo_n "checking default package type... " >&6; }
-	case "$VENDOR" in
-		fedora)     DEFAULT_PACKAGE=rpm ;;
-		redhat)     DEFAULT_PACKAGE=rpm ;;
-		sles)       DEFAULT_PACKAGE=rpm ;;
-		ubuntu)     DEFAULT_PACKAGE=deb ;;
-		debian)     DEFAULT_PACKAGE=deb ;;
-		slackware)  DEFAULT_PACKAGE=tgz ;;
-		arch)       DEFAULT_PACKAGE=arch;;
-		*)          DEFAULT_PACKAGE=rpm ;;
-	esac
-
-	{ $as_echo "$as_me:$LINENO: result: $DEFAULT_PACKAGE" >&5
-$as_echo "$DEFAULT_PACKAGE" >&6; }
-
+fi
 
 
 
