@@ -1,3 +1,25 @@
+zfs-linux (0.6.0.44-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Remove the mountall dependency from zfs-initramfs.
+  * Add /sbin/blkid to the initramfs manifest.
+  * Avoid using awk in the zpool_id script. (Closes: #259)
+  * Apply the ZoL coding standard to zpl_xattr.c
+  * Revert "Add security_inode_init_security.patch"
+  * Refresh debian/patches after upstream merge.
+
+  [ Brian Behlendorf ]
+  * Linux 3.1 compat, super_block->s_shrink
+  * Linux 3.2 compat, security_inode_init_security()
+
+  [ Richard Laager ]
+  * Treat /dev/vd* as whole disks
+
+  [ Suman Chakravartula ]
+  * Add overlay(-O) mount option support
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 12 Jan 2012 19:35:47 -0600
+
 zfs-linux (0.6.0.43-0ubuntu1) unstable; urgency=low
 
   [ Seth Heeren ]
