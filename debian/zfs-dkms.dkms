@@ -1,30 +1,49 @@
 AUTOINSTALL="yes"
 PACKAGE_NAME="zfs"
 PACKAGE_VERSION="#MODULE_VERSION#"
-PRE_BUILD="configure --prefix=/usr --with-config=kernel --with-linux=$(case `lsb_release -is` in Debian) echo ${kernel_source_dir/%build/source};; *) echo ${kernel_source_dir};; esac) --with-linux-obj=${kernel_source_dir}"
-POST_REMOVE="rm -r /usr/src/zfs-#MODULE_VERSION#/${kernelver}"
-REMAKE_INITRD="$(if test -e /usr/share/initramfs-tools/hooks/zfs -o -e /usr/share/dracut/modules.d/90zfs; then echo yes; else echo no; fi)"
-MAKE[0]="make && make install-data-local && make -C include install"
+PRE_BUILD="configure
+  --prefix=/usr
+  --with-config=kernel
+  --with-linux=$(
+      case `lsb_release -is` in
+        (Debian) echo ${kernel_source_dir/%build/source} ;;
+        (*)      echo ${kernel_source_dir} ;;
+      esac
+  )
+  --with-linux-obj=${kernel_source_dir}
+  --with-spl=${source_tree}/spl-${PACKAGE_VERSION}
+  --with-spl-obj=${dkms_tree}/spl/${PACKAGE_VERSION}/${kernelver}/${arch}
+"
+POST_INSTALL="cp
+  ${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build/zfs_config.h
+  ${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build/module/Module.symvers
+  ${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/${kernelver}/${arch}/
+"
+REMAKE_INITRD="$(
+    if test -e /usr/share/initramfs-tools/hooks/zfs \
+            -o -e /usr/share/dracut/modules.d/90zfs
+    then
+      echo yes
+    else
+      echo no
+    fi
+)"
+MAKE[0]="make"
 BUILT_MODULE_NAME[0]="zavl"
 BUILT_MODULE_LOCATION[0]="module/avl/"
 DEST_MODULE_LOCATION[0]="/extra/zfs/zavl"
-MAKE[1]="true"
 BUILT_MODULE_NAME[1]="zcommon"
 BUILT_MODULE_LOCATION[1]="module/zcommon/"
 DEST_MODULE_LOCATION[1]="/extra/zfs/zcommon"
-MAKE[2]="true"
 BUILT_MODULE_NAME[2]="znvpair"
 BUILT_MODULE_LOCATION[2]="module/nvpair/"
 DEST_MODULE_LOCATION[2]="/extra/zfs/znvpair"
-MAKE[3]="true"
 BUILT_MODULE_NAME[3]="zpios"
 BUILT_MODULE_LOCATION[3]="module/zpios/"
 DEST_MODULE_LOCATION[3]="/extra/zfs/zpios"
-MAKE[4]="true"
 BUILT_MODULE_NAME[4]="zunicode"
 BUILT_MODULE_LOCATION[4]="module/unicode/"
 DEST_MODULE_LOCATION[4]="/extra/zfs/zunicode"
-MAKE[5]="true"
 BUILT_MODULE_NAME[5]="zfs"
 BUILT_MODULE_LOCATION[5]="module/zfs/"
 DEST_MODULE_LOCATION[5]="/extra/zfs/zfs"
