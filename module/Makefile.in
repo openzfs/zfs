@@ -7,8 +7,11 @@ modules:
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
 clean:
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
-	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
+	@# Only cleanup the kernel build directories when CONFIG_KERNEL
+	@# is defined.  This indicates that kernel modules should be built.
+@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+
+	if [ -f '@LINUX_SYMBOLS@' ]; then $(RM) '@LINUX_SYMBOLS@'; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
