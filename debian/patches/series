@@ -4,3 +4,4 @@ disable-dist-scripts.patch
 lintian-COPYING.patch
 lintian-ltmain.patch
 0001-Use-bin-bash-to-invoke-dracut-scripts.patch
+0002-Allow-setting-bootfs-on-any-pool.patch
