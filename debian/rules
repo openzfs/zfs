@@ -46,12 +46,11 @@ override_dh_auto_install:
 	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-config/Makefile.in' \
 	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-layout/Makefile.in'
 
-	# This shunt allows DKMS to delete header files that are peculiar
-	# to each module instance through the POST_REMOVE directive in the
-	# dkms.conf file.
-	echo '#!/bin/sh'  >'$(CURDIR)/$(NAME)-$(VERSION)/rm'
-	echo 'rm "$$@"'  >>'$(CURDIR)/$(NAME)-$(VERSION)/rm'
-	chmod 755 '$(CURDIR)/$(NAME)-$(VERSION)/rm'
+	# This shunt allows DKMS to install the Module.symvers and zfs_config.h
+	# files to the ${dkms_tree} area through the POST_INSTALL directive.
+	echo '#!/bin/sh'  >'$(CURDIR)/$(NAME)-$(VERSION)/cp'
+	echo 'cp "$$@"'  >>'$(CURDIR)/$(NAME)-$(VERSION)/cp'
+	chmod 755 '$(CURDIR)/$(NAME)-$(VERSION)/cp'
 
 	# Install the DKMS source.
 	mkdir -p '$(CURDIR)/debian/tmp/usr/src/'
