@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright 2012 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
@@ -4480,7 +4480,7 @@ parse_allow_args(int argc, char **argv, boolean_t un, struct allow_opts *opts)
 		argc--;
 		argv++;
 		opts->dataset = munge_args(argc, argv, un, 2, &opts->perms);
-	} else if (argc == 1) {
+	} else if (argc == 1 && !un) {
 		opts->prt_perms = B_TRUE;
 		opts->dataset = argv[argc-1];
 	} else {
