@@ -338,20 +338,26 @@ smb_retrieve_shares(void)
 
 	/* Go through the directory, looking for shares */
 	while ((directory = readdir(shares_dir))) {
-		if (stat(directory->d_name, &eStat) == ENOMEM) {
-			rc = SA_NO_MEMORY;
+		if (directory->d_name[0] == '.')
+			continue;
+
+		snprintf(file_path, sizeof (file_path),
+			 "%s/%s", SHARE_DIR, directory->d_name);
+
+		if (stat(file_path, &eStat) == -1) {
+			fprintf(stderr, "ERROR: stat()\n");
+
+			rc = SA_SYSTEM_ERR;
 			goto out;
 		}
 
-		if ((directory->d_name[0] == '.') || 
-		    !S_ISREG(eStat.st_mode))
+		if (!S_ISREG(eStat.st_mode))
 			continue;
+
 #ifdef DEBUG
 		fprintf(stderr, "    %s\n", directory->d_name);
 #endif
 
-		snprintf(file_path, sizeof (file_path),
-			 "%s/%s", SHARE_DIR, directory->d_name);
 		if ((share_file_fp = fopen(file_path, "r")) == NULL) {
 #ifdef DEBUG
 			fprintf(stderr, "    fopen() == NULL\n");
