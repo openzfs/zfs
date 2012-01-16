@@ -104,11 +104,11 @@ depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+	$(CPPFLAGS) $(AM_CFLAGS)
 LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
 	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CFLAGS) $(CFLAGS)
+	$(AM_CFLAGS)
 AM_V_CC = $(am__v_CC_$(V))
 am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
 am__v_CC_0 = @echo "  CC    " $@;
@@ -117,7 +117,7 @@ am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
 am__v_at_0 = @
 CCLD = $(CC)
 LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_CCLD = $(am__v_CCLD_$(V))
 am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
@@ -431,20 +431,20 @@ distclean-compile:
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
 zvol_id_main.o: $(top_srcdir)/cmd/zvol_id/zvol_id_main.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zvol_id_main.o -MD -MP -MF $(DEPDIR)/zvol_id_main.Tpo -c -o zvol_id_main.o `test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zvol_id/zvol_id_main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS)  -MT zvol_id_main.o -MD -MP -MF $(DEPDIR)/zvol_id_main.Tpo -c -o zvol_id_main.o `test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zvol_id/zvol_id_main.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zvol_id_main.Tpo $(DEPDIR)/zvol_id_main.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' object='zvol_id_main.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zvol_id_main.o `test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zvol_id/zvol_id_main.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS)  -c -o zvol_id_main.o `test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/zvol_id/zvol_id_main.c
 
 zvol_id_main.obj: $(top_srcdir)/cmd/zvol_id/zvol_id_main.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT zvol_id_main.obj -MD -MP -MF $(DEPDIR)/zvol_id_main.Tpo -c -o zvol_id_main.obj `if test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS)  -MT zvol_id_main.obj -MD -MP -MF $(DEPDIR)/zvol_id_main.Tpo -c -o zvol_id_main.obj `if test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; fi`
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/zvol_id_main.Tpo $(DEPDIR)/zvol_id_main.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/zvol_id/zvol_id_main.c' object='zvol_id_main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o zvol_id_main.obj `if test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS)  -c -o zvol_id_main.obj `if test -f '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/zvol_id/zvol_id_main.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
