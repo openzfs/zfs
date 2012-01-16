@@ -35,16 +35,21 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
 #include "smb.h"
 
+/* The maximum SMB share name seems to be 254 characters, though good references are hard to find. */
+#define SMB_NAME_MAX 255
+
 typedef struct smb_share_s {
-	char name[255];		/* Share name */
-	char path[255];		/* Share path */
-	char comment[255];	/* Share's comment */
-	boolean_t guest_ok;	/* 'y' or 'n' */
+	char name[SMB_NAME_MAX];	/* Share name */
+	char path[PATH_MAX];		/* Share path */
+	char comment[255];		/* Share's comment */
+	boolean_t guest_ok;		/* 'y' or 'n' */
 
 	struct smb_share_s *next;
 } smb_share_t;
@@ -61,7 +66,8 @@ int smb_retrieve_shares(void);
 int
 smb_enable_share_one(const char *sharename, const char *sharepath)
 {
-	char *argv[10], name[255], comment[255];
+	char *argv[10];
+	char name[SMB_NAME_MAX], comment[SMB_NAME_MAX];
 	int rc;
 
 #ifdef DEBUG
@@ -71,6 +77,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 
 	/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
 	strncpy(name, sharename, sizeof(name));
+	name [sizeof(name)-1] = '\0';
 
 	char *pos = name;
 	if( pos == NULL )
@@ -90,15 +97,17 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	/* CMD: net -S 127.0.0.1 usershare add Test1 /share/Test1 "Comment" "Everyone:F" */
 	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
-	if (file_is_executable(NET_CMD_PATH))
+	if (!file_is_executable(NET_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", NET_CMD_PATH);
 		return SA_SYSTEM_ERR;
+	}
 	argv[0]  = NET_CMD_PATH;
 	argv[1]  = "-S";
 	argv[2]  = "127.0.0.1";
 	argv[3]  = "usershare";
 	argv[4]  = "add";
 	argv[5]  = name;
-	argv[6]  = strdup(sharepath);
+	argv[6]  = sharepath;
 	argv[7]  = comment;
 	argv[8] = "Everyone:F";
 	argv[9] = NULL;
@@ -170,8 +179,10 @@ smb_disable_share_one(const char *sharename)
 #endif
 
 	/* CMD: net -S 127.0.0.1 usershare delete Test1 */
-	if (file_is_executable(NET_CMD_PATH))
+	if (!file_is_executable(NET_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", NET_CMD_PATH);
 		return SA_SYSTEM_ERR;
+	}
 	argv[0] = NET_CMD_PATH;
 	argv[1] = "usershare";
 	argv[2] = "delete";
@@ -304,11 +315,12 @@ int
 smb_retrieve_shares(void)
 {
 	int rc = SA_OK;
-	char file_path[255], line[512], *token, *key, *value, *dup_value;
+	char file_path[PATH_MAX], line[512], *token, *key, *value, *dup_value, *c;
 	char *path = NULL, *comment = NULL, *name = NULL, *guest_ok = NULL;
 	DIR *shares_dir;
 	FILE *share_file_fp;
 	struct dirent *directory;
+	struct stat eStat;
 	smb_share_t *shares, *new_shares = NULL;
 
 #ifdef DEBUG
@@ -326,8 +338,13 @@ smb_retrieve_shares(void)
 
 	/* Go through the directory, looking for shares */
 	while ((directory = readdir(shares_dir))) {
-	  if ((directory->d_name[0] == '.') ||
-	      (directory->d_type != 8)) /* DT_REG (regular file) if using _BSD_SOURCE */
+		if (stat(directory->d_name, &eStat) == ENOMEM) {
+			rc = SA_NO_MEMORY;
+			goto out;
+		}
+
+		if ((directory->d_name[0] == '.') || 
+		    !S_ISREG(eStat.st_mode))
 			continue;
 #ifdef DEBUG
 		fprintf(stderr, "    %s\n", directory->d_name);
@@ -357,6 +374,12 @@ smb_retrieve_shares(void)
 			while (line[strlen(line) - 1] == '\r' ||
 			       line[strlen(line) - 1] == '\n')
 				line[strlen(line) - 1] = '\0';
+//			for (c = line; *c; c++) {
+//				if (*c == '\r' || *c == '\n') {
+//					c = '\0';
+//					break;
+//				}
+//			}
 
 #ifdef DEBUG
 			fprintf(stderr, "      %s ", line);
@@ -375,8 +398,10 @@ smb_retrieve_shares(void)
 #endif
 
 			dup_value = strdup(value);
-			if (dup_value == NULL)
-				exit(SA_NO_MEMORY);
+			if (dup_value == NULL) {
+				rc = SA_NO_MEMORY;
+				goto out;
+			}
 
 			if (strcmp(key, "path") == 0)
 				path = dup_value;
@@ -395,8 +420,14 @@ smb_retrieve_shares(void)
 				}
 
 				strncpy(shares->name, name, sizeof (shares->name));
+				shares->name [sizeof(shares->name)-1] = '\0';
+
 				strncpy(shares->path, path, sizeof (shares->path));
+				shares->path [sizeof(shares->path)-1] = '\0';
+
 				strncpy(shares->comment, comment, sizeof (shares->comment));
+				shares->comment [sizeof(shares->comment)-1] = '\0';
+
 				shares->guest_ok = atoi(guest_ok);
 
 				shares->next = new_shares;
