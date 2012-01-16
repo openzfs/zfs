@@ -1,3 +1,18 @@
+zfs-linux (0.6.0.45-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Run ZFS_AC_PACMAN only if $VENDOR is "arch"
+
+  [ Brian Behlendorf ]
+  * Increase link count limit to 2^31-1
+
+  [ Darik Horn ]
+  * Wrap long lines in the dkms.conf file.
+  * FHS conformance and DKMS multiarch, ZFS interface.
+  * Add Allow-setting-bootfs-on-any-pool.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 15 Jan 2012 18:43:23 -0600
+
 zfs-linux (0.6.0.44-0ubuntu1) unstable; urgency=low
 
   [ Darik Horn ]
