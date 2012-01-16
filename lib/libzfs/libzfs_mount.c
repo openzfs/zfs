@@ -139,52 +139,52 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 	iscsi_target_t *target = iscsi_targets;
 
 	switch (proto) {
-	case PROTO_ISCSI:
-		while (target != NULL) {
-			if (strcmp(mountpoint, target->path) == 0)
-				return (SHARED_ISCSI);
+		case PROTO_ISCSI:
+			while (target != NULL) {
+				if (strcmp(mountpoint, target->path) == 0)
+					return (SHARED_ISCSI);
 
-			target = target->next;
-		}
-		break;
+				target = target->next;
+			}
+			break;
 
-	default:
-	if (hdl->libzfs_sharetab == NULL)
-		return (SHARED_NOT_SHARED);
+		default:
+		if (hdl->libzfs_sharetab == NULL)
+			return (SHARED_NOT_SHARED);
 
-	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
+		(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
 
-	while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
-		/* the mountpoint is the first entry on each line */
-		if ((tab = strchr(buf, '\t')) == NULL)
-			continue;
-
-		*tab = '\0';
-		if (strcmp(buf, mountpoint) == 0) {
-			/*
-			 * the protocol field is the third field
-			 * skip over second field
-			 */
-			ptr = ++tab;
-			if ((tab = strchr(ptr, '\t')) == NULL)
+		while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
+			/* the mountpoint is the first entry on each line */
+			if ((tab = strchr(buf, '\t')) == NULL)
 				continue;
-			ptr = ++tab;
-			if ((tab = strchr(ptr, '\t')) == NULL)
-				continue;
+
 			*tab = '\0';
-			if (strcmp(ptr,
-			    proto_table[proto].p_name) == 0) {
-				switch (proto) {
-				case PROTO_NFS:
-					return (SHARED_NFS);
-				case PROTO_SMB:
-					return (SHARED_SMB);
-				default:
-					return (0);
+			if (strcmp(buf, mountpoint) == 0) {
+				/*
+				 * the protocol field is the third field
+				 * skip over second field
+				 */
+				ptr = ++tab;
+				if ((tab = strchr(ptr, '\t')) == NULL)
+					continue;
+				ptr = ++tab;
+				if ((tab = strchr(ptr, '\t')) == NULL)
+					continue;
+				*tab = '\0';
+				if (strcmp(ptr,
+				    proto_table[proto].p_name) == 0) {
+					switch (proto) {
+					case PROTO_NFS:
+						return (SHARED_NFS);
+					case PROTO_SMB:
+						return (SHARED_SMB);
+					default:
+						return (0);
+					}
 				}
 			}
 		}
-	}
 	}
 
 	return (SHARED_NOT_SHARED);

@@ -38,6 +38,14 @@
 #include "nfs.h"
 #include "iscsi.h"
 
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
 static sa_share_impl_t alloc_share(const char *sharepath);
@@ -56,13 +64,13 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 static int fstypes_count;
 static sa_fstype_t *fstypes;
 
-int
+boolean_t
 file_is_executable(char *file_name)
 {
 	if ((access(file_name, X_OK)) == 0)
 		/* File found */
-		return SA_OK;
-	return SA_NO_SUCH_PATH;
+		return TRUE;
+	return FALSE;
 }
 
 sa_fstype_t *

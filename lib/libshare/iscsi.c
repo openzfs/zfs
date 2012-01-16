@@ -64,19 +64,19 @@ int
 iscsi_generate_target(const char *path, char *iqn, size_t iqn_len)
 {
 	char tsbuf[8]; /* YYYY-MM */
-	char domain[255], revname[255], name[255],
+	char domain[256], revname[255], name[255],
 	  tmpdom[255], *p, tmp[20][255];
 	time_t now;
 	struct tm *now_local;
 	int i;
 
-	/* Get current time in EPOH */
+	/* Get current time in EPOCH */
 	now = time(NULL);
 	now_local = localtime(&now);
 	if (now_local == NULL)
 		return -1;
 
-	/* Parse EPOH and get YYY-MM */
+	/* Parse EPOCH and get YYY-MM */
 	if (strftime(tsbuf, sizeof (tsbuf), "%Y-%m", now_local) == 0)
 		return -1;
 
@@ -90,6 +90,8 @@ iscsi_generate_target(const char *path, char *iqn, size_t iqn_len)
 
 	/* Reverse the domainname ('bayour.com' => 'com.bayour') */
 	strncpy(tmpdom, domain, sizeof (domain));
+	tmpdom [sizeof(tmpdom)-1] = '\0';
+
 	i = 0;
 	p = strtok(tmpdom, ".");
 	while (p != NULL) {
@@ -105,8 +107,10 @@ iscsi_generate_target(const char *path, char *iqn, size_t iqn_len)
 			snprintf(tmpdom, strlen(revname)+strlen(tmp[i])+2,
 				 "%s.%s", revname, tmp[i]);
 			snprintf(revname, strlen(tmpdom)+1, "%s", tmpdom);
-		} else
+		} else {
 			strncpy(revname, tmp[i], strlen(tmp[i]));
+			revname [sizeof(revname)-1] = '\0';
+		}
 	}
 
 	/* Take the dataset name, replace / with . */
@@ -138,6 +142,9 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	char *argv[10];
 	char params_name[255], params_path[255], tid_s[16];
 	int rc;
+#ifdef DEBUG
+	int i;
+#endif
 
 	/*
 	 * ietadm --op new --tid $next --params Name=$iqn
@@ -153,10 +160,12 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	/* PART 1 */
 	snprintf(params_name, sizeof (params_name), "Name=%s", sharename);
 
-	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
+	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + NUL */
 	snprintf(tid_s, sizeof(tid_s), "%d", tid);
-	if (file_is_executable(IETM_CMD_PATH))
+	if (!file_is_executable(IETM_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
 		return SA_SYSTEM_ERR;
+	}
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "new";
@@ -165,6 +174,13 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	argv[5] = "--params";
 	argv[6] = params_name;
 	argv[7] = NULL;
+
+#ifdef DEBUG
+	fprintf(stderr, "  ");
+	for (i=0; i < 8; i++)
+		fprintf(stderr, "%s ", argv[i]);
+	fprintf(stderr, "\n");
+#endif
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
@@ -179,6 +195,13 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	argv[7] = "--params";
 	argv[8] = params_path;
 	argv[9] = NULL;
+
+#ifdef DEBUG
+	fprintf(stderr, "  ");
+	for (i=0; i < 10; i++)
+		fprintf(stderr, "%s ", argv[i]);
+	fprintf(stderr, "\n");
+#endif
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
@@ -226,24 +249,36 @@ iscsi_enable_share(sa_share_impl_t impl_share)
 int
 iscsi_disable_share_one(int tid)
 {
-	int rc;
 	char *argv[6];
 	char tid_s[16];
+	int rc;
+#ifdef DEBUG
+	int i;
+#endif
 
 #ifdef DEBUG
 	fprintf(stderr, "iscsi_disable_share_one(%d)\n", tid);
 #endif
 
-	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + EOL */
+	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + NUL */
 	snprintf(tid_s, sizeof (tid_s), "%d", tid);
-	if (file_is_executable(IETM_CMD_PATH))
+	if (!file_is_executable(IETM_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
 		return SA_SYSTEM_ERR;
+	}
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "delete";
 	argv[3] = "--tid";
 	argv[4] = tid_s;
 	argv[5] = NULL;
+
+#ifdef DEBUG
+	fprintf(stderr, "  ");
+	for (i=0; i < 6; i++)
+		fprintf(stderr, "%s ", argv[i]);
+	fprintf(stderr, "\n");
+#endif
 
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
@@ -259,6 +294,10 @@ iscsi_disable_share_one(int tid)
 static int
 iscsi_disable_share(sa_share_impl_t impl_share)
 {
+#ifdef DEBUG
+	fprintf(stderr, "iscsi_disable_share()\n");
+#endif
+
 	if (!iscsi_available) {
 		/*
 		 * The share can't possibly be active, so nothing
@@ -289,6 +328,9 @@ static boolean_t
 iscsi_is_share_active(sa_share_impl_t impl_share)
 {
 	iscsi_target_t *target = iscsi_targets;
+#ifdef DEBUG
+	fprintf(stderr, "iscsi_is_share_active()\n");
+#endif
 
 	while (target != NULL) {
 		if (strcmp(impl_share->sharepath, target->path) == 0)
@@ -304,6 +346,10 @@ static int
 iscsi_validate_shareopts(const char *shareopts)
 {
 	/* TODO: implement */
+#ifdef DEBUG
+	fprintf(stderr, "iscsi_validate_shareopts()\n");
+#endif
+
 	return 0;
 }
 
@@ -366,7 +412,7 @@ iscsi_retrieve_targets(void)
 {
 	FILE *iscsi_volumes_fp;
 	char buffer[512];
-	char *line, *token, *key, *value, *colon, *dup_value;
+	char *line, *token, *key, *value, *colon, *dup_value, *c;
 	char *tid = NULL, *name = NULL, *lun = NULL, *state = NULL;
 	char *iotype = NULL, *iomode = NULL, *blocks = NULL;
 	char *blocksize = NULL, *path = NULL;
@@ -388,8 +434,14 @@ iscsi_retrieve_targets(void)
 		 */
 
 		/* Trim trailing new-line character(s). */
+//		for (c = line; *c; c++) {
+//			if (*c == '\r' || *c == '\n') {
+//				c = '\0';
+//				break;
+//			}
+//		}
 		while (buffer[strlen(buffer) - 1] == '\r' ||
-		    buffer[strlen(buffer) - 1] == '\n')
+		       buffer[strlen(buffer) - 1] == '\n')
 			buffer[strlen(buffer) - 1] = '\0';
 
 		if (buffer[0] != '\t') {
