@@ -57,8 +57,13 @@
 #define SPLAT_TASKQ_TEST7_NAME		"recurse"
 #define SPLAT_TASKQ_TEST7_DESC		"Single task queue, recursive dispatch"
 
+#define SPLAT_TASKQ_TEST8_ID		0x0208
+#define SPLAT_TASKQ_TEST8_NAME		"contention"
+#define SPLAT_TASKQ_TEST8_DESC		"1 queue, 100 threads, 131072 tasks"
+
 #define SPLAT_TASKQ_ORDER_MAX		8
 #define SPLAT_TASKQ_DEPTH_MAX		16
+
 
 typedef struct splat_taskq_arg {
 	int flag;
@@ -990,6 +995,113 @@ splat_taskq_test7(struct file *file, void *arg)
 	return rc;
 }
 
+/*
+ * Create a taskq with 100 threads and dispatch a huge number of trivial
+ * tasks to generate contention on tq->tq_lock.  This test should always
+ * pass.  The purpose is to provide a benchmark for measuring the
+ * effectiveness of taskq optimizations.
+ */
+static void
+splat_taskq_test8_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	ASSERT(tq_arg);
+
+	atomic_inc(&tq_arg->count);
+}
+
+#define TEST8_NUM_TASKS			0x20000
+#define TEST8_THREADS_PER_TASKQ		100
+
+static int
+splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
+                         int maxalloc)
+{
+	taskq_t *tq;
+	taskqid_t id;
+	splat_taskq_arg_t tq_arg;
+	taskq_ent_t **tqes;
+	int i, j, rc = 0;
+
+	tqes = vmalloc(sizeof(*tqes) * TEST8_NUM_TASKS);
+	if (tqes == NULL)
+		return -ENOMEM;
+	memset(tqes, 0, sizeof(*tqes) * TEST8_NUM_TASKS);
+
+	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME,
+		     "Taskq '%s' creating (%d/%d/%d)\n",
+		     SPLAT_TASKQ_TEST8_NAME,
+		     minalloc, maxalloc, TEST8_NUM_TASKS);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST8_NAME, TEST8_THREADS_PER_TASKQ,
+			       maxclsyspri, minalloc, maxalloc,
+			       TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST8_NAME,
+		             "Taskq '%s' create failed\n",
+		             SPLAT_TASKQ_TEST8_NAME);
+		rc = -EINVAL;
+		goto out_free;
+	}
+
+	tq_arg.file = file;
+	tq_arg.name = SPLAT_TASKQ_TEST8_NAME;
+
+	atomic_set(&tq_arg.count, 0);
+	for (i = 0; i < TEST8_NUM_TASKS; i++) {
+		tqes[i] = kmalloc(sizeof(taskq_ent_t), GFP_KERNEL);
+		if (tqes[i] == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+		taskq_init_ent(tqes[i]);
+
+		taskq_dispatch_ent(tq, splat_taskq_test8_func,
+				   &tq_arg, TQ_SLEEP, tqes[i]);
+
+		id = tqes[i]->tqent_id;
+
+		if (id == 0) {
+			splat_vprint(file, SPLAT_TASKQ_TEST8_NAME,
+			        "Taskq '%s' function '%s' dispatch "
+				"%d failed\n", tq_arg.name,
+				sym2str(splat_taskq_test8_func), i);
+				rc = -EINVAL;
+				goto out;
+		}
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME, "Taskq '%s' "
+		     "waiting for %d dispatches\n", tq_arg.name,
+		     TEST8_NUM_TASKS);
+	taskq_wait(tq);
+	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME, "Taskq '%s' "
+		     "%d/%d dispatches finished\n", tq_arg.name,
+		     atomic_read(&tq_arg.count), TEST8_NUM_TASKS);
+
+	if (atomic_read(&tq_arg.count) != TEST8_NUM_TASKS)
+		rc = -ERANGE;
+
+out:
+	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME, "Taskq '%s' destroying\n",
+	           tq_arg.name);
+	taskq_destroy(tq);
+out_free:
+	for (j = 0; j < TEST8_NUM_TASKS && tqes[j] != NULL; j++)
+		kfree(tqes[j]);
+	vfree(tqes);
+
+	return rc;
+}
+
+static int
+splat_taskq_test8(struct file *file, void *arg)
+{
+	int rc;
+
+	rc = splat_taskq_test8_common(file, arg, 1, 100);
+
+	return rc;
+}
+
 splat_subsystem_t *
 splat_taskq_init(void)
 {
@@ -1021,6 +1133,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST6_ID, splat_taskq_test6);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST7_NAME, SPLAT_TASKQ_TEST7_DESC,
 	              SPLAT_TASKQ_TEST7_ID, splat_taskq_test7);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST8_NAME, SPLAT_TASKQ_TEST8_DESC,
+	              SPLAT_TASKQ_TEST8_ID, splat_taskq_test8);
 
         return sub;
 }
@@ -1029,6 +1143,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST8_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST7_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST6_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST5_ID);
