@@ -4,9 +4,11 @@ NAME := $(shell awk '/^Name:/{print $$2}' META)
 VERSION := $(shell awk '/^Version:/{print $$2}' META)
 
 %:
-	dh $@
+	dh $@ --with autotools_dev
 
 override_dh_auto_configure:
+	./autogen.sh
+
 	# Build the userland, but don't build the kernel modules.
 	./configure \
 	  --prefix='' \

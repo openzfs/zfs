@@ -3,6 +3,9 @@ Section: kernel
 Priority: extra
 Maintainer: Darik Horn <dajhorn@vanadac.com>
 Build-Depends: autotools-dev,
+ autoconf,
+ autogen,
+ automake,
  debhelper (>= 7.4),
  dkms (>> 2.1.1.2-5ubuntu1),
  libselinux1-dev,
