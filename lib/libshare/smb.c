@@ -330,9 +330,7 @@ smb_retrieve_shares(void)
 	/* opendir(), stat() */
 	shares_dir = opendir(SHARE_DIR);
 	if (shares_dir == NULL) {
-#ifdef DEBUG
-		fprintf(stderr, "    opendir() == NULL\n");
-#endif
+		fprintf(stderr, "ERROR: smb.c:smb_retrieve_shares()/opendir()\n");
 		return SA_SYSTEM_ERR;
 	}
 
@@ -341,11 +339,14 @@ smb_retrieve_shares(void)
 		if (directory->d_name[0] == '.')
 			continue;
 
+#ifdef DEBUG
+		fprintf(stderr, "    %s\n", directory->d_name);
+#endif
 		snprintf(file_path, sizeof (file_path),
 			 "%s/%s", SHARE_DIR, directory->d_name);
 
 		if (stat(file_path, &eStat) == -1) {
-			fprintf(stderr, "ERROR: stat()\n");
+			fprintf(stderr, "ERROR: smb.c:smb_retrieve_shares()/stat()\n");
 
 			rc = SA_SYSTEM_ERR;
 			goto out;
@@ -354,14 +355,9 @@ smb_retrieve_shares(void)
 		if (!S_ISREG(eStat.st_mode))
 			continue;
 
-#ifdef DEBUG
-		fprintf(stderr, "    %s\n", directory->d_name);
-#endif
-
 		if ((share_file_fp = fopen(file_path, "r")) == NULL) {
-#ifdef DEBUG
-			fprintf(stderr, "    fopen() == NULL\n");
-#endif
+			fprintf(stderr, "ERROR: smb.c:smb_retrieve_shares()/fopen()\n");
+
 			rc = SA_SYSTEM_ERR;
 			goto out;
 		}
@@ -399,9 +395,6 @@ smb_retrieve_shares(void)
 			key = line;
 			value = token + 1;
 			*token = '\0';
-#ifdef DEBUG
-			fprintf(stderr, "(%s = %s)\n", key, value);
-#endif
 
 			dup_value = strdup(value);
 			if (dup_value == NULL) {
