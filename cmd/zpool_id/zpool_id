@@ -1,7 +1,6 @@
 #!/bin/sh
 
 CONFIG="${CONFIG:-/etc/zfs/zdev.conf}"
-AWK="${AWK:-/usr/bin/awk}"
 
 if [ -z "${PATH_ID}" ]; then
 	# The path_id helper became a builtin command in udev 174.
@@ -63,9 +62,19 @@ fi
 # configuration file which is of the format <device id> <key>.
 # Lines starting with #'s are treated as comments and ignored.
 # Exact matches are required, wild cards are not supported,
-# and only the first match is returned.  Also note the following
-# regex pattern only appears to work with gawk, not mawk or awk.
-ID_ZPOOL=`${AWK} "/\<${ID_PATH}\>/ && !/^#/ { print \\$1; exit }" "${CONFIG}"`
+# and only the first match is returned.
+ID_ZPOOL=''
+while read CONFIG_ZPOOL CONFIG_PATH REPLY; do
+	if [ "${CONFIG_ZPOOL}" != "${CONFIG_ZPOOL#\#}" ]; then
+		# Skip comment lines.
+		continue
+	fi
+	if [ "${CONFIG_PATH}" = "${ID_PATH}" ]; then
+		ID_ZPOOL="${CONFIG_ZPOOL}"
+		break
+	fi
+done <"${CONFIG}"
+
 [ -z "${ID_ZPOOL}" ] && die "Missing ID_ZPOOL for ID_PATH: ${ID_PATH}"
 
 if [ -n "${ID_ZPOOL}" ]; then

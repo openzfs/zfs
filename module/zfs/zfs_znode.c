@@ -269,6 +269,7 @@ zfs_inode_destroy(struct inode *ip)
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_remove(&zsb->z_all_znodes, zp);
+	zsb->z_nr_znodes--;
 	mutex_exit(&zsb->z_znodes_lock);
 
 	if (zp->z_acl_cached) {
@@ -401,6 +402,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
+	zsb->z_nr_znodes++;
 	membar_producer();
 	mutex_exit(&zsb->z_znodes_lock);
 
