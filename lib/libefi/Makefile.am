@@ -6,9 +6,7 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
-lib_LTLIBRARIES = libefi.la
+noinst_LTLIBRARIES = libefi.la
 
 libefi_la_SOURCES = \
 	$(top_srcdir)/lib/libefi/rdwr_efi.c
-
-libefi_la_LDFLAGS = -version-info 1:0:0
