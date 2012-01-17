@@ -152,20 +152,23 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	 *   Path=/dev/zvol/$sharepath,Type=$iotype
 	 */
 
+	if (!file_is_executable(IETM_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
+		return SA_SYSTEM_ERR;
+	}
+
 #ifdef DEBUG
 	fprintf(stderr, "iscsi_enable_share_one(%d, %s, %s, %s)\n",
 		tid, sharename, sharepath, iotype);
 #endif
 
+	/* ====== */
 	/* PART 1 */
 	snprintf(params_name, sizeof (params_name), "Name=%s", sharename);
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + NUL */
 	snprintf(tid_s, sizeof(tid_s), "%d", tid);
-	if (!file_is_executable(IETM_CMD_PATH)) {
-		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
-		return SA_SYSTEM_ERR;
-	}
+
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "new";
@@ -177,7 +180,7 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 
 #ifdef DEBUG
 	fprintf(stderr, "  ");
-	for (i=0; i < 8; i++)
+	for (i=0; argv[i] != NULL; i++)
 		fprintf(stderr, "%s ", argv[i]);
 	fprintf(stderr, "\n");
 #endif
@@ -186,6 +189,7 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	if (rc < 0)
 		return SA_SYSTEM_ERR;
 
+	/* ====== */
 	/* PART 2 */
 	snprintf(params_path, sizeof (params_path),
 		 "Path=%s,Type=%s", sharepath, iotype);
@@ -198,7 +202,7 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 
 #ifdef DEBUG
 	fprintf(stderr, "  ");
-	for (i=0; i < 10; i++)
+	for (i=0; argv[i] != NULL; i++)
 		fprintf(stderr, "%s ", argv[i]);
 	fprintf(stderr, "\n");
 #endif
@@ -206,6 +210,25 @@ iscsi_enable_share_one(int tid, char *sharename, const char *sharepath,
 	rc = libzfs_run_process(argv[0], argv, 0);
 	if (rc < 0)
 		return SA_SYSTEM_ERR;
+
+	/* ====== */
+	/* Part 3 */
+	argv[0] = "/sbin/zfs_share_iscsi.sh";
+	argv[1] = tid_s;
+	argv[2] = NULL;
+
+	if(file_is_executable(argv[0])) {
+#ifdef DEBUG
+		fprintf(stderr, "  ");
+		for (i=0; argv[i] != NULL; i++)
+			fprintf(stderr, "%s ", argv[i]);
+		fprintf(stderr, "\n");
+#endif
+
+		rc = libzfs_run_process(argv[0], argv, 0);
+		if (rc < 0)
+			return SA_SYSTEM_ERR;
+	}
 
 	/* Reload the share file */
 	iscsi_retrieve_targets();
@@ -256,16 +279,18 @@ iscsi_disable_share_one(int tid)
 	int i;
 #endif
 
+	if (!file_is_executable(IETM_CMD_PATH)) {
+		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
+		return SA_SYSTEM_ERR;
+	}
+
 #ifdef DEBUG
 	fprintf(stderr, "iscsi_disable_share_one(%d)\n", tid);
 #endif
 
 	/* int: between -2,147,483,648 and 2,147,483,647 => 10 chars + NUL */
 	snprintf(tid_s, sizeof (tid_s), "%d", tid);
-	if (!file_is_executable(IETM_CMD_PATH)) {
-		fprintf(stderr, "ERROR: %s: Does not exists or is not executable.\n", IETM_CMD_PATH);
-		return SA_SYSTEM_ERR;
-	}
+
 	argv[0] = IETM_CMD_PATH;
 	argv[1] = "--op";
 	argv[2] = "delete";
@@ -275,7 +300,7 @@ iscsi_disable_share_one(int tid)
 
 #ifdef DEBUG
 	fprintf(stderr, "  ");
-	for (i=0; i < 6; i++)
+	for (i=0; argv[i] != NULL; i++)
 		fprintf(stderr, "%s ", argv[i]);
 	fprintf(stderr, "\n");
 #endif
