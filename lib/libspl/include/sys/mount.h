@@ -73,4 +73,11 @@
 # define MS_DETACH	0x00000002
 #endif /* MNT_DETACH */
 
+/*
+ * Overlay mount is default in Linux, but for solaris/zfs
+ * compatibility, MS_OVERLAY is defined to explicitly have the user
+ * provide a flag (-O) to mount over a non empty directory.
+ */
+#define MS_OVERLAY      0x00000004
+
 #endif /* _LIBSPL_SYS_MOUNT_H */

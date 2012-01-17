@@ -606,31 +606,59 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_security_set);
 
+#ifdef HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY
+static int
+__zpl_xattr_security_init(struct inode *ip, const struct xattr *xattrs,
+    void *fs_info)
+{
+	const struct xattr *xattr;
+	int error = 0;
+
+	for (xattr = xattrs; xattr->name != NULL; xattr++) {
+		error = __zpl_xattr_security_set(ip,
+		    xattr->name, xattr->value, xattr->value_len, 0);
+
+		if (error < 0)
+			break;
+	}
+
+	return (error);
+}
+
 int
 zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr)
 {
-        int error;
-        size_t len;
-        void *value;
-        char *name;
+	return security_inode_init_security(ip, dip, qstr,
+	    &__zpl_xattr_security_init, NULL);
+}
 
-        error = zpl_security_inode_init_security(ip, dip, qstr,
-	    &name, &value, &len);
-        if (error) {
-                if (error == -EOPNOTSUPP)
-                        return 0;
+#else
+int
+zpl_xattr_security_init(struct inode *ip, struct inode *dip,
+    const struct qstr *qstr)
+{
+	int error;
+	size_t len;
+	void *value;
+	char *name;
 
-                return (error);
-        }
+	error = zpl_security_inode_init_security(ip, dip, qstr,
+	  &name, &value, &len);
+	if (error) {
+		if (error == -EOPNOTSUPP)
+			return 0;
+		return (error);
+	}
 
 	error = __zpl_xattr_security_set(ip, name, value, len, 0);
 
-        kfree(name);
-        kfree(value);
+	kfree(name);
+	kfree(value);
 
-        return (error);
+	return (error);
 }
+#endif /* HAVE_CALLBACK_SECURITY_INODE_INIT_SECURITY */
 
 xattr_handler_t zpl_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,
@@ -644,6 +672,6 @@ xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_user_handler,
 #ifdef HAVE_POSIX_ACLS
 	&zpl_xattr_acl_access_handler,
-        &zpl_xattr_acl_default_handler,
+	&zpl_xattr_acl_default_handler,
 #endif /* HAVE_POSIX_ACLS */
 };
