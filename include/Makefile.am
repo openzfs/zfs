@@ -15,14 +15,14 @@ noinst_HEADERS += $(top_srcdir)/include/util/*.h
 noinst_HEADERS += $(top_srcdir)/include/vm/*.h
 
 install-data-local:
-	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
-	instdest=$(DESTDIR)/usr/src/$$destname; \
+	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
+	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
 	instfiles=`find . -name '*.h'`; \
         for instfile in $$instfiles; do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
         done
 
 uninstall-local:
-	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
-	instdest=$(DESTDIR)/usr/src/$$destname; \
+	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
+	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
 	$(RM) -R $$instdest

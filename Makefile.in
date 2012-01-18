@@ -1022,9 +1022,9 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 @CONFIG_KERNEL_TRUE@install-data-local:
-@CONFIG_KERNEL_TRUE@	destname=spl-$(SPL_META_VERSION)/$(LINUX_VERSION); \
-@CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/$$destname; \
-@CONFIG_KERNEL_TRUE@	echo "$(SPL_META_VERSION)" >$$instdest/spl.release; \
+@CONFIG_KERNEL_TRUE@	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
+@CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
+@CONFIG_KERNEL_TRUE@	echo "$$release" >$$instdest/spl.release; \
 @CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 @CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 @CONFIG_KERNEL_TRUE@	done
