@@ -1,3 +1,18 @@
+zfs-linux (0.6.0.46-0ubuntu1) unstable; urgency=low
+
+  [ Ned Bass ]
+  * Reduce number of zio free threads
+
+  [ Darik Horn ]
+  * Run autogen for packaged builds.
+  * Move debian/patches into a separate branch.
+  * Disable zfs-dracut packaging.
+
+  [ Richard Laager ]
+  * Allow setting bootfs on any pool
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 18 Jan 2012 14:01:23 -0600
+
 zfs-linux (0.6.0.45-0ubuntu1) unstable; urgency=low
 
   [ Prakash Surya ]
