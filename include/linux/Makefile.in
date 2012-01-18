@@ -317,7 +317,7 @@ USER_H =
 EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
 @CONFIG_USER_TRUE@libzfsdir = $(includedir)/libzfs/linux
 @CONFIG_USER_TRUE@libzfs_HEADERS = $(COMMON_H) $(USER_H)
-@CONFIG_KERNEL_TRUE@kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)/$(LINUX_VERSION)/linux
+@CONFIG_KERNEL_TRUE@kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE)/$(LINUX_VERSION)/linux
 @CONFIG_KERNEL_TRUE@kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
 all: all-am
 
