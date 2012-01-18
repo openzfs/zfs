@@ -12,6 +12,7 @@ License:         @LICENSE@
 URL:             git://github.com/zfsonlinux/spl.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          %{name}-%{version}.tar.gz
+Requires:        spl-modules
 
 %description
 The %{name} package contains the support utilities for the spl.
