@@ -1,0 +1,38 @@
+From 1bd76d57fe733cf77f95fe7c90e790adde4611b6 Mon Sep 17 00:00:00 2001
+From: Darik Horn <dajhorn@vanadac.com>
+Date: Tue, 17 Jan 2012 22:18:47 -0600
+Subject: [PATCH 2/6] Remove the COPYING file.
+
+Resolve this lintian warning by removing the COPYING file:
+
+	W: zfsutils: extra-license-file usr/share/doc/zfsutils/COPYING
+	N:
+	N:    All license information should be collected in the debian/copyright
+	N:    file. This usually makes it unnecessary for the package to install this
+	N:    information in other places as well.
+	N:
+	N:    Refer to Debian Policy Manual section 12.5 (Copyright information) for
+	N:    details.
+	N:
+	N:    Severity: normal, Certainty: possible
+	N:
+
+The COPYING file in this project is a place holder that does not
+contain the software license, and it is optional for autotools
+because the automake template is "foreign".
+---
+ COPYING |    2 --
+ 1 files changed, 0 insertions(+), 2 deletions(-)
+ delete mode 100644 COPYING
+
+diff --git a/COPYING b/COPYING
+deleted file mode 100644
+index 90f4490..0000000
+--- a/COPYING
++++ /dev/null
+@@ -1,2 +0,0 @@
+-Please see COPYRIGHT and OPENSOLARIS.LICENSE for the copyright
+-and license details.
+-- 
+1.7.5.4
+

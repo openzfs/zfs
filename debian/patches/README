@@ -1,0 +1,36 @@
+To add a patch:
+
+	$ git checkout debian-patches
+	$ git fetch <topic_branch>
+	$ git cherry-pick <commit>
+
+To remove a patch:
+
+	$ git checkout debian-patches
+	$ git rebase -i upstream
+	: delete the commit line in the interactive editor
+
+To reorder the series:
+
+	$ git checkout debian-patches
+	$ git rebase -i upstream
+	: rearrange the commit lines in the interactive editor
+
+To refresh the series for release:
+
+	$ git checkout master
+	$ cd debian/patches
+	$ rm 0*.patch
+	$ git format-patch upstream..debian-patches
+	$ ls -1 0*.patch volatile-version.patch >series
+
+The reasons for keeping debian/patches in a separate branch are:
+
+  * Using git to automatically rediff the patches is easier than using
+    `quilt refresh` and manually resolving conflicts.
+
+  * It is faster to pull and later discard experimental topic branches.
+
+  * It keeps the packaging master history clean and concise, and avoids
+    accidentally conflating the upstream master. Reverting a commit that
+    changed something outside of the debian/ overlay is ugly.

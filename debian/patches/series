@@ -1,7 +1,7 @@
+0001-Prevent-manual-builds-in-the-DKMS-source.patch
+0002-Remove-the-COPYING-file.patch
+0003-Remove-all-upstream-init.d-components.patch
+0004-Remove-the-upstream-dracut-component.patch
+0005-Remove-userland-dist-rules.patch
+0006-Allow-GPT-EFI-vdev-replacement-in-boot-pools.patch
 volatile-version.patch
-#disable-dist-init.patch
-disable-dist-scripts.patch
-lintian-COPYING.patch
-lintian-ltmain.patch
-0001-Use-bin-bash-to-invoke-dracut-scripts.patch
-0002-Allow-setting-bootfs-on-any-pool.patch

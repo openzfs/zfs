@@ -1,0 +1,156 @@
+From 0c200ed806388d6a70538e703f75aafc7a1335a8 Mon Sep 17 00:00:00 2001
+From: Darik Horn <dajhorn@vanadac.com>
+Date: Tue, 17 Jan 2012 22:23:16 -0600
+Subject: [PATCH 5/6] Remove userland dist rules.
+
+The `make dist` rule is used to create the DKMS source package, which
+does not contain the userland. (eg: Dist --with-config=kernel only.)
+
+For all userland components in each automake template, delete
+instances of EXTRA_DIST and change dist_ to nodist_.
+---
+ Makefile.am                       |    3 +--
+ cmd/sas_switch_id/Makefile.am     |    2 +-
+ cmd/zpool_id/Makefile.am          |    2 +-
+ cmd/zpool_layout/Makefile.am      |    2 +-
+ etc/zfs/Makefile.am               |    2 --
+ man/man8/Makefile.am              |    1 -
+ scripts/Makefile.am               |    2 +-
+ scripts/zpios-profile/Makefile.am |    2 +-
+ scripts/zpios-test/Makefile.am    |    2 +-
+ scripts/zpool-config/Makefile.am  |    2 +-
+ scripts/zpool-layout/Makefile.am  |    2 +-
+ udev/rules.d/Makefile.am          |    5 -----
+ 12 files changed, 9 insertions(+), 18 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index b8f64ba..583f81f 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -12,8 +12,7 @@ endif
+ SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
+ 
+ AUTOMAKE_OPTIONS = foreign
+-EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
+-EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
++EXTRA_DIST  = config/config.awk config/rpm.am config/deb.am config/tgz.am
+ EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown
+ EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
+ 
+diff --git a/cmd/sas_switch_id/Makefile.am b/cmd/sas_switch_id/Makefile.am
+index b666bea..91277a9 100644
+--- a/cmd/sas_switch_id/Makefile.am
++++ b/cmd/sas_switch_id/Makefile.am
+@@ -1 +1 @@
+-dist_udev_SCRIPTS = sas_switch_id
++nodist_udev_SCRIPTS = sas_switch_id
+diff --git a/cmd/zpool_id/Makefile.am b/cmd/zpool_id/Makefile.am
+index 5f492cf..f186d78 100644
+--- a/cmd/zpool_id/Makefile.am
++++ b/cmd/zpool_id/Makefile.am
+@@ -1 +1 @@
+-dist_udev_SCRIPTS = zpool_id
++nodist_udev_SCRIPTS = zpool_id
+diff --git a/cmd/zpool_layout/Makefile.am b/cmd/zpool_layout/Makefile.am
+index b17e6a3..f8c61fd 100644
+--- a/cmd/zpool_layout/Makefile.am
++++ b/cmd/zpool_layout/Makefile.am
+@@ -1 +1 @@
+-dist_bin_SCRIPTS = zpool_layout
++nodist_bin_SCRIPTS = zpool_layout
+diff --git a/etc/zfs/Makefile.am b/etc/zfs/Makefile.am
+index 027c397..b5d47c4 100644
+--- a/etc/zfs/Makefile.am
++++ b/etc/zfs/Makefile.am
+@@ -5,5 +5,3 @@ pkgsysconf_DATA = \
+ 	zdev.conf.supermicro.example \
+ 	zdev.conf.dragon.example \
+ 	zdev.conf.x4550.example
+-
+-EXTRA_DIST = $(pkgsysconf_DATA)
+diff --git a/man/man8/Makefile.am b/man/man8/Makefile.am
+index 8f0227f..4f39bb3 100644
+--- a/man/man8/Makefile.am
++++ b/man/man8/Makefile.am
+@@ -1,5 +1,4 @@
+ man_MANS = zdb.8 zfs.8 zpool.8
+-EXTRA_DIST = $(man_MANS)
+ 
+ install-data-local:
+ 	$(INSTALL) -d -m 0755 "$(DESTDIR)$(mandir)/man8"
+diff --git a/scripts/Makefile.am b/scripts/Makefile.am
+index 3dc1e67..aad0cd4 100644
+--- a/scripts/Makefile.am
++++ b/scripts/Makefile.am
+@@ -1,7 +1,7 @@
+ SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
+ 
+ pkglibexecdir = $(libexecdir)/@PACKAGE@
+-dist_pkglibexec_SCRIPTS = \
++nodist_pkglibexec_SCRIPTS = \
+ 	$(top_builddir)/scripts/common.sh \
+ 	$(top_srcdir)/scripts/zconfig.sh \
+ 	$(top_srcdir)/scripts/zfault.sh \
+diff --git a/scripts/zpios-profile/Makefile.am b/scripts/zpios-profile/Makefile.am
+index 403c020..4cfb343 100644
+--- a/scripts/zpios-profile/Makefile.am
++++ b/scripts/zpios-profile/Makefile.am
+@@ -1,5 +1,5 @@
+ pkglibexecdir = $(libexecdir)/@PACKAGE@/zpios-profile
+-dist_pkglibexec_SCRIPTS = \
++nodist_pkglibexec_SCRIPTS = \
+ 	$(top_srcdir)/scripts/zpios-profile/zpios-profile-disk.sh \
+ 	$(top_srcdir)/scripts/zpios-profile/zpios-profile-pids.sh \
+ 	$(top_srcdir)/scripts/zpios-profile/zpios-profile-post.sh \
+diff --git a/scripts/zpios-test/Makefile.am b/scripts/zpios-test/Makefile.am
+index 54935b4..54336d5 100644
+--- a/scripts/zpios-test/Makefile.am
++++ b/scripts/zpios-test/Makefile.am
+@@ -1,5 +1,5 @@
+ pkglibexecdir = $(libexecdir)/@PACKAGE@/zpios-test
+-dist_pkglibexec_SCRIPTS = \
++nodist_pkglibexec_SCRIPTS = \
+ 	$(top_srcdir)/scripts/zpios-test/16th-8192rc-4rs-1cs-4off.sh \
+ 	$(top_srcdir)/scripts/zpios-test/1th-16rc-4rs-1cs-4off.sh \
+ 	$(top_srcdir)/scripts/zpios-test/1x256th-65536rc-4rs-1cs-4off.sh \
+diff --git a/scripts/zpool-config/Makefile.am b/scripts/zpool-config/Makefile.am
+index 87f58bb..7973114 100644
+--- a/scripts/zpool-config/Makefile.am
++++ b/scripts/zpool-config/Makefile.am
+@@ -1,5 +1,5 @@
+ pkglibexecdir = $(libexecdir)/@PACKAGE@/zpool-config
+-dist_pkglibexec_SCRIPTS = \
++nodist_pkglibexec_SCRIPTS = \
+ 	$(top_srcdir)/scripts/zpool-config/dm0-raid0.sh \
+ 	$(top_srcdir)/scripts/zpool-config/file-raid0.sh \
+ 	$(top_srcdir)/scripts/zpool-config/file-raid10.sh \
+diff --git a/scripts/zpool-layout/Makefile.am b/scripts/zpool-layout/Makefile.am
+index 3eef241..ede02d0 100644
+--- a/scripts/zpool-layout/Makefile.am
++++ b/scripts/zpool-layout/Makefile.am
+@@ -1,5 +1,5 @@
+ pkglibexecdir = $(libexecdir)/@PACKAGE@/zpool-layout
+-dist_pkglibexec_SCRIPTS = \
++nodist_pkglibexec_SCRIPTS = \
+ 	$(top_srcdir)/scripts/zpool-layout/dragon.ddn.conf \
+ 	$(top_srcdir)/scripts/zpool-layout/dragon.llnl.conf
+ 
+diff --git a/udev/rules.d/Makefile.am b/udev/rules.d/Makefile.am
+index bb4eedf..1ba68a2 100644
+--- a/udev/rules.d/Makefile.am
++++ b/udev/rules.d/Makefile.am
+@@ -3,11 +3,6 @@ udevrule_DATA = \
+ 	$(top_srcdir)/udev/rules.d/60-zvol.rules \
+ 	$(top_srcdir)/udev/rules.d/90-zfs.rules
+ 
+-EXTRA_DIST = \
+-	$(top_srcdir)/udev/rules.d/60-zpool.rules.in \
+-	$(top_srcdir)/udev/rules.d/60-zvol.rules.in \
+-	$(top_srcdir)/udev/rules.d/90-zfs.rules.in
+-
+ $(udevrule_DATA):
+ 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
+ 		-e 's,@sbindir\@,$(sbindir),g' \
+-- 
+1.7.5.4
+

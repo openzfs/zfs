@@ -1,0 +1,75 @@
+From 4cdadd9bb09dbbaea7236d1becf3016c4fae0294 Mon Sep 17 00:00:00 2001
+From: Darik Horn <dajhorn@vanadac.com>
+Date: Tue, 17 Jan 2012 19:45:07 -0600
+Subject: [PATCH 1/6] Prevent manual builds in the DKMS source.
+
+Print an instructive error messsage and exit if the `dkms.conf` file
+exists when the userland is configured. (ie: `--with-config=user`)
+
+A non-trivial number of people try to rebuild ZoL from the
+`/usr/src/zfs` tree, which is modified to better satisfy Debian
+packaging policy and contains only the module sources for DKMS.
+
+Regardless, local installations usually break managed installations,
+so this autotools test could be further enhanced to check whether
+ZFS has a DKMS registration.
+---
+ config/dkms.m4      |   14 ++++++++++++++
+ config/user.m4      |    1 +
+ config/zfs-build.m4 |    6 +++---
+ 3 files changed, 18 insertions(+), 3 deletions(-)
+ create mode 100644 config/dkms.m4
+
+diff --git a/config/dkms.m4 b/config/dkms.m4
+new file mode 100644
+index 0000000..cfa1152
+--- /dev/null
++++ b/config/dkms.m4
+@@ -0,0 +1,14 @@
++dnl #
++dnl # Prevent manual building in DKMS source tree.
++dnl #
++AC_DEFUN([ZFS_AC_DKMS_INHIBIT], [
++	AC_MSG_CHECKING([for dkms.conf file])
++        AS_IF([test -e dkms.conf], [
++		AC_MSG_ERROR([
++	*** ZFS should not be manually built in the DKMS source tree.
++	*** Remove all ZFS packages before compiling the ZoL sources.
++	*** Running "make install" breaks ZFS packages.])
++        ], [
++		AC_MSG_RESULT([not found])
++        ])
++])
+diff --git a/config/user.m4 b/config/user.m4
+index 4fcef3d..16b8a76 100644
+--- a/config/user.m4
++++ b/config/user.m4
+@@ -2,6 +2,7 @@ dnl #
+ dnl # Default ZFS user configuration
+ dnl #
+ AC_DEFUN([ZFS_AC_CONFIG_USER], [
++	ZFS_AC_DKMS_INHIBIT
+ 	ZFS_AC_CONFIG_USER_UDEV
+ 	ZFS_AC_CONFIG_USER_ARCH
+ 	ZFS_AC_CONFIG_USER_IOCTL
+diff --git a/config/zfs-build.m4 b/config/zfs-build.m4
+index aa8d3e5..784e21e 100644
+--- a/config/zfs-build.m4
++++ b/config/zfs-build.m4
+@@ -54,10 +54,10 @@ AC_DEFUN([ZFS_AC_CONFIG], [
+ 	ZFS_AC_CONFIG_ALWAYS
+ 
+ 	case "$ZFS_CONFIG" in
+-		kernel) ZFS_AC_CONFIG_KERNEL ;;
+ 		user)	ZFS_AC_CONFIG_USER   ;;
+-		all)    ZFS_AC_CONFIG_KERNEL
+-			ZFS_AC_CONFIG_USER   ;;
++		kernel) ZFS_AC_CONFIG_KERNEL ;;
++		all)    ZFS_AC_CONFIG_USER
++			ZFS_AC_CONFIG_KERNEL ;;
+ 		srpm)                        ;;
+ 		*)
+ 		AC_MSG_RESULT([Error!])
+-- 
+1.7.5.4
+
