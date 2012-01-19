@@ -454,17 +454,17 @@ taskq_thread(void *args)
 
         while (!kthread_should_stop()) {
 
-		add_wait_queue(&tq->tq_work_waitq, &wait);
 		if (list_empty(&tq->tq_pend_list) &&
 		    list_empty(&tq->tq_prio_list)) {
+			add_wait_queue_exclusive(&tq->tq_work_waitq, &wait);
 			spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 			schedule();
 			spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+			remove_wait_queue(&tq->tq_work_waitq, &wait);
 		} else {
 			__set_current_state(TASK_RUNNING);
 		}
 
-		remove_wait_queue(&tq->tq_work_waitq, &wait);
 
 		if (!list_empty(&tq->tq_prio_list))
 			pend_list = &tq->tq_prio_list;
