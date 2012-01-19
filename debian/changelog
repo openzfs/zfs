@@ -1,3 +1,19 @@
+zfs-linux (0.6.0.47-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add the release component to headers
+  * Fix rpm dependencies
+
+  [ Darik Horn ]
+  * Combine libraries: spl, avl, efi, share, unicode. (Closes: #430)
+  * Allow GPT+EFI vdev replacement in boot pools.
+  * Add libtool to Build-Depends.
+  * Refresh debian/patches after upstream merge.
+  * Remove distdir stubbing for DKMS module sources.
+  * Delete packaging for recomposed libraries.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 18 Jan 2012 20:40:27 -0600
+
 zfs-linux (0.6.0.46-0ubuntu1) unstable; urgency=low
 
   [ Ned Bass ]
