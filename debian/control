@@ -9,6 +9,7 @@ Build-Depends: autotools-dev,
  debhelper (>= 7.4),
  dkms (>> 2.1.1.2-5ubuntu1),
  libselinux1-dev,
+ libtool,
  uuid-dev,
  zlib1g-dev,
 Standards-Version: 3.8.4
