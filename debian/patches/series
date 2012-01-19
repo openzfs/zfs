@@ -3,5 +3,4 @@
 0003-Remove-all-upstream-init.d-components.patch
 0004-Remove-the-upstream-dracut-component.patch
 0005-Remove-userland-dist-rules.patch
-0006-Allow-GPT-EFI-vdev-replacement-in-boot-pools.patch
 volatile-version.patch

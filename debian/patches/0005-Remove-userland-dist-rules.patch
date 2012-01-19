@@ -1,7 +1,7 @@
-From 0c200ed806388d6a70538e703f75aafc7a1335a8 Mon Sep 17 00:00:00 2001
+From f71f498e6bc2a91219f5303a5091c7c79f876027 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 22:23:16 -0600
-Subject: [PATCH 5/6] Remove userland dist rules.
+Subject: [PATCH 5/5] Remove userland dist rules.
 
 The `make dist` rule is used to create the DKMS source package, which
 does not contain the userland. (eg: Dist --with-config=kernel only.)
@@ -24,7 +24,7 @@ instances of EXTRA_DIST and change dist_ to nodist_.
  12 files changed, 9 insertions(+), 18 deletions(-)
 
 diff --git a/Makefile.am b/Makefile.am
-index b8f64ba..583f81f 100644
+index aa5c01a..14900bd 100644
 --- a/Makefile.am
 +++ b/Makefile.am
 @@ -12,8 +12,7 @@ endif

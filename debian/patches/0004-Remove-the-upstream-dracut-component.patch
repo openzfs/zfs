@@ -1,7 +1,7 @@
-From 5f451a636a56fdec948e0541032adfd37ecd667b Mon Sep 17 00:00:00 2001
+From 53fda2a56a4756ed4d64133766e8029aec1c39ef Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 20:27:32 -0600
-Subject: [PATCH 4/6] Remove the upstream dracut component.
+Subject: [PATCH 4/5] Remove the upstream dracut component.
 
 The dracut/ component broke deb systems when it first added to the
 upstream ZoL repository, had a near-zero download count when it was
@@ -31,7 +31,7 @@ dracut-005 package that is currently published in Debian and Ubuntu.
  delete mode 100644 dracut/README.dracut.markdown
 
 diff --git a/Makefile.am b/Makefile.am
-index 3ab5cb3..b8f64ba 100644
+index 17a6a26..aa5c01a 100644
 --- a/Makefile.am
 +++ b/Makefile.am
 @@ -4,7 +4,7 @@ include $(top_srcdir)/config/tgz.am

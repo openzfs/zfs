@@ -18,6 +18,9 @@ To reorder the series:
 
 To refresh the series for release:
 
+	$ git checkout debian-patches
+	$ git rebase -i upstream
+	: Notice how commits accepted upstream will disappear.
 	$ git checkout master
 	$ cd debian/patches
 	$ rm 0*.patch

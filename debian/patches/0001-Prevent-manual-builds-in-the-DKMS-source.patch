@@ -1,7 +1,7 @@
-From 4cdadd9bb09dbbaea7236d1becf3016c4fae0294 Mon Sep 17 00:00:00 2001
+From 76135e7115a7635488e6201fcfe6328ac747165c Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 19:45:07 -0600
-Subject: [PATCH 1/6] Prevent manual builds in the DKMS source.
+Subject: [PATCH 1/5] Prevent manual builds in the DKMS source.
 
 Print an instructive error messsage and exit if the `dkms.conf` file
 exists when the userland is configured. (ie: `--with-config=user`)
