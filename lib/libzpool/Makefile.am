@@ -8,11 +8,6 @@ DEFAULT_INCLUDES += \
 
 lib_LTLIBRARIES = libzpool.la
 
-libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la
-
 libzpool_la_SOURCES = \
 	$(top_srcdir)/lib/libzpool/kernel.c \
 	$(top_srcdir)/lib/libzpool/taskq.c \
@@ -93,7 +88,11 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zle.c \
 	$(top_srcdir)/module/zfs/zrlock.c
 
-libzpool_la_LDFLAGS = -pthread -version-info 1:0:0
+libzpool_la_LIBADD = \
+	$(top_builddir)/lib/libunicode/libunicode.la \
+	$(top_builddir)/lib/libuutil/libuutil.la
+
+libzpool_la_LDFLAGS = -pthread -version-info 1:1:0
 
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \

@@ -198,20 +198,22 @@
 %define krequires        %{kpkg}
 %endif
 %define splrequires      %{splpkg}
+%define spldevrequires   %{spldevpkg}
 %else
 %define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
 %define release          @ZFS_META_RELEASE@_%{relext}
 %if %{defined kpkg}
 %define krequires        %{kpkg} %{koppkg} %{kverpkg}
 %endif
-%define splrequires      %{splpkg} = %{splverpkg}
+%define splrequires      %{splpkg} = %{splverpkg}_%{relext}
+%define spldevrequires   %{spldevpkg} = %{splverpkg}_%{relext}
 %endif
 
 Summary:         ZFS File System
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}%{?dist}
+Release:         %{release}
 License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
@@ -236,11 +238,10 @@ Group:           Development/Libraries
 %if %{defined krequires}
 Requires:        %{krequires}
 %endif
-Requires:        %{splrequires}
 %if %{defined kdevpkg}
-BuildRequires:   %{kdevpkg}
+Requires:        %{kdevpkg}
 %endif
-BuildRequires:   %{spldevpkg}
+Requires:        %{spldevrequires}
 
 %description devel
 The %{name}-devel package contains the kernel header files and 

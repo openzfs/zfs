@@ -270,9 +270,9 @@ AC_DEFUN([ZFS_AC_SPL], [
 		fgrep -q SPL_META_VERSION $splbuild/spl_config.h], [
 
 		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION") |
+		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
 		            cpp -I $splbuild |
-		            grep "^splsrcver=" | cut -d \" -f 2`
+		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
 	])
 
 	AS_IF([test -z "$splsrcver"], [

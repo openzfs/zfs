@@ -97,11 +97,7 @@ am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
 am_zinject_OBJECTS = translate.$(OBJEXT) zinject.$(OBJEXT)
 zinject_OBJECTS = $(am_zinject_OBJECTS)
-zinject_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
+zinject_DEPENDENCIES = $(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
@@ -331,11 +327,7 @@ zinject_SOURCES = \
 	$(top_srcdir)/cmd/zinject/zinject.h
 
 zinject_LDADD = \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la

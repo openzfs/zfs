@@ -315,7 +315,13 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-SUBDIRS = libspl libavl libefi libnvpair libshare libunicode libuutil \
+
+# NB: GNU Automake Manual, Chapter 8.3.5: Libtool Convenience Libraries
+# These five libraries are intermediary build components.
+
+# These four libraries, which are installed as the final build product,
+# incorporate the five convenience libraries given above.
+SUBDIRS = libspl libavl libefi libshare libunicode libnvpair libuutil \
 	libzpool libzfs
 all: all-recursive
 
