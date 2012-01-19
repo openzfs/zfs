@@ -9,60 +9,46 @@ VERSION := $(shell awk '/^Version:/{print $$2}' META)
 override_dh_auto_configure:
 	./autogen.sh
 
-	# Build the userland, but don't build the kernel modules.
+	@# Build the userland, but don't build the kernel modules.
 	./configure \
 	  --prefix='' \
 	  --libexecdir=/usr/libexec \
 	  --libdir=/lib \
 	  --includedir=/usr/include \
 	  --datarootdir=/usr/share \
-	  --with-config=user \
-	
+	  --with-config=user
+
 override_dh_auto_test:
+	# The dh_auto_test rule is disabled because
 	# `make check` cannot run in an unprivileged build environment.
 
 override_dh_auto_install:
-	# Install the utilities.
+	@# Install the utilities.
 	make install DESTDIR='$(CURDIR)/debian/tmp'
 
-	# Get a bare copy of the source code.
-	# This creates the $(CURDIR)/$(NAME)-$(VERSION)/ tree.
+	@# Get a bare copy of the source code for DKMS.
+	@# This creates the $(CURDIR)/$(NAME)-$(VERSION)/ tree, which does not
+	@# contain the userland sources. NB: Remove-userland-dist-rules.patch
 	make distdir
 
-	# @FIXME: Create a distdir_modules rule.
-	#
-	# Scripts distribution is disabled because Lintian complains about
-	# having them in the DKMS sources. Stub the automake files to prevent
-	# a spurious configure error until the distdir rule can be improved.
-	mkdir -p \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpios-profile' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpios-test' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-config' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-layout'
-	touch \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/common.sh.in' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/Makefile.in' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpios-profile/Makefile.in' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpios-test/Makefile.in' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-config/Makefile.in' \
-	  '$(CURDIR)/$(NAME)-$(VERSION)/scripts/zpool-layout/Makefile.in'
-
-	# This shunt allows DKMS to install the Module.symvers and zfs_config.h
-	# files to the ${dkms_tree} area through the POST_INSTALL directive.
+	@# This shunt allows DKMS to install the Module.symvers and zfs_config.h
+	@# files to the ${dkms_tree} area through the POST_INSTALL directive.
 	echo '#!/bin/sh'  >'$(CURDIR)/$(NAME)-$(VERSION)/cp'
 	echo 'cp "$$@"'  >>'$(CURDIR)/$(NAME)-$(VERSION)/cp'
 	chmod 755 '$(CURDIR)/$(NAME)-$(VERSION)/cp'
 
-	# Install the DKMS source.
+	@# Install the DKMS source.
 	mkdir -p '$(CURDIR)/debian/tmp/usr/src/'
 	mv '$(CURDIR)/$(NAME)-$(VERSION)' '$(CURDIR)/debian/tmp/usr/src/'
 
-	# Install the dkms.conf file.
+	@# Process templates and install the dkms.conf file.
 	dh_dkms -V $(VERSION)
 
-	# Install the init.d file.
+	@# Install the init.d file.
 	dh_installinit --name=zfs
 
 override_dh_shlibdeps:
+	@# Suppress libtool dependency_libs warnings that are caused by
+	@# inter-library dependencies.  (eg: zfs -> libzfs -> libuuid)
+	@# @TODO: Add pkgconfig support instead.
 	dh_shlibdeps -- --warnings=0
