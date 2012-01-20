@@ -4,7 +4,7 @@ NAME := $(shell awk '/^Name:/{print $$2}' META)
 VERSION := $(shell awk '/^Version:/{print $$2}' META)
 
 %:
-	dh $@ --with autotools_dev
+	dh $@
 
 override_dh_auto_configure:
 	./autogen.sh
