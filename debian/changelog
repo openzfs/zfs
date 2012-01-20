@@ -1,3 +1,13 @@
+zfs-linux (0.6.0.48-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Ignore dataset if the dds_type is DMU_OST_OTHER
+
+  [ Darik Horn ]
+  * Disable dh_autotools-dev_updateconfig.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 19 Jan 2012 20:24:51 -0600
+
 zfs-linux (0.6.0.47-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
