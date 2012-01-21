@@ -43,6 +43,7 @@
 #define _SPL_DEBUG_INTERNAL_H
 
 #include <linux/limits.h>
+#include <linux/sched.h>
 
 #define SS_UNDEFINED	0x00000001
 #define SS_ATOMIC	0x00000002
@@ -86,21 +87,8 @@
 #define SD_OTHER	0x00000100
 #define SD_CANTMASK	(SD_ERROR | SD_EMERG | SD_WARNING | SD_CONSOLE)
 
-#ifdef NDEBUG /* Debugging Disabled */
-
-#define SDEBUG(mask, fmt, a...)		((void)0)
-#define SDEBUG_LIMIT(x, y, fmt, a...)	((void)0)
-#define SWARN(fmt, a...)		((void)0)
-#define SERROR(fmt, a...)		((void)0)
-#define SEMERG(fmt, a...)		((void)0)
-#define SCONSOLE(mask, fmt, a...)	((void)0)
-
-#define SENTRY				((void)0)
-#define SEXIT				((void)0)
-#define SRETURN(x)			return (x)
-#define SGOTO(x, y)			{ ((void)(y)); goto x; }
-
-#else /* Debugging Enabled */
+/* Debug log support enabled */
+#ifdef DEBUG_LOG
 
 #define __SDEBUG(cdls, subsys, mask, format, a...)			\
 do {									\
@@ -149,8 +137,6 @@ do {									\
 	goto label;							\
 } while (0)
 
-#endif /* NDEBUG */
-
 typedef struct {
 	unsigned long	cdls_next;
 	int		cdls_count;
@@ -183,10 +169,46 @@ extern int spl_debug_set_mb(int mb);
 extern int spl_debug_get_mb(void);
 extern int spl_debug_dumplog(int flags);
 extern void spl_debug_dumpstack(struct task_struct *tsk);
+extern void spl_debug_bug(char *file, const char *fn, const int line, int fl);
+extern int spl_debug_msg(void *arg, int subsys, int mask, const char *file,
+    const char *fn, const int line, const char *format, ...);
 extern int spl_debug_clear_buffer(void);
 extern int spl_debug_mark_buffer(char *text);
 
 int spl_debug_init(void);
 void spl_debug_fini(void);
+
+/* Debug log support disabled */
+#else /* DEBUG_LOG */
+
+#define SDEBUG(mask, fmt, a...)		((void)0)
+#define SDEBUG_LIMIT(x, y, fmt, a...)	((void)0)
+#define SWARN(fmt, a...)		((void)0)
+#define SERROR(fmt, a...)		((void)0)
+#define SEMERG(fmt, a...)		((void)0)
+#define SCONSOLE(mask, fmt, a...)	((void)0)
+
+#define SENTRY				((void)0)
+#define SEXIT				((void)0)
+#define SRETURN(x)			return (x)
+#define SGOTO(x, y)			{ ((void)(y)); goto x; }
+
+static inline int spl_debug_init(void) { return (0); }
+static inline void spl_debug_fini(void) { return; }
+
+static inline void
+spl_debug_bug(char *file, const char *fn, const int line, int fl)
+{
+	return;
+}
+
+static inline int
+spl_debug_msg(void *arg, int subsys, int mask, const char *file,
+    const char *fn, const int line, const char *format, ...)
+{
+	return (0);
+}
+
+#endif /* DEBUG_LOG */
 
 #endif /* SPL_DEBUG_INTERNAL_H */

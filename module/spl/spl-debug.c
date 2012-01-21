@@ -47,6 +47,9 @@
 
 #define SS_DEBUG_SUBSYS SS_DEBUG
 
+/* Debug log support enabled */
+#ifdef DEBUG_LOG
+
 unsigned long spl_debug_subsys = ~0;
 EXPORT_SYMBOL(spl_debug_subsys);
 module_param(spl_debug_subsys, ulong, 0644);
@@ -1248,3 +1251,5 @@ spl_debug_fini(void)
 {
         trace_fini();
 }
+
+#endif /* DEBUG_LOG */

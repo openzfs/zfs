@@ -44,6 +44,8 @@
 #ifndef _SPL_DEBUG_H
 #define _SPL_DEBUG_H
 
+#include <spl-debug.h>
+
 #ifdef NDEBUG /* Debugging Disabled */
 
 /* Define SPL_DEBUG_STR to make clear which ASSERT definitions are used */
@@ -137,9 +139,4 @@ do {									\
 #define VERIFY(x)	ASSERT(x)
 
 #endif /* NDEBUG */
-
-extern void spl_debug_bug(char *file, const char *fn, const int line, int fl);
-extern int spl_debug_msg(void *arg, int subsys, int mask, const char *file,
-    const char *fn, const int line, const char *format, ...);
-
 #endif /* SPL_DEBUG_H */

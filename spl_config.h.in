@@ -9,6 +9,9 @@
 /* Define to 1 to enable detailed kmem tracking */
 #undef DEBUG_KMEM_TRACKING
 
+/* Define to 1 to enable basic debug logging */
+#undef DEBUG_LOG
+
 /* invalidate_inodes() wants 2 args */
 #undef HAVE_2ARGS_INVALIDATE_INODES
 

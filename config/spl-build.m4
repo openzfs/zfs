@@ -19,6 +19,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	AC_SUBST(KERNELCPPFLAGS)
 
 	SPL_AC_DEBUG
+	SPL_AC_DEBUG_LOG
 	SPL_AC_DEBUG_KMEM
 	SPL_AC_DEBUG_KMEM_TRACKING
 	SPL_AC_ATOMIC_SPINLOCK
@@ -483,6 +484,33 @@ AC_DEFUN([SPL_AC_DEBUG], [
 
 	AC_SUBST(DEBUG_CFLAGS)
 	AC_MSG_RESULT([$enable_debug])
+])
+
+dnl #
+dnl # Enabled by default it provides a basic debug log infrastructure.
+dnl # Each subsystem registers itself with a name and logs messages
+dnl # using predefined types.  If the debug mask it set to allow the
+dnl # message type it will be written to the internal log.  The log
+dnl # can be dumped to a file by echoing 1 to the 'dump' proc entry,
+dnl # after dumping the log it must be decoded using the spl utility.
+dnl #
+dnl # echo 1 >/proc/sys/kernel/spl/debug/dump
+dnl # spl /tmp/spl-log.xxx.yyy /tmp/spl-log.xxx.yyy.txt
+dnl #
+AC_DEFUN([SPL_AC_DEBUG_LOG], [
+	AC_ARG_ENABLE([debug-log],
+		[AS_HELP_STRING([--enable-debug-log],
+		[Enable basic debug logging @<:@default=yes@:>@])],
+		[],
+		[enable_debug_log=yes])
+
+	AS_IF([test "x$enable_debug_log" = xyes],
+		[AC_DEFINE([DEBUG_LOG], [1],
+		[Define to 1 to enable basic debug logging])
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"])
+
+	AC_MSG_CHECKING([whether basic debug logging is enabled])
+	AC_MSG_RESULT([$enable_debug_log])
 ])
 
 dnl #

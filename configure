@@ -961,6 +961,7 @@ with_config
 with_linux
 with_linux_obj
 enable_debug
+enable_debug_log
 enable_debug_kmem
 enable_debug_kmem_tracking
 enable_atomic_spinlocks
@@ -1615,6 +1616,7 @@ Optional Features:
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --enable-debug          Enable generic debug support [default=no]
+  --enable-debug-log      Enable basic debug logging [default=yes]
   --enable-debug-kmem     Enable basic kmem accounting [default=yes]
   --enable-debug-kmem-tracking
                           Enable detailed kmem tracking [default=no]
@@ -4783,13 +4785,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4786: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4788: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4789: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4791: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4792: output\"" >&5)
+  (eval echo "\"\$as_me:4794: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5995,7 +5997,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5998 "configure"' > conftest.$ac_ext
+  echo '#line 6000 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7848,11 +7850,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7851: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7853: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7855: \$? = $ac_status" >&5
+   echo "$as_me:7857: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8187,11 +8189,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8190: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8192: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8194: \$? = $ac_status" >&5
+   echo "$as_me:8196: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8292,11 +8294,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8295: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8297: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8299: \$? = $ac_status" >&5
+   echo "$as_me:8301: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8347,11 +8349,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8350: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8352: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8354: \$? = $ac_status" >&5
+   echo "$as_me:8356: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11150,7 +11152,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11153 "configure"
+#line 11155 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11246,7 +11248,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11249 "configure"
+#line 11251 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11978,6 +11980,30 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: result: $enable_debug" >&5
 $as_echo "$enable_debug" >&6; }
+
+
+	# Check whether --enable-debug-log was given.
+if test "${enable_debug_log+set}" = set; then
+  enableval=$enable_debug_log;
+else
+  enable_debug_log=yes
+fi
+
+
+	if test "x$enable_debug_log" = xyes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG_LOG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether basic debug logging is enabled" >&5
+$as_echo_n "checking whether basic debug logging is enabled... " >&6; }
+	{ $as_echo "$as_me:$LINENO: result: $enable_debug_log" >&5
+$as_echo "$enable_debug_log" >&6; }
 
 
 	# Check whether --enable-debug-kmem was given.
@@ -16357,6 +16383,30 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: result: $enable_debug" >&5
 $as_echo "$enable_debug" >&6; }
+
+
+	# Check whether --enable-debug-log was given.
+if test "${enable_debug_log+set}" = set; then
+  enableval=$enable_debug_log;
+else
+  enable_debug_log=yes
+fi
+
+
+	if test "x$enable_debug_log" = xyes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG_LOG 1
+_ACEOF
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+fi
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether basic debug logging is enabled" >&5
+$as_echo_n "checking whether basic debug logging is enabled... " >&6; }
+	{ $as_echo "$as_me:$LINENO: result: $enable_debug_log" >&5
+$as_echo "$enable_debug_log" >&6; }
 
 
 	# Check whether --enable-debug-kmem was given.

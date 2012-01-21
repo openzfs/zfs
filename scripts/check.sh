@@ -65,9 +65,8 @@ fi
 /sbin/modprobe zlib_inflate &>/dev/null
 /sbin/modprobe zlib_deflate &>/dev/null
 
-spl_module_params="spl_debug_mask=0xffffffff spl_debug_subsys=0xffffffff"
 echo "Loading ${spl_module}"
-/sbin/insmod ${spl_module} ${spl_module_params} || die "Failed to load ${spl_module}"
+/sbin/insmod ${spl_module} || die "Failed to load ${spl_module}"
 
 echo "Loading ${splat_module}"
 /sbin/insmod ${splat_module} || die "Unable to load ${splat_module}"

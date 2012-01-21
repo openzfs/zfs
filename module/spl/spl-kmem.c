@@ -672,7 +672,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 		    "large kmem_alloc(%llu, 0x%x) at %s:%d (%lld/%llu)\n",
 		    (unsigned long long) size, flags, func, line,
 		    kmem_alloc_used_read(), kmem_alloc_max);
-		spl_debug_dumpstack(NULL);
+		dump_stack();
 	}
 
 	/* Use the correct allocator */

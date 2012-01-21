@@ -125,6 +125,7 @@ enum {
 	CTL_HW_SERIAL,			/* Hardware serial number from hostid */
 	CTL_KALLSYMS,			/* Address of kallsyms_lookup_name */
 
+#ifdef DEBUG_LOG
 	CTL_DEBUG_SUBSYS,		/* Debug subsystem */
 	CTL_DEBUG_MASK,			/* Debug mask */
 	CTL_DEBUG_PRINTK,		/* Force all messages to console */
@@ -136,6 +137,7 @@ enum {
 	CTL_DEBUG_DUMP,			/* Dump debug buffer to file */
 	CTL_DEBUG_FORCE_BUG,		/* Hook to force a BUG */
 	CTL_DEBUG_STACK_SIZE,		/* Max observed stack size */
+#endif
 
 	CTL_CONSOLE_RATELIMIT,		/* Ratelimit console messages */
 	CTL_CONSOLE_MAX_DELAY_CS,	/* Max delay which we skip messages */
@@ -221,6 +223,7 @@ proc_copyout_string(char *ubuffer, int ubuffer_size,
         return size;
 }
 
+#ifdef DEBUG_LOG
 SPL_PROC_HANDLER(proc_dobitmasks)
 {
         unsigned long *mask = table->data;
@@ -407,6 +410,7 @@ SPL_PROC_HANDLER(proc_console_backoff)
 
         SRETURN(rc);
 }
+#endif /* DEBUG_LOG */
 
 #ifdef DEBUG_KMEM
 SPL_PROC_HANDLER(proc_domemused)
@@ -716,6 +720,7 @@ static struct file_operations proc_slab_operations = {
 };
 #endif /* DEBUG_KMEM */
 
+#ifdef DEBUG_LOG
 static struct ctl_table spl_debug_table[] = {
         {
                 CTL_NAME    (CTL_DEBUG_SUBSYS)
@@ -829,6 +834,7 @@ static struct ctl_table spl_debug_table[] = {
         },
 	{0},
 };
+#endif /* DEBUG_LOG */
 
 static struct ctl_table spl_vm_table[] = {
         {
@@ -1056,12 +1062,14 @@ static struct ctl_table spl_table[] = {
                 .proc_handler = &proc_dokallsyms_lookup_name,
         },
 #endif
+#ifdef DEBUG_LOG
 	{
 		CTL_NAME    (CTL_SPL_DEBUG)
 		.procname = "debug",
 		.mode     = 0555,
 		.child    = spl_debug_table,
 	},
+#endif
 	{
 		CTL_NAME    (CTL_SPL_VM)
 		.procname = "vm",
