@@ -224,7 +224,8 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 }
 
 static int
-vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
+vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
@@ -287,6 +288,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 
 	/* Physical volume size in bytes */
 	*psize = bdev_capacity(bdev);
+
+	/* TODO: report possible expansion size */
+	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;

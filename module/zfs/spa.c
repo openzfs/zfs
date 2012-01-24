@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -168,15 +168,18 @@ spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, char *strval,
 static void
 spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 {
+	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t size;
 	uint64_t alloc;
+	uint64_t space;
 	uint64_t cap, version;
 	zprop_source_t src = ZPROP_SRC_NONE;
 	spa_config_dirent_t *dp;
+	int c;
 
 	ASSERT(MUTEX_HELD(&spa->spa_props_lock));
 
-	if (spa->spa_root_vdev != NULL) {
+	if (rvd != NULL) {
 		alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 		size = metaslab_class_get_space(spa_normal_class(spa));
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
@@ -184,6 +187,15 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_FREE, NULL,
 		    size - alloc, src);
+
+		space = 0;
+		for (c = 0; c < rvd->vdev_children; c++) {
+			vdev_t *tvd = rvd->vdev_child[c];
+			space += tvd->vdev_max_asize - tvd->vdev_asize;
+		}
+		spa_prop_add_list(*nvp, ZPOOL_PROP_EXPANDSZ, NULL, space,
+		    src);
+
 		spa_prop_add_list(*nvp, ZPOOL_PROP_READONLY, NULL,
 		    (spa_mode(spa) == FREAD), src);
 
@@ -194,7 +206,7 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		    ddt_get_pool_dedup_ratio(spa), src);
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_HEALTH, NULL,
-		    spa->spa_root_vdev->vdev_state, src);
+		    rvd->vdev_state, src);
 
 		version = spa_version(spa);
 		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION))
