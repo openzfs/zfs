@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -47,7 +48,8 @@ vdev_file_rele(vdev_t *vd)
 }
 
 static int
-vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
+vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	vdev_file_t *vf;
 	vnode_t *vp;
@@ -112,7 +114,7 @@ skip_open:
 		return (error);
 	}
 
-	*psize = vattr.va_size;
+	*max_psize = *psize = vattr.va_size;
 	*ashift = SPA_MINBLOCKSHIFT;
 
 	return (0);
