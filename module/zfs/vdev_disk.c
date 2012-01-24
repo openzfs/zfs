@@ -224,7 +224,8 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 }
 
 static int
-vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
+vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
@@ -239,6 +240,12 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	vd = kmem_zalloc(sizeof(vdev_disk_t), KM_SLEEP);
 	if (vd == NULL)
 		return ENOMEM;
+
+	/* TODO */
+	// if (vd->vdev_wholedisk == 1) {
+	// } else {
+		*max_psize = *psize;
+	//}
 
 	/*
 	 * Devices are always opened by the path provided at configuration
