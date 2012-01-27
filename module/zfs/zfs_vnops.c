@@ -2012,12 +2012,22 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 					goto update;
 			}
 
+			/*
+			 * Allow multiple entries provided the first entry is
+			 * the object id.  Non-zpl consumers may safely make
+			 * use of the additional space.
+			 *
+			 * XXX: This should be a feature flag for compatibility
+			 */
 			if (zap.za_integer_length != 8 ||
-			    zap.za_num_integers != 1) {
+			    zap.za_num_integers == 0) {
 				cmn_err(CE_WARN, "zap_readdir: bad directory "
-				    "entry, obj = %lld, offset = %lld\n",
+				    "entry, obj = %lld, offset = %lld, "
+				    "length = %d, num = %lld\n",
 				    (u_longlong_t)zp->z_id,
-				    (u_longlong_t)*pos);
+				    (u_longlong_t)*pos,
+				    zap.za_integer_length,
+				    (u_longlong_t)zap.za_num_integers);
 				error = ENXIO;
 				goto update;
 			}
