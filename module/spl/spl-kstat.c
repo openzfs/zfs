@@ -223,6 +223,13 @@ kstat_seq_show(struct seq_file *f, void *p)
         return rc;
 }
 
+int
+kstat_default_update(kstat_t *ksp, int rw)
+{
+	ASSERT(ksp != NULL);
+	return 0;
+}
+
 static void *
 kstat_seq_data_addr(kstat_t *ksp, loff_t n)
 {
@@ -259,6 +266,9 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
         SENTRY;
+
+        /* Dynamically update kstat, on error existing kstats are used */
+        (void) ksp->ks_update(ksp, KSTAT_READ);
 
         spin_lock(&ksp->ks_lock);
 	ksp->ks_snaptime = gethrtime();
@@ -361,6 +371,8 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	strncpy(ksp->ks_class, ks_class, KSTAT_STRLEN);
 	ksp->ks_type = ks_type;
 	ksp->ks_flags = ks_flags;
+	ksp->ks_update = kstat_default_update;
+	ksp->ks_private = NULL;
 
 	switch (ksp->ks_type) {
                 case KSTAT_TYPE_RAW:

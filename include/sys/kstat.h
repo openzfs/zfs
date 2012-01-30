@@ -72,7 +72,14 @@
 
 #define KS_MAGIC                0x9d9d9d9d
 
-typedef int kid_t;              /* unique kstat id */
+/* Dynamic updates */
+#define KSTAT_READ              0
+#define KSTAT_WRITE             1
+
+struct kstat_s;
+
+typedef int kid_t;                                  /* unique kstat id */
+typedef int kstat_update_t(struct kstat_s *, int);  /* dynamic update cb */
 
 typedef struct kstat_s {
 	int              ks_magic;                  /* magic value */
@@ -89,6 +96,8 @@ typedef struct kstat_s {
         uint_t           ks_ndata;                  /* # of type-specific data records */
         size_t           ks_data_size;              /* size of kstat data section */
         struct proc_dir_entry *ks_proc;             /* proc linkage */
+        kstat_update_t   *ks_update;                /* dynamic updates */
+        void             *ks_private;               /* private data */
         spinlock_t       ks_lock;                   /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 } kstat_t;
