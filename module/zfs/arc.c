@@ -271,6 +271,21 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_hdr_size;
 	kstat_named_t arcstat_data_size;
 	kstat_named_t arcstat_other_size;
+	kstat_named_t arcstat_anon_size;
+	kstat_named_t arcstat_anon_evict_data;
+	kstat_named_t arcstat_anon_evict_metadata;
+	kstat_named_t arcstat_mru_size;
+	kstat_named_t arcstat_mru_evict_data;
+	kstat_named_t arcstat_mru_evict_metadata;
+	kstat_named_t arcstat_mru_ghost_size;
+	kstat_named_t arcstat_mru_ghost_evict_data;
+	kstat_named_t arcstat_mru_ghost_evict_metadata;
+	kstat_named_t arcstat_mfu_size;
+	kstat_named_t arcstat_mfu_evict_data;
+	kstat_named_t arcstat_mfu_evict_metadata;
+	kstat_named_t arcstat_mfu_ghost_size;
+	kstat_named_t arcstat_mfu_ghost_evict_data;
+	kstat_named_t arcstat_mfu_ghost_evict_metadata;
 	kstat_named_t arcstat_l2_hits;
 	kstat_named_t arcstat_l2_misses;
 	kstat_named_t arcstat_l2_feeds;
@@ -336,6 +351,21 @@ static arc_stats_t arc_stats = {
 	{ "hdr_size",			KSTAT_DATA_UINT64 },
 	{ "data_size",			KSTAT_DATA_UINT64 },
 	{ "other_size",			KSTAT_DATA_UINT64 },
+	{ "anon_size",			KSTAT_DATA_UINT64 },
+	{ "anon_evict_data",		KSTAT_DATA_UINT64 },
+	{ "anon_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mru_size",			KSTAT_DATA_UINT64 },
+	{ "mru_evict_data",		KSTAT_DATA_UINT64 },
+	{ "mru_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mru_ghost_size",		KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evict_data",	KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mfu_size",			KSTAT_DATA_UINT64 },
+	{ "mfu_evict_data",		KSTAT_DATA_UINT64 },
+	{ "mfu_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_size",		KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evict_data",	KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
 	{ "l2_hits",			KSTAT_DATA_UINT64 },
 	{ "l2_misses",			KSTAT_DATA_UINT64 },
 	{ "l2_feeds",			KSTAT_DATA_UINT64 },
@@ -3639,6 +3669,48 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	return (0);
 }
 
+static void
+arc_kstat_update_state(arc_state_t *state, kstat_named_t *size,
+    kstat_named_t *evict_data, kstat_named_t *evict_metadata)
+{
+	size->value.ui64 = state->arcs_size;
+	evict_data->value.ui64 = state->arcs_lsize[ARC_BUFC_DATA];
+	evict_metadata->value.ui64 = state->arcs_lsize[ARC_BUFC_METADATA];
+}
+
+static int
+arc_kstat_update(kstat_t *ksp, int rw)
+{
+	arc_stats_t *as = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE) {
+		return (EACCES);
+	} else {
+		arc_kstat_update_state(arc_anon,
+		    &as->arcstat_anon_size,
+		    &as->arcstat_anon_evict_data,
+		    &as->arcstat_anon_evict_metadata);
+		arc_kstat_update_state(arc_mru,
+		    &as->arcstat_mru_size,
+		    &as->arcstat_mru_evict_data,
+		    &as->arcstat_mru_evict_metadata);
+		arc_kstat_update_state(arc_mru_ghost,
+		    &as->arcstat_mru_ghost_size,
+		    &as->arcstat_mru_ghost_evict_data,
+		    &as->arcstat_mru_ghost_evict_metadata);
+		arc_kstat_update_state(arc_mfu,
+		    &as->arcstat_mfu_size,
+		    &as->arcstat_mfu_evict_data,
+		    &as->arcstat_mfu_evict_metadata);
+		arc_kstat_update_state(arc_mru_ghost,
+		    &as->arcstat_mfu_ghost_size,
+		    &as->arcstat_mfu_ghost_evict_data,
+		    &as->arcstat_mfu_ghost_evict_metadata);
+	}
+
+	return (0);
+}
+
 void
 arc_init(void)
 {
@@ -3767,6 +3839,7 @@ arc_init(void)
 
 	if (arc_ksp != NULL) {
 		arc_ksp->ks_data = &arc_stats;
+		arc_ksp->ks_update = arc_kstat_update;
 		kstat_install(arc_ksp);
 	}
 
