@@ -19,7 +19,7 @@ fi
 
 gendir="$1"
 if [ -z "$gendir" ] ; then gendir=/run/systemd/generator ; fi
-mkdir -p $gendir
+mkdir -p "$gendir/local-fs.target.wants"
 
 escaper="$scriptdir"/../systemd-escaper
 [ -x "$escaper" ] || escaper=/lib/systemd/systemd-escaper
@@ -49,6 +49,17 @@ rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "$scriptname: discovering early available ZFS file systems"
 zfs list -H -o name,mountpoint,canmount > "$gendir"/listing
+
+echo "$scriptname: discovering root ZFS file system"
+zfsrootparentfs=
+zfsrootparentname=
+zfsrootfs=`cat /proc/mounts | grep ' / zfs ' | awk ' { print $1 } ' | head -1` || true
+if [ -n "$zfsrootfs" ] ; then
+    zfsrootfs=`printf "$zfsrootfs"`
+    echo "$scriptname: root ZFS file system is $zfsrootfs"
+    zfsrootparentfs=`dirname "$zfsrootfs"`
+    zfsrootparentname=`basename "$zfsrootparentfs"`
+fi
 
 # we read the output of fstab
 # add to the list of our known filesystems
@@ -86,6 +97,16 @@ while read -r name mountpoint canmount ; do
 	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
 	if [ "$mountpoint" == "none" ] ; then continue ; fi
 
+        # the following logic excludes file systems part of the root pool that are not contained in the root file system
+        if [ "$zfsrootparentname" == "ROOT" -o "$zfsrootparentname" == "RPOOL" ] ; then
+            if [[ $name == $zfsrootparentfs/* ]] ; then
+                if [[ $name != $zfsrootfs/* ]] ; then
+                    echo "$scriptname: excluding $name -- it is not contained in root pool $zfsrootfs"
+                    continue
+                fi
+            fi
+        fi
+
 	unitname=`escaping "$mountpoint"`.mount
 	deps=`getdeps "$mountpoint"`
 	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
@@ -107,7 +128,6 @@ Options=zfsutil
 Type=zfs
 " > "$gendir/$unitname"
 
-	mkdir -p "$gendir/local-fs.target.wants"
 	[ -L "$gendir/local-fs.target.wants/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.wants"
 
 	# end of escaped loop
