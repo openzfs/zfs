@@ -127,5 +127,10 @@ TODO:
 - MAYBE: redirect unmounting of a file system to `systemctl stop`
   this item nay not be necessary (see list item above this one)
 - fix grub2-mkconfig
+- the systemd support masks out the initscript, so if we do something important in the initscript, it might need to be moved to independent unit files that we must install.
+  For example, the NFS exports should happen after all the relevant unit files have loaded, while the SMB exports should happen only after smb.service has successfully started.
+- we may need a systemd unit file that does late importing and mounting of other filesystems.
+  this should happen after all storage has been initialized, such that pools not discovered at early boot, or pools backed by encrypted LUKS block devices, will be mounted as well.
+  I will ask lennart which unit file to depend on.  This specific unit, however, should *not* rely on zfs mount -a altogether, since this would conflict with the multiboot logic.
 
 But, all in all, this works.
