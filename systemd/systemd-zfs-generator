@@ -35,7 +35,7 @@ function getdeps() {
 	mountpoint=`dirname "$1"`
 	while true ; do
 		if [ "$mountpoint" == "/" ] ; then break ; fi
-		if grep -Fxq "$mountpoint" $gendir/mountpoints ; then
+		if grep -Fxq "$mountpoint" "$gendir"/mountpoints ; then
 			echo -n `escaping "$mountpoint"`.mount
 			echo -n " "
 		fi
@@ -45,10 +45,10 @@ function getdeps() {
 }
 
 # preparations
-rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
+rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "$scriptname: discovering early available ZFS file systems"
-zfs list -H -o name,mountpoint,canmount > $gendir/listing
+zfs list -H -o name,mountpoint,canmount > "$gendir"/listing
 
 # we read the output of fstab
 # add to the list of our known filesystems
@@ -59,7 +59,7 @@ while read -r ignore mountpoint rest ; do
 	if [ "$mountpoint" == "" ] ; then continue ; fi
 	if [ "$mountpoint" == "/" ] ; then continue ; fi
 
-	echo -E "$mountpoint" >> $gendir/mountpoints
+	echo -E "$mountpoint" >> "$gendir"/mountpoints
 done < /etc/fstab
 
 OLDIFS="$IFS"
@@ -73,8 +73,8 @@ while read -r name mountpoint canmount ; do
 	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
 	if [ "$mountpoint" == "none" ] ; then continue ; fi
 	
-	echo -E "$mountpoint" >> $gendir/mountpoints
-done < $gendir/listing
+	echo -E "$mountpoint" >> "$gendir"/mountpoints
+done < "$gendir"/listing
 
 # we go through the output of zfs list
 # and generate all the units 
@@ -109,12 +109,12 @@ Type=zfs
 	[ -L "$gendir/local-fs.target.wants/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.wants"
 
 	# end of escaped loop
-done < $gendir/listing
+done < "$gendir"/listing
 
 IFS="$OLDIFS"
 
 # I am done, so now nuke them temp files
-rm -f $gendir/listing $gendir/listing2 $gendir/mountpoints
+rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "[Unit]
 Description=ZFS service (dummy)
@@ -122,7 +122,7 @@ Description=ZFS service (dummy)
 [Service]
 Type=oneshot
 ExecStart=/bin/true
-" > $gendir/zfs.service
+" > "$gendir"/zfs.service
 
 
 # if the root filesystem is on zfs, we need to disable remount-rootfs.service
