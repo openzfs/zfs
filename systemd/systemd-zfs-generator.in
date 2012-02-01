@@ -21,10 +21,10 @@ gendir="$1"
 if [ -z "$gendir" ] ; then gendir=/run/systemd/generator ; fi
 mkdir -p "$gendir/local-fs.target.wants"
 
-escaper="$scriptdir"/../systemd-escaper
-[ -x "$escaper" ] || escaper=/lib/systemd/systemd-escaper
-[ -x "$escaper" ] || escaper=./systemd-escaper
-[ -x "$escaper" ] || escaper=systemd-escaper
+escaper="$scriptdir"/../systemdescaper
+[ -x "$escaper" ] || escaper=@systemddir@/systemdescaper
+[ -x "$escaper" ] || escaper=./systemdescaper
+[ -x "$escaper" ] || escaper=systemdescaper
 
 function escaping() {
 	"$escaper" --escape "$1"
