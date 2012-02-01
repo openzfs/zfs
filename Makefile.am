@@ -33,9 +33,9 @@ distclean-local::
 
 if CONFIG_KERNEL
 install-data-local:
-	destname=zfs-$(ZFS_META_VERSION)/$(LINUX_VERSION); \
-	instdest=$(DESTDIR)/usr/src/$$destname; \
-	echo "$(ZFS_META_VERSION)" >$$instdest/zfs.release; \
+	release=$(ZFS_META_VERSION)-$(ZFS_META_RELEASE); \
+	instdest=$(DESTDIR)/usr/src/zfs-$$release/$(LINUX_VERSION); \
+	echo "$$release" >$$instdest/zfs.release; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done

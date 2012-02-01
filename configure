@@ -12322,9 +12322,9 @@ $as_echo_n "checking spl source version... " >&6; }
 
 
 		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION") |
+		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
 		            cpp -I $splbuild |
-		            grep "^splsrcver=" | cut -d \" -f 2`
+		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
 
 fi
 
@@ -17449,9 +17449,9 @@ $as_echo_n "checking spl source version... " >&6; }
 
 
 		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION") |
+		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
 		            cpp -I $splbuild |
-		            grep "^splsrcver=" | cut -d \" -f 2`
+		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
 
 fi
 

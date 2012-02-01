@@ -88,6 +88,6 @@ libzfs_HEADERS = $(COMMON_H) $(USER_H)
 endif
 
 if CONFIG_KERNEL
-kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)/$(LINUX_VERSION)/sys
+kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE)/$(LINUX_VERSION)/sys
 kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
 endif
