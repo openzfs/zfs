@@ -7,7 +7,7 @@ zpool --help >/dev/null 2>&1 || {
 }
 
 scriptname=`basename "$0"`
-
+scriptdir=`dirname "$0"`
 echo "$scriptname: ZFS support available"
 
 if [ -f /etc/zfs/zpool.cache ] ; then
@@ -17,16 +17,17 @@ if [ -f /etc/zfs/zpool.cache ] ; then
 	echo -E "$scriptname: $output"
 fi
 
-gendir=/run/systemd/generator
-
+gendir="$1"
+if [ -z "$gendir" ] ; then gendir=/run/systemd/generator ; fi
 mkdir -p $gendir
 
+escaper="$scriptdir"/../systemd-escaper
+[ -x "$escaper" ] || escaper=/lib/systemd/systemd-escaper
+[ -x "$escaper" ] || escaper=./systemd-escaper
+[ -x "$escaper" ] || escaper=systemd-escaper
+
 function escaping() {
-
-	dirn=`dirname "$0"`
-	escaper="$dirn"/../systemd-escaper
 	"$escaper" --escape "$1"
-
 }
 
 function getdeps() {
