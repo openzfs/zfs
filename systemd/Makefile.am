@@ -9,7 +9,7 @@ systemdgenerator_SCRIPTS = \
 	$(top_srcdir)/systemd/systemd-zfs-generator
 
 EXTRA_DIST = \
-	$(top_srcdir)/systemd/systemd-zfs-generator.in
+	$(top_srcdir)/systemd/systemd-zfs-generator.in $(top_srcdir)/systemd/README.systemd
 
 $(systemdgenerator_SCRIPTS):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
