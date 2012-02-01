@@ -1,0 +1,24 @@
+--- /sbin/grub2-mkconfig	2011-10-27 01:19:27.000000000 +0000
++++ grub2-mkconfig.hacked	2011-11-11 13:52:16.853901000 +0000
+@@ -141,16 +141,16 @@
+ fi
+ 
+ # Device containing our userland.  Typically used for root= parameter.
+-GRUB_DEVICE="`${grub_probe} --target=device /`"
+-GRUB_DEVICE_UUID="`${grub_probe} --device ${GRUB_DEVICE} --target=fs_uuid 2> /dev/null`" || true
++GRUB_DEVICE="zfs"
++GRUB_DEVICE_UUID=""
+ 
+ # Device containing our /boot partition.  Usually the same as GRUB_DEVICE.
+-GRUB_DEVICE_BOOT="`${grub_probe} --target=device /boot`"
+-GRUB_DEVICE_BOOT_UUID="`${grub_probe} --device ${GRUB_DEVICE_BOOT} --target=fs_uuid 2> /dev/null`" || true
++GRUB_DEVICE_BOOT="zfs"
++GRUB_DEVICE_BOOT_UUID=""
+ 
+ # Filesystem for the device containing our userland.  Used for stuff like
+ # choosing Hurd filesystem module.
+-GRUB_FS="`${grub_probe} --device ${GRUB_DEVICE} --target=fs 2> /dev/null || echo unknown`"
++GRUB_FS="unknown"
+ 
+ if test -f ${sysconfdir}/default/grub ; then
+   . ${sysconfdir}/default/grub
