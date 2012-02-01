@@ -50,6 +50,25 @@ can be used to simplfy the benchmarking of various hardware and software
 configurations.  The test infrastructure additionally integrates with
 various system profiling tools to facilitate an in depth analysis.
 
+%package systemd
+Summary:         ZFS systemd helper
+Group:           System Environment/Base
+Requires:        systemd
+
+%description systemd
+The %{name}-systemd package lets systemd automatically discover all your
+ZFS file systems, create mount units for them, mount them all in parallel
+and in the correct order on boot, all without the need to set file system
+mount points to legacy and having to register them in /etc/fstab.
+
+Used in combination with the %{name}-dracut package, the %{name}-systemd
+package allows you to install and boot a Linux system using only ZFS file
+systems, place critical system directories in ZFS file systems, avoid
+having to manage /etc/fstab for your ZFS file systems, and enjoy the
+benefits of ZFS completely without relying on any legacy file systems.
+
+In addition to that, mounts are parallelized to reduce boot speed.
+
 %package dracut
 Summary:         ZFS Dracut Module
 Group:           System Environment/Base
@@ -62,7 +81,7 @@ which are ZFS aware.
 %prep
 %setup
 %build
-%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir}
+%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir} --with-systemddir=/lib/systemd
 make
 
 %install
@@ -95,6 +114,11 @@ rm -rf $RPM_BUILD_ROOT
 %files dracut
 %defattr(-,root,root)
 %{_datadir}/dracut/*
+
+%files systemd
+%defattr(-,root,root)
+/lib/systemd/systemdescaper
+/lib/systemd/system-generators/systemd-zfs-generator
 
 %post
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
