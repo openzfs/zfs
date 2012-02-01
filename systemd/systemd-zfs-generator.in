@@ -2,7 +2,7 @@
 
 set -e
 
-zpool --help >/dev/null 2>&1 || {
+@sbindir@/zpool --help >/dev/null 2>&1 || {
 	exit 0
 }
 
@@ -10,9 +10,9 @@ scriptname=`basename "$0"`
 scriptdir=`dirname "$0"`
 echo "$scriptname: ZFS support available"
 
-if [ -f /etc/zfs/zpool.cache ] ; then
+if [ -f @sysconfdir@/zfs/zpool.cache ] ; then
 	echo "$scriptname: importing all pools that were imported before last reboot"
-	output=`zpool import -aN -c /etc/zfs/zpool.cache 2>&1`
+	output=`@sbindir@/zpool import -aN -c @sysconfdir@/zfs/zpool.cache 2>&1`
 	if [ -z "$output" ] ; then output=successful ; fi
 	echo -E "$scriptname: $output"
 fi
@@ -48,7 +48,7 @@ function getdeps() {
 rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "$scriptname: discovering early available ZFS file systems"
-zfs list -H -o name,mountpoint,canmount > "$gendir"/listing
+@sbindir@/zfs list -H -o name,mountpoint,canmount > "$gendir"/listing
 
 echo "$scriptname: discovering root ZFS file system"
 zfsrootparentfs=
@@ -136,7 +136,7 @@ done < "$gendir"/listing
 IFS="$OLDIFS"
 
 # I am done, so now nuke them temp files
-# rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
+rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "[Unit]
 Description=ZFS service (dummy)

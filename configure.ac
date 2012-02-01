@@ -55,6 +55,7 @@ ZFS_AC_DEBUG
 
 AC_CONFIG_FILES([ 
 	Makefile
+	systemd/Makefile
 	dracut/Makefile
 	dracut/90zfs/Makefile
 	udev/Makefile
