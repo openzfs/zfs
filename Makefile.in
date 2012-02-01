@@ -103,6 +103,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
 	$(top_srcdir)/config/user-selinux.m4 \
+	$(top_srcdir)/config/user-systemd.m4 \
 	$(top_srcdir)/config/user-udev.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
@@ -142,7 +143,8 @@ AM_RECURSIVE_TARGETS = $(RECURSIVE_TARGETS:-recursive=) \
 	distdir dist dist-all distcheck
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = dracut udev etc man scripts lib cmd module include
+DIST_SUBDIRS = dracut udev etc man scripts lib cmd systemd module \
+	include
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -345,6 +347,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
 sysconfdir = @sysconfdir@
+systemddir = @systemddir@
 target = @target@
 target_alias = @target_alias@
 target_cpu = @target_cpu@
@@ -355,7 +358,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-@CONFIG_USER_TRUE@USER_DIR = dracut udev etc man scripts lib cmd
+@CONFIG_USER_TRUE@USER_DIR = dracut udev etc man scripts lib cmd systemd
 @CONFIG_KERNEL_TRUE@KERNEL_DIR = module
 SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
 AUTOMAKE_OPTIONS = foreign
