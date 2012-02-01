@@ -57,9 +57,11 @@ while read -r ignore mountpoint rest ; do
 	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
 	if [ "$ignore" == "#" ] ; then continue ; fi
 	if [ "$mountpoint" == "" ] ; then continue ; fi
-	if [ "$mountpoint" == "/" ] ; then continue ; fi
+        if [ "$mountpoint" == "/" ] ; then continue ; fi
+        if [ "$mountpoint" == "swap" ] ; then continue ; fi
 
-	echo -E "$mountpoint" >> "$gendir"/mountpoints
+	printf "$mountpoint" >> "$gendir"/mountpoints
+        echo >> "$gendir"/mountpoints
 done < /etc/fstab
 
 OLDIFS="$IFS"
@@ -114,7 +116,7 @@ done < "$gendir"/listing
 IFS="$OLDIFS"
 
 # I am done, so now nuke them temp files
-rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
+# rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
 
 echo "[Unit]
 Description=ZFS service (dummy)
