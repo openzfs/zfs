@@ -17,7 +17,10 @@ $(systemdgenerator_SCRIPTS):
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		-e 's,@systemddir\@,$(systemddir),g' \
 		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
-		'$@.in' >'$@'
+		'$@.in' >'$@' && chmod +x '$@'
 
 distclean-local::
-	-$(RM) $(systemdgenerator_DATA)
+	-$(RM) $(systemdgenerator_SCRIPTS)
+
+clean-local::
+	-$(RM) $(systemdgenerator_SCRIPTS)
