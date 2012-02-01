@@ -1,3 +1,5 @@
+systemdgeneratordir = $(systemddir)/system-generators
+
 systemd_PROGRAMS = systemdescaper
 
 systemdescaper_SOURCES = \
@@ -9,7 +11,7 @@ systemdgenerator_SCRIPTS = \
 EXTRA_DIST = \
 	$(top_srcdir)/systemd/systemd-zfs-generator.in
 
-$(systemdgenerator_scripts):
+$(systemdgenerator_SCRIPTS):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
