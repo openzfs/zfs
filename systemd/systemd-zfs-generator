@@ -18,7 +18,6 @@ if [ -f /etc/zfs/zpool.cache ] ; then
 fi
 
 gendir=/run/systemd/generator
-nodir=false
 
 mkdir -p $gendir
 
