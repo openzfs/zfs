@@ -15,6 +15,8 @@ $(systemdgenerator_SCRIPTS):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+		-e 's,@systemddir\@,$(systemddir),g' \
+		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
 		'$@.in' >'$@'
 
 distclean-local::
