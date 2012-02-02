@@ -139,21 +139,31 @@ zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 	return (error);
 }
 
+/*
+ * The Linux VFS automatically handles the following flags:
+ * MNT_NOSUID, MNT_NODEV, MNT_NOEXEC, MNT_NOATIME, MNT_READONLY
+ */
+#ifdef HAVE_SHOW_OPTIONS_WITH_DENTRY
 static int
-zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
+zpl_show_options(struct seq_file *seq, struct dentry *root)
 {
-	struct super_block *sb = vfsp->mnt_sb;
-	zfs_sb_t *zsb = sb->s_fs_info;
-
-	/*
-	 * The Linux VFS automatically handles the following flags:
-	 * MNT_NOSUID, MNT_NODEV, MNT_NOEXEC, MNT_NOATIME, MNT_READONLY
-	 */
+	zfs_sb_t *zsb = root->d_sb->s_fs_info;
 
 	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
 
 	return (0);
 }
+#else
+static int
+zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
+{
+	zfs_sb_t *zsb = vfsp->mnt_sb->s_fs_info;
+
+	seq_printf(seq, ",%s", zsb->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
+
+	return (0);
+}
+#endif /* HAVE_SHOW_OPTIONS_WITH_DENTRY */
 
 static int
 zpl_fill_super(struct super_block *sb, void *data, int silent)
