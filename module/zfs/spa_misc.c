@@ -234,21 +234,6 @@ static avl_tree_t spa_l2cache_avl;
 kmem_cache_t *spa_buffer_pool;
 int spa_mode_global;
 
-#ifdef ZFS_DEBUG
-/* Everything except dprintf is on by default in debug builds */
-int zfs_flags = ~ZFS_DEBUG_DPRINTF;
-#else
-int zfs_flags = 0;
-#endif
-
-/*
- * zfs_recover can be set to nonzero to attempt to recover from
- * otherwise-fatal errors, typically caused by on-disk corruption.  When
- * set, calls to zfs_panic_recover() will turn into warning messages.
- */
-int zfs_recover = 0;
-
-
 /*
  * ==========================================================================
  * SPA config locking
@@ -1217,16 +1202,6 @@ spa_freeze(spa_t *spa)
 		txg_wait_synced(spa_get_dsl(spa), freeze_txg);
 }
 
-void
-zfs_panic_recover(const char *fmt, ...)
-{
-	va_list adx;
-
-	va_start(adx, fmt);
-	vcmn_err(zfs_recover ? CE_WARN : CE_PANIC, fmt, adx);
-	va_end(adx);
-}
-
 /*
  * This is a stripped-down version of strtoull, suitable only for converting
  * lowercase hexidecimal numbers that don't overflow.
@@ -1765,7 +1740,4 @@ EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);
 
 EXPORT_SYMBOL(spa_namespace_lock);
-
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
 #endif
