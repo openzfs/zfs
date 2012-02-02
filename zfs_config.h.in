@@ -165,6 +165,9 @@
 /* set_nlink() is available */
 #undef HAVE_SET_NLINK
 
+/* sops->show_options() with dentry */
+#undef HAVE_SHOW_OPTIONS_WITH_DENTRY
+
 /* struct super_block has s_shrink */
 #undef HAVE_SHRINK
 
