@@ -30,6 +30,7 @@
 #include <linux/xattr_compat.h>
 #include <linux/exportfs.h>
 #include <linux/writeback.h>
+#include <linux/falloc.h>
 
 /* zpl_inode.c */
 extern const struct inode_operations zpl_inode_operations;
