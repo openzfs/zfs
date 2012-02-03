@@ -885,7 +885,6 @@ buf_dest(void *vbuf, void *unused)
 static void
 hdr_recl(void *unused)
 {
-	dprintf("hdr_recl called\n");
 	/*
 	 * umem calls the reclaim func when we destroy the buf cache,
 	 * which is after we do arc_fini().
