@@ -1,7 +1,7 @@
 From bd7f5b4aabef58094536002d9b6f07822accdc68 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 22:23:16 -0600
-Subject: [PATCH 5/5] Remove userland dist rules.
+Subject: [PATCH 5/6] Remove userland dist rules.
 
 The `make dist` rule is used to create the DKMS source package, which
 does not contain the userland. (eg: Dist --with-config=kernel only.)
