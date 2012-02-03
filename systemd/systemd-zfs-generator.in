@@ -19,7 +19,7 @@ fi
 
 gendir="$1"
 if [ -z "$gendir" ] ; then gendir=/run/systemd/generator ; fi
-mkdir -p "$gendir/local-fs.target.wants"
+mkdir -p "$gendir/local-fs.target.requires"
 
 escaper="$scriptdir"/../systemdescaper
 [ -x "$escaper" ] || escaper=@systemddir@/systemdescaper
@@ -128,7 +128,7 @@ Options=zfsutil
 Type=zfs
 " > "$gendir/$unitname"
 
-	[ -L "$gendir/local-fs.target.wants/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.wants"
+	[ -L "$gendir/local-fs.target.requires/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.requires"
 
 	# end of escaped loop
 done < "$gendir"/listing
@@ -170,5 +170,5 @@ ExecStart=/bin/true
 #StandardOutput=syslog
 #" > $gendir/remount-rootfs.service
 #
-#	[ -L "$gendir/local-fs.target.wants/remount-rootfs.service" ] || ln -s "$gendir/remount-rootfs.service" "$gendir/local-fs.target.wants"
+#	[ -L "$gendir/local-fs.target.requires/remount-rootfs.service" ] || ln -s "$gendir/remount-rootfs.service" "$gendir/local-fs.target.requires"
 #fi
