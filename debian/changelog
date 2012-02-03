@@ -1,3 +1,19 @@
+zfs-linux (0.6.0.49-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Export symbol zfs_attr_table
+  * Allow multiple values per directory entry
+  * Cleanup ZFS debug infrastructure
+  * Linux 3.3 compat, sops->show_options()
+
+  [ Darik Horn ]
+  * Revert lib/libspl/asm-generic/atomic.S deletion.
+  * Revert "Manually sync scripts/ with the upstream release."
+  * Refresh patches after upstream merge.
+  * Add patch: Improve the --with-spl error
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 03 Feb 2012 15:41:22 -0600
+
 zfs-linux (0.6.0.48-0ubuntu1) unstable; urgency=low
 
   [ Prakash Surya ]
