@@ -490,6 +490,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
 			    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
 
+#if defined(__sun__) || defined(__sun)
 			/*
 			 * bootfs property cannot be set on a disk which has
 			 * been EFI labeled.
@@ -502,6 +503,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				zpool_close(zhp);
 				goto error;
 			}
+#endif
 			zpool_close(zhp);
 			break;
 

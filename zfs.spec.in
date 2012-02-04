@@ -17,7 +17,7 @@ License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          %{name}-%{version}.tar.gz
-Requires:        zlib e2fsprogs
+Requires:        zfs-modules spl zlib e2fsprogs
 BuildRequires:   zlib-devel e2fsprogs-devel
 
 %description
@@ -28,10 +28,10 @@ for the zfs file system.
 Summary:         ZFS File System User Headers
 Group:           Development/Libraries
 %if %{defined ch5} || %{defined el6} || %{defined fc12}
-Requires:        zlib libuuid libblkid
+Requires:        zfs zlib libuuid libblkid
 BuildRequires:   zlib-devel libuuid-devel libblkid-devel
 %else
-Requires:        zlib e2fsprogs
+Requires:        zfs zlib e2fsprogs
 BuildRequires:   zlib-devel e2fsprogs-devel
 %endif
 
@@ -42,7 +42,7 @@ additional applications against the %{name} libraries.
 %package test
 Summary:         ZFS File System Test Infrastructure
 Group:           Utilities/System
-Requires:        parted lsscsi
+Requires:        zfs parted lsscsi
 
 %description test
 The %{name}-test package contains a test infrastructure for zpios which
@@ -53,7 +53,7 @@ various system profiling tools to facilitate an in depth analysis.
 %package dracut
 Summary:         ZFS Dracut Module
 Group:           System Environment/Base
-Requires:        dracut
+Requires:        zfs dracut
 
 %description dracut
 The %{name}-dracut package allows dracut to construct initramfs images

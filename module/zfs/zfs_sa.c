@@ -412,6 +412,7 @@ zfs_sa_upgrade_txholds(dmu_tx_t *tx, znode_t *zp)
 	}
 }
 
+EXPORT_SYMBOL(zfs_attr_table);
 EXPORT_SYMBOL(zfs_sa_readlink);
 EXPORT_SYMBOL(zfs_sa_symlink);
 EXPORT_SYMBOL(zfs_sa_get_scanstamp);

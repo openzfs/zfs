@@ -700,8 +700,6 @@ fop_getattr(vnode_t *vp, vattr_t *vap)
 	return (0);
 }
 
-#ifdef ZFS_DEBUG
-
 /*
  * =========================================================================
  * Figure out which debugging statements to print
@@ -813,8 +811,6 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		funlockfile(stdout);
 	}
 }
-
-#endif /* ZFS_DEBUG */
 
 /*
  * =========================================================================

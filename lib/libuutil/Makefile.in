@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel-security-inode-init.m4 \
 	$(top_srcdir)/config/kernel-set-nlink.m4 \
+	$(top_srcdir)/config/kernel-show-options.m4 \
 	$(top_srcdir)/config/kernel-shrink.m4 \
 	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
@@ -115,7 +116,9 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libuutil_la_DEPENDENCIES = $(top_builddir)/lib/libavl/libavl.la
+libuutil_la_DEPENDENCIES = $(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libefi/libefi.la
 am_libuutil_la_OBJECTS = uu_alloc.lo uu_avl.lo uu_dprintf.lo \
 	uu_ident.lo uu_list.lo uu_misc.lo uu_open.lo uu_pname.lo \
 	uu_string.lo uu_strtoint.lo
@@ -342,7 +345,6 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
 	$(FRAME_LARGER_THAN)
 lib_LTLIBRARIES = libuutil.la
-libuutil_la_LIBADD = $(top_builddir)/lib/libavl/libavl.la
 libuutil_la_SOURCES = \
 	$(top_srcdir)/lib/libuutil/uu_alloc.c \
 	$(top_srcdir)/lib/libuutil/uu_avl.c \
@@ -355,7 +357,12 @@ libuutil_la_SOURCES = \
 	$(top_srcdir)/lib/libuutil/uu_string.c \
 	$(top_srcdir)/lib/libuutil/uu_strtoint.c
 
-libuutil_la_LDFLAGS = -version-info 1:0:0
+libuutil_la_LIBADD = \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libefi/libefi.la
+
+libuutil_la_LDFLAGS = -pthread -version-info 1:1:0
 all: all-am
 
 .SUFFIXES:

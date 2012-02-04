@@ -72,6 +72,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel-security-inode-init.m4 \
 	$(top_srcdir)/config/kernel-set-nlink.m4 \
+	$(top_srcdir)/config/kernel-show-options.m4 \
 	$(top_srcdir)/config/kernel-shrink.m4 \
 	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
@@ -98,11 +99,7 @@ PROGRAMS = $(sbin_PROGRAMS)
 am_zpool_OBJECTS = zpool_iter.$(OBJEXT) zpool_main.$(OBJEXT) \
 	zpool_util.$(OBJEXT) zpool_vdev.$(OBJEXT)
 zpool_OBJECTS = $(am_zpool_OBJECTS)
-zpool_DEPENDENCIES = $(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
+zpool_DEPENDENCIES = $(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
@@ -334,11 +331,7 @@ zpool_SOURCES = \
 	$(top_srcdir)/cmd/zpool/zpool_vdev.c
 
 zpool_LDADD = \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la

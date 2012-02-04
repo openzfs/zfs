@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel-security-inode-init.m4 \
 	$(top_srcdir)/config/kernel-set-nlink.m4 \
+	$(top_srcdir)/config/kernel-show-options.m4 \
 	$(top_srcdir)/config/kernel-shrink.m4 \
 	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
@@ -317,7 +318,7 @@ USER_H =
 EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
 @CONFIG_USER_TRUE@libzfsdir = $(includedir)/libzfs/linux
 @CONFIG_USER_TRUE@libzfs_HEADERS = $(COMMON_H) $(USER_H)
-@CONFIG_KERNEL_TRUE@kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)/$(LINUX_VERSION)/linux
+@CONFIG_KERNEL_TRUE@kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE)/$(LINUX_VERSION)/linux
 @CONFIG_KERNEL_TRUE@kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
 all: all-am
 
