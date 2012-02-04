@@ -1004,17 +1004,29 @@ You might want to set \fBshareiscsi=on\fR for a file system so that all \fBZFS\f
 .ne 2
 .mk
 .na
-\fB\fBsharesmb\fR=\fBon\fR | \fBoff\fR | \fIopts\fR\fR
+\fB\fBsharesmb\fR=\fBon\fR | \fBoff\fR
 .ad
 .sp .6
 .RS 4n
-Controls whether the file system is shared by using the Solaris \fBCIFS\fR service, and what options are to be used. A file system with the \fBsharesmb\fR property set to \fBoff\fR is managed through traditional tools such as \fBsharemgr\fR(1M). Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the \fBsharemgr\fR(1M) command is invoked with no options. Otherwise, the \fBsharemgr\fR(1M) command is invoked with options equivalent to the contents of this property.
+Controls whether the file system is shared by using \fBSamba USERSHARES\fR, and what options are to be used. Otherwise, the file system is automatically shared and unshared with the \fBzfs share\fR and \fBzfs unshare\fR commands. If the property is set to \fBon\fR, the \fBnet\fR(8) command is invoked to create a \fBUSERSHARE\fR.
 .sp
-Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. A pseudo property "name" is also supported that allows you to replace the data set name with a specified name. The specified name is then used to replace the prefix dataset in the case of inheritance. For example, if the dataset \fBdata/home/john\fR is set to \fBname=john\fR, then \fBdata/home/john\fR has a resource name of \fBjohn\fR. If a child dataset of \fBdata/home/john/backups\fR, it has a resource name of \fBjohn_backups\fR.
+Because \fBSMB\fR shares requires a resource name, a unique resource name is constructed from the dataset name. The constructed name is a copy of the dataset name except that the characters in the dataset name, which would be illegal in the resource name, are replaced with underscore (\fB_\fR) characters. The ZFS On Linux driver does not (yet) support additional options which might be availible in the Solaris version.
 .sp
-When SMB shares are created, the SMB share name appears as an entry in the \fB\&.zfs/shares\fR directory. You can use the \fBls\fR or \fBchmod\fR command to display the share-level ACLs on the entries in this directory.
+If the \fBsharesmb\fR property is set to \fBoff\fR, the file systems are unshared.
 .sp
-When the \fBsharesmb\fR property is changed for a dataset, the dataset and any children inheriting the property are re-shared with the new options, only if the property was previously set to \fBoff\fR, or if they were shared before the property was changed. If the new property is set to \fBoff\fR, the file systems are unshared.
+In Linux, the share is created with the acl "Everyone:F" by default, meaning that everyone have read access. This however isn't the full truth: Any access control on the underlaying filesystem supersedes this.
+.sp
+.ne 2
+.mk
+.na
+\fBMinimal /etc/samba/smb.conf configuration\fR
+.sp
+.in +2
+* Samba will need to listen to 'localhost' (127.0.0.1) for the zfs utilities to communitate with samba.  This is the default behavior for most Linux distributions.
+.sp
+* See the \fBUSERSHARE\fR section of the \fBsmb.conf\fR(5) man page for all configuration options.
+.sp
+.in -2
 .RE
 
 .sp
