@@ -101,13 +101,16 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-CumdibcsDvhL] poolname [object...]\n"
-	    "       %s [-div] dataset [object...]\n"
-	    "       %s -m [-L] poolname [vdev [metaslab...]]\n"
-	    "       %s -R poolname vdev:offset:size[:flags]\n"
-	    "       %s -S poolname\n"
-	    "       %s -l [-u] device\n"
-	    "       %s -C\n\n",
+	    "Usage: %s [-CumdibcsDvhLXFPA] [-t txg] [-e [-p path...]] "
+	    "poolname [object...]\n"
+	    "       %s [-divPA] [-e -p path...] dataset [object...]\n"
+	    "       %s -m [-LXFPA] [-t txg] [-e [-p path...]] "
+	    "poolname [vdev [metaslab...]]\n"
+	    "       %s -R [-A] [-e [-p path...]] poolname "
+	    "vdev:offset:size[:flags]\n"
+	    "       %s -S [-PA] [-e [-p path...]] poolname\n"
+	    "       %s -l [-uA] device\n"
+	    "       %s -C [-A] [-U config]\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
@@ -149,7 +152,7 @@ usage(void)
 	    "has altroot/not in a cachefile\n");
 	(void) fprintf(stderr, "        -p <path> -- use one or more with "
 	    "-e to specify path to vdev dir\n");
-	(void) fprintf(stderr, "	-P print numbers parsable\n");
+	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
 	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
 	    "searching for uberblocks\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
