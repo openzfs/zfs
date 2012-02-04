@@ -1015,6 +1015,19 @@ Because \fBSMB\fR shares requires a resource name, a unique resource name is con
 When SMB shares are created, the SMB share name appears as an entry in the \fB\&.zfs/shares\fR directory. You can use the \fBls\fR or \fBchmod\fR command to display the share-level ACLs on the entries in this directory.
 .sp
 When the \fBsharesmb\fR property is changed for a dataset, the dataset and any children inheriting the property are re-shared with the new options, only if the property was previously set to \fBoff\fR, or if they were shared before the property was changed. If the new property is set to \fBoff\fR, the file systems are unshared.
+.sp
+.LP
+\fBSetting up Samba\fR
+.sp
+.in +2
+To setup samba to be able to use the \fBsharesmb\fR property, Samba (tested on version 3.3.3) will need to be listening on 'localhost' (127.0.0.1) by setting the \fBinterfaces\fR configuration option.
+.sp
+In addition to this, the Samba configuration options \fBusershare path\fR, \fBusershare max shares\fR and \fBusershare owner only\fR needs to be setup properly. The first one, \fBusershare path\fR, is by default set to \fB/var/lib/samba/usershares\fR in the code so if this is not wanted, then \fBsmb.conf\fR and \fBlib/libshare/smb.c\fR in the code needs to be changed and recompiled.
+.sp
+The second one is only necessary if there is more than 100 volumes that will be shared (default value is 100).
+.sp
+The third option is if there is a need to allow non-root users to share volumes they do NOT own. That is, to allow non-root users to be able to set the \fBsharesmb\fR property. For a non-user to be able to share a volume, he/she will also have to have write access to the \fB/dev/zfs\fR device node.
+.in -2
 .RE
 
 .sp
