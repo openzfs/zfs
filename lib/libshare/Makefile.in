@@ -104,7 +104,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libshare_la_LIBADD =
-am_libshare_la_OBJECTS = libshare.lo nfs.lo smb.lo
+am_libshare_la_OBJECTS = libshare.lo nfs.lo smb.lo iscsi.lo
 libshare_la_OBJECTS = $(am_libshare_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -134,8 +134,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(libshare_la_SOURCES)
-DIST_SOURCES = $(libshare_la_SOURCES)
+SOURCES = $(libshare_la_SOURCES) $(iscsi_test_SOURCES)
+DIST_SOURCES = $(libshare_la_SOURCES) $(iscsi_test_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -332,7 +332,27 @@ libshare_la_SOURCES = \
 	$(top_srcdir)/lib/libshare/nfs.c \
 	$(top_srcdir)/lib/libshare/nfs.h \
 	$(top_srcdir)/lib/libshare/smb.c \
-	$(top_srcdir)/lib/libshare/smb.h
+	$(top_srcdir)/lib/libshare/smb.h \
+	$(top_srcdir)/lib/libshare/iscsi.c \
+	$(top_srcdir)/lib/libshare/iscsi.h
+
+libshare_la_LDFLAGS = -version-info 1:0:0
+
+iscsi_test_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(LDFLAGS) -o $@
+am_iscsi_test_OBJECTS = $(libshare_la_OBJECTS) iscsi_test.o
+iscsi_test_OBJECTS = $(am_iscsi_test_OBJECTS)
+iscsi_test_SOURCES = \
+	$(top_srcdir)/lib/libshare/iscsi_test.c \
+	$(top_srcdir)/lib/libshare/iscsi.c \
+	$(top_srcdir)/lib/libshare/iscsi.h
+iscsi_test_DEPENDENCIES = \
+	$(lib_LTLIBRARIES) \
+	$(top_builddir)/lib/libzfs/libzfs.la
+iscsi_test_LDADD = \
+	$(lib_LTLIBRARIES) \
+	$(top_builddir)/lib/libzfs/libzfs.la
 
 all: all-am
 
@@ -380,8 +400,12 @@ clean-noinstLTLIBRARIES:
 libshare.la: $(libshare_la_OBJECTS) $(libshare_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK)  $(libshare_la_OBJECTS) $(libshare_la_LIBADD) $(LIBS)
 
+iscsi_test$(EXEEXT): $(iscsi_test_OBJECTS) $(iscsi_test_DEPENDENCIES)
+	@rm -f iscsi_test$(EXEEXT)
+	$(AM_V_CCLD)$(iscsi_test_LINK) $(iscsi_test_LDADD) iscsi_test.$(OBJEXT)
+
 mostlyclean-compile:
-	-rm -f *.$(OBJEXT)
+	-rm -f *.$(OBJEXT) iscsi_test$(EXEEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -389,6 +413,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libshare.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/smb.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iscsi.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -429,6 +454,15 @@ nfs.lo: $(top_srcdir)/lib/libshare/nfs.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/nfs.c' object='nfs.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nfs.lo `test -f '$(top_srcdir)/lib/libshare/nfs.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/nfs.c
+
+iscsi.lo: $(top_srcdir)/lib/libshare/iscsi.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT iscsi.lo -MD -MP -MF $(DEPDIR)/iscsi.Tpo -c -o iscsi.lo `test -f '$(top_srcdir)/lib/libshare/iscsi.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/iscsi.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/iscsi.Tpo $(DEPDIR)/iscsi.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/iscsi.c' object='iscsi.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o iscsi.lo `test -f '$(top_srcdir)/lib/libshare/iscsi.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/iscsi.c
+
 
 mostlyclean-libtool:
 	-rm -f *.lo

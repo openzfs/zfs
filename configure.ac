@@ -128,4 +128,6 @@ AC_CONFIG_FILES([
 	dkms.conf
 ])
 
+AC_CHECK_FUNC(getdomainname, AC_DEFINE(HAVE_GETDOMAINNAME, 1, [Define if you have the `getdomainname' function.]))
+
 AC_OUTPUT

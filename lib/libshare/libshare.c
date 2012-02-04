@@ -37,6 +37,7 @@
 #include "libshare_impl.h"
 #include "nfs.h"
 #include "smb.h"
+#include "iscsi.h"
 
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
@@ -105,6 +106,7 @@ libshare_init(void)
 {
 	libshare_nfs_init();
 	libshare_smb_init();
+	libshare_iscsi_init();
 
 	/*
 	 * This bit causes /etc/dfs/sharetab to be updated before libzfs gets a
@@ -240,21 +242,17 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 	char *dataset;
 	zfs_type_t type = zfs_get_type(zhp);
 
-	if (type == ZFS_TYPE_FILESYSTEM &&
-	    zfs_iter_filesystems(zhp, update_zfs_shares_cb, pcookie) != 0) {
-		zfs_close(zhp);
-		return 1;
-	}
+	if (type == ZFS_TYPE_FILESYSTEM) {
+		if (zfs_iter_filesystems(zhp, update_zfs_shares_cb, pcookie) != 0) {
+			zfs_close(zhp);
+			return 1;
+		}
 
-	if (type != ZFS_TYPE_FILESYSTEM) {
-		zfs_close(zhp);
-		return 0;
-	}
-
-	if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
-		zfs_close(zhp);
-		return 0;
+		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+		    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
+			zfs_close(zhp);
+			return 0;
+		}
 	}
 
 	dataset = (char *)zfs_get_name(zhp);
@@ -264,25 +262,35 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		return 0;
 	}
 
-	if (!zfs_is_mounted(zhp, NULL)) {
-		zfs_close(zhp);
-		return 0;
-	}
+	if (type == ZFS_TYPE_VOLUME) {
+	 	if ((udata->proto == NULL || strcmp(udata->proto, "iscsi") == 0) &&
+	 	    zfs_prop_get(zhp, ZFS_PROP_SHAREISCSI, shareopts,
+	 	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
+	 	    strcmp(shareopts, "off") != 0) {
+	 		(void) process_share(udata->handle, NULL, mountpoint, NULL,
+	 		    "iscsi", shareopts, NULL, dataset, B_FALSE);
+		}
+ 	} else {
+		if (!zfs_is_mounted(zhp, NULL)) {
+			zfs_close(zhp);
+			return 0;
+		}
 
-	if ((udata->proto == NULL || strcmp(udata->proto, "nfs") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARENFS, shareopts,
-	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
-	    strcmp(shareopts, "off") != 0) {
-		(void) process_share(udata->handle, NULL, mountpoint, NULL,
-		    "nfs", shareopts, NULL, dataset, B_FALSE);
-	}
+		if ((udata->proto == NULL || strcmp(udata->proto, "nfs") == 0) &&
+		    zfs_prop_get(zhp, ZFS_PROP_SHARENFS, shareopts,
+		    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
+		    strcmp(shareopts, "off") != 0) {
+			(void) process_share(udata->handle, NULL, mountpoint, NULL,
+			    "nfs", shareopts, NULL, dataset, B_FALSE);
+		}
 
-	if ((udata->proto == NULL || strcmp(udata->proto, "smb") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARESMB, shareopts,
-	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
-	    strcmp(shareopts, "off") != 0) {
-		(void) process_share(udata->handle, NULL, mountpoint, NULL,
-		    "smb", shareopts, NULL, dataset, B_FALSE);
+		if ((udata->proto == NULL || strcmp(udata->proto, "smb") == 0) &&
+		    zfs_prop_get(zhp, ZFS_PROP_SHARESMB, shareopts,
+		    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
+		    strcmp(shareopts, "off") != 0) {
+			(void) process_share(udata->handle, NULL, mountpoint, NULL,
+			    "smb", shareopts, NULL, dataset, B_FALSE);
+		}
 	}
 
 	zfs_close(zhp);
@@ -303,7 +311,7 @@ update_zfs_share(sa_share_impl_t impl_share, const char *proto)
 	assert(impl_share->dataset != NULL);
 
 	zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
-	    ZFS_TYPE_FILESYSTEM);
+	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
 
 	if (zhp == NULL)
 		return SA_SYSTEM_ERR;
@@ -342,16 +350,37 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 	char *resource_dup = NULL, *dataset_dup = NULL;
 	boolean_t new_share;
 	sa_fstype_t *fstype;
+//	zfs_handle_t *zhp;
+//	zfs_type_t type;
 
 	new_share = B_FALSE;
 
 	if (impl_share == NULL)
 		impl_share = find_share(impl_handle, pathname);
 
+//	if (impl_share != NULL) {
+//		/* Need this to be able to distinguish VOLUME from FILESYSTEM later */
+//		zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
+//		    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
+//		type = zfs_get_type(zhp);
+//		zfs_close(zhp);
+//	}
+//
+//	if ((type == ZFS_TYPE_FILESYSTEM) && (impl_share == NULL)) {
 	if (impl_share == NULL) {
-		if (lstat(pathname, &statbuf) != 0 ||
-		    !S_ISDIR(statbuf.st_mode))
+		if (lstat(pathname, &statbuf) != 0)
 			return SA_BAD_PATH;
+
+		if (!S_ISDIR(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode))
+			return SA_BAD_PATH;
+
+		if (S_ISLNK(statbuf.st_mode)) {
+			if (stat(pathname, &statbuf) != 0)
+			return SA_BAD_PATH;
+
+			if (!S_ISBLK(statbuf.st_mode))
+			return SA_BAD_PATH;
+		}
 
 		impl_share = alloc_share(pathname);
 
@@ -361,6 +390,15 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 		}
 
 		new_share = B_TRUE;
+//	} else if (type == ZFS_TYPE_VOLUME) {
+//		impl_share = alloc_share(pathname);
+//
+//		if (impl_share == NULL) {
+//			rc = SA_NO_MEMORY;
+//			goto err;
+//		}
+//
+//		new_share = B_TRUE;
 	}
 
 	if (dataset != NULL) {

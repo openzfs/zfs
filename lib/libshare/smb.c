@@ -21,7 +21,8 @@
 
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 Turbo Fredriksson <turbo@bayour.com>
+ * Copyright (c) 2011,2012 Turbo Fredriksson <turbo@bayour.com>, based on nfs.c
+ *                         by Gunnar Beutner
  *
  * This is an addition to the zfs device driver to add, modify and remove SMB
  * shares using the 'net share' command that comes with Samba.
