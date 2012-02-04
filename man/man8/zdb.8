@@ -1,65 +1,484 @@
-'\" te
-.\" Copyright (c) 2004, Sun Microsystems, Inc. All Rights Reserved.
-.\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License.
-.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.  See the License for the specific language governing permissions and limitations under the License.
-.\" When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zdb 8 "8 Apr 2011" "ZFS pool 28, filesystem 5" "System Administration Commands"
-.SH NAME
-zdb \- ZFS debugger
-.SH SYNOPSIS
+'\" t
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.\"
+.\" Copyright 2012, Richard Lowe.
+.\"
+.TH "ZDB" "8" "February 15, 2012" "" ""
+
+.SH "NAME"
+\fBzdb\fR - Display zpool debugging and consistency information
+
+.SH "SYNOPSIS"
+\fBzdb\fR [-CumdibcsDvhLXFPA] [-e [-p \fIpath\fR...]] [-t \fItxg\fR]
+    \fIpoolname\fR [\fIobject\fR ...]
+
+.P
+\fBzdb\fR [-divPA] [-e [-p \fIpath\fR...]] \fIdataset\fR [\fIobject\fR ...]
+
+.P
+\fBzdb\fR -m [-LXFPA] [-t \fItxg\fR] [-e [-p \fIpath\fR...]] \fIpoolname\fR
+    [\fIvdev\fR [\fImetaslab\fR ...]]
+
+.P
+\fBzdb\fR -R [-A] [-e [-p \fIpath\fR...]] \fIpoolname\fR
+    \fIvdev\fR:\fIoffset\fR:\fIsize\fR[:\fIflags\fR]
+
+.P
+\fBzdb\fR -S [-AP] [-e [-p \fIpath\fR...]] \fIpoolname\fR
+
+.P
+\fBzdb\fR -l [-uA] \fIdevice\fR
+
+.P
+\fBzdb\fR -C [-A] [-U \fIcache\fR]
+
+.SH "DESCRIPTION"
+The \fBzdb\fR utility displays information about a ZFS pool useful for
+debugging and performs some amount of consistency checking. It is a not a
+general purpose tool and options (and facilities) may change. This is neither
+a fsck(8) nor an fsdb(8) utility.
+
+.P
+The output of this command in general reflects the on-disk structure of a ZFS
+pool, and is inherently unstable. The precise output of most invocations is
+not documented, a knowledge of ZFS internals is assumed.
+
+.P
+When operating on an imported and active pool it is possible, though unlikely,
+that zdb may interpret inconsistent pool data and behave erratically.
+
+.SH "OPTIONS"
+Display options:
+
+.sp
+.ne 2
+.na
+\fB-b\fR
+.ad
+.sp .6
+.RS 4n
+Display statistics regarding the number, size (logical, physical and
+allocated) and deduplication of blocks.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-c\fR
+.ad
+.sp .6
+.RS 4n
+Verify the checksum of all metadata blocks while printing block statistics
+(see \fB-b\fR).
+.sp
+If specified multiple times, verify the checksums of all blocks.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-C\fR
+.ad
+.sp .6
+.RS 4n
+Display information about the configuration. If specified with no other
+options, instead display information about the cache file
+(\fB/etc/zfs/zpool.cache\fR). To specify the cache file to display, see
+\fB-U\fR.
+.P
+If specified multiple times, and a pool name is also specified display both
+the cached configuration and the on-disk configuration.  If specified multiple
+times with \fB-e\fR also display the configuration that would be used were the
+pool to be imported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-d\fR
+.ad
+.sp .6
+.RS 4n
+Display information about datasets. Specified once, displays basic dataset
+information: ID, create transaction, size, and object count.
+.sp
+If specified multiple times provides greater and greater verbosity.
+.sp
+If object IDs are specified, display information about those specific objects only.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-D\fR
+.ad
+.sp .6
+.RS 4n
+Display deduplication statistics, including the deduplication ratio (dedup),
+compression ratio (compress), inflation due to the zfs copies property
+(copies), and an overall effective ratio (dedup * compress / copies).
+.sp
+If specified twice, display a histogram of deduplication statistics, showing
+the allocated (physically present on disk) and referenced (logically
+referenced in the pool) block counts and sizes by reference count.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-h\fR
+.ad
+.sp .6
+.RS 4n
+Display pool history similar to \fBzpool history\fR, but include internal
+changes, transaction, and dataset information.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-i\fR
+.ad
+.sp .6
+.RS 4n
+Display information about intent log (ZIL) entries relating to each
+dataset. If specified multiple times, display counts of each intent log
+transaction type.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-l\fR \fIdevice\fR
+.ad
+.sp .6
+.RS 4n
+Display the vdev labels from the specified device. If the \fB-u\fR option is
+also specified, also display the uberblocks on this device.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-L\fR
+.ad
+.sp .6
+.RS 4n
+Disable leak tracing and the loading of space maps.  By default, \fBzdb\fR
+verifies that all non-free blocks are referenced, which can be very expensive.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-m\fR
+.ad
+.sp .6
+.RS 4n
+Display the offset, spacemap, and free space of each metaslab.
+When specified twice, also display information about the maximum contiguous
+free space and the percentage of free space in each space map.  When specified
+three times display every spacemap record.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-R\fR \fIpoolname\fR \fIvdev\fR:\fIoffset\fR:\fIsize\fR[:\fIflags\fR]
+.ad
+.sp .6
+.RS 4n
+Read and display a block from the specified device. By default the block is
+displayed as a hex dump, but see the description of the \'r\' flag, below.
+.sp
+The block is specified in terms of a colon-separated tuple \fIvdev\fR (an
+integer vdev identifier) \fIoffset\fR (the offset within the vdev) \fIsize\fR
+(the size of the block to read) and, optionally, \fIflags\fR (a set of flags,
+described below).
+
+.sp
+.ne 2
+.na
+\fBb\fR \fIoffset\fR
+.ad
+.sp .6
+.RS 4n
+Print block pointer
+.RE
+
+.sp
+.ne 2
+.na
+\fBd\fR
+.ad
+.sp .6
+.RS 4n
+Decompress the block
+.RE
+
+.sp
+.ne 2
+.na
+\fBe\fR
+.ad
+.sp .6
+.RS 4n
+Byte swap the block
+.RE
+
+.sp
+.ne 2
+.na
+\fBg\fR
+.ad
+.sp .6
+.RS 4n
+Dump gang block header
+.RE
+
+.sp
+.ne 2
+.na
+\fBi\fR
+.ad
+.sp .6
+.RS 4n
+Dump indirect block
+.RE
+
+.sp
+.ne 2
+.na
+\fBr\fR
+.ad
+.sp .6
+.RS 4n
+Dump raw uninterpreted block data
+.RE
+.RE
+
+.sp
+.ne 2
+.na
+\fB-s\fR
+.ad
+.sp .6
+.RS 4n
+Report statistics on \fBzdb\fR\'s I/O. Display operation counts, bandwidth,
+and error counts of I/O to the pool from \fBzdb\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-S\fR
+.ad
+.sp .6
+.RS 4n
+Simulate the effects of deduplication, constructing a DDT and then display
+that DDT as with \fB-DD\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-u\fR
+.ad
+.sp .6
+.RS 4n
+Display the current uberblock.
+.RE
+
+.P
+Other options:
+
+.sp
+.ne 2
+.na
+\fB-A\fR
+.ad
+.sp .6
+.RS 4n
+Do not abort should any assertion fail.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-AA\fR
+.ad
+.sp .6
+.RS 4n
+Enable panic recovery, certain errors which would otherwise be fatal are
+demoted to warnings.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-AAA\fR
+.ad
+.sp .6
+.RS 4n
+Do not abort if asserts fail and also enable panic recovery.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-e\fR [-p \fIpath\fR]...
+.ad
+.sp .6
+.RS 4n
+Operate on an exported pool, not present in \fB/etc/zfs/zpool.cache\fR. The
+\fB-p\fR flag specifies the path under which devices are to be searched.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-F\fR
+.ad
+.sp .6
+.RS 4n
+Attempt to make an unreadable pool readable by trying progressively older
+transactions.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-P\fR
+.ad
+.sp .6
+.RS 4n
+Print numbers in an unscaled form more amenable to parsing, eg. 1000000 rather
+than 1M.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-t\fR \fItransaction\fR
+.ad
+.sp .6
+.RS 4n
+Specify the highest transaction to use when searching for uberblocks. See also
+the \fB-u\fR and \fB-l\fR options for a means to see the available uberblocks
+and their associated transaction numbers.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-U\fR \fIcachefile\fR
+.ad
+.sp .6
+.RS 4n
+Use a cache file other than \fB/etc/zfs/zpool.cache\fR. This option is only
+valid with \fB-C\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fB-v\fR
+.ad
+.sp .6
+.RS 4n
+Enable verbosity. Specify multiple times for increased verbosity.
+.RE
+
+.sp
+.ne 2
+.na
+\fB-X\fR
+.ad
+.sp .6
+.RS 4n
+Attempt \'extreme\' transaction rewind, that is attempt the same recovery as
+\fB-F\fR but read transactions otherwise deemed too old.
+.RE
+
+.P
+Specifying a display option more than once enables verbosity for only that
+option, with more occurrences enabling more verbosity.
+.P
+If no options are specified, all information about the named pool will be
+displayed at default verbosity.
+
+.SH "EXAMPLES"
 .LP
+\fBExample 1 \fRDisplay the configuration of imported pool 'rpool'
+.sp
+.in +2
 .nf
-\fBzdb\fR \fIpool\fR
+# zdb -C rpool
+
+MOS Configuration:
+        version: 28
+        name: 'rpool'
+ ...
 .fi
+.in -2
+.sp
 
-.SH DESCRIPTION
-.sp
 .LP
-The \fBzdb\fR command is used by support engineers to diagnose failures and gather statistics. Since the \fBZFS\fR file system is always consistent on disk and is self-repairing, \fBzdb\fR should only be run under the direction by a support engineer.
+\fBExample 2 \fRDisplay basic dataset information about 'rpool'
 .sp
-.LP
-If no arguments are specified, \fBzdb\fR, performs basic consistency checks on the pool and associated datasets, and report any problems detected.
+.in +2
+.nf
+# zdb -d rpool
+Dataset mos [META], ID 0, cr_txg 4, 26.9M, 1051 objects
+Dataset rpool/swap [ZVOL], ID 59, cr_txg 356, 486M, 2 objects
+ ...
+.fi
+.in -2
 .sp
-.LP
-Any options supported by this command are subject to change at any time.
-.SH EXIT STATUS
-.sp
-.LP
-The following exit values are returned:
-.sp
-.ne 2
-.mk
-.na
-\fB\fB0\fR\fR
-.ad
-.RS 5n
-.rt  
-The pool is consistent.
-.RE
 
-.sp
-.ne 2
-.mk
-.na
-\fB\fB1\fR\fR
-.ad
-.RS 5n
-.rt  
-An error was detected.
-.RE
-
-.sp
-.ne 2
-.mk
-.na
-\fB\fB2\fR\fR
-.ad
-.RS 5n
-.rt  
-Invalid command line options were specified.
-.RE
-
-.SH SEE ALSO
-.sp
 .LP
-\fBzfs\fR(8), \fBzpool\fR(8)
+\fBExample 3 \fRDisplay basic information about object 0 in
+'rpool/export/home'
+.sp
+.in +2
+.nf
+# zdb -d rpool/export/home 0
+Dataset rpool/export/home [ZPL], ID 137, cr_txg 1546, 32K, 8 objects
+
+    Object  lvl   iblk   dblk  dsize  lsize   %full  type
+         0    7    16K    16K  15.0K    16K   25.00  DMU dnode
+.fi
+.in -2
+.sp
+
+.LP
+\fBExample 4 \fRDisplay the predicted effect of enabling deduplication on 'rpool'
+.sp
+.in +2
+.nf
+# zdb -S rpool
+Simulated DDT histogram:
+
+bucket              allocated                       referenced          
+______   ______________________________   ______________________________
+refcnt   blocks   LSIZE   PSIZE   DSIZE   blocks   LSIZE   PSIZE   DSIZE
+------   ------   -----   -----   -----   ------   -----   -----   -----
+     1     694K   27.1G   15.0G   15.0G     694K   27.1G   15.0G   15.0G
+     2    35.0K   1.33G    699M    699M    74.7K   2.79G   1.45G   1.45G
+ ...
+dedup = 1.11, compress = 1.80, copies = 1.00, dedup * compress / copies = 2.00
+.fi
+.in -2
+.sp
+
+.SH "SEE ALSO"
+zfs(8), zpool(8)
