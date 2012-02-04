@@ -71,6 +71,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-rq-is_sync.m4 \
 	$(top_srcdir)/config/kernel-security-inode-init.m4 \
 	$(top_srcdir)/config/kernel-set-nlink.m4 \
+	$(top_srcdir)/config/kernel-show-options.m4 \
 	$(top_srcdir)/config/kernel-shrink.m4 \
 	$(top_srcdir)/config/kernel-truncate-setsize.m4 \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
@@ -347,7 +348,7 @@ libnvpair_la_SOURCES = \
 	$(top_srcdir)/module/nvpair/nvpair_alloc_fixed.c \
 	$(top_srcdir)/module/nvpair/nvpair.c
 
-libnvpair_la_LDFLAGS = -version-info 1:0:0
+libnvpair_la_LDFLAGS = -version-info 1:1:0
 EXTRA_DIST = \
 	$(top_srcdir)/module/nvpair/nvpair_alloc_spl.c
 

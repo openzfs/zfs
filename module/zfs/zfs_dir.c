@@ -64,11 +64,11 @@ static int
 zfs_match_find(zfs_sb_t *zsb, znode_t *dzp, char *name, boolean_t exact,
     boolean_t update, int *deflags, pathname_t *rpnp, uint64_t *zoid)
 {
+	boolean_t conflict = B_FALSE;
 	int error;
 
 	if (zsb->z_norm) {
 		matchtype_t mt = MT_FIRST;
-		boolean_t conflict = B_FALSE;
 		size_t bufsz = 0;
 		char *buf = NULL;
 
@@ -84,11 +84,23 @@ zfs_match_find(zfs_sb_t *zsb, znode_t *dzp, char *name, boolean_t exact,
 		 */
 		error = zap_lookup_norm(zsb->z_os, dzp->z_id, name, 8, 1,
 		    zoid, mt, buf, bufsz, &conflict);
-		if (!error && deflags)
-			*deflags = conflict ? ED_CASE_CONFLICT : 0;
 	} else {
 		error = zap_lookup(zsb->z_os, dzp->z_id, name, 8, 1, zoid);
 	}
+
+	/*
+	 * Allow multiple entries provided the first entry is
+	 * the object id.  Non-zpl consumers may safely make
+	 * use of the additional space.
+	 *
+	 * XXX: This should be a feature flag for compatibility
+	 */
+	if (error == EOVERFLOW)
+		error = 0;
+
+	if (zsb->z_norm && !error && deflags)
+		*deflags = conflict ? ED_CASE_CONFLICT : 0;
+
 	*zoid = ZFS_DIRENT_OBJ(*zoid);
 
 #ifdef HAVE_DNLC

@@ -13,11 +13,7 @@ zfs_SOURCES = \
 	$(top_srcdir)/cmd/zfs/zfs_util.h
 
 zfs_LDADD = \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la

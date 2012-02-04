@@ -119,42 +119,6 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t **);
 
-/* _NOTE(PRINTFLIKE(4)) - this is printf-like, but lint is too whiney */
-void
-__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
-{
-	const char *newfile;
-	char buf[512];
-	va_list adx;
-
-	/*
-	 * Get rid of annoying "../common/" prefix to filename.
-	 */
-	newfile = strrchr(file, '/');
-	if (newfile != NULL) {
-		newfile = newfile + 1; /* Get rid of leading / */
-	} else {
-		newfile = file;
-	}
-
-	va_start(adx, fmt);
-	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
-	va_end(adx);
-
-	/*
-	 * To get this data, use the zfs-dprintf probe as so:
-	 * dtrace -q -n 'zfs-dprintf \
-	 *	/stringof(arg0) == "dbuf.c"/ \
-	 *	{printf("%s: %s", stringof(arg1), stringof(arg3))}'
-	 * arg0 = file name
-	 * arg1 = function name
-	 * arg2 = line number
-	 * arg3 = message
-	 */
-	DTRACE_PROBE4(zfs__dprintf,
-	    char *, newfile, char *, func, int, line, char *, buf);
-}
-
 static void
 history_str_free(char *buf)
 {

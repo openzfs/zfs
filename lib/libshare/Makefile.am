@@ -4,7 +4,7 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
-lib_LTLIBRARIES = libshare.la
+noinst_LTLIBRARIES = libshare.la
 
 libshare_la_SOURCES = \
 	$(top_srcdir)/lib/libshare/libshare.c \

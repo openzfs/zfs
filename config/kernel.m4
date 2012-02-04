@@ -32,6 +32,7 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET
+	ZFS_AC_KERNEL_SHOW_OPTIONS
 	ZFS_AC_KERNEL_FSYNC
 	ZFS_AC_KERNEL_EVICT_INODE
 	ZFS_AC_KERNEL_INSERT_INODE_LOCKED
@@ -266,9 +267,9 @@ AC_DEFUN([ZFS_AC_SPL], [
 		fgrep -q SPL_META_VERSION $splbuild/spl_config.h], [
 
 		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION") |
+		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
 		            cpp -I $splbuild |
-		            grep "^splsrcver=" | cut -d \" -f 2`
+		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
 	])
 
 	AS_IF([test -z "$splsrcver"], [
