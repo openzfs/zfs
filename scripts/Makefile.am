@@ -9,7 +9,8 @@ dist_pkglibexec_SCRIPTS = \
 	$(top_srcdir)/scripts/zpool-create.sh \
 	$(top_srcdir)/scripts/zpios.sh \
 	$(top_srcdir)/scripts/zpios-sanity.sh \
-	$(top_srcdir)/scripts/zpios-survey.sh
+	$(top_srcdir)/scripts/zpios-survey.sh \
+	$(top_srcdir)/scripts/smb.sh
 
 ZFS=$(top_builddir)/scripts/zfs.sh
 ZCONFIG=$(top_builddir)/scripts/zconfig.sh

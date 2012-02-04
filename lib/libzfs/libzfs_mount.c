@@ -712,7 +712,7 @@ zfs_parse_options(char *options, zfs_share_proto_t proto)
 /*
  * Share the given filesystem according to the options in the specified
  * protocol specific properties (sharenfs, sharesmb).  We rely
- * on "libshare" to the dirty work for us.
+ * on "libshare" to do the dirty work for us.
  */
 static int
 zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
@@ -889,11 +889,11 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
 
 		for (curr_proto = proto; *curr_proto != PROTO_END;
-		    curr_proto++) {
+		     curr_proto++) {
 
 			if (is_shared(hdl, mntpt, *curr_proto) &&
 			    unshare_one(hdl, zhp->zfs_name,
-			    mntpt, *curr_proto) != 0) {
+					mntpt, *curr_proto) != 0) {
 				if (mntpt != NULL)
 					free(mntpt);
 				return (-1);

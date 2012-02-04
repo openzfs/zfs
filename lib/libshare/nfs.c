@@ -516,7 +516,7 @@ nfs_validate_shareopts(const char *shareopts)
  * Checks whether a share is currently active.
  */
 static boolean_t
-is_share_active(sa_share_impl_t impl_share)
+nfs_is_share_active(sa_share_impl_t impl_share)
 {
 	char line[512];
 	char *tab, *cur;
@@ -587,7 +587,8 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	boolean_t needs_reshare = B_FALSE;
 	char *old_shareopts;
 
-	FSINFO(impl_share, nfs_fstype)->active = is_share_active(impl_share);
+	FSINFO(impl_share, nfs_fstype)->active =
+	    nfs_is_share_active(impl_share);
 
 	old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
