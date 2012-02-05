@@ -1,4 +1,5 @@
-pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
+if INSTALL_DRACUT
+pkgdracutdir = $(dracutdir)/modules.d/90zfs
 pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
@@ -19,3 +20,4 @@ $(pkgdracut_SCRIPTS):
 
 distclean-local::
 	-$(RM) $(pkgdracut_SCRIPTS)
+endif
