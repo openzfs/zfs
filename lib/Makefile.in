@@ -322,7 +322,7 @@ udevruledir = @udevruledir@
 
 # These four libraries, which are installed as the final build product,
 # incorporate the five convenience libraries given above.
-SUBDIRS = libspl libavl libefi libshare libunicode libnvpair libuutil \
+SUBDIRS = libspl libavl libefi libshare libunicode libuutil libnvpair \
 	libzpool libzfs
 all: all-recursive
 
