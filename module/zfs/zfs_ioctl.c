@@ -3079,7 +3079,7 @@ out:
 
 /*
  * inputs:
- * name		full snapshot name, or when 'arg == NULL' the dataset name
+ * name		dataset name, or when 'arg == NULL' the full snapshot name
  * arg		short snapshot name (i.e. part after the '@')
  */
 int
@@ -3106,7 +3106,7 @@ zfs_unmount_snap(const char *name, void *arg)
 		}
 	}
 
-	fullname = kmem_asprintf("%s@%s", name, snapname);
+	fullname = kmem_asprintf("%s@%s", dsname, snapname);
 
 	error = zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE);
 	if (error == 0) {
