@@ -677,7 +677,14 @@ zfsctl_unmount_snapshot(zfs_sb_t *zsb, char *name, int flags)
 		else
 			zfsctl_sep_free(sep);
 	} else {
-		error = ENOENT;
+		/*
+	 	* This was not recorded in z_ctldir_snaps but may have been 
+		* mounted manually so may need to add check and unmount if
+		* this being called prior to a destroy.
+		* Returning ENOENT here causes race in dsl_dataset_user_release_tmp() and
+		* prevents destroy of snapshots so return 0.
+	 	*/
+		error = 0;	
 	}
 
 	mutex_exit(&zsb->z_ctldir_lock);
