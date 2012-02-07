@@ -95,7 +95,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libshare_la_LIBADD =
-am_libshare_la_OBJECTS = libshare.lo nfs.lo
+am_libshare_la_OBJECTS = libshare.lo nfs.lo smb.lo
 libshare_la_OBJECTS = $(am_libshare_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -317,9 +317,13 @@ AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 noinst_LTLIBRARIES = libshare.la
 libshare_la_SOURCES = \
 	$(top_srcdir)/lib/libshare/libshare.c \
-	$(top_srcdir)/lib/libshare/nfs.c \
 	$(top_srcdir)/lib/libshare/libshare_impl.h \
-	$(top_srcdir)/lib/libshare/nfs.h
+	$(top_srcdir)/lib/libshare/nfs.c \
+	$(top_srcdir)/lib/libshare/nfs.h \
+	$(top_srcdir)/lib/libshare/smb.c \
+	$(top_srcdir)/lib/libshare/smb.h
+
+libshare_la_LDFLAGS = -version-info 1:0:0
 
 all: all-am
 
@@ -375,6 +379,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libshare.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/smb.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -415,6 +420,15 @@ nfs.lo: $(top_srcdir)/lib/libshare/nfs.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/nfs.c' object='nfs.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o nfs.lo `test -f '$(top_srcdir)/lib/libshare/nfs.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/nfs.c
+
+smb.lo: $(top_srcdir)/lib/libshare/smb.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT smb.lo -MD -MP -MF $(DEPDIR)/smb.Tpo -c -o smb.lo `test -f '$(top_srcdir)/lib/libshare/smb.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/smb.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/smb.Tpo $(DEPDIR)/smb.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/lib/libshare/smb.c' object='smb.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o smb.lo `test -f '$(top_srcdir)/lib/libshare/smb.c' || echo '$(srcdir)/'`$(top_srcdir)/lib/libshare/smb.c
+
 
 mostlyclean-libtool:
 	-rm -f *.lo

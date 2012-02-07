@@ -36,6 +36,15 @@
 #include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
+#include "smb.h"
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
@@ -54,6 +63,15 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 
 static int fstypes_count;
 static sa_fstype_t *fstypes;
+
+boolean_t
+file_is_executable(char *file_name)
+{
+	if ((access(file_name, X_OK)) == 0)
+		/* File found */
+		return TRUE;
+	return FALSE;
+}
 
 sa_fstype_t *
 register_fstype(const char *name, const sa_share_ops_t *ops)
@@ -103,6 +121,7 @@ __attribute__((constructor)) static void
 libshare_init(void)
 {
 	libshare_nfs_init();
+	libshare_smb_init();
 
 	/*
 	 * This bit causes /etc/dfs/sharetab to be updated before libzfs gets a
