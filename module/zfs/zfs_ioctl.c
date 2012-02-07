@@ -5011,9 +5011,9 @@ _init(void)
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
-	printk(KERN_NOTICE "ZFS: Loaded module v%s%s, "
+	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR,
+	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
 
 	return (0);

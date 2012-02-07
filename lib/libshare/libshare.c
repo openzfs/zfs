@@ -36,6 +36,15 @@
 #include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
+#include "iscsi.h"
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 static sa_share_impl_t find_share(sa_handle_impl_t handle,
     const char *sharepath);
@@ -54,6 +63,15 @@ static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 
 static int fstypes_count;
 static sa_fstype_t *fstypes;
+
+boolean_t
+file_is_executable(char *file_name)
+{
+	if ((access(file_name, X_OK)) == 0)
+		/* File found */
+		return TRUE;
+	return FALSE;
+}
 
 sa_fstype_t *
 register_fstype(const char *name, const sa_share_ops_t *ops)
@@ -103,6 +121,7 @@ __attribute__((constructor)) static void
 libshare_init(void)
 {
 	libshare_nfs_init();
+	libshare_iscsi_init();
 
 	/*
 	 * This bit causes /etc/dfs/sharetab to be updated before libzfs gets a
@@ -283,6 +302,14 @@ update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
 		    "smb", shareopts, NULL, dataset, B_FALSE);
 	}
 
+	if ((udata->proto == NULL || strcmp(udata->proto, "iscsi") == 0) &&
+	    zfs_prop_get(zhp, ZFS_PROP_SHAREISCSI, shareopts,
+	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
+	    strcmp(shareopts, "off") != 0) {
+		(void) process_share(udata->handle, NULL, mountpoint, NULL,
+		    "iscsi", shareopts, NULL, dataset, B_FALSE);
+	}
+
 	zfs_close(zhp);
 
 	return 0;
@@ -301,7 +328,7 @@ update_zfs_share(sa_share_impl_t impl_share, const char *proto)
 	assert(impl_share->dataset != NULL);
 
 	zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
-	    ZFS_TYPE_FILESYSTEM);
+	    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_VOLUME);
 
 	if (zhp == NULL)
 		return SA_SYSTEM_ERR;
@@ -347,9 +374,19 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 		impl_share = find_share(impl_handle, pathname);
 
 	if (impl_share == NULL) {
-		if (lstat(pathname, &statbuf) != 0 ||
-		    !S_ISDIR(statbuf.st_mode))
+		if (lstat(pathname, &statbuf) != 0)
 			return SA_BAD_PATH;
+
+		if (!S_ISDIR(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode))
+			return SA_BAD_PATH;
+
+		if (S_ISLNK(statbuf.st_mode)) {
+			if (stat(pathname, &statbuf) != 0)
+				return SA_BAD_PATH;
+
+			if (!S_ISBLK(statbuf.st_mode))
+			return SA_BAD_PATH;
+		}
 
 		impl_share = alloc_share(pathname);
 
@@ -502,11 +539,6 @@ sa_enable_share(sa_share_t share, char *protocol)
 	boolean_t found_protocol;
 	sa_fstype_t *fstype;
 
-#ifdef DEBUG
-	fprintf(stderr, "sa_enable_share: share->sharepath=%s, protocol=%s\n",
-		impl_share->sharepath, protocol);
-#endif
-
 	assert(impl_share->handle != NULL);
 
 	ret = SA_OK;
@@ -542,11 +574,6 @@ sa_disable_share(sa_share_t share, char *protocol)
 	int rc, ret;
 	boolean_t found_protocol;
 	sa_fstype_t *fstype;
-
-#ifdef DEBUG
-	fprintf(stderr, "sa_disable_share: share->sharepath=%s, protocol=%s\n",
-		impl_share->sharepath, protocol);
-#endif
 
 	ret = SA_OK;
 	found_protocol = B_FALSE;
@@ -701,11 +728,6 @@ sa_parse_legacy_options(sa_group_t group, char *options, char *proto)
 {
 	sa_fstype_t *fstype;
 
-#ifdef DEBUG
-	fprintf(stderr, "sa_parse_legacy_options: options=%s, proto=%s\n",
-		options, proto);
-#endif
-
 	fstype = fstypes;
 	while (fstype != NULL) {
 		if (strcmp(fstype->name, proto) != 0) {
@@ -790,12 +812,6 @@ sa_zfs_process_share(sa_handle_t handle, sa_group_t group, sa_share_t share,
 {
 	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
 	sa_share_impl_t impl_share = (sa_share_impl_t)share;
-
-#ifdef DEBUG
-	fprintf(stderr, "sa_zfs_process_share: mountpoint=%s, proto=%s, "
-	    "shareopts=%s, sourcestr=%s, dataset=%s\n", mountpoint, proto,
-	    shareopts, sourcestr, dataset);
-#endif
 
 	return process_share(impl_handle, impl_share, mountpoint, NULL,
 	    proto, shareopts, NULL, dataset, B_FALSE);
