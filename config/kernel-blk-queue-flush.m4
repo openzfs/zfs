@@ -1,0 +1,46 @@
+dnl #
+dnl # 2.6.36 API change
+dnl # In 2.6.36 kernels the blk_queue_ordered() interface has been
+dnl # replaced by the simpler blk_queue_flush().  However, while the
+dnl # old interface was available to all the new one is GPL-only.
+dnl # Thus in addition to detecting if this function is available
+dnl # we determine if it is GPL-only.  If the GPL-only interface is
+dnl # there we implement our own compatibility function, otherwise
+dnl # we use the function.  The hope is that long term this function
+dnl # will be opened up.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLUSH], [
+	AC_MSG_CHECKING([whether blk_queue_flush() is available])
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/blkdev.h>
+	],[
+		struct request_queue *q = NULL;
+		(void) blk_queue_flush(q, REQ_FLUSH);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_QUEUE_FLUSH, 1,
+		          [blk_queue_flush() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether blk_queue_flush() is GPL-only])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/module.h>
+		#include <linux/blkdev.h>
+
+		MODULE_LICENSE("CDDL");
+	],[
+		struct request_queue *q = NULL;
+		(void) blk_queue_flush(q, REQ_FLUSH);
+	],[
+		AC_MSG_RESULT(no)
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY, 1,
+		          [blk_queue_flush() is GPL-only])
+	])
+	EXTRA_KCFLAGS="$tmp_flags"
+])
