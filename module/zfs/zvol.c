@@ -47,7 +47,7 @@
 #include <linux/blkdev_compat.h>
 
 unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_threads = 0;
+unsigned int zvol_threads = 32;
 
 static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
@@ -1342,9 +1342,6 @@ int
 zvol_init(void)
 {
 	int error;
-
-	if (!zvol_threads)
-		zvol_threads = num_online_cpus();
 
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
 		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);
