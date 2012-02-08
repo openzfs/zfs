@@ -1,3 +1,16 @@
+zfs-linux (0.6.0.50-0ubuntu1) unstable; urgency=low
+
+  [ Etienne Dechamps ]
+  * Support "sync=always" for ZVOLs.
+  * Fix synchronicity for ZVOLs.
+  * Improve ZVOL queue behavior.
+
+  [ Darik Horn ]
+  * Let libnvpair be linked independently of libzfs. (Closes: #560)
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 08 Feb 2012 17:56:45 -0600
+
 zfs-linux (0.6.0.49-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
