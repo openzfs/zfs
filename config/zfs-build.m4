@@ -71,6 +71,10 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AM_CONDITIONAL([CONFIG_KERNEL],
 	               [test "$ZFS_CONFIG" = kernel] ||
 	               [test "$ZFS_CONFIG" = all])
+
+dnl # Defined in user-dracut.m4 - need conditional set for kernel & user.
+	AM_CONDITIONAL([INSTALL_DRACUT], 
+					[test "x$dracutdir" != "x"])
 ])
 
 dnl #

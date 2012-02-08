@@ -4,9 +4,15 @@
 %define debug_package    %{nil}
 %define _prefix          /
 %define _libexecdir      /usr/libexec
-%define _datadir         /usr/share
 %define _includedir      /usr/include
 %define _udevdir         /lib/udev
+%define dracutdir        @dracutdir@
+
+%if %{defined dracutdir}
+%define dracut_flag --with-dracutdir=%{dracutdir}
+%else
+%define dracut_flag --without-dracutdir
+%endif
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
@@ -50,6 +56,7 @@ can be used to simplfy the benchmarking of various hardware and software
 configurations.  The test infrastructure additionally integrates with
 various system profiling tools to facilitate an in depth analysis.
 
+%if %{defined dracutdir}
 %package dracut
 Summary:         ZFS Dracut Module
 Group:           System Environment/Base
@@ -58,11 +65,12 @@ Requires:        zfs dracut
 %description dracut
 The %{name}-dracut package allows dracut to construct initramfs images
 which are ZFS aware.
+%endif
 
 %prep
 %setup
 %build
-%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir}
+%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir} %{dracut_flag}
 make
 
 %install
@@ -92,9 +100,11 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 %{_libexecdir}/@PACKAGE@/*
 
+%if %{defined dracutdir}
 %files dracut
 %defattr(-,root,root)
-%{_datadir}/dracut/*
+%{dracutdir}/*
+%endif
 
 %post
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
