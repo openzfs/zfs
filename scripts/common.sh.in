@@ -308,6 +308,46 @@ destroy_loop_devices() {
 }
 
 #
+# Create a device label.
+#
+label() {
+	local DEVICE=$1
+	local LABEL=$2
+
+	${PARTED} ${DEVICE} --script -- mklabel ${LABEL} || return 1
+
+	return 0
+}
+
+#
+# Create a primary partition on a block device.
+#
+partition() {
+	local DEVICE=$1
+	local TYPE=$2
+	local START=$3
+	local END=$4
+
+	${PARTED} --align optimal ${DEVICE} --script -- \
+	    mkpart ${TYPE} ${START} ${END} || return 1
+	udev_trigger
+
+	return 0
+}
+
+#
+# Create a filesystem on the block device
+#
+format() {
+	local DEVICE=$1
+	local FSTYPE=$2
+
+	/sbin/mkfs.${FSTYPE} -q ${DEVICE} || return 1
+
+	return 0
+}
+
+#
 # Check that the mdadm utilities are installed.
 #
 check_md_utils() {
