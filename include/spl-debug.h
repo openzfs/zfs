@@ -181,6 +181,7 @@ void spl_debug_fini(void);
 /* Debug log support disabled */
 #else /* DEBUG_LOG */
 
+#define __SDEBUG(x, y, mask, fmt, a...)	((void)0)
 #define SDEBUG(mask, fmt, a...)		((void)0)
 #define SDEBUG_LIMIT(x, y, fmt, a...)	((void)0)
 #define SWARN(fmt, a...)		((void)0)
@@ -193,8 +194,47 @@ void spl_debug_fini(void);
 #define SRETURN(x)			return (x)
 #define SGOTO(x, y)			{ ((void)(y)); goto x; }
 
-static inline int spl_debug_init(void) { return (0); }
-static inline void spl_debug_fini(void) { return; }
+static inline unsigned long
+spl_debug_set_mask(unsigned long mask) {
+	return (0);
+}
+
+static inline unsigned long
+spl_debug_get_mask(void) {
+	return (0);
+}
+
+static inline unsigned long
+spl_debug_set_subsys(unsigned long mask) {
+	return (0);
+}
+
+static inline unsigned long
+spl_debug_get_subsys(void) {
+	return (0);
+}
+
+static inline int
+spl_debug_set_mb(int mb) {
+	return (0);
+}
+
+static inline int
+spl_debug_get_mb(void) {
+	return (0);
+}
+
+static inline int
+spl_debug_dumplog(int flags)
+{
+	return (0);
+}
+
+static inline void
+spl_debug_dumpstack(struct task_struct *tsk)
+{
+	return;
+}
 
 static inline void
 spl_debug_bug(char *file, const char *fn, const int line, int fl)
@@ -207,6 +247,28 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
     const char *fn, const int line, const char *format, ...)
 {
 	return (0);
+}
+
+static inline int
+spl_debug_clear_buffer(void)
+{
+	return (0);
+}
+
+static inline int
+spl_debug_mark_buffer(char *text)
+{
+	return (0);
+}
+
+static inline int
+spl_debug_init(void) {
+	return (0);
+}
+
+static inline void
+spl_debug_fini(void) {
+	return;
 }
 
 #endif /* DEBUG_LOG */
