@@ -1,3 +1,22 @@
+zfs-linux (0.6.0.51-0ubuntu1) unstable; urgency=low
+
+  [ Etienne Dechamps ]
+  * Use 32 as the default number of zvol threads.
+  * Implement the truncate_range() inode operation.
+  * Check permissions in zfs_space().
+  * Support the fallocate() file operation.
+  * Add support for DISCARD to ZVOLs.
+
+  [ Brian Behlendorf ]
+  * Use spl_debug_* helpers
+  * Export symbols for zero-copy
+  * Fix zconfig.sh non-optimal alignment
+
+  [ Darik Horn ]
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 12 Feb 2012 19:28:19 -0600
+
 zfs-linux (0.6.0.50-0ubuntu1) unstable; urgency=low
 
   [ Etienne Dechamps ]
