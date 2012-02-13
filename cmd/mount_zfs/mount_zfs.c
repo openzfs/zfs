@@ -311,7 +311,8 @@ main(int argc, char **argv)
 	char mntopts[MNT_LINE_MAX] = { '\0' };
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
-	char *dataset, *mntpoint;
+	char mntpoint[PATH_MAX];
+	char *dataset;
 	unsigned long mntflags = 0, zfsflags = 0, remount = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
@@ -367,7 +368,13 @@ main(int argc, char **argv)
 	}
 
 	dataset = parse_dataset(argv[0]);
-	mntpoint = argv[1];
+
+	/* canonicalize the mount point */
+	if (realpath(argv[1], mntpoint) == NULL) {
+		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
+		    "mounted due to a canonicalization failure.\n"), dataset);
+		return (MOUNT_SYSERR);
+	}
 
 	/* validate mount options and set mntflags */
 	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy,
