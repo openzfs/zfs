@@ -4155,6 +4155,17 @@ zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
 		return (EINVAL);
 	}
 
+	/*
+	 * Permissions aren't checked on Solaris because on this OS
+	 * zfs_space() can only be called with an opened file handle.
+	 * On Linux we can get here through truncate_range() which
+	 * operates directly on inodes, so we need to check access rights.
+	 */
+	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr))) {
+		ZFS_EXIT(zsb);
+		return (error);
+	}
+
 	off = bfp->l_start;
 	len = bfp->l_len; /* 0 means from off to end of file */
 

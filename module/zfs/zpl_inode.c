@@ -315,6 +315,42 @@ out:
 	return (error);
 }
 
+static void
+zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
+{
+	cred_t *cr = CRED();
+	flock64_t bf;
+
+	ASSERT3S(start, <=, end);
+
+	/*
+	 * zfs_freesp() will interpret (len == 0) as meaning "truncate until
+	 * the end of the file". We don't want that.
+	 */
+	if (start == end)
+		return;
+
+	crhold(cr);
+
+	bf.l_type = F_WRLCK;
+	bf.l_whence = 0;
+	bf.l_start = start;
+	bf.l_len = end - start;
+	bf.l_pid = 0;
+	zfs_space(ip, F_FREESP, &bf, FWRITE, start, cr);
+
+	crfree(cr);
+}
+
+#ifdef HAVE_INODE_FALLOCATE
+static long
+zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
+{
+	return zpl_fallocate_common(ip, mode, offset, len);
+}
+#endif /* HAVE_INODE_FALLOCATE */
+
+
 const struct inode_operations zpl_inode_operations = {
 	.create		= zpl_create,
 	.link		= zpl_link,
@@ -330,6 +366,10 @@ const struct inode_operations zpl_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+	.truncate_range = zpl_truncate_range,
+#ifdef HAVE_INODE_FALLOCATE
+	.fallocate	= zpl_fallocate,
+#endif /* HAVE_INODE_FALLOCATE */
 };
 
 const struct inode_operations zpl_dir_inode_operations = {

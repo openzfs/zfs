@@ -47,7 +47,7 @@
 #include <linux/blkdev_compat.h>
 
 unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_threads = 0;
+unsigned int zvol_threads = 32;
 
 static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
@@ -574,6 +574,42 @@ zvol_write(void *arg)
 	blk_end_request(req, -error, size);
 }
 
+#ifdef HAVE_BLK_QUEUE_DISCARD
+static void
+zvol_discard(void *arg)
+{
+	struct request *req = (struct request *)arg;
+	struct request_queue *q = req->q;
+	zvol_state_t *zv = q->queuedata;
+	uint64_t offset = blk_rq_pos(req) << 9;
+	uint64_t size = blk_rq_bytes(req);
+	int error;
+	rl_t *rl;
+
+	if (offset + size > zv->zv_volsize) {
+		blk_end_request(req, -EIO, size);
+		return;
+	}
+
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
+
+	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
+
+	/*
+	 * TODO: maybe we should add the operation to the log.
+	 */
+
+	zfs_range_unlock(rl);
+
+	blk_end_request(req, -error, size);
+}
+#endif /* HAVE_BLK_QUEUE_DISCARD */
+
 /*
  * Common read path running under the zvol taskq context.  This function
  * is responsible for copying the requested data out of the DMU and in to
@@ -673,6 +709,13 @@ zvol_request(struct request_queue *q)
 				__blk_end_request(req, -EROFS, size);
 				break;
 			}
+
+#ifdef HAVE_BLK_QUEUE_DISCARD
+			if (req->cmd_flags & VDEV_REQ_DISCARD) {
+				zvol_dispatch(zvol_discard, req);
+				break;
+			}
+#endif /* HAVE_BLK_QUEUE_DISCARD */
 
 			zvol_dispatch(zvol_write, req);
 			break;
@@ -1193,6 +1236,10 @@ __zvol_create_minor(const char *name)
 	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
 	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
+#ifdef HAVE_BLK_QUEUE_DISCARD
+	blk_queue_max_discard_sectors(zv->zv_queue, UINT_MAX);
+	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
+#endif
 #ifdef HAVE_BLK_QUEUE_NONROT
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
 #endif
@@ -1342,9 +1389,6 @@ int
 zvol_init(void)
 {
 	int error;
-
-	if (!zvol_threads)
-		zvol_threads = num_online_cpus();
 
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
 		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);
