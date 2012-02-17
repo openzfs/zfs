@@ -132,6 +132,23 @@ blk_end_request_x(struct request *req, int error, unsigned int nr_bytes)
 # endif /* HAVE_BLK_END_REQUEST_GPL_ONLY */
 #endif /* HAVE_BLK_END_REQUEST */
 
+/*
+ * 2.6.36 API change,
+ * The blk_queue_flush() interface has replaced blk_queue_ordered()
+ * interface.  However, while the old interface was available to all the
+ * new one is GPL-only.   Thus if the GPL-only version is detected we
+ * implement our own trivial helper compatibility funcion.   The hope is
+ * that long term this function will be opened up.
+ */
+#if defined(HAVE_BLK_QUEUE_FLUSH) && defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
+#define blk_queue_flush __blk_queue_flush
+static inline void
+__blk_queue_flush(struct request_queue *q, unsigned int flags)
+{
+	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
+}
+#endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
+
 #ifndef HAVE_BLK_RQ_POS
 static inline sector_t
 blk_rq_pos(struct request *req)
@@ -181,6 +198,53 @@ __blk_rq_bytes(struct request *req)
  */
 #ifndef blk_queue_stackable
 #define blk_queue_stackable(q)	((q)->request_fn == NULL)
+#endif
+
+/*
+ * 2.6.34 API change,
+ * The blk_queue_max_hw_sectors() function replaces blk_queue_max_sectors().
+ */
+#ifndef HAVE_BLK_QUEUE_MAX_HW_SECTORS
+#define blk_queue_max_hw_sectors __blk_queue_max_hw_sectors
+static inline void
+__blk_queue_max_hw_sectors(struct request_queue *q, unsigned int max_hw_sectors)
+{
+	blk_queue_max_sectors(q, max_hw_sectors);
+}
+#endif
+
+/*
+ * 2.6.34 API change,
+ * The blk_queue_max_segments() function consolidates
+ * blk_queue_max_hw_segments() and blk_queue_max_phys_segments().
+ */
+#ifndef HAVE_BLK_QUEUE_MAX_SEGMENTS
+#define blk_queue_max_segments __blk_queue_max_segments
+static inline void
+__blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
+{
+	blk_queue_max_phys_segments(q, max_segments);
+	blk_queue_max_hw_segments(q, max_segments);
+}
+#endif
+
+/*
+ * 2.6.30 API change,
+ * The blk_queue_physical_block_size() function was introduced to
+ * indicate the smallest I/O the device can write without incurring
+ * a read-modify-write penalty.  For older kernels this is a no-op.
+ */
+#ifndef HAVE_BLK_QUEUE_PHYSICAL_BLOCK_SIZE
+#define blk_queue_physical_block_size(q, x)	((void)(0))
+#endif
+
+/*
+ * 2.6.30 API change,
+ * The blk_queue_io_opt() function was added to indicate the optimal
+ * I/O size for the device.  For older kernels this is a no-op.
+ */
+#ifndef HAVE_BLK_QUEUE_IO_OPT
+#define blk_queue_io_opt(q, x)			((void)(0))
 #endif
 
 #ifndef HAVE_GET_DISK_RO
@@ -345,11 +409,27 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * allow richer semantics to be expressed to the block layer.  It is
  * the block layers responsibility to choose the correct way to
  * implement these semantics.
+ *
+ * The existence of these flags implies that REQ_FLUSH an REQ_FUA are
+ * defined.  Thus we can safely define VDEV_REQ_FLUSH and VDEV_REQ_FUA
+ * compatibility macros.
  */
 #ifdef WRITE_FLUSH_FUA
 # define VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
+# define VDEV_REQ_FLUSH			REQ_FLUSH
+# define VDEV_REQ_FUA			REQ_FUA
 #else
 # define VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
+# define VDEV_REQ_FLUSH			REQ_HARDBARRIER
+# define VDEV_REQ_FUA			REQ_HARDBARRIER
+#endif
+
+/*
+ * 2.6.32 API change
+ * Use the normal I/O patch for discards.
+ */
+#ifdef REQ_DISCARD
+# define VDEV_REQ_DISCARD		REQ_DISCARD
 #endif
 
 /*

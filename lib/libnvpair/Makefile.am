@@ -14,6 +14,9 @@ libnvpair_la_SOURCES = \
 	$(top_srcdir)/module/nvpair/nvpair_alloc_fixed.c \
 	$(top_srcdir)/module/nvpair/nvpair.c
 
+libnvpair_la_LIBADD = \
+        $(top_builddir)/lib/libuutil/libuutil.la
+
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 
 EXTRA_DIST = \
