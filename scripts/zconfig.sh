@@ -81,23 +81,6 @@ if [ ${SCSI_DEBUG} -eq 0 ] || [ ${HAVE_LSSCSI} -eq 0 ]; then
 		"module and the ${LSSCSI} utility"
 fi
 
-zconfig_partition() {
-	local DEVICE=$1
-	local START=$2
-	local END=$3
-	local TMP_FILE=`mktemp`
-
-	/sbin/sfdisk -q ${DEVICE} << EOF &>${TMP_FILE} || fail 4
-${START},${END}
-;
-;
-;
-EOF
-
-	rm ${TMP_FILE}
-	udev_trigger
-}
-
 # Validate persistent zpool.cache configuration.
 test_1() {
 	local POOL_NAME=test1
@@ -209,7 +192,9 @@ test_3() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
+	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1% 50% || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 50% 100% || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -260,7 +245,9 @@ test_4() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 64 || fail 4
+	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1% 50% || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 50% 100% || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -308,15 +295,11 @@ test_5() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
 	${ZFS} create -V 800M ${FULL_NAME} || fail 3
+	label /dev/zvol/${FULL_NAME} msdos || fail 4
+	partition /dev/zvol/${FULL_NAME} primary 1 -1 || fail 4
+	format /dev/zvol/${FULL_NAME}-part1 ext2 || fail 5
 
-	# Partition the volume, for a 800M volume there will be
-	# 1624 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/zvol/${FULL_NAME} 0 1624
-
-	# Format the partition with ext3.
-	/sbin/mkfs.ext3 -q /dev/zvol/${FULL_NAME}-part1 || fail 5
-
-	# Mount the ext3 filesystem and copy some data to it.
+	# Mount the ext2 filesystem and copy some data to it.
 	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
 	mount /dev/zvol/${FULL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 || fail 7
 	cp -RL ${SRC_DIR} /tmp/${ZVOL_NAME}-part1 || fail 8
@@ -338,7 +321,7 @@ test_5() {
 
 	pass
 }
-run_test 5 "zvol+ext3 volume"
+run_test 5 "zvol+ext2 volume"
 
 # ZVOL snapshot sanity check
 test_6() {
@@ -354,15 +337,11 @@ test_6() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
 	${ZFS} create -V 800M ${FULL_ZVOL_NAME} || fail 3
+	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4
+	format /dev/zvol/${FULL_ZVOL_NAME}-part1 ext2 || fail 5
 
-	# Partition the volume, for a 800M volume there will be
-	# 1624 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 1624
-
-	# Format the partition with ext2 (no journal).
-	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME}-part1 || fail 5
-
-	# Mount the ext3 filesystem and copy some data to it.
+	# Mount the ext2 filesystem and copy some data to it.
 	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
 	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 \
 		|| fail 7
@@ -418,15 +397,11 @@ test_7() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 300M ${FULL_ZVOL_NAME} || fail 3
+	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4
+	format /dev/zvol/${FULL_ZVOL_NAME}-part1 ext2 || fail 5
 
-	# Partition the volume, for a 300M volume there will be
-	# 609 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME} 0 609
-
-	# Format the partition with ext2 (no journal).
-	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME}-part1 || fail 5
-
-	# Mount the ext3 filesystem and copy some data to it.
+	# Mount the ext2 filesystem and copy some data to it.
 	mkdir -p /tmp/${ZVOL_NAME}-part1 || fail 6
 	mount /dev/zvol/${FULL_ZVOL_NAME}-part1 /tmp/${ZVOL_NAME}-part1 \
 		|| fail 7
@@ -508,24 +483,20 @@ test_8() {
 	# Create two pools and a volume
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME1} -c lo-raidz2 || fail 2
-	${ZPOOL_CREATE_SH} -p ${POOL_NAME2} -c lo-raidz2 || fail 3
-	${ZFS} create -V 300M ${FULL_ZVOL_NAME1} || fail 4
+	${ZPOOL_CREATE_SH} -p ${POOL_NAME2} -c lo-raidz2 || fail 2
+	${ZFS} create -V 300M ${FULL_ZVOL_NAME1} || fail 3
+	label /dev/zvol/${FULL_ZVOL_NAME1} msdos || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME1} primary 1 -1 || fail 4
+	format /dev/zvol/${FULL_ZVOL_NAME1}-part1 ext2 || fail 5
 
-	# Partition the volume, for a 300M volume there will be
-	# 609 cylinders, 16 heads, and 63 sectors per track.
-	zconfig_partition /dev/zvol/${FULL_ZVOL_NAME1} 0 609
-
-	# Format the partition with ext2.
-	/sbin/mkfs.ext2 -q /dev/zvol/${FULL_ZVOL_NAME1}-part1 || fail 5
-
-	# Mount the ext3 filesystem and copy some data to it.
+	# Mount the ext2 filesystem and copy some data to it.
 	mkdir -p /tmp/${FULL_ZVOL_NAME1}-part1 || fail 6
 	mount /dev/zvol/${FULL_ZVOL_NAME1}-part1 \
 		/tmp/${FULL_ZVOL_NAME1}-part1 || fail 7
 	cp -RL ${SRC_DIR} /tmp/${FULL_ZVOL_NAME1}-part1 || fail 8
 	sync || fail 9
 
-	# Snapshot the ext3 filesystem so it may be sent.
+	# Snapshot the ext2 filesystem so it may be sent.
 	${ZFS} snapshot ${FULL_SNAP_NAME1} || fail 11
 	wait_udev /dev/zvol/${FULL_SNAP_NAME1} 30 || fail 11
 
@@ -534,7 +505,7 @@ test_8() {
 	${ZFS} receive ${FULL_ZVOL_NAME2}) || fail 12
 	wait_udev /dev/zvol/${FULL_ZVOL_NAME2}-part1 30 || fail 12
 
-	# Mount the sent ext3 filesystem.
+	# Mount the sent ext2 filesystem.
 	mkdir -p /tmp/${FULL_ZVOL_NAME2}-part1 || fail 13
 	mount /dev/zvol/${FULL_ZVOL_NAME2}-part1 \
 		/tmp/${FULL_ZVOL_NAME2}-part1 || fail 14

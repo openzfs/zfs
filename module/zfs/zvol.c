@@ -47,7 +47,7 @@
 #include <linux/blkdev_compat.h>
 
 unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_threads = 0;
+unsigned int zvol_threads = 32;
 
 static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
@@ -534,6 +534,17 @@ zvol_write(void *arg)
 	dmu_tx_t *tx;
 	rl_t *rl;
 
+	if (req->cmd_flags & VDEV_REQ_FLUSH)
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	/*
+	 * Some requests are just for flush and nothing else.
+	 */
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
+
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
 
 	tx = dmu_tx_create(zv->zv_objset);
@@ -550,16 +561,54 @@ zvol_write(void *arg)
 
 	error = dmu_write_req(zv->zv_objset, ZVOL_OBJ, req, tx);
 	if (error == 0)
-		zvol_log_write(zv, tx, offset, size, rq_is_sync(req));
+		zvol_log_write(zv, tx, offset, size,
+		    req->cmd_flags & VDEV_REQ_FUA);
 
 	dmu_tx_commit(tx);
 	zfs_range_unlock(rl);
 
-	if (rq_is_sync(req))
+	if ((req->cmd_flags & VDEV_REQ_FUA) ||
+	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	blk_end_request(req, -error, size);
 }
+
+#ifdef HAVE_BLK_QUEUE_DISCARD
+static void
+zvol_discard(void *arg)
+{
+	struct request *req = (struct request *)arg;
+	struct request_queue *q = req->q;
+	zvol_state_t *zv = q->queuedata;
+	uint64_t offset = blk_rq_pos(req) << 9;
+	uint64_t size = blk_rq_bytes(req);
+	int error;
+	rl_t *rl;
+
+	if (offset + size > zv->zv_volsize) {
+		blk_end_request(req, -EIO, size);
+		return;
+	}
+
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
+
+	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
+
+	/*
+	 * TODO: maybe we should add the operation to the log.
+	 */
+
+	zfs_range_unlock(rl);
+
+	blk_end_request(req, -error, size);
+}
+#endif /* HAVE_BLK_QUEUE_DISCARD */
 
 /*
  * Common read path running under the zvol taskq context.  This function
@@ -577,6 +626,11 @@ zvol_read(void *arg)
 	uint64_t size = blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
+
+	if (size == 0) {
+		blk_end_request(req, 0, size);
+		return;
+	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
@@ -627,7 +681,7 @@ zvol_request(struct request_queue *q)
 	while ((req = blk_fetch_request(q)) != NULL) {
 		size = blk_rq_bytes(req);
 
-		if (blk_rq_pos(req) + blk_rq_sectors(req) >
+		if (size != 0 && blk_rq_pos(req) + blk_rq_sectors(req) >
 		    get_capacity(zv->zv_disk)) {
 			printk(KERN_INFO
 			       "%s: bad access: block=%llu, count=%lu\n",
@@ -655,6 +709,13 @@ zvol_request(struct request_queue *q)
 				__blk_end_request(req, -EROFS, size);
 				break;
 			}
+
+#ifdef HAVE_BLK_QUEUE_DISCARD
+			if (req->cmd_flags & VDEV_REQ_DISCARD) {
+				zvol_dispatch(zvol_discard, req);
+				break;
+			}
+#endif /* HAVE_BLK_QUEUE_DISCARD */
 
 			zvol_dispatch(zvol_write, req);
 			break;
@@ -1062,6 +1123,12 @@ zvol_alloc(dev_t dev, const char *name)
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
 
+#ifdef HAVE_BLK_QUEUE_FLUSH
+	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
+#else
+	blk_queue_ordered(zv->zv_queue, QUEUE_ORDERED_DRAIN, NULL);
+#endif /* HAVE_BLK_QUEUE_FLUSH */
+
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
 		goto out_queue;
@@ -1163,6 +1230,19 @@ __zvol_create_minor(const char *name)
 	zv->zv_objset = os;
 
 	set_capacity(zv->zv_disk, zv->zv_volsize >> 9);
+
+	blk_queue_max_hw_sectors(zv->zv_queue, UINT_MAX);
+	blk_queue_max_segments(zv->zv_queue, UINT16_MAX);
+	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
+	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
+	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
+#ifdef HAVE_BLK_QUEUE_DISCARD
+	blk_queue_max_discard_sectors(zv->zv_queue, UINT_MAX);
+	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
+#endif
+#ifdef HAVE_BLK_QUEUE_NONROT
+	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
+#endif
 
 	if (zil_replay_disable)
 		zil_destroy(dmu_objset_zil(os), B_FALSE);
@@ -1309,9 +1389,6 @@ int
 zvol_init(void)
 {
 	int error;
-
-	if (!zvol_threads)
-		zvol_threads = num_online_cpus();
 
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
 		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);

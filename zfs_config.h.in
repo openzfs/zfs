@@ -51,6 +51,30 @@
 /* blk_fetch_request() is available */
 #undef HAVE_BLK_FETCH_REQUEST
 
+/* blk_queue_discard() is available */
+#undef HAVE_BLK_QUEUE_DISCARD
+
+/* blk_queue_flush() is available */
+#undef HAVE_BLK_QUEUE_FLUSH
+
+/* blk_queue_flush() is GPL-only */
+#undef HAVE_BLK_QUEUE_FLUSH_GPL_ONLY
+
+/* blk_queue_io_opt() is available */
+#undef HAVE_BLK_QUEUE_IO_OPT
+
+/* blk_queue_max_hw_sectors() is available */
+#undef HAVE_BLK_QUEUE_MAX_HW_SECTORS
+
+/* blk_queue_max_segments() is available */
+#undef HAVE_BLK_QUEUE_MAX_SEGMENTS
+
+/* blk_queue_nonrot() is available */
+#undef HAVE_BLK_QUEUE_NONROT
+
+/* blk_queue_physical_block_size() is available */
+#undef HAVE_BLK_QUEUE_PHYSICAL_BLOCK_SIZE
+
 /* blk_requeue_request() is available */
 #undef HAVE_BLK_REQUEUE_REQUEST
 
@@ -90,6 +114,9 @@
 /* sops->evict_inode() exists */
 #undef HAVE_EVICT_INODE
 
+/* fops->fallocate() exists */
+#undef HAVE_FILE_FALLOCATE
+
 /* kernel defines fmode_t */
 #undef HAVE_FMODE_T
 
@@ -110,6 +137,9 @@
 
 /* Define to 1 if licensed under the GPL */
 #undef HAVE_GPL_ONLY_SYMBOLS
+
+/* fops->fallocate() exists */
+#undef HAVE_INODE_FALLOCATE
 
 /* insert_inode_locked() is available */
 #undef HAVE_INSERT_INODE_LOCKED

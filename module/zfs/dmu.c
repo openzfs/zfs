@@ -1881,19 +1881,21 @@ dmu_fini(void)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_bonus_hold);
+EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
+EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_read);
 EXPORT_SYMBOL(dmu_write);
-
-/* Get information on a DMU object. */
 EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);
 EXPORT_SYMBOL(dmu_object_info_from_db);
 EXPORT_SYMBOL(dmu_object_size_from_db);
-
 EXPORT_SYMBOL(dmu_object_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
-
+EXPORT_SYMBOL(dmu_request_arcbuf);
+EXPORT_SYMBOL(dmu_return_arcbuf);
+EXPORT_SYMBOL(dmu_assign_arcbuf);
+EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 #endif
