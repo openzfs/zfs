@@ -181,6 +181,10 @@ CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
+DEBUG_KMEM = @DEBUG_KMEM@
+DEBUG_KMEM_TRACKING = @DEBUG_KMEM_TRACKING@
+DEBUG_LOG = @DEBUG_LOG@
+DEBUG_SPL = @DEBUG_SPL@
 DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -905,6 +909,10 @@ rpm-common:
 		--define "require_kdir $(LINUX)" \
 		--define "require_kobj $(LINUX_OBJ)" \
 		--define "require_kver $(LINUX_VERSION)" \
+		--define "$(DEBUG_SPL) 1" \
+		--define "$(DEBUG_LOG) 1" \
+		--define "$(DEBUG_KMEM) 1" \
+		--define "$(DEBUG_KMEM_TRACKING) 1" \
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild

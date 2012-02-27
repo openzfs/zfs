@@ -476,13 +476,15 @@ AC_DEFUN([SPL_AC_DEBUG], [
 	[
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
-	],
-	[
+		DEBUG_SPL="_with_debug"
+	], [
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"
+		DEBUG_SPL="_without_debug"
 	])
 
 	AC_SUBST(DEBUG_CFLAGS)
+	AC_SUBST(DEBUG_SPL)
 	AC_MSG_RESULT([$enable_debug])
 ])
 
@@ -505,10 +507,16 @@ AC_DEFUN([SPL_AC_DEBUG_LOG], [
 		[enable_debug_log=yes])
 
 	AS_IF([test "x$enable_debug_log" = xyes],
-		[AC_DEFINE([DEBUG_LOG], [1],
+	[
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+		DEBUG_LOG="_with_debug_log"
+		AC_DEFINE([DEBUG_LOG], [1],
 		[Define to 1 to enable basic debug logging])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"])
+	], [
+		DEBUG_LOG="_without_debug_log"
+	])
 
+	AC_SUBST(DEBUG_LOG)
 	AC_MSG_CHECKING([whether basic debug logging is enabled])
 	AC_MSG_RESULT([$enable_debug_log])
 ])
@@ -528,10 +536,16 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM], [
 		[enable_debug_kmem=yes])
 
 	AS_IF([test "x$enable_debug_kmem" = xyes],
-		[AC_DEFINE([DEBUG_KMEM], [1],
+	[
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+		DEBUG_KMEM="_with_debug_kmem"
+		AC_DEFINE([DEBUG_KMEM], [1],
 		[Define to 1 to enable basic kmem accounting])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"])
+	], [
+		DEBUG_KMEM="_without_debug_kmem"
+	])
 
+	AC_SUBST(DEBUG_KMEM)
 	AC_MSG_CHECKING([whether basic kmem accounting is enabled])
 	AC_MSG_RESULT([$enable_debug_kmem])
 ])
@@ -553,10 +567,16 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM_TRACKING], [
 		[enable_debug_kmem_tracking=no])
 
 	AS_IF([test "x$enable_debug_kmem_tracking" = xyes],
-		[AC_DEFINE([DEBUG_KMEM_TRACKING], [1],
+	[
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+		DEBUG_KMEM_TRACKING="_with_debug_kmem_tracking"
+		AC_DEFINE([DEBUG_KMEM_TRACKING], [1],
 		[Define to 1 to enable detailed kmem tracking])
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"])
+	], [
+		DEBUG_KMEM_TRACKING="_without_debug_kmem_tracking"
+	])
 
+	AC_SUBST(DEBUG_KMEM_TRACKING)
 	AC_MSG_CHECKING([whether detailed kmem tracking is enabled])
 	AC_MSG_RESULT([$enable_debug_kmem_tracking])
 ])

@@ -791,6 +791,10 @@ CONFIG_KERNEL_FALSE
 CONFIG_KERNEL_TRUE
 CONFIG_USER_FALSE
 CONFIG_USER_TRUE
+DEBUG_KMEM_TRACKING
+DEBUG_KMEM
+DEBUG_LOG
+DEBUG_SPL
 DEBUG_CFLAGS
 KERNELCPPFLAGS
 KERNELMAKE_PARAMS
@@ -4785,13 +4789,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4788: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4792: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4791: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4795: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4794: output\"" >&5)
+  (eval echo "\"\$as_me:4798: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5997,7 +6001,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6000 "configure"' > conftest.$ac_ext
+  echo '#line 6004 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7850,11 +7854,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7853: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7857: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7857: \$? = $ac_status" >&5
+   echo "$as_me:7861: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8189,11 +8193,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8192: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8196: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8196: \$? = $ac_status" >&5
+   echo "$as_me:8200: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8294,11 +8298,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8297: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8301: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8301: \$? = $ac_status" >&5
+   echo "$as_me:8305: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8349,11 +8353,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8352: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8356: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8356: \$? = $ac_status" >&5
+   echo "$as_me:8360: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11152,7 +11156,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11155 "configure"
+#line 11159 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11248,7 +11252,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11251 "configure"
+#line 11255 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11968,13 +11972,16 @@ fi
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
+		DEBUG_SPL="_with_debug"
 
 else
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"
+		DEBUG_SPL="_without_debug"
 
 fi
+
 
 
 
@@ -11992,12 +11999,20 @@ fi
 
 	if test "x$enable_debug_log" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+		DEBUG_LOG="_with_debug_log"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_LOG 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+
+else
+
+		DEBUG_LOG="_without_debug_log"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether basic debug logging is enabled" >&5
@@ -12016,12 +12031,20 @@ fi
 
 	if test "x$enable_debug_kmem" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+		DEBUG_KMEM="_with_debug_kmem"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+
+else
+
+		DEBUG_KMEM="_without_debug_kmem"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether basic kmem accounting is enabled" >&5
@@ -12040,12 +12063,20 @@ fi
 
 	if test "x$enable_debug_kmem_tracking" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+		DEBUG_KMEM_TRACKING="_with_debug_kmem_tracking"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM_TRACKING 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+
+else
+
+		DEBUG_KMEM_TRACKING="_without_debug_kmem_tracking"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether detailed kmem tracking is enabled" >&5
@@ -16371,13 +16402,16 @@ fi
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 		DEBUG_CFLAGS="-DDEBUG -Werror"
+		DEBUG_SPL="_with_debug"
 
 else
 
 		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG"
 		DEBUG_CFLAGS="-DNDEBUG"
+		DEBUG_SPL="_without_debug"
 
 fi
+
 
 
 
@@ -16395,12 +16429,20 @@ fi
 
 	if test "x$enable_debug_log" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+		DEBUG_LOG="_with_debug_log"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_LOG 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_LOG"
+
+else
+
+		DEBUG_LOG="_without_debug_log"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether basic debug logging is enabled" >&5
@@ -16419,12 +16461,20 @@ fi
 
 	if test "x$enable_debug_kmem" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+		DEBUG_KMEM="_with_debug_kmem"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM"
+
+else
+
+		DEBUG_KMEM="_without_debug_kmem"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether basic kmem accounting is enabled" >&5
@@ -16443,12 +16493,20 @@ fi
 
 	if test "x$enable_debug_kmem_tracking" = xyes; then
 
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+		DEBUG_KMEM_TRACKING="_with_debug_kmem_tracking"
+
 cat >>confdefs.h <<\_ACEOF
 #define DEBUG_KMEM_TRACKING 1
 _ACEOF
 
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_KMEM_TRACKING"
+
+else
+
+		DEBUG_KMEM_TRACKING="_without_debug_kmem_tracking"
+
 fi
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether detailed kmem tracking is enabled" >&5

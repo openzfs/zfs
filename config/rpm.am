@@ -73,6 +73,10 @@ rpm-common:
 		--define "require_kdir $(LINUX)" \
 		--define "require_kobj $(LINUX_OBJ)" \
 		--define "require_kver $(LINUX_VERSION)" \
+		--define "$(DEBUG_SPL) 1" \
+		--define "$(DEBUG_LOG) 1" \
+		--define "$(DEBUG_KMEM) 1" \
+		--define "$(DEBUG_KMEM_TRACKING) 1" \
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild

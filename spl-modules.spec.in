@@ -22,6 +22,50 @@
 %define kobj %{require_kobj}
 %endif
 
+# Set using 'rpmbuild ... --with debug ...', defaults to disabled.
+%if %{defined _with_debug}
+ %define kdebug --enable-debug
+%else
+ %if %{defined _without_debug}
+  %define kdebug --disable-debug
+ %else
+  %define kdebug --disable-debug
+ %endif
+%endif
+
+# Set using 'rpmbuild ... --with debug-log ...', defaults to enabled.
+%if %{defined _with_debug_log}
+ %define kdebug_log --enable-debug-log
+%else
+ %if %{defined _without_debug_log}
+  %define kdebug_log --disable-debug-log
+ %else
+  %define kdebug_log --enable-debug-log
+ %endif
+%endif
+
+# Set using 'rpmbuild ... --with debug-kmem ...', defaults to enabled.
+%if %{defined _with_debug_kmem}
+ %define kdebug_kmem --enable-debug-kmem
+%else
+ %if %{defined _without_debug_kmem}
+  %define kdebug_kmem --disable-debug-kmem
+ %else
+  %define kdebug_kmem --enable-debug-kmem
+ %endif
+%endif
+
+# Set using 'rpmbuild ... --with debug-tracking ...', defaults to disabled.
+%if %{defined _with_debug_kmem_tracking}
+ %define kdebug_kmem_tracking --enable-debug-kmem-tracking
+%else
+ %if %{defined _without_debug_kmem_tracking}
+  %define kdebug_kmem_tracking --disable-debug-kmem-tracking
+ %else
+  %define kdebug_kmem_tracking --disable-debug-kmem-tracking
+ %endif
+%endif
+
 # SLES:
 %if %{defined suse_version}
  %if %{undefined kver}
@@ -213,8 +257,8 @@ symbols needed for building additional modules which use %{name}.
 %prep
 %setup -n @PACKAGE@-%{version}
 %build
-%configure --with-linux=%{kdir} --with-linux-obj=%{kobj} \
-           --with-config=kernel
+%configure --with-linux=%{kdir} --with-linux-obj=%{kobj} --with-config=kernel \
+           %{kdebug} %{kdebug_log} %{kdebug_kmem} %{kdebug_kmem_tracking}
 make
 
 %install
