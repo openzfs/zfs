@@ -36,7 +36,7 @@
 /*
  * ZFS debugging - Always enabled for user space builds.
  */
-#if defined(DEBUG) || !defined(_KERNEL)
+#if !defined(ZFS_DEBUG) && !defined(_KERNEL)
 #define	ZFS_DEBUG
 #endif
 
