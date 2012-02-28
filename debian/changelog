@@ -1,3 +1,28 @@
+zfs-linux (0.6.0.52-0ubuntu1) unstable; urgency=low
+
+  [ Turbo Fredriksson ]
+  * Add 'fsid' mount option to allowed options.
+
+  [ Richard Yao ]
+  * Support ashift=13 for 8KB SSD block sizes
+
+  [ Alex Zhuravlev ]
+  * Export symbols for zero-copy
+
+  [ Ned Bass ]
+  * Return success from check_slice() if device doesn't exist
+
+  [ Brian Behlendorf ]
+  * Add arc_state_t stats to arcstats
+  * Add 'dmu_tx' kstats entry
+  * Cleanly support debug packages
+
+  [ Darik Horn ]
+  * Change POST_INSTALL to POST_BUILD in dkms.conf
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 27 Feb 2012 19:35:20 -0600
+
 zfs-linux (0.6.0.51-0ubuntu1) unstable; urgency=low
 
   [ Etienne Dechamps ]
