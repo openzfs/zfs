@@ -226,24 +226,26 @@ dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
 AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	AC_MSG_CHECKING([linux distribution])
-	if test -f /etc/redhat-release ; then
-		VENDOR=redhat ;
+	if test -f /etc/toss-release ; then
+		VENDOR=toss ;
 	elif test -f /etc/fedora-release ; then
 		VENDOR=fedora ;
+	elif test -f /etc/redhat-release ; then
+		VENDOR=redhat ;
 	elif test -f /etc/gentoo-release ; then
 		VENDOR=gentoo ;
-	elif test -f /etc/debian_version ; then
-		VENDOR=debian ;
+	elif test -f /etc/arch-release ; then
+		VENDOR=arch ;
 	elif test -f /etc/SuSE-release ; then
 		VENDOR=sles ;
 	elif test -f /etc/slackware-version ; then
 		VENDOR=slackware ;
-	elif test -f /etc/arch-release ; then
-		VENDOR=arch ;
-	elif test -f /etc/lsb-release ; then
-		VENDOR=ubuntu ;
 	elif test -f /etc/lunar.release ; then
 		VENDOR=lunar ;
+	elif test -f /etc/lsb-release ; then
+		VENDOR=ubuntu ;
+	elif test -f /etc/debian_version ; then
+		VENDOR=debian ;
 	else
 		VENDOR= ;
 	fi
@@ -252,16 +254,17 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
-		redhat)     DEFAULT_PACKAGE=rpm ;;
-		fedora)     DEFAULT_PACKAGE=rpm ;;
-		ubuntu)     DEFAULT_PACKAGE=deb ;;
-		debian)     DEFAULT_PACKAGE=deb ;;
-		sles)       DEFAULT_PACKAGE=rpm ;;
-		slackware)  DEFAULT_PACKAGE=tgz ;;
-		gentoo)     DEFAULT_PACKAGE=tgz ;;
-		lunar)      DEFAULT_PACKAGE=tgz ;;
-		arch)       DEFAULT_PACKAGE=arch;;
-		*)          DEFAULT_PACKAGE=rpm ;;
+		toss)       DEFAULT_PACKAGE=rpm  ;;
+		redhat)     DEFAULT_PACKAGE=rpm  ;;
+		fedora)     DEFAULT_PACKAGE=rpm  ;;
+		gentoo)     DEFAULT_PACKAGE=tgz  ;;
+		arch)       DEFAULT_PACKAGE=arch ;;
+		sles)       DEFAULT_PACKAGE=rpm  ;;
+		slackware)  DEFAULT_PACKAGE=tgz  ;;
+		lunar)      DEFAULT_PACKAGE=tgz  ;;
+		ubuntu)     DEFAULT_PACKAGE=deb  ;;
+		debian)     DEFAULT_PACKAGE=deb  ;;
+		*)          DEFAULT_PACKAGE=rpm  ;;
 	esac
 
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
@@ -278,16 +281,17 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init script type])
 	case "$VENDOR" in
+		toss)       DEFAULT_INIT_SCRIPT=redhat ;;
 		redhat)     DEFAULT_INIT_SCRIPT=redhat ;;
 		fedora)     DEFAULT_INIT_SCRIPT=fedora ;;
-		ubuntu)     DEFAULT_INIT_SCRIPT=lsb ;;
-		debian)     DEFAULT_INIT_SCRIPT=lsb ;;
-		sles)       DEFAULT_INIT_SCRIPT=lsb ;;
-		slackware)  DEFAULT_INIT_SCRIPT=lsb ;;
 		gentoo)     DEFAULT_INIT_SCRIPT=gentoo ;;
-		lunar)      DEFAULT_INIT_SCRIPT=lunar ;;
-		arch)       DEFAULT_INIT_SCRIPT=arch ;;
-		*)          DEFAULT_INIT_SCRIPT=lsb ;;
+		arch)       DEFAULT_INIT_SCRIPT=arch   ;;
+		sles)       DEFAULT_INIT_SCRIPT=lsb    ;;
+		slackware)  DEFAULT_INIT_SCRIPT=lsb    ;;
+		lunar)      DEFAULT_INIT_SCRIPT=lunar  ;;
+		ubuntu)     DEFAULT_INIT_SCRIPT=lsb    ;;
+		debian)     DEFAULT_INIT_SCRIPT=lsb    ;;
+		*)          DEFAULT_INIT_SCRIPT=lsb    ;;
 	esac
 
 	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
