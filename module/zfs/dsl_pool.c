@@ -517,8 +517,10 @@ dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 		reserved = dp->dp_space_towrite[tx->tx_txg & TXG_MASK]
 		    + dp->dp_tempreserved[tx->tx_txg & TXG_MASK] / 2;
 
-		if (reserved && reserved > write_limit)
+		if (reserved && reserved > write_limit) {
+			DMU_TX_STAT_BUMP(dmu_tx_write_limit);
 			return (ERESTART);
+		}
 	}
 
 	atomic_add_64(&dp->dp_tempreserved[tx->tx_txg & TXG_MASK], space);

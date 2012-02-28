@@ -1861,6 +1861,7 @@ dmu_init(void)
 	dnode_init();
 	dbuf_init();
 	zfetch_init();
+	dmu_tx_init();
 	arc_init();
 	l2arc_init();
 }
@@ -1870,6 +1871,7 @@ dmu_fini(void)
 {
 	l2arc_fini();
 	arc_fini();
+	dmu_tx_fini();
 	zfetch_fini();
 	dbuf_fini();
 	dnode_fini();
@@ -1881,6 +1883,8 @@ dmu_fini(void)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(dmu_bonus_hold);
+EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
+EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_read);
 EXPORT_SYMBOL(dmu_write);

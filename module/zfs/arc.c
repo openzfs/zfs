@@ -138,6 +138,7 @@
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
+#include <sys/dmu_tx.h>
 #include <zfs_fletcher.h>
 
 static kmutex_t		arc_reclaim_thr_lock;
@@ -271,6 +272,21 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_hdr_size;
 	kstat_named_t arcstat_data_size;
 	kstat_named_t arcstat_other_size;
+	kstat_named_t arcstat_anon_size;
+	kstat_named_t arcstat_anon_evict_data;
+	kstat_named_t arcstat_anon_evict_metadata;
+	kstat_named_t arcstat_mru_size;
+	kstat_named_t arcstat_mru_evict_data;
+	kstat_named_t arcstat_mru_evict_metadata;
+	kstat_named_t arcstat_mru_ghost_size;
+	kstat_named_t arcstat_mru_ghost_evict_data;
+	kstat_named_t arcstat_mru_ghost_evict_metadata;
+	kstat_named_t arcstat_mfu_size;
+	kstat_named_t arcstat_mfu_evict_data;
+	kstat_named_t arcstat_mfu_evict_metadata;
+	kstat_named_t arcstat_mfu_ghost_size;
+	kstat_named_t arcstat_mfu_ghost_evict_data;
+	kstat_named_t arcstat_mfu_ghost_evict_metadata;
 	kstat_named_t arcstat_l2_hits;
 	kstat_named_t arcstat_l2_misses;
 	kstat_named_t arcstat_l2_feeds;
@@ -336,6 +352,21 @@ static arc_stats_t arc_stats = {
 	{ "hdr_size",			KSTAT_DATA_UINT64 },
 	{ "data_size",			KSTAT_DATA_UINT64 },
 	{ "other_size",			KSTAT_DATA_UINT64 },
+	{ "anon_size",			KSTAT_DATA_UINT64 },
+	{ "anon_evict_data",		KSTAT_DATA_UINT64 },
+	{ "anon_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mru_size",			KSTAT_DATA_UINT64 },
+	{ "mru_evict_data",		KSTAT_DATA_UINT64 },
+	{ "mru_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mru_ghost_size",		KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evict_data",	KSTAT_DATA_UINT64 },
+	{ "mru_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
+	{ "mfu_size",			KSTAT_DATA_UINT64 },
+	{ "mfu_evict_data",		KSTAT_DATA_UINT64 },
+	{ "mfu_evict_metadata",		KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_size",		KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evict_data",	KSTAT_DATA_UINT64 },
+	{ "mfu_ghost_evict_metadata",	KSTAT_DATA_UINT64 },
 	{ "l2_hits",			KSTAT_DATA_UINT64 },
 	{ "l2_misses",			KSTAT_DATA_UINT64 },
 	{ "l2_feeds",			KSTAT_DATA_UINT64 },
@@ -3554,6 +3585,7 @@ arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 	} else if (page_load > 0 && arc_reclaim_needed()) {
 		/* memory is low, delay before restarting */
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
+		DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 		return (EAGAIN);
 	}
 	page_load = 0;
@@ -3569,6 +3601,7 @@ arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 
 	if (inflight_data > available_memory / 4) {
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
+		DMU_TX_STAT_BUMP(dmu_tx_memory_inflight);
 		return (ERESTART);
 	}
 #endif
@@ -3599,8 +3632,10 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 #endif
 	if (reserve > arc_c/4 && !arc_no_grow)
 		arc_c = MIN(arc_c_max, reserve * 4);
-	if (reserve > arc_c)
+	if (reserve > arc_c) {
+		DMU_TX_STAT_BUMP(dmu_tx_memory_reserve);
 		return (ENOMEM);
+	}
 
 	/*
 	 * Don't count loaned bufs as in flight dirty data to prevent long
@@ -3633,9 +3668,52 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		    arc_anon->arcs_lsize[ARC_BUFC_METADATA]>>10,
 		    arc_anon->arcs_lsize[ARC_BUFC_DATA]>>10,
 		    reserve>>10, arc_c>>10);
+		DMU_TX_STAT_BUMP(dmu_tx_dirty_throttle);
 		return (ERESTART);
 	}
 	atomic_add_64(&arc_tempreserve, reserve);
+	return (0);
+}
+
+static void
+arc_kstat_update_state(arc_state_t *state, kstat_named_t *size,
+    kstat_named_t *evict_data, kstat_named_t *evict_metadata)
+{
+	size->value.ui64 = state->arcs_size;
+	evict_data->value.ui64 = state->arcs_lsize[ARC_BUFC_DATA];
+	evict_metadata->value.ui64 = state->arcs_lsize[ARC_BUFC_METADATA];
+}
+
+static int
+arc_kstat_update(kstat_t *ksp, int rw)
+{
+	arc_stats_t *as = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE) {
+		return (EACCES);
+	} else {
+		arc_kstat_update_state(arc_anon,
+		    &as->arcstat_anon_size,
+		    &as->arcstat_anon_evict_data,
+		    &as->arcstat_anon_evict_metadata);
+		arc_kstat_update_state(arc_mru,
+		    &as->arcstat_mru_size,
+		    &as->arcstat_mru_evict_data,
+		    &as->arcstat_mru_evict_metadata);
+		arc_kstat_update_state(arc_mru_ghost,
+		    &as->arcstat_mru_ghost_size,
+		    &as->arcstat_mru_ghost_evict_data,
+		    &as->arcstat_mru_ghost_evict_metadata);
+		arc_kstat_update_state(arc_mfu,
+		    &as->arcstat_mfu_size,
+		    &as->arcstat_mfu_evict_data,
+		    &as->arcstat_mfu_evict_metadata);
+		arc_kstat_update_state(arc_mru_ghost,
+		    &as->arcstat_mfu_ghost_size,
+		    &as->arcstat_mfu_ghost_evict_data,
+		    &as->arcstat_mfu_ghost_evict_metadata);
+	}
+
 	return (0);
 }
 
@@ -3767,6 +3845,7 @@ arc_init(void)
 
 	if (arc_ksp != NULL) {
 		arc_ksp->ks_data = &arc_stats;
+		arc_ksp->ks_update = arc_kstat_update;
 		kstat_install(arc_ksp);
 	}
 

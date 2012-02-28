@@ -105,6 +105,31 @@ typedef struct dmu_tx_callback {
 } dmu_tx_callback_t;
 
 /*
+ * Used for dmu tx kstat.
+ */
+typedef struct dmu_tx_stats {
+	kstat_named_t dmu_tx_assigned;
+	kstat_named_t dmu_tx_delay;
+	kstat_named_t dmu_tx_error;
+	kstat_named_t dmu_tx_suspended;
+	kstat_named_t dmu_tx_group;
+	kstat_named_t dmu_tx_how;
+	kstat_named_t dmu_tx_memory_reserve;
+	kstat_named_t dmu_tx_memory_reclaim;
+	kstat_named_t dmu_tx_memory_inflight;
+	kstat_named_t dmu_tx_dirty_throttle;
+	kstat_named_t dmu_tx_write_limit;
+	kstat_named_t dmu_tx_quota;
+} dmu_tx_stats_t;
+
+extern dmu_tx_stats_t dmu_tx_stats;
+
+#define DMU_TX_STAT_INCR(stat, val) \
+    atomic_add_64(&dmu_tx_stats.stat.value.ui64, (val));
+#define DMU_TX_STAT_BUMP(stat) \
+    DMU_TX_STAT_INCR(stat, 1);
+
+/*
  * These routines are defined in dmu.h, and are called by the user.
  */
 dmu_tx_t *dmu_tx_create(objset_t *dd);
@@ -140,6 +165,9 @@ void dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space);
 #else
 #define	DMU_TX_DIRTY_BUF(tx, db)
 #endif
+
+void dmu_tx_init(void);
+void dmu_tx_fini(void);
 
 #ifdef	__cplusplus
 }
