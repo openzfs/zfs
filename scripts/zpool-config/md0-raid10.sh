@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Four disk Raid-10 in a single Raid-0 Configuration
 #

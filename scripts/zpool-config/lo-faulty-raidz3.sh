@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # 4 loopback devices using the md faulty level for easy
 # fault injection on top of which is layered raidz3.

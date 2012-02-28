@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # zfs           This script will mount/umount the zfs filesystems.
 #

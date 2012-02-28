@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # zfs           This shell script takes care of starting (mount) and
 #               stopping (umount) zfs shares.

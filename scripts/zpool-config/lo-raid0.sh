@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # 4 Device Loopback Raid-0 Configuration
 #

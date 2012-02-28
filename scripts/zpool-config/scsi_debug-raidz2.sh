@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # 1 scsi_debug device for fault injection and 3 loopback devices
 # on top of which is layered raidz2.
