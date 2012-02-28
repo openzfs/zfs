@@ -1,61 +1,1173 @@
-Upstream Author(s):
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Native ZFS for Linux
+Upstream-Contact: Brian Behlendorf <behlendorf1@llnl.gov>
+Source: https://github.com/zfsonlinux/zfs/
+Disclaimer:
+ This work was produced at the Lawrence Livermore National Laboratory
+ (LLNL) under Contract No. DE-AC52-07NA27344 (Contract 44) between
+ the U.S. Department of Energy (DOE) and Lawrence Livermore National
+ Security, LLC (LLNS) for the operation of LLNL.
+ .
+ This work was prepared as an account of work sponsored by an agency of
+ the United States Government.  Neither the United States Government nor
+ Lawrence Livermore National Security, LLC nor any of their employees,
+ makes any warranty, express or implied, or assumes any liability or
+ responsibility for the accuracy, completeness, or usefulness of any
+ information, apparatus, product, or process disclosed, or represents
+ that its use would not infringe privately-owned rights.
+ .
+ Reference herein to any specific commercial products, process, or
+ services by trade name, trademark, manufacturer or otherwise does
+ not necessarily constitute or imply its endorsement, recommendation,
+ or favoring by the United States Government or Lawrence Livermore
+ National Security, LLC.  The views and opinions of authors expressed
+ herein do not necessarily state or reflect those of the Untied States
+ Government or Lawrence Livermore National Security, LLC, and shall
+ not be used for advertising or product endorsement purposes.
+License: CDDL-1.0
+ 
+Files: *
+Copyright: Lawrence Livermore National Security, LLC.
+License: CDDL-1.0
 
-    Brian Behlendorf <behlendorf1@llnl.gov>,
-    Herb Wartens <wartens2@llnl.gov>,
-    Jim Garlick <garlick@llnl.gov>,
-    Ricardo M. Correia <Ricardo.M.Correia@sun.com>
-    KQ Infotech <zfs@kqinfotech.com>
+Files: cmd/mount_zfs/*
+Copyright: Oracle
+ Lawrence Livermore National Security, LLC.
+License: CDDL-1.0
 
+Files: cmd/zdb/*
+Copyright: Oracle
+ Sun Microssystems, Inc.
+License: CDDL-1.0
 
-Copyright:
+Files: cmd/zfs/zfs_iter.?
+Copyright: Oracle
+ Sun Microssystems, Inc.
+License: CDDL-1.0
 
-    The majority of the code in the ZFS on Linux port comes from OpenSolaris
-    which has been released under the terms of the CDDL open source license.
-    This includes the core ZFS code, libavl, libnvpair, libefi, libunicode,
-    and libutil.  The original OpenSolaris source can be downloaded from:
+Files: cmd/zfs/zfs_main.?
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
 
-    http://dlc.sun.com/osol/on/downloads/b121/on-src.tar.bz2
+Files: cmd/zfs/zfs_util.?
+Copyright: Oracle
+License: CDDL-1.0
 
-    Files which do not originate from OpenSolaris are noted in the file header
-    and attributed properly.  These exceptions include, but are not limited
-    to, the vdev_disk.c and zvol.c implementation which are licensed under
-    the CDDL.
+Files: cmd/zinject/*
+Copyright: Oracle
+License: CDDL-1.0
 
-    The zpios test code is originally derived from the Lustre pios test code
-    which is licenced under the GPLv2.  As such the heaviliy modified zpios
-    kernel test code also remains licensed under the GPLv2.
+Files: cmd/zpios/*
+Copyright: Cluster Filesystems, Inc.
+ Lawrence Livermore National Security, LLC.
+License: GPL-2+
 
-    The latest stable and development versions of this port can be downloaded
-    from the official ZFS on Linux site located at:
+Files: cmd/zpool/zpool_iter.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
 
-    http://github.com/zfsonlinux/zfs/
+Files: cmd/zpool/zpool_main.c
+Copyright: Oracle
+License: CDDL-1.0
 
-    This ZFS on Linux port was produced at the Lawrence Livermore National
-    Laboratory (LLNL) under Contract No. DE-AC52-07NA27344 (Contract 44)
-    between the U.S. Department of Energy (DOE) and Lawrence Livermore
-    National Security, LLC (LLNS) for the operation of LLNL.  It has been
-    approved for release under LLNL-CODE-403049.
+Files: cmd/zpool/zpool_util.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
 
-    Unless otherwise noted, all files in this distribution are released
-    under the Common Development and Distribution License (CDDL).
-    Exceptions are noted within the associated source files.  See the file
-    OPENSOLARIS.LICENSE for more information.
+Files: cmd/zpool/zpool_util.h
+Copyright: Oracle
+License: CDDL-1.0
 
+Files: cmd/zpool/zpool_vdev.c
+Copyright: Oracle
+License: CDDL-1.0
 
+Files: cmd/ztest/*
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: cmd/zvol_id/*
+Copyright: Fajar A. Nugraha.
+License: CDDL-1.0
+
+Files: config/config.guess
+Copyright: Free Software Foundation, Inc.
+License: GPL-2+
+
+Files: config/config.sub
+Copyright: Free Software Foundation, Inc.
+License: GPL-2+
+
+Files: config/depcomp
+Copyright: Free Software Foundation, Inc.
+License: GPL-2+
+
+Files: config/install-sh
+Copyright: 1994 X Consortium
 License:
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to
+ deal in the Software without restriction, including without limitation the
+ rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ sell copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ X CONSORTIUM BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+ AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNEC-
+ TION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ .
+ Except as contained in this notice, the name of the X Consortium shall not
+ be used in advertising or otherwise to promote the sale, use or other deal-
+ ings in this Software without prior written authorization from the X Consor-
+ tium.
 
-    Unless otherwise noted, all files in this distribution are released
-    under the Common Development and Distribution License (CDDL).
-    Exceptions are noted within the associated source files.  See the file
-    OPENSOLARIS.LICENSE for more information.
+Files: config/ltmain.sh
+Copyright: Free Software Foundation, Inc.
+License: GPL-2+
 
+Files: config/missing
+Copyright: Free Software Foundation, Inc.
+License: GPL-2+
 
-The Debian packaging is:
+Files: debian/*
+Copyright: Darik Horn <dajhorn@vanadac.com>
+Source: https://github.com/dajhorn/pkg-spl/
+License: GPL-2+
 
-    Copyright 2011 Darik Horn <dajhorn@vanadac.com>
-    Available at git://github.com/dajhorn/pkg-zfs.git
+Files: etc/init.d/zfs.gentoo.in
+Copyright: Gentoo Foundation
+License: GPL-2
 
-    Copyright (c) 2010 Knowledge Quest Infotech Pvt. Ltd. 
-    Produced at Knowledge Quest Infotech Pvt. Ltd. 
-    Written by: Knowledge Quest Infotech Pvt. Ltd. <zfs@kqinfotech.com>
-    Available at git://github.com/zfs-linux/zfs.git
+Files: include/libnvpair.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/libuutil_common.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/libuutil.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/libuutil_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/libzfs.h
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: include/libzfs_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/libzfs_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/arc.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/avl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/avl_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/bplist.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/bpobj.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/dbuf.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/ddt.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/dmu.h
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: include/sys/dmu_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/dmu_objset.h
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: include/sys/dmu_traverse.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/dmu_tx.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/dmu_zfetch.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/dnode.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/dsl_*
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/efi_partition.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/fm/fs/zfs.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/fm/protocol.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/fm/util.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/fs/zfs.h
+Copyright: Oracle
+ Delphix
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: include/sys/metaslab.h
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: include/sys/metaslab_impl.h
+Copyright: Sun Microsystems, Inc.
+ Delphix
+License: CDDL-1.0
+
+Files: include/sys/nvpair.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/nvpair_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/refcount.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/rrwlock.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/refcount.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/sa.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/sa_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/spa_boot.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/space_map.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/spa.h
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: include/sys/spa_impl.h
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: include/sys/txg.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/txg_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/u8_textprep_data.h
+Copyright: Unicode, Inc.
+ Sun Microsystems, Inc.
+License:
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of the Unicode data files and any associated documentation (the
+ "Data Files") or Unicode software and any associated documentation (the
+ "Software") to deal in the Data Files or Software without restriction,
+ including without limitation the rights to use, copy, modify, merge,
+ publish, distribute, and/or sell copies of the Data Files or Software, and
+ to permit persons to whom the Data Files or Software are furnished to do so,
+ provided that (a) the above copyright notice(s) and this permission notice
+ appear with all copies of the Data Files or Software, (b) both the above
+ copyright notice(s) and this permission notice appear in associated
+ documentation, and (c) there is clear notice in each modified Data File or
+ in the Software as well as in the documentation associated with the Data
+ File(s) or Software that the data or software has been modified.
+ .
+ THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+ KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+ THIRD PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS
+ INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR
+ CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+ DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+ OF THE DATA FILES OR SOFTWARE.
+ .
+ Except as contained in this notice, the name of a copyright holder shall not
+ be used in advertising or otherwise to promote the sale, use or other
+ dealings in these Data Files or Software without prior written authorization
+ of the copyright holder.
+ .
+ Unicode and the Unicode logo are trademarks of Unicode, Inc., and may be
+ registered in some jurisdictions. All other trademarks and registered
+ trademarks mentioned herein are the property of their respective owners.
+
+Files: include/sys/u8_textprep.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/uberblock.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/uberblock_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/uio_impl.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+ The Regents of the University of California
+License: CDDL-1.0
+
+Files: include/sys/unique.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/unique.h
+Copyright: Sun Microsystems, Inc.
+ Hewlett-Packard Company
+ Open Software Foundation, Inc.
+ Digital Equipment Corporation.
+ Microsoft
+License: CDDL-1.0
+
+Files: include/sys/vdev_file.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/vdev.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/vdev_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/xvattr.h
+Copyright: AT&T
+ Oracle
+ The Regents of the University of California
+License: CDDL-1.0
+
+Files: include/sys/vdev_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zap.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zap_impl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zap_leaf.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_acl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_context.h
+Copyright: Sun Microsystems, Inc.
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_debug.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_dir.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_fuid.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_ioctl.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_onexit.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_rlock.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_sa.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_stat.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_vfsops.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_vnops.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zfs_znode.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zil.h
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: include/sys/zil_impl.h
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: include/sys/zio_checksum.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zio_compress.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zio.h
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zio_impl.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zrlock.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/sys/zvol.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/zfs_comutil.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: include/zfs_deleg.h
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: include/zfs_fletcher.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/zfs_namecheck.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/zfs_prop.h
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/zpios-ctl.h
+Copyright: Cluster File Systems, Inc.
+ Lawrence Livermore National Security, LLC.
+License: GPL-2+
+
+Files: include/zpios-internal.h
+Copyright: Cluster File Systems, Inc.
+ Lawrence Livermore National Security, LLC.
+License: GPL-2+
+
+Files: lib/libefi/rdwr_efi.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libnvpair/libnvpair.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libnvpair/nvpair_alloc_system.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libshare/libshare.c
+Copyright: Oracle
+ Gunnar Beutner
+License: CDDL-1.0
+
+Files: lib/libshare/libshare_impl.h
+Copyright: Oracle
+ Gunnar Beutner
+License: CDDL-1.0
+
+Files: lib/libshare/nfs.?
+Copyright: Oracle
+ Gunnar Beutner
+License: CDDL-1.0
+
+Files: lib/libspl/asm-generic/atomic.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/asm-i386/atomic.S
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/asm-x86_64/atomic.S
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/getexecname.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/gethrestime.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/getmntany.c
+Copyright: Sun Microsystems, Inc.
+ Ricardo Correia
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/*
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/byteorder.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+ The Regents of the University of California
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/dktp/fdisk.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/mntent.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/mnttab.h
+Copyright: Sun Microsystems, Inc.
+ Ricardo Correia
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/stat.h
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/uio.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+ The Regents of the University of California
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/vtoc.h
+Copyright: Sun Microsystems, Inc.
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/list.c
+Copyright: 2008 Sun Microsystems, Inc.  All rights reserved.
+License: CDDL-1.0
+
+Files: lib/libspl/mkdirp.c
+Copyright: Sun Microsystems, Inc.
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/strlcat.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/strlcpy.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/strnlen.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/timestamp.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/xdr.c
+Copyright: Sun Microsystems, Inc.
+ AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/zone.c
+Copyright: 2006 Ricardo Correia
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_alloc.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_avl.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_dprintf.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_ident.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_list.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_misc.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_open.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_pname.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_string.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_strtoint.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_changelist.c
+Copyright: Sun Microsystems, Inc.
+ Ramprakash Jelari
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_config.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_dataset.c
+Copyright: Oracle
+ Nexenta Systems, Inc.
+ Delphix
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_diff.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_fru.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_graph.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_import.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_mount.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_pool.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_sendrecv.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_status.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_util.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzpool/kernel.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: lib/libzpool/taskq.c
+Copyright: Sun Microsystems, Inc.
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzpool/util.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: man/man8/zdb.8
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: man/man8/zfs.8
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: man/man8/zpool.8
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/avl/avl.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/nvpair/nvpair_alloc_fixed.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/nvpair/nvpair_alloc_spl.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/nvpair/nvpair.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/unicode/u8_textprep.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/unicode/uconv.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_comutil.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_deleg.c
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_fletcher.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_namecheck.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_prop.c
+Copyright: Oracle
+ Delphix
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_uio.c
+Copyright: Sun Microsystems, Inc.
+ AT&T
+ The Regents of the University of California
+License: CDDL-1.0
+
+Files: module/zcommon/zpool_prop.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zcommon/zprop_common.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/arc.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/bplist.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/bpobj.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dbuf.c
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/ddt.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/ddt_zap.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dmu.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dmu_diff.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dmu_object.c
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: module/zfs/dmu_send.c
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_traverse.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dmu_tx.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dmu_zfetch.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/dnode.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dnode_sync.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_dataset.c
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: module/zfs/dsl_deadlist.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_deleg.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_dir.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_pool.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_prop.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_scan.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/dsl_synctask.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/fm.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/gzip.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/lzjb.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/metaslab.c
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: module/zfs/refcount.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/rrwlock.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/sa.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/sha256.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/spa_boot.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/spa.c
+Copyright: Oracle
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/space_map.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/spa_config.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/spa_errlog.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/spa_history.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/spa_misc.c
+Copyright: Oracle
+ Delphix
+License: CDDL-1.0
+
+Files: module/zfs/txg.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/uberblock.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/unique.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/vdev_cache.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/vdev.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/vdev_file.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/vdev_label.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/vdev_mirror.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/vdev_missing.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/vdev_queue.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/vdev_raidz.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/vdev_root.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zap.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zap_leaf.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zap_micro.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_acl.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_byteswap.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_debug.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_dir.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_fm.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_fuid.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_ioctl.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_log.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_onexit.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_replay.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_rlock.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_sa.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zfs_vfsops.c
+Copyright: Oracle
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: module/zfs/zfs_vnops.c
+Copyright: Oracle
+ Jeremy Teo
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: module/zfs/zfs_znode.c
+Copyright: Oracle
+ Jeremy Teo
+License: CDDL-1.0
+
+Files: module/zfs/zil.c
+Copyright: Oracle
+ Delphix
+ Robert Milkowski
+License: CDDL-1.0
+
+Files: module/zfs/zio.c
+Copyright: Oracle
+ Delphix
+ Nexenta Systems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zio_checksum.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zio_compress.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zio_inject.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zfs/zle.c
+Copyright: Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zpl_export.c
+Copyright: Gunnar Beutner
+License: CDDL-1.0
+
+Files: module/zfs/zrlock.c
+Copyright: Oracle
+License: CDDL-1.0
+
+Files: module/zpios/pios.c
+Copyright: Cluster File Systems, Inc.
+ Lawrence Livermore National Security, LLC.
+License: GPL-2+
