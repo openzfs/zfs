@@ -55,7 +55,7 @@ zfsrootparentfs=
 zfsrootparentname=
 zfsrootfs=`cat /proc/mounts | grep ' / zfs ' | awk ' { print $1 } ' | head -1` || true
 if [ -n "$zfsrootfs" ] ; then
-    zfsrootfs=`printf "$zfsrootfs"`
+    zfsrootfs=`fstab-decode echo "$zfsrootfs"`
     echo "$scriptname: root ZFS file system is $zfsrootfs"
     zfsrootparentfs=`dirname "$zfsrootfs"`
     zfsrootparentname=`basename "$zfsrootparentfs"`
@@ -63,7 +63,6 @@ fi
 
 # we read the output of fstab
 # add to the list of our known filesystems
-# FIXME, \040 escaping done properly
 while read -r ignore mountpoint rest ; do
 	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
 	if [ "$ignore" == "#" ] ; then continue ; fi
@@ -71,7 +70,7 @@ while read -r ignore mountpoint rest ; do
         if [ "$mountpoint" == "/" ] ; then continue ; fi
         if [ "$mountpoint" == "swap" ] ; then continue ; fi
 
-	printf "$mountpoint" >> "$gendir"/mountpoints
+	fstab-decode echo "$mountpoint" >> "$gendir"/mountpoints
         echo >> "$gendir"/mountpoints
 done < /etc/fstab
 
