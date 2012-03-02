@@ -2,6 +2,7 @@
 
 NAME := $(shell awk '/^Name:/{print $$2}' META)
 VERSION := $(shell awk '/^Version:/{print $$2}' META)
+LSB_DISTRIBUTOR := $(shell lsb_release -is)
 
 %:
 	dh $@
@@ -44,8 +45,32 @@ override_dh_auto_install:
 	@# Process templates and install the dkms.conf file.
 	dh_dkms -V $(VERSION)
 
-	@# Install the init.d file.
+	@# Install the /etc/default/zfs options file.
 	dh_installinit --name=zfs
+
+	@# Install the /etc/init.d/zfs-mount script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs local mounts at sysv sequences [10..12] [08..09].
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start -- defaults 13 07
+else
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start
+endif
+
+	@# Install the /etc/init.d/zfs-share script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs nfs-kernel-server at sysv sequence 17 01.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 18 00
+else ifeq ($(LSB_DISTRIBUTOR),Ubuntu)
+	@# Ubuntu runs nfs-kernel-server at sysv sequence 20 80.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 21 79
+else
+		dh_installinit --name=zfs-share \
+		  --no-restart-on-upgrade --no-start
+endif
 
 override_dh_shlibdeps:
 	@# Suppress libtool dependency_libs warnings that are caused by
