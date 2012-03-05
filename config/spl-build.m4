@@ -371,22 +371,26 @@ dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
 AC_DEFUN([SPL_AC_DEFAULT_PACKAGE], [
 	AC_MSG_CHECKING([linux distribution])
-	if test -f /etc/redhat-release ; then
-		VENDOR=redhat ;
+	if test -f /etc/toss-release ; then
+		VENDOR=toss ;
 	elif test -f /etc/fedora-release ; then
 		VENDOR=fedora ;
+	elif test -f /etc/redhat-release ; then
+		VENDOR=redhat ;
+	elif test -f /etc/gentoo-release ; then
+		VENDOR=gentoo ;
 	elif test -f /etc/arch-release ; then
 		VENDOR=arch ;
-	elif test -f /etc/lsb-release ; then
-		VENDOR=ubuntu ;
-	elif test -f /etc/debian_version ; then
-		VENDOR=debian ;
 	elif test -f /etc/SuSE-release ; then
 		VENDOR=sles ;
 	elif test -f /etc/slackware-version ; then
 		VENDOR=slackware ;
-	elif test -f /etc/gentoo-release ; then
-		VENDOR=gentoo ;
+	elif test -f /etc/lunar.release ; then
+		VENDOR=lunar ;
+	elif test -f /etc/lsb-release ; then
+		VENDOR=ubuntu ;
+	elif test -f /etc/debian_version ; then
+		VENDOR=debian ;
 	else
 		VENDOR= ;
 	fi
@@ -395,14 +399,17 @@ AC_DEFUN([SPL_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
-		fedora)     DEFAULT_PACKAGE=rpm ;;
-		redhat)     DEFAULT_PACKAGE=rpm ;;
-		sles)       DEFAULT_PACKAGE=rpm ;;
-		ubuntu)     DEFAULT_PACKAGE=deb ;;
-		debian)     DEFAULT_PACKAGE=deb ;;
-		slackware)  DEFAULT_PACKAGE=tgz ;;
-		arch)       DEFAULT_PACKAGE=arch;;
-		*)          DEFAULT_PACKAGE=rpm ;;
+		toss)       DEFAULT_PACKAGE=rpm  ;;
+		redhat)     DEFAULT_PACKAGE=rpm  ;;
+		fedora)     DEFAULT_PACKAGE=rpm  ;;
+		gentoo)     DEFAULT_PACKAGE=tgz  ;;
+		arch)       DEFAULT_PACKAGE=arch ;;
+		sles)       DEFAULT_PACKAGE=rpm  ;;
+		slackware)  DEFAULT_PACKAGE=tgz  ;;
+		lunar)      DEFAULT_PACKAGE=tgz  ;;
+		ubuntu)     DEFAULT_PACKAGE=deb  ;;
+		debian)     DEFAULT_PACKAGE=deb  ;;
+		*)          DEFAULT_PACKAGE=rpm  ;;
 	esac
 
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
