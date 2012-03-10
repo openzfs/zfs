@@ -1,3 +1,25 @@
+zfs-linux (0.6.0.53-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Add machine readable debian/copyright file.
+  * Split /etc/init.d/zfs into zfs-mount and zfs-share
+  * Remove the /etc/default/zfsload configuration file
+  * Use consistent branding in package descriptions.
+  * Remove the DISCLAIMER file from the docs list.
+
+  [ Brian Behlendorf ]
+  * Use SA_HDL_PRIVATE for SA xattrs
+  * Add zio constructor/destructor
+  * Add sa_spill_rele() interface
+
+  [ Ned Bass ]
+  * Align parition end on 1 MiB boundary
+
+  [ Richard Yao ]
+  * Fix distribution detection
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 09 Mar 2012 20:53:01 -0600
+
 zfs-linux (0.6.0.52-0ubuntu1) unstable; urgency=low
 
   [ Turbo Fredriksson ]
