@@ -672,10 +672,12 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
  * Don't start the slice at the default block of 34; many storage
  * devices will use a stripe width of 128k, other vendors prefer a 1m
  * alignment.  It is best to play it safe and ensure a 1m alignment
- * give 512b blocks.  When the block size is larger by a power of 2
- * we will still be 1m aligned.
+ * given 512B blocks.  When the block size is larger by a power of 2
+ * we will still be 1m aligned.  Some devices are sensitive to the
+ * partition ending alignment as well.
  */
-#define	NEW_START_BLOCK	2048
+#define	NEW_START_BLOCK		2048
+#define	PARTITION_END_ALIGNMENT	2048
 
 /*
  * Validate the given pool name, optionally putting an extended error message in
@@ -3786,6 +3788,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	if (start_block == MAXOFFSET_T)
 		start_block = NEW_START_BLOCK;
 	slice_size -= start_block;
+	slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
 
 	vtoc->efi_parts[0].p_start = start_block;
 	vtoc->efi_parts[0].p_size = slice_size;
