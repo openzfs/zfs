@@ -524,6 +524,8 @@ txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
 		(void) cv_timedwait(&tx->tx_quiesce_more_cv, &tx->tx_sync_lock,
 		    timeout);
 
+	DMU_TX_STAT_BUMP(dmu_tx_delay);
+
 	mutex_exit(&tx->tx_sync_lock);
 }
 

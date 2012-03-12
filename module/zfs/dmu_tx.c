@@ -40,6 +40,22 @@
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
 
+dmu_tx_stats_t dmu_tx_stats = {
+	{ "dmu_tx_assigned",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_delay",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_error",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_suspended",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_group",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_how",			KSTAT_DATA_UINT64 },
+	{ "dmu_tx_memory_reserve",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_memory_reclaim",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_memory_inflight",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_dirty_throttle",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_write_limit",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_quota",		KSTAT_DATA_UINT64 },
+};
+
+static kstat_t *dmu_tx_ksp;
 
 dmu_tx_t *
 dmu_tx_create_dd(dsl_dir_t *dd)
@@ -899,10 +915,14 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 
 	ASSERT3U(tx->tx_txg, ==, 0);
 
-	if (tx->tx_err)
+	if (tx->tx_err) {
+		DMU_TX_STAT_BUMP(dmu_tx_error);
 		return (tx->tx_err);
+	}
 
 	if (spa_suspended(spa)) {
+		DMU_TX_STAT_BUMP(dmu_tx_suspended);
+
 		/*
 		 * If the user has indicated a blocking failure mode
 		 * then return ERESTART which will block in dmu_tx_wait().
@@ -937,6 +957,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 			if (dn->dn_assigned_txg == tx->tx_txg - 1) {
 				mutex_exit(&dn->dn_mtx);
 				tx->tx_needassign_txh = txh;
+				DMU_TX_STAT_BUMP(dmu_tx_group);
 				return (ERESTART);
 			}
 			if (dn->dn_assigned_txg == 0)
@@ -957,8 +978,10 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	 * NB: This check must be after we've held the dnodes, so that
 	 * the dmu_tx_unassign() logic will work properly
 	 */
-	if (txg_how >= TXG_INITIAL && txg_how != tx->tx_txg)
+	if (txg_how >= TXG_INITIAL && txg_how != tx->tx_txg) {
+		DMU_TX_STAT_BUMP(dmu_tx_how);
 		return (ERESTART);
+	}
 
 	/*
 	 * If a snapshot has been taken since we made our estimates,
@@ -999,6 +1022,8 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		if (err)
 			return (err);
 	}
+
+	DMU_TX_STAT_BUMP(dmu_tx_assigned);
 
 	return (0);
 }
@@ -1379,6 +1404,28 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 			dmu_tx_hold_spill(tx, object);
 		}
 		DB_DNODE_EXIT(db);
+	}
+}
+
+void
+dmu_tx_init(void)
+{
+	dmu_tx_ksp = kstat_create("zfs", 0, "dmu_tx", "misc",
+	    KSTAT_TYPE_NAMED, sizeof (dmu_tx_stats) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	if (dmu_tx_ksp != NULL) {
+		dmu_tx_ksp->ks_data = &dmu_tx_stats;
+		kstat_install(dmu_tx_ksp);
+	}
+}
+
+void
+dmu_tx_fini(void)
+{
+	if (dmu_tx_ksp != NULL) {
+		kstat_delete(dmu_tx_ksp);
+		dmu_tx_ksp = NULL;
 	}
 }
 

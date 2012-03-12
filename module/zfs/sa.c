@@ -1334,6 +1334,19 @@ sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 }
 
 void
+sa_spill_rele(sa_handle_t *hdl)
+{
+	mutex_enter(&hdl->sa_lock);
+	if (hdl->sa_spill) {
+		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
+		dmu_buf_rele(hdl->sa_spill, NULL);
+		hdl->sa_spill = NULL;
+		hdl->sa_spill_tab = NULL;
+	}
+	mutex_exit(&hdl->sa_lock);
+}
+
+void
 sa_handle_destroy(sa_handle_t *hdl)
 {
 	mutex_enter(&hdl->sa_lock);
@@ -1994,6 +2007,7 @@ EXPORT_SYMBOL(sa_handle_get_from_db);
 EXPORT_SYMBOL(sa_handle_destroy);
 EXPORT_SYMBOL(sa_buf_hold);
 EXPORT_SYMBOL(sa_buf_rele);
+EXPORT_SYMBOL(sa_spill_rele);
 EXPORT_SYMBOL(sa_lookup);
 EXPORT_SYMBOL(sa_update);
 EXPORT_SYMBOL(sa_remove);

@@ -1861,6 +1861,7 @@ dmu_init(void)
 	dnode_init();
 	dbuf_init();
 	zfetch_init();
+	dmu_tx_init();
 	arc_init();
 	l2arc_init();
 }
@@ -1870,6 +1871,7 @@ dmu_fini(void)
 {
 	l2arc_fini();
 	arc_fini();
+	dmu_tx_fini();
 	zfetch_fini();
 	dbuf_fini();
 	dnode_fini();

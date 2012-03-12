@@ -22,6 +22,17 @@
 %define kobj %{require_kobj}
 %endif
 
+# Set using 'rpmbuild ... --with debug ...', defaults to disabled.
+%if %{defined _with_debug}
+ %define kdebug --enable-debug
+%else
+ %if %{defined _without_debug}
+  %define kdebug --disable-debug
+ %else
+  %define kdebug --disable-debug
+ %endif
+%endif
+
 # SLES:
 %if %{defined suse_version}
  %if %{undefined kver}
@@ -253,7 +264,7 @@ which use %{name}.
 %build
 %configure --with-linux=%{kdir} --with-linux-obj=%{kobj} \
            --with-spl=%{spldir} --with-spl-obj=%{splobj} \
-           --with-config=kernel
+           --with-config=kernel %{kdebug}
 make
 
 %install

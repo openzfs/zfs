@@ -188,19 +188,10 @@ check_error(int err)
 static int
 check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 {
-	struct stat64 statbuf;
 	int err;
 #ifdef HAVE_LIBBLKID
 	char *value;
-#endif /* HAVE_LIBBLKID */
 
-	if (stat64(path, &statbuf) != 0) {
-		vdev_error(gettext("cannot stat %s: %s\n"),
-		           path, strerror(errno));
-		return (-1);
-	}
-
-#ifdef HAVE_LIBBLKID
 	/* No valid type detected device is safe to use */
 	value = blkid_get_tag_value(cache, "TYPE", path);
 	if (value == NULL)
