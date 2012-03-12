@@ -808,6 +808,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
+	ASSERT(dn != NULL);
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(tx->tx_objset == NULL || dn->dn_objset == tx->tx_objset);
 	ASSERT3U(dn->dn_object, ==, db->db.db_object);
@@ -825,7 +826,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 
 	for (txh = list_head(&tx->tx_holds); txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
-		ASSERT(dn == NULL || dn->dn_assigned_txg == tx->tx_txg);
+		ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
 		if (txh->txh_dnode == dn && txh->txh_type != THT_NEWOBJECT)
 			match_object = TRUE;
 		if (txh->txh_dnode == NULL || txh->txh_dnode == dn) {
