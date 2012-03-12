@@ -32,7 +32,6 @@ install() {
 	inst_rules @udevruledir@/60-zpool.rules
 	inst_rules @udevruledir@/60-zvol.rules
 	inst @sysconfdir@/zfs/zdev.conf
-	inst @sysconfdir@/zfs/zpool.cache
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
 	dracut_install @bindir@/zpool_layout
