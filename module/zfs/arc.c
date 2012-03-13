@@ -158,7 +158,10 @@ typedef enum arc_reclaim_strategy {
 } arc_reclaim_strategy_t;
 
 /* number of seconds before growing cache again */
-static int		arc_grow_retry = 60;
+static int		arc_grow_retry = 5;
+
+/* expiration time for arc_no_grow */
+static clock_t		arc_grow_time = 0;
 
 /* shift of arc_c for calculating both min and max arc_p */
 static int		arc_p_min_shift = 4;
@@ -909,21 +912,6 @@ buf_dest(void *vbuf, void *unused)
 	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
-/*
- * Reclaim callback -- invoked when memory is low.
- */
-/* ARGSUSED */
-static void
-hdr_recl(void *unused)
-{
-	/*
-	 * umem calls the reclaim func when we destroy the buf cache,
-	 * which is after we do arc_fini().
-	 */
-	if (!arc_dead)
-		cv_signal(&arc_reclaim_thr_cv);
-}
-
 static void
 buf_init(void)
 {
@@ -956,7 +944,7 @@ retry:
 	}
 
 	hdr_cache = kmem_cache_create("arc_buf_hdr_t", sizeof (arc_buf_hdr_t),
-	    0, hdr_cons, hdr_dest, hdr_recl, NULL, NULL, 0);
+	    0, hdr_cons, hdr_dest, NULL, NULL, NULL, 0);
 	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
 	    0, buf_cons, buf_dest, NULL, NULL, NULL, 0);
 
@@ -2100,16 +2088,13 @@ arc_flush(spa_t *spa)
 }
 
 void
-arc_shrink(void)
+arc_shrink(uint64_t bytes)
 {
 	if (arc_c > arc_c_min) {
 		uint64_t to_free;
 
-#ifdef _KERNEL
-		to_free = MAX(arc_c >> arc_shrink_shift, ptob(needfree));
-#else
-		to_free = arc_c >> arc_shrink_shift;
-#endif
+		to_free = bytes ? bytes : arc_c >> arc_shrink_shift;
+
 		if (arc_c > arc_c_min + to_free)
 			atomic_add_64(&arc_c, -to_free);
 		else
@@ -2128,66 +2113,8 @@ arc_shrink(void)
 		arc_adjust();
 }
 
-static int
-arc_reclaim_needed(void)
-{
-#ifdef _KERNEL
-	uint64_t extra;
-
-	if (needfree)
-		return (1);
-
-	/*
-	 * take 'desfree' extra pages, so we reclaim sooner, rather than later
-	 */
-	extra = desfree;
-
-	/*
-	 * check that we're out of range of the pageout scanner.  It starts to
-	 * schedule paging if freemem is less than lotsfree and needfree.
-	 * lotsfree is the high-water mark for pageout, and needfree is the
-	 * number of needed free pages.  We add extra pages here to make sure
-	 * the scanner doesn't start up while we're freeing memory.
-	 */
-	if (freemem < lotsfree + needfree + extra)
-		return (1);
-
-	/*
-	 * check to make sure that swapfs has enough space so that anon
-	 * reservations can still succeed. anon_resvmem() checks that the
-	 * availrmem is greater than swapfs_minfree, and the number of reserved
-	 * swap pages.  We also add a bit of extra here just to prevent
-	 * circumstances from getting really dire.
-	 */
-	if (availrmem < swapfs_minfree + swapfs_reserve + extra)
-		return (1);
-
-#if defined(__i386)
-	/*
-	 * If we're on an i386 platform, it's possible that we'll exhaust the
-	 * kernel heap space before we ever run out of available physical
-	 * memory.  Most checks of the size of the heap_area compare against
-	 * tune.t_minarmem, which is the minimum available real memory that we
-	 * can have in the system.  However, this is generally fixed at 25 pages
-	 * which is so low that it's useless.  In this comparison, we seek to
-	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
-	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
-	 * free)
-	 */
-	if (btop(vmem_size(heap_arena, VMEM_FREE)) <
-	    (btop(vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC)) >> 2))
-		return (1);
-#endif
-
-#else
-	if (spa_get_random(100) == 0)
-		return (1);
-#endif
-	return (0);
-}
-
 static void
-arc_kmem_reap_now(arc_reclaim_strategy_t strat)
+arc_kmem_reap_now(arc_reclaim_strategy_t strat, uint64_t bytes)
 {
 	size_t			i;
 	kmem_cache_t		*prev_cache = NULL;
@@ -2200,7 +2127,7 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 	 * reap free buffers from the arc kmem caches.
 	 */
 	if (strat == ARC_RECLAIM_AGGR)
-		arc_shrink();
+		arc_shrink(bytes);
 
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
 		if (zio_buf_cache[i] != prev_cache) {
@@ -2217,11 +2144,16 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
 	kmem_cache_reap_now(hdr_cache);
 }
 
+/*
+ * Unlike other ZFS implementations this thread is only responsible for
+ * adapting the target ARC size on Linux.  The responsibility for memory
+ * reclamation has been entirely delegated to the arc_shrinker_func()
+ * which is registered with the VM.  To reflect this change in behavior
+ * the arc_reclaim thread has been renamed to arc_adapt.
+ */
 static void
-arc_reclaim_thread(void)
+arc_adapt_thread(void)
 {
-	clock_t			growtime = 0;
-	arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
 	callb_cpr_t		cpr;
 	int64_t			prune;
 
@@ -2229,7 +2161,10 @@ arc_reclaim_thread(void)
 
 	mutex_enter(&arc_reclaim_thr_lock);
 	while (arc_thread_exit == 0) {
-		if (arc_reclaim_needed()) {
+#ifndef _KERNEL
+		arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
+
+		if (spa_get_random(100) == 0) {
 
 			if (arc_no_grow) {
 				if (last_reclaim == ARC_RECLAIM_CONS) {
@@ -2244,14 +2179,16 @@ arc_reclaim_thread(void)
 			}
 
 			/* reset the growth delay for every reclaim */
-			growtime = ddi_get_lbolt() + (arc_grow_retry * hz);
+			arc_grow_time = ddi_get_lbolt()+(arc_grow_retry * hz);
 
-			arc_kmem_reap_now(last_reclaim);
+			arc_kmem_reap_now(last_reclaim, 0);
 			arc_warm = B_TRUE;
-
-		} else if (arc_no_grow && ddi_get_lbolt() >= growtime) {
-			arc_no_grow = FALSE;
 		}
+#endif /* !_KERNEL */
+
+		/* No recent memory pressure allow the ARC to grow. */
+		if (arc_no_grow && ddi_get_lbolt() >= arc_grow_time)
+			arc_no_grow = FALSE;
 
 		/*
 		 * Keep meta data usage within limits, arc_shrink() is not
@@ -2282,28 +2219,83 @@ arc_reclaim_thread(void)
 
 #ifdef _KERNEL
 /*
- * Under Linux the arc shrinker may be called for synchronous (direct)
- * reclaim, or asynchronous (indirect) reclaim.  When called by kswapd
- * for indirect reclaim we take a conservative approach and just reap
- * free slabs from the ARC caches.  If this proves to be insufficient
- * direct reclaim will be trigger.  In direct reclaim a more aggressive
- * strategy is used, data is evicted from the ARC and free slabs reaped.
+ * Determine the amount of memory eligible for eviction contained in the
+ * ARC. All clean data reported by the ghost lists can always be safely
+ * evicted. Due to arc_c_min, the same does not hold for all clean data
+ * contained by the regular mru and mfu lists.
+ *
+ * In the case of the regular mru and mfu lists, we need to report as
+ * much clean data as possible, such that evicting that same reported
+ * data will not bring arc_size below arc_c_min. Thus, in certain
+ * circumstances, the total amount of clean data in the mru and mfu
+ * lists might not actually be evictable.
+ *
+ * The following two distinct cases are accounted for:
+ *
+ * 1. The sum of the amount of dirty data contained by both the mru and
+ *    mfu lists, plus the ARC's other accounting (e.g. the anon list),
+ *    is greater than or equal to arc_c_min.
+ *    (i.e. amount of dirty data >= arc_c_min)
+ *
+ *    This is the easy case; all clean data contained by the mru and mfu
+ *    lists is evictable. Evicting all clean data can only drop arc_size
+ *    to the amount of dirty data, which is greater than arc_c_min.
+ *
+ * 2. The sum of the amount of dirty data contained by both the mru and
+ *    mfu lists, plus the ARC's other accounting (e.g. the anon list),
+ *    is less than arc_c_min.
+ *    (i.e. arc_c_min > amount of dirty data)
+ *
+ *    2.1. arc_size is greater than or equal arc_c_min.
+ *         (i.e. arc_size >= arc_c_min > amount of dirty data)
+ *
+ *         In this case, not all clean data from the regular mru and mfu
+ *         lists is actually evictable; we must leave enough clean data
+ *         to keep arc_size above arc_c_min. Thus, the maximum amount of
+ *         evictable data from the two lists combined, is exactly the
+ *         difference between arc_size and arc_c_min.
+ *
+ *    2.2. arc_size is less than arc_c_min
+ *         (i.e. arc_c_min > arc_size > amount of dirty data)
+ *
+ *         In this case, none of the data contained in the mru and mfu
+ *         lists is evictable, even if it's clean. Since arc_size is
+ *         already below arc_c_min, evicting any more would only
+ *         increase this negative difference.
  */
+static uint64_t
+arc_evictable_memory(void) {
+	uint64_t arc_clean =
+	    arc_mru->arcs_lsize[ARC_BUFC_DATA] +
+	    arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mfu->arcs_lsize[ARC_BUFC_DATA] +
+	    arc_mfu->arcs_lsize[ARC_BUFC_METADATA];
+	uint64_t ghost_clean =
+	    arc_mru_ghost->arcs_lsize[ARC_BUFC_DATA] +
+	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
+	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_DATA] +
+	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA];
+	uint64_t arc_dirty = MAX((int64_t)arc_size - (int64_t)arc_clean, 0);
+
+	if (arc_dirty >= arc_c_min)
+		return (ghost_clean + arc_clean);
+
+	return (ghost_clean + MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
+}
+
 static int
 __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
-	arc_reclaim_strategy_t strategy;
-	int arc_reclaim;
+	uint64_t pages;
 
-	/* Return number of reclaimable pages based on arc_shrink_shift */
-	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
-	    >> arc_shrink_shift, 0);
+	/* The arc is considered warm once reclaim has occurred */
+	if (unlikely(arc_warm == B_FALSE))
+		arc_warm = B_TRUE;
+
+	/* Return the potential number of reclaimable pages */
+	pages = btop(arc_evictable_memory());
 	if (sc->nr_to_scan == 0)
-		return (arc_reclaim);
-
-	/* Prevent reclaim below arc_c_min */
-	if (arc_reclaim <= 0)
-		return (-1);
+		return (pages);
 
 	/* Not allowed to perform filesystem reclaim */
 	if (!(sc->gfp_mask & __GFP_FS))
@@ -2313,20 +2305,37 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
 		return (-1);
 
-	if (current_is_kswapd()) {
-		strategy = ARC_RECLAIM_CONS;
-		ARCSTAT_INCR(arcstat_memory_indirect_count, 1);
+	/*
+	 * Evict the requested number of pages by shrinking arc_c the
+	 * requested amount.  If there is nothing left to evict just
+	 * reap whatever we can from the various arc slabs.
+	 */
+	if (pages > 0) {
+		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
+		pages = btop(arc_evictable_memory());
 	} else {
-		strategy = ARC_RECLAIM_AGGR;
-		ARCSTAT_INCR(arcstat_memory_direct_count, 1);
+		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
+		pages = -1;
 	}
 
-	arc_kmem_reap_now(strategy);
-	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
-	    >> arc_shrink_shift, 0);
+	/*
+	 * When direct reclaim is observed it usually indicates a rapid
+	 * increase in memory pressure.  This occurs because the kswapd
+	 * threads were unable to asynchronously keep enough free memory
+	 * available.  In this case set arc_no_grow to briefly pause arc
+	 * growth to avoid compounding the memory pressure.
+	 */
+	if (current_is_kswapd()) {
+		ARCSTAT_BUMP(arcstat_memory_indirect_count);
+	} else {
+		arc_no_grow = B_TRUE;
+		arc_grow_time = ddi_get_lbolt() + (arc_grow_retry * hz);
+		ARCSTAT_BUMP(arcstat_memory_direct_count);
+	}
+
 	mutex_exit(&arc_reclaim_thr_lock);
 
-	return (arc_reclaim);
+	return (pages);
 }
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
@@ -2374,11 +2383,6 @@ arc_adapt(int bytes, arc_state_t *state)
 	}
 	ASSERT((int64_t)arc_p >= 0);
 
-	if (arc_reclaim_needed()) {
-		cv_signal(&arc_reclaim_thr_cv);
-		return;
-	}
-
 	if (arc_no_grow)
 		return;
 
@@ -2423,7 +2427,7 @@ arc_evict_needed(arc_buf_contents_t type)
 		return (1);
 #endif
 
-	if (arc_reclaim_needed())
+	if (arc_no_grow)
 		return (1);
 
 	return (arc_size > arc_c);
@@ -3556,47 +3560,19 @@ static int
 arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 {
 #ifdef _KERNEL
-	uint64_t available_memory = ptob(freemem);
-	static uint64_t page_load = 0;
-	static uint64_t last_txg = 0;
+	uint64_t available_memory;
 
+	/* Easily reclaimable memory (free + inactive + arc-evictable) */
+	available_memory = ptob(spl_kmem_availrmem()) + arc_evictable_memory();
 #if defined(__i386)
 	available_memory =
 	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
 #endif
-	if (available_memory >= zfs_write_limit_max)
-		return (0);
 
-	if (txg > last_txg) {
-		last_txg = txg;
-		page_load = 0;
-	}
-	/*
-	 * If we are in pageout, we know that memory is already tight,
-	 * the arc is already going to be evicting, so we just want to
-	 * continue to let page writes occur as quickly as possible.
-	 */
-	if (curproc == proc_pageout) {
-		if (page_load > MAX(ptob(minfree), available_memory) / 4)
-			return (ERESTART);
-		/* Note: reserve is inflated, so we deflate */
-		page_load += reserve / 8;
-		return (0);
-	} else if (page_load > 0 && arc_reclaim_needed()) {
-		/* memory is low, delay before restarting */
+	if (available_memory <= zfs_write_limit_max) {
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 		return (EAGAIN);
-	}
-	page_load = 0;
-
-	if (arc_size > arc_c_min) {
-		uint64_t evictable_memory =
-		    arc_mru->arcs_lsize[ARC_BUFC_DATA] +
-		    arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
-		    arc_mfu->arcs_lsize[ARC_BUFC_DATA] +
-		    arc_mfu->arcs_lsize[ARC_BUFC_METADATA];
-		available_memory += MIN(evictable_memory, arc_size - arc_c_min);
 	}
 
 	if (inflight_data > available_memory / 4) {
@@ -3849,7 +3825,7 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
+	(void) thread_create(NULL, 0, arc_adapt_thread, NULL, 0, &p0,
 	    TS_RUN, minclsyspri);
 
 	arc_dead = FALSE;
@@ -4773,7 +4749,7 @@ l2arc_feed_thread(void)
 		/*
 		 * Avoid contributing to memory pressure.
 		 */
-		if (arc_reclaim_needed()) {
+		if (arc_no_grow) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
