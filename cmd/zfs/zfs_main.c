@@ -2834,7 +2834,7 @@ zfs_do_list(int argc, char **argv)
 	zfs_free_sort_columns(sortcol);
 
 	if (ret == 0 && cb.cb_first && !cb.cb_scripted)
-		(void) printf(gettext("no datasets available\n"));
+		(void) fprintf(stderr, gettext("no datasets available\n"));
 
 	return (ret);
 }
@@ -5139,7 +5139,7 @@ zfs_do_holds(int argc, char **argv)
 	print_holds(scripted, cb.cb_max_namelen, cb.cb_max_taglen, nvl);
 
 	if (nvlist_empty(nvl))
-		(void) printf(gettext("no datasets available\n"));
+		(void) fprintf(stderr, gettext("no datasets available\n"));
 
 	nvlist_free(nvl);
 
