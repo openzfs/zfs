@@ -674,4 +674,5 @@ xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_acl_access_handler,
 	&zpl_xattr_acl_default_handler,
 #endif /* HAVE_POSIX_ACLS */
+	NULL
 };
