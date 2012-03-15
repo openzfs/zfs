@@ -1960,8 +1960,7 @@ zpool_do_import(int argc, char **argv)
 	 * found.
 	 */
 	if (argc == 0 && first)
-		(void) fprintf(stderr,
-		    gettext("no pools available to import\n"));
+		(void) fprintf(stderr, gettext("no pools available to import\n"));
 
 error:
 	nvlist_free(props);
