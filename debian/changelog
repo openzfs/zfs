@@ -1,3 +1,14 @@
+zfs-linux (0.6.0.54-0ubuntu1) unstable; urgency=low
+
+  [ Gregor Kopka ]
+  * Use stderr for 'no pools/datasets available' error
+
+  [ Brian Behlendorf ]
+  * Add missing NULL in zpl_xattr_handlers
+  * ZFS 0.6.0-rc7
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 16 Mar 2012 23:40:54 -0500
+
 zfs-linux (0.6.0.53-0ubuntu1) unstable; urgency=low
 
   [ Darik Horn ]
