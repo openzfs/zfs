@@ -2358,7 +2358,7 @@ zpool_do_iostat(int argc, char **argv)
 		pool_list_update(list);
 
 		if ((npools = pool_list_count(list)) == 0)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else {
 			/*
 			 * Refresh all statistics.  This is done as an
@@ -2599,7 +2599,7 @@ zpool_do_list(int argc, char **argv)
 		    list_callback, &cb);
 
 		if (argc == 0 && cb.cb_first)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (argc && cb.cb_first) {
 			/* cannot open the given pool */
 			zprop_free_list(cb.cb_proplist);
@@ -3793,7 +3793,7 @@ zpool_do_status(int argc, char **argv)
 		    status_callback, &cb);
 
 		if (argc == 0 && cb.cb_count == 0)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)
 			(void) printf(gettext("all pools are healthy\n"));
 
@@ -4219,7 +4219,7 @@ zpool_do_history(int argc, char **argv)
 	    &cbdata);
 
 	if (argc == 0 && cbdata.first == B_TRUE) {
-		(void) printf(gettext("no pools available\n"));
+		(void) fprintf(stderr, gettext("no pools available\n"));
 		return (0);
 	}
 
