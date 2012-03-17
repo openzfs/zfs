@@ -4,4 +4,4 @@
 0004-Remove-the-upstream-dracut-component.patch
 0005-Remove-userland-dist-rules.patch
 0006-Improve-the-with-spl-error-for-DKMS-systems.patch
-volatile-version.patch
+0007-Integrate-ARC-more-tightly-with-Linux.patch
