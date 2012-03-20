@@ -260,6 +260,9 @@
 /* Version number of package */
 #undef VERSION
 
+/* zfs debugging enabled */
+#undef ZFS_DEBUG
+
 /* Define the project alias string. */
 #undef ZFS_META_ALIAS
 
