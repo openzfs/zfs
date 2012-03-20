@@ -33,6 +33,17 @@
  %endif
 %endif
 
+# Set using 'rpmbuild ... --with debug-dmu-tx ...', defaults to disabled.
+%if %{defined _with_debug_dmu_tx}
+ %define kdebug_dmu_tx --enable-debug-dmu-tx
+%else
+ %if %{defined _without_debug_dmu_tx}
+  %define kdebug_dmu_tx --disable-debug-dmu-tx
+ %else
+  %define kdebug_dmu_tx --disable-debug-dmu-tx
+ %endif
+%endif
+
 # SLES:
 %if %{defined suse_version}
  %if %{undefined kver}
@@ -264,7 +275,7 @@ which use %{name}.
 %build
 %configure --with-linux=%{kdir} --with-linux-obj=%{kobj} \
            --with-spl=%{spldir} --with-spl-obj=%{splobj} \
-           --with-config=kernel %{kdebug}
+           --with-config=kernel %{kdebug} %{kdebug_dmu_tx}
 make
 
 %install

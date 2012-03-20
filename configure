@@ -787,6 +787,7 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+DEBUG_DMU_TX
 DEBUG_ZFS
 DEBUG_STACKFLAGS
 DEBUG_CFLAGS
@@ -989,6 +990,7 @@ with_udevruledir
 with_blkid
 with_selinux
 enable_debug
+enable_debug_dmu_tx
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1642,6 +1644,7 @@ Optional Features:
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --enable-debug          Enable generic debug support [default=no]
+  --enable-debug-dmu-tx   Enable dmu tx validation [default=no]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -4836,13 +4839,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4839: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4842: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4842: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4845: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4845: output\"" >&5)
+  (eval echo "\"\$as_me:4848: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6048,7 +6051,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6051 "configure"' > conftest.$ac_ext
+  echo '#line 6054 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7901,11 +7904,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7904: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7907: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7908: \$? = $ac_status" >&5
+   echo "$as_me:7911: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8240,11 +8243,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8243: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8246: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8247: \$? = $ac_status" >&5
+   echo "$as_me:8250: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8345,11 +8348,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8348: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8351: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8352: \$? = $ac_status" >&5
+   echo "$as_me:8355: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8400,11 +8403,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8403: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8406: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8407: \$? = $ac_status" >&5
+   echo "$as_me:8410: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11203,7 +11206,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11206 "configure"
+#line 11209 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11299,7 +11302,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11302 "configure"
+#line 11305 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -24012,6 +24015,38 @@ fi
 
 	{ $as_echo "$as_me:$LINENO: result: $enable_debug" >&5
 $as_echo "$enable_debug" >&6; }
+
+
+	# Check whether --enable-debug-dmu-tx was given.
+if test "${enable_debug_dmu_tx+set}" = set; then
+  enableval=$enable_debug_dmu_tx;
+else
+  enable_debug_dmu_tx=no
+fi
+
+
+	if test "x$enable_debug_dmu_tx" = xyes; then
+
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_DMU_TX"
+		DEBUG_DMU_TX="_with_debug_dmu_tx"
+
+cat >>confdefs.h <<\_ACEOF
+#define DEBUG_DMU_TX 1
+_ACEOF
+
+
+else
+
+		DEBUG_DMU_TX="_without_debug_dmu_tx"
+
+fi
+
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether dmu tx validation is enabled" >&5
+$as_echo_n "checking whether dmu tx validation is enabled... " >&6; }
+	{ $as_echo "$as_me:$LINENO: result: $enable_debug_dmu_tx" >&5
+$as_echo "$enable_debug_dmu_tx" >&6; }
 
 
 ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh"

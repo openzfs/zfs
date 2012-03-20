@@ -68,7 +68,7 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 	    offsetof(dmu_tx_hold_t, txh_node));
 	list_create(&tx->tx_callbacks, sizeof (dmu_tx_callback_t),
 	    offsetof(dmu_tx_callback_t, dcb_node));
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	refcount_create(&tx->tx_space_written);
 	refcount_create(&tx->tx_space_freed);
 #endif
@@ -141,7 +141,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	txh->txh_type = type;
 	txh->txh_arg1 = arg1;
 	txh->txh_arg2 = arg2;
@@ -798,7 +798,7 @@ dmu_tx_holds(dmu_tx_t *tx, uint64_t object)
 	return (holds);
 }
 
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 void
 dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 {
@@ -1004,7 +1004,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	/* calculate memory footprint estimate */
 	memory = towrite + tooverwrite + tohold;
 
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	/*
 	 * Add in 'tohold' to account for our dirty holds on this memory
 	 * XXX - the "fudge" factor is to account for skipped blocks that
@@ -1130,7 +1130,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 void
 dmu_tx_willuse_space(dmu_tx_t *tx, int64_t delta)
 {
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	if (tx->tx_dir == NULL || delta == 0)
 		return;
 
@@ -1180,7 +1180,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 
 	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	dprintf("towrite=%llu written=%llu tofree=%llu freed=%llu\n",
 	    tx->tx_space_towrite, refcount_count(&tx->tx_space_written),
 	    tx->tx_space_tofree, refcount_count(&tx->tx_space_freed));
@@ -1216,7 +1216,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 
 	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	refcount_destroy_many(&tx->tx_space_written,
 	    refcount_count(&tx->tx_space_written));
 	refcount_destroy_many(&tx->tx_space_freed,

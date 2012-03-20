@@ -69,6 +69,7 @@ rpm-common:
 		--define "require_splobj $(SPL_OBJ)" \
 		--define "require_splver $(SPL_VERSION)" \
 		--define "$(DEBUG_ZFS) 1" \
+		--define "$(DEBUG_DMU_TX) 1" \
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild
