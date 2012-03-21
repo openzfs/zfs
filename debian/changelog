@@ -1,3 +1,11 @@
+zfs-linux (0.6.0.54-1ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Revert "Add zio constructor/destructor"
+  * Add zio constructor/destructor
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 21 Mar 2012 17:42:33 -0500
+
 zfs-linux (0.6.0.54-0ubuntu1) unstable; urgency=low
 
   [ Gregor Kopka ]
