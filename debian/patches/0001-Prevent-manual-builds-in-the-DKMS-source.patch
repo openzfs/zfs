@@ -1,7 +1,7 @@
-From d93e090fd9490eed0563f0bfaef8be5a5b5cf90d Mon Sep 17 00:00:00 2001
+From e226a12f50759eb7269a3957581ed61fcf9e9cc4 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 19:45:07 -0600
-Subject: [PATCH 1/7] Prevent manual builds in the DKMS source.
+Subject: [PATCH 1/8] Prevent manual builds in the DKMS source.
 
 Print an instructive error messsage and exit if the `dkms.conf` file
 exists when the userland is configured. (ie: `--with-config=user`)
@@ -53,7 +53,7 @@ index 4fcef3d..16b8a76 100644
  	ZFS_AC_CONFIG_USER_ARCH
  	ZFS_AC_CONFIG_USER_IOCTL
 diff --git a/config/zfs-build.m4 b/config/zfs-build.m4
-index 823f332..32fc6ab 100644
+index c5983d3..be1edfa 100644
 --- a/config/zfs-build.m4
 +++ b/config/zfs-build.m4
 @@ -58,10 +58,10 @@ AC_DEFUN([ZFS_AC_CONFIG], [

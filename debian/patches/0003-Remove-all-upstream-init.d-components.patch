@@ -1,7 +1,7 @@
-From 1cd781902bbf986a16b1fbcf82c50de6fda4a7c0 Mon Sep 17 00:00:00 2001
+From 049b1b4d3fdc31008aa8f40fb21049b7b16f984a Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 11:54:21 -0600
-Subject: [PATCH 3/7] Remove all upstream init.d components.
+Subject: [PATCH 3/8] Remove all upstream init.d components.
 
 The etc/init.d/ components are redundant because the debian/ overlay
 bundles init files according to Debian packaging policy.

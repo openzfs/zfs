@@ -5,3 +5,5 @@
 0005-Remove-userland-dist-rules.patch
 0006-Improve-the-with-spl-error-for-DKMS-systems.patch
 0007-Integrate-ARC-more-tightly-with-Linux.patch
+0008-Add-.zfs-control-directory.patch
+volatile-version.patch

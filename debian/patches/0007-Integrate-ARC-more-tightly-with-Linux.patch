@@ -1,7 +1,7 @@
-From 6bce26a67ad5ea4e26bb8aaa69357ffd6806db48 Mon Sep 17 00:00:00 2001
+From 3fae6446c3a99e380199e54515b3969f3a864b5e Mon Sep 17 00:00:00 2001
 From: Brian Behlendorf <behlendorf1@llnl.gov>
 Date: Tue, 13 Mar 2012 14:29:16 -0700
-Subject: [PATCH 7/7] Integrate ARC more tightly with Linux
+Subject: [PATCH 7/8] Integrate ARC more tightly with Linux
 
 Under Solaris the ARC was designed to stay one step ahead of the
 VM subsystem.  It would attempt to recognize low memory situtions

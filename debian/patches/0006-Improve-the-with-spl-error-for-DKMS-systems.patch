@@ -1,7 +1,7 @@
-From d50295867c2d105b0db793660afa51e09ac6f520 Mon Sep 17 00:00:00 2001
+From 1ee1fa02519991f3a98fd7ec548b395d12a9d16d Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Fri, 3 Feb 2012 14:49:49 -0600
-Subject: [PATCH 6/7] Improve the --with-spl error for DKMS systems.
+Subject: [PATCH 6/8] Improve the --with-spl error for DKMS systems.
 
 If the SPL module is unavailable, then the operator gets an error
 message that does not apply to installations that are mananged by
