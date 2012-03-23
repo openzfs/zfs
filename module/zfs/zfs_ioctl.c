@@ -4999,9 +4999,9 @@ _init(void)
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
-	printk(KERN_NOTICE "ZFS: Loaded module v%s%s, "
+	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR,
+	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
 
 	return (0);
@@ -5011,8 +5011,9 @@ out2:
 out1:
 	zfs_fini();
 	spa_fini();
-	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s%s"
-	       ", rc = %d\n", ZFS_META_VERSION, ZFS_DEBUG_STR, error);
+	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s-%s%s"
+	       ", rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
+	       ZFS_DEBUG_STR, error);
 
 	return (error);
 }
@@ -5028,8 +5029,8 @@ _fini(void)
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 
-	printk(KERN_NOTICE "ZFS: Unloaded module v%s%s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR);
+	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",
+	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 
 	return (0);
 }
