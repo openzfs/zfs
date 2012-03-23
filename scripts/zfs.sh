@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # A simple script to simply the loading/unloading the ZFS module stack.
 

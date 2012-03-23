@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # /proc/diskinfo <after skipping major/minor>
 # Field 1 -- device name

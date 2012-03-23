@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # 1 scsi_debug devices on top of which is layered no raid.
 #

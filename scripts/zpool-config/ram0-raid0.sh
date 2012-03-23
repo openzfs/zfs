@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Single ram disk /dev/ram0 Raid-0 Configuration
 #

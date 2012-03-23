@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Single disk /dev/hda Raid-0 Configuration
 #

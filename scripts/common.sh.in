@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Common support functions for testing scripts.  If a script-config
 # files is available it will be sourced so in-tree kernel modules and
