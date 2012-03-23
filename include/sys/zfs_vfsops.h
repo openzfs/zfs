@@ -71,6 +71,8 @@ typedef struct zfs_sb {
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
+	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */
+	kmutex_t	z_ctldir_lock;	/* .zfs ctldir lock */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_vscan;	/* virus scan on/off */
@@ -92,24 +94,6 @@ typedef struct zfs_sb {
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
 
 #define	ZSB_XATTR	0x0001		/* Enable user xattrs */
-
-
-/*
- * Minimal snapshot helpers, the bulk of the Linux snapshot implementation
- * lives in the zpl_snap.c file which is part of the zpl source.
- */
-#define	ZFS_CTLDIR_NAME		".zfs"
-
-#define	zfs_has_ctldir(zdp)	\
-	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
-	(ZTOZSB(zdp)->z_ctldir != NULL))
-#define	zfs_show_ctldir(zdp)	\
-	(zfs_has_ctldir(zdp) &&	\
-	(ZTOZSB(zdp)->z_show_ctldir))
-
-#define	ZFSCTL_INO_ROOT		0x1
-#define	ZFSCTL_INO_SNAPDIR	0x2
-#define	ZFSCTL_INO_SHARES	0x3
 
 /*
  * Allow a maximum number of links.  While ZFS does not internally limit
@@ -195,6 +179,7 @@ extern boolean_t zfs_is_readonly(zfs_sb_t *zsb);
 extern int zfs_register_callbacks(zfs_sb_t *zsb);
 extern void zfs_unregister_callbacks(zfs_sb_t *zsb);
 extern int zfs_domount(struct super_block *sb, void *data, int silent);
+extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
 extern int zfs_remount(struct super_block *sb, int *flags, char *data);
 extern int zfs_root(zfs_sb_t *zsb, struct inode **ipp);

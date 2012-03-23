@@ -58,6 +58,7 @@
 #include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
@@ -2690,33 +2691,6 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 	return (error);
 }
 
-#ifdef HAVE_SNAPSHOT
-/*
- * Search the vfs list for a specified resource.  Returns a pointer to it
- * or NULL if no suitable entry is found. The caller of this routine
- * is responsible for releasing the returned vfs pointer.
- */
-static vfs_t *
-zfs_get_vfs(const char *resource)
-{
-	struct vfs *vfsp;
-	struct vfs *vfs_found = NULL;
-
-	vfs_list_read_lock();
-	vfsp = rootvfs;
-	do {
-		if (strcmp(refstr_value(vfsp->vfs_resource), resource) == 0) {
-			mntget(vfsp);
-			vfs_found = vfsp;
-			break;
-		}
-		vfsp = vfsp->vfs_next;
-	} while (vfsp != rootvfs);
-	vfs_list_unlock();
-	return (vfs_found);
-}
-#endif /* HAVE_SNAPSHOT */
-
 /* ARGSUSED */
 static void
 zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
@@ -3067,38 +3041,52 @@ out:
 	return (error);
 }
 
+/*
+ * inputs:
+ * name		dataset name, or when 'arg == NULL' the full snapshot name
+ * arg		short snapshot name (i.e. part after the '@')
+ */
 int
 zfs_unmount_snap(const char *name, void *arg)
 {
-#ifdef HAVE_SNAPSHOT
-	vfs_t *vfsp = NULL;
+	zfs_sb_t *zsb = NULL;
+	char *dsname;
+	char *snapname;
+	char *fullname;
+	char *ptr;
+	int error;
 
 	if (arg) {
-		char *snapname = arg;
-		char *fullname = kmem_asprintf("%s@%s", name, snapname);
-		vfsp = zfs_get_vfs(fullname);
-		strfree(fullname);
-	} else if (strchr(name, '@')) {
-		vfsp = zfs_get_vfs(name);
-	}
-
-	if (vfsp) {
-		/*
-		 * Always force the unmount for snapshots.
-		 */
-		int flag = MS_FORCE;
-		int err;
-
-		if ((err = vn_vfswlock(vfsp->vfs_vnodecovered)) != 0) {
-			mntput(vfsp);
-			return (err);
+		dsname = strdup(name);
+		snapname = strdup(arg);
+	} else {
+		ptr = strchr(name, '@');
+		if (ptr) {
+			dsname = strdup(name);
+			dsname[ptr - name] = '\0';
+			snapname = strdup(ptr + 1);
+		} else {
+			return (0);
 		}
-		mntput(vfsp);
-		if ((err = dounmount(vfsp, flag, kcred)) != 0)
-			return (err);
 	}
-#endif /* HAVE_SNAPSHOT */
-	return (0);
+
+	fullname = kmem_asprintf("%s@%s", dsname, snapname);
+
+	error = zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE);
+	if (error == 0) {
+		error = zfsctl_unmount_snapshot(zsb, fullname, MNT_FORCE);
+		zfs_sb_rele(zsb, FTAG);
+
+		/* Allow ENOENT for consistency with upstream */
+		if (error == ENOENT)
+			error = 0;
+	}
+
+	strfree(dsname);
+	strfree(snapname);
+	strfree(fullname);
+
+	return (error);
 }
 
 /*

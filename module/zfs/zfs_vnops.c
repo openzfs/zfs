@@ -63,6 +63,7 @@
 #include <sys/sid.h>
 #include <sys/mode.h>
 #include "fs/fs_subr.h"
+#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>
@@ -2045,7 +2046,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 			dmu_prefetch(os, objnum, 0, 0);
 		}
 
-		if (*pos >= 2) {
+		if (*pos > 2 || (*pos == 2 && !zfs_show_ctldir(zp))) {
 			zap_cursor_advance(&zc);
 			*pos = zap_cursor_serialize(&zc);
 		} else {
@@ -3876,9 +3877,10 @@ zfs_inactive(struct inode *ip)
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int error;
 
-#ifdef HAVE_SNAPSHOT
-	/* Early return for snapshot inode? */
-#endif /* HAVE_SNAPSHOT */
+	if (zfsctl_is_node(ip)) {
+		zfsctl_inode_inactive(ip);
+		return;
+	}
 
 	rw_enter(&zsb->z_teardown_inactive_lock, RW_READER);
 	if (zp->z_sa_hdl == NULL) {

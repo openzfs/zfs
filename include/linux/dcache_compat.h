@@ -29,5 +29,6 @@
 #include <linux/dcache.h>
 
 #define dname(dentry)	((char *)((dentry)->d_name.name))
+#define dlen(dentry)	((int)((dentry)->d_name.len))
 
 #endif /* _ZFS_DCACHE_H */
