@@ -97,6 +97,7 @@ libzpool_la_LDFLAGS = -pthread -version-info 1:1:0
 EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/vdev_disk.c \
 	$(top_srcdir)/module/zfs/zfs_acl.c \
+	$(top_srcdir)/module/zfs/zfs_ctldir.c \
 	$(top_srcdir)/module/zfs/zfs_dir.c \
 	$(top_srcdir)/module/zfs/zfs_ioctl.c \
 	$(top_srcdir)/module/zfs/zfs_log.c \
@@ -105,6 +106,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/module/zfs/zfs_rlock.c \
 	$(top_srcdir)/module/zfs/zfs_vfsops.c \
 	$(top_srcdir)/module/zfs/zfs_vnops.c \
+	$(top_srcdir)/module/zfs/zpl_ctldir.c \
 	$(top_srcdir)/module/zfs/zpl_export.c \
 	$(top_srcdir)/module/zfs/zpl_file.c \
 	$(top_srcdir)/module/zfs/zpl_inode.c \

@@ -1,5 +1,8 @@
 /* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 to enabled dmu tx validation */
+#undef DEBUG_DMU_TX
+
 /* invalidate_bdev() wants 1 arg */
 #undef HAVE_1ARG_INVALIDATE_BDEV
 
@@ -8,6 +11,9 @@
 
 /* security_inode_init_security wants 6 args */
 #undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
+
+/* dops->automount() exists */
+#undef HAVE_AUTOMOUNT
 
 /* struct block_device_operations use bdevs */
 #undef HAVE_BDEV_BLOCK_DEVICE_OPERATIONS
