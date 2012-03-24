@@ -1,7 +1,7 @@
-From 1ee1fa02519991f3a98fd7ec548b395d12a9d16d Mon Sep 17 00:00:00 2001
+From 1716c733294840d4099a130786f77b5e965589e6 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Fri, 3 Feb 2012 14:49:49 -0600
-Subject: [PATCH 6/8] Improve the --with-spl error for DKMS systems.
+Subject: [PATCH 6/7] Improve the --with-spl error for DKMS systems.
 
 If the SPL module is unavailable, then the operator gets an error
 message that does not apply to installations that are mananged by
@@ -14,10 +14,10 @@ or to bundle SPL into the ZFS package.
  1 files changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/config/kernel.m4 b/config/kernel.m4
-index 0adcead..bf43a75 100644
+index a6d544b..2cb2e8c 100644
 --- a/config/kernel.m4
 +++ b/config/kernel.m4
-@@ -256,9 +256,10 @@ AC_DEFUN([ZFS_AC_SPL], [
+@@ -257,9 +257,10 @@ AC_DEFUN([ZFS_AC_SPL], [
  		], [
  			AC_MSG_RESULT([Not found])
  			AC_MSG_ERROR([
