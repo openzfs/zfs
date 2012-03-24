@@ -1,3 +1,19 @@
+zfs-linux (0.6.0.55-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add .zfs control directory
+  * Account for .zfs ctldir inodes
+  * Add ZFS_META_RELEASE to module load/unload messages
+  * Enhance a dmu_tx_dirty_buf() assertion
+  * Add --enable-debug-dmu-tx configure option
+
+  [ Darik Horn ]
+  * Add 0007-Integrate-ARC-more-tightly-with-Linux.patch
+  * Add: Add-.zfs-control-directory.patch
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 23 Mar 2012 20:37:43 -0500
+
 zfs-linux (0.6.0.54-1ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
