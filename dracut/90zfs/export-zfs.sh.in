@@ -1,0 +1,29 @@
+#!/bin/sh
+
+_do_zfs_shutdown() {
+
+    info "Unmounting all ZFS file systems"
+    zfs unmount -a -f
+
+    info "Unmounting /sysroot if it's mounted"
+    umount -l /sysroot
+
+    info "Discovering active ZFS pools"
+    local pools=`zpool list -H -o name`
+    OLDIFS="$IFS"
+    IFS="
+"
+    for pool in `echo "$pools"` ; do
+        info "Exporting ZFS pool $pool"
+        zpool export "$pool"
+    done
+    IFS="$OLDIFS"
+    unset OLDIFS
+
+    local name=`basename "$0"`
+    info "ZFS shutdown complete at stage $name"
+    unset name
+
+}
+
+_do_zfs_shutdown $1
