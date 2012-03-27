@@ -84,6 +84,8 @@ static int zpool_do_events(int, char **);
 static int zpool_do_get(int, char **);
 static int zpool_do_set(int, char **);
 
+static int tty_columns = 80;
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -2191,13 +2193,14 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 	}
 
 	/*
-	 * The width must fall into the range [10,38].  The upper limit is the
-	 * maximum we can have and still fit in 80 columns.
+	 * The width must be at least 10, but <= tty_columns - 42
+	 * so that we can still fit in one line.
 	 */
+
 	if (cb->cb_namewidth < 10)
 		cb->cb_namewidth = 10;
-	if (cb->cb_namewidth > 38)
-		cb->cb_namewidth = 38;
+	if (cb->cb_namewidth > tty_columns - 42)
+		cb->cb_namewidth = tty_columns -42;
 
 	return (0);
 }
@@ -4713,11 +4716,21 @@ main(int argc, char **argv)
 	int ret;
 	int i = 0;
 	char *cmdname;
+	char* env_columns;
 
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
 
 	opterr = 0;
+
+	env_columns = getenv("COLUMNS");
+
+	if (env_columns != NULL) {
+		tty_columns = atoi(env_columns);
+	} else {
+	  if (!isatty(fileno(stdout)))
+	  	tty_columns = 999;
+	}
 
 	/*
 	 * Make sure the user has specified some command.
