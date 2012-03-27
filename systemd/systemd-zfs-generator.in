@@ -12,9 +12,12 @@ echo "$scriptname: ZFS support available"
 
 if [ -f @sysconfdir@/zfs/zpool.cache ] ; then
 	echo "$scriptname: importing all pools that were imported before last reboot"
-	output=`@sbindir@/zpool import -aN -c @sysconfdir@/zfs/zpool.cache 2>&1`
-	if [ -z "$output" ] ; then output=successful ; fi
-	echo -E "$scriptname: $output"
+        pools=`@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache | grep '^  pool:' | sed 's/^  pool: //'`
+        if [ -n "$pools" ] ; then
+          for pool in "$pools" ; do
+            @sbindir@/zpool import -N "$pool" || true
+          done
+        fi
 fi
 
 gendir="$1"
