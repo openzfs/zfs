@@ -1,3 +1,14 @@
+zfs-linux (0.6.0.56-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix executable permissions
+  * ZFS 0.6.0-rc8
+
+  [ Darik Horn ]
+  * Disable 0007-Integrate-ARC-more-tightly-with-Linux.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 26 Mar 2012 21:19:40 -0500
+
 zfs-linux (0.6.0.55-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]
