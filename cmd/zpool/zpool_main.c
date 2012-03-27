@@ -2175,11 +2175,30 @@ print_iostat(zpool_handle_t *zhp, void *data)
 	return (0);
 }
 
+static int
+get_columns(void)
+{
+	struct winsize ws;
+	int columns = 80;
+	int error;
+
+	if (isatty(STDOUT_FILENO)) {
+		error = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+		if (error == 0)
+			columns = ws.ws_col;
+	} else {
+		columns = 999;
+	}
+
+	return columns;
+}
+
 int
 get_namewidth(zpool_handle_t *zhp, void *data)
 {
 	iostat_cbdata_t *cb = data;
 	nvlist_t *config, *nvroot;
+	int columns;
 
 	if ((config = zpool_get_config(zhp, NULL)) != NULL) {
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
@@ -2191,13 +2210,15 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 	}
 
 	/*
-	 * The width must fall into the range [10,38].  The upper limit is the
-	 * maximum we can have and still fit in 80 columns.
+	 * The width must be at least 10, but may be as large as the
+	 * column width - 42 so that we can still fit in one line.
 	 */
+	columns = get_columns();
+
 	if (cb->cb_namewidth < 10)
 		cb->cb_namewidth = 10;
-	if (cb->cb_namewidth > 38)
-		cb->cb_namewidth = 38;
+	if (cb->cb_namewidth > columns - 42)
+		cb->cb_namewidth = columns - 42;
 
 	return (0);
 }
