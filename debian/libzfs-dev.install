@@ -1,0 +1,4 @@
+lib/*.a
+lib/*.la
+lib/*.so
+usr/include

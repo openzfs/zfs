@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+### BEGIN INIT INFO
+# Provides: sharenfs sharesmb
+# Required-Start: $local_fs $network
+# Required-Stop: $local_fs $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Should-Start: nfs-kernel-server samba
+# Should-Stop: nfs-kernel-server samba
+# Short-Description: Network share ZFS filesystems.
+# Description: Run the `zfs share -a` or `zfs unmount -a` commands
+#              for controlling NFS or CIFS network shares.
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+. /lib/lsb/init-functions
+. /lib/init/vars.sh
+
+[ -f /etc/default/zfs ] && . /etc/default/zfs
+
+do_start()
+{
+	log_begin_msg "Sharing ZFS filesystems"
+	log_progress_msg "filesystems"
+	zfs share -a
+	RET=$?
+
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+		exit $RET
+	fi
+
+	log_end_msg 0
+}
+
+do_stop()
+{
+	log_begin_msg "Unsharing ZFS filesystems"
+	log_progress_msg "filesystems"
+	zfs unshare -a
+	RET=$?
+
+	# Ignore a non-zero `zfs` result so that a busy ZFS instance
+	# does not hang the system during shutdown.
+	if [ $RET != 0 ] ; then
+		log_end_msg $RET
+	fi
+
+	log_end_msg 0
+}
+
+case "$1" in
+	(start)
+		case "$ZFS_SHARE" in
+			([Oo][Ff][Ff]|[Nn][Oo]|'')
+				exit 0
+				;;
+		esac
+		do_start
+		;;
+	(stop)
+		case "$ZFS_UNSHARE" in
+			([Oo][Ff][Ff]|[Nn][Oo]|'')
+				exit 0
+				;;
+		esac
+		do_stop
+		;;
+	(force-reload|reload|restart|status)
+		# no-op
+		;;
+
+	(*)
+		[ -n "$1" ] && echo "Error: Unknown command $1."
+		echo "Usage: $0 {start|stop}"
+		exit 3
+	;;
+esac

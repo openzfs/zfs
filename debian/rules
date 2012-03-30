@@ -1,0 +1,79 @@
+#!/usr/bin/make -f
+
+NAME := $(shell awk '/^Name:/{print $$2}' META)
+VERSION := $(shell awk '/^Version:/{print $$2}' META)
+LSB_DISTRIBUTOR := $(shell lsb_release -is)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	./autogen.sh
+
+	@# Build the userland, but don't build the kernel modules.
+	./configure \
+	  --prefix='' \
+	  --libexecdir=/usr/libexec \
+	  --libdir=/lib \
+	  --includedir=/usr/include \
+	  --datarootdir=/usr/share \
+	  --with-config=user
+
+override_dh_auto_test:
+	# The dh_auto_test rule is disabled because
+	# `make check` cannot run in an unprivileged build environment.
+
+override_dh_auto_install:
+	@# Install the utilities.
+	make install DESTDIR='$(CURDIR)/debian/tmp'
+
+	@# Get a bare copy of the source code for DKMS.
+	@# This creates the $(CURDIR)/$(NAME)-$(VERSION)/ tree, which does not
+	@# contain the userland sources. NB: Remove-userland-dist-rules.patch
+	make distdir
+
+	@# This shunt allows DKMS to install the Module.symvers and zfs_config.h
+	@# files to the ${dkms_tree} area through the POST_INSTALL directive.
+	echo '#!/bin/sh'  >'$(CURDIR)/$(NAME)-$(VERSION)/cp'
+	echo 'cp "$$@"'  >>'$(CURDIR)/$(NAME)-$(VERSION)/cp'
+	chmod 755 '$(CURDIR)/$(NAME)-$(VERSION)/cp'
+
+	@# Install the DKMS source.
+	mkdir -p '$(CURDIR)/debian/tmp/usr/src/'
+	mv '$(CURDIR)/$(NAME)-$(VERSION)' '$(CURDIR)/debian/tmp/usr/src/'
+
+	@# Process templates and install the dkms.conf file.
+	dh_dkms -V $(VERSION)
+
+	@# Install the /etc/default/zfs options file.
+	dh_installinit --name=zfs
+
+	@# Install the /etc/init.d/zfs-mount script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs local mounts at sysv sequences [10..12] [08..09].
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start -- defaults 13 07
+else
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start
+endif
+
+	@# Install the /etc/init.d/zfs-share script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs nfs-kernel-server at sysv sequence 17 01.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 18 00
+else ifeq ($(LSB_DISTRIBUTOR),Ubuntu)
+	@# Ubuntu runs nfs-kernel-server at sysv sequence 20 80.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 21 79
+else
+		dh_installinit --name=zfs-share \
+		  --no-restart-on-upgrade --no-start
+endif
+
+override_dh_shlibdeps:
+	@# Suppress libtool dependency_libs warnings that are caused by
+	@# inter-library dependencies.  (eg: zfs -> libzfs -> libuuid)
+	@# @TODO: Add pkgconfig support instead.
+	dh_shlibdeps -- --warnings=0

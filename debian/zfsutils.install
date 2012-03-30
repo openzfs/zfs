@@ -1,0 +1,5 @@
+../tree/zfsutils/* /
+etc/zfs/zdev.conf
+sbin
+lib/udev
+usr/share/man

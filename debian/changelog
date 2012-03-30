@@ -1,0 +1,1188 @@
+zfs-linux (0.6.0.57-0ubuntu1) unstable; urgency=low
+
+  [ Craig Sanders ]
+  * Remove hard-coded 80 column output
+
+  [ Brian Behlendorf ]
+  * Properly expose the mfu ghost list kstats
+
+  [ Darik Horn ]
+  * Invoke notify-reboot-required for upgrades.
+  * Add libgcc_s.so.1 to the zfs-initramfs manifest.
+  * Add missing #DEBHELPER# macro to zfsutils.
+  * Refresh debian/patches after upstream merge.
+  * Enable 0007-Integrate-ARC-more-tightly-with-Linux.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 30 Mar 2012 00:38:33 -0500
+
+zfs-linux (0.6.0.56-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix executable permissions
+  * ZFS 0.6.0-rc8
+
+  [ Darik Horn ]
+  * Disable 0007-Integrate-ARC-more-tightly-with-Linux.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 26 Mar 2012 21:19:40 -0500
+
+zfs-linux (0.6.0.55-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add .zfs control directory
+  * Account for .zfs ctldir inodes
+  * Add ZFS_META_RELEASE to module load/unload messages
+  * Enhance a dmu_tx_dirty_buf() assertion
+  * Add --enable-debug-dmu-tx configure option
+
+  [ Darik Horn ]
+  * Add 0007-Integrate-ARC-more-tightly-with-Linux.patch
+  * Add: Add-.zfs-control-directory.patch
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 23 Mar 2012 20:37:43 -0500
+
+zfs-linux (0.6.0.54-1ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Revert "Add zio constructor/destructor"
+  * Add zio constructor/destructor
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 21 Mar 2012 17:42:33 -0500
+
+zfs-linux (0.6.0.54-0ubuntu1) unstable; urgency=low
+
+  [ Gregor Kopka ]
+  * Use stderr for 'no pools/datasets available' error
+
+  [ Brian Behlendorf ]
+  * Add missing NULL in zpl_xattr_handlers
+  * ZFS 0.6.0-rc7
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 16 Mar 2012 23:40:54 -0500
+
+zfs-linux (0.6.0.53-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Add machine readable debian/copyright file.
+  * Split /etc/init.d/zfs into zfs-mount and zfs-share
+  * Remove the /etc/default/zfsload configuration file
+  * Use consistent branding in package descriptions.
+  * Remove the DISCLAIMER file from the docs list.
+
+  [ Brian Behlendorf ]
+  * Use SA_HDL_PRIVATE for SA xattrs
+  * Add zio constructor/destructor
+  * Add sa_spill_rele() interface
+
+  [ Ned Bass ]
+  * Align parition end on 1 MiB boundary
+
+  [ Richard Yao ]
+  * Fix distribution detection
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 09 Mar 2012 20:53:01 -0600
+
+zfs-linux (0.6.0.52-0ubuntu1) unstable; urgency=low
+
+  [ Turbo Fredriksson ]
+  * Add 'fsid' mount option to allowed options.
+
+  [ Richard Yao ]
+  * Support ashift=13 for 8KB SSD block sizes
+
+  [ Alex Zhuravlev ]
+  * Export symbols for zero-copy
+
+  [ Ned Bass ]
+  * Return success from check_slice() if device doesn't exist
+
+  [ Brian Behlendorf ]
+  * Add arc_state_t stats to arcstats
+  * Add 'dmu_tx' kstats entry
+  * Cleanly support debug packages
+
+  [ Darik Horn ]
+  * Change POST_INSTALL to POST_BUILD in dkms.conf
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 27 Feb 2012 19:35:20 -0600
+
+zfs-linux (0.6.0.51-0ubuntu1) unstable; urgency=low
+
+  [ Etienne Dechamps ]
+  * Use 32 as the default number of zvol threads.
+  * Implement the truncate_range() inode operation.
+  * Check permissions in zfs_space().
+  * Support the fallocate() file operation.
+  * Add support for DISCARD to ZVOLs.
+
+  [ Brian Behlendorf ]
+  * Use spl_debug_* helpers
+  * Export symbols for zero-copy
+  * Fix zconfig.sh non-optimal alignment
+
+  [ Darik Horn ]
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 12 Feb 2012 19:28:19 -0600
+
+zfs-linux (0.6.0.50-0ubuntu1) unstable; urgency=low
+
+  [ Etienne Dechamps ]
+  * Support "sync=always" for ZVOLs.
+  * Fix synchronicity for ZVOLs.
+  * Improve ZVOL queue behavior.
+
+  [ Darik Horn ]
+  * Let libnvpair be linked independently of libzfs. (Closes: #560)
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 08 Feb 2012 17:56:45 -0600
+
+zfs-linux (0.6.0.49-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Export symbol zfs_attr_table
+  * Allow multiple values per directory entry
+  * Cleanup ZFS debug infrastructure
+  * Linux 3.3 compat, sops->show_options()
+
+  [ Darik Horn ]
+  * Revert lib/libspl/asm-generic/atomic.S deletion.
+  * Revert "Manually sync scripts/ with the upstream release."
+  * Refresh patches after upstream merge.
+  * Add patch: Improve the --with-spl error
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 03 Feb 2012 15:41:22 -0600
+
+zfs-linux (0.6.0.48-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Ignore dataset if the dds_type is DMU_OST_OTHER
+
+  [ Darik Horn ]
+  * Disable dh_autotools-dev_updateconfig.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 19 Jan 2012 20:24:51 -0600
+
+zfs-linux (0.6.0.47-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add the release component to headers
+  * Fix rpm dependencies
+
+  [ Darik Horn ]
+  * Combine libraries: spl, avl, efi, share, unicode. (Closes: #430)
+  * Allow GPT+EFI vdev replacement in boot pools.
+  * Add libtool to Build-Depends.
+  * Refresh debian/patches after upstream merge.
+  * Remove distdir stubbing for DKMS module sources.
+  * Delete packaging for recomposed libraries.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 18 Jan 2012 20:40:27 -0600
+
+zfs-linux (0.6.0.46-0ubuntu1) unstable; urgency=low
+
+  [ Ned Bass ]
+  * Reduce number of zio free threads
+
+  [ Darik Horn ]
+  * Run autogen for packaged builds.
+  * Move debian/patches into a separate branch.
+  * Disable zfs-dracut packaging.
+
+  [ Richard Laager ]
+  * Allow setting bootfs on any pool
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 18 Jan 2012 14:01:23 -0600
+
+zfs-linux (0.6.0.45-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Run ZFS_AC_PACMAN only if $VENDOR is "arch"
+
+  [ Brian Behlendorf ]
+  * Increase link count limit to 2^31-1
+
+  [ Darik Horn ]
+  * Wrap long lines in the dkms.conf file.
+  * FHS conformance and DKMS multiarch, ZFS interface.
+  * Add Allow-setting-bootfs-on-any-pool.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 15 Jan 2012 18:43:23 -0600
+
+zfs-linux (0.6.0.44-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Remove the mountall dependency from zfs-initramfs.
+  * Add /sbin/blkid to the initramfs manifest.
+  * Avoid using awk in the zpool_id script. (Closes: #259)
+  * Apply the ZoL coding standard to zpl_xattr.c
+  * Revert "Add security_inode_init_security.patch"
+  * Refresh debian/patches after upstream merge.
+
+  [ Brian Behlendorf ]
+  * Linux 3.1 compat, super_block->s_shrink
+  * Linux 3.2 compat, security_inode_init_security()
+
+  [ Richard Laager ]
+  * Treat /dev/vd* as whole disks
+
+  [ Suman Chakravartula ]
+  * Add overlay(-O) mount option support
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 12 Jan 2012 19:35:47 -0600
+
+zfs-linux (0.6.0.43-0ubuntu1) unstable; urgency=low
+
+  [ Seth Heeren ]
+  * added contrib/zfs_completion.bash
+
+  [ Darik Horn ]
+  * Wrap long lines in the debian/control file.
+  * Add libselinux1-dev to build-depends.
+  * Add bash command completion to zfsutils.
+  * Add security_inode_init_security.patch
+  * Add precise to the PPA build list.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 07 Jan 2012 11:05:03 -0600
+
+zfs-linux (0.6.0.42-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Add make rule for building Arch Linux packages
+  * Move Arch Linux's VENDOR check above Ubuntu's
+
+  [ Darik Horn ]
+  * Update the character class in the zpool man page. (Closes: #438)
+  * Linux 3.2 compat: set_nlink() (Closes: #462)
+  * Add LIBSELINUX to mount_zfs_LDFLAGS.
+  * Refresh debian/patches after upstream merge.
+  * PPA 0.6.0.42-0ubuntu1 release.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 23 Dec 2011 09:09:59 -0600
+
+zfs-linux (0.6.0.41-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Set zvol_major/zvol_threads permissions
+
+  [ Garrett D'Amore ]
+  * Illumos #734: Use taskq_dispatch_ent() interface
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 15 Dec 2011 10:11:54 -0600
+
+zfs-linux (0.6.0.40-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * In autoconf v2.68, AC_LANG_PROGRAM must be quoted
+  * Fix configure tests to play nice with GCC 4.6
+
+  [ Brian Behlendorf ]
+  * Implement SA based xattrs
+  * Allow xattrs on symlinks
+  * Update default ARC memory limits
+
+  [ Gunnar Beutner ]
+  * Added comments for libshare's NFS functions.
+
+  [ Darik Horn ]
+  * Support path_id changes in udev 174.
+  * Quote variables in the zpool_id script.
+  * Demote egrep to grep in the zpool_id script.
+  * Demote the whackbang in the zpool_id script.
+  * Source /etc/default/zfs after setting defaults.
+  * Quote variables in the zfs.lsb script.
+  * Revert "Depend on udev that provides stand-alone path_id."
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 05 Dec 2011 20:13:57 -0600
+
+zfs-linux (0.6.0.39-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Limit maximum ashift value to 12
+
+  [ Suman Chakravartula ]
+  * Allow leading digits in userquota/groupquota names
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Nov 2011 08:35:47 -0600
+
+zfs-linux (0.6.0.38-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Disown dataset in zfs_sb_create()
+  * Simplify BDI integration
+  * Suppress packaging warning
+  * Linux 3.1 compat, fops->fsync()
+  * Fix depmod warning
+
+  [ Darik Horn ]
+  * Refresh debian/patches after upstream merge.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 11 Nov 2011 09:05:40 -0600
+
+zfs-linux (0.6.0.37-0ubuntu1) unstable; urgency=low
+
+  [ Gunnar Beutner ]
+  * Fix a race condition in zfs_getattr_fast()
+
+  [ Brian Behlendorf ]
+  * Fix NULL deref in balance_pgdat()
+  * Improve meta data performance
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 05 Nov 2011 10:27:54 -0500
+
+zfs-linux (0.6.0.36-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Include distribution in release
+
+  [ Darik Horn ]
+  * Change sun.com URLs to zfsonlinux.org
+  * Depend on udev that provides stand-alone path_id.
+
+  [ Xin Li ]
+  * Illumos #1661: Fix flaw in sa_find_sizes() calculation
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 28 Oct 2011 19:38:49 -0500
+
+zfs-linux (0.6.0.35-0ubuntu2) unstable; urgency=low
+
+  [ Ned Bass ]
+  * Use @ZFS_META LICENSE@ in spec.in files
+
+  [ Alexander Stetsenko ]
+  * Illumos #755: dmu_recv_stream builds incomplete guid_to_ds_map
+
+  [ Brian Behlendorf ]
+  * Set mtime on symbolic links
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 19 Oct 2011 15:26:00 -0500
+
+zfs-linux (0.6.0.34-0ubuntu1) unstable; urgency=low
+
+  [ Oleg Stepura ]
+  * Fix 'unexpected operator' bashism
+
+  [ Brian Behlendorf ]
+  * Synchronize initramfs and system hostid
+  * Export symbols for the full SA API
+  * Prep zfs-0.6.0-rc6 tag
+  * Add provides lustre-backend-fs to rpm
+  * Export symbols for the VFS API
+  * Disable 90-zfs.rules for test suite
+
+  [ Darik Horn ]
+  * Add "activate update-initramfs" dpkg trigger.
+  * Add news item: The PPA for ZFS is moving.
+  * Add patch: Use /bin/bash to invoke dracut scripts.
+  * Add provides lustre-backend-fs to deb
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 11 Oct 2011 21:16:47 -0500
+
+zfs-linux (0.6.0.33-0ubuntu1) unstable; urgency=low
+
+  [ Darik Horn ]
+  * Automatically set REMAKE_INITRD in the dkms.conf
+
+  [ Brian Behlendorf ]
+  * Install zfs-devel headers in /usr/include
+  * Suppress kmem_alloc() warning in zfs_prop_set_special()
+  * Export symbols for the full ZAP API
+  * Fix uninitialized varible in zfs_do_userspace()
+
+  [ Ned Bass ]
+  * Use automatic variable in Makefile
+
+  [ Zachary Bedell ]
+  * Fix boot failure in Dracut scripts.
+  * Make libefi-created GPT compatible with gptfdisk
+
+  [ Andreas Dilger ]
+  * zpl: Fix "df -i" to have better free inodes value
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 28 Sep 2011 22:38:56 -0500
+
+zfs-linux (0.6.0.32-0ubuntu1) unstable; urgency=low
+
+  [ Prakash Surya ]
+  * Fix minor autoconf error message inconsistencies
+  * Convert 'if' statements to AS_IF in kernel.m4
+  * Fix package URLs to use the github repository
+  * Fix zfs.spec.in to use @LICENSE@ variable
+
+  [ Jeremy Gill ]
+  * Ensure FC15 boots when zfs isn't used for boot partition
+
+  [ Brian Behlendorf ]
+  * Fix usage of zsb after free
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 09 Sep 2011 20:27:34 -0500
+
+zfs-linux (0.6.0.31-0ubuntu2) unstable; urgency=low
+
+  * Change $ZFS to `zfs` in the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 24 Aug 2011 10:04:15 -0500
+
+zfs-linux (0.6.0.31-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Disable zfs /etc/mtab updates
+  * Fix incompatible pointer type warning
+  * Fix missing format arguments
+  * Fixed uninitialized variable
+  * Buildbot suppression rules
+  * Fix autoconf variable substitution in init scripts.
+  * Fix incorrect zpool_cache substitution
+
+  [ Kyle Fuller ]
+  * Move 90-zfs udev rule from dracut to udev/rules.d
+  * Make dracut module-setup.sh an autoconf config file
+
+  [ Darik Horn ]
+  * Add chkconfig and description lines to zfs init.
+  * Disable default start action in the init script.
+  * Implement the status command in the init script.
+  * Share filesystems in the init script.
+  * Remove ellipses from log lines in the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 22 Aug 2011 21:26:25 -0500
+
+zfs-linux (0.6.0.30-0ubuntu2) unstable; urgency=low
+
+  * Remove zpool_layout from the initramfs manifest.
+  * Let mkinitramfs fail if the utilities are missing.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 09 Aug 2011 16:52:01 -0500
+
+zfs-linux (0.6.0.30-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Cleanup mmap(2) writes
+  * Add backing_device_info per-filesystem
+  * Correctly lock pages for .readpages()
+  * Autogen refresh for udev changes
+  * Improve HAVE_EVICT_INODE check
+
+  [ Kyle Fuller ]
+  * Move udev rules from /etc/udev to /lib/udev
+
+  [ Darik Horn ]
+  * Accomodate udev autotools changes in packaging.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 09 Aug 2011 01:17:20 -0500
+
+zfs-linux (0.6.0.29-0ubuntu1) unstable; urgency=low
+
+  [ Kyle Fuller ]
+  * Make autogen.sh executable
+  * Turn the init.d scripts into autoconf config files
+
+  [ Zachary Bedell ]
+  * Wrap dracut scripts to 79 chars
+
+  [ Brian Behlendorf ]
+  * Add .gitignore for zfs.<distro> init scripts
+
+  [ Tim Haley ]
+  * Illumos #xxx: zdb -vvv broken after zfs diff integration
+
+  [ Gordon Ross ]
+  * Illumos #764: panic in zfs:dbuf_sync_list
+
+  [ Garrett D'Amore ]
+  * Illumos #175: zfs vdev cache consumes excessive memory
+
+  [ Shampavman ]
+  * Illumos #510: 'zfs get' enhancement - mountpoint as an argument
+
+  [ George Wilson ]
+  * Illumos #1051: zfs should handle imbalanced luns
+
+  [ Matt Ahrens ]
+  * Illumos #1092: zfs refratio property
+
+  [ Eric Schrock ]
+  * Illumos #883: ZIL reuse during remount corruption
+
+  [ Martin Matuska ]
+  * Illumos #1043: Recursive zfs snapshot destroy fails
+  * Illumos #1313: Integer overflow in txg_delay()
+
+  [ Alexander Stetsenko ]
+  * Illumos #278: get rid zfs of python and pyzfs dependencies
+
+  [ James H ]
+  * Call exportfs -v once for NFS shares.
+
+  [ Gunnar Beutner ]
+  * Use /dev/null for stdout/stderr in libzfs_run_process().
+  * Use libzfs_run_process() in libshare.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 02 Aug 2011 10:18:10 -0500
+
+zfs-linux (0.6.0.28-0ubuntu2) unstable; urgency=low
+
+  * Update replacement controls for libzfs-dev.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 26 Jul 2011 00:03:19 -0500
+
+zfs-linux (0.6.0.28-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix the configure CONFIG_* option detection
+  * Add missing <pool> option
+  * Fix txg_sync_thread deadlock
+
+  [ Zachary Bedell ]
+  * Soft to hard tabs
+  * Catch return errors from zpool commands
+
+  [ Darik Horn ]
+  * Force root pool imports in the initramfs script.
+  * lintian: non-dev-pkg-with-shlib-symlink
+  * Override lintian extra-license-file warnings.
+  * Update the project Github link.
+  * Override dh_shlibdeps warnings.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 25 Jul 2011 23:39:10 -0500
+
+zfs-linux (0.6.0.27-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use zfs_mknode() to create dataset root
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 22 Jul 2011 14:39:22 -0500
+
+zfs-linux (0.6.0.26-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix send/recv 'dataset is busy' errors
+  * Update 'zpool import' man page
+  * Fix mmap(2)/write(2)/read(2) deadlock
+  * Fix zio_execute() deadlock
+  * Fix zpl_writepage() deadlock
+  * Fix 'make install' overly broad 'rm'
+  * Honor setgit bit on directories
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 20 Jul 2011 18:27:15 -0500
+
+zfs-linux (0.6.0.25.rc5-0ubuntu4) unstable; urgency=low
+
+  * Add fix-issue-319 patch.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 15 Jul 2011 20:09:22 -0500
+
+zfs-linux (0.6.0.25.rc5-0ubuntu3) unstable; urgency=low
+
+  * Stub the Makefile.in files in scripts/.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 15 Jul 2011 08:45:00 -0500
+
+zfs-linux (0.6.0.25.rc5-0ubuntu1) unstable; urgency=low
+
+  [ Andrew Tselischev ]
+  * Fix 'rc_parallel="YES"' error
+
+  [ Prasad Joshi ]
+  * Use consistent error message in zpool sub-command
+
+  [ Gunnar Beutner ]
+  * Fixed indentation in the zfs.lunar init script.
+  * Removed erroneous backticks in the zfs.lunar init script.
+  * Implemented sharing datasets via NFS using libshare.
+  * Link libshare directly to libzfs
+  * Renamed HAVE_SHARE ifdefs to HAVE_SMB_SHARE.
+  * Updated init scripts to enable automatic sharing of ZFS datasets.
+
+  [ Zachary Bedell ]
+  * Update zfs.gentoo/zfs.lsb init script
+  * Update for Dracut-010
+  * Document initramfs process
+
+  [ Brian Behlendorf ]
+  * Add proper library versioning
+  * Update ztest paths
+  * Update 'zfs send' documentation
+  * Add L2ARC tunables
+  * Improve fstat(2) performance
+
+  [ Darik Horn ]
+  * Refresh patches.
+  * Set the configuration prefix to root.
+  * Remove /usr/bin/hostid from the initramfs image.
+  * Add zfs-dracut package.
+  * Add libshare0 package.
+  * Disable disable-dist-init.patch
+  * Add nfs-kernel-server suggestion.
+  * Demote spl-dkms to a regular dependency.
+  * lintian: package-name-doesnt-match-sonames
+  * lintian: incorrect-libdir-in-la-file
+  * Rename libavl1 to libzavl1.
+
+  [ Fajar A. Nugraha ]
+  * Check for "udevadm settle" vs "udevsettle"
+  * Remove zfs service only on uninstall, not on upgrade
+
+  [ Kyle Fuller ]
+  * Provide a rc.d script for archlinux
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 12 Jul 2011 19:49:02 -0500
+
+zfs-linux (0.6.0.22.rc5-0ubuntu1) unstable; urgency=low
+
+  [ Prasad Joshi ]
+  * MMAP Optimization
+
+  [ Brian Behlendorf ]
+  * Remove unused MMAP functions
+  * Add ZFS specific mmap() checks
+  * Avoid 'rpm -q' bug for 'make pkg'
+  * Linux compat 2.6.39: security_inode_init_security()
+  * Linux compat 2.6.39: mount_nodev()
+  * Fix implicit declaration of 'mkdirp'
+  * Always allow non-user xattrs
+  * Prep zfs-0.6.0-rc5 tag
+
+  [ Rohan Puri ]
+  * Support mandatory locks (nbmand)
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 03 Jul 2011 13:06:48 -0500
+
+zfs-linux (0.6.0.21-0ubuntu1) unstable; urgency=low
+
+  [ Prasad Joshi ]
+  * Tear down and flush the mmap region
+  * Use truncate_setsize in zfs_setattr
+
+  [ Brian Behlendorf ]
+  * Ensure all block devices are available
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 01 Jul 2011 11:41:40 -0500
+
+zfs-linux (0.6.0.20-0ubuntu1) unstable; urgency=low
+
+  [ Gunnar Beutner ]
+  * Removed erroneous zfs_inode_destroy() calls from zfs_rmnode().
+  * Fix unlink/xattr deadlock
+
+  [ Brian Behlendorf ]
+  * Linux 3.0 compat, shrinker compatibility
+
+  [ Ned A. Bass ]
+  * Multipath device manageability improvements
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 25 Jun 2011 22:14:26 -0500
+
+zfs-linux (0.6.0.19-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use datadir not datarootdir for dracut
+  * Update rpm/deb packages to be FHS compliant
+  * Linux 2.6.37 compat, WRITE_FLUSH_FUA
+
+  [ Christian Kohlschütter ]
+  * Add "ashift" property to zpool create
+
+  [ Darik Horn ]
+  * Fix autoconf variable substitution in udev rules.
+  * Autogen refresh.
+  * Refresh patches.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 19 Jun 2011 13:06:43 -0500
+
+zfs-linux (0.6.0.18-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix 'zfs send -D' segfault
+  * Pass -f option for import
+  * Add default stack checking
+  * Check for -Wno-unused-but-set-variable gcc support
+  * Always check -Wno-unused-but-set-variable gcc support
+  * Handle /etc/mtab -> /proc/mounts symlink
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 16 Jun 2011 09:39:30 -0500
+
+zfs-linux (0.6.0.17-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Make tgx_sync_thread zio's async
+  * Revert "Fix stack traverse_visitbp()"
+  * Fix stack ddt_zap_lookup()
+  * Fix stack ddt_class_contains()
+  * Fix zpios-sanity.sh return code
+  * Always unload zpios.ko on exit
+  * Delay before destroying loopback devices
+  * Sanatize zpios-sanity.sh environment
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 05 Jun 2011 20:32:51 -0500
+
+zfs-linux (0.6.0.16-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Pass caller's credential in zfsdev_ioctl()
+  * Default to internal 'zfs userspace' implementation
+  * Use vmem_alloc() for zfs_ioc_userspace_many()
+  * Fix 4K sector support
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 28 May 2011 15:47:15 -0500
+
+zfs-linux (0.6.0.15-0ubuntu1) unstable; urgency=low
+
+  [ Alexey Shvetsov ]
+  * Make zfs.gentoo init script more gentoo style.
+  * Fix zfs.gentoo init script logic
+  * Remove root 'ls' after mount workaround
+  * Fix distribution detection for gentoo
+
+  [ Brian Behlendorf ]
+  * Update synchronous open zfs_close() comment
+  * Fix 'negative objects to delete' warning
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 23 May 2011 09:18:38 -0500
+
+zfs-linux (0.6.0.14-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Use vmem_alloc() for zfs_ioc_pool_get_history()
+  * Fix awk usage
+  * Handle NULL in nfsd .fsync() hook
+  * Disable direct reclaim for z_wr_* threads
+
+  [ Ned A. Bass ]
+  * Don't store rdev in SA for FIFOs and sockets
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 11 May 2011 20:28:21 -0500
+
+zfs-linux (0.6.0.13.rc4-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add missing ZFS tunables
+  * Allow mounting of read-only snapshots
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 05 May 2011 20:48:14 -0500
+
+zfs-linux (0.6.0.12.rc4-0ubuntu2) unstable; urgency=low
+
+  * Add the debhelper token to zfs-initramfs.preinst
+  * Add the debehelper token to zfsutils.preinst
+  * Add extended package descriptions.
+  * Disable zpool-layout distribution.
+  * Add -e switch to the zfsutils.preinst whackbang.
+  * Add docs file for each package.
+  * Package libexec scripts as examples.
+  * Add -e switch to the zfs-initramfs.preinst whackbang.
+  * Flag autogen.sh as executable.
+  * Add -e switch to the zfs-dkms.postinst whackbang.
+  * Disable scripts distribution.
+  * Add whackbang to the ltmain.sh script.
+  * Remove unused zfs-dkms.preinst script.
+  * Add -e switch to the zfs-dkms.prerm whackbang.
+  * Remove unused zfs-dkms.postrm script.
+  * Specify a distro section for each package.
+  * Add snapshot-mount.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 05 May 2011 19:51:35 -0500
+
+zfs-linux (0.6.0.12.rc4-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Add Gentoo/Lunar/Redhat Init Scripts
+  * Prep zfs-0.6.0-rc4 tag
+
+  [ Darik Horn ]
+  * Use 0.6.0.12.rc4 as the unofficial version.
+  * Quilt refresh.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 05 May 2011 10:18:40 -0500
+
+zfs-linux (0.6.0.11-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Suppress 'vdev_metaslab_init' memory warning
+  * Fix 'zfs set volsize=N pool/dataset'
+  * Fully update inode when created
+  * Correct MAXUID
+
+  [ Gunnar Beutner ]
+  * Implemented NFS export_operations.
+
+  [ Alejandro R. Sedeño ]
+  * Add zpl_export.c to the list of targets.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 02 May 2011 19:07:36 -0500
+
+zfs-linux (0.6.0.10-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Fix zvol deadlock
+  * Conserve stack in dsl_scan_visitbp()
+  * Conserve stack in dsl_scan_visitbp()
+  * Conserve stack in dsl_scan_visit()
+
+  [ Darik Horn ]
+  * Use gethostid in the Linux convention.
+  * Use 0.6.0.10 as the unofficial version.
+  * Use substvars versions in the debian/control.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 27 Apr 2011 11:23:52 -0500
+
+zfs-linux (0.6.0.9-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Update zconfig.sh to use new zvol names
+  * Suppress 'zfs receive' memory warning
+  * Enforce ARC meta-data limits
+  * Fix spurious -EFAULT when setting I/O scheduler
+  * Fix 32-bit MAXOFFSET_T definition
+
+  [ Aniruddha Shankar ]
+  * Added required runlevel info for init on Debian
+
+  [ Gunnar Beutner ]
+  * Fixed a use-after-free bug in zfs_zget().
+
+  [ Darik Horn ]
+  * Use 0.6.0.9 as the unofficial version.
+  * Remove the gawk packaging dependency.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 23 Apr 2011 11:21:36 -0500
+
+zfs-linux (0.6.0.8-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Linux 2.6.29 compat, credentials
+  * Fix rebuildable RPMs for el6/ch5
+  * Autogen refresh for kernel-insert-inode-locked.m4
+  * Linux 2.6.39 compat, invalidate_inodes()
+  * Fix gcc compiler warning, dsl_pool_create()
+  * Fix gcc compiler warning, parse_option()
+  * Fix gcc configure warnings
+  * Set -Wno-unused-but-set-variable globally
+  * Add Gunnar Beutner to AUTHORS for his contributions
+  * Add parted and lsscsi dependencies to zfs-test
+
+  [ Richard Laager ]
+  * Fix a couple comments
+  * Correct man page section numbers for Linux
+  * Change /dev/dsk -> /dev in the man pages
+  * More and correct an example in zpool.8
+  * Use Linux disk names in zpool.8
+  * Linux has "partitions", not "slices"
+  * Remove a stray tab
+  * Improve some quoting consistency
+  * Improve the wording about hot spares
+  * Normalize the deferred destruction language
+  * Update the version in the zpool upgrade example
+  * Cleanup various Sun/Solaris-isms
+  * Support IEC base-2 prefixes
+
+  [ Ned Bass ]
+  * Use consistent indentation in mount-zfs.sh
+  * Align closing fi in mount-zfs.sh
+
+  [ Gunnar Beutner ]
+  * Added missing initialization for va.va_dentry in zfs_get_xattrdir.
+  * Truncate the xattr znode when updating existing attributes.
+
+  [ Darik Horn ]
+  * Refresh debian/patches.
+  * Use zfs-0.6.0.8 as the unofficial upstream version.
+  * Set a version on the spl-dkms dependency.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 20 Apr 2011 08:21:51 -0500
+
+zfs-linux (0.6.0.7-0ubuntu2) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Call d_instantiate before unlocking inode
+  * Add missing arcstats
+  * Add direct+indirect ARC reclaim
+  * Fix ASSERTION(!dsl_pool_sync_context(tx->tx_pool))
+  * Prep zfs-0.6.0-rc3 tag
+
+  [ Manuel Amador (Rudd-O) ]
+  * Added .gitignore for mount.zfs and zvol_id
+  * Permit both mountpoint=legacy and mountpoint=/ in initrd
+  * Update zfs.fedora init script
+
+  [ Darik Horn ]
+  * Upstream zfs-0.6.0-rc3 tag. Use 0.6.0.7 instead.
+  * Add a zfs-grub dependency to zfs-initramfs.
+  * Add a NEWS entry for the decomposition and rename.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 13:51:23 -0500
+
+zfs-linux (0.6.0.6-0ubuntu2) unstable; urgency=low
+
+  * Partial autogen updates to fix PPA builds.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 07 Apr 2011 10:52:30 -0500
+
+zfs-linux (0.6.0.6-0ubuntu1) unstable; urgency=low
+
+  [ Fajar A. Nugraha ]
+  * Fixes to enable zvol symlink creation
+  * Spec file compat, %{datadir}
+
+  [ Brian Behlendorf ]
+  * Set cmd paths in udev rules using --prefix
+  * Fix inflated load average
+  * Fix libzpool cv_* build error
+  * Update CHAOS 5 Packaging
+  * Fix `make distclean` for `./configure --with-config=user
+
+  [ Ned Bass ]
+  * Call udevadm trigger more safely
+
+  [ Darik Horn ]
+  * Remove `make distclean` kludge.
+  * Ignore `zfs unmount -a` errors in the init script.
+  * Rename /etc/default/zfsload during upgrades.
+  * Disable dracut instead of reverting it.
+  * Move udev rules from /etc to /lib.
+  * Add ${shlibs:Depends} to each control stanza.
+  * Remove volume and swap handling from the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 05 Apr 2011 22:08:06 -0500
+
+zfs-linux (0.6.0.5-1ubuntu7) unstable; urgency=low
+
+  * Force the dkms.conf file into the zfs-dkms package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 31 Mar 2011 11:03:56 -0500
+
+zfs-linux (0.6.0.5-1ubuntu6) unstable; urgency=low
+
+  * Link /proc/mounts to /etc/mtab.
+  * Add the /etc/default/zfs import to the init script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 16:12:41 -0500
+
+zfs-linux (0.6.0.5-1ubuntu5) unstable; urgency=low
+
+  * Use /sbin/mount.zfs for the root mount in the initramfs.
+  * Handle the GRUB zfs-bootfs parameter in the initramfs.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 30 Mar 2011 12:22:12 -0500
+
+zfs-linux (0.6.0.5-1ubuntu2) unstable; urgency=low
+
+  * Rename the zfs package to zfsutils.
+  * Rename the zfs-lib package to libzfs0.
+  * Decompose the zfs-lib package.
+  * Restrict the package architecture to linux-any.
+  * Remove the KQ init script that was imported from zfs-linux/lzfs.
+  * Import the zfsutils init script from Debian kFreeBSD.
+  * Check zvols for Linux swap areas instead of FreeBSD swap areas.
+  * Replace zfs by zfsutils in the debian/control file.
+  * Add libzfs-dev to the debian/control file.
+  * Change usr/lib/include to usr/include in the libzfs-dev.install file.
+  * Add a zfs-lib replacement to each constituent library.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 29 Mar 2011 09:17:38 -0500
+
+zfs-linux (0.6.0.5-0ubuntu2) unstable; urgency=low
+
+  * Include /sbin/mount.zfs in the zfs package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 24 Mar 2011 12:37:40 -0500
+
+zfs-linux (0.6.0.5-0ubuntu1) unstable; urgency=low
+
+  [ Brian Behlendorf ]
+  * Check for trailing '/' in mount.zfs
+  * Don't set I/O Scheduler for Partitions
+  * Always allow '-o remount,ro'
+  * Strip 'zfsutil,remount' from /etc/mtab
+  * Register .sync_fs handler
+  * Register .remount_fs handler
+  * Add init scripts
+  * Fix getcwd() warning
+  * Fix 'LDFLAGS=-Wl,--as-needed' build error
+  * Use KM_PUSHPAGE instead of KM_SLEEP
+  * Fix evict() deadlock
+  * Linux compat, umount2(2) flags
+  * Linux 2.6.27 compat, blk_queue_stackable()
+  * Linux 2.6.28 compat, insert_inode_locked()
+  * Linux 2.6.29 compat, credentials
+  * Linux 2.6.29 compat, .freeze_fs/.unfreeze_fs
+
+  [ Darik Horn ]
+  * Full upstream merge. Use zfs-0.6.0.5 as the unofficial upstream version.
+  * Revert the dracut commit in debian/patches.
+  * Revert the init script commit in debian/patches.
+  * Quilt refresh.
+  * Properly strip the bootfs= and rpool= kernel command line parameters.
+  * Remove the whack-bang and execute bit from the initramfs boot script.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Mar 2011 23:07:49 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu6) unstable; urgency=low
+
+  * Trivial typo correction in the debian/copyright file.
+  * Remove the init-top/hostname script and force BUSYBOX=y instead.
+  * Correct typos in the debian/debuild-ppa.sh helper.
+  * Add a debian/source/options file that disable the
+    implied --single-debian-patch build option.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 20 Mar 2011 19:11:12 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu5) unstable; urgency=low
+
+  * Add the debuild-ppa.sh script for Launchpad PPA build convenience.
+  * Add fix-getcwd-warning.patch from behlendorf/master.
+  * Add fix-gentoo-ldflags.patch from behlendorf/master.
+  * Add the pkg-zfs repository to the debian/copyright file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 20 Mar 2011 15:27:49 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu4) unstable; urgency=low
+
+  * Add behlendorf/dracut patch for better dismount handling at shutdown.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 16 Mar 2011 09:16:00 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu3) unstable; urgency=low
+
+  * Add patches from behlendorf/master:
+    * check-for-trailing-slash-in-mount.patch
+    * do-not-set-io-scheduler-for-partitions.patch
+  * Add gawk dependency to the zfs-initramfs package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 13 Mar 2011 21:32:32 -0500
+
+zfs-linux (0.6.0.4.rc2-0ubuntu2) unstable; urgency=low
+
+  * Initial zfs-initramfs packaging for root filesystem support.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 11 Mar 2011 15:39:37 -0600
+
+zfs-linux (0.6.0.4.rc2-0ubuntu1) unstable; urgency=low
+
+   * Upstream spl-0.6.0-rc2 release.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 10 Mar 2011 09:35:43 -0600
+
+zfs-linux (0.6.0.3.git-0ubuntu1) unstable; urgency=low
+
+  * Revert the '+' in the upstream version because it is not recognized by DKMS.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 12:24:41 -0600
+
+zfs-linux (0.6.0.3+git-0ubuntu2) unstable; urgency=low
+
+  * Change spl-dkms to a pre-dependency in the control file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 10:54:07 -0600
+
+zfs-linux (0.6.0.3+git-0ubuntu1) unstable; urgency=low
+
+  * Begin using the +git upstream naming convention.
+  * Merge the behlendorf/mount and behlendorf/master branches.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 09 Mar 2011 10:09:24 -0600
+
+zfs-linux (0.6.0.2-0ubuntu1) unstable; urgency=low
+
+  * Merge the behlendorf/master branch for the xvattr changes
+    and tag it as 0.6.0.2 upstream.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 04 Mar 2011 19:24:42 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu6) unstable; urgency=low
+
+  * Check for a Debian host in PRE_BUILD and configure for split headers.
+    See https://github.com/behlendorf/spl/issues/closed/#issue/10
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Feb 2011 17:51:17 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu5) unstable; urgency=low
+
+  * Remove the build dependency on linux-headers because it is unnecessary
+    for Ubuntu and prevents building on Debian Squeeze and Debian Sid.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sun, 27 Feb 2011 13:20:03 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu4) unstable; urgency=low
+
+  * Add version numbers to the dkms dependencies.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Sat, 26 Feb 2011 01:13:40 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu3) unstable; urgency=low
+
+  * Add fix-set-block-scheduler-warnings.patch.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 25 Feb 2011 20:59:26 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu2) unstable; urgency=low
+
+  * Add udev-zvol.patch for udev to create zvol links.
+    (Commit: 4c0d8e50b99b4f3b4a9b7bc67ac7fc4e406f5755)
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 25 Feb 2011 15:20:41 -0600
+
+zfs-linux (0.6.0.1rc.1-0ubuntu1) unstable; urgency=low
+
+  * Merge behlendorf/linux-compat for Linux 2.6.38 compatibility.
+  * Add /etc/default/zfsload for the init script.
+  * Add dist-blkdev_compat.patch so that the new block device
+    compatibility header is included by the dist rules.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Thu, 24 Feb 2011 10:30:13 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.4) lucid; urgency=low
+
+  * Force all zfsload returns to 0.
+  * Initial master branch for git-buildpackage.
+  * Update Vcs-Git and Vcs-Browser fields in the control file.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Tue, 22 Feb 2011 11:23:31 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.3) lucid; urgency=low
+
+  * Move the zfsload init script from the zfs-dkms package
+    to the zfs package.
+  * Disable non-zero returns in the zfsload script because
+    `zfs umount -a` is unreliable and init errors cause dpkg
+    to block package updates and removals.
+  * Create zfs.examples for dh_installexamples and change the
+    install manifest for etc/zfs/*.example accordingly.
+  * Split zfs into zfs-lib to satisfy the dpkg-shlibdeps warnings.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 21 Feb 2011 11:27:11 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.2) lucid; urgency=low
+
+  * Reduce the dpkg scripts to #DEBHELPER# because dh_dkms
+    is automatically and correctly filling template.
+  * Set a versioned debhelper dependency to satisfy the
+    lintian warning.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Mon, 21 Feb 2011 10:27:29 -0600
+
+zfs-linux (0.6.0.1rc-1~lucid.1) lucid; urgency=low
+
+  * New upstream zfs-0.6.0-rc1.tar.gz release.
+  * Kludge the "rc1" version for the packaging convenience.
+  * Move the zfsload script to this package.
+  * Supercede the lzfs-dkms package.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 18 Feb 2011 19:46:36 -0600
+
+zfs-linux (0.5.2-1~lucid.6) lucid; urgency=low
+
+  * Do uupdate on kqzfs_0.5.2 tag.
+  * Remove disable-check_stack_overflow patch.
+  * Add kernel-bio-failfast.patch for `make distdir`.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 18 Feb 2011 12:52:07 -0600
+
+zfs-linux (0.5.1-1~lucid.5) lucid; urgency=low
+
+  * Initial DKMS packaging for Debian and Ubuntu.
+
+ -- Darik Horn <dajhorn@vanadac.com>  Wed, 16 Feb 2011 12:26:49 -0600
