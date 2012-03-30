@@ -59,6 +59,13 @@ fi
 mkdir -p "$DESTDIR/etc/"
 mkdir -p "$DESTDIR/lib/udev/rules.d/"
 
+# ZDB uses pthreads for some functions, but the library dependency is not
+# automatically detected. The `find` utility and extended `cp` options are
+# used here because libgcc_s.so could be in a subdirectory of /lib for
+# multi-arch installations.
+cp --target-directory="$DESTDIR" --parents $(find /lib -type f -name libgcc_s.so.1)
+
+
 for ii in $PREREQ_UDEV_RULES
 do
 	if [ -e "/etc/udev/rules.d/$ii" ]
