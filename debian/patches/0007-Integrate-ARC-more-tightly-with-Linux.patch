@@ -1,4 +1,4 @@
-From 3f620f26661a1966dcfb41a1be0320aa408ffee1 Mon Sep 17 00:00:00 2001
+From d3b7b9d25be46c2a5b57d3e14e38fa959db03882 Mon Sep 17 00:00:00 2001
 From: Brian Behlendorf <behlendorf1@llnl.gov>
 Date: Tue, 13 Mar 2012 14:29:16 -0700
 Subject: [PATCH 7/7] Integrate ARC more tightly with Linux
@@ -55,7 +55,7 @@ implementation.
   arc_grow_retry seconds direct memory reclaim occurred.
 
 * arc_memory_throttle() has been updated to always include the
-  ammount of evictable memory (arc and page cache) in its free
+  amount of evictable memory (arc and page cache) in its free
   space calculations.  This space is largely available in most
   call paths due to direct memory reclaim.
 
@@ -66,11 +66,11 @@ implementation.
 Signed-off-by: Prakash Surya <surya1@llnl.gov>
 Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
 ---
- module/zfs/arc.c |  229 +++++++++++++++++------------------------------------
- 1 files changed, 74 insertions(+), 155 deletions(-)
+ module/zfs/arc.c |  286 +++++++++++++++++++++++++-----------------------------
+ 1 files changed, 131 insertions(+), 155 deletions(-)
 
 diff --git a/module/zfs/arc.c b/module/zfs/arc.c
-index 10317b6..9371c90 100644
+index e9f84f5..7d3948d 100644
 --- a/module/zfs/arc.c
 +++ b/module/zfs/arc.c
 @@ -158,7 +158,10 @@ typedef enum arc_reclaim_strategy {
@@ -213,16 +213,27 @@ index 10317b6..9371c90 100644
  
  	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
  		if (zio_buf_cache[i] != prev_cache) {
-@@ -2220,8 +2147,6 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
+@@ -2217,11 +2144,16 @@ arc_kmem_reap_now(arc_reclaim_strategy_t strat)
+ 	kmem_cache_reap_now(hdr_cache);
+ }
+ 
++/*
++ * Unlike other ZFS implementations this thread is only responsible for
++ * adapting the target ARC size on Linux.  The responsibility for memory
++ * reclamation has been entirely delegated to the arc_shrinker_func()
++ * which is registered with the VM.  To reflect this change in behavior
++ * the arc_reclaim thread has been renamed to arc_adapt.
++ */
  static void
- arc_reclaim_thread(void)
+-arc_reclaim_thread(void)
++arc_adapt_thread(void)
  {
 -	clock_t			growtime = 0;
 -	arc_reclaim_strategy_t	last_reclaim = ARC_RECLAIM_CONS;
  	callb_cpr_t		cpr;
  	int64_t			prune;
  
-@@ -2229,7 +2154,10 @@ arc_reclaim_thread(void)
+@@ -2229,7 +2161,10 @@ arc_reclaim_thread(void)
  
  	mutex_enter(&arc_reclaim_thr_lock);
  	while (arc_thread_exit == 0) {
@@ -234,7 +245,7 @@ index 10317b6..9371c90 100644
  
  			if (arc_no_grow) {
  				if (last_reclaim == ARC_RECLAIM_CONS) {
-@@ -2244,14 +2172,16 @@ arc_reclaim_thread(void)
+@@ -2244,14 +2179,16 @@ arc_reclaim_thread(void)
  			}
  
  			/* reset the growth delay for every reclaim */
@@ -255,31 +266,78 @@ index 10317b6..9371c90 100644
  
  		/*
  		 * Keep meta data usage within limits, arc_shrink() is not
-@@ -2281,29 +2211,34 @@ arc_reclaim_thread(void)
- }
+@@ -2282,28 +2219,83 @@ arc_reclaim_thread(void)
  
  #ifdef _KERNEL
--/*
+ /*
 - * Under Linux the arc shrinker may be called for synchronous (direct)
 - * reclaim, or asynchronous (indirect) reclaim.  When called by kswapd
 - * for indirect reclaim we take a conservative approach and just reap
 - * free slabs from the ARC caches.  If this proves to be insufficient
 - * direct reclaim will be trigger.  In direct reclaim a more aggressive
 - * strategy is used, data is evicted from the ARC and free slabs reaped.
-- */
++ * Determine the amount of memory eligible for eviction contained in the
++ * ARC. All clean data reported by the ghost lists can always be safely
++ * evicted. Due to arc_c_min, the same does not hold for all clean data
++ * contained by the regular mru and mfu lists.
++ *
++ * In the case of the regular mru and mfu lists, we need to report as
++ * much clean data as possible, such that evicting that same reported
++ * data will not bring arc_size below arc_c_min. Thus, in certain
++ * circumstances, the total amount of clean data in the mru and mfu
++ * lists might not actually be evictable.
++ *
++ * The following two distinct cases are accounted for:
++ *
++ * 1. The sum of the amount of dirty data contained by both the mru and
++ *    mfu lists, plus the ARC's other accounting (e.g. the anon list),
++ *    is greater than or equal to arc_c_min.
++ *    (i.e. amount of dirty data >= arc_c_min)
++ *
++ *    This is the easy case; all clean data contained by the mru and mfu
++ *    lists is evictable. Evicting all clean data can only drop arc_size
++ *    to the amount of dirty data, which is greater than arc_c_min.
++ *
++ * 2. The sum of the amount of dirty data contained by both the mru and
++ *    mfu lists, plus the ARC's other accounting (e.g. the anon list),
++ *    is less than arc_c_min.
++ *    (i.e. arc_c_min > amount of dirty data)
++ *
++ *    2.1. arc_size is greater than or equal arc_c_min.
++ *         (i.e. arc_size >= arc_c_min > amount of dirty data)
++ *
++ *         In this case, not all clean data from the regular mru and mfu
++ *         lists is actually evictable; we must leave enough clean data
++ *         to keep arc_size above arc_c_min. Thus, the maximum amount of
++ *         evictable data from the two lists combined, is exactly the
++ *         difference between arc_size and arc_c_min.
++ *
++ *    2.2. arc_size is less than arc_c_min
++ *         (i.e. arc_c_min > arc_size > amount of dirty data)
++ *
++ *         In this case, none of the data contained in the mru and mfu
++ *         lists is evictable, even if it's clean. Since arc_size is
++ *         already below arc_c_min, evicting any more would only
++ *         increase this negative difference.
+  */
 +static uint64_t
 +arc_evictable_memory(void) {
-+	uint64_t evictable_memory =
++	uint64_t arc_clean =
 +	    arc_mru->arcs_lsize[ARC_BUFC_DATA] +
 +	    arc_mru->arcs_lsize[ARC_BUFC_METADATA] +
 +	    arc_mfu->arcs_lsize[ARC_BUFC_DATA] +
-+	    arc_mfu->arcs_lsize[ARC_BUFC_METADATA] +
++	    arc_mfu->arcs_lsize[ARC_BUFC_METADATA];
++	uint64_t ghost_clean =
 +	    arc_mru_ghost->arcs_lsize[ARC_BUFC_DATA] +
 +	    arc_mru_ghost->arcs_lsize[ARC_BUFC_METADATA] +
 +	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_DATA] +
 +	    arc_mfu_ghost->arcs_lsize[ARC_BUFC_METADATA];
++	uint64_t arc_dirty = MAX((int64_t)arc_size - (int64_t)arc_clean, 0);
 +
-+	return MIN(evictable_memory, arc_size - arc_c_min);
++	if (arc_dirty >= arc_c_min)
++		return (ghost_clean + arc_clean);
++
++	return (ghost_clean + MAX((int64_t)arc_size - (int64_t)arc_c_min, 0));
 +}
 +
  static int
@@ -308,7 +366,7 @@ index 10317b6..9371c90 100644
  
  	/* Not allowed to perform filesystem reclaim */
  	if (!(sc->gfp_mask & __GFP_FS))
-@@ -2313,20 +2248,37 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
+@@ -2313,20 +2305,37 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
  	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
  		return (-1);
  
@@ -354,7 +412,7 @@ index 10317b6..9371c90 100644
  }
  SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
  
-@@ -2374,11 +2326,6 @@ arc_adapt(int bytes, arc_state_t *state)
+@@ -2374,11 +2383,6 @@ arc_adapt(int bytes, arc_state_t *state)
  	}
  	ASSERT((int64_t)arc_p >= 0);
  
@@ -366,7 +424,7 @@ index 10317b6..9371c90 100644
  	if (arc_no_grow)
  		return;
  
-@@ -2423,7 +2370,7 @@ arc_evict_needed(arc_buf_contents_t type)
+@@ -2423,7 +2427,7 @@ arc_evict_needed(arc_buf_contents_t type)
  		return (1);
  #endif
  
@@ -375,7 +433,7 @@ index 10317b6..9371c90 100644
  		return (1);
  
  	return (arc_size > arc_c);
-@@ -3556,48 +3503,20 @@ static int
+@@ -3556,48 +3560,20 @@ static int
  arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
  {
  #ifdef _KERNEL
@@ -428,7 +486,16 @@ index 10317b6..9371c90 100644
  
  	if (inflight_data > available_memory / 4) {
  		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
-@@ -4773,7 +4692,7 @@ l2arc_feed_thread(void)
+@@ -3849,7 +3825,7 @@ arc_init(void)
+ 		kstat_install(arc_ksp);
+ 	}
+ 
+-	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
++	(void) thread_create(NULL, 0, arc_adapt_thread, NULL, 0, &p0,
+ 	    TS_RUN, minclsyspri);
+ 
+ 	arc_dead = FALSE;
+@@ -4773,7 +4749,7 @@ l2arc_feed_thread(void)
  		/*
  		 * Avoid contributing to memory pressure.
  		 */
@@ -438,5 +505,5 @@ index 10317b6..9371c90 100644
  			spa_config_exit(spa, SCL_L2ARC, dev);
  			continue;
 -- 
-1.7.5.4
+1.7.9.1
 

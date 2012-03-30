@@ -1,4 +1,4 @@
-From f3304350ffa2b572bdc0f81a0f0cf98829826112 Mon Sep 17 00:00:00 2001
+From b7a1d7e565379fd6ad12d1ed2709191a85270ba2 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 22:18:47 -0600
 Subject: [PATCH 2/7] Remove the COPYING file.
@@ -34,5 +34,5 @@ index 90f4490..0000000
 -Please see COPYRIGHT and OPENSOLARIS.LICENSE for the copyright
 -and license details.
 -- 
-1.7.5.4
+1.7.9.1
 

@@ -1,4 +1,4 @@
-From 1716c733294840d4099a130786f77b5e965589e6 Mon Sep 17 00:00:00 2001
+From 4235903b04b681c0a12e7766695aa26f5dd34c4e Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Fri, 3 Feb 2012 14:49:49 -0600
 Subject: [PATCH 6/7] Improve the --with-spl error for DKMS systems.
@@ -32,5 +32,5 @@ index a6d544b..2cb2e8c 100644
  	], [
  		AS_IF([test "$splsrc" = "NONE"], [
 -- 
-1.7.5.4
+1.7.9.1
 

@@ -1,4 +1,4 @@
-From 157a827133787e8dd30ffed2e710174970f4dedb Mon Sep 17 00:00:00 2001
+From e55354931fe3066c0e03f6ca1688212dfc9560e9 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 22:23:16 -0600
 Subject: [PATCH 5/7] Remove userland dist rules.
@@ -152,5 +152,5 @@ index bb4eedf..1ba68a2 100644
  	-$(SED) -e 's,@bindir\@,$(bindir),g' \
  		-e 's,@sbindir\@,$(sbindir),g' \
 -- 
-1.7.5.4
+1.7.9.1
 

@@ -1,4 +1,4 @@
-From 6c63e85b8efc1906c896b0e1f98a1bdcefa2077f Mon Sep 17 00:00:00 2001
+From 04944cec8988f62e017c5aad3404516445daef69 Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 19:45:07 -0600
 Subject: [PATCH 1/7] Prevent manual builds in the DKMS source.
@@ -71,5 +71,5 @@ index 6bfea51..fda0a4f 100644
  		*)
  		AC_MSG_RESULT([Error!])
 -- 
-1.7.5.4
+1.7.9.1
 

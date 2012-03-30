@@ -1,4 +1,4 @@
-From 4d0306e8b33cc761da9402ae69ee7a78915287ac Mon Sep 17 00:00:00 2001
+From fcba4ff6f74d109128184c9c5a14f3a2bb2cee2c Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 11:54:21 -0600
 Subject: [PATCH 3/7] Remove all upstream init.d components.
@@ -1505,5 +1505,5 @@ index ae797c1..0000000
 -
 -exit $RETVAL
 -- 
-1.7.5.4
+1.7.9.1
 

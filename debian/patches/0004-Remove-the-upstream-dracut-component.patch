@@ -1,4 +1,4 @@
-From a25df586f637105537f8212f0d8bdd0975211711 Mon Sep 17 00:00:00 2001
+From 66b51b8e8ccbec8028fd113a405e82bcfcab3c6a Mon Sep 17 00:00:00 2001
 From: Darik Horn <dajhorn@vanadac.com>
 Date: Tue, 17 Jan 2012 20:27:32 -0600
 Subject: [PATCH 4/7] Remove the upstream dracut component.
@@ -1730,5 +1730,5 @@ index 909273a..0000000
 -the required zpool was auto-imported by the kernel module, no additional
 -`zpool import` commands are run, so nothing is forced.
 -- 
-1.7.5.4
+1.7.9.1
 
