@@ -5,3 +5,5 @@ then
 	dpkg-maintscript-helper rm_conffile /etc/default/zfsload -- "$@"
 	dpkg-maintscript-helper rm_conffile /etc/init.d/zfs -- "$@"
 fi
+
+#DEBHELPER#
