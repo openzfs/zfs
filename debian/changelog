@@ -1,3 +1,20 @@
+zfs-linux (0.6.0.57-0ubuntu1) unstable; urgency=low
+
+  [ Craig Sanders ]
+  * Remove hard-coded 80 column output
+
+  [ Brian Behlendorf ]
+  * Properly expose the mfu ghost list kstats
+
+  [ Darik Horn ]
+  * Invoke notify-reboot-required for upgrades.
+  * Add libgcc_s.so.1 to the zfs-initramfs manifest.
+  * Add missing #DEBHELPER# macro to zfsutils.
+  * Refresh debian/patches after upstream merge.
+  * Enable 0007-Integrate-ARC-more-tightly-with-Linux.patch
+
+ -- Darik Horn <dajhorn@vanadac.com>  Fri, 30 Mar 2012 00:38:33 -0500
+
 zfs-linux (0.6.0.56-0ubuntu1) unstable; urgency=low
 
   [ Brian Behlendorf ]

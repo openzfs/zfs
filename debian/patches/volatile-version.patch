@@ -7,7 +7,7 @@ Index: b/META
  Name:         zfs
  Branch:       1.0
 -Version:      0.6.0
-+Version:      0.6.0.56
++Version:      0.6.0.57
  Release:      rc8
  Release-Tags: relext
  License:      CDDL
