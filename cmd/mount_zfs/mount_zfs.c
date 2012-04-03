@@ -480,6 +480,10 @@ main(int argc, char **argv)
 		    mntflags, mntopts);
 		if (error) {
 			switch (errno) {
+			case ENOENT:
+				(void) fprintf(stderr, gettext("mount point "
+				    "'%s' does not exist\n"), mntpoint);
+				return (MOUNT_SYSERR);
 			case EBUSY:
 				(void) fprintf(stderr, gettext("filesystem "
 				    "'%s' is already mounted\n"), dataset);
