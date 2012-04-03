@@ -19,7 +19,7 @@ ZFS_MODULE=zfs
 checksystem() {
 	if [ ! -c /dev/zfs ]; then
 		einfo "Checking if ZFS modules present"
-		if [ "x$(modprobe -l  $ZFS_MODULE | grep $ZFS_MODULE)" == "x" ]; then
+		if ! modinfo zfs > /dev/null 2>&1 ; then
 			eerror "$ZFS_MODULE not found. Is the ZFS package installed?"
 			return 1
 		fi
