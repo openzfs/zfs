@@ -311,6 +311,7 @@ main(int argc, char **argv)
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
 	char *dataset, *mntpoint;
+	char *pname = *argv;
 	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
@@ -481,17 +482,17 @@ main(int argc, char **argv)
 		if (error) {
 			switch (errno) {
 			case ENOENT:
-				(void) fprintf(stderr, gettext("mount point "
-				    "'%s' does not exist\n"), mntpoint);
+				(void) fprintf(stderr, gettext("%s: mount point "
+				    "'%s' does not exist\n"), pname, mntpoint);
 				return (MOUNT_SYSERR);
 			case EBUSY:
-				(void) fprintf(stderr, gettext("filesystem "
-				    "'%s' is already mounted\n"), dataset);
+				(void) fprintf(stderr, gettext("%s: filesystem "
+				    "'%s' is already mounted\n"), pname, dataset);
 				return (MOUNT_SYSERR);
 			default:
-				(void) fprintf(stderr, gettext("filesystem "
+				(void) fprintf(stderr, gettext("%s: filesystem "
 				    "'%s' can not be mounted due to error "
-				    "%d\n"), dataset, errno);
+				    "%d\n"), pname, dataset, errno);
 				return (MOUNT_USAGE);
 			}
 		}
