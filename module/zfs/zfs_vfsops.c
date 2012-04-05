@@ -1231,7 +1231,7 @@ zfs_preumount(struct super_block *sb)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
 
-	if (zsb->z_ctldir != NULL)
+	if (zsb != NULL && zsb->z_ctldir != NULL)
 		zfsctl_destroy(zsb);
 }
 EXPORT_SYMBOL(zfs_preumount);
