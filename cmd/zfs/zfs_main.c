@@ -254,7 +254,7 @@ get_usage(zfs_help_t idx)
 	case HELP_SHARE:
 		return (gettext("\tshare <-a | filesystem>\n"));
 	case HELP_SNAPSHOT:
-		return (gettext("\tsnapshot [-r] [-o property=value] ... "
+		return (gettext("\tsnapshot|snap [-r] [-o property=value] ... "
 		    "<filesystem@snapname|volume@snapname>\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-f] "
@@ -6160,6 +6160,12 @@ main(int argc, char **argv)
 	 */
 	if (strcmp(cmdname, "recv") == 0)
 		cmdname = "receive";
+
+	/*
+	 * The 'snap' command is an alias for 'snapshot'
+	 */
+	if (strcmp(cmdname, "snap") == 0)
+		cmdname = "snapshot";
 
 	/*
 	 * Special case '-?'
