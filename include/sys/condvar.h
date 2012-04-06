@@ -39,8 +39,6 @@
 
 typedef struct {
 	int cv_magic;
-	char *cv_name;
-	int cv_name_size;
 	wait_queue_head_t cv_event;
 	wait_queue_head_t cv_destroy;
 	atomic_t cv_waiters;
@@ -59,13 +57,7 @@ extern clock_t __cv_timedwait_interruptible(kcondvar_t *cvp, kmutex_t *mp,
 extern void __cv_signal(kcondvar_t *cvp);
 extern void __cv_broadcast(kcondvar_t *cvp);
 
-#define cv_init(cvp, name, type, arg)                                         \
-({                                                                            \
-	if ((name) == NULL)                                                   \
-		__cv_init(cvp, #cvp, type, arg);                              \
-	else                                                                  \
-		__cv_init(cvp, name, type, arg);                              \
-})
+#define cv_init(cvp, name, type, arg)		__cv_init(cvp, name, type, arg)
 #define cv_destroy(cvp)				__cv_destroy(cvp)
 #define cv_wait(cvp, mp)			__cv_wait(cvp, mp)
 #define cv_wait_interruptible(cvp, mp)		__cv_wait_interruptible(cvp,mp)

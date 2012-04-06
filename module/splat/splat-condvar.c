@@ -102,7 +102,7 @@ splat_condvar_test1(struct file *file, void *arg)
 	cv.cv_magic = SPLAT_CONDVAR_TEST_MAGIC;
 	cv.cv_file = file;
 	mutex_init(&cv.cv_mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
-	cv_init(&cv.cv_condvar, SPLAT_CONDVAR_TEST_NAME, CV_DEFAULT, NULL);
+	cv_init(&cv.cv_condvar, NULL, CV_DEFAULT, NULL);
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
@@ -166,7 +166,7 @@ splat_condvar_test2(struct file *file, void *arg)
 	cv.cv_magic = SPLAT_CONDVAR_TEST_MAGIC;
 	cv.cv_file = file;
 	mutex_init(&cv.cv_mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
-	cv_init(&cv.cv_condvar, SPLAT_CONDVAR_TEST_NAME, CV_DEFAULT, NULL);
+	cv_init(&cv.cv_condvar, NULL, CV_DEFAULT, NULL);
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
@@ -248,7 +248,7 @@ splat_condvar_test3(struct file *file, void *arg)
 	cv.cv_magic = SPLAT_CONDVAR_TEST_MAGIC;
 	cv.cv_file = file;
 	mutex_init(&cv.cv_mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
-	cv_init(&cv.cv_condvar, SPLAT_CONDVAR_TEST_NAME, CV_DEFAULT, NULL);
+	cv_init(&cv.cv_condvar, NULL, CV_DEFAULT, NULL);
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
@@ -317,7 +317,7 @@ splat_condvar_test4(struct file *file, void *arg)
 	cv.cv_magic = SPLAT_CONDVAR_TEST_MAGIC;
 	cv.cv_file = file;
 	mutex_init(&cv.cv_mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
-	cv_init(&cv.cv_condvar, SPLAT_CONDVAR_TEST_NAME, CV_DEFAULT, NULL);
+	cv_init(&cv.cv_condvar, NULL, CV_DEFAULT, NULL);
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
@@ -386,7 +386,7 @@ splat_condvar_test5(struct file *file, void *arg)
 	int rc = 0;
 
 	mutex_init(&mtx, SPLAT_CONDVAR_TEST_NAME, MUTEX_DEFAULT, NULL);
-	cv_init(&condvar, SPLAT_CONDVAR_TEST_NAME, CV_DEFAULT, NULL);
+	cv_init(&condvar, NULL, CV_DEFAULT, NULL);
 
         splat_vprint(file, SPLAT_CONDVAR_TEST5_NAME, "Thread going to sleep for "
 	           "%d second and expecting to be woken by timeout\n", 1);

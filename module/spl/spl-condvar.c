@@ -40,7 +40,7 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 
 	SENTRY;
 	ASSERT(cvp);
-	ASSERT(name);
+	ASSERT(name == NULL);
 	ASSERT(type == CV_DEFAULT);
 	ASSERT(arg == NULL);
 
@@ -49,18 +49,12 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 	init_waitqueue_head(&cvp->cv_destroy);
 	atomic_set(&cvp->cv_waiters, 0);
 	cvp->cv_mutex = NULL;
-	cvp->cv_name = NULL;
-	cvp->cv_name_size = strlen(name) + 1;
 
         /* We may be called when there is a non-zero preempt_count or
 	 * interrupts are disabled is which case we must not sleep.
 	 */
         if (current_thread_info()->preempt_count || irqs_disabled())
 		flags = KM_NOSLEEP;
-
-	cvp->cv_name = kmem_alloc(cvp->cv_name_size, flags);
-	if (cvp->cv_name)
-	        strcpy(cvp->cv_name, name);
 
 	SEXIT;
 }
@@ -90,9 +84,6 @@ __cv_destroy(kcondvar_t *cvp)
 	ASSERT(cvp->cv_mutex == NULL);
 	ASSERT(atomic_read(&cvp->cv_waiters) == 0);
 	ASSERT(!waitqueue_active(&cvp->cv_event));
-
-	if (cvp->cv_name)
-		kmem_free(cvp->cv_name, cvp->cv_name_size);
 
 	SEXIT;
 }
