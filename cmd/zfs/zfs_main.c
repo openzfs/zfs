@@ -131,7 +131,6 @@ typedef enum {
 	HELP_SET,
 	HELP_SHARE,
 	HELP_SNAPSHOT,
-	HELP_SNAP,
 	HELP_UNMOUNT,
 	HELP_UNSHARE,
 	HELP_ALLOW,
@@ -164,7 +163,6 @@ static zfs_command_t command_table[] = {
 	{ "destroy",	zfs_do_destroy,		HELP_DESTROY		},
 	{ NULL },
 	{ "snapshot",	zfs_do_snapshot,	HELP_SNAPSHOT		},
-	{ "snap",	zfs_do_snapshot,	HELP_SNAP		},
 	{ "rollback",	zfs_do_rollback,	HELP_ROLLBACK		},
 	{ "clone",	zfs_do_clone,		HELP_CLONE		},
 	{ "promote",	zfs_do_promote,		HELP_PROMOTE		},
@@ -257,9 +255,6 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tshare <-a | filesystem>\n"));
 	case HELP_SNAPSHOT:
 		return (gettext("\tsnapshot|snap [-r] [-o property=value] ... "
-		    "<filesystem@snapname|volume@snapname>\n"));
-	case HELP_SNAP:
-		return (gettext("\tsnap|snapshot [-r] [-o property=value] ... "
 		    "<filesystem@snapname|volume@snapname>\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-f] "
@@ -6165,6 +6160,12 @@ main(int argc, char **argv)
 	 */
 	if (strcmp(cmdname, "recv") == 0)
 		cmdname = "receive";
+
+	/*
+	 * The 'snap' command is an alias for 'snapshot'
+	 */
+	if (strcmp(cmdname, "snap") == 0)
+		cmdname = "snapshot";
 
 	/*
 	 * Special case '-?'
