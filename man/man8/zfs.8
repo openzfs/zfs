@@ -37,7 +37,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBsnapshot\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR]... 
+\fBzfs\fR \fBsnapshot | snap\fR [\fB-r\fR] [\fB-o\fR \fIproperty\fR=\fIvalue\fR]... 
       \fIfilesystem@snapname\fR|\fIvolume@snapname\fR
 .fi
 
@@ -128,7 +128,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBunmount\fR [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR
+\fBzfs\fR \fBunmount | umount\fR [\fB-f\fR] \fB-a\fR | \fIfilesystem\fR|\fImountpoint\fR
 .fi
 
 .LP
@@ -148,12 +148,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] \fB-d\fR \fIfilesystem\fR
+\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] \fB-d\fR \fIfilesystem\fR
 .fi
 
 .LP
