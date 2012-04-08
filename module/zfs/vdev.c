@@ -492,7 +492,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		    &vd->vdev_removing);
 	}
 
-	if (parent && !parent->vdev_parent) {
+	if (parent && !parent->vdev_parent && alloctype != VDEV_ALLOC_ATTACH) {
 		ASSERT(alloctype == VDEV_ALLOC_LOAD ||
 		    alloctype == VDEV_ALLOC_ADD ||
 		    alloctype == VDEV_ALLOC_SPLIT ||
@@ -669,6 +669,8 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	svd->vdev_ms_shift = 0;
 	svd->vdev_ms_count = 0;
 
+	if (tvd->vdev_mg)
+		ASSERT3P(tvd->vdev_mg, ==, svd->vdev_mg);
 	tvd->vdev_mg = svd->vdev_mg;
 	tvd->vdev_ms = svd->vdev_ms;
 
