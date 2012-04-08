@@ -1007,8 +1007,10 @@ spa_unload(spa_t *spa)
 	}
 	spa->spa_spares.sav_count = 0;
 
-	for (i = 0; i < spa->spa_l2cache.sav_count; i++)
+	for (i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		vdev_clear_stats(spa->spa_l2cache.sav_vdevs[i]);
 		vdev_free(spa->spa_l2cache.sav_vdevs[i]);
+	}
 	if (spa->spa_l2cache.sav_vdevs) {
 		kmem_free(spa->spa_l2cache.sav_vdevs,
 		    spa->spa_l2cache.sav_count * sizeof (void *));
@@ -1231,11 +1233,13 @@ spa_load_l2cache(spa_t *spa)
 
 		vd = oldvdevs[i];
 		if (vd != NULL) {
+			ASSERT(vd->vdev_isl2cache);
+
 			if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 			    pool != 0ULL && l2arc_vdev_present(vd))
 				l2arc_remove_vdev(vd);
-			(void) vdev_close(vd);
-			spa_l2cache_remove(vd);
+			vdev_clear_stats(vd);
+			vdev_free(vd);
 		}
 	}
 
@@ -2743,6 +2747,7 @@ spa_validate_aux_devs(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode,
 		if ((strcmp(config, ZPOOL_CONFIG_L2CACHE) == 0) &&
 		    strcmp(vd->vdev_ops->vdev_op_type, VDEV_TYPE_DISK) != 0) {
 			error = ENOTBLK;
+			vdev_free(vd);
 			goto out;
 		}
 #endif
@@ -2852,10 +2857,6 @@ spa_l2cache_drop(spa_t *spa)
 		if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 		    pool != 0ULL && l2arc_vdev_present(vd))
 			l2arc_remove_vdev(vd);
-		if (vd->vdev_isl2cache)
-			spa_l2cache_remove(vd);
-		vdev_clear_stats(vd);
-		(void) vdev_close(vd);
 	}
 }
 
@@ -3851,7 +3852,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	pvd = oldvd->vdev_parent;
 
 	if ((error = spa_config_parse(spa, &newrootvd, nvroot, NULL, 0,
-	    VDEV_ALLOC_ADD)) != 0)
+	    VDEV_ALLOC_ATTACH)) != 0)
 		return (spa_vdev_exit(spa, NULL, txg, EINVAL));
 
 	if (newrootvd->vdev_children != 1)
