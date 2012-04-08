@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Portions Copyright 2011 iXsystems, Inc
  */
 
 #include <sys/zfs_context.h>
@@ -625,14 +626,14 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		 * and spill buffer.
 		 */
 		if (buftype == SA_BONUS && *index == -1 &&
-		    (*total + P2ROUNDUP(hdrsize, 8)) >
+		    *total + (P2ROUNDUP(hdrsize, 8)) >
 		    (full_space - sizeof (blkptr_t))) {
 			*index = i;
 			done = B_TRUE;
 		}
 
 next:
-		if ((*total + P2ROUNDUP(hdrsize, 8)) > full_space &&
+		if (*total + (P2ROUNDUP(hdrsize, 8)) > full_space &&
 		    buftype == SA_BONUS)
 			*will_spill = B_TRUE;
 	}
