@@ -75,7 +75,7 @@ zfs \- configures ZFS file systems
 .LP
 .nf
 \fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR][\fB-H\fR][\fB-o\fR \fIproperty\fR[,...]] [\fB-t\fR \fItype\fR[,...]]
-     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...
+     [\fB-s\fR \fIproperty\fR] ... [\fB-S\fR \fIproperty\fR] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...
 .fi
 
 .LP
@@ -1471,7 +1471,7 @@ Recursively rename the snapshots of all descendent datasets. Snapshots are the o
 .ne 2
 .mk
 .na
-\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR] ...\fR
+\fB\fBzfs\fR \fBlist\fR [\fB-r\fR|\fB-d\fR \fIdepth\fR] [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,\fI\&...\fR]] [ \fB-t\fR \fItype\fR[,\fI\&...\fR]] [ \fB-s\fR \fIproperty\fR ] ... [ \fB-S\fR \fIproperty\fR ] ... [\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR|\fIsnap\fR] ...\fR
 .ad
 .sp .6
 .RS 4n

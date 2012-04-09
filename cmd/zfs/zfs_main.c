@@ -229,7 +229,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tlist [-rH][-d max] "
 		    "[-o property[,...]] [-t type[,...]] [-s property] ...\n"
 		    "\t    [-S property] ... "
-		    "[filesystem|volume|snapshot] ...\n"));
+		    "[filesystem|volume|snapshot|snap] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
 		    "\tmount [-vO] [-o opts] <-a | filesystem>\n"));
@@ -2766,7 +2766,7 @@ zfs_do_list(int argc, char **argv)
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
 			while (*optarg != '\0') {
 				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "all", NULL };
+				    "volume", "snapshot", "snap", "all", NULL };
 
 				switch (getsubopt(&optarg, type_subopts,
 				    &value)) {
@@ -2777,9 +2777,10 @@ zfs_do_list(int argc, char **argv)
 					types |= ZFS_TYPE_VOLUME;
 					break;
 				case 2:
+				case 3:
 					types |= ZFS_TYPE_SNAPSHOT;
 					break;
-				case 3:
+				case 4:
 					types = ZFS_TYPE_DATASET;
 					break;
 
