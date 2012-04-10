@@ -1017,7 +1017,8 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		mutex_exit(&buf->b_hdr->b_freeze_lock);
 		return;
 	}
-	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t), KM_SLEEP);
+	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
+	                                        KM_PUSHPAGE);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
@@ -4623,8 +4624,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				 */
 				list_insert_head(dev->l2ad_buflist, head);
 
-				cb = kmem_alloc(
-				    sizeof (l2arc_write_callback_t), KM_SLEEP);
+				cb = kmem_alloc(sizeof (l2arc_write_callback_t),
+				                KM_PUSHPAGE);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
 				pio = zio_root(spa, l2arc_write_done, cb,
@@ -4634,7 +4635,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			/*
 			 * Create and add a new L2ARC header.
 			 */
-			hdrl2 = kmem_zalloc(sizeof (l2arc_buf_hdr_t), KM_SLEEP);
+			hdrl2 = kmem_zalloc(sizeof (l2arc_buf_hdr_t),
+			                    KM_PUSHPAGE);
 			hdrl2->b_dev = dev;
 			hdrl2->b_daddr = dev->l2ad_hand;
 
