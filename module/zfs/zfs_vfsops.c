@@ -56,6 +56,7 @@
 #include <sys/modctl.h>
 #include <sys/refstr.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/bootconf.h>
 #include <sys/sunddi.h>
@@ -710,6 +711,10 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_init(&zsb->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
 
+	avl_create(&zsb->z_ctldir_snaps, snapentry_compare,
+	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t, se_node));
+	mutex_init(&zsb->z_ctldir_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	*zsbp = zsb;
 	return (0);
 
@@ -819,6 +824,8 @@ zfs_sb_free(zfs_sb_t *zsb)
 	rw_destroy(&zsb->z_fuid_lock);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zsb->z_hold_mtx[i]);
+	mutex_destroy(&zsb->z_ctldir_lock);
+	avl_destroy(&zsb->z_ctldir_snaps);
 	kmem_free(zsb, sizeof (zfs_sb_t));
 }
 EXPORT_SYMBOL(zfs_sb_free);
@@ -1183,9 +1190,6 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		mutex_exit(&zsb->z_os->os_user_ptr_lock);
 	} else {
 		error = zfs_sb_setup(zsb, B_TRUE);
-#ifdef HAVE_SNAPSHOT
-		(void) zfs_snap_create(zsb);
-#endif /* HAVE_SNAPSHOT */
 	}
 
 	/* Allocate a root inode for the filesystem. */
@@ -1202,6 +1206,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 		error = ENOMEM;
 		goto out;
 	}
+
+	if (!zsb->z_issnap)
+		zfsctl_create(zsb);
 out:
 	if (error) {
 		dmu_objset_disown(zsb->z_os, zsb);
@@ -1212,6 +1219,27 @@ out:
 }
 EXPORT_SYMBOL(zfs_domount);
 
+/*
+ * Called when an unmount is requested and certain sanity checks have
+ * already passed.  At this point no dentries or inodes have been reclaimed
+ * from their respective caches.  We drop the extra reference on the .zfs
+ * control directory to allow everything to be reclaimed.  All snapshots
+ * must already have been unmounted to reach this point.
+ */
+void
+zfs_preumount(struct super_block *sb)
+{
+	zfs_sb_t *zsb = sb->s_fs_info;
+
+	if (zsb != NULL && zsb->z_ctldir != NULL)
+		zfsctl_destroy(zsb);
+}
+EXPORT_SYMBOL(zfs_preumount);
+
+/*
+ * Called once all other unmount released tear down has occurred.
+ * It is our responsibility to release any remaining infrastructure.
+ */
 /*ARGSUSED*/
 int
 zfs_umount(struct super_block *sb)
@@ -1288,11 +1316,10 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 		ZFS_EXIT(zsb);
 
-#ifdef HAVE_SNAPSHOT
-		err = zfsctl_lookup_objset(vfsp, objsetid, &zsb);
+		err = zfsctl_lookup_objset(sb, objsetid, &zsb);
 		if (err)
 			return (EINVAL);
-#endif /* HAVE_SNAPSHOT */
+
 		ZFS_ENTER(zsb);
 	}
 
@@ -1309,22 +1336,20 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		return (EINVAL);
 	}
 
-#ifdef HAVE_SNAPSHOT
 	/* A zero fid_gen means we are in the .zfs control directories */
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
 		*ipp = zsb->z_ctldir;
 		ASSERT(*ipp != NULL);
 		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp, NULL,
-			    0, NULL, NULL, NULL, NULL, NULL) == 0);
+			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
+			    0, kcred, NULL, NULL) == 0);
 		} else {
 			igrab(*ipp);
 		}
 		ZFS_EXIT(zsb);
 		return (0);
 	}
-#endif /* HAVE_SNAPSHOT */
 
 	gen_mask = -1ULL >> (64 - 8 * i);
 
@@ -1550,6 +1575,7 @@ EXPORT_SYMBOL(zfs_get_zplprop);
 void
 zfs_init(void)
 {
+	zfsctl_init();
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 	register_filesystem(&zpl_fs_type);
@@ -1561,4 +1587,5 @@ zfs_fini(void)
 {
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
+	zfsctl_fini();
 }

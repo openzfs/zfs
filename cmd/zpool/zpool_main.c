@@ -2175,11 +2175,30 @@ print_iostat(zpool_handle_t *zhp, void *data)
 	return (0);
 }
 
+static int
+get_columns(void)
+{
+	struct winsize ws;
+	int columns = 80;
+	int error;
+
+	if (isatty(STDOUT_FILENO)) {
+		error = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+		if (error == 0)
+			columns = ws.ws_col;
+	} else {
+		columns = 999;
+	}
+
+	return columns;
+}
+
 int
 get_namewidth(zpool_handle_t *zhp, void *data)
 {
 	iostat_cbdata_t *cb = data;
 	nvlist_t *config, *nvroot;
+	int columns;
 
 	if ((config = zpool_get_config(zhp, NULL)) != NULL) {
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
@@ -2191,13 +2210,15 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 	}
 
 	/*
-	 * The width must fall into the range [10,38].  The upper limit is the
-	 * maximum we can have and still fit in 80 columns.
+	 * The width must be at least 10, but may be as large as the
+	 * column width - 42 so that we can still fit in one line.
 	 */
+	columns = get_columns();
+
 	if (cb->cb_namewidth < 10)
 		cb->cb_namewidth = 10;
-	if (cb->cb_namewidth > 38)
-		cb->cb_namewidth = 38;
+	if (cb->cb_namewidth > columns - 42)
+		cb->cb_namewidth = columns - 42;
 
 	return (0);
 }
@@ -2358,7 +2379,7 @@ zpool_do_iostat(int argc, char **argv)
 		pool_list_update(list);
 
 		if ((npools = pool_list_count(list)) == 0)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else {
 			/*
 			 * Refresh all statistics.  This is done as an
@@ -2599,7 +2620,7 @@ zpool_do_list(int argc, char **argv)
 		    list_callback, &cb);
 
 		if (argc == 0 && cb.cb_first)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (argc && cb.cb_first) {
 			/* cannot open the given pool */
 			zprop_free_list(cb.cb_proplist);
@@ -3793,7 +3814,7 @@ zpool_do_status(int argc, char **argv)
 		    status_callback, &cb);
 
 		if (argc == 0 && cb.cb_count == 0)
-			(void) printf(gettext("no pools available\n"));
+			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)
 			(void) printf(gettext("all pools are healthy\n"));
 
@@ -4219,7 +4240,7 @@ zpool_do_history(int argc, char **argv)
 	    &cbdata);
 
 	if (argc == 0 && cbdata.first == B_TRUE) {
-		(void) printf(gettext("no pools available\n"));
+		(void) fprintf(stderr, gettext("no pools available\n"));
 		return (0);
 	}
 

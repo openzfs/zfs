@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Portions Copyright 2011 Martin Matuska
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -58,6 +60,7 @@
 #include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
@@ -1920,8 +1923,10 @@ top:
 		uint64_t cookie = 0;
 		int len = sizeof (zc->zc_name) - (p - zc->zc_name);
 
-		while (dmu_dir_list_next(os, len, p, NULL, &cookie) == 0)
-			(void) dmu_objset_prefetch(p, NULL);
+		while (dmu_dir_list_next(os, len, p, NULL, &cookie) == 0) {
+			if (!dataset_name_hidden(zc->zc_name))
+				(void) dmu_objset_prefetch(zc->zc_name, NULL);
+		}
 	}
 
 	do {
@@ -2690,33 +2695,6 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 	return (error);
 }
 
-#ifdef HAVE_SNAPSHOT
-/*
- * Search the vfs list for a specified resource.  Returns a pointer to it
- * or NULL if no suitable entry is found. The caller of this routine
- * is responsible for releasing the returned vfs pointer.
- */
-static vfs_t *
-zfs_get_vfs(const char *resource)
-{
-	struct vfs *vfsp;
-	struct vfs *vfs_found = NULL;
-
-	vfs_list_read_lock();
-	vfsp = rootvfs;
-	do {
-		if (strcmp(refstr_value(vfsp->vfs_resource), resource) == 0) {
-			mntget(vfsp);
-			vfs_found = vfsp;
-			break;
-		}
-		vfsp = vfsp->vfs_next;
-	} while (vfsp != rootvfs);
-	vfs_list_unlock();
-	return (vfs_found);
-}
-#endif /* HAVE_SNAPSHOT */
-
 /* ARGSUSED */
 static void
 zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
@@ -2756,6 +2734,7 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	uint64_t sense = ZFS_PROP_UNDEFINED;
 	uint64_t norm = ZFS_PROP_UNDEFINED;
 	uint64_t u8 = ZFS_PROP_UNDEFINED;
+	int error;
 
 	ASSERT(zplprops != NULL);
 
@@ -2799,8 +2778,9 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	VERIFY(nvlist_add_uint64(zplprops,
 	    zfs_prop_to_name(ZFS_PROP_VERSION), zplver) == 0);
 
-	if (norm == ZFS_PROP_UNDEFINED)
-		VERIFY(zfs_get_zplprop(os, ZFS_PROP_NORMALIZE, &norm) == 0);
+	if (norm == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_NORMALIZE, &norm)) != 0)
+		return (error);
 	VERIFY(nvlist_add_uint64(zplprops,
 	    zfs_prop_to_name(ZFS_PROP_NORMALIZE), norm) == 0);
 
@@ -2809,13 +2789,15 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	 */
 	if (norm)
 		u8 = 1;
-	if (u8 == ZFS_PROP_UNDEFINED)
-		VERIFY(zfs_get_zplprop(os, ZFS_PROP_UTF8ONLY, &u8) == 0);
+	if (u8 == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_UTF8ONLY, &u8)) != 0)
+		return (error);
 	VERIFY(nvlist_add_uint64(zplprops,
 	    zfs_prop_to_name(ZFS_PROP_UTF8ONLY), u8) == 0);
 
-	if (sense == ZFS_PROP_UNDEFINED)
-		VERIFY(zfs_get_zplprop(os, ZFS_PROP_CASE, &sense) == 0);
+	if (sense == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_CASE, &sense)) != 0)
+		return (error);
 	VERIFY(nvlist_add_uint64(zplprops,
 	    zfs_prop_to_name(ZFS_PROP_CASE), sense) == 0);
 
@@ -3067,38 +3049,52 @@ out:
 	return (error);
 }
 
+/*
+ * inputs:
+ * name		dataset name, or when 'arg == NULL' the full snapshot name
+ * arg		short snapshot name (i.e. part after the '@')
+ */
 int
 zfs_unmount_snap(const char *name, void *arg)
 {
-#ifdef HAVE_SNAPSHOT
-	vfs_t *vfsp = NULL;
+	zfs_sb_t *zsb = NULL;
+	char *dsname;
+	char *snapname;
+	char *fullname;
+	char *ptr;
+	int error;
 
 	if (arg) {
-		char *snapname = arg;
-		char *fullname = kmem_asprintf("%s@%s", name, snapname);
-		vfsp = zfs_get_vfs(fullname);
-		strfree(fullname);
-	} else if (strchr(name, '@')) {
-		vfsp = zfs_get_vfs(name);
-	}
-
-	if (vfsp) {
-		/*
-		 * Always force the unmount for snapshots.
-		 */
-		int flag = MS_FORCE;
-		int err;
-
-		if ((err = vn_vfswlock(vfsp->vfs_vnodecovered)) != 0) {
-			mntput(vfsp);
-			return (err);
+		dsname = strdup(name);
+		snapname = strdup(arg);
+	} else {
+		ptr = strchr(name, '@');
+		if (ptr) {
+			dsname = strdup(name);
+			dsname[ptr - name] = '\0';
+			snapname = strdup(ptr + 1);
+		} else {
+			return (0);
 		}
-		mntput(vfsp);
-		if ((err = dounmount(vfsp, flag, kcred)) != 0)
-			return (err);
 	}
-#endif /* HAVE_SNAPSHOT */
-	return (0);
+
+	fullname = kmem_asprintf("%s@%s", dsname, snapname);
+
+	error = zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE);
+	if (error == 0) {
+		error = zfsctl_unmount_snapshot(zsb, fullname, MNT_FORCE);
+		zfs_sb_rele(zsb, FTAG);
+
+		/* Allow ENOENT for consistency with upstream */
+		if (error == ENOENT)
+			error = 0;
+	}
+
+	strfree(dsname);
+	strfree(snapname);
+	strfree(fullname);
+
+	return (error);
 }
 
 /*
@@ -5011,9 +5007,9 @@ _init(void)
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
-	printk(KERN_NOTICE "ZFS: Loaded module v%s%s, "
+	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
 	       "ZFS pool version %s, ZFS filesystem version %s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR,
+	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	       SPA_VERSION_STRING, ZPL_VERSION_STRING);
 
 	return (0);
@@ -5023,8 +5019,9 @@ out2:
 out1:
 	zfs_fini();
 	spa_fini();
-	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s%s"
-	       ", rc = %d\n", ZFS_META_VERSION, ZFS_DEBUG_STR, error);
+	printk(KERN_NOTICE "ZFS: Failed to Load ZFS Filesystem v%s-%s%s"
+	       ", rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
+	       ZFS_DEBUG_STR, error);
 
 	return (error);
 }
@@ -5040,8 +5037,8 @@ _fini(void)
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 
-	printk(KERN_NOTICE "ZFS: Unloaded module v%s%s\n",
-	       ZFS_META_VERSION, ZFS_DEBUG_STR);
+	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",
+	       ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 
 	return (0);
 }

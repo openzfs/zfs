@@ -2082,7 +2082,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path)
 
 	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
-		    "relabel '%s': unable to open device"), path);
+		    "relabel '%s': unable to open device: %d"), path, errno);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -3763,8 +3763,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.
 		 */
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "unable to open device '%s': %d"), path, errno);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
+		    "label '%s': unable to open device: %d"), path, errno);
 		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
 	}
 
@@ -3777,8 +3777,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 			(void) no_memory(hdl);
 
 		(void) close(fd);
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "unable to read disk capacity"), name);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
+		    "label '%s': unable to read disk capacity"), path);
 
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}

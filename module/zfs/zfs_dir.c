@@ -50,6 +50,7 @@
 #include <sys/zap.h>
 #include <sys/dmu.h>
 #include <sys/atomic.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
@@ -415,28 +416,24 @@ zfs_dirlook(znode_t *dzp, char *name, struct inode **ipp, int flags,
 
 		/*
 		 * If we are a snapshot mounted under .zfs, return
-		 * the vp for the snapshot directory.
+		 * the inode pointer for the snapshot directory.
 		 */
 		if ((error = sa_lookup(dzp->z_sa_hdl,
 		    SA_ZPL_PARENT(zsb), &parent, sizeof (parent))) != 0)
 			return (error);
-#ifdef HAVE_SNAPSHOT
+
 		if (parent == dzp->z_id && zsb->z_parent != zsb) {
 			error = zfsctl_root_lookup(zsb->z_parent->z_ctldir,
-			    "snapshot", ipp, NULL, 0, NULL, kcred,
-			    NULL, NULL, NULL);
+			    "snapshot", ipp, 0, kcred, NULL, NULL);
 			return (error);
 		}
-#endif /* HAVE_SNAPSHOT */
 		rw_enter(&dzp->z_parent_lock, RW_READER);
 		error = zfs_zget(zsb, parent, &zp);
 		if (error == 0)
 			*ipp = ZTOI(zp);
 		rw_exit(&dzp->z_parent_lock);
-#ifdef HAVE_SNAPSHOT
 	} else if (zfs_has_ctldir(dzp) && strcmp(name, ZFS_CTLDIR_NAME) == 0) {
 		*ipp = zfsctl_root(dzp);
-#endif /* HAVE_SNAPSHOT */
 	} else {
 		int zf;
 

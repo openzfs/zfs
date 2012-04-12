@@ -62,6 +62,7 @@ subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
+	$(top_srcdir)/config/kernel-automount.m4 \
 	$(top_srcdir)/config/kernel-bdev-block-device-operations.m4 \
 	$(top_srcdir)/config/kernel-bdev-logical-size.m4 \
 	$(top_srcdir)/config/kernel-bdi-setup-and-register.m4 \
@@ -210,6 +211,7 @@ CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUG_CFLAGS = @DEBUG_CFLAGS@
+DEBUG_DMU_TX = @DEBUG_DMU_TX@
 DEBUG_STACKFLAGS = @DEBUG_STACKFLAGS@
 DEBUG_ZFS = @DEBUG_ZFS@
 DEFAULT_INIT_DIR = @DEFAULT_INIT_DIR@
@@ -969,6 +971,7 @@ rpm-common:
 		--define "require_splobj $(SPL_OBJ)" \
 		--define "require_splver $(SPL_VERSION)" \
 		--define "$(DEBUG_ZFS) 1" \
+		--define "$(DEBUG_DMU_TX) 1" \
 		--nodeps --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	$(RM) -R $$rpmbuild

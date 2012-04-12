@@ -229,7 +229,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tlist [-rH][-d max] "
 		    "[-o property[,...]] [-t type[,...]] [-s property] ...\n"
 		    "\t    [-S property] ... "
-		    "[filesystem|volume|snapshot] ...\n"));
+		    "[filesystem|volume|snapshot|snap] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
 		    "\tmount [-vO] [-o opts] <-a | filesystem>\n"));
@@ -254,7 +254,7 @@ get_usage(zfs_help_t idx)
 	case HELP_SHARE:
 		return (gettext("\tshare <-a | filesystem>\n"));
 	case HELP_SNAPSHOT:
-		return (gettext("\tsnapshot [-r] [-o property=value] ... "
+		return (gettext("\tsnapshot|snap [-r] [-o property=value] ... "
 		    "<filesystem@snapname|volume@snapname>\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-f] "
@@ -2766,7 +2766,7 @@ zfs_do_list(int argc, char **argv)
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
 			while (*optarg != '\0') {
 				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "all", NULL };
+				    "volume", "snapshot", "snap", "all", NULL };
 
 				switch (getsubopt(&optarg, type_subopts,
 				    &value)) {
@@ -2777,9 +2777,10 @@ zfs_do_list(int argc, char **argv)
 					types |= ZFS_TYPE_VOLUME;
 					break;
 				case 2:
+				case 3:
 					types |= ZFS_TYPE_SNAPSHOT;
 					break;
-				case 3:
+				case 4:
 					types = ZFS_TYPE_DATASET;
 					break;
 
@@ -2834,7 +2835,7 @@ zfs_do_list(int argc, char **argv)
 	zfs_free_sort_columns(sortcol);
 
 	if (ret == 0 && cb.cb_first && !cb.cb_scripted)
-		(void) printf(gettext("no datasets available\n"));
+		(void) fprintf(stderr, gettext("no datasets available\n"));
 
 	return (ret);
 }
@@ -5139,7 +5140,7 @@ zfs_do_holds(int argc, char **argv)
 	print_holds(scripted, cb.cb_max_namelen, cb.cb_max_taglen, nvl);
 
 	if (nvlist_empty(nvl))
-		(void) printf(gettext("no datasets available\n"));
+		(void) fprintf(stderr, gettext("no datasets available\n"));
 
 	nvlist_free(nvl);
 
@@ -6160,6 +6161,12 @@ main(int argc, char **argv)
 	 */
 	if (strcmp(cmdname, "recv") == 0)
 		cmdname = "receive";
+
+	/*
+	 * The 'snap' command is an alias for 'snapshot'
+	 */
+	if (strcmp(cmdname, "snap") == 0)
+		cmdname = "snapshot";
 
 	/*
 	 * Special case '-?'

@@ -37,6 +37,29 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 	AC_MSG_RESULT([$enable_debug])
 ])
 
+AC_DEFUN([ZFS_AC_DEBUG_DMU_TX], [
+	AC_ARG_ENABLE([debug-dmu-tx],
+		[AS_HELP_STRING([--enable-debug-dmu-tx],
+		[Enable dmu tx validation @<:@default=no@:>@])],
+		[],
+		[enable_debug_dmu_tx=no])
+
+	AS_IF([test "x$enable_debug_dmu_tx" = xyes],
+	[
+		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG_DMU_TX"
+		DEBUG_DMU_TX="_with_debug_dmu_tx"
+		AC_DEFINE([DEBUG_DMU_TX], [1],
+		[Define to 1 to enabled dmu tx validation])
+	],
+	[
+		DEBUG_DMU_TX="_without_debug_dmu_tx"
+	])
+
+	AC_SUBST(DEBUG_DMU_TX)
+	AC_MSG_CHECKING([whether dmu tx validation is enabled])
+	AC_MSG_RESULT([$enable_debug_dmu_tx])
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_NO_UNUSED_BUT_SET_VARIABLE
 ])
