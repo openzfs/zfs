@@ -1390,8 +1390,14 @@ zvol_init(void)
 {
 	int error;
 
+	/*
+	 * The zvol taskqs are created with TASKQ_NORECLAIM so they may be
+	 * used safely as a swap device.  If direct reclaim is allowed then
+	 * they quickly deadlock in one of the internal memory allocations.
+	 */
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
-		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);
+				  zvol_threads, INT_MAX,
+				  TASKQ_PREPOPULATE | TASKQ_NORECLAIM);
 	if (zvol_taskq == NULL) {
 		printk(KERN_INFO "ZFS: taskq_create() failed\n");
 		return (-ENOMEM);
