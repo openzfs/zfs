@@ -328,7 +328,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-SUBDIRS = man8
+SUBDIRS = man5 man8
 all: all-recursive
 
 .SUFFIXES:

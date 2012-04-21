@@ -329,7 +329,7 @@ top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
 SUBDIRS = zfs zpool zdb zinject ztest zpios mount_zfs zpool_layout \
-	zvol_id zpool_id sas_switch_id
+	zvol_id zpool_id vdev_id
 all: all-recursive
 
 .SUFFIXES:

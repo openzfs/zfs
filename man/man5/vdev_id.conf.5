@@ -1,0 +1,160 @@
+.TH vdev_id.conf 5
+.SH NAME
+vdev_id.conf \- Configuration file for vdev_id
+.SH DESCRIPTION
+.I vdev_id.conf
+is the configuration file for
+.BR vdev_id (8).
+It controls the default behavior of
+.BR vdev_id (8)
+while it is mapping a disk device name to an alias.
+.PP
+The
+.I vdev_id.conf
+file uses a simple format consisting of a keyword followed by one or
+more values on a single line.  Any line not beginning with a recognized
+keyword is ignored.  Comments may optionally begin with a hash
+character.
+
+The following keywords and values are used.
+.TP
+\fIchannel\fR [pci_slot] <port> <name>
+Maps a physical path to a channel name (typically representing a single
+disk enclosure).
+
+\fIpci_slot\fR - specifies the PCI SLOT of the HBA
+hosting the disk enclosure being mapped, as found in the output of
+.BR lspci (8).
+This argument is not used in sas_switch mode.
+
+\fIport\fR - specifies the numeric identifier of the HBA or SAS switch port
+connected to the disk enclosure being mapped.
+
+\fIname\fR - specifies the name of the channel.
+
+.TP
+\fIslot\fR <old> <new>
+Maps a disk slot number as reported by the operating system
+to an alternative slot number.
+.TP
+\fImultipath\fR <yes|no>
+Specifies whether
+.BR vdev_id (8)
+will handle only dm-multipath devices.  If set to "yes" then
+.BR vdev_id (8)
+will examine the first running component disk of a dm-multipath
+device as listed by the
+.BR multipath (8)
+command to determine the physical path.
+.TP
+\fItopology\fR <sas_direct|sas_switch>
+Identifies a physical topology that governs how physical paths are
+mapped to channels.
+
+\fIsas_direct\fR - in this mode a channel is uniquely identified by
+a PCI slot and a HBA port number
+
+\fIsas_switch\fR - in this mode a channel is uniquely identified by
+a SAS switch port number
+
+.TP
+\fIphys_per_port\fR <num>
+Specifies the number of PHY devices are associated with a SAS HBA port or SAS
+switch port.
+.BR vdev_id (8)
+internally uses this value to determine which HBA or switch port a
+device is connected to.  The default is 4.
+.SH EXAMPLES
+A non-multipath configuration with direct-attached SAS enclosures and an
+arbitrary slot re-mapping.
+.P
+	multipath     no
+.br
+	topology      sas_direct
+.br
+	phys_per_port 4
+.br
+
+.br
+	#       PCI_SLOT HBA PORT  CHANNEL NAME
+.br
+	channel 85:00.0  1         A
+.br
+	channel 85:00.0  0         B
+.br
+	channel 86:00.0  1         C
+.br
+	channel 86:00.0  0         D
+.br
+
+.br
+	#    Linux      Mapped
+.br
+	#    Slot       Slot
+.br
+	slot 1          7
+.br
+	slot 2          10
+.br
+	slot 3          3
+.br
+	slot 4          6
+.br
+	slot 5          2
+.br
+	slot 6          8
+.br
+	slot 7          1
+.br
+	slot 8          4
+.br
+	slot 9          9
+.br
+	slot 10         5
+.br
+.P
+A SAS-switch topology.  Note that the
+.I channel
+keyword takes only two arguments in this example.
+.P
+	topology      sas_switch
+.br
+
+.br
+	#       SWITCH PORT  CHANNEL NAME
+.br
+	channel 1            A
+.br
+	channel 2            B
+.br
+	channel 3            C
+.br
+	channel 4            D
+.br
+.P
+A multipath configuration.  Note that channel names have multiple
+definitions - one per physical path.
+.P
+	multipath yes
+.br
+
+.br
+	#       PCI_SLOT HBA PORT  CHANNEL NAME
+.br
+	channel 85:00.0  1         A
+.br
+	channel 85:00.0  0         B
+.br
+	channel 86:00.0  1         A
+.br
+	channel 86:00.0  0         B
+.br
+.P
+
+.SH FILES
+.TP
+.I /etc/zfs/vdev_id.conf
+The configuration file for
+.BR vdev_id (8).
+.SH SEE ALSO
+.BR vdev_id (8)

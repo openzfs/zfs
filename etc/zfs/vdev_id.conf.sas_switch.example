@@ -1,0 +1,7 @@
+topology      sas_switch
+
+#       SWITCH PORT  CHANNEL NAME
+channel 1            A
+channel 2            B
+channel 3            C
+channel 4            D
