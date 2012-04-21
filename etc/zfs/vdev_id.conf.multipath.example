@@ -1,0 +1,7 @@
+multipath yes
+
+#       PCI_ID  HBA PORT  CHANNEL NAME
+channel 85:00.0 1         A
+channel 85:00.0 0         B
+channel 86:00.0 1         A
+channel 86:00.0 0         B

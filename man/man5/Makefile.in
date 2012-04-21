@@ -14,7 +14,6 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -35,9 +34,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-subdir = cmd/sas_switch_id
-DIST_COMMON = $(dist_udev_SCRIPTS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in
+subdir = man/man5
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
@@ -103,6 +101,14 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/zfs_config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
+SOURCES =
+DIST_SOURCES =
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -124,16 +130,10 @@ am__nobase_list = $(am__nobase_strip_setup); \
 am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__installdirs = "$(DESTDIR)$(udevdir)"
-SCRIPTS = $(dist_udev_SCRIPTS)
-AM_V_GEN = $(am__v_GEN_$(V))
-am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
-am__v_GEN_0 = @echo "  GEN   " $@;
-AM_V_at = $(am__v_at_$(V))
-am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
-am__v_at_0 = @
-SOURCES =
-DIST_SOURCES =
+man5dir = $(mandir)/man5
+am__installdirs = "$(DESTDIR)$(man5dir)"
+NROFF = nroff
+MANS = $(man_MANS)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 ALIEN = @ALIEN@
@@ -313,7 +313,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-dist_udev_SCRIPTS = sas_switch_id
+man_MANS = vdev_id.conf.5
+EXTRA_DIST = $(man_MANS)
 all: all-am
 
 .SUFFIXES:
@@ -326,9 +327,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu cmd/sas_switch_id/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu man/man5/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu cmd/sas_switch_id/Makefile
+	  $(AUTOMAKE) --gnu man/man5/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -347,46 +348,50 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-dist_udevSCRIPTS: $(dist_udev_SCRIPTS)
-	@$(NORMAL_INSTALL)
-	test -z "$(udevdir)" || $(MKDIR_P) "$(DESTDIR)$(udevdir)"
-	@list='$(dist_udev_SCRIPTS)'; test -n "$(udevdir)" || list=; \
-	for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  if test -f "$$d$$p"; then echo "$$d$$p"; echo "$$p"; else :; fi; \
-	done | \
-	sed -e 'p;s,.*/,,;n' \
-	    -e 'h;s|.*|.|' \
-	    -e 'p;x;s,.*/,,;$(transform)' | sed 'N;N;N;s,\n, ,g' | \
-	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1; } \
-	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
-	    if ($$2 == $$4) { files[d] = files[d] " " $$1; \
-	      if (++n[d] == $(am__install_max)) { \
-		print "f", d, files[d]; n[d] = 0; files[d] = "" } } \
-	    else { print "f", d "/" $$4, $$1 } } \
-	  END { for (d in files) print "f", d, files[d] }' | \
-	while read type dir files; do \
-	     if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
-	     test -z "$$files" || { \
-	       echo " $(INSTALL_SCRIPT) $$files '$(DESTDIR)$(udevdir)$$dir'"; \
-	       $(INSTALL_SCRIPT) $$files "$(DESTDIR)$(udevdir)$$dir" || exit $$?; \
-	     } \
-	; done
-
-uninstall-dist_udevSCRIPTS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(dist_udev_SCRIPTS)'; test -n "$(udevdir)" || exit 0; \
-	files=`for p in $$list; do echo "$$p"; done | \
-	       sed -e 's,.*/,,;$(transform)'`; \
-	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(udevdir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(udevdir)" && rm -f $$files
 
 mostlyclean-libtool:
 	-rm -f *.lo
 
 clean-libtool:
 	-rm -rf .libs _libs
+install-man5: $(man_MANS)
+	@$(NORMAL_INSTALL)
+	test -z "$(man5dir)" || $(MKDIR_P) "$(DESTDIR)$(man5dir)"
+	@list=''; test -n "$(man5dir)" || exit 0; \
+	{ for i in $$list; do echo "$$i"; done; \
+	l2='$(man_MANS)'; for i in $$l2; do echo "$$i"; done | \
+	  sed -n '/\.5[a-z]*$$/p'; \
+	} | while read p; do \
+	  if test -f $$p; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; echo "$$p"; \
+	done | \
+	sed -e 'n;s,.*/,,;p;h;s,.*\.,,;s,^[^5][0-9a-z]*$$,5,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,' | \
+	sed 'N;N;s,\n, ,g' | { \
+	list=; while read file base inst; do \
+	  if test "$$base" = "$$inst"; then list="$$list $$file"; else \
+	    echo " $(INSTALL_DATA) '$$file' '$(DESTDIR)$(man5dir)/$$inst'"; \
+	    $(INSTALL_DATA) "$$file" "$(DESTDIR)$(man5dir)/$$inst" || exit $$?; \
+	  fi; \
+	done; \
+	for i in $$list; do echo "$$i"; done | $(am__base_list) | \
+	while read files; do \
+	  test -z "$$files" || { \
+	    echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man5dir)'"; \
+	    $(INSTALL_DATA) $$files "$(DESTDIR)$(man5dir)" || exit $$?; }; \
+	done; }
+
+uninstall-man5:
+	@$(NORMAL_UNINSTALL)
+	@list=''; test -n "$(man5dir)" || exit 0; \
+	files=`{ for i in $$list; do echo "$$i"; done; \
+	l2='$(man_MANS)'; for i in $$l2; do echo "$$i"; done | \
+	  sed -n '/\.5[a-z]*$$/p'; \
+	} | sed -e 's,.*/,,;h;s,.*\.,,;s,^[^5][0-9a-z]*$$,5,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,'`; \
+	test -z "$$files" || { \
+	  echo " ( cd '$(DESTDIR)$(man5dir)' && rm -f" $$files ")"; \
+	  cd "$(DESTDIR)$(man5dir)" && rm -f $$files; }
 tags: TAGS
 TAGS:
 
@@ -395,6 +400,19 @@ CTAGS:
 
 
 distdir: $(DISTFILES)
+	@list='$(MANS)'; if test -n "$$list"; then \
+	  list=`for p in $$list; do \
+	    if test -f $$p; then d=; else d="$(srcdir)/"; fi; \
+	    if test -f "$$d$$p"; then echo "$$d$$p"; else :; fi; done`; \
+	  if test -n "$$list" && \
+	    grep 'ab help2man is required to generate this page' $$list >/dev/null; then \
+	    echo "error: found man pages containing the \`missing help2man' replacement text:" >&2; \
+	    grep -l 'ab help2man is required to generate this page' $$list | sed 's/^/         /' >&2; \
+	    echo "       to fix them, install help2man, remove and regenerate the man pages;" >&2; \
+	    echo "       typically \`make maintainer-clean' will remove them" >&2; \
+	    exit 1; \
+	  else :; fi; \
+	else :; fi
 	@srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
 	list='$(DISTFILES)'; \
@@ -426,9 +444,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(SCRIPTS)
+all-am: Makefile $(MANS)
 installdirs:
-	for dir in "$(DESTDIR)$(udevdir)"; do \
+	for dir in "$(DESTDIR)$(man5dir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -476,7 +494,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-dist_udevSCRIPTS
+install-data-am: install-data-local install-man
 
 install-dvi: install-dvi-am
 
@@ -492,7 +510,7 @@ install-info: install-info-am
 
 install-info-am:
 
-install-man:
+install-man: install-man5
 
 install-pdf: install-pdf-am
 
@@ -520,22 +538,27 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-dist_udevSCRIPTS
+uninstall-am: uninstall-man
+
+uninstall-man: uninstall-man5
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
 	distclean distclean-generic distclean-libtool distdir dvi \
 	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dist_udevSCRIPTS \
-	install-dvi install-dvi-am install-exec install-exec-am \
-	install-html install-html-am install-info install-info-am \
-	install-man install-pdf install-pdf-am install-ps \
+	install-data install-data-am install-data-local install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-man5 install-pdf install-pdf-am install-ps \
 	install-ps-am install-strip installcheck installcheck-am \
 	installdirs maintainer-clean maintainer-clean-generic \
 	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am uninstall uninstall-am uninstall-dist_udevSCRIPTS
+	ps ps-am uninstall uninstall-am uninstall-man uninstall-man5
 
+
+install-data-local:
+	$(INSTALL) -d -m 0755 "$(DESTDIR)$(mandir)/man5"
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

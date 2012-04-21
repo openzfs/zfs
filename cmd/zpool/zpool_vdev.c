@@ -367,9 +367,9 @@ is_whole_disk(const char *path)
 /*
  * This may be a shorthand device path or it could be total gibberish.
  * Check to see if it's a known device in /dev/, /dev/disk/by-id,
- * /dev/disk/by-label, /dev/disk/by-path, /dev/disk/by-uuid, or
- * /dev/disk/zpool/.  As part of this check, see if we've been given
- * an entire disk (minus the slice number).
+ * /dev/disk/by-label, /dev/disk/by-path, /dev/disk/by-uuid,
+ * /dev/disk/by-vdev, or /dev/disk/zpool/.  As part of this check, see
+ * if we've been given an entire disk (minus the slice number).
  */
 static int
 is_shorthand_path(const char *arg, char *path,

@@ -79,6 +79,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_sbindir}/*
 %{_bindir}/*
 %{_libdir}/*
+%{_mandir}/man5/*
 %{_mandir}/man8/*
 %{_sysconfdir}/init.d/*
 %{_sysconfdir}/zfs/*

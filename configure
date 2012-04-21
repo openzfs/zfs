@@ -24187,7 +24187,7 @@ $as_echo_n "checking whether dmu tx validation is enabled... " >&6; }
 $as_echo "$enable_debug_dmu_tx" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/sas_switch_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh"
+ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man5/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/vdev_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh"
 
 
 cat >confcache <<\_ACEOF
@@ -25112,6 +25112,7 @@ do
     "etc/init.d/Makefile") CONFIG_FILES="$CONFIG_FILES etc/init.d/Makefile" ;;
     "etc/zfs/Makefile") CONFIG_FILES="$CONFIG_FILES etc/zfs/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
+    "man/man5/Makefile") CONFIG_FILES="$CONFIG_FILES man/man5/Makefile" ;;
     "man/man8/Makefile") CONFIG_FILES="$CONFIG_FILES man/man8/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "lib/libspl/Makefile") CONFIG_FILES="$CONFIG_FILES lib/libspl/Makefile" ;;
@@ -25145,7 +25146,7 @@ do
     "cmd/zpool_layout/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/zpool_layout/Makefile" ;;
     "cmd/zvol_id/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/zvol_id/Makefile" ;;
     "cmd/zpool_id/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/zpool_id/Makefile" ;;
-    "cmd/sas_switch_id/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/sas_switch_id/Makefile" ;;
+    "cmd/vdev_id/Makefile") CONFIG_FILES="$CONFIG_FILES cmd/vdev_id/Makefile" ;;
     "module/Makefile") CONFIG_FILES="$CONFIG_FILES module/Makefile" ;;
     "module/avl/Makefile") CONFIG_FILES="$CONFIG_FILES module/avl/Makefile" ;;
     "module/nvpair/Makefile") CONFIG_FILES="$CONFIG_FILES module/nvpair/Makefile" ;;
