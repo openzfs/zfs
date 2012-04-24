@@ -3955,7 +3955,7 @@ zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 		default:
 			return (zfs_standard_error_fmt(hdl, errno,
 			    dgettext(TEXT_DOMAIN, "cannot remove device "
-			    "links for '%s'"), dataset));
+			    "links for '%s': %s"), dataset, strerror(errno)));
 		}
 	}
 
