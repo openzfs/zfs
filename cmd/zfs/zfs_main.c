@@ -572,7 +572,7 @@ zfs_do_clone(int argc, char **argv)
 	zfs_handle_t *zhp = NULL;
 	boolean_t parents = B_FALSE;
 	nvlist_t *props;
-	int ret;
+	int ret = 0;
 	int c;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
@@ -1058,7 +1058,7 @@ zfs_do_destroy(int argc, char **argv)
 	 * named snapshot may not exist.  Go straight to libzfs.
 	 */
 	if (cb.cb_recurse && (cp = strchr(argv[0], '@'))) {
-		int ret;
+		int ret = 0;
 
 		*cp = '\0';
 		if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET)) == NULL)
@@ -1285,7 +1285,7 @@ zfs_do_get(int argc, char **argv)
 	zprop_get_cbdata_t cb = { 0 };
 	int i, c, flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 	char *value, *fields;
-	int ret;
+	int ret = 0;
 	int limit = 0;
 	zprop_list_t fake_name = { 0 };
 
@@ -1522,7 +1522,7 @@ zfs_do_inherit(int argc, char **argv)
 	zfs_prop_t prop;
 	inherit_cbdata_t cb = { 0 };
 	char *propname;
-	int ret;
+	int ret = 0;
 	int flags = 0;
 	boolean_t received = B_FALSE;
 
@@ -1728,7 +1728,7 @@ zfs_do_upgrade(int argc, char **argv)
 {
 	boolean_t all = B_FALSE;
 	boolean_t showversions = B_FALSE;
-	int ret;
+	int ret = 0;
 	upgrade_cbdata_t cb = { 0 };
 	signed char c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
@@ -2020,7 +2020,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		char sid[ZFS_MAXNAMELEN+32];
 		uid_t id;
 		uint64_t classes;
-		int err;
+		int err = 0;
 		directory_error_t e;
 
 		(void) snprintf(sid, sizeof (sid), "%s-%u", domain, rid);
@@ -2725,7 +2725,7 @@ zfs_do_list(int argc, char **argv)
 	list_cbdata_t cb = { 0 };
 	char *value;
 	int limit = 0;
-	int ret;
+	int ret = 0;
 	zfs_sort_column_t *sortcol = NULL;
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 
@@ -2855,7 +2855,7 @@ zfs_do_rename(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
 	int c;
-	int ret;
+	int ret = 0;
 	boolean_t recurse = B_FALSE;
 	boolean_t parents = B_FALSE;
 
@@ -2934,7 +2934,7 @@ static int
 zfs_do_promote(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
-	int ret;
+	int ret = 0;
 
 	/* check options */
 	if (argc > 1 && argv[1][0] == '-') {
@@ -3055,7 +3055,7 @@ rollback_check(zfs_handle_t *zhp, void *data)
 static int
 zfs_do_rollback(int argc, char **argv)
 {
-	int ret;
+	int ret = 0;
 	int c;
 	boolean_t force = B_FALSE;
 	rollback_cbdata_t cb = { 0 };
@@ -3173,7 +3173,7 @@ static int
 zfs_do_set(int argc, char **argv)
 {
 	set_cbdata_t cb;
-	int ret;
+	int ret = 0;
 
 	/* check for options */
 	if (argc > 1 && argv[1][0] == '-') {
@@ -3227,7 +3227,7 @@ static int
 zfs_do_snapshot(int argc, char **argv)
 {
 	boolean_t recursive = B_FALSE;
-	int ret;
+	int ret = 0;
 	signed char c;
 	nvlist_t *props;
 
@@ -5071,7 +5071,7 @@ zfs_do_holds(int argc, char **argv)
 	holds_cbdata_t cb = { 0 };
 
 	int limit = 0;
-	int ret;
+	int ret = 0;
 	int flags = 0;
 
 	/* check options */
@@ -5647,7 +5647,7 @@ static int
 unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 {
 	zfs_handle_t *zhp;
-	int ret;
+	int ret = 0;
 	struct stat64 statbuf;
 	struct extmnttab entry;
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
@@ -6055,7 +6055,7 @@ zfs_do_diff(int argc, char **argv)
 	char *tosnap = NULL;
 	char *fromsnap = NULL;
 	char *atp, *copy;
-	int err;
+	int err = 0;
 	int c;
 
 	while ((c = getopt(argc, argv, "FHt")) != -1) {
@@ -6125,7 +6125,7 @@ zfs_do_diff(int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-	int ret;
+	int ret = 0;
 	int i = 0;
 	char *cmdname;
 
