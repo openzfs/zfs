@@ -21,6 +21,9 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  */
 
 #include <assert.h>
@@ -2236,7 +2239,8 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 		if (!cb->cb_verbose)
 			cb->cb_namewidth = strlen(zpool_get_name(zhp));
 		else
-			cb->cb_namewidth = max_width(zhp, nvroot, 0, 0);
+			cb->cb_namewidth = max_width(zhp, nvroot, 0,
+			    cb->cb_namewidth);
 	}
 
 	/*
