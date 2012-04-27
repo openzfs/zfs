@@ -1391,7 +1391,7 @@ zvol_init(void)
 	int error;
 
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
-		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);
+		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_NORECLAIM);
 	if (zvol_taskq == NULL) {
 		printk(KERN_INFO "ZFS: taskq_create() failed\n");
 		return (-ENOMEM);
