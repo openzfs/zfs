@@ -1087,7 +1087,7 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 		 * scanning.  Additionally, stop when reaching the target
 		 * reclaim 'count' if a non-zero threshold is given.
 		 */
-		if ((sks->sks_ref > 0) || (count && i > count))
+		if ((sks->sks_ref > 0) || (count && i >= count))
 			break;
 
 		if (time_after(jiffies,sks->sks_age+skc->skc_delay*HZ)||flag) {
@@ -1857,8 +1857,9 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * is called.  The shrinker should return the number of free objects
  * in the cache when called with nr_to_scan == 0 but not attempt to
  * free any objects.  When nr_to_scan > 0 it is a request that nr_to_scan
- * objects should be freed, because Solaris semantics are to free
- * all available objects we may free more objects than requested.
+ * objects should be freed, which differs from Solaris semantics.
+ * Solaris semantics are to free all available objects which may (and
+ * probably will) be more objects than the requested nr_to_scan.
  */
 static int
 __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
@@ -1870,7 +1871,8 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
 		if (sc->nr_to_scan)
-			spl_kmem_cache_reap_now(skc);
+			spl_kmem_cache_reap_now(skc,
+			   MAX(sc->nr_to_scan >> fls64(skc->skc_slab_objs), 1));
 
 		/*
 		 * Presume everything alloc'ed in reclaimable, this ensures
@@ -1896,7 +1898,7 @@ SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
  * effort and we do not want to thrash creating and destroying slabs.
  */
 void
-spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
+spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 {
 	SENTRY;
 
@@ -1914,7 +1916,7 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 	if (skc->skc_reclaim)
 		skc->skc_reclaim(skc->skc_private);
 
-	spl_slab_reclaim(skc, skc->skc_reap, 0);
+	spl_slab_reclaim(skc, count, 0);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
 	atomic_dec(&skc->skc_ref);
 
