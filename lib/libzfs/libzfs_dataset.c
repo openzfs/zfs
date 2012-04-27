@@ -3760,7 +3760,8 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
  * Renames the given dataset.
  */
 int
-zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
+zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
+    boolean_t force_unmount)
 {
 	int ret;
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
@@ -3882,7 +3883,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 			goto error;
 		}
 	} else {
-		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0)) == NULL)
+		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0,
+		    force_unmount ? MS_FORCE : 0)) == NULL)
 			return (-1);
 
 		if (changelist_haszonedchild(cl)) {
