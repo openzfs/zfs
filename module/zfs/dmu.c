@@ -1900,4 +1900,7 @@ EXPORT_SYMBOL(dmu_return_arcbuf);
 EXPORT_SYMBOL(dmu_assign_arcbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
+
+module_param(zfs_mdcomp_disable, int, 0644);
+MODULE_PARM_DESC(zfs_mdcomp_disable, "Disable meta data compression");
 #endif
