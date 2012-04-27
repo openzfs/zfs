@@ -1916,7 +1916,8 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	if (skc->skc_reclaim)
 		skc->skc_reclaim(skc->skc_private);
 
-	spl_slab_reclaim(skc, count, 0);
+	/* Reclaim from the cache, ignoring it's age and delay. */
+	spl_slab_reclaim(skc, count, 1);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
 	atomic_dec(&skc->skc_ref);
 
