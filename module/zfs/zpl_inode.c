@@ -29,7 +29,6 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 
-
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 {
@@ -52,9 +51,15 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	return d_splice_alias(ip, dentry);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 void
 zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
     mode_t mode, cred_t *cr)
+#else
+void
+zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
+    umode_t mode, cred_t *cr)
+#endif
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
@@ -70,9 +75,15 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
 	}
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 static int
 zpl_create(struct inode *dir, struct dentry *dentry, int mode,
     struct nameidata *nd)
+#else
+static int
+zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+    struct nameidata *nd)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -92,8 +103,13 @@ zpl_create(struct inode *dir, struct dentry *dentry, int mode,
 	return (error);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 static int
 zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
+#else
+static int
+zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t rdev)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -135,8 +151,13 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 	return (error);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 static int
 zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+#else
+static int
+zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
