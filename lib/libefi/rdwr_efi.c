@@ -91,6 +91,10 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 
+#elif defined(__arm__) 
+
+	/* no boot on arm yet */ 
+
 #else
 #error No VTOC format defined.
 #endif			/* defined(i386) */
