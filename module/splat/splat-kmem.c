@@ -79,6 +79,10 @@
 #define SPLAT_KMEM_TEST12_NAME		"vmem_size"
 #define SPLAT_KMEM_TEST12_DESC		"Memory zone test"
 
+#define SPLAT_KMEM_TEST13_ID		0x010d
+#define SPLAT_KMEM_TEST13_NAME		"slab_reclaim"
+#define SPLAT_KMEM_TEST13_DESC		"Slab direct memory reclaim test"
+
 #define SPLAT_KMEM_ALLOC_COUNT		10
 #define SPLAT_VMEM_ALLOC_COUNT		10
 
@@ -336,6 +340,28 @@ splat_kmem_cache_test_kct_free(kmem_cache_thread_t *kct)
 {
 	vmem_free(kct, sizeof(kmem_cache_thread_t) +
 		  kct->kct_kcd_count * sizeof(kmem_cache_data_t *));
+}
+
+static void
+splat_kmem_cache_test_debug(struct file *file, char *name,
+			    kmem_cache_priv_t *kcp)
+{
+	int j;
+
+	splat_vprint(file, name,
+		     "%s cache objects %d, slabs %u/%u objs %u/%u mags ",
+		     kcp->kcp_cache->skc_name, kcp->kcp_count,
+		     (unsigned)kcp->kcp_cache->skc_slab_alloc,
+		     (unsigned)kcp->kcp_cache->skc_slab_total,
+		     (unsigned)kcp->kcp_cache->skc_obj_alloc,
+		     (unsigned)kcp->kcp_cache->skc_obj_total);
+
+	for_each_online_cpu(j)
+		splat_print(file, "%u/%u ",
+			     kcp->kcp_cache->skc_mag[j]->skm_avail,
+			     kcp->kcp_cache->skc_mag[j]->skm_size);
+
+	splat_print(file, "%s\n", "");
 }
 
 static int
@@ -768,7 +794,7 @@ splat_kmem_test8(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
 	kmem_cache_data_t *kcd;
-	int i, j, rc = 0;
+	int i, rc = 0;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST8_NAME,
 					      256, 0, 0, SPLAT_KMEM_OBJ_COUNT);
@@ -815,20 +841,7 @@ splat_kmem_test8(struct file *file, void *arg)
 	 */
 	for (i = 0; i < 60; i++) {
 		kmem_cache_reap_now(kcp->kcp_cache);
-		splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
-			     "%s cache objects %d, slabs %u/%u objs %u/%u mags ",
-			     SPLAT_KMEM_CACHE_NAME, kcp->kcp_count,
-			    (unsigned)kcp->kcp_cache->skc_slab_alloc,
-			    (unsigned)kcp->kcp_cache->skc_slab_total,
-			    (unsigned)kcp->kcp_cache->skc_obj_alloc,
-			    (unsigned)kcp->kcp_cache->skc_obj_total);
-
-		for_each_online_cpu(j)
-			splat_print(file, "%u/%u ",
-				     kcp->kcp_cache->skc_mag[j]->skm_avail,
-				     kcp->kcp_cache->skc_mag[j]->skm_size);
-
-		splat_print(file, "%s\n", "");
+		splat_kmem_cache_test_debug(file, SPLAT_KMEM_TEST8_NAME, kcp);
 
 		if (kcp->kcp_cache->skc_obj_total == 0)
 			break;
@@ -868,7 +881,7 @@ splat_kmem_test9(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
 	kmem_cache_data_t *kcd;
-	int i, j, rc = 0, count = SPLAT_KMEM_OBJ_COUNT * 128;
+	int i, rc = 0, count = SPLAT_KMEM_OBJ_COUNT * 128;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST9_NAME,
 					      256, 0, 0, count);
@@ -917,20 +930,7 @@ splat_kmem_test9(struct file *file, void *arg)
 	 * if it takes longer than this something has gone wrong.
 	 */
 	for (i = 0; i < 60; i++) {
-		splat_vprint(file, SPLAT_KMEM_TEST9_NAME,
-			     "%s cache objects %d, slabs %u/%u objs %u/%u mags ",
-			     SPLAT_KMEM_CACHE_NAME, kcp->kcp_count,
-			    (unsigned)kcp->kcp_cache->skc_slab_alloc,
-			    (unsigned)kcp->kcp_cache->skc_slab_total,
-			    (unsigned)kcp->kcp_cache->skc_obj_alloc,
-			    (unsigned)kcp->kcp_cache->skc_obj_total);
-
-		for_each_online_cpu(j)
-			splat_print(file, "%u/%u ",
-				     kcp->kcp_cache->skc_mag[j]->skm_avail,
-				     kcp->kcp_cache->skc_mag[j]->skm_size);
-
-		splat_print(file, "%s\n", "");
+		splat_kmem_cache_test_debug(file, SPLAT_KMEM_TEST9_NAME, kcp);
 
 		if (kcp->kcp_cache->skc_obj_total == 0)
 			break;
@@ -1106,6 +1106,138 @@ splat_kmem_test12(struct file *file, void *arg)
 	return 0;
 }
 
+typedef struct dummy_page {
+	struct list_head dp_list;
+	char             dp_pad[PAGE_SIZE - sizeof(struct list_head)];
+} dummy_page_t;
+
+/*
+ * This test is designed to verify that direct reclaim is functioning as
+ * expected.  We allocate a large number of objects thus creating a large
+ * number of slabs.  We then apply memory pressure and expect that the
+ * direct reclaim path can easily recover those slabs.  The registered
+ * reclaim function will free the objects and the slab shrinker will call
+ * it repeatedly until at least a single slab can be freed.
+ *
+ * Note it may not be possible to reclaim every last slab via direct reclaim
+ * without a failure because the shrinker_rwsem may be contended.  For this
+ * reason, quickly reclaiming 3/4 of the slabs is considered a success.
+ *
+ * This should all be possible within 10 seconds.  For reference, on a
+ * system with 2G of memory this test takes roughly 0.2 seconds to run.
+ * It may take longer on larger memory systems but should still easily
+ * complete in the alloted 10 seconds.
+ */
+static int
+splat_kmem_test13(struct file *file, void *arg)
+{
+	kmem_cache_priv_t *kcp;
+	kmem_cache_data_t *kcd;
+	dummy_page_t *dp;
+	struct list_head list;
+	struct timespec start, delta;
+	int size, count, slabs, fails = 0;
+	int i, rc = 0, max_time = 10;
+
+	size = 128 * 1024;
+	count = ((physmem * PAGE_SIZE) / 4 / size);
+
+	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST13_NAME,
+	                                      size, 0, 0, count);
+	if (!kcp) {
+		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+		             "Unable to create '%s'\n", "kcp");
+		return -ENOMEM;
+	}
+
+	kcp->kcp_cache =
+		kmem_cache_create(SPLAT_KMEM_CACHE_NAME, kcp->kcp_size, 0,
+		                  splat_kmem_cache_test_constructor,
+		                  splat_kmem_cache_test_destructor,
+				  splat_kmem_cache_test_reclaim,
+		                  kcp, NULL, 0);
+	if (!kcp->kcp_cache) {
+		splat_kmem_cache_test_kcp_free(kcp);
+		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+		             "Unable to create '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < count; i++) {
+		kcd = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
+		spin_lock(&kcp->kcp_lock);
+		kcp->kcp_kcd[i] = kcd;
+		spin_unlock(&kcp->kcp_lock);
+		if (!kcd) {
+			splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+			             "Unable to allocate from '%s'\n",
+			             SPLAT_KMEM_CACHE_NAME);
+		}
+	}
+
+	i = 0;
+	slabs = kcp->kcp_cache->skc_slab_total;
+	INIT_LIST_HEAD(&list);
+	start = current_kernel_time();
+
+	while (kcp->kcp_cache->skc_slab_total > (slabs >> 2)) {
+
+		if ((i % 10000) == 0)
+			splat_kmem_cache_test_debug(
+			    file, SPLAT_KMEM_TEST13_NAME, kcp);
+
+		delta = timespec_sub(current_kernel_time(), start);
+		if (delta.tv_sec >= max_time) {
+			splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+				     "Failed to reclaim 3/4 of cache in %ds, "
+				     "%u/%u slabs remain\n", max_time,
+				     (unsigned)kcp->kcp_cache->skc_slab_total,
+				     slabs);
+			rc = -ETIME;
+			break;
+		}
+
+		dp = (dummy_page_t *)__get_free_page(GFP_KERNEL | __GFP_NORETRY);
+		if (!dp) {
+			fails++;
+			splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+				     "Failed (%d) to allocate page with %u "
+				     "slabs still in the cache\n", fails,
+				     (unsigned)kcp->kcp_cache->skc_slab_total);
+			continue;
+		}
+
+		list_add(&dp->dp_list, &list);
+		i++;
+	}
+
+	if (rc == 0)
+		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+			     "Successfully created %u slabs and with %d alloc "
+			     "failures reclaimed 3/4 of them in %d.%03ds\n",
+			     slabs, fails,
+			     (int)delta.tv_sec, (int)delta.tv_nsec / 1000000);
+
+	/* Release memory pressure pages */
+	while (!list_empty(&list)) {
+		dp = list_entry(list.next, dummy_page_t, dp_list);
+		list_del_init(&dp->dp_list);
+		free_page((unsigned long)dp);
+	}
+
+	/* Release remaining kmem cache objects */
+	spin_lock(&kcp->kcp_lock);
+	for (i = 0; i < count; i++)
+		if (kcp->kcp_kcd[i])
+			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
+	spin_unlock(&kcp->kcp_lock);
+
+	kmem_cache_destroy(kcp->kcp_cache);
+	splat_kmem_cache_test_kcp_free(kcp);
+
+	return rc;
+}
+
 splat_subsystem_t *
 splat_kmem_init(void)
 {
@@ -1149,6 +1281,8 @@ splat_kmem_init(void)
 #endif /* _LP64 */
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST12_NAME, SPLAT_KMEM_TEST12_DESC,
 			SPLAT_KMEM_TEST12_ID, splat_kmem_test12);
+	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST13_NAME, SPLAT_KMEM_TEST13_DESC,
+			SPLAT_KMEM_TEST13_ID, splat_kmem_test13);
 
 	return sub;
 }
@@ -1157,6 +1291,7 @@ void
 splat_kmem_fini(splat_subsystem_t *sub)
 {
 	ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST13_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST12_ID);
 #ifdef _LP64
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST11_ID);
