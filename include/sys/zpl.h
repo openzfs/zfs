@@ -31,10 +31,16 @@
 #include <linux/exportfs.h>
 #include <linux/writeback.h>
 #include <linux/falloc.h>
+#include <linux/version.h>
 
 /* zpl_inode.c */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
     struct dentry *dentry, mode_t mode, cred_t *cr);
+#else
+extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
+    struct dentry *dentry, umode_t mode, cred_t *cr);
+#endif
 
 extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;

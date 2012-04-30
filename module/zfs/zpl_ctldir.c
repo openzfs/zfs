@@ -299,8 +299,13 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 	return (error);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
 static int
 zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, int mode)
+#else
+static int
+zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
