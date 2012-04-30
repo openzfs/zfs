@@ -109,4 +109,16 @@ set_nlink(struct inode *inode, unsigned int nlink)
 }
 #endif /* HAVE_SET_NLINK */
 
+/*
+ * 3.3 API change,
+ * The VFS .create, .mkdir and .mknod callbacks were updated to take a
+ * umode_t type rather than an int.  To cleanly handle both definitions
+ * the zpl_umode_t type is introduced and set accordingly.
+ */
+#ifdef HAVE_CREATE_UMODE_T
+typedef	umode_t		zpl_umode_t;
+#else
+typedef	int		zpl_umode_t;
+#endif
+
 #endif /* _ZFS_VFS_H */

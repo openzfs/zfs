@@ -105,6 +105,9 @@
 /* super_block uses const struct xattr_hander */
 #undef HAVE_CONST_XATTR_HANDLER
 
+/* iops->create()/mkdir()/mknod() take umode_t */
+#undef HAVE_CREATE_UMODE_T
+
 /* xattr_handler->get() wants dentry */
 #undef HAVE_DENTRY_XATTR_GET
 

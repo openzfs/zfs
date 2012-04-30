@@ -54,7 +54,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 
 void
 zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
-    mode_t mode, cred_t *cr)
+    zpl_umode_t mode, cred_t *cr)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
@@ -71,7 +71,7 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
 }
 
 static int
-zpl_create(struct inode *dir, struct dentry *dentry, int mode,
+zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
     struct nameidata *nd)
 {
 	cred_t *cr = CRED();
@@ -93,7 +93,8 @@ zpl_create(struct inode *dir, struct dentry *dentry, int mode,
 }
 
 static int
-zpl_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
+zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
+    dev_t rdev)
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -136,7 +137,7 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 }
 
 static int
-zpl_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
