@@ -1923,8 +1923,38 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 
 	atomic_inc(&skc->skc_ref);
 
-	if (skc->skc_reclaim)
-		skc->skc_reclaim(skc->skc_private);
+	/*
+	 * When a reclaim function is available it may be invoked repeatedly
+	 * until at least a single slab can be freed.  This ensures that we
+	 * do free memory back to the system.  This helps minimize the chance
+	 * of an OOM event when the bulk of memory is used by the slab.
+	 *
+	 * When free slabs are already available the reclaim callback will be
+	 * skipped.  Additionally, if no forward progress is detected despite
+	 * a reclaim function the cache will be skipped to avoid deadlock.
+	 *
+	 * Longer term this would be the correct place to add the code which
+	 * repacks the slabs in order minimize fragmentation.
+	 */
+	if (skc->skc_reclaim) {
+		uint64_t objects = UINT64_MAX;
+		int do_reclaim;
+
+		do {
+			spin_lock(&skc->skc_lock);
+			do_reclaim =
+			    (skc->skc_slab_total > 0) &&
+			    ((skc->skc_slab_total - skc->skc_slab_alloc) == 0) &&
+			    (skc->skc_obj_alloc < objects);
+
+			objects = skc->skc_obj_alloc;
+			spin_unlock(&skc->skc_lock);
+
+			if (do_reclaim)
+				skc->skc_reclaim(skc->skc_private);
+
+		} while (do_reclaim);
+	}
 
 	/* Reclaim from the cache, ignoring it's age and delay. */
 	spl_slab_reclaim(skc, count, 1);
