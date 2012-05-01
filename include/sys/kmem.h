@@ -43,7 +43,7 @@
  */
 #define KM_SLEEP	GFP_KERNEL	/* Can sleep, never fails */
 #define KM_NOSLEEP	GFP_ATOMIC	/* Can not sleep, may fail */
-#define KM_PUSHPAGE	(GFP_NOFS | __GFP_HIGH)	/* Use reserved memory */
+#define KM_PUSHPAGE	(GFP_NOIO | __GFP_HIGH)	/* Use reserved memory */
 #define KM_NODEBUG	__GFP_NOWARN	/* Suppress warnings */
 #define KM_FLAGS	__GFP_BITS_MASK
 #define KM_VMFLAGS	GFP_LEVEL_MASK
