@@ -389,6 +389,24 @@ out:
 }
 
 /*
+ * Replay a TX_TRUNCATE ZIL transaction if asked.  TX_TRUNCATE is how we
+ * implement DKIOCFREE/free-long-range.
+ */
+static int
+zvol_replay_truncate(zvol_state_t *zv, lr_truncate_t *lr, boolean_t byteswap)
+{
+	uint64_t offset, length;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	offset = lr->lr_offset;
+	length = lr->lr_length;
+
+	return (dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, length));
+}
+
+/*
  * Replay a TX_WRITE ZIL transaction that didn't get committed
  * after a system failure
  */
@@ -439,7 +457,7 @@ zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
 	(zil_replay_func_t *)zvol_replay_err,	/* TX_LINK */
 	(zil_replay_func_t *)zvol_replay_err,	/* TX_RENAME */
 	(zil_replay_func_t *)zvol_replay_write,	/* TX_WRITE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_TRUNCATE */
+	(zil_replay_func_t *)zvol_replay_truncate,	/* TX_TRUNCATE */
 	(zil_replay_func_t *)zvol_replay_err,	/* TX_SETATTR */
 	(zil_replay_func_t *)zvol_replay_err,	/* TX_ACL */
 };
@@ -575,6 +593,30 @@ zvol_write(void *arg)
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
+/*
+ * Log a DKIOCFREE/free-long-range to the ZIL with TX_TRUNCATE.
+ */
+static void
+zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
+    boolean_t sync)
+{
+	itx_t *itx;
+	lr_truncate_t *lr;
+	zilog_t *zilog = zv->zv_zilog;
+
+	if (zil_replaying(zilog, tx))
+		return;
+
+	itx = zil_itx_create(TX_TRUNCATE, sizeof (*lr));
+	lr = (lr_truncate_t *)&itx->itx_lr;
+	lr->lr_foid = ZVOL_OBJ;
+	lr->lr_offset = off;
+	lr->lr_length = len;
+
+	itx->itx_sync = sync;
+	zil_itx_assign(zilog, itx, tx);
+}
+
 static void
 zvol_discard(void *arg)
 {
@@ -585,11 +627,19 @@ zvol_discard(void *arg)
 	uint64_t size = blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
+	dmu_tx_t *tx;
 
-	if (offset + size > zv->zv_volsize) {
-		blk_end_request(req, -EIO, size);
+	/*
+	 * Apply Postel's Law to length-checking.  If they overshoot,
+	 * just blank out until the end, if there's a need to blank
+	 * out anything.
+	 */
+	if (offset >= zv->zv_volsize) {
+		blk_end_request(req, 0, size); /* No need to do anything... */
 		return;
 	}
+	if (offset + size > zv->zv_volsize)
+		size = DMU_OBJECT_END;
 
 	if (size == 0) {
 		blk_end_request(req, 0, size);
@@ -597,15 +647,37 @@ zvol_discard(void *arg)
 	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
-
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
-
-	/*
-	 * TODO: maybe we should add the operation to the log.
-	 */
+	tx = dmu_tx_create(zv->zv_objset);
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+	} else {
+		zvol_log_truncate(zv, tx, offset, size, B_TRUE);
+		dmu_tx_commit(tx);
+		error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset,
+			size);
+	}
 
 	zfs_range_unlock(rl);
 
+	if (error == 0) {
+		/*
+		 * If the 'sync' property is set to 'always' then treat this as
+		 * a synchronous operation (i.e. commit to zil).
+		 */
+		if (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
+			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+		/*
+		 * If the caller really wants synchronous writes, and
+		 * can't wait for them, don't return until the write
+		 * is done.
+		 */
+		if (req->cmd_flags & VDEV_REQ_FUA) {
+			txg_wait_synced(
+			    dmu_objset_pool(zv->zv_objset), 0);
+		}
+	}
 	blk_end_request(req, -error, size);
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
