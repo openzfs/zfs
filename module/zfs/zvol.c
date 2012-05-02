@@ -1195,6 +1195,10 @@ zvol_alloc(dev_t dev, const char *name)
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
 
+#ifdef HAVE_BLKDEV_DISCARD_ZEROES_DATA
+	zv->zv_queue->limits.discard_zeroes_data = 1;
+#endif
+
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
 #else
