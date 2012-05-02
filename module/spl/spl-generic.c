@@ -183,7 +183,7 @@ __udivdi3(uint64_t u, uint64_t v)
 			q0 = q0 - 1;		// too small by 1.
 		if ((u - q0 * v) >= v)
 			q0 = q0 + 1;		// Now q0 is correct.
-	
+
 		return q0;
 	}
 }
@@ -212,6 +212,27 @@ __umoddi3(uint64_t dividend, uint64_t divisor)
 }
 EXPORT_SYMBOL(__umoddi3);
 
+#if defined(__arm) || defined(__arm__)
+/*
+ * Implementation of 64-bit unsigned division for 32-bit arm machines.
+ */
+uint64_t
+__aeabi_uldivmod(uint64_t u, uint64_t v)
+{
+	return __udivdi3(u, v);
+}
+EXPORT_SYMBOL(__aeabi_uldivmod);
+
+/*
+ * Implementation of 64-bit signed division for 32-bit arm machines.
+ */
+int64_t
+__aeabi_ldivmod(int64_t u, int64_t v)
+{
+	return __divdi3(u, v);
+}
+EXPORT_SYMBOL(__aeabi_ldivmod);
+#endif /* __arm || __arm__ */
 #endif /* BITS_PER_LONG */
 
 /* NOTE: The strtoxx behavior is solely based on my reading of the Solaris
