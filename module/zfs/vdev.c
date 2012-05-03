@@ -1271,12 +1271,16 @@ vdev_open(vdev_t *vd)
 		vd->vdev_ashift = MAX(ashift, vd->vdev_ashift);
 	} else {
 		/*
-		 * Make sure the alignment requirement hasn't increased.
+		 * Detect if the alignment requirement has increased.
+		 * We don't want to make the pool unavailable, just
+		 * issue a warning instead.
 		 */
-		if (ashift > vd->vdev_top->vdev_ashift) {
-			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
-			    VDEV_AUX_BAD_LABEL);
-			return (EINVAL);
+		if (ashift > vd->vdev_top->vdev_ashift &&
+		    vd->vdev_ops->vdev_op_leaf) {
+			cmn_err(CE_WARN,
+			    "Disk, '%s', has a block alignment that is "
+			    "larger than the pool's alignment\n",
+			    vd->vdev_path);
 		}
 		vd->vdev_max_asize = max_asize;
 	}
