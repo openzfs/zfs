@@ -76,6 +76,7 @@ typedef struct zvol_state {
 } zvol_state_t;
 
 #define	ZVOL_RDONLY	0x1
+#define	ZVOL_EXCL	0x4
 
 /*
  * Find the next available range of ZVOL_MINORS minor numbers.  The
@@ -912,6 +913,19 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 		goto out_open_count;
 	}
 
+	if (zv->zv_flags & ZVOL_EXCL) {
+		error = -EBUSY;
+		goto out_open_count;
+	}
+
+	if (flag & FEXCL) {
+		if (zv->zv_open_count != 0) {
+			error = -EBUSY;
+			goto out_mutex;
+		}
+		zv->zv_flags |= ZVOL_EXCL;
+	}
+
 	zv->zv_open_count++;
 
 out_open_count:
@@ -940,6 +954,12 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 
 	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
+
+	if (zv->zv_flags & ZVOL_EXCL) {
+		ASSERT(zv->zv_open_count == 1);
+		zv->zv_flags &= ~ZVOL_EXCL;
+	}
+
 	zv->zv_open_count--;
 	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
