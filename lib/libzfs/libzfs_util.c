@@ -821,7 +821,8 @@ int
 zfs_resolve_shortname(const char *name, char *path, size_t pathlen)
 {
 	int i, err;
-	char dirs[5][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
+	char dirs[6][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool",
+			   "by-vdev"};
 
 	(void) snprintf(path, pathlen, "%s/%s", DISK_ROOT, name);
 	err = access(path, F_OK);

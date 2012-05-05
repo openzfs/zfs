@@ -1,0 +1,22 @@
+multipath     no
+topology      sas_direct
+phys_per_port 4
+
+#       PCI_ID  HBA PORT  CHANNEL NAME
+channel 85:00.0 1         A
+channel 85:00.0 0         B
+channel 86:00.0 1         C
+channel 86:00.0 0         D
+
+#    Linux      Mapped
+#    Slot       Slot
+slot 1          7
+slot 2          10
+slot 3          3
+slot 4          6
+slot 5          2
+slot 6          8
+slot 7          1
+slot 8          4
+slot 9          9
+slot 10         5

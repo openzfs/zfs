@@ -64,6 +64,7 @@ AC_CONFIG_FILES([
 	etc/init.d/Makefile
 	etc/zfs/Makefile
 	man/Makefile
+	man/man5/Makefile
 	man/man8/Makefile
 	lib/Makefile
 	lib/libspl/Makefile
@@ -97,7 +98,7 @@ AC_CONFIG_FILES([
 	cmd/zpool_layout/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zpool_id/Makefile
-	cmd/sas_switch_id/Makefile
+	cmd/vdev_id/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
