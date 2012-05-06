@@ -45,6 +45,9 @@
 /* BIO_RW_SYNCIO is defined */
 #undef HAVE_BIO_RW_SYNCIO
 
+/* struct queue_limits with discard_zeroes_data */
+#undef HAVE_BLKDEV_DISCARD_ZEROES_DATA
+
 /* blkdev_get_by_path() is available */
 #undef HAVE_BLKDEV_GET_BY_PATH
 
