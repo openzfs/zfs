@@ -339,7 +339,7 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
 		}
 
-		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
+		cb_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
 		list_create(cb_list, sizeof (dmu_tx_callback_t),
 		    offsetof(dmu_tx_callback_t, dcb_node));
 

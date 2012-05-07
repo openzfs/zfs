@@ -372,7 +372,7 @@ static dnode_t *
 dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
     uint64_t object, dnode_handle_t *dnh)
 {
-	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
+	dnode_t *dn = kmem_cache_alloc(dnode_cache, KM_PUSHPAGE);
 
 	ASSERT(!POINTER_IS_VALID(dn->dn_objset));
 	dn->dn_moved = 0;
@@ -1491,7 +1491,7 @@ dnode_clear_range(dnode_t *dn, uint64_t blkid, uint64_t nblks, dmu_tx_t *tx)
 		} else if (blkid > rp->fr_blkid && endblk < fr_endblk) {
 			/* clear a chunk out of this range */
 			free_range_t *new_rp =
-			    kmem_alloc(sizeof (free_range_t), KM_SLEEP);
+			    kmem_alloc(sizeof (free_range_t), KM_PUSHPAGE);
 
 			new_rp->fr_blkid = endblk;
 			new_rp->fr_nblks = fr_endblk - endblk;
@@ -1669,7 +1669,7 @@ done:
 		avl_tree_t *tree = &dn->dn_ranges[tx->tx_txg&TXG_MASK];
 
 		/* Add new range to dn_ranges */
-		rp = kmem_alloc(sizeof (free_range_t), KM_SLEEP);
+		rp = kmem_alloc(sizeof (free_range_t), KM_PUSHPAGE);
 		rp->fr_blkid = blkid;
 		rp->fr_nblks = nblks;
 		found = avl_find(tree, rp, &where);
