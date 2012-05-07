@@ -172,7 +172,7 @@ zap_name_free(zap_name_t *zn)
 zap_name_t *
 zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt)
 {
-	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
+	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_PUSHPAGE);
 
 	zn->zn_zap = zap;
 	zn->zn_key_intlen = sizeof (*key);
@@ -271,7 +271,7 @@ mze_insert(zap_t *zap, int chunkid, uint64_t hash)
 	ASSERT(zap->zap_ismicro);
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	mze = kmem_alloc(sizeof (mzap_ent_t), KM_SLEEP);
+	mze = kmem_alloc(sizeof (mzap_ent_t), KM_PUSHPAGE);
 	mze->mze_chunkid = chunkid;
 	mze->mze_hash = hash;
 	mze->mze_cd = MZE_PHYS(zap, mze)->mze_cd;
@@ -365,7 +365,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 
 	ASSERT3U(MZAP_ENT_LEN, ==, sizeof (mzap_ent_phys_t));
 
-	zap = kmem_zalloc(sizeof (zap_t), KM_SLEEP);
+	zap = kmem_zalloc(sizeof (zap_t), KM_PUSHPAGE);
 	rw_init(&zap->zap_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&zap->zap_rwlock, RW_WRITER);
 	zap->zap_objset = os;

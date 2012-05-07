@@ -236,7 +236,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 		return EINVAL;
 	}
 
-	vd = kmem_zalloc(sizeof(vdev_disk_t), KM_SLEEP);
+	vd = kmem_zalloc(sizeof(vdev_disk_t), KM_PUSHPAGE);
 	if (vd == NULL)
 		return ENOMEM;
 
@@ -320,7 +320,7 @@ vdev_disk_dio_alloc(int bio_count)
 	int i;
 
 	dr = kmem_zalloc(sizeof(dio_request_t) +
-	                 sizeof(struct bio *) * bio_count, KM_SLEEP);
+	                 sizeof(struct bio *) * bio_count, KM_PUSHPAGE);
 	if (dr) {
 		init_completion(&dr->dr_comp);
 		atomic_set(&dr->dr_ref, 0);
@@ -789,7 +789,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	}
 
 	size = P2ALIGN_TYPED(s, sizeof(vdev_label_t), uint64_t);
-	label = vmem_alloc(sizeof(vdev_label_t), KM_SLEEP);
+	label = vmem_alloc(sizeof(vdev_label_t), KM_PUSHPAGE);
 
 	for (i = 0; i < VDEV_LABELS; i++) {
 	        uint64_t offset, state, txg = 0;

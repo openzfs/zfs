@@ -504,7 +504,7 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 	ddt_histogram_t *ddh_total;
 
 	/* XXX: Move to a slab */
-	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
+	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_PUSHPAGE);
 	ddt_get_dedup_histogram(spa, ddh_total);
 	ddt_histogram_stat(dds_total, ddh_total);
 	kmem_free(ddh_total, sizeof (ddt_histogram_t));

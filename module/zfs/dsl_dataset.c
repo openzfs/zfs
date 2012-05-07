@@ -390,7 +390,7 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 	if (ds == NULL) {
 		dsl_dataset_t *winner = NULL;
 
-		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
+		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_PUSHPAGE);
 		ds->ds_dbuf = dbuf;
 		ds->ds_object = dsobj;
 		ds->ds_phys = dbuf->db_data;

@@ -3547,7 +3547,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	ASSERT(hdr->b_acb == NULL);
 	if (l2arc)
 		hdr->b_flags |= ARC_L2CACHE;
-	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_SLEEP);
+	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_PUSHPAGE);
 	callback->awcb_ready = ready;
 	callback->awcb_done = done;
 	callback->awcb_private = private;

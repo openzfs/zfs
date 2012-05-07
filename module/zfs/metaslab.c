@@ -102,7 +102,7 @@ metaslab_class_create(spa_t *spa, space_map_ops_t *ops)
 {
 	metaslab_class_t *mc;
 
-	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
+	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_PUSHPAGE);
 
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
@@ -217,7 +217,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
 	metaslab_group_t *mg;
 
-	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
+	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_PUSHPAGE);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&mg->mg_metaslab_tree, metaslab_compare,
 	    sizeof (metaslab_t), offsetof(struct metaslab, ms_group_node));
@@ -422,9 +422,9 @@ metaslab_pp_load(space_map_t *sm)
 	space_seg_t *ss;
 
 	ASSERT(sm->sm_ppd == NULL);
-	sm->sm_ppd = kmem_zalloc(64 * sizeof (uint64_t), KM_SLEEP);
+	sm->sm_ppd = kmem_zalloc(64 * sizeof (uint64_t), KM_PUSHPAGE);
 
-	sm->sm_pp_root = kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
+	sm->sm_pp_root = kmem_alloc(sizeof (avl_tree_t), KM_PUSHPAGE);
 	avl_create(sm->sm_pp_root, metaslab_segsize_compare,
 	    sizeof (space_seg_t), offsetof(struct space_seg, ss_pp_node));
 
@@ -725,7 +725,7 @@ metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
 	vdev_t *vd = mg->mg_vd;
 	metaslab_t *msp;
 
-	msp = kmem_zalloc(sizeof (metaslab_t), KM_SLEEP);
+	msp = kmem_zalloc(sizeof (metaslab_t), KM_PUSHPAGE);
 	mutex_init(&msp->ms_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	msp->ms_smo_syncing = *smo;
