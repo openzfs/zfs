@@ -358,20 +358,7 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	ASSERT(PageLocked(pp));
 	ASSERT(!PageWriteback(pp));
 
-	/*
-	 * Disable the normal reclaim path for zpl_putpage().  This
-	 * ensures that all memory allocations under this call path
-	 * will never enter direct reclaim.  If this were to happen
-	 * the VM might try to write out additional pages by calling
-	 * zpl_putpage() again resulting in a deadlock.
-	 */
-	if (current->flags & PF_MEMALLOC) {
-		(void) zfs_putpage(mapping->host, pp, wbc);
-	} else {
-		current->flags |= PF_MEMALLOC;
-		(void) zfs_putpage(mapping->host, pp, wbc);
-		current->flags &= ~PF_MEMALLOC;
-	}
+	(void) zfs_putpage(mapping->host, pp, wbc);
 
 	return (0);
 }
