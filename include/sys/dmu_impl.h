@@ -21,6 +21,7 @@
 /*
  * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_DMU_IMPL_H
@@ -30,6 +31,7 @@
 #include <sys/zio.h>
 #include <sys/dnode.h>
 #include <sys/zfs_context.h>
+#include <sys/zfs_ioctl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -238,6 +240,32 @@ typedef struct dmu_xuio {
 	struct arc_buf **bufs;
 	iovec_t *iovp;
 } dmu_xuio_t;
+
+/*
+ * The list of data whose inclusion in a send stream can be pending from
+ * one call to backup_cb to another.  Multiple calls to dump_free() and
+ * dump_freeobjects() can be aggregated into a single DRR_FREE or
+ * DRR_FREEOBJECTS replay record.
+ */
+typedef enum {
+	PENDING_NONE,
+	PENDING_FREE,
+	PENDING_FREEOBJECTS
+} dmu_pendop_t;
+
+typedef struct dmu_sendarg {
+	list_node_t dsa_link;
+	dmu_replay_record_t *dsa_drr;
+	vnode_t *dsa_vp;
+	int dsa_outfd;
+	proc_t *dsa_proc;
+	offset_t *dsa_off;
+	objset_t *dsa_os;
+	zio_cksum_t dsa_zc;
+	uint64_t dsa_toguid;
+	int dsa_err;
+	dmu_pendop_t dsa_pending_op;
+} dmu_sendarg_t;
 
 #ifdef	__cplusplus
 }

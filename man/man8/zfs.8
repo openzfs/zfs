@@ -2,6 +2,7 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
@@ -2306,7 +2307,8 @@ Generate a stream package that sends all intermediary snapshots from the first s
 .ad
 .sp .6
 .RS 4n
-Print verbose information about the stream package generated.
+Print verbose information about the stream package generated.  This information
+includes a per-second report of how much data has been sent.
 .RE
 
 .sp
