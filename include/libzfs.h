@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef	_LIBZFS_H
@@ -580,6 +581,9 @@ typedef struct sendflags {
 
 	/* parsable verbose output (ie. -P) */
 	boolean_t parsable;
+
+	/* show progress (ie. -v) */
+	boolean_t progress;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);

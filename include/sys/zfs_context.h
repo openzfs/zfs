@@ -24,6 +24,7 @@
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -201,6 +202,7 @@ typedef struct proc {
 } proc_t;
 
 extern struct proc p0;
+#define	curproc		(&p0)
 
 typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
