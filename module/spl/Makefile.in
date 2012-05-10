@@ -18,7 +18,6 @@ spl-objs += @top_srcdir@/module/spl/spl-vnode.o
 spl-objs += @top_srcdir@/module/spl/spl-err.o
 spl-objs += @top_srcdir@/module/spl/spl-time.o
 spl-objs += @top_srcdir@/module/spl/spl-kobj.o
-spl-objs += @top_srcdir@/module/spl/spl-module.o
 spl-objs += @top_srcdir@/module/spl/spl-generic.o
 spl-objs += @top_srcdir@/module/spl/spl-atomic.o
 spl-objs += @top_srcdir@/module/spl/spl-mutex.o
