@@ -22,6 +22,28 @@
 %define kobj %{require_kobj}
 %endif
 
+# Set using 'rpmbuild ... --with kernel ...', defaults to enabled.
+%if %{defined _with_kernel}
+ %define with_kernel 1
+%else
+ %if %{defined _without_kernel}
+  %define with_kernel 0
+ %else
+  %define with_kernel 1
+ %endif
+%endif
+
+# Set using 'rpmbuild ... --with kernel-debug ...', defaults to disabled.
+%if %{defined _with_kernel_debug}
+ %define with_kernel_debug 1
+%else
+ %if %{defined _without_kernel_debug}
+  %define with_kernel_debug 0
+ %else
+  %define with_kernel_debug 0
+ %endif
+%endif
+
 # Set using 'rpmbuild ... --with debug ...', defaults to disabled.
 %if %{defined _with_debug}
  %define kdebug --enable-debug
@@ -61,16 +83,25 @@
    %define krelease      %{klnk}/.kernelrelease
   %endif
 
-  %define kver           %((echo X; %{__cat} %{krelease} 2>/dev/null)|tail -1)
+  %define kver_kern      %((echo X; %{__cat} %{krelease} 2>/dev/null)|tail -1)
+  %define kver_dbug      %{nil}
+ %else
+  %define kver_kern      %{kver}
+  %define kver_dbug      %{nil}
  %endif
 
  %if %{undefined kverextra}
-  %define kverextra      %(echo %{kver} | cut -f3 -d'-')
+  %define kverextra      %(echo %{kver_kern} | cut -f3 -d'-')
  %endif
 
- %define kpkg            kernel-%{kverextra}
- %define kdevpkg         kernel-source
- %define kverpkg         %(echo %{kver} | %{__sed} -e 's/-%{kverextra}//g')
+ %define kpkg_kern       kernel-%{kverextra}
+ %define kpkg_dbug       %{nil}
+
+ %define kdevpkg_kern    kernel-source
+ %define kdevpkg_dbug    %{nil}
+
+ %define kverpkg_kern    %(echo %{kver_kern} | %{__sed} -e 's/-%{kverextra}//g')
+ %define kverpkg_dbug    %{nil}
 
  # The kernel and rpm versions do not strictly match under SLES11
  # e.g. kernel version 2.6.27.19-5 != rpm version 2.6.27.19-5.1
@@ -81,10 +112,19 @@
  %endif
 
  %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/linux-%{kverpkg}
+  %define kdir_kern      %{_usrsrc}/linux-%{kverpkg_kern}
+  %define kdir_dbug      %{nil}
+ %else
+  %define kdir_kern      %{kdir}
+  %define kdir_dbug      %{nil}
  %endif
+
  %if %{undefined kobj}
-  %define kobj           %{kdir}-obj/%{_target_cpu}/%{kverextra}
+  %define kobj_kern      %{kdir_kern}-obj/%{_target_cpu}/%{kverextra}
+  %define kobj_dbug      %{nil}
+ %else
+  %define kobj_kern      %{kobj}
+  %define kobj_dbug      %{nil}
  %endif
 %else
 
@@ -92,18 +132,39 @@
 %if %{defined ch4}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
+  %define kver_kern      %((echo X; %{__cat} %{klnk}/kernel.release
                             2>/dev/null) | tail -1)
+  %define kver_dbug      %{nil}
+ %else
+  %define kver_kern      %{kver}
+  %define kver_dbug      %{nil}
  %endif
- %define kpkg            chaos-kernel
- %define kdevpkg         chaos-kernel-devel
- %define kverpkg         %{kver}
+
+ %define kpkg_kern       chaos-kernel
+ %define kpkg_dbug       %{nil}
+
+ %define kdevpkg_kern    chaos-kernel-devel
+ %define kdevpkg_dbug    %{nil}
+
+ %define kverpkg_kern    %{kver_kern}
+ %define kverpkg_dbug    %{nil}
+
  %define koppkg          =
+
  %if %{undefined kdir}
-  %define kdir %{_usrsrc}/kernels/%{kver}
+  %define kdir_kern      %{_usrsrc}/kernels/%{kver_kern}
+  %define kdir_dbug      %{nil}
+ %else
+  %define kdir_kern      %{kdir}
+  %define kdir_dbug      %{nil}
  %endif
+
  %if %{undefined kobj}
-  %define kobj           %{kdir}
+  %define kobj_kern      %{kdir_kern}
+  %define kobj_dbug      %{nil}
+ %else
+  %define kobj_kern      %{kobj}
+  %define kobj_dbug      %{nil}
  %endif
 %else
 
@@ -111,26 +172,50 @@
 %if %{defined el5} || %{defined el6} || %{defined ch5}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
-                            2>/dev/null) | tail -1)
- %endif
- %define kpkg            kernel
- %define kdevpkg         kernel-devel
- %if %{defined el6} || %{defined ch5}
-  %define kverpkg        %(echo %{kver} | %{__sed} -e 's/.%{_target_cpu}//g')
+  %define kver_kern      %((echo X; ((%{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | %{__grep} -v debug)) | tail -1)
+  %define kver_dbug      %((echo X; ((%{__cat} %{klnk}/kernel.release
+                            2>/dev/null) | %{__grep} debug)) | tail -1)
  %else
-  %define kverpkg        %{kver}
+  %define kver_kern      %{kver}
+  %define kver_dbug      %{kver}.debug
  %endif
+
+ %define kpkg_kern       kernel
+ %define kpkg_dbug       kernel-debug
+
+ %define kdevpkg_kern    kernel-devel
+ %define kdevpkg_dbug    kernel-debug-devel
+
+ %if %{defined el6} || %{defined ch5}
+  %define kverpkg_kern   %(echo %{kver_kern} | %{__sed} -e 's/.%{_target_cpu}//g')
+  %define kverpkg_dbug   %(echo %{kver_dbug} | %{__sed} -e 's/.%{_target_cpu}//g' | %{__sed} -e 's/.debug//g')
+ %else
+  %define kverpkg_kern   %{kver_kern}
+  %define kverpkg_dbug   %{kver_dbug}
+ %endif
+
  %define koppkg          =
+
  %if %{undefined kdir}
   %if %{defined el6} || %{defined ch5}
-   %define kdir           %{_usrsrc}/kernels/%{kver}
+   %define kdir_kern      %{_usrsrc}/kernels/%{kver_kern}
+   %define kdir_dbug      %{_usrsrc}/kernels/%{kver_dbug}
   %else
-   %define kdir           %{_usrsrc}/kernels/%{kver}-%{_target_cpu}
+   %define kdir_kern      %{_usrsrc}/kernels/%{kver_kern}-%{_target_cpu}
+   %define kdir_dbug      %{_usrsrc}/kernels/%{kver_dbug}-%{_target_cpu}
   %endif
+ %else
+  %define kdir_kern       %{kdir}
+  %define kdir_dbug       %{kdir}.debug
  %endif
+
  %if %{undefined kobj}
-  %define kobj           %{kdir}
+  %define kobj_kern      %{kdir_kern}
+  %define kobj_dbug      %{kdir_dbug}
+ %else
+  %define kobj_kern      %{kobj}
+  %define kobj_dbug      %{kobj}.debug
  %endif
 %else
 
@@ -138,31 +223,68 @@
 %if %{defined fedora}
  %if %{undefined kver}
   %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver           %((echo X; %{__cat} %{klnk}/kernel.release
+  %define kver_kern      %((echo X; %{__cat} %{klnk}/kernel.release
                             2>/dev/null) | tail -1)
+  %define kver_dbug      %{nil}
+ %else
+  %define kver_kern      %{kver}
+  %define kver_dbug      %{nil}
  %endif
- %define kpkg            kernel
- %define kdevpkg         kernel-devel
- %define kverpkg         %(echo %{kver} | %{__sed} -e 's/.%{_target_cpu}//g')
+
+ %define kpkg_kern       kernel
+ %define kpkg_dbug       %{nil}
+
+ %define kdevpkg_kern    kernel-devel
+ %define kdevpkg_dbug    %{nil}
+
+ %define kverpkg_kern    %(echo %{kver_kern} | %{__sed} -e 's/.%{_target_cpu}//g')
+ %define kverpkg_dbug    %{nil}
+
  %define koppkg          =
+
  %if %{undefined kdir}
-  %define kdir           %{_usrsrc}/kernels/%{kver}
+  %define kdir_kern      %{_usrsrc}/kernels/%{kver_kern}
+  %define kdir_dbug      %{nil}
+ %else
+  %define kdir_kern      %{kdir}
+  %define kdir_dbug      %{nil}
  %endif
+
  %if %{undefined kobj}
-  %define kobj           %{kdir}
+  %define kobj_kern      %{kdir_kern}
+  %define kobj_dbug      %{nil}
+ %else
+  %define kobj_kern      %{kobj}
+  %define kobj_dbug      %{nil}
  %endif
 %else
 
 # Unsupported distro:
  %if %{undefined kver}
-  %define kver           %(uname -r)
+  %define kver_kern      %(uname -r)
+  %define kver_dbug      %{nil}
+ %else
+  %define kver_kern      %{kver}
+  %define kver_dbug      %{nil}
  %endif
- %define kverpkg         %{kver}
+
+ %define kverpkg_kern    %{kver_kern}
+ %define kverpkg_dbug    %{nil}
+
  %if %{undefined kdir}
-  %define kdir           /lib/modules/%{kver}/build
+  %define kdir_kern      /lib/modules/%{kver_kern}/build
+  %define kdir_dbug      %{nil}
+ %else
+  %define kdir_kern      %{kdir}
+  %define kdir_dbug      %{nil}
  %endif
+
  %if %{undefined kobj}
-  %define kobj           %{kdir}
+  %define kobj_kern      %{kdir_kern}
+  %define kobj_dbug      %{nil}
+ %else
+  %define kobj_kern      %{kobj}
+  %define kobj_dbug      %{nil}
  %endif
 
 %endif
@@ -190,119 +312,271 @@
 %endif
 
 %if %{undefined splver}
- %define spllnk          %{_usrsrc}/spl-*/%{kver}
- %define splver          %((echo X; %{__cat} %{spllnk}/spl.release
+ %define spllnk_kern     %{_usrsrc}/spl-*/%{kver_kern}
+ %define spllnk_dbug     %{_usrsrc}/spl-*/%{kver_dbug}
+
+ %define splver_kern     %((echo X; %{__cat} %{spllnk_kern}/spl.release
                             2>/dev/null) | tail -1)
+ %define splver_dbug     %((echo X; %{__cat} %{spllnk_dbug}/spl.release
+                            2>/dev/null) | tail -1)
+%else
+ %define splver_kern     %{splver}
+ %define splver_dbug     %{splver}
 %endif
-%define splpkg           spl-modules
-%define spldevpkg        spl-modules-devel
-%define splverpkg        %{splver}
+
+%define splpkg_kern      spl-modules
+%define splpkg_dbug      spl-modules-debug
+
+%define spldevpkg_kern   spl-modules-devel
+%define spldevpkg_dbug   spl-modules-debug-devel
+
+%define splverpkg_kern   %{splver_kern}
+%define splverpkg_dbug   %{splver_dbug}
+
 %if %{undefined spldir}
- %define spldir %{_usrsrc}/spl-%{splver}/%{kver}
+ %define spldir_kern     %{_usrsrc}/spl-%{splver_kern}/%{kver_kern}
+ %define spldir_dbug     %{_usrsrc}/spl-%{splver_dbug}/%{kver_dbug}
+%else
+ %define spldir_kern     %{spldir}
+ %define spldir_dbug     %{spldir}.debug
 %endif
+
 %if %{undefined splobj}
- %define splobj          %{spldir}
+ %define splobj_kern     %{spldir_kern}
+ %define splobj_dbug     %{spldir_dbug}
+%else
+ %define splobj_kern     %{splobj}
+ %define splobj_dbug     %{splobj}.debug
 %endif
 
 
 # Distro agnostic:
 %define name             @PACKAGE@-modules
 %define version          @VERSION@
-%define debug_package    %{nil}
 
 # The kernel version should only be appended to a binary RPM.  When
 # building a source RPM it must be kernel version agnostic.  This means
 # the source RPM must never specify a required kernel version, but the
 # final RPM should be keyed to the kernel version it was built against.
 %if %{defined build_src_rpm}
-%define release          @ZFS_META_RELEASE@
-%if %{defined kpkg}
-%define krequires        %{kpkg}
+
+%define rel_kern         @ZFS_META_RELEASE@
+%define rel_dbug         @ZFS_META_RELEASE@
+
+%if %{defined kpkg_kern}
+%define req_kern         %{kpkg_kern}
 %endif
-%define splrequires      %{splpkg}
-%define spldevrequires   %{spldevpkg}
+%if %{defined kpkg_dbug}
+%define req_dbug         %{kpkg_dbug}
+%endif
+
+%define splreq_kern      %{splpkg_kern}
+%define splreq_dbug      %{splpkg_dbug}
+
+%define spldevreq_kern   %{spldevpkg_kern}
+%define spldevreq_dbug   %{spldevpkg_dbug}
+
 %else
-%define relext           %(echo %{kverpkg} | %{__sed} -e 's/-/_/g')
-%define release          @ZFS_META_RELEASE@_%{relext}
-%if %{defined kpkg}
-%define krequires        %{kpkg} %{koppkg} %{kverpkg}
+
+%define relext_kern      %(echo %{kverpkg_kern} | %{__sed} -e 's/-/_/g')
+%define relext_dbug      %(echo %{kverpkg_dbug} | %{__sed} -e 's/-/_/g')
+%define rel_kern         @ZFS_META_RELEASE@_%{relext_kern}
+%define rel_dbug         @ZFS_META_RELEASE@_%{relext_dbug}
+
+%if %{defined kpkg_kern}
+%define req_kern         %{kpkg_kern} %{koppkg} %{kverpkg_kern}
 %endif
-%define splrequires      %{splpkg} = %{splverpkg}_%{relext}
-%define spldevrequires   %{spldevpkg} = %{splverpkg}_%{relext}
+%if %{defined kpkg_dbug}
+%define req_dbug         %{kpkg_dbug} %{koppkg} %{kverpkg_dbug}
+%endif
+
+%define splreq_kern      %{splpkg_kern} = %{splverpkg_kern}_%{relext_kern}
+%define splreq_dbug      %{splpkg_dbug} = %{splverpkg_dbug}_%{relext_dbug}
+
+%define spldevreq_kern   %{spldevpkg_kern} = %{splverpkg_kern}_%{relext_kern}
+%define spldevreq_dbug   %{spldevpkg_dbug} = %{splverpkg_dbug}_%{relext_dbug}
+
 %endif
 
 Summary:         ZFS File System
 Group:           Utilities/System
 Name:            %{name}
 Version:         %{version}
-Release:         %{release}
+Release:         %{rel_kern}
 License:         @ZFS_META_LICENSE@
 URL:             git://github.com/zfsonlinux/zfs.git
 BuildRoot:       %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id} -un)
 Source:          @PACKAGE@-%{version}.tar.gz
-%if %{defined krequires}
-Requires:        %{krequires}
+
+%if %{?with_kernel}
+
+%if %{defined req_kern}
+Requires:        %{req_kern}
 %endif
-%if %{defined kdevpkg}
-BuildRequires:   %{kdevpkg}
+%if %{defined kdevpkg_kern}
+BuildRequires:   %{kdevpkg_kern}
 %endif
-Requires:        %{splrequires}
-BuildRequires:   %{spldevpkg}
+%if %{defined splreq_kern}
+Requires:        %{splreq_kern}
+%endif
+%if %{defined spldevpkg_kern}
+BuildRequires:   %{spldevpkg_kern}
+%endif
 Provides:        lustre-backend-fs
+
+%endif
 
 %description
 The %{name} package contains kernel modules and support utilities for
 the %{name} file system.
 
+%if %{?with_kernel}
+
 %package devel
 Summary:         ZFS File System Headers and Symbols
 Group:           Development/Libraries
-%if %{defined krequires}
-Requires:        %{krequires}
+Release:         %{rel_kern}
+%if %{defined devreq_kern}
+Requires:        %{devreq_kern}
 %endif
-%if %{defined kdevpkg}
-Requires:        %{kdevpkg}
+%if %{defined kdevpkg_kern}
+BuildRequires:   %{kdevpkg_kern}
 %endif
-Requires:        %{spldevrequires}
+%if %{defined spldevreq_kern}
+Requires:        %{spldevreq_kern}
+%endif
+%if %{defined spldevpkg_kern}
+BuildRequires:   %{spldevpkg_kern}
+%endif
 
 %description devel
-The %{name}-devel package contains the kernel header files and 
+The %{name}-devel package contains the kernel header files and
 Module.symvers symbols needed for building additional modules
 which use %{name}.
+
+%endif
+%if %{?with_kernel_debug}
+
+%package debug
+Summary:         ZFS File System (Debug)
+Group:           Utilities/System
+Release:         %{rel_dbug}
+%if %{defined req_dbug}
+Requires:        %{req_dbug}
+%endif
+%if %{defined kdevpkg_dbug}
+BuildRequires:   %{kdevpkg_dbug}
+%endif
+%if %{defined splreq_dbug}
+Requires:        %{splreq_dbug}
+%endif
+%if %{defined spldevpkg_dbug}
+BuildRequires:   %{spldevpkg_dbug}
+%endif
+Provides:        lustre-backend-fs
+
+%description debug
+The %{name}-debug package contains debug kernel modules and support
+utilities for the %{name} file system.
+
+%package debug-devel
+Summary:         ZFS File System Headers and Symbols (Debug)
+Group:           Development/Libraries
+Release:         %{rel_dbug}
+%if %{defined devreq_dbug}
+Requires:        %{devreq_dbug}
+%endif
+%if %{defined kdevpkg_dbug}
+BuildRequires:   %{kdevpkg_dbug}
+%endif
+%if %{defined spldevreq_dbug}
+Requires:        %{spldevreq_dbug}
+%endif
+%if %{defined spldevpkg_dbug}
+BuildRequires:   %{spldevpkg_dbug}
+%endif
+
+%description debug-devel
+The %{name}-debug-devel package contains the debug kernel header files
+and Module.symvers symbols needed for building additional modules
+which use %{name}.
+
+%endif
 
 %prep
 %setup -n @PACKAGE@-%{version}
 %build
-%configure --with-linux=%{kdir} --with-linux-obj=%{kobj} \
-           --with-spl=%{spldir} --with-spl-obj=%{splobj} \
+rm -rf $RPM_BUILD_ROOT
+
+%if %{with_kernel}
+
+%configure --with-linux=%{kdir_kern} --with-linux-obj=%{kobj_kern} \
+           --with-spl=%{spldir_kern} --with-spl-obj=%{splobj_kern} \
            --with-config=kernel %{kdebug} %{kdebug_dmu_tx}
 make
-
-%install
-rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
+
+%endif
+%if %{?with_kernel_debug}
+
+%configure --with-linux=%{kdir_dbug} --with-linux-obj=%{kobj_dbug} \
+           --with-spl=%{spldir_dbug} --with-spl-obj=%{splobj_dbug} \
+           --with-config=kernel %{kdebug} %{kdebug_dmu_tx}
+make
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
+%if %{?with_kernel}
+
 %files
 %defattr(-, root, root)
-/lib/modules/*
+/lib/modules/%{kver_kern}/*
 
 %files devel
 %defattr(-,root,root)
-%{_prefix}/src/*
+%{_prefix}/src/*/%{kver_kern}/*
 
 %post
-if [ -f /boot/System.map-%{kver} ]; then
-	/sbin/depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+if [ -f /boot/System.map-%{kver_kern} ]; then
+	/sbin/depmod -ae -F /boot/System.map-%{kver_kern} %{kver_kern} || exit 0
 else
 	/sbin/depmod -a || exit 0
 fi
 
 %postun
-if [ -f /boot/System.map-%{kver} ]; then
-	/sbin/depmod -ae -F /boot/System.map-%{kver} %{kver} || exit 0
+if [ -f /boot/System.map-%{kver_kern} ]; then
+	/sbin/depmod -ae -F /boot/System.map-%{kver_kern} %{kver_kern} || exit 0
 else
 	/sbin/depmod -a || exit 0
 fi
+
+%endif
+%if %{?with_kernel_debug}
+
+%files debug
+%defattr(-, root, root)
+/lib/modules/%{kver_dbug}/*
+
+%files debug-devel
+%defattr(-,root,root)
+%{_prefix}/src/*/%{kver_dbug}/*
+
+%post debug
+if [ -f /boot/System.map-%{kver_dbug} ]; then
+	/sbin/depmod -ae -F /boot/System.map-%{kver_dbug} %{kver_dbug} || exit 0
+else
+	/sbin/depmod -a || exit 0
+fi
+
+%postun debug
+if [ -f /boot/System.map-%{kver_dbug} ]; then
+	/sbin/depmod -ae -F /boot/System.map-%{kver_dbug} %{kver_dbug} || exit 0
+else
+	/sbin/depmod -a || exit 0
+fi
+
+%endif
