@@ -300,7 +300,7 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 }
 
 static int
-zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, int mode)
+zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;

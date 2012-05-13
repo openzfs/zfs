@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -2317,13 +2317,22 @@ zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, blkptr_t *old_bp,
 
 	ASSERT(txg > spa_syncing_txg(spa));
 
-	if (use_slog)
+	/*
+	 * ZIL blocks are always contiguous (i.e. not gang blocks) so we
+	 * set the METASLAB_GANG_AVOID flag so that they don't "fast gang"
+	 * when allocating them.
+	 */
+	if (use_slog) {
 		error = metaslab_alloc(spa, spa_log_class(spa), size,
-		    new_bp, 1, txg, old_bp, METASLAB_HINTBP_AVOID);
+		    new_bp, 1, txg, old_bp,
+		    METASLAB_HINTBP_AVOID | METASLAB_GANG_AVOID);
+	}
 
-	if (error)
+	if (error) {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
-		    new_bp, 1, txg, old_bp, METASLAB_HINTBP_AVOID);
+		    new_bp, 1, txg, old_bp,
+		    METASLAB_HINTBP_AVOID | METASLAB_GANG_AVOID);
+	}
 
 	if (error == 0) {
 		BP_SET_LSIZE(new_bp, size);
