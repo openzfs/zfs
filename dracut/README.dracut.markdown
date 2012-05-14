@@ -6,7 +6,10 @@ to the /usr/share/dracut/modules.d/ directory which allows dracut to
 create an initramfs which is zfs aware.
 
 2) Set the bootfs property for the bootable dataset in the pool.  Then set
-the dataset mountpoint property to '/'.
+the dataset mountpoint property to `/`.  This will require you to import your
+pool with the -R (altroot) parameter first -- otherwise `zfs set mountpoint`
+will predictably fail because something else will already be mounted at the
+`/` mountpoint.
 
     $ zpool set bootfs=pool/dataset pool
     $ zfs set mountpoint=/ pool/dataset
@@ -142,10 +145,11 @@ zpool and friends, we can proceed to find the bootfs attribute if necessary.
 If the root parameter was explicitly set on the command line, no parsing is
 necessary.  The list of imported pools is checked to see if the desired pool
 is already imported.  If it's not, and attempt is made to import the pool
-explicitly, though no force is attempted.  Finally the specified dataset
-is mounted on `$NEWROOT`, first using the `-o zfsutil` option to handle
-non-legacy mounts, then if that fails, without zfsutil to handle legacy
-mount points.
+explicitly, though no force is attempted.
+
+Then, the specified dataset is mounted on `$NEWROOT`.  Finally, if the `/usr`
+volume is a child of the specified dataset, it is mounted on `$NEWROOT/usr`,
+to accommodate for systems that have a separate `/usr` volume.
 
 If no root parameter was specified, this script attempts to find a pool with
 its bootfs attribute set.  First, already-imported pools are scanned and if
