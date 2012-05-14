@@ -35,13 +35,11 @@ SUPPORT FOR ZFS ON ROOT
 
 This generator will also operate correctly cooperate with systems where the root file system is on ZFS.
 
-One caveat: the mountpoint property of your root file system must be set to legacy, and it must be registered as the first line in /etc/fstab:
+One caveat: the root file system must be registered as the first line in /etc/fstab:
 
     tank/RPOOL/fedora-16-root    /     zfs    defaults    0 0
 
-Otherwise, the systemd remount-rootfs.service errors out.
-
-Of course, GRUB2 does not yet have "official" support for ZFS on root, but with the Dracut support here, plus a little bit of trickery in the grub2-mkconfig script or hand-rolling grub.cfg, it can be done just fine.
+Of course, GRUB2 does not yet have "official" support for ZFS on root, but with the Dracut support here, plus a little bit of trickery in the grub2-mkconfig script or hand-rolling grub.cfg, it can be done just fine.  Look at the patch in the grub2/ subdirectory.
 
 AUTOMATIC MULTIBOOT SUPPORT
     
