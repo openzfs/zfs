@@ -214,22 +214,57 @@ EXPORT_SYMBOL(__umoddi3);
 
 #if defined(__arm) || defined(__arm__)
 /*
- * Implementation of 64-bit unsigned division for 32-bit arm machines.
+ * Implementation of 64-bit (un)signed division for 32-bit arm machines.
+ *
+ * Run-time ABI for the ARM Architecture (page 20).  A pair of (unsigned)
+ * long longs is returned in {{r0, r1}, {r2,r3}}, the quotient in {r0, r1},
+ * and the remainder in {r2, r3}.  The return type is specifically left
+ * set to 'void' to ensure the compiler does not overwrite these registers
+ * during the return.  All results are in registers as per ABI
  */
-uint64_t
+void
 __aeabi_uldivmod(uint64_t u, uint64_t v)
 {
-	return __udivdi3(u, v);
+	uint64_t res;
+	uint64_t mod;
+
+	res = __udivdi3(u, v);
+	mod = __umoddi3(u, v);
+	{
+		register uint32_t r0 asm("r0") = (res & 0xFFFFFFFF);
+		register uint32_t r1 asm("r1") = (res >> 32);
+		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
+		register uint32_t r3 asm("r3") = (mod >> 32);
+
+		asm volatile(""
+		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
+		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
+
+		return; /* r0; */
+	}
 }
 EXPORT_SYMBOL(__aeabi_uldivmod);
 
-/*
- * Implementation of 64-bit signed division for 32-bit arm machines.
- */
-int64_t
+void
 __aeabi_ldivmod(int64_t u, int64_t v)
 {
-	return __divdi3(u, v);
+	int64_t res;
+	uint64_t mod;
+
+	res =  __divdi3(u, v);
+	mod = __umoddi3(u, v);
+	{
+		register uint32_t r0 asm("r0") = (res & 0xFFFFFFFF);
+		register uint32_t r1 asm("r1") = (res >> 32);
+		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
+		register uint32_t r3 asm("r3") = (mod >> 32);
+
+		asm volatile(""
+		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
+		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
+
+		return; /* r0; */
+	}
 }
 EXPORT_SYMBOL(__aeabi_ldivmod);
 #endif /* __arm || __arm__ */
