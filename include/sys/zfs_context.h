@@ -382,7 +382,6 @@ typedef struct taskq_ent {
 #define	TASKQ_DYNAMIC		0x0004	/* Use dynamic thread scheduling */
 #define	TASKQ_THREADS_CPU_PCT	0x0008	/* Scale # threads by # cpus */
 #define	TASKQ_DC_BATCH		0x0010	/* Mark threads as batch */
-#define	TASKQ_NORECLAIM		0x0020	/* Disable direct memory reclaim */
 
 #define	TQ_SLEEP	KM_SLEEP	/* Can block for memory */
 #define	TQ_NOSLEEP	KM_NOSLEEP	/* cannot block for memory; may fail */
