@@ -372,19 +372,6 @@ txg_sync_thread(dsl_pool_t *dp)
 	callb_cpr_t cpr;
 	uint64_t start, delta;
 
-#ifdef _KERNEL
-	/*
-	 * Disable the normal reclaim path for the txg_sync thread.  This
-	 * ensures the thread will never enter dmu_tx_assign() which can
-	 * otherwise occur due to direct reclaim.  If this is allowed to
-	 * happen the system can deadlock.  Direct reclaim call path:
-	 *
-	 *   ->shrink_icache_memory->prune_icache->dispose_list->
-	 *   clear_inode->zpl_clear_inode->zfs_inactive->dmu_tx_assign
-	 */
-	current->flags |= PF_MEMALLOC;
-#endif /* _KERNEL */
-
 	txg_thread_enter(tx, &cpr);
 
 	start = delta = 0;
