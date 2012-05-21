@@ -5822,7 +5822,6 @@ setup_fds(void)
 	char *tmp = tempnam(NULL, NULL);
 	fd = open(tmp, O_RDWR | O_CREAT, 0700);
 	ASSERT3S(fd, >=, 0);
-	VERIFY3S(ftruncate(fd, sizeof (ztest_shared_hdr_t)), ==, 0);
 	if (fd != ZTEST_FD_DATA) {
 		VERIFY3S(dup2(fd, ZTEST_FD_DATA), ==, ZTEST_FD_DATA);
 		close(fd);
@@ -5838,14 +5837,31 @@ setup_fds(void)
 	}
 }
 
+static int
+shared_data_size(ztest_shared_hdr_t *hdr)
+{
+	int size;
+
+	size = hdr->zh_hdr_size;
+	size += hdr->zh_opts_size;
+	size += hdr->zh_size;
+	size += hdr->zh_stats_size * hdr->zh_stats_count;
+	size += hdr->zh_ds_size * hdr->zh_ds_count;
+
+	return (size);
+}
+
 static void
 setup_hdr(void)
 {
+	int size;
 	ztest_shared_hdr_t *hdr;
 
 	hdr = (void *)mmap(0, P2ROUNDUP(sizeof (*hdr), getpagesize()),
 	    PROT_READ | PROT_WRITE, MAP_SHARED, ZTEST_FD_DATA, 0);
 	ASSERT(hdr != MAP_FAILED);
+
+	VERIFY3U(0, ==, ftruncate(ZTEST_FD_DATA, sizeof (ztest_shared_hdr_t)));
 
 	hdr->zh_hdr_size = sizeof (ztest_shared_hdr_t);
 	hdr->zh_opts_size = sizeof (ztest_shared_opts_t);
@@ -5854,6 +5870,9 @@ setup_hdr(void)
 	hdr->zh_stats_count = ZTEST_FUNCS;
 	hdr->zh_ds_size = sizeof (ztest_shared_ds_t);
 	hdr->zh_ds_count = ztest_opts.zo_datasets;
+
+	size = shared_data_size(hdr);
+	VERIFY3U(0, ==, ftruncate(ZTEST_FD_DATA, size));
 
 	(void) munmap((caddr_t)hdr, P2ROUNDUP(sizeof (*hdr), getpagesize()));
 }
@@ -5869,11 +5888,7 @@ setup_data(void)
 	    PROT_READ, MAP_SHARED, ZTEST_FD_DATA, 0);
 	ASSERT(hdr != MAP_FAILED);
 
-	size = hdr->zh_hdr_size;
-	size += hdr->zh_opts_size;
-	size += hdr->zh_size;
-	size += hdr->zh_stats_size * hdr->zh_stats_count;
-	size += hdr->zh_ds_size * hdr->zh_ds_count;
+	size = shared_data_size(hdr);
 
 	(void) munmap((caddr_t)hdr, P2ROUNDUP(sizeof (*hdr), getpagesize()));
 	hdr = ztest_shared_hdr = (void *)mmap(0, P2ROUNDUP(size, getpagesize()),
