@@ -311,34 +311,74 @@ dnl # Certain kernel build options are not supported.  These must be
 dnl # detected at configure time and cause a build failure.  Otherwise
 dnl # modules may be successfully built that behave incorrectly.
 dnl #
-dnl # CONFIG_PREEMPT - Preempt kernels require special handling.
-dnl #
-dnl # There are certain kernel build options which when enabled are
-dnl # completely incompatible with non GPL kernel modules.  It is best
-dnl # to detect these at configure time and fail with a clear error
-dnl # rather than build everything and fail during linking.
-dnl #
-dnl # CONFIG_DEBUG_LOCK_ALLOC - Maps mutex_lock() to mutex_lock_nested()
-dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
-
-	ZFS_LINUX_CONFIG([PREEMPT],
-		AC_MSG_ERROR([
-	*** Kernel built with CONFIG_PREEMPT which is not supported.
-	*** You must rebuild your kernel without this option.]), [])
-
-	AS_IF([test "$ZFS_META_LICENSE" = CDDL], [
-		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],
-		AC_MSG_ERROR([
-	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-	*** incompatible with the CDDL license.  You must rebuild
-	*** your kernel without this option.]), [])
-	])
 
 	AS_IF([test "$ZFS_META_LICENSE" = GPL], [
 		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
 			[Define to 1 if licensed under the GPL])
 	])
+
+	ZFS_AC_KERNEL_CONFIG_PREEMPT
+	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
+])
+
+dnl #
+dnl # Check CONFIG_PREEMPT
+dnl #
+dnl # Premptible kernels will be supported in the future.  But at the
+dnl # moment there are a few places in the code which need to be updated
+dnl # to accomidate them.  Until that work occurs we should detect this
+dnl # at configure time and fail with a sensible message.  Otherwise,
+dnl # people will be able to build successfully, however they will have
+dnl # stability problems.  See https://github.com/zfsonlinux/zfs/issues/83
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_PREEMPT], [
+
+	ZFS_LINUX_CONFIG([PREEMPT],
+		AC_MSG_ERROR([
+	*** Kernel built with CONFIG_PREEMPT which is not supported.
+	*** You must rebuild your kernel without this option.]), [])
+])
+
+dnl #
+dnl # Check CONFIG_DEBUG_LOCK_ALLOC
+dnl #
+dnl # This is typically only set for debug kernels because it comes with
+dnl # a performance penalty.  However, when it is set it maps the non-GPL
+dnl # symbol mutex_lock() to the GPL-only mutex_lock_nested() symbol.
+dnl # This will cause a failure at link time which we'd rather know about
+dnl # at compile time.
+dnl #
+dnl # Since we plan to pursue making mutex_lock_nested() a non-GPL symbol
+dnl # with the upstream community we add a check to detect this case.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
+
+	ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC], [
+		AC_MSG_CHECKING([whether mutex_lock() is GPL-only])
+		tmp_flags="$EXTRA_KCFLAGS"
+		ZFS_LINUX_TRY_COMPILE([
+			#include <linux/module.h>
+			#include <linux/mutex.h>
+
+			MODULE_LICENSE("$ZFS_META_LICENSE");
+		],[
+			struct mutex lock;
+
+			mutex_init(&lock);
+			mutex_lock(&lock);
+			mutex_unlock(&lock);
+		],[
+			AC_MSG_RESULT(no)
+		],[
+			AC_MSG_RESULT(yes)
+			AC_MSG_ERROR([
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
+	*** with the CDDL license.  You must rebuild your kernel without
+	*** this option enabled.])
+		])
+		EXTRA_KCFLAGS="$tmp_flags"
+	], [])
 ])
 
 dnl #
