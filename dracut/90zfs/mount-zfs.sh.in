@@ -74,7 +74,7 @@ case "$root" in
 		if [ -n "$zfsusrfs" ] ; then
 			# There appears to be a dataset aimed to mount at /usr
 			# which is a child of the dataset that goes on /
-			if zfs get canmount "$zfsusrfs" | grep -q '	canmount	on' ; then
+			if zfs get canmount "$zfsusrfs" | grep -q '  canmount  on' ; then
 				mount -o zfsutil -t zfs "$zfsusrfs" "$NEWROOT/usr"
 			fi
 		fi
