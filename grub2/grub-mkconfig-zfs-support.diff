@@ -11,16 +11,16 @@ diff -up ./util/grub-mkconfig.in.original ./util/grub-mkconfig.in
 +# Attempt to detect if the root file system is in ZFS first
 +unset GRUB_DEVICE
 +unset GRUB_DEVICE_BOOT
-+for mtabfile in /proc/mounts /etc/mtab ; do
-+    while read dev mntpnt fstype rest ; do
-+        if [ -n "$GRUB_DEVICE" ] ; then continue ; fi
++getzfsgrubdevice() {
++    mount | while read dev dummy mntpnt dummy2 fstype rest ; do
++        if [ -n "$GRUB_DEVICE" ] ; then break ; fi
 +        if [ "$fstype" != "zfs" ] ; then continue ; fi
 +        if [ "$mntpnt" != "/" ] ; then continue ; fi
 +        GRUB_DEVICE=`fstab-decode echo "$dev"`
-+        GRUB_DEVICE="ZFS=$GRUB_DEVICE"
-+    done < $mtabfile
-+done
-+
++        GRUB_DEVICE="ZFS=$GRUB_DEVICE" ; echo "$GRUB_DEVICE" ; break
++    done
++}
++GRUB_DEVICE=`getzfsgrubdevice`
 +if [ -z "$GRUB_DEVICE" ] ; then
 +    # Device containing our userland.  Typically used for root= parameter.
 +    GRUB_DEVICE="`${grub_probe} --target=device /`"
