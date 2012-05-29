@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2010 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  */
 
 #include <ctype.h>
@@ -477,6 +478,23 @@ make_dataset_handle_zc(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 		free(zhp);
 		return (NULL);
 	}
+	return (zhp);
+}
+
+static zfs_handle_t *
+make_dataset_simple_handle_zc(zfs_handle_t *pzhp, zfs_cmd_t *zc)
+{
+	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+
+	if (zhp == NULL)
+		return (NULL);
+
+	zhp->zfs_hdl = pzhp->zfs_hdl;
+	(void) strlcpy(zhp->zfs_name, zc->zc_name, sizeof (zhp->zfs_name));
+	zhp->zfs_head_type = pzhp->zfs_type;
+	zhp->zfs_type = ZFS_TYPE_SNAPSHOT;
+	zhp->zpool_hdl = zpool_handle(zhp);
+
 	return (zhp);
 }
 
@@ -2518,7 +2536,8 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
  * Iterate over all snapshots
  */
 int
-zfs_iter_snapshots(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
+    void *data)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	zfs_handle_t *nzhp;
@@ -2527,15 +2546,19 @@ zfs_iter_snapshots(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT)
 		return (0);
 
+	zc.zc_simple = simple;
+
 	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
 		return (-1);
 	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_SNAPSHOT_LIST_NEXT,
 	    &zc)) == 0) {
 
-		if ((nzhp = make_dataset_handle_zc(zhp->zfs_hdl,
-		    &zc)) == NULL) {
+		if (simple)
+			nzhp = make_dataset_simple_handle_zc(zhp, &zc);
+		else
+			nzhp = make_dataset_handle_zc(zhp->zfs_hdl, &zc);
+		if (nzhp == NULL)
 			continue;
-		}
 
 		if ((ret = func(nzhp, data)) != 0) {
 			zcmd_free_nvlists(&zc);
@@ -2557,7 +2580,7 @@ zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if ((ret = zfs_iter_filesystems(zhp, func, data)) != 0)
 		return (ret);
 
-	return (zfs_iter_snapshots(zhp, func, data));
+	return (zfs_iter_snapshots(zhp, B_FALSE, func, data));
 }
 
 /*
@@ -3287,7 +3310,7 @@ zfs_promote(zfs_handle_t *zhp)
 		return (-1);
 	(void) zfs_prop_get(pzhp, ZFS_PROP_MOUNTPOINT, pd.cb_mountpoint,
 	    sizeof (pd.cb_mountpoint), NULL, NULL, 0, FALSE);
-	ret = zfs_iter_snapshots(pzhp, promote_snap_cb, &pd);
+	ret = zfs_iter_snapshots(pzhp, B_FALSE, promote_snap_cb, &pd);
 	if (ret != 0) {
 		zfs_close(pzhp);
 		return (-1);
@@ -3302,7 +3325,8 @@ zfs_promote(zfs_handle_t *zhp)
 	if (ret != 0) {
 		int save_errno = errno;
 
-		(void) zfs_iter_snapshots(pzhp, promote_snap_done_cb, &pd);
+		(void) zfs_iter_snapshots(pzhp, B_FALSE, promote_snap_done_cb,
+		    &pd);
 		zfs_close(pzhp);
 
 		switch (save_errno) {
@@ -3321,7 +3345,8 @@ zfs_promote(zfs_handle_t *zhp)
 			return (zfs_standard_error(hdl, save_errno, errbuf));
 		}
 	} else {
-		(void) zfs_iter_snapshots(zhp, promote_snap_done_cb, &pd);
+		(void) zfs_iter_snapshots(zhp, B_FALSE, promote_snap_done_cb,
+		    &pd);
 	}
 
 	zfs_close(pzhp);
