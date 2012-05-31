@@ -294,9 +294,8 @@ zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
 static void
 zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
 {
-	char *link;
+	const char *link = nd_get_link(nd);
 
-	link = nd_get_link(nd);
 	if (!IS_ERR(link))
 		kmem_free(link, MAXPATHLEN);
 }
