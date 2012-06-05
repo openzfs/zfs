@@ -374,8 +374,9 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 			AC_MSG_RESULT(yes)
 			AC_MSG_ERROR([
 	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license.  You must rebuild your kernel without
-	*** this option enabled.])
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled.])
 		])
 		EXTRA_KCFLAGS="$tmp_flags"
 	], [])
