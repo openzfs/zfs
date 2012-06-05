@@ -12587,12 +12587,14 @@ sed 's/^/| /' conftest.$ac_ext >&5
 $as_echo "yes" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
 	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license.  You must rebuild your kernel without
-	*** this option enabled." >&5
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled." >&5
 $as_echo "$as_me: error:
 	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license.  You must rebuild your kernel without
-	*** this option enabled." >&2;}
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled." >&2;}
    { (exit 1); exit 1; }; }
 
 
@@ -18680,12 +18682,14 @@ sed 's/^/| /' conftest.$ac_ext >&5
 $as_echo "yes" >&6; }
 			{ { $as_echo "$as_me:$LINENO: error:
 	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license.  You must rebuild your kernel without
-	*** this option enabled." >&5
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled." >&5
 $as_echo "$as_me: error:
 	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license.  You must rebuild your kernel without
-	*** this option enabled." >&2;}
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled." >&2;}
    { (exit 1); exit 1; }; }
 
 
