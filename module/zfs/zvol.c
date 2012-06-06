@@ -459,11 +459,15 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx,
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
 	boolean_t slogging;
+	ssize_t immediate_write_sz;
 
 	if (zil_replaying(zilog, tx))
 		return;
 
-	slogging = spa_has_slogs(zilog->zl_spa);
+	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
+		? 0 : zvol_immediate_write_sz;
+	slogging = spa_has_slogs(zilog->zl_spa) &&
+		(zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
 
 	while (size) {
 		itx_t *itx;
