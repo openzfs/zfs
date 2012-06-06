@@ -117,6 +117,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* d_make_root() is available */
+#undef HAVE_D_MAKE_ROOT
+
 /* d_obtain_alias() is available */
 #undef HAVE_D_OBTAIN_ALIAS
 
