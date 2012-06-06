@@ -44,6 +44,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_INIT_UTSNAME
 	SPL_AC_FDTABLE_HEADER
 	SPL_AC_FILES_FDTABLE
+	SPL_AC_CLEAR_CLOSE_ON_EXEC
 	SPL_AC_UACCESS_HEADER
 	SPL_AC_KMALLOC_NODE
 	SPL_AC_MONOTONIC_CLOCK
@@ -1171,6 +1172,28 @@ AC_DEFUN([SPL_AC_FILES_FDTABLE], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_FILES_FDTABLE, 1, [files_fdtable() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.4.0 API change,
+dnl # check whether '__clear_close_on_exec()' exists
+dnl #
+AC_DEFUN([SPL_AC_CLEAR_CLOSE_ON_EXEC], [
+	AC_MSG_CHECKING([whether __clear_close_on_exec() is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fdtable.h>
+	],[
+		struct fdtable *fdt = NULL;
+		int fd = 0;
+
+		__clear_close_on_exec(fd, fdt);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_CLEAR_CLOSE_ON_EXEC, 1,
+			  [__clear_close_on_exec() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])

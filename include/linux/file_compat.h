@@ -83,5 +83,9 @@ extern kern_path_parent_t kern_path_parent_fn;
 # define spl_kern_path_parent(path, nd)	path_lookup(path, LOOKUP_PARENT, nd)
 #endif /* HAVE_KERN_PATH_PARENT_HEADER */
 
+#ifndef HAVE_CLEAR_CLOSE_ON_EXEC
+#define __clear_close_on_exec(fd, fdt)	FD_CLR(fd, fdt->close_on_exec)
+#endif
+
 #endif /* SPL_FILE_COMPAT_H */
 

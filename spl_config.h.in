@@ -60,6 +60,9 @@
 /* class_device_create() is available */
 #undef HAVE_CLASS_DEVICE_CREATE
 
+/* __clear_close_on_exec() is available */
+#undef HAVE_CLEAR_CLOSE_ON_EXEC
+
 /* struct cred exists */
 #undef HAVE_CRED_STRUCT
 

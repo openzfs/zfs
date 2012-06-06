@@ -414,7 +414,7 @@ fd_uninstall(int fd)
                 goto out_unlock;
 
         rcu_assign_pointer(fdt->fd[fd], NULL);
-        FD_CLR(fd, fdt->close_on_exec);
+	__clear_close_on_exec(fd, fdt);
 #else
         spin_lock(&files->file_lock);
         if (fd >= files->max_fds)
