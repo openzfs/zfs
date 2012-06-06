@@ -1200,7 +1200,11 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	}
 
 	/* Allocate a root dentry for the filesystem */
+#ifdef HAVE_D_MAKE_ROOT
+	sb->s_root = d_make_root(root_inode);
+#else
 	sb->s_root = d_alloc_root(root_inode);
+#endif
 	if (sb->s_root == NULL) {
 		(void) zfs_umount(sb);
 		error = ENOMEM;
