@@ -459,11 +459,15 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx,
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
 	boolean_t slogging;
+	ssize_t immediate_write_sz;
 
 	if (zil_replaying(zilog, tx))
 		return;
 
-	slogging = spa_has_slogs(zilog->zl_spa);
+	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
+		? 0 : zvol_immediate_write_sz;
+	slogging = spa_has_slogs(zilog->zl_spa) &&
+		(zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
 
 	while (size) {
 		itx_t *itx;
@@ -475,7 +479,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx,
 		 * Unlike zfs_log_write() we can be called with
 		 * up to DMU_MAX_ACCESS/2 (5MB) writes.
 		 */
-		if (blocksize > zvol_immediate_write_sz && !slogging &&
+		if (blocksize > immediate_write_sz && !slogging &&
 		    size >= blocksize && offset % blocksize == 0) {
 			write_state = WR_INDIRECT; /* uses dmu_sync */
 			len = blocksize;
