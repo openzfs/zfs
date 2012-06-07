@@ -16231,6 +16231,84 @@ fi
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
+
+	{ $as_echo "$as_me:$LINENO: checking whether pmd_alloc_with_mask exists" >&5
+$as_echo_n "checking whether pmd_alloc_with_mask exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#if !defined(CONFIG_MMU)
+		#define CONFIG_MMU
+		#endif
+
+		#if defined(RCH_HAS_4LEVEL_HACK)
+		#undef RCH_HAS_4LEVEL_HACK
+		#endif
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		struct mm_struct init_mm;
+		pud_t *pud = NULL;
+		unsigned long addr = 0;
+		gfp_t gfp_mask = GFP_KERNEL;
+
+		pmd_alloc_with_mask(&init_mm, pud, addr, gfp_mask);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PMD_ALLOC_WITH_MASK 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
  ;;
                 user)      ;;
                 all)
@@ -20728,6 +20806,84 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether pmd_alloc_with_mask exists" >&5
+$as_echo_n "checking whether pmd_alloc_with_mask exists... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#if !defined(CONFIG_MMU)
+		#define CONFIG_MMU
+		#endif
+
+		#if defined(RCH_HAS_4LEVEL_HACK)
+		#undef RCH_HAS_4LEVEL_HACK
+		#endif
+
+		#include <linux/mm.h>
+
+int
+main (void)
+{
+
+		struct mm_struct init_mm;
+		pud_t *pud = NULL;
+		unsigned long addr = 0;
+		gfp_t gfp_mask = GFP_KERNEL;
+
+		pmd_alloc_with_mask(&init_mm, pud, addr, gfp_mask);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_PMD_ALLOC_WITH_MASK 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
 
 
                            ;;

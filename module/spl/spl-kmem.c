@@ -843,6 +843,9 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	if (skc->skc_flags & KMC_KMEM) {
 		ptr = (void *)__get_free_pages(flags, get_order(size));
 	} else {
+#ifdef HAVE_PMD_ALLOC_WITH_MASK
+		ptr = __vmalloc(size, flags|__GFP_HIGHMEM, PAGE_KERNEL);
+#else
 		/*
 		 * As part of vmalloc() an __pte_alloc_kernel() allocation
 		 * may occur.  This internal allocation does not honor the
@@ -866,6 +869,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		} else {
 			ptr = __vmalloc(size, flags|__GFP_HIGHMEM, PAGE_KERNEL);
 		}
+#endif
 	}
 
 	/* Resulting allocated memory will be page aligned */
