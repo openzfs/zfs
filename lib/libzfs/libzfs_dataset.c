@@ -3920,10 +3920,20 @@ int
 zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	int error;
+	int timeout = 3000; /* in milliseconds */
+	int nt = 0;
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
+	do {
+		error = ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc);
+		if (error!=0 && errno==EBUSY) {
+			usleep(1000);
+			nt++;
+		}
+	} while (error!=0 && errno==EBUSY && nt<timeout);
 
-	if (ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc) != 0) {
+	if (error != 0) {
 		switch (errno) {
 		case ENXIO:
 			/*
