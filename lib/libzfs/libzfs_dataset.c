@@ -3920,10 +3920,29 @@ int
 zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	int timeout = 3000; /* in milliseconds */
+	int error = 0;
+	int i;
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 
-	if (ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc) != 0) {
+	/*
+	 * Due to concurrent updates by udev the device may be reported as
+	 * busy.  In this case don't immediately fail.  Instead briefly delay
+	 * and retry the ioctl() which is now likely to succeed.  If unable
+	 * remove the link after timeout milliseconds return the failure.
+	 */
+	for (i = 0; i < timeout; i++) {
+		error = ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc);
+		if (error && errno == EBUSY) {
+			usleep(1000);
+			continue;
+		} else {
+			break;
+		}
+	}
+
+	if (error) {
 		switch (errno) {
 		case ENXIO:
 			/*
