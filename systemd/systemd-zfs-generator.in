@@ -111,8 +111,15 @@ while read -r name mountpoint canmount ; do
 
 	unitname=`escaping "$mountpoint"`.mount
 	deps=`getdeps "$mountpoint"`
-	[ "$mountpoint" == "/var" ] && extrabefore=" var-run.mount var-lock.mount" || extrabefore=
-
+	extrabefore=
+	if [ "$mountpoint" == "/var" ] ; then
+		if find /lib/systemd /etc/systemd -type f -name var-run.mount | grep -q var-run.mount ; then
+			extrabefore="$extrabefore var-run.mount"
+		fi
+		if find /lib/systemd /etc/systemd -type f -name var-run.mount | grep -q var-run.mount ; then
+			extrabefore="$extrabefore var-lock.mount"
+		fi
+	fi
 	echo -E "$scriptname: discovered mountable ZFS file system $mountpoint, adding to list"
 
 	echo -E "[Unit]
