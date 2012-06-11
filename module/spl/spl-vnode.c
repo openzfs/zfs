@@ -845,13 +845,12 @@ spl_vn_fini(void)
 		leaked++;
 	}
 
-	kmem_cache_destroy(vn_file_cache);
-	vn_file_cache = NULL;
 	spin_unlock(&vn_file_lock);
 
 	if (leaked > 0)
 		SWARN("Warning %d files leaked\n", leaked);
 
+	kmem_cache_destroy(vn_file_cache);
 	kmem_cache_destroy(vn_cache);
 
 	SEXIT;
