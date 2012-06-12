@@ -859,7 +859,7 @@ uint64_t zil_block_buckets[] = {
  * is less than the limit or the total list size is less than 2X the limit.
  * Limit checking is disabled by setting zil_slog_limit to UINT64_MAX.
  */
-uint64_t zil_slog_limit = 1024 * 1024;
+unsigned long zil_slog_limit = 1024 * 1024;
 #define	USE_SLOG(zilog) (((zilog)->zl_logbias == ZFS_LOGBIAS_LATENCY) && \
 	(((zilog)->zl_cur_used < zil_slog_limit) || \
 	((zilog)->zl_itx_list_sz < (zil_slog_limit << 1))))
@@ -2010,4 +2010,7 @@ MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
 
 module_param(zfs_nocacheflush, int, 0644);
 MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
+
+module_param(zil_slog_limit, ulong, 0644);
+MODULE_PARM_DESC(zil_slog_limit, "Max commit bytes to separate log device");
 #endif
