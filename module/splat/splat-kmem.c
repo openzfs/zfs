@@ -1135,7 +1135,7 @@ splat_kmem_test13(struct file *file, void *arg)
 	kmem_cache_data_t *kcd;
 	dummy_page_t *dp;
 	struct list_head list;
-	struct timespec start, delta;
+	struct timespec start, delta = { 0, 0 };
 	int size, count, slabs, fails = 0;
 	int i, rc = 0, max_time = 10;
 
