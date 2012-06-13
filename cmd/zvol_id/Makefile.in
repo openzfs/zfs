@@ -324,11 +324,14 @@ udevruledir = @udevruledir@
 DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
 	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
 AM_LIBTOOLFLAGS = --silent
+
+# Disable GCC stack protection for zvol_id.  This is a kludge and should be
+# removed once https://github.com/zfsonlinux/zfs/issues/569 is resolved.
 AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
 	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
 	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
-	-DTEXT_DOMAIN=\"zfs-linux-user\"
+	-DTEXT_DOMAIN=\"zfs-linux-user\" -fno-stack-protector
 zvol_id_SOURCES = \
 	$(top_srcdir)/cmd/zvol_id/zvol_id_main.c
 
