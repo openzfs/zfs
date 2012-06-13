@@ -74,16 +74,19 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-, root, root)
-%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
 %{_sbindir}/*
 %{_bindir}/*
 %{_libdir}/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
-%{_sysconfdir}/init.d/*
-%{_sysconfdir}/zfs/*
 %{_udevdir}/*
+
+%config %{_sysconfdir}/init.d/*
+%config %{_sysconfdir}/zfs/*
+%config(noreplace) %{_sysconfdir}/zfs/zdev.conf
+
+%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
+%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
 
 %files devel
 %defattr(-,root,root)
