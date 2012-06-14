@@ -3746,9 +3746,6 @@ arc_init(void)
 	if (zfs_arc_meta_limit > 0 && zfs_arc_meta_limit <= arc_c_max)
 		arc_meta_limit = zfs_arc_meta_limit;
 
-	if (arc_c_min < arc_meta_limit / 2 && zfs_arc_min == 0)
-		arc_c_min = arc_meta_limit / 2;
-
 	if (zfs_arc_grow_retry > 0)
 		arc_grow_retry = zfs_arc_grow_retry;
 
