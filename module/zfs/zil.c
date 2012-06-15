@@ -66,6 +66,27 @@
  */
 
 /*
+ * See zil.h for more information about these fields.
+ */
+zil_stats_t zil_stats = {
+	{ "zil_commit_count",              KSTAT_DATA_UINT64 },
+	{ "zil_commit_writer_count",       KSTAT_DATA_UINT64 },
+	{ "zil_itx_count",                 KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_count",        KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_bytes",        KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_count",          KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_bytes",          KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_count",        KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_bytes",        KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_count", KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_bytes", KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_count",   KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_bytes",   KSTAT_DATA_UINT64 },
+};
+
+static kstat_t *zil_ksp;
+
+/*
  * This global ZIL switch affects all pools
  */
 int zil_replay_disable = 0;    /* disable intent logging replay */
@@ -879,6 +900,7 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 	uint64_t txg;
 	uint64_t zil_blksz, wsz;
 	int i, error;
+	boolean_t use_slog;
 
 	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
 		zilc = (zil_chain_t *)lwb->lwb_buf;
@@ -935,8 +957,19 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 
 	BP_ZERO(bp);
 	/* pass the old blkptr in order to spread log blocks across devs */
+	use_slog = USE_SLOG(zilog);
 	error = zio_alloc_zil(spa, txg, bp, &lwb->lwb_blk, zil_blksz,
-	    USE_SLOG(zilog));
+	    use_slog);
+	if (use_slog)
+	{
+		ZIL_STAT_BUMP(zil_itx_metaslab_slog_count);
+		ZIL_STAT_INCR(zil_itx_metaslab_slog_bytes, lwb->lwb_nused);
+	}
+	else
+	{
+		ZIL_STAT_BUMP(zil_itx_metaslab_normal_count);
+		ZIL_STAT_INCR(zil_itx_metaslab_normal_bytes, lwb->lwb_nused);
+	}
 	if (!error) {
 		ASSERT3U(bp->blk_birth, ==, txg);
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
@@ -1022,13 +1055,18 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	lrc = (lr_t *)lr_buf;
 	lrw = (lr_write_t *)lrc;
 
+	ZIL_STAT_BUMP(zil_itx_count);
+
 	/*
 	 * If it's a write, fetch the data or get its blkptr as appropriate.
 	 */
 	if (lrc->lrc_txtype == TX_WRITE) {
 		if (txg > spa_freeze_txg(zilog->zl_spa))
 			txg_wait_synced(zilog->zl_dmu_pool, txg);
-		if (itx->itx_wr_state != WR_COPIED) {
+		if (itx->itx_wr_state == WR_COPIED) {
+			ZIL_STAT_BUMP(zil_itx_copied_count);
+			ZIL_STAT_INCR(zil_itx_copied_bytes, lrw->lr_length);
+		} else {
 			char *dbuf;
 			int error;
 
@@ -1036,9 +1074,13 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 				ASSERT(itx->itx_wr_state == WR_NEED_COPY);
 				dbuf = lr_buf + reclen;
 				lrw->lr_common.lrc_reclen += dlen;
+				ZIL_STAT_BUMP(zil_itx_needcopy_count);
+				ZIL_STAT_INCR(zil_itx_needcopy_bytes, lrw->lr_length);
 			} else {
 				ASSERT(itx->itx_wr_state == WR_INDIRECT);
 				dbuf = NULL;
+				ZIL_STAT_BUMP(zil_itx_indirect_count);
+				ZIL_STAT_INCR(zil_itx_indirect_bytes, lrw->lr_length);
 			}
 			error = zilog->zl_get_data(
 			    itx->itx_private, lrw, dbuf, lwb->lwb_zio);
@@ -1497,6 +1539,8 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
 		return;
 
+	ZIL_STAT_BUMP(zil_commit_count);
+
 	/* move the async itxs for the foid to the sync queues */
 	zil_async_to_sync(zilog, foid);
 
@@ -1512,6 +1556,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 
 	zilog->zl_next_batch++;
 	zilog->zl_writer = B_TRUE;
+	ZIL_STAT_BUMP(zil_commit_writer_count);
 	zil_commit_writer(zilog);
 	zilog->zl_com_batch = mybatch;
 	zilog->zl_writer = B_FALSE;
@@ -1600,12 +1645,26 @@ zil_init(void)
 {
 	zil_lwb_cache = kmem_cache_create("zil_lwb_cache",
 	    sizeof (struct lwb), 0, NULL, NULL, NULL, NULL, NULL, 0);
+
+	zil_ksp = kstat_create("zfs", 0, "zil", "misc",
+	    KSTAT_TYPE_NAMED, sizeof(zil_stats) / sizeof(kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	if (zil_ksp != NULL) {
+		zil_ksp->ks_data = &zil_stats;
+		kstat_install(zil_ksp);
+	}
 }
 
 void
 zil_fini(void)
 {
 	kmem_cache_destroy(zil_lwb_cache);
+
+	if (zil_ksp != NULL) {
+		kstat_delete(zil_ksp);
+		zil_ksp = NULL;
+	}
 }
 
 void
