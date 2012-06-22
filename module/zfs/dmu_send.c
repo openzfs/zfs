@@ -95,6 +95,9 @@ dump_free(struct backuparg *ba, uint64_t object, uint64_t offset,
 {
 	struct drr_free *drrf = &(ba->drr->drr_u.drr_free);
 
+	if (length != -1ULL && offset + length < offset)
+		length = -1ULL;
+
 	/*
 	 * If there is a pending op, but it's not PENDING_FREE, push it out,
 	 * since free block aggregation can only be done for blocks of the
