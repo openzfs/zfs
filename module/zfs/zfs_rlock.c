@@ -31,9 +31,9 @@
  * Interface
  * ---------
  * Defined in zfs_rlock.h but essentially:
- *	rl = zfs_range_lock(zp, off, len, lock_type);
- *	zfs_range_unlock(rl);
- *	zfs_range_reduce(rl, off, len);
+ *	zfs_range_lock(&rl, zp, off, len, lock_type);
+ *	zfs_range_unlock(&rl);
+ *	zfs_range_reduce(&rl, off, len);
  *
  * AVL tree
  * --------
@@ -420,13 +420,11 @@ got_lock:
  * previously locked as RL_WRITER).
  */
 rl_t *
-zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
+zfs_range_lock(rl_t *new, znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 {
-	rl_t *new;
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	new->r_zp = zp;
 	new->r_off = off;
 	if (len + off < off)	/* overflow */

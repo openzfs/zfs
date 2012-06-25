@@ -973,12 +973,11 @@ ztest_object_unlock(ztest_ds_t *zd, uint64_t object)
 }
 
 static rl_t *
-ztest_range_lock(ztest_ds_t *zd, uint64_t object, uint64_t offset,
+ztest_range_lock(rl_t *rl, ztest_ds_t *zd, uint64_t object, uint64_t offset,
     uint64_t size, rl_type_t type)
 {
 	uint64_t hash = object ^ (offset % (ZTEST_RANGE_LOCKS + 1));
 	rll_t *rll = &zd->zd_range_lock[hash & (ZTEST_RANGE_LOCKS - 1)];
-	rl_t *rl;
 
 	rl = umem_alloc(sizeof (*rl), UMEM_NOFAIL);
 	rl->rl_object = object;
@@ -1389,7 +1388,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 	dmu_tx_t *tx;
 	dmu_buf_t *db;
 	arc_buf_t *abuf = NULL;
-	rl_t *rl;
+	rl_t rl;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -1413,7 +1412,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 		bt = NULL;
 
 	ztest_object_lock(zd, lr->lr_foid, RL_READER);
-	rl = ztest_range_lock(zd, lr->lr_foid, offset, length, RL_WRITER);
+	ztest_range_lock(&rl, zd, lr->lr_foid, offset, length, RL_WRITER);
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
 
@@ -1438,7 +1437,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 		if (abuf != NULL)
 			dmu_return_arcbuf(abuf);
 		dmu_buf_rele(db, FTAG);
-		ztest_range_unlock(rl);
+		ztest_range_unlock(&rl);
 		ztest_object_unlock(zd, lr->lr_foid);
 		return (ENOSPC);
 	}
@@ -1495,7 +1494,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 
 	dmu_tx_commit(tx);
 
-	ztest_range_unlock(rl);
+	ztest_range_unlock(&rl);
 	ztest_object_unlock(zd, lr->lr_foid);
 
 	return (0);
@@ -1507,13 +1506,13 @@ ztest_replay_truncate(ztest_ds_t *zd, lr_truncate_t *lr, boolean_t byteswap)
 	objset_t *os = zd->zd_os;
 	dmu_tx_t *tx;
 	uint64_t txg;
-	rl_t *rl;
+	rl_t rl;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
 	ztest_object_lock(zd, lr->lr_foid, RL_READER);
-	rl = ztest_range_lock(zd, lr->lr_foid, lr->lr_offset, lr->lr_length,
+	ztest_range_lock(&rl, zd, lr->lr_foid, lr->lr_offset, lr->lr_length,
 	    RL_WRITER);
 
 	tx = dmu_tx_create(os);
@@ -1522,7 +1521,7 @@ ztest_replay_truncate(ztest_ds_t *zd, lr_truncate_t *lr, boolean_t byteswap)
 
 	txg = ztest_tx_assign(tx, TXG_WAIT, FTAG);
 	if (txg == 0) {
-		ztest_range_unlock(rl);
+		ztest_range_unlock(&rl);
 		ztest_object_unlock(zd, lr->lr_foid);
 		return (ENOSPC);
 	}
@@ -1534,7 +1533,7 @@ ztest_replay_truncate(ztest_ds_t *zd, lr_truncate_t *lr, boolean_t byteswap)
 
 	dmu_tx_commit(tx);
 
-	ztest_range_unlock(rl);
+	ztest_range_unlock(&rl);
 	ztest_object_unlock(zd, lr->lr_foid);
 
 	return (0);
@@ -1670,6 +1669,8 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	dmu_object_info_t doi;
 	dmu_buf_t *db;
 	zgd_t *zgd;
+	rl_t rl;
+
 	int error;
 
 	ztest_object_lock(zd, object, RL_READER);
@@ -1694,9 +1695,10 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	zgd = umem_zalloc(sizeof (*zgd), UMEM_NOFAIL);
 	zgd->zgd_zilog = zd->zd_zilog;
 	zgd->zgd_private = zd;
+	zgd->zgd_rl = &rl;
 
 	if (buf != NULL) {	/* immediate write */
-		zgd->zgd_rl = ztest_range_lock(zd, object, offset, size,
+		ztest_range_lock(zgd->zgd_rl, zd, object, offset, size,
 		    RL_READER);
 
 		error = dmu_read(os, object, offset, size, buf,
@@ -1711,7 +1713,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 			offset = 0;
 		}
 
-		zgd->zgd_rl = ztest_range_lock(zd, object, offset, size,
+		ztest_range_lock(zgd->zgd_rl, zd, object, offset, size,
 		    RL_READER);
 
 		error = dmu_buf_hold(os, object, offset, zgd, &db,
@@ -1953,12 +1955,12 @@ ztest_prealloc(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size)
 	objset_t *os = zd->zd_os;
 	dmu_tx_t *tx;
 	uint64_t txg;
-	rl_t *rl;
+	rl_t rl;
 
 	txg_wait_synced(dmu_objset_pool(os), 0);
 
 	ztest_object_lock(zd, object, RL_READER);
-	rl = ztest_range_lock(zd, object, offset, size, RL_WRITER);
+	ztest_range_lock(&rl, zd, object, offset, size, RL_WRITER);
 
 	tx = dmu_tx_create(os);
 
@@ -1974,7 +1976,7 @@ ztest_prealloc(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size)
 		(void) dmu_free_long_range(os, object, offset, size);
 	}
 
-	ztest_range_unlock(rl);
+	ztest_range_unlock(&rl);
 	ztest_object_unlock(zd, object);
 }
 

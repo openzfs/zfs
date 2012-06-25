@@ -537,7 +537,7 @@ zvol_write(void *arg)
 	uint64_t size = blk_rq_bytes(req);
 	int error = 0;
 	dmu_tx_t *tx;
-	rl_t *rl;
+	rl_t rl;
 
 	if (req->cmd_flags & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -550,7 +550,7 @@ zvol_write(void *arg)
 		return;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+	zfs_range_lock(&rl, &zv->zv_znode, offset, size, RL_WRITER);
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_hold_write(tx, ZVOL_OBJ, offset, size);
@@ -559,7 +559,7 @@ zvol_write(void *arg)
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		blk_end_request(req, -error, size);
 		return;
 	}
@@ -570,7 +570,7 @@ zvol_write(void *arg)
 		    req->cmd_flags & VDEV_REQ_FUA);
 
 	dmu_tx_commit(tx);
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	if ((req->cmd_flags & VDEV_REQ_FUA) ||
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
@@ -589,7 +589,8 @@ zvol_discard(void *arg)
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error;
-	rl_t *rl;
+	rl_t rl;
+	dmu_tx_t *tx;
 
 	if (offset + size > zv->zv_volsize) {
 		blk_end_request(req, -EIO, size);
@@ -601,7 +602,7 @@ zvol_discard(void *arg)
 		return;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+	rl = zfs_range_lock(&rl, &zv->zv_znode, offset, size, RL_WRITER);
 
 	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
 
@@ -609,7 +610,7 @@ zvol_discard(void *arg)
 	 * TODO: maybe we should add the operation to the log.
 	 */
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	blk_end_request(req, -error, size);
 }
@@ -630,18 +631,18 @@ zvol_read(void *arg)
 	uint64_t offset = blk_rq_pos(req) << 9;
 	uint64_t size = blk_rq_bytes(req);
 	int error;
-	rl_t *rl;
+	rl_t rl;
 
 	if (size == 0) {
 		blk_end_request(req, 0, size);
 		return;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
+	zfs_range_lock(&rl, &zv->zv_znode, offset, size, RL_READER);
 
 	error = dmu_read_req(zv->zv_objset, ZVOL_OBJ, req);
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	/* convert checksum errors into IO errors */
 	if (error == ECKSUM)
@@ -744,6 +745,7 @@ zvol_get_done(zgd_t *zgd, int error)
 	if (error == 0 && zgd->zgd_bp)
 		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
 
+	kmem_free(zgd->zgd_rl, sizeof(rl_t));
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
@@ -766,7 +768,8 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_zilog = zv->zv_zilog;
-	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
+	zgd->zgd_rl = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	zfs_range_lock(zgd->zgd_rl, &zv->zv_znode, offset, size, RL_READER);
 
 	/*
 	 * Write records come in two flavors: immediate and indirect.
