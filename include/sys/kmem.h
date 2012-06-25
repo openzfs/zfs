@@ -214,9 +214,9 @@ extern unsigned long long vmem_alloc_max;
 #  define vmem_free(ptr, sz)            vmem_free_track((ptr), (sz))
 
 extern void *kmem_alloc_track(size_t, int, const char *, int, int, int);
-extern void kmem_free_track(void *, size_t);
+extern void kmem_free_track(const void *, size_t);
 extern void *vmem_alloc_track(size_t, int, const char *, int);
-extern void vmem_free_track(void *, size_t);
+extern void vmem_free_track(const void *, size_t);
 
 # else /* DEBUG_KMEM_TRACKING */
 /*
@@ -243,9 +243,9 @@ extern void vmem_free_track(void *, size_t);
 #  define vmem_free(ptr, sz)            vmem_free_debug((ptr), (sz))
 
 extern void *kmem_alloc_debug(size_t, int, const char *, int, int, int);
-extern void kmem_free_debug(void *, size_t);
+extern void kmem_free_debug(const void *, size_t);
 extern void *vmem_alloc_debug(size_t, int, const char *, int);
-extern void vmem_free_debug(void *, size_t);
+extern void vmem_free_debug(const void *, size_t);
 
 # endif /* DEBUG_KMEM_TRACKING */
 #else /* DEBUG_KMEM */

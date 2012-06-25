@@ -385,7 +385,7 @@ EXPORT_SYMBOL(vmem_table);
 EXPORT_SYMBOL(vmem_list);
 
 static kmem_debug_t *
-kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits, void *addr)
+kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits, const void *addr)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -504,7 +504,7 @@ out:
 EXPORT_SYMBOL(kmem_alloc_track);
 
 void
-kmem_free_track(void *ptr, size_t size)
+kmem_free_track(const void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
 	SENTRY;
@@ -619,7 +619,7 @@ out:
 EXPORT_SYMBOL(vmem_alloc_track);
 
 void
-vmem_free_track(void *ptr, size_t size)
+vmem_free_track(const void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
 	SENTRY;
@@ -706,7 +706,7 @@ kmem_alloc_debug(size_t size, int flags, const char *func, int line,
 EXPORT_SYMBOL(kmem_alloc_debug);
 
 void
-kmem_free_debug(void *ptr, size_t size)
+kmem_free_debug(const void *ptr, size_t size)
 {
 	SENTRY;
 
@@ -758,7 +758,7 @@ vmem_alloc_debug(size_t size, int flags, const char *func, int line)
 EXPORT_SYMBOL(vmem_alloc_debug);
 
 void
-vmem_free_debug(void *ptr, size_t size)
+vmem_free_debug(const void *ptr, size_t size)
 {
 	SENTRY;
 
