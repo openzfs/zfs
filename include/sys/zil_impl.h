@@ -40,6 +40,7 @@ extern "C" {
 typedef struct lwb {
 	zilog_t		*lwb_zilog;	/* back pointer to log struct */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
+	boolean_t       lwb_fastwrite;  /* is blk marked for fastwrite? */
 	int		lwb_nused;	/* # used bytes in buffer */
 	int		lwb_sz;		/* size of block and buffer */
 	char		*lwb_buf;	/* log write buffer */
