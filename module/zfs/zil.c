@@ -520,7 +520,7 @@ zil_create(zilog_t *zilog)
 		}
 
 		error = zio_alloc_zil(zilog->zl_spa, txg, &blk,
-		    ZIL_MIN_BLKSZ, zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
+		    ZIL_MIN_BLKSZ, B_TRUE);
 		fastwrite = TRUE;
 
 		if (error == 0)
@@ -895,14 +895,13 @@ uint64_t zil_block_buckets[] = {
 };
 
 /*
- * Use the slog as long as the logbias is 'latency' and the current commit size
- * is less than the limit or the total list size is less than 2X the limit.
- * Limit checking is disabled by setting zil_slog_limit to UINT64_MAX.
+ * Use the slog as long as the current commit size is less than the
+ * limit or the total list size is less than 2X the limit.  Limit
+ * checking is disabled by setting zil_slog_limit to UINT64_MAX.
  */
 unsigned long zil_slog_limit = 1024 * 1024;
-#define	USE_SLOG(zilog) (((zilog)->zl_logbias == ZFS_LOGBIAS_LATENCY) && \
-	(((zilog)->zl_cur_used < zil_slog_limit) || \
-	((zilog)->zl_itx_list_sz < (zil_slog_limit << 1))))
+#define	USE_SLOG(zilog) (((zilog)->zl_cur_used < zil_slog_limit) || \
+	((zilog)->zl_itx_list_sz < (zil_slog_limit << 1)))
 
 /*
  * Start a log block write and advance to the next log block.
