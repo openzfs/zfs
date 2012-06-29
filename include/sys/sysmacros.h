@@ -71,7 +71,7 @@
 #define DEV_BSHIFT			9 /* log2(DEV_BSIZE) */
 
 #define proc_pageout			NULL
-#define curproc				get_current()
+#define curproc				current
 #define max_ncpus			num_possible_cpus()
 #define CPU_SEQID			smp_processor_id()
 #define _NOTE(x)
