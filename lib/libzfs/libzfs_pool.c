@@ -1585,6 +1585,12 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			(void) zpool_standard_error(hdl, error, desc);
 			break;
 
+		case EBUSY:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more devices are already in use\n"));
+			(void) zfs_error(hdl, EZFS_BADDEV, desc);
+			break;
+
 		default:
 			(void) zpool_standard_error(hdl, error, desc);
 			zpool_explain_recover(hdl,

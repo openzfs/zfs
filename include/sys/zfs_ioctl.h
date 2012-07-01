@@ -286,7 +286,8 @@ typedef struct zfs_cmd {
 	boolean_t	zc_temphold;
 	uint64_t	zc_action_handle;
 	int		zc_cleanup_fd;
-	uint8_t		zc_pad[4];		/* alignment */
+	uint8_t		zc_simple;
+	uint8_t		zc_pad[3];		/* alignment */
 	uint64_t	zc_sendobj;
 	uint64_t	zc_fromobj;
 	uint64_t	zc_createtxg;

@@ -30,6 +30,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <libzfs.h>
+#include <locale.h>
 #ifdef HAVE_LIBSELINUX
 #include <selinux/selinux.h>
 #endif /* HAVE_LIBSELINUX */

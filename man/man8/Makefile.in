@@ -64,6 +64,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blkdev-get-by-path.m4 \
 	$(top_srcdir)/config/kernel-check-disk-size-change.m4 \
 	$(top_srcdir)/config/kernel-create-umode-t.m4 \
+	$(top_srcdir)/config/kernel-d-make-root.m4 \
 	$(top_srcdir)/config/kernel-d-obtain-alias.m4 \
 	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fallocate.m4 \
@@ -318,7 +319,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-man_MANS = zdb.8 zfs.8 zpool.8
+man_MANS = vdev_id.8 zdb.8 zfs.8 zpool.8
 EXTRA_DIST = $(man_MANS)
 all: all-am
 

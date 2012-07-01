@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright 2011 Martin Matuska
+ * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -1973,7 +1974,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	int error;
 
 top:
-	if (zc->zc_cookie == 0)
+	if (zc->zc_cookie == 0 && !zc->zc_simple)
 		(void) dmu_objset_find(zc->zc_name, dmu_objset_prefetch,
 		    NULL, DS_FIND_SNAPSHOTS);
 
@@ -1995,7 +1996,7 @@ top:
 	    zc->zc_name + strlen(zc->zc_name), &zc->zc_obj, &zc->zc_cookie,
 	    NULL);
 
-	if (error == 0) {
+	if (error == 0 && !zc->zc_simple) {
 		dsl_dataset_t *ds;
 		dsl_pool_t *dp = os->os_dsl_dataset->ds_dir->dd_pool;
 

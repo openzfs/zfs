@@ -2650,7 +2650,12 @@ print_dataset(zfs_handle_t *zhp, zprop_list_t *pl, boolean_t scripted)
 			first = B_FALSE;
 		}
 
-		if (pl->pl_prop != ZPROP_INVAL) {
+		if (pl->pl_prop == ZFS_PROP_NAME) {
+			(void) strlcpy(property, zfs_get_name(zhp),
+			    sizeof(property));
+			propstr = property;
+			right_justify = zfs_prop_align_right(pl->pl_prop);
+		} else if (pl->pl_prop != ZPROP_INVAL) {
 			if (zfs_prop_get(zhp, pl->pl_prop, property,
 			    sizeof (property), NULL, NULL, 0, B_FALSE) != 0)
 				propstr = "-";
@@ -2809,6 +2814,13 @@ zfs_do_list(int argc, char **argv)
 
 	if (fields == NULL)
 		fields = default_fields;
+
+	/*
+	 * If we are only going to list snapshot names and sort by name,
+	 * then we can use faster version.
+	 */
+	if (strcmp(fields, "name") == 0 && zfs_sort_only_by_name(sortcol))
+		flags |= ZFS_ITER_SIMPLE;
 
 	/*
 	 * If "-o space" and no types were specified, don't display snapshots.

@@ -46,6 +46,7 @@
 #include <sys/zvol.h>
 #include <linux/blkdev_compat.h>
 
+unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_threads = 32;
 
@@ -459,11 +460,15 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx,
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
 	boolean_t slogging;
+	ssize_t immediate_write_sz;
 
 	if (zil_replaying(zilog, tx))
 		return;
 
-	slogging = spa_has_slogs(zilog->zl_spa);
+	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
+		? 0 : zvol_immediate_write_sz;
+	slogging = spa_has_slogs(zilog->zl_spa) &&
+		(zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
 
 	while (size) {
 		itx_t *itx;
@@ -475,7 +480,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx,
 		 * Unlike zfs_log_write() we can be called with
 		 * up to DMU_MAX_ACCESS/2 (5MB) writes.
 		 */
-		if (blocksize > zvol_immediate_write_sz && !slogging &&
+		if (blocksize > immediate_write_sz && !slogging &&
 		    size >= blocksize && offset % blocksize == 0) {
 			write_state = WR_INDIRECT; /* uses dmu_sync */
 			len = blocksize;
@@ -1337,6 +1342,9 @@ zvol_create_minors(const char *pool)
 	spa_t *spa = NULL;
 	int error = 0;
 
+	if (zvol_inhibit_dev)
+		return (0);
+
 	mutex_enter(&zvol_state_lock);
 	if (pool) {
 		error = dmu_objset_find_spa(NULL, pool, zvol_create_minors_cb,
@@ -1365,6 +1373,9 @@ zvol_remove_minors(const char *pool)
 {
 	zvol_state_t *zv, *zv_next;
 	char *str;
+
+	if (zvol_inhibit_dev)
+		return;
 
 	str = kmem_zalloc(MAXNAMELEN, KM_SLEEP);
 	if (pool) {
@@ -1426,6 +1437,9 @@ zvol_fini(void)
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 }
+
+module_param(zvol_inhibit_dev, uint, 0644);
+MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 
 module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
