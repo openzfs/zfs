@@ -128,46 +128,6 @@
  %endif
 %else
 
-# CHAOS 4.x:
-%if %{defined ch4}
- %if %{undefined kver}
-  %define klnk           %{_usrsrc}/kernels/*/include/config
-  %define kver_kern      %((echo X; %{__cat} %{klnk}/kernel.release
-                            2>/dev/null) | tail -1)
-  %define kver_dbug      %{nil}
- %else
-  %define kver_kern      %{kver}
-  %define kver_dbug      %{nil}
- %endif
-
- %define kpkg_kern       chaos-kernel
- %define kpkg_dbug       %{nil}
-
- %define kdevpkg_kern    chaos-kernel-devel
- %define kdevpkg_dbug    %{nil}
-
- %define kverpkg_kern    %{kver_kern}
- %define kverpkg_dbug    %{nil}
-
- %define koppkg          =
-
- %if %{undefined kdir}
-  %define kdir_kern      %{_usrsrc}/kernels/%{kver_kern}
-  %define kdir_dbug      %{nil}
- %else
-  %define kdir_kern      %{kdir}
-  %define kdir_dbug      %{nil}
- %endif
-
- %if %{undefined kobj}
-  %define kobj_kern      %{kdir_kern}
-  %define kobj_dbug      %{nil}
- %else
-  %define kobj_kern      %{kobj}
-  %define kobj_dbug      %{nil}
- %endif
-%else
-
 # RHEL 5.x/6.x, CHAOS 5.x:
 %if %{defined el5} || %{defined el6} || %{defined ch5}
  %if %{undefined kver}
@@ -288,7 +248,6 @@
   %define kobj_dbug      %{nil}
  %endif
 
-%endif
 %endif
 %endif
 %endif
