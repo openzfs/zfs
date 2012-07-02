@@ -198,7 +198,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 /*
  * Add the given configuration to the list of known devices.
  */
-static int
+int
 add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
     int order, nvlist_t *config)
 {
@@ -423,7 +423,7 @@ vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
  * pass to fix up any incorrect paths, and then add it to the main list to
  * return to the user.
  */
-static nvlist_t *
+nvlist_t *
 get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 {
 	pool_entry_t *pe;

@@ -103,6 +103,7 @@ AC_CONFIG_FILES([
 	cmd/zvol_id/Makefile
 	cmd/vdev_id/Makefile
 	cmd/arcstat/Makefile
+	cmd/zimport/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
