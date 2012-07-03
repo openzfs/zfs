@@ -123,6 +123,7 @@ AC_CONFIG_FILES([
 	PKGBUILD-zfs
 	PKGBUILD-zfs-modules
 	zfs-script-config.sh
+	dkms.conf
 ])
 
 AC_OUTPUT
