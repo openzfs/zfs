@@ -6,15 +6,16 @@ srpm-utils:
 
 srpm: srpm-modules srpm-utils
 
+rpm-dkms: srpm-modules
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" dkms-common
+
 rpm-modules: srpm-modules
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
 
 rpm-utils: srpm-utils
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
 
-rpm-modules: srpm-modules
-
-rpm: rpm-modules rpm-utils
+rpm: rpm-modules rpm-utils rpm-dkms
 
 rpm-local:
 	@(if test "${HAVE_RPMBUILD}" = "no"; then \
@@ -32,6 +33,26 @@ rpm-local:
 	cp $(rpmspec) $(rpmbuild)/SPECS && \
 	mkdir -p $(rpmbuild)/SOURCES && \
 	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
+
+dkms-common:
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmdkms=$(pkg)-dkms-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).noarch.rpm;\
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	$(RPMBUILD) \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "_without_kernel 1" \
+		--define "_without_kernel_debug 1" \
+		--define "_with_kernel_dkms 1" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/noarch/$$rpmdkms . || exit 1; \
+	$(RM) -R $$rpmbuild
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \

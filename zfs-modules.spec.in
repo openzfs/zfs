@@ -44,6 +44,17 @@
  %endif
 %endif
 
+# Set using 'rpmbuild ... --with kernel-dkms ...', defaults to disabled.
+%if %{defined _with_kernel_dkms}
+ %define with_kernel_dkms 1
+%else
+ %if %{defined _without_kernel_dkms}
+  %define with_kernel_dkms 0
+ %else
+  %define with_kernel_dkms 0
+ %endif
+%endif
+
 # Set using 'rpmbuild ... --with debug ...', defaults to disabled.
 %if %{defined _with_debug}
  %define kdebug --enable-debug
@@ -96,12 +107,15 @@
 
  %define kpkg_kern       kernel-%{kverextra}
  %define kpkg_dbug       %{nil}
+ %define kpkg_dkms       %{nil}
 
  %define kdevpkg_kern    kernel-source
  %define kdevpkg_dbug    %{nil}
+ %define kdevpkg_dkms    %{nil}
 
  %define kverpkg_kern    %(echo %{kver_kern} | %{__sed} -e 's/-%{kverextra}//g')
  %define kverpkg_dbug    %{nil}
+ %define kverpkg_dkms    %{nil}
 
  # The kernel and rpm versions do not strictly match under SLES11
  # e.g. kernel version 2.6.27.19-5 != rpm version 2.6.27.19-5.1
@@ -143,10 +157,13 @@
 
  %define kpkg_kern       kernel
  %define kpkg_dbug       kernel-debug
+ %define kpkg_dkms       dkms
 
  %define kdevpkg_kern    kernel-devel
  %define kdevpkg_dbug    kernel-debug-devel
+ %define kdevpkg_dkms    dkms
 
+ %define kverpkg_dkms    2.2.0.2
  %if %{defined el6} || %{defined ch5}
   %define kverpkg_kern   %(echo %{kver_kern} | %{__sed} -e 's/.%{_target_cpu}//g')
   %define kverpkg_dbug   %(echo %{kver_dbug} | %{__sed} -e 's/.%{_target_cpu}//g' | %{__sed} -e 's/.debug//g')
@@ -194,10 +211,13 @@
 
  %define kpkg_kern       kernel
  %define kpkg_dbug       kernel-debug
+ %define kpkg_dkms       dkms
 
  %define kdevpkg_kern    kernel-devel
  %define kdevpkg_dbug    kernel-debug-devel
+ %define kdevpkg_dkms    dkms
 
+ %define kverpkg_dkms    2.2.0.2
  %define kverpkg_kern    %(echo %{kver_kern} | %{__sed} -e 's/.%{_target_cpu}//g')
  %define kverpkg_dbug    %(echo %{kver_dbug} | %{__sed} -e 's/.%{_target_cpu}//g' | %{__sed} -e 's/.debug//g')
 
@@ -231,6 +251,7 @@
 
  %define kverpkg_kern    %{kver_kern}
  %define kverpkg_dbug    %{nil}
+ %define kverpkg_dkms    %{nil}
 
  %if %{undefined kdir}
   %define kdir_kern      /lib/modules/%{kver_kern}/build
@@ -274,39 +295,50 @@
 %if %{undefined splver}
  %define spllnk_kern     %{_usrsrc}/spl-*/%{kver_kern}
  %define spllnk_dbug     %{_usrsrc}/spl-*/%{kver_dbug}
+ %define spllnk_dkms     %{_var}/lib/dkms/spl/*/build
 
  %define splver_kern     %((echo X; %{__cat} %{spllnk_kern}/spl.release
                             2>/dev/null) | tail -1)
  %define splver_dbug     %((echo X; %{__cat} %{spllnk_dbug}/spl.release
                             2>/dev/null) | tail -1)
+ %define splver_dkms     %((echo X; %{__cat} %{spllnk_dkms}/spl.release
+                            2>/dev/null) | tail -1)
 %else
  %define splver_kern     %{splver}
  %define splver_dbug     %{splver}
+ %define splver_dksm     %{splver}
 %endif
 
 %define splpkg_kern      spl-modules
 %define splpkg_dbug      spl-modules-debug
+%define splpkg_dkms      spl-modules-dkms
 
 %define spldevpkg_kern   spl-modules-devel
 %define spldevpkg_dbug   spl-modules-debug-devel
+%define spldevpkg_dkms   spl-modules-dkms
 
 %define splverpkg_kern   %{splver_kern}
 %define splverpkg_dbug   %{splver_dbug}
+%define splverpkg_dkms   %{splver_dkms}
 
 %if %{undefined spldir}
  %define spldir_kern     %{_usrsrc}/spl-%{splver_kern}/%{kver_kern}
  %define spldir_dbug     %{_usrsrc}/spl-%{splver_dbug}/%{kver_dbug}
+ %define spldir_dkms     %{_usrsrc}/spl-%{splver_dkms}
 %else
  %define spldir_kern     %{spldir}
  %define spldir_dbug     %{spldir}.debug
+ %define spldir_dkms     %{spldir}
 %endif
 
 %if %{undefined splobj}
  %define splobj_kern     %{spldir_kern}
  %define splobj_dbug     %{spldir_dbug}
+ %define splobj_dkms     %{spldir_dkms}
 %else
  %define splobj_kern     %{splobj}
  %define splobj_dbug     %{splobj}.debug
+ %define splobj_dkms     %{splobj}
 %endif
 
 
@@ -322,6 +354,7 @@
 
 %define rel_kern         @ZFS_META_RELEASE@
 %define rel_dbug         @ZFS_META_RELEASE@
+%define rel_dkms         @ZFS_META_RELEASE@
 
 %if %{defined kpkg_kern}
 %define req_kern         %{kpkg_kern}
@@ -329,12 +362,17 @@
 %if %{defined kpkg_dbug}
 %define req_dbug         %{kpkg_dbug}
 %endif
+%if %{defined kpkg_dkms}
+%define req_dkms         %{kpkg_dkms}
+%endif
 
 %define splreq_kern      %{splpkg_kern}
 %define splreq_dbug      %{splpkg_dbug}
+%define splreq_dkms      %{splpkg_dkms}
 
 %define spldevreq_kern   %{spldevpkg_kern}
 %define spldevreq_dbug   %{spldevpkg_dbug}
+%define spldevreq_dkms   %{spldevpkg_dkms}
 
 %else
 
@@ -342,6 +380,7 @@
 %define relext_dbug      %(echo %{kverpkg_dbug} | %{__sed} -e 's/-/_/g')
 %define rel_kern         @ZFS_META_RELEASE@_%{relext_kern}
 %define rel_dbug         @ZFS_META_RELEASE@_%{relext_dbug}
+%define rel_dkms         @ZFS_META_RELEASE@
 
 %if %{defined kpkg_kern}
 %define req_kern         %{kpkg_kern} %{koppkg} %{kverpkg_kern}
@@ -349,12 +388,17 @@
 %if %{defined kpkg_dbug}
 %define req_dbug         %{kpkg_dbug} %{koppkg} %{kverpkg_dbug}
 %endif
+%if %{defined kpkg_dkms}
+%define req_dkms         %{kpkg_dkms} >= %{kverpkg_dkms}
+%endif
 
 %define splreq_kern      %{splpkg_kern} = %{splverpkg_kern}_%{relext_kern}
 %define splreq_dbug      %{splpkg_dbug} = %{splverpkg_dbug}_%{relext_dbug}
+%define splreq_dkms      %{splpkg_dkms} = %{splverpkg_dkms}
 
 %define spldevreq_kern   %{spldevpkg_kern} = %{splverpkg_kern}_%{relext_kern}
 %define spldevreq_dbug   %{spldevpkg_dbug} = %{splverpkg_dbug}_%{relext_dbug}
+%define spldevreq_dkms   %{spldevpkg_dkms} = %{splverpkg_dkms}
 
 %endif
 
@@ -462,6 +506,34 @@ and Module.symvers symbols needed for building additional modules
 which use %{name}.
 
 %endif
+%if %{?with_kernel_dkms}
+
+%package dkms
+Summary:         ZFS File System (DKMS)
+Group:           Utilities/System
+Release:         %{rel_dkms}
+Provides:        %{name}
+BuildArch:       noarch
+%if %{defined req_dkms}
+Requires:        %{req_dkms}
+%endif
+%if %{defined kdevpkg_dkms}
+BuildRequires:   %{kdevpkg_dkms}
+%endif
+%if %{defined splreq_dkms}
+Requires:        %{splreq_dkms}
+%endif
+%if %{defined spldevpkg_dkms}
+BuildRequires:   %{spldevpkg_dkms}
+%endif
+Provides:        lustre-backend-fs
+
+%description dkms
+The %{name}-dkms package contains the necessary pieces to build and
+install the ZFS kernel modules with Dynamic Kernel Modules Support
+(DKMS).
+
+%endif
 
 %prep
 %setup -n @PACKAGE@-%{version}
@@ -484,6 +556,15 @@ make DESTDIR=$RPM_BUILD_ROOT install
            --with-config=kernel %{kdebug} %{kdebug_dmu_tx}
 make
 make DESTDIR=$RPM_BUILD_ROOT install
+
+%endif
+%if %{?with_kernel_dkms}
+
+%configure %{kdebug} %{kdebug_dmu_tx}
+make dist
+mkdir -p $RPM_BUILD_ROOT/%{_prefix}/src
+tar -xf @PACKAGE@-%{version}.tar.gz -C $RPM_BUILD_ROOT/%{_prefix}/src
+cp -af dkms.conf $RPM_BUILD_ROOT/%{_prefix}/src/@PACKAGE@-%{version}
 
 %endif
 
@@ -538,5 +619,32 @@ if [ -f /boot/System.map-%{kver_dbug} ]; then
 else
 	/sbin/depmod -a || exit 0
 fi
+
+%endif
+%if %{?with_kernel_dkms}
+
+%files dkms
+%defattr(-,root,root)
+%{_prefix}/src/@PACKAGE@-%{version}/*
+
+%post dkms
+for POSTINST in %{_prefix}/lib/dkms/common.postinst; do
+	if [ -f $POSTINST ]; then
+		$POSTINST @PACKAGE@ %{version}
+		exit $?
+	fi
+	echo "WARNING: $POSTINST does not exist."
+done
+echo -e "ERROR: DKMS version is too old and @PACKAGE@ was not"
+echo -e "built with legacy DKMS support."
+echo -e "You must either rebuild @PACKAGE@ with legacy postinst"
+echo -e "support or upgrade DKMS to a more current version."
+exit 1
+
+%preun dkms
+echo -e
+echo -e "Uninstall of @PACKAGE@ module (version %{version}) beginning:"
+dkms remove -m @PACKAGE@ -v %{version} --all --rpm_safe_upgrade
+exit 0
 
 %endif
