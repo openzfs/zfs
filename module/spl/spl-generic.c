@@ -546,10 +546,28 @@ hostid_exec(void)
 uint32_t
 zone_get_hostid(void *zone)
 {
+	static int first = 1;
 	unsigned long hostid;
+	int rc;
 
 	/* Only the global zone is supported */
 	ASSERT(zone == NULL);
+
+	if (first) {
+		first = 0;
+
+		/*
+		 * Get the hostid if it was not passed as a module parameter.
+		 * Try reading the /etc/hostid file directly, and then fall
+		 * back to calling the /usr/bin/hostid utility.
+		 */
+		if ((spl_hostid == HW_INVALID_HOSTID) &&
+		    (rc = hostid_read()) && (rc = hostid_exec()))
+			return HW_INVALID_HOSTID;
+
+		printk(KERN_NOTICE "SPL: using hostid 0x%08x\n",
+			(unsigned int) spl_hostid);
+	}
 
 	if (ddi_strtoul(hw_serial, NULL, HW_HOSTID_LEN-1, &hostid) != 0)
 		return HW_INVALID_HOSTID;
@@ -632,16 +650,6 @@ __init spl_init(void)
 	if ((rc = spl_zlib_init()))
 		SGOTO(out9, rc);
 
-	/*
-	 * Get the hostid if it was not passed as a module parameter. Try
-	 * reading the /etc/hostid file directly, and then fall back to calling
-	 * the /usr/bin/hostid utility.
-	 */
-
-	if (spl_hostid == HW_INVALID_HOSTID
-	  && (rc = hostid_read()) && (rc = hostid_exec()))
-		SGOTO(out10, rc = -EADDRNOTAVAIL);
-
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
 	if ((rc = set_kallsyms_lookup_name()))
 		SGOTO(out10, rc = -EADDRNOTAVAIL);
@@ -653,9 +661,8 @@ __init spl_init(void)
 	if ((rc = spl_vn_init_kallsyms_lookup()))
 		SGOTO(out10, rc);
 
-	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s, using hostid "
-	       "0x%08x\n", SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR,
-	       (unsigned int) spl_hostid);
+	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
+	       SPL_META_RELEASE, SPL_DEBUG_STR);
 	SRETURN(rc);
 out10:
 	spl_zlib_fini();
