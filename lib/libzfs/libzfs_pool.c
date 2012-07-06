@@ -2143,13 +2143,10 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 
 	if (flags & ZFS_ONLINE_EXPAND ||
 	    zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {
-		char *pathname = NULL;
 		uint64_t wholedisk = 0;
 
 		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk);
-		verify(nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH,
-		    &pathname) == 0);
 
 		/*
 		 * XXX - L2ARC 1.0 devices can't support expansion.
@@ -2161,8 +2158,20 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 		}
 
 		if (wholedisk) {
-			pathname += strlen(DISK_ROOT) + 1;
-			error = zpool_relabel_disk(hdl, pathname, msg);
+			const char *fullpath = path;
+			char buf[MAXPATHLEN];
+
+			if (path[0] != '/') {
+				error = zfs_resolve_shortname(path, buf,
+				    sizeof(buf));
+				if (error != 0)
+					return (zfs_error(hdl, EZFS_NODEVICE,
+					    msg));
+
+				fullpath = buf;
+			}
+
+			error = zpool_relabel_disk(hdl, fullpath, msg);
 			if (error != 0)
 				return (error);
 		}
