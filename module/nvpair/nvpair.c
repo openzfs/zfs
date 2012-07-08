@@ -37,16 +37,15 @@
 #include <sys/varargs.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/sysmacros.h>
 #else
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <stddef.h>
 #endif
 
-#ifndef	offsetof
-#define	offsetof(s, m)		((size_t)(&(((s *)0)->m)))
-#endif
 #define	skip_whitespace(p)	while ((*(p) == ' ') || (*(p) == '\t')) p++
 
 /*
