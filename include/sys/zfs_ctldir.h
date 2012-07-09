@@ -103,10 +103,10 @@ extern void zfsctl_fini(void);
  * However, they should be as large as possible to avoid conflicts
  * with the objects which are assigned monotonically by the dmu.
  */
-#define	ZFSCTL_INO_ROOT		0x0000FFFFFFFFFFFF
-#define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFE
-#define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFD
-#define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFC
+#define	ZFSCTL_INO_ROOT		0x0000FFFFFFFFFFFFULL
+#define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFEULL
+#define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFDULL
+#define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFCULL
 
 #define	ZFSCTL_EXPIRE_SNAPSHOT	300
 
