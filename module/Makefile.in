@@ -5,6 +5,11 @@ subdir-m += zcommon
 subdir-m += zfs
 subdir-m += zpios
 
+ZFS_MODULE_CFLAGS += -include @SPL_OBJ@/spl_config.h
+ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
+export ZFS_MODULE_CFLAGS
+
 modules:
 	@# Make the exported SPL symbols available to these modules.
 	@# They may be in the root of SPL_OBJ when building against
@@ -21,7 +26,7 @@ modules:
 		"*** - @SPL_OBJ@/module/@SPL_SYMBOLS@\n"; \
 		exit 1; \
 	fi
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ CONFIG_ZFS=m $@
 
 clean:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
