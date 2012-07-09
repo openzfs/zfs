@@ -1,12 +1,10 @@
 # Makefile.in for splat kernel module
 
 MODULE := splat
-EXTRA_CFLAGS = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@abs_top_srcdir@/include
-EXTRA_CFLAGS += -include @abs_top_builddir@/spl_config.h
+EXTRA_CFLAGS = $(SPL_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 # Solaris Porting LAyer Tests
-obj-m := $(MODULE).o
+obj-$(CONFIG_SPL) := $(MODULE).o
 
 $(MODULE)-objs += @top_srcdir@/module/splat/splat-ctl.o
 $(MODULE)-objs += @top_srcdir@/module/splat/splat-kmem.o

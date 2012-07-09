@@ -11,5 +11,11 @@ To build packages for your distribution:
     $ ./configure
     $ make pkg
 
+To copy the kernel code inside your kernel source tree for builtin
+compilation:
+
+    $ ./configure --enable-linux-builtin --with-linux=/usr/src/linux-...
+    $ ./copy-builtin /usr/src/linux-...
+
 Full documentation for building, configuring, and using the SPL can
 be found at: <http://zfsonlinux.org>
