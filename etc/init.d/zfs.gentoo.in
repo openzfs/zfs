@@ -1,6 +1,6 @@
 #!/sbin/runscript
 # Copyright 1999-2011 Gentoo Foundation
-# Distributed under the terms of the GNU General Public License v2
+# Released under the 2-clause BSD license.
 # $Header: /var/cvsroot/gentoo-x86/sys-fs/zfs/files/zfs,v 0.9 2011/04/30 10:13:43 devsk Exp $
 
 depend()
