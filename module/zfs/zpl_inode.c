@@ -329,6 +329,7 @@ out:
 	return (error);
 }
 
+#ifdef HAVE_INODE_TRUNCATE_RANGE
 static void
 zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
 {
@@ -355,6 +356,7 @@ zpl_truncate_range(struct inode* ip, loff_t start, loff_t end)
 
 	crfree(cr);
 }
+#endif
 
 #ifdef HAVE_INODE_FALLOCATE
 static long
@@ -380,7 +382,9 @@ const struct inode_operations zpl_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+#ifdef HAVE_INODE_TRUNCATE_RANGE
 	.truncate_range = zpl_truncate_range,
+#endif /* HAVE_INODE_TRUNCATE_RANGE */
 #ifdef HAVE_INODE_FALLOCATE
 	.fallocate	= zpl_fallocate,
 #endif /* HAVE_INODE_FALLOCATE */
