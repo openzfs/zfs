@@ -39,6 +39,7 @@ extern "C" {
 #define	FM_EREPORT_ZFS_CONFIG_SYNC		"config.sync"
 #define	FM_EREPORT_ZFS_POOL			"zpool"
 #define	FM_EREPORT_ZFS_POOL_DESTROY		"zpool.destroy"
+#define FM_EREPORT_ZFS_POOL_REGUID		"zpool.reguid"
 #define	FM_EREPORT_ZFS_DEVICE_UNKNOWN		"vdev.unknown"
 #define	FM_EREPORT_ZFS_DEVICE_OPEN_FAILED	"vdev.open_failed"
 #define	FM_EREPORT_ZFS_DEVICE_CORRUPT_DATA	"vdev.corrupt_data"
