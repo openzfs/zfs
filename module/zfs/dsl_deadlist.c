@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_dataset.h>
@@ -28,6 +29,26 @@
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/dsl_pool.h>
+
+/*
+ * Deadlist concurrency:
+ *
+ * Deadlists can only be modified from the syncing thread.
+ *
+ * Except for dsl_deadlist_insert(), it can only be modified with the
+ * dp_config_rwlock held with RW_WRITER.
+ *
+ * The accessors (dsl_deadlist_space() and dsl_deadlist_space_range()) can
+ * be called concurrently, from open context, with the dl_config_rwlock held
+ * with RW_READER.
+ *
+ * Therefore, we only need to provide locking between dsl_deadlist_insert() and
+ * the accessors, protecting:
+ *     dl_phys->dl_used,comp,uncomp
+ *     and protecting the dl_tree from being loaded.
+ * The locking is provided by dl_lock.  Note that locking on the bpobj_t
+ * provides its own locking, and dl_oldfmt is immutable.
+ */
 
 static int
 dsl_deadlist_compare(const void *arg1, const void *arg2)
@@ -309,14 +330,14 @@ dsl_deadlist_space(dsl_deadlist_t *dl,
  * return space used in the range (mintxg, maxtxg].
  * Includes maxtxg, does not include mintxg.
  * mintxg and maxtxg must both be keys in the deadlist (unless maxtxg is
- * UINT64_MAX).
+ * larger than any bp in the deadlist (eg. UINT64_MAX)).
  */
 void
 dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
 {
-	dsl_deadlist_entry_t dle_tofind;
 	dsl_deadlist_entry_t *dle;
+	dsl_deadlist_entry_t dle_tofind;
 	avl_index_t where;
 
 	if (dl->dl_oldfmt) {
@@ -325,9 +346,10 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 		return;
 	}
 
-	dsl_deadlist_load_tree(dl);
 	*usedp = *compp = *uncompp = 0;
 
+	mutex_enter(&dl->dl_lock);
+	dsl_deadlist_load_tree(dl);
 	dle_tofind.dle_mintxg = mintxg;
 	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
 	/*
@@ -336,6 +358,7 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 	 */
 	ASSERT(dle != NULL ||
 	    avl_nearest(&dl->dl_tree, where, AVL_AFTER) == NULL);
+
 	for (; dle && dle->dle_mintxg < maxtxg;
 	    dle = AVL_NEXT(&dl->dl_tree, dle)) {
 		uint64_t used, comp, uncomp;
@@ -347,6 +370,7 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 		*compp += comp;
 		*uncompp += uncomp;
 	}
+	mutex_exit(&dl->dl_lock);
 }
 
 static void

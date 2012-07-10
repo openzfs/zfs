@@ -21,7 +21,8 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2010 Nexenta Systems, Inc. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #ifndef	_LIBZFS_H
@@ -250,6 +251,7 @@ typedef struct splitflags {
  */
 extern int zpool_scan(zpool_handle_t *, pool_scan_func_t);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
+extern int zpool_reguid(zpool_handle_t *);
 
 extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);

@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -786,6 +787,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_DIFF,
 	ZFS_IOC_TMP_SNAPSHOT,
 	ZFS_IOC_OBJ_TO_STATS,
+	ZFS_IOC_POOL_REGUID,
 	ZFS_IOC_EVENTS_NEXT,
 	ZFS_IOC_EVENTS_CLEAR,
 } zfs_ioc_t;
@@ -855,6 +857,7 @@ typedef enum {
  *	ESC_ZFS_RESILVER_START
  *	ESC_ZFS_RESILVER_END
  *	ESC_ZFS_POOL_DESTROY
+ *	ESC_ZFS_POOL_REGUID
  *
  *		ZFS_EV_POOL_NAME	DATA_TYPE_STRING
  *		ZFS_EV_POOL_GUID	DATA_TYPE_UINT64

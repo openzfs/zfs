@@ -20,11 +20,13 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/bpobj.h>
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
+#include <sys/dsl_pool.h>
 
 uint64_t
 bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
@@ -440,7 +442,10 @@ space_range_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	struct space_range_arg *sra = arg;
 
 	if (bp->blk_birth > sra->mintxg && bp->blk_birth <= sra->maxtxg) {
-		sra->used += bp_get_dsize_sync(sra->spa, bp);
+		if (dsl_pool_sync_context(spa_get_dsl(sra->spa)))
+			sra->used += bp_get_dsize_sync(sra->spa, bp);
+		else
+			sra->used += bp_get_dsize(sra->spa, bp);
 		sra->comp += BP_GET_PSIZE(bp);
 		sra->uncomp += BP_GET_UCSIZE(bp);
 	}
