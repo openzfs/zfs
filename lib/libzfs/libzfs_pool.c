@@ -2958,7 +2958,7 @@ zpool_reguid(zpool_handle_t *zhp)
 {
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot reguid '%s'"), zhp->zpool_name);
