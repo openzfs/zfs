@@ -14,7 +14,7 @@ SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-noinst_HEADERS = spl_config.h
+noinst_HEADERS = spl_config.h spl.release
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -32,7 +32,6 @@ if CONFIG_KERNEL
 install-data-local:
 	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
-	echo "$$release" >$$instdest/spl.release; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done

@@ -80,11 +80,11 @@ target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/PKGBUILD-spl-modules.in $(srcdir)/PKGBUILD-spl.in \
-	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.spec.in \
-	$(srcdir)/spl_config.h.in $(top_srcdir)/config/arch.am \
-	$(top_srcdir)/config/deb.am $(top_srcdir)/config/rpm.am \
-	$(top_srcdir)/config/tgz.am $(top_srcdir)/configure \
-	$(top_srcdir)/module/Makefile.in \
+	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.release.in \
+	$(srcdir)/spl.spec.in $(srcdir)/spl_config.h.in \
+	$(top_srcdir)/config/arch.am $(top_srcdir)/config/deb.am \
+	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
+	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/spl/Makefile.in \
 	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
 	ChangeLog INSTALL config/config.guess config/config.sub \
@@ -102,7 +102,7 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = spl_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/spl/Makefile \
 	module/splat/Makefile spl.spec spl-modules.spec PKGBUILD-spl \
-	PKGBUILD-spl-modules
+	PKGBUILD-spl-modules spl.release
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -332,7 +332,7 @@ AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh spl.spec.in spl-modules.spec.in META \
 	DISCLAIMER config/config.awk config/rpm.am config/deb.am \
 	config/tgz.am
-noinst_HEADERS = spl_config.h
+noinst_HEADERS = spl_config.h spl.release
 all: spl_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -401,6 +401,8 @@ spl-modules.spec: $(top_builddir)/config.status $(srcdir)/spl-modules.spec.in
 PKGBUILD-spl: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 PKGBUILD-spl-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl-modules.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+spl.release: $(top_builddir)/config.status $(srcdir)/spl.release.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -1032,7 +1034,6 @@ distclean-local::
 @CONFIG_KERNEL_TRUE@install-data-local:
 @CONFIG_KERNEL_TRUE@	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
 @CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
-@CONFIG_KERNEL_TRUE@	echo "$$release" >$$instdest/spl.release; \
 @CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 @CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 @CONFIG_KERNEL_TRUE@	done
