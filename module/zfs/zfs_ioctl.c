@@ -4774,6 +4774,8 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    POOL_CHECK_NONE },
 	{ zfs_ioc_promote, zfs_secpolicy_promote, DATASET_NAME, B_TRUE,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
+	{ zfs_ioc_destroy_snaps_nvl, zfs_secpolicy_destroy_recursive,
+	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_snapshot, zfs_secpolicy_snapshot, DATASET_NAME, B_TRUE,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_dsobj_to_dsname, zfs_secpolicy_diff, POOL_NAME, B_FALSE,
@@ -4818,18 +4820,16 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    B_FALSE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_obj_to_stats, zfs_secpolicy_diff, DATASET_NAME, B_FALSE,
 	    POOL_CHECK_SUSPENDED },
+	{ zfs_ioc_events_next, zfs_secpolicy_config, NO_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
+	{ zfs_ioc_events_clear, zfs_secpolicy_config, NO_NAME, B_FALSE,
+	    POOL_CHECK_NONE },
 	{ zfs_ioc_space_written, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
 	    POOL_CHECK_SUSPENDED },
 	{ zfs_ioc_space_snaps, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
 	    POOL_CHECK_SUSPENDED },
-	{ zfs_ioc_destroy_snaps_nvl, zfs_secpolicy_destroy_recursive,
-	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
 	{ zfs_ioc_pool_reguid, zfs_secpolicy_config, POOL_NAME, B_TRUE,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY },
-	{ zfs_ioc_events_next, zfs_secpolicy_config, NO_NAME, B_FALSE,
-	    POOL_CHECK_NONE },
-	{ zfs_ioc_events_clear, zfs_secpolicy_config, NO_NAME, B_FALSE,
-	    POOL_CHECK_NONE }
 };
 
 int
