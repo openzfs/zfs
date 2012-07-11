@@ -71,7 +71,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
 		AS_HELP_STRING([--with-config=CONFIG],
-		[Config file 'kernel|user|all|srpm']),
+		[Config file 'kernel|user|all|srpm|dkms']),
 		[ZFS_CONFIG="$withval"])
 
 	AC_MSG_CHECKING([zfs config])
@@ -86,10 +86,11 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		all)    ZFS_AC_CONFIG_KERNEL
 			ZFS_AC_CONFIG_USER   ;;
 		srpm)                        ;;
+		dkms)                        ;;
 		*)
 		AC_MSG_RESULT([Error!])
 		AC_MSG_ERROR([Bad value "$ZFS_CONFIG" for --with-config,
-		              user kernel|user|all|srpm]) ;;
+		              user kernel|user|all|srpm|dkms]) ;;
 	esac
 
 	AM_CONDITIONAL([CONFIG_USER],
