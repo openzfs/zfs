@@ -12840,6 +12840,72 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether blkdev_get() wants 3 args" >&5
+$as_echo_n "checking whether blkdev_get() wants 3 args... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		struct block_device *bdev = NULL;
+		(void) blkdev_get(bdev, 0, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_3ARG_BLKDEV_GET 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking whether symbol blkdev_get_by_path is exported" >&5
 $as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
 	grep -q -E '[[:space:]]blkdev_get_by_path[[:space:]]' \
@@ -14788,6 +14854,59 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether symbol get_gendisk is exported" >&5
+$as_echo_n "checking whether symbol get_gendisk is exported... " >&6; }
+	grep -q -E '[[:space:]]get_gendisk[[:space:]]' \
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+
+		export=0
+		for file in block/genhd.c; do
+			grep -q -E "EXPORT_SYMBOL.*(get_gendisk)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
+		done
+		if test $export -eq 0; then
+
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+else
+
+			{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_GENDISK 1
+_ACEOF
+
+
+fi
+
+
+else
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_GENDISK 1
+_ACEOF
+
+
+fi
+
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
@@ -18988,6 +19107,72 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether blkdev_get() wants 3 args" >&5
+$as_echo_n "checking whether blkdev_get() wants 3 args... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		struct block_device *bdev = NULL;
+		(void) blkdev_get(bdev, 0, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build
+	echo "obj-m := conftest.o" >build/Makefile
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_3ARG_BLKDEV_GET 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
+
+
 	{ $as_echo "$as_me:$LINENO: checking whether symbol blkdev_get_by_path is exported" >&5
 $as_echo_n "checking whether symbol blkdev_get_by_path is exported... " >&6; }
 	grep -q -E '[[:space:]]blkdev_get_by_path[[:space:]]' \
@@ -20936,6 +21121,59 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether symbol get_gendisk is exported" >&5
+$as_echo_n "checking whether symbol get_gendisk is exported... " >&6; }
+	grep -q -E '[[:space:]]get_gendisk[[:space:]]' \
+		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
+	rc=$?
+	if test $rc -ne 0; then
+
+		export=0
+		for file in block/genhd.c; do
+			grep -q -E "EXPORT_SYMBOL.*(get_gendisk)" "$LINUX/$file" 2>/dev/null
+			rc=$?
+			if test $rc -eq 0; then
+
+				export=1
+				break;
+
+fi
+
+		done
+		if test $export -eq 0; then
+
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+else
+
+			{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_GENDISK 1
+_ACEOF
+
+
+fi
+
+
+else
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_GENDISK 1
+_ACEOF
+
+
+fi
+
+
 
 
 	{ $as_echo "$as_me:$LINENO: checking whether rq_is_sync() is available" >&5
