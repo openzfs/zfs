@@ -1922,7 +1922,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 */
 	if (type != SPA_IMPORT_ASSEMBLE) {
 		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		error = vdev_validate(rvd);
+		error = vdev_validate(rvd, mosconfig);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		if (error != 0)

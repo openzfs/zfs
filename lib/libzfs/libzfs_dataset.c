@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2010 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  */
 
@@ -4377,7 +4377,7 @@ tryagain:
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, ZFS_MAXNAMELEN);
 
-	if (zfs_ioctl(hdl, ZFS_IOC_GET_FSACL, &zc) != 0) {
+	if (ioctl(hdl->libzfs_fd, ZFS_IOC_GET_FSACL, &zc) != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot get permissions on '%s'"),
 		    zc.zc_name);
