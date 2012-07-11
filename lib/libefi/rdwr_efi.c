@@ -1028,23 +1028,14 @@ efi_use_whole_disk(int fd)
 	struct dk_gpt		*efi_label;
 	int			rval;
 	int			i;
-	uint_t			phy_last_slice = 0;
-	diskaddr_t		pl_start = 0;
-	diskaddr_t		pl_size;
+	uint_t			resv_index = 0, data_index = 0;
+	diskaddr_t		resv_start = 0, data_start = 0;
+	diskaddr_t		difference;
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
 		return (rval);
 	}
-
-	/* find the last physically non-zero partition */
-	for (i = 0; i < efi_label->efi_nparts - 2; i ++) {
-		if (pl_start < efi_label->efi_parts[i].p_start) {
-			pl_start = efi_label->efi_parts[i].p_start;
-			phy_last_slice = i;
-		}
-	}
-	pl_size = efi_label->efi_parts[phy_last_slice].p_size;
 
 	/*
 	 * If alter_lba is 1, we are using the backup label.
@@ -1061,16 +1052,28 @@ efi_use_whole_disk(int fd)
 		return (VT_ENOSPC);
 	}
 
+	difference = efi_label->efi_last_lba - efi_label->efi_altern_lba;
+
 	/*
-	 * If there is space between the last physically non-zero partition
-	 * and the reserved partition, just add the unallocated space to this
-	 * area. Otherwise, the unallocated space is added to the last
-	 * physically non-zero partition.
+	 * Find the last physically non-zero partition.
+	 * This is the reserved partition.
 	 */
-	if (pl_start + pl_size - 1 == efi_label->efi_last_u_lba -
-	    EFI_MIN_RESV_SIZE) {
-		efi_label->efi_parts[phy_last_slice].p_size +=
-		    efi_label->efi_last_lba - efi_label->efi_altern_lba;
+	for (i = 0; i < efi_label->efi_nparts; i ++) {
+		if (resv_start < efi_label->efi_parts[i].p_start) {
+			resv_start = efi_label->efi_parts[i].p_start;
+			resv_index = i;
+		}
+	}
+
+	/*
+	 * Find the last physically non-zero partition before that.
+	 * This is the data partition.
+	 */
+	for (i = 0; i < resv_index; i ++) {
+		if (data_start < efi_label->efi_parts[i].p_start) {
+			data_start = efi_label->efi_parts[i].p_start;
+			data_index = i;
+		}
 	}
 
 	/*
@@ -1078,10 +1081,9 @@ efi_use_whole_disk(int fd)
 	 * here except fabricated devids (which get generated via
 	 * efi_write()). So there is no need to copy data.
 	 */
-	efi_label->efi_parts[efi_label->efi_nparts - 1].p_start +=
-	    efi_label->efi_last_lba - efi_label->efi_altern_lba;
-	efi_label->efi_last_u_lba += efi_label->efi_last_lba
-	    - efi_label->efi_altern_lba;
+	efi_label->efi_parts[data_index].p_size += difference;
+	efi_label->efi_parts[resv_index].p_start += difference;
+	efi_label->efi_last_u_lba += difference;
 
 	rval = efi_write(fd, efi_label);
 	if (rval < 0) {
