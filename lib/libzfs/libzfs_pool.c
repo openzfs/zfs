@@ -2083,28 +2083,30 @@ zpool_get_physpath(zpool_handle_t *zhp, char *physpath, size_t phypath_size)
  * the disk to use the new unallocated space.
  */
 static int
-zpool_relabel_disk(libzfs_handle_t *hdl, const char *path)
+zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 {
-	char errbuf[1024];
 	int fd, error;
 
 	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
 		    "relabel '%s': unable to open device: %d"), path, errno);
-		return (zfs_error(hdl, EZFS_OPENFAILED, errbuf));
+		return (zfs_error(hdl, EZFS_OPENFAILED, msg));
 	}
 
 	/*
 	 * It's possible that we might encounter an error if the device
 	 * does not have any unallocated space left. If so, we simply
 	 * ignore that error and continue on.
+	 *
+	 * Also, we don't call efi_rescan() - that would just return EBUSY.
+	 * The module will do it for us in vdev_disk_open().
 	 */
 	error = efi_use_whole_disk(fd);
 	(void) close(fd);
 	if (error && error != VT_ENOSPC) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
 		    "relabel '%s': unable to read disk capacity"), path);
-		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
+		return (zfs_error(hdl, EZFS_NOCAP, msg));
 	}
 	return (0);
 }
@@ -2143,13 +2145,10 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 
 	if (flags & ZFS_ONLINE_EXPAND ||
 	    zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {
-		char *pathname = NULL;
 		uint64_t wholedisk = 0;
 
 		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk);
-		verify(nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH,
-		    &pathname) == 0);
 
 		/*
 		 * XXX - L2ARC 1.0 devices can't support expansion.
@@ -2161,8 +2160,17 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 		}
 
 		if (wholedisk) {
-			pathname += strlen(DISK_ROOT) + 1;
-			(void) zpool_relabel_disk(hdl, pathname);
+			const char *fullpath = path;
+			char buf[MAXPATHLEN];
+			if (path[0] != '/') {
+				if (zfs_resolve_shortname(path, buf, sizeof(buf)))
+					return (zfs_error(hdl, EZFS_NODEVICE, msg));
+				fullpath = buf;
+			}
+
+			int result = zpool_relabel_disk(hdl, fullpath, msg);
+			if (result != 0)
+				return (result);
 		}
 	}
 
@@ -3836,7 +3844,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	vtoc->efi_parts[8].p_size = resv;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
-	if ((rval = efi_write(fd, vtoc)) != 0) {
+	if ((rval = efi_write(fd, vtoc)) != 0 || (rval = efi_rescan(fd)) != 0) {
 		/*
 		 * Some block drivers (like pcata) may not support EFI
 		 * GPT labels.  Print out a helpful error message dir-
