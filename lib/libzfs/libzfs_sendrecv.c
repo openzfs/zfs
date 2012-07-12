@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
  */
@@ -1308,7 +1308,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	avl_tree_t *fsavl = NULL;
 	static uint64_t holdseq;
 	int spa_version;
-	boolean_t holdsnaps = B_FALSE;
 	pthread_t tid;
 	int pipefd[2];
 	dedup_arg_t dda = { 0 };
@@ -1330,11 +1329,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
 		}
 	}
-
-	if (!flags->dryrun && zfs_spa_version(zhp, &spa_version) == 0 &&
-	    spa_version >= SPA_VERSION_USERREFS &&
-	    (flags->doall || flags->replicate))
-		holdsnaps = B_TRUE;
 
 	if (flags->dedup && !flags->dryrun) {
 		featureflags |= (DMU_BACKUP_FEATURE_DEDUP |
@@ -1456,7 +1450,18 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.filter_cb_arg = cb_arg;
 	if (debugnvp)
 		sdd.debugnv = *debugnvp;
-	if (holdsnaps) {
+
+	/*
+	 * Some flags require that we place user holds on the datasets that are
+	 * being sent so they don't get destroyed during the send. We can skip
+	 * this step if the pool is imported read-only since the datasets cannot
+	 * be destroyed.
+	 */
+	if (!flags->dryrun && !zpool_get_prop_int(zfs_get_pool_handle(zhp),
+	    ZPOOL_PROP_READONLY, NULL) &&
+	    zfs_spa_version(zhp, &spa_version) == 0 &&
+	    spa_version >= SPA_VERSION_USERREFS &&
+	    (flags->doall || flags->replicate)) {
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);

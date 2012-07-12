@@ -3118,7 +3118,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 
 /*
  * Destroys the given dataset.  The caller must make sure that the filesystem
- * isn't mounted, and that there are no active dependents.
+ * isn't mounted, and that there are no active dependents. If the file system
+ * does not exist this function does nothing.
  */
 int
 zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
@@ -3137,7 +3138,8 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 	}
 
 	zc.zc_defer_destroy = defer;
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0) {
+	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0 &&
+	    errno != ENOENT) {
 		return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
 		    zhp->zfs_name));
