@@ -1066,7 +1066,7 @@ snapshot_to_nvl_cb(zfs_handle_t *zhp, void *arg)
 	int err = 0;
 
 	/* Check for clones. */
-	if (!cb->cb_doclones) {
+	if (!cb->cb_doclones && !cb->cb_defer_destroy) {
 		cb->cb_target = zhp;
 		cb->cb_first = B_TRUE;
 		err = zfs_iter_dependents(zhp, B_TRUE,
