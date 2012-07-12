@@ -370,21 +370,15 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * Used to exclusively open a block device from within the kernel.
  */
 #if defined(HAVE_BLKDEV_GET_BY_PATH)
-# define vdev_bdev_open(path, md, hld)	blkdev_get_by_path(path, md, hld)
-# define vdev_bdev_open_exclusive(path, md, hld)	blkdev_get_by_path(path, \
+# define vdev_bdev_open(path, md, hld)	blkdev_get_by_path(path, \
 					    (md) | FMODE_EXCL, hld)
-# define vdev_bdev_close(bdev, md)	blkdev_put(bdev, (md))
-# define vdev_bdev_close_exclusive(bdev, md)	blkdev_put(bdev, (md) | FMODE_EXCL)
+# define vdev_bdev_close(bdev, md)	blkdev_put(bdev, (md) | FMODE_EXCL)
 #elif defined(HAVE_OPEN_BDEV_EXCLUSIVE)
-# define vdev_bdev_open(path, md, hld)	open_bdev(path, md, hld)
-# define vdev_bdev_open_exclusive(path, md, hld)	open_bdev_exclusive(path, md, hld)
-# define vdev_bdev_close(bdev, md)	close_bdev(bdev, md)
-# define vdev_bdev_close_exclusive(bdev, md)	close_bdev_exclusive(bdev, md)
+# define vdev_bdev_open(path, md, hld)	open_bdev_exclusive(path, md, hld)
+# define vdev_bdev_close(bdev, md)	close_bdev_exclusive(bdev, md)
 #else
-# define vdev_bdev_open(path, md, hld)	open_bdev(path, md, hld)
-# define vdev_bdev_open_exclusive(path, md, hld)	open_bdev_excl(path, md, hld)
-# define vdev_bdev_close(bdev, md)	close_bdev(bdev)
-# define vdev_bdev_close_exclusive(bdev, md)	close_bdev_excl(bdev)
+# define vdev_bdev_open(path, md, hld)	open_bdev_excl(path, md, hld)
+# define vdev_bdev_close(bdev, md)	close_bdev_excl(bdev)
 #endif /* HAVE_BLKDEV_GET_BY_PATH | HAVE_OPEN_BDEV_EXCLUSIVE */
 
 /*

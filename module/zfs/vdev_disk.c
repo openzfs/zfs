@@ -251,7 +251,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	if (v->vdev_wholedisk && v->vdev_expanding)
 		bdev = vdev_disk_rrpart(v->vdev_path, mode, vd);
 	if (!bdev)
-		bdev = vdev_bdev_open_exclusive(v->vdev_path, vdev_bdev_mode(mode), vd);
+		bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
 	if (IS_ERR(bdev)) {
 		kmem_free(vd, sizeof(vdev_disk_t));
 		return -PTR_ERR(bdev);
@@ -299,7 +299,7 @@ vdev_disk_close(vdev_t *v)
 		return;
 
 	if (vd->vd_bdev != NULL)
-		vdev_bdev_close_exclusive(vd->vd_bdev,
+		vdev_bdev_close(vd->vd_bdev,
 		                vdev_bdev_mode(spa_mode(v->vdev_spa)));
 
 	kmem_free(vd, sizeof(vdev_disk_t));
@@ -771,13 +771,13 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	uint64_t s, size;
 	int i;
 
-	bdev = vdev_bdev_open_exclusive(devpath, vdev_bdev_mode(FREAD), NULL);
+	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), NULL);
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 
 	s = bdev_capacity(bdev);
 	if (s == 0) {
-		vdev_bdev_close_exclusive(bdev, vdev_bdev_mode(FREAD));
+		vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
 		return EIO;
 	}
 
@@ -817,7 +817,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	}
 
 	vmem_free(label, sizeof(vdev_label_t));
-	vdev_bdev_close_exclusive(bdev, vdev_bdev_mode(FREAD));
+	vdev_bdev_close(bdev, vdev_bdev_mode(FREAD));
 
 	return 0;
 }
