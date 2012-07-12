@@ -16,8 +16,7 @@ EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
-
-noinst_HEADERS = zfs_config.h
+noinst_HEADERS = zfs_config.h zfs.release
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -35,7 +34,6 @@ if CONFIG_KERNEL
 install-data-local:
 	release=$(ZFS_META_VERSION)-$(ZFS_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/zfs-$$release/$(LINUX_VERSION); \
-	echo "$$release" >$$instdest/zfs.release; \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 	done
