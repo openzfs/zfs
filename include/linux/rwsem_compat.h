@@ -27,57 +27,40 @@
 
 #include <linux/rwsem.h>
 
-#ifdef RWSEM_SPINLOCK_IS_RAW
-#define spl_rwsem_lock_irqsave(lock, flags)       \
-({                                                \
-	raw_spin_lock_irqsave(lock, flags);       \
-})
-#define spl_rwsem_unlock_irqrestore(lock, flags)  \
-({                                                \
-	raw_spin_unlock_irqrestore(lock, flags);  \
-})
+#if defined(RWSEM_SPINLOCK_IS_RAW)
+#define spl_rwsem_lock_irqsave(lk, fl)       raw_spin_lock_irqsave(lk, fl)
+#define spl_rwsem_unlock_irqrestore(lk, fl)  raw_spin_unlock_irqrestore(lk, fl)
+#define spl_rwsem_trylock_irqsave(lk, fl)    raw_spin_trylock_irqsave(lk, fl)
 #else
-#define spl_rwsem_lock_irqsave(lock, flags)       \
-({                                                \
-	spin_lock_irqsave(lock, flags);           \
-})
-#define spl_rwsem_unlock_irqrestore(lock, flags)  \
-({                                                \
-	spin_unlock_irqrestore(lock, flags);      \
-})
+#define spl_rwsem_lock_irqsave(lk, fl)       spin_lock_irqsave(lk, fl)
+#define spl_rwsem_unlock_irqrestore(lk, fl)  spin_unlock_irqrestore(lk, fl)
+#define spl_rwsem_trylock_irqsave(lk, fl)    spin_trylock_irqsave(lk, fl)
 #endif /* RWSEM_SPINLOCK_IS_RAW */
 
-#ifdef RWSEM_IS_LOCKED_TAKES_WAIT_LOCK
 /*
- * A race condition in rwsem_is_locked() was fixed in Linux 2.6.33 and the fix
- * was backported to RHEL5 as of kernel 2.6.18-190.el5.  Details can be found
- * here:
+ * Prior to Linux 2.6.33 there existed a race condition in rwsem_is_locked().
+ * The semaphore's activity was checked outside of the wait_lock which
+ * could result in some readers getting the incorrect activity value.
  *
- * https://bugzilla.redhat.com/show_bug.cgi?id=526092
-
- * The race condition was fixed in the kernel by acquiring the semaphore's
- * wait_lock inside rwsem_is_locked().  The SPL worked around the race
- * condition by acquiring the wait_lock before calling that function, but
- * with the fix in place we must not do that.
+ * When a kernel without this fix is detected the SPL takes responsibility
+ * for acquiring the wait_lock to avoid this race.
  */
-
-#define spl_rwsem_is_locked(rwsem)					\
-({									\
-	rwsem_is_locked(rwsem);						\
-})
-
+#if defined(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK)
+#define spl_rwsem_is_locked(rwsem)           rwsem_is_locked(rwsem)
 #else
+static inline int
+spl_rwsem_is_locked(struct rw_semaphore *rwsem)
+{
+	unsigned long flags;
+	int rc = 1;
 
-#define spl_rwsem_is_locked(rwsem)                                \
-({                                                                \
-	unsigned long _flags_;                                    \
-	int _rc_;                                                 \
-	spl_rwsem_lock_irqsave(&rwsem->wait_lock, _flags_);       \
-	_rc_ = rwsem_is_locked(rwsem);                            \
-	spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, _flags_);  \
-	_rc_;                                                     \
-})
+	if (spl_rwsem_trylock_irqsave(&rwsem->wait_lock, flags)) {
+		rc = rwsem_is_locked(rwsem);
+		spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, flags);
+	}
 
+	return (rc);
+}
 #endif /* RWSEM_IS_LOCKED_TAKES_WAIT_LOCK */
 
 #endif /* _SPL_RWSEM_COMPAT_H */
