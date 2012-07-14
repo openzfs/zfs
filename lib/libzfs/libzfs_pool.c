@@ -2097,6 +2097,9 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 	 * It's possible that we might encounter an error if the device
 	 * does not have any unallocated space left. If so, we simply
 	 * ignore that error and continue on.
+	 *
+	 * Also, we don't call efi_rescan() - that would just return EBUSY.
+	 * The module will do it for us in vdev_disk_open().
 	 */
 	error = efi_use_whole_disk(fd);
 	(void) close(fd);
@@ -3847,7 +3850,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	vtoc->efi_parts[8].p_size = resv;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
-	if ((rval = efi_write(fd, vtoc)) != 0) {
+	if ((rval = efi_write(fd, vtoc)) != 0 || (rval = efi_rescan(fd)) != 0) {
 		/*
 		 * Some block drivers (like pcata) may not support EFI
 		 * GPT labels.  Print out a helpful error message dir-

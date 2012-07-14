@@ -497,10 +497,9 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 	return (error);
 }
 
-#if defined(__linux__)
-static int
-efi_rescan(int fd)
+int efi_rescan(int fd)
 {
+#if defined(__linux__)
 	int retry = 5;
 	int error;
 
@@ -512,10 +511,10 @@ efi_rescan(int fd)
 			return (-1);
 		}
 	}
+#endif
 
 	return (0);
 }
-#endif
 
 static int
 check_label(int fd, dk_efi_t *dk_ioc)
@@ -1303,12 +1302,6 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	/* write the PMBR */
 	(void) write_pmbr(fd, vtoc);
 	free(dk_ioc.dki_data);
-
-#if defined(__linux__)
-	rval = efi_rescan(fd);
-	if (rval)
-		return (VT_ERROR);
-#endif
 
 	return (0);
 }
