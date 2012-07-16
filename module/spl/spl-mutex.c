@@ -51,7 +51,7 @@
  * unavailable we provide a standard mutex.
  */
 
-#ifndef HAVE_MUTEX_OWNER
+#if !defined(HAVE_MUTEX_OWNER) || !defined(CONFIG_SMP) || defined(CONFIG_DEBUG_MUTEXES)
 #ifdef HAVE_TASK_CURR
 /*
  * mutex_spin_max = { 0, -1, 1-MAX_INT }
