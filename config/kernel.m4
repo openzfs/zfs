@@ -444,10 +444,12 @@ dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])
-	rm -Rf build && mkdir -p build
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
 	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
