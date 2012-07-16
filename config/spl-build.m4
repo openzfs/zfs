@@ -137,7 +137,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 			sourcelink=$(readlink -f "$headersdir")
 		else
 			sourcelink=$(ls -1d /usr/src/kernels/* \
-				     /usr/src/linux-* \
+			             /usr/src/linux-* \
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
@@ -678,8 +678,7 @@ dnl #
 dnl # SPL_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
-AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
-	[AC_MSG_CHECKING([whether symbol $1 is exported])
+AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -689,21 +688,39 @@ AC_DEFUN([SPL_CHECK_SYMBOL_EXPORT],
 			grep -q -E "EXPORT_SYMBOL.*($1)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			AC_MSG_RESULT([no])
+		if test $export -eq 0; then :
 			$4
-		else
-			AC_MSG_RESULT([yes])
+		else :
 			$3
 		fi
-	else
-		AC_MSG_RESULT([yes])
+	else :
 		$3
+	fi
+])
+
+dnl #
+dnl # SPL_LINUX_TRY_COMPILE_SYMBOL
+dnl # like SPL_LINUX_TRY_COMPILE, except SPL_CHECK_SYMBOL_EXPORT
+dnl # is called if not compiling for builtin
+dnl #
+AC_DEFUN([SPL_LINUX_TRY_COMPILE_SYMBOL], [
+	SPL_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
+	if test $rc -ne 0; then :
+		$6
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+			SPL_CHECK_SYMBOL_EXPORT([$3], [$4], [rc=0], [rc=1])
+		fi
+		if test $rc -ne 0; then :
+			$6
+		else :
+			$5
+		fi
 	fi
 ])
 
@@ -717,10 +734,10 @@ AC_DEFUN([SPL_CHECK_SYMBOL_HEADER], [
 	for file in $3; do
 		grep -q "$2" "$LINUX/$file" 2>/dev/null
 		rc=$?
-	        if test $rc -eq 0; then
-	                header=1
-	                break;
-	        fi
+		if test $rc -eq 0; then
+			header=1
+			break;
+		fi
 	done
 	if test $header -eq 0; then
 		AC_MSG_RESULT([no])
@@ -991,10 +1008,18 @@ AC_DEFUN([SPL_AC_PATH_IN_NAMEIDATA],
 dnl #
 dnl # Custom SPL patch may export this system it is not required
 dnl #
-AC_DEFUN([SPL_AC_TASK_CURR], [
-	SPL_CHECK_SYMBOL_EXPORT([task_curr], [kernel/sched.c],
-		[AC_DEFINE(HAVE_TASK_CURR, 1, [task_curr() exported])],
-		[])
+AC_DEFUN([SPL_AC_TASK_CURR],
+	[AC_MSG_CHECKING([whether task_curr() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/sched.h>
+	], [
+		task_curr(NULL);
+	], [task_curr], [kernel/sched.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_TASK_CURR, 1, [task_curr() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1060,13 +1085,15 @@ dnl # 2.6.18 API change, check whether device_create() is available.
 dnl # Device_create() was introduced in 2.6.18 and depricated 
 dnl # class_device_create() which was fully removed in 2.6.26.
 dnl #
-AC_DEFUN([SPL_AC_DEVICE_CREATE], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[device_create],
-		[drivers/base/core.c],
-		[AC_DEFINE(HAVE_DEVICE_CREATE, 1,
-		[device_create() is available])],
-		[])
+AC_DEFUN([SPL_AC_DEVICE_CREATE],
+	[AC_MSG_CHECKING([whether device_create() is available])
+	SPL_CHECK_SYMBOL_EXPORT([device_create], [drivers/base/core.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DEVICE_CREATE, 1,
+		          [device_create() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1096,25 +1123,37 @@ dnl # 2.6.13 API change, check whether class_device_create() is available.
 dnl # Class_device_create() was introduced in 2.6.13 and depricated
 dnl # class_simple_device_add() which was fully removed in 2.6.13.
 dnl #
-AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[class_device_create],
-		[drivers/base/class.c],
-		[AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
-		[class_device_create() is available])],
-		[])
+AC_DEFUN([SPL_AC_CLASS_DEVICE_CREATE],
+	[AC_MSG_CHECKING([whether class_device_create() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/device.h>
+	], [
+		class_device_create(NULL, NULL, 0, NULL, NULL);
+	], [class_device_create], [drivers/base/class.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_CLASS_DEVICE_CREATE, 1,
+		          [class_device_create() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
 dnl # 2.6.26 API change, set_normalized_timespec() is exported.
 dnl #
-AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[set_normalized_timespec],
-		[kernel/time.c],
-		[AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT, 1,
-		[set_normalized_timespec() is available as export])],
-		[])
+AC_DEFUN([SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT],
+	[AC_MSG_CHECKING([whether set_normalized_timespec() is available as export])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/time.h>
+	], [
+		set_normalized_timespec(NULL, 0, 0);
+	], [set_normalized_timespec], [kernel/time.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_NORMALIZED_TIMESPEC_EXPORT, 1,
+		          [set_normalized_timespec() is available as export])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1264,13 +1303,19 @@ dnl # 2.6.9 API change,
 dnl # check whether 'monotonic_clock()' is available it may
 dnl # be available for some archs but not others.
 dnl #
-AC_DEFUN([SPL_AC_MONOTONIC_CLOCK], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[monotonic_clock],
-		[],
-		[AC_DEFINE(HAVE_MONOTONIC_CLOCK, 1,
-		[monotonic_clock() is available])],
-		[])
+AC_DEFUN([SPL_AC_MONOTONIC_CLOCK],
+	[AC_MSG_CHECKING([whether monotonic_clock() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/timex.h>
+	], [
+		monotonic_clock();
+	], [monotonic_clock], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_MONOTONIC_CLOCK, 1,
+		          [monotonic_clock() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1384,13 +1429,19 @@ dnl #
 dnl # 2.6.18 API change,
 dnl # kallsyms_lookup_name no longer exported
 dnl #
-AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[kallsyms_lookup_name],
-		[],
-		[AC_DEFINE(HAVE_KALLSYMS_LOOKUP_NAME, 1,
-		[kallsyms_lookup_name() is available])],
-		[])
+AC_DEFUN([SPL_AC_KALLSYMS_LOOKUP_NAME],
+	[AC_MSG_CHECKING([whether kallsyms_lookup_name() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/kallsyms.h>
+	], [
+		kallsyms_lookup_name(NULL);
+	], [kallsyms_lookup_name], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KALLSYMS_LOOKUP_NAME, 1,
+		          [kallsyms_lookup_name() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1400,13 +1451,15 @@ dnl # custom kernel with the *-spl-export-symbols.patch which will export
 dnl # these symbols for use.  If your already rolling a custom kernel for
 dnl # your environment this is recommended.
 dnl #
-AC_DEFUN([SPL_AC_GET_VMALLOC_INFO], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[get_vmalloc_info],
-		[],
-		[AC_DEFINE(HAVE_GET_VMALLOC_INFO, 1,
-		[get_vmalloc_info() is available])],
-		[])
+AC_DEFUN([SPL_AC_GET_VMALLOC_INFO],
+	[AC_MSG_CHECKING([whether get_vmalloc_info() is available])
+	SPL_CHECK_SYMBOL_EXPORT([get_vmalloc_info], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GET_VMALLOC_INFO, 1,
+		          [get_vmalloc_info() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1428,7 +1481,7 @@ AC_DEFUN([SPL_AC_PGDAT_HELPERS], [
 	rc=$?
 	if test $rc -eq 0; then
 		AC_MSG_RESULT([yes])
-                AC_DEFINE(HAVE_PGDAT_HELPERS, 1, [pgdat helpers are available])
+		AC_DEFINE(HAVE_PGDAT_HELPERS, 1, [pgdat helpers are available])
 	else
 		AC_MSG_RESULT([no])
 	fi
@@ -1441,13 +1494,19 @@ dnl # custom kernel with the *-spl-export-symbols.patch which will export
 dnl # these symbols for use.  If your already rolling a custom kernel for
 dnl # your environment this is recommended.
 dnl #
-AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[first_online_pgdat],
-		[],
-		[AC_DEFINE(HAVE_FIRST_ONLINE_PGDAT, 1,
-		[first_online_pgdat() is available])],
-		[])
+AC_DEFUN([SPL_AC_FIRST_ONLINE_PGDAT],
+	[AC_MSG_CHECKING([whether first_online_pgdat() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/mmzone.h>
+	], [
+		first_online_pgdat();
+	], [first_online_pgdat], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FIRST_ONLINE_PGDAT, 1,
+		          [first_online_pgdat() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1457,13 +1516,19 @@ dnl # custom kernel with the *-spl-export-symbols.patch which will export
 dnl # these symbols for use.  If your already rolling a custom kernel for
 dnl # your environment this is recommended.
 dnl #
-AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[next_online_pgdat],
-		[],
-		[AC_DEFINE(HAVE_NEXT_ONLINE_PGDAT, 1,
-		[next_online_pgdat() is available])],
-		[])
+AC_DEFUN([SPL_AC_NEXT_ONLINE_PGDAT],
+	[AC_MSG_CHECKING([whether next_online_pgdat() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/mmzone.h>
+	], [
+		next_online_pgdat(NULL);
+	], [next_online_pgdat], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_NEXT_ONLINE_PGDAT, 1,
+		          [next_online_pgdat() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1473,26 +1538,35 @@ dnl # custom kernel with the *-spl-export-symbols.patch which will export
 dnl # these symbols for use.  If your already rolling a custom kernel for
 dnl # your environment this is recommended.
 dnl #
-AC_DEFUN([SPL_AC_NEXT_ZONE], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[next_zone],
-		[],
-		[AC_DEFINE(HAVE_NEXT_ZONE, 1,
-		[next_zone() is available])],
-		[])
+AC_DEFUN([SPL_AC_NEXT_ZONE],
+	[AC_MSG_CHECKING([whether next_zone() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/mmzone.h>
+	], [
+		next_zone(NULL);
+	], [next_zone], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_NEXT_ZONE, 1, [next_zone() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
 dnl # 2.6.17 API change,
 dnl # See SPL_AC_PGDAT_HELPERS for details.
 dnl #
-AC_DEFUN([SPL_AC_PGDAT_LIST], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[pgdat_list],
-		[],
-		[AC_DEFINE(HAVE_PGDAT_LIST, 1,
-		[pgdat_list is available])],
-		[])
+AC_DEFUN([SPL_AC_PGDAT_LIST],
+	[AC_MSG_CHECKING([whether pgdat_list is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/topology.h>
+		pg_data_t *tmp = pgdat_list;
+	], [], [pgdat_list], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_PGDAT_LIST, 1, [pgdat_list is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1684,12 +1758,18 @@ AC_DEFUN([SPL_AC_GET_ZONE_COUNTS], [
 		AC_DEFINE(NEED_GET_ZONE_COUNTS, 1,
 		          [get_zone_counts() is needed])
 
-		SPL_CHECK_SYMBOL_EXPORT(
-			[get_zone_counts],
-			[],
-			[AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
-			[get_zone_counts() is available])],
-			[])
+		AC_MSG_CHECKING([whether get_zone_counts() is available])
+		SPL_LINUX_TRY_COMPILE_SYMBOL([
+			#include <linux/mmzone.h>
+		], [
+			get_zone_counts(NULL, NULL, NULL);
+		], [get_zone_counts], [], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_GET_ZONE_COUNTS, 1,
+			          [get_zone_counts() is available])
+		], [
+			AC_MSG_RESULT(no)
+		])
 	])
 ])
 
@@ -1697,25 +1777,37 @@ dnl #
 dnl # 2.6.27 API change,
 dnl # The user_path_dir() replaces __user_walk()
 dnl #
-AC_DEFUN([SPL_AC_USER_PATH_DIR], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[user_path_at],
-		[],
-		[AC_DEFINE(HAVE_USER_PATH_DIR, 1,
-		[user_path_dir() is available])],
-		[])
+AC_DEFUN([SPL_AC_USER_PATH_DIR],
+	[AC_MSG_CHECKING([whether user_path_dir() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/fcntl.h>
+		#include <linux/namei.h>
+	], [
+		user_path_dir(NULL, NULL);
+	], [user_path_at], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_USER_PATH_DIR, 1, [user_path_dir() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
 dnl # Symbol available in RHEL kernels not in stock kernels.
 dnl #
-AC_DEFUN([SPL_AC_SET_FS_PWD], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[set_fs_pwd],
-		[],
-		[AC_DEFINE(HAVE_SET_FS_PWD, 1,
-		[set_fs_pwd() is available])],
-		[])
+AC_DEFUN([SPL_AC_SET_FS_PWD],
+	[AC_MSG_CHECKING([whether set_fs_pwd() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/spinlock.h>
+		#include <linux/fs_struct.h>
+	], [
+		(void) set_fs_pwd;
+	], [set_fs_pwd], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_FS_PWD, 1, [set_fs_pwd() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1823,26 +1915,37 @@ AC_DEFUN([SPL_AC_CRED_STRUCT], [
 dnl #
 dnl # Custom SPL patch may export this symbol.
 dnl #
-AC_DEFUN([SPL_AC_GROUPS_SEARCH], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[groups_search],
-		[],
-		[AC_DEFINE(HAVE_GROUPS_SEARCH, 1,
-		[groups_search() is available])],
-		[])
+AC_DEFUN([SPL_AC_GROUPS_SEARCH],
+	[AC_MSG_CHECKING([whether groups_search() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/cred.h>
+	], [
+		groups_search(NULL, 0);
+	], [groups_search], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GROUPS_SEARCH, 1, [groups_search() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
 dnl # 2.6.x API change,
 dnl # __put_task_struct() was exported in RHEL5 but unavailable elsewhere.
 dnl #
-AC_DEFUN([SPL_AC_PUT_TASK_STRUCT], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[__put_task_struct],
-		[],
-		[AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
-		[__put_task_struct() is available])],
-		[])
+AC_DEFUN([SPL_AC_PUT_TASK_STRUCT],
+	[AC_MSG_CHECKING([whether __put_task_struct() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/sched.h>
+	], [
+		__put_task_struct(NULL);
+	], [__put_task_struct], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_PUT_TASK_STRUCT, 1,
+		          [__put_task_struct() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1868,25 +1971,36 @@ dnl #
 dnl # 2.6.x API change,
 dnl # kvasprintf() function added.
 dnl #
-AC_DEFUN([SPL_AC_KVASPRINTF], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[kvasprintf],
-		[],
-		[AC_DEFINE(HAVE_KVASPRINTF, 1,
-		[kvasprintf() is available])],
-		[])
+AC_DEFUN([SPL_AC_KVASPRINTF],
+	[AC_MSG_CHECKING([whether kvasprintf() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/kernel.h>
+	], [
+		kvasprintf(0, NULL, *((va_list*)NULL));
+	], [kvasprintf], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KVASPRINTF, 1, [kvasprintf() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
 dnl # 2.6.29 API change,
 dnl # vfs_fsync() funcation added, prior to this use file_fsync().
 dnl #
-AC_DEFUN([SPL_AC_VFS_FSYNC], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[vfs_fsync],
-		[fs/sync.c],
-		[AC_DEFINE(HAVE_VFS_FSYNC, 1, [vfs_fsync() is available])],
-		[])
+AC_DEFUN([SPL_AC_VFS_FSYNC],
+	[AC_MSG_CHECKING([whether vfs_fsync() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/fs.h>
+	], [
+		(void) vfs_fsync;
+	], [vfs_fsync], [fs/sync.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_VFS_FSYNC, 1, [vfs_fsync() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1914,13 +2028,18 @@ dnl # condition.  The fixed version is exported as a symbol.  The race
 dnl # condition is fixed by acquiring sem->wait_lock, so we must not
 dnl # call that version while holding sem->wait_lock.
 dnl #
-AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[rwsem_is_locked],
-		[lib/rwsem-spinlock.c],
-		[AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
-		[rwsem_is_locked() acquires sem->wait_lock])],
-		[])
+AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED],
+	[AC_MSG_CHECKING([whether rwsem_is_locked() acquires sem->wait_lock])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/rwsem.h>
+		int rwsem_is_locked(struct rw_semaphore *sem) { return 0; }
+	], [], [rwsem_is_locked], [lib/rwsem-spinlock.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
+		          [rwsem_is_locked() acquires sem->wait_lock])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1937,18 +2056,31 @@ dnl # of these functions are exported invalidate_inodes() can be
 dnl # safely used.
 dnl #
 AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[invalidate_inodes],
-		[],
-		[AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
-		[invalidate_inodes() is available])],
-		[])
-	SPL_CHECK_SYMBOL_EXPORT(
-		[invalidate_inodes_check],
-		[],
-		[AC_DEFINE(HAVE_INVALIDATE_INODES_CHECK, 1,
-		[invalidate_inodes_check() is available])],
-		[])
+	AC_MSG_CHECKING([whether invalidate_inodes() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/fs.h>
+	], [
+		invalidate_inodes;
+	], [invalidate_inodes], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
+		          [invalidate_inodes() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether invalidate_inodes_check() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/fs.h>
+	], [
+		invalidate_inodes_check(NULL, 0);
+	], [invalidate_inodes_check], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INVALIDATE_INODES_CHECK, 1,
+		          [invalidate_inodes_check() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -1987,13 +2119,19 @@ dnl # There currently exists no exposed API to partially shrink the dcache.
 dnl # The expected mechanism to shrink the cache is a registered shrinker
 dnl # which is called during memory pressure.
 dnl #
-AC_DEFUN([SPL_AC_SHRINK_DCACHE_MEMORY], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[shrink_dcache_memory],
-		[fs/dcache.c],
-		[AC_DEFINE(HAVE_SHRINK_DCACHE_MEMORY, 1,
-		[shrink_dcache_memory() is available])],
-		[])
+AC_DEFUN([SPL_AC_SHRINK_DCACHE_MEMORY],
+	[AC_MSG_CHECKING([whether shrink_dcache_memory() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/dcache.h>
+	], [
+		shrink_dcache_memory(0, 0);
+	], [shrink_dcache_memory], [fs/dcache.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SHRINK_DCACHE_MEMORY, 1,
+		          [shrink_dcache_memory() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -2002,13 +2140,19 @@ dnl # There currently exists no exposed API to partially shrink the icache.
 dnl # The expected mechanism to shrink the cache is a registered shrinker
 dnl # which is called during memory pressure.
 dnl #
-AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[shrink_icache_memory],
-		[fs/inode.c],
-		[AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
-		[shrink_icache_memory() is available])],
-		[])
+AC_DEFUN([SPL_AC_SHRINK_ICACHE_MEMORY],
+	[AC_MSG_CHECKING([whether shrink_icache_memory() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/dcache.h>
+	], [
+		shrink_icache_memory(0, 0);
+	], [shrink_icache_memory], [fs/inode.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SHRINK_ICACHE_MEMORY, 1,
+		          [shrink_icache_memory() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #
@@ -2034,13 +2178,19 @@ dnl # The kern_path_parent() symbol is no longer exported by the kernel.
 dnl # However, it remains the prefered interface and since we still have
 dnl # access to the prototype we dynamically lookup the required address.
 dnl #
-AC_DEFUN([SPL_AC_KERN_PATH_PARENT_SYMBOL], [
-	SPL_CHECK_SYMBOL_EXPORT(
-		[kern_path_parent],
-		[fs/namei.c],
-		[AC_DEFINE(HAVE_KERN_PATH_PARENT_SYMBOL, 1,
-		[kern_path_parent() is available])],
-		[])
+AC_DEFUN([SPL_AC_KERN_PATH_PARENT_SYMBOL],
+	[AC_MSG_CHECKING([whether kern_path_parent() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/namei.h>
+	], [
+		kern_path_parent(NULL, NULL);
+	], [kern_path_parent], [fs/namei.c], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERN_PATH_PARENT_SYMBOL, 1,
+		          [kern_path_parent() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
 ])
 
 dnl #

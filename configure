@@ -11772,7 +11772,7 @@ $as_echo_n "checking kernel source directory... " >&6; }
 			sourcelink=$(readlink -f "$headersdir")
 		else
 			sourcelink=$(ls -1d /usr/src/kernels/* \
-				     /usr/src/linux-* \
+			             /usr/src/linux-* \
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
@@ -12849,9 +12849,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether task_curr() is available" >&5
+$as_echo_n "checking whether task_curr() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol task_curr is exported" >&5
-$as_echo_n "checking whether symbol task_curr is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/sched.h>
+
+int
+main (void)
+{
+
+		task_curr(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]task_curr[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -12861,25 +12921,28 @@ $as_echo_n "checking whether symbol task_curr is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(task_curr)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_TASK_CURR 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -12887,6 +12950,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TASK_CURR 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -13092,9 +13157,9 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether device_create() is available" >&5
+$as_echo_n "checking whether device_create() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol device_create is exported" >&5
-$as_echo_n "checking whether symbol device_create is exported... " >&6; }
 	grep -q -E '[[:space:]]device_create[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -13104,31 +13169,36 @@ $as_echo_n "checking whether symbol device_create is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(device_create)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
+		if test $export -eq 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
+		else :
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_DEVICE_CREATE 1
-_ACEOF
-
-		fi
-	else
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_DEVICE_CREATE 1
 _ACEOF
+
+
+		fi
+	else :
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DEVICE_CREATE 1
+_ACEOF
+
 
 	fi
 
@@ -13203,9 +13273,69 @@ fi
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
+	{ $as_echo "$as_me:$LINENO: checking whether class_device_create() is available" >&5
+$as_echo_n "checking whether class_device_create() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol class_device_create is exported" >&5
-$as_echo_n "checking whether symbol class_device_create is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/device.h>
+
+int
+main (void)
+{
+
+		class_device_create(NULL, NULL, 0, NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]class_device_create[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -13215,25 +13345,28 @@ $as_echo_n "checking whether symbol class_device_create is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_CLASS_DEVICE_CREATE 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -13241,12 +13374,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CLASS_DEVICE_CREATE 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether set_normalized_timespec() is available as export" >&5
+$as_echo_n "checking whether set_normalized_timespec() is available as export... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol set_normalized_timespec is exported" >&5
-$as_echo_n "checking whether symbol set_normalized_timespec is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/time.h>
+
+int
+main (void)
+{
+
+		set_normalized_timespec(NULL, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -13256,25 +13451,28 @@ $as_echo_n "checking whether symbol set_normalized_timespec is exported... " >&6
 			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SET_NORMALIZED_TIMESPEC_EXPORT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -13282,6 +13480,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SET_NORMALIZED_TIMESPEC_EXPORT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -13841,9 +14041,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether monotonic_clock() is available" >&5
+$as_echo_n "checking whether monotonic_clock() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol monotonic_clock is exported" >&5
-$as_echo_n "checking whether symbol monotonic_clock is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/timex.h>
+
+int
+main (void)
+{
+
+		monotonic_clock();
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -13853,25 +14113,28 @@ $as_echo_n "checking whether symbol monotonic_clock is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_MONOTONIC_CLOCK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -13879,6 +14142,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MONOTONIC_CLOCK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -14226,9 +14491,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kallsyms_lookup_name() is available" >&5
+$as_echo_n "checking whether kallsyms_lookup_name() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kallsyms_lookup_name is exported" >&5
-$as_echo_n "checking whether symbol kallsyms_lookup_name is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/kallsyms.h>
+
+int
+main (void)
+{
+
+		kallsyms_lookup_name(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kallsyms_lookup_name[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14238,25 +14563,28 @@ $as_echo_n "checking whether symbol kallsyms_lookup_name is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kallsyms_lookup_name)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KALLSYMS_LOOKUP_NAME 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14264,12 +14592,14 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KALLSYMS_LOOKUP_NAME 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether get_vmalloc_info() is available" >&5
+$as_echo_n "checking whether get_vmalloc_info() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol get_vmalloc_info is exported" >&5
-$as_echo_n "checking whether symbol get_vmalloc_info is exported... " >&6; }
 	grep -q -E '[[:space:]]get_vmalloc_info[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14279,31 +14609,36 @@ $as_echo_n "checking whether symbol get_vmalloc_info is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(get_vmalloc_info)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
+		if test $export -eq 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
+		else :
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_VMALLOC_INFO 1
-_ACEOF
-
-		fi
-	else
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GET_VMALLOC_INFO 1
 _ACEOF
+
+
+		fi
+	else :
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_VMALLOC_INFO 1
+_ACEOF
+
 
 	fi
 
@@ -14326,9 +14661,69 @@ _ACEOF
 $as_echo "no" >&6; }
 	fi
 
+	{ $as_echo "$as_me:$LINENO: checking whether first_online_pgdat() is available" >&5
+$as_echo_n "checking whether first_online_pgdat() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
-$as_echo_n "checking whether symbol first_online_pgdat is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		first_online_pgdat();
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14338,25 +14733,28 @@ $as_echo_n "checking whether symbol first_online_pgdat is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_FIRST_ONLINE_PGDAT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14364,12 +14762,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_FIRST_ONLINE_PGDAT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether next_online_pgdat() is available" >&5
+$as_echo_n "checking whether next_online_pgdat() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol next_online_pgdat is exported" >&5
-$as_echo_n "checking whether symbol next_online_pgdat is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		next_online_pgdat(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14379,25 +14839,28 @@ $as_echo_n "checking whether symbol next_online_pgdat is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_NEXT_ONLINE_PGDAT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14405,12 +14868,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_NEXT_ONLINE_PGDAT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether next_zone() is available" >&5
+$as_echo_n "checking whether next_zone() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol next_zone is exported" >&5
-$as_echo_n "checking whether symbol next_zone is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		next_zone(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]next_zone[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14420,25 +14945,28 @@ $as_echo_n "checking whether symbol next_zone is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(next_zone)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_NEXT_ZONE 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14446,12 +14974,73 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_NEXT_ZONE 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether pgdat_list is available" >&5
+$as_echo_n "checking whether pgdat_list is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol pgdat_list is exported" >&5
-$as_echo_n "checking whether symbol pgdat_list is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/topology.h>
+		pg_data_t *tmp = pgdat_list;
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]pgdat_list[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -14461,25 +15050,28 @@ $as_echo_n "checking whether symbol pgdat_list is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(pgdat_list)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PGDAT_LIST 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -14487,6 +15079,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_PGDAT_LIST 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -15102,8 +15696,69 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 
-		{ $as_echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
-$as_echo_n "checking whether symbol get_zone_counts is exported... " >&6; }
+		{ $as_echo "$as_me:$LINENO: checking whether get_zone_counts() is available" >&5
+$as_echo_n "checking whether get_zone_counts() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+			#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+			get_zone_counts(NULL, NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15113,16 +15768,28 @@ $as_echo_n "checking whether symbol get_zone_counts is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
+
+		fi
+		if test $rc -ne 0; then :
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+		else :
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15130,15 +15797,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_GET_ZONE_COUNTS 1
 _ACEOF
 
+
 		fi
-	else
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
 	fi
 
 
@@ -15150,9 +15810,70 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether user_path_dir() is available" >&5
+$as_echo_n "checking whether user_path_dir() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol user_path_at is exported" >&5
-$as_echo_n "checking whether symbol user_path_at is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fcntl.h>
+		#include <linux/namei.h>
+
+int
+main (void)
+{
+
+		user_path_dir(NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]user_path_at[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15162,25 +15883,28 @@ $as_echo_n "checking whether symbol user_path_at is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(user_path_at)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_USER_PATH_DIR 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15188,12 +15912,75 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_USER_PATH_DIR 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether set_fs_pwd() is available" >&5
+$as_echo_n "checking whether set_fs_pwd() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol set_fs_pwd is exported" >&5
-$as_echo_n "checking whether symbol set_fs_pwd is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/spinlock.h>
+		#include <linux/fs_struct.h>
+
+int
+main (void)
+{
+
+		(void) set_fs_pwd;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]set_fs_pwd[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15203,25 +15990,28 @@ $as_echo_n "checking whether symbol set_fs_pwd is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(set_fs_pwd)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SET_FS_PWD 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15229,6 +16019,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SET_FS_PWD 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -15431,9 +16223,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether vfs_fsync() is available" >&5
+$as_echo_n "checking whether vfs_fsync() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol vfs_fsync is exported" >&5
-$as_echo_n "checking whether symbol vfs_fsync is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		(void) vfs_fsync;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]vfs_fsync[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15443,25 +16295,28 @@ $as_echo_n "checking whether symbol vfs_fsync is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(vfs_fsync)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_VFS_FSYNC 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15469,6 +16324,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_VFS_FSYNC 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -15679,9 +16536,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether groups_search() is available" >&5
+$as_echo_n "checking whether groups_search() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol groups_search is exported" >&5
-$as_echo_n "checking whether symbol groups_search is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/cred.h>
+
+int
+main (void)
+{
+
+		groups_search(NULL, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]groups_search[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15691,25 +16608,28 @@ $as_echo_n "checking whether symbol groups_search is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(groups_search)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GROUPS_SEARCH 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15717,12 +16637,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_GROUPS_SEARCH 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether __put_task_struct() is available" >&5
+$as_echo_n "checking whether __put_task_struct() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol __put_task_struct is exported" >&5
-$as_echo_n "checking whether symbol __put_task_struct is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/sched.h>
+
+int
+main (void)
+{
+
+		__put_task_struct(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]__put_task_struct[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15732,25 +16714,28 @@ $as_echo_n "checking whether symbol __put_task_struct is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(__put_task_struct)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PUT_TASK_STRUCT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15758,6 +16743,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_PUT_TASK_STRUCT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -15828,9 +16815,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kvasprintf() is available" >&5
+$as_echo_n "checking whether kvasprintf() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kvasprintf is exported" >&5
-$as_echo_n "checking whether symbol kvasprintf is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/kernel.h>
+
+int
+main (void)
+{
+
+		kvasprintf(0, NULL, *((va_list*)NULL));
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kvasprintf[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15840,25 +16887,28 @@ $as_echo_n "checking whether symbol kvasprintf is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kvasprintf)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KVASPRINTF 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15866,12 +16916,73 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KVASPRINTF 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether rwsem_is_locked() acquires sem->wait_lock" >&5
+$as_echo_n "checking whether rwsem_is_locked() acquires sem->wait_lock... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol rwsem_is_locked is exported" >&5
-$as_echo_n "checking whether symbol rwsem_is_locked is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/rwsem.h>
+		int rwsem_is_locked(struct rw_semaphore *sem) { return 0; }
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]rwsem_is_locked[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15881,25 +16992,28 @@ $as_echo_n "checking whether symbol rwsem_is_locked is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(rwsem_is_locked)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define RWSEM_IS_LOCKED_TAKES_WAIT_LOCK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15907,12 +17021,75 @@ cat >>confdefs.h <<\_ACEOF
 #define RWSEM_IS_LOCKED_TAKES_WAIT_LOCK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol invalidate_inodes is exported" >&5
-$as_echo_n "checking whether symbol invalidate_inodes is exported... " >&6; }
+	{ $as_echo "$as_me:$LINENO: checking whether invalidate_inodes() is available" >&5
+$as_echo_n "checking whether invalidate_inodes() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		invalidate_inodes;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]invalidate_inodes[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15922,25 +17099,28 @@ $as_echo_n "checking whether symbol invalidate_inodes is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(invalidate_inodes)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_INVALIDATE_INODES 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15948,10 +17128,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INVALIDATE_INODES 1
 _ACEOF
 
+
+		fi
 	fi
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol invalidate_inodes_check is exported" >&5
-$as_echo_n "checking whether symbol invalidate_inodes_check is exported... " >&6; }
+
+	{ $as_echo "$as_me:$LINENO: checking whether invalidate_inodes_check() is available" >&5
+$as_echo_n "checking whether invalidate_inodes_check() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		invalidate_inodes_check(NULL, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]invalidate_inodes_check[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -15961,25 +17205,28 @@ $as_echo_n "checking whether symbol invalidate_inodes_check is exported... " >&6
 			grep -q -E "EXPORT_SYMBOL.*(invalidate_inodes_check)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_INVALIDATE_INODES_CHECK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -15987,6 +17234,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INVALIDATE_INODES_CHECK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -16056,9 +17305,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether shrink_dcache_memory() is available" >&5
+$as_echo_n "checking whether shrink_dcache_memory() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol shrink_dcache_memory is exported" >&5
-$as_echo_n "checking whether symbol shrink_dcache_memory is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/dcache.h>
+
+int
+main (void)
+{
+
+		shrink_dcache_memory(0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]shrink_dcache_memory[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -16068,25 +17377,28 @@ $as_echo_n "checking whether symbol shrink_dcache_memory is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(shrink_dcache_memory)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SHRINK_DCACHE_MEMORY 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -16094,12 +17406,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SHRINK_DCACHE_MEMORY 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether shrink_icache_memory() is available" >&5
+$as_echo_n "checking whether shrink_icache_memory() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol shrink_icache_memory is exported" >&5
-$as_echo_n "checking whether symbol shrink_icache_memory is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/dcache.h>
+
+int
+main (void)
+{
+
+		shrink_icache_memory(0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]shrink_icache_memory[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -16109,25 +17483,28 @@ $as_echo_n "checking whether symbol shrink_icache_memory is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(shrink_icache_memory)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SHRINK_ICACHE_MEMORY 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -16135,6 +17512,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SHRINK_ICACHE_MEMORY 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -16146,10 +17525,10 @@ $as_echo_n "checking whether symbol kern_path_parent exists in header... " >&6; 
 	for file in include/linux/namei.h; do
 		grep -q "int kern_path_parent(const char \*, struct nameidata \*)" "$LINUX/$file" 2>/dev/null
 		rc=$?
-	        if test $rc -eq 0; then
-	                header=1
-	                break;
-	        fi
+		if test $rc -eq 0; then
+			header=1
+			break;
+		fi
 	done
 	if test $header -eq 0; then
 		{ $as_echo "$as_me:$LINENO: result: no" >&5
@@ -16166,9 +17545,69 @@ _ACEOF
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kern_path_parent() is available" >&5
+$as_echo_n "checking whether kern_path_parent() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kern_path_parent is exported" >&5
-$as_echo_n "checking whether symbol kern_path_parent is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/namei.h>
+
+int
+main (void)
+{
+
+		kern_path_parent(NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kern_path_parent[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -16178,25 +17617,28 @@ $as_echo_n "checking whether symbol kern_path_parent is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kern_path_parent)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KERN_PATH_PARENT_SYMBOL 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -16204,6 +17646,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KERN_PATH_PARENT_SYMBOL 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -16524,7 +17968,7 @@ $as_echo_n "checking kernel source directory... " >&6; }
 			sourcelink=$(readlink -f "$headersdir")
 		else
 			sourcelink=$(ls -1d /usr/src/kernels/* \
-				     /usr/src/linux-* \
+			             /usr/src/linux-* \
 			             2>/dev/null | grep -v obj | tail -1)
 		fi
 
@@ -17601,9 +19045,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether task_curr() is available" >&5
+$as_echo_n "checking whether task_curr() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol task_curr is exported" >&5
-$as_echo_n "checking whether symbol task_curr is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/sched.h>
+
+int
+main (void)
+{
+
+		task_curr(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]task_curr[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -17613,25 +19117,28 @@ $as_echo_n "checking whether symbol task_curr is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(task_curr)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_TASK_CURR 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -17639,6 +19146,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_TASK_CURR 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -17844,9 +19353,9 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether device_create() is available" >&5
+$as_echo_n "checking whether device_create() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol device_create is exported" >&5
-$as_echo_n "checking whether symbol device_create is exported... " >&6; }
 	grep -q -E '[[:space:]]device_create[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -17856,31 +19365,36 @@ $as_echo_n "checking whether symbol device_create is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(device_create)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
+		if test $export -eq 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
+		else :
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_DEVICE_CREATE 1
-_ACEOF
-
-		fi
-	else
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_DEVICE_CREATE 1
 _ACEOF
+
+
+		fi
+	else :
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DEVICE_CREATE 1
+_ACEOF
+
 
 	fi
 
@@ -17955,9 +19469,69 @@ fi
 
 	EXTRA_KCFLAGS="$tmp_flags"
 
+	{ $as_echo "$as_me:$LINENO: checking whether class_device_create() is available" >&5
+$as_echo_n "checking whether class_device_create() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol class_device_create is exported" >&5
-$as_echo_n "checking whether symbol class_device_create is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/device.h>
+
+int
+main (void)
+{
+
+		class_device_create(NULL, NULL, 0, NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]class_device_create[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -17967,25 +19541,28 @@ $as_echo_n "checking whether symbol class_device_create is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(class_device_create)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_CLASS_DEVICE_CREATE 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -17993,12 +19570,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_CLASS_DEVICE_CREATE 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether set_normalized_timespec() is available as export" >&5
+$as_echo_n "checking whether set_normalized_timespec() is available as export... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol set_normalized_timespec is exported" >&5
-$as_echo_n "checking whether symbol set_normalized_timespec is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/time.h>
+
+int
+main (void)
+{
+
+		set_normalized_timespec(NULL, 0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]set_normalized_timespec[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -18008,25 +19647,28 @@ $as_echo_n "checking whether symbol set_normalized_timespec is exported... " >&6
 			grep -q -E "EXPORT_SYMBOL.*(set_normalized_timespec)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SET_NORMALIZED_TIMESPEC_EXPORT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18034,6 +19676,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SET_NORMALIZED_TIMESPEC_EXPORT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -18593,9 +20237,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether monotonic_clock() is available" >&5
+$as_echo_n "checking whether monotonic_clock() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol monotonic_clock is exported" >&5
-$as_echo_n "checking whether symbol monotonic_clock is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/timex.h>
+
+int
+main (void)
+{
+
+		monotonic_clock();
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]monotonic_clock[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -18605,25 +20309,28 @@ $as_echo_n "checking whether symbol monotonic_clock is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(monotonic_clock)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_MONOTONIC_CLOCK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -18631,6 +20338,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_MONOTONIC_CLOCK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -18978,9 +20687,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kallsyms_lookup_name() is available" >&5
+$as_echo_n "checking whether kallsyms_lookup_name() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kallsyms_lookup_name is exported" >&5
-$as_echo_n "checking whether symbol kallsyms_lookup_name is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/kallsyms.h>
+
+int
+main (void)
+{
+
+		kallsyms_lookup_name(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kallsyms_lookup_name[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -18990,25 +20759,28 @@ $as_echo_n "checking whether symbol kallsyms_lookup_name is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kallsyms_lookup_name)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KALLSYMS_LOOKUP_NAME 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19016,12 +20788,14 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KALLSYMS_LOOKUP_NAME 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether get_vmalloc_info() is available" >&5
+$as_echo_n "checking whether get_vmalloc_info() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol get_vmalloc_info is exported" >&5
-$as_echo_n "checking whether symbol get_vmalloc_info is exported... " >&6; }
 	grep -q -E '[[:space:]]get_vmalloc_info[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19031,31 +20805,36 @@ $as_echo_n "checking whether symbol get_vmalloc_info is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(get_vmalloc_info)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
+		if test $export -eq 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
+		else :
 
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_VMALLOC_INFO 1
-_ACEOF
-
-		fi
-	else
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
 cat >>confdefs.h <<\_ACEOF
 #define HAVE_GET_VMALLOC_INFO 1
 _ACEOF
+
+
+		fi
+	else :
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_GET_VMALLOC_INFO 1
+_ACEOF
+
 
 	fi
 
@@ -19078,9 +20857,69 @@ _ACEOF
 $as_echo "no" >&6; }
 	fi
 
+	{ $as_echo "$as_me:$LINENO: checking whether first_online_pgdat() is available" >&5
+$as_echo_n "checking whether first_online_pgdat() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol first_online_pgdat is exported" >&5
-$as_echo_n "checking whether symbol first_online_pgdat is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		first_online_pgdat();
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]first_online_pgdat[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19090,25 +20929,28 @@ $as_echo_n "checking whether symbol first_online_pgdat is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(first_online_pgdat)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_FIRST_ONLINE_PGDAT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19116,12 +20958,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_FIRST_ONLINE_PGDAT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether next_online_pgdat() is available" >&5
+$as_echo_n "checking whether next_online_pgdat() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol next_online_pgdat is exported" >&5
-$as_echo_n "checking whether symbol next_online_pgdat is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		next_online_pgdat(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]next_online_pgdat[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19131,25 +21035,28 @@ $as_echo_n "checking whether symbol next_online_pgdat is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(next_online_pgdat)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_NEXT_ONLINE_PGDAT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19157,12 +21064,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_NEXT_ONLINE_PGDAT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether next_zone() is available" >&5
+$as_echo_n "checking whether next_zone() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol next_zone is exported" >&5
-$as_echo_n "checking whether symbol next_zone is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+		next_zone(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]next_zone[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19172,25 +21141,28 @@ $as_echo_n "checking whether symbol next_zone is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(next_zone)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_NEXT_ZONE 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19198,12 +21170,73 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_NEXT_ZONE 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether pgdat_list is available" >&5
+$as_echo_n "checking whether pgdat_list is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol pgdat_list is exported" >&5
-$as_echo_n "checking whether symbol pgdat_list is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/topology.h>
+		pg_data_t *tmp = pgdat_list;
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]pgdat_list[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19213,25 +21246,28 @@ $as_echo_n "checking whether symbol pgdat_list is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(pgdat_list)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PGDAT_LIST 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19239,6 +21275,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_PGDAT_LIST 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -19854,8 +21892,69 @@ cat >>confdefs.h <<\_ACEOF
 _ACEOF
 
 
-		{ $as_echo "$as_me:$LINENO: checking whether symbol get_zone_counts is exported" >&5
-$as_echo_n "checking whether symbol get_zone_counts is exported... " >&6; }
+		{ $as_echo "$as_me:$LINENO: checking whether get_zone_counts() is available" >&5
+$as_echo_n "checking whether get_zone_counts() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+			#include <linux/mmzone.h>
+
+int
+main (void)
+{
+
+			get_zone_counts(NULL, NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+			{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]get_zone_counts[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19865,16 +21964,28 @@ $as_echo_n "checking whether symbol get_zone_counts is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(get_zone_counts)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
+
+		fi
+		if test $rc -ne 0; then :
+
 			{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
 
-		else
+		else :
+
 			{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19882,15 +21993,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_GET_ZONE_COUNTS 1
 _ACEOF
 
+
 		fi
-	else
-		{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GET_ZONE_COUNTS 1
-_ACEOF
-
 	fi
 
 
@@ -19902,9 +22006,70 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether user_path_dir() is available" >&5
+$as_echo_n "checking whether user_path_dir() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol user_path_at is exported" >&5
-$as_echo_n "checking whether symbol user_path_at is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fcntl.h>
+		#include <linux/namei.h>
+
+int
+main (void)
+{
+
+		user_path_dir(NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]user_path_at[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19914,25 +22079,28 @@ $as_echo_n "checking whether symbol user_path_at is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(user_path_at)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_USER_PATH_DIR 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19940,12 +22108,75 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_USER_PATH_DIR 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether set_fs_pwd() is available" >&5
+$as_echo_n "checking whether set_fs_pwd() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol set_fs_pwd is exported" >&5
-$as_echo_n "checking whether symbol set_fs_pwd is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/spinlock.h>
+		#include <linux/fs_struct.h>
+
+int
+main (void)
+{
+
+		(void) set_fs_pwd;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]set_fs_pwd[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -19955,25 +22186,28 @@ $as_echo_n "checking whether symbol set_fs_pwd is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(set_fs_pwd)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SET_FS_PWD 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -19981,6 +22215,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SET_FS_PWD 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -20183,9 +22419,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether vfs_fsync() is available" >&5
+$as_echo_n "checking whether vfs_fsync() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol vfs_fsync is exported" >&5
-$as_echo_n "checking whether symbol vfs_fsync is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		(void) vfs_fsync;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]vfs_fsync[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20195,25 +22491,28 @@ $as_echo_n "checking whether symbol vfs_fsync is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(vfs_fsync)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_VFS_FSYNC 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20221,6 +22520,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_VFS_FSYNC 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -20431,9 +22732,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether groups_search() is available" >&5
+$as_echo_n "checking whether groups_search() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol groups_search is exported" >&5
-$as_echo_n "checking whether symbol groups_search is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/cred.h>
+
+int
+main (void)
+{
+
+		groups_search(NULL, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]groups_search[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20443,25 +22804,28 @@ $as_echo_n "checking whether symbol groups_search is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(groups_search)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_GROUPS_SEARCH 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20469,12 +22833,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_GROUPS_SEARCH 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether __put_task_struct() is available" >&5
+$as_echo_n "checking whether __put_task_struct() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol __put_task_struct is exported" >&5
-$as_echo_n "checking whether symbol __put_task_struct is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/sched.h>
+
+int
+main (void)
+{
+
+		__put_task_struct(NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]__put_task_struct[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20484,25 +22910,28 @@ $as_echo_n "checking whether symbol __put_task_struct is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(__put_task_struct)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_PUT_TASK_STRUCT 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20510,6 +22939,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_PUT_TASK_STRUCT 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -20580,9 +23011,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kvasprintf() is available" >&5
+$as_echo_n "checking whether kvasprintf() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kvasprintf is exported" >&5
-$as_echo_n "checking whether symbol kvasprintf is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/kernel.h>
+
+int
+main (void)
+{
+
+		kvasprintf(0, NULL, *((va_list*)NULL));
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kvasprintf[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20592,25 +23083,28 @@ $as_echo_n "checking whether symbol kvasprintf is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kvasprintf)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KVASPRINTF 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20618,12 +23112,73 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KVASPRINTF 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether rwsem_is_locked() acquires sem->wait_lock" >&5
+$as_echo_n "checking whether rwsem_is_locked() acquires sem->wait_lock... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol rwsem_is_locked is exported" >&5
-$as_echo_n "checking whether symbol rwsem_is_locked is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/rwsem.h>
+		int rwsem_is_locked(struct rw_semaphore *sem) { return 0; }
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]rwsem_is_locked[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20633,25 +23188,28 @@ $as_echo_n "checking whether symbol rwsem_is_locked is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(rwsem_is_locked)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define RWSEM_IS_LOCKED_TAKES_WAIT_LOCK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20659,12 +23217,75 @@ cat >>confdefs.h <<\_ACEOF
 #define RWSEM_IS_LOCKED_TAKES_WAIT_LOCK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol invalidate_inodes is exported" >&5
-$as_echo_n "checking whether symbol invalidate_inodes is exported... " >&6; }
+	{ $as_echo "$as_me:$LINENO: checking whether invalidate_inodes() is available" >&5
+$as_echo_n "checking whether invalidate_inodes() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		invalidate_inodes;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]invalidate_inodes[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20674,25 +23295,28 @@ $as_echo_n "checking whether symbol invalidate_inodes is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(invalidate_inodes)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_INVALIDATE_INODES 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20700,10 +23324,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INVALIDATE_INODES 1
 _ACEOF
 
+
+		fi
 	fi
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol invalidate_inodes_check is exported" >&5
-$as_echo_n "checking whether symbol invalidate_inodes_check is exported... " >&6; }
+
+	{ $as_echo "$as_me:$LINENO: checking whether invalidate_inodes_check() is available" >&5
+$as_echo_n "checking whether invalidate_inodes_check() is available... " >&6; }
+
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/fs.h>
+
+int
+main (void)
+{
+
+		invalidate_inodes_check(NULL, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]invalidate_inodes_check[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20713,25 +23401,28 @@ $as_echo_n "checking whether symbol invalidate_inodes_check is exported... " >&6
 			grep -q -E "EXPORT_SYMBOL.*(invalidate_inodes_check)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_INVALIDATE_INODES_CHECK 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20739,6 +23430,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_INVALIDATE_INODES_CHECK 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -20808,9 +23501,69 @@ fi
 
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether shrink_dcache_memory() is available" >&5
+$as_echo_n "checking whether shrink_dcache_memory() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol shrink_dcache_memory is exported" >&5
-$as_echo_n "checking whether symbol shrink_dcache_memory is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/dcache.h>
+
+int
+main (void)
+{
+
+		shrink_dcache_memory(0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]shrink_dcache_memory[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20820,25 +23573,28 @@ $as_echo_n "checking whether symbol shrink_dcache_memory is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(shrink_dcache_memory)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SHRINK_DCACHE_MEMORY 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20846,12 +23602,74 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SHRINK_DCACHE_MEMORY 1
 _ACEOF
 
+
+		fi
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether shrink_icache_memory() is available" >&5
+$as_echo_n "checking whether shrink_icache_memory() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol shrink_icache_memory is exported" >&5
-$as_echo_n "checking whether symbol shrink_icache_memory is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/dcache.h>
+
+int
+main (void)
+{
+
+		shrink_icache_memory(0, 0);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]shrink_icache_memory[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20861,25 +23679,28 @@ $as_echo_n "checking whether symbol shrink_icache_memory is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(shrink_icache_memory)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_SHRINK_ICACHE_MEMORY 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20887,6 +23708,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_SHRINK_ICACHE_MEMORY 1
 _ACEOF
 
+
+		fi
 	fi
 
 
@@ -20898,10 +23721,10 @@ $as_echo_n "checking whether symbol kern_path_parent exists in header... " >&6; 
 	for file in include/linux/namei.h; do
 		grep -q "int kern_path_parent(const char \*, struct nameidata \*)" "$LINUX/$file" 2>/dev/null
 		rc=$?
-	        if test $rc -eq 0; then
-	                header=1
-	                break;
-	        fi
+		if test $rc -eq 0; then
+			header=1
+			break;
+		fi
 	done
 	if test $header -eq 0; then
 		{ $as_echo "$as_me:$LINENO: result: no" >&5
@@ -20918,9 +23741,69 @@ _ACEOF
 	fi
 
 
+	{ $as_echo "$as_me:$LINENO: checking whether kern_path_parent() is available" >&5
+$as_echo_n "checking whether kern_path_parent() is available... " >&6; }
 
-	{ $as_echo "$as_me:$LINENO: checking whether symbol kern_path_parent is exported" >&5
-$as_echo_n "checking whether symbol kern_path_parent is exported... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/namei.h>
+
+int
+main (void)
+{
+
+		kern_path_parent(NULL, NULL);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  rc=0
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+ rc=1
+
+
+fi
+
+	rm -Rf build
+
+
+	if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+
 	grep -q -E '[[:space:]]kern_path_parent[[:space:]]' \
 		$LINUX_OBJ/Module*.symvers 2>/dev/null
 	rc=$?
@@ -20930,25 +23813,28 @@ $as_echo_n "checking whether symbol kern_path_parent is exported... " >&6; }
 			grep -q -E "EXPORT_SYMBOL.*(kern_path_parent)" \
 				"$LINUX_OBJ/$file" 2>/dev/null
 			rc=$?
-		        if test $rc -eq 0; then
-		                export=1
-		                break;
-		        fi
+			if test $rc -eq 0; then
+				export=1
+				break;
+			fi
 		done
-		if test $export -eq 0; then
-			{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-		else
-			{ $as_echo "$as_me:$LINENO: result: yes" >&5
-$as_echo "yes" >&6; }
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_KERN_PATH_PARENT_SYMBOL 1
-_ACEOF
+		if test $export -eq 0; then :
+			rc=1
+		else :
+			rc=0
+		fi
+	else :
+		rc=0
+	fi
 
 		fi
-	else
+		if test $rc -ne 0; then :
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+		else :
+
 		{ $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
 
@@ -20956,6 +23842,8 @@ cat >>confdefs.h <<\_ACEOF
 #define HAVE_KERN_PATH_PARENT_SYMBOL 1
 _ACEOF
 
+
+		fi
 	fi
 
 
