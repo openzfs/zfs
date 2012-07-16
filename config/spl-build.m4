@@ -22,6 +22,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_DEBUG_LOG
 	SPL_AC_DEBUG_KMEM
 	SPL_AC_DEBUG_KMEM_TRACKING
+	SPL_AC_TEST_MODULE
 	SPL_AC_ATOMIC_SPINLOCK
 	SPL_AC_TYPE_ATOMIC64_CMPXCHG
 	SPL_AC_TYPE_ATOMIC64_XCHG
@@ -94,7 +95,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	if test -f "$modpost"; then
+	if test "x$enable_linux_builtin" != xyes -a -f "$modpost"; then
 		if grep -q Modules.symvers $modpost; then
 			LINUX_SYMBOLS=Modules.symvers
 		else
@@ -196,7 +197,13 @@ AC_DEFUN([SPL_AC_KERNEL], [
 		fi
 	else
 		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		else
+			AC_MSG_ERROR([
+	*** Cannot find UTS_RELEASE definition.
+	*** Please run 'make prepare' inside the kernel source tree.])
+		fi
 	fi
 
 	AC_MSG_RESULT([$kernsrcver])
@@ -439,34 +446,38 @@ AC_DEFUN([SPL_AC_LICENSE], [
 ])
 
 AC_DEFUN([SPL_AC_CONFIG], [
-        SPL_CONFIG=all
-        AC_ARG_WITH([config],
-                AS_HELP_STRING([--with-config=CONFIG],
-                [Config file 'kernel|user|all|srpm']),
-                [SPL_CONFIG="$withval"])
+	SPL_CONFIG=all
+	AC_ARG_WITH([config],
+		AS_HELP_STRING([--with-config=CONFIG],
+		[Config file 'kernel|user|all|srpm']),
+		[SPL_CONFIG="$withval"])
+	AC_ARG_ENABLE([linux-builtin],
+		[AC_HELP_STRING([--enable-linux-builtin],
+		[Configure for builtin in-tree kernel modules @<:@default=no@:>@])],
+		[],
+		[enable_linux_builtin=no])
 
-        AC_MSG_CHECKING([spl config])
-        AC_MSG_RESULT([$SPL_CONFIG]);
-        AC_SUBST(SPL_CONFIG)
+	AC_MSG_CHECKING([spl config])
+	AC_MSG_RESULT([$SPL_CONFIG]);
+	AC_SUBST(SPL_CONFIG)
 
-        case "$SPL_CONFIG" in
-                kernel) SPL_AC_CONFIG_KERNEL ;;
-                user)   SPL_AC_CONFIG_USER   ;;
-                all)    SPL_AC_CONFIG_KERNEL
-                        SPL_AC_CONFIG_USER   ;;
+	case "$SPL_CONFIG" in
+		kernel) SPL_AC_CONFIG_KERNEL ;;
+		user)   SPL_AC_CONFIG_USER   ;;
+		all)    SPL_AC_CONFIG_KERNEL
+		        SPL_AC_CONFIG_USER   ;;
 		srpm)                        ;;
-                *)
-                AC_MSG_RESULT([Error!])
-                AC_MSG_ERROR([Bad value "$SPL_CONFIG" for --with-config,
-                              user kernel|user|all|srpm]) ;;
-        esac
+		*)
+		AC_MSG_RESULT([Error!])
+		AC_MSG_ERROR([Bad value "$SPL_CONFIG" for --with-config,
+		             user kernel|user|all|srpm]) ;;
+	esac
 
-        AM_CONDITIONAL([CONFIG_USER],
-                       [test "$SPL_CONFIG" = user] ||
-                       [test "$SPL_CONFIG" = all])
-        AM_CONDITIONAL([CONFIG_KERNEL],
-                       [test "$SPL_CONFIG" = kernel] ||
-                       [test "$SPL_CONFIG" = all])
+	AM_CONDITIONAL([CONFIG_USER],
+	               [test "$SPL_CONFIG" = user -o "$SPL_CONFIG" = all])
+	AM_CONDITIONAL([CONFIG_KERNEL],
+	               [test "$SPL_CONFIG" = kernel -o "$SPL_CONFIG" = all] &&
+	               [test "x$enable_linux_builtin" != xyes ])
 ])
 
 dnl #
@@ -735,6 +746,25 @@ AC_DEFUN([SPL_CHECK_HEADER],
 	],[
 		AC_MSG_RESULT(no)
 		$4
+	])
+])
+
+dnl #
+dnl # Basic toolchain sanity check.
+dnl #
+AC_DEFUN([SPL_AC_TEST_MODULE],
+	[AC_MSG_CHECKING([whether modules can be built])
+	SPL_LINUX_TRY_COMPILE([],[],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Unable to build an empty module.])
+		else
+			AC_MSG_ERROR([
+	*** Unable to build an empty module.
+	*** Please run 'make scripts' inside the kernel source tree.])
+		fi
 	])
 ])
 
