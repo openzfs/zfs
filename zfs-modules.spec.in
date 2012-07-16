@@ -420,6 +420,7 @@ which use %{name}.
 %package debug
 Summary:         ZFS File System (Debug)
 Group:           Utilities/System
+Provides:        %{name}
 Release:         %{rel_dbug}
 %if %{defined req_dbug}
 Requires:        %{req_dbug}
@@ -442,6 +443,7 @@ utilities for the %{name} file system.
 %package debug-devel
 Summary:         ZFS File System Headers and Symbols (Debug)
 Group:           Development/Libraries
+Provides:        %{name}-devel
 Release:         %{rel_dbug}
 %if %{defined devreq_dbug}
 Requires:        %{devreq_dbug}
