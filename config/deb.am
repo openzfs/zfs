@@ -14,6 +14,7 @@ deb-local:
                 exit 1; \
 	fi)
 
+if CONFIG_KERNEL
 deb-modules: deb-local rpm-modules
 	name=${PACKAGE}-modules; \
 	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
@@ -23,7 +24,11 @@ deb-modules: deb-local rpm-modules
 	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
 	$(RM) $$pkg1 $$pkg2
+else
+deb-modules:
+endif
 
+if CONFIG_USER
 deb-utils: deb-local rpm-utils
 	name=${PACKAGE}; \
 	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
@@ -34,5 +39,8 @@ deb-utils: deb-local rpm-utils
 	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
+else
+deb-utils:
+endif
 
 deb: deb-modules deb-utils
