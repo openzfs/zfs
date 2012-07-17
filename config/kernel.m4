@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_TYPE_FMODE_T
@@ -86,7 +87,7 @@ dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	AS_IF([test -f "$modpost"], [
+	AS_IF([test "x$enable_linux_builtin" != xyes -a -f "$modpost"], [
 		AS_IF([grep -q Modules.symvers $modpost], [
 			LINUX_SYMBOLS=Modules.symvers
 		], [
@@ -191,7 +192,13 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		])
 	], [
 		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		else
+			AC_MSG_ERROR([
+	*** Cannot find UTS_RELEASE definition.
+	*** Please run 'make prepare' inside the kernel source tree.])
+		fi
 	])
 
 	AC_MSG_RESULT([$kernsrcver])
@@ -310,6 +317,25 @@ AC_DEFUN([ZFS_AC_SPL], [
 	AC_SUBST(SPL_VERSION)
 
 	ZFS_AC_SPL_MODULE_SYMVERS
+])
+
+dnl #
+dnl # Basic toolchain sanity check.
+dnl #
+AC_DEFUN([ZFS_AC_TEST_MODULE],
+	[AC_MSG_CHECKING([whether modules can be built])
+	ZFS_LINUX_TRY_COMPILE([],[],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Unable to build an empty module.])
+		else
+			AC_MSG_ERROR([
+	*** Unable to build an empty module.
+	*** Please run 'make scripts' inside the kernel source tree.])
+		fi
+	])
 ])
 
 dnl #

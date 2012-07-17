@@ -73,6 +73,11 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		AS_HELP_STRING([--with-config=CONFIG],
 		[Config file 'kernel|user|all|srpm']),
 		[ZFS_CONFIG="$withval"])
+	AC_ARG_ENABLE([linux-builtin],
+		[AC_HELP_STRING([--enable-linux-builtin],
+		[Configure for builtin in-tree kernel modules @<:@default=no@:>@])],
+		[],
+		[enable_linux_builtin=no])
 
 	AC_MSG_CHECKING([zfs config])
 	AC_MSG_RESULT([$ZFS_CONFIG]);
@@ -93,11 +98,10 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	esac
 
 	AM_CONDITIONAL([CONFIG_USER],
-	               [test "$ZFS_CONFIG" = user] ||
-	               [test "$ZFS_CONFIG" = all])
+		       [test "$ZFS_CONFIG" = user -o "$ZFS_CONFIG" = all])
 	AM_CONDITIONAL([CONFIG_KERNEL],
-	               [test "$ZFS_CONFIG" = kernel] ||
-	               [test "$ZFS_CONFIG" = all])
+		       [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
+		       [test "x$enable_linux_builtin" != xyes ])
 ])
 
 dnl #
