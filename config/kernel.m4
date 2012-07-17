@@ -484,8 +484,7 @@ dnl #
 dnl # ZFS_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
-AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
-	[AC_MSG_CHECKING([whether symbol $1 is exported])
+AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
@@ -500,14 +499,33 @@ AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
 			])
 		done
 		AS_IF([test $export -eq 0], [
-			AC_MSG_RESULT([no])
 			$4
 		], [
-			AC_MSG_RESULT([yes])
 			$3
 		])
 	], [
-		AC_MSG_RESULT([yes])
 		$3
 	])
 ])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE_SYMBOL
+dnl # like ZFS_LINUX_TRY_COMPILE, except ZFS_CHECK_SYMBOL_EXPORT
+dnl # is called if not compiling for builtin
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
+	ZFS_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
+	AS_IF([test $rc -ne 0], [
+		$6
+	], [
+		AS_IF([test "x$enable_linux_builtin" != xyes], [
+			ZFS_CHECK_SYMBOL_EXPORT([$3], [$4], [rc=0], [rc=1])
+		], [])
+		AS_IF([test $rc -ne 0], [
+			$6
+		], [
+			$5
+		])
+	])
+])
+
