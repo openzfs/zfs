@@ -13,10 +13,14 @@ sarch-utils:
 sarch: sarch-modules sarch-utils
 
 arch-modules:
+if CONFIG_KERNEL
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+endif
 
 arch-utils:
+if CONFIG_USER
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+endif
 
 arch: arch-modules arch-utils
 
