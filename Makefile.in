@@ -904,20 +904,18 @@ uninstall-am:
 	tags tags-recursive uninstall uninstall-am
 
 srpm-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
 srpm-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
 srpm: srpm-modules srpm-utils
 
 rpm-modules: srpm-modules
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
 
 rpm-utils: srpm-utils
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
 
 rpm: rpm-modules rpm-utils
 
@@ -995,25 +993,25 @@ deb-local:
 	fi)
 
 deb-modules: deb-local rpm-modules
-	name=${PACKAGE}-modules; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
-	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
-	$(RM) $$pkg1 $$pkg2
+@CONFIG_KERNEL_TRUE@	name=${PACKAGE}-modules; \
+@CONFIG_KERNEL_TRUE@	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+@CONFIG_KERNEL_TRUE@	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+@CONFIG_KERNEL_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_KERNEL_TRUE@	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
+@CONFIG_KERNEL_TRUE@	$(RM) $$pkg1 $$pkg2
 
 deb-utils: deb-local rpm-utils
-	name=${PACKAGE}; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
-	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
-	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
-	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
+@CONFIG_USER_TRUE@	name=${PACKAGE}; \
+@CONFIG_USER_TRUE@	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+@CONFIG_USER_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_USER_TRUE@	pkg1=$${name}-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
+@CONFIG_USER_TRUE@	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 
 deb: deb-modules deb-utils
 tgz-local:
@@ -1026,24 +1024,24 @@ tgz-local:
 	fi)
 
 tgz-modules: tgz-local rpm-modules
-	name=${PACKAGE}-modules; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
-	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
-	$(RM) $$pkg1 $$pkg2
+@CONFIG_KERNEL_TRUE@	name=${PACKAGE}-modules; \
+@CONFIG_KERNEL_TRUE@	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+@CONFIG_KERNEL_TRUE@	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+@CONFIG_KERNEL_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_KERNEL_TRUE@	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+@CONFIG_KERNEL_TRUE@	$(RM) $$pkg1 $$pkg2
 
 tgz-utils: tgz-local rpm-utils
-	name=${PACKAGE}; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
-	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2 $$pkg3; \
-	$(RM) $$pkg1 $$pkg2 $$pkg3
+@CONFIG_USER_TRUE@	name=${PACKAGE}; \
+@CONFIG_USER_TRUE@	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+@CONFIG_USER_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_USER_TRUE@	pkg1=$${name}-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2 $$pkg3; \
+@CONFIG_USER_TRUE@	$(RM) $$pkg1 $$pkg2 $$pkg3
 
 tgz: tgz-modules tgz-utils
 
@@ -1056,10 +1054,10 @@ sarch-utils:
 sarch: sarch-modules sarch-utils
 
 arch-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
 
 arch-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
 
 arch: arch-modules arch-utils
 

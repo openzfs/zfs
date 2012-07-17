@@ -8,6 +8,7 @@ tgz-local:
 	fi)
 
 tgz-modules: tgz-local rpm-modules
+if CONFIG_KERNEL
 	name=${PACKAGE}-modules; \
 	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
 	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
@@ -16,8 +17,10 @@ tgz-modules: tgz-local rpm-modules
 	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
 	$(RM) $$pkg1 $$pkg2
+endif
 
 tgz-utils: tgz-local rpm-utils
+if CONFIG_USER
 	name=${PACKAGE}; \
 	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
@@ -26,5 +29,6 @@ tgz-utils: tgz-local rpm-utils
 	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2 $$pkg3; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3
+endif
 
 tgz: tgz-modules tgz-utils
