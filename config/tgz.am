@@ -22,6 +22,7 @@ tgz-local:
 	fi)
 
 tgz-modules: tgz-local rpm-modules
+if CONFIG_KERNEL
 	name=${PACKAGE}-modules; \
 	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
 	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
@@ -30,13 +31,16 @@ tgz-modules: tgz-local rpm-modules
 	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
 	$(RM) $$pkg1 $$pkg2
+endif
 
 tgz-utils: tgz-local rpm-utils
+if CONFIG_USER
 	name=${PACKAGE}; \
 	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
 	$(RM) $$pkg1
+endif
 
 tgz: tgz-modules tgz-utils
