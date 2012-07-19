@@ -120,7 +120,9 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 	/*
 	 * Seed the cached statistics.
 	 */
-	VERIFY(ddt_object_info(ddt, type, class, &doi) == 0);
+	error = ddt_object_info(ddt, type, class, &doi);
+	if (error)
+		return (error);
 
 	ddo->ddo_count = ddt_object_count(ddt, type, class);
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
