@@ -225,13 +225,13 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
  * Lookup the inode with given id, it will be allocated if needed.
  */
 static struct inode *
-zfsctl_inode_lookup(zfs_sb_t *zsb, unsigned long id,
+zfsctl_inode_lookup(zfs_sb_t *zsb, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
 	struct inode *ip = NULL;
 
 	while (ip == NULL) {
-		ip = ilookup(zsb->z_sb, id);
+		ip = ilookup(zsb->z_sb, (unsigned long)id);
 		if (ip)
 			break;
 
@@ -267,10 +267,14 @@ zfsctl_inode_inactive(struct inode *ip)
  * therefore checks against a vfs_count of 2 instead of 1.  This reference
  * is removed when the ctldir is destroyed in the unmount.  All other entities
  * under the '.zfs' directory are created dynamically as needed.
+ *
+ * Because the dynamically created '.zfs' directory entries assume the use
+ * of 64-bit inode numbers this support must be disabled on 32-bit systems.
  */
 int
 zfsctl_create(zfs_sb_t *zsb)
 {
+#if defined(CONFIG_64BIT)
 	ASSERT(zsb->z_ctldir == NULL);
 
 	zsb->z_ctldir = zfsctl_inode_alloc(zsb, ZFSCTL_INO_ROOT,
@@ -279,6 +283,9 @@ zfsctl_create(zfs_sb_t *zsb)
 		return (ENOENT);
 
 	return (0);
+#else
+	return (EOPNOTSUPP);
+#endif /* CONFIG_64BIT */
 }
 
 /*
