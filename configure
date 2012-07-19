@@ -15280,14 +15280,15 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 		#include <linux/fs.h>
 
+		int show_options (struct seq_file * x, struct dentry * y) { return 0; };
+		static struct super_operations sops __attribute__ ((unused)) = {
+			.show_options = show_options,
+		};
+
 int
 main (void)
 {
 
-		int (*show_options) (struct seq_file *, struct dentry *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
-
-		sops.show_options = show_options;
 
   ;
   return 0;
@@ -21807,14 +21808,15 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 		#include <linux/fs.h>
 
+		int show_options (struct seq_file * x, struct dentry * y) { return 0; };
+		static struct super_operations sops __attribute__ ((unused)) = {
+			.show_options = show_options,
+		};
+
 int
 main (void)
 {
 
-		int (*show_options) (struct seq_file *, struct dentry *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
-
-		sops.show_options = show_options;
 
   ;
   return 0;
