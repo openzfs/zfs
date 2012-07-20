@@ -486,8 +486,8 @@ hostid_read(void)
 	if (size < sizeof(HW_HOSTID_MASK)) {
 		printk(KERN_WARNING
 		       "SPL: Ignoring the %s file because it is %llu bytes; "
-		       "expecting %lu bytes instead.\n",
-		       spl_hostid_path, size, sizeof(HW_HOSTID_MASK));
+		       "expecting %lu bytes instead.\n", spl_hostid_path,
+		       size, (unsigned long)sizeof(HW_HOSTID_MASK));
 		kobj_close_file(file);
 		return -3;
 	}
