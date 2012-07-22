@@ -75,7 +75,12 @@ static void
 zpl_evict_inode(struct inode *ip)
 {
 	truncate_setsize(ip, 0);
+#ifdef HAVE_CLEAR_INODE
+	clear_inode(ip);
+#else
 	end_writeback(ip);
+
+#endif
 	zfs_inactive(ip);
 }
 
