@@ -249,14 +249,28 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_CHECKING([spl source directory])
 	AS_IF([test -z "$splsrc"], [
+		dnl #
+		dnl # Look in the standard development package location
+		dnl #
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
-		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink], [
+		dnl #
+		dnl # Look in the DKMS source location
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
+			sourcelink=`ls -1d /var/lib/dkms/spl/*/build \
+			            2>/dev/null | tail -1`
+		])
+
+		dnl #
+		dnl # Look in the parent directory
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
 			sourcelink=../spl
 		])
 
-		AS_IF([test -e $sourcelink], [
+		AS_IF([test -e $sourcelink/spl_config.h], [
 			splsrc=`readlink -f ${sourcelink}`
 		], [
 			AC_MSG_RESULT([Not found])
