@@ -1,0 +1,136 @@
+This is a very basic ZFS unit generator, with support for boot-time generation of ZFS units of all available zpools mounted at boot time.  It is intended as a partial (and, eventually, a full) replacement for the initscript in Linux systems with systemd as the init system.
+
+WHAT IT DOES
+
+Our systemd-zfs-generator lets systemd automount any filesystem that:
+    - has a mountpoint,
+    - is set to canmount=yes,
+    - is not /sysroot or /
+    - is not set to legacy
+
+HOW IT WORKS
+
+- systemd starts up
+- systemd runs /lib/systemd/system-generators/*
+- these commands output unit files to the volatile directory /run/systemd/generator
+- systemd loads the files created by our generator as units, just as it would have loaded from /etc/systemd/system
+- in the process of starting local-fs.target, it pulls in the units for ZFS file systems created by our generator
+- finally, the standard ZFS initscript is masked with a dummy unit so as to not cause any conflicts or mount any unintended file systems by error
+
+AUTOMATIC MOUNT DEPENDENCY TRACKING
+
+This generator will cooperate with interspersed file system types registered in /etc/fstab like this:
+
+    /dev/sda3   /       ext3
+    tank/home   /home   zfs  # this works if the file system was set to legacy and registered in /etc/fstab
+    /dev/sda4   /home/user      ext4
+
+This generator will operate correctly as well, even if any ZFS file systems were not set to legacy, but rather use the usual mountpoint property; a file system arrangement like this works fine too:
+
+    /dev/sda3 is ext3 and is registered on fstab to mount on /
+    tank/home is ZFS and its mountpoint property is set to /home
+    /dev/sda4 is XFS and is registered on fstab to mount on /home/user
+
+SUPPORT FOR ZFS ON ROOT
+
+This generator will also operate correctly cooperate with systems where the root file system is on ZFS.
+
+One caveat: the root file system must be registered as the first line in /etc/fstab:
+
+    tank/RPOOL/fedora-16-root    /     zfs    defaults    0 0
+
+Of course, GRUB2 does not yet have "official" support for ZFS on root, but with the Dracut support here, plus a little bit of trickery in the grub2-mkconfig script or hand-rolling grub.cfg, it can be done just fine.  Look at the patch in the grub2/ subdirectory.
+
+AUTOMATIC MULTIBOOT SUPPORT
+
+This generator also has a very particular feature that is very useful for multi-booting Linux systems.  Suppose you have an arrangement of ZFS file systems in your pool as follows:
+
+    tank/RPOOL/fedora-16
+    (mounts on / when Fedora 16 boots)
+    tank/RPOOL/fedora-16/usr
+    (mounts on /usr when Fedora 16 boots)
+    tank/RPOOL/opensuse
+    (mounts on / when OpenSUSE boots)
+    tank/RPOOL/opensuse/var
+    (mounts on /var when OpenSUSE boots)
+
+Using the regular zfs mount -a command, this would obviously not work, because OpenSUSE's /var would be mounted atop Fedora's /var whenever you booted with Fedora, and vice versa.  So far, the traditional solution has been to set the operating system file systems like /var or /usr/local to legacy, and then to register them in the appopriate /etc/fstab files for each operating system.
+
+To prevent this situation, this generator incorporates a very clever exclusion algorithm.  It will make systemd mount all file systems that are mountable, *except for those* that belong to operating systems other than the one being booted.
+
+In other words: if you have a pool that contains a file system named ROOT or RPOOL, and this file system contains several subfilesystems, where each immediate child corresponds to an OS root file system you have installed, it will automatically skip mounting all file systems that do *not* belong to the operating system (that is to say, it will not mount any file system that is beneath the RPOOL but not beneath the root file system you are using in that moment).
+
+Explained with an example:
+
+    tank/RPOOL/fedora-16  (mountpoint /)
+    tank/RPOOL/fedora-16/usr  (mountpoint /usr)
+    tank/RPOOL/opensuse  (mountpoint /)
+    tank/RPOOL/opensuse/usr  (mountpoint /usr)
+    tank/home  (mountpoint /home)
+
+In this case, when booting Fedora 16, tank/RPOOL/fedora-16, tank/RPOOL/fedora-16/usr and tank/home will be mounted on boot.  Conversely, when booting OpenSUSE, tank/RPOOL/opensuse, tank/RPOOL/opensuse/usr and tank/home will be mounted on boot.  This way, you run *zero* risk of getting file systems mixed up, and potentially losing data as a result.
+
+This enables extremely practical uses for ZFS.  For example, you can recursively clone your operating system from tank/RPOOL/fedora-16 to tank/RPOOL/fedora-17, reboot with tank/RPOOL/fedora-17 as root file system, then perform a potentially dangerous upgrade.  As expected, nothing in tank/RPOOL/fedora-16 will be touched during the upgrade.
+
+HOW TO USE
+
+1. ./configure
+2. make
+3. make install
+4. reboot
+
+TODO:
+
+- support mounting of pools backed by cryptsetup or other storage devices detected late in the boot process; right now it only works with whatever pools are available at VERY EARLY boot time, possibly even before all block devices are set up.  Maybe this is a role that can be fulfilled by the traditional initscript, or a different unit file that uses the logic built-in to the ZFS toolset; plan:
+	create a unit file zfs-late.service
+
+	executes:
+	zpool import -a
+	zfs mount -a
+
+	must run before local-fs.target
+
+	must be wanted by local-fs.target
+
+	must run after all known early zfs filesystem units have been mounted
+
+	must run after fedora-storage-init-late.service
+
+- do not parse /etc/fstab -- rather ask systemd for discovered mount units and use that information instead
+  key for this point is to find a way (use systemctl --no-block?) to get data on existing units from inside the generator without deadlocking
+- properly regen/reload autogenerated units when mountpoint and canmount properties are changed
+  - systemctl stop involved mountpoints
+  - change properties
+  - regenerate units
+  - systemctl start involved mountpoints
+- properly regen/reload autogenerated units (and their dependencies) when zpools are imported / exported
+  (doable with systemctl daemon-reload, worth doing it that way?)
+- properly handle two file systems that have the same mountpoint property
+  (probably they are on different pools)
+- support zfs share / unshare (I think it does that by default)
+- respect the noauto property (create unit, but do not create symlink for that
+  file system in local-fs.target.wants, skip it from the Requires list of all other
+  ZFS file system units. atm we skip creating the unit)
+- parse all existing file system units to get more file system dependencies
+  at the moment we only parse fstab
+- register ALL available zvols as device units
+  (maybe this is done automatically by udev?)
+- find a way to export pools at shutdown (probably involves pivot_root)
+- MAYBE: use automount units to make ZFS mount file systems on demand, rather than
+  at boot up, as they are discovered
+  (potential to speed boot up even more)
+- MAYBE: dynamic regeneration of units every time a zfs create / zfs rename / zfs destroy is done
+- MAYBE: redirect mounting of file systems when `zfs mount` or `zfs create`  happens, shunting it
+  to `systemctl start`
+  this item may not be necessary, if we ascertain that systemd automatically updates
+  the status of units based on zfs umount
+- MAYBE: redirect unmounting of a file system to `systemctl stop`
+  this item nay not be necessary (see list item above this one)
+- fix grub2-mkconfig
+- the systemd support masks out the initscript, so if we do something important in the initscript, it might need to be moved to independent unit files that we must install.
+  For example, the NFS exports should happen after all the relevant unit files have loaded, while the SMB exports should happen only after smb.service has successfully started.
+- we may need a systemd unit file that does late importing and mounting of other filesystems.
+  this should happen after all storage has been initialized, such that pools not discovered at early boot, or pools backed by encrypted LUKS block devices, will be mounted as well.
+  I will ask lennart which unit file to depend on.  This specific unit, however, should *not* rely on zfs mount -a altogether, since this would conflict with the multiboot logic.
+
+But, all in all, this works.
