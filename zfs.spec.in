@@ -7,6 +7,11 @@
 %define _datadir         /usr/share
 %define _includedir      /usr/include
 %define _udevdir         /lib/udev
+%if %{defined fc17}
+%define _dracutdir       /usr/lib/dracut
+%else
+%define _dracutdir       /usr/share/dracut
+%endif
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
@@ -62,7 +67,7 @@ which are ZFS aware.
 %prep
 %setup
 %build
-%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir}
+%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir} --with-dracutdir=%{_dracutdir}
 make
 
 %install

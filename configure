@@ -802,6 +802,7 @@ LIBUUID
 ZLIB
 udevruledir
 udevdir
+dracutdir
 KERNELCPPFLAGS
 KERNELMAKE_PARAMS
 SPL_SYMBOLS
@@ -985,6 +986,7 @@ with_linux
 with_linux_obj
 with_spl
 with_spl_obj
+with_dracutdir
 with_udevdir
 with_udevruledir
 with_blkid
@@ -1657,6 +1659,7 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-dracutdir=DIR    install dracut helpers [[EPREFIX/lib/dracut]]
   --with-udevdir=DIR      install udev helpers [EPREFIX/lib/udev]
   --with-udevruledir=DIR  install udev rules [UDEVDIR/rules.d]
   --with-blkid            support blkid caching [default=check]
@@ -17014,6 +17017,18 @@ fi
 		user)
 
 
+# Check whether --with-dracutdir was given.
+if test "${with_dracutdir+set}" = set; then :
+  withval=$with_dracutdir; dracutdir=$withval
+else
+  dracutdir='${exec_prefix}/lib/dracut'
+fi
+
+
+
+
+
+
 # Check whether --with-udevdir was given.
 if test "${with_udevdir+set}" = set; then
   withval=$with_udevdir; udevdir=$withval
@@ -23536,6 +23551,18 @@ fi
 			KERNELCPPFLAGS="$KERNELCPPFLAGS $NO_UNUSED_BUT_SET_VARIABLE"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DHAVE_SPL -D_KERNEL"
 	KERNELCPPFLAGS="$KERNELCPPFLAGS -DTEXT_DOMAIN=\\\"zfs-linux-kernel\\\""
+
+
+
+
+
+
+# Check whether --with-dracutdir was given.
+if test "${with_dracutdir+set}" = set; then :
+  withval=$with_dracutdir; dracutdir=$withval
+else
+  dracutdir='${exec_prefix}/lib/dracut'
+fi
 
 
 

@@ -89,6 +89,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-xattr-handler.m4 \
 	$(top_srcdir)/config/kernel.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
+	$(top_srcdir)/config/user-dracut.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
 	$(top_srcdir)/config/user-ioctl.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
@@ -278,6 +279,7 @@ builddir = @builddir@
 datadir = @datadir@
 datarootdir = @datarootdir@
 docdir = @docdir@
+dracutdir = @dracutdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 host = @host@
@@ -315,15 +317,17 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-pkgdracutdir = $(datadir)/dracut/modules.d/90zfs
+pkgdracutdir = $(dracutdir)/modules.d/90zfs
 pkgdracut_SCRIPTS = \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh \
+	$(top_srcdir)/dracut/90zfs/export-zfs.sh \
 	$(top_srcdir)/dracut/90zfs/parse-zfs.sh
 
 EXTRA_DIST = \
 	$(top_srcdir)/dracut/90zfs/module-setup.sh.in \
 	$(top_srcdir)/dracut/90zfs/mount-zfs.sh.in \
+	$(top_srcdir)/dracut/90zfs/export-zfs.sh.in \
 	$(top_srcdir)/dracut/90zfs/parse-zfs.sh.in
 
 all: all-am
@@ -552,6 +556,8 @@ uninstall-am: uninstall-pkgdracutSCRIPTS
 $(pkgdracut_SCRIPTS):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
 		-e 's,@sbindir\@,$(sbindir),g' \
+		-e 's,@datadir\@,$(datadir),g' \
+		-e 's,@dracutdir\@,$(dracutdir),g' \
 		-e 's,@udevdir\@,$(udevdir),g' \
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \

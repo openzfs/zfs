@@ -46,7 +46,7 @@ case "$root" in
 			# Should have an explicit pool set, so just import it and we're done.
 			zfsbootfs="${root#zfs:}"
 			pool="${zfsbootfs%%/*}"
-			if ! zpool list -H $pool > /dev/null ; then
+			if ! zpool list -H $pool > /dev/null 2>&1 ; then
 				# pool wasn't imported automatically by the kernel module, so
 				# try it manually.
 				info "ZFS: Importing pool ${pool}..."
@@ -66,6 +66,17 @@ case "$root" in
 			mount -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
 		else
 			mount -o zfsutil -t zfs "$zfsbootfs" "$NEWROOT" && ROOTFS_MOUNTED=yes
+		fi
+
+		# Now we will try to mount /usr early, if there is any /usr partition
+		# This will only trigger if /usr is a child file system of the root file system
+		zfsusrfs=`zfs list -H -o mountpoint,name | grep '^/usr	' | grep -m 1 -F "	$zfsbootfs" | sed 's|^/usr	||'`
+		if [ -n "$zfsusrfs" ] ; then
+			# There appears to be a dataset aimed to mount at /usr
+			# which is a child of the dataset that goes on /
+			if zfs get canmount "$zfsusrfs" | grep -q '  canmount  on' ; then
+				mount -o zfsutil -t zfs "$zfsusrfs" "$NEWROOT/usr"
+			fi
 		fi
 		;;
 esac
