@@ -122,7 +122,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files dracut
 %defattr(-,root,root)
-%{_datadir}/dracut/*
+%{_dracutdir}/*
 
 %files systemd
 %defattr(-,root,root)
