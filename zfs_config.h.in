@@ -162,6 +162,9 @@
 /* fops->fallocate() exists */
 #undef HAVE_INODE_FALLOCATE
 
+/* iops->truncate_range() exists */
+#undef HAVE_INODE_TRUNCATE_RANGE
+
 /* insert_inode_locked() is available */
 #undef HAVE_INSERT_INODE_LOCKED
 
