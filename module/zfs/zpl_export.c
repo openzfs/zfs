@@ -30,10 +30,15 @@
 
 
 static int
+#ifdef HAVE_ENCODE_FH_WITH_INODE
+zpl_encode_fh(struct inode *ip, __u32 *fh, int *max_len, struct inode *parent)
+{
+#else
 zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 {
-	fid_t *fid = (fid_t *)fh;
 	struct inode *ip = dentry->d_inode;
+#endif /* HAVE_ENCODE_FH_WITH_INODE */
+	fid_t *fid = (fid_t *)fh;
 	int len_bytes, rc;
 
 	len_bytes = *max_len * sizeof (__u32);

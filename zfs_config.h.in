@@ -126,6 +126,9 @@
 /* d_obtain_alias() is available */
 #undef HAVE_D_OBTAIN_ALIAS
 
+/* eops->encode_fh() wants child and parent inodes */
+#undef HAVE_ENCODE_FH_WITH_INODE
+
 /* sops->evict_inode() exists */
 #undef HAVE_EVICT_INODE
 
