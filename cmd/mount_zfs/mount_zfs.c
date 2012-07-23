@@ -312,7 +312,7 @@ main(int argc, char **argv)
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
 	char *dataset, *mntpoint;
-	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0;
+	unsigned long mntflags = 0, zfsflags = 0, remount_ro = 0, remount_root = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
 
@@ -423,6 +423,9 @@ main(int argc, char **argv)
 	if ((mntflags & MS_REMOUNT) && (mntflags & MS_RDONLY))
 		remount_ro = 1;
 
+	if ((mntflags & MS_REMOUNT) && (strcmp(mntpoint,"/") == 0))
+		remount_root = 1;
+
 	if (zfsflags & ZS_ZFSUTIL)
 		zfsutil = 1;
 
@@ -457,6 +460,9 @@ main(int argc, char **argv)
 	 * The only exception to the above rule is '-o remount,ro'.  This is
 	 * always allowed for non-legacy datasets for rc.sysinit/umountroot
 	 * to safely remount the root filesystem and flush its cache.
+	 * 
+	 * I have added an exception for remounting the root file system, as
+	 * many distributions do on boot.  This helps with ZFS-on-root.
 	 */
 	if (zfsutil && !strcmp(legacy, ZFS_MOUNTPOINT_LEGACY)) {
 		(void) fprintf(stderr, gettext(
@@ -467,7 +473,7 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) && !remount_ro) {
+	if (!zfsutil && strcmp(legacy, ZFS_MOUNTPOINT_LEGACY) && !remount_ro && !remount_root) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"

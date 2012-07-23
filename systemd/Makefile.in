@@ -15,6 +15,7 @@
 
 @SET_MAKE@
 
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -35,10 +36,9 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(top_srcdir)/config/Rules.am
-sbin_PROGRAMS = ztest$(EXEEXT)
-subdir = cmd/ztest
+systemd_PROGRAMS = systemdescaper$(EXEEXT)
+subdir = systemd
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/always-no-unused-but-set-variable.m4 \
@@ -65,17 +65,14 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
 	$(top_srcdir)/config/kernel-blkdev-get-by-path.m4 \
-	$(top_srcdir)/config/kernel-blkdev-get.m4 \
 	$(top_srcdir)/config/kernel-check-disk-size-change.m4 \
 	$(top_srcdir)/config/kernel-create-umode-t.m4 \
-	$(top_srcdir)/config/kernel-d-make-root.m4 \
 	$(top_srcdir)/config/kernel-d-obtain-alias.m4 \
 	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fallocate.m4 \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
 	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
-	$(top_srcdir)/config/kernel-get-gendisk.m4 \
 	$(top_srcdir)/config/kernel-insert-inode-locked.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
@@ -108,20 +105,38 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/zfs_config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__installdirs = "$(DESTDIR)$(sbindir)"
-PROGRAMS = $(sbin_PROGRAMS)
-am_ztest_OBJECTS = ztest.$(OBJEXT)
-ztest_OBJECTS = $(am_ztest_OBJECTS)
-ztest_DEPENDENCIES = $(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+am__installdirs = "$(DESTDIR)$(systemddir)" \
+	"$(DESTDIR)$(systemdgeneratordir)"
+PROGRAMS = $(systemd_PROGRAMS)
+am_systemdescaper_OBJECTS = systemdescaper.$(OBJEXT)
+systemdescaper_OBJECTS = $(am_systemdescaper_OBJECTS)
+systemdescaper_LDADD = $(LDADD)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
-ztest_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(ztest_LDFLAGS) $(LDFLAGS) -o $@
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
+am__install_max = 40
+am__nobase_strip_setup = \
+  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
+am__nobase_strip = \
+  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
+am__nobase_list = $(am__nobase_strip_setup); \
+  for p in $$list; do echo "$$p $$p"; done | \
+  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
+  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
+    if (++n[$$2] == $(am__install_max)) \
+      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
+    END { for (dir in files) print dir, files[dir] }'
+am__base_list = \
+  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
+  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
+SCRIPTS = $(systemdgenerator_SCRIPTS)
+DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -147,8 +162,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(ztest_SOURCES)
-DIST_SOURCES = $(ztest_SOURCES)
+SOURCES = $(systemdescaper_SOURCES)
+DIST_SOURCES = $(systemdescaper_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -334,30 +349,21 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 udevdir = @udevdir@
 udevruledir = @udevruledir@
-DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h \
-	-I$(top_srcdir)/include -I$(top_srcdir)/lib/libspl/include
-AM_LIBTOOLFLAGS = --silent
-AM_CFLAGS = -Wall -Wstrict-prototypes -fno-strict-aliasing \
-	${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -D_GNU_SOURCE \
-	-D__EXTENSIONS__ -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS \
-	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE \
-	-DTEXT_DOMAIN=\"zfs-linux-user\" $(DEBUG_STACKFLAGS) \
-	$(FRAME_LARGER_THAN)
-ztest_SOURCES = \
-	$(top_srcdir)/cmd/ztest/ztest.c
+systemdgeneratordir = $(systemddir)/system-generators
+systemdescaper_SOURCES = \
+	$(top_srcdir)/systemd/systemdescaper.c
 
-ztest_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+systemdgenerator_SCRIPTS = \
+	$(top_srcdir)/systemd/systemd-zfs-generator
 
-ztest_LDFLAGS = -pthread -lm $(ZLIB) -lrt -ldl $(LIBUUID) $(LIBBLKID)
+EXTRA_DIST = \
+	$(top_srcdir)/systemd/systemd-zfs-generator.in $(top_srcdir)/systemd/README.systemd
+
 all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .o .obj
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/config/Rules.am $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -366,9 +372,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu cmd/ztest/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu systemd/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu cmd/ztest/Makefile
+	  $(AUTOMAKE) --gnu systemd/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -387,10 +393,10 @@ $(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-sbinPROGRAMS: $(sbin_PROGRAMS)
+install-systemdPROGRAMS: $(systemd_PROGRAMS)
 	@$(NORMAL_INSTALL)
-	test -z "$(sbindir)" || $(MKDIR_P) "$(DESTDIR)$(sbindir)"
-	@list='$(sbin_PROGRAMS)'; test -n "$(sbindir)" || list=; \
+	test -z "$(systemddir)" || $(MKDIR_P) "$(DESTDIR)$(systemddir)"
+	@list='$(systemd_PROGRAMS)'; test -n "$(systemddir)" || list=; \
 	for p in $$list; do echo "$$p $$p"; done | \
 	sed 's/$(EXEEXT)$$//' | \
 	while read p p1; do if test -f $$p || test -f $$p1; \
@@ -407,32 +413,66 @@ install-sbinPROGRAMS: $(sbin_PROGRAMS)
 	while read type dir files; do \
 	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
 	    test -z "$$files" || { \
-	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(sbindir)$$dir'"; \
-	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(sbindir)$$dir" || exit $$?; \
+	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(systemddir)$$dir'"; \
+	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(systemddir)$$dir" || exit $$?; \
 	    } \
 	; done
 
-uninstall-sbinPROGRAMS:
+uninstall-systemdPROGRAMS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(sbin_PROGRAMS)'; test -n "$(sbindir)" || list=; \
+	@list='$(systemd_PROGRAMS)'; test -n "$(systemddir)" || list=; \
 	files=`for p in $$list; do echo "$$p"; done | \
 	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
 	      -e 's/$$/$(EXEEXT)/' `; \
 	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(sbindir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(sbindir)" && rm -f $$files
+	echo " ( cd '$(DESTDIR)$(systemddir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(systemddir)" && rm -f $$files
 
-clean-sbinPROGRAMS:
-	@list='$(sbin_PROGRAMS)'; test -n "$$list" || exit 0; \
+clean-systemdPROGRAMS:
+	@list='$(systemd_PROGRAMS)'; test -n "$$list" || exit 0; \
 	echo " rm -f" $$list; \
 	rm -f $$list || exit $$?; \
 	test -n "$(EXEEXT)" || exit 0; \
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
-ztest$(EXEEXT): $(ztest_OBJECTS) $(ztest_DEPENDENCIES) 
-	@rm -f ztest$(EXEEXT)
-	$(AM_V_CCLD)$(ztest_LINK) $(ztest_OBJECTS) $(ztest_LDADD) $(LIBS)
+systemdescaper$(EXEEXT): $(systemdescaper_OBJECTS) $(systemdescaper_DEPENDENCIES) 
+	@rm -f systemdescaper$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(systemdescaper_OBJECTS) $(systemdescaper_LDADD) $(LIBS)
+install-systemdgeneratorSCRIPTS: $(systemdgenerator_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	test -z "$(systemdgeneratordir)" || $(MKDIR_P) "$(DESTDIR)$(systemdgeneratordir)"
+	@list='$(systemdgenerator_SCRIPTS)'; test -n "$(systemdgeneratordir)" || list=; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  if test -f "$$d$$p"; then echo "$$d$$p"; echo "$$p"; else :; fi; \
+	done | \
+	sed -e 'p;s,.*/,,;n' \
+	    -e 'h;s|.*|.|' \
+	    -e 'p;x;s,.*/,,;$(transform)' | sed 'N;N;N;s,\n, ,g' | \
+	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1; } \
+	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
+	    if ($$2 == $$4) { files[d] = files[d] " " $$1; \
+	      if (++n[d] == $(am__install_max)) { \
+		print "f", d, files[d]; n[d] = 0; files[d] = "" } } \
+	    else { print "f", d "/" $$4, $$1 } } \
+	  END { for (d in files) print "f", d, files[d] }' | \
+	while read type dir files; do \
+	     if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
+	     test -z "$$files" || { \
+	       echo " $(INSTALL_SCRIPT) $$files '$(DESTDIR)$(systemdgeneratordir)$$dir'"; \
+	       $(INSTALL_SCRIPT) $$files "$(DESTDIR)$(systemdgeneratordir)$$dir" || exit $$?; \
+	     } \
+	; done
+
+uninstall-systemdgeneratorSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(systemdgenerator_SCRIPTS)'; test -n "$(systemdgeneratordir)" || exit 0; \
+	files=`for p in $$list; do echo "$$p"; done | \
+	       sed -e 's,.*/,,;$(transform)'`; \
+	test -n "$$list" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(systemdgeneratordir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(systemdgeneratordir)" && rm -f $$files
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -440,7 +480,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ztest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/systemdescaper.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -466,21 +506,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-ztest.o: $(top_srcdir)/cmd/ztest/ztest.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ztest.o -MD -MP -MF $(DEPDIR)/ztest.Tpo -c -o ztest.o `test -f '$(top_srcdir)/cmd/ztest/ztest.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/ztest/ztest.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ztest.Tpo $(DEPDIR)/ztest.Po
+systemdescaper.o: $(top_srcdir)/systemd/systemdescaper.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT systemdescaper.o -MD -MP -MF $(DEPDIR)/systemdescaper.Tpo -c -o systemdescaper.o `test -f '$(top_srcdir)/systemd/systemdescaper.c' || echo '$(srcdir)/'`$(top_srcdir)/systemd/systemdescaper.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/systemdescaper.Tpo $(DEPDIR)/systemdescaper.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/ztest/ztest.c' object='ztest.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/systemd/systemdescaper.c' object='systemdescaper.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ztest.o `test -f '$(top_srcdir)/cmd/ztest/ztest.c' || echo '$(srcdir)/'`$(top_srcdir)/cmd/ztest/ztest.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o systemdescaper.o `test -f '$(top_srcdir)/systemd/systemdescaper.c' || echo '$(srcdir)/'`$(top_srcdir)/systemd/systemdescaper.c
 
-ztest.obj: $(top_srcdir)/cmd/ztest/ztest.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ztest.obj -MD -MP -MF $(DEPDIR)/ztest.Tpo -c -o ztest.obj `if test -f '$(top_srcdir)/cmd/ztest/ztest.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/ztest/ztest.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/ztest/ztest.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ztest.Tpo $(DEPDIR)/ztest.Po
+systemdescaper.obj: $(top_srcdir)/systemd/systemdescaper.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT systemdescaper.obj -MD -MP -MF $(DEPDIR)/systemdescaper.Tpo -c -o systemdescaper.obj `if test -f '$(top_srcdir)/systemd/systemdescaper.c'; then $(CYGPATH_W) '$(top_srcdir)/systemd/systemdescaper.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/systemd/systemdescaper.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/systemdescaper.Tpo $(DEPDIR)/systemdescaper.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/cmd/ztest/ztest.c' object='ztest.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(top_srcdir)/systemd/systemdescaper.c' object='systemdescaper.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ztest.obj `if test -f '$(top_srcdir)/cmd/ztest/ztest.c'; then $(CYGPATH_W) '$(top_srcdir)/cmd/ztest/ztest.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/cmd/ztest/ztest.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o systemdescaper.obj `if test -f '$(top_srcdir)/systemd/systemdescaper.c'; then $(CYGPATH_W) '$(top_srcdir)/systemd/systemdescaper.c'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/systemd/systemdescaper.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -572,9 +612,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(PROGRAMS) $(SCRIPTS)
 installdirs:
-	for dir in "$(DESTDIR)$(sbindir)"; do \
+	for dir in "$(DESTDIR)$(systemddir)" "$(DESTDIR)$(systemdgeneratordir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -604,14 +644,14 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-sbinPROGRAMS \
-	mostlyclean-am
+clean-am: clean-generic clean-libtool clean-local \
+	clean-systemdPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
-	distclean-tags
+	distclean-local distclean-tags
 
 dvi: dvi-am
 
@@ -625,13 +665,14 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-systemdPROGRAMS \
+	install-systemdgeneratorSCRIPTS
 
 install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-sbinPROGRAMS
+install-exec-am:
 
 install-html: install-html-am
 
@@ -671,24 +712,41 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-sbinPROGRAMS
+uninstall-am: uninstall-systemdPROGRAMS \
+	uninstall-systemdgeneratorSCRIPTS
 
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-sbinPROGRAMS ctags distclean \
-	distclean-compile distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-sbinPROGRAMS install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
+	clean-libtool clean-local clean-systemdPROGRAMS ctags \
+	distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-local distclean-tags distdir dvi \
+	dvi-am html html-am info info-am install install-am \
+	install-data install-data-am install-dvi install-dvi-am \
+	install-exec install-exec-am install-html install-html-am \
+	install-info install-info-am install-man install-pdf \
+	install-pdf-am install-ps install-ps-am install-strip \
+	install-systemdPROGRAMS install-systemdgeneratorSCRIPTS \
+	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-sbinPROGRAMS
+	tags uninstall uninstall-am uninstall-systemdPROGRAMS \
+	uninstall-systemdgeneratorSCRIPTS
 
+
+$(systemdgenerator_SCRIPTS):
+	-$(SED) -e 's,@bindir\@,$(bindir),g' \
+		-e 's,@sbindir\@,$(sbindir),g' \
+		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+		-e 's,@systemddir\@,$(systemddir),g' \
+		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
+		'$@.in' >'$@' && chmod +x '$@'
+
+distclean-local::
+	-$(RM) $(systemdgenerator_SCRIPTS)
+
+clean-local::
+	-$(RM) $(systemdgenerator_SCRIPTS)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

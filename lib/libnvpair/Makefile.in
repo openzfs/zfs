@@ -96,6 +96,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-nptl_guard_within_stack.m4 \
 	$(top_srcdir)/config/user-selinux.m4 \
+	$(top_srcdir)/config/user-systemd.m4 \
 	$(top_srcdir)/config/user-udev.m4 \
 	$(top_srcdir)/config/user-zlib.m4 $(top_srcdir)/config/user.m4 \
 	$(top_srcdir)/config/zfs-build.m4 \
@@ -197,6 +198,7 @@ DEFAULT_INIT_SCRIPT = @DEFAULT_INIT_SCRIPT@
 DEFAULT_PACKAGE = @DEFAULT_PACKAGE@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLTOOL = @DLLTOOL@
 DPKG = @DPKG@
 DPKGBUILD = @DPKGBUILD@
 DPKGBUILD_VERSION = @DPKGBUILD_VERSION@
@@ -244,6 +246,7 @@ MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MAKEPKG = @MAKEPKG@
 MAKEPKG_VERSION = @MAKEPKG_VERSION@
+MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -257,6 +260,7 @@ PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
+PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PACMAN = @PACMAN@
 PACMAN_VERSION = @PACMAN_VERSION@
@@ -293,6 +297,7 @@ abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
+ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 am__include = @am__include@
@@ -325,7 +330,6 @@ libdir = @libdir@
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
-lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
@@ -337,6 +341,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
 sysconfdir = @sysconfdir@
+systemddir = @systemddir@
 target = @target@
 target_alias = @target_alias@
 target_cpu = @target_cpu@
