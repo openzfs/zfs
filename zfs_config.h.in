@@ -105,6 +105,9 @@
 /* check_disk_size_change() is available */
 #undef HAVE_CHECK_DISK_SIZE_CHANGE
 
+/* clear_inode() is available */
+#undef HAVE_CLEAR_INODE
+
 /* super_block uses const struct xattr_hander */
 #undef HAVE_CONST_XATTR_HANDLER
 

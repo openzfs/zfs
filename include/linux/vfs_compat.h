@@ -121,4 +121,14 @@ typedef	umode_t		zpl_umode_t;
 typedef	int		zpl_umode_t;
 #endif
 
+/*
+ * 3.5 API change,
+ * The clear_inode() function replaces end_writeback() and introduces an
+ * ordering change regarding when the inode_sync_wait() occurs.  See the
+ * configure check in config/kernel-clear-inode.m4 for full details.
+ */
+#if defined(HAVE_EVICT_INODE) && !defined(HAVE_CLEAR_INODE)
+#define clear_inode(ip)		end_writeback(ip)
+#endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
+
 #endif /* _ZFS_VFS_H */
