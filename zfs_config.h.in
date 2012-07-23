@@ -9,6 +9,9 @@
 /* bio_end_io_t wants 2 args */
 #undef HAVE_2ARGS_BIO_END_IO_T
 
+/* blkdev_get() wants 3 args */
+#undef HAVE_3ARG_BLKDEV_GET
+
 /* security_inode_init_security wants 6 args */
 #undef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
 
@@ -146,6 +149,9 @@
 
 /* blk_disk_ro() is available */
 #undef HAVE_GET_DISK_RO
+
+/* get_gendisk() is available */
+#undef HAVE_GET_GENDISK
 
 /* Define to 1 if licensed under the GPL */
 #undef HAVE_GPL_ONLY_SYMBOLS

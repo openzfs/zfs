@@ -6,11 +6,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SHOW_OPTIONS], [
 
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
-	],[
-		int (*show_options) (struct seq_file *, struct dentry *) = NULL;
-		struct super_operations sops __attribute__ ((unused));
 
-		sops.show_options = show_options;
+		int show_options (struct seq_file * x, struct dentry * y) { return 0; };
+		static struct super_operations sops __attribute__ ((unused)) = {
+			.show_options = show_options,
+		};
+	],[
 	],[
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_SHOW_OPTIONS_WITH_DENTRY, 1,

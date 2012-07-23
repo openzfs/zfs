@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -136,7 +137,8 @@ struct spa {
 	objset_t	*spa_meta_objset;	/* copy of dp->dp_meta_objset */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
-	uint64_t	spa_load_guid;		/* initial guid for spa_load */
+	uint64_t	spa_config_guid;	/* config pool guid */
+	uint64_t	spa_load_guid;		/* spa_load initialized guid */
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
 	spa_aux_vdev_t	spa_spares;		/* hot spares */

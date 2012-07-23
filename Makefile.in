@@ -45,11 +45,11 @@ DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/PKGBUILD-zfs-modules.in $(srcdir)/PKGBUILD-zfs.in \
 	$(srcdir)/zfs-modules.spec.in \
-	$(srcdir)/zfs-script-config.sh.in $(srcdir)/zfs.spec.in \
-	$(srcdir)/zfs_config.h.in $(top_srcdir)/config/arch.am \
-	$(top_srcdir)/config/deb.am $(top_srcdir)/config/rpm.am \
-	$(top_srcdir)/config/tgz.am $(top_srcdir)/configure \
-	$(top_srcdir)/module/Makefile.in \
+	$(srcdir)/zfs-script-config.sh.in $(srcdir)/zfs.release.in \
+	$(srcdir)/zfs.spec.in $(srcdir)/zfs_config.h.in \
+	$(top_srcdir)/config/arch.am $(top_srcdir)/config/deb.am \
+	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
+	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/avl/Makefile.in \
 	$(top_srcdir)/module/nvpair/Makefile.in \
 	$(top_srcdir)/module/unicode/Makefile.in \
@@ -85,6 +85,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-blk-rq-pos.m4 \
 	$(top_srcdir)/config/kernel-blk-rq-sectors.m4 \
 	$(top_srcdir)/config/kernel-blkdev-get-by-path.m4 \
+	$(top_srcdir)/config/kernel-blkdev-get.m4 \
 	$(top_srcdir)/config/kernel-check-disk-size-change.m4 \
 	$(top_srcdir)/config/kernel-create-umode-t.m4 \
 	$(top_srcdir)/config/kernel-d-make-root.m4 \
@@ -94,6 +95,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-fmode-t.m4 \
 	$(top_srcdir)/config/kernel-fsync.m4 \
 	$(top_srcdir)/config/kernel-get-disk-ro.m4 \
+	$(top_srcdir)/config/kernel-get-gendisk.m4 \
 	$(top_srcdir)/config/kernel-insert-inode-locked.m4 \
 	$(top_srcdir)/config/kernel-invalidate-bdev-args.m4 \
 	$(top_srcdir)/config/kernel-kobj-name-len.m4 \
@@ -130,7 +132,7 @@ CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/nvpair/Makefile module/unicode/Makefile \
 	module/zcommon/Makefile module/zfs/Makefile \
 	module/zpios/Makefile zfs.spec zfs-modules.spec PKGBUILD-zfs \
-	PKGBUILD-zfs-modules zfs-script-config.sh
+	PKGBUILD-zfs-modules zfs-script-config.sh zfs.release
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -383,7 +385,7 @@ EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
 	config/config.awk config/rpm.am config/deb.am config/tgz.am \
 	META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE \
 	ZFS.RELEASE
-noinst_HEADERS = zfs_config.h
+noinst_HEADERS = zfs_config.h zfs.release
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -462,6 +464,8 @@ PKGBUILD-zfs: $(top_builddir)/config.status $(srcdir)/PKGBUILD-zfs.in
 PKGBUILD-zfs-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-zfs-modules.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs-script-config.sh: $(top_builddir)/config.status $(srcdir)/zfs-script-config.sh.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+zfs.release: $(top_builddir)/config.status $(srcdir)/zfs.release.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -1096,7 +1100,6 @@ distclean-local::
 @CONFIG_KERNEL_TRUE@install-data-local:
 @CONFIG_KERNEL_TRUE@	release=$(ZFS_META_VERSION)-$(ZFS_META_RELEASE); \
 @CONFIG_KERNEL_TRUE@	instdest=$(DESTDIR)/usr/src/zfs-$$release/$(LINUX_VERSION); \
-@CONFIG_KERNEL_TRUE@	echo "$$release" >$$instdest/zfs.release; \
 @CONFIG_KERNEL_TRUE@	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
 @CONFIG_KERNEL_TRUE@		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
 @CONFIG_KERNEL_TRUE@	done

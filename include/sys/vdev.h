@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -48,7 +49,7 @@ extern int zfs_nocacheflush;
 extern int vdev_open(vdev_t *);
 extern void vdev_open_children(vdev_t *);
 extern boolean_t vdev_uses_zvols(vdev_t *);
-extern int vdev_validate(vdev_t *);
+extern int vdev_validate(vdev_t *, boolean_t);
 extern void vdev_close(vdev_t *);
 extern int vdev_create(vdev_t *, uint64_t txg, boolean_t isreplace);
 extern void vdev_reopen(vdev_t *);
