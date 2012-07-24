@@ -1,3 +1,9 @@
+if INSTALL_DRACUT
+DRACUT_PKG = pkg4=$${name}-dracut-$${version}.$${arch}.rpm;
+else
+DRACUT_PKG = 
+endif
+
 deb-local:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \
@@ -30,8 +36,7 @@ deb-utils: deb-local rpm-utils
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
-	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
-	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
+	pkg3=$${name}-test-$${version}.$${arch}.rpm; $(DRACUT_PKG) \
 	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 

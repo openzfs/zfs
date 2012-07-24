@@ -1,3 +1,7 @@
+if INSTALL_DRACUT
 SUBDIRS = 90zfs
+endif
+
+DIST_SUBDIRS = 90zfs
 
 EXTRA_DIST = README.dracut.markdown
