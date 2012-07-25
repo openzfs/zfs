@@ -136,3 +136,15 @@ exit 0
 %preun
 [ "$1" = 0 ] && [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
 exit 0
+
+%post dracut
+[ "$1" = 1 ] && {
+	for kernel in /boot/vmlinuz-* ; do
+		kernel=`echo "$kernel" | sed -r 's|^/boot/vmlinuz-(.*)|\1|'`
+		if [ -f "/boot/initramfs-$kernel.img" -a -x  /sbin/new-kernel-pkg ] ; then
+			/sbin/new-kernel-pkg --package kernel --mkinitrd --dracut --depmod --update "$kernel" || continue
+			/sbin/new-kernel-pkg --package kernel --rpmposttrans "$kernel" || continue
+		fi
+	done
+}
+exit 0
