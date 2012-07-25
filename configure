@@ -802,6 +802,8 @@ LIBUUID
 ZLIB
 udevruledir
 udevdir
+dracutdir
+systemddir
 KERNELCPPFLAGS
 KERNELMAKE_PARAMS
 SPL_SYMBOLS
@@ -985,6 +987,8 @@ with_linux
 with_linux_obj
 with_spl
 with_spl_obj
+with_systemddir
+with_dracutdir
 with_udevdir
 with_udevruledir
 with_blkid
@@ -1657,6 +1661,8 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-systemddir=DIR   install systemd helpers [[EPREFIX/lib/systemd]]
+  --with-dracutdir=DIR    install dracut helpers [[EPREFIX/lib/dracut]]
   --with-udevdir=DIR      install udev helpers [EPREFIX/lib/udev]
   --with-udevruledir=DIR  install udev rules [UDEVDIR/rules.d]
   --with-blkid            support blkid caching [default=check]
@@ -17205,6 +17211,30 @@ fi
 		user)
 
 
+# Check whether --with-systemddir was given.
+if test "${with_systemddir+set}" = set; then :
+  withval=$with_systemddir; systemddir=$withval
+else
+  systemddir='${exec_prefix}/lib/systemd'
+fi
+
+
+
+
+
+
+# Check whether --with-dracutdir was given.
+if test "${with_dracutdir+set}" = set; then :
+  withval=$with_dracutdir; dracutdir=$withval
+else
+  dracutdir='${exec_prefix}/lib/dracut'
+fi
+
+
+
+
+
+
 # Check whether --with-udevdir was given.
 if test "${with_udevdir+set}" = set; then
   withval=$with_udevdir; udevdir=$withval
@@ -23924,6 +23954,30 @@ fi
 
 
 
+# Check whether --with-systemddir was given.
+if test "${with_systemddir+set}" = set; then :
+  withval=$with_systemddir; systemddir=$withval
+else
+  systemddir='${exec_prefix}/lib/systemd'
+fi
+
+
+
+
+
+
+# Check whether --with-dracutdir was given.
+if test "${with_dracutdir+set}" = set; then :
+  withval=$with_dracutdir; dracutdir=$withval
+else
+  dracutdir='${exec_prefix}/lib/dracut'
+fi
+
+
+
+
+
+
 # Check whether --with-udevdir was given.
 if test "${with_udevdir+set}" = set; then
   withval=$with_udevdir; udevdir=$withval
@@ -25577,7 +25631,7 @@ $as_echo_n "checking whether dmu tx validation is enabled... " >&6; }
 $as_echo "$enable_debug_dmu_tx" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man5/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/vdev_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh zfs.release"
+ac_config_files="$ac_config_files Makefile systemd/Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man5/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/vdev_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh zfs.release"
 
 
 cat >confcache <<\_ACEOF
@@ -26494,6 +26548,7 @@ do
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "systemd/Makefile") CONFIG_FILES="$CONFIG_FILES systemd/Makefile" ;;
     "dracut/Makefile") CONFIG_FILES="$CONFIG_FILES dracut/Makefile" ;;
     "dracut/90zfs/Makefile") CONFIG_FILES="$CONFIG_FILES dracut/90zfs/Makefile" ;;
     "udev/Makefile") CONFIG_FILES="$CONFIG_FILES udev/Makefile" ;;

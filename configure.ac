@@ -56,6 +56,7 @@ ZFS_AC_DEBUG_DMU_TX
 
 AC_CONFIG_FILES([ 
 	Makefile
+	systemd/Makefile
 	dracut/Makefile
 	dracut/90zfs/Makefile
 	udev/Makefile

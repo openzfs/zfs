@@ -1,0 +1,183 @@
+#!/bin/bash
+
+set -e
+
+@sbindir@/zpool --help >/dev/null 2>&1 || {
+	exit 0
+}
+
+scriptname=`basename "$0"`
+scriptdir=`dirname "$0"`
+echo "$scriptname: ZFS support available"
+
+if [ -f @sysconfdir@/zfs/zpool.cache ] ; then
+	echo "$scriptname: importing all pools that were imported before last reboot"
+        pools=`@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache | grep '^  pool:' | sed 's/^  pool: //'`
+        if [ -n "$pools" ] ; then
+          for pool in "$pools" ; do
+            @sbindir@/zpool import -N "$pool" || true
+          done
+        fi
+fi
+
+gendir="$1"
+if [ -z "$gendir" ] ; then gendir=/run/systemd/generator ; fi
+mkdir -p "$gendir/local-fs.target.requires"
+
+escaper="$scriptdir"/../systemdescaper
+[ -x "$escaper" ] || escaper=@systemddir@/systemdescaper
+[ -x "$escaper" ] || escaper=./systemdescaper
+[ -x "$escaper" ] || escaper=systemdescaper
+
+function escaping() {
+	"$escaper" --escape "$1"
+}
+
+function getdeps() {
+
+	mountpoint=`dirname "$1"`
+	while true ; do
+		if [ "$mountpoint" == "/" ] ; then break ; fi
+		if grep -Fxq "$mountpoint" "$gendir"/mountpoints ; then
+			echo -n `escaping "$mountpoint"`.mount
+			echo -n " "
+		fi
+		mountpoint=`dirname "$mountpoint"`
+	done
+
+}
+
+# preparations
+rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
+
+echo "$scriptname: discovering early available ZFS file systems"
+@sbindir@/zfs list -H -o name,mountpoint,canmount > "$gendir"/listing
+
+echo "$scriptname: discovering root ZFS file system"
+zfsrootparentfs=
+zfsrootparentname=
+zfsrootfs=`cat /proc/mounts | grep ' / zfs ' | awk ' { print $1 } ' | head -1` || true
+if [ -n "$zfsrootfs" ] ; then
+    zfsrootfs=`fstab-decode echo "$zfsrootfs"`
+    echo "$scriptname: root ZFS file system is $zfsrootfs"
+    zfsrootparentfs=`dirname "$zfsrootfs"`
+    zfsrootparentname=`basename "$zfsrootparentfs"`
+fi
+
+# we read the output of fstab
+# add to the list of our known filesystems
+while read -r ignore mountpoint rest ; do
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$ignore" == "#" ] ; then continue ; fi
+	if [ "$mountpoint" == "" ] ; then continue ; fi
+        if [ "$mountpoint" == "/" ] ; then continue ; fi
+        if [ "$mountpoint" == "swap" ] ; then continue ; fi
+
+	fstab-decode echo "$mountpoint" >> "$gendir"/mountpoints
+        echo >> "$gendir"/mountpoints
+done < /etc/fstab
+
+OLDIFS="$IFS"
+IFS="	"
+
+# we read the output of zfs list
+# add to the list of our known filesystems
+while read -r name mountpoint canmount ; do
+	if [ $canmount != on ] ; then continue ; fi
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
+	if [ "$mountpoint" == "none" ] ; then continue ; fi
+
+	echo -E "$mountpoint" >> "$gendir"/mountpoints
+done < "$gendir"/listing
+
+# we go through the output of zfs list
+# and generate all the units
+while read -r name mountpoint canmount ; do
+	if [ $canmount != on ] ; then continue ; fi
+	if [ "$mountpoint" == "/sysroot" ] ; then continue ; fi
+	if [ "$mountpoint" == "legacy" ] ; then continue ; fi
+	if [ "$mountpoint" == "none" ] ; then continue ; fi
+
+        # the following logic excludes file systems part of the root pool that are not contained in the root file system
+        if [ "$zfsrootparentname" == "ROOT" -o "$zfsrootparentname" == "RPOOL" ] ; then
+            if [[ $name == $zfsrootparentfs/* ]] ; then
+                if [[ $name != $zfsrootfs/* ]] ; then
+                    echo "$scriptname: excluding $name -- it is not contained in root pool $zfsrootfs"
+                    continue
+                fi
+            fi
+        fi
+
+	unitname=`escaping "$mountpoint"`.mount
+	deps=`getdeps "$mountpoint"`
+	extrabefore=
+	if [ "$mountpoint" == "/var" ] ; then
+		if find /lib/systemd /etc/systemd -type f -name var-run.mount | grep -q var-run.mount ; then
+			extrabefore="$extrabefore var-run.mount"
+		fi
+		if find /lib/systemd /etc/systemd -type f -name var-run.mount | grep -q var-run.mount ; then
+			extrabefore="$extrabefore var-lock.mount"
+		fi
+	fi
+	echo -E "$scriptname: discovered mountable ZFS file system $mountpoint, adding to list"
+
+	echo -E "[Unit]
+Description=ZFS file system $name
+Requires=$deps
+Conflicts=umount.target
+Before=local-fs.target umount.target$extrabefore
+After=local-fs-pre.target $deps
+DefaultDependencies=no
+
+[Mount]
+What=$name
+Where=$mountpoint
+Options=zfsutil
+Type=zfs
+" > "$gendir/$unitname"
+
+	[ -L "$gendir/local-fs.target.requires/$unitname" ] || ln -s "$gendir/$unitname" "$gendir/local-fs.target.requires"
+
+	# end of escaped loop
+done < "$gendir"/listing
+
+IFS="$OLDIFS"
+
+# I am done, so now nuke them temp files
+rm -f "$gendir"/listing "$gendir"/listing2 "$gendir"/mountpoints
+
+echo "[Unit]
+Description=ZFS service (dummy)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+" > "$gendir"/zfs.service
+
+
+# if the root filesystem is on zfs, we need to disable remount-rootfs.service
+# but I an disabling this code since systemd apparently does not pick up this unit file
+# after it was generated
+#
+#if cat /proc/self/mounts | grep -q ' / zfs ' ; then
+#
+#	echo -E "$scriptname: ZFS file system on root, disabling remount-rootfs.service"
+#
+#	echo "[Unit]
+#Description=Remount Root FS (no-op due to ZFS)
+#DefaultDependencies=no
+#Conflicts=shutdown.target
+#After=systemd-readahead-collect.service systemd-readahead-replay.service fsck-root.service
+#Before=local-fs-pre.target local-fs.target shutdown.target
+#Wants=local-fs-pre.target
+#
+#[Service]
+#Type=oneshot
+#RemainAfterExit=yes
+#ExecStart=/bin/true
+#StandardOutput=syslog
+#" > $gendir/remount-rootfs.service
+#
+#	[ -L "$gendir/local-fs.target.requires/remount-rootfs.service" ] || ln -s "$gendir/remount-rootfs.service" "$gendir/local-fs.target.requires"
+#fi
