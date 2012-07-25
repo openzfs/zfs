@@ -7,5 +7,11 @@ and ZVOL with a ZFS Posix Layer (ZPL) on the way!
     $ ./configure
     $ make pkg
 
+To copy the kernel code inside your kernel source tree for builtin
+compilation:
+
+    $ ./configure --enable-linux-builtin --with-linux=/usr/src/linux-...
+    $ ./copy-builtin /usr/src/linux-...
+
 Full documentation for building, configuring, and using ZFS can be
 found at: <http://zfsonlinux.org>

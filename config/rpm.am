@@ -6,13 +6,19 @@ srpm-utils:
 
 srpm: srpm-modules srpm-utils
 
+if CONFIG_KERNEL
 rpm-modules: srpm-modules
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+else
+rpm-modules:
+endif
 
+if CONFIG_USER
 rpm-utils: srpm-utils
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
+else
+rpm-utils:
+endif
 
 rpm: rpm-modules rpm-utils
 
