@@ -159,7 +159,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
 		], [test -d ${kernelsrc}-obj/${target_cpu}/default], [
-		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
+			kernelbuild=${kernelsrc}-obj/${target_cpu}/default
 		], [test -d `dirname ${kernelsrc}`/build-${target_cpu}], [
 			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
 		], [
@@ -491,30 +491,48 @@ dnl #
 dnl # ZFS_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
-AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
-	[AC_MSG_CHECKING([whether symbol $1 is exported])
+AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
-	AS_IF([test $rc -ne 0], [
+	if test $rc -ne 0; then
 		export=0
 		for file in $2; do
-			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*($1)" \
+				"$LINUX/$file" 2>/dev/null
 			rc=$?
-			AS_IF([test $rc -eq 0], [
+			if test $rc -eq 0; then
 				export=1
 				break;
-			])
+			fi
 		done
-		AS_IF([test $export -eq 0], [
-			AC_MSG_RESULT([no])
+		if test $export -eq 0; then :
 			$4
-		], [
-			AC_MSG_RESULT([yes])
+		else :
 			$3
-		])
-	], [
-		AC_MSG_RESULT([yes])
+		fi
+	else :
 		$3
-	])
+	fi
+])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE_SYMBOL
+dnl # like ZFS_LINUX_TRY_COMPILE, except ZFS_CHECK_SYMBOL_EXPORT
+dnl # is called if not compiling for builtin
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
+	ZFS_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
+	if test $rc -ne 0; then :
+		$6
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+			ZFS_CHECK_SYMBOL_EXPORT([$3], [$4], [rc=0], [rc=1])
+		fi
+		if test $rc -ne 0; then :
+			$6
+		else :
+			$5
+		fi
+	fi
 ])
