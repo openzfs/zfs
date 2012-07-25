@@ -101,8 +101,10 @@ add_after()
 		then
 			echo "$NEW"
 			MARKER=''
-			IFS='' read -r LINE
-			[ "$LINE" != "$NEW" ] && echo "$LINE"
+			if IFS='' read -r LINE
+			then
+				[ "$LINE" != "$NEW" ] && echo "$LINE"
+			fi
 		fi
 	done < "$FILE" > "$FILE.new"
 
