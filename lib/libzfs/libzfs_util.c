@@ -608,27 +608,13 @@ libzfs_print_on_error(libzfs_handle_t *hdl, boolean_t printerr)
 static int
 libzfs_module_loaded(const char *module)
 {
-	FILE *f;
-	int result = 0;
-	char name[256];
+	const char path_prefix[] = "/sys/module/";
+	char path[256];
 
-	f = fopen("/proc/modules", "r");
-	if (f == NULL)
-		return -1;
+	memcpy(path, path_prefix, sizeof(path_prefix) - 1);
+	strcpy(path + sizeof(path_prefix) - 1, module);
 
-	while (fgets(name, sizeof(name), f)) {
-		char *c = strchr(name, ' ');
-		if (!c)
-			continue;
-		*c = 0;
-		if (strcmp(module, name) == 0) {
-			result = 1;
-			break;
-		}
-	}
-	fclose(f);
-
-	return result;
+	return (access(path, F_OK) == 0);
 }
 
 int

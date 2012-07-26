@@ -1,11 +1,8 @@
 MODULE := zunicode
 
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -include @SPL_OBJ@/spl_config.h
-EXTRA_CFLAGS += -include @abs_top_builddir@/zfs_config.h
-EXTRA_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
+EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
-obj-m := $(MODULE).o
+obj-$(CONFIG_ZFS) := $(MODULE).o
 
 $(MODULE)-objs += @top_srcdir@/module/unicode/u8_textprep.o
 $(MODULE)-objs += @top_srcdir@/module/unicode/uconv.o

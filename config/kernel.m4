@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_TYPE_FMODE_T
@@ -86,7 +87,7 @@ dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	AS_IF([test -f "$modpost"], [
+	AS_IF([test "x$enable_linux_builtin" != xyes -a -f "$modpost"], [
 		AS_IF([grep -q Modules.symvers $modpost], [
 			LINUX_SYMBOLS=Modules.symvers
 		], [
@@ -158,7 +159,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
 		], [test -d ${kernelsrc}-obj/${target_cpu}/default], [
-		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
+			kernelbuild=${kernelsrc}-obj/${target_cpu}/default
 		], [test -d `dirname ${kernelsrc}`/build-${target_cpu}], [
 			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
 		], [
@@ -191,7 +192,13 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		])
 	], [
 		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		else
+			AC_MSG_ERROR([
+	*** Cannot find UTS_RELEASE definition.
+	*** Please run 'make prepare' inside the kernel source tree.])
+		fi
 	])
 
 	AC_MSG_RESULT([$kernsrcver])
@@ -313,6 +320,25 @@ AC_DEFUN([ZFS_AC_SPL], [
 ])
 
 dnl #
+dnl # Basic toolchain sanity check.
+dnl #
+AC_DEFUN([ZFS_AC_TEST_MODULE],
+	[AC_MSG_CHECKING([whether modules can be built])
+	ZFS_LINUX_TRY_COMPILE([],[],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Unable to build an empty module.])
+		else
+			AC_MSG_ERROR([
+	*** Unable to build an empty module.
+	*** Please run 'make scripts' inside the kernel source tree.])
+		fi
+	])
+])
+
+dnl #
 dnl # Certain kernel build options are not supported.  These must be
 dnl # detected at configure time and cause a build failure.  Otherwise
 dnl # modules may be successfully built that behave incorrectly.
@@ -418,10 +444,12 @@ dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])
-	rm -Rf build && mkdir -p build
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
 	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
@@ -463,30 +491,48 @@ dnl #
 dnl # ZFS_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
-AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
-	[AC_MSG_CHECKING([whether symbol $1 is exported])
+AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
-	AS_IF([test $rc -ne 0], [
+	if test $rc -ne 0; then
 		export=0
 		for file in $2; do
-			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*($1)" \
+				"$LINUX/$file" 2>/dev/null
 			rc=$?
-			AS_IF([test $rc -eq 0], [
+			if test $rc -eq 0; then
 				export=1
 				break;
-			])
+			fi
 		done
-		AS_IF([test $export -eq 0], [
-			AC_MSG_RESULT([no])
+		if test $export -eq 0; then :
 			$4
-		], [
-			AC_MSG_RESULT([yes])
+		else :
 			$3
-		])
-	], [
-		AC_MSG_RESULT([yes])
+		fi
+	else :
 		$3
-	])
+	fi
+])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE_SYMBOL
+dnl # like ZFS_LINUX_TRY_COMPILE, except ZFS_CHECK_SYMBOL_EXPORT
+dnl # is called if not compiling for builtin
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
+	ZFS_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
+	if test $rc -ne 0; then :
+		$6
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+			ZFS_CHECK_SYMBOL_EXPORT([$3], [$4], [rc=0], [rc=1])
+		fi
+		if test $rc -ne 0; then :
+			$6
+		else :
+			$5
+		fi
+	fi
 ])
