@@ -1,29 +1,27 @@
 # Makefile.in for spl kernel module
 
-MODULES := spl
-EXTRA_CFLAGS  = @KERNELCPPFLAGS@
-EXTRA_CFLAGS += -I@abs_top_srcdir@/include
-EXTRA_CFLAGS += -include @abs_top_builddir@/spl_config.h
+MODULE := spl
+EXTRA_CFLAGS = $(SPL_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 # Solaris porting layer module
-obj-m := spl.o
+obj-$(CONFIG_SPL) := $(MODULE).o
 
-spl-objs += @top_srcdir@/module/spl/spl-debug.o
-spl-objs += @top_srcdir@/module/spl/spl-proc.o
-spl-objs += @top_srcdir@/module/spl/spl-kmem.o
-spl-objs += @top_srcdir@/module/spl/spl-thread.o
-spl-objs += @top_srcdir@/module/spl/spl-taskq.o
-spl-objs += @top_srcdir@/module/spl/spl-rwlock.o
-spl-objs += @top_srcdir@/module/spl/spl-vnode.o
-spl-objs += @top_srcdir@/module/spl/spl-err.o
-spl-objs += @top_srcdir@/module/spl/spl-time.o
-spl-objs += @top_srcdir@/module/spl/spl-kobj.o
-spl-objs += @top_srcdir@/module/spl/spl-generic.o
-spl-objs += @top_srcdir@/module/spl/spl-atomic.o
-spl-objs += @top_srcdir@/module/spl/spl-mutex.o
-spl-objs += @top_srcdir@/module/spl/spl-kstat.o
-spl-objs += @top_srcdir@/module/spl/spl-condvar.o
-spl-objs += @top_srcdir@/module/spl/spl-xdr.o
-spl-objs += @top_srcdir@/module/spl/spl-cred.o
-spl-objs += @top_srcdir@/module/spl/spl-tsd.o
-spl-objs += @top_srcdir@/module/spl/spl-zlib.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-debug.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-proc.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-kmem.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-thread.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-taskq.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-rwlock.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-vnode.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-err.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-time.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-kobj.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-generic.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-atomic.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-mutex.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-kstat.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-condvar.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-xdr.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-cred.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-tsd.o
+$(MODULE)-objs += @top_srcdir@/module/spl/spl-zlib.o

@@ -3,8 +3,12 @@ subdir-m += splat
 
 INSTALL=/usr/bin/install
 
+SPL_MODULE_CFLAGS  = -I@abs_top_srcdir@/include
+SPL_MODULE_CFLAGS += -include @abs_top_builddir@/spl_config.h
+export SPL_MODULE_CFLAGS
+
 modules:
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ CONFIG_SPL=m $@
 
 clean:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL

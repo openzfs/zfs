@@ -845,20 +845,18 @@ uninstall-am:
 
 
 srpm-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" srpm-common
 
 srpm-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" srpm-common
 
 srpm: srpm-modules srpm-utils
 
 rpm-modules: srpm-modules
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
 
 rpm-utils: srpm-utils
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
-
-rpm-modules: srpm-modules
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
 
 rpm: rpm-modules rpm-utils
 
@@ -936,22 +934,22 @@ deb-local:
 	fi)
 
 deb-modules: deb-local rpm-modules
-	name=${PACKAGE}-modules; \
-	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
-	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
-	$(RM) $$pkg1 $$pkg2
+@CONFIG_KERNEL_TRUE@	name=${PACKAGE}-modules; \
+@CONFIG_KERNEL_TRUE@	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+@CONFIG_KERNEL_TRUE@	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+@CONFIG_KERNEL_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_KERNEL_TRUE@	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
+@CONFIG_KERNEL_TRUE@	$(RM) $$pkg1 $$pkg2
 
 deb-utils: deb-local rpm-utils
-	name=${PACKAGE}; \
-	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
-	$(RM) $$pkg1
+@CONFIG_USER_TRUE@	name=${PACKAGE}; \
+@CONFIG_USER_TRUE@	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+@CONFIG_USER_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_USER_TRUE@	pkg1=$${name}-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+@CONFIG_USER_TRUE@	$(RM) $$pkg1
 
 deb: deb-modules deb-utils
 
@@ -965,22 +963,22 @@ tgz-local:
 	fi)
 
 tgz-modules: tgz-local rpm-modules
-	name=${PACKAGE}-modules; \
-	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
-	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
-	$(RM) $$pkg1 $$pkg2
+@CONFIG_KERNEL_TRUE@	name=${PACKAGE}-modules; \
+@CONFIG_KERNEL_TRUE@	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+@CONFIG_KERNEL_TRUE@	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
+@CONFIG_KERNEL_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_KERNEL_TRUE@	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
+@CONFIG_KERNEL_TRUE@	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1 $$pkg2; \
+@CONFIG_KERNEL_TRUE@	$(RM) $$pkg1 $$pkg2
 
 tgz-utils: tgz-local rpm-utils
-	name=${PACKAGE}; \
-	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
-	$(RM) $$pkg1
+@CONFIG_USER_TRUE@	name=${PACKAGE}; \
+@CONFIG_USER_TRUE@	version=${SPL_META_VERSION}-${SPL_META_RELEASE}; \
+@CONFIG_USER_TRUE@	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+@CONFIG_USER_TRUE@	pkg1=$${name}-$${version}.$${arch}.rpm; \
+@CONFIG_USER_TRUE@	fakeroot $(ALIEN) --scripts --to-tgz $$pkg1; \
+@CONFIG_USER_TRUE@	$(RM) $$pkg1
 
 tgz: tgz-modules tgz-utils
 
@@ -993,10 +991,10 @@ sarch-utils:
 sarch: sarch-modules sarch-utils
 
 arch-modules:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" arch-common
 
 arch-utils:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
+@CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" arch-common
 
 arch: arch-modules arch-utils
 
