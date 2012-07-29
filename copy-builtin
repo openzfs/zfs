@@ -61,6 +61,9 @@ cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
 config ZFS
 	tristate "ZFS"
 	depends on SPL
+	depends on EFI_PARTITION
+	select ZLIB_INFLATE
+	select ZLIB_DEFLATE
 	help
 	  This is the ZFS filesystem from the ZFS On Linux project.
 
