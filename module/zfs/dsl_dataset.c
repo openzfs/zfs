@@ -907,69 +907,56 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 	return (dsobj);
 }
 
-struct destroyarg {
-	dsl_sync_task_group_t *dstg;
-	char *snapname;
-	char *failed;
-	boolean_t defer;
-};
-
-static int
-dsl_snapshot_destroy_one(const char *name, void *arg)
-{
-	struct destroyarg *da = arg;
-	dsl_dataset_t *ds;
-	int err;
-	char *dsname;
-
-	dsname = kmem_asprintf("%s@%s", name, da->snapname);
-	err = dsl_dataset_own(dsname, B_TRUE, da->dstg, &ds);
-	strfree(dsname);
-	if (err == 0) {
-		struct dsl_ds_destroyarg *dsda;
-
-		dsl_dataset_make_exclusive(ds, da->dstg);
-		dsda = kmem_zalloc(sizeof (struct dsl_ds_destroyarg), KM_SLEEP);
-		dsda->ds = ds;
-		dsda->defer = da->defer;
-		dsl_sync_task_create(da->dstg, dsl_dataset_destroy_check,
-		    dsl_dataset_destroy_sync, dsda, da->dstg, 0);
-	} else if (err == ENOENT) {
-		err = 0;
-	} else {
-		(void) strcpy(da->failed, name);
-	}
-	return (err);
-}
-
 /*
- * Destroy 'snapname' in all descendants of 'fsname'.
+ * The snapshots must all be in the same pool.
  */
-#pragma weak dmu_snapshots_destroy = dsl_snapshots_destroy
 int
-dsl_snapshots_destroy(char *fsname, char *snapname, boolean_t defer)
+dmu_snapshots_destroy_nvl(nvlist_t *snaps, boolean_t defer, char *failed)
 {
 	int err;
-	struct destroyarg da;
 	dsl_sync_task_t *dst;
 	spa_t *spa;
+	nvpair_t *pair;
+	dsl_sync_task_group_t *dstg;
 
-	err = spa_open(fsname, &spa, FTAG);
+	pair = nvlist_next_nvpair(snaps, NULL);
+	if (pair == NULL)
+		return (0);
+
+	err = spa_open(nvpair_name(pair), &spa, FTAG);
 	if (err)
 		return (err);
-	da.dstg = dsl_sync_task_group_create(spa_get_dsl(spa));
-	da.snapname = snapname;
-	da.failed = fsname;
-	da.defer = defer;
+	dstg = dsl_sync_task_group_create(spa_get_dsl(spa));
 
-	err = dmu_objset_find(fsname,
-	    dsl_snapshot_destroy_one, &da, DS_FIND_CHILDREN);
+	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
+	    pair = nvlist_next_nvpair(snaps, pair)) {
+		dsl_dataset_t *ds;
+		int err;
+
+		err = dsl_dataset_own(nvpair_name(pair), B_TRUE, dstg, &ds);
+		if (err == 0) {
+			struct dsl_ds_destroyarg *dsda;
+
+			dsl_dataset_make_exclusive(ds, dstg);
+			dsda = kmem_zalloc(sizeof (struct dsl_ds_destroyarg),
+			    KM_SLEEP);
+			dsda->ds = ds;
+			dsda->defer = defer;
+			dsl_sync_task_create(dstg, dsl_dataset_destroy_check,
+			    dsl_dataset_destroy_sync, dsda, dstg, 0);
+		} else if (err == ENOENT) {
+			err = 0;
+		} else {
+			(void) strcpy(failed, nvpair_name(pair));
+			break;
+		}
+	}
 
 	if (err == 0)
-		err = dsl_sync_task_group_wait(da.dstg);
+		err = dsl_sync_task_group_wait(dstg);
 
-	for (dst = list_head(&da.dstg->dstg_tasks); dst;
-	    dst = list_next(&da.dstg->dstg_tasks, dst)) {
+	for (dst = list_head(&dstg->dstg_tasks); dst;
+	    dst = list_next(&dstg->dstg_tasks, dst)) {
 		struct dsl_ds_destroyarg *dsda = dst->dst_arg1;
 		dsl_dataset_t *ds = dsda->ds;
 
@@ -977,17 +964,17 @@ dsl_snapshots_destroy(char *fsname, char *snapname, boolean_t defer)
 		 * Return the file system name that triggered the error
 		 */
 		if (dst->dst_err) {
-			dsl_dataset_name(ds, fsname);
-			*strchr(fsname, '@') = '\0';
+			dsl_dataset_name(ds, failed);
 		}
 		ASSERT3P(dsda->rm_origin, ==, NULL);
-		dsl_dataset_disown(ds, da.dstg);
+		dsl_dataset_disown(ds, dstg);
 		kmem_free(dsda, sizeof (struct dsl_ds_destroyarg));
 	}
 
-	dsl_sync_task_group_destroy(da.dstg);
+	dsl_sync_task_group_destroy(dstg);
 	spa_close(spa, FTAG);
 	return (err);
+
 }
 
 static boolean_t
@@ -2151,6 +2138,55 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 	dmu_objset_sync(ds->ds_objset, zio, tx);
 }
 
+static void
+get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv)
+{
+	uint64_t count = 0;
+	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	nvlist_t *propval;
+	nvlist_t *val;
+
+	rw_enter(&ds->ds_dir->dd_pool->dp_config_rwlock, RW_READER);
+	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_alloc(&val, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+
+	/*
+	 * There may me missing entries in ds_next_clones_obj
+	 * due to a bug in a previous version of the code.
+	 * Only trust it if it has the right number of entries.
+	 */
+	if (ds->ds_phys->ds_next_clones_obj != 0) {
+		ASSERT3U(0, ==, zap_count(mos, ds->ds_phys->ds_next_clones_obj,
+		    &count));
+	}
+	if (count != ds->ds_phys->ds_num_children - 1) {
+		goto fail;
+	}
+	for (zap_cursor_init(&zc, mos, ds->ds_phys->ds_next_clones_obj);
+	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_advance(&zc)) {
+		dsl_dataset_t *clone;
+		char buf[ZFS_MAXNAMELEN];
+		if (dsl_dataset_hold_obj(ds->ds_dir->dd_pool,
+		    za.za_first_integer, FTAG, &clone) != 0) {
+			goto fail;
+		}
+		dsl_dir_name(clone->ds_dir, buf);
+		VERIFY(nvlist_add_boolean(val, buf) == 0);
+		dsl_dataset_rele(clone, FTAG);
+	}
+	zap_cursor_fini(&zc);
+	VERIFY(nvlist_add_nvlist(propval, ZPROP_VALUE, val) == 0);
+	VERIFY(nvlist_add_nvlist(nv, zfs_prop_to_name(ZFS_PROP_CLONES),
+	    propval) == 0);
+fail:
+	nvlist_free(val);
+	nvlist_free(propval);
+	rw_exit(&ds->ds_dir->dd_pool->dp_config_rwlock);
+}
+
 void
 dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 {
@@ -2181,6 +2217,27 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_DEFER_DESTROY,
 	    DS_IS_DEFER_DESTROY(ds) ? 1 : 0);
 
+	if (ds->ds_phys->ds_prev_snap_obj != 0) {
+		uint64_t written, comp, uncomp;
+		dsl_pool_t *dp = ds->ds_dir->dd_pool;
+		dsl_dataset_t *prev;
+		int err;
+
+		rw_enter(&dp->dp_config_rwlock, RW_READER);
+		err = dsl_dataset_hold_obj(dp,
+		    ds->ds_phys->ds_prev_snap_obj, FTAG, &prev);
+		rw_exit(&dp->dp_config_rwlock);
+		if (err == 0) {
+			err = dsl_dataset_space_written(prev, ds, &written,
+			    &comp, &uncomp);
+			dsl_dataset_rele(prev, FTAG);
+			if (err == 0) {
+				dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_WRITTEN,
+				    written);
+			}
+		}
+	}
+
 	ratio = ds->ds_phys->ds_compressed_bytes == 0 ? 100 :
 	    (ds->ds_phys->ds_uncompressed_bytes * 100 /
 	    ds->ds_phys->ds_compressed_bytes);
@@ -2194,6 +2251,8 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USED,
 		    ds->ds_phys->ds_unique_bytes);
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_COMPRESSRATIO, ratio);
+
+		get_clones_stat(ds, nv);
 	}
 }
 
@@ -4022,7 +4081,7 @@ dsl_dataset_get_holds(const char *dsname, nvlist_t **nvp)
 }
 
 /*
- * Note, this fuction is used as the callback for dmu_objset_find().  We
+ * Note, this function is used as the callback for dmu_objset_find().  We
  * always return 0 so that we will continue to find and process
  * inconsistent datasets, even if we encounter an error trying to
  * process one of them.
@@ -4042,7 +4101,157 @@ dsl_destroy_inconsistent(const char *dsname, void *arg)
 	return (0);
 }
 
+
+/*
+ * Return (in *usedp) the amount of space written in new that is not
+ * present in oldsnap.  New may be a snapshot or the head.  Old must be
+ * a snapshot before new, in new's filesystem (or its origin).  If not then
+ * fail and return EINVAL.
+ *
+ * The written space is calculated by considering two components:  First, we
+ * ignore any freed space, and calculate the written as new's used space
+ * minus old's used space.  Next, we add in the amount of space that was freed
+ * between the two snapshots, thus reducing new's used space relative to old's.
+ * Specifically, this is the space that was born before old->ds_creation_txg,
+ * and freed before new (ie. on new's deadlist or a previous deadlist).
+ *
+ * space freed                         [---------------------]
+ * snapshots                       ---O-------O--------O-------O------
+ *                                         oldsnap            new
+ */
+int
+dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
+    uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
+{
+	int err = 0;
+	uint64_t snapobj;
+	dsl_pool_t *dp = new->ds_dir->dd_pool;
+
+	*usedp = 0;
+	*usedp += new->ds_phys->ds_used_bytes;
+	*usedp -= oldsnap->ds_phys->ds_used_bytes;
+
+	*compp = 0;
+	*compp += new->ds_phys->ds_compressed_bytes;
+	*compp -= oldsnap->ds_phys->ds_compressed_bytes;
+
+	*uncompp = 0;
+	*uncompp += new->ds_phys->ds_uncompressed_bytes;
+	*uncompp -= oldsnap->ds_phys->ds_uncompressed_bytes;
+
+	rw_enter(&dp->dp_config_rwlock, RW_READER);
+	snapobj = new->ds_object;
+	while (snapobj != oldsnap->ds_object) {
+		dsl_dataset_t *snap;
+		uint64_t used, comp, uncomp;
+
+		err = dsl_dataset_hold_obj(dp, snapobj, FTAG, &snap);
+		if (err != 0)
+			break;
+
+		if (snap->ds_phys->ds_prev_snap_txg ==
+		    oldsnap->ds_phys->ds_creation_txg) {
+			/*
+			 * The blocks in the deadlist can not be born after
+			 * ds_prev_snap_txg, so get the whole deadlist space,
+			 * which is more efficient (especially for old-format
+			 * deadlists).  Unfortunately the deadlist code
+			 * doesn't have enough information to make this
+			 * optimization itself.
+			 */
+			dsl_deadlist_space(&snap->ds_deadlist,
+			    &used, &comp, &uncomp);
+		} else {
+			dsl_deadlist_space_range(&snap->ds_deadlist,
+			    0, oldsnap->ds_phys->ds_creation_txg,
+			    &used, &comp, &uncomp);
+		}
+		*usedp += used;
+		*compp += comp;
+		*uncompp += uncomp;
+
+		/*
+		 * If we get to the beginning of the chain of snapshots
+		 * (ds_prev_snap_obj == 0) before oldsnap, then oldsnap
+		 * was not a snapshot of/before new.
+		 */
+		snapobj = snap->ds_phys->ds_prev_snap_obj;
+		dsl_dataset_rele(snap, FTAG);
+		if (snapobj == 0) {
+			err = EINVAL;
+			break;
+		}
+
+	}
+	rw_exit(&dp->dp_config_rwlock);
+	return (err);
+}
+
+/*
+ * Return (in *usedp) the amount of space that will be reclaimed if firstsnap,
+ * lastsnap, and all snapshots in between are deleted.
+ *
+ * blocks that would be freed            [---------------------------]
+ * snapshots                       ---O-------O--------O-------O--------O
+ *                                        firstsnap        lastsnap
+ *
+ * This is the set of blocks that were born after the snap before firstsnap,
+ * (birth > firstsnap->prev_snap_txg) and died before the snap after the
+ * last snap (ie, is on lastsnap->ds_next->ds_deadlist or an earlier deadlist).
+ * We calculate this by iterating over the relevant deadlists (from the snap
+ * after lastsnap, backward to the snap after firstsnap), summing up the
+ * space on the deadlist that was born after the snap before firstsnap.
+ */
+int
+dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap,
+    dsl_dataset_t *lastsnap,
+    uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
+{
+	int err = 0;
+	uint64_t snapobj;
+	dsl_pool_t *dp = firstsnap->ds_dir->dd_pool;
+
+	ASSERT(dsl_dataset_is_snapshot(firstsnap));
+	ASSERT(dsl_dataset_is_snapshot(lastsnap));
+
+	/*
+	 * Check that the snapshots are in the same dsl_dir, and firstsnap
+	 * is before lastsnap.
+	 */
+	if (firstsnap->ds_dir != lastsnap->ds_dir ||
+	    firstsnap->ds_phys->ds_creation_txg >
+	    lastsnap->ds_phys->ds_creation_txg)
+		return (EINVAL);
+
+	*usedp = *compp = *uncompp = 0;
+
+	rw_enter(&dp->dp_config_rwlock, RW_READER);
+	snapobj = lastsnap->ds_phys->ds_next_snap_obj;
+	while (snapobj != firstsnap->ds_object) {
+		dsl_dataset_t *ds;
+		uint64_t used, comp, uncomp;
+
+		err = dsl_dataset_hold_obj(dp, snapobj, FTAG, &ds);
+		if (err != 0)
+			break;
+
+		dsl_deadlist_space_range(&ds->ds_deadlist,
+		    firstsnap->ds_phys->ds_prev_snap_txg, UINT64_MAX,
+		    &used, &comp, &uncomp);
+		*usedp += used;
+		*compp += comp;
+		*uncompp += uncomp;
+
+		snapobj = ds->ds_phys->ds_prev_snap_obj;
+		ASSERT3U(snapobj, !=, 0);
+		dsl_dataset_rele(ds, FTAG);
+	}
+	rw_exit(&dp->dp_config_rwlock);
+	return (err);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dmu_snapshots_destroy_nvl);
 EXPORT_SYMBOL(dsl_dataset_hold);
 EXPORT_SYMBOL(dsl_dataset_hold_obj);
 EXPORT_SYMBOL(dsl_dataset_own);
@@ -4056,7 +4265,6 @@ EXPORT_SYMBOL(dsl_dataset_make_exclusive);
 EXPORT_SYMBOL(dsl_dataset_create_sync);
 EXPORT_SYMBOL(dsl_dataset_create_sync_dd);
 EXPORT_SYMBOL(dsl_dataset_destroy);
-EXPORT_SYMBOL(dsl_snapshots_destroy);
 EXPORT_SYMBOL(dsl_dataset_destroy_check);
 EXPORT_SYMBOL(dsl_dataset_destroy_sync);
 EXPORT_SYMBOL(dsl_dataset_snapshot_check);
@@ -4072,6 +4280,8 @@ EXPORT_SYMBOL(dsl_dataset_get_blkptr);
 EXPORT_SYMBOL(dsl_dataset_set_blkptr);
 EXPORT_SYMBOL(dsl_dataset_get_spa);
 EXPORT_SYMBOL(dsl_dataset_modified_since_lastsnap);
+EXPORT_SYMBOL(dsl_dataset_space_written);
+EXPORT_SYMBOL(dsl_dataset_space_wouldfree);
 EXPORT_SYMBOL(dsl_dataset_sync);
 EXPORT_SYMBOL(dsl_dataset_block_born);
 EXPORT_SYMBOL(dsl_dataset_block_kill);

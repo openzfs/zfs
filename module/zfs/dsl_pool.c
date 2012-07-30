@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -291,7 +292,10 @@ static int
 deadlist_enqueue_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
 	dsl_deadlist_t *dl = arg;
+	dsl_pool_t *dp = dmu_objset_pool(dl->dl_os);
+	rw_enter(&dp->dp_config_rwlock, RW_READER);
 	dsl_deadlist_insert(dl, bp, tx);
+	rw_exit(&dp->dp_config_rwlock);
 	return (0);
 }
 
