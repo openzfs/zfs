@@ -49,6 +49,7 @@
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_threads = 32;
+unsigned long zvol_max_discard_blocks = 16384;
 
 static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
@@ -1242,7 +1243,8 @@ __zvol_create_minor(const char *name)
 	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
 #ifdef HAVE_BLK_QUEUE_DISCARD
-	blk_queue_max_discard_sectors(zv->zv_queue, UINT_MAX);
+	blk_queue_max_discard_sectors(zv->zv_queue,
+	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
 #endif
 #ifdef HAVE_BLK_QUEUE_NONROT
@@ -1446,3 +1448,6 @@ MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_threads, uint, 0444);
 MODULE_PARM_DESC(zvol_threads, "Number of threads for zvol device");
+
+module_param(zvol_max_discard_blocks, ulong, 0444);
+MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard at once");
