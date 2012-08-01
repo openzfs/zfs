@@ -120,6 +120,9 @@
 /* xattr_handler->set() wants dentry */
 #undef HAVE_DENTRY_XATTR_SET
 
+/* ql->discard_granularity is available */
+#undef HAVE_DISCARD_GRANULARITY
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 

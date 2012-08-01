@@ -1245,6 +1245,7 @@ __zvol_create_minor(const char *name)
 #ifdef HAVE_BLK_QUEUE_DISCARD
 	blk_queue_max_discard_sectors(zv->zv_queue,
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
+	blk_queue_discard_granularity(zv->zv_queue, zv->zv_volblocksize);
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zv->zv_queue);
 #endif
 #ifdef HAVE_BLK_QUEUE_NONROT
