@@ -2072,9 +2072,10 @@ AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
 	AC_MSG_CHECKING([whether invalidate_inodes_check() is available])
 	SPL_LINUX_TRY_COMPILE_SYMBOL([
 		#include <linux/fs.h>
-	], [
-		invalidate_inodes_check(NULL, 0);
-	], [invalidate_inodes_check], [], [
+		#ifndef invalidate_inodes
+		#error invalidate_inodes is not a macro
+		#endif
+	], [ ], [invalidate_inodes_check], [], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_INVALIDATE_INODES_CHECK, 1,
 		          [invalidate_inodes_check() is available])

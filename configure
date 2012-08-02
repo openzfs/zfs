@@ -17147,12 +17147,13 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <linux/fs.h>
+		#ifndef invalidate_inodes
+		#error invalidate_inodes is not a macro
+		#endif
 
 int
 main (void)
 {
-
-		invalidate_inodes_check(NULL, 0);
 
   ;
   return 0;
@@ -23343,12 +23344,13 @@ cat >>conftest.$ac_ext <<_ACEOF
 
 
 		#include <linux/fs.h>
+		#ifndef invalidate_inodes
+		#error invalidate_inodes is not a macro
+		#endif
 
 int
 main (void)
 {
-
-		invalidate_inodes_check(NULL, 0);
 
   ;
   return 0;
