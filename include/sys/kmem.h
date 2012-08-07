@@ -291,6 +291,7 @@ enum {
 	KMC_BIT_KMEM		= 5,	/* Use kmem cache */
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_OFFSLAB		= 7,	/* Objects not on slab */
+	KMC_BIT_GROWING         = 15,   /* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
@@ -315,6 +316,7 @@ typedef enum kmem_cbrc {
 #define KMC_KMEM		(1 << KMC_BIT_KMEM)
 #define KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
+#define KMC_GROWING		(1 << KMC_BIT_GROWING)
 #define KMC_REAPING		(1 << KMC_BIT_REAPING)
 #define KMC_DESTROY		(1 << KMC_BIT_DESTROY)
 #define KMC_TOTAL		(1 << KMC_BIT_TOTAL)
@@ -374,6 +376,17 @@ typedef struct spl_kmem_slab {
 	uint32_t		sks_ref;	/* Ref count used objects */
 } spl_kmem_slab_t;
 
+typedef struct spl_kmem_alloc {
+	struct spl_kmem_cache	*ska_cache;	/* Owned by cache */
+	int			ska_flags;	/* Allocation flags */
+	struct delayed_work	ska_work;	/* Allocation work */
+} spl_kmem_alloc_t;
+
+typedef struct spl_kmem_emergency {
+	void			*ske_obj;	/* Buffer address */
+	struct list_head	ske_list;	/* Emergency list linkage */
+} spl_kmem_emergency_t;
+
 typedef struct spl_kmem_cache {
 	uint32_t		skc_magic;	/* Sanity magic */
 	uint32_t		skc_name_size;	/* Name length */
@@ -398,7 +411,9 @@ typedef struct spl_kmem_cache {
 	struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
+	struct list_head	skc_emergency_list; /* Min sized objects */
 	spinlock_t		skc_lock;	/* Cache lock */
+	wait_queue_head_t	skc_waitq;	/* Allocation waiters */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
 	uint64_t		skc_slab_create;/* Slab creates */
 	uint64_t		skc_slab_destroy;/* Slab destroys */
@@ -408,6 +423,8 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
+	uint64_t		skc_obj_emergency; /* Obj emergency current */
+	uint64_t		skc_obj_emergency_max; /* Obj emergency max */
 } spl_kmem_cache_t;
 #define kmem_cache_t		spl_kmem_cache_t
 

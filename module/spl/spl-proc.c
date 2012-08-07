@@ -625,12 +625,12 @@ slab_seq_show_headers(struct seq_file *f)
             "--------------------- cache ----------"
             "---------------------------------------------  "
             "----- slab ------  "
-            "---- object -----\n");
+            "---- object -----------------\n");
         seq_printf(f,
             "name                                  "
             "  flags      size     alloc slabsize  objsize  "
             "total alloc   max  "
-            "total alloc   max\n");
+            "total alloc   max emerg   max\n");
 }
 
 static int
@@ -643,7 +643,7 @@ slab_seq_show(struct seq_file *f, void *p)
         spin_lock(&skc->skc_lock);
         seq_printf(f, "%-36s  ", skc->skc_name);
         seq_printf(f, "0x%05lx %9lu %9lu %8u %8u  "
-            "%5lu %5lu %5lu  %5lu %5lu %5lu\n",
+            "%5lu %5lu %5lu  %5lu %5lu %5lu %5lu %5lu\n",
             (long unsigned)skc->skc_flags,
             (long unsigned)(skc->skc_slab_size * skc->skc_slab_total),
             (long unsigned)(skc->skc_obj_size * skc->skc_obj_alloc),
@@ -654,7 +654,9 @@ slab_seq_show(struct seq_file *f, void *p)
             (long unsigned)skc->skc_slab_max,
             (long unsigned)skc->skc_obj_total,
             (long unsigned)skc->skc_obj_alloc,
-            (long unsigned)skc->skc_obj_max);
+            (long unsigned)skc->skc_obj_max,
+            (long unsigned)skc->skc_obj_emergency,
+            (long unsigned)skc->skc_obj_emergency_max);
 
         spin_unlock(&skc->skc_lock);
 
