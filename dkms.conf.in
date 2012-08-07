@@ -1,0 +1,23 @@
+AUTOINSTALL="yes"
+PACKAGE_NAME="@PACKAGE@"
+PACKAGE_VERSION="@VERSION@"
+PRE_BUILD="configure
+  --prefix=/usr
+  --with-config=kernel
+  --with-linux=$(case `lsb_release -is` in
+                   (Debian) echo ${kernel_source_dir/%build/source} ;;
+                   (*)      echo ${kernel_source_dir} ;;
+                 esac)
+  --with-linux-obj=${kernel_source_dir}
+"
+POST_INSTALL="dkms.postinst -a ${arch} -k ${kernelver} -t ${dkms_tree}
+                            -n ${PACKAGE_NAME} -v ${PACKAGE_VERSION}
+"
+REMAKE_INITRD="no"
+MAKE[0]="make"
+BUILT_MODULE_NAME[0]="spl"
+BUILT_MODULE_LOCATION[0]="module/spl/"
+DEST_MODULE_LOCATION[0]="/extra/spl/spl"
+BUILT_MODULE_NAME[1]="splat"
+BUILT_MODULE_LOCATION[1]="module/splat/"
+DEST_MODULE_LOCATION[1]="/extra/splat/splat"

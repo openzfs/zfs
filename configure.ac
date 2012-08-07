@@ -59,6 +59,7 @@ AC_CONFIG_FILES([
 	PKGBUILD-spl
 	PKGBUILD-spl-modules
 	spl.release
+	dkms.conf
 ])
 
 AC_OUTPUT

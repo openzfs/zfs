@@ -24169,7 +24169,7 @@ fi
 
 
 
-ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile scripts/Makefile spl.spec spl-modules.spec PKGBUILD-spl PKGBUILD-spl-modules spl.release"
+ac_config_files="$ac_config_files Makefile lib/Makefile cmd/Makefile module/Makefile module/spl/Makefile module/splat/Makefile include/Makefile scripts/Makefile spl.spec spl-modules.spec PKGBUILD-spl PKGBUILD-spl-modules spl.release dkms.conf"
 
 
 cat >confcache <<\_ACEOF
@@ -25091,6 +25091,7 @@ do
     "PKGBUILD-spl") CONFIG_FILES="$CONFIG_FILES PKGBUILD-spl" ;;
     "PKGBUILD-spl-modules") CONFIG_FILES="$CONFIG_FILES PKGBUILD-spl-modules" ;;
     "spl.release") CONFIG_FILES="$CONFIG_FILES spl.release" ;;
+    "dkms.conf") CONFIG_FILES="$CONFIG_FILES dkms.conf" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 $as_echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

@@ -80,11 +80,12 @@ target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/PKGBUILD-spl-modules.in $(srcdir)/PKGBUILD-spl.in \
-	$(srcdir)/spl-modules.spec.in $(srcdir)/spl.release.in \
-	$(srcdir)/spl.spec.in $(srcdir)/spl_config.h.in \
-	$(top_srcdir)/config/arch.am $(top_srcdir)/config/deb.am \
-	$(top_srcdir)/config/rpm.am $(top_srcdir)/config/tgz.am \
-	$(top_srcdir)/configure $(top_srcdir)/module/Makefile.in \
+	$(srcdir)/dkms.conf.in $(srcdir)/spl-modules.spec.in \
+	$(srcdir)/spl.release.in $(srcdir)/spl.spec.in \
+	$(srcdir)/spl_config.h.in $(top_srcdir)/config/arch.am \
+	$(top_srcdir)/config/deb.am $(top_srcdir)/config/rpm.am \
+	$(top_srcdir)/config/tgz.am $(top_srcdir)/configure \
+	$(top_srcdir)/module/Makefile.in \
 	$(top_srcdir)/module/spl/Makefile.in \
 	$(top_srcdir)/module/splat/Makefile.in AUTHORS COPYING \
 	ChangeLog INSTALL config/config.guess config/config.sub \
@@ -102,7 +103,7 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = spl_config.h
 CONFIG_CLEAN_FILES = module/Makefile module/spl/Makefile \
 	module/splat/Makefile spl.spec spl-modules.spec PKGBUILD-spl \
-	PKGBUILD-spl-modules spl.release
+	PKGBUILD-spl-modules spl.release dkms.conf
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -331,7 +332,7 @@ SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh spl.spec.in spl-modules.spec.in META \
 	DISCLAIMER config/config.awk config/rpm.am config/deb.am \
-	config/tgz.am
+	config/tgz.am dkms.postinst
 noinst_HEADERS = spl_config.h spl.release
 all: spl_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -403,6 +404,8 @@ PKGBUILD-spl: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl.in
 PKGBUILD-spl-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-spl-modules.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 spl.release: $(top_builddir)/config.status $(srcdir)/spl.release.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+dkms.conf: $(top_builddir)/config.status $(srcdir)/dkms.conf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -852,13 +855,16 @@ srpm-utils:
 
 srpm: srpm-modules srpm-utils
 
+rpm-dkms: srpm-modules
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" dkms-common
+
 rpm-modules: srpm-modules
 @CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
 
 rpm-utils: srpm-utils
 @CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
 
-rpm: rpm-modules rpm-utils
+rpm: rpm-modules rpm-utils rpm-dkms
 
 rpm-local:
 	@(if test "${HAVE_RPMBUILD}" = "no"; then \
@@ -876,6 +882,26 @@ rpm-local:
 	cp $(rpmspec) $(rpmbuild)/SPECS && \
 	mkdir -p $(rpmbuild)/SOURCES && \
 	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
+
+dkms-common:
+	rpmpkg=$(pkg)-$(SPL_META_VERSION)-$(SPL_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmdkms=$(pkg)-dkms-$(SPL_META_VERSION)-$(SPL_META_RELEASE).noarch.rpm;\
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	$(RPMBUILD) \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "_without_kernel 1" \
+		--define "_without_kernel_debug 1" \
+		--define "_with_kernel_dkms 1" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/noarch/$$rpmdkms . || exit 1; \
+	$(RM) -R $$rpmbuild
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(SPL_META_VERSION)-$(SPL_META_RELEASE).src.rpm; \
