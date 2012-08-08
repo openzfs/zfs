@@ -2989,7 +2989,7 @@ zpool_do_split(int argc, char **argv)
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		ret = 1;
-		(void) fprintf(stderr, gettext("Split was succssful, but "
+		(void) fprintf(stderr, gettext("Split was successful, but "
 		    "the datasets could not all be mounted\n"));
 		(void) fprintf(stderr, gettext("Try doing '%s' with a "
 		    "different altroot\n"), "zpool import");
