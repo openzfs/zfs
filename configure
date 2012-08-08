@@ -986,6 +986,7 @@ with_linux
 with_linux_obj
 with_spl
 with_spl_obj
+with_spl_timeout
 with_udevdir
 with_udevruledir
 with_blkid
@@ -1660,6 +1661,7 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-spl-timeout=SECS Wait SECS for symvers file to appear [default=0]
   --with-udevdir=DIR      install udev helpers [EPREFIX/lib/udev]
   --with-udevruledir=DIR  install udev rules [UDEVDIR/rules.d]
   --with-blkid            support blkid caching [default=check]
@@ -4842,13 +4844,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4845: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4847: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4848: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4850: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4851: output\"" >&5)
+  (eval echo "\"\$as_me:4853: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6054,7 +6056,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6057 "configure"' > conftest.$ac_ext
+  echo '#line 6059 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7907,11 +7909,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7910: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7912: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7914: \$? = $ac_status" >&5
+   echo "$as_me:7916: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8246,11 +8248,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8249: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8251: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8253: \$? = $ac_status" >&5
+   echo "$as_me:8255: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8351,11 +8353,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8354: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8356: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8358: \$? = $ac_status" >&5
+   echo "$as_me:8360: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8406,11 +8408,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8409: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8411: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8413: \$? = $ac_status" >&5
+   echo "$as_me:8415: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11209,7 +11211,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11212 "configure"
+#line 11214 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11305,7 +11307,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11308 "configure"
+#line 11310 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12384,25 +12386,53 @@ $as_echo "$splsrcver" >&6; }
 
 
 
+
+# Check whether --with-spl-timeout was given.
+if test "${with_spl_timeout+set}" = set; then
+  withval=$with_spl_timeout; timeout="$withval"
+else
+  timeout=0
+fi
+
+
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
-	if test -r $SPL_OBJ/Module.symvers; then
+	SPL_SYMBOLS=NONE
 
-		SPL_SYMBOLS=Module.symvers
+	while true; do
+		if test -r $SPL_OBJ/Module.symvers; then
+
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
 
 elif test -r $SPL_OBJ/module/Module.symvers; then
 
-		SPL_SYMBOLS=Module.symvers
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/module/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
+
+fi
+
+
+		if test $SPL_SYMBOLS != NONE -o $timeout -le 0; then
+
+			break;
 
 else
+
+			sleep 1
+			timeout=$((timeout-1))
+
+fi
+
+	done
+
+	if test "$SPL_SYMBOLS" = NONE; then
 
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 
@@ -19957,25 +19987,53 @@ $as_echo "$splsrcver" >&6; }
 
 
 
+
+# Check whether --with-spl-timeout was given.
+if test "${with_spl_timeout+set}" = set; then
+  withval=$with_spl_timeout; timeout="$withval"
+else
+  timeout=0
+fi
+
+
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
-	if test -r $SPL_OBJ/Module.symvers; then
+	SPL_SYMBOLS=NONE
 
-		SPL_SYMBOLS=Module.symvers
+	while true; do
+		if test -r $SPL_OBJ/Module.symvers; then
+
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
 
 elif test -r $SPL_OBJ/module/Module.symvers; then
 
-		SPL_SYMBOLS=Module.symvers
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/module/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
+
+fi
+
+
+		if test $SPL_SYMBOLS != NONE -o $timeout -le 0; then
+
+			break;
 
 else
+
+			sleep 1
+			timeout=$((timeout-1))
+
+fi
+
+	done
+
+	if test "$SPL_SYMBOLS" = NONE; then
 
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 

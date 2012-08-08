@@ -218,24 +218,45 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 dnl #
 dnl # Detect name used for the additional SPL Module.symvers file.  If one
 dnl # does not exist this is likely because the SPL has been configured
-dnl # but not built.  To allow recursive builds a good guess is made as to
-dnl # what this file will be named based on what it is named in the kernel
-dnl # build products.  This file will first be used at link time so if
-dnl # the guess is wrong the build will fail then.  This unfortunately
-dnl # means the ZFS package does not contain a reliable mechanism to
-dnl # detect symbols exported by the SPL at configure time.
+dnl # but not built.  The '--with-spl-timeout' option can be passed
+dnl # to pause here, waiting for the file to appear from a concurrently
+dnl # building SPL package.  If the file does not appear in time, a good
+dnl # guess is made as to what this file will be named based on what it
+dnl # is named in the kernel build products.  This file will first be
+dnl # used at link time so if the guess is wrong the build will fail
+dnl # then.  This unfortunately means the ZFS package does not contain a
+dnl # reliable mechanism to detect symbols exported by the SPL at
+dnl # configure time.
 dnl #
 AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
+	AC_ARG_WITH([spl-timeout],
+		AS_HELP_STRING([--with-spl-timeout=SECS],
+		[Wait SECS for symvers file to appear  @<:@default=0@:>@]),
+		[timeout="$withval"], [timeout=0])
+
 	AC_MSG_CHECKING([spl file name for module symbols])
-	AS_IF([test -r $SPL_OBJ/Module.symvers], [
-		SPL_SYMBOLS=Module.symvers
-	], [test -r $SPL_OBJ/Modules.symvers], [
-		SPL_SYMBOLS=Modules.symvers
-	], [test -r $SPL_OBJ/module/Module.symvers], [
-		SPL_SYMBOLS=Module.symvers
-	], [test -r $SPL_OBJ/module/Modules.symvers], [
-		SPL_SYMBOLS=Modules.symvers
-	], [
+	SPL_SYMBOLS=NONE
+
+	while true; do
+		AS_IF([test -r $SPL_OBJ/Module.symvers], [
+			SPL_SYMBOLS=Module.symvers
+		], [test -r $SPL_OBJ/Modules.symvers], [
+			SPL_SYMBOLS=Modules.symvers
+		], [test -r $SPL_OBJ/module/Module.symvers], [
+			SPL_SYMBOLS=Module.symvers
+		], [test -r $SPL_OBJ/module/Modules.symvers], [
+			SPL_SYMBOLS=Modules.symvers
+		])
+
+		AS_IF([test $SPL_SYMBOLS != NONE -o $timeout -le 0], [
+			break;
+		], [
+			sleep 1
+			timeout=$((timeout-1))
+		])
+	done
+
+	AS_IF([test "$SPL_SYMBOLS" = NONE], [
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 	])
 
