@@ -476,13 +476,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if ((error = nvpair_value_string(elem, &strval)) != 0)
 				break;
 			for (check = strval; *check != '\0'; check++) {
-				/*
-				 * The kernel doesn't have an easy isprint()
-				 * check.  For this kernel check, we merely
-				 * check ASCII apart from DEL.  Fix this if
-				 * there is an easy-to-use kernel isprint().
-				 */
-				if (*check >= 0x7f) {
+				if (!isprint(*check)) {
 					error = EINVAL;
 					break;
 				}

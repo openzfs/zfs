@@ -5,6 +5,7 @@
 %define _prefix          /
 %define _libexecdir      /usr/libexec
 %define _datadir         /usr/share
+%define _mandir          %{_datadir}/man
 %define _includedir      /usr/include
 %define _udevdir         /lib/udev
 

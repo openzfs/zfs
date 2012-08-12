@@ -986,6 +986,7 @@ with_linux
 with_linux_obj
 with_spl
 with_spl_obj
+with_spl_timeout
 with_udevdir
 with_udevruledir
 with_blkid
@@ -1660,6 +1661,7 @@ Optional Packages:
   --with-linux-obj=PATH   Path to kernel build objects
   --with-spl=PATH         Path to spl source
   --with-spl-obj=PATH     Path to spl build objects
+  --with-spl-timeout=SECS Wait SECS for symvers file to appear [default=0]
   --with-udevdir=DIR      install udev helpers [EPREFIX/lib/udev]
   --with-udevruledir=DIR  install udev rules [UDEVDIR/rules.d]
   --with-blkid            support blkid caching [default=check]
@@ -4842,13 +4844,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4845: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4847: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4848: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4850: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4851: output\"" >&5)
+  (eval echo "\"\$as_me:4853: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6054,7 +6056,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6057 "configure"' > conftest.$ac_ext
+  echo '#line 6059 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7907,11 +7909,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7910: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7912: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7914: \$? = $ac_status" >&5
+   echo "$as_me:7916: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8246,11 +8248,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8249: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8251: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8253: \$? = $ac_status" >&5
+   echo "$as_me:8255: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8351,11 +8353,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8354: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8356: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8358: \$? = $ac_status" >&5
+   echo "$as_me:8360: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8406,11 +8408,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8409: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8411: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8413: \$? = $ac_status" >&5
+   echo "$as_me:8415: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11209,7 +11211,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11212 "configure"
+#line 11214 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11305,7 +11307,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11308 "configure"
+#line 11310 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12286,17 +12288,25 @@ fi
 $as_echo_n "checking spl source directory... " >&6; }
 	if test -z "$splsrc"; then
 
-		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
+								sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
-		if test -z "$sourcelink" || test ! -e $sourcelink; then
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
+
+			sourcelink=`ls -1d /var/lib/dkms/spl/*/build \
+			            2>/dev/null | tail -1`
+
+fi
+
+
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
 
 			sourcelink=../spl
 
 fi
 
 
-		if test -e $sourcelink; then
+		if test -e $sourcelink/spl_config.h; then
 
 			splsrc=`readlink -f ${sourcelink}`
 
@@ -12384,25 +12394,53 @@ $as_echo "$splsrcver" >&6; }
 
 
 
+
+# Check whether --with-spl-timeout was given.
+if test "${with_spl_timeout+set}" = set; then
+  withval=$with_spl_timeout; timeout="$withval"
+else
+  timeout=0
+fi
+
+
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
-	if test -r $SPL_OBJ/Module.symvers; then
+	SPL_SYMBOLS=NONE
 
-		SPL_SYMBOLS=Module.symvers
+	while true; do
+		if test -r $SPL_OBJ/Module.symvers; then
+
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
 
 elif test -r $SPL_OBJ/module/Module.symvers; then
 
-		SPL_SYMBOLS=Module.symvers
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/module/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
+
+fi
+
+
+		if test $SPL_SYMBOLS != NONE -o $timeout -le 0; then
+
+			break;
 
 else
+
+			sleep 1
+			timeout=$((timeout-1))
+
+fi
+
+	done
+
+	if test "$SPL_SYMBOLS" = NONE; then
 
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 
@@ -15368,6 +15406,75 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether ql->discard_granularity is available" >&5
+$as_echo_n "checking whether ql->discard_granularity is available... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct queue_limits ql __attribute__ ((unused));
+
+		ql.discard_granularity = 0;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DISCARD_GRANULARITY 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
 
 	{ $as_echo "$as_me:$LINENO: checking whether super_block uses const struct xattr_hander" >&5
 $as_echo_n "checking whether super_block uses const struct xattr_hander... " >&6; }
@@ -19790,17 +19897,25 @@ fi
 $as_echo_n "checking spl source directory... " >&6; }
 	if test -z "$splsrc"; then
 
-		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
+								sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
-		if test -z "$sourcelink" || test ! -e $sourcelink; then
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
+
+			sourcelink=`ls -1d /var/lib/dkms/spl/*/build \
+			            2>/dev/null | tail -1`
+
+fi
+
+
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
 
 			sourcelink=../spl
 
 fi
 
 
-		if test -e $sourcelink; then
+		if test -e $sourcelink/spl_config.h; then
 
 			splsrc=`readlink -f ${sourcelink}`
 
@@ -19888,25 +20003,53 @@ $as_echo "$splsrcver" >&6; }
 
 
 
+
+# Check whether --with-spl-timeout was given.
+if test "${with_spl_timeout+set}" = set; then
+  withval=$with_spl_timeout; timeout="$withval"
+else
+  timeout=0
+fi
+
+
 	{ $as_echo "$as_me:$LINENO: checking spl file name for module symbols" >&5
 $as_echo_n "checking spl file name for module symbols... " >&6; }
-	if test -r $SPL_OBJ/Module.symvers; then
+	SPL_SYMBOLS=NONE
 
-		SPL_SYMBOLS=Module.symvers
+	while true; do
+		if test -r $SPL_OBJ/Module.symvers; then
+
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
 
 elif test -r $SPL_OBJ/module/Module.symvers; then
 
-		SPL_SYMBOLS=Module.symvers
+			SPL_SYMBOLS=Module.symvers
 
 elif test -r $SPL_OBJ/module/Modules.symvers; then
 
-		SPL_SYMBOLS=Modules.symvers
+			SPL_SYMBOLS=Modules.symvers
+
+fi
+
+
+		if test $SPL_SYMBOLS != NONE -o $timeout -le 0; then
+
+			break;
 
 else
+
+			sleep 1
+			timeout=$((timeout-1))
+
+fi
+
+	done
+
+	if test "$SPL_SYMBOLS" = NONE; then
 
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 
@@ -22872,6 +23015,75 @@ fi
 
 
 	EXTRA_KCFLAGS="$tmp_flags"
+
+
+	{ $as_echo "$as_me:$LINENO: checking whether ql->discard_granularity is available" >&5
+$as_echo_n "checking whether ql->discard_granularity is available... " >&6; }
+
+
+cat confdefs.h - <<_ACEOF >conftest.c
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+		#include <linux/blkdev.h>
+
+int
+main (void)
+{
+
+		struct queue_limits ql __attribute__ ((unused));
+
+		ql.discard_granularity = 0;
+
+  ;
+  return 0;
+}
+
+_ACEOF
+
+
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
+	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
+	if { ac_try='cp conftest.c build && make modules -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } >/dev/null && { ac_try='test -s build/conftest.o'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+
+		{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_DISCARD_GRANULARITY 1
+_ACEOF
+
+
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+		{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+
+
+
+fi
+
+	rm -Rf build
+
+
 
 	{ $as_echo "$as_me:$LINENO: checking whether super_block uses const struct xattr_hander" >&5
 $as_echo_n "checking whether super_block uses const struct xattr_hander... " >&6; }
@@ -27156,7 +27368,7 @@ $as_echo_n "checking whether dmu tx validation is enabled... " >&6; }
 $as_echo "$enable_debug_dmu_tx" >&6; }
 
 
-ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man5/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/vdev_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh zfs.release"
+ac_config_files="$ac_config_files Makefile dracut/Makefile dracut/90zfs/Makefile udev/Makefile udev/rules.d/Makefile etc/Makefile etc/init.d/Makefile etc/zfs/Makefile man/Makefile man/man5/Makefile man/man8/Makefile lib/Makefile lib/libspl/Makefile lib/libspl/asm-generic/Makefile lib/libspl/asm-i386/Makefile lib/libspl/asm-x86_64/Makefile lib/libspl/include/Makefile lib/libspl/include/ia32/Makefile lib/libspl/include/ia32/sys/Makefile lib/libspl/include/rpc/Makefile lib/libspl/include/sys/Makefile lib/libspl/include/sys/sysevent/Makefile lib/libspl/include/sys/dktp/Makefile lib/libspl/include/util/Makefile lib/libavl/Makefile lib/libefi/Makefile lib/libnvpair/Makefile lib/libunicode/Makefile lib/libuutil/Makefile lib/libzpool/Makefile lib/libzfs/Makefile lib/libshare/Makefile cmd/Makefile cmd/zdb/Makefile cmd/zfs/Makefile cmd/zinject/Makefile cmd/zpool/Makefile cmd/ztest/Makefile cmd/zpios/Makefile cmd/mount_zfs/Makefile cmd/zpool_layout/Makefile cmd/zvol_id/Makefile cmd/zpool_id/Makefile cmd/vdev_id/Makefile module/Makefile module/avl/Makefile module/nvpair/Makefile module/unicode/Makefile module/zcommon/Makefile module/zfs/Makefile module/zpios/Makefile include/Makefile include/linux/Makefile include/sys/Makefile include/sys/fs/Makefile include/sys/fm/Makefile include/sys/fm/fs/Makefile scripts/Makefile scripts/zpios-profile/Makefile scripts/zpios-test/Makefile scripts/zpool-config/Makefile scripts/zpool-layout/Makefile scripts/common.sh zfs.spec zfs-modules.spec PKGBUILD-zfs PKGBUILD-zfs-modules zfs-script-config.sh zfs.release dkms.conf"
 
 
 cat >confcache <<\_ACEOF
@@ -28141,6 +28353,7 @@ do
     "PKGBUILD-zfs-modules") CONFIG_FILES="$CONFIG_FILES PKGBUILD-zfs-modules" ;;
     "zfs-script-config.sh") CONFIG_FILES="$CONFIG_FILES zfs-script-config.sh" ;;
     "zfs.release") CONFIG_FILES="$CONFIG_FILES zfs.release" ;;
+    "dkms.conf") CONFIG_FILES="$CONFIG_FILES dkms.conf" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 $as_echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

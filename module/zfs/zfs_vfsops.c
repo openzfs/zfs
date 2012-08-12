@@ -584,7 +584,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	int i, error;
 	uint64_t sa_obj;
 
-	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
+	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP | KM_NODEBUG);
 
 	/*
 	 * We claim to always be readonly so we can open snapshots;

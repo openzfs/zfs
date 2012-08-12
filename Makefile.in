@@ -44,7 +44,7 @@ target_triplet = @target@
 DIST_COMMON = $(am__configure_deps) $(noinst_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/PKGBUILD-zfs-modules.in $(srcdir)/PKGBUILD-zfs.in \
-	$(srcdir)/zfs-modules.spec.in \
+	$(srcdir)/dkms.conf.in $(srcdir)/zfs-modules.spec.in \
 	$(srcdir)/zfs-script-config.sh.in $(srcdir)/zfs.release.in \
 	$(srcdir)/zfs.spec.in $(srcdir)/zfs_config.h.in \
 	$(top_srcdir)/config/arch.am $(top_srcdir)/config/deb.am \
@@ -91,6 +91,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/kernel-create-umode-t.m4 \
 	$(top_srcdir)/config/kernel-d-make-root.m4 \
 	$(top_srcdir)/config/kernel-d-obtain-alias.m4 \
+	$(top_srcdir)/config/kernel-discard-granularity.m4 \
 	$(top_srcdir)/config/kernel-encode-fh-inode.m4 \
 	$(top_srcdir)/config/kernel-evict-inode.m4 \
 	$(top_srcdir)/config/kernel-fallocate.m4 \
@@ -134,7 +135,8 @@ CONFIG_CLEAN_FILES = module/Makefile module/avl/Makefile \
 	module/nvpair/Makefile module/unicode/Makefile \
 	module/zcommon/Makefile module/zfs/Makefile \
 	module/zpios/Makefile zfs.spec zfs-modules.spec PKGBUILD-zfs \
-	PKGBUILD-zfs-modules zfs-script-config.sh zfs.release
+	PKGBUILD-zfs-modules zfs-script-config.sh zfs.release \
+	dkms.conf
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
@@ -381,7 +383,7 @@ AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
 	config/config.awk config/rpm.am config/deb.am config/tgz.am \
 	META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE \
-	ZFS.RELEASE
+	ZFS.RELEASE dkms.postinst
 noinst_HEADERS = zfs_config.h zfs.release
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -463,6 +465,8 @@ PKGBUILD-zfs-modules: $(top_builddir)/config.status $(srcdir)/PKGBUILD-zfs-modul
 zfs-script-config.sh: $(top_builddir)/config.status $(srcdir)/zfs-script-config.sh.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 zfs.release: $(top_builddir)/config.status $(srcdir)/zfs.release.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+dkms.conf: $(top_builddir)/config.status $(srcdir)/dkms.conf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -911,13 +915,16 @@ srpm-utils:
 
 srpm: srpm-modules srpm-utils
 
+rpm-dkms: srpm-modules
+@CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" dkms-common
+
 rpm-modules: srpm-modules
 @CONFIG_KERNEL_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-modules" rpm-common
 
 rpm-utils: srpm-utils
 @CONFIG_USER_TRUE@	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" rpm-common
 
-rpm: rpm-modules rpm-utils
+rpm: rpm-modules rpm-utils rpm-dkms
 
 rpm-local:
 	@(if test "${HAVE_RPMBUILD}" = "no"; then \
@@ -935,6 +942,26 @@ rpm-local:
 	cp $(rpmspec) $(rpmbuild)/SPECS && \
 	mkdir -p $(rpmbuild)/SOURCES && \
 	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
+
+dkms-common:
+	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
+	rpmspec=$(pkg).spec; \
+	rpmdkms=$(pkg)-dkms-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).noarch.rpm;\
+	rpmbuild=`mktemp -t -d $(PACKAGE)-build-$$USER-XXXXXXXX`; \
+	$(MAKE) $(AM_MAKEFLAGS) \
+		rpmbuild="$$rpmbuild" \
+		rpmspec="$$rpmspec" \
+		rpm-local || exit 1; \
+	$(RPMBUILD) \
+		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_topdir $$rpmbuild" \
+		--define "dist %{nil}" \
+		--define "_without_kernel 1" \
+		--define "_without_kernel_debug 1" \
+		--define "_with_kernel_dkms 1" \
+		--nodeps --rebuild $$rpmpkg || exit 1; \
+	cp $$rpmbuild/RPMS/noarch/$$rpmdkms . || exit 1; \
+	$(RM) -R $$rpmbuild
 
 srpm-common: dist
 	rpmpkg=$(pkg)-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE).src.rpm; \
