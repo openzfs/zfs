@@ -579,7 +579,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files devel
 %defattr(-,root,root)
-%{_prefix}/src/*/%{kver_kern}/*
+%{_prefix}/src/*/%{kver_kern}
 
 %post
 if [ -f /boot/System.map-%{kver_kern} ]; then
@@ -595,6 +595,10 @@ else
 	/sbin/depmod -a || exit 0
 fi
 
+%postun devel
+rmdir %{_prefix}/src/@PACKAGE@-%{version}-@ZFS_META_RELEASE@ 2>/dev/null
+exit 0
+
 %endif
 %if %{?with_kernel_debug}
 
@@ -604,7 +608,7 @@ fi
 
 %files debug-devel
 %defattr(-,root,root)
-%{_prefix}/src/*/%{kver_dbug}/*
+%{_prefix}/src/*/%{kver_dbug}
 
 %post debug
 if [ -f /boot/System.map-%{kver_dbug} ]; then
@@ -620,12 +624,16 @@ else
 	/sbin/depmod -a || exit 0
 fi
 
+%postun debug-devel
+rmdir %{_prefix}/src/@PACKAGE@-%{version}-@ZFS_META_RELEASE@ 2>/dev/null
+exit 0
+
 %endif
 %if %{?with_kernel_dkms}
 
 %files dkms
 %defattr(-,root,root)
-%{_prefix}/src/@PACKAGE@-%{version}/*
+%{_prefix}/src/@PACKAGE@-%{version}
 
 %post dkms
 for POSTINST in %{_prefix}/lib/dkms/common.postinst; do
