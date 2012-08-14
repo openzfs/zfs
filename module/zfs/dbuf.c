@@ -2846,6 +2846,7 @@ EXPORT_SYMBOL(dmu_buf_will_dirty);
 EXPORT_SYMBOL(dmu_buf_will_not_fill);
 EXPORT_SYMBOL(dmu_buf_will_fill);
 EXPORT_SYMBOL(dmu_buf_fill_done);
+EXPORT_SYMBOL(dmu_buf_rele);
 EXPORT_SYMBOL(dbuf_assign_arcbuf);
 EXPORT_SYMBOL(dbuf_clear);
 EXPORT_SYMBOL(dbuf_prefetch);
