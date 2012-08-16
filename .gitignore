@@ -28,6 +28,7 @@
 .libs
 .DS_Store
 modules.order
+Makefile
 
 #
 # Top level generated files specific to this top level dir
