@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2010 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  */
 
@@ -2313,6 +2314,17 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		}
 		break;
 
+	case ZFS_PROP_GUID:
+		/*
+		 * GUIDs are stored as numbers, but they are identifiers.
+		 * We don't want them to be pretty printed, because pretty
+		 * printing mangles the ID into a truncated and useless value.
+		 */
+		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
+			return (-1);
+		(void) snprintf(propbuf, proplen, "%llu", (u_longlong_t)val);
+		break;
+
 	default:
 		switch (zfs_prop_get_type(prop)) {
 		case PROP_TYPE_NUMBER:
@@ -3118,7 +3130,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 
 /*
  * Destroys the given dataset.  The caller must make sure that the filesystem
- * isn't mounted, and that there are no active dependents.
+ * isn't mounted, and that there are no active dependents. If the file system
+ * does not exist this function does nothing.
  */
 int
 zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
@@ -3137,7 +3150,8 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 	}
 
 	zc.zc_defer_destroy = defer;
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0) {
+	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0 &&
+	    errno != ENOENT) {
 		return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
 		    zhp->zfs_name));
@@ -3760,7 +3774,8 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
  * Renames the given dataset.
  */
 int
-zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
+zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
+    boolean_t force_unmount)
 {
 	int ret;
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
@@ -3880,7 +3895,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 			goto error;
 		}
 	} else {
-		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0)) == NULL)
+		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0,
+		    force_unmount ? MS_FORCE : 0)) == NULL)
 			return (-1);
 
 		if (changelist_haszonedchild(cl)) {

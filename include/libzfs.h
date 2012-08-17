@@ -553,7 +553,7 @@ extern int zfs_destroy_snaps_nvl(zfs_handle_t *, nvlist_t *, boolean_t);
 extern int zfs_clone(zfs_handle_t *, const char *, nvlist_t *);
 extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t, nvlist_t *);
 extern int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t);
-extern int zfs_rename(zfs_handle_t *, const char *, boolean_t);
+extern int zfs_rename(zfs_handle_t *, const char *, boolean_t, boolean_t);
 
 typedef struct sendflags {
 	/* print informational messages (ie, -v was specified) */
