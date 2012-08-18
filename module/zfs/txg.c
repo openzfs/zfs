@@ -382,6 +382,15 @@ txg_sync_thread(dsl_pool_t *dp)
 	callb_cpr_t cpr;
 	uint64_t start, delta;
 
+#ifdef _KERNEL
+	/*
+	 * Annotate this process with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	current->flags |= PF_NOFS;
+#endif /* _KERNEL */
+
 	txg_thread_enter(tx, &cpr);
 
 	start = delta = 0;

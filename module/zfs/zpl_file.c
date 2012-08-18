@@ -357,8 +357,16 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 
 	ASSERT(PageLocked(pp));
 	ASSERT(!PageWriteback(pp));
+	ASSERT(!(current->flags & PF_NOFS));
 
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	current->flags |= PF_NOFS;
 	(void) zfs_putpage(mapping->host, pp, wbc);
+	current->flags &= ~PF_NOFS;
 
 	return (0);
 }
