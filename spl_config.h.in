@@ -165,9 +165,6 @@
 /* pgdat_list is available */
 #undef HAVE_PGDAT_LIST
 
-/* pmd_alloc_with_mask exists */
-#undef HAVE_PMD_ALLOC_WITH_MASK
-
 /* __put_task_struct() is available */
 #undef HAVE_PUT_TASK_STRUCT
 
