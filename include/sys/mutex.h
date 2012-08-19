@@ -78,8 +78,12 @@ mutex_owner(kmutex_t *mp)
 })
 
 #define mutex_tryenter(mp)              mutex_trylock(&(mp)->m)
-#define mutex_enter(mp)                 mutex_lock(&(mp)->m)
-#define mutex_exit(mp)                 mutex_unlock(&(mp)->m)
+#define mutex_enter(mp)                                                 \
+({                                                                      \
+        ASSERT3P(mutex_owner(mp), !=, current);				\
+        mutex_lock(&(mp)->m);						\
+ })
+#define mutex_exit(mp)                  mutex_unlock(&(mp)->m)
 
 #ifdef HAVE_GPL_ONLY_SYMBOLS
 # define mutex_enter_nested(mp, sc)     mutex_lock_nested(&(mp)->m, sc)
@@ -171,6 +175,7 @@ spl_mutex_clear_owner(kmutex_t *mp)
         _rc_ = 0;                                                       \
         _count_ = 0;                                                    \
         _owner_ = mutex_owner(mp);                                      \
+        ASSERT3P(_owner_, !=, current);					\
                                                                         \
         while (_owner_ && task_curr(_owner_) &&                         \
                _count_ <= spl_mutex_spin_max()) {                       \
