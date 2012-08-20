@@ -49,6 +49,7 @@ extern "C" {
  * Forward declarations that lots of things need.
  */
 typedef struct vdev_queue vdev_queue_t;
+typedef struct vdev_io vdev_io_t;
 typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 
@@ -102,7 +103,13 @@ struct vdev_queue {
 	avl_tree_t	vq_read_tree;
 	avl_tree_t	vq_write_tree;
 	avl_tree_t	vq_pending_tree;
+	list_t		vq_io_list;
 	kmutex_t	vq_lock;
+};
+
+struct vdev_io {
+	char		vi_buffer[SPA_MAXBLOCKSIZE]; /* Must be first */
+	list_node_t	vi_node;
 };
 
 /*
