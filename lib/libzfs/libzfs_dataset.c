@@ -3857,7 +3857,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 	}
 
 	if (recursive) {
-		struct destroydata dd;
+		struct destroydata dd = { 0 };
 
 		parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
 		if (parentname == NULL) {
@@ -3873,12 +3873,16 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 		}
 
 		dd.snapname = delim + 1;
+		verify(nvlist_alloc(&dd.nvl, NV_UNIQUE_NAME, 0) == 0);
 
 		/* We remove any zvol links prior to renaming them */
 		ret = zfs_iter_filesystems(zhrp, zfs_check_snap_cb, &dd);
 		if (ret) {
+			nvlist_free(dd.nvl);
 			goto error;
 		}
+		nvlist_free(dd.nvl);
+
 	} else {
 		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0)) == NULL)
 			return (-1);
