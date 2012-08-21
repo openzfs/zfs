@@ -3875,7 +3875,9 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive)
 		dd.snapname = delim + 1;
 
 		/* We remove any zvol links prior to renaming them */
+		verify(nvlist_alloc(&dd.nvl, NV_UNIQUE_NAME, 0) == 0);
 		ret = zfs_iter_filesystems(zhrp, zfs_check_snap_cb, &dd);
+		nvlist_free(dd.nvl);
 		if (ret) {
 			goto error;
 		}
