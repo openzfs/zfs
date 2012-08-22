@@ -8,7 +8,6 @@
 
 AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERNEL
-	SPL_AC_KERNEL_CONFIG
 
 	if test "${LINUX_OBJ}" != "${LINUX}"; then
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
@@ -217,13 +216,6 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	AC_SUBST(LINUX_VERSION)
 
 	SPL_AC_MODULE_SYMVERS
-])
-
-AC_DEFUN([SPL_AC_KERNEL_CONFIG], [
-	SPL_LINUX_CONFIG([PREEMPT],
-		AC_MSG_ERROR([
-		*** Kernel built with CONFIG_PREEMPT which is not supported.
-		** You must rebuild your kernel without this option.]), [])
 ])
 
 dnl #
