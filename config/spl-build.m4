@@ -647,26 +647,6 @@ AC_DEFUN([SPL_LINUX_TRY_COMPILE],
 ])
 
 dnl #
-dnl # SPL_LINUX_CONFIG
-dnl #
-AC_DEFUN([SPL_LINUX_CONFIG],
-	[AC_MSG_CHECKING([whether Linux was built with CONFIG_$1])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/module.h>
-	],[
-		#ifndef CONFIG_$1
-		#error CONFIG_$1 not #defined
-		#endif
-	],[
-		AC_MSG_RESULT([yes])
-		$2
-	],[
-		AC_MSG_RESULT([no])
-		$3
-	])
-])
-
-dnl #
 dnl # SPL_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
