@@ -686,9 +686,8 @@ spl_debug_msg(void *arg, int subsys, int mask, const char *file,
         if (strchr(file, '/'))
                 file = strrchr(file, '/') + 1;
 
-        trace_set_debug_header(&header, subsys, mask, line, 0);
-
         tcd = trace_get_tcd();
+        trace_set_debug_header(&header, subsys, mask, line, 0);
         if (tcd == NULL)
                 goto console;
 
