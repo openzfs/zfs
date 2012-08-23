@@ -383,7 +383,7 @@ AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST = autogen.sh zfs.spec.in zfs-modules.spec.in \
 	config/config.awk config/rpm.am config/deb.am config/tgz.am \
 	META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE \
-	ZFS.RELEASE dkms.postinst
+	ZFS.RELEASE dkms.postinst copy-builtin
 noinst_HEADERS = zfs_config.h zfs.release
 all: zfs_config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive

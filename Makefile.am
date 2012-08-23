@@ -16,7 +16,7 @@ EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown
 EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
-EXTRA_DIST += dkms.postinst
+EXTRA_DIST += dkms.postinst copy-builtin
 noinst_HEADERS = zfs_config.h zfs.release
 
 distclean-local::
