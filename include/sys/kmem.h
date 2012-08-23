@@ -353,6 +353,7 @@ typedef struct spl_kmem_magazine {
 	struct spl_kmem_cache	*skm_cache;	/* Owned by cache */
 	struct delayed_work	skm_work;	/* Magazine reclaim work */
 	unsigned long		skm_age;	/* Last cache access */
+	unsigned int		skm_cpu;	/* Owned by cpu */
 	void			*skm_objs[0];	/* Object pointers */
 } spl_kmem_magazine_t;
 

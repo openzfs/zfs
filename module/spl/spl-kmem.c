@@ -1156,18 +1156,17 @@ spl_magazine_age(void *data)
 	spl_kmem_magazine_t *skm =
 		spl_get_work_data(data, spl_kmem_magazine_t, skm_work.work);
 	spl_kmem_cache_t *skc = skm->skm_cache;
-	int i = smp_processor_id();
 
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(skc->skc_mag[i] == skm);
+	ASSERT(skc->skc_mag[skm->skm_cpu] == skm);
 
 	if (skm->skm_avail > 0 &&
 	    time_after(jiffies, skm->skm_age + skc->skc_delay * HZ))
 		(void)spl_cache_flush(skc, skm, skm->skm_refill);
 
 	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
-		schedule_delayed_work_on(i, &skm->skm_work,
+		schedule_delayed_work_on(skm->skm_cpu, &skm->skm_work,
 					 skc->skc_delay / 3 * HZ);
 }
 
@@ -1267,14 +1266,14 @@ spl_magazine_size(spl_kmem_cache_t *skc)
  * Allocate a per-cpu magazine to associate with a specific core.
  */
 static spl_kmem_magazine_t *
-spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
+spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 {
 	spl_kmem_magazine_t *skm;
 	int size = sizeof(spl_kmem_magazine_t) +
 	           sizeof(void *) * skc->skc_mag_size;
 	SENTRY;
 
-	skm = kmem_alloc_node(size, KM_SLEEP, node);
+	skm = kmem_alloc_node(size, KM_SLEEP, cpu_to_node(cpu));
 	if (skm) {
 		skm->skm_magic = SKM_MAGIC;
 		skm->skm_avail = 0;
@@ -1283,6 +1282,7 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int node)
 		skm->skm_cache = skc;
 		spl_init_delayed_work(&skm->skm_work, spl_magazine_age, skm);
 		skm->skm_age = jiffies;
+		skm->skm_cpu = cpu;
 	}
 
 	SRETURN(skm);
@@ -1318,7 +1318,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 	skc->skc_mag_refill = (skc->skc_mag_size + 1) / 2;
 
 	for_each_online_cpu(i) {
-		skc->skc_mag[i] = spl_magazine_alloc(skc, cpu_to_node(i));
+		skc->skc_mag[i] = spl_magazine_alloc(skc, i);
 		if (!skc->skc_mag[i]) {
 			for (i--; i >= 0; i--)
 				spl_magazine_free(skc->skc_mag[i]);
