@@ -14,7 +14,7 @@ SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += dkms.postinst
+EXTRA_DIST += dkms.postinst copy-builtin
 noinst_HEADERS = spl_config.h spl.release
 
 distclean-local::
