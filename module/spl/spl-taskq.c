@@ -50,8 +50,6 @@ task_alloc(taskq_t *tq, uint_t flags)
         SENTRY;
 
         ASSERT(tq);
-        ASSERT(flags & (TQ_SLEEP | TQ_NOSLEEP));               /* One set */
-        ASSERT(!((flags & TQ_SLEEP) && (flags & TQ_NOSLEEP))); /* Not both */
         ASSERT(spin_is_locked(&tq->tq_lock));
 retry:
         /* Acquire taskq_ent_t's from free list if available */
@@ -554,7 +552,7 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 		nthreads = MAX((num_online_cpus() * nthreads) / 100, 1);
 	}
 
-        tq = kmem_alloc(sizeof(*tq), KM_SLEEP);
+        tq = kmem_alloc(sizeof(*tq), KM_PUSHPAGE);
         if (tq == NULL)
                 SRETURN(NULL);
 
@@ -580,12 +578,12 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 
         if (flags & TASKQ_PREPOPULATE)
                 for (i = 0; i < minalloc; i++)
-                        task_done(tq, task_alloc(tq, TQ_SLEEP | TQ_NEW));
+                        task_done(tq, task_alloc(tq, TQ_PUSHPAGE | TQ_NEW));
 
         spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	for (i = 0; i < nthreads; i++) {
-		tqt = kmem_alloc(sizeof(*tqt), KM_SLEEP);
+		tqt = kmem_alloc(sizeof(*tqt), KM_PUSHPAGE);
 		INIT_LIST_HEAD(&tqt->tqt_thread_list);
 		INIT_LIST_HEAD(&tqt->tqt_active_list);
 		tqt->tqt_tq = tq;
