@@ -1231,6 +1231,19 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 	}
 }
 
+boolean_t
+dsl_dataset_is_dirty(dsl_dataset_t *ds)
+{
+	int t;
+
+	for (t = 0; t < TXG_SIZE; t++) {
+		if (txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets,
+		    ds, t))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
 /*
  * The unique space in the head dataset can be calculated by subtracting
  * the space used in the most recent snapshot, that is still being used
@@ -3402,10 +3415,6 @@ dsl_dataset_set_quota_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (ds->ds_quota != effective_value) {
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		ds->ds_quota = effective_value;
-
-		spa_history_log_internal(LOG_DS_REFQUOTA,
-		    ds->ds_dir->dd_pool->dp_spa, tx, "%lld dataset = %llu ",
-		    (longlong_t)ds->ds_quota, ds->ds_object);
 	}
 }
 
@@ -3509,10 +3518,6 @@ dsl_dataset_set_reservation_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	dsl_dir_diduse_space(ds->ds_dir, DD_USED_REFRSRV, delta, 0, 0, tx);
 	mutex_exit(&ds->ds_dir->dd_lock);
-
-	spa_history_log_internal(LOG_DS_REFRESERV,
-	    ds->ds_dir->dd_pool->dp_spa, tx, "%lld dataset = %llu",
-	    (longlong_t)effective_value, ds->ds_object);
 }
 
 int

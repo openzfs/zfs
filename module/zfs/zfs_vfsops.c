@@ -1112,9 +1112,9 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	/*
 	 * Evict cached data
 	 */
-	if (dmu_objset_is_dirty_anywhere(zsb->z_os))
-		if (!zfs_is_readonly(zsb))
-			txg_wait_synced(dmu_objset_pool(zsb->z_os), 0);
+	if (dsl_dataset_is_dirty(dmu_objset_ds(zsb->z_os)) &&
+	    !zfs_is_readonly(zsb))
+		txg_wait_synced(dmu_objset_pool(zsb->z_os), 0);
 	(void) dmu_objset_evict_dbufs(zsb->z_os);
 
 	return (0);
