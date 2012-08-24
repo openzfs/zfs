@@ -1158,20 +1158,20 @@ zfs_extend(znode_t *zp, uint64_t end)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	rl_t *rl;
+	rl_t rl;
 	uint64_t newblksz;
 	int error;
 
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	zfs_range_lock(&rl, zp, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
 	 */
 	if (end <= zp->z_size) {
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (0);
 	}
 top:
@@ -1202,7 +1202,7 @@ top:
 			goto top;
 		}
 		dmu_tx_abort(tx);
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (error);
 	}
 
@@ -1214,7 +1214,7 @@ top:
 	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(ZTOZSB(zp)),
 	    &zp->z_size, sizeof (zp->z_size), tx));
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	dmu_tx_commit(tx);
 
@@ -1235,19 +1235,19 @@ static int
 zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
-	rl_t *rl;
+	rl_t rl;
 	int error;
 
 	/*
 	 * Lock the range being freed.
 	 */
-	rl = zfs_range_lock(zp, off, len, RL_WRITER);
+	zfs_range_lock(&rl, zp, off, len, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
 	 */
 	if (off >= zp->z_size) {
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (0);
 	}
 
@@ -1256,7 +1256,7 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 
 	error = dmu_free_long_range(zsb->z_os, zp->z_id, off, len);
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	return (error);
 }
@@ -1275,7 +1275,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	rl_t *rl;
+	rl_t rl;
 	int error;
 	sa_bulk_attr_t bulk[2];
 	int count = 0;
@@ -1283,19 +1283,19 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	/*
 	 * We will change zp_size, lock the whole file.
 	 */
-	rl = zfs_range_lock(zp, 0, UINT64_MAX, RL_WRITER);
+	zfs_range_lock(&rl, zp, 0, UINT64_MAX, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
 	 */
 	if (end >= zp->z_size) {
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (0);
 	}
 
 	error = dmu_free_long_range(zsb->z_os, zp->z_id, end,  -1);
 	if (error) {
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (error);
 	}
 top:
@@ -1310,7 +1310,7 @@ top:
 			goto top;
 		}
 		dmu_tx_abort(tx);
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		return (error);
 	}
 
@@ -1327,7 +1327,7 @@ top:
 
 	dmu_tx_commit(tx);
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	return (0);
 }

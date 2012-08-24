@@ -218,8 +218,16 @@ uint64_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	tx_cpu_t *tc = &tx->tx_cpu[CPU_SEQID];
+	tx_cpu_t *tc;
 	uint64_t txg;
+
+#ifdef _KERNEL
+	preempt_disable();
+	tc = &tx->tx_cpu[CPU_SEQID];
+	preempt_enable();
+#else
+	tc = &tx->tx_cpu[CPU_SEQID];
+#endif /* _KERNEL */
 
 	mutex_enter(&tc->tc_lock);
 

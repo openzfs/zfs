@@ -63,7 +63,7 @@ typedef struct rl {
  * is converted to WRITER that specified to lock from the start of the
  * end of file.  zfs_range_lock() returns the range lock structure.
  */
-rl_t *zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type);
+rl_t *zfs_range_lock(rl_t *rl, znode_t *zp, uint64_t off, uint64_t len, rl_type_t type);
 
 /*
  * Unlock range and destroy range lock structure.

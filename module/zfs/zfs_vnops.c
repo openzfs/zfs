@@ -370,7 +370,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	objset_t	*os;
 	ssize_t		n, nbytes;
 	int		error = 0;
-	rl_t		*rl;
+	rl_t		rl;
 #ifdef HAVE_UIO_ZEROCOPY
 	xuio_t		*xuio = NULL;
 #endif /* HAVE_UIO_ZEROCOPY */
@@ -418,7 +418,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	rl = zfs_range_lock(zp, uio->uio_loffset, uio->uio_resid, RL_READER);
+	zfs_range_lock(&rl, zp, uio->uio_loffset, uio->uio_resid, RL_READER);
 
 	/*
 	 * If we are reading past end-of-file we can skip
@@ -482,7 +482,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		n -= nbytes;
 	}
 out:
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	ZFS_ACCESSTIME_STAMP(zsb, zp);
 	zfs_inode_update(zp);
@@ -524,7 +524,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	zilog_t		*zilog;
 	offset_t	woff;
 	ssize_t		n, nbytes;
-	rl_t		*rl;
+	rl_t		rl;
 	int		max_blksz = zsb->z_max_blksz;
 	int		error = 0;
 	arc_buf_t	*abuf;
@@ -608,9 +608,9 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
 		 */
-		rl = zfs_range_lock(zp, 0, n, RL_APPEND);
-		woff = rl->r_off;
-		if (rl->r_len == UINT64_MAX) {
+		zfs_range_lock(&rl, zp, 0, n, RL_APPEND);
+		woff = rl.r_off;
+		if (rl.r_len == UINT64_MAX) {
 			/*
 			 * We overlocked the file because this write will cause
 			 * the file block size to increase.
@@ -625,11 +625,11 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * this write, then this range lock will lock the entire file
 		 * so that we can re-write the block safely.
 		 */
-		rl = zfs_range_lock(zp, woff, n, RL_WRITER);
+		zfs_range_lock(&rl, zp, woff, n, RL_WRITER);
 	}
 
 	if (woff >= limit) {
-		zfs_range_unlock(rl);
+		zfs_range_unlock(&rl);
 		ZFS_EXIT(zsb);
 		return (EFBIG);
 	}
@@ -719,7 +719,7 @@ again:
 		 * on the first iteration since zfs_range_reduce() will
 		 * shrink down r_len to the appropriate size.
 		 */
-		if (rl->r_len == UINT64_MAX) {
+		if (rl.r_len == UINT64_MAX) {
 			uint64_t new_blksz;
 
 			if (zp->z_blksz > max_blksz) {
@@ -729,7 +729,7 @@ again:
 				new_blksz = MIN(end_size, max_blksz);
 			}
 			zfs_grow_blocksize(zp, new_blksz, tx);
-			zfs_range_reduce(rl, woff, n);
+			zfs_range_reduce(&rl, woff, n);
 		}
 
 		/*
@@ -842,7 +842,7 @@ again:
 			uio_prefaultpages(MIN(n, max_blksz), uio);
 	}
 
-	zfs_range_unlock(rl);
+	zfs_range_unlock(&rl);
 
 	/*
 	 * If we're in replay mode, or we made no progress, return error.
@@ -946,7 +946,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_rl = zfs_range_lock(zp, offset, size, RL_READER);
+		zfs_range_lock(zgd->zgd_rl, zp, offset, size, RL_READER);
 		/* test for truncation needs to be done while range locked */
 		if (offset >= zp->z_size) {
 			error = ENOENT;
@@ -967,7 +967,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 			size = zp->z_blksz;
 			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
 			offset -= blkoff;
-			zgd->zgd_rl = zfs_range_lock(zp, offset, size,
+			zfs_range_lock(zgd->zgd_rl, zp, offset, size,
 			    RL_READER);
 			if (zp->z_blksz == size)
 				break;

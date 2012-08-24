@@ -65,6 +65,7 @@
 #include <sys/kstat.h>
 #include <sys/zfs_context.h>
 #ifdef _KERNEL
+#include <linux/preempt.h>
 #include <sys/atomic.h>
 #include <sys/condvar.h>
 #include <sys/cpuvar.h>
@@ -1413,7 +1414,17 @@ fm_ena_generate_cpu(uint64_t timestamp, processorid_t cpuid, uchar_t format)
 uint64_t
 fm_ena_generate(uint64_t timestamp, uchar_t format)
 {
-	return (fm_ena_generate_cpu(timestamp, getcpuid(), format));
+	processorid_t cpuid;
+
+#ifdef _KERNEL
+	preempt_disable();
+	cpuid = getcpuid();
+	preempt_enable();
+#else
+	cpuid = getcpuid();
+#endif
+
+	return (fm_ena_generate_cpu(timestamp, cpuid, format));
 }
 
 uint64_t
