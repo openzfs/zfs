@@ -393,26 +393,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 			[Define to 1 if licensed under the GPL])
 	])
 
-	ZFS_AC_KERNEL_CONFIG_PREEMPT
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
-])
-
-dnl #
-dnl # Check CONFIG_PREEMPT
-dnl #
-dnl # Premptible kernels will be supported in the future.  But at the
-dnl # moment there are a few places in the code which need to be updated
-dnl # to accomidate them.  Until that work occurs we should detect this
-dnl # at configure time and fail with a sensible message.  Otherwise,
-dnl # people will be able to build successfully, however they will have
-dnl # stability problems.  See https://github.com/zfsonlinux/zfs/issues/83
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG_PREEMPT], [
-
-	ZFS_LINUX_CONFIG([PREEMPT],
-		AC_MSG_ERROR([
-	*** Kernel built with CONFIG_PREEMPT which is not supported.
-	*** You must rebuild your kernel without this option.]), [])
 ])
 
 dnl #
