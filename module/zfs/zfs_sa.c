@@ -188,7 +188,6 @@ int
 zfs_sa_get_xattr(znode_t *zp)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
-	sa_handle_t *sa;
 	char *obj;
 	int size;
 	int error;
@@ -197,14 +196,8 @@ zfs_sa_get_xattr(znode_t *zp)
 	ASSERT(!zp->z_xattr_cached);
 	ASSERT(zp->z_is_sa);
 
-	error = sa_handle_get(zsb->z_os, zp->z_id, NULL, SA_HDL_PRIVATE, &sa);
-	if (error)
-		return (error);
-
-	error = sa_size(sa, SA_ZPL_DXATTR(zsb), &size);
+	error = sa_size(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), &size);
 	if (error) {
-		sa_handle_destroy(sa);
-
 		if (error == ENOENT)
 			return nvlist_alloc(&zp->z_xattr_cached,
 			    NV_UNIQUE_NAME, KM_SLEEP);
@@ -214,12 +207,11 @@ zfs_sa_get_xattr(znode_t *zp)
 
 	obj = sa_spill_alloc(KM_SLEEP);
 
-	error = sa_lookup(sa, SA_ZPL_DXATTR(zsb), obj, size);
+	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb), obj, size);
 	if (error == 0)
 		error = nvlist_unpack(obj, size, &zp->z_xattr_cached, KM_SLEEP);
 
 	sa_spill_free(obj);
-	sa_handle_destroy(sa);
 
 	return (error);
 }
@@ -228,7 +220,6 @@ int
 zfs_sa_set_xattr(znode_t *zp)
 {
 	zfs_sb_t *zsb = ZTOZSB(zp);
-	sa_handle_t *sa;
 	dmu_tx_t *tx;
 	char *obj;
 	size_t size;
@@ -249,30 +240,16 @@ zfs_sa_set_xattr(znode_t *zp)
 	if (error)
 		goto out_free;
 
-	/*
-	 * A private SA handle must be used to ensure we can drop the hold
-	 * on the spill block prior to calling dmu_tx_commit().  If we call
-	 * dmu_tx_commit() before sa_handle_destroy(), then our hold will
-	 * trigger a copy of the buffer at txg sync time.  This is done to
-	 * prevent data from leaking in to the syncing txg.  As a result
-	 * the original dirty spill block will be remain dirty in the arc
-	 * while the copy is written and laundered.
-	 */
-	error = sa_handle_get(zsb->z_os, zp->z_id, NULL, SA_HDL_PRIVATE, &sa);
-	if (error)
-		goto out_free;
-
 	tx = dmu_tx_create(zsb->z_os);
 	dmu_tx_hold_sa_create(tx, size);
-	dmu_tx_hold_sa(tx, sa, B_TRUE);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		sa_handle_destroy(sa);
 	} else {
-		error = sa_update(sa, SA_ZPL_DXATTR(zsb), obj, size, tx);
-		sa_handle_destroy(sa);
+		error = sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zsb),
+		    obj, size, tx);
 		if (error)
 			dmu_tx_abort(tx);
 		else
