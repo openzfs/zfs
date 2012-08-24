@@ -258,6 +258,7 @@ int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
+boolean_t dsl_dataset_is_dirty(dsl_dataset_t *ds);
 
 int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 
