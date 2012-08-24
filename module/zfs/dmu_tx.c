@@ -63,7 +63,7 @@ static kstat_t *dmu_tx_ksp;
 dmu_tx_t *
 dmu_tx_create_dd(dsl_dir_t *dd)
 {
-	dmu_tx_t *tx = kmem_zalloc(sizeof (dmu_tx_t), KM_SLEEP);
+	dmu_tx_t *tx = kmem_zalloc(sizeof (dmu_tx_t), KM_PUSHPAGE);
 	tx->tx_dir = dd;
 	if (dd)
 		tx->tx_pool = dd->dd_pool;
@@ -141,7 +141,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 		}
 	}
 
-	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
+	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_PUSHPAGE);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
 #ifdef DEBUG_DMU_TX
@@ -1241,7 +1241,7 @@ dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)
 {
 	dmu_tx_callback_t *dcb;
 
-	dcb = kmem_alloc(sizeof (dmu_tx_callback_t), KM_SLEEP);
+	dcb = kmem_alloc(sizeof (dmu_tx_callback_t), KM_PUSHPAGE);
 
 	dcb->dcb_func = func;
 	dcb->dcb_data = data;

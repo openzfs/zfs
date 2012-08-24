@@ -339,7 +339,7 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			    TASKQ_THREADS_CPU_PCT | TASKQ_PREPOPULATE);
 		}
 
-		cb_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
+		cb_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
 		list_create(cb_list, sizeof (dmu_tx_callback_t),
 		    offsetof(dmu_tx_callback_t, dcb_node));
 
@@ -371,19 +371,6 @@ txg_sync_thread(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	uint64_t start, delta;
-
-#ifdef _KERNEL
-	/*
-	 * Disable the normal reclaim path for the txg_sync thread.  This
-	 * ensures the thread will never enter dmu_tx_assign() which can
-	 * otherwise occur due to direct reclaim.  If this is allowed to
-	 * happen the system can deadlock.  Direct reclaim call path:
-	 *
-	 *   ->shrink_icache_memory->prune_icache->dispose_list->
-	 *   clear_inode->zpl_clear_inode->zfs_inactive->dmu_tx_assign
-	 */
-	current->flags |= PF_MEMALLOC;
-#endif /* _KERNEL */
 
 	txg_thread_enter(tx, &cpr);
 

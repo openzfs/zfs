@@ -177,7 +177,7 @@ vdev_cache_allocate(zio_t *zio)
 		vdev_cache_evict(vc, ve);
 	}
 
-	ve = kmem_zalloc(sizeof (vdev_cache_entry_t), KM_SLEEP);
+	ve = kmem_zalloc(sizeof (vdev_cache_entry_t), KM_PUSHPAGE);
 	ve->ve_offset = offset;
 	ve->ve_lastused = ddi_get_lbolt();
 	ve->ve_data = zio_buf_alloc(VCBS);
@@ -274,7 +274,7 @@ vdev_cache_read(zio_t *zio)
 
 	mutex_enter(&vc->vc_lock);
 
-	ve_search = kmem_alloc(sizeof(vdev_cache_entry_t), KM_SLEEP);
+	ve_search = kmem_alloc(sizeof(vdev_cache_entry_t), KM_PUSHPAGE);
 	ve_search->ve_offset = cache_offset;
 	ve = avl_find(&vc->vc_offset_tree, ve_search, NULL);
 	kmem_free(ve_search, sizeof(vdev_cache_entry_t));

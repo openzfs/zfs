@@ -83,7 +83,7 @@ spa_config_load(void)
 	/*
 	 * Open the configuration file.
 	 */
-	pathname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	pathname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
 
 	(void) snprintf(pathname, MAXPATHLEN, "%s%s",
 	    (rootdir != NULL) ? "./" : "", spa_config_path);
@@ -98,7 +98,7 @@ spa_config_load(void)
 	if (kobj_get_filesize(file, &fsize) != 0)
 		goto out;
 
-	buf = kmem_alloc(fsize, KM_SLEEP | KM_NODEBUG);
+	buf = kmem_alloc(fsize, KM_PUSHPAGE | KM_NODEBUG);
 
 	/*
 	 * Read the nvlist from the file.
@@ -109,7 +109,7 @@ spa_config_load(void)
 	/*
 	 * Unpack the nvlist.
 	 */
-	if (nvlist_unpack(buf, fsize, &nvlist, KM_SLEEP) != 0)
+	if (nvlist_unpack(buf, fsize, &nvlist, KM_PUSHPAGE) != 0)
 		goto out;
 
 	/*
@@ -161,11 +161,11 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	VERIFY(nvlist_size(nvl, &buflen, NV_ENCODE_XDR) == 0);
 
-	buf = kmem_alloc(buflen, KM_SLEEP | KM_NODEBUG);
-	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
+	buf = kmem_alloc(buflen, KM_PUSHPAGE | KM_NODEBUG);
+	temp = kmem_zalloc(MAXPATHLEN, KM_PUSHPAGE);
 
 	VERIFY(nvlist_pack(nvl, &buf, &buflen, NV_ENCODE_XDR,
-	    KM_SLEEP) == 0);
+	    KM_PUSHPAGE) == 0);
 
 	/*
 	 * Write the configuration to disk.  We need to do the traditional
@@ -234,7 +234,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 			if (nvl == NULL)
 				VERIFY(nvlist_alloc(&nvl, NV_UNIQUE_NAME,
-				    KM_SLEEP) == 0);
+				    KM_PUSHPAGE) == 0);
 
 			VERIFY(nvlist_add_nvlist(nvl, spa->spa_name,
 			    spa->spa_config) == 0);
@@ -277,7 +277,7 @@ spa_all_configs(uint64_t *generation)
 	if (*generation == spa_config_generation)
 		return (NULL);
 
-	VERIFY(nvlist_alloc(&pools, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_alloc(&pools, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 
 	mutex_enter(&spa_namespace_lock);
 	while ((spa = spa_next(spa)) != NULL) {
@@ -334,7 +334,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (txg == -1ULL)
 		txg = spa->spa_config_txg;
 
-	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VERSION,
 	    spa_version(spa)) == 0);
@@ -413,21 +413,21 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		ddt_stat_t *dds;
 		ddt_object_t *ddo;
 
-		ddh = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
+		ddh = kmem_zalloc(sizeof (ddt_histogram_t), KM_PUSHPAGE);
 		ddt_get_dedup_histogram(spa, ddh);
 		VERIFY(nvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_HISTOGRAM,
 		    (uint64_t *)ddh, sizeof (*ddh) / sizeof (uint64_t)) == 0);
 		kmem_free(ddh, sizeof (ddt_histogram_t));
 
-		ddo = kmem_zalloc(sizeof (ddt_object_t), KM_SLEEP);
+		ddo = kmem_zalloc(sizeof (ddt_object_t), KM_PUSHPAGE);
 		ddt_get_dedup_object_stats(spa, ddo);
 		VERIFY(nvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_OBJ_STATS,
 		    (uint64_t *)ddo, sizeof (*ddo) / sizeof (uint64_t)) == 0);
 		kmem_free(ddo, sizeof (ddt_object_t));
 
-		dds = kmem_zalloc(sizeof (ddt_stat_t), KM_SLEEP);
+		dds = kmem_zalloc(sizeof (ddt_stat_t), KM_PUSHPAGE);
 		ddt_get_dedup_stats(spa, dds);
 		VERIFY(nvlist_add_uint64_array(config,
 		    ZPOOL_CONFIG_DDT_STATS,

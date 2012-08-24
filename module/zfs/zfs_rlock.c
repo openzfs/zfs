@@ -426,7 +426,7 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	new = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
 	new->r_zp = zp;
 	new->r_off = off;
 	if (len + off < off)	/* overflow */
