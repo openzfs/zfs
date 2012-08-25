@@ -1773,11 +1773,13 @@ sa_bulk_update_impl(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 	int error;
 	sa_os_t *sa = hdl->sa_os->os_sa;
 	dmu_object_type_t bonustype;
-
-	bonustype = SA_BONUSTYPE_FROM_DB(SA_GET_DB(hdl, SA_BONUS));
+	dmu_buf_t *saved_spill;
 
 	ASSERT(hdl);
 	ASSERT(MUTEX_HELD(&hdl->sa_lock));
+
+	bonustype = SA_BONUSTYPE_FROM_DB(SA_GET_DB(hdl, SA_BONUS));
+	saved_spill = hdl->sa_spill;
 
 	/* sync out registration table if necessary */
 	if (sa->sa_need_attr_registration)
@@ -1786,6 +1788,24 @@ sa_bulk_update_impl(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 	error = sa_attr_op(hdl, bulk, count, SA_UPDATE, tx);
 	if (error == 0 && !IS_SA_BONUSTYPE(bonustype) && sa->sa_update_cb)
 		sa->sa_update_cb(hdl, tx);
+
+	/*
+	 * If saved_spill is NULL and current sa_spill is not NULL that
+	 * means we increased the refcount of the spill buffer through
+	 * sa_get_spill() or dmu_spill_hold_by_dnode().  Therefore we
+	 * must release the hold before calling dmu_tx_commit() to avoid
+	 * making a copy of this buffer in dbuf_sync_leaf() due to the
+	 * reference count now being greater than 1.
+	 */
+	if (!saved_spill && hdl->sa_spill) {
+		if (hdl->sa_spill_tab) {
+			sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
+			hdl->sa_spill_tab = NULL;
+		}
+
+		dmu_buf_rele((dmu_buf_t *)hdl->sa_spill, NULL);
+		hdl->sa_spill = NULL;
+	}
 
 	return (error);
 }
