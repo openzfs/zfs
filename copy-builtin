@@ -59,7 +59,7 @@ done
 
 cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
 config ZFS
-	tristate "ZFS"
+	tristate "ZFS filesystem support"
 	depends on SPL
 	depends on EFI_PARTITION
 	select ZLIB_INFLATE
