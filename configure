@@ -12306,6 +12306,13 @@ fi
 fi
 
 
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
+
+			sourcelink="$LINUX"
+
+fi
+
+
 		if test -e $sourcelink/spl_config.h; then
 
 			splsrc=`readlink -f ${sourcelink}`
@@ -19911,6 +19918,13 @@ fi
 								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
 
 			sourcelink=../spl
+
+fi
+
+
+								if test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h; then
+
+			sourcelink="$LINUX"
 
 fi
 
