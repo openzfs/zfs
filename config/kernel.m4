@@ -302,6 +302,13 @@ AC_DEFUN([ZFS_AC_SPL], [
 			sourcelink=../spl
 		])
 
+		dnl #
+		dnl # Look in the kernel directory
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
+			sourcelink="$LINUX"
+		])
+
 		AS_IF([test -e $sourcelink/spl_config.h], [
 			splsrc=`readlink -f ${sourcelink}`
 		], [
