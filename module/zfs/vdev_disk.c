@@ -111,28 +111,14 @@ vdev_disk_error(zio_t *zio)
  * elevator to do the maximum front/back merging allowed by the
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
- *
- * Unfortunately we cannot directly call the elevator_switch() function
- * because it is not exported from the block layer.  This means we have
- * to use the sysfs interface and a user space upcall.  Pools will be
- * automatically imported on module load so we must do this at device
- * open time from the kernel.
  */
-#define SET_SCHEDULER_CMD \
-	"exec 0</dev/null " \
-	"     1>/sys/block/%s/queue/scheduler " \
-	"     2>/dev/null; " \
-	"echo %s"
-
 static int
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
 	struct block_device *bdev = vd->vd_bdev;
-	struct request_queue *q = bdev_get_queue(bdev);
+	struct request_queue *q = bdev_get_queue(bdev);	
 	char *device = bdev->bd_disk->disk_name;
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-	char *envp[] = { NULL };
 	int error;
 
 	/* Skip devices which are not whole disks (partitions) */
@@ -147,14 +133,10 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
 		return (0);
 
-	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-	error = call_usermodehelper(argv[0], argv, envp, 1);
+	error = elevator_change(q, elevator);
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		       elevator, v->vdev_path, device, error);
-
-	strfree(argv[2]);
-
 	return (error);
 }
 
