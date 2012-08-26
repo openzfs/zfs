@@ -242,23 +242,22 @@ splat_kmem_test4(struct file *file, void *arg)
 #define SPLAT_KMEM_TEST_MAGIC		0x004488CCUL
 #define SPLAT_KMEM_CACHE_NAME		"kmem_test"
 #define SPLAT_KMEM_OBJ_COUNT		1024
-#define SPLAT_KMEM_OBJ_RECLAIM		20 /* percent */
+#define SPLAT_KMEM_OBJ_RECLAIM		1000 /* objects */
 #define SPLAT_KMEM_THREADS		32
 
 #define KCP_FLAG_READY			0x01
 
 typedef struct kmem_cache_data {
 	unsigned long kcd_magic;
+	struct list_head kcd_node;
 	int kcd_flag;
 	char kcd_buf[0];
 } kmem_cache_data_t;
 
 typedef struct kmem_cache_thread {
-	kmem_cache_t *kct_cache;
 	spinlock_t kct_lock;
 	int kct_id;
-	int kct_kcd_count;
-	kmem_cache_data_t *kct_kcd[0];
+	struct list_head kct_list;
 } kmem_cache_thread_t;
 
 typedef struct kmem_cache_priv {
@@ -276,18 +275,15 @@ typedef struct kmem_cache_priv {
 	int kcp_count;
 	int kcp_alloc;
 	int kcp_rc;
-	int kcp_kcd_count;
-	kmem_cache_data_t *kcp_kcd[0];
 } kmem_cache_priv_t;
 
 static kmem_cache_priv_t *
 splat_kmem_cache_test_kcp_alloc(struct file *file, char *name,
-				int size, int align, int alloc, int count)
+				int size, int align, int alloc)
 {
 	kmem_cache_priv_t *kcp;
 
-	kcp = vmem_zalloc(sizeof(kmem_cache_priv_t) +
-			  count * sizeof(kmem_cache_data_t *), KM_SLEEP);
+	kcp = kmem_zalloc(sizeof(kmem_cache_priv_t), KM_SLEEP);
 	if (!kcp)
 		return NULL;
 
@@ -304,7 +300,6 @@ splat_kmem_cache_test_kcp_alloc(struct file *file, char *name,
 	kcp->kcp_count = 0;
 	kcp->kcp_alloc = alloc;
 	kcp->kcp_rc = 0;
-	kcp->kcp_kcd_count = count;
 
 	return kcp;
 }
@@ -312,34 +307,83 @@ splat_kmem_cache_test_kcp_alloc(struct file *file, char *name,
 static void
 splat_kmem_cache_test_kcp_free(kmem_cache_priv_t *kcp)
 {
-	vmem_free(kcp, sizeof(kmem_cache_priv_t) +
-		  kcp->kcp_kcd_count * sizeof(kmem_cache_data_t *));
+	kmem_free(kcp, sizeof(kmem_cache_priv_t));
 }
 
 static kmem_cache_thread_t *
-splat_kmem_cache_test_kct_alloc(int id, int count)
+splat_kmem_cache_test_kct_alloc(kmem_cache_priv_t *kcp, int id)
 {
 	kmem_cache_thread_t *kct;
 
 	ASSERTF(id < SPLAT_KMEM_THREADS, "id=%d\n", id);
-	kct = vmem_zalloc(sizeof(kmem_cache_thread_t) +
-			  count * sizeof(kmem_cache_data_t *), KM_SLEEP);
+	ASSERT(kcp->kcp_kct[id] == NULL);
+
+	kct = kmem_zalloc(sizeof(kmem_cache_thread_t), KM_SLEEP);
 	if (!kct)
 		return NULL;
 
 	spin_lock_init(&kct->kct_lock);
-	kct->kct_cache = NULL;
 	kct->kct_id = id;
-	kct->kct_kcd_count = count;
+	INIT_LIST_HEAD(&kct->kct_list);
+
+	spin_lock(&kcp->kcp_lock);
+	kcp->kcp_kct[id] = kct;
+	spin_unlock(&kcp->kcp_lock);
 
 	return kct;
 }
 
 static void
-splat_kmem_cache_test_kct_free(kmem_cache_thread_t *kct)
+splat_kmem_cache_test_kct_free(kmem_cache_priv_t *kcp,
+			       kmem_cache_thread_t *kct)
 {
-	vmem_free(kct, sizeof(kmem_cache_thread_t) +
-		  kct->kct_kcd_count * sizeof(kmem_cache_data_t *));
+	spin_lock(&kcp->kcp_lock);
+	kcp->kcp_kct[kct->kct_id] = NULL;
+	spin_unlock(&kcp->kcp_lock);
+
+	kmem_free(kct, sizeof(kmem_cache_thread_t));
+}
+
+static void
+splat_kmem_cache_test_kcd_free(kmem_cache_priv_t *kcp,
+			       kmem_cache_thread_t *kct)
+{
+	kmem_cache_data_t *kcd;
+
+	spin_lock(&kct->kct_lock);
+	while (!list_empty(&kct->kct_list)) {
+		kcd = list_entry(kct->kct_list.next,
+				 kmem_cache_data_t, kcd_node);
+		list_del(&kcd->kcd_node);
+		spin_unlock(&kct->kct_lock);
+
+		kmem_cache_free(kcp->kcp_cache, kcd);
+
+		spin_lock(&kct->kct_lock);
+	}
+	spin_unlock(&kct->kct_lock);
+}
+
+static int
+splat_kmem_cache_test_kcd_alloc(kmem_cache_priv_t *kcp,
+				kmem_cache_thread_t *kct, int count)
+{
+	kmem_cache_data_t *kcd;
+	int i;
+
+	for (i = 0; i < count; i++) {
+		kcd = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
+		if (kcd == NULL) {
+			splat_kmem_cache_test_kcd_free(kcp, kct);
+			return -ENOMEM;
+		}
+
+		spin_lock(&kct->kct_lock);
+		list_add_tail(&kcd->kcd_node, &kct->kct_list);
+		spin_unlock(&kct->kct_lock);
+	}
+
+	return 0;
 }
 
 static void
@@ -372,6 +416,7 @@ splat_kmem_cache_test_constructor(void *ptr, void *priv, int flags)
 
 	if (kcd && kcp) {
 		kcd->kcd_magic = kcp->kcp_magic;
+		INIT_LIST_HEAD(&kcd->kcd_node);
 		kcd->kcd_flag = 1;
 		memset(kcd->kcd_buf, 0xaa, kcp->kcp_size - (sizeof *kcd));
 		kcp->kcp_count++;
@@ -406,51 +451,41 @@ splat_kmem_cache_test_reclaim(void *priv)
 {
 	kmem_cache_priv_t *kcp = (kmem_cache_priv_t *)priv;
 	kmem_cache_thread_t *kct;
-	int i, j, count;
+	kmem_cache_data_t *kcd;
+	LIST_HEAD(reclaim);
+	int i, count;
 
 	ASSERT(kcp->kcp_magic == SPLAT_KMEM_TEST_MAGIC);
-	count = kcp->kcp_kcd_count * SPLAT_KMEM_OBJ_RECLAIM / 100;
 
-	/* Objects directly attached to the kcp */
+	/* For each kct thread reclaim some objects */
 	spin_lock(&kcp->kcp_lock);
-	for (i = 0; i < kcp->kcp_kcd_count; i++) {
-		if (kcp->kcp_kcd[i]) {
-			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
-			kcp->kcp_kcd[i] = NULL;
+	for (i = 0; i < SPLAT_KMEM_THREADS; i++) {
+		kct = kcp->kcp_kct[i];
+		if (!kct)
+			continue;
 
-			if ((--count) == 0)
-				break;
+		spin_unlock(&kcp->kcp_lock);
+		spin_lock(&kct->kct_lock);
+
+		count = SPLAT_KMEM_OBJ_RECLAIM;
+		while (count > 0 && !list_empty(&kct->kct_list)) {
+			kcd = list_entry(kct->kct_list.next,
+					 kmem_cache_data_t, kcd_node);
+			list_del(&kcd->kcd_node);
+			list_add(&kcd->kcd_node, &reclaim);
+			count--;
 		}
+
+		spin_unlock(&kct->kct_lock);
+		spin_lock(&kcp->kcp_lock);
 	}
 	spin_unlock(&kcp->kcp_lock);
 
-	/* No threads containing objects to consider */
-	if (kcp->kcp_kct_count == -1)
-		return;
-
-	/* Objects attached to a kct thread */
-	for (i = 0; i < kcp->kcp_kct_count; i++) {
-		spin_lock(&kcp->kcp_lock);
-		kct = kcp->kcp_kct[i];
-		if (!kct) {
-			spin_unlock(&kcp->kcp_lock);
-			continue;
-		}
-
-		spin_lock(&kct->kct_lock);
-		count = kct->kct_kcd_count * SPLAT_KMEM_OBJ_RECLAIM / 100;
-
-		for (j = 0; j < kct->kct_kcd_count; j++) {
-			if (kct->kct_kcd[j]) {
-				kmem_cache_free(kcp->kcp_cache,kct->kct_kcd[j]);
-				kct->kct_kcd[j] = NULL;
-
-				if ((--count) == 0)
-					break;
-			}
-		}
-		spin_unlock(&kct->kct_lock);
-		spin_unlock(&kcp->kcp_lock);
+	/* Freed outside the spin lock */
+	while (!list_empty(&reclaim)) {
+		kcd = list_entry(reclaim.next, kmem_cache_data_t, kcd_node);
+		list_del(&kcd->kcd_node);
+		kmem_cache_free(kcp->kcp_cache, kcd);
 	}
 
 	return;
@@ -485,8 +520,7 @@ splat_kmem_cache_test_thread(void *arg)
 {
 	kmem_cache_priv_t *kcp = (kmem_cache_priv_t *)arg;
 	kmem_cache_thread_t *kct;
-	int rc = 0, id, i;
-	void *obj;
+	int rc = 0, id;
 
 	ASSERT(kcp->kcp_magic == SPLAT_KMEM_TEST_MAGIC);
 
@@ -499,15 +533,11 @@ splat_kmem_cache_test_thread(void *arg)
 	kcp->kcp_kct_count++;
 	spin_unlock(&kcp->kcp_lock);
 
-	kct = splat_kmem_cache_test_kct_alloc(id, kcp->kcp_alloc);
+	kct = splat_kmem_cache_test_kct_alloc(kcp, id);
 	if (!kct) {
 		rc = -ENOMEM;
 		goto out;
 	}
-
-	spin_lock(&kcp->kcp_lock);
-	kcp->kcp_kct[id] = kct;
-	spin_unlock(&kcp->kcp_lock);
 
 	/* Wait for all threads to have started and report they are ready */
 	if (kcp->kcp_kct_count == SPLAT_KMEM_THREADS)
@@ -516,34 +546,14 @@ splat_kmem_cache_test_thread(void *arg)
 	wait_event(kcp->kcp_thr_waitq,
 		splat_kmem_cache_test_flags(kcp, KCP_FLAG_READY));
 
-	/*
-	 * Updates to kct->kct_kcd[] are performed under a spin_lock so
-	 * they may safely run concurrent with the reclaim function.  If
-	 * we are not in a low memory situation we have one lock per-
-	 * thread so they are not expected to be contended.
-	 */
-	for (i = 0; i < kct->kct_kcd_count; i++) {
-		obj = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
-		spin_lock(&kct->kct_lock);
-		kct->kct_kcd[i] = obj;
-		spin_unlock(&kct->kct_lock);
-	}
-
-	for (i = 0; i < kct->kct_kcd_count; i++) {
-		spin_lock(&kct->kct_lock);
-		if (kct->kct_kcd[i]) {
-			kmem_cache_free(kcp->kcp_cache, kct->kct_kcd[i]);
-			kct->kct_kcd[i] = NULL;
-		}
-		spin_unlock(&kct->kct_lock);
-	}
+	/* Create and destroy objects */
+	rc = splat_kmem_cache_test_kcd_alloc(kcp, kct, kcp->kcp_alloc);
+	splat_kmem_cache_test_kcd_free(kcp, kct);
 out:
-	spin_lock(&kcp->kcp_lock);
-	if (kct) {
-		splat_kmem_cache_test_kct_free(kct);
-		kcp->kcp_kct[id] = kct = NULL;
-	}
+	if (kct)
+		splat_kmem_cache_test_kct_free(kcp, kct);
 
+	spin_lock(&kcp->kcp_lock);
 	if (!kcp->kcp_rc)
 		kcp->kcp_rc = rc;
 
@@ -560,16 +570,15 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 		      int size, int align, int flags)
 {
 	kmem_cache_priv_t *kcp;
-	kmem_cache_data_t *kcd;
+	kmem_cache_data_t *kcd = NULL;
 	int rc = 0, max;
 
-	kcp = splat_kmem_cache_test_kcp_alloc(file, name, size, align, 0, 1);
+	kcp = splat_kmem_cache_test_kcp_alloc(file, name, size, align, 0);
 	if (!kcp) {
 		splat_vprint(file, name, "Unable to create '%s'\n", "kcp");
 		return -ENOMEM;
 	}
 
-	kcp->kcp_kcd[0] = NULL;
 	kcp->kcp_cache =
 		kmem_cache_create(SPLAT_KMEM_CACHE_NAME,
 				  kcp->kcp_size, kcp->kcp_align,
@@ -592,11 +601,8 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 		rc = -EINVAL;
 		goto out_free;
 	}
-	spin_lock(&kcp->kcp_lock);
-	kcp->kcp_kcd[0] = kcd;
-	spin_unlock(&kcp->kcp_lock);
 
-	if (!kcp->kcp_kcd[0]->kcd_flag) {
+	if (!kcd->kcd_flag) {
 		splat_vprint(file, name,
 			     "Failed to run contructor for '%s'\n",
 			     SPLAT_KMEM_CACHE_NAME);
@@ -604,7 +610,7 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 		goto out_free;
 	}
 
-	if (kcp->kcp_kcd[0]->kcd_magic != kcp->kcp_magic) {
+	if (kcd->kcd_magic != kcp->kcp_magic) {
 		splat_vprint(file, name,
 			     "Failed to pass private data to constructor "
 			     "for '%s'\n", SPLAT_KMEM_CACHE_NAME);
@@ -613,10 +619,7 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 	}
 
 	max = kcp->kcp_count;
-	spin_lock(&kcp->kcp_lock);
-	kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[0]);
-	kcp->kcp_kcd[0] = NULL;
-	spin_unlock(&kcp->kcp_lock);
+	kmem_cache_free(kcp->kcp_cache, kcd);
 
 	/* Destroy the entire cache which will force destructors to
 	 * run and we can verify one was called for every object */
@@ -636,12 +639,8 @@ splat_kmem_cache_test(struct file *file, void *arg, char *name,
 	return rc;
 
 out_free:
-	if (kcp->kcp_kcd[0]) {
-		spin_lock(&kcp->kcp_lock);
-		kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[0]);
-		kcp->kcp_kcd[0] = NULL;
-		spin_unlock(&kcp->kcp_lock);
-	}
+	if (kcd)
+		kmem_cache_free(kcp->kcp_cache, kcd);
 
 	if (kcp->kcp_cache)
 		kmem_cache_destroy(kcp->kcp_cache);
@@ -661,7 +660,7 @@ splat_kmem_cache_thread_test(struct file *file, void *arg, char *name,
 	char cache_name[32];
 	int i, rc = 0;
 
-	kcp = splat_kmem_cache_test_kcp_alloc(file, name, size, 0, alloc, 0);
+	kcp = splat_kmem_cache_test_kcp_alloc(file, name, size, 0, alloc);
 	if (!kcp) {
 		splat_vprint(file, name, "Unable to create '%s'\n", "kcp");
 		return -ENOMEM;
@@ -755,7 +754,9 @@ splat_kmem_test5(struct file *file, void *arg)
 	return splat_kmem_cache_test(file, arg, name, 128, 0, KMC_VMEM);
 }
 
-/* Validate large object cache behavior for dynamic/kmem/vmem caches */
+/*
+ * Validate large object cache behavior for dynamic/kmem/vmem caches
+ */
 static int
 splat_kmem_test6(struct file *file, void *arg)
 {
@@ -773,7 +774,9 @@ splat_kmem_test6(struct file *file, void *arg)
 	return splat_kmem_cache_test(file, arg, name, 1024*1024, 0, KMC_VMEM);
 }
 
-/* Validate object alignment cache behavior for caches */
+/*
+ * Validate object alignment cache behavior for caches
+ */
 static int
 splat_kmem_test7(struct file *file, void *arg)
 {
@@ -789,19 +792,31 @@ splat_kmem_test7(struct file *file, void *arg)
 	return rc;
 }
 
+/*
+ * Validate kmem_cache_reap() by requesting the slab cache free any objects
+ * it can.  For a few reasons this may not immediately result in more free
+ * memory even if objects are freed.  First off, due to fragmentation we
+ * may not be able to reclaim any slabs.  Secondly, even if we do we fully
+ * clear some slabs we will not want to immediately reclaim all of them
+ * because we may contend with cache allocations and thrash.  What we want
+ * to see is the slab size decrease more gradually as it becomes clear they
+ * will not be needed.  This should be achievable in less than a minute.
+ * If it takes longer than this something has gone wrong.
+ */
 static int
 splat_kmem_test8(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
-	kmem_cache_data_t *kcd;
+	kmem_cache_thread_t *kct;
 	int i, rc = 0;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST8_NAME,
-					      256, 0, 0, SPLAT_KMEM_OBJ_COUNT);
+					      256, 0, 0);
 	if (!kcp) {
 		splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
 			     "Unable to create '%s'\n", "kcp");
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out;
 	}
 
 	kcp->kcp_cache =
@@ -811,34 +826,27 @@ splat_kmem_test8(struct file *file, void *arg)
 				  splat_kmem_cache_test_reclaim,
 				  kcp, NULL, 0);
 	if (!kcp->kcp_cache) {
-		splat_kmem_cache_test_kcp_free(kcp);
 		splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
 			   "Unable to create '%s'\n", SPLAT_KMEM_CACHE_NAME);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out_kcp;
 	}
 
-	for (i = 0; i < SPLAT_KMEM_OBJ_COUNT; i++) {
-		kcd = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
-		spin_lock(&kcp->kcp_lock);
-		kcp->kcp_kcd[i] = kcd;
-		spin_unlock(&kcp->kcp_lock);
-		if (!kcd) {
-			splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
-				   "Unable to allocate from '%s'\n",
-				   SPLAT_KMEM_CACHE_NAME);
-		}
+	kct = splat_kmem_cache_test_kct_alloc(kcp, 0);
+	if (!kct) {
+		splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
+			     "Unable to create '%s'\n", "kct");
+		rc = -ENOMEM;
+		goto out_cache;
 	}
 
-	/* Request the slab cache free any objects it can.  For a few reasons
-	 * this may not immediately result in more free memory even if objects
-	 * are freed.  First off, due to fragmentation we may not be able to
-	 * reclaim any slabs.  Secondly, even if we do we fully clear some
-	 * slabs we will not want to immedately reclaim all of them because
-	 * we may contend with cache allocs and thrash.  What we want to see
-	 * is the slab size decrease more gradually as it becomes clear they
-	 * will not be needed.  This should be acheivable in less than minute
-	 * if it takes longer than this something has gone wrong.
-	 */
+	rc = splat_kmem_cache_test_kcd_alloc(kcp, kct, SPLAT_KMEM_OBJ_COUNT);
+	if (rc) {
+		splat_vprint(file, SPLAT_KMEM_TEST8_NAME, "Unable to "
+			     "allocate from '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		goto out_kct;
+	}
+
 	for (i = 0; i < 60; i++) {
 		kmem_cache_reap_now(kcp->kcp_cache);
 		splat_kmem_cache_test_debug(file, SPLAT_KMEM_TEST8_NAME, kcp);
@@ -864,31 +872,39 @@ splat_kmem_test8(struct file *file, void *arg)
 	}
 
 	/* Cleanup our mess (for failure case of time expiring) */
-	spin_lock(&kcp->kcp_lock);
-	for (i = 0; i < SPLAT_KMEM_OBJ_COUNT; i++)
-		if (kcp->kcp_kcd[i])
-			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
-	spin_unlock(&kcp->kcp_lock);
-
+	splat_kmem_cache_test_kcd_free(kcp, kct);
+out_kct:
+	splat_kmem_cache_test_kct_free(kcp, kct);
+out_cache:
 	kmem_cache_destroy(kcp->kcp_cache);
+out_kcp:
 	splat_kmem_cache_test_kcp_free(kcp);
-
+out:
 	return rc;
 }
 
+/* Test cache aging, we have allocated a large number of objects thus
+ * creating a large number of slabs and then free'd them all.  However,
+ * since there should be little memory pressure at the moment those
+ * slabs have not been freed.  What we want to see is the slab size
+ * decrease gradually as it becomes clear they will not be be needed.
+ * This should be achievable in less than minute.  If it takes longer
+ * than this something has gone wrong.
+ */
 static int
 splat_kmem_test9(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
-	kmem_cache_data_t *kcd;
+	kmem_cache_thread_t *kct;
 	int i, rc = 0, count = SPLAT_KMEM_OBJ_COUNT * 128;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST9_NAME,
-					      256, 0, 0, count);
+					      256, 0, 0);
 	if (!kcp) {
 		splat_vprint(file, SPLAT_KMEM_TEST9_NAME,
 			     "Unable to create '%s'\n", "kcp");
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out;
 	}
 
 	kcp->kcp_cache =
@@ -897,38 +913,29 @@ splat_kmem_test9(struct file *file, void *arg)
 				  splat_kmem_cache_test_destructor,
 				  NULL, kcp, NULL, 0);
 	if (!kcp->kcp_cache) {
-		splat_kmem_cache_test_kcp_free(kcp);
 		splat_vprint(file, SPLAT_KMEM_TEST9_NAME,
 			   "Unable to create '%s'\n", SPLAT_KMEM_CACHE_NAME);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out_kcp;
 	}
 
-	for (i = 0; i < count; i++) {
-		kcd = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
-		spin_lock(&kcp->kcp_lock);
-		kcp->kcp_kcd[i] = kcd;
-		spin_unlock(&kcp->kcp_lock);
-		if (!kcd) {
-			splat_vprint(file, SPLAT_KMEM_TEST9_NAME,
-				   "Unable to allocate from '%s'\n",
-				   SPLAT_KMEM_CACHE_NAME);
-		}
+	kct = splat_kmem_cache_test_kct_alloc(kcp, 0);
+	if (!kct) {
+		splat_vprint(file, SPLAT_KMEM_TEST8_NAME,
+			     "Unable to create '%s'\n", "kct");
+		rc = -ENOMEM;
+		goto out_cache;
 	}
 
-	spin_lock(&kcp->kcp_lock);
-	for (i = 0; i < count; i++)
-		if (kcp->kcp_kcd[i])
-			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
-	spin_unlock(&kcp->kcp_lock);
+	rc = splat_kmem_cache_test_kcd_alloc(kcp, kct, count);
+	if (rc) {
+		splat_vprint(file, SPLAT_KMEM_TEST9_NAME, "Unable to "
+			     "allocate from '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		goto out_kct;
+	}
 
-	/* We have allocated a large number of objects thus creating a
-	 * large number of slabs and then free'd them all.  However since
-	 * there should be little memory pressure at the moment those
-	 * slabs have not been freed.  What we want to see is the slab
-	 * size decrease gradually as it becomes clear they will not be
-	 * be needed.  This should be acheivable in less than minute
-	 * if it takes longer than this something has gone wrong.
-	 */
+	splat_kmem_cache_test_kcd_free(kcp, kct);
+
 	for (i = 0; i < 60; i++) {
 		splat_kmem_cache_test_debug(file, SPLAT_KMEM_TEST9_NAME, kcp);
 
@@ -952,9 +959,13 @@ splat_kmem_test9(struct file *file, void *arg)
 		rc = -ENOMEM;
 	}
 
+out_kct:
+	splat_kmem_cache_test_kct_free(kcp, kct);
+out_cache:
 	kmem_cache_destroy(kcp->kcp_cache);
+out_kcp:
 	splat_kmem_cache_test_kcp_free(kcp);
-
+out:
 	return rc;
 }
 
@@ -971,7 +982,7 @@ splat_kmem_test10(struct file *file, void *arg)
 {
 	uint64_t size, alloc, rc = 0;
 
-	for (size = 16; size <= 1024*1024; size *= 2) {
+	for (size = 32; size <= 1024*1024; size *= 2) {
 
 		splat_vprint(file, SPLAT_KMEM_TEST10_NAME, "%-22s  %s", "name",
 			     "time (sec)\tslabs       \tobjs	\thash\n");
@@ -1013,7 +1024,7 @@ splat_kmem_test11(struct file *file, void *arg)
 {
 	uint64_t size, alloc, rc;
 
-	size = 256*1024;
+	size = 8 * 1024;
 	alloc = ((4 * physmem * PAGE_SIZE) / size) / SPLAT_KMEM_THREADS;
 
 	splat_vprint(file, SPLAT_KMEM_TEST11_NAME, "%-22s  %s", "name",
@@ -1132,7 +1143,7 @@ static int
 splat_kmem_test13(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
-	kmem_cache_data_t *kcd;
+	kmem_cache_thread_t *kct;
 	dummy_page_t *dp;
 	struct list_head list;
 	struct timespec start, delta = { 0, 0 };
@@ -1143,11 +1154,12 @@ splat_kmem_test13(struct file *file, void *arg)
 	count = ((physmem * PAGE_SIZE) / 4 / size);
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST13_NAME,
-	                                      size, 0, 0, count);
+	                                      size, 0, 0);
 	if (!kcp) {
 		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
 		             "Unable to create '%s'\n", "kcp");
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out;
 	}
 
 	kcp->kcp_cache =
@@ -1157,22 +1169,25 @@ splat_kmem_test13(struct file *file, void *arg)
 				  splat_kmem_cache_test_reclaim,
 		                  kcp, NULL, 0);
 	if (!kcp->kcp_cache) {
-		splat_kmem_cache_test_kcp_free(kcp);
 		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
 		             "Unable to create '%s'\n", SPLAT_KMEM_CACHE_NAME);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out_kcp;
 	}
 
-	for (i = 0; i < count; i++) {
-		kcd = kmem_cache_alloc(kcp->kcp_cache, KM_SLEEP);
-		spin_lock(&kcp->kcp_lock);
-		kcp->kcp_kcd[i] = kcd;
-		spin_unlock(&kcp->kcp_lock);
-		if (!kcd) {
-			splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
-			             "Unable to allocate from '%s'\n",
-			             SPLAT_KMEM_CACHE_NAME);
-		}
+	kct = splat_kmem_cache_test_kct_alloc(kcp, 0);
+	if (!kct) {
+		splat_vprint(file, SPLAT_KMEM_TEST13_NAME,
+			     "Unable to create '%s'\n", "kct");
+		rc = -ENOMEM;
+		goto out_cache;
+	}
+
+	rc = splat_kmem_cache_test_kcd_alloc(kcp, kct, count);
+	if (rc) {
+		splat_vprint(file, SPLAT_KMEM_TEST13_NAME, "Unable to "
+			     "allocate from '%s'\n", SPLAT_KMEM_CACHE_NAME);
+		goto out_kct;
 	}
 
 	i = 0;
@@ -1180,6 +1195,7 @@ splat_kmem_test13(struct file *file, void *arg)
 	INIT_LIST_HEAD(&list);
 	start = current_kernel_time();
 
+	/* Apply memory pressure */
 	while (kcp->kcp_cache->skc_slab_total > (slabs >> 2)) {
 
 		if ((i % 10000) == 0)
@@ -1226,15 +1242,14 @@ splat_kmem_test13(struct file *file, void *arg)
 	}
 
 	/* Release remaining kmem cache objects */
-	spin_lock(&kcp->kcp_lock);
-	for (i = 0; i < count; i++)
-		if (kcp->kcp_kcd[i])
-			kmem_cache_free(kcp->kcp_cache, kcp->kcp_kcd[i]);
-	spin_unlock(&kcp->kcp_lock);
-
+	splat_kmem_cache_test_kcd_free(kcp, kct);
+out_kct:
+	splat_kmem_cache_test_kct_free(kcp, kct);
+out_cache:
 	kmem_cache_destroy(kcp->kcp_cache);
+out_kcp:
 	splat_kmem_cache_test_kcp_free(kcp);
-
+out:
 	return rc;
 }
 
