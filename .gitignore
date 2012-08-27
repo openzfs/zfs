@@ -29,19 +29,27 @@
 .DS_Store
 modules.order
 Makefile
+Makefile.in
 
 #
 # Top level generated files specific to this top level dir
 #
-/Makefile
+/configure
 /config.log
 /config.status
 /libtool
 /zfs_config.h
 /zfs.spec
 /zfs-modules.spec
+/zfs.release
+/dkms.conf
+/PKGBUILD-zfs
+/PKGBUILD-zfs-modules
 /stamp-h1
 /.script-config
+/zfs-script-config.sh
+/aclocal.m4
+/autom4te.cache
 
 #
 # Top level generic files
