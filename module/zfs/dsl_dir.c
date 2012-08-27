@@ -96,7 +96,7 @@ dsl_dir_open_obj(dsl_pool_t *dp, uint64_t ddobj,
 	if (dd == NULL) {
 		dsl_dir_t *winner;
 
-		dd = kmem_zalloc(sizeof (dsl_dir_t), KM_SLEEP);
+		dd = kmem_zalloc(sizeof (dsl_dir_t), KM_PUSHPAGE);
 		dd->dd_object = ddobj;
 		dd->dd_dbuf = dbuf;
 		dd->dd_pool = dp;
@@ -791,7 +791,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	    asize - ref_rsrv);
 	mutex_exit(&dd->dd_lock);
 
-	tr = kmem_zalloc(sizeof (struct tempreserve), KM_SLEEP);
+	tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
 	tr->tr_ds = dd;
 	tr->tr_size = asize;
 	list_insert_tail(tr_list, tr);
@@ -825,7 +825,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 		return (0);
 	}
 
-	tr_list = kmem_alloc(sizeof (list_t), KM_SLEEP);
+	tr_list = kmem_alloc(sizeof (list_t), KM_PUSHPAGE);
 	list_create(tr_list, sizeof (struct tempreserve),
 	    offsetof(struct tempreserve, tr_node));
 	ASSERT3S(asize, >, 0);
@@ -835,7 +835,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	if (err == 0) {
 		struct tempreserve *tr;
 
-		tr = kmem_zalloc(sizeof (struct tempreserve), KM_SLEEP);
+		tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
 		tr->tr_size = lsize;
 		list_insert_tail(tr_list, tr);
 
@@ -851,7 +851,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	if (err == 0) {
 		struct tempreserve *tr;
 
-		tr = kmem_zalloc(sizeof (struct tempreserve), KM_SLEEP);
+		tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
 		tr->tr_dp = dd->dd_pool;
 		tr->tr_size = asize;
 		list_insert_tail(tr_list, tr);

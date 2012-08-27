@@ -79,7 +79,7 @@ uint64_t
 unique_insert(uint64_t value)
 {
 	avl_index_t idx;
-	unique_t *un = kmem_alloc(sizeof (unique_t), KM_SLEEP);
+	unique_t *un = kmem_alloc(sizeof (unique_t), KM_PUSHPAGE);
 
 	un->un_value = value;
 

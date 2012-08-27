@@ -540,6 +540,14 @@ zvol_write(void *arg)
 	dmu_tx_t *tx;
 	rl_t *rl;
 
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	ASSERT(!(current->flags & PF_NOFS));
+	current->flags |= PF_NOFS;
+
 	if (req->cmd_flags & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -548,7 +556,7 @@ zvol_write(void *arg)
 	 */
 	if (size == 0) {
 		blk_end_request(req, 0, size);
-		return;
+		goto out;
 	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
@@ -562,7 +570,7 @@ zvol_write(void *arg)
 		dmu_tx_abort(tx);
 		zfs_range_unlock(rl);
 		blk_end_request(req, -error, size);
-		return;
+		goto out;
 	}
 
 	error = dmu_write_req(zv->zv_objset, ZVOL_OBJ, req, tx);
@@ -578,6 +586,8 @@ zvol_write(void *arg)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	blk_end_request(req, -error, size);
+out:
+	current->flags &= ~PF_NOFS;
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
@@ -592,14 +602,22 @@ zvol_discard(void *arg)
 	int error;
 	rl_t *rl;
 
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	ASSERT(!(current->flags & PF_NOFS));
+	current->flags |= PF_NOFS;
+
 	if (offset + size > zv->zv_volsize) {
 		blk_end_request(req, -EIO, size);
-		return;
+		goto out;
 	}
 
 	if (size == 0) {
 		blk_end_request(req, 0, size);
-		return;
+		goto out;
 	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
@@ -613,6 +631,8 @@ zvol_discard(void *arg)
 	zfs_range_unlock(rl);
 
 	blk_end_request(req, -error, size);
+out:
+	current->flags &= ~PF_NOFS;
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
 
@@ -765,7 +785,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	ASSERT(zio != NULL);
 	ASSERT(size != 0);
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
 	zgd->zgd_zilog = zv->zv_zilog;
 	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 

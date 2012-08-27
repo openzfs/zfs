@@ -699,7 +699,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t offset, uint64_t size, int prefetched)
 			if (cur_streams >= max_streams) {
 				return;
 			}
-			newstream = kmem_zalloc(sizeof (zstream_t), KM_SLEEP);
+			newstream = kmem_zalloc(sizeof (zstream_t), KM_PUSHPAGE);
 		}
 
 		newstream->zst_offset = zst.zst_offset;

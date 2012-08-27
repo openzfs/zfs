@@ -262,7 +262,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
 
-	os = kmem_zalloc(sizeof (objset_t), KM_SLEEP);
+	os = kmem_zalloc(sizeof (objset_t), KM_PUSHPAGE);
 	os->os_dsl_dataset = ds;
 	os->os_spa = spa;
 	os->os_rootbp = bp;

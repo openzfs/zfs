@@ -73,6 +73,7 @@ char *zio_type_name[ZIO_TYPES] = {
  */
 kmem_cache_t *zio_cache;
 kmem_cache_t *zio_link_cache;
+kmem_cache_t *zio_vdev_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
@@ -141,6 +142,8 @@ zio_init(void)
 	    zio_cons, zio_dest, NULL, NULL, NULL, KMC_KMEM);
 	zio_link_cache = kmem_cache_create("zio_link_cache",
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, KMC_KMEM);
+	zio_vdev_cache = kmem_cache_create("zio_vdev_cache", sizeof(vdev_io_t),
+	    PAGESIZE, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
 
 	/*
 	 * For small buffers, we want a cache for each multiple of
@@ -230,6 +233,7 @@ zio_fini(void)
 		zio_data_buf_cache[c] = NULL;
 	}
 
+	kmem_cache_destroy(zio_vdev_cache);
 	kmem_cache_destroy(zio_link_cache);
 	kmem_cache_destroy(zio_cache);
 
@@ -292,6 +296,24 @@ zio_data_buf_free(void *buf, size_t size)
 	ASSERT(c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
 	kmem_cache_free(zio_data_buf_cache[c], buf);
+}
+
+/*
+ * Dedicated I/O buffers to ensure that memory fragmentation never prevents
+ * or significantly delays the issuing of a zio.   These buffers are used
+ * to aggregate I/O and could be used for raidz stripes.
+ */
+void *
+zio_vdev_alloc(void)
+{
+	return (kmem_cache_alloc(zio_vdev_cache, KM_PUSHPAGE));
+}
+
+void
+zio_vdev_free(void *buf)
+{
+	kmem_cache_free(zio_vdev_cache, buf);
+
 }
 
 /*

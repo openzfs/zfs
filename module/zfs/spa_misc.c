@@ -425,7 +425,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	spa = kmem_zalloc(sizeof (spa_t), KM_SLEEP | KM_NODEBUG);
+	spa = kmem_zalloc(sizeof (spa_t), KM_PUSHPAGE | KM_NODEBUG);
 
 	mutex_init(&spa->spa_async_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_errlist_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -472,12 +472,12 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	list_create(&spa->spa_config_list, sizeof (spa_config_dirent_t),
 	    offsetof(spa_config_dirent_t, scd_link));
 
-	dp = kmem_zalloc(sizeof (spa_config_dirent_t), KM_SLEEP);
+	dp = kmem_zalloc(sizeof (spa_config_dirent_t), KM_PUSHPAGE);
 	dp->scd_path = altroot ? NULL : spa_strdup(spa_config_path);
 	list_insert_head(&spa->spa_config_list, dp);
 
 	VERIFY(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME,
-	    KM_SLEEP) == 0);
+	    KM_PUSHPAGE) == 0);
 
 	if (config != NULL)
 		VERIFY(nvlist_dup(config, &spa->spa_config, 0) == 0);
@@ -647,7 +647,7 @@ spa_aux_add(vdev_t *vd, avl_tree_t *avl)
 	if ((aux = avl_find(avl, &search, &where)) != NULL) {
 		aux->aux_count++;
 	} else {
-		aux = kmem_zalloc(sizeof (spa_aux_t), KM_SLEEP);
+		aux = kmem_zalloc(sizeof (spa_aux_t), KM_PUSHPAGE);
 		aux->aux_guid = vd->vdev_guid;
 		aux->aux_count = 1;
 		avl_insert(avl, aux, where);
@@ -1131,7 +1131,7 @@ spa_strdup(const char *s)
 	char *new;
 
 	len = strlen(s);
-	new = kmem_alloc(len + 1, KM_SLEEP);
+	new = kmem_alloc(len + 1, KM_PUSHPAGE);
 	bcopy(s, new, len);
 	new[len] = '\0';
 
