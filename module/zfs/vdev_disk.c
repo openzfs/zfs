@@ -241,12 +241,6 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	if (vd == NULL)
 		return ENOMEM;
 
-	/* TODO */
-	// if (vd->vdev_wholedisk == 1) {
-	// } else {
-		*max_psize = *psize;
-	//}
-
 	/*
 	 * Devices are always opened by the path provided at configuration
 	 * time.  This means that if the provided path is a udev by-id path
@@ -294,6 +288,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	/* Physical volume size in bytes */
 	*psize = bdev_capacity(bdev);
+
+	/* TODO: report possible expansion size */
+	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
