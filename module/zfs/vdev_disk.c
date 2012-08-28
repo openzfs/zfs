@@ -112,6 +112,7 @@ vdev_disk_error(zio_t *zio)
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
  */
+#if defined(HAVE_ELEVATOR_CHANGE)
 static int
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
@@ -137,8 +138,55 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		       elevator, v->vdev_path, device, error);
+
 	return (error);
 }
+#else
+/* for pre-2.6.36 kernels, elevator_change() is not available:
+ * use call_usermodehelper to echo elevator into sysfs;
+ * requires /bin/echo and sysfs mounted at open time
+ * for elevator_switch to succeed
+ */
+#define SET_SCHEDULER_CMD \
+	"exec 0</dev/null " \
+	"     1>/sys/block/%s/queue/scheduler " \
+	"     2>/dev/null; " \
+	"echo %s"
+
+static int
+vdev_elevator_switch(vdev_t *v, char *elevator)
+{
+	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev = vd->vd_bdev;
+	struct request_queue *q = bdev_get_queue(bdev);
+	char *device = bdev->bd_disk->disk_name;
+	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *envp[] = { NULL };
+	int error;
+
+	/* Skip devices which are not whole disks (partitions) */
+	if (!v->vdev_wholedisk)
+		return (0);
+
+	/* Skip devices without schedulers (loop, ram, dm, etc) */
+	if (!q->elevator || !blk_queue_stackable(q))
+		return (0);
+
+	/* Leave existing scheduler when set to "none" */
+	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
+		return (0);
+
+	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+	error = call_usermodehelper(argv[0], argv, envp, 1);
+	if (error)
+		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
+		       elevator, v->vdev_path, device, error);
+
+	strfree(argv[2]);
+
+	return (error);
+}
+#endif /* defined(HAVE_ELEVATOR_CHANGE) */
 
 /*
  * Expanding a whole disk vdev involves invoking BLKRRPART on the
