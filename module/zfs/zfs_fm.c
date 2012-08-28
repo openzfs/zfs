@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
+
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
@@ -706,6 +710,10 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 
 	if (report->zcr_ereport == NULL) {
 		report->zcr_free(report->zcr_cbdata, report->zcr_cbinfo);
+		if (report->zcr_ckinfo != NULL) {
+			kmem_free(report->zcr_ckinfo,
+			    sizeof (*report->zcr_ckinfo));
+		}
 		kmem_free(report, sizeof (*report));
 		return;
 	}

@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 /*
@@ -346,6 +347,7 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	switch (error) {
 	case ENXIO:
 	case ENODEV:
+	case EPIPE:
 		zfs_verror(hdl, EZFS_IO, fmt, ap);
 		break;
 
@@ -608,27 +610,13 @@ libzfs_print_on_error(libzfs_handle_t *hdl, boolean_t printerr)
 static int
 libzfs_module_loaded(const char *module)
 {
-	FILE *f;
-	int result = 0;
-	char name[256];
+	const char path_prefix[] = "/sys/module/";
+	char path[256];
 
-	f = fopen("/proc/modules", "r");
-	if (f == NULL)
-		return -1;
+	memcpy(path, path_prefix, sizeof(path_prefix) - 1);
+	strcpy(path + sizeof(path_prefix) - 1, module);
 
-	while (fgets(name, sizeof(name), f)) {
-		char *c = strchr(name, ' ');
-		if (!c)
-			continue;
-		*c = 0;
-		if (strcmp(module, name) == 0) {
-			result = 1;
-			break;
-		}
-	}
-	fclose(f);
-
-	return result;
+	return (access(path, F_OK) == 0);
 }
 
 int
@@ -821,16 +809,29 @@ int
 zfs_resolve_shortname(const char *name, char *path, size_t pathlen)
 {
 	int i, err;
-	char dirs[5][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool"};
+	char dirs[6][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool",
+			   "by-vdev"};
 
+	/* /dev/ */
 	(void) snprintf(path, pathlen, "%s/%s", DISK_ROOT, name);
 	err = access(path, F_OK);
-	for (i = 0; i < 5 && err < 0; i++) {
+	if (err == 0)
+		return (err);
+
+	/* /dev/mapper/ */
+	(void) snprintf(path, pathlen, "%s/mapper/%s", DISK_ROOT, name);
+	err = access(path, F_OK);
+	if (err == 0)
+		return (err);
+
+	/* /dev/disk/<dirs>/ */
+	for (i = 0; i < 6 && err < 0; i++) {
 		(void) snprintf(path, pathlen, "%s/%s/%s",
 		    UDISK_ROOT, dirs[i], name);
 		err = access(path, F_OK);
 	}
-	return err;
+
+	return (err);
 }
 
 /*
@@ -1421,7 +1422,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	 * dataset property,
 	 */
 	if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
-	    (!zfs_prop_user(propname) && !zfs_prop_userquota(propname)))) {
+	    (!zfs_prop_user(propname) && !zfs_prop_userquota(propname) &&
+	    !zfs_prop_written(propname)))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
 		return (zfs_error(hdl, EZFS_BADPROP,

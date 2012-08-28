@@ -837,8 +837,8 @@ zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
 }
 
 /*
- * Unlink zp from dl, and mark zp for deletion if this was the last link.
- * Can fail if zp is a mount point (EBUSY) or a non-empty directory (EEXIST).
+ * Unlink zp from dl, and mark zp for deletion if this was the last link. Can
+ * fail if zp is a mount point (EBUSY) or a non-empty directory (ENOTEMPTY).
  * If 'unlinkedp' is NULL, we put unlinked znodes on the unlinked list.
  * If it's non-NULL, we use it to indicate whether the znode needs deletion,
  * and it's the caller's job to do it.
@@ -865,7 +865,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 
 		if (zp_is_dir && !zfs_dirempty(zp)) {
 			mutex_exit(&zp->z_lock);
-			return (EEXIST);
+			return (ENOTEMPTY);
 		}
 
 		/*

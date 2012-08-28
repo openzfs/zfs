@@ -433,6 +433,21 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif
 
 /*
+ * 2.6.33 API change
+ * Discard granularity and alignment restrictions may now be set.  For
+ * older kernels which do not support this it is safe to skip it.
+ */
+#ifdef HAVE_DISCARD_GRANULARITY
+static inline void
+blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
+{
+	q->limits.discard_granularity = dg;
+}
+#else
+#define blk_queue_discard_granularity(x, dg)	((void)0)
+#endif /* HAVE_DISCARD_GRANULARITY */
+
+/*
  * Default Linux IO Scheduler,
  * Setting the scheduler to noop will allow the Linux IO scheduler to
  * still perform front and back merging, while leaving the request

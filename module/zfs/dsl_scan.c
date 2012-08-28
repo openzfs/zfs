@@ -346,8 +346,8 @@ static void dsl_scan_visitbp(blkptr_t *bp,
     const zbookmark_t *zb, dnode_phys_t *dnp, arc_buf_t *pbuf,
     dsl_dataset_t *ds, dsl_scan_t *scn, dmu_objset_type_t ostype,
     dmu_tx_t *tx);
-static void dsl_scan_visitdnode(dsl_scan_t *, dsl_dataset_t *ds,
-    dmu_objset_type_t ostype,
+inline __attribute__((always_inline)) static void dsl_scan_visitdnode(
+    dsl_scan_t *, dsl_dataset_t *ds, dmu_objset_type_t ostype,
     dnode_phys_t *dnp, arc_buf_t *buf, uint64_t object, dmu_tx_t *tx);
 
 void
@@ -648,7 +648,7 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
  * Return nonzero on i/o error.
  * Return new buf to write out in *bufp.
  */
-__attribute__((always_inline)) static int
+inline __attribute__((always_inline)) static int
 dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
     dnode_phys_t *dnp, const blkptr_t *bp,
     const zbookmark_t *zb, dmu_tx_t *tx, arc_buf_t **bufp)
@@ -754,7 +754,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	return (0);
 }
 
-__attribute__((always_inline)) static void
+inline __attribute__((always_inline)) static void
 dsl_scan_visitdnode(dsl_scan_t *scn, dsl_dataset_t *ds,
     dmu_objset_type_t ostype, dnode_phys_t *dnp, arc_buf_t *buf,
     uint64_t object, dmu_tx_t *tx)

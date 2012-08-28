@@ -1,0 +1,124 @@
+#!/bin/bash
+
+set -e
+
+usage()
+{
+	echo "usage: $0 <kernel source tree>" >&2
+	exit 1
+}
+
+[ "$#" -eq 1 ] || usage
+KERNEL_DIR="$(readlink --canonicalize-existing "$1")"
+
+MODULES=()
+for MODULE_DIR in module/*
+do
+	[ -d "$MODULE_DIR" ] || continue
+	MODULES+=("${MODULE_DIR##*/}")
+done
+
+if ! [ -e 'zfs_config.h' ]
+then
+	echo >&2
+	echo "    $0: you did not run configure, or you're not in the ZFS source directory." >&2
+	echo "    $0: run configure with --with-linux=$KERNEL_DIR and --enable-linux-builtin." >&2
+	echo >&2
+	exit 1
+fi
+
+make clean || true
+
+rm -rf "$KERNEL_DIR/include/zfs" "$KERNEL_DIR/fs/zfs"
+cp --recursive include "$KERNEL_DIR/include/zfs"
+cp --recursive module "$KERNEL_DIR/fs/zfs"
+cp zfs_config.h "$KERNEL_DIR/"
+
+adjust_obj_paths()
+{
+	local FILE="$1"
+	local LINE OBJPATH
+
+	while IFS='' read -r LINE
+	do
+		OBJPATH="${LINE#\$(MODULE)-objs += }"
+		if [ "$OBJPATH" = "$LINE" ]
+		then
+			echo "$LINE"
+		else
+			echo "\$(MODULE)-objs += ${OBJPATH##*/}"
+		fi
+	done < "$FILE" > "$FILE.new"
+	mv "$FILE.new" "$FILE"
+}
+
+for MODULE in "${MODULES[@]}"
+do
+	adjust_obj_paths "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
+done
+
+cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
+config ZFS
+	tristate "ZFS filesystem support"
+	depends on SPL
+	depends on EFI_PARTITION
+	select ZLIB_INFLATE
+	select ZLIB_DEFLATE
+	help
+	  This is the ZFS filesystem from the ZFS On Linux project.
+
+	  See http://zfsonlinux.org/
+
+	  To compile this file system support as a module, choose M here.
+
+	  If unsure, say N.
+EOF
+
+{
+	cat <<-"EOF"
+	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs -I$(srctree)/include/spl 
+	ZFS_MODULE_CFLAGS += -include $(srctree)/spl_config.h -include $(srctree)/zfs_config.h
+	export ZFS_MODULE_CFLAGS
+
+	obj-$(CONFIG_ZFS) :=
+	EOF
+
+	for MODULE in "${MODULES[@]}"
+	do
+		echo 'obj-$(CONFIG_ZFS) += ' "$MODULE/"
+	done
+} > "$KERNEL_DIR/fs/zfs/Kbuild"
+
+add_after()
+{
+	local FILE="$1"
+	local MARKER="$2"
+	local NEW="$3"
+	local LINE
+
+	while IFS='' read -r LINE
+	do
+		echo "$LINE"
+
+		if [ -n "$MARKER" -a "$LINE" = "$MARKER" ]
+		then
+			echo "$NEW"
+			MARKER=''
+			if IFS='' read -r LINE
+			then
+				[ "$LINE" != "$NEW" ] && echo "$LINE"
+			fi
+		fi
+	done < "$FILE" > "$FILE.new"
+
+	mv "$FILE.new" "$FILE"
+}
+
+add_after "$KERNEL_DIR/fs/Kconfig" 'if BLOCK' 'source "fs/zfs/Kconfig"'
+add_after "$KERNEL_DIR/fs/Makefile" 'endif' 'obj-$(CONFIG_ZFS) += zfs/'
+
+echo >&2
+echo "    $0: done." >&2
+echo "    $0: now you can build the kernel with ZFS support." >&2
+echo "    $0: make sure you enable ZFS support (CONFIG_ZFS) before building." >&2
+echo >&2

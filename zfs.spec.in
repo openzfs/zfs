@@ -5,6 +5,7 @@
 %define _prefix          /
 %define _libexecdir      /usr/libexec
 %define _datadir         /usr/share
+%define _mandir          %{_datadir}/man
 %define _includedir      /usr/include
 %define _udevdir         /lib/udev
 
@@ -42,7 +43,7 @@ additional applications against the %{name} libraries.
 %package test
 Summary:         ZFS File System Test Infrastructure
 Group:           Utilities/System
-Requires:        zfs parted lsscsi
+Requires:        zfs parted lsscsi mdadm bc
 
 %description test
 The %{name}-test package contains a test infrastructure for zpios which
@@ -74,15 +75,19 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-, root, root)
-%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
 %{_sbindir}/*
 %{_bindir}/*
 %{_libdir}/*
+%{_mandir}/man5/*
 %{_mandir}/man8/*
-%{_sysconfdir}/init.d/*
-%{_sysconfdir}/zfs/*
 %{_udevdir}/*
+
+%config %{_sysconfdir}/init.d/*
+%config %{_sysconfdir}/zfs/*
+%config(noreplace) %{_sysconfdir}/zfs/zdev.conf
+
+%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
+%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
 
 %files devel
 %defattr(-,root,root)

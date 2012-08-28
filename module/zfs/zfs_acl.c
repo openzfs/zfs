@@ -457,9 +457,9 @@ zfs_acl_alloc(int vers)
 	    offsetof(zfs_acl_node_t, z_next));
 	aclp->z_version = vers;
 	if (vers == ZFS_ACL_VERSION_FUID)
-		aclp->z_ops = zfs_acl_fuid_ops;
+		aclp->z_ops = &zfs_acl_fuid_ops;
 	else
-		aclp->z_ops = zfs_acl_v0_ops;
+		aclp->z_ops = &zfs_acl_v0_ops;
 	return (aclp);
 }
 
@@ -609,17 +609,17 @@ zfs_acl_next_ace(zfs_acl_t *aclp, void *start, uint64_t *who,
 		/*
 		 * Make sure we don't overstep our bounds
 		 */
-		ace_size = aclp->z_ops.ace_size(acep);
+		ace_size = aclp->z_ops->ace_size(acep);
 
 		if (((caddr_t)acep + ace_size) >
 		    ((caddr_t)aclnode->z_acldata + aclnode->z_size)) {
 			return (NULL);
 		}
 
-		*iflags = aclp->z_ops.ace_flags_get(acep);
-		*type = aclp->z_ops.ace_type_get(acep);
-		*access_mask = aclp->z_ops.ace_mask_get(acep);
-		*who = aclp->z_ops.ace_who_get(acep);
+		*iflags = aclp->z_ops->ace_flags_get(acep);
+		*type = aclp->z_ops->ace_type_get(acep);
+		*access_mask = aclp->z_ops->ace_mask_get(acep);
+		*who = aclp->z_ops->ace_who_get(acep);
 		aclp->z_next_ace = (caddr_t)aclp->z_next_ace + ace_size;
 		aclnode->z_ace_idx++;
 
@@ -698,7 +698,7 @@ zfs_copy_ace_2_fuid(zfs_sb_t *zsb, umode_t obj_mode, zfs_acl_t *aclp,
 		}
 
 		aceptr = (zfs_ace_t *)((caddr_t)aceptr +
-		    aclp->z_ops.ace_size(aceptr));
+		    aclp->z_ops->ace_size(aceptr));
 	}
 
 	*size = (caddr_t)aceptr - (caddr_t)z_acl;
@@ -824,7 +824,7 @@ zfs_acl_xform(znode_t *zp, zfs_acl_t *aclp, cred_t *cr)
 
 	newaclnode = zfs_acl_node_alloc(aclp->z_acl_count *
 	    sizeof (zfs_object_ace_t));
-	aclp->z_ops = zfs_acl_fuid_ops;
+	aclp->z_ops = &zfs_acl_fuid_ops;
 	VERIFY(zfs_copy_ace_2_fuid(ZTOZSB(zp), ZTOI(zp)->i_mode,
 	    aclp, oldaclp, newaclnode->z_acldata, aclp->z_acl_count,
 	    &newaclnode->z_size, NULL, cr) == 0);
@@ -868,12 +868,12 @@ zfs_set_ace(zfs_acl_t *aclp, void *acep, uint32_t access_mask,
 {
 	uint16_t type = entry_type & ACE_TYPE_FLAGS;
 
-	aclp->z_ops.ace_mask_set(acep, access_mask);
-	aclp->z_ops.ace_type_set(acep, access_type);
-	aclp->z_ops.ace_flags_set(acep, entry_type);
+	aclp->z_ops->ace_mask_set(acep, access_mask);
+	aclp->z_ops->ace_type_set(acep, access_type);
+	aclp->z_ops->ace_flags_set(acep, entry_type);
 	if ((type != ACE_OWNER && type != OWNING_GROUP &&
 	    type != ACE_EVERYONE))
-		aclp->z_ops.ace_who_set(acep, fuid);
+		aclp->z_ops->ace_who_set(acep, fuid);
 }
 
 /*
@@ -1454,7 +1454,7 @@ zfs_acl_chmod(zfs_sb_t *zsb, uint64_t mode, zfs_acl_t *aclp)
 	uint16_t	iflags, type;
 	uint32_t	access_mask;
 	zfs_acl_node_t	*newnode;
-	size_t		abstract_size = aclp->z_ops.ace_abstract_size();
+	size_t		abstract_size = aclp->z_ops->ace_abstract_size();
 	void		*zacep;
 	uint32_t	owner, group, everyone;
 	uint32_t	deny1, deny2, allow0;
@@ -1530,7 +1530,7 @@ zfs_acl_chmod(zfs_sb_t *zsb, uint64_t mode, zfs_acl_t *aclp)
 			}
 		}
 		zfs_set_ace(aclp, zacep, access_mask, type, who, iflags);
-		ace_size = aclp->z_ops.ace_size(acep);
+		ace_size = aclp->z_ops->ace_size(acep);
 		zacep = (void *)((uintptr_t)zacep + ace_size);
 		new_count++;
 		new_bytes += ace_size;
@@ -1570,12 +1570,12 @@ zfs_acl_chmod_setattr(znode_t *zp, zfs_acl_t **aclp, uint64_t mode)
 static void
 zfs_restricted_update(zfs_sb_t *zsb, zfs_acl_t *aclp, void *acep)
 {
-	uint32_t mask = aclp->z_ops.ace_mask_get(acep);
+	uint32_t mask = aclp->z_ops->ace_mask_get(acep);
 
 	if ((zsb->z_acl_inherit == ZFS_ACL_RESTRICTED) &&
-	    (aclp->z_ops.ace_type_get(acep) == ALLOW)) {
+	    (aclp->z_ops->ace_type_get(acep) == ALLOW)) {
 		mask &= ~RESTRICTED_CLEAR;
-		aclp->z_ops.ace_mask_set(acep, mask);
+		aclp->z_ops->ace_mask_set(acep, mask);
 	}
 }
 
@@ -1640,7 +1640,7 @@ zfs_acl_inherit(zfs_sb_t *zsb, umode_t obj_mode, zfs_acl_t *paclp,
 		if (noallow && type == ALLOW)
 			continue;
 
-		ace_size = aclp->z_ops.ace_size(pacep);
+		ace_size = aclp->z_ops->ace_size(pacep);
 
 		if (!zfs_ace_can_use(obj_mode, iflags))
 			continue;
@@ -1672,8 +1672,8 @@ zfs_acl_inherit(zfs_sb_t *zsb, umode_t obj_mode, zfs_acl_t *paclp,
 		/*
 		 * Copy special opaque data if any
 		 */
-		if ((data1sz = paclp->z_ops.ace_data(pacep, &data1)) != 0) {
-			VERIFY((data2sz = aclp->z_ops.ace_data(acep,
+		if ((data1sz = paclp->z_ops->ace_data(pacep, &data1)) != 0) {
+			VERIFY((data2sz = aclp->z_ops->ace_data(acep,
 			    &data2)) == data1sz);
 			bcopy(data1, data2, data2sz);
 		}
@@ -1681,14 +1681,14 @@ zfs_acl_inherit(zfs_sb_t *zsb, umode_t obj_mode, zfs_acl_t *paclp,
 		aclp->z_acl_count++;
 		aclnode->z_ace_count++;
 		aclp->z_acl_bytes += aclnode->z_size;
-		newflags = aclp->z_ops.ace_flags_get(acep);
+		newflags = aclp->z_ops->ace_flags_get(acep);
 
 		if (vdir)
 			aclp->z_hints |= ZFS_INHERIT_ACE;
 
 		if ((iflags & ACE_NO_PROPAGATE_INHERIT_ACE) || !vdir) {
 			newflags &= ~ALL_INHERIT;
-			aclp->z_ops.ace_flags_set(acep,
+			aclp->z_ops->ace_flags_set(acep,
 			    newflags|ACE_INHERITED_ACE);
 			zfs_restricted_update(zsb, aclp, acep);
 			continue;
@@ -1703,11 +1703,11 @@ zfs_acl_inherit(zfs_sb_t *zsb, umode_t obj_mode, zfs_acl_t *paclp,
 		if ((iflags & (ACE_FILE_INHERIT_ACE |
 		    ACE_DIRECTORY_INHERIT_ACE)) == ACE_FILE_INHERIT_ACE) {
 			newflags |= ACE_INHERIT_ONLY_ACE;
-			aclp->z_ops.ace_flags_set(acep,
+			aclp->z_ops->ace_flags_set(acep,
 			    newflags|ACE_INHERITED_ACE);
 		} else {
 			newflags &= ~ACE_INHERIT_ONLY_ACE;
-			aclp->z_ops.ace_flags_set(acep,
+			aclp->z_ops->ace_flags_set(acep,
 			    newflags|ACE_INHERITED_ACE);
 		}
 	}

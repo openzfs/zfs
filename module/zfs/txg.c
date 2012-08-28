@@ -218,8 +218,18 @@ uint64_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	tx_cpu_t *tc = &tx->tx_cpu[CPU_SEQID];
+	tx_cpu_t *tc;
 	uint64_t txg;
+
+	/*
+	 * It appears the processor id is simply used as a "random"
+	 * number to index into the array, and there isn't any other
+	 * significance to the chosen tx_cpu. Because.. Why not use
+	 * the current cpu to index into the array?
+	 */
+	kpreempt_disable();
+	tc = &tx->tx_cpu[CPU_SEQID];
+	kpreempt_enable();
 
 	mutex_enter(&tc->tc_lock);
 

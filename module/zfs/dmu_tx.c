@@ -21,6 +21,9 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
+/*
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ */
 
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
@@ -68,7 +71,7 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 	    offsetof(dmu_tx_hold_t, txh_node));
 	list_create(&tx->tx_callbacks, sizeof (dmu_tx_callback_t),
 	    offsetof(dmu_tx_callback_t, dcb_node));
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	refcount_create(&tx->tx_space_written);
 	refcount_create(&tx->tx_space_freed);
 #endif
@@ -141,7 +144,7 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	txh->txh_type = type;
 	txh->txh_arg1 = arg1;
 	txh->txh_arg2 = arg2;
@@ -693,6 +696,8 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 	ASSERT3P(dmu_ot[dn->dn_type].ot_byteswap, ==, zap_byteswap);
 
 	if (dn->dn_maxblkid == 0 && !add) {
+		blkptr_t *bp;
+
 		/*
 		 * If there is only one block  (i.e. this is a micro-zap)
 		 * and we are not adding anything, the accounting is simple.
@@ -707,14 +712,13 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 		 * Use max block size here, since we don't know how much
 		 * the size will change between now and the dbuf dirty call.
 		 */
+		bp = &dn->dn_phys->dn_blkptr[0];
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
-		    &dn->dn_phys->dn_blkptr[0],
-		    dn->dn_phys->dn_blkptr[0].blk_birth)) {
+		    bp, bp->blk_birth))
 			txh->txh_space_tooverwrite += SPA_MAXBLOCKSIZE;
-		} else {
+		else
 			txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
-		}
-		if (dn->dn_phys->dn_blkptr[0].blk_birth)
+		if (!BP_IS_HOLE(bp))
 			txh->txh_space_tounref += SPA_MAXBLOCKSIZE;
 		return;
 	}
@@ -798,7 +802,7 @@ dmu_tx_holds(dmu_tx_t *tx, uint64_t object)
 	return (holds);
 }
 
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 void
 dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 {
@@ -808,6 +812,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
+	ASSERT(dn != NULL);
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(tx->tx_objset == NULL || dn->dn_objset == tx->tx_objset);
 	ASSERT3U(dn->dn_object, ==, db->db.db_object);
@@ -825,7 +830,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 
 	for (txh = list_head(&tx->tx_holds); txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
-		ASSERT(dn == NULL || dn->dn_assigned_txg == tx->tx_txg);
+		ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
 		if (txh->txh_dnode == dn && txh->txh_type != THT_NEWOBJECT)
 			match_object = TRUE;
 		if (txh->txh_dnode == NULL || txh->txh_dnode == dn) {
@@ -1003,7 +1008,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	/* calculate memory footprint estimate */
 	memory = towrite + tooverwrite + tohold;
 
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	/*
 	 * Add in 'tohold' to account for our dirty holds on this memory
 	 * XXX - the "fudge" factor is to account for skipped blocks that
@@ -1129,7 +1134,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 void
 dmu_tx_willuse_space(dmu_tx_t *tx, int64_t delta)
 {
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	if (tx->tx_dir == NULL || delta == 0)
 		return;
 
@@ -1179,7 +1184,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 
 	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	dprintf("towrite=%llu written=%llu tofree=%llu freed=%llu\n",
 	    tx->tx_space_towrite, refcount_count(&tx->tx_space_written),
 	    tx->tx_space_tofree, refcount_count(&tx->tx_space_freed));
@@ -1215,7 +1220,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 
 	list_destroy(&tx->tx_callbacks);
 	list_destroy(&tx->tx_holds);
-#ifdef ZFS_DEBUG
+#ifdef DEBUG_DMU_TX
 	refcount_destroy_many(&tx->tx_space_written,
 	    refcount_count(&tx->tx_space_written));
 	refcount_destroy_many(&tx->tx_space_freed,
@@ -1299,7 +1304,6 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 {
 	dnode_t *dn;
 	dmu_tx_hold_t *txh;
-	blkptr_t *bp;
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset, object,
 	    THT_SPILL, 0, 0);
@@ -1310,17 +1314,18 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 		return;
 
 	/* If blkptr doesn't exist then add space to towrite */
-	bp = &dn->dn_phys->dn_spill;
-	if (BP_IS_HOLE(bp)) {
+	if (!(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR)) {
 		txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
-		txh->txh_space_tounref = 0;
 	} else {
+		blkptr_t *bp;
+
+		bp = &dn->dn_phys->dn_spill;
 		if (dsl_dataset_block_freeable(dn->dn_objset->os_dsl_dataset,
 		    bp, bp->blk_birth))
 			txh->txh_space_tooverwrite += SPA_MAXBLOCKSIZE;
 		else
 			txh->txh_space_towrite += SPA_MAXBLOCKSIZE;
-		if (bp->blk_birth)
+		if (!BP_IS_HOLE(bp))
 			txh->txh_space_tounref += SPA_MAXBLOCKSIZE;
 	}
 }

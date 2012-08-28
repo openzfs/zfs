@@ -584,7 +584,7 @@ zfs_sb_create(const char *osname, zfs_sb_t **zsbp)
 	int i, error;
 	uint64_t sa_obj;
 
-	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP);
+	zsb = kmem_zalloc(sizeof (zfs_sb_t), KM_SLEEP | KM_NODEBUG);
 
 	/*
 	 * We claim to always be readonly so we can open snapshots;
@@ -1200,7 +1200,7 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	}
 
 	/* Allocate a root dentry for the filesystem */
-	sb->s_root = d_alloc_root(root_inode);
+	sb->s_root = d_make_root(root_inode);
 	if (sb->s_root == NULL) {
 		(void) zfs_umount(sb);
 		error = ENOMEM;
@@ -1231,7 +1231,7 @@ zfs_preumount(struct super_block *sb)
 {
 	zfs_sb_t *zsb = sb->s_fs_info;
 
-	if (zsb->z_ctldir != NULL)
+	if (zsb != NULL && zsb->z_ctldir != NULL)
 		zfsctl_destroy(zsb);
 }
 EXPORT_SYMBOL(zfs_preumount);

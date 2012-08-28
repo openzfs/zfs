@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -69,6 +71,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "<filesystem>", "BOOTFS");
 	zprop_register_string(ZPOOL_PROP_CACHEFILE, "cachefile", NULL,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<file> | none", "CACHEFILE");
+	zprop_register_string(ZPOOL_PROP_COMMENT, "comment", NULL,
+	    PROP_DEFAULT, ZFS_TYPE_POOL, "<comment-string>", "COMMENT");
 
 	/* readonly number properties */
 	zprop_register_number(ZPOOL_PROP_SIZE, "size", 0, PROP_READONLY,

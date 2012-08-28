@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DATASET_H
@@ -249,6 +250,10 @@ void dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dsl_dataset_fsid_guid(dsl_dataset_t *ds);
+int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
+    uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
+int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
+    uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 
 int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 

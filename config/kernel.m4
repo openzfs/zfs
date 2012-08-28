@@ -4,10 +4,12 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
 	ZFS_AC_SPL
+	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_TYPE_FMODE_T
 	ZFS_AC_KERNEL_KOBJ_NAME_LEN
+	ZFS_AC_KERNEL_3ARG_BLKDEV_GET
 	ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH
 	ZFS_AC_KERNEL_OPEN_BDEV_EXCLUSIVE
 	ZFS_AC_KERNEL_INVALIDATE_BDEV_ARGS
@@ -34,8 +36,10 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_BLK_RQ_POS
 	ZFS_AC_KERNEL_BLK_RQ_SECTORS
 	ZFS_AC_KERNEL_GET_DISK_RO
+	ZFS_AC_KERNEL_GET_GENDISK
 	ZFS_AC_KERNEL_RQ_IS_SYNC
 	ZFS_AC_KERNEL_RQ_FOR_EACH_SEGMENT
+	ZFS_AC_KERNEL_DISCARD_GRANULARITY
 	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET
@@ -45,8 +49,13 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_NR_CACHED_OBJECTS
 	ZFS_AC_KERNEL_FREE_CACHED_OBJECTS
 	ZFS_AC_KERNEL_FALLOCATE
+	ZFS_AC_KERNEL_TRUNCATE_RANGE
+	ZFS_AC_KERNEL_CREATE_UMODE_T
 	ZFS_AC_KERNEL_AUTOMOUNT
+	ZFS_AC_KERNEL_ENCODE_FH_WITH_INODE
+	ZFS_AC_KERNEL_CLEAR_INODE
 	ZFS_AC_KERNEL_INSERT_INODE_LOCKED
+	ZFS_AC_KERNEL_D_MAKE_ROOT
 	ZFS_AC_KERNEL_D_OBTAIN_ALIAS
 	ZFS_AC_KERNEL_CHECK_DISK_SIZE_CHANGE
 	ZFS_AC_KERNEL_TRUNCATE_SETSIZE
@@ -79,7 +88,7 @@ dnl #
 AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 	modpost=$LINUX/scripts/Makefile.modpost
 	AC_MSG_CHECKING([kernel file name for module symbols])
-	AS_IF([test -f "$modpost"], [
+	AS_IF([test "x$enable_linux_builtin" != xyes -a -f "$modpost"], [
 		AS_IF([grep -q Modules.symvers $modpost], [
 			LINUX_SYMBOLS=Modules.symvers
 		], [
@@ -151,7 +160,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
 		], [test -d ${kernelsrc}-obj/${target_cpu}/default], [
-		        kernelbuild=${kernelsrc}-obj/${target_cpu}/default
+			kernelbuild=${kernelsrc}-obj/${target_cpu}/default
 		], [test -d `dirname ${kernelsrc}`/build-${target_cpu}], [
 			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
 		], [
@@ -184,7 +193,13 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		])
 	], [
 		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+		else
+			AC_MSG_ERROR([
+	*** Cannot find UTS_RELEASE definition.
+	*** Please run 'make prepare' inside the kernel source tree.])
+		fi
 	])
 
 	AC_MSG_RESULT([$kernsrcver])
@@ -203,24 +218,45 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 dnl #
 dnl # Detect name used for the additional SPL Module.symvers file.  If one
 dnl # does not exist this is likely because the SPL has been configured
-dnl # but not built.  To allow recursive builds a good guess is made as to
-dnl # what this file will be named based on what it is named in the kernel
-dnl # build products.  This file will first be used at link time so if
-dnl # the guess is wrong the build will fail then.  This unfortunately
-dnl # means the ZFS package does not contain a reliable mechanism to
-dnl # detect symbols exported by the SPL at configure time.
+dnl # but not built.  The '--with-spl-timeout' option can be passed
+dnl # to pause here, waiting for the file to appear from a concurrently
+dnl # building SPL package.  If the file does not appear in time, a good
+dnl # guess is made as to what this file will be named based on what it
+dnl # is named in the kernel build products.  This file will first be
+dnl # used at link time so if the guess is wrong the build will fail
+dnl # then.  This unfortunately means the ZFS package does not contain a
+dnl # reliable mechanism to detect symbols exported by the SPL at
+dnl # configure time.
 dnl #
 AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
+	AC_ARG_WITH([spl-timeout],
+		AS_HELP_STRING([--with-spl-timeout=SECS],
+		[Wait SECS for symvers file to appear  @<:@default=0@:>@]),
+		[timeout="$withval"], [timeout=0])
+
 	AC_MSG_CHECKING([spl file name for module symbols])
-	AS_IF([test -r $SPL_OBJ/Module.symvers], [
-		SPL_SYMBOLS=Module.symvers
-	], [test -r $SPL_OBJ/Modules.symvers], [
-		SPL_SYMBOLS=Modules.symvers
-	], [test -r $SPL_OBJ/module/Module.symvers], [
-		SPL_SYMBOLS=Module.symvers
-	], [test -r $SPL_OBJ/module/Modules.symvers], [
-		SPL_SYMBOLS=Modules.symvers
-	], [
+	SPL_SYMBOLS=NONE
+
+	while true; do
+		AS_IF([test -r $SPL_OBJ/Module.symvers], [
+			SPL_SYMBOLS=Module.symvers
+		], [test -r $SPL_OBJ/Modules.symvers], [
+			SPL_SYMBOLS=Modules.symvers
+		], [test -r $SPL_OBJ/module/Module.symvers], [
+			SPL_SYMBOLS=Module.symvers
+		], [test -r $SPL_OBJ/module/Modules.symvers], [
+			SPL_SYMBOLS=Modules.symvers
+		])
+
+		AS_IF([test $SPL_SYMBOLS != NONE -o $timeout -le 0], [
+			break;
+		], [
+			sleep 1
+			timeout=$((timeout-1))
+		])
+	done
+
+	AS_IF([test "$SPL_SYMBOLS" = NONE], [
 		SPL_SYMBOLS=$LINUX_SYMBOLS
 	])
 
@@ -245,14 +281,35 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 	AC_MSG_CHECKING([spl source directory])
 	AS_IF([test -z "$splsrc"], [
+		dnl #
+		dnl # Look in the standard development package location
+		dnl #
 		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
 		            2>/dev/null | tail -1`
 
-		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink], [
+		dnl #
+		dnl # Look in the DKMS source location
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
+			sourcelink=`ls -1d /var/lib/dkms/spl/*/build \
+			            2>/dev/null | tail -1`
+		])
+
+		dnl #
+		dnl # Look in the parent directory
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
 			sourcelink=../spl
 		])
 
-		AS_IF([test -e $sourcelink], [
+		dnl #
+		dnl # Look in the kernel directory
+		dnl #
+		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
+			sourcelink="$LINUX"
+		])
+
+		AS_IF([test -e $sourcelink/spl_config.h], [
 			splsrc=`readlink -f ${sourcelink}`
 		], [
 			AC_MSG_RESULT([Not found])
@@ -306,38 +363,79 @@ AC_DEFUN([ZFS_AC_SPL], [
 ])
 
 dnl #
+dnl # Basic toolchain sanity check.
+dnl #
+AC_DEFUN([ZFS_AC_TEST_MODULE],
+	[AC_MSG_CHECKING([whether modules can be built])
+	ZFS_LINUX_TRY_COMPILE([],[],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_ERROR([*** Unable to build an empty module.])
+		else
+			AC_MSG_ERROR([
+	*** Unable to build an empty module.
+	*** Please run 'make scripts' inside the kernel source tree.])
+		fi
+	])
+])
+
+dnl #
 dnl # Certain kernel build options are not supported.  These must be
 dnl # detected at configure time and cause a build failure.  Otherwise
 dnl # modules may be successfully built that behave incorrectly.
 dnl #
-dnl # CONFIG_PREEMPT - Preempt kernels require special handling.
-dnl #
-dnl # There are certain kernel build options which when enabled are
-dnl # completely incompatible with non GPL kernel modules.  It is best
-dnl # to detect these at configure time and fail with a clear error
-dnl # rather than build everything and fail during linking.
-dnl #
-dnl # CONFIG_DEBUG_LOCK_ALLOC - Maps mutex_lock() to mutex_lock_nested()
-dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
-
-	ZFS_LINUX_CONFIG([PREEMPT],
-		AC_MSG_ERROR([
-	*** Kernel built with CONFIG_PREEMPT which is not supported.
-	*** You must rebuild your kernel without this option.]), [])
-
-	AS_IF([test "$ZFS_META_LICENSE" = CDDL], [
-		ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC],
-		AC_MSG_ERROR([
-	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is
-	*** incompatible with the CDDL license.  You must rebuild
-	*** your kernel without this option.]), [])
-	])
 
 	AS_IF([test "$ZFS_META_LICENSE" = GPL], [
 		AC_DEFINE([HAVE_GPL_ONLY_SYMBOLS], [1],
 			[Define to 1 if licensed under the GPL])
 	])
+
+	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
+])
+
+dnl #
+dnl # Check CONFIG_DEBUG_LOCK_ALLOC
+dnl #
+dnl # This is typically only set for debug kernels because it comes with
+dnl # a performance penalty.  However, when it is set it maps the non-GPL
+dnl # symbol mutex_lock() to the GPL-only mutex_lock_nested() symbol.
+dnl # This will cause a failure at link time which we'd rather know about
+dnl # at compile time.
+dnl #
+dnl # Since we plan to pursue making mutex_lock_nested() a non-GPL symbol
+dnl # with the upstream community we add a check to detect this case.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
+
+	ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC], [
+		AC_MSG_CHECKING([whether mutex_lock() is GPL-only])
+		tmp_flags="$EXTRA_KCFLAGS"
+		ZFS_LINUX_TRY_COMPILE([
+			#include <linux/module.h>
+			#include <linux/mutex.h>
+
+			MODULE_LICENSE("$ZFS_META_LICENSE");
+		],[
+			struct mutex lock;
+
+			mutex_init(&lock);
+			mutex_lock(&lock);
+			mutex_unlock(&lock);
+		],[
+			AC_MSG_RESULT(no)
+		],[
+			AC_MSG_RESULT(yes)
+			AC_MSG_ERROR([
+	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
+	*** with the CDDL license and will prevent the module linking stage
+	*** from succeeding.  You must rebuild your kernel without this
+	*** option enabled.])
+		])
+		EXTRA_KCFLAGS="$tmp_flags"
+	], [])
 ])
 
 dnl #
@@ -370,10 +468,12 @@ dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
 dnl #
 AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST([$1])])
-	rm -Rf build && mkdir -p build
+	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
 	echo "obj-m := conftest.o" >build/Makefile
+	modpost_flag=''
+	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)
@@ -415,30 +515,48 @@ dnl #
 dnl # ZFS_CHECK_SYMBOL_EXPORT
 dnl # check symbol exported or not
 dnl #
-AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT],
-	[AC_MSG_CHECKING([whether symbol $1 is exported])
+AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
 		$LINUX_OBJ/$LINUX_SYMBOLS 2>/dev/null
 	rc=$?
-	AS_IF([test $rc -ne 0], [
+	if test $rc -ne 0; then
 		export=0
 		for file in $2; do
-			grep -q -E "EXPORT_SYMBOL.*($1)" "$LINUX/$file" 2>/dev/null
+			grep -q -E "EXPORT_SYMBOL.*($1)" \
+				"$LINUX/$file" 2>/dev/null
 			rc=$?
-			AS_IF([test $rc -eq 0], [
+			if test $rc -eq 0; then
 				export=1
 				break;
-			])
+			fi
 		done
-		AS_IF([test $export -eq 0], [
-			AC_MSG_RESULT([no])
+		if test $export -eq 0; then :
 			$4
-		], [
-			AC_MSG_RESULT([yes])
+		else :
 			$3
-		])
-	], [
-		AC_MSG_RESULT([yes])
+		fi
+	else :
 		$3
-	])
+	fi
+])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE_SYMBOL
+dnl # like ZFS_LINUX_TRY_COMPILE, except ZFS_CHECK_SYMBOL_EXPORT
+dnl # is called if not compiling for builtin
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
+	ZFS_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
+	if test $rc -ne 0; then :
+		$6
+	else
+		if test "x$enable_linux_builtin" != xyes; then
+			ZFS_CHECK_SYMBOL_EXPORT([$3], [$4], [rc=0], [rc=1])
+		fi
+		if test $rc -ne 0; then :
+			$6
+		else :
+			$5
+		fi
+	fi
 ])

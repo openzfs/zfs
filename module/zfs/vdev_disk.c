@@ -158,10 +158,75 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	return (error);
 }
 
+/*
+ * Expanding a whole disk vdev involves invoking BLKRRPART on the
+ * whole disk device. This poses a problem, because BLKRRPART will
+ * return EBUSY if one of the disk's partitions is open. That's why
+ * we have to do it here, just before opening the data partition.
+ * Unfortunately, BLKRRPART works by dropping all partitions and
+ * recreating them, which means that for a short time window, all
+ * /dev/sdxN device files disappear (until udev recreates them).
+ * This means two things:
+ *  - When we open the data partition just after a BLKRRPART, we
+ *    can't do it using the normal device file path because of the
+ *    obvious race condition with udev. Instead, we use reliable
+ *    kernel APIs to get a handle to the new partition device from
+ *    the whole disk device.
+ *  - Because vdev_disk_open() initially needs to find the device
+ *    using its path, multiple vdev_disk_open() invocations in
+ *    short succession on the same disk with BLKRRPARTs in the
+ *    middle have a high probability of failure (because of the
+ *    race condition with udev). A typical situation where this
+ *    might happen is when the zpool userspace tool does a
+ *    TRYIMPORT immediately followed by an IMPORT. For this
+ *    reason, we only invoke BLKRRPART in the module when strictly
+ *    necessary (zpool online -e case), and rely on userspace to
+ *    do it when possible.
+ */
+static struct block_device *
+vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
+{
+#if defined(HAVE_3ARG_BLKDEV_GET) && defined(HAVE_GET_GENDISK)
+	struct block_device *bdev, *result = ERR_PTR(-ENXIO);
+	struct gendisk *disk;
+	int error, partno;
+
+	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), vd);
+	if (IS_ERR(bdev))
+		return bdev;
+
+	disk = get_gendisk(bdev->bd_dev, &partno);
+	vdev_bdev_close(bdev, vdev_bdev_mode(mode));
+
+	if (disk) {
+		bdev = bdget(disk_devt(disk));
+		if (bdev) {
+			error = blkdev_get(bdev, vdev_bdev_mode(mode), vd);
+			if (error == 0)
+				error = ioctl_by_bdev(bdev, BLKRRPART, 0);
+			vdev_bdev_close(bdev, vdev_bdev_mode(mode));
+		}
+
+		bdev = bdget_disk(disk, partno);
+		if (bdev) {
+			error = blkdev_get(bdev,
+			    vdev_bdev_mode(mode) | FMODE_EXCL, vd);
+			if (error == 0)
+				result = bdev;
+		}
+		put_disk(disk);
+	}
+
+	return result;
+#else
+	return ERR_PTR(-EOPNOTSUPP);
+#endif /* defined(HAVE_3ARG_BLKDEV_GET) && defined(HAVE_GET_GENDISK) */
+}
+
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 {
-	struct block_device *bdev;
+	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
 	int mode, block_size;
 
@@ -190,7 +255,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	 * level vdev validation.
 	 */
 	mode = spa_mode(v->vdev_spa);
-	bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
+	if (v->vdev_wholedisk && v->vdev_expanding)
+		bdev = vdev_disk_rrpart(v->vdev_path, mode, vd);
+	if (IS_ERR(bdev))
+		bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
 	if (IS_ERR(bdev)) {
 		kmem_free(vd, sizeof(vdev_disk_t));
 		return -PTR_ERR(bdev);

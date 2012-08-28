@@ -60,6 +60,8 @@
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <sys/ctype.h>
+#include <sys/disp.h>
 #include <linux/dcache_compat.h>
 
 #else /* _KERNEL */
@@ -92,6 +94,7 @@
 #include <atomic.h>
 #include <dirent.h>
 #include <time.h>
+#include <ctype.h>
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
@@ -225,6 +228,9 @@ extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 	thread_func_t func, void *arg, size_t len,
 	proc_t *pp, int state, pri_t pri);
 extern void zk_thread_join(kt_did_t tid);
+
+#define	kpreempt_disable()	((void)0)
+#define	kpreempt_enable()	((void)0)
 
 #define	PS_NONE		-1
 

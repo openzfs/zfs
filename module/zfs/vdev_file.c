@@ -141,16 +141,17 @@ static int
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_file_t *vf = vd->vdev_tsd;
+	vdev_file_t *vf;
 	ssize_t resid = 0;
 
-	if (zio->io_type == ZIO_TYPE_IOCTL) {
-		/* XXPOLICY */
-		if (!vdev_readable(vd)) {
-			zio->io_error = ENXIO;
-			return (ZIO_PIPELINE_CONTINUE);
-		}
+	if (!vdev_readable(vd)) {
+		zio->io_error = ENXIO;
+		return (ZIO_PIPELINE_CONTINUE);
+	}
 
+	vf = vd->vdev_tsd;
+
+	if (zio->io_type == ZIO_TYPE_IOCTL) {
 		switch (zio->io_cmd) {
 		case DKIOCFLUSHWRITECACHE:
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,

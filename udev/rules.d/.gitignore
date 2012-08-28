@@ -1,3 +1,4 @@
+60-vdev.rules
 60-zpool.rules
 60-zvol.rules
 90-zfs.rules

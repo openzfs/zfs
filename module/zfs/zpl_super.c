@@ -64,10 +64,15 @@ zpl_inode_destroy(struct inode *ip)
  * This elaborate mechanism was replaced by ->evict_inode() which
  * does the job of both ->delete_inode() and ->clear_inode().  It
  * will be called exactly once, and when it returns the inode must
- * be in a state where it can simply be freed.  The ->evict_inode()
- * callback must minimally truncate the inode pages, and call
- * end_writeback() to complete all outstanding writeback for the
- * inode.  After this is complete evict inode can cleanup any
+ * be in a state where it can simply be freed.i
+ *
+ * The ->evict_inode() callback must minimally truncate the inode pages,
+ * and call clear_inode().  For 2.6.35 and later kernels this will
+ * simply update the inode state, with the sync occurring before the
+ * truncate in evict().  For earlier kernels clear_inode() maps to
+ * end_writeback() which is responsible for completing all outstanding
+ * write back.  In either case, once this is done it is safe to cleanup
+ * any remaining inode specific data via zfs_inactive().
  * remaining filesystem specific data.
  */
 #ifdef HAVE_EVICT_INODE
@@ -75,7 +80,7 @@ static void
 zpl_evict_inode(struct inode *ip)
 {
 	truncate_setsize(ip, 0);
-	end_writeback(ip);
+	clear_inode(ip);
 	zfs_inactive(ip);
 }
 
