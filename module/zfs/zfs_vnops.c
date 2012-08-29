@@ -3797,6 +3797,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
+	int		sync;
 
 
 	ASSERT(PageLocked(pp));
@@ -3833,7 +3834,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	tx = dmu_tx_create(zsb->z_os);
 
-	dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
+	sync = ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
+	        (wbc->sync_mode == WB_SYNC_ALL));
+	if (!sync)
+		dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
 
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
 
@@ -3862,9 +3866,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	dmu_tx_commit(tx);
 	ASSERT3S(err, ==, 0);
 
-	if ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
-	    (wbc->sync_mode == WB_SYNC_ALL))
+	if (sync) {
 		zil_commit(zsb->z_log, zp->z_id);
+		zfs_putpage_commit_cb(pp, err);
+	}
 
 	return (err);
 }
