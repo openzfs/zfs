@@ -16,6 +16,7 @@ mount_zfs_SOURCES = \
 
 mount_zfs_LDADD = \
 	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la
 
 mount_zfs_LDFLAGS = \
