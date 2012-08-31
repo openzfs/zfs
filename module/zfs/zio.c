@@ -36,6 +36,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/trim_map.h>
 
 /*
  * ==========================================================================
@@ -55,6 +56,7 @@ uint8_t zio_priority_table[ZIO_PRIORITY_TABLE_SIZE] = {
 	10,	/* ZIO_PRIORITY_RESILVER	*/
 	20,	/* ZIO_PRIORITY_SCRUB		*/
 	2,	/* ZIO_PRIORITY_DDT_PREFETCH	*/
+	30,	/* ZIO_PRIORITY_TRIM		*/
 };
 
 /*
@@ -554,7 +556,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(type == ZIO_TYPE_FREE || size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT(P2PHASE(size, SPA_MINBLOCKSIZE) == 0);
 	ASSERT(P2PHASE(offset, SPA_MINBLOCKSIZE) == 0);
 
@@ -804,15 +806,16 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 }
 
 zio_t *
-zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *private, int priority, enum zio_flag flags)
+zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd, uint64_t offset,
+    uint64_t size, zio_done_func_t *done, void *private, int priority,
+    enum zio_flag flags)
 {
 	zio_t *zio;
 	int c;
 
 	if (vd->vdev_children == 0) {
-		zio = zio_create(pio, spa, 0, NULL, NULL, 0, done, private,
-		    ZIO_TYPE_IOCTL, priority, flags, vd, 0, NULL,
+		zio = zio_create(pio, spa, 0, NULL, NULL, size, done, private,
+		    ZIO_TYPE_IOCTL, priority, flags, vd, offset, NULL,
 		    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
 
 		zio->io_cmd = cmd;
@@ -821,7 +824,7 @@ zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
 
 		for (c = 0; c < vd->vdev_children; c++)
 			zio_nowait(zio_ioctl(zio, spa, vd->vdev_child[c], cmd,
-			    done, private, priority, flags));
+			    offset, size, done, private, priority, flags));
 	}
 
 	return (zio);
@@ -946,8 +949,19 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, void *data, uint64_t size,
 void
 zio_flush(zio_t *zio, vdev_t *vd)
 {
-	zio_nowait(zio_ioctl(zio, zio->io_spa, vd, DKIOCFLUSHWRITECACHE,
+	zio_nowait(zio_ioctl(zio, zio->io_spa, vd, DKIOCFLUSHWRITECACHE, 0, 0,
 	    NULL, NULL, ZIO_PRIORITY_NOW,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY));
+}
+
+void
+zio_trim(zio_t *zio, vdev_t *vd, uint64_t offset, uint64_t size)
+{
+
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	zio_nowait(zio_ioctl(zio, zio->io_spa, vd, DKIOCTRIM, offset, size,
+	    NULL, NULL, ZIO_PRIORITY_TRIM,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY));
 }
 
@@ -2411,6 +2425,12 @@ zio_vdev_io_start(zio_t *zio)
 		return (vdev_mirror_ops.vdev_op_io_start(zio));
 	}
 
+	if (vd->vdev_ops->vdev_op_leaf && zio->io_type == ZIO_TYPE_FREE) {
+		if (!BP_IS_GANG(zio->io_bp))
+			trim_map_free(zio);
+		return (ZIO_PIPELINE_CONTINUE);
+	}
+
 	/*
 	 * We keep track of time-sensitive I/Os so that the scan thread
 	 * can quickly react to certain workloads.  In particular, we care
@@ -2446,7 +2466,7 @@ zio_vdev_io_start(zio_t *zio)
 
 	ASSERT(P2PHASE(zio->io_offset, align) == 0);
 	ASSERT(P2PHASE(zio->io_size, align) == 0);
-	VERIFY(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
+	VERIFY(zio->io_type == ZIO_TYPE_READ || spa_writeable(spa));
 
 	/*
 	 * If this is a repair I/O, and there's no self-healing involved --
@@ -2486,6 +2506,11 @@ zio_vdev_io_start(zio_t *zio)
 		}
 	}
 
+	if (vd->vdev_ops->vdev_op_leaf && zio->io_type == ZIO_TYPE_WRITE) {
+		if (!trim_map_write_start(zio))
+			return (ZIO_PIPELINE_STOP);
+	}
+
 	return (vd->vdev_ops->vdev_op_io_start(zio));
 }
 
@@ -2499,9 +2524,16 @@ zio_vdev_io_done(zio_t *zio)
 	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV, ZIO_WAIT_DONE))
 		return (ZIO_PIPELINE_STOP);
 
-	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
+	ASSERT(zio->io_type == ZIO_TYPE_READ ||
+	    zio->io_type == ZIO_TYPE_WRITE || zio->io_type == ZIO_TYPE_FREE);
 
-	if (vd != NULL && vd->vdev_ops->vdev_op_leaf) {
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	    zio->io_type == ZIO_TYPE_WRITE) {
+		trim_map_write_done(zio);
+	}
+
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	    (zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE)) {
 
 		vdev_queue_io_done(zio);
 

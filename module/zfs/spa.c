@@ -63,6 +63,7 @@
 #include <sys/spa_boot.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/dsl_scan.h>
+#include <sys/trim_map.h>
 
 #ifdef	_KERNEL
 #include <sys/bootprops.h>
@@ -866,6 +867,11 @@ spa_activate(spa_t *spa, int mode)
 		spa_create_zio_taskqs(spa);
 	}
 
+	/*
+	 * Start TRIM thread.
+	 */
+	trim_thread_create(spa);
+
 	list_create(&spa->spa_config_dirty_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_config_dirty_node));
 	list_create(&spa->spa_state_dirty_list, sizeof (vdev_t),
@@ -895,6 +901,12 @@ spa_deactivate(spa_t *spa)
 	ASSERT(spa->spa_root_vdev == NULL);
 	ASSERT(spa->spa_async_zio_root == NULL);
 	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
+
+	/*
+	 * Stop TRIM thread in case spa_unload() wasn't called before
+	 * spa_deactivate().
+	 */
+	trim_thread_destroy(spa);
 
 	txg_list_destroy(&spa->spa_vdev_txg_list);
 
@@ -1009,6 +1021,11 @@ spa_unload(spa_t *spa)
 	int i;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	/*
+	 * Stop TRIM thread.
+	 */
+	trim_thread_destroy(spa);
 
 	/*
 	 * Stop async tasks.

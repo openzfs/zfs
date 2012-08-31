@@ -504,14 +504,20 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << unit_shift);
 	ASSERT3U(rm->rm_nskip, <=, nparity);
 
-	for (c = 0; c < rm->rm_firstdatacol; c++)
-		rm->rm_col[c].rc_data = zio_buf_alloc(rm->rm_col[c].rc_size);
+	if (zio->io_type != ZIO_TYPE_FREE) {
+		for (c = 0; c < rm->rm_firstdatacol; c++) {
+			rm->rm_col[c].rc_data =
+			    zio_buf_alloc(rm->rm_col[c].rc_size);
+		}
 
-	rm->rm_col[c].rc_data = zio->io_data;
+		rm->rm_col[c].rc_data = zio->io_data;
 
-	for (c = c + 1; c < acols; c++)
-		rm->rm_col[c].rc_data = (char *)rm->rm_col[c - 1].rc_data +
-		    rm->rm_col[c - 1].rc_size;
+		for (c = c + 1; c < acols; c++) {
+			rm->rm_col[c].rc_data =
+			    (char *)rm->rm_col[c - 1].rc_data +
+			    rm->rm_col[c - 1].rc_size;
+		}
+	}
 
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
@@ -1535,6 +1541,18 @@ vdev_raidz_io_start(zio_t *zio)
 
 	ASSERT3U(rm->rm_asize, ==, vdev_psize_to_asize(vd, zio->io_size));
 
+	if (zio->io_type == ZIO_TYPE_FREE) {
+		for (c = 0; c < rm->rm_cols; c++) {
+			rc = &rm->rm_col[c];
+			cvd = vd->vdev_child[rc->rc_devidx];
+			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
+			    rc->rc_offset, rc->rc_data, rc->rc_size,
+			    zio->io_type, zio->io_priority, 0,
+			    vdev_raidz_child_done, rc));
+		}
+		return (ZIO_PIPELINE_CONTINUE);
+	}
+
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		vdev_raidz_generate_parity(rm);
 
@@ -1919,6 +1937,8 @@ vdev_raidz_io_done(zio_t *zio)
 		if (total_errors > rm->rm_firstdatacol)
 			zio->io_error = vdev_raidz_worst_error(rm);
 
+		return;
+	} else if (zio->io_type == ZIO_TYPE_FREE) {
 		return;
 	}
 

@@ -140,7 +140,8 @@ enum zio_compress {
 #define	ZIO_PRIORITY_RESILVER		(zio_priority_table[9])
 #define	ZIO_PRIORITY_SCRUB		(zio_priority_table[10])
 #define	ZIO_PRIORITY_DDT_PREFETCH	(zio_priority_table[11])
-#define	ZIO_PRIORITY_TABLE_SIZE		12
+#define	ZIO_PRIORITY_TRIM		(zio_priority_table[12])
+#define	ZIO_PRIORITY_TABLE_SIZE		13
 
 #define	ZIO_PIPELINE_CONTINUE		0x100
 #define	ZIO_PIPELINE_STOP		0x101
@@ -429,6 +430,9 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	avl_node_t	io_trim_node;
+	list_node_t	io_trim_link;
 };
 
 extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
@@ -459,7 +463,8 @@ extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg,
     zio_done_func_t *done, void *private, enum zio_flag flags);
 
 extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *private, int priority, enum zio_flag flags);
+    uint64_t offset, uint64_t size, zio_done_func_t *done, 
+    void *private, int priority, enum zio_flag flags);
 
 extern zio_t *zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
     uint64_t size, void *data, int checksum,
@@ -478,6 +483,7 @@ extern int zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp,
     blkptr_t *old_bp, uint64_t size, boolean_t use_slog);
 extern void zio_free_zil(spa_t *spa, uint64_t txg, blkptr_t *bp);
 extern void zio_flush(zio_t *zio, vdev_t *vd);
+extern void zio_trim(zio_t *zio, vdev_t *vd, uint64_t offset, uint64_t size);
 extern void zio_shrink(zio_t *zio, uint64_t size);
 
 extern int zio_wait(zio_t *zio);

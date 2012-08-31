@@ -42,6 +42,7 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
+#include <sys/trim_map.h>
 
 /*
  * Virtual device management.
@@ -62,6 +63,8 @@ static vdev_ops_t *vdev_ops_table[] = {
 
 /* maximum scrub/resilver I/O queue per leaf vdev */
 int zfs_scrub_limit = 10;
+
+int zfs_notrim = B_FALSE;
 
 /*
  * Given a vdev type, return the appropriate ops vector.
@@ -1215,6 +1218,11 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_ishole || vd->vdev_ops == &vdev_missing_ops)
 		return (0);
 
+	if (vd->vdev_ops->vdev_op_leaf) {
+		vd->vdev_notrim = B_FALSE;
+		trim_map_create(vd);
+	}
+
 	for (c = 0; c < vd->vdev_children; c++) {
 		if (vd->vdev_child[c]->vdev_state != VDEV_STATE_HEALTHY) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_DEGRADED,
@@ -1458,6 +1466,9 @@ vdev_close(vdev_t *vd)
 	vd->vdev_ops->vdev_op_close(vd);
 
 	vdev_cache_purge(vd);
+
+	if (vd->vdev_ops->vdev_op_leaf)
+		trim_map_destroy(vd);
 
 	/*
 	 * We record the previous state before we close it, so that if we are

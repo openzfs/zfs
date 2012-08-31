@@ -141,6 +141,7 @@
 #include <sys/metaslab.h>
 #include <sys/zio.h>
 #include <sys/dsl_scan.h>
+#include <sys/trim_map.h>
 #include <sys/fs/zfs.h>
 
 /*
@@ -1221,5 +1222,10 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg, boolean_t tryhard)
 	 * to disk to ensure that all odd-label updates are committed to
 	 * stable storage before the next transaction group begins.
 	 */
-	return (vdev_label_sync_list(spa, 1, txg, flags));
+	if ((error = vdev_label_sync_list(spa, 1, txg, flags)) != 0)
+		return (error);
+
+	trim_thread_wakeup(spa);
+
+	return (0);
 }
