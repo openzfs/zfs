@@ -226,14 +226,21 @@ trim_map_segment_remove(trim_map_t *tm, trim_seg_t *ts, uint64_t start,
 static void
 trim_map_free_locked(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 {
-	zio_t zsearch, *zs;
+	zio_t *zs;
+	/*
+	 * Declaring a zio_t variable on the stack makes the frame size too
+	 * large for the taste of GCC. We work around the issue by allocating
+	 * just the fields we actually need.
+	 */
+	char zsearch_buffer[offsetof(zio_t, io_offset) + sizeof(zs->io_offset)];
+	zio_t *zsearch = (zio_t *)zsearch_buffer;
 
 	ASSERT(MUTEX_HELD(&tm->tm_lock));
 
-	zsearch.io_offset = start;
-	zsearch.io_size = end - start;
+	zsearch->io_offset = start;
+	zsearch->io_size = end - start;
 
-	zs = avl_find(&tm->tm_inflight_writes, &zsearch, NULL);
+	zs = avl_find(&tm->tm_inflight_writes, zsearch, NULL);
 	if (zs == NULL) {
 		trim_map_segment_add(tm, start, end, txg);
 		return;
