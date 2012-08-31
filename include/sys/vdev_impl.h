@@ -186,6 +186,7 @@ struct vdev {
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	hrtime_t	vdev_last_try;	/* last reopen time		*/
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
+	boolean_t	vdev_notrim;	/* true if trim failed 		*/
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */
@@ -201,6 +202,7 @@ struct vdev {
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache vdevs		*/
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
+	struct trim_map *vdev_trimmap;
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
