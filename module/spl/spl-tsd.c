@@ -355,7 +355,8 @@ tsd_hash_table_init(uint_t bits)
 	if (table == NULL)
 		SRETURN(NULL);
 
-	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size, KM_SLEEP);
+	table->ht_bins = kmem_zalloc(sizeof(tsd_hash_bin_t) * size,
+	    KM_SLEEP | KM_NODEBUG);
 	if (table->ht_bins == NULL) {
 		kmem_free(table, sizeof(tsd_hash_table_t));
 		SRETURN(NULL);
