@@ -300,6 +300,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
 
+#ifdef HAVE_BLK_QUEUE_DISCARD
+	v->vdev_notrim = !blk_queue_discard(bdev_get_queue(bdev));
+#endif
+
 	/* Try to set the io scheduler elevator algorithm */
 	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
 
@@ -494,7 +498,32 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
-	int i = 0, error = 0;
+	int nr_iovecs, i = 0, error = 0;
+#ifdef REQ_DISCARD
+	struct request_queue *q = bdev_get_queue(bdev);
+	int len, max_discard_size = INT_MAX;
+	
+	if (flags & REQ_DISCARD) {
+		ASSERT(!kbuf_ptr);
+
+		if (!blk_queue_discard(q) ||
+		    !blk_queue_max_discard_sectors_get(q))
+			return EOPNOTSUPP;
+
+		max_discard_size = MIN(
+		    blk_queue_max_discard_sectors_get(q) << 9,
+		    INT_MAX);
+		if (blk_queue_discard_granularity_get(q))
+			max_discard_size &= ~(
+			    blk_queue_discard_granularity_get(q)
+			    - 1);
+		max_discard_size &= ~511;
+
+		bio_count = zio->io_size / max_discard_size;
+		if (zio->io_size % max_discard_size != 0)
+			bio_count++;
+	}
+#endif
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
 
@@ -537,8 +566,13 @@ retry:
 			goto retry;
 		}
 
-		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		                          bio_nr_pages(bio_ptr, bio_size));
+#ifdef REQ_DISCARD
+		if (flags & REQ_DISCARD)
+			nr_iovecs = 0;
+		else
+#endif
+			nr_iovecs = bio_nr_pages(bio_ptr, bio_size);
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO, nr_iovecs);
 		if (dr->dr_bio[i] == NULL) {
 			vdev_disk_dio_free(dr);
 			return ENOMEM;
@@ -553,8 +587,21 @@ retry:
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
 
-		/* Remaining size is returned to become the new size */
-		bio_size = bio_map(dr->dr_bio[i], bio_ptr, bio_size);
+#ifdef REQ_DISCARD
+		if (flags & REQ_DISCARD) {
+			dr->dr_bio[i]->bi_size = MIN(bio_size,
+			     max_discard_size);
+			bio_size -= dr->dr_bio[i]->bi_size;
+		} else
+#endif
+		{
+			/*
+			 * Remaining size is returned to become the new
+			 * size
+			 */
+			bio_size = bio_map(dr->dr_bio[i], bio_ptr,
+			    bio_size);
+		}
 
 		/* Advance in buffer and construct another bio if needed */
 		bio_ptr    += dr->dr_bio[i]->bi_size;
@@ -653,7 +700,9 @@ vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
-	int flags, error;
+	int flags = 0, error;
+	int trim = zio->io_type == ZIO_TYPE_IOCTL &&
+	    zio->io_cmd == DKIOCTRIM;
 
 	switch (zio->io_type) {
 	case ZIO_TYPE_IOCTL:
@@ -661,6 +710,16 @@ vdev_disk_io_start(zio_t *zio)
 		if (!vdev_readable(v)) {
 			zio->io_error = ENXIO;
 			return ZIO_PIPELINE_CONTINUE;
+		}
+
+		if (trim) {
+#ifdef REQ_DISCARD
+			flags = WRITE | REQ_DISCARD;
+			break;
+#else
+			zio->io_error = EOPNOTSUPP;
+			return ZIO_PIPELINE_CONTINUE;
+#endif
 		}
 
 		switch (zio->io_cmd) {
@@ -703,8 +762,16 @@ vdev_disk_io_start(zio_t *zio)
 		return ZIO_PIPELINE_CONTINUE;
 	}
 
-	error = __vdev_disk_physio(vd->vd_bdev, zio, zio->io_data,
-		                   zio->io_size, zio->io_offset, flags);
+	if (trim && v->vdev_notrim)
+		error = EOPNOTSUPP;
+	else {
+		error = __vdev_disk_physio(vd->vd_bdev, zio,
+					   zio->io_data, zio->io_size,
+					   zio->io_offset, flags);
+		if (trim && error == EOPNOTSUPP)
+			v->vdev_notrim = B_TRUE;
+	}
+
 	if (error) {
 		zio->io_error = error;
 		return ZIO_PIPELINE_CONTINUE;

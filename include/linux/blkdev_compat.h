@@ -433,6 +433,37 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif
 
 /*
+ * 2.6.32 API change
+ * blk_queue_discard is now available.
+ */
+#ifdef REQ_DISCARD
+#ifndef HAVE_BLK_QUEUE_DISCARD
+static inline unsigned long
+blk_queue_discard(struct request_queue *q)
+{
+	return !!q->prepare_discard_fn;
+}
+#endif
+#endif
+
+/*
+ * 2.6.32 API change
+ * On 2.6.32, maximum discard request size lies in:
+ *      request_queue.limits.max_discard_sectors
+ * Before 2.6.32, it lies in:
+ *      request_queue.max_hw_sectors
+ */
+static inline unsigned int
+blk_queue_max_discard_sectors_get(struct request_queue *q)
+{
+#ifdef HAVE_MAX_DISCARD_SECTORS
+	return q->limits.max_discard_sectors;
+#else
+	return q->max_hw_sectors;
+#endif
+}
+
+/*
  * 2.6.33 API change
  * Discard granularity and alignment restrictions may now be set.  For
  * older kernels which do not support this it is safe to skip it.
@@ -443,8 +474,14 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 {
 	q->limits.discard_granularity = dg;
 }
+static inline unsigned int
+blk_queue_discard_granularity_get(struct request_queue *q)
+{
+	return q->limits.discard_granularity;
+}
 #else
 #define blk_queue_discard_granularity(x, dg)	((void)0)
+#define blk_queue_discard_granularity_get(x) (0)
 #endif /* HAVE_DISCARD_GRANULARITY */
 
 /*
