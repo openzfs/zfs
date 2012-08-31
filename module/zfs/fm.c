@@ -672,7 +672,7 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 static void *
 i_fm_alloc(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_zalloc(size, KM_SLEEP));
+	return (kmem_zalloc(size, KM_PUSHPAGE));
 }
 
 /* ARGSUSED */
@@ -740,7 +740,7 @@ fm_nvlist_create(nv_alloc_t *nva)
 	nv_alloc_t *nvhdl;
 
 	if (nva == NULL) {
-		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_SLEEP);
+		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_PUSHPAGE);
 
 		if (nv_alloc_init(nvhdl, &fm_mem_alloc_ops, NULL, 0) != 0) {
 			kmem_free(nvhdl, sizeof (nv_alloc_t));
