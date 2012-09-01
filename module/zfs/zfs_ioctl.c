@@ -4094,7 +4094,17 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 		return (error);
 
 	spa_vdev_state_enter(spa, SCL_NONE);
+
+	/*
+	 * If a resilver is already in progress then set the
+	 * spa_scrub_reopen flag to B_TRUE so that we don't restart
+	 * the scan as a side effect of the reopen. Otherwise, let
+	 * vdev_open() decided if a resilver is required.
+	 */
+	spa->spa_scrub_reopen = dsl_scan_resilvering(spa->spa_dsl_pool);
 	vdev_reopen(spa->spa_root_vdev);
+	spa->spa_scrub_reopen = B_FALSE;
+
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 	spa_close(spa, FTAG);
 	return (0);
