@@ -212,7 +212,7 @@ dsl_scan_setup_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	if (dp->dp_blkstats == NULL) {
 		dp->dp_blkstats = kmem_alloc(sizeof (zfs_all_blkstats_t),
-		    KM_SLEEP | KM_NODEBUG);
+		    KM_PUSHPAGE | KM_NODEBUG);
 	}
 	bzero(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
 
@@ -793,7 +793,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	arc_buf_t *buf = NULL;
 	blkptr_t *bp_toread;
 
-	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
+	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_PUSHPAGE);
 	*bp_toread = *bp;
 
 	/* ASSERT(pbuf == NULL || arc_released(pbuf)); */
@@ -1110,7 +1110,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_scan_visit_rootbp(scn, ds, &ds->ds_phys->ds_bp, tx);
 
-	dsname = kmem_alloc(ZFS_MAXNAMELEN, KM_SLEEP);
+	dsname = kmem_alloc(ZFS_MAXNAMELEN, KM_PUSHPAGE);
 	dsl_dataset_name(ds, dsname);
 	zfs_dbgmsg("scanned dataset %llu (%s) with min=%llu max=%llu; "
 	    "pausing=%u",
@@ -1377,8 +1377,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 	 * bookmark so we don't think that we're still trying to resume.
 	 */
 	bzero(&scn->scn_phys.scn_bookmark, sizeof (zbookmark_t));
-	zc = kmem_alloc(sizeof(zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof(zap_attribute_t), KM_SLEEP);
+	zc = kmem_alloc(sizeof(zap_cursor_t), KM_PUSHPAGE);
+	za = kmem_alloc(sizeof(zap_attribute_t), KM_PUSHPAGE);
 
 	/* keep pulling things out of the zap-object-as-queue */
 	while (zap_cursor_init(zc, dp->dp_meta_objset,
