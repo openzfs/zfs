@@ -793,7 +793,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 	arc_buf_t *buf = NULL;
 	blkptr_t *bp_toread;
 
-	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_PUSH);
+	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_PUSHPAGE);
 	*bp_toread = *bp;
 
 	/* ASSERT(pbuf == NULL || arc_released(pbuf)); */
