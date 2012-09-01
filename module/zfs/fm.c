@@ -418,7 +418,7 @@ zfs_zevent_alloc(void)
 {
 	zevent_t *ev;
 
-	ev = kmem_zalloc(sizeof(zevent_t), KM_SLEEP);
+	ev = kmem_zalloc(sizeof(zevent_t), KM_PUSHPAGE);
 	if (ev == NULL)
 		return NULL;
 
