@@ -741,7 +741,7 @@ vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
-	int flags, error;
+	int flags = 0, error;
 
 	switch (zio->io_type) {
 	case ZIO_TYPE_IOCTL:
