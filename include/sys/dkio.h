@@ -33,5 +33,6 @@ struct dk_callback {
 
 #define	DKIOC			(0x04 << 8)
 #define	DKIOCFLUSHWRITECACHE	(DKIOC | 34)
+#define	DKIOCTRIM		(DKIOC | 35)
 
 #endif /* _SPL_DKIO_H */
