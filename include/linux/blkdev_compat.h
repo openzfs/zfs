@@ -394,13 +394,27 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 /*
  * 2.6.30 API change
- * Change to make it explicit there this is the logical block size.
+ * To ensure good performance preferentially use the physical block size
+ * for proper alignment.  The physical size is supposed to be the internal
+ * sector size used by the device.  This is often 4096 byte for AF devices,
+ * while a smaller 512 byte logical size is supported for compatibility.
+ *
+ * Unfortunately, many drives still misreport their physical sector size.
+ * For devices which are known to lie you may need to manually set this
+ * at pool creation time with 'zpool create -o ashift=12 ...'.
+ *
+ * When the physical block size interface isn't available, we fall back to
+ * the logical block size interface and then the older hard sector size.
  */
-#ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
-# define vdev_bdev_block_size(bdev)	bdev_logical_block_size(bdev)
+#ifdef HAVE_BDEV_PHYSICAL_BLOCK_SIZE
+# define vdev_bdev_block_size(bdev)	bdev_physical_block_size(bdev)
 #else
-# define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
-#endif
+# ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+#  define vdev_bdev_block_size(bdev)	bdev_logical_block_size(bdev)
+# else
+#  define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
+# endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
+#endif /* HAVE_BDEV_PHYSICAL_BLOCK_SIZE */
 
 /*
  * 2.6.37 API change
