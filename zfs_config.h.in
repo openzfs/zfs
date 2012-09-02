@@ -24,6 +24,9 @@
 /* bdev_logical_block_size() is available */
 #undef HAVE_BDEV_LOGICAL_BLOCK_SIZE
 
+/* bdev_physical_block_size() is available */
+#undef HAVE_BDEV_PHYSICAL_BLOCK_SIZE
+
 /* struct super_block has s_bdi */
 #undef HAVE_BDI
 
