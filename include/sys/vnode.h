@@ -66,6 +66,9 @@
 #define FNODSYNC	0x10000 /* fsync pseudo flag */
 #define FNOFOLLOW	0x20000 /* don't follow symlinks */
 
+#define F_FREESP	11 	/* Free file space */
+
+
 /*
  * The vnode AT_ flags are mapped to the Linux ATTR_* flags.
  * This allows them to be used safely with an iattr structure.
@@ -185,6 +188,8 @@ extern int vn_remove(const char *path, uio_seg_t seg, int flags);
 extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
+extern int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
+    offset_t offset, void *x6, void *x7);
 extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
 extern int vn_set_pwd(const char *filename);
@@ -197,6 +202,7 @@ void spl_vn_fini(void);
 #define VOP_SEEK				vn_seek
 #define VOP_GETATTR				vn_getattr
 #define VOP_FSYNC				vn_fsync
+#define VOP_SPACE				vn_space
 #define VOP_PUTPAGE(vp, o, s, f, x1, x2)	((void)0)
 #define vn_is_readonly(vp)			0
 #define getf					vn_getf

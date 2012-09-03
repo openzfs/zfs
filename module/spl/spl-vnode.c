@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/vnode.h>
+#include <linux/falloc.h>
 #include <spl-debug.h>
 
 #ifdef SS_DEBUG_SUBSYS
@@ -509,6 +510,58 @@ int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 	SRETURN(-spl_filp_fsync(vp->v_file, datasync));
 } /* vn_fsync() */
 EXPORT_SYMBOL(vn_fsync);
+
+int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
+    offset_t offset, void *x6, void *x7)
+{
+	int error = EOPNOTSUPP;
+	SENTRY;
+
+	if (cmd != F_FREESP || bfp->l_whence != 0)
+		SRETURN(EOPNOTSUPP);
+
+	ASSERT(vp);
+	ASSERT(vp->v_file);
+	ASSERT(bfp->l_start >= 0 && bfp->l_len > 0);
+
+#ifdef FALLOC_FL_PUNCH_HOLE
+	if (vp->v_file->f_op->fallocate) {
+		error = -vp->v_file->f_op->fallocate(vp->v_file,
+		    FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+		    bfp->l_start, bfp->l_len);
+		if (!error)
+			SRETURN(0);
+	}
+#endif
+
+#ifdef HAVE_INODE_TRUNCATE_RANGE
+	if (vp->v_file->f_dentry && vp->v_file->f_dentry->d_inode &&
+	    vp->v_file->f_dentry->d_inode->i_op &&
+	    vp->v_file->f_dentry->d_inode->i_op->truncate_range) {
+		off_t end = bfp->l_start + bfp->l_len;
+		/*
+		 * Judging from the code in shmem_truncate_range(),
+		 * it seems the kernel expects the end offset to be
+		 * inclusive and aligned to the end of a page.
+		 */
+		if (end % PAGE_SIZE != 0) {
+			end &= ~(off_t)(PAGE_SIZE - 1);
+			if (end <= bfp->l_start)
+				SRETURN(0);
+		}
+		--end;
+
+		vp->v_file->f_dentry->d_inode->i_op->truncate_range(
+			vp->v_file->f_dentry->d_inode,
+			bfp->l_start, end
+		);
+		SRETURN(0);
+	}
+#endif
+
+	SRETURN(error);
+}
+EXPORT_SYMBOL(vn_space);
 
 /* Function must be called while holding the vn_file_lock */
 static file_t *

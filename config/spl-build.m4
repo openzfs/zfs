@@ -72,6 +72,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_VFS_FSYNC
 	SPL_AC_2ARGS_VFS_FSYNC
+	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_CRED_STRUCT
 	SPL_AC_GROUPS_SEARCH
@@ -1991,6 +1992,27 @@ AC_DEFUN([SPL_AC_2ARGS_VFS_FSYNC], [
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 3.5 API change,
+dnl # inode_operations.truncate_range removed
+dnl # (deprecated in favor of FALLOC_FL_PUNCH_HOLE)
+dnl #
+AC_DEFUN([SPL_AC_INODE_TRUNCATE_RANGE], [
+	AC_MSG_CHECKING([whether truncate_range() inode operation is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		struct inode_operations ops;
+		ops.truncate_range = NULL;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_TRUNCATE_RANGE, 1,
+			[truncate_range() inode operation is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+]))
 
 dnl #
 dnl # 2.6.33 API change. Also backported in RHEL5 as of 2.6.18-190.el5.
