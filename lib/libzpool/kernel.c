@@ -22,8 +22,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#include <assert.h>
 #include <fcntl.h>
+#include <assert.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +37,7 @@
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include <sys/systeminfo.h>
+#include <linux/falloc.h>
 
 /*
  * Emulation of kernel services in userland.
@@ -704,6 +705,33 @@ fop_getattr(vnode_t *vp, vattr_t *vap)
 
 	vap->va_size = st.st_size;
 	return (0);
+}
+
+int
+fop_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
+    off_t offset)
+{
+	if (cmd != F_FREESP || bfp->l_whence != 0)
+		return EOPNOTSUPP;
+
+	/*
+	 * We could use BLKDISCARD when we're called with a block
+	 * device, but in practice that never happens, so don't bother.
+	 */
+	
+#ifndef FALLOC_FL_PUNCH_HOLE
+
+	return EOPNOTSUPP;
+
+#else
+
+	if (fallocate(vp->v_fd,
+	    FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+	    bfp->l_start, bfp->l_len) == -1)
+		return errno;
+	return (0);
+
+#endif
 }
 
 /*
