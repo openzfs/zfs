@@ -717,9 +717,11 @@ fop_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 
 #else
 
-	return fallocate(vp->v_fd,
+	if (fallocate(vp->v_fd,
 	    FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
-	    bfp->l_start, bfp->l_len);
+	    bfp->l_start, bfp->l_len) == -1)
+		return errno;
+	return (0);
 
 #endif
 }
