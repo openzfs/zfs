@@ -143,6 +143,7 @@ vdev_file_io_start(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf;
 	ssize_t resid = 0;
+	struct flock fl;
 
 	if (!vdev_readable(vd)) {
 		zio->io_error = ENXIO;
@@ -156,6 +157,15 @@ vdev_file_io_start(zio_t *zio)
 		case DKIOCFLUSHWRITECACHE:
 			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
 			    kcred, NULL);
+			break;
+		case DKIOCTRIM:
+			bzero(&fl, sizeof(fl));
+			fl.l_type = F_WRLCK;
+			fl.l_whence = 0;
+			fl.l_start = zio->io_offset;
+			fl.l_len = zio->io_size;
+			zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &fl,
+			    FWRITE | FOFFMAX, zio->io_offset, kcred, NULL);
 			break;
 		default:
 			zio->io_error = ENOTSUP;
