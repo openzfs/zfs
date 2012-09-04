@@ -868,7 +868,7 @@ iput_async(struct inode *ip, taskq_t *taskq)
 {
 	ASSERT(atomic_read(&ip->i_count) > 0);
 	if (atomic_read(&ip->i_count) == 1)
-		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_SLEEP);
+		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_PUSHPAGE);
 	else
 		iput(ip);
 }
@@ -934,7 +934,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		return (ENOENT);
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
 	zgd->zgd_zilog = zsb->z_log;
 	zgd->zgd_private = zp;
 
