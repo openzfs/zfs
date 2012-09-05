@@ -652,11 +652,11 @@ vdev_disk_io_trim(struct block_device *bdev, zio_t *zio)
 	int i = 0;
 
 	if (!blk_queue_discard(q))
-		return ENOTSUP;
+		return EOPNOTSUPP;
 
 	max_discard_sectors = min(q->limits.max_discard_sectors, UINT_MAX >> 9);
 	if (!max_discard_sectors)
-		return ENOTSUP;
+		return EOPNOTSUPP;
 	if (q->limits.discard_granularity)
 		max_discard_sectors &= ~((q->limits.discard_granularity >> 9) - 1);
 
@@ -797,7 +797,7 @@ vdev_disk_io_start(zio_t *zio)
 	if (zio->io_type == ZIO_TYPE_IOCTL && zio->io_cmd == DKIOCTRIM)
 	{
 		error = vdev_disk_io_trim(vd->vd_bdev, zio);
-		if (error == ENOTSUP)
+		if (error == EOPNOTSUPP)
 			v->vdev_notrim = B_TRUE;
 	}
 	else
