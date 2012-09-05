@@ -3134,6 +3134,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 	char *path, *devid, *type;
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
+	char tmpbuf[PATH_BUF_LEN];
 	vdev_stat_t *vs;
 	uint_t vsc;
 
@@ -3206,13 +3207,12 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a raidz device, we need to stick in the parity level.
 		 */
 		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
-			char tmpbuf[PATH_BUF_LEN];
 
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 			    &value) == 0);
-			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s%llu", path,
+			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
-			path = tmpbuf;
+			path = buf;
 		}
 
 		/*
@@ -3224,9 +3224,9 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 			    &id) == 0);
-			(void) snprintf(buf, sizeof (buf), "%s-%llu", path,
-			    (u_longlong_t)id);
-			path = buf;
+			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s-%llu",
+			    path, (u_longlong_t)id);
+			path = tmpbuf;
 		}
 	}
 
