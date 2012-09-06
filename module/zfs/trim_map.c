@@ -526,7 +526,7 @@ trim_thread_wakeup(spa_t *spa)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-module_param(zfs_notrim, int, 0644);
+module_param(zfs_notrim, int, 0444);
 MODULE_PARM_DESC(zfs_notrim, "Disable TRIM (default is 1; 0 IS HIGHLY EXPERIMENTAL, USE AT YOUR OWN RISK, EXPECT DATA LOSS)");
 
 module_param(trim_txg_limit, int, 0644);
