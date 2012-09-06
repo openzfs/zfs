@@ -796,9 +796,13 @@ vdev_disk_io_start(zio_t *zio)
 
 	if (zio->io_type == ZIO_TYPE_IOCTL && zio->io_cmd == DKIOCTRIM)
 	{
-		error = vdev_disk_io_trim(vd->vd_bdev, zio);
-		if (error == EOPNOTSUPP)
-			v->vdev_notrim = B_TRUE;
+		if (v->vdev_notrim)
+			error = EOPNOTSUPP;
+		else {
+			error = vdev_disk_io_trim(vd->vd_bdev, zio);
+			if (error == EOPNOTSUPP)
+				v->vdev_notrim = B_TRUE;
+		}
 	}
 	else
 		error = __vdev_disk_physio(vd->vd_bdev, zio,
