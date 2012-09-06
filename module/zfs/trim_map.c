@@ -317,11 +317,23 @@ trim_map_write_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	trim_map_t *tm = vd->vdev_trimmap;
 
-	if (zfs_notrim || vd->vdev_notrim || tm == NULL)
+	/*
+	 * Don't check for vdev_notrim, since the write could have
+	 * started before vdev_notrim was set.
+	 */
+	if (zfs_notrim || tm == NULL)
 		return;
 
 	mutex_enter(&tm->tm_lock);
-	avl_remove(&tm->tm_inflight_writes, zio);
+	/*
+	 * Don't fail if the write isn't in the tree, since the write
+	 * could have started after vdev_notrim was set.
+	 */
+	if (zio->io_trim_node.avl_child[0] ||
+	    zio->io_trim_node.avl_child[1] ||
+	    AVL_XPARENT(&zio->io_trim_node) ||
+	    tm->tm_inflight_writes.avl_root == &zio->io_trim_node)
+		avl_remove(&tm->tm_inflight_writes, zio);
 	mutex_exit(&tm->tm_lock);
 }
 

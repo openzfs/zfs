@@ -660,6 +660,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	bzero(zio->io_children,
 	    sizeof (uint64_t) * ZIO_CHILD_TYPES * ZIO_WAIT_TYPES);
 	bzero(&zio->io_bookmark, sizeof (zbookmark_t));
+	bzero(&zio->io_trim_node, sizeof(zio->io_trim_node));
 
 	zio->io_state[ZIO_WAIT_READY] = (stage >= ZIO_STAGE_READY);
 	zio->io_state[ZIO_WAIT_DONE] = (stage >= ZIO_STAGE_DONE);
