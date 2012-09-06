@@ -159,13 +159,19 @@ vdev_file_io_start(zio_t *zio)
 			    kcred, NULL);
 			break;
 		case DKIOCTRIM:
-			bzero(&fl, sizeof(fl));
-			fl.l_type = F_WRLCK;
-			fl.l_whence = 0;
-			fl.l_start = zio->io_offset;
-			fl.l_len = zio->io_size;
-			zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &fl,
-			    FWRITE | FOFFMAX, zio->io_offset, kcred, NULL);
+			if (vd->vdev_notrim)
+				zio->io_error = EOPNOTSUPP;
+			else {
+				bzero(&fl, sizeof(fl));
+				fl.l_type = F_WRLCK;
+				fl.l_whence = 0;
+				fl.l_start = zio->io_offset;
+				fl.l_len = zio->io_size;
+				zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &fl,
+				    FWRITE | FOFFMAX, zio->io_offset, kcred, NULL);
+				if (zio->io_error == EOPNOTSUPP)
+					vd->vdev_notrim = B_TRUE;
+			}
 			break;
 		default:
 			zio->io_error = ENOTSUP;
