@@ -63,7 +63,8 @@ EXPORT_SYMBOL(__cv_init);
 static int
 cv_destroy_wakeup(kcondvar_t *cvp)
 {
-	if ((waitqueue_active(&cvp->cv_event)) ||
+	if ((cvp->cv_mutex != NULL) ||
+	    (waitqueue_active(&cvp->cv_event)) ||
 	    (atomic_read(&cvp->cv_waiters) > 0))
 		return 0;
 
@@ -81,9 +82,9 @@ __cv_destroy(kcondvar_t *cvp)
 	while (cv_destroy_wakeup(cvp) == 0)
 		wait_event_timeout(cvp->cv_destroy, cv_destroy_wakeup(cvp), 1);
 
-	ASSERT(cvp->cv_mutex == NULL);
-	ASSERT(atomic_read(&cvp->cv_waiters) == 0);
-	ASSERT(!waitqueue_active(&cvp->cv_event));
+	ASSERT3P(cvp->cv_mutex, ==, NULL);
+	ASSERT3S(atomic_read(&cvp->cv_waiters), ==, 0);
+	ASSERT3S(waitqueue_active(&cvp->cv_event), ==, 0);
 
 	SEXIT;
 }
