@@ -47,6 +47,8 @@ typedef struct trim_seg {
 
 int trim_txg_limit = 64;
 
+static void trim_map_vdev_commit_done(spa_t *spa, vdev_t *vd);
+
 static int
 trim_map_seg_compare(const void *x1, const void *x2)
 {
@@ -124,6 +126,13 @@ trim_map_destroy(vdev_t *vd)
 	tm = vd->vdev_trimmap;
 	if (tm == NULL)
 		return;
+
+	/*
+	 * We may have been called before trim_map_vdev_commit_done()
+	 * had a chance to run, so do it now to prune the remaining
+	 * inflight frees.
+	 */
+	trim_map_vdev_commit_done(vd->vdev_spa, vd);
 
 	mutex_enter(&tm->tm_lock);
 	while ((ts = list_head(&tm->tm_head)) != NULL) {
