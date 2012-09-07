@@ -1727,8 +1727,13 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 */
 	remaining = wait_event_timeout(skc->skc_waitq,
 				       spl_cache_grow_wait(skc), 1);
-	if (remaining == 0)
-		rc = spl_emergency_alloc(skc, flags, obj);
+
+	if (remaining == 0) {
+		if (test_bit(KMC_BIT_NOEMERGENCY, &skc->skc_flags))
+			rc = -ENOMEM;
+		else
+			rc = spl_emergency_alloc(skc, flags, obj);
+	}
 
 	SRETURN(rc);
 }
