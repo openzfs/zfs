@@ -2923,7 +2923,8 @@ ztest_dataset_create(char *dsname)
 	if (err || zilset < 80)
 		return (err);
 
-	(void) printf("Setting dataset %s to sync always\n", dsname);
+	if (zopt_verbose >= 5)
+		(void) printf("Setting dataset %s to sync always\n", dsname);
 	return (ztest_dsl_prop_set_uint64(dsname, ZFS_PROP_SYNC,
 	    ZFS_SYNC_ALWAYS, B_FALSE));
 }
