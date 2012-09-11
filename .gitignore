@@ -39,6 +39,7 @@ Makefile.in
 /config.status
 /libtool
 /zfs_config.h
+/zfs_config.h.in
 /zfs.spec
 /zfs-modules.spec
 /zfs.release
