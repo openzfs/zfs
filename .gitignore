@@ -39,6 +39,7 @@ Makefile.in
 /config.status
 /libtool
 /spl_config.h
+/spl_config.h.in
 /spl.spec
 /spl-modules.spec
 /spl.release
