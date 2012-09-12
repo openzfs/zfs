@@ -20,6 +20,7 @@
  */
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  * Use is subject to license terms.
  */
 
@@ -172,7 +173,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		if (isprint(*data))
 			(void) printf("%c ", *data);
 		else
-			(void) printf("%2X", *data);
+			(void) printf("%2hhX", *data);
 		data++;
 	}
 	(void) printf("\n");
