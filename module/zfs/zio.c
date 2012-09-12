@@ -2424,8 +2424,7 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	if (vd->vdev_ops->vdev_op_leaf && zio->io_type == ZIO_TYPE_FREE) {
-		if (zio->io_bp == NULL || !BP_IS_GANG(zio->io_bp))
-			trim_map_free(zio);
+		trim_map_free(zio);
 		return (ZIO_PIPELINE_CONTINUE);
 	}
 
