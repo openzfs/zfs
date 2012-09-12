@@ -360,7 +360,8 @@ void
 dsl_free_sync(zio_t *pio, dsl_pool_t *dp, uint64_t txg, const blkptr_t *bpp)
 {
 	ASSERT(dsl_pool_sync_context(dp));
-	zio_nowait(zio_free_sync(pio, dp->dp_spa, txg, bpp, pio->io_flags));
+	zio_nowait(zio_free_sync(pio, dp->dp_spa, txg, bpp, BP_GET_PSIZE(bpp),
+	    pio->io_flags));
 }
 
 int
@@ -1431,7 +1432,7 @@ dsl_scan_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 		return (ERESTART);
 
 	zio_nowait(zio_free_sync(scn->scn_zio_root, scn->scn_dp->dp_spa,
-	    dmu_tx_get_txg(tx), bp, 0));
+	    dmu_tx_get_txg(tx), bp, BP_GET_PSIZE(bp), 0));
 	dsl_dir_diduse_space(tx->tx_pool->dp_free_dir, DD_USED_HEAD,
 	    -bp_get_dsize_sync(scn->scn_dp->dp_spa, bp),
 	    -BP_GET_PSIZE(bp), -BP_GET_UCSIZE(bp), tx);
