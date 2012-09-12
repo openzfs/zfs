@@ -62,7 +62,6 @@ typedef struct taskq_ent {
  */
 #define TQ_SLEEP                KM_SLEEP
 #define TQ_NOSLEEP              KM_NOSLEEP
-#define TQ_PUSHPAGE             KM_PUSHPAGE
 #define TQ_NOQUEUE              0x01000000
 #define TQ_NOALLOC              0x02000000
 #define TQ_NEW                  0x04000000
