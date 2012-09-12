@@ -756,7 +756,7 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 
 zio_t *
 zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
-    enum zio_flag flags)
+    uint64_t size, enum zio_flag flags)
 {
 	zio_t *zio;
 
@@ -767,7 +767,7 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT(spa_syncing_txg(spa) == txg);
 	ASSERT(spa_sync_pass(spa) <= SYNC_PASS_DEFERRED_FREE);
 
-	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
+	zio = zio_create(pio, spa, txg, bp, NULL, size,
 	    NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_FREE, flags,
 	    NULL, 0, NULL, ZIO_STAGE_OPEN, ZIO_FREE_PIPELINE);
 
@@ -1581,6 +1581,7 @@ zio_t *
 zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, void *data)
 {
 	return (zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
+	    BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp),
 	    ZIO_GANG_CHILD_FLAGS(pio)));
 }
 
@@ -1717,7 +1718,7 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, void *data)
 		}
 	}
 
-	if (gn == gio->io_gang_tree)
+	if (gn == gio->io_gang_tree && gio->io_data != NULL)
 		ASSERT3P((char *)gio->io_data + gio->io_size, ==, data);
 
 	if (zio != pio)
