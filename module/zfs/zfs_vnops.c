@@ -1900,13 +1900,13 @@ top:
 out:
 	zfs_dirent_unlock(dl);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	iput(ip);
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
