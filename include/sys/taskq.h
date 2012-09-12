@@ -60,8 +60,9 @@ typedef struct taskq_ent {
  * KM_SLEEP/KM_NOSLEEP.  TQ_NOQUEUE/TQ_NOALLOC are set particularly
  * large so as not to conflict with already used GFP_* defines.
  */
-#define TQ_SLEEP                KM_SLEEP
-#define TQ_NOSLEEP              KM_NOSLEEP
+#define TQ_SLEEP                0x00000000
+#define TQ_NOSLEEP              0x00000001
+#define TQ_PUSHPAGE             0x00000002
 #define TQ_NOQUEUE              0x01000000
 #define TQ_NOALLOC              0x02000000
 #define TQ_NEW                  0x04000000
