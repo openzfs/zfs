@@ -1594,7 +1594,8 @@ zio_t *
 zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, void *data)
 {
 	return (zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
-	    SPA_GANGBLOCKSIZE, ZIO_GANG_CHILD_FLAGS(pio)));
+	    BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp),
+	    ZIO_GANG_CHILD_FLAGS(pio)));
 }
 
 /* ARGSUSED */
