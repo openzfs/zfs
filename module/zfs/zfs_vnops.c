@@ -3848,7 +3848,16 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (err == ERESTART)
 			dmu_tx_wait(tx);
 
+		/* Will call all registered commit callbacks */
 		dmu_tx_abort(tx);
+
+		/*
+		 * For the synchronous case the commit callback must be
+		 * explicitly called because there is no registered callback.
+		 */
+		if (sync)
+			zfs_putpage_commit_cb(pp, ECANCELED);
+
 		return (err);
 	}
 
