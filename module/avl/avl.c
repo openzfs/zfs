@@ -1052,6 +1052,7 @@ EXPORT_SYMBOL(avl_nearest);
 EXPORT_SYMBOL(avl_add);
 EXPORT_SYMBOL(avl_remove);
 EXPORT_SYMBOL(avl_numnodes);
+EXPORT_SYMBOL(avl_is_empty);
 EXPORT_SYMBOL(avl_destroy_nodes);
 EXPORT_SYMBOL(avl_destroy);
 #endif
