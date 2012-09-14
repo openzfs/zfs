@@ -36,6 +36,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/space_map.h \
 	$(top_srcdir)/include/sys/spa.h \
 	$(top_srcdir)/include/sys/spa_impl.h \
+	$(top_srcdir)/include/sys/trim_map.h \
 	$(top_srcdir)/include/sys/txg.h \
 	$(top_srcdir)/include/sys/txg_impl.h \
 	$(top_srcdir)/include/sys/u8_textprep_data.h \
