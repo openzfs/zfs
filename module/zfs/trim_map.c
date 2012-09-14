@@ -355,7 +355,8 @@ trim_map_vdev_commit(spa_t *spa, zio_t *zio, vdev_t *vd)
 	if (tm == NULL)
 		return;
 
-	txglimit = spa->spa_syncing_txg - trim_txg_limit;
+	txglimit = MIN(spa->spa_syncing_txg, spa_freeze_txg(spa)) -
+	    trim_txg_limit;
 
 	mutex_enter(&tm->tm_lock);
 	/*
