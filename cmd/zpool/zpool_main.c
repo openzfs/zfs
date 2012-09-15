@@ -1647,6 +1647,7 @@ int
 zpool_do_import(int argc, char **argv)
 {
 	char **searchdirs = NULL;
+	char *env, *envdup = NULL;
 	int nsearch = 0;
 	int c;
 	int err = 0;
@@ -1846,6 +1847,30 @@ zpool_do_import(int argc, char **argv)
 		idata.unique = B_TRUE;
 	}
 
+	/*
+	 * Check the environment for the preferred search path.
+	 */
+	if ((searchdirs == NULL) && (env = getenv("ZPOOL_IMPORT_PATH"))) {
+		char *dir;
+
+		envdup = strdup(env);
+
+		dir = strtok(envdup, ":");
+		while (dir != NULL) {
+			if (searchdirs == NULL) {
+				searchdirs = safe_malloc(sizeof (char *));
+			} else {
+				char **tmp = safe_malloc((nsearch + 1) *
+				    sizeof (char *));
+				bcopy(searchdirs, tmp, nsearch *
+				    sizeof (char *));
+				free(searchdirs);
+				searchdirs = tmp;
+			}
+			searchdirs[nsearch++] = dir;
+			dir = strtok(NULL, ":");
+		}
+	}
 
 	idata.path = searchdirs;
 	idata.paths = nsearch;
@@ -1882,6 +1907,8 @@ zpool_do_import(int argc, char **argv)
 	if (err == 1) {
 		if (searchdirs != NULL)
 			free(searchdirs);
+		if (envdup != NULL)
+			free(envdup);
 		nvlist_free(policy);
 		return (1);
 	}
@@ -1984,6 +2011,8 @@ error:
 	nvlist_free(policy);
 	if (searchdirs != NULL)
 		free(searchdirs);
+	if (envdup != NULL)
+		free(envdup);
 
 	return (err ? 1 : 0);
 }

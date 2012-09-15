@@ -87,6 +87,7 @@ typedef struct pool_entry {
 typedef struct name_entry {
 	char			*ne_name;
 	uint64_t		ne_guid;
+	uint64_t		ne_order;
 	struct name_entry	*ne_next;
 } name_entry_t;
 
@@ -132,7 +133,6 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 	uint64_t guid;
 	name_entry_t *ne, *best;
 	char *path, *devid;
-	int matched;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
@@ -148,44 +148,33 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 	 * the path and see if we can calculate a new devid.
 	 *
 	 * There may be multiple names associated with a particular guid, in
-	 * which case we have overlapping slices or multiple paths to the same
-	 * disk.  If this is the case, then we want to pick the path that is
-	 * the most similar to the original, where "most similar" is the number
-	 * of matching characters starting from the end of the path.  This will
-	 * preserve slice numbers even if the disks have been reorganized, and
-	 * will also catch preferred disk names if multiple paths exist.
+	 * which case we have overlapping partitions or multiple paths to the
+	 * same disk.  In this case we prefer to use the path name which
+	 * matches the ZPOOL_CONFIG_PATH.  If no matching entry is found we
+	 * use the lowest order device which corresponds to the first match
+	 * while traversing the ZPOOL_IMPORT_PATH search path.
 	 */
 	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0);
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		path = NULL;
 
-	matched = 0;
 	best = NULL;
 	for (ne = names; ne != NULL; ne = ne->ne_next) {
 		if (ne->ne_guid == guid) {
-			const char *src, *dst;
-			int count;
 
 			if (path == NULL) {
 				best = ne;
 				break;
 			}
 
-			src = ne->ne_name + strlen(ne->ne_name) - 1;
-			dst = path + strlen(path) - 1;
-			for (count = 0; src >= ne->ne_name && dst >= path;
-			    src--, dst--, count++)
-				if (*src != *dst)
-					break;
-
-			/*
-			 * At this point, 'count' is the number of characters
-			 * matched from the end.
-			 */
-			if (count > matched || best == NULL) {
+			if ((strlen(path) == strlen(ne->ne_name)) &&
+			    !strncmp(path, ne->ne_name, strlen(path))) {
 				best = ne;
-				matched = count;
+				break;
 			}
+
+			if (ne->ne_order < best->ne_order || best == NULL)
+				best = ne;
 		}
 	}
 
@@ -211,7 +200,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
  */
 static int
 add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
-    nvlist_t *config)
+    int order, nvlist_t *config)
 {
 	uint64_t pool_guid, vdev_guid, top_guid, txg, state;
 	pool_entry_t *pe;
@@ -236,6 +225,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 			return (-1);
 		}
 		ne->ne_guid = vdev_guid;
+		ne->ne_order = order;
 		ne->ne_next = pl->names;
 		pl->names = ne;
 		return (0);
@@ -337,6 +327,7 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	ne->ne_guid = vdev_guid;
+	ne->ne_order = order;
 	ne->ne_next = pl->names;
 	pl->names = ne;
 
@@ -978,7 +969,7 @@ zpool_find_import_blkid(libzfs_handle_t *hdl, pool_list_t *pools)
 		}
 
 		if (config != NULL) {
-			err = add_config(hdl, pools, devname, config);
+			err = add_config(hdl, pools, devname, 0, config);
 			if (err != 0)
 				goto err_blkid3;
 		}
@@ -992,6 +983,20 @@ err_blkid1:
 	return err;
 }
 #endif /* HAVE_LIBBLKID */
+
+#define DEFAULT_IMPORT_PATH_SIZE	8
+
+static char *
+zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
+	"/dev/disk/by-vdev",	/* Custom rules, use first if they exist */
+	"/dev/disk/zpool",	/* Custom rules, use first if they exist */
+	"/dev/mapper",		/* Use multipath devices before components */
+	"/dev/disk/by-uuid",	/* Single unique entry and persistent */
+	"/dev/disk/by-id",	/* May be multiple entries and persistent */
+	"/dev/disk/by-path",	/* Encodes physical location and persistent */
+	"/dev/disk/by-label",	/* Custom persistent labels */
+	"/dev"			/* UNSAFE device names will change */
+};
 
 /*
  * Given a list of directories to search, find all pools stored on disk.  This
@@ -1011,7 +1016,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	size_t pathleft;
 	struct stat64 statbuf;
 	nvlist_t *ret = NULL, *config;
-	static char *default_dir = DISK_ROOT;
 	int fd;
 	pool_list_t pools = { 0 };
 	pool_entry_t *pe, *penext;
@@ -1031,8 +1035,9 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		    dgettext(TEXT_DOMAIN, "blkid failure falling back "
 		    "to manual probing"));
 #endif /* HAVE_LIBBLKID */
-		dirs = 1;
-		dir = &default_dir;
+
+		dir = zpool_default_import_path;
+		dirs = DEFAULT_IMPORT_PATH_SIZE;
 	}
 
 	/*
@@ -1046,6 +1051,12 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 
 		/* use realpath to normalize the path */
 		if (realpath(dir[i], path) == 0) {
+
+			/* it is safe to skip missing search paths */
+			if (errno == ENOENT)
+				continue;
+
+			zfs_error_aux(hdl, strerror(errno));
 			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), dir[i]);
 			goto error;
@@ -1156,7 +1167,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 				}
 				/* use the non-raw path for the config */
 				(void) strlcpy(end, name, pathleft);
-				if (add_config(hdl, &pools, path, config) != 0)
+				if (add_config(hdl, &pools, path, i+1, config))
 					goto error;
 			}
 		}
