@@ -710,6 +710,11 @@ fop_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 {
 	if (cmd != F_FREESP || bfp->l_whence != 0)
 		return EOPNOTSUPP;
+
+	/*
+	 * We could use BLKDISCARD when we're called with a block
+	 * device, but in practice that never happens, so don't bother.
+	 */
 	
 #ifndef HAVE_USER_FALLOC_FL_PUNCH_HOLE
 
