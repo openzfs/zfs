@@ -358,6 +358,39 @@ typedef struct zio_link {
 	list_node_t	zl_child_node;
 } zio_link_t;
 
+/*
+ * Used for TRIM kstat.
+ */
+typedef struct zio_trim_stats {
+	/*
+	 * Number of bytes successfully TRIMmed.
+	 */
+	kstat_named_t zio_trim_bytes;
+
+	/*
+	 * Number of successful TRIM requests.
+	 */
+	kstat_named_t zio_trim_success;
+
+	/*
+	 * Number of TRIM requests that failed because TRIM is not
+	 * supported.
+	 */
+	kstat_named_t zio_trim_unsupported;
+
+	/*
+	 * Number of TRIM requests that failed for other reasons.
+	 */
+	kstat_named_t zio_trim_failed;
+} zio_trim_stats_t;
+
+extern zio_trim_stats_t zio_trim_stats;
+
+#define ZIO_TRIM_STAT_INCR(stat, val) \
+	atomic_add_64(&zio_trim_stats.stat.value.ui64, (val));
+#define ZIO_TRIM_STAT_BUMP(stat) \
+	ZIO_TRIM_STAT_INCR(stat, 1);
+
 struct zio {
 	/* Core information about this I/O */
 	zbookmark_t	io_bookmark;

@@ -39,6 +39,18 @@
 #include <sys/trim_map.h>
 
 /*
+ * See zio.h for more information about these fields.
+ */
+zio_trim_stats_t zio_trim_stats = {
+	{ "zio_trim_bytes", 		KSTAT_DATA_UINT64 },
+	{ "zio_trim_success", 		KSTAT_DATA_UINT64 },
+	{ "zio_trim_unsupported",	KSTAT_DATA_UINT64 },
+	{ "zio_trim_failed", 		KSTAT_DATA_UINT64 },
+};
+
+static kstat_t *zio_trim_ksp;
+
+/*
  * ==========================================================================
  * I/O priority table
  * ==========================================================================
@@ -212,6 +224,16 @@ zio_init(void)
 	zfs_mg_alloc_failures = MAX((3 * max_ncpus / 2), 8);
 
 	zio_inject_init();
+
+	zio_trim_ksp = kstat_create("zfs", 0, "zio_trim", "misc",
+	    KSTAT_TYPE_NAMED,
+	    sizeof(zio_trim_stats) / sizeof(kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	if (zio_trim_ksp != NULL) {
+		zio_trim_ksp->ks_data = &zio_trim_stats;
+		kstat_install(zio_trim_ksp);
+	}
 }
 
 void
@@ -240,6 +262,11 @@ zio_fini(void)
 	kmem_cache_destroy(zio_cache);
 
 	zio_inject_fini();
+
+	if (zio_trim_ksp != NULL) {
+		kstat_delete(zio_trim_ksp);
+		zio_trim_ksp = NULL;
+	}
 }
 
 /*
@@ -2608,6 +2635,23 @@ zio_vdev_io_assess(zio_t *zio)
 
 	if (zio_injection_enabled && zio->io_error == 0)
 		zio->io_error = zio_handle_fault_injection(zio, EIO);
+
+	if (zio->io_type == ZIO_TYPE_IOCTL && zio->io_cmd == DKIOCTRIM)
+		switch (zio->io_error) {
+			case 0:
+				ZIO_TRIM_STAT_INCR(zio_trim_bytes,
+				    zio->io_size);
+				ZIO_TRIM_STAT_BUMP(zio_trim_success);
+				break;
+
+			case EOPNOTSUPP:
+				ZIO_TRIM_STAT_BUMP(zio_trim_unsupported);
+				break;
+
+			default:
+				ZIO_TRIM_STAT_BUMP(zio_trim_failed);
+				break;
+		}
 
 	/*
 	 * If the I/O failed, determine whether we should attempt to retry it.
