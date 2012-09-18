@@ -6038,6 +6038,9 @@ main(int argc, char **argv)
 	/* Override location of zpool.cache */
 	VERIFY(asprintf((char **)&spa_config_path, "%s/zpool.cache",
 	    ztest_opts.zo_dir) != -1);
+	
+	/* Make sure TRIM zeroes data so that we can test it */
+	zfs_trim_zero = 1;
 
 	ztest_ds = umem_alloc(ztest_opts.zo_datasets * sizeof (ztest_ds_t),
 	    UMEM_NOFAIL);
