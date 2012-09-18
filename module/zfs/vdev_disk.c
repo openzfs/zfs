@@ -488,15 +488,19 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
         dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
-	int bio_size, bio_count = 16;
-	int i = 0, error = 0;
+	int len, bio_size, bio_count = 16;
+	int nr_iovecs, i = 0, error = 0;
 	
 	if (flags & REQ_DISCARD) {
 		ASSERT(!kbuf_ptr);
 
-		if (zfs_trim_zero)
-			max_discard_size = PAGE_SIZE;
-		else {
+		if (zfs_trim_zero) {
+			/*
+			 * Keep the BIO size reasonable, else
+			 * we'll get ENOMEM.
+			 */
+			max_discard_size = PAGE_SIZE * 128;
+		} else {
 			if (!blk_queue_discard(q) ||
 			    !q->limits.max_discard_sectors)
 				return EOPNOTSUPP;
@@ -510,6 +514,10 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 				         - 1);
 			max_discard_size &= ~511;
 		}
+
+		bio_count = zio->io_size / max_discard_size;
+		if (zio->io_size % max_discard_size != 0)
+			bio_count++;
 	}
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
@@ -553,8 +561,19 @@ retry:
 			goto retry;
 		}
 
-		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		                          bio_nr_pages(bio_ptr, bio_size));
+		if (flags & REQ_DISCARD) {
+			if (zfs_trim_zero) {
+				nr_iovecs = bio_size / PAGE_SIZE;
+				if (bio_size % PAGE_SIZE != 0)
+					nr_iovecs++;
+				nr_iovecs = MIN(nr_iovecs,
+				    max_discard_size / PAGE_SIZE);
+			}
+			else
+				nr_iovecs = 0;
+		} else
+			nr_iovecs = bio_nr_pages(bio_ptr, bio_size);
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO, nr_iovecs);
 		if (dr->dr_bio[i] == NULL) {
 			vdev_disk_dio_free(dr);
 			return ENOMEM;
@@ -572,13 +591,19 @@ retry:
 		if (flags & REQ_DISCARD) {
 			if (zfs_trim_zero) {
 				dr->dr_bio[i]->bi_rw &= ~REQ_DISCARD;
-				bio_add_page(dr->dr_bio[i],
-				    ZERO_PAGE(0), MIN(bio_size,
-				    max_discard_size), 0);
-			} else
-				dr->dr_bio[i]->bi_size = MIN(bio_size,
-				     max_discard_size);
-			bio_size -= dr->dr_bio[i]->bi_size;
+				while (bio_size > 0) {
+					len = MIN(bio_size, PAGE_SIZE);
+					if (bio_add_page(dr->dr_bio[i],
+					    ZERO_PAGE(0), len, 0) !=
+					    len)
+						break;
+					bio_size -= len;
+				}
+			} else {
+				len = MIN(bio_size, max_discard_size);
+				dr->dr_bio[i]->bi_size = len;
+				bio_size -= len;
+			}
 		} else {
 			/*
 			 * Remaining size is returned to become the new
