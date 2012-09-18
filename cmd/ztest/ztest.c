@@ -5683,6 +5683,9 @@ main(int argc, char **argv)
 	VERIFY(asprintf((char **)&spa_config_path, "%s/zpool.cache",
 	    zopt_dir) != -1);
 
+	/* Make sure TRIM zeroes data so that we can test it */
+	zfs_trim_zero = 1;
+
 	/*
 	 * Blow away any existing copy of zpool.cache
 	 */
