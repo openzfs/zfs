@@ -626,7 +626,7 @@ retry:
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
-			submit_bio(dr->dr_rw, dr->dr_bio[i]);
+			submit_bio(dr->dr_bio[i]->bi_rw, dr->dr_bio[i]);
 
 	/*
 	 * On synchronous blocking requests we wait for all bio the completion
