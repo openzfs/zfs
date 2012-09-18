@@ -173,7 +173,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 				break;
 			}
 
-			if (ne->ne_order < best->ne_order || best == NULL)
+			if (best == NULL || ne->ne_order < best->ne_order)
 				best = ne;
 		}
 	}
