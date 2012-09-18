@@ -45,6 +45,7 @@ typedef enum vdev_dtl_type {
 } vdev_dtl_type_t;
 
 extern int zfs_nocacheflush;
+extern int zfs_trim_zero;
 
 extern int vdev_open(vdev_t *);
 extern void vdev_open_children(vdev_t *);

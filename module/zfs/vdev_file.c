@@ -31,6 +31,10 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 
+#ifndef _KERNEL
+static char empty_zero_page[4096];
+#endif
+
 /*
  * Virtual device vector for files.
  */
@@ -139,13 +143,55 @@ vdev_file_close(vdev_t *vd)
 	vd->vdev_tsd = NULL;
 }
 
+static void vdev_file_trim(zio_t *zio)
+{
+	struct flock fl;
+	uint64_t len;
+	ssize_t resid = 0;
+	vdev_t *vd = zio->io_vd;
+	vdev_file_t *vf = vd->vdev_tsd;
+
+	if (vd->vdev_notrim) {
+		zio->io_error = EOPNOTSUPP;
+		return;
+	}
+
+	bzero(&fl, sizeof(fl));
+	fl.l_type = F_WRLCK;
+	fl.l_whence = 0;
+	fl.l_start = zio->io_offset;
+	fl.l_len = zio->io_size;
+	zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &fl,
+	    FWRITE | FOFFMAX, zio->io_offset, kcred, NULL);
+
+	if (zfs_trim_zero && zio->io_error) {
+		while (fl.l_len > 0) {
+			len = MIN(fl.l_len, sizeof(empty_zero_page));
+
+			zio->io_error = vn_rdwr(UIO_WRITE, vf->vf_vnode,
+			    empty_zero_page, len, fl.l_start,
+			    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred,
+			    &resid);
+			if (resid != 0 && zio->io_error == 0)
+				zio->io_error = ENOSPC;
+			if (zio->io_error)
+				return;
+
+			fl.l_len -= len;
+			fl.l_start += len;
+		}
+	}
+
+	if (zio->io_error == EOPNOTSUPP)
+		vd->vdev_notrim = B_TRUE;
+}
+
 static int
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf;
 	ssize_t resid = 0;
-	struct flock fl;
 
 	if (!vdev_readable(vd)) {
 		zio->io_error = ENXIO;
@@ -161,19 +207,7 @@ vdev_file_io_start(zio_t *zio)
 			    kcred, NULL);
 			break;
 		case DKIOCTRIM:
-			if (vd->vdev_notrim)
-				zio->io_error = EOPNOTSUPP;
-			else {
-				bzero(&fl, sizeof(fl));
-				fl.l_type = F_WRLCK;
-				fl.l_whence = 0;
-				fl.l_start = zio->io_offset;
-				fl.l_len = zio->io_size;
-				zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &fl,
-				    FWRITE | FOFFMAX, zio->io_offset, kcred, NULL);
-				if (zio->io_error == EOPNOTSUPP)
-					vd->vdev_notrim = B_TRUE;
-			}
+			vdev_file_trim(zio);
 			break;
 		default:
 			zio->io_error = ENOTSUP;

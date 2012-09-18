@@ -67,6 +67,15 @@ int zfs_scrub_limit = 10;
 int zfs_notrim = B_FALSE;
 
 /*
+ * Make sure TRIM zeroes data.
+ *
+ * On disk vdevs, don't use DISCARD and write zero pages instead.
+ *
+ * On file vdevs, if hole punching fails, then write zeroes instead.
+ */
+int zfs_trim_zero = 0;
+
+/*
  * Given a vdev type, return the appropriate ops vector.
  */
 static vdev_ops_t *
@@ -3211,4 +3220,7 @@ EXPORT_SYMBOL(vdev_clear);
 
 module_param(zfs_scrub_limit, int, 0644);
 MODULE_PARM_DESC(zfs_scrub_limit, "Max scrub/resilver I/O per leaf vdev");
+
+module_param(zfs_trim_zero, int, 0644);
+MODULE_PARM_DESC(zfs_trim_zero, "Make sure TRIM zeroes data (only for debugging)");
 #endif
