@@ -494,15 +494,22 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 	if (flags & REQ_DISCARD) {
 		ASSERT(!kbuf_ptr);
 
-		if (!blk_queue_discard(q) ||
-		    !q->limits.max_discard_sectors)
-			return EOPNOTSUPP;
+		if (zfs_trim_zero)
+			max_discard_size = PAGE_SIZE;
+		else {
+			if (!blk_queue_discard(q) ||
+			    !q->limits.max_discard_sectors)
+				return EOPNOTSUPP;
 
-		max_discard_size = MIN(q->limits.max_discard_sectors << 9,
-		    INT_MAX);
-		if (q->limits.discard_granularity)
-			max_discard_size &= ~(q->limits.discard_granularity - 1);
-		max_discard_size &= ~511;
+			max_discard_size = MIN(
+			    q->limits.max_discard_sectors << 9,
+			    INT_MAX);
+			if (q->limits.discard_granularity)
+				max_discard_size &=
+				     ~(q->limits.discard_granularity
+				         - 1);
+			max_discard_size &= ~511;
+		}
 	}
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
@@ -563,8 +570,14 @@ retry:
 		dr->dr_bio[i]->bi_private = dr;
 
 		if (flags & REQ_DISCARD) {
-			dr->dr_bio[i]->bi_size = MIN(bio_size,
-			     max_discard_size);
+			if (zfs_trim_zero) {
+				dr->dr_bio[i]->bi_rw &= ~REQ_DISCARD;
+				bio_add_page(dr->dr_bio[i],
+				    ZERO_PAGE(0), MIN(bio_size,
+				    max_discard_size), 0);
+			} else
+				dr->dr_bio[i]->bi_size = MIN(bio_size,
+				     max_discard_size);
 			bio_size -= dr->dr_bio[i]->bi_size;
 		} else {
 			/*
