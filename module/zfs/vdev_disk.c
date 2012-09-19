@@ -291,7 +291,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
 
+#ifdef HAVE_BLK_QUEUE_DISCARD
 	v->vdev_notrim = !blk_queue_discard(bdev_get_queue(bdev));
+#endif
 
 	/* Try to set the io scheduler elevator algorithm */
 	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
@@ -483,13 +485,14 @@ static int
 __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
                    size_t kbuf_size, uint64_t kbuf_offset, int flags)
 {
-	struct request_queue *q = bdev_get_queue(bdev);
-	int max_discard_size = INT_MAX;
         dio_request_t *dr;
 	caddr_t bio_ptr;
 	uint64_t bio_offset;
-	int len, bio_size, bio_count = 16;
+	int bio_size, bio_count = 16;
 	int nr_iovecs, i = 0, error = 0;
+#ifdef REQ_DISCARD
+	struct request_queue *q = bdev_get_queue(bdev);
+	int len, max_discard_size = INT_MAX;
 	
 	if (flags & REQ_DISCARD) {
 		ASSERT(!kbuf_ptr);
@@ -502,16 +505,16 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 			max_discard_size = PAGE_SIZE * 128;
 		} else {
 			if (!blk_queue_discard(q) ||
-			    !q->limits.max_discard_sectors)
+			    !blk_queue_max_discard_sectors_get(q))
 				return EOPNOTSUPP;
 
 			max_discard_size = MIN(
-			    q->limits.max_discard_sectors << 9,
+			    blk_queue_max_discard_sectors_get(q) << 9,
 			    INT_MAX);
-			if (q->limits.discard_granularity)
-				max_discard_size &=
-				     ~(q->limits.discard_granularity
-				         - 1);
+			if (blk_queue_discard_granularity_get(q))
+				max_discard_size &= ~(
+				    blk_queue_discard_granularity_get(q)
+				    - 1);
 			max_discard_size &= ~511;
 		}
 
@@ -519,6 +522,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio, caddr_t kbuf_ptr,
 		if (zio->io_size % max_discard_size != 0)
 			bio_count++;
 	}
+#endif
 
 	ASSERT3U(kbuf_offset + kbuf_size, <=, bdev->bd_inode->i_size);
 
@@ -561,6 +565,7 @@ retry:
 			goto retry;
 		}
 
+#ifdef REQ_DISCARD
 		if (flags & REQ_DISCARD) {
 			if (zfs_trim_zero) {
 				nr_iovecs = bio_size / PAGE_SIZE;
@@ -572,6 +577,7 @@ retry:
 			else
 				nr_iovecs = 0;
 		} else
+#endif
 			nr_iovecs = bio_nr_pages(bio_ptr, bio_size);
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO, nr_iovecs);
 		if (dr->dr_bio[i] == NULL) {
@@ -588,6 +594,7 @@ retry:
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
 
+#ifdef REQ_DISCARD
 		if (flags & REQ_DISCARD) {
 			if (zfs_trim_zero) {
 				dr->dr_bio[i]->bi_rw &= ~REQ_DISCARD;
@@ -604,7 +611,9 @@ retry:
 				dr->dr_bio[i]->bi_size = len;
 				bio_size -= len;
 			}
-		} else {
+		} else
+#endif
+		{
 			/*
 			 * Remaining size is returned to become the new
 			 * size
@@ -723,8 +732,13 @@ vdev_disk_io_start(zio_t *zio)
 		}
 
 		if (trim) {
+#ifdef REQ_DISCARD
 			flags = WRITE | REQ_DISCARD;
 			break;
+#else
+			zio->io_error = EOPNOTSUPP;
+			return ZIO_PIPELINE_CONTINUE;
+#endif
 		}
 
 		switch (zio->io_cmd) {
