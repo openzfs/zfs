@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # vdev_id: udev helper to generate user-friendly names for JBOD disks
 #
@@ -80,7 +80,6 @@ SLOT_MAP=
 CHANNEL_MAP=
 MULTIPATH=
 TOPOLOGY=
-declare -i i j
 
 usage() {
 	cat << EOF
@@ -185,7 +184,7 @@ if [ -z "$PHYS_PER_PORT" ] ; then
 	PHYS_PER_PORT=`awk "/^phys_per_port /{print \\$2; exit}" $CONFIG`
 fi
 PHYS_PER_PORT=${PHYS_PER_PORT:-4}
-if ! echo $PHYS_PER_PORT | egrep -q '^[0-9]+$' ; then
+if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
 	echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
 	exit 1
 fi
@@ -229,32 +228,39 @@ else
 	sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
 fi
 
-dirs=(`echo "$sys_path" | tr / ' '`)
+# Use positional parameters as an ad-hoc array
+set -- $(echo "$sys_path" | tr / ' ')
+num_dirs=$#
 scsi_host_dir="/sys"
 
 # Get path up to /sys/.../hostX
-for (( i=0; i<${#dirs[*]}; i++ )); do
-	d=${dirs[$i]}
+i=1
+while [ $i -le $num_dirs ] ; do
+	d=$(eval echo \$$i)
 	scsi_host_dir="$scsi_host_dir/$d"
-	echo $d | egrep -q -e '^host[0-9]+$' && break
+	echo $d | grep -q -E '^host[0-9]+$' && break
+	i=$(($i + 1))
 done
 
-if [ $i = ${#dirs[*]} ] ; then
+if [ $i = $num_dirs ] ; then
 	exit 0
 fi
 
-PCI_ID=`echo ${dirs[$(( $i - 1 ))]} | awk -F: '{print $2":"$3}'`
+PCI_ID=$(eval echo \$$(($i -1)) | awk -F: '{print $2":"$3}')
 
-# In sas_switch mode, the directory three levels beneath /sys/.../hostX
+# In sas_switch mode, the directory four levels beneath /sys/.../hostX
 # contains symlinks to phy devices that reveal the switch port number.  In
 # sas_direct mode, the phy links one directory down reveal the HBA port.
 port_dir=$scsi_host_dir
 case $TOPOLOGY in
-	"sas_switch") j=$(($i+4)) ;;
+	"sas_switch") j=$(($i + 4)) ;;
 	"sas_direct") j=$(($i + 1)) ;;
 esac
-for (( i++; i<=$j; i++ )); do
-	port_dir="$port_dir/${dirs[$i]}"
+
+i=$(($i + 1))
+while [ $i -le $j ] ; do
+	port_dir="$port_dir/$(eval echo \$$i)"
+	i=$(($i + 1))
 done
 
 PHY=`ls -d $port_dir/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
@@ -266,13 +272,14 @@ PORT=$(( $PHY / $PHYS_PER_PORT ))
 # Look in /sys/.../sas_device/end_device-X for the bay_identifier
 # attribute.
 end_device_dir=$port_dir
-for (( ; i<${#dirs[*]} ; i++ )); do
-	d=${dirs[$i]}
+while [ $i -lt $num_dirs ] ; do
+	d=$(eval echo \$$i)
 	end_device_dir="$end_device_dir/$d"
-	if echo $d | egrep -q -e '^end_device' ; then
+	if echo $d | grep -q '^end_device' ; then
 		end_device_dir="$end_device_dir/sas_device/$d"
 		break
 	fi
+	i=$(($i + 1))
 done
 
 SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
