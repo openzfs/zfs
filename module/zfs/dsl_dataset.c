@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #include <sys/dmu_objset.h>
@@ -29,6 +30,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dmu_traverse.h>
+#include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
 #include <sys/zio.h>
@@ -399,12 +401,17 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_recvlock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&ds->ds_sendstream_lock, NULL, MUTEX_DEFAULT, NULL);
+
 		rw_init(&ds->ds_rwlock, NULL, RW_DEFAULT, NULL);
 		cv_init(&ds->ds_exclusive_cv, NULL, CV_DEFAULT, NULL);
 
 		bplist_create(&ds->ds_pending_deadlist);
 		dsl_deadlist_open(&ds->ds_deadlist,
 		    mos, ds->ds_phys->ds_deadlist_obj);
+
+		list_create(&ds->ds_sendstreams, sizeof (dmu_sendarg_t),
+		    offsetof(dmu_sendarg_t, dsa_link));
 
 		if (err == 0) {
 			err = dsl_dir_open_obj(dp,
