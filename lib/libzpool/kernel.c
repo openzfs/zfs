@@ -37,10 +37,7 @@
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include <sys/systeminfo.h>
-
-#ifdef HAVE_USER_FALLOC_FL_PUNCH_HOLE
 #include <linux/falloc.h>
-#endif
 
 /*
  * Emulation of kernel services in userland.
@@ -716,7 +713,7 @@ fop_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 	 * device, but in practice that never happens, so don't bother.
 	 */
 	
-#ifndef HAVE_USER_FALLOC_FL_PUNCH_HOLE
+#ifndef FALLOC_FL_PUNCH_HOLE
 
 	return EOPNOTSUPP;
 
