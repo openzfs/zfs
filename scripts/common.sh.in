@@ -342,7 +342,9 @@ format() {
 	local DEVICE=$1
 	local FSTYPE=$2
 
-	/sbin/mkfs.${FSTYPE} -q ${DEVICE} || return 1
+	# Force 4K blocksize, else mkfs.ext2 tries to use 8K, which
+	# won't mount
+	/sbin/mkfs.${FSTYPE} -b 4096 -F -q ${DEVICE} || return 1
 
 	return 0
 }
