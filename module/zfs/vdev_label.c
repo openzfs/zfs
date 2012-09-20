@@ -688,6 +688,16 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 			return (0);
 		ASSERT(reason == VDEV_LABEL_REPLACE);
 	}
+	
+	/*
+	 * TRIM the whole thing so that we start with a clean slate.
+	 * It's just an optimization, so we don't care if it fails.
+	 * Don't TRIM if removing so that we don't interfere with zpool
+	 * disaster recovery.
+	 */
+	if (!zfs_notrim && (reason == VDEV_LABEL_CREATE ||
+	    reason == VDEV_LABEL_SPARE || reason == VDEV_LABEL_L2CACHE))
+		zio_wait(zio_trim(NULL, spa, vd, 0, vd->vdev_psize));
 
 	/*
 	 * Initialize its label.

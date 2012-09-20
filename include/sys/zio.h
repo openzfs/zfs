@@ -516,7 +516,8 @@ extern int zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp,
     blkptr_t *old_bp, uint64_t size, boolean_t use_slog);
 extern void zio_free_zil(spa_t *spa, uint64_t txg, blkptr_t *bp);
 extern void zio_flush(zio_t *zio, vdev_t *vd);
-extern void zio_trim(zio_t *zio, vdev_t *vd, uint64_t offset, uint64_t size);
+extern zio_t *zio_trim(zio_t *zio, spa_t *spa, vdev_t *vd,
+    uint64_t offset, uint64_t size);
 extern void zio_shrink(zio_t *zio, uint64_t size);
 
 extern int zio_wait(zio_t *zio);
