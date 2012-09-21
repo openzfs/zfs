@@ -480,11 +480,7 @@ trim_thread(void *arg)
 
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 		trim_map_commit(spa, zio, spa->spa_root_vdev);
-		spa_config_exit(spa, SCL_STATE, FTAG);
-
 		(void) zio_wait(zio);
-
-		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 		trim_map_commit_done(spa, spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_STATE, FTAG);
 	}
