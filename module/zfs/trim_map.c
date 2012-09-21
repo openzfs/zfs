@@ -476,7 +476,7 @@ trim_thread(void *arg)
 		mutex_exit(&spa->spa_trim_lock);
 
 		zio = zio_root(spa, NULL, NULL,
-		    ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL);
+		    ZIO_FLAG_CANFAIL);
 
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 		trim_map_commit(spa, zio, spa->spa_root_vdev);
