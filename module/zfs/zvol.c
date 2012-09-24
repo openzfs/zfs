@@ -1065,7 +1065,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : ERR_PTR(-ENOENT);
+	kobj = zv ? get_disk(zv->zv_disk) : NULL;
 	mutex_exit(&zvol_state_lock);
 
 	return kobj;
