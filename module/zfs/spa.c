@@ -1311,10 +1311,7 @@ spa_load_l2cache(spa_t *spa)
 
 			if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 			    pool != 0ULL && l2arc_vdev_present(vd))
-				l2arc_remove_vdev(vd, 0);
-			if (!zfs_notrim && spa_writeable(spa))
-				zio_wait(zio_trim(NULL, spa, vd, 0,
-				    vd->vdev_psize, ZIO_FLAG_CONFIG_WRITER));
+				l2arc_remove_vdev(vd, 1);
 			vdev_clear_stats(vd);
 			vdev_free(vd);
 		}
@@ -2938,7 +2935,8 @@ spa_l2cache_drop(spa_t *spa)
 
 		if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 		    pool != 0ULL && l2arc_vdev_present(vd))
-			l2arc_remove_vdev(vd, !zfs_notrim);
+			l2arc_remove_vdev(vd, spa->spa_state ==
+			    POOL_STATE_DESTROYED);
 	}
 }
 
