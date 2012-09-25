@@ -197,7 +197,7 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 	} else if (merge_after) {
 		ts_after->ts_start = start;
 	} else {
-		ts = kmem_alloc(sizeof (*ts), KM_SLEEP);
+		ts = kmem_alloc(sizeof (*ts), KM_PUSHPAGE);
 		ts->ts_start = start;
 		ts->ts_end = end;
 		ts->ts_txg = txg;
