@@ -2454,7 +2454,7 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	if (vd->vdev_ops->vdev_op_leaf && zio->io_type == ZIO_TYPE_FREE) {
-		trim_map_free(zio);
+		trim_map_free(vd, zio->io_offset, zio->io_size);
 		return (ZIO_PIPELINE_CONTINUE);
 	}
 
