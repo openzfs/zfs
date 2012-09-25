@@ -266,16 +266,15 @@ trim_map_free_locked(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 }
 
 void
-trim_map_free(zio_t *zio)
+trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size)
 {
-	vdev_t *vd = zio->io_vd;
 	trim_map_t *tm = vd->vdev_trimmap;
 
 	if (zfs_notrim || vd->vdev_notrim || tm == NULL)
 		return;
 
 	mutex_enter(&tm->tm_lock);
-	trim_map_free_locked(tm, zio->io_offset, zio->io_offset + zio->io_size,
+	trim_map_free_locked(tm, offset, offset + size,
 	    vd->vdev_spa->spa_syncing_txg);
 	mutex_exit(&tm->tm_lock);
 }

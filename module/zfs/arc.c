@@ -141,6 +141,7 @@
 #include <sys/callb.h>
 #include <sys/kstat.h>
 #include <sys/dmu_tx.h>
+#include <sys/trim_map.h>
 #include <zfs_fletcher.h>
 
 static kmutex_t		arc_reclaim_thr_lock;
@@ -1519,6 +1520,8 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		}
 
 		if (l2hdr != NULL) {
+			trim_map_free(l2hdr->b_dev->l2ad_vdev, l2hdr->b_daddr,
+			     hdr->b_size);
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
@@ -3376,6 +3379,8 @@ arc_release(arc_buf_t *buf, void *tag)
 	buf->b_private = NULL;
 
 	if (l2hdr) {
+		trim_map_free(l2hdr->b_dev->l2ad_vdev, l2hdr->b_daddr,
+		     hdr->b_size);
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
@@ -4487,6 +4492,8 @@ top:
 			if (ab->b_l2hdr != NULL) {
 				abl2 = ab->b_l2hdr;
 				ab->b_l2hdr = NULL;
+				trim_map_free(abl2->b_dev->l2ad_vdev, abl2->b_daddr,
+				     ab->b_size);
 				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 			}
