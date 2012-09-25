@@ -697,7 +697,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	 */
 	if (!zfs_notrim && (reason == VDEV_LABEL_CREATE ||
 	    reason == VDEV_LABEL_SPARE || reason == VDEV_LABEL_L2CACHE))
-		zio_wait(zio_trim(NULL, spa, vd, 0, vd->vdev_psize));
+		zio_wait(zio_trim(NULL, spa, vd, 0, vd->vdev_psize, 0));
 
 	/*
 	 * Initialize its label.

@@ -983,14 +983,16 @@ zio_flush(zio_t *zio, vdev_t *vd)
 }
 
 zio_t *
-zio_trim(zio_t *zio, spa_t *spa, vdev_t *vd, uint64_t offset, uint64_t size)
+zio_trim(zio_t *zio, spa_t *spa, vdev_t *vd, uint64_t offset, uint64_t size,
+    enum zio_flag flags)
 {
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
 	return zio_ioctl(zio, spa, vd, DKIOCTRIM, offset, size,
 	    NULL, NULL, ZIO_PRIORITY_TRIM,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY);
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY
+	    | flags);
 }
 
 void

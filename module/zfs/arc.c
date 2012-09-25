@@ -4856,7 +4856,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
  * Remove a vdev from the L2ARC.
  */
 void
-l2arc_remove_vdev(vdev_t *vd)
+l2arc_remove_vdev(vdev_t *vd, int permanent)
 {
 	l2arc_dev_t *dev, *nextdev, *remdev = NULL;
 
@@ -4886,6 +4886,12 @@ l2arc_remove_vdev(vdev_t *vd)
 	 */
 	l2arc_evict(remdev, 0, B_TRUE);
 	list_destroy(remdev->l2ad_buflist);
+	if (!zfs_notrim && spa_writeable(vd->vdev_spa))
+		zio_wait(zio_trim(NULL, vd->vdev_spa, vd,
+		    permanent ? 0 : remdev->l2ad_start,
+		    permanent ? vd->vdev_psize :
+		    remdev->l2ad_end - remdev->l2ad_start,
+		    ZIO_FLAG_CONFIG_WRITER));
 	kmem_free(remdev->l2ad_buflist, sizeof (list_t));
 	kmem_free(remdev, sizeof (l2arc_dev_t));
 }
