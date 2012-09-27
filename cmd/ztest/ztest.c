@@ -5390,8 +5390,9 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	VERIFY3P((resume_thread = thread_create(NULL, 0, ztest_resume_thread,
-	    spa, TS_RUN, NULL, 0, 0)), !=, NULL);
+	VERIFY3P((resume_thread = zk_thread_create(NULL, 0,
+	    (thread_func_t)ztest_resume_thread, spa, TS_RUN, NULL, 0, 0,
+	    PTHREAD_CREATE_JOINABLE)), !=, NULL);
 
 	/*
 	 * Set a deadman alarm to abort() if we hang.
@@ -5437,8 +5438,10 @@ ztest_run(ztest_shared_t *zs)
 		if (t < zopt_datasets && ztest_dataset_open(zs, t) != 0)
 			return;
 
-		VERIFY3P(thread = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)t, TS_RUN, NULL, 0, 0), !=, NULL);
+		VERIFY3P(thread = zk_thread_create(NULL, 0,
+		    (thread_func_t)ztest_thread,
+		    (void *)(uintptr_t)t, TS_RUN, NULL, 0, 0,
+		    PTHREAD_CREATE_JOINABLE), !=, NULL);
 		tid[t] = thread->t_tid;
 	}
 

@@ -141,7 +141,7 @@ zk_thread_helper(void *arg)
 
 kthread_t *
 zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
-	      size_t len, proc_t *pp, int state, pri_t pri)
+	      size_t len, proc_t *pp, int state, pri_t pri, int detachstate)
 {
 	kthread_t *kt;
 	pthread_attr_t attr;
@@ -181,6 +181,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
 	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
+	VERIFY3S(pthread_attr_setdetachstate(&attr, detachstate), ==, 0);
 
 	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),
 	    ==, 0);
