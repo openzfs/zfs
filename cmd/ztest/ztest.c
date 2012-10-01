@@ -2567,7 +2567,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		newvd_is_spare = B_TRUE;
 		(void) strcpy(newpath, newvd->vdev_path);
 	} else {
-		(void) snprintf(newpath, sizeof (newpath), ztest_dev_template,
+		(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + leaf);
 		if (ztest_random(2) == 0)
 			newpath[strlen(newpath) - 1] = 'b';
@@ -4633,9 +4633,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * write failures and random online/offline activity on leaf 0,
 		 * and we'll write random garbage to the randomly chosen leaf.
 		 */
-		(void) snprintf(path0, sizeof (path0), ztest_dev_template,
+		(void) snprintf(path0, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + zs->zs_splits);
-		(void) snprintf(pathrand, sizeof (pathrand), ztest_dev_template,
+		(void) snprintf(pathrand, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + leaf);
 
 		vd0 = vdev_lookup_by_path(spa->spa_root_vdev, path0);
@@ -4999,7 +4999,7 @@ ztest_run_zdb(char *pool)
 
 	fp = popen(zdb, "r");
 
-	while (fgets(zbuf, sizeof (zbuf), fp) != NULL)
+	while (fgets(zbuf, 1024, fp) != NULL)
 		if (zopt_verbose >= 3)
 			(void) printf("%s", zbuf);
 
