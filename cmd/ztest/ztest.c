@@ -4999,7 +4999,7 @@ ztest_run_zdb(char *pool)
 
 	fp = popen(zdb, "r");
 
-	while (fgets(zbuf, sizeof (zbuf), fp) != NULL)
+	while (fgets(zbuf, 1024, fp) != NULL)
 		if (zopt_verbose >= 3)
 			(void) printf("%s", zbuf);
 
