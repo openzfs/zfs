@@ -42,6 +42,7 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
+#include <sys/trim_map.h>
 
 /*
  * Virtual device management.
@@ -62,6 +63,15 @@ static vdev_ops_t *vdev_ops_table[] = {
 
 /* maximum scrub/resilver I/O queue per leaf vdev */
 int zfs_scrub_limit = 10;
+
+/*
+ * Make sure TRIM zeroes data.
+ *
+ * On disk vdevs, don't use DISCARD and write zero pages instead.
+ *
+ * On file vdevs, if hole punching fails, then write zeroes instead.
+ */
+int zfs_trim_zero = 0;
 
 /*
  * Given a vdev type, return the appropriate ops vector.
@@ -1215,6 +1225,9 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_ishole || vd->vdev_ops == &vdev_missing_ops)
 		return (0);
 
+	if (vd->vdev_ops->vdev_op_leaf && !vd->vdev_notrim)
+		trim_map_create(vd);
+
 	for (c = 0; c < vd->vdev_children; c++) {
 		if (vd->vdev_child[c]->vdev_state != VDEV_STATE_HEALTHY) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_DEGRADED,
@@ -1458,6 +1471,9 @@ vdev_close(vdev_t *vd)
 	vd->vdev_ops->vdev_op_close(vd);
 
 	vdev_cache_purge(vd);
+
+	if (vd->vdev_ops->vdev_op_leaf)
+		trim_map_destroy(vd);
 
 	/*
 	 * We record the previous state before we close it, so that if we are
@@ -3202,4 +3218,7 @@ EXPORT_SYMBOL(vdev_clear);
 
 module_param(zfs_scrub_limit, int, 0644);
 MODULE_PARM_DESC(zfs_scrub_limit, "Max scrub/resilver I/O per leaf vdev");
+
+module_param(zfs_trim_zero, int, 0644);
+MODULE_PARM_DESC(zfs_trim_zero, "Make sure TRIM zeroes data (only for debugging)");
 #endif
