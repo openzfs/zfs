@@ -171,9 +171,7 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 	 * (batching).
 	 * This is safe because we're rounding up (delay), not down.
 	 */
-	if (trim_txg_batch <= 0)
-		trim_txg_batch = 1;
-	if (txg % trim_txg_batch != 0)
+	if (trim_txg_batch > 0)
 		txg += trim_txg_batch - (txg % trim_txg_batch);
 
 	ASSERT(MUTEX_HELD(&tm->tm_lock));
