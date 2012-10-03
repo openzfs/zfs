@@ -261,7 +261,7 @@ trim_map_free_locked(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 }
 
 void
-trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size)
+trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
 {
 	trim_map_t *tm = vd->vdev_trimmap;
 
@@ -270,7 +270,7 @@ trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size)
 
 	mutex_enter(&tm->tm_lock);
 	trim_map_free_locked(tm, offset, offset + size,
-	    vd->vdev_spa->spa_syncing_txg);
+	    txg);
 	mutex_exit(&tm->tm_lock);
 }
 
@@ -375,7 +375,7 @@ trim_map_vdev_commit(spa_t *spa, zio_t *zio, vdev_t *vd)
 	if (tm == NULL)
 		return;
 
-	txglimit = MIN(spa->spa_syncing_txg, spa_freeze_txg(spa)) -
+	txglimit = MIN(spa_last_synced_txg(spa), spa_freeze_txg(spa)) -
 	    trim_txg_limit;
 
 	mutex_enter(&tm->tm_lock);
@@ -431,7 +431,7 @@ trim_map_commit(spa_t *spa, zio_t *zio, vdev_t *vd)
 {
 	int c;
 
-	if (vd == NULL || spa->spa_syncing_txg <= trim_txg_limit)
+	if (vd == NULL || spa_last_synced_txg(spa) <= trim_txg_limit)
 		return;
 
 	if (vd->vdev_ops->vdev_op_leaf) {

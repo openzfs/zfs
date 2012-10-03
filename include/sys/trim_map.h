@@ -36,7 +36,7 @@ extern "C" {
 
 extern void trim_map_create(vdev_t *vd);
 extern void trim_map_destroy(vdev_t *vd);
-extern void trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size);
+extern void trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg);
 extern boolean_t trim_map_write_start(zio_t *zio);
 extern void trim_map_write_done(zio_t *zio);
 
