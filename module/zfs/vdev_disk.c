@@ -111,12 +111,41 @@ vdev_disk_error(zio_t *zio)
  * elevator to do the maximum front/back merging allowed by the
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
- *
- * Unfortunately we cannot directly call the elevator_switch() function
- * because it is not exported from the block layer.  This means we have
- * to use the sysfs interface and a user space upcall.  Pools will be
- * automatically imported on module load so we must do this at device
- * open time from the kernel.
+ */
+#if defined(HAVE_ELEVATOR_CHANGE)
+static int
+vdev_elevator_switch(vdev_t *v, char *elevator)
+{
+	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev = vd->vd_bdev;
+	struct request_queue *q = bdev_get_queue(bdev);	
+	char *device = bdev->bd_disk->disk_name;
+	int error;
+
+	/* Skip devices which are not whole disks (partitions) */
+	if (!v->vdev_wholedisk)
+		return (0);
+
+	/* Skip devices without schedulers (loop, ram, dm, etc) */
+	if (!q->elevator || !blk_queue_stackable(q))
+		return (0);
+
+	/* Leave existing scheduler when set to "none" */
+	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
+		return (0);
+
+	error = elevator_change(q, elevator);
+	if (error)
+		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
+		       elevator, v->vdev_path, device, error);
+
+	return (error);
+}
+#else
+/* for pre-2.6.36 kernels, elevator_change() is not available:
+ * use call_usermodehelper to echo elevator into sysfs;
+ * requires /bin/echo and sysfs mounted at open time
+ * for elevator_switch to succeed
  */
 #define SET_SCHEDULER_CMD \
 	"exec 0</dev/null " \
@@ -157,6 +186,7 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 
 	return (error);
 }
+#endif /* defined(HAVE_ELEVATOR_CHANGE) */
 
 /*
  * Expanding a whole disk vdev involves invoking BLKRRPART on the
