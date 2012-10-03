@@ -30,6 +30,10 @@
 #include_next <sys/time.h>
 #include <sys/types.h>
 
+#ifndef TIME_MAX
+#define TIME_MAX LLONG_MAX
+#endif
+
 #ifndef SEC
 #define SEC		1
 #endif
@@ -48,6 +52,10 @@
 
 #ifndef NSEC_PER_USEC
 #define NSEC_PER_USEC	1000L
+#endif
+
+#ifndef NSEC_PER_SEC
+#define NSEC_PER_SEC 1000000000L
 #endif
 
 extern hrtime_t gethrtime(void);

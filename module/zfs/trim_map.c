@@ -27,6 +27,9 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/trim_map.h>
+#include <sys/time.h>
+
+#define NSEC_PER_SEC 1000000000L
 
 typedef struct trim_map {
 	list_t		tm_head;		/* List of segments sorted by txg. */
@@ -43,10 +46,13 @@ typedef struct trim_seg {
 	uint64_t	ts_start;	/* Starting offset of this segment. */
 	uint64_t	ts_end;		/* Ending offset (non-inclusive). */
 	uint64_t	ts_txg;		/* Segment creation txg (rounded up). */
+	hrtime_t	ts_time;	/* Segment creation time (rounded up). */
 } trim_seg_t;
 
 int trim_txg_limit = 32;
 int trim_txg_batch = 32;
+int trim_l2arc_limit = 30;
+int trim_l2arc_batch = 30;
 
 static void trim_map_vdev_commit_done(spa_t *spa, vdev_t *vd);
 
@@ -159,6 +165,8 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 	avl_index_t where;
 	trim_seg_t tsearch, *ts_before, *ts_after, *ts;
 	boolean_t merge_before, merge_after;
+	hrtime_t time = gethrtime();
+	hrtime_t time_batch = trim_l2arc_batch * NSEC_PER_SEC;
 	
 	/*
 	 * Round up the TXG to a multiple of trim_batch_txg.
@@ -168,6 +176,9 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 	 */
 	if (trim_txg_batch > 0)
 		txg += trim_txg_batch - (txg % trim_txg_batch);
+
+	if (time_batch > 0)
+		time += time_batch - (time % time_batch);
 
 	ASSERT(MUTEX_HELD(&tm->tm_lock));
 	VERIFY(start < end);
@@ -206,6 +217,7 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 		ts->ts_start = start;
 		ts->ts_end = end;
 		ts->ts_txg = txg;
+		ts->ts_time = time;
 		avl_insert(&tm->tm_queued_frees, ts, where);
 		list_insert_tail(&tm->tm_head, ts);
 	}
@@ -228,6 +240,7 @@ trim_map_segment_remove(trim_map_t *tm, trim_seg_t *ts, uint64_t start,
 		nts->ts_start = end;
 		nts->ts_end = ts->ts_end;
 		nts->ts_txg = ts->ts_txg;
+		nts->ts_time = ts->ts_time;
 		ts->ts_end = start;
 		avl_insert_here(&tm->tm_queued_frees, nts, ts, AVL_AFTER);
 		list_insert_after(&tm->tm_head, ts, nts);
@@ -358,17 +371,18 @@ trim_map_write_done(zio_t *zio)
 /*
  * Return the oldest segment (the one with the lowest txg) or false if
  * the list is empty or the first element's txg is greater than txg given
- * as function argument.
+ * as function argument, or the first element's time is greater than time
+ * given as function argument.
  */
 static trim_seg_t *
-trim_map_first(trim_map_t *tm, uint64_t txg)
+trim_map_first(trim_map_t *tm, uint64_t txg, hrtime_t time)
 {
 	trim_seg_t *ts;
 
 	ASSERT(MUTEX_HELD(&tm->tm_lock));
 
 	ts = list_head(&tm->tm_head);
-	if (ts != NULL && ts->ts_txg <= txg)
+	if (ts != NULL && ts->ts_txg <= txg && ts->ts_time <= time)
 		return (ts);
 	return (NULL);
 }
@@ -378,21 +392,26 @@ trim_map_vdev_commit(spa_t *spa, zio_t *zio, vdev_t *vd)
 {
 	trim_map_t *tm = vd->vdev_trimmap;
 	trim_seg_t *ts;
-	uint64_t txglimit;
+	uint64_t txglimit = UINT64_MAX;
+	hrtime_t timelimit = TIME_MAX;
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
 	if (tm == NULL)
 		return;
 
-	txglimit = MIN(spa_last_synced_txg(spa), spa_freeze_txg(spa)) -
-	    trim_txg_limit;
+	if (vd->vdev_isl2cache)
+		timelimit = gethrtime() - trim_l2arc_limit * NSEC_PER_SEC;
+	else
+		txglimit = MIN(spa_last_synced_txg(spa), spa_freeze_txg(spa)) -
+		    trim_txg_limit;
 
 	mutex_enter(&tm->tm_lock);
 	/*
-	 * Loop until we send all frees up to the txglimit.
+	 * Loop until we send all frees up to the txglimit (or time
+	 * limit if this is a cache device).
 	 */
-	while ((ts = trim_map_first(tm, txglimit)) != NULL) {
+	while ((ts = trim_map_first(tm, txglimit, timelimit)) != NULL) {
 		list_remove(&tm->tm_head, ts);
 		avl_remove(&tm->tm_queued_frees, ts);
 		avl_add(&tm->tm_inflight_frees, ts);
@@ -562,5 +581,12 @@ MODULE_PARM_DESC(trim_txg_limit, "Delay TRIMs by that many TXGs.");
 
 module_param(trim_txg_batch, int, 0644);
 MODULE_PARM_DESC(trim_txg_batch, "Batch TRIMs from that many TXGs.");
+
+module_param(trim_l2arc_limit, int, 0644);
+MODULE_PARM_DESC(trim_l2arc_limit, "Delay TRIMs by that many seconds on cache devices.");
+
+module_param(trim_l2arc_batch, int, 0644);
+MODULE_PARM_DESC(trim_l2arc_batch, "Batch TRIMs over that many seconds on cache devices.");
+
 #endif
 
