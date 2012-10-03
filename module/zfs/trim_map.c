@@ -42,10 +42,11 @@ typedef struct trim_seg {
 	list_node_t	ts_next;	/* List element. */
 	uint64_t	ts_start;	/* Starting offset of this segment. */
 	uint64_t	ts_end;		/* Ending offset (non-inclusive). */
-	uint64_t	ts_txg;		/* Segment creation txg. */
+	uint64_t	ts_txg;		/* Segment creation txg (rounded up). */
 } trim_seg_t;
 
-int trim_txg_limit = 64;
+int trim_txg_limit = 32;
+int trim_txg_batch = 32;
 
 static void trim_map_vdev_commit_done(spa_t *spa, vdev_t *vd);
 
@@ -158,6 +159,15 @@ trim_map_segment_add(trim_map_t *tm, uint64_t start, uint64_t end, uint64_t txg)
 	avl_index_t where;
 	trim_seg_t tsearch, *ts_before, *ts_after, *ts;
 	boolean_t merge_before, merge_after;
+	
+	/*
+	 * Round up the TXG to a multiple of trim_batch_txg.
+	 * This way we are grouping segments into fewer, larger TXGs
+	 * (batching).
+	 * This is safe because we're rounding up (delay), not down.
+	 */
+	if (trim_txg_batch > 0)
+		txg += trim_txg_batch - (txg % trim_txg_batch);
 
 	ASSERT(MUTEX_HELD(&tm->tm_lock));
 	VERIFY(start < end);
@@ -549,5 +559,8 @@ MODULE_PARM_DESC(zfs_notrim, "Disable TRIM.");
 
 module_param(trim_txg_limit, int, 0644);
 MODULE_PARM_DESC(trim_txg_limit, "Delay TRIMs by that many TXGs.");
+
+module_param(trim_txg_batch, int, 0644);
+MODULE_PARM_DESC(trim_txg_batch, "Batch TRIMs from that many TXGs.");
 #endif
 
