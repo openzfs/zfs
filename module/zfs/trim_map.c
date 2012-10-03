@@ -472,7 +472,12 @@ trim_thread(void *arg)
 			mutex_exit(&spa->spa_trim_lock);
 			thread_exit();
 		}
-		cv_wait(&spa->spa_trim_cv, &spa->spa_trim_lock);
+		/*
+		 * Don't wait for more than one second to prevent the
+		 * kernel from complaining about a blocked task.
+		 */
+		cv_timedwait_interruptible(&spa->spa_trim_cv,
+		    &spa->spa_trim_lock, (ddi_get_lbolt() + hz));
 		mutex_exit(&spa->spa_trim_lock);
 
 		zio = zio_root(spa, NULL, NULL,
