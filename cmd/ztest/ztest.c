@@ -121,8 +121,8 @@
 #include <sys/fs/zfs.h>
 #include <libnvpair.h>
 
-#define	ZTEST_FD_DATA 3
-#define	ZTEST_FD_RAND 4
+static int ztest_fd_data = -1;
+static int ztest_fd_rand = -1;
 
 typedef struct ztest_shared_hdr {
 	uint64_t	zh_hdr_size;
@@ -783,10 +783,12 @@ ztest_random(uint64_t range)
 {
 	uint64_t r;
 
+	ASSERT3S(ztest_fd_rand, >=, 0);
+
 	if (range == 0)
 		return (0);
 
-	if (read(ZTEST_FD_RAND, &r, sizeof (r)) != sizeof (r))
+	if (read(ztest_fd_rand, &r, sizeof (r)) != sizeof (r))
 		fatal(1, "short read from /dev/urandom");
 
 	return (r % range);
@@ -5815,26 +5817,13 @@ ztest_init(ztest_shared_t *zs)
 }
 
 static void
-setup_fds(void)
+setup_data_fd(void)
 {
-	int fd;
-
 	char *tmp = tempnam(NULL, NULL);
-	fd = open(tmp, O_RDWR | O_CREAT, 0700);
-	ASSERT3S(fd, >=, 0);
-	if (fd != ZTEST_FD_DATA) {
-		VERIFY3S(dup2(fd, ZTEST_FD_DATA), ==, ZTEST_FD_DATA);
-		close(fd);
-	}
+	ztest_fd_data = open(tmp, O_RDWR | O_CREAT, 0700);
+	ASSERT3S(ztest_fd_data, >=, 0);
 	(void) unlink(tmp);
 	free(tmp);
-
-	fd = open("/dev/urandom", O_RDONLY);
-	ASSERT3S(fd, >=, 0);
-	if (fd != ZTEST_FD_RAND) {
-		VERIFY3S(dup2(fd, ZTEST_FD_RAND), ==, ZTEST_FD_RAND);
-		close(fd);
-	}
 }
 
 static int
@@ -5858,10 +5847,10 @@ setup_hdr(void)
 	ztest_shared_hdr_t *hdr;
 
 	hdr = (void *)mmap(0, P2ROUNDUP(sizeof (*hdr), getpagesize()),
-	    PROT_READ | PROT_WRITE, MAP_SHARED, ZTEST_FD_DATA, 0);
+	    PROT_READ | PROT_WRITE, MAP_SHARED, ztest_fd_data, 0);
 	ASSERT(hdr != MAP_FAILED);
 
-	VERIFY3U(0, ==, ftruncate(ZTEST_FD_DATA, sizeof (ztest_shared_hdr_t)));
+	VERIFY3U(0, ==, ftruncate(ztest_fd_data, sizeof (ztest_shared_hdr_t)));
 
 	hdr->zh_hdr_size = sizeof (ztest_shared_hdr_t);
 	hdr->zh_opts_size = sizeof (ztest_shared_opts_t);
@@ -5872,7 +5861,7 @@ setup_hdr(void)
 	hdr->zh_ds_count = ztest_opts.zo_datasets;
 
 	size = shared_data_size(hdr);
-	VERIFY3U(0, ==, ftruncate(ZTEST_FD_DATA, size));
+	VERIFY3U(0, ==, ftruncate(ztest_fd_data, size));
 
 	(void) munmap((caddr_t)hdr, P2ROUNDUP(sizeof (*hdr), getpagesize()));
 }
@@ -5885,14 +5874,14 @@ setup_data(void)
 	uint8_t *buf;
 
 	hdr = (void *)mmap(0, P2ROUNDUP(sizeof (*hdr), getpagesize()),
-	    PROT_READ, MAP_SHARED, ZTEST_FD_DATA, 0);
+	    PROT_READ, MAP_SHARED, ztest_fd_data, 0);
 	ASSERT(hdr != MAP_FAILED);
 
 	size = shared_data_size(hdr);
 
 	(void) munmap((caddr_t)hdr, P2ROUNDUP(sizeof (*hdr), getpagesize()));
 	hdr = ztest_shared_hdr = (void *)mmap(0, P2ROUNDUP(size, getpagesize()),
-	    PROT_READ | PROT_WRITE, MAP_SHARED, ZTEST_FD_DATA, 0);
+	    PROT_READ | PROT_WRITE, MAP_SHARED, ztest_fd_data, 0);
 	ASSERT(hdr != MAP_FAILED);
 	buf = (uint8_t *)hdr;
 
@@ -5925,9 +5914,15 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 
 	if (pid == 0) {	/* child */
 		char *emptyargv[2] = { cmd, NULL };
+		char fd_data_str[12];
 
 		struct rlimit rl = { 1024, 1024 };
 		(void) setrlimit(RLIMIT_NOFILE, &rl);
+
+		(void) close(ztest_fd_rand);
+		VERIFY(11 >= snprintf(fd_data_str, 12, "%d", ztest_fd_data));
+		VERIFY(0 == setenv("ZTEST_FD_DATA", fd_data_str, 1));
+
 		(void) enable_extended_FILE_stdio(-1, -1);
 		if (libpath != NULL)
 			VERIFY(0 == setenv("LD_LIBRARY_PATH", libpath, 1));
@@ -6005,22 +6000,24 @@ main(int argc, char **argv)
 	char cmd[MAXNAMELEN];
 	boolean_t hasalt;
 	int f;
-	boolean_t ischild = (0 == lseek(ZTEST_FD_DATA, 0, SEEK_CUR));
-
-	ASSERT(ischild || errno == EBADF || errno == ESPIPE);
+	char *fd_data_str = getenv("ZTEST_FD_DATA");
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
-	if (!ischild) {
+	ztest_fd_rand = open("/dev/urandom", O_RDONLY);
+	ASSERT3S(ztest_fd_rand, >=, 0);
+
+	if (!fd_data_str) {
 		dprintf_setup(&argc, argv);
 		process_options(argc, argv);
 
-		setup_fds();
+		setup_data_fd();
 		setup_hdr();
 		setup_data();
 		bcopy(&ztest_opts, ztest_shared_opts,
 		    sizeof (*ztest_shared_opts));
 	} else {
+		ztest_fd_data = atoi(fd_data_str);
 		setup_data();
 		bcopy(ztest_shared_opts, &ztest_opts, sizeof (ztest_opts));
 	}
@@ -6029,12 +6026,12 @@ main(int argc, char **argv)
 	/* Override location of zpool.cache */
 	(void) asprintf((char **)&spa_config_path, "%s/zpool.cache",
 	    ztest_opts.zo_dir);
-	
+
 	ztest_ds = umem_alloc(ztest_opts.zo_datasets * sizeof (ztest_ds_t),
 	    UMEM_NOFAIL);
 	zs = ztest_shared;
 
-	if (ischild) {
+	if (fd_data_str) {
 		metaslab_gang_bang = ztest_opts.zo_metaslab_gang_bang;
 		metaslab_df_alloc_threshold =
 		    zs->zs_metaslab_df_alloc_threshold;
