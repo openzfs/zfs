@@ -729,12 +729,15 @@ process_options(int argc, char **argv)
 	    UINT64_MAX >> 2);
 
 	if (strlen(altdir) > 0) {
-		char cmd[MAXNAMELEN];
-		char realaltdir[MAXNAMELEN];
+		char *cmd;
+		char *realaltdir;
 		char *bin;
 		char *ztest;
 		char *isa;
 		int isalen;
+
+		cmd = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+		realaltdir = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 		VERIFY(NULL != realpath(getexecname(), cmd));
 		if (0 != access(altdir, F_OK)) {
@@ -767,6 +770,9 @@ process_options(int argc, char **argv)
 			fatal(B_TRUE, "invalid alternate lib directory %s",
 			    zo->zo_alt_libpath);
 		}
+
+		umem_free(cmd, MAXPATHLEN);
+		umem_free(realaltdir, MAXPATHLEN);
 	}
 }
 
