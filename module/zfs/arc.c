@@ -1420,7 +1420,7 @@ arc_buf_data_free(arc_buf_hdr_t *hdr, void (*free_func)(void *, size_t),
 {
 	if (HDR_L2_WRITING(hdr)) {
 		l2arc_data_free_t *df;
-		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
+		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_PUSHPAGE);
 		df->l2df_data = data;
 		df->l2df_size = size;
 		df->l2df_func = free_func;

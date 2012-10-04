@@ -24,7 +24,8 @@
  * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -53,6 +54,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_objset.h>
+#include <sys/dmu_impl.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 #include <sys/sunldi.h>
@@ -3163,6 +3165,7 @@ zfs_ioc_destroy_snaps_nvl(zfs_cmd_t *zc)
 		}
 
 		(void) zfs_unmount_snap(name, NULL);
+		(void) zvol_remove_minor(name);
 	}
 
 	err = dmu_snapshots_destroy_nvl(nvl, zc->zc_defer_destroy,
@@ -3889,8 +3892,8 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		}
 
 		off = fp->f_offset;
-		error = dmu_sendbackup(tosnap, fromsnap, zc->zc_obj,
-		    fp->f_vnode, &off);
+		error = dmu_send(tosnap, fromsnap, zc->zc_obj,
+		    zc->zc_cookie, fp->f_vnode, &off);
 
 		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 			fp->f_offset = off;
@@ -3898,6 +3901,50 @@ zfs_ioc_send(zfs_cmd_t *zc)
 	}
 	if (dsfrom)
 		dsl_dataset_rele(dsfrom, FTAG);
+	dsl_dataset_rele(ds, FTAG);
+	return (error);
+}
+
+/*
+ * inputs:
+ * zc_name	name of snapshot on which to report progress
+ * zc_cookie	file descriptor of send stream
+ *
+ * outputs:
+ * zc_cookie	number of bytes written in send stream thus far
+ */
+static int
+zfs_ioc_send_progress(zfs_cmd_t *zc)
+{
+	dsl_dataset_t *ds;
+	dmu_sendarg_t *dsp = NULL;
+	int error;
+
+	if ((error = dsl_dataset_hold(zc->zc_name, FTAG, &ds)) != 0)
+		return (error);
+
+	mutex_enter(&ds->ds_sendstream_lock);
+
+	/*
+	 * Iterate over all the send streams currently active on this dataset.
+	 * If there's one which matches the specified file descriptor _and_ the
+	 * stream was started by the current process, return the progress of
+	 * that stream.
+	 */
+
+	for (dsp = list_head(&ds->ds_sendstreams); dsp != NULL;
+	    dsp = list_next(&ds->ds_sendstreams, dsp)) {
+		if (dsp->dsa_outfd == zc->zc_cookie &&
+		    dsp->dsa_proc->group_leader == curproc->group_leader)
+			break;
+	}
+
+	if (dsp != NULL)
+		zc->zc_cookie = *(dsp->dsa_off);
+	else
+		error = ENOENT;
+
+	mutex_exit(&ds->ds_sendstream_lock);
 	dsl_dataset_rele(ds, FTAG);
 	return (error);
 }
@@ -4036,6 +4083,32 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	return (error);
 }
 
+static int
+zfs_ioc_pool_reopen(zfs_cmd_t *zc)
+{
+	spa_t *spa;
+	int error;
+
+	error = spa_open(zc->zc_name, &spa, FTAG);
+	if (error)
+		return (error);
+
+	spa_vdev_state_enter(spa, SCL_NONE);
+
+	/*
+	 * If a resilver is already in progress then set the
+	 * spa_scrub_reopen flag to B_TRUE so that we don't restart
+	 * the scan as a side effect of the reopen. Otherwise, let
+	 * vdev_open() decided if a resilver is required.
+	 */
+	spa->spa_scrub_reopen = dsl_scan_resilvering(spa->spa_dsl_pool);
+	vdev_reopen(spa->spa_root_vdev);
+	spa->spa_scrub_reopen = B_FALSE;
+
+	(void) spa_vdev_state_exit(spa, NULL, 0);
+	spa_close(spa, FTAG);
+	return (0);
+}
 /*
  * inputs:
  * zc_name	name of filesystem
@@ -4830,6 +4903,10 @@ static zfs_ioc_vec_t zfs_ioc_vec[] = {
 	    POOL_CHECK_SUSPENDED },
 	{ zfs_ioc_space_snaps, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
 	    POOL_CHECK_SUSPENDED },
+	{ zfs_ioc_pool_reopen, zfs_secpolicy_config, POOL_NAME, B_TRUE,
+	    POOL_CHECK_SUSPENDED },
+	{ zfs_ioc_send_progress, zfs_secpolicy_read, DATASET_NAME, B_FALSE,
+	    POOL_CHECK_NONE }
 };
 
 int

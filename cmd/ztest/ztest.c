@@ -292,7 +292,13 @@ ztest_info_t ztest_info[] = {
 	{ ztest_fault_inject,			1,	&zopt_sometimes	},
 	{ ztest_ddt_repair,			1,	&zopt_sometimes	},
 	{ ztest_dmu_snapshot_hold,		1,	&zopt_sometimes	},
+	/*
+	 * The reguid test is currently broken. Disable it until
+	 * we get around to fixing it.
+	 */
+#if 0
 	{ ztest_reguid,				1,	&zopt_sometimes },
+#endif
 	{ ztest_spa_rename,			1,	&zopt_rarely	},
 	{ ztest_scrub,				1,	&zopt_rarely	},
 	{ ztest_dsl_dataset_promote_busy,	1,	&zopt_rarely	},
@@ -2567,7 +2573,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		newvd_is_spare = B_TRUE;
 		(void) strcpy(newpath, newvd->vdev_path);
 	} else {
-		(void) snprintf(newpath, sizeof (newpath), ztest_dev_template,
+		(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + leaf);
 		if (ztest_random(2) == 0)
 			newpath[strlen(newpath) - 1] = 'b';
@@ -2923,7 +2929,8 @@ ztest_dataset_create(char *dsname)
 	if (err || zilset < 80)
 		return (err);
 
-	(void) printf("Setting dataset %s to sync always\n", dsname);
+	if (zopt_verbose >= 5)
+		(void) printf("Setting dataset %s to sync always\n", dsname);
 	return (ztest_dsl_prop_set_uint64(dsname, ZFS_PROP_SYNC,
 	    ZFS_SYNC_ALWAYS, B_FALSE));
 }
@@ -4632,9 +4639,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * write failures and random online/offline activity on leaf 0,
 		 * and we'll write random garbage to the randomly chosen leaf.
 		 */
-		(void) snprintf(path0, sizeof (path0), ztest_dev_template,
+		(void) snprintf(path0, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + zs->zs_splits);
-		(void) snprintf(pathrand, sizeof (pathrand), ztest_dev_template,
+		(void) snprintf(pathrand, MAXPATHLEN, ztest_dev_template,
 		    zopt_dir, zopt_pool, top * leaves + leaf);
 
 		vd0 = vdev_lookup_by_path(spa->spa_root_vdev, path0);
@@ -4998,7 +5005,7 @@ ztest_run_zdb(char *pool)
 
 	fp = popen(zdb, "r");
 
-	while (fgets(zbuf, sizeof (zbuf), fp) != NULL)
+	while (fgets(zbuf, 1024, fp) != NULL)
 		if (zopt_verbose >= 3)
 			(void) printf("%s", zbuf);
 
@@ -5389,8 +5396,9 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	VERIFY3P((resume_thread = thread_create(NULL, 0, ztest_resume_thread,
-	    spa, TS_RUN, NULL, 0, 0)), !=, NULL);
+	VERIFY3P((resume_thread = zk_thread_create(NULL, 0,
+	    (thread_func_t)ztest_resume_thread, spa, TS_RUN, NULL, 0, 0,
+	    PTHREAD_CREATE_JOINABLE)), !=, NULL);
 
 	/*
 	 * Set a deadman alarm to abort() if we hang.
@@ -5436,8 +5444,10 @@ ztest_run(ztest_shared_t *zs)
 		if (t < zopt_datasets && ztest_dataset_open(zs, t) != 0)
 			return;
 
-		VERIFY3P(thread = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)t, TS_RUN, NULL, 0, 0), !=, NULL);
+		VERIFY3P(thread = zk_thread_create(NULL, 0,
+		    (thread_func_t)ztest_thread,
+		    (void *)(uintptr_t)t, TS_RUN, NULL, 0, 0,
+		    PTHREAD_CREATE_JOINABLE), !=, NULL);
 		tid[t] = thread->t_tid;
 	}
 

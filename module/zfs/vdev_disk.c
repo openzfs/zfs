@@ -111,19 +111,7 @@ vdev_disk_error(zio_t *zio)
  * elevator to do the maximum front/back merging allowed by the
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
- *
- * Unfortunately we cannot directly call the elevator_switch() function
- * because it is not exported from the block layer.  This means we have
- * to use the sysfs interface and a user space upcall.  Pools will be
- * automatically imported on module load so we must do this at device
- * open time from the kernel.
  */
-#define SET_SCHEDULER_CMD \
-	"exec 0</dev/null " \
-	"     1>/sys/block/%s/queue/scheduler " \
-	"     2>/dev/null; " \
-	"echo %s"
-
 static int
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
@@ -131,8 +119,6 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	struct block_device *bdev = vd->vd_bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	char *device = bdev->bd_disk->disk_name;
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-	char *envp[] = { NULL };
 	int error;
 
 	/* Skip devices which are not whole disks (partitions) */
@@ -147,13 +133,32 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
 		return (0);
 
-	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-	error = call_usermodehelper(argv[0], argv, envp, 1);
+#ifdef HAVE_ELEVATOR_CHANGE
+	error = elevator_change(q, elevator);
+#else
+	/* For pre-2.6.36 kernels elevator_change() is not available.
+	 * Therefore we fall back to using a usermodehelper to echo the
+	 * elevator into sysfs;  This requires /bin/echo and sysfs to be
+	 * mounted which may not be true early in the boot process.
+	 */
+# define SET_SCHEDULER_CMD \
+	"exec 0</dev/null " \
+	"     1>/sys/block/%s/queue/scheduler " \
+	"     2>/dev/null; " \
+	"echo %s"
+
+	{
+		char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+		char *envp[] = { NULL };
+
+		argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+		error = call_usermodehelper(argv[0], argv, envp, 1);
+		strfree(argv[2]);
+	}
+#endif /* HAVE_ELEVATOR_CHANGE */
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		       elevator, v->vdev_path, device, error);
-
-	strfree(argv[2]);
 
 	return (error);
 }
@@ -224,7 +229,8 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 }
 
 static int
-vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
+vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
@@ -287,6 +293,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 
 	/* Physical volume size in bytes */
 	*psize = bdev_capacity(bdev);
+
+	/* TODO: report possible expansion size */
+	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;

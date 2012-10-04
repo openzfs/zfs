@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <ctype.h>
@@ -273,6 +273,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf, size_t len,
 		case ZPOOL_PROP_SIZE:
 		case ZPOOL_PROP_ALLOCATED:
 		case ZPOOL_PROP_FREE:
+		case ZPOOL_PROP_EXPANDSZ:
 		case ZPOOL_PROP_ASHIFT:
 			(void) zfs_nicenum(intval, buf, len);
 			break;
@@ -361,8 +362,8 @@ pool_uses_efi(nvlist_t *config)
 	return (B_FALSE);
 }
 
-static boolean_t
-pool_is_bootable(zpool_handle_t *zhp)
+boolean_t
+zpool_is_bootable(zpool_handle_t *zhp)
 {
 	char bootfs[ZPOOL_MAXNAMELEN];
 
@@ -1127,7 +1128,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 		return (zfs_error(hdl, EZFS_BADVERSION, msg));
 	}
 
-	if (pool_is_bootable(zhp) && nvlist_lookup_nvlist_array(nvroot,
+	if (zpool_is_bootable(zhp) && nvlist_lookup_nvlist_array(nvroot,
 	    ZPOOL_CONFIG_SPARES, &spares, &nspares) == 0) {
 		uint64_t s;
 
@@ -2374,7 +2375,7 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 	uint_t children;
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	boolean_t rootpool = pool_is_bootable(zhp);
+	boolean_t rootpool = zpool_is_bootable(zhp);
 
 	if (replacing)
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3006,6 +3007,26 @@ zpool_reguid(zpool_handle_t *zhp)
 }
 
 /*
+ * Reopen the pool.
+ */
+int
+zpool_reopen(zpool_handle_t *zhp)
+{
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	char msg[1024];
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+
+	(void) snprintf(msg, sizeof (msg),
+	    dgettext(TEXT_DOMAIN, "cannot reopen '%s'"),
+	    zhp->zpool_name);
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	if (zfs_ioctl(hdl, ZFS_IOC_POOL_REOPEN, &zc) == 0)
+		return (0);
+	return (zpool_standard_error(hdl, errno, msg));
+}
+
+/*
  * Convert from a devid string to a path.
  */
 static char *
@@ -3134,6 +3155,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 	char *path, *devid, *type;
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
+	char tmpbuf[PATH_BUF_LEN];
 	vdev_stat_t *vs;
 	uint_t vsc;
 
@@ -3206,13 +3228,12 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a raidz device, we need to stick in the parity level.
 		 */
 		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
-			char tmpbuf[PATH_BUF_LEN];
 
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 			    &value) == 0);
-			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s%llu", path,
+			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
-			path = tmpbuf;
+			path = buf;
 		}
 
 		/*
@@ -3224,9 +3245,9 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 			    &id) == 0);
-			(void) snprintf(buf, sizeof (buf), "%s-%llu", path,
-			    (u_longlong_t)id);
-			path = buf;
+			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s-%llu",
+			    path, (u_longlong_t)id);
+			path = tmpbuf;
 		}
 	}
 
@@ -3798,7 +3819,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	if (zhp) {
 		nvlist_t *nvroot;
 
-		if (pool_is_bootable(zhp)) {
+		if (zpool_is_bootable(zhp)) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "EFI labeled devices are not supported on root "
 			    "pools."));

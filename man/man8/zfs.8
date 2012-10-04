@@ -2,11 +2,12 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
 .\" the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zfs 8 "10 Jul 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zfs 8 "Aug 16, 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zfs \- configures ZFS file systems
 .SH SYNOPSIS
@@ -217,6 +218,10 @@ zfs \- configures ZFS file systems
 .nf
 \fBzfs\fR \fBrelease\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
 .fi
+
+.LP
+.nf
+\fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
 
 .SH DESCRIPTION
 .sp
@@ -2306,7 +2311,8 @@ Generate a stream package that sends all intermediary snapshots from the first s
 .ad
 .sp .6
 .RS 4n
-Print verbose information about the stream package generated.
+Print verbose information about the stream package generated.  This information
+includes a per-second report of how much data has been sent.
 .RE
 
 .sp
@@ -2571,6 +2577,9 @@ clone            subcommand     Must also have the 'create' ability and 'mount'
                                 ability in the origin file system
 create           subcommand     Must also have the 'mount' ability
 destroy          subcommand     Must also have the 'mount' ability
+diff             subcommand     Allows lookup of paths within a dataset
+                                given an object number, and the ability to
+                                create snapshots necessary to 'zfs diff'.
 mount            subcommand     Allows mount/umount of ZFS datasets
 promote          subcommand     Must also have the 'mount'
                                 and 'promote' ability in the origin file system
@@ -2764,6 +2773,71 @@ If a hold exists on a snapshot, attempts to destroy that snapshot by using the \
 Recursively releases a hold with the given tag on the snapshots of all descendent file systems.
 .RE
 
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+.ad
+.sp .6
+.RS 4n
+Display the difference between a snapshot of a given filesystem and another
+snapshot of that filesystem from a later time or the current contents of the
+filesystem.  The first column is a character indicating the type of change,
+the other columns indicate pathname, new pathname (in case of rename), change
+in link count, and optionally file type and/or change time.
+
+The types of change are:
+.in +2
+.nf
+-       The path has been removed
++       The path has been created
+M       The path has been modified
+R       The path has been renamed
+.fi
+.in -2
+.sp
+.ne 2
+.na
+\fB-F\fR
+.ad
+.sp .6
+.RS 4n
+Display an indication of the type of file, in a manner similar to the \fB-F\fR
+option of \fBls\fR(1).
+.in +2
+.nf
+B       Block device
+C       Character device
+/       Directory
+>       Door
+|       Named pipe
+@       Symbolic link
+P       Event port
+=       Socket
+F       Regular file
+.fi
+.in -2
+.RE
+.sp
+.ne 2
+.na
+\fB-H\fR
+.ad
+.sp .6
+.RS 4n
+Give more parseable tab-separated output, without header lines and without arrows.
+.RE
+.sp
+.ne 2
+.na
+\fB-t\fR
+.ad
+.sp .6
+.RS 4n
+Display the path's inode change time as the first column of output.
 .RE
 
 .SH EXAMPLES
@@ -3110,7 +3184,7 @@ The following commands show how to set \fBsharenfs\fR property options to enable
 .sp
 .in +2
 .nf
-# \fB# zfs set sharenfs='rw=@123.123.0.0/16,root=neo' tank/home\fR
+# \fBzfs set sharenfs='rw=@123.123.0.0/16,root=neo' tank/home\fR
 .fi
 .in -2
 .sp
@@ -3158,7 +3232,7 @@ The following example shows how to grant anyone in the group \fBstaff\fR to crea
 .sp
 .in +2
 .nf
-# \fB# zfs allow staff create,mount tank/users\fR
+# \fBzfs allow staff create,mount tank/users\fR
 # \fBzfs allow -c destroy tank/users\fR
 # \fBzfs allow tank/users\fR
 -------------------------------------------------------------
@@ -3237,6 +3311,28 @@ Create time permissions on (tank/users)
 Local+Descendent permissions on (tank/users)
         group staff @pset,create,mount
 ------------------------------------------------------------- 
+.fi
+.in -2
+.sp
+
+.LP
+\fBExample 23\fR Showing the differences between a snapshot and a ZFS Dataset
+.sp
+.LP
+The following example shows how to see what has changed between a prior
+snapshot of a ZFS Dataset and its current state.  The \fB-F\fR option is used
+to indicate type information for the files affected.
+
+.sp
+.in +2
+.nf
+# zfs diff -F tank/test@before tank/test
+M       /       /tank/test/
+M       F       /tank/test/linked      (+1)
+R       F       /tank/test/oldname -> /tank/test/newname
+-       F       /tank/test/deleted
++       F       /tank/test/created
+M       F       /tank/test/modified
 .fi
 .in -2
 .sp

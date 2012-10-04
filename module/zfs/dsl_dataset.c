@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #include <sys/dmu_objset.h>
@@ -29,6 +30,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dmu_traverse.h>
+#include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
 #include <sys/zio.h>
@@ -399,12 +401,17 @@ dsl_dataset_get_ref(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		mutex_init(&ds->ds_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_recvlock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&ds->ds_opening_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&ds->ds_sendstream_lock, NULL, MUTEX_DEFAULT, NULL);
+
 		rw_init(&ds->ds_rwlock, NULL, RW_DEFAULT, NULL);
 		cv_init(&ds->ds_exclusive_cv, NULL, CV_DEFAULT, NULL);
 
 		bplist_create(&ds->ds_pending_deadlist);
 		dsl_deadlist_open(&ds->ds_deadlist,
 		    mos, ds->ds_phys->ds_deadlist_obj);
+
+		list_create(&ds->ds_sendstreams, sizeof (dmu_sendarg_t),
+		    offsetof(dmu_sendarg_t, dsa_link));
 
 		if (err == 0) {
 			err = dsl_dir_open_obj(dp,
@@ -1222,6 +1229,19 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 		/* up the hold count until we can be written out */
 		dmu_buf_add_ref(ds->ds_dbuf, ds);
 	}
+}
+
+boolean_t
+dsl_dataset_is_dirty(dsl_dataset_t *ds)
+{
+	int t;
+
+	for (t = 0; t < TXG_SIZE; t++) {
+		if (txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets,
+		    ds, t))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
 }
 
 /*
@@ -3395,10 +3415,6 @@ dsl_dataset_set_quota_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	if (ds->ds_quota != effective_value) {
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		ds->ds_quota = effective_value;
-
-		spa_history_log_internal(LOG_DS_REFQUOTA,
-		    ds->ds_dir->dd_pool->dp_spa, tx, "%lld dataset = %llu ",
-		    (longlong_t)ds->ds_quota, ds->ds_object);
 	}
 }
 
@@ -3502,10 +3518,6 @@ dsl_dataset_set_reservation_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	dsl_dir_diduse_space(ds->ds_dir, DD_USED_REFRSRV, delta, 0, 0, tx);
 	mutex_exit(&ds->ds_dir->dd_lock);
-
-	spa_history_log_internal(LOG_DS_REFRESERV,
-	    ds->ds_dir->dd_pool->dp_spa, tx, "%lld dataset = %llu",
-	    (longlong_t)effective_value, ds->ds_object);
 }
 
 int

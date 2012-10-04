@@ -1182,17 +1182,6 @@ dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 	    !list_is_empty(&os->os_free_dnodes[txg & TXG_MASK]));
 }
 
-boolean_t
-dmu_objset_is_dirty_anywhere(objset_t *os)
-{
-	int t;
-
-	for (t = 0; t < TXG_SIZE; t++)
-		if (dmu_objset_is_dirty(os, t))
-			return (B_TRUE);
-	return (B_FALSE);
-}
-
 static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];
 
 void

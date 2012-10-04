@@ -868,7 +868,7 @@ iput_async(struct inode *ip, taskq_t *taskq)
 {
 	ASSERT(atomic_read(&ip->i_count) > 0);
 	if (atomic_read(&ip->i_count) == 1)
-		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_SLEEP);
+		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_PUSHPAGE);
 	else
 		iput(ip);
 }
@@ -934,7 +934,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		return (ENOENT);
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
 	zgd->zgd_zilog = zsb->z_log;
 	zgd->zgd_private = zp;
 
@@ -1900,13 +1900,13 @@ top:
 out:
 	zfs_dirent_unlock(dl);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	iput(ip);
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
@@ -3848,7 +3848,16 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (err == ERESTART)
 			dmu_tx_wait(tx);
 
+		/* Will call all registered commit callbacks */
 		dmu_tx_abort(tx);
+
+		/*
+		 * For the synchronous case the commit callback must be
+		 * explicitly called because there is no registered callback.
+		 */
+		if (sync)
+			zfs_putpage_commit_cb(pp, ECANCELED);
+
 		return (err);
 	}
 

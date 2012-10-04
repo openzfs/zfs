@@ -901,8 +901,18 @@ zvol_last_close(zvol_state_t *zv)
 {
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
+
 	dmu_buf_rele(zv->zv_dbuf, zvol_tag);
 	zv->zv_dbuf = NULL;
+
+	/*
+	 * Evict cached data
+	 */
+	if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
+	    !(zv->zv_flags & ZVOL_RDONLY))
+		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
+	(void) dmu_objset_evict_dbufs(zv->zv_objset);
+
 	dmu_objset_disown(zv->zv_objset, zvol_tag);
 	zv->zv_objset = NULL;
 }
@@ -1065,7 +1075,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : ERR_PTR(-ENOENT);
+	kobj = zv ? get_disk(zv->zv_disk) : NULL;
 	mutex_exit(&zvol_state_lock);
 
 	return kobj;

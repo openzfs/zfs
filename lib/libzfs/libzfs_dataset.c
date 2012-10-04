@@ -3700,7 +3700,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	    zhp->zfs_type == ZFS_TYPE_VOLUME);
 
 	/*
-	 * Destroy all recent snapshots and its dependends.
+	 * Destroy all recent snapshots and their dependents.
 	 */
 	cb.cb_force = force;
 	cb.cb_target = snap->zfs_name;
