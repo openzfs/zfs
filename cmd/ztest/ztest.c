@@ -5900,12 +5900,13 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 {
 	pid_t pid;
 	int status;
-	char cmdbuf[MAXPATHLEN];
+	char *cmdbuf = NULL;
 
 	pid = fork();
 
 	if (cmd == NULL) {
-		(void) strlcpy(cmdbuf, getexecname(), sizeof (cmdbuf));
+		cmdbuf = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+		(void) strlcpy(cmdbuf, getexecname(), MAXPATHLEN);
 		cmd = cmdbuf;
 	}
 
@@ -5929,6 +5930,11 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 		(void) execv(cmd, emptyargv);
 		ztest_dump_core = B_FALSE;
 		fatal(B_TRUE, "exec failed: %s", cmd);
+	}
+
+	if (cmdbuf != NULL) {
+		umem_free(cmdbuf, MAXPATHLEN);
+		cmd = NULL;
 	}
 
 	while (waitpid(pid, &status, 0) != pid)
@@ -5997,7 +6003,7 @@ main(int argc, char **argv)
 	char timebuf[100];
 	char numbuf[6];
 	spa_t *spa;
-	char cmd[MAXNAMELEN];
+	char *cmd;
 	boolean_t hasalt;
 	int f;
 	char *fd_data_str = getenv("ZTEST_FD_DATA");
@@ -6054,7 +6060,8 @@ main(int argc, char **argv)
 		    (u_longlong_t)ztest_opts.zo_time);
 	}
 
-	(void) strlcpy(cmd, getexecname(), sizeof (cmd));
+	cmd = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
+	(void) strlcpy(cmd, getexecname(), MAXNAMELEN);
 
 	zs->zs_do_init = B_TRUE;
 	if (strlen(ztest_opts.zo_alt_ztest) != 0) {
@@ -6194,6 +6201,8 @@ main(int argc, char **argv)
 		(void) printf("%d killed, %d completed, %.0f%% kill rate\n",
 		    kills, iters - kills, (100.0 * kills) / MAX(1, iters));
 	}
+
+	umem_free(cmd, MAXNAMELEN);
 
 	return (0);
 }
