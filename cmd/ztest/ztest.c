@@ -736,7 +736,7 @@ process_options(int argc, char **argv)
 		char *isa;
 		int isalen;
 
-		(void) realpath(getexecname(), cmd);
+		VERIFY(NULL != realpath(getexecname(), cmd));
 		if (0 != access(altdir, F_OK)) {
 			ztest_dump_core = B_FALSE;
 			fatal(B_TRUE, "invalid alternate ztest path: %s",
@@ -6030,8 +6030,8 @@ main(int argc, char **argv)
 	ASSERT3U(ztest_opts.zo_datasets, ==, ztest_shared_hdr->zh_ds_count);
 
 	/* Override location of zpool.cache */
-	(void) asprintf((char **)&spa_config_path, "%s/zpool.cache",
-	    ztest_opts.zo_dir);
+	VERIFY(asprintf((char **)&spa_config_path, "%s/zpool.cache",
+	    ztest_opts.zo_dir) != -1);
 
 	ztest_ds = umem_alloc(ztest_opts.zo_datasets * sizeof (ztest_ds_t),
 	    UMEM_NOFAIL);
