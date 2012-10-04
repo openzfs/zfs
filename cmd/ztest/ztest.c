@@ -5819,11 +5819,11 @@ ztest_init(ztest_shared_t *zs)
 static void
 setup_data_fd(void)
 {
-	char *tmp = tempnam(NULL, NULL);
-	ztest_fd_data = open(tmp, O_RDWR | O_CREAT, 0700);
+	static char ztest_name_data[] = "/tmp/ztest.data.XXXXXX";
+
+	ztest_fd_data = mkstemp(ztest_name_data);
 	ASSERT3S(ztest_fd_data, >=, 0);
-	(void) unlink(tmp);
-	free(tmp);
+	(void) unlink(ztest_name_data);
 }
 
 static int
