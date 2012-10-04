@@ -597,8 +597,8 @@ zvol_discard(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	uint64_t offset = blk_rq_pos(req) << 9;
-	uint64_t size = blk_rq_bytes(req);
+	uint64_t start = blk_rq_pos(req) << 9;
+	uint64_t end = start + blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
 
@@ -610,19 +610,28 @@ zvol_discard(void *arg)
 	ASSERT(!(current->flags & PF_NOFS));
 	current->flags |= PF_NOFS;
 
-	if (offset + size > zv->zv_volsize) {
-		blk_end_request(req, -EIO, size);
+	if (end > zv->zv_volsize) {
+		blk_end_request(req, -EIO, blk_rq_bytes(req));
 		goto out;
 	}
 
-	if (size == 0) {
-		blk_end_request(req, 0, size);
+	/*
+	 * Align the request to volume block boundaries. If we don't,
+	 * then this will force dnode_free_range() to zero out the
+	 * unaligned parts, which is slow (read-modify-write) and
+	 * useless since we are not freeing any space by doing so.
+	 */
+	start = P2ROUNDUP(start, zv->zv_volblocksize);
+	end = P2ALIGN(end, zv->zv_volblocksize);
+
+	if (start >= end) {
+		blk_end_request(req, 0, blk_rq_bytes(req));
 		goto out;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_znode, start, end - start, RL_WRITER);
 
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, end - start);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
@@ -630,7 +639,7 @@ zvol_discard(void *arg)
 
 	zfs_range_unlock(rl);
 
-	blk_end_request(req, -error, size);
+	blk_end_request(req, -error, blk_rq_bytes(req));
 out:
 	current->flags &= ~PF_NOFS;
 }
