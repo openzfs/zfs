@@ -291,6 +291,12 @@ trim_map_free(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
 	if (zfs_notrim || vd->vdev_notrim || tm == NULL)
 		return;
 
+	/*
+	 * Free as much as we can. This increases TRIM efficiency and
+	 * allows successful batching.
+	 */
+	size = vdev_psize_to_asize(vd, size);
+
 	mutex_enter(&tm->tm_lock);
 	trim_map_free_locked(tm, offset, offset + size,
 	    txg);
