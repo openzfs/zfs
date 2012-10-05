@@ -1159,6 +1159,7 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
+	int error = 0;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	if (zv == NULL)
@@ -1167,6 +1168,15 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
+
+#ifdef HAVE_ELEVATOR_CHANGE
+	error = elevator_change(zv->zv_queue, "noop");
+#endif /* HAVE_ELEVATOR_CHANGE */
+	if (error) {
+		printk("ZFS: Unable to set \"%s\" scheduler for zvol %s: %d\n",
+		    "noop", name, error);
+		goto out_queue;
+	}
 
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
