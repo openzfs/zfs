@@ -466,7 +466,8 @@ trim_map_commit(spa_t *spa, zio_t *zio, vdev_t *vd)
 {
 	int c;
 
-	if (vd == NULL || spa_last_synced_txg(spa) <= trim_txg_limit)
+	if (vd == NULL || spa_last_synced_txg(spa) <= trim_txg_limit ||
+	    spa_freeze_txg(spa) <= trim_txg_limit)
 		return;
 
 	if (vd->vdev_ops->vdev_op_leaf) {
