@@ -582,9 +582,14 @@ retry:
 					nr_iovecs++;
 				nr_iovecs = MIN(nr_iovecs,
 				    max_discard_size / PAGE_SIZE);
+			} else {
+				/*
+				 * Some block device drivers don't like it when there's
+				 * no iovec, even if it makes no sense to have one.
+				 * (see blk_add_request_payload())
+				 */
+				nr_iovecs = 1;
 			}
-			else
-				nr_iovecs = 0;
 		} else
 #endif
 			nr_iovecs = bio_nr_pages(bio_ptr, bio_size);
