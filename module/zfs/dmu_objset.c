@@ -848,7 +848,7 @@ snapshot_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (strlen(sn->htag) + MAX_TAG_PREFIX_LEN >= MAXNAMELEN)
 			return (E2BIG);
 
-		sn->ha = kmem_alloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
+		sn->ha = kmem_alloc(sizeof(struct dsl_ds_holdarg), KM_PUSHPAGE);
 		sn->ha->temphold = B_TRUE;
 		sn->ha->htag = sn->htag;
 	}
