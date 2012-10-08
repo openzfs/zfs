@@ -675,3 +675,8 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_immediate_write_sz, long, 0644);
+MODULE_PARM_DESC(zfs_immediate_write_sz, "Largest data block to write to zil");
+#endif
