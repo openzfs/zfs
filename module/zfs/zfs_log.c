@@ -449,7 +449,7 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 /*
  * zfs_log_write() handles TX_WRITE transactions.
  */
-ssize_t zfs_immediate_write_sz = 32768;
+long zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
@@ -464,7 +464,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		return;
 
 	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
-	    ? 0 : zfs_immediate_write_sz;
+	    ? 0 : (ssize_t)zfs_immediate_write_sz;
 
 	slogging = spa_has_slogs(zilog->zl_spa) &&
 	    (zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
@@ -675,3 +675,8 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_immediate_write_sz, long, 0644);
+MODULE_PARM_DESC(zfs_immediate_write_sz, "Largest data block to write to zil");
+#endif
