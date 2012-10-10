@@ -46,6 +46,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/dsl_synctask.c \
 	$(top_srcdir)/module/zfs/fm.c \
 	$(top_srcdir)/module/zfs/gzip.c \
+	$(top_srcdir)/module/zfs/lz4.c \
 	$(top_srcdir)/module/zfs/lzjb.c \
 	$(top_srcdir)/module/zfs/metaslab.c \
 	$(top_srcdir)/module/zfs/refcount.c \
