@@ -174,7 +174,7 @@ tsd_hash_add(tsd_hash_table_t *table, uint_t key, pid_t pid, void *value)
 	ASSERT3P(tsd_hash_search(table, key, pid), ==, NULL);
 
 	/* New entry allocate structure, set value, and add to hash */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_SLEEP);
+	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		SRETURN(ENOMEM);
 
@@ -234,7 +234,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
 	ASSERT3P(table, !=, NULL);
 
 	/* Allocate entry to be used as a destructor for this key */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_SLEEP);
+	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		SRETURN(ENOMEM);
 
@@ -293,7 +293,7 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 	SENTRY;
 
 	/* Allocate entry to be used as the process reference */
-	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_SLEEP);
+	entry = kmem_alloc(sizeof(tsd_hash_entry_t), KM_PUSHPAGE);
 	if (entry == NULL)
 		SRETURN(ENOMEM);
 
