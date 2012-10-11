@@ -83,6 +83,12 @@ extern kern_path_parent_t kern_path_parent_fn;
 # define spl_kern_path_parent(path, nd)	path_lookup(path, LOOKUP_PARENT, nd)
 #endif /* HAVE_KERN_PATH_PARENT_HEADER */
 
+#ifdef HAVE_KERN_PATH_LOCKED
+typedef struct dentry * (*kern_path_locked_t)(const char *, struct path *);
+extern kern_path_locked_t kern_path_locked_fn;
+# define spl_kern_path_locked(name, path)	kern_path_locked_fn(name, path)
+#endif /* HAVE_KERN_PATH_LOCKED */
+
 #ifndef HAVE_CLEAR_CLOSE_ON_EXEC
 #define __clear_close_on_exec(fd, fdt)	FD_CLR(fd, fdt->close_on_exec)
 #endif

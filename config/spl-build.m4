@@ -86,6 +86,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_SHRINK_ICACHE_MEMORY
 	SPL_AC_KERN_PATH_PARENT_HEADER
 	SPL_AC_KERN_PATH_PARENT_SYMBOL
+	SPL_AC_KERN_PATH_LOCKED
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 	SPL_AC_SHRINK_CONTROL_STRUCT
 	SPL_AC_RWSEM_SPINLOCK_IS_RAW
@@ -2185,6 +2186,21 @@ AC_DEFUN([SPL_AC_KERN_PATH_PARENT_SYMBOL],
 	], [
 		AC_MSG_RESULT(no)
 	])
+])
+
+dnl #
+dnl # 3.6 API compat,
+dnl # The kern_path_parent() function was replaced by the kern_path_locked()
+dnl # function to eliminate all struct nameidata usage outside fs/namei.c.
+dnl #
+AC_DEFUN([SPL_AC_KERN_PATH_LOCKED], [
+	SPL_CHECK_SYMBOL_HEADER(
+		[kern_path_locked],
+		[struct dentry \*kern_path_locked(const char \*, struct path \*)],
+		[include/linux/namei.h],
+		[AC_DEFINE(HAVE_KERN_PATH_LOCKED, 1,
+		[kern_path_locked() is available])],
+		[])
 ])
 
 dnl #
