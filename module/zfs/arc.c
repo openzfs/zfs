@@ -147,10 +147,6 @@ static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
-extern int zfs_write_limit_shift;
-extern uint64_t zfs_write_limit_max;
-extern kmutex_t zfs_write_limit_lock;
-
 /* number of bytes to prune from caches when at arc_meta_limit is reached */
 uint_t arc_meta_prune = 1048576;
 
