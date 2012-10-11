@@ -71,8 +71,6 @@ int dsl_scan_delay_completion = B_FALSE; /* set to delay scan completion */
 	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
 	(scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
 
-extern int zfs_txg_timeout;
-
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
@@ -1813,7 +1811,4 @@ MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
 
 module_param(zfs_no_scrub_prefetch, int, 0644);
 MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
-
-module_param(zfs_txg_timeout, int, 0644);
-MODULE_PARM_DESC(zfs_txg_timeout, "Max seconds worth of delta per txg");
 #endif

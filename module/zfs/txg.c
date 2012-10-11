@@ -395,8 +395,10 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	start = delta = 0;
 	for (;;) {
-		uint64_t timer, timeout = zfs_txg_timeout * hz;
+		uint64_t timer, timeout;
 		uint64_t txg;
+
+		timeout = zfs_txg_timeout * hz;
 
 		/*
 		 * We sync when we're scanning, there's someone waiting
@@ -773,4 +775,7 @@ EXPORT_SYMBOL(txg_wait_open);
 EXPORT_SYMBOL(txg_wait_callbacks);
 EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
+
+module_param(zfs_txg_timeout, int, 0644);
+MODULE_PARM_DESC(zfs_txg_timeout, "Max seconds worth of delta per txg");
 #endif
