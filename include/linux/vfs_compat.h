@@ -131,4 +131,14 @@ typedef	int		zpl_umode_t;
 #define clear_inode(ip)		end_writeback(ip)
 #endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
 
+/*
+ * 3.6 API change,
+ * The sget() helper function now takes the mount flags as an argument.
+ */
+#ifdef HAVE_5ARG_SGET
+#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, fl, mtd)
+#else
+#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, mtd)
+#endif /* HAVE_5ARG_SGET */
+
 #endif /* _ZFS_VFS_H */

@@ -920,8 +920,8 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 		 * race cannot occur to an expired mount point because
 		 * we hold the zsb->z_ctldir_lock to prevent the race.
 		 */
-		sbp = sget(&zpl_fs_type, zfsctl_test_super,
-		    zfsctl_set_super, &id);
+		sbp = zpl_sget(&zpl_fs_type, zfsctl_test_super,
+		    zfsctl_set_super, 0, &id);
 		if (IS_ERR(sbp)) {
 			error = -PTR_ERR(sbp);
 		} else {
