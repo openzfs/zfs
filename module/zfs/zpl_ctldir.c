@@ -143,7 +143,11 @@ zpl_root_getattr(struct vfsmount *mnt, struct dentry *dentry,
 }
 
 static struct dentry *
+#ifdef HAVE_LOOKUP_NAMEIDATA
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, struct nameidata *nd)
+#else
+zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -180,8 +184,14 @@ const struct inode_operations zpl_ops_root = {
 };
 
 static struct dentry *
+#ifdef HAVE_LOOKUP_NAMEIDATA
 zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
     struct nameidata *nd)
+#else
+zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
+    unsigned int flags)
+#endif
+
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -410,8 +420,13 @@ const struct dentry_operations zpl_dops_snapdirs = {
 #endif /* HAVE_AUTOMOUNT */
 
 static struct dentry *
+#ifdef HAVE_LOOKUP_NAMEIDATA
 zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
     struct nameidata *nd)
+#else
+zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
+    unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
