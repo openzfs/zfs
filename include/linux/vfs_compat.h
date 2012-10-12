@@ -115,7 +115,7 @@ set_nlink(struct inode *inode, unsigned int nlink)
  * umode_t type rather than an int.  To cleanly handle both definitions
  * the zpl_umode_t type is introduced and set accordingly.
  */
-#ifdef HAVE_CREATE_UMODE_T
+#ifdef HAVE_MKDIR_UMODE_T
 typedef	umode_t		zpl_umode_t;
 #else
 typedef	int		zpl_umode_t;
