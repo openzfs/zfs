@@ -75,8 +75,13 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
 }
 
 static int
+#ifdef HAVE_CREATE_NAMEIDATA
 zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
     struct nameidata *nd)
+#else
+zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
+    bool flag)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
