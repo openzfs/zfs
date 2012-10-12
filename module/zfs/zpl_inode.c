@@ -31,7 +31,11 @@
 
 
 static struct dentry *
+#ifdef HAVE_LOOKUP_NAMEIDATA
 zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
+#else
+zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
