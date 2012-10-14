@@ -316,7 +316,6 @@ const struct super_operations zpl_super_operations = {
 	.delete_inode		= zpl_inode_delete,
 #endif /* HAVE_EVICT_INODE */
 	.put_super		= zpl_put_super,
-	.write_super		= NULL,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
