@@ -115,7 +115,7 @@ set_nlink(struct inode *inode, unsigned int nlink)
  * umode_t type rather than an int.  To cleanly handle both definitions
  * the zpl_umode_t type is introduced and set accordingly.
  */
-#ifdef HAVE_CREATE_UMODE_T
+#ifdef HAVE_MKDIR_UMODE_T
 typedef	umode_t		zpl_umode_t;
 #else
 typedef	int		zpl_umode_t;
@@ -130,5 +130,15 @@ typedef	int		zpl_umode_t;
 #if defined(HAVE_EVICT_INODE) && !defined(HAVE_CLEAR_INODE)
 #define clear_inode(ip)		end_writeback(ip)
 #endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
+
+/*
+ * 3.6 API change,
+ * The sget() helper function now takes the mount flags as an argument.
+ */
+#ifdef HAVE_5ARG_SGET
+#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, fl, mtd)
+#else
+#define zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, mtd)
+#endif /* HAVE_5ARG_SGET */
 
 #endif /* _ZFS_VFS_H */
