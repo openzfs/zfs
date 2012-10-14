@@ -952,7 +952,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	if (zsb->z_shares_dir == 0) {
 		ZFS_EXIT(zsb);
-		return (-ENOTSUP);
+		return (ENOTSUP);
 	}
 
 	error = zfs_zget(zsb, zsb->z_shares_dir, &dzp);
