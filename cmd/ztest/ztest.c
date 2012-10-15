@@ -5289,11 +5289,13 @@ ztest_resume_thread(void *arg)
 
 #define GRACE	300
 
+#if 0
 static void
 ztest_deadman_alarm(int sig)
 {
 	fatal(0, "failed to complete within %d seconds of deadline", GRACE);
 }
+#endif
 
 static void
 ztest_execute(int test, ztest_info_t *zi, uint64_t id)
@@ -5550,11 +5552,13 @@ ztest_run(ztest_shared_t *zs)
 	    (thread_func_t)ztest_resume_thread, spa, TS_RUN, NULL, 0, 0,
 	    PTHREAD_CREATE_JOINABLE)), !=, NULL);
 
+#if 0
 	/*
 	 * Set a deadman alarm to abort() if we hang.
 	 */
 	signal(SIGALRM, ztest_deadman_alarm);
 	alarm((zs->zs_thread_stop - zs->zs_thread_start) / NANOSEC + GRACE);
+#endif
 
 	/*
 	 * Verify that we can safely inquire about about any object,
