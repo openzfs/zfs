@@ -1257,6 +1257,8 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 void *
 arc_data_buf_alloc(uint64_t size)
 {
+	ASSERT(MUTEX_HELD(&arc_reclaim_thr_lock));
+
 	if (arc_evict_needed(ARC_BUFC_DATA))
 		cv_signal(&arc_reclaim_thr_cv);
 	atomic_add_64(&arc_size, size);
@@ -2501,6 +2503,7 @@ arc_get_data_buf(arc_buf_t *buf)
 			 * prune callback in run in the context of the reclaim
 			 * thread to avoid deadlocking on the hash_lock.
 			 */
+			ASSERT(MUTEX_HELD(&arc_reclaim_thr_lock));
 			cv_signal(&arc_reclaim_thr_cv);
 		} else {
 			ASSERT(type == ARC_BUFC_DATA);
@@ -2777,14 +2780,14 @@ arc_read_done(zio_t *zio)
 		freeable = refcount_is_zero(&hdr->b_refcnt);
 	}
 
-	/*
-	 * Broadcast before we drop the hash_lock to avoid the possibility
-	 * that the hdr (and hence the cv) might be freed before we get to
-	 * the cv_broadcast().
-	 */
-	cv_broadcast(&hdr->b_cv);
 
 	if (hash_lock) {
+		/*
+		 * Broadcast before we drop the hash_lock to avoid the
+		 * possibility that the hdr (and hence the cv) might be
+		 * freed before we get to the cv_broadcast().
+		 */
+		cv_broadcast(&hdr->b_cv);
 		mutex_exit(hash_lock);
 	} else {
 		/*
