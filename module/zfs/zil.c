@@ -1560,13 +1560,14 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	zil_commit_writer(zilog);
 	zilog->zl_com_batch = mybatch;
 	zilog->zl_writer = B_FALSE;
-	mutex_exit(&zilog->zl_lock);
 
 	/* wake up one thread to become the next writer */
 	cv_signal(&zilog->zl_cv_batch[(mybatch+1) & 1]);
 
 	/* wake up all threads waiting for this batch to be committed */
 	cv_broadcast(&zilog->zl_cv_batch[mybatch & 1]);
+
+	mutex_exit(&zilog->zl_lock);
 }
 
 /*
