@@ -79,6 +79,21 @@ extern void atomic_add_64(volatile uint64_t *, int64_t);
 #endif
 
 /*
+ * Substract delta from target
+ */
+extern void atomic_sub_8(volatile uint8_t *, int8_t);
+extern void atomic_sub_char(volatile uchar_t *, signed char);
+extern void atomic_sub_16(volatile uint16_t *, int16_t);
+extern void atomic_sub_short(volatile ushort_t *, short);
+extern void atomic_sub_32(volatile uint32_t *, int32_t);
+extern void atomic_sub_int(volatile uint_t *, int);
+extern void atomic_sub_ptr(volatile void *, ssize_t);
+extern void atomic_sub_long(volatile ulong_t *, long);
+#if defined(_INT64_TYPE)
+extern void atomic_sub_64(volatile uint64_t *, int64_t);
+#endif
+
+/*
  * logical OR bits with target
  */
 extern void atomic_or_8(volatile uint8_t *, uint8_t);
@@ -155,6 +170,21 @@ extern void *atomic_add_ptr_nv(volatile void *, ssize_t);
 extern ulong_t atomic_add_long_nv(volatile ulong_t *, long);
 #if defined(_INT64_TYPE)
 extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
+#endif
+
+/*
+ * Substract delta from target
+ */
+extern uint8_t atomic_sub_8_nv(volatile uint8_t *, int8_t);
+extern uchar_t atomic_sub_char_nv(volatile uchar_t *, signed char);
+extern uint16_t atomic_sub_16_nv(volatile uint16_t *, int16_t);
+extern ushort_t atomic_sub_short_nv(volatile ushort_t *, short);
+extern uint32_t atomic_sub_32_nv(volatile uint32_t *, int32_t);
+extern uint_t atomic_sub_int_nv(volatile uint_t *, int);
+extern void *atomic_sub_ptr_nv(volatile void *, ssize_t);
+extern ulong_t atomic_sub_long_nv(volatile ulong_t *, long);
+#if defined(_INT64_TYPE)
+extern uint64_t atomic_sub_64_nv(volatile uint64_t *, int64_t);
 #endif
 
 /*
