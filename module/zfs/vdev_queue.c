@@ -201,7 +201,7 @@ vdev_queue_io_to_issue(vdev_queue_t *vq, uint64_t pending_limit)
 	avl_tree_t *t;
 	vdev_io_t *vi;
 	int flags;
-	uint64_t maxspan = zfs_vdev_aggregation_limit;
+	uint64_t maxspan = MIN(zfs_vdev_aggregation_limit, SPA_MAXBLOCKSIZE);
 	uint64_t maxgap;
 	int stretch;
 
@@ -312,7 +312,7 @@ again:
 
 	if (fio != lio) {
 		uint64_t size = IO_SPAN(fio, lio);
-		ASSERT(size <= zfs_vdev_aggregation_limit);
+		ASSERT(size <= maxspan);
 		ASSERT(vi != NULL);
 
 		aio = zio_vdev_delegated_io(fio->io_vd, fio->io_offset,
