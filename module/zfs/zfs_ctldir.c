@@ -681,7 +681,7 @@ zfsctl_snapdir_inactive(struct inode *ip)
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
 	"     2>/dev/null; " \
-	"umount -t zfs -n %s%s"
+	"umount -t zfs -n '%s%s'"
 
 static int
 __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
@@ -781,7 +781,7 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
 	"     2>/dev/null; " \
-	"mount -t zfs -n %s %s"
+	"mount -t zfs -n '%s' '%s'"
 
 int
 zfsctl_mount_snapshot(struct path *path, int flags)
