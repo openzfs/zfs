@@ -984,9 +984,7 @@ err_blkid1:
 }
 #endif /* HAVE_LIBBLKID */
 
-#define DEFAULT_IMPORT_PATH_SIZE	8
-
-static char *
+char *
 zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 	"/dev/disk/by-vdev",	/* Custom rules, use first if they exist */
 	"/dev/disk/zpool",	/* Custom rules, use first if they exist */
