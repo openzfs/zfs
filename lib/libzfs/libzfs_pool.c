@@ -1744,10 +1744,11 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		/*
 		 * Search for the requested value. Special cases:
 		 *
-		 * - ZPOOL_CONFIG_PATH for whole disk entries.  These end in with a
-		 *   partition suffix "1", "-part1", or "p1".  The suffix is  hidden
-		 *   from the user, but included in the string, so this matches around
-		 *   it.
+		 * - ZPOOL_CONFIG_PATH for whole disk entries.  These end in
+		 *   "-part1", or "p1".  The suffix is hidden from the user,
+		 *   but included in the string, so this matches around it.
+		 * - ZPOOL_CONFIG_PATH for short names zfs_strcmp_shortname()
+		 *   is used to check all possible expanded paths.
 		 * - looking for a top-level vdev name (i.e. ZPOOL_CONFIG_TYPE).
 		 *
 		 * Otherwise, all other searches are simple string compares.
@@ -1757,15 +1758,9 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 			    &wholedisk);
-			if (wholedisk) {
-				char buf[MAXPATHLEN];
+			if (zfs_strcmp_pathname(srchval, val, wholedisk) == 0)
+				return (nv);
 
-				zfs_append_partition(srchval, buf, sizeof (buf));
-				if (strcmp(val, buf) == 0)
-					return (nv);
-
-				break;
-			}
 		} else if (strcmp(srchkey, ZPOOL_CONFIG_TYPE) == 0 && val) {
 			char *type, *idx, *end, *p;
 			uint64_t id, vdev_id;
@@ -1916,7 +1911,6 @@ nvlist_t *
 zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
     boolean_t *l2cache, boolean_t *log)
 {
-	char buf[MAXPATHLEN];
 	char *end;
 	nvlist_t *nvroot, *search, *ret;
 	uint64_t guid;
@@ -1928,12 +1922,6 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 		verify(nvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid) == 0);
 	} else if (zpool_vdev_is_interior(path)) {
 		verify(nvlist_add_string(search, ZPOOL_CONFIG_TYPE, path) == 0);
-	} else if (path[0] != '/') {
-		if (zfs_resolve_shortname(path, buf, sizeof (buf)) < 0) {
-			nvlist_free(search);
-			return (NULL);
-		}
-		verify(nvlist_add_string(search, ZPOOL_CONFIG_PATH, buf) == 0);
 	} else {
 		verify(nvlist_add_string(search, ZPOOL_CONFIG_PATH, path) == 0);
 	}
@@ -3701,7 +3689,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (err);
 
-	(void) snprintf(diskname, sizeof (diskname), "%s%s", RDISK_ROOT,
+	(void) snprintf(diskname, sizeof (diskname), "%s%s", DISK_ROOT,
 	    strrchr(path, '/'));
 	if ((fd = open(diskname, O_RDWR|O_DIRECT)) >= 0) {
 		struct dk_gpt *vtoc;
@@ -3839,8 +3827,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		start_block = NEW_START_BLOCK;
 	}
 
-	(void) snprintf(path, sizeof (path), "%s/%s%s", RDISK_ROOT, name,
-	    BACKUP_SLICE);
+	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
 
 	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
 		/*
@@ -3910,9 +3897,11 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	(void) close(fd);
 	efi_free(vtoc);
 
-	/* Wait for the first expected slice to appear. */
-	(void) snprintf(path, sizeof (path), "%s/%s%s%s", DISK_ROOT, name,
-	    isdigit(name[strlen(name)-1]) ? "p" : "", FIRST_SLICE);
+	/* Wait for the first expected partition to appear. */
+
+	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	(void) zfs_append_partition(path, MAXPATHLEN);
+
 	rval = zpool_label_disk_wait(path, 3000);
 	if (rval) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "failed to "
