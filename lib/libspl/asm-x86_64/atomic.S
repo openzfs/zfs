@@ -232,6 +232,40 @@
 	SET_SIZE(atomic_add_ptr)
 	SET_SIZE(atomic_add_64)
 
+	ENTRY(atomic_sub_8)
+	ALTENTRY(atomic_sub_char)
+	lock
+	subb	%sil, (%rdi)
+	ret
+	SET_SIZE(atomic_sub_char)
+	SET_SIZE(atomic_sub_8)
+
+	ENTRY(atomic_sub_16)
+	ALTENTRY(atomic_sub_short)
+	lock
+	subw	%si, (%rdi)
+	ret
+	SET_SIZE(atomic_sub_short)
+	SET_SIZE(atomic_sub_16)
+
+	ENTRY(atomic_sub_32)
+	ALTENTRY(atomic_sub_int)
+	lock
+	subl	%esi, (%rdi)
+	ret
+	SET_SIZE(atomic_sub_int)
+	SET_SIZE(atomic_sub_32)
+
+	ENTRY(atomic_sub_64)
+	ALTENTRY(atomic_sub_ptr)
+	ALTENTRY(atomic_sub_long)
+	lock
+	subq	%rsi, (%rdi)
+	ret
+	SET_SIZE(atomic_sub_long)
+	SET_SIZE(atomic_sub_ptr)
+	SET_SIZE(atomic_sub_64)
+
 	ENTRY(atomic_or_8)
 	ALTENTRY(atomic_or_uchar)
 	lock
@@ -353,6 +387,64 @@
 	SET_SIZE(atomic_add_long_nv)
 	SET_SIZE(atomic_add_ptr_nv)
 	SET_SIZE(atomic_add_64_nv)
+
+	ENTRY(atomic_sub_8_nv)
+	ALTENTRY(atomic_sub_char_nv)
+	movb	(%rdi), %al
+1:
+	movb	%sil, %cl
+	subb	%al, %cl
+	lock
+	cmpxchgb %cl, (%rdi)
+	jne	1b
+	movzbl	%cl, %eax
+	ret
+	SET_SIZE(atomic_sub_char_nv)
+	SET_SIZE(atomic_sub_8_nv)
+
+	ENTRY(atomic_sub_16_nv)
+	ALTENTRY(atomic_sub_short_nv)
+	movw	(%rdi), %ax
+1:
+	movw	%si, %cx
+	subw	%ax, %cx
+	lock
+	cmpxchgw %cx, (%rdi)
+	jne	1b
+	movzwl	%cx, %eax
+	ret
+	SET_SIZE(atomic_sub_short_nv)
+	SET_SIZE(atomic_sub_16_nv)
+
+	ENTRY(atomic_sub_32_nv)
+	ALTENTRY(atomic_sub_int_nv)
+	movl	(%rdi), %eax
+1:
+	movl	%esi, %ecx
+	subl	%eax, %ecx
+	lock
+	cmpxchgl %ecx, (%rdi)
+	jne	1b
+	movl	%ecx, %eax
+	ret
+	SET_SIZE(atomic_sub_int_nv)
+	SET_SIZE(atomic_sub_32_nv)
+
+	ENTRY(atomic_sub_64_nv)
+	ALTENTRY(atomic_sub_ptr_nv)
+	ALTENTRY(atomic_sub_long_nv)
+	movq	(%rdi), %rax
+1:
+	movq	%rsi, %rcx
+	subq	%rax, %rcx
+	lock
+	cmpxchgq %rcx, (%rdi)
+	jne	1b
+	movq	%rcx, %rax
+	ret
+	SET_SIZE(atomic_sub_long_nv)
+	SET_SIZE(atomic_sub_ptr_nv)
+	SET_SIZE(atomic_sub_64_nv)
 
 	ENTRY(atomic_and_8_nv)
 	ALTENTRY(atomic_and_uchar_nv)

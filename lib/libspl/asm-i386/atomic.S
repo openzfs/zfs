@@ -271,6 +271,40 @@
 	SET_SIZE(atomic_add_int)
 	SET_SIZE(atomic_add_32)
 
+	ENTRY(atomic_sub_8)
+	ALTENTRY(atomic_sub_char)
+	movl	4(%esp), %eax
+	movl	8(%esp), %ecx
+	lock
+	subb	%cl, (%eax)
+	ret
+	SET_SIZE(atomic_sub_char)
+	SET_SIZE(atomic_sub_8)
+
+	ENTRY(atomic_sub_16)
+	ALTENTRY(atomic_sub_short)
+	movl	4(%esp), %eax
+	movl	8(%esp), %ecx
+	lock
+	subw	%cx, (%eax)
+	ret
+	SET_SIZE(atomic_sub_short)
+	SET_SIZE(atomic_sub_16)
+
+	ENTRY(atomic_sub_32)
+	ALTENTRY(atomic_sub_int)
+	ALTENTRY(atomic_sub_ptr)
+	ALTENTRY(atomic_sub_long)
+	movl	4(%esp), %eax
+	movl	8(%esp), %ecx
+	lock
+	subl	%ecx, (%eax)
+	ret
+	SET_SIZE(atomic_sub_long)
+	SET_SIZE(atomic_sub_ptr)
+	SET_SIZE(atomic_sub_int)
+	SET_SIZE(atomic_sub_32)
+
 	ENTRY(atomic_or_8)
 	ALTENTRY(atomic_or_uchar)
 	movl	4(%esp), %eax
@@ -384,6 +418,55 @@
 	SET_SIZE(atomic_add_int_nv)
 	SET_SIZE(atomic_add_32_nv)
 
+	ENTRY(atomic_sub_8_nv)
+	ALTENTRY(atomic_sub_char_nv)
+	movl	4(%esp), %edx
+	movb	(%edx), %al
+1:
+	movl	8(%esp), %ecx
+	subb	%al, %cl
+	lock
+	cmpxchgb %cl, (%edx)
+	jne	1b
+	movzbl	%cl, %eax
+	ret
+	SET_SIZE(atomic_sub_char_nv)
+	SET_SIZE(atomic_sub_8_nv)
+
+	ENTRY(atomic_sub_16_nv)
+	ALTENTRY(atomic_sub_short_nv)
+	movl	4(%esp), %edx
+	movw	(%edx), %ax
+1:
+	movl	8(%esp), %ecx
+	subw	%ax, %cx
+	lock
+	cmpxchgw %cx, (%edx)
+	jne	1b
+	movzwl	%cx, %eax
+	ret
+	SET_SIZE(atomic_sub_short_nv)
+	SET_SIZE(atomic_sub_16_nv)
+
+	ENTRY(atomic_sub_32_nv)
+	ALTENTRY(atomic_sub_int_nv)
+	ALTENTRY(atomic_sub_ptr_nv)
+	ALTENTRY(atomic_sub_long_nv)
+	movl	4(%esp), %edx
+	movl	(%edx), %eax
+1:
+	movl	8(%esp), %ecx
+	subl	%eax, %ecx
+	lock
+	cmpxchgl %ecx, (%edx)
+	jne	1b
+	movl	%ecx, %eax
+	ret
+	SET_SIZE(atomic_sub_long_nv)
+	SET_SIZE(atomic_sub_ptr_nv)
+	SET_SIZE(atomic_sub_int_nv)
+	SET_SIZE(atomic_sub_32_nv)
+
 	/*
 	 * NOTE: If atomic_add_64 and atomic_add_64_nv are ever
 	 * separated, it is important to edit the libc i386 platform
@@ -412,6 +495,29 @@
 	ret
 	SET_SIZE(atomic_add_64_nv)
 	SET_SIZE(atomic_add_64)
+
+	ENTRY(atomic_sub_64)
+	ALTENTRY(atomic_sub_64_nv)
+	pushl	%edi
+	pushl	%ebx
+	movl	12(%esp), %edi
+	movl	(%edi), %eax
+	movl	4(%edi), %edx
+1:
+	movl	16(%esp), %ebx
+	movl	20(%esp), %ecx
+	subl	%eax, %ebx
+	adcl	%edx, %ecx
+	lock
+	cmpxchg8b (%edi)
+	jne	1b
+	movl	%ebx, %eax
+	movl	%ecx, %edx
+	popl	%ebx
+	popl	%edi
+	ret
+	SET_SIZE(atomic_sub_64_nv)
+	SET_SIZE(atomic_sub_64)
 
 	ENTRY(atomic_or_8_nv)
 	ALTENTRY(atomic_or_uchar_nv)
