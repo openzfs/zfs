@@ -486,7 +486,7 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 	 */
 	if (remove->r_cnt == 1) {
 		avl_remove(tree, remove);
-		mutex_exit(&zp->z_range_lock);
+
 		if (remove->r_write_wanted)
 			cv_broadcast(&remove->r_wr_cv);
 
@@ -530,7 +530,6 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 			}
 		}
 
-		mutex_exit(&zp->z_range_lock);
 		kmem_free(remove, sizeof (rl_t));
 	}
 }
@@ -554,7 +553,6 @@ zfs_range_unlock(rl_t *rl)
 	if (rl->r_type == RL_WRITER) {
 		/* writer locks can't be shared or split */
 		avl_remove(&zp->z_range_avl, rl);
-		mutex_exit(&zp->z_range_lock);
 		if (rl->r_write_wanted)
 			cv_broadcast(&rl->r_wr_cv);
 
@@ -569,6 +567,7 @@ zfs_range_unlock(rl_t *rl)
 		 */
 		zfs_range_unlock_reader(zp, rl, &free_list);
 	}
+	mutex_exit(&zp->z_range_lock);
 
 	while ((free_rl = list_head(&free_list)) != NULL) {
 		list_remove(&free_list, free_rl);
@@ -599,11 +598,13 @@ zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len)
 	mutex_enter(&zp->z_range_lock);
 	rl->r_off = off;
 	rl->r_len = len;
-	mutex_exit(&zp->z_range_lock);
+
 	if (rl->r_write_wanted)
 		cv_broadcast(&rl->r_wr_cv);
 	if (rl->r_read_wanted)
 		cv_broadcast(&rl->r_rd_cv);
+
+	mutex_exit(&zp->z_range_lock);
 }
 
 /*
