@@ -54,10 +54,6 @@
 #define SPLAT_VNODE_TEST6_NAME		"vn_sync"
 #define SPLAT_VNODE_TEST6_DESC		"Vn_sync Test"
 
-#define SPLAT_VNODE_TEST7_ID		0x0907
-#define SPLAT_VNODE_TEST7_NAME		"vn_getf"
-#define SPLAT_VNODE_TEST7_DESC		"vn_getf/vn_releasef Test"
-
 #define SPLAT_VNODE_TEST_FILE		"/etc/fstab"
 #define SPLAT_VNODE_TEST_FILE_AT	"etc/fstab"
 #define SPLAT_VNODE_TEST_FILE_RW	"/tmp/spl.vnode.tmp"
@@ -394,135 +390,6 @@ out:
         return -rc;
 } /* splat_vnode_test6() */
 
-/* Basically a slightly modified version of sys_close() */
-static int
-fd_uninstall(int fd)
-{
-        struct file *fp;
-        struct files_struct *files = current->files;
-#ifdef HAVE_FILES_FDTABLE
-        struct fdtable *fdt;
-
-        spin_lock(&files->file_lock);
-        fdt = files_fdtable(files);
-
-        if (fd >= fdt->max_fds)
-                goto out_unlock;
-
-        fp = fdt->fd[fd];
-        if (!fp)
-                goto out_unlock;
-
-        rcu_assign_pointer(fdt->fd[fd], NULL);
-	__clear_close_on_exec(fd, fdt);
-#else
-        spin_lock(&files->file_lock);
-        if (fd >= files->max_fds)
-                goto out_unlock;
-
-        fp = files->fd[fd];
-        if (!fp)
-                goto out_unlock;
-
-        files->fd[fd] = NULL;
-        FD_CLR(fd, files->close_on_exec);
-#endif
-        /* Dropping the lock here exposes a minor race but it allows me
-         * to use the existing kernel interfaces for this, and for a test
-         * case I think that's reasonable. */
-        spin_unlock(&files->file_lock);
-        put_unused_fd(fd);
-        return 0;
-
-out_unlock:
-        spin_unlock(&files->file_lock);
-        return -EBADF;
-} /* fd_uninstall() */
-
-static int
-splat_vnode_test7(struct file *file, void *arg)
-{
-	char buf1[32] = "SPL VNode Interface Test File\n";
-	char buf2[32] = "";
-	struct file *lfp;
-	file_t *fp;
-	int rc, fd;
-
-	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST7_NAME)))
-		return rc;
-
-	/* Prep work needed to test getf/releasef */
-	fd = get_unused_fd();
-	if (fd < 0) {
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed to get unused fd (%d)\n", fd);
-		return fd;
-	}
-
-        lfp = filp_open(SPLAT_VNODE_TEST_FILE_RW, O_RDWR|O_CREAT|O_EXCL, 0644);
-	if (IS_ERR(lfp)) {
-		put_unused_fd(fd);
-		rc = PTR_ERR(lfp);
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed to filp_open: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW, rc);
-		return rc;
-	}
-
-	/* Pair up the new fd and lfp in the current context, this allows
-	 * getf to lookup the file struct simply by the known open fd */
-	fd_install(fd, lfp);
-
-	/* Actual getf()/releasef() test */
-	fp = vn_getf(fd);
-	if (fp == NULL) {
-		rc = EINVAL;
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed to getf fd %d: (%d)\n", fd, rc);
-		goto out;
-	}
-
-        rc = vn_rdwr(UIO_WRITE, fp->f_vnode, buf1, strlen(buf1), 0,
-                     UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc) {
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed vn_rdwr write of test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW, rc);
-		goto out;
-	}
-
-        rc = vn_rdwr(UIO_READ, fp->f_vnode, buf2, strlen(buf1), 0,
-                     UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc) {
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed vn_rdwr read of test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW, rc);
-		goto out;
-	}
-
-	if (strncmp(buf1, buf2, strlen(buf1))) {
-		rc = EINVAL;
-		splat_vprint(file, SPLAT_VNODE_TEST7_NAME,
-			     "Failed strncmp data written does not match "
-			     "data read\nWrote: %sRead:  %s\n", buf1, buf2);
-		goto out;
-	}
-
-	rc = 0;
-	splat_vprint(file, SPLAT_VNODE_TEST3_NAME, "Wrote: %s", buf1);
-	splat_vprint(file, SPLAT_VNODE_TEST3_NAME, "Read:  %s", buf2);
-	splat_vprint(file, SPLAT_VNODE_TEST3_NAME, "Successfully wrote and "
-		     "read expected data pattern to test file: %s\n",
-		     SPLAT_VNODE_TEST_FILE_RW);
-out:
-	vn_releasef(fd);
-	fd_uninstall(fd);
-        filp_close(lfp, 0);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
-
-        return -rc;
-} /* splat_vnode_test7() */
-
 splat_subsystem_t *
 splat_vnode_init(void)
 {
@@ -552,8 +419,6 @@ splat_vnode_init(void)
 	                SPLAT_VNODE_TEST5_ID, splat_vnode_test5);
         SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST6_NAME, SPLAT_VNODE_TEST6_DESC,
 	                SPLAT_VNODE_TEST6_ID, splat_vnode_test6);
-        SPLAT_TEST_INIT(sub, SPLAT_VNODE_TEST7_NAME, SPLAT_VNODE_TEST7_DESC,
-	                SPLAT_VNODE_TEST7_ID, splat_vnode_test7);
 
         return sub;
 } /* splat_vnode_init() */
@@ -563,7 +428,6 @@ splat_vnode_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
 
-        SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST7_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST6_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST5_ID);
         SPLAT_TEST_FINI(sub, SPLAT_VNODE_TEST4_ID);
