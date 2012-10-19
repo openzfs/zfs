@@ -1142,14 +1142,15 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 
 			if (config != NULL) {
 				boolean_t matched = B_TRUE;
+				char *pname;
 
-				if (iarg->poolname != NULL) {
-					char *pname;
+				if ((iarg->poolname != NULL) &&
+				    (nvlist_lookup_string(config,
+				    ZPOOL_CONFIG_POOL_NAME, &pname) == 0)) {
 
-					matched = nvlist_lookup_string(config,
-					    ZPOOL_CONFIG_POOL_NAME,
-					    &pname) == 0 &&
-					    strcmp(iarg->poolname, pname) == 0;
+					if (strcmp(iarg->poolname, pname))
+					       matched = B_FALSE;
+
 				} else if (iarg->guid != 0) {
 					uint64_t this_guid;
 
