@@ -533,7 +533,6 @@ retry:
 		if (dr->dr_bio_count == i) {
 			vdev_disk_dio_free(dr);
 			bio_count *= 2;
-			printk("WARNING: Resized bio's/dio to %d\n",bio_count);
 			goto retry;
 		}
 
