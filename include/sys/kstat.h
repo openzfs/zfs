@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/kmem.h>
+#include <sys/mutex.h>
 
 #define KSTAT_STRLEN            31
 
@@ -98,7 +99,7 @@ typedef struct kstat_s {
         struct proc_dir_entry *ks_proc;             /* proc linkage */
         kstat_update_t   *ks_update;                /* dynamic updates */
         void             *ks_private;               /* private data */
-        spinlock_t       ks_lock;                   /* kstat data lock */
+        kmutex_t         ks_lock;                   /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 } kstat_t;
 

@@ -267,10 +267,11 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         ASSERT(ksp->ks_magic == KS_MAGIC);
         SENTRY;
 
+        mutex_enter(&ksp->ks_lock);
+
         /* Dynamically update kstat, on error existing kstats are used */
         (void) ksp->ks_update(ksp, KSTAT_READ);
 
-        spin_lock(&ksp->ks_lock);
 	ksp->ks_snaptime = gethrtime();
 
         if (!n)
@@ -302,7 +303,7 @@ kstat_seq_stop(struct seq_file *f, void *v)
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
 
-        spin_unlock(&ksp->ks_lock);
+        mutex_exit(&ksp->ks_lock);
 }
 
 static struct seq_operations kstat_seq_ops = {
@@ -360,7 +361,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	spin_unlock(&kstat_lock);
 
         ksp->ks_magic = KS_MAGIC;
-	spin_lock_init(&ksp->ks_lock);
+	mutex_init(&ksp->ks_lock, NULL, MUTEX_DEFAULT, NULL);
 	INIT_LIST_HEAD(&ksp->ks_list);
 
 	ksp->ks_crtime = gethrtime();
@@ -445,11 +446,11 @@ __kstat_install(kstat_t *ksp)
 	if (de_name == NULL)
 		SGOTO(out, rc = -EUNATCH);
 
-	spin_lock(&ksp->ks_lock);
+	mutex_enter(&ksp->ks_lock);
 	ksp->ks_proc = de_name;
 	de_name->proc_fops = &proc_kstat_operations;
         de_name->data = (void *)ksp;
-	spin_unlock(&ksp->ks_lock);
+	mutex_exit(&ksp->ks_lock);
 out:
 	if (rc) {
 		spin_lock(&kstat_lock);
@@ -482,6 +483,7 @@ __kstat_delete(kstat_t *ksp)
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
                 kmem_free(ksp->ks_data, ksp->ks_data_size);
 
+	mutex_destroy(&ksp->ks_lock);
 	kmem_free(ksp, sizeof(*ksp));
 
 	return;
