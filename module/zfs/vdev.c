@@ -61,9 +61,6 @@ static vdev_ops_t *vdev_ops_table[] = {
 	NULL
 };
 
-/* maximum scrub/resilver I/O queue per leaf vdev */
-int zfs_scrub_limit = 10;
-
 /*
  * Given a vdev type, return the appropriate ops vector.
  */
@@ -3241,7 +3238,4 @@ EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
-
-module_param(zfs_scrub_limit, int, 0644);
-MODULE_PARM_DESC(zfs_scrub_limit, "Max scrub/resilver I/O per leaf vdev");
 #endif
