@@ -2438,25 +2438,19 @@ zio_vdev_io_start(zio_t *zio)
 
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 
-	/*
-	 * On Linux, we don't care about read alignment. The backing block
-	 * device driver will take care of that for us.
-	 * The only exception is raidz, which needs a full block for parity.
-	 */
-	if (P2PHASE(zio->io_size, align) != 0 &&
-	    (zio->io_type != ZIO_TYPE_READ ||
-	     vd->vdev_ops == &vdev_raidz_ops)) {
+	if (P2PHASE(zio->io_size, align) != 0) {
 		uint64_t asize = P2ROUNDUP(zio->io_size, align);
 		char *abuf = zio_buf_alloc(asize);
+		ASSERT(vd == vd->vdev_top);
 		if (zio->io_type == ZIO_TYPE_WRITE) {
 			bcopy(zio->io_data, abuf, zio->io_size);
 			bzero(abuf + zio->io_size, asize - zio->io_size);
 		}
 		zio_push_transform(zio, abuf, asize, asize, zio_subblock);
-		ASSERT(P2PHASE(zio->io_size, align) == 0);
 	}
 
 	ASSERT(P2PHASE(zio->io_offset, align) == 0);
+	ASSERT(P2PHASE(zio->io_size, align) == 0);
 	VERIFY(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
 
 	/*
