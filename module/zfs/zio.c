@@ -1305,18 +1305,34 @@ __zio_execute(zio_t *zio)
 int
 zio_wait(zio_t *zio)
 {
+	uint64_t timeout;
 	int error;
 
 	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
 	ASSERT(zio->io_executor == NULL);
 
 	zio->io_waiter = curthread;
+	timeout = ddi_get_lbolt() + (zio_delay_max / MILLISEC * hz);
 
 	__zio_execute(zio);
 
 	mutex_enter(&zio->io_lock);
-	while (zio->io_executor != NULL)
-		cv_wait(&zio->io_cv, &zio->io_lock);
+	while (zio->io_executor != NULL) {
+		/*
+		 * Wake up periodically to prevent the kernel from complaining
+		 * about a blocked task.  However, check zio_delay_max to see
+		 * if the I/O has exceeded the timeout and post an ereport.
+		 */
+		cv_timedwait_interruptible(&zio->io_cv, &zio->io_lock,
+		    ddi_get_lbolt() + hz);
+
+		if (timeout && (ddi_get_lbolt() > timeout)) {
+			zio->io_delay = zio_delay_max;
+			zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
+			    zio->io_spa, zio->io_vd, zio, 0, 0);
+			timeout = 0;
+		}
+	}
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;
@@ -2889,15 +2905,11 @@ zio_done(zio_t *zio)
 	vdev_stat_update(zio, zio->io_size);
 
 	/*
-	 * If this I/O is attached to a particular vdev is slow, exeeding
-	 * 30 seconds to complete, post an error described the I/O delay.
-	 * We ignore these errors if the device is currently unavailable.
+	 * When an I/O completes but was slow post an ereport.
 	 */
-	if (zio->io_delay >= zio_delay_max) {
-		if (zio->io_vd != NULL && !vdev_is_dead(zio->io_vd))
-			zfs_ereport_post(FM_EREPORT_ZFS_DELAY, zio->io_spa,
-                                         zio->io_vd, zio, 0, 0);
-	}
+	if (zio->io_delay >= zio_delay_max)
+		zfs_ereport_post(FM_EREPORT_ZFS_DELAY, zio->io_spa,
+		    zio->io_vd, zio, 0, 0);
 
 	if (zio->io_error) {
 		/*
