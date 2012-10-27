@@ -24,6 +24,7 @@
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -201,6 +202,7 @@ typedef struct proc {
 } proc_t;
 
 extern struct proc p0;
+#define	curproc		(&p0)
 
 typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
@@ -218,7 +220,7 @@ typedef struct kthread {
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
-			 len, NULL, state, pri)
+			 len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
 #define	thread_join(t)			zk_thread_join(t)
 #define	newproc(f,a,cid,pri,ctp,pid)	(ENOSYS)
 
@@ -226,7 +228,7 @@ extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
 extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 	thread_func_t func, void *arg, size_t len,
-	proc_t *pp, int state, pri_t pri);
+	proc_t *pp, int state, pri_t pri, int detachstate);
 extern void zk_thread_join(kt_did_t tid);
 
 #define	kpreempt_disable()	((void)0)
@@ -388,10 +390,10 @@ typedef struct taskq_ent {
 #define	TASKQ_DYNAMIC		0x0004	/* Use dynamic thread scheduling */
 #define	TASKQ_THREADS_CPU_PCT	0x0008	/* Scale # threads by # cpus */
 #define	TASKQ_DC_BATCH		0x0010	/* Mark threads as batch */
-#define	TASKQ_NORECLAIM		0x0020	/* Disable direct memory reclaim */
 
 #define	TQ_SLEEP	KM_SLEEP	/* Can block for memory */
 #define	TQ_NOSLEEP	KM_NOSLEEP	/* cannot block for memory; may fail */
+#define	TQ_PUSHPAGE	KM_PUSHPAGE	/* Cannot perform I/O */
 #define	TQ_NOQUEUE	0x02		/* Do not enqueue if can't dispatch */
 #define	TQ_FRONT	0x08		/* Queue in front */
 
@@ -493,7 +495,7 @@ typedef struct vsecattr {
 
 extern int fop_getattr(vnode_t *vp, vattr_t *vap);
 
-#define	VOP_CLOSE(vp, f, c, o, cr, ct)	0
+#define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
 #define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
 #define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
 

@@ -130,6 +130,9 @@ extern int txg_list_member(txg_list_t *tl, void *p, uint64_t txg);
 extern void *txg_list_head(txg_list_t *tl, uint64_t txg);
 extern void *txg_list_next(txg_list_t *tl, void *p, uint64_t txg);
 
+/* Global tuning */
+extern int zfs_txg_timeout;
+
 #ifdef	__cplusplus
 }
 #endif

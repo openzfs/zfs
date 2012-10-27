@@ -150,7 +150,7 @@ timestruc_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
 #define	dprintf_dd(dd, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
 	char *__ds_name = kmem_alloc(MAXNAMELEN + strlen(MOS_DIR_NAME) + 1, \
-	    KM_SLEEP); \
+	    KM_PUSHPAGE); \
 	dsl_dir_name(dd, __ds_name); \
 	dprintf("dd=%s " fmt, __ds_name, __VA_ARGS__); \
 	kmem_free(__ds_name, MAXNAMELEN + strlen(MOS_DIR_NAME) + 1); \

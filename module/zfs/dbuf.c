@@ -298,7 +298,7 @@ retry:
 #if defined(_KERNEL) && defined(HAVE_SPL)
 	/* Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel */
-	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_SLEEP);
+	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_PUSHPAGE);
 #else
 	h->hash_table = kmem_zalloc(hsize * sizeof (void *), KM_NOSLEEP);
 #endif
@@ -1719,7 +1719,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 	ASSERT(dn->dn_type != DMU_OT_NONE);
 
-	db = kmem_cache_alloc(dbuf_cache, KM_SLEEP);
+	db = kmem_cache_alloc(dbuf_cache, KM_PUSHPAGE);
 
 	db->db_objset = os;
 	db->db.db_object = dn->dn_object;
@@ -2019,7 +2019,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid, int fail_sparse,
 	int error;
 
 	dh = kmem_zalloc(sizeof(struct dbuf_hold_impl_data) *
-	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
+	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_PUSHPAGE);
 	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse, tag, dbp, 0);
 
 	error = __dbuf_hold_impl(dh);

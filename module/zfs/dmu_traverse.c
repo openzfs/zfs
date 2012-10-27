@@ -361,9 +361,9 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *rootbp,
 	zbookmark_t *czb;
 	int err;
 
-	td = kmem_alloc(sizeof(traverse_data_t), KM_SLEEP);
-	pd = kmem_zalloc(sizeof(prefetch_data_t), KM_SLEEP);
-	czb = kmem_alloc(sizeof(zbookmark_t), KM_SLEEP);
+	td = kmem_alloc(sizeof(traverse_data_t), KM_PUSHPAGE);
+	pd = kmem_zalloc(sizeof(prefetch_data_t), KM_PUSHPAGE);
+	czb = kmem_alloc(sizeof(zbookmark_t), KM_PUSHPAGE);
 
 	td->td_spa = spa;
 	td->td_objset = ds ? ds->ds_object : 0;

@@ -262,7 +262,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
 
-	os = kmem_zalloc(sizeof (objset_t), KM_SLEEP);
+	os = kmem_zalloc(sizeof (objset_t), KM_PUSHPAGE);
 	os->os_dsl_dataset = ds;
 	os->os_spa = spa;
 	os->os_rootbp = bp;
@@ -848,7 +848,7 @@ snapshot_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (strlen(sn->htag) + MAX_TAG_PREFIX_LEN >= MAXNAMELEN)
 			return (E2BIG);
 
-		sn->ha = kmem_alloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
+		sn->ha = kmem_alloc(sizeof(struct dsl_ds_holdarg), KM_PUSHPAGE);
 		sn->ha->temphold = B_TRUE;
 		sn->ha->htag = sn->htag;
 	}
@@ -1180,17 +1180,6 @@ dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
 	return (!list_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]) ||
 	    !list_is_empty(&os->os_free_dnodes[txg & TXG_MASK]));
-}
-
-boolean_t
-dmu_objset_is_dirty_anywhere(objset_t *os)
-{
-	int t;
-
-	for (t = 0; t < TXG_SIZE; t++)
-		if (dmu_objset_is_dirty(os, t))
-			return (B_TRUE);
-	return (B_FALSE);
 }
 
 static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];

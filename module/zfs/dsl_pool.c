@@ -862,17 +862,17 @@ module_param(zfs_write_limit_shift, int, 0444);
 MODULE_PARM_DESC(zfs_write_limit_shift, "log2(fraction of memory) per txg");
 
 module_param(zfs_txg_synctime_ms, int, 0644);
-MODULE_PARM_DESC(zfs_txg_synctime_ms, "Target milliseconds between tgx sync");
+MODULE_PARM_DESC(zfs_txg_synctime_ms, "Target milliseconds between txg sync");
 
 module_param(zfs_write_limit_min, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_min, "Min tgx write limit");
+MODULE_PARM_DESC(zfs_write_limit_min, "Min txg write limit");
 
 module_param(zfs_write_limit_max, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_max, "Max tgx write limit");
+MODULE_PARM_DESC(zfs_write_limit_max, "Max txg write limit");
 
 module_param(zfs_write_limit_inflated, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_inflated, "Inflated tgx write limit");
+MODULE_PARM_DESC(zfs_write_limit_inflated, "Inflated txg write limit");
 
 module_param(zfs_write_limit_override, ulong, 0444);
-MODULE_PARM_DESC(zfs_write_limit_override, "Override tgx write limit");
+MODULE_PARM_DESC(zfs_write_limit_override, "Override txg write limit");
 #endif

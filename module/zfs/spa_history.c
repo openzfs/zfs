@@ -234,7 +234,7 @@ spa_history_log_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	}
 #endif
 
-	VERIFY(nvlist_alloc(&nvrecord, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_alloc(&nvrecord, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 	VERIFY(nvlist_add_uint64(nvrecord, ZPOOL_HIST_TIME,
 	    gethrestime_sec()) == 0);
 	VERIFY(nvlist_add_uint64(nvrecord, ZPOOL_HIST_WHO, hap->ha_uid) == 0);
@@ -266,10 +266,10 @@ spa_history_log_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	}
 
 	VERIFY(nvlist_size(nvrecord, &reclen, NV_ENCODE_XDR) == 0);
-	record_packed = kmem_alloc(reclen, KM_SLEEP);
+	record_packed = kmem_alloc(reclen, KM_PUSHPAGE);
 
 	VERIFY(nvlist_pack(nvrecord, &record_packed, &reclen,
-	    NV_ENCODE_XDR, KM_SLEEP) == 0);
+	    NV_ENCODE_XDR, KM_PUSHPAGE) == 0);
 
 	mutex_enter(&spa->spa_history_lock);
 	if (hap->ha_log_type == LOG_CMD_POOL_CREATE)
@@ -316,7 +316,7 @@ spa_history_log(spa_t *spa, const char *history_str, history_log_type_t what)
 		return (err);
 	}
 
-	ha = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
+	ha = kmem_alloc(sizeof (history_arg_t), KM_PUSHPAGE);
 	ha->ha_history_str = strdup(history_str);
 	ha->ha_zone = strdup(spa_history_zone());
 	ha->ha_log_type = what;
@@ -442,7 +442,7 @@ log_internal(history_internal_events_t event, spa_t *spa,
 	if (tx->tx_txg == TXG_INITIAL)
 		return;
 
-	ha = kmem_alloc(sizeof (history_arg_t), KM_SLEEP);
+	ha = kmem_alloc(sizeof (history_arg_t), KM_PUSHPAGE);
 	va_copy(adx_copy, adx);
 	ha->ha_history_str = kmem_vasprintf(fmt, adx_copy);
 	va_end(adx_copy);

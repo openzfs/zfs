@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -456,7 +457,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 
 	ASSERT3U(acols, <=, scols);
 
-	rm = kmem_alloc(offsetof(raidz_map_t, rm_col[scols]), KM_SLEEP);
+	rm = kmem_alloc(offsetof(raidz_map_t, rm_col[scols]), KM_PUSHPAGE);
 
 	rm->rm_cols = acols;
 	rm->rm_scols = scols;
@@ -1196,7 +1197,7 @@ vdev_raidz_matrix_reconstruct(raidz_map_t *rm, int n, int nmissing,
 	size_t psize;
 
 	psize = sizeof (invlog[0][0]) * n * nmissing;
-	p = kmem_alloc(psize, KM_SLEEP);
+	p = kmem_alloc(psize, KM_PUSHPAGE);
 
 	for (pp = p, i = 0; i < nmissing; i++) {
 		invlog[i] = pp;
@@ -1313,7 +1314,7 @@ vdev_raidz_reconstruct_general(raidz_map_t *rm, int *tgts, int ntgts)
 
 	psize = (sizeof (rows[0][0]) + sizeof (invrows[0][0])) *
 	    nmissing_rows * n + sizeof (used[0]) * n;
-	p = kmem_alloc(psize, KM_SLEEP);
+	p = kmem_alloc(psize, KM_PUSHPAGE);
 
 	for (pp = p, i = 0; i < nmissing_rows; i++) {
 		rows[i] = pp;
@@ -1441,7 +1442,8 @@ vdev_raidz_reconstruct(raidz_map_t *rm, int *t, int nt)
 }
 
 static int
-vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
+vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
+    uint64_t *ashift)
 {
 	vdev_t *cvd;
 	uint64_t nparity = vd->vdev_nparity;
@@ -1469,10 +1471,12 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *ashift)
 		}
 
 		*asize = MIN(*asize - 1, cvd->vdev_asize - 1) + 1;
+		*max_asize = MIN(*max_asize - 1, cvd->vdev_max_asize - 1) + 1;
 		*ashift = MAX(*ashift, cvd->vdev_ashift);
 	}
 
 	*asize *= vd->vdev_children;
+	*max_asize *= vd->vdev_children;
 
 	if (numerrors > nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;

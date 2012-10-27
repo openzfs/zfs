@@ -366,16 +366,18 @@ is_whole_disk(const char *path)
 
 /*
  * This may be a shorthand device path or it could be total gibberish.
- * Check to see if it's a known device in /dev/, /dev/disk/by-id,
- * /dev/disk/by-label, /dev/disk/by-path, /dev/disk/by-uuid,
- * /dev/disk/by-vdev, or /dev/disk/zpool/.  As part of this check, see
- * if we've been given an entire disk (minus the slice number).
+ * Check to see if it is a known device available in zfs_vdev_paths.
+ * As part of this check, see if we've been given an entire disk
+ * (minus the slice number).
  */
 static int
 is_shorthand_path(const char *arg, char *path,
                   struct stat64 *statbuf, boolean_t *wholedisk)
 {
-	if (zfs_resolve_shortname(arg, path, MAXPATHLEN) == 0) {
+	int error;
+
+	error = zfs_resolve_shortname(arg, path, MAXPATHLEN);
+	if (error == 0) {
 		*wholedisk = is_whole_disk(path);
 		if (*wholedisk || (stat64(path, statbuf) == 0))
 			return (0);
@@ -385,7 +387,7 @@ is_shorthand_path(const char *arg, char *path,
 	memset(statbuf, 0, sizeof(*statbuf));
 	*wholedisk = B_FALSE;
 
-	return (ENOENT);
+	return (error);
 }
 
 /*
@@ -393,9 +395,9 @@ is_shorthand_path(const char *arg, char *path,
  * device, fill in the device id to make a complete nvlist.  Valid forms for a
  * leaf vdev are:
  *
- * 	/dev/xxx	Complete disk path
- * 	/xxx		Full path to file
- * 	xxx		Shorthand for /dev/disk/yyy/xxx
+ *	/dev/xxx	Complete disk path
+ *	/xxx		Full path to file
+ *	xxx		Shorthand for <zfs_vdev_paths>/xxx
  */
 static nvlist_t *
 make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
@@ -959,7 +961,9 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * deletes and recreates the link during which access attempts
 		 * will fail with ENOENT.
 		 */
-		zfs_append_partition(path, udevpath, sizeof (udevpath));
+		strncpy(udevpath, path, MAXPATHLEN);
+		(void) zfs_append_partition(udevpath, MAXPATHLEN);
+
 		if ((strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) &&
 		    (lstat64(udevpath, &statbuf) == 0) &&
 		    S_ISLNK(statbuf.st_mode))
@@ -983,9 +987,9 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		}
 
 		/*
-		 * Update the path to refer to FIRST_SLICE.  The presence of
+		 * Update the path to refer to the partition.  The presence of
 		 * the 'whole_disk' field indicates to the CLI that we should
-		 * chop off the slice number when displaying the device in
+		 * chop off the partition number when displaying the device in
 		 * future output.
 		 */
 		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, udevpath) == 0);

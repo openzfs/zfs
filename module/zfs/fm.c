@@ -418,7 +418,7 @@ zfs_zevent_alloc(void)
 {
 	zevent_t *ev;
 
-	ev = kmem_zalloc(sizeof(zevent_t), KM_SLEEP);
+	ev = kmem_zalloc(sizeof(zevent_t), KM_PUSHPAGE);
 	if (ev == NULL)
 		return NULL;
 
@@ -481,14 +481,13 @@ zfs_zevent_drain_all(int *count)
 static void
 zfs_zevent_insert(zevent_t *ev)
 {
-	mutex_enter(&zevent_lock);
+	ASSERT(MUTEX_HELD(&zevent_lock));
 	list_insert_head(&zevent_list, ev);
+
 	if (zevent_len_cur >= zfs_zevent_len_max)
 		zfs_zevent_drain(list_tail(&zevent_list));
 	else
 		zevent_len_cur++;
-
-	mutex_exit(&zevent_lock);
 }
 
 /*
@@ -528,8 +527,11 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
         ev->ev_nvl = nvl;
 	ev->ev_detector = detector;
 	ev->ev_cb = cb;
+
+	mutex_enter(&zevent_lock);
 	zfs_zevent_insert(ev);
 	cv_broadcast(&zevent_cv);
+	mutex_exit(&zevent_lock);
 }
 
 static int
@@ -672,7 +674,7 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 static void *
 i_fm_alloc(nv_alloc_t *nva, size_t size)
 {
-	return (kmem_zalloc(size, KM_SLEEP));
+	return (kmem_zalloc(size, KM_PUSHPAGE));
 }
 
 /* ARGSUSED */
@@ -740,7 +742,7 @@ fm_nvlist_create(nv_alloc_t *nva)
 	nv_alloc_t *nvhdl;
 
 	if (nva == NULL) {
-		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_SLEEP);
+		nvhdl = kmem_zalloc(sizeof (nv_alloc_t), KM_PUSHPAGE);
 
 		if (nv_alloc_init(nvhdl, &fm_mem_alloc_ops, NULL, 0) != 0) {
 			kmem_free(nvhdl, sizeof (nv_alloc_t));
@@ -1520,9 +1522,10 @@ fm_fini(void)
 	int count;
 
 	zfs_zevent_drain_all(&count);
-	cv_broadcast(&zevent_cv);
 
 	mutex_enter(&zevent_lock);
+	cv_broadcast(&zevent_cv);
+
 	zevent_flags |= ZEVENT_SHUTDOWN;
 	while (zevent_waiters > 0) {
 		mutex_exit(&zevent_lock);

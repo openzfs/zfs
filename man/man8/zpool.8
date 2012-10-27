@@ -1,6 +1,7 @@
 '\" te
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+.\" Copyright (c) 2012 by Delphix. All Rights Reserved.
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
 .\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
@@ -83,7 +84,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool list\fR [\fB-H\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
+\fBzpool list\fR [\fB-Hv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
 .fi
 
 .LP
@@ -475,6 +476,18 @@ A text string consisting of printable ASCII characters that will be stored such 
 .sp
 .ne 2
 .mk
+.na
+\fB\fBexpandsize\fR\fR
+.ad
+.RS 20n
+Amount of uninitialized space within the pool or device that can be used to
+increase the total capacity of the pool.  Uninitialized space consists of 
+any space on an EFI labeled vdev which has not been brought online 
+(i.e. zpool online -e).  This space occurs when a LUN is dynamically expanded.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fBhealth\fR\fR
 .ad
@@ -1312,7 +1325,7 @@ Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within t
 .ne 2
 .mk
 .na
-\fB\fBzpool list\fR [\fB-H\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ...\fR
+\fB\fBzpool list\fR [\fB-Hv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1336,7 +1349,18 @@ Scripted mode. Do not display headers, and separate fields by a single tab inste
 .ad
 .RS 12n
 .rt  
-Comma-separated list of properties to display. See the "Properties" section for a list of valid properties. The default list is "name, size, used, available, capacity, health, altroot"
+Comma-separated list of properties to display. See the "Properties" section for a list of valid properties. The default list is "name, size, used, available, expandsize, capacity, dedupratio, health, altroot"
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-v\fR\fR
+.ad
+.RS 12n
+.rt
+Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within the pool, in addition to the pool-wise statistics.
 .RE
 
 .RE
@@ -1649,10 +1673,10 @@ The results from this command are similar to the following:
 .in +2
 .nf
 # \fBzpool list\fR
-     NAME              SIZE    USED   AVAIL    CAP  HEALTH     ALTROOT
-     pool             67.5G   2.92M   67.5G     0%  ONLINE     -
-     tank             67.5G   2.92M   67.5G     0%  ONLINE     -
-     zion                 -       -       -     0%  FAULTED    -
+     NAME    SIZE  ALLOC   FREE  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
+     rpool  19.9G  8.43G  11.4G         -    42%  1.00x  ONLINE  -
+     tank   61.5G  20.0G  41.5G         -    32%  1.00x  ONLINE  -
+     zion       -      -      -         -      -      -  FAULTED -
 .fi
 .in -2
 .sp
@@ -1854,6 +1878,29 @@ The command to remove the mirrored log \fBmirror-2\fR is:
 .fi
 .in -2
 .sp
+
+.LP
+\fBExample 15 \fRDisplaying expanded space on a device
+.sp
+.LP
+The following command dipslays the detailed information for the \fIdata\fR
+pool. This pool is comprised of a single \fIraidz\fR vdev where one of its
+devices increased its capacity by 1GB. In this example, the pool will not 
+be able to utilized this extra capacity until all the devices under the
+\fIraidz\fR vdev have been expanded.
+
+.sp
+.in +2
+.nf
+# \fBzpool list -v data\fR
+   NAME         SIZE  ALLOC   FREE  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
+   data        17.9G   174K  17.9G         -     0%  1.00x  ONLINE  -
+     raidz1    17.9G   174K  17.9G         -
+       c4t2d0      -      -      -        1G
+       c4t3d0      -      -      -         -
+       c4t4d0      -      -      -         - 
+.fi
+.in -2
 
 .SH EXIT STATUS
 .sp

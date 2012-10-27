@@ -147,10 +147,6 @@ static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
-extern int zfs_write_limit_shift;
-extern uint64_t zfs_write_limit_max;
-extern kmutex_t zfs_write_limit_lock;
-
 /* number of bytes to prune from caches when at arc_meta_limit is reached */
 uint_t arc_meta_prune = 1048576;
 
@@ -1420,7 +1416,7 @@ arc_buf_data_free(arc_buf_hdr_t *hdr, void (*free_func)(void *, size_t),
 {
 	if (HDR_L2_WRITING(hdr)) {
 		l2arc_data_free_t *df;
-		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_SLEEP);
+		df = kmem_alloc(sizeof (l2arc_data_free_t), KM_PUSHPAGE);
 		df->l2df_data = data;
 		df->l2df_size = size;
 		df->l2df_func = free_func;
@@ -2417,18 +2413,6 @@ arc_evict_needed(arc_buf_contents_t type)
 {
 	if (type == ARC_BUFC_METADATA && arc_meta_used >= arc_meta_limit)
 		return (1);
-
-#ifdef _KERNEL
-	/*
-	 * If zio data pages are being allocated out of a separate heap segment,
-	 * then enforce that the size of available vmem for this area remains
-	 * above about 1/32nd free.
-	 */
-	if (type == ARC_BUFC_DATA && zio_arena != NULL &&
-	    vmem_size(zio_arena, VMEM_FREE) <
-	    (vmem_size(zio_arena, VMEM_ALLOC) >> 5))
-		return (1);
-#endif
 
 	if (arc_no_grow)
 		return (1);
@@ -3547,7 +3531,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	ASSERT(hdr->b_acb == NULL);
 	if (l2arc)
 		hdr->b_flags |= ARC_L2CACHE;
-	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_SLEEP);
+	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_PUSHPAGE);
 	callback->awcb_ready = ready;
 	callback->awcb_done = done;
 	callback->awcb_private = private;
@@ -3567,10 +3551,6 @@ arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 
 	/* Easily reclaimable memory (free + inactive + arc-evictable) */
 	available_memory = ptob(spl_kmem_availrmem()) + arc_evictable_memory();
-#if defined(__i386)
-	available_memory =
-	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
-#endif
 
 	if (available_memory <= zfs_write_limit_max) {
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);

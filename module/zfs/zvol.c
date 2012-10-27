@@ -540,6 +540,14 @@ zvol_write(void *arg)
 	dmu_tx_t *tx;
 	rl_t *rl;
 
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	ASSERT(!(current->flags & PF_NOFS));
+	current->flags |= PF_NOFS;
+
 	if (req->cmd_flags & VDEV_REQ_FLUSH)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -548,7 +556,7 @@ zvol_write(void *arg)
 	 */
 	if (size == 0) {
 		blk_end_request(req, 0, size);
-		return;
+		goto out;
 	}
 
 	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
@@ -562,7 +570,7 @@ zvol_write(void *arg)
 		dmu_tx_abort(tx);
 		zfs_range_unlock(rl);
 		blk_end_request(req, -error, size);
-		return;
+		goto out;
 	}
 
 	error = dmu_write_req(zv->zv_objset, ZVOL_OBJ, req, tx);
@@ -578,6 +586,8 @@ zvol_write(void *arg)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	blk_end_request(req, -error, size);
+out:
+	current->flags &= ~PF_NOFS;
 }
 
 #ifdef HAVE_BLK_QUEUE_DISCARD
@@ -587,24 +597,41 @@ zvol_discard(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	uint64_t offset = blk_rq_pos(req) << 9;
-	uint64_t size = blk_rq_bytes(req);
+	uint64_t start = blk_rq_pos(req) << 9;
+	uint64_t end = start + blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
 
-	if (offset + size > zv->zv_volsize) {
-		blk_end_request(req, -EIO, size);
-		return;
+	/*
+	 * Annotate this call path with a flag that indicates that it is
+	 * unsafe to use KM_SLEEP during memory allocations due to the
+	 * potential for a deadlock.  KM_PUSHPAGE should be used instead.
+	 */
+	ASSERT(!(current->flags & PF_NOFS));
+	current->flags |= PF_NOFS;
+
+	if (end > zv->zv_volsize) {
+		blk_end_request(req, -EIO, blk_rq_bytes(req));
+		goto out;
 	}
 
-	if (size == 0) {
-		blk_end_request(req, 0, size);
-		return;
+	/*
+	 * Align the request to volume block boundaries. If we don't,
+	 * then this will force dnode_free_range() to zero out the
+	 * unaligned parts, which is slow (read-modify-write) and
+	 * useless since we are not freeing any space by doing so.
+	 */
+	start = P2ROUNDUP(start, zv->zv_volblocksize);
+	end = P2ALIGN(end, zv->zv_volblocksize);
+
+	if (start >= end) {
+		blk_end_request(req, 0, blk_rq_bytes(req));
+		goto out;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_znode, start, end - start, RL_WRITER);
 
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, end - start);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
@@ -612,7 +639,9 @@ zvol_discard(void *arg)
 
 	zfs_range_unlock(rl);
 
-	blk_end_request(req, -error, size);
+	blk_end_request(req, -error, blk_rq_bytes(req));
+out:
+	current->flags &= ~PF_NOFS;
 }
 #endif /* HAVE_BLK_QUEUE_DISCARD */
 
@@ -765,7 +794,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	ASSERT(zio != NULL);
 	ASSERT(size != 0);
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
 	zgd->zgd_zilog = zv->zv_zilog;
 	zgd->zgd_rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_READER);
 
@@ -881,8 +910,18 @@ zvol_last_close(zvol_state_t *zv)
 {
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
+
 	dmu_buf_rele(zv->zv_dbuf, zvol_tag);
 	zv->zv_dbuf = NULL;
+
+	/*
+	 * Evict cached data
+	 */
+	if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
+	    !(zv->zv_flags & ZVOL_RDONLY))
+		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
+	(void) dmu_objset_evict_dbufs(zv->zv_objset);
+
 	dmu_objset_disown(zv->zv_objset, zvol_tag);
 	zv->zv_objset = NULL;
 }
@@ -1045,7 +1084,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : ERR_PTR(-ENOENT);
+	kobj = zv ? get_disk(zv->zv_disk) : NULL;
 	mutex_exit(&zvol_state_lock);
 
 	return kobj;
@@ -1120,6 +1159,7 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
+	int error = 0;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	if (zv == NULL)
@@ -1128,6 +1168,15 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
+
+#ifdef HAVE_ELEVATOR_CHANGE
+	error = elevator_change(zv->zv_queue, "noop");
+#endif /* HAVE_ELEVATOR_CHANGE */
+	if (error) {
+		printk("ZFS: Unable to set \"%s\" scheduler for zvol %s: %d\n",
+		    "noop", name, error);
+		goto out_queue;
+	}
 
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);

@@ -247,9 +247,9 @@ dsl_prop_register(dsl_dataset_t *ds, const char *propname,
 		return (err);
 	}
 
-	cbr = kmem_alloc(sizeof (dsl_prop_cb_record_t), KM_SLEEP);
+	cbr = kmem_alloc(sizeof (dsl_prop_cb_record_t), KM_PUSHPAGE);
 	cbr->cbr_ds = ds;
-	cbr->cbr_propname = kmem_alloc(strlen(propname)+1, KM_SLEEP);
+	cbr->cbr_propname = kmem_alloc(strlen(propname)+1, KM_PUSHPAGE);
 	(void) strcpy((char *)cbr->cbr_propname, propname);
 	cbr->cbr_func = callback;
 	cbr->cbr_arg = cbarg;
@@ -534,7 +534,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	}
 	mutex_exit(&dd->dd_lock);
 
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
 	for (zap_cursor_init(&zc, mos,
 	    dd->dd_phys->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
@@ -697,7 +697,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (source == ZPROP_SRC_LOCAL) {
 			valstr = (char *)psa->psa_value;
 		} else {
-			tbuf = kmem_alloc(ZAP_MAXVALUELEN, KM_SLEEP);
+			tbuf = kmem_alloc(ZAP_MAXVALUELEN, KM_PUSHPAGE);
 			if (dsl_prop_get_ds(ds, propname, 1,
 			    ZAP_MAXVALUELEN, tbuf, NULL) == 0)
 				valstr = tbuf;

@@ -22,7 +22,8 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef	_LIBZFS_H
@@ -53,22 +54,11 @@ extern "C" {
 /*
  * Default device paths
  */
+#define	DISK_ROOT		"/dev"
+#define	UDISK_ROOT		"/dev/disk"
 
-#if defined(__sun__) || defined(__sun)
-#define	DISK_ROOT	"/dev/dsk"
-#define	RDISK_ROOT	"/dev/rdsk"
-#define	UDISK_ROOT	RDISK_ROOT
-#define	FIRST_SLICE	"s0"
-#define	BACKUP_SLICE	"s2"
-#endif
-
-#ifdef __linux__
-#define	DISK_ROOT	"/dev"
-#define	RDISK_ROOT	DISK_ROOT
-#define	UDISK_ROOT	"/dev/disk"
-#define	FIRST_SLICE	"1"
-#define	BACKUP_SLICE	""
-#endif
+#define	DEFAULT_IMPORT_PATH_SIZE	8
+extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 
 /*
  * libzfs errors
@@ -252,6 +242,7 @@ typedef struct splitflags {
 extern int zpool_scan(zpool_handle_t *, pool_scan_func_t);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 extern int zpool_reguid(zpool_handle_t *);
+extern int zpool_reopen(zpool_handle_t *);
 
 extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);
@@ -579,6 +570,9 @@ typedef struct sendflags {
 
 	/* parsable verbose output (ie. -P) */
 	boolean_t parsable;
+
+	/* show progress (ie. -v) */
+	boolean_t progress;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
@@ -653,8 +647,9 @@ extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
 extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
 extern int zfs_spa_version(zfs_handle_t *, int *);
-extern void zfs_append_partition(const char *path, char *buf, size_t buflen);
+extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
+extern int zfs_strcmp_pathname(char *name, char *cmp_name, int wholedisk);
 
 /*
  * Mount support functions.

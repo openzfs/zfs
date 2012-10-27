@@ -263,7 +263,7 @@ check_loop_utils() {
 # Find and return an unused loopback device.
 #
 unused_loop_device() {
-	for DEVICE in `ls -1 /dev/loop* 2>/dev/null`; do
+	for DEVICE in `ls -1 /dev/loop[0-9]* 2>/dev/null`; do
 		${LOSETUP} ${DEVICE} &>/dev/null
 		if [ $? -ne 0 ]; then
 			echo ${DEVICE}
@@ -342,7 +342,9 @@ format() {
 	local DEVICE=$1
 	local FSTYPE=$2
 
-	/sbin/mkfs.${FSTYPE} -q ${DEVICE} || return 1
+	# Force 4K blocksize, else mkfs.ext2 tries to use 8K, which
+	# won't mount
+	/sbin/mkfs.${FSTYPE} -b 4096 -F -q ${DEVICE} || return 1
 
 	return 0
 }

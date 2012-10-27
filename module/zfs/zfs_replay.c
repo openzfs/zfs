@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -626,7 +627,7 @@ zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 {
 	char *data = (char *)(lr + 1);	/* data follows lr_write_t */
 	znode_t	*zp;
-	int error;
+	int error, written;
 	uint64_t eod, offset, length;
 
 	if (byteswap)
@@ -671,14 +672,12 @@ zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 			zsb->z_replay_eof = eod;
 	}
 
-	error = zpl_write_common(ZTOI(zp), data, length, offset,
+	written = zpl_write_common(ZTOI(zp), data, length, offset,
 	    UIO_SYSSPACE, 0, kcred);
-	if (error) {
-		if (error < 0)
-			error = -error;
-		else
-			error = EIO; /* Short write */
-	}
+	if (written < 0)
+		error = -written;
+	else if (written < length)
+		error = EIO; /* short write */
 
 	iput(ZTOI(zp));
 	zsb->z_replay_eof = 0;	/* safety */

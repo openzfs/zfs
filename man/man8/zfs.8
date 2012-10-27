@@ -2,11 +2,12 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License").  You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\"  See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this CDDL HEADER, with
 .\" the fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zfs 8 "10 Jul 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zfs 8 "Aug 16, 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zfs \- configures ZFS file systems
 .SH SYNOPSIS
@@ -218,6 +219,10 @@ zfs \- configures ZFS file systems
 \fBzfs\fR \fBrelease\fR [\fB-r\fR] \fItag\fR \fIsnapshot\fR...
 .fi
 
+.LP
+.nf
+\fBzfs\fR \fBdiff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+
 .SH DESCRIPTION
 .sp
 .LP
@@ -315,6 +320,10 @@ A file system \fBmountpoint\fR property of \fBnone\fR prevents the file system f
 .sp
 .LP
 If needed, \fBZFS\fR file systems can also be managed with traditional tools (\fBmount\fR, \fBumount\fR, \fB/etc/fstab\fR). If a file system's mount point is set to \fBlegacy\fR, \fBZFS\fR makes no attempt to manage the file system, and the administrator is responsible for mounting and unmounting the file system.
+.SS "Deduplication"
+.sp
+.LP
+Deduplication is the process for removing redundant data at the block-level, reducing the total amount of data stored. If a file system has the \fBdedup\fR property enabled, duplicate data blocks are removed synchronously.  The result is that only unique data is stored and common components are shared among files.
 .SS "Native Properties"
 .sp
 .LP
@@ -733,6 +742,19 @@ Changing this property only affects newly-written data. Therefore, set this prop
 .ne 2
 .mk
 .na
+\fB\fBdedup\fR=\fBon\fR | \fBoff\fR | \fBverify\fR | \fBsha256\fR[,\fBverify\fR]\fR
+.ad
+.sp .6
+.RS 4n
+Controls whether deduplication is in effect for a dataset. The default value is \fBoff\fR. The default checksum used for deduplication is \fBsha256\fR (subject to change). When \fBdedup\fR is enabled, the \fBdedup\fR checksum algorithm overrides the \fBchecksum\fR property. Setting the value to \fBverify\fR is equivalent to specifying \fBsha256,verify\fR.
+.sp
+If the property is set to \fBverify\fR, then, whenever two blocks have the same signature, ZFS will do a byte-for-byte comparison with the existing block to ensure that the contents are identical.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fBdevices\fR=\fBon\fR | \fBoff\fR\fR
 .ad
 .sp .6
@@ -749,6 +771,25 @@ Controls whether device nodes can be opened on this file system. The default val
 .sp .6
 .RS 4n
 Controls whether processes can be executed from within this file system. The default value is \fBon\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBmlslabel\fR=\fIlabel\fR | \fBnone\fR\fR
+.ad
+.sp .6
+.RS 4n
+The \fBmlslabel\fR property is a sensitivity label that determines if a dataset  can be mounted in a zone on a system with Trusted Extensions enabled. If the labeled dataset matches the labeled zone, the dataset can be mounted  and accessed from the labeled zone.
+.sp
+When the \fBmlslabel\fR property is not set, the default value is \fBnone\fR. Setting the  \fBmlslabel\fR property to \fBnone\fR is equivalent to removing the property.
+.sp
+The \fBmlslabel\fR property can be modified only when Trusted Extensions is enabled and only with appropriate privilege. Rights to modify it cannot be delegated. When changing a label to a higher label or setting the initial dataset label, the \fB{PRIV_FILE_UPGRADE_SL}\fR privilege is required. When changing a label to a lower label or the default (\fBnone\fR), the \fB{PRIV_FILE_DOWNGRADE_SL}\fR privilege is required. Changing the dataset to labels other than the default can be done only when the dataset is not mounted. When a dataset with the default label is mounted into a labeled-zone, the mount operation automatically sets the \fBmlslabel\fR property to the label of that zone.
+.sp
+When Trusted Extensions is \fBnot\fR enabled, only datasets with the default label (\fBnone\fR) can be mounted.
+.sp
+Zones are a Solaris feature and are not relevant on Linux.
 .RE
 
 .sp
@@ -807,7 +848,7 @@ Quotas cannot be set on volumes, as the \fBvolsize\fR property acts as an implic
 .ad
 .sp .6
 .RS 4n
-Limits the amount of space consumed by the specified user. User space consumption is identified by the \fBuserspace@\fR\fIuser\fR property.
+Limits the amount of space consumed by the specified user. Similar to the \fBrefquota\fR property, the \fBuserquota\fR space calculation does not include space that is used by descendent datasets, such as snapshots and clones. User space consumption is identified by the \fBuserspace@\fR\fIuser\fR property.
 .sp
 Enforcement of user quotas may be delayed by several seconds. This delay means that a user might exceed their quota before the system notices that they are over quota and begins to refuse additional writes with the \fBEDQUOT\fR error message . See the \fBzfs userspace\fR subcommand for more information.
 .sp
@@ -2306,7 +2347,8 @@ Generate a stream package that sends all intermediary snapshots from the first s
 .ad
 .sp .6
 .RS 4n
-Print verbose information about the stream package generated.
+Print verbose information about the stream package generated.  This information
+includes a per-second report of how much data has been sent.
 .RE
 
 .sp
@@ -2571,6 +2613,9 @@ clone            subcommand     Must also have the 'create' ability and 'mount'
                                 ability in the origin file system
 create           subcommand     Must also have the 'mount' ability
 destroy          subcommand     Must also have the 'mount' ability
+diff             subcommand     Allows lookup of paths within a dataset
+                                given an object number, and the ability to
+                                create snapshots necessary to 'zfs diff'.
 mount            subcommand     Allows mount/umount of ZFS datasets
 promote          subcommand     Must also have the 'mount'
                                 and 'promote' ability in the origin file system
@@ -2596,8 +2641,11 @@ casesensitivity  property
 checksum         property       
 compression      property       
 copies           property       
+dedup            property
 devices          property       
 exec             property       
+logbias          property
+mlslabel         property
 mountpoint       property       
 nbmand           property       
 normalization    property       
@@ -2766,6 +2814,71 @@ Recursively releases a hold with the given tag on the snapshots of all descenden
 
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzfs diff\fR [\fB-FHt\fR] \fIsnapshot\fR \fIsnapshot|filesystem\fR
+.ad
+.sp .6
+.RS 4n
+Display the difference between a snapshot of a given filesystem and another
+snapshot of that filesystem from a later time or the current contents of the
+filesystem.  The first column is a character indicating the type of change,
+the other columns indicate pathname, new pathname (in case of rename), change
+in link count, and optionally file type and/or change time.
+
+The types of change are:
+.in +2
+.nf
+-       The path has been removed
++       The path has been created
+M       The path has been modified
+R       The path has been renamed
+.fi
+.in -2
+.sp
+.ne 2
+.na
+\fB-F\fR
+.ad
+.sp .6
+.RS 4n
+Display an indication of the type of file, in a manner similar to the \fB-F\fR
+option of \fBls\fR(1).
+.in +2
+.nf
+B       Block device
+C       Character device
+/       Directory
+>       Door
+|       Named pipe
+@       Symbolic link
+P       Event port
+=       Socket
+F       Regular file
+.fi
+.in -2
+.RE
+.sp
+.ne 2
+.na
+\fB-H\fR
+.ad
+.sp .6
+.RS 4n
+Give more parseable tab-separated output, without header lines and without arrows.
+.RE
+.sp
+.ne 2
+.na
+\fB-t\fR
+.ad
+.sp .6
+.RS 4n
+Display the path's inode change time as the first column of output.
+.RE
+
 .SH EXAMPLES
 .LP
 \fBExample 1 \fRCreating a ZFS File System Hierarchy
@@ -2913,6 +3026,9 @@ pool/home/bob  usedbysnapshots       0                      -
 pool/home/bob  usedbydataset         21K                    -
 pool/home/bob  usedbychildren        0                      -
 pool/home/bob  usedbyrefreservation  0                      -
+pool/home/bob  logbias               latency                default
+pool/home/bob  dedup                 off                    default
+pool/home/bob  mlslabel              none                   default
 .fi
 .in -2
 .sp
@@ -3110,7 +3226,7 @@ The following commands show how to set \fBsharenfs\fR property options to enable
 .sp
 .in +2
 .nf
-# \fB# zfs set sharenfs='rw=@123.123.0.0/16,root=neo' tank/home\fR
+# \fBzfs set sharenfs='rw=@123.123.0.0/16,root=neo' tank/home\fR
 .fi
 .in -2
 .sp
@@ -3158,7 +3274,7 @@ The following example shows how to grant anyone in the group \fBstaff\fR to crea
 .sp
 .in +2
 .nf
-# \fB# zfs allow staff create,mount tank/users\fR
+# \fBzfs allow staff create,mount tank/users\fR
 # \fBzfs allow -c destroy tank/users\fR
 # \fBzfs allow tank/users\fR
 -------------------------------------------------------------
@@ -3237,6 +3353,28 @@ Create time permissions on (tank/users)
 Local+Descendent permissions on (tank/users)
         group staff @pset,create,mount
 ------------------------------------------------------------- 
+.fi
+.in -2
+.sp
+
+.LP
+\fBExample 23\fR Showing the differences between a snapshot and a ZFS Dataset
+.sp
+.LP
+The following example shows how to see what has changed between a prior
+snapshot of a ZFS Dataset and its current state.  The \fB-F\fR option is used
+to indicate type information for the files affected.
+
+.sp
+.in +2
+.nf
+# zfs diff -F tank/test@before tank/test
+M       /       /tank/test/
+M       F       /tank/test/linked      (+1)
+R       F       /tank/test/oldname -> /tank/test/newname
+-       F       /tank/test/deleted
++       F       /tank/test/created
+M       F       /tank/test/modified
 .fi
 .in -2
 .sp

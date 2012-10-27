@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -49,13 +50,15 @@ extern "C" {
  * Forward declarations that lots of things need.
  */
 typedef struct vdev_queue vdev_queue_t;
+typedef struct vdev_io vdev_io_t;
 typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 
 /*
  * Virtual device operations
  */
-typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *ashift);
+typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
+    uint64_t *ashift);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize);
 typedef int	vdev_io_start_func_t(zio_t *zio);
@@ -102,7 +105,13 @@ struct vdev_queue {
 	avl_tree_t	vq_read_tree;
 	avl_tree_t	vq_write_tree;
 	avl_tree_t	vq_pending_tree;
+	list_t		vq_io_list;
 	kmutex_t	vq_lock;
+};
+
+struct vdev_io {
+	char		vi_buffer[SPA_MAXBLOCKSIZE]; /* Must be first */
+	list_node_t	vi_node;
 };
 
 /*
@@ -118,6 +127,7 @@ struct vdev {
 	uint64_t	vdev_orig_guid;	/* orig. guid prior to remove	*/
 	uint64_t	vdev_asize;	/* allocatable device capacity	*/
 	uint64_t	vdev_min_asize;	/* min acceptable asize		*/
+	uint64_t	vdev_max_asize;	/* max acceptable asize		*/
 	uint64_t	vdev_ashift;	/* block alignment shift	*/
 	uint64_t	vdev_state;	/* see VDEV_STATE_* #defines	*/
 	uint64_t	vdev_prevstate;	/* used when reopening a vdev	*/
@@ -146,6 +156,7 @@ struct vdev {
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
+	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/
 	txg_list_t	vdev_dtl_list;	/* per-txg dirty DTL lists	*/
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/

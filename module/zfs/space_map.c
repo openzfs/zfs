@@ -134,7 +134,7 @@ space_map_add(space_map_t *sm, uint64_t start, uint64_t size)
 			avl_remove(sm->sm_pp_root, ss_after);
 		ss = ss_after;
 	} else {
-		ss = kmem_alloc(sizeof (*ss), KM_SLEEP);
+		ss = kmem_alloc(sizeof (*ss), KM_PUSHPAGE);
 		ss->ss_start = start;
 		ss->ss_end = end;
 		avl_insert(&sm->sm_root, ss, where);
@@ -181,7 +181,7 @@ space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 		avl_remove(sm->sm_pp_root, ss);
 
 	if (left_over && right_over) {
-		newseg = kmem_alloc(sizeof (*newseg), KM_SLEEP);
+		newseg = kmem_alloc(sizeof (*newseg), KM_PUSHPAGE);
 		newseg->ss_start = end;
 		newseg->ss_end = ss->ss_end;
 		ss->ss_end = start;
@@ -551,7 +551,7 @@ space_map_ref_add_node(avl_tree_t *t, uint64_t offset, int64_t refcnt)
 {
 	space_ref_t *sr;
 
-	sr = kmem_alloc(sizeof (*sr), KM_SLEEP);
+	sr = kmem_alloc(sizeof (*sr), KM_PUSHPAGE);
 	sr->sr_offset = offset;
 	sr->sr_refcnt = refcnt;
 

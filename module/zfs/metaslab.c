@@ -102,11 +102,12 @@ metaslab_class_create(spa_t *spa, space_map_ops_t *ops)
 {
 	metaslab_class_t *mc;
 
-	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_SLEEP);
+	mc = kmem_zalloc(sizeof (metaslab_class_t), KM_PUSHPAGE);
 
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
 	mc->mc_ops = ops;
+	mutex_init(&mc->mc_fastwrite_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	return (mc);
 }
@@ -120,6 +121,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 	ASSERT(mc->mc_space == 0);
 	ASSERT(mc->mc_dspace == 0);
 
+	mutex_destroy(&mc->mc_fastwrite_lock);
 	kmem_free(mc, sizeof (metaslab_class_t));
 }
 
@@ -217,7 +219,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
 	metaslab_group_t *mg;
 
-	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
+	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_PUSHPAGE);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&mg->mg_metaslab_tree, metaslab_compare,
 	    sizeof (metaslab_t), offsetof(struct metaslab, ms_group_node));
@@ -422,9 +424,9 @@ metaslab_pp_load(space_map_t *sm)
 	space_seg_t *ss;
 
 	ASSERT(sm->sm_ppd == NULL);
-	sm->sm_ppd = kmem_zalloc(64 * sizeof (uint64_t), KM_SLEEP);
+	sm->sm_ppd = kmem_zalloc(64 * sizeof (uint64_t), KM_PUSHPAGE);
 
-	sm->sm_pp_root = kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
+	sm->sm_pp_root = kmem_alloc(sizeof (avl_tree_t), KM_PUSHPAGE);
 	avl_create(sm->sm_pp_root, metaslab_segsize_compare,
 	    sizeof (space_seg_t), offsetof(struct space_seg, ss_pp_node));
 
@@ -725,7 +727,7 @@ metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
 	vdev_t *vd = mg->mg_vd;
 	metaslab_t *msp;
 
-	msp = kmem_zalloc(sizeof (metaslab_t), KM_SLEEP);
+	msp = kmem_zalloc(sizeof (metaslab_t), KM_PUSHPAGE);
 	mutex_init(&msp->ms_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	msp->ms_smo_syncing = *smo;
@@ -1307,7 +1309,7 @@ static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags)
 {
-	metaslab_group_t *mg, *rotor;
+	metaslab_group_t *mg, *fast_mg, *rotor;
 	vdev_t *vd;
 	int dshift = 3;
 	int all_zero;
@@ -1324,6 +1326,9 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 */
 	if (psize >= metaslab_gang_bang && (ddi_get_lbolt() & 3) == 0)
 		return (ENOSPC);
+
+	if (flags & METASLAB_FASTWRITE)
+		mutex_enter(&mc->mc_fastwrite_lock);
 
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
@@ -1367,6 +1372,15 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	} else if (d != 0) {
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d - 1]));
 		mg = vd->vdev_mg->mg_next;
+	} else if (flags & METASLAB_FASTWRITE) {
+		mg = fast_mg = mc->mc_rotor;
+
+		do {
+			if (fast_mg->mg_vd->vdev_pending_fastwrite <
+			    mg->mg_vd->vdev_pending_fastwrite)
+				mg = fast_mg;
+		} while ((fast_mg = fast_mg->mg_next) != mc->mc_rotor);
+
 	} else {
 		mg = mc->mc_rotor;
 	}
@@ -1453,7 +1467,8 @@ top:
 				    (int64_t)mg->mg_aliquot) / 100;
 			}
 
-			if (atomic_add_64_nv(&mc->mc_aliquot, asize) >=
+			if ((flags & METASLAB_FASTWRITE) ||
+			    atomic_add_64_nv(&mc->mc_aliquot, asize) >=
 			    mg->mg_aliquot + mg->mg_bias) {
 				mc->mc_rotor = mg->mg_next;
 				mc->mc_aliquot = 0;
@@ -1463,6 +1478,12 @@ top:
 			DVA_SET_OFFSET(&dva[d], offset);
 			DVA_SET_GANG(&dva[d], !!(flags & METASLAB_GANG_HEADER));
 			DVA_SET_ASIZE(&dva[d], asize);
+
+			if (flags & METASLAB_FASTWRITE) {
+				atomic_add_64(&vd->vdev_pending_fastwrite,
+				    psize);
+				mutex_exit(&mc->mc_fastwrite_lock);
+			}
 
 			return (0);
 		}
@@ -1485,6 +1506,8 @@ next:
 
 	bzero(&dva[d], sizeof (dva_t));
 
+	if (flags & METASLAB_FASTWRITE)
+		mutex_exit(&mc->mc_fastwrite_lock);
 	return (ENOSPC);
 }
 
@@ -1677,4 +1700,49 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 	ASSERT(error == 0 || txg == 0);
 
 	return (error);
+}
+
+void metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
+{
+	const dva_t *dva = bp->blk_dva;
+	int ndvas = BP_GET_NDVAS(bp);
+	uint64_t psize = BP_GET_PSIZE(bp);
+	int d;
+	vdev_t *vd;
+
+	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(psize > 0);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+
+	for (d = 0; d < ndvas; d++) {
+		if ((vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d]))) == NULL)
+			continue;
+		atomic_add_64(&vd->vdev_pending_fastwrite, psize);
+	}
+
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+}
+
+void metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
+{
+	const dva_t *dva = bp->blk_dva;
+	int ndvas = BP_GET_NDVAS(bp);
+	uint64_t psize = BP_GET_PSIZE(bp);
+	int d;
+	vdev_t *vd;
+
+	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(psize > 0);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+
+	for (d = 0; d < ndvas; d++) {
+		if ((vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d]))) == NULL)
+			continue;
+		ASSERT3U(vd->vdev_pending_fastwrite, >=, psize);
+		atomic_sub_64(&vd->vdev_pending_fastwrite, psize);
+	}
+
+	spa_config_exit(spa, SCL_VDEV, FTAG);
 }

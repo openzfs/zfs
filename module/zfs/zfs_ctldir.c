@@ -681,7 +681,7 @@ zfsctl_snapdir_inactive(struct inode *ip)
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
 	"     2>/dev/null; " \
-	"umount -t zfs -n %s%s"
+	"umount -t zfs -n '%s%s'"
 
 static int
 __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
@@ -781,7 +781,7 @@ zfsctl_unmount_snapshots(zfs_sb_t *zsb, int flags, int *count)
 	"exec 0</dev/null " \
 	"     1>/dev/null " \
 	"     2>/dev/null; " \
-	"mount -t zfs -n %s %s"
+	"mount -t zfs -n '%s' '%s'"
 
 int
 zfsctl_mount_snapshot(struct path *path, int flags)
@@ -920,8 +920,8 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 		 * race cannot occur to an expired mount point because
 		 * we hold the zsb->z_ctldir_lock to prevent the race.
 		 */
-		sbp = sget(&zpl_fs_type, zfsctl_test_super,
-		    zfsctl_set_super, &id);
+		sbp = zpl_sget(&zpl_fs_type, zfsctl_test_super,
+		    zfsctl_set_super, 0, &id);
 		if (IS_ERR(sbp)) {
 			error = -PTR_ERR(sbp);
 		} else {
@@ -952,7 +952,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	if (zsb->z_shares_dir == 0) {
 		ZFS_EXIT(zsb);
-		return (-ENOTSUP);
+		return (ENOTSUP);
 	}
 
 	error = zfs_zget(zsb, zsb->z_shares_dir, &dzp);

@@ -504,7 +504,7 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 	ddt_histogram_t *ddh_total;
 
 	/* XXX: Move to a slab */
-	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
+	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_PUSHPAGE);
 	ddt_get_dedup_histogram(spa, ddh_total);
 	ddt_histogram_stat(dds_total, ddh_total);
 	kmem_free(ddh_total, sizeof (ddt_histogram_t));
@@ -653,7 +653,7 @@ ddt_alloc(const ddt_key_t *ddk)
 	ddt_entry_t *dde;
 
 	/* XXX: Move to a slab */
-	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_SLEEP);
+	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -802,7 +802,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	ddt_t *ddt;
 
 	/* XXX: Move to a slab */
-	ddt = kmem_zalloc(sizeof (*ddt), KM_SLEEP | KM_NODEBUG);
+	ddt = kmem_zalloc(sizeof (*ddt), KM_PUSHPAGE | KM_NODEBUG);
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&ddt->ddt_tree, ddt_entry_compare,
@@ -904,7 +904,7 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_alloc(sizeof(ddt_entry_t), KM_SLEEP);
+	dde = kmem_alloc(sizeof(ddt_entry_t), KM_PUSHPAGE);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 

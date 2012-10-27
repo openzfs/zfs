@@ -868,7 +868,7 @@ iput_async(struct inode *ip, taskq_t *taskq)
 {
 	ASSERT(atomic_read(&ip->i_count) > 0);
 	if (atomic_read(&ip->i_count) == 1)
-		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_SLEEP);
+		taskq_dispatch(taskq, (task_func_t *)iput, ip, TQ_PUSHPAGE);
 	else
 		iput(ip);
 }
@@ -934,7 +934,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		return (ENOENT);
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_PUSHPAGE);
 	zgd->zgd_zilog = zsb->z_log;
 	zgd->zgd_private = zp;
 
@@ -1900,13 +1900,13 @@ top:
 out:
 	zfs_dirent_unlock(dl);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	iput(ip);
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
@@ -3797,6 +3797,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	uint64_t	mtime[2], ctime[2];
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
+	int		sync;
 
 
 	ASSERT(PageLocked(pp));
@@ -3833,7 +3834,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	tx = dmu_tx_create(zsb->z_os);
 
-	dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
+	sync = ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
+	        (wbc->sync_mode == WB_SYNC_ALL));
+	if (!sync)
+		dmu_tx_callback_register(tx, zfs_putpage_commit_cb, pp);
 
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
 
@@ -3844,7 +3848,16 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (err == ERESTART)
 			dmu_tx_wait(tx);
 
+		/* Will call all registered commit callbacks */
 		dmu_tx_abort(tx);
+
+		/*
+		 * For the synchronous case the commit callback must be
+		 * explicitly called because there is no registered callback.
+		 */
+		if (sync)
+			zfs_putpage_commit_cb(pp, ECANCELED);
+
 		return (err);
 	}
 
@@ -3862,9 +3875,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	dmu_tx_commit(tx);
 	ASSERT3S(err, ==, 0);
 
-	if ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
-	    (wbc->sync_mode == WB_SYNC_ALL))
+	if (sync) {
 		zil_commit(zsb->z_log, zp->z_id);
+		zfs_putpage_commit_cb(pp, err);
+	}
 
 	return (err);
 }
