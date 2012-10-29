@@ -340,6 +340,7 @@ enum {
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_OFFSLAB		= 7,	/* Objects not on slab */
 	KMC_BIT_NOEMERGENCY	= 8,	/* Disable emergency objects */
+	KMC_BIT_DEADLOCKED      = 14,	/* Deadlock detected */
 	KMC_BIT_GROWING         = 15,   /* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
@@ -366,6 +367,7 @@ typedef enum kmem_cbrc {
 #define KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
 #define KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
+#define KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
 #define KMC_GROWING		(1 << KMC_BIT_GROWING)
 #define KMC_REAPING		(1 << KMC_BIT_REAPING)
 #define KMC_DESTROY		(1 << KMC_BIT_DESTROY)
@@ -473,6 +475,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
+	uint64_t		skc_obj_deadlock;  /* Obj emergency deadlocks */
 	uint64_t		skc_obj_emergency; /* Obj emergency current */
 	uint64_t		skc_obj_emergency_max; /* Obj emergency max */
 } spl_kmem_cache_t;

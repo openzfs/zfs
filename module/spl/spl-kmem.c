@@ -1495,6 +1495,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_total = 0;
 	skc->skc_obj_alloc = 0;
 	skc->skc_obj_max = 0;
+	skc->skc_obj_deadlock = 0;
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
 
@@ -1662,6 +1663,7 @@ spl_cache_grow_work(void *data)
 
 	atomic_dec(&skc->skc_ref);
 	clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
+	clear_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
 	wake_up_all(&skc->skc_waitq);
 	spin_unlock(&skc->skc_lock);
 
@@ -1683,7 +1685,7 @@ spl_cache_grow_wait(spl_kmem_cache_t *skc)
 static int
 spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 {
-	int remaining, rc = 0;
+	int remaining, rc;
 	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -1722,17 +1724,30 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	}
 
 	/*
-	 * Allow a single timer tick before falling back to synchronously
-	 * allocating the minimum about of memory required by the caller.
+	 * The goal here is to only detect the rare case where a virtual slab
+	 * allocation has deadlocked.  We must be careful to minimize the use
+	 * of emergency objects which are more expensive to track.  Therefore,
+	 * we set a very long timeout for the asynchronous allocation and if
+	 * the timeout is reached the cache is flagged as deadlocked.  From
+	 * this point only new emergency objects will be allocated until the
+	 * asynchronous allocation completes and clears the deadlocked flag.
 	 */
-	remaining = wait_event_timeout(skc->skc_waitq,
-				       spl_cache_grow_wait(skc), 1);
+	if (test_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags)) {
+		rc = spl_emergency_alloc(skc, flags, obj);
+	} else {
+		remaining = wait_event_timeout(skc->skc_waitq,
+					       spl_cache_grow_wait(skc), HZ);
 
-	if (remaining == 0) {
-		if (test_bit(KMC_BIT_NOEMERGENCY, &skc->skc_flags))
-			rc = -ENOMEM;
-		else
-			rc = spl_emergency_alloc(skc, flags, obj);
+		if (!remaining && test_bit(KMC_BIT_VMEM, &skc->skc_flags)) {
+			spin_lock(&skc->skc_lock);
+			if (test_bit(KMC_BIT_GROWING, &skc->skc_flags)) {
+				set_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
+				skc->skc_obj_deadlock++;
+			}
+			spin_unlock(&skc->skc_lock);
+		}
+
+		rc = -ENOMEM;
 	}
 
 	SRETURN(rc);
