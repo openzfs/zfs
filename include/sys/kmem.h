@@ -31,6 +31,7 @@
 #include <linux/spinlock.h>
 #include <linux/rwsem.h>
 #include <linux/hash.h>
+#include <linux/rbtree.h>
 #include <linux/ctype.h>
 #include <asm/atomic.h>
 #include <sys/types.h>
@@ -435,8 +436,8 @@ typedef struct spl_kmem_alloc {
 } spl_kmem_alloc_t;
 
 typedef struct spl_kmem_emergency {
+	struct rb_node		ske_node;	/* Emergency tree linkage */
 	void			*ske_obj;	/* Buffer address */
-	struct list_head	ske_list;	/* Emergency list linkage */
 } spl_kmem_emergency_t;
 
 typedef struct spl_kmem_cache {
@@ -463,7 +464,7 @@ typedef struct spl_kmem_cache {
 	struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
-	struct list_head	skc_emergency_list; /* Min sized objects */
+	struct rb_root		skc_emergency_tree; /* Min sized objects */
 	spinlock_t		skc_lock;	/* Cache lock */
 	wait_queue_head_t	skc_waitq;	/* Allocation waiters */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
