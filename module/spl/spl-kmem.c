@@ -2023,11 +2023,12 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	atomic_inc(&skc->skc_ref);
 
 	/*
-	 * Emergency objects are never part of the virtual address space
-	 * so if we get a virtual address we can optimize this check out.
+	 * Only virtual slabs may have emergency objects and these objects
+	 * are guaranteed to have physical addresses.  They must be removed
+	 * from the tree of emergency objects and the freed.
 	 */
-	if (!kmem_virt(obj) && !spl_emergency_free(skc, obj))
-		SGOTO(out, 0);
+	if ((skc->skc_flags & KMC_VMEM) && !kmem_virt(obj))
+		SGOTO(out, spl_emergency_free(skc, obj));
 
 	local_irq_save(flags);
 
