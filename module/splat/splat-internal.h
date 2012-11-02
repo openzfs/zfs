@@ -121,7 +121,7 @@ typedef struct splat_subsystem {
 #define SPLAT_INFO_BUFFER_REDZONE	256
 
 typedef struct splat_info {
-	spinlock_t info_lock;
+	struct mutex info_lock;
 	int info_size;
 	char *info_buffer;
 	char *info_head;	/* Internal kernel use only */
@@ -136,7 +136,7 @@ typedef struct splat_info {
 	ASSERT(_info_);							\
 	ASSERT(_info_->info_buffer);					\
 									\
-	spin_lock(&_info_->info_lock);					\
+	mutex_lock(&_info_->info_lock);					\
 									\
 	/* Don't allow the kernel to start a write in the red zone */	\
 	if ((int)(_info_->info_head - _info_->info_buffer) >		\
@@ -148,7 +148,7 @@ typedef struct splat_info {
 			_info_->info_head += _rc_;			\
 	}								\
 									\
-	spin_unlock(&_info_->info_lock);				\
+	mutex_unlock(&_info_->info_lock);				\
 	_rc_;								\
 })
 
