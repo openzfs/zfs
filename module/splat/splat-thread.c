@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Thread Tests.
 \*****************************************************************************/
 
+#include <sys/thread.h>
+#include <sys/random.h>
 #include "splat-internal.h"
 
 #define SPLAT_THREAD_NAME		"thread"

@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Kmem Tests.
 \*****************************************************************************/
 
+#include <sys/kmem.h>
+#include <sys/thread.h>
 #include "splat-internal.h"
 
 #define SPLAT_KMEM_NAME			"kmem"

@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Mutex Tests.
 \*****************************************************************************/
 
+#include <sys/mutex.h>
+#include <sys/taskq.h>
 #include "splat-internal.h"
 
 #define SPLAT_MUTEX_NAME                "mutex"

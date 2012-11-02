@@ -24,6 +24,9 @@
  *  Solaris Porting LAyer Tests (SPLAT) Zlib Compression Tests.
 \*****************************************************************************/
 
+#include <sys/zmod.h>
+#include <sys/random.h>
+#include <sys/kmem.h>
 #include "splat-internal.h"
 
 #define SPLAT_ZLIB_NAME			"zlib"

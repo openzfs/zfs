@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Atomic Tests.
 \*****************************************************************************/
 
+#include <sys/atomic.h>
+#include <sys/thread.h>
 #include "splat-internal.h"
 
 #define SPLAT_ATOMIC_NAME		"atomic"

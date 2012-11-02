@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) List Tests.
 \*****************************************************************************/
 
+#include <sys/list.h>
+#include <sys/kmem.h>
 #include "splat-internal.h"
 
 #define SPLAT_LIST_NAME			"list"

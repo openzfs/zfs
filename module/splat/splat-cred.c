@@ -24,6 +24,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Credential Tests.
 \*****************************************************************************/
 
+#include <sys/cred.h>
 #include "splat-internal.h"
 
 #define SPLAT_CRED_NAME			"cred"

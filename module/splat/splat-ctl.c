@@ -43,6 +43,14 @@
  *  of regression tests or particular tests.
 \*****************************************************************************/
 
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#include <sys/types.h>
+#include <sys/debug.h>
 #include "splat-internal.h"
 
 static spl_class *splat_class;

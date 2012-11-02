@@ -25,47 +25,6 @@
 #ifndef _SPLAT_INTERNAL_H
 #define _SPLAT_INTERNAL_H
 
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/string.h>
-#include <linux/errno.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/elf.h>
-#include <linux/limits.h>
-#include <linux/version.h>
-#include <linux/vmalloc.h>
-#include <linux/module.h>
-#include <linux/device.h>
-#include <linux/list.h>
-#include <linux/swap.h>
-#include <linux/delay.h>
-
-#include <asm/ioctls.h>
-#include <asm/uaccess.h>
-#include <stdarg.h>
-
-#include <sys/callb.h>
-#include <sys/condvar.h>
-#include <sys/cred.h>
-#include <sys/sysmacros.h>
-#include <sys/kmem.h>
-#include <sys/kstat.h>
-#include <sys/mutex.h>
-#include <sys/random.h>
-#include <sys/rwlock.h>
-#include <sys/taskq.h>
-#include <sys/thread.h>
-#include <sys/time.h>
-#include <sys/timer.h>
-#include <sys/types.h>
-#include <sys/kobj.h>
-#include <sys/atomic.h>
-#include <sys/list.h>
-#include <sys/sunddi.h>
-#include <sys/zmod.h>
-#include <linux/cdev.h>
-
 #include "spl-device.h"
 #include "spl-debug.h"
 #include "splat-ctl.h"

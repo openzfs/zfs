@@ -24,6 +24,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Kobj Tests.
 \*****************************************************************************/
 
+#include <sys/kobj.h>
 #include "splat-internal.h"
 
 #define SPLAT_KOBJ_NAME			"kobj"
