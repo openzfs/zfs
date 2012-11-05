@@ -48,6 +48,7 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 	init_waitqueue_head(&cvp->cv_event);
 	init_waitqueue_head(&cvp->cv_destroy);
 	atomic_set(&cvp->cv_waiters, 0);
+	atomic_set(&cvp->cv_refs, 1);
 	cvp->cv_mutex = NULL;
 
         /* We may be called when there is a non-zero preempt_count or
@@ -63,12 +64,13 @@ EXPORT_SYMBOL(__cv_init);
 static int
 cv_destroy_wakeup(kcondvar_t *cvp)
 {
-	if ((cvp->cv_mutex != NULL) ||
-	    (waitqueue_active(&cvp->cv_event)) ||
-	    (atomic_read(&cvp->cv_waiters) > 0))
-		return 0;
+	if (!atomic_read(&cvp->cv_waiters) && !atomic_read(&cvp->cv_refs)) {
+		ASSERT(cvp->cv_mutex == NULL);
+		ASSERT(!waitqueue_active(&cvp->cv_event));
+		return 1;
+	}
 
-	return 1;
+	return 0;
 }
 
 void
@@ -78,11 +80,15 @@ __cv_destroy(kcondvar_t *cvp)
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 
-	/* Block until all waiters have woken */
+	cvp->cv_magic = CV_DESTROY;
+	atomic_dec(&cvp->cv_refs);
+
+	/* Block until all waiters are woken and references dropped. */
 	while (cv_destroy_wakeup(cvp) == 0)
 		wait_event_timeout(cvp->cv_destroy, cv_destroy_wakeup(cvp), 1);
 
 	ASSERT3P(cvp->cv_mutex, ==, NULL);
+	ASSERT3S(atomic_read(&cvp->cv_refs), ==, 0);
 	ASSERT3S(atomic_read(&cvp->cv_waiters), ==, 0);
 	ASSERT3S(waitqueue_active(&cvp->cv_event), ==, 0);
 
@@ -100,6 +106,7 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
         ASSERT(mp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 	ASSERT(mutex_owned(mp));
+	atomic_inc(&cvp->cv_refs);
 
 	if (cvp->cv_mutex == NULL)
 		cvp->cv_mutex = mp;
@@ -124,6 +131,7 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 	}
 
 	finish_wait(&cvp->cv_event, &wait);
+	atomic_dec(&cvp->cv_refs);
 
 	SEXIT;
 }
@@ -157,6 +165,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
         ASSERT(mp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
 	ASSERT(mutex_owned(mp));
+	atomic_inc(&cvp->cv_refs);
 
 	if (cvp->cv_mutex == NULL)
 		cvp->cv_mutex = mp;
@@ -166,8 +175,10 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 
 	/* XXX - Does not handle jiffie wrap properly */
 	time_left = expire_time - jiffies;
-	if (time_left <= 0)
+	if (time_left <= 0) {
+		atomic_dec(&cvp->cv_refs);
 		SRETURN(-1);
+	}
 
 	prepare_to_wait_exclusive(&cvp->cv_event, &wait, state);
 	atomic_inc(&cvp->cv_waiters);
@@ -186,6 +197,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp,
 	}
 
 	finish_wait(&cvp->cv_event, &wait);
+	atomic_dec(&cvp->cv_refs);
 
 	SRETURN(time_left > 0 ? time_left : -1);
 }
@@ -210,6 +222,7 @@ __cv_signal(kcondvar_t *cvp)
 	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
+	atomic_inc(&cvp->cv_refs);
 
 	/* All waiters are added with WQ_FLAG_EXCLUSIVE so only one
 	 * waiter will be set runable with each call to wake_up().
@@ -218,6 +231,7 @@ __cv_signal(kcondvar_t *cvp)
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up(&cvp->cv_event);
 
+	atomic_dec(&cvp->cv_refs);
 	SEXIT;
 }
 EXPORT_SYMBOL(__cv_signal);
@@ -225,15 +239,17 @@ EXPORT_SYMBOL(__cv_signal);
 void
 __cv_broadcast(kcondvar_t *cvp)
 {
+	SENTRY;
 	ASSERT(cvp);
 	ASSERT(cvp->cv_magic == CV_MAGIC);
-	SENTRY;
+	atomic_inc(&cvp->cv_refs);
 
 	/* Wake_up_all() will wake up all waiters even those which
 	 * have the WQ_FLAG_EXCLUSIVE flag set. */
 	if (atomic_read(&cvp->cv_waiters) > 0)
 		wake_up_all(&cvp->cv_event);
 
+	atomic_dec(&cvp->cv_refs);
 	SEXIT;
 }
 EXPORT_SYMBOL(__cv_broadcast);

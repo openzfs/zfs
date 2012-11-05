@@ -35,12 +35,13 @@
  * calling any of the wait/signal funs, and passed into the wait funs.
  */
 #define CV_MAGIC			0x346545f4
-#define CV_POISON			0x95
+#define CV_DESTROY			0x346545f5
 
 typedef struct {
 	int cv_magic;
 	wait_queue_head_t cv_event;
 	wait_queue_head_t cv_destroy;
+	atomic_t cv_refs;
 	atomic_t cv_waiters;
 	kmutex_t *cv_mutex;
 } kcondvar_t;
