@@ -1725,6 +1725,13 @@ spl_cache_grow_wait(spl_kmem_cache_t *skc)
 	return !test_bit(KMC_BIT_GROWING, &skc->skc_flags);
 }
 
+static int
+spl_cache_reclaim_wait(void *word)
+{
+	schedule();
+	return 0;
+}
+
 /*
  * No available objects on any slabs, create a new slab.
  */
@@ -1739,12 +1746,14 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	*obj = NULL;
 
 	/*
-	 * Before allocating a new slab check if the slab is being reaped.
-	 * If it is there is a good chance we can wait until it finishes
-	 * and then use one of the newly freed but not aged-out slabs.
+	 * Before allocating a new slab wait for any reaping to complete and
+	 * then return so the local magazine can be rechecked for new objects.
 	 */
-	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags))
-		SRETURN(-EAGAIN);
+	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
+		rc = wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
+		    spl_cache_reclaim_wait, TASK_UNINTERRUPTIBLE);
+		SRETURN(rc ? rc : -EAGAIN);
+	}
 
 	/*
 	 * This is handled by dispatching a work request to the global work
@@ -2156,6 +2165,9 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	/* Reclaim from the cache, ignoring it's age and delay. */
 	spl_slab_reclaim(skc, count, 1);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
+	smp_mb__after_clear_bit();
+	wake_up_bit(&skc->skc_flags, KMC_BIT_REAPING);
+
 	atomic_dec(&skc->skc_ref);
 
 	SEXIT;
