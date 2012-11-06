@@ -78,6 +78,14 @@ kstat_seq_show_headers(struct seq_file *f)
                                    "name", "events", "elapsed",
                                    "min", "max", "start", "stop");
                         break;
+                case KSTAT_TYPE_TXG:
+                        seq_printf(f,
+                                   "%-8s %-5s %-13s %-12s %-12s %-8s %-8s "
+                                   "%-12s %-12s %-12s\n",
+                                   "txg", "state", "birth",
+                                   "nread", "nwritten", "reads", "writes",
+                                   "otime", "qtime", "stime");
+                        break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
@@ -191,6 +199,27 @@ kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
 }
 
 static int
+kstat_seq_show_txg(struct seq_file *f, kstat_txg_t *ktp)
+{
+	char state;
+
+	switch (ktp->state) {
+		case TXG_STATE_OPEN:		state = 'O';	break;
+		case TXG_STATE_QUIESCING:	state = 'Q';	break;
+		case TXG_STATE_SYNCING:		state = 'S';	break;
+		case TXG_STATE_COMMITTED:	state = 'C';	break;
+		default:			state = '?';	break;
+	}
+
+        seq_printf(f,
+                   "%-8llu %-5c %-13llu %-12llu %-12llu %-8u %-8u "
+                   "%12lld %12lld %12lld\n", ktp->txg, state, ktp->birth,
+                    ktp->nread, ktp->nwritten, ktp->reads, ktp->writes,
+                    ktp->open_time, ktp->quiesce_time, ktp->sync_time);
+	return 0;
+}
+
+static int
 kstat_seq_show(struct seq_file *f, void *p)
 {
         kstat_t *ksp = (kstat_t *)f->private;
@@ -215,6 +244,9 @@ kstat_seq_show(struct seq_file *f, void *p)
                         break;
                 case KSTAT_TYPE_TIMER:
                         rc = kstat_seq_show_timer(f, (kstat_timer_t *)p);
+                        break;
+                case KSTAT_TYPE_TXG:
+                        rc = kstat_seq_show_txg(f, (kstat_txg_t *)p);
                         break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
@@ -252,6 +284,9 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                 case KSTAT_TYPE_TIMER:
                         rc = ksp->ks_data + n * sizeof(kstat_timer_t);
                         break;
+                case KSTAT_TYPE_TXG:
+                        rc = ksp->ks_data + n * sizeof(kstat_txg_t);
+                        break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
@@ -267,10 +302,11 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         ASSERT(ksp->ks_magic == KS_MAGIC);
         SENTRY;
 
+        mutex_enter(&ksp->ks_lock);
+
         /* Dynamically update kstat, on error existing kstats are used */
         (void) ksp->ks_update(ksp, KSTAT_READ);
 
-        spin_lock(&ksp->ks_lock);
 	ksp->ks_snaptime = gethrtime();
 
         if (!n)
@@ -302,7 +338,7 @@ kstat_seq_stop(struct seq_file *f, void *v)
         kstat_t *ksp = (kstat_t *)f->private;
         ASSERT(ksp->ks_magic == KS_MAGIC);
 
-        spin_unlock(&ksp->ks_lock);
+        mutex_exit(&ksp->ks_lock);
 }
 
 static struct seq_operations kstat_seq_ops = {
@@ -360,7 +396,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	spin_unlock(&kstat_lock);
 
         ksp->ks_magic = KS_MAGIC;
-	spin_lock_init(&ksp->ks_lock);
+	mutex_init(&ksp->ks_lock, NULL, MUTEX_DEFAULT, NULL);
 	INIT_LIST_HEAD(&ksp->ks_list);
 
 	ksp->ks_crtime = gethrtime();
@@ -395,6 +431,10 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	                ksp->ks_ndata = ks_ndata;
                         ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
                         break;
+		case KSTAT_TYPE_TXG:
+			ksp->ks_ndata = ks_ndata;
+			ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
+			break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
@@ -445,11 +485,11 @@ __kstat_install(kstat_t *ksp)
 	if (de_name == NULL)
 		SGOTO(out, rc = -EUNATCH);
 
-	spin_lock(&ksp->ks_lock);
+	mutex_enter(&ksp->ks_lock);
 	ksp->ks_proc = de_name;
 	de_name->proc_fops = &proc_kstat_operations;
         de_name->data = (void *)ksp;
-	spin_unlock(&ksp->ks_lock);
+	mutex_exit(&ksp->ks_lock);
 out:
 	if (rc) {
 		spin_lock(&kstat_lock);
@@ -482,6 +522,7 @@ __kstat_delete(kstat_t *ksp)
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
                 kmem_free(ksp->ks_data, ksp->ks_data_size);
 
+	mutex_destroy(&ksp->ks_lock);
 	kmem_free(ksp, sizeof(*ksp));
 
 	return;

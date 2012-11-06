@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/kmem.h>
+#include <sys/mutex.h>
 
 #define KSTAT_STRLEN            31
 
@@ -42,7 +43,8 @@
 #define KSTAT_TYPE_INTR         2       /* interrupt stats; ks_ndata == 1 */
 #define KSTAT_TYPE_IO           3       /* I/O stats; ks_ndata == 1 */
 #define KSTAT_TYPE_TIMER        4       /* event timer; ks_ndata >= 1 */
-#define KSTAT_NUM_TYPES         5
+#define KSTAT_TYPE_TXG          5       /* txg sync; ks_ndata >= 1 */
+#define KSTAT_NUM_TYPES         6
 
 #define KSTAT_DATA_CHAR         0
 #define KSTAT_DATA_INT32        1
@@ -98,7 +100,7 @@ typedef struct kstat_s {
         struct proc_dir_entry *ks_proc;             /* proc linkage */
         kstat_update_t   *ks_update;                /* dynamic updates */
         void             *ks_private;               /* private data */
-        spinlock_t       ks_lock;                   /* kstat data lock */
+        kmutex_t         ks_lock;                   /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 } kstat_t;
 
@@ -154,6 +156,26 @@ typedef struct kstat_timer {
         hrtime_t     start_time;           /* previous event start time */
         hrtime_t     stop_time;            /* previous event stop time */
 } kstat_timer_t;
+
+typedef enum kstat_txg_state {
+        TXG_STATE_OPEN      = 1,
+        TXG_STATE_QUIESCING = 2,
+        TXG_STATE_SYNCING   = 3,
+        TXG_STATE_COMMITTED = 4,
+} kstat_txg_state_t;
+
+typedef struct kstat_txg {
+        u_longlong_t       txg;         /* txg id */
+        kstat_txg_state_t  state;       /* txg state */
+        hrtime_t           birth;       /* birth time stamp */
+        u_longlong_t       nread;       /* number of bytes read */
+        u_longlong_t       nwritten;    /* number of bytes written */
+        uint_t             reads;       /* number of read operations */
+        uint_t             writes;      /* number of write operations */
+        hrtime_t           open_time;   /* open time */
+        hrtime_t           quiesce_time;/* quiesce time */
+        hrtime_t           sync_time;   /* sync time */
+} kstat_txg_t;
 
 int spl_kstat_init(void);
 void spl_kstat_fini(void);
