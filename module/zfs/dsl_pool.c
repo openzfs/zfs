@@ -44,6 +44,7 @@
 int zfs_no_write_throttle = 0;
 int zfs_write_limit_shift = 3;			/* 1/8th of physical memory */
 int zfs_txg_synctime_ms = 1000;		/* target millisecs to sync a txg */
+int zfs_txg_history = 60;		/* statistics for the last N txgs */
 
 unsigned long zfs_write_limit_min = 32 << 20;	/* min write limit is 32MB */
 unsigned long zfs_write_limit_max = 0;		/* max data payload per txg */
@@ -53,6 +54,143 @@ unsigned long zfs_write_limit_override = 0;
 kmutex_t zfs_write_limit_lock;
 
 static pgcnt_t old_physmem = 0;
+
+static int
+dsl_pool_txg_history_update(kstat_t *ksp, int rw)
+{
+	dsl_pool_t *dp = ksp->ks_private;
+	txg_history_t *th;
+	int i = 0;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+
+	if (ksp->ks_data)
+		kmem_free(ksp->ks_data, ksp->ks_data_size);
+
+	mutex_enter(&dp->dp_lock);
+
+	ksp->ks_ndata = dp->dp_txg_history_size;
+	ksp->ks_data_size = dp->dp_txg_history_size * sizeof(kstat_txg_t);
+	if (ksp->ks_data_size > 0)
+		ksp->ks_data = kmem_alloc(ksp->ks_data_size, KM_PUSHPAGE);
+
+	/* Traversed oldest to youngest for the most readable kstat output */
+	for (th = list_tail(&dp->dp_txg_history); th != NULL;
+	     th = list_prev(&dp->dp_txg_history, th)) {
+		mutex_enter(&th->th_lock);
+		ASSERT3S(i + sizeof(kstat_txg_t), <=, ksp->ks_data_size);
+		memcpy(ksp->ks_data + i, &th->th_kstat, sizeof(kstat_txg_t));
+		i += sizeof(kstat_txg_t);
+		mutex_exit(&th->th_lock);
+	}
+
+	mutex_exit(&dp->dp_lock);
+
+	return (0);
+}
+
+static void
+dsl_pool_txg_history_init(dsl_pool_t *dp, uint64_t txg)
+{
+	char name[KSTAT_STRLEN];
+
+	list_create(&dp->dp_txg_history, sizeof (txg_history_t),
+	    offsetof(txg_history_t, th_link));
+	dsl_pool_txg_history_add(dp, txg);
+
+	(void) snprintf(name, KSTAT_STRLEN, "txgs-%s", spa_name(dp->dp_spa));
+	dp->dp_txg_kstat = kstat_create("zfs", 0, name, "misc",
+	    KSTAT_TYPE_TXG, 0, KSTAT_FLAG_VIRTUAL);
+	if (dp->dp_txg_kstat) {
+		dp->dp_txg_kstat->ks_data = NULL;
+		dp->dp_txg_kstat->ks_private = dp;
+		dp->dp_txg_kstat->ks_update = dsl_pool_txg_history_update;
+		kstat_install(dp->dp_txg_kstat);
+	}
+}
+
+static void
+dsl_pool_txg_history_destroy(dsl_pool_t *dp)
+{
+	txg_history_t *th;
+
+	if (dp->dp_txg_kstat) {
+		if (dp->dp_txg_kstat->ks_data)
+			kmem_free(dp->dp_txg_kstat->ks_data,
+			    dp->dp_txg_kstat->ks_data_size);
+
+		kstat_delete(dp->dp_txg_kstat);
+	}
+
+	mutex_enter(&dp->dp_lock);
+	while ((th = list_remove_head(&dp->dp_txg_history))) {
+		dp->dp_txg_history_size--;
+		mutex_destroy(&th->th_lock);
+		kmem_free(th, sizeof(txg_history_t));
+	}
+
+	ASSERT3U(dp->dp_txg_history_size, ==, 0);
+	list_destroy(&dp->dp_txg_history);
+	mutex_exit(&dp->dp_lock);
+}
+
+txg_history_t *
+dsl_pool_txg_history_add(dsl_pool_t *dp, uint64_t txg)
+{
+	txg_history_t *th, *rm;
+
+	th = kmem_zalloc(sizeof(txg_history_t), KM_SLEEP);
+	mutex_init(&th->th_lock, NULL, MUTEX_DEFAULT, NULL);
+	th->th_kstat.txg = txg;
+	th->th_kstat.state = TXG_STATE_OPEN;
+	th->th_kstat.birth = gethrtime();
+
+	mutex_enter(&dp->dp_lock);
+
+	list_insert_head(&dp->dp_txg_history, th);
+	dp->dp_txg_history_size++;
+
+	while (dp->dp_txg_history_size > zfs_txg_history) {
+		dp->dp_txg_history_size--;
+		rm = list_remove_tail(&dp->dp_txg_history);
+		mutex_destroy(&rm->th_lock);
+		kmem_free(rm, sizeof(txg_history_t));
+	}
+
+	mutex_exit(&dp->dp_lock);
+
+	return (th);
+}
+
+/*
+ * Traversed youngest to oldest because lookups are only done for open
+ * or syncing txgs which are guaranteed to be at the head of the list.
+ * The txg_history_t structure will be returned locked.
+ */
+txg_history_t *
+dsl_pool_txg_history_get(dsl_pool_t *dp, uint64_t txg)
+{
+	txg_history_t *th;
+
+	mutex_enter(&dp->dp_lock);
+	for (th = list_head(&dp->dp_txg_history); th != NULL;
+	     th = list_next(&dp->dp_txg_history, th)) {
+		if (th->th_kstat.txg == txg) {
+			mutex_enter(&th->th_lock);
+			break;
+		}
+	}
+	mutex_exit(&dp->dp_lock);
+
+	return (th);
+}
+
+void
+dsl_pool_txg_history_put(txg_history_t *th)
+{
+	mutex_exit(&th->th_lock);
+}
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
@@ -95,6 +233,8 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 
 	dp->dp_iput_taskq = taskq_create("zfs_iput_taskq", 1, minclsyspri,
 	    1, 4, 0);
+
+	dsl_pool_txg_history_init(dp, txg);
 
 	return (dp);
 }
@@ -213,6 +353,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	arc_flush(dp->dp_spa);
 	txg_fini(dp);
 	dsl_scan_fini(dp);
+	dsl_pool_txg_history_destroy(dp);
 	rw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	taskq_destroy(dp->dp_iput_taskq);
@@ -863,6 +1004,9 @@ MODULE_PARM_DESC(zfs_write_limit_shift, "log2(fraction of memory) per txg");
 
 module_param(zfs_txg_synctime_ms, int, 0644);
 MODULE_PARM_DESC(zfs_txg_synctime_ms, "Target milliseconds between txg sync");
+
+module_param(zfs_txg_history, int, 0644);
+MODULE_PARM_DESC(zfs_txg_history, "Historic statistics for the last N txgs");
 
 module_param(zfs_write_limit_min, ulong, 0444);
 MODULE_PARM_DESC(zfs_write_limit_min, "Min txg write limit");

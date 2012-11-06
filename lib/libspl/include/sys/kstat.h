@@ -228,8 +228,10 @@ typedef struct kstat32 {
 					/* ks_ndata == 1 */
 #define	KSTAT_TYPE_TIMER	4	/* event timer */
 					/* ks_ndata >= 1 */
+#define	KSTAT_TYPE_TXG		5	/* txg statistics */
+					/* ks_ndata >= 0 */
 
-#define	KSTAT_NUM_TYPES		5
+#define	KSTAT_NUM_TYPES		6
 
 /*
  * kstat class
@@ -697,6 +699,29 @@ typedef struct kstat_timer {
 } kstat_timer_t;
 
 #define	KSTAT_TIMER_PTR(kptr)	((kstat_timer_t *)(kptr)->ks_data)
+
+/*
+ * TXG statistics - bytes read/written and iops performed
+ */
+typedef enum kstat_txg_state {
+	TXG_STATE_OPEN      = 1,
+	TXG_STATE_QUIESCING = 2,
+	TXG_STATE_SYNCING   = 3,
+	TXG_STATE_COMMITTED = 4,
+} kstat_txg_state_t;
+
+typedef struct kstat_txg {
+	u_longlong_t		txg;		/* txg id */
+	kstat_txg_state_t	state;		/* txg state */
+	hrtime_t		birth;		/* birth time stamp */
+	u_longlong_t		nread;		/* number of bytes read */
+	u_longlong_t		nwritten;	/* number of bytes written */
+	uint_t			reads;		/* number of read operations */
+	uint_t			writes;		/* number of write operations */
+	hrtime_t		open_time;	/* open time */
+	hrtime_t		quiesce_time;	/* quiesce time */
+	hrtime_t		sync_time;	/* sync time */
+} kstat_txg_t;
 
 #if	defined(_KERNEL)
 

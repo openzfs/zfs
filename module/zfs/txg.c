@@ -29,6 +29,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/callb.h>
+#include <sys/spa_impl.h>
 
 /*
  * Pool-wide transaction groups.
@@ -279,6 +280,8 @@ txg_rele_to_sync(txg_handle_t *th)
 static void
 txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
+	hrtime_t start;
+	txg_history_t *th;
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
 	int c;
@@ -293,6 +296,15 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	tx->tx_open_txg++;
 
 	/*
+	 * Measure how long the txg was open and replace the kstat.
+	 */
+	th = dsl_pool_txg_history_get(dp, txg);
+	th->th_kstat.open_time = gethrtime() - th->th_kstat.birth;
+	th->th_kstat.state = TXG_STATE_QUIESCING;
+	dsl_pool_txg_history_put(th);
+	dsl_pool_txg_history_add(dp, tx->tx_open_txg);
+
+	/*
 	 * Now that we've incremented tx_open_txg, we can let threads
 	 * enter the next transaction group.
 	 */
@@ -302,6 +314,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().
 	 */
+	start = gethrtime();
+
 	for (c = 0; c < max_ncpus; c++) {
 		tx_cpu_t *tc = &tx->tx_cpu[c];
 		mutex_enter(&tc->tc_lock);
@@ -309,6 +323,13 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 			cv_wait(&tc->tc_cv[g], &tc->tc_lock);
 		mutex_exit(&tc->tc_lock);
 	}
+
+	/*
+	 * Measure how long the txg took to quiesce.
+	 */
+	th = dsl_pool_txg_history_get(dp, txg);
+	th->th_kstat.quiesce_time = gethrtime() - start;
+	dsl_pool_txg_history_put(th);
 }
 
 static void
@@ -395,6 +416,8 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	start = delta = 0;
 	for (;;) {
+		hrtime_t hrstart;
+		txg_history_t *th;
 		uint64_t timer, timeout;
 		uint64_t txg;
 
@@ -441,11 +464,17 @@ txg_sync_thread(dsl_pool_t *dp)
 		tx->tx_syncing_txg = txg;
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
+		th = dsl_pool_txg_history_get(dp, txg);
+		th->th_kstat.state = TXG_STATE_SYNCING;
+		vdev_get_stats(spa->spa_root_vdev, &th->th_vs1);
+		dsl_pool_txg_history_put(th);
+
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 
 		start = ddi_get_lbolt();
+		hrstart = gethrtime();
 		spa_sync(spa, txg);
 		delta = ddi_get_lbolt() - start;
 
@@ -458,6 +487,23 @@ txg_sync_thread(dsl_pool_t *dp)
 		 * Dispatch commit callbacks to worker threads.
 		 */
 		txg_dispatch_callbacks(dp, txg);
+
+		/*
+		 * Measure the txg sync time determine the amount of I/O done.
+		 */
+		th = dsl_pool_txg_history_get(dp, txg);
+		vdev_get_stats(spa->spa_root_vdev, &th->th_vs2);
+		th->th_kstat.sync_time = gethrtime() - hrstart;
+		th->th_kstat.nread = th->th_vs2.vs_bytes[ZIO_TYPE_READ] -
+		    th->th_vs1.vs_bytes[ZIO_TYPE_READ];
+		th->th_kstat.nwritten = th->th_vs2.vs_bytes[ZIO_TYPE_WRITE] -
+		    th->th_vs1.vs_bytes[ZIO_TYPE_WRITE];
+		th->th_kstat.reads = th->th_vs2.vs_ops[ZIO_TYPE_READ] -
+		    th->th_vs1.vs_ops[ZIO_TYPE_READ];
+		th->th_kstat.writes = th->th_vs2.vs_ops[ZIO_TYPE_WRITE] -
+		    th->th_vs1.vs_ops[ZIO_TYPE_WRITE];
+		th->th_kstat.state = TXG_STATE_COMMITTED;
+		dsl_pool_txg_history_put(th);
 	}
 }
 
