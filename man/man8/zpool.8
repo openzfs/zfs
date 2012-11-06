@@ -2,6 +2,7 @@
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
 .\" Copyright (c) 2012 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
 .\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
 .\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
@@ -16,12 +17,12 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool add\fR [\fB-fn\fR] \fIpool\fR \fIvdev\fR ...
+\fBzpool add\fR [\fB-fn\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
 .LP
 .nf
-\fBzpool attach\fR [\fB-f\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR
+\fBzpool attach\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR
 .fi
 
 .LP
@@ -711,7 +712,7 @@ Displays a help message.
 .ne 2
 .mk
 .na
-\fB\fBzpool add\fR [\fB-fn\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool add\fR [\fB-fn\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -738,6 +739,17 @@ Forces use of \fBvdev\fRs, even if they appear in use or specify a conflicting r
 Displays the configuration that would be used without actually adding the \fBvdev\fRs. The actual pool creation can still fail due to insufficient privileges or device sharing.
 .RE
 
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fIproperty=value\fR
+.ad
+.sp .6
+.RS 4n
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is "ashift".
+.RE
+
 Do not add a disk that is currently configured as a quorum device to a zpool. After a disk is in the pool, that disk can then be configured as a quorum device.
 .RE
 
@@ -745,7 +757,7 @@ Do not add a disk that is currently configured as a quorum device to a zpool. Af
 .ne 2
 .mk
 .na
-\fB\fBzpool attach\fR [\fB-f\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR\fR
+\fB\fBzpool attach\fR [\fB-f\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fIdevice\fR \fInew_device\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -759,6 +771,17 @@ Attaches \fInew_device\fR to an existing \fBzpool\fR device. The existing device
 .RS 6n
 .rt  
 Forces use of \fInew_device\fR, even if its appears to be in use. Not all devices can be overridden in this manner.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fIproperty=value\fR
+.ad
+.sp .6
+.RS 4n
+Sets the given pool properties. See the "Properties" section for a list of valid properties that can be set. The only property supported at the moment is "ashift".
 .RE
 
 .RE
