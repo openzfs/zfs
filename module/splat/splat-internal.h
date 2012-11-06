@@ -25,47 +25,6 @@
 #ifndef _SPLAT_INTERNAL_H
 #define _SPLAT_INTERNAL_H
 
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/string.h>
-#include <linux/errno.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-#include <linux/elf.h>
-#include <linux/limits.h>
-#include <linux/version.h>
-#include <linux/vmalloc.h>
-#include <linux/module.h>
-#include <linux/device.h>
-#include <linux/list.h>
-#include <linux/swap.h>
-#include <linux/delay.h>
-
-#include <asm/ioctls.h>
-#include <asm/uaccess.h>
-#include <stdarg.h>
-
-#include <sys/callb.h>
-#include <sys/condvar.h>
-#include <sys/cred.h>
-#include <sys/sysmacros.h>
-#include <sys/kmem.h>
-#include <sys/kstat.h>
-#include <sys/mutex.h>
-#include <sys/random.h>
-#include <sys/rwlock.h>
-#include <sys/taskq.h>
-#include <sys/thread.h>
-#include <sys/time.h>
-#include <sys/timer.h>
-#include <sys/types.h>
-#include <sys/kobj.h>
-#include <sys/atomic.h>
-#include <sys/list.h>
-#include <sys/sunddi.h>
-#include <sys/zmod.h>
-#include <linux/cdev.h>
-
 #include "spl-device.h"
 #include "spl-debug.h"
 #include "splat-ctl.h"
@@ -162,7 +121,7 @@ typedef struct splat_subsystem {
 #define SPLAT_INFO_BUFFER_REDZONE	256
 
 typedef struct splat_info {
-	spinlock_t info_lock;
+	struct mutex info_lock;
 	int info_size;
 	char *info_buffer;
 	char *info_head;	/* Internal kernel use only */
@@ -177,7 +136,7 @@ typedef struct splat_info {
 	ASSERT(_info_);							\
 	ASSERT(_info_->info_buffer);					\
 									\
-	spin_lock(&_info_->info_lock);					\
+	mutex_lock(&_info_->info_lock);					\
 									\
 	/* Don't allow the kernel to start a write in the red zone */	\
 	if ((int)(_info_->info_head - _info_->info_buffer) >		\
@@ -189,7 +148,7 @@ typedef struct splat_info {
 			_info_->info_head += _rc_;			\
 	}								\
 									\
-	spin_unlock(&_info_->info_lock);				\
+	mutex_unlock(&_info_->info_lock);				\
 	_rc_;								\
 })
 

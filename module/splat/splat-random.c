@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Random Number Generator Tests.
 \*****************************************************************************/
 
+#include <sys/random.h>
+#include <sys/kmem.h>
 #include "splat-internal.h"
 
 #define SPLAT_KRNG_NAME			"krng"

@@ -24,6 +24,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Generic Tests.
 \*****************************************************************************/
 
+#include <sys/sunddi.h>
 #include "splat-internal.h"
 
 #define SPLAT_GENERIC_NAME		"generic"

@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Kmem Tests.
 \*****************************************************************************/
 
+#include <sys/kmem.h>
+#include <sys/thread.h>
 #include "splat-internal.h"
 
 #define SPLAT_KMEM_NAME			"kmem"
@@ -69,11 +71,11 @@
 #define SPLAT_KMEM_TEST10_NAME		"slab_lock"
 #define SPLAT_KMEM_TEST10_DESC		"Slab locking test"
 
-#ifdef _LP64
+#if 0
 #define SPLAT_KMEM_TEST11_ID		0x010b
 #define SPLAT_KMEM_TEST11_NAME		"slab_overcommit"
 #define SPLAT_KMEM_TEST11_DESC		"Slab memory overcommit test"
-#endif /* _LP64 */
+#endif
 
 #define SPLAT_KMEM_TEST12_ID		0x010c
 #define SPLAT_KMEM_TEST12_NAME		"vmem_size"
@@ -1006,7 +1008,7 @@ splat_kmem_test10(struct file *file, void *arg)
 	return rc;
 }
 
-#ifdef _LP64
+#if 0
 /*
  * This test creates N threads with a shared kmem cache which overcommits
  * memory by 4x.  This makes it impossible for the slab to satify the
@@ -1037,7 +1039,7 @@ splat_kmem_test11(struct file *file, void *arg)
 
 	return rc;
 }
-#endif /* _LP64 */
+#endif
 
 /*
  * Check vmem_size() behavior by acquiring the alloc/free/total vmem
@@ -1290,10 +1292,10 @@ splat_kmem_init(void)
 			SPLAT_KMEM_TEST9_ID, splat_kmem_test9);
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST10_NAME, SPLAT_KMEM_TEST10_DESC,
 			SPLAT_KMEM_TEST10_ID, splat_kmem_test10);
-#ifdef _LP64
+#if 0
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST11_NAME, SPLAT_KMEM_TEST11_DESC,
 			SPLAT_KMEM_TEST11_ID, splat_kmem_test11);
-#endif /* _LP64 */
+#endif
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST12_NAME, SPLAT_KMEM_TEST12_DESC,
 			SPLAT_KMEM_TEST12_ID, splat_kmem_test12);
 	SPLAT_TEST_INIT(sub, SPLAT_KMEM_TEST13_NAME, SPLAT_KMEM_TEST13_DESC,
@@ -1308,9 +1310,9 @@ splat_kmem_fini(splat_subsystem_t *sub)
 	ASSERT(sub);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST13_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST12_ID);
-#ifdef _LP64
+#if 0
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST11_ID);
-#endif /* _LP64 */
+#endif
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST10_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST9_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_KMEM_TEST8_ID);

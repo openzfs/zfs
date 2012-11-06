@@ -23,6 +23,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Kernel Compatibility Tests.
 \*****************************************************************************/
 
+#include <sys/kmem.h>
 #include "splat-internal.h"
 
 #define SPLAT_LINUX_NAME		"linux"

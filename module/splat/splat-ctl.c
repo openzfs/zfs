@@ -43,6 +43,14 @@
  *  of regression tests or particular tests.
 \*****************************************************************************/
 
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/cdev.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#include <sys/types.h>
+#include <sys/debug.h>
 #include "splat-internal.h"
 
 static spl_class *splat_class;
@@ -63,7 +71,7 @@ splat_open(struct inode *inode, struct file *file)
 	if (info == NULL)
 		return -ENOMEM;
 
-	spin_lock_init(&info->info_lock);
+	mutex_init(&info->info_lock);
 	info->info_size = SPLAT_INFO_BUFFER_SIZE;
 	info->info_buffer = (char *)vmalloc(SPLAT_INFO_BUFFER_SIZE);
 	if (info->info_buffer == NULL) {
@@ -92,6 +100,7 @@ splat_release(struct inode *inode, struct file *file)
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
+	mutex_destroy(&info->info_lock);
 	vfree(info->info_buffer);
 	kfree(info);
 
@@ -106,10 +115,10 @@ splat_buffer_clear(struct file *file, splat_cfg_t *kcfg, unsigned long arg)
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
-	spin_lock(&info->info_lock);
+	mutex_lock(&info->info_lock);
 	memset(info->info_buffer, 0, info->info_size);
 	info->info_head = info->info_buffer;
-	spin_unlock(&info->info_lock);
+	mutex_unlock(&info->info_lock);
 
 	return 0;
 }
@@ -124,7 +133,7 @@ splat_buffer_size(struct file *file, splat_cfg_t *kcfg, unsigned long arg)
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
-	spin_lock(&info->info_lock);
+	mutex_lock(&info->info_lock);
 	if (kcfg->cfg_arg1 > 0) {
 
 		size = kcfg->cfg_arg1;
@@ -149,7 +158,7 @@ splat_buffer_size(struct file *file, splat_cfg_t *kcfg, unsigned long arg)
 	if (copy_to_user((struct splat_cfg_t __user *)arg, kcfg, sizeof(*kcfg)))
 		rc = -EFAULT;
 out:
-	spin_unlock(&info->info_lock);
+	mutex_unlock(&info->info_lock);
 
 	return rc;
 }
@@ -500,7 +509,7 @@ static ssize_t splat_write(struct file *file, const char __user *buf,
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
-	spin_lock(&info->info_lock);
+	mutex_lock(&info->info_lock);
 
 	/* Write beyond EOF */
 	if (*ppos >= info->info_size) {
@@ -520,7 +529,7 @@ static ssize_t splat_write(struct file *file, const char __user *buf,
 	*ppos += count;
 	rc = count;
 out:
-	spin_unlock(&info->info_lock);
+	mutex_unlock(&info->info_lock);
 	return rc;
 }
 
@@ -537,7 +546,7 @@ static ssize_t splat_read(struct file *file, char __user *buf,
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
-	spin_lock(&info->info_lock);
+	mutex_lock(&info->info_lock);
 
 	/* Read beyond EOF */
 	if (*ppos >= info->info_size)
@@ -555,7 +564,7 @@ static ssize_t splat_read(struct file *file, char __user *buf,
 	*ppos += count;
 	rc = count;
 out:
-	spin_unlock(&info->info_lock);
+	mutex_unlock(&info->info_lock);
 	return rc;
 }
 
@@ -571,7 +580,7 @@ static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 	ASSERT(info);
 	ASSERT(info->info_buffer);
 
-	spin_lock(&info->info_lock);
+	mutex_lock(&info->info_lock);
 
 	switch (origin) {
 	case 0: /* SEEK_SET - No-op just do it */
@@ -590,7 +599,7 @@ static loff_t splat_seek(struct file *file, loff_t offset, int origin)
 		rc = offset;
 	}
 
-	spin_unlock(&info->info_lock);
+	mutex_unlock(&info->info_lock);
 
 	return rc;
 }

@@ -24,6 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Atomic Tests.
 \*****************************************************************************/
 
+#include <sys/atomic.h>
+#include <sys/thread.h>
 #include "splat-internal.h"
 
 #define SPLAT_ATOMIC_NAME		"atomic"
@@ -49,7 +51,7 @@ typedef enum {
 typedef struct atomic_priv {
         unsigned long ap_magic;
         struct file *ap_file;
-	spinlock_t ap_lock;
+	struct mutex ap_lock;
         wait_queue_head_t ap_waitq;
 	volatile uint64_t ap_atomic;
 	volatile uint64_t ap_atomic_exited;
@@ -67,10 +69,10 @@ splat_atomic_work(void *priv)
 	ap = (atomic_priv_t *)priv;
 	ASSERT(ap->ap_magic == SPLAT_ATOMIC_TEST_MAGIC);
 
-	spin_lock(&ap->ap_lock);
+	mutex_lock(&ap->ap_lock);
 	op = ap->ap_op;
 	wake_up(&ap->ap_waitq);
-	spin_unlock(&ap->ap_lock);
+	mutex_unlock(&ap->ap_lock);
 
         splat_vprint(ap->ap_file, SPLAT_ATOMIC_TEST1_NAME,
 	             "Thread %d successfully started: %lu/%lu\n", op,
@@ -140,13 +142,13 @@ splat_atomic_test1(struct file *file, void *arg)
 
 	ap.ap_magic = SPLAT_ATOMIC_TEST_MAGIC;
 	ap.ap_file = file;
-	spin_lock_init(&ap.ap_lock);
+	mutex_init(&ap.ap_lock);
 	init_waitqueue_head(&ap.ap_waitq);
 	ap.ap_atomic = SPLAT_ATOMIC_INIT_VALUE;
 	ap.ap_atomic_exited = 0;
 
 	for (i = 0; i < SPLAT_ATOMIC_COUNT_64; i++) {
-		spin_lock(&ap.ap_lock);
+		mutex_lock(&ap.ap_lock);
 		ap.ap_op = i;
 
 		thr = (kthread_t *)thread_create(NULL, 0, splat_atomic_work,
@@ -154,14 +156,14 @@ splat_atomic_test1(struct file *file, void *arg)
 						 minclsyspri);
 		if (thr == NULL) {
 			rc = -ESRCH;
-			spin_unlock(&ap.ap_lock);
+			mutex_unlock(&ap.ap_lock);
 			break;
 		}
 
 		/* Prepare to wait, the new thread will wake us once it
 		 * has made a copy of the unique private passed data */
                 prepare_to_wait(&ap.ap_waitq, &wait, TASK_UNINTERRUPTIBLE);
-		spin_unlock(&ap.ap_lock);
+		mutex_unlock(&ap.ap_lock);
 		schedule();
 	}
 

@@ -24,6 +24,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Time Tests.
 \*****************************************************************************/
 
+#include <sys/time.h>
 #include "splat-internal.h"
 
 #define SPLAT_TIME_NAME			"time"

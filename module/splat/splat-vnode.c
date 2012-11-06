@@ -24,8 +24,8 @@
  *  Solaris Porting LAyer Tests (SPLAT) Vnode Tests.
 \*****************************************************************************/
 
+#include <sys/vnode.h>
 #include "splat-internal.h"
-#include <linux/rcupdate.h>
 
 #define SPLAT_VNODE_NAME		"vnode"
 #define SPLAT_VNODE_DESC		"Kernel Vnode Tests"

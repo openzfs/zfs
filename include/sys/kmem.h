@@ -28,7 +28,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include <linux/mm_compat.h>
 #include <linux/spinlock.h>
 #include <linux/rwsem.h>
 #include <linux/hash.h>
