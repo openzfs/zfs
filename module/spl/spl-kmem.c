@@ -1116,8 +1116,54 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 	SEXIT;
 }
 
+static spl_kmem_emergency_t *
+spl_emergency_search(struct rb_root *root, void *obj)
+{
+	struct rb_node *node = root->rb_node;
+	spl_kmem_emergency_t *ske;
+	unsigned long address = (unsigned long)obj;
+
+	while (node) {
+		ske = container_of(node, spl_kmem_emergency_t, ske_node);
+
+		if (address < (unsigned long)ske->ske_obj)
+			node = node->rb_left;
+		else if (address > (unsigned long)ske->ske_obj)
+			node = node->rb_right;
+		else
+			return ske;
+	}
+
+	return NULL;
+}
+
+static int
+spl_emergency_insert(struct rb_root *root, spl_kmem_emergency_t *ske)
+{
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+	spl_kmem_emergency_t *ske_tmp;
+	unsigned long address = (unsigned long)ske->ske_obj;
+
+	while (*new) {
+		ske_tmp = container_of(*new, spl_kmem_emergency_t, ske_node);
+
+		parent = *new;
+		if (address < (unsigned long)ske_tmp->ske_obj)
+			new = &((*new)->rb_left);
+		else if (address > (unsigned long)ske_tmp->ske_obj)
+			new = &((*new)->rb_right);
+		else
+			return 0;
+	}
+
+	rb_link_node(&ske->ske_node, parent, new);
+	rb_insert_color(&ske->ske_node, root);
+
+	return 1;
+}
+
 /*
- * Allocate a single emergency object for use by the caller.
+ * Allocate a single emergency object and track it in a red black tree.
  */
 static int
 spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
@@ -1143,17 +1189,24 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 		SRETURN(-ENOMEM);
 	}
 
+	spin_lock(&skc->skc_lock);
+	empty = spl_emergency_insert(&skc->skc_emergency_tree, ske);
+	if (likely(empty)) {
+		skc->skc_obj_total++;
+		skc->skc_obj_emergency++;
+		if (skc->skc_obj_emergency > skc->skc_obj_emergency_max)
+			skc->skc_obj_emergency_max = skc->skc_obj_emergency;
+	}
+	spin_unlock(&skc->skc_lock);
+
+	if (unlikely(!empty)) {
+		kfree(ske->ske_obj);
+		kfree(ske);
+		SRETURN(-EINVAL);
+	}
+
 	if (skc->skc_ctor)
 		skc->skc_ctor(ske->ske_obj, skc->skc_private, flags);
-
-	spin_lock(&skc->skc_lock);
-	skc->skc_obj_total++;
-	skc->skc_obj_emergency++;
-	if (skc->skc_obj_emergency > skc->skc_obj_emergency_max)
-		skc->skc_obj_emergency_max = skc->skc_obj_emergency;
-
-	list_add(&ske->ske_list, &skc->skc_emergency_list);
-	spin_unlock(&skc->skc_lock);
 
 	*obj = ske->ske_obj;
 
@@ -1161,30 +1214,24 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 }
 
 /*
- * Free the passed object if it is an emergency object or a normal slab
- * object.  Currently this is done by walking what should be a short list of
- * emergency objects.  If this proves to be too inefficient we can replace
- * the simple list with a hash.
+ * Locate the passed object in the red black tree and free it.
  */
 static int
 spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
 {
-	spl_kmem_emergency_t *m, *n, *ske = NULL;
+	spl_kmem_emergency_t *ske;
 	SENTRY;
 
 	spin_lock(&skc->skc_lock);
-	list_for_each_entry_safe(m, n, &skc->skc_emergency_list, ske_list) {
-		if (m->ske_obj == obj) {
-			list_del(&m->ske_list);
-			skc->skc_obj_emergency--;
-			skc->skc_obj_total--;
-			ske = m;
-			break;
-		}
+	ske = spl_emergency_search(&skc->skc_emergency_tree, obj);
+	if (likely(ske)) {
+		rb_erase(&ske->ske_node, &skc->skc_emergency_tree);
+		skc->skc_obj_emergency--;
+		skc->skc_obj_total--;
 	}
 	spin_unlock(&skc->skc_lock);
 
-	if (ske == NULL)
+	if (unlikely(ske == NULL))
 		SRETURN(-ENOENT);
 
 	if (skc->skc_dtor)
@@ -1483,7 +1530,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	INIT_LIST_HEAD(&skc->skc_list);
 	INIT_LIST_HEAD(&skc->skc_complete_list);
 	INIT_LIST_HEAD(&skc->skc_partial_list);
-	INIT_LIST_HEAD(&skc->skc_emergency_list);
+	skc->skc_emergency_tree = RB_ROOT;
 	spin_lock_init(&skc->skc_lock);
 	init_waitqueue_head(&skc->skc_waitq);
 	skc->skc_slab_fail = 0;
@@ -1495,6 +1542,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_total = 0;
 	skc->skc_obj_alloc = 0;
 	skc->skc_obj_max = 0;
+	skc->skc_obj_deadlock = 0;
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
 
@@ -1589,7 +1637,6 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	ASSERT3U(skc->skc_obj_total, ==, 0);
 	ASSERT3U(skc->skc_obj_emergency, ==, 0);
 	ASSERT(list_empty(&skc->skc_complete_list));
-	ASSERT(list_empty(&skc->skc_emergency_list));
 
 	kmem_free(skc->skc_name, skc->skc_name_size);
 	spin_unlock(&skc->skc_lock);
@@ -1662,6 +1709,7 @@ spl_cache_grow_work(void *data)
 
 	atomic_dec(&skc->skc_ref);
 	clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
+	clear_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
 	wake_up_all(&skc->skc_waitq);
 	spin_unlock(&skc->skc_lock);
 
@@ -1677,13 +1725,20 @@ spl_cache_grow_wait(spl_kmem_cache_t *skc)
 	return !test_bit(KMC_BIT_GROWING, &skc->skc_flags);
 }
 
+static int
+spl_cache_reclaim_wait(void *word)
+{
+	schedule();
+	return 0;
+}
+
 /*
  * No available objects on any slabs, create a new slab.
  */
 static int
 spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 {
-	int remaining, rc = 0;
+	int remaining, rc;
 	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -1691,12 +1746,14 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	*obj = NULL;
 
 	/*
-	 * Before allocating a new slab check if the slab is being reaped.
-	 * If it is there is a good chance we can wait until it finishes
-	 * and then use one of the newly freed but not aged-out slabs.
+	 * Before allocating a new slab wait for any reaping to complete and
+	 * then return so the local magazine can be rechecked for new objects.
 	 */
-	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags))
-		SRETURN(-EAGAIN);
+	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
+		rc = wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
+		    spl_cache_reclaim_wait, TASK_UNINTERRUPTIBLE);
+		SRETURN(rc ? rc : -EAGAIN);
+	}
 
 	/*
 	 * This is handled by dispatching a work request to the global work
@@ -1722,17 +1779,30 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	}
 
 	/*
-	 * Allow a single timer tick before falling back to synchronously
-	 * allocating the minimum about of memory required by the caller.
+	 * The goal here is to only detect the rare case where a virtual slab
+	 * allocation has deadlocked.  We must be careful to minimize the use
+	 * of emergency objects which are more expensive to track.  Therefore,
+	 * we set a very long timeout for the asynchronous allocation and if
+	 * the timeout is reached the cache is flagged as deadlocked.  From
+	 * this point only new emergency objects will be allocated until the
+	 * asynchronous allocation completes and clears the deadlocked flag.
 	 */
-	remaining = wait_event_timeout(skc->skc_waitq,
-				       spl_cache_grow_wait(skc), 1);
+	if (test_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags)) {
+		rc = spl_emergency_alloc(skc, flags, obj);
+	} else {
+		remaining = wait_event_timeout(skc->skc_waitq,
+					       spl_cache_grow_wait(skc), HZ);
 
-	if (remaining == 0) {
-		if (test_bit(KMC_BIT_NOEMERGENCY, &skc->skc_flags))
-			rc = -ENOMEM;
-		else
-			rc = spl_emergency_alloc(skc, flags, obj);
+		if (!remaining && test_bit(KMC_BIT_VMEM, &skc->skc_flags)) {
+			spin_lock(&skc->skc_lock);
+			if (test_bit(KMC_BIT_GROWING, &skc->skc_flags)) {
+				set_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
+				skc->skc_obj_deadlock++;
+			}
+			spin_unlock(&skc->skc_lock);
+		}
+
+		rc = -ENOMEM;
 	}
 
 	SRETURN(rc);
@@ -1962,11 +2032,12 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	atomic_inc(&skc->skc_ref);
 
 	/*
-	 * Emergency objects are never part of the virtual address space
-	 * so if we get a virtual address we can optimize this check out.
+	 * Only virtual slabs may have emergency objects and these objects
+	 * are guaranteed to have physical addresses.  They must be removed
+	 * from the tree of emergency objects and the freed.
 	 */
-	if (!kmem_virt(obj) && !spl_emergency_free(skc, obj))
-		SGOTO(out, 0);
+	if ((skc->skc_flags & KMC_VMEM) && !kmem_virt(obj))
+		SGOTO(out, spl_emergency_free(skc, obj));
 
 	local_irq_save(flags);
 
@@ -2094,6 +2165,9 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	/* Reclaim from the cache, ignoring it's age and delay. */
 	spl_slab_reclaim(skc, count, 1);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
+	smp_mb__after_clear_bit();
+	wake_up_bit(&skc->skc_flags, KMC_BIT_REAPING);
+
 	atomic_dec(&skc->skc_ref);
 
 	SEXIT;

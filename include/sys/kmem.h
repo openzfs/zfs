@@ -31,6 +31,7 @@
 #include <linux/spinlock.h>
 #include <linux/rwsem.h>
 #include <linux/hash.h>
+#include <linux/rbtree.h>
 #include <linux/ctype.h>
 #include <asm/atomic.h>
 #include <sys/types.h>
@@ -340,6 +341,7 @@ enum {
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_OFFSLAB		= 7,	/* Objects not on slab */
 	KMC_BIT_NOEMERGENCY	= 8,	/* Disable emergency objects */
+	KMC_BIT_DEADLOCKED      = 14,	/* Deadlock detected */
 	KMC_BIT_GROWING         = 15,   /* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
@@ -366,6 +368,7 @@ typedef enum kmem_cbrc {
 #define KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
 #define KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
+#define KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
 #define KMC_GROWING		(1 << KMC_BIT_GROWING)
 #define KMC_REAPING		(1 << KMC_BIT_REAPING)
 #define KMC_DESTROY		(1 << KMC_BIT_DESTROY)
@@ -433,8 +436,8 @@ typedef struct spl_kmem_alloc {
 } spl_kmem_alloc_t;
 
 typedef struct spl_kmem_emergency {
+	struct rb_node		ske_node;	/* Emergency tree linkage */
 	void			*ske_obj;	/* Buffer address */
-	struct list_head	ske_list;	/* Emergency list linkage */
 } spl_kmem_emergency_t;
 
 typedef struct spl_kmem_cache {
@@ -461,7 +464,7 @@ typedef struct spl_kmem_cache {
 	struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
-	struct list_head	skc_emergency_list; /* Min sized objects */
+	struct rb_root		skc_emergency_tree; /* Min sized objects */
 	spinlock_t		skc_lock;	/* Cache lock */
 	wait_queue_head_t	skc_waitq;	/* Allocation waiters */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
@@ -473,6 +476,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
 	uint64_t		skc_obj_max;	/* Obj max historic */
+	uint64_t		skc_obj_deadlock;  /* Obj emergency deadlocks */
 	uint64_t		skc_obj_emergency; /* Obj emergency current */
 	uint64_t		skc_obj_emergency_max; /* Obj emergency max */
 } spl_kmem_cache_t;
