@@ -3790,7 +3790,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	zfs_sb_t	*zsb = ITOZSB(ip);
 	loff_t		offset;
 	loff_t		pgoff;
-        unsigned int	pglen;
+	unsigned int	pglen;
+	rl_t		*rl;
 	dmu_tx_t	*tx;
 	caddr_t		va;
 	int		err = 0;
@@ -3799,6 +3800,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	int		cnt = 0;
 	int		sync;
 
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
 
 	ASSERT(PageLocked(pp));
 
@@ -3810,6 +3813,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
 		unlock_page(pp);
+		ZFS_EXIT(zsb);
 		return (0);
 	}
 
@@ -3832,6 +3836,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	set_page_writeback(pp);
 	unlock_page(pp);
 
+	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
 	tx = dmu_tx_create(zsb->z_os);
 
 	sync = ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
@@ -3858,6 +3863,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (sync)
 			zfs_putpage_commit_cb(pp, ECANCELED);
 
+		zfs_range_unlock(rl);
+		ZFS_EXIT(zsb);
 		return (err);
 	}
 
@@ -3873,6 +3880,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0);
 
 	dmu_tx_commit(tx);
+	zfs_range_unlock(rl);
 	ASSERT3S(err, ==, 0);
 
 	if (sync) {
@@ -3880,6 +3888,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		zfs_putpage_commit_cb(pp, err);
 	}
 
+	ZFS_EXIT(zsb);
 	return (err);
 }
 

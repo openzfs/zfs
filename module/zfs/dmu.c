@@ -1022,11 +1022,57 @@ dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 	return 0;
 }
 
+static void
+dmu_bio_put(struct bio *bio)
+{
+	struct bio *bio_next;
+
+	while (bio) {
+		bio_next = bio->bi_next;
+		bio_put(bio);
+		bio = bio_next;
+	}
+}
+
+static int
+dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
+{
+	struct bio *bio_root = NULL;
+	struct bio *bio_last = NULL;
+	struct bio *bio_new;
+
+	if (bio == NULL)
+		return EINVAL;
+
+	while (bio) {
+		bio_new = bio_clone(bio, GFP_NOIO);
+		if (bio_new == NULL) {
+			dmu_bio_put(bio_root);
+			return ENOMEM;
+		}
+
+		if (bio_last) {
+			bio_last->bi_next = bio_new;
+			bio_last = bio_new;
+		} else {
+			bio_root = bio_new;
+			bio_last = bio_new;
+		}
+
+		bio = bio->bi_next;
+	}
+
+	*bio_copy = bio_root;
+
+	return 0;
+}
+
 int
 dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
+	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
 
@@ -1038,6 +1084,17 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 				 &numbufs, &dbp);
 	if (err)
 		return (err);
+
+	/*
+	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
+	 * can be safely modified.  The original bio list is relinked in to
+	 * the request when the function exits.  This is required because
+	 * some file systems blindly assume that these values will remain
+	 * constant between bio_submit() and the IO completion callback.
+	 */
+	err = dmu_bio_clone(bio_saved, &req->bio);
+	if (err)
+		goto error;
 
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
@@ -1062,6 +1119,10 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 		offset += didcpy;
 		err = 0;
 	}
+
+	dmu_bio_put(req->bio);
+	req->bio = bio_saved;
+error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (err);
@@ -1072,6 +1133,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
+	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
 	int numbufs;
 	int err = 0;
@@ -1084,6 +1146,17 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 				 &numbufs, &dbp);
 	if (err)
 		return (err);
+
+	/*
+	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
+	 * can be safely modified.  The original bio list is relinked in to
+	 * the request when the function exits.  This is required because
+	 * some file systems blindly assume that these values will remain
+	 * constant between bio_submit() and the IO completion callback.
+	 */
+	err = dmu_bio_clone(bio_saved, &req->bio);
+	if (err)
+		goto error;
 
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
@@ -1119,7 +1192,11 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		err = 0;
 	}
 
+	dmu_bio_put(req->bio);
+	req->bio = bio_saved;
+error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
 	return (err);
 }
 
