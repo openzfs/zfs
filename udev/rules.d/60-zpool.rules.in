@@ -1,5 +1,5 @@
 #
-# /lib/udev/rules.d/60-zpool.rules
+# @udevdir@/rules.d/60-zpool.rules
 #
 
 ENV{DEVTYPE}=="disk", IMPORT{program}="@udevdir@/zpool_id -d %p"
