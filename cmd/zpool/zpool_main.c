@@ -24,6 +24,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
+ * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  */
 
 #include <assert.h>
@@ -199,10 +200,11 @@ static const char *
 get_usage(zpool_help_t idx) {
 	switch (idx) {
 	case HELP_ADD:
-		return (gettext("\tadd [-fn] <pool> <vdev> ...\n"));
+		return (gettext("\tadd [-fn] [-o property=value] "
+		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
-		return (gettext("\tattach [-f] <pool> <device> "
-		    "<new-device>\n"));
+		return (gettext("\tattach [-f] [-o property=value] "
+		    "<pool> <device> <new-device>\n"));
 	case HELP_CLEAR:
 		return (gettext("\tclear [-nF] <pool> [device]\n"));
 	case HELP_CREATE:
@@ -436,11 +438,12 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 }
 
 /*
- * zpool add [-fn] <pool> <vdev> ...
+ * zpool add [-fn] [-o property=value] <pool> <vdev> ...
  *
  *	-f	Force addition of devices, even if they appear in use
  *	-n	Do not add the devices, but display the resulting layout if
  *		they were to be added.
+ *	-o	Set property=value.
  *
  * Adds the given vdevs to 'pool'.  As with create, the bulk of this work is
  * handled by get_vdev_spec(), which constructs the nvlist needed to pass to
@@ -457,15 +460,30 @@ zpool_do_add(int argc, char **argv)
 	int ret;
 	zpool_handle_t *zhp;
 	nvlist_t *config;
+	nvlist_t *props = NULL;
+	char *propval;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fn")) != -1) {
+	while ((c = getopt(argc, argv, "fno:")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
 			break;
 		case 'n':
 			dryrun = B_TRUE;
+			break;
+		case 'o':
+			if ((propval = strchr(optarg, '=')) == NULL) {
+				(void) fprintf(stderr, gettext("missing "
+				    "'=' for -o option\n"));
+				usage(B_FALSE);
+			}
+			*propval = '\0';
+			propval++;
+
+			if ((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) ||
+			    (add_prop_list(optarg, propval, &props, B_TRUE)))
+				usage(B_FALSE);
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -503,7 +521,7 @@ zpool_do_add(int argc, char **argv)
 	}
 
 	/* pass off to get_vdev_spec for processing */
-	nvroot = make_root_vdev(zhp, NULL, force, !force, B_FALSE, dryrun,
+	nvroot = make_root_vdev(zhp, props, force, !force, B_FALSE, dryrun,
 	    argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
@@ -536,6 +554,7 @@ zpool_do_add(int argc, char **argv)
 		ret = (zpool_add(zhp, nvroot) != 0);
 	}
 
+	nvlist_free(props);
 	nvlist_free(nvroot);
 	zpool_close(zhp);
 
@@ -2865,6 +2884,8 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	nvlist_t *nvroot;
 	char *poolname, *old_disk, *new_disk;
 	zpool_handle_t *zhp;
+	nvlist_t *props = NULL;
+	char *propval;
 	int ret;
 
 	/* check options */
@@ -2872,6 +2893,19 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
+			break;
+		case 'o':
+			if ((propval = strchr(optarg, '=')) == NULL) {
+				(void) fprintf(stderr, gettext("missing "
+				    "'=' for -o option\n"));
+				usage(B_FALSE);
+			}
+			*propval = '\0';
+			propval++;
+
+			if ((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) ||
+			    (add_prop_list(optarg, propval, &props, B_TRUE)))
+				usage(B_FALSE);
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -2929,7 +2963,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		return (1);
 	}
 
-	nvroot = make_root_vdev(zhp, NULL, force, B_FALSE, replacing, B_FALSE,
+	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,
 	    argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
@@ -2959,9 +2993,10 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-f] <pool> <device> <new_device>
+ * zpool attach [-f] [-o property=value] <pool> <device> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
+ *	-o	Set property=value.
  *
  * Attach <new_device> to the mirror containing <device>.  If <device> is not
  * part of a mirror, then <device> will be transformed into a mirror of
@@ -3736,7 +3771,7 @@ print_dedup_stats(nvlist_t *config)
 
 	/*
 	 * If the pool was faulted then we may not have been able to
-	 * obtain the config. Otherwise, if have anything in the dedup
+	 * obtain the config. Otherwise, if we have anything in the dedup
 	 * table continue processing the stats.
 	 */
 	if (nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_OBJ_STATS,
