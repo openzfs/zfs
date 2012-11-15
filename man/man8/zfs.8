@@ -998,6 +998,22 @@ Controls whether the set-\fBUID\fR bit is respected for the file system. The def
 Like the \fBsharenfs\fR property, \fBshareiscsi\fR indicates whether a \fBZFS\fR volume is exported as an \fBiSCSI\fR target. The acceptable values for this property are \fBon\fR, \fBoff\fR, and \fBtype=disk\fR. The default value is \fBoff\fR. In the future, other target types might be supported. For example, \fBtape\fR.
 .sp
 You might want to set \fBshareiscsi=on\fR for a file system so that all \fBZFS\fR volumes within the file system are shared by default. However, setting this property on a file system has no direct effect.
+.sp
+The Linux implementation of \fBshareiscsi\fR uses \fBietadm\fR to add, remove and modify iSCSI targets. In addition to this, the module will use the optional script/binary named \fB/sbin/zfs_share_iscsi\fR. The only parameter to this script/binary is the TID number and this script is intended to allow administrators to allow custom commands to be done on the share/target.
+.sp
+The module will 'execute and forget'. Meaning, it will not care about exit code nor any output it gives. So if the script/binary fails for some reason, it is up to it to catch this. The ZFS module will not intervene.
+.sp
+The domainname needs to be set in \fB/etc/domainname\fR (by echo'ing the domain name to the file) or \fB/proc/sys/kernel/domainname\fR (by using sysctl  - usually \fB/etc/sysctl.conf\fR) for the driver to work out the iqn correctly.
+.sp
+The module will either fetch the TID (\fBT\fRarget \fBID\fR) from \fB/etc/iscsi_target_id\fR or autogenerate it using the domain name (see above) and the current date (YYYY-MM). It will then add the volume name (replacing odd characters with slash).
+.sp
+The content of the \fB/etc/iscsi_target_id\fR can look some thing like this:
+.LP
+.in +2
+iqn.2012-11.com.bayour
+.sp
+.in -2
+That is: The word 'iqn', a dot, year and date, a dot and then the reversed form of the domain for the machine (in this case \fBbayour.com\fR) and then a newline. The line must start at the first column (no leading spaces etc) and contain only one line.
 .RE
 
 .sp
@@ -1015,6 +1031,19 @@ Because \fBSMB\fR shares requires a resource name, a unique resource name is con
 When SMB shares are created, the SMB share name appears as an entry in the \fB\&.zfs/shares\fR directory. You can use the \fBls\fR or \fBchmod\fR command to display the share-level ACLs on the entries in this directory.
 .sp
 When the \fBsharesmb\fR property is changed for a dataset, the dataset and any children inheriting the property are re-shared with the new options, only if the property was previously set to \fBoff\fR, or if they were shared before the property was changed. If the new property is set to \fBoff\fR, the file systems are unshared.
+.sp
+.LP
+\fBSetting up Samba\fR
+.sp
+.in +2
+To setup samba to be able to use the \fBsharesmb\fR property, Samba (tested on version 3.3.3) will need to be listening on 'localhost' (127.0.0.1) by setting the \fBinterfaces\fR configuration option.
+.sp
+In addition to this, the Samba configuration options \fBusershare path\fR, \fBusershare max shares\fR and \fBusershare owner only\fR needs to be setup properly. The first one, \fBusershare path\fR, is by default set to \fB/var/lib/samba/usershares\fR in the code so if this is not wanted, then \fBsmb.conf\fR and \fBlib/libshare/smb.c\fR in the code needs to be changed and recompiled.
+.sp
+The second one is only necessary if there is more than 100 volumes that will be shared (default value is 100).
+.sp
+The third option is if there is a need to allow non-root users to share volumes they do NOT own. That is, to allow non-root users to be able to set the \fBsharesmb\fR property. For a non-user to be able to share a volume, he/she will also have to have write access to the \fB/dev/zfs\fR device node.
+.in -2
 .RE
 
 .sp
@@ -3183,11 +3212,8 @@ The following example shows how to create a \fBZFS\fR volume as an \fBiSCSI\fR t
 .nf
 # \fBzfs create -V 2g pool/volumes/vol1\fR
 # \fBzfs set shareiscsi=on pool/volumes/vol1\fR
-# \fBiscsitadm list target\fR
-Target: pool/volumes/vol1
- iSCSI Name: 
- iqn.1986-03.com.sun:02:7b4b02a6-3277-eb1b-e686-a24762c52a8c
- Connections: 0
+# \fBiscsiadm --mode node\fR
+192.168.69.8:3260,1 iqn.2012-11.com.bayour:pool.volumes.vol1
 .fi
 .in -2
 .sp
