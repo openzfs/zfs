@@ -267,6 +267,10 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_FRU,
 			    DATA_TYPE_STRING, vd->vdev_fru, NULL);
+		if (vd->vdev_ashift)
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ASHIFT,
+			    DATA_TYPE_UINT64, vd->vdev_ashift, NULL);
 
 		if (pvd != NULL) {
 			fm_payload_set(ereport,
