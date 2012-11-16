@@ -76,6 +76,7 @@
 #include <libzfs.h>
 
 #include "libzfs_impl.h"
+#include "../libshare/smb.h"
 
 #include <libshare.h>
 #include <sys/systeminfo.h>
@@ -874,29 +875,55 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
-	char *mntpt = NULL;
+	char *mntpt = NULL, *mnt = NULL;
+	smb_share_t *shares = smb_shares;
 
-	/* check to see if need to unmount the filesystem */
-	rewind(zhp->zfs_hdl->libzfs_mnttab);
-	if (mountpoint != NULL)
-		mountpoint = mntpt = zfs_strdup(hdl, mountpoint);
+	switch (*proto) {
+	case PROTO_SMB:
+		if (mountpoint == NULL) {
+			rewind(zhp->zfs_hdl->libzfs_mnttab);
 
-	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
-	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
-		zfs_share_proto_t *curr_proto;
+			libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry);
+			mountpoint = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
+		}
 
-		if (mountpoint == NULL)
-			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
+		while (shares != NULL) {
+			if (strcmp(mountpoint, shares->path) == 0) {
+				fprintf(stderr, "zfs_unshare_proto(): disable share %s (%s)\n",
+					shares->name, zfs_get_name(zhp));
 
-		for (curr_proto = proto; *curr_proto != PROTO_END;
-		    curr_proto++) {
+				smb_disable_share_one(shares->name);
 
-			if (is_shared(hdl, mntpt, *curr_proto) &&
-			    unshare_one(hdl, zhp->zfs_name,
-			    mntpt, *curr_proto) != 0) {
-				if (mntpt != NULL)
-					free(mntpt);
-				return (-1);
+				libzfs_mnttab_remove(hdl, zfs_get_name(zhp));
+			}
+
+			shares = shares->next;
+		}
+		break;
+
+	default:
+		/* check to see if need to unmount the filesystem */
+		rewind(zhp->zfs_hdl->libzfs_mnttab);
+		if (mountpoint != NULL)
+			mountpoint = mntpt = zfs_strdup(hdl, mountpoint);
+
+		if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
+					   libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
+			zfs_share_proto_t *curr_proto;
+
+			if (mountpoint == NULL)
+				mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
+
+			for (curr_proto = proto; *curr_proto != PROTO_END;
+			     curr_proto++) {
+
+				if (is_shared(hdl, mntpt, *curr_proto) &&
+				    unshare_one(hdl, zhp->zfs_name,
+						mntpt, *curr_proto) != 0) {
+					if (mntpt != NULL)
+						free(mntpt);
+					return (-1);
+				}
 			}
 		}
 	}

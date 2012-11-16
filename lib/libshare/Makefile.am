@@ -7,7 +7,9 @@ DEFAULT_INCLUDES += \
 noinst_LTLIBRARIES = libshare.la
 
 libshare_la_SOURCES = \
+	$(top_srcdir)/lib/libshare/libshare_impl.h \
 	$(top_srcdir)/lib/libshare/libshare.c \
 	$(top_srcdir)/lib/libshare/nfs.c \
-	$(top_srcdir)/lib/libshare/libshare_impl.h \
-	$(top_srcdir)/lib/libshare/nfs.h
+	$(top_srcdir)/lib/libshare/nfs.h \
+	$(top_srcdir)/lib/libshare/smb.c \
+	$(top_srcdir)/lib/libshare/smb.h
