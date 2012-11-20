@@ -3529,6 +3529,20 @@ zfs_create_link_cb(zfs_handle_t *zhp, void *arg)
 	return (ret);
 }
 
+static int
+zfs_create_link_snapvol(zfs_handle_t *zhp, void *arg)
+{
+	(void) zvol_create_link_common(zhp->zfs_hdl, zhp->zfs_name, B_TRUE);
+	return (0);
+}
+
+static int
+zfs_remove_link_snapvol(zfs_handle_t *zhp, void *arg)
+{
+	(void) zvol_remove_link(zhp->zfs_hdl, zhp->zfs_name);
+	return (0);
+}
+
 /*
  * Takes a snapshot of the given dataset.
  */
@@ -3871,21 +3885,24 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		return (zfs_error(hdl, EZFS_ZONED, errbuf));
 	}
 
+	parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
+	if (parentname == NULL) {
+		ret = -1;
+		goto error;
+	}
+	delim = strchr(parentname, '@');
+	if (delim != NULL) {
+		*delim = '\0';
+	}
+	zhrp = zfs_open(zhp->zfs_hdl, parentname, ZFS_TYPE_DATASET);
+	if (zhrp == NULL) {
+		ret = -1;
+		printf("zhrp is NULL\n");
+		goto error;
+	}
+
 	if (recursive) {
 		struct destroydata dd;
-
-		parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
-		if (parentname == NULL) {
-			ret = -1;
-			goto error;
-		}
-		delim = strchr(parentname, '@');
-		*delim = '\0';
-		zhrp = zfs_open(zhp->zfs_hdl, parentname, ZFS_TYPE_DATASET);
-		if (zhrp == NULL) {
-			ret = -1;
-			goto error;
-		}
 
 		dd.snapname = delim + 1;
 
@@ -3914,10 +3931,13 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			goto error;
 	}
 
-	if (ZFS_IS_VOLUME(zhp))
+	if (ZFS_IS_VOLUME(zhp)) {
 		zc.zc_objset_type = DMU_OST_ZVOL;
-	else
-		zc.zc_objset_type = DMU_OST_ZFS;
+		/* remove udev links */
+		(void) zfs_iter_snapshots(zhrp, zfs_remove_link_snapvol, NULL);
+	} else {
+	        zc.zc_objset_type = DMU_OST_ZFS;
+	}
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
@@ -3954,6 +3974,11 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			(void) zfs_iter_filesystems(zhrp, zfs_create_link_cb,
 			    &cd);
 		} else {
+			if (ZFS_IS_VOLUME(zhp)) {
+				/* restore old udev links back */
+				(void) zfs_iter_snapshots(zhrp,
+				    zfs_create_link_snapvol, NULL);
+			}
 			(void) changelist_postfix(cl);
 		}
 	} else {
@@ -3966,6 +3991,17 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			ret = zfs_iter_filesystems(zhrp, zfs_create_link_cb,
 			    &cd);
 		} else {
+			if (ZFS_IS_VOLUME(zhp)) {
+				/* create new udev links */
+				zhrp = zfs_open(zhp->zfs_hdl, target,
+				    ZFS_TYPE_DATASET);
+				if (zhrp == NULL) {
+					ret = -1;
+					goto error;
+				}
+				(void) zfs_iter_snapshots(zhrp,
+				    zfs_create_link_snapvol, NULL);
+			}
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
