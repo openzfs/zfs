@@ -1183,7 +1183,7 @@ zvol_free(zvol_state_t *zv)
 static int
 __zvol_create_minor(const char *name)
 {
-	zvol_state_t *zv;
+	zvol_state_t *zv = NULL;
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
@@ -1251,7 +1251,7 @@ __zvol_create_minor(const char *name)
 
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
-	zv->zv_objset = NULL;
+	if (zv) zv->zv_objset = NULL;
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
