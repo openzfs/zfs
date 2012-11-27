@@ -1773,7 +1773,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 		atomic_inc(&skc->skc_ref);
 		ska->ska_cache = skc;
-		ska->ska_flags = flags;
+		ska->ska_flags = flags & ~__GFP_FS;
 		spl_init_delayed_work(&ska->ska_work, spl_cache_grow_work, ska);
 		schedule_delayed_work(&ska->ska_work, 0);
 	}
