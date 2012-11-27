@@ -1306,9 +1306,9 @@ __zvol_create_minor(const char *name)
 	else
 		zil_replay(os, zv, zvol_replay_vector);
 
+	zv->zv_objset = NULL;
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
-	zv->zv_objset = NULL;
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
