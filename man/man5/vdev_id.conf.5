@@ -18,6 +18,22 @@ character.
 
 The following keywords and values are used.
 .TP
+\fIalias\fR <name> <devlink>
+Maps a device link in the /dev directory hierarchy to a new device
+name.  The udev rule defining the device link must have run prior to
+.BR vdev_id (8).
+A defined alias takes precedence over a topology-derived name, but the
+two naming methods can otherwise coexist.  For example, one might name
+drives in a JBOD with the sas_direct topology while naming an internal
+L2ARC device with an alias.
+
+\fIname\fR - the name of the link to the device that will by created in
+/dev/disk/by-vdev.
+
+\fIdevlink\fR - the name of the device link that has already been
+defined by udev.  This may be an absolute path or the base filename.
+
+.TP
 \fIchannel\fR [pci_slot] <port> <name>
 Maps a physical path to a channel name (typically representing a single
 disk enclosure).
@@ -59,7 +75,7 @@ a SAS switch port number
 
 .TP
 \fIphys_per_port\fR <num>
-Specifies the number of PHY devices are associated with a SAS HBA port or SAS
+Specifies the number of PHY devices associated with a SAS HBA port or SAS
 switch port.
 .BR vdev_id (8)
 internally uses this value to determine which HBA or switch port a
@@ -148,6 +164,18 @@ definitions - one per physical path.
 	channel 86:00.0  1         A
 .br
 	channel 86:00.0  0         B
+.br
+.P
+A configuration using device link aliases.
+.P
+.br
+	#     by-vdev
+.br
+	#     name     fully qualified or base name of device link
+.br
+	alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
+.br
+	alias d2       wwn-0x5000c5002def789e
 .br
 .P
 

@@ -11,13 +11,17 @@
 # default numbering is unsatisfactory.  The drive aliases will be
 # created as symbolic links in /dev/disk/by-vdev.
 #
-# The only currently supported topologies are sas_direct and
-# sas_switch.  A multipath mode is supported in which dm-mpath
-# devices are handled by examining the first-listed running
-# component disk.  In multipath mode the configuration file
-# should contain a channel definition with the same name for
-# each path to a given enclosure.
-
+# The currently supported topologies are sas_direct and sas_switch.
+# A multipath mode is supported in which dm-mpath devices are
+# handled by examining the first-listed running component disk.  In
+# multipath mode the configuration file should contain a channel
+# definition with the same name for each path to a given enclosure.
+#
+# The alias keyword provides a simple way to map already-existing
+# device symlinks to more convenient names.  It is suitable for
+# small, static configurations or for sites that have some automated
+# way to generate the mapping file.
+#
 #
 # Some example configuration files are given below.
 
@@ -72,12 +76,19 @@
 # channel 86:00.0 1         A
 # channel 86:00.0 0         B
 
+# #
+# # Example vdev_id.conf - alias
+# #
+#
+# #     by-vdev
+# #     name     fully qualified or base name of device link
+# alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
+# alias d2       wwn-0x5000c5002def789e
+
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 CONFIG=/etc/zfs/vdev_id.conf
 PHYS_PER_PORT=
 DEV=
-SLOT_MAP=
-CHANNEL_MAP=
 MULTIPATH=
 TOPOLOGY=
 
@@ -128,14 +139,188 @@ map_channel() {
 	printf "%s" ${MAPPED_CHAN}
 }
 
-while getopts 'c:s:d:g:mp:h' OPTION; do
+sas_handler() {
+	if [ -z "$PHYS_PER_PORT" ] ; then
+		PHYS_PER_PORT=`awk "/^phys_per_port /{print \\$2;exit}" $CONFIG`
+	fi
+	PHYS_PER_PORT=${PHYS_PER_PORT:-4}
+	if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
+		echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
+		exit 1
+	fi
+
+	if [ -z "$MULTIPATH_MODE" ] ; then
+		MULTIPATH_MODE=`awk "/^multipath /{print \\$2; exit}" $CONFIG`
+	fi
+
+	# Use first running component device if we're handling a dm-mpath device
+	if [ "$MULTIPATH_MODE" = "yes" ] ; then
+		# If udev didn't tell us the UUID via DM_NAME, check /dev/mapper
+		if [ -z "$DM_NAME" ] ; then
+			DM_NAME=`ls -l --full-time /dev/mapper |
+				awk "/\/$DEV$/{print \\$9}"`
+		fi
+
+		# For raw disks udev exports DEVTYPE=partition when
+		# handling partitions, and the rules can be written to
+		# take advantage of this to append a -part suffix.  For
+		# dm devices we get DEVTYPE=disk even for partitions so
+		# we have to append the -part suffix directly in the
+		# helper.
+		if [ "$DEVTYPE" != "partition" ] ; then
+			PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+		fi
+
+		# Strip off partition information.
+		DM_NAME=`echo $DM_NAME | sed 's/p[0-9][0-9]*$//'`
+		if [ -z "$DM_NAME" ] ; then
+			return
+		fi
+
+		# Get the raw scsi device name from multipath -l.
+		DEV=`multipath -l $DM_NAME |awk '/running/{print $3 ; exit}'`
+		if [ -z "$DEV" ] ; then
+			return
+		fi
+	fi
+
+	if echo $DEV | grep -q ^/devices/ ; then
+		sys_path=$DEV
+	else
+		sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
+	fi
+
+	# Use positional parameters as an ad-hoc array
+	set -- $(echo "$sys_path" | tr / ' ')
+	num_dirs=$#
+	scsi_host_dir="/sys"
+
+	# Get path up to /sys/.../hostX
+	i=1
+	while [ $i -le $num_dirs ] ; do
+		d=$(eval echo \${$i})
+		scsi_host_dir="$scsi_host_dir/$d"
+		echo $d | grep -q -E '^host[0-9]+$' && break
+		i=$(($i + 1))
+	done
+
+	if [ $i = $num_dirs ] ; then
+		return
+	fi
+
+	PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
+
+	# In sas_switch mode, the directory four levels beneath
+	# /sys/.../hostX contains symlinks to phy devices that reveal
+	# the switch port number.  In sas_direct mode, the phy links one
+	# directory down reveal the HBA port.
+	port_dir=$scsi_host_dir
+	case $TOPOLOGY in
+		"sas_switch") j=$(($i + 4)) ;;
+		"sas_direct") j=$(($i + 1)) ;;
+	esac
+
+	i=$(($i + 1))
+	while [ $i -le $j ] ; do
+		port_dir="$port_dir/$(eval echo \${$i})"
+		i=$(($i + 1))
+	done
+
+	PHY=`ls -d $port_dir/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
+	if [ -z "$PHY" ] ; then
+		return
+	fi
+	PORT=$(( $PHY / $PHYS_PER_PORT ))
+
+	# Look in /sys/.../sas_device/end_device-X for the bay_identifier
+	# attribute.
+	end_device_dir=$port_dir
+	while [ $i -lt $num_dirs ] ; do
+		d=$(eval echo \${$i})
+		end_device_dir="$end_device_dir/$d"
+		if echo $d | grep -q '^end_device' ; then
+			end_device_dir="$end_device_dir/sas_device/$d"
+			break
+		fi
+		i=$(($i + 1))
+	done
+
+	SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+	if [ -z "$SLOT" ] ; then
+		return
+	fi
+
+	SLOT=`map_slot $SLOT`
+	CHAN=`map_channel $PCI_ID $PORT`
+	if [ -z "$CHAN" ] ; then
+		return
+	fi
+	echo ${CHAN}${SLOT}${PART}
+}
+
+alias_handler () {
+	# Special handling is needed to correctly append a -part suffix
+	# to partitions of device mapper devices.  The DEVTYPE attribute
+	# is normally set to "disk" instead of "partition" in this case,
+	# so the udev rules won't handle that for us as they do for
+	# "plain" block devices.
+	#
+	# For example, we may have the following links for a device and its
+	# partitions,
+	#
+	#  /dev/disk/by-id/dm-name-isw_dibgbfcije_ARRAY0   -> ../../dm-0
+	#  /dev/disk/by-id/dm-name-isw_dibgbfcije_ARRAY0p1 -> ../../dm-1
+	#  /dev/disk/by-id/dm-name-isw_dibgbfcije_ARRAY0p2 -> ../../dm-3
+	#
+	# and the following alias in vdev_id.conf.
+	#
+	#   alias A0 dm-name-isw_dibgbfcije_ARRAY0
+	#
+	# The desired outcome is for the following links to be created
+	# without having explicitly defined aliases for the partitions.
+	#
+	#  /dev/disk/by-vdev/A0       -> ../../dm-0
+	#  /dev/disk/by-vdev/A0-part1 -> ../../dm-1
+	#  /dev/disk/by-vdev/A0-part2 -> ../../dm-3
+	#
+	# Warning: The following grep pattern will misidentify whole-disk
+	#          devices whose names end with 'p' followed by a string of
+	#          digits as partitions, causing alias creation to fail. This
+	#          ambiguity seems unavoidable, so devices using this facility
+	#          must not use such names.
+	local DM_PART=
+	if echo $DM_NAME | grep -q -E 'p[0-9][0-9]*$' ; then
+		if [ "$DEVTYPE" != "partition" ] ; then
+			DM_PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+		fi
+	fi
+
+	# DEVLINKS attribute must have been populated by already-run udev rules.
+	for link in $DEVLINKS ; do
+		# Remove partition information to match key of top-level device.
+		if [ -n "$DM_PART" ] ; then
+			link=`echo $link | sed 's/p[0-9][0-9]*$//'`
+		fi
+		# Check both the fully qualified and the base name of link.
+		for l in $link `basename $link` ; do
+			alias=`awk "/^alias / && \\$3 == \"${l}\" \
+					{ print \\$2; exit }" $CONFIG`
+			if [ -n "$alias" ] ; then
+				echo ${alias}${DM_PART}
+				return
+			fi
+		done
+	done
+}
+
+while getopts 'c:d:g:mp:h' OPTION; do
 	case ${OPTION} in
 	c)
-		CONFIG=`readlink -e ${OPTARG}`
-	;;
+		CONFIG=${OPTARG}
+		;;
 	d)
-	DEV=${OPTARG}
-	;;
+		DEV=${OPTARG}
+		;;
 	g)
 		TOPOLOGY=$OPTARG
 		;;
@@ -144,13 +329,6 @@ while getopts 'c:s:d:g:mp:h' OPTION; do
 		;;
 	m)
 		MULTIPATH_MODE=yes
-		;;
-	s)
-		SLOT_MAP=`readlink -e ${OPTARG}`
-		if [ ! -r $SLOT_MAP ] ; then
-			echo "Error: $SLOT_MAP is nonexistant or unreadable"
-			exit 1
-		fi
 		;;
 	h)
 		usage
@@ -170,129 +348,24 @@ fi
 if [ -z "$TOPOLOGY" ] ; then
 	TOPOLOGY=`awk "/^topology /{print \\$2; exit}" $CONFIG`
 fi
-TOPOLOGY=${TOPOLOGY:-sas_direct}
-case $TOPOLOGY in
-	sas_direct|sas_switch)
-		;;
-	*)
-		echo "Error: unknown topology $TOPOLOGY"
-		exit 1
-		;;
-esac
 
-if [ -z "$PHYS_PER_PORT" ] ; then
-	PHYS_PER_PORT=`awk "/^phys_per_port /{print \\$2; exit}" $CONFIG`
-fi
-PHYS_PER_PORT=${PHYS_PER_PORT:-4}
-if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
-	echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
-	exit 1
+# First check if an alias was defined for this device.
+ID_VDEV=`alias_handler`
+
+if [ -z "$ID_VDEV" ] ; then
+	TOPOLOGY=${TOPOLOGY:-sas_direct}
+	case $TOPOLOGY in
+		sas_direct|sas_switch)
+			ID_VDEV=`sas_handler`
+			;;
+		*)
+			echo "Error: unknown topology $TOPOLOGY"
+			exit 1
+			;;
+	esac
 fi
 
-if [ -z "$MULTIPATH_MODE" ] ; then
-	MULTIPATH_MODE=`awk "/^multipath /{print \\$2; exit}" $CONFIG`
+if [ -n "$ID_VDEV" ] ; then
+	echo "ID_VDEV=${ID_VDEV}"
+	echo "ID_VDEV_PATH=disk/by-vdev/${ID_VDEV}"
 fi
-
-# Use first running component device if we're handling a dm-mpath device.
-if [ "$MULTIPATH_MODE" = "yes" ] ; then
-	# If udev didn't tell us the UUID via DM_NAME, find it in /dev/mapper
-	if [ -z "$DM_NAME" ] ; then
-		DM_NAME=`ls -l --full-time /dev/mapper |
-			 awk "/\/$DEV$/{print \\$9}"`
-	fi
-
-	# For raw disks udev exports DEVTYPE=partition when handling partitions,
-	# and the rules can be written to take advantage of this to append a
-	# -part suffix.  For dm devices we get DEVTYPE=disk even for partitions
-	# so we have to append the -part suffix directly in the helper.
-	if [ "$DEVTYPE" != "partition" ] ; then
-		PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
-	fi
-
-	# Strip off partition information.
-	DM_NAME=`echo $DM_NAME | sed 's/p[0-9][0-9]*$//'`
-	if [ -z "$DM_NAME" ] ; then
-		exit 0
-	fi
-
-	# Get the raw scsi device name from multipath -l.
-	DEV=`multipath -l $DM_NAME |awk '/running/{print $3 ; exit}'`
-	if [ -z "$DEV" ] ; then
-		exit 0
-	fi
-fi
-
-if echo $DEV | grep -q ^/devices/ ; then
-	sys_path=$DEV
-else
-	sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
-fi
-
-# Use positional parameters as an ad-hoc array
-set -- $(echo "$sys_path" | tr / ' ')
-num_dirs=$#
-scsi_host_dir="/sys"
-
-# Get path up to /sys/.../hostX
-i=1
-while [ $i -le $num_dirs ] ; do
-	d=$(eval echo \${$i})
-	scsi_host_dir="$scsi_host_dir/$d"
-	echo $d | grep -q -E '^host[0-9]+$' && break
-	i=$(($i + 1))
-done
-
-if [ $i = $num_dirs ] ; then
-	exit 0
-fi
-
-PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
-
-# In sas_switch mode, the directory four levels beneath /sys/.../hostX
-# contains symlinks to phy devices that reveal the switch port number.  In
-# sas_direct mode, the phy links one directory down reveal the HBA port.
-port_dir=$scsi_host_dir
-case $TOPOLOGY in
-	"sas_switch") j=$(($i + 4)) ;;
-	"sas_direct") j=$(($i + 1)) ;;
-esac
-
-i=$(($i + 1))
-while [ $i -le $j ] ; do
-	port_dir="$port_dir/$(eval echo \${$i})"
-	i=$(($i + 1))
-done
-
-PHY=`ls -d $port_dir/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
-if [ -z "$PHY" ] ; then
-	exit 0
-fi
-PORT=$(( $PHY / $PHYS_PER_PORT ))
-
-# Look in /sys/.../sas_device/end_device-X for the bay_identifier
-# attribute.
-end_device_dir=$port_dir
-while [ $i -lt $num_dirs ] ; do
-	d=$(eval echo \${$i})
-	end_device_dir="$end_device_dir/$d"
-	if echo $d | grep -q '^end_device' ; then
-		end_device_dir="$end_device_dir/sas_device/$d"
-		break
-	fi
-	i=$(($i + 1))
-done
-
-SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
-if [ -z "$SLOT" ] ; then
-	exit 0
-fi
-
-SLOT=`map_slot $SLOT`
-CHAN=`map_channel $PCI_ID $PORT`
-if [ -z "$CHAN" ] ; then
-	exit 0
-fi
-ID_VDEV=${CHAN}${SLOT}${PART}
-
-echo "ID_VDEV=${ID_VDEV}"
-echo "ID_VDEV_PATH=disk/by-vdev/${ID_VDEV}"
