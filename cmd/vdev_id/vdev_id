@@ -236,7 +236,7 @@ scsi_host_dir="/sys"
 # Get path up to /sys/.../hostX
 i=1
 while [ $i -le $num_dirs ] ; do
-	d=$(eval echo \$$i)
+	d=$(eval echo \${$i})
 	scsi_host_dir="$scsi_host_dir/$d"
 	echo $d | grep -q -E '^host[0-9]+$' && break
 	i=$(($i + 1))
@@ -246,7 +246,7 @@ if [ $i = $num_dirs ] ; then
 	exit 0
 fi
 
-PCI_ID=$(eval echo \$$(($i -1)) | awk -F: '{print $2":"$3}')
+PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
 
 # In sas_switch mode, the directory four levels beneath /sys/.../hostX
 # contains symlinks to phy devices that reveal the switch port number.  In
@@ -259,7 +259,7 @@ esac
 
 i=$(($i + 1))
 while [ $i -le $j ] ; do
-	port_dir="$port_dir/$(eval echo \$$i)"
+	port_dir="$port_dir/$(eval echo \${$i})"
 	i=$(($i + 1))
 done
 
@@ -273,7 +273,7 @@ PORT=$(( $PHY / $PHYS_PER_PORT ))
 # attribute.
 end_device_dir=$port_dir
 while [ $i -lt $num_dirs ] ; do
-	d=$(eval echo \$$i)
+	d=$(eval echo \${$i})
 	end_device_dir="$end_device_dir/$d"
 	if echo $d | grep -q '^end_device' ; then
 		end_device_dir="$end_device_dir/sas_device/$d"
