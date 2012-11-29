@@ -1,5 +1,5 @@
 #
-# @udevdir@/rules.d/60-vdev.rules
+# @udevdir@/rules.d/69-vdev.rules
 #
 
 ENV{DEVTYPE}=="disk", IMPORT{program}="@udevdir@/vdev_id -d %k"

@@ -19,14 +19,19 @@ drives.  Slot numbers may also be re-mapped in case the default
 numbering is unsatisfactory.  The drive aliases will be created as
 symbolic links in /dev/disk/by-vdev.
 
-The only currently supported topologies are sas_direct and
-sas_switch.  A multipath mode is supported in which dm-mpath
-devices are handled by examining the first-listed running
-component disk as reported by the
+The currently supported topologies are sas_direct and sas_switch.  A
+multipath mode is supported in which dm-mpath devices are handled by
+examining the first-listed running component disk as reported by the
 .BR multipath (8)
 command.  In multipath mode the configuration file should contain a
 channel definition with the same name for each path to a given
 enclosure.
+
+.BR vdev_id
+also supports creating aliases based on existing udev links in the /dev
+hierarchy using the \fIalias\fR configuration file keyword.  See the
+.BR vdev_id.conf (5)
+man page for details.
 
 .SH OPTIONS
 .TP
