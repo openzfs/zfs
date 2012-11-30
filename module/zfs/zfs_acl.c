@@ -2453,32 +2453,52 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 {
 	uint32_t	working_mode;
 	int		error;
-	int		is_attr;
 	boolean_t	check_privs;
-	znode_t		*xzp;
 	znode_t		*check_zp = zp;
 	mode_t		needed_bits;
 	uid_t		owner;
 
-	is_attr = ((zp->z_pflags & ZFS_XATTR) && S_ISDIR(ZTOI(zp)->i_mode));
-
 	/*
 	 * If attribute then validate against base file
 	 */
-	if (is_attr) {
+	if ((zp->z_pflags & ZFS_XATTR) && S_ISDIR(ZTOI(zp)->i_mode)) {
 		uint64_t	parent;
 
-		if ((error = sa_lookup(zp->z_sa_hdl,
-		    SA_ZPL_PARENT(ZTOZSB(zp)), &parent,
-		    sizeof (parent))) != 0)
-			return (error);
+		rw_enter(&zp->z_xattr_lock, RW_READER);
+		if (zp->z_xattr_parent) {
+			check_zp = zp->z_xattr_parent;
+			rw_exit(&zp->z_xattr_lock);
 
-		if ((error = zfs_zget(ZTOZSB(zp),
-		    parent, &xzp)) != 0)	{
-			return (error);
+			/*
+			 * Verify a lookup yields the same znode.
+			 */
+			ASSERT3S(sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(
+			    ZTOZSB(zp)), &parent, sizeof (parent)), ==, 0);
+			ASSERT3U(check_zp->z_id, ==, parent);
+		} else {
+			rw_exit(&zp->z_xattr_lock);
+
+			error = sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(
+			    ZTOZSB(zp)), &parent, sizeof (parent));
+			if (error)
+				return (error);
+
+			/*
+			 * Cache the lookup on the parent file znode as
+			 * zp->z_xattr_parent and hold a reference.  This
+			 * effectively pins the parent in memory until all
+			 * child xattr znodes have been destroyed and
+			 * release their references in zfs_inode_destroy().
+			 */
+			error = zfs_zget(ZTOZSB(zp), parent, &check_zp);
+			if (error)
+			        return (error);
+
+			rw_enter(&zp->z_xattr_lock, RW_WRITER);
+			if (zp->z_xattr_parent == NULL)
+				zp->z_xattr_parent = check_zp;
+			rw_exit(&zp->z_xattr_lock);
 		}
-
-		check_zp = xzp;
 
 		/*
 		 * fixup mode to map to xattr perms
@@ -2521,15 +2541,11 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 
 	if ((error = zfs_zaccess_common(check_zp, mode, &working_mode,
 	    &check_privs, skipaclchk, cr)) == 0) {
-		if (is_attr)
-			iput(ZTOI(xzp));
 		return (secpolicy_vnode_access2(cr, ZTOI(zp), owner,
 		    needed_bits, needed_bits));
 	}
 
 	if (error && !check_privs) {
-		if (is_attr)
-			iput(ZTOI(xzp));
 		return (error);
 	}
 
@@ -2589,10 +2605,6 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 		error = secpolicy_vnode_access2(cr, ZTOI(zp), owner,
 		    needed_bits, needed_bits);
 	}
-
-
-	if (is_attr)
-		iput(ZTOI(xzp));
 
 	return (error);
 }

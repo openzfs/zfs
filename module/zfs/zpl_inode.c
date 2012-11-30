@@ -92,8 +92,12 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	zpl_vap_init(vap, dir, dentry, mode, cr);
 
-	error = -zfs_create(dir, (char *)dentry->d_name.name,
-	    vap, 0, mode, &ip, cr, 0, NULL);
+	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
+	if (error == 0) {
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		VERIFY3S(error, ==, 0);
+	}
+
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);

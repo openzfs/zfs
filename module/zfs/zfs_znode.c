@@ -116,6 +116,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_dirlocks = NULL;
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
+	zp->z_xattr_parent = NULL;
 	zp->z_moved = 0;
 	return (0);
 }
@@ -138,6 +139,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT(zp->z_acl_cached == NULL);
 	ASSERT(zp->z_xattr_cached == NULL);
+	ASSERT(zp->z_xattr_parent == NULL);
 }
 
 void
@@ -286,6 +288,11 @@ zfs_inode_destroy(struct inode *ip)
 		zp->z_xattr_cached = NULL;
 	}
 
+	if (zp->z_xattr_parent) {
+		iput(ZTOI(zp->z_xattr_parent));
+		zp->z_xattr_parent = NULL;
+	}
+
 	kmem_cache_free(znode_cache, zp);
 }
 
@@ -359,6 +366,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
+	ASSERT3P(zp->z_xattr_parent, ==, NULL);
 	zp->z_moved = 0;
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
@@ -394,6 +402,14 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 		goto error;
 	}
 
+	/*
+	 * xattr znodes hold a reference on their unique parent
+	 */
+	if (dip && zp->z_pflags & ZFS_XATTR) {
+		igrab(dip);
+		zp->z_xattr_parent = ITOZ(dip);
+	}
+
 	ip->i_ino = obj;
 	zfs_inode_update(zp);
 	zfs_inode_set_ops(zsb, ip);
@@ -401,12 +417,8 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	if (insert_inode_locked(ip))
 		goto error;
 
-	if (dentry) {
-		if (zpl_xattr_security_init(ip, dip, &dentry->d_name))
-			goto error;
-
+	if (dentry)
 		d_instantiate(dentry, ip);
-	}
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
