@@ -141,11 +141,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 		if test -n "$sourcelink" && test -e ${sourcelink}; then
 			kernelsrc=`readlink -f ${sourcelink}`
 		else
-			AC_MSG_RESULT([Not found])
-			AC_MSG_ERROR([
-	*** Please make sure the kernel devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
-	*** location of the kernel source with the '--with-linux=PATH' option.])
+			kernelsrc="[Not found]"
 		fi
 	else
 		if test "$kernelsrc" = "NONE"; then
@@ -154,6 +150,13 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	fi
 
 	AC_MSG_RESULT([$kernelsrc])
+	if test ! -d "$kernelsrc"; then
+		AC_MSG_ERROR([
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option.])
+	fi
+
 	AC_MSG_CHECKING([kernel build directory])
 	if test -z "$kernelbuild"; then
 		if test -e "/lib/modules/$(uname -r)/build"; then
