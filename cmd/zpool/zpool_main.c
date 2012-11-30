@@ -2889,7 +2889,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "fo:")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
