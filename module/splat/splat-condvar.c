@@ -24,6 +24,7 @@
  *  Solaris Porting LAyer Tests (SPLAT) Condition Variable Tests.
 \*****************************************************************************/
 
+#include <linux/kthread.h>
 #include <sys/condvar.h>
 #include "splat-internal.h"
 
@@ -51,20 +52,20 @@
 #define SPLAT_CONDVAR_TEST5_DESC	"Timeout thread, cv_wait_timeout()"
 
 #define SPLAT_CONDVAR_TEST_MAGIC	0x115599DDUL
-#define SPLAT_CONDVAR_TEST_NAME		"condvar_test"
+#define SPLAT_CONDVAR_TEST_NAME		"condvar"
 #define SPLAT_CONDVAR_TEST_COUNT	8
 
 typedef struct condvar_priv {
-        unsigned long cv_magic;
-        struct file *cv_file;
+	unsigned long cv_magic;
+	struct file *cv_file;
 	kcondvar_t cv_condvar;
 	kmutex_t cv_mtx;
 } condvar_priv_t;
 
 typedef struct condvar_thr {
-	int ct_id;
 	const char *ct_name;
 	condvar_priv_t *ct_cvp;
+	struct task_struct *ct_thread;
 	int ct_rc;
 } condvar_thr_t;
 
@@ -73,20 +74,17 @@ splat_condvar_test12_thread(void *arg)
 {
 	condvar_thr_t *ct = (condvar_thr_t *)arg;
 	condvar_priv_t *cv = ct->ct_cvp;
-	char name[16];
 
 	ASSERT(cv->cv_magic == SPLAT_CONDVAR_TEST_MAGIC);
-        snprintf(name, sizeof(name),"%s%d",SPLAT_CONDVAR_TEST_NAME,ct->ct_id);
-	daemonize(name);
 
 	mutex_enter(&cv->cv_mtx);
 	splat_vprint(cv->cv_file, ct->ct_name,
-	           "%s thread sleeping with %d waiters\n",
-		   name, atomic_read(&cv->cv_condvar.cv_waiters));
+	    "%s thread sleeping with %d waiters\n",
+	    ct->ct_thread->comm, atomic_read(&cv->cv_condvar.cv_waiters));
 	cv_wait(&cv->cv_condvar, &cv->cv_mtx);
 	splat_vprint(cv->cv_file, ct->ct_name,
-	           "%s thread woken %d waiters remain\n",
-		   name, atomic_read(&cv->cv_condvar.cv_waiters));
+	    "%s thread woken %d waiters remain\n",
+	    ct->ct_thread->comm, atomic_read(&cv->cv_condvar.cv_waiters));
 	mutex_exit(&cv->cv_mtx);
 
 	return 0;
@@ -96,7 +94,6 @@ static int
 splat_condvar_test1(struct file *file, void *arg)
 {
 	int i, count = 0, rc = 0;
-	long pids[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_thr_t ct[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_priv_t cv;
 
@@ -109,13 +106,15 @@ splat_condvar_test1(struct file *file, void *arg)
 	 * long as we know how many we managed to create and should expect. */
 	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
 		ct[i].ct_cvp = &cv;
-		ct[i].ct_id = i;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST1_NAME;
 		ct[i].ct_rc = 0;
+		ct[i].ct_thread = kthread_create(splat_condvar_test12_thread,
+		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
-		pids[i] = kernel_thread(splat_condvar_test12_thread, &ct[i], 0);
-		if (pids[i] >= 0)
+		if (!IS_ERR(ct[i].ct_thread)) {
+			wake_up_process(ct[i].ct_thread);
 			count++;
+		}
 	}
 
 	/* Wait until all threads are waiting on the condition variable */
@@ -160,7 +159,6 @@ static int
 splat_condvar_test2(struct file *file, void *arg)
 {
 	int i, count = 0, rc = 0;
-	long pids[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_thr_t ct[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_priv_t cv;
 
@@ -173,13 +171,15 @@ splat_condvar_test2(struct file *file, void *arg)
 	 * long as we know how many we managed to create and should expect. */
 	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
 		ct[i].ct_cvp = &cv;
-		ct[i].ct_id = i;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST2_NAME;
 		ct[i].ct_rc = 0;
+		ct[i].ct_thread = kthread_create(splat_condvar_test12_thread,
+		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
-		pids[i] = kernel_thread(splat_condvar_test12_thread, &ct[i], 0);
-		if (pids[i] > 0)
+		if (!IS_ERR(ct[i].ct_thread)) {
+			wake_up_process(ct[i].ct_thread);
 			count++;
+		}
 	}
 
 	/* Wait until all threads are waiting on the condition variable */
@@ -208,17 +208,14 @@ splat_condvar_test34_thread(void *arg)
 {
 	condvar_thr_t *ct = (condvar_thr_t *)arg;
 	condvar_priv_t *cv = ct->ct_cvp;
-	char name[16];
 	clock_t rc;
 
 	ASSERT(cv->cv_magic == SPLAT_CONDVAR_TEST_MAGIC);
-        snprintf(name, sizeof(name), "%s%d", SPLAT_CONDVAR_TEST_NAME, ct->ct_id);
-	daemonize(name);
 
 	mutex_enter(&cv->cv_mtx);
 	splat_vprint(cv->cv_file, ct->ct_name,
-	           "%s thread sleeping with %d waiters\n",
-		   name, atomic_read(&cv->cv_condvar.cv_waiters));
+	    "%s thread sleeping with %d waiters\n",
+	    ct->ct_thread->comm, atomic_read(&cv->cv_condvar.cv_waiters));
 
 	/* Sleep no longer than 3 seconds, for this test we should
 	 * actually never sleep that long without being woken up. */
@@ -226,11 +223,12 @@ splat_condvar_test34_thread(void *arg)
 	if (rc == -1) {
 		ct->ct_rc = -ETIMEDOUT;
 		splat_vprint(cv->cv_file, ct->ct_name, "%s thread timed out, "
-		           "should have been woken\n", name);
+		    "should have been woken\n", ct->ct_thread->comm);
 	} else {
 		splat_vprint(cv->cv_file, ct->ct_name,
-		           "%s thread woken %d waiters remain\n",
-			   name, atomic_read(&cv->cv_condvar.cv_waiters));
+		    "%s thread woken %d waiters remain\n",
+		    ct->ct_thread->comm,
+		    atomic_read(&cv->cv_condvar.cv_waiters));
 	}
 
 	mutex_exit(&cv->cv_mtx);
@@ -242,7 +240,6 @@ static int
 splat_condvar_test3(struct file *file, void *arg)
 {
 	int i, count = 0, rc = 0;
-	long pids[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_thr_t ct[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_priv_t cv;
 
@@ -255,13 +252,15 @@ splat_condvar_test3(struct file *file, void *arg)
 	 * long as we know how many we managed to create and should expect. */
 	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
 		ct[i].ct_cvp = &cv;
-		ct[i].ct_id = i;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST3_NAME;
 		ct[i].ct_rc = 0;
+		ct[i].ct_thread = kthread_create(splat_condvar_test34_thread,
+		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
-		pids[i] = kernel_thread(splat_condvar_test34_thread, &ct[i], 0);
-		if (pids[i] >= 0)
+		if (!IS_ERR(ct[i].ct_thread)) {
+			wake_up_process(ct[i].ct_thread);
 			count++;
+		}
 	}
 
 	/* Wait until all threads are waiting on the condition variable */
@@ -311,7 +310,6 @@ static int
 splat_condvar_test4(struct file *file, void *arg)
 {
 	int i, count = 0, rc = 0;
-	long pids[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_thr_t ct[SPLAT_CONDVAR_TEST_COUNT];
 	condvar_priv_t cv;
 
@@ -324,13 +322,15 @@ splat_condvar_test4(struct file *file, void *arg)
 	 * long as we know how many we managed to create and should expect. */
 	for (i = 0; i < SPLAT_CONDVAR_TEST_COUNT; i++) {
 		ct[i].ct_cvp = &cv;
-		ct[i].ct_id = i;
 		ct[i].ct_name = SPLAT_CONDVAR_TEST3_NAME;
 		ct[i].ct_rc = 0;
+		ct[i].ct_thread = kthread_create(splat_condvar_test34_thread,
+		    &ct[i], "%s/%d", SPLAT_CONDVAR_TEST_NAME, i);
 
-		pids[i] = kernel_thread(splat_condvar_test34_thread, &ct[i], 0);
-		if (pids[i] >= 0)
+		if (!IS_ERR(ct[i].ct_thread)) {
+			wake_up_process(ct[i].ct_thread);
 			count++;
+		}
 	}
 
 	/* Wait until all threads are waiting on the condition variable */

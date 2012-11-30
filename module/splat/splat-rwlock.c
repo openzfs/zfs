@@ -82,7 +82,7 @@ typedef struct rw_priv {
 typedef struct rw_thr {
 	const char *rwt_name;
 	rw_priv_t *rwt_rwp;
-	int rwt_id;
+	struct task_struct *rwt_thread;
 } rw_thr_t;
 
 void splat_init_rw_priv(rw_priv_t *rwp, struct file *file)
@@ -106,17 +106,15 @@ splat_rwlock_wr_thr(void *arg)
 	rw_thr_t *rwt = (rw_thr_t *)arg;
 	rw_priv_t *rwp = rwt->rwt_rwp;
 	uint8_t rnd;
-	char name[16];
 
 	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-	snprintf(name, sizeof(name), "rwlock_wr_thr%d", rwt->rwt_id);
-	daemonize(name);
+
 	get_random_bytes((void *)&rnd, 1);
 	msleep((unsigned int)rnd);
 
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		     "%s trying to acquire rwlock (%d holding/%d waiting)\n",
-		     name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s trying to acquire rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 	spin_lock(&rwp->rw_lock);
 	rwp->rw_waiters++;
 	spin_unlock(&rwp->rw_lock);
@@ -127,20 +125,20 @@ splat_rwlock_wr_thr(void *arg)
 	rwp->rw_holders++;
 	spin_unlock(&rwp->rw_lock);
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		     "%s acquired rwlock (%d holding/%d waiting)\n",
-		     name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s acquired rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 
 	/* Wait for control thread to signal we can release the write lock */
 	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
-				 rwp->rw_release == SPLAT_RWLOCK_RELEASE_WR));
+	    rwp->rw_release == SPLAT_RWLOCK_RELEASE_WR));
 
 	spin_lock(&rwp->rw_lock);
 	rwp->rw_completed++;
 	rwp->rw_holders--;
 	spin_unlock(&rwp->rw_lock);
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		   "%s dropped rwlock (%d holding/%d waiting)\n",
-		   name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s dropped rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 
 	rw_exit(&rwp->rw_rwlock);
 
@@ -153,21 +151,19 @@ splat_rwlock_rd_thr(void *arg)
 	rw_thr_t *rwt = (rw_thr_t *)arg;
 	rw_priv_t *rwp = rwt->rwt_rwp;
 	uint8_t rnd;
-	char name[16];
 
 	ASSERT(rwp->rw_magic == SPLAT_RWLOCK_TEST_MAGIC);
-	snprintf(name, sizeof(name), "rwlock_rd_thr%d", rwt->rwt_id);
-	daemonize(name);
+
 	get_random_bytes((void *)&rnd, 1);
 	msleep((unsigned int)rnd);
 
 	/* Don't try and take the semaphore until after someone has it */
-	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
-				 rwp->rw_holders > 0));
+	wait_event_interruptible(rwp->rw_waitq,
+	    splat_locked_test(&rwp->rw_lock, rwp->rw_holders > 0));
 
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		     "%s trying to acquire rwlock (%d holding/%d waiting)\n",
-		     name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s trying to acquire rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 	spin_lock(&rwp->rw_lock);
 	rwp->rw_waiters++;
 	spin_unlock(&rwp->rw_lock);
@@ -178,20 +174,20 @@ splat_rwlock_rd_thr(void *arg)
 	rwp->rw_holders++;
 	spin_unlock(&rwp->rw_lock);
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		     "%s acquired rwlock (%d holding/%d waiting)\n",
-		     name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s acquired rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 
 	/* Wait for control thread to signal we can release the read lock */
 	wait_event_interruptible(rwp->rw_waitq, splat_locked_test(&rwp->rw_lock,
-				 rwp->rw_release == SPLAT_RWLOCK_RELEASE_RD));
+	    rwp->rw_release == SPLAT_RWLOCK_RELEASE_RD));
 
 	spin_lock(&rwp->rw_lock);
 	rwp->rw_completed++;
 	rwp->rw_holders--;
 	spin_unlock(&rwp->rw_lock);
 	splat_vprint(rwp->rw_file, rwt->rwt_name,
-		     "%s dropped rwlock (%d holding/%d waiting)\n",
-		     name, rwp->rw_holders, rwp->rw_waiters);
+	    "%s dropped rwlock (%d holding/%d waiting)\n",
+	    rwt->rwt_thread->comm, rwp->rw_holders, rwp->rw_waiters);
 
 	rw_exit(&rwp->rw_rwlock);
 
@@ -202,7 +198,6 @@ static int
 splat_rwlock_test1(struct file *file, void *arg)
 {
 	int i, count = 0, rc = 0;
-	long pids[SPLAT_RWLOCK_TEST_COUNT];
 	rw_thr_t rwt[SPLAT_RWLOCK_TEST_COUNT];
 	rw_priv_t *rwp;
 
@@ -214,22 +209,22 @@ splat_rwlock_test1(struct file *file, void *arg)
 
 	/* Create some threads, the exact number isn't important just as
 	 * long as we know how many we managed to create and should expect. */
-
-
-
 	for (i = 0; i < SPLAT_RWLOCK_TEST_COUNT; i++) {
 		rwt[i].rwt_rwp = rwp;
-		rwt[i].rwt_id = i;
 		rwt[i].rwt_name = SPLAT_RWLOCK_TEST1_NAME;
 
 		/* The first thread will be the writer */
 		if (i == 0)
-			pids[i] = kernel_thread(splat_rwlock_wr_thr, &rwt[i], 0);
+			rwt[i].rwt_thread = kthread_create(splat_rwlock_wr_thr,
+			    &rwt[i], "%s/%d", SPLAT_RWLOCK_TEST_NAME, i);
 		else
-			pids[i] = kernel_thread(splat_rwlock_rd_thr, &rwt[i], 0);
+			rwt[i].rwt_thread = kthread_create(splat_rwlock_rd_thr,
+			    &rwt[i], "%s/%d", SPLAT_RWLOCK_TEST_NAME, i);
 
-		if (pids[i] >= 0)
+		if (!IS_ERR(rwt[i].rwt_thread)) {
+			wake_up_process(rwt[i].rwt_thread);
 			count++;
+		}
 	}
 
 	/* Wait for the writer */
