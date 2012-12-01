@@ -4054,7 +4054,7 @@ int
 zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
-	int timeout = 3000; /* in milliseconds */
+	int attempts = 3; /* Make up to 3 attempts to remove the link */
 	int error = 0;
 	int i;
 
@@ -4063,10 +4063,10 @@ zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 	/*
 	 * Due to concurrent updates by udev the device may be reported as
 	 * busy.  In this case don't immediately fail.  Instead briefly delay
-	 * and retry the ioctl() which is now likely to succeed.  If unable
-	 * remove the link after timeout milliseconds return the failure.
+	 * and retry the ioctl() which is now likely to succeed.  If unable to
+	 * remove the link after multiple attempts, return the failure.
 	 */
-	for (i = 0; i < timeout; i++) {
+	for (i = 0; i < attempts; i++) {
 		error = ioctl(hdl->libzfs_fd, ZFS_IOC_REMOVE_MINOR, &zc);
 		if (error && errno == EBUSY) {
 			usleep(1000);
