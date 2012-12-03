@@ -332,6 +332,8 @@ vn_remove(const char *path, uio_seg_t seg, int flags)
 		rc = vfs_unlink(parent.dentry->d_inode, dentry);
 exit1:
 		dput(dentry);
+	} else {
+		return (-rc);
 	}
 
 	spl_inode_unlock(parent.dentry->d_inode);
