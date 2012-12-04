@@ -101,6 +101,17 @@ static int
 __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 {
 	static int failsafe = 0;
+	static unsigned long last_splat_linux_shrinker_size = 0;
+
+	/*
+	 * shrinker_size can only decrease or stay the same between callbacks
+	 * in the same run, so Reset failsafe whenever shrinker increases
+	 * as this indicates a new run.
+	 */
+	if (last_splat_linux_shrinker_size < splat_linux_shrinker_size)
+		failsafe = 0;
+
+	last_splat_linux_shrinker_size = splat_linux_shrinker_size;
 
 	if (sc->nr_to_scan) {
 		splat_linux_shrinker_size = splat_linux_shrinker_size -
@@ -115,11 +126,17 @@ __splat_linux_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
 	}
 
 	/* Far more calls than expected abort drop_slab as a failsafe */
-	if ((++failsafe % 1000) == 0) {
+	if (failsafe > 100) {
 		splat_vprint(splat_linux_shrinker_file, SPLAT_LINUX_TEST3_NAME,
 		    "Far more calls than expected (%d), size now %lu\n",
 		   failsafe, splat_linux_shrinker_size);
 		return -1;
+	} else {
+		/*
+		 * We only increment failsafe if it doesn't trigger.  This
+		 * makes any failsafe failure persistent until the next test.
+		 */
+		failsafe++;
 	}
 
 	/* Shrinker has run, so signal back to test. */
@@ -180,7 +197,7 @@ splat_linux_test3(struct file *file, void *arg)
 	 */
 	if (splat_linux_shrinker_size || splat_linux_shrinker_file) {
 		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
-	            "Failed due to concurrent shrinker test, rc = %d\n", rc);
+		    "Failed due to concurrent shrinker test, rc = %d\n", rc);
 		return (rc);
 	}
 
@@ -202,7 +219,7 @@ splat_linux_test3(struct file *file, void *arg)
 	rc = wait_event_timeout(shrinker_wait, !splat_linux_shrinker_size, HZ);
 	if (!rc) {
 		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
-	            "Failed cache shrinking timed out, size now %lu",
+		    "Failed cache shrinking timed out, size now %lu",
 		    splat_linux_shrinker_size);
 		rc = -ETIMEDOUT;
 	} else {
@@ -211,7 +228,7 @@ splat_linux_test3(struct file *file, void *arg)
 
 	if (!rc && splat_linux_shrinker_size != 0) {
 		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
-	            "Failed cache was not shrunk to 0, size now %lu",
+		    "Failed cache was not shrunk to 0, size now %lu",
 		    splat_linux_shrinker_size);
 		rc = -EDOM;
 	}
