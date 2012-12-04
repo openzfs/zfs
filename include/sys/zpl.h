@@ -52,6 +52,7 @@ extern long zpl_fallocate_common(struct inode *ip, int mode,
 extern const struct address_space_operations zpl_address_space_operations;
 extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;
+extern const struct vm_operations_struct zpl_file_vm_ops;
 
 /* zpl_super.c */
 extern void zpl_prune_sbs(int64_t bytes_to_scan, void *private);

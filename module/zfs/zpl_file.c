@@ -294,6 +294,8 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (error)
 		return (error);
 
+	vma->vm_ops = &zpl_file_vm_ops;
+
 	mutex_enter(&zp->z_lock);
 	zp->z_is_mapped = 1;
 	mutex_exit(&zp->z_lock);
@@ -433,6 +435,16 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_FILE_FALLOCATE */
 
+int zpl_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	int error = filemap_page_mkwrite(vma, vmf);
+
+	if (error != VM_FAULT_NOPAGE)
+		zfs_inode_update(ITOZ(vma->vm_file->f_path.dentry->d_inode));
+
+	return error;
+}
+
 const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
@@ -459,4 +471,9 @@ const struct file_operations zpl_dir_file_operations = {
 	.read		= generic_read_dir,
 	.readdir	= zpl_readdir,
 	.fsync		= zpl_fsync,
+};
+
+const struct vm_operations_struct zpl_file_vm_ops = {
+	.page_mkwrite	= zpl_page_mkwrite,
+	.fault		= filemap_fault,
 };
