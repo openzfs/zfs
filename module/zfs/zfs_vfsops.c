@@ -1041,12 +1041,6 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	}
 
 	/*
-	 * Drain the iput_taskq to ensure all active references to the
-	 * zfs_sb_t have been handled only then can it be safely destroyed.
-	 */
-	taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
-
-	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
 	 * threads are blocked as zil_close can call zfs_inactive.
 	 */
