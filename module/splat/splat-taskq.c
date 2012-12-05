@@ -754,50 +754,52 @@ splat_taskq_test5(struct file *file, void *arg)
  * scheduled.  Each rows represent one time unit and each column
  * one of the three worker threads.
  *
- *       +-----+
- *       |     |
- * +-----+     |
- * |     |  5  +-----+
- * |     |     |     |
- * |     +-----|     |
- * |  4  |     |     |
- * +-----+     |  8  |
- * |     |     |     |
- * |     |  7  +-----+
- * |     |     |     |
- * |     |-----+     |
- * |  6  |     |     |
- * +-----+     |     |
- * |     |     |     |
- * |  1  |  2  |  3  |
- * +-----+-----+-----+
+ * NB: The Horizontal Line is the LAST Time unit consumed by the Task,
+ *     and must be included in the factor calculation.
+ *  T
+ * 17->       +-----+
+ * 16         | T6  |
+ * 15-> +-----+     |
+ * 14   | T6  |     |
+ * 13-> |     |  5  +-----+
+ * 12   |     |     | T6  |
+ * 11-> |     +-----|     |
+ * 10   |  4  | T6  |     |
+ *  9-> +-----+     |  8  |
+ *  8   | T5  |     |     |
+ *  7-> |     |  7  +-----+
+ *  6   |     |     | T7  |
+ *  5-> |     +-----+     |
+ *  4   |  6  |  T5 |     |
+ *  3-> +-----+     |     |
+ *  2   | T3  |     |     |
+ *  1   |  1  |  2  |  3  |
+ *  0   +-----+-----+-----+
  *
  */
 static void
 splat_taskq_test6_func(void *arg)
 {
+        /* Delays determined by above table */
+        static const int factor[SPLAT_TASKQ_ORDER_MAX+1] = {0,3,5,7,6,6,5,6,6};
+
 	splat_taskq_id_t *tq_id = (splat_taskq_id_t *)arg;
 	splat_taskq_arg_t *tq_arg = tq_id->arg;
-	int factor;
-
-	/* Delays determined by above table */
-	switch (tq_id->id) {
-		default:		factor = 0;	break;
-		case 1:			factor = 2;	break;
-		case 2: case 4: case 5:	factor = 4;	break;
-		case 6: case 7: case 8:	factor = 5;	break;
-		case 3:			factor = 6;	break;
-	}
-
-	msleep(factor * 100);
 
 	splat_vprint(tq_arg->file, tq_arg->name,
-		     "Taskqid %d complete for taskq '%s'\n",
+		     "Taskqid %d starting for taskq '%s'\n",
 		     tq_id->id, tq_arg->name);
+
+        if (tq_id->id < SPLAT_TASKQ_ORDER_MAX+1) {
+		msleep(factor[tq_id->id] * 50);
+	}
 
 	spin_lock(&tq_arg->lock);
 	tq_arg->order[tq_arg->flag] = tq_id->id;
 	tq_arg->flag++;
+	splat_vprint(tq_arg->file, tq_arg->name,
+		     "Taskqid %d complete for taskq '%s'\n",
+		     tq_id->id, tq_arg->name);
 	spin_unlock(&tq_arg->lock);
 }
 
