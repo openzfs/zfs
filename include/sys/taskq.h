@@ -103,33 +103,23 @@ typedef struct taskq_thread {
 /* Global system-wide dynamic task queue available for all consumers */
 extern taskq_t *system_taskq;
 
-extern taskqid_t __taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
-extern void __taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t, taskq_ent_t *);
-extern int __taskq_empty_ent(taskq_ent_t *);
-extern void __taskq_init_ent(taskq_ent_t *);
-extern taskq_t *__taskq_create(const char *, int, pri_t, int, int, uint_t);
-extern void __taskq_destroy(taskq_t *);
-extern void __taskq_wait_id(taskq_t *, taskqid_t);
-extern void __taskq_wait(taskq_t *);
-extern int __taskq_member(taskq_t *, void *);
+extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
+extern void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t,
+    taskq_ent_t *);
+extern int taskq_empty_ent(taskq_ent_t *);
+extern void taskq_init_ent(taskq_ent_t *);
+extern taskq_t *taskq_create(const char *, int, pri_t, int, int, uint_t);
+extern void taskq_destroy(taskq_t *);
+extern void taskq_wait_id(taskq_t *, taskqid_t);
+extern void taskq_wait(taskq_t *);
+extern int taskq_member(taskq_t *, void *);
+
+#define taskq_create_proc(name, nthreads, pri, min, max, proc, flags) \
+    taskq_create(name, nthreads, pri, min, max, flags)
+#define taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags) \
+    taskq_create(name, nthreads, maxclsyspri, min, max, flags)
 
 int spl_taskq_init(void);
 void spl_taskq_fini(void);
-
-#define taskq_member(tq, t)		__taskq_member(tq, t)
-#define taskq_wait_id(tq, id)		__taskq_wait_id(tq, id)
-#define taskq_wait(tq)			__taskq_wait(tq)
-#define taskq_dispatch(tq, f, p, fl)	__taskq_dispatch(tq, f, p, fl)
-#define taskq_dispatch_ent(tq, f, p, fl, t) \
-    __taskq_dispatch_ent(tq, f, p, fl, t)
-#define taskq_empty_ent(t)		__taskq_empty_ent(t)
-#define taskq_init_ent(t)		__taskq_init_ent(t)
-#define taskq_create(n, th, p, mi, ma, fl) \
-    __taskq_create(n, th, p, mi, ma, fl)
-#define taskq_create_proc(n, th, p, mi, ma, pr, fl) \
-    __taskq_create(n, th, p, mi, ma, fl)
-#define taskq_create_sysdc(n, th, mi, ma, pr, dc, fl) \
-    __taskq_create(n, th, maxclsyspri, mi, ma, fl)
-#define taskq_destroy(tq)		 __taskq_destroy(tq)
 
 #endif  /* _SPL_TASKQ_H */

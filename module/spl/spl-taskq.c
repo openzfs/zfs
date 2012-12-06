@@ -201,7 +201,7 @@ taskq_wait_check(taskq_t *tq, taskqid_t id)
 }
 
 void
-__taskq_wait_id(taskq_t *tq, taskqid_t id)
+taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
 	SENTRY;
 	ASSERT(tq);
@@ -210,10 +210,10 @@ __taskq_wait_id(taskq_t *tq, taskqid_t id)
 
 	SEXIT;
 }
-EXPORT_SYMBOL(__taskq_wait_id);
+EXPORT_SYMBOL(taskq_wait_id);
 
 void
-__taskq_wait(taskq_t *tq)
+taskq_wait(taskq_t *tq)
 {
 	taskqid_t id;
 	SENTRY;
@@ -224,15 +224,15 @@ __taskq_wait(taskq_t *tq)
 	id = tq->tq_next_id - 1;
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
-	__taskq_wait_id(tq, id);
+	taskq_wait_id(tq, id);
 
 	SEXIT;
 
 }
-EXPORT_SYMBOL(__taskq_wait);
+EXPORT_SYMBOL(taskq_wait);
 
 int
-__taskq_member(taskq_t *tq, void *t)
+taskq_member(taskq_t *tq, void *t)
 {
 	struct list_head *l;
 	taskq_thread_t *tqt;
@@ -249,10 +249,10 @@ __taskq_member(taskq_t *tq, void *t)
 
 	SRETURN(0);
 }
-EXPORT_SYMBOL(__taskq_member);
+EXPORT_SYMBOL(taskq_member);
 
 taskqid_t
-__taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
+taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
 	taskq_ent_t *t;
 	taskqid_t rc = 0;
@@ -297,10 +297,10 @@ out:
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	SRETURN(rc);
 }
-EXPORT_SYMBOL(__taskq_dispatch);
+EXPORT_SYMBOL(taskq_dispatch);
 
 void
-__taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
    taskq_ent_t *t)
 {
 	SENTRY;
@@ -343,17 +343,17 @@ out:
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 	SEXIT;
 }
-EXPORT_SYMBOL(__taskq_dispatch_ent);
+EXPORT_SYMBOL(taskq_dispatch_ent);
 
 int
-__taskq_empty_ent(taskq_ent_t *t)
+taskq_empty_ent(taskq_ent_t *t)
 {
 	return list_empty(&t->tqent_list);
 }
-EXPORT_SYMBOL(__taskq_empty_ent);
+EXPORT_SYMBOL(taskq_empty_ent);
 
 void
-__taskq_init_ent(taskq_ent_t *t)
+taskq_init_ent(taskq_ent_t *t)
 {
 	spin_lock_init(&t->tqent_lock);
 	INIT_LIST_HEAD(&t->tqent_list);
@@ -362,7 +362,7 @@ __taskq_init_ent(taskq_ent_t *t)
 	t->tqent_arg = NULL;
 	t->tqent_flags = 0;
 }
-EXPORT_SYMBOL(__taskq_init_ent);
+EXPORT_SYMBOL(taskq_init_ent);
 
 /*
  * Returns the lowest incomplete taskqid_t.  The taskqid_t may
@@ -532,7 +532,7 @@ taskq_thread(void *args)
 }
 
 taskq_t *
-__taskq_create(const char *name, int nthreads, pri_t pri,
+taskq_create(const char *name, int nthreads, pri_t pri,
     int minalloc, int maxalloc, uint_t flags)
 {
 	taskq_t *tq;
@@ -610,16 +610,16 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 	wait_event(tq->tq_wait_waitq, tq->tq_nthreads == j);
 
 	if (rc) {
-		__taskq_destroy(tq);
+		taskq_destroy(tq);
 		tq = NULL;
 	}
 
 	SRETURN(tq);
 }
-EXPORT_SYMBOL(__taskq_create);
+EXPORT_SYMBOL(taskq_create);
 
 void
-__taskq_destroy(taskq_t *tq)
+taskq_destroy(taskq_t *tq)
 {
 	struct task_struct *thread;
 	taskq_thread_t *tqt;
@@ -632,7 +632,7 @@ __taskq_destroy(taskq_t *tq)
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	/* TQ_ACTIVE cleared prevents new tasks being added to pending */
-	__taskq_wait(tq);
+	taskq_wait(tq);
 
 	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
@@ -676,7 +676,7 @@ __taskq_destroy(taskq_t *tq)
 
 	SEXIT;
 }
-EXPORT_SYMBOL(__taskq_destroy);
+EXPORT_SYMBOL(taskq_destroy);
 
 int
 spl_taskq_init(void)
