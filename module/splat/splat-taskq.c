@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/taskq.h>
+#include <sys/random.h>
 #include <sys/kmem.h>
 #include "splat-internal.h"
 
@@ -63,6 +64,10 @@
 #define SPLAT_TASKQ_TEST8_NAME		"contention"
 #define SPLAT_TASKQ_TEST8_DESC		"1 queue, 100 threads, 131072 tasks"
 
+#define SPLAT_TASKQ_TEST9_ID		0x0209
+#define SPLAT_TASKQ_TEST9_NAME		"delay"
+#define SPLAT_TASKQ_TEST9_DESC		"Delayed task execution"
+
 #define SPLAT_TASKQ_ORDER_MAX		8
 #define SPLAT_TASKQ_DEPTH_MAX		16
 
@@ -70,9 +75,10 @@
 typedef struct splat_taskq_arg {
 	int flag;
 	int id;
-	atomic_t count;
+	atomic_t *count;
 	int order[SPLAT_TASKQ_ORDER_MAX];
 	unsigned int depth;
+	unsigned long expire;
 	taskq_t *tq;
 	taskq_ent_t *tqe;
 	spinlock_t lock;
@@ -415,8 +421,8 @@ splat_taskq_test3(struct file *file, void *arg)
 /*
  * Create a taskq and dispatch a large number of tasks to the queue.
  * Then use taskq_wait() to block until all the tasks complete, then
- * cross check that all the tasks ran by checking tg_arg->count which
- * is incremented in the task function.  Finally cleanup the taskq.
+ * cross check that all the tasks ran by checking the shared atomic
+ * counter which is incremented in the task function.
  *
  * First we try with a large 'maxalloc' value, then we try with a small one.
  * We should not drop tasks when TQ_SLEEP is used in taskq_dispatch(), even
@@ -428,7 +434,7 @@ splat_taskq_test4_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	ASSERT(tq_arg);
 
-	atomic_inc(&tq_arg->count);
+	atomic_inc(tq_arg->count);
 }
 
 static int
@@ -439,6 +445,7 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 	taskqid_t id;
 	splat_taskq_arg_t tq_arg;
 	taskq_ent_t *tqes;
+	atomic_t count;
 	int i, j, rc = 0;
 
 	tqes = kmalloc(sizeof(*tqes) * nr_tasks, GFP_KERNEL);
@@ -461,9 +468,10 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 
 	tq_arg.file = file;
 	tq_arg.name = SPLAT_TASKQ_TEST4_NAME;
+	tq_arg.count = &count;
 
 	for (i = 1; i <= nr_tasks; i *= 2) {
-		atomic_set(&tq_arg.count, 0);
+		atomic_set(tq_arg.count, 0);
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 		             "Taskq '%s' function '%s' dispatched %d times\n",
 		             tq_arg.name, sym2str(splat_taskq_test4_func), i);
@@ -495,8 +503,8 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 		taskq_wait(tq);
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' "
 			     "%d/%d dispatches finished\n", tq_arg.name,
-			     atomic_read(&tq_arg.count), i);
-		if (atomic_read(&tq_arg.count) != i) {
+			     atomic_read(&count), i);
+		if (atomic_read(&count) != i) {
 			rc = -ERANGE;
 			goto out;
 
@@ -1011,7 +1019,7 @@ splat_taskq_test8_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	ASSERT(tq_arg);
 
-	atomic_inc(&tq_arg->count);
+	atomic_inc(tq_arg->count);
 }
 
 #define TEST8_NUM_TASKS			0x20000
@@ -1025,6 +1033,7 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 	taskqid_t id;
 	splat_taskq_arg_t tq_arg;
 	taskq_ent_t **tqes;
+	atomic_t count;
 	int i, j, rc = 0;
 
 	tqes = vmalloc(sizeof(*tqes) * TEST8_NUM_TASKS);
@@ -1048,8 +1057,9 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 
 	tq_arg.file = file;
 	tq_arg.name = SPLAT_TASKQ_TEST8_NAME;
+	tq_arg.count = &count;
+	atomic_set(tq_arg.count, 0);
 
-	atomic_set(&tq_arg.count, 0);
 	for (i = 0; i < TEST8_NUM_TASKS; i++) {
 		tqes[i] = kmalloc(sizeof(taskq_ent_t), GFP_KERNEL);
 		if (tqes[i] == NULL) {
@@ -1079,9 +1089,9 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 	taskq_wait(tq);
 	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME, "Taskq '%s' "
 		     "%d/%d dispatches finished\n", tq_arg.name,
-		     atomic_read(&tq_arg.count), TEST8_NUM_TASKS);
+		     atomic_read(tq_arg.count), TEST8_NUM_TASKS);
 
-	if (atomic_read(&tq_arg.count) != TEST8_NUM_TASKS)
+	if (atomic_read(tq_arg.count) != TEST8_NUM_TASKS)
 		rc = -ERANGE;
 
 out:
@@ -1102,6 +1112,95 @@ splat_taskq_test8(struct file *file, void *arg)
 	int rc;
 
 	rc = splat_taskq_test8_common(file, arg, 1, 100);
+
+	return rc;
+}
+
+/*
+ * Create a taskq and dispatch a number of delayed tasks to the queue.
+ * For each task verify that it was run no early than requested.
+ */
+static void
+splat_taskq_test9_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	ASSERT(tq_arg);
+
+	if (ddi_get_lbolt() >= tq_arg->expire)
+		atomic_inc(tq_arg->count);
+
+	kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
+}
+
+static int
+splat_taskq_test9(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	atomic_t count;
+	int i, rc = 0;
+	int minalloc = 1;
+	int maxalloc = 10;
+	int nr_tasks = 100;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+	    "Taskq '%s' creating (%s dispatch) (%d/%d/%d)\n",
+	    SPLAT_TASKQ_TEST9_NAME, "delay", minalloc, maxalloc, nr_tasks);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST9_NAME, 3, maxclsyspri,
+	    minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+		    "Taskq '%s' create failed\n", SPLAT_TASKQ_TEST9_NAME);
+		return -EINVAL;
+	}
+
+	atomic_set(&count, 0);
+
+	for (i = 1; i <= nr_tasks; i++) {
+		splat_taskq_arg_t *tq_arg;
+		taskqid_t id;
+		uint32_t rnd;
+
+		/* A random timeout in jiffies of at most 5 seconds */
+		get_random_bytes((void *)&rnd, 4);
+		rnd = rnd % (5 * HZ);
+
+		tq_arg = kmem_alloc(sizeof(splat_taskq_arg_t), KM_SLEEP);
+		tq_arg->file = file;
+		tq_arg->name = SPLAT_TASKQ_TEST9_NAME;
+		tq_arg->expire = ddi_get_lbolt() + rnd;
+		tq_arg->count = &count;
+
+		splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+		    "Taskq '%s' delay dispatch %u jiffies\n",
+		    SPLAT_TASKQ_TEST9_NAME, rnd);
+
+		id = taskq_dispatch_delay(tq, splat_taskq_test9_func,
+		    tq_arg, TQ_SLEEP, ddi_get_lbolt() + rnd);
+
+		if (id == 0) {
+			splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+			   "Taskq '%s' delay dispatch failed\n",
+			   SPLAT_TASKQ_TEST9_NAME);
+			kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
+			taskq_wait(tq);
+			rc = -EINVAL;
+			goto out;
+		}
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' waiting for "
+	    "%d delay dispatches\n", SPLAT_TASKQ_TEST9_NAME, nr_tasks);
+
+	taskq_wait(tq);
+	if (atomic_read(&count) != nr_tasks)
+		rc = -ERANGE;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' %d/%d delay "
+	    "dispatches finished on time\n", SPLAT_TASKQ_TEST9_NAME,
+	    atomic_read(&count), nr_tasks);
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' destroying\n",
+	    SPLAT_TASKQ_TEST9_NAME);
+out:
+	taskq_destroy(tq);
 
 	return rc;
 }
@@ -1139,6 +1238,8 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST7_ID, splat_taskq_test7);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST8_NAME, SPLAT_TASKQ_TEST8_DESC,
 	              SPLAT_TASKQ_TEST8_ID, splat_taskq_test8);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST9_NAME, SPLAT_TASKQ_TEST9_DESC,
+	              SPLAT_TASKQ_TEST9_ID, splat_taskq_test9);
 
         return sub;
 }
@@ -1147,6 +1248,7 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST9_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST8_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST7_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST6_ID);
