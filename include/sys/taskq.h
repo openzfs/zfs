@@ -41,20 +41,6 @@
 #define TASKQ_THREADS_CPU_PCT	0x00000008
 #define TASKQ_DC_BATCH		0x00000010
 
-typedef unsigned long taskqid_t;
-typedef void (task_func_t)(void *);
-
-typedef struct taskq_ent {
-	spinlock_t		tqent_lock;
-	struct list_head	tqent_list;
-	taskqid_t		tqent_id;
-	task_func_t		*tqent_func;
-	void			*tqent_arg;
-	uintptr_t		tqent_flags;
-} taskq_ent_t;
-
-#define TQENT_FLAG_PREALLOC	0x1
-
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
  * KM_SLEEP/KM_NOSLEEP.  TQ_NOQUEUE/TQ_NOALLOC are set particularly
@@ -68,6 +54,9 @@ typedef struct taskq_ent {
 #define TQ_NEW			0x04000000
 #define TQ_FRONT		0x08000000
 #define TQ_ACTIVE		0x80000000
+
+typedef unsigned long taskqid_t;
+typedef void (task_func_t)(void *);
 
 typedef struct taskq {
 	spinlock_t		tq_lock;       /* protects taskq_t */
@@ -87,9 +76,25 @@ typedef struct taskq {
 	struct list_head	tq_free_list;  /* free task_t's */
 	struct list_head	tq_pend_list;  /* pending task_t's */
 	struct list_head	tq_prio_list;  /* priority pending task_t's */
+	struct list_head	tq_delay_list; /* delayed task_t's */
 	wait_queue_head_t	tq_work_waitq; /* new work waitq */
 	wait_queue_head_t	tq_wait_waitq; /* wait waitq */
 } taskq_t;
+
+typedef struct taskq_ent {
+	spinlock_t		tqent_lock;
+	wait_queue_head_t	tqent_waitq;
+	struct timer_list	tqent_timer;
+	struct list_head	tqent_list;
+	taskqid_t		tqent_id;
+	task_func_t		*tqent_func;
+	void			*tqent_arg;
+	taskq_t			*tqent_taskq;
+	uintptr_t		tqent_flags;
+} taskq_ent_t;
+
+#define TQENT_FLAG_PREALLOC     0x1
+#define TQENT_FLAG_CANCEL       0x2
 
 typedef struct taskq_thread {
 	struct list_head	tqt_thread_list;
@@ -97,6 +102,7 @@ typedef struct taskq_thread {
 	struct task_struct	*tqt_thread;
 	taskq_t			*tqt_tq;
 	taskqid_t		tqt_id;
+	taskq_ent_t		*tqt_task;
 	uintptr_t		tqt_flags;
 } taskq_thread_t;
 
@@ -104,6 +110,8 @@ typedef struct taskq_thread {
 extern taskq_t *system_taskq;
 
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
+extern taskqid_t taskq_dispatch_delay(taskq_t *, task_func_t, void *,
+    uint_t, clock_t);
 extern void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t,
     taskq_ent_t *);
 extern int taskq_empty_ent(taskq_ent_t *);
@@ -111,7 +119,9 @@ extern void taskq_init_ent(taskq_ent_t *);
 extern taskq_t *taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern void taskq_destroy(taskq_t *);
 extern void taskq_wait_id(taskq_t *, taskqid_t);
+extern void taskq_wait_all(taskq_t *, taskqid_t);
 extern void taskq_wait(taskq_t *);
+extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern int taskq_member(taskq_t *, void *);
 
 #define taskq_create_proc(name, nthreads, pri, min, max, proc, flags) \
