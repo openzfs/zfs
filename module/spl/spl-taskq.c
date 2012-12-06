@@ -57,60 +57,60 @@ task_km_flags(uint_t flags)
 static taskq_ent_t *
 task_alloc(taskq_t *tq, uint_t flags)
 {
-        taskq_ent_t *t;
-        int count = 0;
-        SENTRY;
+	taskq_ent_t *t;
+	int count = 0;
+	SENTRY;
 
-        ASSERT(tq);
-        ASSERT(spin_is_locked(&tq->tq_lock));
+	ASSERT(tq);
+	ASSERT(spin_is_locked(&tq->tq_lock));
 retry:
-        /* Acquire taskq_ent_t's from free list if available */
-        if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
-                t = list_entry(tq->tq_free_list.next, taskq_ent_t, tqent_list);
+	/* Acquire taskq_ent_t's from free list if available */
+	if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
+		t = list_entry(tq->tq_free_list.next, taskq_ent_t, tqent_list);
 
-                ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
-                list_del_init(&t->tqent_list);
-                SRETURN(t);
-        }
+		list_del_init(&t->tqent_list);
+		SRETURN(t);
+	}
 
-        /* Free list is empty and memory allocations are prohibited */
-        if (flags & TQ_NOALLOC)
-                SRETURN(NULL);
+	/* Free list is empty and memory allocations are prohibited */
+	if (flags & TQ_NOALLOC)
+		SRETURN(NULL);
 
-        /* Hit maximum taskq_ent_t pool size */
-        if (tq->tq_nalloc >= tq->tq_maxalloc) {
-                if (flags & TQ_NOSLEEP)
-                        SRETURN(NULL);
+	/* Hit maximum taskq_ent_t pool size */
+	if (tq->tq_nalloc >= tq->tq_maxalloc) {
+		if (flags & TQ_NOSLEEP)
+			SRETURN(NULL);
 
-                /*
-                 * Sleep periodically polling the free list for an available
-                 * taskq_ent_t. Dispatching with TQ_SLEEP should always succeed
-                 * but we cannot block forever waiting for an taskq_entq_t to
-                 * show up in the free list, otherwise a deadlock can happen.
-                 *
-                 * Therefore, we need to allocate a new task even if the number
-                 * of allocated tasks is above tq->tq_maxalloc, but we still
-                 * end up delaying the task allocation by one second, thereby
-                 * throttling the task dispatch rate.
-                 */
-                 spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-                 schedule_timeout(HZ / 100);
-                 spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-                 if (count < 100)
-                        SGOTO(retry, count++);
-        }
+		/*
+		 * Sleep periodically polling the free list for an available
+		 * taskq_ent_t. Dispatching with TQ_SLEEP should always succeed
+		 * but we cannot block forever waiting for an taskq_ent_t to
+		 * show up in the free list, otherwise a deadlock can happen.
+		 *
+		 * Therefore, we need to allocate a new task even if the number
+		 * of allocated tasks is above tq->tq_maxalloc, but we still
+		 * end up delaying the task allocation by one second, thereby
+		 * throttling the task dispatch rate.
+		 */
+		spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+		schedule_timeout(HZ / 100);
+		spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+		if (count < 100)
+			SGOTO(retry, count++);
+	}
 
-        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-        t = kmem_alloc(sizeof(taskq_ent_t), task_km_flags(flags));
-        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+	t = kmem_alloc(sizeof(taskq_ent_t), task_km_flags(flags));
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
-        if (t) {
-                taskq_init_ent(t);
-                tq->tq_nalloc++;
-        }
+	if (t) {
+		taskq_init_ent(t);
+		tq->tq_nalloc++;
+	}
 
-        SRETURN(t);
+	SRETURN(t);
 }
 
 /*
@@ -120,15 +120,15 @@ retry:
 static void
 task_free(taskq_t *tq, taskq_ent_t *t)
 {
-        SENTRY;
+	SENTRY;
 
-        ASSERT(tq);
-        ASSERT(t);
+	ASSERT(tq);
+	ASSERT(t);
 	ASSERT(spin_is_locked(&tq->tq_lock));
 	ASSERT(list_empty(&t->tqent_list));
 
-        kmem_free(t, sizeof(taskq_ent_t));
-        tq->tq_nalloc--;
+	kmem_free(t, sizeof(taskq_ent_t));
+	tq->tq_nalloc--;
 
 	SEXIT;
 }
@@ -147,18 +147,18 @@ task_done(taskq_t *tq, taskq_ent_t *t)
 
 	list_del_init(&t->tqent_list);
 
-        if (tq->tq_nalloc <= tq->tq_minalloc) {
+	if (tq->tq_nalloc <= tq->tq_minalloc) {
 		t->tqent_id = 0;
 		t->tqent_func = NULL;
 		t->tqent_arg = NULL;
 		t->tqent_flags = 0;
 
-                list_add_tail(&t->tqent_list, &tq->tq_free_list);
+		list_add_tail(&t->tqent_list, &tq->tq_free_list);
 	} else {
 		task_free(tq, t);
 	}
 
-        SEXIT;
+	SEXIT;
 }
 
 /*
@@ -236,10 +236,10 @@ __taskq_member(taskq_t *tq, void *t)
 {
 	struct list_head *l;
 	taskq_thread_t *tqt;
-        SENTRY;
+	SENTRY;
 
 	ASSERT(tq);
-        ASSERT(t);
+	ASSERT(t);
 
 	list_for_each(l, &tq->tq_thread_list) {
 		tqt = list_entry(l, taskq_thread_t, tqt_thread_list);
@@ -247,21 +247,21 @@ __taskq_member(taskq_t *tq, void *t)
 			SRETURN(1);
 	}
 
-        SRETURN(0);
+	SRETURN(0);
 }
 EXPORT_SYMBOL(__taskq_member);
 
 taskqid_t
 __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
-        taskq_ent_t *t;
+	taskq_ent_t *t;
 	taskqid_t rc = 0;
-        SENTRY;
+	SENTRY;
 
-        ASSERT(tq);
-        ASSERT(func);
+	ASSERT(tq);
+	ASSERT(func);
 
-        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
 	/* Taskq being destroyed and all tasks drained */
 	if (!(tq->tq_flags & TQ_ACTIVE))
@@ -272,7 +272,7 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads))
 		SGOTO(out, rc = 0);
 
-        if ((t = task_alloc(tq, flags)) == NULL)
+	if ((t = task_alloc(tq, flags)) == NULL)
 		SGOTO(out, rc = 0);
 
 	spin_lock(&t->tqent_lock);
@@ -285,8 +285,8 @@ __taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	t->tqent_id = rc = tq->tq_next_id;
 	tq->tq_next_id++;
-        t->tqent_func = func;
-        t->tqent_arg = arg;
+	t->tqent_func = func;
+	t->tqent_arg = arg;
 
 	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
@@ -374,7 +374,7 @@ static taskqid_t
 taskq_lowest_id(taskq_t *tq)
 {
 	taskqid_t lowest_id = tq->tq_next_id;
-        taskq_ent_t *t;
+	taskq_ent_t *t;
 	taskq_thread_t *tqt;
 	SENTRY;
 
@@ -393,7 +393,7 @@ taskq_lowest_id(taskq_t *tq)
 
 	if (!list_empty(&tq->tq_active_list)) {
 		tqt = list_entry(tq->tq_active_list.next, taskq_thread_t,
-		                 tqt_active_list);
+		    tqt_active_list);
 		ASSERT(tqt->tqt_id != 0);
 		lowest_id = MIN(lowest_id, tqt->tqt_id);
 	}
@@ -402,8 +402,7 @@ taskq_lowest_id(taskq_t *tq)
 }
 
 /*
- * Insert a task into a list keeping the list sorted by increasing
- * taskqid.
+ * Insert a task into a list keeping the list sorted by increasing taskqid.
  */
 static void
 taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
@@ -432,28 +431,28 @@ taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
 static int
 taskq_thread(void *args)
 {
-        DECLARE_WAITQUEUE(wait, current);
-        sigset_t blocked;
+	DECLARE_WAITQUEUE(wait, current);
+	sigset_t blocked;
 	taskq_thread_t *tqt = args;
-        taskq_t *tq;
-        taskq_ent_t *t;
+	taskq_t *tq;
+	taskq_ent_t *t;
 	struct list_head *pend_list;
 	SENTRY;
 
-        ASSERT(tqt);
+	ASSERT(tqt);
 	tq = tqt->tqt_tq;
-        current->flags |= PF_NOFREEZE;
+	current->flags |= PF_NOFREEZE;
 
-        sigfillset(&blocked);
-        sigprocmask(SIG_BLOCK, &blocked, NULL);
-        flush_signals(current);
+	sigfillset(&blocked);
+	sigprocmask(SIG_BLOCK, &blocked, NULL);
+	flush_signals(current);
 
-        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-        tq->tq_nthreads++;
-        wake_up(&tq->tq_wait_waitq);
-        set_current_state(TASK_INTERRUPTIBLE);
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	tq->tq_nthreads++;
+	wake_up(&tq->tq_wait_waitq);
+	set_current_state(TASK_INTERRUPTIBLE);
 
-        while (!kthread_should_stop()) {
+	while (!kthread_should_stop()) {
 
 		if (list_empty(&tq->tq_pend_list) &&
 		    list_empty(&tq->tq_prio_list)) {
@@ -475,8 +474,8 @@ taskq_thread(void *args)
 			pend_list = NULL;
 
 		if (pend_list) {
-                        t = list_entry(pend_list->next, taskq_ent_t, tqent_list);
-                        list_del_init(&t->tqent_list);
+			t = list_entry(pend_list->next,taskq_ent_t,tqent_list);
+			list_del_init(&t->tqent_list);
 
 			/* In order to support recursively dispatching a
 			 * preallocated taskq_ent_t, tqent_id must be
@@ -491,14 +490,14 @@ taskq_thread(void *args)
 			tqt->tqt_flags = t->tqent_flags;
 
 			taskq_insert_in_order(tq, tqt);
-                        tq->tq_nactive++;
+			tq->tq_nactive++;
 			spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 			/* Perform the requested task */
-                        t->tqent_func(t->tqent_arg);
+			t->tqent_func(t->tqent_arg);
 
 			spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-                        tq->tq_nactive--;
+			tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
 
 			/* For prealloc'd tasks, we don't free anything. */
@@ -515,37 +514,37 @@ taskq_thread(void *args)
 
 			tqt->tqt_id = 0;
 			tqt->tqt_flags = 0;
-                        wake_up_all(&tq->tq_wait_waitq);
+			wake_up_all(&tq->tq_wait_waitq);
 		}
 
 		set_current_state(TASK_INTERRUPTIBLE);
 
-        }
+	}
 
 	__set_current_state(TASK_RUNNING);
-        tq->tq_nthreads--;
+	tq->tq_nthreads--;
 	list_del_init(&tqt->tqt_thread_list);
 	kmem_free(tqt, sizeof(taskq_thread_t));
 
-        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	SRETURN(0);
 }
 
 taskq_t *
 __taskq_create(const char *name, int nthreads, pri_t pri,
-               int minalloc, int maxalloc, uint_t flags)
+    int minalloc, int maxalloc, uint_t flags)
 {
-        taskq_t *tq;
+	taskq_t *tq;
 	taskq_thread_t *tqt;
-        int rc = 0, i, j = 0;
-        SENTRY;
+	int rc = 0, i, j = 0;
+	SENTRY;
 
-        ASSERT(name != NULL);
-        ASSERT(pri <= maxclsyspri);
-        ASSERT(minalloc >= 0);
-        ASSERT(maxalloc <= INT_MAX);
-        ASSERT(!(flags & (TASKQ_CPR_SAFE | TASKQ_DYNAMIC))); /* Unsupported */
+	ASSERT(name != NULL);
+	ASSERT(pri <= maxclsyspri);
+	ASSERT(minalloc >= 0);
+	ASSERT(maxalloc <= INT_MAX);
+	ASSERT(!(flags & (TASKQ_CPR_SAFE | TASKQ_DYNAMIC))); /* Unsupported */
 
 	/* Scale the number of threads using nthreads as a percentage */
 	if (flags & TASKQ_THREADS_CPU_PCT) {
@@ -556,35 +555,35 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 		nthreads = MAX((num_online_cpus() * nthreads) / 100, 1);
 	}
 
-        tq = kmem_alloc(sizeof(*tq), KM_PUSHPAGE);
-        if (tq == NULL)
-                SRETURN(NULL);
+	tq = kmem_alloc(sizeof(*tq), KM_PUSHPAGE);
+	if (tq == NULL)
+		SRETURN(NULL);
 
-        spin_lock_init(&tq->tq_lock);
-        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-        INIT_LIST_HEAD(&tq->tq_thread_list);
-        INIT_LIST_HEAD(&tq->tq_active_list);
-        tq->tq_name      = name;
-        tq->tq_nactive   = 0;
+	spin_lock_init(&tq->tq_lock);
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	INIT_LIST_HEAD(&tq->tq_thread_list);
+	INIT_LIST_HEAD(&tq->tq_active_list);
+	tq->tq_name      = name;
+	tq->tq_nactive   = 0;
 	tq->tq_nthreads  = 0;
-        tq->tq_pri       = pri;
-        tq->tq_minalloc  = minalloc;
-        tq->tq_maxalloc  = maxalloc;
+	tq->tq_pri       = pri;
+	tq->tq_minalloc  = minalloc;
+	tq->tq_maxalloc  = maxalloc;
 	tq->tq_nalloc    = 0;
-        tq->tq_flags     = (flags | TQ_ACTIVE);
+	tq->tq_flags     = (flags | TQ_ACTIVE);
 	tq->tq_next_id   = 1;
 	tq->tq_lowest_id = 1;
-        INIT_LIST_HEAD(&tq->tq_free_list);
-        INIT_LIST_HEAD(&tq->tq_pend_list);
-        INIT_LIST_HEAD(&tq->tq_prio_list);
-        init_waitqueue_head(&tq->tq_work_waitq);
-        init_waitqueue_head(&tq->tq_wait_waitq);
+	INIT_LIST_HEAD(&tq->tq_free_list);
+	INIT_LIST_HEAD(&tq->tq_pend_list);
+	INIT_LIST_HEAD(&tq->tq_prio_list);
+	init_waitqueue_head(&tq->tq_work_waitq);
+	init_waitqueue_head(&tq->tq_wait_waitq);
 
-        if (flags & TASKQ_PREPOPULATE)
-                for (i = 0; i < minalloc; i++)
-                        task_done(tq, task_alloc(tq, TQ_PUSHPAGE | TQ_NEW));
+	if (flags & TASKQ_PREPOPULATE)
+		for (i = 0; i < minalloc; i++)
+			task_done(tq, task_alloc(tq, TQ_PUSHPAGE | TQ_NEW));
 
-        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	for (i = 0; i < nthreads; i++) {
 		tqt = kmem_alloc(sizeof(*tqt), KM_PUSHPAGE);
@@ -594,7 +593,7 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 		tqt->tqt_id = 0;
 
 		tqt->tqt_thread = kthread_create(taskq_thread, tqt,
-		                                 "%s/%d", name, i);
+		    "%s/%d", name, i);
 		if (tqt->tqt_thread) {
 			list_add(&tqt->tqt_thread_list, &tq->tq_thread_list);
 			kthread_bind(tqt->tqt_thread, i % num_online_cpus());
@@ -607,15 +606,15 @@ __taskq_create(const char *name, int nthreads, pri_t pri,
 		}
 	}
 
-        /* Wait for all threads to be started before potential destroy */
+	/* Wait for all threads to be started before potential destroy */
 	wait_event(tq->tq_wait_waitq, tq->tq_nthreads == j);
 
-        if (rc) {
-                __taskq_destroy(tq);
-                tq = NULL;
-        }
+	if (rc) {
+		__taskq_destroy(tq);
+		tq = NULL;
+	}
 
-        SRETURN(tq);
+	SRETURN(tq);
 }
 EXPORT_SYMBOL(__taskq_create);
 
@@ -629,13 +628,13 @@ __taskq_destroy(taskq_t *tq)
 
 	ASSERT(tq);
 	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-        tq->tq_flags &= ~TQ_ACTIVE;
+	tq->tq_flags &= ~TQ_ACTIVE;
 	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
 	/* TQ_ACTIVE cleared prevents new tasks being added to pending */
-        __taskq_wait(tq);
+	__taskq_wait(tq);
 
-        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 
 	/*
 	 * Signal each thread to exit and block until it does.  Each thread
@@ -651,29 +650,29 @@ __taskq_destroy(taskq_t *tq)
 
 		kthread_stop(thread);
 
-	        spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+		spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
 	}
 
-        while (!list_empty(&tq->tq_free_list)) {
+	while (!list_empty(&tq->tq_free_list)) {
 		t = list_entry(tq->tq_free_list.next, taskq_ent_t, tqent_list);
 
 		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
-	        list_del_init(&t->tqent_list);
-                task_free(tq, t);
-        }
+		list_del_init(&t->tqent_list);
+		task_free(tq, t);
+	}
 
-        ASSERT(tq->tq_nthreads == 0);
-        ASSERT(tq->tq_nalloc == 0);
-        ASSERT(list_empty(&tq->tq_thread_list));
-        ASSERT(list_empty(&tq->tq_active_list));
-        ASSERT(list_empty(&tq->tq_free_list));
-        ASSERT(list_empty(&tq->tq_pend_list));
-        ASSERT(list_empty(&tq->tq_prio_list));
+	ASSERT(tq->tq_nthreads == 0);
+	ASSERT(tq->tq_nalloc == 0);
+	ASSERT(list_empty(&tq->tq_thread_list));
+	ASSERT(list_empty(&tq->tq_active_list));
+	ASSERT(list_empty(&tq->tq_free_list));
+	ASSERT(list_empty(&tq->tq_pend_list));
+	ASSERT(list_empty(&tq->tq_prio_list));
 
-        spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
 
-        kmem_free(tq, sizeof(taskq_t));
+	kmem_free(tq, sizeof(taskq_t));
 
 	SEXIT;
 }
@@ -682,22 +681,22 @@ EXPORT_SYMBOL(__taskq_destroy);
 int
 spl_taskq_init(void)
 {
-        SENTRY;
+	SENTRY;
 
 	/* Solaris creates a dynamic taskq of up to 64 threads, however in
 	 * a Linux environment 1 thread per-core is usually about right */
-        system_taskq = taskq_create("spl_system_taskq", num_online_cpus(),
+	system_taskq = taskq_create("spl_system_taskq", num_online_cpus(),
 				    minclsyspri, 4, 512, TASKQ_PREPOPULATE);
 	if (system_taskq == NULL)
 		SRETURN(1);
 
-        SRETURN(0);
+	SRETURN(0);
 }
 
 void
 spl_taskq_fini(void)
 {
-        SENTRY;
+	SENTRY;
 	taskq_destroy(system_taskq);
-        SEXIT;
+	SEXIT;
 }
