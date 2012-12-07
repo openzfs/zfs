@@ -431,7 +431,8 @@ static int test_run(cmd_args_t *args, test_t *test)
 	fflush(stdout);
 	free(cmd);
 
-	if (args->args_verbose) {
+	if ((args->args_verbose == 1 && rc) ||
+	    (args->args_verbose >= 2)) {
 		if ((rc = read(splatctl_fd, splat_buffer,
 			       splat_buffer_size - 1)) < 0) {
 			fprintf(stdout, "Error reading results: %d\n", rc);
