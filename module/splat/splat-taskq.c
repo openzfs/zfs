@@ -828,9 +828,12 @@ splat_taskq_test6_impl(struct file *file, void *arg, boolean_t prealloc)
 	splat_taskq_id_t tq_id[SPLAT_TASKQ_ORDER_MAX];
 	splat_taskq_arg_t tq_arg;
 	int order[SPLAT_TASKQ_ORDER_MAX] = { 1,2,3,6,7,8,4,5 };
-	taskq_ent_t tqes[SPLAT_TASKQ_ORDER_MAX];
+	taskq_ent_t *tqes;
 	int i, rc = 0;
 	uint_t tflags;
+
+	tqes = kmem_alloc(sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX, KM_SLEEP);
+	memset(tqes, 0, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		     "Taskq '%s' creating (%s dispatch)\n",
@@ -898,6 +901,8 @@ out:
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		     "Taskq '%s' destroying\n", tq_arg.name);
 	taskq_destroy(tq);
+
+	kmem_free(tqes, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	return rc;
 }
