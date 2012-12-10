@@ -432,7 +432,7 @@ typedef struct spl_kmem_slab {
 typedef struct spl_kmem_alloc {
 	struct spl_kmem_cache	*ska_cache;	/* Owned by cache */
 	int			ska_flags;	/* Allocation flags */
-	struct delayed_work	ska_work;	/* Allocation work */
+	taskq_ent_t		ska_tqe;	/* Task queue entry */
 } spl_kmem_alloc_t;
 
 typedef struct spl_kmem_emergency {
