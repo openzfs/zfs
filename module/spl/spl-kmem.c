@@ -1482,7 +1482,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
                       void *priv, void *vmp, int flags)
 {
         spl_kmem_cache_t *skc;
-	int rc, kmem_flags = KM_SLEEP;
+	int rc;
 	SENTRY;
 
 	ASSERTF(!(flags & KMC_NOMAGAZINE), "Bad KMC_NOMAGAZINE (%x)\n", flags);
@@ -1490,25 +1490,22 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	ASSERTF(!(flags & KMC_QCACHE), "Bad KMC_QCACHE (%x)\n", flags);
 	ASSERT(vmp == NULL);
 
-        /* We may be called when there is a non-zero preempt_count or
-         * interrupts are disabled is which case we must not sleep.
-	 */
-	if (current_thread_info()->preempt_count || irqs_disabled())
-		kmem_flags = KM_NOSLEEP;
+	might_sleep();
 
-	/* Allocate memory for a new cache an initialize it.  Unfortunately,
+	/*
+	 * Allocate memory for a new cache an initialize it.  Unfortunately,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
 	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
-	 * explicitly pass KM_NODEBUG to suppress the kmem warning */
-	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc),
-	                                      kmem_flags | KM_NODEBUG);
+	 * explicitly pass KM_NODEBUG to suppress the kmem warning
+	 */
+	skc = kmem_zalloc(sizeof(*skc), KM_SLEEP| KM_NODEBUG);
 	if (skc == NULL)
 		SRETURN(NULL);
 
 	skc->skc_magic = SKC_MAGIC;
 	skc->skc_name_size = strlen(name) + 1;
-	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, kmem_flags);
+	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, KM_SLEEP);
 	if (skc->skc_name == NULL) {
 		kmem_free(skc, sizeof(*skc));
 		SRETURN(NULL);
