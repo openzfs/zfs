@@ -37,6 +37,7 @@
 #include <sys/types.h>
 #include <sys/vmsystm.h>
 #include <sys/kstat.h>
+#include <sys/taskq.h>
 
 /*
  * Memory allocation interfaces
@@ -406,7 +407,6 @@ typedef struct spl_kmem_magazine {
 	uint32_t		skm_size;	/* Magazine size */
 	uint32_t		skm_refill;	/* Batch refill size */
 	struct spl_kmem_cache	*skm_cache;	/* Owned by cache */
-	struct delayed_work	skm_work;	/* Magazine reclaim work */
 	unsigned long		skm_age;	/* Last cache access */
 	unsigned int		skm_cpu;	/* Owned by cpu */
 	void			*skm_objs[0];	/* Object pointers */
@@ -460,7 +460,7 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_delay;	/* Slab reclaim interval */
 	uint32_t		skc_reap;	/* Slab reclaim count */
 	atomic_t		skc_ref;	/* Ref count callers */
-	struct delayed_work	skc_work;	/* Slab reclaim work */
+	taskqid_t		skc_taskqid;	/* Slab reclaim task */
 	struct list_head	skc_list;	/* List of caches linkage */
 	struct list_head	skc_complete_list;/* Completely alloc'ed */
 	struct list_head	skc_partial_list; /* Partially alloc'ed */
