@@ -60,9 +60,9 @@ enum zio_stage {
 
 	ZIO_STAGE_READY			= 1 << 15,	/* RWFCI */
 
-	ZIO_STAGE_VDEV_IO_START		= 1 << 16,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_DONE		= 1 << 17,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 18,	/* RW--I */
+	ZIO_STAGE_VDEV_IO_START		= 1 << 16,	/* RWF-I */
+	ZIO_STAGE_VDEV_IO_DONE		= 1 << 17,	/* RWF-- */
+	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 18,	/* RWF-I */
 
 	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 19,	/* R---- */
 
@@ -143,7 +143,9 @@ enum zio_stage {
 #define	ZIO_FREE_PIPELINE			\
 	(ZIO_INTERLOCK_STAGES |			\
 	ZIO_STAGE_FREE_BP_INIT |		\
-	ZIO_STAGE_DVA_FREE)
+	ZIO_STAGE_DVA_FREE |			\
+	ZIO_STAGE_VDEV_IO_START |		\
+	ZIO_STAGE_VDEV_IO_ASSESS)
 
 #define	ZIO_DDT_FREE_PIPELINE			\
 	(ZIO_INTERLOCK_STAGES |			\

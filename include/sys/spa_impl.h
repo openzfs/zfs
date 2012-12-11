@@ -217,6 +217,9 @@ struct spa {
 	spa_proc_state_t spa_proc_state;	/* see definition */
 	proc_t		*spa_proc;		/* "zpool-poolname" process */
 	uint64_t	spa_did;		/* if procp != p0, did of t1 */
+	kthread_t	*spa_trim_thread;	/* thread sending TRIM I/Os */
+	kmutex_t	spa_trim_lock;		/* protects spa_trim_cv */
+	kcondvar_t	spa_trim_cv;		/* used to notify TRIM thread */
 	boolean_t	spa_autoreplace;	/* autoreplace set in open */
 	int		spa_vdev_locks;		/* locks grabbed */
 	uint64_t	spa_creation_version;	/* version at pool creation */

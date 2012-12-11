@@ -141,6 +141,7 @@
 #include <sys/callb.h>
 #include <sys/kstat.h>
 #include <sys/dmu_tx.h>
+#include <sys/trim_map.h>
 #include <zfs_fletcher.h>
 
 static kmutex_t		arc_reclaim_thr_lock;
@@ -1515,6 +1516,8 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		}
 
 		if (l2hdr != NULL) {
+			trim_map_free(l2hdr->b_dev->l2ad_vdev, l2hdr->b_daddr,
+			     hdr->b_size, 0);
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
@@ -3360,6 +3363,8 @@ arc_release(arc_buf_t *buf, void *tag)
 	buf->b_private = NULL;
 
 	if (l2hdr) {
+		trim_map_free(l2hdr->b_dev->l2ad_vdev, l2hdr->b_daddr,
+		     hdr->b_size, 0);
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
@@ -4467,6 +4472,8 @@ top:
 			if (ab->b_l2hdr != NULL) {
 				abl2 = ab->b_l2hdr;
 				ab->b_l2hdr = NULL;
+				trim_map_free(abl2->b_dev->l2ad_vdev, abl2->b_daddr,
+				     ab->b_size, 0);
 				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 			}
@@ -4829,7 +4836,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
  * Remove a vdev from the L2ARC.
  */
 void
-l2arc_remove_vdev(vdev_t *vd)
+l2arc_remove_vdev(vdev_t *vd, int permanent)
 {
 	l2arc_dev_t *dev, *nextdev, *remdev = NULL;
 
@@ -4859,6 +4866,12 @@ l2arc_remove_vdev(vdev_t *vd)
 	 */
 	l2arc_evict(remdev, 0, B_TRUE);
 	list_destroy(remdev->l2ad_buflist);
+	if (!zfs_notrim && spa_writeable(vd->vdev_spa))
+		zio_wait(zio_trim(NULL, vd->vdev_spa, vd,
+		    permanent ? 0 : remdev->l2ad_start,
+		    permanent ? vd->vdev_psize :
+		    remdev->l2ad_end - remdev->l2ad_start,
+		    ZIO_FLAG_CONFIG_WRITER));
 	kmem_free(remdev->l2ad_buflist, sizeof (list_t));
 	kmem_free(remdev, sizeof (l2arc_dev_t));
 }

@@ -141,6 +141,7 @@
 #include <sys/metaslab.h>
 #include <sys/zio.h>
 #include <sys/dsl_scan.h>
+#include <sys/trim_map.h>
 #include <sys/fs/zfs.h>
 
 /*
@@ -687,6 +688,16 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 			return (0);
 		ASSERT(reason == VDEV_LABEL_REPLACE);
 	}
+	
+	/*
+	 * TRIM the whole thing so that we start with a clean slate.
+	 * It's just an optimization, so we don't care if it fails.
+	 * Don't TRIM if removing so that we don't interfere with zpool
+	 * disaster recovery.
+	 */
+	if (!zfs_notrim && (reason == VDEV_LABEL_CREATE ||
+	    reason == VDEV_LABEL_SPARE || reason == VDEV_LABEL_L2CACHE))
+		zio_wait(zio_trim(NULL, spa, vd, 0, vd->vdev_psize, 0));
 
 	/*
 	 * Initialize its label.
@@ -1221,5 +1232,10 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg, boolean_t tryhard)
 	 * to disk to ensure that all odd-label updates are committed to
 	 * stable storage before the next transaction group begins.
 	 */
-	return (vdev_label_sync_list(spa, 1, txg, flags));
+	if ((error = vdev_label_sync_list(spa, 1, txg, flags)) != 0)
+		return (error);
+
+	trim_thread_wakeup(spa);
+
+	return (0);
 }

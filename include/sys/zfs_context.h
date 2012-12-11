@@ -493,13 +493,19 @@ typedef struct vsecattr {
 
 #define	CRCREAT		0
 
+#define	F_FREESP        11      /* Free file space */
+
 extern int fop_getattr(vnode_t *vp, vattr_t *vap);
+extern int fop_space(vnode_t *vp, int cmd, struct flock *bfp,
+    int flag, off_t offset);
 
 #define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
 #define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
 #define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
 
 #define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
+#define	VOP_SPACE(vp, cmd, bfp, flag, offset, cr, ct) \
+    fop_space((vp), (cmd), (bfp), (flag), (offset))
 
 #define	VN_RELE(vp)	vn_close(vp)
 
