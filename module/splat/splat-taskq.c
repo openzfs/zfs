@@ -25,6 +25,7 @@
 \*****************************************************************************/
 
 #include <sys/taskq.h>
+#include <sys/random.h>
 #include <sys/kmem.h>
 #include "splat-internal.h"
 
@@ -63,6 +64,14 @@
 #define SPLAT_TASKQ_TEST8_NAME		"contention"
 #define SPLAT_TASKQ_TEST8_DESC		"1 queue, 100 threads, 131072 tasks"
 
+#define SPLAT_TASKQ_TEST9_ID		0x0209
+#define SPLAT_TASKQ_TEST9_NAME		"delay"
+#define SPLAT_TASKQ_TEST9_DESC		"Delayed task execution"
+
+#define SPLAT_TASKQ_TEST10_ID		0x020a
+#define SPLAT_TASKQ_TEST10_NAME		"cancel"
+#define SPLAT_TASKQ_TEST10_DESC		"Cancel task execution"
+
 #define SPLAT_TASKQ_ORDER_MAX		8
 #define SPLAT_TASKQ_DEPTH_MAX		16
 
@@ -70,9 +79,10 @@
 typedef struct splat_taskq_arg {
 	int flag;
 	int id;
-	atomic_t count;
+	atomic_t *count;
 	int order[SPLAT_TASKQ_ORDER_MAX];
 	unsigned int depth;
+	unsigned long expire;
 	taskq_t *tq;
 	taskq_ent_t *tqe;
 	spinlock_t lock;
@@ -415,8 +425,8 @@ splat_taskq_test3(struct file *file, void *arg)
 /*
  * Create a taskq and dispatch a large number of tasks to the queue.
  * Then use taskq_wait() to block until all the tasks complete, then
- * cross check that all the tasks ran by checking tg_arg->count which
- * is incremented in the task function.  Finally cleanup the taskq.
+ * cross check that all the tasks ran by checking the shared atomic
+ * counter which is incremented in the task function.
  *
  * First we try with a large 'maxalloc' value, then we try with a small one.
  * We should not drop tasks when TQ_SLEEP is used in taskq_dispatch(), even
@@ -428,7 +438,7 @@ splat_taskq_test4_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	ASSERT(tq_arg);
 
-	atomic_inc(&tq_arg->count);
+	atomic_inc(tq_arg->count);
 }
 
 static int
@@ -439,6 +449,7 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 	taskqid_t id;
 	splat_taskq_arg_t tq_arg;
 	taskq_ent_t *tqes;
+	atomic_t count;
 	int i, j, rc = 0;
 
 	tqes = kmalloc(sizeof(*tqes) * nr_tasks, GFP_KERNEL);
@@ -461,9 +472,10 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 
 	tq_arg.file = file;
 	tq_arg.name = SPLAT_TASKQ_TEST4_NAME;
+	tq_arg.count = &count;
 
 	for (i = 1; i <= nr_tasks; i *= 2) {
-		atomic_set(&tq_arg.count, 0);
+		atomic_set(tq_arg.count, 0);
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME,
 		             "Taskq '%s' function '%s' dispatched %d times\n",
 		             tq_arg.name, sym2str(splat_taskq_test4_func), i);
@@ -495,8 +507,8 @@ splat_taskq_test4_common(struct file *file, void *arg, int minalloc,
 		taskq_wait(tq);
 		splat_vprint(file, SPLAT_TASKQ_TEST4_NAME, "Taskq '%s' "
 			     "%d/%d dispatches finished\n", tq_arg.name,
-			     atomic_read(&tq_arg.count), i);
-		if (atomic_read(&tq_arg.count) != i) {
+			     atomic_read(&count), i);
+		if (atomic_read(&count) != i) {
 			rc = -ERANGE;
 			goto out;
 
@@ -548,10 +560,10 @@ splat_taskq_test4(struct file *file, void *arg)
  * next pending task as soon as it completes its current task.  This
  * means that tasks do not strictly complete in order in which they
  * were dispatched (increasing task id).  This is fine but we need to
- * verify that taskq_wait_id() blocks until the passed task id and all
+ * verify that taskq_wait_all() blocks until the passed task id and all
  * lower task ids complete.  We do this by dispatching the following
  * specific sequence of tasks each of which block for N time units.
- * We then use taskq_wait_id() to unblock at specific task id and
+ * We then use taskq_wait_all() to unblock at specific task id and
  * verify the only the expected task ids have completed and in the
  * correct order.  The two cases of interest are:
  *
@@ -562,17 +574,17 @@ splat_taskq_test4(struct file *file, void *arg)
  *
  * The following table shows each task id and how they will be
  * scheduled.  Each rows represent one time unit and each column
- * one of the three worker threads.  The places taskq_wait_id()
+ * one of the three worker threads.  The places taskq_wait_all()
  * must unblock for a specific id are identified as well as the
  * task ids which must have completed and their order.
  *
- *       +-----+       <--- taskq_wait_id(tq, 8) unblocks
+ *       +-----+       <--- taskq_wait_all(tq, 8) unblocks
  *       |     |            Required Completion Order: 1,2,4,5,3,8,6,7
  * +-----+     |
  * |     |     |
  * |     |     +-----+
  * |     |     |  8  |
- * |     |     +-----+ <--- taskq_wait_id(tq, 3) unblocks
+ * |     |     +-----+ <--- taskq_wait_all(tq, 3) unblocks
  * |     |  7  |     |      Required Completion Order: 1,2,4,5,3
  * |     +-----+     |
  * |  6  |     |     |
@@ -657,8 +669,11 @@ splat_taskq_test5_impl(struct file *file, void *arg, boolean_t prealloc)
 	splat_taskq_arg_t tq_arg;
 	int order1[SPLAT_TASKQ_ORDER_MAX] = { 1,2,4,5,3,0,0,0 };
 	int order2[SPLAT_TASKQ_ORDER_MAX] = { 1,2,4,5,3,8,6,7 };
-	taskq_ent_t tqes[SPLAT_TASKQ_ORDER_MAX];
+	taskq_ent_t *tqes;
 	int i, rc = 0;
+
+	tqes = kmem_alloc(sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX, KM_SLEEP);
+	memset(tqes, 0, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME,
 		     "Taskq '%s' creating (%s dispatch)\n",
@@ -712,19 +727,21 @@ splat_taskq_test5_impl(struct file *file, void *arg, boolean_t prealloc)
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 3);
-	taskq_wait_id(tq, 3);
+	taskq_wait_all(tq, 3);
 	if ((rc = splat_taskq_test_order(&tq_arg, order1)))
 		goto out;
 
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name, 8);
-	taskq_wait_id(tq, 8);
+	taskq_wait_all(tq, 8);
 	rc = splat_taskq_test_order(&tq_arg, order2);
 
 out:
 	splat_vprint(file, SPLAT_TASKQ_TEST5_NAME,
 		     "Taskq '%s' destroying\n", tq_arg.name);
 	taskq_destroy(tq);
+
+	kmem_free(tqes, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	return rc;
 }
@@ -811,9 +828,12 @@ splat_taskq_test6_impl(struct file *file, void *arg, boolean_t prealloc)
 	splat_taskq_id_t tq_id[SPLAT_TASKQ_ORDER_MAX];
 	splat_taskq_arg_t tq_arg;
 	int order[SPLAT_TASKQ_ORDER_MAX] = { 1,2,3,6,7,8,4,5 };
-	taskq_ent_t tqes[SPLAT_TASKQ_ORDER_MAX];
+	taskq_ent_t *tqes;
 	int i, rc = 0;
 	uint_t tflags;
+
+	tqes = kmem_alloc(sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX, KM_SLEEP);
+	memset(tqes, 0, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		     "Taskq '%s' creating (%s dispatch)\n",
@@ -874,13 +894,15 @@ splat_taskq_test6_impl(struct file *file, void *arg, boolean_t prealloc)
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME, "Taskq '%s' "
 		     "waiting for taskqid %d completion\n", tq_arg.name,
 		     SPLAT_TASKQ_ORDER_MAX);
-	taskq_wait_id(tq, SPLAT_TASKQ_ORDER_MAX);
+	taskq_wait_all(tq, SPLAT_TASKQ_ORDER_MAX);
 	rc = splat_taskq_test_order(&tq_arg, order);
 
 out:
 	splat_vprint(file, SPLAT_TASKQ_TEST6_NAME,
 		     "Taskq '%s' destroying\n", tq_arg.name);
 	taskq_destroy(tq);
+
+	kmem_free(tqes, sizeof(*tqes) * SPLAT_TASKQ_ORDER_MAX);
 
 	return rc;
 }
@@ -975,7 +997,7 @@ splat_taskq_test7_impl(struct file *file, void *arg, boolean_t prealloc)
 	if (tq_arg.flag == 0) {
 		splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
 		             "Taskq '%s' waiting\n", tq_arg.name);
-		taskq_wait_id(tq, SPLAT_TASKQ_DEPTH_MAX);
+		taskq_wait_all(tq, SPLAT_TASKQ_DEPTH_MAX);
 	}
 
 	splat_vprint(file, SPLAT_TASKQ_TEST7_NAME,
@@ -1011,7 +1033,7 @@ splat_taskq_test8_func(void *arg)
 	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
 	ASSERT(tq_arg);
 
-	atomic_inc(&tq_arg->count);
+	atomic_inc(tq_arg->count);
 }
 
 #define TEST8_NUM_TASKS			0x20000
@@ -1025,6 +1047,7 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 	taskqid_t id;
 	splat_taskq_arg_t tq_arg;
 	taskq_ent_t **tqes;
+	atomic_t count;
 	int i, j, rc = 0;
 
 	tqes = vmalloc(sizeof(*tqes) * TEST8_NUM_TASKS);
@@ -1048,8 +1071,9 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 
 	tq_arg.file = file;
 	tq_arg.name = SPLAT_TASKQ_TEST8_NAME;
+	tq_arg.count = &count;
+	atomic_set(tq_arg.count, 0);
 
-	atomic_set(&tq_arg.count, 0);
 	for (i = 0; i < TEST8_NUM_TASKS; i++) {
 		tqes[i] = kmalloc(sizeof(taskq_ent_t), GFP_KERNEL);
 		if (tqes[i] == NULL) {
@@ -1079,9 +1103,9 @@ splat_taskq_test8_common(struct file *file, void *arg, int minalloc,
 	taskq_wait(tq);
 	splat_vprint(file, SPLAT_TASKQ_TEST8_NAME, "Taskq '%s' "
 		     "%d/%d dispatches finished\n", tq_arg.name,
-		     atomic_read(&tq_arg.count), TEST8_NUM_TASKS);
+		     atomic_read(tq_arg.count), TEST8_NUM_TASKS);
 
-	if (atomic_read(&tq_arg.count) != TEST8_NUM_TASKS)
+	if (atomic_read(tq_arg.count) != TEST8_NUM_TASKS)
 		rc = -ERANGE;
 
 out:
@@ -1102,6 +1126,271 @@ splat_taskq_test8(struct file *file, void *arg)
 	int rc;
 
 	rc = splat_taskq_test8_common(file, arg, 1, 100);
+
+	return rc;
+}
+
+/*
+ * Create a taskq and dispatch a number of delayed tasks to the queue.
+ * For each task verify that it was run no early than requested.
+ */
+static void
+splat_taskq_test9_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	ASSERT(tq_arg);
+
+	if (ddi_get_lbolt() >= tq_arg->expire)
+		atomic_inc(tq_arg->count);
+
+	kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
+}
+
+static int
+splat_taskq_test9(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	atomic_t count;
+	int i, rc = 0;
+	int minalloc = 1;
+	int maxalloc = 10;
+	int nr_tasks = 100;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+	    "Taskq '%s' creating (%s dispatch) (%d/%d/%d)\n",
+	    SPLAT_TASKQ_TEST9_NAME, "delay", minalloc, maxalloc, nr_tasks);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST9_NAME, 3, maxclsyspri,
+	    minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+		    "Taskq '%s' create failed\n", SPLAT_TASKQ_TEST9_NAME);
+		return -EINVAL;
+	}
+
+	atomic_set(&count, 0);
+
+	for (i = 1; i <= nr_tasks; i++) {
+		splat_taskq_arg_t *tq_arg;
+		taskqid_t id;
+		uint32_t rnd;
+
+		/* A random timeout in jiffies of at most 5 seconds */
+		get_random_bytes((void *)&rnd, 4);
+		rnd = rnd % (5 * HZ);
+
+		tq_arg = kmem_alloc(sizeof(splat_taskq_arg_t), KM_SLEEP);
+		tq_arg->file = file;
+		tq_arg->name = SPLAT_TASKQ_TEST9_NAME;
+		tq_arg->expire = ddi_get_lbolt() + rnd;
+		tq_arg->count = &count;
+
+		splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+		    "Taskq '%s' delay dispatch %u jiffies\n",
+		    SPLAT_TASKQ_TEST9_NAME, rnd);
+
+		id = taskq_dispatch_delay(tq, splat_taskq_test9_func,
+		    tq_arg, TQ_SLEEP, ddi_get_lbolt() + rnd);
+
+		if (id == 0) {
+			splat_vprint(file, SPLAT_TASKQ_TEST9_NAME,
+			   "Taskq '%s' delay dispatch failed\n",
+			   SPLAT_TASKQ_TEST9_NAME);
+			kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
+			taskq_wait(tq);
+			rc = -EINVAL;
+			goto out;
+		}
+	}
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' waiting for "
+	    "%d delay dispatches\n", SPLAT_TASKQ_TEST9_NAME, nr_tasks);
+
+	taskq_wait(tq);
+	if (atomic_read(&count) != nr_tasks)
+		rc = -ERANGE;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' %d/%d delay "
+	    "dispatches finished on time\n", SPLAT_TASKQ_TEST9_NAME,
+	    atomic_read(&count), nr_tasks);
+	splat_vprint(file, SPLAT_TASKQ_TEST9_NAME, "Taskq '%s' destroying\n",
+	    SPLAT_TASKQ_TEST9_NAME);
+out:
+	taskq_destroy(tq);
+
+	return rc;
+}
+
+/*
+ * Create a taskq and dispatch then cancel tasks in the queue.
+ */
+static void
+splat_taskq_test10_func(void *arg)
+{
+	splat_taskq_arg_t *tq_arg = (splat_taskq_arg_t *)arg;
+	uint8_t rnd;
+
+	if (ddi_get_lbolt() >= tq_arg->expire)
+		atomic_inc(tq_arg->count);
+
+	/* Randomly sleep to further perturb the system */
+	get_random_bytes((void *)&rnd, 1);
+	msleep(1 + (rnd % 9));
+}
+
+static int
+splat_taskq_test10(struct file *file, void *arg)
+{
+	taskq_t *tq;
+	splat_taskq_arg_t **tqas;
+	atomic_t count;
+	int i, j, rc = 0;
+	int minalloc = 1;
+	int maxalloc = 10;
+	int nr_tasks = 100;
+	int canceled = 0;
+	int completed = 0;
+	int blocked = 0;
+	unsigned long start, cancel;
+
+	tqas = vmalloc(sizeof(*tqas) * nr_tasks);
+	if (tqas == NULL)
+		return -ENOMEM;
+        memset(tqas, 0, sizeof(*tqas) * nr_tasks);
+
+	splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
+	    "Taskq '%s' creating (%s dispatch) (%d/%d/%d)\n",
+	    SPLAT_TASKQ_TEST10_NAME, "delay", minalloc, maxalloc, nr_tasks);
+	if ((tq = taskq_create(SPLAT_TASKQ_TEST10_NAME, 3, maxclsyspri,
+	    minalloc, maxalloc, TASKQ_PREPOPULATE)) == NULL) {
+		splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
+		    "Taskq '%s' create failed\n", SPLAT_TASKQ_TEST10_NAME);
+		rc = -EINVAL;
+		goto out_free;
+	}
+
+	atomic_set(&count, 0);
+
+	for (i = 0; i < nr_tasks; i++) {
+		splat_taskq_arg_t *tq_arg;
+		uint32_t rnd;
+
+		/* A random timeout in jiffies of at most 5 seconds */
+		get_random_bytes((void *)&rnd, 4);
+		rnd = rnd % (5 * HZ);
+
+		tq_arg = kmem_alloc(sizeof(splat_taskq_arg_t), KM_SLEEP);
+		tq_arg->file = file;
+		tq_arg->name = SPLAT_TASKQ_TEST10_NAME;
+		tq_arg->count = &count;
+		tqas[i] = tq_arg;
+
+		/*
+		 * Dispatch every 1/3 one immediately to mix it up, the cancel
+		 * code is inherently racy and we want to try and provoke any
+		 * subtle concurrently issues.
+		 */
+		if ((i % 3) == 0) {
+			tq_arg->expire = ddi_get_lbolt();
+			tq_arg->id = taskq_dispatch(tq, splat_taskq_test10_func,
+			    tq_arg, TQ_SLEEP);
+		} else {
+			tq_arg->expire = ddi_get_lbolt() + rnd;
+			tq_arg->id = taskq_dispatch_delay(tq,
+			    splat_taskq_test10_func,
+			    tq_arg, TQ_SLEEP, ddi_get_lbolt() + rnd);
+		}
+
+		if (tq_arg->id == 0) {
+			splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
+			   "Taskq '%s' dispatch failed\n",
+			   SPLAT_TASKQ_TEST10_NAME);
+			kmem_free(tq_arg, sizeof(splat_taskq_arg_t));
+			taskq_wait(tq);
+			rc = -EINVAL;
+			goto out;
+		} else {
+			splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
+			    "Taskq '%s' dispatch %lu in %lu jiffies\n",
+			    SPLAT_TASKQ_TEST10_NAME, (unsigned long)tq_arg->id,
+			    !(i % 3) ? 0 : tq_arg->expire - ddi_get_lbolt());
+		}
+	}
+
+	/*
+	 * Start randomly canceling tasks for the duration of the test.  We
+	 * happen to know the valid task id's will be in the range 1..nr_tasks
+	 * because the taskq is private and was just created.  However, we
+	 * have no idea of a particular task has already executed or not.
+	 */
+	splat_vprint(file, SPLAT_TASKQ_TEST10_NAME, "Taskq '%s' randomly "
+	    "canceling task ids\n", SPLAT_TASKQ_TEST10_NAME);
+
+	start = ddi_get_lbolt();
+	i = 0;
+
+	while (ddi_get_lbolt() < start + 5 * HZ) {
+		taskqid_t id;
+		uint32_t rnd;
+
+		i++;
+		cancel = ddi_get_lbolt();
+		get_random_bytes((void *)&rnd, 4);
+		id = 1 + (rnd % nr_tasks);
+		rc = taskq_cancel_id(tq, id);
+
+		/*
+		 * Keep track of the results of the random cancels.
+		 */
+		if (rc == 0) {
+			canceled++;
+		} else if (rc == ENOENT) {
+			completed++;
+		} else if (rc == EBUSY) {
+			blocked++;
+		} else {
+			rc = -EINVAL;
+			break;
+		}
+
+		/*
+		 * Verify we never get blocked to long in taskq_cancel_id().
+		 * The worst case is 10ms if we happen to cancel the task
+		 * which is currently executing.  We allow a factor of 2x.
+		 */
+		if (ddi_get_lbolt() - cancel > HZ / 50) {
+			splat_vprint(file, SPLAT_TASKQ_TEST10_NAME,
+			    "Taskq '%s' cancel for %lu took %lu\n",
+			    SPLAT_TASKQ_TEST10_NAME, (unsigned long)id,
+			    ddi_get_lbolt() - cancel);
+			rc = -ETIMEDOUT;
+			break;
+		}
+
+		get_random_bytes((void *)&rnd, 4);
+		msleep(1 + (rnd % 100));
+		rc = 0;
+	}
+
+	taskq_wait(tq);
+
+	/*
+	 * Cross check the results of taskq_cancel_id() with the number of
+	 * times the dispatched function actually ran successfully.
+	 */
+	if ((rc == 0) && (nr_tasks - canceled != atomic_read(&count)))
+		rc = -EDOM;
+
+	splat_vprint(file, SPLAT_TASKQ_TEST10_NAME, "Taskq '%s' %d attempts, "
+	    "%d canceled, %d completed, %d blocked, %d/%d tasks run\n",
+	    SPLAT_TASKQ_TEST10_NAME, i, canceled, completed, blocked,
+	    atomic_read(&count), nr_tasks);
+	splat_vprint(file, SPLAT_TASKQ_TEST10_NAME, "Taskq '%s' destroying %d\n",
+	    SPLAT_TASKQ_TEST10_NAME, rc);
+out:
+	taskq_destroy(tq);
+out_free:
+	for (j = 0; j < nr_tasks && tqas[j] != NULL; j++)
+		kmem_free(tqas[j], sizeof(splat_taskq_arg_t));
+	vfree(tqas);
 
 	return rc;
 }
@@ -1139,6 +1428,10 @@ splat_taskq_init(void)
 	              SPLAT_TASKQ_TEST7_ID, splat_taskq_test7);
 	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST8_NAME, SPLAT_TASKQ_TEST8_DESC,
 	              SPLAT_TASKQ_TEST8_ID, splat_taskq_test8);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST9_NAME, SPLAT_TASKQ_TEST9_DESC,
+	              SPLAT_TASKQ_TEST9_ID, splat_taskq_test9);
+	SPLAT_TEST_INIT(sub, SPLAT_TASKQ_TEST10_NAME, SPLAT_TASKQ_TEST10_DESC,
+	              SPLAT_TASKQ_TEST10_ID, splat_taskq_test10);
 
         return sub;
 }
@@ -1147,6 +1440,8 @@ void
 splat_taskq_fini(splat_subsystem_t *sub)
 {
         ASSERT(sub);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST10_ID);
+	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST9_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST8_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST7_ID);
 	SPLAT_TEST_FINI(sub, SPLAT_TASKQ_TEST6_ID);

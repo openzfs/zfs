@@ -825,6 +825,7 @@ EXPORT_SYMBOL(vmem_free_debug);
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
 struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
+taskq_t *spl_kmem_cache_taskq;          /* Task queue for ageing / reclaim */
 
 static int spl_cache_flush(spl_kmem_cache_t *skc,
                            spl_kmem_magazine_t *skm, int flush);
@@ -1243,50 +1244,59 @@ spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
 	SRETURN(0);
 }
 
-/*
- * Called regularly on all caches to age objects out of the magazines
- * which have not been access in skc->skc_delay seconds.  This prevents
- * idle magazines from holding memory which might be better used by
- * other caches or parts of the system.  The delay is present to
- * prevent thrashing the magazine.
- */
 static void
 spl_magazine_age(void *data)
 {
-	spl_kmem_magazine_t *skm =
-		spl_get_work_data(data, spl_kmem_magazine_t, skm_work.work);
-	spl_kmem_cache_t *skc = skm->skm_cache;
+	spl_kmem_cache_t *skc = (spl_kmem_cache_t *)data;
+	spl_kmem_magazine_t *skm = skc->skc_mag[smp_processor_id()];
 
 	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(skc->skc_mag[skm->skm_cpu] == skm);
+	ASSERT(skm->skm_cpu == smp_processor_id());
 
-	if (skm->skm_avail > 0 &&
-	    time_after(jiffies, skm->skm_age + skc->skc_delay * HZ))
-		(void)spl_cache_flush(skc, skm, skm->skm_refill);
-
-	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
-		schedule_delayed_work_on(skm->skm_cpu, &skm->skm_work,
-					 skc->skc_delay / 3 * HZ);
+	if (skm->skm_avail > 0)
+		if (time_after(jiffies, skm->skm_age + skc->skc_delay * HZ))
+			(void) spl_cache_flush(skc, skm, skm->skm_refill);
 }
 
 /*
- * Called regularly to keep a downward pressure on the size of idle
- * magazines and to release free slabs from the cache.  This function
- * never calls the registered reclaim function, that only occurs
- * under memory pressure or with a direct call to spl_kmem_reap().
+ * Called regularly to keep a downward pressure on the cache.
+ *
+ * Objects older than skc->skc_delay seconds in the per-cpu magazines will
+ * be returned to the caches.  This is done to prevent idle magazines from
+ * holding memory which could be better used elsewhere.  The delay is
+ * present to prevent thrashing the magazine.
+ *
+ * The newly released objects may result in empty partial slabs.  Those
+ * slabs should be released to the system.  Otherwise moving the objects
+ * out of the magazines is just wasted work.
  */
 static void
 spl_cache_age(void *data)
 {
-	spl_kmem_cache_t *skc =
-		spl_get_work_data(data, spl_kmem_cache_t, skc_work.work);
+	spl_kmem_cache_t *skc = (spl_kmem_cache_t *)data;
+	taskqid_t id = 0;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
+
+	atomic_inc(&skc->skc_ref);
+	spl_on_each_cpu(spl_magazine_age, skc, 1);
 	spl_slab_reclaim(skc, skc->skc_reap, 0);
 
-	if (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags))
-		schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
+	while (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags) && !id) {
+		id = taskq_dispatch_delay(
+		    spl_kmem_cache_taskq, spl_cache_age, skc, TQ_SLEEP,
+		    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
+
+		/* Destroy issued after dispatch immediately cancel it */
+		if (test_bit(KMC_BIT_DESTROY, &skc->skc_flags) && id)
+			taskq_cancel_id(spl_kmem_cache_taskq, id);
+	}
+
+	spin_lock(&skc->skc_lock);
+	skc->skc_taskqid = id;
+	spin_unlock(&skc->skc_lock);
+
+	atomic_dec(&skc->skc_ref);
 }
 
 /*
@@ -1380,7 +1390,6 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 		skm->skm_size = skc->skc_mag_size;
 		skm->skm_refill = skc->skc_mag_refill;
 		skm->skm_cache = skc;
-		spl_init_delayed_work(&skm->skm_work, spl_magazine_age, skm);
 		skm->skm_age = jiffies;
 		skm->skm_cpu = cpu;
 	}
@@ -1426,11 +1435,6 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 			SRETURN(-ENOMEM);
 		}
 	}
-
-	/* Only after everything is allocated schedule magazine work */
-	for_each_online_cpu(i)
-		schedule_delayed_work_on(i, &skc->skc_mag[i]->skm_work,
-				         skc->skc_delay / 3 * HZ);
 
 	SRETURN(0);
 }
@@ -1482,7 +1486,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
                       void *priv, void *vmp, int flags)
 {
         spl_kmem_cache_t *skc;
-	int rc, kmem_flags = KM_SLEEP;
+	int rc;
 	SENTRY;
 
 	ASSERTF(!(flags & KMC_NOMAGAZINE), "Bad KMC_NOMAGAZINE (%x)\n", flags);
@@ -1490,25 +1494,22 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	ASSERTF(!(flags & KMC_QCACHE), "Bad KMC_QCACHE (%x)\n", flags);
 	ASSERT(vmp == NULL);
 
-        /* We may be called when there is a non-zero preempt_count or
-         * interrupts are disabled is which case we must not sleep.
-	 */
-	if (current_thread_info()->preempt_count || irqs_disabled())
-		kmem_flags = KM_NOSLEEP;
+	might_sleep();
 
-	/* Allocate memory for a new cache an initialize it.  Unfortunately,
+	/*
+	 * Allocate memory for a new cache an initialize it.  Unfortunately,
 	 * this usually ends up being a large allocation of ~32k because
 	 * we need to allocate enough memory for the worst case number of
 	 * cpus in the magazine, skc_mag[NR_CPUS].  Because of this we
-	 * explicitly pass KM_NODEBUG to suppress the kmem warning */
-	skc = (spl_kmem_cache_t *)kmem_zalloc(sizeof(*skc),
-	                                      kmem_flags | KM_NODEBUG);
+	 * explicitly pass KM_NODEBUG to suppress the kmem warning
+	 */
+	skc = kmem_zalloc(sizeof(*skc), KM_SLEEP| KM_NODEBUG);
 	if (skc == NULL)
 		SRETURN(NULL);
 
 	skc->skc_magic = SKC_MAGIC;
 	skc->skc_name_size = strlen(name) + 1;
-	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, kmem_flags);
+	skc->skc_name = (char *)kmem_alloc(skc->skc_name_size, KM_SLEEP);
 	if (skc->skc_name == NULL) {
 		kmem_free(skc, sizeof(*skc));
 		SRETURN(NULL);
@@ -1569,8 +1570,9 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	if (rc)
 		SGOTO(out, rc);
 
-	spl_init_delayed_work(&skc->skc_work, spl_cache_age, skc);
-	schedule_delayed_work(&skc->skc_work, skc->skc_delay / 3 * HZ);
+	skc->skc_taskqid = taskq_dispatch_delay(spl_kmem_cache_taskq,
+	    spl_cache_age, skc, TQ_SLEEP,
+	    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
 
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
@@ -1603,7 +1605,7 @@ void
 spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 {
 	DECLARE_WAIT_QUEUE_HEAD(wq);
-	int i;
+	taskqid_t id;
 	SENTRY;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -1612,13 +1614,14 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	list_del_init(&skc->skc_list);
 	up_write(&spl_kmem_cache_sem);
 
-	/* Cancel any and wait for any pending delayed work */
+	/* Cancel any and wait for any pending delayed tasks */
 	VERIFY(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
-	cancel_delayed_work_sync(&skc->skc_work);
-	for_each_online_cpu(i)
-		cancel_delayed_work_sync(&skc->skc_mag[i]->skm_work);
 
-	flush_scheduled_work();
+	spin_lock(&skc->skc_lock);
+	id = skc->skc_taskqid;
+	spin_unlock(&skc->skc_lock);
+
+	taskq_cancel_id(spl_kmem_cache_taskq, id);
 
 	/* Wait until all current callers complete, this is mainly
 	 * to catch the case where a low memory situation triggers a
@@ -1694,8 +1697,7 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 static void
 spl_cache_grow_work(void *data)
 {
-	spl_kmem_alloc_t *ska =
-		spl_get_work_data(data, spl_kmem_alloc_t, ska_work.work);
+	spl_kmem_alloc_t *ska = (spl_kmem_alloc_t *)data;
 	spl_kmem_cache_t *skc = ska->ska_cache;
 	spl_kmem_slab_t *sks;
 
@@ -1774,8 +1776,9 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 		atomic_inc(&skc->skc_ref);
 		ska->ska_cache = skc;
 		ska->ska_flags = flags & ~__GFP_FS;
-		spl_init_delayed_work(&ska->ska_work, spl_cache_grow_work, ska);
-		schedule_delayed_work(&ska->ska_work, 0);
+		taskq_init_ent(&ska->ska_tqe);
+		taskq_dispatch_ent(spl_kmem_cache_taskq,
+		    spl_cache_grow_work, ska, 0, &ska->ska_tqe);
 	}
 
 	/*
@@ -2397,6 +2400,8 @@ spl_kmem_init(void)
 
 	init_rwsem(&spl_kmem_cache_sem);
 	INIT_LIST_HEAD(&spl_kmem_cache_list);
+	spl_kmem_cache_taskq = taskq_create("spl_kmem_cache",
+	    1, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
 
 	spl_register_shrinker(&spl_kmem_cache_shrinker);
 
@@ -2435,6 +2440,7 @@ spl_kmem_fini(void)
 	SENTRY;
 
 	spl_unregister_shrinker(&spl_kmem_cache_shrinker);
+	taskq_destroy(spl_kmem_cache_taskq);
 
 	SEXIT;
 }

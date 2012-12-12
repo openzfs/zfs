@@ -26,7 +26,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TYPE_ATOMIC64_CMPXCHG
 	SPL_AC_TYPE_ATOMIC64_XCHG
 	SPL_AC_TYPE_UINTPTR_T
-	SPL_AC_3ARGS_INIT_WORK
 	SPL_AC_2ARGS_REGISTER_SYSCTL
 	SPL_AC_SET_SHRINKER
 	SPL_AC_3ARGS_SHRINKER_CALLBACK
@@ -867,26 +866,6 @@ AC_DEFUN([SPL_AC_TYPE_UINTPTR_T],
 		          [kernel defines uintptr_t])
 	],[
 		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # 2.6.20 API change,
-dnl # INIT_WORK use 2 args and not store data inside
-dnl #
-AC_DEFUN([SPL_AC_3ARGS_INIT_WORK],
-	[AC_MSG_CHECKING([whether INIT_WORK wants 3 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/workqueue.h>
-	],[
-		struct work_struct work __attribute__ ((unused));
-		INIT_WORK(&work, NULL, NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_3ARGS_INIT_WORK, 1,
-		          [INIT_WORK wants 3 args])
-	],[
-		AC_MSG_RESULT(no)
 	])
 ])
 

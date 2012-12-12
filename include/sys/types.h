@@ -34,7 +34,6 @@
 #include <linux/time_compat.h>
 #include <linux/bitops_compat.h>
 #include <linux/smp_compat.h>
-#include <linux/workqueue_compat.h>
 #include <linux/kallsyms_compat.h>
 #include <linux/mutex_compat.h>
 #include <linux/module_compat.h>
