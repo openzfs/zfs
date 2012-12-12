@@ -218,30 +218,9 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 {
 	znode_t	*zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
-	int error = 0;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
-
-	/*
-	 * When closing an mmap()'ed file ensure the inode atime, mtime, and
-	 * ctime are written to disk.  These values may have been updated in
-	 * memory by filemap_page_mkwrite() bit are not yet reflected in the
-	 * znode since writepage() may occur after the close.
-	 */
-	if (zp->z_is_mapped) {
-		vattr_t *vap;
-
-		vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-		vap->va_mask = ATTR_ATIME | ATTR_MTIME | ATTR_CTIME;
-		vap->va_atime = ip->i_atime;
-		vap->va_mtime = ip->i_mtime;
-		vap->va_ctime = ip->i_ctime;
-
-		error = zfs_setattr(ip, vap, 0, cr);
-
-		kmem_free(vap, sizeof(vattr_t));
-	}
 
 	/*
 	 * Zero the synchronous opens in the znode.  Under Linux the
@@ -256,7 +235,7 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 		VERIFY(zfs_vscan(ip, cr, 1) == 0);
 
 	ZFS_EXIT(zsb);
-	return (error);
+	return (0);
 }
 EXPORT_SYMBOL(zfs_close);
 
@@ -3919,6 +3898,56 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	ZFS_EXIT(zsb);
 	return (err);
 }
+
+/*
+ * Update the system attributes when the inode has been dirtied.  For the
+ * moment we're conservative and only update the atime, mtime, and ctime.
+ */
+int
+zfs_dirty_inode(struct inode *ip, int flags)
+{
+	znode_t		*zp = ITOZ(ip);
+	zfs_sb_t	*zsb = ITOZSB(ip);
+	dmu_tx_t	*tx;
+	uint64_t	atime[2], mtime[2], ctime[2];
+	sa_bulk_attr_t	bulk[3];
+	int		error;
+	int		cnt = 0;
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	tx = dmu_tx_create(zsb->z_os);
+
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	zfs_sa_upgrade_txholds(tx, zp);
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+
+	mutex_enter(&zp->z_lock);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zsb), NULL, &atime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
+
+	/* Preserve the mtime and ctime provided by the inode */
+	ZFS_TIME_ENCODE(&ip->i_atime, atime);
+	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
+	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
+	zp->z_atime_dirty = 0;
+
+	error = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
+	mutex_exit(&zp->z_lock);
+
+	dmu_tx_commit(tx);
+out:
+	ZFS_EXIT(zsb);
+	return (error);
+}
+EXPORT_SYMBOL(zfs_dirty_inode);
 
 /*ARGSUSED*/
 void
