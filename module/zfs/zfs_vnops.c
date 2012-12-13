@@ -2070,15 +2070,11 @@ out:
 }
 EXPORT_SYMBOL(zfs_readdir);
 
-ulong_t zfs_fsync_sync_cnt = 4;
-
 int
 zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
 {
 	znode_t	*zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
-
-	(void) tsd_set(zfs_fsyncer_key, (void *)zfs_fsync_sync_cnt);
 
 	if (zsb->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		ZFS_ENTER(zsb);
