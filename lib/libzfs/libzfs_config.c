@@ -18,9 +18,14 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -215,6 +220,36 @@ zpool_get_config(zpool_handle_t *zhp, nvlist_t **oldconfig)
 	if (oldconfig)
 		*oldconfig = zhp->zpool_old_config;
 	return (zhp->zpool_config);
+}
+
+/*
+ * Retrieves a list of enabled features and their refcounts and caches it in
+ * the pool handle.
+ */
+nvlist_t *
+zpool_get_features(zpool_handle_t *zhp)
+{
+	nvlist_t *config, *features;
+
+	config = zpool_get_config(zhp, NULL);
+
+	if (config == NULL || !nvlist_exists(config,
+	    ZPOOL_CONFIG_FEATURE_STATS)) {
+		int error;
+		boolean_t missing = B_FALSE;
+
+		error = zpool_refresh_stats(zhp, &missing);
+
+		if (error != 0 || missing)
+			return (NULL);
+
+		config = zpool_get_config(zhp, NULL);
+	}
+
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_FEATURE_STATS,
+	    &features) == 0);
+
+	return (features);
 }
 
 /*

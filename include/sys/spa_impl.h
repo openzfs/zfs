@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -127,6 +127,7 @@ struct spa {
 	uint64_t	spa_import_flags;	/* import specific flags */
 	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
+	boolean_t	spa_is_initializing;	/* true while opening pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */
@@ -144,6 +145,7 @@ struct spa {
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
+	nvlist_t	*spa_label_features;	/* Features for reading MOS */
 	uint64_t	spa_config_object;	/* MOS object for pool config */
 	uint64_t	spa_config_generation;	/* config generation number */
 	uint64_t	spa_syncing_txg;	/* txg currently syncing */
@@ -220,7 +222,10 @@ struct spa {
 	boolean_t	spa_autoreplace;	/* autoreplace set in open */
 	int		spa_vdev_locks;		/* locks grabbed */
 	uint64_t	spa_creation_version;	/* version at pool creation */
-	uint64_t	spa_prev_software_version;
+	uint64_t	spa_prev_software_version; /* See ub_software_version */
+	uint64_t	spa_feat_for_write_obj;	/* required to write to pool */
+	uint64_t	spa_feat_for_read_obj;	/* required to read from pool */
+	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	/*
 	 * spa_refcnt & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.

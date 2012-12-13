@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SCAN_H
@@ -78,6 +79,9 @@ typedef struct dsl_scan {
 	uint64_t scn_restart_txg;
 	uint64_t scn_sync_start_time;
 	zio_t *scn_zio_root;
+
+	/* for freeing blocks */
+	boolean_t scn_is_bptree;
 
 	/* for debugging / information */
 	uint64_t scn_visited_this_txg;
