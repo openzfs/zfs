@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -461,7 +461,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 	{
 		dmu_object_info_t doi;
 		dmu_object_info_from_db(db, &doi);
-		ASSERT(dmu_ot[doi.doi_type].ot_byteswap == zap_byteswap);
+		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
 	}
 #endif
 
@@ -585,7 +585,7 @@ mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
 	{
 		dmu_object_info_t doi;
 		dmu_object_info_from_db(db, &doi);
-		ASSERT(dmu_ot[doi.doi_type].ot_byteswap == zap_byteswap);
+		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
 	}
 #endif
 

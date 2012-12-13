@@ -1349,7 +1349,8 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 		uint64_t aux_guid = 0;
 		nvlist_t *nvl;
 
-		if ((label = vdev_label_read_config(vd)) == NULL) {
+		if ((label = vdev_label_read_config(vd, VDEV_BEST_LABEL)) ==
+		    NULL) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_BAD_LABEL);
 			return (0);
@@ -1993,14 +1994,14 @@ vdev_validate_aux(vdev_t *vd)
 	if (!vdev_readable(vd))
 		return (0);
 
-	if ((label = vdev_label_read_config(vd)) == NULL) {
+	if ((label = vdev_label_read_config(vd, VDEV_BEST_LABEL)) == NULL) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_CORRUPT_DATA);
 		return (-1);
 	}
 
 	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_VERSION, &version) != 0 ||
-	    version > SPA_VERSION ||
+	    !SPA_VERSION_IS_SUPPORTED(version) ||
 	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) != 0 ||
 	    guid != vd->vdev_guid ||
 	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_STATE, &state) != 0) {

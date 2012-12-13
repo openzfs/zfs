@@ -20,9 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- */
-/*
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -693,7 +692,7 @@ dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name)
 		return;
 	}
 
-	ASSERT3P(dmu_ot[dn->dn_type].ot_byteswap, ==, zap_byteswap);
+	ASSERT3U(DMU_OT_BYTESWAP(dn->dn_type), ==, DMU_BSWAP_ZAP);
 
 	if (dn->dn_maxblkid == 0 && !add) {
 		blkptr_t *bp;

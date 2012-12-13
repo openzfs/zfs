@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_POOL_H
@@ -34,6 +35,7 @@
 #include <sys/ddt.h>
 #include <sys/arc.h>
 #include <sys/bpobj.h>
+#include <sys/bptree.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -48,7 +50,8 @@ struct dsl_scan;
 
 /* These macros are for indexing into the zfs_all_blkstats_t. */
 #define	DMU_OT_DEFERRED	DMU_OT_NONE
-#define	DMU_OT_TOTAL	DMU_OT_NUMTYPES
+#define	DMU_OT_OTHER	DMU_OT_NUMTYPES /* place holder for DMU_OT() types */
+#define	DMU_OT_TOTAL	(DMU_OT_NUMTYPES + 1)
 
 typedef struct zfs_blkstat {
 	uint64_t	zb_count;
@@ -93,6 +96,7 @@ typedef struct dsl_pool {
 	uint64_t dp_write_limit;
 	uint64_t dp_tmp_userrefs_obj;
 	bpobj_t dp_free_bpobj;
+	uint64_t dp_bptree_obj;
 
 	struct dsl_scan *dp_scan;
 
@@ -121,7 +125,8 @@ typedef struct dsl_pool {
 	zfs_all_blkstats_t *dp_blkstats;
 } dsl_pool_t;
 
-int dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
+int dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
+int dsl_pool_open(dsl_pool_t *dp);
 void dsl_pool_close(dsl_pool_t *dp);
 dsl_pool_t *dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg);
 void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);

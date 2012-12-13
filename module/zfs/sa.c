@@ -18,8 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -446,10 +448,9 @@ sa_add_layout_entry(objset_t *os, sa_attr_type_t *attrs, int attr_count,
 		char attr_name[8];
 
 		if (sa->sa_layout_attr_obj == 0) {
-			sa->sa_layout_attr_obj = zap_create(os,
-			    DMU_OT_SA_ATTR_LAYOUTS, DMU_OT_NONE, 0, tx);
-			VERIFY(zap_add(os, sa->sa_master_obj, SA_LAYOUTS, 8, 1,
-			    &sa->sa_layout_attr_obj, tx) == 0);
+			sa->sa_layout_attr_obj = zap_create_link(os,
+			    DMU_OT_SA_ATTR_LAYOUTS,
+			    sa->sa_master_obj, SA_LAYOUTS, tx);
 		}
 
 		(void) snprintf(attr_name, sizeof (attr_name),
@@ -1583,10 +1584,9 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 	}
 
 	if (sa->sa_reg_attr_obj == 0) {
-		sa->sa_reg_attr_obj = zap_create(hdl->sa_os,
-		    DMU_OT_SA_ATTR_REGISTRATION, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(hdl->sa_os, sa->sa_master_obj,
-		    SA_REGISTRY, 8, 1, &sa->sa_reg_attr_obj, tx) == 0);
+		sa->sa_reg_attr_obj = zap_create_link(hdl->sa_os,
+		    DMU_OT_SA_ATTR_REGISTRATION,
+		    sa->sa_master_obj, SA_REGISTRY, tx);
 	}
 	for (i = 0; i != sa->sa_num_attrs; i++) {
 		if (sa->sa_attr_table[i].sa_registered)

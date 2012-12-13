@@ -18,9 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -47,6 +48,7 @@
 
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
+#include "zfeature_common.h"
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -114,7 +116,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_RESILVERING:
 		return (dgettext(TEXT_DOMAIN, "currently resilvering"));
 	case EZFS_BADVERSION:
-		return (dgettext(TEXT_DOMAIN, "unsupported version"));
+		return (dgettext(TEXT_DOMAIN, "unsupported version or "
+		    "feature"));
 	case EZFS_POOLUNAVAIL:
 		return (dgettext(TEXT_DOMAIN, "pool is unavailable"));
 	case EZFS_DEVOVERFLOW:
@@ -709,6 +712,7 @@ libzfs_init(void)
 
 	zfs_prop_init();
 	zpool_prop_init();
+	zpool_feature_init();
 	libzfs_mnttab_init(hdl);
 
 	return (hdl);
@@ -1532,9 +1536,11 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	 * this is a pool property or if this isn't a user-defined
 	 * dataset property,
 	 */
-	if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
-	    (!zfs_prop_user(propname) && !zfs_prop_userquota(propname) &&
-	    !zfs_prop_written(propname)))) {
+	if (prop == ZPROP_INVAL && ((type == ZFS_TYPE_POOL &&
+	    !zpool_prop_feature(propname) &&
+	    !zpool_prop_unsupported(propname)) ||
+	    (type == ZFS_TYPE_DATASET && !zfs_prop_user(propname) &&
+	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
 		return (zfs_error(hdl, EZFS_BADPROP,
@@ -1546,7 +1552,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 
 	entry->pl_prop = prop;
 	if (prop == ZPROP_INVAL) {
-		if ((entry->pl_user_prop = zfs_strdup(hdl, propname)) == NULL) {
+		if ((entry->pl_user_prop = zfs_strdup(hdl, propname)) ==
+		    NULL) {
 			free(entry);
 			return (-1);
 		}

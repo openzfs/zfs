@@ -12,7 +12,8 @@ libnvpair_la_SOURCES = \
 	$(top_srcdir)/lib/libnvpair/libnvpair.c \
 	$(top_srcdir)/lib/libnvpair/nvpair_alloc_system.c \
 	$(top_srcdir)/module/nvpair/nvpair_alloc_fixed.c \
-	$(top_srcdir)/module/nvpair/nvpair.c
+	$(top_srcdir)/module/nvpair/nvpair.c \
+	$(top_srcdir)/module/nvpair/fnvpair.c
 
 libnvpair_la_LIBADD = \
         $(top_builddir)/lib/libuutil/libuutil.la

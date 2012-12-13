@@ -6,6 +6,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/avl_impl.h \
 	$(top_srcdir)/include/sys/bplist.h \
 	$(top_srcdir)/include/sys/bpobj.h \
+	$(top_srcdir)/include/sys/bptree.h \
 	$(top_srcdir)/include/sys/dbuf.h \
 	$(top_srcdir)/include/sys/ddt.h \
 	$(top_srcdir)/include/sys/dmu.h \
@@ -53,6 +54,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zap.h \
 	$(top_srcdir)/include/sys/zap_impl.h \
 	$(top_srcdir)/include/sys/zap_leaf.h \
+	$(top_srcdir)/include/sys/zfeature.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \
 	$(top_srcdir)/include/sys/zfs_ctldir.h \

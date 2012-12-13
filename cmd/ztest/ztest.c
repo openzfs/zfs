@@ -109,6 +109,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/zio_checksum.h>
 #include <sys/refcount.h>
+#include <sys/zfeature.h>
 #include <stdio.h>
 #include <stdio_ext.h>
 #include <stdlib.h>
@@ -5771,10 +5772,9 @@ make_random_props(void)
 {
 	nvlist_t *props;
 
-	if (ztest_random(2) == 0)
-		return (NULL);
-
 	VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
+	if (ztest_random(2) == 0)
+		return (props);
 	VERIFY(nvlist_add_uint64(props, "autoreplace", 1) == 0);
 
 	return (props);
@@ -5789,6 +5789,7 @@ ztest_init(ztest_shared_t *zs)
 {
 	spa_t *spa;
 	nvlist_t *nvroot, *props;
+	int i;
 
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&ztest_name_lock, NULL, RW_DEFAULT, NULL);
@@ -5805,6 +5806,13 @@ ztest_init(ztest_shared_t *zs)
 	nvroot = make_vdev_root(NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    0, ztest_opts.zo_raidz, zs->zs_mirrors, 1);
 	props = make_random_props();
+	for (i = 0; i < SPA_FEATURES; i++) {
+		char *buf;
+		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",
+		    spa_feature_table[i].fi_uname));
+		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
+		free(buf);
+	}
 	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props,
 	    NULL, NULL));
 	nvlist_free(nvroot);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -40,6 +40,8 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/dsl_deadlist.h>
+#include <sys/bptree.h>
+#include <sys/zfeature.h>
 
 int zfs_no_write_throttle = 0;
 int zfs_write_limit_shift = 3;			/* 1/8th of physical memory */
@@ -240,20 +242,30 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 }
 
 int
-dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
+dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 {
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
+
+	err = dmu_objset_open_impl(spa, NULL, &dp->dp_meta_rootbp,
+	    &dp->dp_meta_objset);
+	if (err != 0)
+		dsl_pool_close(dp);
+	else
+		*dpp = dp;
+
+	return (err);
+}
+
+int
+dsl_pool_open(dsl_pool_t *dp)
+{
+	int err;
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
 	uint64_t obj;
 
 	rw_enter(&dp->dp_config_rwlock, RW_WRITER);
-	err = dmu_objset_open_impl(spa, NULL, &dp->dp_meta_rootbp,
-	    &dp->dp_meta_objset);
-	if (err)
-		goto out;
-
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_ROOT_DATASET, sizeof (uint64_t), 1,
 	    &dp->dp_root_dir_obj);
@@ -269,7 +281,7 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 	if (err)
 		goto out;
 
-	if (spa_version(spa) >= SPA_VERSION_ORIGIN) {
+	if (spa_version(dp->dp_spa) >= SPA_VERSION_ORIGIN) {
 		err = dsl_pool_open_special_dir(dp, ORIGIN_DIR_NAME, &dd);
 		if (err)
 			goto out;
@@ -286,7 +298,7 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 			goto out;
 	}
 
-	if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
+	if (spa_version(dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
 		err = dsl_pool_open_special_dir(dp, FREE_DIR_NAME,
 		    &dp->dp_free_dir);
 		if (err)
@@ -300,6 +312,15 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 		    dp->dp_meta_objset, obj));
 	}
 
+	if (spa_feature_is_active(dp->dp_spa,
+	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
+		    &dp->dp_bptree_obj);
+		if (err != 0)
+			goto out;
+	}
+
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_TMP_USERREFS, sizeof (uint64_t), 1,
 	    &dp->dp_tmp_userrefs_obj);
@@ -308,15 +329,10 @@ dsl_pool_open(spa_t *spa, uint64_t txg, dsl_pool_t **dpp)
 	if (err)
 		goto out;
 
-	err = dsl_scan_init(dp, txg);
+	err = dsl_scan_init(dp, dp->dp_tx.tx_open_txg);
 
 out:
 	rw_exit(&dp->dp_config_rwlock);
-	if (err)
-		dsl_pool_close(dp);
-	else
-		*dpp = dp;
-
 	return (err);
 }
 
@@ -611,7 +627,7 @@ int
 dsl_pool_sync_context(dsl_pool_t *dp)
 {
 	return (curthread == dp->dp_tx.tx_sync_thread ||
-	    spa_get_dsl(dp->dp_spa) == NULL);
+	    spa_is_initializing(dp->dp_spa));
 }
 
 uint64_t
@@ -932,11 +948,8 @@ dsl_pool_user_hold_create_obj(dsl_pool_t *dp, dmu_tx_t *tx)
 	ASSERT(dp->dp_tmp_userrefs_obj == 0);
 	ASSERT(dmu_tx_is_syncing(tx));
 
-	dp->dp_tmp_userrefs_obj = zap_create(mos, DMU_OT_USERREFS,
-	    DMU_OT_NONE, 0, tx);
-
-	VERIFY(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TMP_USERREFS,
-	    sizeof (uint64_t), 1, &dp->dp_tmp_userrefs_obj, tx) == 0);
+	dp->dp_tmp_userrefs_obj = zap_create_link(mos, DMU_OT_USERREFS,
+	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TMP_USERREFS, tx);
 }
 
 static int

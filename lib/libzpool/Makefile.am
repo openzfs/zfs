@@ -23,6 +23,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/arc.c \
 	$(top_srcdir)/module/zfs/bplist.c \
 	$(top_srcdir)/module/zfs/bpobj.c \
+	$(top_srcdir)/module/zfs/bptree.c \
 	$(top_srcdir)/module/zfs/dbuf.c \
 	$(top_srcdir)/module/zfs/ddt.c \
 	$(top_srcdir)/module/zfs/ddt_zap.c \
@@ -74,6 +75,8 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/zap.c \
 	$(top_srcdir)/module/zfs/zap_leaf.c \
 	$(top_srcdir)/module/zfs/zap_micro.c \
+	$(top_srcdir)/module/zfs/zfeature.c \
+	$(top_srcdir)/module/zfs/zfeature_common.c \
 	$(top_srcdir)/module/zfs/zfs_byteswap.c \
 	$(top_srcdir)/module/zfs/zfs_debug.c \
 	$(top_srcdir)/module/zfs/zfs_fm.c \

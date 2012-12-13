@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -260,7 +261,7 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
 		boolean_t is_metadata;
 
 		DB_DNODE_ENTER(db);
-		is_metadata = dmu_ot[DB_DNODE(db)->dn_type].ot_metadata;
+		is_metadata = DMU_OT_IS_METADATA(DB_DNODE(db)->dn_type);
 		DB_DNODE_EXIT(db);
 
 		return (is_metadata);
