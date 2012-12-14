@@ -173,7 +173,7 @@ typedef enum {
  */
 boolean_t
 feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
-    nvlist_t *unsup_feat)
+    nvlist_t *unsup_feat, nvlist_t *enabled_feat)
 {
 	boolean_t supported;
 	zap_cursor_t *zc;
@@ -191,11 +191,16 @@ feature_is_supported(objset_t *os, uint64_t obj, uint64_t desc_obj,
 		ASSERT(za->za_integer_length == sizeof (uint64_t) &&
 		    za->za_num_integers == 1);
 
+		if (NULL != enabled_feat) {
+			fnvlist_add_uint64(enabled_feat, za->za_name,
+			    za->za_first_integer);
+		}
+
 		if (za->za_first_integer != 0 &&
 		    !zfeature_is_supported(za->za_name)) {
 			supported = B_FALSE;
 
-			if (unsup_feat != NULL) {
+			if (NULL != unsup_feat) {
 				char *desc = "";
 
 				if (zap_lookup(os, desc_obj, za->za_name,

@@ -1628,7 +1628,7 @@ Displays verbose data error information, printing out a complete list of all dat
 .ad
 .sp .6
 .RS 4n
-Displays all pools formatted using a different \fBZFS\fR on-disk version. Older versions can continue to be used, but some features may not be available. These pools can be upgraded using "\fBzpool upgrade -a\fR". Pools that are formatted with a more recent version are also displayed, although these pools will be inaccessible on the system.
+Displays pools which do not have all supported features enabled and pools formatted using a legacy ZFS version number. These pools can continue to be used, but some features may not be available. Use "\fBzpool upgrade -a\fR" to enable all features on all pools.
 .RE
 
 .sp
@@ -1639,7 +1639,7 @@ Displays all pools formatted using a different \fBZFS\fR on-disk version. Older 
 .ad
 .sp .6
 .RS 4n
-Displays \fBZFS\fR versions supported by the current software. The current \fBZFS\fR versions and all previous supported versions are displayed, along with an explanation of the features provided with each version.
+Displays legacy \fBZFS\fR versions supported by the current software. See \fBzfs-features\fR(5) for a description of feature flags features supported by the current software.
 .RE
 
 .sp
@@ -1650,7 +1650,7 @@ Displays \fBZFS\fR versions supported by the current software. The current \fBZF
 .ad
 .sp .6
 .RS 4n
-Upgrades the given pool to the latest on-disk version. Once this is done, the pool will no longer be accessible on systems running older versions of the software.
+Enables all supported features on the given pool. Once this is done, the pool will no longer be accessible on systems that do not support feature flags. See \fBzfs-features\fR(5) for details on compatability with systems that support feature flags, but do not support all features enabled on the pool.
 .sp
 .ne 2
 .mk
@@ -1658,8 +1658,8 @@ Upgrades the given pool to the latest on-disk version. Once this is done, the po
 \fB\fB-a\fR\fR
 .ad
 .RS 14n
-.rt  
-Upgrades all pools.
+.rt
+Enables all supported features on all pools.
 .RE
 
 .sp
@@ -1669,8 +1669,8 @@ Upgrades all pools.
 \fB\fB-V\fR \fIversion\fR\fR
 .ad
 .RS 14n
-.rt  
-Upgrade to the specified version. If the \fB-V\fR flag is not specified, the pool is upgraded to the most recent version. This option can only be used to increase the version number, and only up to the most recent version supported by this software.
+.rt
+Upgrade to the specified legacy version. If the \fB-V\fR flag is specified, no features will be enabled on the pool. This option can only be used to increase the version number up to the last supported legacy version number.
 .RE
 
 .RE
