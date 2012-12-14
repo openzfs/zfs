@@ -954,6 +954,7 @@ typedef enum history_internal_events {
 	LOG_DS_USER_HOLD,
 	LOG_DS_USER_RELEASE,
 	LOG_POOL_SPLIT,
+	LOG_POOL_GUID_CHANGE,
 	LOG_END
 } history_internal_events_t;
 
