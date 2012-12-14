@@ -322,7 +322,8 @@ typedef enum {
 	 * requiring administrative attention.  There is no corresponding
 	 * message ID.
 	 */
-	ZPOOL_STATUS_VERSION_OLDER,	/* older on-disk version */
+	ZPOOL_STATUS_VERSION_OLDER,	/* older legacy on-disk version */
+	ZPOOL_STATUS_FEAT_DISABLED,	/* supported features are disabled */
 	ZPOOL_STATUS_RESILVERING,	/* device being resilvered */
 	ZPOOL_STATUS_OFFLINE_DEV,	/* device online */
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */

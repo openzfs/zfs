@@ -2209,7 +2209,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 
 	if (spa_version(spa) >= SPA_VERSION_FEATURES) {
 		boolean_t missing_feat_read = B_FALSE;
-		nvlist_t *unsup_feat;
+		nvlist_t *unsup_feat, *enabled_feat;
 
 		if (spa_dir_prop(spa, DMU_POOL_FEATURES_FOR_READ,
 		    &spa->spa_feat_for_read_obj) != 0) {
@@ -2226,27 +2226,32 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 		}
 
-		VERIFY(nvlist_alloc(&unsup_feat, NV_UNIQUE_NAME, KM_SLEEP) ==
-		    0);
+		enabled_feat = fnvlist_alloc();
+		unsup_feat = fnvlist_alloc();
 
 		if (!feature_is_supported(spa->spa_meta_objset,
 		    spa->spa_feat_for_read_obj, spa->spa_feat_desc_obj,
-		    unsup_feat))
+		    unsup_feat, enabled_feat))
 			missing_feat_read = B_TRUE;
 
 		if (spa_writeable(spa) || state == SPA_LOAD_TRYIMPORT) {
 			if (!feature_is_supported(spa->spa_meta_objset,
 			    spa->spa_feat_for_write_obj, spa->spa_feat_desc_obj,
-			    unsup_feat))
+			    unsup_feat, enabled_feat)) {
 				missing_feat_write = B_TRUE;
+			}
 		}
+
+		fnvlist_add_nvlist(spa->spa_load_info,
+		    ZPOOL_CONFIG_ENABLED_FEAT, enabled_feat);
 
 		if (!nvlist_empty(unsup_feat)) {
-			VERIFY(nvlist_add_nvlist(spa->spa_load_info,
-			    ZPOOL_CONFIG_UNSUP_FEAT, unsup_feat) == 0);
+			fnvlist_add_nvlist(spa->spa_load_info,
+			    ZPOOL_CONFIG_UNSUP_FEAT, unsup_feat);
 		}
 
-		nvlist_free(unsup_feat);
+		fnvlist_free(enabled_feat);
+		fnvlist_free(unsup_feat);
 
 		if (!missing_feat_read) {
 			fnvlist_add_boolean(spa->spa_load_info,

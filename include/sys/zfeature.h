@@ -35,7 +35,7 @@ extern "C" {
 #endif
 
 extern boolean_t feature_is_supported(objset_t *os, uint64_t obj,
-    uint64_t desc_obj, nvlist_t *unsup_feat);
+    uint64_t desc_obj, nvlist_t *unsup_feat, nvlist_t *enabled_feat);
 
 struct spa;
 extern void spa_feature_create_zap_objects(struct spa *, dmu_tx_t *);

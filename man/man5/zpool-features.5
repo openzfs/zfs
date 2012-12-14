@@ -20,8 +20,9 @@ zpool\-features \- ZFS pool feature descriptions
 .LP
 ZFS pool on\-disk format versions are specified via "features" which replace
 the old on\-disk format numbers (the last supported on\-disk format number is
-28). To enable a feature on a pool use the \fBzpool\fR(1M) command to set
-the \fBfeature@\fR\fIfeature_name\fR property to \fBenabled\fR.
+28). To enable a feature on a pool use the \fBupgrade\fR subcommand of the
+\fBzpool\fR(1M) command, or set the \fBfeature@\fR\fIfeature_name\fR property
+to \fBenabled\fR.
 .sp
 .LP
 The pool format does not affect file system version compatibility or the ability
