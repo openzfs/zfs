@@ -361,13 +361,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_fault_inject,			1,	&zopt_sometimes	},
 	{ ztest_ddt_repair,			1,	&zopt_sometimes	},
 	{ ztest_dmu_snapshot_hold,		1,	&zopt_sometimes	},
-	/*
-	 * The reguid test is currently broken. Disable it until
-	 * we get around to fixing it.
-	 */
-#if 0
 	{ ztest_reguid,				1,	&zopt_sometimes },
-#endif
 	{ ztest_spa_rename,			1,	&zopt_rarely	},
 	{ ztest_scrub,				1,	&zopt_rarely	},
 	{ ztest_dsl_dataset_promote_busy,	1,	&zopt_rarely	},
