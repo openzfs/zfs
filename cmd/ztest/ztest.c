@@ -365,7 +365,7 @@ ztest_info_t ztest_info[] = {
 	{ ztest_spa_rename,			1,	&zopt_rarely	},
 	{ ztest_scrub,				1,	&zopt_rarely	},
 	{ ztest_dsl_dataset_promote_busy,	1,	&zopt_rarely	},
-	{ ztest_vdev_attach_detach,		1,	&zopt_rarely },
+	{ ztest_vdev_attach_detach,		1,	&zopt_rarely	},
 	{ ztest_vdev_LUN_growth,		1,	&zopt_rarely	},
 	{ ztest_vdev_add_remove,		1,
 	    &ztest_opts.zo_vdevtime				},
@@ -416,6 +416,13 @@ static spa_t *ztest_spa = NULL;
 static ztest_ds_t *ztest_ds;
 
 static kmutex_t ztest_vdev_lock;
+
+/*
+ * The ztest_name_lock protects the pool and dataset namespace used by
+ * the individual tests. To modify the namespace, consumers must grab
+ * this lock as writer. Grabbing the lock as reader will ensure that the
+ * namespace does not change while the lock is held.
+ */
 static krwlock_t ztest_name_lock;
 
 static boolean_t ztest_dump_core = B_TRUE;
@@ -5034,10 +5041,16 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
 	uint64_t orig, load;
+	int error;
 
 	orig = spa_guid(spa);
 	load = spa_load_guid(spa);
-	if (spa_change_guid(spa) != 0)
+
+	(void) rw_enter(&ztest_name_lock, RW_WRITER);
+	error = spa_change_guid(spa);
+	(void) rw_exit(&ztest_name_lock);
+
+	if (error != 0)
 		return;
 
 	if (ztest_opts.zo_verbose >= 3) {
@@ -5732,6 +5745,12 @@ ztest_freeze(void)
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY3U(0, ==, ztest_dataset_open(0));
 	ztest_dataset_close(0);
+
+	spa->spa_debug = B_TRUE;
+	ztest_spa = spa;
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_reguid(NULL, 0);
+
 	spa_close(spa, FTAG);
 	kernel_fini();
 }
