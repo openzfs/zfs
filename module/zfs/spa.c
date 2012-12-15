@@ -5742,6 +5742,14 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 	config = spa_config_generate(spa, spa->spa_root_vdev,
 	    dmu_tx_get_txg(tx), B_FALSE);
 
+	/*
+	 * If we're upgrading the spa version then make sure that
+	 * the config object gets updated with the correct version.
+	 */
+	if (spa->spa_ubsync.ub_version < spa->spa_uberblock.ub_version)
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_VERSION,
+		    spa->spa_uberblock.ub_version);
+
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	if (spa->spa_config_syncing)
