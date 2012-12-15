@@ -1609,13 +1609,6 @@ dmu_recv_existing_end(dmu_recv_cookie_t *drc)
 	dsl_dataset_t *ds = drc->drc_logical_ds;
 	int err, myerr;
 
-	/*
-	 * XXX hack; seems the ds is still dirty and dsl_pool_zil_clean()
-	 * expects it to have a ds_user_ptr (and zil), but clone_swap()
-	 * can close it.
-	 */
-	txg_wait_synced(ds->ds_dir->dd_pool, 0);
-
 	if (dsl_dataset_tryown(ds, FALSE, dmu_recv_tag)) {
 		err = dsl_dataset_clone_swap(drc->drc_real_ds, ds,
 		    drc->drc_force);
