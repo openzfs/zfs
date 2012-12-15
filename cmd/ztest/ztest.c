@@ -2277,6 +2277,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
 	objset_t *os = zd->zd_os;
 
+	mutex_enter(&zd->zd_dirobj_lock);
 	(void) rw_enter(&zd->zd_zilog_lock, RW_WRITER);
 
 	/* zfs_sb_teardown() */
@@ -2287,6 +2288,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 	zil_replay(os, zd, ztest_replay_vector);
 
 	(void) rw_exit(&zd->zd_zilog_lock);
+	mutex_exit(&zd->zd_dirobj_lock);
 }
 
 /*
@@ -5743,6 +5745,7 @@ ztest_freeze(void)
 	 */
 	kernel_init(FREAD | FWRITE);
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	ASSERT(spa_freeze_txg(spa) == UINT64_MAX);
 	VERIFY3U(0, ==, ztest_dataset_open(0));
 	ztest_dataset_close(0);
 

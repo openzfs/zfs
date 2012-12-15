@@ -1953,15 +1953,15 @@ dmu_init(void)
 	dbuf_init();
 	zfetch_init();
 	dmu_tx_init();
-	arc_init();
 	l2arc_init();
+	arc_init();
 }
 
 void
 dmu_fini(void)
 {
-	l2arc_fini();
 	arc_fini();
+	l2arc_fini();
 	dmu_tx_fini();
 	zfetch_fini();
 	dbuf_fini();
