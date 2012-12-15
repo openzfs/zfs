@@ -121,8 +121,15 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	char *device = bdev->bd_disk->disk_name;
 	int error;
 
-	/* Skip devices which are not whole disks (partitions) */
-	if (!v->vdev_wholedisk)
+	/*
+	 * Skip devices which are not whole disks (partitions).
+	 * Device-mapper devices are excepted since they may be whole
+	 * disks despite the vdev_wholedisk flag, in which case we can
+	 * and should switch the elevator. If the device-mapper device
+	 * does not have an elevator (i.e. dm-raid, dm-crypt, etc.) the
+	 * "Skip devices without schedulers" check below will fail.
+	 */
+	if (!v->vdev_wholedisk && strncmp(device, "dm-", 3) != 0)
 		return (0);
 
 	/* Skip devices without schedulers (loop, ram, dm, etc) */
