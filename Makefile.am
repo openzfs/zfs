@@ -3,13 +3,13 @@ include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 include $(top_srcdir)/config/arch.am
 
+SUBDIRS = include
 if CONFIG_USER
-USER_DIR = dracut udev etc man scripts lib cmd
+SUBDIRS += dracut udev etc man scripts lib cmd
 endif
 if CONFIG_KERNEL
-KERNEL_DIR = module
+SUBDIRS += module
 endif
-SUBDIRS = $(USER_DIR) $(KERNEL_DIR) include
 
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
