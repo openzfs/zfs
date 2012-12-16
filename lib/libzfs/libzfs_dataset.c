@@ -2532,29 +2532,29 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		return (ENOSYS);
 #endif /* HAVE_IDMAP */
 	} else {
-#ifdef HAVE_IDMAP
 		/* It's a user/group ID (eg "12345"). */
 		uid_t id;
-		idmap_rid_t rid;
-		char *mapdomain;
 		char *end;
-
 		id = strtoul(cp, &end, 10);
 		if (*end != '\0')
 			return (EINVAL);
 		if (id > MAXUID) {
+#ifdef HAVE_IDMAP
 			/* It's an ephemeral ID. */
+			idmap_rid_t rid;
+			char *mapdomain;
+
 			if (idmap_id_to_numeric_domain_rid(id, isuser,
 			    &mapdomain, &rid) != 0)
 				return (ENOENT);
 			(void) strlcpy(domain, mapdomain, domainlen);
 			*ridp = rid;
+#else
+			return (ENOSYS);
+#endif /* HAVE_IDMAP */
 		} else {
 			*ridp = id;
 		}
-#else
-		return (ENOSYS);
-#endif /* HAVE_IDMAP */
 	}
 
 	return (0);
