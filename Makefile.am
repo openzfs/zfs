@@ -3,13 +3,13 @@ include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 include $(top_srcdir)/config/arch.am
 
+SUBDIRS =
 if CONFIG_USER
-USER_DIR = lib cmd scripts
+SUBDIRS += lib cmd scripts
 endif
 if CONFIG_KERNEL
-KERNEL_DIR = module include
+SUBDIRS += module include
 endif
-SUBDIRS = $(USER_DIR) $(KERNEL_DIR)
 
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
