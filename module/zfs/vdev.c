@@ -1095,7 +1095,7 @@ vdev_uses_zvols(vdev_t *vd)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
 #endif
-	return (B_FALSE);
+	return (B_TRUE);
 }
 
 void
