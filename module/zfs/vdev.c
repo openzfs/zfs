@@ -1078,12 +1078,14 @@ boolean_t
 vdev_uses_zvols(vdev_t *vd)
 {
 /*
- * Stacking zpools on top of zvols is unsupported until we implement a method
- * for determining if an arbitrary block device is a zvol without using the
- * path.  Solaris would check the 'zvol' path component but this does not
- * exist in the Linux port, so we really should do something like stat the
- * file and check the major number.  This is complicated by the fact that
- * we need to do this portably in user or kernel space.
+ * Stacking zpools on top of zvols on Linux is complicated by things such as
+ * LVM and cryptoloop. They make it impossible to reliably detect whether a
+ * block device is backed by a zvol. This forces us to assume that block
+ * devices are always backed by zvols, which costs us parallelism when
+ * importing a pool with multiple vdevs. It would be better to implement a method
+ * for determining if an arbitrary block device is backed by a zvol. This is
+ * complicated by the fact that we need to do this portably in user or kernel
+ * space.
  */
 #if 0
 	int c;
@@ -1095,7 +1097,7 @@ vdev_uses_zvols(vdev_t *vd)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
 #endif
-	return (B_FALSE);
+	return (B_TRUE);
 }
 
 void
