@@ -64,6 +64,7 @@ proc_t p0 = { 0 };
 EXPORT_SYMBOL(p0);
 
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
+DECLARE_WAIT_QUEUE_HEAD(spl_kallsyms_lookup_name_waitq);
 kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn = SYMBOL_POISON;
 #endif
 
@@ -607,6 +608,24 @@ set_kallsyms_lookup_name(void)
 	int rc;
 
 	rc = call_usermodehelper(argv[0], argv, envp, 1);
+
+	/*
+	 * Due to I/O buffering the helper may return successfully before
+	 * the proc handler has a chance to execute.  To catch this case
+	 * wait up to 1 second to verify spl_kallsyms_lookup_name_fn was
+	 * updated to a non SYMBOL_POISON value.
+	 */
+	if (rc == 0) {
+		rc = wait_event_timeout(spl_kallsyms_lookup_name_waitq,
+		    spl_kallsyms_lookup_name_fn != SYMBOL_POISON, HZ);
+		if (rc == 0)
+			rc = -ETIMEDOUT;
+		else if (spl_kallsyms_lookup_name_fn == SYMBOL_POISON)
+			rc = -EFAULT;
+		else
+			rc = 0;
+	}
+
 	if (rc)
 		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
 		       argv[0], argv[1], argv[2], rc);

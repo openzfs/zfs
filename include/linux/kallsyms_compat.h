@@ -34,6 +34,7 @@
 
 #else
 
+extern wait_queue_head_t spl_kallsyms_lookup_name_waitq;
 typedef unsigned long (*kallsyms_lookup_name_t)(const char *);
 extern kallsyms_lookup_name_t spl_kallsyms_lookup_name_fn;
 #define spl_kallsyms_lookup_name(name) spl_kallsyms_lookup_name_fn(name)

@@ -546,6 +546,8 @@ SPL_PROC_HANDLER(proc_dokallsyms_lookup_name)
 
                 spl_kallsyms_lookup_name_fn =
 			(kallsyms_lookup_name_t)simple_strtoul(str, &end, 16);
+		wake_up(&spl_kallsyms_lookup_name_waitq);
+
 		if (str == end)
 			SRETURN(-EINVAL);
 
