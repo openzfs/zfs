@@ -86,7 +86,7 @@ rm -rf $RPM_BUILD_ROOT
 %config %{_sysconfdir}/zfs/*
 %config(noreplace) %{_sysconfdir}/zfs/zdev.conf
 
-%doc AUTHORS ChangeLog COPYING COPYRIGHT DISCLAIMER
+%doc AUTHORS COPYING COPYRIGHT DISCLAIMER
 %doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
 
 %files devel
