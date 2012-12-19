@@ -32,7 +32,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-, root, root)
-%doc AUTHORS ChangeLog COPYING DISCLAIMER INSTALL
+%doc AUTHORS COPYING DISCLAIMER INSTALL
 %{_sbindir}/*
 
 %post
