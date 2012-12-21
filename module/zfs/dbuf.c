@@ -2189,7 +2189,24 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 			dbuf_evict(db);
 		} else {
 			VERIFY(arc_buf_remove_ref(db->db_buf, db) == 0);
-			if (!DBUF_IS_CACHEABLE(db))
+
+			/*
+			 * A dbuf will be eligible for eviction if either the
+			 * 'primarycache' property is set or a duplicate
+			 * copy of this buffer is already cached in the arc.
+			 *
+			 * In the case of the 'primarycache' a buffer
+			 * is considered for eviction if it matches the
+			 * criteria set in the property.
+			 *
+			 * To decide if our buffer is considered a
+			 * duplicate, we must call into the arc to determine
+			 * if multiple buffers are referencing the same
+			 * block on-disk. If so, then we simply evict
+			 * ourselves.
+			 */
+			if (!DBUF_IS_CACHEABLE(db) ||
+			    arc_buf_eviction_needed(db->db_buf))
 				dbuf_clear(db);
 			else
 				mutex_exit(&db->db_mtx);
