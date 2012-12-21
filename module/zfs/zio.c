@@ -1316,7 +1316,7 @@ zio_wait(zio_t *zio)
 
 	mutex_enter(&zio->io_lock);
 	while (zio->io_executor != NULL)
-		cv_wait(&zio->io_cv, &zio->io_lock);
+		cv_wait_io(&zio->io_cv, &zio->io_lock);
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;
