@@ -322,6 +322,7 @@ extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
 #define cv_timedwait_interruptible(cv, mp, at)	cv_timedwait(cv, mp, at)
 #define cv_wait_interruptible(cv, mp)		cv_wait(cv, mp)
+#define cv_wait_io(cv, mp)			cv_wait(cv, mp)
 
 /*
  * kstat creation, installation and deletion
