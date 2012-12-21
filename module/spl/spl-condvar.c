@@ -97,7 +97,7 @@ __cv_destroy(kcondvar_t *cvp)
 EXPORT_SYMBOL(__cv_destroy);
 
 static void
-cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
+cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 {
 	DEFINE_WAIT(wait);
 	SENTRY;
@@ -121,7 +121,10 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 	 * ensures we're linked in to the waiters list and avoids the
 	 * race where 'cvp->cv_waiters > 0' but the list is empty. */
 	mutex_exit(mp);
-	schedule();
+	if (io)
+		io_schedule();
+	else
+		schedule();
 	mutex_enter(mp);
 
 	/* No more waiters a different mutex could be used */
@@ -139,16 +142,23 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state)
 void
 __cv_wait(kcondvar_t *cvp, kmutex_t *mp)
 {
-	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE);
+	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(__cv_wait);
 
 void
 __cv_wait_interruptible(kcondvar_t *cvp, kmutex_t *mp)
 {
-	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE);
+	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(__cv_wait_interruptible);
+
+void
+__cv_wait_io(kcondvar_t *cvp, kmutex_t *mp)
+{
+	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE, 1);
+}
+EXPORT_SYMBOL(__cv_wait_io);
 
 /* 'expire_time' argument is an absolute wall clock time in jiffies.
  * Return value is time left (expire_time - now) or -1 if timeout occurred.

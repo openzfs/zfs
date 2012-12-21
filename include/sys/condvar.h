@@ -51,6 +51,7 @@ typedef enum { CV_DEFAULT=0, CV_DRIVER } kcv_type_t;
 extern void __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg);
 extern void __cv_destroy(kcondvar_t *cvp);
 extern void __cv_wait(kcondvar_t *cvp, kmutex_t *mp);
+extern void __cv_wait_io(kcondvar_t *cvp, kmutex_t *mp);
 extern void __cv_wait_interruptible(kcondvar_t *cvp, kmutex_t *mp);
 extern clock_t __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time);
 extern clock_t __cv_timedwait_interruptible(kcondvar_t *cvp, kmutex_t *mp,
@@ -61,6 +62,7 @@ extern void __cv_broadcast(kcondvar_t *cvp);
 #define cv_init(cvp, name, type, arg)		__cv_init(cvp, name, type, arg)
 #define cv_destroy(cvp)				__cv_destroy(cvp)
 #define cv_wait(cvp, mp)			__cv_wait(cvp, mp)
+#define cv_wait_io(cvp, mp)			__cv_wait_io(cvp, mp)
 #define cv_wait_interruptible(cvp, mp)		__cv_wait_interruptible(cvp,mp)
 #define cv_timedwait(cvp, mp, t)		__cv_timedwait(cvp, mp, t)
 #define cv_timedwait_interruptible(cvp, mp, t)                                \
