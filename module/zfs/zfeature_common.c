@@ -157,4 +157,7 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
 	    "Destroy filesystems asynchronously.", B_TRUE, B_FALSE, NULL);
+	zfeature_register(SPA_FEATURE_EMPTY_BPOBJ,
+	    "com.delphix:empty_bpobj", "empty_bpobj",
+	    "Snapshots use less space.", B_TRUE, B_FALSE, NULL);
 }

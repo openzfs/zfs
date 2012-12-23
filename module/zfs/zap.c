@@ -1094,6 +1094,16 @@ zap_add_int_key(objset_t *os, uint64_t obj,
 }
 
 int
+zap_update_int_key(objset_t *os, uint64_t obj,
+    uint64_t key, uint64_t value, dmu_tx_t *tx)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
+	return (zap_update(os, obj, name, 8, 1, &value, tx));
+}
+
+int
 zap_lookup_int_key(objset_t *os, uint64_t obj, uint64_t key, uint64_t *valuep)
 {
 	char name[20];

@@ -96,6 +96,7 @@ typedef struct dsl_pool {
 	uint64_t dp_tmp_userrefs_obj;
 	bpobj_t dp_free_bpobj;
 	uint64_t dp_bptree_obj;
+	uint64_t dp_empty_bpobj;
 
 	struct dsl_scan *dp_scan;
 

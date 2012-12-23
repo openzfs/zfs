@@ -51,6 +51,7 @@ typedef int (zfeature_func_t)(zfeature_info_t *fi, void *arg);
 
 typedef enum spa_feature {
 	SPA_FEATURE_ASYNC_DESTROY,
+	SPA_FEATURE_EMPTY_BPOBJ,
 	SPA_FEATURES
 } spa_feature_t;
 
