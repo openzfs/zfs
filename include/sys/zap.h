@@ -300,6 +300,8 @@ int zap_increment_int(objset_t *os, uint64_t obj, uint64_t key, int64_t delta,
 /* Here the key is an int and the value is a different int. */
 int zap_add_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx);
+int zap_update_int_key(objset_t *os, uint64_t obj,
+    uint64_t key, uint64_t value, dmu_tx_t *tx);
 int zap_lookup_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t *valuep);
 

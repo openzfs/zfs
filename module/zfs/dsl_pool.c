@@ -322,6 +322,15 @@ dsl_pool_open(dsl_pool_t *dp)
 			goto out;
 	}
 
+	if (spa_feature_is_active(dp->dp_spa,
+	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ])) {
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
+		    &dp->dp_empty_bpobj);
+		if (err != 0)
+			goto out;
+	}
+
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_TMP_USERREFS, sizeof (uint64_t), 1,
 	    &dp->dp_tmp_userrefs_obj);

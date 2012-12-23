@@ -229,7 +229,12 @@ feature_get_refcount(objset_t *os, uint64_t read_obj, uint64_t write_obj,
 	uint64_t refcount;
 	uint64_t zapobj = feature->fi_can_readonly ? write_obj : read_obj;
 
-	ASSERT(0 != zapobj);
+	/*
+	 * If the pool is currently being created, the feature objects may not
+	 * have been allocated yet.  Act as though all features are disabled.
+	 */
+	if (zapobj == 0)
+		return (ENOTSUP);
 
 	err = zap_lookup(os, zapobj, feature->fi_guid, sizeof (uint64_t), 1,
 	    &refcount);

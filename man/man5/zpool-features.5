@@ -169,5 +169,33 @@ through the \fBfreeing\fR property.
 
 This feature is only \fBactive\fR while \fBfreeing\fR is non\-zero.
 .RE
+
+.sp
+.ne 2
+.na
+\fB\fBempty_bpobj\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:empty_bpobj
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature increases the performance of creating and using a large
+number of snapshots of a single filesystem or volume, and also reduces
+the disk space required.
+
+When there are many snapshots, each snapshot uses many Block Pointer
+Objects (bpobj's) to track blocks associated with that snapshot.
+However, in common use cases, most of these bpobj's are empty.  This
+feature allows us to create each bpobj on-demand, thus eliminating the
+empty bpobjs.
+
+This feature is \fBactive\fR while there are any filesystems, volumes,
+or snapshots which were created after enabling this feature.
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(1M)
