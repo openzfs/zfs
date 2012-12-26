@@ -666,9 +666,10 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			int i;
 			ASSERT(dn->dn_next_nblkptr[txgoff] < dnp->dn_nblkptr);
 			/* the blkptrs we are losing better be unallocated */
-			for (i = dn->dn_next_nblkptr[txgoff];
-			    i < dnp->dn_nblkptr; i++)
-				ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[i]));
+			for (i = 0; i < dnp->dn_nblkptr; i++) {
+				if (i >= dn->dn_next_nblkptr[txgoff])
+					ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[i]));
+			}
 #endif
 		}
 		mutex_enter(&dn->dn_mtx);
