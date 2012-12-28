@@ -2460,67 +2460,6 @@ File system that is associated with the received stream is not mounted.
 
 .sp
 .ne 2
-.mk
-.na
-\fB\fB-D\fR\fR
-.ad
-.sp .6
-.RS 4n
-Generate a deduplicated stream.  Blocks which would have been sent multiple
-times in the send stream will only be sent once.  The receiving system must
-also support this feature to recieve a deduplicated stream.  This flag can
-be used regardless of the dataset's \fBdedup\fR property, but performance
-will be much better if the filesystem uses a dedup-capable checksum (eg.
-\fBsha256\fR).
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fB-r\fR\fR
-.ad
-.sp .6
-.RS 4n
-Recursively send all descendant snapshots.  This is similar to the \fB-R\fR
-flag, but information about deleted and renamed datasets is not included, and
-property information is only included if the \fB-p\fR flag is specified.
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fB-p\fR\fR
-.ad
-.sp .6
-.RS 4n
-Include the dataset's properties in the stream.  This flag is implicit when
-\fB-R\fR is specified.  The receiving system must also support this feature.
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fB-n\fR\fR
-.ad
-.sp .6
-.RS 4n
-Do a dry-run ("No-op") send.  Do not generate any actual send data.  This is
-useful in conjunction with the \fB-v\fR or \fB-P\fR flags to determine what
-data will be sent.
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fB-P\fR\fR
-.ad
-.sp .6
-.RS 4n
-Print machine-parsable verbose information about the stream package generated.
-.RE
-
-.sp
-.ne 2
 .na
 \fB\fB-v\fR\fR
 .ad
