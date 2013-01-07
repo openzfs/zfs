@@ -3,10 +3,19 @@
 .\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
 .\" Copyright (c) 2012 by Delphix. All Rights Reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
-.\" The contents of this file are subject to the terms of the Common Development and Distribution License (the "License"). You may not use this file except in compliance with the License. You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
-.\" See the License for the specific language governing permissions and limitations under the License. When distributing Covered Code, include this CDDL HEADER in each file and include the License file at usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this CDDL HEADER, with the
-.\" fields enclosed by brackets "[]" replaced with your own identifying information: Portions Copyright [yyyy] [name of copyright owner]
-.TH zpool 8 "2 August 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License"). You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE. If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.TH zpool 8 "14 December 2012" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -32,7 +41,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool create\fR [\fB-fn\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] 
+\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR]
      ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] \fIpool\fR \fIvdev\fR ...
 .fi
 
@@ -467,24 +476,34 @@ Percentage of pool space used. This property can also be referred to by its shor
 .ne 2
 .mk
 .na
-\fB\fBcomment\fR\fR
-.ad
-.RS 20n
-.rt
-A text string consisting of printable ASCII characters that will be stored such that it is available even if the pool becomes faulted.  An administrator can provide additional information about a pool using this property.
-.RE
-
-.sp
-.ne 2
-.mk
-.na
 \fB\fBexpandsize\fR\fR
 .ad
 .RS 20n
 Amount of uninitialized space within the pool or device that can be used to
-increase the total capacity of the pool.  Uninitialized space consists of 
-any space on an EFI labeled vdev which has not been brought online 
+increase the total capacity of the pool.  Uninitialized space consists of
+any space on an EFI labeled vdev which has not been brought online
 (i.e. zpool online -e).  This space occurs when a LUN is dynamically expanded.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBfree\fR\fR
+.ad
+.RS 20n
+The amount of free space available in the pool.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBfreeing\fR\fR
+.ad
+.RS 20n
+After a file system or snapshot is destroyed, the space it was using is
+returned to the pool asynchronously. \fB\fBfreeing\fR\fR is the amount of
+space remaining to be reclaimed. Over time \fB\fBfreeing\fR\fR will decrease
+while \fB\fBfree\fR\fR increases.
 .RE
 
 .sp
@@ -521,6 +540,16 @@ Total size of the storage pool.
 
 .sp
 .ne 2
+.na
+\fB\fBunsupported@\fR\fIfeature_guid\fR\fR
+.ad
+.RS 20n
+Information about unsupported features that are enabled on the pool. See
+\fBzpool-features\fR(5) for details.
+.RE
+
+.sp
+.ne 2
 .mk
 .na
 \fB\fBused\fR\fR
@@ -532,7 +561,7 @@ Amount of storage space used within the pool.
 
 .sp
 .LP
-These space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(8) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
+The space usage properties report actual physical space available to the storage pool. The physical space can be different from the total amount of space that any contained datasets can actually use. The amount of space used in a \fBraidz\fR configuration depends on the characteristics of the data being written. In addition, \fBZFS\fR reserves some space for internal accounting that the \fBzfs\fR(8) command takes into account, but the \fBzpool\fR command does not. For non-full pools of a reasonable size, these effects should be invisible. For small pools, or pools that are close to being completely full, these discrepancies may become more noticeable.
 
 .sp
 .LP
@@ -617,6 +646,17 @@ Multiple pools can share the same cache file. Because the kernel destroys and re
 .ne 2
 .mk
 .na
+\fB\fBcomment\fR=\fB\fItext\fR\fR
+.ad
+.sp .6
+.RS 4n
+A text string consisting of printable ASCII characters that will be stored such that it is available even if the pool becomes faulted.  An administrator can provide additional information about a pool using this property.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fBdelegation\fR=\fBon\fR | \fBoff\fR\fR
 .ad
 .sp .6
@@ -670,6 +710,18 @@ Prints out a message to the console and generates a system crash dump.
 
 .sp
 .ne 2
+.na
+\fB\fBfeature@\fR\fIfeature_name\fR=\fBenabled\fR\fR
+.ad
+.RS 4n
+The value of this property is the current state of \fIfeature_name\fR. The
+only valid value when setting this property is \fBenabled\fR which moves
+\fIfeature_name\fR to the enabled state. See \fBzpool-features\fR(5) for
+details on feature states.
+.RE
+
+.sp
+.ne 2
 .mk
 .na
 \fB\fBlistsnaps\fR=on | off\fR
@@ -687,7 +739,7 @@ Controls whether information about snapshots associated with this pool is output
 .ad
 .sp .6
 .RS 4n
-The current on-disk version of the pool. This can be increased, but never decreased. The preferred method of updating pools is with the "\fBzpool upgrade\fR" command, though this property can be used when a specific version is needed for backwards compatibility. This property can be any number between 1 and the current version reported by "\fBzpool upgrade -v\fR".
+The current on-disk version of the pool. This can be increased, but never decreased. The preferred method of updating pools is with the "\fBzpool upgrade\fR" command, though this property can be used when a specific version is needed for backwards compatibility. Once feature flags are enabled on a pool this property will no longer have a value.
 .RE
 
 .SS "Subcommands"
@@ -801,7 +853,7 @@ Clears device errors in a pool. If no arguments are specified, all device errors
 .ne 2
 .mk
 .na
-\fB\fBzpool create\fR [\fB-fn\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] \fIpool\fR \fIvdev\fR ...\fR
+\fB\fBzpool create\fR [\fB-fnd\fR] [\fB-o\fR \fIproperty=value\fR] ... [\fB-O\fR \fIfile-system-property=value\fR] ... [\fB-m\fR \fImountpoint\fR] [\fB-R\fR \fIroot\fR] \fIpool\fR \fIvdev\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -812,6 +864,8 @@ The command verifies that each device specified is accessible and not currently 
 The command also checks that the replication strategy for the pool is consistent. An attempt to combine redundant and non-redundant storage in a single pool, or to mix disks and files, results in an error unless \fB-f\fR is specified. The use of differently sized devices within a single \fBraidz\fR or mirror group is also flagged as an error unless \fB-f\fR is specified.
 .sp
 Unless the \fB-R\fR option is specified, the default mount point is "/\fIpool\fR". The mount point must not exist or must be empty, or else the root dataset cannot be mounted. This can be overridden with the \fB-m\fR option.
+.sp
+By default all supported features are enabled on the new pool unless the \fB-d\fR option is specified.
 .sp
 .ne 2
 .mk
@@ -837,6 +891,16 @@ Displays the configuration that would be used without actually creating the pool
 .sp
 .ne 2
 .mk
+.na
+\fB\fB-d\fR\fR
+.ad
+.sp .6
+.RS 4n
+Do not enable any features on the new pool. Individual features can be enabled by setting their corresponding properties to \fBenabled\fR with the \fB-o\fR option. See \fBzpool-features\fR(5) for details about feature properties.
+.RE
+
+.sp
+.ne 2
 .na
 \fB\fB-o\fR \fIproperty=value\fR [\fB-o\fR \fIproperty=value\fR] ...\fR
 .ad
@@ -1564,7 +1628,7 @@ Displays verbose data error information, printing out a complete list of all dat
 .ad
 .sp .6
 .RS 4n
-Displays all pools formatted using a different \fBZFS\fR on-disk version. Older versions can continue to be used, but some features may not be available. These pools can be upgraded using "\fBzpool upgrade -a\fR". Pools that are formatted with a more recent version are also displayed, although these pools will be inaccessible on the system.
+Displays pools which do not have all supported features enabled and pools formatted using a legacy ZFS version number. These pools can continue to be used, but some features may not be available. Use "\fBzpool upgrade -a\fR" to enable all features on all pools.
 .RE
 
 .sp
@@ -1575,7 +1639,7 @@ Displays all pools formatted using a different \fBZFS\fR on-disk version. Older 
 .ad
 .sp .6
 .RS 4n
-Displays \fBZFS\fR versions supported by the current software. The current \fBZFS\fR versions and all previous supported versions are displayed, along with an explanation of the features provided with each version.
+Displays legacy \fBZFS\fR versions supported by the current software. See \fBzfs-features\fR(5) for a description of feature flags features supported by the current software.
 .RE
 
 .sp
@@ -1586,7 +1650,7 @@ Displays \fBZFS\fR versions supported by the current software. The current \fBZF
 .ad
 .sp .6
 .RS 4n
-Upgrades the given pool to the latest on-disk version. Once this is done, the pool will no longer be accessible on systems running older versions of the software.
+Enables all supported features on the given pool. Once this is done, the pool will no longer be accessible on systems that do not support feature flags. See \fBzfs-features\fR(5) for details on compatability with systems that support feature flags, but do not support all features enabled on the pool.
 .sp
 .ne 2
 .mk
@@ -1594,8 +1658,8 @@ Upgrades the given pool to the latest on-disk version. Once this is done, the po
 \fB\fB-a\fR\fR
 .ad
 .RS 14n
-.rt  
-Upgrades all pools.
+.rt
+Enables all supported features on all pools.
 .RE
 
 .sp
@@ -1605,8 +1669,8 @@ Upgrades all pools.
 \fB\fB-V\fR \fIversion\fR\fR
 .ad
 .RS 14n
-.rt  
-Upgrade to the specified version. If the \fB-V\fR flag is not specified, the pool is upgraded to the most recent version. This option can only be used to increase the version number, and only up to the most recent version supported by this software.
+.rt
+Upgrade to the specified legacy version. If the \fB-V\fR flag is specified, no features will be enabled on the pool. This option can only be used to increase the version number up to the last supported legacy version number.
 .RE
 
 .RE
@@ -1965,4 +2029,4 @@ Invalid command line options were specified.
 .SH SEE ALSO
 .sp
 .LP
-\fBzfs\fR(8)
+\fBzfs\fR(8), \fBzpool-features\fR(5)

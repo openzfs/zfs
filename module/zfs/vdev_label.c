@@ -18,8 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -121,6 +123,8 @@
  * 	txg		Transaction group in which this label was written
  * 	pool_guid	Unique identifier for this pool
  * 	vdev_tree	An nvlist describing vdev tree.
+ *	features_for_read
+ *			An nvlist of the features necessary for reading the MOS.
  *
  * Each leaf device label also contains the following:
  *
@@ -428,13 +432,23 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	kmem_free(array, rvd->vdev_children * sizeof (uint64_t));
 }
 
+/*
+ * Returns the configuration from the label of the given vdev. For vdevs
+ * which don't have a txg value stored on their label (i.e. spares/cache)
+ * or have not been completely initialized (txg = 0) just return
+ * the configuration from the first valid label we find. Otherwise,
+ * find the most up-to-date label that does not exceed the specified
+ * 'txg' value.
+ */
 nvlist_t *
-vdev_label_read_config(vdev_t *vd)
+vdev_label_read_config(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *config = NULL;
 	vdev_phys_t *vp;
 	zio_t *zio;
+	uint64_t best_txg = 0;
+	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 	int l;
@@ -448,6 +462,7 @@ vdev_label_read_config(vdev_t *vd)
 
 retry:
 	for (l = 0; l < VDEV_LABELS; l++) {
+		nvlist_t *label = NULL;
 
 		zio = zio_root(spa, NULL, NULL, flags);
 
@@ -457,12 +472,31 @@ retry:
 
 		if (zio_wait(zio) == 0 &&
 		    nvlist_unpack(vp->vp_nvlist, sizeof (vp->vp_nvlist),
-		    &config, 0) == 0)
-			break;
+		    &label, 0) == 0) {
+			uint64_t label_txg = 0;
 
-		if (config != NULL) {
-			nvlist_free(config);
-			config = NULL;
+			/*
+			 * Auxiliary vdevs won't have txg values in their
+			 * labels and newly added vdevs may not have been
+			 * completely initialized so just return the
+			 * configuration from the first valid label we
+			 * encounter.
+			 */
+			error = nvlist_lookup_uint64(label,
+			    ZPOOL_CONFIG_POOL_TXG, &label_txg);
+			if ((error || label_txg == 0) && !config) {
+				config = label;
+				break;
+			} else if (label_txg <= txg && label_txg > best_txg) {
+				best_txg = label_txg;
+				nvlist_free(config);
+				config = fnvlist_dup(label);
+			}
+		}
+
+		if (label != NULL) {
+			nvlist_free(label);
+			label = NULL;
 		}
 	}
 
@@ -497,7 +531,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	/*
 	 * Read the label, if any, and perform some basic sanity checks.
 	 */
-	if ((label = vdev_label_read_config(vd)) == NULL)
+	if ((label = vdev_label_read_config(vd, -1ULL)) == NULL)
 		return (B_FALSE);
 
 	(void) nvlist_lookup_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
@@ -838,7 +872,7 @@ retry:
  * come back up, we fail to see the uberblock for txg + 1 because, say,
  * it was on a mirrored device and the replica to which we wrote txg + 1
  * is now offline.  If we then make some changes and sync txg + 1, and then
- * the missing replica comes back, then for a new seconds we'll have two
+ * the missing replica comes back, then for a few seconds we'll have two
  * conflicting uberblocks on disk with the same txg.  The solution is simple:
  * among uberblocks with equal txg, choose the one with the latest timestamp.
  */
@@ -858,47 +892,49 @@ vdev_uberblock_compare(uberblock_t *ub1, uberblock_t *ub2)
 	return (0);
 }
 
+struct ubl_cbdata {
+	uberblock_t	*ubl_ubbest;	/* Best uberblock */
+	vdev_t		*ubl_vd;	/* vdev associated with the above */
+};
+
 static void
 vdev_uberblock_load_done(zio_t *zio)
 {
+	vdev_t *vd = zio->io_vd;
 	spa_t *spa = zio->io_spa;
 	zio_t *rio = zio->io_private;
 	uberblock_t *ub = zio->io_data;
-	uberblock_t *ubbest = rio->io_private;
+	struct ubl_cbdata *cbp = rio->io_private;
 
-	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(zio->io_vd));
+	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(vd));
 
 	if (zio->io_error == 0 && uberblock_verify(ub) == 0) {
 		mutex_enter(&rio->io_lock);
 		if (ub->ub_txg <= spa->spa_load_max_txg &&
-		    vdev_uberblock_compare(ub, ubbest) > 0)
-			*ubbest = *ub;
+		    vdev_uberblock_compare(ub, cbp->ubl_ubbest) > 0) {
+			/*
+			 * Keep track of the vdev in which this uberblock
+			 * was found. We will use this information later
+			 * to obtain the config nvlist associated with
+			 * this uberblock.
+			 */
+			*cbp->ubl_ubbest = *ub;
+			cbp->ubl_vd = vd;
+		}
 		mutex_exit(&rio->io_lock);
 	}
 
 	zio_buf_free(zio->io_data, zio->io_size);
 }
 
-void
-vdev_uberblock_load(zio_t *zio, vdev_t *vd, uberblock_t *ubbest)
+static void
+vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
+    struct ubl_cbdata *cbp)
 {
-	spa_t *spa = vd->vdev_spa;
-	vdev_t *rvd = spa->spa_root_vdev;
-	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
-	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 	int c, l, n;
 
-	if (vd == rvd) {
-		ASSERT(zio == NULL);
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		zio = zio_root(spa, NULL, ubbest, flags);
-		bzero(ubbest, sizeof (uberblock_t));
-	}
-
-	ASSERT(zio != NULL);
-
 	for (c = 0; c < vd->vdev_children; c++)
-		vdev_uberblock_load(zio, vd->vdev_child[c], ubbest);
+		vdev_uberblock_load_impl(zio, vd->vdev_child[c], flags, cbp);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
 		for (l = 0; l < VDEV_LABELS; l++) {
@@ -911,11 +947,46 @@ vdev_uberblock_load(zio_t *zio, vdev_t *vd, uberblock_t *ubbest)
 			}
 		}
 	}
+}
 
-	if (vd == rvd) {
-		(void) zio_wait(zio);
-		spa_config_exit(spa, SCL_ALL, FTAG);
-	}
+/*
+ * Reads the 'best' uberblock from disk along with its associated
+ * configuration. First, we read the uberblock array of each label of each
+ * vdev, keeping track of the uberblock with the highest txg in each array.
+ * Then, we read the configuration from the same vdev as the best uberblock.
+ */
+void
+vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+{
+	zio_t *zio;
+	spa_t *spa = rvd->vdev_spa;
+	struct ubl_cbdata cb;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
+
+	ASSERT(ub);
+	ASSERT(config);
+
+	bzero(ub, sizeof (uberblock_t));
+	*config = NULL;
+
+	cb.ubl_ubbest = ub;
+	cb.ubl_vd = NULL;
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	zio = zio_root(spa, NULL, &cb, flags);
+	vdev_uberblock_load_impl(zio, rvd, flags, &cb);
+	(void) zio_wait(zio);
+
+	/*
+	 * It's possible that the best uberblock was discovered on a label
+	 * that has a configuration which was written in a future txg.
+	 * Search all labels on this vdev to find the configuration that
+	 * matches the txg for our uberblock.
+	 */
+	if (cb.ubl_vd != NULL)
+		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
+	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
 /*

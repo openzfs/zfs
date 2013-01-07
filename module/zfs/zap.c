@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -946,6 +947,19 @@ fzap_prefetch(zap_name_t *zn)
  * Helper functions for consumers.
  */
 
+uint64_t
+zap_create_link(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
+    const char *name, dmu_tx_t *tx)
+{
+	uint64_t new_obj;
+
+	VERIFY((new_obj = zap_create(os, ot, DMU_OT_NONE, 0, tx)) > 0);
+	VERIFY(zap_add(os, parent_obj, name, sizeof (uint64_t), 1, &new_obj,
+	    tx) == 0);
+
+	return (new_obj);
+}
+
 int
 zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
     char *name)
@@ -1077,6 +1091,16 @@ zap_add_int_key(objset_t *os, uint64_t obj,
 
 	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
 	return (zap_add(os, obj, name, 8, 1, &value, tx));
+}
+
+int
+zap_update_int_key(objset_t *os, uint64_t obj,
+    uint64_t key, uint64_t value, dmu_tx_t *tx)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
+	return (zap_update(os, obj, name, 8, 1, &value, tx));
 }
 
 int

@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1120,11 +1121,9 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	ASSERT(spa->spa_uberblock.ub_version >= SPA_VERSION_DEDUP);
 
 	if (spa->spa_ddt_stat_object == 0) {
-		spa->spa_ddt_stat_object = zap_create(ddt->ddt_os,
-		    DMU_OT_DDT_STATS, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_DDT_STATS, sizeof (uint64_t), 1,
-		    &spa->spa_ddt_stat_object, tx) == 0);
+		spa->spa_ddt_stat_object = zap_create_link(ddt->ddt_os,
+		    DMU_OT_DDT_STATS, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_DDT_STATS, tx);
 	}
 
 	while ((dde = avl_destroy_nodes(&ddt->ddt_tree, &cookie)) != NULL) {

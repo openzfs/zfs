@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -44,6 +45,7 @@
 #include <sys/ddt.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
+#include <sys/zfeature.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -379,55 +381,6 @@ dsl_read_nolock(zio_t *pio, spa_t *spa, const blkptr_t *bpp,
 	    priority, zio_flags, arc_flags, zb));
 }
 
-static boolean_t
-bookmark_is_zero(const zbookmark_t *zb)
-{
-	return (zb->zb_objset == 0 && zb->zb_object == 0 &&
-	    zb->zb_level == 0 && zb->zb_blkid == 0);
-}
-
-/* dnp is the dnode for zb1->zb_object */
-static boolean_t
-bookmark_is_before(const dnode_phys_t *dnp, const zbookmark_t *zb1,
-    const zbookmark_t *zb2)
-{
-	uint64_t zb1nextL0, zb2thisobj;
-
-	ASSERT(zb1->zb_objset == zb2->zb_objset);
-	ASSERT(zb2->zb_level == 0);
-
-	/*
-	 * A bookmark in the deadlist is considered to be after
-	 * everything else.
-	 */
-	if (zb2->zb_object == DMU_DEADLIST_OBJECT)
-		return (B_TRUE);
-
-	/* The objset_phys_t isn't before anything. */
-	if (dnp == NULL)
-		return (B_FALSE);
-
-	zb1nextL0 = (zb1->zb_blkid + 1) <<
-	    ((zb1->zb_level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT));
-
-	zb2thisobj = zb2->zb_object ? zb2->zb_object :
-	    zb2->zb_blkid << (DNODE_BLOCK_SHIFT - DNODE_SHIFT);
-
-	if (zb1->zb_object == DMU_META_DNODE_OBJECT) {
-		uint64_t nextobj = zb1nextL0 *
-		    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT) >> DNODE_SHIFT;
-		return (nextobj <= zb2thisobj);
-	}
-
-	if (zb1->zb_object < zb2thisobj)
-		return (B_TRUE);
-	if (zb1->zb_object > zb2thisobj)
-		return (B_FALSE);
-	if (zb2->zb_object == DMU_META_DNODE_OBJECT)
-		return (B_FALSE);
-	return (zb1nextL0 <= zb2->zb_blkid);
-}
-
 static uint64_t
 dsl_scan_ds_maxtxg(dsl_dataset_t *ds)
 {
@@ -459,7 +412,7 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_t *zb)
 	if (scn->scn_pausing)
 		return (B_TRUE); /* we're already pausing */
 
-	if (!bookmark_is_zero(&scn->scn_phys.scn_bookmark))
+	if (!ZB_IS_ZERO(&scn->scn_phys.scn_bookmark))
 		return (B_FALSE); /* we're resuming */
 
 	/* We only know how to resume from level-0 blocks. */
@@ -614,13 +567,13 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 	/*
 	 * We never skip over user/group accounting objects (obj<0)
 	 */
-	if (!bookmark_is_zero(&scn->scn_phys.scn_bookmark) &&
+	if (!ZB_IS_ZERO(&scn->scn_phys.scn_bookmark) &&
 	    (int64_t)zb->zb_object >= 0) {
 		/*
 		 * If we already visited this bp & everything below (in
 		 * a prior txg sync), don't bother doing it again.
 		 */
-		if (bookmark_is_before(dnp, zb, &scn->scn_phys.scn_bookmark))
+		if (zbookmark_is_before(dnp, zb, &scn->scn_phys.scn_bookmark))
 			return (B_TRUE);
 
 		/*
@@ -822,22 +775,6 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_t *zb,
 
 	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 		goto out;
-
-	if (BP_GET_TYPE(bp) != DMU_OT_USERGROUP_USED) {
-		/*
-		 * For non-user-accounting blocks, we need to read the
-		 * new bp (from a deleted snapshot, found in
-		 * check_existing_xlation).  If we used the old bp,
-		 * pointers inside this block from before we resumed
-		 * would be untranslated.
-		 *
-		 * For user-accounting blocks, we need to read the old
-		 * bp, because we will apply the entire space delta to
-		 * it (original untranslated -> translations from
-		 * deleted snap -> now).
-		 */
-		*bp_toread = *bp;
-	}
 
 	if (dsl_scan_recurse(scn, ds, ostype, dnp, bp_toread, zb, tx,
 	    &buf) != 0)
@@ -1414,19 +1351,28 @@ out:
 	kmem_free(zc, sizeof(zap_cursor_t));
 }
 
-static int
-dsl_scan_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+static boolean_t
+dsl_scan_free_should_pause(dsl_scan_t *scn)
 {
-	dsl_scan_t *scn = arg;
 	uint64_t elapsed_nanosecs;
 
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
-
-	if (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
+	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
 	    (elapsed_nanosecs / MICROSEC > zfs_free_min_time_ms &&
 	    txg_sync_waiting(scn->scn_dp)) ||
-	    spa_shutting_down(scn->scn_dp->dp_spa))
-		return (ERESTART);
+	    spa_shutting_down(scn->scn_dp->dp_spa));
+}
+
+static int
+dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+{
+	dsl_scan_t *scn = arg;
+
+	if (!scn->scn_is_bptree ||
+	    (BP_GET_LEVEL(bp) == 0 && BP_GET_TYPE(bp) != DMU_OT_OBJSET)) {
+		if (dsl_scan_free_should_pause(scn))
+			return (ERESTART);
+	}
 
 	zio_nowait(zio_free_sync(scn->scn_zio_root, scn->scn_dp->dp_spa,
 	    dmu_tx_get_txg(tx), bp, 0));
@@ -1451,6 +1397,10 @@ dsl_scan_active(dsl_scan_t *scn)
 	if (scn->scn_phys.scn_state == DSS_SCANNING)
 		return (B_TRUE);
 
+	if (spa_feature_is_active(spa,
+	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+		return (B_TRUE);
+	}
 	if (spa_version(scn->scn_dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
 		(void) bpobj_space(&scn->scn_dp->dp_free_bpobj,
 		    &used, &comp, &uncomp);
@@ -1497,14 +1447,40 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * traversing it.
 	 */
 	if (spa_version(dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
+		scn->scn_is_bptree = B_FALSE;
 		scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
 		    NULL, ZIO_FLAG_MUSTSUCCEED);
 		err = bpobj_iterate(&dp->dp_free_bpobj,
-		    dsl_scan_free_cb, scn, tx);
+		    dsl_scan_free_block_cb, scn, tx);
 		VERIFY3U(0, ==, zio_wait(scn->scn_zio_root));
+
+		if (err == 0 && spa_feature_is_active(spa,
+		    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+			scn->scn_is_bptree = B_TRUE;
+			scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
+			    NULL, ZIO_FLAG_MUSTSUCCEED);
+			err = bptree_iterate(dp->dp_meta_objset,
+			    dp->dp_bptree_obj, B_TRUE, dsl_scan_free_block_cb,
+			    scn, tx);
+			VERIFY3U(0, ==, zio_wait(scn->scn_zio_root));
+			if (err != 0)
+				return;
+
+			/* disable async destroy feature */
+			spa_feature_decr(spa,
+			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY], tx);
+			ASSERT(!spa_feature_is_active(spa,
+			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY]));
+			VERIFY3U(0, ==, zap_remove(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_BPTREE_OBJ, tx));
+			VERIFY3U(0, ==, bptree_free(dp->dp_meta_objset,
+			    dp->dp_bptree_obj, tx));
+			dp->dp_bptree_obj = 0;
+		}
 		if (scn->scn_visited_this_txg) {
 			zfs_dbgmsg("freed %llu blocks in %llums from "
-			    "free_bpobj txg %llu",
+			    "free_bpobj/bptree txg %llu",
 			    (longlong_t)scn->scn_visited_this_txg,
 			    (longlong_t)
 			    (gethrtime() - scn->scn_sync_start_time) / MICROSEC,
@@ -1619,9 +1595,13 @@ count_block(zfs_all_blkstats_t *zab, const blkptr_t *bp)
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : DN_MAX_LEVELS;
 		int t = (i & 1) ? BP_GET_TYPE(bp) : DMU_OT_TOTAL;
-		zfs_blkstat_t *zb = &zab->zab_type[l][t];
 		int equal;
+		zfs_blkstat_t *zb;
 
+		if (t & DMU_OT_NEWTYPE)
+			t = DMU_OT_OTHER;
+
+		zb = &zab->zab_type[l][t];
 		zb->zb_count++;
 		zb->zb_asize += BP_GET_ASIZE(bp);
 		zb->zb_lsize += BP_GET_LSIZE(bp);

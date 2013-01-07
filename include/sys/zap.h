@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -132,6 +133,8 @@ uint64_t zap_create_norm(objset_t *ds, int normflags, dmu_object_type_t ot,
 uint64_t zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
+uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
+    uint64_t parent_obj, const char *name, dmu_tx_t *tx);
 
 /*
  * Create a new zapobj with no attributes from the given (unallocated)
@@ -297,13 +300,11 @@ int zap_increment_int(objset_t *os, uint64_t obj, uint64_t key, int64_t delta,
 /* Here the key is an int and the value is a different int. */
 int zap_add_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx);
+int zap_update_int_key(objset_t *os, uint64_t obj,
+    uint64_t key, uint64_t value, dmu_tx_t *tx);
 int zap_lookup_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t *valuep);
 
-/*
- * They name is a stringified version of key; increment its value by
- * delta.  Zero values will be zap_remove()-ed.
- */
 int zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
     dmu_tx_t *tx);
 
