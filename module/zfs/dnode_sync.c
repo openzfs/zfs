@@ -18,8 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -598,7 +600,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (dn->dn_next_bonustype[txgoff]) {
-		ASSERT(dn->dn_next_bonustype[txgoff] < DMU_OT_NUMTYPES);
+		ASSERT(DMU_OT_IS_VALID(dn->dn_next_bonustype[txgoff]));
 		dnp->dn_bonustype = dn->dn_next_bonustype[txgoff];
 		dn->dn_next_bonustype[txgoff] = 0;
 	}

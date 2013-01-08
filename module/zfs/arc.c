@@ -189,6 +189,7 @@ unsigned long zfs_arc_meta_limit = 0;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
+int zfs_disable_dup_eviction = 0;
 int zfs_arc_meta_prune = 0;
 
 /*
@@ -307,6 +308,9 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_size;
 	kstat_named_t arcstat_l2_hdr_size;
 	kstat_named_t arcstat_memory_throttle_count;
+	kstat_named_t arcstat_duplicate_buffers;
+	kstat_named_t arcstat_duplicate_buffers_size;
+	kstat_named_t arcstat_duplicate_reads;
 	kstat_named_t arcstat_memory_direct_count;
 	kstat_named_t arcstat_memory_indirect_count;
 	kstat_named_t arcstat_no_grow;
@@ -387,6 +391,9 @@ static arc_stats_t arc_stats = {
 	{ "l2_size",			KSTAT_DATA_UINT64 },
 	{ "l2_hdr_size",		KSTAT_DATA_UINT64 },
 	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
+	{ "duplicate_buffers",		KSTAT_DATA_UINT64 },
+	{ "duplicate_buffers_size",	KSTAT_DATA_UINT64 },
+	{ "duplicate_reads",		KSTAT_DATA_UINT64 },
 	{ "memory_direct_count",	KSTAT_DATA_UINT64 },
 	{ "memory_indirect_count",	KSTAT_DATA_UINT64 },
 	{ "arc_no_grow",		KSTAT_DATA_UINT64 },
@@ -1369,6 +1376,17 @@ arc_buf_clone(arc_buf_t *from)
 	hdr->b_buf = buf;
 	arc_get_data_buf(buf);
 	bcopy(from->b_data, buf->b_data, size);
+
+	/*
+	 * This buffer already exists in the arc so create a duplicate
+	 * copy for the caller.  If the buffer is associated with user data
+	 * then track the size and number of duplicates.  These stats will be
+	 * updated as duplicate buffers are created and destroyed.
+	 */
+	if (hdr->b_type == ARC_BUFC_DATA) {
+		ARCSTAT_BUMP(arcstat_duplicate_buffers);
+		ARCSTAT_INCR(arcstat_duplicate_buffers_size, size);
+	}
 	hdr->b_datacnt += 1;
 	return (buf);
 }
@@ -1467,6 +1485,16 @@ arc_buf_destroy(arc_buf_t *buf, boolean_t recycle, boolean_t all)
 		ASSERT3U(state->arcs_size, >=, size);
 		atomic_add_64(&state->arcs_size, -size);
 		buf->b_data = NULL;
+
+		/*
+		 * If we're destroying a duplicate buffer make sure
+		 * that the appropriate statistics are updated.
+		 */
+		if (buf->b_hdr->b_datacnt > 1 &&
+		    buf->b_hdr->b_type == ARC_BUFC_DATA) {
+			ARCSTAT_BUMPDOWN(arcstat_duplicate_buffers);
+			ARCSTAT_INCR(arcstat_duplicate_buffers_size, -size);
+		}
 		ASSERT(buf->b_hdr->b_datacnt > 0);
 		buf->b_hdr->b_datacnt -= 1;
 	}
@@ -1649,6 +1677,48 @@ int
 arc_buf_size(arc_buf_t *buf)
 {
 	return (buf->b_hdr->b_size);
+}
+
+/*
+ * Called from the DMU to determine if the current buffer should be
+ * evicted. In order to ensure proper locking, the eviction must be initiated
+ * from the DMU. Return true if the buffer is associated with user data and
+ * duplicate buffers still exist.
+ */
+boolean_t
+arc_buf_eviction_needed(arc_buf_t *buf)
+{
+	arc_buf_hdr_t *hdr;
+	boolean_t evict_needed = B_FALSE;
+
+	if (zfs_disable_dup_eviction)
+		return (B_FALSE);
+
+	mutex_enter(&buf->b_evict_lock);
+	hdr = buf->b_hdr;
+	if (hdr == NULL) {
+		/*
+		 * We are in arc_do_user_evicts(); let that function
+		 * perform the eviction.
+		 */
+		ASSERT(buf->b_data == NULL);
+		mutex_exit(&buf->b_evict_lock);
+		return (B_FALSE);
+	} else if (buf->b_data == NULL) {
+		/*
+		 * We have already been added to the arc eviction list;
+		 * recommend eviction.
+		 */
+		ASSERT3P(hdr, ==, &arc_eviction_hdr);
+		mutex_exit(&buf->b_evict_lock);
+		return (B_TRUE);
+	}
+
+	if (hdr->b_datacnt > 1 && hdr->b_type == ARC_BUFC_DATA)
+		evict_needed = B_TRUE;
+
+	mutex_exit(&buf->b_evict_lock);
+	return (evict_needed);
 }
 
 /*
@@ -2729,9 +2799,11 @@ arc_read_done(zio_t *zio)
 	callback_list = hdr->b_acb;
 	ASSERT(callback_list != NULL);
 	if (BP_SHOULD_BYTESWAP(zio->io_bp) && zio->io_error == 0) {
+		dmu_object_byteswap_t bswap =
+		    DMU_OT_BYTESWAP(BP_GET_TYPE(zio->io_bp));
 		arc_byteswap_func_t *func = BP_GET_LEVEL(zio->io_bp) > 0 ?
 		    byteswap_uint64_array :
-		    dmu_ot[BP_GET_TYPE(zio->io_bp)].ot_byteswap;
+		    dmu_ot_byteswap[bswap].ob_func;
 		func(buf->b_data, hdr->b_size);
 	}
 
@@ -2751,8 +2823,10 @@ arc_read_done(zio_t *zio)
 	abuf = buf;
 	for (acb = callback_list; acb; acb = acb->acb_next) {
 		if (acb->acb_done) {
-			if (abuf == NULL)
+			if (abuf == NULL) {
+				ARCSTAT_BUMP(arcstat_duplicate_reads);
 				abuf = arc_buf_clone(buf);
+			}
 			acb->acb_buf = abuf;
 			abuf = NULL;
 		}
@@ -3321,6 +3395,16 @@ arc_release(arc_buf_t *buf, void *tag)
 			uint64_t *size = &hdr->b_state->arcs_lsize[hdr->b_type];
 			ASSERT3U(*size, >=, hdr->b_size);
 			atomic_add_64(size, -hdr->b_size);
+		}
+
+		/*
+		 * We're releasing a duplicate user data buffer, update
+		 * our statistics accordingly.
+		 */
+		if (hdr->b_type == ARC_BUFC_DATA) {
+			ARCSTAT_BUMPDOWN(arcstat_duplicate_buffers);
+			ARCSTAT_INCR(arcstat_duplicate_buffers_size,
+			    -hdr->b_size);
 		}
 		hdr->b_datacnt -= 1;
 		arc_cksum_verify(buf);

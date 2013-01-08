@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -53,6 +54,7 @@ typedef struct traverse_data {
 	uint64_t td_objset;
 	blkptr_t *td_rootbp;
 	uint64_t td_min_txg;
+	zbookmark_t *td_resume;
 	int td_flags;
 	prefetch_data_t *td_pfd;
 	blkptr_cb_t *td_func;
@@ -128,6 +130,54 @@ traverse_zil(traverse_data_t *td, zil_header_t *zh)
 	zil_free(zilog);
 }
 
+typedef enum resume_skip {
+	RESUME_SKIP_ALL,
+	RESUME_SKIP_NONE,
+	RESUME_SKIP_CHILDREN
+} resume_skip_t;
+
+/*
+ * Returns RESUME_SKIP_ALL if td indicates that we are resuming a traversal and
+ * the block indicated by zb does not need to be visited at all. Returns
+ * RESUME_SKIP_CHILDREN if we are resuming a post traversal and we reach the
+ * resume point. This indicates that this block should be visited but not its
+ * children (since they must have been visited in a previous traversal).
+ * Otherwise returns RESUME_SKIP_NONE.
+ */
+static resume_skip_t
+resume_skip_check(traverse_data_t *td, const dnode_phys_t *dnp,
+    const zbookmark_t *zb)
+{
+	if (td->td_resume != NULL && !ZB_IS_ZERO(td->td_resume)) {
+		/*
+		 * If we already visited this bp & everything below,
+		 * don't bother doing it again.
+		 */
+		if (zbookmark_is_before(dnp, zb, td->td_resume))
+			return (RESUME_SKIP_ALL);
+
+		/*
+		 * If we found the block we're trying to resume from, zero
+		 * the bookmark out to indicate that we have resumed.
+		 */
+		ASSERT3U(zb->zb_object, <=, td->td_resume->zb_object);
+		if (bcmp(zb, td->td_resume, sizeof (*zb)) == 0) {
+			bzero(td->td_resume, sizeof (*zb));
+			if (td->td_flags & TRAVERSE_POST)
+				return (RESUME_SKIP_CHILDREN);
+		}
+	}
+	return (RESUME_SKIP_NONE);
+}
+
+static void
+traverse_pause(traverse_data_t *td, const zbookmark_t *zb)
+{
+	ASSERT(td->td_resume != NULL);
+	ASSERT3U(zb->zb_level, ==, 0);
+	bcopy(zb, td->td_resume, sizeof (*td->td_resume));
+}
+
 static int
 traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
     arc_buf_t *pbuf, blkptr_t *bp, const zbookmark_t *zb)
@@ -137,8 +187,20 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	arc_buf_t *buf = NULL;
 	prefetch_data_t *pd = td->td_pfd;
 	boolean_t hard = td->td_flags & TRAVERSE_HARD;
+	boolean_t pause = B_FALSE;
 
-	if (bp->blk_birth == 0) {
+	switch (resume_skip_check(td, dnp, zb)) {
+	case RESUME_SKIP_ALL:
+		return (0);
+	case RESUME_SKIP_CHILDREN:
+		goto post;
+	case RESUME_SKIP_NONE:
+		break;
+	default:
+		ASSERT(0);
+	}
+
+	if (BP_IS_HOLE(bp)) {
 		err = td->td_func(td->td_spa, NULL, NULL, pbuf, zb, dnp,
 		    td->td_arg);
 		return (err);
@@ -164,8 +226,10 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    td->td_arg);
 		if (err == TRAVERSE_VISIT_NO_CHILDREN)
 			return (0);
-		if (err)
-			return (err);
+		if (err == ERESTART)
+			pause = B_TRUE; /* handle pausing at a common point */
+		if (err != 0)
+			goto post;
 	}
 
 	if (BP_GET_LEVEL(bp) > 0) {
@@ -253,9 +317,18 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	if (buf)
 		(void) arc_buf_remove_ref(buf, &buf);
 
+post:
 	if (err == 0 && lasterr == 0 && (td->td_flags & TRAVERSE_POST)) {
 		err = td->td_func(td->td_spa, NULL, bp, pbuf, zb, dnp,
 		    td->td_arg);
+		if (err == ERESTART)
+			pause = B_TRUE;
+	}
+
+	if (pause && td->td_resume != NULL) {
+		ASSERT3U(err, ==, ERESTART);
+		ASSERT(!hard);
+		traverse_pause(td, zb);
 	}
 
 	return (err != 0 ? err : lasterr);
@@ -353,22 +426,27 @@ traverse_prefetch_thread(void *arg)
  * in syncing context).
  */
 static int
-traverse_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *rootbp,
-    uint64_t txg_start, int flags, blkptr_cb_t func, void *arg)
+traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
+    uint64_t txg_start, zbookmark_t *resume, int flags,
+    blkptr_cb_t func, void *arg)
 {
 	traverse_data_t *td;
 	prefetch_data_t *pd;
 	zbookmark_t *czb;
 	int err;
 
+	ASSERT(ds == NULL || objset == ds->ds_object);
+	ASSERT(!(flags & TRAVERSE_PRE) || !(flags & TRAVERSE_POST));
+
 	td = kmem_alloc(sizeof(traverse_data_t), KM_PUSHPAGE);
 	pd = kmem_zalloc(sizeof(prefetch_data_t), KM_PUSHPAGE);
 	czb = kmem_alloc(sizeof(zbookmark_t), KM_PUSHPAGE);
 
 	td->td_spa = spa;
-	td->td_objset = ds ? ds->ds_object : 0;
+	td->td_objset = objset;
 	td->td_rootbp = rootbp;
 	td->td_min_txg = txg_start;
+	td->td_resume = resume;
 	td->td_func = func;
 	td->td_arg = arg;
 	td->td_pfd = pd;
@@ -424,8 +502,17 @@ int
 traverse_dataset(dsl_dataset_t *ds, uint64_t txg_start, int flags,
     blkptr_cb_t func, void *arg)
 {
-	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds,
-	    &ds->ds_phys->ds_bp, txg_start, flags, func, arg));
+	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds, ds->ds_object,
+	    &ds->ds_phys->ds_bp, txg_start, NULL, flags, func, arg));
+}
+
+int
+traverse_dataset_destroyed(spa_t *spa, blkptr_t *blkptr,
+    uint64_t txg_start, zbookmark_t *resume, int flags,
+    blkptr_cb_t func, void *arg)
+{
+	return (traverse_impl(spa, NULL, ZB_DESTROYED_OBJSET,
+	    blkptr, txg_start, resume, flags, func, arg));
 }
 
 /*
@@ -442,8 +529,8 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	boolean_t hard = (flags & TRAVERSE_HARD);
 
 	/* visit the MOS */
-	err = traverse_impl(spa, NULL, spa_get_rootblkptr(spa),
-	    txg_start, flags, func, arg);
+	err = traverse_impl(spa, NULL, 0, spa_get_rootblkptr(spa),
+	    txg_start, NULL, flags, func, arg);
 	if (err)
 		return (err);
 

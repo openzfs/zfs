@@ -301,6 +301,15 @@ typedef enum {
 	ZPOOL_STATUS_BAD_LOG,		/* cannot read log chain(s) */
 
 	/*
+	 * If the pool has unsupported features but can still be opened in
+	 * read-only mode, its status is ZPOOL_STATUS_UNSUP_FEAT_WRITE. If the
+	 * pool has unsupported features but cannot be opened at all, its
+	 * status is ZPOOL_STATUS_UNSUP_FEAT_READ.
+	 */
+	ZPOOL_STATUS_UNSUP_FEAT_READ,	/* unsupported features for read */
+	ZPOOL_STATUS_UNSUP_FEAT_WRITE,	/* unsupported features for write */
+
+	/*
 	 * These faults have no corresponding message ID.  At the time we are
 	 * checking the status, the original reason for the FMA fault (I/O or
 	 * checksum errors) has been lost.
@@ -313,7 +322,8 @@ typedef enum {
 	 * requiring administrative attention.  There is no corresponding
 	 * message ID.
 	 */
-	ZPOOL_STATUS_VERSION_OLDER,	/* older on-disk version */
+	ZPOOL_STATUS_VERSION_OLDER,	/* older legacy on-disk version */
+	ZPOOL_STATUS_FEAT_DISABLED,	/* supported features are disabled */
 	ZPOOL_STATUS_RESILVERING,	/* device being resilvered */
 	ZPOOL_STATUS_OFFLINE_DEV,	/* device online */
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
@@ -332,6 +342,7 @@ extern void zpool_dump_ddt(const ddt_stat_t *dds, const ddt_histogram_t *ddh);
  * Statistics and configuration functions.
  */
 extern nvlist_t *zpool_get_config(zpool_handle_t *, nvlist_t **);
+extern nvlist_t *zpool_get_features(zpool_handle_t *);
 extern int zpool_refresh_stats(zpool_handle_t *, boolean_t *);
 extern int zpool_get_errlog(zpool_handle_t *, nvlist_t **);
 
@@ -344,6 +355,7 @@ extern int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 extern int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
     nvlist_t *, int);
+extern void zpool_print_unsup_feat(nvlist_t *config);
 
 /*
  * Search for pools to import
@@ -435,6 +447,8 @@ extern int zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue);
 extern int zfs_prop_get_written(zfs_handle_t *zhp, const char *propname,
     char *propbuf, int proplen, boolean_t literal);
+extern int zfs_prop_get_feature(zfs_handle_t *zhp, const char *propname,
+    char *buf, size_t len);
 extern int zfs_get_snapused_int(zfs_handle_t *firstsnap, zfs_handle_t *lastsnap,
     uint64_t *usedp);
 extern uint64_t getprop_uint64(zfs_handle_t *, zfs_prop_t, char **);
@@ -462,10 +476,19 @@ extern void zfs_prune_proplist(zfs_handle_t *, uint8_t *);
 #define	ZFS_MOUNTPOINT_NONE	"none"
 #define	ZFS_MOUNTPOINT_LEGACY	"legacy"
 
+#define	ZFS_FEATURE_DISABLED	"disabled"
+#define	ZFS_FEATURE_ENABLED	"enabled"
+#define	ZFS_FEATURE_ACTIVE	"active"
+
+#define	ZFS_UNSUPPORTED_INACTIVE	"inactive"
+#define	ZFS_UNSUPPORTED_READONLY	"readonly"
+
 /*
  * zpool property management
  */
 extern int zpool_expand_proplist(zpool_handle_t *, zprop_list_t **);
+extern int zpool_prop_get_feature(zpool_handle_t *, const char *, char *,
+    size_t);
 extern const char *zpool_prop_default_string(zpool_prop_t);
 extern uint64_t zpool_prop_default_numeric(zpool_prop_t);
 extern const char *zpool_prop_column_name(zpool_prop_t);

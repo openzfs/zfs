@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Portions Copyright 2011 Martin Matuska
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -669,7 +671,7 @@ txg_list_destroy(txg_list_t *tl)
 	mutex_destroy(&tl->tl_lock);
 }
 
-int
+boolean_t
 txg_list_empty(txg_list_t *tl, uint64_t txg)
 {
 	return (tl->tl_head[txg & TXG_MASK] == NULL);

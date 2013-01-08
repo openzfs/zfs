@@ -170,6 +170,7 @@ typedef enum {
 	ZPOOL_PROP_ASHIFT,
 	ZPOOL_PROP_COMMENT,
 	ZPOOL_PROP_EXPANDSZ,
+	ZPOOL_PROP_FREEING,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -244,6 +245,8 @@ const char *zpool_prop_to_name(zpool_prop_t);
 const char *zpool_prop_default_string(zpool_prop_t);
 uint64_t zpool_prop_default_numeric(zpool_prop_t);
 boolean_t zpool_prop_readonly(zpool_prop_t);
+boolean_t zpool_prop_feature(const char *);
+boolean_t zpool_prop_unsupported(const char *);
 int zpool_prop_index_to_string(zpool_prop_t, uint64_t, const char **);
 int zpool_prop_string_to_index(zpool_prop_t, const char *, uint64_t *);
 uint64_t zpool_prop_random_value(zpool_prop_t, uint64_t seed);
@@ -356,6 +359,7 @@ typedef enum {
 #define	SPA_VERSION_26			26ULL
 #define	SPA_VERSION_27			27ULL
 #define	SPA_VERSION_28			28ULL
+#define	SPA_VERSION_5000		5000ULL
 
 /*
  * When bumping up SPA_VERSION, make sure GRUB ZFS understands the on-disk
@@ -363,8 +367,8 @@ typedef enum {
  * and do the appropriate changes.  Also bump the version number in
  * usr/src/grub/capability.
  */
-#define	SPA_VERSION			SPA_VERSION_28
-#define	SPA_VERSION_STRING		"28"
+#define	SPA_VERSION			SPA_VERSION_5000
+#define	SPA_VERSION_STRING		"5000"
 
 /*
  * Symbolic names for the changes that caused a SPA_VERSION switch.
@@ -415,6 +419,12 @@ typedef enum {
 #define	SPA_VERSION_DEADLISTS		SPA_VERSION_26
 #define	SPA_VERSION_FAST_SNAP		SPA_VERSION_27
 #define	SPA_VERSION_MULTI_REPLACE	SPA_VERSION_28
+#define	SPA_VERSION_BEFORE_FEATURES	SPA_VERSION_28
+#define	SPA_VERSION_FEATURES		SPA_VERSION_5000
+
+#define	SPA_VERSION_IS_SUPPORTED(v) \
+	(((v) >= SPA_VERSION_INITIAL && (v) <= SPA_VERSION_BEFORE_FEATURES) || \
+	((v) >= SPA_VERSION_FEATURES && (v) <= SPA_VERSION))
 
 /*
  * ZPL version - rev'd whenever an incompatible on-disk format change
@@ -512,6 +522,12 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MISSING_DEVICES	"missing_vdevs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_LOAD_INFO		"load_info"	/* not stored on disk */
+#define	ZPOOL_CONFIG_REWIND_INFO	"rewind_info"	/* not stored on disk */
+#define	ZPOOL_CONFIG_UNSUP_FEAT		"unsup_feat"	/* not stored on disk */
+#define	ZPOOL_CONFIG_ENABLED_FEAT	"enabled_feat"	/* not stored on disk */
+#define	ZPOOL_CONFIG_CAN_RDONLY		"can_rdonly"	/* not stored on disk */
+#define	ZPOOL_CONFIG_FEATURES_FOR_READ	"features_for_read"
+#define	ZPOOL_CONFIG_FEATURE_STATS	"feature_stats"	/* not stored on disk */
 /*
  * The persistent vdev state is stored as separate values rather than a single
  * 'vdev_state' entry.  This is because a device can be in multiple states, such
@@ -590,6 +606,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_BAD_LABEL,	/* the label is OK but invalid		*/
 	VDEV_AUX_VERSION_NEWER,	/* on-disk version is too new		*/
 	VDEV_AUX_VERSION_OLDER,	/* on-disk version is too old		*/
+	VDEV_AUX_UNSUP_FEAT,	/* unsupported features			*/
 	VDEV_AUX_SPARED,	/* hot spare used in another pool	*/
 	VDEV_AUX_ERR_EXCEEDED,	/* too many errors			*/
 	VDEV_AUX_IO_FAILURE,	/* experienced I/O failure		*/
@@ -938,6 +955,7 @@ typedef enum history_internal_events {
 	LOG_DS_USER_HOLD,
 	LOG_DS_USER_RELEASE,
 	LOG_POOL_SPLIT,
+	LOG_POOL_GUID_CHANGE,
 	LOG_END
 } history_internal_events_t;
 

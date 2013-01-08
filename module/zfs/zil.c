@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -480,6 +480,38 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, uint64_t txg, boolean_t fastwrite)
 }
 
 /*
+ * Called when we create in-memory log transactions so that we know
+ * to cleanup the itxs at the end of spa_sync().
+ */
+void
+zilog_dirty(zilog_t *zilog, uint64_t txg)
+{
+	dsl_pool_t *dp = zilog->zl_dmu_pool;
+	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+
+	if (dsl_dataset_is_snapshot(ds))
+		panic("dirtying snapshot!");
+
+	if (txg_list_add(&dp->dp_dirty_zilogs, zilog, txg) == 0) {
+		/* up the hold count until we can be written out */
+		dmu_buf_add_ref(ds->ds_dbuf, zilog);
+	}
+}
+
+boolean_t
+zilog_is_dirty(zilog_t *zilog)
+{
+	dsl_pool_t *dp = zilog->zl_dmu_pool;
+	int t;
+
+	for (t = 0; t < TXG_SIZE; t++) {
+		if (txg_list_member(&dp->dp_dirty_zilogs, zilog, t))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
  * Create an on-disk intent log.
  */
 static lwb_t *
@@ -601,12 +633,19 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 			kmem_cache_free(zil_lwb_cache, lwb);
 		}
 	} else if (!keep_first) {
-		(void) zil_parse(zilog, zil_free_log_block,
-		    zil_free_log_record, tx, zh->zh_claim_txg);
+		zil_destroy_sync(zilog, tx);
 	}
 	mutex_exit(&zilog->zl_lock);
 
 	dmu_tx_commit(tx);
+}
+
+void
+zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
+{
+	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+	(void) zil_parse(zilog, zil_free_log_block,
+	    zil_free_log_record, tx, zilog->zl_header->zh_claim_txg);
 }
 
 int
@@ -1042,6 +1081,8 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 		return (NULL);
 
 	ASSERT(lwb->lwb_buf != NULL);
+	ASSERT(zilog_is_dirty(zilog) ||
+	    spa_freeze_txg(zilog->zl_spa) != UINT64_MAX);
 
 	if (lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY)
 		dlen = P2ROUNDUP_TYPED(
@@ -1272,7 +1313,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	if ((itx->itx_lr.lrc_txtype & ~TX_CI) == TX_RENAME)
 		zil_async_to_sync(zilog, itx->itx_oid);
 
-	if (spa_freeze_txg(zilog->zl_spa) !=  UINT64_MAX)
+	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX)
 		txg = ZILTEST_TXG;
 	else
 		txg = dmu_tx_get_txg(tx);
@@ -1323,6 +1364,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	}
 
 	itx->itx_lr.lrc_txg = dmu_tx_get_txg(tx);
+	zilog_dirty(zilog, txg);
 	mutex_exit(&itxg->itxg_lock);
 
 	/* Release the old itxs now we've dropped the lock */
@@ -1332,7 +1374,10 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 
 /*
  * If there are any in-memory intent log transactions which have now been
- * synced then start up a taskq to free them.
+ * synced then start up a taskq to free them. We should only do this after we
+ * have written out the uberblocks (i.e. txg has been comitted) so that
+ * don't inadvertently clean out in-memory log records that would be required
+ * by zil_commit().
  */
 void
 zil_clean(zilog_t *zilog, uint64_t synced_txg)
@@ -1837,6 +1882,7 @@ zil_close(zilog_t *zilog)
 	mutex_exit(&zilog->zl_lock);
 	if (txg)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
+	ASSERT(!zilog_is_dirty(zilog));
 
 	taskq_destroy(zilog->zl_clean_taskq);
 	zilog->zl_clean_taskq = NULL;

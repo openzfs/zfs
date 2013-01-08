@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -260,7 +261,7 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
 		boolean_t is_metadata;
 
 		DB_DNODE_ENTER(db);
-		is_metadata = dmu_ot[DB_DNODE(db)->dn_type].ot_metadata;
+		is_metadata = DMU_OT_IS_METADATA(DB_DNODE(db)->dn_type);
 		DB_DNODE_EXIT(db);
 
 		return (is_metadata);
@@ -2188,7 +2189,24 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 			dbuf_evict(db);
 		} else {
 			VERIFY(arc_buf_remove_ref(db->db_buf, db) == 0);
-			if (!DBUF_IS_CACHEABLE(db))
+
+			/*
+			 * A dbuf will be eligible for eviction if either the
+			 * 'primarycache' property is set or a duplicate
+			 * copy of this buffer is already cached in the arc.
+			 *
+			 * In the case of the 'primarycache' a buffer
+			 * is considered for eviction if it matches the
+			 * criteria set in the property.
+			 *
+			 * To decide if our buffer is considered a
+			 * duplicate, we must call into the arc to determine
+			 * if multiple buffers are referencing the same
+			 * block on-disk. If so, then we simply evict
+			 * ourselves.
+			 */
+			if (!DBUF_IS_CACHEABLE(db) ||
+			    arc_buf_eviction_needed(db->db_buf))
 				dbuf_clear(db);
 			else
 				mutex_exit(&db->db_mtx);

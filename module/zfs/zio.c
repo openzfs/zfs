@@ -704,7 +704,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	    zp->zp_checksum < ZIO_CHECKSUM_FUNCTIONS &&
 	    zp->zp_compress >= ZIO_COMPRESS_OFF &&
 	    zp->zp_compress < ZIO_COMPRESS_FUNCTIONS &&
-	    zp->zp_type < DMU_OT_NUMTYPES &&
+	    DMU_OT_IS_VALID(zp->zp_type) &&
 	    zp->zp_level < 32 &&
 	    zp->zp_copies > 0 &&
 	    zp->zp_copies <= spa_max_replication(spa) &&
@@ -988,7 +988,7 @@ zio_read_bp_init(zio_t *zio)
 		zio_push_transform(zio, cbuf, psize, psize, zio_decompress);
 	}
 
-	if (!dmu_ot[BP_GET_TYPE(bp)].ot_metadata && BP_GET_LEVEL(bp) == 0)
+	if (!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)) && BP_GET_LEVEL(bp) == 0)
 		zio->io_flags |= ZIO_FLAG_DONT_CACHE;
 
 	if (BP_GET_TYPE(bp) == DMU_OT_DDT_ZAP)
@@ -1248,7 +1248,7 @@ __zio_execute(zio_t *zio)
 	while (zio->io_stage < ZIO_STAGE_DONE) {
 		enum zio_stage pipeline = zio->io_pipeline;
 		enum zio_stage stage = zio->io_stage;
-		dsl_pool_t *dsl;
+		dsl_pool_t *dp;
 		boolean_t cut;
 		int rv;
 
@@ -1262,7 +1262,7 @@ __zio_execute(zio_t *zio)
 
 		ASSERT(stage <= ZIO_STAGE_DONE);
 
-		dsl = spa_get_dsl(zio->io_spa);
+		dp = spa_get_dsl(zio->io_spa);
 		cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
 		    zio_requeue_io_start_cut_in_line : B_FALSE;
 
@@ -1272,16 +1272,24 @@ __zio_execute(zio_t *zio)
 		 * or may wait for an I/O that needs an interrupt thread
 		 * to complete, issue async to avoid deadlock.
 		 *
-		 * If we are in the txg_sync_thread or being called
-		 * during pool init issue async to minimize stack depth.
-		 * Both of these call paths may be recursively called.
-		 *
 		 * For VDEV_IO_START, we cut in line so that the io will
 		 * be sent to disk promptly.
 		 */
-		if (((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
-		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) ||
-		    (dsl != NULL && dsl_pool_sync_context(dsl))) {
+		if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
+		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
+			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
+			return;
+		}
+
+		/*
+		 * If we executing in the context of the tx_sync_thread,
+		 * or we are performing pool initialization outside of a
+		 * zio_taskq[ZIO_TASKQ_ISSUE] context.  Then issue the zio
+		 * async to minimize stack usage for these deep call paths.
+		 */
+		if ((dp && curthread == dp->dp_tx.tx_sync_thread) ||
+		    (dp && spa_is_initializing(dp->dp_spa) &&
+		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE))) {
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
 		}
@@ -3130,6 +3138,48 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_checksum_verify,
 	zio_done
 };
+
+/* dnp is the dnode for zb1->zb_object */
+boolean_t
+zbookmark_is_before(const dnode_phys_t *dnp, const zbookmark_t *zb1,
+    const zbookmark_t *zb2)
+{
+	uint64_t zb1nextL0, zb2thisobj;
+
+	ASSERT(zb1->zb_objset == zb2->zb_objset);
+	ASSERT(zb2->zb_level == 0);
+
+	/*
+	 * A bookmark in the deadlist is considered to be after
+	 * everything else.
+	 */
+	if (zb2->zb_object == DMU_DEADLIST_OBJECT)
+		return (B_TRUE);
+
+	/* The objset_phys_t isn't before anything. */
+	if (dnp == NULL)
+		return (B_FALSE);
+
+	zb1nextL0 = (zb1->zb_blkid + 1) <<
+	    ((zb1->zb_level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT));
+
+	zb2thisobj = zb2->zb_object ? zb2->zb_object :
+	    zb2->zb_blkid << (DNODE_BLOCK_SHIFT - DNODE_SHIFT);
+
+	if (zb1->zb_object == DMU_META_DNODE_OBJECT) {
+		uint64_t nextobj = zb1nextL0 *
+		    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT) >> DNODE_SHIFT;
+		return (nextobj <= zb2thisobj);
+	}
+
+	if (zb1->zb_object < zb2thisobj)
+		return (B_TRUE);
+	if (zb1->zb_object > zb2thisobj)
+		return (B_FALSE);
+	if (zb2->zb_object == DMU_META_DNODE_OBJECT)
+		return (B_FALSE);
+	return (zb1nextL0 <= zb2->zb_blkid);
+}
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* Fault injection */

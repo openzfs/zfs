@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -94,7 +94,7 @@ struct dsl_pool;
 /*
  * Size of block to hold the configuration data (a packed nvlist)
  */
-#define	SPA_CONFIG_BLOCKSIZE	(1 << 14)
+#define	SPA_CONFIG_BLOCKSIZE	(1ULL << 14)
 
 /*
  * The DVA size encodings for LSIZE and PSIZE support blocks up to 32MB.
@@ -262,7 +262,7 @@ typedef struct blkptr {
 		DVA_GET_ASIZE(&(bp)->blk_dva[2]))
 
 #define	BP_GET_UCSIZE(bp) \
-	((BP_GET_LEVEL(bp) > 0 || dmu_ot[BP_GET_TYPE(bp)].ot_metadata) ? \
+	((BP_GET_LEVEL(bp) > 0 || DMU_OT_IS_METADATA(BP_GET_TYPE(bp))) ? \
 	BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp))
 
 #define	BP_GET_NDVAS(bp)	\
@@ -404,8 +404,8 @@ typedef struct blkptr {
 #include <sys/dmu.h>
 
 #define	BP_GET_BUFC_TYPE(bp)						\
-	(((BP_GET_LEVEL(bp) > 0) || (dmu_ot[BP_GET_TYPE(bp)].ot_metadata)) ? \
-	ARC_BUFC_METADATA : ARC_BUFC_DATA);
+	(((BP_GET_LEVEL(bp) > 0) || (DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))) ? \
+	ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
 typedef enum spa_import_type {
 	SPA_IMPORT_EXISTING,
@@ -416,8 +416,8 @@ typedef enum spa_import_type {
 extern int spa_open(const char *pool, spa_t **, void *tag);
 extern int spa_open_rewind(const char *pool, spa_t **, void *tag,
     nvlist_t *policy, nvlist_t **config);
-extern int spa_get_stats(const char *pool, nvlist_t **config,
-    char *altroot, size_t buflen);
+extern int spa_get_stats(const char *pool, nvlist_t **config, char *altroot,
+    size_t buflen);
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     const char *history_str, nvlist_t *zplprops);
 extern int spa_import_rootpool(char *devpath, char *devid);
@@ -574,6 +574,7 @@ extern void spa_claim_notify(zio_t *zio);
 /* Accessor functions */
 extern boolean_t spa_shutting_down(spa_t *spa);
 extern struct dsl_pool *spa_get_dsl(spa_t *spa);
+extern boolean_t spa_is_initializing(spa_t *spa);
 extern blkptr_t *spa_get_rootblkptr(spa_t *spa);
 extern void spa_set_rootblkptr(spa_t *spa, const blkptr_t *bp);
 extern void spa_altroot(spa_t *, char *, size_t);
@@ -605,6 +606,8 @@ extern uint64_t spa_delegation(spa_t *spa);
 extern objset_t *spa_meta_objset(spa_t *spa);
 
 /* Miscellaneous support routines */
+extern void spa_activate_mos_feature(spa_t *spa, const char *feature);
+extern void spa_deactivate_mos_feature(spa_t *spa, const char *feature);
 extern int spa_rename(const char *oldname, const char *newname);
 extern spa_t *spa_by_guid(uint64_t pool_guid, uint64_t device_guid);
 extern boolean_t spa_guid_exists(uint64_t pool_guid, uint64_t device_guid);

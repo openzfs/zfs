@@ -5,5 +5,6 @@ EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
 $(MODULE)-objs += @top_srcdir@/module/nvpair/nvpair.o
+$(MODULE)-objs += @top_srcdir@/module/nvpair/fnvpair.o
 $(MODULE)-objs += @top_srcdir@/module/nvpair/nvpair_alloc_spl.o
 $(MODULE)-objs += @top_srcdir@/module/nvpair/nvpair_alloc_fixed.o

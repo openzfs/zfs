@@ -20,13 +20,61 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/bpobj.h>
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 #include <sys/dsl_pool.h>
+#include <sys/zfeature.h>
+#include <sys/zap.h>
+
+/*
+ * Return an empty bpobj, preferably the empty dummy one (dp_empty_bpobj).
+ */
+uint64_t
+bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
+{
+	zfeature_info_t *empty_bpobj_feat =
+	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ];
+	spa_t *spa = dmu_objset_spa(os);
+	dsl_pool_t *dp = dmu_objset_pool(os);
+
+	if (spa_feature_is_enabled(spa, empty_bpobj_feat)) {
+		if (!spa_feature_is_active(spa, empty_bpobj_feat)) {
+			ASSERT3U(dp->dp_empty_bpobj, ==, 0);
+			dp->dp_empty_bpobj =
+			    bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx);
+			VERIFY(zap_add(os,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
+			    &dp->dp_empty_bpobj, tx) == 0);
+		}
+		spa_feature_incr(spa, empty_bpobj_feat, tx);
+		ASSERT(dp->dp_empty_bpobj != 0);
+		return (dp->dp_empty_bpobj);
+	} else {
+		return (bpobj_alloc(os, blocksize, tx));
+	}
+}
+
+void
+bpobj_decr_empty(objset_t *os, dmu_tx_t *tx)
+{
+	zfeature_info_t *empty_bpobj_feat =
+	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ];
+	dsl_pool_t *dp = dmu_objset_pool(os);
+
+	spa_feature_decr(dmu_objset_spa(os), empty_bpobj_feat, tx);
+	if (!spa_feature_is_active(dmu_objset_spa(os), empty_bpobj_feat)) {
+		VERIFY3U(0, ==, zap_remove(dp->dp_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_EMPTY_BPOBJ, tx));
+		VERIFY3U(0, ==, dmu_object_free(os, dp->dp_empty_bpobj, tx));
+		dp->dp_empty_bpobj = 0;
+	}
+}
 
 uint64_t
 bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
@@ -53,6 +101,7 @@ bpobj_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 	int epb;
 	dmu_buf_t *dbuf = NULL;
 
+	ASSERT(obj != dmu_objset_pool(os)->dp_empty_bpobj);
 	VERIFY3U(0, ==, bpobj_open(&bpo, os, obj));
 
 	mutex_enter(&bpo.bpo_lock);
@@ -320,6 +369,12 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
+	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
+
+	if (subobj == dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj) {
+		bpobj_decr_empty(bpo->bpo_os, tx);
+		return;
+	}
 
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
 	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
@@ -388,6 +443,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 	blkptr_t *bparray;
 
 	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
 	/* We never need the fill count. */
 	stored_bp.blk_fill = 0;

@@ -20,12 +20,14 @@
  */
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_NVPAIR_H
 #define	_SYS_NVPAIR_H
 
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/errno.h>
 #include <sys/va_list.h>
 
@@ -273,6 +275,73 @@ int nvpair_value_hrtime(nvpair_t *, hrtime_t *);
 #if !defined(_KERNEL)
 int nvpair_value_double(nvpair_t *, double *);
 #endif
+
+nvlist_t *fnvlist_alloc(void);
+void fnvlist_free(nvlist_t *);
+size_t fnvlist_size(nvlist_t *);
+char *fnvlist_pack(nvlist_t *, size_t *);
+void fnvlist_pack_free(char *, size_t);
+nvlist_t *fnvlist_unpack(char *, size_t);
+nvlist_t *fnvlist_dup(nvlist_t *);
+void fnvlist_merge(nvlist_t *, nvlist_t *);
+
+void fnvlist_add_boolean(nvlist_t *, const char *);
+void fnvlist_add_boolean_value(nvlist_t *, const char *, boolean_t);
+void fnvlist_add_byte(nvlist_t *, const char *, uchar_t);
+void fnvlist_add_int8(nvlist_t *, const char *, int8_t);
+void fnvlist_add_uint8(nvlist_t *, const char *, uint8_t);
+void fnvlist_add_int16(nvlist_t *, const char *, int16_t);
+void fnvlist_add_uint16(nvlist_t *, const char *, uint16_t);
+void fnvlist_add_int32(nvlist_t *, const char *, int32_t);
+void fnvlist_add_uint32(nvlist_t *, const char *, uint32_t);
+void fnvlist_add_int64(nvlist_t *, const char *, int64_t);
+void fnvlist_add_uint64(nvlist_t *, const char *, uint64_t);
+void fnvlist_add_string(nvlist_t *, const char *, const char *);
+void fnvlist_add_nvlist(nvlist_t *, const char *, nvlist_t *);
+void fnvlist_add_nvpair(nvlist_t *, nvpair_t *);
+void fnvlist_add_boolean_array(nvlist_t *, const char *, boolean_t *, uint_t);
+void fnvlist_add_byte_array(nvlist_t *, const char *, uchar_t *, uint_t);
+void fnvlist_add_int8_array(nvlist_t *, const char *, int8_t *, uint_t);
+void fnvlist_add_uint8_array(nvlist_t *, const char *, uint8_t *, uint_t);
+void fnvlist_add_int16_array(nvlist_t *, const char *, int16_t *, uint_t);
+void fnvlist_add_uint16_array(nvlist_t *, const char *, uint16_t *, uint_t);
+void fnvlist_add_int32_array(nvlist_t *, const char *, int32_t *, uint_t);
+void fnvlist_add_uint32_array(nvlist_t *, const char *, uint32_t *, uint_t);
+void fnvlist_add_int64_array(nvlist_t *, const char *, int64_t *, uint_t);
+void fnvlist_add_uint64_array(nvlist_t *, const char *, uint64_t *, uint_t);
+void fnvlist_add_string_array(nvlist_t *, const char *, char * const *, uint_t);
+void fnvlist_add_nvlist_array(nvlist_t *, const char *, nvlist_t **, uint_t);
+
+void fnvlist_remove(nvlist_t *, const char *);
+void fnvlist_remove_nvpair(nvlist_t *, nvpair_t *);
+
+nvpair_t *fnvlist_lookup_nvpair(nvlist_t *nvl, const char *name);
+boolean_t fnvlist_lookup_boolean(nvlist_t *nvl, const char *name);
+boolean_t fnvlist_lookup_boolean_value(nvlist_t *nvl, const char *name);
+uchar_t fnvlist_lookup_byte(nvlist_t *nvl, const char *name);
+int8_t fnvlist_lookup_int8(nvlist_t *nvl, const char *name);
+int16_t fnvlist_lookup_int16(nvlist_t *nvl, const char *name);
+int32_t fnvlist_lookup_int32(nvlist_t *nvl, const char *name);
+int64_t fnvlist_lookup_int64(nvlist_t *nvl, const char *name);
+uint8_t fnvlist_lookup_uint8(nvlist_t *nvl, const char *name);
+uint16_t fnvlist_lookup_uint16(nvlist_t *nvl, const char *name);
+uint32_t fnvlist_lookup_uint32(nvlist_t *nvl, const char *name);
+uint64_t fnvlist_lookup_uint64(nvlist_t *nvl, const char *name);
+char *fnvlist_lookup_string(nvlist_t *nvl, const char *name);
+nvlist_t *fnvlist_lookup_nvlist(nvlist_t *nvl, const char *name);
+
+boolean_t fnvpair_value_boolean_value(nvpair_t *nvp);
+uchar_t fnvpair_value_byte(nvpair_t *nvp);
+int8_t fnvpair_value_int8(nvpair_t *nvp);
+int16_t fnvpair_value_int16(nvpair_t *nvp);
+int32_t fnvpair_value_int32(nvpair_t *nvp);
+int64_t fnvpair_value_int64(nvpair_t *nvp);
+uint8_t fnvpair_value_uint8(nvpair_t *nvp);
+uint16_t fnvpair_value_uint16(nvpair_t *nvp);
+uint32_t fnvpair_value_uint32(nvpair_t *nvp);
+uint64_t fnvpair_value_uint64(nvpair_t *nvp);
+char *fnvpair_value_string(nvpair_t *nvp);
+nvlist_t *fnvpair_value_nvlist(nvpair_t *nvp);
 
 #ifdef	__cplusplus
 }

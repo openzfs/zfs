@@ -647,7 +647,9 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 		 * To simulate partial disk writes, we split writes into two
 		 * system calls so that the process can be killed in between.
 		 */
-		split = (len > 0 ? rand() % len : 0);
+		int sectors = len >> SPA_MINBLOCKSHIFT;
+		split = (sectors > 0 ? rand() % sectors : 0) <<
+		    SPA_MINBLOCKSHIFT;
 		rc = pwrite64(vp->v_fd, addr, split, offset);
 		if (rc != -1) {
 			done = rc;
