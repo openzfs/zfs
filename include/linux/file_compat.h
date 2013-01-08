@@ -50,6 +50,26 @@ spl_filp_open(const char *name, int flags, int mode, int *err)
 #define spl_filp_poff(f)		(&(f)->f_pos)
 #define spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
 
+static inline int
+spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
+{
+	int error = -EOPNOTSUPP;
+
+#ifdef HAVE_FILE_FALLOCATE
+	if (fp->f_op->fallocate)
+		error = fp->f_op->fallocate(fp, mode, offset, len);
+#else
+# ifdef HAVE_INODE_FALLOCATE
+	if (fp->f_dentry && fp->f_dentry->d_inode &&
+	    fp->f_dentry->d_inode->i_op->fallocate)
+		error = fp->f_dentry->d_inode->i_op->fallocate(
+		    fp->f_dentry->d_inode, mode, offset, len);
+# endif /* HAVE_INODE_FALLOCATE */
+#endif /*HAVE_FILE_FALLOCATE */
+
+	return (error);
+}
+
 #ifdef HAVE_VFS_FSYNC
 # ifdef HAVE_2ARGS_VFS_FSYNC
 #  define spl_filp_fsync(fp, sync)	vfs_fsync(fp, sync)

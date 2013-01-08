@@ -78,6 +78,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
 	SPL_AC_KERNEL_INVALIDATE_INODES
 	SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES
+	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
 	SPL_AC_KERN_PATH_PARENT_HEADER
@@ -1922,7 +1923,6 @@ AC_DEFUN([SPL_AC_2ARGS_VFS_FSYNC], [
 dnl #
 dnl # 3.5 API change,
 dnl # inode_operations.truncate_range removed
-dnl # (deprecated in favor of FALLOC_FL_PUNCH_HOLE)
 dnl #
 AC_DEFUN([SPL_AC_INODE_TRUNCATE_RANGE], [
 	AC_MSG_CHECKING([whether truncate_range() inode operation is available])
@@ -1938,7 +1938,77 @@ AC_DEFUN([SPL_AC_INODE_TRUNCATE_RANGE], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-]))
+])
+
+dnl #
+dnl # Linux 2.6.38 - 3.x API
+dnl #
+AC_DEFUN([SPL_AC_KERNEL_FILE_FALLOCATE], [
+	AC_MSG_CHECKING([whether fops->fallocate() exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		long (*fallocate) (struct file *, int, loff_t, loff_t) = NULL;
+		struct file_operations fops __attribute__ ((unused)) = {
+			.fallocate = fallocate,
+		};
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FILE_FALLOCATE, 1, [fops->fallocate() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Linux 2.6.x - 2.6.37 API
+dnl #
+AC_DEFUN([SPL_AC_KERNEL_INODE_FALLOCATE], [
+	AC_MSG_CHECKING([whether iops->fallocate() exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		long (*fallocate) (struct inode *, int, loff_t, loff_t) = NULL;
+		struct inode_operations fops __attribute__ ((unused)) = {
+			.fallocate = fallocate,
+		};
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_FALLOCATE, 1, [fops->fallocate() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # PaX Linux 2.6.38 - 3.x API
+dnl #
+AC_DEFUN([SPL_AC_PAX_KERNEL_FILE_FALLOCATE], [
+	AC_MSG_CHECKING([whether fops->fallocate() exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		long (*fallocate) (struct file *, int, loff_t, loff_t) = NULL;
+		struct file_operations_no_const fops __attribute__ ((unused)) = {
+			.fallocate = fallocate,
+		};
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_FILE_FALLOCATE, 1, [fops->fallocate() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # The fallocate callback was moved from the inode_operations
+dnl # structure to the file_operations structure.
+dnl #
+AC_DEFUN([SPL_AC_KERNEL_FALLOCATE], [
+	SPL_AC_KERNEL_FILE_FALLOCATE
+	SPL_AC_KERNEL_INODE_FALLOCATE
+	SPL_AC_PAX_KERNEL_FILE_FALLOCATE
+])
 
 dnl #
 dnl # 2.6.33 API change. Also backported in RHEL5 as of 2.6.18-190.el5.

@@ -654,13 +654,15 @@ int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 	ASSERT(bfp->l_start >= 0 && bfp->l_len > 0);
 
 #ifdef FALLOC_FL_PUNCH_HOLE
-	if (vp->v_file->f_op->fallocate) {
-		error = -vp->v_file->f_op->fallocate(vp->v_file,
-		    FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
-		    bfp->l_start, bfp->l_len);
-		if (!error)
-			SRETURN(0);
-	}
+	/*
+	 * When supported by the underlying file system preferentially
+	 * use the fallocate() callback to preallocate the space.
+	 */
+	error = -spl_filp_fallocate(vp->v_file,
+	    FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+	    bfp->l_start, bfp->l_len);
+	if (error == 0)
+		SRETURN(0);
 #endif
 
 #ifdef HAVE_INODE_TRUNCATE_RANGE
