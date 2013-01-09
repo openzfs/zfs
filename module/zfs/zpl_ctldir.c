@@ -357,13 +357,6 @@ zpl_snapdir_automount(struct path *path)
 		return ERR_PTR(error);
 
 	/*
-	 * Ensure path->dentry points to the dentry for the root of the
-	 * newly-mounted snapshot, otherwise this function may be called
-	 * repeatedly which can lead to an incorrect ELOOP error return.
-	 */
-	follow_up(path);
-
-	/*
 	 * Rather than returning the new vfsmount for the snapshot we must
 	 * return NULL to indicate a mount collision.  This is done because
 	 * the user space mount calls do_add_mount() which adds the vfsmount
