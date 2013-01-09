@@ -696,7 +696,7 @@ __zfsctl_unmount_snapshot(zfs_snapentry_t *sep, int flags)
 
 	argv[2] = kmem_asprintf(SET_UNMOUNT_CMD,
 	    flags & MNT_FORCE ? "-f " : "", sep->se_path);
-	error = call_usermodehelper(argv[0], argv, envp, 1);
+	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
 
 	/*
@@ -822,7 +822,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	 * to safely abort the automount.  This should be very rare.
 	 */
 	argv[2] = kmem_asprintf(SET_MOUNT_CMD, full_name, full_path);
-	error = call_usermodehelper(argv[0], argv, envp, 1);
+	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	strfree(argv[2]);
 	if (error) {
 		printk("ZFS: Unable to automount %s at %s: %d\n",

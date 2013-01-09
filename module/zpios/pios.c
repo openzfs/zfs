@@ -92,7 +92,7 @@ int zpios_upcall(char *path, char *phase, run_args_t *run_args, int rc)
         envp[2] = "PATH=/sbin:/usr/sbin:/bin:/usr/bin";
         envp[3] = NULL;
 
-        return call_usermodehelper(path, argv, envp, 1);
+        return call_usermodehelper(path, argv, envp, UMH_WAIT_PROC);
 }
 
 static uint64_t
