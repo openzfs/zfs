@@ -372,7 +372,8 @@ main(int argc, char **argv)
 	/* canonicalize the mount point */
 	if (realpath(argv[1], mntpoint) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted due to a canonicalization failure.\n"), dataset);
+		    "mounted at '%s' due to canonicalization error %d.\n"),
+		    dataset, argv[1], errno);
 		return (MOUNT_SYSERR);
 	}
 
