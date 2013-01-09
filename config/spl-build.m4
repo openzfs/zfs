@@ -84,6 +84,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KERN_PATH_PARENT_HEADER
 	SPL_AC_KERN_PATH_PARENT_SYMBOL
 	SPL_AC_KERN_PATH_LOCKED
+	SPL_AC_CONFIG_ZLIB_INFLATE
+	SPL_AC_CONFIG_ZLIB_DEFLATE
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 	SPL_AC_SHRINK_CONTROL_STRUCT
 	SPL_AC_RWSEM_SPINLOCK_IS_RAW
@@ -2199,6 +2201,48 @@ AC_DEFUN([SPL_AC_KERN_PATH_LOCKED], [
 		[AC_DEFINE(HAVE_KERN_PATH_LOCKED, 1,
 		[kern_path_locked() is available])],
 		[])
+])
+
+dnl #
+dnl # zlib inflate compat,
+dnl # Verify the kernel has CONFIG_ZLIB_INFLATE support enabled.
+dnl #
+AC_DEFUN([SPL_AC_CONFIG_ZLIB_INFLATE], [
+	AC_MSG_CHECKING([whether CONFIG_ZLIB_INFLATE is defined])
+	SPL_LINUX_TRY_COMPILE([
+		#if !defined(CONFIG_ZLIB_INFLATE) && \
+		    !defined(CONFIG_ZLIB_INFLATE_MODULE)
+		#error CONFIG_ZLIB_INFLATE not defined
+		#endif
+	],[ ],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([
+	*** This kernel does not include the required zlib inflate support.
+	*** Rebuild the kernel with CONFIG_ZLIB_INFLATE=y|m set.])
+	])
+])
+
+dnl #
+dnl # zlib deflate compat,
+dnl # Verify the kernel has CONFIG_ZLIB_DEFLATE support enabled.
+dnl #
+AC_DEFUN([SPL_AC_CONFIG_ZLIB_DEFLATE], [
+	AC_MSG_CHECKING([whether CONFIG_ZLIB_DEFLATE is defined])
+	SPL_LINUX_TRY_COMPILE([
+		#if !defined(CONFIG_ZLIB_DEFLATE) && \
+		    !defined(CONFIG_ZLIB_DEFLATE_MODULE)
+		#error CONFIG_ZLIB_DEFLATE not defined
+		#endif
+	],[ ],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([
+	*** This kernel does not include the required zlib deflate support.
+	*** Rebuild the kernel with CONFIG_ZLIB_DEFLATE=y|m set.])
+	])
 ])
 
 dnl #
