@@ -32,6 +32,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
+#include <linux/kmod.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 

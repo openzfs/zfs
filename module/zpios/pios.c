@@ -35,6 +35,7 @@
 #include <sys/dmu.h>
 #include <sys/txg.h>
 #include <linux/cdev.h>
+#include <linux/kmod.h>
 #include "zpios-internal.h"
 
 

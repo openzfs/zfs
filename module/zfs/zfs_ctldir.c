@@ -83,6 +83,7 @@
 #include <sys/dsl_deleg.h>
 #include <sys/mount.h>
 #include <sys/zpl.h>
+#include <linux/kmod.h>
 #include "zfs_namecheck.h"
 
 /*
