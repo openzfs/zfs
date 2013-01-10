@@ -536,7 +536,7 @@ hostid_exec(void)
 	 * '/usr/bin/hostid' and redirect the result to /proc/sys/spl/hostid
 	 * for us to use.  It's a horrific solution but it will do for now.
 	 */
-	rc = call_usermodehelper(argv[0], argv, envp, 1);
+	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (rc)
 		printk("SPL: Failed user helper '%s %s %s', rc = %d\n",
 		       argv[0], argv[1], argv[2], rc);
@@ -607,7 +607,7 @@ set_kallsyms_lookup_name(void)
 	                 NULL };
 	int rc;
 
-	rc = call_usermodehelper(argv[0], argv, envp, 1);
+	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 	/*
 	 * Due to I/O buffering the helper may return successfully before

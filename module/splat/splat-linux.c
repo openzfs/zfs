@@ -166,7 +166,7 @@ splat_linux_drop_slab(struct file *file)
 	                 NULL };
 	int rc;
 
-	rc = call_usermodehelper(argv[0], argv, envp, 1);
+	rc = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (rc)
 		splat_vprint(file, SPLAT_LINUX_TEST3_NAME,
 	            "Failed user helper '%s %s %s', rc = %d\n",
