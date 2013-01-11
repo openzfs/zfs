@@ -3725,7 +3725,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	double fraction_done;
 	char processed_buf[7], examined_buf[7], total_buf[7], rate_buf[7];
 
-	(void) printf(gettext(" scan: "));
+	(void) printf(gettext("  scan: "));
 
 	/* If there's never been a scan, there's not much to say. */
 	if (ps == NULL || ps->pss_func == POOL_SCAN_NONE ||
@@ -3913,10 +3913,16 @@ print_dedup_stats(nvlist_t *config)
 	 * table continue processing the stats.
 	 */
 	if (nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_OBJ_STATS,
-	    (uint64_t **)&ddo, &c) != 0 || ddo->ddo_count == 0)
+	    (uint64_t **)&ddo, &c) != 0)
 		return;
 
 	(void) printf("\n");
+	(void) printf(gettext(" dedup: "));
+	if (ddo->ddo_count == 0) {
+		(void) printf(gettext("no DDT entries\n"));
+		return;
+	}
+
 	(void) printf("DDT entries %llu, size %llu on disk, %llu in core\n",
 	    (u_longlong_t)ddo->ddo_count,
 	    (u_longlong_t)ddo->ddo_dspace,
