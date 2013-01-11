@@ -5,7 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_ELEVATOR_CHANGE], [
 	AC_MSG_CHECKING([whether elevator_change() is available])
 	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
+	EXTRA_KCFLAGS="${NO_UNUSED_BUT_SET_VARIABLE}"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blkdev.h>
 		#include <linux/elevator.h>

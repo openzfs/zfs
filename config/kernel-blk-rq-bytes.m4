@@ -7,7 +7,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BLK_RQ_BYTES], [
 	AC_MSG_CHECKING([whether blk_rq_bytes() is available])
 	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Wno-unused-but-set-variable"
+	EXTRA_KCFLAGS="${NO_UNUSED_BUT_SET_VARIABLE}"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/blkdev.h>
 	],[
