@@ -24,6 +24,7 @@
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright 2012 Garrett D'Amore <garrett@damore.org>.  All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -140,9 +141,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 	t->tqent_prev->tqent_next = t;
 	t->tqent_func = func;
 	t->tqent_arg = arg;
-
-	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
-
+	t->tqent_flags = 0;
 	cv_signal(&tq->tq_dispatch_cv);
 	mutex_exit(&tq->tq_lock);
 	return (1);
