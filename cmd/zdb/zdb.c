@@ -60,14 +60,16 @@
 #undef ZFS_MAXNAMELEN
 #include <libzfs.h>
 
-#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ? \
-    zio_compress_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ? \
-    zio_checksum_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_OT_NAME(idx) ((idx) < DMU_OT_NUMTYPES ? \
-    dmu_ot[(idx)].ot_name : DMU_OT_IS_VALID(idx) ? \
-    dmu_ot_byteswap[DMU_OT_BYTESWAP(idx)].ob_name : "UNKNOWN")
-#define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) : DMU_OT_NUMTYPES)
+#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ?	\
+	zio_compress_table[(idx)].ci_name : "UNKNOWN")
+#define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ?	\
+	zio_checksum_table[(idx)].ci_name : "UNKNOWN")
+#define	ZDB_OT_NAME(idx) ((idx) < DMU_OT_NUMTYPES ?	\
+	dmu_ot[(idx)].ot_name : DMU_OT_IS_VALID(idx) ?	\
+	dmu_ot_byteswap[DMU_OT_BYTESWAP(idx)].ob_name : "UNKNOWN")
+#define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) :		\
+	(((idx) == DMU_OTN_ZAP_DATA || (idx) == DMU_OTN_ZAP_METADATA) ?	\
+	DMU_OT_ZAP_OTHER : DMU_OT_NUMTYPES))
 
 #ifndef lint
 extern int zfs_recover;
@@ -3207,7 +3209,13 @@ main(int argc, char **argv)
 					    argv[i], strerror(errno));
 			}
 		}
-		(os != NULL) ? dump_dir(os) : dump_zpool(spa);
+		if (os != NULL) {
+			dump_dir(os);
+		} else if (zopt_objects > 0 && !dump_opt['m']) {
+			dump_dir(spa->spa_meta_objset);
+		} else {
+			dump_zpool(spa);
+		}
 	} else {
 		flagbits['b'] = ZDB_FLAG_PRINT_BLKPTR;
 		flagbits['c'] = ZDB_FLAG_CHECKSUM;
