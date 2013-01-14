@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_SA_IMPL_H
@@ -181,7 +182,7 @@ typedef struct sa_hdr_phys {
  */
 
 #define	SA_HDR_LAYOUT_NUM(hdr) BF32_GET(hdr->sa_layout_info, 0, 10)
-#define	SA_HDR_SIZE(hdr) BF32_GET_SB(hdr->sa_layout_info, 10, 16, 3, 0)
+#define	SA_HDR_SIZE(hdr) BF32_GET_SB(hdr->sa_layout_info, 10, 6, 3, 0)
 #define	SA_HDR_LAYOUT_INFO_ENCODE(x, num, size) \
 { \
 	BF32_SET_SB(x, 10, 6, 3, 0, size); \
