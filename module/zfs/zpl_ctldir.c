@@ -183,6 +183,66 @@ const struct inode_operations zpl_ops_root = {
 	.getattr	= zpl_root_getattr,
 };
 
+#ifdef HAVE_AUTOMOUNT
+static struct vfsmount *
+zpl_snapdir_automount(struct path *path)
+{
+	struct dentry *dentry = path->dentry;
+	int error;
+
+	/*
+	 * We must briefly disable automounts for this dentry because the
+	 * user space mount utility will trigger another lookup on this
+	 * directory.  That will result in zpl_snapdir_automount() being
+	 * called repeatedly.  The DCACHE_NEED_AUTOMOUNT flag can be
+	 * safely reset once the mount completes.
+	 */
+	dentry->d_flags &= ~DCACHE_NEED_AUTOMOUNT;
+	error = -zfsctl_mount_snapshot(path, 0);
+	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
+	if (error)
+		return ERR_PTR(error);
+
+	/*
+	 * Rather than returning the new vfsmount for the snapshot we must
+	 * return NULL to indicate a mount collision.  This is done because
+	 * the user space mount calls do_add_mount() which adds the vfsmount
+	 * to the name space.  If we returned the new mount here it would be
+	 * added again to the vfsmount list resulting in list corruption.
+	 */
+	return (NULL);
+}
+#endif /* HAVE_AUTOMOUNT */
+
+/*
+ * Revalidate any dentry in the snapshot directory on lookup, since a snapshot
+ * having the same name have been created or destroyed since it was cached.
+ */
+static int
+#ifdef HAVE_D_REVALIDATE_NAMEIDATA
+zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
+#else
+zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
+#endif
+{
+	return 0;
+}
+
+dentry_operations_t zpl_dops_snapdirs = {
+/*
+ * Auto mounting of snapshots is only supported for 2.6.37 and
+ * newer kernels.  Prior to this kernel the ops->follow_link()
+ * callback was used as a hack to trigger the mount.  The
+ * resulting vfsmount was then explicitly grafted in to the
+ * name space.  While it might be possible to add compatibility
+ * code to accomplish this it would require considerable care.
+ */
+#ifdef HAVE_AUTOMOUNT
+	.d_automount	= zpl_snapdir_automount,
+#endif /* HAVE_AUTOMOUNT */
+	.d_revalidate	= zpl_snapdir_revalidate,
+};
+
 static struct dentry *
 #ifdef HAVE_LOOKUP_NAMEIDATA
 zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
@@ -194,7 +254,7 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 
 {
 	cred_t *cr = CRED();
-	struct inode *ip;
+	struct inode *ip = NULL;
 	int error;
 
 	crhold(cr);
@@ -203,24 +263,11 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
-	if (error) {
-		if (error == -ENOENT)
-			return d_splice_alias(NULL, dentry);
-		else
-			return ERR_PTR(error);
-	}
+	if (error && error != -ENOENT)
+		return ERR_PTR(error);
 
-	/*
-	 * Auto mounting of snapshots is only supported for 2.6.37 and
-	 * newer kernels.  Prior to this kernel the ops->follow_link()
-	 * callback was used as a hack to trigger the mount.  The
-	 * resulting vfsmount was then explicitly grafted in to the
-	 * name space.  While it might be possible to add compatibility
-	 * code to accomplish this it would require considerable care.
-	 */
-#ifdef HAVE_AUTOMOUNT
-	dentry->d_op = &zpl_dops_snapdirs;
-#endif /* HAVE_AUTOMOUNT */
+	ASSERT(error == 0 || ip == NULL);
+	d_set_d_op(dentry, &zpl_dops_snapdirs);
 
 	return d_splice_alias(ip, dentry);
 }
@@ -323,9 +370,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {
-#ifdef HAVE_AUTOMOUNT
-		dentry->d_op = &zpl_dops_snapdirs;
-#endif /* HAVE_AUTOMOUNT */
+		d_set_d_op(dentry, &zpl_dops_snapdirs);
 		d_instantiate(dentry, ip);
 	}
 
@@ -335,37 +380,6 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 
 	return (error);
 }
-
-#ifdef HAVE_AUTOMOUNT
-static struct vfsmount *
-zpl_snapdir_automount(struct path *path)
-{
-	struct dentry *dentry = path->dentry;
-	int error;
-
-	/*
-	 * We must briefly disable automounts for this dentry because the
-	 * user space mount utility will trigger another lookup on this
-	 * directory.  That will result in zpl_snapdir_automount() being
-	 * called repeatedly.  The DCACHE_NEED_AUTOMOUNT flag can be
-	 * safely reset once the mount completes.
-	 */
-	dentry->d_flags &= ~DCACHE_NEED_AUTOMOUNT;
-	error = -zfsctl_mount_snapshot(path, 0);
-	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
-	if (error)
-		return ERR_PTR(error);
-
-	/*
-	 * Rather than returning the new vfsmount for the snapshot we must
-	 * return NULL to indicate a mount collision.  This is done because
-	 * the user space mount calls do_add_mount() which adds the vfsmount
-	 * to the name space.  If we returned the new mount here it would be
-	 * added again to the vfsmount list resulting in list corruption.
-	 */
-	return (NULL);
-}
-#endif /* HAVE_AUTOMOUNT */
 
 /*
  * Get snapshot directory attributes.
@@ -412,12 +426,6 @@ const struct inode_operations zpl_ops_snapdir = {
 	.rmdir		= zpl_snapdir_rmdir,
 	.mkdir		= zpl_snapdir_mkdir,
 };
-
-#ifdef HAVE_AUTOMOUNT
-const struct dentry_operations zpl_dops_snapdirs = {
-	.d_automount	= zpl_snapdir_automount,
-};
-#endif /* HAVE_AUTOMOUNT */
 
 static struct dentry *
 #ifdef HAVE_LOOKUP_NAMEIDATA
