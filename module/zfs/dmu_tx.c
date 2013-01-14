@@ -589,7 +589,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		    (dn->dn_indblkshift - SPA_BLKPTRSHIFT);
 
 		while (level++ < maxlevel) {
-			txh->txh_memory_tohold += MIN(blkcnt, (nl1blks >> epbs))
+			txh->txh_memory_tohold += MAX(MIN(blkcnt, nl1blks), 1)
 			    << dn->dn_indblkshift;
 			blkcnt = 1 + (blkcnt >> epbs);
 		}
