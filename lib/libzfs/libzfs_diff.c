@@ -141,7 +141,7 @@ stream_bytes(FILE *fp, const char *string)
 		if (*string > ' ' && *string != '\\' && *string < '\177')
 			(void) fprintf(fp, "%c", *string++);
 		else
-			(void) fprintf(fp, "\\%03o", *string++);
+			(void) fprintf(fp, "\\%03o", (unsigned char)*string++);
 	}
 }
 
