@@ -42,7 +42,6 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
-#include <sys/zvol.h>
 
 /*
  * Virtual device management.
@@ -1075,20 +1074,27 @@ vdev_open_child(void *arg)
 	vd->vdev_open_thread = NULL;
 }
 
-static boolean_t
+boolean_t
 vdev_uses_zvols(vdev_t *vd)
 {
+/*
+ * Stacking zpools on top of zvols is unsupported until we implement a method
+ * for determining if an arbitrary block device is a zvol without using the
+ * path.  Solaris would check the 'zvol' path component but this does not
+ * exist in the Linux port, so we really should do something like stat the
+ * file and check the major number.  This is complicated by the fact that
+ * we need to do this portably in user or kernel space.
+ */
+#if 0
 	int c;
 
-#ifdef _KERNEL
-	if (zvol_is_zvol(vd->vdev_path))
+	if (vd->vdev_path && strncmp(vd->vdev_path, ZVOL_DIR,
+	    strlen(ZVOL_DIR)) == 0)
 		return (B_TRUE);
-#endif
-
 	for (c = 0; c < vd->vdev_children; c++)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
-
+#endif
 	return (B_FALSE);
 }
 
