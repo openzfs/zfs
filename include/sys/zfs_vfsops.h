@@ -69,6 +69,7 @@ typedef struct zfs_sb {
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
+	unsigned long	z_rollback_time;/* last online rollback time */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
 	avl_tree_t	z_ctldir_snaps;	/* .zfs/snapshot entries */

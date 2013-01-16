@@ -28,18 +28,20 @@
 #include <sys/vfs.h>
 #include <linux/vfs_compat.h>
 #include <linux/xattr_compat.h>
+#include <linux/dcache_compat.h>
 #include <linux/exportfs.h>
 #include <linux/writeback.h>
 #include <linux/falloc.h>
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
-    struct dentry *dentry, zpl_umode_t mode, cred_t *cr);
+    zpl_umode_t mode, cred_t *cr);
 
 extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;
 extern const struct inode_operations zpl_symlink_inode_operations;
 extern const struct inode_operations zpl_special_inode_operations;
+extern dentry_operations_t zpl_dentry_operations;
 
 /* zpl_file.c */
 extern ssize_t zpl_read_common(struct inode *ip, const char *buf,

@@ -366,7 +366,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dip, dentry, mode | S_IFDIR, cr);
+	zpl_vap_init(vap, dip, mode | S_IFDIR, cr);
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {

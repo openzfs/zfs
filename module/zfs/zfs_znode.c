@@ -274,8 +274,10 @@ zfs_inode_destroy(struct inode *ip)
 		zfsctl_inode_destroy(ip);
 
 	mutex_enter(&zsb->z_znodes_lock);
-	list_remove(&zsb->z_all_znodes, zp);
-	zsb->z_nr_znodes--;
+	if (list_link_active(&zp->z_link_node)) {
+		list_remove(&zsb->z_all_znodes, zp);
+		zsb->z_nr_znodes--;
+	}
 	mutex_exit(&zsb->z_znodes_lock);
 
 	if (zp->z_acl_cached) {
@@ -348,7 +350,7 @@ zfs_inode_set_ops(zfs_sb_t *zsb, struct inode *ip)
 static znode_t *
 zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
     dmu_object_type_t obj_type, uint64_t obj, sa_handle_t *hdl,
-    struct dentry *dentry, struct inode *dip)
+    struct inode *dip)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -379,6 +381,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_is_zvol = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
+	zp->z_is_stale = B_FALSE;
 
 	zfs_znode_sa_init(zsb, zp, db, obj_type, hdl);
 
@@ -414,11 +417,15 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zfs_inode_update(zp);
 	zfs_inode_set_ops(zsb, ip);
 
-	if (insert_inode_locked(ip))
-		goto error;
-
-	if (dentry)
-		d_instantiate(dentry, ip);
+	/*
+	 * The only way insert_inode_locked() can fail is if the ip->i_ino
+	 * number is already hashed for this super block.  This can never
+	 * happen because the inode numbers map 1:1 with the object numbers.
+	 *
+	 * The one exception is rolling back a mounted file system, but in
+	 * this case all the active inode are unhashed during the rollback.
+	 */
+	VERIFY3S(insert_inode_locked(ip), ==, 0);
 
 	mutex_enter(&zsb->z_znodes_lock);
 	list_insert_tail(&zsb->z_all_znodes, zp);
@@ -720,9 +727,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 
 	if (!(flag & IS_ROOT_NODE)) {
 		*zpp = zfs_znode_alloc(zsb, db, 0, obj_type, obj, sa_hdl,
-		    vap->va_dentry, ZTOI(dzp));
-		ASSERT(*zpp != NULL);
-		ASSERT(dzp != NULL);
+		    ZTOI(dzp));
+		VERIFY(*zpp != NULL);
+		VERIFY(dzp != NULL);
 	} else {
 		/*
 		 * If we are creating the root node, the "parent" we
@@ -931,7 +938,7 @@ again:
 	 * bonus buffer.
 	 */
 	zp = zfs_znode_alloc(zsb, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, obj_num, NULL, NULL, NULL);
+	    doi.doi_bonus_type, obj_num, NULL, NULL);
 	if (zp == NULL) {
 		err = ENOENT;
 	} else {
@@ -961,8 +968,20 @@ zfs_rezget(znode_t *zp)
 		zfs_acl_free(zp->z_acl_cached);
 		zp->z_acl_cached = NULL;
 	}
-
 	mutex_exit(&zp->z_acl_lock);
+
+	rw_enter(&zp->z_xattr_lock, RW_WRITER);
+	if (zp->z_xattr_cached) {
+		nvlist_free(zp->z_xattr_cached);
+		zp->z_xattr_cached = NULL;
+	}
+
+	if (zp->z_xattr_parent) {
+		iput(ZTOI(zp->z_xattr_parent));
+		zp->z_xattr_parent = NULL;
+	}
+	rw_exit(&zp->z_xattr_lock);
+
 	ASSERT(zp->z_sa_hdl == NULL);
 	err = sa_buf_hold(zsb->z_os, obj_num, NULL, &db);
 	if (err) {
@@ -1016,6 +1035,7 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_unlinked = (zp->z_links == 0);
 	zp->z_blksz = doi.doi_data_block_size;
+	zfs_inode_update(zp);
 
 	ZFS_OBJ_HOLD_EXIT(zsb, obj_num);
 

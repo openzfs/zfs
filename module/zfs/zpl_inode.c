@@ -46,6 +46,10 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
+	spin_lock(&dentry->d_lock);
+	dentry->d_time = jiffies;
+	spin_unlock(&dentry->d_lock);
+
 	if (error) {
 		if (error == -ENOENT)
 			return d_splice_alias(NULL, dentry);
@@ -57,12 +61,10 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 }
 
 void
-zpl_vap_init(vattr_t *vap, struct inode *dir, struct dentry *dentry,
-    zpl_umode_t mode, cred_t *cr)
+zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
-	vap->va_dentry = dentry;
 	vap->va_uid = crgetfsuid(cr);
 
 	if (dir && dir->i_mode & S_ISGID) {
@@ -90,12 +92,14 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, dentry, mode, cr);
+	zpl_vap_init(vap, dir, mode, cr);
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
 		VERIFY3S(error, ==, 0);
+		d_instantiate(dentry, ip);
+		d_set_d_op(dentry, &zpl_dentry_operations);
 	}
 
 	kmem_free(vap, sizeof(vattr_t));
@@ -123,11 +127,15 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, dentry, mode, cr);
+	zpl_vap_init(vap, dir, mode, cr);
 	vap->va_rdev = rdev;
 
-	error = -zfs_create(dir, (char *)dentry->d_name.name,
-	    vap, 0, mode, &ip, cr, 0, NULL);
+	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
+	if (error == 0) {
+		d_instantiate(dentry, ip);
+		d_set_d_op(dentry, &zpl_dentry_operations);
+	}
+
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -159,9 +167,14 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, dentry, mode | S_IFDIR, cr);
+	zpl_vap_init(vap, dir, mode | S_IFDIR, cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
+	if (error == 0) {
+		d_instantiate(dentry, ip);
+		d_set_d_op(dentry, &zpl_dentry_operations);
+	}
+
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -262,9 +275,14 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, dentry, S_IFLNK | S_IRWXUGO, cr);
+	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
+	if (error == 0) {
+		d_instantiate(dentry, ip);
+		d_set_d_op(dentry, &zpl_dentry_operations);
+	}
+
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -334,6 +352,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	}
 
 	d_instantiate(dentry, ip);
+	d_set_d_op(dentry, &zpl_dentry_operations);
 out:
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -378,6 +397,44 @@ zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_INODE_FALLOCATE */
 
+static int
+#ifdef HAVE_D_REVALIDATE_NAMEIDATA
+zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
+{
+	unsigned int flags = nd->flags;
+#else
+zpl_revalidate(struct dentry *dentry, unsigned int flags)
+{
+#endif /* HAVE_D_REVALIDATE_NAMEIDATA */
+	zfs_sb_t *zsb = dentry->d_sb->s_fs_info;
+	int error;
+
+	if (flags & LOOKUP_RCU)
+		return (-ECHILD);
+
+	/*
+	 * After a rollback negative dentries created before the rollback
+	 * time must be invalidated.  Otherwise they can obscure files which
+	 * are only present in the rolled back dataset.
+	 */
+	if (dentry->d_inode == NULL) {
+		spin_lock(&dentry->d_lock);
+		error = time_before(dentry->d_time, zsb->z_rollback_time);
+		spin_unlock(&dentry->d_lock);
+
+		if (error)
+			return (0);
+	}
+
+	/*
+	 * The dentry may reference a stale inode if a mounted file system
+	 * was rolled back to a point in time where the object didn't exist.
+	 */
+	if (dentry->d_inode && ITOZ(dentry->d_inode)->z_is_stale)
+		return (0);
+
+	return (1);
+}
 
 const struct inode_operations zpl_inode_operations = {
 	.create		= zpl_create,
@@ -439,4 +496,8 @@ const struct inode_operations zpl_special_inode_operations = {
 	.getxattr	= generic_getxattr,
 	.removexattr	= generic_removexattr,
 	.listxattr	= zpl_xattr_list,
+};
+
+dentry_operations_t zpl_dentry_operations = {
+	.d_revalidate	= zpl_revalidate,
 };
