@@ -95,6 +95,14 @@ bdi_setup_and_register(struct backing_dev_info *bdi,char *name,unsigned int cap)
 #endif /* HAVE_BDI && !HAVE_BDI_SETUP_AND_REGISTER */
 
 /*
+ * 2.6.38 API change,
+ * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
+ */
+#ifndef LOOKUP_RCU
+#define LOOKUP_RCU      0x0
+#endif /* LOOKUP_RCU */
+
+/*
  * 3.2-rc1 API change,
  * Add set_nlink() if it is not exported by the Linux kernel.
  *
