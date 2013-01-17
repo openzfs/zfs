@@ -76,8 +76,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_5ARGS_PROC_HANDLER
 	SPL_AC_KVASPRINTF
 	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
-	SPL_AC_KERNEL_INVALIDATE_INODES
-	SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES
 	SPL_AC_KERNEL_FALLOCATE
 	SPL_AC_SHRINK_DCACHE_MEMORY
 	SPL_AC_SHRINK_ICACHE_MEMORY
@@ -2032,78 +2030,6 @@ AC_DEFUN([SPL_AC_EXPORTED_RWSEM_IS_LOCKED],
 		AC_DEFINE(RWSEM_IS_LOCKED_TAKES_WAIT_LOCK, 1,
 		          [rwsem_is_locked() acquires sem->wait_lock])
 	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.37 API compat,
-dnl # The function invalidate_inodes() is no longer exported by the kernel.
-dnl # The prototype however is still available which means it is safe
-dnl # to acquire the symbol's address using spl_kallsyms_lookup_name().
-dnl #
-dnl # The Proxmox VE kernel contains a patch which renames the function
-dnl # invalidate_inodes() to invalidate_inodes_check().  In the process
-dnl # it adds a 'check' argument and a '#define invalidate_inodes(x)'
-dnl # compatibility wrapper for legacy callers.  Therefore, if either
-dnl # of these functions are exported invalidate_inodes() can be
-dnl # safely used.
-dnl #
-AC_DEFUN([SPL_AC_KERNEL_INVALIDATE_INODES], [
-	AC_MSG_CHECKING([whether invalidate_inodes() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/fs.h>
-	], [
-		invalidate_inodes;
-	], [invalidate_inodes], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INVALIDATE_INODES, 1,
-		          [invalidate_inodes() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether invalidate_inodes_check() is available])
-	SPL_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/fs.h>
-		#ifndef invalidate_inodes
-		#error invalidate_inodes is not a macro
-		#endif
-	], [ ], [invalidate_inodes_check], [], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_INVALIDATE_INODES_CHECK, 1,
-		          [invalidate_inodes_check() is available])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.39 API compat,
-dnl # The function invalidate_inodes() now take 2 arguments.  The second
-dnl # 'kill_dirty' argument describes how invalidate_inodes() should
-dnl # handle dirty inodes.  Only when set will dirty inodes be discarded,
-dnl # otherwise they will be handled as busy.
-dnl #
-dnl # Unfortunately, we don't have access to the invalidate_inodes()
-dnl # prototype so it's not easy to check how many arguments it takes.
-dnl # However, this change was done for the benefit of invalidate_device()
-dnl # which also added an argument.  The invalidate_device() symbol does
-dnl # exist in the development headers so if it takes two arguments we
-dnl # can fairly safely infer that invalidate_inodes() takes two arguments
-dnl # as well.  See commit 93b270f76e7ef3b81001576860c2701931cdc78b.
-dnl #
-AC_DEFUN([SPL_AC_KERNEL_2ARGS_INVALIDATE_INODES],
-	[AC_MSG_CHECKING([whether invalidate_inodes() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		return __invalidate_device(NULL, 0);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_INVALIDATE_INODES, 1,
-		          [invalidate_inodes() wants 2 args])
-	],[
 		AC_MSG_RESULT(no)
 	])
 ])

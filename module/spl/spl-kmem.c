@@ -180,11 +180,6 @@ spl_global_page_state(spl_zone_stat_item_t item)
 #endif /* NEED_GET_ZONE_COUNTS */
 EXPORT_SYMBOL(spl_global_page_state);
 
-#if !defined(HAVE_INVALIDATE_INODES) && !defined(HAVE_INVALIDATE_INODES_CHECK)
-invalidate_inodes_t invalidate_inodes_fn = SYMBOL_POISON;
-EXPORT_SYMBOL(invalidate_inodes_fn);
-#endif /* !HAVE_INVALIDATE_INODES && !HAVE_INVALIDATE_INODES_CHECK */
-
 #ifndef HAVE_SHRINK_DCACHE_MEMORY
 shrink_dcache_memory_t shrink_dcache_memory_fn = SYMBOL_POISON;
 EXPORT_SYMBOL(shrink_dcache_memory_fn);
@@ -2375,15 +2370,6 @@ spl_kmem_init_kallsyms_lookup(void)
 	 * depends on the *_pgdat symbols which are now available.
 	 */
 	spl_kmem_init_globals();
-
-#if !defined(HAVE_INVALIDATE_INODES) && !defined(HAVE_INVALIDATE_INODES_CHECK)
-	invalidate_inodes_fn = (invalidate_inodes_t)
-		spl_kallsyms_lookup_name("invalidate_inodes");
-	if (!invalidate_inodes_fn) {
-		printk(KERN_ERR "Error: Unknown symbol invalidate_inodes\n");
-		return -EFAULT;
-	}
-#endif /* !HAVE_INVALIDATE_INODES && !HAVE_INVALIDATE_INODES_CHECK */
 
 #ifndef HAVE_SHRINK_DCACHE_MEMORY
 	/* When shrink_dcache_memory_fn == NULL support is disabled */

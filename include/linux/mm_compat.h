@@ -44,34 +44,6 @@
 #define high_wmark_pages(z)	(z->pages_high)
 #endif
 
-/*
- * 2.6.37 API compat,
- * The function invalidate_inodes() is no longer exported by the kernel.
- * The prototype however is still available which means it is safe
- * to acquire the symbol's address using spl_kallsyms_lookup_name().
- *
- * 2.6.39 API compat,
- * As for 2.6.39 invalidate_inodes() was updated to take a second
- * argument which controls how dirty inodes should be handled.
- */
-#if defined(HAVE_INVALIDATE_INODES) || defined(HAVE_INVALIDATE_INODES_CHECK)
-# ifdef HAVE_2ARGS_INVALIDATE_INODES
-#  define spl_invalidate_inodes(sb, kd)	invalidate_inodes(sb, kd)
-# else
-#  define spl_invalidate_inodes(sb, kd)	invalidate_inodes(sb)
-# endif /* HAVE_2ARGS_INVALIDATE_INODES */
-#else
-# ifdef HAVE_2ARGS_INVALIDATE_INODES
-typedef int (*invalidate_inodes_t)(struct super_block *sb, bool kd);
-extern invalidate_inodes_t invalidate_inodes_fn;
-#  define spl_invalidate_inodes(sb, kd)	invalidate_inodes_fn(sb, kd)
-# else
-typedef int (*invalidate_inodes_t)(struct super_block *sb);
-extern invalidate_inodes_t invalidate_inodes_fn;
-#  define spl_invalidate_inodes(sb, kd)	invalidate_inodes_fn(sb)
-# endif /* HAVE_2ARGS_INVALIDATE_INODES */
-#endif /* HAVE_INVALIDATE_INODES || HAVE_INVALIDATE_INODES_CHECK */
-
 #if !defined(HAVE_SHRINK_CONTROL_STRUCT)
 struct shrink_control {
 	gfp_t gfp_mask;
