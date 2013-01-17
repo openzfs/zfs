@@ -483,57 +483,6 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 }
 
 /*
- * Clean up any znodes that had no links when we either crashed or
- * (force) umounted the file system.
- */
-void
-zfs_unlinked_drain(zfs_sb_t *zsb)
-{
-	zap_cursor_t	zc;
-	zap_attribute_t zap;
-	dmu_object_info_t doi;
-	znode_t		*zp;
-	int		error;
-
-	/*
-	 * Interate over the contents of the unlinked set.
-	 */
-	for (zap_cursor_init(&zc, zsb->z_os, zsb->z_unlinkedobj);
-	    zap_cursor_retrieve(&zc, &zap) == 0;
-	    zap_cursor_advance(&zc)) {
-
-		/*
-		 * See what kind of object we have in list
-		 */
-
-		error = dmu_object_info(zsb->z_os, zap.za_first_integer, &doi);
-		if (error != 0)
-			continue;
-
-		ASSERT((doi.doi_type == DMU_OT_PLAIN_FILE_CONTENTS) ||
-		    (doi.doi_type == DMU_OT_DIRECTORY_CONTENTS));
-		/*
-		 * We need to re-mark these list entries for deletion,
-		 * so we pull them back into core and set zp->z_unlinked.
-		 */
-		error = zfs_zget(zsb, zap.za_first_integer, &zp);
-
-		/*
-		 * We may pick up znodes that are already marked for deletion.
-		 * This could happen during the purge of an extended attribute
-		 * directory.  All we need to do is skip over them, since they
-		 * are already in the system marked z_unlinked.
-		 */
-		if (error != 0)
-			continue;
-
-		zp->z_unlinked = B_TRUE;
-		iput(ZTOI(zp));
-	}
-	zap_cursor_fini(&zc);
-}
-
-/*
  * Delete the entire contents of a directory.  Return a count
  * of the number of entries that could not be deleted. If we encounter
  * an error, return a count of at least one so that the directory stays
@@ -599,6 +548,71 @@ zfs_purgedir(znode_t *dzp)
 	return (skipped);
 }
 
+/*
+ * Clean up any znodes that had no links when we either crashed or
+ * (force) umounted the file system.
+ */
+void
+zfs_unlinked_drain(zfs_sb_t *zsb)
+{
+	zap_cursor_t	zc;
+	zap_attribute_t zap;
+	dmu_object_info_t doi;
+	znode_t		*zp;
+	int		error;
+
+	/*
+	 * Interate over the contents of the unlinked set.
+	 */
+	for (zap_cursor_init(&zc, zsb->z_os, zsb->z_unlinkedobj);
+	    zap_cursor_retrieve(&zc, &zap) == 0;
+	    zap_cursor_advance(&zc)) {
+
+		/*
+		 * See what kind of object we have in list
+		 */
+
+		error = dmu_object_info(zsb->z_os, zap.za_first_integer, &doi);
+		if (error != 0)
+			continue;
+
+		ASSERT((doi.doi_type == DMU_OT_PLAIN_FILE_CONTENTS) ||
+		    (doi.doi_type == DMU_OT_DIRECTORY_CONTENTS));
+		/*
+		 * We need to re-mark these list entries for deletion,
+		 * so we pull them back into core and set zp->z_unlinked.
+		 */
+		error = zfs_zget(zsb, zap.za_first_integer, &zp);
+
+		/*
+		 * We may pick up znodes that are already marked for deletion.
+		 * This could happen during the purge of an extended attribute
+		 * directory.  All we need to do is skip over them, since they
+		 * are already in the system marked z_unlinked.
+		 */
+		if (error != 0)
+			continue;
+
+		zp->z_unlinked = B_TRUE;
+
+		/*
+		 * If this is an attribute directory, purge its contents.
+		 */
+		if (S_ISDIR(ZTOI(zp)->i_mode) && (zp->z_pflags & ZFS_XATTR)) {
+			/*
+			 * We don't need to check the return value of
+			 * zfs_purgedir here, because zfs_rmnode will just
+			 * return this xattr directory to the unlinked set
+			 * until all of its xattrs are gone.
+			 */
+			(void) zfs_purgedir(zp);
+		}
+
+		iput(ZTOI(zp));
+	}
+	zap_cursor_fini(&zc);
+}
+
 void
 zfs_rmnode(znode_t *zp)
 {
@@ -608,6 +622,7 @@ zfs_rmnode(znode_t *zp)
 	dmu_tx_t	*tx;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
+	uint64_t	count;
 	int		error;
 
 	ASSERT(zp->z_links == 0);
@@ -617,13 +632,27 @@ zfs_rmnode(znode_t *zp)
 	 * If this is an attribute directory, purge its contents.
 	 */
 	if (S_ISDIR(ZTOI(zp)->i_mode) && (zp->z_pflags & ZFS_XATTR)) {
-		if (zfs_purgedir(zp) != 0) {
-			/*
-			 * Not enough space to delete some xattrs.
-			 * Leave it in the unlinked set.
-			 */
+		error = zap_count(os, zp->z_id, &count);
+		if (error) {
 			zfs_znode_dmu_fini(zp);
+			return;
+		}
 
+		if (count > 0) {
+			taskq_t *taskq;
+
+			/*
+			 * There are still directory entries in this xattr
+			 * directory.  Let zfs_unlinked_drain() deal with
+			 * them to avoid deadlocking this process in the
+			 * zfs_purgedir()->zfs_zget()->ilookup() callpath
+			 * on the xattr inode's I_FREEING bit.
+			 */
+			taskq = dsl_pool_iput_taskq(dmu_objset_pool(os));
+			taskq_dispatch(taskq, (task_func_t *)
+			    zfs_unlinked_drain, zsb, TQ_SLEEP);
+
+			zfs_znode_dmu_fini(zp);
 			return;
 		}
 	}
