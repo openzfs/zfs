@@ -34,6 +34,19 @@
 #define SS_DEBUG_SUBSYS SS_KMEM
 
 /*
+ * Cache expiration was implemented because it was part of the default Solaris
+ * kmem_cache behavior.  The idea is that per-cpu objects which haven't been
+ * accessed in several seconds should be returned to the cache.  On the other
+ * hand Linux slabs never move objects back to the slabs unless there is
+ * memory pressure on the system.  By default both methods are disabled, but
+ * may be enabled by setting KMC_EXPIRE_AGE or KMC_EXPIRE_MEM.
+ */
+unsigned int spl_kmem_cache_expire = 0;
+EXPORT_SYMBOL(spl_kmem_cache_expire);
+module_param(spl_kmem_cache_expire, uint, 0644);
+MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
+
+/*
  * The minimum amount of memory measured in pages to be free at all
  * times on the system.  This is similar to Linux's zone->pages_min
  * multiplied by the number of zones and is sized based on that.
@@ -1317,6 +1330,10 @@ spl_cache_age(void *data)
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 
+	/* Dynamically disabled at run time */
+	if (!(spl_kmem_cache_expire & KMC_EXPIRE_AGE))
+		return;
+
 	atomic_inc(&skc->skc_ref);
 	spl_on_each_cpu(spl_magazine_age, skc, 1);
 	spl_slab_reclaim(skc, skc->skc_reap, 0);
@@ -1609,9 +1626,10 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	if (rc)
 		SGOTO(out, rc);
 
-	skc->skc_taskqid = taskq_dispatch_delay(spl_kmem_cache_taskq,
-	    spl_cache_age, skc, TQ_SLEEP,
-	    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
+	if (spl_kmem_cache_expire & KMC_EXPIRE_AGE)
+		skc->skc_taskqid = taskq_dispatch_delay(spl_kmem_cache_taskq,
+		    spl_cache_age, skc, TQ_SLEEP,
+		    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
 
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
@@ -2168,7 +2186,17 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 		} while (do_reclaim);
 	}
 
-	/* Reclaim from the cache, ignoring it's age and delay. */
+	/* Reclaim from the magazine then the slabs ignoring age and delay. */
+	if (spl_kmem_cache_expire & KMC_EXPIRE_MEM) {
+		spl_kmem_magazine_t *skm;
+		int i;
+
+		for_each_online_cpu(i) {
+			skm = skc->skc_mag[i];
+			spl_cache_flush(skc, skm, skm->skm_avail);
+		}
+	}
+
 	spl_slab_reclaim(skc, count, 1);
 	clear_bit(KMC_BIT_REAPING, &skc->skc_flags);
 	smp_mb__after_clear_bit();

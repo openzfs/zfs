@@ -810,7 +810,12 @@ splat_kmem_test8(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
 	kmem_cache_thread_t *kct;
+	unsigned int spl_kmem_cache_expire_old;
 	int i, rc = 0;
+
+	/* Enable cache aging just for this test if it is disabled */
+	spl_kmem_cache_expire_old = spl_kmem_cache_expire;
+	spl_kmem_cache_expire = KMC_EXPIRE_AGE;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST8_NAME,
 					      256, 0, 0);
@@ -882,6 +887,8 @@ out_cache:
 out_kcp:
 	splat_kmem_cache_test_kcp_free(kcp);
 out:
+	spl_kmem_cache_expire = spl_kmem_cache_expire_old;
+
 	return rc;
 }
 
@@ -898,7 +905,12 @@ splat_kmem_test9(struct file *file, void *arg)
 {
 	kmem_cache_priv_t *kcp;
 	kmem_cache_thread_t *kct;
+	unsigned int spl_kmem_cache_expire_old;
 	int i, rc = 0, count = SPLAT_KMEM_OBJ_COUNT * 128;
+
+	/* Enable cache aging just for this test if it is disabled */
+	spl_kmem_cache_expire_old = spl_kmem_cache_expire;
+	spl_kmem_cache_expire = KMC_EXPIRE_AGE;
 
 	kcp = splat_kmem_cache_test_kcp_alloc(file, SPLAT_KMEM_TEST9_NAME,
 					      256, 0, 0);
@@ -968,6 +980,8 @@ out_cache:
 out_kcp:
 	splat_kmem_cache_test_kcp_free(kcp);
 out:
+	spl_kmem_cache_expire = spl_kmem_cache_expire_old;
+
 	return rc;
 }
 

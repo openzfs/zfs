@@ -377,9 +377,13 @@ typedef enum kmem_cbrc {
 #define KMC_ALLOC		(1 << KMC_BIT_ALLOC)
 #define KMC_MAX			(1 << KMC_BIT_MAX)
 
-#define KMC_REAP_CHUNK			INT_MAX
-#define KMC_DEFAULT_SEEKS		1
+#define KMC_REAP_CHUNK		INT_MAX
+#define KMC_DEFAULT_SEEKS	1
 
+#define KMC_EXPIRE_AGE		0x1     /* Due to age */
+#define KMC_EXPIRE_MEM		0x2     /* Due to low memory */
+
+extern unsigned int spl_kmem_cache_expire;
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
 
