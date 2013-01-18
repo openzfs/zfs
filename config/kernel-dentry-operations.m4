@@ -62,3 +62,22 @@ AC_DEFUN([ZFS_AC_KERNEL_D_SET_D_OP],
 		AC_MSG_RESULT(no)
 	])
 ])
+
+dnl #
+dnl # 2.6.38 API chage
+dnl # Added sb->s_d_op default dentry_operations member
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_S_D_OP],
+	[AC_MSG_CHECKING([whether super_block has s_d_op])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		struct super_block sb __attribute__ ((unused));
+		sb.s_d_op = NULL;
+	], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_S_D_OP, 1, [struct super_block has s_d_op])
+	], [
+		AC_MSG_RESULT(no)
+	])
+])

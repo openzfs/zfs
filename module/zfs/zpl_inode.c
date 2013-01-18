@@ -48,6 +48,9 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 	spin_lock(&dentry->d_lock);
 	dentry->d_time = jiffies;
+#ifndef HAVE_S_D_OP
+	d_set_d_op(dentry, &zpl_dentry_operations);
+#endif /* HAVE_S_D_OP */
 	spin_unlock(&dentry->d_lock);
 
 	if (error) {
@@ -99,7 +102,6 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
 		VERIFY3S(error, ==, 0);
 		d_instantiate(dentry, ip);
-		d_set_d_op(dentry, &zpl_dentry_operations);
 	}
 
 	kmem_free(vap, sizeof(vattr_t));
@@ -131,10 +133,8 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	vap->va_rdev = rdev;
 
 	error = -zfs_create(dir, dname(dentry), vap, 0, mode, &ip, cr, 0, NULL);
-	if (error == 0) {
+	if (error == 0)
 		d_instantiate(dentry, ip);
-		d_set_d_op(dentry, &zpl_dentry_operations);
-	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -170,10 +170,8 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
 	zpl_vap_init(vap, dir, mode | S_IFDIR, cr);
 
 	error = -zfs_mkdir(dir, dname(dentry), vap, &ip, cr, 0, NULL);
-	if (error == 0) {
+	if (error == 0)
 		d_instantiate(dentry, ip);
-		d_set_d_op(dentry, &zpl_dentry_operations);
-	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -278,10 +276,8 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
 
 	error = -zfs_symlink(dir, dname(dentry), vap, (char *)name, &ip, cr, 0);
-	if (error == 0) {
+	if (error == 0)
 		d_instantiate(dentry, ip);
-		d_set_d_op(dentry, &zpl_dentry_operations);
-	}
 
 	kmem_free(vap, sizeof(vattr_t));
 	crfree(cr);
@@ -352,7 +348,6 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	}
 
 	d_instantiate(dentry, ip);
-	d_set_d_op(dentry, &zpl_dentry_operations);
 out:
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
