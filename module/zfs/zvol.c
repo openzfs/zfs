@@ -921,23 +921,20 @@ zvol_first_open(zvol_state_t *zv)
 	/* lie and say we're read-only */
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
 
-	if (locked)
-		mutex_exit(&spa_namespace_lock);
-
 	if (error)
-		return (-error);
+		goto out_mutex;
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error) {
 	        dmu_objset_disown(os, zvol_tag);
-	        return (-error);
+	        goto out_mutex;
 	}
 
 	zv->zv_objset = os;
 	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
 	if (error) {
 	        dmu_objset_disown(os, zvol_tag);
-	        return (-error);
+	        goto out_mutex;
 	}
 
 	set_capacity(zv->zv_disk, volsize >> 9);
@@ -952,6 +949,9 @@ zvol_first_open(zvol_state_t *zv)
                 set_disk_ro(zv->zv_disk, 0);
 	        zv->zv_flags &= ~ZVOL_RDONLY;
 	}
+out_mutex:
+	if (locked)
+		mutex_exit(&spa_namespace_lock);
 
 	return (-error);
 }
