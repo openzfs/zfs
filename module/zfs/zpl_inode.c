@@ -396,7 +396,7 @@ static int
 #ifdef HAVE_D_REVALIDATE_NAMEIDATA
 zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
 {
-	unsigned int flags = nd->flags;
+	unsigned int flags = (nd ? nd->flags : 0);
 #else
 zpl_revalidate(struct dentry *dentry, unsigned int flags)
 {
