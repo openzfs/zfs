@@ -1257,13 +1257,13 @@ fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn)
 		return (err);
 
 	err = zap_leaf_lookup(l, zn, &zeh);
-	if (err != 0)
-		return (err);
+	if (err == 0) {
+		zc->zc_leaf = l;
+		zc->zc_hash = zeh.zeh_hash;
+		zc->zc_cd = zeh.zeh_cd;
+	}
 
-	zc->zc_leaf = l;
-	zc->zc_hash = zeh.zeh_hash;
-	zc->zc_cd = zeh.zeh_cd;
-
+	rw_exit(&l->l_rwlock);
 	return (err);
 }
 
