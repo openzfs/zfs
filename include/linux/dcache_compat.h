@@ -60,4 +60,24 @@ d_set_d_op(struct dentry *dentry, dentry_operations_t *op)
 }
 #endif /* HAVE_D_SET_D_OP */
 
+/*
+ * 2.6.38 API addition,
+ * Added d_clear_d_op() helper function which clears some flags and the
+ * registered dentry->d_op table.  This is required because d_set_d_op()
+ * issues a warning when the dentry operations table is already set.
+ * For the .zfs control directory to work properly we must be able to
+ * override the default operations table and register custom .d_automount
+ * and .d_revalidate callbacks.
+ */
+static inline void
+d_clear_d_op(struct dentry *dentry)
+{
+#ifdef HAVE_D_SET_D_OP
+	dentry->d_op = NULL;
+	dentry->d_flags &=
+	    ~(DCACHE_OP_HASH | DCACHE_OP_COMPARE |
+	      DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
+#endif /* HAVE_D_SET_D_OP */
+}
+
 #endif /* _ZFS_DCACHE_H */
