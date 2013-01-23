@@ -267,6 +267,7 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 		return ERR_PTR(error);
 
 	ASSERT(error == 0 || ip == NULL);
+	d_clear_d_op(dentry);
 	d_set_d_op(dentry, &zpl_dops_snapdirs);
 
 	return d_splice_alias(ip, dentry);
@@ -370,6 +371,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {
+		d_clear_d_op(dentry);
 		d_set_d_op(dentry, &zpl_dops_snapdirs);
 		d_instantiate(dentry, ip);
 	}
