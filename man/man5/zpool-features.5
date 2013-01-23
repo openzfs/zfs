@@ -1,5 +1,6 @@
 '\" te
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -195,6 +196,39 @@ empty bpobjs.
 
 This feature is \fBactive\fR while there are any filesystems, volumes,
 or snapshots which were created after enabling this feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBlz4_compress\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:lz4_compress
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+\fBlz4\fR is a high-performance real-time compression algorithm that
+features significantly faster compression and decompression as well as a
+higher compression ratio than the older \fBlzjb\fR compression.
+Typically, \fBlz4\fR compression is approximately 50% faster on
+compressible data and 200% faster on incompressible data than
+\fBlzjb\fR. It is also approximately 80% faster on decompression, while
+giving approximately 10% better compression ratio.
+
+When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBlz4\fR compression on any dataset on the
+pool using the \fBzfs\fR(1M) command. Please note that doing so will
+immediately activate the \fBlz4_compress\fR feature on the underlying
+pool (even before any data is written). Since this feature is not
+read-only compatible, this operation will render the pool unimportable
+on systems without support for the \fBlz4_compress\fR feature. At the
+moment, this operation cannot be reversed. Booting off of
+\fBlz4\fR-compressed root pools is supported.
+
 .RE
 
 .SH "SEE ALSO"

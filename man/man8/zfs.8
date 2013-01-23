@@ -25,6 +25,7 @@
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\" Copyright (c) 2012, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\"
 .TH zfs 8 "Jan 10, 2013" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
@@ -731,7 +732,7 @@ Changing this property affects only newly-written data.
 .ne 2
 .mk
 .na
-\fBcompression\fR=\fBon\fR | \fBoff\fR | \fBlzjb\fR | \fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR
+\fBcompression\fR=\fBon\fR | \fBoff\fR | \fBlzjb\fR | \fBgzip\fR | \fBgzip-\fR\fIN\fR | \fBzle\fR | \fBlz4\fR
 .ad
 .sp .6
 .RS 4n
@@ -740,6 +741,14 @@ Controls the compression algorithm used for this dataset. The \fBlzjb\fR compres
 The \fBgzip\fR compression algorithm uses the same compression as the \fBgzip\fR(1) command. You can specify the \fBgzip\fR level by using the value \fBgzip-\fR\fIN\fR where \fIN\fR is an integer from 1 (fastest) to 9 (best compression ratio). Currently, \fBgzip\fR is equivalent to \fBgzip-6\fR (which is also the default for \fBgzip\fR(1)).
 .sp
 The \fBzle\fR (zero-length encoding) compression algorithm is a fast and simple algorithm to eliminate runs of zeroes.
+.sp
+The \fBlz4\fR compression algorithm is a high-performance replacement
+for the \fBlzjb\fR algorithm. It features significantly faster
+compression and decompression, as well as a moderately higher
+compression ratio than \fBlzjb\fR, but can only be used on pools with
+the \fBlz4_compress\fR feature set to \fIenabled\fR. See
+\fBzpool-features\fR(5) for details on ZFS feature flags and the
+\fBlz4_compress\fR feature.
 .sp
 This property can also be referred to by its shortened column name \fBcompress\fR. Changing this property affects only newly-written data.
 .RE
