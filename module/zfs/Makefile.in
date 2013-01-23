@@ -32,6 +32,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/dsl_synctask.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/fm.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/gzip.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/lzjb.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/lz4.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/metaslab.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/refcount.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/rrwlock.o

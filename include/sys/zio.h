@@ -25,6 +25,7 @@
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #ifndef _ZIO_H
@@ -108,6 +109,7 @@ enum zio_compress {
 	ZIO_COMPRESS_GZIP_8,
 	ZIO_COMPRESS_GZIP_9,
 	ZIO_COMPRESS_ZLE,
+	ZIO_COMPRESS_LZ4,
 	ZIO_COMPRESS_FUNCTIONS
 };
 
@@ -116,6 +118,7 @@ enum zio_compress {
 
 #define	BOOTFS_COMPRESS_VALID(compress)			\
 	((compress) == ZIO_COMPRESS_LZJB ||		\
+	(compress) == ZIO_COMPRESS_LZ4 ||		\
 	((compress) == ZIO_COMPRESS_ON &&		\
 	ZIO_COMPRESS_ON_VALUE == ZIO_COMPRESS_LZJB) ||	\
 	(compress) == ZIO_COMPRESS_OFF)

@@ -27,6 +27,7 @@
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -74,6 +75,8 @@
 #include <sharefs/share.h>
 #include <sys/dmu_objset.h>
 #include <sys/fm/util.h>
+
+#include <sys/zfeature.h>
 
 #include <linux/miscdevice.h>
 
@@ -127,6 +130,12 @@ static int zfs_check_clearable(char *dataset, nvlist_t *props,
 static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t **);
+
+static int zfs_prop_activate_feature(dsl_pool_t *dp, zfeature_info_t *feature);
+static int zfs_prop_activate_feature_check(void *arg1, void *arg2,
+    dmu_tx_t *tx);
+static void zfs_prop_activate_feature_sync(void *arg1, void *arg2,
+    dmu_tx_t *tx);
 
 static void
 history_str_free(char *buf)
@@ -2196,6 +2205,40 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
+	case ZFS_PROP_COMPRESSION:
+	{
+		if (intval == ZIO_COMPRESS_LZ4) {
+			zfeature_info_t *feature =
+			    &spa_feature_table[SPA_FEATURE_LZ4_COMPRESS];
+			spa_t *spa;
+			dsl_pool_t *dp;
+
+			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+				return (err);
+
+			dp = spa->spa_dsl_pool;
+
+			/*
+			 * Setting the LZ4 compression algorithm activates
+			 * the feature.
+			 */
+			if (!spa_feature_is_active(spa, feature)) {
+				if ((err = zfs_prop_activate_feature(dp,
+				    feature)) != 0) {
+					spa_close(spa, FTAG);
+					return (err);
+				}
+			}
+
+			spa_close(spa, FTAG);
+		}
+		/*
+		 * We still want the default set action to be performed in the
+		 * caller, we only performed zfeature settings here.
+		 */
+		err = -1;
+		break;
+	}
 
 	default:
 		err = -1;
@@ -3416,6 +3459,22 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (ENOTSUP);
 
+			if (intval == ZIO_COMPRESS_LZ4) {
+				zfeature_info_t *feature =
+				    &spa_feature_table[
+				    SPA_FEATURE_LZ4_COMPRESS];
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa, feature)) {
+					spa_close(spa, FTAG);
+					return (ENOTSUP);
+				}
+				spa_close(spa, FTAG);
+			}
+
 			/*
 			 * If this is a bootable dataset then
 			 * verify that the compression algorithm
@@ -3459,6 +3518,56 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	}
 
 	return (zfs_secpolicy_setprop(dsname, prop, pair, CRED()));
+}
+
+/*
+ * Activates a feature on a pool in response to a property setting. This
+ * creates a new sync task which modifies the pool to reflect the feature
+ * as being active.
+ */
+static int
+zfs_prop_activate_feature(dsl_pool_t *dp, zfeature_info_t *feature)
+{
+	int err;
+
+	/* EBUSY here indicates that the feature is already active */
+	err = dsl_sync_task_do(dp, zfs_prop_activate_feature_check,
+	    zfs_prop_activate_feature_sync, dp->dp_spa, feature, 2);
+
+	if (err != 0 && err != EBUSY)
+		return (err);
+	else
+		return (0);
+}
+
+/*
+ * Checks for a race condition to make sure we don't increment a feature flag
+ * multiple times.
+ */
+/*ARGSUSED*/
+static int
+zfs_prop_activate_feature_check(void *arg1, void *arg2, dmu_tx_t *tx)
+{
+	spa_t *spa = arg1;
+	zfeature_info_t *feature = arg2;
+
+	if (!spa_feature_is_active(spa, feature))
+		return (0);
+	else
+		return (EBUSY);
+}
+
+/*
+ * The callback invoked on feature activation in the sync task caused by
+ * zfs_prop_activate_feature.
+ */
+static void
+zfs_prop_activate_feature_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+{
+	spa_t *spa = arg1;
+	zfeature_info_t *feature = arg2;
+
+	spa_feature_incr(spa, feature, tx);
 }
 
 /*
