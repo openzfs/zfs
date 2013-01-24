@@ -124,7 +124,7 @@ init() {
 	# set to ensure the udev rule is correctly replaced on exit.
 	local RULE=${udevruledir}/90-zfs.rules
 	if test -e  ${RULE}; then
-		trap "mv ${RULE}.disabled ${RULE}; exit $?" INT TERM EXIT
+		trap "mv ${RULE}.disabled ${RULE}" INT TERM EXIT
 		mv ${RULE} ${RULE}.disabled
 	fi
 }
