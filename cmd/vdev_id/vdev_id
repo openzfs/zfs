@@ -112,7 +112,7 @@ map_slot() {
 	local LINUX_SLOT=$1
 	local MAPPED_SLOT=
 
-	MAPPED_SLOT=`awk "/^slot / && \\$2 == ${LINUX_SLOT} \
+	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} \
 			{ print \\$3; exit }" $CONFIG`
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
@@ -127,13 +127,13 @@ map_channel() {
 
 	case $TOPOLOGY in
 		"sas_switch")
-		MAPPED_CHAN=`awk "/^channel / && \\$2 == ${PORT} \
+		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \\$2 == ${PORT} \
 			{ print \\$3; exit }" $CONFIG`
 		;;
 		"sas_direct")
-		MAPPED_CHAN=`awk "/^channel / && \\$2 == \"${PCI_ID}\" && \
-				\\$3 == ${PORT} { print \\$4; exit }" \
-				$CONFIG`
+		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \
+			\\$2 == \"${PCI_ID}\" && \\$3 == ${PORT} \
+			{ print \\$4; exit }" $CONFIG`
 		;;
 	esac
 	printf "%s" ${MAPPED_CHAN}
@@ -141,7 +141,8 @@ map_channel() {
 
 sas_handler() {
 	if [ -z "$PHYS_PER_PORT" ] ; then
-		PHYS_PER_PORT=`awk "/^phys_per_port /{print \\$2;exit}" $CONFIG`
+		PHYS_PER_PORT=`awk "\\$1 == \"phys_per_port\" \
+			{print \\$2; exit}" $CONFIG`
 	fi
 	PHYS_PER_PORT=${PHYS_PER_PORT:-4}
 	if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
@@ -150,7 +151,8 @@ sas_handler() {
 	fi
 
 	if [ -z "$MULTIPATH_MODE" ] ; then
-		MULTIPATH_MODE=`awk "/^multipath /{print \\$2; exit}" $CONFIG`
+		MULTIPATH_MODE=`awk "\\$1 == \"multipath\" \
+			{print \\$2; exit}" $CONFIG`
 	fi
 
 	# Use first running component device if we're handling a dm-mpath device
@@ -303,7 +305,7 @@ alias_handler () {
 		fi
 		# Check both the fully qualified and the base name of link.
 		for l in $link `basename $link` ; do
-			alias=`awk "/^alias / && \\$3 == \"${l}\" \
+			alias=`awk "\\$1 == \"alias\" && \\$3 == \"${l}\" \
 					{ print \\$2; exit }" $CONFIG`
 			if [ -n "$alias" ] ; then
 				echo ${alias}${DM_PART}
@@ -346,7 +348,7 @@ if [ -z "$DEV" ] ; then
 fi
 
 if [ -z "$TOPOLOGY" ] ; then
-	TOPOLOGY=`awk "/^topology /{print \\$2; exit}" $CONFIG`
+	TOPOLOGY=`awk "\\$1 == \"topology\" {print \\$2; exit}" $CONFIG`
 fi
 
 # First check if an alias was defined for this device.
