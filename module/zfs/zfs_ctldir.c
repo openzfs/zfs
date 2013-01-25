@@ -443,7 +443,7 @@ zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
 
 	ZFS_ENTER(zsb);
 
-	error = dmu_snapshot_id(zsb->z_os, name, &id);
+	error = dmu_snapshot_lookup(zsb->z_os, name, &id);
 	if (error) {
 		ZFS_EXIT(zsb);
 		return (error);
@@ -909,7 +909,7 @@ zfsctl_lookup_objset(struct super_block *sb, uint64_t objsetid, zfs_sb_t **zsbp)
 	 */
 	sep = avl_first(&zsb->z_ctldir_snaps);
 	while (sep != NULL) {
-		error = dmu_snapshot_id(zsb->z_os, sep->se_name, &id);
+		error = dmu_snapshot_lookup(zsb->z_os, sep->se_name, &id);
 		if (error)
 			goto out;
 

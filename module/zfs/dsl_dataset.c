@@ -314,7 +314,7 @@ dsl_dataset_get_snapname(dsl_dataset_t *ds)
 	return (err);
 }
 
-static int
+int
 dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name, uint64_t *value)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
