@@ -1056,8 +1056,8 @@ zfs_acl_node_read(znode_t *zp, boolean_t have_lock, zfs_acl_t **aclpp,
     boolean_t will_modify)
 {
 	zfs_acl_t	*aclp;
-	int		aclsize;
-	int		acl_count;
+	int		aclsize = 0;
+	int		acl_count = 0;
 	zfs_acl_node_t	*aclnode;
 	zfs_acl_phys_t	znode_acl;
 	int		version;
