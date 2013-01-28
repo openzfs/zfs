@@ -393,6 +393,15 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_1ARG_INVALIDATE_BDEV */
 
 /*
+ * 2.6.27 API change
+ * The function was exported for use, prior to this it existed by the
+ * symbol was not exported.
+ */
+#ifndef HAVE_LOOKUP_BDEV
+# define lookup_bdev(path)		ERR_PTR(-ENOTSUP)
+#endif
+
+/*
  * 2.6.30 API change
  * To ensure good performance preferentially use the physical block size
  * for proper alignment.  The physical size is supposed to be the internal
