@@ -430,7 +430,7 @@ differ(void *arg)
 
 	if ((ofp = fdopen(di->outputfd, "w")) == NULL) {
 		di->zerr = errno;
-		(void) strerror_r(errno, di->errbuf, sizeof (di->errbuf));
+		strncpy(di->errbuf, strerror(errno), sizeof (di->errbuf));
 		(void) close(di->datafd);
 		return ((void *)-1);
 	}
