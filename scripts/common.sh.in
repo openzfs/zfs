@@ -116,6 +116,27 @@ skip() {
 	echo -e "${COLOR_BROWN}Skip${COLOR_RESET}"
 }
 
+populate() {
+	local ROOT=$1
+	local MAX_DIR_SIZE=$2
+	local MAX_FILE_SIZE=$3
+
+	mkdir -p $ROOT/{a,b,c,d,e,f,g}/{h,i}
+	DIRS=`find $ROOT`
+
+	for DIR in $DIRS; do
+		COUNT=$(($RANDOM % $MAX_DIR_SIZE))
+
+		for i in `seq $COUNT`; do
+			FILE=`mktemp -p ${DIR}`
+			SIZE=$(($RANDOM % $MAX_FILE_SIZE))
+			dd if=/dev/urandom of=$FILE bs=1k count=$SIZE &>/dev/null
+		done
+	done
+
+	return 0
+}
+
 init() {
 	# Disable the udev rule 90-zfs.rules to prevent the zfs module
 	# stack from being loaded due to the detection of a zfs device.
@@ -127,6 +148,12 @@ init() {
 		trap "mv ${RULE}.disabled ${RULE}" INT TERM EXIT
 		mv ${RULE} ${RULE}.disabled
 	fi
+
+	# Create a random directory tree of files and sub-directories to
+	# to act as a copy source for the various regression tests.
+	SRC_DIR=`mktemp -d -p /var/tmp/ zfs.src.XXXXXXXX`
+	trap "rm -Rf $SRC_DIR" INT TERM EXIT
+	populate $SRC_DIR 10 100
 }
 
 spl_dump_log() {

@@ -288,7 +288,6 @@ test_5() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=fish
 	local FULL_NAME=${POOL_NAME}/${ZVOL_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
@@ -306,11 +305,11 @@ test_5() {
 	sync
 
 	# Verify the copied files match the original files.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 9
 
 	# Remove the files, umount, destroy the volume and pool.
-	rm -Rf /tmp/${ZVOL_NAME}-part1${SRC_DIR}* || fail 10
+	rm -Rf /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} || fail 10
 	umount /tmp/${ZVOL_NAME}-part1 || fail 11
 	rmdir /tmp/${ZVOL_NAME}-part1 || fail 12
 
@@ -330,7 +329,6 @@ test_6() {
 	local SNAP_NAME=pristine
 	local FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
@@ -359,9 +357,9 @@ test_6() {
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null && fail 13
 
 	# umount, destroy the snapshot, volume, and pool.
@@ -390,7 +388,6 @@ test_7() {
 	local FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
 	local FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
@@ -419,9 +416,9 @@ test_7() {
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null && fail 13
 
 	# Clone from the original pristine snapshot
@@ -477,7 +474,6 @@ test_8() {
 	local FULL_ZVOL_NAME2=${POOL_NAME2}/${ZVOL_NAME}
 	local FULL_SNAP_NAME1=${POOL_NAME1}/${ZVOL_NAME}@${SNAP_NAME}
 	local FULL_SNAP_NAME2=${POOL_NAME2}/${ZVOL_NAME}@${SNAP_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create two pools and a volume
