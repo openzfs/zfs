@@ -7,7 +7,6 @@ arch=(x86_64)
 url="git://github.com/zfsonlinux/zfs.git"
 license=(@ZFS_META_LICENSE@)
 depends=('spl' 'zlib' 'e2fsprogs')
-backup=('etc/zfs/zdev.conf')
 source=(@ZFS_META_NAME@-@ZFS_META_VERSION@.tar.gz)
 
 build() {

@@ -98,9 +98,7 @@ AC_CONFIG_FILES([
 	cmd/zpios/Makefile
 	cmd/mount_zfs/Makefile
 	cmd/fsck_zfs/Makefile
-	cmd/zpool_layout/Makefile
 	cmd/zvol_id/Makefile
-	cmd/zpool_id/Makefile
 	cmd/vdev_id/Makefile
 	module/Makefile
 	module/avl/Makefile
@@ -119,7 +117,6 @@ AC_CONFIG_FILES([
 	scripts/zpios-profile/Makefile
 	scripts/zpios-test/Makefile
 	scripts/zpool-config/Makefile
-	scripts/zpool-layout/Makefile
 	scripts/common.sh
 	zfs.spec
 	zfs-modules.spec

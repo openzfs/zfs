@@ -1,4 +1,4 @@
-SUBDIRS = zpool-config zpool-layout zpios-test zpios-profile
+SUBDIRS = zpool-config zpios-test zpios-profile
 
 pkglibexecdir = $(libexecdir)/@PACKAGE@
 dist_pkglibexec_SCRIPTS = \

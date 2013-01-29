@@ -1,9 +1,0 @@
-#
-# @udevdir@/rules.d/60-zpool.rules
-#
-
-ENV{DEVTYPE}=="disk", IMPORT{program}="@udevdir@/zpool_id -d %p"
-
-KERNEL=="*[!0-9]", ENV{SUBSYSTEM}=="block", ENV{ID_ZPOOL}=="?*", SYMLINK+="$env{ID_ZPOOL_PATH}"
-KERNEL=="*[0-9]", ENV{SUBSYSTEM}=="block", ENV{DEVTYPE}=="partition", ENV{ID_ZPOOL}=="?*", SYMLINK+="$env{ID_ZPOOL_PATH}-part%n"
-KERNEL=="dm-[0-9]*", ENV{SUBSYSTEM}=="block", ENV{ID_ZPOOL}=="?*", SYMLINK+="$env{ID_ZPOOL_PATH}"

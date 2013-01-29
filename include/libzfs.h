@@ -57,7 +57,7 @@ extern "C" {
 #define	DISK_ROOT		"/dev"
 #define	UDISK_ROOT		"/dev/disk"
 
-#define	DEFAULT_IMPORT_PATH_SIZE	8
+#define	DEFAULT_IMPORT_PATH_SIZE	7
 extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 
 /*

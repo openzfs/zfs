@@ -76,7 +76,6 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-, root, root)
 %{_sbindir}/*
-%{_bindir}/*
 %{_libdir}/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
@@ -84,7 +83,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %config %{_sysconfdir}/init.d/*
 %config %{_sysconfdir}/zfs/*
-%config(noreplace) %{_sysconfdir}/zfs/zdev.conf
 
 %doc AUTHORS COPYING COPYRIGHT DISCLAIMER
 %doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
