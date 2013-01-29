@@ -593,10 +593,12 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 	    sizeof (sa_hdr_phys_t);
 
 	full_space = (buftype == SA_BONUS) ? DN_MAX_BONUSLEN : db->db_size;
+	ASSERT(IS_P2ALIGNED(full_space, 8));
 
 	for (i = 0; i != attr_count; i++) {
 		boolean_t is_var_sz;
 
+		*total = P2ROUNDUP(*total, 8);
 		*total += attr_desc[i].sa_length;
 		if (done)
 			goto next;
@@ -728,12 +730,15 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	for (i = 0, len_idx = 0, hash = -1ULL; i != attr_count; i++) {
 		uint16_t length;
 
+		ASSERT(IS_P2ALIGNED(data_start, 8));
+		ASSERT(IS_P2ALIGNED(buf_space, 8));
 		attrs[i] = attr_desc[i].sa_attr;
 		length = SA_REGISTERED_LEN(sa, attrs[i]);
 		if (length == 0)
 			length = attr_desc[i].sa_length;
 
 		if (buf_space < length) {  /* switch to spill buffer */
+			VERIFY(spilling);
 			VERIFY(bonustype == DMU_OT_SA);
 			if (buftype == SA_BONUS && !sa->sa_force_spill) {
 				sa_find_layout(hdl->sa_os, hash, attrs_start,
