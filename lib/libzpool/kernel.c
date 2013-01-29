@@ -175,8 +175,7 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	 * on Linux.
 	 */
 
-	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) * 4 +
-			EXTRA_GUARD_BYTES;
+	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) * 4;
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);

@@ -190,12 +190,6 @@ extern void vpanic(const char *, __va_list);
 #define	STACK_SIZE		24576	/* Solaris */
 #endif
 
-#ifdef NPTL_GUARD_WITHIN_STACK
-#define	EXTRA_GUARD_BYTES	PAGESIZE
-#else
-#define	EXTRA_GUARD_BYTES	0
-#endif
-
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
 	uintptr_t	this_is_never_used_dont_dereference_it;
