@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright 2011 Martin Matuska
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -34,7 +34,76 @@
 #include <sys/spa_impl.h>
 
 /*
- * Pool-wide transaction groups.
+ * ZFS Transaction Groups
+ * ----------------------
+ *
+ * ZFS transaction groups are, as the name implies, groups of transactions
+ * that act on persistent state. ZFS asserts consistency at the granularity of
+ * these transaction groups. Each successive transaction group (txg) is
+ * assigned a 64-bit consecutive identifier. There are three active
+ * transaction group states: open, quiescing, or syncing. At any given time,
+ * there may be an active txg associated with each state; each active txg may
+ * either be processing, or blocked waiting to enter the next state. There may
+ * be up to three active txgs, and there is always a txg in the open state
+ * (though it may be blocked waiting to enter the quiescing state). In broad
+ * strokes, transactions — operations that change in-memory structures — are
+ * accepted into the txg in the open state, and are completed while the txg is
+ * in the open or quiescing states. The accumulated changes are written to
+ * disk in the syncing state.
+ *
+ * Open
+ *
+ * When a new txg becomes active, it first enters the open state. New
+ * transactions — updates to in-memory structures — are assigned to the
+ * currently open txg. There is always a txg in the open state so that ZFS can
+ * accept new changes (though the txg may refuse new changes if it has hit
+ * some limit). ZFS advances the open txg to the next state for a variety of
+ * reasons such as it hitting a time or size threshold, or the execution of an
+ * administrative action that must be completed in the syncing state.
+ *
+ * Quiescing
+ *
+ * After a txg exits the open state, it enters the quiescing state. The
+ * quiescing state is intended to provide a buffer between accepting new
+ * transactions in the open state and writing them out to stable storage in
+ * the syncing state. While quiescing, transactions can continue their
+ * operation without delaying either of the other states. Typically, a txg is
+ * in the quiescing state very briefly since the operations are bounded by
+ * software latencies rather than, say, slower I/O latencies. After all
+ * transactions complete, the txg is ready to enter the next state.
+ *
+ * Syncing
+ *
+ * In the syncing state, the in-memory state built up during the open and (to
+ * a lesser degree) the quiescing states is written to stable storage. The
+ * process of writing out modified data can, in turn modify more data. For
+ * example when we write new blocks, we need to allocate space for them; those
+ * allocations modify metadata (space maps)... which themselves must be
+ * written to stable storage. During the sync state, ZFS iterates, writing out
+ * data until it converges and all in-memory changes have been written out.
+ * The first such pass is the largest as it encompasses all the modified user
+ * data (as opposed to filesystem metadata). Subsequent passes typically have
+ * far less data to write as they consist exclusively of filesystem metadata.
+ *
+ * To ensure convergence, after a certain number of passes ZFS begins
+ * overwriting locations on stable storage that had been allocated earlier in
+ * the syncing state (and subsequently freed). ZFS usually allocates new
+ * blocks to optimize for large, continuous, writes. For the syncing state to
+ * converge however it must complete a pass where no new blocks are allocated
+ * since each allocation requires a modification of persistent metadata.
+ * Further, to hasten convergence, after a prescribed number of passes, ZFS
+ * also defers frees, and stops compressing.
+ *
+ * In addition to writing out user data, we must also execute synctasks during
+ * the syncing context. A synctask is the mechanism by which some
+ * administrative activities work such as creating and destroying snapshots or
+ * datasets. Note that when a synctask is initiated it enters the open txg,
+ * and ZFS then pushes that txg as quickly as possible to completion of the
+ * syncing state in order to reduce the latency of the administrative
+ * activity. To complete the syncing state, ZFS writes out a new uberblock,
+ * the root of the tree of blocks that comprise all state stored on the ZFS
+ * pool. Finally, if there is a quiesced txg waiting, we signal that it can
+ * now transition to the syncing state.
  */
 
 static void txg_sync_thread(dsl_pool_t *dp);
