@@ -572,6 +572,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 {
 	int var_size = 0;
 	int i;
+	int j = -1;
 	int full_space;
 	int hdrsize;
 	boolean_t done = B_FALSE;
@@ -611,7 +612,14 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		if (is_var_sz && var_size > 1) {
 			if (P2ROUNDUP(hdrsize + sizeof (uint16_t), 8) +
 			    *total < full_space) {
+				/*
+				 * Account for header space used by array of
+				 * optional sizes of variable-length attributes.
+				 * Record the index in case this increase needs
+				 * to be reversed due to spill-over.
+				 */
 				hdrsize += sizeof (uint16_t);
+				j = i;
 			} else {
 				done = B_TRUE;
 				*index = i;
@@ -639,6 +647,14 @@ next:
 		    buftype == SA_BONUS)
 			*will_spill = B_TRUE;
 	}
+
+	/*
+	 * j holds the index of the last variable-sized attribute for
+	 * which hdrsize was increased.  Reverse the increase if that
+	 * attribute will be relocated to the spill block.
+	 */
+	if (*will_spill && j == *index)
+		hdrsize -= sizeof (uint16_t);
 
 	hdrsize = P2ROUNDUP(hdrsize, 8);
 	return (hdrsize);
