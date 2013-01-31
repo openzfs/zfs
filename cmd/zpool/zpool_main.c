@@ -4090,8 +4090,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "but some features are unavailable.\n"));
 		(void) printf(gettext("action: Upgrade the pool using 'zpool "
 		    "upgrade'.  Once this is done, the\n\tpool will no longer "
-		    "be accessible on software that does not support feature\n"
-		    "\tflags.\n"));
+		    "be accessible on software that does not support\n\t"
+		    "feature flags.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_NEWER:
