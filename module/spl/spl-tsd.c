@@ -531,6 +531,8 @@ tsd_destroy(uint_t *keyp)
 	HLIST_HEAD(work);
 	tsd_hash_table_t *table;
 	tsd_hash_entry_t *dtor_entry, *entry;
+	tsd_hash_bin_t *dtor_entry_bin, *entry_bin;
+	ulong_t hash;
 	SENTRY;
 
 	table = tsd_hash_table;
@@ -554,12 +556,25 @@ tsd_destroy(uint_t *keyp)
 				   tsd_hash_entry_t, he_key_list);
 		ASSERT3U(dtor_entry->he_key, ==, entry->he_key);
 		ASSERT3P(dtor_entry->he_dtor, ==, entry->he_dtor);
+
+		hash = hash_long((ulong_t)entry->he_key *
+		     (ulong_t)entry->he_pid, table->ht_bits);
+		entry_bin = &table->ht_bins[hash];
+
+		spin_lock(&entry_bin->hb_lock);
 		tsd_hash_del(table, entry);
 		hlist_add_head(&entry->he_list, &work);
+		spin_unlock(&entry_bin->hb_lock);
 	}
 
+	hash = hash_long((ulong_t)dtor_entry->he_key *
+	    (ulong_t)dtor_entry->he_pid, table->ht_bits);
+	dtor_entry_bin = &table->ht_bins[hash];
+
+	spin_lock(&dtor_entry_bin->hb_lock);
 	tsd_hash_del(table, dtor_entry);
 	hlist_add_head(&dtor_entry->he_list, &work);
+	spin_unlock(&dtor_entry_bin->hb_lock);
 	spin_unlock(&table->ht_lock);
 
 	tsd_hash_dtor(&work);
@@ -583,6 +598,8 @@ tsd_exit(void)
 	HLIST_HEAD(work);
 	tsd_hash_table_t *table;
 	tsd_hash_entry_t *pid_entry, *entry;
+	tsd_hash_bin_t *pid_entry_bin, *entry_bin;
+	ulong_t hash;
 	SENTRY;
 
 	table = tsd_hash_table;
@@ -599,18 +616,32 @@ tsd_exit(void)
 	/*
 	 * All keys associated with this pid must be linked off of the
 	 * PID_KEY entry.  They are removed from the hash table and
-	 * linked in to a private working to be destroyed.
+	 * linked in to a private working list to be destroyed.
 	 */
+
         while (!list_empty(&pid_entry->he_pid_list)) {
 		entry = list_entry(pid_entry->he_pid_list.next,
 				   tsd_hash_entry_t, he_pid_list);
 		ASSERT3U(pid_entry->he_pid, ==, entry->he_pid);
+
+		hash = hash_long((ulong_t)entry->he_key *
+		    (ulong_t)entry->he_pid, table->ht_bits);
+		entry_bin = &table->ht_bins[hash];
+
+		spin_lock(&entry_bin->hb_lock);
 		tsd_hash_del(table, entry);
 		hlist_add_head(&entry->he_list, &work);
+		spin_unlock(&entry_bin->hb_lock);
 	}
 
+	hash = hash_long((ulong_t)pid_entry->he_key *
+	    (ulong_t)pid_entry->he_pid, table->ht_bits);
+	pid_entry_bin = &table->ht_bins[hash];
+
+	spin_lock(&pid_entry_bin->hb_lock);
 	tsd_hash_del(table, pid_entry);
 	hlist_add_head(&pid_entry->he_list, &work);
+	spin_unlock(&pid_entry_bin->hb_lock);
 	spin_unlock(&table->ht_lock);
 
 	tsd_hash_dtor(&work);
