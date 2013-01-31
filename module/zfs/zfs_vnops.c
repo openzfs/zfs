@@ -230,6 +230,8 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	if (flag & O_SYNC)
 		zp->z_sync_cnt = 0;
 
+	zp->z_fsync_cnt = 0;
+
 	if (!zfs_has_ctldir(zp) && zsb->z_vscan && S_ISREG(ip->i_mode) &&
 	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
 		VERIFY(zfs_vscan(ip, cr, 1) == 0);
@@ -2070,7 +2072,16 @@ out:
 }
 EXPORT_SYMBOL(zfs_readdir);
 
-ulong_t zfs_fsync_sync_cnt = 4;
+/*
+ * This is an optimization designed to minimize contention on the zl_lock
+ * from zil_commit().  The idea is that zfs_fsync() can set a count which
+ * is used by zfs_log_write() to mark the next few writes as synchronous.
+ * This effectively reduces the fsync(2) time for certain workloads.
+ *
+ * N.B. In the Linux implementation this counter is per-file and in all
+ * other implementation it is per-thread.
+ */
+unsigned long zfs_fsync_sync_cnt = 4;
 
 int
 zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
@@ -2078,7 +2089,7 @@ zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
 	znode_t	*zp = ITOZ(ip);
 	zfs_sb_t *zsb = ITOZSB(ip);
 
-	(void) tsd_set(zfs_fsyncer_key, (void *)zfs_fsync_sync_cnt);
+	zp->z_fsync_cnt = zfs_fsync_sync_cnt;
 
 	if (zsb->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		ZFS_ENTER(zsb);
@@ -4520,4 +4531,7 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_read_chunk_size, long, 0644);
 MODULE_PARM_DESC(zfs_read_chunk_size, "Bytes to read per chunk");
+
+module_param(zfs_fsync_sync_cnt, long, 0644);
+MODULE_PARM_DESC(zfs_fsync_sync_cnt, "Number of sync writes after fsync(2)");
 #endif

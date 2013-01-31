@@ -475,9 +475,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	else
 		write_state = WR_NEED_COPY;
 
-	if ((fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key)) != 0) {
-		(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt - 1));
-	}
+	if ((fsync_cnt = zp->z_fsync_cnt) != 0)
+		zp->z_fsync_cnt--;
 
 	while (resid) {
 		itx_t *itx;

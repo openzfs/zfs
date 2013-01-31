@@ -378,6 +378,7 @@ zfs_znode_alloc(zfs_sb_t *zsb, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
+	zp->z_fsync_cnt = 0;
 	zp->z_is_zvol = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;

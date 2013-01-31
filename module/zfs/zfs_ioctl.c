@@ -5309,7 +5309,6 @@ zfs_detach(void)
 	list_destroy(&zfsdev_state_list);
 }
 
-uint_t zfs_fsyncer_key;
 extern uint_t rrw_tsd_key;
 
 #ifdef DEBUG
@@ -5332,7 +5331,6 @@ _init(void)
 	if ((error = zfs_attach()) != 0)
 		goto out2;
 
-	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, NULL);
 
 	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
@@ -5362,7 +5360,6 @@ _fini(void)
 	zfs_fini();
 	spa_fini();
 
-	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 
 	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",

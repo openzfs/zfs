@@ -151,8 +151,6 @@ typedef struct zfid_long {
 #define	SHORT_FID_LEN	(sizeof (zfid_short_t) - sizeof (uint16_t))
 #define	LONG_FID_LEN	(sizeof (zfid_long_t) - sizeof (uint16_t))
 
-extern uint_t zfs_fsyncer_key;
-
 extern int zfs_suspend_fs(zfs_sb_t *zsb);
 extern int zfs_resume_fs(zfs_sb_t *zsb, const char *osname);
 extern int zfs_userspace_one(zfs_sb_t *zsb, zfs_userquota_prop_t type,
