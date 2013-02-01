@@ -5042,6 +5042,9 @@ MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
 module_param(zfs_arc_p_min_shift, int, 0444);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
+module_param(zfs_disable_dup_eviction, int, 0644);
+MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
+
 module_param(l2arc_write_max, ulong, 0444);
 MODULE_PARM_DESC(l2arc_write_max, "Max write bytes per interval");
 
