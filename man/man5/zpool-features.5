@@ -13,7 +13,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZPOOL-FEATURES 5 "Mar 16, 2012"
+.TH ZPOOL-FEATURES 5 "Feb 4, 2013"
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
 .SH DESCRIPTION
@@ -22,7 +22,7 @@ zpool\-features \- ZFS pool feature descriptions
 ZFS pool on\-disk format versions are specified via "features" which replace
 the old on\-disk format numbers (the last supported on\-disk format number is
 28). To enable a feature on a pool use the \fBupgrade\fR subcommand of the
-\fBzpool\fR(1M) command, or set the \fBfeature@\fR\fIfeature_name\fR property
+\fBzpool\fR(8) command, or set the \fBfeature@\fR\fIfeature_name\fR property
 to \fBenabled\fR.
 .sp
 .LP
@@ -102,7 +102,7 @@ Some features may make on\-disk format changes that do not interfere with other
 software's ability to read from the pool. These features are referred to as
 "read\-only compatible". If all unsupported features on a pool are read\-only
 compatible, the pool can be imported in read\-only mode by setting the
-\fBreadonly\fR property during import (see \fBzpool\fR(1M) for details on
+\fBreadonly\fR property during import (see \fBzpool\fR(8) for details on
 importing pools).
 .SS "Unsupported features"
 .sp
@@ -221,7 +221,7 @@ giving approximately 10% better compression ratio.
 
 When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
 administrator can turn on \fBlz4\fR compression on any dataset on the
-pool using the \fBzfs\fR(1M) command. Please note that doing so will
+pool using the \fBzfs\fR(8) command. Please note that doing so will
 immediately activate the \fBlz4_compress\fR feature on the underlying
 pool (even before any data is written). Since this feature is not
 read-only compatible, this operation will render the pool unimportable
@@ -232,4 +232,4 @@ moment, this operation cannot be reversed. Booting off of
 .RE
 
 .SH "SEE ALSO"
-\fBzpool\fR(1M)
+\fBzpool\fR(8)
