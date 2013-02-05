@@ -777,7 +777,7 @@ AC_DEFUN([SPL_AC_ATOMIC_SPINLOCK], [
 		[enable_atomic_spinlocks=check])
 
 	SPL_LINUX_TRY_COMPILE([
-		#include <asm/atomic.h>
+		#include <linux/fs.h>
 	],[
 		atomic64_t *ptr __attribute__ ((unused));
 	],[
@@ -820,8 +820,7 @@ dnl #
 AC_DEFUN([SPL_AC_TYPE_ATOMIC64_CMPXCHG],
 	[AC_MSG_CHECKING([whether kernel defines atomic64_cmpxchg])
 	SPL_LINUX_TRY_COMPILE([
-		#include <asm/atomic.h>
-		#include <asm/system.h>
+		#include <linux/fs.h>
 	],[
 		atomic64_cmpxchg((atomic64_t *)NULL, 0, 0);
 	],[
@@ -840,7 +839,7 @@ dnl #
 AC_DEFUN([SPL_AC_TYPE_ATOMIC64_XCHG],
 	[AC_MSG_CHECKING([whether kernel defines atomic64_xchg])
 	SPL_LINUX_TRY_COMPILE([
-		#include <asm/atomic.h>
+		#include <linux/fs.h>
 	],[
 		atomic64_xchg((atomic64_t *)NULL, 0);
 	],[
