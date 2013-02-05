@@ -24,7 +24,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/kstat.h \
 	$(top_srcdir)/lib/libspl/include/sys/list.h \
 	$(top_srcdir)/lib/libspl/include/sys/list_impl.h \
-	$(top_srcdir)/lib/libspl/include/sys/machelf.h \
 	$(top_srcdir)/lib/libspl/include/sys/mhd.h \
 	$(top_srcdir)/lib/libspl/include/sys/mkdev.h \
 	$(top_srcdir)/lib/libspl/include/sys/mntent.h \
