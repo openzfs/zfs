@@ -94,7 +94,8 @@ libzpool_la_SOURCES = \
 
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la
 
 libzpool_la_LDFLAGS = -pthread -version-info 1:1:0
 
