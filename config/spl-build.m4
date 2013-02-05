@@ -1269,6 +1269,7 @@ AC_DEFUN([SPL_AC_MUTEX_OWNER_TASK_STRUCT], [
 	EXTRA_KCFLAGS="-Werror"
 	SPL_LINUX_TRY_COMPILE([
 		#include <linux/mutex.h>
+		#include <linux/sched.h>
 	],[
 		struct mutex mtx __attribute__ ((unused));
 		mtx.owner = current;
