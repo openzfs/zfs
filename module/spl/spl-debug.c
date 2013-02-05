@@ -1099,10 +1099,11 @@ void spl_debug_bug(char *file, const char *func, const int line, int flags)
                 spl_panic_in_progress = 1;
 
         spl_debug_dumpstack(NULL);
-        spl_debug_dumplog(flags);
 
-        if (spl_debug_panic_on_bug)
+        if (spl_debug_panic_on_bug) {
+                spl_debug_dumplog(flags);
                 panic("SPL PANIC");
+        }
 
         set_task_state(current, TASK_UNINTERRUPTIBLE);
         while (1)
