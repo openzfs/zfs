@@ -295,7 +295,7 @@ getcomponent(const char *path, char *component, const char **nextp)
 }
 
 /*
- * same as dsl_open_dir, ignore the first component of name and use the
+ * same as dsl_dir_open, ignore the first component of name and use the
  * spa instead
  */
 int
@@ -312,7 +312,7 @@ dsl_dir_open_spa(spa_t *spa, const char *name, void *tag,
 
 	dprintf("%s\n", name);
 
-	buf = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+	buf = kmem_alloc(MAXNAMELEN, KM_PUSHPAGE);
 	err = getcomponent(name, buf, &next);
 	if (err)
 		goto error;
