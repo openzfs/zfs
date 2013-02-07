@@ -1248,7 +1248,10 @@ The values of user properties are arbitrary strings, are always inherited, and a
 .SS "ZFS Volumes as Swap"
 .sp
 .LP
-Do not swap to a file on a \fBZFS\fR file system. A \fBZFS\fR swap file configuration is not supported.
+\fBZFS\fR volumes may be used as Linux swap devices.  After creating the volume
+with the \fBzfs create\fR command set up and enable the swap area using the
+\fBmkswap\fR(8) and \fBswapon\fR(8) commands.  Do not swap to a file on a
+\fBZFS\fR file system. A \fBZFS\fR swap file configuration is not supported.
 .SH SUBCOMMANDS
 .sp
 .LP
