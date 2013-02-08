@@ -14,7 +14,6 @@ build() {
 	./configure --with-config=user \
 	            --prefix=/ \
 	            --sysconfdir=/etc \
-	            --libexecdir=/usr/libexec \
 	            --datadir=/usr/share \
 	            --includedir=/usr/include \
 	            --with-udevdir=/lib/udev
