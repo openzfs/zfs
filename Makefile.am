@@ -2,7 +2,7 @@ include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 
-SUBDIRS = include
+SUBDIRS = include rpm
 if CONFIG_USER
 SUBDIRS += lib cmd scripts
 endif
@@ -17,9 +17,8 @@ nodist_kernel_HEADERS = spl.release spl_config.h module/$(LINUX_SYMBOLS)
 endif
 
 AUTOMAKE_OPTIONS = foreign
-EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
+EXTRA_DIST  = autogen.sh META DISCLAIMER copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += dkms.postinst copy-builtin
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -44,5 +43,5 @@ etags:
 tags: ctags etags
 
 pkg: @DEFAULT_PACKAGE@
-pkg-modules: @DEFAULT_PACKAGE@-modules
+pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils

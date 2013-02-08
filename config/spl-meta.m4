@@ -35,6 +35,9 @@ AC_DEFUN([SPL_AC_META], [
 				[Define the project release.]
 			)
 			AC_SUBST([SPL_META_RELEASE])
+
+			RELEASE="$SPL_META_RELEASE"
+			AC_SUBST([RELEASE])
 		fi
 
 		if test -n "$SPL_META_NAME" -a -n "$SPL_META_VERSION"; then

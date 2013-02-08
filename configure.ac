@@ -64,10 +64,16 @@ AC_CONFIG_FILES([
 	include/util/Makefile
 	include/vm/Makefile
 	scripts/Makefile
-	spl.spec
-	spl-modules.spec
+	rpm/Makefile
+	rpm/fedora/Makefile
+	rpm/fedora/spl.spec
+	rpm/fedora/spl-kmod.spec
+	rpm/fedora/spl-dkms.spec
+	rpm/generic/Makefile
+	rpm/generic/spl.spec
+	rpm/generic/spl-kmod.spec
+	rpm/generic/spl-dkms.spec
 	spl.release
-	dkms.conf
 ])
 
 AC_OUTPUT

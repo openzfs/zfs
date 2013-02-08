@@ -40,10 +40,7 @@ Makefile.in
 /libtool
 /spl_config.h
 /spl_config.h.in
-/spl.spec
-/spl-modules.spec
 /spl.release
-/dkms.conf
 /stamp-h1
 /aclocal.m4
 /autom4te.cache
