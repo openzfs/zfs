@@ -2,11 +2,8 @@
 %define version          @VERSION@
 %define release          @ZFS_META_RELEASE@
 %define debug_package    %{nil}
-%define _prefix          /
-%define _libexecdir      /usr/libexec
-%define _datadir         /usr/share
-%define _mandir          %{_datadir}/man
-%define _includedir      /usr/include
+%define _sbindir         /sbin
+%define _libdir          /%{_lib}
 %define _udevdir         /lib/udev
 
 Summary:         ZFS Library and Utils
