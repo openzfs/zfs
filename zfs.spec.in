@@ -90,7 +90,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files test
 %defattr(-,root,root)
-%{_libexecdir}/@PACKAGE@/*
+%{_datadir}/@PACKAGE@/*
 
 %files dracut
 %defattr(-,root,root)
