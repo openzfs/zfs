@@ -19,7 +19,7 @@ install-data-local:
 	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
 	instfiles=`find . -name '*.h'`; \
         for instfile in $$instfiles; do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
         done
 
 uninstall-local:

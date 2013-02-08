@@ -34,7 +34,7 @@ install-data-local:
 	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
 	done
 endif
 
