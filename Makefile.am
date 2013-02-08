@@ -36,7 +36,7 @@ install-data-local:
 	release=$(ZFS_META_VERSION)-$(ZFS_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/zfs-$$release/$(LINUX_VERSION); \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
 	done
 endif
 
