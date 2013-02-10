@@ -5770,7 +5770,7 @@ spa_sync_version(void *arg1, void *arg2, dmu_tx_t *tx)
 	 */
 	ASSERT(tx->tx_txg != TXG_INITIAL);
 
-	ASSERT(version <= SPA_VERSION);
+	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
 	ASSERT(version >= spa_version(spa));
 
 	spa->spa_uberblock.ub_version = version;
@@ -6294,7 +6294,7 @@ spa_upgrade(spa_t *spa, uint64_t version)
 	 * future version would result in an unopenable pool, this shouldn't be
 	 * possible.
 	 */
-	ASSERT(spa->spa_uberblock.ub_version <= SPA_VERSION);
+	ASSERT(SPA_VERSION_IS_SUPPORTED(spa->spa_uberblock.ub_version));
 	ASSERT(version >= spa->spa_uberblock.ub_version);
 
 	spa->spa_uberblock.ub_version = version;
