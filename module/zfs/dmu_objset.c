@@ -1198,7 +1198,8 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	objset_t *os = dn->dn_objset;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
-	uint64_t *user = NULL, *group = NULL;
+	uint64_t *user = NULL;
+	uint64_t *group = NULL;
 	int flags = dn->dn_id_flags;
 	int error;
 	boolean_t have_spill = B_FALSE;
