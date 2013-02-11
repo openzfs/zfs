@@ -41,6 +41,9 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	struct inode *ip;
 	int error;
 
+	if (dlen(dentry) > ZFS_MAXNAMELEN)
+		return ERR_PTR(-ENAMETOOLONG);
+
 	crhold(cr);
 	error = -zfs_lookup(dir, dname(dentry), &ip, 0, cr, NULL, NULL);
 	ASSERT3S(error, <=, 0);
