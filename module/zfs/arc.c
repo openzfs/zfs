@@ -3089,7 +3089,7 @@ top:
 		uint64_t size = BP_GET_LSIZE(bp);
 		arc_callback_t	*acb;
 		vdev_t *vd = NULL;
-		uint64_t addr = -1;
+		uint64_t addr = 0;
 		boolean_t devw = B_FALSE;
 
 		if (hdr == NULL) {
@@ -3209,6 +3209,10 @@ top:
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
 				cb->l2rcb_compress = hdr->b_l2hdr->b_compress;
+
+				ASSERT(addr >= VDEV_LABEL_START_SIZE &&
+				    addr + size < vd->vdev_psize -
+				    VDEV_LABEL_END_SIZE);
 
 				/*
 				 * l2arc read.  The SCL_L2ARC lock will be
@@ -3480,8 +3484,8 @@ arc_release(arc_buf_t *buf, void *tag)
 	if (l2hdr) {
 		mutex_enter(&l2arc_buflist_mtx);
 		hdr->b_l2hdr = NULL;
-		buf_size = hdr->b_size;
 	}
+	buf_size = hdr->b_size;
 
 	/*
 	 * Do we have more than one buf?

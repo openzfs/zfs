@@ -1644,7 +1644,8 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		zio_priority = ZIO_PRIORITY_SCRUB;
 		needs_io = B_TRUE;
 		scan_delay = zfs_scrub_delay;
-	} else if (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) {
+	} else {
+		ASSERT3U(scn->scn_phys.scn_func, ==, POOL_SCAN_RESILVER);
 		zio_flags |= ZIO_FLAG_RESILVER;
 		zio_priority = ZIO_PRIORITY_RESILVER;
 		needs_io = B_FALSE;

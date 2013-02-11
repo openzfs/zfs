@@ -1190,7 +1190,8 @@ vdev_raidz_matrix_reconstruct(raidz_map_t *rm, int n, int nmissing,
 	uint64_t ccount;
 	uint8_t *dst[VDEV_RAIDZ_MAXPARITY];
 	uint64_t dcount[VDEV_RAIDZ_MAXPARITY];
-	uint8_t log = 0, val;
+	uint8_t log = 0;
+	uint8_t val;
 	int ll;
 	uint8_t *invlog[VDEV_RAIDZ_MAXPARITY];
 	uint8_t *p, *pp;

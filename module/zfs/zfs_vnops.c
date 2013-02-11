@@ -2434,7 +2434,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	vattr_t		oldva;
 	xvattr_t	*tmpxvattr;
 	uint_t		mask = vap->va_mask;
-	uint_t		saved_mask;
+	uint_t		saved_mask = 0;
 	int		trim_mask = 0;
 	uint64_t	new_mode;
 	uint64_t	new_uid, new_gid;

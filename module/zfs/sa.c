@@ -679,7 +679,8 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	int buf_space;
 	sa_attr_type_t *attrs, *attrs_start;
 	int i, lot_count;
-	int hdrsize, spillhdrsize = 0;
+	int hdrsize;
+	int spillhdrsize = 0;
 	int used;
 	dmu_object_type_t bonustype;
 	sa_lot_t *lot;

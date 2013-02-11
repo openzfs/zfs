@@ -1443,7 +1443,7 @@ spa_load_l2cache(spa_t *spa)
 	uint_t nl2cache;
 	int i, j, oldnvdevs;
 	uint64_t guid;
-	vdev_t *vd, **oldvdevs, **newvdevs = NULL;
+	vdev_t *vd, **oldvdevs, **newvdevs;
 	spa_aux_vdev_t *sav = &spa->spa_l2cache;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
@@ -1454,6 +1454,7 @@ spa_load_l2cache(spa_t *spa)
 		newvdevs = kmem_alloc(nl2cache * sizeof (void *), KM_PUSHPAGE);
 	} else {
 		nl2cache = 0;
+		newvdevs = NULL;
 	}
 
 	oldvdevs = sav->sav_vdevs;
