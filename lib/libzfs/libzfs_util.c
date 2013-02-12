@@ -673,7 +673,10 @@ libzfs_load_module(const char *module)
 libzfs_handle_t *
 libzfs_init(void)
 {
-	libzfs_handle_t *hdl;
+	static libzfs_handle_t *hdl = NULL;
+
+	if (hdl)
+		return hdl;
 
 	if (libzfs_load_module("zfs") != 0) {
 		(void) fprintf(stderr, gettext("Failed to load ZFS module "
