@@ -4016,6 +4016,14 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 			 */
 			return (0);
 
+		case ENODEV:
+			/*
+			 * snapdev set to hidden :
+			 *  device creation was not permitted (see zvol.c)
+			 *  ignore error quietly
+			 */
+			return (0);
+
 		case ENOENT:
 			/*
 			 * Dataset does not exist in the kernel.  If we
