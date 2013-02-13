@@ -106,6 +106,12 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t snapdev_table[] = {
+		{ "hidden",	ZFS_SNAPDEV_HIDDEN },
+		{ "visible",	ZFS_SNAPDEV_VISIBLE },
+		{ NULL }
+	};
+        
 	static zprop_index_t acl_inherit_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "noallow",	ZFS_ACL_NOALLOW },
@@ -261,6 +267,9 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "NBMAND",
 	    boolean_table);
+	zprop_register_index(ZFS_PROP_SNAPDEV, "snapdev", ZFS_SNAPDEV_HIDDEN,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "hidden | visible", "SNAPDEV", snapdev_table);
 
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,
