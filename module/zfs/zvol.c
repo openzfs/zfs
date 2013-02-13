@@ -1287,14 +1287,17 @@ zvol_free(zvol_state_t *zv)
 }
 
 static int
-__zvol_create_minor(const char *name)
+__zvol_create_minor(const char *name, int filter_snaps)
 {
 	zvol_state_t *zv;
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
+	uint64_t snapdev;
 	unsigned minor = 0;
 	int error = 0;
+	char *parent;
+	char *atp;
 
 	ASSERT(MUTEX_HELD(&zvol_state_lock));
 
@@ -1302,6 +1305,21 @@ __zvol_create_minor(const char *name)
 	if (zv) {
 		error = EEXIST;
 		goto out;
+	}
+
+	if (filter_snaps) {
+		parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+		(void) strlcpy(parent, name, MAXPATHLEN);
+
+		if ((atp = strrchr(parent, '@')) != NULL) {
+			*atp = '\0';
+			if ((dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL) == 0)
+				&& (snapdev == ZFS_SNAPDEV_HIDDEN)) {
+				kmem_free(parent, MAXPATHLEN);
+				return EPERM;
+			}
+		}
+		kmem_free(parent, MAXPATHLEN);
 	}
 
 	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
@@ -1383,7 +1401,7 @@ zvol_create_minor(const char *name)
 	int error;
 
 	mutex_enter(&zvol_state_lock);
-	error = __zvol_create_minor(name);
+	error = __zvol_create_minor(name, TRUE);
 	mutex_exit(&zvol_state_lock);
 
 	return (error);
@@ -1431,7 +1449,7 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
 	if (strchr(dsname, '/') == NULL)
 		return 0;
 
-	(void) __zvol_create_minor(dsname);
+	(void) __zvol_create_minor(dsname, TRUE);
 	return (0);
 }
 
@@ -1498,6 +1516,39 @@ zvol_remove_minors(const char *pool)
 	mutex_exit(&zvol_state_lock);
 	kmem_free(str, MAXNAMELEN);
 }
+
+static int
+snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
+	uint64_t snapdev = *(uint64_t *) arg;
+
+	if (strchr(dsname, '@') == NULL)
+		return 0;
+
+	switch (snapdev) {
+		case ZFS_SNAPDEV_VISIBLE:
+			mutex_enter(&zvol_state_lock);
+			(void) __zvol_create_minor(dsname, FALSE);
+			mutex_exit(&zvol_state_lock);
+			break;
+		case ZFS_SNAPDEV_HIDDEN:
+			(void) zvol_remove_minor(dsname);
+			break;
+	}
+	return 0;
+}
+
+int
+zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
+	/* Inheritance and range checking should have been done by now */
+	ASSERT(snapdev == ZFS_SNAPDEV_HIDDEN || snapdev == ZFS_SNAPDEV_VISIBLE);
+
+	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
+		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+	/* caller should continue to modify snapdev property */
+	return (-1);
+
+}
+
 
 int
 zvol_init(void)
