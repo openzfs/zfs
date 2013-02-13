@@ -53,6 +53,16 @@ AC_CONFIG_FILES([
 	module/spl/Makefile
 	module/splat/Makefile
 	include/Makefile
+	include/fs/Makefile
+	include/linux/Makefile
+	include/rpc/Makefile
+	include/sharefs/Makefile
+	include/sys/Makefile
+	include/sys/fm/Makefile
+	include/sys/fs/Makefile
+	include/sys/sysevent/Makefile
+	include/util/Makefile
+	include/vm/Makefile
 	scripts/Makefile
 	spl.spec
 	spl-modules.spec

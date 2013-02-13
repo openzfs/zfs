@@ -3,12 +3,12 @@ include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 include $(top_srcdir)/config/arch.am
 
-SUBDIRS =
+SUBDIRS = include
 if CONFIG_USER
 SUBDIRS += lib cmd scripts
 endif
 if CONFIG_KERNEL
-SUBDIRS += module include
+SUBDIRS += module
 endif
 
 AUTOMAKE_OPTIONS = foreign
