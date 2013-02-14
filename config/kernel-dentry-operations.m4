@@ -5,11 +5,15 @@ AC_DEFUN([ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA], [
 	AC_MSG_CHECKING([whether dops->d_revalidate() takes struct nameidata])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/dcache.h>
-	],[
-		int (*revalidate) (struct dentry *, struct nameidata *) = NULL;
-		struct dentry_operations dops __attribute__ ((unused)) = {
-			.d_revalidate		= revalidate,
+
+		int revalidate (struct dentry *dentry,
+		    struct nameidata *nidata) { return 0; }
+
+		static const struct dentry_operations
+		    dops __attribute__ ((unused)) = {
+			.d_revalidate	= revalidate,
 		};
+	],[
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_D_REVALIDATE_NAMEIDATA, 1,
