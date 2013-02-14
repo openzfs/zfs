@@ -10,11 +10,15 @@ AC_DEFUN([ZFS_AC_KERNEL_MKDIR_UMODE_T], [
 	AC_MSG_CHECKING([whether iops->create()/mkdir()/mknod() take umode_t])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
-	],[
-		int (*mkdir) (struct inode *,struct dentry *,umode_t) = NULL;
-		struct inode_operations iops __attribute__ ((unused)) = {
+
+		int mkdir(struct inode *inode, struct dentry *dentry,
+		    umode_t umode) { return 0; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
 			.mkdir = mkdir,
 		};
+	],[
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_MKDIR_UMODE_T, 1,

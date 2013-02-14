@@ -11,11 +11,11 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_END_IO_T_ARGS], [
 	AC_MSG_CHECKING([whether bio_end_io_t wants 2 args])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
-	],[
-		void (*wanted_end_io)(struct bio *, int) = NULL;
-		bio_end_io_t *local_end_io __attribute__ ((unused));
 
-		local_end_io = wanted_end_io;
+		void wanted_end_io(struct bio *bio, int x) { return; }
+
+		bio_end_io_t *end_io __attribute__ ((unused)) = wanted_end_io;
+	],[
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_2ARGS_BIO_END_IO_T, 1,
