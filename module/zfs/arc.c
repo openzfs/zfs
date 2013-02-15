@@ -2802,10 +2802,10 @@ arc_read_done(zio_t *zio)
 	if (BP_SHOULD_BYTESWAP(zio->io_bp) && zio->io_error == 0) {
 		dmu_object_byteswap_t bswap =
 		    DMU_OT_BYTESWAP(BP_GET_TYPE(zio->io_bp));
-		arc_byteswap_func_t *func = BP_GET_LEVEL(zio->io_bp) > 0 ?
-		    byteswap_uint64_array :
-		    dmu_ot_byteswap[bswap].ob_func;
-		func(buf->b_data, hdr->b_size);
+		if (BP_GET_LEVEL(zio->io_bp) > 0)
+		    byteswap_uint64_array(buf->b_data, hdr->b_size);
+		else
+		    dmu_ot_byteswap[bswap].ob_func(buf->b_data, hdr->b_size);
 	}
 
 	arc_cksum_compute(buf, B_FALSE);

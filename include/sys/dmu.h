@@ -641,7 +641,7 @@ typedef struct dmu_object_info {
 	uint64_t doi_fill_count;		/* number of non-empty blocks */
 } dmu_object_info_t;
 
-typedef void arc_byteswap_func_t(void *buf, size_t size);
+typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
@@ -649,8 +649,8 @@ typedef struct dmu_object_type_info {
 	char			*ot_name;
 } dmu_object_type_info_t;
 
-typedef struct dmu_object_byteswap_info {
-	arc_byteswap_func_t	*ob_func;
+typedef const struct dmu_object_byteswap_info {
+	arc_byteswap_func_t	 ob_func;
 	char			*ob_name;
 } dmu_object_byteswap_info_t;
 
