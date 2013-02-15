@@ -910,26 +910,26 @@ zfs_replay_acl(zfs_sb_t *zsb, lr_acl_t *lr, boolean_t byteswap)
 /*
  * Callback vectors for replaying records
  */
-zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
-	(zil_replay_func_t *)zfs_replay_error,		/* no such type */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_CREATE */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_MKDIR */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_MKXATTR */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_SYMLINK */
-	(zil_replay_func_t *)zfs_replay_remove,		/* TX_REMOVE */
-	(zil_replay_func_t *)zfs_replay_remove,		/* TX_RMDIR */
-	(zil_replay_func_t *)zfs_replay_link,		/* TX_LINK */
-	(zil_replay_func_t *)zfs_replay_rename,		/* TX_RENAME */
-	(zil_replay_func_t *)zfs_replay_write,		/* TX_WRITE */
-	(zil_replay_func_t *)zfs_replay_truncate,	/* TX_TRUNCATE */
-	(zil_replay_func_t *)zfs_replay_setattr,	/* TX_SETATTR */
-	(zil_replay_func_t *)zfs_replay_acl_v0,		/* TX_ACL_V0 */
-	(zil_replay_func_t *)zfs_replay_acl,		/* TX_ACL */
-	(zil_replay_func_t *)zfs_replay_create_acl,	/* TX_CREATE_ACL */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_CREATE_ATTR */
-	(zil_replay_func_t *)zfs_replay_create_acl,	/* TX_CREATE_ACL_ATTR */
-	(zil_replay_func_t *)zfs_replay_create_acl,	/* TX_MKDIR_ACL */
-	(zil_replay_func_t *)zfs_replay_create,		/* TX_MKDIR_ATTR */
-	(zil_replay_func_t *)zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
-	(zil_replay_func_t *)zfs_replay_write2,		/* TX_WRITE2 */
+zil_replay_func_t zfs_replay_vector[TX_MAX_TYPE] = {
+	(zil_replay_func_t)zfs_replay_error,		/* no such type */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_CREATE */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_MKDIR */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_MKXATTR */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_SYMLINK */
+	(zil_replay_func_t)zfs_replay_remove,		/* TX_REMOVE */
+	(zil_replay_func_t)zfs_replay_remove,		/* TX_RMDIR */
+	(zil_replay_func_t)zfs_replay_link,		/* TX_LINK */
+	(zil_replay_func_t)zfs_replay_rename,		/* TX_RENAME */
+	(zil_replay_func_t)zfs_replay_write,		/* TX_WRITE */
+	(zil_replay_func_t)zfs_replay_truncate,		/* TX_TRUNCATE */
+	(zil_replay_func_t)zfs_replay_setattr,		/* TX_SETATTR */
+	(zil_replay_func_t)zfs_replay_acl_v0,		/* TX_ACL_V0 */
+	(zil_replay_func_t)zfs_replay_acl,		/* TX_ACL */
+	(zil_replay_func_t)zfs_replay_create_acl,	/* TX_CREATE_ACL */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_CREATE_ATTR */
+	(zil_replay_func_t)zfs_replay_create_acl,	/* TX_CREATE_ACL_ATTR */
+	(zil_replay_func_t)zfs_replay_create_acl,	/* TX_MKDIR_ACL */
+	(zil_replay_func_t)zfs_replay_create,		/* TX_MKDIR_ATTR */
+	(zil_replay_func_t)zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
+	(zil_replay_func_t)zfs_replay_write2,		/* TX_WRITE2 */
 };
