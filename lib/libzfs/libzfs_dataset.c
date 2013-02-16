@@ -3989,8 +3989,26 @@ error:
  * and wait briefly for udev to create the /dev link.
  */
 int
-zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
-{
+zvol_create_link(libzfs_handle_t *hdl, const char *dataset) {
+	zfs_handle_t *zhp;
+	char parent[MAXPATHLEN];
+	char *atp;
+	uint64_t snapdev;
+
+	(void) strlcpy(parent, dataset, MAXPATHLEN);
+
+	if ((atp = strrchr(parent, '@')) != NULL) {
+		*atp = '\0';
+
+		if ((zhp = zfs_open(hdl, parent, ZFS_TYPE_VOLUME)) == NULL) {
+			return (-1);
+		}
+		snapdev = zfs_prop_get_int(zhp, ZFS_PROP_SNAPDEV);
+		zfs_close(zhp);
+		if (snapdev == ZFS_SNAPDEV_HIDDEN) {
+			return (0);
+		}
+	}
 	return (zvol_create_link_common(hdl, dataset, B_FALSE));
 }
 
