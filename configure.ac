@@ -66,8 +66,6 @@ AC_CONFIG_FILES([
 	scripts/Makefile
 	spl.spec
 	spl-modules.spec
-	PKGBUILD-spl
-	PKGBUILD-spl-modules
 	spl.release
 	dkms.conf
 ])
