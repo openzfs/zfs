@@ -1,7 +1,6 @@
 include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
-include $(top_srcdir)/config/arch.am
 
 SUBDIRS = include
 if CONFIG_USER

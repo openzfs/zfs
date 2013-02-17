@@ -120,8 +120,6 @@ AC_CONFIG_FILES([
 	scripts/common.sh
 	zfs.spec
 	zfs-modules.spec
-	PKGBUILD-zfs
-	PKGBUILD-zfs-modules
 	zfs-script-config.sh
 	zfs.release
 	dkms.conf

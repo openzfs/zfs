@@ -44,8 +44,6 @@ Makefile.in
 /zfs-modules.spec
 /zfs.release
 /dkms.conf
-/PKGBUILD-zfs
-/PKGBUILD-zfs-modules
 /stamp-h1
 /.script-config
 /zfs-script-config.sh
