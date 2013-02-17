@@ -479,9 +479,9 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_no_grow	ARCSTAT(arcstat_no_grow)
 #define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
 #define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
-#define	arc_meta_used	ARCSTAT(arcstat_meta_used)
-#define	arc_meta_limit	ARCSTAT(arcstat_meta_limit)
-#define	arc_meta_max	ARCSTAT(arcstat_meta_max)
+#define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
+#define	arc_meta_used	ARCSTAT(arcstat_meta_used) /* size of metadata */
+#define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
 
 #define	L2ARC_IS_VALID_COMPRESS(_c_) \
 	((_c_) == ZIO_COMPRESS_LZ4 || (_c_) == ZIO_COMPRESS_EMPTY)
@@ -1305,7 +1305,7 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		break;
 	}
 
-	atomic_add_64(&arc_meta_used, space);
+	ARCSTAT_INCR(arcstat_meta_used, space);
 	atomic_add_64(&arc_size, space);
 }
 
@@ -1334,7 +1334,7 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	ASSERT(arc_meta_used >= space);
 	if (arc_meta_max < arc_meta_used)
 		arc_meta_max = arc_meta_used;
-	atomic_add_64(&arc_meta_used, -space);
+	ARCSTAT_INCR(arcstat_meta_used, -space);
 	ASSERT(arc_size >= space);
 	atomic_add_64(&arc_size, -space);
 }
