@@ -86,7 +86,7 @@ rm -rf $RPM_BUILD_ROOT
 %config %{_sysconfdir}/zfs/*
 
 %doc AUTHORS COPYING COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
+%doc OPENSOLARIS.LICENSE README.markdown
 
 %files devel
 %defattr(-,root,root)
