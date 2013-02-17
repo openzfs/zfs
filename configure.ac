@@ -119,11 +119,17 @@ AC_CONFIG_FILES([
 	scripts/zpios-test/Makefile
 	scripts/zpool-config/Makefile
 	scripts/common.sh
-	zfs.spec
-	zfs-modules.spec
+	rpm/Makefile
+	rpm/fedora/Makefile
+	rpm/fedora/zfs.spec
+	rpm/fedora/zfs-kmod.spec
+	rpm/fedora/zfs-dkms.spec
+	rpm/generic/Makefile
+	rpm/generic/zfs.spec
+	rpm/generic/zfs-kmod.spec
+	rpm/generic/zfs-dkms.spec
 	zfs-script-config.sh
 	zfs.release
-	dkms.conf
 ])
 
 AC_OUTPUT

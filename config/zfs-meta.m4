@@ -46,6 +46,9 @@ AC_DEFUN([ZFS_AC_META], [
 				[Define the project release.]
 			)
 			AC_SUBST([ZFS_META_RELEASE])
+
+			RELEASE="$ZFS_META_RELEASE"
+			AC_SUBST([RELEASE])
 		fi
 
 		ZFS_META_LICENSE=_ZFS_AC_META_GETVAL([LICENSE]);
