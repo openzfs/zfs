@@ -11,13 +11,13 @@ to, the vdev_disk.c and zvol.c implementation which are licensed under
 the CDDL.
 
 The zpios test code is originally derived from the Lustre pios test code
-which is licenced under the GPLv2.  As such the heaviliy modified zpios
+which is licensed under the GPLv2.  As such the heavily modified zpios
 kernel test code also remains licensed under the GPLv2.
 
 The latest stable and development versions of this port can be downloaded
 from the official ZFS on Linux site located at:
 
-http://github.com/behlendorf/zfs/
+http://zfsonlinux.org/
 
 This ZFS on Linux port was produced at the Lawrence Livermore National
 Laboratory (LLNL) under Contract No. DE-AC52-07NA27344 (Contract 44)
