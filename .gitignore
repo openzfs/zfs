@@ -40,10 +40,7 @@ Makefile.in
 /libtool
 /zfs_config.h
 /zfs_config.h.in
-/zfs.spec
-/zfs-modules.spec
 /zfs.release
-/dkms.conf
 /stamp-h1
 /.script-config
 /zfs-script-config.sh

@@ -2,7 +2,7 @@ include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
 
-SUBDIRS = include
+SUBDIRS = include rpm
 if CONFIG_USER
 SUBDIRS += dracut udev etc man scripts lib cmd
 endif
@@ -17,10 +17,9 @@ nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
 endif
 
 AUTOMAKE_OPTIONS = foreign
-EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
+EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE
-EXTRA_DIST += dkms.postinst copy-builtin
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -45,5 +44,5 @@ etags:
 tags: ctags etags
 
 pkg: @DEFAULT_PACKAGE@
-pkg-modules: @DEFAULT_PACKAGE@-modules
+pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
