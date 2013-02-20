@@ -8,13 +8,18 @@ SUBDIRS += lib cmd scripts
 endif
 if CONFIG_KERNEL
 SUBDIRS += module
+
+extradir = /usr/src/spl-$(VERSION)
+extra_HEADERS = spl.release.in spl_config.h.in
+
+kerneldir = /usr/src/spl-$(VERSION)/$(LINUX_VERSION)
+nodist_kernel_HEADERS = spl.release spl_config.h module/$(LINUX_SYMBOLS)
 endif
 
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh spl.spec.in spl-modules.spec.in META DISCLAIMER
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += dkms.postinst copy-builtin
-noinst_HEADERS = spl_config.h spl.release
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -27,15 +32,6 @@ distclean-local::
 		-o -name 'Makefile' -o -name '$(LINUX_SYMBOLS)' \
 		-o -name '*.order' -o -name '*.markers' \) \
 		-type f -print | xargs $(RM)
-
-if CONFIG_KERNEL
-install-data-local:
-	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
-	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
-	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
-	done
-endif
 
 ctags:
 	$(RM) $(top_srcdir)/tags
