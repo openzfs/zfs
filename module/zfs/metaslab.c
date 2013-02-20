@@ -831,6 +831,16 @@ metaslab_weight(metaslab_t *msp)
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
+	 * This vdev is in the process of being removed so there is nothing
+	 * for us to do here.
+	 */
+	if (vd->vdev_removing) {
+		ASSERT0(smo->smo_alloc);
+		ASSERT0(vd->vdev_ms_shift);
+		return (0);
+	}
+
+	/*
 	 * The baseline weight is the metaslab's free space.
 	 */
 	space = sm->sm_size - smo->smo_alloc;
@@ -1212,8 +1222,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	space_map_obj_t *smo = &msp->ms_smo;
 	space_map_obj_t *smosync = &msp->ms_smo_syncing;
 	space_map_t *sm = msp->ms_map;
-	space_map_t *freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t *defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
+	space_map_t **freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+	space_map_t **defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
 	int64_t alloc_delta, defer_delta;
@@ -1227,8 +1237,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * If this metaslab is just becoming available, initialize its
 	 * allocmaps, freemaps, and defermap and add its capacity to the vdev.
 	 */
-	if (freed_map == NULL) {
-		ASSERT(defer_map == NULL);
+	if (*freed_map == NULL) {
+		ASSERT(*defer_map == NULL);
 		for (t = 0; t < TXG_SIZE; t++) {
 			msp->ms_allocmap[t] = kmem_zalloc(sizeof (space_map_t),
 			    KM_PUSHPAGE);
@@ -1247,14 +1257,14 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 		}
 
-		freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-		defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
+		freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+		defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
 
 		vdev_space_update(vd, 0, 0, sm->sm_size);
 	}
 
 	alloc_delta = smosync->smo_alloc - smo->smo_alloc;
-	defer_delta = freed_map->sm_space - defer_map->sm_space;
+	defer_delta = (*freed_map)->sm_space - (*defer_map)->sm_space;
 
 	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
 
@@ -1264,12 +1274,18 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	/*
 	 * If there's a space_map_load() in progress, wait for it to complete
 	 * so that we have a consistent view of the in-core space map.
-	 * Then, add defer_map (oldest deferred frees) to this map and
-	 * transfer freed_map (this txg's frees) to defer_map.
 	 */
 	space_map_load_wait(sm);
-	space_map_vacate(defer_map, sm->sm_loaded ? space_map_free : NULL, sm);
-	space_map_vacate(freed_map, space_map_add, defer_map);
+
+	/*
+	 * Move the frees from the defer_map to this map (if it's loaded).
+	 * Swap the freed_map and the defer_map -- this is safe to do
+	 * because we've just emptied out the defer_map.
+	 */
+	space_map_vacate(*defer_map, sm->sm_loaded ? space_map_free : NULL, sm);
+	ASSERT0((*defer_map)->sm_space);
+	ASSERT0(avl_numnodes(&(*defer_map)->sm_root));
+	space_map_swap(freed_map, defer_map);
 
 	*smo = *smosync;
 
