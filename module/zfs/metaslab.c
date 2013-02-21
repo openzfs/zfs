@@ -1388,6 +1388,13 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 				mutex_exit(&mg->mg_lock);
 				return (-1ULL);
 			}
+
+			/*
+			 * If the selected metaslab is condensing, skip it.
+			 */
+			if (msp->ms_map->sm_condensing)
+				continue;
+
 			was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
 			if (activation_weight == METASLAB_WEIGHT_PRIMARY)
 				break;
@@ -1428,16 +1435,6 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		mutex_enter(&msp->ms_lock);
 
 		/*
-		 * If this metaslab is currently condensing then pick again as
-		 * we can't manipulate this metaslab until it's committed
-		 * to disk.
-		 */
-		if (msp->ms_map->sm_condensing) {
-			mutex_exit(&msp->ms_lock);
-			continue;
-		}
-
-		/*
 		 * Ensure that the metaslab we have selected is still
 		 * capable of handling our request. It's possible that
 		 * another thread may have changed the weight while we
@@ -1459,6 +1456,16 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		}
 
 		if (metaslab_activate(msp, activation_weight) != 0) {
+			mutex_exit(&msp->ms_lock);
+			continue;
+		}
+
+		/*
+		 * If this metaslab is currently condensing then pick again as
+		 * we can't manipulate this metaslab until it's committed
+		 * to disk.
+		 */
+		if (msp->ms_map->sm_condensing) {
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
