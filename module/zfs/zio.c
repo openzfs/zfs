@@ -155,52 +155,34 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
+		char name[36];
+		int flags = zio_bulk_flags;
 
 		while (p2 & (p2 - 1))
 			p2 &= p2 - 1;
 
-		if (size <= 4 * SPA_MINBLOCKSIZE) {
-			align = SPA_MINBLOCKSIZE;
-		} else if (P2PHASE(size, PAGESIZE) == 0) {
-			align = PAGESIZE;
-		} else if (P2PHASE(size, p2 >> 2) == 0) {
-			align = p2 >> 2;
-		}
+		/*
+		 * The smallest buffers (512b) are heavily used and
+		 * experience a lot of churn.  The slabs allocated
+		 * for them are also relatively small (32K).  Thus
+		 * in over to avoid expensive calls to vmalloc() we
+		 * make an exception to the usual slab allocation
+		 * policy and force these buffers to be kmem backed.
+		 */
+		if (size == (1 << SPA_MINBLOCKSHIFT))
+			flags |= KMC_KMEM;
 
-		if (align != 0) {
-			char name[36];
-			int flags = zio_bulk_flags;
+		(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
+		zio_buf_cache[c] = kmem_cache_create(name, size,
+		    align, NULL, NULL, NULL, NULL, NULL, flags);
 
-			/*
-			 * The smallest buffers (512b) are heavily used and
-			 * experience a lot of churn.  The slabs allocated
-			 * for them are also relatively small (32K).  Thus
-			 * in over to avoid expensive calls to vmalloc() we
-			 * make an exception to the usual slab allocation
-			 * policy and force these buffers to be kmem backed.
-			 */
-			if (size == (1 << SPA_MINBLOCKSHIFT))
-				flags |= KMC_KMEM;
+		(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
+		zio_data_buf_cache[c] = kmem_cache_create(name, size,
+		    align, NULL, NULL, NULL, NULL,
+		    data_alloc_arena, flags);
 
-			(void) sprintf(name, "zio_buf_%lu", (ulong_t)size);
-			zio_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, flags);
-
-			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
-			zio_data_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, flags);
-		}
-	}
-
-	while (--c != 0) {
 		ASSERT(zio_buf_cache[c] != NULL);
-		if (zio_buf_cache[c - 1] == NULL)
-			zio_buf_cache[c - 1] = zio_buf_cache[c];
-
 		ASSERT(zio_data_buf_cache[c] != NULL);
-		if (zio_data_buf_cache[c - 1] == NULL)
-			zio_data_buf_cache[c - 1] = zio_data_buf_cache[c];
 	}
 
 	/*
