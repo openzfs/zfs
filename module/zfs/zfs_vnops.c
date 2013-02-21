@@ -371,9 +371,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	ssize_t		n, nbytes;
 	int		error = 0;
 	rl_t		*rl;
-#ifdef HAVE_UIO_ZEROCOPY
-	xuio_t		*xuio = NULL;
-#endif /* HAVE_UIO_ZEROCOPY */
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -431,37 +428,6 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 	ASSERT(uio->uio_loffset < zp->z_size);
 	n = MIN(uio->uio_resid, zp->z_size - uio->uio_loffset);
-
-#ifdef HAVE_UIO_ZEROCOPY
-	if ((uio->uio_extflg == UIO_XUIO) &&
-	    (((xuio_t *)uio)->xu_type == UIOTYPE_ZEROCOPY)) {
-		int nblk;
-		int blksz = zp->z_blksz;
-		uint64_t offset = uio->uio_loffset;
-
-		xuio = (xuio_t *)uio;
-		if ((ISP2(blksz))) {
-			nblk = (P2ROUNDUP(offset + n, blksz) - P2ALIGN(offset,
-			    blksz)) / blksz;
-		} else {
-			ASSERT(offset + n <= blksz);
-			nblk = 1;
-		}
-		(void) dmu_xuio_init(xuio, nblk);
-
-		if (vn_has_cached_data(ip)) {
-			/*
-			 * For simplicity, we always allocate a full buffer
-			 * even if we only expect to read a portion of a block.
-			 */
-			while (--nblk >= 0) {
-				(void) dmu_xuio_add(xuio,
-				    dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-				    blksz), 0, blksz);
-			}
-		}
-	}
-#endif /* HAVE_UIO_ZEROCOPY */
 
 	while (n > 0) {
 		nbytes = MIN(n, zfs_read_chunk_size -
@@ -527,16 +493,10 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	rl_t		*rl;
 	int		max_blksz = zsb->z_max_blksz;
 	int		error = 0;
-	arc_buf_t	*abuf;
-	iovec_t		*aiov = NULL;
-	xuio_t		*xuio = NULL;
-	int		i_iov = 0;
-	iovec_t		*iovp = uio->uio_iov;
 	int		write_eof;
 	int		count = 0;
 	sa_bulk_attr_t	bulk[4];
 	uint64_t	mtime[2], ctime[2];
-	ASSERTV(int	iovcnt = uio->uio_iovcnt);
 
 	/*
 	 * Fasttrack empty write
@@ -587,19 +547,6 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		return (EAGAIN);
 	}
 
-#ifdef HAVE_UIO_ZEROCOPY
-	/*
-	 * Pre-fault the pages to ensure slow (eg NFS) pages
-	 * don't hold up txg.
-	 * Skip this if uio contains loaned arc_buf.
-	 */
-	if ((uio->uio_extflg == UIO_XUIO) &&
-	    (((xuio_t *)uio)->xu_type == UIOTYPE_ZEROCOPY))
-		xuio = (xuio_t *)uio;
-	else
-		uio_prefaultpages(MIN(n, max_blksz), uio);
-#endif /* HAVE_UIO_ZEROCOPY */
-
 	/*
 	 * If in append mode, set the io offset pointer to eof.
 	 */
@@ -648,49 +595,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	 * and allows us to do more fine-grained space accounting.
 	 */
 	while (n > 0) {
-		abuf = NULL;
 		woff = uio->uio_loffset;
 again:
 		if (zfs_owner_overquota(zsb, zp, B_FALSE) ||
 		    zfs_owner_overquota(zsb, zp, B_TRUE)) {
-			if (abuf != NULL)
-				dmu_return_arcbuf(abuf);
 			error = EDQUOT;
 			break;
-		}
-
-		if (xuio && abuf == NULL) {
-			ASSERT(i_iov < iovcnt);
-			aiov = &iovp[i_iov];
-			abuf = dmu_xuio_arcbuf(xuio, i_iov);
-			dmu_xuio_clear(xuio, i_iov);
-			ASSERT((aiov->iov_base == abuf->b_data) ||
-			    ((char *)aiov->iov_base - (char *)abuf->b_data +
-			    aiov->iov_len == arc_buf_size(abuf)));
-			i_iov++;
-		} else if (abuf == NULL && n >= max_blksz &&
-		    woff >= zp->z_size &&
-		    P2PHASE(woff, max_blksz) == 0 &&
-		    zp->z_blksz == max_blksz) {
-			/*
-			 * This write covers a full block.  "Borrow" a buffer
-			 * from the dmu so that we can fill it before we enter
-			 * a transaction.  This avoids the possibility of
-			 * holding up the transaction if the data copy hangs
-			 * up on a pagefault (e.g., from an NFS server mapping).
-			 */
-			size_t cbytes;
-
-			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-			    max_blksz);
-			ASSERT(abuf != NULL);
-			ASSERT(arc_buf_size(abuf) == max_blksz);
-			if ((error = uiocopy(abuf->b_data, max_blksz,
-			    UIO_WRITE, uio, &cbytes))) {
-				dmu_return_arcbuf(abuf);
-				break;
-			}
-			ASSERT(cbytes == max_blksz);
 		}
 
 		/*
@@ -708,8 +618,6 @@ again:
 				goto again;
 			}
 			dmu_tx_abort(tx);
-			if (abuf != NULL)
-				dmu_return_arcbuf(abuf);
 			break;
 		}
 
@@ -738,35 +646,10 @@ again:
 		 */
 		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
-		if (abuf == NULL) {
-			tx_bytes = uio->uio_resid;
-			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, nbytes, tx);
-			tx_bytes -= uio->uio_resid;
-		} else {
-			tx_bytes = nbytes;
-			ASSERT(xuio == NULL || tx_bytes == aiov->iov_len);
-			/*
-			 * If this is not a full block write, but we are
-			 * extending the file past EOF and this data starts
-			 * block-aligned, use assign_arcbuf().  Otherwise,
-			 * write via dmu_write().
-			 */
-			if (tx_bytes < max_blksz && (!write_eof ||
-			    aiov->iov_base != abuf->b_data)) {
-				ASSERT(xuio);
-				dmu_write(zsb->z_os, zp->z_id, woff,
-				    aiov->iov_len, aiov->iov_base, tx);
-				dmu_return_arcbuf(abuf);
-				xuio_stat_wbuf_copied();
-			} else {
-				ASSERT(xuio || tx_bytes == max_blksz);
-				dmu_assign_arcbuf(sa_get_db(zp->z_sa_hdl),
-				    woff, abuf, tx);
-			}
-			ASSERT(tx_bytes <= uio->uio_resid);
-			uioskip(uio, tx_bytes);
-		}
+		tx_bytes = uio->uio_resid;
+		error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
+		    uio, nbytes, tx);
+		tx_bytes -= uio->uio_resid;
 
 		if (tx_bytes && zp->z_is_mapped && !(ioflag & O_DIRECT))
 			update_pages(ip, woff, tx_bytes, zsb->z_os, zp->z_id);
@@ -837,9 +720,6 @@ again:
 			break;
 		ASSERT(tx_bytes == nbytes);
 		n -= nbytes;
-
-		if (!xuio && n > 0)
-			uio_prefaultpages(MIN(n, max_blksz), uio);
 	}
 
 	zfs_range_unlock(rl);
@@ -4360,162 +4240,6 @@ zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 	return (error);
 }
 EXPORT_SYMBOL(zfs_setsecattr);
-
-#ifdef HAVE_UIO_ZEROCOPY
-/*
- * Tunable, both must be a power of 2.
- *
- * zcr_blksz_min: the smallest read we may consider to loan out an arcbuf
- * zcr_blksz_max: if set to less than the file block size, allow loaning out of
- *		an arcbuf for a partial block read
- */
-int zcr_blksz_min = (1 << 10);	/* 1K */
-int zcr_blksz_max = (1 << 17);	/* 128K */
-
-/*ARGSUSED*/
-static int
-zfs_reqzcbuf(struct inode *ip, enum uio_rw ioflag, xuio_t *xuio, cred_t *cr)
-{
-	znode_t	*zp = ITOZ(ip);
-	zfs_sb_t *zsb = ITOZSB(ip);
-	int max_blksz = zsb->z_max_blksz;
-	uio_t *uio = &xuio->xu_uio;
-	ssize_t size = uio->uio_resid;
-	offset_t offset = uio->uio_loffset;
-	int blksz;
-	int fullblk, i;
-	arc_buf_t *abuf;
-	ssize_t maxsize;
-	int preamble, postamble;
-
-	if (xuio->xu_type != UIOTYPE_ZEROCOPY)
-		return (EINVAL);
-
-	ZFS_ENTER(zsb);
-	ZFS_VERIFY_ZP(zp);
-	switch (ioflag) {
-	case UIO_WRITE:
-		/*
-		 * Loan out an arc_buf for write if write size is bigger than
-		 * max_blksz, and the file's block size is also max_blksz.
-		 */
-		blksz = max_blksz;
-		if (size < blksz || zp->z_blksz != blksz) {
-			ZFS_EXIT(zsb);
-			return (EINVAL);
-		}
-		/*
-		 * Caller requests buffers for write before knowing where the
-		 * write offset might be (e.g. NFS TCP write).
-		 */
-		if (offset == -1) {
-			preamble = 0;
-		} else {
-			preamble = P2PHASE(offset, blksz);
-			if (preamble) {
-				preamble = blksz - preamble;
-				size -= preamble;
-			}
-		}
-
-		postamble = P2PHASE(size, blksz);
-		size -= postamble;
-
-		fullblk = size / blksz;
-		(void) dmu_xuio_init(xuio,
-		    (preamble != 0) + fullblk + (postamble != 0));
-
-		/*
-		 * Have to fix iov base/len for partial buffers.  They
-		 * currently represent full arc_buf's.
-		 */
-		if (preamble) {
-			/* data begins in the middle of the arc_buf */
-			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-			    blksz);
-			ASSERT(abuf);
-			(void) dmu_xuio_add(xuio, abuf,
-			    blksz - preamble, preamble);
-		}
-
-		for (i = 0; i < fullblk; i++) {
-			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-			    blksz);
-			ASSERT(abuf);
-			(void) dmu_xuio_add(xuio, abuf, 0, blksz);
-		}
-
-		if (postamble) {
-			/* data ends in the middle of the arc_buf */
-			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-			    blksz);
-			ASSERT(abuf);
-			(void) dmu_xuio_add(xuio, abuf, 0, postamble);
-		}
-		break;
-	case UIO_READ:
-		/*
-		 * Loan out an arc_buf for read if the read size is larger than
-		 * the current file block size.  Block alignment is not
-		 * considered.  Partial arc_buf will be loaned out for read.
-		 */
-		blksz = zp->z_blksz;
-		if (blksz < zcr_blksz_min)
-			blksz = zcr_blksz_min;
-		if (blksz > zcr_blksz_max)
-			blksz = zcr_blksz_max;
-		/* avoid potential complexity of dealing with it */
-		if (blksz > max_blksz) {
-			ZFS_EXIT(zsb);
-			return (EINVAL);
-		}
-
-		maxsize = zp->z_size - uio->uio_loffset;
-		if (size > maxsize)
-			size = maxsize;
-
-		if (size < blksz) {
-			ZFS_EXIT(zsb);
-			return (EINVAL);
-		}
-		break;
-	default:
-		ZFS_EXIT(zsb);
-		return (EINVAL);
-	}
-
-	uio->uio_extflg = UIO_XUIO;
-	XUIO_XUZC_RW(xuio) = ioflag;
-	ZFS_EXIT(zsb);
-	return (0);
-}
-
-/*ARGSUSED*/
-static int
-zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
-{
-	int i;
-	arc_buf_t *abuf;
-	int ioflag = XUIO_XUZC_RW(xuio);
-
-	ASSERT(xuio->xu_type == UIOTYPE_ZEROCOPY);
-
-	i = dmu_xuio_cnt(xuio);
-	while (i-- > 0) {
-		abuf = dmu_xuio_arcbuf(xuio, i);
-		/*
-		 * if abuf == NULL, it must be a write buffer
-		 * that has been returned in zfs_write().
-		 */
-		if (abuf)
-			dmu_return_arcbuf(abuf);
-		ASSERT(abuf || ioflag == UIO_WRITE);
-	}
-
-	dmu_xuio_fini(xuio);
-	return (0);
-}
-#endif /* HAVE_UIO_ZEROCOPY */
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_read_chunk_size, long, 0644);

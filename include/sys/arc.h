@@ -96,9 +96,6 @@ void *arc_data_buf_alloc(uint64_t space);
 void arc_data_buf_free(void *buf, uint64_t space);
 arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
     arc_buf_contents_t type);
-arc_buf_t *arc_loan_buf(spa_t *spa, int size);
-void arc_return_buf(arc_buf_t *buf, void *tag);
-void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
 void arc_buf_add_ref(arc_buf_t *buf, void *tag);
 int arc_buf_remove_ref(arc_buf_t *buf, void *tag);
 int arc_buf_size(arc_buf_t *buf);
