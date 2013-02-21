@@ -453,20 +453,20 @@ zvol_replay_err(zvol_state_t *zv, lr_t *lr, boolean_t byteswap)
  * Callback vectors for replaying records.
  * Only TX_WRITE is needed for zvol.
  */
-zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
-	(zil_replay_func_t *)zvol_replay_err,	/* no such transaction type */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_CREATE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_MKDIR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_MKXATTR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_SYMLINK */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_REMOVE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_RMDIR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_LINK */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_RENAME */
-	(zil_replay_func_t *)zvol_replay_write,	/* TX_WRITE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_TRUNCATE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_SETATTR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_ACL */
+zil_replay_func_t zvol_replay_vector[TX_MAX_TYPE] = {
+	(zil_replay_func_t)zvol_replay_err,	/* no such transaction type */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_CREATE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_MKDIR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_MKXATTR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_SYMLINK */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_REMOVE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_RMDIR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_LINK */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_RENAME */
+	(zil_replay_func_t)zvol_replay_write,	/* TX_WRITE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_TRUNCATE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_SETATTR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_ACL */
 };
 
 /*

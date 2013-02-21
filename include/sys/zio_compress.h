@@ -44,7 +44,7 @@ typedef int zio_decompress_func_t(void *src, void *dst,
 /*
  * Information about each compression function.
  */
-typedef struct zio_compress_info {
+typedef const struct zio_compress_info {
 	zio_compress_func_t	*ci_compress;	/* compression function */
 	zio_decompress_func_t	*ci_decompress;	/* decompression function */
 	int			ci_level;	/* level parameter */

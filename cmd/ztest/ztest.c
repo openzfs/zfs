@@ -1792,19 +1792,19 @@ ztest_replay_setattr(ztest_ds_t *zd, lr_setattr_t *lr, boolean_t byteswap)
 	return (0);
 }
 
-zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
+zil_replay_func_t ztest_replay_vector[TX_MAX_TYPE] = {
 	NULL,				/* 0 no such transaction type */
-	(zil_replay_func_t *)ztest_replay_create,	/* TX_CREATE */
+	(zil_replay_func_t)ztest_replay_create,		/* TX_CREATE */
 	NULL,						/* TX_MKDIR */
 	NULL,						/* TX_MKXATTR */
 	NULL,						/* TX_SYMLINK */
-	(zil_replay_func_t *)ztest_replay_remove,	/* TX_REMOVE */
+	(zil_replay_func_t)ztest_replay_remove,		/* TX_REMOVE */
 	NULL,						/* TX_RMDIR */
 	NULL,						/* TX_LINK */
 	NULL,						/* TX_RENAME */
-	(zil_replay_func_t *)ztest_replay_write,	/* TX_WRITE */
-	(zil_replay_func_t *)ztest_replay_truncate,	/* TX_TRUNCATE */
-	(zil_replay_func_t *)ztest_replay_setattr,	/* TX_SETATTR */
+	(zil_replay_func_t)ztest_replay_write,		/* TX_WRITE */
+	(zil_replay_func_t)ztest_replay_truncate,	/* TX_TRUNCATE */
+	(zil_replay_func_t)ztest_replay_setattr,	/* TX_SETATTR */
 	NULL,						/* TX_ACL */
 	NULL,						/* TX_CREATE_ACL */
 	NULL,						/* TX_CREATE_ATTR */
