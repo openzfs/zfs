@@ -189,7 +189,7 @@ unsigned long zfs_arc_meta_limit = 0;
 int zfs_arc_grow_retry = 0;
 int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
-int zfs_arc_memory_throttle_disable = 0;
+int zfs_arc_memory_throttle_disable = 1;
 int zfs_disable_dup_eviction = 0;
 int zfs_arc_meta_prune = 0;
 
