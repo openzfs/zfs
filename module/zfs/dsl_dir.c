@@ -440,6 +440,8 @@ dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv)
 	    dd->dd_phys->dd_compressed_bytes == 0 ? 100 :
 	    (dd->dd_phys->dd_uncompressed_bytes * 100 /
 	    dd->dd_phys->dd_compressed_bytes));
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_LOGICALUSED,
+	    dd->dd_phys->dd_uncompressed_bytes);
 	if (dd->dd_phys->dd_flags & DD_FLAG_USED_BREAKDOWN) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USEDSNAP,
 		    dd->dd_phys->dd_used_breakdown[DD_USED_SNAP]);

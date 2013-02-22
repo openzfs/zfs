@@ -1387,6 +1387,8 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	    ds->ds_phys->ds_compressed_bytes);
 
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_REFRATIO, ratio);
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_LOGICALREFERENCED,
+	    ds->ds_phys->ds_uncompressed_bytes);
 
 	if (dsl_dataset_is_snapshot(ds)) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_COMPRESSRATIO, ratio);
