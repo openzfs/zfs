@@ -234,13 +234,6 @@ extern "C" {
 struct objset;
 struct dmu_pool;
 
-typedef struct dmu_xuio {
-	int next;
-	int cnt;
-	struct arc_buf **bufs;
-	iovec_t *iovp;
-} dmu_xuio_t;
-
 /*
  * The list of data whose inclusion in a send stream can be pending from
  * one call to backup_cb to another.  Multiple calls to dump_free() and

@@ -42,8 +42,5 @@
 #include <sys/uio.h>
 
 extern int uiomove(void *, size_t, enum uio_rw, uio_t *);
-extern void uio_prefaultpages(ssize_t, uio_t *);
-extern int uiocopy(void *, size_t, enum uio_rw, uio_t *, size_t *);
-extern void uioskip(uio_t *, size_t);
 
 #endif	/* _SYS_UIO_IMPL_H */

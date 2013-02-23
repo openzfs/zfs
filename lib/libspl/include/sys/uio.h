@@ -1,6 +1,6 @@
 /*
  * CDDL HEADER START
- *
+*
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License, Version 1.0 only
  * (the "License").  You may not use this file except in compliance
@@ -65,44 +65,5 @@ typedef struct uio {
 	offset_t	uio_limit;	/* u-limit (maximum byte offset) */
 	ssize_t		uio_resid;	/* residual count */
 } uio_t;
-
-typedef enum xuio_type {
-	UIOTYPE_ASYNCIO,
-	UIOTYPE_ZEROCOPY,
-} xuio_type_t;
-
-#define	UIOA_IOV_MAX	16
-
-typedef struct uioa_page_s {		/* locked uio_iov state */
-	int	uioa_pfncnt;		/* count of pfn_t(s) in *uioa_ppp */
-	void	**uioa_ppp;		/* page_t or pfn_t arrary */
-	caddr_t	uioa_base;		/* address base */
-	size_t	uioa_len;		/* span length */
-} uioa_page_t;
-
-typedef struct xuio {
-	uio_t xu_uio;				/* embedded UIO structure */
-
-	/* Extended uio fields */
-	enum xuio_type xu_type;			/* uio type */
-	union {
-		struct {
-			uint32_t xu_a_state;	/* state of async i/o */
-			ssize_t xu_a_mbytes;	/* bytes moved */
-			uioa_page_t *xu_a_lcur;	/* uioa_locked[] pointer */
-			void **xu_a_lppp;	/* lcur->uioa_pppp[] pointer */
-			void *xu_a_hwst[4];	/* opaque hardware state */
-			uioa_page_t xu_a_locked[UIOA_IOV_MAX];
-		} xu_aio;
-
-		struct {
-			int xu_zc_rw;		/* read or write buffer */
-			void *xu_zc_priv;	/* fs specific */
-		} xu_zc;
-	} xu_ext;
-} xuio_t;
-
-#define XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
 #endif	/* _SYS_UIO_H */

@@ -316,7 +316,6 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_memory_indirect_count;
 	kstat_named_t arcstat_no_grow;
 	kstat_named_t arcstat_tempreserve;
-	kstat_named_t arcstat_loaned_bytes;
 	kstat_named_t arcstat_prune;
 	kstat_named_t arcstat_meta_used;
 	kstat_named_t arcstat_meta_limit;
@@ -399,7 +398,6 @@ static arc_stats_t arc_stats = {
 	{ "memory_indirect_count",	KSTAT_DATA_UINT64 },
 	{ "arc_no_grow",		KSTAT_DATA_UINT64 },
 	{ "arc_tempreserve",		KSTAT_DATA_UINT64 },
-	{ "arc_loaned_bytes",		KSTAT_DATA_UINT64 },
 	{ "arc_prune",			KSTAT_DATA_UINT64 },
 	{ "arc_meta_used",		KSTAT_DATA_UINT64 },
 	{ "arc_meta_limit",		KSTAT_DATA_UINT64 },
@@ -467,7 +465,6 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
 #define	arc_no_grow	ARCSTAT(arcstat_no_grow)
 #define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
-#define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
 #define	arc_meta_used	ARCSTAT(arcstat_meta_used)
 #define	arc_meta_limit	ARCSTAT(arcstat_meta_limit)
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max)
@@ -1307,56 +1304,6 @@ arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 	(void) refcount_add(&hdr->b_refcnt, tag);
 
 	return (buf);
-}
-
-static char *arc_onloan_tag = "onloan";
-
-/*
- * Loan out an anonymous arc buffer. Loaned buffers are not counted as in
- * flight data by arc_tempreserve_space() until they are "returned". Loaned
- * buffers must be returned to the arc before they can be used by the DMU or
- * freed.
- */
-arc_buf_t *
-arc_loan_buf(spa_t *spa, int size)
-{
-	arc_buf_t *buf;
-
-	buf = arc_buf_alloc(spa, size, arc_onloan_tag, ARC_BUFC_DATA);
-
-	atomic_add_64(&arc_loaned_bytes, size);
-	return (buf);
-}
-
-/*
- * Return a loaned arc buffer to the arc.
- */
-void
-arc_return_buf(arc_buf_t *buf, void *tag)
-{
-	arc_buf_hdr_t *hdr = buf->b_hdr;
-
-	ASSERT(buf->b_data != NULL);
-	(void) refcount_add(&hdr->b_refcnt, tag);
-	(void) refcount_remove(&hdr->b_refcnt, arc_onloan_tag);
-
-	atomic_add_64(&arc_loaned_bytes, -hdr->b_size);
-}
-
-/* Detach an arc_buf from a dbuf (tag) */
-void
-arc_loan_inuse_buf(arc_buf_t *buf, void *tag)
-{
-	arc_buf_hdr_t *hdr;
-
-	ASSERT(buf->b_data != NULL);
-	hdr = buf->b_hdr;
-	(void) refcount_add(&hdr->b_refcnt, arc_onloan_tag);
-	(void) refcount_remove(&hdr->b_refcnt, tag);
-	buf->b_efunc = NULL;
-	buf->b_private = NULL;
-
-	atomic_add_64(&arc_loaned_bytes, hdr->b_size);
 }
 
 static arc_buf_t *
@@ -3684,12 +3631,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		return (ENOMEM);
 	}
 
-	/*
-	 * Don't count loaned bufs as in flight dirty data to prevent long
-	 * network delays from blocking transactions that are ready to be
-	 * assigned to a txg.
-	 */
-	anon_size = MAX((int64_t)(arc_anon->arcs_size - arc_loaned_bytes), 0);
+	anon_size = arc_anon->arcs_size;
 
 	/*
 	 * Writes will, almost always, require additional memory allocations
@@ -3963,8 +3905,6 @@ arc_fini(void)
 	mutex_destroy(&zfs_write_limit_lock);
 
 	buf_fini();
-
-	ASSERT(arc_loaned_bytes == 0);
 }
 
 /*

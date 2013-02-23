@@ -481,32 +481,6 @@ dbuf_set_data(dmu_buf_impl_t *db, arc_buf_t *buf)
 	}
 }
 
-/*
- * Loan out an arc_buf for read.  Return the loaned arc_buf.
- */
-arc_buf_t *
-dbuf_loan_arcbuf(dmu_buf_impl_t *db)
-{
-	arc_buf_t *abuf;
-
-	mutex_enter(&db->db_mtx);
-	if (arc_released(db->db_buf) || refcount_count(&db->db_holds) > 1) {
-		int blksz = db->db.db_size;
-		spa_t *spa;
-
-		mutex_exit(&db->db_mtx);
-		DB_GET_SPA(&spa, db);
-		abuf = arc_loan_buf(spa, blksz);
-		bcopy(db->db.db_data, abuf->b_data, blksz);
-	} else {
-		abuf = db->db_buf;
-		arc_loan_inuse_buf(abuf, db);
-		dbuf_set_data(db, NULL);
-		mutex_exit(&db->db_mtx);
-	}
-	return (abuf);
-}
-
 uint64_t
 dbuf_whichblock(dnode_t *dn, uint64_t offset)
 {
@@ -1490,69 +1464,6 @@ dbuf_fill_done(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		cv_broadcast(&db->db_changed);
 	}
 	mutex_exit(&db->db_mtx);
-}
-
-/*
- * Directly assign a provided arc buf to a given dbuf if it's not referenced
- * by anybody except our caller. Otherwise copy arcbuf's contents to dbuf.
- */
-void
-dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
-{
-	ASSERT(!refcount_is_zero(&db->db_holds));
-	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-	ASSERT(db->db_level == 0);
-	ASSERT(DBUF_GET_BUFC_TYPE(db) == ARC_BUFC_DATA);
-	ASSERT(buf != NULL);
-	ASSERT(arc_buf_size(buf) == db->db.db_size);
-	ASSERT(tx->tx_txg != 0);
-
-	arc_return_buf(buf, db);
-	ASSERT(arc_released(buf));
-
-	mutex_enter(&db->db_mtx);
-
-	while (db->db_state == DB_READ || db->db_state == DB_FILL)
-		cv_wait(&db->db_changed, &db->db_mtx);
-
-	ASSERT(db->db_state == DB_CACHED || db->db_state == DB_UNCACHED);
-
-	if (db->db_state == DB_CACHED &&
-	    refcount_count(&db->db_holds) - 1 > db->db_dirtycnt) {
-		mutex_exit(&db->db_mtx);
-		(void) dbuf_dirty(db, tx);
-		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
-		VERIFY(arc_buf_remove_ref(buf, db) == 1);
-		xuio_stat_wbuf_copied();
-		return;
-	}
-
-	xuio_stat_wbuf_nocopy();
-	if (db->db_state == DB_CACHED) {
-		dbuf_dirty_record_t *dr = db->db_last_dirty;
-
-		ASSERT(db->db_buf != NULL);
-		if (dr != NULL && dr->dr_txg == tx->tx_txg) {
-			ASSERT(dr->dt.dl.dr_data == db->db_buf);
-			if (!arc_released(db->db_buf)) {
-				ASSERT(dr->dt.dl.dr_override_state ==
-				    DR_OVERRIDDEN);
-				arc_release(db->db_buf, db);
-			}
-			dr->dt.dl.dr_data = buf;
-			VERIFY(arc_buf_remove_ref(db->db_buf, db) == 1);
-		} else if (dr == NULL || dr->dt.dl.dr_data != db->db_buf) {
-			arc_release(db->db_buf, db);
-			VERIFY(arc_buf_remove_ref(db->db_buf, db) == 1);
-		}
-		db->db_buf = NULL;
-	}
-	ASSERT(db->db_buf == NULL);
-	dbuf_set_data(db, buf);
-	db->db_state = DB_FILL;
-	mutex_exit(&db->db_mtx);
-	(void) dbuf_dirty(db, tx);
-	dbuf_fill_done(db, tx);
 }
 
 /*
@@ -2852,7 +2763,6 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 EXPORT_SYMBOL(dbuf_find);
 EXPORT_SYMBOL(dbuf_is_metadata);
 EXPORT_SYMBOL(dbuf_evict);
-EXPORT_SYMBOL(dbuf_loan_arcbuf);
 EXPORT_SYMBOL(dbuf_whichblock);
 EXPORT_SYMBOL(dbuf_read);
 EXPORT_SYMBOL(dbuf_unoverride);
@@ -2865,7 +2775,6 @@ EXPORT_SYMBOL(dmu_buf_will_not_fill);
 EXPORT_SYMBOL(dmu_buf_will_fill);
 EXPORT_SYMBOL(dmu_buf_fill_done);
 EXPORT_SYMBOL(dmu_buf_rele);
-EXPORT_SYMBOL(dbuf_assign_arcbuf);
 EXPORT_SYMBOL(dbuf_clear);
 EXPORT_SYMBOL(dbuf_prefetch);
 EXPORT_SYMBOL(dbuf_hold_impl);
