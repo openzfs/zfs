@@ -4,7 +4,6 @@ dnl # Empty write barriers are now supported and we should use them.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BIO_EMPTY_BARRIER], [
 	AC_MSG_CHECKING([whether bio_empty_barrier() is defined])
-	EXTRA_KCFLAGS="-Werror"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
