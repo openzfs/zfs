@@ -7,8 +7,6 @@ dnl # security checks will just be skipped.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_6ARGS_SECURITY_INODE_INIT_SECURITY], [
 	AC_MSG_CHECKING([whether security_inode_init_security wants 6 args])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/security.h>
 	],[
@@ -27,7 +25,6 @@ AC_DEFUN([ZFS_AC_KERNEL_6ARGS_SECURITY_INODE_INIT_SECURITY], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #
@@ -39,8 +36,6 @@ dnl # and the EVM xattr.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_CALLBACK_SECURITY_INODE_INIT_SECURITY], [
 	AC_MSG_CHECKING([whether security_inode_init_security wants callback])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/security.h>
 	],[
@@ -57,5 +52,4 @@ AC_DEFUN([ZFS_AC_KERNEL_CALLBACK_SECURITY_INODE_INIT_SECURITY], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
