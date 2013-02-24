@@ -9,8 +9,6 @@ dnl # to void.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_BIO_END_IO_T_ARGS], [
 	AC_MSG_CHECKING([whether bio_end_io_t wants 2 args])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/bio.h>
 	],[
@@ -25,5 +23,4 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_END_IO_T_ARGS], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
