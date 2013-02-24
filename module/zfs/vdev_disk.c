@@ -604,8 +604,6 @@ vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
 	return __vdev_disk_physio(bdev, NULL, kbuf, size, offset, flags);
 }
 
-/* 2.6.24 API change */
-#ifdef HAVE_BIO_EMPTY_BARRIER
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 {
 	zio_t *zio = bio->bi_private;
@@ -646,13 +644,6 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	return 0;
 }
-#else
-static int
-vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
-{
-	return ENOTSUP;
-}
-#endif /* HAVE_BIO_EMPTY_BARRIER */
 
 static int
 vdev_disk_io_start(zio_t *zio)
