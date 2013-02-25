@@ -3970,7 +3970,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 	 * If we were given 'zpool status -x', only report those pools with
 	 * problems.
 	 */
-	if (reason == ZPOOL_STATUS_OK && cbp->cb_explain) {
+	if (cbp->cb_explain &&
+	    (reason == ZPOOL_STATUS_OK ||
+	    reason == ZPOOL_STATUS_VERSION_OLDER ||
+	    reason == ZPOOL_STATUS_FEAT_DISABLED)) {
 		if (!cbp->cb_allpools) {
 			(void) printf(gettext("pool '%s' is healthy\n"),
 			    zpool_get_name(zhp));
