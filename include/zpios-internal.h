@@ -15,7 +15,7 @@
  *             Milind Dumbare <milind@clusterfs.com>
  *
  *  This file is part of ZFS on Linux.
- *  For details, see <http://github.com/behlendorf/zfs/>.
+ *  For details, see <http://zfsonlinux.org/>.
  *
  *  ZPIOS is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
