@@ -249,6 +249,16 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		return EINVAL;
 	}
 
+	/*
+	 * Reopen the device if it's not currently open. Otherwise,
+	 * just update the physical size of the device.
+	 */
+	if (v->vdev_tsd != NULL) {
+		ASSERT(v->vdev_reopening);
+		vd = v->vdev_tsd;
+		goto skip_open;
+	}
+
 	vd = kmem_zalloc(sizeof(vdev_disk_t), KM_PUSHPAGE);
 	if (vd == NULL)
 		return ENOMEM;
@@ -279,7 +289,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
-	block_size =  vdev_bdev_block_size(bdev);
+
+skip_open:
+	/*  Determine the physical block size */
+	block_size = vdev_bdev_block_size(vd->vd_bdev);
 
 	/* We think the wholedisk property should always be set when this
 	 * function is called.  ASSERT here so if any legitimate cases exist
@@ -299,7 +312,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(bdev);
+	*psize = bdev_capacity(vd->vd_bdev);
 
 	/* TODO: report possible expansion size */
 	*max_psize = *psize;
@@ -318,7 +331,7 @@ vdev_disk_close(vdev_t *v)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
 
-	if (vd == NULL)
+	if (v->vdev_reopening || vd == NULL)
 		return;
 
 	if (vd->vd_bdev != NULL)
