@@ -80,16 +80,16 @@ typedef struct spa_config_dirent {
 	char		*scd_path;
 } spa_config_dirent_t;
 
-enum zio_taskq_type {
+typedef enum zio_taskq_type {
 	ZIO_TASKQ_ISSUE = 0,
 	ZIO_TASKQ_ISSUE_HIGH,
 	ZIO_TASKQ_INTERRUPT,
 	ZIO_TASKQ_INTERRUPT_HIGH,
 	ZIO_TASKQ_TYPES
-};
+} zio_taskq_type_t;
 
 /*
- * State machine for the zpool-pooname process.  The states transitions
+ * State machine for the zpool-poolname process.  The states transitions
  * are done as follows:
  *
  *	From		   To			Routine
@@ -106,6 +106,11 @@ typedef enum spa_proc_state {
 	SPA_PROC_DEACTIVATE,	/* spa_deactivate() requests process exit */
 	SPA_PROC_GONE		/* spa_thread() is exiting, spa_proc = &p0 */
 } spa_proc_state_t;
+
+typedef struct spa_taskqs {
+	uint_t stqs_count;
+	taskq_t **stqs_taskq;
+} spa_taskqs_t;
 
 struct spa {
 	/*
@@ -125,7 +130,7 @@ struct spa {
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
 	uint64_t	spa_import_flags;	/* import specific flags */
-	taskq_t		*spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
+	spa_taskqs_t	spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
@@ -238,6 +243,9 @@ struct spa {
 };
 
 extern char *spa_config_path;
+
+extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);
 
 #ifdef	__cplusplus
 }
