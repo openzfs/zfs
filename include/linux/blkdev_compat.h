@@ -478,4 +478,13 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
  */
 #define	VDEV_SCHEDULER			"noop"
 
+/*
+ * A common holder for vdev_bdev_open() is used to relax the exclusive open
+ * semantics slightly.  Internal vdev disk callers may pass VDEV_HOLDER to
+ * allow them to open the device multiple times.  Other kernel callers and
+ * user space processes which don't pass this value will get EBUSY.  This is
+ * currently required for the correct operation of hot spares.
+ */
+#define VDEV_HOLDER			((void *)0x2f5401de7)
+
 #endif /* _ZFS_BLKDEV_H */

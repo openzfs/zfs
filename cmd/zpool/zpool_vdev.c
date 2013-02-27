@@ -247,7 +247,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	 * not easily decode the MBR return a failure and prompt to the
 	 * user to use force option since we cannot check the partitions.
 	 */
-	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0) {
+	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0) {
 		check_error(errno);
 		return -1;
 	}
@@ -306,7 +306,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	efi_free(vtoc);
 	(void) close(fd);
 
-        return (err);
+	return (err);
 }
 
 static int
@@ -353,7 +353,7 @@ is_whole_disk(const char *path)
 	struct dk_gpt *label;
 	int	fd;
 
-	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0)
+	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
 		return (B_FALSE);
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {
 		(void) close(fd);
@@ -388,6 +388,58 @@ is_shorthand_path(const char *arg, char *path,
 	*wholedisk = B_FALSE;
 
 	return (error);
+}
+
+/*
+ * Determine if the given path is a hot spare within the given configuration.
+ * If no configuration is given we rely solely on the label.
+ */
+static boolean_t
+is_spare(nvlist_t *config, const char *path)
+{
+	int fd;
+	pool_state_t state;
+	char *name = NULL;
+	nvlist_t *label;
+	uint64_t guid, spareguid;
+	nvlist_t *nvroot;
+	nvlist_t **spares;
+	uint_t i, nspares;
+	boolean_t inuse;
+
+	if ((fd = open(path, O_RDONLY)) < 0)
+		return (B_FALSE);
+
+	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
+	    !inuse ||
+	    state != POOL_STATE_SPARE ||
+	    zpool_read_label(fd, &label) != 0) {
+		free(name);
+		(void) close(fd);
+		return (B_FALSE);
+	}
+	free(name);
+	(void) close(fd);
+
+	if (config == NULL)
+		return (B_TRUE);
+
+	verify(nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) == 0);
+	nvlist_free(label);
+
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) == 0);
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+	    &spares, &nspares) == 0) {
+		for (i = 0; i < nspares; i++) {
+			verify(nvlist_lookup_uint64(spares[i],
+			    ZPOOL_CONFIG_GUID, &spareguid) == 0);
+			if (spareguid == guid)
+				return (B_TRUE);
+		}
+	}
+
+	return (B_FALSE);
 }
 
 /*
@@ -914,11 +966,13 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 {
 	nvlist_t **child;
 	uint_t c, children;
-	char *type, *path, *diskname;
+	char *type, *path;
 	char devpath[MAXPATHLEN];
 	char udevpath[MAXPATHLEN];
 	uint64_t wholedisk;
 	struct stat64 statbuf;
+	int is_exclusive = 0;
+	int fd;
 	int ret;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
@@ -941,8 +995,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		    &wholedisk));
 
 		if (!wholedisk) {
-			ret = zero_label(path);
-			return (ret);
+			(void) zero_label(path);
+			return (0);
 		}
 
 		if (realpath(path, devpath) == NULL) {
@@ -964,26 +1018,44 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		strncpy(udevpath, path, MAXPATHLEN);
 		(void) zfs_append_partition(udevpath, MAXPATHLEN);
 
-		if ((strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) &&
-		    (lstat64(udevpath, &statbuf) == 0) &&
-		    S_ISLNK(statbuf.st_mode))
-			(void) unlink(udevpath);
-
-		diskname = strrchr(devpath, '/');
-		assert(diskname != NULL);
-		diskname++;
-		if (zpool_label_disk(g_zfs, zhp, diskname) == -1)
-			return (-1);
+		fd = open(devpath, O_RDWR|O_EXCL);
+		if (fd == -1) {
+			if (errno == EBUSY)
+				is_exclusive = 1;
+		} else {
+			(void) close(fd);
+		}
 
 		/*
-		 * Now we've labeled the disk and the partitions have been
-		 * created.  We still need to wait for udev to create the
-		 * symlinks to those partitions.
+		 * If the partition exists, contains a valid spare label,
+		 * and is opened exclusively there is no need to partition
+		 * it.  Hot spares have already been partitioned and are
+		 * held open exclusively by the kernel as a safety measure.
+		 *
+		 * If the provided path is for a /dev/disk/ device its
+		 * symbolic link will be removed, partition table created,
+		 * and then block until udev creates the new link.
 		 */
-		if ((ret = zpool_label_disk_wait(udevpath, 1000)) != 0) {
-			(void) fprintf(stderr,
-			    gettext( "cannot resolve path '%s'\n"), udevpath);
-			return (-1);
+		if (!is_exclusive || !is_spare(NULL, udevpath)) {
+			ret = strncmp(udevpath,UDISK_ROOT,strlen(UDISK_ROOT));
+			if (ret == 0) {
+				ret = lstat64(udevpath, &statbuf);
+				if (ret == 0 && S_ISLNK(statbuf.st_mode))
+					(void) unlink(udevpath);
+			}
+
+			if (zpool_label_disk(g_zfs, zhp,
+			    strrchr(devpath, '/') + 1) == -1)
+				return (-1);
+
+			ret = zpool_label_disk_wait(udevpath, 1000);
+			if (ret) {
+				(void) fprintf(stderr, gettext("cannot "
+				    "resolve path '%s': %d\n"), udevpath, ret);
+				return (-1);
+			}
+
+			(void) zero_label(udevpath);
 		}
 
 		/*
@@ -993,9 +1065,6 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * future output.
 		 */
 		verify(nvlist_add_string(nv, ZPOOL_CONFIG_PATH, udevpath) == 0);
-
-		/* Just in case this partition already existed. */
-		(void) zero_label(udevpath);
 
 		return (0);
 	}
@@ -1017,54 +1086,6 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 				return (ret);
 
 	return (0);
-}
-
-/*
- * Determine if the given path is a hot spare within the given configuration.
- */
-static boolean_t
-is_spare(nvlist_t *config, const char *path)
-{
-	int fd;
-	pool_state_t state;
-	char *name = NULL;
-	nvlist_t *label;
-	uint64_t guid, spareguid;
-	nvlist_t *nvroot;
-	nvlist_t **spares;
-	uint_t i, nspares;
-	boolean_t inuse;
-
-	if ((fd = open(path, O_RDONLY|O_EXCL)) < 0)
-		return (B_FALSE);
-
-	if (zpool_in_use(g_zfs, fd, &state, &name, &inuse) != 0 ||
-	    !inuse ||
-	    state != POOL_STATE_SPARE ||
-	    zpool_read_label(fd, &label) != 0) {
-		free(name);
-		(void) close(fd);
-		return (B_FALSE);
-	}
-	free(name);
-	(void) close(fd);
-
-	verify(nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) == 0);
-	nvlist_free(label);
-
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
-	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-	    &spares, &nspares) == 0) {
-		for (i = 0; i < nspares; i++) {
-			verify(nvlist_lookup_uint64(spares[i],
-			    ZPOOL_CONFIG_GUID, &spareguid) == 0);
-			if (spareguid == guid)
-				return (B_TRUE);
-		}
-	}
-
-	return (B_FALSE);
 }
 
 /*
@@ -1098,11 +1119,12 @@ check_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 		 * regardless of what libblkid or zpool_in_use() says.
 		 */
 		if (replacing) {
-			if (wholedisk)
-				(void) snprintf(buf, sizeof (buf), "%ss0",
-				    path);
-			else
-				(void) strlcpy(buf, path, sizeof (buf));
+			(void) strlcpy(buf, path, sizeof (buf));
+			if (wholedisk) {
+				ret = zfs_append_partition(buf,  sizeof (buf));
+				if (ret == -1)
+					return (-1);
+			}
 
 			if (is_spare(config, buf))
 				return (0);

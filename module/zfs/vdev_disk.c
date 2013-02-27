@@ -34,6 +34,7 @@
 #include <sys/sunldi.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
+static void *zfs_vdev_holder = VDEV_HOLDER;
 
 /*
  * Virtual device vector for disks.
@@ -203,7 +204,7 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 	struct gendisk *disk;
 	int error, partno;
 
-	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), vd);
+	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), zfs_vdev_holder);
 	if (IS_ERR(bdev))
 		return bdev;
 
@@ -281,7 +282,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	if (v->vdev_wholedisk && v->vdev_expanding)
 		bdev = vdev_disk_rrpart(v->vdev_path, mode, vd);
 	if (IS_ERR(bdev))
-		bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
+		bdev = vdev_bdev_open(v->vdev_path,
+		    vdev_bdev_mode(mode), zfs_vdev_holder);
 	if (IS_ERR(bdev)) {
 		kmem_free(vd, sizeof(vdev_disk_t));
 		return -PTR_ERR(bdev);
@@ -783,7 +785,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	uint64_t s, size;
 	int i;
 
-	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), NULL);
+	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), zfs_vdev_holder);
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 
