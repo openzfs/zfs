@@ -941,7 +941,8 @@ zvol_first_open(zvol_state_t *zv)
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 
 	VERIFY(dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL) == 0);
-	if (ro || dmu_objset_is_snapshot(os)) {
+	if (ro || dmu_objset_is_snapshot(os) ||
+	    !spa_writeable(dmu_objset_spa(os))) {
 		set_disk_ro(zv->zv_disk, 1);
 		zv->zv_flags |= ZVOL_RDONLY;
 	} else {
@@ -1352,10 +1353,12 @@ __zvol_create_minor(const char *name)
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
 #endif
 
-	if (zil_replay_disable)
-		zil_destroy(dmu_objset_zil(os), B_FALSE);
-	else
-		zil_replay(os, zv, zvol_replay_vector);
+	if (spa_writeable(dmu_objset_spa(os))) {
+		if (zil_replay_disable)
+			zil_destroy(dmu_objset_zil(os), B_FALSE);
+		else
+			zil_replay(os, zv, zvol_replay_vector);
+	}
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
