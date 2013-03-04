@@ -64,6 +64,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
 	SPL_AC_2ARGS_SET_FS_PWD
+	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_VFS_FSYNC
@@ -1686,9 +1687,52 @@ AC_DEFUN([SPL_AC_2ARGS_SET_FS_PWD],
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_2ARGS_SET_FS_PWD, 1,
 		          [set_fs_pwd() wants 2 args])
+		HAVE_2ARGS_SET_FS_PWD=yes
 	],[
 		AC_MSG_RESULT(no)
 	])
+])
+
+dnl #
+dnl # 3.9 API change
+dnl # set_fs_pwd takes const struct path *
+dnl #
+AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
+if test "x$HAVE_2ARGS_SET_FS_PWD" = xyes; then
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+	[AC_MSG_CHECKING([whether set_fs_pwd() requires const struct path *])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/spinlock.h>
+		#include <linux/fs_struct.h>
+		#include <linux/path.h>
+		void (*const set_fs_pwd_func)
+			(struct fs_struct *, const struct path *)
+			= set_fs_pwd;
+	],[
+		return 0;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_FS_PWD_WITH_CONST, 1,
+			[set_fs_pwd() needs const path *])
+	],[
+		SPL_LINUX_TRY_COMPILE([
+			#include <linux/spinlock.h>
+			#include <linux/fs_struct.h>
+			#include <linux/path.h>
+			void (*const set_fs_pwd_func)
+				(struct fs_struct *, struct path *)
+				= set_fs_pwd;
+		],[
+			return 0;
+		],[
+			AC_MSG_RESULT(no)
+		],[
+			AC_MSG_ERROR(unknown)
+		])
+	])
+	EXTRA_KCFLAGS="$tmp_flags"
+fi
 ])
 
 dnl #

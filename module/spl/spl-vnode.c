@@ -840,7 +840,11 @@ EXPORT_SYMBOL(releasef);
 # ifdef HAVE_2ARGS_SET_FS_PWD
 /* Used from 2.6.25 - 2.6.31+ */
 void
+#  ifdef HAVE_SET_FS_PWD_WITH_CONST
+set_fs_pwd(struct fs_struct *fs, const struct path *path)
+#  else
 set_fs_pwd(struct fs_struct *fs, struct path *path)
+#  endif
 {
 	struct path old_pwd;
 
