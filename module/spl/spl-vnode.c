@@ -175,7 +175,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	if (IS_ERR(fp))
 		SRETURN(-PTR_ERR(fp));
 
-	rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
+	rc = vfs_getattr(fp->f_path.mnt, fp->f_dentry, &stat);
 	if (rc) {
 		filp_close(fp, 0);
 		SRETURN(-rc);
@@ -602,7 +602,7 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 
 	fp = vp->v_file;
 
-        rc = vfs_getattr(fp->f_vfsmnt, fp->f_dentry, &stat);
+        rc = vfs_getattr(fp->f_path.mnt, fp->f_dentry, &stat);
 	if (rc)
 		SRETURN(-rc);
 
@@ -754,7 +754,7 @@ vn_getf(int fd)
 	if (vp == NULL)
 		SGOTO(out_fget, rc);
 
-        if (vfs_getattr(lfp->f_vfsmnt, lfp->f_dentry, &stat))
+        if (vfs_getattr(lfp->f_path.mnt, lfp->f_dentry, &stat))
 		SGOTO(out_vnode, rc);
 
 	mutex_enter(&vp->v_lock);
