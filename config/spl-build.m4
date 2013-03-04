@@ -88,6 +88,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 	SPL_AC_SHRINK_CONTROL_STRUCT
 	SPL_AC_RWSEM_SPINLOCK_IS_RAW
+	SPL_AC_SCHED_RT_HEADER
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -2216,4 +2217,23 @@ AC_DEFUN([SPL_AC_RWSEM_SPINLOCK_IS_RAW], [
 		AC_MSG_RESULT(no)
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
+])
+
+dnl #
+dnl # 3.9 API change,
+dnl # Moved things from linux/sched.h to linux/sched/rt.h
+dnl #
+AC_DEFUN([SPL_AC_SCHED_RT_HEADER],
+	[AC_MSG_CHECKING([whether header linux/sched/rt.h exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+		#include <linux/sched/rt.h>
+	],[
+		return 0;
+	],[
+		AC_DEFINE(HAVE_SCHED_RT_HEADER, 1, [linux/sched/rt.h exists])
+		AC_MSG_RESULT(yes)
+	],[
+		AC_MSG_RESULT(no)
+	])
 ])
