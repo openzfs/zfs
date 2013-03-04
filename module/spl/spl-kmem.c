@@ -404,7 +404,8 @@ kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits, const void *
 	spin_lock_irqsave(lock, flags);
 
 	head = &table[hash_ptr(addr, bits)];
-	hlist_for_each_entry_rcu(p, node, head, kd_hlist) {
+	hlist_for_each_rcu(node, head) {
+		p = list_entry_rcu(node, struct kmem_debug, kd_hlist);
 		if (p->kd_addr == addr) {
 			hlist_del_init(&p->kd_hlist);
 			list_del_init(&p->kd_list);

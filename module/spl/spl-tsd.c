@@ -113,7 +113,8 @@ tsd_hash_search(tsd_hash_table_t *table, uint_t key, pid_t pid)
 	hash = hash_long((ulong_t)key * (ulong_t)pid, table->ht_bits);
 	bin = &table->ht_bins[hash];
 	spin_lock(&bin->hb_lock);
-	hlist_for_each_entry(entry, node, &bin->hb_head, he_list) {
+	hlist_for_each(node, &bin->hb_head) {
+		entry = list_entry(node, tsd_hash_entry_t, he_list);
 		if ((entry->he_key == key) && (entry->he_pid == pid)) {
 			spin_unlock(&bin->hb_lock);
 			SRETURN(entry);
