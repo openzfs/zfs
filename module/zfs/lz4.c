@@ -243,6 +243,14 @@ lz4_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 /* Disable restrict */
 #define	restrict
 
+/*
+ * Linux : GCC_VERSION is defined as of 3.9-rc1, so undefine it.
+ * torvalds/linux@3f3f8d2f48acfd8ed3b8e6b7377935da57b27b16
+ */
+#ifdef GCC_VERSION
+#undef GCC_VERSION
+#endif
+
 #define	GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
 
 #if (GCC_VERSION >= 302) || (__INTEL_COMPILER >= 800) || defined(__clang__)
