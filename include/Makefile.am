@@ -1,28 +1,21 @@
-# All headers are referenced by this top level Makefile.am are
-# noinst_HEADERS because they are not installed in the usual include
-# location.  We do not want to be using $includedir for this.
-# Installation is handled by the custom install-data-local rule.
-noinst_HEADERS  = $(top_srcdir)/include/*.h
-noinst_HEADERS += $(top_srcdir)/include/fs/*.h
-noinst_HEADERS += $(top_srcdir)/include/linux/*.h
-noinst_HEADERS += $(top_srcdir)/include/rpc/*.h
-noinst_HEADERS += $(top_srcdir)/include/sharefs/*.h
-noinst_HEADERS += $(top_srcdir)/include/sys/fm/*.h
-noinst_HEADERS += $(top_srcdir)/include/sys/fs/*.h
-noinst_HEADERS += $(top_srcdir)/include/sys/sysevent/*.h
-noinst_HEADERS += $(top_srcdir)/include/sys/*.h
-noinst_HEADERS += $(top_srcdir)/include/util/*.h
-noinst_HEADERS += $(top_srcdir)/include/vm/*.h
+SUBDIRS = fs linux rpc sharefs sys util vm
 
-install-data-local:
-	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
-	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
-	instfiles=`find . -name '*.h'`; \
-        for instfile in $$instfiles; do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
-        done
+COMMON_H =
 
-uninstall-local:
-	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
-	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
-	$(RM) -R $$instdest
+KERNEL_H = \
+	$(top_srcdir)/include/splat-ctl.h \
+	$(top_srcdir)/include/spl-ctl.h \
+	$(top_srcdir)/include/spl-debug.h \
+	$(top_srcdir)/include/spl-device.h \
+	$(top_srcdir)/include/spl-trace.h \
+	$(top_srcdir)/include/strings.h \
+	$(top_srcdir)/include/unistd.h
+
+USER_H =
+
+EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
+
+if CONFIG_KERNEL
+kerneldir = /usr/src/spl-$(SPL_META_VERSION)-$(SPL_META_RELEASE)/$(LINUX_VERSION)
+kernel_HEADERS = $(KERNEL_H)
+endif

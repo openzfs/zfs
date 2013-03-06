@@ -1,14 +1,13 @@
 include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
-include $(top_srcdir)/config/arch.am
 
-SUBDIRS =
+SUBDIRS = include
 if CONFIG_USER
 SUBDIRS += lib cmd scripts
 endif
 if CONFIG_KERNEL
-SUBDIRS += module include
+SUBDIRS += module
 endif
 
 AUTOMAKE_OPTIONS = foreign
@@ -34,7 +33,7 @@ install-data-local:
 	release=$(SPL_META_VERSION)-$(SPL_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/spl-$$release/$(LINUX_VERSION); \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
 	done
 endif
 

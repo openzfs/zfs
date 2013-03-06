@@ -1,7 +1,7 @@
 subdir-m += spl
 subdir-m += splat
 
-INSTALL=/usr/bin/install
+INSTALL_MOD_DIR ?= extra
 
 SPL_MODULE_CFLAGS  = -I@abs_top_srcdir@/include
 SPL_MODULE_CFLAGS += -include @abs_top_builddir@/spl_config.h
@@ -15,27 +15,30 @@ clean:
 	@# is defined.  This indicates that kernel modules should be built.
 @CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
-	if [ -f '@LINUX_SYMBOLS@' ]; then $(RM) '@LINUX_SYMBOLS@'; fi
+	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 modules_install:
 	@# Install the kernel modules
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
-		INSTALL_MOD_PATH=$(DESTDIR) \
-		INSTALL_MOD_DIR=addon/spl $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
+		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
+		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)
 	@# Remove extraneous build products when packaging
-	if [ -n "$(DESTDIR)" ]; then \
-		find $(DESTDIR)/lib/modules/@LINUX_VERSION@ \
-			-name 'modules.*' | xargs $(RM); \
+	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
+	if [ -n $$kmoddir ]; then \
+		find $$kmoddir -name 'modules.*' | xargs $(RM); \
 	fi
-	sysmap=$(DESTDIR)/boot/System.map-@LINUX_VERSION@; \
+	sysmap=$(DESTDIR)$(INSTALL_MOD_PATH)/boot/System.map-@LINUX_VERSION@; \
 	if [ -f $$sysmap ]; then \
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
 
 modules_uninstall:
 	@# Uninstall the kernel modules
-	$(RM) -R $(DESTDIR)/lib/modules/@LINUX_VERSION@/addon/spl
+	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
+	list='$(subdir-m)'; for subdir in $$list; do \
+		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$subdir; \
+	done
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \

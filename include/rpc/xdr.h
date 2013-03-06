@@ -3,7 +3,7 @@
  *  Written by Ricardo Correia <Ricardo.M.Correia@Sun.COM>
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://github.com/behlendorf/spl/>.
+ *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
