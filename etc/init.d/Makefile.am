@@ -6,8 +6,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/init.d/zfs.gentoo.in \
 	$(top_srcdir)/etc/init.d/zfs.lsb.in \
 	$(top_srcdir)/etc/init.d/zfs.lunar.in \
-	$(top_srcdir)/etc/init.d/zfs.redhat.in \
-	$(top_srcdir)/etc/init.d/zfs.arch.in
+	$(top_srcdir)/etc/init.d/zfs.redhat.in
 
 $(init_SCRIPTS):
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \

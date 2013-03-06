@@ -5,6 +5,7 @@
 %define _sbindir         /sbin
 %define _libdir          /%{_lib}
 %define _udevdir         /lib/udev
+%define _dracutdir       %{_datadir}/dracut
 
 Summary:         ZFS Library and Utils
 Group:           Utilities/System
@@ -60,7 +61,10 @@ which are ZFS aware.
 %prep
 %setup
 %build
-%configure --with-config=user --without-blkid --with-udevdir=%{_udevdir}
+%configure --with-config=user \
+           --without-blkid \
+           --with-udevdir=%{_udevdir} \
+           --with-dracutdir=%{_dracutdir}
 make
 
 %install
@@ -82,7 +86,7 @@ rm -rf $RPM_BUILD_ROOT
 %config %{_sysconfdir}/zfs/*
 
 %doc AUTHORS COPYING COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown ZFS.RELEASE
+%doc OPENSOLARIS.LICENSE README.markdown
 
 %files devel
 %defattr(-,root,root)
@@ -90,11 +94,11 @@ rm -rf $RPM_BUILD_ROOT
 
 %files test
 %defattr(-,root,root)
-%{_libexecdir}/@PACKAGE@/*
+%{_datadir}/@PACKAGE@/*
 
 %files dracut
 %defattr(-,root,root)
-%{_datadir}/dracut/*
+%{_dracutdir}/*
 
 %post
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs

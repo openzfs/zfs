@@ -1,7 +1,6 @@
 SUBDIRS = zpool-config zpios-test zpios-profile
 
-pkglibexecdir = $(libexecdir)/@PACKAGE@
-dist_pkglibexec_SCRIPTS = \
+dist_pkgdata_SCRIPTS = \
 	$(top_builddir)/scripts/common.sh \
 	$(top_srcdir)/scripts/zconfig.sh \
 	$(top_srcdir)/scripts/zfault.sh \
@@ -17,24 +16,6 @@ ZCONFIG=$(top_builddir)/scripts/zconfig.sh
 ZFAULT=$(top_builddir)/scripts/zfault.sh
 ZTEST=$(top_builddir)/cmd/ztest/ztest
 ZPIOS_SANITY=$(top_builddir)/scripts/zpios-sanity.sh
-
-all:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ ! -e $$link ]; then \
-			$(LN_S) $$file $$link; \
-		fi \
-	done
-
-clean:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ -L $$link ]; then \
-			$(RM) $$link; \
-		fi \
-	done
 
 check:
 	@$(ZFS) -u

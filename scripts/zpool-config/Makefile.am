@@ -1,5 +1,5 @@
-pkglibexecdir = $(libexecdir)/@PACKAGE@/zpool-config
-dist_pkglibexec_SCRIPTS = \
+pkgdataconfigdir = $(pkgdatadir)/zpool-config
+dist_pkgdataconfig_SCRIPTS = \
 	$(top_srcdir)/scripts/zpool-config/dm0-raid0.sh \
 	$(top_srcdir)/scripts/zpool-config/file-raid0.sh \
 	$(top_srcdir)/scripts/zpool-config/file-raid10.sh \
@@ -28,21 +28,3 @@ dist_pkglibexec_SCRIPTS = \
 	$(top_srcdir)/scripts/zpool-config/zpool-raid0.sh \
 	$(top_srcdir)/scripts/zpool-config/zpool-raid10.sh \
 	$(top_srcdir)/scripts/zpool-config/zpool-raidz.sh
-
-all:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ ! -e $$link ]; then \
-			$(LN_S) $$file $$link; \
-		fi \
-	done
-
-clean:
-	@list='$(dist_pkglibexec_SCRIPTS)'; \
-	for file in $$list; do \
-		link=$$(basename $$file); \
-		if [ -L $$link ]; then \
-			$(RM) $$link; \
-		fi \
-	done

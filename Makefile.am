@@ -1,7 +1,6 @@
 include $(top_srcdir)/config/rpm.am
 include $(top_srcdir)/config/deb.am
 include $(top_srcdir)/config/tgz.am
-include $(top_srcdir)/config/arch.am
 
 SUBDIRS = include
 if CONFIG_USER
@@ -14,8 +13,7 @@ endif
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh zfs.spec.in zfs-modules.spec.in
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown
-EXTRA_DIST += OPENSOLARIS.LICENSE ZFS.RELEASE
+EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE
 EXTRA_DIST += dkms.postinst copy-builtin
 noinst_HEADERS = zfs_config.h zfs.release
 
@@ -36,7 +34,7 @@ install-data-local:
 	release=$(ZFS_META_VERSION)-$(ZFS_META_RELEASE); \
 	instdest=$(DESTDIR)/usr/src/zfs-$$release/$(LINUX_VERSION); \
 	for instfile in $(noinst_HEADERS) module/$(LINUX_SYMBOLS); do \
-		$(INSTALL) -D $$instfile $$instdest/$$instfile; \
+		$(INSTALL) -m 644 -D $$instfile $$instdest/$$instfile; \
 	done
 endif
 

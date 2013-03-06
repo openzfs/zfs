@@ -5,6 +5,8 @@ subdir-m += zcommon
 subdir-m += zfs
 subdir-m += zpios
 
+INSTALL_MOD_DIR ?= extra
+
 ZFS_MODULE_CFLAGS += -include @SPL_OBJ@/spl_config.h
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
@@ -39,22 +41,25 @@ clean:
 
 modules_install:
 	@# Install the kernel modules
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` \
-		INSTALL_MOD_PATH=$(DESTDIR) \
-		INSTALL_MOD_DIR=addon/zfs $@
+	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
+		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
+		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)
 	@# Remove extraneous build products when packaging
-	if [ -n "$(DESTDIR)" ]; then \
-		find $(DESTDIR)/lib/modules/@LINUX_VERSION@ \
-			-name 'modules.*' | xargs $(RM); \
+	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
+	if [ -n $$kmoddir ]; then \
+		find $$kmoddir -name 'modules.*' | xargs $(RM); \
 	fi
-	sysmap=$(DESTDIR)/boot/System.map-@LINUX_VERSION@; \
+	sysmap=$(DESTDIR)$(INSTALL_MOD_PATH)/boot/System.map-@LINUX_VERSION@; \
 	if [ -f $$sysmap ]; then \
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
 
 modules_uninstall:
 	@# Uninstall the kernel modules
-	$(RM) -R $(DESTDIR)/lib/modules/@LINUX_VERSION@/addon/zfs
+	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
+	list='$(subdir-m)'; for subdir in $$list; do \
+		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$subdir; \
+	done
 
 distdir:
 
