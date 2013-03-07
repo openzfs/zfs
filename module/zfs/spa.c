@@ -21,8 +21,8 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright 2013 Nexenta Systems, Inc. All rights reserved.
  */
 
 /*
@@ -1597,7 +1597,8 @@ spa_check_removed(vdev_t *vd)
 	for (c = 0; c < vd->vdev_children; c++)
 		spa_check_removed(vd->vdev_child[c]);
 
-	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd)) {
+	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd) &&
+	    !vd->vdev_ishole) {
 		zfs_ereport_post(FM_EREPORT_RESOURCE_AUTOREPLACE,
 		    vd->vdev_spa, vd, NULL, 0, 0);
 		spa_event_notify(vd->vdev_spa, vd, FM_EREPORT_ZFS_DEVICE_CHECK);
