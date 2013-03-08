@@ -1055,11 +1055,11 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 		drop_mutex = 1;
 	}
 
-	ASSERT3P(zv, !=, NULL);
-	ASSERT3U(zv->zv_open_count, >, 0);
-	zv->zv_open_count--;
-	if (zv->zv_open_count == 0)
-		zvol_last_close(zv);
+	if (zv->zv_open_count > 0) {
+		zv->zv_open_count--;
+		if (zv->zv_open_count == 0)
+			zvol_last_close(zv);
+	}
 
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
