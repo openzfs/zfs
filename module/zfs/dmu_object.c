@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -90,7 +91,7 @@ dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	int err;
 
 	if (object == DMU_META_DNODE_OBJECT && !dmu_tx_private_ok(tx))
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	err = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE, FTAG, &dn);
 	if (err)
@@ -112,7 +113,7 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	int err;
 
 	if (object == DMU_META_DNODE_OBJECT)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED,
 	    FTAG, &dn);

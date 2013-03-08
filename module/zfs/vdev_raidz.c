@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1457,7 +1457,7 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	if (nparity > VDEV_RAIDZ_MAXPARITY ||
 	    vd->vdev_children < nparity + 1) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	vdev_open_children(vd);
@@ -1582,7 +1582,7 @@ vdev_raidz_io_start(zio_t *zio)
 				rm->rm_missingdata++;
 			else
 				rm->rm_missingparity++;
-			rc->rc_error = ENXIO;
+			rc->rc_error = SET_ERROR(ENXIO);
 			rc->rc_tried = 1;	/* don't even try */
 			rc->rc_skipped = 1;
 			continue;
@@ -1592,7 +1592,7 @@ vdev_raidz_io_start(zio_t *zio)
 				rm->rm_missingdata++;
 			else
 				rm->rm_missingparity++;
-			rc->rc_error = ESTALE;
+			rc->rc_error = SET_ERROR(ESTALE);
 			rc->rc_skipped = 1;
 			continue;
 		}
@@ -1683,7 +1683,7 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 			continue;
 		if (bcmp(orig[c], rc->rc_data, rc->rc_size) != 0) {
 			raidz_checksum_error(zio, rc, orig[c]);
-			rc->rc_error = ECKSUM;
+			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
 		}
 		zio_buf_free(orig[c], rc->rc_size);
@@ -1807,7 +1807,7 @@ vdev_raidz_combrec(zio_t *zio, int total_errors, int data_errors)
 					if (rc->rc_tried)
 						raidz_checksum_error(zio, rc,
 						    orig[i]);
-					rc->rc_error = ECKSUM;
+					rc->rc_error = SET_ERROR(ECKSUM);
 				}
 
 				ret = code;
@@ -2083,7 +2083,7 @@ vdev_raidz_io_done(zio_t *zio)
 		 * Start checksum ereports for all children which haven't
 		 * failed, and the IO wasn't speculative.
 		 */
-		zio->io_error = ECKSUM;
+		zio->io_error = SET_ERROR(ECKSUM);
 
 		if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			for (c = 0; c < rm->rm_cols; c++) {

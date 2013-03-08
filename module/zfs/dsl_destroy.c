@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -52,10 +52,10 @@ static int
 dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 {
 	if (!dsl_dataset_is_snapshot(ds))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (dsl_dataset_long_held(ds))
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	/*
 	 * Only allow deferred destroy on pools that support it.
@@ -64,7 +64,7 @@ dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 	if (defer) {
 		if (spa_version(ds->ds_dir->dd_pool->dp_spa) <
 		    SPA_VERSION_USERREFS)
-			return (ENOTSUP);
+			return (SET_ERROR(ENOTSUP));
 		return (0);
 	}
 
@@ -73,13 +73,13 @@ dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 	 * we can't destroy it yet.
 	 */
 	if (ds->ds_userrefs > 0)
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	/*
 	 * Can't delete a branch point.
 	 */
 	if (ds->ds_phys->ds_num_children > 1)
-		return (EEXIST);
+		return (SET_ERROR(EEXIST));
 
 	return (0);
 }
@@ -594,10 +594,10 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	objset_t *mos;
 
 	if (dsl_dataset_is_snapshot(ds))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (refcount_count(&ds->ds_longholds) != expected_holds)
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
 
@@ -608,7 +608,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	 */
 	if (ds->ds_prev != NULL &&
 	    ds->ds_prev->ds_phys->ds_next_snap_obj == ds->ds_object)
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	/*
 	 * Can't delete if there are children of this fs.
@@ -618,14 +618,14 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (error != 0)
 		return (error);
 	if (count != 0)
-		return (EEXIST);
+		return (SET_ERROR(EEXIST));
 
 	if (dsl_dir_is_clone(ds->ds_dir) && DS_IS_DEFER_DESTROY(ds->ds_prev) &&
 	    ds->ds_prev->ds_phys->ds_num_children == 2 &&
 	    ds->ds_prev->ds_userrefs == 0) {
 		/* We need to remove the origin snapshot as well. */
 		if (!refcount_is_zero(&ds->ds_prev->ds_longholds))
-			return (EBUSY);
+			return (SET_ERROR(EBUSY));
 	}
 	return (0);
 }

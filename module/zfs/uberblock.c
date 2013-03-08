@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -33,7 +34,7 @@ uberblock_verify(uberblock_t *ub)
 		byteswap_uint64_array(ub, sizeof (uberblock_t));
 
 	if (ub->ub_magic != UBERBLOCK_MAGIC)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	return (0);
 }

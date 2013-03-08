@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -276,7 +276,7 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 				break;
 			}
 			if (handler->zi_record.zi_error == ENXIO) {
-				ret = EIO;
+				ret = SET_ERROR(EIO);
 				break;
 			}
 		}
@@ -416,7 +416,7 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 		 * still allowing it to be unloaded.
 		 */
 		if ((spa = spa_inject_addref(name)) == NULL)
-			return (ENOENT);
+			return (SET_ERROR(ENOENT));
 
 		handler = kmem_alloc(sizeof (inject_handler_t), KM_SLEEP);
 
@@ -468,7 +468,7 @@ zio_inject_list_next(int *id, char *name, size_t buflen,
 		(void) strncpy(name, spa_name(handler->zi_spa), buflen);
 		ret = 0;
 	} else {
-		ret = ENOENT;
+		ret = SET_ERROR(ENOENT);
 	}
 
 	rw_exit(&inject_lock);
@@ -495,7 +495,7 @@ zio_clear_fault(int id)
 
 	if (handler == NULL) {
 		rw_exit(&inject_lock);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 
 	list_remove(&inject_handlers, handler);

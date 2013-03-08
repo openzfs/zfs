@@ -237,14 +237,14 @@ int
 zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 {
 	if (volsize == 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (volsize % blocksize != 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 #ifdef _ILP32
 	if (volsize - 1 > MAXOFFSET_T)
-		return (EOVERFLOW);
+		return (SET_ERROR(EOVERFLOW));
 #endif
 	return (0);
 }
@@ -283,7 +283,7 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize, objset_t *os)
 
 	bdev = bdget_disk(zv->zv_disk, 0);
 	if (!bdev)
-		return (EIO);
+		return (SET_ERROR(EIO));
 /*
  * 2.6.28 API change
  * Added check_disk_size_change() helper function.
@@ -320,13 +320,13 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	if (error != 0)
 		return (error);
 	if (readonly)
-		return (EROFS);
+		return (SET_ERROR(EROFS));
 
 	mutex_enter(&zvol_state_lock);
 
 	zv = zvol_find_by_name(name);
 	if (zv == NULL) {
-		error = ENXIO;
+		error = SET_ERROR(ENXIO);
 		goto out;
 	}
 
@@ -342,12 +342,12 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 
 	VERIFY(dsl_prop_get_integer(name, "readonly", &readonly, NULL) == 0);
 	if (readonly) {
-		error = EROFS;
+		error = SET_ERROR(EROFS);
 		goto out_doi;
 	}
 
 	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
-		error = EROFS;
+		error = SET_ERROR(EROFS);
 		goto out_doi;
 	}
 
@@ -372,7 +372,7 @@ zvol_check_volblocksize(uint64_t volblocksize)
 	if (volblocksize < SPA_MINBLOCKSIZE ||
 	    volblocksize > SPA_MAXBLOCKSIZE ||
 	    !ISP2(volblocksize))
-		return (EDOM);
+		return (SET_ERROR(EDOM));
 
 	return (0);
 }
@@ -391,12 +391,12 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 
 	zv = zvol_find_by_name(name);
 	if (zv == NULL) {
-		error = ENXIO;
+		error = SET_ERROR(ENXIO);
 		goto out;
 	}
 
 	if (get_disk_ro(zv->zv_disk) || (zv->zv_flags & ZVOL_RDONLY)) {
-		error = EROFS;
+		error = SET_ERROR(EROFS);
 		goto out;
 	}
 
@@ -409,7 +409,7 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 		error = dmu_object_set_blocksize(zv->zv_objset, ZVOL_OBJ,
 		    volblocksize, 0, tx);
 		if (error == ENOTSUP)
-			error = EBUSY;
+			error = SET_ERROR(EBUSY);
 		dmu_tx_commit(tx);
 		if (error == 0)
 			zv->zv_volblocksize = volblocksize;
@@ -453,7 +453,7 @@ zvol_replay_write(zvol_state_t *zv, lr_write_t *lr, boolean_t byteswap)
 static int
 zvol_replay_err(zvol_state_t *zv, lr_t *lr, boolean_t byteswap)
 {
-	return (ENOTSUP);
+	return (SET_ERROR(ENOTSUP));
 }
 
 /*
@@ -705,7 +705,7 @@ zvol_read(void *arg)
 
 	/* convert checksum errors into IO errors */
 	if (error == ECKSUM)
-		error = EIO;
+		error = SET_ERROR(EIO);
 
 	blk_end_request(req, -error, size);
 }
@@ -922,7 +922,7 @@ zvol_first_open(zvol_state_t *zv)
 	if (!mutex_owned(&spa_namespace_lock)) {
 		locked = mutex_tryenter(&spa_namespace_lock);
 		if (!locked)
-			return (-ERESTARTSYS);
+			return (-SET_ERROR(ERESTARTSYS));
 	}
 
 	/* lie and say we're read-only */
@@ -1068,7 +1068,7 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 	int error = 0;
 
 	if (zv == NULL)
-		return (-ENXIO);
+		return (-SET_ERROR(ENXIO));
 
 	switch (cmd) {
 	case BLKFLSBUF:
@@ -1313,7 +1313,7 @@ __zvol_snapdev_hidden(const char *name)
                 *atp = '\0';
                 error = dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL);
                 if ((error == 0) && (snapdev == ZFS_SNAPDEV_HIDDEN))
-                        error = ENODEV;
+                        error = SET_ERROR(ENODEV);
         }
         kmem_free(parent, MAXPATHLEN);
         return (error);
@@ -1333,7 +1333,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 
 	zv = zvol_find_by_name(name);
 	if (zv) {
-		error = EEXIST;
+		error = SET_ERROR(EEXIST);
 		goto out;
 	}
 
@@ -1363,7 +1363,7 @@ __zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 
 	zv = zvol_alloc(MKDEV(zvol_major, minor), name);
 	if (zv == NULL) {
-		error = EAGAIN;
+		error = SET_ERROR(EAGAIN);
 		goto out_dmu_objset_disown;
 	}
 
@@ -1439,10 +1439,10 @@ __zvol_remove_minor(const char *name)
 
 	zv = zvol_find_by_name(name);
 	if (zv == NULL)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	if (zv->zv_open_count > 0)
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	zvol_remove(zv);
 	zvol_free(zv);

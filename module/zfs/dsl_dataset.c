@@ -361,7 +361,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 	/* Make sure dsobj has the correct object type. */
 	dmu_object_info_from_db(dbuf, &doi);
 	if (doi.doi_type != DMU_OT_DSL_DATASET)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
@@ -479,7 +479,7 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 	if (obj != 0)
 		err = dsl_dataset_hold_obj(dp, obj, tag, dsp);
 	else
-		err = ENOENT;
+		err = SET_ERROR(ENOENT);
 
 	/* we may be looking for a snapshot */
 	if (err == 0 && snapname != NULL) {
@@ -488,7 +488,7 @@ dsl_dataset_hold(dsl_pool_t *dp, const char *name,
 		if (*snapname++ != '@') {
 			dsl_dataset_rele(*dsp, tag);
 			dsl_dir_rele(dd, FTAG);
-			return (ENOENT);
+			return (SET_ERROR(ENOENT));
 		}
 
 		dprintf("looking for snapshot '%s'\n", snapname);
@@ -521,7 +521,7 @@ dsl_dataset_own_obj(dsl_pool_t *dp, uint64_t dsobj,
 	if (!dsl_dataset_tryown(*dsp, tag)) {
 		dsl_dataset_rele(*dsp, tag);
 		*dsp = NULL;
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 	}
 	return (0);
 }
@@ -535,7 +535,7 @@ dsl_dataset_own(dsl_pool_t *dp, const char *name,
 		return (err);
 	if (!dsl_dataset_tryown(*dsp, tag)) {
 		dsl_dataset_rele(*dsp, tag);
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 	}
 	return (0);
 }
@@ -907,7 +907,7 @@ dsl_dataset_snapshot_reserve_space(dsl_dataset_t *ds, dmu_tx_t *tx)
 	ASSERT(ds->ds_reserved == 0 || DS_UNIQUE_IS_ACCURATE(ds));
 	asize = MIN(ds->ds_phys->ds_unique_bytes, ds->ds_reserved);
 	if (asize > dsl_dir_space_available(ds->ds_dir, NULL, 0, TRUE))
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 
 	/*
 	 * Propagate any reserved space for this snapshot to other
@@ -942,14 +942,14 @@ dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
 	 * is already one, try again.
 	 */
 	if (ds->ds_phys->ds_prev_snap_txg >= tx->tx_txg)
-		return (EAGAIN);
+		return (SET_ERROR(EAGAIN));
 
 	/*
 	 * Check for conflicting snapshot name.
 	 */
 	error = dsl_dataset_snap_lookup(ds, snapname, &value);
 	if (error == 0)
-		return (EEXIST);
+		return (SET_ERROR(EEXIST));
 	if (error != ENOENT)
 		return (error);
 
@@ -977,11 +977,11 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 
 		name = nvpair_name(pair);
 		if (strlen(name) >= MAXNAMELEN)
-			error = ENAMETOOLONG;
+			error = SET_ERROR(ENAMETOOLONG);
 		if (error == 0) {
 			atp = strchr(name, '@');
 			if (atp == NULL)
-				error = EINVAL;
+				error = SET_ERROR(EINVAL);
 			if (error == 0)
 				(void) strlcpy(dsname, name, atp - name + 1);
 		}
@@ -1187,7 +1187,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 
 			atp = strchr(snapname, '@');
 			if (atp == NULL) {
-				error = EINVAL;
+				error = SET_ERROR(EINVAL);
 				break;
 			}
 			(void) strlcpy(fsname, snapname, atp - snapname + 1);
@@ -1249,7 +1249,7 @@ dsl_dataset_snapshot_tmp_check(void *arg, dmu_tx_t *tx)
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_USERREFS) {
 		dsl_dataset_rele(ds, FTAG);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	error = dsl_dataset_user_hold_check_one(NULL, ddsta->ddsta_htag,
 	    B_TRUE, tx);
@@ -1553,14 +1553,14 @@ dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
 	/* new name should not exist */
 	error = dsl_dataset_snap_lookup(hds, ddrsa->ddrsa_newsnapname, &val);
 	if (error == 0)
-		error = EEXIST;
+		error = SET_ERROR(EEXIST);
 	else if (error == ENOENT)
 		error = 0;
 
 	/* dataset name + 1 for the "@" + the new snapshot name must fit */
 	if (dsl_dir_namelen(hds->ds_dir) + 1 +
 	    strlen(ddrsa->ddrsa_newsnapname) >= MAXNAMELEN)
-		error = ENAMETOOLONG;
+		error = SET_ERROR(ENAMETOOLONG);
 
 	return (error);
 }
@@ -1672,18 +1672,18 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	/* must not be a snapshot */
 	if (dsl_dataset_is_snapshot(ds)) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	/* must have a most recent snapshot */
 	if (ds->ds_phys->ds_prev_snap_txg < TXG_INITIAL) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	if (dsl_dataset_long_held(ds)) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 	}
 
 	/*
@@ -1693,7 +1693,7 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	if (ds->ds_quota != 0 &&
 	    ds->ds_prev->ds_phys->ds_referenced_bytes > ds->ds_quota) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EDQUOT);
+		return (SET_ERROR(EDQUOT));
 	}
 
 	/*
@@ -1710,7 +1710,7 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	    unused_refres_delta >
 	    dsl_dir_space_available(ds->ds_dir, NULL, 0, TRUE)) {
 		dsl_dataset_rele(ds, FTAG);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	}
 
 	dsl_dataset_rele(ds, FTAG);
@@ -1786,7 +1786,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 
 	if (hds->ds_phys->ds_flags & DS_FLAG_NOPROMOTE) {
 		promote_rele(ddpa, FTAG);
-		return (EXDEV);
+		return (SET_ERROR(EXDEV));
 	}
 
 	/*
@@ -1836,7 +1836,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		 * the objset.
 		 */
 		if (dsl_dataset_long_held(ds)) {
-			err = EBUSY;
+			err = SET_ERROR(EBUSY);
 			goto out;
 		}
 
@@ -1845,7 +1845,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		err = dsl_dataset_snap_lookup(hds, ds->ds_snapname, &val);
 		if (err == 0) {
 			(void) strcpy(ddpa->err_ds, snap->ds->ds_snapname);
-			err = EEXIST;
+			err = SET_ERROR(EEXIST);
 			goto out;
 		}
 		if (err != ENOENT)
@@ -2182,7 +2182,7 @@ promote_hold(dsl_dataset_promote_arg_t *ddpa, dsl_pool_t *dp, void *tag)
 	if (dsl_dataset_is_snapshot(ddpa->ddpa_clone) ||
 	    !dsl_dir_is_clone(dd)) {
 		dsl_dataset_rele(ddpa->ddpa_clone, tag);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	error = snaplist_make(dp, 0, dd->dd_phys->dd_origin_obj,
@@ -2270,30 +2270,30 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	/* they should both be heads */
 	if (dsl_dataset_is_snapshot(clone) ||
 	    dsl_dataset_is_snapshot(origin_head))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/* the branch point should be just before them */
 	if (clone->ds_prev != origin_head->ds_prev)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/* clone should be the clone (unless they are unrelated) */
 	if (clone->ds_prev != NULL &&
 	    clone->ds_prev != clone->ds_dir->dd_pool->dp_origin_snap &&
 	    origin_head->ds_object !=
 	    clone->ds_prev->ds_phys->ds_next_snap_obj)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/* the clone should be a child of the origin */
 	if (clone->ds_dir->dd_parent != origin_head->ds_dir)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	/* origin_head shouldn't be modified unless 'force' */
 	if (!force && dsl_dataset_modified_since_lastsnap(origin_head))
-		return (ETXTBSY);
+		return (SET_ERROR(ETXTBSY));
 
 	/* origin_head should have no long holds (e.g. is not mounted) */
 	if (dsl_dataset_long_held(origin_head))
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	/* check amount of any unconsumed refreservation */
 	unused_refres_delta =
@@ -2305,12 +2305,12 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	if (unused_refres_delta > 0 &&
 	    unused_refres_delta >
 	    dsl_dir_space_available(origin_head->ds_dir, NULL, 0, TRUE))
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 
 	/* clone can't be over the head's refquota */
 	if (origin_head->ds_quota != 0 &&
 	    clone->ds_phys->ds_referenced_bytes > origin_head->ds_quota)
-		return (EDQUOT);
+		return (SET_ERROR(EDQUOT));
 
 	return (0);
 }
@@ -2505,9 +2505,9 @@ dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
 	if (ds->ds_phys->ds_referenced_bytes + inflight >= ds->ds_quota) {
 		if (inflight > 0 ||
 		    ds->ds_phys->ds_referenced_bytes < ds->ds_quota)
-			error = ERESTART;
+			error = SET_ERROR(ERESTART);
 		else
-			error = EDQUOT;
+			error = SET_ERROR(EDQUOT);
 	}
 	mutex_exit(&ds->ds_lock);
 
@@ -2532,7 +2532,7 @@ dsl_dataset_set_refquota_check(void *arg, dmu_tx_t *tx)
 	uint64_t newval;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_REFQUOTA)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	error = dsl_dataset_hold(dp, ddsqra->ddsqra_name, FTAG, &ds);
 	if (error != 0)
@@ -2540,7 +2540,7 @@ dsl_dataset_set_refquota_check(void *arg, dmu_tx_t *tx)
 
 	if (dsl_dataset_is_snapshot(ds)) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	error = dsl_prop_predict(ds->ds_dir,
@@ -2559,7 +2559,7 @@ dsl_dataset_set_refquota_check(void *arg, dmu_tx_t *tx)
 	if (newval < ds->ds_phys->ds_referenced_bytes ||
 	    newval < ds->ds_reserved) {
 		dsl_dataset_rele(ds, FTAG);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	}
 
 	dsl_dataset_rele(ds, FTAG);
@@ -2615,7 +2615,7 @@ dsl_dataset_set_refreservation_check(void *arg, dmu_tx_t *tx)
 	uint64_t newval, unique;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_REFRESERVATION)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	error = dsl_dataset_hold(dp, ddsqra->ddsqra_name, FTAG, &ds);
 	if (error != 0)
@@ -2623,7 +2623,7 @@ dsl_dataset_set_refreservation_check(void *arg, dmu_tx_t *tx)
 
 	if (dsl_dataset_is_snapshot(ds)) {
 		dsl_dataset_rele(ds, FTAG);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	error = dsl_prop_predict(ds->ds_dir,
@@ -2657,7 +2657,7 @@ dsl_dataset_set_refreservation_check(void *arg, dmu_tx_t *tx)
 		    dsl_dir_space_available(ds->ds_dir, NULL, 0, B_TRUE) ||
 		    (ds->ds_quota > 0 && newval > ds->ds_quota)) {
 			dsl_dataset_rele(ds, FTAG);
-			return (ENOSPC);
+			return (SET_ERROR(ENOSPC));
 		}
 	}
 
@@ -2802,7 +2802,7 @@ dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
 		if (snap != new)
 			dsl_dataset_rele(snap, FTAG);
 		if (snapobj == 0) {
-			err = EINVAL;
+			err = SET_ERROR(EINVAL);
 			break;
 		}
 
@@ -2844,7 +2844,7 @@ dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap,
 	if (firstsnap->ds_dir != lastsnap->ds_dir ||
 	    firstsnap->ds_phys->ds_creation_txg >
 	    lastsnap->ds_phys->ds_creation_txg)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	*usedp = *compp = *uncompp = 0;
 

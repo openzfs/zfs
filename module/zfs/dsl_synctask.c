@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -155,7 +155,7 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 	used = dp->dp_root_dir->dd_phys->dd_used_bytes;
 	/* MOS space is triple-dittoed, so we multiply by 3. */
 	if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
-		dst->dst_error = ENOSPC;
+		dst->dst_error = SET_ERROR(ENOSPC);
 		if (dst->dst_nowaiter)
 			kmem_free(dst, sizeof (*dst));
 		return;

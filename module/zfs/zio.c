@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -395,7 +395,7 @@ zio_decompress(zio_t *zio, void *data, uint64_t size)
 	if (zio->io_error == 0 &&
 	    zio_decompress_data(BP_GET_COMPRESS(zio->io_bp),
 	    zio->io_data, data, zio->io_size, size) != 0)
-		zio->io_error = EIO;
+		zio->io_error = SET_ERROR(EIO);
 }
 
 /*
@@ -2061,7 +2061,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 				if (arc_buf_size(abuf) != zio->io_orig_size ||
 				    bcmp(abuf->b_data, zio->io_orig_data,
 				    zio->io_orig_size) != 0)
-					error = EEXIST;
+					error = SET_ERROR(EEXIST);
 				VERIFY(arc_buf_remove_ref(abuf, &abuf));
 			}
 
@@ -2529,7 +2529,7 @@ zio_vdev_io_start(zio_t *zio)
 			return (ZIO_PIPELINE_STOP);
 
 		if (!vdev_accessible(vd, zio)) {
-			zio->io_error = ENXIO;
+			zio->io_error = SET_ERROR(ENXIO);
 			zio_interrupt(zio);
 			return (ZIO_PIPELINE_STOP);
 		}
@@ -2566,7 +2566,7 @@ zio_vdev_io_done(zio_t *zio)
 
 		if (zio->io_error) {
 			if (!vdev_accessible(vd, zio)) {
-				zio->io_error = ENXIO;
+				zio->io_error = SET_ERROR(ENXIO);
 			} else {
 				unexpected_error = B_TRUE;
 			}
@@ -2651,7 +2651,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 */
 	if (zio->io_error && vd != NULL && vd->vdev_ops->vdev_op_leaf &&
 	    !vdev_accessible(vd, zio))
-		zio->io_error = ENXIO;
+		zio->io_error = SET_ERROR(ENXIO);
 
 	/*
 	 * If we can't write to an interior vdev (mirror or RAID-Z),

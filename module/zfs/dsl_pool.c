@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -124,7 +124,7 @@ dsl_pool_txg_history_update(kstat_t *ksp, int rw)
 	int i = 0;
 
 	if (rw == KSTAT_WRITE)
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 
 	if (ksp->ks_data)
 		kmem_free(ksp->ks_data, ksp->ks_data_size);
@@ -1096,7 +1096,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 			dsl_pool_user_hold_create_obj(dp, tx);
 			zapobj = dp->dp_tmp_userrefs_obj;
 		} else {
-			return (ENOENT);
+			return (SET_ERROR(ENOENT));
 		}
 	}
 

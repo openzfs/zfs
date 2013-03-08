@@ -22,6 +22,9 @@
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ */
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -259,16 +262,16 @@ vdev_cache_read(zio_t *zio)
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
 
 	if (zio->io_flags & ZIO_FLAG_DONT_CACHE)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (zio->io_size > zfs_vdev_cache_max)
-		return (EOVERFLOW);
+		return (SET_ERROR(EOVERFLOW));
 
 	/*
 	 * If the I/O straddles two or more cache blocks, don't cache it.
 	 */
 	if (P2BOUNDARY(zio->io_offset, zio->io_size, VCBS))
-		return (EXDEV);
+		return (SET_ERROR(EXDEV));
 
 	ASSERT(cache_phase + zio->io_size <= VCBS);
 
@@ -282,7 +285,7 @@ vdev_cache_read(zio_t *zio)
 	if (ve != NULL) {
 		if (ve->ve_missed_update) {
 			mutex_exit(&vc->vc_lock);
-			return (ESTALE);
+			return (SET_ERROR(ESTALE));
 		}
 
 		if ((fio = ve->ve_fill_io) != NULL) {
@@ -305,7 +308,7 @@ vdev_cache_read(zio_t *zio)
 
 	if (ve == NULL) {
 		mutex_exit(&vc->vc_lock);
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 	}
 
 	fio = zio_vdev_delegated_io(zio->io_vd, cache_offset,

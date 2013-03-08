@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -73,7 +74,7 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 static int
 zfs_replay_error(zfs_sb_t *zsb, lr_t *lr, boolean_t byteswap)
 {
-	return (ENOTSUP);
+	return (SET_ERROR(ENOTSUP));
 }
 
 static void
@@ -387,7 +388,7 @@ zfs_replay_create_acl(zfs_sb_t *zsb, lr_acl_create_t *lracl, boolean_t byteswap)
 		    &ip, kcred, vflg, &vsec);
 		break;
 	default:
-		error = ENOTSUP;
+		error = SET_ERROR(ENOTSUP);
 	}
 
 bail:
@@ -513,7 +514,7 @@ zfs_replay_create(zfs_sb_t *zsb, lr_create_t *lr, boolean_t byteswap)
 		    link, &ip, kcred, vflg);
 		break;
 	default:
-		error = ENOTSUP;
+		error = SET_ERROR(ENOTSUP);
 	}
 
 out:
@@ -553,7 +554,7 @@ zfs_replay_remove(zfs_sb_t *zsb, lr_remove_t *lr, boolean_t byteswap)
 		error = zfs_rmdir(ZTOI(dzp), name, NULL, kcred, vflg);
 		break;
 	default:
-		error = ENOTSUP;
+		error = SET_ERROR(ENOTSUP);
 	}
 
 	iput(ZTOI(dzp));
@@ -677,7 +678,7 @@ zfs_replay_write(zfs_sb_t *zsb, lr_write_t *lr, boolean_t byteswap)
 	if (written < 0)
 		error = -written;
 	else if (written < length)
-		error = EIO; /* short write */
+		error = SET_ERROR(EIO); /* short write */
 
 	iput(ZTOI(zp));
 	zsb->z_replay_eof = 0;	/* safety */

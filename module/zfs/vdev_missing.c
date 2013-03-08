@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -69,7 +69,7 @@ vdev_missing_close(vdev_t *vd)
 static int
 vdev_missing_io_start(zio_t *zio)
 {
-	zio->io_error = ENOTSUP;
+	zio->io_error = SET_ERROR(ENOTSUP);
 	return (ZIO_PIPELINE_CONTINUE);
 }
 
