@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -52,16 +52,16 @@ dodefault(const char *propname, int intsz, int numints, void *buf)
 	 */
 	if ((prop = zfs_name_to_prop(propname)) == ZPROP_INVAL ||
 	    (zfs_prop_readonly(prop) && !zfs_prop_setonce(prop)))
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	if (zfs_prop_get_type(prop) == PROP_TYPE_STRING) {
 		if (intsz != 1)
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 		(void) strncpy(buf, zfs_prop_default_string(prop),
 		    numints);
 	} else {
 		if (intsz != 8 || numints < 1)
-			return (EOVERFLOW);
+			return (SET_ERROR(EOVERFLOW));
 
 		*(uint64_t *)buf = zfs_prop_default_numeric(prop);
 	}
@@ -144,7 +144,7 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 		 * at the end of the loop (instead of at the beginning) ensures
 		 * that err has a valid post-loop value.
 		 */
-		err = ENOENT;
+		err = SET_ERROR(ENOENT);
 	}
 
 	if (err == ENOENT)
@@ -400,7 +400,7 @@ dsl_prop_unregister(dsl_dataset_t *ds, const char *propname,
 
 	if (cbr == NULL) {
 		mutex_exit(&dd->dd_lock);
-		return (ENOMSG);
+		return (SET_ERROR(ENOMSG));
 	}
 
 	list_remove(&dd->dd_prop_cbs, cbr);
@@ -749,7 +749,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 	while ((elem = nvlist_next_nvpair(dpsa->dpsa_props, elem)) != NULL) {
 		if (strlen(nvpair_name(elem)) >= ZAP_MAXNAMELEN) {
 			dsl_dataset_rele(ds, FTAG);
-			return (ENAMETOOLONG);
+			return (SET_ERROR(ENAMETOOLONG));
 		}
 		if (nvpair_type(elem) == DATA_TYPE_STRING) {
 			char *valstr = fnvpair_value_string(elem);
@@ -764,7 +764,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 
 	if (dsl_dataset_is_snapshot(ds) && version < SPA_VERSION_SNAP_PROPS) {
 		dsl_dataset_rele(ds, FTAG);
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 	dsl_dataset_rele(ds, FTAG);
 	return (0);

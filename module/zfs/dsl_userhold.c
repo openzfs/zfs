@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -67,7 +67,7 @@ dsl_dataset_user_hold_check_one(dsl_dataset_t *ds, const char *htag,
 			error = zap_lookup(mos, ds->ds_phys->ds_userrefs_obj,
 			    htag, 8, 1, &value);
 			if (error == 0)
-				error = EEXIST;
+				error = SET_ERROR(EEXIST);
 			else if (error == ENOENT)
 				error = 0;
 		}
@@ -86,7 +86,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 	int rv = 0;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_USERREFS)
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 
 	for (pair = nvlist_next_nvpair(dduha->dduha_holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
@@ -96,7 +96,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 
 		/* must be a snapshot */
 		if (strchr(nvpair_name(pair), '@') == NULL)
-			error = EINVAL;
+			error = SET_ERROR(EINVAL);
 
 		if (error == 0)
 			error = nvpair_value_string(pair, &htag);
@@ -218,11 +218,11 @@ dsl_dataset_user_release_check_one(dsl_dataset_t *ds,
 	*todelete = B_FALSE;
 
 	if (!dsl_dataset_is_snapshot(ds))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	zapobj = ds->ds_phys->ds_userrefs_obj;
 	if (zapobj == 0)
-		return (ESRCH);
+		return (SET_ERROR(ESRCH));
 
 	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
@@ -230,7 +230,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_t *ds,
 		uint64_t tmp;
 		error = zap_lookup(mos, zapobj, nvpair_name(pair), 8, 1, &tmp);
 		if (error == ENOENT)
-			error = ESRCH;
+			error = SET_ERROR(ESRCH);
 		if (error != 0)
 			return (error);
 		numholds++;
@@ -241,7 +241,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_t *ds,
 		/* we need to destroy the snapshot as well */
 
 		if (dsl_dataset_long_held(ds))
-			return (EBUSY);
+			return (SET_ERROR(EBUSY));
 		*todelete = B_TRUE;
 	}
 	return (0);
@@ -267,7 +267,7 @@ dsl_dataset_user_release_check(void *arg, dmu_tx_t *tx)
 
 		error = nvpair_value_nvlist(pair, &holds);
 		if (error != 0)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 
 		error = dsl_dataset_hold(dp, name, FTAG, &ds);
 		if (error == 0) {

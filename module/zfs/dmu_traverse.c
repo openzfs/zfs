@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -434,7 +434,7 @@ traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	ASSERT(pfd->pd_blks_fetched >= 0);
 	if (pfd->pd_cancel)
-		return (EINTR);
+		return (SET_ERROR(EINTR));
 
 	if (bp == NULL || !((pfd->pd_flags & TRAVERSE_PREFETCH_DATA) ||
 	    BP_GET_TYPE(bp) == DMU_OT_DNODE || BP_GET_LEVEL(bp) > 0) ||

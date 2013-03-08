@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -155,7 +155,7 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	if (scn->scn_phys.scn_state == DSS_SCANNING)
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	return (0);
 }
@@ -316,7 +316,7 @@ dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	return (0);
 }
 
@@ -1339,7 +1339,7 @@ dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	if (!scn->scn_is_bptree ||
 	    (BP_GET_LEVEL(bp) == 0 && BP_GET_TYPE(bp) != DMU_OT_OBJSET)) {
 		if (dsl_scan_free_should_pause(scn))
-			return (ERESTART);
+			return (SET_ERROR(ERESTART));
 	}
 
 	zio_nowait(zio_free_sync(scn->scn_zio_root, scn->scn_dp->dp_spa,

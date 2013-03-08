@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 /*
@@ -668,14 +668,14 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	 * Dead vdevs cannot be initialized.
 	 */
 	if (vdev_is_dead(vd))
-		return (EIO);
+		return (SET_ERROR(EIO));
 
 	/*
 	 * Determine if the vdev is in use.
 	 */
 	if (reason != VDEV_LABEL_REMOVE && reason != VDEV_LABEL_SPLIT &&
 	    vdev_inuse(vd, crtxg, reason, &spare_guid, &l2cache_guid))
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	/*
 	 * If this is a request to add or replace a spare or l2cache device
@@ -1086,7 +1086,7 @@ vdev_label_sync_top_done(zio_t *zio)
 	uint64_t *good_writes = zio->io_private;
 
 	if (*good_writes == 0)
-		zio->io_error = EIO;
+		zio->io_error = SET_ERROR(EIO);
 
 	kmem_free(good_writes, sizeof (uint64_t));
 }

@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1529,7 +1530,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * For testing, make some blocks above a certain size be gang blocks.
 	 */
 	if (psize >= metaslab_gang_bang && (ddi_get_lbolt() & 3) == 0)
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 
 	if (flags & METASLAB_FASTWRITE)
 		mutex_enter(&mc->mc_fastwrite_lock);
@@ -1712,7 +1713,8 @@ next:
 
 	if (flags & METASLAB_FASTWRITE)
 		mutex_exit(&mc->mc_fastwrite_lock);
-	return (ENOSPC);
+
+	return (SET_ERROR(ENOSPC));
 }
 
 /*
@@ -1781,7 +1783,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 	if ((vd = vdev_lookup_top(spa, vdev)) == NULL ||
 	    (offset >> vd->vdev_ms_shift) >= vd->vdev_ms_count)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -1794,7 +1796,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
 
 	if (error == 0 && !space_map_contains(msp->ms_map, offset, size))
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 
 	if (error || txg == 0) {	/* txg == 0 indicates dry run */
 		mutex_exit(&msp->ms_lock);
@@ -1829,7 +1831,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 
 	if (mc->mc_rotor == NULL) {	/* no vdevs in this class */
 		spa_config_exit(spa, SCL_ALLOC, FTAG);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	}
 
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));

@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -3764,7 +3764,7 @@ arc_memory_throttle(uint64_t reserve, uint64_t inflight_data, uint64_t txg)
 	if (available_memory <= zfs_write_limit_max) {
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
-		return (EAGAIN);
+		return (SET_ERROR(EAGAIN));
 	}
 
 	if (inflight_data > available_memory / 4) {
@@ -3802,7 +3802,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		arc_c = MIN(arc_c_max, reserve * 4);
 	if (reserve > arc_c) {
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reserve);
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 	}
 
 	/*
@@ -3837,7 +3837,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		    arc_anon->arcs_lsize[ARC_BUFC_DATA]>>10,
 		    reserve>>10, arc_c>>10);
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_throttle);
-		return (ERESTART);
+		return (SET_ERROR(ERESTART));
 	}
 	atomic_add_64(&arc_tempreserve, reserve);
 	return (0);
@@ -3858,7 +3858,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	arc_stats_t *as = ksp->ks_data;
 
 	if (rw == KSTAT_WRITE) {
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 	} else {
 		arc_kstat_update_state(arc_anon,
 		    &as->arcstat_anon_size,
@@ -4530,7 +4530,7 @@ l2arc_read_done(zio_t *zio)
 		if (zio->io_error != 0) {
 			ARCSTAT_BUMP(arcstat_l2_io_error);
 		} else {
-			zio->io_error = EIO;
+			zio->io_error = SET_ERROR(EIO);
 		}
 		if (!equal)
 			ARCSTAT_BUMP(arcstat_l2_cksum_bad);
@@ -5109,7 +5109,7 @@ l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
 		bcopy(zio->io_data, cdata, csize);
 		if (zio_decompress_data(c, cdata, zio->io_data, csize,
 		    hdr->b_size) != 0)
-			zio->io_error = EIO;
+			zio->io_error = SET_ERROR(EIO);
 		zio_data_buf_free(cdata, csize);
 	}
 

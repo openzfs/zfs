@@ -59,6 +59,7 @@
 #include <sys/time.h>
 #include <vm/seg_kmem.h>
 #include <sys/zone.h>
+#include <sys/sdt.h>
 #include <sys/zfs_debug.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
@@ -117,7 +118,7 @@
  * Stack
  */
 
-#define  noinline	__attribute__((noinline))
+#define	noinline	__attribute__((noinline))
 
 /*
  * Debugging
@@ -149,6 +150,7 @@ extern void vpanic(const char *, __va_list);
 
 #define	fm_panic	panic
 
+#ifdef __sun
 /*
  * DTrace SDT probes have different signatures in userland than they do in
  * kernel.  If they're being used in kernel code, re-define them out of
@@ -157,29 +159,46 @@ extern void vpanic(const char *, __va_list);
 
 #ifdef DTRACE_PROBE
 #undef	DTRACE_PROBE
-#define	DTRACE_PROBE(a)	((void)0)
 #endif	/* DTRACE_PROBE */
+#define	DTRACE_PROBE(a) \
+	ZFS_PROBE0(#a)
 
 #ifdef DTRACE_PROBE1
 #undef	DTRACE_PROBE1
-#define	DTRACE_PROBE1(a, b, c)	((void)0)
 #endif	/* DTRACE_PROBE1 */
+#define	DTRACE_PROBE1(a, b, c) \
+	ZFS_PROBE1(#a, (unsigned long)c)
 
 #ifdef DTRACE_PROBE2
 #undef	DTRACE_PROBE2
-#define	DTRACE_PROBE2(a, b, c, d, e)	((void)0)
 #endif	/* DTRACE_PROBE2 */
+#define	DTRACE_PROBE2(a, b, c, d, e) \
+	ZFS_PROBE2(#a, (unsigned long)c, (unsigned long)e)
 
 #ifdef DTRACE_PROBE3
 #undef	DTRACE_PROBE3
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g)	((void)0)
 #endif	/* DTRACE_PROBE3 */
+#define	DTRACE_PROBE3(a, b, c, d, e, f, g) \
+	ZFS_PROBE3(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g)
 
 #ifdef DTRACE_PROBE4
 #undef	DTRACE_PROBE4
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
 #endif	/* DTRACE_PROBE4 */
+#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i) \
+	ZFS_PROBE4(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g, \
+	(unsigned long)i)
 
+/*
+ * We use the comma operator so that this macro can be used without much
+ * additional code.  For example, "return (EINVAL);" becomes
+ * "return (SET_ERROR(EINVAL));".  Note that the argument will be evaluated
+ * twice, so it should not have side effects (e.g. something like:
+ * "return (SET_ERROR(log_error(EINVAL, info)));" would log the error twice).
+ */
+#define	SET_ERROR(err) (ZFS_SET_ERROR(err), err)
+#else
+#define	SET_ERROR(err) (err)
+#endif
 /*
  * Threads
  */
@@ -214,9 +233,9 @@ typedef struct kthread {
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
-			 len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
+	    len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
 #define	thread_join(t)			zk_thread_join(t)
-#define	newproc(f,a,cid,pri,ctp,pid)	(ENOSYS)
+#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
 
 extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
@@ -247,7 +266,7 @@ typedef struct kmutex {
 } kmutex_t;
 
 #define	MUTEX_DEFAULT	0
-#define MUTEX_HELD(m)	((m)->m_owner == curthread)
+#define	MUTEX_HELD(m)	((m)->m_owner == curthread)
 #define	MUTEX_NOT_HELD(m) (!MUTEX_HELD(m))
 
 extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
@@ -277,7 +296,7 @@ typedef int krw_t;
 
 #define	RW_READER	0
 #define	RW_WRITER	1
-#define RW_DEFAULT	RW_READER
+#define	RW_DEFAULT	RW_READER
 
 #define	RW_READ_HELD(x)		((x)->rw_readers > 0)
 #define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
@@ -306,7 +325,7 @@ extern gid_t *crgetgroups(cred_t *cr);
 /*
  * Condition variables
  */
-#define CV_MAGIC	0xd31ea9a83b1b30c4ull
+#define	CV_MAGIC	0xd31ea9a83b1b30c4ull
 
 typedef struct kcondvar {
 	uint64_t		cv_magic;
@@ -321,9 +340,9 @@ extern void cv_wait(kcondvar_t *cv, kmutex_t *mp);
 extern clock_t cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
 extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
-#define cv_timedwait_interruptible(cv, mp, at)	cv_timedwait(cv, mp, at)
-#define cv_wait_interruptible(cv, mp)		cv_wait(cv, mp)
-#define cv_wait_io(cv, mp)			cv_wait(cv, mp)
+#define	cv_timedwait_interruptible(cv, mp, at)	cv_timedwait(cv, mp, at)
+#define	cv_wait_interruptible(cv, mp)		cv_wait(cv, mp)
+#define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
 
 /*
  * Thread-specific data

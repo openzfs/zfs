@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_pool.h>
@@ -606,7 +606,7 @@ dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 
 		if (reserved && reserved > write_limit) {
 			DMU_TX_STAT_BUMP(dmu_tx_write_limit);
-			return (ERESTART);
+			return (SET_ERROR(ERESTART));
 		}
 	}
 
@@ -890,7 +890,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 			dsl_pool_user_hold_create_obj(dp, tx);
 			zapobj = dp->dp_tmp_userrefs_obj;
 		} else {
-			return (ENOENT);
+			return (SET_ERROR(ENOENT));
 		}
 	}
 

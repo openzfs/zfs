@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -138,7 +138,7 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 	db = dbuf_hold(dn, blkid, tag);
 	rw_exit(&dn->dn_struct_rwlock);
 	if (db == NULL) {
-		err = EIO;
+		err = SET_ERROR(EIO);
 	} else {
 		err = dbuf_read(db, NULL, db_flags);
 		if (err) {
@@ -169,9 +169,9 @@ dmu_set_bonus(dmu_buf_t *db_fake, int newsize, dmu_tx_t *tx)
 	dn = DB_DNODE(db);
 
 	if (dn->dn_bonus != db) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 	} else if (newsize < 0 || newsize > db_fake->db_size) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 	} else {
 		dnode_setbonuslen(dn, newsize, tx);
 		error = 0;
@@ -192,9 +192,9 @@ dmu_set_bonustype(dmu_buf_t *db_fake, dmu_object_type_t type, dmu_tx_t *tx)
 	dn = DB_DNODE(db);
 
 	if (!DMU_OT_IS_VALID(type)) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 	} else if (dn->dn_bonus != db) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 	} else {
 		dnode_setbonus_type(dn, type, tx);
 		error = 0;
@@ -321,12 +321,12 @@ dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp)
 	dn = DB_DNODE(db);
 
 	if (spa_version(dn->dn_objset->os_spa) < SPA_VERSION_SA) {
-		err = EINVAL;
+		err = SET_ERROR(EINVAL);
 	} else {
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 
 		if (!dn->dn_have_spill) {
-			err = ENOENT;
+			err = SET_ERROR(ENOENT);
 		} else {
 			err = dmu_spill_hold_by_dnode(dn,
 			    DB_RF_HAVESTRUCT | DB_RF_CANFAIL, tag, dbp);
@@ -392,7 +392,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			    (longlong_t)dn->dn_object, dn->dn_datablksz,
 			    (longlong_t)offset, (longlong_t)length);
 			rw_exit(&dn->dn_struct_rwlock);
-			return (EIO);
+			return (SET_ERROR(EIO));
 		}
 		nblks = 1;
 	}
@@ -409,7 +409,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			rw_exit(&dn->dn_struct_rwlock);
 			dmu_buf_rele_array(dbp, nblks, tag);
 			zio_nowait(zio);
-			return (EIO);
+			return (SET_ERROR(EIO));
 		}
 		/* initiate async i/o */
 		if (read) {
@@ -438,7 +438,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			    db->db_state == DB_FILL)
 				cv_wait(&db->db_changed, &db->db_mtx);
 			if (db->db_state == DB_UNCACHED)
-				err = EIO;
+				err = SET_ERROR(EIO);
 			mutex_exit(&db->db_mtx);
 			if (err) {
 				dmu_buf_rele_array(dbp, nblks, tag);
@@ -1519,7 +1519,8 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
 	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
 		dmu_tx_abort(tx);
-		return (EIO);	/* Make zl_get_data do txg_waited_synced() */
+		/* Make zl_get_data do txg_waited_synced() */
+		return (SET_ERROR(EIO));
 	}
 
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_PUSHPAGE);
@@ -1605,7 +1606,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		 * This txg has already synced.  There's nothing to do.
 		 */
 		mutex_exit(&db->db_mtx);
-		return (EEXIST);
+		return (SET_ERROR(EEXIST));
 	}
 
 	if (txg <= spa_syncing_txg(os->os_spa)) {
@@ -1627,7 +1628,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		 * There's no need to log writes to freed blocks, so we're done.
 		 */
 		mutex_exit(&db->db_mtx);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 
 	ASSERT(dr->dr_txg == txg);
@@ -1639,7 +1640,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		 * have been dirtied since, or we would have cleared the state.
 		 */
 		mutex_exit(&db->db_mtx);
-		return (EALREADY);
+		return (SET_ERROR(EALREADY));
 	}
 
 	ASSERT(dr->dt.dl.dr_override_state == DR_NOT_OVERRIDDEN);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -1758,7 +1758,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	dsl_scan_t *scn = spa->spa_dsl_pool ? spa->spa_dsl_pool->dp_scan : NULL;
 
 	if (scn == NULL || scn->scn_phys.scn_func == POOL_SCAN_NONE)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	bzero(ps, sizeof (pool_scan_stat_t));
 
 	/* data stored on disk */
