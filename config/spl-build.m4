@@ -63,7 +63,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_GET_ZONE_COUNTS
 	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
-	SPL_AC_2ARGS_SET_FS_PWD
 	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
@@ -1673,32 +1672,10 @@ AC_DEFUN([SPL_AC_SET_FS_PWD],
 ])
 
 dnl #
-dnl # 2.6.25 API change,
-dnl # Simplied API by replacing mnt+dentry args with a single path arg.
-dnl #
-AC_DEFUN([SPL_AC_2ARGS_SET_FS_PWD],
-	[AC_MSG_CHECKING([whether set_fs_pwd() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sched.h>
-		#include <linux/fs_struct.h>
-	],[
-		set_fs_pwd(NULL, NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_SET_FS_PWD, 1,
-		          [set_fs_pwd() wants 2 args])
-		HAVE_2ARGS_SET_FS_PWD=yes
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.9 API change
 dnl # set_fs_pwd takes const struct path *
 dnl #
 AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
-if test "x$HAVE_2ARGS_SET_FS_PWD" = xyes; then
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
 	[AC_MSG_CHECKING([whether set_fs_pwd() requires const struct path *])
@@ -1732,7 +1709,6 @@ if test "x$HAVE_2ARGS_SET_FS_PWD" = xyes; then
 		])
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-fi
 ])
 
 dnl #

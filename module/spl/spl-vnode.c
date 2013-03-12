@@ -837,8 +837,6 @@ vn_releasef(int fd)
 EXPORT_SYMBOL(releasef);
 
 #ifndef HAVE_SET_FS_PWD
-# ifdef HAVE_2ARGS_SET_FS_PWD
-/* Used from 2.6.25 - 2.6.31+ */
 void
 #  ifdef HAVE_SET_FS_PWD_WITH_CONST
 set_fs_pwd(struct fs_struct *fs, const struct path *path)
@@ -865,37 +863,16 @@ set_fs_pwd(struct fs_struct *fs, struct path *path)
 	if (old_pwd.dentry)
 		path_put(&old_pwd);
 }
-# else
-/* Used from 2.6.11 - 2.6.24 */
-void
-set_fs_pwd(struct fs_struct *fs, struct vfsmount *mnt, struct dentry *dentry)
-{
-        struct dentry *old_pwd;
-        struct vfsmount *old_pwdmnt;
-
-        write_lock(&fs->lock);
-        old_pwd = fs->pwd;
-        old_pwdmnt = fs->pwdmnt;
-        fs->pwdmnt = mntget(mnt);
-        fs->pwd = dget(dentry);
-        write_unlock(&fs->lock);
-
-        if (old_pwd) {
-                dput(old_pwd);
-                mntput(old_pwdmnt);
-        }
-}
-# endif /* HAVE_2ARGS_SET_FS_PWD */
 #endif /* HAVE_SET_FS_PWD */
 
 int
 vn_set_pwd(const char *filename)
 {
-#if defined(HAVE_2ARGS_SET_FS_PWD) && defined(HAVE_USER_PATH_DIR)
+#ifdef HAVE_USER_PATH_DIR
         struct path path;
 #else
         struct nameidata nd;
-#endif /* HAVE_2ARGS_SET_FS_PWD */
+#endif /* HAVE_USER_PATH_DIR */
         mm_segment_t saved_fs;
         int rc;
         SENTRY;
@@ -908,7 +885,6 @@ vn_set_pwd(const char *filename)
         saved_fs = get_fs();
         set_fs(get_ds());
 
-#ifdef HAVE_2ARGS_SET_FS_PWD
 # ifdef HAVE_USER_PATH_DIR
         rc = user_path_dir(filename, &path);
         if (rc)
@@ -937,21 +913,6 @@ dput_and_out:
 dput_and_out:
         path_put(&nd.path);
 # endif /* HAVE_USER_PATH_DIR */
-#else
-        rc = __user_walk(filename,
-                         LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_CHDIR, &nd);
-        if (rc)
-                SGOTO(out, rc);
-
-        rc = vfs_permission(&nd, MAY_EXEC);
-        if (rc)
-                SGOTO(dput_and_out, rc);
-
-        set_fs_pwd(current->fs, nd.nd_mnt, nd.nd_dentry);
-
-dput_and_out:
-        vn_path_release(&nd);
-#endif /* HAVE_2ARGS_SET_FS_PWD */
 out:
 	set_fs(saved_fs);
 
