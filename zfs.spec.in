@@ -78,6 +78,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-, root, root)
 %{_sbindir}/*
 %{_libdir}/*
+%{_mandir}/man1/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
 %{_udevdir}/*

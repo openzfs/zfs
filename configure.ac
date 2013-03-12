@@ -64,6 +64,7 @@ AC_CONFIG_FILES([
 	etc/init.d/Makefile
 	etc/zfs/Makefile
 	man/Makefile
+	man/man1/Makefile
 	man/man5/Makefile
 	man/man8/Makefile
 	lib/Makefile
