@@ -72,7 +72,6 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 
 #define CTL_VERSION		CTL_UNNUMBERED /* Version */
 #define CTL_HOSTID		CTL_UNNUMBERED /* Host id by /usr/bin/hostid */
-#define CTL_HW_SERIAL		CTL_UNNUMBERED /* HW serial number by hostid */
 #define CTL_KALLSYMS		CTL_UNNUMBERED /* kallsyms_lookup_name addr */
 
 #define CTL_DEBUG_SUBSYS	CTL_UNNUMBERED /* Debug subsystem */
@@ -129,7 +128,6 @@ enum {
 enum {
 	CTL_VERSION = 1,		/* Version */
 	CTL_HOSTID,			/* Host id reported by /usr/bin/hostid */
-	CTL_HW_SERIAL,			/* Hardware serial number from hostid */
 	CTL_KALLSYMS,			/* Address of kallsyms_lookup_name */
 
 #ifdef DEBUG_LOG
@@ -513,9 +511,6 @@ SPL_PROC_HANDLER(proc_dohostid)
                 if (str == end)
                         SRETURN(-EINVAL);
 
-                (void) snprintf(hw_serial, HW_HOSTID_LEN, "%lu", spl_hostid);
-                hw_serial[HW_HOSTID_LEN - 1] = '\0';
-                *ppos += *lenp;
         } else {
                 len = snprintf(str, sizeof(str), "%lx", spl_hostid);
                 if (*ppos >= len)
@@ -1057,14 +1052,6 @@ static struct ctl_table spl_table[] = {
                 .maxlen   = sizeof(unsigned long),
                 .mode     = 0644,
                 .proc_handler = &proc_dohostid,
-        },
-        {
-                CTL_NAME    (CTL_HW_SERIAL)
-                .procname = "hw_serial",
-                .data     = hw_serial,
-                .maxlen   = sizeof(hw_serial),
-                .mode     = 0444,
-                .proc_handler = &proc_dostring,
         },
 #ifndef HAVE_KALLSYMS_LOOKUP_NAME
         {
