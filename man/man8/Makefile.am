@@ -1,4 +1,4 @@
-man_MANS = vdev_id.8 zdb.8 zfs.8 zpool.8 zstreamdump.8
+man_MANS = mount.zfs.8 vdev_id.8 zdb.8 zfs.8 zinject.8 zpool.8 zstreamdump.8
 EXTRA_DIST = $(man_MANS)
 
 install-data-local:
