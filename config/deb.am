@@ -14,22 +14,20 @@ deb-local:
                 exit 1; \
 	fi)
 
-deb-modules: deb-local rpm-modules
+deb-kmod: deb-local rpm-kmod
 if CONFIG_KERNEL
-	name=${PACKAGE}-modules; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
-	release=`echo ${LINUX_VERSION} | $(SED) -e "s/-/_/g"`; \
-	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
-	pkg1=$${name}-$${version}_$${release}.$${arch}.rpm; \
-	pkg2=$${name}-devel-$${version}_$${release}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2; \
-	$(RM) $$pkg1 $$pkg2
+	name=${PACKAGE}; \
+	version=${VERSION}-${RELEASE}; \
+	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
+	pkg1=kmod-$${name}*$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+	$(RM) $$pkg1
 endif
 
 deb-utils: deb-local rpm-utils
 if CONFIG_USER
 	name=${PACKAGE}; \
-	version=${ZFS_META_VERSION}-${ZFS_META_RELEASE}; \
+	version=${VERSION}-${RELEASE}; \
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
@@ -39,4 +37,4 @@ if CONFIG_USER
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 endif
 
-deb: deb-modules deb-utils
+deb: deb-kmod deb-utils
