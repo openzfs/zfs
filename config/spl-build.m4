@@ -63,7 +63,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_GET_ZONE_COUNTS
 	SPL_AC_USER_PATH_DIR
 	SPL_AC_SET_FS_PWD
-	SPL_AC_2ARGS_SET_FS_PWD
+	SPL_AC_SET_FS_PWD_WITH_CONST
 	SPL_AC_2ARGS_VFS_UNLINK
 	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_VFS_FSYNC
@@ -88,6 +88,8 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
 	SPL_AC_SHRINK_CONTROL_STRUCT
 	SPL_AC_RWSEM_SPINLOCK_IS_RAW
+	SPL_AC_SCHED_RT_HEADER
+	SPL_AC_2ARGS_VFS_GETATTR
 ])
 
 AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
@@ -1670,23 +1672,43 @@ AC_DEFUN([SPL_AC_SET_FS_PWD],
 ])
 
 dnl #
-dnl # 2.6.25 API change,
-dnl # Simplied API by replacing mnt+dentry args with a single path arg.
+dnl # 3.9 API change
+dnl # set_fs_pwd takes const struct path *
 dnl #
-AC_DEFUN([SPL_AC_2ARGS_SET_FS_PWD],
-	[AC_MSG_CHECKING([whether set_fs_pwd() wants 2 args])
+AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
+	tmp_flags="$EXTRA_KCFLAGS"
+	EXTRA_KCFLAGS="-Werror"
+	[AC_MSG_CHECKING([whether set_fs_pwd() requires const struct path *])
 	SPL_LINUX_TRY_COMPILE([
-		#include <linux/sched.h>
+		#include <linux/spinlock.h>
 		#include <linux/fs_struct.h>
+		#include <linux/path.h>
+		void (*const set_fs_pwd_func)
+			(struct fs_struct *, const struct path *)
+			= set_fs_pwd;
 	],[
-		set_fs_pwd(NULL, NULL);
+		return 0;
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_SET_FS_PWD, 1,
-		          [set_fs_pwd() wants 2 args])
+		AC_DEFINE(HAVE_SET_FS_PWD_WITH_CONST, 1,
+			[set_fs_pwd() needs const path *])
 	],[
-		AC_MSG_RESULT(no)
+		SPL_LINUX_TRY_COMPILE([
+			#include <linux/spinlock.h>
+			#include <linux/fs_struct.h>
+			#include <linux/path.h>
+			void (*const set_fs_pwd_func)
+				(struct fs_struct *, struct path *)
+				= set_fs_pwd;
+		],[
+			return 0;
+		],[
+			AC_MSG_RESULT(no)
+		],[
+			AC_MSG_ERROR(unknown)
+		])
 	])
+	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #
@@ -2216,4 +2238,54 @@ AC_DEFUN([SPL_AC_RWSEM_SPINLOCK_IS_RAW], [
 		AC_MSG_RESULT(no)
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
+])
+
+dnl #
+dnl # 3.9 API change,
+dnl # Moved things from linux/sched.h to linux/sched/rt.h
+dnl #
+AC_DEFUN([SPL_AC_SCHED_RT_HEADER],
+	[AC_MSG_CHECKING([whether header linux/sched/rt.h exists])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/sched.h>
+		#include <linux/sched/rt.h>
+	],[
+		return 0;
+	],[
+		AC_DEFINE(HAVE_SCHED_RT_HEADER, 1, [linux/sched/rt.h exists])
+		AC_MSG_RESULT(yes)
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.9 API change,
+dnl # vfs_getattr() uses 2 args
+dnl # It takes struct path * instead of struct vfsmount * and struct dentry *
+dnl #
+AC_DEFUN([SPL_AC_2ARGS_VFS_GETATTR], [
+	AC_MSG_CHECKING([whether vfs_getattr() wants])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+	],[
+		vfs_getattr((struct path *) NULL,
+			(struct kstat *)NULL);
+	],[
+		AC_MSG_RESULT(2 args)
+		AC_DEFINE(HAVE_2ARGS_VFS_GETATTR, 1,
+		          [vfs_getattr wants 2 args])
+	],[
+		SPL_LINUX_TRY_COMPILE([
+			#include <linux/fs.h>
+		],[
+			vfs_getattr((struct vfsmount *)NULL,
+				(struct dentry *)NULL,
+				(struct kstat *)NULL);
+		],[
+			AC_MSG_RESULT(3 args)
+		],[
+			AC_MSG_ERROR(unknown)
+		])
+	])
 ])

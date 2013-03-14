@@ -26,11 +26,16 @@
 #define _SPL_SYSMACROS_H
 
 #include <linux/module.h>
+#include <linux/sched.h>
 #include <linux/cpumask.h>
 #include <sys/debug.h>
 #include <sys/varargs.h>
 #include <sys/zone.h>
 #include <sys/signal.h>
+
+#ifdef HAVE_SCHED_RT_HEADER
+#include <linux/sched/rt.h>
+#endif
 
 #ifndef _KERNEL
 #define _KERNEL				__KERNEL__
