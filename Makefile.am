@@ -4,7 +4,7 @@ include $(top_srcdir)/config/tgz.am
 
 SUBDIRS = include rpm
 if CONFIG_USER
-SUBDIRS += lib cmd scripts
+SUBDIRS += lib cmd man scripts
 endif
 if CONFIG_KERNEL
 SUBDIRS += module

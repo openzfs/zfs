@@ -47,6 +47,8 @@ SPL_AC_CONFIG
 
 AC_CONFIG_FILES([
 	Makefile
+	man/Makefile
+	man/man1/Makefile
 	lib/Makefile
 	cmd/Makefile
 	module/Makefile

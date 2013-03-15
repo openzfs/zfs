@@ -34,6 +34,7 @@ make install DESTDIR=%{?buildroot}
 %files
 %doc AUTHORS COPYING DISCLAIMER
 %{_sbindir}/*
+%{_mandir}/man1/*
 
 %changelog
 * Tue Mar 12 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.0-1
