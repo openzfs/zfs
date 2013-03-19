@@ -15,6 +15,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:      noarch
 
 Requires:       dkms >= 2.2.0.2
+Requires:       spl-dkms = @VERSION@
 Provides:       %{module}-kmod = %{version}
 Conflicts:      %{module}-kmod
 
