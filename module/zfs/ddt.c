@@ -323,8 +323,10 @@ ddt_phys_addref(ddt_phys_t *ddp)
 void
 ddt_phys_decref(ddt_phys_t *ddp)
 {
-	ASSERT((int64_t)ddp->ddp_refcnt > 0);
-	ddp->ddp_refcnt--;
+	if (ddp) {
+		ASSERT((int64_t)ddp->ddp_refcnt > 0);
+		ddp->ddp_refcnt--;
+	}
 }
 
 void
