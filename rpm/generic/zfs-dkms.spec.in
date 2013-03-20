@@ -17,7 +17,6 @@ BuildArch:      noarch
 Requires:       dkms >= 2.2.0.2
 Requires:       spl-dkms = %{version}
 Provides:       %{module}-kmod = %{version}
-Conflicts:      %{module}-kmod
 
 %description
 This package contains the dkms ZFS kernel modules.
