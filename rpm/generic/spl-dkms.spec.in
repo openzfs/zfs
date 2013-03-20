@@ -16,7 +16,6 @@ BuildArch:      noarch
 
 Requires:       dkms >= 2.2.0.2
 Provides:       %{module}-kmod = %{version}
-Conflicts:      %{module}-kmod
 
 %description
 This package contains the dkms kernel modules required to emulate
