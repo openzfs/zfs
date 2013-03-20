@@ -52,6 +52,7 @@ POST_INSTALL="scripts/dkms.postinst
   -k \${kernelver}
   -t \${dkms_tree}
 "
+BUILD_DEPENDS[0]="spl"
 AUTOINSTALL="yes"
 REMAKE_INITRD="no"
 MAKE[0]="make"
