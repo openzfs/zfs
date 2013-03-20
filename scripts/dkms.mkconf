@@ -25,6 +25,8 @@ PACKAGE_CONFIG="${pkgcfg}"
 PRE_BUILD="configure
   --prefix=/usr
   --with-config=kernel
+  --with-linux=\${kernel_source_dir}
+  --with-linux-obj=\${kernel_source_dir}
   \$(
     [[ -r \${PACKAGE_CONFIG} ]] \\
     && source \${PACKAGE_CONFIG} \\
