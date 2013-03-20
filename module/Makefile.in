@@ -1,3 +1,5 @@
+subdir-m += spl
+subdir-m += splat
 subdir-m += avl
 subdir-m += nvpair
 subdir-m += unicode
@@ -7,27 +9,12 @@ subdir-m += zpios
 
 INSTALL_MOD_DIR ?= extra
 
-ZFS_MODULE_CFLAGS += -include @SPL_OBJ@/spl_config.h
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include -I@SPL@/include -I@SPL@
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include.spl
 export ZFS_MODULE_CFLAGS
 
 modules:
-	@# Make the exported SPL symbols available to these modules.
-	@# They may be in the root of SPL_OBJ when building against
-	@# installed devel headers, or they may be in the module
-	@# subdirectory when building against the spl source tree.
-	@if [ -f @SPL_OBJ@/@SPL_SYMBOLS@ ]; then \
-		/bin/cp @SPL_OBJ@/@SPL_SYMBOLS@ .; \
-	elif [ -f @SPL_OBJ@/module/@SPL_SYMBOLS@ ]; then \
-		/bin/cp @SPL_OBJ@/module/@SPL_SYMBOLS@ .; \
-	else \
-		echo -e "\n" \
-		"*** Missing spl symbols ensure you have built the spl:\n" \
-		"*** - @SPL_OBJ@/@SPL_SYMBOLS@, or\n" \
-		"*** - @SPL_OBJ@/module/@SPL_SYMBOLS@\n"; \
-		exit 1; \
-	fi
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ CONFIG_ZFS=m $@
 
 clean:
@@ -35,7 +22,6 @@ clean:
 	@# is defined.  This indicates that kernel modules should be built.
 @CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNELMAKE_PARAMS@ $@
 
-	if [ -f @SPL_SYMBOLS@ ]; then $(RM) @SPL_SYMBOLS@; fi
 	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 

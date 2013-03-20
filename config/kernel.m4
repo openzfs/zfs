@@ -3,9 +3,79 @@ dnl # Default ZFS kernel configuration
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
-	ZFS_AC_SPL
 	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_CONFIG
+	SPL_AC_DEBUG_KMEM
+	SPL_AC_DEBUG_KMEM_TRACKING
+	SPL_AC_TEST_MODULE
+	SPL_AC_ATOMIC_SPINLOCK
+	SPL_AC_TYPE_ATOMIC64_CMPXCHG
+	SPL_AC_TYPE_ATOMIC64_XCHG
+	SPL_AC_TYPE_UINTPTR_T
+	SPL_AC_2ARGS_REGISTER_SYSCTL
+	SPL_AC_SET_SHRINKER
+	SPL_AC_3ARGS_SHRINKER_CALLBACK
+	SPL_AC_PATH_IN_NAMEIDATA
+	SPL_AC_TASK_CURR
+	SPL_AC_CTL_UNNUMBERED
+	SPL_AC_CTL_NAME
+	SPL_AC_FLS64
+	SPL_AC_DEVICE_CREATE
+	SPL_AC_5ARGS_DEVICE_CREATE
+	SPL_AC_CLASS_DEVICE_CREATE
+	SPL_AC_SET_NORMALIZED_TIMESPEC_EXPORT
+	SPL_AC_SET_NORMALIZED_TIMESPEC_INLINE
+	SPL_AC_TIMESPEC_SUB
+	SPL_AC_INIT_UTSNAME
+	SPL_AC_UACCESS_HEADER
+	SPL_AC_KMALLOC_NODE
+	SPL_AC_MONOTONIC_CLOCK
+	SPL_AC_INODE_I_MUTEX
+	SPL_AC_MUTEX_OWNER
+	SPL_AC_MUTEX_OWNER_TASK_STRUCT
+	SPL_AC_MUTEX_LOCK_NESTED
+	SPL_AC_3ARGS_ON_EACH_CPU
+	SPL_AC_KALLSYMS_LOOKUP_NAME
+	SPL_AC_GET_VMALLOC_INFO
+	SPL_AC_PGDAT_HELPERS
+	SPL_AC_FIRST_ONLINE_PGDAT
+	SPL_AC_NEXT_ONLINE_PGDAT
+	SPL_AC_NEXT_ZONE
+	SPL_AC_PGDAT_LIST
+	SPL_AC_GLOBAL_PAGE_STATE
+	SPL_AC_ZONE_STAT_ITEM_FREE
+	SPL_AC_ZONE_STAT_ITEM_INACTIVE
+	SPL_AC_ZONE_STAT_ITEM_ACTIVE
+	SPL_AC_GET_ZONE_COUNTS
+	SPL_AC_USER_PATH_DIR
+	SPL_AC_SET_FS_PWD
+	SPL_AC_SET_FS_PWD_WITH_CONST
+	SPL_AC_2ARGS_VFS_UNLINK
+	SPL_AC_4ARGS_VFS_RENAME
+	SPL_AC_VFS_FSYNC
+	SPL_AC_2ARGS_VFS_FSYNC
+	SPL_AC_INODE_TRUNCATE_RANGE
+	SPL_AC_FS_STRUCT_SPINLOCK
+	SPL_AC_CRED_STRUCT
+	SPL_AC_GROUPS_SEARCH
+	SPL_AC_PUT_TASK_STRUCT
+	SPL_AC_5ARGS_PROC_HANDLER
+	SPL_AC_KVASPRINTF
+	SPL_AC_EXPORTED_RWSEM_IS_LOCKED
+	SPL_AC_KERNEL_FALLOCATE
+	SPL_AC_SHRINK_DCACHE_MEMORY
+	SPL_AC_SHRINK_ICACHE_MEMORY
+	SPL_AC_KERN_PATH_PARENT_HEADER
+	SPL_AC_KERN_PATH_PARENT_SYMBOL
+	SPL_AC_KERN_PATH_LOCKED
+	SPL_AC_CONFIG_KALLSYMS
+	SPL_AC_CONFIG_ZLIB_INFLATE
+	SPL_AC_CONFIG_ZLIB_DEFLATE
+	SPL_AC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
+	SPL_AC_SHRINK_CONTROL_STRUCT
+	SPL_AC_RWSEM_SPINLOCK_IS_RAW
+	SPL_AC_SCHED_RT_HEADER
+	SPL_AC_2ARGS_VFS_GETATTR
 	ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_TYPE_FMODE_T
 	ZFS_AC_KERNEL_KOBJ_NAME_LEN
@@ -227,165 +297,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_SUBST(LINUX_VERSION)
 
 	ZFS_AC_MODULE_SYMVERS
-])
-
-dnl #
-dnl # Detect name used for the additional SPL Module.symvers file.  If one
-dnl # does not exist this is likely because the SPL has been configured
-dnl # but not built.  The '--with-spl-timeout' option can be passed
-dnl # to pause here, waiting for the file to appear from a concurrently
-dnl # building SPL package.  If the file does not appear in time, a good
-dnl # guess is made as to what this file will be named based on what it
-dnl # is named in the kernel build products.  This file will first be
-dnl # used at link time so if the guess is wrong the build will fail
-dnl # then.  This unfortunately means the ZFS package does not contain a
-dnl # reliable mechanism to detect symbols exported by the SPL at
-dnl # configure time.
-dnl #
-AC_DEFUN([ZFS_AC_SPL_MODULE_SYMVERS], [
-	AC_ARG_WITH([spl-timeout],
-		AS_HELP_STRING([--with-spl-timeout=SECS],
-		[Wait SECS for symvers file to appear  @<:@default=0@:>@]),
-		[timeout="$withval"], [timeout=0])
-
-	AC_MSG_CHECKING([spl file name for module symbols])
-	SPL_SYMBOLS=NONE
-
-	while true; do
-		AS_IF([test -r $SPL_OBJ/Module.symvers], [
-			SPL_SYMBOLS=Module.symvers
-		], [test -r $SPL_OBJ/Modules.symvers], [
-			SPL_SYMBOLS=Modules.symvers
-		], [test -r $SPL_OBJ/module/Module.symvers], [
-			SPL_SYMBOLS=Module.symvers
-		], [test -r $SPL_OBJ/module/Modules.symvers], [
-			SPL_SYMBOLS=Modules.symvers
-		])
-
-		AS_IF([test $SPL_SYMBOLS != NONE -o $timeout -le 0], [
-			break;
-		], [
-			sleep 1
-			timeout=$((timeout-1))
-		])
-	done
-
-	AS_IF([test "$SPL_SYMBOLS" = NONE], [
-		SPL_SYMBOLS=$LINUX_SYMBOLS
-	])
-
-	AC_MSG_RESULT([$SPL_SYMBOLS])
-	AC_SUBST(SPL_SYMBOLS)
-])
-
-dnl #
-dnl # Detect the SPL module to be built against
-dnl #
-AC_DEFUN([ZFS_AC_SPL], [
-	AC_ARG_WITH([spl],
-		AS_HELP_STRING([--with-spl=PATH],
-		[Path to spl source]),
-		[splsrc="$withval"])
-
-	AC_ARG_WITH([spl-obj],
-		AS_HELP_STRING([--with-spl-obj=PATH],
-		[Path to spl build objects]),
-		[splbuild="$withval"])
-
-	dnl #
-	dnl # The existence of spl.release.in is used to identify a valid
-	dnl # source directory.  In order of preference:
-	dnl #
-	splsrc0="/var/lib/dkms/spl/${VERSION}/build"
-	splsrc1="/usr/src/spl-${VERSION}/${LINUX_VERSION}"
-	splsrc2="/usr/src/spl-${VERSION}"
-	splsrc3="../spl/"
-	splsrc4="$LINUX"
-
-	AC_MSG_CHECKING([spl source directory])
-	AS_IF([test -z "${splsrc}"], [
-		AS_IF([ test -e "${splsrc0}/spl.release.in"], [
-			splsrc=${splsrc0}
-		], [ test -e "${splsrc1}/spl.release.in"], [
-			splsrc=${splsrc1}
-		], [ test -e "${splsrc2}/spl.release.in"], [
-			splsrc=${splsrc2}
-		], [ test -e "${splsrc3}/spl.release.in"], [
-			splsrc=$(readlink -f "${splsrc3}")
-		], [ test -e "${splsrc4}/spl.release.in" ], [
-			splsrc=${splsrc4}
-		], [
-			splsrc="[Not found]"
-		])
-	], [
-		AS_IF([test "$splsrc" = "NONE"], [
-			splbuild=NONE
-			splsrcver=NONE
-		])
-	])
-
-	AC_MSG_RESULT([$splsrc])
-	AS_IF([ test ! -e "$splsrc/spl.release.in"], [
-		AC_MSG_ERROR([
-	*** Please make sure the kmod spl devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
-	*** location of the spl source with the '--with-spl=PATH' option.])
-	])
-
-	dnl #
-	dnl # The existence of the spl_config.h is used to identify a valid
-	dnl # spl object directory.  In many cases the object and source
-	dnl # directory are the same, however the objects may also reside
-	dnl # is a subdirectory named after the kernel version.
-	dnl #
-	AC_MSG_CHECKING([spl build directory])
-	AS_IF([test -z "$splbuild"], [
-		AS_IF([ test -e "${splsrc}/${LINUX_VERSION}/spl_config.h" ], [
-			splbuild="${splsrc}/${LINUX_VERSION}"
-		], [ test -e "${splsrc}/spl_config.h" ], [
-			splbuild="${splsrc}"
-		], [
-			splbuild="[Not found]"
-		])
-	])
-
-	AC_MSG_RESULT([$splbuild])
-	AS_IF([ ! test -e "$splbuild/spl_config.h"], [
-		AC_MSG_ERROR([
-	*** Please make sure the kmod spl devel <kernel> package for your
-	*** distribution is installed then try again.  If that fails you
-	*** can specify the location of the spl objects with the
-	*** '--with-spl-obj=PATH' option.])
-	])
-
-	AC_MSG_CHECKING([spl source version])
-	AS_IF([test -r $splbuild/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splbuild/spl_config.h], [
-
-		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
-		            cpp -I $splbuild |
-		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
-	])
-
-	AS_IF([test -z "$splsrcver"], [
-		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([
-	*** Cannot determine the version of the spl source.
-	*** Please prepare the spl source before running this script])
-	])
-
-	AC_MSG_RESULT([$splsrcver])
-
-	SPL=${splsrc}
-	SPL_OBJ=${splbuild}
-	SPL_VERSION=${splsrcver}
-
-	AC_SUBST(SPL)
-	AC_SUBST(SPL_OBJ)
-	AC_SUBST(SPL_VERSION)
-
-	ZFS_AC_SPL_MODULE_SYMVERS
 ])
 
 dnl #

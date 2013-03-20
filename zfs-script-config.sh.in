@@ -5,10 +5,6 @@ KERNELBUILD=@LINUX_OBJ@
 KERNELSRCVER=@LINUX_VERSION@
 KERNELMOD=/lib/modules/${KERNELSRCVER}/kernel
 
-SPLSRC=@SPL@
-SPLBUILD=@SPL_OBJ@
-SPLSRCVER=@SPL_VERSION@
-
 SRCDIR=@abs_top_srcdir@
 BUILDDIR=@abs_top_builddir@
 LIBDIR=${BUILDDIR}/lib
@@ -41,12 +37,9 @@ KERNEL_MODULES=(                                      \
         ${KERNELMOD}/lib/zlib_inflate/zlib_inflate.ko \
 )
 
-SPL_MODULES=(                                         \
-        ${SPLBUILD}/module/spl/spl.ko                 \
-        ${SPLBUILD}/module/splat/splat.ko             \
-)
-
 ZFS_MODULES=(                                         \
+        ${MODDIR}/spl/spl.ko                          \
+        ${MODDIR}/splat/splat.ko                      \
         ${MODDIR}/avl/zavl.ko                         \
         ${MODDIR}/nvpair/znvpair.ko                   \
         ${MODDIR}/unicode/zunicode.ko                 \
@@ -59,6 +52,5 @@ ZPIOS_MODULES=(                                       \
 )
 
 MODULES=(                                             \
-        ${SPL_MODULES[*]}                             \
         ${ZFS_MODULES[*]}                             \
 )

@@ -68,6 +68,7 @@ AC_CONFIG_FILES([
 	man/man5/Makefile
 	man/man8/Makefile
 	lib/Makefile
+	lib/libcommon/Makefile
 	lib/libspl/Makefile
 	lib/libspl/asm-generic/Makefile
 	lib/libspl/asm-i386/Makefile
@@ -89,6 +90,7 @@ AC_CONFIG_FILES([
 	lib/libzfs/Makefile
 	lib/libshare/Makefile
 	cmd/Makefile
+	cmd/spl/Makefile
 	cmd/zdb/Makefile
 	cmd/zhack/Makefile
 	cmd/zfs/Makefile
@@ -102,12 +104,15 @@ AC_CONFIG_FILES([
 	cmd/zvol_id/Makefile
 	cmd/vdev_id/Makefile
 	module/Makefile
+	module/spl/Makefile
+	module/splat/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/zpios/Makefile
+	include.spl/Makefile
 	include/Makefile
 	include/linux/Makefile
 	include/sys/Makefile
