@@ -2249,8 +2249,11 @@ zio_ddt_free(zio_t *zio)
 
 	ddt_enter(ddt);
 	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
-	ddp = ddt_phys_select(dde, bp);
-	ddt_phys_decref(ddp);
+	if (dde) {
+		ddp = ddt_phys_select(dde, bp);
+		if (ddp)
+			ddt_phys_decref(ddp);
+	}
 	ddt_exit(ddt);
 
 	return (ZIO_PIPELINE_CONTINUE);

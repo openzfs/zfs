@@ -58,7 +58,7 @@ int zfs_mg_alloc_failures;
 /*
  * Metaslab debugging: when set, keeps all space maps in core to verify frees.
  */
-static int metaslab_debug = 0;
+int metaslab_debug = 0;
 
 /*
  * Minimum size which forces the dynamic allocator to change
@@ -1746,3 +1746,8 @@ void metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(metaslab_debug, int, 0644);
+MODULE_PARM_DESC(metaslab_debug, "keep space maps in core to verify frees");
+#endif /* _KERNEL && HAVE_SPL */

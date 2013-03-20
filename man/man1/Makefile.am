@@ -1,4 +1,4 @@
-man_MANS = splat zpios.1 ztest.1
+man_MANS = splat.1 zhack.1 zpios.1 ztest.1
 EXTRA_DIST = $(man_MANS)
 
 install-data-local:
