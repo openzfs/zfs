@@ -3219,10 +3219,10 @@ vdev_deadman(vdev_t *vd)
 			 * the spa_deadman_synctime we log a zevent.
 			 */
 			fio = avl_first(&vq->vq_pending_tree);
-			delta = ddi_get_lbolt64() - fio->io_timestamp;
-			if (delta > NSEC_TO_TICK(spa_deadman_synctime(spa))) {
-				zfs_dbgmsg("SLOW IO: zio timestamp %llu, "
-				    "delta %llu, last io %llu",
+			delta = gethrtime() - fio->io_timestamp;
+			if (delta > spa_deadman_synctime(spa)) {
+				zfs_dbgmsg("SLOW IO: zio timestamp %lluns, "
+				    "delta %lluns, last io %lluns",
 				    fio->io_timestamp, delta,
 				    vq->vq_io_complete_ts);
 				zfs_ereport_post(FM_EREPORT_ZFS_DELAY,

@@ -410,8 +410,8 @@ struct zio {
 
 	uint64_t	io_offset;
 	uint64_t	io_deadline;	/* expires at timestamp + deadline */
-	uint64_t	io_timestamp;	/* submitted at (ticks) */
-	uint64_t	io_delta;	/* vdev queue service delta (ticks) */
+	hrtime_t	io_timestamp;	/* submitted at */
+	hrtime_t	io_delta;	/* vdev queue service delta */
 	uint64_t	io_delay;	/* vdev disk service delta (ticks) */
 	avl_node_t	io_offset_node;
 	avl_node_t	io_deadline_node;
