@@ -1112,14 +1112,11 @@ spl_slab_reclaim(spl_kmem_cache_t *skc, int count, int flag)
 
 		if (skc->skc_flags & KMC_OFFSLAB)
 			kv_free(skc, sko->sko_addr, size);
-
-		cond_resched();
 	}
 
 	list_for_each_entry_safe(sks, m, &sks_list, sks_list) {
 		ASSERT(sks->sks_magic == SKS_MAGIC);
 		kv_free(skc, sks, skc->skc_slab_size);
-		cond_resched();
 	}
 
 	SEXIT;
