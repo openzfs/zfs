@@ -1,10 +1,14 @@
-dnl #
-dnl # ZFS_AC_META
-dnl # Read metadata from the META file.
-dnl #
-dnl # AUTHOR:
-dnl # Chris Dunlap <cdunlap@llnl.gov>
-dnl #
+###############################################################################
+# Written by Chris Dunlap <cdunlap@llnl.gov>.
+# Modified by Brian Behlendorf <behlendorf1@llnl.gov>.
+###############################################################################
+# ZFS_AC_META: Read metadata from the META file.  When building from a
+# git repository the ZFS_META_RELEASE field will be overwritten if there
+# is an annotated tag matching the form ZFS_META_NAME-ZFS_META_VERSION-*.
+# This allows for working builds to be uniquely identified using the git
+# commit hash.
+###############################################################################
+
 AC_DEFUN([ZFS_AC_META], [
 
 	AH_BOTTOM([
@@ -20,9 +24,9 @@ AC_DEFUN([ZFS_AC_META], [
 	AC_MSG_CHECKING([metadata])
 
 	META="$srcdir/META"
-	_zfs_ac_meta_got_file=no
+	_zfs_ac_meta_type="none"
 	if test -f "$META"; then
-		_zfs_ac_meta_got_file=yes
+		_zfs_ac_meta_type="META file"
 
 		ZFS_META_NAME=_ZFS_AC_META_GETVAL([(?:NAME|PROJECT|PACKAGE)]);
 		if test -n "$ZFS_META_NAME"; then
@@ -41,6 +45,16 @@ AC_DEFUN([ZFS_AC_META], [
 		fi
 
 		ZFS_META_RELEASE=_ZFS_AC_META_GETVAL([RELEASE]);
+		if git rev-parse --git-dir > /dev/null 2>&1; then
+			_match="${ZFS_META_NAME}-${ZFS_META_VERSION}*"
+			_alias=$(git describe --match=${_match} 2>/dev/null)
+			_release=$(echo ${_alias}|cut -f3- -d'-'|sed 's/-/_/g')
+			if test -n "${_release}"; then
+				ZFS_META_RELEASE=${_release}
+				_zfs_ac_meta_type="git describe"
+			fi
+		fi
+
 		if test -n "$ZFS_META_RELEASE"; then
 			AC_DEFINE_UNQUOTED([ZFS_META_RELEASE], ["$ZFS_META_RELEASE"],
 				[Define the project release.]
@@ -116,7 +130,7 @@ AC_DEFUN([ZFS_AC_META], [
 		fi
 	fi
 
-	AC_MSG_RESULT([$_zfs_ac_meta_got_file])
+	AC_MSG_RESULT([$_zfs_ac_meta_type])
 	]
 )
 
