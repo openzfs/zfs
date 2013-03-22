@@ -32,6 +32,10 @@ distclean-local::
 		-o -name '*.order' -o -name '*.markers' \) \
 		-type f -print | xargs $(RM)
 
+dist-hook:
+	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
+		$(distdir)/META
+
 ctags:
 	$(RM) $(top_srcdir)/tags
 	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags

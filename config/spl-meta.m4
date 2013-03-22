@@ -2,16 +2,20 @@
 # Written by Chris Dunlap <cdunlap@llnl.gov>.
 # Modified by Brian Behlendorf <behlendorf1@llnl.gov>.
 ###############################################################################
-# SPL_AC_META: Read metadata from the META file.
+# SPL_AC_META: Read metadata from the META file.  When building from a
+# git repository the SPL_META_RELEASE field will be overwritten if there
+# is an annotated tag matching the form SPL_META_NAME-SPL_META_VERSION-*.
+# This allows for working builds to be uniquely identified using the git
+# commit hash.
 ###############################################################################
 
 AC_DEFUN([SPL_AC_META], [
 	AC_MSG_CHECKING([metadata])
 
 	META="$srcdir/META"
-	_spl_ac_meta_got_file=no
+	_spl_ac_meta_type="none"
 	if test -f "$META"; then
-		_spl_ac_meta_got_file=yes
+		_spl_ac_meta_type="META file"
 
 		SPL_META_NAME=_SPL_AC_META_GETVAL([(?:NAME|PROJECT|PACKAGE)]);
 		if test -n "$SPL_META_NAME"; then
@@ -30,6 +34,16 @@ AC_DEFUN([SPL_AC_META], [
 		fi
 
 		SPL_META_RELEASE=_SPL_AC_META_GETVAL([RELEASE]);
+		if git rev-parse --git-dir > /dev/null 2>&1; then
+			_match="${SPL_META_NAME}-${SPL_META_VERSION}*"
+			_alias=$(git describe --match=${_match} 2>/dev/null)
+			_release=$(echo ${_alias}|cut -f3- -d'-'|sed 's/-/_/g')
+			if test -n "${_release}"; then
+				SPL_META_RELEASE=${_release}
+				_spl_ac_meta_type="git describe"
+			fi
+		fi
+
 		if test -n "$SPL_META_RELEASE"; then
 			AC_DEFINE_UNQUOTED([SPL_META_RELEASE], ["$SPL_META_RELEASE"],
 				[Define the project release.]
@@ -97,7 +111,7 @@ AC_DEFUN([SPL_AC_META], [
 		fi
 	fi
 
-	AC_MSG_RESULT([$_spl_ac_meta_got_file])
+	AC_MSG_RESULT([$_spl_ac_meta_type])
 	]
 )
 
