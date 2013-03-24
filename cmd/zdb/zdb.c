@@ -21,10 +21,11 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdio_ext.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -241,18 +242,18 @@ zdb_nicenum(uint64_t num, char *buf)
 		nicenum(num, buf);
 }
 
-const char dump_zap_stars[] = "****************************************";
-const int dump_zap_width = sizeof (dump_zap_stars) - 1;
+const char histo_stars[] = "****************************************";
+const int histo_width = sizeof (histo_stars) - 1;
 
 static void
-dump_zap_histogram(uint64_t histo[ZAP_HISTOGRAM_SIZE])
+dump_histogram(const uint64_t *histo, int size)
 {
 	int i;
-	int minidx = ZAP_HISTOGRAM_SIZE - 1;
+	int minidx = size - 1;
 	int maxidx = 0;
 	uint64_t max = 0;
 
-	for (i = 0; i < ZAP_HISTOGRAM_SIZE; i++) {
+	for (i = 0; i < size; i++) {
 		if (histo[i] > max)
 			max = histo[i];
 		if (histo[i] > 0 && i > maxidx)
@@ -261,12 +262,14 @@ dump_zap_histogram(uint64_t histo[ZAP_HISTOGRAM_SIZE])
 			minidx = i;
 	}
 
-	if (max < dump_zap_width)
-		max = dump_zap_width;
+	if (max < histo_width)
+		max = histo_width;
 
-	for (i = minidx; i <= maxidx; i++)
-		(void) printf("\t\t\t%u: %6llu %s\n", i, (u_longlong_t)histo[i],
-		    &dump_zap_stars[(max - histo[i]) * dump_zap_width / max]);
+	for (i = minidx; i <= maxidx; i++) {
+		(void) printf("\t\t\t%3u: %6llu %s\n",
+		    i, (u_longlong_t)histo[i],
+		    &histo_stars[(max - histo[i]) * histo_width / max]);
+	}
 }
 
 static void
@@ -317,19 +320,19 @@ dump_zap_stats(objset_t *os, uint64_t object)
 	    (u_longlong_t)zs.zs_salt);
 
 	(void) printf("\t\tLeafs with 2^n pointers:\n");
-	dump_zap_histogram(zs.zs_leafs_with_2n_pointers);
+	dump_histogram(zs.zs_leafs_with_2n_pointers, ZAP_HISTOGRAM_SIZE);
 
 	(void) printf("\t\tBlocks with n*5 entries:\n");
-	dump_zap_histogram(zs.zs_blocks_with_n5_entries);
+	dump_histogram(zs.zs_blocks_with_n5_entries, ZAP_HISTOGRAM_SIZE);
 
 	(void) printf("\t\tBlocks n/10 full:\n");
-	dump_zap_histogram(zs.zs_blocks_n_tenths_full);
+	dump_histogram(zs.zs_blocks_n_tenths_full, ZAP_HISTOGRAM_SIZE);
 
 	(void) printf("\t\tEntries with n chunks:\n");
-	dump_zap_histogram(zs.zs_entries_using_n_chunks);
+	dump_histogram(zs.zs_entries_using_n_chunks, ZAP_HISTOGRAM_SIZE);
 
 	(void) printf("\t\tBuckets with n entries:\n");
-	dump_zap_histogram(zs.zs_buckets_with_n_entries);
+	dump_histogram(zs.zs_buckets_with_n_entries, ZAP_HISTOGRAM_SIZE);
 }
 
 /*ARGSUSED*/
@@ -961,7 +964,7 @@ sprintf_blkptr_compact(char *blkbuf, const blkptr_t *bp)
 	int ndvas = dump_opt['d'] > 5 ? BP_GET_NDVAS(bp) : 1;
 	int i;
 
-	if (dump_opt['b'] >= 5) {
+	if (dump_opt['b'] >= 6) {
 		sprintf_blkptr(blkbuf, bp);
 		return;
 	}
@@ -2051,11 +2054,13 @@ dump_one_dir(const char *dsname, void *arg)
 /*
  * Block statistics.
  */
+#define	PSIZE_HISTO_SIZE (SPA_MAXBLOCKSIZE / SPA_MINBLOCKSIZE + 1)
 typedef struct zdb_blkstats {
-	uint64_t	zb_asize;
-	uint64_t	zb_lsize;
-	uint64_t	zb_psize;
-	uint64_t	zb_count;
+	uint64_t zb_asize;
+	uint64_t zb_lsize;
+	uint64_t zb_psize;
+	uint64_t zb_count;
+	uint64_t zb_psize_histogram[PSIZE_HISTO_SIZE];
 } zdb_blkstats_t;
 
 /*
@@ -2079,6 +2084,9 @@ typedef struct zdb_cb {
 	zdb_blkstats_t	zcb_type[ZB_TOTAL + 1][ZDB_OT_TOTAL + 1];
 	uint64_t	zcb_dedup_asize;
 	uint64_t	zcb_dedup_blocks;
+	uint64_t	zcb_start;
+	uint64_t	zcb_lastprint;
+	uint64_t	zcb_totalasize;
 	uint64_t	zcb_errors[256];
 	int		zcb_readfails;
 	int		zcb_haderrors;
@@ -2106,6 +2114,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		zb->zb_lsize += BP_GET_LSIZE(bp);
 		zb->zb_psize += BP_GET_PSIZE(bp);
 		zb->zb_count++;
+		zb->zb_psize_histogram[BP_GET_PSIZE(bp) >> SPA_MINBLOCKSHIFT]++;
 	}
 
 	if (dump_opt['L'])
@@ -2215,7 +2224,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	zcb->zcb_readfails = 0;
 
-	if (dump_opt['b'] >= 4) {
+	if (dump_opt['b'] >= 5) {
 		sprintf_blkptr(blkbuf, bp);
 		(void) printf("objset %llu object %llu "
 		    "level %lld offset 0x%llx %s\n",
@@ -2224,6 +2233,28 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    (longlong_t)zb->zb_level,
 		    (u_longlong_t)blkid2offset(dnp, bp, zb),
 		    blkbuf);
+	}
+
+	if (dump_opt['b'] < 5 && isatty(STDERR_FILENO) &&
+	    gethrtime() > zcb->zcb_lastprint + NANOSEC) {
+		uint64_t now = gethrtime();
+		char buf[10];
+		uint64_t bytes = zcb->zcb_type[ZB_TOTAL][ZDB_OT_TOTAL].zb_asize;
+		int kb_per_sec =
+		    1 + bytes / (1 + ((now - zcb->zcb_start) / 1000 / 1000));
+		int sec_remaining =
+		    (zcb->zcb_totalasize - bytes) / 1024 / kb_per_sec;
+
+		zfs_nicenum(bytes, buf, sizeof (buf));
+		(void) fprintf(stderr,
+		    "\r%5s completed (%4dMB/s) "
+		    "estimated time remaining: %uhr %02umin %02usec        ",
+		    buf, kb_per_sec / 1024,
+		    sec_remaining / 60 / 60,
+		    sec_remaining / 60 % 60,
+		    sec_remaining % 60);
+
+		zcb->zcb_lastprint = now;
 	}
 
 	return (0);
@@ -2361,7 +2392,7 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
 	zdb_cb_t *zcb = arg;
 
-	if (dump_opt['b'] >= 4) {
+	if (dump_opt['b'] >= 5) {
 		char blkbuf[BP_SPRINTF_LEN];
 		sprintf_blkptr(blkbuf, bp);
 		(void) printf("[%s] %s\n",
@@ -2381,7 +2412,7 @@ dump_block_stats(spa_t *spa)
 	int leaks = 0;
 	int e;
 
-	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n",
+	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
 	    (dump_opt['c'] == 1) ? "metadata " : "",
 	    dump_opt['c'] ? "checksums " : "",
@@ -2418,6 +2449,8 @@ dump_block_stats(spa_t *spa)
 	if (dump_opt['c'] > 1)
 		flags |= TRAVERSE_PREFETCH_DATA;
 
+	zcb.zcb_totalasize = metaslab_class_get_alloc(spa_normal_class(spa));
+	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
 	zcb.zcb_haderrors |= traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
 
 	/*
@@ -2557,6 +2590,14 @@ dump_block_stats(spa_t *spa)
 				else
 					(void) printf("    L%d %s\n",
 					    level, typename);
+
+				if (dump_opt['b'] >= 4) {
+					(void) printf("psize "
+					    "(in 512-byte sectors): "
+					    "number of blocks\n");
+					dump_histogram(zb->zb_psize_histogram,
+					    PSIZE_HISTO_SIZE);
+				}
 			}
 		}
 	}
