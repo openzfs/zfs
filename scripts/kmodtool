@@ -243,7 +243,8 @@ print_rpmtemplate_per_kmoddevelpkg ()
 Summary:          ${kmodname} kernel module(s) devel for ${kernel_uname_r}
 Group:            System Environment/Kernel
 Requires:         ${kmodname}-devel-kmod-common = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         kmod-${kmodname}-devel-uname-r = ${kernel_uname_r}
+Provides:         ${kmodname}-devel-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmodname}-devel-kmod-uname-r = ${kernel_uname_r}
 EOF
 
 	# second part
