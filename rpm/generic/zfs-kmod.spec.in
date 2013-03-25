@@ -26,7 +26,8 @@ Conflicts:      %{module}-dkms
 %{?suse_version:BuildRequires: kernel-source}
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
-%global KmodsBuildRequires kmod-spl-devel
+BuildRequires:             spl-devel-kmod = %{version}-%{release}
+%global KmodsBuildRequires spl-devel-kmod
 %global KmodsRequires      kmod-spl
 %endif
 

@@ -30,8 +30,9 @@ ExcludeArch:    ppc ppc64
 Conflicts:      %{module}-dkms
 
 BuildRequires:  %{_bindir}/kmodtool
+BuildRequires:  spl-devel-kmod = %{version}-%{release}
 
-%global KmodsBuildRequires kmod-spl-devel
+%global KmodsBuildRequires spl-devel-kmod
 %global KmodsRequires      kmod-spl
 
 %{!?kernels:BuildRequires: buildsys-build-rpmfusion-kerneldevpkgs-%{?buildforkernels:%{buildforkernels}}%{!?buildforkernels:current}-%{_target_cpu} }
