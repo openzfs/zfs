@@ -145,5 +145,5 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %{_dracutdir}/modules.d/*
 
 %changelog
-* Tue Mar 12 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.0-1
-- Refreshed RPM packaging.
+* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
+- First official stable release.
