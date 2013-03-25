@@ -134,5 +134,5 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
-* Tue Mar 12 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.0-1
-- Initial kmods2 packaging.
+* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
+- First official stable release.
