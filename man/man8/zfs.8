@@ -3234,9 +3234,9 @@ The following example shows how to maintain a history of snapshots with a consis
 # \fBzfs destroy -r pool/users@7daysago\fR
 # \fBzfs rename -r pool/users@6daysago @7daysago\fR
 # \fBzfs rename -r pool/users@5daysago @6daysago\fR
-# \fBzfs rename -r pool/users@yesterday @5daysago\fR
-# \fBzfs rename -r pool/users@yesterday @4daysago\fR
-# \fBzfs rename -r pool/users@yesterday @3daysago\fR
+# \fBzfs rename -r pool/users@4daysago @5daysago\fR
+# \fBzfs rename -r pool/users@3daysago @4daysago\fR
+# \fBzfs rename -r pool/users@2daysago @3daysago\fR
 # \fBzfs rename -r pool/users@yesterday @2daysago\fR
 # \fBzfs rename -r pool/users@today @yesterday\fR
 # \fBzfs snapshot -r pool/users@today\fR
