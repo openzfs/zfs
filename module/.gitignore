@@ -1,3 +1,11 @@
+*.ko
+*.ko.unsigned
+*.ko.out
+*.ko.out.sig
+*.mod.c
+.*.cmd
+modules.order
+
 /.tmp_versions
 /Module.markers
 /Module.symvers
