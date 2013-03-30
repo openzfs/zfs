@@ -105,7 +105,7 @@ AC_DEFUN([SPL_AC_MODULE_SYMVERS], [
 		if ! test -f "$LINUX_OBJ/$LINUX_SYMBOLS"; then
 			AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed.  If your building with a custom kernel make sure the
+	*** is installed.  If you are building with a custom kernel, make sure the
 	*** kernel is configured, built, and the '--with-linux=PATH' configure
 	*** option refers to the location of the kernel source.])
 		fi
@@ -156,7 +156,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 	if test ! -d "$kernelsrc"; then
 		AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
+	*** is installed and then try again.  If that fails, you can specify the
 	*** location of the kernel source with the '--with-linux=PATH' option.])
 	fi
 
@@ -229,10 +229,10 @@ AC_DEFUN([SPL_AC_CONFIG_USER], [])
 
 dnl #
 dnl # Check for rpm+rpmbuild to build RPM packages.  If these tools
-dnl # are missing it is non-fatal but you will not be able to build
+dnl # are missing, it is non-fatal, but you will not be able to build
 dnl # RPM packages and will be warned if you try too.
 dnl #
-dnl # By default the generic spec file will be used because it requires
+dnl # By default, the generic spec file will be used because it requires
 dnl # minimal dependencies.  Distribution specific spec files can be
 dnl # placed under the 'rpm/<distribution>' directory and enabled using
 dnl # the --with-spec=<distribution> configure option.
