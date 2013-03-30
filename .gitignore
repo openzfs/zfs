@@ -14,16 +14,11 @@
 # Normal rules
 #
 *.[oa]
-*.ko
-*.ko.unsigned
-*.ko.out
-*.ko.out.sig
 *.lo
 *.la
 *.mod.c
 *~
 *.swp
-.*.cmd
 .deps
 .libs
 .DS_Store
