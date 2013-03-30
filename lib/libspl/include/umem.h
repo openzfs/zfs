@@ -28,10 +28,10 @@
 #define _LIBSPL_UMEM_H
 
 /* XXX: We should use the real portable umem library if it is detected
- * at configure time.  However, if the library is not available we can
+ * at configure time.  However, if the library is not available, we can
  * use a trivial malloc based implementation.  This obviously impacts
- * performance but unless you using a full userspace build of zpool for
- * something other than ztest your likely not going to notice or care.
+ * performance, but unless you are using a full userspace build of zpool for
+ * something other than ztest, you are likely not going to notice or care.
  *
  * https://labs.omniti.com/trac/portableumem
  */

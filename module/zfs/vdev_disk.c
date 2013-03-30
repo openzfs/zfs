@@ -268,13 +268,13 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * Devices are always opened by the path provided at configuration
 	 * time.  This means that if the provided path is a udev by-id path
 	 * then drives may be recabled without an issue.  If the provided
-	 * path is a udev by-path path then the physical location information
+	 * path is a udev by-path path, then the physical location information
 	 * will be preserved.  This can be critical for more complicated
 	 * configurations where drives are located in specific physical
 	 * locations to maximize the systems tolerence to component failure.
-	 * Alternately you can provide your own udev rule to flexibly map
+	 * Alternatively, you can provide your own udev rule to flexibly map
 	 * the drives as you see fit.  It is not advised that you use the
-	 * /dev/[hd]d devices which may be reorder due to probing order.
+	 * /dev/[hd]d devices which may be reordered due to probing order.
 	 * Devices in the wrong locations will be detected by the higher
 	 * level vdev validation.
 	 */

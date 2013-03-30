@@ -109,7 +109,7 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 		AS_IF([test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"], [
 			AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed.  If your building with a custom kernel make sure the
+	*** is installed.  If you are building with a custom kernel, make sure the
 	*** kernel is configured, built, and the '--with-linux=PATH' configure
 	*** option refers to the location of the kernel source.])
 		])
@@ -163,7 +163,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AS_IF([test ! -d "$kernelsrc"], [
 		AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
+	*** is installed and then try again.  If that fails, you can specify the
 	*** location of the kernel source with the '--with-linux=PATH' option.])
 	])
 

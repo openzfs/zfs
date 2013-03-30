@@ -410,7 +410,7 @@ void dmu_write_policy(objset_t *os, struct dnode *dn, int level, int wp,
  * read db_data, dmu_buf_will_dirty() before modifying it, and the
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
- * buffer as well.  You must release your hold with dmu_buf_rele().
+ * buffer as well.  You must release what you hold with dmu_buf_rele().
  */
 int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
 int dmu_bonus_max(void);
@@ -432,8 +432,8 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
  * Obtain the DMU buffer from the specified object which contains the
  * specified offset.  dmu_buf_hold() puts a "hold" on the buffer, so
  * that it will remain in memory.  You must release the hold with
- * dmu_buf_rele().  You musn't access the dmu_buf_t after releasing your
- * hold.  You must have a hold on any dmu_buf_t* you pass to the DMU.
+ * dmu_buf_rele().  You must not access the dmu_buf_t after releasing
+ * what you hold.  You must have a hold on any dmu_buf_t* you pass to the DMU.
  *
  * You must call dmu_buf_read, dmu_buf_will_dirty, or dmu_buf_will_fill
  * on the returned buffer before reading or writing the buffer's
