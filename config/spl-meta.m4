@@ -1,15 +1,37 @@
-###############################################################################
-# Written by Chris Dunlap <cdunlap@llnl.gov>.
-# Modified by Brian Behlendorf <behlendorf1@llnl.gov>.
-###############################################################################
-# SPL_AC_META: Read metadata from the META file.  When building from a
-# git repository the SPL_META_RELEASE field will be overwritten if there
-# is an annotated tag matching the form SPL_META_NAME-SPL_META_VERSION-*.
-# This allows for working builds to be uniquely identified using the git
-# commit hash.
-###############################################################################
-
+dnl #
+dnl # DESCRIPTION:
+dnl # Read meta data from the META file.  When building from a git repository
+dnl # the SPL_META_RELEASE field will be overwritten if there is an annotated
+dnl # tag matching the form SPL_META_NAME-SPL_META_VERSION-*.  This allows
+dnl # for working builds to be uniquely identified using the git commit hash.
+dnl #
+dnl #    The META file format is as follows:
+dnl #      ^[ ]*KEY:[ \t]+VALUE$
+dnl #
+dnl #    In other words:
+dnl #    - KEY is separated from VALUE by a colon and one or more spaces/tabs.
+dnl #    - KEY and VALUE are case sensitive.
+dnl #    - Leading spaces are ignored.
+dnl #    - First match wins for duplicate keys.
+dnl #
+dnl #    A line can be commented out by preceding it with a '#' (or technically
+dnl #    any non-space character since that will prevent the regex from
+dnl #    matching).
+dnl #
+dnl # WARNING:
+dnl #   Placing a colon followed by a space or tab (ie, ":[ \t]+") within the
+dnl #   VALUE will prematurely terminate the string since that sequence is
+dnl #   used as the awk field separator.
+dnl #
+dnl # KEYS:
+dnl #   The following META keys are recognized:
+dnl #     Name, Version, Release, Date, Author, LT_Current, LT_Revision, LT_Age
+dnl #
+dnl # Written by Chris Dunlap <cdunlap@llnl.gov>.
+dnl # Modified by Brian Behlendorf <behlendorf1@llnl.gov>.
+dnl #
 AC_DEFUN([SPL_AC_META], [
+	AC_PROG_AWK
 	AC_MSG_CHECKING([metadata])
 
 	META="$srcdir/META"
@@ -17,7 +39,7 @@ AC_DEFUN([SPL_AC_META], [
 	if test -f "$META"; then
 		_spl_ac_meta_type="META file"
 
-		SPL_META_NAME=_SPL_AC_META_GETVAL([(?:NAME|PROJECT|PACKAGE)]);
+		SPL_META_NAME=_SPL_AC_META_GETVAL([(Name|Project|Package)]);
 		if test -n "$SPL_META_NAME"; then
 			AC_DEFINE_UNQUOTED([SPL_META_NAME], ["$SPL_META_NAME"],
 				[Define the project name.]
@@ -25,7 +47,7 @@ AC_DEFUN([SPL_AC_META], [
 			AC_SUBST([SPL_META_NAME])
 		fi
 
-		SPL_META_VERSION=_SPL_AC_META_GETVAL([VERSION]);
+		SPL_META_VERSION=_SPL_AC_META_GETVAL([Version]);
 		if test -n "$SPL_META_VERSION"; then
 			AC_DEFINE_UNQUOTED([SPL_META_VERSION], ["$SPL_META_VERSION"],
 				[Define the project version.]
@@ -33,7 +55,7 @@ AC_DEFUN([SPL_AC_META], [
 			AC_SUBST([SPL_META_VERSION])
 		fi
 
-		SPL_META_RELEASE=_SPL_AC_META_GETVAL([RELEASE]);
+		SPL_META_RELEASE=_SPL_AC_META_GETVAL([Release]);
 		if git rev-parse --git-dir > /dev/null 2>&1; then
 			_match="${SPL_META_NAME}-${SPL_META_VERSION}*"
 			_alias=$(git describe --match=${_match} 2>/dev/null)
@@ -65,7 +87,7 @@ AC_DEFUN([SPL_AC_META], [
 				AC_SUBST([SPL_META_ALIAS])
 		fi
 
-		SPL_META_DATA=_SPL_AC_META_GETVAL([DATE]);
+		SPL_META_DATA=_SPL_AC_META_GETVAL([Date]);
 		if test -n "$SPL_META_DATA"; then
 			AC_DEFINE_UNQUOTED([SPL_META_DATA], ["$SPL_META_DATA"],
 				[Define the project release date.] 
@@ -73,7 +95,7 @@ AC_DEFUN([SPL_AC_META], [
 			AC_SUBST([SPL_META_DATA])
 		fi
 
-		SPL_META_AUTHOR=_SPL_AC_META_GETVAL([AUTHOR]);
+		SPL_META_AUTHOR=_SPL_AC_META_GETVAL([Author]);
 		if test -n "$SPL_META_AUTHOR"; then
 			AC_DEFINE_UNQUOTED([SPL_META_AUTHOR], ["$SPL_META_AUTHOR"],
 				[Define the project author.]
@@ -82,9 +104,9 @@ AC_DEFUN([SPL_AC_META], [
 		fi
 
 		m4_pattern_allow([^LT_(CURRENT|REVISION|AGE)$])
-		SPL_META_LT_CURRENT=_SPL_AC_META_GETVAL([LT_CURRENT]);
-		SPL_META_LT_REVISION=_SPL_AC_META_GETVAL([LT_REVISION]);
-		SPL_META_LT_AGE=_SPL_AC_META_GETVAL([LT_AGE]);
+		SPL_META_LT_CURRENT=_SPL_AC_META_GETVAL([LT_Current]);
+		SPL_META_LT_REVISION=_SPL_AC_META_GETVAL([LT_Revision]);
+		SPL_META_LT_AGE=_SPL_AC_META_GETVAL([LT_Age]);
 		if test -n "$SPL_META_LT_CURRENT" \
 				 -o -n "$SPL_META_LT_REVISION" \
 				 -o -n "$SPL_META_LT_AGE"; then
@@ -115,15 +137,18 @@ AC_DEFUN([SPL_AC_META], [
 	]
 )
 
-AC_DEFUN([_SPL_AC_META_GETVAL], 
-	[`perl -n\
-		-e "BEGIN { \\$key=shift @ARGV; }"\
-		-e "next unless s/^\s*\\$key@<:@:=@:>@//i;"\
-		-e "s/^((?:@<:@^'\"#@:>@*(?:(@<:@'\"@:>@)@<:@^\2@:>@*\2)*)*)#.*/\\@S|@1/;"\
-		-e "s/^\s+//;"\
-		-e "s/\s+$//;"\
-		-e "s/^(@<:@'\"@:>@)(.*)\1/\\@S|@2/;"\
-		-e "\\$val=\\$_;"\
-		-e "END { print \\$val if defined \\$val; }"\
-		'$1' $META`]dnl
+dnl # _SPL_AC_META_GETVAL (KEY_NAME_OR_REGEX)
+dnl #
+dnl # Returns the META VALUE associated with the given KEY_NAME_OR_REGEX expr.
+dnl #
+dnl # Despite their resemblance to line noise,
+dnl #   the "@<:@" and "@:>@" constructs are quadrigraphs for "[" and "]".
+dnl #   <www.gnu.org/software/autoconf/manual/autoconf.html#Quadrigraphs>
+dnl #
+dnl # The "$[]1" and "$[]2" constructs prevent M4 parameter expansion
+dnl #   so a literal $1 and $2 will be passed to the resulting awk script,
+dnl #   whereas the "$1" will undergo M4 parameter expansion for the META key.
+dnl #
+AC_DEFUN([_SPL_AC_META_GETVAL],
+	[`$AWK -F ':@<:@ \t@:>@+' '$[]1 ~ /^ *$1$/ { print $[]2; exit }' $META`]dnl
 )
