@@ -423,7 +423,15 @@ static const sa_share_ops_t smb_shareops = {
 static boolean_t
 smb_available(void)
 {
-	/* TODO: Sanity check NET_CMD_PATH and SHARE_DIR */
+	struct stat statbuf;
+
+	if (lstat(SHARE_DIR, &statbuf) != 0 ||
+	    !S_ISDIR(statbuf.st_mode))
+		return B_FALSE;
+
+	if (access(NET_CMD_PATH, F_OK) != 0)
+		return B_FALSE;
+
 	return B_TRUE;
 }
 
