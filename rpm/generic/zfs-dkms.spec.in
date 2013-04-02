@@ -16,6 +16,8 @@ BuildArch:      noarch
 
 Requires:       dkms >= 2.2.0.2
 Requires:       spl-dkms = %{version}
+Requires:       gcc, make, perl
+Requires:       kernel-devel
 Provides:       %{module}-kmod = %{version}
 
 %description
