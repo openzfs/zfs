@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -301,6 +301,7 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			delta = P2NPHASE(off, dn->dn_datablksz);
 		}
 
+		min_ibs = max_ibs = dn->dn_indblkshift;
 		if (dn->dn_maxblkid > 0) {
 			/*
 			 * The blocksize can't change,
@@ -308,13 +309,6 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			 */
 			ASSERT(dn->dn_datablkshift != 0);
 			min_bs = max_bs = dn->dn_datablkshift;
-			min_ibs = max_ibs = dn->dn_indblkshift;
-		} else if (dn->dn_indblkshift > max_ibs) {
-			/*
-			 * This ensures that if we reduce DN_MAX_INDBLKSHIFT,
-			 * the code will still work correctly on older pools.
-			 */
-			min_ibs = max_ibs = dn->dn_indblkshift;
 		}
 
 		/*

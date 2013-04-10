@@ -1348,7 +1348,8 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
 		uint64_t aux_guid = 0;
 		nvlist_t *nvl;
-		uint64_t txg = strict ? spa->spa_config_txg : -1ULL;
+		uint64_t txg = spa_last_synced_txg(spa) != 0 ?
+		    spa_last_synced_txg(spa) : -1ULL;
 
 		if ((label = vdev_label_read_config(vd, txg)) == NULL) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
@@ -1533,7 +1534,7 @@ vdev_reopen(vdev_t *vd)
 		    !l2arc_vdev_present(vd))
 			l2arc_add_vdev(spa, vd);
 	} else {
-		(void) vdev_validate(vd, spa_last_synced_txg(spa));
+		(void) vdev_validate(vd, B_TRUE);
 	}
 
 	/*
