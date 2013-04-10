@@ -508,13 +508,13 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	list_insert_head(&ds->ds_sendstreams, dsp);
 	mutex_exit(&ds->ds_sendstream_lock);
 
+	dsl_dataset_long_hold(ds, FTAG);
+	dsl_pool_rele(dp, tag);
+
 	if (dump_bytes(dsp, drr, sizeof (dmu_replay_record_t)) != 0) {
 		err = dsp->dsa_err;
 		goto out;
 	}
-
-	dsl_dataset_long_hold(ds, FTAG);
-	dsl_pool_rele(dp, tag);
 
 	err = traverse_dataset(ds, fromtxg, TRAVERSE_PRE | TRAVERSE_PREFETCH,
 	    backup_cb, dsp);
@@ -988,6 +988,7 @@ free_guid_map_onexit(void *arg)
 
 	while ((gmep = avl_destroy_nodes(ca, &cookie)) != NULL) {
 		dsl_dataset_long_rele(gmep->gme_ds, gmep);
+		dsl_dataset_rele(gmep->gme_ds, gmep);
 		kmem_free(gmep, sizeof (guid_map_entry_t));
 	}
 	avl_destroy(ca);
@@ -1667,14 +1668,15 @@ add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj)
 	err = dsl_pool_hold(name, FTAG, &dp);
 	if (err != 0)
 		return (err);
-	err = dsl_dataset_hold_obj(dp, snapobj, FTAG, &snapds);
+	gmep = kmem_alloc(sizeof (*gmep), KM_SLEEP);
+	err = dsl_dataset_hold_obj(dp, snapobj, gmep, &snapds);
 	if (err == 0) {
-		gmep = kmem_alloc(sizeof (guid_map_entry_t), KM_SLEEP);
 		gmep->guid = snapds->ds_phys->ds_guid;
 		gmep->gme_ds = snapds;
 		avl_add(guid_map, gmep);
 		dsl_dataset_long_hold(snapds, gmep);
-		dsl_dataset_rele(snapds, FTAG);
+	} else {
+		kmem_free(gmep, sizeof (*gmep));
 	}
 
 	dsl_pool_rele(dp, FTAG);
