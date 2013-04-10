@@ -523,13 +523,12 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				 *	version
 				 *	pool guid
 				 *	name
-				 *	pool txg (if available)
 				 *	comment (if available)
 				 *	pool state
 				 *	hostid (if available)
 				 *	hostname (if available)
 				 */
-				uint64_t state, version, pool_txg;
+				uint64_t state, version;
 				char *comment = NULL;
 
 				version = fnvlist_lookup_uint64(tmp,
@@ -544,11 +543,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 				    ZPOOL_CONFIG_POOL_NAME);
 				fnvlist_add_string(config,
 				    ZPOOL_CONFIG_POOL_NAME, name);
-
-				if (nvlist_lookup_uint64(tmp,
-				    ZPOOL_CONFIG_POOL_TXG, &pool_txg) == 0)
-					fnvlist_add_uint64(config,
-					    ZPOOL_CONFIG_POOL_TXG, pool_txg);
 
 				if (nvlist_lookup_string(tmp,
 				    ZPOOL_CONFIG_COMMENT, &comment) == 0)
