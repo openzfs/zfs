@@ -108,6 +108,13 @@ image which is ZFS aware.
     %{debug} \
     %{blkid} \
     %{selinux}
+
+# Remove '-g -O2' when building zvol_id!
+cat cmd/zvol_id/Makefile | \
+	sed 's@^CFLAGS = .*@CFLAGS =@' \
+	> cmd/zvol_id/Makefile.new
+mv cmd/zvol_id/Makefile.new cmd/zvol_id/Makefile
+
 make %{?_smp_mflags}
 
 %install
