@@ -20,7 +20,7 @@ if CONFIG_KERNEL
 	version=${VERSION}-${RELEASE}; \
 	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=kmod-$${name}*$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+	fakeroot $(ALIEN) --keep-version --scripts --to-deb $$pkg1; \
 	$(RM) $$pkg1
 endif
 
@@ -33,7 +33,7 @@ if CONFIG_USER
 	pkg2=$${name}-devel-$${version}.$${arch}.rpm; \
 	pkg3=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg4=$${name}-dracut-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
+	fakeroot $(ALIEN) --keep-version --scripts --to-deb $$pkg1 $$pkg2 $$pkg3 $$pkg4; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 endif
 
