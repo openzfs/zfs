@@ -3,6 +3,11 @@
 # Released under the 2-clause BSD license.
 # $Header: /var/cvsroot/gentoo-x86/sys-fs/zfs/files/zfs,v 0.9 2011/04/30 10:13:43 devsk Exp $
 
+if [ -z "$init" ]; then
+    # Not interactive
+    grep -Eqi 'zfs=off|zfs=no' /proc/cmdline && exit 3
+fi
+
 depend()
 {
 	# bootmisc will log to /var which may be a different zfs than root.
