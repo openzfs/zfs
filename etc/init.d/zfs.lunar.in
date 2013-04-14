@@ -14,6 +14,11 @@ ZFS="@sbindir@/zfs"
 ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 
+if [ -z "$init" ]; then
+    # Not interactive
+    grep -Eqi 'zfs=off|zfs=no' /proc/cmdline && exit 3
+fi
+
 case $1 in
   start)  echo "$1ing ZFS filesystems"
 
