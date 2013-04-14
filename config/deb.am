@@ -24,6 +24,16 @@ if CONFIG_KERNEL
 	$(RM) $$pkg1
 endif
 
+deb-kmod-debug: deb-local rpm-kmod-debug
+if CONFIG_KERNEL
+	name=${PACKAGE}; \
+	version=${VERSION}-${RELEASE}; \
+	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
+	pkg1=kmod-$${name}-debug*$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --keep-version --scripts --to-deb $$pkg1; \
+	$(RM) $$pkg1
+endif
+
 deb-utils: deb-local rpm-utils
 if CONFIG_USER
 	name=${PACKAGE}; \
@@ -37,4 +47,16 @@ if CONFIG_USER
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
 endif
 
-deb: deb-kmod deb-utils
+deb-utils-debug: deb-local rpm-utils-debug
+if CONFIG_USER
+	name=${PACKAGE}; \
+	version=${VERSION}-${RELEASE}; \
+	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
+	pkg1=$${name}-debug-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --keep-version --scripts --to-deb $$pkg1; \
+	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4
+endif
+
+deb debs: deb-kmod deb-utils
+deb-debug debs-debug: deb-kmod-debug deb-utils-debug
+

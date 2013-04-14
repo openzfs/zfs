@@ -1,10 +1,16 @@
 %define module  @PACKAGE@
+%define spl	@SPL@
+%define ksrc	@LINUX@
+%define kver	@LINUX_VERSION@
 
 %bcond_with     debug
 %bcond_with     debug_dmu_tx
 
+%if %{with debug}
+    %define dbg_name -debug
+%endif
 
-Name:           %{module}-kmod
+Name:           %{module}-kmod%{?dbg_name}
 
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
@@ -19,6 +25,11 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
+
+Provides:       %{module}-kmod%{?dbg_name}
+%if %{with debug}
+Conflicts:      %{module}-kmod
+%endif
 
 # Source packages minimally require a kernel-devel dependency.
 %{?rhel:BuildRequires: kernel-devel}
@@ -47,7 +58,7 @@ BuildRequires:             spl-devel-kmod = %{version}
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?ksrc:--linuxdir "%{?ksrc}"} 2>/dev/null) }
+%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{module}%{?dbg_name} %{!?dbg_name:--devel} %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?ksrc:--linuxdir "%{?ksrc}"} 2>/dev/null) }
 
 
 %description
@@ -58,7 +69,7 @@ This package contains the ZFS kernel modules.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?ksrc:--linuxdir "%{?ksrc}"} 2>/dev/null
+bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{module}%{?dbg_name} %{!?dbg_name:--devel} %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?ksrc:--linuxdir "%{?ksrc}"} 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug
@@ -75,7 +86,7 @@ bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --d
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
 
-%setup -q -c -T -a 0
+%setup -q -c -T -a 0 -n %{module}-%{version}
 
 for kernel_version in %{?kernel_versions}; do
     %{__mkdir} _kmod_build_${kernel_version%%___*}
@@ -132,6 +143,13 @@ done
 chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 %{?akmod_install}
 
+%if %{with debug}
+rm -Rf ${RPM_BUILD_ROOT}/usr
+mkdir -p ${RPM_BUILD_ROOT}/usr/src/%{module}-debug-%{version}/%{kver}
+%endif
+
+%files
+%{kmodinstdir_prefix}/*/extra/*/*/*.ko
 
 %clean
 rm -rf $RPM_BUILD_ROOT
