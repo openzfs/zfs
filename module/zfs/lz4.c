@@ -30,6 +30,7 @@
  * You can contact the author at :
  * - LZ4 homepage : http://fastcompression.blogspot.com/p/lz4.html
  * - LZ4 source repository : http://code.google.com/p/lz4/
+ * Upstream release : r91
  */
 
 #include <sys/zfs_context.h>
@@ -478,7 +479,7 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 
 	BYTE *op = (BYTE *) dest;
 
-	int len, length;
+	int length;
 	const int skipStrength = SKIPSTRENGTH;
 	U32 forwardH;
 
@@ -532,12 +533,12 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 		    (length >> 8) > oend))
 			return (0);
 
-		if (length >= (int)RUN_MASK) {
+		if (length >= (int) RUN_MASK) {
+			int len;
 			*token = (RUN_MASK << ML_BITS);
 			len = length - RUN_MASK;
-			for (; len > 254; len -= 255)
-				*op++ = 255;
-			*op++ = (BYTE)len;
+			for (; len > 254; len -= 255) *op++ = 255;
+			*op++ = (BYTE) len;
 		} else
 			*token = (length << ML_BITS);
 
@@ -550,7 +551,7 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 
 		/* Start Counting */
 		ip += MINMATCH;
-		ref += MINMATCH;	/* MinMatch verified */
+		ref += MINMATCH;	/* MinMatch already verified */
 		anchor = ip;
 		while (likely(ip < matchlimit - (STEPSIZE - 1))) {
 			UARCH diff = AARCH(ref) ^ AARCH(ip);
@@ -577,24 +578,22 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 		_endCount:
 
 		/* Encode MatchLength */
-		len = (ip - anchor);
-		/* Check output limit */
-		if (unlikely(op + (1 + LASTLITERALS) + (len >> 8) > oend))
-			return (0);
-		if (len >= (int)ML_MASK) {
+		length = (int)(ip - anchor);
+		if (unlikely(op + (1 + LASTLITERALS) + (length>>8) > oend)) return 0; // Check output limit
+		if (length>=(int)ML_MASK) {
 			*token += ML_MASK;
-			len -= ML_MASK;
-			for (; len > 509; len -= 510) {
+			length -= ML_MASK;
+			for (; length > 509 ; length -= 510) {
 				*op++ = 255;
 				*op++ = 255;
 			}
-			if (len > 254) {
-				len -= 255;
+			if (length > 254) {
+				length -= 255;
 				*op++ = 255;
 			}
-			*op++ = (BYTE)len;
+			*op++ = (BYTE)length;
 		} else
-			*token += len;
+			*token += length;
 
 		/* Test end of chunk */
 		if (ip > mflimit) {
@@ -885,9 +884,11 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 #if LZ4_ARCH64
 	size_t dec64table[] = {0, 0, 0, (size_t)-1, 0, 1, 2, 3};
 #endif
+	// Special case
+	if (unlikely(ip==iend)) goto _output_error; // A correctly formed null-compressed LZ4 must have at least one byte (token=0)
 
 	/* Main Loop */
-	while (ip < iend) {
+	while (1) {
 		unsigned token;
 		size_t length;
 
@@ -902,15 +903,17 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 		}
 		/* copy literals */
 		cpy = op + length;
-		if ((cpy > oend - COPYLENGTH) ||
-		    (ip + length > iend - COPYLENGTH)) {
+		if ((cpy > oend - MFLIMIT) ||
+		    (ip + length > iend - (2+1+LASTLITERALS))) {
 			if (cpy > oend)
 				/* Error: writes beyond output buffer */
 				goto _output_error;
 			if (ip + length != iend)
 				/*
 				 * Error: LZ4 format requires to consume all
-				 * input at this stage
+				 * input at this stage (no match within the last
+				 * 11 bytes, and at least 8 remaining input bytes
+				 * for another match + literals
 				 */
 				goto _output_error;
 			(void) memcpy(op, ip, length);
@@ -925,7 +928,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 		/* get offset */
 		LZ4_READ_LITTLEENDIAN_16(ref, cpy, ip);
 		ip += 2;
-		if (ref < (BYTE * const) dest)
+		if (unlikely(ref < (BYTE * const) dest))
 			/*
 			 * Error: offset creates reference outside of
 			 * destination buffer
@@ -934,7 +937,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 
 		/* get matchlength */
 		if ((length = (token & ML_MASK)) == ML_MASK) {
-			while (ip < iend) {
+			while (likely(ip < iend-(LASTLITERALS+1))) {
 				int s = *ip++;
 				length += s;
 				if (s == 255)
@@ -963,11 +966,10 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 			LZ4_COPYSTEP(ref, op);
 		}
 		cpy = op + length - (STEPSIZE - 4);
-		if (cpy > oend - COPYLENGTH) {
-			if (cpy > oend)
+		if (unlikely(cpy > oend - (COPYLENGTH+(STEPSIZE-4)))) {
+			if (cpy > oend-LASTLITERALS)
 				/*
-				 * Error: request to write outside of
-				 * destination buffer
+				 * Error: last 5 bytes must be literals
 				 */
 				goto _output_error;
 			LZ4_SECURECOPY(ref, op, (oend - COPYLENGTH));
@@ -982,7 +984,7 @@ LZ4_uncompress_unknownOutputSize(const char *source, char *dest, int isize,
 				goto _output_error;
 			continue;
 		}
-		LZ4_SECURECOPY(ref, op, cpy);
+		LZ4_WILDCOPY(ref, op, cpy);
 		op = cpy;	/* correction */
 	}
 
