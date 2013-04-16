@@ -446,7 +446,6 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
-	.readdir	= zpl_readdir,
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 #ifdef HAVE_FILE_FALLOCATE
