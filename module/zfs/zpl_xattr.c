@@ -225,6 +225,11 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 		goto out;
 	}
 
+	if (size < i_size_read(xip)) {
+		error = -ERANGE;
+		goto out;
+	}
+
 	error = zpl_read_common(xip, value, size, 0, UIO_SYSSPACE, 0, cr);
 out:
 	if (xip)
@@ -263,9 +268,12 @@ zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
 	if (!size)
 		return (nv_size);
 
-	memcpy(value, nv_value, MIN(size, nv_size));
+	if (size < nv_size)
+		return (-ERANGE);
 
-	return (MIN(size, nv_size));
+	memcpy(value, nv_value, nv_size);
+
+	return (nv_size);
 }
 
 static int
