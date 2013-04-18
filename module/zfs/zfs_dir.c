@@ -562,7 +562,7 @@ zfs_unlinked_drain(zfs_sb_t *zsb)
 	int		error;
 
 	/*
-	 * Interate over the contents of the unlinked set.
+	 * Iterate over the contents of the unlinked set.
 	 */
 	for (zap_cursor_init(&zc, zsb->z_os, zsb->z_unlinkedobj);
 	    zap_cursor_retrieve(&zc, &zap) == 0;
