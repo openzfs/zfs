@@ -47,7 +47,7 @@ BuildRequires:             spl-devel-kmod = %{version}
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null) }
+%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
 
 
 %description
@@ -58,7 +58,7 @@ This package contains the ZFS kernel modules.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null
+bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug
@@ -71,6 +71,28 @@ bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --d
 %else
     %define debug_dmu_tx --disable-debug-dmu-tx
 %endif
+
+#
+# Allow the overriding of spl locations
+#
+%if %{defined require_splver}
+%define splver %{require_splver}
+%else
+%define splver %{version}
+%endif
+
+%if %{defined require_spldir}
+%define spldir %{require_spldir}
+%else
+%define spldir %{_usrsrc}/spl-%{splver}
+%endif
+
+%if %{defined require_splobj}
+%define splobj %{require_splobj}
+%else
+%define splobj %{spldir}/${kernel_version%%___*}
+%endif
+
 
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
@@ -98,8 +120,8 @@ for kernel_version in %{?kernel_versions}; do
         fi)" \
         --with-linux-obj="/lib/modules/${kernel_version%%___*}/build" \
 %endif
-        --with-spl="/usr/src/spl-%{version}" \
-        --with-spl-obj="/usr/src/spl-%{version}/${kernel_version%%___*}" \
+        --with-spl="%{spldir}" \
+        --with-spl-obj="%{splobj}" \
         %{debug} \
         %{debug_dmu_tx}
     make %{?_smp_mflags}
