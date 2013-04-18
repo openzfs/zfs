@@ -37,6 +37,7 @@ kernel_versions_to_build_for=
 prefix=
 filterfile=
 target=
+buildroot=
 
 error_out()
 {
@@ -305,9 +306,9 @@ print_customrpmtemplate ()
 {
 	for kernel in ${1}
 	do
-		if 	[[ -e "/usr/src/kernels/${kernel}" ]] ; then
+		if [[ -e "${buildroot}/usr/src/kernels/${kernel}" ]] ; then
 			# this looks like a Fedora/RH kernel -- print a normal template (which includes the proper BR) and be happy :)
-			kernel_versions="${kernel_versions}${kernel}___%{_usrsrc}/kernels/${kernel} "
+			kernel_versions="${kernel_versions}${kernel}___${buildroot}%{_usrsrc}/kernels/${kernel} "
 
 			# parse kernel versions string and print template
 			local kernel_verrelarch=${kernel%%${kernels_known_variants}}
@@ -382,7 +383,6 @@ myprog_help ()
 	echo "Usage: $(basename ${0}) [OPTIONS]"
 	echo $'\n'"Creates a template to be used during kmod building"
 	echo $'\n'"Available options:"
-	# FIXME	echo " --datadir <dir>     -- look for our shared files in <dir>"
 	echo " --filterfile <file>  -- filter the results with grep --file <file>"
 	echo " --for-kernels <list> -- created templates only for these kernels"
 	echo " --kmodname <file>    -- name of the kmod (required)"
@@ -390,6 +390,7 @@ myprog_help ()
 	echo " --noakmod            -- no akmod package"
 	echo " --repo <name>        -- use buildsys-build-<name>-kerneldevpkgs"
 	echo " --target <arch>      -- target-arch (required)"
+	echo " --buildroot <dir>    -- Build root (place to look for build files)"
 }
 
 while [ "${1}" ] ; do
@@ -477,6 +478,11 @@ while [ "${1}" ] ; do
 		--current)
 			shift
 			build_kernels="current"
+			;;
+		--buildroot)
+			shift
+			buildroot="${1}"
+			shift
 			;;
 		--help)
 			myprog_help
