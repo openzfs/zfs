@@ -848,7 +848,7 @@ snapshot_check(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (strlen(sn->htag) + MAX_TAG_PREFIX_LEN >= MAXNAMELEN)
 			return (E2BIG);
 
-		sn->ha = kmem_alloc(sizeof (struct dsl_ds_holdarg), KM_SLEEP);
+		sn->ha = kmem_alloc(sizeof(struct dsl_ds_holdarg), KM_PUSHPAGE);
 		sn->ha->temphold = B_TRUE;
 		sn->ha->htag = sn->htag;
 	}
@@ -1180,17 +1180,6 @@ dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
 	return (!list_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]) ||
 	    !list_is_empty(&os->os_free_dnodes[txg & TXG_MASK]));
-}
-
-boolean_t
-dmu_objset_is_dirty_anywhere(objset_t *os)
-{
-	int t;
-
-	for (t = 0; t < TXG_SIZE; t++)
-		if (dmu_objset_is_dirty(os, t))
-			return (B_TRUE);
-	return (B_FALSE);
 }
 
 static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];
@@ -1584,39 +1573,10 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 	return (0);
 }
 
-/*
- * Determine the objset id for a given snapshot name.
- */
 int
-dmu_snapshot_id(objset_t *os, const char *snapname, uint64_t *idp)
+dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *value)
 {
-	dsl_dataset_t *ds = os->os_dsl_dataset;
-	zap_cursor_t cursor;
-	zap_attribute_t attr;
-	int error;
-
-	if (ds->ds_phys->ds_snapnames_zapobj == 0)
-		return (ENOENT);
-
-	zap_cursor_init(&cursor, ds->ds_dir->dd_pool->dp_meta_objset,
-	    ds->ds_phys->ds_snapnames_zapobj);
-
-	error = zap_cursor_move_to_key(&cursor, snapname, MT_EXACT);
-	if (error) {
-		zap_cursor_fini(&cursor);
-		return (error);
-	}
-
-	error = zap_cursor_retrieve(&cursor, &attr);
-	if (error) {
-		zap_cursor_fini(&cursor);
-		return (error);
-	}
-
-	*idp = attr.za_first_integer;
-	zap_cursor_fini(&cursor);
-
-	return (0);
+	return dsl_dataset_snap_lookup(os->os_dsl_dataset, name, value);
 }
 
 int
@@ -1712,7 +1672,7 @@ dmu_objset_find_spa(spa_t *spa, const char *name,
 	}
 
 	thisobj = dd->dd_phys->dd_head_dataset_obj;
-	attr = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	attr = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
 	dp = dd->dd_pool;
 
 	/*

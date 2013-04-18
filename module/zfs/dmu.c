@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -46,60 +47,73 @@
 #endif
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
-	{	byteswap_uint8_array,	TRUE,	"unallocated"		},
-	{	zap_byteswap,		TRUE,	"object directory"	},
-	{	byteswap_uint64_array,	TRUE,	"object array"		},
-	{	byteswap_uint8_array,	TRUE,	"packed nvlist"		},
-	{	byteswap_uint64_array,	TRUE,	"packed nvlist size"	},
-	{	byteswap_uint64_array,	TRUE,	"bpobj"			},
-	{	byteswap_uint64_array,	TRUE,	"bpobj header"		},
-	{	byteswap_uint64_array,	TRUE,	"SPA space map header"	},
-	{	byteswap_uint64_array,	TRUE,	"SPA space map"		},
-	{	byteswap_uint64_array,	TRUE,	"ZIL intent log"	},
-	{	dnode_buf_byteswap,	TRUE,	"DMU dnode"		},
-	{	dmu_objset_byteswap,	TRUE,	"DMU objset"		},
-	{	byteswap_uint64_array,	TRUE,	"DSL directory"		},
-	{	zap_byteswap,		TRUE,	"DSL directory child map"},
-	{	zap_byteswap,		TRUE,	"DSL dataset snap map"	},
-	{	zap_byteswap,		TRUE,	"DSL props"		},
-	{	byteswap_uint64_array,	TRUE,	"DSL dataset"		},
-	{	zfs_znode_byteswap,	TRUE,	"ZFS znode"		},
-	{	zfs_oldacl_byteswap,	TRUE,	"ZFS V0 ACL"		},
-	{	byteswap_uint8_array,	FALSE,	"ZFS plain file"	},
-	{	zap_byteswap,		TRUE,	"ZFS directory"		},
-	{	zap_byteswap,		TRUE,	"ZFS master node"	},
-	{	zap_byteswap,		TRUE,	"ZFS delete queue"	},
-	{	byteswap_uint8_array,	FALSE,	"zvol object"		},
-	{	zap_byteswap,		TRUE,	"zvol prop"		},
-	{	byteswap_uint8_array,	FALSE,	"other uint8[]"		},
-	{	byteswap_uint64_array,	FALSE,	"other uint64[]"	},
-	{	zap_byteswap,		TRUE,	"other ZAP"		},
-	{	zap_byteswap,		TRUE,	"persistent error log"	},
-	{	byteswap_uint8_array,	TRUE,	"SPA history"		},
-	{	byteswap_uint64_array,	TRUE,	"SPA history offsets"	},
-	{	zap_byteswap,		TRUE,	"Pool properties"	},
-	{	zap_byteswap,		TRUE,	"DSL permissions"	},
-	{	zfs_acl_byteswap,	TRUE,	"ZFS ACL"		},
-	{	byteswap_uint8_array,	TRUE,	"ZFS SYSACL"		},
-	{	byteswap_uint8_array,	TRUE,	"FUID table"		},
-	{	byteswap_uint64_array,	TRUE,	"FUID table size"	},
-	{	zap_byteswap,		TRUE,	"DSL dataset next clones"},
-	{	zap_byteswap,		TRUE,	"scan work queue"	},
-	{	zap_byteswap,		TRUE,	"ZFS user/group used"	},
-	{	zap_byteswap,		TRUE,	"ZFS user/group quota"	},
-	{	zap_byteswap,		TRUE,	"snapshot refcount tags"},
-	{	zap_byteswap,		TRUE,	"DDT ZAP algorithm"	},
-	{	zap_byteswap,		TRUE,	"DDT statistics"	},
-	{	byteswap_uint8_array,	TRUE,	"System attributes"	},
-	{	zap_byteswap,		TRUE,	"SA master node"	},
-	{	zap_byteswap,		TRUE,	"SA attr registration"	},
-	{	zap_byteswap,		TRUE,	"SA attr layouts"	},
-	{	zap_byteswap,		TRUE,	"scan translations"	},
-	{	byteswap_uint8_array,	FALSE,	"deduplicated block"	},
-	{	zap_byteswap,		TRUE,	"DSL deadlist map"	},
-	{	byteswap_uint64_array,	TRUE,	"DSL deadlist map hdr"	},
-	{	zap_byteswap,		TRUE,	"DSL dir clones"	},
-	{	byteswap_uint64_array,	TRUE,	"bpobj subobj"		},
+	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
+	{	DMU_BSWAP_ZAP,		TRUE,	"object directory"	},
+	{	DMU_BSWAP_UINT64,	TRUE,	"object array"		},
+	{	DMU_BSWAP_UINT8,	TRUE,	"packed nvlist"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"packed nvlist size"	},
+	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj"			},
+	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj header"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map header"	},
+	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"ZIL intent log"	},
+	{	DMU_BSWAP_DNODE,	TRUE,	"DMU dnode"		},
+	{	DMU_BSWAP_OBJSET,	TRUE,	"DMU objset"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"DSL directory"		},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL directory child map"},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset snap map"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL props"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"DSL dataset"		},
+	{	DMU_BSWAP_ZNODE,	TRUE,	"ZFS znode"		},
+	{	DMU_BSWAP_OLDACL,	TRUE,	"ZFS V0 ACL"		},
+	{	DMU_BSWAP_UINT8,	FALSE,	"ZFS plain file"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS directory"		},
+	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS master node"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS delete queue"	},
+	{	DMU_BSWAP_UINT8,	FALSE,	"zvol object"		},
+	{	DMU_BSWAP_ZAP,		TRUE,	"zvol prop"		},
+	{	DMU_BSWAP_UINT8,	FALSE,	"other uint8[]"		},
+	{	DMU_BSWAP_UINT64,	FALSE,	"other uint64[]"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"other ZAP"		},
+	{	DMU_BSWAP_ZAP,		TRUE,	"persistent error log"	},
+	{	DMU_BSWAP_UINT8,	TRUE,	"SPA history"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"SPA history offsets"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"Pool properties"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL permissions"	},
+	{	DMU_BSWAP_ACL,		TRUE,	"ZFS ACL"		},
+	{	DMU_BSWAP_UINT8,	TRUE,	"ZFS SYSACL"		},
+	{	DMU_BSWAP_UINT8,	TRUE,	"FUID table"		},
+	{	DMU_BSWAP_UINT64,	TRUE,	"FUID table size"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset next clones"},
+	{	DMU_BSWAP_ZAP,		TRUE,	"scan work queue"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group used"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group quota"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"snapshot refcount tags"},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DDT ZAP algorithm"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DDT statistics"	},
+	{	DMU_BSWAP_UINT8,	TRUE,	"System attributes"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"SA master node"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr registration"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr layouts"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"scan translations"	},
+	{	DMU_BSWAP_UINT8,	FALSE,	"deduplicated block"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL deadlist map"	},
+	{	DMU_BSWAP_UINT64,	TRUE,	"DSL deadlist map hdr"	},
+	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dir clones"	},
+	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj subobj"		}
+};
+
+const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
+	{	byteswap_uint8_array,	"uint8"		},
+	{	byteswap_uint16_array,	"uint16"	},
+	{	byteswap_uint32_array,	"uint32"	},
+	{	byteswap_uint64_array,	"uint64"	},
+	{	zap_byteswap,		"zap"		},
+	{	dnode_buf_byteswap,	"dnode"		},
+	{	dmu_objset_byteswap,	"objset"	},
+	{	zfs_znode_byteswap,	"znode"		},
+	{	zfs_oldacl_byteswap,	"oldacl"	},
+	{	zfs_acl_byteswap,	"acl"		}
 };
 
 int
@@ -176,7 +190,7 @@ dmu_set_bonustype(dmu_buf_t *db_fake, dmu_object_type_t type, dmu_tx_t *tx)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 
-	if (type > DMU_OT_NUMTYPES) {
+	if (!DMU_OT_IS_VALID(type)) {
 		error = EINVAL;
 	} else if (dn->dn_bonus != db) {
 		error = EINVAL;
@@ -1022,11 +1036,57 @@ dmu_req_copy(void *arg_buf, int size, int *offset, struct request *req)
 	return 0;
 }
 
+static void
+dmu_bio_put(struct bio *bio)
+{
+	struct bio *bio_next;
+
+	while (bio) {
+		bio_next = bio->bi_next;
+		bio_put(bio);
+		bio = bio_next;
+	}
+}
+
+static int
+dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
+{
+	struct bio *bio_root = NULL;
+	struct bio *bio_last = NULL;
+	struct bio *bio_new;
+
+	if (bio == NULL)
+		return EINVAL;
+
+	while (bio) {
+		bio_new = bio_clone(bio, GFP_NOIO);
+		if (bio_new == NULL) {
+			dmu_bio_put(bio_root);
+			return ENOMEM;
+		}
+
+		if (bio_last) {
+			bio_last->bi_next = bio_new;
+			bio_last = bio_new;
+		} else {
+			bio_root = bio_new;
+			bio_last = bio_new;
+		}
+
+		bio = bio->bi_next;
+	}
+
+	*bio_copy = bio_root;
+
+	return 0;
+}
+
 int
 dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
+	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
 
@@ -1038,6 +1098,17 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 				 &numbufs, &dbp);
 	if (err)
 		return (err);
+
+	/*
+	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
+	 * can be safely modified.  The original bio list is relinked in to
+	 * the request when the function exits.  This is required because
+	 * some file systems blindly assume that these values will remain
+	 * constant between bio_submit() and the IO completion callback.
+	 */
+	err = dmu_bio_clone(bio_saved, &req->bio);
+	if (err)
+		goto error;
 
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
@@ -1062,6 +1133,10 @@ dmu_read_req(objset_t *os, uint64_t object, struct request *req)
 		offset += didcpy;
 		err = 0;
 	}
+
+	dmu_bio_put(req->bio);
+	req->bio = bio_saved;
+error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (err);
@@ -1072,6 +1147,7 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 {
 	uint64_t size = blk_rq_bytes(req);
 	uint64_t offset = blk_rq_pos(req) << 9;
+	struct bio *bio_saved = req->bio;
 	dmu_buf_t **dbp;
 	int numbufs;
 	int err = 0;
@@ -1084,6 +1160,17 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 				 &numbufs, &dbp);
 	if (err)
 		return (err);
+
+	/*
+	 * Clone the bio list so the bv->bv_offset and bv->bv_len members
+	 * can be safely modified.  The original bio list is relinked in to
+	 * the request when the function exits.  This is required because
+	 * some file systems blindly assume that these values will remain
+	 * constant between bio_submit() and the IO completion callback.
+	 */
+	err = dmu_bio_clone(bio_saved, &req->bio);
+	if (err)
+		goto error;
 
 	for (i = 0; i < numbufs; i++) {
 		int tocpy, didcpy, bufoff;
@@ -1119,7 +1206,11 @@ dmu_write_req(objset_t *os, uint64_t object, struct request *req, dmu_tx_t *tx)
 		err = 0;
 	}
 
+	dmu_bio_put(req->bio);
+	req->bio = bio_saved;
+error:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
 	return (err);
 }
 
@@ -1440,7 +1531,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
 	    zgd->zgd_db->db_data, zgd->zgd_db->db_size, zp,
 	    dmu_sync_late_arrival_ready, dmu_sync_late_arrival_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, zb));
 
 	return (0);
 }
@@ -1564,7 +1655,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	zio_nowait(arc_write(pio, os->os_spa, txg,
 	    bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db), &zp,
 	    dmu_sync_ready, dmu_sync_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb));
 
 	return (0);
 }
@@ -1618,7 +1709,7 @@ void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
 	dmu_object_type_t type = dn ? dn->dn_type : DMU_OT_OBJSET;
-	boolean_t ismd = (level > 0 || dmu_ot[type].ot_metadata ||
+	boolean_t ismd = (level > 0 || DMU_OT_IS_METADATA(type) ||
 	    (wp & WP_SPILL));
 	enum zio_checksum checksum = os->os_checksum;
 	enum zio_compress compress = os->os_compress;
@@ -1862,15 +1953,15 @@ dmu_init(void)
 	dbuf_init();
 	zfetch_init();
 	dmu_tx_init();
-	arc_init();
 	l2arc_init();
+	arc_init();
 }
 
 void
 dmu_fini(void)
 {
-	l2arc_fini();
 	arc_fini();
+	l2arc_fini();
 	dmu_tx_fini();
 	zfetch_fini();
 	dbuf_fini();

@@ -1,0 +1,235 @@
+'\" te
+.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.TH ZPOOL-FEATURES 5 "Feb 4, 2013"
+.SH NAME
+zpool\-features \- ZFS pool feature descriptions
+.SH DESCRIPTION
+.sp
+.LP
+ZFS pool on\-disk format versions are specified via "features" which replace
+the old on\-disk format numbers (the last supported on\-disk format number is
+28). To enable a feature on a pool use the \fBupgrade\fR subcommand of the
+\fBzpool\fR(8) command, or set the \fBfeature@\fR\fIfeature_name\fR property
+to \fBenabled\fR.
+.sp
+.LP
+The pool format does not affect file system version compatibility or the ability
+to send file systems between pools.
+.sp
+.LP
+Since most features can be enabled independently of each other the on\-disk
+format of the pool is specified by the set of all features marked as
+\fBactive\fR on the pool. If the pool was created by another software version
+this set may include unsupported features.
+.SS "Identifying features"
+.sp
+.LP
+Every feature has a guid of the form \fIcom.example:feature_name\fR. The reverse
+DNS name ensures that the feature's guid is unique across all ZFS
+implementations. When unsupported features are encountered on a pool they will
+be identified by their guids. Refer to the documentation for the ZFS
+implementation that created the pool for information about those features.
+.sp
+.LP
+Each supported feature also has a short name. By convention a feature's short
+name is the portion of its guid which follows the ':' (e.g.
+\fIcom.example:feature_name\fR would have the short name \fIfeature_name\fR),
+however a feature's short name may differ across ZFS implementations if
+following the convention would result in name conflicts.
+.SS "Feature states"
+.sp
+.LP
+Features can be in one of three states:
+.sp
+.ne 2
+.na
+\fB\fBactive\fR\fR
+.ad
+.RS 12n
+This feature's on\-disk format changes are in effect on the pool. Support for
+this feature is required to import the pool in read\-write mode. If this
+feature is not read-only compatible, support is also required to import the pool
+in read\-only mode (see "Read\-only compatibility").
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBenabled\fR\fR
+.ad
+.RS 12n
+An administrator has marked this feature as enabled on the pool, but the
+feature's on\-disk format changes have not been made yet. The pool can still be
+imported by software that does not support this feature, but changes may be made
+to the on\-disk format at any time which will move the feature to the
+\fBactive\fR state. Some features may support returning to the \fBenabled\fR
+state after becoming \fBactive\fR. See feature\-specific documentation for
+details.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdisabled\fR
+.ad
+.RS 12n
+This feature's on\-disk format changes have not been made and will not be made
+unless an administrator moves the feature to the \fBenabled\fR state. Features
+cannot be disabled once they have been enabled.
+.RE
+
+.sp
+.LP
+The state of supported features is exposed through pool properties of the form
+\fIfeature@short_name\fR.
+.SS "Read\-only compatibility"
+.sp
+.LP
+Some features may make on\-disk format changes that do not interfere with other
+software's ability to read from the pool. These features are referred to as
+"read\-only compatible". If all unsupported features on a pool are read\-only
+compatible, the pool can be imported in read\-only mode by setting the
+\fBreadonly\fR property during import (see \fBzpool\fR(8) for details on
+importing pools).
+.SS "Unsupported features"
+.sp
+.LP
+For each unsupported feature enabled on an imported pool a pool property
+named \fIunsupported@feature_guid\fR will indicate why the import was allowed
+despite the unsupported feature. Possible values for this property are:
+
+.sp
+.ne 2
+.na
+\fB\fBinactive\fR\fR
+.ad
+.RS 12n
+The feature is in the \fBenabled\fR state and therefore the pool's on\-disk
+format is still compatible with software that does not support this feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBreadonly\fR\fR
+.ad
+.RS 12n
+The feature is read\-only compatible and the pool has been imported in
+read\-only mode.
+.RE
+
+.SS "Feature dependencies"
+.sp
+.LP
+Some features depend on other features being enabled in order to function
+properly. Enabling a feature will automatically enable any features it
+depends on.
+.SH FEATURES
+.sp
+.LP
+The following features are supported on this system:
+.sp
+.ne 2
+.na
+\fB\fBasync_destroy\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:async_destroy
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+Destroying a file system requires traversing all of its data in order to
+return its used space to the pool. Without \fBasync_destroy\fR the file system
+is not fully removed until all space has been reclaimed. If the destroy
+operation is interrupted by a reboot or power outage the next attempt to open
+the pool will need to complete the destroy operation synchronously.
+
+When \fBasync_destroy\fR is enabled the file system's data will be reclaimed
+by a background process, allowing the destroy operation to complete without
+traversing the entire file system. The background process is able to resume
+interrupted destroys after the pool has been opened, eliminating the need
+to finish interrupted destroys as part of the open operation. The amount
+of space remaining to be reclaimed by the background process is available
+through the \fBfreeing\fR property.
+
+This feature is only \fBactive\fR while \fBfreeing\fR is non\-zero.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBempty_bpobj\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:empty_bpobj
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature increases the performance of creating and using a large
+number of snapshots of a single filesystem or volume, and also reduces
+the disk space required.
+
+When there are many snapshots, each snapshot uses many Block Pointer
+Objects (bpobj's) to track blocks associated with that snapshot.
+However, in common use cases, most of these bpobj's are empty.  This
+feature allows us to create each bpobj on-demand, thus eliminating the
+empty bpobjs.
+
+This feature is \fBactive\fR while there are any filesystems, volumes,
+or snapshots which were created after enabling this feature.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBlz4_compress\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:lz4_compress
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+\fBlz4\fR is a high-performance real-time compression algorithm that
+features significantly faster compression and decompression as well as a
+higher compression ratio than the older \fBlzjb\fR compression.
+Typically, \fBlz4\fR compression is approximately 50% faster on
+compressible data and 200% faster on incompressible data than
+\fBlzjb\fR. It is also approximately 80% faster on decompression, while
+giving approximately 10% better compression ratio.
+
+When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBlz4\fR compression on any dataset on the
+pool using the \fBzfs\fR(8) command. Please note that doing so will
+immediately activate the \fBlz4_compress\fR feature on the underlying
+pool (even before any data is written). Since this feature is not
+read-only compatible, this operation will render the pool unimportable
+on systems without support for the \fBlz4_compress\fR feature. At the
+moment, this operation cannot be reversed. Booting off of
+\fBlz4\fR-compressed root pools is supported.
+
+.RE
+
+.SH "SEE ALSO"
+\fBzpool\fR(8)

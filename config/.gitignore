@@ -1,6 +1,8 @@
-config.guess
-config.sub
-depcomp
-install-sh
-ltmain.sh
-missing
+/config.guess
+/config.sub
+/depcomp
+/install-sh
+/ltmain.sh
+/missing
+/libtool.m4
+/lt*.m4

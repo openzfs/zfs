@@ -697,7 +697,7 @@ dsl_prop_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 		if (source == ZPROP_SRC_LOCAL) {
 			valstr = (char *)psa->psa_value;
 		} else {
-			tbuf = kmem_alloc(ZAP_MAXVALUELEN, KM_SLEEP);
+			tbuf = kmem_alloc(ZAP_MAXVALUELEN, KM_PUSHPAGE);
 			if (dsl_prop_get_ds(ds, propname, 1,
 			    ZAP_MAXVALUELEN, tbuf, NULL) == 0)
 				valstr = tbuf;

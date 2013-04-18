@@ -46,6 +46,7 @@ struct metaslab_class {
 	uint64_t		mc_deferred;	/* total deferred frees */
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
+	kmutex_t		mc_fastwrite_lock;
 };
 
 struct metaslab_group {

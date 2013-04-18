@@ -229,7 +229,7 @@ fi
 check_test || die "${ERROR}"
 . ${ZPIOS_TEST}
 
-# Pull in the zpios test module is not loaded.  If this fails it is
+# Pull in the zpios test module if not loaded.  If this fails, it is
 # likely because the full module stack was not yet loaded with zfs.sh
 if check_modules; then
 	if ! load_modules; then

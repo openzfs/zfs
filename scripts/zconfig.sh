@@ -192,9 +192,10 @@ test_3() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1% 50% || fail 4
-	partition /dev/zvol/${FULL_ZVOL_NAME} primary 50% 100% || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 51% -1 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -245,9 +246,10 @@ test_4() {
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 100M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1% 50% || fail 4
-	partition /dev/zvol/${FULL_ZVOL_NAME} primary 50% 100% || fail 4
+	partition /dev/zvol/${FULL_ZVOL_NAME} primary 51% -1 || fail 4
 	${ZFS} snapshot ${FULL_SNAP_NAME} || fail 5
 	${ZFS} clone ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 6
 
@@ -288,7 +290,6 @@ test_5() {
 	local POOL_NAME=tank
 	local ZVOL_NAME=fish
 	local FULL_NAME=${POOL_NAME}/${ZVOL_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
@@ -306,11 +307,11 @@ test_5() {
 	sync
 
 	# Verify the copied files match the original files.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 9
 
 	# Remove the files, umount, destroy the volume and pool.
-	rm -Rf /tmp/${ZVOL_NAME}-part1${SRC_DIR}* || fail 10
+	rm -Rf /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} || fail 10
 	umount /tmp/${ZVOL_NAME}-part1 || fail 11
 	rmdir /tmp/${ZVOL_NAME}-part1 || fail 12
 
@@ -330,13 +331,13 @@ test_6() {
 	local SNAP_NAME=pristine
 	local FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raid0 || fail 2
 	${ZFS} create -V 800M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4
 	format /dev/zvol/${FULL_ZVOL_NAME}-part1 ext2 || fail 5
@@ -359,9 +360,9 @@ test_6() {
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null && fail 13
 
 	# umount, destroy the snapshot, volume, and pool.
@@ -390,13 +391,13 @@ test_7() {
 	local FULL_ZVOL_NAME=${POOL_NAME}/${ZVOL_NAME}
 	local FULL_SNAP_NAME=${POOL_NAME}/${ZVOL_NAME}@${SNAP_NAME}
 	local FULL_CLONE_NAME=${POOL_NAME}/${CLONE_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create a pool and volume.
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 1
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME} -c lo-raidz2 || fail 2
 	${ZFS} create -V 300M ${FULL_ZVOL_NAME} || fail 3
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME} primary 1 -1 || fail 4
 	format /dev/zvol/${FULL_ZVOL_NAME}-part1 ext2 || fail 5
@@ -419,9 +420,9 @@ test_7() {
 
 	# Verify the copied files match the original files,
 	# and the copied files do NOT appear in the snapshot.
-	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${ZVOL_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null || fail 12
-	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1${SRC_DIR} \
+	diff -ur ${SRC_DIR} /tmp/${SNAP_NAME}-part1/${SRC_DIR##*/} \
 		&>/dev/null && fail 13
 
 	# Clone from the original pristine snapshot
@@ -477,7 +478,6 @@ test_8() {
 	local FULL_ZVOL_NAME2=${POOL_NAME2}/${ZVOL_NAME}
 	local FULL_SNAP_NAME1=${POOL_NAME1}/${ZVOL_NAME}@${SNAP_NAME}
 	local FULL_SNAP_NAME2=${POOL_NAME2}/${ZVOL_NAME}@${SNAP_NAME}
-	local SRC_DIR=/bin/
 	local TMP_CACHE=`mktemp -p /tmp zpool.cache.XXXXXXXX`
 
 	# Create two pools and a volume
@@ -485,6 +485,7 @@ test_8() {
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME1} -c lo-raidz2 || fail 2
 	${ZPOOL_CREATE_SH} -p ${POOL_NAME2} -c lo-raidz2 || fail 2
 	${ZFS} create -V 300M ${FULL_ZVOL_NAME1} || fail 3
+	${ZFS} set snapdev=visible ${FULL_ZVOL_NAME1} || fail 3
 	label /dev/zvol/${FULL_ZVOL_NAME1} msdos || fail 4
 	partition /dev/zvol/${FULL_ZVOL_NAME1} primary 1 -1 || fail 4
 	format /dev/zvol/${FULL_ZVOL_NAME1}-part1 ext2 || fail 5

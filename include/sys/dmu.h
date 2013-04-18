@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -69,6 +70,53 @@ struct sa_handle;
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
 typedef struct dsl_dir dsl_dir_t;
+
+typedef enum dmu_object_byteswap {
+	DMU_BSWAP_UINT8,
+	DMU_BSWAP_UINT16,
+	DMU_BSWAP_UINT32,
+	DMU_BSWAP_UINT64,
+	DMU_BSWAP_ZAP,
+	DMU_BSWAP_DNODE,
+	DMU_BSWAP_OBJSET,
+	DMU_BSWAP_ZNODE,
+	DMU_BSWAP_OLDACL,
+	DMU_BSWAP_ACL,
+	/*
+	 * Allocating a new byteswap type number makes the on-disk format
+	 * incompatible with any other format that uses the same number.
+	 *
+	 * Data can usually be structured to work with one of the
+	 * DMU_BSWAP_UINT* or DMU_BSWAP_ZAP types.
+	 */
+	DMU_BSWAP_NUMFUNCS
+} dmu_object_byteswap_t;
+
+#define	DMU_OT_NEWTYPE 0x80
+#define	DMU_OT_METADATA 0x40
+#define	DMU_OT_BYTESWAP_MASK 0x3f
+
+/*
+ * Defines a uint8_t object type. Object types specify if the data
+ * in the object is metadata (boolean) and how to byteswap the data
+ * (dmu_object_byteswap_t).
+ */
+#define	DMU_OT(byteswap, metadata) \
+	(DMU_OT_NEWTYPE | \
+	((metadata) ? DMU_OT_METADATA : 0) | \
+	((byteswap) & DMU_OT_BYTESWAP_MASK))
+
+#define	DMU_OT_IS_VALID(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	((ot) & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS : \
+	(ot) < DMU_OT_NUMTYPES)
+
+#define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	((ot) & DMU_OT_METADATA) : \
+	dmu_ot[(int)(ot)].ot_metadata)
+
+#define	DMU_OT_BYTESWAP(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	((ot) & DMU_OT_BYTESWAP_MASK) : \
+	dmu_ot[(int)(ot)].ot_byteswap)
 
 typedef enum dmu_object_type {
 	DMU_OT_NONE,
@@ -134,7 +182,35 @@ typedef enum dmu_object_type {
 	DMU_OT_DEADLIST_HDR,		/* UINT64 */
 	DMU_OT_DSL_CLONES,		/* ZAP */
 	DMU_OT_BPOBJ_SUBOBJ,		/* UINT64 */
-	DMU_OT_NUMTYPES
+	/*
+	 * Do not allocate new object types here. Doing so makes the on-disk
+	 * format incompatible with any other format that uses the same object
+	 * type number.
+	 *
+	 * When creating an object which does not have one of the above types
+	 * use the DMU_OTN_* type with the correct byteswap and metadata
+	 * values.
+	 *
+	 * The DMU_OTN_* types do not have entries in the dmu_ot table,
+	 * use the DMU_OT_IS_METDATA() and DMU_OT_BYTESWAP() macros instead
+	 * of indexing into dmu_ot directly (this works for both DMU_OT_* types
+	 * and DMU_OTN_* types).
+	 */
+	DMU_OT_NUMTYPES,
+
+	/*
+	 * Names for valid types declared with DMU_OT().
+	 */
+	DMU_OTN_UINT8_DATA = DMU_OT(DMU_BSWAP_UINT8, B_FALSE),
+	DMU_OTN_UINT8_METADATA = DMU_OT(DMU_BSWAP_UINT8, B_TRUE),
+	DMU_OTN_UINT16_DATA = DMU_OT(DMU_BSWAP_UINT16, B_FALSE),
+	DMU_OTN_UINT16_METADATA = DMU_OT(DMU_BSWAP_UINT16, B_TRUE),
+	DMU_OTN_UINT32_DATA = DMU_OT(DMU_BSWAP_UINT32, B_FALSE),
+	DMU_OTN_UINT32_METADATA = DMU_OT(DMU_BSWAP_UINT32, B_TRUE),
+	DMU_OTN_UINT64_DATA = DMU_OT(DMU_BSWAP_UINT64, B_FALSE),
+	DMU_OTN_UINT64_METADATA = DMU_OT(DMU_BSWAP_UINT64, B_TRUE),
+	DMU_OTN_ZAP_DATA = DMU_OT(DMU_BSWAP_ZAP, B_FALSE),
+	DMU_OTN_ZAP_METADATA = DMU_OT(DMU_BSWAP_ZAP, B_TRUE),
 } dmu_object_type_t;
 
 typedef enum dmu_objset_type {
@@ -214,6 +290,9 @@ typedef void dmu_buf_evict_func_t(struct dmu_buf *db, void *user_ptr);
  */
 #define	DMU_POOL_DIRECTORY_OBJECT	1
 #define	DMU_POOL_CONFIG			"config"
+#define	DMU_POOL_FEATURES_FOR_WRITE	"features_for_write"
+#define	DMU_POOL_FEATURES_FOR_READ	"features_for_read"
+#define	DMU_POOL_FEATURE_DESCRIPTIONS	"feature_descriptions"
 #define	DMU_POOL_ROOT_DATASET		"root_dataset"
 #define	DMU_POOL_SYNC_BPOBJ		"sync_bplist"
 #define	DMU_POOL_ERRLOG_SCRUB		"errlog_scrub"
@@ -229,6 +308,8 @@ typedef void dmu_buf_evict_func_t(struct dmu_buf *db, void *user_ptr);
 #define	DMU_POOL_CREATION_VERSION	"creation_version"
 #define	DMU_POOL_SCAN			"scan"
 #define	DMU_POOL_FREE_BPOBJ		"free_bpobj"
+#define	DMU_POOL_BPTREE_OBJ		"bptree_obj"
+#define	DMU_POOL_EMPTY_BPOBJ		"empty_bpobj"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
@@ -329,7 +410,7 @@ void dmu_write_policy(objset_t *os, struct dnode *dn, int level, int wp,
  * read db_data, dmu_buf_will_dirty() before modifying it, and the
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
- * buffer as well.  You must release your hold with dmu_buf_rele().
+ * buffer as well.  You must release what you hold with dmu_buf_rele().
  */
 int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
 int dmu_bonus_max(void);
@@ -351,8 +432,8 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
  * Obtain the DMU buffer from the specified object which contains the
  * specified offset.  dmu_buf_hold() puts a "hold" on the buffer, so
  * that it will remain in memory.  You must release the hold with
- * dmu_buf_rele().  You musn't access the dmu_buf_t after releasing your
- * hold.  You must have a hold on any dmu_buf_t* you pass to the DMU.
+ * dmu_buf_rele().  You must not access the dmu_buf_t after releasing
+ * what you hold.  You must have a hold on any dmu_buf_t* you pass to the DMU.
  *
  * You must call dmu_buf_read, dmu_buf_will_dirty, or dmu_buf_will_fill
  * on the returned buffer before reading or writing the buffer's
@@ -489,7 +570,7 @@ void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
 
 /*
  * Free up the data blocks for a defined range of a file.  If size is
- * zero, the range from offset to end-of-file is freed.
+ * -1, the range from offset to end-of-file is freed.
  */
 int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	uint64_t size, dmu_tx_t *tx);
@@ -560,15 +641,21 @@ typedef struct dmu_object_info {
 	uint64_t doi_fill_count;		/* number of non-empty blocks */
 } dmu_object_info_t;
 
-typedef void arc_byteswap_func_t(void *buf, size_t size);
+typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 
 typedef struct dmu_object_type_info {
-	arc_byteswap_func_t	*ot_byteswap;
+	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
 	char			*ot_name;
 } dmu_object_type_info_t;
 
+typedef const struct dmu_object_byteswap_info {
+	arc_byteswap_func_t	 ob_func;
+	char			*ob_name;
+} dmu_object_byteswap_info_t;
+
 extern const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES];
+extern const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
 
 /*
  * Get information on a DMU object.
@@ -644,7 +731,7 @@ extern uint64_t dmu_objset_syncprop(objset_t *os);
 extern uint64_t dmu_objset_logbias(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *id, uint64_t *offp, boolean_t *case_conflict);
-extern int dmu_snapshot_id(objset_t *os, const char *snapname, uint64_t *idp);
+extern int dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *val);
 extern int dmu_snapshot_realname(objset_t *os, char *name, char *real,
     int maxlen, boolean_t *conflict);
 extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
@@ -705,8 +792,8 @@ typedef void (*dmu_traverse_cb_t)(objset_t *os, void *arg, struct blkptr *bp,
 void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
-int dmu_sendbackup(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
-    struct vnode *vp, offset_t *off);
+int dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
+    int outfd, struct vnode *vp, offset_t *off);
 int dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorign,
     uint64_t *sizep);
 

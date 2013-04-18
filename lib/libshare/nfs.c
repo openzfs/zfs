@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
+ * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  */
 
 #include <stdio.h>
@@ -33,8 +34,9 @@
 #include <libshare.h>
 #include "libshare_impl.h"
 
+static boolean_t nfs_available(void);
+
 static sa_fstype_t *nfs_fstype;
-static boolean_t nfs_available;
 
 /*
  * nfs_exportfs_temp_fd refers to a temporary copy of the output
@@ -407,7 +409,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	char *shareopts, *linux_opts;
 	int rc;
 
-	if (!nfs_available) {
+	if (!nfs_available()) {
 		return SA_SYSTEM_ERR;
 	}
 
@@ -480,7 +482,7 @@ nfs_disable_share_one(const char *sharepath, const char *host,
 static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
-	if (!nfs_available) {
+	if (!nfs_available()) {
 		/*
 		 * The share can't possibly be active, so nothing
 		 * needs to be done to disable it.
@@ -514,13 +516,13 @@ nfs_validate_shareopts(const char *shareopts)
  * Checks whether a share is currently active.
  */
 static boolean_t
-is_share_active(sa_share_impl_t impl_share)
+nfs_is_share_active(sa_share_impl_t impl_share)
 {
 	char line[512];
 	char *tab, *cur;
 	FILE *nfs_exportfs_temp_fp;
 
-	if (nfs_exportfs_temp_fd < 0)
+	if (!nfs_available())
 		return B_FALSE;
 
 	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "r");
@@ -585,7 +587,8 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	boolean_t needs_reshare = B_FALSE;
 	char *old_shareopts;
 
-	FSINFO(impl_share, nfs_fstype)->active = is_share_active(impl_share);
+	FSINFO(impl_share, nfs_fstype)->active =
+	    nfs_is_share_active(impl_share);
 
 	old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
@@ -671,18 +674,27 @@ nfs_check_exportfs(void)
 
 	pid = fork();
 
-	if (pid < 0)
+	if (pid < 0) {
+		(void) close(nfs_exportfs_temp_fd);
+		nfs_exportfs_temp_fd = -1;
 		return SA_SYSTEM_ERR;
+	}
 
 	if (pid > 0) {
 		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR)
 			; /* empty loop body */
 
-		if (rc <= 0)
+		if (rc <= 0) {
+			(void) close(nfs_exportfs_temp_fd);
+			nfs_exportfs_temp_fd = -1;
 			return SA_SYSTEM_ERR;
+		}
 
-		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+			(void) close(nfs_exportfs_temp_fd);
+			nfs_exportfs_temp_fd = -1;
 			return SA_CONFIG_ERR;
+		}
 
 		return SA_OK;
 	}
@@ -703,13 +715,23 @@ nfs_check_exportfs(void)
 	exit(0);
 }
 
+/*
+ * Provides a convenient wrapper for determing nfs availability
+ */
+static boolean_t
+nfs_available(void)
+{
+	if (nfs_exportfs_temp_fd == -1)
+		(void) nfs_check_exportfs();
+
+	return (nfs_exportfs_temp_fd != -1) ? B_TRUE : B_FALSE;
+}
+
 /**
  * Initializes the NFS functionality of libshare.
  */
 void
 libshare_nfs_init(void)
 {
-	nfs_available = (nfs_check_exportfs() == SA_OK);
-
 	nfs_fstype = register_fstype("nfs", &nfs_shareops);
 }

@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -56,7 +57,8 @@ typedef struct vdev_cache_entry vdev_cache_entry_t;
 /*
  * Virtual device operations
  */
-typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *ashift);
+typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
+    uint64_t *ashift);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize);
 typedef int	vdev_io_start_func_t(zio_t *zio);
@@ -65,7 +67,7 @@ typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
 typedef void	vdev_hold_func_t(vdev_t *vd);
 typedef void	vdev_rele_func_t(vdev_t *vd);
 
-typedef struct vdev_ops {
+typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
 	vdev_close_func_t		*vdev_op_close;
 	vdev_asize_func_t		*vdev_op_asize;
@@ -125,6 +127,7 @@ struct vdev {
 	uint64_t	vdev_orig_guid;	/* orig. guid prior to remove	*/
 	uint64_t	vdev_asize;	/* allocatable device capacity	*/
 	uint64_t	vdev_min_asize;	/* min acceptable asize		*/
+	uint64_t	vdev_max_asize;	/* max acceptable asize		*/
 	uint64_t	vdev_ashift;	/* block alignment shift	*/
 	uint64_t	vdev_state;	/* see VDEV_STATE_* #defines	*/
 	uint64_t	vdev_prevstate;	/* used when reopening a vdev	*/
@@ -153,6 +156,7 @@ struct vdev {
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
+	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/
 	txg_list_t	vdev_dtl_list;	/* per-txg dirty DTL lists	*/
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/
@@ -206,7 +210,7 @@ struct vdev {
 	 * For DTrace to work in userland (libzpool) context, these fields must
 	 * remain at the end of the structure.  DTrace will use the kernel's
 	 * CTF definition for 'struct vdev', and since the size of a kmutex_t is
-	 * larger in userland, the offsets for the rest fields would be
+	 * larger in userland, the offsets for the rest of the fields would be
 	 * incorrect.
 	 */
 	kmutex_t	vdev_dtl_lock;	/* vdev_dtl_{map,resilver}	*/
@@ -261,6 +265,7 @@ typedef struct vdev_label {
 #define	VDEV_LABEL_START_SIZE	(2 * sizeof (vdev_label_t) + VDEV_BOOT_SIZE)
 #define	VDEV_LABEL_END_SIZE	(2 * sizeof (vdev_label_t))
 #define	VDEV_LABELS		4
+#define	VDEV_BEST_LABEL		VDEV_LABELS
 
 #define	VDEV_ALLOC_LOAD		0
 #define	VDEV_ALLOC_ADD		1

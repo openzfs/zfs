@@ -1,0 +1,123 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
+.\"
+.TH mount.zfs 8 "2013 FEB 28" "ZFS on Linux" "System Administration Commands"
+
+.SH NAME
+mount.zfs \- mount a ZFS filesystem
+.SH SYNOPSIS
+.LP
+.BI "mount.zfs [\-sfnvh] [\-o " options "]" " dataset mountpoint
+
+.SH DESCRIPTION
+.BR mount.zfs
+is part of the zfsutils package for Linux. It is a helper program that
+is usually invoked by the
+.BR mount (8)
+or
+.BR zfs (8)
+commands to mount a ZFS dataset.
+
+All
+.I options
+are handled according to the FILESYSTEM INDEPENDENT MOUNT OPTIONS
+section in the
+.BR mount (8)
+manual, except for those described below.
+
+The
+.I dataset
+parameter is a ZFS filesystem name, as output by the
+.B "zfs list -H -o name
+command. This parameter never has a leading slash character and is
+not a device name.
+
+The
+.I mountpoint
+parameter is the path name of a directory.
+
+
+.SH OPTIONS
+.TP
+.BI "\-s"
+Ignore bad or sloppy mount options.
+.TP
+.BI "\-f"
+Do a fake mount; do not perform the mount operation.
+.TP
+.BI "\-n"
+Do not update the /etc/mtab file.
+.TP
+.BI "\-v"
+Increase verbosity.
+.TP
+.BI "\-h"
+Print the usage message.
+.TP
+.BI "\-o legacy"
+This private flag indicates that the
+.I dataset
+has an entry in the /etc/fstab file.
+.TP
+.BI "\-o noxattr"
+This private flag disables extended attributes.
+.TP
+.BI "\-o xattr
+This private flag enables extended attributes and, if appropriate,
+adds a ZFS context to the selinux system policy.
+.TP
+.BI "\-o zfsutil"
+This private flag indicates that
+.BR mount (8)
+is being called by the
+.BR zfs (8)
+command.
+
+.SH NOTES
+ZFS conventionally requires that the
+.I mountpoint
+be an empty directory, but the Linux implementation inconsistently
+enforces the requirement.
+
+The
+.BR mount.zfs
+helper does not mount the contents of zvols.
+
+.SH FILES
+.TP 18n
+.I /etc/fstab
+The static filesystem table.
+.TP
+.I /etc/mtab
+The mounted filesystem table.
+.SH "AUTHORS"
+The primary author of
+.BR mount.zfs
+is Brian Behlendorf <behlendorf1@llnl.gov>.
+
+This man page was written by Darik Horn <dajhorn@vanadac.com>.
+.SH "SEE ALSO"
+.BR fstab (5),
+.BR mount (8),
+.BR zfs (8)

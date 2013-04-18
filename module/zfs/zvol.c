@@ -141,6 +141,29 @@ zvol_find_by_name(const char *name)
 	return NULL;
 }
 
+
+/*
+ * Given a path, return TRUE if path is a ZVOL.
+ */
+boolean_t
+zvol_is_zvol(const char *device)
+{
+	struct block_device *bdev;
+	unsigned int major;
+
+	bdev = lookup_bdev(device);
+	if (IS_ERR(bdev))
+		return (B_FALSE);
+
+	major = MAJOR(bdev->bd_dev);
+	bdput(bdev);
+
+	if (major == zvol_major)
+            return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 /*
  * ZFS_IOC_CREATE callback handles dmu zvol and zap object creation.
  */
@@ -430,20 +453,20 @@ zvol_replay_err(zvol_state_t *zv, lr_t *lr, boolean_t byteswap)
  * Callback vectors for replaying records.
  * Only TX_WRITE is needed for zvol.
  */
-zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
-	(zil_replay_func_t *)zvol_replay_err,	/* no such transaction type */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_CREATE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_MKDIR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_MKXATTR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_SYMLINK */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_REMOVE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_RMDIR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_LINK */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_RENAME */
-	(zil_replay_func_t *)zvol_replay_write,	/* TX_WRITE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_TRUNCATE */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_SETATTR */
-	(zil_replay_func_t *)zvol_replay_err,	/* TX_ACL */
+zil_replay_func_t zvol_replay_vector[TX_MAX_TYPE] = {
+	(zil_replay_func_t)zvol_replay_err,	/* no such transaction type */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_CREATE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_MKDIR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_MKXATTR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_SYMLINK */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_REMOVE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_RMDIR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_LINK */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_RENAME */
+	(zil_replay_func_t)zvol_replay_write,	/* TX_WRITE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_TRUNCATE */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_SETATTR */
+	(zil_replay_func_t)zvol_replay_err,	/* TX_ACL */
 };
 
 /*
@@ -597,8 +620,8 @@ zvol_discard(void *arg)
 	struct request *req = (struct request *)arg;
 	struct request_queue *q = req->q;
 	zvol_state_t *zv = q->queuedata;
-	uint64_t offset = blk_rq_pos(req) << 9;
-	uint64_t size = blk_rq_bytes(req);
+	uint64_t start = blk_rq_pos(req) << 9;
+	uint64_t end = start + blk_rq_bytes(req);
 	int error;
 	rl_t *rl;
 
@@ -610,19 +633,28 @@ zvol_discard(void *arg)
 	ASSERT(!(current->flags & PF_NOFS));
 	current->flags |= PF_NOFS;
 
-	if (offset + size > zv->zv_volsize) {
-		blk_end_request(req, -EIO, size);
+	if (end > zv->zv_volsize) {
+		blk_end_request(req, -EIO, blk_rq_bytes(req));
 		goto out;
 	}
 
-	if (size == 0) {
-		blk_end_request(req, 0, size);
+	/*
+	 * Align the request to volume block boundaries. If we don't,
+	 * then this will force dnode_free_range() to zero out the
+	 * unaligned parts, which is slow (read-modify-write) and
+	 * useless since we are not freeing any space by doing so.
+	 */
+	start = P2ROUNDUP(start, zv->zv_volblocksize);
+	end = P2ALIGN(end, zv->zv_volblocksize);
+
+	if (start >= end) {
+		blk_end_request(req, 0, blk_rq_bytes(req));
 		goto out;
 	}
 
-	rl = zfs_range_lock(&zv->zv_znode, offset, size, RL_WRITER);
+	rl = zfs_range_lock(&zv->zv_znode, start, end - start, RL_WRITER);
 
-	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, size);
+	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, end - start);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
@@ -630,7 +662,7 @@ zvol_discard(void *arg)
 
 	zfs_range_unlock(rl);
 
-	blk_end_request(req, -error, size);
+	blk_end_request(req, -error, blk_rq_bytes(req));
 out:
 	current->flags &= ~PF_NOFS;
 }
@@ -859,25 +891,49 @@ zvol_first_open(zvol_state_t *zv)
 {
 	objset_t *os;
 	uint64_t volsize;
+	int locked = 0;
 	int error;
 	uint64_t ro;
+
+	/*
+	 * In all other cases the spa_namespace_lock is taken before the
+	 * bdev->bd_mutex lock.  But in this case the Linux __blkdev_get()
+	 * function calls fops->open() with the bdev->bd_mutex lock held.
+	 *
+	 * To avoid a potential lock inversion deadlock we preemptively
+	 * try to take the spa_namespace_lock().  Normally it will not
+	 * be contended and this is safe because spa_open_common() handles
+	 * the case where the caller already holds the spa_namespace_lock.
+	 *
+	 * When it is contended we risk a lock inversion if we were to
+	 * block waiting for the lock.  Luckily, the __blkdev_get()
+	 * function allows us to return -ERESTARTSYS which will result in
+	 * bdev->bd_mutex being dropped, reacquired, and fops->open() being
+	 * called again.  This process can be repeated safely until both
+	 * locks are acquired.
+	 */
+	if (!mutex_owned(&spa_namespace_lock)) {
+		locked = mutex_tryenter(&spa_namespace_lock);
+		if (!locked)
+			return (-ERESTARTSYS);
+	}
 
 	/* lie and say we're read-only */
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, zvol_tag, &os);
 	if (error)
-		return (-error);
+		goto out_mutex;
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error) {
-	        dmu_objset_disown(os, zvol_tag);
-	        return (-error);
+		dmu_objset_disown(os, zvol_tag);
+		goto out_mutex;
 	}
 
 	zv->zv_objset = os;
 	error = dmu_bonus_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dbuf);
 	if (error) {
-	        dmu_objset_disown(os, zvol_tag);
-	        return (-error);
+		dmu_objset_disown(os, zvol_tag);
+		goto out_mutex;
 	}
 
 	set_capacity(zv->zv_disk, volsize >> 9);
@@ -885,13 +941,18 @@ zvol_first_open(zvol_state_t *zv)
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 
 	VERIFY(dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL) == 0);
-	if (ro || dmu_objset_is_snapshot(os)) {
-                set_disk_ro(zv->zv_disk, 1);
-	        zv->zv_flags |= ZVOL_RDONLY;
+	if (ro || dmu_objset_is_snapshot(os) ||
+	    !spa_writeable(dmu_objset_spa(os))) {
+		set_disk_ro(zv->zv_disk, 1);
+		zv->zv_flags |= ZVOL_RDONLY;
 	} else {
-                set_disk_ro(zv->zv_disk, 0);
-	        zv->zv_flags &= ~ZVOL_RDONLY;
+		set_disk_ro(zv->zv_disk, 0);
+		zv->zv_flags &= ~ZVOL_RDONLY;
 	}
+
+out_mutex:
+	if (locked)
+		mutex_exit(&spa_namespace_lock);
 
 	return (-error);
 }
@@ -901,8 +962,18 @@ zvol_last_close(zvol_state_t *zv)
 {
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
+
 	dmu_buf_rele(zv->zv_dbuf, zvol_tag);
 	zv->zv_dbuf = NULL;
+
+	/*
+	 * Evict cached data
+	 */
+	if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
+	    !(zv->zv_flags & ZVOL_RDONLY))
+		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
+	(void) dmu_objset_evict_dbufs(zv->zv_objset);
+
 	dmu_objset_disown(zv->zv_objset, zvol_tag);
 	zv->zv_objset = NULL;
 }
@@ -1065,7 +1136,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 
 	mutex_enter(&zvol_state_lock);
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : ERR_PTR(-ENOENT);
+	kobj = zv ? get_disk(zv->zv_disk) : NULL;
 	mutex_exit(&zvol_state_lock);
 
 	return kobj;
@@ -1140,6 +1211,7 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
+	int error = 0;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	if (zv == NULL)
@@ -1148,6 +1220,15 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
+
+#ifdef HAVE_ELEVATOR_CHANGE
+	error = elevator_change(zv->zv_queue, "noop");
+#endif /* HAVE_ELEVATOR_CHANGE */
+	if (error) {
+		printk("ZFS: Unable to set \"%s\" scheduler for zvol %s: %d\n",
+		    "noop", name, error);
+		goto out_queue;
+	}
 
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
@@ -1207,7 +1288,28 @@ zvol_free(zvol_state_t *zv)
 }
 
 static int
-__zvol_create_minor(const char *name)
+__zvol_snapdev_hidden(const char *name)
+{
+        uint64_t snapdev;
+        char *parent;
+        char *atp;
+        int error = 0;
+
+        parent = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+        (void) strlcpy(parent, name, MAXPATHLEN);
+
+        if ((atp = strrchr(parent, '@')) != NULL) {
+                *atp = '\0';
+                error = dsl_prop_get_integer(parent, "snapdev", &snapdev, NULL);
+                if ((error == 0) && (snapdev == ZFS_SNAPDEV_HIDDEN))
+                        error = ENODEV;
+        }
+        kmem_free(parent, MAXPATHLEN);
+        return (error);
+}
+
+static int
+__zvol_create_minor(const char *name, boolean_t ignore_snapdev)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1222,6 +1324,12 @@ __zvol_create_minor(const char *name)
 	if (zv) {
 		error = EEXIST;
 		goto out;
+	}
+
+	if (ignore_snapdev == B_FALSE) {
+		error = __zvol_snapdev_hidden(name);
+		if (error)
+			goto out;
 	}
 
 	doi = kmem_alloc(sizeof(dmu_object_info_t), KM_SLEEP);
@@ -1272,14 +1380,16 @@ __zvol_create_minor(const char *name)
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zv->zv_queue);
 #endif
 
-	if (zil_replay_disable)
-		zil_destroy(dmu_objset_zil(os), B_FALSE);
-	else
-		zil_replay(os, zv, zvol_replay_vector);
+	if (spa_writeable(dmu_objset_spa(os))) {
+		if (zil_replay_disable)
+			zil_destroy(dmu_objset_zil(os), B_FALSE);
+		else
+			zil_replay(os, zv, zvol_replay_vector);
+	}
 
+	zv->zv_objset = NULL;
 out_dmu_objset_disown:
 	dmu_objset_disown(os, zvol_tag);
-	zv->zv_objset = NULL;
 out_doi:
 	kmem_free(doi, sizeof(dmu_object_info_t));
 out:
@@ -1303,7 +1413,7 @@ zvol_create_minor(const char *name)
 	int error;
 
 	mutex_enter(&zvol_state_lock);
-	error = __zvol_create_minor(name);
+	error = __zvol_create_minor(name, B_FALSE);
 	mutex_exit(&zvol_state_lock);
 
 	return (error);
@@ -1351,7 +1461,7 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
 	if (strchr(dsname, '/') == NULL)
 		return 0;
 
-	(void) __zvol_create_minor(dsname);
+	(void) __zvol_create_minor(dsname, B_FALSE);
 	return (0);
 }
 
@@ -1418,6 +1528,35 @@ zvol_remove_minors(const char *pool)
 	mutex_exit(&zvol_state_lock);
 	kmem_free(str, MAXNAMELEN);
 }
+
+static int
+snapdev_snapshot_changed_cb(const char *dsname, void *arg) {
+	uint64_t snapdev = *(uint64_t *) arg;
+
+	if (strchr(dsname, '@') == NULL)
+		return 0;
+
+	switch (snapdev) {
+		case ZFS_SNAPDEV_VISIBLE:
+			mutex_enter(&zvol_state_lock);
+			(void) __zvol_create_minor(dsname, B_TRUE);
+			mutex_exit(&zvol_state_lock);
+			break;
+		case ZFS_SNAPDEV_HIDDEN:
+			(void) zvol_remove_minor(dsname);
+			break;
+	}
+	return 0;
+}
+
+int
+zvol_set_snapdev(const char *dsname, uint64_t snapdev) {
+	(void) dmu_objset_find((char *) dsname, snapdev_snapshot_changed_cb,
+		&snapdev, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+	/* caller should continue to modify snapdev property */
+	return (-1);
+}
+
 
 int
 zvol_init(void)

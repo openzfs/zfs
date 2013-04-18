@@ -18,8 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -54,16 +56,20 @@
 #include <sys/zfs_fuid.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/zfeature.h>
 #undef ZFS_MAXNAMELEN
 #include <libzfs.h>
 
-#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ? \
-    zio_compress_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ? \
-    zio_checksum_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_OT_NAME(idx) ((idx) < DMU_OT_NUMTYPES ? \
-    dmu_ot[(idx)].ot_name : "UNKNOWN")
-#define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) : DMU_OT_NUMTYPES)
+#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ?	\
+	zio_compress_table[(idx)].ci_name : "UNKNOWN")
+#define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ?	\
+	zio_checksum_table[(idx)].ci_name : "UNKNOWN")
+#define	ZDB_OT_NAME(idx) ((idx) < DMU_OT_NUMTYPES ?	\
+	dmu_ot[(idx)].ot_name : DMU_OT_IS_VALID(idx) ?	\
+	dmu_ot_byteswap[DMU_OT_BYTESWAP(idx)].ob_name : "UNKNOWN")
+#define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) :		\
+	(((idx) == DMU_OTN_ZAP_DATA || (idx) == DMU_OTN_ZAP_METADATA) ?	\
+	DMU_OT_ZAP_OTHER : DMU_OT_NUMTYPES))
 
 #ifndef lint
 extern int zfs_recover;
@@ -101,13 +107,16 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-CumdibcsDvhL] poolname [object...]\n"
-	    "       %s [-div] dataset [object...]\n"
-	    "       %s -m [-L] poolname [vdev [metaslab...]]\n"
-	    "       %s -R poolname vdev:offset:size[:flags]\n"
-	    "       %s -S poolname\n"
-	    "       %s -l [-u] device\n"
-	    "       %s -C\n\n",
+	    "Usage: %s [-CumdibcsDvhLXFPA] [-t txg] [-e [-p path...]] "
+	    "poolname [object...]\n"
+	    "       %s [-divPA] [-e -p path...] dataset [object...]\n"
+	    "       %s -m [-LXFPA] [-t txg] [-e [-p path...]] "
+	    "poolname [vdev [metaslab...]]\n"
+	    "       %s -R [-A] [-e [-p path...]] poolname "
+	    "vdev:offset:size[:flags]\n"
+	    "       %s -S [-PA] [-e [-p path...]] poolname\n"
+	    "       %s -l [-uA] device\n"
+	    "       %s -C [-A] [-U config]\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
@@ -149,7 +158,7 @@ usage(void)
 	    "has altroot/not in a cachefile\n");
 	(void) fprintf(stderr, "        -p <path> -- use one or more with "
 	    "-e to specify path to vdev dir\n");
-	(void) fprintf(stderr, "	-P print numbers parsable\n");
+	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
 	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
 	    "searching for uberblocks\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
@@ -695,7 +704,9 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 		return;
 	ASSERT(error == 0);
 
-	if ((count = ddt_object_count(ddt, type, class)) == 0)
+	error = ddt_object_count(ddt, type, class, &count);
+	ASSERT(error == 0);
+	if (count == 0)
 		return;
 
 	dspace = doi.doi_physical_blocks_512 << 9;
@@ -1094,7 +1105,7 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 
 	ASSERT(size == sizeof (*ds));
 	crtime = ds->ds_creation_time;
-	zdb_nicenum(ds->ds_used_bytes, used);
+	zdb_nicenum(ds->ds_referenced_bytes, used);
 	zdb_nicenum(ds->ds_compressed_bytes, compressed);
 	zdb_nicenum(ds->ds_uncompressed_bytes, uncompressed);
 	zdb_nicenum(ds->ds_unique_bytes, unique);
@@ -1134,6 +1145,44 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\t\tprops_obj = %llu\n",
 	    (u_longlong_t)ds->ds_props_obj);
 	(void) printf("\t\tbp = %s\n", blkbuf);
+}
+
+/* ARGSUSED */
+static int
+dump_bptree_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+{
+	char blkbuf[BP_SPRINTF_LEN];
+
+	if (bp->blk_birth != 0) {
+		sprintf_blkptr(blkbuf, bp);
+		(void) printf("\t%s\n", blkbuf);
+	}
+	return (0);
+}
+
+static void
+dump_bptree(objset_t *os, uint64_t obj, char *name)
+{
+	char bytes[32];
+	bptree_phys_t *bt;
+	dmu_buf_t *db;
+
+	if (dump_opt['d'] < 3)
+		return;
+
+	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
+	bt = db->db_data;
+	zdb_nicenum(bt->bt_bytes, bytes);
+	(void) printf("\n    %s: %llu datasets, %s\n",
+	    name, (unsigned long long)(bt->bt_end - bt->bt_begin), bytes);
+	dmu_buf_rele(db, FTAG);
+
+	if (dump_opt['d'] < 5)
+		return;
+
+	(void) printf("\n");
+
+	(void) bptree_iterate(os, obj, B_FALSE, dump_bptree_cb, NULL, NULL);
 }
 
 /* ARGSUSED */
@@ -1883,11 +1932,13 @@ typedef struct zdb_blkstats {
  */
 #define	ZDB_OT_DEFERRED	(DMU_OT_NUMTYPES + 0)
 #define	ZDB_OT_DITTO	(DMU_OT_NUMTYPES + 1)
-#define	ZDB_OT_TOTAL	(DMU_OT_NUMTYPES + 2)
+#define	ZDB_OT_OTHER	(DMU_OT_NUMTYPES + 2)
+#define	ZDB_OT_TOTAL	(DMU_OT_NUMTYPES + 3)
 
 static char *zdb_ot_extname[] = {
 	"deferred free",
 	"dedup ditto",
+	"other",
 	"Total",
 };
 
@@ -1969,9 +2020,10 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp, arc_buf_t *pbuf,
 
 	type = BP_GET_TYPE(bp);
 
-	zdb_count_block(zcb, zilog, bp, type);
+	zdb_count_block(zcb, zilog, bp,
+	    (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
 
-	is_metadata = (BP_GET_LEVEL(bp) != 0 || dmu_ot[type].ot_metadata);
+	is_metadata = (BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type));
 
 	if (dump_opt['c'] > 1 || (dump_opt['c'] && is_metadata)) {
 		int ioerr;
@@ -2202,6 +2254,12 @@ dump_block_stats(spa_t *spa)
 	    count_block_cb, &zcb, NULL);
 	(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
 	    count_block_cb, &zcb, NULL);
+	if (spa_feature_is_active(spa,
+	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+		VERIFY3U(0, ==, bptree_iterate(spa->spa_meta_objset,
+		    spa->spa_dsl_pool->dp_bptree_obj, B_FALSE, count_block_cb,
+		    &zcb, NULL));
+	}
 
 	if (dump_opt['c'] > 1)
 		flags |= TRAVERSE_PREFETCH_DATA;
@@ -2378,7 +2436,7 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	}
 
 	if (BP_IS_HOLE(bp) || BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_OFF ||
-	    BP_GET_LEVEL(bp) > 0 || dmu_ot[BP_GET_TYPE(bp)].ot_metadata)
+	    BP_GET_LEVEL(bp) > 0 || DMU_OT_IS_METADATA(BP_GET_TYPE(bp)))
 		return (0);
 
 	ddt_key_fill(&zdde_search.zdde_key, bp);
@@ -2486,7 +2544,14 @@ dump_zpool(spa_t *spa)
 			dump_bpobj(&spa->spa_deferred_bpobj, "Deferred frees");
 			if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
 				dump_bpobj(&spa->spa_dsl_pool->dp_free_bpobj,
-				    "Pool frees");
+				    "Pool snapshot frees");
+			}
+
+			if (spa_feature_is_active(spa,
+			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+				dump_bptree(spa->spa_meta_objset,
+				    spa->spa_dsl_pool->dp_bptree_obj,
+				    "Pool dataset frees");
 			}
 			dump_dtl(spa->spa_root_vdev, 0);
 		}
@@ -3144,7 +3209,13 @@ main(int argc, char **argv)
 					    argv[i], strerror(errno));
 			}
 		}
-		(os != NULL) ? dump_dir(os) : dump_zpool(spa);
+		if (os != NULL) {
+			dump_dir(os);
+		} else if (zopt_objects > 0 && !dump_opt['m']) {
+			dump_dir(spa->spa_meta_objset);
+		} else {
+			dump_zpool(spa);
+		}
 	} else {
 		flagbits['b'] = ZDB_FLAG_PRINT_BLKPTR;
 		flagbits['c'] = ZDB_FLAG_CHECKSUM;

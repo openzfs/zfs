@@ -18,9 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -47,6 +48,7 @@
 
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
+#include "zfeature_common.h"
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -114,7 +116,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_RESILVERING:
 		return (dgettext(TEXT_DOMAIN, "currently resilvering"));
 	case EZFS_BADVERSION:
-		return (dgettext(TEXT_DOMAIN, "unsupported version"));
+		return (dgettext(TEXT_DOMAIN, "unsupported version or "
+		    "feature"));
 	case EZFS_POOLUNAVAIL:
 		return (dgettext(TEXT_DOMAIN, "pool is unavailable"));
 	case EZFS_DEVOVERFLOW:
@@ -709,6 +712,7 @@ libzfs_init(void)
 
 	zfs_prop_init();
 	zpool_prop_init();
+	zpool_feature_init();
 	libzfs_mnttab_init(hdl);
 
 	return (hdl);
@@ -800,56 +804,165 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 }
 
 /*
- * Given a shorthand device name, check if a file by that name exists in a list
- * of directories under /dev.  If one is found, store its full path in the
- * buffer pointed to by the path argument and return 0, else return -1.  The
- * path buffer must be allocated by the caller.
+ * Append partition suffix to an otherwise fully qualified device path.
+ * This is used to generate the name the full path as its stored in
+ * ZPOOL_CONFIG_PATH for whole disk devices.  On success the new length
+ * of 'path' will be returned on error a negative value is returned.
  */
 int
-zfs_resolve_shortname(const char *name, char *path, size_t pathlen)
+zfs_append_partition(char *path, size_t max_len)
 {
-	int i, err;
-	char dirs[6][9] = {"by-id", "by-label", "by-path", "by-uuid", "zpool",
-			   "by-vdev"};
+	int len = strlen(path);
 
-	/* /dev/ */
-	(void) snprintf(path, pathlen, "%s/%s", DISK_ROOT, name);
-	err = access(path, F_OK);
-	if (err == 0)
-		return (err);
+	if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0) {
+		if (len + 6 >= max_len)
+			return (-1);
 
-	/* /dev/mapper/ */
-	(void) snprintf(path, pathlen, "%s/mapper/%s", DISK_ROOT, name);
-	err = access(path, F_OK);
-	if (err == 0)
-		return (err);
+		(void) strcat(path, "-part1");
+		len += 6;
+	} else {
+		if (len + 2 >= max_len)
+			return (-1);
 
-	/* /dev/disk/<dirs>/ */
-	for (i = 0; i < 6 && err < 0; i++) {
-		(void) snprintf(path, pathlen, "%s/%s/%s",
-		    UDISK_ROOT, dirs[i], name);
-		err = access(path, F_OK);
+		if (isdigit(path[len-1])) {
+			(void) strcat(path, "p1");
+			len += 2;
+		} else {
+			(void) strcat(path, "1");
+			len += 1;
+		}
 	}
 
-	return (err);
+	return (len);
 }
 
 /*
- * Append partition suffix to a device path.  This should be used to generate
- * the name of a whole disk as it is stored in the vdev label.  The
- * user-visible names of whole disks do not contain the partition information.
- * Modifies buf which must be allocated by the caller.
+ * Given a shorthand device name check if a file by that name exists in any
+ * of the 'zpool_default_import_path' or ZPOOL_IMPORT_PATH directories.  If
+ * one is found, store its fully qualified path in the 'path' buffer passed
+ * by the caller and return 0, otherwise return an error.
  */
-void
-zfs_append_partition(const char *path, char *buf, size_t buflen)
+int
+zfs_resolve_shortname(const char *name, char *path, size_t len)
 {
-	if (strncmp(path, UDISK_ROOT, strlen(UDISK_ROOT)) == 0)
-		(void) snprintf(buf, buflen, "%s%s%s", path, "-part",
-			FIRST_SLICE);
-	else
-		(void) snprintf(buf, buflen, "%s%s%s", path,
-			isdigit(path[strlen(path)-1]) ?  "p" : "",
-			FIRST_SLICE);
+	int i, error = -1;
+	char *dir, *env, *envdup;
+
+	env = getenv("ZPOOL_IMPORT_PATH");
+	errno = ENOENT;
+
+	if (env) {
+		envdup = strdup(env);
+		dir = strtok(envdup, ":");
+		while (dir && error) {
+			(void) snprintf(path, len, "%s/%s", dir, name);
+			error = access(path, F_OK);
+			dir = strtok(NULL, ":");
+		}
+		free(envdup);
+	} else {
+		for (i = 0; i < DEFAULT_IMPORT_PATH_SIZE && error < 0; i++) {
+			(void) snprintf(path, len, "%s/%s",
+			    zpool_default_import_path[i], name);
+			error = access(path, F_OK);
+		}
+	}
+
+	return (error ? ENOENT : 0);
+}
+
+/*
+ * Given a shorthand device name look for a match against 'cmp_name'.  This
+ * is done by checking all prefix expansions using either the default
+ * 'zpool_default_import_paths' or the ZPOOL_IMPORT_PATH environment
+ * variable.  Proper partition suffixes will be appended if this is a
+ * whole disk.  When a match is found 0 is returned otherwise ENOENT.
+ */
+static int
+zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
+{
+	int path_len, cmp_len, i = 0, error = ENOENT;
+	char *dir, *env, *envdup = NULL;
+	char path_name[MAXPATHLEN];
+
+	cmp_len = strlen(cmp_name);
+	env = getenv("ZPOOL_IMPORT_PATH");
+
+	if (env) {
+		envdup = strdup(env);
+		dir = strtok(envdup, ":");
+	} else {
+		dir =  zpool_default_import_path[i];
+	}
+
+	while (dir) {
+		/* Trim trailing directory slashes from ZPOOL_IMPORT_PATH */
+		while (dir[strlen(dir)-1] == '/')
+			dir[strlen(dir)-1] = '\0';
+
+		path_len = snprintf(path_name, MAXPATHLEN, "%s/%s", dir, name);
+		if (wholedisk)
+			path_len = zfs_append_partition(path_name, MAXPATHLEN);
+
+		if ((path_len == cmp_len) && !strcmp(path_name, cmp_name)) {
+			error = 0;
+			break;
+		}
+
+		if (env) {
+			dir = strtok(NULL, ":");
+		} else if (++i < DEFAULT_IMPORT_PATH_SIZE) {
+			dir = zpool_default_import_path[i];
+		} else {
+			dir = NULL;
+		}
+	}
+
+	if (env)
+		free(envdup);
+
+	return (error);
+}
+
+/*
+ * Given either a shorthand or fully qualified path name look for a match
+ * against 'cmp'.  The passed name will be expanded as needed for comparison
+ * purposes and redundant slashes stripped to ensure an accurate match.
+ */
+int
+zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
+{
+	int path_len, cmp_len;
+	char path_name[MAXPATHLEN];
+	char cmp_name[MAXPATHLEN];
+	char *dir;
+
+	/* Strip redundant slashes if one exists due to ZPOOL_IMPORT_PATH */
+	memset(cmp_name, 0, MAXPATHLEN);
+	dir = strtok(cmp, "/");
+	while (dir) {
+		strcat(cmp_name, "/");
+		strcat(cmp_name, dir);
+		dir = strtok(NULL, "/");
+	}
+
+	if (name[0] != '/')
+		return zfs_strcmp_shortname(name, cmp_name, wholedisk);
+
+	strncpy(path_name, name, MAXPATHLEN);
+	path_len = strlen(path_name);
+	cmp_len = strlen(cmp_name);
+
+	if (wholedisk) {
+		path_len = zfs_append_partition(path_name, MAXPATHLEN);
+		if (path_len == -1)
+			return (ENOMEM);
+	}
+
+	if ((path_len != cmp_len) || strcmp(path_name, cmp_name))
+		return (ENOENT);
+
+	return (0);
 }
 
 /*
@@ -1188,8 +1301,9 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 			break;
 	}
 	if (i == strlen(ends)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "invalid numeric suffix '%s'"), buf);
+		if (hdl)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "invalid numeric suffix '%s'"), buf);
 		return (-1);
 	}
 
@@ -1204,8 +1318,9 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 	       buf[3] == '\0'))))
 		return (10*i);
 
-	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-	    "invalid numeric suffix '%s'"), buf);
+	if (hdl)
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "invalid numeric suffix '%s'"), buf);
 	return (-1);
 }
 
@@ -1421,9 +1536,11 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 	 * this is a pool property or if this isn't a user-defined
 	 * dataset property,
 	 */
-	if (prop == ZPROP_INVAL && (type == ZFS_TYPE_POOL ||
-	    (!zfs_prop_user(propname) && !zfs_prop_userquota(propname) &&
-	    !zfs_prop_written(propname)))) {
+	if (prop == ZPROP_INVAL && ((type == ZFS_TYPE_POOL &&
+	    !zpool_prop_feature(propname) &&
+	    !zpool_prop_unsupported(propname)) ||
+	    (type == ZFS_TYPE_DATASET && !zfs_prop_user(propname) &&
+	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
 		return (zfs_error(hdl, EZFS_BADPROP,
@@ -1435,7 +1552,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 
 	entry->pl_prop = prop;
 	if (prop == ZPROP_INVAL) {
-		if ((entry->pl_user_prop = zfs_strdup(hdl, propname)) == NULL) {
+		if ((entry->pl_user_prop = zfs_strdup(hdl, propname)) ==
+		    NULL) {
 			free(entry);
 			return (-1);
 		}

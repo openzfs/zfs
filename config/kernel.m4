@@ -12,10 +12,10 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_3ARG_BLKDEV_GET
 	ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH
 	ZFS_AC_KERNEL_OPEN_BDEV_EXCLUSIVE
+	ZFS_AC_KERNEL_LOOKUP_BDEV
 	ZFS_AC_KERNEL_INVALIDATE_BDEV_ARGS
 	ZFS_AC_KERNEL_BDEV_LOGICAL_BLOCK_SIZE
 	ZFS_AC_KERNEL_BDEV_PHYSICAL_BLOCK_SIZE
-	ZFS_AC_KERNEL_BIO_EMPTY_BARRIER
 	ZFS_AC_KERNEL_BIO_FAILFAST
 	ZFS_AC_KERNEL_BIO_FAILFAST_DTD
 	ZFS_AC_KERNEL_REQ_FAILFAST_MASK
@@ -47,26 +47,36 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_SHOW_OPTIONS
 	ZFS_AC_KERNEL_FSYNC
 	ZFS_AC_KERNEL_EVICT_INODE
+	ZFS_AC_KERNEL_DIRTY_INODE_WITH_FLAGS
 	ZFS_AC_KERNEL_NR_CACHED_OBJECTS
 	ZFS_AC_KERNEL_FREE_CACHED_OBJECTS
 	ZFS_AC_KERNEL_FALLOCATE
+	ZFS_AC_KERNEL_MKDIR_UMODE_T
+	ZFS_AC_KERNEL_LOOKUP_NAMEIDATA
+	ZFS_AC_KERNEL_CREATE_NAMEIDATA
 	ZFS_AC_KERNEL_TRUNCATE_RANGE
-	ZFS_AC_KERNEL_CREATE_UMODE_T
 	ZFS_AC_KERNEL_AUTOMOUNT
 	ZFS_AC_KERNEL_ENCODE_FH_WITH_INODE
+	ZFS_AC_KERNEL_COMMIT_METADATA
 	ZFS_AC_KERNEL_CLEAR_INODE
 	ZFS_AC_KERNEL_INSERT_INODE_LOCKED
 	ZFS_AC_KERNEL_D_MAKE_ROOT
 	ZFS_AC_KERNEL_D_OBTAIN_ALIAS
+	ZFS_AC_KERNEL_D_SET_D_OP
+	ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
+	ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS
 	ZFS_AC_KERNEL_CHECK_DISK_SIZE_CHANGE
 	ZFS_AC_KERNEL_TRUNCATE_SETSIZE
 	ZFS_AC_KERNEL_6ARGS_SECURITY_INODE_INIT_SECURITY
 	ZFS_AC_KERNEL_CALLBACK_SECURITY_INODE_INIT_SECURITY
 	ZFS_AC_KERNEL_MOUNT_NODEV
 	ZFS_AC_KERNEL_SHRINK
+	ZFS_AC_KERNEL_S_D_OP
 	ZFS_AC_KERNEL_BDI
 	ZFS_AC_KERNEL_BDI_SETUP_AND_REGISTER
 	ZFS_AC_KERNEL_SET_NLINK
+	ZFS_AC_KERNEL_ELEVATOR_CHANGE
+	ZFS_AC_KERNEL_5ARG_SGET
 
 	AS_IF([test "$LINUX_OBJ" != "$LINUX"], [
 		KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS O=$LINUX_OBJ"
@@ -99,7 +109,7 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 		AS_IF([test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"], [
 			AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed.  If your building with a custom kernel make sure the
+	*** is installed.  If you are building with a custom kernel, make sure the
 	*** kernel is configured, built, and the '--with-linux=PATH' configure
 	*** option refers to the location of the kernel source.])
 		])
@@ -141,11 +151,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AS_IF([test -n "$sourcelink" && test -e ${sourcelink}], [
 			kernelsrc=`readlink -f ${sourcelink}`
 		], [
-			AC_MSG_RESULT([Not found])
-			AC_MSG_ERROR([
-	*** Please make sure the kernel devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
-	*** location of the kernel source with the '--with-linux=PATH' option.])
+			kernelsrc="[Not found]"
 		])
 	], [
 		AS_IF([test "$kernelsrc" = "NONE"], [
@@ -154,6 +160,13 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	])
 
 	AC_MSG_RESULT([$kernelsrc])
+	AS_IF([test ! -d "$kernelsrc"], [
+		AC_MSG_ERROR([
+	*** Please make sure the kernel devel package for your distribution
+	*** is installed and then try again.  If that fails, you can specify the
+	*** location of the kernel source with the '--with-linux=PATH' option.])
+	])
+
 	AC_MSG_CHECKING([kernel build directory])
 	AS_IF([test -z "$kernelbuild"], [
 		AS_IF([test -e "/lib/modules/$(uname -r)/build"], [
@@ -279,45 +292,30 @@ AC_DEFUN([ZFS_AC_SPL], [
 		[Path to spl build objects]),
 		[splbuild="$withval"])
 
+	dnl #
+	dnl # The existence of spl.release.in is used to identify a valid
+	dnl # source directory.  In order of preference:
+	dnl #
+	splsrc0="/var/lib/dkms/spl/${VERSION}/build"
+	splsrc1="/usr/src/spl-${VERSION}/${LINUX_VERSION}"
+	splsrc2="/usr/src/spl-${VERSION}"
+	splsrc3="../spl/"
+	splsrc4="$LINUX"
 
 	AC_MSG_CHECKING([spl source directory])
-	AS_IF([test -z "$splsrc"], [
-		dnl #
-		dnl # Look in the standard development package location
-		dnl #
-		sourcelink=`ls -1d /usr/src/spl-*/${LINUX_VERSION} \
-		            2>/dev/null | tail -1`
-
-		dnl #
-		dnl # Look in the DKMS source location
-		dnl #
-		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
-			sourcelink=`ls -1d /var/lib/dkms/spl/*/build \
-			            2>/dev/null | tail -1`
-		])
-
-		dnl #
-		dnl # Look in the parent directory
-		dnl #
-		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
-			sourcelink=../spl
-		])
-
-		dnl #
-		dnl # Look in the kernel directory
-		dnl #
-		AS_IF([test -z "$sourcelink" || test ! -e $sourcelink/spl_config.h], [
-			sourcelink="$LINUX"
-		])
-
-		AS_IF([test -e $sourcelink/spl_config.h], [
-			splsrc=`readlink -f ${sourcelink}`
+	AS_IF([test -z "${splsrc}"], [
+		AS_IF([ test -e "${splsrc0}/spl.release.in"], [
+			splsrc=${splsrc0}
+		], [ test -e "${splsrc1}/spl.release.in"], [
+			splsrc=${splsrc1}
+		], [ test -e "${splsrc2}/spl.release.in"], [
+			splsrc=${splsrc2}
+		], [ test -e "${splsrc3}/spl.release.in"], [
+			splsrc=$(readlink -f "${splsrc3}")
+		], [ test -e "${splsrc4}/spl.release.in" ], [
+			splsrc=${splsrc4}
 		], [
-			AC_MSG_RESULT([Not found])
-			AC_MSG_ERROR([
-	*** Please make sure the spl devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
-	*** location of the spl source with the '--with-spl=PATH' option.])
+			splsrc="[Not found]"
 		])
 	], [
 		AS_IF([test "$splsrc" = "NONE"], [
@@ -327,11 +325,38 @@ AC_DEFUN([ZFS_AC_SPL], [
 	])
 
 	AC_MSG_RESULT([$splsrc])
+	AS_IF([ test ! -e "$splsrc/spl.release.in"], [
+		AC_MSG_ERROR([
+	*** Please make sure the kmod spl devel package for your distribution
+	*** is installed then try again.  If that fails you can specify the
+	*** location of the spl source with the '--with-spl=PATH' option.])
+	])
+
+	dnl #
+	dnl # The existence of the spl_config.h is used to identify a valid
+	dnl # spl object directory.  In many cases the object and source
+	dnl # directory are the same, however the objects may also reside
+	dnl # is a subdirectory named after the kernel version.
+	dnl #
 	AC_MSG_CHECKING([spl build directory])
 	AS_IF([test -z "$splbuild"], [
-		splbuild=${splsrc}
+		AS_IF([ test -e "${splsrc}/${LINUX_VERSION}/spl_config.h" ], [
+			splbuild="${splsrc}/${LINUX_VERSION}"
+		], [ test -e "${splsrc}/spl_config.h" ], [
+			splbuild="${splsrc}"
+		], [
+			splbuild="[Not found]"
+		])
 	])
+
 	AC_MSG_RESULT([$splbuild])
+	AS_IF([ ! test -e "$splbuild/spl_config.h"], [
+		AC_MSG_ERROR([
+	*** Please make sure the kmod spl devel <kernel> package for your
+	*** distribution is installed then try again.  If that fails you
+	*** can specify the location of the spl objects with the
+	*** '--with-spl-obj=PATH' option.])
+	])
 
 	AC_MSG_CHECKING([spl source version])
 	AS_IF([test -r $splbuild/spl_config.h &&
@@ -474,7 +499,7 @@ AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
 	modpost_flag=''
 	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
 	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror-implicit-function-declaration $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
+		[AC_TRY_COMMAND(cp conftest.c build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
 		[$4],
 		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
 	)

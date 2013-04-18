@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -194,7 +195,7 @@ dnode_verify(dnode_t *dn)
 	ASSERT(dn->dn_objset);
 	ASSERT(dn->dn_handle->dnh_dnode == dn);
 
-	ASSERT(dn->dn_phys->dn_type < DMU_OT_NUMTYPES);
+	ASSERT(DMU_OT_IS_VALID(dn->dn_phys->dn_type));
 
 	if (!(zfs_flags & ZFS_DEBUG_DNODE_VERIFY))
 		return;
@@ -212,7 +213,7 @@ dnode_verify(dnode_t *dn)
 			ASSERT3U(1<<dn->dn_datablkshift, ==, dn->dn_datablksz);
 		}
 		ASSERT3U(dn->dn_nlevels, <=, 30);
-		ASSERT3U(dn->dn_type, <=, DMU_OT_NUMTYPES);
+		ASSERT(DMU_OT_IS_VALID(dn->dn_type));
 		ASSERT3U(dn->dn_nblkptr, >=, 1);
 		ASSERT3U(dn->dn_nblkptr, <=, DN_MAX_NBLKPTR);
 		ASSERT3U(dn->dn_bonuslen, <=, DN_MAX_BONUSLEN);
@@ -278,8 +279,10 @@ dnode_byteswap(dnode_phys_t *dnp)
 		 */
 		int off = (dnp->dn_nblkptr-1) * sizeof (blkptr_t);
 		size_t len = DN_MAX_BONUSLEN - off;
-		ASSERT3U(dnp->dn_bonustype, <, DMU_OT_NUMTYPES);
-		dmu_ot[dnp->dn_bonustype].ot_byteswap(dnp->dn_bonus + off, len);
+		dmu_object_byteswap_t byteswap;
+		ASSERT(DMU_OT_IS_VALID(dnp->dn_bonustype));
+		byteswap = DMU_OT_BYTESWAP(dnp->dn_bonustype);
+		dmu_ot_byteswap[byteswap].ob_func(dnp->dn_bonus + off, len);
 	}
 
 	/* Swap SPILL block if we have one */
@@ -407,7 +410,7 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 
 	dmu_zfetch_init(&dn->dn_zfetch, dn);
 
-	ASSERT(dn->dn_phys->dn_type < DMU_OT_NUMTYPES);
+	ASSERT(DMU_OT_IS_VALID(dn->dn_phys->dn_type));
 
 	mutex_enter(&os->os_lock);
 	list_insert_head(&os->os_dnodes, dn);
@@ -496,11 +499,11 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ASSERT(bcmp(dn->dn_phys, &dnode_phys_zero, sizeof (dnode_phys_t)) == 0);
 	ASSERT(dn->dn_phys->dn_type == DMU_OT_NONE);
 	ASSERT(ot != DMU_OT_NONE);
-	ASSERT3U(ot, <, DMU_OT_NUMTYPES);
+	ASSERT(DMU_OT_IS_VALID(ot));
 	ASSERT((bonustype == DMU_OT_NONE && bonuslen == 0) ||
 	    (bonustype == DMU_OT_SA && bonuslen == 0) ||
 	    (bonustype != DMU_OT_NONE && bonuslen != 0));
-	ASSERT3U(bonustype, <, DMU_OT_NUMTYPES);
+	ASSERT(DMU_OT_IS_VALID(bonustype));
 	ASSERT3U(bonuslen, <=, DN_MAX_BONUSLEN);
 	ASSERT(dn->dn_type == DMU_OT_NONE);
 	ASSERT3U(dn->dn_maxblkid, ==, 0);
@@ -568,7 +571,7 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	ASSERT((bonustype == DMU_OT_NONE && bonuslen == 0) ||
 	    (bonustype != DMU_OT_NONE && bonuslen != 0) ||
 	    (bonustype == DMU_OT_SA && bonuslen == 0));
-	ASSERT3U(bonustype, <, DMU_OT_NUMTYPES);
+	ASSERT(DMU_OT_IS_VALID(bonustype));
 	ASSERT3U(bonuslen, <=, DN_MAX_BONUSLEN);
 
 	/* clean up any unreferenced dbufs */

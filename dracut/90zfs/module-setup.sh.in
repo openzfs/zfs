@@ -29,19 +29,20 @@ installkernel() {
 
 install() {
 	inst_rules @udevruledir@/90-zfs.rules
-	inst_rules @udevruledir@/60-zpool.rules
+	inst_rules @udevruledir@/69-vdev.rules
 	inst_rules @udevruledir@/60-zvol.rules
-	inst @sysconfdir@/zfs/zdev.conf
-	inst @sysconfdir@/zfs/zpool.cache
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
-	dracut_install @bindir@/zpool_layout
-	dracut_install @udevdir@/zpool_id
+	dracut_install @udevdir@/vdev_id
 	dracut_install @udevdir@/zvol_id
 	dracut_install mount.zfs
 	dracut_install hostid
 	inst_hook cmdline 95 "$moddir/parse-zfs.sh"
 	inst_hook mount 98 "$moddir/mount-zfs.sh"
+
+	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
+		inst @sysconfdir@/zfs/zpool.cache
+	fi
 
 	# Synchronize initramfs and system hostid
 	TMP=`mktemp`

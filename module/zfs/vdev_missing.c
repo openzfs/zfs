@@ -24,6 +24,10 @@
  */
 
 /*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
+
+/*
  * The 'missing' vdev is a special vdev type used only during import.  It
  * signifies a placeholder in the root vdev for some vdev that we know is
  * missing.  We pass it down to the kernel to allow the rest of the
@@ -40,7 +44,8 @@
 
 /* ARGSUSED */
 static int
-vdev_missing_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
+vdev_missing_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	/*
 	 * Really this should just fail.  But then the root vdev will be in the
@@ -49,6 +54,7 @@ vdev_missing_open(vdev_t *vd, uint64_t *psize, uint64_t *ashift)
 	 * will fail the GUID sum check before ever trying to open the pool.
 	 */
 	*psize = 0;
+	*max_psize = 0;
 	*ashift = 0;
 	return (0);
 }

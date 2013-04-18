@@ -1,0 +1,118 @@
+%define module  @PACKAGE@
+%define repo    rpmfusion
+
+%define buildforkernels newest
+#define buildforkernels current
+#define buildforkernels akmod
+
+%bcond_with     debug
+%bcond_with     debug_dmu_tx
+
+
+Name:           %{module}-kmod
+
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Kernel module(s)
+
+Group:          System Environment/Kernel
+License:        @ZFS_META_LICENSE@
+URL:            http://zfsonlinux.org/
+Source0:        %{module}-%{version}.tar.gz
+Source10:       kmodtool
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+ExclusiveArch:  i586 i686 x86_64
+
+# Likely compiles but is not supported.
+ExcludeArch:    ppc ppc64
+
+# The developments headers will conflict with the dkms packages.
+Conflicts:      %{module}-dkms
+
+BuildRequires:  %{_bindir}/kmodtool
+BuildRequires:  spl-devel-kmod = %{version}-%{release}
+
+%global KmodsBuildRequires spl-devel-kmod
+%global KmodsRequires      kmod-spl
+
+%{!?kernels:BuildRequires: buildsys-build-rpmfusion-kerneldevpkgs-%{?buildforkernels:%{buildforkernels}}%{!?buildforkernels:current}-%{_target_cpu} }
+
+%if 0%{?fedora} >= 17
+%define prefix  /usr
+%endif
+
+# Kmodtool does its magic here.  A patched version of kmodtool is shipped
+# with the source rpm until kmod development packages are supported upstream.
+# https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
+%{expand:%(sh %{SOURCE10} --target %{_target_cpu} --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null) }
+
+
+%description
+This package contains the ZFS kernel modules.
+
+%prep
+# Error out if there was something wrong with kmodtool.
+%{?kmodtool_check}
+
+# Print kmodtool output for debugging purposes:
+sh %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null
+
+%if %{with debug}
+    %define debug --enable-debug
+%else
+    %define debug --disable-debug
+%endif
+
+%if %{with debug_dmu_tx}
+    %define debug_dmu_tx --enable-debug-dmu-tx
+%else
+    %define debug_dmu_tx --disable-debug-dmu-tx
+%endif
+
+# Leverage VPATH from configure to avoid making multiple copies.
+%define _configure ../%{module}-%{version}/configure
+
+%setup -q -c -T -a 0
+
+for kernel_version in %{?kernel_versions}; do
+    %{__mkdir} _kmod_build_${kernel_version%%___*}
+done
+
+%build
+for kernel_version in %{?kernel_versions}; do
+    pushd _kmod_build_${kernel_version%%___*}
+    %configure \
+        --with-config=kernel \
+        --with-linux="${kernel_version##*___}" \
+        --with-linux-obj="${kernel_version##*___}" \
+        --with-spl="/usr/src/spl-%{version}" \
+        --with-spl-obj="/usr/src/spl-%{version}/${kernel_version%%___*}" \
+        %{debug} \
+        %{debug_dmu_tx}
+    make %{?_smp_mflags}
+    popd
+done
+
+
+%install
+rm -rf ${RPM_BUILD_ROOT}
+
+# Relies on the kernel 'modules_install' make target.
+for kernel_version in %{?kernel_versions}; do
+    pushd _kmod_build_${kernel_version%%___*}
+    make install \
+        DESTDIR=${RPM_BUILD_ROOT} \
+        %{?prefix:INSTALL_MOD_PATH=%{?prefix}} \
+        INSTALL_MOD_DIR=%{kmodinstdir_postfix}
+    popd
+done
+chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
+%{?akmod_install}
+
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%changelog
+* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
+- First official stable release.

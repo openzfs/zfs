@@ -49,6 +49,7 @@
 #include <sys/spa.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
+#include <sys/sa_impl.h>
 #include <sys/varargs.h>
 #include <sys/policy.h>
 #include <sys/atomic.h>
@@ -63,7 +64,6 @@
 #include <sys/dnlc.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
-#include <sys/sa.h>
 #include <sys/zpl.h>
 #include "zfs_comutil.h"
 
@@ -300,7 +300,6 @@ static int
 zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
     uint64_t *userp, uint64_t *groupp)
 {
-	znode_phys_t *znp = data;
 	int error = 0;
 
 	/*
@@ -319,20 +318,18 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 		return (EEXIST);
 
 	if (bonustype == DMU_OT_ZNODE) {
+		znode_phys_t *znp = data;
 		*userp = znp->zp_uid;
 		*groupp = znp->zp_gid;
 	} else {
 		int hdrsize;
+		sa_hdr_phys_t *sap = data;
+		sa_hdr_phys_t sa = *sap;
+		boolean_t swap = B_FALSE;
 
 		ASSERT(bonustype == DMU_OT_SA);
-		hdrsize = sa_hdrsize(data);
 
-		if (hdrsize != 0) {
-			*userp = *((uint64_t *)((uintptr_t)data + hdrsize +
-			    SA_UID_OFFSET));
-			*groupp = *((uint64_t *)((uintptr_t)data + hdrsize +
-			    SA_GID_OFFSET));
-		} else {
+		if (sa.sa_magic == 0) {
 			/*
 			 * This should only happen for newly created
 			 * files that haven't had the znode data filled
@@ -340,6 +337,25 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 			 */
 			*userp = 0;
 			*groupp = 0;
+			return (0);
+		}
+		if (sa.sa_magic == BSWAP_32(SA_MAGIC)) {
+			sa.sa_magic = SA_MAGIC;
+			sa.sa_layout_info = BSWAP_16(sa.sa_layout_info);
+			swap = B_TRUE;
+		} else {
+			VERIFY3U(sa.sa_magic, ==, SA_MAGIC);
+		}
+
+		hdrsize = sa_hdrsize(&sa);
+		VERIFY3U(hdrsize, >=, sizeof (sa_hdr_phys_t));
+		*userp = *((uint64_t *)((uintptr_t)data + hdrsize +
+		    SA_UID_OFFSET));
+		*groupp = *((uint64_t *)((uintptr_t)data + hdrsize +
+		    SA_GID_OFFSET));
+		if (swap) {
+			*userp = BSWAP_64(*userp);
+			*groupp = BSWAP_64(*groupp);
 		}
 	}
 	return (error);
@@ -1016,7 +1032,7 @@ EXPORT_SYMBOL(zfs_sb_prune);
 #endif /* HAVE_SHRINK */
 
 /*
- * Teardown the zfs_sb_t::z_os.
+ * Teardown the zfs_sb_t.
  *
  * Note, if 'unmounting' if FALSE, we return with the 'z_teardown_lock'
  * and 'z_teardown_inactive_lock' held.
@@ -1037,7 +1053,6 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 		 * for non-snapshots.
 		 */
 		shrink_dcache_sb(zsb->z_parent->z_sb);
-		(void) spl_invalidate_inodes(zsb->z_parent->z_sb, 0);
 	}
 
 	/*
@@ -1069,25 +1084,26 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	}
 
 	/*
-	 * At this point there are no vops active, and any new vops will
-	 * fail with EIO since we have z_teardown_lock for writer (only
-	 * relavent for forced unmount).
+	 * At this point there are no VFS ops active, and any new VFS ops
+	 * will fail with EIO since we have z_teardown_lock for writer (only
+	 * relevant for forced unmount).
 	 *
 	 * Release all holds on dbufs.
 	 */
 	mutex_enter(&zsb->z_znodes_lock);
 	for (zp = list_head(&zsb->z_all_znodes); zp != NULL;
-	    zp = list_next(&zsb->z_all_znodes, zp))
+	    zp = list_next(&zsb->z_all_znodes, zp)) {
 		if (zp->z_sa_hdl) {
 			ASSERT(atomic_read(&ZTOI(zp)->i_count) > 0);
 			zfs_znode_dmu_fini(zp);
 		}
+	}
 	mutex_exit(&zsb->z_znodes_lock);
 
 	/*
-	 * If we are unmounting, set the unmounted flag and let new vops
+	 * If we are unmounting, set the unmounted flag and let new VFS ops
 	 * unblock.  zfs_inactive will have the unmounted behavior, and all
-	 * other vops will fail with EIO.
+	 * other VFS ops will fail with EIO.
 	 */
 	if (unmounting) {
 		zsb->z_unmounted = B_TRUE;
@@ -1112,9 +1128,9 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	/*
 	 * Evict cached data
 	 */
-	if (dmu_objset_is_dirty_anywhere(zsb->z_os))
-		if (!zfs_is_readonly(zsb))
-			txg_wait_synced(dmu_objset_pool(zsb->z_os), 0);
+	if (dsl_dataset_is_dirty(dmu_objset_ds(zsb->z_os)) &&
+	    !zfs_is_readonly(zsb))
+		txg_wait_synced(dmu_objset_pool(zsb->z_os), 0);
 	(void) dmu_objset_evict_dbufs(zsb->z_os);
 
 	return (0);
@@ -1172,6 +1188,9 @@ zfs_domount(struct super_block *sb, void *data, int silent)
 	sb->s_op = &zpl_super_operations;
 	sb->s_xattr = zpl_xattr_handlers;
 	sb->s_export_op = &zpl_export_operations;
+#ifdef HAVE_S_D_OP
+	sb->s_d_op = &zpl_dentry_operations;
+#endif /* HAVE_S_D_OP */
 
 	/* Set features for file system. */
 	zfs_set_fuid_feature(zsb);
@@ -1382,7 +1401,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 EXPORT_SYMBOL(zfs_vget);
 
 /*
- * Block out VOPs and close zfs_sb_t::z_os
+ * Block out VFS ops and close zfs_sb_t
  *
  * Note, if successful, then we return with the 'z_teardown_lock' and
  * 'z_teardown_inactive_lock' write held.
@@ -1394,6 +1413,7 @@ zfs_suspend_fs(zfs_sb_t *zsb)
 
 	if ((error = zfs_sb_teardown(zsb, B_FALSE)) != 0)
 		return (error);
+
 	dmu_objset_disown(zsb->z_os, zsb);
 
 	return (0);
@@ -1401,7 +1421,7 @@ zfs_suspend_fs(zfs_sb_t *zsb)
 EXPORT_SYMBOL(zfs_suspend_fs);
 
 /*
- * Reopen zfs_sb_t::z_os and release VOPs.
+ * Reopen zfs_sb_t and release VFS ops.
  */
 int
 zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
@@ -1430,30 +1450,37 @@ zfs_resume_fs(zfs_sb_t *zsb, const char *osname)
 			goto bail;
 
 		VERIFY(zfs_sb_setup(zsb, B_FALSE) == 0);
+		zsb->z_rollback_time = jiffies;
 
 		/*
-		 * Attempt to re-establish all the active znodes with
-		 * their dbufs.  If a zfs_rezget() fails, then we'll let
-		 * any potential callers discover that via ZFS_ENTER_VERIFY_VP
-		 * when they try to use their znode.
+		 * Attempt to re-establish all the active inodes with their
+		 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
+		 * and mark it stale.  This prevents a collision if a new
+		 * inode/object is created which must use the same inode
+		 * number.  The stale inode will be be released when the
+		 * VFS prunes the dentry holding the remaining references
+		 * on the stale inode.
 		 */
 		mutex_enter(&zsb->z_znodes_lock);
 		for (zp = list_head(&zsb->z_all_znodes); zp;
 		    zp = list_next(&zsb->z_all_znodes, zp)) {
-			(void) zfs_rezget(zp);
+			err2 = zfs_rezget(zp);
+			if (err2) {
+				remove_inode_hash(ZTOI(zp));
+				zp->z_is_stale = B_TRUE;
+			}
 		}
 		mutex_exit(&zsb->z_znodes_lock);
-
 	}
 
 bail:
-	/* release the VOPs */
+	/* release the VFS ops */
 	rw_exit(&zsb->z_teardown_inactive_lock);
 	rrw_exit(&zsb->z_teardown_lock, FTAG);
 
 	if (err) {
 		/*
-		 * Since we couldn't reopen zfs_sb_t::z_os, force
+		 * Since we couldn't reopen zfs_sb_t, force
 		 * unmount this file system.
 		 */
 		(void) zfs_umount(zsb->z_sb);

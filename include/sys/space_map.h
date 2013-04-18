@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-typedef struct space_map_ops space_map_ops_t;
+typedef const struct space_map_ops space_map_ops_t;
 
 typedef struct space_map {
 	avl_tree_t	sm_root;	/* AVL tree of map segments */

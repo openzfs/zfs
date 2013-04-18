@@ -141,7 +141,7 @@ stream_bytes(FILE *fp, const char *string)
 		if (*string > ' ' && *string != '\\' && *string < '\177')
 			(void) fprintf(fp, "%c", *string++);
 		else
-			(void) fprintf(fp, "\\%03o", *string++);
+			(void) fprintf(fp, "\\%03o", (unsigned char)*string++);
 	}
 }
 
@@ -430,7 +430,7 @@ differ(void *arg)
 
 	if ((ofp = fdopen(di->outputfd, "w")) == NULL) {
 		di->zerr = errno;
-		(void) strerror_r(errno, di->errbuf, sizeof (di->errbuf));
+		strncpy(di->errbuf, strerror(errno), sizeof (di->errbuf));
 		(void) close(di->datafd);
 		return ((void *)-1);
 	}

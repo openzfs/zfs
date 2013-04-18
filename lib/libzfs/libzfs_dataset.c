@@ -2532,29 +2532,29 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		return (ENOSYS);
 #endif /* HAVE_IDMAP */
 	} else {
-#ifdef HAVE_IDMAP
 		/* It's a user/group ID (eg "12345"). */
 		uid_t id;
-		idmap_rid_t rid;
-		char *mapdomain;
 		char *end;
-
 		id = strtoul(cp, &end, 10);
 		if (*end != '\0')
 			return (EINVAL);
 		if (id > MAXUID) {
+#ifdef HAVE_IDMAP
 			/* It's an ephemeral ID. */
+			idmap_rid_t rid;
+			char *mapdomain;
+
 			if (idmap_id_to_numeric_domain_rid(id, isuser,
 			    &mapdomain, &rid) != 0)
 				return (ENOENT);
 			(void) strlcpy(domain, mapdomain, domainlen);
 			*ridp = rid;
+#else
+			return (ENOSYS);
+#endif /* HAVE_IDMAP */
 		} else {
 			*ridp = id;
 		}
-#else
-		return (ENOSYS);
-#endif /* HAVE_IDMAP */
 	}
 
 	return (0);
@@ -3700,7 +3700,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	    zhp->zfs_type == ZFS_TYPE_VOLUME);
 
 	/*
-	 * Destroy all recent snapshots and its dependends.
+	 * Destroy all recent snapshots and their dependents.
 	 */
 	cb.cb_force = force;
 	cb.cb_target = snap->zfs_name;
@@ -4013,6 +4013,14 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 			 * Silently ignore the case where the link already
 			 * exists.  This allows 'zfs volinit' to be run multiple
 			 * times without errors.
+			 */
+			return (0);
+
+		case ENODEV:
+			/*
+			 * snapdev set to hidden :
+			 *  device creation was not permitted (see zvol.c)
+			 *  ignore error quietly
 			 */
 			return (0);
 

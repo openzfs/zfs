@@ -1,6 +1,7 @@
 SUBDIRS = linux sys
 
 COMMON_H = \
+	$(top_srcdir)/include/zfeature_common.h \
 	$(top_srcdir)/include/zfs_comutil.h \
 	$(top_srcdir)/include/zfs_deleg.h \
 	$(top_srcdir)/include/zfs_fletcher.h \
@@ -27,6 +28,6 @@ libzfs_HEADERS = $(COMMON_H) $(USER_H)
 endif
 
 if CONFIG_KERNEL
-kerneldir = /usr/src/zfs-$(ZFS_META_VERSION)-$(ZFS_META_RELEASE)/$(LINUX_VERSION)
+kerneldir = /usr/src/zfs-$(VERSION)/include
 kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
 endif

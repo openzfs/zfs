@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -82,13 +83,14 @@ ddt_object_destroy(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	spa_t *spa = ddt->ddt_spa;
 	objset_t *os = ddt->ddt_os;
 	uint64_t *objectp = &ddt->ddt_object[type][class];
+	uint64_t count;
 	char name[DDT_NAMELEN];
 
 	ddt_object_name(ddt, type, class, name);
 
 	ASSERT(*objectp != 0);
-	ASSERT(ddt_object_count(ddt, type, class) == 0);
 	ASSERT(ddt_histogram_empty(&ddt->ddt_histogram[type][class]));
+	VERIFY(ddt_object_count(ddt, type, class, &count) == 0 && count == 0);
 	VERIFY(zap_remove(os, DMU_POOL_DIRECTORY_OBJECT, name, tx) == 0);
 	VERIFY(zap_remove(os, spa->spa_ddt_stat_object, name, tx) == 0);
 	VERIFY(ddt_ops[type]->ddt_op_destroy(os, *objectp, tx) == 0);
@@ -102,6 +104,7 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 {
 	ddt_object_t *ddo = &ddt->ddt_object_stats[type][class];
 	dmu_object_info_t doi;
+	uint64_t count;
 	char name[DDT_NAMELEN];
 	int error;
 
@@ -124,7 +127,11 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 	if (error)
 		return (error);
 
-	ddo->ddo_count = ddt_object_count(ddt, type, class);
+	error = ddt_object_count(ddt, type, class, &count);
+	if (error)
+		return (error);
+
+	ddo->ddo_count = count;
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
 
@@ -138,6 +145,7 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 {
 	ddt_object_t *ddo = &ddt->ddt_object_stats[type][class];
 	dmu_object_info_t doi;
+	uint64_t count;
 	char name[DDT_NAMELEN];
 
 	ddt_object_name(ddt, type, class, name);
@@ -150,8 +158,9 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	 * Cache DDT statistics; this is the only time they'll change.
 	 */
 	VERIFY(ddt_object_info(ddt, type, class, &doi) == 0);
+	VERIFY(ddt_object_count(ddt, type, class, &count) == 0);
 
-	ddo->ddo_count = ddt_object_count(ddt, type, class);
+	ddo->ddo_count = count;
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
 }
@@ -208,13 +217,14 @@ ddt_object_walk(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	    ddt->ddt_object[type][class], dde, walk));
 }
 
-uint64_t
-ddt_object_count(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
+int
+ddt_object_count(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+    uint64_t *count)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_count(ddt->ddt_os,
-	    ddt->ddt_object[type][class]));
+	    ddt->ddt_object[type][class], count));
 }
 
 int
@@ -313,8 +323,10 @@ ddt_phys_addref(ddt_phys_t *ddp)
 void
 ddt_phys_decref(ddt_phys_t *ddp)
 {
-	ASSERT((int64_t)ddp->ddp_refcnt > 0);
-	ddp->ddp_refcnt--;
+	if (ddp) {
+		ASSERT((int64_t)ddp->ddp_refcnt > 0);
+		ddp->ddp_refcnt--;
+	}
 }
 
 void
@@ -653,7 +665,7 @@ ddt_alloc(const ddt_key_t *ddk)
 	ddt_entry_t *dde;
 
 	/* XXX: Move to a slab */
-	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_SLEEP);
+	dde = kmem_zalloc(sizeof (ddt_entry_t), KM_PUSHPAGE);
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -802,7 +814,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	ddt_t *ddt;
 
 	/* XXX: Move to a slab */
-	ddt = kmem_zalloc(sizeof (*ddt), KM_SLEEP | KM_NODEBUG);
+	ddt = kmem_zalloc(sizeof (*ddt), KM_PUSHPAGE | KM_NODEBUG);
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&ddt->ddt_tree, ddt_entry_compare,
@@ -904,7 +916,7 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_alloc(sizeof(ddt_entry_t), KM_SLEEP);
+	dde = kmem_alloc(sizeof(ddt_entry_t), KM_PUSHPAGE);
 
 	ddt_key_fill(&(dde->dde_key), bp);
 
@@ -1111,11 +1123,9 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	ASSERT(spa->spa_uberblock.ub_version >= SPA_VERSION_DEDUP);
 
 	if (spa->spa_ddt_stat_object == 0) {
-		spa->spa_ddt_stat_object = zap_create(ddt->ddt_os,
-		    DMU_OT_DDT_STATS, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_DDT_STATS, sizeof (uint64_t), 1,
-		    &spa->spa_ddt_stat_object, tx) == 0);
+		spa->spa_ddt_stat_object = zap_create_link(ddt->ddt_os,
+		    DMU_OT_DDT_STATS, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_DDT_STATS, tx);
 	}
 
 	while ((dde = avl_destroy_nodes(&ddt->ddt_tree, &cookie)) != NULL) {
@@ -1124,11 +1134,13 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	}
 
 	for (type = 0; type < DDT_TYPES; type++) {
-		uint64_t count = 0;
+		uint64_t add, count = 0;
 		for (class = 0; class < DDT_CLASSES; class++) {
 			if (ddt_object_exists(ddt, type, class)) {
 				ddt_object_sync(ddt, type, class, tx);
-				count += ddt_object_count(ddt, type, class);
+				VERIFY(ddt_object_count(ddt, type, class,
+				    &add) == 0);
+				count += add;
 			}
 		}
 		for (class = 0; class < DDT_CLASSES; class++) {

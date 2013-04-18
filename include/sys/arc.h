@@ -109,6 +109,7 @@ int arc_released(arc_buf_t *buf);
 int arc_has_callback(arc_buf_t *buf);
 void arc_buf_freeze(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
+boolean_t arc_buf_eviction_needed(arc_buf_t *buf);
 #ifdef ZFS_DEBUG
 int arc_referenced(arc_buf_t *buf);
 #endif
@@ -149,6 +150,11 @@ void l2arc_init(void);
 void l2arc_fini(void);
 void l2arc_start(void);
 void l2arc_stop(void);
+
+/* Global tunings */
+extern int zfs_write_limit_shift;
+extern unsigned long zfs_write_limit_max;
+extern kmutex_t zfs_write_limit_lock;
 
 #ifdef	__cplusplus
 }

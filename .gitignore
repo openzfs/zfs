@@ -14,16 +14,11 @@
 # Normal rules
 #
 *.[oa]
-*.ko
-*.ko.unsigned
-*.ko.out
-*.ko.out.sig
 *.lo
 *.la
 *.mod.c
 *~
 *.swp
-.*.cmd
 .deps
 .libs
 .DS_Store
@@ -40,12 +35,7 @@ Makefile.in
 /libtool
 /zfs_config.h
 /zfs_config.h.in
-/zfs.spec
-/zfs-modules.spec
 /zfs.release
-/dkms.conf
-/PKGBUILD-zfs
-/PKGBUILD-zfs-modules
 /stamp-h1
 /.script-config
 /zfs-script-config.sh

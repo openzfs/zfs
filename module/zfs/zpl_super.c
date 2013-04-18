@@ -49,6 +49,25 @@ zpl_inode_destroy(struct inode *ip)
 }
 
 /*
+ * Called from __mark_inode_dirty() to reflect that something in the
+ * inode has changed.  We use it to ensure the znode system attributes
+ * are always strictly update to date with respect to the inode.
+ */
+#ifdef HAVE_DIRTY_INODE_WITH_FLAGS
+static void
+zpl_dirty_inode(struct inode *ip, int flags)
+{
+	zfs_dirty_inode(ip, flags);
+}
+#else
+static void
+zpl_dirty_inode(struct inode *ip)
+{
+	zfs_dirty_inode(ip, 0);
+}
+#endif /* HAVE_DIRTY_INODE_WITH_FLAGS */
+
+/*
  * When ->drop_inode() is called its return value indicates if the
  * inode should be evicted from the inode cache.  If the inode is
  * unhashed and has no links the default policy is to evict it
@@ -306,7 +325,7 @@ zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
 const struct super_operations zpl_super_operations = {
 	.alloc_inode		= zpl_inode_alloc,
 	.destroy_inode		= zpl_inode_destroy,
-	.dirty_inode		= NULL,
+	.dirty_inode		= zpl_dirty_inode,
 	.write_inode		= NULL,
 	.drop_inode		= NULL,
 #ifdef HAVE_EVICT_INODE
@@ -316,7 +335,6 @@ const struct super_operations zpl_super_operations = {
 	.delete_inode		= zpl_inode_delete,
 #endif /* HAVE_EVICT_INODE */
 	.put_super		= zpl_put_super,
-	.write_super		= NULL,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,

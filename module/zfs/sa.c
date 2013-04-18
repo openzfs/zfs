@@ -18,8 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -134,7 +136,7 @@ static int sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
     sa_data_op_t action, sa_data_locator_t *locator, void *datastart,
     uint16_t buflen, dmu_tx_t *tx);
 
-arc_byteswap_func_t *sa_bswap_table[] = {
+arc_byteswap_func_t sa_bswap_table[] = {
 	byteswap_uint64_array,
 	byteswap_uint32_array,
 	byteswap_uint16_array,
@@ -446,10 +448,9 @@ sa_add_layout_entry(objset_t *os, sa_attr_type_t *attrs, int attr_count,
 		char attr_name[8];
 
 		if (sa->sa_layout_attr_obj == 0) {
-			sa->sa_layout_attr_obj = zap_create(os,
-			    DMU_OT_SA_ATTR_LAYOUTS, DMU_OT_NONE, 0, tx);
-			VERIFY(zap_add(os, sa->sa_master_obj, SA_LAYOUTS, 8, 1,
-			    &sa->sa_layout_attr_obj, tx) == 0);
+			sa->sa_layout_attr_obj = zap_create_link(os,
+			    DMU_OT_SA_ATTR_LAYOUTS,
+			    sa->sa_master_obj, SA_LAYOUTS, tx);
 		}
 
 		(void) snprintf(attr_name, sizeof (attr_name),
@@ -571,6 +572,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 {
 	int var_size = 0;
 	int i;
+	int j = -1;
 	int full_space;
 	int hdrsize;
 	boolean_t done = B_FALSE;
@@ -592,10 +594,12 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 	    sizeof (sa_hdr_phys_t);
 
 	full_space = (buftype == SA_BONUS) ? DN_MAX_BONUSLEN : db->db_size;
+	ASSERT(IS_P2ALIGNED(full_space, 8));
 
 	for (i = 0; i != attr_count; i++) {
 		boolean_t is_var_sz;
 
+		*total = P2ROUNDUP(*total, 8);
 		*total += attr_desc[i].sa_length;
 		if (done)
 			goto next;
@@ -608,7 +612,14 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		if (is_var_sz && var_size > 1) {
 			if (P2ROUNDUP(hdrsize + sizeof (uint16_t), 8) +
 			    *total < full_space) {
+				/*
+				 * Account for header space used by array of
+				 * optional sizes of variable-length attributes.
+				 * Record the index in case this increase needs
+				 * to be reversed due to spill-over.
+				 */
 				hdrsize += sizeof (uint16_t);
+				j = i;
 			} else {
 				done = B_TRUE;
 				*index = i;
@@ -636,6 +647,14 @@ next:
 		    buftype == SA_BONUS)
 			*will_spill = B_TRUE;
 	}
+
+	/*
+	 * j holds the index of the last variable-sized attribute for
+	 * which hdrsize was increased.  Reverse the increase if that
+	 * attribute will be relocated to the spill block.
+	 */
+	if (*will_spill && j == *index)
+		hdrsize -= sizeof (uint16_t);
 
 	hdrsize = P2ROUNDUP(hdrsize, 8);
 	return (hdrsize);
@@ -727,12 +746,15 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	for (i = 0, len_idx = 0, hash = -1ULL; i != attr_count; i++) {
 		uint16_t length;
 
+		ASSERT(IS_P2ALIGNED(data_start, 8));
+		ASSERT(IS_P2ALIGNED(buf_space, 8));
 		attrs[i] = attr_desc[i].sa_attr;
 		length = SA_REGISTERED_LEN(sa, attrs[i]);
 		if (length == 0)
 			length = attr_desc[i].sa_length;
 
 		if (buf_space < length) {  /* switch to spill buffer */
+			VERIFY(spilling);
 			VERIFY(bonustype == DMU_OT_SA);
 			if (buftype == SA_BONUS && !sa->sa_force_spill) {
 				sa_find_layout(hdl->sa_os, hash, attrs_start,
@@ -1583,10 +1605,9 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 	}
 
 	if (sa->sa_reg_attr_obj == 0) {
-		sa->sa_reg_attr_obj = zap_create(hdl->sa_os,
-		    DMU_OT_SA_ATTR_REGISTRATION, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(hdl->sa_os, sa->sa_master_obj,
-		    SA_REGISTRY, 8, 1, &sa->sa_reg_attr_obj, tx) == 0);
+		sa->sa_reg_attr_obj = zap_create_link(hdl->sa_os,
+		    DMU_OT_SA_ATTR_REGISTRATION,
+		    sa->sa_master_obj, SA_REGISTRY, tx);
 	}
 	for (i = 0; i != sa->sa_num_attrs; i++) {
 		if (sa->sa_attr_table[i].sa_registered)

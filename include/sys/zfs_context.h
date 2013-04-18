@@ -24,6 +24,7 @@
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -189,18 +190,13 @@ extern void vpanic(const char *, __va_list);
 #define	STACK_SIZE		24576	/* Solaris */
 #endif
 
-#ifdef NPTL_GUARD_WITHIN_STACK
-#define	EXTRA_GUARD_BYTES	PAGESIZE
-#else
-#define	EXTRA_GUARD_BYTES	0
-#endif
-
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
 	uintptr_t	this_is_never_used_dont_dereference_it;
 } proc_t;
 
 extern struct proc p0;
+#define	curproc		(&p0)
 
 typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
@@ -218,7 +214,7 @@ typedef struct kthread {
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
-			 len, NULL, state, pri)
+			 len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
 #define	thread_join(t)			zk_thread_join(t)
 #define	newproc(f,a,cid,pri,ctp,pid)	(ENOSYS)
 
@@ -226,7 +222,7 @@ extern kthread_t *zk_thread_current(void);
 extern void zk_thread_exit(void);
 extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 	thread_func_t func, void *arg, size_t len,
-	proc_t *pp, int state, pri_t pri);
+	proc_t *pp, int state, pri_t pri, int detachstate);
 extern void zk_thread_join(kt_did_t tid);
 
 #define	kpreempt_disable()	((void)0)
@@ -320,6 +316,7 @@ extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
 #define cv_timedwait_interruptible(cv, mp, at)	cv_timedwait(cv, mp, at)
 #define cv_wait_interruptible(cv, mp)		cv_wait(cv, mp)
+#define cv_wait_io(cv, mp)			cv_wait(cv, mp)
 
 /*
  * kstat creation, installation and deletion
@@ -493,7 +490,7 @@ typedef struct vsecattr {
 
 extern int fop_getattr(vnode_t *vp, vattr_t *vap);
 
-#define	VOP_CLOSE(vp, f, c, o, cr, ct)	0
+#define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
 #define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
 #define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
 

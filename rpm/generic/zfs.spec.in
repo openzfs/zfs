@@ -1,0 +1,149 @@
+%global _sbindir    /sbin
+%global _libdir     /%{_lib}
+%if 0%{?fedora} >= 17
+%global _udevdir    %{_prefix}/lib/udev
+%global _dracutdir  %{_prefix}/lib/dracut
+%else
+%global _udevdir    /lib/udev
+%global _dracutdir  /lib/dracut
+%endif
+
+%bcond_with    debug
+%bcond_with    blkid
+%bcond_with    selinux
+
+
+Name:           @PACKAGE@
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Commands to control the kernel modules and libraries
+
+Group:          System Environment/Kernel
+License:        @ZFS_META_LICENSE@
+URL:            http://zfsonlinux.org/
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+ExclusiveArch:  i386 i686 x86_64
+
+# May build but untested on ppc/ppc64
+ExcludeArch:    ppc ppc64
+
+Requires:       spl = %{version}
+Requires:       zfs-dracut = %{version}
+Requires:       zfs-test = %{version}
+Requires:       %{name}-kmod >= %{version}
+Provides:       %{name}-kmod-common = %{version}
+
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  zlib-devel
+BuildRequires:  libuuid-devel
+%if %{with blkid}
+BuildRequires:  libblkid-devel
+%endif
+%if %{with selinux}
+BuildRequires:  libselinux-devel
+%endif
+%endif
+
+%description
+This package contains the ZFS command line utilities and libraries.
+
+%package devel
+Summary:        Development headers
+Group:          System Environment/Kernel
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+
+%description devel
+This package contains the header files needed for building additional
+applications against the ZFS libraries.
+
+%package test
+Summary:        Test infrastructure
+Group:          System Environment/Kernel
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       parted
+Requires:       lsscsi
+Requires:       mdadm
+Requires:       bc
+
+%description test
+This package contains test infrastructure and support scripts for
+validating the file system.
+
+%package dracut
+Summary:        Dracut module
+Group:          System Environment/Kernel
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       dracut
+
+%description dracut
+This package contains a dracut module used to construct an initramfs
+image which is ZFS aware.
+
+%prep
+%if %{with debug}
+    %define debug --enable-debug
+%else
+    %define debug --disable-debug
+%endif
+%if %{with blkid}
+    %define blkid --with-blkid
+%else
+    %define blkid --without-blkid
+%endif
+%if %{with selinux}
+    %define selinux --with-selinux
+%else
+    %define selinux --without-selinux
+%endif
+
+%setup -q
+
+%build
+%configure \
+    --with-config=user \
+    --with-udevdir=%{_udevdir} \
+    --with-dracutdir=%{_dracutdir} \
+    --disable-static \
+    %{debug} \
+    %{blkid} \
+    %{selinux}
+make %{?_smp_mflags}
+
+%install
+%{__rm} -rf $RPM_BUILD_ROOT
+make install DESTDIR=%{?buildroot}
+find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+
+%post -p /sbin/ldconfig
+
+%postun -p /sbin/ldconfig
+
+%files
+%doc AUTHORS COPYRIGHT DISCLAIMER
+%doc OPENSOLARIS.LICENSE README.markdown
+%{_sbindir}/*
+%{_libdir}/*.so.1*
+%{_mandir}/man1/*
+%{_mandir}/man5/*
+%{_mandir}/man8/*
+%{_udevdir}/vdev_id
+%{_udevdir}/zvol_id
+%{_udevdir}/rules.d/*
+%config(noreplace) %{_sysconfdir}/%{name}
+%{_sysconfdir}/init.d/*
+
+%files devel
+%{_libdir}/*.so
+%{_includedir}/*
+
+%files test
+%{_datadir}/%{name}
+
+%files dracut
+%doc dracut/README.dracut.markdown
+%{_dracutdir}/modules.d/*
+
+%changelog
+* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
+- First official stable release.

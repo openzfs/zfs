@@ -34,6 +34,7 @@
 #include <sys/sunldi.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
+static void *zfs_vdev_holder = VDEV_HOLDER;
 
 /*
  * Virtual device vector for disks.
@@ -111,19 +112,7 @@ vdev_disk_error(zio_t *zio)
  * elevator to do the maximum front/back merging allowed by the
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
- *
- * Unfortunately we cannot directly call the elevator_switch() function
- * because it is not exported from the block layer.  This means we have
- * to use the sysfs interface and a user space upcall.  Pools will be
- * automatically imported on module load so we must do this at device
- * open time from the kernel.
  */
-#define SET_SCHEDULER_CMD \
-	"exec 0</dev/null " \
-	"     1>/sys/block/%s/queue/scheduler " \
-	"     2>/dev/null; " \
-	"echo %s"
-
 static int
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
@@ -131,12 +120,17 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	struct block_device *bdev = vd->vd_bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	char *device = bdev->bd_disk->disk_name;
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-	char *envp[] = { NULL };
 	int error;
 
-	/* Skip devices which are not whole disks (partitions) */
-	if (!v->vdev_wholedisk)
+	/*
+	 * Skip devices which are not whole disks (partitions).
+	 * Device-mapper devices are excepted since they may be whole
+	 * disks despite the vdev_wholedisk flag, in which case we can
+	 * and should switch the elevator. If the device-mapper device
+	 * does not have an elevator (i.e. dm-raid, dm-crypt, etc.) the
+	 * "Skip devices without schedulers" check below will fail.
+	 */
+	if (!v->vdev_wholedisk && strncmp(device, "dm-", 3) != 0)
 		return (0);
 
 	/* Skip devices without schedulers (loop, ram, dm, etc) */
@@ -147,13 +141,32 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	if (!strncmp(elevator, "none", 4) && (strlen(elevator) == 4))
 		return (0);
 
-	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-	error = call_usermodehelper(argv[0], argv, envp, 1);
+#ifdef HAVE_ELEVATOR_CHANGE
+	error = elevator_change(q, elevator);
+#else
+	/* For pre-2.6.36 kernels elevator_change() is not available.
+	 * Therefore we fall back to using a usermodehelper to echo the
+	 * elevator into sysfs;  This requires /bin/echo and sysfs to be
+	 * mounted which may not be true early in the boot process.
+	 */
+# define SET_SCHEDULER_CMD \
+	"exec 0</dev/null " \
+	"     1>/sys/block/%s/queue/scheduler " \
+	"     2>/dev/null; " \
+	"echo %s"
+
+	{
+		char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+		char *envp[] = { NULL };
+
+		argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+		error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+		strfree(argv[2]);
+	}
+#endif /* HAVE_ELEVATOR_CHANGE */
 	if (error)
 		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		       elevator, v->vdev_path, device, error);
-
-	strfree(argv[2]);
 
 	return (error);
 }
@@ -191,7 +204,7 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 	struct gendisk *disk;
 	int error, partno;
 
-	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), vd);
+	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), zfs_vdev_holder);
 	if (IS_ERR(bdev))
 		return bdev;
 
@@ -224,7 +237,8 @@ vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
 }
 
 static int
-vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
+vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
+    uint64_t *ashift)
 {
 	struct block_device *bdev = ERR_PTR(-ENXIO);
 	vdev_disk_t *vd;
@@ -236,6 +250,16 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 		return EINVAL;
 	}
 
+	/*
+	 * Reopen the device if it's not currently open. Otherwise,
+	 * just update the physical size of the device.
+	 */
+	if (v->vdev_tsd != NULL) {
+		ASSERT(v->vdev_reopening);
+		vd = v->vdev_tsd;
+		goto skip_open;
+	}
+
 	vd = kmem_zalloc(sizeof(vdev_disk_t), KM_PUSHPAGE);
 	if (vd == NULL)
 		return ENOMEM;
@@ -244,13 +268,13 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	 * Devices are always opened by the path provided at configuration
 	 * time.  This means that if the provided path is a udev by-id path
 	 * then drives may be recabled without an issue.  If the provided
-	 * path is a udev by-path path then the physical location information
+	 * path is a udev by-path path, then the physical location information
 	 * will be preserved.  This can be critical for more complicated
 	 * configurations where drives are located in specific physical
 	 * locations to maximize the systems tolerence to component failure.
-	 * Alternately you can provide your own udev rule to flexibly map
+	 * Alternatively, you can provide your own udev rule to flexibly map
 	 * the drives as you see fit.  It is not advised that you use the
-	 * /dev/[hd]d devices which may be reorder due to probing order.
+	 * /dev/[hd]d devices which may be reordered due to probing order.
 	 * Devices in the wrong locations will be detected by the higher
 	 * level vdev validation.
 	 */
@@ -258,7 +282,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 	if (v->vdev_wholedisk && v->vdev_expanding)
 		bdev = vdev_disk_rrpart(v->vdev_path, mode, vd);
 	if (IS_ERR(bdev))
-		bdev = vdev_bdev_open(v->vdev_path, vdev_bdev_mode(mode), vd);
+		bdev = vdev_bdev_open(v->vdev_path,
+		    vdev_bdev_mode(mode), zfs_vdev_holder);
 	if (IS_ERR(bdev)) {
 		kmem_free(vd, sizeof(vdev_disk_t));
 		return -PTR_ERR(bdev);
@@ -266,27 +291,19 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *ashift)
 
 	v->vdev_tsd = vd;
 	vd->vd_bdev = bdev;
-	block_size =  vdev_bdev_block_size(bdev);
 
-	/* We think the wholedisk property should always be set when this
-	 * function is called.  ASSERT here so if any legitimate cases exist
-	 * where it's not set, we'll find them during debugging.  If we never
-	 * hit the ASSERT, this and the following conditional statement can be
-	 * removed. */
-	ASSERT3S(v->vdev_wholedisk, !=, -1ULL);
-
-	/* The wholedisk property was initialized to -1 in vdev_alloc() if it
-	 * was unspecified.  In that case, check if this is a whole device.
-	 * When bdev->bd_contains == bdev we have a whole device and not simply
-	 * a partition. */
-	if (v->vdev_wholedisk == -1ULL)
-		v->vdev_wholedisk = (bdev->bd_contains == bdev);
+skip_open:
+	/*  Determine the physical block size */
+	block_size = vdev_bdev_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(bdev);
+	*psize = bdev_capacity(vd->vd_bdev);
+
+	/* TODO: report possible expansion size */
+	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
@@ -302,7 +319,7 @@ vdev_disk_close(vdev_t *v)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
 
-	if (vd == NULL)
+	if (v->vdev_reopening || vd == NULL)
 		return;
 
 	if (vd->vd_bdev != NULL)
@@ -524,7 +541,6 @@ retry:
 		if (dr->dr_bio_count == i) {
 			vdev_disk_dio_free(dr);
 			bio_count *= 2;
-			printk("WARNING: Resized bio's/dio to %d\n",bio_count);
 			goto retry;
 		}
 
@@ -589,8 +605,6 @@ vdev_disk_physio(struct block_device *bdev, caddr_t kbuf,
 	return __vdev_disk_physio(bdev, NULL, kbuf, size, offset, flags);
 }
 
-/* 2.6.24 API change */
-#ifdef HAVE_BIO_EMPTY_BARRIER
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 {
 	zio_t *zio = bio->bi_private;
@@ -631,13 +645,6 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	return 0;
 }
-#else
-static int
-vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
-{
-	return ENOTSUP;
-}
-#endif /* HAVE_BIO_EMPTY_BARRIER */
 
 static int
 vdev_disk_io_start(zio_t *zio)
@@ -778,7 +785,7 @@ vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 	uint64_t s, size;
 	int i;
 
-	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), NULL);
+	bdev = vdev_bdev_open(devpath, vdev_bdev_mode(FREAD), zfs_vdev_holder);
 	if (IS_ERR(bdev))
 		return -PTR_ERR(bdev);
 

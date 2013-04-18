@@ -103,6 +103,31 @@ void atomic_add_ptr(volatile void *target, ssize_t bits)
 }
 
 
+#define ATOMIC_SUB(name, type1, type2) \
+	void atomic_sub_##name(volatile type1 *target, type2 bits)	\
+	{								\
+		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
+		*target -= bits;					\
+		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+	}
+
+ATOMIC_SUB(8, uint8_t, int8_t)
+ATOMIC_SUB(char, uchar_t, signed char)
+ATOMIC_SUB(16, uint16_t, int16_t)
+ATOMIC_SUB(short, ushort_t, short)
+ATOMIC_SUB(32, uint32_t, int32_t)
+ATOMIC_SUB(int, uint_t, int)
+ATOMIC_SUB(long, ulong_t, long)
+ATOMIC_SUB(64, uint64_t, int64_t)
+
+void atomic_sub_ptr(volatile void *target, ssize_t bits)
+{
+	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
+	*(caddr_t *)target -= bits;
+	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
+}
+
+
 #define ATOMIC_OR(name, type) \
 	void atomic_or_##name(volatile type *target, type bits)		\
 	{								\
@@ -210,6 +235,37 @@ void *atomic_add_ptr_nv(volatile void *target, ssize_t bits)
 
 	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
 	ptr = (*(caddr_t *)target += bits);
+	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
+
+	return ptr;
+}
+
+
+#define ATOMIC_SUB_NV(name, type1, type2) \
+	type1 atomic_sub_##name##_nv(volatile type1 *target, type2 bits)\
+	{								\
+		type1 rc;						\
+		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
+		rc = (*target -= bits);					\
+		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		return rc;						\
+	}
+
+ATOMIC_SUB_NV(8, uint8_t, int8_t)
+ATOMIC_SUB_NV(char, uchar_t, signed char)
+ATOMIC_SUB_NV(16, uint16_t, int16_t)
+ATOMIC_SUB_NV(short, ushort_t, short)
+ATOMIC_SUB_NV(32, uint32_t, int32_t)
+ATOMIC_SUB_NV(int, uint_t, int)
+ATOMIC_SUB_NV(long, ulong_t, long)
+ATOMIC_SUB_NV(64, uint64_t, int64_t)
+
+void *atomic_sub_ptr_nv(volatile void *target, ssize_t bits)
+{
+	void *ptr;
+
+	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
+	ptr = (*(caddr_t *)target -= bits);
 	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
 
 	return ptr;

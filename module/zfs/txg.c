@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Portions Copyright 2011 Martin Matuska
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -29,9 +31,79 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/callb.h>
+#include <sys/spa_impl.h>
 
 /*
- * Pool-wide transaction groups.
+ * ZFS Transaction Groups
+ * ----------------------
+ *
+ * ZFS transaction groups are, as the name implies, groups of transactions
+ * that act on persistent state. ZFS asserts consistency at the granularity of
+ * these transaction groups. Each successive transaction group (txg) is
+ * assigned a 64-bit consecutive identifier. There are three active
+ * transaction group states: open, quiescing, or syncing. At any given time,
+ * there may be an active txg associated with each state; each active txg may
+ * either be processing, or blocked waiting to enter the next state. There may
+ * be up to three active txgs, and there is always a txg in the open state
+ * (though it may be blocked waiting to enter the quiescing state). In broad
+ * strokes, transactions — operations that change in-memory structures — are
+ * accepted into the txg in the open state, and are completed while the txg is
+ * in the open or quiescing states. The accumulated changes are written to
+ * disk in the syncing state.
+ *
+ * Open
+ *
+ * When a new txg becomes active, it first enters the open state. New
+ * transactions — updates to in-memory structures — are assigned to the
+ * currently open txg. There is always a txg in the open state so that ZFS can
+ * accept new changes (though the txg may refuse new changes if it has hit
+ * some limit). ZFS advances the open txg to the next state for a variety of
+ * reasons such as it hitting a time or size threshold, or the execution of an
+ * administrative action that must be completed in the syncing state.
+ *
+ * Quiescing
+ *
+ * After a txg exits the open state, it enters the quiescing state. The
+ * quiescing state is intended to provide a buffer between accepting new
+ * transactions in the open state and writing them out to stable storage in
+ * the syncing state. While quiescing, transactions can continue their
+ * operation without delaying either of the other states. Typically, a txg is
+ * in the quiescing state very briefly since the operations are bounded by
+ * software latencies rather than, say, slower I/O latencies. After all
+ * transactions complete, the txg is ready to enter the next state.
+ *
+ * Syncing
+ *
+ * In the syncing state, the in-memory state built up during the open and (to
+ * a lesser degree) the quiescing states is written to stable storage. The
+ * process of writing out modified data can, in turn modify more data. For
+ * example when we write new blocks, we need to allocate space for them; those
+ * allocations modify metadata (space maps)... which themselves must be
+ * written to stable storage. During the sync state, ZFS iterates, writing out
+ * data until it converges and all in-memory changes have been written out.
+ * The first such pass is the largest as it encompasses all the modified user
+ * data (as opposed to filesystem metadata). Subsequent passes typically have
+ * far less data to write as they consist exclusively of filesystem metadata.
+ *
+ * To ensure convergence, after a certain number of passes ZFS begins
+ * overwriting locations on stable storage that had been allocated earlier in
+ * the syncing state (and subsequently freed). ZFS usually allocates new
+ * blocks to optimize for large, continuous, writes. For the syncing state to
+ * converge however it must complete a pass where no new blocks are allocated
+ * since each allocation requires a modification of persistent metadata.
+ * Further, to hasten convergence, after a prescribed number of passes, ZFS
+ * also defers frees, and stops compressing.
+ *
+ * In addition to writing out user data, we must also execute synctasks during
+ * the syncing context. A synctask is the mechanism by which some
+ * administrative activities work such as creating and destroying snapshots or
+ * datasets. Note that when a synctask is initiated it enters the open txg,
+ * and ZFS then pushes that txg as quickly as possible to completion of the
+ * syncing state in order to reduce the latency of the administrative
+ * activity. To complete the syncing state, ZFS writes out a new uberblock,
+ * the root of the tree of blocks that comprise all state stored on the ZFS
+ * pool. Finally, if there is a quiesced txg waiting, we signal that it can
+ * now transition to the syncing state.
  */
 
 static void txg_sync_thread(dsl_pool_t *dp);
@@ -279,6 +351,8 @@ txg_rele_to_sync(txg_handle_t *th)
 static void
 txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 {
+	hrtime_t start;
+	txg_history_t *th;
 	tx_state_t *tx = &dp->dp_tx;
 	int g = txg & TXG_MASK;
 	int c;
@@ -293,6 +367,15 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	tx->tx_open_txg++;
 
 	/*
+	 * Measure how long the txg was open and replace the kstat.
+	 */
+	th = dsl_pool_txg_history_get(dp, txg);
+	th->th_kstat.open_time = gethrtime() - th->th_kstat.birth;
+	th->th_kstat.state = TXG_STATE_QUIESCING;
+	dsl_pool_txg_history_put(th);
+	dsl_pool_txg_history_add(dp, tx->tx_open_txg);
+
+	/*
 	 * Now that we've incremented tx_open_txg, we can let threads
 	 * enter the next transaction group.
 	 */
@@ -302,6 +385,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().
 	 */
+	start = gethrtime();
+
 	for (c = 0; c < max_ncpus; c++) {
 		tx_cpu_t *tc = &tx->tx_cpu[c];
 		mutex_enter(&tc->tc_lock);
@@ -309,6 +394,13 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 			cv_wait(&tc->tc_cv[g], &tc->tc_lock);
 		mutex_exit(&tc->tc_lock);
 	}
+
+	/*
+	 * Measure how long the txg took to quiesce.
+	 */
+	th = dsl_pool_txg_history_get(dp, txg);
+	th->th_kstat.quiesce_time = gethrtime() - start;
+	dsl_pool_txg_history_put(th);
 }
 
 static void
@@ -395,8 +487,12 @@ txg_sync_thread(dsl_pool_t *dp)
 
 	start = delta = 0;
 	for (;;) {
-		uint64_t timer, timeout = zfs_txg_timeout * hz;
+		hrtime_t hrstart;
+		txg_history_t *th;
+		uint64_t timer, timeout;
 		uint64_t txg;
+
+		timeout = zfs_txg_timeout * hz;
 
 		/*
 		 * We sync when we're scanning, there's someone waiting
@@ -439,11 +535,17 @@ txg_sync_thread(dsl_pool_t *dp)
 		tx->tx_syncing_txg = txg;
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
+		th = dsl_pool_txg_history_get(dp, txg);
+		th->th_kstat.state = TXG_STATE_SYNCING;
+		vdev_get_stats(spa->spa_root_vdev, &th->th_vs1);
+		dsl_pool_txg_history_put(th);
+
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 
 		start = ddi_get_lbolt();
+		hrstart = gethrtime();
 		spa_sync(spa, txg);
 		delta = ddi_get_lbolt() - start;
 
@@ -456,6 +558,23 @@ txg_sync_thread(dsl_pool_t *dp)
 		 * Dispatch commit callbacks to worker threads.
 		 */
 		txg_dispatch_callbacks(dp, txg);
+
+		/*
+		 * Measure the txg sync time determine the amount of I/O done.
+		 */
+		th = dsl_pool_txg_history_get(dp, txg);
+		vdev_get_stats(spa->spa_root_vdev, &th->th_vs2);
+		th->th_kstat.sync_time = gethrtime() - hrstart;
+		th->th_kstat.nread = th->th_vs2.vs_bytes[ZIO_TYPE_READ] -
+		    th->th_vs1.vs_bytes[ZIO_TYPE_READ];
+		th->th_kstat.nwritten = th->th_vs2.vs_bytes[ZIO_TYPE_WRITE] -
+		    th->th_vs1.vs_bytes[ZIO_TYPE_WRITE];
+		th->th_kstat.reads = th->th_vs2.vs_ops[ZIO_TYPE_READ] -
+		    th->th_vs1.vs_ops[ZIO_TYPE_READ];
+		th->th_kstat.writes = th->th_vs2.vs_ops[ZIO_TYPE_WRITE] -
+		    th->th_vs1.vs_ops[ZIO_TYPE_WRITE];
+		th->th_kstat.state = TXG_STATE_COMMITTED;
+		dsl_pool_txg_history_put(th);
 	}
 }
 
@@ -621,7 +740,7 @@ txg_list_destroy(txg_list_t *tl)
 	mutex_destroy(&tl->tl_lock);
 }
 
-int
+boolean_t
 txg_list_empty(txg_list_t *tl, uint64_t txg)
 {
 	return (tl->tl_head[txg & TXG_MASK] == NULL);
@@ -773,4 +892,7 @@ EXPORT_SYMBOL(txg_wait_open);
 EXPORT_SYMBOL(txg_wait_callbacks);
 EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
+
+module_param(zfs_txg_timeout, int, 0644);
+MODULE_PARM_DESC(zfs_txg_timeout, "Max seconds worth of delta per txg");
 #endif

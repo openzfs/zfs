@@ -1900,13 +1900,13 @@ top:
 out:
 	zfs_dirent_unlock(dl);
 
+	zfs_inode_update(dzp);
+	zfs_inode_update(zp);
 	iput(ip);
 
 	if (zsb->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
 	ZFS_EXIT(zsb);
 	return (error);
 }
@@ -3790,7 +3790,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	zfs_sb_t	*zsb = ITOZSB(ip);
 	loff_t		offset;
 	loff_t		pgoff;
-        unsigned int	pglen;
+	unsigned int	pglen;
+	rl_t		*rl;
 	dmu_tx_t	*tx;
 	caddr_t		va;
 	int		err = 0;
@@ -3799,6 +3800,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	int		cnt = 0;
 	int		sync;
 
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
 
 	ASSERT(PageLocked(pp));
 
@@ -3810,6 +3813,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
 		unlock_page(pp);
+		ZFS_EXIT(zsb);
 		return (0);
 	}
 
@@ -3832,6 +3836,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	set_page_writeback(pp);
 	unlock_page(pp);
 
+	rl = zfs_range_lock(zp, pgoff, pglen, RL_WRITER);
 	tx = dmu_tx_create(zsb->z_os);
 
 	sync = ((zsb->z_os->os_sync == ZFS_SYNC_ALWAYS) ||
@@ -3848,7 +3853,18 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		if (err == ERESTART)
 			dmu_tx_wait(tx);
 
+		/* Will call all registered commit callbacks */
 		dmu_tx_abort(tx);
+
+		/*
+		 * For the synchronous case the commit callback must be
+		 * explicitly called because there is no registered callback.
+		 */
+		if (sync)
+			zfs_putpage_commit_cb(pp, ECANCELED);
+
+		zfs_range_unlock(rl);
+		ZFS_EXIT(zsb);
 		return (err);
 	}
 
@@ -3860,19 +3876,78 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_FLAGS(zsb), NULL, &zp->z_pflags, 8);
-	zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
-	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0);
 
+	/* Preserve the mtime and ctime provided by the inode */
+	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
+	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
+	zp->z_atime_dirty = 0;
+	zp->z_seq++;
+
+	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
+
+	zfs_log_write(zsb->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0);
 	dmu_tx_commit(tx);
-	ASSERT3S(err, ==, 0);
+
+	zfs_range_unlock(rl);
 
 	if (sync) {
 		zil_commit(zsb->z_log, zp->z_id);
 		zfs_putpage_commit_cb(pp, err);
 	}
 
+	ZFS_EXIT(zsb);
 	return (err);
 }
+
+/*
+ * Update the system attributes when the inode has been dirtied.  For the
+ * moment we're conservative and only update the atime, mtime, and ctime.
+ */
+int
+zfs_dirty_inode(struct inode *ip, int flags)
+{
+	znode_t		*zp = ITOZ(ip);
+	zfs_sb_t	*zsb = ITOZSB(ip);
+	dmu_tx_t	*tx;
+	uint64_t	atime[2], mtime[2], ctime[2];
+	sa_bulk_attr_t	bulk[3];
+	int		error;
+	int		cnt = 0;
+
+	ZFS_ENTER(zsb);
+	ZFS_VERIFY_ZP(zp);
+
+	tx = dmu_tx_create(zsb->z_os);
+
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	zfs_sa_upgrade_txholds(tx, zp);
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+
+	mutex_enter(&zp->z_lock);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zsb), NULL, &atime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zsb), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zsb), NULL, &ctime, 16);
+
+	/* Preserve the mtime and ctime provided by the inode */
+	ZFS_TIME_ENCODE(&ip->i_atime, atime);
+	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
+	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
+	zp->z_atime_dirty = 0;
+
+	error = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
+	mutex_exit(&zp->z_lock);
+
+	dmu_tx_commit(tx);
+out:
+	ZFS_EXIT(zsb);
+	return (error);
+}
+EXPORT_SYMBOL(zfs_dirty_inode);
 
 /*ARGSUSED*/
 void

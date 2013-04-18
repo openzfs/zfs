@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * All rights reserved
  */
 
@@ -44,6 +45,7 @@
 #include <stddef.h>
 #include <pthread.h>
 #include <umem.h>
+#include <time.h>
 
 #include <libzfs.h>
 
@@ -68,6 +70,12 @@ typedef struct dedup_arg {
 	int	outputfd;
 	libzfs_handle_t  *dedup_hdl;
 } dedup_arg_t;
+
+typedef struct progress_arg {
+	zfs_handle_t *pa_zhp;
+	int pa_fd;
+	boolean_t pa_parsable;
+} progress_arg_t;
 
 typedef struct dataref {
 	uint64_t ref_guid;
@@ -787,7 +795,7 @@ typedef struct send_dump_data {
 	char prevsnap[ZFS_MAXNAMELEN];
 	uint64_t prevsnap_obj;
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
-	boolean_t verbose, dryrun, parsable;
+	boolean_t verbose, dryrun, parsable, progress;
 	int outfd;
 	boolean_t err;
 	nvlist_t *fss;
@@ -979,10 +987,60 @@ hold_for_send(zfs_handle_t *zhp, send_dump_data_t *sdd)
 	return (error);
 }
 
+static void *
+send_progress_thread(void *arg)
+{
+	progress_arg_t *pa = arg;
+
+	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_handle_t *zhp = pa->pa_zhp;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	unsigned long long bytes;
+	char buf[16];
+
+	time_t t;
+	struct tm *tm;
+
+	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+
+	if (!pa->pa_parsable)
+		(void) fprintf(stderr, "TIME        SENT   SNAPSHOT\n");
+
+	/*
+	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
+	 */
+	for (;;) {
+		(void) sleep(1);
+
+		zc.zc_cookie = pa->pa_fd;
+		if (zfs_ioctl(hdl, ZFS_IOC_SEND_PROGRESS, &zc) != 0)
+			return ((void *)-1);
+
+		(void) time(&t);
+		tm = localtime(&t);
+		bytes = zc.zc_cookie;
+
+		if (pa->pa_parsable) {
+			(void) fprintf(stderr, "%02d:%02d:%02d\t%llu\t%s\n",
+			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    bytes, zhp->zfs_name);
+		} else {
+			zfs_nicenum(bytes, buf, sizeof (buf));
+			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
+			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    buf, zhp->zfs_name);
+		}
+	}
+}
+
 static int
 dump_snapshot(zfs_handle_t *zhp, void *arg)
 {
 	send_dump_data_t *sdd = arg;
+	progress_arg_t pa = { 0 };
+	pthread_t tid;
+
 	char *thissnap;
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
@@ -1100,8 +1158,29 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	}
 
 	if (!sdd->dryrun) {
+		/*
+		 * If progress reporting is requested, spawn a new thread to
+		 * poll ZFS_IOC_SEND_PROGRESS at a regular interval.
+		 */
+		if (sdd->progress) {
+			pa.pa_zhp = zhp;
+			pa.pa_fd = sdd->outfd;
+			pa.pa_parsable = sdd->parsable;
+
+			if ((err = pthread_create(&tid, NULL,
+			    send_progress_thread, &pa))) {
+				zfs_close(zhp);
+				return (err);
+			}
+		}
+
 		err = dump_ioctl(zhp, sdd->prevsnap, sdd->prevsnap_obj,
 		    fromorigin, sdd->outfd, sdd->debugnv);
+
+		if (sdd->progress) {
+			(void) pthread_cancel(tid);
+			(void) pthread_join(tid, NULL);
+		}
 	}
 
 	(void) strcpy(sdd->prevsnap, thissnap);
@@ -1445,6 +1524,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.fsavl = fsavl;
 	sdd.verbose = flags->verbose;
 	sdd.parsable = flags->parsable;
+	sdd.progress = flags->progress;
 	sdd.dryrun = flags->dryrun;
 	sdd.filter_cb = filter_func;
 	sdd.filter_cb_arg = cb_arg;

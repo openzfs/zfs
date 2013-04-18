@@ -47,6 +47,12 @@ extern "C" {
 #define	ZFS_SNAPDIR_VISIBLE		1
 
 /*
+ * Property values for snapdev
+ */
+#define	ZFS_SNAPDEV_HIDDEN		0
+#define	ZFS_SNAPDEV_VISIBLE		1
+
+/*
  * Field manipulation macros for the drr_versioninfo field of the
  * send stream header.
  */

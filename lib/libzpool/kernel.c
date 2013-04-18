@@ -141,7 +141,7 @@ zk_thread_helper(void *arg)
 
 kthread_t *
 zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
-	      size_t len, proc_t *pp, int state, pri_t pri)
+	      size_t len, proc_t *pp, int state, pri_t pri, int detachstate)
 {
 	kthread_t *kt;
 	pthread_attr_t attr;
@@ -175,12 +175,12 @@ zk_thread_create(caddr_t stk, size_t stksize, thread_func_t func, void *arg,
 	 * on Linux.
 	 */
 
-	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) * 4 +
-			EXTRA_GUARD_BYTES;
+	stack = PTHREAD_STACK_MIN + MAX(stksize, STACK_SIZE) * 4;
 
 	VERIFY3S(pthread_attr_init(&attr), ==, 0);
 	VERIFY3S(pthread_attr_setstacksize(&attr, stack), ==, 0);
 	VERIFY3S(pthread_attr_setguardsize(&attr, PAGESIZE), ==, 0);
+	VERIFY3S(pthread_attr_setdetachstate(&attr, detachstate), ==, 0);
 
 	VERIFY3S(pthread_create(&kt->t_tid, &attr, &zk_thread_helper, kt),
 	    ==, 0);
@@ -646,7 +646,9 @@ vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len, offset_t offset,
 		 * To simulate partial disk writes, we split writes into two
 		 * system calls so that the process can be killed in between.
 		 */
-		split = (len > 0 ? rand() % len : 0);
+		int sectors = len >> SPA_MINBLOCKSHIFT;
+		split = (sectors > 0 ? rand() % sectors : 0) <<
+		    SPA_MINBLOCKSHIFT;
 		rc = pwrite64(vp->v_fd, addr, split, offset);
 		if (rc != -1) {
 			done = rc;

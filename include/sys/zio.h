@@ -24,6 +24,8 @@
  */
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #ifndef _ZIO_H
@@ -107,6 +109,7 @@ enum zio_compress {
 	ZIO_COMPRESS_GZIP_8,
 	ZIO_COMPRESS_GZIP_9,
 	ZIO_COMPRESS_ZLE,
+	ZIO_COMPRESS_LZ4,
 	ZIO_COMPRESS_FUNCTIONS
 };
 
@@ -115,6 +118,7 @@ enum zio_compress {
 
 #define	BOOTFS_COMPRESS_VALID(compress)			\
 	((compress) == ZIO_COMPRESS_LZJB ||		\
+	(compress) == ZIO_COMPRESS_LZ4 ||		\
 	((compress) == ZIO_COMPRESS_ON &&		\
 	ZIO_COMPRESS_ON_VALUE == ZIO_COMPRESS_LZJB) ||	\
 	(compress) == ZIO_COMPRESS_OFF)
@@ -193,7 +197,8 @@ enum zio_flag {
 	ZIO_FLAG_RAW		= 1 << 21,
 	ZIO_FLAG_GANG_CHILD	= 1 << 22,
 	ZIO_FLAG_DDT_CHILD	= 1 << 23,
-	ZIO_FLAG_GODFATHER	= 1 << 24
+	ZIO_FLAG_GODFATHER	= 1 << 24,
+	ZIO_FLAG_FASTWRITE      = 1 << 25
 };
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
@@ -277,6 +282,14 @@ typedef struct zbookmark {
 #define	ZB_ZIL_OBJECT		(0ULL)
 #define	ZB_ZIL_LEVEL		(-2LL)
 
+#define	ZB_IS_ZERO(zb)						\
+	((zb)->zb_objset == 0 && (zb)->zb_object == 0 &&	\
+	(zb)->zb_level == 0 && (zb)->zb_blkid == 0)
+#define	ZB_IS_ROOT(zb)				\
+	((zb)->zb_object == ZB_ROOT_OBJECT &&	\
+	(zb)->zb_level == ZB_ROOT_LEVEL &&	\
+	(zb)->zb_blkid == ZB_ROOT_BLKID)
+
 typedef struct zio_prop {
 	enum zio_checksum	zp_checksum;
 	enum zio_compress	zp_compress;
@@ -294,6 +307,7 @@ typedef void zio_cksum_finish_f(zio_cksum_report_t *rep,
 typedef void zio_cksum_free_f(void *cbdata, size_t size);
 
 struct zio_bad_cksum;				/* defined in zio_checksum.h */
+struct dnode_phys;
 
 struct zio_cksum_report {
 	struct zio_cksum_report *zcr_next;
@@ -475,7 +489,7 @@ extern zio_t *zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp, enum zio_flag flags);
 
 extern int zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp,
-    blkptr_t *old_bp, uint64_t size, boolean_t use_slog);
+    uint64_t size, boolean_t use_slog);
 extern void zio_free_zil(spa_t *spa, uint64_t txg, blkptr_t *bp);
 extern void zio_flush(zio_t *zio, vdev_t *vd);
 extern void zio_shrink(zio_t *zio, uint64_t size);
@@ -565,6 +579,10 @@ extern void zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 
 /* Called from spa_sync(), but primarily an injection handler */
 extern void spa_handle_ignored_writes(spa_t *spa);
+
+/* zbookmark functions */
+boolean_t zbookmark_is_before(const struct dnode_phys *dnp,
+    const zbookmark_t *zb1, const zbookmark_t *zb2);
 
 #ifdef	__cplusplus
 }
