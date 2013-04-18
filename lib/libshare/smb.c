@@ -61,6 +61,7 @@
 #include "smb.h"
 
 static boolean_t smb_available(void);
+static int smb_validate_shareopts(const char *shareopts);
 
 static sa_fstype_t *smb_fstype;
 
@@ -194,53 +195,175 @@ out:
 }
 
 /**
+ * Validates share option(s).
+ */
+static int
+smb_get_shareopts_cb(const char *key, const char *value, void *cookie)
+{
+	char *dup_value;
+	smb_share_t *opts = (smb_share_t *)cookie;
+
+	if (strcmp(key, "on") == 0)
+		return SA_OK;
+
+	/* guest_ok and guestok is the same */
+	if (strcmp(key, "guestok") == 0)
+		key = "guest_ok";
+
+	/* Verify all options */
+	if (strcmp(key, "name") != 0 &&
+	    strcmp(key, "comment") != 0 &&
+	    strcmp(key, "acl") != 0 &&
+	    strcmp(key, "guest_ok") != 0)
+		return SA_SYNTAX_ERR;
+
+	dup_value = strdup(value);
+	if (dup_value == NULL)
+		return SA_NO_MEMORY;
+
+
+	/* Get share option values */
+	if (strcmp(key, "name") == 0) {
+		strncpy(opts->name, dup_value, sizeof (opts->name));
+		opts->name [sizeof(opts->name)-1] = '\0';
+	}
+
+	if (strcmp(key, "comment") == 0) {
+		strncpy(opts->comment, dup_value, sizeof (opts->comment));
+		opts->comment[sizeof(opts->comment)-1]='\0';
+	}
+
+	if (strcmp(key, "acl") == 0) {
+		strncpy(opts->acl, dup_value, sizeof (opts->acl));
+		opts->acl [sizeof(opts->acl)-1] = '\0';
+	}
+
+	if (strcmp(key, "guest_ok") == 0) {
+		if(strcmp(dup_value, "y") == 0 ||
+		   strcmp(dup_value, "yes") == 0 ||
+		   strcmp(dup_value, "true") == 0)
+			opts->guest_ok = B_TRUE;
+		else
+			opts->guest_ok = B_FALSE;
+	}
+
+	return SA_OK;
+}
+
+/**
+ * Takes a string containing share options (e.g. "name=Whatever,guest_ok=n")
+ * and converts them to a NULL-terminated array of options.
+ */
+static int
+smb_get_shareopts(sa_share_impl_t impl_share, const char *shareopts,
+		  smb_share_t **opts)
+{
+	char *pos, name[SMB_NAME_MAX];
+	int rc;
+	smb_share_t *new_opts;
+
+	assert(opts != NULL);
+	*opts = NULL;
+
+	/* Set defaults */
+	new_opts = (smb_share_t *) malloc(sizeof (smb_share_t));
+	if (new_opts == NULL)
+		return SA_NO_MEMORY;
+
+	if (impl_share && impl_share->dataset) {
+		strncpy(name, impl_share->dataset, sizeof(name));
+		name [sizeof(name)-1] = '\0';
+
+		/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
+		pos = name;
+		while (*pos != '\0') {
+			switch (*pos) {
+			case '/':
+			case '-':
+			case ':':
+			case ' ':
+				*pos = '_';
+			}
+
+			++pos;
+		}
+
+		strncpy(new_opts->name, name, strlen(name));
+		new_opts->name [sizeof (new_opts->name)-1] = '\0';
+	} else
+		new_opts->name[0] = '\0';
+
+	if (impl_share && impl_share->sharepath)
+		snprintf(new_opts->comment, sizeof(new_opts->comment),
+			 "Comment: %s", impl_share->sharepath);
+	else
+		new_opts->comment[0] = '\0';
+
+	strncpy(new_opts->acl, "Everyone:f", 11); // must be 'r', 'f', or 'd'
+
+	new_opts->guest_ok = B_TRUE;
+	*opts = new_opts;
+
+	rc = foreach_shareopt(shareopts, smb_get_shareopts_cb, *opts);
+	if (rc != SA_OK) {
+		free(*opts);
+		*opts = NULL;
+	}
+
+	return rc;
+}
+
+/**
  * Used internally by smb_enable_share to enable sharing for a single host.
  */
 static int
-smb_enable_share_one(const char *sharename, const char *sharepath)
+smb_enable_share_one(sa_share_impl_t impl_share)
 {
-	char *argv[10], *pos;
-	char name[SMB_NAME_MAX], comment[SMB_COMMENT_MAX];
+	char *argv[11], *shareopts;
+	smb_share_t *opts;
 	int rc;
 
-	/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
-	strncpy(name, sharename, sizeof(name));
-	name [sizeof(name)-1] = '\0';
+#ifdef DEBUG
+	fprintf(stderr, "smb_enable_share_one: dataset=%s, path=%s\n",
+		impl_share->dataset, impl_share->sharepath);
+#endif
 
-	pos = name;
-	while (*pos != '\0') {
-		switch (*pos) {
-		case '/':
-		case '-':
-		case ':':
-		case ' ':
-			*pos = '_';
-		}
+	opts = (smb_share_t *) malloc(sizeof (smb_share_t));
+	if (opts == NULL)
+		return SA_NO_MEMORY;
 
-		++pos;
+	/* Get any share options */
+	shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
+	rc = smb_get_shareopts(impl_share, shareopts, &opts);
+	if (rc < 0) {
+		free(opts);
+		return SA_SYSTEM_ERR;
 	}
 
-	/* CMD: net -S NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
-	 *      "Comment" "Everyone:F" */
-	snprintf(comment, sizeof(comment), "Comment: %s", sharepath);
+#ifdef DEBUG
+	fprintf(stderr, "smb_enable_share_one: shareopts=%s, name=%s, comment=\"%s\", acl=\"%s\", guest_ok=%d\n",
+		shareopts, opts->name, opts->comment, opts->acl, opts->guest_ok);
+#endif
 
+	/* net usershare add sharename path [comment] [acl] [guest_ok=[y|n]] */
 	argv[0]  = NET_CMD_PATH;
 	argv[1]  = (char*)"-S";
 	argv[2]  = NET_CMD_ARG_HOST;
 	argv[3]  = (char*)"usershare";
 	argv[4]  = (char*)"add";
-	argv[5]  = (char*)name;
-	argv[6]  = (char*)sharepath;
-	argv[7]  = (char*)comment;
-	argv[8] = "Everyone:F";
-	argv[9] = NULL;
+	argv[5]  = (char*)opts->name;
+	argv[6]  = (char*)impl_share->sharepath;
+	argv[7]  = (char*)opts->comment;
+	argv[8]  = (char*)opts->acl;
+	if (opts->guest_ok)
+		argv[9]  = (char*)"guest_ok=y";
+	else
+		argv[9]  = (char*)"guest_ok=n";
+	argv[10] = NULL;
 
-	rc = libzfs_run_process(argv[0], argv, 0);
+	rc = libzfs_run_process(argv[0], argv, STDERR_VERBOSE);
 	if (rc < 0)
 		return SA_SYSTEM_ERR;
-
-	/* Reload the share file */
-	(void) smb_retrieve_shares();
 
 	return SA_OK;
 }
@@ -264,7 +387,7 @@ smb_enable_share(sa_share_impl_t impl_share)
 		return SA_OK;
 
 	/* Magic: Enable (i.e., 'create new') share */
-	return smb_enable_share_one(impl_share->dataset, impl_share->sharepath);
+	return smb_enable_share_one(impl_share);
 }
 
 /**
@@ -285,7 +408,7 @@ smb_disable_share_one(const char *sharename)
 	argv[5] = strdup(sharename);
 	argv[6] = NULL;
 
-	rc = libzfs_run_process(argv[0], argv, 0);
+	rc = libzfs_run_process(argv[0], argv, STDERR_VERBOSE);
 	if (rc < 0)
 		return SA_SYSTEM_ERR;
 	else
@@ -324,11 +447,12 @@ smb_disable_share(sa_share_impl_t impl_share)
 static int
 smb_validate_shareopts(const char *shareopts)
 {
-	/* TODO: Accept 'name' and sec/acl (?) */
-	if ((strcmp(shareopts, "off") == 0) || (strcmp(shareopts, "on") == 0))
-		return SA_OK;
+	smb_share_t *opts;
+	int rc = SA_OK;
 
-	return SA_SYNTAX_ERR;
+	rc = smb_get_shareopts(NULL, shareopts, &opts);
+
+	return rc;
 }
 
 /**

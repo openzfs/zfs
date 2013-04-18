@@ -38,7 +38,9 @@
 typedef struct smb_share_s {
 	char name[SMB_NAME_MAX];	/* Share name */
 	char path[PATH_MAX];		/* Share path */
-	char comment[SMB_COMMENT_MAX];	/* Share's comment */
+
+	char comment[SMB_COMMENT_MAX];	/* Share comment */
+	char acl[255];			/* Share ACL */
 	boolean_t guest_ok;		/* 'y' or 'n' */
 
 	struct smb_share_s *next;
