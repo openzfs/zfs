@@ -15,7 +15,7 @@ License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
 Source0:        %{module}-%{version}.tar.gz
 Source10:       kmodtool
-BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
 
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
@@ -90,12 +90,12 @@ for kernel_version in %{?kernel_versions}; do
         --with-linux="${kernel_version##*___}" \
         --with-linux-obj="${kernel_version##*___}" \
 %else
-        --with-linux=\
-        %(if [ -e /lib/modules/${kernel_version%%___*}/source ]; then \
-            echo "/lib/modules/${kernel_version%%___*}/source" \
+        --with-linux="$( \
+        if [ -e "/lib/modules/${kernel_version%%___*}/source" ]; then \
+            echo "/lib/modules/${kernel_version%%___*}/source"; \
         else \
-            echo "/lib/modules/${kernel_version%%___*}/build" \
-        fi) \
+            echo "/lib/modules/${kernel_version%%___*}/build"; \
+        fi)" \
         --with-linux-obj="/lib/modules/${kernel_version%%___*}/build" \
 %endif
         --with-spl="/usr/src/spl-%{version}" \
