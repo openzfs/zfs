@@ -34,7 +34,7 @@ if CONFIG_KERNEL
 	version=${VERSION}-${RELEASE}; \
 	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=kmod-$${name}*$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+	fakeroot $(ALIEN) --bump=0 --scripts --to-deb $$pkg1; \
 	$(RM) $$pkg1
 endif
 
@@ -44,7 +44,7 @@ if CONFIG_USER
 	version=${VERSION}-${RELEASE}; \
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --scripts --to-deb $$pkg1; \
+	fakeroot $(ALIEN) --bump=0 --scripts --to-deb $$pkg1; \
 	$(RM) $$pkg1
 endif
 
