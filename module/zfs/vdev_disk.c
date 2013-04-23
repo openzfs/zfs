@@ -693,7 +693,7 @@ vdev_disk_io_start(zio_t *zio)
 		break;
 
 	case ZIO_TYPE_READ:
-		flags = READ;
+		flags = READ_SYNC;
 		break;
 
 	default:
