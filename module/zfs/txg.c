@@ -127,6 +127,8 @@ txg_init(dsl_pool_t *dp, uint64_t txg)
 		int i;
 
 		mutex_init(&tx->tx_cpu[c].tc_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&tx->tx_cpu[c].tc_open_lock, NULL, MUTEX_DEFAULT,
+		    NULL);
 		for (i = 0; i < TXG_SIZE; i++) {
 			cv_init(&tx->tx_cpu[c].tc_cv[i], NULL, CV_DEFAULT,
 			    NULL);
@@ -169,6 +171,7 @@ txg_fini(dsl_pool_t *dp)
 	for (c = 0; c < max_ncpus; c++) {
 		int i;
 
+		mutex_destroy(&tx->tx_cpu[c].tc_open_lock);
 		mutex_destroy(&tx->tx_cpu[c].tc_lock);
 		for (i = 0; i < TXG_SIZE; i++) {
 			cv_destroy(&tx->tx_cpu[c].tc_cv[i]);
@@ -303,10 +306,12 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	tc = &tx->tx_cpu[CPU_SEQID];
 	kpreempt_enable();
 
-	mutex_enter(&tc->tc_lock);
-
+	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
+
+	mutex_enter(&tc->tc_lock);
 	tc->tc_count[txg & TXG_MASK]++;
+	mutex_exit(&tc->tc_lock);
 
 	th->th_cpu = tc;
 	th->th_txg = txg;
@@ -319,7 +324,8 @@ txg_rele_to_quiesce(txg_handle_t *th)
 {
 	tx_cpu_t *tc = th->th_cpu;
 
-	mutex_exit(&tc->tc_lock);
+	ASSERT(!MUTEX_HELD(&tc->tc_lock));
+	mutex_exit(&tc->tc_open_lock);
 }
 
 void
@@ -356,10 +362,10 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	int c;
 
 	/*
-	 * Grab all tx_cpu locks so nobody else can get into this txg.
+	 * Grab all tc_open_locks so nobody else can get into this txg.
 	 */
 	for (c = 0; c < max_ncpus; c++)
-		mutex_enter(&tx->tx_cpu[c].tc_lock);
+		mutex_enter(&tx->tx_cpu[c].tc_open_lock);
 
 	ASSERT(txg == tx->tx_open_txg);
 	tx->tx_open_txg++;
@@ -372,7 +378,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	 * enter the next transaction group.
 	 */
 	for (c = 0; c < max_ncpus; c++)
-		mutex_exit(&tx->tx_cpu[c].tc_lock);
+		mutex_exit(&tx->tx_cpu[c].tc_open_lock);
 
 	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().

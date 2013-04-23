@@ -91,6 +91,15 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	scn = dp->dp_scan = kmem_zalloc(sizeof (dsl_scan_t), KM_SLEEP);
 	scn->scn_dp = dp;
 
+	/*
+	 * It's possible that we're resuming a scan after a reboot so
+	 * make sure that the scan_async_destroying flag is initialized
+	 * appropriately.
+	 */
+	ASSERT(!scn->scn_async_destroying);
+	scn->scn_async_destroying = spa_feature_is_active(dp->dp_spa,
+	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY]);
+
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    "scrub_func", sizeof (uint64_t), 1, &f);
 	if (err == 0) {
@@ -1362,13 +1371,10 @@ dsl_scan_active(dsl_scan_t *scn)
 	if (spa_shutting_down(spa))
 		return (B_FALSE);
 
-	if (scn->scn_phys.scn_state == DSS_SCANNING)
+	if (scn->scn_phys.scn_state == DSS_SCANNING ||
+	    scn->scn_async_destroying)
 		return (B_TRUE);
 
-	if (spa_feature_is_active(spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
-		return (B_TRUE);
-	}
 	if (spa_version(scn->scn_dp->dp_spa) >= SPA_VERSION_DEADLISTS) {
 		(void) bpobj_space(&scn->scn_dp->dp_free_bpobj,
 		    &used, &comp, &uncomp);
@@ -1424,6 +1430,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 		if (err == 0 && spa_feature_is_active(spa,
 		    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+			ASSERT(scn->scn_async_destroying);
 			scn->scn_is_bptree = B_TRUE;
 			scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
 			    NULL, ZIO_FLAG_MUSTSUCCEED);
@@ -1444,6 +1451,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 				VERIFY0(bptree_free(dp->dp_meta_objset,
 				    dp->dp_bptree_obj, tx));
 				dp->dp_bptree_obj = 0;
+				scn->scn_async_destroying = B_FALSE;
 			}
 		}
 		if (scn->scn_visited_this_txg) {
