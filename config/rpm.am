@@ -18,12 +18,15 @@ srpm-utils:
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
 		def='${SRPM_DEFINE_COMMON} ${SRPM_DEFINE_UTIL}' srpm-common
 
-srpm: srpm-kmod srpm-dkms srpm-utils
-srpms: srpm-kmod srpm-dkms srpm-utils
+srpm srpms: srpm-kmod srpm-dkms srpm-utils
 
 rpm-kmod: srpm-kmod
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_KMOD}' rpm-common
+
+rpm-kmod-debug: srpm-kmod
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
+		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_KMOD} --with debug' rpm-common
 
 rpm-dkms: srpm-dkms
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-dkms" \
@@ -33,8 +36,12 @@ rpm-utils: srpm-utils
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_UTIL}' rpm-common
 
-rpm: rpm-kmod rpm-dkms rpm-utils
-rpms: rpm-kmod rpm-dkms rpm-utils
+rpm-utils-debug: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
+		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_UTIL} --with debug' rpm-common
+
+rpm rpms: rpm-kmod rpm-dkms rpm-utils
+rpm-debug rpms-debug: rpm-kmod-debug rpm-utils-debug
 
 rpm-local:
 	@(if test "${HAVE_RPMBUILD}" = "no"; then \
@@ -85,3 +92,4 @@ rpm-common:
 		$(def) --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	rm -R $$rpmbuild)
+

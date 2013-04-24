@@ -36,6 +36,7 @@ kernel_versions=
 kernel_versions_to_build_for=
 prefix=
 filterfile=
+linuxdir=
 target=
 
 error_out()
@@ -328,6 +329,14 @@ print_customrpmtemplate ()
 			if [[ "${devel}" ]]; then
 				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
 			fi
+		elif [[ -e ${linuxdir}/Makefile ]] ; then
+			kernel_versions="${kernel_versions}${kernel}___${linuxdir} "
+			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
+
+			# create development package
+			if [[ "${devel}" ]]; then
+				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
+			fi
 		else
 			error_out 2 "Don't know how to handle ${kernel} -- ${prefix}/lib/modules/${kernel}/build/Makefile not found"
 		fi
@@ -390,6 +399,7 @@ myprog_help ()
 	echo " --noakmod            -- no akmod package"
 	echo " --repo <name>        -- use buildsys-build-<name>-kerneldevpkgs"
 	echo " --target <arch>      -- target-arch (required)"
+	echo " --linuxdir <dir>     -- use linux kernel directory <dir>"
 }
 
 while [ "${1}" ] ; do
@@ -485,6 +495,11 @@ while [ "${1}" ] ; do
 		--version)
 			echo "${myprog} ${myver}"
 			exit 0
+			;;
+		--linuxdir)
+			shift
+			linuxdir="${1}"
+			shift
 			;;
 		*)
 			echo "Error: Unknown option '${1}'." >&2

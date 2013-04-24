@@ -1,3 +1,5 @@
+%define module      @PACKAGE@
+
 %global _sbindir    /sbin
 %global _libdir     /%{_lib}
 %if 0%{?fedora} >= 17
@@ -12,8 +14,11 @@
 %bcond_with    blkid
 %bcond_with    selinux
 
+%if %{with debug}
+    %define dbg_name -debug
+%endif
 
-Name:           @PACKAGE@
+Name:           @PACKAGE@%{?dbg_name}
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
 Summary:        Commands to control the kernel modules and libraries
@@ -21,8 +26,8 @@ Summary:        Commands to control the kernel modules and libraries
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
-Source0:        %{name}-%{version}.tar.gz
-BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Source0:        %{module}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{module}-%{version}-%{release}-root-%(%{__id_u} -n)
 ExclusiveArch:  i386 i686 x86_64
 
 # May build but untested on ppc/ppc64
@@ -97,7 +102,7 @@ image which is ZFS aware.
     %define selinux --without-selinux
 %endif
 
-%setup -q
+%setup -q %{module}-%{version}.tar.gz -n %{module}-%{version}
 
 %build
 %configure \
@@ -108,12 +113,23 @@ image which is ZFS aware.
     %{debug} \
     %{blkid} \
     %{selinux}
+
+# Remove '-g -O2' when building zvol_id!
+cat cmd/zvol_id/Makefile | \
+	sed 's@^CFLAGS = .*@CFLAGS =@' \
+	> cmd/zvol_id/Makefile.new
+mv cmd/zvol_id/Makefile.new cmd/zvol_id/Makefile
+
 make %{?_smp_mflags}
 
 %install
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+
+%if %{with debug}
+find $RPM_BUILD_ROOT -name '*.sh' | xargs rm
+%endif
 
 %post -p /sbin/ldconfig
 
@@ -130,7 +146,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
-%config(noreplace) %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{module}
 %{_sysconfdir}/init.d/*
 
 %files devel
@@ -138,7 +154,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %{_includedir}/*
 
 %files test
-%{_datadir}/%{name}
+%{_datadir}/%{module}
 
 %files dracut
 %doc dracut/README.dracut.markdown

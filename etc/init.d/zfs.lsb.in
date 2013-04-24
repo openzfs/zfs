@@ -36,6 +36,11 @@ ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 [ -x "$ZPOOL" ] || exit 1
 [ -x "$ZFS" ] || exit 2
 
+if [ -z "$init" ]; then
+    # Not interactive
+    grep -Eqi 'zfs=off|zfs=no' /proc/cmdline && exit 3
+fi
+
 start()
 {
 	[ -f "$LOCKFILE" ] && return 3
