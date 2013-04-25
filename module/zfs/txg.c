@@ -367,6 +367,13 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	tx->tx_open_txg++;
 
 	/*
+	 * Now that we've incremented tx_open_txg, we can let threads
+	 * enter the next transaction group.
+	 */
+	for (c = 0; c < max_ncpus; c++)
+		mutex_exit(&tx->tx_cpu[c].tc_lock);
+
+	/*
 	 * Measure how long the txg was open and replace the kstat.
 	 */
 	th = dsl_pool_txg_history_get(dp, txg);
@@ -374,13 +381,6 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	th->th_kstat.state = TXG_STATE_QUIESCING;
 	dsl_pool_txg_history_put(th);
 	dsl_pool_txg_history_add(dp, tx->tx_open_txg);
-
-	/*
-	 * Now that we've incremented tx_open_txg, we can let threads
-	 * enter the next transaction group.
-	 */
-	for (c = 0; c < max_ncpus; c++)
-		mutex_exit(&tx->tx_cpu[c].tc_lock);
 
 	/*
 	 * Quiesce the transaction group by waiting for everyone to txg_exit().
