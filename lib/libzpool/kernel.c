@@ -522,7 +522,7 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 {
 	int fd;
 	vnode_t *vp;
-	int old_umask;
+	int old_umask = 0;
 	char *realpath;
 	struct stat64 st;
 	int err;
