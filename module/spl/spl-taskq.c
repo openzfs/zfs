@@ -342,39 +342,27 @@ taskq_find(taskq_t *tq, taskqid_t id, int *active)
 	SRETURN(NULL);
 }
 
+static int
+taskq_wait_id_check(taskq_t *tq, taskqid_t id)
+{
+	int active = 0;
+	int rc;
+
+	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
+	rc = (taskq_find(tq, id, &active) == NULL);
+	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
+
+	return (rc);
+}
+
 /*
  * The taskq_wait_id() function blocks until the passed task id completes.
- * This does not guarantee that all lower task id's have completed.
+ * This does not guarantee that all lower task ids have completed.
  */
 void
 taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
-	DEFINE_WAIT(wait);
-	taskq_ent_t *t;
-	int active = 0;
-	SENTRY;
-
-	ASSERT(tq);
-	ASSERT(id > 0);
-
-	spin_lock_irqsave(&tq->tq_lock, tq->tq_lock_flags);
-	t = taskq_find(tq, id, &active);
-	if (t)
-		prepare_to_wait(&t->tqent_waitq, &wait, TASK_UNINTERRUPTIBLE);
-	spin_unlock_irqrestore(&tq->tq_lock, tq->tq_lock_flags);
-
-	/*
-	 * We rely on the kernels autoremove_wake_function() function to
-	 * remove us from the wait queue in the context of wake_up().
-	 * Once woken the taskq_ent_t pointer must never be accessed.
-	 */
-	if (t) {
-		t = NULL;
-		schedule();
-		__set_current_state(TASK_RUNNING);
-	}
-
-	SEXIT;
+	wait_event(tq->tq_wait_waitq, taskq_wait_id_check(tq, id));
 }
 EXPORT_SYMBOL(taskq_wait_id);
 
