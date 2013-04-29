@@ -237,6 +237,24 @@ kmem_cache_t *spa_buffer_pool;
 int spa_mode_global;
 
 /*
+ * Expiration time in units of zfs_txg_synctime_ms. This value has two
+ * meanings. First it is used to determine when the spa_deadman logic
+ * should fire. By default the spa_deadman will fire if spa_sync has
+ * not completed in 1000 * zfs_txg_synctime_ms (i.e. 1000 seconds).
+ * Secondly, the value determines if an I/O is considered "hung".
+ * Any I/O that has not completed in zfs_deadman_synctime is considered
+ * "hung" resulting in a zevent being posted.
+ * 1000 zfs_txg_synctime_ms (i.e. 1000 seconds).
+ */
+unsigned long zfs_deadman_synctime = 1000ULL;
+
+/*
+ * By default the deadman is enabled.
+ */
+int zfs_deadman_enabled = 1;
+
+
+/*
  * ==========================================================================
  * SPA config locking
  * ==========================================================================
@@ -413,6 +431,27 @@ spa_lookup(const char *name)
 }
 
 /*
+ * Fires when spa_sync has not completed within zfs_deadman_synctime_ms.
+ * If the zfs_deadman_enabled flag is set then it inspects all vdev queues
+ * looking for potentially hung I/Os.
+ */
+void
+spa_deadman(void *arg)
+{
+	spa_t *spa = arg;
+
+	zfs_dbgmsg("slow spa_sync: started %llu seconds ago, calls %llu",
+	    (gethrtime() - spa->spa_sync_starttime) / NANOSEC,
+	    ++spa->spa_deadman_calls);
+	if (zfs_deadman_enabled)
+		vdev_deadman(spa->spa_root_vdev);
+
+	spa->spa_deadman_tqid = taskq_dispatch_delay(system_taskq,
+	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
+	    NSEC_TO_TICK(spa->spa_deadman_synctime));
+}
+
+/*
  * Create an uninitialized spa_t with the given name.  Requires
  * spa_namespace_lock.  The caller must ensure that the spa_t doesn't already
  * exist by calling spa_lookup() first.
@@ -453,6 +492,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_load_max_txg = UINT64_MAX;
 	spa->spa_proc = &p0;
 	spa->spa_proc_state = SPA_PROC_NONE;
+
+	spa->spa_deadman_synctime = zfs_deadman_synctime *
+	    zfs_txg_synctime_ms * MICROSEC;
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
@@ -1493,6 +1535,12 @@ spa_prev_software_version(spa_t *spa)
 }
 
 uint64_t
+spa_deadman_synctime(spa_t *spa)
+{
+	return (spa->spa_deadman_synctime);
+}
+
+uint64_t
 dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 {
 	uint64_t asize = DVA_GET_ASIZE(dva);
@@ -1812,4 +1860,10 @@ EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);
 
 EXPORT_SYMBOL(spa_namespace_lock);
+
+module_param(zfs_deadman_synctime, ulong, 0644);
+MODULE_PARM_DESC(zfs_deadman_synctime,"Expire in units of zfs_txg_synctime_ms");
+
+module_param(zfs_deadman_enabled, int, 0644);
+MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
 #endif

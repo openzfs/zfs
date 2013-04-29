@@ -609,6 +609,9 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	zio->io_vsd_ops = NULL;
 	zio->io_offset = offset;
 	zio->io_deadline = 0;
+	zio->io_timestamp = 0;
+	zio->io_delta = 0;
+	zio->io_delay = 0;
 	zio->io_orig_data = zio->io_data = data;
 	zio->io_orig_size = zio->io_size = size;
 	zio->io_orig_flags = zio->io_flags = flags;
@@ -620,7 +623,6 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	zio->io_bp_override = NULL;
 	zio->io_walk_link = NULL;
 	zio->io_transform_stack = NULL;
-	zio->io_delay = 0;
 	zio->io_error = 0;
 	zio->io_child_count = 0;
 	zio->io_parent_count = 0;
@@ -2906,11 +2908,11 @@ zio_done(zio_t *zio)
 	vdev_stat_update(zio, zio->io_size);
 
 	/*
-	 * If this I/O is attached to a particular vdev is slow, exeeding
+	 * If this I/O is attached to a particular vdev is slow, exceeding
 	 * 30 seconds to complete, post an error described the I/O delay.
 	 * We ignore these errors if the device is currently unavailable.
 	 */
-	if (zio->io_delay >= zio_delay_max) {
+	if (zio->io_delay >= MSEC_TO_TICK(zio_delay_max)) {
 		if (zio->io_vd != NULL && !vdev_is_dead(zio->io_vd))
 			zfs_ereport_post(FM_EREPORT_ZFS_DELAY, zio->io_spa,
                                          zio->io_vd, zio, 0, 0);

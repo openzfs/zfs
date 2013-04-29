@@ -41,6 +41,8 @@
 extern "C" {
 #endif
 
+extern int zfs_txg_synctime_ms;
+
 struct objset;
 struct dsl_dir;
 struct dsl_dataset;

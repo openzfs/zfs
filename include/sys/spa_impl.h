@@ -227,6 +227,10 @@ struct spa {
 	uint64_t	spa_feat_for_write_obj;	/* required to write to pool */
 	uint64_t	spa_feat_for_read_obj;	/* required to read from pool */
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
+	taskqid_t	spa_deadman_tqid;	/* Task id */
+	uint64_t	spa_deadman_calls;	/* number of deadman calls */
+	uint64_t	spa_sync_starttime;	/* starting time fo spa_sync */
+	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
 	/*
 	 * spa_refcnt & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.

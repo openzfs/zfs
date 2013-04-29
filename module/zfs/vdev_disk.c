@@ -407,8 +407,7 @@ vdev_disk_dio_put(dio_request_t *dr)
 		vdev_disk_dio_free(dr);
 
 		if (zio) {
-			zio->io_delay = jiffies_to_msecs(
-			    jiffies_64 - zio->io_delay);
+			zio->io_delay = jiffies_64 - zio->io_delay;
 			zio->io_error = error;
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
@@ -609,7 +608,7 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, size, rc)
 {
 	zio_t *zio = bio->bi_private;
 
-	zio->io_delay = jiffies_to_msecs(jiffies_64 - zio->io_delay);
+	zio->io_delay = jiffies_64 - zio->io_delay;
 	zio->io_error = -rc;
 	if (rc && (rc == -EOPNOTSUPP))
 		zio->io_vd->vdev_nowritecache = B_TRUE;

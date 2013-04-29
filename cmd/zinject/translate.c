@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <libzfs.h>
@@ -474,6 +475,20 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 
 		verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID,
 		    &record->zi_guid) == 0);
+	}
+
+	/*
+	 * Device faults can take on three different forms:
+	 * 1). delayed or hanging I/O
+	 * 2). zfs label faults
+	 * 3). generic disk faults
+	 */
+	if (record->zi_timer != 0) {
+		record->zi_cmd = ZINJECT_DELAY_IO;
+	} else if (label_type != TYPE_INVAL) {
+		record->zi_cmd = ZINJECT_LABEL_FAULT;
+	} else {
+		record->zi_cmd = ZINJECT_DEVICE_FAULT;
 	}
 
 	switch (label_type) {

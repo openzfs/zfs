@@ -250,6 +250,7 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 	if (vd != NULL) {
 		vdev_t *pvd = vd->vdev_parent;
+		vdev_queue_t *vq = &vd->vdev_queue;
 
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID,
 		    DATA_TYPE_UINT64, vd->vdev_guid,
@@ -271,6 +272,15 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			fm_payload_set(ereport,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ASHIFT,
 			    DATA_TYPE_UINT64, vd->vdev_ashift, NULL);
+
+		if (vq != NULL) {
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_COMP_TS,
+			    DATA_TYPE_UINT64, vq->vq_io_complete_ts, NULL);
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DELTA_TS,
+			    DATA_TYPE_UINT64, vq->vq_io_delta_ts, NULL);
+		}
 
 		if (pvd != NULL) {
 			fm_payload_set(ereport,
@@ -304,6 +314,12 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    DATA_TYPE_UINT32, zio->io_pipeline, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DELAY,
 		    DATA_TYPE_UINT64, zio->io_delay, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP,
+		    DATA_TYPE_UINT64, zio->io_timestamp, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DEADLINE,
+		    DATA_TYPE_UINT64, zio->io_deadline, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA,
+		    DATA_TYPE_UINT64, zio->io_delta, NULL);
 
 		/*
 		 * If the 'size' parameter is non-zero, it indicates this is a

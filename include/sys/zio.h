@@ -21,8 +21,6 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- */
-/*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -411,7 +409,10 @@ struct zio {
 	const zio_vsd_ops_t *io_vsd_ops;
 
 	uint64_t	io_offset;
-	uint64_t	io_deadline;
+	uint64_t	io_deadline;	/* expires at timestamp + deadline */
+	uint64_t	io_timestamp;	/* submitted at (ticks) */
+	uint64_t	io_delta;	/* vdev queue service delta (ticks) */
+	uint64_t	io_delay;	/* vdev disk service delta (ticks) */
 	avl_node_t	io_offset_node;
 	avl_node_t	io_deadline_node;
 	avl_tree_t	*io_vdev_tree;
@@ -423,7 +424,6 @@ struct zio {
 	enum zio_flag	io_orig_flags;
 	enum zio_stage	io_orig_stage;
 	enum zio_stage	io_orig_pipeline;
-	uint64_t	io_delay;
 	int		io_error;
 	int		io_child_error[ZIO_CHILD_TYPES];
 	uint64_t	io_children[ZIO_CHILD_TYPES][ZIO_WAIT_TYPES];
@@ -560,6 +560,7 @@ extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
 extern int zio_handle_label_injection(zio_t *zio, int error);
 extern void zio_handle_ignored_writes(zio_t *zio);
+extern uint64_t zio_handle_io_delay(zio_t *zio);
 
 /*
  * Checksum ereport functions

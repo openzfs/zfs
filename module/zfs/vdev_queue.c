@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
+
 #include <sys/zfs_context.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
@@ -319,6 +323,7 @@ again:
 		    vi, size, fio->io_type, ZIO_PRIORITY_AGG,
 		    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 		    vdev_queue_agg_io_done, NULL);
+		aio->io_timestamp = fio->io_timestamp;
 
 		nio = fio;
 		do {
@@ -391,7 +396,8 @@ vdev_queue_io(zio_t *zio)
 
 	mutex_enter(&vq->vq_lock);
 
-	zio->io_deadline = (ddi_get_lbolt64() >> zfs_vdev_time_shift) +
+	zio->io_timestamp = ddi_get_lbolt64();
+	zio->io_deadline = (zio->io_timestamp >> zfs_vdev_time_shift) +
 	    zio->io_priority;
 
 	vdev_queue_io_add(vq, zio);
@@ -417,9 +423,16 @@ vdev_queue_io_done(zio_t *zio)
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
 	int i;
 
+	if (zio_injection_enabled)
+		delay(SEC_TO_TICK(zio_handle_io_delay(zio)));
+
 	mutex_enter(&vq->vq_lock);
 
 	avl_remove(&vq->vq_pending_tree, zio);
+
+	zio->io_delta = ddi_get_lbolt64() - zio->io_timestamp;
+	vq->vq_io_complete_ts = ddi_get_lbolt64();
+	vq->vq_io_delta_ts = vq->vq_io_complete_ts - zio->io_timestamp;
 
 	for (i = 0; i < zfs_vdev_ramp_rate; i++) {
 		zio_t *nio = vdev_queue_io_to_issue(vq, zfs_vdev_max_pending);
