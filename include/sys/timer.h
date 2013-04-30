@@ -37,5 +37,10 @@
 
 #define delay(ticks)			schedule_timeout((long)(ticks))
 
+#define SEC_TO_TICK(sec)		((sec) * HZ)
+#define MSEC_TO_TICK(ms)		msecs_to_jiffies(ms)
+#define USEC_TO_TICK(us)		usecs_to_jiffies(us)
+#define NSEC_TO_TICK(ns)		usecs_to_jiffies(ns / NSEC_PER_USEC)
+
 #endif  /* _SPL_TIMER_H */
 
