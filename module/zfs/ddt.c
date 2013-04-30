@@ -324,7 +324,7 @@ void
 ddt_phys_decref(ddt_phys_t *ddp)
 {
 	if (ddp) {
-		ASSERT((int64_t)ddp->ddp_refcnt > 0);
+		ASSERT(ddp->ddp_refcnt > 0);
 		ddp->ddp_refcnt--;
 	}
 }
@@ -1058,7 +1058,6 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 
 	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		ASSERT(dde->dde_lead_zio[p] == NULL);
-		ASSERT((int64_t)ddp->ddp_refcnt >= 0);
 		if (ddp->ddp_phys_birth == 0) {
 			ASSERT(ddp->ddp_refcnt == 0);
 			continue;
