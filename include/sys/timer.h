@@ -35,7 +35,7 @@
 #define ddi_get_lbolt()			((clock_t)jiffies)
 #define ddi_get_lbolt64()		((int64_t)get_jiffies_64())
 
-#define delay(ticks)			schedule_timeout((long)(ticks))
+#define delay(ticks)			schedule_timeout_uninterruptible(ticks)
 
 #define SEC_TO_TICK(sec)		((sec) * HZ)
 #define MSEC_TO_TICK(ms)		msecs_to_jiffies(ms)
