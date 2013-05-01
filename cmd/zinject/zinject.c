@@ -574,6 +574,16 @@ main(int argc, char **argv)
 	int ret;
 	int flags = 0;
 
+	if ((g_zfs = libzfs_init()) == NULL)
+		return (1);
+
+	libzfs_print_on_error(g_zfs, B_TRUE);
+
+	if ((zfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
+		(void) fprintf(stderr, "failed to open ZFS device\n");
+		return (1);
+	}
+
 	if (argc == 1) {
 		/*
 		 * No arguments.  Print the available handlers.  If there are no
@@ -763,16 +773,6 @@ main(int argc, char **argv)
 
 	argc -= optind;
 	argv += optind;
-
-	if ((g_zfs = libzfs_init()) == NULL)
-		return (1);
-
-	libzfs_print_on_error(g_zfs, B_TRUE);
-
-	if ((zfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
-		(void) fprintf(stderr, "failed to open ZFS device\n");
-		return (1);
-	}
 
 	if (record.zi_duration != 0)
 		record.zi_cmd = ZINJECT_IGNORED_WRITES;
