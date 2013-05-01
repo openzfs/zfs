@@ -1122,6 +1122,9 @@ Example: comment="Printer drivers"
 2. Samba must be able to authenticate a user. This can be done in a number of ways, depending on if using the system password file, LDAP or the Samba specific smbpasswd file. How to do this is outside the scope of this manual. Please refer to the smb.conf(5) manpage for more information.
 .sp
 3. If you want/need to enable guest access, you will need to enable \fBusershare allow guests\fR in smb.conf.
+.sp
+The module will use the optional script/binary named \fB/sbin/zfs_share_smb\fR, if it exists and is executable, after \fBnet\fR have shared the volume. The only parameter to this script/binary is the share name and this script is intended to allow administrators to add custom commands to be done on the share.
+The module will 'execute and forget'. Meaning, it will not care about exit code nor any output it gives. So if the script/binary fails for some reason, it is up to it to catch this. The ZFS module will not intervene.
 .RE
 
 .sp

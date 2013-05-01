@@ -345,6 +345,8 @@ smb_enable_share_one(sa_share_impl_t impl_share)
 		shareopts, opts->name, opts->comment, opts->acl, opts->guest_ok);
 #endif
 
+	/* ====== */
+	/* PART 1 - do the (inital) share. */
 	/* net usershare add sharename path [comment] [acl] [guest_ok=[y|n]] */
 	argv[0]  = NET_CMD_PATH;
 	argv[1]  = (char*)"-S";
@@ -365,6 +367,21 @@ smb_enable_share_one(sa_share_impl_t impl_share)
 	if (rc < 0)
 		return SA_SYSTEM_ERR;
 
+	/* ====== */
+	/* PART 2 - Run local update script. */
+	if (access(EXTRA_SMBFS_SHARE_SCRIPT, X_OK) == 0) {
+		argv[0] = (char*)EXTRA_SMBFS_SHARE_SCRIPT;
+		argv[1] = opts->name;
+		argv[2] = NULL;
+
+		rc = libzfs_run_process(argv[0], argv, STDERR_VERBOSE);
+		if (rc < 0) {
+			free(opts);
+			return SA_SYSTEM_ERR;
+		}
+	}
+
+	free(opts);
 	return SA_OK;
 }
 
