@@ -3062,7 +3062,7 @@ zio_done(zio_t *zio)
 			 * Hand it off to the otherwise-unused claim taskq.
 			 */
 			ASSERT(taskq_empty_ent(&zio->io_tqent));
-			(void) taskq_dispatch_ent(
+			taskq_dispatch_ent(
 			    zio->io_spa->spa_zio_taskq[ZIO_TYPE_CLAIM][ZIO_TASKQ_ISSUE],
 			    (task_func_t *)zio_reexecute, zio, 0,
 			    &zio->io_tqent);

@@ -114,6 +114,11 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
+\fBzpool reopen\fR \fIpool\fR
+.fi
+
+.LP
+.nf
 \fBzpool remove\fR \fIpool\fR \fIdevice\fR ...
 .fi
 
@@ -1508,8 +1513,18 @@ Expand the device to use all available space. If the device is part of a mirror 
 .ad
 .sp .6
 .RS 4n
-Generates a new unique identifier for the pool.  You must ensure that all devices in this pool are online and
-healthy before performing this action.
+Generates a new unique identifier for the pool. You must ensure that all
+devices in this pool are online and healthy before performing this action.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBzpool reopen\fR \fIpool\fR
+.ad
+.sp .6
+.RS 4n
+Reopen all the vdevs associated with the pool.
 .RE
 
 .sp
