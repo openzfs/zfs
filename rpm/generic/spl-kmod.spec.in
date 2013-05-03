@@ -44,7 +44,7 @@ Conflicts:      %{module}-dkms
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # because the latest versions may not be available for your distribution.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null) }
+%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
 
 
 %description
@@ -56,7 +56,7 @@ several interfaces provided by the Solaris kernel.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-bash %{SOURCE10} --target %{_target_cpu}  --kmodname %{name} --devel  %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null
+bash %{SOURCE10} --target %{_target_cpu}  --kmodname %{name} --devel  %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug

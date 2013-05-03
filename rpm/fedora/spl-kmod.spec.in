@@ -44,7 +44,7 @@ BuildRequires:  %{_bindir}/kmodtool
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(sh %{SOURCE10} --target %{_target_cpu} --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null) }
+%{expand:%(sh %{SOURCE10} --target %{_target_cpu} --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
 
 
 %description
@@ -56,7 +56,7 @@ several interfaces provided by the Solaris kernel.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-sh %{SOURCE10} --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} 2>/dev/null
+sh %{SOURCE10} --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?buildforkernels:--%{buildforkernels}} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug
