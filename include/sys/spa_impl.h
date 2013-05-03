@@ -250,6 +250,9 @@ extern char *spa_config_path;
 
 extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);
+extern void spa_taskq_dispatch_sync(spa_t *, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags);
+
 
 #ifdef	__cplusplus
 }

@@ -926,6 +926,31 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
 }
 
+/*
+ * Same as spa_taskq_dispatch_ent() but block on the task until completion.
+ */
+void
+spa_taskq_dispatch_sync(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags)
+{
+	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
+	taskq_t *tq;
+	taskqid_t id;
+
+	ASSERT3P(tqs->stqs_taskq, !=, NULL);
+	ASSERT3U(tqs->stqs_count, !=, 0);
+
+	if (tqs->stqs_count == 1) {
+		tq = tqs->stqs_taskq[0];
+	} else {
+		tq = tqs->stqs_taskq[gethrtime() % tqs->stqs_count];
+	}
+
+	id = taskq_dispatch(tq, func, arg, flags);
+	if (id)
+		taskq_wait_id(tq, id);
+}
+
 static void
 spa_create_zio_taskqs(spa_t *spa)
 {
