@@ -6078,7 +6078,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		spa_errlog_sync(spa, txg);
 		dsl_pool_sync(dp, txg);
 
-		if (pass <= SYNC_PASS_DEFERRED_FREE) {
+		if (pass < zfs_sync_pass_deferred_free) {
 			zio_t *zio = zio_root(spa, NULL, NULL, 0);
 			bplist_iterate(free_bpl, spa_free_sync_cb,
 			    zio, tx);
