@@ -78,23 +78,25 @@
 #include "zfs_comutil.h"
 
 typedef enum zti_modes {
-	zti_mode_fixed,			/* value is # of threads (min 1) */
-	zti_mode_online_percent,	/* value is % of online CPUs */
-	zti_mode_batch,			/* cpu-intensive; value is ignored */
-	zti_mode_null,			/* don't create a taskq */
-	zti_nmodes
+	ZTI_MODE_FIXED,			/* value is # of threads (min 1) */
+	ZTI_MODE_ONLINE_PERCENT,	/* value is % of online CPUs */
+	ZTI_MODE_BATCH,			/* cpu-intensive; value is ignored */
+	ZTI_MODE_NULL,			/* don't create a taskq */
+	ZTI_NMODES
 } zti_modes_t;
 
-#define	ZTI_FIX(n)	{ zti_mode_fixed, (n) }
-#define	ZTI_PCT(n)	{ zti_mode_online_percent, (n) }
-#define	ZTI_BATCH	{ zti_mode_batch, 0 }
-#define	ZTI_NULL	{ zti_mode_null, 0 }
+#define	ZTI_P(n, q)	{ ZTI_MODE_FIXED, (n), (q) }
+#define	ZTI_PCT(n)	{ ZTI_MODE_ONLINE_PERCENT, (n), 1 }
+#define	ZTI_BATCH	{ ZTI_MODE_BATCH, 0, 1 }
+#define	ZTI_NULL	{ ZTI_MODE_NULL, 0, 0 }
 
-#define	ZTI_ONE		ZTI_FIX(1)
+#define	ZTI_N(n)	ZTI_P(n, 1)
+#define	ZTI_ONE		ZTI_N(1)
 
 typedef struct zio_taskq_info {
-	enum zti_modes zti_mode;
+	zti_modes_t zti_mode;
 	uint_t zti_value;
+	uint_t zti_count;
 } zio_taskq_info_t;
 
 static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
@@ -102,17 +104,30 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
 };
 
 /*
- * Define the taskq threads for the following I/O types:
- * 	NULL, READ, WRITE, FREE, CLAIM, and IOCTL
+ * This table defines the taskq settings for each ZFS I/O type. When
+ * initializing a pool, we use this table to create an appropriately sized
+ * taskq. Some operations are low volume and therefore have a small, static
+ * number of threads assigned to their taskqs using the ZTI_N(#) or ZTI_ONE
+ * macros. Other operations process a large amount of data; the ZTI_BATCH
+ * macro causes us to create a taskq oriented for throughput. Some operations
+ * are so high frequency and short-lived that the taskq itself can become a
+ * point of lock contention. The ZTI_P(#, #) macro indicates that we need an
+ * additional degree of parallelism specified by the number of threads per-
+ * taskq and the number of taskqs; when dispatching an event in this case, the
+ * particular taskq is chosen at random.
+ *
+ * The different taskq priorities are to handle the different contexts (issue
+ * and interrupt) and then to reserve threads for ZIO_PRIORITY_NOW I/Os that
+ * need to be handled with minimum delay.
  */
 const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
-	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL },
-	{ ZTI_FIX(8),	ZTI_NULL,	ZTI_BATCH,	ZTI_NULL },
-	{ ZTI_BATCH,	ZTI_FIX(5),	ZTI_FIX(16),	ZTI_FIX(5) },
-	{ ZTI_PCT(100),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL },
-	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL },
-	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL },
+	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
+	{ ZTI_N(8),	ZTI_NULL,	ZTI_BATCH,	ZTI_NULL }, /* READ */
+	{ ZTI_BATCH,	ZTI_N(5),	ZTI_N(8),	ZTI_N(5) }, /* WRITE */
+	{ ZTI_P(12, 8),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
+	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
+	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* IOCTL */
 };
 
 static dsl_syncfunc_t spa_sync_version;
@@ -794,48 +809,122 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
 	    offsetof(spa_error_entry_t, se_avl));
 }
 
-static taskq_t *
-spa_taskq_create(spa_t *spa, const char *name, enum zti_modes mode,
-    uint_t value)
+static void
+spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 {
+	const zio_taskq_info_t *ztip = &zio_taskqs[t][q];
+	enum zti_modes mode = ztip->zti_mode;
+	uint_t value = ztip->zti_value;
+	uint_t count = ztip->zti_count;
+	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
+	char name[32];
 	uint_t flags = TASKQ_PREPOPULATE;
 	boolean_t batch = B_FALSE;
+	uint_t i;
 
-	switch (mode) {
-	case zti_mode_null:
-		return (NULL);		/* no taskq needed */
-
-	case zti_mode_fixed:
-		ASSERT3U(value, >=, 1);
-		value = MAX(value, 1);
-		break;
-
-	case zti_mode_batch:
-		batch = B_TRUE;
-		flags |= TASKQ_THREADS_CPU_PCT;
-		value = zio_taskq_batch_pct;
-		break;
-
-	case zti_mode_online_percent:
-		flags |= TASKQ_THREADS_CPU_PCT;
-		break;
-
-	default:
-		panic("unrecognized mode for %s taskq (%u:%u) in "
-		    "spa_activate()",
-		    name, mode, value);
-		break;
+	if (mode == ZTI_MODE_NULL) {
+		tqs->stqs_count = 0;
+		tqs->stqs_taskq = NULL;
+		return;
 	}
 
-	if (zio_taskq_sysdc && spa->spa_proc != &p0) {
-		if (batch)
-			flags |= TASKQ_DC_BATCH;
+	ASSERT3U(count, >, 0);
 
-		return (taskq_create_sysdc(name, value, 50, INT_MAX,
-		    spa->spa_proc, zio_taskq_basedc, flags));
+	tqs->stqs_count = count;
+	tqs->stqs_taskq = kmem_alloc(count * sizeof (taskq_t *), KM_SLEEP);
+
+	for (i = 0; i < count; i++) {
+		taskq_t *tq;
+
+		switch (mode) {
+		case ZTI_MODE_FIXED:
+			ASSERT3U(value, >=, 1);
+			value = MAX(value, 1);
+			break;
+
+		case ZTI_MODE_BATCH:
+			batch = B_TRUE;
+			flags |= TASKQ_THREADS_CPU_PCT;
+			value = zio_taskq_batch_pct;
+			break;
+
+		case ZTI_MODE_ONLINE_PERCENT:
+			flags |= TASKQ_THREADS_CPU_PCT;
+			break;
+
+		default:
+			panic("unrecognized mode for %s_%s taskq (%u:%u) in "
+			    "spa_activate()",
+			    zio_type_name[t], zio_taskq_types[q], mode, value);
+			break;
+		}
+
+		if (count > 1) {
+			(void) snprintf(name, sizeof (name), "%s_%s_%u",
+			    zio_type_name[t], zio_taskq_types[q], i);
+		} else {
+			(void) snprintf(name, sizeof (name), "%s_%s",
+			    zio_type_name[t], zio_taskq_types[q]);
+		}
+
+		if (zio_taskq_sysdc && spa->spa_proc != &p0) {
+			if (batch)
+				flags |= TASKQ_DC_BATCH;
+
+			tq = taskq_create_sysdc(name, value, 50, INT_MAX,
+			    spa->spa_proc, zio_taskq_basedc, flags);
+		} else {
+			tq = taskq_create_proc(name, value, maxclsyspri, 50,
+			    INT_MAX, spa->spa_proc, flags);
+		}
+
+		tqs->stqs_taskq[i] = tq;
 	}
-	return (taskq_create_proc(name, value, maxclsyspri, 50, INT_MAX,
-	    spa->spa_proc, flags));
+}
+
+static void
+spa_taskqs_fini(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
+{
+	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
+	uint_t i;
+
+	if (tqs->stqs_taskq == NULL) {
+		ASSERT(tqs->stqs_count == 0);
+		return;
+	}
+
+	for (i = 0; i < tqs->stqs_count; i++) {
+		ASSERT3P(tqs->stqs_taskq[i], !=, NULL);
+		taskq_destroy(tqs->stqs_taskq[i]);
+	}
+
+	kmem_free(tqs->stqs_taskq, tqs->stqs_count * sizeof (taskq_t *));
+	tqs->stqs_taskq = NULL;
+}
+
+/*
+ * Dispatch a task to the appropriate taskq for the ZFS I/O type and priority.
+ * Note that a type may have multiple discrete taskqs to avoid lock contention
+ * on the taskq itself. In that case we choose which taskq at random by using
+ * the low bits of gethrtime().
+ */
+void
+spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent)
+{
+	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
+	taskq_t *tq;
+
+	ASSERT3P(tqs->stqs_taskq, !=, NULL);
+	ASSERT3U(tqs->stqs_count, !=, 0);
+
+	if (tqs->stqs_count == 1) {
+		tq = tqs->stqs_taskq[0];
+	} else {
+		tq = tqs->stqs_taskq[gethrtime() % tqs->stqs_count];
+	}
+
+	taskq_dispatch_ent(tq, func, arg, flags, ent);
 }
 
 static void
@@ -845,16 +934,7 @@ spa_create_zio_taskqs(spa_t *spa)
 
 	for (t = 0; t < ZIO_TYPES; t++) {
 		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
-			const zio_taskq_info_t *ztip = &zio_taskqs[t][q];
-			enum zti_modes mode = ztip->zti_mode;
-			uint_t value = ztip->zti_value;
-			char name[32];
-
-			(void) snprintf(name, sizeof (name),
-			    "%s_%s", zio_type_name[t], zio_taskq_types[q]);
-
-			spa->spa_zio_taskq[t][q] =
-			    spa_taskq_create(spa, name, mode, value);
+			spa_taskqs_init(spa, t, q);
 		}
 	}
 }
@@ -1017,9 +1097,7 @@ spa_deactivate(spa_t *spa)
 
 	for (t = 0; t < ZIO_TYPES; t++) {
 		for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
-			if (spa->spa_zio_taskq[t][q] != NULL)
-				taskq_destroy(spa->spa_zio_taskq[t][q]);
-			spa->spa_zio_taskq[t][q] = NULL;
+			spa_taskqs_fini(spa, t, q);
 		}
 	}
 
