@@ -185,7 +185,7 @@ vdev_file_io_start(zio_t *zio)
 		return (ZIO_PIPELINE_CONTINUE);
 	}
 
-	taskq_dispatch_ent(spa->spa_zio_taskq[ZIO_TYPE_FREE][ZIO_TASKQ_ISSUE],
+	spa_taskq_dispatch_ent(spa, ZIO_TYPE_FREE, ZIO_TASKQ_ISSUE,
 	    vdev_file_io_strategy, zio, 0, &zio->io_tqent);
 
 	return (ZIO_PIPELINE_STOP);
