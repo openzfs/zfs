@@ -288,7 +288,7 @@ __zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size,
 
 	if (zsb->z_use_sa && zp->z_is_sa) {
 		error = zpl_xattr_get_sa(ip, name, value, size);
-		if (error >= 0)
+		if (error != -ENOENT)
 			goto out;
 	}
 
