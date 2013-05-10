@@ -162,7 +162,7 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 	} else {
 		newblk = zap_allocate_blocks(zap, tbl->zt_numblks * 2);
 		tbl->zt_nextblk = newblk;
-		ASSERT3U(tbl->zt_blks_copied, ==, 0);
+		ASSERT0(tbl->zt_blks_copied);
 		dmu_prefetch(zap->zap_objset, zap->zap_object,
 		    tbl->zt_blk << bs, tbl->zt_numblks << bs);
 	}
@@ -339,7 +339,7 @@ zap_grow_ptrtbl(zap_t *zap, dmu_tx_t *tx)
 
 		ASSERT3U(zap->zap_f.zap_phys->zap_ptrtbl.zt_shift, ==,
 		    ZAP_EMBEDDED_PTRTBL_SHIFT(zap));
-		ASSERT3U(zap->zap_f.zap_phys->zap_ptrtbl.zt_blk, ==, 0);
+		ASSERT0(zap->zap_f.zap_phys->zap_ptrtbl.zt_blk);
 
 		newblk = zap_allocate_blocks(zap, 1);
 		err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
@@ -475,7 +475,7 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 	 * chain.  There should be no chained leafs (as we have removed
 	 * support for them).
 	 */
-	ASSERT3U(l->l_phys->l_hdr.lh_pad1, ==, 0);
+	ASSERT0(l->l_phys->l_hdr.lh_pad1);
 
 	/*
 	 * There should be more hash entries than there can be
@@ -658,9 +658,9 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx, zap_leaf_t **lp)
 	zap_leaf_split(l, nl, zap->zap_normflags != 0);
 
 	/* set sibling pointers */
-	for (i = 0; i < (1ULL<<prefix_diff); i++) {
+	for (i = 0; i < (1ULL << prefix_diff); i++) {
 		err = zap_set_idx_to_blk(zap, sibling+i, nl->l_blkid, tx);
-		ASSERT3U(err, ==, 0); /* we checked for i/o errors above */
+		ASSERT0(err); /* we checked for i/o errors above */
 	}
 
 	if (hash & (1ULL << (64 - l->l_phys->l_hdr.lh_prefix_len))) {

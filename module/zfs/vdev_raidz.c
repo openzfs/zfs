@@ -281,7 +281,7 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
 
-	ASSERT3U(rm->rm_freed, ==, 0);
+	ASSERT0(rm->rm_freed);
 	rm->rm_freed = 1;
 
 	if (rm->rm_reports == 0)
@@ -1134,7 +1134,7 @@ vdev_raidz_matrix_invert(raidz_map_t *rm, int n, int nmissing, int *missing,
 	 */
 	for (i = 0; i < nmissing; i++) {
 		for (j = 0; j < missing[i]; j++) {
-			ASSERT3U(rows[i][j], ==, 0);
+			ASSERT0(rows[i][j]);
 		}
 		ASSERT3U(rows[i][missing[i]], !=, 0);
 
@@ -1175,7 +1175,7 @@ vdev_raidz_matrix_invert(raidz_map_t *rm, int n, int nmissing, int *missing,
 			if (j == missing[i]) {
 				ASSERT3U(rows[i][j], ==, 1);
 			} else {
-				ASSERT3U(rows[i][j], ==, 0);
+				ASSERT0(rows[i][j]);
 			}
 		}
 	}

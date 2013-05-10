@@ -94,9 +94,9 @@ bptree_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
 	bt = db->db_data;
 	ASSERT3U(bt->bt_begin, ==, bt->bt_end);
-	ASSERT3U(bt->bt_bytes, ==, 0);
-	ASSERT3U(bt->bt_comp, ==, 0);
-	ASSERT3U(bt->bt_uncomp, ==, 0);
+	ASSERT0(bt->bt_bytes);
+	ASSERT0(bt->bt_comp);
+	ASSERT0(bt->bt_uncomp);
 	dmu_buf_rele(db, FTAG);
 
 	return (dmu_object_free(os, obj, tx));
@@ -197,7 +197,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 				/* save bookmark for future resume */
 				ASSERT3U(bte.be_zb.zb_objset, ==,
 				    ZB_DESTROYED_OBJSET);
-				ASSERT3U(bte.be_zb.zb_level, ==, 0);
+				ASSERT0(bte.be_zb.zb_level);
 				dmu_write(os, obj, i * sizeof (bte),
 				    sizeof (bte), &bte, tx);
 				break;
@@ -213,9 +213,9 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 
 	/* if all blocks are free there should be no used space */
 	if (ba.ba_phys->bt_begin == ba.ba_phys->bt_end) {
-		ASSERT3U(ba.ba_phys->bt_bytes, ==, 0);
-		ASSERT3U(ba.ba_phys->bt_comp, ==, 0);
-		ASSERT3U(ba.ba_phys->bt_uncomp, ==, 0);
+		ASSERT0(ba.ba_phys->bt_bytes);
+		ASSERT0(ba.ba_phys->bt_comp);
+		ASSERT0(ba.ba_phys->bt_uncomp);
 	}
 
 	dmu_buf_rele(db, FTAG);
