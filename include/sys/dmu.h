@@ -498,6 +498,11 @@ void dmu_evict_user(objset_t *os, dmu_buf_evict_func_t *func);
 void *dmu_buf_get_user(dmu_buf_t *db);
 
 /*
+ * Returns the blkptr associated with this dbuf, or NULL if not set.
+ */
+struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
+
+/*
  * Indicate that you are going to modify the buffer's data (db_data).
  *
  * The transaction (tx) must be assigned to a txg (ie. you've called

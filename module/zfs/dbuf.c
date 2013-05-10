@@ -823,13 +823,15 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	ASSERT(db->db_data_pending != dr);
 
 	/* free this block */
-	if (!BP_IS_HOLE(bp)) {
+	if (!BP_IS_HOLE(bp) && !dr->dt.dl.dr_nopwrite) {
 		spa_t *spa;
 
 		DB_GET_SPA(&spa, db);
 		zio_free(spa, txg, bp);
 	}
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
+	dr->dt.dl.dr_nopwrite = B_FALSE;
+
 	/*
 	 * Release the already-written buffer, so we leave it in
 	 * a consistent dirty state.  Note that all callers are
@@ -2269,6 +2271,13 @@ dmu_buf_freeable(dmu_buf_t *dbuf)
 	return (res);
 }
 
+blkptr_t *
+dmu_buf_get_blkptr(dmu_buf_t *db)
+{
+	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
+	return (dbi->db_blkptr);
+}
+
 static void
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {
@@ -2622,7 +2631,11 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	ASSERT0(zio->io_error);
 	ASSERT(db->db_blkptr == bp);
 
-	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
+	/*
+	 * For nopwrites and rewrites we ensure that the bp matches our
+	 * original and bypass all the accounting.
+	 */
+	if (zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)) {
 		ASSERT(BP_EQUAL(bp, bp_orig));
 	} else {
 		objset_t *os;
@@ -2822,7 +2835,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		mutex_enter(&db->db_mtx);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
-		    dr->dt.dl.dr_copies);
+		    dr->dt.dl.dr_copies, dr->dt.dl.dr_nopwrite);
 		mutex_exit(&db->db_mtx);
 	} else if (db->db_state == DB_NOFILL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF);

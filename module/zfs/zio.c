@@ -723,9 +723,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	    DMU_OT_IS_VALID(zp->zp_type) &&
 	    zp->zp_level < 32 &&
 	    zp->zp_copies > 0 &&
-	    zp->zp_copies <= spa_max_replication(spa) &&
-	    zp->zp_dedup <= 1 &&
-	    zp->zp_dedup_verify <= 1);
+	    zp->zp_copies <= spa_max_replication(spa));
 
 	zio = zio_create(pio, spa, txg, bp, data, size, done, private,
 	    ZIO_TYPE_WRITE, priority, flags, NULL, 0, zb,
@@ -753,13 +751,20 @@ zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp, void *data,
 }
 
 void
-zio_write_override(zio_t *zio, blkptr_t *bp, int copies)
+zio_write_override(zio_t *zio, blkptr_t *bp, int copies, boolean_t nopwrite)
 {
 	ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
 	ASSERT(zio->io_txg == spa_syncing_txg(zio->io_spa));
 
+	/*
+	 * We must reset the io_prop to match the values that existed
+	 * when the bp was first written by dmu_sync() keeping in mind
+	 * that nopwrite and dedup are mutually exclusive.
+	 */
+	zio->io_prop.zp_dedup = nopwrite ? B_FALSE : zio->io_prop.zp_dedup;
+	zio->io_prop.zp_nopwrite = nopwrite;
 	zio->io_prop.zp_copies = copies;
 	zio->io_bp_override = bp;
 }
@@ -1051,6 +1056,19 @@ zio_write_bp_init(zio_t *zio)
 		*bp = *zio->io_bp_override;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 
+		/*
+		 * If we've been overridden and nopwrite is set then
+		 * set the flag accordingly to indicate that a nopwrite
+		 * has already occurred.
+		 */
+		if (!BP_IS_HOLE(bp) && zp->zp_nopwrite) {
+			ASSERT(!zp->zp_dedup);
+			zio->io_flags |= ZIO_FLAG_NOPWRITE;
+			return (ZIO_PIPELINE_CONTINUE);
+		}
+
+		ASSERT(!zp->zp_nopwrite);
+
 		if (BP_IS_HOLE(bp) || !zp->zp_dedup)
 			return (ZIO_PIPELINE_CONTINUE);
 
@@ -1137,6 +1155,11 @@ zio_write_bp_init(zio_t *zio)
 			ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 			ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REWRITE));
 			zio->io_pipeline = ZIO_DDT_WRITE_PIPELINE;
+		}
+		if (zp->zp_nopwrite) {
+			ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
+			ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REWRITE));
+			zio->io_pipeline |= ZIO_STAGE_NOP_WRITE;
 		}
 	}
 
@@ -1404,6 +1427,7 @@ zio_reexecute(zio_t *pio)
 	pio->io_stage = pio->io_orig_stage;
 	pio->io_pipeline = pio->io_orig_pipeline;
 	pio->io_reexecute = 0;
+	pio->io_flags |= ZIO_FLAG_REEXECUTED;
 	pio->io_error = 0;
 	for (w = 0; w < ZIO_WAIT_TYPES; w++)
 		pio->io_state[w] = 0;
@@ -1887,8 +1911,9 @@ zio_write_gang_block(zio_t *pio)
 		zp.zp_type = DMU_OT_NONE;
 		zp.zp_level = 0;
 		zp.zp_copies = gio->io_prop.zp_copies;
-		zp.zp_dedup = 0;
-		zp.zp_dedup_verify = 0;
+		zp.zp_dedup = B_FALSE;
+		zp.zp_dedup_verify = B_FALSE;
+		zp.zp_nopwrite = B_FALSE;
 
 		zio_nowait(zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
 		    (char *)pio->io_data + (pio->io_size - resid), lsize, &zp,
@@ -1908,6 +1933,62 @@ zio_write_gang_block(zio_t *pio)
 	pio->io_flags &= ~ZIO_FLAG_FASTWRITE;
 
 	zio_nowait(zio);
+
+	return (ZIO_PIPELINE_CONTINUE);
+}
+
+/*
+ * The zio_nop_write stage in the pipeline determines if allocating
+ * a new bp is necessary.  By leveraging a cryptographically secure checksum,
+ * such as SHA256, we can compare the checksums of the new data and the old
+ * to determine if allocating a new block is required.  The nopwrite
+ * feature can handle writes in either syncing or open context (i.e. zil
+ * writes) and as a result is mutually exclusive with dedup.
+ */
+static int
+zio_nop_write(zio_t *zio)
+{
+	blkptr_t *bp = zio->io_bp;
+	blkptr_t *bp_orig = &zio->io_bp_orig;
+	zio_prop_t *zp = &zio->io_prop;
+
+	ASSERT(BP_GET_LEVEL(bp) == 0);
+	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REWRITE));
+	ASSERT(zp->zp_nopwrite);
+	ASSERT(!zp->zp_dedup);
+	ASSERT(zio->io_bp_override == NULL);
+	ASSERT(IO_IS_ALLOCATING(zio));
+
+	/*
+	 * Check to see if the original bp and the new bp have matching
+	 * characteristics (i.e. same checksum, compression algorithms, etc).
+	 * If they don't then just continue with the pipeline which will
+	 * allocate a new bp.
+	 */
+	if (BP_IS_HOLE(bp_orig) ||
+	    !zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_dedup ||
+	    BP_GET_CHECKSUM(bp) != BP_GET_CHECKSUM(bp_orig) ||
+	    BP_GET_COMPRESS(bp) != BP_GET_COMPRESS(bp_orig) ||
+	    BP_GET_DEDUP(bp) != BP_GET_DEDUP(bp_orig) ||
+	    zp->zp_copies != BP_GET_NDVAS(bp_orig))
+		return (ZIO_PIPELINE_CONTINUE);
+
+	/*
+	 * If the checksums match then reset the pipeline so that we
+	 * avoid allocating a new bp and issuing any I/O.
+	 */
+	if (ZIO_CHECKSUM_EQUAL(bp->blk_cksum, bp_orig->blk_cksum)) {
+		ASSERT(zio_checksum_table[zp->zp_checksum].ci_dedup);
+		ASSERT3U(BP_GET_PSIZE(bp), ==, BP_GET_PSIZE(bp_orig));
+		ASSERT3U(BP_GET_LSIZE(bp), ==, BP_GET_LSIZE(bp_orig));
+		ASSERT(zp->zp_compress != ZIO_COMPRESS_OFF);
+		ASSERT(bcmp(&bp->blk_prop, &bp_orig->blk_prop,
+		    sizeof (uint64_t)) == 0);
+
+		*bp = *bp_orig;
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+		zio->io_flags |= ZIO_FLAG_NOPWRITE;
+	}
 
 	return (ZIO_PIPELINE_CONTINUE);
 }
@@ -2186,7 +2267,7 @@ zio_ddt_write(zio_t *zio)
 			zio->io_stage = ZIO_STAGE_OPEN;
 			BP_ZERO(bp);
 		} else {
-			zp->zp_dedup = 0;
+			zp->zp_dedup = B_FALSE;
 		}
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 		ddt_exit(ddt);
@@ -2815,7 +2896,8 @@ zio_ready(zio_t *zio)
 
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
-		ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
+		ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp) ||
+		    (zio->io_flags & ZIO_FLAG_NOPWRITE));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
 
 		zio->io_ready(zio);
@@ -2893,6 +2975,8 @@ zio_done(zio_t *zio)
 			ASSERT(BP_COUNT_GANG(zio->io_bp) == 0 ||
 			    (BP_COUNT_GANG(zio->io_bp) == BP_GET_NDVAS(zio->io_bp)));
 		}
+		if (zio->io_flags & ZIO_FLAG_NOPWRITE)
+			VERIFY(BP_EQUAL(zio->io_bp, &zio->io_bp_orig));
 	}
 
 	/*
@@ -3015,7 +3099,7 @@ zio_done(zio_t *zio)
 
 	if ((zio->io_error || zio->io_reexecute) &&
 	    IO_IS_ALLOCATING(zio) && zio->io_gang_leader == zio &&
-	    !(zio->io_flags & ZIO_FLAG_IO_REWRITE))
+	    !(zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)))
 		zio_dva_unallocate(zio, zio->io_gang_tree, zio->io_bp);
 
 	zio_gang_tree_free(&zio->io_gang_tree);
@@ -3112,7 +3196,7 @@ zio_done(zio_t *zio)
 	}
 
 	if (zio->io_flags & ZIO_FLAG_FASTWRITE && zio->io_bp &&
-	    !BP_IS_HOLE(zio->io_bp)) {
+	    !BP_IS_HOLE(zio->io_bp) && !(zio->io_flags & ZIO_FLAG_NOPWRITE)) {
 		metaslab_fastwrite_unmark(zio->io_spa, zio->io_bp);
 	}
 
@@ -3159,6 +3243,7 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_issue_async,
 	zio_write_bp_init,
 	zio_checksum_generate,
+	zio_nop_write,
 	zio_ddt_read_start,
 	zio_ddt_read_done,
 	zio_ddt_write,

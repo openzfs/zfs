@@ -208,6 +208,7 @@ enum ztest_io_type {
 	ZTEST_IO_WRITE_ZEROES,
 	ZTEST_IO_TRUNCATE,
 	ZTEST_IO_SETATTR,
+	ZTEST_IO_REWRITE,
 	ZTEST_IO_TYPES
 };
 
@@ -1900,6 +1901,12 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		    DMU_READ_NO_PREFETCH);
 
 		if (error == 0) {
+			blkptr_t *obp = dmu_buf_get_blkptr(db);
+			if (obp) {
+				ASSERT(BP_IS_HOLE(bp));
+				*bp = *obp;
+			}
+
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
@@ -2048,6 +2055,9 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 			continue;
 		}
 
+		/*
+		 * No object was found.
+		 */
 		if (od->od_object == 0)
 			continue;
 
@@ -2163,6 +2173,7 @@ ztest_prealloc(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size)
 static void
 ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 {
+	int err;
 	ztest_block_tag_t wbt;
 	dmu_object_info_t doi;
 	enum ztest_io_type io_type;
@@ -2216,6 +2227,25 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		(void) ztest_setattr(zd, object);
 		break;
 	default:
+		break;
+
+	case ZTEST_IO_REWRITE:
+		(void) rw_enter(&ztest_name_lock, RW_READER);
+		err = ztest_dsl_prop_set_uint64(zd->zd_name,
+		    ZFS_PROP_CHECKSUM, spa_dedup_checksum(ztest_spa),
+		    B_FALSE);
+		VERIFY(err == 0 || err == ENOSPC);
+		err = ztest_dsl_prop_set_uint64(zd->zd_name,
+		    ZFS_PROP_COMPRESSION,
+		    ztest_random_dsl_prop(ZFS_PROP_COMPRESSION),
+		    B_FALSE);
+		VERIFY(err == 0 || err == ENOSPC);
+		(void) rw_exit(&ztest_name_lock);
+
+		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
+		    DMU_READ_NO_PREFETCH));
+
+		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
 	}
 
@@ -2304,6 +2334,11 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
 	objset_t *os = zd->zd_os;
 
+	/*
+	 * We grab the zd_dirobj_lock to ensure that no other thread is
+	 * updating the zil (i.e. adding in-memory log records) and the
+	 * zd_zilog_lock to block any I/O.
+	 */
 	mutex_enter(&zd->zd_dirobj_lock);
 	(void) rw_enter(&zd->zd_zilog_lock, RW_WRITER);
 
@@ -5121,8 +5156,8 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Find out what block we got.
 	 */
-	VERIFY(dmu_buf_hold(os, object, 0, FTAG, &db,
-	    DMU_READ_NO_PREFETCH) == 0);
+	VERIFY0(dmu_buf_hold(os, object, 0, FTAG, &db,
+	    DMU_READ_NO_PREFETCH));
 	blk = *((dmu_buf_impl_t *)db)->db_blkptr;
 	dmu_buf_rele(db, FTAG);
 
@@ -5824,6 +5859,8 @@ ztest_freeze(void)
 	kernel_init(FREAD | FWRITE);
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY3U(0, ==, ztest_dataset_open(0));
+	spa->spa_debug = B_TRUE;
+	ztest_spa = spa;
 
 	/*
 	 * Force the first log block to be transactionally allocated.

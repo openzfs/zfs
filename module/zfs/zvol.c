@@ -35,6 +35,7 @@
  * needs to be run before opening and using a device.
  */
 
+#include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
@@ -815,8 +816,10 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 {
 	zvol_state_t *zv = arg;
 	objset_t *os = zv->zv_objset;
+	uint64_t object = ZVOL_OBJ;
 	uint64_t offset = lr->lr_offset;
 	uint64_t size = lr->lr_length;
+	blkptr_t *bp = &lr->lr_blkptr;
 	dmu_buf_t *db;
 	zgd_t *zgd;
 	int error;
@@ -836,14 +839,20 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		error = dmu_read(os, ZVOL_OBJ, offset, size, buf,
+		error = dmu_read(os, object, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
 	} else {
 		size = zv->zv_volblocksize;
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
-		error = dmu_buf_hold(os, ZVOL_OBJ, offset, zgd, &db,
+		error = dmu_buf_hold(os, object, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
 		if (error == 0) {
+			blkptr_t *obp = dmu_buf_get_blkptr(db);
+			if (obp) {
+				ASSERT(BP_IS_HOLE(bp));
+				*bp = *obp;
+			}
+
 			zgd->zgd_db = db;
 			zgd->zgd_bp = &lr->lr_blkptr;
 

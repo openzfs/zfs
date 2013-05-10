@@ -3708,6 +3708,12 @@ arc_write_done(zio_t *zio)
 				arc_hdr_destroy(exists);
 				exists = buf_hash_insert(hdr, &hash_lock);
 				ASSERT3P(exists, ==, NULL);
+			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
+				/* nopwrite */
+				ASSERT(zio->io_prop.zp_nopwrite);
+				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
+					panic("bad nopwrite, hdr=%p exists=%p",
+					    (void *)hdr, (void *)exists);
 			} else {
 				/* Dedup */
 				ASSERT(hdr->b_datacnt == 1);
