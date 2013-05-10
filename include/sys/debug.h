@@ -35,10 +35,12 @@
  * ASSERT3S()	- Assert signed X OP Y is true, if not panic.
  * ASSERT3U()	- Assert unsigned X OP Y is true, if not panic.
  * ASSERT3P()	- Assert pointer X OP Y is true, if not panic.
+ * ASSERT0()	- Assert value is zero, if not panic.
  * VERIFY()	- Verify X is true, if not panic.
  * VERIFY3S()	- Verify signed X OP Y is true, if not panic.
  * VERIFY3U()	- Verify unsigned X OP Y is true, if not panic.
  * VERIFY3P()	- Verify pointer X OP Y is true, if not panic.
+ * VERIFY0()	- Verify value is zero, if not panic.
  */
 
 #ifndef _SPL_DEBUG_H
@@ -79,10 +81,12 @@ do {									\
 #define VERIFY3U(x,y,z)	VERIFY3_IMPL(x, y, z, uint64_t, "%llu",		\
 				    (unsigned long long))
 #define VERIFY3P(x,y,z)	VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
+#define VERIFY0(x)	VERIFY3_IMPL(0, ==, x, int64_t, "%lld", (uint64_t))
 
 #define ASSERT3S(x,y,z)	((void)0)
 #define ASSERT3U(x,y,z)	((void)0)
 #define ASSERT3P(x,y,z)	((void)0)
+#define ASSERT0(x)	((void)0)
 
 #else /* Debugging Enabled */
 
@@ -130,10 +134,12 @@ do {									\
 #define VERIFY3U(x,y,z)	VERIFY3_IMPL(x, y, z, uint64_t, "%llu",		\
 				    (unsigned long long))
 #define VERIFY3P(x,y,z)	VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
+#define VERIFY0(x)	VERIFY3_IMPL(0, ==, x, int64_t, "%lld", (uint64_t))
 
 #define ASSERT3S(x,y,z)	VERIFY3S(x, y, z)
 #define ASSERT3U(x,y,z)	VERIFY3U(x, y, z)
 #define ASSERT3P(x,y,z)	VERIFY3P(x, y, z)
+#define ASSERT0(x)	VERIFY0(x)
 
 #define ASSERTV(x)	x
 #define VERIFY(x)	ASSERT(x)
