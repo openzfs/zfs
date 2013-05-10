@@ -38,6 +38,70 @@ extern "C" {
 #endif
 
 /*
+ * XXX -- Describe ZFS I/O pipleine here. Fill in as needed.
+ *
+ * The ZFS I/O pipeline is comprised of various stages which are defined
+ * in the zio_stage enum below. The individual stages are used to construct
+ * these basic I/O operations: Read, Write, Free, Claim, and Ioctl.
+ *
+ * I/O operations: (XXX - provide detail for each of the operations)
+ *
+ * Read:
+ * Write:
+ * Free:
+ * Claim:
+ * Ioctl:
+ *
+ * Although the most common pipeline are used by the basic I/O operations
+ * above, there are some helper pipelines (one could consider them
+ * sub-pipelines) which are used internally by the ZIO module and are
+ * explained below:
+ *
+ * Interlock Pipeline:
+ * The interlock pipeline is the most basic pipeline and is used by all
+ * of the I/O operations. The interlock pipeline does not perform any I/O
+ * and is used to coordinate the dependencies between I/Os that are being
+ * issued (i.e. the parent/child relationship).
+ *
+ * Vdev child Pipeline:
+ * The vdev child pipeline is responsible for performing the physical I/O.
+ * It is in this pipeline where the I/O are queued and possibly cached.
+ *
+ * In addition to performing I/O, the pipeline is also responsible for
+ * data transformations. The transformations performed are based on the
+ * specific properties that user may have selected and modify the
+ * behavior of the pipeline. Examples of supported transformations are
+ * compression, dedup, and nop writes. Transformations will either modify
+ * the data or the pipeline. This list below further describes each of
+ * the supported transformations:
+ *
+ * Compression:
+ * ZFS supports three different flavors of compression -- gzip, lzjb, and
+ * zle. Compression occurs as part of the write pipeline and is performed
+ * in the ZIO_STAGE_WRITE_BP_INIT stage.
+ *
+ * Dedup:
+ * Dedup reads are handled by the ZIO_STAGE_DDT_READ_START and
+ * ZIO_STAGE_DDT_READ_DONE stages. These stages are added to an existing
+ * read pipeline if the dedup bit is set on the block pointer.
+ * Writing a dedup block is performed by the ZIO_STAGE_DDT_WRITE stage
+ * and added to a write pipeline if a user has enabled dedup on that
+ * particular dataset.
+ *
+ * NOP Write:
+ * The NOP write feature is performed by the ZIO_STAGE_NOP_WRITE stage
+ * and is added to an existing write pipeline if a crypographically
+ * secure checksum (i.e. SHA256) is enabled and compression is turned on.
+ * The NOP write stage will compare the checksums of the current data
+ * on-disk (level-0 blocks only) and the data that is currently being written.
+ * If the checksum values are identical then the pipeline is converted to
+ * an interlock pipeline skipping block allocation and bypassing the
+ * physical I/O.  The nop write feature can handle writes in either
+ * syncing or open context (i.e. zil writes) and as a result is mutually
+ * exclusive with dedup.
+ */
+
+/*
  * zio pipeline stage definitions
  */
 enum zio_stage {
@@ -50,27 +114,29 @@ enum zio_stage {
 
 	ZIO_STAGE_CHECKSUM_GENERATE	= 1 << 5,	/* -W--- */
 
-	ZIO_STAGE_DDT_READ_START	= 1 << 6,	/* R---- */
-	ZIO_STAGE_DDT_READ_DONE		= 1 << 7,	/* R---- */
-	ZIO_STAGE_DDT_WRITE		= 1 << 8,	/* -W--- */
-	ZIO_STAGE_DDT_FREE		= 1 << 9,	/* --F-- */
+	ZIO_STAGE_NOP_WRITE		= 1 << 6,	/* -W--- */
 
-	ZIO_STAGE_GANG_ASSEMBLE		= 1 << 10,	/* RWFC- */
-	ZIO_STAGE_GANG_ISSUE		= 1 << 11,	/* RWFC- */
+	ZIO_STAGE_DDT_READ_START	= 1 << 7,	/* R---- */
+	ZIO_STAGE_DDT_READ_DONE		= 1 << 8,	/* R---- */
+	ZIO_STAGE_DDT_WRITE		= 1 << 9,	/* -W--- */
+	ZIO_STAGE_DDT_FREE		= 1 << 10,	/* --F-- */
 
-	ZIO_STAGE_DVA_ALLOCATE		= 1 << 12,	/* -W--- */
-	ZIO_STAGE_DVA_FREE		= 1 << 13,	/* --F-- */
-	ZIO_STAGE_DVA_CLAIM		= 1 << 14,	/* ---C- */
+	ZIO_STAGE_GANG_ASSEMBLE		= 1 << 11,	/* RWFC- */
+	ZIO_STAGE_GANG_ISSUE		= 1 << 12,	/* RWFC- */
 
-	ZIO_STAGE_READY			= 1 << 15,	/* RWFCI */
+	ZIO_STAGE_DVA_ALLOCATE		= 1 << 13,	/* -W--- */
+	ZIO_STAGE_DVA_FREE		= 1 << 14,	/* --F-- */
+	ZIO_STAGE_DVA_CLAIM		= 1 << 15,	/* ---C- */
 
-	ZIO_STAGE_VDEV_IO_START		= 1 << 16,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_DONE		= 1 << 17,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 18,	/* RW--I */
+	ZIO_STAGE_READY			= 1 << 16,	/* RWFCI */
 
-	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 19,	/* R---- */
+	ZIO_STAGE_VDEV_IO_START		= 1 << 17,	/* RW--I */
+	ZIO_STAGE_VDEV_IO_DONE		= 1 << 18,	/* RW--I */
+	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 19,	/* RW--I */
 
-	ZIO_STAGE_DONE			= 1 << 20	/* RWFCI */
+	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 20,	/* R---- */
+
+	ZIO_STAGE_DONE			= 1 << 21	/* RWFCI */
 };
 
 #define	ZIO_INTERLOCK_STAGES			\
