@@ -43,7 +43,7 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 
 	if (spa_feature_is_enabled(spa, empty_bpobj_feat)) {
 		if (!spa_feature_is_active(spa, empty_bpobj_feat)) {
-			ASSERT3U(dp->dp_empty_bpobj, ==, 0);
+			ASSERT0(dp->dp_empty_bpobj);
 			dp->dp_empty_bpobj =
 			    bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx);
 			VERIFY(zap_add(os,

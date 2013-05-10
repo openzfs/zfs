@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -555,7 +556,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 			err = zap_create_claim_norm(zsb->z_os, obj,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
 			    obj_type, bonuslen, tx);
-			ASSERT3U(err, ==, 0);
+			ASSERT0(err);
 		} else {
 			obj = zap_create_norm(zsb->z_os,
 			    zsb->z_norm, DMU_OT_DIRECTORY_CONTENTS,
@@ -566,7 +567,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 			err = dmu_object_claim(zsb->z_os, obj,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
 			    obj_type, bonuslen, tx);
-			ASSERT3U(err, ==, 0);
+			ASSERT0(err);
 		} else {
 			obj = dmu_object_alloc(zsb->z_os,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
@@ -746,7 +747,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
 		err = zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx);
-		ASSERT3S(err, ==, 0);
+		ASSERT0(err);
 	}
 	kmem_free(sa_attrs, sizeof(sa_bulk_attr_t) * ZPL_END);
 	ZFS_OBJ_HOLD_EXIT(zsb, obj);
@@ -1170,7 +1171,7 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 
 	if (error == ENOTSUP)
 		return;
-	ASSERT3U(error, ==, 0);
+	ASSERT0(error);
 
 	/* What blocksize did we actually get? */
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &zp->z_blksz, &dummy);
