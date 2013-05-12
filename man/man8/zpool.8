@@ -139,6 +139,11 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+.fi
+
+.LP
+.nf
 \fBzpool status\fR [\fB-xv\fR] [\fIpool\fR] ...
 .fi
 
@@ -1598,6 +1603,51 @@ Stop scrubbing.
 .sp .6
 .RS 4n
 Sets the given property on the specified pool. See the "Properties" section for more information on what properties can be set and acceptable values.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fBzpool split\fR [\fB-n\fR] [\fB-R\fR \fIaltroot\fR] [\fB-o\fR \fIproperty=value\fR] \fIpool\fR \fInewpool\fR
+.ad
+.sp .6
+.RS 4n
+Split devices off \fIpool\fR creating \fInewpool\fR.  All \fBvdev\fRs in \fIpool\fR must be mirrors.  At the time of the split, \fInewpool\fR will be a replica of \fIpool\fR.
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-n\fR \fR
+.ad
+.sp .6
+.RS 4n
+Do dry run, do not actually perform the split. Print out the expected configuration of \fInewpool\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-R\fR \fIaltroot\fR \fR
+.ad
+.sp .6
+.RS 4n
+Set \fIaltroot\fR for \fInewpool\fR and automaticaly import it.  This can be useful to avoid mountpoint collisions if \fInewpool\fR is imported on the same filesystem as \fIpool\fR.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fIproperty=value\fR \fR
+.ad
+.sp .6
+.RS 4n
+Sets the specified property for \fInewpool\fR. See the “Properties” section for more information on the available pool properties.
+.RE
+
 .RE
 
 .sp
