@@ -74,10 +74,12 @@ extern size_t vmem_size(vmem_t *vmp, int typemask);
 #ifndef HAVE_GET_VMALLOC_INFO
 #ifdef CONFIG_MMU
 
+#ifndef HAVE_VMALLOC_INFO
 struct vmalloc_info {
 	unsigned long used;
 	unsigned long largest_chunk;
 };
+#endif
 
 typedef void (*get_vmalloc_info_t)(struct vmalloc_info *);
 extern get_vmalloc_info_t get_vmalloc_info_fn;

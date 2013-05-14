@@ -33,6 +33,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_TASK_CURR
 	SPL_AC_CTL_UNNUMBERED
 	SPL_AC_CTL_NAME
+	SPL_AC_VMALLOC_INFO
 	SPL_AC_FLS64
 	SPL_AC_DEVICE_CREATE
 	SPL_AC_5ARGS_DEVICE_CREATE
@@ -1354,6 +1355,25 @@ AC_DEFUN([SPL_AC_GET_VMALLOC_INFO],
 		          [get_vmalloc_info() is available])
 	], [
 		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.10 API change,
+dnl # struct vmalloc_info is now declared in linux/vmalloc.h
+dnl #
+AC_DEFUN([SPL_AC_VMALLOC_INFO], [
+	AC_MSG_CHECKING([whether struct vmalloc_info is declared])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/vmalloc.h>
+		struct vmalloc_info { void *a; };
+	],[
+		return 0;
+	],[
+		AC_MSG_RESULT(no)
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_VMALLOC_INFO, 1, [yes])
 	])
 ])
 
