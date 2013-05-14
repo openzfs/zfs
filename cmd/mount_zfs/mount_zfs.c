@@ -131,15 +131,6 @@ parse_option(char *mntopt, unsigned long *mntflags,
 		if (strncmp(name, opt->name, strlen(name)) == 0) {
 			*mntflags |= opt->mntmask;
 			*zfsflags |= opt->zfsmask;
-
-			/* MS_USERS implies default user options */
-			if (opt->mntmask & (MS_USERS))
-				*mntflags |= (MS_NOEXEC|MS_NOSUID|MS_NODEV);
-
-			/* MS_OWNER|MS_GROUP imply default owner options */
-			if (opt->mntmask & (MS_OWNER | MS_GROUP))
-				*mntflags |= (MS_NOSUID|MS_NODEV);
-
 			error = 0;
 			goto out;
 		}
