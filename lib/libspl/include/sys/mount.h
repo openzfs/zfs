@@ -51,10 +51,10 @@
 #define MS_DIRSYNC		S_WRITE
 #endif
 
-#define	MS_USERS	0x40000000
-#define	MS_OWNER	0x10000000
-#define	MS_GROUP	0x08000000
-#define	MS_COMMENT	0x02000000
+#define	MS_USERS	(MS_NOEXEC|MS_NOSUID|MS_NODEV)
+#define	MS_OWNER	(MS_NOSUID|MS_NODEV)
+#define	MS_GROUP	(MS_NOSUID|MS_NODEV)
+#define	MS_COMMENT	0
 
 /*
  * Older glibc <sys/mount.h> headers did not define all the available
