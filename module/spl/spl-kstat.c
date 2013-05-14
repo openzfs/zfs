@@ -33,6 +33,9 @@
 #endif
 
 #define SS_DEBUG_SUBSYS SS_KSTAT
+#ifndef HAVE_PDE_DATA
+#define PDE_DATA(x) (PDE(x)->data)
+#endif
 
 static spinlock_t kstat_lock;
 static struct list_head kstat_list;
@@ -359,7 +362,7 @@ proc_kstat_open(struct inode *inode, struct file *filp)
                 return rc;
 
         f = filp->private_data;
-        f->private = PDE(inode)->data;
+        f->private = PDE_DATA(inode);
 
         return rc;
 }
