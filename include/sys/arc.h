@@ -136,6 +136,7 @@ int arc_buf_size(arc_buf_t *buf);
 void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
 int arc_has_callback(arc_buf_t *buf);
+void arc_buf_sigsegv(int sig, siginfo_t *si, void *unused);
 void arc_buf_freeze(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
 boolean_t arc_buf_eviction_needed(arc_buf_t *buf);
@@ -182,6 +183,10 @@ void l2arc_stop(void);
 extern int zfs_write_limit_shift;
 extern unsigned long zfs_write_limit_max;
 extern kmutex_t zfs_write_limit_lock;
+
+#ifndef _KERNEL
+extern boolean_t arc_watch;
+#endif
 
 #ifdef	__cplusplus
 }

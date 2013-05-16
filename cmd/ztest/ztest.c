@@ -6210,11 +6210,12 @@ main(int argc, char **argv)
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
+	dprintf_setup(&argc, argv);
+
 	ztest_fd_rand = open("/dev/urandom", O_RDONLY);
 	ASSERT3S(ztest_fd_rand, >=, 0);
 
 	if (!fd_data_str) {
-		dprintf_setup(&argc, argv);
 		process_options(argc, argv);
 
 		setup_data_fd();

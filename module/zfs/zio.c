@@ -169,11 +169,21 @@ zio_init(void)
 		while (p2 & (p2 - 1))
 			p2 &= p2 - 1;
 
+#ifndef _KERNEL
+		/*
+		 * If we are using watchpoints, put each buffer on its own page,
+		 * to eliminate the performance overhead of trapping to the
+		 * kernel when modifying a non-watched buffer that shares the
+		 * page with a watched buffer.
+		 */
+		if (arc_watch && !IS_P2ALIGNED(size, PAGESIZE))
+			continue;
+#endif
 		if (size <= 4 * SPA_MINBLOCKSIZE) {
 			align = SPA_MINBLOCKSIZE;
-		} else if (P2PHASE(size, PAGESIZE) == 0) {
+		} else if (IS_P2ALIGNED(size, PAGESIZE)) {
 			align = PAGESIZE;
-		} else if (P2PHASE(size, p2 >> 2) == 0) {
+		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
 			align = p2 >> 2;
 		}
 

@@ -1630,6 +1630,23 @@ spa_init(int mode)
 
 	spa_mode_global = mode;
 
+#ifndef _KERNEL
+	if (spa_mode_global != FREAD && dprintf_find_string("watch")) {
+		struct sigaction sa;
+
+		sa.sa_flags = SA_SIGINFO;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_sigaction = arc_buf_sigsegv;
+
+		if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+			perror("could not enable watchpoints: "
+			    "sigaction(SIGSEGV, ...) = ");
+		} else {
+			arc_watch = B_TRUE;
+		}
+	}
+#endif
+
 	fm_init();
 	refcount_init();
 	unique_init();
