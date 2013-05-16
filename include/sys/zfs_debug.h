@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -75,6 +76,11 @@ extern int zfs_recover;
 
 void zfs_panic_recover(const char *fmt, ...);
 #define	zfs_dbgmsg(...)	dprintf(__VA_ARGS__)
+
+#ifndef _KERNEL
+extern int dprintf_find_string(const char *string);
+#endif
+
 void zfs_dbgmsg_init(void);
 void zfs_dbgmsg_fini(void);
 

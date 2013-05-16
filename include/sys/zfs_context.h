@@ -96,6 +96,8 @@
 #include <dirent.h>
 #include <time.h>
 #include <ctype.h>
+#include <signal.h>
+#include <sys/mman.h>
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
