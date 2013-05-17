@@ -221,7 +221,9 @@ vdev_mirror_child_select(zio_t *zio)
 	mirror_map_t *mm = zio->io_vsd;
 	mirror_child_t *mc;
 	uint64_t txg = zio->io_txg;
-	int i, c;
+	int pending_lowest_child = -1;
+	int pending_lowest_count = INT_MAX;
+	int i, c, pending;
 
 	ASSERT(zio->io_bp == NULL || BP_PHYSICAL_BIRTH(zio->io_bp) == txg);
 
@@ -243,11 +245,27 @@ vdev_mirror_child_select(zio_t *zio)
 			continue;
 		}
 		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
-			return (c);
+		{
+			pending = vdev_pending_queued(mc->mc_vd);
+			if (pending == 0)
+				return (c);
+			if (pending < pending_lowest_count) {
+				pending_lowest_count = pending;
+				pending_lowest_child = c;
+			}
+			continue;
+		}
 		mc->mc_error = ESTALE;
 		mc->mc_skipped = 1;
 		mc->mc_speculative = 1;
 	}
+
+	/*
+	 * See if we found multiple devices with pending io's
+	 * and return the child with smallest queue.
+	 */
+	if ( pending_lowest_child != -1 )
+		return (pending_lowest_child);
 
 	/*
 	 * Every device is either missing or has this txg in its DTL.

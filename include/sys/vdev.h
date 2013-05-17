@@ -69,6 +69,7 @@ extern void vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 extern boolean_t vdev_dtl_required(vdev_t *vd);
 extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);
+extern int vdev_pending_queued(vdev_t *vd);
 
 extern void vdev_hold(vdev_t *);
 extern void vdev_rele(vdev_t *);
