@@ -34,6 +34,7 @@
 #include <sys/fs/zfs.h>
 
 int zfs_vdev_mirror_pending_balance = 0;
+int zfs_vdev_mirror_pending_balance_debug = 0;
 
 /*
  * Virtual device vector for mirroring.
@@ -251,6 +252,8 @@ vdev_mirror_child_select(zio_t *zio)
 			if (!zfs_vdev_mirror_pending_balance)	/* balance disabled */
 				return (c);
 			pending = vdev_pending_queued(mc->mc_vd);
+			if (zfs_vdev_mirror_pending_balance_debug)
+				printk("child: %d -> %d", c, pending);
 			if (pending == 0)
 				return (c);
 			if (pending < pending_lowest_count) {
@@ -269,7 +272,11 @@ vdev_mirror_child_select(zio_t *zio)
 	 * and return the child with smallest queue.
 	 */
 	if ( pending_lowest_child != -1 )
+	{
+		if (zfs_vdev_mirror_pending_balance_debug)
+			printk("select: %d -> %d", pending_lowest_child, pending_lowest_count);
 		return (pending_lowest_child);
+	}
 
 	/*
 	 * Every device is either missing or has this txg in its DTL.
@@ -518,4 +525,6 @@ vdev_ops_t vdev_spare_ops = {
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(zfs_vdev_mirror_pending_balance, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_mirror_pending_balance, "Balance reads from mirror vdev based on pending queue depth");
+module_param(zfs_vdev_mirror_pending_balance_debug, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_pending_balance_debug, "Enable Debug on: Balance reads from mirror vdev based on pending queue depth");
 #endif
