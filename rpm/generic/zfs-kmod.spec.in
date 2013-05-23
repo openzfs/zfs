@@ -98,7 +98,7 @@ for kernel_version in %{?kernel_versions}; do
         fi)" \
         --with-linux-obj="/lib/modules/${kernel_version%%___*}/build" \
 %endif
-        --with-spl="/usr/src/spl-%{version}" \
+        --with-spl="@SPL@" \
         --with-spl-obj="/usr/src/spl-%{version}/${kernel_version%%___*}" \
         %{debug} \
         %{debug_dmu_tx}
