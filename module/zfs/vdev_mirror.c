@@ -33,6 +33,8 @@
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
 
+int zfs_vdev_mirror_pending_balance = 0;
+
 /*
  * Virtual device vector for mirroring.
  */
@@ -246,6 +248,8 @@ vdev_mirror_child_select(zio_t *zio)
 		}
 		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
 		{
+			if (!zfs_vdev_mirror_pending_balance)	/* balance disabled */
+				return (c);
 			pending = vdev_pending_queued(mc->mc_vd);
 			if (pending == 0)
 				return (c);
@@ -510,3 +514,8 @@ vdev_ops_t vdev_spare_ops = {
 	VDEV_TYPE_SPARE,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_vdev_mirror_pending_balance, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_pending_balance, "Balance reads from mirror vdev based on pending queue depth");
+#endif
