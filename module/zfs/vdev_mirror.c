@@ -269,7 +269,18 @@ vdev_mirror_child_select(zio_t *zio)
 				pending_lowest_count = pending;
 				pending_lowest_child = c;
 				if (zfs_vdev_mirror_pending_balance_debug)
-						printk(" [save new lowest]\n");
+						printk(" [save new lowest] ");
+			}
+			else if (pending == pending_lowest_count)
+			{
+				if (zfs_vdev_mirror_pending_balance_debug)
+					printk(" [same] ");
+				if ( c == mm->mm_preferred)
+				{
+					if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [update preferred] ");
+					pending_lowest_child = c;
+				}
 			}
 			if (zfs_vdev_mirror_pending_balance_debug)
 					printk(" [continue]\n");
@@ -287,7 +298,7 @@ vdev_mirror_child_select(zio_t *zio)
 	if ( pending_lowest_child != -1 )
 	{
 		if (zfs_vdev_mirror_pending_balance_debug)
-			printk("select: %d -> %d\n", pending_lowest_child, pending_lowest_count);
+			printk(" select: %d -> %d\n", pending_lowest_child, pending_lowest_count);
 		return (pending_lowest_child);
 	}
 
