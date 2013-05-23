@@ -221,8 +221,6 @@ vdev_mirror_scrub_done(zio_t *zio)
 static int
 vdev_mirror_child_select(zio_t *zio)
 {
-	if (zfs_vdev_mirror_pending_balance_debug)
-			printk("\n");
 	mirror_map_t *mm = zio->io_vsd;
 	mirror_child_t *mc;
 	uint64_t txg = zio->io_txg;
@@ -231,6 +229,9 @@ vdev_mirror_child_select(zio_t *zio)
 	int i, c, pending;
 
 	ASSERT(zio->io_bp == NULL || BP_PHYSICAL_BIRTH(zio->io_bp) == txg);
+
+	if (zfs_vdev_mirror_pending_balance_debug)
+			printk("\n");
 
 	/*
 	 * Try to find a child whose DTL doesn't contain the block to read.
