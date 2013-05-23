@@ -221,6 +221,8 @@ vdev_mirror_scrub_done(zio_t *zio)
 static int
 vdev_mirror_child_select(zio_t *zio)
 {
+	if (zfs_vdev_mirror_pending_balance_debug)
+			printk("\n");
 	mirror_map_t *mm = zio->io_vsd;
 	mirror_child_t *mc;
 	uint64_t txg = zio->io_txg;
@@ -236,6 +238,8 @@ vdev_mirror_child_select(zio_t *zio)
 	 * vdev_readable() returning B_FALSE), don't even try.
 	 */
 	for (i = 0, c = mm->mm_preferred; i < mm->mm_children; i++, c++) {
+		if (zfs_vdev_mirror_pending_balance_debug)
+			printk(" loop: i:%d, c:%d, mm->mm_preferred: %d, mm->mm_children: %d ", i, c, mm->mm_preferred, mm->mm_children);
 		if (c >= mm->mm_children)
 			c = 0;
 		mc = &mm->mm_child[c];
@@ -253,13 +257,21 @@ vdev_mirror_child_select(zio_t *zio)
 				return (c);
 			pending = vdev_pending_queued(mc->mc_vd);
 			if (zfs_vdev_mirror_pending_balance_debug)
-				printk("child: %d -> %d", c, pending);
+				printk(" child[%d] - pending: %d ", c, pending);
 			if (pending == 0)
+			{
+				if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [select empty]\n");
 				return (c);
+			}
 			if (pending < pending_lowest_count) {
 				pending_lowest_count = pending;
 				pending_lowest_child = c;
+				if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [save new lowest]\n");
 			}
+			if (zfs_vdev_mirror_pending_balance_debug)
+					printk(" [continue]\n");
 			continue;
 		}
 		mc->mc_error = ESTALE;
@@ -274,7 +286,7 @@ vdev_mirror_child_select(zio_t *zio)
 	if ( pending_lowest_child != -1 )
 	{
 		if (zfs_vdev_mirror_pending_balance_debug)
-			printk("select: %d -> %d", pending_lowest_child, pending_lowest_count);
+			printk("select: %d -> %d\n", pending_lowest_child, pending_lowest_count);
 		return (pending_lowest_child);
 	}
 
