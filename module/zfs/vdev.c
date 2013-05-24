@@ -1948,6 +1948,20 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 	return (needed);
 }
 
+int
+vdev_pending_queued(vdev_t *vd)
+{
+	int pending;
+
+	vdev_queue_t *vq = &vd->vdev_queue;
+
+	mutex_enter(&vq->vq_lock);
+	pending = avl_numnodes(&vq->vq_pending_tree);
+	mutex_exit(&vq->vq_lock);
+
+	return pending;
+}
+
 void
 vdev_load(vdev_t *vd)
 {

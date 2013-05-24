@@ -33,6 +33,9 @@
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
 
+int zfs_vdev_mirror_pending_balance = 0;
+int zfs_vdev_mirror_pending_balance_debug = 0;
+
 /*
  * Virtual device vector for mirroring.
  */
@@ -221,9 +224,14 @@ vdev_mirror_child_select(zio_t *zio)
 	mirror_map_t *mm = zio->io_vsd;
 	mirror_child_t *mc;
 	uint64_t txg = zio->io_txg;
-	int i, c;
+	int pending_lowest_child = -1;
+	int pending_lowest_count = INT_MAX;
+	int i, c, pending;
 
 	ASSERT(zio->io_bp == NULL || BP_PHYSICAL_BIRTH(zio->io_bp) == txg);
+
+	if (zfs_vdev_mirror_pending_balance_debug)
+			printk("\n");
 
 	/*
 	 * Try to find a child whose DTL doesn't contain the block to read.
@@ -231,6 +239,8 @@ vdev_mirror_child_select(zio_t *zio)
 	 * vdev_readable() returning B_FALSE), don't even try.
 	 */
 	for (i = 0, c = mm->mm_preferred; i < mm->mm_children; i++, c++) {
+		if (zfs_vdev_mirror_pending_balance_debug)
+			printk(" loop: i:%d, c:%d, mm->mm_preferred: %d, mm->mm_children: %d ", i, c, mm->mm_preferred, mm->mm_children);
 		if (c >= mm->mm_children)
 			c = 0;
 		mc = &mm->mm_child[c];
@@ -243,10 +253,53 @@ vdev_mirror_child_select(zio_t *zio)
 			continue;
 		}
 		if (!vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1))
-			return (c);
+		{
+			if (!zfs_vdev_mirror_pending_balance)	/* balance disabled */
+				return (c);
+			pending = vdev_pending_queued(mc->mc_vd);
+			if (zfs_vdev_mirror_pending_balance_debug)
+				printk(" child[%d] - pending: %d ", c, pending);
+			if (pending == 0)
+			{
+				if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [select empty]\n");
+				return (c);
+			}
+			if (pending < pending_lowest_count) {
+				pending_lowest_count = pending;
+				pending_lowest_child = c;
+				if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [save new lowest] ");
+			}
+			else if (pending == pending_lowest_count)
+			{
+				if (zfs_vdev_mirror_pending_balance_debug)
+					printk(" [same] ");
+				if ( c == mm->mm_preferred)
+				{
+					if (zfs_vdev_mirror_pending_balance_debug)
+						printk(" [update preferred] ");
+					pending_lowest_child = c;
+				}
+			}
+			if (zfs_vdev_mirror_pending_balance_debug)
+					printk(" [continue]\n");
+			continue;
+		}
 		mc->mc_error = ESTALE;
 		mc->mc_skipped = 1;
 		mc->mc_speculative = 1;
+	}
+
+	/*
+	 * See if we found multiple devices with pending io's
+	 * and return the child with smallest queue.
+	 */
+	if ( pending_lowest_child != -1 )
+	{
+		if (zfs_vdev_mirror_pending_balance_debug)
+			printk(" select: %d -> %d\n", pending_lowest_child, pending_lowest_count);
+		return (pending_lowest_child);
 	}
 
 	/*
@@ -492,3 +545,10 @@ vdev_ops_t vdev_spare_ops = {
 	VDEV_TYPE_SPARE,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_vdev_mirror_pending_balance, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_pending_balance, "Balance reads from mirror vdev based on pending queue depth");
+module_param(zfs_vdev_mirror_pending_balance_debug, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_pending_balance_debug, "Enable Debug on: Balance reads from mirror vdev based on pending queue depth");
+#endif
