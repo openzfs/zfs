@@ -22,9 +22,10 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
- * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 #include <assert.h>
@@ -799,6 +800,7 @@ typedef struct send_dump_data {
 	int outfd;
 	boolean_t err;
 	nvlist_t *fss;
+	nvlist_t *snapholds;
 	avl_tree_t *fsavl;
 	snapfilter_cb_t *filter_cb;
 	void *filter_cb_arg;
@@ -948,41 +950,19 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 	return (0);
 }
 
-static int
-hold_for_send(zfs_handle_t *zhp, send_dump_data_t *sdd)
+static void
+gather_holds(zfs_handle_t *zhp, send_dump_data_t *sdd)
 {
-	zfs_handle_t *pzhp;
-	int error = 0;
-	char *thissnap;
-
 	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
 
-	if (sdd->dryrun)
-		return (0);
-
 	/*
-	 * zfs_send() only opens a cleanup_fd for sends that need it,
+	 * zfs_send() only sets snapholds for sends that need them,
 	 * e.g. replication and doall.
 	 */
-	if (sdd->cleanup_fd == -1)
-		return (0);
+	if (sdd->snapholds == NULL)
+		return;
 
-	thissnap = strchr(zhp->zfs_name, '@') + 1;
-	*(thissnap - 1) = '\0';
-	pzhp = zfs_open(zhp->zfs_hdl, zhp->zfs_name, ZFS_TYPE_DATASET);
-	*(thissnap - 1) = '@';
-
-	/*
-	 * It's OK if the parent no longer exists.  The send code will
-	 * handle that error.
-	 */
-	if (pzhp) {
-		error = zfs_hold(pzhp, thissnap, sdd->holdtag,
-		    B_FALSE, B_TRUE, sdd->cleanup_fd);
-		zfs_close(pzhp);
-	}
-
-	return (error);
+	fnvlist_add_string(sdd->snapholds, zhp->zfs_name, sdd->holdtag);
 }
 
 static void *
@@ -1038,28 +1018,23 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	send_dump_data_t *sdd = arg;
 	progress_arg_t pa = { 0 };
 	pthread_t tid;
-
 	char *thissnap;
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
 	boolean_t exclude = B_FALSE;
 
+	err = 0;
 	thissnap = strchr(zhp->zfs_name, '@') + 1;
 	isfromsnap = (sdd->fromsnap != NULL &&
 	    strcmp(sdd->fromsnap, thissnap) == 0);
 
 	if (!sdd->seenfrom && isfromsnap) {
-		err = hold_for_send(zhp, sdd);
-		if (err == 0) {
-			sdd->seenfrom = B_TRUE;
-			(void) strcpy(sdd->prevsnap, thissnap);
-			sdd->prevsnap_obj = zfs_prop_get_int(zhp,
-			    ZFS_PROP_OBJSETID);
-		} else if (err == ENOENT) {
-			err = 0;
-		}
+		gather_holds(zhp, sdd);
+		sdd->seenfrom = B_TRUE;
+		(void) strcpy(sdd->prevsnap, thissnap);
+		sdd->prevsnap_obj = zfs_prop_get_int(zhp, ZFS_PROP_OBJSETID);
 		zfs_close(zhp);
-		return (err);
+		return (0);
 	}
 
 	if (sdd->seento || !sdd->seenfrom) {
@@ -1110,14 +1085,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		return (0);
 	}
 
-	err = hold_for_send(zhp, sdd);
-	if (err) {
-		if (err == ENOENT)
-			err = 0;
-		zfs_close(zhp);
-		return (err);
-	}
-
+	gather_holds(zhp, sdd);
 	fromorigin = sdd->prevsnap[0] == '\0' &&
 	    (sdd->fromorigin || sdd->replicate);
 
@@ -1385,7 +1353,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	avl_tree_t *fsavl = NULL;
 	static uint64_t holdseq;
 	int spa_version;
-	pthread_t tid;
+	pthread_t tid = 0;
 	int pipefd[2];
 	dedup_arg_t dda = { 0 };
 	int featureflags = 0;
@@ -1458,11 +1426,8 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 				*debugnvp = hdrnv;
 			else
 				nvlist_free(hdrnv);
-			if (err) {
-				fsavl_destroy(fsavl);
-				nvlist_free(fss);
+			if (err)
 				goto stderr_out;
-			}
 		}
 
 		if (!flags->dryrun) {
@@ -1486,8 +1451,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			}
 			free(packbuf);
 			if (err == -1) {
-				fsavl_destroy(fsavl);
-				nvlist_free(fss);
 				err = errno;
 				goto stderr_out;
 			}
@@ -1498,8 +1461,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			drr.drr_u.drr_end.drr_checksum = zc;
 			err = write(outfd, &drr, sizeof (drr));
 			if (err == -1) {
-				fsavl_destroy(fsavl);
-				nvlist_free(fss);
 				err = errno;
 				goto stderr_out;
 			}
@@ -1511,7 +1472,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	/* dump each stream */
 	sdd.fromsnap = fromsnap;
 	sdd.tosnap = tosnap;
-	if (flags->dedup)
+	if (tid != 0)
 		sdd.outfd = pipefd[0];
 	else
 		sdd.outfd = outfd;
@@ -1548,36 +1509,71 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			err = errno;
 			goto stderr_out;
 		}
+		sdd.snapholds = fnvlist_alloc();
 	} else {
 		sdd.cleanup_fd = -1;
+		sdd.snapholds = NULL;
 	}
-	if (flags->verbose) {
+	if (flags->verbose || sdd.snapholds != NULL) {
 		/*
 		 * Do a verbose no-op dry run to get all the verbose output
-		 * before generating any data.  Then do a non-verbose real
-		 * run to generate the streams.
+		 * or to gather snapshot hold's before generating any data,
+		 * then do a non-verbose real run to generate the streams.
 		 */
 		sdd.dryrun = B_TRUE;
 		err = dump_filesystems(zhp, &sdd);
-		sdd.dryrun = flags->dryrun;
-		sdd.verbose = B_FALSE;
-		if (flags->parsable) {
-			(void) fprintf(stderr, "size\t%llu\n",
-			    (longlong_t)sdd.size);
-		} else {
-			char buf[16];
-			zfs_nicenum(sdd.size, buf, sizeof (buf));
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
-			    "total estimated size is %s\n"), buf);
+
+		if (err != 0)
+			goto stderr_out;
+
+		if (flags->verbose) {
+			if (flags->parsable) {
+				(void) fprintf(stderr, "size\t%llu\n",
+				    (longlong_t)sdd.size);
+			} else {
+				char buf[16];
+				zfs_nicenum(sdd.size, buf, sizeof (buf));
+				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+				    "total estimated size is %s\n"), buf);
+			}
 		}
+
+		/* Ensure no snaps found is treated as an error. */
+		if (!sdd.seento) {
+			err = ENOENT;
+			goto err_out;
+		}
+
+		/* Skip the second run if dryrun was requested. */
+		if (flags->dryrun)
+			goto err_out;
+
+		if (sdd.snapholds != NULL) {
+			err = zfs_hold_nvl(zhp, sdd.cleanup_fd, sdd.snapholds);
+			if (err != 0)
+				goto stderr_out;
+
+			fnvlist_free(sdd.snapholds);
+			sdd.snapholds = NULL;
+		}
+
+		sdd.dryrun = B_FALSE;
+		sdd.verbose = B_FALSE;
 	}
+
 	err = dump_filesystems(zhp, &sdd);
 	fsavl_destroy(fsavl);
 	nvlist_free(fss);
 
-	if (flags->dedup) {
-		(void) close(pipefd[0]);
+	/* Ensure no snaps found is treated as an error. */
+	if (err == 0 && !sdd.seento)
+		err = ENOENT;
+
+	if (tid != 0) {
+		if (err != 0)
+			(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
+		(void) close(pipefd[0]);
 	}
 
 	if (sdd.cleanup_fd != -1) {
@@ -1605,9 +1601,13 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 stderr_out:
 	err = zfs_standard_error(zhp->zfs_hdl, err, errbuf);
 err_out:
+	fsavl_destroy(fsavl);
+	nvlist_free(fss);
+	fnvlist_free(sdd.snapholds);
+
 	if (sdd.cleanup_fd != -1)
 		VERIFY(0 == close(sdd.cleanup_fd));
-	if (flags->dedup) {
+	if (tid != 0) {
 		(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
 		(void) close(pipefd[0]);

@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -254,8 +255,11 @@ lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist)
  * marked for deferred destruction, and will be destroyed when the last hold
  * or clone is removed/destroyed.
  *
+ * The return value will be ENOENT if none of the snapshots existed.
+ *
  * The return value will be 0 if all snapshots were destroyed (or marked for
- * later destruction if 'defer' is set) or didn't exist to begin with.
+ * later destruction if 'defer' is set) or didn't exist to begin with and
+ * at least one snapshot was destroyed.
  *
  * Otherwise the return value will be the errno of a (unspecified) snapshot
  * that failed, no snapshots will be destroyed, and the errlist will have an
@@ -286,7 +290,6 @@ lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist)
 	nvlist_free(args);
 
 	return (error);
-
 }
 
 int
@@ -346,11 +349,22 @@ lzc_exists(const char *dataset)
  * uncleanly, the holds will be released when the pool is next opened
  * or imported.
  *
- * The return value will be 0 if all holds were created. Otherwise the return
- * value will be the errno of a (unspecified) hold that failed, no holds will
- * be created, and the errlist will have an entry for each hold that
- * failed (name = snapshot).  The value in the errlist will be the error
- * code (int32).
+ * Holds for snapshots which don't exist will be skipped and have an entry
+ * added to errlist, but will not cause an overall failure, except in the
+ * case that all holds where skipped.
+ *
+ * The return value will be ENOENT if none of the snapshots for the requested
+ * holds existed.
+ *
+ * The return value will be 0 if the nvl holds was empty or all holds, for
+ * snapshots that existed, were succesfully created and at least one hold
+ * was created.
+ *
+ * Otherwise the return value will be the errno of a (unspecified) hold that
+ * failed and no holds will be created.
+ *
+ * In all cases the errlist will have an entry for each hold that failed
+ * (name = snapshot), with its value being the error code (int32).
  */
 int
 lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
@@ -387,11 +401,20 @@ lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
  * The snapshots must all be in the same pool.
  * The value is a nvlist whose keys are the holds to remove.
  *
- * The return value will be 0 if all holds were removed.
- * Otherwise the return value will be the errno of a (unspecified) release
- * that failed, no holds will be released, and the errlist will have an
- * entry for each snapshot that has failed releases (name = snapshot).
- * The value in the errlist will be the error code (int32) of a failed release.
+ * Holds which failed to release because they didn't exist will have an entry
+ * added to errlist, but will not cause an overall failure, except in the
+ * case that all releases where skipped.
+ *
+ * The return value will be ENOENT if none of the specified holds existed.
+ *
+ * The return value will be 0 if the nvl holds was empty or all holds that
+ * existed, were successfully removed and at least one hold was removed.
+ *
+ * Otherwise the return value will be the errno of a (unspecified) hold that
+ * failed to release and no holds will be released.
+ *
+ * In all cases the errlist will have an entry for each hold that failed to
+ * to release.
  */
 int
 lzc_release(nvlist_t *holds, nvlist_t **errlist)

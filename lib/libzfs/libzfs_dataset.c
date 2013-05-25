@@ -26,6 +26,7 @@
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright 2012 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 #include <ctype.h>
@@ -3153,18 +3154,14 @@ static int
 zfs_check_snap_cb(zfs_handle_t *zhp, void *arg)
 {
 	struct destroydata *dd = arg;
-	zfs_handle_t *szhp;
 	char name[ZFS_MAXNAMELEN];
 	int rv = 0;
 
 	(void) snprintf(name, sizeof (name),
 	    "%s@%s", zhp->zfs_name, dd->snapname);
 
-	szhp = make_dataset_handle(zhp->zfs_hdl, name);
-	if (szhp) {
+	if (lzc_exists(name))
 		verify(nvlist_add_boolean(dd->nvl, name) == 0);
-		zfs_close(szhp);
-	}
 
 	if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
 		(void) zvol_remove_link(zhp->zfs_hdl, name);
@@ -3193,7 +3190,7 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname, boolean_t defer)
 	verify(nvlist_alloc(&dd.nvl, NV_UNIQUE_NAME, 0) == 0);
 	(void) zfs_check_snap_cb(zfs_handle_dup(zhp), &dd);
 
-	if (nvlist_next_nvpair(dd.nvl, NULL) == NULL) {
+	if (nvlist_empty(dd.nvl)) {
 		ret = zfs_standard_error_fmt(zhp->zfs_hdl, ENOENT,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s@%s'"),
 		    zhp->zfs_name, snapname);
@@ -3219,7 +3216,7 @@ zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
 	if (ret == 0)
 		return (0);
 
-	if (nvlist_next_nvpair(errlist, NULL) == NULL) {
+	if (nvlist_empty(errlist)) {
 		char errbuf[1024];
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot destroy snapshots"));
@@ -4421,18 +4418,14 @@ static int
 zfs_hold_one(zfs_handle_t *zhp, void *arg)
 {
 	struct holdarg *ha = arg;
-	zfs_handle_t *szhp;
 	char name[ZFS_MAXNAMELEN];
 	int rv = 0;
 
 	(void) snprintf(name, sizeof (name),
 	    "%s@%s", zhp->zfs_name, ha->snapname);
 
-	szhp = make_dataset_handle(zhp->zfs_hdl, name);
-	if (szhp) {
+	if (lzc_exists(name))
 		fnvlist_add_string(ha->nvl, name, ha->tag);
-		zfs_close(szhp);
-	}
 
 	if (ha->recursive)
 		rv = zfs_iter_filesystems(zhp, zfs_hold_one, ha);
@@ -4442,14 +4435,10 @@ zfs_hold_one(zfs_handle_t *zhp, void *arg)
 
 int
 zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
-    boolean_t recursive, boolean_t enoent_ok, int cleanup_fd)
+    boolean_t recursive, int cleanup_fd)
 {
 	int ret;
 	struct holdarg ha;
-	nvlist_t *errors;
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	char errbuf[1024];
-	nvpair_t *elem;
 
 	ha.nvl = fnvlist_alloc();
 	ha.snapname = snapname;
@@ -4457,26 +4446,44 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	ha.recursive = recursive;
 	(void) zfs_hold_one(zfs_handle_dup(zhp), &ha);
 
-	if (nvlist_next_nvpair(ha.nvl, NULL) == NULL) {
+	if (nvlist_empty(ha.nvl)) {
+		char errbuf[1024];
+
 		fnvlist_free(ha.nvl);
 		ret = ENOENT;
-		if (!enoent_ok) {
-			(void) snprintf(errbuf, sizeof (errbuf),
-			    dgettext(TEXT_DOMAIN,
-			    "cannot hold snapshot '%s@%s'"),
-			    zhp->zfs_name, snapname);
-			(void) zfs_standard_error(hdl, ret, errbuf);
-		}
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN,
+		    "cannot hold snapshot '%s@%s'"),
+		    zhp->zfs_name, snapname);
+		(void) zfs_standard_error(zhp->zfs_hdl, ret, errbuf);
 		return (ret);
 	}
 
-	ret = lzc_hold(ha.nvl, cleanup_fd, &errors);
+	ret = zfs_hold_nvl(zhp, cleanup_fd, ha.nvl);
 	fnvlist_free(ha.nvl);
 
-	if (ret == 0)
-		return (0);
+	return (ret);
+}
 
-	if (nvlist_next_nvpair(errors, NULL) == NULL) {
+int
+zfs_hold_nvl(zfs_handle_t *zhp, int cleanup_fd, nvlist_t *holds)
+{
+	int ret;
+	nvlist_t *errors;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	char errbuf[1024];
+	nvpair_t *elem;
+
+	errors = NULL;
+	ret = lzc_hold(holds, cleanup_fd, &errors);
+
+	if (ret == 0) {
+		/* There may be errors even in the success case. */
+		fnvlist_free(errors);
+		return (0);
+	}
+
+	if (nvlist_empty(errors)) {
 		/* no hold-specific errors */
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot hold"));
@@ -4516,10 +4523,6 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 		case EEXIST:
 			(void) zfs_error(hdl, EZFS_REFTAG_HOLD, errbuf);
 			break;
-		case ENOENT:
-			if (enoent_ok)
-				return (ENOENT);
-			/* FALLTHROUGH */
 		default:
 			(void) zfs_standard_error(hdl,
 			    fnvpair_value_int32(elem), errbuf);
@@ -4530,30 +4533,21 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	return (ret);
 }
 
-struct releasearg {
-	nvlist_t *nvl;
-	const char *snapname;
-	const char *tag;
-	boolean_t recursive;
-};
-
 static int
 zfs_release_one(zfs_handle_t *zhp, void *arg)
 {
 	struct holdarg *ha = arg;
-	zfs_handle_t *szhp;
 	char name[ZFS_MAXNAMELEN];
 	int rv = 0;
 
 	(void) snprintf(name, sizeof (name),
 	    "%s@%s", zhp->zfs_name, ha->snapname);
 
-	szhp = make_dataset_handle(zhp->zfs_hdl, name);
-	if (szhp) {
+	if (lzc_exists(name)) {
 		nvlist_t *holds = fnvlist_alloc();
 		fnvlist_add_boolean(holds, ha->tag);
 		fnvlist_add_nvlist(ha->nvl, name, holds);
-		zfs_close(szhp);
+		fnvlist_free(holds);
 	}
 
 	if (ha->recursive)
@@ -4568,7 +4562,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 {
 	int ret;
 	struct holdarg ha;
-	nvlist_t *errors;
+	nvlist_t *errors = NULL;
 	nvpair_t *elem;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[1024];
@@ -4579,7 +4573,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	ha.recursive = recursive;
 	(void) zfs_release_one(zfs_handle_dup(zhp), &ha);
 
-	if (nvlist_next_nvpair(ha.nvl, NULL) == NULL) {
+	if (nvlist_empty(ha.nvl)) {
 		fnvlist_free(ha.nvl);
 		ret = ENOENT;
 		(void) snprintf(errbuf, sizeof (errbuf),
@@ -4593,10 +4587,13 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	ret = lzc_release(ha.nvl, &errors);
 	fnvlist_free(ha.nvl);
 
-	if (ret == 0)
+	if (ret == 0) {
+		/* There may be errors even in the success case. */
+		fnvlist_free(errors);
 		return (0);
+	}
 
-	if (nvlist_next_nvpair(errors, NULL) == NULL) {
+	if (nvlist_empty(errors)) {
 		/* no hold-specific errors */
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot release"));
