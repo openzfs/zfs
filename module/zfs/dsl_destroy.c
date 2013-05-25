@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -127,6 +128,10 @@ dsl_destroy_snapshot_check(void *arg, dmu_tx_t *tx)
 	pair = nvlist_next_nvpair(dsda->dsda_errlist, NULL);
 	if (pair != NULL)
 		return (fnvpair_value_int32(pair));
+
+	if (nvlist_empty(dsda->dsda_successful_snaps))
+		return (SET_ERROR(ENOENT));
+
 	return (0);
 }
 
