@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <libzfs_impl.h>
 #include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
@@ -109,16 +110,16 @@ libshare_init(void)
 
 static void
 parse_sharetab(sa_handle_impl_t impl_handle) {
-	FILE *fp;
 	char line[512];
 	char *eol, *pathname, *resource, *fstype, *options, *description;
+	libzfs_handle_t *hdl = impl_handle->zfs_libhandle;
 
-	fp = fopen("/etc/dfs/sharetab", "r");
-
-	if (fp == NULL)
+	if (hdl->libzfs_sharetab == NULL)
 		return;
 
-	while (fgets(line, sizeof (line), fp) != NULL) {
+	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
+
+	while (fgets(line, sizeof (line), hdl->libzfs_sharetab) != NULL) {
 		eol = line + strlen(line) - 1;
 
 		while (eol >= line) {
@@ -160,8 +161,6 @@ parse_sharetab(sa_handle_impl_t impl_handle) {
 		(void) process_share(impl_handle, NULL, pathname, resource,
 		    fstype, options, description, NULL, B_TRUE);
 	}
-
-	fclose(fp);
 }
 
 static void
