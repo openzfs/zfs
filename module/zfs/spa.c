@@ -64,6 +64,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/dsl_scan.h>
 #include <sys/zfeature.h>
+#include <sys/zvol.h>
 
 #ifdef	_KERNEL
 #include <sys/bootprops.h>
@@ -2856,6 +2857,7 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 	spa_load_state_t state = SPA_LOAD_OPEN;
 	int error;
 	int locked = B_FALSE;
+	int firstopen = B_FALSE;
 
 	*spapp = NULL;
 
@@ -2878,6 +2880,8 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
 		zpool_rewind_policy_t policy;
+
+		firstopen = B_TRUE;
 
 		zpool_get_rewind_policy(nvpolicy ? nvpolicy : spa->spa_config,
 		    &policy);
@@ -2952,6 +2956,11 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 		spa->spa_load_txg = 0;
 		mutex_exit(&spa_namespace_lock);
 	}
+
+#ifdef _KERNEL
+	if (firstopen)
+		zvol_create_minors(spa->spa_name);
+#endif
 
 	*spapp = spa;
 
@@ -4009,6 +4018,10 @@ spa_import(const char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	mutex_exit(&spa_namespace_lock);
 	spa_history_log_version(spa, LOG_POOL_IMPORT);
+
+#ifdef _KERNEL
+	zvol_create_minors(pool);
+#endif
 
 	return (0);
 }

@@ -1268,9 +1268,6 @@ zfs_ioc_pool_import(zfs_cmd_t *zc)
 			error = err;
 	}
 
-	if (error == 0)
-		zvol_create_minors(zc->zc_name);
-
 	nvlist_free(config);
 
 	if (props)
