@@ -2418,13 +2418,6 @@ spl_kmem_init(void)
 	int rc = 0;
 	SENTRY;
 
-	init_rwsem(&spl_kmem_cache_sem);
-	INIT_LIST_HEAD(&spl_kmem_cache_list);
-	spl_kmem_cache_taskq = taskq_create("spl_kmem_cache",
-	    1, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
-
-	spl_register_shrinker(&spl_kmem_cache_shrinker);
-
 #ifdef DEBUG_KMEM
 	kmem_alloc_used_set(0);
 	vmem_alloc_used_set(0);
@@ -2432,6 +2425,14 @@ spl_kmem_init(void)
 	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);
 	spl_kmem_init_tracking(&vmem_list, &vmem_lock, VMEM_TABLE_SIZE);
 #endif
+
+	init_rwsem(&spl_kmem_cache_sem);
+	INIT_LIST_HEAD(&spl_kmem_cache_list);
+	spl_kmem_cache_taskq = taskq_create("spl_kmem_cache",
+	    1, maxclsyspri, 1, 32, TASKQ_PREPOPULATE);
+
+	spl_register_shrinker(&spl_kmem_cache_shrinker);
+
 	SRETURN(rc);
 }
 
