@@ -313,7 +313,7 @@ get_recvd_props_ioctl(zfs_handle_t *zhp)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	nvlist_t *recvdprops;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int err;
 
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
@@ -376,7 +376,7 @@ static int
 get_stats(zfs_handle_t *zhp)
 {
 	int rc = 0;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
 		return (-1);
@@ -439,7 +439,7 @@ make_dataset_handle_common(zfs_handle_t *zhp, zfs_cmd_t *zc)
 zfs_handle_t *
 make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
 
@@ -1416,15 +1416,14 @@ zfs_is_namespace_prop(zfs_prop_t prop)
 int
 zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int ret = -1;
 	prop_changelist_t *cl = NULL;
 	char errbuf[1024];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	nvlist_t *nvl = NULL, *realprops;
 	zfs_prop_t prop;
-	boolean_t do_prefix;
-	uint64_t idx;
+	boolean_t do_prefix = B_TRUE;
 	int added_resv = 0;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
@@ -1463,12 +1462,17 @@ zfs_prop_set(zfs_handle_t *zhp, const char *propname, const char *propval)
 	}
 
 	/*
-	 * If the dataset's canmount property is being set to noauto,
-	 * then we want to prevent unmounting & remounting it.
+	 * We don't want to unmount & remount the dataset when changing
+	 * its canmount property to 'on' or 'noauto'.  We only use
+	 * the changelist logic to unmount when setting canmount=off.
 	 */
-	do_prefix = !((prop == ZFS_PROP_CANMOUNT) &&
-	    (zprop_string_to_index(prop, propval, &idx,
-	    ZFS_TYPE_DATASET) == 0) && (idx == ZFS_CANMOUNT_NOAUTO));
+	if (prop == ZFS_PROP_CANMOUNT) {
+		uint64_t idx;
+		int err = zprop_string_to_index(prop, propval, &idx,
+		    ZFS_TYPE_DATASET);
+		if (err == 0 && idx != ZFS_CANMOUNT_OFF)
+			do_prefix = B_FALSE;
+	}
 
 	if (do_prefix && (ret = changelist_prefix(cl)) != 0)
 		goto error;
@@ -1538,7 +1542,7 @@ error:
 int
 zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int ret;
 	prop_changelist_t *cl;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -1713,7 +1717,7 @@ static int
 get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
     char **source, uint64_t *val)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	nvlist_t *zplprops = NULL;
 	struct mnttab mnt;
 	char *mntopt_on = NULL;
@@ -2565,7 +2569,7 @@ zfs_prop_get_userquota_common(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue, zfs_userquota_prop_t *typep)
 {
 	int err;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
@@ -2625,7 +2629,7 @@ zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue)
 {
 	int err;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	const char *snapname;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -2671,25 +2675,6 @@ zfs_prop_get_written(zfs_handle_t *zhp, const char *propname,
 	} else {
 		zfs_nicenum(propvalue, propbuf, proplen);
 	}
-
-	return (0);
-}
-
-int
-zfs_get_snapused_int(zfs_handle_t *firstsnap, zfs_handle_t *lastsnap,
-    uint64_t *usedp)
-{
-	int err;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
-
-	(void) strlcpy(zc.zc_name, lastsnap->zfs_name, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, firstsnap->zfs_name, sizeof (zc.zc_value));
-
-	err = ioctl(lastsnap->zfs_hdl->libzfs_fd, ZFS_IOC_SPACE_SNAPS, &zc);
-	if (err)
-		return (err);
-
-	*usedp = zc.zc_cookie;
 
 	return (0);
 }
@@ -2764,7 +2749,7 @@ static int
 check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
     boolean_t accept_ancestor, int *prefixlen)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char parent[ZFS_MAXNAMELEN];
 	char *slash;
 	zfs_handle_t *zhp;
@@ -2894,7 +2879,6 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 	 */
 	for (cp = target + prefixlen + 1;
 	    (cp = strchr(cp, '/')); *cp = '/', cp++) {
-		char *logstr;
 
 		*cp = '\0';
 
@@ -2905,16 +2889,12 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			continue;
 		}
 
-		logstr = hdl->libzfs_log_str;
-		hdl->libzfs_log_str = NULL;
 		if (zfs_create(hdl, target, ZFS_TYPE_FILESYSTEM,
 		    NULL) != 0) {
-			hdl->libzfs_log_str = logstr;
 			opname = dgettext(TEXT_DOMAIN, "create");
 			goto ancestorerr;
 		}
 
-		hdl->libzfs_log_str = logstr;
 		h = zfs_open(hdl, target, ZFS_TYPE_FILESYSTEM);
 		if (h == NULL) {
 			opname = dgettext(TEXT_DOMAIN, "open");
@@ -2972,12 +2952,12 @@ int
 zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
     nvlist_t *props)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	int ret;
 	uint64_t size = 0;
 	uint64_t blocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
 	char errbuf[1024];
 	uint64_t zoned;
+	dmu_objset_type_t ost;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot create '%s'"), path);
@@ -2997,17 +2977,16 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	 * will return ENOENT, not EEXIST.  To prevent this from happening, we
 	 * first try to see if the dataset exists.
 	 */
-	(void) strlcpy(zc.zc_name, path, sizeof (zc.zc_name));
-	if (zfs_dataset_exists(hdl, zc.zc_name, ZFS_TYPE_DATASET)) {
+	if (zfs_dataset_exists(hdl, path, ZFS_TYPE_DATASET)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "dataset already exists"));
 		return (zfs_error(hdl, EZFS_EXISTS, errbuf));
 	}
 
 	if (type == ZFS_TYPE_VOLUME)
-		zc.zc_objset_type = DMU_OST_ZVOL;
+		ost = DMU_OST_ZVOL;
 	else
-		zc.zc_objset_type = DMU_OST_ZFS;
+		ost = DMU_OST_ZFS;
 
 	if (props && (props = zfs_valid_proplist(hdl, type, props,
 	    zoned, NULL, errbuf)) == 0)
@@ -3059,12 +3038,9 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 		}
 	}
 
-	if (props && zcmd_write_src_nvlist(hdl, &zc, props) != 0)
-		return (-1);
-	nvlist_free(props);
-
 	/* create the dataset */
-	ret = zfs_ioctl(hdl, ZFS_IOC_CREATE, &zc);
+	ret = lzc_create(path, ost, props);
+	nvlist_free(props);
 
 	if (ret == 0 && type == ZFS_TYPE_VOLUME) {
 		ret = zvol_create_link(hdl, path);
@@ -3073,12 +3049,9 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			    dgettext(TEXT_DOMAIN,
 			    "Volume successfully created, but device links "
 			    "were not created"));
-			zcmd_free_nvlists(&zc);
 			return (-1);
 		}
 	}
-
-	zcmd_free_nvlists(&zc);
 
 	/* check for failure */
 	if (ret != 0) {
@@ -3136,7 +3109,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 int
 zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
@@ -3216,47 +3189,54 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname, boolean_t defer)
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s@%s'"),
 		    zhp->zfs_name, snapname);
 	} else {
-		ret = zfs_destroy_snaps_nvl(zhp, dd.nvl, defer);
+		ret = zfs_destroy_snaps_nvl(zhp->zfs_hdl, dd.nvl, defer);
 	}
 	nvlist_free(dd.nvl);
 	return (ret);
 }
 
 /*
- * Destroys all the snapshots named in the nvlist.  They must be underneath
- * the zhp (either snapshots of it, or snapshots of its descendants).
+ * Destroys all the snapshots named in the nvlist.
  */
 int
-zfs_destroy_snaps_nvl(zfs_handle_t *zhp, nvlist_t *snaps, boolean_t defer)
+zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
 {
 	int ret;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	nvlist_t *errlist;
+	nvpair_t *pair;
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	if (zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, snaps) != 0)
-		return (-1);
-	zc.zc_defer_destroy = defer;
+	ret = lzc_destroy_snaps(snaps, defer, &errlist);
 
-	ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY_SNAPS_NVL, &zc);
-	if (ret != 0) {
+	if (ret == 0)
+		return (0);
+
+	if (nvlist_next_nvpair(errlist, NULL) == NULL) {
 		char errbuf[1024];
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN, "cannot destroy snapshots"));
 
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "cannot destroy snapshots in %s"), zc.zc_name);
+		ret = zfs_standard_error(hdl, ret, errbuf);
+	}
+	for (pair = nvlist_next_nvpair(errlist, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(errlist, pair)) {
+		char errbuf[1024];
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN, "cannot destroy snapshot %s"),
+		    nvpair_name(pair));
 
-		switch (errno) {
+		switch (fnvpair_value_int32(pair)) {
 		case EEXIST:
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "snapshot is cloned"));
-			return (zfs_error(zhp->zfs_hdl, EZFS_EXISTS, errbuf));
-
+			zfs_error_aux(hdl,
+			    dgettext(TEXT_DOMAIN, "snapshot is cloned"));
+			ret = zfs_error(hdl, EZFS_EXISTS, errbuf);
+			break;
 		default:
-			return (zfs_standard_error(zhp->zfs_hdl, errno,
-			    errbuf));
+			ret = zfs_standard_error(hdl, errno, errbuf);
+			break;
 		}
 	}
 
-	return (0);
+	return (ret);
 }
 
 /*
@@ -3265,12 +3245,10 @@ zfs_destroy_snaps_nvl(zfs_handle_t *zhp, nvlist_t *snaps, boolean_t defer)
 int
 zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	char parent[ZFS_MAXNAMELEN];
 	int ret;
 	char errbuf[1024];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	zfs_type_t type;
 	uint64_t zoned;
 
 	assert(zhp->zfs_type == ZFS_TYPE_SNAPSHOT);
@@ -3289,32 +3267,21 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 	(void) parent_name(target, parent, sizeof (parent));
 
 	/* do the clone */
-	if (ZFS_IS_VOLUME(zhp)) {
-		zc.zc_objset_type = DMU_OST_ZVOL;
-		type = ZFS_TYPE_VOLUME;
-	} else {
-		zc.zc_objset_type = DMU_OST_ZFS;
-		type = ZFS_TYPE_FILESYSTEM;
-	}
 
 	if (props) {
+		zfs_type_t type;
+		if (ZFS_IS_VOLUME(zhp)) {
+			type = ZFS_TYPE_VOLUME;
+		} else {
+			type = ZFS_TYPE_FILESYSTEM;
+		}
 		if ((props = zfs_valid_proplist(hdl, type, props, zoned,
 		    zhp, errbuf)) == NULL)
 			return (-1);
-
-		if (zcmd_write_src_nvlist(hdl, &zc, props) != 0) {
-			nvlist_free(props);
-			return (-1);
-		}
-
-		nvlist_free(props);
 	}
 
-	(void) strlcpy(zc.zc_name, target, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, zhp->zfs_name, sizeof (zc.zc_value));
-	ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_CREATE, &zc);
-
-	zcmd_free_nvlists(&zc);
+	ret = lzc_clone(target, zhp->zfs_name, props);
+	nvlist_free(props);
 
 	if (ret != 0) {
 		switch (errno) {
@@ -3414,7 +3381,7 @@ int
 zfs_promote(zfs_handle_t *zhp)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char parent[MAXPATHLEN];
 	char *cp;
 	int ret;
@@ -3529,94 +3496,159 @@ zfs_create_link_cb(zfs_handle_t *zhp, void *arg)
 	return (ret);
 }
 
+typedef struct snapdata {
+	nvlist_t *sd_nvl;
+	const char *sd_snapname;
+} snapdata_t;
+
+static int
+zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
+{
+	snapdata_t *sd = arg;
+	char name[ZFS_MAXNAMELEN];
+	int rv = 0;
+
+	(void) snprintf(name, sizeof (name),
+	    "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
+
+	fnvlist_add_boolean(sd->sd_nvl, name);
+
+	rv = zfs_iter_filesystems(zhp, zfs_snapshot_cb, sd);
+	zfs_close(zhp);
+	return (rv);
+}
+
 /*
- * Takes a snapshot of the given dataset.
+ * Creates snapshots.  The keys in the snaps nvlist are the snapshots to be
+ * created.
  */
+int
+zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
+{
+	int ret;
+	char errbuf[1024];
+	nvpair_t *elem;
+	nvlist_t *errors;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot create snapshots "));
+
+	elem = NULL;
+	while ((elem = nvlist_next_nvpair(snaps, elem)) != NULL) {
+		const char *snapname = nvpair_name(elem);
+
+		/* validate the target name */
+		if (!zfs_validate_name(hdl, snapname, ZFS_TYPE_SNAPSHOT,
+		    B_TRUE)) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot create snapshot '%s'"), snapname);
+			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+		}
+	}
+
+	if (props != NULL &&
+	    (props = zfs_valid_proplist(hdl, ZFS_TYPE_SNAPSHOT,
+	    props, B_FALSE, NULL, errbuf)) == NULL) {
+		return (-1);
+	}
+
+	ret = lzc_snapshot(snaps, props, &errors);
+
+	if (ret != 0) {
+		boolean_t printed = B_FALSE;
+		for (elem = nvlist_next_nvpair(errors, NULL);
+		    elem != NULL;
+		    elem = nvlist_next_nvpair(errors, elem)) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot create snapshot '%s'"), nvpair_name(elem));
+			(void) zfs_standard_error(hdl,
+			    fnvpair_value_int32(elem), errbuf);
+			printed = B_TRUE;
+		}
+		if (!printed) {
+			switch (ret) {
+			case EXDEV:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "multiple snapshots of same "
+				    "fs not allowed"));
+				(void) zfs_error(hdl, EZFS_EXISTS, errbuf);
+
+				break;
+			default:
+				(void) zfs_standard_error(hdl, ret, errbuf);
+			}
+		}
+	} else {
+		zfs_handle_t *zhp;
+		int linktries = 0, linkok = 0, linkfail = 0;
+		nvpair_t *snap;
+
+		for (snap = nvlist_next_nvpair(snaps, NULL); snap != NULL;
+		    snap = nvlist_next_nvpair(snaps, snap)) {
+			char *cp, *snapname;
+
+			snapname = nvpair_name(snap);
+			cp = strchr(snapname, '@');
+			*cp = '\0';
+
+			if ((zhp = zfs_open(hdl, snapname, ZFS_TYPE_FILESYSTEM |
+				ZFS_TYPE_VOLUME)) != NULL) {
+				if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
+					++linktries;
+					*cp = '@';
+					if (zvol_create_link(zhp->zfs_hdl, nvpair_name(snap)))
+						++linkfail;
+					else
+						++linkok;
+				}
+			}
+		}
+	}
+
+	nvlist_free(props);
+	nvlist_free(errors);
+	return (ret);
+}
+
 int
 zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
     nvlist_t *props)
 {
-	const char *delim;
-	char parent[ZFS_MAXNAMELEN];
-	zfs_handle_t *zhp;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
 	int ret;
+	snapdata_t sd = { 0 };
+	char fsname[ZFS_MAXNAMELEN];
+	char *cp;
+	zfs_handle_t *zhp;
 	char errbuf[1024];
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "cannot snapshot '%s'"), path);
+	    "cannot snapshot %s"), path);
 
-	/* validate the target name */
 	if (!zfs_validate_name(hdl, path, ZFS_TYPE_SNAPSHOT, B_TRUE))
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+ 
+	(void) strlcpy(fsname, path, sizeof (fsname));
+	cp = strchr(fsname, '@');
+	*cp = '\0';
+	sd.sd_snapname = cp + 1;
 
-	if (props) {
-		if ((props = zfs_valid_proplist(hdl, ZFS_TYPE_SNAPSHOT,
-		    props, B_FALSE, NULL, errbuf)) == NULL)
-			return (-1);
-
-		if (zcmd_write_src_nvlist(hdl, &zc, props) != 0) {
-			nvlist_free(props);
-			return (-1);
-		}
-
-		nvlist_free(props);
-	}
-
-	/* make sure the parent exists and is of the appropriate type */
-	delim = strchr(path, '@');
-	(void) strncpy(parent, path, delim - path);
-	parent[delim - path] = '\0';
-
-	if ((zhp = zfs_open(hdl, parent, ZFS_TYPE_FILESYSTEM |
+	if ((zhp = zfs_open(hdl, fsname, ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME)) == NULL) {
-		zcmd_free_nvlists(&zc);
 		return (-1);
 	}
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	(void) strlcpy(zc.zc_value, delim+1, sizeof (zc.zc_value));
-	if (ZFS_IS_VOLUME(zhp))
-		zc.zc_objset_type = DMU_OST_ZVOL;
-	else
-		zc.zc_objset_type = DMU_OST_ZFS;
-	zc.zc_cookie = recursive;
-	ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SNAPSHOT, &zc);
-
-	zcmd_free_nvlists(&zc);
-
-	/*
-	 * if it was recursive, the one that actually failed will be in
-	 * zc.zc_name.
-	 */
-	if (ret != 0)
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "cannot create snapshot '%s@%s'"), zc.zc_name, zc.zc_value);
-
-	if (ret == 0 && recursive) {
-		struct createdata cd;
-
-		cd.cd_snapname = delim + 1;
-		cd.cd_ifexists = B_FALSE;
-		(void) zfs_iter_filesystems(zhp, zfs_create_link_cb, &cd);
-	}
-	if (ret == 0 && zhp->zfs_type == ZFS_TYPE_VOLUME) {
-		ret = zvol_create_link(zhp->zfs_hdl, path);
-		if (ret != 0) {
-			(void) zfs_standard_error(hdl, errno,
-			    dgettext(TEXT_DOMAIN,
-			    "Volume successfully snapshotted, but device links "
-			    "were not created"));
-			zfs_close(zhp);
-			return (-1);
-		}
+	verify(nvlist_alloc(&sd.sd_nvl, NV_UNIQUE_NAME, 0) == 0);
+	if (recursive) {
+		(void) zfs_snapshot_cb(zfs_handle_dup(zhp), &sd);
+	} else {
+		fnvlist_add_boolean(sd.sd_nvl, path);
 	}
 
-	if (ret != 0)
-		(void) zfs_standard_error(hdl, errno, errbuf);
-
+	ret = zfs_snapshot_nvl(hdl, sd.sd_nvl, props);
+	nvlist_free(sd.sd_nvl);
 	zfs_close(zhp);
-
 	return (ret);
 }
 
@@ -3644,17 +3676,13 @@ rollback_destroy(zfs_handle_t *zhp, void *data)
 		    zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT &&
 		    zfs_prop_get_int(zhp, ZFS_PROP_CREATETXG) >
 		    cbp->cb_create) {
-			char *logstr;
 
 			cbp->cb_dependent = B_TRUE;
 			cbp->cb_error |= zfs_iter_dependents(zhp, B_FALSE,
 			    rollback_destroy, cbp);
 			cbp->cb_dependent = B_FALSE;
 
-			logstr = zhp->zfs_hdl->libzfs_log_str;
-			zhp->zfs_hdl->libzfs_log_str = NULL;
 			cbp->cb_error |= zfs_destroy(zhp, B_FALSE);
-			zhp->zfs_hdl->libzfs_log_str = logstr;
 		}
 	} else {
 		/* We must destroy this clone; first unmount it */
@@ -3691,7 +3719,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 {
 	rollback_data_t cb = { 0 };
 	int err;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	boolean_t restore_resv = 0;
 	uint64_t old_volsize = 0, new_volsize;
 	zfs_prop_t resv_prop = { 0 };
@@ -3778,7 +3806,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
     boolean_t force_unmount)
 {
 	int ret;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char *delim;
 	prop_changelist_t *cl = NULL;
 	zfs_handle_t *zhrp = NULL;
@@ -3997,7 +4025,7 @@ zvol_create_link(libzfs_handle_t *hdl, const char *dataset)
 static int
 zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char path[MAXPATHLEN];
 	int error;
 
@@ -4061,7 +4089,7 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 int
 zvol_remove_link(libzfs_handle_t *hdl, const char *dataset)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int timeout = 3000; /* in milliseconds */
 	int error = 0;
 	int i;
@@ -4254,7 +4282,7 @@ static int
 zfs_smb_acl_mgmt(libzfs_handle_t *hdl, char *dataset, char *path,
     zfs_smb_acl_op_t cmd, char *resource1, char *resource2)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	nvlist_t *nvlist = NULL;
 	int error;
 
@@ -4336,7 +4364,7 @@ int
 zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
     zfs_userspace_cb_t func, void *arg)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int error;
 	zfs_useracct_t buf[100];
 
@@ -4373,7 +4401,7 @@ zfs_hold(zfs_handle_t *zhp, const char *snapname, const char *tag,
     boolean_t recursive, boolean_t temphold, boolean_t enoent_ok,
     int cleanup_fd, uint64_t dsobj, uint64_t createtxg)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	ASSERT(!recursive || dsobj == 0);
@@ -4431,7 +4459,7 @@ int
 zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
     boolean_t recursive)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -4471,7 +4499,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 int
 zfs_get_fsacl(zfs_handle_t *zhp, nvlist_t **nvl)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	int nvsz = 2048;
 	void *nvbuf;
@@ -4538,7 +4566,7 @@ out:
 int
 zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char *nvbuf;
 	char errbuf[ZFS_MAXNAMELEN+32];
@@ -4592,7 +4620,7 @@ zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 int
 zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	int nvsz = 2048;
 	void *nvbuf;

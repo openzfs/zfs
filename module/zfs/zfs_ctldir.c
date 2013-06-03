@@ -632,8 +632,7 @@ zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 		goto out;
 
 	if (error == 0) {
-		error = dmu_objset_snapshot(dsname, dirname,
-		    NULL, NULL, B_FALSE, B_FALSE, -1);
+		error = dmu_objset_snapshot_one(dsname, dirname);
 		if (error)
 			goto out;
 

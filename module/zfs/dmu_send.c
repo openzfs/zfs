@@ -416,9 +416,48 @@ backup_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp, arc_buf_t *pbuf,
 	return (err);
 }
 
+/*
+ * Return TRUE if 'earlier' is an earlier snapshot in 'later's timeline.
+ * For example, they could both be snapshots of the same filesystem, and
+ * 'earlier' is before 'later'.  Or 'earlier' could be the origin of
+ * 'later's filesystem.  Or 'earlier' could be an older snapshot in the origin's
+ * filesystem.  Or 'earlier' could be the origin's origin.
+ */
+static boolean_t
+is_before(dsl_dataset_t *later, dsl_dataset_t *earlier)
+{
+	dsl_pool_t *dp = later->ds_dir->dd_pool;
+	int error;
+	boolean_t ret;
+	dsl_dataset_t *origin;
+
+	if (earlier->ds_phys->ds_creation_txg >=
+	    later->ds_phys->ds_creation_txg)
+		return (B_FALSE);
+
+	if (later->ds_dir == earlier->ds_dir)
+		return (B_TRUE);
+	if (!dsl_dir_is_clone(later->ds_dir))
+		return (B_FALSE);
+
+	rw_enter(&dp->dp_config_rwlock, RW_READER);
+	if (later->ds_dir->dd_phys->dd_origin_obj == earlier->ds_object) {
+		rw_exit(&dp->dp_config_rwlock);
+		return (B_TRUE);
+	}
+	error = dsl_dataset_hold_obj(dp,
+	    later->ds_dir->dd_phys->dd_origin_obj, FTAG, &origin);
+	rw_exit(&dp->dp_config_rwlock);
+	if (error != 0)
+		return (B_FALSE);
+	ret = is_before(origin, earlier);
+	dsl_dataset_rele(origin, FTAG);
+	return (ret);
+}
+
 int
-dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
-    int outfd, vnode_t *vp, offset_t *off)
+dmu_send(objset_t *tosnap, objset_t *fromsnap, int outfd, vnode_t *vp,
+    offset_t *off)
 {
 	dsl_dataset_t *ds = tosnap->os_dsl_dataset;
 	dsl_dataset_t *fromds = fromsnap ? fromsnap->os_dsl_dataset : NULL;
@@ -431,29 +470,12 @@ dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 	if (ds->ds_phys->ds_next_snap_obj == 0)
 		return (EINVAL);
 
-	/* fromsnap must be an earlier snapshot from the same fs as tosnap */
-	if (fromds && (ds->ds_dir != fromds->ds_dir ||
-	    fromds->ds_phys->ds_creation_txg >= ds->ds_phys->ds_creation_txg))
+	/*
+	 * fromsnap must be an earlier snapshot from the same fs as tosnap,
+	 * or the origin's fs.
+	 */
+	if (fromds != NULL && !is_before(ds, fromds))
 		return (EXDEV);
-
-	if (fromorigin) {
-		dsl_pool_t *dp = ds->ds_dir->dd_pool;
-
-		if (fromsnap)
-			return (EINVAL);
-
-		if (dsl_dir_is_clone(ds->ds_dir)) {
-			rw_enter(&dp->dp_config_rwlock, RW_READER);
-			err = dsl_dataset_hold_obj(dp,
-			    ds->ds_dir->dd_phys->dd_origin_obj, FTAG, &fromds);
-			rw_exit(&dp->dp_config_rwlock);
-			if (err)
-				return (err);
-		} else {
-			fromorigin = B_FALSE;
-		}
-	}
-
 
 	drr = kmem_zalloc(sizeof (dmu_replay_record_t), KM_SLEEP);
 	drr->drr_type = DRR_BEGIN;
@@ -479,7 +501,7 @@ dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 	drr->drr_u.drr_begin.drr_creation_time =
 	    ds->ds_phys->ds_creation_time;
 	drr->drr_u.drr_begin.drr_type = tosnap->os_phys->os_type;
-	if (fromorigin)
+	if (fromds != NULL && ds->ds_dir != fromds->ds_dir)
 		drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_CLONE;
 	drr->drr_u.drr_begin.drr_toguid = ds->ds_phys->ds_guid;
 	if (ds->ds_phys->ds_flags & DS_FLAG_CI_DATASET)
@@ -491,8 +513,6 @@ dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 
 	if (fromds)
 		fromtxg = fromds->ds_phys->ds_creation_txg;
-	if (fromorigin)
-		dsl_dataset_rele(fromds, FTAG);
 
 	dsp = kmem_zalloc(sizeof (dmu_sendarg_t), KM_SLEEP);
 
@@ -550,8 +570,7 @@ out:
 }
 
 int
-dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
-    uint64_t *sizep)
+dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, uint64_t *sizep)
 {
 	dsl_dataset_t *ds = tosnap->os_dsl_dataset;
 	dsl_dataset_t *fromds = fromsnap ? fromsnap->os_dsl_dataset : NULL;
@@ -563,26 +582,12 @@ dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 	if (ds->ds_phys->ds_next_snap_obj == 0)
 		return (EINVAL);
 
-	/* fromsnap must be an earlier snapshot from the same fs as tosnap */
-	if (fromds && (ds->ds_dir != fromds->ds_dir ||
-	    fromds->ds_phys->ds_creation_txg >= ds->ds_phys->ds_creation_txg))
+	/*
+	 * fromsnap must be an earlier snapshot from the same fs as tosnap,
+	 * or the origin's fs.
+	 */
+	if (fromds != NULL && !is_before(ds, fromds))
 		return (EXDEV);
-
-	if (fromorigin) {
-		if (fromsnap)
-			return (EINVAL);
-
-		if (dsl_dir_is_clone(ds->ds_dir)) {
-			rw_enter(&dp->dp_config_rwlock, RW_READER);
-			err = dsl_dataset_hold_obj(dp,
-			    ds->ds_dir->dd_phys->dd_origin_obj, FTAG, &fromds);
-			rw_exit(&dp->dp_config_rwlock);
-			if (err)
-				return (err);
-		} else {
-			fromorigin = B_FALSE;
-		}
-	}
 
 	/* Get uncompressed size estimate of changed data. */
 	if (fromds == NULL) {
@@ -591,8 +596,6 @@ dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
 		uint64_t used, comp;
 		err = dsl_dataset_space_written(fromds, ds,
 		    &used, &comp, &size);
-		if (fromorigin)
-			dsl_dataset_rele(fromds, FTAG);
 		if (err)
 			return (err);
 	}
@@ -690,8 +693,7 @@ recv_new_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 		    rbsa->ds, &rbsa->ds->ds_phys->ds_bp, rbsa->type, tx);
 	}
 
-	spa_history_log_internal(LOG_DS_REPLAY_FULL_SYNC,
-	    dd->dd_pool->dp_spa, tx, "dataset = %lld", dsobj);
+	spa_history_log_internal_ds(rbsa->ds, "receive new", tx, "");
 }
 
 /* ARGSUSED */
@@ -792,8 +794,7 @@ recv_existing_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	rbsa->ds = cds;
 
-	spa_history_log_internal(LOG_DS_REPLAY_INC_SYNC,
-	    dp->dp_spa, tx, "dataset = %lld", dsobj);
+	spa_history_log_internal_ds(cds, "receive over existing", tx, "");
 }
 
 static boolean_t
@@ -1604,6 +1605,7 @@ recv_end_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	ds->ds_phys->ds_flags &= ~DS_FLAG_INCONSISTENT;
+	spa_history_log_internal_ds(ds, "finished receiving", tx, "");
 }
 
 static int

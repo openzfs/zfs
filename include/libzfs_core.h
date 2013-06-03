@@ -18,31 +18,45 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
-#ifndef	_ZFS_COMUTIL_H
-#define	_ZFS_COMUTIL_H
+#ifndef	_LIBZFS_CORE_H
+#define	_LIBZFS_CORE_H
 
-#include <sys/fs/zfs.h>
+#include <libnvpair.h>
+#include <sys/param.h>
 #include <sys/types.h>
+#include <sys/fs/zfs.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-extern boolean_t zfs_allocatable_devs(nvlist_t *);
-extern void zpool_get_rewind_policy(nvlist_t *, zpool_rewind_policy_t *);
+int libzfs_core_init(void);
+void libzfs_core_fini(void);
 
-extern int zfs_zpl_version_map(int spa_version);
-extern int zfs_spa_version_map(int zpl_version);
-#define	ZFS_NUM_LEGACY_HISTORY_EVENTS 41
-extern const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS];
+int lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist);
+int lzc_create(const char *fsname, dmu_objset_type_t type, nvlist_t *props);
+int lzc_clone(const char *fsname, const char *origin, nvlist_t *props);
+int lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist);
+
+int lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
+    uint64_t *usedp);
+
+int lzc_send(const char *snapname, const char *fromsnap, int fd);
+int lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
+    boolean_t force, int fd);
+int lzc_send_space(const char *snapname, const char *fromsnap,
+    uint64_t *result);
+
+boolean_t lzc_exists(const char *dataset);
+
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _ZFS_COMUTIL_H */
+#endif	/* _LIBZFS_CORE_H */

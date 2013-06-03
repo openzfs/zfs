@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -85,17 +86,17 @@ top:
 
 	/* Do a preliminary error check. */
 	dstg->dstg_err = 0;
+#ifdef ZFS_DEBUG
+	/*
+	 * Only check half the time, otherwise, the sync-context
+	 * check will almost never fail.
+	 */
+	if (spa_get_random(2) == 0)
+		goto skip;
+#endif
 	rw_enter(&dstg->dstg_pool->dp_config_rwlock, RW_READER);
 	for (dst = list_head(&dstg->dstg_tasks); dst;
 	    dst = list_next(&dstg->dstg_tasks, dst)) {
-#ifdef ZFS_DEBUG
-		/*
-		 * Only check half the time, otherwise, the sync-context
-		 * check will almost never fail.
-		 */
-		if (spa_get_random(2) == 0)
-			continue;
-#endif
 		dst->dst_err =
 		    dst->dst_checkfunc(dst->dst_arg1, dst->dst_arg2, tx);
 		if (dst->dst_err)
@@ -107,6 +108,9 @@ top:
 		dmu_tx_commit(tx);
 		return (dstg->dstg_err);
 	}
+#ifdef ZFS_DEBUG
+skip:
+#endif
 
 	/*
 	 * We don't generally have many sync tasks, so pay the price of

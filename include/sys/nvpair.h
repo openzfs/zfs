@@ -277,13 +277,18 @@ int nvpair_value_double(nvpair_t *, double *);
 #endif
 
 nvlist_t *fnvlist_alloc(void);
+nvlist_t *fnvlist_alloc_nosleep(void);
 void fnvlist_free(nvlist_t *);
 size_t fnvlist_size(nvlist_t *);
 char *fnvlist_pack(nvlist_t *, size_t *);
+char *fnvlist_pack_nosleep(nvlist_t *, size_t *);
 void fnvlist_pack_free(char *, size_t);
 nvlist_t *fnvlist_unpack(char *, size_t);
+nvlist_t *fnvlist_unpack_nosleep(char *, size_t);
 nvlist_t *fnvlist_dup(nvlist_t *);
+nvlist_t *fnvlist_dup_nosleep(nvlist_t *);
 void fnvlist_merge(nvlist_t *, nvlist_t *);
+void fnvlist_merge_nosleep(nvlist_t *, nvlist_t *);
 
 void fnvlist_add_boolean(nvlist_t *, const char *);
 void fnvlist_add_boolean_value(nvlist_t *, const char *, boolean_t);
