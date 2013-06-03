@@ -1024,7 +1024,11 @@ out_mutex:
 	return (error);
 }
 
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
+static void
+#else
 static int
+#endif
 zvol_release(struct gendisk *disk, fmode_t mode)
 {
 	zvol_state_t *zv = disk->private_data;
@@ -1044,7 +1048,9 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	if (drop_mutex)
 		mutex_exit(&zvol_state_lock);
 
+#ifndef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	return (0);
+#endif
 }
 
 static int
