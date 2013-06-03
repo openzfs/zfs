@@ -181,10 +181,8 @@ dsl_deleg_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 			VERIFY(zap_update(mos, jumpobj,
 			    perm, 8, 1, &n, tx) == 0);
-			spa_history_log_internal(LOG_DS_PERM_UPDATE,
-			    dd->dd_pool->dp_spa, tx,
-			    "%s %s dataset = %llu", whokey, perm,
-			    dd->dd_phys->dd_head_dataset_obj);
+			spa_history_log_internal_dd(dd, "permission update", tx,
+			    "%s %s", whokey, perm);
 		}
 	}
 }
@@ -213,10 +211,8 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 				(void) zap_remove(mos, zapobj, whokey, tx);
 				VERIFY(0 == zap_destroy(mos, jumpobj, tx));
 			}
-			spa_history_log_internal(LOG_DS_PERM_WHO_REMOVE,
-			    dd->dd_pool->dp_spa, tx,
-			    "%s dataset = %llu", whokey,
-			    dd->dd_phys->dd_head_dataset_obj);
+			spa_history_log_internal_dd(dd, "permission who remove",
+			    tx, "%s", whokey);
 			continue;
 		}
 
@@ -234,10 +230,8 @@ dsl_deleg_unset_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 				VERIFY(0 == zap_destroy(mos,
 				    jumpobj, tx));
 			}
-			spa_history_log_internal(LOG_DS_PERM_REMOVE,
-			    dd->dd_pool->dp_spa, tx,
-			    "%s %s dataset = %llu", whokey, perm,
-			    dd->dd_phys->dd_head_dataset_obj);
+			spa_history_log_internal_dd(dd, "permission remove", tx,
+			    "%s %s", whokey, perm);
 		}
 	}
 }
@@ -533,12 +527,10 @@ dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
 }
 
 /*
- * Check if user has requested permission.  If descendent is set, must have
- * descendent perms.
+ * Check if user has requested permission.
  */
 int
-dsl_deleg_access_impl(dsl_dataset_t *ds, boolean_t descendent, const char *perm,
-    cred_t *cr)
+dsl_deleg_access_impl(dsl_dataset_t *ds, const char *perm, cred_t *cr)
 {
 	dsl_dir_t *dd;
 	dsl_pool_t *dp;
@@ -559,7 +551,7 @@ dsl_deleg_access_impl(dsl_dataset_t *ds, boolean_t descendent, const char *perm,
 	    SPA_VERSION_DELEGATED_PERMS)
 		return (EPERM);
 
-	if (dsl_dataset_is_snapshot(ds) || descendent) {
+	if (dsl_dataset_is_snapshot(ds)) {
 		/*
 		 * Snapshots are treated as descendents only,
 		 * local permissions do not apply.
@@ -652,7 +644,7 @@ dsl_deleg_access(const char *dsname, const char *perm, cred_t *cr)
 	if (error)
 		return (error);
 
-	error = dsl_deleg_access_impl(ds, B_FALSE, perm, cr);
+	error = dsl_deleg_access_impl(ds, perm, cr);
 	dsl_dataset_rele(ds, FTAG);
 
 	return (error);

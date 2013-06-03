@@ -293,6 +293,7 @@ extern void rw_exit(krwlock_t *rwlp);
 #define	rw_downgrade(rwlp) do { } while (0)
 
 extern uid_t crgetuid(cred_t *cr);
+extern uid_t crgetruid(cred_t *cr);
 extern gid_t crgetgid(cred_t *cr);
 extern int crgetngroups(cred_t *cr);
 extern gid_t *crgetgroups(cred_t *cr);

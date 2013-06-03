@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -704,11 +705,9 @@ dsl_prop_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 		}
 	}
 
-	spa_history_log_internal((source == ZPROP_SRC_NONE ||
-	    source == ZPROP_SRC_INHERITED) ? LOG_DS_INHERIT :
-	    LOG_DS_PROPSET, ds->ds_dir->dd_pool->dp_spa, tx,
-	    "%s=%s dataset = %llu", propname,
-	    (valstr == NULL ? "" : valstr), ds->ds_object);
+	spa_history_log_internal_ds(ds, (source == ZPROP_SRC_NONE ||
+	    source == ZPROP_SRC_INHERITED) ? "inherit" : "set", tx,
+	    "%s=%s", propname, (valstr == NULL ? "" : valstr));
 
 	if (tbuf != NULL)
 		kmem_free(tbuf, ZAP_MAXVALUELEN);
@@ -755,24 +754,6 @@ dsl_props_set_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 		}
 		dsl_prop_set_sync(ds, &psa, tx);
 	}
-}
-
-void
-dsl_dir_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
-    dmu_tx_t *tx)
-{
-	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t zapobj = dd->dd_phys->dd_props_zapobj;
-
-	ASSERT(dmu_tx_is_syncing(tx));
-
-	VERIFY(0 == zap_update(mos, zapobj, name, sizeof (val), 1, &val, tx));
-
-	dsl_prop_changed_notify(dd->dd_pool, dd->dd_object, name, val, TRUE);
-
-	spa_history_log_internal(LOG_DS_PROPSET, dd->dd_pool->dp_spa, tx,
-	    "%s=%llu dataset = %llu", name, (u_longlong_t)val,
-	    dd->dd_phys->dd_head_dataset_obj);
 }
 
 int
