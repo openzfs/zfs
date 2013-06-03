@@ -10,7 +10,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS], [
 
 		int blk_open(struct block_device *bdev, fmode_t mode)
 		    { return 0; }
-		int blk_release(struct gendisk *g, fmode_t mode) { return 0; }
 		int blk_ioctl(struct block_device *bdev, fmode_t mode,
 		    unsigned x, unsigned long y) { return 0; }
 		int blk_compat_ioctl(struct block_device * bdev, fmode_t mode,
@@ -19,7 +18,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDEV_BLOCK_DEVICE_OPERATIONS], [
 		static const struct block_device_operations
 		    bops __attribute__ ((unused)) = {
 			.open		= blk_open,
-			.release	= blk_release,
+			.release	= NULL,
 			.ioctl		= blk_ioctl,
 			.compat_ioctl	= blk_compat_ioctl,
 		};
