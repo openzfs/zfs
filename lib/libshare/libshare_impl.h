@@ -67,4 +67,7 @@ typedef struct sa_handle_impl {
 	sa_share_impl_t shares;
 } *sa_handle_impl_t;
 
+typedef int (*shareopt_callback_t)(const char *opt, const char *value, void *cookie);
+
 sa_fstype_t *register_fstype(const char *name, const sa_share_ops_t *ops);
+int foreach_shareopt(const char *shareopts, shareopt_callback_t callback, void *cookie);
