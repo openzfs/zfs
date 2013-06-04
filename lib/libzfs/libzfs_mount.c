@@ -877,7 +877,6 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 	char *mntpt = NULL;
 
 	/* check to see if need to unmount the filesystem */
-	rewind(zhp->zfs_hdl->libzfs_mnttab);
 	if (mountpoint != NULL)
 		mountpoint = mntpt = zfs_strdup(hdl, mountpoint);
 
