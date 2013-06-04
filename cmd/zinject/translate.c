@@ -115,7 +115,11 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		return (-1);
 	}
 
+#ifdef HAVE_SETMNTENT
+	if ((fp = setmntent(MNTTAB, "r")) == NULL) {
+#else
 	if ((fp = fopen(MNTTAB, "r")) == NULL) {
+#endif
 		(void) fprintf(stderr, "cannot open /etc/mtab\n");
 		return (-1);
 	}
