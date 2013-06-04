@@ -66,6 +66,7 @@
 #include "zfs_iter.h"
 #include "zfs_util.h"
 #include "zfs_comutil.h"
+#include "libzfs_impl.h"
 
 libzfs_handle_t *g_zfs;
 
@@ -6344,12 +6345,6 @@ main(int argc, char **argv)
 
 	opterr = 0;
 
-	if ((mnttab_file = fopen(MNTTAB, "r")) == NULL) {
-		(void) fprintf(stderr, gettext("internal error: unable to "
-		    "open %s\n"), MNTTAB);
-		return (1);
-	}
-
 	/*
 	 * Make sure the user has specified some command.
 	 */
@@ -6388,6 +6383,8 @@ main(int argc, char **argv)
 	if ((g_zfs = libzfs_init()) == NULL)
 		return (1);
 
+	mnttab_file = g_zfs->libzfs_mnttab;
+
 	zpool_set_history_str("zfs", argc, argv, history_str);
 	verify(zpool_stage_history(g_zfs, history_str) == 0);
 
@@ -6411,8 +6408,6 @@ main(int argc, char **argv)
 		ret = 1;
 	}
 	libzfs_fini(g_zfs);
-
-	(void) fclose(mnttab_file);
 
 	/*
 	 * The 'ZFS_ABORT' environment variable causes us to dump core on exit
