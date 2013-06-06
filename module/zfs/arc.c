@@ -3241,6 +3241,34 @@ arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private)
 }
 
 /*
+ * Notify the arc that a block was freed, and thus will never be used again.
+ */
+void
+arc_freed(spa_t *spa, const blkptr_t *bp)
+{
+	arc_buf_hdr_t *hdr;
+	kmutex_t *hash_lock;
+	uint64_t guid = spa_load_guid(spa);
+
+	hdr = buf_hash_find(guid, BP_IDENTITY(bp), BP_PHYSICAL_BIRTH(bp),
+	    &hash_lock);
+	if (hdr == NULL)
+		return;
+	if (HDR_BUF_AVAILABLE(hdr)) {
+		arc_buf_t *buf = hdr->b_buf;
+		add_reference(hdr, hash_lock, FTAG);
+		hdr->b_flags &= ~ARC_BUF_AVAILABLE;
+		mutex_exit(hash_lock);
+
+		arc_release(buf, FTAG);
+		(void) arc_buf_remove_ref(buf, FTAG);
+	} else {
+		mutex_exit(hash_lock);
+	}
+
+}
+
+/*
  * This is used by the DMU to let the ARC know that a buffer is
  * being evicted, so the ARC should clean up.  If this arc buf
  * is not yet in the evicted state, it will be put there.

@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ARC_H
@@ -127,6 +128,7 @@ zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 
 arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *private);
 void arc_remove_prune_callback(arc_prune_t *p);
+void arc_freed(spa_t *spa, const blkptr_t *bp);
 
 void arc_set_callback(arc_buf_t *buf, arc_evict_func_t *func, void *private);
 int arc_buf_evict(arc_buf_t *buf);
