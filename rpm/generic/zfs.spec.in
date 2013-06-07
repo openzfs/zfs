@@ -123,6 +123,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %doc AUTHORS COPYRIGHT DISCLAIMER
 %doc OPENSOLARIS.LICENSE README.markdown
 %{_sbindir}/*
+%{_bindir}/*
 %{_libdir}/*.so.1*
 %{_mandir}/man1/*
 %{_mandir}/man5/*

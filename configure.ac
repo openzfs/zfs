@@ -102,6 +102,7 @@ AC_CONFIG_FILES([
 	cmd/fsck_zfs/Makefile
 	cmd/zvol_id/Makefile
 	cmd/vdev_id/Makefile
+	cmd/arcstat/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile

@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
 # For a definition of fields, or usage, use arctstat.pl -v
@@ -51,7 +51,6 @@ import re
 import copy
 
 from decimal import Decimal
-from subprocess import Popen, PIPE
 from signal import signal, SIGINT
 
 cols = {
@@ -149,33 +148,20 @@ def usage():
 def kstat_update():
     global kstat
 
-    p = Popen("/sbin/sysctl -q 'kstat.zfs.misc.arcstats'", stdin=PIPE,
-        stdout=PIPE, stderr=PIPE, shell=True, close_fds=True)
-    p.wait()
-
-    k = p.communicate()[0].split('\n')
-    if p.returncode != 0:
-        sys.exit(1)
+    k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
 
     if not k:
         sys.exit(1)
 
+    del k[0:2]
     kstat = {}
 
     for s in k:
         if not s:
             continue
 
-        s = s.strip()
-
-        name, value = s.split(':')
-        name = name.strip()
-        value = value.strip()
-
-        parts = name.split('.')
-        n = parts.pop()
-
-        kstat[n] = Decimal(value)
+        name, unused, value = s.split()
+        kstat[name] = Decimal(value)
 
 
 def snap_stats():
