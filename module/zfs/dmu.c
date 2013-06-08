@@ -1059,7 +1059,7 @@ dmu_bio_clone(struct bio *bio, struct bio **bio_copy)
 		return EINVAL;
 
 	while (bio) {
-		bio_new = bio_clone(bio, GFP_NOIO);
+		bio_new = bio_clone(bio, GFP_ATOMIC | __GFP_HIGH);
 		if (bio_new == NULL) {
 			dmu_bio_put(bio_root);
 			return ENOMEM;
