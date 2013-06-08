@@ -1,1 +1,1 @@
-sbin_SCRIPTS = arcstat.py
+bin_SCRIPTS = arcstat.py
