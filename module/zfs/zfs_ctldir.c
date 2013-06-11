@@ -368,6 +368,11 @@ zfsctl_snapshot_zname(struct inode *ip, const char *name, int len, char *zname)
 	return (0);
 }
 
+/*
+ * Gets the full dataset name that corresponds to the given snapshot name
+ * Example:
+ * 	zfsctl_snapshot_zname("snap1") -> "mypool/myfs@snap1"
+ */
 static int
 zfsctl_snapshot_zpath(struct path *path, int len, char *zpath)
 {

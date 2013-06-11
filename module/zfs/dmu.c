@@ -1961,7 +1961,7 @@ dmu_init(void)
 void
 dmu_fini(void)
 {
-	arc_fini();
+	arc_fini(); /* arc depends on l2arc, so arc must go first */
 	l2arc_fini();
 	dmu_tx_fini();
 	zfetch_fini();

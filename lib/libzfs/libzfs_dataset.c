@@ -4791,6 +4791,11 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
 	return (err);
 }
 
+/*
+ * Convert the zvol's volume size to an appropriate reservation.
+ * Note: If this routine is updated, it is necessary to update the ZFS test
+ * suite's shell version in reservation.kshlib.
+ */
 uint64_t
 zvol_volsize_to_reservation(uint64_t volsize, nvlist_t *props)
 {
