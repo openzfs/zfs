@@ -360,8 +360,10 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 
 	/* Make sure dsobj has the correct object type. */
 	dmu_object_info_from_db(dbuf, &doi);
-	if (doi.doi_type != DMU_OT_DSL_DATASET)
+	if (doi.doi_type != DMU_OT_DSL_DATASET) {
+		dmu_buf_rele(dbuf, tag);
 		return (SET_ERROR(EINVAL));
+	}
 
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
