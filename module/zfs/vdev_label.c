@@ -1035,6 +1035,7 @@ vdev_uberblock_sync(zio_t *zio, uberblock_t *ub, vdev_t *vd, int flags)
 	zio_buf_free(ubbuf, VDEV_UBERBLOCK_SIZE(vd));
 }
 
+/* Sync the uberblocks to all vdevs in svd[] */
 int
 vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 {

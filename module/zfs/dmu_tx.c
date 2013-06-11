@@ -1040,6 +1040,10 @@ dmu_tx_unassign(dmu_tx_t *tx)
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
 
+	/*
+	 * Walk the transaction's hold list, removing the hold on the
+	 * associated dnode, and notifying waiters if the refcount drops to 0.
+	 */
 	for (txh = list_head(&tx->tx_holds); txh != tx->tx_needassign_txh;
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
@@ -1157,6 +1161,10 @@ dmu_tx_commit(dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg != 0);
 
+	/*
+	 * Go through the transaction's hold list and remove holds on
+	 * associated dnodes, notifying waiters if no holds remain.
+	 */
 	while ((txh = list_head(&tx->tx_holds))) {
 		dnode_t *dn = txh->txh_dnode;
 

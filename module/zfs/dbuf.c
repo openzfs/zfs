@@ -691,6 +691,14 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		if (!havepzio)
 			err = zio_wait(zio);
 	} else {
+		/*
+		 * Another reader came in while the dbuf was in flight
+		 * between UNCACHED and CACHED.  Either a writer will finish
+		 * writing the buffer (sending the dbuf to CACHED) or the
+		 * first reader's request will reach the read_done callback
+		 * and send the dbuf to CACHED.  Otherwise, a failure
+		 * occurred and the dbuf went to UNCACHED.
+		 */
 		mutex_exit(&db->db_mtx);
 		if (prefetch)
 			dmu_zfetch(&dn->dn_zfetch, db->db.db_offset,
@@ -699,6 +707,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 			rw_exit(&dn->dn_struct_rwlock);
 		DB_DNODE_EXIT(db);
 
+		/* Skip the wait per the caller's request. */
 		mutex_enter(&db->db_mtx);
 		if ((flags & DB_RF_NEVERWAIT) == 0) {
 			while (db->db_state == DB_READ ||
@@ -1313,7 +1322,8 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 }
 
 /*
- * Return TRUE if this evicted the dbuf.
+ * Undirty a buffer in the transaction group referenced by the given
+ * transaction.  Return whether this evicted the dbuf.
  */
 static boolean_t
 dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
@@ -2324,6 +2334,7 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	ASSERT(db->db_level > 0);
 	DBUF_VERIFY(db);
 
+	/* Read the block if it hasn't been read yet. */
 	if (db->db_buf == NULL) {
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
@@ -2334,10 +2345,12 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
+	/* Indirect block size must match what the dnode thinks it is. */
 	ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
 	dbuf_check_blkptr(dn, db);
 	DB_DNODE_EXIT(db);
 
+	/* Provide the pending dirty record to child dbufs */
 	db->db_data_pending = dr;
 
 	mutex_exit(&db->db_mtx);
@@ -2728,6 +2741,7 @@ dbuf_write_override_done(zio_t *zio)
 	dbuf_write_done(zio, NULL, db);
 }
 
+/* Issue I/O to commit a dirty buffer to disk. */
 static void
 dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 {
@@ -2762,11 +2776,19 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	}
 
 	if (parent != dn->dn_dbuf) {
+		/* Our parent is an indirect block. */
+		/* We have a dirty parent that has been scheduled for write. */
 		ASSERT(parent && parent->db_data_pending);
+		/* Our parent's buffer is one level closer to the dnode. */
 		ASSERT(db->db_level == parent->db_level-1);
+		/*
+		 * We're about to modify our parent's db_data by modifying
+		 * our block pointer, so the parent must be released.
+		 */
 		ASSERT(arc_released(parent->db_buf));
 		zio = parent->db_data_pending->dr_zio;
 	} else {
+		/* Our parent is the dnode itself. */
 		ASSERT((db->db_level == dn->dn_phys->dn_nlevels-1 &&
 		    db->db_blkid != DMU_SPILL_BLKID) ||
 		    (db->db_blkid == DMU_SPILL_BLKID && db->db_level == 0));

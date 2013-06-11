@@ -260,7 +260,18 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_mfu_ghost_hits;
 	kstat_named_t arcstat_deleted;
 	kstat_named_t arcstat_recycle_miss;
+	/*
+	 * Number of buffers that could not be evicted because the hash lock
+	 * was held by another thread.  The lock may not necessarily be held
+	 * by something using the same buffer, since hash locks are shared
+	 * by multiple buffers.
+	 */
 	kstat_named_t arcstat_mutex_miss;
+	/*
+	 * Number of buffers skipped because they have I/O in progress, are
+	 * indrect prefetch buffers that have not lived long enough, or are
+	 * not from the spa we're trying to evict from.
+	 */
 	kstat_named_t arcstat_evict_skip;
 	kstat_named_t arcstat_evict_l2_cached;
 	kstat_named_t arcstat_evict_l2_eligible;
@@ -3174,6 +3185,10 @@ top:
 
 		mutex_exit(hash_lock);
 
+		/*
+		 * At this point, we have a level 1 cache miss.  Try again in
+		 * L2ARC if possible.
+		 */
 		ASSERT3U(hdr->b_size, ==, size);
 		DTRACE_PROBE4(arc__miss, arc_buf_hdr_t *, hdr, blkptr_t *, bp,
 		    uint64_t, size, zbookmark_t *, zb);
@@ -3445,8 +3460,8 @@ arc_buf_evict(arc_buf_t *buf)
 }
 
 /*
- * Release this buffer from the cache.  This must be done
- * after a read and prior to modifying the buffer contents.
+ * Release this buffer from the cache, making it an anonymous buffer.  This
+ * must be done after a read and prior to modifying the buffer contents.
  * If the buffer has more than one reference, we must make
  * a new hdr for the buffer.
  */

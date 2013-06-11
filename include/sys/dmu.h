@@ -407,6 +407,8 @@ void dmu_write_policy(objset_t *os, struct dnode *dn, int level, int wp,
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
  * buffer as well.  You must release what you hold with dmu_buf_rele().
+ *
+ * Returns ENOENT, EIO, or 0.
  */
 int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
 int dmu_bonus_max(void);
@@ -662,8 +664,14 @@ extern const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
  */
 int dmu_object_info(objset_t *os, uint64_t object, dmu_object_info_t *doi);
 void __dmu_object_info_from_dnode(struct dnode *dn, dmu_object_info_t *doi);
+/* Like dmu_object_info, but faster if you have a held dnode in hand. */
 void dmu_object_info_from_dnode(struct dnode *dn, dmu_object_info_t *doi);
+/* Like dmu_object_info, but faster if you have a held dbuf in hand. */
 void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
+/*
+ * Like dmu_object_info_from_db, but faster still when you only care about
+ * the size.  This is specifically optimized for zfs_getattr().
+ */
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
     u_longlong_t *nblk512);
 
