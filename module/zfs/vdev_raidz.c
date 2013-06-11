@@ -60,6 +60,7 @@
  *   o addition (+) is represented by a bitwise XOR
  *   o subtraction (-) is therefore identical to addition: A + B = A - B
  *   o multiplication of A by 2 is defined by the following bitwise expression:
+ *
  *	(A * 2)_7 = A_6
  *	(A * 2)_6 = A_5
  *	(A * 2)_5 = A_4
@@ -118,7 +119,7 @@ typedef struct raidz_map {
 	uint64_t rm_missingparity;	/* Count of missing parity devices */
 	uint64_t rm_firstdatacol;	/* First data column/parity count */
 	uint64_t rm_nskip;		/* Skipped sectors for padding */
-	uint64_t rm_skipstart;	/* Column index of padding start */
+	uint64_t rm_skipstart;		/* Column index of padding start */
 	void *rm_datacopy;		/* rm_asize-buffer of copied data */
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
@@ -158,10 +159,7 @@ typedef struct raidz_map {
  */
 int vdev_raidz_default_to_general;
 
-/*
- * These two tables represent powers and logs of 2 in the Galois field defined
- * above. These values were computed by repeatedly multiplying by 2 as above.
- */
+/* Powers of 2 in the Galois field defined above. */
 static const uint8_t vdev_raidz_pow2[256] = {
 	0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
 	0x1d, 0x3a, 0x74, 0xe8, 0xcd, 0x87, 0x13, 0x26,
@@ -196,6 +194,7 @@ static const uint8_t vdev_raidz_pow2[256] = {
 	0x2c, 0x58, 0xb0, 0x7d, 0xfa, 0xe9, 0xcf, 0x83,
 	0x1b, 0x36, 0x6c, 0xd8, 0xad, 0x47, 0x8e, 0x01
 };
+/* Logs of 2 in the Galois field defined above. */
 static const uint8_t vdev_raidz_log2[256] = {
 	0x00, 0x00, 0x01, 0x19, 0x02, 0x32, 0x1a, 0xc6,
 	0x03, 0xdf, 0x33, 0xee, 0x1b, 0x68, 0xc7, 0x4b,

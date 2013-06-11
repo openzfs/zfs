@@ -47,7 +47,8 @@ struct znode_phys;
 #define	ZFS_ACL_VERSION		ZFS_ACL_VERSION_FUID
 
 /*
- * ZFS ACLs are store in various forms.
+ * ZFS ACLs (Access Control Lists) are stored in various forms.
+ *
  * Files created with ACL version ZFS_ACL_VERSION_INITIAL
  * will all be created with fixed length ACEs of type
  * zfs_oldace_t.
@@ -137,8 +138,8 @@ typedef struct acl_ops {
 	size_t		(*ace_size)(void *acep); /* how big is this ace */
 	size_t		(*ace_abstract_size)(void); /* sizeof abstract entry */
 	int		(*ace_mask_off)(void); /* off of access mask in ace */
+	/* ptr to data if any */
 	int		(*ace_data)(void *acep, void **datap);
-			    /* ptr to data if any */
 } acl_ops_t;
 
 /*

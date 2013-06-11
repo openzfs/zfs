@@ -254,12 +254,13 @@ typedef struct vdev_label {
 #define	VDD_METASLAB	0x01
 #define	VDD_DTL		0x02
 
+/* Offset of embedded boot loader region on each label */
+#define	VDEV_BOOT_OFFSET	(2 * sizeof (vdev_label_t))
 /*
- * Size and offset of embedded boot loader region on each label.
+ * Size of embedded boot loader region on each label.
  * The total size of the first two labels plus the boot area is 4MB.
  */
-#define	VDEV_BOOT_OFFSET	(2 * sizeof (vdev_label_t))
-#define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M	*/
+#define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M */
 
 /*
  * Size of label regions at the start and end of each leaf device.
@@ -326,8 +327,9 @@ extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 
 /*
- * zdb uses this tunable, so it must be declared here to make lint happy.
+ * Global variables
  */
+/* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
 
 #ifdef	__cplusplus

@@ -110,6 +110,7 @@
  * location.
  *
  * Byteswap implications:
+ *
  * Since the SA attributes are not entirely self describing we can't do
  * the normal byteswap processing.  The special ZAP layout attribute and
  * attribute registration attributes define the byteswap function and the
@@ -188,7 +189,6 @@ sa_attr_reg_t sa_legacy_attrs[] = {
 };
 
 /*
- * ZPL legacy layout
  * This is only used for objects of type DMU_OT_ZNODE
  */
 sa_attr_type_t sa_legacy_zpl_layout[] = {
@@ -198,7 +198,6 @@ sa_attr_type_t sa_legacy_zpl_layout[] = {
 /*
  * Special dummy layout used for buffers with no attributes.
  */
-
 sa_attr_type_t sa_dummy_zpl_layout[] = { 0 };
 
 static int sa_legacy_attr_count = 16;

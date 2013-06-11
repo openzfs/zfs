@@ -58,11 +58,11 @@
  * tight.
  *
  * 3. The Megiddo and Modha model assumes a fixed page size. All
- * elements of the cache are therefor exactly the same size.  So
+ * elements of the cache are therefore exactly the same size.  So
  * when adjusting the cache size following a cache miss, its simply
  * a matter of choosing a single page to evict.  In our model, we
  * have variable sized cache blocks (rangeing from 512 bytes to
- * 128K bytes).  We therefor choose a set of blocks to evict to make
+ * 128K bytes).  We therefore choose a set of blocks to evict to make
  * space for a cache miss that approximates as closely as possible
  * the space used by the new block.
  *
@@ -77,7 +77,7 @@
  * ways: 1) via a hash table lookup using the DVA as a key,
  * or 2) via one of the ARC lists.  The arc_read() interface
  * uses method 1, while the internal arc algorithms for
- * adjusting the cache use method 2.  We therefor provide two
+ * adjusting the cache use method 2.  We therefore provide two
  * types of locks: 1) the hash table lock array, and 2) the
  * arc list locks.
  *
@@ -431,7 +431,7 @@ static arc_stats_t arc_stats = {
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
 
 #define	ARCSTAT_INCR(stat, val) \
-	atomic_add_64(&arc_stats.stat.value.ui64, (val));
+	atomic_add_64(&arc_stats.stat.value.ui64, (val))
 
 #define	ARCSTAT_BUMP(stat)	ARCSTAT_INCR(stat, 1)
 #define	ARCSTAT_BUMPDOWN(stat)	ARCSTAT_INCR(stat, -1)
@@ -665,9 +665,7 @@ uint64_t zfs_crc64_table[256];
 #define	l2arc_writes_sent	ARCSTAT(arcstat_l2_writes_sent)
 #define	l2arc_writes_done	ARCSTAT(arcstat_l2_writes_done)
 
-/*
- * L2ARC Performance Tunables
- */
+/* L2ARC Performance Tunables */
 unsigned long l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
 unsigned long l2arc_write_boost = L2ARC_WRITE_SIZE;	/* extra warmup write */
 unsigned long l2arc_headroom = L2ARC_HEADROOM;		/* # of dev writes */
@@ -3829,7 +3827,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 
 	/*
 	 * Writes will, almost always, require additional memory allocations
-	 * in order to compress/encrypt/etc the data.  We therefor need to
+	 * in order to compress/encrypt/etc the data.  We therefore need to
 	 * make sure that there is sufficient available memory for this.
 	 */
 	if ((error = arc_memory_throttle(reserve, anon_size, txg)))

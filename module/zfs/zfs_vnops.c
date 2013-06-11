@@ -123,7 +123,7 @@
  *  (5)	If the operation succeeded, generate the intent log entry for it
  *	before dropping locks.  This ensures that the ordering of events
  *	in the intent log matches the order in which they actually occurred.
- *      During ZIL replay the zfs_log_* functions will update the sequence
+ *	During ZIL replay the zfs_log_* functions will update the sequence
  *	number to indicate the zil transaction has replayed.
  *
  *  (6)	At the end of each vnode op, the DMU tx must always commit,
@@ -357,7 +357,7 @@ update_pages(struct inode *ip, int64_t start, int len,
  *		else we default from the dmu buffer.
  *
  * NOTE: We will always "break up" the IO into PAGESIZE uiomoves when
- *	the file is memory mapped.
+ *	 the file is memory mapped.
  */
 static int
 mappedread(struct inode *ip, int nbytes, uio_t *uio)
@@ -418,8 +418,7 @@ unsigned long zfs_read_chunk_size = 1024 * 1024; /* Tunable */
  *
  *	OUT:	uio	- updated offset and range, buffer filled.
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Side Effects:
  *	inode - atime updated if byte count > 0
@@ -1116,8 +1115,7 @@ EXPORT_SYMBOL(zfs_access);
  *
  *	OUT:	ipp	- inode of located entry, NULL if not found.
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	NA
@@ -1249,8 +1247,7 @@ EXPORT_SYMBOL(zfs_lookup);
  *
  *	OUT:	ipp	- inode of created or trunc'd entry.
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	dip - ctime|mtime updated if new entry created
@@ -1858,8 +1855,7 @@ EXPORT_SYMBOL(zfs_mkdir);
  *		cr	- credentials of caller.
  *		flags	- case flags
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	dip - ctime|mtime updated
@@ -3148,8 +3144,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *		cr	- credentials of caller.
  *		flags	- case flags
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	sdip,tdip - ctime|mtime updated
@@ -3483,8 +3478,7 @@ EXPORT_SYMBOL(zfs_rename);
  *		cr	- credentials of caller.
  *		flags	- case flags
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	dip - ctime|mtime updated
@@ -4141,8 +4135,7 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
  *		pl	 - list of pages to read
  *		nr_pages - number of pages to read
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	vp - atime updated
@@ -4277,8 +4270,7 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
  *		offset	- current file offset.
  *		cr	- credentials of caller [UNUSED].
  *
- *	RETURN:	0 if success
- *		error code if failure
+ *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
  *	ip - ctime|mtime updated
