@@ -434,7 +434,7 @@ dsl_dataset_user_release_tmp(dsl_pool_t *dp, uint64_t dsobj, const char *htag)
 		dsl_dataset_name(ds, name);
 		dsl_dataset_rele(ds, FTAG);
 		dsl_pool_config_exit(dp, FTAG);
-		zfs_unmount_snap(name);
+		(void) zfs_unmount_snap(name);
 	} else {
 		dsl_pool_config_exit(dp, FTAG);
 	}
