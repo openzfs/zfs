@@ -320,6 +320,7 @@ spa_config_set(spa_t *spa, nvlist_t *config)
 
 /*
  * Generate the pool's configuration based on the current in-core state.
+ *
  * We infer whether to generate a complete config or just one top-level config
  * based on whether vd is the root vdev.
  */

@@ -648,8 +648,8 @@ txg_quiesce_thread(dsl_pool_t *dp)
 
 /*
  * Delay this thread by delay nanoseconds if we are still in the open
- * transaction group and there is already a waiting txg quiesing or quiesced.
- * Abort the delay if this txg stalls or enters the quiesing state.
+ * transaction group and there is already a waiting txg quiescing or quiesced.
+ * Abort the delay if this txg stalls or enters the quiescing state.
  */
 void
 txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)
@@ -657,7 +657,7 @@ txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)
 	tx_state_t *tx = &dp->dp_tx;
 	hrtime_t start = gethrtime();
 
-	/* don't delay if this txg could transition to quiesing immediately */
+	/* don't delay if this txg could transition to quiescing immediately */
 	if (tx->tx_open_txg > txg ||
 	    tx->tx_syncing_txg == txg-1 || tx->tx_synced_txg == txg-1)
 		return;

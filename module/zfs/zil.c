@@ -88,9 +88,9 @@ zil_stats_t zil_stats = {
 static kstat_t *zil_ksp;
 
 /*
- * This global ZIL switch affects all pools
+ * Disable intent logging replay.  This global ZIL switch affects all pools.
  */
-int zil_replay_disable = 0;    /* disable intent logging replay */
+int zil_replay_disable = 0;
 
 /*
  * Tunable parameter for debugging or performance analysis.  Setting
@@ -922,6 +922,7 @@ zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
 
 /*
  * Define a limited set of intent log block sizes.
+ *
  * These must be a multiple of 4KB. Note only the amount used (again
  * aligned to 4KB) actually gets written. However, we can't always just
  * allocate SPA_MAXBLOCKSIZE as the slog space could be exhausted.

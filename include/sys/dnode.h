@@ -145,9 +145,8 @@ typedef struct dnode_phys {
 
 typedef struct dnode {
 	/*
-	 * dn_struct_rwlock protects the structure of the dnode,
-	 * including the number of levels of indirection (dn_nlevels),
-	 * dn_maxblkid, and dn_next_*
+	 * Protects the structure of the dnode, including the number of levels
+	 * of indirection (dn_nlevels), dn_maxblkid, and dn_next_*
 	 */
 	krwlock_t dn_struct_rwlock;
 

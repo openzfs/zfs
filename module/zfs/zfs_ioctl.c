@@ -290,9 +290,7 @@ zfs_is_bootfs(const char *name)
 }
 
 /*
- * zfs_earlier_version
- *
- *	Return non-zero if the spa version is less than requested version.
+ * Return non-zero if the spa version is less than requested version.
  */
 static int
 zfs_earlier_version(const char *name, int version)
@@ -310,8 +308,6 @@ zfs_earlier_version(const char *name, int version)
 }
 
 /*
- * zpl_earlier_version
- *
  * Return TRUE if the ZPL version is less than requested version.
  */
 static boolean_t
@@ -2942,10 +2938,10 @@ zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 
 /*
  * inputs:
- * createprops		list of properties requested by creator
- * default_zplver	zpl version to use if unspecified in createprops
- * fuids_ok		fuids allowed in this version of the spa?
  * os			parent objset pointer (NULL if root fs)
+ * fuids_ok		fuids allowed in this version of the spa?
+ * sa_ok		SAs allowed in this version of the spa?
+ * createprops		list of properties requested by creator
  *
  * outputs:
  * zplprops	values for the zplprops we attach to the master node object

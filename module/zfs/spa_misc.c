@@ -1298,7 +1298,7 @@ spa_freeze(spa_t *spa)
 
 /*
  * This is a stripped-down version of strtoull, suitable only for converting
- * lowercase hexidecimal numbers that don't overflow.
+ * lowercase hexadecimal numbers that don't overflow.
  */
 uint64_t
 strtonum(const char *str, char **nptr)

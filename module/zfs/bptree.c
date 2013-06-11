@@ -43,7 +43,7 @@
  * dsl_scan_sync. This allows the delete operation to finish without traversing
  * all the dataset's blocks.
  *
- * Note that while bt_begin and bt_end are only ever incremented in this code
+ * Note that while bt_begin and bt_end are only ever incremented in this code,
  * they are effectively reset to 0 every time the entire bptree is freed because
  * the bptree's object is destroyed and re-created.
  */

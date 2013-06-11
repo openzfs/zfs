@@ -37,13 +37,14 @@
 /*
  * These tunables are for performance analysis.
  */
-/*
- * zfs_vdev_max_pending is the maximum number of i/os concurrently
- * pending to each device.  zfs_vdev_min_pending is the initial number
- * of i/os pending to each device (before it starts ramping up to
- * max_pending).
- */
+
+/* The maximum number of I/Os concurrently pending to each device. */
 int zfs_vdev_max_pending = 10;
+
+/*
+ * The initial number of I/Os pending to each device, before it starts ramping
+ * up to zfs_vdev_max_pending.
+ */
 int zfs_vdev_min_pending = 4;
 
 /*
