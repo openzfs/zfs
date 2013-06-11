@@ -356,7 +356,7 @@ extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from,
     const char *to, cred_t *cr);
 extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
-extern void zfs_unmount_snap(const char *);
+extern int zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 
 enum zfsdev_state_type {
