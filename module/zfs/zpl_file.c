@@ -235,6 +235,53 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 	return (wrote);
 }
 
+static loff_t
+zpl_file_llseek(struct file *filp, loff_t offset, int whence)
+{
+	struct inode *inode = filp->f_mapping->host;
+	int error = 0;
+
+	mutex_lock(&inode->i_mutex);
+
+	switch (whence) {
+	case SEEK_SET:
+	case SEEK_CUR:
+	case SEEK_END:
+		offset = generic_file_llseek(filp, offset, whence);
+		goto out;
+#if (defined SEEK_HOLE && defined SEEK_DATA)
+	case SEEK_DATA:
+	case SEEK_HOLE:
+		error = -zfs_holey(filp->f_mapping->host, whence, &offset);
+		if (error)
+			goto out;
+		break;
+#endif /* SEEK_HOLE && SEEK_DATA */
+	default:
+		error = -EINVAL;
+		goto out;
+	}
+
+
+	if (offset < 0 && !(filp->f_mode & FMODE_UNSIGNED_OFFSET))
+		error = -EINVAL;
+	if (!error && offset > inode->i_sb->s_maxbytes)
+		error = -EINVAL;
+	if (error)
+		goto out;
+
+	if (offset != filp->f_pos) {
+		filp->f_pos = offset;
+		filp->f_version = 0;
+	}
+
+out:
+	mutex_unlock(&inode->i_mutex);
+	if (error)
+		return error;
+	return offset;
+}
+
 /*
  * It's worth taking a moment to describe how mmap is implemented
  * for zfs because it differs considerably from other Linux filesystems.
@@ -443,7 +490,7 @@ const struct address_space_operations zpl_address_space_operations = {
 const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
-	.llseek		= generic_file_llseek,
+	.llseek		= zpl_file_llseek,
 	.read		= zpl_read,
 	.write		= zpl_write,
 	.mmap		= zpl_mmap,
