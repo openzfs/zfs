@@ -239,9 +239,10 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 }
 EXPORT_SYMBOL(zfs_close);
 
+#if (defined SEEK_HOLE && defined SEEK_DATA)
 /*
- * Lseek support for finding holes (cmd == _FIO_SEEK_HOLE) and
- * data (cmd == _FIO_SEEK_DATA). "off" is an in/out parameter.
+ * Lseek support for finding holes (cmd == SEEK_HOLE) and
+ * data (cmd == SEEK_DATA). "off" is an in/out parameter.
  */
 int
 zfs_holey(struct inode *ip, int cmd, loff_t *off)
@@ -282,6 +283,7 @@ zfs_holey(struct inode *ip, int cmd, loff_t *off)
 	return (error);
 }
 EXPORT_SYMBOL(zfs_holey);
+#endif /* SEEK_HOLE && SEEK_DATA */
 
 #if defined(_KERNEL)
 /*

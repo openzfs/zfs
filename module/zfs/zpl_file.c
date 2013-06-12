@@ -249,12 +249,14 @@ zpl_file_llseek(struct file *filp, loff_t offset, int whence)
 	case SEEK_END:
 		offset = generic_file_llseek(filp, offset, whence);
 		goto out;
+#if (defined SEEK_HOLE && defined SEEK_DATA)
 	case SEEK_DATA:
 	case SEEK_HOLE:
 		error = -zfs_holey(filp->f_mapping->host, whence, &offset);
 		if (error)
 			goto out;
 		break;
+#endif /* SEEK_HOLE && SEEK_DATA */
 	default:
 		error = -EINVAL;
 		goto out;
