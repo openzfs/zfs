@@ -152,4 +152,26 @@ typedef	int		zpl_umode_t;
 #define ZFS_IOC_GETFLAGS	FS_IOC_GETFLAGS
 #define ZFS_IOC_SETFLAGS	FS_IOC_SETFLAGS
 
+#if defined(SEEK_HOLE) && defined(SEEK_DATA) && !defined(HAVE_LSEEK_EXECUTE)
+static inline loff_t
+lseek_execute(struct file *filp, struct inode *inode,
+	      loff_t offset, loff_t maxsize)
+{
+	if (offset < 0 && !(filp->f_mode & FMODE_UNSIGNED_OFFSET))
+		return (-EINVAL);
+
+	if (offset > maxsize)
+		return (-EINVAL);
+
+	if (offset != filp->f_pos) {
+		spin_lock(&filp->f_lock);
+		filp->f_pos = offset;
+		filp->f_version = 0;
+		spin_unlock(&filp->f_lock);
+	}
+
+	return (offset);
+}
+#endif /* SEEK_HOLE && SEEK_DATA && !HAVE_LSEEK_EXECUTE */
+
 #endif /* _ZFS_VFS_H */
