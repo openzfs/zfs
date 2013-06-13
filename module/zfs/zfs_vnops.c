@@ -239,6 +239,53 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 }
 EXPORT_SYMBOL(zfs_close);
 
+#if (defined SEEK_HOLE && defined SEEK_DATA)
+/*
+ * Lseek support for finding holes (cmd == SEEK_HOLE) and
+ * data (cmd == SEEK_DATA). "off" is an in/out parameter.
+ */
+int
+zfs_holey(struct inode *ip, int cmd, loff_t *off)
+{
+	znode_t	*zp = ITOZ(ip);
+	uint64_t noff = (uint64_t)*off; /* new offset */
+	uint64_t file_sz;
+	int error;
+	boolean_t hole;
+
+	file_sz = zp->z_size;
+	if (noff >= file_sz)  {
+		return (ENXIO);
+	}
+
+	if (cmd == SEEK_HOLE)
+		hole = B_TRUE;
+	else
+		hole = B_FALSE;
+
+	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
+
+	/* end of file? */
+	if ((error == ESRCH) || (noff > file_sz)) {
+		/*
+		 * Handle the virtual hole at the end of file.
+		 */
+		if (hole) {
+			*off = file_sz;
+			return (0);
+		}
+		return (ENXIO);
+	}
+
+	if (noff < *off)
+		return (error);
+	*off = noff;
+	return (error);
+}
+EXPORT_SYMBOL(zfs_holey);
+
+#endif /* SEEK_HOLE && SEEK_DATA */
+
 #if defined(_KERNEL)
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
