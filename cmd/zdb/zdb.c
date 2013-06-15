@@ -548,7 +548,7 @@ static void
 dump_metaslab_stats(metaslab_t *msp)
 {
 	char maxbuf[32];
-	space_map_t *sm = &msp->ms_map;
+	space_map_t *sm = msp->ms_map;
 	avl_tree_t *t = sm->sm_pp_root;
 	int free_pct = sm->sm_space * 100 / sm->sm_size;
 
@@ -564,7 +564,7 @@ dump_metaslab(metaslab_t *msp)
 {
 	vdev_t *vd = msp->ms_group->mg_vd;
 	spa_t *spa = vd->vdev_spa;
-	space_map_t *sm = &msp->ms_map;
+	space_map_t *sm = msp->ms_map;
 	space_map_obj_t *smo = &msp->ms_smo;
 	char freebuf[32];
 
@@ -2194,11 +2194,11 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				mutex_enter(&msp->ms_lock);
-				space_map_unload(&msp->ms_map);
-				VERIFY(space_map_load(&msp->ms_map,
+				space_map_unload(msp->ms_map);
+				VERIFY(space_map_load(msp->ms_map,
 				    &zdb_space_map_ops, SM_ALLOC, &msp->ms_smo,
 				    spa->spa_meta_objset) == 0);
-				msp->ms_map.sm_ppd = vd;
+				msp->ms_map->sm_ppd = vd;
 				mutex_exit(&msp->ms_lock);
 			}
 		}
@@ -2223,7 +2223,7 @@ zdb_leak_fini(spa_t *spa)
 			for (m = 0; m < vd->vdev_ms_count; m++) {
 				metaslab_t *msp = vd->vdev_ms[m];
 				mutex_enter(&msp->ms_lock);
-				space_map_unload(&msp->ms_map);
+				space_map_unload(msp->ms_map);
 				mutex_exit(&msp->ms_lock);
 			}
 		}

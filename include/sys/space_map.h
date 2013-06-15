@@ -40,17 +40,17 @@ extern "C" {
 typedef const struct space_map_ops space_map_ops_t;
 
 typedef struct space_map {
-	avl_tree_t	sm_root;	/* AVL tree of map segments */
+	avl_tree_t	sm_root;	/* offset-ordered segment AVL tree */
 	uint64_t	sm_space;	/* sum of all segments in the map */
 	uint64_t	sm_start;	/* start of map */
 	uint64_t	sm_size;	/* size of map */
 	uint8_t		sm_shift;	/* unit shift */
-	uint8_t		sm_pad[3];	/* unused */
 	uint8_t		sm_loaded;	/* map loaded? */
 	uint8_t		sm_loading;	/* map loading? */
+	uint8_t		sm_condensing;	/* map condensing? */
 	kcondvar_t	sm_load_cv;	/* map load completion */
 	space_map_ops_t	*sm_ops;	/* space map block picker ops vector */
-	avl_tree_t	*sm_pp_root;	/* picker-private AVL tree */
+	avl_tree_t	*sm_pp_root;	/* size-ordered, picker-private tree */
 	void		*sm_ppd;	/* picker-private data */
 	kmutex_t	*sm_lock;	/* pointer to lock that protects map */
 } space_map_t;
@@ -149,6 +149,7 @@ extern void space_map_add(space_map_t *sm, uint64_t start, uint64_t size);
 extern void space_map_remove(space_map_t *sm, uint64_t start, uint64_t size);
 extern boolean_t space_map_contains(space_map_t *sm,
     uint64_t start, uint64_t size);
+extern void space_map_swap(space_map_t **msrc, space_map_t **mdest);
 extern void space_map_vacate(space_map_t *sm,
     space_map_func_t *func, space_map_t *mdest);
 extern void space_map_walk(space_map_t *sm,
