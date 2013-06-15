@@ -49,6 +49,14 @@ uint64_t metaslab_aliquot = 512ULL << 10;
 uint64_t metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;	/* force gang blocks */
 
 /*
+ * The in-core space map representation is more compact than its on-disk form.
+ * The zfs_condense_pct determines how much more compact the in-core
+ * space_map representation must be before we compact it on-disk.
+ * Values should be greater than or equal to 100.
+ */
+int zfs_condense_pct = 200;
+
+/*
  * This value defines the number of allowed allocation failures per vdev.
  * If a device reaches this threshold in a given txg then we consider skipping
  * allocations on that device.
@@ -204,9 +212,9 @@ metaslab_compare(const void *x1, const void *x2)
 	/*
 	 * If the weights are identical, use the offset to force uniqueness.
 	 */
-	if (m1->ms_map.sm_start < m2->ms_map.sm_start)
+	if (m1->ms_map->sm_start < m2->ms_map->sm_start)
 		return (-1);
-	if (m1->ms_map.sm_start > m2->ms_map.sm_start)
+	if (m1->ms_map->sm_start > m2->ms_map->sm_start)
 		return (1);
 
 	ASSERT3P(m1, ==, m2);
@@ -739,14 +747,15 @@ metaslab_init(metaslab_group_t *mg, space_map_obj_t *smo,
 	 * addition of new space; and for debugging, it ensures that we'd
 	 * data fault on any attempt to use this metaslab before it's ready.
 	 */
-	space_map_create(&msp->ms_map, start, size,
+	msp->ms_map = kmem_zalloc(sizeof (space_map_t), KM_PUSHPAGE);
+	space_map_create(msp->ms_map, start, size,
 	    vd->vdev_ashift, &msp->ms_lock);
 
 	metaslab_group_add(mg, msp);
 
 	if (metaslab_debug && smo->smo_object != 0) {
 		mutex_enter(&msp->ms_lock);
-		VERIFY(space_map_load(&msp->ms_map, mg->mg_class->mc_ops,
+		VERIFY(space_map_load(msp->ms_map, mg->mg_class->mc_ops,
 		    SM_FREE, smo, spa_meta_objset(vd->vdev_spa)) == 0);
 		mutex_exit(&msp->ms_lock);
 	}
@@ -775,22 +784,27 @@ metaslab_fini(metaslab_t *msp)
 	int t;
 
 	vdev_space_update(mg->mg_vd,
-	    -msp->ms_smo.smo_alloc, 0, -msp->ms_map.sm_size);
+	    -msp->ms_smo.smo_alloc, 0, -msp->ms_map->sm_size);
 
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
 
-	space_map_unload(&msp->ms_map);
-	space_map_destroy(&msp->ms_map);
+	space_map_unload(msp->ms_map);
+	space_map_destroy(msp->ms_map);
+	kmem_free(msp->ms_map, sizeof (*msp->ms_map));
 
 	for (t = 0; t < TXG_SIZE; t++) {
-		space_map_destroy(&msp->ms_allocmap[t]);
-		space_map_destroy(&msp->ms_freemap[t]);
+		space_map_destroy(msp->ms_allocmap[t]);
+		space_map_destroy(msp->ms_freemap[t]);
+		kmem_free(msp->ms_allocmap[t], sizeof (*msp->ms_allocmap[t]));
+		kmem_free(msp->ms_freemap[t], sizeof (*msp->ms_freemap[t]));
 	}
 
-	for (t = 0; t < TXG_DEFER_SIZE; t++)
-		space_map_destroy(&msp->ms_defermap[t]);
+	for (t = 0; t < TXG_DEFER_SIZE; t++) {
+		space_map_destroy(msp->ms_defermap[t]);
+		kmem_free(msp->ms_defermap[t], sizeof (*msp->ms_defermap[t]));
+	}
 
 	ASSERT0(msp->ms_deferspace);
 
@@ -809,7 +823,7 @@ static uint64_t
 metaslab_weight(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
-	space_map_t *sm = &msp->ms_map;
+	space_map_t *sm = msp->ms_map;
 	space_map_obj_t *smo = &msp->ms_smo;
 	vdev_t *vd = mg->mg_vd;
 	uint64_t weight, space;
@@ -869,7 +883,7 @@ metaslab_prefetch(metaslab_group_t *mg)
 	 * Prefetch the next potential metaslabs
 	 */
 	for (msp = avl_first(t), m = 0; msp; msp = AVL_NEXT(t, msp), m++) {
-		space_map_t *sm = &msp->ms_map;
+		space_map_t *sm = msp->ms_map;
 		space_map_obj_t *smo = &msp->ms_smo;
 
 		/* If we have reached our prefetch limit then we're done */
@@ -890,7 +904,7 @@ static int
 metaslab_activate(metaslab_t *msp, uint64_t activation_weight)
 {
 	metaslab_group_t *mg = msp->ms_group;
-	space_map_t *sm = &msp->ms_map;
+	space_map_t *sm = msp->ms_map;
 	space_map_ops_t *sm_ops = msp->ms_group->mg_class->mc_ops;
 	int t;
 
@@ -908,7 +922,7 @@ metaslab_activate(metaslab_t *msp, uint64_t activation_weight)
 				return (error);
 			}
 			for (t = 0; t < TXG_DEFER_SIZE; t++)
-				space_map_walk(&msp->ms_defermap[t],
+				space_map_walk(msp->ms_defermap[t],
 				    space_map_claim, sm);
 
 		}
@@ -939,9 +953,156 @@ metaslab_passivate(metaslab_t *msp, uint64_t size)
 	 * this metaslab again.  In that case, it had better be empty,
 	 * or we would be leaving space on the table.
 	 */
-	ASSERT(size >= SPA_MINBLOCKSIZE || msp->ms_map.sm_space == 0);
+	ASSERT(size >= SPA_MINBLOCKSIZE || msp->ms_map->sm_space == 0);
 	metaslab_group_sort(msp->ms_group, msp, MIN(msp->ms_weight, size));
 	ASSERT((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0);
+}
+
+/*
+ * Determine if the in-core space map representation can be condensed on-disk.
+ * We would like to use the following criteria to make our decision:
+ *
+ * 1. The size of the space map object should not dramatically increase as a
+ * result of writing out our in-core free map.
+ *
+ * 2. The minimal on-disk space map representation is zfs_condense_pct/100
+ * times the size than the in-core representation (i.e. zfs_condense_pct = 110
+ * and in-core = 1MB, minimal = 1.1.MB).
+ *
+ * Checking the first condition is tricky since we don't want to walk
+ * the entire AVL tree calculating the estimated on-disk size. Instead we
+ * use the size-ordered AVL tree in the space map and calculate the
+ * size required for the largest segment in our in-core free map. If the
+ * size required to represent that segment on disk is larger than the space
+ * map object then we avoid condensing this map.
+ *
+ * To determine the second criterion we use a best-case estimate and assume
+ * each segment can be represented on-disk as a single 64-bit entry. We refer
+ * to this best-case estimate as the space map's minimal form.
+ */
+static boolean_t
+metaslab_should_condense(metaslab_t *msp)
+{
+	space_map_t *sm = msp->ms_map;
+	space_map_obj_t *smo = &msp->ms_smo_syncing;
+	space_seg_t *ss;
+	uint64_t size, entries, segsz;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT(sm->sm_loaded);
+
+	/*
+	 * Use the sm_pp_root AVL tree, which is ordered by size, to obtain
+	 * the largest segment in the in-core free map. If the tree is
+	 * empty then we should condense the map.
+	 */
+	ss = avl_last(sm->sm_pp_root);
+	if (ss == NULL)
+		return (B_TRUE);
+
+	/*
+	 * Calculate the number of 64-bit entries this segment would
+	 * require when written to disk. If this single segment would be
+	 * larger on-disk than the entire current on-disk structure, then
+	 * clearly condensing will increase the on-disk structure size.
+	 */
+	size = (ss->ss_end - ss->ss_start) >> sm->sm_shift;
+	entries = size / (MIN(size, SM_RUN_MAX));
+	segsz = entries * sizeof (uint64_t);
+
+	return (segsz <= smo->smo_objsize &&
+	    smo->smo_objsize >= (zfs_condense_pct *
+	    sizeof (uint64_t) * avl_numnodes(&sm->sm_root)) / 100);
+}
+
+/*
+ * Condense the on-disk space map representation to its minimized form.
+ * The minimized form consists of a small number of allocations followed by
+ * the in-core free map.
+ */
+static void
+metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
+{
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	space_map_t *freemap = msp->ms_freemap[txg & TXG_MASK];
+	space_map_t condense_map;
+	space_map_t *sm = msp->ms_map;
+	objset_t *mos = spa_meta_objset(spa);
+	space_map_obj_t *smo = &msp->ms_smo_syncing;
+	int t;
+
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT3U(spa_sync_pass(spa), ==, 1);
+	ASSERT(sm->sm_loaded);
+
+	spa_dbgmsg(spa, "condensing: txg %llu, msp[%llu] %p, "
+	    "smo size %llu, segments %lu", txg,
+	    (msp->ms_map->sm_start / msp->ms_map->sm_size), msp,
+	    smo->smo_objsize, avl_numnodes(&sm->sm_root));
+
+	/*
+	 * Create an map that is a 100% allocated map. We remove segments
+	 * that have been freed in this txg, any deferred frees that exist,
+	 * and any allocation in the future. Removing segments should be
+	 * a relatively inexpensive operation since we expect these maps to
+	 * a small number of nodes.
+	 */
+	space_map_create(&condense_map, sm->sm_start, sm->sm_size,
+	    sm->sm_shift, sm->sm_lock);
+	space_map_add(&condense_map, condense_map.sm_start,
+	    condense_map.sm_size);
+
+	/*
+	 * Remove what's been freed in this txg from the condense_map.
+	 * Since we're in sync_pass 1, we know that all the frees from
+	 * this txg are in the freemap.
+	 */
+	space_map_walk(freemap, space_map_remove, &condense_map);
+
+	for (t = 0; t < TXG_DEFER_SIZE; t++)
+		space_map_walk(msp->ms_defermap[t],
+		    space_map_remove, &condense_map);
+
+	for (t = 1; t < TXG_CONCURRENT_STATES; t++)
+		space_map_walk(msp->ms_allocmap[(txg + t) & TXG_MASK],
+		    space_map_remove, &condense_map);
+
+	/*
+	 * We're about to drop the metaslab's lock thus allowing
+	 * other consumers to change it's content. Set the
+	 * space_map's sm_condensing flag to ensure that
+	 * allocations on this metaslab do not occur while we're
+	 * in the middle of committing it to disk. This is only critical
+	 * for the ms_map as all other space_maps use per txg
+	 * views of their content.
+	 */
+	sm->sm_condensing = B_TRUE;
+
+	mutex_exit(&msp->ms_lock);
+	space_map_truncate(smo, mos, tx);
+	mutex_enter(&msp->ms_lock);
+
+	/*
+	 * While we would ideally like to create a space_map representation
+	 * that consists only of allocation records, doing so can be
+	 * prohibitively expensive because the in-core free map can be
+	 * large, and therefore computationally expensive to subtract
+	 * from the condense_map. Instead we sync out two maps, a cheap
+	 * allocation only map followed by the in-core free map. While not
+	 * optimal, this is typically close to optimal, and much cheaper to
+	 * compute.
+	 */
+	space_map_sync(&condense_map, SM_ALLOC, smo, mos, tx);
+	space_map_vacate(&condense_map, NULL, NULL);
+	space_map_destroy(&condense_map);
+
+	space_map_sync(sm, SM_FREE, smo, mos, tx);
+	sm->sm_condensing = B_FALSE;
+
+	spa_dbgmsg(spa, "condensed: txg %llu, msp[%llu] %p, "
+	    "smo size %llu", txg,
+	    (msp->ms_map->sm_start / msp->ms_map->sm_size), msp,
+	    smo->smo_objsize);
 }
 
 /*
@@ -953,18 +1114,29 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	vdev_t *vd = msp->ms_group->mg_vd;
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa_meta_objset(spa);
-	space_map_t *allocmap = &msp->ms_allocmap[txg & TXG_MASK];
-	space_map_t *freemap = &msp->ms_freemap[txg & TXG_MASK];
-	space_map_t *freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t *sm = &msp->ms_map;
+	space_map_t *allocmap = msp->ms_allocmap[txg & TXG_MASK];
+	space_map_t **freemap = &msp->ms_freemap[txg & TXG_MASK];
+	space_map_t **freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+	space_map_t *sm = msp->ms_map;
 	space_map_obj_t *smo = &msp->ms_smo_syncing;
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
-	int t;
 
 	ASSERT(!vd->vdev_ishole);
 
-	if (allocmap->sm_space == 0 && freemap->sm_space == 0)
+	/*
+	 * This metaslab has just been added so there's no work to do now.
+	 */
+	if (*freemap == NULL) {
+		ASSERT3P(allocmap, ==, NULL);
+		return;
+	}
+
+	ASSERT3P(allocmap, !=, NULL);
+	ASSERT3P(*freemap, !=, NULL);
+	ASSERT3P(*freed_map, !=, NULL);
+
+	if (allocmap->sm_space == 0 && (*freemap)->sm_space == 0)
 		return;
 
 	/*
@@ -992,49 +1164,36 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
-	space_map_walk(freemap, space_map_add, freed_map);
-
-	if (sm->sm_loaded && spa_sync_pass(spa) == 1 && smo->smo_objsize >=
-	    2 * sizeof (uint64_t) * avl_numnodes(&sm->sm_root)) {
-		/*
-		 * The in-core space map representation is twice as compact
-		 * as the on-disk one, so it's time to condense the latter
-		 * by generating a pure allocmap from first principles.
-		 *
-		 * This metaslab is 100% allocated,
-		 * minus the content of the in-core map (sm),
-		 * minus what's been freed this txg (freed_map),
-		 * minus deferred frees (ms_defermap[]),
-		 * minus allocations from txgs in the future
-		 * (because they haven't been committed yet).
-		 */
-		space_map_vacate(allocmap, NULL, NULL);
-		space_map_vacate(freemap, NULL, NULL);
-
-		space_map_add(allocmap, allocmap->sm_start, allocmap->sm_size);
-
-		space_map_walk(sm, space_map_remove, allocmap);
-		space_map_walk(freed_map, space_map_remove, allocmap);
-
-		for (t = 0; t < TXG_DEFER_SIZE; t++)
-			space_map_walk(&msp->ms_defermap[t],
-			    space_map_remove, allocmap);
-
-		for (t = 1; t < TXG_CONCURRENT_STATES; t++)
-			space_map_walk(&msp->ms_allocmap[(txg + t) & TXG_MASK],
-			    space_map_remove, allocmap);
-
-		mutex_exit(&msp->ms_lock);
-		space_map_truncate(smo, mos, tx);
-		mutex_enter(&msp->ms_lock);
+	if (sm->sm_loaded && spa_sync_pass(spa) == 1 &&
+	    metaslab_should_condense(msp)) {
+		metaslab_condense(msp, txg, tx);
+	} else {
+		space_map_sync(allocmap, SM_ALLOC, smo, mos, tx);
+		space_map_sync(*freemap, SM_FREE, smo, mos, tx);
 	}
 
-	space_map_sync(allocmap, SM_ALLOC, smo, mos, tx);
-	space_map_sync(freemap, SM_FREE, smo, mos, tx);
+	space_map_vacate(allocmap, NULL, NULL);
+
+	/*
+	 * For sync pass 1, we avoid walking the entire space map and
+	 * instead will just swap the pointers for freemap and
+	 * freed_map. We can safely do this since the freed_map is
+	 * guaranteed to be empty on the initial pass.
+	 */
+	if (spa_sync_pass(spa) == 1) {
+		ASSERT0((*freed_map)->sm_space);
+		ASSERT0(avl_numnodes(&(*freed_map)->sm_root));
+		space_map_swap(freemap, freed_map);
+	} else {
+		space_map_vacate(*freemap, space_map_add, *freed_map);
+	}
+
+	ASSERT0(msp->ms_allocmap[txg & TXG_MASK]->sm_space);
+	ASSERT0(msp->ms_freemap[txg & TXG_MASK]->sm_space);
 
 	mutex_exit(&msp->ms_lock);
 
-	VERIFY(0 == dmu_bonus_hold(mos, smo->smo_object, FTAG, &db));
+	VERIFY0(dmu_bonus_hold(mos, smo->smo_object, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
 	ASSERT3U(db->db_size, >=, sizeof (*smo));
 	bcopy(smo, db->db_data, sizeof (*smo));
@@ -1052,9 +1211,9 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 {
 	space_map_obj_t *smo = &msp->ms_smo;
 	space_map_obj_t *smosync = &msp->ms_smo_syncing;
-	space_map_t *sm = &msp->ms_map;
-	space_map_t *freed_map = &msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
-	space_map_t *defer_map = &msp->ms_defermap[txg % TXG_DEFER_SIZE];
+	space_map_t *sm = msp->ms_map;
+	space_map_t *freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+	space_map_t *defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
 	int64_t alloc_delta, defer_delta;
@@ -1066,19 +1225,30 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	/*
 	 * If this metaslab is just becoming available, initialize its
-	 * allocmaps and freemaps and add its capacity to the vdev.
+	 * allocmaps, freemaps, and defermap and add its capacity to the vdev.
 	 */
-	if (freed_map->sm_size == 0) {
+	if (freed_map == NULL) {
+		ASSERT(defer_map == NULL);
 		for (t = 0; t < TXG_SIZE; t++) {
-			space_map_create(&msp->ms_allocmap[t], sm->sm_start,
+			msp->ms_allocmap[t] = kmem_zalloc(sizeof (space_map_t),
+			    KM_PUSHPAGE);
+			space_map_create(msp->ms_allocmap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
-			space_map_create(&msp->ms_freemap[t], sm->sm_start,
+			msp->ms_freemap[t] = kmem_zalloc(sizeof (space_map_t),
+			    KM_PUSHPAGE);
+			space_map_create(msp->ms_freemap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
 		}
 
-		for (t = 0; t < TXG_DEFER_SIZE; t++)
-			space_map_create(&msp->ms_defermap[t], sm->sm_start,
+		for (t = 0; t < TXG_DEFER_SIZE; t++) {
+			msp->ms_defermap[t] = kmem_zalloc(sizeof (space_map_t),
+			    KM_PUSHPAGE);
+			space_map_create(msp->ms_defermap[t], sm->sm_start,
 			    sm->sm_size, sm->sm_shift, sm->sm_lock);
+		}
+
+		freed_map = msp->ms_freemap[TXG_CLEAN(txg) & TXG_MASK];
+		defer_map = msp->ms_defermap[txg % TXG_DEFER_SIZE];
 
 		vdev_space_update(vd, 0, 0, sm->sm_size);
 	}
@@ -1088,8 +1258,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	vdev_space_update(vd, alloc_delta + defer_delta, defer_delta, 0);
 
-	ASSERT(msp->ms_allocmap[txg & TXG_MASK].sm_space == 0);
-	ASSERT(msp->ms_freemap[txg & TXG_MASK].sm_space == 0);
+	ASSERT(msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0);
+	ASSERT(msp->ms_freemap[txg & TXG_MASK]->sm_space == 0);
 
 	/*
 	 * If there's a space_map_load() in progress, wait for it to complete
@@ -1123,7 +1293,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		int evictable = 1;
 
 		for (t = 1; t < TXG_CONCURRENT_STATES; t++)
-			if (msp->ms_allocmap[(txg + t) & TXG_MASK].sm_space)
+			if (msp->ms_allocmap[(txg + t) & TXG_MASK]->sm_space)
 				evictable = 0;
 
 		if (evictable && !metaslab_debug)
@@ -1149,7 +1319,7 @@ metaslab_sync_reassess(metaslab_group_t *mg)
 	for (m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
 
-		if (msp->ms_map.sm_start > mg->mg_bonus_area)
+		if (msp->ms_map->sm_start > mg->mg_bonus_area)
 			break;
 
 		mutex_enter(&msp->ms_lock);
@@ -1170,7 +1340,7 @@ metaslab_distance(metaslab_t *msp, dva_t *dva)
 {
 	uint64_t ms_shift = msp->ms_group->mg_vd->vdev_ms_shift;
 	uint64_t offset = DVA_GET_OFFSET(dva) >> ms_shift;
-	uint64_t start = msp->ms_map.sm_start >> ms_shift;
+	uint64_t start = msp->ms_map->sm_start >> ms_shift;
 
 	if (msp->ms_group->mg_vd->vdev_id != DVA_GET_VDEV(dva))
 		return (1ULL << 63);
@@ -1258,6 +1428,16 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		mutex_enter(&msp->ms_lock);
 
 		/*
+		 * If this metaslab is currently condensing then pick again as
+		 * we can't manipulate this metaslab until it's committed
+		 * to disk.
+		 */
+		if (msp->ms_map->sm_condensing) {
+			mutex_exit(&msp->ms_lock);
+			continue;
+		}
+
+		/*
 		 * Ensure that the metaslab we have selected is still
 		 * capable of handling our request. It's possible that
 		 * another thread may have changed the weight while we
@@ -1283,20 +1463,20 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 			continue;
 		}
 
-		if ((offset = space_map_alloc(&msp->ms_map, asize)) != -1ULL)
+		if ((offset = space_map_alloc(msp->ms_map, asize)) != -1ULL)
 			break;
 
 		atomic_inc_64(&mg->mg_alloc_failures);
 
-		metaslab_passivate(msp, space_map_maxsize(&msp->ms_map));
+		metaslab_passivate(msp, space_map_maxsize(msp->ms_map));
 
 		mutex_exit(&msp->ms_lock);
 	}
 
-	if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
+	if (msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0)
 		vdev_dirty(mg->mg_vd, VDD_METASLAB, msp, txg);
 
-	space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, asize);
+	space_map_add(msp->ms_allocmap[txg & TXG_MASK], offset, asize);
 
 	mutex_exit(&msp->ms_lock);
 
@@ -1546,13 +1726,13 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t txg, boolean_t now)
 	mutex_enter(&msp->ms_lock);
 
 	if (now) {
-		space_map_remove(&msp->ms_allocmap[txg & TXG_MASK],
+		space_map_remove(msp->ms_allocmap[txg & TXG_MASK],
 		    offset, size);
-		space_map_free(&msp->ms_map, offset, size);
+		space_map_free(msp->ms_map, offset, size);
 	} else {
-		if (msp->ms_freemap[txg & TXG_MASK].sm_space == 0)
+		if (msp->ms_freemap[txg & TXG_MASK]->sm_space == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
-		space_map_add(&msp->ms_freemap[txg & TXG_MASK], offset, size);
+		space_map_add(msp->ms_freemap[txg & TXG_MASK], offset, size);
 	}
 
 	mutex_exit(&msp->ms_lock);
@@ -1587,10 +1767,10 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
-	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_map.sm_loaded)
+	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_map->sm_loaded)
 		error = metaslab_activate(msp, METASLAB_WEIGHT_SECONDARY);
 
-	if (error == 0 && !space_map_contains(&msp->ms_map, offset, size))
+	if (error == 0 && !space_map_contains(msp->ms_map, offset, size))
 		error = ENOENT;
 
 	if (error || txg == 0) {	/* txg == 0 indicates dry run */
@@ -1598,12 +1778,12 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 		return (error);
 	}
 
-	space_map_claim(&msp->ms_map, offset, size);
+	space_map_claim(msp->ms_map, offset, size);
 
 	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(1M) */
-		if (msp->ms_allocmap[txg & TXG_MASK].sm_space == 0)
+		if (msp->ms_allocmap[txg & TXG_MASK]->sm_space == 0)
 			vdev_dirty(vd, VDD_METASLAB, msp, txg);
-		space_map_add(&msp->ms_allocmap[txg & TXG_MASK], offset, size);
+		space_map_add(msp->ms_allocmap[txg & TXG_MASK], offset, size);
 	}
 
 	mutex_exit(&msp->ms_lock);

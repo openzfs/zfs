@@ -1855,6 +1855,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 
 	space_map_truncate(smo, mos, tx);
 	space_map_sync(&smsync, SM_ALLOC, smo, mos, tx);
+	space_map_vacate(&smsync, NULL, NULL);
 
 	space_map_destroy(&smsync);
 
