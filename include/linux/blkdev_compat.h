@@ -485,6 +485,6 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
  * user space processes which don't pass this value will get EBUSY.  This is
  * currently required for the correct operation of hot spares.
  */
-#define VDEV_HOLDER			((void *)0x2f5401de7)
+#define VDEV_HOLDER			((void *)0x2401de7)
 
 #endif /* _ZFS_BLKDEV_H */
