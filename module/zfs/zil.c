@@ -100,6 +100,7 @@ int zil_replay_disable = 0;    /* disable intent logging replay */
 int zfs_nocacheflush = 0;
 
 static kmem_cache_t *zil_lwb_cache;
+static kmem_cache_t *zil_vdev_node_cache;
 
 static void zil_async_to_sync(zilog_t *zilog, uint64_t foid);
 
@@ -799,7 +800,7 @@ zil_add_block(zilog_t *zilog, const blkptr_t *bp)
 	for (i = 0; i < ndvas; i++) {
 		zvsearch.zv_vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
 		if (avl_find(t, &zvsearch, &where) == NULL) {
-			zv = kmem_alloc(sizeof (*zv), KM_PUSHPAGE);
+			zv = kmem_cache_alloc(zil_vdev_node_cache, KM_PUSHPAGE);
 			zv->zv_vdev = zvsearch.zv_vdev;
 			avl_insert(t, zv, where);
 		}
@@ -833,7 +834,7 @@ zil_flush_vdevs(zilog_t *zilog)
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
 		if (vd != NULL)
 			zio_flush(zio, vd);
-		kmem_free(zv, sizeof (*zv));
+		kmem_cache_free(zil_vdev_node_cache, zv);
 	}
 
 	/*
@@ -1724,6 +1725,9 @@ zil_init(void)
 	zil_lwb_cache = kmem_cache_create("zil_lwb_cache",
 	    sizeof (struct lwb), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
+	zil_vdev_node_cache = kmem_cache_create("zil_vdev_node_cache",
+	    sizeof (zil_vdev_node_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+
 	zil_ksp = kstat_create("zfs", 0, "zil", "misc",
 	    KSTAT_TYPE_NAMED, sizeof(zil_stats) / sizeof(kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
@@ -1738,6 +1742,8 @@ void
 zil_fini(void)
 {
 	kmem_cache_destroy(zil_lwb_cache);
+
+	kmem_cache_destroy(zil_vdev_node_cache);
 
 	if (zil_ksp != NULL) {
 		kstat_delete(zil_ksp);
