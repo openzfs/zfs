@@ -34,6 +34,12 @@ nv_alloc_sleep_spl(nv_alloc_t *nva, size_t size)
 }
 
 static void *
+nv_alloc_pushpage_spl(nv_alloc_t *nva, size_t size)
+{
+	return (kmem_alloc(size, KM_PUSHPAGE | KM_NODEBUG));
+}
+
+static void *
 nv_alloc_nosleep_spl(nv_alloc_t *nva, size_t size)
 {
 	return (kmem_alloc(size, KM_NOSLEEP));
@@ -53,6 +59,14 @@ const nv_alloc_ops_t spl_sleep_ops_def = {
 	NULL                    /* nv_ao_reset() */
 };
 
+const nv_alloc_ops_t spl_pushpage_ops_def = {
+	NULL,                   /* nv_ao_init() */
+	NULL,                   /* nv_ao_fini() */
+	nv_alloc_pushpage_spl,  /* nv_ao_alloc() */
+	nv_free_spl,            /* nv_ao_free() */
+	NULL                    /* nv_ao_reset() */
+};
+
 const nv_alloc_ops_t spl_nosleep_ops_def = {
 	NULL,                   /* nv_ao_init() */
 	NULL,                   /* nv_ao_fini() */
@@ -66,10 +80,16 @@ nv_alloc_t nv_alloc_sleep_def = {
 	NULL
 };
 
+nv_alloc_t nv_alloc_pushpage_def = {
+	&spl_pushpage_ops_def,
+	NULL
+};
+
 nv_alloc_t nv_alloc_nosleep_def = {
 	&spl_nosleep_ops_def,
 	NULL
 };
 
 nv_alloc_t *nv_alloc_sleep = &nv_alloc_sleep_def;
+nv_alloc_t *nv_alloc_pushpage = &nv_alloc_pushpage_def;
 nv_alloc_t *nv_alloc_nosleep = &nv_alloc_nosleep_def;

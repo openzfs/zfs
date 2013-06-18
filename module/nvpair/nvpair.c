@@ -269,12 +269,25 @@ nvlist_nvflag(nvlist_t *nvl)
 int
 nvlist_alloc(nvlist_t **nvlp, uint_t nvflag, int kmflag)
 {
+	nv_alloc_t *nva = nv_alloc_nosleep;
+
 #if defined(_KERNEL) && !defined(_BOOT)
-	return (nvlist_xalloc(nvlp, nvflag,
-	    (kmflag == KM_SLEEP ? nv_alloc_sleep : nv_alloc_nosleep)));
-#else
-	return (nvlist_xalloc(nvlp, nvflag, nv_alloc_nosleep));
+	switch (kmflag) {
+	case KM_SLEEP:
+		nva = nv_alloc_sleep;
+		break;
+	case KM_PUSHPAGE:
+		nva = nv_alloc_pushpage;
+		break;
+	case KM_NOSLEEP:
+		nva = nv_alloc_nosleep;
+		break;
+	default:
+		return (EINVAL);
+	}
 #endif
+
+	return (nvlist_xalloc(nvlp, nvflag, nva));
 }
 
 int

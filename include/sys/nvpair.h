@@ -144,6 +144,7 @@ extern nv_alloc_t *nv_alloc_nosleep;
 
 #if defined(_KERNEL) && !defined(_BOOT)
 extern nv_alloc_t *nv_alloc_sleep;
+extern nv_alloc_t *nv_alloc_pushpage;
 #endif
 
 int nv_alloc_init(nv_alloc_t *, const nv_alloc_ops_t *, /* args */ ...);
