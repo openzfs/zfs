@@ -271,7 +271,7 @@ nvlist_alloc(nvlist_t **nvlp, uint_t nvflag, int kmflag)
 {
 #if defined(_KERNEL) && !defined(_BOOT)
 	return (nvlist_xalloc(nvlp, nvflag,
-	    (kmflag == KM_SLEEP ? nv_alloc_sleep : nv_alloc_nosleep)));
+	    (kmflag & __GFP_WAIT ? nv_alloc_sleep : nv_alloc_nosleep)));
 #else
 	return (nvlist_xalloc(nvlp, nvflag, nv_alloc_nosleep));
 #endif
