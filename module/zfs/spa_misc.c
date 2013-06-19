@@ -244,7 +244,6 @@ int spa_mode_global;
  * Secondly, the value determines if an I/O is considered "hung".
  * Any I/O that has not completed in zfs_deadman_synctime is considered
  * "hung" resulting in a zevent being posted.
- * 1000 zfs_txg_synctime_ms (i.e. 1000 seconds).
  */
 unsigned long zfs_deadman_synctime = 1000ULL;
 
@@ -1629,6 +1628,23 @@ spa_init(int mode)
 	    offsetof(spa_aux_t, aux_avl));
 
 	spa_mode_global = mode;
+
+#ifndef _KERNEL
+	if (spa_mode_global != FREAD && dprintf_find_string("watch")) {
+		struct sigaction sa;
+
+		sa.sa_flags = SA_SIGINFO;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_sigaction = arc_buf_sigsegv;
+
+		if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+			perror("could not enable watchpoints: "
+			    "sigaction(SIGSEGV, ...) = ");
+		} else {
+			arc_watch = B_TRUE;
+		}
+	}
+#endif
 
 	fm_init();
 	refcount_init();

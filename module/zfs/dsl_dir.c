@@ -500,10 +500,10 @@ dsl_dir_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 
 	dsl_dir_set_reservation_sync(ds, &psa, tx);
 
-	ASSERT3U(dd->dd_phys->dd_used_bytes, ==, 0);
-	ASSERT3U(dd->dd_phys->dd_reserved, ==, 0);
+	ASSERT0(dd->dd_phys->dd_used_bytes);
+	ASSERT0(dd->dd_phys->dd_reserved);
 	for (t = 0; t < DD_USED_NUM; t++)
-		ASSERT3U(dd->dd_phys->dd_used_breakdown[t], ==, 0);
+		ASSERT0(dd->dd_phys->dd_used_breakdown[t]);
 
 	VERIFY(0 == zap_destroy(mos, dd->dd_phys->dd_child_dir_zapobj, tx));
 	VERIFY(0 == zap_destroy(mos, dd->dd_phys->dd_props_zapobj, tx));
@@ -592,7 +592,7 @@ dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx)
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	mutex_enter(&dd->dd_lock);
-	ASSERT3U(dd->dd_tempreserved[tx->tx_txg&TXG_MASK], ==, 0);
+	ASSERT0(dd->dd_tempreserved[tx->tx_txg&TXG_MASK]);
 	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", tx->tx_txg,
 	    dd->dd_space_towrite[tx->tx_txg&TXG_MASK] / 1024);
 	dd->dd_space_towrite[tx->tx_txg&TXG_MASK] = 0;
@@ -1323,7 +1323,7 @@ dsl_dir_rename_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	/* remove from old parent zapobj */
 	err = zap_remove(mos, dd->dd_parent->dd_phys->dd_child_dir_zapobj,
 	    dd->dd_myname, tx);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 
 	(void) strcpy(dd->dd_myname, ra->mynewname);
 	dsl_dir_close(dd->dd_parent, dd);
@@ -1334,7 +1334,7 @@ dsl_dir_rename_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	/* add to new parent zapobj */
 	err = zap_add(mos, ra->newparent->dd_phys->dd_child_dir_zapobj,
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 
 	spa_history_log_internal(LOG_DS_RENAME, dd->dd_pool->dp_spa,
 	    tx, "dataset = %llu", dd->dd_phys->dd_head_dataset_obj);

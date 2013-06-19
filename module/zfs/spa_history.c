@@ -438,8 +438,9 @@ log_internal(history_internal_events_t event, spa_t *spa,
 	/*
 	 * If this is part of creating a pool, not everything is
 	 * initialized yet, so don't bother logging the internal events.
+	 * Likewise if the pool is not writeable.
 	 */
-	if (tx->tx_txg == TXG_INITIAL)
+	if ((tx->tx_txg == TXG_INITIAL) || !spa_writeable(spa))
 		return;
 
 	ha = kmem_alloc(sizeof (history_arg_t), KM_PUSHPAGE);
@@ -491,7 +492,7 @@ spa_history_log_version(spa_t *spa, history_internal_events_t event)
 #ifdef _KERNEL
 	uint64_t current_vers = spa_version(spa);
 
-	if (current_vers >= SPA_VERSION_ZPOOL_HISTORY) {
+	if (current_vers >= SPA_VERSION_ZPOOL_HISTORY && spa_writeable(spa)) {
 		spa_history_log_internal(event, spa, NULL,
 		    "pool spa %llu; zfs spa %llu; zpl %d; uts %s %s %s %s",
 		    (u_longlong_t)current_vers, SPA_VERSION, ZPL_VERSION,

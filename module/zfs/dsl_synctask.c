@@ -161,7 +161,7 @@ dsl_sync_task_group_sync(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dstg->dstg_pool;
 	uint64_t quota, used;
 
-	ASSERT3U(dstg->dstg_err, ==, 0);
+	ASSERT0(dstg->dstg_err);
 
 	/*
 	 * Check for sufficient space.  We just check against what's
@@ -228,12 +228,7 @@ dsl_sync_task_do_nowait(dsl_pool_t *dp,
     dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
     void *arg1, void *arg2, int blocks_modified, dmu_tx_t *tx)
 {
-	dsl_sync_task_group_t *dstg;
-
-	if (!spa_writeable(dp->dp_spa))
-		return;
-
-	dstg = dsl_sync_task_group_create(dp);
+	dsl_sync_task_group_t *dstg = dsl_sync_task_group_create(dp);
 	dsl_sync_task_create(dstg, checkfunc, syncfunc,
 	    arg1, arg2, blocks_modified);
 	dsl_sync_task_group_nowait(dstg, tx);

@@ -5162,7 +5162,7 @@ spa_vdev_remove_evacuate(spa_t *spa, vdev_t *vd)
 	 * The evacuation succeeded.  Remove any remaining MOS metadata
 	 * associated with this vdev, and wait for these changes to sync.
 	 */
-	ASSERT3U(vd->vdev_stat.vs_alloc, ==, 0);
+	ASSERT0(vd->vdev_stat.vs_alloc);
 	txg = spa_vdev_config_enter(spa);
 	vd->vdev_removing = B_TRUE;
 	vdev_dirty(vd, 0, NULL, txg);
@@ -6163,7 +6163,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		zio_t *zio = zio_root(spa, NULL, NULL, 0);
 		VERIFY3U(bpobj_iterate(defer_bpo,
 		    spa_free_sync_cb, zio, tx), ==, 0);
-		VERIFY3U(zio_wait(zio), ==, 0);
+		VERIFY0(zio_wait(zio));
 	}
 
 	/*

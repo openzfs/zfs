@@ -373,7 +373,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 	} else if (db->db_blkid == DMU_SPILL_BLKID) {
 		ASSERT(dn != NULL);
 		ASSERT3U(db->db.db_size, >=, dn->dn_bonuslen);
-		ASSERT3U(db->db.db_offset, ==, 0);
+		ASSERT0(db->db.db_offset);
 	} else {
 		ASSERT3U(db->db.db_offset, ==, db->db_blkid * db->db.db_size);
 	}
@@ -814,13 +814,15 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	ASSERT(db->db_data_pending != dr);
 
 	/* free this block */
-	if (!BP_IS_HOLE(bp)) {
+	if (!BP_IS_HOLE(bp) && !dr->dt.dl.dr_nopwrite) {
 		spa_t *spa;
 
 		DB_GET_SPA(&spa, db);
 		zio_free(spa, txg, bp);
 	}
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
+	dr->dt.dl.dr_nopwrite = B_FALSE;
+
 	/*
 	 * Release the already-written buffer, so we leave it in
 	 * a consistent dirty state.  Note that all callers are
@@ -2289,6 +2291,13 @@ dmu_buf_freeable(dmu_buf_t *dbuf)
 	return (res);
 }
 
+blkptr_t *
+dmu_buf_get_blkptr(dmu_buf_t *db)
+{
+	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
+	return (dbi->db_blkptr);
+}
+
 static void
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {
@@ -2433,7 +2442,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		dbuf_dirty_record_t **drp;
 
 		ASSERT(*datap != NULL);
-		ASSERT3U(db->db_level, ==, 0);
+		ASSERT0(db->db_level);
 		ASSERT3U(dn->dn_phys->dn_bonuslen, <=, DN_MAX_BONUSLEN);
 		bcopy(*datap, DN_BONUS(dn->dn_phys), dn->dn_phys->dn_bonuslen);
 		DB_DNODE_EXIT(db);
@@ -2636,10 +2645,14 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	uint64_t txg = zio->io_txg;
 	dbuf_dirty_record_t **drp, *dr;
 
-	ASSERT3U(zio->io_error, ==, 0);
+	ASSERT0(zio->io_error);
 	ASSERT(db->db_blkptr == bp);
 
-	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
+	/*
+	 * For nopwrites and rewrites we ensure that the bp matches our
+	 * original and bypass all the accounting.
+	 */
+	if (zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)) {
 		ASSERT(BP_EQUAL(bp, bp_orig));
 	} else {
 		objset_t *os;
@@ -2830,7 +2843,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		mutex_enter(&db->db_mtx);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
-		    dr->dt.dl.dr_copies);
+		    dr->dt.dl.dr_copies, dr->dt.dl.dr_nopwrite);
 		mutex_exit(&db->db_mtx);
 	} else if (db->db_state == DB_NOFILL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF);

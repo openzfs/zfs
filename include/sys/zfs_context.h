@@ -72,7 +72,6 @@
 #define	_SYS_RWLOCK_H
 #define	_SYS_CONDVAR_H
 #define	_SYS_SYSTM_H
-#define	_SYS_DEBUG_H
 #define	_SYS_T_LOCK_H
 #define	_SYS_VNODE_H
 #define	_SYS_VFS_H
@@ -97,6 +96,8 @@
 #include <dirent.h>
 #include <time.h>
 #include <ctype.h>
+#include <signal.h>
+#include <sys/mman.h>
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
@@ -112,6 +113,7 @@
 #include <sys/u8_textprep.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <sys/debug.h>
 
 /*
  * Stack

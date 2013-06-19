@@ -405,7 +405,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 	/* create the pool directory */
 	err = zap_create_claim(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_OT_OBJECT_DIRECTORY, DMU_OT_NONE, 0, tx);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 
 	/* Initialize scan structures */
 	VERIFY3U(0, ==, dsl_scan_init(dp, txg));
@@ -556,7 +556,6 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * clean up our in-memory structures accumulated while syncing:
 	 *
 	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
-	 *  - clean up zil records
 	 *  - release hold from dsl_dataset_dirty()
 	 */
 	while ((ds = list_remove_head(&synced_datasets))) {
