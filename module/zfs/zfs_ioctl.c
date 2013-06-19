@@ -1779,7 +1779,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 			error = zvol_get_stats(os, nv);
 			if (error == EIO)
 				return (error);
-			VERIFY3S(error, ==, 0);
+			VERIFY0(error);
 		}
 		if (error == 0)
 			error = put_nvlist(zc, nv);

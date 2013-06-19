@@ -22,6 +22,9 @@
  * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
 
 /*
  * This file contains the code to implement file range locking in
@@ -495,9 +498,9 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 
 		list_insert_tail(free_list, remove);
 	} else {
-		ASSERT3U(remove->r_cnt, ==, 0);
-		ASSERT3U(remove->r_write_wanted, ==, 0);
-		ASSERT3U(remove->r_read_wanted, ==, 0);
+		ASSERT0(remove->r_cnt);
+		ASSERT0(remove->r_write_wanted);
+		ASSERT0(remove->r_read_wanted);
 		/*
 		 * Find start proxy representing this reader lock,
 		 * then decrement ref count on all proxies

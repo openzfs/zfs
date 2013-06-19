@@ -1511,7 +1511,7 @@ remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj, dmu_tx_t *tx)
 	 * remove this one.
 	 */
 	if (err != ENOENT) {
-		VERIFY3U(err, ==, 0);
+		VERIFY0(err);
 	}
 	ASSERT3U(0, ==, zap_count(mos, ds->ds_phys->ds_next_clones_obj,
 	    &count));
@@ -1598,7 +1598,7 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	poa.pio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	VERIFY3U(0, ==, bpobj_iterate(&ds_next->ds_deadlist.dl_bpobj,
 	    process_old_cb, &poa, tx));
-	VERIFY3U(zio_wait(poa.pio), ==, 0);
+	VERIFY0(zio_wait(poa.pio));
 	ASSERT3U(poa.used, ==, ds->ds_phys->ds_unique_bytes);
 
 	/* change snapused */
@@ -1633,7 +1633,7 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	err = traverse_dataset(ds,
 	    ds->ds_phys->ds_prev_snap_txg, TRAVERSE_POST,
 	    kill_blkptr, &ka);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 	ASSERT(!DS_UNIQUE_IS_ACCURATE(ds) || ds->ds_phys->ds_unique_bytes == 0);
 
 	return (err);
@@ -1685,7 +1685,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 		psa.psa_effective_value = 0;	/* predict default value */
 
 		dsl_dataset_set_reservation_sync(ds, &psa, tx);
-		ASSERT3U(ds->ds_reserved, ==, 0);
+		ASSERT0(ds->ds_reserved);
 	}
 
 	ASSERT(RW_WRITE_HELD(&dp->dp_config_rwlock));
@@ -1952,7 +1952,7 @@ dsl_dataset_destroy_sync(void *arg1, void *tag, dmu_tx_t *tx)
 
 			err = dsl_dataset_snap_lookup(ds_head,
 			    ds->ds_snapname, &val);
-			ASSERT3U(err, ==, 0);
+			ASSERT0(err);
 			ASSERT3U(val, ==, obj);
 		}
 #endif
@@ -2458,13 +2458,13 @@ dsl_dataset_snapshot_rename_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	VERIFY(0 == dsl_dataset_get_snapname(ds));
 	err = dsl_dataset_snap_remove(hds, ds->ds_snapname, tx);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 	mutex_enter(&ds->ds_lock);
 	(void) strcpy(ds->ds_snapname, newsnapname);
 	mutex_exit(&ds->ds_lock);
 	err = zap_add(mos, hds->ds_phys->ds_snapnames_zapobj,
 	    ds->ds_snapname, 8, 1, &ds->ds_object, tx);
-	ASSERT3U(err, ==, 0);
+	ASSERT0(err);
 
 	spa_history_log_internal(LOG_DS_RENAME, dd->dd_pool->dp_spa, tx,
 	    "dataset = %llu", ds->ds_object);
@@ -2917,7 +2917,7 @@ dsl_dataset_promote_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 			zap_cursor_fini(&zc);
 		}
 
-		ASSERT3U(dsl_prop_numcb(ds), ==, 0);
+		ASSERT0(dsl_prop_numcb(ds));
 	}
 
 	/*

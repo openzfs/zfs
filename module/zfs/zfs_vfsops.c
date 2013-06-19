@@ -1537,7 +1537,7 @@ zfs_set_version(zfs_sb_t *zsb, uint64_t newvers)
 
 		error = zap_add(os, MASTER_NODE_OBJ,
 		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
-		ASSERT3U(error, ==, 0);
+		ASSERT0(error);
 
 		VERIFY(0 == sa_set_sa_object(os, sa_obj));
 		sa_register_update_callback(os, zfs_sa_upgrade);

@@ -506,7 +506,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 			return (mzap_upgrade(zapp, tx, 0));
 		}
 		err = dmu_object_set_blocksize(os, obj, newsz, 0, tx);
-		ASSERT3U(err, ==, 0);
+		ASSERT0(err);
 		zap->zap_m.zap_num_chunks =
 		    db->db_size / MZAP_ENT_LEN - 1;
 	}

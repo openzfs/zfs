@@ -1163,7 +1163,7 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	lwb->lwb_nused += reclen + dlen;
 	lwb->lwb_max_txg = MAX(lwb->lwb_max_txg, txg);
 	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_sz);
-	ASSERT3U(P2PHASE(lwb->lwb_nused, sizeof (uint64_t)), ==, 0);
+	ASSERT0(P2PHASE(lwb->lwb_nused, sizeof (uint64_t)));
 
 	return (lwb);
 }
