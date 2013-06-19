@@ -940,7 +940,9 @@ metaslab_passivate(metaslab_t *msp, uint64_t size)
 	 * or we would be leaving space on the table.
 	 */
 	ASSERT(size >= SPA_MINBLOCKSIZE || msp->ms_map.sm_space == 0);
-	metaslab_group_sort(msp->ms_group, msp, MIN(msp->ms_weight, size));
+	
+	if(size < msp->ms_weight)
+		metaslab_group_sort(msp->ms_group, msp, size);
 	ASSERT((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0);
 }
 
