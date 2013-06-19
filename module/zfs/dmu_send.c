@@ -67,7 +67,7 @@ dump_bytes_strategy(void *arg)
 	dmu_sendarg_t *dsp = dbi->dbi_dsp;
 	dsl_dataset_t *ds = dsp->dsa_os->os_dsl_dataset;
 	ssize_t resid; /* have to get resid to get detailed errno */
-	ASSERT3U(dbi->dbi_len % 8, ==, 0);
+        ASSERT0(dbi->dbi_len % 8);
 
 	fletcher_4_incremental_native(dbi->dbi_buf, dbi->dbi_len, &dsp->dsa_zc);
 	dsp->dsa_err = vn_rdwr(UIO_WRITE, dsp->dsa_vp,
@@ -988,7 +988,7 @@ restore_read(struct restorearg *ra, int len)
 	int done = 0;
 
 	/* some things will require 8-byte alignment, so everything must */
-	ASSERT3U(len % 8, ==, 0);
+	ASSERT0(len % 8);
 
 	while (done < len) {
 		ssize_t resid;
@@ -1667,7 +1667,7 @@ out:
 		(void) add_ds_to_guidmap(drc->drc_guid_to_ds_map, ds);
 	dsl_dataset_disown(ds, dmu_recv_tag);
 	myerr = dsl_dataset_destroy(drc->drc_real_ds, dmu_recv_tag, B_FALSE);
-	ASSERT3U(myerr, ==, 0);
+	ASSERT0(myerr);
 	return (err);
 }
 

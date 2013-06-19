@@ -161,7 +161,7 @@ dsl_sync_task_group_sync(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dstg->dstg_pool;
 	uint64_t quota, used;
 
-	ASSERT3U(dstg->dstg_err, ==, 0);
+	ASSERT0(dstg->dstg_err);
 
 	/*
 	 * Check for sufficient space.  We just check against what's

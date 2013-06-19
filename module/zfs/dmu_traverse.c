@@ -174,7 +174,7 @@ static void
 traverse_pause(traverse_data_t *td, const zbookmark_t *zb)
 {
 	ASSERT(td->td_resume != NULL);
-	ASSERT3U(zb->zb_level, ==, 0);
+	ASSERT0(zb->zb_level);
 	bcopy(zb, td->td_resume, sizeof (*td->td_resume));
 }
 

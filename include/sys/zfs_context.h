@@ -72,7 +72,6 @@
 #define	_SYS_RWLOCK_H
 #define	_SYS_CONDVAR_H
 #define	_SYS_SYSTM_H
-#define	_SYS_DEBUG_H
 #define	_SYS_T_LOCK_H
 #define	_SYS_VNODE_H
 #define	_SYS_VFS_H
@@ -112,6 +111,7 @@
 #include <sys/u8_textprep.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/sunddi.h>
+#include <sys/debug.h>
 
 /*
  * Stack

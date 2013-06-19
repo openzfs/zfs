@@ -923,7 +923,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	uint64_t memory, asize, fsize, usize;
 	uint64_t towrite, tofree, tooverwrite, tounref, tohold, fudge;
 
-	ASSERT3U(tx->tx_txg, ==, 0);
+	ASSERT0(tx->tx_txg);
 
 	if (tx->tx_err) {
 		DMU_TX_STAT_BUMP(dmu_tx_error);
