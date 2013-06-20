@@ -126,10 +126,6 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 		}
 	}
 
-	/* Return ENOENT if no holds would be created. */
-	if (nvlist_empty(dduha->dduha_chkholds))
-		return (SET_ERROR(ENOENT));
-
 	return (0);
 }
 
@@ -467,10 +463,6 @@ dsl_dataset_user_release_check(void *arg, dmu_tx_t *tx)
 				return (error);
 		}
 	}
-
-	/* Return ENOENT if none of the holds existed. */
-	if (nvlist_empty(ddura->ddura_chkholds))
-		return (SET_ERROR(ENOENT));
 
 	return (0);
 }
