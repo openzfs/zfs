@@ -42,7 +42,6 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
-#include <sys/zvol.h>
 
 /*
  * Virtual device management.
@@ -1072,21 +1071,30 @@ vdev_open_child(void *arg)
 	vd->vdev_open_thread = NULL;
 }
 
-static boolean_t
+boolean_t
 vdev_uses_zvols(vdev_t *vd)
 {
+/*
+ * Stacking zpools on top of zvols on Linux is complicated by things such as
+ * LVM and cryptoloop. They make it impossible to reliably detect whether a
+ * block device is backed by a zvol. This forces us to assume that block
+ * devices are always backed by zvols, which costs us parallelism when
+ * importing a pool with multiple vdevs. It would be better to implement a method
+ * for determining if an arbitrary block device is backed by a zvol. This is
+ * complicated by the fact that we need to do this portably in user or kernel
+ * space.
+ */
+#if 0
 	int c;
 
-#ifdef _KERNEL
-	if (zvol_is_zvol(vd->vdev_path))
+	if (vd->vdev_path && strncmp(vd->vdev_path, ZVOL_DIR,
+	    strlen(ZVOL_DIR)) == 0)
 		return (B_TRUE);
-#endif
-
 	for (c = 0; c < vd->vdev_children; c++)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
-
-	return (B_FALSE);
+#endif
+	return (B_TRUE);
 }
 
 void
