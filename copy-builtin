@@ -33,6 +33,7 @@ rm -rf "$KERNEL_DIR/include/spl" "$KERNEL_DIR/spl"
 cp --recursive include "$KERNEL_DIR/include/spl"
 cp --recursive module "$KERNEL_DIR/spl"
 cp spl_config.h "$KERNEL_DIR/"
+cp spl.release.in "$KERNEL_DIR/"
 
 adjust_obj_paths()
 {
