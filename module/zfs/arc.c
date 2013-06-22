@@ -1545,6 +1545,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
 			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
+			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			if (hdr->b_state == arc_l2c_only)
 				l2arc_hdr_stat_remove();
 			hdr->b_l2hdr = NULL;
@@ -3443,6 +3444,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	if (l2hdr) {
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
+		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
 		mutex_exit(&l2arc_buflist_mtx);
 	}
@@ -4142,14 +4144,14 @@ l2arc_write_interval(clock_t began, uint64_t wanted, uint64_t wrote)
 static void
 l2arc_hdr_stat_add(void)
 {
-	ARCSTAT_INCR(arcstat_l2_hdr_size, HDR_SIZE + L2HDR_SIZE);
+	ARCSTAT_INCR(arcstat_l2_hdr_size, HDR_SIZE);
 	ARCSTAT_INCR(arcstat_hdr_size, -HDR_SIZE);
 }
 
 static void
 l2arc_hdr_stat_remove(void)
 {
-	ARCSTAT_INCR(arcstat_l2_hdr_size, -(HDR_SIZE + L2HDR_SIZE));
+	ARCSTAT_INCR(arcstat_l2_hdr_size, -HDR_SIZE);
 	ARCSTAT_INCR(arcstat_hdr_size, HDR_SIZE);
 }
 
@@ -4293,6 +4295,7 @@ l2arc_write_done(zio_t *zio)
 			abl2 = ab->b_l2hdr;
 			ab->b_l2hdr = NULL;
 			kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
+			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 		}
 
@@ -4539,6 +4542,7 @@ top:
 				abl2 = ab->b_l2hdr;
 				ab->b_l2hdr = NULL;
 				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
+				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 				ARCSTAT_INCR(arcstat_l2_size, -ab->b_size);
 			}
 			list_remove(buflist, ab);
@@ -4664,6 +4668,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			                    KM_PUSHPAGE);
 			hdrl2->b_dev = dev;
 			hdrl2->b_daddr = dev->l2ad_hand;
+			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 
 			ab->b_flags |= ARC_L2_WRITING;
 			ab->b_l2hdr = hdrl2;
