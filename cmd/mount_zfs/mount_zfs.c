@@ -211,17 +211,55 @@ out:
 }
 
 /*
- * If a file or directory in your current working directory is named
- * 'dataset' then mount(8) will prepend your current working directory
- * to dataset.  The is no way to prevent this behavior so we simply
- * check for it and strip the prepended patch when it is added.
+ * Return the pool/dataset to mount given the name passed to mount.  This
+ * is expected to be of the form pool/dataset, however may also refer to
+ * a block device if that device contains a valid zfs label.
  */
 static char *
 parse_dataset(char *dataset)
 {
 	char cwd[PATH_MAX];
+	struct stat64 statbuf;
+	int error;
 	int len;
 
+	/*
+	 * We expect a pool/dataset to be provided, however if we're
+	 * given a device which is a member of a zpool we attempt to
+	 * extract the pool name stored in the label.  Given the pool
+	 * name we can mount the root dataset.
+	 */
+	error = stat64(dataset, &statbuf);
+	if (error == 0) {
+		nvlist_t *config;
+		char *name;
+		int fd;
+
+		fd = open(dataset, O_RDONLY);
+		if (fd < 0)
+			goto out;
+
+		error = zpool_read_label(fd, &config);
+		(void) close(fd);
+		if (error)
+			goto out;
+
+		error = nvlist_lookup_string(config,
+		    ZPOOL_CONFIG_POOL_NAME, &name);
+		if (error == 0)
+			dataset = strdup(name);
+
+		nvlist_free(config);
+		return (dataset);
+	}
+out:
+	/*
+	 * If a file or directory in your current working directory is
+	 * named 'dataset' then mount(8) will prepend your current working
+	 * directory to the dataset.  There is no way to prevent this
+	 * behavior so we simply check for it and strip the prepended
+	 * patch when it is added.
+	 */
 	if (getcwd(cwd, PATH_MAX) == NULL)
 		return (dataset);
 
