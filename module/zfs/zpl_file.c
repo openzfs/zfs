@@ -433,6 +433,27 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_FILE_FALLOCATE */
 
+static long
+zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case ZFS_IOC_GETFLAGS:
+	case ZFS_IOC_SETFLAGS:
+		return (-EOPNOTSUPP);
+	default:
+		return (-ENOTTY);
+	}
+}
+
+#ifdef CONFIG_COMPAT
+static long
+zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	return zpl_ioctl(filp, cmd, arg);
+}
+#endif /* CONFIG_COMPAT */
+
+
 const struct address_space_operations zpl_address_space_operations = {
 	.readpages	= zpl_readpages,
 	.readpage	= zpl_readpage,
@@ -451,6 +472,10 @@ const struct file_operations zpl_file_operations = {
 #ifdef HAVE_FILE_FALLOCATE
 	.fallocate      = zpl_fallocate,
 #endif /* HAVE_FILE_FALLOCATE */
+	.unlocked_ioctl = zpl_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl   = zpl_compat_ioctl,
+#endif
 };
 
 const struct file_operations zpl_dir_file_operations = {
@@ -458,4 +483,8 @@ const struct file_operations zpl_dir_file_operations = {
 	.read		= generic_read_dir,
 	.readdir	= zpl_readdir,
 	.fsync		= zpl_fsync,
+	.unlocked_ioctl = zpl_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl   = zpl_compat_ioctl,
+#endif
 };
