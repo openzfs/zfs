@@ -704,6 +704,8 @@ libzfs_init(void)
 	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
 #endif
 		(void) close(hdl->libzfs_fd);
+		(void) fprintf(stderr,
+		    gettext("mtab is not present at %s.\n"), MNTTAB);
 		free(hdl);
 		return (NULL);
 	}
