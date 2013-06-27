@@ -920,7 +920,7 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	if (tqs->stqs_count == 1) {
 		tq = tqs->stqs_taskq[0];
 	} else {
-		tq = tqs->stqs_taskq[gethrtime() % tqs->stqs_count];
+		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
 
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
@@ -943,7 +943,7 @@ spa_taskq_dispatch_sync(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	if (tqs->stqs_count == 1) {
 		tq = tqs->stqs_taskq[0];
 	} else {
-		tq = tqs->stqs_taskq[gethrtime() % tqs->stqs_count];
+		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
 
 	id = taskq_dispatch(tq, func, arg, flags);
