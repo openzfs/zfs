@@ -489,6 +489,7 @@ Percentage of pool space used. This property can also be referred to by its shor
 \fB\fBexpandsize\fR\fR
 .ad
 .RS 20n
+.rt
 Amount of uninitialized space within the pool or device that can be used to
 increase the total capacity of the pool.  Uninitialized space consists of
 any space on an EFI labeled vdev which has not been brought online
@@ -497,19 +498,23 @@ any space on an EFI labeled vdev which has not been brought online
 
 .sp
 .ne 2
+.mk
 .na
 \fB\fBfree\fR\fR
 .ad
 .RS 20n
+.rt
 The amount of free space available in the pool.
 .RE
 
 .sp
 .ne 2
+.mk
 .na
 \fB\fBfreeing\fR\fR
 .ad
 .RS 20n
+.rt
 After a file system or snapshot is destroyed, the space it was using is
 returned to the pool asynchronously. \fB\fBfreeing\fR\fR is the amount of
 space remaining to be reclaimed. Over time \fB\fBfreeing\fR\fR will decrease
@@ -518,6 +523,7 @@ while \fB\fBfree\fR\fR increases.
 
 .sp
 .ne 2
+.mk
 .na
 \fB\fBhealth\fR\fR
 .ad
@@ -550,10 +556,12 @@ Total size of the storage pool.
 
 .sp
 .ne 2
+.mk
 .na
 \fB\fBunsupported@\fR\fIfeature_guid\fR\fR
 .ad
 .RS 20n
+.rt
 Information about unsupported features that are enabled on the pool. See
 \fBzpool-features\fR(5) for details.
 .RE
