@@ -235,6 +235,39 @@ zpl_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 	return (wrote);
 }
 
+#if (defined SEEK_HOLE && defined SEEK_DATA)
+static loff_t
+zpl_llseek(struct file *filp, loff_t offset, int whence)
+{
+	if (whence == SEEK_DATA || whence == SEEK_HOLE) {
+		struct inode *ip = filp->f_mapping->host;
+		znode_t *zp = ITOZ(ip);
+		int error;
+
+		if (offset < 0 && !(filp->f_mode & FMODE_UNSIGNED_OFFSET))
+			return -EINVAL;
+
+		mutex_enter(&zp->z_lock);
+		error = -zfs_holey(filp->f_mapping->host, whence, &offset);
+		mutex_exit(&zp->z_lock);
+
+		if (error)
+			return error;
+
+		if (offset != filp->f_pos) {
+			spin_lock(&filp->f_lock);
+			filp->f_pos = offset;
+			filp->f_version = 0;
+			spin_unlock(&filp->f_lock);
+		}
+
+		return offset;
+	}
+
+	return generic_file_llseek(filp, offset, whence);
+}
+#endif /* SEEK_HOLE && SEEK_DATA */
+
 /*
  * It's worth taking a moment to describe how mmap is implemented
  * for zfs because it differs considerably from other Linux filesystems.
@@ -464,7 +497,11 @@ const struct address_space_operations zpl_address_space_operations = {
 const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
+#if (defined SEEK_HOLE && defined SEEK_DATA)
+	.llseek		= zpl_llseek,
+#else
 	.llseek		= generic_file_llseek,
+#endif /* SEEK_HOLE && SEEK_DATA */
 	.read		= zpl_read,
 	.write		= zpl_write,
 	.mmap		= zpl_mmap,
