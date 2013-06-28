@@ -3059,11 +3059,22 @@ main(int argc, char **argv)
 	nvlist_t *policy = NULL;
 	uint64_t max_txg = UINT64_MAX;
 	int rewind = ZPOOL_NEVER_REWIND;
+	char *spa_config_path_env;
 
 	(void) setrlimit(RLIMIT_NOFILE, &rl);
 	(void) enable_extended_FILE_stdio(-1, -1);
 
 	dprintf_setup(&argc, argv);
+
+	/*
+	 * If there is an environment variable SPA_CONFIG_PATH it overrides
+	 * default spa_config_path setting. If -U flag is specified it will
+	 * override this environment variable settings once again.
+	 */
+	spa_config_path_env = getenv("SPA_CONFIG_PATH");
+	if (spa_config_path_env != NULL) {
+		spa_config_path = spa_config_path_env;
+	}
 
 	while ((c = getopt(argc, argv, "bcdhilmM:suCDRSAFLXevp:t:U:P")) != -1) {
 		switch (c) {
