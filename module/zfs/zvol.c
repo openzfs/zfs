@@ -1214,8 +1214,7 @@ zvol_alloc(dev_t dev, const char *name)
 	int error = 0;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
-	if (zv == NULL)
-		goto out;
+	
 
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)

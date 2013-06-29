@@ -5136,8 +5136,6 @@ zfsdev_state_init(struct file *filp)
                 return (ENXIO);
 
 	zs = kmem_zalloc( sizeof(zfsdev_state_t), KM_SLEEP);
-	if (zs == NULL)
-		return (ENOMEM);
 
 	zs->zs_file = filp;
 	zs->zs_minor = minor;
