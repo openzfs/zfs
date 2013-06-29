@@ -1644,7 +1644,7 @@ int
 arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
-	kmutex_t *hash_lock = HDR_LOCK(hdr);
+	kmutex_t *hash_lock = NULL;
 	int no_callback = (buf->b_efunc == NULL);
 
 	if (hdr->b_state == arc_anon) {
@@ -1653,6 +1653,7 @@ arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 		return (no_callback);
 	}
 
+	hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 	hdr = buf->b_hdr;
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
