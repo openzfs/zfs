@@ -208,6 +208,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 {
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
+	char *pool_name;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -254,7 +255,13 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 				VERIFY(nvlist_alloc(&nvl, NV_UNIQUE_NAME,
 				    KM_PUSHPAGE) == 0);
 
-			VERIFY(nvlist_add_nvlist(nvl, spa->spa_name,
+			if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
+				VERIFY0(nvlist_lookup_string(spa->spa_config,
+					ZPOOL_CONFIG_POOL_NAME, &pool_name));
+			} else
+				pool_name = spa_name(spa);
+
+			VERIFY(nvlist_add_nvlist(nvl, pool_name,
 			    spa->spa_config) == 0);
 			mutex_exit(&spa->spa_props_lock);
 		}
@@ -337,6 +344,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	unsigned long hostid = 0;
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
+	char *pool_name;
 
 	if (vd == NULL) {
 		vd = rvd;
@@ -353,12 +361,28 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (txg == -1ULL)
 		txg = spa->spa_config_txg;
 
+	/*
+	 * Originally, users had to handle spa namespace collisions by either
+	 * exporting the already imported pool or by specifying a new name for
+	 * the pool with a conflicting name. In the case of root pools from
+	 * virtual guests, neither approach to collision resolution is
+	 * reasonable. This is addressed by extending the new name syntax with
+	 * an option to specify that the new name is temporary. When specified,
+	 * ZFS_IMPORT_TEMP_NAME will be set in spa->spa_import_flags to tell us
+	 * to use the previous name, which we do below.
+	 */
+	if (spa->spa_import_flags & ZFS_IMPORT_TEMP_NAME) {
+		VERIFY0(nvlist_lookup_string(spa->spa_config,
+			ZPOOL_CONFIG_POOL_NAME, &pool_name));
+	} else
+		pool_name = spa_name(spa);
+
 	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VERSION,
 	    spa_version(spa)) == 0);
 	VERIFY(nvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    spa_name(spa)) == 0);
+	    pool_name) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 	    spa_state(spa)) == 0);
 	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_TXG,
