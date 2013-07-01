@@ -2013,7 +2013,7 @@ zpool_do_import(int argc, char **argv)
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:rR:T:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:T:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
