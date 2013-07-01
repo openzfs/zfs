@@ -1056,10 +1056,12 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 	}
 
 	/*
-	 * Drain the iput_taskq to ensure all active references to the
+	 * If someone has not already unmounted this file system,
+	 * drain the iput_taskq to ensure all active references to the
 	 * zfs_sb_t have been handled only then can it be safely destroyed.
 	 */
-	taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
+	if (zsb->z_os)
+		taskq_wait(dsl_pool_iput_taskq(dmu_objset_pool(zsb->z_os)));
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
@@ -1480,10 +1482,11 @@ bail:
 
 	if (err) {
 		/*
-		 * Since we couldn't reopen zfs_sb_t, force
-		 * unmount this file system.
+		 * Since we couldn't reopen zfs_sb_t or, setup the
+		 * sa framework, force unmount this file system.
 		 */
-		(void) zfs_umount(zsb->z_sb);
+		if (zsb->z_os)
+			(void) zfs_umount(zsb->z_sb);
 	}
 	return (err);
 }
