@@ -2013,7 +2013,7 @@ zpool_do_import(int argc, char **argv)
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:T:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:d:DEfFmnNo:R:tT:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2075,6 +2075,10 @@ zpool_do_import(int argc, char **argv)
 			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
 				goto error;
 			break;
+		case 't':
+			flags |= ZFS_IMPORT_TEMP_NAME;
+			break;
+
 		case 'T':
 			errno = 0;
 			txg = strtoull(optarg, &endptr, 10);
