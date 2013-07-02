@@ -264,8 +264,9 @@ test_4() {
 	zconfig_zvol_device_stat 0 ${POOL_NAME} ${FULL_ZVOL_NAME} \
 	    ${FULL_SNAP_NAME} ${FULL_CLONE_NAME} || fail 9
 
-	# Load the modules, wait 1 second for udev
+	# Load the modules, list the pools to ensure they are opened
 	${ZFS_SH} zfs="spa_config_path=${TMP_CACHE}" || fail 10
+	${ZPOOL} list &>/dev/null
 
 	# Verify the devices were created
 	zconfig_zvol_device_stat 10 ${POOL_NAME} ${FULL_ZVOL_NAME} \
