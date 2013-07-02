@@ -1582,8 +1582,6 @@ zvol_init(void)
 	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
 	                    THIS_MODULE, zvol_probe, NULL, NULL);
 
-	(void) zvol_create_minors(NULL);
-
 	return (0);
 
 out2:
