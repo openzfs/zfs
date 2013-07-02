@@ -2581,7 +2581,7 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		zs->zs_vdev_aux = 0;
 		for (;;) {
 			int c;
-			(void) snprintf(path, sizeof (path), ztest_aux_template,
+			(void) snprintf(path, MAXPATHLEN, ztest_aux_template,
 			    ztest_opts.zo_dir, ztest_opts.zo_pool, aux,
 			    zs->zs_vdev_aux);
 			for (c = 0; c < sav->sav_count; c++)
