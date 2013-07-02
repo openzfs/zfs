@@ -1215,6 +1215,9 @@ zvol_alloc(dev_t dev, const char *name)
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
+	spin_lock_init(&zv->zv_lock);
+	list_link_init(&zv->zv_next);
+
 	zv->zv_queue = blk_init_queue(zvol_request, &zv->zv_lock);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
@@ -1247,9 +1250,6 @@ zvol_alloc(dev_t dev, const char *name)
 	avl_create(&zv->zv_znode.z_range_avl, zfs_range_compare,
 	    sizeof (rl_t), offsetof(rl_t, r_node));
 	zv->zv_znode.z_is_zvol = TRUE;
-
-	spin_lock_init(&zv->zv_lock);
-	list_link_init(&zv->zv_next);
 
 	zv->zv_disk->major = zvol_major;
 	zv->zv_disk->first_minor = (dev & MINORMASK);
@@ -1561,30 +1561,38 @@ zvol_init(void)
 {
 	int error;
 
+	list_create(&zvol_state_list, sizeof (zvol_state_t),
+	            offsetof(zvol_state_t, zv_next));
+	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
+
 	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_threads, maxclsyspri,
 		                  zvol_threads, INT_MAX, TASKQ_PREPOPULATE);
 	if (zvol_taskq == NULL) {
 		printk(KERN_INFO "ZFS: taskq_create() failed\n");
-		return (-ENOMEM);
+		error = -ENOMEM;
+		goto out1;
 	}
 
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
-		taskq_destroy(zvol_taskq);
-		return (error);
+		goto out2;
 	}
 
 	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
 	                    THIS_MODULE, zvol_probe, NULL, NULL);
 
-	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&zvol_state_list, sizeof (zvol_state_t),
-	            offsetof(zvol_state_t, zv_next));
-
 	(void) zvol_create_minors(NULL);
 
 	return (0);
+
+out2:
+	taskq_destroy(zvol_taskq);
+out1:
+	mutex_destroy(&zvol_state_lock);
+	list_destroy(&zvol_state_list);
+
+	return (error);
 }
 
 void
