@@ -105,7 +105,7 @@ report_dnode(struct diffarg *da, uint64_t object, dnode_phys_t *dnp)
 
 /* ARGSUSED */
 static int
-diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp, arc_buf_t *pbuf,
+diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	struct diffarg *da = arg;
@@ -132,9 +132,9 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp, arc_buf_t *pbuf,
 		int blksz = BP_GET_LSIZE(bp);
 		int i;
 
-		if (dsl_read(NULL, spa, bp, pbuf,
-		    arc_getbuf_func, &abuf, ZIO_PRIORITY_ASYNC_READ,
-		    ZIO_FLAG_CANFAIL, &aflags, zb) != 0)
+		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
+		    &aflags, zb) != 0)
 			return (EIO);
 
 		blk = abuf->b_data;

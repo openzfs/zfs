@@ -1856,7 +1856,7 @@ spa_load_verify_done(zio_t *zio)
 /*ARGSUSED*/
 static int
 spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    arc_buf_t *pbuf, const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
+    const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	if (bp != NULL) {
 		zio_t *rio = arg;

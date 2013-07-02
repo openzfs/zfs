@@ -40,8 +40,7 @@ struct zilog;
 struct arc_buf;
 
 typedef int (blkptr_cb_t)(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    struct arc_buf *pbuf, const zbookmark_t *zb, const struct dnode_phys *dnp,
-    void *arg);
+    const zbookmark_t *zb, const struct dnode_phys *dnp, void *arg);
 
 #define	TRAVERSE_PRE			(1<<0)
 #define	TRAVERSE_POST			(1<<1)

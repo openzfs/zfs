@@ -884,7 +884,6 @@ buf_cons(void *vbuf, void *unused, int kmflag)
 
 	bzero(buf, sizeof (arc_buf_t));
 	mutex_init(&buf->b_evict_lock, NULL, MUTEX_DEFAULT, NULL);
-	rw_init(&buf->b_data_lock, NULL, RW_DEFAULT, NULL);
 	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 
 	return (0);
@@ -914,7 +913,6 @@ buf_dest(void *vbuf, void *unused)
 	arc_buf_t *buf = vbuf;
 
 	mutex_destroy(&buf->b_evict_lock);
-	rw_destroy(&buf->b_data_lock);
 	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
@@ -2907,42 +2905,11 @@ arc_read_done(zio_t *zio)
  *
  * arc_read_done() will invoke all the requested "done" functions
  * for readers of this block.
- *
- * Normal callers should use arc_read and pass the arc buffer and offset
- * for the bp.  But if you know you don't need locking, you can use
- * arc_read_bp.
  */
 int
-arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, arc_buf_t *pbuf,
-    arc_done_func_t *done, void *private, int priority, int zio_flags,
-    uint32_t *arc_flags, const zbookmark_t *zb)
-{
-	int err;
-
-	if (pbuf == NULL) {
-		/*
-		 * XXX This happens from traverse callback funcs, for
-		 * the objset_phys_t block.
-		 */
-		return (arc_read_nolock(pio, spa, bp, done, private, priority,
-		    zio_flags, arc_flags, zb));
-	}
-
-	ASSERT(!refcount_is_zero(&pbuf->b_hdr->b_refcnt));
-	ASSERT3U((char *)bp - (char *)pbuf->b_data, <, pbuf->b_hdr->b_size);
-	rw_enter(&pbuf->b_data_lock, RW_READER);
-
-	err = arc_read_nolock(pio, spa, bp, done, private, priority,
-	    zio_flags, arc_flags, zb);
-	rw_exit(&pbuf->b_data_lock);
-
-	return (err);
-}
-
-int
-arc_read_nolock(zio_t *pio, spa_t *spa, const blkptr_t *bp,
-    arc_done_func_t *done, void *private, int priority, int zio_flags,
-    uint32_t *arc_flags, const zbookmark_t *zb)
+arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, arc_done_func_t *done,
+    void *private, int priority, int zio_flags, uint32_t *arc_flags,
+    const zbookmark_t *zb)
 {
 	arc_buf_hdr_t *hdr;
 	arc_buf_t *buf = NULL;
@@ -3478,19 +3445,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		ARCSTAT_INCR(arcstat_l2_size, -buf_size);
 		mutex_exit(&l2arc_buflist_mtx);
 	}
-}
-
-/*
- * Release this buffer.  If it does not match the provided BP, fill it
- * with that block's contents.
- */
-/* ARGSUSED */
-int
-arc_release_bp(arc_buf_t *buf, void *tag, blkptr_t *bp, spa_t *spa,
-    zbookmark_t *zb)
-{
-	arc_release(buf, tag);
-	return (0);
 }
 
 int

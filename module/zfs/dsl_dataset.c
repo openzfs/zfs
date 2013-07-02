@@ -1271,7 +1271,7 @@ struct killarg {
 
 /* ARGSUSED */
 static int
-kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp, arc_buf_t *pbuf,
+kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	struct killarg *ka = arg;
