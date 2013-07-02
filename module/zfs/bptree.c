@@ -189,7 +189,8 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 			break;
 
 		err = traverse_dataset_destroyed(os->os_spa, &bte.be_bp,
-		    bte.be_birth_txg, &bte.be_zb, TRAVERSE_POST,
+		    bte.be_birth_txg, &bte.be_zb,
+		    TRAVERSE_PREFETCH_METADATA | TRAVERSE_POST,
 		    bptree_visit_cb, &ba);
 		if (free) {
 			ASSERT(err == 0 || err == ERESTART);
