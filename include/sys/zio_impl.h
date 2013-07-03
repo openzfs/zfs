@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _ZIO_IMPL_H
@@ -38,7 +38,7 @@ extern "C" {
 #endif
 
 /*
- * XXX -- Describe ZFS I/O pipleine here. Fill in as needed.
+ * XXX -- Describe ZFS I/O pipeline here. Fill in as needed.
  *
  * The ZFS I/O pipeline is comprised of various stages which are defined
  * in the zio_stage enum below. The individual stages are used to construct
@@ -213,7 +213,6 @@ enum zio_stage {
 #define	ZIO_FREE_PIPELINE			\
 	(ZIO_INTERLOCK_STAGES |			\
 	ZIO_STAGE_FREE_BP_INIT |		\
-	ZIO_STAGE_ISSUE_ASYNC |			\
 	ZIO_STAGE_DVA_FREE)
 
 #define	ZIO_DDT_FREE_PIPELINE			\

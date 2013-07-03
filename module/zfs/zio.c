@@ -783,7 +783,20 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 	metaslab_check_free(spa, bp);
-	bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
+
+	/*
+	 * Frees that are for the currently-syncing txg, are not going to be
+	 * deferred, and which will not need to do a read (i.e. not GANG or
+	 * DEDUP), can be processed immediately.  Otherwise, put them on the
+	 * in-memory list for later processing.
+	 */
+	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp) ||
+	    txg != spa->spa_syncing_txg ||
+	    spa_sync_pass(spa) >= zfs_sync_pass_deferred_free) {
+		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
+	} else {
+		VERIFY0(zio_wait(zio_free_sync(NULL, spa, txg, bp, 0)));
+	}
 }
 
 zio_t *
@@ -791,6 +804,7 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     enum zio_flag flags)
 {
 	zio_t *zio;
+	enum zio_stage stage = ZIO_FREE_PIPELINE;
 
 	dprintf_bp(bp, "freeing in txg %llu, pass %u",
 	    (longlong_t)txg, spa->spa_sync_pass);
@@ -802,9 +816,18 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	metaslab_check_free(spa, bp);
 	arc_freed(spa, bp);
 
+	/*
+	 * GANG and DEDUP blocks can induce a read (for the gang block header,
+	 * or the DDT), so issue them asynchronously so that this thread is
+	 * not tied up.
+	 */
+	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp))
+		stage |= ZIO_STAGE_ISSUE_ASYNC;
+
 	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
-	    NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_FREE, flags,
-	    NULL, 0, NULL, ZIO_STAGE_OPEN, ZIO_FREE_PIPELINE);
+	    NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_NOW, flags,
+	    NULL, 0, NULL, ZIO_STAGE_OPEN, stage);
+
 
 	return (zio);
 }
