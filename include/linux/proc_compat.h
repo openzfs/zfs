@@ -43,9 +43,6 @@
 #endif
 
 extern struct proc_dir_entry *proc_spl_kstat;
-struct proc_dir_entry *proc_dir_entry_find(struct proc_dir_entry *root,
-					   const char *str);
-int proc_dir_entries(struct proc_dir_entry *root);
 
 int spl_proc_init(void);
 void spl_proc_fini(void);
