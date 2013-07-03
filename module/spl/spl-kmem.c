@@ -403,9 +403,9 @@ kmem_del_init(spinlock_t *lock, struct hlist_head *table, int bits, const void *
 
 	spin_lock_irqsave(lock, flags);
 
-	head = &table[hash_ptr(addr, bits)];
-	hlist_for_each_rcu(node, head) {
-		p = list_entry_rcu(node, struct kmem_debug, kd_hlist);
+	head = &table[hash_ptr((void *)addr, bits)];
+	hlist_for_each(node, head) {
+		p = list_entry(node, struct kmem_debug, kd_hlist);
 		if (p->kd_addr == addr) {
 			hlist_del_init(&p->kd_hlist);
 			list_del_init(&p->kd_list);
@@ -497,7 +497,7 @@ kmem_alloc_track(size_t size, int flags, const char *func, int line,
 		dptr->kd_line = line;
 
 		spin_lock_irqsave(&kmem_lock, irq_flags);
-		hlist_add_head_rcu(&dptr->kd_hlist,
+		hlist_add_head(&dptr->kd_hlist,
 		    &kmem_table[hash_ptr(ptr, KMEM_HASH_BITS)]);
 		list_add_tail(&dptr->kd_list, &kmem_list);
 		spin_unlock_irqrestore(&kmem_lock, irq_flags);
@@ -538,10 +538,10 @@ kmem_free_track(const void *ptr, size_t size)
 
 	kfree(dptr->kd_func);
 
-	memset(dptr, 0x5a, sizeof(kmem_debug_t));
+	memset((void *)dptr, 0x5a, sizeof(kmem_debug_t));
 	kfree(dptr);
 
-	memset(ptr, 0x5a, size);
+	memset((void *)ptr, 0x5a, size);
 	kfree(ptr);
 
 	SEXIT;
@@ -612,7 +612,7 @@ vmem_alloc_track(size_t size, int flags, const char *func, int line)
 		dptr->kd_line = line;
 
 		spin_lock_irqsave(&vmem_lock, irq_flags);
-		hlist_add_head_rcu(&dptr->kd_hlist,
+		hlist_add_head(&dptr->kd_hlist,
 		    &vmem_table[hash_ptr(ptr, VMEM_HASH_BITS)]);
 		list_add_tail(&dptr->kd_list, &vmem_list);
 		spin_unlock_irqrestore(&vmem_lock, irq_flags);
@@ -653,10 +653,10 @@ vmem_free_track(const void *ptr, size_t size)
 
 	kfree(dptr->kd_func);
 
-	memset(dptr, 0x5a, sizeof(kmem_debug_t));
+	memset((void *)dptr, 0x5a, sizeof(kmem_debug_t));
 	kfree(dptr);
 
-	memset(ptr, 0x5a, size);
+	memset((void *)ptr, 0x5a, size);
 	vfree(ptr);
 
 	SEXIT;
