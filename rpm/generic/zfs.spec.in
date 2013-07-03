@@ -113,7 +113,14 @@ make %{?_smp_mflags}
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
-%post -p /sbin/ldconfig
+%post
+/sbin/ldconfig
+[ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+
+%preun
+if [ $1 -eq 0 ] ; then
+    [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
+fi
 
 %postun -p /sbin/ldconfig
 
