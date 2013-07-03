@@ -246,11 +246,13 @@ parse_dataset(char *dataset)
 
 		error = nvlist_lookup_string(config,
 		    ZPOOL_CONFIG_POOL_NAME, &name);
-		if (error == 0)
+		if (error) {
+			nvlist_free(config);
+		} else {
 			dataset = strdup(name);
-
-		nvlist_free(config);
-		return (dataset);
+			nvlist_free(config);
+			return (dataset);
+		}
 	}
 out:
 	/*
