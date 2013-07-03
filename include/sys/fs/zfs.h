@@ -63,7 +63,7 @@ typedef enum {
  * Dataset properties are identified by these constants and must be added to
  * the end of this list to ensure that external consumers are not affected
  * by the change. If you make any changes to this list, be sure to update
- * the property table in usr/src/common/zfs/zfs_prop.c.
+ * the property table in module/zcommon/zfs_prop.c.
  */
 typedef enum {
 	ZFS_PROP_TYPE,
@@ -146,7 +146,7 @@ extern const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
  * Pool properties are identified by these constants and must be added to the
  * end of this list to ensure that external consumers are not affected
  * by the change. If you make any changes to this list, be sure to update
- * the property table in usr/src/common/zfs/zpool_prop.c.
+ * the property table in module/zcommon/zpool_prop.c.
  */
 typedef enum {
 	ZPOOL_PROP_NAME,
