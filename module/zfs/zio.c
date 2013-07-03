@@ -1248,7 +1248,7 @@ zio_interrupt(zio_t *zio)
  * vdev-level caching or aggregation; (5) the I/O is deferred
  * due to vdev-level queueing; (6) the I/O is handed off to
  * another thread.  In all cases, the pipeline stops whenever
- * there's no CPU work; it never burns a thread in cv_wait().
+ * there's no CPU work; it never burns a thread in cv_wait_io().
  *
  * There's no locking on io_stage because there's no legitimate way
  * for multiple threads to be attempting to process the same I/O.
