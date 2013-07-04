@@ -116,11 +116,13 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %post
 /sbin/ldconfig
 [ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+exit 0
 
 %preun
 if [ $1 -eq 0 ] ; then
     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
 fi
+exit 0
 
 %postun -p /sbin/ldconfig
 
