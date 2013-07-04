@@ -2844,11 +2844,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	psize = size;
 	lsize = size;
 
-#ifdef __linux__
 	pbuf = umem_alloc_aligned(SPA_MAXBLOCKSIZE, 512, UMEM_NOFAIL);
-#else
-	pbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-#endif
 	lbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 
 	BP_ZERO(bp);
