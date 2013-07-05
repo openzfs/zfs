@@ -902,8 +902,8 @@ zpool_read_label(int fd, nvlist_t **config)
 
 /*
  * Given a file descriptor, clear (zero) the label information.  This function
- * is currently only used in the appliance stack as part of the ZFS sysevent
- * module.
+ * is used in the appliance stack as part of the ZFS sysevent module and
+ * to implement the "zpool labelclear" command.
  */
 int
 zpool_clear_label(int fd)
