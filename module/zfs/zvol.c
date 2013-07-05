@@ -1223,12 +1223,13 @@ zvol_alloc(dev_t dev, const char *name)
 
 #ifdef HAVE_ELEVATOR_CHANGE
 	error = elevator_change(zv->zv_queue, "noop");
-#endif /* HAVE_ELEVATOR_CHANGE */
 	if (error) {
 		printk("ZFS: Unable to set \"%s\" scheduler for zvol %s: %d\n",
 		    "noop", name, error);
 		goto out_queue;
 	}
+#endif /* HAVE_ELEVATOR_CHANGE */
+
 
 #ifdef HAVE_BLK_QUEUE_FLUSH
 	blk_queue_flush(zv->zv_queue, VDEV_REQ_FLUSH | VDEV_REQ_FUA);
