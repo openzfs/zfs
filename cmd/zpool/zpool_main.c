@@ -5243,6 +5243,7 @@ zpool_do_events_next(ev_opts_t *opts)
 			zpool_do_events_nvprint(nvl, 8);
 			printf(gettext("\n"));
 		}
+		(void) fflush(stdout);
 
 		nvlist_free(nvl);
 	}
