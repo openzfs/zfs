@@ -225,7 +225,15 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 		 */
 		nvl = NULL;
 		while ((spa = spa_next(spa)) != NULL) {
-			if (spa == target && removing)
+			/*
+			 * Skip over our own pool if we're about to remove
+			 * ourselves from the spa namespace or any pool that
+			 * is readonly. Since we cannot guarantee that a
+			 * readonly pool would successfully import upon reboot,
+			 * we don't allow them to be written to the cache file.
+			 */
+			if ((spa == target && removing) ||
+			    !spa_writeable(spa))
 				continue;
 
 			mutex_enter(&spa->spa_props_lock);
