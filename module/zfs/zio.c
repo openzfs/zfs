@@ -79,9 +79,6 @@ kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
 int zio_delay_max = ZIO_DELAY_MAX;
 
-#ifdef _KERNEL
-extern vmem_t *zio_alloc_arena;
-#endif
 extern int zfs_mg_alloc_failures;
 
 /*
@@ -151,9 +148,6 @@ zio_init(void)
 	size_t c;
 	vmem_t *data_alloc_arena = NULL;
 
-#ifdef _KERNEL
-	data_alloc_arena = zio_alloc_arena;
-#endif
 	zio_cache = kmem_cache_create("zio_cache", sizeof (zio_t), 0,
 	    zio_cons, zio_dest, NULL, NULL, NULL, KMC_KMEM);
 	zio_link_cache = kmem_cache_create("zio_link_cache",
