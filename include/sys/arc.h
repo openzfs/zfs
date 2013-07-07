@@ -92,8 +92,6 @@ typedef enum arc_space_type {
 
 void arc_space_consume(uint64_t space, arc_space_type_t type);
 void arc_space_return(uint64_t space, arc_space_type_t type);
-void *arc_data_buf_alloc(uint64_t space);
-void arc_data_buf_free(void *buf, uint64_t space);
 arc_buf_t *arc_buf_alloc(spa_t *spa, int size, void *tag,
     arc_buf_contents_t type);
 arc_buf_t *arc_loan_buf(spa_t *spa, int size);
