@@ -1260,23 +1260,6 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	atomic_add_64(&arc_size, -space);
 }
 
-void *
-arc_data_buf_alloc(uint64_t size)
-{
-	if (arc_evict_needed(ARC_BUFC_DATA))
-		cv_signal(&arc_reclaim_thr_cv);
-	atomic_add_64(&arc_size, size);
-	return (zio_data_buf_alloc(size));
-}
-
-void
-arc_data_buf_free(void *buf, uint64_t size)
-{
-	zio_data_buf_free(buf, size);
-	ASSERT(arc_size >= size);
-	atomic_add_64(&arc_size, -size);
-}
-
 arc_buf_t *
 arc_buf_alloc(spa_t *spa, int size, void *tag, arc_buf_contents_t type)
 {
