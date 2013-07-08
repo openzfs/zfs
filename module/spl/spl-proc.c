@@ -1120,39 +1120,6 @@ static struct ctl_table spl_root[] = {
 	{ 0 }
 };
 
-static int
-proc_dir_entry_match(int len, const char *name, struct proc_dir_entry *de)
-{
-        if (de->namelen != len)
-                return 0;
-
-        return !memcmp(name, de->name, len);
-}
-
-struct proc_dir_entry *
-proc_dir_entry_find(struct proc_dir_entry *root, const char *str)
-{
-	struct proc_dir_entry *de;
-
-	for (de = root->subdir; de; de = de->next)
-		if (proc_dir_entry_match(strlen(str), str, de))
-			return de;
-
-	return NULL;
-}
-
-int
-proc_dir_entries(struct proc_dir_entry *root)
-{
-	struct proc_dir_entry *de;
-	int i = 0;
-
-	for (de = root->subdir; de; de = de->next)
-		i++;
-
-	return i;
-}
-
 int
 spl_proc_init(void)
 {
@@ -1174,11 +1141,11 @@ spl_proc_init(void)
         if (proc_spl_kmem == NULL)
                 SGOTO(out, rc = -EUNATCH);
 
-	proc_spl_kmem_slab = create_proc_entry("slab", 0444, proc_spl_kmem);
+	proc_spl_kmem_slab = proc_create_data("slab", 0444,
+		proc_spl_kmem, &proc_slab_operations, NULL);
         if (proc_spl_kmem_slab == NULL)
 		SGOTO(out, rc = -EUNATCH);
 
-        proc_spl_kmem_slab->proc_fops = &proc_slab_operations;
 #endif /* DEBUG_KMEM */
 
         proc_spl_kstat = proc_mkdir("kstat", proc_spl);

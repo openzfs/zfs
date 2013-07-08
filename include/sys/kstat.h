@@ -83,6 +83,13 @@ struct kstat_s;
 typedef int kid_t;                                  /* unique kstat id */
 typedef int kstat_update_t(struct kstat_s *, int);  /* dynamic update cb */
 
+typedef struct kstat_module {
+	char             ksm_name[KSTAT_STRLEN+1];  /* module name */
+	struct list_head ksm_module_list;           /* module linkage */
+	struct list_head ksm_kstat_list;            /* list of kstat entries */
+	struct proc_dir_entry *ksm_proc;            /* proc entry */
+} kstat_module_t;
+
 typedef struct kstat_s {
 	int              ks_magic;                  /* magic value */
         kid_t            ks_kid;                    /* unique kstat ID */
@@ -102,6 +109,7 @@ typedef struct kstat_s {
         void             *ks_private;               /* private data */
         kmutex_t         ks_lock;                   /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
+	kstat_module_t   *ks_owner;                 /* kstat module linkage */
 } kstat_t;
 
 typedef struct kstat_named_s {

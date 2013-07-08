@@ -26,6 +26,7 @@
 
 #include <sys/atomic.h>
 #include <sys/thread.h>
+#include <linux/slab.h>
 #include "splat-internal.h"
 
 #define SPLAT_ATOMIC_NAME		"atomic"

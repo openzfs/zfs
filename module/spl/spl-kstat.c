@@ -33,9 +33,12 @@
 #endif
 
 #define SS_DEBUG_SUBSYS SS_KSTAT
+#ifndef HAVE_PDE_DATA
+#define PDE_DATA(x) (PDE(x)->data)
+#endif
 
-static spinlock_t kstat_lock;
-static struct list_head kstat_list;
+static kmutex_t kstat_module_lock;
+static struct list_head kstat_module_list;
 static kid_t kstat_id;
 
 static void
@@ -348,6 +351,47 @@ static struct seq_operations kstat_seq_ops = {
         .stop  = kstat_seq_stop,
 };
 
+static kstat_module_t *
+kstat_find_module(char *name)
+{
+	kstat_module_t *module;
+
+	list_for_each_entry(module, &kstat_module_list, ksm_module_list)
+		if (strncmp(name, module->ksm_name, KSTAT_STRLEN) == 0)
+			return (module);
+
+	return (NULL);
+}
+
+static kstat_module_t *
+kstat_create_module(char *name)
+{
+	kstat_module_t *module;
+	struct proc_dir_entry *pde;
+
+	pde = proc_mkdir(name, proc_spl_kstat);
+	if (pde == NULL)
+		return (NULL);
+
+	module = kmem_alloc(sizeof (kstat_module_t), KM_SLEEP);
+	module->ksm_proc = pde;
+	strlcpy(module->ksm_name, name, KSTAT_STRLEN+1);
+	INIT_LIST_HEAD(&module->ksm_kstat_list);
+	list_add_tail(&module->ksm_module_list, &kstat_module_list);
+
+	return (module);
+
+}
+
+static void
+kstat_delete_module(kstat_module_t *module)
+{
+	ASSERT(list_empty(&module->ksm_kstat_list));
+	remove_proc_entry(module->ksm_name, proc_spl_kstat);
+	list_del(&module->ksm_module_list);
+	kmem_free(module, sizeof(kstat_module_t));
+}
+
 static int
 proc_kstat_open(struct inode *inode, struct file *filp)
 {
@@ -359,7 +403,7 @@ proc_kstat_open(struct inode *inode, struct file *filp)
                 return rc;
 
         f = filp->private_data;
-        f->private = PDE(inode)->data;
+        f->private = PDE_DATA(inode);
 
         return rc;
 }
@@ -390,10 +434,10 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	if (ksp == NULL)
 		return ksp;
 
-	spin_lock(&kstat_lock);
+	mutex_enter(&kstat_module_lock);
 	ksp->ks_kid = kstat_id;
         kstat_id++;
-	spin_unlock(&kstat_lock);
+	mutex_exit(&kstat_module_lock);
 
         ksp->ks_magic = KS_MAGIC;
 	mutex_init(&ksp->ks_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -456,71 +500,64 @@ EXPORT_SYMBOL(__kstat_create);
 void
 __kstat_install(kstat_t *ksp)
 {
-	struct proc_dir_entry *de_module, *de_name;
+	kstat_module_t *module;
 	kstat_t *tmp;
-	int rc = 0;
-	SENTRY;
 
-	spin_lock(&kstat_lock);
+	ASSERT(ksp);
 
-	/* Item may only be added to the list once */
-        list_for_each_entry(tmp, &kstat_list, ks_list) {
-                if (tmp == ksp) {
-		        spin_unlock(&kstat_lock);
-			SGOTO(out, rc = -EEXIST);
-		}
+	mutex_enter(&kstat_module_lock);
+
+	module = kstat_find_module(ksp->ks_module);
+	if (module == NULL) {
+		module = kstat_create_module(ksp->ks_module);
+		if (module == NULL)
+			goto out;
 	}
 
-        list_add_tail(&ksp->ks_list, &kstat_list);
-	spin_unlock(&kstat_lock);
+	/*
+	 * Only one entry by this name per-module, on failure the module
+	 * shouldn't be deleted because we know it has at least one entry.
+	 */
+	list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list)
+		if (strncmp(tmp->ks_name, ksp->ks_name, KSTAT_STRLEN) == 0)
+			goto out;
 
-	de_module = proc_dir_entry_find(proc_spl_kstat, ksp->ks_module);
-	if (de_module == NULL) {
-                de_module = proc_mkdir(ksp->ks_module, proc_spl_kstat);
-		if (de_module == NULL)
-			SGOTO(out, rc = -EUNATCH);
-	}
-
-	de_name = create_proc_entry(ksp->ks_name, 0444, de_module);
-	if (de_name == NULL)
-		SGOTO(out, rc = -EUNATCH);
+	list_add_tail(&ksp->ks_list, &module->ksm_kstat_list);
 
 	mutex_enter(&ksp->ks_lock);
-	ksp->ks_proc = de_name;
-	de_name->proc_fops = &proc_kstat_operations;
-        de_name->data = (void *)ksp;
+	ksp->ks_owner = module;
+	ksp->ks_proc = proc_create_data(ksp->ks_name, 0444,
+	    module->ksm_proc, &proc_kstat_operations, (void *)ksp);
+	if (ksp->ks_proc == NULL) {
+		list_del_init(&ksp->ks_list);
+		if (list_empty(&module->ksm_kstat_list))
+			kstat_delete_module(module);
+	}
 	mutex_exit(&ksp->ks_lock);
 out:
-	if (rc) {
-		spin_lock(&kstat_lock);
-	        list_del_init(&ksp->ks_list);
-		spin_unlock(&kstat_lock);
-	}
-
-	SEXIT;
+	mutex_exit(&kstat_module_lock);
 }
 EXPORT_SYMBOL(__kstat_install);
 
 void
 __kstat_delete(kstat_t *ksp)
 {
-	struct proc_dir_entry *de_module;
+	kstat_module_t *module = ksp->ks_owner;
 
-	spin_lock(&kstat_lock);
-        list_del_init(&ksp->ks_list);
-	spin_unlock(&kstat_lock);
+	mutex_enter(&kstat_module_lock);
+	list_del_init(&ksp->ks_list);
+	mutex_exit(&kstat_module_lock);
 
-        if (ksp->ks_proc) {
-	        de_module = ksp->ks_proc->parent;
-	        remove_proc_entry(ksp->ks_name, de_module);
+	if (ksp->ks_proc) {
+		remove_proc_entry(ksp->ks_name, module->ksm_proc);
 
-	        /* Remove top level module directory if it's empty */
-	        if (proc_dir_entries(de_module) == 0)
-		        remove_proc_entry(de_module->name, de_module->parent);
+		/* Remove top level module directory if it's empty */
+		if (list_empty(&module->ksm_kstat_list))
+			kstat_delete_module(module);
 	}
 
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
-                kmem_free(ksp->ks_data, ksp->ks_data_size);
+		kmem_free(ksp->ks_data, ksp->ks_data_size);
 
 	mutex_destroy(&ksp->ks_lock);
 	kmem_free(ksp, sizeof(*ksp));
@@ -533,8 +570,8 @@ int
 spl_kstat_init(void)
 {
 	SENTRY;
-	spin_lock_init(&kstat_lock);
-	INIT_LIST_HEAD(&kstat_list);
+	mutex_init(&kstat_module_lock, NULL, MUTEX_DEFAULT, NULL);
+	INIT_LIST_HEAD(&kstat_module_list);
         kstat_id = 0;
 	SRETURN(0);
 }
@@ -543,7 +580,8 @@ void
 spl_kstat_fini(void)
 {
 	SENTRY;
-	ASSERT(list_empty(&kstat_list));
+	ASSERT(list_empty(&kstat_module_list));
+	mutex_destroy(&kstat_module_lock);
 	SEXIT;
 }
 
