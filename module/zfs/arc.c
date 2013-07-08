@@ -145,6 +145,8 @@
 
 static kmutex_t		arc_reclaim_thr_lock;
 static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
+static kmutex_t		arc_shrinker_thr_lock;
+static kcondvar_t	arc_shrinker_thr_cv;	/* used to signal shrinkers */
 static uint8_t		arc_thread_exit;
 
 /* number of bytes to prune from caches when at arc_meta_limit is reached */
@@ -154,6 +156,8 @@ typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
 	ARC_RECLAIM_CONS		/* Conservative reclaim strategy */
 } arc_reclaim_strategy_t;
+
+static volatile arc_reclaim_strategy_t arc_reclaim_strategy;
 
 /* number of seconds before growing cache again */
 static int		arc_grow_retry = 60;
@@ -2304,11 +2308,11 @@ arc_reclaim_thread(void)
 				if (last_reclaim == ARC_RECLAIM_CONS) {
 					last_reclaim = ARC_RECLAIM_AGGR;
 				} else {
-					last_reclaim = ARC_RECLAIM_CONS;
+					last_reclaim = arc_reclaim_strategy;
 				}
 			} else {
 				arc_no_grow = TRUE;
-				last_reclaim = ARC_RECLAIM_AGGR;
+				last_reclaim = arc_reclaim_strategy;
 				membar_producer();
 			}
 
@@ -2316,6 +2320,7 @@ arc_reclaim_thread(void)
 			growtime = ddi_get_lbolt() + (arc_grow_retry * hz);
 
 			arc_kmem_reap_now(last_reclaim);
+			arc_reclaim_strategy = ARC_RECLAIM_CONS;
 			arc_warm = B_TRUE;
 
 		} else if (arc_no_grow && ddi_get_lbolt() >= growtime) {
@@ -2336,6 +2341,9 @@ arc_reclaim_thread(void)
 		if (arc_eviction_list != NULL)
 			arc_do_user_evicts();
 
+		/* Kick shrinkers */
+		cv_broadcast(&arc_shrinker_thr_cv);
+
 		/* block until needed, or one second, whichever is shorter */
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_interruptible(&arc_reclaim_thr_cv,
@@ -2351,18 +2359,19 @@ arc_reclaim_thread(void)
 
 #ifdef _KERNEL
 /*
- * Under Linux the arc shrinker may be called for synchronous (direct)
- * reclaim, or asynchronous (indirect) reclaim.  When called by kswapd
- * for indirect reclaim we take a conservative approach and just reap
- * free slabs from the ARC caches.  If this proves to be insufficient
- * direct reclaim will be trigger.  In direct reclaim a more aggressive
- * strategy is used, data is evicted from the ARC and free slabs reaped.
+ * Under Linux the arc shrinker may be called for synchronous (direct) reclaim,
+ * or asynchronous (indirect) reclaim.  When called by kswapd for indirect
+ * reclaim we wake the reclaim thread and return.  If this is insufficient
+ * direct reclaim will be trigger. In direct reclaim, we temporarily pause ARC
+ * growth, set an aggressive reclaim strategy, wake the reclaim thread and
+ * either return in an interrupt context or wait for notification in a
+ * non-interrupt context.
  */
 static int
 __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 {
-	arc_reclaim_strategy_t strategy;
 	int arc_reclaim;
+	callb_cpr_t cpr;
 
 	/* Return number of reclaimable pages based on arc_shrink_shift */
 	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
@@ -2378,23 +2387,6 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	if (!(sc->gfp_mask & __GFP_FS))
 		return (-1);
 
-	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_reclaim_thr_lock) == 0)
-		return (-1);
-
-	/*
-	 * Evict the requested number of pages by shrinking arc_c the
-	 * requested amount.  If there is nothing left to evict just
-	 * reap whatever we can from the various arc slabs.
-	 */
-	if (pages > 0) {
-		arc_kmem_reap_now(ARC_RECLAIM_AGGR, ptob(sc->nr_to_scan));
-		pages = btop(arc_evictable_memory());
-	} else {
-		arc_kmem_reap_now(ARC_RECLAIM_CONS, ptob(sc->nr_to_scan));
-		pages = -1;
-	}
-
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
 	 * increase in memory pressure.  This occurs because the kswapd
@@ -2402,20 +2394,32 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 * available.  In this case set arc_no_grow to briefly pause arc
 	 * growth to avoid compounding the memory pressure.
 	 */
-	if (current_is_kswapd()) {
-		strategy = ARC_RECLAIM_CONS;
-		ARCSTAT_INCR(arcstat_memory_indirect_count, 1);
-	} else {
-		strategy = ARC_RECLAIM_AGGR;
+	if (in_interrupt()) {
 		ARCSTAT_INCR(arcstat_memory_direct_count, 1);
+		arc_reclaim_strategy = ARC_RECLAIM_AGGR;
+		arc_no_grow = TRUE;
+		cv_signal(&arc_reclaim_thr_cv);
+	} else if (current_is_kswapd()) {
+		ARCSTAT_INCR(arcstat_memory_indirect_count, 1);
+		cv_signal(&arc_reclaim_thr_cv);
+	} else {
+		ARCSTAT_INCR(arcstat_memory_direct_count, 1);
+		arc_reclaim_strategy = ARC_RECLAIM_AGGR;
+		arc_no_grow = TRUE;
+
+		/* Kick reclaim thread */
+		cv_signal(&arc_reclaim_thr_cv);
+
+		/* Wait for reclaim thread to finish its job */
+		CALLB_CPR_INIT(&cpr, &arc_shrinker_thr_lock, callb_generic_cpr, FTAG);
+		CALLB_CPR_SAFE_BEGIN(&cpr);
+		(void) cv_timedwait_interruptible(&arc_shrinker_thr_cv,
+		    &arc_shrinker_thr_lock, (ddi_get_lbolt() + hz));
+		CALLB_CPR_SAFE_END(&cpr, &arc_shrinker_thr_lock);
+		CALLB_CPR_EXIT(&cpr);		/* drops arc_shrinker_thr_lock */
 	}
 
-	arc_kmem_reap_now(strategy);
-	arc_reclaim = MAX(btop(((int64_t)arc_size - (int64_t)arc_c_min))
-	    >> arc_shrink_shift, 0);
-	mutex_exit(&arc_reclaim_thr_lock);
-
-	return (arc_reclaim);
+	return (-1);
 }
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
@@ -3919,6 +3923,8 @@ arc_init(void)
 		arc_ksp->ks_update = arc_kstat_update;
 		kstat_install(arc_ksp);
 	}
+
+	arc_reclaim_strategy = ARC_RECLAIM_CONS;
 
 	(void) thread_create(NULL, 0, arc_reclaim_thread, NULL, 0, &p0,
 	    TS_RUN, minclsyspri);

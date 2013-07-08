@@ -275,7 +275,6 @@ zpl_prune_sbs(int64_t bytes_to_scan, void *private)
 	unsigned long nr_to_scan = (bytes_to_scan / sizeof(znode_t));
 
 	iterate_supers_type(&zpl_fs_type, zpl_prune_sb, &nr_to_scan);
-	kmem_reap();
 }
 #else
 /*
@@ -293,7 +292,6 @@ zpl_prune_sbs(int64_t bytes_to_scan, void *private)
 
         shrink_dcache_memory(nr_to_scan, GFP_KERNEL);
         shrink_icache_memory(nr_to_scan, GFP_KERNEL);
-        kmem_reap();
 }
 #endif /* HAVE_SHRINK */
 
