@@ -74,6 +74,8 @@ char *zio_type_name[ZIO_TYPES] = {
 kmem_cache_t *zio_cache;
 kmem_cache_t *zio_link_cache;
 kmem_cache_t *zio_vdev_cache;
+kmem_cache_t *zio_transform_cache;
+kmem_cache_t *zio_gn_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 int zio_bulk_flags = 0;
@@ -145,6 +147,13 @@ zio_dest(void *arg, void *unused)
 	list_destroy(&zio->io_child_list);
 }
 
+static int
+zio_gn_cons(void *arg, void *unused, int kmflag)
+{
+	bzero(arg, sizeof (zio_gang_node_t));
+	return (0);
+}
+
 void
 zio_init(void)
 {
@@ -160,6 +169,10 @@ zio_init(void)
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, KMC_KMEM);
 	zio_vdev_cache = kmem_cache_create("zio_vdev_cache", sizeof(vdev_io_t),
 	    PAGESIZE, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
+	zio_transform_cache = kmem_cache_create("zio_transform_cache",
+		sizeof(zio_transform_t), 0, NULL, NULL, NULL, NULL, NULL, KMC_VMEM);
+	zio_gn_cache = kmem_cache_create("zio_gang_node_cache",
+		sizeof(zio_gang_node_t), 0, zio_gn_cons, NULL, NULL, NULL, NULL, KMC_VMEM);
 
 	/*
 	 * For small buffers, we want a cache for each multiple of
@@ -251,6 +264,8 @@ zio_fini(void)
 		zio_data_buf_cache[c] = NULL;
 	}
 
+	kmem_cache_destroy(zio_gn_cache);
+	kmem_cache_destroy(zio_transform_cache);
 	kmem_cache_destroy(zio_vdev_cache);
 	kmem_cache_destroy(zio_link_cache);
 	kmem_cache_destroy(zio_cache);
@@ -346,7 +361,7 @@ static void
 zio_push_transform(zio_t *zio, void *data, uint64_t size, uint64_t bufsize,
 	zio_transform_func_t *transform)
 {
-	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_PUSHPAGE);
+	zio_transform_t *zt = kmem_cache_alloc(zio_transform_cache, KM_PUSHPAGE);
 
 	zt->zt_orig_data = zio->io_data;
 	zt->zt_orig_size = zio->io_size;
@@ -377,7 +392,7 @@ zio_pop_transforms(zio_t *zio)
 		zio->io_size = zt->zt_orig_size;
 		zio->io_transform_stack = zt->zt_next;
 
-		kmem_free(zt, sizeof (zio_transform_t));
+		kmem_cache_free(zio_transform_cache, zt);
 	}
 }
 
@@ -1653,7 +1668,7 @@ zio_gang_node_alloc(zio_gang_node_t **gnpp)
 
 	ASSERT(*gnpp == NULL);
 
-	gn = kmem_zalloc(sizeof (*gn), KM_PUSHPAGE);
+	gn = kmem_cache_alloc(zio_gn_cache, KM_PUSHPAGE);
 	gn->gn_gbh = zio_buf_alloc(SPA_GANGBLOCKSIZE);
 	*gnpp = gn;
 
@@ -1670,7 +1685,7 @@ zio_gang_node_free(zio_gang_node_t **gnpp)
 		ASSERT(gn->gn_child[g] == NULL);
 
 	zio_buf_free(gn->gn_gbh, SPA_GANGBLOCKSIZE);
-	kmem_free(gn, sizeof (*gn));
+	kmem_cache_free(zio_gn_cache, gn);
 	*gnpp = NULL;
 }
 
