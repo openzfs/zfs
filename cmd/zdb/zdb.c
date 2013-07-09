@@ -1341,6 +1341,9 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	sa_bulk_attr_t bulk[12];
 	int idx = 0;
 	int error;
+	nvlist_t *sa_xattr;
+	char *sa_xattr_packed;
+	int sa_thesize = 0;
 
 	if (!sa_loaded) {
 		uint64_t sa_attrs = 0;
@@ -1427,6 +1430,31 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	if (sa_lookup(hdl, sa_attr_table[ZPL_RDEV], &rdev,
 	    sizeof (uint64_t)) == 0)
 		(void) printf("\trdev	0x%016llx\n", (u_longlong_t)rdev);
+	if (sa_size(hdl, sa_attr_table[ZPL_DXATTR], &sa_thesize) == 0
+	 && sa_thesize
+	 && (sa_xattr_packed = malloc(sa_thesize)) != NULL
+	 && sa_lookup(hdl, sa_attr_table[ZPL_DXATTR], sa_xattr_packed, sa_thesize) == 0
+	 && nvlist_unpack(sa_xattr_packed, sa_thesize, &sa_xattr, 0) == 0) {
+		nvpair_t *elem = NULL;
+
+		(void) printf("\tSA xattrs:\n");
+		while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL) {
+			uchar_t *value;
+			uint_t cnt, idx;
+
+			(void) printf("\t\t%s=", nvpair_name(elem));
+			nvpair_value_byte_array(elem, &value, &cnt);
+			for (idx = 0 ; idx < cnt ; ++idx) {
+				if (isprint(value[idx]))
+					(void) putchar(value[idx]);
+				else
+					(void) printf("\\%3.3o", value[idx]);
+			}
+			(void) putchar('\n');
+		}
+		nvlist_free(sa_xattr);
+		free(sa_xattr_packed);
+	}
 	sa_handle_destroy(hdl);
 }
 
