@@ -501,7 +501,6 @@ struct arc_buf_hdr {
 
 	kmutex_t		b_freeze_lock;
 	zio_cksum_t		*b_freeze_cksum;
-	void			*b_thawed;
 
 	arc_buf_hdr_t		*b_hash_next;
 	arc_buf_t		*b_buf;
@@ -1033,12 +1032,6 @@ arc_buf_thaw(arc_buf_t *buf)
 		buf->b_hdr->b_freeze_cksum = NULL;
 	}
 
-	if (zfs_flags & ZFS_DEBUG_MODIFY) {
-		if (buf->b_hdr->b_thawed)
-			kmem_free(buf->b_hdr->b_thawed, 1);
-		buf->b_hdr->b_thawed = kmem_alloc(1, KM_SLEEP);
-	}
-
 	mutex_exit(&buf->b_hdr->b_freeze_lock);
 }
 
@@ -1563,10 +1556,6 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	if (hdr->b_freeze_cksum != NULL) {
 		kmem_free(hdr->b_freeze_cksum, sizeof (zio_cksum_t));
 		hdr->b_freeze_cksum = NULL;
-	}
-	if (hdr->b_thawed) {
-		kmem_free(hdr->b_thawed, 1);
-		hdr->b_thawed = NULL;
 	}
 
 	ASSERT(!list_link_active(&hdr->b_arc_node));
