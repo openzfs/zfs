@@ -900,6 +900,36 @@ zpool_read_label(int fd, nvlist_t **config)
 	return (0);
 }
 
+/*
+ * Given a file descriptor, clear (zero) the label information.  This function
+ * is used in the appliance stack as part of the ZFS sysevent module and
+ * to implement the "zpool labelclear" command.
+ */
+int
+zpool_clear_label(int fd)
+{
+	struct stat64 statbuf;
+	int l;
+	vdev_label_t *label;
+	uint64_t size;
+
+	if (fstat64(fd, &statbuf) == -1)
+		return (0);
+	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
+
+	if ((label = calloc(sizeof (vdev_label_t), 1)) == NULL)
+		return (-1);
+
+	for (l = 0; l < VDEV_LABELS; l++) {
+		if (pwrite64(fd, label, sizeof (vdev_label_t),
+		    label_offset(size, l)) != sizeof (vdev_label_t))
+			return (-1);
+	}
+
+	free(label);
+	return (0);
+}
+
 #ifdef HAVE_LIBBLKID
 /*
  * Use libblkid to quickly search for zfs devices
