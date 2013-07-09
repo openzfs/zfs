@@ -205,6 +205,36 @@ zpool_state_to_name(vdev_state_t state, vdev_aux_t aux)
 }
 
 /*
+ * Map POOL STATE to printed strings.
+ */
+const char *
+zpool_pool_state_to_name(pool_state_t state)
+{
+	switch (state) {
+	default:
+		break;
+	case POOL_STATE_ACTIVE:
+		return (gettext("ACTIVE"));
+	case POOL_STATE_EXPORTED:
+		return (gettext("EXPORTED"));
+	case POOL_STATE_DESTROYED:
+		return (gettext("DESTROYED"));
+	case POOL_STATE_SPARE:
+		return (gettext("SPARE"));
+	case POOL_STATE_L2CACHE:
+		return (gettext("L2CACHE"));
+	case POOL_STATE_UNINITIALIZED:
+		return (gettext("UNINITIALIZED"));
+	case POOL_STATE_UNAVAIL:
+		return (gettext("UNAVAIL"));
+	case POOL_STATE_POTENTIALLY_ACTIVE:
+		return (gettext("POTENTIALLY_ACTIVE"));
+	}
+
+	return (gettext("UNKNOWN"));
+}
+
+/*
  * Get a zpool property value for 'prop' and return the value in
  * a pre-allocated buffer.
  */

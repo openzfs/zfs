@@ -94,6 +94,11 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
+\fBzpool labelclear\fR [\fB-f\fR] \fIdevice\fR
+.fi
+
+.LP
+.nf
 \fBzpool list\fR [\fB-Hv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
 .fi
 
@@ -1422,6 +1427,28 @@ Specify \fBu\fR for a printed representation of the internal representation of t
 .RS 12n
 .rt  
 Verbose statistics. Reports usage statistics for individual \fIvdevs\fR within the pool, in addition to the pool-wide statistics.
+.RE
+
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fBzpool labelclear\fR [\fB-f\fR] \fIdevice\fR
+.ad
+.sp .6
+.RS 4n
+Removes ZFS label information from the specified device. The device must not be part of an active pool configuration.
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-f\fR\fR
+.ad
+.RS 12n
+.rt
+Treat exported or foreign devices as inactive.
 .RE
 
 .RE
