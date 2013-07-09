@@ -862,7 +862,7 @@ zpool_read_label(int fd, nvlist_t **config)
 
 	*config = NULL;
 
-	if (fstat64(fd, &statbuf) == -1)
+	if (fstat64_blk(fd, &statbuf) == -1)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
