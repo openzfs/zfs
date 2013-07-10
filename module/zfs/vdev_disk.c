@@ -543,7 +543,7 @@ retry:
 			goto retry;
 		}
 
-		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
+		dr->dr_bio[i] = bio_alloc(GFP_ATOMIC | __GFP_HIGH,
 		                          bio_nr_pages(bio_ptr, bio_size));
 		if (dr->dr_bio[i] == NULL) {
 			vdev_disk_dio_free(dr);
@@ -632,7 +632,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	if (!q)
 		return ENXIO;
 
-	bio = bio_alloc(GFP_KERNEL, 0);
+	bio = bio_alloc(GFP_ATOMIC | __GFP_HIGH, 0);
 	if (!bio)
 		return ENOMEM;
 
