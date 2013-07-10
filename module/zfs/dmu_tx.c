@@ -1089,11 +1089,14 @@ dmu_tx_unassign(dmu_tx_t *tx)
 int
 dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 {
+	hrtime_t before, after;
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
 	ASSERT(txg_how != 0);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
+
+	before = gethrtime();
 
 	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
 		dmu_tx_unassign(tx);
@@ -1105,6 +1108,11 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
+
+	after = gethrtime();
+
+	dsl_pool_tx_assign_add_usecs(tx->tx_pool,
+	    (after - before) / NSEC_PER_USEC);
 
 	return (0);
 }
