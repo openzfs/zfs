@@ -2439,6 +2439,11 @@ spl_kmem_init(void)
 void
 spl_kmem_fini(void)
 {
+	SENTRY;
+
+	spl_unregister_shrinker(&spl_kmem_cache_shrinker);
+	taskq_destroy(spl_kmem_cache_taskq);
+
 #ifdef DEBUG_KMEM
 	/* Display all unreclaimed memory addresses, including the
 	 * allocation size and the first few bytes of what's located
@@ -2458,10 +2463,6 @@ spl_kmem_fini(void)
 	spl_kmem_fini_tracking(&kmem_list, &kmem_lock);
 	spl_kmem_fini_tracking(&vmem_list, &vmem_lock);
 #endif /* DEBUG_KMEM */
-	SENTRY;
-
-	spl_unregister_shrinker(&spl_kmem_cache_shrinker);
-	taskq_destroy(spl_kmem_cache_taskq);
 
 	SEXIT;
 }
