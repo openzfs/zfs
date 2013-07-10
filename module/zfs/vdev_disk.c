@@ -632,7 +632,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	if (!q)
 		return ENXIO;
 
-	bio = bio_alloc(GFP_KERNEL, 0);
+	bio = bio_alloc(GFP_NOIO, 0);
 	if (!bio)
 		return ENOMEM;
 
