@@ -41,6 +41,7 @@ typedef struct mirror_child {
 	vdev_t		*mc_vd;
 	uint64_t	mc_offset;
 	int		mc_error;
+	int		mc_pending;
 	uint8_t		mc_tried;
 	uint8_t		mc_skipped;
 	uint8_t		mc_speculative;
@@ -54,7 +55,17 @@ typedef struct mirror_map {
 	mirror_child_t	mm_child[1];
 } mirror_map_t;
 
-int vdev_mirror_shift = 21;
+/*
+ * When the children are equally busy queue incoming request to a single
+ * child for N milliseconds.  This is done to maximum the likelihood that
+ * the Linux elevator will be able to merge requests while it is plugged.
+ *
+ * For rotational disks the Linux elevator will plug for 10ms which is
+ * why zfs_vdev_mirror_switch_ms is set to 10ms by default.  For non-
+ * rotational disks the elevator will not plug but 10ms is still a small
+ * enough value the requests will get spread over all the children.
+ */
+int zfs_vdev_mirror_switch_ms = 10;
 
 static void
 vdev_mirror_map_free(zio_t *zio)
@@ -68,6 +79,19 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 	vdev_mirror_map_free,
 	zio_vsd_default_cksum_report
 };
+
+static int
+vdev_mirror_pending(vdev_t *vd)
+{
+	vdev_queue_t *vq = &vd->vdev_queue;
+	int pending;
+
+	mutex_enter(&vq->vq_lock);
+	pending = avl_numnodes(&vq->vq_pending_tree);
+	mutex_exit(&vq->vq_lock);
+
+	return (pending);
+}
 
 static mirror_map_t *
 vdev_mirror_map_alloc(zio_t *zio)
@@ -108,20 +132,55 @@ vdev_mirror_map_alloc(zio_t *zio)
 			mc->mc_offset = DVA_GET_OFFSET(&dva[c]);
 		}
 	} else {
+		int lowest_pending = INT_MAX;
+		int lowest_nr = 0;
+
 		c = vd->vdev_children;
 
 		mm = kmem_zalloc(offsetof(mirror_map_t, mm_child[c]), KM_PUSHPAGE);
 		mm->mm_children = c;
 		mm->mm_replacing = (vd->vdev_ops == &vdev_replacing_ops ||
 		    vd->vdev_ops == &vdev_spare_ops);
-		mm->mm_preferred = mm->mm_replacing ? 0 :
-		    (zio->io_offset >> vdev_mirror_shift) % c;
+		mm->mm_preferred = 0;
 		mm->mm_root = B_FALSE;
 
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
 			mc->mc_vd = vd->vdev_child[c];
 			mc->mc_offset = zio->io_offset;
+
+			if (mm->mm_replacing)
+				continue;
+
+			if (!vdev_readable(mc->mc_vd)) {
+				mc->mc_error = ENXIO;
+				mc->mc_tried = 1;
+				mc->mc_skipped = 1;
+				mc->mc_pending = INT_MAX;
+				continue;
+			}
+
+			mc->mc_pending = vdev_mirror_pending(mc->mc_vd);
+			if (mc->mc_pending < lowest_pending) {
+				lowest_pending = mc->mc_pending;
+				lowest_nr = 1;
+			} else if (mc->mc_pending == lowest_pending) {
+				lowest_nr++;
+			}
+		}
+
+		d = gethrtime() / (NSEC_PER_MSEC * zfs_vdev_mirror_switch_ms);
+		d = (d % lowest_nr) + 1;
+
+		for (c = 0; c < mm->mm_children; c++) {
+			mc = &mm->mm_child[c];
+
+			if (mm->mm_child[c].mc_pending == lowest_pending) {
+				if (--d == 0) {
+					mm->mm_preferred = c;
+					break;
+				}
+			}
 		}
 	}
 
@@ -492,3 +551,8 @@ vdev_ops_t vdev_spare_ops = {
 	VDEV_TYPE_SPARE,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+module_param(zfs_vdev_mirror_switch_ms, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_mirror_switch_ms, "Switch mirrors every N msecs");
+#endif

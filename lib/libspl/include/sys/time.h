@@ -46,6 +46,10 @@
 #define NANOSEC		1000000000
 #endif
 
+#ifndef NSEC_PER_MSEC
+#define NSEC_PER_MSEC	1000000L
+#endif
+
 #ifndef NSEC_PER_USEC
 #define NSEC_PER_USEC	1000L
 #endif
