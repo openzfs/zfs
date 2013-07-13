@@ -24,6 +24,7 @@
  *  Solaris Porting Layer (SPL) Vnode Implementation.
 \*****************************************************************************/
 
+#include <sys/cred.h>
 #include <sys/vnode.h>
 #include <linux/falloc.h>
 #include <spl-debug.h>
@@ -616,8 +617,8 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 
 	vap->va_type          = vn_mode_to_vtype(stat.mode);
 	vap->va_mode          = stat.mode;
-	vap->va_uid           = stat.uid;
-	vap->va_gid           = stat.gid;
+	vap->va_uid           = KUID_TO_SUID(stat.uid);
+	vap->va_gid           = KGID_TO_SGID(stat.gid);
 	vap->va_fsid          = 0;
 	vap->va_nodeid        = stat.ino;
 	vap->va_nlink         = stat.nlink;

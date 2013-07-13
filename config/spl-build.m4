@@ -73,6 +73,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
 	SPL_AC_CRED_STRUCT
+	SPL_AC_KUIDGID_T
 	SPL_AC_GROUPS_SEARCH
 	SPL_AC_PUT_TASK_STRUCT
 	SPL_AC_5ARGS_PROC_HANDLER
@@ -1866,6 +1867,36 @@ AC_DEFUN([SPL_AC_CRED_STRUCT], [
 	])
 ])
 
+
+dnl #
+dnl # User namespaces, use kuid_t in place of uid_t
+dnl # where available. Not strictly a user namespaces thing
+dnl # but it should prevent surprises
+dnl #
+AC_DEFUN([SPL_AC_KUIDGID_T], [
+	AC_MSG_CHECKING([whether kuid_t/kgid_t is available])
+	SPL_LINUX_TRY_COMPILE([
+		#include <linux/uidgid.h>
+	], [
+		kuid_t userid = KUIDT_INIT(0);
+		kgid_t groupid = KGIDT_INIT(0);
+	],[
+		SPL_LINUX_TRY_COMPILE([
+			#include <linux/uidgid.h>
+		], [
+			kuid_t userid = 0;
+			kgid_t groupid = 0;
+		],[
+			AC_MSG_RESULT(yes; optional)
+		],[
+			AC_MSG_RESULT(yes; mandatory)
+			AC_DEFINE(HAVE_KUIDGID_T, 1, [kuid_t/kgid_t in use])
+		])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 dnl #
 dnl # Custom SPL patch may export this symbol.
 dnl #
@@ -1873,8 +1904,15 @@ AC_DEFUN([SPL_AC_GROUPS_SEARCH],
 	[AC_MSG_CHECKING([whether groups_search() is available])
 	SPL_LINUX_TRY_COMPILE_SYMBOL([
 		#include <linux/cred.h>
+		#ifdef HAVE_KUIDGID_T
+		#include <linux/uidgid.h>
+		#endif
 	], [
+		#ifdef HAVE_KUIDGID_T
+		groups_search(NULL, KGIDT_INIT(0));
+		#else
 		groups_search(NULL, 0);
+		#endif
 	], [groups_search], [], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_GROUPS_SEARCH, 1, [groups_search() is available])

@@ -45,6 +45,36 @@ typedef struct task_struct cred_t;
 
 #endif /* HAVE_CRED_STRUCT */
 
+#ifdef HAVE_KUIDGID_T
+
+ /*
+  * Linux 3.8+ uses typedefs to redefine uid_t and gid_t. We have to rename the
+  * typedefs to recover the original types. We then can use them provided that
+  * we are careful about translating from k{g,u}id_t to the original versions
+  * and vice versa.
+  */
+ #define uid_t xuid_t
+ #define gid_t xgid_t
+ #include <linux/uidgid.h>
+ #undef uid_t
+ #undef gid_t
+
+ #define KUID_TO_SUID(x) (__kuid_val(x))
+ #define KGID_TO_SGID(x) (__kgid_val(x))
+ #define SUID_TO_KUID(x) (KUIDT_INIT(x))
+ #define SGID_TO_KGID(x) (KGIDT_INIT(x))
+ #define KGIDP_TO_SGIDP(x) (&(x)->val)
+
+#else /* HAVE_KUIDGID_T */
+
+ #define KUID_TO_SUID(x) (x)
+ #define KGID_TO_SGID(x) (x)
+ #define SUID_TO_KUID(x) (x)
+ #define SGID_TO_KGID(x) (x)
+ #define KGIDP_TO_SGIDP(x) (x)
+
+#endif /* HAVE_KUIDGID_T */
+
 extern void crhold(cred_t *cr);
 extern void crfree(cred_t *cr);
 extern uid_t crgetuid(const cred_t *cr);
