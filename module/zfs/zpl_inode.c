@@ -74,7 +74,7 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 	vap->va_uid = crgetfsuid(cr);
 
 	if (dir && dir->i_mode & S_ISGID) {
-		vap->va_gid = dir->i_gid;
+		vap->va_gid = KGID_TO_SGID(dir->i_gid);
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;
 	} else {
@@ -235,8 +235,8 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	vap = kmem_zalloc(sizeof(vattr_t), KM_SLEEP);
 	vap->va_mask = ia->ia_valid & ATTR_IATTR_MASK;
 	vap->va_mode = ia->ia_mode;
-	vap->va_uid = ia->ia_uid;
-	vap->va_gid = ia->ia_gid;
+	vap->va_uid = KUID_TO_SUID(ia->ia_uid);
+	vap->va_gid = KGID_TO_SGID(ia->ia_gid);
 	vap->va_size = ia->ia_size;
 	vap->va_atime = ia->ia_atime;
 	vap->va_mtime = ia->ia_mtime;

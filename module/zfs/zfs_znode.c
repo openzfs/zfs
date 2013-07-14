@@ -472,8 +472,8 @@ zfs_inode_update(znode_t *zp)
 
 	spin_lock(&ip->i_lock);
 	ip->i_generation = zp->z_gen;
-	ip->i_uid = zp->z_uid;
-	ip->i_gid = zp->z_gid;
+	ip->i_uid = SUID_TO_KUID(zp->z_uid);
+	ip->i_gid = SGID_TO_KGID(zp->z_gid);
 	set_nlink(ip, zp->z_links);
 	ip->i_mode = zp->z_mode;
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
