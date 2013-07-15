@@ -240,6 +240,10 @@ zpl_kill_sb(struct super_block *sb)
 {
 	zfs_preumount(sb);
 	kill_anon_super(sb);
+
+#ifdef HAVE_S_INSTANCES_LIST_HEAD
+	sb->s_instances.next = &(zpl_fs_type.fs_supers);
+#endif /* HAVE_S_INSTANCES_LIST_HEAD */
 }
 
 #ifdef HAVE_SHRINK
