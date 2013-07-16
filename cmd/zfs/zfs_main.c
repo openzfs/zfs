@@ -2288,10 +2288,8 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 			if (!cb->cb_sid2posix) {
 				e = directory_name_from_sid(NULL, sid, &name,
 				    &classes);
-				if (e != NULL) {
+				if (e != NULL)
 					directory_error_free(e);
-					return (1);
-				}
 				if (name == NULL)
 					name = sid;
 			}
@@ -2543,7 +2541,7 @@ zfs_do_userspace(int argc, char **argv)
 	boolean_t prtnum = B_FALSE;
 	boolean_t parsable = B_FALSE;
 	boolean_t sid2posix = B_FALSE;
-	int error = 0;
+	int ret = 0;
 	int c;
 	zfs_sort_column_t *sortcol = NULL;
 	int types = USTYPE_PSX_USR | USTYPE_SMB_USR;
@@ -2688,18 +2686,19 @@ zfs_do_userspace(int argc, char **argv)
 		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))))
 			continue;
 		cb.cb_prop = p;
-		error = zfs_userspace(zhp, p, userspace_cb, &cb);
-		if (error)
-			break;
+		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0)
+			return (ret);
 	}
 
 	/* Sort the list */
+	if ((node = uu_avl_first(avl_tree)) == NULL)
+		return (0);
+
 	us_populated = B_TRUE;
+
 	listpool = uu_list_pool_create("tmplist", sizeof (us_node_t),
 	    offsetof(us_node_t, usn_listnode), NULL, UU_DEFAULT);
 	list = uu_list_create(listpool, NULL, UU_DEFAULT);
-
-	node = uu_avl_first(avl_tree);
 	uu_list_node_init(node, &node->usn_listnode, listpool);
 
 	while (node != NULL) {
@@ -2740,7 +2739,7 @@ zfs_do_userspace(int argc, char **argv)
 	uu_avl_destroy(avl_tree);
 	uu_avl_pool_destroy(avl_pool);
 
-	return (error);
+	return (ret);
 }
 
 /*
