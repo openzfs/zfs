@@ -233,10 +233,11 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 {
 	struct dsl_dataset *ds = NULL;
 	objset_t *os = zsb->z_os;
+	boolean_t do_readonly = B_FALSE;
 	int error = 0;
 
 	if (zfs_is_readonly(zsb) || !spa_writeable(dmu_objset_spa(os)))
-		readonly_changed_cb(zsb, B_TRUE);
+		do_readonly = B_TRUE;
 
 	/*
 	 * Register property callbacks.
@@ -270,6 +271,9 @@ zfs_register_callbacks(zfs_sb_t *zsb)
 	    "nbmand", nbmand_changed_cb, zsb);
 	if (error)
 		goto unregister;
+
+	if (do_readonly)
+		readonly_changed_cb(zsb, B_TRUE);
 
 	return (0);
 
