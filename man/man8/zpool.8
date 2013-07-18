@@ -99,7 +99,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool list\fR [\fB-Hv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ...
+\fBzpool list\fR [\fB-T\fR u | d ] [\fB-Hv\fR] [\fB-o\fR \fIproperty\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]
 .fi
 
 .LP
@@ -1457,11 +1457,11 @@ Treat exported or foreign devices as inactive.
 .ne 2
 .mk
 .na
-\fB\fBzpool list\fR [\fB-Hv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ...\fR
+\fB\fBzpool list\fR [\fB-T\fR \fBu\fR | \fBd\fR] [\fB-Hv\fR] [\fB-o\fR \fIprops\fR[,...]] [\fIpool\fR] ... [\fIinterval\fR[\fIcount\fR]]\fR
 .ad
 .sp .6
 .RS 4n
-Lists the given pools along with a health status and space usage. When given no arguments, all pools in the system are listed.
+Lists the given pools along with a health status and space usage. If no \fIpools\fR are specified, all pools in the system are listed. When given an \fIinterval\fR, the information is printed every \fIinterval\fR seconds until \fBCtrl-C\fR is pressed. If \fIcount\fR is specified, the command exits after \fIcount\fR reports are printed.
 .sp
 .ne 2
 .mk
@@ -1471,6 +1471,18 @@ Lists the given pools along with a health status and space usage. When given no 
 .RS 12n
 .rt  
 Scripted mode. Do not display headers, and separate fields by a single tab instead of arbitrary space.
+.RE
+
+.ne 2
+.mk
+.na
+\fB\fB-T\fR \fBu\fR | \fBd\fR\fR
+.ad
+.RS 12n
+.rt  
+Display a time stamp.
+.sp
+Specify \fBu\fR for a printed representation of the internal representation of time. See \fBtime\fR(2). Specify \fBd\fR for standard date format. See \fBdate\fR(1).
 .RE
 
 .sp
