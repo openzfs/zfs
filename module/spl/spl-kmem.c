@@ -1368,7 +1368,8 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 
 	if (skc->skc_flags & KMC_OFFSLAB) {
 		*objs = SPL_KMEM_CACHE_OBJ_PER_SLAB;
-		*size = sizeof(spl_kmem_slab_t);
+		*size = P2ROUNDUP(sizeof(spl_kmem_slab_t), PAGE_SIZE);
+		SRETURN(0);
 	} else {
 		sks_size = spl_sks_size(skc);
 		obj_size = spl_obj_size(skc);

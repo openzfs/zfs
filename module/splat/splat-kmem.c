@@ -745,6 +745,7 @@ splat_kmem_test5(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST5_NAME;
 	int rc;
 
+	/* On slab (default + kmem + vmem) */
 	rc = splat_kmem_cache_test(file, arg, name, 128, 0, 0);
 	if (rc)
 		return rc;
@@ -753,7 +754,24 @@ splat_kmem_test5(struct file *file, void *arg)
 	if (rc)
 		return rc;
 
-	return splat_kmem_cache_test(file, arg, name, 128, 0, KMC_VMEM);
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0, KMC_VMEM);
+	if (rc)
+		return rc;
+
+	/* Off slab (default + kmem + vmem) */
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0, KMC_OFFSLAB);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0,
+	    KMC_KMEM | KMC_OFFSLAB);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_test(file, arg, name, 128, 0,
+	    KMC_VMEM | KMC_OFFSLAB);
+
+	return rc;
 }
 
 /*
@@ -765,6 +783,7 @@ splat_kmem_test6(struct file *file, void *arg)
 	char *name = SPLAT_KMEM_TEST6_NAME;
 	int rc;
 
+	/* On slab (default + kmem + vmem) */
 	rc = splat_kmem_cache_test(file, arg, name, 256*1024, 0, 0);
 	if (rc)
 		return rc;
@@ -773,7 +792,24 @@ splat_kmem_test6(struct file *file, void *arg)
 	if (rc)
 		return rc;
 
-	return splat_kmem_cache_test(file, arg, name, 1024*1024, 0, KMC_VMEM);
+	rc = splat_kmem_cache_test(file, arg, name, 1024*1024, 0, KMC_VMEM);
+	if (rc)
+		return rc;
+
+	/* Off slab (default + kmem + vmem) */
+	rc = splat_kmem_cache_test(file, arg, name, 256*1024, 0, KMC_OFFSLAB);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_test(file, arg, name, 64*1024, 0,
+	    KMC_KMEM | KMC_OFFSLAB);
+	if (rc)
+		return rc;
+
+	rc = splat_kmem_cache_test(file, arg, name, 1024*1024, 0,
+	    KMC_VMEM | KMC_OFFSLAB);
+
+	return rc;
 }
 
 /*
@@ -787,6 +823,11 @@ splat_kmem_test7(struct file *file, void *arg)
 
 	for (i = SPL_KMEM_CACHE_ALIGN; i <= PAGE_SIZE; i *= 2) {
 		rc = splat_kmem_cache_test(file, arg, name, 157, i, 0);
+		if (rc)
+			return rc;
+
+		rc = splat_kmem_cache_test(file, arg, name, 157, i,
+		    KMC_OFFSLAB);
 		if (rc)
 			return rc;
 	}
