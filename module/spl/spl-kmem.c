@@ -2122,7 +2122,15 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	}
 	up_read(&spl_kmem_cache_sem);
 
-	return (unused * sysctl_vfs_cache_pressure) / 100;
+	/*
+	 * After performing reclaim always return -1 to indicate we cannot
+	 * perform additional reclaim.  This prevents shrink_slabs() from
+	 * repeatedly invoking this generic shrinker and potentially spinning.
+	 */
+	if (sc->nr_to_scan)
+		return -1;
+
+	return unused;
 }
 
 SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
