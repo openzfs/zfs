@@ -640,7 +640,7 @@ unsigned long l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
 unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
-int l2arc_norw = B_TRUE;			/* no reads during writes */
+int l2arc_norw = B_FALSE;			/* no reads during writes */
 
 /*
  * L2ARC Internals
