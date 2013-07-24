@@ -148,7 +148,7 @@ static kcondvar_t	arc_reclaim_thr_cv;	/* used to signal reclaim thr */
 static uint8_t		arc_thread_exit;
 
 /* number of bytes to prune from caches when at arc_meta_limit is reached */
-uint_t arc_meta_prune = 1048576;
+int zfs_arc_meta_prune = 1048576;
 
 typedef enum arc_reclaim_strategy {
 	ARC_RECLAIM_AGGR,		/* Aggressive reclaim strategy */
@@ -156,24 +156,30 @@ typedef enum arc_reclaim_strategy {
 } arc_reclaim_strategy_t;
 
 /* number of seconds before growing cache again */
-static int		arc_grow_retry = 5;
-
-/* expiration time for arc_no_grow */
-static clock_t		arc_grow_time = 0;
+int zfs_arc_grow_retry = 5;
 
 /* shift of arc_c for calculating both min and max arc_p */
-static int		arc_p_min_shift = 4;
+int zfs_arc_p_min_shift = 4;
 
 /* log2(fraction of arc to reclaim) */
-static int		arc_shrink_shift = 5;
+int zfs_arc_shrink_shift = 5;
 
 /*
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static int		arc_min_prefetch_lifespan;
+int zfs_arc_min_prefetch_lifespan = HZ;
+
+/* disable arc proactive arc throttle due to low memory */
+int zfs_arc_memory_throttle_disable = 1;
+
+/* disable duplicate buffer eviction */
+int zfs_disable_dup_eviction = 0;
 
 static int arc_dead;
+
+/* expiration time for arc_no_grow */
+static clock_t arc_grow_time = 0;
 
 /*
  * The arc has filled available memory and has now warmed up.
@@ -186,12 +192,6 @@ static boolean_t arc_warm;
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
-int zfs_arc_grow_retry = 0;
-int zfs_arc_shrink_shift = 0;
-int zfs_arc_p_min_shift = 0;
-int zfs_arc_memory_throttle_disable = 1;
-int zfs_disable_dup_eviction = 0;
-int zfs_arc_meta_prune = 0;
 
 /*
  * Note that buffers can be in one of 6 states:
@@ -1761,7 +1761,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 		    (spa && ab->b_spa != spa) ||
 		    (ab->b_flags & (ARC_PREFETCH|ARC_INDIRECT) &&
 		    ddi_get_lbolt() - ab->b_arc_access <
-		    arc_min_prefetch_lifespan)) {
+		    zfs_arc_min_prefetch_lifespan)) {
 			skipped++;
 			continue;
 		}
@@ -2112,7 +2112,7 @@ arc_adjust_meta(int64_t adjustment, boolean_t may_prune)
 	}
 
 	if (may_prune && (adjustment > 0) && (arc_meta_used > arc_meta_limit))
-		arc_do_user_prune(arc_meta_prune);
+		arc_do_user_prune(zfs_arc_meta_prune);
 }
 
 /*
@@ -2163,14 +2163,14 @@ arc_shrink(uint64_t bytes)
 	if (arc_c > arc_c_min) {
 		uint64_t to_free;
 
-		to_free = bytes ? bytes : arc_c >> arc_shrink_shift;
+		to_free = bytes ? bytes : arc_c >> zfs_arc_shrink_shift;
 
 		if (arc_c > arc_c_min + to_free)
 			atomic_add_64(&arc_c, -to_free);
 		else
 			arc_c = arc_c_min;
 
-		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
+		atomic_add_64(&arc_p, -(arc_p >> zfs_arc_shrink_shift));
 		if (arc_c > arc_size)
 			arc_c = MAX(arc_size, arc_c_min);
 		if (arc_p > arc_c)
@@ -2249,7 +2249,7 @@ arc_adapt_thread(void)
 			}
 
 			/* reset the growth delay for every reclaim */
-			arc_grow_time = ddi_get_lbolt()+(arc_grow_retry * hz);
+			arc_grow_time = ddi_get_lbolt()+(zfs_arc_grow_retry * hz);
 
 			arc_kmem_reap_now(last_reclaim, 0);
 			arc_warm = B_TRUE;
@@ -2279,6 +2279,26 @@ arc_adapt_thread(void)
 		(void) cv_timedwait_interruptible(&arc_reclaim_thr_cv,
 		    &arc_reclaim_thr_lock, (ddi_get_lbolt() + hz));
 		CALLB_CPR_SAFE_END(&cpr, &arc_reclaim_thr_lock);
+
+
+		/* Allow the module options to be changed */
+		if (zfs_arc_max > 64 << 20 &&
+		    zfs_arc_max < physmem * PAGESIZE &&
+		    zfs_arc_max != arc_c_max)
+			arc_c_max = zfs_arc_max;
+
+		if (zfs_arc_min > 0 &&
+		    zfs_arc_min < arc_c_max &&
+		    zfs_arc_min != arc_c_min)
+			arc_c_min = zfs_arc_min;
+
+		if (zfs_arc_meta_limit > 0 &&
+		    zfs_arc_meta_limit <= arc_c_max &&
+		    zfs_arc_meta_limit != arc_meta_limit)
+			arc_meta_limit = zfs_arc_meta_limit;
+
+
+
 	}
 
 	arc_thread_exit = 0;
@@ -2399,7 +2419,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		arc_no_grow = B_TRUE;
-		arc_grow_time = ddi_get_lbolt() + (arc_grow_retry * hz);
+		arc_grow_time = ddi_get_lbolt() + (zfs_arc_grow_retry * hz);
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
@@ -2421,7 +2441,7 @@ static void
 arc_adapt(int bytes, arc_state_t *state)
 {
 	int mult;
-	uint64_t arc_p_min = (arc_c >> arc_p_min_shift);
+	uint64_t arc_p_min = (arc_c >> zfs_arc_p_min_shift);
 
 	if (state == arc_l2c_only)
 		return;
@@ -3756,7 +3776,7 @@ arc_init(void)
 	cv_init(&arc_reclaim_thr_cv, NULL, CV_DEFAULT, NULL);
 
 	/* Convert seconds to clock ticks */
-	arc_min_prefetch_lifespan = 1 * hz;
+	zfs_arc_min_prefetch_lifespan = 1 * hz;
 
 	/* Start out with 1/8 of all memory */
 	arc_c = physmem * PAGESIZE / 8;
@@ -3803,18 +3823,6 @@ arc_init(void)
 
 	if (arc_c_min < arc_meta_limit / 2 && zfs_arc_min == 0)
 		arc_c_min = arc_meta_limit / 2;
-
-	if (zfs_arc_grow_retry > 0)
-		arc_grow_retry = zfs_arc_grow_retry;
-
-	if (zfs_arc_shrink_shift > 0)
-		arc_shrink_shift = zfs_arc_shrink_shift;
-
-	if (zfs_arc_p_min_shift > 0)
-		arc_p_min_shift = zfs_arc_p_min_shift;
-
-	if (zfs_arc_meta_prune > 0)
-		arc_meta_prune = zfs_arc_meta_prune;
 
 	/* if kmem_flags are set, lets try to use less memory */
 	if (kmem_debugging())
@@ -5013,25 +5021,25 @@ EXPORT_SYMBOL(arc_getbuf_func);
 EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
-module_param(zfs_arc_min, ulong, 0444);
+module_param(zfs_arc_min, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 
-module_param(zfs_arc_max, ulong, 0444);
+module_param(zfs_arc_max, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 
-module_param(zfs_arc_meta_limit, ulong, 0444);
+module_param(zfs_arc_meta_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
-module_param(zfs_arc_meta_prune, int, 0444);
+module_param(zfs_arc_meta_prune, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_prune, "Bytes of meta data to prune");
 
-module_param(zfs_arc_grow_retry, int, 0444);
+module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
 
-module_param(zfs_arc_shrink_shift, int, 0444);
+module_param(zfs_arc_shrink_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
 
-module_param(zfs_arc_p_min_shift, int, 0444);
+module_param(zfs_arc_p_min_shift, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
 module_param(zfs_disable_dup_eviction, int, 0644);
@@ -5040,28 +5048,31 @@ MODULE_PARM_DESC(zfs_disable_dup_eviction, "disable duplicate buffer eviction");
 module_param(zfs_arc_memory_throttle_disable, int, 0644);
 MODULE_PARM_DESC(zfs_arc_memory_throttle_disable, "disable memory throttle");
 
-module_param(l2arc_write_max, ulong, 0444);
+module_param(zfs_arc_min_prefetch_lifespan, int, 0644);
+MODULE_PARM_DESC(zfs_arc_min_prefetch_lifespan, "Min life of prefetch block");
+
+module_param(l2arc_write_max, ulong, 0644);
 MODULE_PARM_DESC(l2arc_write_max, "Max write bytes per interval");
 
-module_param(l2arc_write_boost, ulong, 0444);
+module_param(l2arc_write_boost, ulong, 0644);
 MODULE_PARM_DESC(l2arc_write_boost, "Extra write bytes during device warmup");
 
-module_param(l2arc_headroom, ulong, 0444);
+module_param(l2arc_headroom, ulong, 0644);
 MODULE_PARM_DESC(l2arc_headroom, "Number of max device writes to precache");
 
-module_param(l2arc_feed_secs, ulong, 0444);
+module_param(l2arc_feed_secs, ulong, 0644);
 MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
 
-module_param(l2arc_feed_min_ms, ulong, 0444);
+module_param(l2arc_feed_min_ms, ulong, 0644);
 MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
 
-module_param(l2arc_noprefetch, int, 0444);
+module_param(l2arc_noprefetch, int, 0644);
 MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
 
-module_param(l2arc_feed_again, int, 0444);
+module_param(l2arc_feed_again, int, 0644);
 MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
 
-module_param(l2arc_norw, int, 0444);
+module_param(l2arc_norw, int, 0644);
 MODULE_PARM_DESC(l2arc_norw, "No reads during writes");
 
 #endif
