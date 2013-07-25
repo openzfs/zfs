@@ -4355,7 +4355,7 @@ l2arc_write_done(zio_t *zio)
 	l2arc_write_callback_t *cb;
 	l2arc_dev_t *dev;
 	list_t *buflist;
-	arc_buf_hdr_t *head, *ab, *ab_prev;
+	arc_buf_hdr_t *head, *ab, *ab_prev = NULL;
 	l2arc_buf_hdr_t *abl2;
 	kmutex_t *hash_lock;
 
@@ -4375,10 +4375,16 @@ l2arc_write_done(zio_t *zio)
 
 	mutex_enter(&l2arc_buflist_mtx);
 
+	/* Verify the write head was not removed by l2arc_evict. */
+	if (list_link_active(&head->b_l2node)) {
+		ab_prev = list_prev(buflist, head);
+		list_remove(buflist, head);
+	}
+
 	/*
 	 * All writes completed, or an error was hit.
 	 */
-	for (ab = list_prev(buflist, head); ab; ab = ab_prev) {
+	while ((ab = ab_prev)) {
 		ab_prev = list_prev(buflist, ab);
 
 		hash_lock = HDR_LOCK(ab);
@@ -4421,7 +4427,6 @@ l2arc_write_done(zio_t *zio)
 	}
 
 	atomic_inc_64(&l2arc_writes_done);
-	list_remove(buflist, head);
 	kmem_cache_free(hdr_cache, head);
 	mutex_exit(&l2arc_buflist_mtx);
 
