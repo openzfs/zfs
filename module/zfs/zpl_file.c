@@ -52,6 +52,9 @@ zpl_release(struct inode *ip, struct file *filp)
 	cred_t *cr = CRED();
 	int error;
 
+	if (ITOZ(ip)->z_atime_dirty)
+		mark_inode_dirty(ip);
+
 	crhold(cr);
 	error = -zfs_close(ip, filp->f_flags, cr);
 	crfree(cr);
