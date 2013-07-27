@@ -95,7 +95,10 @@
  * range to just the range to be written using zfs_reduce_range.
  */
 
+#include <sys/kmem.h>
 #include <sys/zfs_rlock.h>
+
+static kmem_cache_t *zfs_rlock_cache;
 
 /*
  * Check if a write lock can be grabbed, or wait and recheck until available.
@@ -202,7 +205,7 @@ zfs_range_proxify(avl_tree_t *tree, rl_t *rl)
 	rl->r_cnt = 0;
 
 	/* create a proxy range lock */
-	proxy = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	proxy = kmem_cache_alloc(zfs_rlock_cache, KM_PUSHPAGE);
 	proxy->r_off = rl->r_off;
 	proxy->r_len = rl->r_len;
 	proxy->r_cnt = 1;
@@ -231,7 +234,7 @@ zfs_range_split(avl_tree_t *tree, rl_t *rl, uint64_t off)
 	ASSERT(rl->r_read_wanted == B_FALSE);
 
 	/* create the rear proxy range lock */
-	rear = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rear = kmem_cache_alloc(zfs_rlock_cache, KM_PUSHPAGE);
 	rear->r_off = off;
 	rear->r_len = rl->r_off + rl->r_len - off;
 	rear->r_cnt = rl->r_cnt;
@@ -256,7 +259,7 @@ zfs_range_new_proxy(avl_tree_t *tree, uint64_t off, uint64_t len)
 	rl_t *rl;
 
 	ASSERT(len);
-	rl = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rl = kmem_cache_alloc(zfs_rlock_cache, KM_PUSHPAGE);
 	rl->r_off = off;
 	rl->r_len = len;
 	rl->r_cnt = 1;
@@ -429,7 +432,7 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	new = kmem_cache_alloc(zfs_rlock_cache, KM_PUSHPAGE);
 	new->r_zp = zp;
 	new->r_off = off;
 	if (len + off < off)	/* overflow */
@@ -467,7 +470,7 @@ zfs_range_free(void *arg)
 	if (rl->r_read_wanted)
 		cv_destroy(&rl->r_rd_cv);
 
-	kmem_free(rl, sizeof (rl_t));
+	kmem_cache_free(zfs_rlock_cache, rl);
 }
 
 /*
@@ -533,7 +536,7 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 			}
 		}
 
-		kmem_free(remove, sizeof (rl_t));
+		kmem_cache_free(zfs_rlock_cache, remove);
 	}
 }
 
@@ -625,4 +628,17 @@ zfs_range_compare(const void *arg1, const void *arg2)
 	if (rl1->r_off < rl2->r_off)
 		return (-1);
 	return (0);
+}
+
+void
+zfs_range_init()
+{
+	zfs_rlock_cache = kmem_cache_create("rl_t", sizeof (rl_t),
+		0, NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+zfs_range_fini()
+{
+	kmem_cache_destroy(zfs_rlock_cache);
 }

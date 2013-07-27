@@ -48,6 +48,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/zfs_rlock.h>
 #include "zfs_prop.h"
 #include "zfeature_common.h"
 
@@ -1630,6 +1631,9 @@ spa_init(int mode)
 
 	spa_mode_global = mode;
 
+#ifdef _KERNEL
+	zfs_range_init();
+#endif
 	fm_init();
 	refcount_init();
 	unique_init();
@@ -1660,6 +1664,9 @@ spa_fini(void)
 	unique_fini();
 	refcount_fini();
 	fm_fini();
+#ifdef _KERNEL
+	zfs_range_fini();
+#endif
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
