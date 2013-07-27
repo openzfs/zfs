@@ -46,6 +46,8 @@
 #include <sys/zfs_znode.h>
 #endif
 
+static kmem_cache_t *dmu_sync_arg_cache;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
 	{	DMU_BSWAP_ZAP,		TRUE,	"object directory"	},
@@ -1486,7 +1488,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
-	kmem_free(dsa, sizeof (*dsa));
+	kmem_cache_free(dmu_sync_arg_cache, dsa);
 }
 
 static void
@@ -1505,7 +1507,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
-	kmem_free(dsa, sizeof (*dsa));
+	kmem_cache_free(dmu_sync_arg_cache, dsa);
 }
 
 static int
@@ -1522,7 +1524,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		return (EIO);	/* Make zl_get_data do txg_waited_synced() */
 	}
 
-	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_PUSHPAGE);
+	dsa = kmem_cache_alloc(dmu_sync_arg_cache, KM_PUSHPAGE);
 	dsa->dsa_dr = NULL;
 	dsa->dsa_done = done;
 	dsa->dsa_zgd = zgd;
@@ -1646,7 +1648,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dr->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
 	mutex_exit(&db->db_mtx);
 
-	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_PUSHPAGE);
+	dsa = kmem_cache_alloc(dmu_sync_arg_cache, KM_PUSHPAGE);
 	dsa->dsa_dr = dr;
 	dsa->dsa_done = done;
 	dsa->dsa_zgd = zgd;
@@ -1945,6 +1947,9 @@ byteswap_uint8_array(void *vbuf, size_t size)
 void
 dmu_init(void)
 {
+	dmu_sync_arg_cache = kmem_cache_create("dmu_sync_arg_t", sizeof (dmu_sync_arg_t),
+		0, NULL, NULL, NULL, NULL, NULL, 0);
+
 	zfs_dbgmsg_init();
 	sa_cache_init();
 	xuio_stat_init();
@@ -1970,6 +1975,8 @@ dmu_fini(void)
 	xuio_stat_fini();
 	sa_cache_fini();
 	zfs_dbgmsg_fini();
+
+	kmem_cache_destroy(dmu_sync_arg_cache);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

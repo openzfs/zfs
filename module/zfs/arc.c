@@ -834,6 +834,10 @@ buf_hash_remove(arc_buf_hdr_t *buf)
  */
 static kmem_cache_t *hdr_cache;
 static kmem_cache_t *buf_cache;
+static kmem_cache_t *arc_cb_cache;
+static kmem_cache_t *arc_write_cb_cache;
+static kmem_cache_t *l2arc_write_cb_cache;
+static kmem_cache_t *zio_cksum_cache;
 
 static void
 buf_fini(void)
@@ -853,6 +857,10 @@ buf_fini(void)
 		mutex_destroy(&buf_hash_table.ht_locks[i].ht_lock);
 	kmem_cache_destroy(hdr_cache);
 	kmem_cache_destroy(buf_cache);
+	kmem_cache_destroy(arc_cb_cache);
+	kmem_cache_destroy(arc_write_cb_cache);
+	kmem_cache_destroy(l2arc_write_cb_cache);
+	kmem_cache_destroy(zio_cksum_cache);
 }
 
 /*
@@ -886,6 +894,14 @@ buf_cons(void *vbuf, void *unused, int kmflag)
 	mutex_init(&buf->b_evict_lock, NULL, MUTEX_DEFAULT, NULL);
 	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 
+	return (0);
+}
+
+/* ARGSUSED */
+static int
+arc_cb_cons(void *vbuf, void *unused, int kmflag)
+{
+	bzero(vbuf, sizeof (arc_callback_t));
 	return (0);
 }
 
@@ -951,6 +967,15 @@ retry:
 	    0, hdr_cons, hdr_dest, NULL, NULL, NULL, 0);
 	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
 	    0, buf_cons, buf_dest, NULL, NULL, NULL, 0);
+	arc_cb_cache = kmem_cache_create("arc_callback_t", sizeof (arc_callback_t),
+		0, arc_cb_cons, NULL, NULL, NULL, NULL, 0);
+	arc_write_cb_cache = kmem_cache_create("arc_write_callback_t",
+		sizeof (arc_write_callback_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	l2arc_write_cb_cache = kmem_cache_create("l2arc_write_callback_t",
+		sizeof (l2arc_write_callback_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	zio_cksum_cache = kmem_cache_create("zio_cksum_t", sizeof (zio_cksum_t),
+		0, NULL, NULL, NULL, NULL, NULL, 0);
+
 
 	for (i = 0; i < 256; i++)
 		for (ct = zfs_crc64_table + i, *ct = i, j = 8; j > 0; j--)
@@ -1009,7 +1034,7 @@ arc_cksum_compute(arc_buf_t *buf, boolean_t force)
 		mutex_exit(&buf->b_hdr->b_freeze_lock);
 		return;
 	}
-	buf->b_hdr->b_freeze_cksum = kmem_alloc(sizeof (zio_cksum_t),
+	buf->b_hdr->b_freeze_cksum = kmem_cache_alloc(zio_cksum_cache,
 	                                        KM_PUSHPAGE);
 	fletcher_2_native(buf->b_data, buf->b_hdr->b_size,
 	    buf->b_hdr->b_freeze_cksum);
@@ -1029,7 +1054,7 @@ arc_buf_thaw(arc_buf_t *buf)
 
 	mutex_enter(&buf->b_hdr->b_freeze_lock);
 	if (buf->b_hdr->b_freeze_cksum != NULL) {
-		kmem_free(buf->b_hdr->b_freeze_cksum, sizeof (zio_cksum_t));
+		kmem_cache_free(zio_cksum_cache, buf->b_hdr->b_freeze_cksum);
 		buf->b_hdr->b_freeze_cksum = NULL;
 	}
 
@@ -1577,7 +1602,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		}
 	}
 	if (hdr->b_freeze_cksum != NULL) {
-		kmem_free(hdr->b_freeze_cksum, sizeof (zio_cksum_t));
+		kmem_cache_free(zio_cksum_cache, hdr->b_freeze_cksum);
 		hdr->b_freeze_cksum = NULL;
 	}
 	if (hdr->b_thawed) {
@@ -2882,7 +2907,7 @@ arc_read_done(zio_t *zio)
 		}
 
 		callback_list = acb->acb_next;
-		kmem_free(acb, sizeof (arc_callback_t));
+		kmem_cache_free(arc_cb_cache, acb);
 	}
 
 	if (freeable)
@@ -2937,7 +2962,7 @@ top:
 			if (done) {
 				arc_callback_t	*acb = NULL;
 
-				acb = kmem_zalloc(sizeof (arc_callback_t),
+				acb = kmem_cache_alloc(arc_cb_cache,
 				    KM_PUSHPAGE);
 				acb->acb_done = done;
 				acb->acb_private = private;
@@ -3054,7 +3079,7 @@ top:
 
 		ASSERT(!GHOST_STATE(hdr->b_state));
 
-		acb = kmem_zalloc(sizeof (arc_callback_t), KM_PUSHPAGE);
+		acb = kmem_cache_alloc(arc_cb_cache, KM_PUSHPAGE);
 		acb->acb_done = done;
 		acb->acb_private = private;
 
@@ -3502,7 +3527,7 @@ arc_write_ready(zio_t *zio)
 	if (HDR_IO_IN_PROGRESS(hdr)) {
 		mutex_enter(&hdr->b_freeze_lock);
 		if (hdr->b_freeze_cksum != NULL) {
-			kmem_free(hdr->b_freeze_cksum, sizeof (zio_cksum_t));
+			kmem_cache_free(zio_cksum_cache, hdr->b_freeze_cksum);
 			hdr->b_freeze_cksum = NULL;
 		}
 		mutex_exit(&hdr->b_freeze_lock);
@@ -3579,7 +3604,7 @@ arc_write_done(zio_t *zio)
 	ASSERT(!refcount_is_zero(&hdr->b_refcnt));
 	callback->awcb_done(zio, buf, callback->awcb_private);
 
-	kmem_free(callback, sizeof (arc_write_callback_t));
+	kmem_cache_free(arc_write_cb_cache, callback);
 }
 
 zio_t *
@@ -3599,7 +3624,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	ASSERT(hdr->b_acb == NULL);
 	if (l2arc)
 		hdr->b_flags |= ARC_L2CACHE;
-	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_PUSHPAGE);
+	callback = kmem_cache_alloc(arc_write_cb_cache, KM_PUSHPAGE);
 	callback->awcb_ready = ready;
 	callback->awcb_done = done;
 	callback->awcb_private = private;
@@ -4311,7 +4336,7 @@ l2arc_write_done(zio_t *zio)
 
 	l2arc_do_free_on_write();
 
-	kmem_free(cb, sizeof (l2arc_write_callback_t));
+	kmem_cache_free(l2arc_write_cb_cache, cb);
 }
 
 /*
@@ -4649,8 +4674,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				 */
 				list_insert_head(dev->l2ad_buflist, head);
 
-				cb = kmem_alloc(sizeof (l2arc_write_callback_t),
-				                KM_PUSHPAGE);
+				cb = kmem_cache_alloc(l2arc_write_cb_cache, KM_PUSHPAGE);
 				cb->l2wcb_dev = dev;
 				cb->l2wcb_head = head;
 				pio = zio_root(spa, l2arc_write_done, cb,

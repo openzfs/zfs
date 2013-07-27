@@ -81,6 +81,12 @@ void zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len);
  */
 int zfs_range_compare(const void *arg1, const void *arg2);
 
+/*
+ * ZFS module initialization functions
+ */
+extern void zfs_range_init(void);
+extern void zfs_range_fini(void);
+
 #endif /* _KERNEL */
 
 #ifdef	__cplusplus
