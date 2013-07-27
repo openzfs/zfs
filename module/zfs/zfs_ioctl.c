@@ -1349,7 +1349,7 @@ zfs_sb_hold(const char *name, void *tag, zfs_sb_t **zsbp, boolean_t writer)
 			/*
 			 * XXX we could probably try again, since the unmounting
 			 * thread should be just about to disassociate the
-			 * objset from the zfsvfs.
+			 * objset from the zsb.
 			 */
 			rrw_exit(&(*zsbp)->z_teardown_lock, tag);
 			return (SET_ERROR(EBUSY));
@@ -3504,13 +3504,13 @@ zfs_ioc_rollback(zfs_cmd_t *zc)
 		if (error == 0) {
 			int resume_err;
 
-			error = dsl_dataset_rollback(zc->zc_name);
+			error = dsl_dataset_rollback(zc->zc_name, zsb);
 			resume_err = zfs_resume_fs(zsb, zc->zc_name);
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zsb->z_sb);
 	} else {
-		error = dsl_dataset_rollback(zc->zc_name);
+		error = dsl_dataset_rollback(zc->zc_name, NULL);
 	}
 	return (error);
 }
@@ -4038,13 +4038,13 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 			 * If the suspend fails, then the recv_end will
 			 * likely also fail, and clean up after itself.
 			 */
-			end_err = dmu_recv_end(&drc);
+			end_err = dmu_recv_end(&drc, zsb);
 			if (error == 0)
 				error = zfs_resume_fs(zsb, tofs);
 			error = error ? error : end_err;
 			deactivate_super(zsb->z_sb);
 		} else {
-			error = dmu_recv_end(&drc);
+			error = dmu_recv_end(&drc, NULL);
 		}
 	}
 
@@ -4528,8 +4528,11 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 			 * objset_phys_t).  Suspend/resume the fs will do that.
 			 */
 			error = zfs_suspend_fs(zsb);
-			if (error == 0)
+			if (error == 0) {
+				dmu_objset_refresh_ownership(zsb->z_os,
+				    zsb);
 				error = zfs_resume_fs(zsb, zc->zc_name);
+			}
 		}
 		if (error == 0)
 			error = dmu_objset_userspace_upgrade(zsb->z_os);

@@ -1669,16 +1669,52 @@ dsl_dataset_rename_snapshot(const char *fsname,
 	    dsl_dataset_rename_snapshot_sync, &ddrsa, 1));
 }
 
+/*
+ * If we're doing an ownership handoff, we need to make sure that there is
+ * only one long hold on the dataset.  We're not allowed to change anything here
+ * so we don't permanently release the long hold or regular hold here.  We want
+ * to do this only when syncing to avoid the dataset unexpectedly going away
+ * when we release the long hold.
+ */
+static int
+dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
+{
+	boolean_t held;
+
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+
+	if (owner != NULL) {
+		VERIFY3P(ds->ds_owner, ==, owner);
+		dsl_dataset_long_rele(ds, owner);
+	}
+
+	held = dsl_dataset_long_held(ds);
+
+	if (owner != NULL)
+		dsl_dataset_long_hold(ds, owner);
+
+	if (held)
+		return (SET_ERROR(EBUSY));
+
+	return (0);
+}
+
+typedef struct dsl_dataset_rollback_arg {
+	const char *ddra_fsname;
+	void *ddra_owner;
+} dsl_dataset_rollback_arg_t;
+
 static int
 dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 {
-	const char *fsname = arg;
+	dsl_dataset_rollback_arg_t *ddra = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds;
 	int64_t unused_refres_delta;
 	int error;
 
-	error = dsl_dataset_hold(dp, fsname, FTAG, &ds);
+	error = dsl_dataset_hold(dp, ddra->ddra_fsname, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
@@ -1694,9 +1730,10 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (dsl_dataset_long_held(ds)) {
+	error = dsl_dataset_handoff_check(ds, ddra->ddra_owner, tx);
+	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
-		return (SET_ERROR(EBUSY));
+		return (error);
 	}
 
 	/*
@@ -1733,12 +1770,12 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 static void
 dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 {
-	const char *fsname = arg;
+	dsl_dataset_rollback_arg_t *ddra = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds, *clone;
 	uint64_t cloneobj;
 
-	VERIFY0(dsl_dataset_hold(dp, fsname, FTAG, &ds));
+	VERIFY0(dsl_dataset_hold(dp, ddra->ddra_fsname, FTAG, &ds));
 
 	cloneobj = dsl_dataset_create_sync(ds->ds_dir, "%rollback",
 	    ds->ds_prev, DS_CREATE_FLAG_NODIRTY, kcred, tx);
@@ -1754,11 +1791,26 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_rele(ds, FTAG);
 }
 
+/*
+ * If owner != NULL:
+ *
+ * - The existing dataset MUST be owned by the specified owner at entry
+ * - Upon return, dataset will still be held by the same owner, whether we
+ *   succeed or not.
+ *
+ * This mode is required any time the existing filesystem is mounted.  See
+ * notes above zfs_suspend_fs() for further details.
+ */
 int
-dsl_dataset_rollback(const char *fsname)
+dsl_dataset_rollback(const char *fsname, void *owner)
 {
+	dsl_dataset_rollback_arg_t ddra;
+
+	ddra.ddra_fsname = fsname;
+	ddra.ddra_owner = owner;
+
 	return (dsl_sync_task(fsname, dsl_dataset_rollback_check,
-	    dsl_dataset_rollback_sync, (void *)fsname, 1));
+	    dsl_dataset_rollback_sync, (void *)&ddra, 1));
 }
 
 struct promotenode {
@@ -2276,7 +2328,7 @@ dsl_dataset_promote(const char *name, char *conflsnap)
 
 int
 dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
-    dsl_dataset_t *origin_head, boolean_t force)
+    dsl_dataset_t *origin_head, boolean_t force, void *owner, dmu_tx_t *tx)
 {
 	int64_t unused_refres_delta;
 
@@ -2305,7 +2357,7 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 		return (SET_ERROR(ETXTBSY));
 
 	/* origin_head should have no long holds (e.g. is not mounted) */
-	if (dsl_dataset_long_held(origin_head))
+	if (dsl_dataset_handoff_check(origin_head, owner, tx))
 		return (SET_ERROR(EBUSY));
 
 	/* check amount of any unconsumed refreservation */
