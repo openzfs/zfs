@@ -155,9 +155,6 @@ Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
 Requires(post):   ${prefix}/sbin/depmod
 Requires(postun): ${prefix}/sbin/depmod
-%{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
-%{?KmodsBuildRequires:BuildRequires: %{KmodsBuildRequires}-uname-r = ${kernel_uname_r}}
-%{?KmodsBuildRequires:BuildRequires: %{KmodsBuildRequires}}
 EOF
 
 	if [[ ${obsolete_name} ]]; then
@@ -170,6 +167,8 @@ EOF
 	     cat <<EOF
 Requires:         kernel-uname-r = ${kernel_uname_r}
 BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
+%{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
+%{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %post          -n kmod-${kmodname}-${kernel_uname_r}
 ${prefix}/sbin/depmod -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
@@ -202,15 +201,38 @@ EOF
 
 print_rpmtemplate_kmoddevelpkg ()
 {
+	if [[ "${1}" == "--custom" ]]; then
+		shift
+		local customkernel=true
+	elif [[ "${1}" == "--redhat" ]]; then
+		shift
+		local redhatkernel=true
+	fi
+
+	local kernel_uname_r=${1}
+
 	cat <<EOF
 %package       -n kmod-${kmodname}-devel
 Summary:          ${kmodname} kernel module(s) devel common
 Group:            System Environment/Kernel
-Provides:         ${kmodname}-devel-kmod-common = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmodname}-devel-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
+EOF
 
+	if [[ ! ${customkernel} ]] && [[ ! ${redhatkernel} ]]; then
+		echo "Requires:        kmod-${kmodname}-devel-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}"
+	fi
+
+	if [[ ${obsolete_name} ]]; then
+		echo "Provides:        kmod-${obsolete_name}-devel = ${obsolete_version}"
+		echo "Obsoletes:       kmod-${obsolete_name}-devel < ${obsolete_version}"
+	fi
+
+	cat <<EOF
 %description  -n kmod-${kmodname}-devel
 This package provides the common header files to build kernel modules
-which depend on the ${kmodname} kernel module.
+which depend on the ${kmodname} kernel module.  It may optionally require
+the ${kmodname}-devel-<kernel> objects for the newest kernel.
+
 %files        -n kmod-${kmodname}-devel
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}
@@ -239,23 +261,32 @@ print_rpmtemplate_per_kmoddevelpkg ()
 	local kernel_uname_r=${1}
 	local kernel_variant="${2:+-${2}}"
 
+	# first part
 	cat <<EOF
 %package       -n kmod-${kmodname}-devel-${kernel_uname_r}
 Summary:          ${kmodname} kernel module(s) devel for ${kernel_uname_r}
 Group:            System Environment/Kernel
-Requires:         ${kmodname}-devel-kmod-common = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         kernel-objects-for-kernel = ${kernel_uname_r}
 Provides:         ${kmodname}-devel-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         ${kmodname}-devel-kmod-uname-r = ${kernel_uname_r}
+Provides:         kmod-${kmodname}-devel-uname-r = ${kernel_uname_r}
 EOF
+
+	if [[ ${obsolete_name} ]]; then
+		echo "Provides:        kmod-${obsolete_name}-devel-${kernel_uname_r} = ${obsolete_version}"
+		echo "Obsoletes:       kmod-${obsolete_name}-devel-${kernel_uname_r} < ${obsolete_version}"
+	fi
 
 	# second part
 	if [[ ! "${customkernel}" ]]; then
 		cat <<EOF
-Requires:         kernel-uname-r = ${kernel_uname_r}
+Requires:         kernel-devel-uname-r = ${kernel_uname_r}
 BuildRequires:    kernel-devel-uname-r = ${kernel_uname_r}
+%{?KmodsDevelRequires:Requires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
+%{?KmodsDevelRequires:BuildRequires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
 EOF
 	fi
 
+	# third part
 	cat <<EOF
 %description  -n kmod-${kmodname}-devel-${kernel_uname_r}
 This package provides objects and symbols required to build kernel modules
@@ -281,8 +312,9 @@ Group:           System Environment/Kernel
 
 Provides:        ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:        kmod-${kmodname}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
+%{?KmodsMetaRequires:Requires: %{?KmodsMetaRequires}}
 EOF
-	
+
 		if [[ ${obsolete_name} ]]; then
 			echo "Provides:        kmod-${obsolete_name}${kernel_variant} = ${obsolete_version}"
 			echo "Obsoletes:       kmod-${obsolete_name}${kernel_variant} < ${obsolete_version}"
@@ -316,6 +348,10 @@ print_customrpmtemplate ()
 
 			# create development package
 			if [[ "${devel}" ]]; then
+				# create devel package including common headers
+				print_rpmtemplate_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
+
+				# create devel package
 				print_rpmtemplate_per_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
 			fi
 		elif [[ -e ${prefix}/lib/modules/"${kernel}"/build/Makefile ]] ; then 
@@ -327,17 +363,16 @@ print_customrpmtemplate ()
 
 			# create development package
 			if [[ "${devel}" ]]; then
+				# create devel package including common headers
+				print_rpmtemplate_kmoddevelpkg --custom "${kernel}"
+
+				# create devel package
 				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
 			fi
 		else
 			error_out 2 "Don't know how to handle ${kernel} -- ${prefix}/lib/modules/${kernel}/build/Makefile not found"
 		fi
 	done
-
-	# create common development package
-	if [[ "${devel}" ]]; then
-		print_rpmtemplate_kmoddevelpkg "${1}"
-	fi
 
 	# well, it's no header anymore, but who cares ;-)
 	print_rpmtemplate_header
@@ -366,16 +401,14 @@ print_rpmtemplate ()
 		# create package
 		print_rpmtemplate_per_kmodpkg ${kernel} ${kernel##${kernel_verrelarch}}
 
-		# create development package
 		if [[ "${devel}" ]]; then
+			# create devel package including common headers
+			print_rpmtemplate_kmoddevelpkg ${kernel} ${kernel##${kernel_verrelarch}}
+
+			# create devel package
 			print_rpmtemplate_per_kmoddevelpkg ${kernel} ${kernel##${kernel_verrelarch}}
 		fi
 	done
-
-	# create common development package
-	if [[ "${devel}" ]]; then
-		print_rpmtemplate_kmoddevelpkg "${1}"
-	fi
 }
 
 myprog_help ()
