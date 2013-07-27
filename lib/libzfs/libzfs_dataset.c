@@ -1872,6 +1872,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		zcmd_free_nvlists(&zc);
 		break;
 
+	case ZFS_PROP_INCONSISTENT:
+		*val = zhp->zfs_dmustats.dds_inconsistent;
+		break;
+
 	default:
 		switch (zfs_prop_get_type(prop)) {
 		case PROP_TYPE_NUMBER:
@@ -3514,13 +3518,16 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	char name[ZFS_MAXNAMELEN];
 	int rv = 0;
 
-	(void) snprintf(name, sizeof (name),
-	    "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
+	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) == 0) {
+		(void) snprintf(name, sizeof (name),
+		    "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
 
-	fnvlist_add_boolean(sd->sd_nvl, name);
+		fnvlist_add_boolean(sd->sd_nvl, name);
 
-	rv = zfs_iter_filesystems(zhp, zfs_snapshot_cb, sd);
+		rv = zfs_iter_filesystems(zhp, zfs_snapshot_cb, sd);
+	}
 	zfs_close(zhp);
+
 	return (rv);
 }
 

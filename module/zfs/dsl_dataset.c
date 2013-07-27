@@ -929,7 +929,7 @@ typedef struct dsl_dataset_snapshot_arg {
 
 int
 dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx)
+    dmu_tx_t *tx, boolean_t recv)
 {
 	int error;
 	uint64_t value;
@@ -954,6 +954,18 @@ dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
 		return (SET_ERROR(EEXIST));
 	if (error != ENOENT)
 		return (error);
+
+	/*
+	 * We don't allow taking snapshots of inconsistent datasets, such as
+	 * those into which we are currently receiving.  However, if we are
+	 * creating this snapshot as part of a receive, this check will be
+	 * executed atomically with respect to the completion of the receive
+	 * itself but prior to the clearing of DS_FLAG_INCONSISTENT; in this
+	 * case we ignore this, knowing it will be fixed up for us shortly in
+	 * dmu_recv_end_sync().
+	 */
+	if (!recv && DS_IS_INCONSISTENT(ds))
+		return (SET_ERROR(EBUSY));
 
 	error = dsl_dataset_snapshot_reserve_space(ds, tx);
 	if (error != 0)
@@ -991,7 +1003,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 			error = dsl_dataset_hold(dp, dsname, FTAG, &ds);
 		if (error == 0) {
 			error = dsl_dataset_snapshot_check_impl(ds,
-			    atp + 1, tx);
+			    atp + 1, tx, B_FALSE);
 			dsl_dataset_rele(ds, FTAG);
 		}
 
@@ -1243,7 +1255,8 @@ dsl_dataset_snapshot_tmp_check(void *arg, dmu_tx_t *tx)
 	if (error != 0)
 		return (error);
 
-	error = dsl_dataset_snapshot_check_impl(ds, ddsta->ddsta_snapname, tx);
+	error = dsl_dataset_snapshot_check_impl(ds, ddsta->ddsta_snapname,
+	    tx, B_FALSE);
 	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
 		return (error);
