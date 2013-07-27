@@ -1,4 +1,11 @@
 %define module  @PACKAGE@
+#define repo    rpmfusion
+#define repo    chaos
+
+# (un)define the next line to either build for the newest or all current kernels
+%define buildforkernels newest
+#define buildforkernels current
+#define buildforkernels akmod
 
 %bcond_with     debug
 %bcond_with     debug_dmu_tx
@@ -20,24 +27,34 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
 
-# Source packages minimally require a kernel-devel dependency.
+%if %{defined repo}
+
+# Building for a repository use the proper build-sysbuild package
+# to determine which kernel-devel packages should be installed.
+BuildRequires:  %{_bindir}/kmodtool
+%{!?kernels:BuildRequires: buildsys-build-%{repo}-kerneldevpkgs-%{?buildforkernels:%{buildforkernels}}%{!?buildforkernels:current}-%{_target_cpu}}
+
+%else
+
+# Building local packages attempt to to use the installed kernel.
 %{?rhel:BuildRequires: kernel-devel}
 %{?fedora:BuildRequires: kernel-devel}
 %{?suse_version:BuildRequires: kernel-source}
 
-%if 0%{?rhel}%{?fedora}%{?suse_version}
-BuildRequires:             spl-devel-kmod = %{version}
-%global KmodsBuildRequires spl-devel-kmod
-%global KmodsRequires      kmod-spl
-%endif
-
-# Binary packages build against all installed kernels by default.
 %if !%{defined kernels} && !%{defined build_src_rpm}
     %if 0%{?rhel}%{?fedora}%{?suse_version}
         %define kernels %(ls -1 /usr/src/kernels)
     %else
         %define kernels %(ls -1 /lib/modules)
     %endif
+%endif
+%endif
+
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:             kmod-spl-devel = %{version}
+%global KmodsRequires      kmod-spl
+%global KmodsDevelRequires kmod-spl-devel
+%global KmodsMetaRequires  spl-kmod
 %endif
 
 %if 0%{?fedora} >= 17
@@ -47,7 +64,7 @@ BuildRequires:             spl-devel-kmod = %{version}
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(bash %{SOURCE10} --target %{_target_cpu} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
+%{expand:%(bash %{SOURCE10} --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
 
 
 %description
@@ -58,7 +75,7 @@ This package contains the ZFS kernel modules.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-bash %{SOURCE10}  --target %{_target_cpu}  --repo %{repo} --kmodname %{name} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
+bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug
