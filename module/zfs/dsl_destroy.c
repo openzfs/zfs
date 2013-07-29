@@ -46,10 +46,7 @@ typedef struct dmu_snapshots_destroy_arg {
 	nvlist_t *dsda_errlist;
 } dmu_snapshots_destroy_arg_t;
 
-/*
- * ds must be owned.
- */
-static int
+int
 dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 {
 	if (!dsl_dataset_is_snapshot(ds))

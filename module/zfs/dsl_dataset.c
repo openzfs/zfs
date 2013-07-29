@@ -1516,16 +1516,14 @@ dsl_dataset_space(dsl_dataset_t *ds,
 }
 
 boolean_t
-dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
+dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 {
-	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
-
-	ASSERT(dsl_pool_config_held(dp));
-	if (ds->ds_prev == NULL)
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
+	if (snap == NULL)
 		return (B_FALSE);
 	if (ds->ds_phys->ds_bp.blk_birth >
-	    ds->ds_prev->ds_phys->ds_creation_txg) {
-		objset_t *os, *os_prev;
+	    snap->ds_phys->ds_creation_txg) {
+		objset_t *os, *os_snap;
 		/*
 		 * It may be that only the ZIL differs, because it was
 		 * reset in the head.  Don't count that as being
@@ -1533,10 +1531,10 @@ dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds)
 		 */
 		if (dmu_objset_from_ds(ds, &os) != 0)
 			return (B_TRUE);
-		if (dmu_objset_from_ds(ds->ds_prev, &os_prev) != 0)
+		if (dmu_objset_from_ds(snap, &os_snap) != 0)
 			return (B_TRUE);
 		return (bcmp(&os->os_phys->os_meta_dnode,
-		    &os_prev->os_phys->os_meta_dnode,
+		    &os_snap->os_phys->os_meta_dnode,
 		    sizeof (os->os_phys->os_meta_dnode)) != 0);
 	}
 	return (B_FALSE);
@@ -2287,15 +2285,14 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	    dsl_dataset_is_snapshot(origin_head))
 		return (SET_ERROR(EINVAL));
 
-	/* the branch point should be just before them */
-	if (clone->ds_prev != origin_head->ds_prev)
+	/* if we are not forcing, the branch point should be just before them */
+	if (!force && clone->ds_prev != origin_head->ds_prev)
 		return (SET_ERROR(EINVAL));
 
 	/* clone should be the clone (unless they are unrelated) */
 	if (clone->ds_prev != NULL &&
 	    clone->ds_prev != clone->ds_dir->dd_pool->dp_origin_snap &&
-	    origin_head->ds_object !=
-	    clone->ds_prev->ds_phys->ds_next_snap_obj)
+	    origin_head->ds_dir != clone->ds_prev->ds_dir)
 		return (SET_ERROR(EINVAL));
 
 	/* the clone should be a child of the origin */
@@ -2303,7 +2300,8 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 		return (SET_ERROR(EINVAL));
 
 	/* origin_head shouldn't be modified unless 'force' */
-	if (!force && dsl_dataset_modified_since_lastsnap(origin_head))
+	if (!force &&
+	    dsl_dataset_modified_since_snap(origin_head, origin_head->ds_prev))
 		return (SET_ERROR(ETXTBSY));
 
 	/* origin_head should have no long holds (e.g. is not mounted) */
@@ -2340,6 +2338,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	ASSERT(clone->ds_reserved == 0);
 	ASSERT(origin_head->ds_quota == 0 ||
 	    clone->ds_phys->ds_unique_bytes <= origin_head->ds_quota);
+	ASSERT3P(clone->ds_prev, ==, origin_head->ds_prev);
 
 	dmu_buf_will_dirty(clone->ds_dbuf, tx);
 	dmu_buf_will_dirty(origin_head->ds_dbuf, tx);
@@ -2943,7 +2942,7 @@ EXPORT_SYMBOL(dsl_dataset_get_holds);
 EXPORT_SYMBOL(dsl_dataset_get_blkptr);
 EXPORT_SYMBOL(dsl_dataset_set_blkptr);
 EXPORT_SYMBOL(dsl_dataset_get_spa);
-EXPORT_SYMBOL(dsl_dataset_modified_since_lastsnap);
+EXPORT_SYMBOL(dsl_dataset_modified_since_snap);
 EXPORT_SYMBOL(dsl_dataset_space_written);
 EXPORT_SYMBOL(dsl_dataset_space_wouldfree);
 EXPORT_SYMBOL(dsl_dataset_sync);

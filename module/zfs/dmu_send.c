@@ -682,6 +682,7 @@ typedef struct dmu_recv_begin_arg {
 	const char *drba_origin;
 	dmu_recv_cookie_t *drba_cookie;
 	cred_t *drba_cred;
+	uint64_t drba_snapobj;
 } dmu_recv_begin_arg_t;
 
 static int
@@ -691,11 +692,6 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	uint64_t val;
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
-
-	/* must not have any changes since most recent snapshot */
-	if (!drba->drba_cookie->drc_force &&
-	    dsl_dataset_modified_since_lastsnap(ds))
-		return (SET_ERROR(ETXTBSY));
 
 	/* temporary clone name must not exist */
 	error = zap_lookup(dp->dp_meta_objset,
@@ -712,41 +708,47 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		return (error == 0 ? EEXIST : error);
 
 	if (fromguid != 0) {
-		/* if incremental, most recent snapshot must match fromguid */
-		if (ds->ds_prev == NULL)
+		dsl_dataset_t *snap;
+		uint64_t obj = ds->ds_phys->ds_prev_snap_obj;
+
+		/* Find snapshot in this dir that matches fromguid. */
+		while (obj != 0) {
+			error = dsl_dataset_hold_obj(dp, obj, FTAG,
+			    &snap);
+			if (error != 0)
+				return (SET_ERROR(ENODEV));
+			if (snap->ds_dir != ds->ds_dir) {
+				dsl_dataset_rele(snap, FTAG);
+				return (SET_ERROR(ENODEV));
+			}
+			if (snap->ds_phys->ds_guid == fromguid)
+				break;
+			obj = snap->ds_phys->ds_prev_snap_obj;
+			dsl_dataset_rele(snap, FTAG);
+		}
+		if (obj == 0)
 			return (SET_ERROR(ENODEV));
 
-		/*
-		 * most recent snapshot must match fromguid, or there are no
-		 * changes since the fromguid one
-		 */
-		if (ds->ds_prev->ds_phys->ds_guid != fromguid) {
-			uint64_t birth = ds->ds_prev->ds_phys->ds_bp.blk_birth;
-			uint64_t obj = ds->ds_prev->ds_phys->ds_prev_snap_obj;
-			while (obj != 0) {
-				dsl_dataset_t *snap;
-				error = dsl_dataset_hold_obj(dp, obj, FTAG,
-				    &snap);
-				if (error != 0)
-					return (SET_ERROR(ENODEV));
-				if (snap->ds_phys->ds_creation_txg < birth) {
-					dsl_dataset_rele(snap, FTAG);
-					return (SET_ERROR(ENODEV));
-				}
-				if (snap->ds_phys->ds_guid == fromguid) {
-					dsl_dataset_rele(snap, FTAG);
-					break; /* it's ok */
-				}
-				obj = snap->ds_phys->ds_prev_snap_obj;
+		if (drba->drba_cookie->drc_force) {
+			drba->drba_snapobj = obj;
+		} else {
+			/*
+			 * If we are not forcing, there must be no
+			 * changes since fromsnap.
+			 */
+			if (dsl_dataset_modified_since_snap(ds, snap)) {
 				dsl_dataset_rele(snap, FTAG);
+				return (SET_ERROR(ETXTBSY));
 			}
-			if (obj == 0)
-				return (SET_ERROR(ENODEV));
+			drba->drba_snapobj = ds->ds_prev->ds_object;
 		}
+
+		dsl_dataset_rele(snap, FTAG);
 	} else {
 		/* if full, most recent snapshot must be $ORIGIN */
 		if (ds->ds_phys->ds_prev_snap_txg >= TXG_INITIAL)
 			return (SET_ERROR(ENODEV));
+		drba->drba_snapobj = ds->ds_phys->ds_prev_snap_obj;
 	}
 
 	return (0);
@@ -855,8 +857,14 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	error = dsl_dataset_hold(dp, tofs, FTAG, &ds);
 	if (error == 0) {
 		/* create temporary clone */
+		dsl_dataset_t *snap = NULL;
+		if (drba->drba_snapobj != 0) {
+			VERIFY0(dsl_dataset_hold_obj(dp,
+			    drba->drba_snapobj, FTAG, &snap));
+		}
 		dsobj = dsl_dataset_create_sync(ds->ds_dir, recv_clone_name,
-		    ds->ds_prev, crflags, drba->drba_cred, tx);
+		    snap, crflags, drba->drba_cred, tx);
+		dsl_dataset_rele(snap, FTAG);
 		dsl_dataset_rele(ds, FTAG);
 	} else {
 		dsl_dir_t *dd;
@@ -1577,6 +1585,32 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 		error = dsl_dataset_hold(dp, drc->drc_tofs, FTAG, &origin_head);
 		if (error != 0)
 			return (error);
+		if (drc->drc_force) {
+			/*
+			 * We will destroy any snapshots in tofs (i.e. before
+			 * origin_head) that are after the origin (which is
+			 * the snap before drc_ds, because drc_ds can not
+			 * have any snaps of its own).
+			 */
+			uint64_t obj = origin_head->ds_phys->ds_prev_snap_obj;
+			while (obj != drc->drc_ds->ds_phys->ds_prev_snap_obj) {
+				dsl_dataset_t *snap;
+				error = dsl_dataset_hold_obj(dp, obj, FTAG,
+				    &snap);
+				if (error != 0)
+					return (error);
+				if (snap->ds_dir != origin_head->ds_dir)
+					error = SET_ERROR(EINVAL);
+				if (error == 0)  {
+					error = dsl_destroy_snapshot_check_impl(
+					    snap, B_FALSE);
+				}
+				obj = snap->ds_phys->ds_prev_snap_obj;
+				dsl_dataset_rele(snap, FTAG);
+				if (error != 0)
+					return (error);
+			}
+		}
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
 		    origin_head, drc->drc_force);
 		if (error != 0) {
@@ -1611,6 +1645,27 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 
 		VERIFY0(dsl_dataset_hold(dp, drc->drc_tofs, FTAG,
 		    &origin_head));
+
+		if (drc->drc_force) {
+			/*
+			 * Destroy any snapshots of drc_tofs (origin_head)
+			 * after the origin (the snap before drc_ds).
+			 */
+			uint64_t obj = origin_head->ds_phys->ds_prev_snap_obj;
+			while (obj != drc->drc_ds->ds_phys->ds_prev_snap_obj) {
+				dsl_dataset_t *snap;
+				VERIFY0(dsl_dataset_hold_obj(dp, obj, FTAG,
+				    &snap));
+				ASSERT3P(snap->ds_dir, ==, origin_head->ds_dir);
+				obj = snap->ds_phys->ds_prev_snap_obj;
+				dsl_destroy_snapshot_sync_impl(snap,
+				    B_FALSE, tx);
+				dsl_dataset_rele(snap, FTAG);
+			}
+		}
+		VERIFY3P(drc->drc_ds->ds_prev, ==,
+		    origin_head->ds_prev);
+
 		dsl_dataset_clone_swap_sync_impl(drc->drc_ds,
 		    origin_head, tx);
 		dsl_dataset_snapshot_sync_impl(origin_head,

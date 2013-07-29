@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
@@ -204,7 +204,8 @@ void dsl_dataset_set_blkptr(dsl_dataset_t *ds, blkptr_t *bp, dmu_tx_t *tx);
 
 spa_t *dsl_dataset_get_spa(dsl_dataset_t *ds);
 
-boolean_t dsl_dataset_modified_since_lastsnap(dsl_dataset_t *ds);
+boolean_t dsl_dataset_modified_since_snap(dsl_dataset_t *ds,
+    dsl_dataset_t *snap);
 
 void dsl_dataset_sync(dsl_dataset_t *os, zio_t *zio, dmu_tx_t *tx);
 
