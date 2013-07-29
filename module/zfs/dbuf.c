@@ -28,6 +28,7 @@
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
 #include <sys/dmu.h>
+#include <sys/dmu_send.h>
 #include <sys/dmu_impl.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_objset.h>
@@ -846,9 +847,12 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 /*
  * Evict (if its unreferenced) or clear (if its referenced) any level-0
  * data blocks in the free range, so that any future readers will find
- * empty blocks.  Also, if we happen accross any level-1 dbufs in the
+ * empty blocks.  Also, if we happen across any level-1 dbufs in the
  * range that have not already been marked dirty, mark them dirty so
  * they stay in memory.
+ *
+ * This is a no-op if the dataset is in the middle of an incremental
+ * receive; see comment below for details.
  */
 void
 dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
@@ -864,6 +868,20 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		last_l1 = end >> epbs;
 	}
 	dprintf_dnode(dn, "start=%llu end=%llu\n", start, end);
+
+	if (dmu_objset_is_receiving(dn->dn_objset)) {
+		/*
+		 * When processing a free record from a zfs receive,
+		 * there should have been no previous modifications to the
+		 * data in this range.  Therefore there should be no dbufs
+		 * in the range.  Searching dn_dbufs for these non-existent
+		 * dbufs can be very expensive, so simply ignore this.
+		 */
+		VERIFY3P(dbuf_find(dn, 0, start), ==, NULL);
+		VERIFY3P(dbuf_find(dn, 0, end), ==, NULL);
+		return;
+	}
+
 	mutex_enter(&dn->dn_dbufs_mtx);
 	for (db = list_head(&dn->dn_dbufs); db; db = db_next) {
 		db_next = list_next(&dn->dn_dbufs, db);
