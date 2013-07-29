@@ -157,6 +157,14 @@ zfsctl_is_snapdir(struct inode *ip)
 	return (zfsctl_is_node(ip) && (ip->i_ino <= ZFSCTL_INO_SNAPDIRS));
 }
 
+boolean_t
+zfsctl_is_ctl(struct inode *ip)
+{
+	return (zfsctl_is_node(ip) && (ip->i_ino == ZFSCTL_INO_ROOT ||
+	    ip->i_ino == ZFSCTL_INO_SNAPDIR ||
+	    ip->i_ino == ZFSCTL_INO_SHARES));
+}
+
 /*
  * Allocate a new inode with the passed id and ops.
  */
