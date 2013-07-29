@@ -49,7 +49,7 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 
 	fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
 
-	if (zfsctl_is_node(ip))
+	if (zfsctl_is_ctl(ip))
 		rc = zfsctl_fid(ip, fid);
 	else
 		rc = zfs_fid(ip, fid);
