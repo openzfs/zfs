@@ -1515,7 +1515,6 @@ zil_commit_writer(zilog_t *zilog)
 	 * calling zil_create().
 	 */
 	if (list_head(&zilog->zl_itx_commit_list) == NULL) {
-		mutex_enter(&zilog->zl_lock);
 		return;
 	}
 
@@ -1557,8 +1556,6 @@ zil_commit_writer(zilog_t *zilog)
 
 	if (error || lwb == NULL)
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
-
-	mutex_enter(&zilog->zl_lock);
 
 	/*
 	 * Remember the highest committed log sequence number for ztest.
@@ -1627,8 +1624,6 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 
 	/* wake up all threads waiting for this batch to be committed */
 	cv_broadcast(&zilog->zl_cv_batch[mybatch & 1]);
-
-	mutex_exit(&zilog->zl_lock);
 }
 
 /*
