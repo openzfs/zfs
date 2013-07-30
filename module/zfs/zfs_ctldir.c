@@ -897,6 +897,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	sep->se_name = full_name;
 	sep->se_path = full_path;
 	sep->se_inode = ip;
+	sep->se_root_dentry = mnt_path.dentry;
 	avl_add(&zsb->z_ctldir_snaps, sep);
 
 	sep->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,

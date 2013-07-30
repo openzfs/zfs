@@ -52,6 +52,7 @@ typedef struct {
 	struct inode		*se_inode;
 	taskqid_t		se_taskqid;
 	avl_node_t		se_node;
+	struct dentry		*se_root_dentry;
 } zfs_snapentry_t;
 
 /* zfsctl generic functions */
