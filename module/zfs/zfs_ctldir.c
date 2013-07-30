@@ -820,6 +820,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
+	struct path mnt_path = *path;
 
 	ZFS_ENTER(zsb);
 
@@ -859,6 +860,14 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	error = 0;
 	mutex_enter(&zsb->z_ctldir_lock);
 
+	path_get(&mnt_path);
+	if (!follow_down(&mnt_path)) {
+		printk("ZFS: snapshot %s auto mounted at %s unexpectedly "
+			"unmounted\n", full_name, full_path);
+		error = ENOENT;
+		goto mutex_error;
+	}
+
 	/*
 	 * Ensure a previous entry does not exist, if it does safely remove
 	 * it any cancel the outstanding expiration.  This can occur when a
@@ -876,12 +885,16 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	sep->se_name = full_name;
 	sep->se_path = full_path;
 	sep->se_inode = ip;
+	sep->se_root_dentry = mnt_path.dentry;
+	path_put(&mnt_path);
+
 	avl_add(&zsb->z_ctldir_snaps, sep);
 
 	sep->se_taskqid = taskq_dispatch_delay(zfs_expire_taskq,
 	    zfsctl_expire_snapshot, sep, TQ_SLEEP,
 	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
 
+mutex_error:
 	mutex_exit(&zsb->z_ctldir_lock);
 error:
 	if (error) {
