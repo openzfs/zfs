@@ -2405,6 +2405,16 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_exit(&zp->z_lock);
 
+	/*
+	 * Required to prevent NFS client from detecting different inode
+	 * numbers of snapshot root dentry before and after snapshot mount.
+	 */
+	if (zsb->z_issnap) {
+		if (ip->i_sb->s_root->d_inode == ip)
+			sp->ino = ZFSCTL_INO_SNAPDIRS -
+				dmu_objset_id(zsb->z_os);
+	}
+
 	ZFS_EXIT(zsb);
 
 	return (0);
