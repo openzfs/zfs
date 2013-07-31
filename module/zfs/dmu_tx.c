@@ -777,8 +777,8 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    DMU_NEW_OBJECT, THT_SPACE, space, 0);
-
-	txh->txh_space_towrite += space;
+	if (txh)
+		txh->txh_space_towrite += space;
 }
 
 int
@@ -1320,6 +1320,8 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset, object,
 	    THT_SPILL, 0, 0);
+	if (txh == NULL)
+		return;
 
 	dn = txh->txh_dnode;
 
