@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 #ifndef	_SYS_DBUF_H
@@ -321,6 +322,9 @@ boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
 	(DBUF_IS_METADATA(_db) &&					\
 	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
+
+#define	DBUF_IS_L2COMPRESSIBLE(_db)					\
+	((_db)->db_objset->os_compress != ZIO_COMPRESS_OFF)
 
 #ifdef ZFS_DEBUG
 
