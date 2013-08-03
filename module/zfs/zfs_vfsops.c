@@ -1436,18 +1436,24 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	}
 
 	/* A zero fid_gen means we are in the .zfs control directories */
-	if (fid_gen == 0 &&
-	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
-		*ipp = zsb->z_ctldir;
-		ASSERT(*ipp != NULL);
-		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
-			    0, kcred, NULL, NULL) == 0);
-		} else {
+	if (fid_gen == 0) {
+		if (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR) {
+			*ipp = zsb->z_ctldir;
+			ASSERT(*ipp != NULL);
+			if (object == ZFSCTL_INO_SNAPDIR) {
+				VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
+					0, kcred, NULL, NULL) == 0);
+			} else {
+				igrab(*ipp);
+			}
+			ZFS_EXIT(zsb);
+			return (0);
+		} else if (zsb->z_issnap) {
+			*ipp = zsb->z_sb->s_root->d_inode;
 			igrab(*ipp);
+			ZFS_EXIT(zsb);
+			return (0);
 		}
-		ZFS_EXIT(zsb);
-		return (0);
 	}
 
 	gen_mask = -1ULL >> (64 - 8 * i);
