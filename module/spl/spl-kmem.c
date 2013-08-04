@@ -2196,12 +2196,12 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	/* Reclaim from the magazine then the slabs ignoring age and delay. */
 	if (spl_kmem_cache_expire & KMC_EXPIRE_MEM) {
 		spl_kmem_magazine_t *skm;
-		int i;
+		unsigned long irq_flags;
 
-		for_each_online_cpu(i) {
-			skm = skc->skc_mag[i];
-			spl_cache_flush(skc, skm, skm->skm_avail);
-		}
+		local_irq_save(irq_flags);
+		skm = skc->skc_mag[smp_processor_id()];
+		spl_cache_flush(skc, skm, skm->skm_avail);
+		local_irq_restore(irq_flags);
 	}
 
 	spl_slab_reclaim(skc, count, 1);
