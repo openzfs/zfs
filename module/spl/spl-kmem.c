@@ -38,10 +38,11 @@
  * kmem_cache behavior.  The idea is that per-cpu objects which haven't been
  * accessed in several seconds should be returned to the cache.  On the other
  * hand Linux slabs never move objects back to the slabs unless there is
- * memory pressure on the system.  By default both methods are disabled, but
- * may be enabled by setting KMC_EXPIRE_AGE or KMC_EXPIRE_MEM.
+ * memory pressure on the system.  By default the Linux method is enabled
+ * because it has been shown to improve responsiveness on low memory systems.
+ * This policy may be changed by setting KMC_EXPIRE_AGE or KMC_EXPIRE_MEM.
  */
-unsigned int spl_kmem_cache_expire = 0;
+unsigned int spl_kmem_cache_expire = KMC_EXPIRE_MEM;
 EXPORT_SYMBOL(spl_kmem_cache_expire);
 module_param(spl_kmem_cache_expire, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
