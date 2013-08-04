@@ -2099,7 +2099,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
 		}
 		done = filldir(dirent, zap.za_name, strlen(zap.za_name),
-			       zap_cursor_serialize(&zc), objnum, 0);
+			       *pos, objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
 		if (done) {
 			break;
 		}
