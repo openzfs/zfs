@@ -3550,18 +3550,25 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 	at = strchr(zc->zc_name, '@');
 	if (at != NULL) {
 		/* snaps must be in same fs */
+		int error;
+
 		if (strncmp(zc->zc_name, zc->zc_value, at - zc->zc_name + 1))
 			return (SET_ERROR(EXDEV));
 		*at = '\0';
 		if (zc->zc_objset_type == DMU_OST_ZFS) {
-			int error = dmu_objset_find(zc->zc_name,
+			error = dmu_objset_find(zc->zc_name,
 			    recursive_unmount, at + 1,
 			    recursive ? DS_FIND_CHILDREN : 0);
-			if (error != 0)
+			if (error != 0) {
+				*at = '@';
 				return (error);
+			}
 		}
-		return (dsl_dataset_rename_snapshot(zc->zc_name,
-		    at + 1, strchr(zc->zc_value, '@') + 1, recursive));
+		error = dsl_dataset_rename_snapshot(zc->zc_name,
+		    at + 1, strchr(zc->zc_value, '@') + 1, recursive);
+		*at = '@';
+
+		return (error);
 	} else {
 		err = dsl_dir_rename(zc->zc_name, zc->zc_value);
 		if (!err && zc->zc_objset_type == DMU_OST_ZVOL) {
