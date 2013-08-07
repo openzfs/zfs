@@ -4509,7 +4509,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	}
 
 	/* mark the device being resilvered */
-	newvd->vdev_resilvering = B_TRUE;
+	newvd->vdev_resilver_txg = txg;
 
 	/*
 	 * If the parent is not a mirror, or if we're replacing, insert the new
@@ -5370,13 +5370,6 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 			return (oldvd);
 	}
 
-	if (vd->vdev_resilvering && vdev_dtl_empty(vd, DTL_MISSING) &&
-	    vdev_dtl_empty(vd, DTL_OUTAGE)) {
-		ASSERT(vd->vdev_ops->vdev_op_leaf);
-		vd->vdev_resilvering = B_FALSE;
-		vdev_config_dirty(vd->vdev_top);
-	}
-
 	/*
 	 * Check for a completed replacement.  We always consider the first
 	 * vdev in the list to be the oldest vdev, and the last one to be
@@ -5466,6 +5459,8 @@ spa_vdev_resilver_done(spa_t *spa)
 			ASSERT(pvd->vdev_ops == &vdev_replacing_ops);
 			sguid = ppvd->vdev_child[1]->vdev_guid;
 		}
+		ASSERT(vd->vdev_resilver_txg == 0 || !vdev_dtl_required(vd));
+
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		if (spa_vdev_detach(spa, guid, pguid, B_TRUE) != 0)
 			return;

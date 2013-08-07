@@ -218,28 +218,23 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 	VERIFY(nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_PUSHPAGE) == 0);
 
-	VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_TYPE,
-	    vd->vdev_ops->vdev_op_type) == 0);
+	fnvlist_add_string(nv, ZPOOL_CONFIG_TYPE, vd->vdev_ops->vdev_op_type);
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)))
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_ID, vd->vdev_id)
-		    == 0);
-	VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_GUID, vd->vdev_guid) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ID, vd->vdev_id);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_GUID, vd->vdev_guid);
 
 	if (vd->vdev_path != NULL)
-		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_PATH,
-		    vd->vdev_path) == 0);
+		fnvlist_add_string(nv, ZPOOL_CONFIG_PATH, vd->vdev_path);
 
 	if (vd->vdev_devid != NULL)
-		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_DEVID,
-		    vd->vdev_devid) == 0);
+		fnvlist_add_string(nv, ZPOOL_CONFIG_DEVID, vd->vdev_devid);
 
 	if (vd->vdev_physpath != NULL)
-		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
-		    vd->vdev_physpath) == 0);
+		fnvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
+		    vd->vdev_physpath);
 
 	if (vd->vdev_fru != NULL)
-		VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_FRU,
-		    vd->vdev_fru) == 0);
+		fnvlist_add_string(nv, ZPOOL_CONFIG_FRU, vd->vdev_fru);
 
 	if (vd->vdev_nparity != 0) {
 		ASSERT(strcmp(vd->vdev_ops->vdev_op_type,
@@ -260,59 +255,54 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		 * that only support a single parity device -- older software
 		 * will just ignore it.
 		 */
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY,
-		    vd->vdev_nparity) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vd->vdev_nparity);
 	}
 
 	if (vd->vdev_wholedisk != -1ULL)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
-		    vd->vdev_wholedisk) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
+		    vd->vdev_wholedisk);
 
 	if (vd->vdev_not_present)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT, 1) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT, 1);
 
 	if (vd->vdev_isspare)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_IS_SPARE, 1) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_SPARE, 1);
 
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)) &&
 	    vd == vd->vdev_top) {
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
-		    vd->vdev_ms_array) == 0);
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_SHIFT,
-		    vd->vdev_ms_shift) == 0);
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_ASHIFT,
-		    vd->vdev_ashift) == 0);
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE,
-		    vd->vdev_asize) == 0);
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_IS_LOG,
-		    vd->vdev_islog) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_ARRAY,
+		    vd->vdev_ms_array);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_METASLAB_SHIFT,
+		    vd->vdev_ms_shift);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASHIFT, vd->vdev_ashift);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE,
+		    vd->vdev_asize);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_LOG, vd->vdev_islog);
 		if (vd->vdev_removing)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
-			    vd->vdev_removing) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
+			    vd->vdev_removing);
 	}
 
 	if (vd->vdev_dtl_smo.smo_object != 0)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
-		    vd->vdev_dtl_smo.smo_object) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
+		    vd->vdev_dtl_smo.smo_object);
 
 	if (vd->vdev_crtxg)
-		VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG,
-		    vd->vdev_crtxg) == 0);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG, vd->vdev_crtxg);
 
 	if (getstats) {
 		vdev_stat_t vs;
 		pool_scan_stat_t ps;
 
 		vdev_get_stats(vd, &vs);
-		VERIFY(nvlist_add_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
-		    (uint64_t *)&vs, sizeof (vs) / sizeof (uint64_t)) == 0);
+		fnvlist_add_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+		    (uint64_t *)&vs, sizeof (vs) / sizeof (uint64_t));
 
 		/* provide either current or previous scan information */
 		if (spa_scan_get_stats(spa, &ps) == 0) {
-			VERIFY(nvlist_add_uint64_array(nv,
+			fnvlist_add_uint64_array(nv,
 			    ZPOOL_CONFIG_SCAN_STATS, (uint64_t *)&ps,
-			    sizeof (pool_scan_stat_t) / sizeof (uint64_t))
-			    == 0);
+			    sizeof (pool_scan_stat_t) / sizeof (uint64_t));
 		}
 	}
 
@@ -342,8 +332,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 
 		if (idx) {
-			VERIFY(nvlist_add_nvlist_array(nv,
-			    ZPOOL_CONFIG_CHILDREN, child, idx) == 0);
+			fnvlist_add_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+			    child, idx);
 		}
 
 		for (c = 0; c < idx; c++)
@@ -355,26 +345,20 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		const char *aux = NULL;
 
 		if (vd->vdev_offline && !vd->vdev_tmpoffline)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_OFFLINE,
-			    B_TRUE) == 0);
-		if (vd->vdev_resilvering)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_RESILVERING,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_OFFLINE, B_TRUE);
+		if (vd->vdev_resilver_txg != 0)
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_RESILVER_TXG,
+			    vd->vdev_resilver_txg);
 		if (vd->vdev_faulted)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_FAULTED,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_FAULTED, B_TRUE);
 		if (vd->vdev_degraded)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_DEGRADED,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_DEGRADED, B_TRUE);
 		if (vd->vdev_removed)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVED,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVED, B_TRUE);
 		if (vd->vdev_unspare)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_UNSPARE,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_UNSPARE, B_TRUE);
 		if (vd->vdev_ishole)
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_IS_HOLE,
-			    B_TRUE) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_HOLE, B_TRUE);
 
 		switch (vd->vdev_stat.vs_aux) {
 		case VDEV_AUX_ERR_EXCEEDED:
@@ -387,12 +371,11 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 
 		if (aux != NULL)
-			VERIFY(nvlist_add_string(nv, ZPOOL_CONFIG_AUX_STATE,
-			    aux) == 0);
+			fnvlist_add_string(nv, ZPOOL_CONFIG_AUX_STATE, aux);
 
 		if (vd->vdev_splitting && vd->vdev_orig_guid != 0LL) {
-			VERIFY(nvlist_add_uint64(nv, ZPOOL_CONFIG_ORIG_GUID,
-			    vd->vdev_orig_guid) == 0);
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_ORIG_GUID,
+			    vd->vdev_orig_guid);
 		}
 	}
 

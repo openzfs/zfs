@@ -72,11 +72,42 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 } dsl_scan_flags_t;
 
+/*
+ * Every pool will have one dsl_scan_t and this structure will contain
+ * in-memory information about the scan and a pointer to the on-disk
+ * representation (i.e. dsl_scan_phys_t). Most of the state of the scan
+ * is contained on-disk to allow the scan to resume in the event of a reboot
+ * or panic. This structure maintains information about the behavior of a
+ * running scan, some caching information, and how it should traverse the pool.
+ *
+ * The following members of this structure direct the behavior of the scan:
+ *
+ * scn_pausing -	a scan that cannot be completed in a single txg or
+ *			has exceeded its allotted time will need to pause.
+ *			When this flag is set the scanner will stop traversing
+ *			the pool and write out the current state to disk.
+ *
+ * scn_restart_txg -	directs the scanner to either restart or start a
+ *			a scan at the specified txg value.
+ *
+ * scn_done_txg -	when a scan completes its traversal it will set
+ *			the completion txg to the next txg. This is necessary
+ *			to ensure that any blocks that were freed during
+ *			the scan but have not yet been processed (i.e deferred
+ *			frees) are accounted for.
+ *
+ * This structure also maintains information about deferred frees which are
+ * a special kind of traversal. Deferred free can exist in either a bptree or
+ * a bpobj structure. The scn_is_bptree flag will indicate the type of
+ * deferred free that is in progress. If the deferred free is part of an
+ * asynchronous destroy then the scn_async_destroying flag will be set.
+ */
 typedef struct dsl_scan {
 	struct dsl_pool *scn_dp;
 
 	boolean_t scn_pausing;
 	uint64_t scn_restart_txg;
+	uint64_t scn_done_txg;
 	uint64_t scn_sync_start_time;
 	zio_t *scn_zio_root;
 
