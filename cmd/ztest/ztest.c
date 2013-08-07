@@ -3715,6 +3715,9 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	else
 		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
 
+	/* This accounts for setting the checksum/compression. */
+	dmu_tx_hold_bonus(tx, bigobj);
+
 	txg = ztest_tx_assign(tx, TXG_MIGHTWAIT, FTAG);
 	if (txg == 0) {
 		umem_free(packbuf, packsize);

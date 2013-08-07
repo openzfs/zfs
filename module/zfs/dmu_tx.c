@@ -465,12 +465,12 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		blkid = off >> dn->dn_datablkshift;
 		nblks = (len + dn->dn_datablksz - 1) >> dn->dn_datablkshift;
 
-		if (blkid >= dn->dn_maxblkid) {
+		if (blkid > dn->dn_maxblkid) {
 			rw_exit(&dn->dn_struct_rwlock);
 			return;
 		}
 		if (blkid + nblks > dn->dn_maxblkid)
-			nblks = dn->dn_maxblkid - blkid;
+			nblks = dn->dn_maxblkid - blkid + 1;
 
 	}
 	l0span = nblks;    /* save for later use to calc level > 1 overhead */
