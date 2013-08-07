@@ -1119,12 +1119,12 @@ Controls whether the \fB\&.zfs\fR directory is hidden or visible in the root of 
 .ne 2
 .mk
 .na
-\fB\fBsync\fR=\fBdefault\fR | \fBalways\fR | \fBdisabled\fR\fR
+\fB\fBsync\fR=\fBstandard\fR | \fBalways\fR | \fBdisabled\fR\fR
 .ad
 .sp .6
 .RS 4n
 Controls the behavior of synchronous requests (e.g. fsync, O_DSYNC).
-\fBdefault\fR is the POSIX specified behavior of ensuring all synchronous
+\fBstandard\fR is the POSIX specified behavior of ensuring all synchronous
 requests are written to stable storage and all devices are flushed to ensure
 data is not cached by device controllers (this is the default). \fBalways\fR
 causes every file system transaction to be written and flushed before its
