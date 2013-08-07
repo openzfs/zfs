@@ -752,6 +752,7 @@ spa_change_guid(spa_t *spa)
 	int error;
 	uint64_t guid;
 
+	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
 	guid = spa_generate_guid(NULL);
 
@@ -764,6 +765,7 @@ spa_change_guid(spa_t *spa)
 	}
 
 	mutex_exit(&spa_namespace_lock);
+	mutex_exit(&spa->spa_vdev_top_lock);
 
 	return (error);
 }
@@ -4737,7 +4739,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 		if (pvd->vdev_ops == &vdev_spare_ops)
 			cvd->vdev_unspare = B_FALSE;
 		vdev_remove_parent(cvd);
-		cvd->vdev_resilvering = B_FALSE;
 	}
 
 
@@ -5367,6 +5368,13 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 		oldvd = spa_vdev_resilver_done_hunt(vd->vdev_child[c]);
 		if (oldvd != NULL)
 			return (oldvd);
+	}
+
+	if (vd->vdev_resilvering && vdev_dtl_empty(vd, DTL_MISSING) &&
+	    vdev_dtl_empty(vd, DTL_OUTAGE)) {
+		ASSERT(vd->vdev_ops->vdev_op_leaf);
+		vd->vdev_resilvering = B_FALSE;
+		vdev_config_dirty(vd->vdev_top);
 	}
 
 	/*
