@@ -31,6 +31,7 @@
 #include <sys/cred.h>
 #include <sys/fcntl.h>
 #include <sys/pathname.h>
+#include <sys/zpl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -51,8 +52,7 @@ extern int zfs_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
     struct inode **ipp, cred_t *cr, int flags, vsecattr_t *vsecp);
 extern int zfs_rmdir(struct inode *dip, char *name, struct inode *cwd,
     cred_t *cr, int flags);
-extern int zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
-    loff_t *pos, cred_t *cr);
+extern int zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr);
 extern int zfs_fsync(struct inode *ip, int syncflag, cred_t *cr);
 extern int zfs_getattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_getattr_fast(struct inode *ip, struct kstat *sp);

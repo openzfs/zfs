@@ -1997,8 +1997,7 @@ EXPORT_SYMBOL(zfs_rmdir);
  */
 /* ARGSUSED */
 int
-zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
-    loff_t *pos, cred_t *cr)
+zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
@@ -2010,6 +2009,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 	uint8_t		prefetch;
 	int		done = 0;
 	uint64_t	parent;
+	loff_t		*pos = &(ctx->pos);
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -2098,11 +2098,11 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 
 			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
 		}
-		done = filldir(dirent, zap.za_name, strlen(zap.za_name),
-			       *pos, objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
-		if (done) {
+
+		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		    objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
+		if (done)
 			break;
-		}
 
 		/* Prefetch znode */
 		if (prefetch) {
