@@ -46,6 +46,7 @@ zpl_common_open(struct inode *ip, struct file *filp)
 	return generic_file_open(ip, filp);
 }
 
+#ifndef HAVE_VFS_ITERATE
 static int
 zpl_common_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -74,34 +75,46 @@ zpl_common_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 	return (error);
 }
+#endif
 
 /*
  * Get root directory contents.
  */
 static int
+#ifdef HAVE_VFS_ITERATE
+zpl_root_readdir(struct file *filp, struct dir_context *ctx)
+#else
 zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
+#endif
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	struct inode *ip = dentry->d_inode;
 	zfs_sb_t *zsb = ITOZSB(ip);
 	int error = 0;
+#ifdef HAVE_VFS_ITERATE
+	filldir_t filldir = ctx->actor;
+	struct dir_context *dirent = ctx;
+	loff_t offset = ctx->pos;
+#else
+	loff_t offset = filp->f_pos;
+#endif
 
 	ZFS_ENTER(zsb);
 
-	switch (filp->f_pos) {
+	switch (offset) {
 	case 0:
 		error = filldir(dirent, ".", 1, 0, ip->i_ino, DT_DIR);
 		if (error)
 			goto out;
 
-		filp->f_pos++;
+		offset++;
 		/* fall-thru */
 	case 1:
 		error = filldir(dirent, "..", 2, 1, parent_ino(dentry), DT_DIR);
 		if (error)
 			goto out;
 
-		filp->f_pos++;
+		offset++;
 		/* fall-thru */
 	case 2:
 		error = filldir(dirent, ZFS_SNAPDIR_NAME,
@@ -109,7 +122,7 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		if (error)
 			goto out;
 
-		filp->f_pos++;
+		offset++;
 		/* fall-thru */
 	case 3:
 		error = filldir(dirent, ZFS_SHAREDIR_NAME,
@@ -117,10 +130,15 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		if (error)
 			goto out;
 
-		filp->f_pos++;
+		offset++;
 		/* fall-thru */
 	}
 out:
+#ifdef HAVE_VFS_ITERATE
+	ctx->pos = offset;
+#else
+	filp->f_pos = offset;
+#endif
 	ZFS_EXIT(zsb);
 
 	return (error);
@@ -175,7 +193,11 @@ const struct file_operations zpl_fops_root = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
+#ifdef HAVE_VFS_ITERATE
+	.iterate	= zpl_root_readdir,
+#else
 	.readdir	= zpl_root_readdir,
+#endif
 };
 
 const struct inode_operations zpl_ops_root = {
@@ -275,7 +297,11 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 
 /* ARGSUSED */
 static int
+#ifdef HAVE_VFS_ITERATE
+zpl_snapdir_readdir(struct file *filp, struct dir_context *ctx)
+#else
 zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
+#endif
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	struct inode *dip = dentry->d_inode;
@@ -287,6 +313,24 @@ zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 	ZFS_ENTER(zsb);
 
+#ifdef HAVE_VFS_ITERATE
+	if (!dir_emit_dots(filp, ctx))
+		goto out;
+	cookie = ctx->pos;
+
+	while (error == 0) {
+		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
+		    snapname, &id, &cookie, &case_conflict);
+		if (error)
+			goto out;
+
+		if (!dir_emit(ctx, snapname, strlen(snapname),
+			ZFSCTL_INO_SHARES - id, DT_DIR))
+			goto out;
+
+		ctx->pos = cookie;
+	}
+#else
 	cookie = filp->f_pos;
 	switch (filp->f_pos) {
 	case 0:
@@ -318,6 +362,7 @@ zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			filp->f_pos = cookie;
 		}
 	}
+#endif
 out:
 	ZFS_EXIT(zsb);
 
@@ -413,7 +458,12 @@ const struct file_operations zpl_fops_snapdir = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
+#ifdef HAVE_VFS_ITERATE
+	.iterate	= zpl_snapdir_readdir,
+#else
 	.readdir	= zpl_snapdir_readdir,
+#endif
+
 };
 
 /*
@@ -460,7 +510,11 @@ zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
 
 /* ARGSUSED */
 static int
+#ifdef HAVE_VFS_ITERATE
+zpl_shares_readdir(struct file *filp, struct dir_context *ctx)
+#else
 zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
+#endif
 {
 	cred_t *cr = CRED();
 	struct dentry *dentry = filp->f_path.dentry;
@@ -472,7 +526,11 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	ZFS_ENTER(zsb);
 
 	if (zsb->z_shares_dir == 0) {
+#ifdef HAVE_VFS_ITERATE
+		error = (dir_emit_dots(filp, ctx)) ? 0 : -EINVAL;
+#else
 		error = zpl_common_readdir(filp, dirent, filldir);
+#endif
 		ZFS_EXIT(zsb);
 		return (error);
 	}
@@ -484,7 +542,11 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	}
 
 	crhold(cr);
+#ifdef HAVE_VFS_ITERATE
+	error = -zfs_readdir(ZTOI(dzp), ctx);
+#else
 	error = -zfs_readdir(ZTOI(dzp), dirent, filldir, &filp->f_pos, cr);
+#endif
 	crfree(cr);
 
 	iput(ZTOI(dzp));
@@ -532,7 +594,12 @@ const struct file_operations zpl_fops_shares = {
 	.open		= zpl_common_open,
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
+#ifdef HAVE_VFS_ITERATE
+	.iterate	= zpl_shares_readdir,
+#else
 	.readdir	= zpl_shares_readdir,
+#endif
+
 };
 
 /*

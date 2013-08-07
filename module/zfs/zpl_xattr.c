@@ -123,7 +123,11 @@ zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 {
 	struct inode *ip = xf->inode;
 	struct inode *dxip = NULL;
+#ifdef HAVE_VFS_ITERATE
+	struct dir_context ctx = { .actor = zpl_xattr_filldir, .pos = 3 };
+#else
 	loff_t pos = 3;  /* skip '.', '..', and '.zfs' entries. */
+#endif
 	int error;
 
 	/* Lookup the xattr directory */
@@ -136,7 +140,11 @@ zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 	}
 
 	/* Fill provided buffer via zpl_zattr_filldir helper */
+#ifdef HAVE_VFS_ITERATE
+	error = -zfs_readdir(dxip, &ctx);
+#else
 	error = -zfs_readdir(dxip, (void *)xf, zpl_xattr_filldir, &pos, cr);
+#endif
 	iput(dxip);
 
 	return (error);
