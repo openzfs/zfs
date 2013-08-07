@@ -89,4 +89,63 @@ extern const struct inode_operations zpl_ops_snapdirs;
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
 
+#ifdef HAVE_VFS_ITERATE
+
+#define DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+	.actor = _actor,				\
+	.pos = _pos,					\
+}
+
+#else
+
+typedef struct dir_context {
+	void *dirent;
+	const filldir_t actor;
+	loff_t pos;
+} dir_context_t;
+
+#define DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+	.dirent = _dirent,				\
+	.actor = _actor,				\
+	.pos = _pos,					\
+}
+
+static inline bool
+dir_emit(struct dir_context *ctx, const char *name, int namelen,
+    uint64_t ino, unsigned type)
+{
+	return ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type) == 0;
+}
+
+static inline bool
+dir_emit_dot(struct file *file, struct dir_context *ctx)
+{
+	return ctx->actor(ctx->dirent, ".", 1, ctx->pos,
+	    file->f_path.dentry->d_inode->i_ino, DT_DIR) == 0;
+}
+
+static inline bool
+dir_emit_dotdot(struct file *file, struct dir_context *ctx)
+{
+	return ctx->actor(ctx->dirent, "..", 2, ctx->pos,
+	    parent_ino(file->f_path.dentry), DT_DIR) == 0;
+}
+
+static inline bool
+dir_emit_dots(struct file *file, struct dir_context *ctx)
+{
+	if (ctx->pos == 0) {
+		if (!dir_emit_dot(file, ctx))
+			return false;
+		ctx->pos = 1;
+	}
+	if (ctx->pos == 1) {
+		if (!dir_emit_dotdot(file, ctx))
+			return false;
+		ctx->pos = 2;
+	}
+	return true;
+}
+#endif /* HAVE_VFS_ITERATE */
+
 #endif	/* _SYS_ZPL_H */
