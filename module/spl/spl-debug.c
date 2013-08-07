@@ -36,6 +36,7 @@
 #include <linux/spinlock.h>
 #include <linux/proc_compat.h>
 #include <linux/file_compat.h>
+#include <linux/swap.h>
 #include <sys/sysmacros.h>
 #include <spl-debug.h>
 #include <spl-trace.h>
@@ -548,7 +549,7 @@ trace_print_to_console(struct spl_debug_header *hdr, int mask, const char *buf,
 static int
 trace_max_debug_mb(void)
 {
-        return MAX(512, ((num_physpages >> (20 - PAGE_SHIFT)) * 80) / 100);
+        return MAX(512, ((totalram_pages >> (20 - PAGE_SHIFT)) * 80) / 100);
 }
 
 static struct trace_page *
@@ -1188,7 +1189,7 @@ spl_debug_init(void)
 
         /* If spl_debug_mb is set to an invalid value or uninitialized
          * then just make the total buffers smp_num_cpus TCD_MAX_PAGES */
-        if (max > (num_physpages >> (20 - 2 - PAGE_SHIFT)) / 5 ||
+        if (max > (totalram_pages >> (20 - 2 - PAGE_SHIFT)) / 5 ||
             max >= 512 || max < 0) {
                 max = TCD_MAX_PAGES;
         } else {

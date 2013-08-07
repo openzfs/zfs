@@ -41,7 +41,7 @@
  */
 #define membar_producer()		smp_wmb()
 
-#define physmem				num_physpages
+#define physmem				totalram_pages
 #define freemem				nr_free_pages()
 #define availrmem			spl_kmem_availrmem()
 
