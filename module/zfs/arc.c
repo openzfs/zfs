@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
 /*
@@ -128,6 +129,7 @@
 
 #include <sys/spa.h>
 #include <sys/zio.h>
+#include <sys/zio_compress.h>
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
 #include <sys/vdev.h>
@@ -307,7 +309,11 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_cksum_bad;
 	kstat_named_t arcstat_l2_io_error;
 	kstat_named_t arcstat_l2_size;
+	kstat_named_t arcstat_l2_asize;
 	kstat_named_t arcstat_l2_hdr_size;
+	kstat_named_t arcstat_l2_compress_successes;
+	kstat_named_t arcstat_l2_compress_zeros;
+	kstat_named_t arcstat_l2_compress_failures;
 	kstat_named_t arcstat_memory_throttle_count;
 	kstat_named_t arcstat_duplicate_buffers;
 	kstat_named_t arcstat_duplicate_buffers_size;
@@ -390,7 +396,11 @@ static arc_stats_t arc_stats = {
 	{ "l2_cksum_bad",		KSTAT_DATA_UINT64 },
 	{ "l2_io_error",		KSTAT_DATA_UINT64 },
 	{ "l2_size",			KSTAT_DATA_UINT64 },
+	{ "l2_asize",			KSTAT_DATA_UINT64 },
 	{ "l2_hdr_size",		KSTAT_DATA_UINT64 },
+	{ "l2_compress_successes",	KSTAT_DATA_UINT64 },
+	{ "l2_compress_zeros",		KSTAT_DATA_UINT64 },
+	{ "l2_compress_failures",	KSTAT_DATA_UINT64 },
 	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
 	{ "duplicate_buffers",		KSTAT_DATA_UINT64 },
 	{ "duplicate_buffers_size",	KSTAT_DATA_UINT64 },
@@ -471,6 +481,9 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_meta_used	ARCSTAT(arcstat_meta_used)
 #define	arc_meta_limit	ARCSTAT(arcstat_meta_limit)
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max)
+
+#define	L2ARC_IS_VALID_COMPRESS(_c_) \
+	((_c_) == ZIO_COMPRESS_LZ4 || (_c_) == ZIO_COMPRESS_EMPTY)
 
 typedef struct l2arc_buf_hdr l2arc_buf_hdr_t;
 
@@ -622,7 +635,12 @@ uint64_t zfs_crc64_table[256];
  */
 
 #define	L2ARC_WRITE_SIZE	(8 * 1024 * 1024)	/* initial write max */
-#define	L2ARC_HEADROOM		2		/* num of writes */
+#define	L2ARC_HEADROOM		2			/* num of writes */
+/*
+ * If we discover during ARC scan any buffers to be compressed, we boost
+ * our headroom for the next scanning cycle by this percentage multiple.
+ */
+#define	L2ARC_HEADROOM_BOOST	200
 #define	L2ARC_FEED_SECS		1		/* caching interval secs */
 #define	L2ARC_FEED_MIN_MS	200		/* min caching interval ms */
 
@@ -635,9 +653,11 @@ uint64_t zfs_crc64_table[256];
 unsigned long l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
 unsigned long l2arc_write_boost = L2ARC_WRITE_SIZE;	/* extra warmup write */
 unsigned long l2arc_headroom = L2ARC_HEADROOM;		/* # of dev writes */
+unsigned long l2arc_headroom_boost = L2ARC_HEADROOM_BOOST;
 unsigned long l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
 unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
+int l2arc_nocompress = B_FALSE;			/* don't compress bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
 int l2arc_norw = B_FALSE;			/* no reads during writes */
 
@@ -648,8 +668,6 @@ typedef struct l2arc_dev {
 	vdev_t			*l2ad_vdev;	/* vdev */
 	spa_t			*l2ad_spa;	/* spa */
 	uint64_t		l2ad_hand;	/* next write location */
-	uint64_t		l2ad_write;	/* desired write size, bytes */
-	uint64_t		l2ad_boost;	/* warmup write boost, bytes */
 	uint64_t		l2ad_start;	/* first addr on device */
 	uint64_t		l2ad_end;	/* last addr on device */
 	uint64_t		l2ad_evict;	/* last addr eviction reached */
@@ -670,11 +688,12 @@ static kmutex_t l2arc_free_on_write_mtx;	/* mutex for list */
 static uint64_t l2arc_ndev;			/* number of devices */
 
 typedef struct l2arc_read_callback {
-	arc_buf_t	*l2rcb_buf;		/* read buffer */
-	spa_t		*l2rcb_spa;		/* spa */
-	blkptr_t	l2rcb_bp;		/* original blkptr */
-	zbookmark_t	l2rcb_zb;		/* original bookmark */
-	int		l2rcb_flags;		/* original flags */
+	arc_buf_t		*l2rcb_buf;		/* read buffer */
+	spa_t			*l2rcb_spa;		/* spa */
+	blkptr_t		l2rcb_bp;		/* original blkptr */
+	zbookmark_t		l2rcb_zb;		/* original bookmark */
+	int			l2rcb_flags;		/* original flags */
+	enum zio_compress	l2rcb_compress;		/* applied compress */
 } l2arc_read_callback_t;
 
 typedef struct l2arc_write_callback {
@@ -684,8 +703,14 @@ typedef struct l2arc_write_callback {
 
 struct l2arc_buf_hdr {
 	/* protected by arc_buf_hdr  mutex */
-	l2arc_dev_t	*b_dev;			/* L2ARC device */
-	uint64_t	b_daddr;		/* disk address, offset byte */
+	l2arc_dev_t		*b_dev;		/* L2ARC device */
+	uint64_t		b_daddr;	/* disk address, offset byte */
+	/* compression applied to buffer data */
+	enum zio_compress	b_compress;
+	/* real alloc'd buffer size depending on b_compress applied */
+	int			b_asize;
+	/* temporary buffer holder for in-flight compressed data */
+	void			*b_tmp_cdata;
 };
 
 typedef struct l2arc_data_free {
@@ -703,6 +728,11 @@ static uint8_t l2arc_thread_exit;
 static void l2arc_read_done(zio_t *zio);
 static void l2arc_hdr_stat_add(void);
 static void l2arc_hdr_stat_remove(void);
+
+static boolean_t l2arc_compress_buf(l2arc_buf_hdr_t *l2hdr);
+static void l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr,
+    enum zio_compress c);
+static void l2arc_release_cdata_buf(arc_buf_hdr_t *ab);
 
 static uint64_t
 buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
@@ -1520,6 +1550,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		if (l2hdr != NULL) {
 			list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 			ARCSTAT_INCR(arcstat_l2_size, -hdr->b_size);
+			ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 			kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
 			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 			if (hdr->b_state == arc_l2c_only)
@@ -2974,6 +3005,8 @@ top:
 		arc_access(hdr, hash_lock);
 		if (*arc_flags & ARC_L2CACHE)
 			hdr->b_flags |= ARC_L2CACHE;
+		if (*arc_flags & ARC_L2COMPRESS)
+			hdr->b_flags |= ARC_L2COMPRESS;
 		mutex_exit(hash_lock);
 		ARCSTAT_BUMP(arcstat_hits);
 		ARCSTAT_CONDSTAT(!(hdr->b_flags & ARC_PREFETCH),
@@ -3014,6 +3047,8 @@ top:
 			}
 			if (*arc_flags & ARC_L2CACHE)
 				hdr->b_flags |= ARC_L2CACHE;
+			if (*arc_flags & ARC_L2COMPRESS)
+				hdr->b_flags |= ARC_L2COMPRESS;
 			if (BP_GET_LEVEL(bp) > 0)
 				hdr->b_flags |= ARC_INDIRECT;
 		} else {
@@ -3030,6 +3065,8 @@ top:
 				add_reference(hdr, hash_lock, private);
 			if (*arc_flags & ARC_L2CACHE)
 				hdr->b_flags |= ARC_L2CACHE;
+			if (*arc_flags & ARC_L2COMPRESS)
+				hdr->b_flags |= ARC_L2COMPRESS;
 			buf = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
 			buf->b_hdr = hdr;
 			buf->b_data = NULL;
@@ -3100,20 +3137,36 @@ top:
 				cb->l2rcb_bp = *bp;
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
+				cb->l2rcb_compress = hdr->b_l2hdr->b_compress;
 
 				/*
 				 * l2arc read.  The SCL_L2ARC lock will be
 				 * released by l2arc_read_done().
+				 * Issue a null zio if the underlying buffer
+				 * was squashed to zero size by compression.
 				 */
-				rzio = zio_read_phys(pio, vd, addr, size,
-				    buf->b_data, ZIO_CHECKSUM_OFF,
-				    l2arc_read_done, cb, priority, zio_flags |
-				    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_CANFAIL |
-				    ZIO_FLAG_DONT_PROPAGATE |
-				    ZIO_FLAG_DONT_RETRY, B_FALSE);
+				if (hdr->b_l2hdr->b_compress ==
+				    ZIO_COMPRESS_EMPTY) {
+					rzio = zio_null(pio, spa, vd,
+					    l2arc_read_done, cb,
+					    zio_flags | ZIO_FLAG_DONT_CACHE |
+					    ZIO_FLAG_CANFAIL |
+					    ZIO_FLAG_DONT_PROPAGATE |
+					    ZIO_FLAG_DONT_RETRY);
+				} else {
+					rzio = zio_read_phys(pio, vd, addr,
+					    hdr->b_l2hdr->b_asize,
+					    buf->b_data, ZIO_CHECKSUM_OFF,
+					    l2arc_read_done, cb, priority,
+					    zio_flags | ZIO_FLAG_DONT_CACHE |
+					    ZIO_FLAG_CANFAIL |
+					    ZIO_FLAG_DONT_PROPAGATE |
+					    ZIO_FLAG_DONT_RETRY, B_FALSE);
+				}
 				DTRACE_PROBE2(l2arc__read, vdev_t *, vd,
 				    zio_t *, rzio);
-				ARCSTAT_INCR(arcstat_l2_read_bytes, size);
+				ARCSTAT_INCR(arcstat_l2_read_bytes,
+				    hdr->b_l2hdr->b_asize);
 
 				if (*arc_flags & ARC_NOWAIT) {
 					zio_nowait(rzio);
@@ -3432,6 +3485,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	buf->b_private = NULL;
 
 	if (l2hdr) {
+		ARCSTAT_INCR(arcstat_l2_asize, -l2hdr->b_asize);
 		list_remove(l2hdr->b_dev->l2ad_buflist, hdr);
 		kmem_free(l2hdr, sizeof (l2arc_buf_hdr_t));
 		arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
@@ -3576,9 +3630,9 @@ arc_write_done(zio_t *zio)
 
 zio_t *
 arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
-    blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, const zio_prop_t *zp,
-    arc_done_func_t *ready, arc_done_func_t *done, void *private,
-    int priority, int zio_flags, const zbookmark_t *zb)
+    blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, boolean_t l2arc_compress,
+    const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *done,
+    void *private, int priority, int zio_flags, const zbookmark_t *zb)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	arc_write_callback_t *callback;
@@ -3591,6 +3645,8 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	ASSERT(hdr->b_acb == NULL);
 	if (l2arc)
 		hdr->b_flags |= ARC_L2CACHE;
+	if (l2arc_compress)
+		hdr->b_flags |= ARC_L2COMPRESS;
 	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_PUSHPAGE);
 	callback->awcb_ready = ready;
 	callback->awcb_done = done;
@@ -3985,8 +4041,12 @@ arc_fini(void)
  * 2. The L2ARC attempts to cache data from the ARC before it is evicted.
  * It does this by periodically scanning buffers from the eviction-end of
  * the MFU and MRU ARC lists, copying them to the L2ARC devices if they are
- * not already there.  It scans until a headroom of buffers is satisfied,
- * which itself is a buffer for ARC eviction.  The thread that does this is
+ * not already there. It scans until a headroom of buffers is satisfied,
+ * which itself is a buffer for ARC eviction. If a compressible buffer is
+ * found during scanning and selected for writing to an L2ARC device, we
+ * temporarily boost scanning headroom during the next scan cycle to make
+ * sure we adapt to compression effects (which might significantly reduce
+ * the data volume we write to L2ARC). The thread that does this is
  * l2arc_feed_thread(), illustrated below; example sizes are included to
  * provide a better sense of ratio than this diagram:
  *
@@ -4050,7 +4110,13 @@ arc_fini(void)
  *	l2arc_write_max		max write bytes per interval
  *	l2arc_write_boost	extra write bytes during device warmup
  *	l2arc_noprefetch	skip caching prefetched buffers
+ *	l2arc_nocompress	skip compressing buffers
  *	l2arc_headroom		number of max device writes to precache
+ *	l2arc_headroom_boost	when we find compressed buffers during ARC
+ *				scanning, we multiply headroom by this
+ *				percentage factor for the next scan cycle,
+ *				since more compressed buffers are likely to
+ *				be present
  *	l2arc_feed_secs		seconds between L2ARC writing
  *
  * Tunables may be removed or added as future performance improvements are
@@ -4084,14 +4150,24 @@ l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *ab)
 }
 
 static uint64_t
-l2arc_write_size(l2arc_dev_t *dev)
+l2arc_write_size(void)
 {
 	uint64_t size;
 
-	size = dev->l2ad_write;
+	/*
+	 * Make sure our globals have meaningful values in case the user
+	 * altered them.
+	 */
+	size = l2arc_write_max;
+	if (size == 0) {
+		cmn_err(CE_NOTE, "Bad value for l2arc_write_max, value must "
+		    "be greater than zero, resetting it to the default (%d)",
+		    L2ARC_WRITE_SIZE);
+		size = l2arc_write_max = L2ARC_WRITE_SIZE;
+	}
 
 	if (arc_warm == B_FALSE)
-		size += dev->l2ad_boost;
+		size += l2arc_write_boost;
 
 	return (size);
 
@@ -4265,12 +4341,20 @@ l2arc_write_done(zio_t *zio)
 			continue;
 		}
 
+		abl2 = ab->b_l2hdr;
+
+		/*
+		 * Release the temporary compressed buffer as soon as possible.
+		 */
+		if (abl2->b_compress != ZIO_COMPRESS_OFF)
+			l2arc_release_cdata_buf(ab);
+
 		if (zio->io_error != 0) {
 			/*
 			 * Error - drop L2ARC entry.
 			 */
 			list_remove(buflist, ab);
-			abl2 = ab->b_l2hdr;
+			ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 			ab->b_l2hdr = NULL;
 			kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
 			arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
@@ -4322,6 +4406,13 @@ l2arc_read_done(zio_t *zio)
 	mutex_enter(hash_lock);
 	hdr = buf->b_hdr;
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
+
+	/*
+	 * If the buffer was compressed, decompress it first.
+	 */
+	if (cb->l2rcb_compress != ZIO_COMPRESS_OFF)
+		l2arc_decompress_zio(zio, hdr, cb->l2rcb_compress);
+	ASSERT(zio->io_data != NULL);
 
 	/*
 	 * Check this survived the L2ARC journey.
@@ -4518,6 +4609,7 @@ top:
 			 */
 			if (ab->b_l2hdr != NULL) {
 				abl2 = ab->b_l2hdr;
+				ARCSTAT_INCR(arcstat_l2_asize, -abl2->b_asize);
 				ab->b_l2hdr = NULL;
 				kmem_free(abl2, sizeof (l2arc_buf_hdr_t));
 				arc_space_return(L2HDR_SIZE, ARC_SPACE_L2HDRS);
@@ -4544,37 +4636,54 @@ top:
  *
  * An ARC_L2_WRITING flag is set so that the L2ARC buffers are not valid
  * for reading until they have completed writing.
+ * The headroom_boost is an in-out parameter used to maintain headroom boost
+ * state between calls to this function.
+ *
+ * Returns the number of bytes actually written (which may be smaller than
+ * the delta by which the device hand has changed due to alignment).
  */
 static uint64_t
-l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
+l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz,
+    boolean_t *headroom_boost)
 {
 	arc_buf_hdr_t *ab, *ab_prev, *head;
-	l2arc_buf_hdr_t *hdrl2;
 	list_t *list;
-	uint64_t passed_sz, write_sz, buf_sz, headroom;
+	uint64_t write_asize, write_psize, write_sz, headroom,
+	    buf_compress_minsz;
 	void *buf_data;
-	kmutex_t *hash_lock, *list_lock = NULL;
-	boolean_t have_lock, full;
+	kmutex_t *list_lock = NULL;
+	boolean_t full;
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
 	uint64_t guid = spa_load_guid(spa);
 	int try;
+	const boolean_t do_headroom_boost = *headroom_boost;
 
 	ASSERT(dev->l2ad_vdev != NULL);
 
+	/* Lower the flag now, we might want to raise it again later. */
+	*headroom_boost = B_FALSE;
+
 	pio = NULL;
-	write_sz = 0;
+	write_sz = write_asize = write_psize = 0;
 	full = B_FALSE;
 	head = kmem_cache_alloc(hdr_cache, KM_PUSHPAGE);
 	head->b_flags |= ARC_L2_WRITE_HEAD;
+
+	/*
+	 * We will want to try to compress buffers that are at least 2x the
+	 * device sector size.
+	 */
+	buf_compress_minsz = 2 << dev->l2ad_vdev->vdev_ashift;
 
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
 	mutex_enter(&l2arc_buflist_mtx);
 	for (try = 0; try <= 3; try++) {
+		uint64_t passed_sz = 0;
+
 		list = l2arc_list_locked(try, &list_lock);
-		passed_sz = 0;
 
 		/*
 		 * L2ARC fast warmup.
@@ -4582,21 +4691,27 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		 * Until the ARC is warm and starts to evict, read from the
 		 * head of the ARC lists rather than the tail.
 		 */
-		headroom = target_sz * l2arc_headroom;
 		if (arc_warm == B_FALSE)
 			ab = list_head(list);
 		else
 			ab = list_tail(list);
 
+		headroom = target_sz * l2arc_headroom;
+		if (do_headroom_boost)
+			headroom = (headroom * l2arc_headroom_boost) / 100;
+
 		for (; ab; ab = ab_prev) {
+			l2arc_buf_hdr_t *l2hdr;
+			kmutex_t *hash_lock;
+			uint64_t buf_sz;
+
 			if (arc_warm == B_FALSE)
 				ab_prev = list_next(list, ab);
 			else
 				ab_prev = list_prev(list, ab);
 
 			hash_lock = HDR_LOCK(ab);
-			have_lock = MUTEX_HELD(hash_lock);
-			if (!have_lock && !mutex_tryenter(hash_lock)) {
+			if (!mutex_tryenter(hash_lock)) {
 				/*
 				 * Skip this buffer rather than waiting.
 				 */
@@ -4642,17 +4757,29 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			/*
 			 * Create and add a new L2ARC header.
 			 */
-			hdrl2 = kmem_zalloc(sizeof (l2arc_buf_hdr_t),
-			                    KM_PUSHPAGE);
-			hdrl2->b_dev = dev;
-			hdrl2->b_daddr = dev->l2ad_hand;
+			l2hdr = kmem_zalloc(sizeof (l2arc_buf_hdr_t),
+			    KM_PUSHPAGE);
+			l2hdr->b_dev = dev;
 			arc_space_consume(L2HDR_SIZE, ARC_SPACE_L2HDRS);
 
 			ab->b_flags |= ARC_L2_WRITING;
-			ab->b_l2hdr = hdrl2;
-			list_insert_head(dev->l2ad_buflist, ab);
-			buf_data = ab->b_buf->b_data;
+
+			/*
+			 * Temporarily stash the data buffer in b_tmp_cdata.
+			 * The subsequent write step will pick it up from
+			 * there. This is because can't access ab->b_buf
+			 * without holding the hash_lock, which we in turn
+			 * can't access without holding the ARC list locks
+			 * (which we want to avoid during compression/writing)
+			 */
+			l2hdr->b_compress = ZIO_COMPRESS_OFF;
+			l2hdr->b_asize = ab->b_size;
+			l2hdr->b_tmp_cdata = ab->b_buf->b_data;
+
 			buf_sz = ab->b_size;
+			ab->b_l2hdr = l2hdr;
+
+			list_insert_head(dev->l2ad_buflist, ab);
 
 			/*
 			 * Compute and store the buffer cksum before
@@ -4663,6 +4790,64 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 			mutex_exit(hash_lock);
 
+			write_sz += buf_sz;
+		}
+
+		mutex_exit(list_lock);
+
+		if (full == B_TRUE)
+			break;
+	}
+
+	/* No buffers selected for writing? */
+	if (pio == NULL) {
+		ASSERT0(write_sz);
+		mutex_exit(&l2arc_buflist_mtx);
+		kmem_cache_free(hdr_cache, head);
+		return (0);
+	}
+
+	/*
+	 * Now start writing the buffers. We're starting at the write head
+	 * and work backwards, retracing the course of the buffer selector
+	 * loop above.
+	 */
+	for (ab = list_prev(dev->l2ad_buflist, head); ab;
+	    ab = list_prev(dev->l2ad_buflist, ab)) {
+		l2arc_buf_hdr_t *l2hdr;
+		uint64_t buf_sz;
+
+		/*
+		 * We shouldn't need to lock the buffer here, since we flagged
+		 * it as ARC_L2_WRITING in the previous step, but we must take
+		 * care to only access its L2 cache parameters. In particular,
+		 * ab->b_buf may be invalid by now due to ARC eviction.
+		 */
+		l2hdr = ab->b_l2hdr;
+		l2hdr->b_daddr = dev->l2ad_hand;
+
+		if (!l2arc_nocompress && (ab->b_flags & ARC_L2COMPRESS) &&
+		    l2hdr->b_asize >= buf_compress_minsz) {
+			if (l2arc_compress_buf(l2hdr)) {
+				/*
+				 * If compression succeeded, enable headroom
+				 * boost on the next scan cycle.
+				 */
+				*headroom_boost = B_TRUE;
+			}
+		}
+
+		/*
+		 * Pick up the buffer data we had previously stashed away
+		 * (and now potentially also compressed).
+		 */
+		buf_data = l2hdr->b_tmp_cdata;
+		buf_sz = l2hdr->b_asize;
+
+		/* Compression may have squashed the buffer to zero length. */
+		if (buf_sz != 0) {
+			uint64_t buf_p_sz;
+
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
 			    dev->l2ad_hand, buf_sz, buf_data, ZIO_CHECKSUM_OFF,
 			    NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
@@ -4672,33 +4857,24 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			    zio_t *, wzio);
 			(void) zio_nowait(wzio);
 
+			write_asize += buf_sz;
 			/*
 			 * Keep the clock hand suitably device-aligned.
 			 */
-			buf_sz = vdev_psize_to_asize(dev->l2ad_vdev, buf_sz);
-
-			write_sz += buf_sz;
-			dev->l2ad_hand += buf_sz;
+			buf_p_sz = vdev_psize_to_asize(dev->l2ad_vdev, buf_sz);
+			write_psize += buf_p_sz;
+			dev->l2ad_hand += buf_p_sz;
 		}
-
-		mutex_exit(list_lock);
-
-		if (full == B_TRUE)
-			break;
 	}
+
 	mutex_exit(&l2arc_buflist_mtx);
 
-	if (pio == NULL) {
-		ASSERT0(write_sz);
-		kmem_cache_free(hdr_cache, head);
-		return (0);
-	}
-
-	ASSERT3U(write_sz, <=, target_sz);
+	ASSERT3U(write_asize, <=, target_sz);
 	ARCSTAT_BUMP(arcstat_l2_writes_sent);
-	ARCSTAT_INCR(arcstat_l2_write_bytes, write_sz);
+	ARCSTAT_INCR(arcstat_l2_write_bytes, write_asize);
 	ARCSTAT_INCR(arcstat_l2_size, write_sz);
-	vdev_space_update(dev->l2ad_vdev, write_sz, 0, 0);
+	ARCSTAT_INCR(arcstat_l2_asize, write_asize);
+	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.
@@ -4716,7 +4892,153 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	(void) zio_wait(pio);
 	dev->l2ad_writing = B_FALSE;
 
-	return (write_sz);
+	return (write_asize);
+}
+
+/*
+ * Compresses an L2ARC buffer.
+ * The data to be compressed must be prefilled in l2hdr->b_tmp_cdata and its
+ * size in l2hdr->b_asize. This routine tries to compress the data and
+ * depending on the compression result there are three possible outcomes:
+ * *) The buffer was incompressible. The original l2hdr contents were left
+ *    untouched and are ready for writing to an L2 device.
+ * *) The buffer was all-zeros, so there is no need to write it to an L2
+ *    device. To indicate this situation b_tmp_cdata is NULL'ed, b_asize is
+ *    set to zero and b_compress is set to ZIO_COMPRESS_EMPTY.
+ * *) Compression succeeded and b_tmp_cdata was replaced with a temporary
+ *    data buffer which holds the compressed data to be written, and b_asize
+ *    tells us how much data there is. b_compress is set to the appropriate
+ *    compression algorithm. Once writing is done, invoke
+ *    l2arc_release_cdata_buf on this l2hdr to free this temporary buffer.
+ *
+ * Returns B_TRUE if compression succeeded, or B_FALSE if it didn't (the
+ * buffer was incompressible).
+ */
+static boolean_t
+l2arc_compress_buf(l2arc_buf_hdr_t *l2hdr)
+{
+	void *cdata;
+	size_t csize, len;
+
+	ASSERT(l2hdr->b_compress == ZIO_COMPRESS_OFF);
+	ASSERT(l2hdr->b_tmp_cdata != NULL);
+
+	len = l2hdr->b_asize;
+	cdata = zio_data_buf_alloc(len);
+	csize = zio_compress_data(ZIO_COMPRESS_LZ4, l2hdr->b_tmp_cdata,
+	    cdata, l2hdr->b_asize);
+
+	if (csize == 0) {
+		/* zero block, indicate that there's nothing to write */
+		zio_data_buf_free(cdata, len);
+		l2hdr->b_compress = ZIO_COMPRESS_EMPTY;
+		l2hdr->b_asize = 0;
+		l2hdr->b_tmp_cdata = NULL;
+		ARCSTAT_BUMP(arcstat_l2_compress_zeros);
+		return (B_TRUE);
+	} else if (csize > 0 && csize < len) {
+		/*
+		 * Compression succeeded, we'll keep the cdata around for
+		 * writing and release it afterwards.
+		 */
+		l2hdr->b_compress = ZIO_COMPRESS_LZ4;
+		l2hdr->b_asize = csize;
+		l2hdr->b_tmp_cdata = cdata;
+		ARCSTAT_BUMP(arcstat_l2_compress_successes);
+		return (B_TRUE);
+	} else {
+		/*
+		 * Compression failed, release the compressed buffer.
+		 * l2hdr will be left unmodified.
+		 */
+		zio_data_buf_free(cdata, len);
+		ARCSTAT_BUMP(arcstat_l2_compress_failures);
+		return (B_FALSE);
+	}
+}
+
+/*
+ * Decompresses a zio read back from an l2arc device. On success, the
+ * underlying zio's io_data buffer is overwritten by the uncompressed
+ * version. On decompression error (corrupt compressed stream), the
+ * zio->io_error value is set to signal an I/O error.
+ *
+ * Please note that the compressed data stream is not checksummed, so
+ * if the underlying device is experiencing data corruption, we may feed
+ * corrupt data to the decompressor, so the decompressor needs to be
+ * able to handle this situation (LZ4 does).
+ */
+static void
+l2arc_decompress_zio(zio_t *zio, arc_buf_hdr_t *hdr, enum zio_compress c)
+{
+	uint64_t csize;
+	void *cdata;
+
+	ASSERT(L2ARC_IS_VALID_COMPRESS(c));
+
+	if (zio->io_error != 0) {
+		/*
+		 * An io error has occured, just restore the original io
+		 * size in preparation for a main pool read.
+		 */
+		zio->io_orig_size = zio->io_size = hdr->b_size;
+		return;
+	}
+
+	if (c == ZIO_COMPRESS_EMPTY) {
+		/*
+		 * An empty buffer results in a null zio, which means we
+		 * need to fill its io_data after we're done restoring the
+		 * buffer's contents.
+		 */
+		ASSERT(hdr->b_buf != NULL);
+		bzero(hdr->b_buf->b_data, hdr->b_size);
+		zio->io_data = zio->io_orig_data = hdr->b_buf->b_data;
+	} else {
+		ASSERT(zio->io_data != NULL);
+		/*
+		 * We copy the compressed data from the start of the arc buffer
+		 * (the zio_read will have pulled in only what we need, the
+		 * rest is garbage which we will overwrite at decompression)
+		 * and then decompress back to the ARC data buffer. This way we
+		 * can minimize copying by simply decompressing back over the
+		 * original compressed data (rather than decompressing to an
+		 * aux buffer and then copying back the uncompressed buffer,
+		 * which is likely to be much larger).
+		 */
+		csize = zio->io_size;
+		cdata = zio_data_buf_alloc(csize);
+		bcopy(zio->io_data, cdata, csize);
+		if (zio_decompress_data(c, cdata, zio->io_data, csize,
+		    hdr->b_size) != 0)
+			zio->io_error = EIO;
+		zio_data_buf_free(cdata, csize);
+	}
+
+	/* Restore the expected uncompressed IO size. */
+	zio->io_orig_size = zio->io_size = hdr->b_size;
+}
+
+/*
+ * Releases the temporary b_tmp_cdata buffer in an l2arc header structure.
+ * This buffer serves as a temporary holder of compressed data while
+ * the buffer entry is being written to an l2arc device. Once that is
+ * done, we can dispose of it.
+ */
+static void
+l2arc_release_cdata_buf(arc_buf_hdr_t *ab)
+{
+	l2arc_buf_hdr_t *l2hdr = ab->b_l2hdr;
+
+	if (l2hdr->b_compress == ZIO_COMPRESS_LZ4) {
+		/*
+		 * If the data was compressed, then we've allocated a
+		 * temporary buffer for it, so now we need to release it.
+		 */
+		ASSERT(l2hdr->b_tmp_cdata != NULL);
+		zio_data_buf_free(l2hdr->b_tmp_cdata, ab->b_size);
+	}
+	l2hdr->b_tmp_cdata = NULL;
 }
 
 /*
@@ -4731,6 +5053,7 @@ l2arc_feed_thread(void)
 	spa_t *spa;
 	uint64_t size, wrote;
 	clock_t begin, next = ddi_get_lbolt();
+	boolean_t headroom_boost = B_FALSE;
 
 	CALLB_CPR_INIT(&cpr, &l2arc_feed_thr_lock, callb_generic_cpr, FTAG);
 
@@ -4791,7 +5114,7 @@ l2arc_feed_thread(void)
 
 		ARCSTAT_BUMP(arcstat_l2_feeds);
 
-		size = l2arc_write_size(dev);
+		size = l2arc_write_size();
 
 		/*
 		 * Evict L2ARC buffers that will be overwritten.
@@ -4801,7 +5124,7 @@ l2arc_feed_thread(void)
 		/*
 		 * Write ARC buffers.
 		 */
-		wrote = l2arc_write_buffers(spa, dev, size);
+		wrote = l2arc_write_buffers(spa, dev, size, &headroom_boost);
 
 		/*
 		 * Calculate interval between writes.
@@ -4849,8 +5172,6 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev = kmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
 	adddev->l2ad_spa = spa;
 	adddev->l2ad_vdev = vd;
-	adddev->l2ad_write = l2arc_write_max;
-	adddev->l2ad_boost = l2arc_write_boost;
 	adddev->l2ad_start = VDEV_LABEL_START_SIZE;
 	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
 	adddev->l2ad_hand = adddev->l2ad_start;
@@ -4858,7 +5179,6 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev->l2ad_first = B_TRUE;
 	adddev->l2ad_writing = B_FALSE;
 	list_link_init(&adddev->l2ad_node);
-	ASSERT3U(adddev->l2ad_write, >, 0);
 
 	/*
 	 * This is a list of all ARC buffers that are still valid on the
@@ -5030,6 +5350,9 @@ MODULE_PARM_DESC(l2arc_write_boost, "Extra write bytes during device warmup");
 module_param(l2arc_headroom, ulong, 0644);
 MODULE_PARM_DESC(l2arc_headroom, "Number of max device writes to precache");
 
+module_param(l2arc_headroom_boost, ulong, 0644);
+MODULE_PARM_DESC(l2arc_headroom_boost, "Compressed l2arc_headroom multiplier");
+
 module_param(l2arc_feed_secs, ulong, 0644);
 MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
 
@@ -5038,6 +5361,9 @@ MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
 
 module_param(l2arc_noprefetch, int, 0644);
 MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
+
+module_param(l2arc_nocompress, int, 0644);
+MODULE_PARM_DESC(l2arc_nocompress, "Skip compressing L2ARC buffers");
 
 module_param(l2arc_feed_again, int, 0644);
 MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
