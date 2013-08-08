@@ -130,7 +130,7 @@ struct objset {
 	((os)->os_secondary_cache == ZFS_CACHE_ALL ||		\
 	(os)->os_secondary_cache == ZFS_CACHE_METADATA)
 
-#define	DMU_OS_IS_L2COMPRESSIBLE(os)	((os)->os_compress != ZIO_COMPRESS_OFF)
+#define	DMU_OS_IS_L2COMPRESSIBLE(os)	(zfs_mdcomp_disable == B_FALSE)
 
 /* called from zpl */
 int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
