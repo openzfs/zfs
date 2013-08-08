@@ -894,6 +894,13 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	sep->se_path = full_path;
 	sep->se_inode = ip;
 	sep->se_root_dentry = mnt_path.dentry;
+	
+	/*
+	 * Ensure MNT_SHRINKABLE is set on snapshots to ensure they are
+	 * unmounted automatically with the parent file system.
+	 */
+	mnt_path.mnt->mnt_flags |= MNT_SHRINKABLE;
+
 	path_put(&mnt_path);
 
 	avl_add(&zsb->z_ctldir_snaps, sep);
