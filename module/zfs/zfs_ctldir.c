@@ -813,6 +813,7 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
+	struct path mnt_path = *path;
 	zfs_sb_t *zsb = ITOZSB(ip);
 	char *full_name, *full_path;
 	zfs_snapentry_t *sep;
@@ -859,6 +860,26 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	error = 0;
 	mutex_enter(&zsb->z_ctldir_lock);
 
+	path_get(&mnt_path);
+	error = follow_down(&mnt_path);
+	if (error) {
+		printk("ZFS: Cannot follow down snapshot mountpoint at %s: "
+		    "%d\n", full_path, error);
+		goto mutex_error;
+	}
+	if (mnt_path.mnt == path->mnt) {
+		printk("ZFS: snapshot %s auto mounted at %s unexpectedly "
+		    "unmounted\n", full_name, full_path);
+		error = SET_ERROR(ENOENT);
+		goto mutex_error;
+	}
+
+	/*
+	 * Ensure MNT_SHRINKABLE is set on snapshots to ensure they are
+	 * unmounted automatically with the parent file system.
+	 */
+	mnt_path.mnt->mnt_flags |= MNT_SHRINKABLE;
+
 	/*
 	 * Ensure a previous entry does not exist, if it does safely remove
 	 * it any cancel the outstanding expiration.  This can occur when a
@@ -882,6 +903,8 @@ zfsctl_mount_snapshot(struct path *path, int flags)
 	    zfsctl_expire_snapshot, sep, TQ_SLEEP,
 	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
 
+mutex_error:
+	path_put(&mnt_path);
 	mutex_exit(&zsb->z_ctldir_lock);
 error:
 	if (error) {
