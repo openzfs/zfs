@@ -36,8 +36,6 @@
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
-	int flags = KM_SLEEP;
-
 	SENTRY;
 	ASSERT(cvp);
 	ASSERT(name == NULL);
@@ -50,12 +48,6 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 	atomic_set(&cvp->cv_waiters, 0);
 	atomic_set(&cvp->cv_refs, 1);
 	cvp->cv_mutex = NULL;
-
-        /* We may be called when there is a non-zero preempt_count or
-	 * interrupts are disabled is which case we must not sleep.
-	 */
-        if (current_thread_info()->preempt_count || irqs_disabled())
-		flags = KM_NOSLEEP;
 
 	SEXIT;
 }
