@@ -1091,6 +1091,7 @@ int
 dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 {
 	hrtime_t before, after;
+	uint64_t try_count = 0;
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
@@ -1105,6 +1106,8 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 		if (err != ERESTART || txg_how != TXG_WAIT)
 			return (err);
 
+		try_count++;
+
 		dmu_tx_wait(tx);
 	}
 
@@ -1114,6 +1117,8 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 
 	dsl_pool_tx_assign_add_usecs(tx->tx_pool,
 	    (after - before) / NSEC_PER_USEC);
+
+	dsl_pool_tx_try_assign_add(tx->tx_pool, try_count);
 
 	return (0);
 }

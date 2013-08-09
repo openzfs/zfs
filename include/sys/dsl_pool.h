@@ -90,6 +90,7 @@ typedef struct dsl_pool {
 	struct taskq *dp_iput_taskq;
 	kstat_t *dp_txg_kstat;
 	kstat_t *dp_tx_assign_kstat;
+	kstat_t *dp_tx_try_assign_kstat;
 
 	/* No lock needed - sync context only */
 	blkptr_t dp_meta_rootbp;
@@ -114,6 +115,8 @@ typedef struct dsl_pool {
 	list_t dp_txg_history;
 	uint64_t dp_tx_assign_size;
 	kstat_named_t *dp_tx_assign_buckets;
+	uint64_t dp_tx_try_assign_size;
+	kstat_named_t *dp_tx_try_assign_buckets;
 
 
 	/* Has its own locking */
@@ -165,6 +168,7 @@ extern int dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj,
 extern void dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp);
 int dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **);
 
+void dsl_pool_tx_try_assign_add(dsl_pool_t *dp, uint64_t count);
 void dsl_pool_tx_assign_add_usecs(dsl_pool_t *dp, uint64_t usecs);
 
 txg_history_t *dsl_pool_txg_history_add(dsl_pool_t *dp, uint64_t txg);
