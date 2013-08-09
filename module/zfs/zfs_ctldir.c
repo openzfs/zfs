@@ -200,8 +200,8 @@ zfsctl_inode_alloc(zfs_sb_t *zsb, uint64_t id,
 	zp->z_is_stale = B_FALSE;
 	ip->i_ino = id;
 	ip->i_mode = (S_IFDIR | S_IRUGO | S_IXUGO);
-	ip->i_uid = 0;
-	ip->i_gid = 0;
+	ip->i_uid = SUID_TO_KUID(0);
+	ip->i_gid = SGID_TO_KGID(0);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	ip->i_atime = now;
 	ip->i_mtime = now;
