@@ -67,6 +67,8 @@
 #include <libintl.h>
 #include <libnvpair.h>
 #include <limits.h>
+#include <scsi/scsi.h>
+#include <scsi/sg.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -82,6 +84,7 @@
 #endif /* HAVE_LIBBLKID */
 
 #include "zpool_util.h"
+#include <sys/zfs_context.h>
 
 /*
  * For any given vdev specification, we can have multiple errors.  The
@@ -90,6 +93,115 @@
  */
 boolean_t error_seen;
 boolean_t is_force;
+
+typedef struct vdev_disk_db_entry
+{
+	char id[24];
+	int sector_size;
+} vdev_disk_db_entry_t;
+
+/*
+ * Database of block devices that lie about physical sector sizes.  The
+ * identification string must be precisely 24 characters to avoid false
+ * negatives
+ */
+static vdev_disk_db_entry_t vdev_disk_database[] = {
+	{"ATA     Corsair Force 3 ", 8192},
+	{"ATA     INTEL SSDSA2CT04", 8192},
+	{"ATA     INTEL SSDSA2CW16", 8192},
+	{"ATA     INTEL SSDSC2CT18", 8192},
+	{"ATA     INTEL SSDSC2CW12", 8192},
+	{"ATA     KINGSTON SH100S3", 8192},
+	{"ATA     M4-CT064M4SSD2  ", 8192},
+	{"ATA     M4-CT128M4SSD2  ", 8192},
+	{"ATA     M4-CT256M4SSD2  ", 8192},
+	{"ATA     M4-CT512M4SSD2  ", 8192},
+	{"ATA     OCZ-AGILITY2    ", 8192},
+	{"ATA     OCZ-VERTEX2 3.5 ", 8192},
+	{"ATA     OCZ-VERTEX3     ", 8192},
+	{"ATA     OCZ-VERTEX3 LT  ", 8192},
+	{"ATA     OCZ-VERTEX3 MI  ", 8192},
+	{"ATA     SAMSUNG SSD 830 ", 8192},
+	{"ATA     Samsung SSD 840 ", 8192},
+	{"ATA     INTEL SSDSA2M040", 4096},
+	{"ATA     INTEL SSDSA2M080", 4096},
+	{"ATA     INTEL SSDSA2M160", 4096},
+	/* Imported from Open Solaris*/
+	{"ATA     MARVELL SD88SA02", 4096},
+	/* Advanced format Hard drives */
+	{"ATA     Hitachi HDS5C303", 4096},
+	{"ATA     SAMSUNG HD204UI ", 4096},
+	{"ATA     ST2000DL004 HD20", 4096},
+	{"ATA     WDC WD10EARS-00M", 4096},
+	{"ATA     WDC WD10EARS-00S", 4096},
+	{"ATA     WDC WD10EARS-00Z", 4096},
+	{"ATA     WDC WD15EARS-00M", 4096},
+	{"ATA     WDC WD15EARS-00S", 4096},
+	{"ATA     WDC WD15EARS-00Z", 4096},
+	{"ATA     WDC WD20EARS-00M", 4096},
+	{"ATA     WDC WD20EARS-00S", 4096},
+	{"ATA     WDC WD20EARS-00Z", 4096},
+	/* Virtual disks: Assume zvols with default volblocksize */
+#if 0
+	{"ATA     QEMU HARDDISK   ", 8192},
+	{"IET     VIRTUAL-DISK    ", 8192},
+	{"OI      COMSTAR         ", 8192},
+#endif
+};
+
+static const int vdev_disk_database_size =
+	sizeof (vdev_disk_database) / sizeof (vdev_disk_database[0]);
+
+#define	INQ_REPLY_LEN	96
+#define	INQ_CMD_LEN	6
+
+static boolean_t
+check_sector_size_database(char *path, int *sector_size)
+{
+	unsigned char inq_buff[INQ_REPLY_LEN];
+	unsigned char sense_buffer[32];
+	unsigned char inq_cmd_blk[INQ_CMD_LEN] =
+	    {INQUIRY, 0, 0, 0, INQ_REPLY_LEN, 0};
+	sg_io_hdr_t io_hdr;
+	int error;
+	int fd;
+	int i;
+
+	/* Prepare INQUIRY command */
+	memset(&io_hdr, 0, sizeof(sg_io_hdr_t));
+	io_hdr.interface_id = 'S';
+	io_hdr.cmd_len = sizeof(inq_cmd_blk);
+	io_hdr.mx_sb_len = sizeof(sense_buffer);
+	io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+	io_hdr.dxfer_len = INQ_REPLY_LEN;
+	io_hdr.dxferp = inq_buff;
+	io_hdr.cmdp = inq_cmd_blk;
+	io_hdr.sbp = sense_buffer;
+	io_hdr.timeout = 10;        /* 10 milliseconds is ample time */
+
+	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
+		return (B_FALSE);
+
+	error = ioctl(fd, SG_IO, (unsigned long) &io_hdr);
+
+	(void) close(fd);
+
+	if (error < 0)
+		return (B_FALSE);
+
+	if ((io_hdr.info & SG_INFO_OK_MASK) != SG_INFO_OK)
+		return (B_FALSE);
+
+	for (i = 0; i < vdev_disk_database_size; i++) {
+		if (memcmp(inq_buff + 8, vdev_disk_database[i].id, 24))
+			continue;
+
+		*sector_size = vdev_disk_database[i].sector_size;
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
 
 /*PRINTFLIKE1*/
 static void
@@ -459,6 +571,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	nvlist_t *vdev = NULL;
 	char *type = NULL;
 	boolean_t wholedisk = B_FALSE;
+	uint64_t ashift = 0;
 	int err;
 
 	/*
@@ -544,18 +657,30 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
 
+	/*
+	 * Override defaults if custom properties are provided.
+	 */
 	if (props != NULL) {
-		uint64_t ashift = 0;
 		char *value = NULL;
 
 		if (nvlist_lookup_string(props,
 		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0)
 			zfs_nicestrtonum(NULL, value, &ashift);
-
-		if (ashift > 0)
-			verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_ASHIFT,
-			    ashift) == 0);
 	}
+
+	/*
+	 * If the device is known to incorrectly report its physical sector
+	 * size explicitly provide the known correct value.
+	 */
+	if (ashift == 0) {
+		int sector_size;
+
+		if (check_sector_size_database(path, &sector_size) == B_TRUE)
+			ashift = highbit(sector_size) - 1;
+	}
+
+	if (ashift > 0)
+		nvlist_add_uint64(vdev, ZPOOL_CONFIG_ASHIFT, ashift);
 
 	return (vdev);
 }
