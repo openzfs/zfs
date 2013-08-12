@@ -127,7 +127,10 @@ static int
 zpl_commit_metadata(struct inode *inode)
 {
 	cred_t *cr = CRED();
-	int error;
+	int error = 0;
+
+	if (zfsctl_is_node(inode))
+		return error;
 
 	crhold(cr);
 	error = -zfs_fsync(inode, 0, cr);
