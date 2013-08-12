@@ -21,10 +21,10 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2010 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
+ * Copyright 2012 Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <ctype.h>
@@ -4337,35 +4337,40 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
     zfs_userspace_cb_t func, void *arg)
 {
 	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
-	int error;
 	zfs_useracct_t buf[100];
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	int ret;
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
 	zc.zc_objset_type = type;
 	zc.zc_nvlist_dst = (uintptr_t)buf;
 
-	/* CONSTCOND */
-	while (1) {
+	for (;;) {
 		zfs_useracct_t *zua = buf;
 
 		zc.zc_nvlist_dst_size = sizeof (buf);
-		error = ioctl(zhp->zfs_hdl->libzfs_fd,
-		    ZFS_IOC_USERSPACE_MANY, &zc);
-		if (error || zc.zc_nvlist_dst_size == 0)
+		if (zfs_ioctl(hdl, ZFS_IOC_USERSPACE_MANY, &zc) != 0) {
+			char errbuf[ZFS_MAXNAMELEN + 32];
+
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot get used/quota for %s"), zc.zc_name);
+			return (zfs_standard_error_fmt(hdl, errno, errbuf));
+		}
+		if (zc.zc_nvlist_dst_size == 0)
 			break;
 
 		while (zc.zc_nvlist_dst_size > 0) {
-			error = func(arg, zua->zu_domain, zua->zu_rid,
-			    zua->zu_space);
-			if (error != 0)
-				return (error);
+			if ((ret = func(arg, zua->zu_domain, zua->zu_rid,
+			    zua->zu_space)) != 0)
+				return (ret);
 			zua++;
 			zc.zc_nvlist_dst_size -= sizeof (zfs_useracct_t);
 		}
 	}
 
-	return (error);
+	return (0);
 }
 
 int
