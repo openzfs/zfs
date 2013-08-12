@@ -1334,6 +1334,9 @@ dsl_scan_free_should_pause(dsl_scan_t *scn)
 {
 	uint64_t elapsed_nanosecs;
 
+	if (zfs_recover)
+		return (B_FALSE);
+
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > zfs_free_min_time_ms &&
