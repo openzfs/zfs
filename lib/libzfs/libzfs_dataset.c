@@ -629,12 +629,15 @@ libzfs_mnttab_init(libzfs_handle_t *hdl)
 	    sizeof (mnttab_node_t), offsetof(mnttab_node_t, mtn_node));
 }
 
-void
+int
 libzfs_mnttab_update(libzfs_handle_t *hdl)
 {
 	struct mnttab entry;
 
-	rewind(hdl->libzfs_mnttab);
+	/* Reopen MNTTAB to prevent reading stale data from open file */
+	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+		return (ENOENT);
+
 	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
 		mnttab_node_t *mtn;
 
@@ -647,6 +650,8 @@ libzfs_mnttab_update(libzfs_handle_t *hdl)
 		mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, entry.mnt_mntopts);
 		avl_add(&hdl->libzfs_mnttab_cache, mtn);
 	}
+
+	return (0);
 }
 
 void
@@ -677,13 +682,18 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 {
 	mnttab_node_t find;
 	mnttab_node_t *mtn;
+	int error;
 
 	if (!hdl->libzfs_mnttab_enable) {
 		struct mnttab srch = { 0 };
 
 		if (avl_numnodes(&hdl->libzfs_mnttab_cache))
 			libzfs_mnttab_fini(hdl);
-		rewind(hdl->libzfs_mnttab);
+
+		/* Reopen MNTTAB to prevent reading stale data from open file */
+		if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+			return (ENOENT);
+
 		srch.mnt_special = (char *)fsname;
 		srch.mnt_fstype = MNTTYPE_ZFS;
 		if (getmntany(hdl->libzfs_mnttab, entry, &srch) == 0)
@@ -693,7 +703,8 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 	}
 
 	if (avl_numnodes(&hdl->libzfs_mnttab_cache) == 0)
-		libzfs_mnttab_update(hdl);
+		if ((error = libzfs_mnttab_update(hdl)) != 0)
+			return (error);
 
 	find.mtn_mt.mnt_special = (char *)fsname;
 	mtn = avl_find(&hdl->libzfs_mnttab_cache, &find, NULL);
