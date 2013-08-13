@@ -114,7 +114,8 @@ struct kstat_s {
         struct proc_dir_entry *ks_proc;             /* proc linkage */
         kstat_update_t   *ks_update;                /* dynamic updates */
         void             *ks_private;               /* private data */
-        kmutex_t         ks_lock;                   /* kstat data lock */
+	kmutex_t         ks_private_lock;           /* kstat private data lock */
+	kmutex_t         *ks_lock;                  /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 	kstat_module_t   *ks_owner;                 /* kstat module linkage */
 	kstat_raw_ops_t  ks_raw_ops;                /* ops table for raw type */

@@ -314,7 +314,7 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
         ASSERT(ksp->ks_magic == KS_MAGIC);
         SENTRY;
 
-        mutex_enter(&ksp->ks_lock);
+	mutex_enter(ksp->ks_lock);
 
         if (ksp->ks_type == KSTAT_TYPE_RAW) {
                 ksp->ks_raw_bufsize = PAGE_SIZE;
@@ -352,13 +352,13 @@ kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
 static void
 kstat_seq_stop(struct seq_file *f, void *v)
 {
-        kstat_t *ksp = (kstat_t *)f->private;
-        ASSERT(ksp->ks_magic == KS_MAGIC);
+	kstat_t *ksp = (kstat_t *)f->private;
+	ASSERT(ksp->ks_magic == KS_MAGIC);
 
 	if (ksp->ks_type == KSTAT_TYPE_RAW)
 		vmem_free(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
 
-        mutex_exit(&ksp->ks_lock);
+	mutex_exit(ksp->ks_lock);
 }
 
 static struct seq_operations kstat_seq_ops = {
@@ -491,7 +491,8 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	mutex_exit(&kstat_module_lock);
 
         ksp->ks_magic = KS_MAGIC;
-	mutex_init(&ksp->ks_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
+	ksp->ks_lock = &ksp->ks_private_lock;
 	INIT_LIST_HEAD(&ksp->ks_list);
 
 	ksp->ks_crtime = gethrtime();
@@ -576,7 +577,7 @@ __kstat_install(kstat_t *ksp)
 
 	list_add_tail(&ksp->ks_list, &module->ksm_kstat_list);
 
-	mutex_enter(&ksp->ks_lock);
+	mutex_enter(ksp->ks_lock);
 	ksp->ks_owner = module;
 	ksp->ks_proc = proc_create_data(ksp->ks_name, 0644,
 	    module->ksm_proc, &proc_kstat_operations, (void *)ksp);
@@ -585,7 +586,7 @@ __kstat_install(kstat_t *ksp)
 		if (list_empty(&module->ksm_kstat_list))
 			kstat_delete_module(module);
 	}
-	mutex_exit(&ksp->ks_lock);
+	mutex_exit(ksp->ks_lock);
 out:
 	mutex_exit(&kstat_module_lock);
 }
@@ -611,7 +612,8 @@ __kstat_delete(kstat_t *ksp)
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
 		kmem_free(ksp->ks_data, ksp->ks_data_size);
 
-	mutex_destroy(&ksp->ks_lock);
+	ksp->ks_lock = NULL;
+	mutex_destroy(&ksp->ks_private_lock);
 	kmem_free(ksp, sizeof(*ksp));
 
 	return;
