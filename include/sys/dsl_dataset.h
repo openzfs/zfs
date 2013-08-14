@@ -265,7 +265,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx);
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
-int dsl_dataset_rollback(const char *fsname, void *owner);
+int dsl_dataset_rollback(const char *fsname, void *owner, nvlist_t *result);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \

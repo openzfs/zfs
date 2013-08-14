@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -580,4 +580,28 @@ out:
 		fnvlist_pack_free(packed, size);
 	free((void*)(uintptr_t)zc.zc_nvlist_dst);
 	return (error);
+}
+
+/*
+ * Roll back this filesystem or volume to its most recent snapshot.
+ * If snapnamebuf is not NULL, it will be filled in with the name
+ * of the most recent snapshot.
+ *
+ * Return 0 on success or an errno on failure.
+ */
+int
+lzc_rollback(const char *fsname, char *snapnamebuf, int snapnamelen)
+{
+	nvlist_t *args;
+	nvlist_t *result;
+	int err;
+
+	args = fnvlist_alloc();
+	err = lzc_ioctl(ZFS_IOC_ROLLBACK, fsname, args, &result);
+	nvlist_free(args);
+	if (err == 0 && snapnamebuf != NULL) {
+		const char *snapname = fnvlist_lookup_string(result, "target");
+		(void) strlcpy(snapnamebuf, snapname, snapnamelen);
+	}
+	return (err);
 }

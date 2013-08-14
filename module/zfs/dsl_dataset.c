@@ -1703,6 +1703,7 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 typedef struct dsl_dataset_rollback_arg {
 	const char *ddra_fsname;
 	void *ddra_owner;
+	nvlist_t *ddra_result;
 } dsl_dataset_rollback_arg_t;
 
 static int
@@ -1774,8 +1775,12 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds, *clone;
 	uint64_t cloneobj;
+	char namebuf[ZFS_MAXNAMELEN];
 
 	VERIFY0(dsl_dataset_hold(dp, ddra->ddra_fsname, FTAG, &ds));
+
+	dsl_dataset_name(ds->ds_prev, namebuf);
+	fnvlist_add_string(ddra->ddra_result, "target", namebuf);
 
 	cloneobj = dsl_dataset_create_sync(ds->ds_dir, "%rollback",
 	    ds->ds_prev, DS_CREATE_FLAG_NODIRTY, kcred, tx);
@@ -1792,8 +1797,11 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 }
 
 /*
- * If owner != NULL:
+ * Rolls back the given filesystem or volume to the most recent snapshot.
+ * The name of the most recent snapshot will be returned under key "target"
+ * in the result nvlist.
  *
+ * If owner != NULL:
  * - The existing dataset MUST be owned by the specified owner at entry
  * - Upon return, dataset will still be held by the same owner, whether we
  *   succeed or not.
@@ -1802,15 +1810,16 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
  * notes above zfs_suspend_fs() for further details.
  */
 int
-dsl_dataset_rollback(const char *fsname, void *owner)
+dsl_dataset_rollback(const char *fsname, void *owner, nvlist_t *result)
 {
 	dsl_dataset_rollback_arg_t ddra;
 
 	ddra.ddra_fsname = fsname;
 	ddra.ddra_owner = owner;
+	ddra.ddra_result = result;
 
 	return (dsl_sync_task(fsname, dsl_dataset_rollback_check,
-	    dsl_dataset_rollback_sync, (void *)&ddra, 1));
+	    dsl_dataset_rollback_sync, &ddra, 1));
 }
 
 struct promotenode {
