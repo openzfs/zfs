@@ -1309,12 +1309,14 @@ __zio_execute(zio_t *zio)
 		/*
 		 * If we executing in the context of the tx_sync_thread,
 		 * or we are performing pool initialization outside of a
-		 * zio_taskq[ZIO_TASKQ_ISSUE] context.  Then issue the zio
-		 * async to minimize stack usage for these deep call paths.
+		 * zio_taskq[ZIO_TASKQ_ISSUE|ZIO_TASKQ_ISSUE_HIGH] context.
+		 * Then issue the zio asynchronously to minimize stack usage
+		 * for these deep call paths.
 		 */
 		if ((dp && curthread == dp->dp_tx.tx_sync_thread) ||
 		    (dp && spa_is_initializing(dp->dp_spa) &&
-		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE))) {
+		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE) &&
+		    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE_HIGH))) {
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
 		}
