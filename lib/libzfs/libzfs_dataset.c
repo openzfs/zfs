@@ -3732,7 +3732,6 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 {
 	rollback_data_t cb = { 0 };
 	int err;
-	zfs_cmd_t zc = {"\0"};
 	boolean_t restore_resv = 0;
 	uint64_t old_volsize = 0, new_volsize;
 	zfs_prop_t resv_prop = { 0 };
@@ -3766,22 +3765,15 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 		    (old_volsize == zfs_prop_get_int(zhp, resv_prop));
 	}
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-
-	if (ZFS_IS_VOLUME(zhp))
-		zc.zc_objset_type = DMU_OST_ZVOL;
-	else
-		zc.zc_objset_type = DMU_OST_ZFS;
-
 	/*
 	 * We rely on zfs_iter_children() to verify that there are no
 	 * newer snapshots for the given dataset.  Therefore, we can
 	 * simply pass the name on to the ioctl() call.  There is still
 	 * an unlikely race condition where the user has taken a
 	 * snapshot since we verified that this was the most recent.
-	 *
 	 */
-	if ((err = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_ROLLBACK, &zc)) != 0) {
+	err = lzc_rollback(zhp->zfs_name, NULL, 0);
+	if (err != 0) {
 		(void) zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot rollback '%s'"),
 		    zhp->zfs_name);
