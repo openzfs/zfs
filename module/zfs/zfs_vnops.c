@@ -1997,8 +1997,12 @@ EXPORT_SYMBOL(zfs_rmdir);
  */
 /* ARGSUSED */
 int
+#ifdef HAVE_VFS_ITERATE
+zfs_readdir(struct inode *ip, struct dir_context *ctx)
+#else
 zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
     loff_t *pos, cred_t *cr)
+#endif
 {
 	znode_t		*zp = ITOZ(ip);
 	zfs_sb_t	*zsb = ITOZSB(ip);
@@ -2010,6 +2014,11 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 	uint8_t		prefetch;
 	int		done = 0;
 	uint64_t	parent;
+#ifdef HAVE_VFS_ITERATE
+	loff_t		offset = ctx->pos;
+#else
+	loff_t		offset = *pos;
+#endif
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -2031,7 +2040,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 	/*
 	 * Initialize the iterator cursor.
 	 */
-	if (*pos <= 3) {
+	if (offset <= 3) {
 		/*
 		 * Start iteration from the beginning of the directory.
 		 */
@@ -2040,7 +2049,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 		/*
 		 * The offset is a serialized cursor.
 		 */
-		zap_cursor_init_serialized(&zc, os, zp->z_id, *pos);
+		zap_cursor_init_serialized(&zc, os, zp->z_id, offset);
 	}
 
 	/*
@@ -2053,15 +2062,15 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 		/*
 		 * Special case `.', `..', and `.zfs'.
 		 */
-		if (*pos == 0) {
+		if (offset == 0) {
 			(void) strcpy(zap.za_name, ".");
 			zap.za_normalization_conflict = 0;
 			objnum = zp->z_id;
-		} else if (*pos == 1) {
+		} else if (offset == 1) {
 			(void) strcpy(zap.za_name, "..");
 			zap.za_normalization_conflict = 0;
 			objnum = parent;
-		} else if (*pos == 2 && zfs_show_ctldir(zp)) {
+		} else if (offset == 2 && zfs_show_ctldir(zp)) {
 			(void) strcpy(zap.za_name, ZFS_CTLDIR_NAME);
 			zap.za_normalization_conflict = 0;
 			objnum = ZFSCTL_INO_ROOT;
@@ -2089,7 +2098,7 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 				    "entry, obj = %lld, offset = %lld, "
 				    "length = %d, num = %lld\n",
 				    (u_longlong_t)zp->z_id,
-				    (u_longlong_t)*pos,
+				    (u_longlong_t)offset,
 				    zap.za_integer_length,
 				    (u_longlong_t)zap.za_num_integers);
 				error = ENXIO;
@@ -2098,23 +2107,35 @@ zfs_readdir(struct inode *ip, void *dirent, filldir_t filldir,
 
 			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
 		}
+
+#ifdef HAVE_VFS_ITERATE
+		if (!dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+			objnum, ZFS_DIRENT_TYPE(zap.za_first_integer)))
+			break;
+#else
 		done = filldir(dirent, zap.za_name, strlen(zap.za_name),
-			       *pos, objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
+			       offset, objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
 		if (done) {
 			break;
 		}
+#endif
 
 		/* Prefetch znode */
 		if (prefetch) {
 			dmu_prefetch(os, objnum, 0, 0);
 		}
 
-		if (*pos > 2 || (*pos == 2 && !zfs_show_ctldir(zp))) {
+		if (offset > 2 || (offset == 2 && !zfs_show_ctldir(zp))) {
 			zap_cursor_advance(&zc);
-			*pos = zap_cursor_serialize(&zc);
+			offset = zap_cursor_serialize(&zc);
 		} else {
-			(*pos)++;
+			offset++;
 		}
+#ifdef HAVE_VFS_ITERATE
+		ctx->pos = offset;
+#else
+		*pos = offset;
+#endif
 	}
 	zp->z_zn_prefetch = B_FALSE; /* a lookup will re-enable pre-fetching */
 
