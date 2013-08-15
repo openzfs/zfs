@@ -81,10 +81,15 @@
 #include <sys/zfs_vnops.h>
 #include <sys/stat.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_deleg.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_prop.h>
+#include <sys/dsl_dir.h>
 #include <sys/mount.h>
 #include <sys/zpl.h>
+#include <sys/nvpair.h>
 #include "zfs_namecheck.h"
 
 /*
@@ -924,6 +929,59 @@ error:
 	ZFS_EXIT(zsb);
 
 	return (error);
+}
+
+char *
+zfsctl_get_mnt_path(zfs_sb_t *zsb)
+{
+	dsl_dataset_t *ds = zsb->z_os->os_dsl_dataset;
+	int error, altroot_len;
+	nvlist_t *nvp = NULL, *nv = NULL;
+	char *path = NULL, *relpath = NULL, *dname = NULL;
+	char *altroot = NULL, *setpoint = NULL;
+
+	if (zsb->z_mnt_path[0] != 0)
+		return (zsb->z_mnt_path);
+
+	path = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+	setpoint = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+
+	dsl_pool_config_enter(ds->ds_dir->dd_pool, FTAG);
+	error = dsl_prop_get_ds(ds, zfs_prop_to_name(ZFS_PROP_MOUNTPOINT), 1,
+	    sizeof (path), path, setpoint);
+	dsl_pool_config_exit(ds->ds_dir->dd_pool, FTAG);
+
+	if (!setpoint)
+		dsl_dataset_name(ds, path);
+	else {
+		dname = kmem_alloc(MAXPATHLEN, KM_PUSHPAGE);
+		dsl_dataset_name(ds, dname);
+		strcat(path, dname+strlen(setpoint));
+		kfree(dname);
+		kfree(setpoint);
+	}
+
+	error = spa_prop_get(zsb->z_os->os_spa, &nvp);
+	if (error) {
+		kfree(path);
+		return (ERR_PTR(-error));
+	}
+	error = nvlist_lookup_nvlist(nvp,
+			zpool_prop_to_name(ZPOOL_PROP_ALTROOT), &nv);
+	if (error)
+		altroot = "/";
+	else
+		altroot = fnvlist_lookup_string(nv, ZPROP_VALUE);
+
+	altroot_len = strlen(altroot);
+	relpath = path;
+	if (altroot[altroot_len-1] == '/' && path[0] == '/')
+		relpath++;
+	sprintf(zsb->z_mnt_path, "%s%s", altroot, relpath);
+	nvlist_free(nvp);
+	kfree(path);
+
+	return (zsb->z_mnt_path);
 }
 
 /*
