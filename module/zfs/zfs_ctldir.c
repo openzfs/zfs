@@ -910,8 +910,22 @@ error:
 static char*
 zfsctl_get_mnt_path(zfs_sb_t *zsb)
 {
+	int error;
+	struct path path;
 
-	return (zsb->z_mnt_path[0] == 0) ? NULL : &zsb->z_mnt_path[0];
+	if (zsb->z_mnt_path[0] != 0)
+		return zsb->z_mnt_path;
+	
+	path.mnt = zsb->z_mnt;
+	path.dentry = zsb->z_mnt->mnt_root;
+	error = zfsctl_snapshot_zpath(&path, sizeof(zsb->z_mnt_path),
+			zsb->z_mnt_path);
+	if (error) {
+		zsb->z_mnt_path[0] = 0;
+		return ERR_PTR(error);
+	}
+
+	return zsb->z_mnt_path;
 }
 
 static int
