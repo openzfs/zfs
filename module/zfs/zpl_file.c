@@ -64,20 +64,33 @@ zpl_release(struct inode *ip, struct file *filp)
 }
 
 static int
-zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
+zpl_iterate(struct file *filp, struct dir_context *ctx)
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	cred_t *cr = CRED();
 	int error;
 
 	crhold(cr);
-	error = -zfs_readdir(dentry->d_inode, dirent, filldir,
-	    &filp->f_pos, cr);
+	error = -zfs_readdir(dentry->d_inode, ctx, cr);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
 }
+
+#if !defined(HAVE_VFS_ITERATE)
+static int
+zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
+{
+	struct dir_context ctx = DIR_CONTEXT_INIT(dirent, filldir, filp->f_pos);
+	int error;
+
+	error = zpl_iterate(filp, &ctx);
+	filp->f_pos = ctx.pos;
+
+	return (error);
+}
+#endif /* HAVE_VFS_ITERATE */
 
 #if defined(HAVE_FSYNC_WITH_DENTRY)
 /*
@@ -506,7 +519,11 @@ const struct file_operations zpl_file_operations = {
 const struct file_operations zpl_dir_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
+#ifdef HAVE_VFS_ITERATE
+	.iterate	= zpl_iterate,
+#else
 	.readdir	= zpl_readdir,
+#endif
 	.fsync		= zpl_fsync,
 	.unlocked_ioctl = zpl_ioctl,
 #ifdef CONFIG_COMPAT
