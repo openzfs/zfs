@@ -40,7 +40,9 @@ extern unsigned long long monotonic_clock(void);
 void
 __gethrestime(timestruc_t *ts)
 {
-	struct timespec tspec = current_kernel_time();
+	struct timespec tspec;
+
+	getnstimeofday(&tspec);
 
 	ts->tv_sec = tspec.tv_sec;
 	ts->tv_nsec = tspec.tv_nsec;
