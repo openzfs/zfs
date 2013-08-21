@@ -1255,12 +1255,11 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_asize == 0) {
 		/*
 		 * This is the first-ever open, so use the computed values.
-		 * For compatibility, a different ashift can be requested.
+		 * For testing purposes, a higher ashift can be requested.
 		 */
 		vd->vdev_asize = asize;
 		vd->vdev_max_asize = max_asize;
-		if (vd->vdev_ashift == 0)
-			vd->vdev_ashift = ashift;
+		vd->vdev_ashift = MAX(ashift, vd->vdev_ashift);
 	} else {
 		/*
 		 * Detect if the alignment requirement has increased.
