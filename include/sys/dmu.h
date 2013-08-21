@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
@@ -579,7 +579,7 @@ int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	uint64_t size, dmu_tx_t *tx);
 int dmu_free_long_range(objset_t *os, uint64_t object, uint64_t offset,
 	uint64_t size);
-int dmu_free_object(objset_t *os, uint64_t object);
+int dmu_free_long_object(objset_t *os, uint64_t object);
 
 /*
  * Convenience functions.

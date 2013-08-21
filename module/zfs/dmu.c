@@ -568,98 +568,95 @@ dmu_prefetch(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
  * the end so that the file gets shorter over time (if we crashes in the
  * middle, this will leave us in a better state).  We find allocated file
  * data by simply searching the allocated level 1 indirects.
+ *
+ * On input, *start should be the first offset that does not need to be
+ * freed (e.g. "offset + length").  On return, *start will be the first
+ * offset that should be freed.
  */
 static int
-get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t limit)
+get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 {
-	uint64_t len = *start - limit;
-	uint64_t blkcnt = 0;
-	uint64_t maxblks = DMU_MAX_ACCESS / (1ULL << (dn->dn_indblkshift + 1));
+	uint64_t maxblks = DMU_MAX_ACCESS >> (dn->dn_indblkshift + 1);
+	/* bytes of data covered by a level-1 indirect block */
 	uint64_t iblkrange =
 	    dn->dn_datablksz * EPB(dn->dn_indblkshift, SPA_BLKPTRSHIFT);
+	uint64_t blks;
 
-	ASSERT(limit <= *start);
+	ASSERT3U(minimum, <=, *start);
 
-	if (len <= iblkrange * maxblks) {
-		*start = limit;
+	if (*start - minimum <= iblkrange * maxblks) {
+		*start = minimum;
 		return (0);
 	}
 	ASSERT(ISP2(iblkrange));
 
-	while (*start > limit && blkcnt < maxblks) {
+	for (blks = 0; *start > minimum && blks < maxblks; blks++) {
 		int err;
 
-		/* find next allocated L1 indirect */
+		/*
+		 * dnode_next_offset(BACKWARDS) will find an allocated L1
+		 * indirect block at or before the input offset.  We must
+		 * decrement *start so that it is at the end of the region
+		 * to search.
+		 */
+		(*start)--;
 		err = dnode_next_offset(dn,
 		    DNODE_FIND_BACKWARDS, start, 2, 1, 0);
 
-		/* if there are no more, then we are done */
+		/* if there are no indirect blocks before start, we are done */
 		if (err == ESRCH) {
-			*start = limit;
-			return (0);
-		} else if (err) {
+			*start = minimum;
+			break;
+		} else if (err != 0) {
 			return (err);
 		}
-		blkcnt += 1;
 
-		/* reset offset to end of "next" block back */
+		/* set start to the beginning of this L1 indirect */
 		*start = P2ALIGN(*start, iblkrange);
-		if (*start <= limit)
-			*start = limit;
-		else
-			*start -= 1;
 	}
+	if (*start < minimum)
+		*start = minimum;
 	return (0);
 }
 
 static int
 dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
-    uint64_t length, boolean_t free_dnode)
+    uint64_t length)
 {
-	dmu_tx_t *tx;
-	uint64_t object_size, start, end, len;
-	boolean_t trunc = (length == DMU_OBJECT_END);
-	int align, err;
+	uint64_t object_size = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
+	int err;
 
-	align = 1 << dn->dn_datablkshift;
-	ASSERT(align > 0);
-	object_size = align == 1 ? dn->dn_datablksz :
-	    (dn->dn_maxblkid + 1) << dn->dn_datablkshift;
-
-	end = offset + length;
-	if (trunc || end > object_size)
-		end = object_size;
-	if (end <= offset)
+	if (offset >= object_size)
 		return (0);
-	length = end - offset;
 
-	while (length) {
-		start = end;
-		/* assert(offset <= start) */
-		err = get_next_chunk(dn, &start, offset);
+	if (length == DMU_OBJECT_END || offset + length > object_size)
+		length = object_size - offset;
+
+	while (length != 0) {
+		uint64_t chunk_end, chunk_begin;
+		dmu_tx_t *tx;
+
+		chunk_end = chunk_begin = offset + length;
+
+		/* move chunk_begin backwards to the beginning of this chunk */
+		err = get_next_chunk(dn, &chunk_begin, offset);
 		if (err)
 			return (err);
-		len = trunc ? DMU_OBJECT_END : end - start;
+		ASSERT3U(chunk_begin, >=, offset);
+		ASSERT3U(chunk_begin, <=, chunk_end);
 
 		tx = dmu_tx_create(os);
-		dmu_tx_hold_free(tx, dn->dn_object, start, len);
+		dmu_tx_hold_free(tx, dn->dn_object,
+		    chunk_begin, chunk_end - chunk_begin);
 		err = dmu_tx_assign(tx, TXG_WAIT);
 		if (err) {
 			dmu_tx_abort(tx);
 			return (err);
 		}
-
-		dnode_free_range(dn, start, trunc ? -1 : len, tx);
-
-		if (start == 0 && free_dnode) {
-			ASSERT(trunc);
-			dnode_free(dn, tx);
-		}
-
-		length -= end - start;
-
+		dnode_free_range(dn, chunk_begin, chunk_end - chunk_begin, tx);
 		dmu_tx_commit(tx);
-		end = start;
+
+		length -= chunk_end - chunk_begin;
 	}
 	return (0);
 }
@@ -674,38 +671,32 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = dmu_free_long_range_impl(os, dn, offset, length, FALSE);
+	err = dmu_free_long_range_impl(os, dn, offset, length);
 	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 int
-dmu_free_object(objset_t *os, uint64_t object)
+dmu_free_long_object(objset_t *os, uint64_t object)
 {
-	dnode_t *dn;
 	dmu_tx_t *tx;
 	int err;
 
-	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED,
-	    FTAG, &dn);
+	err = dmu_free_long_range(os, object, 0, DMU_OBJECT_END);
 	if (err != 0)
 		return (err);
-	if (dn->dn_nlevels == 1) {
-		tx = dmu_tx_create(os);
-		dmu_tx_hold_bonus(tx, object);
-		dmu_tx_hold_free(tx, dn->dn_object, 0, DMU_OBJECT_END);
-		err = dmu_tx_assign(tx, TXG_WAIT);
-		if (err == 0) {
-			dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
-			dnode_free(dn, tx);
-			dmu_tx_commit(tx);
-		} else {
-			dmu_tx_abort(tx);
-		}
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_bonus(tx, object);
+	dmu_tx_hold_free(tx, object, 0, DMU_OBJECT_END);
+	err = dmu_tx_assign(tx, TXG_WAIT);
+	if (err == 0) {
+		err = dmu_object_free(os, object, tx);
+		dmu_tx_commit(tx);
 	} else {
-		err = dmu_free_long_range_impl(os, dn, 0, DMU_OBJECT_END, TRUE);
+		dmu_tx_abort(tx);
 	}
-	dnode_rele(dn, FTAG);
+
 	return (err);
 }
 
@@ -2042,7 +2033,7 @@ EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
-EXPORT_SYMBOL(dmu_free_object);
+EXPORT_SYMBOL(dmu_free_long_object);
 EXPORT_SYMBOL(dmu_read);
 EXPORT_SYMBOL(dmu_write);
 EXPORT_SYMBOL(dmu_prealloc);

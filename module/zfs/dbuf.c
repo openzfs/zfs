@@ -64,6 +64,12 @@ static void __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
     void *tag, dmu_buf_impl_t **dbp, int depth);
 static int __dbuf_hold_impl(struct dbuf_hold_impl_data *dh);
 
+/*
+ * Number of times that zfs_free_range() took the slow path while doing
+ * a zfs receive.  A nonzero value indicates a potential performance problem.
+ */
+uint64_t zfs_free_range_recv_miss;
+
 static void dbuf_destroy(dmu_buf_impl_t *db);
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
@@ -869,20 +875,22 @@ dbuf_free_range(dnode_t *dn, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	}
 	dprintf_dnode(dn, "start=%llu end=%llu\n", start, end);
 
-	if (dmu_objset_is_receiving(dn->dn_objset)) {
-		/*
-		 * When processing a free record from a zfs receive,
-		 * there should have been no previous modifications to the
-		 * data in this range.  Therefore there should be no dbufs
-		 * in the range.  Searching dn_dbufs for these non-existent
-		 * dbufs can be very expensive, so simply ignore this.
-		 */
-		VERIFY3P(dbuf_find(dn, 0, start), ==, NULL);
-		VERIFY3P(dbuf_find(dn, 0, end), ==, NULL);
+	mutex_enter(&dn->dn_dbufs_mtx);
+	if (start >= dn->dn_unlisted_l0_blkid * dn->dn_datablksz) {
+		/* There can't be any dbufs in this range; no need to search. */
+		mutex_exit(&dn->dn_dbufs_mtx);
 		return;
+	} else if (dmu_objset_is_receiving(dn->dn_objset)) {
+		/*
+		 * If we are receiving, we expect there to be no dbufs in
+		 * the range to be freed, because receive modifies each
+		 * block at most once, and in offset order.  If this is
+		 * not the case, it can lead to performance problems,
+		 * so note that we unexpectedly took the slow path.
+		 */
+		atomic_inc_64(&zfs_free_range_recv_miss);
 	}
 
-	mutex_enter(&dn->dn_dbufs_mtx);
 	for (db = list_head(&dn->dn_dbufs); db; db = db_next) {
 		db_next = list_next(&dn->dn_dbufs, db);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
@@ -1781,6 +1789,9 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		return (odb);
 	}
 	list_insert_head(&dn->dn_dbufs, db);
+	if (db->db_level == 0 && db->db_blkid >=
+	    dn->dn_unlisted_l0_blkid)
+		dn->dn_unlisted_l0_blkid = db->db_blkid + 1;
 	db->db_state = DB_UNCACHED;
 	mutex_exit(&dn->dn_dbufs_mtx);
 	arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_OTHER);
