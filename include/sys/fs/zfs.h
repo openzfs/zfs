@@ -613,7 +613,8 @@ typedef enum vdev_aux {
 	VDEV_AUX_IO_FAILURE,	/* experienced I/O failure		*/
 	VDEV_AUX_BAD_LOG,	/* cannot read log chain(s)		*/
 	VDEV_AUX_EXTERNAL,	/* external diagnosis			*/
-	VDEV_AUX_SPLIT_POOL	/* vdev was split off into another pool	*/
+	VDEV_AUX_SPLIT_POOL,	/* vdev was split off into another pool	*/
+	VDEV_AUX_ASHIFT_TOO_BIG /* vdev's min block size is too large   */
 } vdev_aux_t;
 
 /*
@@ -707,7 +708,18 @@ typedef struct vdev_stat {
 	uint64_t	vs_self_healed;		/* self-healed bytes	*/
 	uint64_t	vs_scan_removing;	/* removing?	*/
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
+	uint64_t	vs_configured_ashift;	/* TLV vdev_ashift      */
+	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
+	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
 } vdev_stat_t;
+
+#ifndef        offsetof
+#define        offsetof(s, m)          ((size_t)(&(((s *)0)->m)))
+#endif
+
+#define VDEV_STAT_VALID(field, uint64_t_field_count) \
+    ((uint64_t_field_count * sizeof(uint64_t)) >= \
+     (offsetof(vdev_stat_t, field) + sizeof(((vdev_stat_t *)NULL)->field)))
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this

@@ -72,6 +72,7 @@ extern uint64_t metaslab_class_get_alloc(metaslab_class_t *mc);
 extern uint64_t metaslab_class_get_space(metaslab_class_t *mc);
 extern uint64_t metaslab_class_get_dspace(metaslab_class_t *mc);
 extern uint64_t metaslab_class_get_deferred(metaslab_class_t *mc);
+extern uint64_t metaslab_class_get_minblocksize(metaslab_class_t *mc);
 
 extern metaslab_group_t *metaslab_group_create(metaslab_class_t *mc,
     vdev_t *vd);

@@ -416,14 +416,20 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
  * the logical block size interface and then the older hard sector size.
  */
 #ifdef HAVE_BDEV_PHYSICAL_BLOCK_SIZE
-# define vdev_bdev_block_size(bdev)	bdev_physical_block_size(bdev)
+# define vdev_bdev_physical_block_size(bdev)	bdev_physical_block_size(bdev)
 #else
 # ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
-#  define vdev_bdev_block_size(bdev)	bdev_logical_block_size(bdev)
+#  define vdev_bdev_physical_block_size(bdev)	bdev_logical_block_size(bdev)
 # else
-#  define vdev_bdev_block_size(bdev)	bdev_hardsect_size(bdev)
+#  define vdev_bdev_physical_block_size(bdev)	bdev_hardsect_size(bdev)
 # endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
 #endif /* HAVE_BDEV_PHYSICAL_BLOCK_SIZE */
+
+#ifdef HAVE_BDEV_LOGICAL_BLOCK_SIZE
+# define vdev_bdev_logical_block_size(bdev)	bdev_logical_block_size(bdev)
+#else
+# define vdev_bdev_logical_block_size(bdev)	bdev_hardsect_size(bdev)
+#endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
 
 /*
  * 2.6.37 API change
