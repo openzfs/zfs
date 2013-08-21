@@ -1262,7 +1262,7 @@ restore_freeobjects(struct restorearg *ra, objset_t *os,
 		if (dmu_object_info(os, obj, NULL) != 0)
 			continue;
 
-		err = dmu_free_object(os, obj);
+		err = dmu_free_long_object(os, obj);
 		if (err != 0)
 			return (err);
 	}

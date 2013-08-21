@@ -905,7 +905,7 @@ dsl_destroy_head(const char *name)
 			for (obj = 0; error == 0;
 			    error = dmu_object_next(os, &obj, FALSE,
 			    prev_snap_txg))
-				(void) dmu_free_object(os, obj);
+				(void) dmu_free_long_object(os, obj);
 			/* sync out all frees */
 			txg_wait_synced(dmu_objset_pool(os), 0);
 			dmu_objset_disown(os, FTAG);
