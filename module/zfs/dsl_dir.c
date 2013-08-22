@@ -846,10 +846,20 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
     int64_t used, int64_t compressed, int64_t uncompressed, dmu_tx_t *tx)
 {
 	int64_t accounted_delta;
+
+	/*
+	 * dsl_dataset_set_refreservation_sync_impl() calls this with
+	 * dd_lock held, so that it can atomically update
+	 * ds->ds_reserved and the dsl_dir accounting, so that
+	 * dsl_dataset_check_quota() can see dataset and dir accounting
+	 * consistently.
+	 */
 	boolean_t needlock = !MUTEX_HELD(&dd->dd_lock);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(type < DD_USED_NUM);
+
+	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 
 	if (needlock)
 		mutex_enter(&dd->dd_lock);
@@ -859,7 +869,6 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 	    dd->dd_phys->dd_compressed_bytes >= -compressed);
 	ASSERT(uncompressed >= 0 ||
 	    dd->dd_phys->dd_uncompressed_bytes >= -uncompressed);
-	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 	dd->dd_phys->dd_used_bytes += used;
 	dd->dd_phys->dd_uncompressed_bytes += uncompressed;
 	dd->dd_phys->dd_compressed_bytes += compressed;
@@ -894,8 +903,6 @@ void
 dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
     dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx)
 {
-	boolean_t needlock = !MUTEX_HELD(&dd->dd_lock);
-
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(oldtype < DD_USED_NUM);
 	ASSERT(newtype < DD_USED_NUM);
@@ -903,17 +910,15 @@ dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
 	if (delta == 0 || !(dd->dd_phys->dd_flags & DD_FLAG_USED_BREAKDOWN))
 		return;
 
-	if (needlock)
-		mutex_enter(&dd->dd_lock);
+	dmu_buf_will_dirty(dd->dd_dbuf, tx);
+	mutex_enter(&dd->dd_lock);
 	ASSERT(delta > 0 ?
 	    dd->dd_phys->dd_used_breakdown[oldtype] >= delta :
 	    dd->dd_phys->dd_used_breakdown[newtype] >= -delta);
 	ASSERT(dd->dd_phys->dd_used_bytes >= ABS(delta));
-	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 	dd->dd_phys->dd_used_breakdown[oldtype] -= delta;
 	dd->dd_phys->dd_used_breakdown[newtype] += delta;
-	if (needlock)
-		mutex_exit(&dd->dd_lock);
+	mutex_exit(&dd->dd_lock);
 }
 
 typedef struct dsl_dir_set_qr_arg {
