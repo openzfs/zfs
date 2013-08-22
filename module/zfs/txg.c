@@ -537,6 +537,8 @@ txg_sync_thread(dsl_pool_t *dp)
 
 		th = dsl_pool_txg_history_get(dp, txg);
 		th->th_kstat.state = TXG_STATE_SYNCING;
+		th->th_kstat.nreserved = dp->dp_space_towrite[txg & TXG_MASK]
+		    + dp->dp_tempreserved[txg & TXG_MASK] / 2;
 		vdev_get_stats(spa->spa_root_vdev, &th->th_vs1);
 		dsl_pool_txg_history_put(th);
 

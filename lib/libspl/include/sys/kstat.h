@@ -718,6 +718,7 @@ typedef struct kstat_txg {
 	u_longlong_t		nwritten;	/* number of bytes written */
 	uint_t			reads;		/* number of read operations */
 	uint_t			writes;		/* number of write operations */
+	u_longlong_t		nreserved;	/* number of bytes reserved */
 	hrtime_t		open_time;	/* open time */
 	hrtime_t		quiesce_time;	/* quiesce time */
 	hrtime_t		sync_time;	/* sync time */
