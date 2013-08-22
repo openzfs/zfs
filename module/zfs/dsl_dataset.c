@@ -102,9 +102,8 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		    used, compressed, uncompressed);
 		return;
 	}
-	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 
-	mutex_enter(&ds->ds_dir->dd_lock);
+	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	mutex_enter(&ds->ds_lock);
 	delta = parent_delta(ds, used);
 	ds->ds_phys->ds_referenced_bytes += used;
@@ -116,7 +115,6 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	    compressed, uncompressed, tx);
 	dsl_dir_transfer_space(ds->ds_dir, used - delta,
 	    DD_USED_REFRSRV, DD_USED_HEAD, tx);
-	mutex_exit(&ds->ds_dir->dd_lock);
 }
 
 int
@@ -153,7 +151,6 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		dprintf_bp(bp, "freeing ds=%llu", ds->ds_object);
 		dsl_free(tx->tx_pool, tx->tx_txg, bp);
 
-		mutex_enter(&ds->ds_dir->dd_lock);
 		mutex_enter(&ds->ds_lock);
 		ASSERT(ds->ds_phys->ds_unique_bytes >= used ||
 		    !DS_UNIQUE_IS_ACCURATE(ds));
@@ -164,7 +161,6 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		    delta, -compressed, -uncompressed, tx);
 		dsl_dir_transfer_space(ds->ds_dir, -used - delta,
 		    DD_USED_REFRSRV, DD_USED_HEAD, tx);
-		mutex_exit(&ds->ds_dir->dd_lock);
 	} else {
 		dprintf_bp(bp, "putting on dead list: %s", "");
 		if (async) {
