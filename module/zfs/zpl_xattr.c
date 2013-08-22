@@ -438,6 +438,10 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 		if (error == -ENOENT)
 			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
 	} else {
+		/* Do not allow SA xattrs in symlinks (issue #1648) */
+		if (S_ISLNK(ip->i_mode))
+			return (-EMLINK);
+
 		/* Limited to 32k to keep nvpair memory allocations small */
 		if (size > DXATTR_MAX_ENTRY_SIZE)
 			return (-EFBIG);
