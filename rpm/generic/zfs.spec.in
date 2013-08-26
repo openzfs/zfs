@@ -29,7 +29,7 @@ ExclusiveArch:  i386 i686 x86_64
 ExcludeArch:    ppc ppc64
 
 Requires:       spl = %{version}
-Requires:       %{name}-kmod >= %{version}
+Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
