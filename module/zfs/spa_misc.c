@@ -473,6 +473,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	mutex_init(&spa->spa_scrub_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_suspend_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_vdev_top_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_iokstat_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_proc_cv, NULL, CV_DEFAULT, NULL);
@@ -536,6 +537,13 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 		    KM_SLEEP) == 0);
 	}
 
+	spa->spa_iokstat = kstat_create("zfs", 0, name,
+	    "disk", KSTAT_TYPE_IO, 1, 0);
+	if (spa->spa_iokstat) {
+		spa->spa_iokstat->ks_lock = &spa->spa_iokstat_lock;
+		kstat_install(spa->spa_iokstat);
+	}
+
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
 
 	return (spa);
@@ -582,6 +590,9 @@ spa_remove(spa_t *spa)
 
 	spa_config_lock_destroy(spa);
 
+	kstat_delete(spa->spa_iokstat);
+	spa->spa_iokstat = NULL;
+
 	for (t = 0; t < TXG_SIZE; t++)
 		bplist_destroy(&spa->spa_free_bplist[t]);
 
@@ -599,6 +610,7 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_scrub_lock);
 	mutex_destroy(&spa->spa_suspend_lock);
 	mutex_destroy(&spa->spa_vdev_top_lock);
+	mutex_destroy(&spa->spa_iokstat_lock);
 
 	kmem_free(spa, sizeof (spa_t));
 }

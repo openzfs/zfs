@@ -29,8 +29,10 @@
 
 #include <sys/zfs_context.h>
 #include <sys/vdev_impl.h>
+#include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/avl.h>
+#include <sys/kstat.h>
 
 /*
  * These tunables are for performance analysis.
@@ -164,15 +166,62 @@ vdev_queue_fini(vdev_t *vd)
 static void
 vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 {
+	spa_t *spa = zio->io_spa;
 	avl_add(&vq->vq_deadline_tree, zio);
 	avl_add(zio->io_vdev_tree, zio);
+
+	if (spa->spa_iokstat != NULL) {
+		mutex_enter(&spa->spa_iokstat_lock);
+		kstat_waitq_enter(spa->spa_iokstat->ks_data);
+		mutex_exit(&spa->spa_iokstat_lock);
+	}
 }
 
 static void
 vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 {
+	spa_t *spa = zio->io_spa;
 	avl_remove(&vq->vq_deadline_tree, zio);
 	avl_remove(zio->io_vdev_tree, zio);
+
+	if (spa->spa_iokstat != NULL) {
+		mutex_enter(&spa->spa_iokstat_lock);
+		kstat_waitq_exit(spa->spa_iokstat->ks_data);
+		mutex_exit(&spa->spa_iokstat_lock);
+	}
+}
+
+static void
+vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+	avl_add(&vq->vq_pending_tree, zio);
+	if (spa->spa_iokstat != NULL) {
+		mutex_enter(&spa->spa_iokstat_lock);
+		kstat_runq_enter(spa->spa_iokstat->ks_data);
+		mutex_exit(&spa->spa_iokstat_lock);
+	}
+}
+
+static void
+vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+	avl_remove(&vq->vq_pending_tree, zio);
+	if (spa->spa_iokstat != NULL) {
+		kstat_io_t *ksio = spa->spa_iokstat->ks_data;
+
+		mutex_enter(&spa->spa_iokstat_lock);
+		kstat_runq_exit(spa->spa_iokstat->ks_data);
+		if (zio->io_type == ZIO_TYPE_READ) {
+			ksio->reads++;
+			ksio->nread += zio->io_size;
+		} else if (zio->io_type == ZIO_TYPE_WRITE) {
+			ksio->writes++;
+			ksio->nwritten += zio->io_size;
+		}
+		mutex_exit(&spa->spa_iokstat_lock);
+	}
 }
 
 static void
@@ -351,7 +400,7 @@ again:
 			zio_execute(dio);
 		} while (dio != lio);
 
-		avl_add(&vq->vq_pending_tree, aio);
+		vdev_queue_pending_add(vq, aio);
 		list_remove(&vq->vq_io_list, vi);
 
 		return (aio);
@@ -374,7 +423,7 @@ again:
 		goto again;
 	}
 
-	avl_add(&vq->vq_pending_tree, fio);
+	vdev_queue_pending_add(vq, fio);
 
 	return (fio);
 }
@@ -431,7 +480,7 @@ vdev_queue_io_done(zio_t *zio)
 
 	mutex_enter(&vq->vq_lock);
 
-	avl_remove(&vq->vq_pending_tree, zio);
+	vdev_queue_pending_remove(vq, zio);
 
 	zio->io_delta = gethrtime() - zio->io_timestamp;
 	vq->vq_io_complete_ts = gethrtime();

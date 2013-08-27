@@ -236,6 +236,8 @@ struct spa {
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	uint64_t	spa_sync_starttime;	/* starting time fo spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	kmutex_t	spa_iokstat_lock;	/* protects spa_iokstat_* */
+	kstat_t		*spa_iokstat;		/* kstat of io to this pool */
 	/*
 	 * spa_refcnt & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.
