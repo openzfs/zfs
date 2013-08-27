@@ -550,6 +550,7 @@ typedef struct spa_stats {
 	spa_stats_history_t	read_history;
 	spa_stats_history_t	txg_history;
 	spa_stats_history_t	tx_assign_histogram;
+	spa_stats_history_t	io_history;
 } spa_stats_t;
 
 typedef enum txg_state {

@@ -608,12 +608,61 @@ spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 	atomic_inc_64(&((kstat_named_t *)ssh->private)[idx].value.ui64);
 }
 
+/*
+ * ==========================================================================
+ * SPA IO History Routines
+ * ==========================================================================
+ */
+static int
+spa_io_history_update(kstat_t *ksp, int rw)
+{
+	if (rw == KSTAT_WRITE)
+		memset(ksp->ks_data, 0, ksp->ks_data_size);
+
+	return (0);
+}
+
+static void
+spa_io_history_init(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	char name[KSTAT_STRLEN];
+	kstat_t *ksp;
+
+	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name[KSTAT_STRLEN-1] = '\0';
+
+	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
+	ssh->kstat = ksp;
+
+	if (ksp) {
+		ksp->ks_lock = &ssh->lock;
+		ksp->ks_private = spa;
+		ksp->ks_update = spa_io_history_update;
+		kstat_install(ksp);
+	}
+}
+
+static void
+spa_io_history_destroy(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+
+	if (ssh->kstat)
+		kstat_delete(ssh->kstat);
+
+	mutex_destroy(&ssh->lock);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
 	spa_read_history_init(spa);
 	spa_txg_history_init(spa);
 	spa_tx_assign_init(spa);
+	spa_io_history_init(spa);
 }
 
 void
@@ -622,6 +671,7 @@ spa_stats_destroy(spa_t *spa)
 	spa_tx_assign_destroy(spa);
 	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);
+	spa_io_history_destroy(spa);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
