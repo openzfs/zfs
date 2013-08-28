@@ -365,7 +365,7 @@ static nvlist_t *
 refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 {
 	nvlist_t *nvl;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int err;
 
 	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)

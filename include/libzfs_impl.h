@@ -21,11 +21,11 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
-#ifndef	_LIBFS_IMPL_H
-#define	_LIBFS_IMPL_H
+#ifndef	_LIBZFS_IMPL_H
+#define	_LIBZFS_IMPL_H
 
 #include <sys/dmu.h>
 #include <sys/fs/zfs.h>
@@ -36,6 +36,7 @@
 #include <libuutil.h>
 #include <libzfs.h>
 #include <libshare.h>
+#include <libzfs_core.h>
 
 #if defined(HAVE_LIBTOPO)
 #include <fm/libtopo.h>
@@ -69,7 +70,6 @@ struct libzfs_handle {
 	int libzfs_desc_active;
 	char libzfs_action[1024];
 	char libzfs_desc[1024];
-	char *libzfs_log_str;
 	int libzfs_printerr;
 	int libzfs_storeerr; /* stuff error messages into buffer */
 	void *libzfs_sharehdl; /* libshare handle */
@@ -219,4 +219,4 @@ extern void libzfs_fru_clear(libzfs_handle_t *, boolean_t);
 }
 #endif
 
-#endif	/* _LIBFS_IMPL_H */
+#endif	/* _LIBZFS_IMPL_H */

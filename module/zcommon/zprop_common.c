@@ -22,6 +22,9 @@
  * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
 
 /*
  * Common routines used by zfs and zpool property management.
@@ -129,7 +132,8 @@ zprop_register_hidden(int prop, const char *name, zprop_type_t type,
     zprop_attr_t attr, int objset_types, const char *colname)
 {
 	zprop_register_impl(prop, name, type, 0, NULL, attr,
-	    objset_types, NULL, colname, B_FALSE, B_FALSE, NULL);
+	    objset_types, NULL, colname,
+	    type == PROP_TYPE_NUMBER, B_FALSE, NULL);
 }
 
 

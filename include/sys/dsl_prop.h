@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_PROP_H
@@ -89,8 +90,6 @@ dsl_syncfunc_t dsl_props_set_sync;
 int dsl_prop_set(const char *ddname, const char *propname,
     zprop_source_t source, int intsz, int numints, const void *buf);
 int dsl_props_set(const char *dsname, zprop_source_t source, nvlist_t *nvl);
-void dsl_dir_prop_set_uint64_sync(dsl_dir_t *dd, const char *name, uint64_t val,
-    dmu_tx_t *tx);
 
 void dsl_prop_setarg_init_uint64(dsl_prop_setarg_t *psa, const char *propname,
     zprop_source_t source, uint64_t *value);

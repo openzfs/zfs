@@ -57,6 +57,7 @@
 #include <sys/arc.h>
 #include <sys/ddt.h>
 #include <sys/zfeature.h>
+#include <zfs_comutil.h>
 #undef ZFS_MAXNAMELEN
 #include <libzfs.h>
 
@@ -207,6 +208,27 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	dump_nvlist(nv, 8);
 
 	nvlist_free(nv);
+}
+
+/* ARGSUSED */
+static void
+dump_history_offsets(objset_t *os, uint64_t object, void *data, size_t size)
+{
+	spa_history_phys_t *shp = data;
+
+	if (shp == NULL)
+		return;
+
+	(void) printf("\t\tpool_create_len = %llu\n",
+	    (u_longlong_t)shp->sh_pool_create_len);
+	(void) printf("\t\tphys_max_off = %llu\n",
+	    (u_longlong_t)shp->sh_phys_max_off);
+	(void) printf("\t\tbof = %llu\n",
+	    (u_longlong_t)shp->sh_bof);
+	(void) printf("\t\teof = %llu\n",
+	    (u_longlong_t)shp->sh_eof);
+	(void) printf("\t\trecords_lost = %llu\n",
+	    (u_longlong_t)shp->sh_records_lost);
 }
 
 static void
@@ -869,21 +891,22 @@ dump_history(spa_t *spa)
 	for (i = 0; i < num; i++) {
 		uint64_t time, txg, ievent;
 		char *cmd, *intstr;
+		boolean_t printed = B_FALSE;
 
 		if (nvlist_lookup_uint64(events[i], ZPOOL_HIST_TIME,
 		    &time) != 0)
-			continue;
+			goto next;
 		if (nvlist_lookup_string(events[i], ZPOOL_HIST_CMD,
 		    &cmd) != 0) {
 			if (nvlist_lookup_uint64(events[i],
 			    ZPOOL_HIST_INT_EVENT, &ievent) != 0)
-				continue;
+				goto next;
 			verify(nvlist_lookup_uint64(events[i],
 			    ZPOOL_HIST_TXG, &txg) == 0);
 			verify(nvlist_lookup_string(events[i],
 			    ZPOOL_HIST_INT_STR, &intstr) == 0);
-			if (ievent >= LOG_END)
-				continue;
+			if (ievent >= ZFS_NUM_LEGACY_HISTORY_EVENTS)
+				goto next;
 
 			(void) snprintf(internalstr,
 			    sizeof (internalstr),
@@ -896,6 +919,14 @@ dump_history(spa_t *spa)
 		(void) localtime_r(&tsec, &t);
 		(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
 		(void) printf("%s %s\n", tbuf, cmd);
+		printed = B_TRUE;
+
+next:
+		if (dump_opt['h'] > 1) {
+			if (!printed)
+				(void) printf("unrecognized record:\n");
+			dump_nvlist(events[i], 2);
+		}
 	}
 }
 
@@ -1529,7 +1560,7 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
 	dump_zap,		/* other ZAP			*/
 	dump_zap,		/* persistent error log		*/
 	dump_uint8,		/* SPA history			*/
-	dump_uint64,		/* SPA history offsets		*/
+	dump_history_offsets,	/* SPA history offsets		*/
 	dump_zap,		/* Pool properties		*/
 	dump_zap,		/* DSL permissions		*/
 	dump_acl,		/* ZFS ACL			*/
