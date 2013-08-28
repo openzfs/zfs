@@ -224,7 +224,7 @@ dsl_scan_setup_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 
 	dsl_scan_sync_state(scn, tx);
 
-	spa_history_log_internal(LOG_POOL_SCAN, spa, tx,
+	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
 	    *funcp, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
 }
@@ -273,7 +273,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	else
 		scn->scn_phys.scn_state = DSS_CANCELED;
 
-	spa_history_log_internal(LOG_POOL_SCAN_DONE, spa, tx,
+	spa_history_log_internal(spa, "scan done", tx,
 	    "complete=%u", complete);
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {

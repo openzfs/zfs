@@ -55,6 +55,7 @@
 #include <time.h>
 
 #include <libzfs.h>
+#include <libzfs_core.h>
 #include <zfs_prop.h>
 #include <zfs_deleg.h>
 #include <libuutil.h>
@@ -72,6 +73,7 @@ libzfs_handle_t *g_zfs;
 
 static FILE *mnttab_file;
 static char history_str[HIS_MAX_RECORD_LEN];
+static boolean_t log_history = B_TRUE;
 
 static int zfs_do_clone(int argc, char **argv);
 static int zfs_do_create(int argc, char **argv);
@@ -261,7 +263,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tshare <-a | filesystem>\n"));
 	case HELP_SNAPSHOT:
 		return (gettext("\tsnapshot|snap [-r] [-o property=value] ... "
-		    "<filesystem@snapname|volume@snapname>\n"));
+		    "<filesystem@snapname|volume@snapname> ...\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-f] "
 		    "<-a | filesystem|mountpoint>\n"));
@@ -892,9 +894,9 @@ typedef struct destroy_cbdata {
 	nvlist_t	*cb_nvl;
 
 	/* first snap in contiguous run */
-	zfs_handle_t	*cb_firstsnap;
+	char		*cb_firstsnap;
 	/* previous snap in contiguous run */
-	zfs_handle_t	*cb_prevsnap;
+	char		*cb_prevsnap;
 	int64_t		cb_snapused;
 	char		*cb_snapspec;
 } destroy_cbdata_t;
@@ -1008,11 +1010,13 @@ destroy_print_cb(zfs_handle_t *zhp, void *arg)
 
 	if (nvlist_exists(cb->cb_nvl, name)) {
 		if (cb->cb_firstsnap == NULL)
-			cb->cb_firstsnap = zfs_handle_dup(zhp);
+			cb->cb_firstsnap = strdup(name);
 		if (cb->cb_prevsnap != NULL)
-			zfs_close(cb->cb_prevsnap);
+			free(cb->cb_prevsnap);
 		/* this snap continues the current range */
-		cb->cb_prevsnap = zfs_handle_dup(zhp);
+		cb->cb_prevsnap = strdup(name);
+		if (cb->cb_firstsnap == NULL || cb->cb_prevsnap == NULL)
+			nomem();
 		if (cb->cb_verbose) {
 			if (cb->cb_parsable) {
 				(void) printf("destroy\t%s\n", name);
@@ -1027,12 +1031,12 @@ destroy_print_cb(zfs_handle_t *zhp, void *arg)
 	} else if (cb->cb_firstsnap != NULL) {
 		/* end of this range */
 		uint64_t used = 0;
-		err = zfs_get_snapused_int(cb->cb_firstsnap,
+		err = lzc_snaprange_space(cb->cb_firstsnap,
 		    cb->cb_prevsnap, &used);
 		cb->cb_snapused += used;
-		zfs_close(cb->cb_firstsnap);
+		free(cb->cb_firstsnap);
 		cb->cb_firstsnap = NULL;
-		zfs_close(cb->cb_prevsnap);
+		free(cb->cb_prevsnap);
 		cb->cb_prevsnap = NULL;
 	}
 	zfs_close(zhp);
@@ -1049,13 +1053,13 @@ destroy_print_snapshots(zfs_handle_t *fs_zhp, destroy_cbdata_t *cb)
 	if (cb->cb_firstsnap != NULL) {
 		uint64_t used = 0;
 		if (err == 0) {
-			err = zfs_get_snapused_int(cb->cb_firstsnap,
+			err = lzc_snaprange_space(cb->cb_firstsnap,
 			    cb->cb_prevsnap, &used);
 		}
 		cb->cb_snapused += used;
-		zfs_close(cb->cb_firstsnap);
+		free(cb->cb_firstsnap);
 		cb->cb_firstsnap = NULL;
-		zfs_close(cb->cb_prevsnap);
+		free(cb->cb_prevsnap);
 		cb->cb_prevsnap = NULL;
 	}
 	return (err);
@@ -1908,9 +1912,11 @@ upgrade_set_callback(zfs_handle_t *zhp, void *data)
 			/*
 			 * If they did "zfs upgrade -a", then we could
 			 * be doing ioctls to different pools.  We need
-			 * to log this history once to each pool.
+			 * to log this history once to each pool, and bypass
+			 * the normal history logging that happens in main().
 			 */
-			verify(zpool_stage_history(g_zfs, history_str) == 0);
+			(void) zpool_log_history(g_zfs, history_str);
+			log_history = B_FALSE;
 		}
 		if (zfs_prop_set(zhp, "version", verstr) == 0)
 			cb->cb_numupgraded++;
@@ -3422,6 +3428,32 @@ zfs_do_set(int argc, char **argv)
 	return (ret);
 }
 
+typedef struct snap_cbdata {
+	nvlist_t *sd_nvl;
+	boolean_t sd_recursive;
+	const char *sd_snapname;
+} snap_cbdata_t;
+
+static int
+zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
+{
+	snap_cbdata_t *sd = arg;
+	char *name;
+	int rv = 0;
+	int error;
+
+	error = asprintf(&name, "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
+	if (error == -1)
+		nomem();
+	fnvlist_add_boolean(sd->sd_nvl, name);
+	free(name);
+
+	if (sd->sd_recursive)
+		rv = zfs_iter_filesystems(zhp, zfs_snapshot_cb, sd);
+	zfs_close(zhp);
+	return (rv);
+}
+
 /*
  * zfs snapshot [-r] [-o prop=value] ... <fs@snap>
  *
@@ -3431,12 +3463,15 @@ zfs_do_set(int argc, char **argv)
 static int
 zfs_do_snapshot(int argc, char **argv)
 {
-	boolean_t recursive = B_FALSE;
 	int ret = 0;
 	signed char c;
 	nvlist_t *props;
+	snap_cbdata_t sd = { 0 };
+	boolean_t multiple_snaps = B_FALSE;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
+		nomem();
+	if (nvlist_alloc(&sd.sd_nvl, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 
 	/* check options */
@@ -3447,7 +3482,8 @@ zfs_do_snapshot(int argc, char **argv)
 				return (1);
 			break;
 		case 'r':
-			recursive = B_TRUE;
+			sd.sd_recursive = B_TRUE;
+			multiple_snaps = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -3464,18 +3500,35 @@ zfs_do_snapshot(int argc, char **argv)
 		(void) fprintf(stderr, gettext("missing snapshot argument\n"));
 		goto usage;
 	}
-	if (argc > 1) {
-		(void) fprintf(stderr, gettext("too many arguments\n"));
-		goto usage;
+
+	if (argc > 1)
+		multiple_snaps = B_TRUE;
+	for (; argc > 0; argc--, argv++) {
+		char *atp;
+		zfs_handle_t *zhp;
+
+		atp = strchr(argv[0], '@');
+		if (atp == NULL)
+			goto usage;
+		*atp = '\0';
+		sd.sd_snapname = atp + 1;
+		zhp = zfs_open(g_zfs, argv[0],
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		if (zhp == NULL)
+			goto usage;
+		if (zfs_snapshot_cb(zhp, &sd) != 0)
+			goto usage;
 	}
 
-	ret = zfs_snapshot(g_zfs, argv[0], recursive, props);
+	ret = zfs_snapshot_nvl(g_zfs, sd.sd_nvl, props);
+	nvlist_free(sd.sd_nvl);
 	nvlist_free(props);
-	if (ret && recursive)
+	if (ret != 0 && multiple_snaps)
 		(void) fprintf(stderr, gettext("no snapshots were created\n"));
 	return (ret != 0);
 
 usage:
+	nvlist_free(sd.sd_nvl);
 	nvlist_free(props);
 	usage(B_FALSE);
 	return (-1);
@@ -6384,8 +6437,7 @@ main(int argc, char **argv)
 
 	mnttab_file = g_zfs->libzfs_mnttab;
 
-	zpool_set_history_str("zfs", argc, argv, history_str);
-	verify(zpool_stage_history(g_zfs, history_str) == 0);
+	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
@@ -6407,6 +6459,9 @@ main(int argc, char **argv)
 		ret = 1;
 	}
 	libzfs_fini(g_zfs);
+
+	if (ret == 0 && log_history)
+		(void) zpool_log_history(g_zfs, history_str);
 
 	/*
 	 * The 'ZFS_ABORT' environment variable causes us to dump core on exit

@@ -361,7 +361,7 @@ libzfs_fru_devpath(libzfs_handle_t *hdl, const char *fru)
 int
 zpool_fru_set(zpool_handle_t *zhp, uint64_t vdev_guid, const char *fru)
 {
-	zfs_cmd_t zc = { 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) strncpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	(void) strncpy(zc.zc_value, fru, sizeof (zc.zc_value));

@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1550,9 +1551,8 @@ zfs_set_version(zfs_sb_t *zsb, uint64_t newvers)
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 
-	spa_history_log_internal(LOG_DS_UPGRADE,
-	    dmu_objset_spa(os), tx, "oldver=%llu newver=%llu dataset = %llu",
-	    zsb->z_version, newvers, dmu_objset_id(os));
+	spa_history_log_internal_ds(dmu_objset_ds(os), "upgrade", tx,
+	    "from %llu to %llu", zsb->z_version, newvers);
 
 	dmu_tx_commit(tx);
 

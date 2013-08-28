@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 /*
@@ -157,7 +158,11 @@ zfs_spa_version_map(int zpl_version)
 	return (version);
 }
 
-const char *zfs_history_event_names[LOG_END] = {
+/*
+ * This is the table of legacy internal event names; it should not be modified.
+ * The internal events are now stored in the history log as strings.
+ */
+const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
 	"invalid event",
 	"pool create",
 	"vdev add",
