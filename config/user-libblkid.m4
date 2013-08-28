@@ -22,18 +22,36 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 		[with_blkid=check])
 
 	LIBBLKID=
-	AS_IF([test "x$with_blkid" != xno],
+	AS_IF([test "x$with_blkid" = xyes],
+	[
+		AC_SUBST([LIBBLKID], ["-lblkid"])
+		AC_DEFINE([HAVE_LIBBLKID], 1,
+			[Define if you have libblkid])
+	])
+
+	AS_IF([test "x$with_blkid" = xcheck],
 	[
 		AC_CHECK_LIB([blkid], [blkid_get_cache],
 		[
 			AC_MSG_CHECKING([for blkid zfs support])
 
 			ZFS_DEV=`mktemp`
-			dd if=/dev/zero of=$ZFS_DEV bs=1024k count=8 \
+			truncate -s 64M $ZFS_DEV
+			echo -en "\x0c\xb1\xba\0\0\0\0\0" | \
+				dd of=$ZFS_DEV bs=1k count=8 \
+				seek=128 conv=notrunc &>/dev/null \
 				>/dev/null 2>/dev/null
 			echo -en "\x0c\xb1\xba\0\0\0\0\0" | \
 				dd of=$ZFS_DEV bs=1k count=8 \
 				seek=132 conv=notrunc &>/dev/null \
+				>/dev/null 2>/dev/null
+			echo -en "\x0c\xb1\xba\0\0\0\0\0" | \
+				dd of=$ZFS_DEV bs=1k count=8 \
+				seek=136 conv=notrunc &>/dev/null \
+				>/dev/null 2>/dev/null
+			echo -en "\x0c\xb1\xba\0\0\0\0\0" | \
+				dd of=$ZFS_DEV bs=1k count=8 \
+				seek=140 conv=notrunc &>/dev/null \
 				>/dev/null 2>/dev/null
 
 			saved_LDFLAGS="$LDFLAGS"
@@ -42,6 +60,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 			AC_RUN_IFELSE([AC_LANG_PROGRAM(
 			[
 				#include <stdio.h>
+				#include <stdlib.h>
 				#include <blkid/blkid.h>
 			],
 			[
@@ -58,10 +77,10 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBBLKID], [
 					return 2;
 				}
 
-				if (strcmp(value, "zfs")) {
+				if (strcmp(value, "zfs_member")) {
 					free(value);
 					blkid_put_cache(cache);
-					return 3;
+					return 0;
 				}
 
 				free(value);
