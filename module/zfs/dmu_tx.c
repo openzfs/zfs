@@ -64,7 +64,7 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 {
 	dmu_tx_t *tx = kmem_zalloc(sizeof (dmu_tx_t), KM_PUSHPAGE);
 	tx->tx_dir = dd;
-	if (dd)
+	if (dd != NULL)
 		tx->tx_pool = dd->dd_pool;
 	list_create(&tx->tx_holds, sizeof (dmu_tx_hold_t),
 	    offsetof(dmu_tx_hold_t, txh_node));

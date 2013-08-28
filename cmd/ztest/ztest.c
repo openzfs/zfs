@@ -2334,7 +2334,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, 0, 0, 0, 1);
 	VERIFY3U(ENOENT, ==,
-	    spa_create("ztest_bad_file", nvroot, NULL, NULL, NULL));
+	    spa_create("ztest_bad_file", nvroot, NULL, NULL));
 	nvlist_free(nvroot);
 
 	/*
@@ -2342,7 +2342,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, 0, 0, 2, 1);
 	VERIFY3U(ENOENT, ==,
-	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL, NULL));
+	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL));
 	nvlist_free(nvroot);
 
 	/*
@@ -2351,7 +2351,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	(void) rw_enter(&ztest_name_lock, RW_READER);
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, 0, 0, 0, 1);
-	VERIFY3U(EEXIST, ==, spa_create(zo->zo_pool, nvroot, NULL, NULL, NULL));
+	VERIFY3U(EEXIST, ==, spa_create(zo->zo_pool, nvroot, NULL, NULL));
 	nvlist_free(nvroot);
 	VERIFY3U(0, ==, spa_open(zo->zo_pool, &spa, FTAG));
 	VERIFY3U(EBUSY, ==, spa_destroy(zo->zo_pool));
@@ -2409,7 +2409,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	props = fnvlist_alloc();
 	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_VERSION), version);
-	VERIFY3S(spa_create(name, nvroot, props, NULL, NULL), ==, 0);
+	VERIFY3S(spa_create(name, nvroot, props, NULL), ==, 0);
 	fnvlist_free(nvroot);
 	fnvlist_free(props);
 
@@ -3222,8 +3222,7 @@ ztest_snapshot_create(char *osname, uint64_t id)
 	(void) snprintf(snapname, MAXNAMELEN, "%s@%llu", osname,
 	    (u_longlong_t)id);
 
-	error = dmu_objset_snapshot(osname, strchr(snapname, '@') + 1,
-	    NULL, NULL, B_FALSE, B_FALSE, -1);
+	error = dmu_objset_snapshot_one(osname, strchr(snapname, '@') + 1);
 	if (error == ENOSPC) {
 		ztest_record_enospc(FTAG);
 		return (B_FALSE);
@@ -3457,8 +3456,7 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 	(void) snprintf(snap3name, MAXNAMELEN, "%s@s3_%llu",
 	    clone1name, (u_longlong_t)id);
 
-	error = dmu_objset_snapshot(osname, strchr(snap1name, '@')+1,
-	    NULL, NULL, B_FALSE, B_FALSE, -1);
+	error = dmu_objset_snapshot_one(osname, strchr(snap1name, '@') + 1);
 	if (error && error != EEXIST) {
 		if (error == ENOSPC) {
 			ztest_record_enospc(FTAG);
@@ -3481,8 +3479,7 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 		fatal(0, "dmu_objset_create(%s) = %d", clone1name, error);
 	}
 
-	error = dmu_objset_snapshot(clone1name, strchr(snap2name, '@')+1,
-	    NULL, NULL, B_FALSE, B_FALSE, -1);
+	error = dmu_objset_snapshot_one(clone1name, strchr(snap2name, '@') + 1);
 	if (error && error != EEXIST) {
 		if (error == ENOSPC) {
 			ztest_record_enospc(FTAG);
@@ -3491,8 +3488,7 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 		fatal(0, "dmu_open_snapshot(%s) = %d", snap2name, error);
 	}
 
-	error = dmu_objset_snapshot(clone1name, strchr(snap3name, '@')+1,
-	    NULL, NULL, B_FALSE, B_FALSE, -1);
+	error = dmu_objset_snapshot_one(clone1name, strchr(snap3name, '@') + 1);
 	if (error && error != EEXIST) {
 		if (error == ENOSPC) {
 			ztest_record_enospc(FTAG);
@@ -4749,8 +4745,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 	 * Create snapshot, clone it, mark snap for deferred destroy,
 	 * destroy clone, verify snap was also destroyed.
 	 */
-	error = dmu_objset_snapshot(osname, snapname, NULL, NULL, FALSE,
-	    FALSE, -1);
+	error = dmu_objset_snapshot_one(osname, snapname);
 	if (error) {
 		if (error == ENOSPC) {
 			ztest_record_enospc("dmu_objset_snapshot");
@@ -4792,8 +4787,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 	 * destroy a held snapshot, mark for deferred destroy,
 	 * release hold, verify snapshot was destroyed.
 	 */
-	error = dmu_objset_snapshot(osname, snapname, NULL, NULL, FALSE,
-	    FALSE, -1);
+	error = dmu_objset_snapshot_one(osname, snapname);
 	if (error) {
 		if (error == ENOSPC) {
 			ztest_record_enospc("dmu_objset_snapshot");
@@ -5938,8 +5932,7 @@ ztest_init(ztest_shared_t *zs)
 		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
 		free(buf);
 	}
-	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props,
-	    NULL, NULL));
+	VERIFY3U(0, ==, spa_create(ztest_opts.zo_pool, nvroot, props, NULL));
 	nvlist_free(nvroot);
 
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));

@@ -22,6 +22,9 @@
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
 
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
@@ -261,4 +264,14 @@ rrw_held(rrwlock_t *rrl, krw_t rw)
 	mutex_exit(&rrl->rr_lock);
 
 	return (held);
+}
+
+void
+rrw_tsd_destroy(void *arg)
+{
+	rrw_node_t *rn = arg;
+	if (rn != NULL) {
+		panic("thread %p terminating with rrw lock %p held",
+		    (void *)curthread, (void *)rn->rn_rrl);
+	}
 }

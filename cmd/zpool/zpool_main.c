@@ -196,9 +196,9 @@ static zpool_command_t command_table[] = {
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
 
-zpool_command_t *current_command;
+static zpool_command_t *current_command;
 static char history_str[HIS_MAX_RECORD_LEN];
-
+static boolean_t log_history = B_TRUE;
 static uint_t timestamp_fmt = NODATE;
 
 static const char *
@@ -1119,7 +1119,10 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
-	ret = (zpool_destroy(zhp) != 0);
+	/* The history must be logged as part of the export */
+	log_history = B_FALSE;
+
+	ret = (zpool_destroy(zhp, history_str) != 0);
 
 	zpool_close(zhp);
 
@@ -1183,10 +1186,13 @@ zpool_do_export(int argc, char **argv)
 			continue;
 		}
 
+		/* The history must be logged as part of the export */
+		log_history = B_FALSE;
+
 		if (hardforce) {
-			if (zpool_export_force(zhp) != 0)
+			if (zpool_export_force(zhp, history_str) != 0)
 				ret = 1;
-		} else if (zpool_export(zhp, force) != 0) {
+		} else if (zpool_export(zhp, force, history_str) != 0) {
 			ret = 1;
 		}
 
@@ -4585,13 +4591,6 @@ upgrade_cb(zpool_handle_t *zhp, void *arg)
 			return (ret);
 		printnl = B_TRUE;
 
-#if 0
-		/*
-		 * XXX: This code can be enabled when Illumos commit
-		 * 4445fffbbb1ea25fd0e9ea68b9380dd7a6709025 is merged.
-		 * It reworks the history logging among other things.
-		 */
-
 		/*
 		 * If they did "zpool upgrade -a", then we could
 		 * be doing ioctls to different pools.  We need
@@ -4600,7 +4599,6 @@ upgrade_cb(zpool_handle_t *zhp, void *arg)
 		 */
 		(void) zpool_log_history(g_zfs, history_str);
 		log_history = B_FALSE;
-#endif
 	}
 
 	if (cbp->cb_version >= SPA_VERSION_FEATURES) {
@@ -4700,6 +4698,14 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 
 				(void) printf(gettext("      %s\n"), fname);
 			}
+			/*
+			 * If they did "zpool upgrade -a", then we could
+			 * be doing ioctls to different pools.  We need
+			 * to log this history once to each pool, and bypass
+			 * the normal history logging that happens in main().
+			 */
+			(void) zpool_log_history(g_zfs, history_str);
+			log_history = B_FALSE;
 		}
 	}
 
@@ -4955,8 +4961,8 @@ zpool_do_upgrade(int argc, char **argv)
 
 typedef struct hist_cbdata {
 	boolean_t first;
-	int longfmt;
-	int internal;
+	boolean_t longfmt;
+	boolean_t internal;
 } hist_cbdata_t;
 
 /*
@@ -4968,21 +4974,8 @@ get_history_one(zpool_handle_t *zhp, void *data)
 	nvlist_t *nvhis;
 	nvlist_t **records;
 	uint_t numrecords;
-	char *cmdstr;
-	char *pathstr;
-	uint64_t dst_time;
-	time_t tsec;
-	struct tm t;
-	char tbuf[30];
 	int ret, i;
-	uint64_t who;
-	struct passwd *pwd;
-	char *hostname;
-	char *zonename;
-	char internalstr[MAXPATHLEN];
 	hist_cbdata_t *cb = (hist_cbdata_t *)data;
-	uint64_t txg;
-	uint64_t ievent;
 
 	cb->first = B_FALSE;
 
@@ -4994,62 +4987,93 @@ get_history_one(zpool_handle_t *zhp, void *data)
 	verify(nvlist_lookup_nvlist_array(nvhis, ZPOOL_HIST_RECORD,
 	    &records, &numrecords) == 0);
 	for (i = 0; i < numrecords; i++) {
-		if (nvlist_lookup_uint64(records[i], ZPOOL_HIST_TIME,
-		    &dst_time) != 0)
-			continue;
+		nvlist_t *rec = records[i];
+		char tbuf[30] = "";
 
-		/* is it an internal event or a standard event? */
-		if (nvlist_lookup_string(records[i], ZPOOL_HIST_CMD,
-		    &cmdstr) != 0) {
-			if (cb->internal == 0)
-				continue;
+		if (nvlist_exists(rec, ZPOOL_HIST_TIME)) {
+			time_t tsec;
+			struct tm t;
 
-			if (nvlist_lookup_uint64(records[i],
-			    ZPOOL_HIST_INT_EVENT, &ievent) != 0)
-				continue;
-			verify(nvlist_lookup_uint64(records[i],
-			    ZPOOL_HIST_TXG, &txg) == 0);
-			verify(nvlist_lookup_string(records[i],
-			    ZPOOL_HIST_INT_STR, &pathstr) == 0);
-			if (ievent >= LOG_END)
-				continue;
-			(void) snprintf(internalstr,
-			    sizeof (internalstr),
-			    "[internal %s txg:%llu] %s",
-			    zfs_history_event_names[ievent], (u_longlong_t)txg,
-			    pathstr);
-			cmdstr = internalstr;
+			tsec = fnvlist_lookup_uint64(records[i],
+			    ZPOOL_HIST_TIME);
+			(void) localtime_r(&tsec, &t);
+			(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
 		}
-		tsec = dst_time;
-		(void) localtime_r(&tsec, &t);
-		(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
-		(void) printf("%s %s", tbuf, cmdstr);
+
+		if (nvlist_exists(rec, ZPOOL_HIST_CMD)) {
+			(void) printf("%s %s", tbuf,
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_CMD));
+		} else if (nvlist_exists(rec, ZPOOL_HIST_INT_EVENT)) {
+			int ievent =
+			    fnvlist_lookup_uint64(rec, ZPOOL_HIST_INT_EVENT);
+			if (!cb->internal)
+				continue;
+			if (ievent >= ZFS_NUM_LEGACY_HISTORY_EVENTS) {
+				(void) printf("%s unrecognized record:\n",
+				    tbuf);
+				dump_nvlist(rec, 4);
+				continue;
+			}
+			(void) printf("%s [internal %s txg:%lld] %s", tbuf,
+			    zfs_history_event_names[ievent],
+			    (long long int)fnvlist_lookup_uint64(rec, ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(rec, ZPOOL_HIST_INT_NAME)) {
+			if (!cb->internal)
+				continue;
+			(void) printf("%s [txg:%lld] %s", tbuf,
+			    (long long int)fnvlist_lookup_uint64(rec, ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_INT_NAME));
+			if (nvlist_exists(rec, ZPOOL_HIST_DSNAME)) {
+				(void) printf(" %s (%llu)",
+				    fnvlist_lookup_string(rec,
+				    ZPOOL_HIST_DSNAME),
+				    (long long unsigned int)fnvlist_lookup_uint64(rec,
+				    ZPOOL_HIST_DSID));
+			}
+			(void) printf(" %s", fnvlist_lookup_string(rec,
+			    ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(rec, ZPOOL_HIST_IOCTL)) {
+			if (!cb->internal)
+				continue;
+			(void) printf("%s ioctl %s\n", tbuf,
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_IOCTL));
+			if (nvlist_exists(rec, ZPOOL_HIST_INPUT_NVL)) {
+				(void) printf("    input:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(rec,
+				    ZPOOL_HIST_INPUT_NVL), 8);
+			}
+			if (nvlist_exists(rec, ZPOOL_HIST_OUTPUT_NVL)) {
+				(void) printf("    output:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(rec,
+				    ZPOOL_HIST_OUTPUT_NVL), 8);
+			}
+		} else {
+			if (!cb->internal)
+				continue;
+			(void) printf("%s unrecognized record:\n", tbuf);
+			dump_nvlist(rec, 4);
+		}
 
 		if (!cb->longfmt) {
 			(void) printf("\n");
 			continue;
 		}
 		(void) printf(" [");
-		if (nvlist_lookup_uint64(records[i],
-		    ZPOOL_HIST_WHO, &who) == 0) {
-			pwd = getpwuid((uid_t)who);
-			if (pwd)
-				(void) printf("user %s on",
-				    pwd->pw_name);
-			else
-				(void) printf("user %d on",
-				    (int)who);
-		} else {
-			(void) printf(gettext("no info]\n"));
-			continue;
+		if (nvlist_exists(rec, ZPOOL_HIST_WHO)) {
+			uid_t who = fnvlist_lookup_uint64(rec, ZPOOL_HIST_WHO);
+			struct passwd *pwd = getpwuid(who);
+			(void) printf("user %d ", (int)who);
+			if (pwd != NULL)
+				(void) printf("(%s) ", pwd->pw_name);
 		}
-		if (nvlist_lookup_string(records[i],
-		    ZPOOL_HIST_HOST, &hostname) == 0) {
-			(void) printf(" %s", hostname);
+		if (nvlist_exists(rec, ZPOOL_HIST_HOST)) {
+			(void) printf("on %s",
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_HOST));
 		}
-		if (nvlist_lookup_string(records[i],
-		    ZPOOL_HIST_ZONE, &zonename) == 0) {
-			(void) printf(":%s", zonename);
+		if (nvlist_exists(rec, ZPOOL_HIST_ZONE)) {
+			(void) printf(":%s",
+			    fnvlist_lookup_string(rec, ZPOOL_HIST_ZONE));
 		}
 
 		(void) printf("]");
@@ -5066,8 +5090,6 @@ get_history_one(zpool_handle_t *zhp, void *data)
  *
  * Displays the history of commands that modified pools.
  */
-
-
 int
 zpool_do_history(int argc, char **argv)
 {
@@ -5080,10 +5102,10 @@ zpool_do_history(int argc, char **argv)
 	while ((c = getopt(argc, argv, "li")) != -1) {
 		switch (c) {
 		case 'l':
-			cbdata.longfmt = 1;
+			cbdata.longfmt = B_TRUE;
 			break;
 		case 'i':
-			cbdata.internal = 1;
+			cbdata.internal = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -5637,8 +5659,7 @@ main(int argc, char **argv)
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
-	zpool_set_history_str("zpool", argc, argv, history_str);
-	verify(zpool_stage_history(g_zfs, history_str) == 0);
+	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
 	/*
 	 * Run the appropriate command.
@@ -5665,6 +5686,9 @@ main(int argc, char **argv)
 		usage(B_FALSE);
 		ret = 1;
 	}
+
+	if (ret == 0 && log_history)
+		(void) zpool_log_history(g_zfs, history_str);
 
 	libzfs_fini(g_zfs);
 

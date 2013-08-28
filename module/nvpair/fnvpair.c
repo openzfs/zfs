@@ -501,6 +501,7 @@ EXPORT_SYMBOL(fnvlist_alloc);
 EXPORT_SYMBOL(fnvlist_free);
 EXPORT_SYMBOL(fnvlist_size);
 EXPORT_SYMBOL(fnvlist_pack);
+EXPORT_SYMBOL(fnvlist_pack_free);
 EXPORT_SYMBOL(fnvlist_unpack);
 EXPORT_SYMBOL(fnvlist_dup);
 EXPORT_SYMBOL(fnvlist_merge);

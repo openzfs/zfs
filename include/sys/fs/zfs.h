@@ -52,6 +52,16 @@ typedef enum {
 	ZFS_TYPE_POOL		= 0x8
 } zfs_type_t;
 
+typedef enum dmu_objset_type {
+	DMU_OST_NONE,
+	DMU_OST_META,
+	DMU_OST_ZFS,
+	DMU_OST_ZVOL,
+	DMU_OST_OTHER,			/* For testing only! */
+	DMU_OST_ANY,			/* Be careful! */
+	DMU_OST_NUMTYPES
+} dmu_objset_type_t;
+
 #define	ZFS_TYPE_DATASET	\
 	(ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME | ZFS_TYPE_SNAPSHOT)
 
@@ -753,10 +763,10 @@ typedef struct ddt_histogram {
 /*
  * /dev/zfs ioctl numbers.
  */
-#define	ZFS_IOC		('Z' << 8)
-
 typedef enum zfs_ioc {
-	ZFS_IOC_POOL_CREATE = ZFS_IOC,
+	ZFS_IOC_FIRST =	('Z' << 8),
+	ZFS_IOC = ZFS_IOC_FIRST,
+	ZFS_IOC_POOL_CREATE = ZFS_IOC_FIRST,
 	ZFS_IOC_POOL_DESTROY,
 	ZFS_IOC_POOL_IMPORT,
 	ZFS_IOC_POOL_EXPORT,
@@ -793,7 +803,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_ERROR_LOG,
 	ZFS_IOC_CLEAR,
 	ZFS_IOC_PROMOTE,
-	ZFS_IOC_DESTROY_SNAPS_NVL,
+	ZFS_IOC_DESTROY_SNAPS,
 	ZFS_IOC_SNAPSHOT,
 	ZFS_IOC_DSOBJ_TO_DSNAME,
 	ZFS_IOC_OBJ_TO_PATH,
@@ -823,6 +833,11 @@ typedef enum zfs_ioc {
 	ZFS_IOC_SPACE_SNAPS,
 	ZFS_IOC_POOL_REOPEN,
 	ZFS_IOC_SEND_PROGRESS,
+	ZFS_IOC_LOG_HISTORY,
+	ZFS_IOC_SEND_NEW,
+	ZFS_IOC_SEND_SPACE,
+	ZFS_IOC_CLONE,
+	ZFS_IOC_LAST
 } zfs_ioc_t;
 
 /*
@@ -864,6 +879,12 @@ typedef enum {
 #define	ZPOOL_HIST_TXG		"history txg"
 #define	ZPOOL_HIST_INT_EVENT	"history internal event"
 #define	ZPOOL_HIST_INT_STR	"history internal str"
+#define	ZPOOL_HIST_INT_NAME	"internal_name"
+#define	ZPOOL_HIST_IOCTL	"ioctl"
+#define	ZPOOL_HIST_INPUT_NVL	"in_nvl"
+#define	ZPOOL_HIST_OUTPUT_NVL	"out_nvl"
+#define	ZPOOL_HIST_DSNAME	"dsname"
+#define	ZPOOL_HIST_DSID		"dsid"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
@@ -908,57 +929,6 @@ typedef enum {
 #define	ZFS_EV_POOL_GUID	"pool_guid"
 #define	ZFS_EV_VDEV_PATH	"vdev_path"
 #define	ZFS_EV_VDEV_GUID	"vdev_guid"
-
-/*
- * Note: This is encoded on-disk, so new events must be added to the
- * end, and unused events can not be removed.  Be sure to edit
- * libzfs_pool.c: hist_event_table[].
- */
-typedef enum history_internal_events {
-	LOG_NO_EVENT = 0,
-	LOG_POOL_CREATE,
-	LOG_POOL_VDEV_ADD,
-	LOG_POOL_REMOVE,
-	LOG_POOL_DESTROY,
-	LOG_POOL_EXPORT,
-	LOG_POOL_IMPORT,
-	LOG_POOL_VDEV_ATTACH,
-	LOG_POOL_VDEV_REPLACE,
-	LOG_POOL_VDEV_DETACH,
-	LOG_POOL_VDEV_ONLINE,
-	LOG_POOL_VDEV_OFFLINE,
-	LOG_POOL_UPGRADE,
-	LOG_POOL_CLEAR,
-	LOG_POOL_SCAN,
-	LOG_POOL_PROPSET,
-	LOG_DS_CREATE,
-	LOG_DS_CLONE,
-	LOG_DS_DESTROY,
-	LOG_DS_DESTROY_BEGIN,
-	LOG_DS_INHERIT,
-	LOG_DS_PROPSET,
-	LOG_DS_QUOTA,
-	LOG_DS_PERM_UPDATE,
-	LOG_DS_PERM_REMOVE,
-	LOG_DS_PERM_WHO_REMOVE,
-	LOG_DS_PROMOTE,
-	LOG_DS_RECEIVE,
-	LOG_DS_RENAME,
-	LOG_DS_RESERVATION,
-	LOG_DS_REPLAY_INC_SYNC,
-	LOG_DS_REPLAY_FULL_SYNC,
-	LOG_DS_ROLLBACK,
-	LOG_DS_SNAPSHOT,
-	LOG_DS_UPGRADE,
-	LOG_DS_REFQUOTA,
-	LOG_DS_REFRESERV,
-	LOG_POOL_SCAN_DONE,
-	LOG_DS_USER_HOLD,
-	LOG_DS_USER_RELEASE,
-	LOG_POOL_SPLIT,
-	LOG_POOL_GUID_CHANGE,
-	LOG_END
-} history_internal_events_t;
 
 #ifdef	__cplusplus
 }

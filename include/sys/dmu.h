@@ -42,6 +42,7 @@
 #include <sys/param.h>
 #include <sys/cred.h>
 #include <sys/time.h>
+#include <sys/fs/zfs.h>
 #include <sys/uio.h>
 
 #ifdef	__cplusplus
@@ -213,16 +214,6 @@ typedef enum dmu_object_type {
 	DMU_OTN_ZAP_METADATA = DMU_OT(DMU_BSWAP_ZAP, B_TRUE),
 } dmu_object_type_t;
 
-typedef enum dmu_objset_type {
-	DMU_OST_NONE,
-	DMU_OST_META,
-	DMU_OST_ZFS,
-	DMU_OST_ZVOL,
-	DMU_OST_OTHER,			/* For testing only! */
-	DMU_OST_ANY,			/* Be careful! */
-	DMU_OST_NUMTYPES
-} dmu_objset_type_t;
-
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);
 void byteswap_uint16_array(void *buf, size_t size);
@@ -267,9 +258,11 @@ int dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 int dmu_objset_clone(const char *name, struct dsl_dataset *clone_origin,
     uint64_t flags);
 int dmu_objset_destroy(const char *name, boolean_t defer);
-int dmu_snapshots_destroy_nvl(struct nvlist *snaps, boolean_t defer, char *);
-int dmu_objset_snapshot(char *fsname, char *snapname, char *tag,
-    struct nvlist *props, boolean_t recursive, boolean_t temporary, int fd);
+int dmu_snapshots_destroy_nvl(struct nvlist *snaps, boolean_t defer,
+    struct nvlist *errlist);
+int dmu_objset_snapshot(struct nvlist *snaps, struct nvlist *, struct nvlist *);
+int dmu_objset_snapshot_one(const char *fsname, const char *snapname);
+int dmu_objset_snapshot_tmp(const char *, const char *, int);
 int dmu_objset_rename(const char *name, const char *newname,
     boolean_t recursive);
 int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
@@ -792,10 +785,9 @@ typedef void (*dmu_traverse_cb_t)(objset_t *os, void *arg, struct blkptr *bp,
 void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
-int dmu_send(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorigin,
+int dmu_send(objset_t *tosnap, objset_t *fromsnap,
     int outfd, struct vnode *vp, offset_t *off);
-int dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, boolean_t fromorign,
-    uint64_t *sizep);
+int dmu_send_estimate(objset_t *tosnap, objset_t *fromsnap, uint64_t *sizep);
 
 typedef struct dmu_recv_cookie {
 	/*

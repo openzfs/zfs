@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <zone.h>
 #include <sys/stat.h>
 #include <sys/efi_partition.h>
@@ -63,7 +64,7 @@ typedef struct prop_flags {
 static int
 zpool_get_all_props(zpool_handle_t *zhp)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
@@ -691,7 +692,7 @@ error:
 int
 zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int ret = -1;
 	char errbuf[1024];
 	nvlist_t *nvl = NULL;
@@ -1140,7 +1141,7 @@ int
 zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
     nvlist_t *props, nvlist_t *fsprops)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	nvlist_t *zc_fsprops = NULL;
 	nvlist_t *zc_props = NULL;
 	char msg[1024];
@@ -1272,9 +1273,9 @@ create_failed:
  * datasets left in the pool.
  */
 int
-zpool_destroy(zpool_handle_t *zhp)
+zpool_destroy(zpool_handle_t *zhp, const char *log_str)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	zfs_handle_t *zfp = NULL;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char msg[1024];
@@ -1284,6 +1285,7 @@ zpool_destroy(zpool_handle_t *zhp)
 		return (-1);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	zc.zc_history = (uint64_t)(uintptr_t)log_str;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0) {
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -1317,7 +1319,7 @@ zpool_destroy(zpool_handle_t *zhp)
 int
 zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int ret;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char msg[1024];
@@ -1440,10 +1442,11 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
  * Exports the pool from the system.  The caller must ensure that there are no
  * mounted datasets in the pool.
  */
-int
-zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce)
+static int
+zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
+    const char *log_str)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 
 	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -1452,6 +1455,7 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce)
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_cookie = force;
 	zc.zc_guid = hardforce;
+	zc.zc_history = (uint64_t)(uintptr_t)log_str;
 
 	if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_EXPORT, &zc) != 0) {
 		switch (errno) {
@@ -1473,15 +1477,15 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce)
 }
 
 int
-zpool_export(zpool_handle_t *zhp, boolean_t force)
+zpool_export(zpool_handle_t *zhp, boolean_t force, const char *log_str)
 {
-	return (zpool_export_common(zhp, force, B_FALSE));
+	return (zpool_export_common(zhp, force, B_FALSE, log_str));
 }
 
 int
-zpool_export_force(zpool_handle_t *zhp)
+zpool_export_force(zpool_handle_t *zhp, const char *log_str)
 {
-	return (zpool_export_common(zhp, B_TRUE, B_TRUE));
+	return (zpool_export_common(zhp, B_TRUE, B_TRUE, log_str));
 }
 
 static void
@@ -1717,7 +1721,7 @@ int
 zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
     nvlist_t *props, int flags)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	zpool_rewind_policy_t policy;
 	nvlist_t *nv = NULL;
 	nvlist_t *nvinfo = NULL;
@@ -1909,7 +1913,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 int
 zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
@@ -2385,7 +2389,7 @@ int
 zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
     vdev_state_t *newstate)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache, islog;
@@ -2469,7 +2473,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 int
 zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache;
@@ -2519,7 +2523,7 @@ zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 int
 zpool_vdev_fault(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
@@ -2554,7 +2558,7 @@ zpool_vdev_fault(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
 int
 zpool_vdev_degrade(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
@@ -2608,7 +2612,7 @@ int
 zpool_vdev_attach(zpool_handle_t *zhp,
     const char *old_disk, const char *new_disk, nvlist_t *nvroot, int replacing)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	int ret;
 	nvlist_t *tgt;
@@ -2784,7 +2788,7 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 int
 zpool_vdev_detach(zpool_handle_t *zhp, const char *path)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache;
@@ -2882,7 +2886,7 @@ int
 zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
     nvlist_t *props, splitflags_t flags)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tree, *config, **child, **newchild, *newconfig = NULL;
 	nvlist_t **varray = NULL, *zc_props = NULL;
@@ -3093,7 +3097,7 @@ out:
 int
 zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache, islog;
@@ -3138,7 +3142,7 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 int
 zpool_clear(zpool_handle_t *zhp, const char *path, nvlist_t *rewindnvl)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	nvlist_t *tgt;
 	zpool_rewind_policy_t policy;
@@ -3214,7 +3218,7 @@ zpool_clear(zpool_handle_t *zhp, const char *path, nvlist_t *rewindnvl)
 int
 zpool_vdev_clear(zpool_handle_t *zhp, uint64_t guid)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
@@ -3240,7 +3244,7 @@ zpool_reguid(zpool_handle_t *zhp)
 {
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot reguid '%s'"), zhp->zpool_name);
@@ -3258,7 +3262,7 @@ zpool_reguid(zpool_handle_t *zhp)
 int
 zpool_reopen(zpool_handle_t *zhp)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
@@ -3338,7 +3342,7 @@ path_to_devid(const char *path)
 static void
 set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) strncpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	(void) strncpy(zc.zc_value, path, sizeof (zc.zc_value));
@@ -3513,7 +3517,7 @@ zbookmark_compare(const void *a, const void *b)
 int
 zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	uint64_t count;
 	zbookmark_t *zb = NULL;
 	int i;
@@ -3609,7 +3613,7 @@ nomem:
 int
 zpool_upgrade(zpool_handle_t *zhp, uint64_t new_version)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
@@ -3623,40 +3627,32 @@ zpool_upgrade(zpool_handle_t *zhp, uint64_t new_version)
 }
 
 void
-zpool_set_history_str(const char *subcommand, int argc, char **argv,
-    char *history_str)
+zfs_save_arguments(int argc, char **argv, char *string, int len)
 {
 	int i;
 
-	(void) strlcpy(history_str, subcommand, HIS_MAX_RECORD_LEN);
+	(void) strlcpy(string, basename(argv[0]), len);
 	for (i = 1; i < argc; i++) {
-		if (strlen(history_str) + 1 + strlen(argv[i]) >
-		    HIS_MAX_RECORD_LEN)
-			break;
-		(void) strlcat(history_str, " ", HIS_MAX_RECORD_LEN);
-		(void) strlcat(history_str, argv[i], HIS_MAX_RECORD_LEN);
+		(void) strlcat(string, " ", len);
+		(void) strlcat(string, argv[i], len);
 	}
 }
 
-/*
- * Stage command history for logging.
- */
 int
-zpool_stage_history(libzfs_handle_t *hdl, const char *history_str)
+zpool_log_history(libzfs_handle_t *hdl, const char *message)
 {
-	if (history_str == NULL)
-		return (EINVAL);
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	nvlist_t *args;
+	int err;
 
-	if (strlen(history_str) > HIS_MAX_RECORD_LEN)
-		return (EINVAL);
-
-	if (hdl->libzfs_log_str != NULL)
-		free(hdl->libzfs_log_str);
-
-	if ((hdl->libzfs_log_str = strdup(history_str)) == NULL)
-		return (no_memory(hdl));
-
-	return (0);
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, "message", message);
+	err = zcmd_write_src_nvlist(hdl, &zc, args);
+	if (err == 0)
+		err = ioctl(hdl->libzfs_fd, ZFS_IOC_LOG_HISTORY, &zc);
+	nvlist_free(args);
+	zcmd_free_nvlists(&zc);
+	return (err);
 }
 
 /*
@@ -3671,7 +3667,7 @@ zpool_stage_history(libzfs_handle_t *hdl, const char *history_str)
 static int
 get_history(zpool_handle_t *zhp, char *buf, uint64_t *off, uint64_t *len)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
@@ -3808,7 +3804,7 @@ int
 zpool_events_next(libzfs_handle_t *hdl, nvlist_t **nvp,
     int *dropped, int block, int cleanup_fd)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int error = 0;
 
 	*nvp = NULL;
@@ -3867,7 +3863,7 @@ out:
 int
 zpool_events_clear(libzfs_handle_t *hdl, int *count)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char msg[1024];
 
 	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3886,7 +3882,7 @@ void
 zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	boolean_t mounted = B_FALSE;
 	char *mntpnt = NULL;
 	char dsname[MAXNAMELEN];

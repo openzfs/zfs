@@ -90,7 +90,7 @@ static int
 get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
     char *pn, int maxlen, zfs_stat_t *sb)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	int error;
 
 	(void) strlcpy(zc.zc_name, dsname, sizeof (zc.zc_name));
@@ -379,7 +379,7 @@ describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
 static int
 write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	libzfs_handle_t *lhdl = di->zhp->zfs_hdl;
 	char fobjname[MAXPATHLEN];
 
@@ -507,7 +507,7 @@ static int
 make_temp_snapshot(differ_info_t *di)
 {
 	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 
 	(void) snprintf(zc.zc_value, sizeof (zc.zc_value),
 	    ZDIFF_PREFIX, getpid());
@@ -749,7 +749,7 @@ int
 zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
     const char *tosnap, int flags)
 {
-	zfs_cmd_t zc = { "\0", "\0", "\0", "\0", 0 };
+	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
 	char errbuf[1024];
 	differ_info_t di = { 0 };
 	pthread_t tid;

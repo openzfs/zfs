@@ -22,6 +22,7 @@ libzfs_la_SOURCES = \
 	$(top_srcdir)/lib/libzfs/libzfs_util.c
 
 libzfs_la_LIBADD = \
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libzpool/libzpool.la
