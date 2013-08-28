@@ -409,7 +409,7 @@ dsl_scan_check_pause(dsl_scan_t *scn, const zbookmark_t *zb)
 	    zfs_resilver_min_time_ms : zfs_scan_min_time_ms;
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	if (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
-	    (elapsed_nanosecs / MICROSEC > mintime &&
+	    (NSEC2MSEC(elapsed_nanosecs) > mintime &&
 	    txg_sync_waiting(scn->scn_dp)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa)) {
 		if (zb) {
@@ -1335,7 +1335,7 @@ dsl_scan_free_should_pause(dsl_scan_t *scn)
 
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
-	    (elapsed_nanosecs / MICROSEC > zfs_free_min_time_ms &&
+	    (NSEC2MSEC(elapsed_nanosecs) > zfs_free_min_time_ms &&
 	    txg_sync_waiting(scn->scn_dp)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa));
 }
@@ -1459,7 +1459,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			    "free_bpobj/bptree txg %llu",
 			    (longlong_t)scn->scn_visited_this_txg,
 			    (longlong_t)
-			    (gethrtime() - scn->scn_sync_start_time) / MICROSEC,
+			    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
 			    (longlong_t)tx->tx_txg);
 			scn->scn_visited_this_txg = 0;
 			/*
@@ -1507,7 +1507,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	zfs_dbgmsg("visited %llu blocks in %llums",
 	    (longlong_t)scn->scn_visited_this_txg,
-	    (longlong_t)(gethrtime() - scn->scn_sync_start_time) / MICROSEC);
+	    (longlong_t)NSEC2MSEC(gethrtime() - scn->scn_sync_start_time));
 
 	if (!scn->scn_pausing) {
 		/* finished with scan. */

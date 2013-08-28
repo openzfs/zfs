@@ -743,7 +743,8 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 		err = dsl_pool_tempreserve_space(dd->dd_pool, asize, tx);
 	} else {
 		if (err == EAGAIN) {
-			txg_delay(dd->dd_pool, tx->tx_txg, 1);
+			txg_delay(dd->dd_pool, tx->tx_txg,
+			    MSEC2NSEC(10), MSEC2NSEC(10));
 			err = SET_ERROR(ERESTART);
 		}
 		dsl_pool_memory_pressure(dd->dd_pool);

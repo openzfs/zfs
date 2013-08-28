@@ -58,6 +58,9 @@ kmutex_t zfs_write_limit_lock;
 
 static pgcnt_t old_physmem = 0;
 
+hrtime_t zfs_throttle_delay = MSEC2NSEC(10);
+hrtime_t zfs_throttle_resolution = MSEC2NSEC(10);
+
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
 {
@@ -512,12 +515,13 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * Weight the throughput calculation towards the current value:
 	 * 	thru = 3/4 old_thru + 1/4 new_thru
 	 *
-	 * Note: write_time is in nanosecs, so write_time/MICROSEC
-	 * yields millisecs
+	 * Note: write_time is in nanosecs while dp_throughput is expressed in
+	 * bytes per millisecond.
 	 */
 	ASSERT(zfs_write_limit_min > 0);
-	if (data_written > zfs_write_limit_min / 8 && write_time > MICROSEC) {
-		uint64_t throughput = data_written / (write_time / MICROSEC);
+	if (data_written > zfs_write_limit_min / 8 &&
+	    write_time > MSEC2NSEC(1)) {
+		uint64_t throughput = data_written / NSEC2MSEC(write_time);
 
 		if (dp->dp_throughput)
 			dp->dp_throughput = throughput / 4 +
@@ -617,8 +621,10 @@ dsl_pool_tempreserve_space(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 	 * the caller 1 clock tick.  This will slow down the "fill"
 	 * rate until the sync process can catch up with us.
 	 */
-	if (reserved && reserved > (write_limit - (write_limit >> 3)))
-		txg_delay(dp, tx->tx_txg, 1);
+	if (reserved && reserved > (write_limit - (write_limit >> 3))) {
+		txg_delay(dp, tx->tx_txg, zfs_throttle_delay,
+		    zfs_throttle_resolution);
+	}
 
 	return (0);
 }

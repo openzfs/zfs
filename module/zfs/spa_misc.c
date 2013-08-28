@@ -490,8 +490,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_proc = &p0;
 	spa->spa_proc_state = SPA_PROC_NONE;
 
-	spa->spa_deadman_synctime = zfs_deadman_synctime *
-	    zfs_txg_synctime_ms * MICROSEC;
+	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime *
+	    zfs_txg_synctime_ms);
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);

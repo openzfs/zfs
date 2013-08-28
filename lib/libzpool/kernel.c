@@ -528,6 +528,41 @@ top:
 	return (1);
 }
 
+/*ARGSUSED*/
+clock_t
+cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
+    int flag)
+{
+	int error;
+	timestruc_t ts;
+	hrtime_t delta;
+
+	ASSERT(flag == 0);
+
+top:
+	delta = tim - gethrtime();
+	if (delta <= 0)
+		return (-1);
+
+	ts.tv_sec = delta / NANOSEC;
+	ts.tv_nsec = delta % NANOSEC;
+
+	ASSERT(mutex_owner(mp) == curthread);
+	mp->m_owner = NULL;
+	error = pthread_cond_timedwait(&cv->cv, &mp->m_lock, &ts);
+	mp->m_owner = curthread;
+
+	if (error == ETIME)
+		return (-1);
+
+	if (error == EINTR)
+		goto top;
+
+	ASSERT(error == 0);
+
+	return (1);
+}
+
 void
 cv_signal(kcondvar_t *cv)
 {

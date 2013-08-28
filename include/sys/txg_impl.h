@@ -70,7 +70,7 @@ struct tx_cpu {
 	kmutex_t	tc_open_lock;	/* protects tx_open_txg */
 	kmutex_t	tc_lock;	/* protects the rest of this struct */
 	kcondvar_t	tc_cv[TXG_SIZE];
-	uint64_t	tc_count[TXG_SIZE];
+	uint64_t	tc_count[TXG_SIZE];	/* tx hold count on each txg */
 	list_t		tc_callbacks[TXG_SIZE]; /* commit cb list */
 	char		tc_pad[8];		/* pad to fill 3 cache lines */
 };
@@ -87,8 +87,8 @@ struct tx_cpu {
  * every cpu (see txg_quiesce()).
  */
 typedef struct tx_state {
-	tx_cpu_t	*tx_cpu;	/* protects right to enter txg	*/
-	kmutex_t	tx_sync_lock;	/* protects tx_state_t */
+	tx_cpu_t	*tx_cpu;	/* protects access to tx_open_txg */
+	kmutex_t	tx_sync_lock;	/* protects the rest of this struct */
 	uint64_t	tx_open_txg;	/* currently open txg id */
 	uint64_t	tx_quiesced_txg; /* quiesced txg waiting for sync */
 	uint64_t	tx_syncing_txg;	/* currently syncing txg id */

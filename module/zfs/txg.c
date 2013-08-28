@@ -236,7 +236,7 @@ txg_thread_exit(tx_state_t *tx, callb_cpr_t *cpr, kthread_t **tpp)
 }
 
 static void
-txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, uint64_t time)
+txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, clock_t time)
 {
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
@@ -372,6 +372,9 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 
 	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, gethrtime());
 	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg);
+
+	DTRACE_PROBE2(txg__quiescing, dsl_pool_t *, dp, uint64_t, txg);
+	DTRACE_PROBE2(txg__opened, dsl_pool_t *, dp, uint64_t, tx->tx_open_txg);
 
 	/*
 	 * Now that we've incremented tx_open_txg, we can let threads
@@ -531,6 +534,7 @@ txg_sync_thread(dsl_pool_t *dp)
 		txg = tx->tx_quiesced_txg;
 		tx->tx_quiesced_txg = 0;
 		tx->tx_syncing_txg = txg;
+		DTRACE_PROBE2(txg__syncing, dsl_pool_t *, dp, uint64_t, txg);
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
@@ -544,6 +548,7 @@ txg_sync_thread(dsl_pool_t *dp)
 		mutex_enter(&tx->tx_sync_lock);
 		tx->tx_synced_txg = txg;
 		tx->tx_syncing_txg = 0;
+		DTRACE_PROBE2(txg__synced, dsl_pool_t *, dp, uint64_t, txg);
 		cv_broadcast(&tx->tx_sync_done_cv);
 
 		/*
@@ -602,21 +607,22 @@ txg_quiesce_thread(dsl_pool_t *dp)
 		 */
 		dprintf("quiesce done, handing off txg %llu\n", txg);
 		tx->tx_quiesced_txg = txg;
+		DTRACE_PROBE2(txg__quiesced, dsl_pool_t *, dp, uint64_t, txg);
 		cv_broadcast(&tx->tx_sync_more_cv);
 		cv_broadcast(&tx->tx_quiesce_done_cv);
 	}
 }
 
 /*
- * Delay this thread by 'ticks' if we are still in the open transaction
- * group and there is already a waiting txg quiesing or quiesced.  Abort
- * the delay if this txg stalls or enters the quiesing state.
+ * Delay this thread by delay nanoseconds if we are still in the open
+ * transaction group and there is already a waiting txg quiesing or quiesced.
+ * Abort the delay if this txg stalls or enters the quiesing state.
  */
 void
-txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
+txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	clock_t timeout = ddi_get_lbolt() + ticks;
+	hrtime_t start = gethrtime();
 
 	/* don't delay if this txg could transition to quiesing immediately */
 	if (tx->tx_open_txg > txg ||
@@ -629,10 +635,11 @@ txg_delay(dsl_pool_t *dp, uint64_t txg, int ticks)
 		return;
 	}
 
-	while (ddi_get_lbolt() < timeout &&
-	    tx->tx_syncing_txg < txg-1 && !txg_stalled(dp))
-		(void) cv_timedwait(&tx->tx_quiesce_more_cv, &tx->tx_sync_lock,
-		    timeout);
+	while (gethrtime() - start < delay &&
+	    tx->tx_syncing_txg < txg-1 && !txg_stalled(dp)) {
+		(void) cv_timedwait_hires(&tx->tx_quiesce_more_cv,
+		    &tx->tx_sync_lock, delay, resolution, 0);
+	}
 
 	DMU_TX_STAT_BUMP(dmu_tx_delay);
 
