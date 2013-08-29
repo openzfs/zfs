@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -45,6 +45,7 @@ struct metaslab_class {
 	metaslab_group_t	*mc_rotor;
 	space_map_ops_t		*mc_ops;
 	uint64_t		mc_aliquot;
+	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 	uint64_t		mc_alloc;	/* total allocated space */
 	uint64_t		mc_deferred;	/* total deferred frees */
 	uint64_t		mc_space;	/* total space (alloc + free) */
@@ -57,6 +58,8 @@ struct metaslab_group {
 	uint64_t		mg_aliquot;
 	uint64_t		mg_bonus_area;
 	uint64_t		mg_alloc_failures;
+	boolean_t		mg_allocatable;		/* can we allocate? */
+	uint64_t		mg_free_capacity;	/* percentage free */
 	int64_t			mg_bias;
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
