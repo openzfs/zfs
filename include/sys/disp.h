@@ -27,6 +27,7 @@
 
 #include <linux/preempt.h>
 
+#define	kpreempt(unused)	schedule()
 #define	kpreempt_disable()	preempt_disable()
 #define	kpreempt_enable()	preempt_enable()
 
