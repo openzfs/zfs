@@ -2188,7 +2188,7 @@ done:
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_data, rc->rc_size,
-			    ZIO_TYPE_WRITE, zio->io_priority,
+			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}

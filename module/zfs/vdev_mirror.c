@@ -89,7 +89,7 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 static int
 vdev_mirror_pending(vdev_t *vd)
 {
-	return (avl_numnodes(&vd->vdev_queue.vq_pending_tree));
+	return (avl_numnodes(&vd->vdev_queue.vq_active_tree));
 }
 
 /*
@@ -499,7 +499,7 @@ vdev_mirror_io_done(zio_t *zio)
 			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 			    mc->mc_vd, mc->mc_offset,
 			    zio->io_data, zio->io_size,
-			    ZIO_TYPE_WRITE, zio->io_priority,
+			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}

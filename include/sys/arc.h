@@ -145,12 +145,13 @@ int arc_referenced(arc_buf_t *buf);
 #endif
 
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
-    arc_done_func_t *done, void *private, int priority, int flags,
+    arc_done_func_t *done, void *private, zio_priority_t priority, int flags,
     uint32_t *arc_flags, const zbookmark_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, boolean_t l2arc_compress,
-    const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *done,
-    void *private, int priority, int zio_flags, const zbookmark_t *zb);
+    const zio_prop_t *zp, arc_done_func_t *ready, arc_done_func_t *physdone,
+    arc_done_func_t *done, void *private, zio_priority_t priority,
+    int zio_flags, const zbookmark_t *zb);
 
 arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *private);
 void arc_remove_prune_callback(arc_prune_t *p);
@@ -178,11 +179,6 @@ void l2arc_init(void);
 void l2arc_fini(void);
 void l2arc_start(void);
 void l2arc_stop(void);
-
-/* Global tunings */
-extern int zfs_write_limit_shift;
-extern unsigned long zfs_write_limit_max;
-extern kmutex_t zfs_write_limit_lock;
 
 #ifndef _KERNEL
 extern boolean_t arc_watch;
