@@ -60,9 +60,25 @@ int zfs_condense_pct = 200;
 /*
  * This value defines the number of allowed allocation failures per vdev.
  * If a device reaches this threshold in a given txg then we consider skipping
- * allocations on that device.
+ * allocations on that device. The value of zfs_mg_alloc_failures is computed
+ * in zio_init() unless it has been overridden in /etc/system.
  */
-int zfs_mg_alloc_failures;
+int zfs_mg_alloc_failures = 0;
+
+/*
+ * The zfs_mg_noalloc_threshold defines which metaslab groups should
+ * be eligible for allocation. The value is defined as a percentage of
+ * a free space. Metaslab groups that have more free space than
+ * zfs_mg_noalloc_threshold are always eligible for allocations. Once
+ * a metaslab group's free space is less than or equal to the
+ * zfs_mg_noalloc_threshold the allocator will avoid allocating to that
+ * group unless all groups in the pool have reached zfs_mg_noalloc_threshold.
+ * Once all groups in the pool reach zfs_mg_noalloc_threshold then all
+ * groups are allowed to accept allocations. Gang blocks are always
+ * eligible to allocate on any metaslab group. The default value of 0 means
+ * no metaslab group will be excluded based on this criterion.
+ */
+int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab debugging: when set, keeps all space maps in core to verify frees.
@@ -223,6 +239,53 @@ metaslab_compare(const void *x1, const void *x2)
 	return (0);
 }
 
+/*
+ * Update the allocatable flag and the metaslab group's capacity.
+ * The allocatable flag is set to true if the capacity is below
+ * the zfs_mg_noalloc_threshold. If a metaslab group transitions
+ * from allocatable to non-allocatable or vice versa then the metaslab
+ * group's class is updated to reflect the transition.
+ */
+static void
+metaslab_group_alloc_update(metaslab_group_t *mg)
+{
+	vdev_t *vd = mg->mg_vd;
+	metaslab_class_t *mc = mg->mg_class;
+	vdev_stat_t *vs = &vd->vdev_stat;
+	boolean_t was_allocatable;
+
+	ASSERT(vd == vd->vdev_top);
+
+	mutex_enter(&mg->mg_lock);
+	was_allocatable = mg->mg_allocatable;
+
+	mg->mg_free_capacity = ((vs->vs_space - vs->vs_alloc) * 100) /
+	    (vs->vs_space + 1);
+
+	mg->mg_allocatable = (mg->mg_free_capacity > zfs_mg_noalloc_threshold);
+
+	/*
+	 * The mc_alloc_groups maintains a count of the number of
+	 * groups in this metaslab class that are still above the
+	 * zfs_mg_noalloc_threshold. This is used by the allocating
+	 * threads to determine if they should avoid allocations to
+	 * a given group. The allocator will avoid allocations to a group
+	 * if that group has reached or is below the zfs_mg_noalloc_threshold
+	 * and there are still other groups that are above the threshold.
+	 * When a group transitions from allocatable to non-allocatable or
+	 * vice versa we update the metaslab class to reflect that change.
+	 * When the mc_alloc_groups value drops to 0 that means that all
+	 * groups have reached the zfs_mg_noalloc_threshold making all groups
+	 * eligible for allocations. This effectively means that all devices
+	 * are balanced again.
+	 */
+	if (was_allocatable && !mg->mg_allocatable)
+		mc->mc_alloc_groups--;
+	else if (!was_allocatable && mg->mg_allocatable)
+		mc->mc_alloc_groups++;
+	mutex_exit(&mg->mg_lock);
+}
+
 metaslab_group_t *
 metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
@@ -273,6 +336,7 @@ metaslab_group_activate(metaslab_group_t *mg)
 		return;
 
 	mg->mg_aliquot = metaslab_aliquot * MAX(1, mg->mg_vd->vdev_children);
+	metaslab_group_alloc_update(mg);
 
 	if ((mgprev = mc->mc_rotor) == NULL) {
 		mg->mg_prev = mg;
@@ -355,6 +419,29 @@ metaslab_group_sort(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 	msp->ms_weight = weight;
 	avl_add(&mg->mg_metaslab_tree, msp);
 	mutex_exit(&mg->mg_lock);
+}
+
+/*
+ * Determine if a given metaslab group should skip allocations. A metaslab
+ * group should avoid allocations if its used capacity has crossed the
+ * zfs_mg_noalloc_threshold and there is at least one metaslab group
+ * that can still handle allocations.
+ */
+static boolean_t
+metaslab_group_allocatable(metaslab_group_t *mg)
+{
+	vdev_t *vd = mg->mg_vd;
+	spa_t *spa = vd->vdev_spa;
+	metaslab_class_t *mc = mg->mg_class;
+
+	/*
+	 * A metaslab group is considered allocatable if its free capacity
+	 * is greater than the set value of zfs_mg_noalloc_threshold, it's
+	 * associated with a slog, or there are no other metaslab groups
+	 * with free capacity greater than zfs_mg_noalloc_threshold.
+	 */
+	return (mg->mg_free_capacity > zfs_mg_noalloc_threshold ||
+	    mc != spa_normal_class(spa) || mc->mc_alloc_groups == 0);
 }
 
 /*
@@ -1301,6 +1388,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
 
+	metaslab_group_alloc_update(mg);
+
 	/*
 	 * If the map is loaded but no longer active, evict it as soon as all
 	 * future allocations have synced.  (If we unloaded it now and then
@@ -1430,6 +1519,8 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 		if (msp == NULL)
 			return (-1ULL);
 
+		mutex_enter(&msp->ms_lock);
+
 		/*
 		 * If we've already reached the allowable number of failed
 		 * allocation attempts on this metaslab group then we
@@ -1446,10 +1537,9 @@ metaslab_group_alloc(metaslab_group_t *mg, uint64_t psize, uint64_t asize,
 			    "asize %llu, failures %llu", spa_name(spa),
 			    mg->mg_vd->vdev_id, txg, mg, psize, asize,
 			    mg->mg_alloc_failures);
+			mutex_exit(&msp->ms_lock);
 			return (-1ULL);
 		}
-
-		mutex_enter(&msp->ms_lock);
 
 		/*
 		 * Ensure that the metaslab we have selected is still
@@ -1615,6 +1705,21 @@ top:
 		} else {
 			allocatable = vdev_allocatable(vd);
 		}
+
+		/*
+		 * Determine if the selected metaslab group is eligible
+		 * for allocations. If we're ganging or have requested
+		 * an allocation for the smallest gang block size
+		 * then we don't want to avoid allocating to the this
+		 * metaslab group. If we're in this condition we should
+		 * try to allocate from any device possible so that we
+		 * don't inadvertently return ENOSPC and suspend the pool
+		 * even though space is still available.
+		 */
+		if (allocatable && CAN_FASTGANG(flags) &&
+		    psize > SPA_GANGBLOCKSIZE)
+			allocatable = metaslab_group_allocatable(mg);
+
 		if (!allocatable)
 			goto next;
 

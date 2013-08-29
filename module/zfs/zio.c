@@ -227,7 +227,8 @@ zio_init(void)
 	 * The zio write taskqs have 1 thread per cpu, allow 1/2 of the taskqs
 	 * to fail 3 times per txg or 8 failures, whichever is greater.
 	 */
-	zfs_mg_alloc_failures = MAX((3 * max_ncpus / 2), 8);
+	if (zfs_mg_alloc_failures == 0)
+		zfs_mg_alloc_failures = MAX((3 * max_ncpus / 2), 8);
 
 	zio_inject_init();
 
@@ -2518,7 +2519,7 @@ zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, uint64_t size,
 	if (error) {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
 		    new_bp, 1, txg, NULL,
-		    METASLAB_FASTWRITE | METASLAB_GANG_AVOID);
+		    METASLAB_FASTWRITE);
 	}
 
 	if (error == 0) {
