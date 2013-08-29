@@ -218,6 +218,7 @@ typedef enum dmu_object_type {
 typedef enum txg_how {
 	TXG_WAIT = 1,
 	TXG_NOWAIT,
+	TXG_WAITED,
 } txg_how_t;
 
 void byteswap_uint64_array(void *buf, size_t size);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -234,10 +234,20 @@ struct spa {
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	taskqid_t	spa_deadman_tqid;	/* Task id */
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
-	uint64_t	spa_sync_starttime;	/* starting time fo spa_sync */
+	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
-	kmutex_t	spa_iokstat_lock;	/* protects spa_iokstat_* */
+
+	/*
+	 * spa_iokstat_lock protects spa_iokstat and
+	 * spa_queue_stats[].
+	 */
+	kmutex_t	spa_iokstat_lock;
 	kstat_t		*spa_iokstat;		/* kstat of io to this pool */
+	struct {
+		int spa_active;
+		int spa_queued;
+	} spa_queue_stats[ZIO_PRIORITY_NUM_QUEUEABLE];
+
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.

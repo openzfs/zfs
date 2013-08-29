@@ -25,7 +25,7 @@
 /*
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
@@ -221,6 +221,8 @@ extern struct proc p0;
 typedef void (*thread_func_t)(void *);
 typedef void (*thread_func_arg_t)(void *);
 typedef pthread_t kt_did_t;
+
+#define kpreempt(x)	((void)0)
 
 typedef struct kthread {
 	kt_did_t	t_tid;

@@ -589,7 +589,6 @@ dsl_dir_space_available(dsl_dir_t *dd,
 
 struct tempreserve {
 	list_node_t tr_node;
-	dsl_pool_t *tr_dp;
 	dsl_dir_t *tr_ds;
 	uint64_t tr_size;
 };
@@ -740,25 +739,24 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 		tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
 		tr->tr_size = lsize;
 		list_insert_tail(tr_list, tr);
-
-		err = dsl_pool_tempreserve_space(dd->dd_pool, asize, tx);
 	} else {
 		if (err == EAGAIN) {
+			/*
+			 * If arc_memory_throttle() detected that pageout
+			 * is running and we are low on memory, we delay new
+			 * non-pageout transactions to give pageout an
+			 * advantage.
+			 *
+			 * It is unfortunate to be delaying while the caller's
+			 * locks are held.
+			 */
 			txg_delay(dd->dd_pool, tx->tx_txg,
 			    MSEC2NSEC(10), MSEC2NSEC(10));
 			err = SET_ERROR(ERESTART);
 		}
-		dsl_pool_memory_pressure(dd->dd_pool);
 	}
 
 	if (err == 0) {
-		struct tempreserve *tr;
-
-		tr = kmem_zalloc(sizeof (struct tempreserve), KM_PUSHPAGE);
-		tr->tr_dp = dd->dd_pool;
-		tr->tr_size = asize;
-		list_insert_tail(tr_list, tr);
-
 		err = dsl_dir_tempreserve_impl(dd, asize, fsize >= asize,
 		    FALSE, asize > usize, tr_list, tx, TRUE);
 	}
@@ -787,10 +785,8 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
 	if (tr_cookie == NULL)
 		return;
 
-	while ((tr = list_head(tr_list))) {
-		if (tr->tr_dp) {
-			dsl_pool_tempreserve_clear(tr->tr_dp, tr->tr_size, tx);
-		} else if (tr->tr_ds) {
+	while ((tr = list_head(tr_list)) != NULL) {
+		if (tr->tr_ds) {
 			mutex_enter(&tr->tr_ds->dd_lock);
 			ASSERT3U(tr->tr_ds->dd_tempreserved[txgidx], >=,
 			    tr->tr_size);
@@ -806,8 +802,14 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
 	kmem_free(tr_list, sizeof (list_t));
 }
 
-static void
-dsl_dir_willuse_space_impl(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
+/*
+ * This should be called from open context when we think we're going to write
+ * or free space, for example when dirtying data. Be conservative; it's okay
+ * to write less space or free more, but we don't want to write more or free
+ * less than the amount specified.
+ */
+void
+dsl_dir_willuse_space(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
 {
 	int64_t parent_space;
 	uint64_t est_used;
@@ -825,19 +827,7 @@ dsl_dir_willuse_space_impl(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
 
 	/* XXX this is potentially expensive and unnecessary... */
 	if (parent_space && dd->dd_parent)
-		dsl_dir_willuse_space_impl(dd->dd_parent, parent_space, tx);
-}
-
-/*
- * Call in open context when we think we're going to write/free space,
- * eg. when dirtying data.  Be conservative (ie. OK to write less than
- * this or free more than this, but don't write more or free less).
- */
-void
-dsl_dir_willuse_space(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
-{
-	dsl_pool_willuse_space(dd->dd_pool, space, tx);
-	dsl_dir_willuse_space_impl(dd, space, tx);
+		dsl_dir_willuse_space(dd->dd_parent, parent_space, tx);
 }
 
 /* call from syncing context when we actually write/free space for this dd */

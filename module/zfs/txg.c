@@ -46,7 +46,7 @@
  * either be processing, or blocked waiting to enter the next state. There may
  * be up to three active txgs, and there is always a txg in the open state
  * (though it may be blocked waiting to enter the quiescing state). In broad
- * strokes, transactions — operations that change in-memory structures — are
+ * strokes, transactions -- operations that change in-memory structures -- are
  * accepted into the txg in the open state, and are completed while the txg is
  * in the open or quiescing states. The accumulated changes are written to
  * disk in the syncing state.
@@ -54,7 +54,7 @@
  * Open
  *
  * When a new txg becomes active, it first enters the open state. New
- * transactions — updates to in-memory structures — are assigned to the
+ * transactions -- updates to in-memory structures -- are assigned to the
  * currently open txg. There is always a txg in the open state so that ZFS can
  * accept new changes (though the txg may refuse new changes if it has hit
  * some limit). ZFS advances the open txg to the next state for a variety of
@@ -377,6 +377,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 
 	ASSERT(txg == tx->tx_open_txg);
 	tx->tx_open_txg++;
+	tx->tx_open_time = gethrtime();
 
 	DTRACE_PROBE2(txg__quiescing, dsl_pool_t *, dp, uint64_t, txg);
 	DTRACE_PROBE2(txg__opened, dsl_pool_t *, dp, uint64_t, tx->tx_open_txg);
@@ -510,7 +511,8 @@ txg_sync_thread(dsl_pool_t *dp)
 	for (;;) {
 		hrtime_t hrstart;
 		txg_history_t *th;
-		uint64_t timer, timeout;
+		uint64_t timeout = zfs_txg_timeout * hz;
+		uint64_t timer;
 		uint64_t txg;
 
 		timeout = zfs_txg_timeout * hz;
@@ -524,7 +526,8 @@ txg_sync_thread(dsl_pool_t *dp)
 		while (!dsl_scan_active(dp->dp_scan) &&
 		    !tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
-		    tx->tx_quiesced_txg == 0) {
+		    tx->tx_quiesced_txg == 0 &&
+		    dp->dp_dirty_total < zfs_dirty_data_sync) {
 			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
 			    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, timer);
@@ -557,14 +560,14 @@ txg_sync_thread(dsl_pool_t *dp)
 		DTRACE_PROBE2(txg__syncing, dsl_pool_t *, dp, uint64_t, txg);
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
+		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
+		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+		mutex_exit(&tx->tx_sync_lock);
+
 		th = dsl_pool_txg_history_get(dp, txg);
 		th->th_kstat.state = TXG_STATE_SYNCING;
 		vdev_get_stats(spa->spa_root_vdev, &th->th_vs1);
 		dsl_pool_txg_history_put(th);
-
-		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
-		mutex_exit(&tx->tx_sync_lock);
 
 		start = ddi_get_lbolt();
 		hrstart = gethrtime();
@@ -585,7 +588,9 @@ txg_sync_thread(dsl_pool_t *dp)
 		/*
 		 * Measure the txg sync time determine the amount of I/O done.
 		 */
+		mutex_exit(&tx->tx_sync_lock);
 		th = dsl_pool_txg_history_get(dp, txg);
+		mutex_enter(&tx->tx_sync_lock);
 		vdev_get_stats(spa->spa_root_vdev, &th->th_vs2);
 		th->th_kstat.sync_time = gethrtime() - hrstart;
 		th->th_kstat.nread = th->th_vs2.vs_bytes[ZIO_TYPE_READ] -
@@ -722,6 +727,28 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg)
 	while (tx->tx_open_txg < txg) {
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		cv_wait(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
+	}
+	mutex_exit(&tx->tx_sync_lock);
+}
+
+/*
+ * If there isn't a txg syncing or in the pipeline, push another txg through
+ * the pipeline by queiscing the open txg.
+ */
+void
+txg_kick(dsl_pool_t *dp)
+{
+	tx_state_t *tx = &dp->dp_tx;
+
+	ASSERT(!dsl_pool_config_held(dp));
+
+	mutex_enter(&tx->tx_sync_lock);
+	if (tx->tx_syncing_txg == 0 &&
+	    tx->tx_quiesce_txg_waiting <= tx->tx_open_txg &&
+	    tx->tx_sync_txg_waiting <= tx->tx_synced_txg &&
+	    tx->tx_quiesced_txg <= tx->tx_synced_txg) {
+		tx->tx_quiesce_txg_waiting = tx->tx_open_txg + 1;
+		cv_broadcast(&tx->tx_quiesce_more_cv);
 	}
 	mutex_exit(&tx->tx_sync_lock);
 }

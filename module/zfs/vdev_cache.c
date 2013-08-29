@@ -312,7 +312,7 @@ vdev_cache_read(zio_t *zio)
 	}
 
 	fio = zio_vdev_delegated_io(zio->io_vd, cache_offset,
-	    ve->ve_data, VCBS, ZIO_TYPE_READ, ZIO_PRIORITY_CACHE_FILL,
+	    ve->ve_data, VCBS, ZIO_TYPE_READ, ZIO_PRIORITY_NOW,
 	    ZIO_FLAG_DONT_CACHE, vdev_cache_fill, ve);
 
 	ve->ve_fill_io = fio;
