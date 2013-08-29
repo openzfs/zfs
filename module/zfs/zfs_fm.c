@@ -316,8 +316,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    DATA_TYPE_UINT64, zio->io_delay, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP,
 		    DATA_TYPE_UINT64, zio->io_timestamp, NULL);
-		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DEADLINE,
-		    DATA_TYPE_UINT64, zio->io_deadline, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA,
 		    DATA_TYPE_UINT64, zio->io_delta, NULL);
 

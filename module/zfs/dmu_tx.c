@@ -53,7 +53,8 @@ dmu_tx_stats_t dmu_tx_stats = {
 	{ "dmu_tx_memory_reclaim",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_memory_inflight",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_throttle",	KSTAT_DATA_UINT64 },
-	{ "dmu_tx_write_limit",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_dirty_delay",		KSTAT_DATA_UINT64 },
+	{ "dmu_tx_dirty_over_max",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_quota",		KSTAT_DATA_UINT64 },
 };
 
@@ -70,6 +71,7 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 	    offsetof(dmu_tx_hold_t, txh_node));
 	list_create(&tx->tx_callbacks, sizeof (dmu_tx_callback_t),
 	    offsetof(dmu_tx_callback_t, dcb_node));
+	tx->tx_start = gethrtime();
 #ifdef DEBUG_DMU_TX
 	refcount_create(&tx->tx_space_written);
 	refcount_create(&tx->tx_space_freed);
@@ -614,6 +616,7 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 	if (txh == NULL)
 		return;
 	dn = txh->txh_dnode;
+	dmu_tx_count_dnode(txh);
 
 	if (off >= (dn->dn_maxblkid+1) * dn->dn_datablksz)
 		return;
@@ -931,6 +934,142 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 }
 #endif
 
+/*
+ * If we can't do 10 iops, something is wrong.  Let us go ahead
+ * and hit zfs_dirty_data_max.
+ */
+hrtime_t zfs_delay_max_ns = 100 * MICROSEC; /* 100 milliseconds */
+int zfs_delay_resolution_ns = 100 * 1000; /* 100 microseconds */
+
+/*
+ * We delay transactions when we've determined that the backend storage
+ * isn't able to accommodate the rate of incoming writes.
+ *
+ * If there is already a transaction waiting, we delay relative to when
+ * that transaction finishes waiting.  This way the calculated min_time
+ * is independent of the number of threads concurrently executing
+ * transactions.
+ *
+ * If we are the only waiter, wait relative to when the transaction
+ * started, rather than the current time.  This credits the transaction for
+ * "time already served", e.g. reading indirect blocks.
+ *
+ * The minimum time for a transaction to take is calculated as:
+ *     min_time = scale * (dirty - min) / (max - dirty)
+ *     min_time is then capped at zfs_delay_max_ns.
+ *
+ * The delay has two degrees of freedom that can be adjusted via tunables.
+ * The percentage of dirty data at which we start to delay is defined by
+ * zfs_delay_min_dirty_percent. This should typically be at or above
+ * zfs_vdev_async_write_active_max_dirty_percent so that we only start to
+ * delay after writing at full speed has failed to keep up with the incoming
+ * write rate. The scale of the curve is defined by zfs_delay_scale. Roughly
+ * speaking, this variable determines the amount of delay at the midpoint of
+ * the curve.
+ *
+ * delay
+ *  10ms +-------------------------------------------------------------*+
+ *       |                                                             *|
+ *   9ms +                                                             *+
+ *       |                                                             *|
+ *   8ms +                                                             *+
+ *       |                                                            * |
+ *   7ms +                                                            * +
+ *       |                                                            * |
+ *   6ms +                                                            * +
+ *       |                                                            * |
+ *   5ms +                                                           *  +
+ *       |                                                           *  |
+ *   4ms +                                                           *  +
+ *       |                                                           *  |
+ *   3ms +                                                          *   +
+ *       |                                                          *   |
+ *   2ms +                                              (midpoint) *    +
+ *       |                                                  |    **     |
+ *   1ms +                                                  v ***       +
+ *       |             zfs_delay_scale ---------->     ********         |
+ *     0 +-------------------------------------*********----------------+
+ *       0%                    <- zfs_dirty_data_max ->               100%
+ *
+ * Note that since the delay is added to the outstanding time remaining on the
+ * most recent transaction, the delay is effectively the inverse of IOPS.
+ * Here the midpoint of 500us translates to 2000 IOPS. The shape of the curve
+ * was chosen such that small changes in the amount of accumulated dirty data
+ * in the first 3/4 of the curve yield relatively small differences in the
+ * amount of delay.
+ *
+ * The effects can be easier to understand when the amount of delay is
+ * represented on a log scale:
+ *
+ * delay
+ * 100ms +-------------------------------------------------------------++
+ *       +                                                              +
+ *       |                                                              |
+ *       +                                                             *+
+ *  10ms +                                                             *+
+ *       +                                                           ** +
+ *       |                                              (midpoint)  **  |
+ *       +                                                  |     **    +
+ *   1ms +                                                  v ****      +
+ *       +             zfs_delay_scale ---------->        *****         +
+ *       |                                             ****             |
+ *       +                                          ****                +
+ * 100us +                                        **                    +
+ *       +                                       *                      +
+ *       |                                      *                       |
+ *       +                                     *                        +
+ *  10us +                                     *                        +
+ *       +                                                              +
+ *       |                                                              |
+ *       +                                                              +
+ *       +--------------------------------------------------------------+
+ *       0%                    <- zfs_dirty_data_max ->               100%
+ *
+ * Note here that only as the amount of dirty data approaches its limit does
+ * the delay start to increase rapidly. The goal of a properly tuned system
+ * should be to keep the amount of dirty data out of that range by first
+ * ensuring that the appropriate limits are set for the I/O scheduler to reach
+ * optimal throughput on the backend storage, and then by changing the value
+ * of zfs_delay_scale to increase the steepness of the curve.
+ */
+static void
+dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
+{
+	dsl_pool_t *dp = tx->tx_pool;
+	uint64_t delay_min_bytes =
+	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
+	hrtime_t wakeup, min_tx_time, now;
+
+	if (dirty <= delay_min_bytes)
+		return;
+
+	/*
+	 * The caller has already waited until we are under the max.
+	 * We make them pass us the amount of dirty data so we don't
+	 * have to handle the case of it being >= the max, which could
+	 * cause a divide-by-zero if it's == the max.
+	 */
+	ASSERT3U(dirty, <, zfs_dirty_data_max);
+
+	now = gethrtime();
+	min_tx_time = zfs_delay_scale *
+	    (dirty - delay_min_bytes) / (zfs_dirty_data_max - dirty);
+	min_tx_time = MIN(min_tx_time, zfs_delay_max_ns);
+	if (now > tx->tx_start + min_tx_time)
+		return;
+
+	DTRACE_PROBE3(delay__mintime, dmu_tx_t *, tx, uint64_t, dirty,
+	    uint64_t, min_tx_time);
+
+	mutex_enter(&dp->dp_lock);
+	wakeup = MAX(tx->tx_start + min_tx_time,
+	    dp->dp_last_wakeup + min_tx_time);
+	dp->dp_last_wakeup = wakeup;
+	mutex_exit(&dp->dp_lock);
+
+	zfs_sleep_until(wakeup);
+}
+
 static int
 dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 {
@@ -963,6 +1102,13 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 			return (SET_ERROR(EIO));
 
 		return (SET_ERROR(ERESTART));
+	}
+
+	if (!tx->tx_waited &&
+	    dsl_pool_need_dirty_delay(tx->tx_pool)) {
+		tx->tx_wait_dirty = B_TRUE;
+		DMU_TX_STAT_BUMP(dmu_tx_dirty_delay);
+		return (ERESTART);
 	}
 
 	tx->tx_txg = txg_hold_open(tx->tx_pool, &tx->tx_txgh);
@@ -1092,6 +1238,10 @@ dmu_tx_unassign(dmu_tx_t *tx)
  *	blocking, returns immediately with ERESTART.  This should be used
  *	whenever you're holding locks.  On an ERESTART error, the caller
  *	should drop locks, do a dmu_tx_wait(tx), and try again.
+ *
+ * (3)	TXG_WAITED.  Like TXG_NOWAIT, but indicates that dmu_tx_wait()
+ *	has already been called on behalf of this operation (though
+ *	most likely on a different tx).
  */
 int
 dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
@@ -1100,10 +1250,14 @@ dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT(txg_how == TXG_WAIT || txg_how == TXG_NOWAIT);
+	ASSERT(txg_how == TXG_WAIT || txg_how == TXG_NOWAIT ||
+	    txg_how == TXG_WAITED);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	before = gethrtime();
+
+	if (txg_how == TXG_WAITED)
+		tx->tx_waited = B_TRUE;
 
 	/* If we might wait, we must not hold the config lock. */
 	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
@@ -1128,17 +1282,47 @@ void
 dmu_tx_wait(dmu_tx_t *tx)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
+	dsl_pool_t *dp = tx->tx_pool;
 
 	ASSERT(tx->tx_txg == 0);
 	ASSERT(!dsl_pool_config_held(tx->tx_pool));
 
-	/*
-	 * It's possible that the pool has become active after this thread
-	 * has tried to obtain a tx. If that's the case then his
-	 * tx_lasttried_txg would not have been assigned.
-	 */
-	if (spa_suspended(spa) || tx->tx_lasttried_txg == 0) {
-		txg_wait_synced(tx->tx_pool, spa_last_synced_txg(spa) + 1);
+	if (tx->tx_wait_dirty) {
+		uint64_t dirty;
+
+		/*
+		 * dmu_tx_try_assign() has determined that we need to wait
+		 * because we've consumed much or all of the dirty buffer
+		 * space.
+		 */
+		mutex_enter(&dp->dp_lock);
+		if (dp->dp_dirty_total >= zfs_dirty_data_max)
+			DMU_TX_STAT_BUMP(dmu_tx_dirty_over_max);
+		while (dp->dp_dirty_total >= zfs_dirty_data_max)
+			cv_wait(&dp->dp_spaceavail_cv, &dp->dp_lock);
+		dirty = dp->dp_dirty_total;
+		mutex_exit(&dp->dp_lock);
+
+		dmu_tx_delay(tx, dirty);
+
+		tx->tx_wait_dirty = B_FALSE;
+
+		/*
+		 * Note: setting tx_waited only has effect if the caller
+		 * used TX_WAIT.  Otherwise they are going to destroy
+		 * this tx and try again.  The common case, zfs_write(),
+		 * uses TX_WAIT.
+		 */
+		tx->tx_waited = B_TRUE;
+	} else if (spa_suspended(spa) || tx->tx_lasttried_txg == 0) {
+		/*
+		 * If the pool is suspended we need to wait until it
+		 * is resumed.  Note that it's possible that the pool
+		 * has become active after this thread has tried to
+		 * obtain a tx.  If that's the case then tx_lasttried_txg
+		 * would not have been set.
+		 */
+		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
 	} else if (tx->tx_needassign_txh) {
 		dnode_t *dn = tx->tx_needassign_txh->txh_dnode;
 
@@ -1148,6 +1332,10 @@ dmu_tx_wait(dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 		tx->tx_needassign_txh = NULL;
 	} else {
+		/*
+		 * A dnode is assigned to the quiescing txg.  Wait for its
+		 * transaction to complete.
+		 */
 		txg_wait_open(tx->tx_pool, tx->tx_lasttried_txg + 1);
 	}
 }
@@ -1267,7 +1455,6 @@ dmu_tx_pool(dmu_tx_t *tx)
 	ASSERT(tx->tx_pool != NULL);
 	return (tx->tx_pool);
 }
-
 
 void
 dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)

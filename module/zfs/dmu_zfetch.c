@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2013 by Delphix. All rights reserved.
+ */
+
 #include <sys/zfs_context.h>
 #include <sys/dnode.h>
 #include <sys/dmu_objset.h>
@@ -287,7 +291,7 @@ dmu_zfetch_fetch(dnode_t *dn, uint64_t blkid, uint64_t nblks)
 	fetchsz = dmu_zfetch_fetchsz(dn, blkid, nblks);
 
 	for (i = 0; i < fetchsz; i++) {
-		dbuf_prefetch(dn, blkid + i);
+		dbuf_prefetch(dn, blkid + i, ZIO_PRIORITY_ASYNC_READ);
 	}
 
 	return (fetchsz);

@@ -112,6 +112,9 @@ typedef struct dbuf_dirty_record {
 	/* pointer to parent dirty record */
 	struct dbuf_dirty_record *dr_parent;
 
+	/* How much space was changed to dsl_pool_dirty_space() for this? */
+	unsigned int dr_accounted;
+
 	union dirty_types {
 		struct dirty_indirect {
 
@@ -252,7 +255,7 @@ dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid, int create,
     void *tag, dmu_buf_impl_t **dbp);
 
-void dbuf_prefetch(struct dnode *dn, uint64_t blkid);
+void dbuf_prefetch(struct dnode *dn, uint64_t blkid, zio_priority_t prio);
 
 void dbuf_add_ref(dmu_buf_impl_t *db, void *tag);
 uint64_t dbuf_refcount(dmu_buf_impl_t *db);

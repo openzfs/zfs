@@ -18,6 +18,7 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
@@ -89,10 +90,13 @@ struct tx_cpu {
 typedef struct tx_state {
 	tx_cpu_t	*tx_cpu;	/* protects access to tx_open_txg */
 	kmutex_t	tx_sync_lock;	/* protects the rest of this struct */
+
 	uint64_t	tx_open_txg;	/* currently open txg id */
 	uint64_t	tx_quiesced_txg; /* quiesced txg waiting for sync */
 	uint64_t	tx_syncing_txg;	/* currently syncing txg id */
 	uint64_t	tx_synced_txg;	/* last synced txg id */
+
+	hrtime_t	tx_open_time;	/* start time of tx_open_txg */
 
 	uint64_t	tx_sync_txg_waiting; /* txg we're waiting to sync */
 	uint64_t	tx_quiesce_txg_waiting; /* txg we're waiting to open */
