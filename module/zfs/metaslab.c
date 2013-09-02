@@ -115,7 +115,6 @@ metaslab_class_create(spa_t *spa, space_map_ops_t *ops)
 	mc->mc_spa = spa;
 	mc->mc_rotor = NULL;
 	mc->mc_ops = ops;
-	mutex_init(&mc->mc_fastwrite_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	return (mc);
 }
@@ -129,7 +128,6 @@ metaslab_class_destroy(metaslab_class_t *mc)
 	ASSERT(mc->mc_space == 0);
 	ASSERT(mc->mc_dspace == 0);
 
-	mutex_destroy(&mc->mc_fastwrite_lock);
 	kmem_free(mc, sizeof (metaslab_class_t));
 }
 
@@ -1497,7 +1495,7 @@ static int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags)
 {
-	metaslab_group_t *mg, *fast_mg, *rotor;
+	metaslab_group_t *mg, *rotor;
 	vdev_t *vd;
 	int dshift = 3;
 	int all_zero;
@@ -1514,9 +1512,6 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 */
 	if (psize >= metaslab_gang_bang && (ddi_get_lbolt() & 3) == 0)
 		return (ENOSPC);
-
-	if (flags & METASLAB_FASTWRITE)
-		mutex_enter(&mc->mc_fastwrite_lock);
 
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
@@ -1561,6 +1556,14 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d - 1]));
 		mg = vd->vdev_mg->mg_next;
 	} else if (flags & METASLAB_FASTWRITE) {
+		metaslab_group_t *fast_mg;
+
+		/*
+		 * Must hold one of the spa_config locks.
+		 */
+		ASSERT(spa_config_held(mc->mc_spa, SCL_ALL, RW_READER) ||
+		    spa_config_held(mc->mc_spa, SCL_ALL, RW_WRITER));
+
 		mg = fast_mg = mc->mc_rotor;
 
 		do {
@@ -1670,7 +1673,6 @@ top:
 			if (flags & METASLAB_FASTWRITE) {
 				atomic_add_64(&vd->vdev_pending_fastwrite,
 				    psize);
-				mutex_exit(&mc->mc_fastwrite_lock);
 			}
 
 			return (0);
@@ -1694,8 +1696,6 @@ next:
 
 	bzero(&dva[d], sizeof (dva_t));
 
-	if (flags & METASLAB_FASTWRITE)
-		mutex_exit(&mc->mc_fastwrite_lock);
 	return (ENOSPC);
 }
 
