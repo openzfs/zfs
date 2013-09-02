@@ -650,18 +650,18 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		return (EAGAIN);
 	}
 
-#ifdef HAVE_UIO_ZEROCOPY
 	/*
 	 * Pre-fault the pages to ensure slow (eg NFS) pages
 	 * don't hold up txg.
 	 * Skip this if uio contains loaned arc_buf.
 	 */
+#ifdef HAVE_UIO_ZEROCOPY
 	if ((uio->uio_extflg == UIO_XUIO) &&
 	    (((xuio_t *)uio)->xu_type == UIOTYPE_ZEROCOPY))
 		xuio = (xuio_t *)uio;
 	else
+#endif
 		uio_prefaultpages(MIN(n, max_blksz), uio);
-#endif /* HAVE_UIO_ZEROCOPY */
 
 	/*
 	 * If in append mode, set the io offset pointer to eof.
