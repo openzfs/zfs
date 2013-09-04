@@ -422,7 +422,7 @@ extern int spa_get_stats(const char *pool, nvlist_t **config, char *altroot,
 extern int spa_create(const char *pool, nvlist_t *config, nvlist_t *props,
     nvlist_t *zplprops);
 extern int spa_import_rootpool(char *devpath, char *devid);
-extern int spa_import(const char *pool, nvlist_t *config, nvlist_t *props,
+extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
 extern int spa_destroy(char *pool);

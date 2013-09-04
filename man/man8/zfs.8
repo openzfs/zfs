@@ -1511,7 +1511,9 @@ Destroy (or mark for deferred destruction) all snapshots with this name in desce
 .ad
 .sp .6
 .RS 4n
-Recursively destroy all dependents.
+Recursively destroy all clones of these snapshots, including the clones,
+snapshots, and children.  If this flag is specified, the \fB-d\fR flag will
+have no effect.
 .RE
 
 .sp
@@ -1547,7 +1549,7 @@ Print verbose information about the deleted data.
 .RE
 
 .sp
-Extreme care should be taken when applying either the \fB-r\fR or the \fB-f\fR
+Extreme care should be taken when applying either the \fB-r\fR or the \fB-R\fR
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
 .RE

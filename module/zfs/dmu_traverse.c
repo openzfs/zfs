@@ -265,7 +265,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
-		if (err)
+		if (err != 0)
 			return (err);
 		cbp = buf->b_data;
 
@@ -282,7 +282,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
 			err = traverse_visitbp(td, dnp, &cbp[i], &czb);
-			if (err) {
+			if (err != 0) {
 				if (!hard)
 					break;
 				lasterr = err;
@@ -295,7 +295,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
-		if (err)
+		if (err != 0)
 			return (err);
 		dnp = buf->b_data;
 
@@ -308,7 +308,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		for (i = 0; i < epb; i++) {
 			err = traverse_dnode(td, &dnp[i], zb->zb_objset,
 			    zb->zb_blkid * epb + i);
-			if (err) {
+			if (err != 0) {
 				if (!hard)
 					break;
 				lasterr = err;
@@ -321,7 +321,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
-		if (err)
+		if (err != 0)
 			return (err);
 
 		osp = buf->b_data;
@@ -405,7 +405,7 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 	for (j = 0; j < dnp->dn_nblkptr; j++) {
 		SET_BOOKMARK(&czb, objset, object, dnp->dn_nlevels - 1, j);
 		err = traverse_visitbp(td, dnp, &dnp->dn_blkptr[j], &czb);
-		if (err) {
+		if (err != 0) {
 			if (!hard)
 				break;
 			lasterr = err;
@@ -415,7 +415,7 @@ traverse_dnode(traverse_data_t *td, const dnode_phys_t *dnp,
 	if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
 		SET_BOOKMARK(&czb, objset, object, 0, DMU_SPILL_BLKID);
 		err = traverse_visitbp(td, dnp, &dnp->dn_spill, &czb);
-		if (err) {
+		if (err != 0) {
 			if (!hard)
 				return (err);
 			lasterr = err;
@@ -518,14 +518,20 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	cv_init(&pd->pd_cv, NULL, CV_DEFAULT, NULL);
 
 	/* See comment on ZIL traversal in dsl_scan_visitds. */
-	if (ds != NULL && !dsl_dataset_is_snapshot(ds)) {
-		objset_t *os;
+	if (ds != NULL && !dsl_dataset_is_snapshot(ds) && !BP_IS_HOLE(rootbp)) {
+		uint32_t flags = ARC_WAIT;
+		objset_phys_t *osp;
+		arc_buf_t *buf;
 
-		err = dmu_objset_from_ds(ds, &os);
-		if (err)
+		err = arc_read(NULL, td->td_spa, rootbp,
+		    arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, NULL);
+		if (err != 0)
 			return (err);
 
-		traverse_zil(td, &os->os_zil_header);
+		osp = buf->b_data;
+		traverse_zil(td, &osp->os_zil_header);
+		(void) arc_buf_remove_ref(buf, &buf);
 	}
 
 	if (!(flags & TRAVERSE_PREFETCH_DATA) ||
@@ -591,7 +597,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	/* visit the MOS */
 	err = traverse_impl(spa, NULL, 0, spa_get_rootblkptr(spa),
 	    txg_start, NULL, flags, func, arg);
-	if (err)
+	if (err != 0)
 		return (err);
 
 	/* visit each dataset */
@@ -600,7 +606,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 		dmu_object_info_t doi;
 
 		err = dmu_object_info(mos, obj, &doi);
-		if (err) {
+		if (err != 0) {
 			if (!hard)
 				return (err);
 			lasterr = err;
@@ -611,10 +617,10 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 			dsl_dataset_t *ds;
 			uint64_t txg = txg_start;
 
-			rw_enter(&dp->dp_config_rwlock, RW_READER);
+			dsl_pool_config_enter(dp, FTAG);
 			err = dsl_dataset_hold_obj(dp, obj, FTAG, &ds);
-			rw_exit(&dp->dp_config_rwlock);
-			if (err) {
+			dsl_pool_config_exit(dp, FTAG);
+			if (err != 0) {
 				if (!hard)
 					return (err);
 				lasterr = err;
@@ -624,7 +630,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 				txg = ds->ds_phys->ds_prev_snap_txg;
 			err = traverse_dataset(ds, txg, flags, func, arg);
 			dsl_dataset_rele(ds, FTAG);
-			if (err) {
+			if (err != 0) {
 				if (!hard)
 					return (err);
 				lasterr = err;

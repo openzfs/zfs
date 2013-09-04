@@ -103,7 +103,7 @@ top:
 int
 zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
-	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
 	int ret;
 
@@ -140,7 +140,7 @@ int
 zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
     void *data)
 {
-	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
 	int ret;
 

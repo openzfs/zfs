@@ -102,7 +102,7 @@ void
 space_map_add(space_map_t *sm, uint64_t start, uint64_t size)
 {
 	avl_index_t where;
-	space_seg_t ssearch, *ss_before, *ss_after, *ss;
+	space_seg_t *ss_before, *ss_after, *ss;
 	uint64_t end = start + size;
 	int merge_before, merge_after;
 
@@ -115,11 +115,8 @@ space_map_add(space_map_t *sm, uint64_t start, uint64_t size)
 	VERIFY(P2PHASE(start, 1ULL << sm->sm_shift) == 0);
 	VERIFY(P2PHASE(size, 1ULL << sm->sm_shift) == 0);
 
-	ssearch.ss_start = start;
-	ssearch.ss_end = end;
-	ss = avl_find(&sm->sm_root, &ssearch, &where);
-
-	if (ss != NULL && ss->ss_start <= start && ss->ss_end >= end) {
+	ss = space_map_find(sm, start, size, &where);
+	if (ss != NULL) {
 		zfs_panic_recover("zfs: allocating allocated segment"
 		    "(offset=%llu size=%llu)\n",
 		    (longlong_t)start, (longlong_t)size);
@@ -171,19 +168,12 @@ void
 space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 {
 	avl_index_t where;
-	space_seg_t ssearch, *ss, *newseg;
+	space_seg_t *ss, *newseg;
 	uint64_t end = start + size;
 	int left_over, right_over;
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
 	VERIFY(!sm->sm_condensing);
-	VERIFY(size != 0);
-	VERIFY(P2PHASE(start, 1ULL << sm->sm_shift) == 0);
-	VERIFY(P2PHASE(size, 1ULL << sm->sm_shift) == 0);
-
-	ssearch.ss_start = start;
-	ssearch.ss_end = end;
-	ss = avl_find(&sm->sm_root, &ssearch, &where);
+	ss = space_map_find(sm, start, size, &where);
 
 	/* Make sure we completely overlap with someone */
 	if (ss == NULL) {
@@ -226,12 +216,11 @@ space_map_remove(space_map_t *sm, uint64_t start, uint64_t size)
 	sm->sm_space -= size;
 }
 
-boolean_t
-space_map_contains(space_map_t *sm, uint64_t start, uint64_t size)
+space_seg_t *
+space_map_find(space_map_t *sm, uint64_t start, uint64_t size,
+    avl_index_t *wherep)
 {
-	avl_index_t where;
 	space_seg_t ssearch, *ss;
-	uint64_t end = start + size;
 
 	ASSERT(MUTEX_HELD(sm->sm_lock));
 	VERIFY(size != 0);
@@ -239,10 +228,20 @@ space_map_contains(space_map_t *sm, uint64_t start, uint64_t size)
 	VERIFY(P2PHASE(size, 1ULL << sm->sm_shift) == 0);
 
 	ssearch.ss_start = start;
-	ssearch.ss_end = end;
-	ss = avl_find(&sm->sm_root, &ssearch, &where);
+	ssearch.ss_end = start + size;
+	ss = avl_find(&sm->sm_root, &ssearch, wherep);
 
-	return (ss != NULL && ss->ss_start <= start && ss->ss_end >= end);
+	if (ss != NULL && ss->ss_start <= start && ss->ss_end >= start + size)
+		return (ss);
+	return (NULL);
+}
+
+boolean_t
+space_map_contains(space_map_t *sm, uint64_t start, uint64_t size)
+{
+	avl_index_t where;
+
+	return (space_map_find(sm, start, size, &where) != 0);
 }
 
 void

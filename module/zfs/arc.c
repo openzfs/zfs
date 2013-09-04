@@ -1643,12 +1643,12 @@ arc_buf_free(arc_buf_t *buf, void *tag)
 	}
 }
 
-int
+boolean_t
 arc_buf_remove_ref(arc_buf_t *buf, void* tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	kmutex_t *hash_lock = NULL;
-	int no_callback = (buf->b_efunc == NULL);
+	boolean_t no_callback = (buf->b_efunc == NULL);
 
 	if (hdr->b_state == arc_anon) {
 		ASSERT(hdr->b_datacnt == 1);
@@ -1854,7 +1854,7 @@ arc_evict(arc_state_t *state, uint64_t spa, int64_t bytes, boolean_t recycle,
 		ARCSTAT_INCR(arcstat_mutex_miss, missed);
 
 	/*
-	 * We have just evicted some date into the ghost state, make
+	 * We have just evicted some data into the ghost state, make
 	 * sure we also adjust the ghost state size if necessary.
 	 */
 	if (arc_no_grow &&
@@ -2772,7 +2772,7 @@ arc_bcopy_func(zio_t *zio, arc_buf_t *buf, void *arg)
 {
 	if (zio == NULL || zio->io_error == 0)
 		bcopy(buf->b_data, arg, buf->b_hdr->b_size);
-	VERIFY(arc_buf_remove_ref(buf, arg) == 1);
+	VERIFY(arc_buf_remove_ref(buf, arg));
 }
 
 /* a generic arc_done_func_t */
@@ -2781,7 +2781,7 @@ arc_getbuf_func(zio_t *zio, arc_buf_t *buf, void *arg)
 {
 	arc_buf_t **bufp = arg;
 	if (zio && zio->io_error) {
-		VERIFY(arc_buf_remove_ref(buf, arg) == 1);
+		VERIFY(arc_buf_remove_ref(buf, arg));
 		*bufp = NULL;
 	} else {
 		*bufp = buf;

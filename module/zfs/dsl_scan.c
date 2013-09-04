@@ -53,7 +53,7 @@
 typedef int (scan_cb_t)(dsl_pool_t *, const blkptr_t *, const zbookmark_t *);
 
 static scan_cb_t dsl_scan_scrub_cb;
-static dsl_syncfunc_t dsl_scan_cancel_sync;
+static void dsl_scan_cancel_sync(void *, dmu_tx_t *);
 static void dsl_scan_sync_state(dsl_scan_t *, dmu_tx_t *tx);
 
 int zfs_top_maxinflight = 32;		/* maximum I/Os per top-level */
@@ -150,9 +150,9 @@ dsl_scan_fini(dsl_pool_t *dp)
 
 /* ARGSUSED */
 static int
-dsl_scan_setup_check(void *arg1, void *arg2, dmu_tx_t *tx)
+dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
-	dsl_scan_t *scn = arg1;
+	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	if (scn->scn_phys.scn_state == DSS_SCANNING)
 		return (EBUSY);
@@ -160,12 +160,11 @@ dsl_scan_setup_check(void *arg1, void *arg2, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
-dsl_scan_setup_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
-	dsl_scan_t *scn = arg1;
-	pool_scan_func_t *funcp = arg2;
+	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+	pool_scan_func_t *funcp = arg;
 	dmu_object_type_t ot = 0;
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
@@ -312,9 +311,9 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 /* ARGSUSED */
 static int
-dsl_scan_cancel_check(void *arg1, void *arg2, dmu_tx_t *tx)
+dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 {
-	dsl_scan_t *scn = arg1;
+	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
 		return (ENOENT);
@@ -323,9 +322,9 @@ dsl_scan_cancel_check(void *arg1, void *arg2, dmu_tx_t *tx)
 
 /* ARGSUSED */
 static void
-dsl_scan_cancel_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 {
-	dsl_scan_t *scn = arg1;
+	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	dsl_scan_done(scn, B_FALSE, tx);
 	dsl_scan_sync_state(scn, tx);
@@ -334,12 +333,8 @@ dsl_scan_cancel_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 int
 dsl_scan_cancel(dsl_pool_t *dp)
 {
-	boolean_t complete = B_FALSE;
-	int err;
-
-	err = dsl_sync_task_do(dp, dsl_scan_cancel_check,
-	    dsl_scan_cancel_sync, dp->dp_scan, &complete, 3);
-	return (err);
+	return (dsl_sync_task(spa_name(dp->dp_spa), dsl_scan_cancel_check,
+	    dsl_scan_cancel_sync, NULL, 3));
 }
 
 static void dsl_scan_visitbp(blkptr_t *bp,
@@ -375,7 +370,7 @@ dsl_scan_ds_maxtxg(dsl_dataset_t *ds)
 static void
 dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx)
 {
-	VERIFY(0 == zap_update(scn->scn_dp->dp_meta_objset,
+	VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
 	    &scn->scn_phys, tx));
@@ -959,33 +954,33 @@ struct enqueue_clones_arg {
 
 /* ARGSUSED */
 static int
-enqueue_clones_cb(spa_t *spa, uint64_t dsobj, const char *dsname, void *arg)
+enqueue_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 {
 	struct enqueue_clones_arg *eca = arg;
 	dsl_dataset_t *ds;
 	int err;
-	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dsl_scan_t *scn = dp->dp_scan;
 
-	err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+	if (hds->ds_dir->dd_phys->dd_origin_obj != eca->originobj)
+		return (0);
+
+	err = dsl_dataset_hold_obj(dp, hds->ds_object, FTAG, &ds);
 	if (err)
 		return (err);
 
-	if (ds->ds_dir->dd_phys->dd_origin_obj == eca->originobj) {
-		while (ds->ds_phys->ds_prev_snap_obj != eca->originobj) {
-			dsl_dataset_t *prev;
-			err = dsl_dataset_hold_obj(dp,
-			    ds->ds_phys->ds_prev_snap_obj, FTAG, &prev);
+	while (ds->ds_phys->ds_prev_snap_obj != eca->originobj) {
+		dsl_dataset_t *prev;
+		err = dsl_dataset_hold_obj(dp,
+		    ds->ds_phys->ds_prev_snap_obj, FTAG, &prev);
 
-			dsl_dataset_rele(ds, FTAG);
-			if (err)
-				return (err);
-			ds = prev;
-		}
-		VERIFY(zap_add_int_key(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, ds->ds_object,
-		    ds->ds_phys->ds_prev_snap_txg, eca->tx) == 0);
+		dsl_dataset_rele(ds, FTAG);
+		if (err)
+			return (err);
+		ds = prev;
 	}
+	VERIFY(zap_add_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds->ds_object,
+	    ds->ds_phys->ds_prev_snap_txg, eca->tx) == 0);
 	dsl_dataset_rele(ds, FTAG);
 	return (0);
 }
@@ -1075,17 +1070,17 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		}
 
 		if (usenext) {
-			VERIFY(zap_join_key(dp->dp_meta_objset,
+			VERIFY0(zap_join_key(dp->dp_meta_objset,
 			    ds->ds_phys->ds_next_clones_obj,
 			    scn->scn_phys.scn_queue_obj,
-			    ds->ds_phys->ds_creation_txg, tx) == 0);
+			    ds->ds_phys->ds_creation_txg, tx));
 		} else {
 			struct enqueue_clones_arg eca;
 			eca.tx = tx;
 			eca.originobj = ds->ds_object;
 
-			(void) dmu_objset_find_spa(ds->ds_dir->dd_pool->dp_spa,
-			    NULL, enqueue_clones_cb, &eca, DS_FIND_CHILDREN);
+			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
+			    enqueue_clones_cb, &eca, DS_FIND_CHILDREN));
 		}
 	}
 
@@ -1095,15 +1090,14 @@ out:
 
 /* ARGSUSED */
 static int
-enqueue_cb(spa_t *spa, uint64_t dsobj, const char *dsname, void *arg)
+enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 {
 	dmu_tx_t *tx = arg;
 	dsl_dataset_t *ds;
 	int err;
-	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dsl_scan_t *scn = dp->dp_scan;
 
-	err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+	err = dsl_dataset_hold_obj(dp, hds->ds_object, FTAG, &ds);
 	if (err)
 		return (err);
 
@@ -1261,8 +1255,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			return;
 
 		if (spa_version(dp->dp_spa) < SPA_VERSION_DSL_SCRUB) {
-			VERIFY(0 == dmu_objset_find_spa(dp->dp_spa,
-			    NULL, enqueue_cb, tx, DS_FIND_CHILDREN));
+			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
+			    enqueue_cb, tx, DS_FIND_CHILDREN));
 		} else {
 			dsl_scan_visitds(scn,
 			    dp->dp_origin_snap->ds_object, tx);
@@ -1402,7 +1396,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			func = POOL_SCAN_RESILVER;
 		zfs_dbgmsg("restarting scan func=%u txg=%llu",
 		    func, tx->tx_txg);
-		dsl_scan_setup_sync(scn, &func, tx);
+		dsl_scan_setup_sync(&func, tx);
 	}
 
 	if (!dsl_scan_active(scn) ||
@@ -1436,21 +1430,21 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			err = bptree_iterate(dp->dp_meta_objset,
 			    dp->dp_bptree_obj, B_TRUE, dsl_scan_free_block_cb,
 			    scn, tx);
-			VERIFY3U(0, ==, zio_wait(scn->scn_zio_root));
-			if (err != 0)
-				return;
+			VERIFY0(zio_wait(scn->scn_zio_root));
 
-			/* disable async destroy feature */
-			spa_feature_decr(spa,
-			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY], tx);
-			ASSERT(!spa_feature_is_active(spa,
-			    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY]));
-			VERIFY3U(0, ==, zap_remove(dp->dp_meta_objset,
-			    DMU_POOL_DIRECTORY_OBJECT,
-			    DMU_POOL_BPTREE_OBJ, tx));
-			VERIFY3U(0, ==, bptree_free(dp->dp_meta_objset,
-			    dp->dp_bptree_obj, tx));
-			dp->dp_bptree_obj = 0;
+			if (err == 0) {
+				zfeature_info_t *feat = &spa_feature_table
+				    [SPA_FEATURE_ASYNC_DESTROY];
+				/* finished; deactivate async destroy feature */
+				spa_feature_decr(spa, feat, tx);
+				ASSERT(!spa_feature_is_active(spa, feat));
+				VERIFY0(zap_remove(dp->dp_meta_objset,
+				    DMU_POOL_DIRECTORY_OBJECT,
+				    DMU_POOL_BPTREE_OBJ, tx));
+				VERIFY0(bptree_free(dp->dp_meta_objset,
+				    dp->dp_bptree_obj, tx));
+				dp->dp_bptree_obj = 0;
+			}
 		}
 		if (scn->scn_visited_this_txg) {
 			zfs_dbgmsg("freed %llu blocks in %llums from "
@@ -1497,7 +1491,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	scn->scn_zio_root = zio_root(dp->dp_spa, NULL,
 	    NULL, ZIO_FLAG_CANFAIL);
+	dsl_pool_config_enter(dp, FTAG);
 	dsl_scan_visit(scn, tx);
+	dsl_pool_config_exit(dp, FTAG);
 	(void) zio_wait(scn->scn_zio_root);
 	scn->scn_zio_root = NULL;
 
@@ -1734,8 +1730,8 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	spa->spa_scrub_reopen = B_FALSE;
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
-	return (dsl_sync_task_do(dp, dsl_scan_setup_check,
-	    dsl_scan_setup_sync, dp->dp_scan, &func, 0));
+	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
+	    dsl_scan_setup_sync, &func, 0));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

@@ -1725,7 +1725,9 @@ dump_dir(objset_t *os)
 	int print_header = 1;
 	int i, error;
 
+	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
+	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 
 	if (dds.dds_type < DMU_OST_NUMTYPES)
 		type = objset_types[dds.dds_type];
@@ -2171,7 +2173,6 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 		zio_nowait(zio_read(NULL, spa, bp, data, size,
 		    zdb_blkptr_done, zcb, ZIO_PRIORITY_ASYNC_READ, flags, zb));
-
 	}
 
 	zcb->zcb_readfails = 0;
@@ -2365,8 +2366,10 @@ dump_block_stats(spa_t *spa)
 	 */
 	(void) bpobj_iterate_nofree(&spa->spa_deferred_bpobj,
 	    count_block_cb, &zcb, NULL);
-	(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
-	    count_block_cb, &zcb, NULL);
+	if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
+		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
+		    count_block_cb, &zcb, NULL);
+	}
 	if (spa_feature_is_active(spa,
 	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
 		VERIFY3U(0, ==, bptree_iterate(spa->spa_meta_objset,

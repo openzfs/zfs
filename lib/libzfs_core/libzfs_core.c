@@ -118,7 +118,7 @@ static int
 lzc_ioctl(zfs_ioc_t ioc, const char *name,
     nvlist_t *source, nvlist_t **resultp)
 {
-	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	zfs_cmd_t zc = {"\0"};
 	int error = 0;
 	char *packed;
 	size_t size;
@@ -132,6 +132,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 	zc.zc_nvlist_src_size = size;
 
 	if (resultp != NULL) {
+		*resultp = NULL;
 		zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
@@ -159,8 +160,6 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 	if (zc.zc_nvlist_dst_filled) {
 		*resultp = fnvlist_unpack((void *)(uintptr_t)zc.zc_nvlist_dst,
 		    zc.zc_nvlist_dst_size);
-	} else if (resultp != NULL) {
-		*resultp = NULL;
 	}
 
 out:
@@ -209,7 +208,7 @@ lzc_clone(const char *fsname, const char *origin,
  * The value will be the (int32) error code.
  *
  * The return value will be 0 if all snapshots were created, otherwise it will
- * be the errno of a (undetermined) snapshot that failed.
+ * be the errno of a (unspecified) snapshot that failed.
  */
 int
 lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist)
@@ -258,7 +257,7 @@ lzc_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t **errlist)
  * The return value will be 0 if all snapshots were destroyed (or marked for
  * later destruction if 'defer' is set) or didn't exist to begin with.
  *
- * Otherwise the return value will be the errno of a (undetermined) snapshot
+ * Otherwise the return value will be the errno of a (unspecified) snapshot
  * that failed, no snapshots will be destroyed, and the errlist will have an
  * entry for each snapshot that failed.  The value in the errlist will be
  * the (int32) error code.
@@ -326,10 +325,105 @@ lzc_exists(const char *dataset)
 	 * The objset_stats ioctl is still legacy, so we need to construct our
 	 * own zfs_cmd_t rather than using zfsc_ioctl().
 	 */
-	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	zfs_cmd_t zc = {"\0"};
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	return (ioctl(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
+}
+
+/*
+ * Create "user holds" on snapshots.  If there is a hold on a snapshot,
+ * the snapshot can not be destroyed.  (However, it can be marked for deletion
+ * by lzc_destroy_snaps(defer=B_TRUE).)
+ *
+ * The keys in the nvlist are snapshot names.
+ * The snapshots must all be in the same pool.
+ * The value is the name of the hold (string type).
+ *
+ * If cleanup_fd is not -1, it must be the result of open("/dev/zfs", O_EXCL).
+ * In this case, when the cleanup_fd is closed (including on process
+ * termination), the holds will be released.  If the system is shut down
+ * uncleanly, the holds will be released when the pool is next opened
+ * or imported.
+ *
+ * The return value will be 0 if all holds were created. Otherwise the return
+ * value will be the errno of a (unspecified) hold that failed, no holds will
+ * be created, and the errlist will have an entry for each hold that
+ * failed (name = snapshot).  The value in the errlist will be the error
+ * code (int32).
+ */
+int
+lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
+{
+	char pool[MAXNAMELEN];
+	nvlist_t *args;
+	nvpair_t *elem;
+	int error;
+
+	/* determine the pool name */
+	elem = nvlist_next_nvpair(holds, NULL);
+	if (elem == NULL)
+		return (0);
+	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
+	pool[strcspn(pool, "/@")] = '\0';
+
+	args = fnvlist_alloc();
+	fnvlist_add_nvlist(args, "holds", holds);
+	if (cleanup_fd != -1)
+		fnvlist_add_int32(args, "cleanup_fd", cleanup_fd);
+
+	error = lzc_ioctl(ZFS_IOC_HOLD, pool, args, errlist);
+	nvlist_free(args);
+	return (error);
+}
+
+/*
+ * Release "user holds" on snapshots.  If the snapshot has been marked for
+ * deferred destroy (by lzc_destroy_snaps(defer=B_TRUE)), it does not have
+ * any clones, and all the user holds are removed, then the snapshot will be
+ * destroyed.
+ *
+ * The keys in the nvlist are snapshot names.
+ * The snapshots must all be in the same pool.
+ * The value is a nvlist whose keys are the holds to remove.
+ *
+ * The return value will be 0 if all holds were removed.
+ * Otherwise the return value will be the errno of a (unspecified) release
+ * that failed, no holds will be released, and the errlist will have an
+ * entry for each snapshot that has failed releases (name = snapshot).
+ * The value in the errlist will be the error code (int32) of a failed release.
+ */
+int
+lzc_release(nvlist_t *holds, nvlist_t **errlist)
+{
+	char pool[MAXNAMELEN];
+	nvpair_t *elem;
+
+	/* determine the pool name */
+	elem = nvlist_next_nvpair(holds, NULL);
+	if (elem == NULL)
+		return (0);
+	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
+	pool[strcspn(pool, "/@")] = '\0';
+
+	return (lzc_ioctl(ZFS_IOC_RELEASE, pool, holds, errlist));
+}
+
+/*
+ * Retrieve list of user holds on the specified snapshot.
+ *
+ * On success, *holdsp will be set to a nvlist which the caller must free.
+ * The keys are the names of the holds, and the value is the creation time
+ * of the hold (uint64) in seconds since the epoch.
+ */
+int
+lzc_get_holds(const char *snapname, nvlist_t **holdsp)
+{
+	int error;
+	nvlist_t *innvl = fnvlist_alloc();
+	error = lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, innvl, holdsp);
+	fnvlist_free(innvl);
+	return (error);
 }
 
 /*
@@ -411,7 +505,7 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
 	 * The receive ioctl is still legacy, so we need to construct our own
 	 * zfs_cmd_t rather than using zfsc_ioctl().
 	 */
-	zfs_cmd_t zc = {"\0", 0, 0, 0, 0, 0, 0, 0, "\0", "\0", "\0"};
+	zfs_cmd_t zc = {"\0"};
 	char *atp;
 	char *packed = NULL;
 	size_t size;

@@ -18,38 +18,35 @@
  *
  * CDDL HEADER END
  */
-
 /*
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#ifndef _SYS_ZFEATURE_H
-#define	_SYS_ZFEATURE_H
-
-#include <sys/nvpair.h>
-#include "zfeature_common.h"
+#ifndef	_SYS_DSL_DESTROY_H
+#define	_SYS_DSL_DESTROY_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-struct spa;
+struct nvlist;
+struct dsl_dataset;
 struct dmu_tx;
-struct objset;
 
-extern boolean_t feature_is_supported(struct objset *os, uint64_t obj,
-    uint64_t desc_obj, nvlist_t *unsup_feat, nvlist_t *enabled_feat);
-
-extern void spa_feature_create_zap_objects(struct spa *, struct dmu_tx *);
-extern void spa_feature_enable(struct spa *, zfeature_info_t *,
-    struct dmu_tx *);
-extern void spa_feature_incr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern void spa_feature_decr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern boolean_t spa_feature_is_enabled(struct spa *, zfeature_info_t *);
-extern boolean_t spa_feature_is_active(struct spa *, zfeature_info_t *);
+int dsl_destroy_snapshots_nvl(struct nvlist *snaps, boolean_t defer,
+    struct nvlist *errlist);
+int dsl_destroy_snapshot(const char *name, boolean_t defer);
+int dsl_destroy_head(const char *name);
+int dsl_destroy_head_check_impl(struct dsl_dataset *ds, int expected_holds);
+void dsl_destroy_head_sync_impl(struct dsl_dataset *ds, struct dmu_tx *tx);
+int dsl_destroy_inconsistent(const char *dsname, void *arg);
+void dsl_destroy_snapshot_sync_impl(struct dsl_dataset *ds,
+    boolean_t defer, struct dmu_tx *tx);
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif /* _SYS_ZFEATURE_H */
+#endif /* _SYS_DSL_DESTROY_H */

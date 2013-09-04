@@ -46,6 +46,10 @@ int lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist);
 int lzc_snaprange_space(const char *firstsnap, const char *lastsnap,
     uint64_t *usedp);
 
+int lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist);
+int lzc_release(nvlist_t *holds, nvlist_t **errlist);
+int lzc_get_holds(const char *snapname, nvlist_t **holdsp);
+
 int lzc_send(const char *snapname, const char *fromsnap, int fd);
 int lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, int fd);

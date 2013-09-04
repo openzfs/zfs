@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -155,51 +156,49 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 }
 
 int
-dmu_diff(objset_t *tosnap, objset_t *fromsnap, struct vnode *vp, offset_t *offp)
+dmu_diff(const char *tosnap_name, const char *fromsnap_name,
+    struct vnode *vp, offset_t *offp)
 {
 	struct diffarg da;
-	dsl_dataset_t *ds = tosnap->os_dsl_dataset;
-	dsl_dataset_t *fromds = fromsnap->os_dsl_dataset;
-	dsl_dataset_t *findds;
-	dsl_dataset_t *relds;
-	int err = 0;
+	dsl_dataset_t *fromsnap;
+	dsl_dataset_t *tosnap;
+	dsl_pool_t *dp;
+	int error;
+	uint64_t fromtxg;
 
-	/* make certain we are looking at snapshots */
-	if (!dsl_dataset_is_snapshot(ds) || !dsl_dataset_is_snapshot(fromds))
+	if (strchr(tosnap_name, '@') == NULL ||
+	    strchr(fromsnap_name, '@') == NULL)
 		return (EINVAL);
 
-	/* fromsnap must be earlier and from the same lineage as tosnap */
-	if (fromds->ds_phys->ds_creation_txg >= ds->ds_phys->ds_creation_txg)
-		return (EXDEV);
+	error = dsl_pool_hold(tosnap_name, FTAG, &dp);
+	if (error != 0)
+		return (error);
 
-	relds = NULL;
-	findds = ds;
-
-	while (fromds->ds_dir != findds->ds_dir) {
-		dsl_pool_t *dp = ds->ds_dir->dd_pool;
-
-		if (!dsl_dir_is_clone(findds->ds_dir)) {
-			if (relds)
-				dsl_dataset_rele(relds, FTAG);
-			return (EXDEV);
-		}
-
-		rw_enter(&dp->dp_config_rwlock, RW_READER);
-		err = dsl_dataset_hold_obj(dp,
-		    findds->ds_dir->dd_phys->dd_origin_obj, FTAG, &findds);
-		rw_exit(&dp->dp_config_rwlock);
-
-		if (relds)
-			dsl_dataset_rele(relds, FTAG);
-
-		if (err)
-			return (EXDEV);
-
-		relds = findds;
+	error = dsl_dataset_hold(dp, tosnap_name, FTAG, &tosnap);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
 	}
 
-	if (relds)
-		dsl_dataset_rele(relds, FTAG);
+	error = dsl_dataset_hold(dp, fromsnap_name, FTAG, &fromsnap);
+	if (error != 0) {
+		dsl_dataset_rele(tosnap, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	if (!dsl_dataset_is_before(tosnap, fromsnap)) {
+		dsl_dataset_rele(fromsnap, FTAG);
+		dsl_dataset_rele(tosnap, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		return (EXDEV);
+	}
+
+	fromtxg = fromsnap->ds_phys->ds_creation_txg;
+	dsl_dataset_rele(fromsnap, FTAG);
+
+	dsl_dataset_long_hold(tosnap, FTAG);
+	dsl_pool_rele(dp, FTAG);
 
 	da.da_vp = vp;
 	da.da_offp = offp;
@@ -207,15 +206,18 @@ dmu_diff(objset_t *tosnap, objset_t *fromsnap, struct vnode *vp, offset_t *offp)
 	da.da_ddr.ddr_first = da.da_ddr.ddr_last = 0;
 	da.da_err = 0;
 
-	err = traverse_dataset(ds, fromds->ds_phys->ds_creation_txg,
+	error = traverse_dataset(tosnap, fromtxg,
 	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA, diff_cb, &da);
 
-	if (err) {
-		da.da_err = err;
+	if (error != 0) {
+		da.da_err = error;
 	} else {
 		/* we set the da.da_err we return as side-effect */
 		(void) write_record(&da);
 	}
+
+	dsl_dataset_long_rele(tosnap, FTAG);
+	dsl_dataset_rele(tosnap, FTAG);
 
 	return (da.da_err);
 }

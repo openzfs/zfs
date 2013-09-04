@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <sys/processor.h>
 #include <sys/zfs_context.h>
+#include <sys/rrwlock.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include <sys/systeminfo.h>
@@ -1042,6 +1043,8 @@ umem_out_of_memory(void)
 void
 kernel_init(int mode)
 {
+	extern uint_t rrw_tsd_key;
+
 	umem_nofail_callback(umem_out_of_memory);
 
 	physmem = sysconf(_SC_PHYS_PAGES);
@@ -1059,6 +1062,8 @@ kernel_init(int mode)
 	system_taskq_init();
 
 	spa_init(mode);
+
+	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 }
 
 void

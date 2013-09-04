@@ -75,8 +75,9 @@
 uint_t rrw_tsd_key;
 
 typedef struct rrw_node {
-	struct rrw_node	*rn_next;
-	rrwlock_t	*rn_rrl;
+	struct rrw_node *rn_next;
+	rrwlock_t *rn_rrl;
+	void *rn_tag;
 } rrw_node_t;
 
 static rrw_node_t *
@@ -98,13 +99,14 @@ rrn_find(rrwlock_t *rrl)
  * Add a node to the head of the singly linked list.
  */
 static void
-rrn_add(rrwlock_t *rrl)
+rrn_add(rrwlock_t *rrl, void *tag)
 {
 	rrw_node_t *rn;
 
 	rn = kmem_alloc(sizeof (*rn), KM_SLEEP);
 	rn->rn_rrl = rrl;
 	rn->rn_next = tsd_get(rrw_tsd_key);
+	rn->rn_tag = tag;
 	VERIFY(tsd_set(rrw_tsd_key, rn) == 0);
 }
 
@@ -113,7 +115,7 @@ rrn_add(rrwlock_t *rrl)
  * thread's list and return TRUE; otherwise return FALSE.
  */
 static boolean_t
-rrn_find_and_remove(rrwlock_t *rrl)
+rrn_find_and_remove(rrwlock_t *rrl, void *tag)
 {
 	rrw_node_t *rn;
 	rrw_node_t *prev = NULL;
@@ -122,7 +124,7 @@ rrn_find_and_remove(rrwlock_t *rrl)
 		return (B_FALSE);
 
 	for (rn = tsd_get(rrw_tsd_key); rn != NULL; rn = rn->rn_next) {
-		if (rn->rn_rrl == rrl) {
+		if (rn->rn_rrl == rrl && rn->rn_tag == tag) {
 			if (prev)
 				prev->rn_next = rn->rn_next;
 			else
@@ -136,7 +138,7 @@ rrn_find_and_remove(rrwlock_t *rrl)
 }
 
 void
-rrw_init(rrwlock_t *rrl)
+rrw_init(rrwlock_t *rrl, boolean_t track_all)
 {
 	mutex_init(&rrl->rr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&rrl->rr_cv, NULL, CV_DEFAULT, NULL);
@@ -144,6 +146,7 @@ rrw_init(rrwlock_t *rrl)
 	refcount_create(&rrl->rr_anon_rcount);
 	refcount_create(&rrl->rr_linked_rcount);
 	rrl->rr_writer_wanted = B_FALSE;
+	rrl->rr_track_all = track_all;
 }
 
 void
@@ -156,12 +159,13 @@ rrw_destroy(rrwlock_t *rrl)
 	refcount_destroy(&rrl->rr_linked_rcount);
 }
 
-static void
+void
 rrw_enter_read(rrwlock_t *rrl, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
 #if !defined(DEBUG) && defined(_KERNEL)
-	if (!rrl->rr_writer && !rrl->rr_writer_wanted) {
+	if (rrl->rr_writer == NULL && !rrl->rr_writer_wanted &&
+	    !rrl->rr_track_all) {
 		rrl->rr_anon_rcount.rc_count++;
 		mutex_exit(&rrl->rr_lock);
 		return;
@@ -171,14 +175,14 @@ rrw_enter_read(rrwlock_t *rrl, void *tag)
 	ASSERT(rrl->rr_writer != curthread);
 	ASSERT(refcount_count(&rrl->rr_anon_rcount) >= 0);
 
-	while (rrl->rr_writer || (rrl->rr_writer_wanted &&
+	while (rrl->rr_writer != NULL || (rrl->rr_writer_wanted &&
 	    refcount_is_zero(&rrl->rr_anon_rcount) &&
 	    rrn_find(rrl) == NULL))
 		cv_wait(&rrl->rr_cv, &rrl->rr_lock);
 
-	if (rrl->rr_writer_wanted) {
+	if (rrl->rr_writer_wanted || rrl->rr_track_all) {
 		/* may or may not be a re-entrant enter */
-		rrn_add(rrl);
+		rrn_add(rrl, tag);
 		(void) refcount_add(&rrl->rr_linked_rcount, tag);
 	} else {
 		(void) refcount_add(&rrl->rr_anon_rcount, tag);
@@ -187,7 +191,7 @@ rrw_enter_read(rrwlock_t *rrl, void *tag)
 	mutex_exit(&rrl->rr_lock);
 }
 
-static void
+void
 rrw_enter_write(rrwlock_t *rrl)
 {
 	mutex_enter(&rrl->rr_lock);
@@ -233,10 +237,12 @@ rrw_exit(rrwlock_t *rrl, void *tag)
 
 	if (rrl->rr_writer == NULL) {
 		int64_t count;
-		if (rrn_find_and_remove(rrl))
+		if (rrn_find_and_remove(rrl, tag)) {
 			count = refcount_remove(&rrl->rr_linked_rcount, tag);
-		else
+		} else {
+			ASSERT(!rrl->rr_track_all);
 			count = refcount_remove(&rrl->rr_anon_rcount, tag);
+		}
 		if (count == 0)
 			cv_broadcast(&rrl->rr_cv);
 	} else {
@@ -249,6 +255,11 @@ rrw_exit(rrwlock_t *rrl, void *tag)
 	mutex_exit(&rrl->rr_lock);
 }
 
+/*
+ * If the lock was created with track_all, rrw_held(RW_READER) will return
+ * B_TRUE iff the current thread has the lock for reader.  Otherwise it may
+ * return B_TRUE if any thread has the lock for reader.
+ */
 boolean_t
 rrw_held(rrwlock_t *rrl, krw_t rw)
 {
@@ -259,7 +270,7 @@ rrw_held(rrwlock_t *rrl, krw_t rw)
 		held = (rrl->rr_writer == curthread);
 	} else {
 		held = (!refcount_is_zero(&rrl->rr_anon_rcount) ||
-		    !refcount_is_zero(&rrl->rr_linked_rcount));
+		    rrn_find(rrl) != NULL);
 	}
 	mutex_exit(&rrl->rr_lock);
 

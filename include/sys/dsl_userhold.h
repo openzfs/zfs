@@ -1,3 +1,4 @@
+
 /*
  * CDDL HEADER START
  *
@@ -18,38 +19,39 @@
  *
  * CDDL HEADER END
  */
-
 /*
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#ifndef _SYS_ZFEATURE_H
-#define	_SYS_ZFEATURE_H
+#ifndef	_SYS_DSL_USERHOLD_H
+#define	_SYS_DSL_USERHOLD_H
 
 #include <sys/nvpair.h>
-#include "zfeature_common.h"
+#include <sys/types.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-struct spa;
+struct dsl_pool;
+struct dsl_dataset;
 struct dmu_tx;
-struct objset;
 
-extern boolean_t feature_is_supported(struct objset *os, uint64_t obj,
-    uint64_t desc_obj, nvlist_t *unsup_feat, nvlist_t *enabled_feat);
-
-extern void spa_feature_create_zap_objects(struct spa *, struct dmu_tx *);
-extern void spa_feature_enable(struct spa *, zfeature_info_t *,
-    struct dmu_tx *);
-extern void spa_feature_incr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern void spa_feature_decr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern boolean_t spa_feature_is_enabled(struct spa *, zfeature_info_t *);
-extern boolean_t spa_feature_is_active(struct spa *, zfeature_info_t *);
+int dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor,
+    nvlist_t *errlist);
+int dsl_dataset_user_release(nvlist_t *holds, nvlist_t *errlist);
+int dsl_dataset_get_holds(const char *dsname, nvlist_t *nvl);
+void dsl_dataset_user_release_tmp(struct dsl_pool *dp, uint64_t dsobj,
+    const char *htag);
+int dsl_dataset_user_hold_check_one(struct dsl_dataset *ds, const char *htag,
+    boolean_t temphold, struct dmu_tx *tx);
+void dsl_dataset_user_hold_sync_one(struct dsl_dataset *ds, const char *htag,
+    minor_t minor, uint64_t now, struct dmu_tx *tx);
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif /* _SYS_ZFEATURE_H */
+#endif /* _SYS_DSL_USERHOLD_H */

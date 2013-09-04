@@ -481,6 +481,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
 	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
+	ASSERT3P(dn->dn_bonus, ==, NULL);
 
 	/*
 	 * XXX - It would be nice to assert this, but we may still

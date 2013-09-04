@@ -100,7 +100,7 @@ arc_buf_t *arc_loan_buf(spa_t *spa, int size);
 void arc_return_buf(arc_buf_t *buf, void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
 void arc_buf_add_ref(arc_buf_t *buf, void *tag);
-int arc_buf_remove_ref(arc_buf_t *buf, void *tag);
+boolean_t arc_buf_remove_ref(arc_buf_t *buf, void *tag);
 int arc_buf_size(arc_buf_t *buf);
 void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
