@@ -149,6 +149,8 @@ extern void space_map_add(space_map_t *sm, uint64_t start, uint64_t size);
 extern void space_map_remove(space_map_t *sm, uint64_t start, uint64_t size);
 extern boolean_t space_map_contains(space_map_t *sm,
     uint64_t start, uint64_t size);
+extern space_seg_t *space_map_find(space_map_t *sm, uint64_t start,
+    uint64_t size, avl_index_t *wherep);
 extern void space_map_swap(space_map_t **msrc, space_map_t **mdest);
 extern void space_map_vacate(space_map_t *sm,
     space_map_func_t *func, space_map_t *mdest);

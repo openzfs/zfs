@@ -315,6 +315,13 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	uint64_t readonly;
 	int error;
 
+	error = dsl_prop_get_integer(name,
+	    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly, NULL);
+	if (error != 0)
+		return (error);
+	if (readonly)
+		return (EROFS);
+
 	mutex_enter(&zvol_state_lock);
 
 	zv = zvol_find_by_name(name);
@@ -1459,8 +1466,7 @@ zvol_remove_minor(const char *name)
 }
 
 static int
-zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
-		      const char *dsname, void *arg)
+zvol_create_minors_cb(const char *dsname, void *arg)
 {
 	if (strchr(dsname, '/') == NULL)
 		return 0;
@@ -1474,7 +1480,7 @@ zvol_create_minors_cb(spa_t *spa, uint64_t dsobj,
  * for all available pools.
  */
 int
-zvol_create_minors(const char *pool)
+zvol_create_minors(char *pool)
 {
 	spa_t *spa = NULL;
 	int error = 0;
@@ -1484,13 +1490,12 @@ zvol_create_minors(const char *pool)
 
 	mutex_enter(&zvol_state_lock);
 	if (pool) {
-		error = dmu_objset_find_spa(NULL, pool, zvol_create_minors_cb,
+		error = dmu_objset_find(pool, zvol_create_minors_cb,
 		    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 	} else {
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL) {
-			error = dmu_objset_find_spa(NULL,
-			    spa_name(spa), zvol_create_minors_cb, NULL,
+			error = dmu_objset_find(spa_name(spa), zvol_create_minors_cb, NULL,
 			    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 			if (error)
 				break;

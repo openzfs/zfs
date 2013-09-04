@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -32,7 +33,7 @@ int reference_tracking_enable = FALSE; /* runs out of memory too easily */
 #else
 int reference_tracking_enable = TRUE;
 #endif
-int reference_history = 4; /* tunable */
+int reference_history = 3; /* tunable */
 
 static kmem_cache_t *reference_cache;
 static kmem_cache_t *reference_history_cache;
@@ -64,6 +65,14 @@ refcount_create(refcount_t *rc)
 	    offsetof(reference_t, ref_link));
 	rc->rc_count = 0;
 	rc->rc_removed_count = 0;
+	rc->rc_tracked = reference_tracking_enable;
+}
+
+void
+refcount_create_untracked(refcount_t *rc)
+{
+	refcount_create(rc);
+	rc->rc_tracked = B_FALSE;
 }
 
 void
@@ -96,14 +105,12 @@ refcount_destroy(refcount_t *rc)
 int
 refcount_is_zero(refcount_t *rc)
 {
-	ASSERT(rc->rc_count >= 0);
 	return (rc->rc_count == 0);
 }
 
 int64_t
 refcount_count(refcount_t *rc)
 {
-	ASSERT(rc->rc_count >= 0);
 	return (rc->rc_count);
 }
 
@@ -113,14 +120,14 @@ refcount_add_many(refcount_t *rc, uint64_t number, void *holder)
 	reference_t *ref = NULL;
 	int64_t count;
 
-	if (reference_tracking_enable) {
+	if (rc->rc_tracked) {
 		ref = kmem_cache_alloc(reference_cache, KM_PUSHPAGE);
 		ref->ref_holder = holder;
 		ref->ref_number = number;
 	}
 	mutex_enter(&rc->rc_mtx);
 	ASSERT(rc->rc_count >= 0);
-	if (reference_tracking_enable)
+	if (rc->rc_tracked)
 		list_insert_head(&rc->rc_list, ref);
 	rc->rc_count += number;
 	count = rc->rc_count;
@@ -144,7 +151,7 @@ refcount_remove_many(refcount_t *rc, uint64_t number, void *holder)
 	mutex_enter(&rc->rc_mtx);
 	ASSERT(rc->rc_count >= number);
 
-	if (!reference_tracking_enable) {
+	if (!rc->rc_tracked) {
 		rc->rc_count -= number;
 		count = rc->rc_count;
 		mutex_exit(&rc->rc_mtx);
@@ -161,7 +168,7 @@ refcount_remove_many(refcount_t *rc, uint64_t number, void *holder)
 				    KM_PUSHPAGE);
 				list_insert_head(&rc->rc_removed, ref);
 				rc->rc_removed_count++;
-				if (rc->rc_removed_count >= reference_history) {
+				if (rc->rc_removed_count > reference_history) {
 					ref = list_tail(&rc->rc_removed);
 					list_remove(&rc->rc_removed, ref);
 					kmem_cache_free(reference_history_cache,

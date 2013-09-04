@@ -197,10 +197,10 @@ spa_history_zone(void)
  */
 /*ARGSUSED*/
 static void
-spa_history_log_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+spa_history_log_sync(void *arg, dmu_tx_t *tx)
 {
-	spa_t		*spa = arg1;
-	nvlist_t	*nvl = arg2;
+	nvlist_t	*nvl = arg;
+	spa_t		*spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t	*mos = spa->spa_meta_objset;
 	dmu_buf_t	*dbp;
 	spa_history_phys_t *shpp;
@@ -222,7 +222,7 @@ spa_history_log_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 	 * Get the offset of where we need to write via the bonus buffer.
 	 * Update the offset when the write completes.
 	 */
-	VERIFY(0 == dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
+	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
 	shpp = dbp->db_data;
 
 	dmu_buf_will_dirty(dbp, tx);
@@ -326,8 +326,8 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	fnvlist_add_uint64(nvarg, ZPOOL_HIST_WHO, crgetruid(CRED()));
 
 	/* Kick this off asynchronously; errors are ignored. */
-	dsl_sync_task_do_nowait(spa_get_dsl(spa), NULL,
-	    spa_history_log_sync, spa, nvarg, 0, tx);
+	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync,
+	    nvarg, 0, tx);
 	dmu_tx_commit(tx);
 
 	/* spa_history_log_sync will free nvl */
@@ -465,10 +465,10 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TXG, tx->tx_txg);
 
 	if (dmu_tx_is_syncing(tx)) {
-		spa_history_log_sync(spa, nvl, tx);
+		spa_history_log_sync(nvl, tx);
 	} else {
-		dsl_sync_task_do_nowait(spa_get_dsl(spa), NULL,
-		    spa_history_log_sync, spa, nvl, 0, tx);
+		dsl_sync_task_nowait(spa_get_dsl(spa),
+		    spa_history_log_sync, nvl, 0, tx);
 	}
 	/* spa_history_log_sync() will free nvl */
 }
@@ -544,17 +544,11 @@ spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
 void
 spa_history_log_version(spa_t *spa, const char *operation)
 {
-#ifdef _KERNEL
-	uint64_t current_vers = spa_version(spa);
-
 	spa_history_log_internal(spa, operation, NULL,
 	    "pool version %llu; software version %llu/%d; uts %s %s %s %s",
-	    (u_longlong_t)current_vers, SPA_VERSION, ZPL_VERSION,
+	    (u_longlong_t)spa_version(spa), SPA_VERSION, ZPL_VERSION,
 	    utsname.nodename, utsname.release, utsname.version,
 	    utsname.machine);
-	cmn_err(CE_CONT, "!%s version %llu pool %s using %llu", operation,
-	    (u_longlong_t)current_vers, spa_name(spa), SPA_VERSION);
-#endif
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

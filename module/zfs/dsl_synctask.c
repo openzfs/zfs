@@ -34,138 +34,115 @@
 
 /* ARGSUSED */
 static int
-dsl_null_checkfunc(void *arg1, void *arg2, dmu_tx_t *tx)
+dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
 {
 	return (0);
 }
 
-dsl_sync_task_group_t *
-dsl_sync_task_group_create(dsl_pool_t *dp)
-{
-	dsl_sync_task_group_t *dstg;
-
-	dstg = kmem_zalloc(sizeof (dsl_sync_task_group_t), KM_SLEEP);
-	list_create(&dstg->dstg_tasks, sizeof (dsl_sync_task_t),
-	    offsetof(dsl_sync_task_t, dst_node));
-	dstg->dstg_pool = dp;
-
-	return (dstg);
-}
-
-void
-dsl_sync_task_create(dsl_sync_task_group_t *dstg,
-    dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
-    void *arg1, void *arg2, int blocks_modified)
-{
-	dsl_sync_task_t *dst;
-
-	if (checkfunc == NULL)
-		checkfunc = dsl_null_checkfunc;
-	dst = kmem_zalloc(sizeof (dsl_sync_task_t), KM_SLEEP);
-	dst->dst_checkfunc = checkfunc;
-	dst->dst_syncfunc = syncfunc;
-	dst->dst_arg1 = arg1;
-	dst->dst_arg2 = arg2;
-	list_insert_tail(&dstg->dstg_tasks, dst);
-
-	dstg->dstg_space += blocks_modified << DST_AVG_BLKSHIFT;
-}
-
+/*
+ * Called from open context to perform a callback in syncing context.  Waits
+ * for the operation to complete.
+ *
+ * The checkfunc will be called from open context as a preliminary check
+ * which can quickly fail.  If it succeeds, it will be called again from
+ * syncing context.  The checkfunc should generally be designed to work
+ * properly in either context, but if necessary it can check
+ * dmu_tx_is_syncing(tx).
+ *
+ * The synctask infrastructure enforces proper locking strategy with respect
+ * to the dp_config_rwlock -- the lock will always be held when the callbacks
+ * are called.  It will be held for read during the open-context (preliminary)
+ * call to the checkfunc, and then held for write from syncing context during
+ * the calls to the check and sync funcs.
+ *
+ * A dataset or pool name can be passed as the first argument.  Typically,
+ * the check func will hold, check the return value of the hold, and then
+ * release the dataset.  The sync func will VERIFYO(hold()) the dataset.
+ * This is safe because no changes can be made between the check and sync funcs,
+ * and the sync func will only be called if the check func successfully opened
+ * the dataset.
+ */
 int
-dsl_sync_task_group_wait(dsl_sync_task_group_t *dstg)
+dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, void *arg, int blocks_modified)
 {
+	spa_t *spa;
 	dmu_tx_t *tx;
-	uint64_t txg;
-	dsl_sync_task_t *dst;
+	int err;
+	dsl_sync_task_t dst = { { { NULL } } };
+	dsl_pool_t *dp;
+
+	err = spa_open(pool, &spa, FTAG);
+	if (err != 0)
+		return (err);
+	dp = spa_get_dsl(spa);
 
 top:
-	tx = dmu_tx_create_dd(dstg->dstg_pool->dp_mos_dir);
-	VERIFY(0 == dmu_tx_assign(tx, TXG_WAIT));
+	tx = dmu_tx_create_dd(dp->dp_mos_dir);
+	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 
-	txg = dmu_tx_get_txg(tx);
+	dst.dst_pool = dp;
+	dst.dst_txg = dmu_tx_get_txg(tx);
+	dst.dst_space = blocks_modified << DST_AVG_BLKSHIFT;
+	dst.dst_checkfunc = checkfunc != NULL ? checkfunc : dsl_null_checkfunc;
+	dst.dst_syncfunc = syncfunc;
+	dst.dst_arg = arg;
+	dst.dst_error = 0;
+	dst.dst_nowaiter = B_FALSE;
 
-	/* Do a preliminary error check. */
-	dstg->dstg_err = 0;
-#ifdef ZFS_DEBUG
-	/*
-	 * Only check half the time, otherwise, the sync-context
-	 * check will almost never fail.
-	 */
-	if (spa_get_random(2) == 0)
-		goto skip;
-#endif
-	rw_enter(&dstg->dstg_pool->dp_config_rwlock, RW_READER);
-	for (dst = list_head(&dstg->dstg_tasks); dst;
-	    dst = list_next(&dstg->dstg_tasks, dst)) {
-		dst->dst_err =
-		    dst->dst_checkfunc(dst->dst_arg1, dst->dst_arg2, tx);
-		if (dst->dst_err)
-			dstg->dstg_err = dst->dst_err;
-	}
-	rw_exit(&dstg->dstg_pool->dp_config_rwlock);
+	dsl_pool_config_enter(dp, FTAG);
+	err = dst.dst_checkfunc(arg, tx);
+	dsl_pool_config_exit(dp, FTAG);
 
-	if (dstg->dstg_err) {
+	if (err != 0) {
 		dmu_tx_commit(tx);
-		return (dstg->dstg_err);
+		spa_close(spa, FTAG);
+		return (err);
 	}
-#ifdef ZFS_DEBUG
-skip:
-#endif
 
-	/*
-	 * We don't generally have many sync tasks, so pay the price of
-	 * add_tail to get the tasks executed in the right order.
-	 */
-	VERIFY(0 == txg_list_add_tail(&dstg->dstg_pool->dp_sync_tasks,
-	    dstg, txg));
+	VERIFY(txg_list_add_tail(&dp->dp_sync_tasks, &dst, dst.dst_txg));
 
 	dmu_tx_commit(tx);
 
-	txg_wait_synced(dstg->dstg_pool, txg);
+	txg_wait_synced(dp, dst.dst_txg);
 
-	if (dstg->dstg_err == EAGAIN) {
-		txg_wait_synced(dstg->dstg_pool, txg + TXG_DEFER_SIZE);
+	if (dst.dst_error == EAGAIN) {
+		txg_wait_synced(dp, dst.dst_txg + TXG_DEFER_SIZE);
 		goto top;
 	}
 
-	return (dstg->dstg_err);
+	spa_close(spa, FTAG);
+	return (dst.dst_error);
 }
 
 void
-dsl_sync_task_group_nowait(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
+dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
+    int blocks_modified, dmu_tx_t *tx)
 {
-	uint64_t txg;
+	dsl_sync_task_t *dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
 
-	dstg->dstg_nowaiter = B_TRUE;
-	txg = dmu_tx_get_txg(tx);
-	/*
-	 * We don't generally have many sync tasks, so pay the price of
-	 * add_tail to get the tasks executed in the right order.
-	 */
-	VERIFY(0 == txg_list_add_tail(&dstg->dstg_pool->dp_sync_tasks,
-	    dstg, txg));
+	dst->dst_pool = dp;
+	dst->dst_txg = dmu_tx_get_txg(tx);
+	dst->dst_space = blocks_modified << DST_AVG_BLKSHIFT;
+	dst->dst_checkfunc = dsl_null_checkfunc;
+	dst->dst_syncfunc = syncfunc;
+	dst->dst_arg = arg;
+	dst->dst_error = 0;
+	dst->dst_nowaiter = B_TRUE;
+
+	VERIFY(txg_list_add_tail(&dp->dp_sync_tasks, dst, dst->dst_txg));
 }
 
+/*
+ * Called in syncing context to execute the synctask.
+ */
 void
-dsl_sync_task_group_destroy(dsl_sync_task_group_t *dstg)
+dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 {
-	dsl_sync_task_t *dst;
-
-	while ((dst = list_head(&dstg->dstg_tasks))) {
-		list_remove(&dstg->dstg_tasks, dst);
-		kmem_free(dst, sizeof (dsl_sync_task_t));
-	}
-	kmem_free(dstg, sizeof (dsl_sync_task_group_t));
-}
-
-void
-dsl_sync_task_group_sync(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
-{
-	dsl_sync_task_t *dst;
-	dsl_pool_t *dp = dstg->dstg_pool;
+	dsl_pool_t *dp = dst->dst_pool;
 	uint64_t quota, used;
 
-	ASSERT0(dstg->dstg_err);
+	ASSERT0(dst->dst_error);
 
 	/*
 	 * Check for sufficient space.  We just check against what's
@@ -177,70 +154,24 @@ dsl_sync_task_group_sync(dsl_sync_task_group_t *dstg, dmu_tx_t *tx)
 	    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
 	used = dp->dp_root_dir->dd_phys->dd_used_bytes;
 	/* MOS space is triple-dittoed, so we multiply by 3. */
-	if (dstg->dstg_space > 0 && used + dstg->dstg_space * 3 > quota) {
-		dstg->dstg_err = ENOSPC;
+	if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
+		dst->dst_error = ENOSPC;
+		if (dst->dst_nowaiter)
+			kmem_free(dst, sizeof (*dst));
 		return;
 	}
 
 	/*
-	 * Check for errors by calling checkfuncs.
+	 * Check for errors by calling checkfunc.
 	 */
-	rw_enter(&dp->dp_config_rwlock, RW_WRITER);
-	for (dst = list_head(&dstg->dstg_tasks); dst;
-	    dst = list_next(&dstg->dstg_tasks, dst)) {
-		dst->dst_err =
-		    dst->dst_checkfunc(dst->dst_arg1, dst->dst_arg2, tx);
-		if (dst->dst_err)
-			dstg->dstg_err = dst->dst_err;
-	}
-
-	if (dstg->dstg_err == 0) {
-		/*
-		 * Execute sync tasks.
-		 */
-		for (dst = list_head(&dstg->dstg_tasks); dst;
-		    dst = list_next(&dstg->dstg_tasks, dst)) {
-			dst->dst_syncfunc(dst->dst_arg1, dst->dst_arg2, tx);
-		}
-	}
-	rw_exit(&dp->dp_config_rwlock);
-
-	if (dstg->dstg_nowaiter)
-		dsl_sync_task_group_destroy(dstg);
-}
-
-int
-dsl_sync_task_do(dsl_pool_t *dp,
-    dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
-    void *arg1, void *arg2, int blocks_modified)
-{
-	dsl_sync_task_group_t *dstg;
-	int err;
-
-	ASSERT(spa_writeable(dp->dp_spa));
-
-	dstg = dsl_sync_task_group_create(dp);
-	dsl_sync_task_create(dstg, checkfunc, syncfunc,
-	    arg1, arg2, blocks_modified);
-	err = dsl_sync_task_group_wait(dstg);
-	dsl_sync_task_group_destroy(dstg);
-	return (err);
-}
-
-void
-dsl_sync_task_do_nowait(dsl_pool_t *dp,
-    dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
-    void *arg1, void *arg2, int blocks_modified, dmu_tx_t *tx)
-{
-	dsl_sync_task_group_t *dstg;
-
-	dstg = dsl_sync_task_group_create(dp);
-	dsl_sync_task_create(dstg, checkfunc, syncfunc,
-	    arg1, arg2, blocks_modified);
-	dsl_sync_task_group_nowait(dstg, tx);
+	rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+	dst->dst_error = dst->dst_checkfunc(dst->dst_arg, tx);
+	if (dst->dst_error == 0)
+		dst->dst_syncfunc(dst->dst_arg, tx);
+	rrw_exit(&dp->dp_config_rwlock, FTAG);
+	if (dst->dst_nowaiter)
+		kmem_free(dst, sizeof (*dst));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
-EXPORT_SYMBOL(dsl_sync_task_do);
-EXPORT_SYMBOL(dsl_sync_task_do_nowait);
 #endif

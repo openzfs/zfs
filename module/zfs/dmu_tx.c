@@ -917,7 +917,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 #endif
 
 static int
-dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 {
 	dmu_tx_hold_t *txh;
 	spa_t *spa = tx->tx_pool->dp_spa;
@@ -983,15 +983,6 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		tounref += txh->txh_space_tounref;
 		tohold += txh->txh_memory_tohold;
 		fudge += txh->txh_fudge;
-	}
-
-	/*
-	 * NB: This check must be after we've held the dnodes, so that
-	 * the dmu_tx_unassign() logic will work properly
-	 */
-	if (txg_how >= TXG_INITIAL && txg_how != tx->tx_txg) {
-		DMU_TX_STAT_BUMP(dmu_tx_how);
-		return (ERESTART);
 	}
 
 	/*
@@ -1076,28 +1067,27 @@ dmu_tx_unassign(dmu_tx_t *tx)
  *
  * (1)	TXG_WAIT.  If the current open txg is full, waits until there's
  *	a new one.  This should be used when you're not holding locks.
- *	If will only fail if we're truly out of space (or over quota).
+ *	It will only fail if we're truly out of space (or over quota).
  *
  * (2)	TXG_NOWAIT.  If we can't assign into the current open txg without
  *	blocking, returns immediately with ERESTART.  This should be used
  *	whenever you're holding locks.  On an ERESTART error, the caller
  *	should drop locks, do a dmu_tx_wait(tx), and try again.
- *
- * (3)	A specific txg.  Use this if you need to ensure that multiple
- *	transactions all sync in the same txg.  Like TXG_NOWAIT, it
- *	returns ERESTART if it can't assign you into the requested txg.
  */
 int
-dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 {
 	hrtime_t before, after;
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT(txg_how != 0);
+	ASSERT(txg_how == TXG_WAIT || txg_how == TXG_NOWAIT);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	before = gethrtime();
+
+	/* If we might wait, we must not hold the config lock. */
+	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
 
 	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
 		dmu_tx_unassign(tx);
@@ -1124,6 +1114,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 	spa_t *spa = tx->tx_pool->dp_spa;
 
 	ASSERT(tx->tx_txg == 0);
+	ASSERT(!dsl_pool_config_held(tx->tx_pool));
 
 	/*
 	 * It's possible that the pool has become active after this thread
@@ -1249,6 +1240,14 @@ dmu_tx_get_txg(dmu_tx_t *tx)
 	ASSERT(tx->tx_txg != 0);
 	return (tx->tx_txg);
 }
+
+dsl_pool_t *
+dmu_tx_pool(dmu_tx_t *tx)
+{
+	ASSERT(tx->tx_pool != NULL);
+	return (tx->tx_pool);
+}
+
 
 void
 dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)

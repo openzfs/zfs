@@ -74,7 +74,11 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
 
-	refcount_create(&dn->dn_holds);
+	/*
+	 * Every dbuf has a reference, and dropping a tracked reference is
+	 * O(number of references), so don't track dn_holds.
+	 */
+	refcount_create_untracked(&dn->dn_holds);
 	refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 

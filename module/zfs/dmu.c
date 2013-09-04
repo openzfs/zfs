@@ -1382,7 +1382,7 @@ void
 dmu_return_arcbuf(arc_buf_t *buf)
 {
 	arc_return_buf(buf, FTAG);
-	VERIFY(arc_buf_remove_ref(buf, FTAG) == 1);
+	VERIFY(arc_buf_remove_ref(buf, FTAG));
 }
 
 /*

@@ -767,6 +767,7 @@ zio_write_override(zio_t *zio, blkptr_t *bp, int copies)
 void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
+	metaslab_check_free(spa, bp);
 	bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 }
 
@@ -784,6 +785,8 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT(spa_sync_pass(spa) < zfs_sync_pass_deferred_free);
 
 	arc_freed(spa, bp);
+
+	metaslab_check_free(spa, bp);
 
 	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
 	    NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_FREE, flags,
@@ -2060,7 +2063,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 				    bcmp(abuf->b_data, zio->io_orig_data,
 				    zio->io_orig_size) != 0)
 					error = EEXIST;
-				VERIFY(arc_buf_remove_ref(abuf, &abuf) == 1);
+				VERIFY(arc_buf_remove_ref(abuf, &abuf));
 			}
 
 			ddt_enter(ddt);
@@ -2656,8 +2659,9 @@ zio_vdev_io_assess(zio_t *zio)
 	 * set vdev_cant_write so that we stop trying to allocate from it.
 	 */
 	if (zio->io_error == ENXIO && zio->io_type == ZIO_TYPE_WRITE &&
-	    vd != NULL && !vd->vdev_ops->vdev_op_leaf)
+	    vd != NULL && !vd->vdev_ops->vdev_op_leaf) {
 		vd->vdev_cant_write = B_TRUE;
+	}
 
 	if (zio->io_error)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;

@@ -12,6 +12,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dmu.h \
 	$(top_srcdir)/include/sys/dmu_impl.h \
 	$(top_srcdir)/include/sys/dmu_objset.h \
+	$(top_srcdir)/include/sys/dmu_send.h \
 	$(top_srcdir)/include/sys/dmu_traverse.h \
 	$(top_srcdir)/include/sys/dmu_tx.h \
 	$(top_srcdir)/include/sys/dmu_zfetch.h \
@@ -19,11 +20,13 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_dataset.h \
 	$(top_srcdir)/include/sys/dsl_deadlist.h \
 	$(top_srcdir)/include/sys/dsl_deleg.h \
+	$(top_srcdir)/include/sys/dsl_destroy.h \
 	$(top_srcdir)/include/sys/dsl_dir.h \
 	$(top_srcdir)/include/sys/dsl_pool.h \
 	$(top_srcdir)/include/sys/dsl_prop.h \
 	$(top_srcdir)/include/sys/dsl_scan.h \
 	$(top_srcdir)/include/sys/dsl_synctask.h \
+	$(top_srcdir)/include/sys/dsl_userhold.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
@@ -65,8 +68,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_sa.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
-	$(top_srcdir)/include/sys/zfs_znode.h \
 	$(top_srcdir)/include/sys/zfs_vnops.h \
+	$(top_srcdir)/include/sys/zfs_znode.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \

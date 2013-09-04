@@ -285,6 +285,7 @@ void fnvlist_pack_free(char *, size_t);
 nvlist_t *fnvlist_unpack(char *, size_t);
 nvlist_t *fnvlist_dup(nvlist_t *);
 void fnvlist_merge(nvlist_t *, nvlist_t *);
+size_t fnvlist_num_pairs(nvlist_t *);
 
 void fnvlist_add_boolean(nvlist_t *, const char *);
 void fnvlist_add_boolean_value(nvlist_t *, const char *, boolean_t);

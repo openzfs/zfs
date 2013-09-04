@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SYNCTASK_H
@@ -34,43 +35,26 @@ extern "C" {
 
 struct dsl_pool;
 
-typedef int (dsl_checkfunc_t)(void *, void *, dmu_tx_t *);
-typedef void (dsl_syncfunc_t)(void *, void *, dmu_tx_t *);
+typedef int (dsl_checkfunc_t)(void *, dmu_tx_t *);
+typedef void (dsl_syncfunc_t)(void *, dmu_tx_t *);
 
 typedef struct dsl_sync_task {
-	list_node_t dst_node;
+	txg_node_t dst_node;
+	struct dsl_pool *dst_pool;
+	uint64_t dst_txg;
+	int dst_space;
 	dsl_checkfunc_t *dst_checkfunc;
 	dsl_syncfunc_t *dst_syncfunc;
-	void *dst_arg1;
-	void *dst_arg2;
-	int dst_err;
+	void *dst_arg;
+	int dst_error;
+	boolean_t dst_nowaiter;
 } dsl_sync_task_t;
 
-typedef struct dsl_sync_task_group {
-	txg_node_t dstg_node;
-	list_t dstg_tasks;
-	struct dsl_pool *dstg_pool;
-	uint64_t dstg_txg;
-	int dstg_err;
-	int dstg_space;
-	boolean_t dstg_nowaiter;
-} dsl_sync_task_group_t;
-
-dsl_sync_task_group_t *dsl_sync_task_group_create(struct dsl_pool *dp);
-void dsl_sync_task_create(dsl_sync_task_group_t *dstg,
-    dsl_checkfunc_t *, dsl_syncfunc_t *,
-    void *arg1, void *arg2, int blocks_modified);
-int dsl_sync_task_group_wait(dsl_sync_task_group_t *dstg);
-void dsl_sync_task_group_nowait(dsl_sync_task_group_t *dstg, dmu_tx_t *tx);
-void dsl_sync_task_group_destroy(dsl_sync_task_group_t *dstg);
-void dsl_sync_task_group_sync(dsl_sync_task_group_t *dstg, dmu_tx_t *tx);
-
-int dsl_sync_task_do(struct dsl_pool *dp,
-    dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
-    void *arg1, void *arg2, int blocks_modified);
-void dsl_sync_task_do_nowait(struct dsl_pool *dp,
-    dsl_checkfunc_t *checkfunc, dsl_syncfunc_t *syncfunc,
-    void *arg1, void *arg2, int blocks_modified, dmu_tx_t *tx);
+void dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx);
+int dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, void *arg, int blocks_modified);
+void dsl_sync_task_nowait(struct dsl_pool *dp, dsl_syncfunc_t *syncfunc,
+    void *arg, int blocks_modified, dmu_tx_t *tx);
 
 #ifdef	__cplusplus
 }

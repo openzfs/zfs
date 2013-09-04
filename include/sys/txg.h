@@ -45,9 +45,6 @@ extern "C" {
 /* Number of txgs worth of frees we defer adding to in-core spacemaps */
 #define	TXG_DEFER_SIZE		2
 
-#define	TXG_WAIT		1ULL
-#define	TXG_NOWAIT		2ULL
-
 typedef struct tx_cpu tx_cpu_t;
 
 typedef struct txg_handle {
@@ -125,11 +122,11 @@ extern void txg_wait_callbacks(struct dsl_pool *dp);
 extern void txg_list_create(txg_list_t *tl, size_t offset);
 extern void txg_list_destroy(txg_list_t *tl);
 extern boolean_t txg_list_empty(txg_list_t *tl, uint64_t txg);
-extern int txg_list_add(txg_list_t *tl, void *p, uint64_t txg);
-extern int txg_list_add_tail(txg_list_t *tl, void *p, uint64_t txg);
+extern boolean_t txg_list_add(txg_list_t *tl, void *p, uint64_t txg);
+extern boolean_t txg_list_add_tail(txg_list_t *tl, void *p, uint64_t txg);
 extern void *txg_list_remove(txg_list_t *tl, uint64_t txg);
 extern void *txg_list_remove_this(txg_list_t *tl, void *p, uint64_t txg);
-extern int txg_list_member(txg_list_t *tl, void *p, uint64_t txg);
+extern boolean_t txg_list_member(txg_list_t *tl, void *p, uint64_t txg);
 extern void *txg_list_head(txg_list_t *tl, uint64_t txg);
 extern void *txg_list_next(txg_list_t *tl, void *p, uint64_t txg);
 

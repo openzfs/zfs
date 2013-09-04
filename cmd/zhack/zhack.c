@@ -46,6 +46,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
+#include <sys/dmu_tx.h>
 #undef ZFS_MAXNAMELEN
 #include <libzfs.h>
 
@@ -123,7 +124,7 @@ import_pool(const char *target, boolean_t readonly)
 	spa_t *spa;
 	nvpair_t *elem;
 	nvlist_t *props;
-	const char *name;
+	char *name;
 
 	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
 	g_zfs = libzfs_init();
@@ -273,10 +274,10 @@ zhack_do_feature_stat(int argc, char **argv)
 }
 
 static void
-feature_enable_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+feature_enable_sync(void *arg, dmu_tx_t *tx)
 {
-	spa_t *spa = arg1;
-	zfeature_info_t *feature = arg2;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zfeature_info_t *feature = arg;
 
 	spa_feature_enable(spa, feature, tx);
 	spa_history_log_internal(spa, "zhack enable feature", tx,
@@ -344,8 +345,8 @@ zhack_do_feature_enable(int argc, char **argv)
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal("feature already enabled: %s", feature.fi_guid);
 
-	VERIFY3U(0, ==, dsl_sync_task_do(spa->spa_dsl_pool, NULL,
-	    feature_enable_sync, spa, &feature, 5));
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    feature_enable_sync, &feature, 5));
 
 	spa_close(spa, FTAG);
 
@@ -353,10 +354,10 @@ zhack_do_feature_enable(int argc, char **argv)
 }
 
 static void
-feature_incr_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+feature_incr_sync(void *arg, dmu_tx_t *tx)
 {
-	spa_t *spa = arg1;
-	zfeature_info_t *feature = arg2;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zfeature_info_t *feature = arg;
 
 	spa_feature_incr(spa, feature, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
@@ -364,10 +365,10 @@ feature_incr_sync(void *arg1, void *arg2, dmu_tx_t *tx)
 }
 
 static void
-feature_decr_sync(void *arg1, void *arg2, dmu_tx_t *tx)
+feature_decr_sync(void *arg, dmu_tx_t *tx)
 {
-	spa_t *spa = arg1;
-	zfeature_info_t *feature = arg2;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zfeature_info_t *feature = arg;
 
 	spa_feature_decr(spa, feature, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
@@ -442,8 +443,8 @@ zhack_do_feature_ref(int argc, char **argv)
 	if (decr && !spa_feature_is_active(spa, &feature))
 		fatal("feature refcount already 0: %s", feature.fi_guid);
 
-	VERIFY3U(0, ==, dsl_sync_task_do(spa->spa_dsl_pool, NULL,
-	    decr ? feature_decr_sync : feature_incr_sync, spa, &feature, 5));
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
 
 	spa_close(spa, FTAG);
 }

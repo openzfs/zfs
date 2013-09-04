@@ -1928,6 +1928,46 @@ void metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
+static void
+checkmap(space_map_t *sm, uint64_t off, uint64_t size)
+{
+	space_seg_t *ss;
+	avl_index_t where;
+
+	mutex_enter(sm->sm_lock);
+	ss = space_map_find(sm, off, size, &where);
+	if (ss != NULL)
+		panic("freeing free block; ss=%p", (void *)ss);
+	mutex_exit(sm->sm_lock);
+}
+
+void
+metaslab_check_free(spa_t *spa, const blkptr_t *bp)
+{
+	int i, j;
+
+	if ((zfs_flags & ZFS_DEBUG_ZIO_FREE) == 0)
+		return;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	for (i = 0; i < BP_GET_NDVAS(bp); i++) {
+		uint64_t vdid = DVA_GET_VDEV(&bp->blk_dva[i]);
+		vdev_t *vd = vdev_lookup_top(spa, vdid);
+		uint64_t off = DVA_GET_OFFSET(&bp->blk_dva[i]);
+		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
+		metaslab_t *ms = vd->vdev_ms[off >> vd->vdev_ms_shift];
+
+		if (ms->ms_map->sm_loaded)
+			checkmap(ms->ms_map, off, size);
+
+		for (j = 0; j < TXG_SIZE; j++)
+			checkmap(ms->ms_freemap[j], off, size);
+		for (j = 0; j < TXG_DEFER_SIZE; j++)
+			checkmap(ms->ms_defermap[j], off, size);
+	}
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_param(metaslab_debug, int, 0644);
 MODULE_PARM_DESC(metaslab_debug, "keep space maps in core to verify frees");

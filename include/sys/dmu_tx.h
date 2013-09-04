@@ -22,6 +22,9 @@
  * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2012 by Delphix. All rights reserved.
+ */
 
 #ifndef	_SYS_DMU_TX_H
 #define	_SYS_DMU_TX_H
@@ -133,10 +136,11 @@ extern dmu_tx_stats_t dmu_tx_stats;
  * These routines are defined in dmu.h, and are called by the user.
  */
 dmu_tx_t *dmu_tx_create(objset_t *dd);
-int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
+int dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_abort(dmu_tx_t *tx);
 uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
+struct dsl_pool *dmu_tx_pool(dmu_tx_t *tx);
 void dmu_tx_wait(dmu_tx_t *tx);
 
 void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,

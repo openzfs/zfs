@@ -43,11 +43,13 @@
 extern int zfs_flags;
 extern int zfs_recover;
 
-#define	ZFS_DEBUG_DPRINTF	0x0001
-#define	ZFS_DEBUG_DBUF_VERIFY	0x0002
-#define	ZFS_DEBUG_DNODE_VERIFY	0x0004
-#define	ZFS_DEBUG_SNAPNAMES	0x0008
-#define	ZFS_DEBUG_MODIFY	0x0010
+#define	ZFS_DEBUG_DPRINTF	(1<<0)
+#define	ZFS_DEBUG_DBUF_VERIFY	(1<<1)
+#define	ZFS_DEBUG_DNODE_VERIFY	(1<<2)
+#define	ZFS_DEBUG_SNAPNAMES	(1<<3)
+#define	ZFS_DEBUG_MODIFY	(1<<4)
+#define	ZFS_DEBUG_SPA		(1<<5)
+#define	ZFS_DEBUG_ZIO_FREE	(1<<6)
 
 /*
  * Always log zfs debug messages to the spl debug subsystem as SS_USER1.

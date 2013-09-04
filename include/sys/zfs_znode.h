@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_FS_ZFS_ZNODE_H
@@ -254,7 +255,7 @@ typedef struct znode {
  */
 #define	ZFS_ENTER(zsb) \
 	{ \
-		rrw_enter(&(zsb)->z_teardown_lock, RW_READER, FTAG); \
+		rrw_enter_read(&(zsb)->z_teardown_lock, FTAG); \
 		if ((zsb)->z_unmounted) { \
 			ZFS_EXIT(zsb); \
 			return (EIO); \
