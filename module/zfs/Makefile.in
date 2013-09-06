@@ -44,6 +44,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/spa_config.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/spa_errlog.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/spa_history.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/spa_misc.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/spa_stats.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/space_map.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/txg.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/uberblock.o

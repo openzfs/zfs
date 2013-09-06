@@ -62,6 +62,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/spa_errlog.c \
 	$(top_srcdir)/module/zfs/spa_history.c \
 	$(top_srcdir)/module/zfs/spa_misc.c \
+	$(top_srcdir)/module/zfs/spa_stats.c \
 	$(top_srcdir)/module/zfs/space_map.c \
 	$(top_srcdir)/module/zfs/txg.c \
 	$(top_srcdir)/module/zfs/uberblock.c \
