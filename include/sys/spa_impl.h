@@ -236,6 +236,12 @@ struct spa {
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	uint64_t	spa_sync_starttime;	/* starting time fo spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	kmutex_t	spa_read_history_lock;	/* read history list lock */
+	uint64_t	spa_read_history_count;	/* running count of # of reads */
+	uint64_t	spa_read_history_size;	/* read history list size */
+	kstat_t		*spa_read_history_kstat;/* read history list kstat */
+	list_t		spa_read_history;	/* read history list */
+
 	/*
 	 * spa_refcnt & spa_config_lock must be the last elements
 	 * because refcount_t changes size based on compilation options.
