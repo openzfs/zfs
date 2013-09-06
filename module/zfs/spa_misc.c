@@ -48,6 +48,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/arc.h>
 #include <sys/ddt.h>
+#include <sys/kstat.h>
 #include "zfs_prop.h"
 #include "zfeature_common.h"
 
@@ -252,7 +253,6 @@ unsigned long zfs_deadman_synctime = 1000ULL;
  * By default the deadman is enabled.
  */
 int zfs_deadman_enabled = 1;
-
 
 /*
  * ==========================================================================
@@ -499,6 +499,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
 
+	spa_read_history_init(spa);
+
 	avl_add(&spa_namespace_avl, spa);
 
 	/*
@@ -580,6 +582,8 @@ spa_remove(spa_t *spa)
 	spa_config_set(spa, NULL);
 
 	refcount_destroy(&spa->spa_refcount);
+
+	spa_read_history_destroy(spa);
 
 	spa_config_lock_destroy(spa);
 
