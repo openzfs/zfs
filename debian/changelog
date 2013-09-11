@@ -1,4 +1,4 @@
-zfs-linux (0.6.2-1) experimental; urgency=low
+zfs-linux (0.6.2-1) wheezy; urgency=low
 
   * Initial Release
 
