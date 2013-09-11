@@ -1,0 +1,14 @@
+#!/bin/sh
+# Sub-test to exclude ZVOLs
+set -e
+partition="$1"
+
+. /usr/share/os-prober/common.sh
+
+if [ "$(stat -L -c %t "$partition")" = "e6" ] ; then
+	debug "$1 is a ZVOL; skipping"
+	exit 0
+fi
+
+# No ZVOLs found
+exit 1

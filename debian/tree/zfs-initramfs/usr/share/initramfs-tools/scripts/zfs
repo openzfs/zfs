@@ -1,0 +1,236 @@
+# ZFS boot stub for initramfs-tools.
+#
+# In the initramfs environment, the /init script sources this stub to
+# override the default functions in the /scripts/local script.
+#
+# Enable this by passing boot=zfs on the kernel command line.
+#
+
+
+pre_mountroot()
+{
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-top"
+	run_scripts /scripts/local-top
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if [ -r '/etc/default/zfs' ]
+	then
+		. '/etc/default/zfs'
+		if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt '0' ]
+		then
+			[ "$quiet" != "y" ] && log_begin_msg "Sleeping for $ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
+			sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
+			[ "$quiet" != "y" ] && log_end_msg
+		fi
+	fi
+}
+
+# Duplicates the functionality found under try_failure_hooks in functions
+# but invoking that would be inappropriate here.
+disable_plymouth()
+{
+	if [ -x /bin/plymouth ] && /bin/plymouth --ping
+	then
+		/bin/plymouth hide-splash >/dev/null 2>&1
+	fi
+}
+
+mountroot()
+{
+	pre_mountroot
+
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-premount"
+	run_scripts /scripts/local-premount
+	[ "$quiet" != "y" ] && log_end_msg
+
+	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+	wait_for_udev
+
+	# Load the module now to get consistent automatic pool import behavior.
+	modprobe zfs
+
+	# Check the kernel command line for overrides.
+	ZFS_RPOOL="${rpool#rpool=}"
+	ZFS_BOOTFS="${bootfs#bootfs=}"
+
+	if [ -z "$ZFS_RPOOL" ]
+	then
+		# Check for the `-B zfs-bootfs=%s/%u,...` kind of parameter.
+		#
+		# The ${zfs-bootfs} variable is set at the kernel commmand
+		# line, usually by GRUB, but it cannot be referenced here
+		# directly because bourne variable names cannot contain a
+		# hyphen.
+		#
+		# Reassign the variable by dumping the environment and
+		# stripping the zfs-bootfs= prefix.  Let the shell handle
+		# quoting through the eval command.
+		eval ZFS_RPOOL=$(set | sed -n -e 's,^zfs-bootfs=,,p')
+
+		# Only the pool name is relevant because the ZFS filesystem on
+		# Linux is extrinsic and the userland cannot resolve a ZFS
+		# object number.
+		#
+		# Strip everything after the first slash character.
+		ZFS_RPOOL=$(echo "$ZFS_RPOOL" | sed -e 's,/.*,,')
+	fi
+
+	# Use "rpool" as the default, like on most Solaris systems.
+	[ -z "$ZFS_RPOOL" ] && ZFS_RPOOL='rpool'
+
+	if [ -f /etc/zfs/zpool.cache ]; then
+		ZPOOL_CACHE=/etc/zfs/zpool.cache
+	elif [ -f /boot/zfs/zpool.cache ]; then
+		ZPOOL_CACHE=/boot/zfs/zpool.cache
+	fi
+
+	# zpool import refuse to import without a valid mtab
+	[ ! -f /proc/mounts ] && mount proc /proc
+	[ ! -f /etc/mtab ] && cat /proc/mounts > /etc/mtab
+
+	# Just make sure it's not already imported. Should be impossible, but...
+	zpool list "$ZFS_RPOOL" 1>/dev/null 2>&1
+	ZFS_ERROR=$?
+
+	[ "$quiet" != "y" ] && log_begin_msg "Importing ZFS root pool $ZFS_RPOOL"
+	# Attempt 1: Try the correct/proper way.
+	if [ "$ZFS_ERROR" -ne 0 -a -n "$ZPOOL_CACHE" ]
+	then
+		ZFS_CMD="zpool import -c $ZPOOL_CACHE -N $ZFS_RPOOL"
+
+		ZFS_STDERR=$($ZFS_CMD 2>&1)
+		ZFS_ERROR=$?
+
+		[ "$ZFS_ERROR" -ne 0 ] && echo "FAIL: $ZFS_CMD. Retrying..."
+	fi
+
+	# Attempt 2: Try forcing the import, using /dev/disk/by-id if it exists.
+	[ -d /dev/disk/by-id ] && DISK_BY_ID="-d /dev/disk/by-id"
+	if [ "$ZFS_ERROR" -ne 0 -o -z "$ZPOOL_CACHE" ]
+	then
+		ZFS_CMD="zpool import -f -N $DISK_BY_ID $ZFS_RPOOL"
+
+		ZFS_STDERR=$($ZFS_CMD 2>&1)
+		ZFS_ERROR=$?
+
+		[ "$ZFS_ERROR" -ne 0 ] && echo "FAIL: $ZFS_CMD. Retrying..."
+	fi
+
+	# Attempt 3: Last ditch attempt. If DISK_BY_ID is set, we've already tried...
+	if [ "$ZFS_ERROR" -ne 0 -a -z "$DISK_BY_ID" ]
+	then
+		ZFS_CMD="zpool import -f -N $ZFS_RPOOL"
+
+		ZFS_STDERR=$($ZFS_CMD 2>&1)
+		ZFS_ERROR=$?
+
+		[ "$ZFS_ERROR" -ne 0 ] && echo "FAIL: $ZFS_CMD. Retrying..."
+	fi
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if [ "$ZFS_ERROR" -ne 0 ]
+	then
+		disable_plymouth
+		echo "Command: $ZFS_CMD"
+		echo "Message: $ZFS_STDERR"
+		echo "Error: $ZFS_ERROR"
+		echo ""
+		echo "Manually import the root pool at the command prompt and then exit."
+		echo "Hint: Try:  zpool import -f -R / -N $ZFS_RPOOL"
+		/bin/sh
+	fi
+
+	if [ -z "$ZFS_BOOTFS" ]
+	then
+		[ "$quiet" != "y" ] && log_begin_msg "Getting ZFS bootfs property"
+		ZFS_BOOTFS=$(zpool list -H -o bootfs "$ZFS_RPOOL")
+		ZFS_ERROR=$?
+		[ "$quiet" != "y" ] && log_end_msg
+	fi
+
+	if [ -z "$ZFS_BOOTFS" ]
+	then
+		disable_plymouth
+		echo "Command: zpool list -H -o bootfs $ZFS_RPOOL"
+		echo "Error: $ZFS_ERROR, unable to get the bootfs property."
+		echo ""
+		echo "Manually mount the root filesystem on $rootmnt and then exit."
+		echo "Hint: Try:  mount -t zfs -o zfsutil $ZFS_RPOOL/ROOT/system $rootmnt"
+		/bin/sh	
+	fi
+
+	# Force the mountpoint to the only correct value for a root filesystem.
+	[ "$quiet" != "y" ] && log_begin_msg "Setting mountpoint=/ on ZFS filesystem $ZFS_BOOTFS"
+	ZFS_STDERR=$(zfs set mountpoint=/ "$ZFS_BOOTFS" 2>&1)
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if zfs 2>&1 | grep -q 'key -l '
+	then
+		# 'zfs key' is availible (hence we have crypto), check if filesystem is encrypted.
+		set -- `zfs get encryption $ZFS_BOOTFS | grep ^$ZFS_RPOOL`
+		crypt_type=$3
+		if [ "$crypt_type" != "off" ]
+		then
+			[ "$quiet" != "y" ] && log_begin_msg "Loading crypto wrapper key for $ZFS_BOOTFS"
+
+			# Just make sure that ALL crypto modules module is loaded.
+			# Simplest just to load all...
+			for mod in sun-ccm sun-gcm sun-ctr
+			do
+				modprobe $mod
+			done
+
+			# If the key isn't availible, then this will fail!
+			ZFS_CMD="zfs key -l -a"
+			ZFS_STDERR=$($ZFS_CMD 2>&1)
+			ZFS_ERROR=$?
+
+			if [ "$ZFS_ERROR" -ne 0 ]
+			then
+			    disable_plymouth
+			    echo "FAIL: $ZFS_CMD"
+			    echo "Message: $ZFS_STDERR"
+			    echo "Error: $ZFS_ERROR"
+			    echo ""
+			    echo "Failed to load zfs encryption wrapper key (s)."
+			    echo "Please verify dataset property 'keysource' for datasets"
+			    echo "and rerun: $ZFS_CMD"
+			    /bin/sh
+
+			    ZFS_ERROR=0
+			else
+			    [ "$quiet" != "y" ] && log_end_msg
+			fi
+		fi
+	fi
+
+	# Ideally, the root filesystem would be mounted like this:
+	#
+	#   zpool import -R "$rootmnt" -N "$ZFS_RPOOL"
+	#   zfs mount -o mountpoint=/ "$ZFS_BOOTFS"
+	#
+	# but the MOUNTPOINT prefix is preserved on descendent filesystem after
+	# the pivot into the regular root, which later breaks things like
+	# `zfs mount -a` and the /etc/mtab refresh.
+
+	[ "$quiet" != "y" ] && log_begin_msg "Mounting ZFS filesystem $ZFS_BOOTFS"
+	ZFS_STDERR=$(mount -t zfs -o zfsutil "$ZFS_BOOTFS" "$rootmnt" 2>&1)
+	ZFS_ERROR=$?
+	[ "$quiet" != "y" ] && log_end_msg
+
+	if [ "$ZFS_ERROR" -ne 0 ]
+	then
+		disable_plymouth
+		echo ""
+		echo "Command: mount -t zfs -o zfsutil $ZFS_BOOTFS $rootmnt"
+		echo "Message: $ZFS_STDERR"
+		echo "Error: $ZFS_ERROR"
+		echo ""
+		echo "Manually mount the root filesystem on $rootmnt and then exit."
+		/bin/sh	
+	fi
+
+	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/local-bottom"
+	run_scripts /scripts/local-bottom
+	[ "$quiet" != "y" ] && log_end_msg
+}

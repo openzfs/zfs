@@ -1,0 +1,65 @@
+# Danish translation zfs-linux.
+# Copyright (C) 2013 zfs-linux og nedenstående oversættere.
+# This file is distributed under the same license as the zfs-linux package.
+# Joe Hansen <joedalton2@yahoo.dk>, 2013.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2013-07-04 22:09+0800\n"
+"PO-Revision-Date: 2013-07-07 06:57+0100\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Afbryd bygning af ZFS på en 32-bit kerne?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Du forsøger at bygge ZFS mod en 32-bit kørende kerne."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Selvom det er muligt, så er bygning af et 32-bit miljø ikke understøttet "
+"og vil sandsynligvis medføre ustabilitet, der kan føre til dataødelæggelse. "
+"Du rådes på det kraftigste til at bruge en 64-bit kerne; hvis du vælger "
+"at fortsætte med at bruge ZFS på denne kerne så husk, at det er på egen "
+"risiko."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Afbryd bygning af ZFS på en ukendt kerne?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Du forsøger at bygge ZFS mod en kørende kerne, som ikke kan identificeres "
+"som enten 32-bit eller 64-bit. Hvis du ikke er fuldstændig sikker på, at den "
+"kørende kerne er en 64-bit, så bør du stoppe bygningen."
+

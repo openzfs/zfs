@@ -1,0 +1,218 @@
+#!/usr/bin/make -f
+
+LSB_DISTRIBUTOR := $(shell lsb_release -is)
+NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
+VERSION := $(shell dpkg-parsechangelog \
+  | awk '$$1 == "Version:" { print $$2; }' | cut -d- -f1)
+
+DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
+		DISCLAIMER COPYRIGHT OPENSOLARIS.LICENSE README.markdown
+
+export SHLIB_MAJOR = 1
+
+ifndef BUILD_UDEB
+BUILD_UDEB=false
+endif
+
+ifndef DEB_HOST_ARCH
+DEB_HOST_ARCH = $(shell dpkg-architecture -qDEB_HOST_ARCH)
+endif
+
+ifndef KVERS
+KVERS=$(shell uname -r)
+endif
+
+non_epoch_version=$(shell echo $(KVERS) | perl -pe 's/^\d+://')
+PACKAGE=zfs
+pmodules = $(PACKAGE)-modules-$(non_epoch_version)
+
+%:
+	dh $@ --with dkms --parallel
+
+override_dh_auto_configure:
+	@cp debian/control.in debian/control
+ifeq ($(BUILD_UDEB), true)
+	cat debian/control.udeb.in >> debian/control
+endif
+
+	@# Embed the downstream version in the module.
+	@sed -e 's/^Version:.*/Version:      $(VERSION)/' -i.orig META
+
+	@# Create the makefiles and configure script.
+	./autogen.sh
+
+	@# Build the userland, but don't build the kernel modules.
+	./configure \
+	  --prefix='' \
+	  --libexecdir=/usr/libexec \
+	  --libdir=/lib \
+	  --includedir=/usr/include \
+	  --datarootdir=/usr/share \
+	  --with-config=user
+
+override_dh_auto_test:
+	# The dh_auto_test rule is disabled because
+	# `make check` cannot run in an unprivileged build environment.
+
+override_dh_auto_install:
+	@# Install the utilities.
+	$(MAKE) install DESTDIR='$(CURDIR)/debian/tmp'
+
+	@# Get a bare copy of the source code for DKMS.
+	@# This creates the $(CURDIR)/$(NAME)-$(VERSION)/ tree, which does not
+	@# contain the userland sources. NB: Remove-userland-dist-rules.patch
+	$(MAKE) distdir
+
+	@# Install the DKMS source.
+	@# We only want the files needed to build the modules
+	mkdir -p '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)'
+	$(foreach file,$(DKMSFILES),mv '$(CURDIR)/$(NAME)-$(VERSION)/$(file)' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)' || exit 1;)
+	@# Hellish awk line:
+	@#  * Deletes from configure.ac the parts not needed for building the kernel module
+	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
+	@#        (Makefile$|include/|module/|*.release$)
+	@#  * Takes care of spaces and tabs
+	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ { if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/){next} } {print}' \
+		'$(CURDIR)/$(NAME)-$(VERSION)/configure.ac' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/configure.ac'
+	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
+	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;' \
+		'$(CURDIR)/$(NAME)-$(VERSION)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/Makefile.am'
+	@# Sanity test
+	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/Makefile.am'
+	@# Run autogen on the stripped source tree
+	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)'; ./autogen.sh
+	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/autom4te.cache'
+
+	@# This shunt allows DKMS to install the Module.symvers and zfs_config.h
+	@# files to the ${dkms_tree} area through the POST_INSTALL directive.
+	echo '#!/bin/sh'  >'$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/cp'
+	echo 'cp "$$@"'  >>'$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/cp'
+	chmod 755 '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(VERSION)/cp'
+
+	mkdir -p $(CURDIR)/debian/tmp/usr/lib
+	for i in `ls $(CURDIR)/debian/tmp/lib/*.so`; do \
+		ln -s /lib/`readlink $${i}` $(CURDIR)/debian/tmp/usr/lib/`basename $${i}`; \
+		rm $${i}; \
+	done
+
+override_dh_installinit:
+	@# Install the /etc/default/zfs options file.
+	dh_installinit --name=zfs
+
+	@# Install the /etc/init.d/zfs-mount script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs local mounts at sysv sequences [10..12] [08..09].
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start -- defaults 13 07
+else
+	dh_installinit --name=zfs-mount \
+	  --no-restart-on-upgrade --no-start
+endif
+
+	@# Install the /etc/init.d/zfs-share script.
+ifeq ($(LSB_DISTRIBUTOR),Debian)
+	@# Debian runs nfs-kernel-server at sysv sequence 17 01.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 18 00
+else ifeq ($(LSB_DISTRIBUTOR),Ubuntu)
+	@# Ubuntu runs nfs-kernel-server at sysv sequence 20 80.
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start -- defaults 21 79
+else
+	dh_installinit --name=zfs-share \
+	  --no-restart-on-upgrade --no-start
+endif
+
+override_dh_dkms:
+	dh_dkms -V $(VERSION)
+
+override_dh_makeshlibs:
+	dh_makeshlibs -a
+ifeq ($(BUILD_UDEB), true)
+	dh_makeshlibs -plibnvpair$(SHLIB_MAJOR) --add-udeb=libnvpair$(SHLIB_MAJOR)-udeb
+	dh_makeshlibs -plibuutil$(SHLIB_MAJOR) --add-udeb=libuutil$(SHLIB_MAJOR)-udeb
+	dh_makeshlibs -plibzfs$(SHLIB_MAJOR) --add-udeb=libzfs$(SHLIB_MAJOR)-udeb
+	dh_makeshlibs -plibzpool$(SHLIB_MAJOR) --add-udeb=libzpool$(SHLIB_MAJOR)-udeb
+	dh_makeshlibs -pzfsutils --add-udeb=zfsutils-udeb
+   endif
+
+override_dh_strip:
+	dh_strip --dbg-package=zfs-dbg
+ifeq ($(BUILD_UDEB), true)
+	dh_strip -plibnvpair$(SHLIB_MAJOR)-udeb
+	dh_strip -plibuutil$(SHLIB_MAJOR)-udeb
+	dh_strip -plibzfs$(SHLIB_MAJOR)-udeb
+	dh_strip -plibzpool$(SHLIB_MAJOR)-udeb
+	dh_strip -pzfsutils-udeb
+endif
+
+override_dh_auto_clean:
+	dh_auto_clean
+	@if test -e META.orig; then mv META.orig META; fi
+	cp debian/control.in debian/control
+ifeq ($(BUILD_UDEB), true)
+	cat debian/control.udeb.in >> debian/control
+endif
+
+override_dh_install:
+	find . -name lib*.la -delete
+	dh_install
+
+# ------------
+
+override_dh_prep-deb-files:
+	for templ in $(wildcard $(CURDIR)/debian/*_KVERS_*.in); do \
+		sed -e 's/##KVERS##/$(KVERS)/g ; s/#KVERS#/$(KVERS)/g ; s/_KVERS_/$(KVERS)/g ; s/##KDREV##/$(KDREV)/g ; s/#KDREV#/$(KDREV)/g ; s/_KDREV_/$(KDREV)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/' \
+		< $$templ > `echo $$templ | sed -e 's/_KVERS_/$(KVERS)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/g ; s/\.in$$//'` ; \
+	done
+	sed -e 's/##KVERS##/$(KVERS)/g ; s/#KVERS#/$(KVERS)/g ; s/_KVERS_/$(KVERS)/g ; s/##KDREV##/$(KDREV)/g ; s/#KDREV#/$(KDREV)/g ; s/_KDREV_/$(KDREV)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/g' \
+	< debian/control.modules.in > debian/control
+
+override_dh_configure_modules_udeb: override_dh_configure_modules_udeb_stamp
+override_dh_configure_modules_udeb_stamp:
+	./configure \
+		--without-selinux \
+		--with-config=kernel \
+		--with-linux=$(KSRC) \
+		--with-linux-obj=$(KOBJ)
+	touch override_dh_configure_modules_udeb_stamp
+
+override_dh_configure_modules: override_dh_configure_modules_stamp
+override_dh_configure_modules_stamp:
+	./configure \
+		--with-config=kernel \
+		--with-linux=$(KSRC) \
+		--with-linux-obj=$(KOBJ)
+	touch override_dh_configure_modules_stamp
+
+override_dh_binary-modules-udeb: override_dh_prep-deb-files override_dh_configure_modules_udeb
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+	$(MAKE) -C $(CURDIR)/module modules
+
+	dh_installdirs -p${pmodules}-di
+	dh_install -p${pmodules}-di
+	dh_gencontrol -p${pmodules}-di
+
+	dh_builddeb -p${pmodules}-di
+
+override_dh_binary-modules: override_dh_prep-deb-files override_dh_configure_modules
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+	$(MAKE) -C $(CURDIR)/module modules
+
+	dh_install -p${pmodules}
+	dh_installdocs -p${pmodules}
+	dh_installchangelogs -p${pmodules}
+	dh_compress -p${pmodules}
+	dh_strip -p${pmodules}
+	dh_fixperms -p${pmodules}
+	dh_installdeb -p${pmodules}
+	dh_gencontrol -p${pmodules}
+	dh_md5sums -p${pmodules}
+
+	dh_builddeb -p${pmodules}
