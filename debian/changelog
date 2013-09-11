@@ -1,6 +1,6 @@
 zfs-linux (0.6.2-1) experimental; urgency=low
 
-  * Initial Release (Closes: #686447)
+  * Initial Release
 
- -- Aron Xu <aron@debian.org>  Sat, 24 Aug 2013 17:30:14 +0800
+ -- Turbo Fredriksson <turbo@debian.org>  Wed, 11 Sep 2013 02:58:57 +0200
 
