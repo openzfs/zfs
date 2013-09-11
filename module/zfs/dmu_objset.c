@@ -1519,7 +1519,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	}
 
 	thisobj = dd->dd_phys->dd_head_dataset_obj;
-	attr = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	attr = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
 
 	/*
 	 * Iterate over all children.
