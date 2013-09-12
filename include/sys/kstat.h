@@ -33,6 +33,7 @@
 #include <sys/mutex.h>
 
 #define KSTAT_STRLEN            31
+#define KSTAT_RAW_MAX		(128*1024)
 
 /* For reference valid classes are:
  * disk, tape, net, controller, vm, kvm, hat, streams, kstat, misc
@@ -79,6 +80,7 @@
 #define KSTAT_WRITE             1
 
 struct kstat_s;
+typedef struct kstat_s kstat_t;
 
 typedef int kid_t;                                  /* unique kstat id */
 typedef int kstat_update_t(struct kstat_s *, int);  /* dynamic update cb */
@@ -90,7 +92,13 @@ typedef struct kstat_module {
 	struct proc_dir_entry *ksm_proc;            /* proc entry */
 } kstat_module_t;
 
-typedef struct kstat_s {
+typedef struct kstat_raw_ops {
+	int (*headers)(char *buf, size_t size);
+	int (*data)(char *buf, size_t size, void *data);
+	void *(*addr)(kstat_t *ksp, loff_t index);
+} kstat_raw_ops_t;
+
+struct kstat_s {
 	int              ks_magic;                  /* magic value */
         kid_t            ks_kid;                    /* unique kstat ID */
         hrtime_t         ks_crtime;                 /* creation time */
@@ -110,7 +118,10 @@ typedef struct kstat_s {
         kmutex_t         ks_lock;                   /* kstat data lock */
         struct list_head ks_list;                   /* kstat linkage */
 	kstat_module_t   *ks_owner;                 /* kstat module linkage */
-} kstat_t;
+	kstat_raw_ops_t  ks_raw_ops;                /* ops table for raw type */
+	char             *ks_raw_buf;               /* buf used for raw ops */
+	size_t           ks_raw_bufsize;            /* size of raw ops buffer */
+};
 
 typedef struct kstat_named_s {
         char             name[KSTAT_STRLEN];        /* name of counter */
@@ -188,6 +199,10 @@ typedef struct kstat_txg {
 int spl_kstat_init(void);
 void spl_kstat_fini(void);
 
+extern void __kstat_set_raw_ops(kstat_t *ksp,
+		    int (*headers)(char *buf, size_t size),
+		    int (*data)(char *buf, size_t size, void *data),
+		    void* (*addr)(kstat_t *ksp, loff_t index));
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
 			     const char *ks_name, const char *ks_class,
 			     uchar_t ks_type, uint_t ks_ndata,
@@ -195,6 +210,7 @@ extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
 extern void __kstat_install(kstat_t *ksp);
 extern void __kstat_delete(kstat_t *ksp);
 
+#define kstat_set_raw_ops(k,h,d,a)	__kstat_set_raw_ops(k,h,d,a)
 #define kstat_create(m,i,n,c,t,s,f)	__kstat_create(m,i,n,c,t,s,f)
 #define kstat_install(k)		__kstat_install(k)
 #define kstat_delete(k)			__kstat_delete(k)
