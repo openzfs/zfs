@@ -1716,10 +1716,10 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 	sa_hdl = hdl;
 
 	for (;;) {
-		uint64_t pobj;
+		uint64_t pobj = 0;
 		char component[MAXNAMELEN + 2];
 		size_t complen;
-		int is_xattrdir;
+		int is_xattrdir = 0;
 
 		if (prevdb)
 			zfs_release_sa_handle(prevhdl, prevdb, FTAG);
