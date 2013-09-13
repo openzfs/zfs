@@ -143,7 +143,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
-	return (-error);
+	return (error);
 }
 
 static int
