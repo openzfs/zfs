@@ -489,7 +489,7 @@ void
 dsl_register_onexit_hold_cleanup(dsl_dataset_t *ds, const char *htag,
     minor_t minor)
 {
-	zfs_hold_cleanup_arg_t *ca = kmem_alloc(sizeof (*ca), KM_SLEEP);
+	zfs_hold_cleanup_arg_t *ca = kmem_alloc(sizeof (*ca), KM_PUSHPAGE);
 	spa_t *spa = dsl_dataset_get_spa(ds);
 	(void) strlcpy(ca->zhca_spaname, spa_name(spa),
 	    sizeof (ca->zhca_spaname));
@@ -520,7 +520,7 @@ dsl_dataset_get_holds(const char *dsname, nvlist_t *nvl)
 		zap_attribute_t *za;
 		zap_cursor_t zc;
 
-		za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+		za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
 		for (zap_cursor_init(&zc, ds->ds_dir->dd_pool->dp_meta_objset,
 		    ds->ds_phys->ds_userrefs_obj);
 		    zap_cursor_retrieve(&zc, za) == 0;
