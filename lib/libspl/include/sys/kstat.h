@@ -228,10 +228,8 @@ typedef struct kstat32 {
 					/* ks_ndata == 1 */
 #define	KSTAT_TYPE_TIMER	4	/* event timer */
 					/* ks_ndata >= 1 */
-#define	KSTAT_TYPE_TXG		5	/* txg statistics */
-					/* ks_ndata >= 0 */
 
-#define	KSTAT_NUM_TYPES		6
+#define	KSTAT_NUM_TYPES		5
 
 /*
  * kstat class
@@ -700,29 +698,6 @@ typedef struct kstat_timer {
 
 #define	KSTAT_TIMER_PTR(kptr)	((kstat_timer_t *)(kptr)->ks_data)
 
-/*
- * TXG statistics - bytes read/written and iops performed
- */
-typedef enum kstat_txg_state {
-	TXG_STATE_OPEN      = 1,
-	TXG_STATE_QUIESCING = 2,
-	TXG_STATE_SYNCING   = 3,
-	TXG_STATE_COMMITTED = 4,
-} kstat_txg_state_t;
-
-typedef struct kstat_txg {
-	u_longlong_t		txg;		/* txg id */
-	kstat_txg_state_t	state;		/* txg state */
-	hrtime_t		birth;		/* birth time stamp */
-	u_longlong_t		nread;		/* number of bytes read */
-	u_longlong_t		nwritten;	/* number of bytes written */
-	uint_t			reads;		/* number of read operations */
-	uint_t			writes;		/* number of write operations */
-	hrtime_t		open_time;	/* open time */
-	hrtime_t		quiesce_time;	/* quiesce time */
-	hrtime_t		sync_time;	/* sync time */
-} kstat_txg_t;
-
 #if	defined(_KERNEL)
 
 #include <sys/t_lock.h>
@@ -807,6 +782,10 @@ extern void	kstat_init(void);	/* initialize kstat framework */
  * thus making it seem like you were never gone.
  */
 
+extern void kstat_set_raw_ops(kstat_t *,
+    void  (*headers)(char *, size_t),
+    void  (*data)(char *, size_t, void *),
+    void* (*addr)(kstat_t *, loff_t));
 extern kstat_t *kstat_create(const char *, int, const char *, const char *,
     uchar_t, uint_t, uchar_t);
 extern kstat_t *kstat_create_zone(const char *, int, const char *,

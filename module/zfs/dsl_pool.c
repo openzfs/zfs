@@ -115,6 +115,42 @@ dsl_pool_tx_assign_add_usecs(dsl_pool_t *dp, uint64_t usecs)
 	atomic_inc_64(&dp->dp_tx_assign_buckets[idx].value.ui64);
 }
 
+void
+dsl_pool_txg_history_headers(char *buf, size_t size)
+{
+	snprintf(buf, size, "%-8s %-5s %-13s %-12s %-12s %-8s %-8s "
+	    "%-12s %-12s %-12s\n", "txg", "state", "birth", "nread",
+	    "nwritten", "reads", "writes", "otime", "qtime", "stime");
+	buf[size-1] = '\0';
+}
+
+void
+dsl_pool_txg_history_data(char *buf, size_t size, void *data)
+{
+	kstat_txg_t *ktp = (kstat_txg_t *)data;
+	char state;
+
+	switch (ktp->state) {
+		case TXG_STATE_OPEN:            state = 'O';    break;
+		case TXG_STATE_QUIESCING:       state = 'Q';    break;
+		case TXG_STATE_SYNCING:         state = 'S';    break;
+		case TXG_STATE_COMMITTED:       state = 'C';    break;
+		default:                        state = '?';    break;
+	}
+
+	snprintf(buf, size, "%-8llu %-5c %-13llu %-12llu %-12llu %-8u "
+	    "%-8u %12lld %12lld %12lld\n", ktp->txg, state, ktp->birth,
+	    ktp->nread, ktp->nwritten, ktp->reads, ktp->writes,
+	    ktp->open_time, ktp->quiesce_time, ktp->sync_time);
+	buf[size-1] = '\0';
+}
+
+void *
+dsl_pool_txg_history_addr(kstat_t *ksp, loff_t index)
+{
+	return ksp->ks_data + index * sizeof(kstat_txg_t);
+}
+
 static int
 dsl_pool_txg_history_update(kstat_t *ksp, int rw)
 {
@@ -161,11 +197,15 @@ dsl_pool_txg_history_init(dsl_pool_t *dp, uint64_t txg)
 
 	(void) snprintf(name, KSTAT_STRLEN, "txgs-%s", spa_name(dp->dp_spa));
 	dp->dp_txg_kstat = kstat_create("zfs", 0, name, "misc",
-	    KSTAT_TYPE_TXG, 0, KSTAT_FLAG_VIRTUAL);
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	if (dp->dp_txg_kstat) {
 		dp->dp_txg_kstat->ks_data = NULL;
 		dp->dp_txg_kstat->ks_private = dp;
 		dp->dp_txg_kstat->ks_update = dsl_pool_txg_history_update;
+		kstat_set_raw_ops(dp->dp_txg_kstat,
+		    dsl_pool_txg_history_headers,
+		    dsl_pool_txg_history_data,
+		    dsl_pool_txg_history_addr);
 		kstat_install(dp->dp_txg_kstat);
 	}
 }

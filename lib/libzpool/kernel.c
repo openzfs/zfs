@@ -222,6 +222,14 @@ zk_thread_join(kt_did_t tid)
  * =========================================================================
  */
 /*ARGSUSED*/
+void
+kstat_set_raw_ops(kstat_t *ksp,
+    void  (*headers)(char *buf, size_t size),
+    void  (*data)(char *buf, size_t size, void *data),
+    void* (*addr)(kstat_t *ksp, loff_t index))
+{}
+
+/*ARGSUSED*/
 kstat_t *
 kstat_create(char *module, int instance, char *name, char *class,
     uchar_t type, ulong_t ndata, uchar_t ks_flag)
