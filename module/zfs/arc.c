@@ -2943,6 +2943,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp, arc_done_func_t *done,
 	kmutex_t *hash_lock;
 	zio_t *rzio;
 	uint64_t guid = spa_load_guid(spa);
+	int rc = 0;
 
 top:
 	hdr = buf_hash_find(guid, BP_IDENTITY(bp), BP_PHYSICAL_BIRTH(bp),
@@ -2976,10 +2977,10 @@ top:
 				hdr->b_acb = acb;
 				add_reference(hdr, hash_lock, private);
 				mutex_exit(hash_lock);
-				return (0);
+				goto out;
 			}
 			mutex_exit(hash_lock);
-			return (0);
+			goto out;
 		}
 
 		ASSERT(hdr->b_state == arc_mru || hdr->b_state == arc_mfu);
@@ -3174,12 +3175,12 @@ top:
 
 				if (*arc_flags & ARC_NOWAIT) {
 					zio_nowait(rzio);
-					return (0);
+					goto out;
 				}
 
 				ASSERT(*arc_flags & ARC_WAIT);
 				if (zio_wait(rzio) == 0)
-					return (0);
+					goto out;
 
 				/* l2arc read error; goto zio_read() */
 			} else {
@@ -3203,13 +3204,18 @@ top:
 		rzio = zio_read(pio, spa, bp, buf->b_data, size,
 		    arc_read_done, buf, priority, zio_flags, zb);
 
-		if (*arc_flags & ARC_WAIT)
-			return (zio_wait(rzio));
+		if (*arc_flags & ARC_WAIT) {
+			rc = zio_wait(rzio);
+			goto out;
+		}
 
 		ASSERT(*arc_flags & ARC_NOWAIT);
 		zio_nowait(rzio);
 	}
-	return (0);
+
+out:
+	spa_read_history_add(spa, zb, *arc_flags);
+	return (rc);
 }
 
 arc_prune_t *

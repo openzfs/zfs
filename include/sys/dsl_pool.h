@@ -71,6 +71,29 @@ typedef struct zfs_all_blkstats {
 	zfs_blkstat_t	zab_type[DN_MAX_LEVELS + 1][DMU_OT_TOTAL + 1];
 } zfs_all_blkstats_t;
 
+/*
+ * TXG statistics - bytes read/written and iops performed
+ */
+typedef enum kstat_txg_state {
+	TXG_STATE_OPEN      = 1,
+	TXG_STATE_QUIESCING = 2,
+	TXG_STATE_SYNCING   = 3,
+	TXG_STATE_COMMITTED = 4,
+} kstat_txg_state_t;
+
+typedef struct kstat_txg {
+	u_longlong_t		txg;		/* txg id */
+	kstat_txg_state_t	state;		/* txg state */
+	hrtime_t		birth;		/* birth time stamp */
+	u_longlong_t		nread;		/* number of bytes read */
+	u_longlong_t		nwritten;	/* number of bytes written */
+	uint_t			reads;		/* number of read operations */
+	uint_t			writes;		/* number of write operations */
+	hrtime_t		open_time;	/* open time */
+	hrtime_t		quiesce_time;	/* quiesce time */
+	hrtime_t		sync_time;	/* sync time */
+} kstat_txg_t;
+
 typedef struct txg_history {
 	kstat_txg_t	th_kstat;
 	vdev_stat_t	th_vs1;

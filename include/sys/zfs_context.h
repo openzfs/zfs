@@ -343,6 +343,10 @@ extern void cv_broadcast(kcondvar_t *cv);
 /*
  * kstat creation, installation and deletion
  */
+extern void kstat_set_raw_ops(kstat_t *,
+    void  (*headers)(char *, size_t),
+    void  (*data)(char *, size_t, void *),
+    void* (*addr)(kstat_t *, loff_t ));
 extern kstat_t *kstat_create(char *, int,
     char *, char *, uchar_t, ulong_t, uchar_t);
 extern void kstat_install(kstat_t *);

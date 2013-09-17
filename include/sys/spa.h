@@ -51,6 +51,8 @@ typedef struct zilog zilog_t;
 typedef struct spa_aux_vdev spa_aux_vdev_t;
 typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
+typedef struct zbookmark zbookmark_t;
+
 struct dsl_pool;
 struct dsl_dataset;
 
@@ -533,6 +535,10 @@ extern boolean_t spa_refcount_zero(spa_t *spa);
 #define	SCL_LOCKS	7
 #define	SCL_ALL		((1 << SCL_LOCKS) - 1)
 #define	SCL_STATE_ALL	(SCL_STATE | SCL_L2ARC | SCL_ZIO)
+
+/* Pool read history statistics */
+extern void spa_read_history_add(spa_t *spa, const zbookmark_t *zb,
+    uint32_t aflags);
 
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw);

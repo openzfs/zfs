@@ -256,12 +256,13 @@ extern char *zio_type_name[ZIO_TYPES];
  * Therefore it must not change size or alignment between 32/64 bit
  * compilation options.
  */
-typedef struct zbookmark {
+struct zbookmark {
 	uint64_t	zb_objset;
 	uint64_t	zb_object;
 	int64_t		zb_level;
 	uint64_t	zb_blkid;
-} zbookmark_t;
+	char *		zb_func;
+};
 
 #define	SET_BOOKMARK(zb, objset, object, level, blkid)  \
 {                                                       \
@@ -269,6 +270,7 @@ typedef struct zbookmark {
 	(zb)->zb_object = object;                       \
 	(zb)->zb_level = level;                         \
 	(zb)->zb_blkid = blkid;                         \
+	(zb)->zb_func = FTAG;                           \
 }
 
 #define	ZB_DESTROYED_OBJSET	(-1ULL)
