@@ -92,10 +92,7 @@ vdev_mirror_pending(vdev_t *vd)
 	vdev_queue_t *vq = &vd->vdev_queue;
 	int pending;
 
-	mutex_enter(&vq->vq_lock);
 	pending = avl_numnodes(&vq->vq_pending_tree);
-	mutex_exit(&vq->vq_lock);
-
 	return (pending);
 }
 
