@@ -89,14 +89,7 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 static int
 vdev_mirror_pending(vdev_t *vd)
 {
-	vdev_queue_t *vq = &vd->vdev_queue;
-	int pending;
-
-	mutex_enter(&vq->vq_lock);
-	pending = avl_numnodes(&vq->vq_pending_tree);
-	mutex_exit(&vq->vq_lock);
-
-	return (pending);
+	return avl_numnodes(&vd->vdev_queue.vq_pending_tree);
 }
 
 static mirror_map_t *
