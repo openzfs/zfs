@@ -5660,7 +5660,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 			}
 		}
 
-		outnvl = fnvlist_alloc();
+		VERIFY0(nvlist_alloc(&outnvl, NV_UNIQUE_NAME, KM_PUSHPAGE));
 		error = vec->zvec_func(zc->zc_name, innvl, outnvl);
 
 		if (error == 0 && vec->zvec_allow_log &&
