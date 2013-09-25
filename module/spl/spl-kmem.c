@@ -1995,7 +1995,6 @@ void *
 spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_magazine_t *skm;
-	unsigned long irq_flags;
 	void *obj = NULL;
 	SENTRY;
 
@@ -2003,7 +2002,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 	ASSERT(flags & KM_SLEEP);
 	atomic_inc(&skc->skc_ref);
-	local_irq_save(irq_flags);
+	local_irq_disable();
 
 restart:
 	/* Safe to update per-cpu structure without lock, but
@@ -2025,7 +2024,7 @@ restart:
 			SGOTO(restart, obj = NULL);
 	}
 
-	local_irq_restore(irq_flags);
+	local_irq_enable();
 	ASSERT(obj);
 	ASSERT(IS_P2ALIGNED(obj, skc->skc_obj_align));
 
