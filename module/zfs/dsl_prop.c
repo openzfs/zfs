@@ -1136,7 +1136,13 @@ EXPORT_SYMBOL(dsl_prop_get_integer);
 EXPORT_SYMBOL(dsl_prop_get_all);
 EXPORT_SYMBOL(dsl_prop_get_received);
 EXPORT_SYMBOL(dsl_prop_get_ds);
+EXPORT_SYMBOL(dsl_prop_get_int_ds);
 EXPORT_SYMBOL(dsl_prop_get_dd);
+EXPORT_SYMBOL(dsl_props_set);
+EXPORT_SYMBOL(dsl_prop_set_int);
+EXPORT_SYMBOL(dsl_prop_set_string);
+EXPORT_SYMBOL(dsl_prop_inherit);
+EXPORT_SYMBOL(dsl_prop_predict);
 EXPORT_SYMBOL(dsl_prop_nvlist_add_uint64);
 EXPORT_SYMBOL(dsl_prop_nvlist_add_string);
 #endif
