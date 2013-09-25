@@ -6144,7 +6144,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_sync_starttime = gethrtime();
 	taskq_cancel_id(system_taskq, spa->spa_deadman_tqid);
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_taskq,
-	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
+	    spa_deadman, spa, TQ_PUSHPAGE, ddi_get_lbolt() +
 	    NSEC_TO_TICK(spa->spa_deadman_synctime));
 
 	/*

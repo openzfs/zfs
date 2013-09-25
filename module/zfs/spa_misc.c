@@ -444,7 +444,7 @@ spa_deadman(void *arg)
 		vdev_deadman(spa->spa_root_vdev);
 
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_taskq,
-	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
+	    spa_deadman, spa, TQ_PUSHPAGE, ddi_get_lbolt() +
 	    NSEC_TO_TICK(spa->spa_deadman_synctime));
 }
 
