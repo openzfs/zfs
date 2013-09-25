@@ -201,8 +201,8 @@ static void
 dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
 
 	/*
 	 * If it is the old version, dd_clones doesn't exist so we can't
@@ -212,13 +212,16 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 	if (ds->ds_dir->dd_phys->dd_clones == 0)
 		return;
 
-	for (zap_cursor_init(&zc, mos, ds->ds_dir->dd_phys->dd_clones);
-	    zap_cursor_retrieve(&zc, &za) == 0;
-	    zap_cursor_advance(&zc)) {
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_PUSHPAGE);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_PUSHPAGE);
+
+	for (zap_cursor_init(zc, mos, ds->ds_dir->dd_phys->dd_clones);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
 		dsl_dataset_t *clone;
 
 		VERIFY0(dsl_dataset_hold_obj(ds->ds_dir->dd_pool,
-		    za.za_first_integer, FTAG, &clone));
+		    za->za_first_integer, FTAG, &clone));
 		if (clone->ds_dir->dd_origin_txg > mintxg) {
 			dsl_deadlist_remove_key(&clone->ds_deadlist,
 			    mintxg, tx);
@@ -226,7 +229,10 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 		}
 		dsl_dataset_rele(clone, FTAG);
 	}
-	zap_cursor_fini(&zc);
+	zap_cursor_fini(zc);
+
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 }
 
 void
