@@ -131,7 +131,7 @@ exit 0
 %doc OPENSOLARIS.LICENSE README.markdown
 %{_sbindir}/*
 %{_bindir}/*
-%{_libdir}/*.so.1*
+%{_libdir}/*.so.*
 %{_mandir}/man1/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
