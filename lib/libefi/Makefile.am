@@ -10,3 +10,5 @@ noinst_LTLIBRARIES = libefi.la
 
 libefi_la_SOURCES = \
 	$(top_srcdir)/lib/libefi/rdwr_efi.c
+
+libefi_la_LIBADD = $(LIBUUID) $(ZLIB)
