@@ -71,13 +71,6 @@ typedef struct zfs_all_blkstats {
 	zfs_blkstat_t	zab_type[DN_MAX_LEVELS + 1][DMU_OT_TOTAL + 1];
 } zfs_all_blkstats_t;
 
-typedef struct txg_history {
-	kstat_txg_t	th_kstat;
-	vdev_stat_t	th_vs1;
-	vdev_stat_t	th_vs2;
-	kmutex_t	th_lock;
-	list_node_t	th_link;
-} txg_history_t;
 
 typedef struct dsl_pool {
 	/* Immutable */
@@ -89,7 +82,6 @@ typedef struct dsl_pool {
 	struct dsl_dataset *dp_origin_snap;
 	uint64_t dp_root_dir_obj;
 	struct taskq *dp_iput_taskq;
-	kstat_t *dp_txg_kstat;
 
 	/* No lock needed - sync context only */
 	blkptr_t dp_meta_rootbp;
@@ -110,9 +102,6 @@ typedef struct dsl_pool {
 	uint64_t dp_mos_used_delta;
 	uint64_t dp_mos_compressed_delta;
 	uint64_t dp_mos_uncompressed_delta;
-	uint64_t dp_txg_history_size;
-	list_t dp_txg_history;
-
 
 	/* Has its own locking */
 	tx_state_t dp_tx;
@@ -167,10 +156,6 @@ void dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp);
 int dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **);
 int dsl_pool_hold(const char *name, void *tag, dsl_pool_t **dp);
 void dsl_pool_rele(dsl_pool_t *dp, void *tag);
-
-txg_history_t *dsl_pool_txg_history_add(dsl_pool_t *dp, uint64_t txg);
-txg_history_t *dsl_pool_txg_history_get(dsl_pool_t *dp, uint64_t txg);
-void dsl_pool_txg_history_put(txg_history_t *th);
 
 #ifdef	__cplusplus
 }
