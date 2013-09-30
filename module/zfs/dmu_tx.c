@@ -633,7 +633,7 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 	 */
 	if (dn->dn_datablkshift == 0) {
 		if (off != 0 || len < dn->dn_datablksz)
-			dmu_tx_count_write(txh, off, len);
+			dmu_tx_count_write(txh, 0, dn->dn_datablksz);
 	} else {
 		/* first block will be modified if it is not aligned */
 		if (!IS_P2ALIGNED(off, 1 << dn->dn_datablkshift))
