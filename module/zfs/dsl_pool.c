@@ -1229,6 +1229,9 @@ dsl_pool_config_held(dsl_pool_t *dp)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(dsl_pool_config_enter);
+EXPORT_SYMBOL(dsl_pool_config_exit);
+
 module_param(zfs_no_write_throttle, int, 0644);
 MODULE_PARM_DESC(zfs_no_write_throttle, "Disable write throttling");
 
