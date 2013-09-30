@@ -59,63 +59,6 @@ kmutex_t zfs_write_limit_lock;
 
 static pgcnt_t old_physmem = 0;
 
-static void
-dsl_pool_tx_assign_init(dsl_pool_t *dp, unsigned int ndata)
-{
-	kstat_named_t *ks;
-	char name[KSTAT_STRLEN];
-	int i, data_size = ndata * sizeof(kstat_named_t);
-
-	(void) snprintf(name, KSTAT_STRLEN, "dmu_tx_assign-%s",
-			spa_name(dp->dp_spa));
-
-	dp->dp_tx_assign_size = ndata;
-
-	if (data_size)
-		dp->dp_tx_assign_buckets = kmem_alloc(data_size, KM_SLEEP);
-	else
-		dp->dp_tx_assign_buckets = NULL;
-
-	for (i = 0; i < dp->dp_tx_assign_size; i++) {
-		ks = &dp->dp_tx_assign_buckets[i];
-		ks->data_type = KSTAT_DATA_UINT64;
-		ks->value.ui64 = 0;
-		(void) snprintf(ks->name, KSTAT_STRLEN, "%u us", 1 << i);
-	}
-
-	dp->dp_tx_assign_kstat = kstat_create("zfs", 0, name, "misc",
-	    KSTAT_TYPE_NAMED, 0, KSTAT_FLAG_VIRTUAL);
-
-	if (dp->dp_tx_assign_kstat) {
-		dp->dp_tx_assign_kstat->ks_data = dp->dp_tx_assign_buckets;
-		dp->dp_tx_assign_kstat->ks_ndata = dp->dp_tx_assign_size;
-		dp->dp_tx_assign_kstat->ks_data_size = data_size;
-		kstat_install(dp->dp_tx_assign_kstat);
-	}
-}
-
-static void
-dsl_pool_tx_assign_destroy(dsl_pool_t *dp)
-{
-	if (dp->dp_tx_assign_buckets)
-		kmem_free(dp->dp_tx_assign_buckets,
-			  dp->dp_tx_assign_size * sizeof(kstat_named_t));
-
-	if (dp->dp_tx_assign_kstat)
-		kstat_delete(dp->dp_tx_assign_kstat);
-}
-
-void
-dsl_pool_tx_assign_add_usecs(dsl_pool_t *dp, uint64_t usecs)
-{
-	uint64_t idx = 0;
-
-	while (((1 << idx) < usecs) && (idx < dp->dp_tx_assign_size - 1))
-		idx++;
-
-	atomic_inc_64(&dp->dp_tx_assign_buckets[idx].value.ui64);
-}
-
 static int
 dsl_pool_txg_history_update(kstat_t *ksp, int rw)
 {
@@ -296,7 +239,6 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	    1, 4, 0);
 
 	dsl_pool_txg_history_init(dp, txg);
-	dsl_pool_tx_assign_init(dp, 32);
 
 	return (dp);
 }
@@ -438,7 +380,6 @@ dsl_pool_close(dsl_pool_t *dp)
 	arc_flush(dp->dp_spa);
 	txg_fini(dp);
 	dsl_scan_fini(dp);
-	dsl_pool_tx_assign_destroy(dp);
 	dsl_pool_txg_history_destroy(dp);
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);

@@ -1077,14 +1077,11 @@ dmu_tx_unassign(dmu_tx_t *tx)
 int
 dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 {
-	hrtime_t before, after;
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
 	ASSERT(txg_how == TXG_WAIT || txg_how == TXG_NOWAIT);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
-
-	before = gethrtime();
 
 	/* If we might wait, we must not hold the config lock. */
 	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
@@ -1099,11 +1096,6 @@ dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
-
-	after = gethrtime();
-
-	dsl_pool_tx_assign_add_usecs(tx->tx_pool,
-	    (after - before) / NSEC_PER_USEC);
 
 	return (0);
 }
