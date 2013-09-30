@@ -106,14 +106,6 @@ restart:
                                    "name", "events", "elapsed",
                                    "min", "max", "start", "stop");
                         break;
-                case KSTAT_TYPE_TXG:
-                        seq_printf(f,
-                                   "%-8s %-5s %-13s %-12s %-12s %-8s %-8s "
-                                   "%-12s %-12s %-12s\n",
-                                   "txg", "state", "birth",
-                                   "nread", "nwritten", "reads", "writes",
-                                   "otime", "qtime", "stime");
-                        break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
@@ -229,27 +221,6 @@ kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
 }
 
 static int
-kstat_seq_show_txg(struct seq_file *f, kstat_txg_t *ktp)
-{
-	char state;
-
-	switch (ktp->state) {
-		case TXG_STATE_OPEN:		state = 'O';	break;
-		case TXG_STATE_QUIESCING:	state = 'Q';	break;
-		case TXG_STATE_SYNCING:		state = 'S';	break;
-		case TXG_STATE_COMMITTED:	state = 'C';	break;
-		default:			state = '?';	break;
-	}
-
-        seq_printf(f,
-                   "%-8llu %-5c %-13llu %-12llu %-12llu %-8u %-8u "
-                   "%12lld %12lld %12lld\n", ktp->txg, state, ktp->birth,
-                    ktp->nread, ktp->nwritten, ktp->reads, ktp->writes,
-                    ktp->open_time, ktp->quiesce_time, ktp->sync_time);
-	return 0;
-}
-
-static int
 kstat_seq_show(struct seq_file *f, void *p)
 {
         kstat_t *ksp = (kstat_t *)f->private;
@@ -284,9 +255,6 @@ restart:
                         break;
                 case KSTAT_TYPE_TIMER:
                         rc = kstat_seq_show_timer(f, (kstat_timer_t *)p);
-                        break;
-                case KSTAT_TYPE_TXG:
-                        rc = kstat_seq_show_txg(f, (kstat_txg_t *)p);
                         break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
@@ -330,9 +298,6 @@ kstat_seq_data_addr(kstat_t *ksp, loff_t n)
                         break;
                 case KSTAT_TYPE_TIMER:
                         rc = ksp->ks_data + n * sizeof(kstat_timer_t);
-                        break;
-                case KSTAT_TYPE_TXG:
-                        rc = ksp->ks_data + n * sizeof(kstat_txg_t);
                         break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
@@ -566,10 +531,6 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	                ksp->ks_ndata = ks_ndata;
                         ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
                         break;
-		case KSTAT_TYPE_TXG:
-			ksp->ks_ndata = ks_ndata;
-			ksp->ks_data_size = ks_ndata * sizeof(kstat_timer_t);
-			break;
                 default:
                         PANIC("Undefined kstat type %d\n", ksp->ks_type);
         }
