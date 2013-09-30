@@ -247,7 +247,7 @@ void dsl_dataset_long_rele(dsl_dataset_t *ds, void *tag);
 boolean_t dsl_dataset_long_held(dsl_dataset_t *ds);
 
 int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
-    dsl_dataset_t *origin_head, boolean_t force);
+    dsl_dataset_t *origin_head, boolean_t force, void *owner, dmu_tx_t *tx);
 void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
@@ -264,7 +264,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx);
 void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
-int dsl_dataset_rollback(const char *fsname);
+int dsl_dataset_rollback(const char *fsname, void *owner);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \

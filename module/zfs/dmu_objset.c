@@ -517,6 +517,38 @@ dmu_objset_rele(objset_t *os, void *tag)
 	dsl_pool_rele(dp, tag);
 }
 
+/*
+ * When we are called, os MUST refer to an objset associated with a dataset
+ * that is owned by 'tag'; that is, is held and long held by 'tag' and ds_owner
+ * == tag.  We will then release and reacquire ownership of the dataset while
+ * holding the pool config_rwlock to avoid intervening namespace or ownership
+ * changes may occur.
+ *
+ * This exists solely to accommodate zfs_ioc_userspace_upgrade()'s desire to
+ * release the hold on its dataset and acquire a new one on the dataset of the
+ * same name so that it can be partially torn down and reconstructed.
+ */
+void
+dmu_objset_refresh_ownership(objset_t *os, void *tag)
+{
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds, *newds;
+	char name[MAXNAMELEN];
+
+	ds = os->os_dsl_dataset;
+	VERIFY3P(ds, !=, NULL);
+	VERIFY3P(ds->ds_owner, ==, tag);
+	VERIFY(dsl_dataset_long_held(ds));
+
+	dsl_dataset_name(ds, name);
+	dp = dmu_objset_pool(os);
+	dsl_pool_config_enter(dp, FTAG);
+	dmu_objset_disown(os, tag);
+	VERIFY0(dsl_dataset_own(dp, name, tag, &newds));
+	VERIFY3P(newds, ==, os->os_dsl_dataset);
+	dsl_pool_config_exit(dp, FTAG);
+}
+
 void
 dmu_objset_disown(objset_t *os, void *tag)
 {
