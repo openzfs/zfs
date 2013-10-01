@@ -27,6 +27,7 @@
 #include <sys/zfs_context.h>
 #include <sys/txg_impl.h>
 #include <sys/dmu_impl.h>
+#include <sys/spa_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
@@ -363,6 +364,9 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(txg == tx->tx_open_txg);
 	tx->tx_open_txg++;
 
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_OPEN, gethrtime());
+	spa_txg_history_add(dp->dp_spa, tx->tx_open_txg);
+
 	/*
 	 * Now that we've incremented tx_open_txg, we can let threads
 	 * enter the next transaction group.
@@ -380,6 +384,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 			cv_wait(&tc->tc_cv[g], &tc->tc_lock);
 		mutex_exit(&tc->tc_lock);
 	}
+
+	spa_txg_history_set(dp->dp_spa, txg, TXG_STATE_QUIESCED, gethrtime());
 }
 
 static void
@@ -451,6 +457,7 @@ txg_sync_thread(dsl_pool_t *dp)
 	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
+	vdev_stat_t *vs1, *vs2;
 	uint64_t start, delta;
 
 #ifdef _KERNEL
@@ -463,6 +470,9 @@ txg_sync_thread(dsl_pool_t *dp)
 #endif /* _KERNEL */
 
 	txg_thread_enter(tx, &cpr);
+
+	vs1 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
+	vs2 = kmem_alloc(sizeof(vdev_stat_t), KM_PUSHPAGE);
 
 	start = delta = 0;
 	for (;;) {
@@ -499,8 +509,13 @@ txg_sync_thread(dsl_pool_t *dp)
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
 
-		if (tx->tx_exiting)
+		if (tx->tx_exiting) {
+			kmem_free(vs2, sizeof(vdev_stat_t));
+			kmem_free(vs1, sizeof(vdev_stat_t));
 			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+		}
+
+		vdev_get_stats(spa->spa_root_vdev, vs1);
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
@@ -529,6 +544,16 @@ txg_sync_thread(dsl_pool_t *dp)
 		 * Dispatch commit callbacks to worker threads.
 		 */
 		txg_dispatch_callbacks(dp, txg);
+
+		vdev_get_stats(spa->spa_root_vdev, vs2);
+		spa_txg_history_set_io(spa, txg,
+		    vs2->vs_bytes[ZIO_TYPE_READ]-vs1->vs_bytes[ZIO_TYPE_READ],
+		    vs2->vs_bytes[ZIO_TYPE_WRITE]-vs1->vs_bytes[ZIO_TYPE_WRITE],
+		    vs2->vs_ops[ZIO_TYPE_READ]-vs1->vs_ops[ZIO_TYPE_READ],
+		    vs2->vs_ops[ZIO_TYPE_WRITE]-vs1->vs_ops[ZIO_TYPE_WRITE],
+		    dp->dp_space_towrite[txg & TXG_MASK] +
+		    dp->dp_tempreserved[txg & TXG_MASK] / 2);
+		spa_txg_history_set(spa, txg, TXG_STATE_SYNCED, gethrtime());
 	}
 }
 

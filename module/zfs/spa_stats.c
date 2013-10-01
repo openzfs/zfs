@@ -33,6 +33,11 @@ int zfs_read_history = 0;
 int zfs_read_history_hits = 0;
 
 /*
+ * Keeps stats on the last N txgs, disabled by default.
+ */
+int zfs_txg_history = 0;
+
+/*
  * ==========================================================================
  * SPA Read History Routines
  * ==========================================================================
@@ -227,15 +232,289 @@ spa_read_history_add(spa_t *spa, const zbookmark_t *zb, uint32_t aflags)
 	mutex_exit(&ssh->lock);
 }
 
+/*
+ * ==========================================================================
+ * SPA TXG History Routines
+ * ==========================================================================
+ */
+
+/*
+ * Txg statistics - Information exported regarding each txg sync
+ */
+
+typedef struct spa_txg_history {
+	uint64_t	txg;		/* txg id */
+	txg_state_t	state;		/* active txg state */
+	uint64_t	nread;		/* number of bytes read */
+	uint64_t	nwritten;	/* number of bytes written */
+	uint64_t	reads;		/* number of read operations */
+	uint64_t	writes;		/* number of write operations */
+	uint64_t	nreserved;	/* number of bytes reserved */
+	hrtime_t	times[TXG_STATE_COMMITTED]; /* completion times */
+	list_node_t	sth_link;
+} spa_txg_history_t;
+
+static int
+spa_txg_history_headers(char *buf, size_t size)
+{
+	size = snprintf(buf, size - 1, "%-8s %-16s %-5s %-12s %-12s %-12s "
+	    "%-8s %-8s %-12s %-12s %-12s\n", "txg", "birth", "state",
+	    "nreserved", "nread", "nwritten", "reads", "writes",
+	    "otime", "qtime", "stime");
+	buf[size] = '\0';
+
+	return (0);
+}
+
+static int
+spa_txg_history_data(char *buf, size_t size, void *data)
+{
+	spa_txg_history_t *sth = (spa_txg_history_t *)data;
+	uint64_t open = 0, quiesce = 0, sync = 0;
+	char state;
+
+	switch (sth->state) {
+		case TXG_STATE_BIRTH:		state = 'B';	break;
+		case TXG_STATE_OPEN:		state = 'O';	break;
+		case TXG_STATE_QUIESCED:	state = 'Q';	break;
+		case TXG_STATE_SYNCED:		state = 'S';	break;
+		case TXG_STATE_COMMITTED:	state = 'C';	break;
+		default:			state = '?';	break;
+	}
+
+	if (sth->times[TXG_STATE_OPEN])
+		open = sth->times[TXG_STATE_OPEN] -
+		    sth->times[TXG_STATE_BIRTH];
+
+	if (sth->times[TXG_STATE_QUIESCED])
+		quiesce = sth->times[TXG_STATE_QUIESCED] -
+		    sth->times[TXG_STATE_OPEN];
+
+	if (sth->times[TXG_STATE_SYNCED])
+		sync = sth->times[TXG_STATE_SYNCED] -
+		    sth->times[TXG_STATE_QUIESCED];
+
+	size = snprintf(buf, size - 1, "%-8llu %-16llu %-5c %-12llu "
+	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu\n",
+	    (longlong_t)sth->txg, sth->times[TXG_STATE_BIRTH], state,
+	    (u_longlong_t)sth->nreserved,
+	    (u_longlong_t)sth->nread, (u_longlong_t)sth->nwritten,
+	    (u_longlong_t)sth->reads, (u_longlong_t)sth->writes,
+	    (u_longlong_t)open, (u_longlong_t)quiesce, (u_longlong_t)sync);
+	buf[size] = '\0';
+
+	return (0);
+}
+
+/*
+ * Calculate the address for the next spa_stats_history_t entry.  The
+ * ssh->lock will be held until ksp->ks_ndata entries are processed.
+ */
+static void *
+spa_txg_history_addr(kstat_t *ksp, loff_t n)
+{
+	spa_t *spa = ksp->ks_private;
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+
+	ASSERT(MUTEX_HELD(&ssh->lock));
+
+	if (n == 0)
+		ssh->private = list_tail(&ssh->list);
+	else if (ssh->private)
+		ssh->private = list_prev(&ssh->list, ssh->private);
+
+	return (ssh->private);
+}
+
+/*
+ * When the kstat is written discard all spa_txg_history_t entires.  The
+ * ssh->lock will be held until ksp->ks_ndata entries are processed.
+ */
+static int
+spa_txg_history_update(kstat_t *ksp, int rw)
+{
+	spa_t *spa = ksp->ks_private;
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+
+	ASSERT(MUTEX_HELD(&ssh->lock));
+
+	if (rw == KSTAT_WRITE) {
+		spa_txg_history_t *sth;
+
+		while ((sth = list_remove_head(&ssh->list))) {
+			ssh->size--;
+			kmem_free(sth, sizeof(spa_txg_history_t));
+		}
+
+		ASSERT3U(ssh->size, ==, 0);
+	}
+
+	ksp->ks_ndata = ssh->size;
+	ksp->ks_data_size = ssh->size * sizeof(spa_txg_history_t);
+
+	return (0);
+}
+
+static void
+spa_txg_history_init(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	char name[KSTAT_STRLEN];
+	kstat_t *ksp;
+
+	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&ssh->list, sizeof (spa_txg_history_t),
+	    offsetof(spa_txg_history_t, sth_link));
+
+	ssh->count = 0;
+	ssh->size = 0;
+	ssh->private = NULL;
+
+	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name[KSTAT_STRLEN-1] = '\0';
+
+	ksp = kstat_create(name, 0, "txgs", "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+	ssh->kstat = ksp;
+
+	if (ksp) {
+		ksp->ks_lock = &ssh->lock;
+		ksp->ks_data = NULL;
+		ksp->ks_private = spa;
+		ksp->ks_update = spa_txg_history_update;
+		kstat_set_raw_ops(ksp, spa_txg_history_headers,
+		    spa_txg_history_data, spa_txg_history_addr);
+		kstat_install(ksp);
+	}
+}
+
+static void
+spa_txg_history_destroy(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_txg_history_t *sth;
+	kstat_t *ksp;
+
+	ksp = ssh->kstat;
+	if (ksp)
+		kstat_delete(ksp);
+
+	mutex_enter(&ssh->lock);
+	while ((sth = list_remove_head(&ssh->list))) {
+		ssh->size--;
+		kmem_free(sth, sizeof(spa_txg_history_t));
+	}
+
+	ASSERT3U(ssh->size, ==, 0);
+	list_destroy(&ssh->list);
+	mutex_exit(&ssh->lock);
+
+	mutex_destroy(&ssh->lock);
+}
+
+/*
+ * Add a new txg to historical record.
+ */
+void
+spa_txg_history_add(spa_t *spa, uint64_t txg)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_txg_history_t *sth, *rm;
+
+	if (zfs_txg_history == 0 && ssh->size == 0)
+		return;
+
+	sth = kmem_zalloc(sizeof(spa_txg_history_t), KM_PUSHPAGE);
+	sth->txg = txg;
+	sth->state = TXG_STATE_OPEN;
+	sth->times[TXG_STATE_BIRTH] = gethrtime();
+
+	mutex_enter(&ssh->lock);
+
+	list_insert_head(&ssh->list, sth);
+	ssh->size++;
+
+	while (ssh->size > zfs_txg_history) {
+		ssh->size--;
+		rm = list_remove_tail(&ssh->list);
+		kmem_free(rm, sizeof(spa_txg_history_t));
+	}
+
+	mutex_exit(&ssh->lock);
+}
+
+/*
+ * Set txg state completion time and increment current state.
+ */
+int
+spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
+    hrtime_t completed_time)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_txg_history_t *sth;
+	int error = ENOENT;
+
+	if (zfs_txg_history == 0)
+		return (0);
+
+	mutex_enter(&ssh->lock);
+	for (sth = list_head(&ssh->list); sth != NULL;
+	     sth = list_next(&ssh->list, sth)) {
+		if (sth->txg == txg) {
+			sth->times[completed_state] = completed_time;
+			sth->state++;
+			error = 0;
+			break;
+		}
+	}
+	mutex_exit(&ssh->lock);
+
+	return (error);
+}
+
+/*
+ * Set txg IO stats.
+ */
+int
+spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
+    uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t nreserved)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_txg_history_t *sth;
+	int error = ENOENT;
+
+	if (zfs_txg_history == 0)
+		return (0);
+
+	mutex_enter(&ssh->lock);
+	for (sth = list_head(&ssh->list); sth != NULL;
+	     sth = list_next(&ssh->list, sth)) {
+		if (sth->txg == txg) {
+			sth->nread = nread;
+			sth->nwritten = nwritten;
+			sth->reads = reads;
+			sth->writes = writes;
+			sth->nreserved = nreserved;
+			error = 0;
+			break;
+		}
+	}
+	mutex_exit(&ssh->lock);
+
+	return (error);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
 	spa_read_history_init(spa);
+	spa_txg_history_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);
 }
 
@@ -245,4 +524,7 @@ MODULE_PARM_DESC(zfs_read_history, "Historic statistics for the last N reads");
 
 module_param(zfs_read_history_hits, int, 0644);
 MODULE_PARM_DESC(zfs_read_history_hits, "Include cache hits in read history");
+
+module_param(zfs_txg_history, int, 0644);
+MODULE_PARM_DESC(zfs_txg_history, "Historic statistics for the last N txgs");
 #endif
