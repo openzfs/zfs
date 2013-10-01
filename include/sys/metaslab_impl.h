@@ -32,6 +32,7 @@
 
 #include <sys/metaslab.h>
 #include <sys/space_map.h>
+#include <sys/range_tree.h>
 #include <sys/vdev.h>
 #include <sys/txg.h>
 #include <sys/avl.h>
@@ -43,7 +44,7 @@ extern "C" {
 struct metaslab_class {
 	spa_t			*mc_spa;
 	metaslab_group_t	*mc_rotor;
-	space_map_ops_t		*mc_ops;
+	metaslab_ops_t		*mc_ops;
 	uint64_t		mc_aliquot;
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 	uint64_t		mc_alloc;	/* total allocated space */
@@ -57,7 +58,6 @@ struct metaslab_group {
 	kmutex_t		mg_lock;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
-	uint64_t		mg_bonus_area;
 	uint64_t		mg_alloc_failures;
 	boolean_t		mg_allocatable;		/* can we allocate? */
 	uint64_t		mg_free_capacity;	/* percentage free */
@@ -65,45 +65,102 @@ struct metaslab_group {
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
 	vdev_t			*mg_vd;
+	taskq_t			*mg_taskq;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
 };
 
 /*
- * Each metaslab maintains an in-core free map (ms_map) that contains the
- * current list of free segments. As blocks are allocated, the allocated
- * segment is removed from the ms_map and added to a per txg allocation map.
- * As blocks are freed, they are added to the per txg free map. These per
- * txg maps allow us to process all allocations and frees in syncing context
- * where it is safe to update the on-disk space maps.
+ * This value defines the number of elements in the ms_lbas array. The value
+ * of 64 was chosen as it covers to cover all power of 2 buckets up to
+ * UINT64_MAX. This is the equivalent of highbit(UINT64_MAX).
+ */
+#define	MAX_LBAS	64
+
+/*
+ * Each metaslab maintains a set of in-core trees to track metaslab operations.
+ * The in-core free tree (ms_tree) contains the current list of free segments.
+ * As blocks are allocated, the allocated segment are removed from the ms_tree
+ * and added to a per txg allocation tree (ms_alloctree). As blocks are freed,
+ * they are added to the per txg free tree (ms_freetree). These per txg
+ * trees allow us to process all allocations and frees in syncing context
+ * where it is safe to update the on-disk space maps. One additional in-core
+ * tree is maintained to track deferred frees (ms_defertree). Once a block
+ * is freed it will move from the ms_freetree to the ms_defertree. A deferred
+ * free means that a block has been freed but cannot be used by the pool
+ * until TXG_DEFER_SIZE transactions groups later. For example, a block
+ * that is freed in txg 50 will not be available for reallocation until
+ * txg 52 (50 + TXG_DEFER_SIZE).  This provides a safety net for uberblock
+ * rollback. A pool could be safely rolled back TXG_DEFERS_SIZE
+ * transactions groups and ensure that no block has been reallocated.
  *
- * Each metaslab's free space is tracked in a space map object in the MOS,
+ * The simplified transition diagram looks like this:
+ *
+ *
+ *      ALLOCATE
+ *         |
+ *         V
+ *    free segment (ms_tree) --------> ms_alloctree ----> (write to space map)
+ *         ^
+ *         |
+ *         |                           ms_freetree <--- FREE
+ *         |                                 |
+ *         |                                 |
+ *         |                                 |
+ *         +----------- ms_defertree <-------+---------> (write to space map)
+ *
+ *
+ * Each metaslab's space is tracked in a single space map in the MOS,
  * which is only updated in syncing context. Each time we sync a txg,
- * we append the allocs and frees from that txg to the space map object.
- * When the txg is done syncing, metaslab_sync_done() updates ms_smo
- * to ms_smo_syncing. Everything in ms_smo is always safe to allocate.
+ * we append the allocs and frees from that txg to the space map.
+ * The pool space is only updated once all metaslabs have finished syncing.
  *
- * To load the in-core free map we read the space map object from disk.
+ * To load the in-core free tree we read the space map from disk.
  * This object contains a series of alloc and free records that are
  * combined to make up the list of all free segments in this metaslab. These
- * segments are represented in-core by the ms_map and are stored in an
+ * segments are represented in-core by the ms_tree and are stored in an
  * AVL tree.
  *
- * As the space map objects grows (as a result of the appends) it will
- * eventually become space-inefficient. When the space map object is
- * zfs_condense_pct/100 times the size of the minimal on-disk representation,
- * we rewrite it in its minimized form.
+ * As the space map grows (as a result of the appends) it will
+ * eventually become space-inefficient. When the metaslab's in-core free tree
+ * is zfs_condense_pct/100 times the size of the minimal on-disk
+ * representation, we rewrite it in its minimized form. If a metaslab
+ * needs to condense then we must set the ms_condensing flag to ensure
+ * that allocations are not performed on the metaslab that is being written.
  */
 struct metaslab {
-	kmutex_t	ms_lock;	/* metaslab lock		*/
-	space_map_obj_t	ms_smo;		/* synced space map object	*/
-	space_map_obj_t	ms_smo_syncing;	/* syncing space map object	*/
-	space_map_t	*ms_allocmap[TXG_SIZE];	/* allocated this txg	*/
-	space_map_t	*ms_freemap[TXG_SIZE];	/* freed this txg	*/
-	space_map_t	*ms_defermap[TXG_DEFER_SIZE];	/* deferred frees */
-	space_map_t	*ms_map;	/* in-core free space map	*/
+	kmutex_t	ms_lock;
+	kcondvar_t	ms_load_cv;
+	space_map_t	*ms_sm;
+	metaslab_ops_t	*ms_ops;
+	uint64_t	ms_id;
+	uint64_t	ms_start;
+	uint64_t	ms_size;
+
+	range_tree_t	*ms_alloctree[TXG_SIZE];
+	range_tree_t	*ms_freetree[TXG_SIZE];
+	range_tree_t	*ms_defertree[TXG_DEFER_SIZE];
+	range_tree_t	*ms_tree;
+
+	boolean_t	ms_condensing;	/* condensing? */
+	boolean_t	ms_loaded;
+	boolean_t	ms_loading;
+
 	int64_t		ms_deferspace;	/* sum of ms_defermap[] space	*/
 	uint64_t	ms_weight;	/* weight vs. others in group	*/
+	uint64_t	ms_factor;
+	uint64_t	ms_access_txg;
+
+	/*
+	 * The metaslab block allocators can optionally use a size-ordered
+	 * range tree and/or an array of LBAs. Not all allocators use
+	 * this functionality. The ms_size_tree should always contain the
+	 * same number of segments as the ms_tree. The only difference
+	 * is that the ms_size_tree is ordered by segment sizes.
+	 */
+	avl_tree_t	ms_size_tree;
+	uint64_t	ms_lbas[MAX_LBAS];
+
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/

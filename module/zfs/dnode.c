@@ -1335,7 +1335,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
 	/* Check for any allocated blocks beyond the first */
-	if (dn->dn_phys->dn_maxblkid != 0)
+	if (dn->dn_maxblkid != 0)
 		goto fail;
 
 	mutex_enter(&dn->dn_dbufs_mtx);

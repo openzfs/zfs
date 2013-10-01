@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  */
 
@@ -54,6 +54,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_ASYNC_DESTROY,
 	SPA_FEATURE_EMPTY_BPOBJ,
 	SPA_FEATURE_LZ4_COMPRESS,
+	SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	SPA_FEATURES
 } spa_feature_t;
 

@@ -18,39 +18,40 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
 /*
  * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
-#ifndef _SYS_ZFEATURE_H
-#define	_SYS_ZFEATURE_H
+#ifndef _SYS_SPACE_REFTREE_H
+#define	_SYS_SPACE_REFTREE_H
 
-#include <sys/nvpair.h>
-#include "zfeature_common.h"
+#include <sys/range_tree.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-struct spa;
-struct dmu_tx;
-struct objset;
+typedef struct space_ref {
+	avl_node_t	sr_node;	/* AVL node */
+	uint64_t	sr_offset;	/* range offset (start or end) */
+	int64_t		sr_refcnt;	/* associated reference count */
+} space_ref_t;
 
-extern boolean_t feature_is_supported(struct objset *os, uint64_t obj,
-    uint64_t desc_obj, nvlist_t *unsup_feat, nvlist_t *enabled_feat);
-
-extern void spa_feature_create_zap_objects(struct spa *, struct dmu_tx *);
-extern void spa_feature_enable(struct spa *, zfeature_info_t *,
-    struct dmu_tx *);
-extern void spa_feature_incr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern void spa_feature_decr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern boolean_t spa_feature_is_enabled(struct spa *, zfeature_info_t *);
-extern boolean_t spa_feature_is_active(struct spa *, zfeature_info_t *);
-extern int spa_feature_get_refcount(struct spa *, zfeature_info_t *);
+void space_reftree_create(avl_tree_t *t);
+void space_reftree_destroy(avl_tree_t *t);
+void space_reftree_add_seg(avl_tree_t *t, uint64_t start, uint64_t end,
+    int64_t refcnt);
+void space_reftree_add_map(avl_tree_t *t, range_tree_t *rt, int64_t refcnt);
+void space_reftree_generate_map(avl_tree_t *t, range_tree_t *rt,
+    int64_t minref);
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif /* _SYS_ZFEATURE_H */
+#endif	/* _SYS_SPACE_REFTREE_H */
