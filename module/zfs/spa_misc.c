@@ -986,7 +986,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 		txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	if (vd != NULL) {
-		ASSERT(!vd->vdev_detached || vd->vdev_dtl_smo.smo_object == 0);
+		ASSERT(!vd->vdev_detached || vd->vdev_dtl_sm == NULL);
 		spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
 		vdev_free(vd);
 		spa_config_exit(spa, SCL_ALL, spa);
@@ -1655,7 +1655,7 @@ spa_init(int mode)
 	fm_init();
 	refcount_init();
 	unique_init();
-	space_map_init();
+	range_tree_init();
 	ddt_init();
 	zio_init();
 	dmu_init();
@@ -1682,7 +1682,7 @@ spa_fini(void)
 	dmu_fini();
 	zio_fini();
 	ddt_fini();
-	space_map_fini();
+	range_tree_fini();
 	unique_fini();
 	refcount_fini();
 	fm_fini();

@@ -369,34 +369,44 @@ spa_feature_enable(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_ENABLE, tx));
 }
 
-/*
- * If the specified feature has not yet been enabled, this function returns
- * ENOTSUP; otherwise, this function increments the feature's refcount (or
- * returns EOVERFLOW if the refcount cannot be incremented). This function must
- * be called from syncing context.
- */
 void
 spa_feature_incr(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 {
+	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
 	VERIFY3U(0, ==, feature_do_action(spa->spa_meta_objset,
 	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
 	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_INCR, tx));
 }
 
-/*
- * If the specified feature has not yet been enabled, this function returns
- * ENOTSUP; otherwise, this function decrements the feature's refcount (or
- * returns EOVERFLOW if the refcount is already 0). This function must
- * be called from syncing context.
- */
 void
 spa_feature_decr(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 {
+	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
 	VERIFY3U(0, ==, feature_do_action(spa->spa_meta_objset,
 	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
 	    spa->spa_feat_desc_obj, feature, FEATURE_ACTION_DECR, tx));
+}
+
+/*
+ * This interface is for debugging only. Normal consumers should use
+ * spa_feature_is_enabled/spa_feature_is_active.
+ */
+int
+spa_feature_get_refcount(spa_t *spa, zfeature_info_t *feature)
+{
+	int err;
+	uint64_t refcount;
+
+	if (spa_version(spa) < SPA_VERSION_FEATURES)
+		return (B_FALSE);
+
+	err = feature_get_refcount(spa->spa_meta_objset,
+	    spa->spa_feat_for_read_obj, spa->spa_feat_for_write_obj,
+	    feature, &refcount);
+	ASSERT(err == 0 || err == ENOTSUP);
+	return (err == 0 ? refcount : 0);
 }
 
 boolean_t

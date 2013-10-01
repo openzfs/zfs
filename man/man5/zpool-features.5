@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2012 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -13,7 +13,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZPOOL-FEATURES 5 "Feb 4, 2013"
+.TH ZPOOL-FEATURES 5 "Aug 27, 2013"
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
 .SH DESCRIPTION
@@ -228,6 +228,26 @@ read-only compatible, this operation will render the pool unimportable
 on systems without support for the \fBlz4_compress\fR feature. At the
 moment, this operation cannot be reversed. Booting off of
 \fBlz4\fR-compressed root pools is supported.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBspacemap_histogram\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:spacemap_histogram
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+ 
+This features allows ZFS to maintain more information about how free space
+is organized within the pool. If this feature is \fBenabled\fR, ZFS will
+set this feature to \fBactive\fR when a new space map object is created or
+an existing space map is upgraded to the new format. Once the feature is
+\fBactive\fR, it will remain in that state until the pool is destroyed.
 
 .RE
 
