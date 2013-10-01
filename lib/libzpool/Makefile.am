@@ -53,6 +53,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/lzjb.c \
 	$(top_srcdir)/module/zfs/lz4.c \
 	$(top_srcdir)/module/zfs/metaslab.c \
+	$(top_srcdir)/module/zfs/range_tree.c \
 	$(top_srcdir)/module/zfs/refcount.c \
 	$(top_srcdir)/module/zfs/rrwlock.c \
 	$(top_srcdir)/module/zfs/sa.c \
@@ -65,6 +66,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/spa_misc.c \
 	$(top_srcdir)/module/zfs/spa_stats.c \
 	$(top_srcdir)/module/zfs/space_map.c \
+	$(top_srcdir)/module/zfs/space_reftree.c \
 	$(top_srcdir)/module/zfs/txg.c \
 	$(top_srcdir)/module/zfs/uberblock.c \
 	$(top_srcdir)/module/zfs/unique.c \
