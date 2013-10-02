@@ -441,6 +441,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 {
 	char *msg;
 	va_list adx1;
+	int size;
 
 	/*
 	 * If this is part of creating a pool, not everything is
@@ -453,13 +454,14 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 	}
 
 	va_copy(adx1, adx);
-	msg = kmem_alloc(vsnprintf(NULL, 0, fmt, adx1) + 1, KM_PUSHPAGE);
+	size = vsnprintf(NULL, 0, fmt, adx1) + 1;
+	msg = kmem_alloc(size, KM_PUSHPAGE);
 	va_end(adx1);
 	va_copy(adx1, adx);
 	(void) vsprintf(msg, fmt, adx1);
 	va_end(adx1);
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_STR, msg);
-	strfree(msg);
+	kmem_free(msg, size);
 
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_NAME, operation);
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TXG, tx->tx_txg);
