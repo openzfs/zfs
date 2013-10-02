@@ -504,16 +504,122 @@ spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
 	return (error);
 }
 
+/*
+ * ==========================================================================
+ * SPA TX Assign Histogram Routines
+ * ==========================================================================
+ */
+
+/*
+ * Tx statistics - Information exported regarding dmu_tx_assign time.
+ */
+
+/*
+ * When the kstat is written zero all buckets.  When the kstat is read
+ * count the number of trailing buckets set to zero and update ks_ndata
+ * such that they are not output.
+ */
+static int
+spa_tx_assign_update(kstat_t *ksp, int rw)
+{
+	spa_t *spa = ksp->ks_private;
+	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	int i;
+
+	if (rw == KSTAT_WRITE) {
+		for (i = 0; i < ssh->count; i++)
+			((kstat_named_t *)ssh->private)[i].value.ui64 = 0;
+	}
+
+	for (i = ssh->count; i > 0; i--)
+		if (((kstat_named_t *)ssh->private)[i-1].value.ui64 != 0)
+			break;
+
+	ksp->ks_ndata = i;
+	ksp->ks_data_size = i * sizeof(kstat_named_t);
+
+	return (0);
+}
+
+static void
+spa_tx_assign_init(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	char name[KSTAT_STRLEN];
+	kstat_named_t *ks;
+	kstat_t *ksp;
+	int i;
+
+	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	ssh->count = 42; /* power of two buckets for 1ns to 2,199s */
+	ssh->size = ssh->count * sizeof(kstat_named_t);
+	ssh->private = kmem_alloc(ssh->size, KM_SLEEP);
+
+	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name[KSTAT_STRLEN-1] = '\0';
+
+	for (i = 0; i < ssh->count; i++) {
+		ks = &((kstat_named_t *)ssh->private)[i];
+		ks->data_type = KSTAT_DATA_UINT64;
+		ks->value.ui64 = 0;
+		(void) snprintf(ks->name, KSTAT_STRLEN, "%llu ns",
+		    (u_longlong_t)1 << i);
+	}
+
+	ksp = kstat_create(name, 0, "dmu_tx_assign", "misc",
+	    KSTAT_TYPE_NAMED, 0, KSTAT_FLAG_VIRTUAL);
+	ssh->kstat = ksp;
+
+	if (ksp) {
+		ksp->ks_lock = &ssh->lock;
+		ksp->ks_data = ssh->private;
+		ksp->ks_ndata = ssh->count;
+		ksp->ks_data_size = ssh->size;
+		ksp->ks_private = spa;
+		ksp->ks_update = spa_tx_assign_update;
+		kstat_install(ksp);
+	}
+}
+
+static void
+spa_tx_assign_destroy(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	kstat_t *ksp;
+
+	ksp = ssh->kstat;
+	if (ksp)
+		kstat_delete(ksp);
+
+	kmem_free(ssh->private, ssh->size);
+	mutex_destroy(&ssh->lock);
+}
+
+void
+spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	uint64_t idx = 0;
+
+	while (((1 << idx) < nsecs) && (idx < ssh->size - 1))
+		idx++;
+
+	atomic_inc_64(&((kstat_named_t *)ssh->private)[idx].value.ui64);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
 	spa_read_history_init(spa);
 	spa_txg_history_init(spa);
+	spa_tx_assign_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_tx_assign_destroy(spa);
 	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);
 }
