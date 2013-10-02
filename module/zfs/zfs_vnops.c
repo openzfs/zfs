@@ -2004,12 +2004,12 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 	objset_t	*os;
 	zap_cursor_t	zc;
 	zap_attribute_t	zap;
-	int		outcount;
+	uint64_t	offset; /* must be unsigned; checks for < 1 */
+	uint64_t	parent;
+	int		done = 0;
 	int		error;
 	uint8_t		prefetch;
-	int		done = 0;
-	uint64_t	parent;
-	loff_t		*pos = &(ctx->pos);
+	uint8_t		type;
 
 	ZFS_ENTER(zsb);
 	ZFS_VERIFY_ZP(zp);
@@ -2021,17 +2021,18 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 	/*
 	 * Quit if directory has been removed (posix)
 	 */
-	error = 0;
 	if (zp->z_unlinked)
 		goto out;
 
+	error = 0;
 	os = zsb->z_os;
+	offset = ctx->pos;
 	prefetch = zp->z_zn_prefetch;
 
 	/*
 	 * Initialize the iterator cursor.
 	 */
-	if (*pos <= 3) {
+	if (offset <= 3) {
 		/*
 		 * Start iteration from the beginning of the directory.
 		 */
@@ -2040,31 +2041,32 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 		/*
 		 * The offset is a serialized cursor.
 		 */
-		zap_cursor_init_serialized(&zc, os, zp->z_id, *pos);
+		zap_cursor_init_serialized(&zc, os, zp->z_id, offset);
 	}
 
 	/*
 	 * Transform to file-system independent format
 	 */
-	outcount = 0;
-
 	while (!done) {
 		uint64_t objnum;
 		/*
 		 * Special case `.', `..', and `.zfs'.
 		 */
-		if (*pos == 0) {
+		if (offset == 0) {
 			(void) strcpy(zap.za_name, ".");
 			zap.za_normalization_conflict = 0;
 			objnum = zp->z_id;
-		} else if (*pos == 1) {
+			type = DT_DIR;
+		} else if (offset == 1) {
 			(void) strcpy(zap.za_name, "..");
 			zap.za_normalization_conflict = 0;
 			objnum = parent;
-		} else if (*pos == 2 && zfs_show_ctldir(zp)) {
+			type = DT_DIR;
+		} else if (offset == 2 && zfs_show_ctldir(zp)) {
 			(void) strcpy(zap.za_name, ZFS_CTLDIR_NAME);
 			zap.za_normalization_conflict = 0;
 			objnum = ZFSCTL_INO_ROOT;
+			type = DT_DIR;
 		} else {
 			/*
 			 * Grab next entry.
@@ -2089,7 +2091,7 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 				    "entry, obj = %lld, offset = %lld, "
 				    "length = %d, num = %lld\n",
 				    (u_longlong_t)zp->z_id,
-				    (u_longlong_t)*pos,
+				    (u_longlong_t)offset,
 				    zap.za_integer_length,
 				    (u_longlong_t)zap.za_num_integers);
 				error = ENXIO;
@@ -2097,10 +2099,10 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 			}
 
 			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
+			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
-		    objnum, ZFS_DIRENT_TYPE(zap.za_first_integer));
+		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name), objnum, type);
 		if (done)
 			break;
 
@@ -2109,12 +2111,16 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 			dmu_prefetch(os, objnum, 0, 0);
 		}
 
-		if (*pos > 2 || (*pos == 2 && !zfs_show_ctldir(zp))) {
+		/*
+		 * Move to the next entry, fill in the previous offset.
+		 */
+		if (offset > 2 || (offset == 2 && !zfs_show_ctldir(zp))) {
 			zap_cursor_advance(&zc);
-			*pos = zap_cursor_serialize(&zc);
+			offset = zap_cursor_serialize(&zc);
 		} else {
-			(*pos)++;
+			offset += 1;
 		}
+		ctx->pos = offset;
 	}
 	zp->z_zn_prefetch = B_FALSE; /* a lookup will re-enable pre-fetching */
 
