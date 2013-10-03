@@ -25,6 +25,7 @@ libzpool_la_SOURCES = \
 	$(top_srcdir)/module/zfs/bpobj.c \
 	$(top_srcdir)/module/zfs/bptree.c \
 	$(top_srcdir)/module/zfs/dbuf.c \
+	$(top_srcdir)/module/zfs/dbuf_stats.c \
 	$(top_srcdir)/module/zfs/ddt.c \
 	$(top_srcdir)/module/zfs/ddt_zap.c \
 	$(top_srcdir)/module/zfs/dmu.c \

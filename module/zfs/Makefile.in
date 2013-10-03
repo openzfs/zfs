@@ -8,6 +8,7 @@ $(MODULE)-objs += @top_srcdir@/module/zfs/arc.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/bplist.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/bpobj.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/dbuf.o
+$(MODULE)-objs += @top_srcdir@/module/zfs/dbuf_stats.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/bptree.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/ddt.o
 $(MODULE)-objs += @top_srcdir@/module/zfs/ddt_zap.o
