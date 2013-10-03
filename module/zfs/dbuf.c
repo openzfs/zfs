@@ -317,6 +317,8 @@ retry:
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
 		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
+
+	dbuf_stats_init(h);
 }
 
 void
@@ -324,6 +326,8 @@ dbuf_fini(void)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	int i;
+
+	dbuf_stats_destroy();
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
 		mutex_destroy(&h->hash_mutexes[i]);
