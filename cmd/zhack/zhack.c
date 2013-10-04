@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -84,9 +84,14 @@ usage(void)
 
 
 static void
-fatal(const char *fmt, ...)
+fatal(spa_t *spa, void *tag, const char *fmt, ...)
 {
 	va_list ap;
+
+	if (spa != NULL) {
+		spa_close(spa, tag);
+		(void) spa_export(g_pool, NULL, B_TRUE, B_FALSE);
+	}
 
 	va_start(ap, fmt);
 	(void) fprintf(stderr, "%s: ", cmdname);
@@ -158,13 +163,14 @@ import_pool(const char *target, boolean_t readonly)
 			g_importargs.can_be_active = B_TRUE;
 			if (zpool_search_import(g_zfs, &g_importargs) != NULL ||
 			    spa_open(target, &spa, FTAG) == 0) {
-				fatal("cannot import '%s': pool is active; run "
-				    "\"zpool export %s\" first\n",
-				    g_pool, g_pool);
+				fatal(spa, FTAG, "cannot import '%s': pool is "
+				    "active; run " "\"zpool export %s\" "
+				    "first\n", g_pool, g_pool);
 			}
 		}
 
-		fatal("cannot import '%s': no such pool available\n", g_pool);
+		fatal(NULL, FTAG, "cannot import '%s': no such pool "
+		    "available\n", g_pool);
 	}
 
 	elem = nvlist_next_nvpair(pools, NULL);
@@ -185,7 +191,8 @@ import_pool(const char *target, boolean_t readonly)
 		error = 0;
 
 	if (error)
-		fatal("can't import '%s': %s", name, strerror(error));
+		fatal(NULL, FTAG, "can't import '%s': %s", name,
+		    strerror(error));
 }
 
 static void
@@ -200,10 +207,11 @@ zhack_spa_open(const char *target, boolean_t readonly, void *tag, spa_t **spa)
 	zfeature_checks_disable = B_FALSE;
 
 	if (err != 0)
-		fatal("cannot open '%s': %s", target, strerror(err));
+		fatal(*spa, FTAG, "cannot open '%s': %s", target,
+		    strerror(err));
 	if (spa_version(*spa) < SPA_VERSION_FEATURES) {
-		fatal("'%s' has version %d, features not enabled", target,
-		    (int)spa_version(*spa));
+		fatal(*spa, FTAG, "'%s' has version %d, features not enabled",
+		    target, (int)spa_version(*spa));
 	}
 }
 
@@ -336,15 +344,16 @@ zhack_do_feature_enable(int argc, char **argv)
 	feature.fi_guid = argv[1];
 
 	if (!zfeature_is_valid_guid(feature.fi_guid))
-		fatal("invalid feature guid: %s", feature.fi_guid);
+		fatal(NULL, FTAG, "invalid feature guid: %s", feature.fi_guid);
 
 	zhack_spa_open(target, B_FALSE, FTAG, &spa);
 	mos = spa->spa_meta_objset;
 
 	if (0 == zfeature_lookup_guid(feature.fi_guid, NULL))
-		fatal("'%s' is a real feature, will not enable");
+		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
-		fatal("feature already enabled: %s", feature.fi_guid);
+		fatal(spa, FTAG, "feature already enabled: %s",
+		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 	    feature_enable_sync, &feature, 5));
@@ -423,13 +432,14 @@ zhack_do_feature_ref(int argc, char **argv)
 	feature.fi_guid = argv[1];
 
 	if (!zfeature_is_valid_guid(feature.fi_guid))
-		fatal("invalid feature guid: %s", feature.fi_guid);
+		fatal(NULL, FTAG, "invalid feature guid: %s", feature.fi_guid);
 
 	zhack_spa_open(target, B_FALSE, FTAG, &spa);
 	mos = spa->spa_meta_objset;
 
 	if (0 == zfeature_lookup_guid(feature.fi_guid, NULL))
-		fatal("'%s' is a real feature, will not change refcount");
+		fatal(spa, FTAG, "'%s' is a real feature, will not change "
+		    "refcount");
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
 	    feature.fi_guid)) {
@@ -438,11 +448,12 @@ zhack_do_feature_ref(int argc, char **argv)
 	    feature.fi_guid)) {
 		feature.fi_can_readonly = B_TRUE;
 	} else {
-		fatal("feature is not enabled: %s", feature.fi_guid);
+		fatal(spa, FTAG, "feature is not enabled: %s", feature.fi_guid);
 	}
 
 	if (decr && !spa_feature_is_active(spa, &feature))
-		fatal("feature refcount already 0: %s", feature.fi_guid);
+		fatal(spa, FTAG, "feature refcount already 0: %s",
+		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
@@ -530,8 +541,8 @@ main(int argc, char **argv)
 		usage();
 	}
 
-	if (!g_readonly && spa_export(g_pool, NULL, B_TRUE, B_TRUE) != 0) {
-		fatal("pool export failed; "
+	if (!g_readonly && spa_export(g_pool, NULL, B_TRUE, B_FALSE) != 0) {
+		fatal(NULL, FTAG, "pool export failed; "
 		    "changes may not be committed to disk\n");
 	}
 

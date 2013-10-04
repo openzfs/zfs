@@ -1391,14 +1391,6 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 
-	/*
-	 * Note:  This code will probably work even if there are concurrent
-	 * holders, but it is untested in that scenerio, as the ZPL and
-	 * ztest have additional locking (the range locks) that prevents
-	 * that type of concurrent access.
-	 */
-	ASSERT3U(refcount_count(&db->db_holds), ==, db->db_dirtycnt);
-
 	dprintf_dbuf(db, "size=%llx\n", (u_longlong_t)db->db.db_size);
 
 	ASSERT(db->db.db_size != 0);
