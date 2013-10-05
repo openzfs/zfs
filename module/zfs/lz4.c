@@ -47,7 +47,7 @@ static kmem_cache_t *lz4_cache;
 
 /*ARGSUSED*/
 size_t
-lz4_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+lz4_compress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
 	uint32_t bufsiz;
 	char *dest = d_start;
@@ -74,7 +74,7 @@ lz4_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 
 /*ARGSUSED*/
 int
-lz4_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
 	const char *src = s_start;
 	uint32_t bufsiz = BE_IN32(src);
