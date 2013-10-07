@@ -109,6 +109,32 @@ dump_free(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 {
 	struct drr_free *drrf = &(dsp->dsa_drr->drr_u.drr_free);
 
+	/*
+	 * When we receive a free record, dbuf_free_range() assumes
+	 * that the receiving system doesn't have any dbufs in the range
+	 * being freed.  This is always true because there is a one-record
+	 * constraint: we only send one WRITE record for any given
+	 * object+offset.  We know that the one-record constraint is
+	 * true because we always send data in increasing order by
+	 * object,offset.
+	 *
+	 * If the increasing-order constraint ever changes, we should find
+	 * another way to assert that the one-record constraint is still
+	 * satisfied.
+	 */
+	ASSERT(object > dsp->dsa_last_data_object ||
+	    (object == dsp->dsa_last_data_object &&
+	    offset > dsp->dsa_last_data_offset));
+
+	/*
+	 * If we are doing a non-incremental send, then there can't
+	 * be any data in the dataset we're receiving into.  Therefore
+	 * a free record would simply be a no-op.  Save space by not
+	 * sending it to begin with.
+	 */
+	if (!dsp->dsa_incremental)
+		return (0);
+
 	if (length != -1ULL && offset + length < offset)
 		length = -1ULL;
 
@@ -175,6 +201,15 @@ dump_data(dmu_sendarg_t *dsp, dmu_object_type_t type,
 {
 	struct drr_write *drrw = &(dsp->dsa_drr->drr_u.drr_write);
 
+	/*
+	 * We send data in increasing object, offset order.
+	 * See comment in dump_free() for details.
+	 */
+	ASSERT(object > dsp->dsa_last_data_object ||
+	    (object == dsp->dsa_last_data_object &&
+	    offset > dsp->dsa_last_data_offset));
+	dsp->dsa_last_data_object = object;
+	dsp->dsa_last_data_offset = offset + blksz - 1;
 
 	/*
 	 * If there is any kind of pending aggregation (currently either
@@ -241,6 +276,10 @@ static int
 dump_freeobjects(dmu_sendarg_t *dsp, uint64_t firstobj, uint64_t numobjs)
 {
 	struct drr_freeobjects *drrfo = &(dsp->dsa_drr->drr_u.drr_freeobjects);
+
+	/* See comment in dump_free(). */
+	if (!dsp->dsa_incremental)
+		return (0);
 
 	/*
 	 * If there is a pending op, but it's not PENDING_FREEOBJECTS,
@@ -318,9 +357,9 @@ dump_dnode(dmu_sendarg_t *dsp, uint64_t object, dnode_phys_t *dnp)
 	if (dump_bytes(dsp, DN_BONUS(dnp), P2ROUNDUP(dnp->dn_bonuslen, 8)) != 0)
 		return (EINTR);
 
-	/* free anything past the end of the file */
+	/* Free anything past the end of the file. */
 	if (dump_free(dsp, object, (dnp->dn_maxblkid + 1) *
-	    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT), -1ULL))
+	    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT), -1ULL) != 0)
 		return (EINTR);
 	if (dsp->dsa_err != 0)
 		return (EINTR);
@@ -503,6 +542,7 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *ds,
 	dsp->dsa_toguid = ds->ds_phys->ds_guid;
 	ZIO_SET_CHECKSUM(&dsp->dsa_zc, 0, 0, 0, 0);
 	dsp->dsa_pending_op = PENDING_NONE;
+	dsp->dsa_incremental = (fromtxg != 0);
 
 	mutex_enter(&ds->ds_sendstream_lock);
 	list_insert_head(&ds->ds_sendstreams, dsp);
@@ -1213,7 +1253,7 @@ restore_freeobjects(struct restorearg *ra, objset_t *os,
 		if (dmu_object_info(os, obj, NULL) != 0)
 			continue;
 
-		err = dmu_free_object(os, obj);
+		err = dmu_free_long_object(os, obj);
 		if (err != 0)
 			return (err);
 	}
@@ -1577,7 +1617,7 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 		if (error != 0)
 			return (error);
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
-		    origin_head, drc->drc_force);
+		    origin_head, drc->drc_force, drc->drc_owner, tx);
 		if (error != 0) {
 			dsl_dataset_rele(origin_head, FTAG);
 			return (error);
@@ -1629,6 +1669,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 
 		dsl_dataset_rele(origin_head, FTAG);
 		dsl_destroy_head_sync_impl(drc->drc_ds, tx);
+
+		if (drc->drc_owner != NULL)
+			VERIFY3P(origin_head->ds_owner, ==, drc->drc_owner);
 	} else {
 		dsl_dataset_t *ds = drc->drc_ds;
 
@@ -1730,10 +1773,22 @@ dmu_recv_new_end(dmu_recv_cookie_t *drc)
 }
 
 int
-dmu_recv_end(dmu_recv_cookie_t *drc)
+dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 {
+	drc->drc_owner = owner;
+
 	if (drc->drc_newfs)
 		return (dmu_recv_new_end(drc));
 	else
 		return (dmu_recv_existing_end(drc));
+}
+
+/*
+ * Return TRUE if this objset is currently being received into.
+ */
+boolean_t
+dmu_objset_is_receiving(objset_t *os)
+{
+	return (os->os_dsl_dataset != NULL &&
+	    os->os_dsl_dataset->ds_owner == dmu_recv_tag);
 }

@@ -117,6 +117,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_id_flags = 0;
 
 	dn->dn_dbufs_count = 0;
+	dn->dn_unlisted_l0_blkid = 0;
 	list_create(&dn->dn_dbufs, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 
@@ -169,6 +170,7 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_id_flags);
 
 	ASSERT0(dn->dn_dbufs_count);
+	ASSERT0(dn->dn_unlisted_l0_blkid);
 	list_destroy(&dn->dn_dbufs);
 }
 
@@ -472,6 +474,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_newuid = 0;
 	dn->dn_newgid = 0;
 	dn->dn_id_flags = 0;
+	dn->dn_unlisted_l0_blkid = 0;
 
 	dmu_zfetch_rele(&dn->dn_zfetch);
 	kmem_cache_free(dnode_cache, dn);
@@ -703,6 +706,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(list_is_empty(&ndn->dn_dbufs));
 	list_move_tail(&ndn->dn_dbufs, &odn->dn_dbufs);
 	ndn->dn_dbufs_count = odn->dn_dbufs_count;
+	ndn->dn_unlisted_l0_blkid = odn->dn_unlisted_l0_blkid;
 	ndn->dn_bonus = odn->dn_bonus;
 	ndn->dn_have_spill = odn->dn_have_spill;
 	ndn->dn_zio = odn->dn_zio;
@@ -737,6 +741,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	list_create(&odn->dn_dbufs, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 	odn->dn_dbufs_count = 0;
+	odn->dn_unlisted_l0_blkid = 0;
 	odn->dn_bonus = NULL;
 	odn->dn_zfetch.zf_dnode = NULL;
 
@@ -1524,7 +1529,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	blkshift = dn->dn_datablkshift;
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 
-	if (len == -1ULL) {
+	if (len == DMU_OBJECT_END) {
 		len = UINT64_MAX - off;
 		trunc = TRUE;
 	}

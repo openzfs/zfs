@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -286,7 +287,6 @@ lzc_destroy_snaps(nvlist_t *snaps, boolean_t defer, nvlist_t **errlist)
 	nvlist_free(args);
 
 	return (error);
-
 }
 
 int
@@ -346,11 +346,17 @@ lzc_exists(const char *dataset)
  * uncleanly, the holds will be released when the pool is next opened
  * or imported.
  *
- * The return value will be 0 if all holds were created. Otherwise the return
- * value will be the errno of a (unspecified) hold that failed, no holds will
- * be created, and the errlist will have an entry for each hold that
- * failed (name = snapshot).  The value in the errlist will be the error
- * code (int32).
+ * Holds for snapshots which don't exist will be skipped and have an entry
+ * added to errlist, but will not cause an overall failure.
+ *
+ * The return value will be 0 if all holds, for snapshots that existed,
+ * were succesfully created.
+ *
+ * Otherwise the return value will be the errno of a (unspecified) hold that
+ * failed and no holds will be created.
+ *
+ * In all cases the errlist will have an entry for each hold that failed
+ * (name = snapshot), with its value being the error code (int32).
  */
 int
 lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
@@ -387,11 +393,17 @@ lzc_hold(nvlist_t *holds, int cleanup_fd, nvlist_t **errlist)
  * The snapshots must all be in the same pool.
  * The value is a nvlist whose keys are the holds to remove.
  *
- * The return value will be 0 if all holds were removed.
- * Otherwise the return value will be the errno of a (unspecified) release
- * that failed, no holds will be released, and the errlist will have an
- * entry for each snapshot that has failed releases (name = snapshot).
- * The value in the errlist will be the error code (int32) of a failed release.
+ * Holds which failed to release because they didn't exist will have an entry
+ * added to errlist, but will not cause an overall failure.
+ *
+ * The return value will be 0 if the nvl holds was empty or all holds that
+ * existed, were successfully removed.
+ *
+ * Otherwise the return value will be the errno of a (unspecified) hold that
+ * failed to release and no holds will be released.
+ *
+ * In all cases the errlist will have an entry for each hold that failed to
+ * to release.
  */
 int
 lzc_release(nvlist_t *holds, nvlist_t **errlist)
