@@ -27,8 +27,9 @@
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -4859,16 +4860,6 @@ zfs_ioc_get_holds(const char *snapname, nvlist_t *args, nvlist_t *outnvl)
 static int
 zfs_ioc_release(const char *pool, nvlist_t *holds, nvlist_t *errlist)
 {
-	nvpair_t *pair;
-
-	/*
-	 * The release may cause the snapshot to be destroyed; make sure it
-	 * is not mounted.
-	 */
-	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
-	    pair = nvlist_next_nvpair(holds, pair))
-		zfs_unmount_snap(nvpair_name(pair));
-
 	return (dsl_dataset_user_release(holds, errlist));
 }
 

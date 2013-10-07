@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
 /*
@@ -4830,7 +4831,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 	error = user_release_one(fullname, tag);
 	if (error)
-		fatal(0, "user_release_one(%s)", fullname, tag);
+		fatal(0, "user_release_one(%s, %s) = %d", fullname, tag, error);
 
 	VERIFY3U(dmu_objset_hold(fullname, FTAG, &origin), ==, ENOENT);
 
