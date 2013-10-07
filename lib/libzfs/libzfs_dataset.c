@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright 2012 Nexenta Systems, Inc. All rights reserved.
@@ -4412,6 +4412,7 @@ struct holdarg {
 	const char *snapname;
 	const char *tag;
 	boolean_t recursive;
+	int error;
 };
 
 static int
@@ -4539,15 +4540,20 @@ zfs_release_one(zfs_handle_t *zhp, void *arg)
 	struct holdarg *ha = arg;
 	char name[ZFS_MAXNAMELEN];
 	int rv = 0;
+	nvlist_t *existing_holds;
 
 	(void) snprintf(name, sizeof (name),
 	    "%s@%s", zhp->zfs_name, ha->snapname);
 
-	if (lzc_exists(name)) {
-		nvlist_t *holds = fnvlist_alloc();
-		fnvlist_add_boolean(holds, ha->tag);
-		fnvlist_add_nvlist(ha->nvl, name, holds);
-		fnvlist_free(holds);
+	if (lzc_get_holds(name, &existing_holds) != 0) {
+		ha->error = ENOENT;
+	} else if (!nvlist_exists(existing_holds, ha->tag)) {
+		ha->error = ESRCH;
+	} else {
+		nvlist_t *torelease = fnvlist_alloc();
+		fnvlist_add_boolean(torelease, ha->tag);
+		fnvlist_add_nvlist(ha->nvl, name, torelease);
+		fnvlist_free(torelease);
 	}
 
 	if (ha->recursive)
@@ -4571,16 +4577,21 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 	ha.snapname = snapname;
 	ha.tag = tag;
 	ha.recursive = recursive;
+	ha.error = 0;
 	(void) zfs_release_one(zfs_handle_dup(zhp), &ha);
 
 	if (nvlist_empty(ha.nvl)) {
 		fnvlist_free(ha.nvl);
-		ret = ENOENT;
+		ret = ha.error;
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "cannot release hold from snapshot '%s@%s'"),
 		    zhp->zfs_name, snapname);
-		(void) zfs_standard_error(hdl, ret, errbuf);
+		if (ret == ESRCH) {
+			(void) zfs_error(hdl, EZFS_REFTAG_RELE, errbuf);
+		} else {
+			(void) zfs_standard_error(hdl, ret, errbuf);
+		}
 		return (ret);
 	}
 
