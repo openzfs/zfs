@@ -3365,17 +3365,17 @@ zfs_unmount_snap(const char *snapname)
 	if ((ptr = strchr(snapname, '@')) == NULL)
 		return;
 
-	dsname = strdup(snapname);
-	dsname[ptr - snapname] = '\0';
-	snapname = strdup(ptr + 1);
-	fullname = kmem_asprintf("%s@%s", dsname, snapname);
+	dsname = kmem_alloc(ptr - snapname + 1, KM_SLEEP);
+	strlcpy(dsname, snapname, ptr - snapname + 1);
+	fullname = strdup(snapname);
+
 	if (zfs_sb_hold(dsname, FTAG, &zsb, B_FALSE) == 0) {
 		ASSERT(!dsl_pool_config_held(dmu_objset_pool(zsb->z_os)));
 		(void) zfsctl_unmount_snapshot(zsb, fullname, MNT_FORCE);
 		zfs_sb_rele(zsb, FTAG);
 	}
 
-	strfree(dsname);
+	kmem_free(dsname, ptr - snapname + 1);
 	strfree(fullname);
 
 	return;
