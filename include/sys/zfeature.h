@@ -27,6 +27,7 @@
 #define	_SYS_ZFEATURE_H
 
 #include <sys/nvpair.h>
+#include <sys/txg.h>
 #include "zfeature_common.h"
 
 #ifdef	__cplusplus
@@ -37,17 +38,25 @@ struct spa;
 struct dmu_tx;
 struct objset;
 
-extern boolean_t feature_is_supported(struct objset *os, uint64_t obj,
-    uint64_t desc_obj, nvlist_t *unsup_feat, nvlist_t *enabled_feat);
-
 extern void spa_feature_create_zap_objects(struct spa *, struct dmu_tx *);
-extern void spa_feature_enable(struct spa *, zfeature_info_t *,
+extern void spa_feature_enable(struct spa *, spa_feature_t,
     struct dmu_tx *);
-extern void spa_feature_incr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern void spa_feature_decr(struct spa *, zfeature_info_t *, struct dmu_tx *);
-extern boolean_t spa_feature_is_enabled(struct spa *, zfeature_info_t *);
-extern boolean_t spa_feature_is_active(struct spa *, zfeature_info_t *);
-extern int spa_feature_get_refcount(struct spa *, zfeature_info_t *);
+extern void spa_feature_incr(struct spa *, spa_feature_t, struct dmu_tx *);
+extern void spa_feature_decr(struct spa *, spa_feature_t, struct dmu_tx *);
+extern boolean_t spa_feature_is_enabled(struct spa *, spa_feature_t);
+extern boolean_t spa_feature_is_active(struct spa *, spa_feature_t);
+extern uint64_t spa_feature_refcount(spa_t *, spa_feature_t, uint64_t);
+extern boolean_t spa_features_check(spa_t *, boolean_t, nvlist_t *, nvlist_t *);
+
+/*
+ * These functions are only exported for zhack and zdb; normal callers should
+ * use the above interfaces.
+ */
+extern int feature_get_refcount(struct spa *, zfeature_info_t *, uint64_t *);
+extern void feature_enable_sync(struct spa *, zfeature_info_t *,
+    struct dmu_tx *);
+extern void feature_sync(struct spa *, zfeature_info_t *, uint64_t,
+    struct dmu_tx *);
 
 #ifdef	__cplusplus
 }

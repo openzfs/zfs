@@ -357,7 +357,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 
 	/* Make sure dsobj has the correct object type. */
 	dmu_object_info_from_db(dbuf, &doi);
-	if (doi.doi_type != DMU_OT_DSL_DATASET) {
+	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
 		dmu_buf_rele(dbuf, tag);
 		return (SET_ERROR(EINVAL));
 	}
@@ -3003,6 +3003,14 @@ dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier)
 	ret = dsl_dataset_is_before(origin, earlier);
 	dsl_dataset_rele(origin, FTAG);
 	return (ret);
+}
+
+
+void
+dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
+	dmu_object_zapify(mos, ds->ds_object, DMU_OT_DSL_DATASET, tx);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

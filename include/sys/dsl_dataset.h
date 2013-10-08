@@ -49,9 +49,9 @@ struct dsl_pool;
 #define	DS_FLAG_INCONSISTENT	(1ULL<<0)
 #define	DS_IS_INCONSISTENT(ds)	\
 	((ds)->ds_phys->ds_flags & DS_FLAG_INCONSISTENT)
+
 /*
- * Note: nopromote can not yet be set, but we want support for it in this
- * on-disk version, so that we don't need to upgrade for it later.
+ * Do not allow this dataset to be promoted.
  */
 #define	DS_FLAG_NOPROMOTE	(1ULL<<1)
 
@@ -69,6 +69,11 @@ struct dsl_pool;
 #define	DS_FLAG_DEFER_DESTROY	(1ULL<<3)
 #define	DS_IS_DEFER_DESTROY(ds)	\
 	((ds)->ds_phys->ds_flags & DS_FLAG_DEFER_DESTROY)
+
+/*
+ * DS_FIELD_* are strings that are used in the "extensified" dataset zap object.
+ * They should be of the format <reverse-dns>:<field>.
+ */
 
 /*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
