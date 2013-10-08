@@ -252,7 +252,7 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 	zfs_sb_t *zsb = ITOZSB(filp->f_path.dentry->d_inode);
 	char snapname[MAXNAMELEN];
 	boolean_t case_conflict;
-	uint64_t id;
+	uint64_t id, cookie;
 	int error = 0;
 
 	ZFS_ENTER(zsb);
@@ -260,10 +260,11 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 	if (!dir_emit_dots(filp, ctx))
 		goto out;
 
+	cookie = ctx->pos;
 	while (error == 0) {
 		dsl_pool_config_enter(dmu_objset_pool(zsb->z_os), FTAG);
 		error = -dmu_snapshot_list_next(zsb->z_os, MAXNAMELEN,
-		    snapname, &id, &ctx->pos, &case_conflict);
+		    snapname, &id, &cookie, &case_conflict);
 		dsl_pool_config_exit(dmu_objset_pool(zsb->z_os), FTAG);
 		if (error)
 			goto out;
@@ -271,6 +272,8 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 		if (!dir_emit(ctx, snapname, strlen(snapname),
 		    ZFSCTL_INO_SHARES - id, DT_DIR))
 			goto out;
+
+		ctx->pos = cookie;
 	}
 out:
 	ZFS_EXIT(zsb);
