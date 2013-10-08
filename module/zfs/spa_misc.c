@@ -1096,15 +1096,17 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 void
 spa_activate_mos_feature(spa_t *spa, const char *feature)
 {
-	(void) nvlist_add_boolean(spa->spa_label_features, feature);
-	vdev_config_dirty(spa->spa_root_vdev);
+	if (!nvlist_exists(spa->spa_label_features, feature)) {
+		fnvlist_add_boolean(spa->spa_label_features, feature);
+		vdev_config_dirty(spa->spa_root_vdev);
+	}
 }
 
 void
 spa_deactivate_mos_feature(spa_t *spa, const char *feature)
 {
-	(void) nvlist_remove_all(spa->spa_label_features, feature);
-	vdev_config_dirty(spa->spa_root_vdev);
+	if (nvlist_remove_all(spa->spa_label_features, feature) == 0)
+		vdev_config_dirty(spa->spa_root_vdev);
 }
 
 /*

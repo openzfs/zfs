@@ -572,7 +572,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 	return (err);
 }
 
-static void
+void
 mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
     dmu_tx_t *tx)
 {
@@ -862,8 +862,8 @@ zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 int
 zap_contains(objset_t *os, uint64_t zapobj, const char *name)
 {
-	int err = (zap_lookup_norm(os, zapobj, name, 0,
-	    0, NULL, MT_EXACT, NULL, 0, NULL));
+	int err = zap_lookup_norm(os, zapobj, name, 0,
+	    0, NULL, MT_EXACT, NULL, 0, NULL);
 	if (err == EOVERFLOW || err == EINVAL)
 		err = 0; /* found, but skipped reading the value */
 	return (err);

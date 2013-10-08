@@ -245,8 +245,7 @@ dsl_pool_open(dsl_pool_t *dp)
 		    dp->dp_meta_objset, obj));
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_ASYNC_DESTROY])) {
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_bptree_obj);
@@ -254,8 +253,7 @@ dsl_pool_open(dsl_pool_t *dp)
 			goto out;
 	}
 
-	if (spa_feature_is_active(dp->dp_spa,
-	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ])) {
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
 		    &dp->dp_empty_bpobj);

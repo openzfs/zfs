@@ -283,12 +283,13 @@ zhack_do_feature_stat(int argc, char **argv)
 }
 
 static void
-feature_enable_sync(void *arg, dmu_tx_t *tx)
+zhack_feature_enable_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	zfeature_info_t *feature = arg;
 
-	spa_feature_enable(spa, feature, tx);
+	feature_enable_sync(spa, feature, tx);
+
 	spa_history_log_internal(spa, "zhack enable feature", tx,
 	    "name=%s can_readonly=%u",
 	    feature->fi_guid, feature->fi_can_readonly);
@@ -302,7 +303,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	spa_t *spa;
 	objset_t *mos;
 	zfeature_info_t feature;
-	zfeature_info_t *nodeps[] = { NULL };
+	spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	/*
 	 * Features are not added to the pool's label until their refcounts
@@ -349,14 +350,14 @@ zhack_do_feature_enable(int argc, char **argv)
 	zhack_spa_open(target, B_FALSE, FTAG, &spa);
 	mos = spa->spa_meta_objset;
 
-	if (0 == zfeature_lookup_guid(feature.fi_guid, NULL))
+	if (zfeature_is_supported(feature.fi_guid))
 		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal(spa, FTAG, "feature already enabled: %s",
 		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    feature_enable_sync, &feature, 5));
+	    zhack_feature_enable_sync, &feature, 5));
 
 	spa_close(spa, FTAG);
 
@@ -368,8 +369,10 @@ feature_incr_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	zfeature_info_t *feature = arg;
+	uint64_t refcount;
 
-	spa_feature_incr(spa, feature, tx);
+	VERIFY0(feature_get_refcount(spa, feature, &refcount));
+	feature_sync(spa, feature, refcount + 1, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
 	    "name=%s", feature->fi_guid);
 }
@@ -379,8 +382,10 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	zfeature_info_t *feature = arg;
+	uint64_t refcount;
 
-	spa_feature_decr(spa, feature, tx);
+	VERIFY0(feature_get_refcount(spa, feature, &refcount));
+	feature_sync(spa, feature, refcount - 1, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
 	    "name=%s", feature->fi_guid);
 }
@@ -394,7 +399,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	spa_t *spa;
 	objset_t *mos;
 	zfeature_info_t feature;
-	zfeature_info_t *nodeps[] = { NULL };
+	spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	/*
 	 * fi_desc does not matter here because it was written to disk
@@ -437,9 +442,10 @@ zhack_do_feature_ref(int argc, char **argv)
 	zhack_spa_open(target, B_FALSE, FTAG, &spa);
 	mos = spa->spa_meta_objset;
 
-	if (0 == zfeature_lookup_guid(feature.fi_guid, NULL))
-		fatal(spa, FTAG, "'%s' is a real feature, will not change "
-		    "refcount");
+	if (zfeature_is_supported(feature.fi_guid)) {
+		fatal(spa, FTAG,
+		    "'%s' is a real feature, will not change refcount");
+	}
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
 	    feature.fi_guid)) {
@@ -451,9 +457,14 @@ zhack_do_feature_ref(int argc, char **argv)
 		fatal(spa, FTAG, "feature is not enabled: %s", feature.fi_guid);
 	}
 
-	if (decr && !spa_feature_is_active(spa, &feature))
-		fatal(spa, FTAG, "feature refcount already 0: %s",
-		    feature.fi_guid);
+	if (decr) {
+		uint64_t count;
+		if (feature_get_refcount(spa, &feature, &count) == 0 &&
+		    count != 0) {
+			fatal(spa, FTAG, "feature refcount already 0: %s",
+			    feature.fi_guid);
+		}
+	}
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
