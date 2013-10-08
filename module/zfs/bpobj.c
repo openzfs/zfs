@@ -36,13 +36,11 @@
 uint64_t
 bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 {
-	zfeature_info_t *empty_bpobj_feat =
-	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ];
 	spa_t *spa = dmu_objset_spa(os);
 	dsl_pool_t *dp = dmu_objset_pool(os);
 
-	if (spa_feature_is_enabled(spa, empty_bpobj_feat)) {
-		if (!spa_feature_is_active(spa, empty_bpobj_feat)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
+		if (!spa_feature_is_active(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 			ASSERT0(dp->dp_empty_bpobj);
 			dp->dp_empty_bpobj =
 			    bpobj_alloc(os, SPA_MAXBLOCKSIZE, tx);
@@ -51,7 +49,7 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
 			    &dp->dp_empty_bpobj, tx) == 0);
 		}
-		spa_feature_incr(spa, empty_bpobj_feat, tx);
+		spa_feature_incr(spa, SPA_FEATURE_EMPTY_BPOBJ, tx);
 		ASSERT(dp->dp_empty_bpobj != 0);
 		return (dp->dp_empty_bpobj);
 	} else {
@@ -62,12 +60,11 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 void
 bpobj_decr_empty(objset_t *os, dmu_tx_t *tx)
 {
-	zfeature_info_t *empty_bpobj_feat =
-	    &spa_feature_table[SPA_FEATURE_EMPTY_BPOBJ];
 	dsl_pool_t *dp = dmu_objset_pool(os);
 
-	spa_feature_decr(dmu_objset_spa(os), empty_bpobj_feat, tx);
-	if (!spa_feature_is_active(dmu_objset_spa(os), empty_bpobj_feat)) {
+	spa_feature_decr(dmu_objset_spa(os), SPA_FEATURE_EMPTY_BPOBJ, tx);
+	if (!spa_feature_is_active(dmu_objset_spa(os),
+	    SPA_FEATURE_EMPTY_BPOBJ)) {
 		VERIFY3U(0, ==, zap_remove(dp->dp_meta_objset,
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_EMPTY_BPOBJ, tx));
@@ -265,6 +262,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		mutex_exit(&bpo->bpo_lock);
 		return (err);
 	}
+	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
 	epb = doi.doi_data_block_size / sizeof (uint64_t);
 
 	for (i = bpo->bpo_phys->bpo_num_subobjs - 1; i >= 0; i--) {

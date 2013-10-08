@@ -32,6 +32,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_deleg.h>
+#include <sys/dmu_impl.h>
 #include <sys/spa.h>
 #include <sys/metaslab.h>
 #include <sys/zap.h>
@@ -89,7 +90,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 	{
 		dmu_object_info_t doi;
 		dmu_object_info_from_db(dbuf, &doi);
-		ASSERT3U(doi.doi_type, ==, DMU_OT_DSL_DIR);
+		ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_DSL_DIR);
 		ASSERT3U(doi.doi_bonus_size, >=, sizeof (dsl_dir_phys_t));
 	}
 #endif
@@ -1370,6 +1371,13 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd)
 	mutex_enter(&dd->dd_lock);
 	dd->dd_snap_cmtime = t;
 	mutex_exit(&dd->dd_lock);
+}
+
+void
+dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx)
+{
+	objset_t *mos = dd->dd_pool->dp_meta_objset;
+	dmu_object_zapify(mos, dd->dd_object, DMU_OT_DSL_DIR, tx);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

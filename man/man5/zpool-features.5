@@ -248,6 +248,27 @@ is organized within the pool. If this feature is \fBenabled\fR, ZFS will
 set this feature to \fBactive\fR when a new space map object is created or
 an existing space map is upgraded to the new format. Once the feature is
 \fBactive\fR, it will remain in that state until the pool is destroyed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBextensible_dataset\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:extensible_dataset
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+This feature allows more flexible use of internal ZFS data structures,
+and exists for other features to depend on.
+
+This feature will be \fBactive\fR when the first dependent feature uses it,
+and will be returned to the \fBenabled\fR state when all datasets that use
+this feature are destroyed.
 
 .RE
 

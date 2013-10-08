@@ -245,7 +245,7 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
 static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
 
-static int zfs_prop_activate_feature(spa_t *spa, zfeature_info_t *feature);
+static int zfs_prop_activate_feature(spa_t *spa, spa_feature_t feature);
 
 static void
 history_str_free(char *buf)
@@ -2347,8 +2347,6 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	case ZFS_PROP_COMPRESSION:
 	{
 		if (intval == ZIO_COMPRESS_LZ4) {
-			zfeature_info_t *feature =
-			    &spa_feature_table[SPA_FEATURE_LZ4_COMPRESS];
 			spa_t *spa;
 
 			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
@@ -2358,9 +2356,10 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			 * Setting the LZ4 compression algorithm activates
 			 * the feature.
 			 */
-			if (!spa_feature_is_active(spa, feature)) {
+			if (!spa_feature_is_active(spa,
+			    SPA_FEATURE_LZ4_COMPRESS)) {
 				if ((err = zfs_prop_activate_feature(spa,
-				    feature)) != 0) {
+				    SPA_FEATURE_LZ4_COMPRESS)) != 0) {
 					spa_close(spa, FTAG);
 					return (err);
 				}
@@ -3631,15 +3630,13 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (SET_ERROR(ENOTSUP));
 
 			if (intval == ZIO_COMPRESS_LZ4) {
-				zfeature_info_t *feature =
-				    &spa_feature_table[
-				    SPA_FEATURE_LZ4_COMPRESS];
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
-				if (!spa_feature_is_enabled(spa, feature)) {
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_LZ4_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}
@@ -3699,9 +3696,9 @@ static int
 zfs_prop_activate_feature_check(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	zfeature_info_t *feature = arg;
+	spa_feature_t *featurep = arg;
 
-	if (!spa_feature_is_active(spa, feature))
+	if (!spa_feature_is_active(spa, *featurep))
 		return (0);
 	else
 		return (SET_ERROR(EBUSY));
@@ -3715,9 +3712,9 @@ static void
 zfs_prop_activate_feature_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	zfeature_info_t *feature = arg;
+	spa_feature_t *featurep = arg;
 
-	spa_feature_incr(spa, feature, tx);
+	spa_feature_incr(spa, *featurep, tx);
 }
 
 /*
@@ -3726,14 +3723,14 @@ zfs_prop_activate_feature_sync(void *arg, dmu_tx_t *tx)
  * as being active.
  */
 static int
-zfs_prop_activate_feature(spa_t *spa, zfeature_info_t *feature)
+zfs_prop_activate_feature(spa_t *spa, spa_feature_t feature)
 {
 	int err;
 
 	/* EBUSY here indicates that the feature is already active */
 	err = dsl_sync_task(spa_name(spa),
 	    zfs_prop_activate_feature_check, zfs_prop_activate_feature_sync,
-	    feature, 2);
+	    &feature, 2);
 
 	if (err != 0 && err != EBUSY)
 		return (err);

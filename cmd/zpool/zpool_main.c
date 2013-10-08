@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  */
@@ -1030,7 +1030,7 @@ zpool_do_create(int argc, char **argv)
 		 * Hand off to libzfs.
 		 */
 		if (enable_all_pool_feat) {
-			int i;
+			spa_feature_t i;
 			for (i = 0; i < SPA_FEATURES; i++) {
 				char propname[MAXPATHLEN];
 				zfeature_info_t *feat = &spa_feature_table[i];
