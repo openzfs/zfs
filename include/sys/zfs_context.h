@@ -210,6 +210,7 @@ typedef struct kthread {
 } kthread_t;
 
 #define	curthread			zk_thread_current()
+#define	getcomm()			"unknown"
 #define	thread_exit			zk_thread_exit
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
