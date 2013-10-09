@@ -20,10 +20,15 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
 #define	_SYS_ZFS_DEBUG_H
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 #ifndef TRUE
 #define	TRUE 1
@@ -36,6 +41,7 @@
 /*
  * ZFS debugging - Always enabled for user space builds.
  */
+
 #if !defined(ZFS_DEBUG) && !defined(_KERNEL)
 #define	ZFS_DEBUG
 #endif
@@ -75,9 +81,28 @@ extern int zfs_recover;
 
 #endif /* _KERNEL */
 
-void zfs_panic_recover(const char *fmt, ...);
-#define	zfs_dbgmsg(...)	dprintf(__VA_ARGS__)
-void zfs_dbgmsg_init(void);
-void zfs_dbgmsg_fini(void);
+extern void zfs_panic_recover(const char *fmt, ...);
+
+typedef struct zfs_dbgmsg {
+	list_node_t zdm_node;
+	time_t zdm_timestamp;
+	char zdm_msg[1]; /* variable length allocation */
+} zfs_dbgmsg_t;
+
+extern void zfs_dbgmsg_init(void);
+extern void zfs_dbgmsg_fini(void);
+#if defined(_KERNEL) && defined(__linux__)
+#define        zfs_dbgmsg(...) dprintf(__VA_ARGS__)
+#else
+extern void zfs_dbgmsg(const char *fmt, ...);
+#endif
+
+#ifndef _KERNEL
+extern int dprintf_find_string(const char *string);
+#endif
+
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* _SYS_ZFS_DEBUG_H */
