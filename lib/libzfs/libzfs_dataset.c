@@ -4080,10 +4080,10 @@ zvol_create_link_common(libzfs_handle_t *hdl, const char *dataset, int ifexists)
 	}
 
 	/*
-	 * Wait up to 10 seconds for udev to create the device.
+	 * Wait for udev to create the device.
 	 */
 	(void) snprintf(path, sizeof (path), "%s/%s", ZVOL_DIR, dataset);
-	error = zpool_label_disk_wait(path, 10000);
+	error = zpool_label_disk_wait(path, DISK_LABEL_WAIT);
 	if (error)
 		(void) printf(gettext("%s may not be immediately "
 		    "available\n"), path);
