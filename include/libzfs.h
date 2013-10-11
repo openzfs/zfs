@@ -57,6 +57,11 @@ extern "C" {
 #define	DISK_ROOT		"/dev"
 #define	UDISK_ROOT		"/dev/disk"
 
+/*
+ * Default wait time for a device name to be created.
+ */
+#define	DISK_LABEL_WAIT		(30 * 1000)  /* 30 seconds */
+
 #define	DEFAULT_IMPORT_PATH_SIZE	7
 extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 
