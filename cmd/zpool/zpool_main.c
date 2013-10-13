@@ -256,7 +256,7 @@ get_usage(zpool_help_t idx) {
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s] <pool> ...\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-vx] [-T d|u] [pool] ... [interval "
+		return (gettext("\tstatus [-vxD] [-T d|u] [pool] ... [interval "
 		    "[count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
