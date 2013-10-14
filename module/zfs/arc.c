@@ -4400,6 +4400,13 @@ l2arc_write_done(zio_t *zio)
 	 */
 	for (ab = list_prev(buflist, head); ab; ab = ab_prev) {
 		ab_prev = list_prev(buflist, ab);
+		abl2 = ab->b_l2hdr;
+
+		/*
+		 * Release the temporary compressed buffer as soon as possible.
+		 */
+		if (abl2->b_compress != ZIO_COMPRESS_OFF)
+			l2arc_release_cdata_buf(ab);
 
 		hash_lock = HDR_LOCK(ab);
 		if (!mutex_tryenter(hash_lock)) {
@@ -4411,14 +4418,6 @@ l2arc_write_done(zio_t *zio)
 			ARCSTAT_BUMP(arcstat_l2_writes_hdr_miss);
 			continue;
 		}
-
-		abl2 = ab->b_l2hdr;
-
-		/*
-		 * Release the temporary compressed buffer as soon as possible.
-		 */
-		if (abl2->b_compress != ZIO_COMPRESS_OFF)
-			l2arc_release_cdata_buf(ab);
 
 		if (zio->io_error != 0) {
 			/*
